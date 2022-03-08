@@ -1,4 +1,6 @@
-# ACROSS V2 SDK
+# Across SDK V2
+
+Repository for shareable code and libraries for Across V2
 
 This project was bootstrapped with [tsdx](https://github.com/jaredpalmer/tsdx). Read below for more instructions or check out the [repository](https://github.com/jaredpalmer/tsdx)
 
