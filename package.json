@@ -32,7 +32,7 @@
     "trailingComma": "es5"
   },
   "name": "sdk-v2",
-  "author": "Alexandru Matei",
+  "author": "across",
   "module": "dist/sdk-v2.esm.js",
   "size-limit": [
     {
