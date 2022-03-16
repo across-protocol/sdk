@@ -9,9 +9,9 @@ Across is a system that uses UMA contracts to quickly move tokens across chains.
 |---|---|---|---|
 | **LP Fee Calculator** | Calculate LP fee for transfers | [README](./src/lpFeeCalculator/README.md) | [Source Code](./src/lpFeeCalculator/) |
 
-**This project was bootstrapped with [tsdx](https://github.com/jaredpalmer/tsdx). Read below for more instructions or check out the [repository](https://github.com/jaredpalmer/tsdx)**
-
 ## TSDX User Guide
+
+**This project was bootstrapped with [tsdx](https://github.com/jaredpalmer/tsdx). Read below for more instructions or check out the [repository](https://github.com/jaredpalmer/tsdx)**
 
 Congrats! You just saved yourself hours of work by bootstrapping this project with TSDX. Let’s get you oriented with what’s here and how to use it.
 
