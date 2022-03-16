@@ -1,8 +1,8 @@
 # Across SDK V2
 
-Repository for shareable code and libraries for Across V2
+Repository for 
 
-Across is a system that uses UMA contracts to quickly move tokens across chains. This contains various utilities to support applications on Across.
+Across is a system that uses UMA contracts to quickly move tokens across chains. This repository contains shareable code and libraries for Across V2.
 
 ## Modules
 | | | | |
