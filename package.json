@@ -25,7 +25,7 @@
       "pre-commit": "tsdx lint"
     }
   },
-  "name": "sdk-v2",
+  "name": "@across-protocol/sdk-v2",
   "author": "across",
   "module": "dist/sdk-v2.esm.js",
   "size-limit": [
