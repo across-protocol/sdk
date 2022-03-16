@@ -5,7 +5,7 @@ Repository for
 Across is a system that uses UMA contracts to quickly move tokens across chains. This repository contains shareable code and libraries for Across V2.
 
 ## Modules
-| | | | |
+| Name | Description | README | Source Code |
 |---|---|---|---|
 | **LP Fee Calculator** | Calculate LP fee for transfers | [README](./src/lpFeeCalculator/README.md) | [Source Code](./src/lpFeeCalculator/) |
 
