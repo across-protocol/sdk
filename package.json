@@ -25,13 +25,7 @@
       "pre-commit": "tsdx lint"
     }
   },
-  "prettier": {
-    "printWidth": 80,
-    "semi": true,
-    "singleQuote": true,
-    "trailingComma": "es5"
-  },
-  "name": "sdk-v2",
+  "name": "@across-protocol/sdk-v2",
   "author": "across",
   "module": "dist/sdk-v2.esm.js",
   "size-limit": [
@@ -51,5 +45,9 @@
     "tsdx": "^0.14.1",
     "tslib": "^2.3.1",
     "typescript": "^4.6.2"
+  },
+  "dependencies": {
+    "decimal.js": "^10.3.1",
+    "ethers": "^5.6.1"
   }
 }

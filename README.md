@@ -1,10 +1,15 @@
 # Across SDK V2
 
-Repository for shareable code and libraries for Across V2
+Across is a system that uses UMA contracts to quickly move tokens across chains. This repository contains shareable code and libraries for Across V2.
 
-This project was bootstrapped with [tsdx](https://github.com/jaredpalmer/tsdx). Read below for more instructions or check out the [repository](https://github.com/jaredpalmer/tsdx)
+## Modules
+| Name | Description | README | Source Code |
+|---|---|---|---|
+| **LP Fee Calculator** | Calculate LP fee for transfers | [README](./src/lpFeeCalculator/README.md) | [Source Code](./src/lpFeeCalculator/) |
 
 ## TSDX User Guide
+
+**This project was bootstrapped with [tsdx](https://github.com/jaredpalmer/tsdx). Read below for more instructions or check out the [repository](https://github.com/jaredpalmer/tsdx)**
 
 Congrats! You just saved yourself hours of work by bootstrapping this project with TSDX. Let’s get you oriented with what’s here and how to use it.
 
