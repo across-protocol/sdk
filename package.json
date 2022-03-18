@@ -1,6 +1,8 @@
 {
-  "version": "0.1.0",
-  "license": "MIT",
+  "name": "@across-protocol/sdk-v2",
+  "author": "UMA Team",
+  "version": "0.0.1",
+  "license": "AGPL-3.0",
   "main": "dist/index.js",
   "typings": "dist/index.d.ts",
   "files": [
@@ -25,8 +27,6 @@
       "pre-commit": "tsdx lint"
     }
   },
-  "name": "@across-protocol/sdk-v2",
-  "author": "across",
   "module": "dist/sdk-v2.esm.js",
   "size-limit": [
     {
@@ -49,5 +49,9 @@
   "dependencies": {
     "decimal.js": "^10.3.1",
     "ethers": "^5.6.1"
+  },
+  "publishConfig": {
+    "registry": "https://registry.npmjs.com/",
+    "access": "public"
   }
 }
