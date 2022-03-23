@@ -9,7 +9,6 @@ import set from "lodash/set";
 import get from "lodash/get";
 import has from "lodash/has";
 import { calculateInstantaneousRate } from "../lpFeeCalculator";
-
 const { bridgePool, rateModelStore } = uma.clients;
 const { BatchReadWithErrors, loop, exists } = uma.utils;
 const {TransactionManager} = uma.across;
