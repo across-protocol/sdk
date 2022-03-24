@@ -9,21 +9,21 @@ import set from "lodash/set";
 import get from "lodash/get";
 import has from "lodash/has";
 import { calculateInstantaneousRate } from "../lpFeeCalculator";
-const { bridgePool, rateModelStore } = uma.clients;
-const { BatchReadWithErrors, loop, exists } = uma.utils;
+import { hubPool } from './contracts'
+const { rateModelStore, erc20 } = uma.clients;
+
+const { loop, exists } = uma.utils;
 const {TransactionManager} = uma.across;
 const { parseAndReturnRateModelFromString } = uma.across.rateModel
-const { SECONDS_PER_YEAR, DEFAULT_BLOCK_DELTA, ADDRESSES } = uma.across.constants;
-const Multicall2 = uma.Multicall2;
+const { SECONDS_PER_YEAR, DEFAULT_BLOCK_DELTA} = uma.across.constants;
 
 export type { Provider };
-export type BatchReadWithErrorsType = ReturnType<ReturnType<typeof uma.utils.BatchReadWithErrors>>;
 
 export type Awaited<T> = T extends PromiseLike<infer U> ? U : T;
 
 export type Config = {
-  multicall2Address: string;
-  rateModelStoreAddress?: string;
+  hubPoolAddress: string;
+  rateModelStoreAddress: string;
   confirmations?: number;
   blockDelta?: number;
 };
@@ -34,15 +34,14 @@ export type Pool = {
   address: string;
   totalPoolSize: string;
   l1Token: string;
+  lpToken: string;
   liquidReserves: string;
-  pendingReserves: string;
   exchangeRateCurrent: string;
   exchangeRatePrevious: string;
   estimatedApy: string;
   estimatedApr: string;
   blocksElapsed: number;
   secondsElapsed: number;
-  liquidityUtilizationCurrent: string;
   utilizedReserves: string;
   projectedApr: string;
 };
@@ -78,41 +77,47 @@ export type State = {
   error?: Error;
 };
 export type EmitState = (path: string[], data: any) => void;
+export type PooledToken = {
+  // LP token given to LPs of a specific L1 token.
+  lpToken: string;
+  // True if accepting new LP's.
+  isEnabled: boolean;
+  // Timestamp of last LP fee update.
+  lastLpFeeUpdate: number;
+  // Number of LP funds sent via pool rebalances to SpokePools and are expected to be sent
+  // back later.
+  utilizedReserves: BigNumber;
+  // Number of LP funds held in contract less utilized reserves.
+  liquidReserves: BigNumber;
+  // Number of LP funds reserved to pay out to LPs as fees.
+  undistributedLpFees: BigNumber;
+}
 
 class PoolState {
-  private l1Token: string | undefined = undefined;
   constructor(
-    private batchRead: BatchReadWithErrorsType,
-    private contract: uma.clients.bridgePool.Instance,
+    private contract: hubPool.Instance,
     private address: string
   ) {}
-  public async read(latestBlock: number, previousBlock?: number) {
-    if (this.l1Token === undefined) this.l1Token = await this.contract.l1Token();
+  public async read(l1Token:string, latestBlock: number, previousBlock?: number) {
     // typechain does not have complete types for call options, so we have to cast blockTag to any
-    const exchangeRatePrevious = await this.contract.callStatic.exchangeRateCurrent({
+    const exchangeRatePrevious = await this.contract.callStatic.exchangeRateCurrent(l1Token,{
       blockTag: previousBlock || latestBlock - 1,
     } as any);
 
+    const exchangeRateCurrent = await this.contract.callStatic.exchangeRateCurrent(l1Token);
+
+    const pooledToken:PooledToken = await this.contract.pooledTokens(l1Token);
+
     return {
-      address: this.address,
-      l1Token: this.l1Token,
+      address:this.address,
+      l1Token,
+      latestBlock,
+      previousBlock,
       exchangeRatePrevious,
-      ...(await this.batchRead<{
-        exchangeRateCurrent: BigNumber;
-        liquidityUtilizationCurrent: BigNumber;
-        liquidReserves: BigNumber;
-        pendingReserves: BigNumber;
-        utilizedReserves: BigNumber;
-      }>([
-        // its important exchangeRateCurrent is called first, as it calls _sync under the hood which updates the contract
-        // and gives more accurate values for the following properties.
-        ["exchangeRateCurrent"],
-        ["liquidityUtilizationCurrent"],
-        ["liquidReserves"],
-        ["pendingReserves"],
-        ["utilizedReserves"],
-      ])),
-    };
+      exchangeRateCurrent,
+      ...pooledToken,
+    }
+
   }
 }
 
@@ -121,11 +126,11 @@ export class PoolEventState {
   private seen = new Set<string>();
   private iface: ethers.utils.Interface;
   constructor(
-    private contract: uma.clients.bridgePool.Instance,
+    private contract: hubPool.Instance,
     private startBlock = 0,
-    private state: uma.clients.bridgePool.EventState = bridgePool.eventStateDefaults()
+    private state: hubPool.EventState = hubPool.eventStateDefaults()
   ) {
-    this.iface = new ethers.utils.Interface(bridgePool.Factory.abi);
+    this.iface = new ethers.utils.Interface(hubPool.Factory.abi);
   }
   private makeId(params: EventIdParams) {
     return [params.blockNumber, params.transactionIndex, params.logIndex].join("!");
@@ -159,7 +164,7 @@ export class PoolEventState {
       });
     // ethers queries are inclusive [start,end] unless start === end, then exclusive (start,end). we increment to make sure we dont see same event twice
     this.startBlock = endBlock + 1;
-    this.state = bridgePool.getEventState(events, this.state);
+    this.state = hubPool.getEventState(events, this.state);
     return this.state;
   }
   makeEventFromLog(log: Log) {
@@ -170,6 +175,25 @@ export class PoolEventState {
       event: description.name,
       eventSignature: description.signature,
     };
+  }
+  getL1TokenFromReceipt(receipt:TransactionReceipt):string{
+    const events = receipt.logs
+      .map((log) => {
+        try {
+          return this.makeEventFromLog(log);
+        } catch (err) {
+          // return nothing, this throws a lot because logs from other contracts are included in receipt
+          return undefined;
+        }
+      })
+      // filter out undefined
+      .filter(exists)
+
+    const eventState = hubPool.getEventState(events)
+    const l1Tokens = Object.keys(eventState)
+    assert(l1Tokens.length,'Token not found from events')
+    assert(l1Tokens.length === 1,'Multiple tokens found from events')
+    return l1Tokens[0]
   }
   readTxReceipt(receipt: TransactionReceipt) {
     const events = receipt.logs
@@ -185,13 +209,13 @@ export class PoolEventState {
       .filter(exists)
       .filter(this.filterSeen);
 
-    this.state = bridgePool.getEventState(events, this.state);
+    this.state = hubPool.getEventState(events, this.state);
     return this.state;
   }
 }
 
 class UserState {
-  constructor(private contract: uma.clients.bridgePool.Instance) {}
+  constructor(private contract: uma.clients.erc20.Instance) {}
   public async read(user: string) {
     return {
       address: user,
@@ -228,13 +252,13 @@ export function previewRemoval(
 }
 function joinUserState(
   poolState: Pool,
-  eventState: uma.clients.bridgePool.EventState,
-  userState: Awaited<ReturnType<UserState["read"]>>
+  tokenEventState: hubPool.TokenEventState,
+  userState: Awaited<ReturnType<UserState["read"]>>,
 ): User {
   const positionValue = BigNumber.from(poolState.exchangeRateCurrent)
     .mul(userState.balanceOf)
     .div(fixedPointAdjustment);
-  const totalDeposited = BigNumber.from(eventState.tokens[userState.address] || "0");
+  const totalDeposited = BigNumber.from(tokenEventState.tokenBalances[userState.address] || "0");
   const feesEarned = positionValue.sub(totalDeposited);
   return {
     address: userState.address,
@@ -268,8 +292,8 @@ function joinPoolState(
 
   if (rateModel) {
     projectedApr = fromWei(
-      calculateInstantaneousRate(rateModel, poolState.liquidityUtilizationCurrent)
-        .mul(poolState.liquidityUtilizationCurrent)
+      calculateInstantaneousRate(rateModel, poolState.utilizedReserves)
+        .mul(poolState.utilizedReserves)
         .div(fixedPointAdjustment)
     );
   }
@@ -278,69 +302,59 @@ function joinPoolState(
     address: poolState.address,
     totalPoolSize: totalPoolSize.toString(),
     l1Token: poolState.l1Token,
+    lpToken: poolState.lpToken,
     liquidReserves: poolState.liquidReserves.toString(),
-    pendingReserves: poolState.pendingReserves.toString(),
     exchangeRateCurrent: poolState.exchangeRateCurrent.toString(),
     exchangeRatePrevious: poolState.exchangeRatePrevious.toString(),
     estimatedApy,
     estimatedApr,
     blocksElapsed,
     secondsElapsed,
-    liquidityUtilizationCurrent: poolState.liquidityUtilizationCurrent.toString(),
     projectedApr,
     utilizedReserves: poolState.utilizedReserves.toString(),
   };
 }
 export class ReadPoolClient {
   private poolState: PoolState;
-  private multicall: uma.Multicall2;
-  private contract: uma.clients.bridgePool.Instance;
-  private batchRead: BatchReadWithErrorsType;
-  constructor(private address: string, private provider: Provider, private multicallAddress: string) {
-    this.multicall = new Multicall2(this.multicallAddress, this.provider);
-    this.contract = bridgePool.connect(address, this.provider);
-    this.batchRead = BatchReadWithErrors(this.multicall)(this.contract);
-    this.poolState = new PoolState(this.batchRead, this.contract, this.address);
+  private contract: hubPool.Instance;
+  constructor(private address: string, private provider: Provider) {
+    this.contract = hubPool.connect(address, this.provider);
+    this.poolState = new PoolState(this.contract, this.address);
   }
-  public async read(latestBlock: number) {
-    return this.poolState.read(latestBlock);
+  public async read(tokenAddress:string, latestBlock: number) {
+    return this.poolState.read(tokenAddress, latestBlock);
   }
 }
 export function validateWithdraw(pool: Pool, user: User, lpTokenAmount: BigNumberish) {
   const l1TokensToReturn = BigNumber.from(lpTokenAmount).mul(pool.exchangeRateCurrent).div(fixedPointAdjustment);
   assert(BigNumber.from(l1TokensToReturn).gt("0"), "Must withdraw amount greater than 0");
-  assert(
-    BigNumber.from(pool.liquidReserves).gte(l1TokensToReturn.add(pool.pendingReserves)),
-    "Utilization too high to remove that amount, try lowering withdraw amount"
-  );
   assert(BigNumber.from(lpTokenAmount).lte(user.lpTokens), "You cannot withdraw more than you have");
   return { lpTokenAmount, l1TokensToReturn: l1TokensToReturn.toString() };
 }
 
 export class Client {
-  private poolContracts: Record<string, uma.clients.bridgePool.Instance> = {};
-  private multicall: uma.Multicall2;
   private transactionManagers: Record<string, ReturnType<typeof TransactionManager>> = {};
+  private hubPool: hubPool.Instance;
   private state: State = { pools: {}, users: {}, transactions: {} };
-  private batchRead: ReturnType<typeof BatchReadWithErrors>;
-  private poolEvents: Record<string, PoolEventState> = {};
+  private poolEvents: PoolEventState;
+  private erc20s:Record<string, uma.clients.erc20.Instance> = {};
   private intervalStarted = false;
   private rateModelInstance: uma.clients.rateModelStore.Instance;
   constructor(private config: Config, private deps: Dependencies, private emit: EmitState) {
-    this.multicall = new Multicall2(config.multicall2Address, deps.provider);
-    this.batchRead = BatchReadWithErrors(this.multicall);
-    this.rateModelInstance = rateModelStore.connect(config.rateModelStoreAddress || ADDRESSES.RateModel, deps.provider);
+    this.hubPool = hubPool.connect(config.hubPoolAddress,deps.provider)
+    this.poolEvents = new PoolEventState(this.hubPool);
+    this.rateModelInstance = rateModelStore.connect(config.rateModelStoreAddress, deps.provider);
   }
-  private getOrCreatePoolContract(address: string) {
-    if (this.poolContracts[address]) return this.poolContracts[address];
-    const contract = bridgePool.connect(address, this.deps.provider);
-    this.poolContracts[address] = contract;
-    return contract;
+  private getOrCreateErc20Contract(address:string){
+    if(this.erc20s[address]) return this.erc20s[address]
+    this.erc20s[address] = erc20.connect(address,this.deps.provider)
+    return this.erc20s[address]
   }
-  private getOrCreatePoolEvents(poolAddress: string) {
-    if (this.poolEvents[poolAddress]) return this.poolEvents[poolAddress];
-    this.poolEvents[poolAddress] = new PoolEventState(this.getOrCreatePoolContract(poolAddress));
-    return this.poolEvents[poolAddress];
+  private getOrCreatePoolContract() {
+    return this.hubPool
+  }
+  private getOrCreatePoolEvents() {
+    return this.poolEvents
   }
   private getOrCreateTransactionManager(signer: Signer, address: string) {
     if (this.transactionManagers[address]) return this.transactionManagers[address];
@@ -357,11 +371,7 @@ export class Client {
         this.emit(["transactions", id], { ...this.state.transactions[id] });
         // trigger pool and user update for a known mined transaction
         const tx = this.state.transactions[id];
-        this.updatePool(tx.toAddress)
-          .then(() => {
-            return this.updateUserWithTransaction(tx.fromAddress, tx.toAddress, txReceipt);
-          })
-          .catch((err) => {
+        this.updateUserWithTransaction(tx.fromAddress, txReceipt).catch((err) => {
             this.emit(["error"], err);
           });
       }
@@ -374,13 +384,13 @@ export class Client {
     this.transactionManagers[address] = txman;
     return txman;
   }
-  async addEthLiquidity(signer: Signer, pool: string, l1TokenAmount: BigNumberish, overrides: Overrides = {}) {
+  async addEthLiquidity(signer: Signer, pool: string, l1Token:string, l1TokenAmount: BigNumberish, overrides: Overrides = {}) {
     const userAddress = await signer.getAddress();
-    const contract = this.getOrCreatePoolContract(pool);
+    const contract = this.getOrCreatePoolContract();
     const txman = this.getOrCreateTransactionManager(signer, userAddress);
 
     // dont allow override value here
-    const request = await contract.populateTransaction.addLiquidity(l1TokenAmount, {
+    const request = await contract.populateTransaction.addLiquidity(l1Token,l1TokenAmount, {
       ...overrides,
       value: l1TokenAmount,
     });
@@ -399,12 +409,12 @@ export class Client {
     await txman.update();
     return id;
   }
-  async addTokenLiquidity(signer: Signer, pool: string, l1TokenAmount: BigNumberish, overrides: Overrides = {}) {
+  async addTokenLiquidity(signer: Signer, pool: string, l1Token:string, l1TokenAmount: BigNumberish, overrides: Overrides = {}) {
     const userAddress = await signer.getAddress();
-    const contract = this.getOrCreatePoolContract(pool);
+    const contract = this.getOrCreatePoolContract();
     const txman = this.getOrCreateTransactionManager(signer, userAddress);
 
-    const request = await contract.populateTransaction.addLiquidity(l1TokenAmount, overrides);
+    const request = await contract.populateTransaction.addLiquidity(l1Token,l1TokenAmount, overrides);
     const id = await txman.request(request);
 
     this.state.transactions[id] = {
@@ -421,24 +431,22 @@ export class Client {
     await txman.update();
     return id;
   }
-  async validateWithdraw(poolAddress: string, userAddress: string, lpAmount: BigNumberish) {
-    if (!this.hasPool(poolAddress)) {
-      await this.updatePool(poolAddress);
+  async validateWithdraw(l1Token: string, userAddress: string, lpAmount: BigNumberish) {
+    await this.updatePool(l1Token);
+    const poolState = this.getPoolState(l1Token);
+    if (!this.hasUserState(l1Token, userAddress)) {
+      await this.updateUser(l1Token, userAddress);
     }
-    const poolState = this.getPool(poolAddress);
-    if (!this.hasUser(poolAddress, userAddress)) {
-      await this.updateUser(poolAddress, userAddress);
-    }
-    const userState = this.getUser(poolAddress, userAddress);
+    const userState = this.getUserState(poolState.lpToken, userAddress);
     return validateWithdraw(poolState, userState, lpAmount);
   }
-  async removeTokenLiquidity(signer: Signer, pool: string, lpTokenAmount: BigNumberish, overrides: Overrides = {}) {
+  async removeTokenLiquidity(signer: Signer, pool: string, l1Token:string, lpTokenAmount: BigNumberish, overrides: Overrides = {}) {
     const userAddress = await signer.getAddress();
     await this.validateWithdraw(pool, userAddress, lpTokenAmount);
-    const contract = this.getOrCreatePoolContract(pool);
+    const contract = this.getOrCreatePoolContract();
     const txman = this.getOrCreateTransactionManager(signer, userAddress);
 
-    const request = await contract.populateTransaction.removeLiquidity(lpTokenAmount, false, overrides);
+    const request = await contract.populateTransaction.removeLiquidity(l1Token,lpTokenAmount, false, overrides);
     const id = await txman.request(request);
 
     this.state.transactions[id] = {
@@ -455,13 +463,13 @@ export class Client {
     await txman.update();
     return id;
   }
-  async removeEthliquidity(signer: Signer, pool: string, lpTokenAmount: BigNumberish, overrides: Overrides = {}) {
+  async removeEthliquidity(signer: Signer, pool: string, l1Token:string, lpTokenAmount: BigNumberish, overrides: Overrides = {}) {
     const userAddress = await signer.getAddress();
     await this.validateWithdraw(pool, userAddress, lpTokenAmount);
-    const contract = this.getOrCreatePoolContract(pool);
+    const contract = this.getOrCreatePoolContract();
     const txman = this.getOrCreateTransactionManager(signer, userAddress);
 
-    const request = await contract.populateTransaction.removeLiquidity(lpTokenAmount, true, overrides);
+    const request = await contract.populateTransaction.removeLiquidity(l1Token, lpTokenAmount, true, overrides);
     const id = await txman.request(request);
 
     this.state.transactions[id] = {
@@ -477,59 +485,64 @@ export class Client {
     await txman.update();
     return id;
   }
-  getPool(poolAddress: string) {
-    return this.state.pools[poolAddress];
+  getPoolState(l1TokenAddress: string):Pool {
+    return this.state.pools[l1TokenAddress];
   }
-  hasPool(poolAddress: string) {
-    return Boolean(this.state.pools[poolAddress]);
+  hasPoolState(l1TokenAddress: string):boolean {
+    return Boolean(this.state.pools[l1TokenAddress]);
   }
-  getUser(poolAddress: string, userAddress: string) {
-    return get(this.state, ["users", userAddress, poolAddress]);
+  setUserState(l1TokenAddress:string, userAddress:string, state:User):User{
+    set(this.state, ["users", userAddress, l1TokenAddress], state);
+    return state
   }
-  hasUser(poolAddress: string, userAddress: string) {
-    return has(this.state, ["users", userAddress, poolAddress]);
+  getUserState(l1TokenAddress: string, userAddress: string):User {
+    return get(this.state, ["users", userAddress, l1TokenAddress]);
   }
-  hasTx(id: string) {
+  hasUserState(l1TokenAddress: string, userAddress: string):boolean {
+    return has(this.state, ["users", userAddress, l1TokenAddress]);
+  }
+  hasTxState(id: string):boolean {
     return has(this.state, ["transactions", id]);
   }
-  getTx(id: string) {
+  getTxState(id: string):Transaction {
     return get(this.state, ["transactions", id]);
   }
-  private async updateUserWithTransaction(userAddress: string, poolAddress: string, txReceipt: TransactionReceipt) {
-    const contract = this.getOrCreatePoolContract(poolAddress);
-    if (!this.hasPool(poolAddress)) {
-      await this.updatePool(poolAddress);
-    }
-    const poolState = this.getPool(poolAddress);
-    const getUserState = new UserState(contract);
-    const getPoolEventState = this.getOrCreatePoolEvents(poolAddress);
+  private async updateUserWithTransaction(userAddress: string, txReceipt: TransactionReceipt):Promise<void> {
+    const getPoolEventState = this.getOrCreatePoolEvents();
+    const l1TokenAddress = getPoolEventState.getL1TokenFromReceipt(txReceipt);
+    await this.updatePool(l1TokenAddress);
+    const poolState = this.getPoolState(l1TokenAddress);
+    const lpToken = poolState.lpToken;
+    const erc20Contract = this.getOrCreateErc20Contract(lpToken)
+    const getUserState = new UserState(erc20Contract);
     const userState = await getUserState.read(userAddress);
     const eventState = await getPoolEventState.readTxReceipt(txReceipt);
-    set(this.state, ["users", userAddress, poolAddress], joinUserState(poolState, eventState, userState));
-    this.emit(["users", userAddress, poolAddress], this.state.users[userAddress][poolAddress]);
+    const tokenEventState = eventState[l1TokenAddress]
+    const newUserState = this.setUserState(l1TokenAddress,userAddress,joinUserState(poolState, tokenEventState, userState))
+    this.emit(["users", userAddress, l1TokenAddress], newUserState)
   }
-  async updateUser(userAddress: string, poolAddress: string) {
-    const contract = this.getOrCreatePoolContract(poolAddress);
-    if (!this.hasPool(poolAddress)) {
-      await this.updatePool(poolAddress);
-    }
-    const poolState = this.getPool(poolAddress);
+  async updateUser(userAddress: string, l1TokenAddress: string):Promise<void> {
+    await this.updatePool(l1TokenAddress);
+    const poolState = this.getPoolState(l1TokenAddress);
+    const lpToken = poolState.lpToken;
     const latestBlock = (await this.deps.provider.getBlock("latest")).number;
-    const getUserState = new UserState(contract);
-    const getPoolEventState = this.getOrCreatePoolEvents(poolAddress);
+    const erc20Contract = this.getOrCreateErc20Contract(lpToken)
+    const getUserState = new UserState(erc20Contract);
+    const getPoolEventState = this.getOrCreatePoolEvents();
     const userState = await getUserState.read(userAddress);
     const eventState = await getPoolEventState.read(latestBlock);
-    set(this.state, ["users", userAddress, poolAddress], joinUserState(poolState, eventState, userState));
-    this.emit(["users", userAddress, poolAddress], this.state.users[userAddress][poolAddress]);
+    const tokenEventState = eventState[l1TokenAddress]
+    const newUserState = this.setUserState(l1TokenAddress,userAddress,joinUserState(poolState, tokenEventState, userState))
+    this.emit(["users", userAddress, l1TokenAddress], newUserState)
   }
-  async updatePool(poolAddress: string) {
+  async updatePool(l1TokenAddress:string):Promise<void> {
     // default to 100 block delta unless specified otherwise in config
     const { blockDelta = DEFAULT_BLOCK_DELTA } = this.config;
-    const contract = this.getOrCreatePoolContract(poolAddress);
-    const pool = new PoolState(this.batchRead(contract), contract, poolAddress);
+    const contract = this.getOrCreatePoolContract();
+    const pool = new PoolState(contract,this.config.hubPoolAddress);
     const latestBlock = await this.deps.provider.getBlock("latest");
     const previousBlock = await this.deps.provider.getBlock(latestBlock.number - blockDelta);
-    const state = await pool.read(latestBlock.number, previousBlock.number);
+    const state = await pool.read(l1TokenAddress,latestBlock.number, previousBlock.number);
 
     let rateModel: uma.across.constants.RateModel | undefined = undefined;
     try {
@@ -541,10 +554,10 @@ export class Client {
       this.emit(["error"], err);
     }
 
-    this.state.pools[poolAddress] = joinPoolState(state, latestBlock, previousBlock, rateModel);
-    this.emit(["pools", poolAddress], this.state.pools[poolAddress]);
+    this.state.pools[l1TokenAddress] = joinPoolState(state, latestBlock, previousBlock, rateModel);
+    this.emit(["pools", l1TokenAddress], this.state.pools[l1TokenAddress]);
   }
-  async updateTransactions() {
+  async updateTransactions():Promise<void> {
     for (const txMan of Object.values(this.transactionManagers)) {
       try {
         await txMan.update();
@@ -558,7 +571,7 @@ export class Client {
     assert(!this.intervalStarted, "Interval already started, try stopping first");
     this.intervalStarted = true;
     loop(async () => {
-      assert(this.intervalStarted, "Bridgepool Interval Stopped");
+      assert(this.intervalStarted, "HubPool Interval Stopped");
       await this.updateTransactions();
     }, delayMs).catch((err) => {
       this.emit(["error"], err);

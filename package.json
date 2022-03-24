@@ -18,7 +18,7 @@
     "test": "tsdx test",
     "test:watch": "tsdx test --watch",
     "test:e2e": "tsdx test --config jest-e2e-config.json",
-    "lint": "tsdx lint",
+    "lint": "tsdx lint --fix",
     "prepare": "tsdx build",
     "size": "size-limit",
     "analyze": "size-limit --why"

@@ -1,2 +1,2 @@
-export * from "./bridgePool";
+export * from "./poolClient";
 export * from "./contracts";
