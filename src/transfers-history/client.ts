@@ -93,18 +93,6 @@ export class TransfersHistoryClient {
       ? offset + limit <= this.state.completedTransfers.length
       : offset + limit <= this.state.pendingTransfers.length;
   }
-  /**
-   * Check if requested transfers are already in the state
-   */
-  private skipFetchingEvents(status: TransferStatus, limit: number, offset: number) {
-    if (status === "filled") {
-      return this.state.completedTransfers.length >= offset + limit;
-    }
-    if (status === "pending") {
-      return this.state.pendingTransfers.length >= offset + limit;
-    }
-    return false;
-  }
 
   /**
    * Save filters into the state
