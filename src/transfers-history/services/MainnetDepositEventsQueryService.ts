@@ -171,4 +171,3 @@ export class DepositEventsQueryService implements IDepositEventsQueryService {
     return blockTimestampMap;
   }
 }
-

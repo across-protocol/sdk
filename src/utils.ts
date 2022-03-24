@@ -198,7 +198,7 @@ export const calcApr = (
  * getSamplesBetween(1, 9, 3) //returns [[1, 3], [4, 7], [8, 9]]
  * ```
  */
- export const getSamplesBetween = (min: number, max: number, size: number) => {
+export const getSamplesBetween = (min: number, max: number, size: number) => {
   let keepIterate = true;
   const intervals = [];
 
@@ -210,4 +210,4 @@ export const calcApr = (
   }
 
   return intervals;
-}
+};
