@@ -190,3 +190,24 @@ export const calcApr = (
     .div(periodsElapsed)
     .toString();
 };
+/**
+ * Takes two values and returns a list of number intervals
+ *
+ * @example
+ * ```js
+ * getSamplesBetween(1, 9, 3) //returns [[1, 3], [4, 7], [8, 9]]
+ * ```
+ */
+ export const getSamplesBetween = (min: number, max: number, size: number) => {
+  let keepIterate = true;
+  const intervals = [];
+
+  while (keepIterate) {
+    const to = Math.min(min + size - 1, max);
+    intervals.push([min, to]);
+    min = to + 1;
+    if (min >= max) keepIterate = false;
+  }
+
+  return intervals;
+}
