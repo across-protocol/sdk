@@ -4,7 +4,7 @@ import {
   DepositEventsQueryServiceFactory,
   IDepositEventsQueryService,
   IDepositEventsQueryServiceFactory,
-} from "./services/MainnetDepositEventsQueryService";
+} from "./services/FundsDepositedEventsQueryService";
 import { TransfersAggregatorService } from "./services/TransfersAggregatorService";
 import { State, TransferFilters, TransferStatus } from "./model/state";
 import { Logger } from "./adapters/logger";
