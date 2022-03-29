@@ -3,7 +3,7 @@ import { Transfer } from "../../model";
 import { ChainId, CHAIN_IDs } from "../web3/model";
 
 type TransfersStore = {
-  [chainId: ChainId]: {
+  [chainId: number]: {
     [address: string]: {
       [depositId: number]: Transfer;
     };

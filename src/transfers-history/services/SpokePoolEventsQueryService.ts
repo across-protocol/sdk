@@ -2,11 +2,12 @@ import { TypedEvent } from "@across-protocol/contracts-v2/dist/typechain/common"
 import { FundsDepositedEvent, FilledRelayEvent } from "@across-protocol/contracts-v2/dist/typechain/SpokePool";
 import { BigNumber, providers } from "ethers";
 
-import { Transfer, TransfersRepository } from "../adapters/db/transfers-repository";
+import { TransfersRepository } from "../adapters/db/transfers-repository";
 import { Logger } from "../adapters/logger";
 import { ISpokePoolContractEventsQuerier } from "../adapters/web3";
 import { ChainId } from "../adapters/web3/model";
 import { clientConfig } from "../config";
+import { Transfer } from "../model";
 
 export class SpokePoolEventsQueryService {
   private latestBlockNumber: number | undefined;
