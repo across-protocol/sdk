@@ -97,14 +97,17 @@ export class TransfersHistoryClient {
       if (!this.eventsServices[depositorAddr]) {
         this.eventsServices[depositorAddr] = {};
       }
-      this.eventsServices[depositorAddr][chainId] = new SpokePoolEventsQueryService(
-        chainId,
-        this.web3Providers[chainId],
-        this.eventsQueriers[chainId],
-        this.logger,
-        this.transfersRepository,
-        depositorAddr
-      );
+
+      if (!this.eventsServices[depositorAddr][chainId]) {
+        this.eventsServices[depositorAddr][chainId] = new SpokePoolEventsQueryService(
+          chainId,
+          this.web3Providers[chainId],
+          this.eventsQueriers[chainId],
+          this.logger,
+          this.transfersRepository,
+          depositorAddr
+        );
+      }
     }
   }
 
