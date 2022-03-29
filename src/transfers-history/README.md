@@ -18,6 +18,10 @@ const client = new TransfersHistoryClient({
 // optional
 client.setLogLevel("debug");
 await client.startFetchingTransfers(<depositor_addr>);
+client.on(TransfersHistoryEvent.TransfersUpdated, data => {
+  const { depositorAddr, filledTransfersCount, pendingTransfersCount } = data;
+  // do whatever you need with the data
+});
 const pendingTransfers = client.getPendingTransfers(<depositor_addr>, <limit>, <offset>);
 const filledTransfers = client.getFilledTransfers(<depositor_addr>, <limit>, <offset>);
 client.stopFetchingTransfers(<depositor_addr>);

@@ -27,10 +27,6 @@ describe.only("Client e2e tests", () => {
     });
     client.setLogLevel("debug");
     await client.startFetchingTransfers("0x9B6134Fe036F1C22D9Fe76c15AC81B7bC31212eB");
-    client.on(TransfersHistoryEvent.TransfersUpdated, (data) => {
-      const { depositorAddr, filledTransfersCount, pendingTransfersCount } = data;
-      console.log(data);
-    });
     await wait(15);
     const transfers = client.getPendingTransfers("0x9B6134Fe036F1C22D9Fe76c15AC81B7bC31212eB");
     client.stopFetchingTransfers("0x9B6134Fe036F1C22D9Fe76c15AC81B7bC31212eB");
