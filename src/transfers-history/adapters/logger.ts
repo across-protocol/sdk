@@ -10,8 +10,8 @@ export type LogLevel = "info" | "debug";
 export class Logger {
   private currentLevel: LogLevel;
 
-  public constructor() {
-    this.currentLevel = "info";
+  public constructor(level?: LogLevel) {
+    this.currentLevel = level || "info";
   }
 
   public setLevel(level: LogLevel) {
