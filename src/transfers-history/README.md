@@ -10,12 +10,15 @@ const { TransfersHistoryClient } = transfersHistory;
 
 const client = new TransfersHistoryClient({
   chains: [
-    {
-      chainId: ChainId.ARBITRUM_RINKEBY,
-      providerUrl: process.env[`WEB3_NODE_URL_${ChainId.ARBITRUM_RINKEBY}`] || "",
-    },
+    { chainId: <chain_id>, providerUrl: <provider_url> }
   ],
-  refChainId: ChainId.ARBITRUM_RINKEBY,
+  // optional 
+  pollingIntervalSeconds: <polling_interval_in_seconds>
 });
-const transfers = await client.getTransfers({ status: "pending" }, 2, 0);
+// optional
+client.setLogLevel("debug");
+await client.startFetchingTransfers(<depositor_addr>);
+const pendingTransfers = client.getPendingTransfers(<depositor_addr>, <limit>, <offset>);
+const filledTransfers = client.getFilledTransfers(<depositor_addr>, <limit>, <offset>);
+client.stopFetchingTransfers(<depositor_addr>);
 ```

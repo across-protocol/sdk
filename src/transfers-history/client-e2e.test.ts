@@ -1,37 +1,39 @@
 import dotenv from "dotenv";
-import { ChainId } from "../constants";
-import { TransfersHistoryClient } from "./client";
+import { CHAIN_IDs } from "./adapters/web3/model";
+import { TransfersHistoryClient, TransfersHistoryEvent } from "./client";
 
 dotenv.config({ path: ".env" });
 
-describe("Client E2E tests", () => {
+const wait = (seconds: number) => {
+  return new Promise((resolve, reject) => {
+    setTimeout(resolve, seconds * 1000);
+  });
+};
+
+describe.only("Client e2e tests", () => {
   it("should fetch pending transfers from chain", async () => {
     jest.setTimeout(60 * 1000);
     const client = new TransfersHistoryClient({
       chains: [
         {
-          chainId: ChainId.ARBITRUM_RINKEBY,
-          providerUrl: process.env[`WEB3_NODE_URL_${ChainId.ARBITRUM_RINKEBY}`] || "",
+          chainId: CHAIN_IDs.ARBITRUM_RINKEBY,
+          providerUrl: process.env[`WEB3_NODE_URL_${CHAIN_IDs.ARBITRUM_RINKEBY}`] || "",
         },
-      ],
-      refChainId: ChainId.ARBITRUM_RINKEBY,
-    });
-    const transfers = await client.getTransfers({ status: "pending" }, 2, 0);
-    expect(transfers.length).toBeGreaterThan(1);
-  });
-
-  it("should fetch pending transfers from chain until lower bound block is hit", async () => {
-    jest.setTimeout(60 * 1000);
-    const client = new TransfersHistoryClient({
-      chains: [
         {
-          chainId: ChainId.ARBITRUM_RINKEBY,
-          providerUrl: process.env[`WEB3_NODE_URL_${ChainId.ARBITRUM_RINKEBY}`] || "",
+          chainId: CHAIN_IDs.OPTIMISM_KOVAN,
+          providerUrl: process.env[`WEB3_NODE_URL_${CHAIN_IDs.OPTIMISM_KOVAN}`] || "",
         },
       ],
-      refChainId: ChainId.ARBITRUM_RINKEBY,
     });
-    const transfers = await client.getTransfers({ status: "pending" }, 2, 0);
-    expect(transfers.length).toBeGreaterThan(1);
+    client.setLogLevel("debug");
+    await client.startFetchingTransfers("0x9B6134Fe036F1C22D9Fe76c15AC81B7bC31212eB");
+    client.on(TransfersHistoryEvent.TransfersUpdated, (data) => {
+      const { depositorAddr, filledTransfersCount, pendingTransfersCount } = data;
+      console.log(data);
+    });
+    await wait(15);
+    const transfers = client.getPendingTransfers("0x9B6134Fe036F1C22D9Fe76c15AC81B7bC31212eB");
+    client.stopFetchingTransfers("0x9B6134Fe036F1C22D9Fe76c15AC81B7bC31212eB");
+    expect(transfers.length).toBeGreaterThan(0);
   });
 });

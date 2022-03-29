@@ -4,54 +4,33 @@ import { getSamplesBetween } from "../../../utils";
 import { Web3Error, Web3ErrorCode } from "./model";
 import { Logger } from "../logger";
 
+const DEFAULT_BLOCK_RANGE = 100_000;
+
 /**
  * Interface implemented by classes that fetch contract events from the SpokePool contracts
  */
 export interface ISpokePoolContractEventsQuerier {
-  getDepositEvents: (from: number, to: number, depositorAddr?: string) => Promise<EventsQueryResult>;
+  getFundsDepositEvents: (from: number, to: number, depositorAddr?: string) => Promise<TypedEvent<any>[]>;
+  getFilledRelayEvents: (from: number, to: number, depositorAddr?: string) => Promise<TypedEvent<any>[]>;
 }
 
-type EventsQueryResult = {
-  events: TypedEvent<any>[];
-};
 /**
  * Class that wraps the queryFilter calls and has the ability to resize the block range
- * in order to comply with the eventual node restriction
+ * in order to comply with the eventual node restrictions in terms of the block range or the
+ * length of the response
  */
 export class SpokePoolEventsQuerier implements ISpokePoolContractEventsQuerier {
-  constructor(private spokePool: SpokePool, private blockRangeSize?: number) {}
+  constructor(private spokePool: SpokePool, private blockRangeSize?: number, private logger?: Logger) {}
 
-  public async getDepositEvents(from: number, to: number, depositorAddr?: string): Promise<EventsQueryResult> {
-    let result: EventsQueryResult;
-
-    if (!this.blockRangeSize) {
-      const events = await this.spokePool.queryFilter(this.getDepositEventsFilters(depositorAddr), from, to);
-      result = {
-        events,
-      };
-    } else {
-      result = await this.getEventsInBatches(from, to, this.getDepositEventsFilters(depositorAddr));
-    }
-
-    return result;
+  public async getFundsDepositEvents(from: number, to: number, depositorAddr?: string): Promise<TypedEvent<any>[]> {
+    return this.getEvents(from, to, this.getDepositEventsFilters(depositorAddr));
   }
 
-  public async getFilledRelayEvents(from: number, to: number, depositorAddr?: string): Promise<EventsQueryResult> {
-    let result: EventsQueryResult;
-
-    if (!this.blockRangeSize) {
-      const events = await this.spokePool.queryFilter(this.getFilledRelayEventsFilters(depositorAddr), from, to);
-      result = {
-        events,
-      };
-    } else {
-      result = await this.getEventsInBatches(from, to, this.getFilledRelayEventsFilters(depositorAddr));
-    }
-
-    return result;
+  public async getFilledRelayEvents(from: number, to: number, depositorAddr?: string): Promise<TypedEvent<any>[]> {
+    return this.getEvents(from, to, this.getFilledRelayEventsFilter(depositorAddr));
   }
 
-  private getFilledRelayEventsFilters(depositorAddr?: string) {
+  private getFilledRelayEventsFilter(depositorAddr?: string) {
     if (depositorAddr) {
       return this.spokePool.filters.FilledRelay(
         undefined,
@@ -72,6 +51,7 @@ export class SpokePoolEventsQuerier implements ISpokePoolContractEventsQuerier {
     }
     return this.spokePool.filters.FilledRelay();
   }
+
   private getDepositEventsFilters(depositorAddr?: string) {
     if (depositorAddr) {
       return this.spokePool.filters.FundsDeposited(
@@ -82,36 +62,42 @@ export class SpokePoolEventsQuerier implements ISpokePoolContractEventsQuerier {
         undefined,
         undefined,
         undefined,
-        depositorAddr
+        depositorAddr.toLowerCase()
       );
     }
     return this.spokePool.filters.FundsDeposited();
   }
 
-  private async getEventsInBatches(
+  private async getEvents(
     from: number,
     to: number,
     filters: TypedEventFilter<TypedEvent<any>[], any>
-  ): Promise<EventsQueryResult> {
+  ): Promise<TypedEvent<any>[]> {
     let events: TypedEvent<any>[] = [];
-    let retryWithLowerBatchSize = false;
+    let retryWithLowerBatchSize;
 
     do {
       try {
         retryWithLowerBatchSize = false;
-        const intervals = getSamplesBetween(from, to, this.blockRangeSize as number);
-        for (const [from, to] of intervals) {
+        events = [];
+
+        if (this.blockRangeSize) {
+          for (const [intervalStart, intervalEnd] of getSamplesBetween(from, to, this.blockRangeSize)) {
+            const newEvents = await this.spokePool.queryFilter(filters, intervalStart, intervalEnd);
+            events.push(...newEvents);
+          }
+        } else {
           const newEvents = await this.spokePool.queryFilter(filters, from, to);
           events.push(...newEvents);
         }
       } catch (error) {
         if ((error as Web3Error).error.code === Web3ErrorCode.BLOCK_RANGE_TOO_LARGE) {
-          events = [];
-          Logger.debug(
+          const newBlockRangeSize = this.blockRangeSize ? this.blockRangeSize / 2 : DEFAULT_BLOCK_RANGE;
+          this.logger?.debug(
             `[SpokePoolEventsQuerier::getEventsInBatches]`,
-            `🔴 lowering block range size from ${this.blockRangeSize} to ${(this.blockRangeSize as number) / 2}`
+            `🔴 lowering block range size from ${this.blockRangeSize} to ${(newBlockRangeSize as number) / 2}`
           );
-          this.blockRangeSize = (this.blockRangeSize as number) / 2;
+          this.blockRangeSize = newBlockRangeSize;
           retryWithLowerBatchSize = true;
         } else {
           retryWithLowerBatchSize = false;
@@ -120,25 +106,6 @@ export class SpokePoolEventsQuerier implements ISpokePoolContractEventsQuerier {
       }
     } while (retryWithLowerBatchSize);
 
-    return {
-      events,
-    };
+    return events;
   }
 }
-
-// export class SpokePoolEventsQuerierTest implements IContractEventsQuerier {
-//   constructor(private spokePool: SpokePool, private filters?: TypedEventFilter<TypedEvent<any>[], any>) {}
-
-//   public async getEvents(from: number, to: number, batchSize?: number) {
-//     if (!batchSize) {
-//       const events = await this.spokePool.queryFilter(this.filters || {}, from, to);
-//       return events;
-//     } else {
-//       const events: FundsDepositedEvent[] = [];
-//       const intervals = getSamplesBetween(from, to, batchSize);
-//       for (const [from, to] of intervals) {
-//         events.push(...(await this.spokePool.queryFilter(this.filters || {}, from, to)));
-//       }
-//     }
-//   }
-// }

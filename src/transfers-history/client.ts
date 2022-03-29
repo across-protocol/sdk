@@ -1,105 +1,121 @@
-import { ChainId } from "../constants";
+import EventEmitter from "events";
 import { clientConfig } from "./config";
-import {
-  DepositEventsQueryServiceFactory,
-  IDepositEventsQueryService,
-  IDepositEventsQueryServiceFactory,
-} from "./services/FundsDepositedEventsQueryService";
-import { TransfersAggregatorService } from "./services/TransfersAggregatorService";
-import { State, TransferFilters, TransferStatus } from "./model/state";
-import { Logger } from "./adapters/logger";
+import { SpokePoolEventsQueryService } from "./services/SpokePoolEventsQueryService";
+import { Logger, LogLevel } from "./adapters/logger";
+import { providers } from "ethers";
+import { SpokePool, SpokePool__factory } from "@across-protocol/contracts-v2";
+import { ChainId } from "./adapters/web3/model";
+import { SpokePoolEventsQuerier } from "./adapters/web3";
+import { TransfersRepository } from "./adapters/db/transfers-repository";
 
-/**
- * The configuration object for providing the nodes connection details and specifying which
- * chain should be used as reference (the one that has the highest block time)
- */
+export enum TransfersHistoryEvent {
+  TransfersUpdated = "TransfersUpdated",
+}
+
+export type TransfersUpdatedEventListenerParams = {
+  depositorAddr: string;
+  filledTransfersCount: number;
+  pendingTransfersCount: number;
+};
+
+export type TransfersUpdatedEventListener = (params: TransfersUpdatedEventListenerParams) => void;
+export type TransfersHistoryClientEventListener = TransfersUpdatedEventListener;
 export type TransfersHistoryClientParams = {
   chains: {
     chainId: ChainId;
     providerUrl: string;
   }[];
-  refChainId: ChainId;
+  pollingIntervalSeconds?: number;
 };
 
 export class TransfersHistoryClient {
+  private eventEmitter = new EventEmitter();
+  private web3Providers: Record<ChainId, providers.Provider> = {};
+  private spokePoolInstances: Record<ChainId, SpokePool> = {};
+  private eventsQueriers: Record<ChainId, SpokePoolEventsQuerier> = {};
+  private eventsServices: Record<string, Record<ChainId, SpokePoolEventsQueryService>> = {};
+  private pollingIntervalSeconds: number = 15;
+  private pollingTimers: Record<string, NodeJS.Timer[]> = {};
+
   constructor(
-    private config: TransfersHistoryClientParams,
-    private state = new State(),
-    private transfersAggregatorService = new TransfersAggregatorService(state),
-    private depositEventsQueryServiceFactory: IDepositEventsQueryServiceFactory = new DepositEventsQueryServiceFactory()
+    config: TransfersHistoryClientParams,
+    private logger = new Logger(),
+    private transfersRepository = new TransfersRepository()
   ) {
+    if (config.pollingIntervalSeconds) {
+      this.pollingIntervalSeconds = config.pollingIntervalSeconds;
+    }
+
     for (const chain of config.chains) {
-      clientConfig.web3Providers[chain.chainId] = chain.providerUrl;
+      clientConfig.web3ProvidersUrls[chain.chainId] = chain.providerUrl;
+      this.web3Providers[chain.chainId] = new providers.JsonRpcProvider(chain.providerUrl);
+      this.spokePoolInstances[chain.chainId] = SpokePool__factory.connect(
+        clientConfig.spokePools[chain.chainId].addr,
+        this.web3Providers[chain.chainId]
+      );
+      this.eventsQueriers[chain.chainId] = new SpokePoolEventsQuerier(
+        this.spokePoolInstances[chain.chainId],
+        undefined,
+        this.logger
+      );
     }
   }
 
-  public async getTransfers(filters: TransferFilters, limit = 10, offset = 0) {
-    // clean state if the filters change from one call to another
-    if (this.state.filters && this.state.filters !== filters) {
-      this.state.clean();
-    }
-    this.saveFilters(filters);
-
-    const chainsIds = this.config.chains.map(chain => chain.chainId);
-    Logger.debug("[TransfersHistoryClient::getTransfers]", `start getting ${filters.status} transfers from ${chainsIds} chains`);
-    const depositEventsQueryServices = chainsIds
-      .filter(chainId => chainId !== this.config.refChainId)
-      .reduce<[ChainId, IDepositEventsQueryService][]>((acc, chainId) => {
-        return [
-          ...acc,
-          [chainId, this.depositEventsQueryServiceFactory.getService(this.state, chainId, this.config.refChainId, 100000)],
-        ];
-      }, []);
-    const depositEventsRefQueryService = this.depositEventsQueryServiceFactory.getService(
-      this.state,
-      this.config.refChainId,
-      this.config.refChainId,
-      100000
-    );
-    // query events from the chain used as reference
-    await depositEventsRefQueryService.getEvents();
-    await Promise.all(depositEventsQueryServices.map(([_, service]) => service.getEvents()));
-
-    this.transfersAggregatorService.aggregateTransfers();
-    
-    // continue to query events if limit + offset is not reached and we still have blocks to query
-    while (
-      !this.hasRequiredNumberOfTransfersInState(filters.status, limit, offset) &&
-      this.hasBlocksToQuery(chainsIds)
-    ) {
-      await depositEventsRefQueryService.getEvents(this.state.progress[this.config.refChainId].latestFromBlock);
-      await Promise.all(depositEventsQueryServices.map(([chainId, service]) => service.getEvents(this.state.progress[chainId].latestFromBlock)));
-      this.transfersAggregatorService.aggregateTransfers();
-    }
-
-    return filters.status === "filled" ? 
-      this.state.completedTransfers.slice(offset, offset + limit) : 
-      this.state.pendingTransfers.slice(offset, offset + limit);
+  public setLogLevel(level: LogLevel) {
+    this.logger.setLevel(level);
   }
 
-  private hasBlocksToQuery(chainIds: number[]) {
+  public async startFetchingTransfers(depositorAddr: string) {
+    this.initSpokePoolEventsQueryServices(depositorAddr);
+    this.getEventsForDepositor(depositorAddr);
+    const timer = setInterval(() => {
+      this.getEventsForDepositor(depositorAddr);
+    }, this.pollingIntervalSeconds * 1000);
+    this.pollingTimers[depositorAddr] = [...(this.pollingTimers[depositorAddr] || []), timer];
+  }
+
+  public stopFetchingTransfers(depositorAddr: string) {
+    (this.pollingTimers[depositorAddr] || []).map(timer => clearInterval(timer));
+  }
+
+  public on(event: TransfersHistoryEvent, cb: TransfersHistoryClientEventListener) {
+    this.eventEmitter.on(event, cb);
+  }
+
+  private initSpokePoolEventsQueryServices(depositorAddr: string) {
+    const chainIds = Object.keys(this.spokePoolInstances).map(chainId => parseInt(chainId));
+
     for (const chainId of chainIds) {
-      const latestFromBlock = this.state.progress[chainId].latestFromBlock;
-      if (latestFromBlock && latestFromBlock > this.state.blockLowerBound[chainId]) {
-        return true;
+      if (!this.eventsServices[depositorAddr]) {
+        this.eventsServices[depositorAddr] = {};
       }
+      this.eventsServices[depositorAddr][chainId] = new SpokePoolEventsQueryService(
+        chainId,
+        this.web3Providers[chainId],
+        this.eventsQueriers[chainId],
+        this.logger,
+        this.transfersRepository,
+        depositorAddr
+      );
     }
-    Logger.debug("[TransfersHistoryClient::hasBlocksToQuery]", `🟡 no more blocks to query`);
-    return false;
   }
 
-  private hasRequiredNumberOfTransfersInState(status: TransferStatus, limit: number, offset: number) {
-    return status === "filled"
-      ? offset + limit <= this.state.completedTransfers.length
-      : offset + limit <= this.state.pendingTransfers.length;
+  private async getEventsForDepositor(depositorAddr: string) {
+    await Promise.all(Object.values(this.eventsServices[depositorAddr]).map(eventService => eventService.getEvents()));
+    this.transfersRepository.aggregateTransfers(depositorAddr);
+    const eventData: TransfersUpdatedEventListenerParams = {
+      depositorAddr,
+      filledTransfersCount: this.transfersRepository.countFilledTransfers(depositorAddr),
+      pendingTransfersCount: this.transfersRepository.countPendingTransfers(depositorAddr),
+    };
+    this.eventEmitter.emit(TransfersHistoryEvent.TransfersUpdated, eventData);
   }
 
-  /**
-   * Save filters into the state
-   */
-  private saveFilters(filters: TransferFilters) {
-    if (this.state.filters !== filters) {
-      this.state.filters = filters;
-    }
+  public getFilledTransfers(depositorAddr: string, limit?: number, offset?: number) {
+    return this.transfersRepository.getFilledTransfers(depositorAddr, limit, offset);
+  }
+
+  public getPendingTransfers(depositorAddr: string, limit?: number, offset?: number) {
+    return this.transfersRepository.getPendingTransfers(depositorAddr, limit, offset);
   }
 }
