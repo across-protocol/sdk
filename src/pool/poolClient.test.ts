@@ -1,5 +1,5 @@
 import assert from "assert";
-import * as bridgePool from "./bridgePool";
+import * as poolClient from "./poolClient";
 import { BigNumber } from "ethers";
 
 test("previewRemoval", function() {
@@ -10,7 +10,7 @@ test("previewRemoval", function() {
     totalDeposited: "900000000000000000",
     feesEarned: "541941830509",
   };
-  const result = bridgePool.previewRemoval(user, 0.75);
+  const result = poolClient.previewRemoval(user, 0.75);
   assert.equal(
     BigNumber.from(result.position.recieve)
       .add(result.position.remain)
