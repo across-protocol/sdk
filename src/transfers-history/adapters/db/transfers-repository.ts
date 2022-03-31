@@ -78,6 +78,7 @@ export class TransfersRepository {
       transfers.push(...this.getTransfersByChainAndDepositor(chainId, depositorAddr));
     }
 
+    // sort transfers by deposit time in descending order
     transfers.sort((t1, t2) => t2.depositTime - t1.depositTime);
 
     // filter events by status
