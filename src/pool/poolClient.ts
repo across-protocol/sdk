@@ -22,7 +22,9 @@ export type { Provider };
 export type Awaited<T> = T extends PromiseLike<infer U> ? U : T;
 
 export type Config = {
+  chainId?: number;
   hubPoolAddress: string;
+  wethAddress: string;
   rateModelStoreAddress: string;
   confirmations?: number;
   blockDelta?: number;
@@ -335,23 +337,27 @@ export function validateWithdraw(pool: Pool, user: User, lpTokenAmount: BigNumbe
 export class Client {
   private transactionManagers: Record<string, ReturnType<typeof TransactionManager>> = {};
   private hubPool: hubPool.Instance;
-  private state: State = { pools: {}, users: {}, transactions: {} };
+  public readonly state: State = { pools: {}, users: {}, transactions: {} };
   private poolEvents: PoolEventState;
   private erc20s:Record<string, uma.clients.erc20.Instance> = {};
   private intervalStarted = false;
   private rateModelInstance: uma.clients.rateModelStore.Instance;
-  constructor(private config: Config, private deps: Dependencies, private emit: EmitState) {
-    this.hubPool = hubPool.connect(config.hubPoolAddress,deps.provider)
+  constructor(public readonly config: Config, public readonly deps: Dependencies, private emit: EmitState) {
+    config.chainId = config.chainId || 1;
+    this.hubPool = this.createHubPoolContract(deps.provider)
     this.poolEvents = new PoolEventState(this.hubPool);
     this.rateModelInstance = rateModelStore.connect(config.rateModelStoreAddress, deps.provider);
   }
-  private getOrCreateErc20Contract(address:string){
+  public getOrCreateErc20Contract(address:string): uma.clients.erc20.Instance {
     if(this.erc20s[address]) return this.erc20s[address]
     this.erc20s[address] = erc20.connect(address,this.deps.provider)
     return this.erc20s[address]
   }
-  private getOrCreatePoolContract() {
+  public getOrCreatePoolContract(): hubPool.Instance {
     return this.hubPool
+  }
+  public createHubPoolContract(signerOrProvider:Signer | Provider): hubPool.Instance{
+    return hubPool.connect(this.config.hubPoolAddress,signerOrProvider)
   }
   private getOrCreatePoolEvents() {
     return this.poolEvents
@@ -384,7 +390,8 @@ export class Client {
     this.transactionManagers[address] = txman;
     return txman;
   }
-  async addEthLiquidity(signer: Signer, pool: string, l1Token:string, l1TokenAmount: BigNumberish, overrides: Overrides = {}) {
+  async addEthLiquidity(signer: Signer, l1TokenAmount: BigNumberish, overrides: Overrides = {}) {
+    const {hubPoolAddress, wethAddress:l1Token} = this.config;
     const userAddress = await signer.getAddress();
     const contract = this.getOrCreatePoolContract();
     const txman = this.getOrCreateTransactionManager(signer, userAddress);
@@ -399,7 +406,7 @@ export class Client {
     this.state.transactions[id] = {
       id,
       state: "requested",
-      toAddress: pool,
+      toAddress: hubPoolAddress,
       fromAddress: userAddress,
       type: "Add Liquidity",
       description: `Adding ETH to pool`,
@@ -409,7 +416,8 @@ export class Client {
     await txman.update();
     return id;
   }
-  async addTokenLiquidity(signer: Signer, pool: string, l1Token:string, l1TokenAmount: BigNumberish, overrides: Overrides = {}) {
+  async addTokenLiquidity(signer: Signer, l1Token:string, l1TokenAmount: BigNumberish, overrides: Overrides = {}) {
+    const {hubPoolAddress} = this.config;
     const userAddress = await signer.getAddress();
     const contract = this.getOrCreatePoolContract();
     const txman = this.getOrCreateTransactionManager(signer, userAddress);
@@ -420,7 +428,7 @@ export class Client {
     this.state.transactions[id] = {
       id,
       state: "requested",
-      toAddress: pool,
+      toAddress: hubPoolAddress,
       fromAddress: userAddress,
       type: "Add Liquidity",
       description: `Adding Tokens to pool`,
@@ -437,12 +445,13 @@ export class Client {
     if (!this.hasUserState(l1Token, userAddress)) {
       await this.updateUser(l1Token, userAddress);
     }
-    const userState = this.getUserState(poolState.lpToken, userAddress);
+    const userState = this.getUserState(poolState.l1Token, userAddress);
     return validateWithdraw(poolState, userState, lpAmount);
   }
-  async removeTokenLiquidity(signer: Signer, pool: string, l1Token:string, lpTokenAmount: BigNumberish, overrides: Overrides = {}) {
+  async removeTokenLiquidity(signer: Signer, l1Token:string, lpTokenAmount: BigNumberish, overrides: Overrides = {}) {
+    const {hubPoolAddress} = this.config;
     const userAddress = await signer.getAddress();
-    await this.validateWithdraw(pool, userAddress, lpTokenAmount);
+    await this.validateWithdraw(l1Token, userAddress, lpTokenAmount);
     const contract = this.getOrCreatePoolContract();
     const txman = this.getOrCreateTransactionManager(signer, userAddress);
 
@@ -452,7 +461,7 @@ export class Client {
     this.state.transactions[id] = {
       id,
       state: "requested",
-      toAddress: pool,
+      toAddress: hubPoolAddress,
       fromAddress: userAddress,
       type: "Remove Liquidity",
       description: `Withdrawing Tokens from pool`,
@@ -463,9 +472,10 @@ export class Client {
     await txman.update();
     return id;
   }
-  async removeEthliquidity(signer: Signer, pool: string, l1Token:string, lpTokenAmount: BigNumberish, overrides: Overrides = {}) {
+  async removeEthliquidity(signer: Signer, lpTokenAmount: BigNumberish, overrides: Overrides = {}) {
+    const {hubPoolAddress, wethAddress:l1Token} = this.config;
     const userAddress = await signer.getAddress();
-    await this.validateWithdraw(pool, userAddress, lpTokenAmount);
+    await this.validateWithdraw(l1Token, userAddress, lpTokenAmount);
     const contract = this.getOrCreatePoolContract();
     const txman = this.getOrCreateTransactionManager(signer, userAddress);
 
@@ -475,7 +485,7 @@ export class Client {
     this.state.transactions[id] = {
       id,
       state: "requested",
-      toAddress: pool,
+      toAddress: hubPoolAddress,
       fromAddress: userAddress,
       type: "Remove Liquidity",
       description: `Withdrawing Eth from pool`,
