@@ -5,6 +5,7 @@ import Decimal from "decimal.js";
 export type BigNumberish = string | number | BigNumber;
 export type BN = BigNumber;
 export type Decimalish = string | number | Decimal;
+export const AddressZero = ethers.constants.AddressZero;
 
 const { ConvertDecimals } = uma.utils;
 
