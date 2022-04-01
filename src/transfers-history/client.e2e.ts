@@ -18,10 +18,12 @@ describe.only("Client e2e tests", () => {
         {
           chainId: CHAIN_IDs.ARBITRUM_RINKEBY,
           providerUrl: process.env[`WEB3_NODE_URL_${CHAIN_IDs.ARBITRUM_RINKEBY}`] || "",
+          spokePoolContractAddr: "0x68306388c266dce735245A0A6DAe6Dd3b727A640",
         },
         {
           chainId: CHAIN_IDs.OPTIMISM_KOVAN,
           providerUrl: process.env[`WEB3_NODE_URL_${CHAIN_IDs.OPTIMISM_KOVAN}`] || "",
+          spokePoolContractAddr: "0x99EC530a761E68a377593888D9504002Bd191717",
         },
       ],
     });
