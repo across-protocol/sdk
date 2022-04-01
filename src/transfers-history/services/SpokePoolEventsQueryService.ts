@@ -33,7 +33,7 @@ export class SpokePoolEventsQueryService {
         `🔴 chain ${this.chainId}: from ${from} > to ${to}`
       );
       return;
-    };
+    }
 
     this.logger.debug(
       "[SpokePoolEventsQueryService::getEvents]",

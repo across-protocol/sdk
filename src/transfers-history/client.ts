@@ -68,7 +68,7 @@ export class TransfersHistoryClient {
 
   public async startFetchingTransfers(depositorAddr: string) {
     const timers = this.pollingTimers[depositorAddr];
-    if (timers) throw new Error(`Address ${depositorAddr} is already monitored`)
+    if (timers) throw new Error(`Address ${depositorAddr} is already monitored`);
 
     this.initSpokePoolEventsQueryServices(depositorAddr);
     this.getEventsForDepositor(depositorAddr);
