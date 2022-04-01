@@ -24,6 +24,7 @@ export type TransfersHistoryClientParams = {
   chains: {
     chainId: ChainId;
     providerUrl: string;
+    spokePoolContractAddr: string;
   }[];
   pollingIntervalSeconds?: number;
 };
@@ -50,7 +51,7 @@ export class TransfersHistoryClient {
       clientConfig.web3ProvidersUrls[chain.chainId] = chain.providerUrl;
       this.web3Providers[chain.chainId] = new providers.JsonRpcProvider(chain.providerUrl);
       this.spokePoolInstances[chain.chainId] = SpokePool__factory.connect(
-        clientConfig.spokePools[chain.chainId].addr,
+        chain.spokePoolContractAddr,
         this.web3Providers[chain.chainId]
       );
       this.eventsQueriers[chain.chainId] = new SpokePoolEventsQuerier(
