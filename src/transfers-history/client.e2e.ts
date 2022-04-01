@@ -1,11 +1,11 @@
 import dotenv from "dotenv";
 import { CHAIN_IDs } from "./adapters/web3/model";
-import { TransfersHistoryClient, TransfersHistoryEvent } from "./client";
+import { TransfersHistoryClient } from "./client";
 
 dotenv.config({ path: ".env" });
 
 const wait = (seconds: number) => {
-  return new Promise((resolve, reject) => {
+  return new Promise(resolve => {
     setTimeout(resolve, seconds * 1000);
   });
 };
