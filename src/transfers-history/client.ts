@@ -36,14 +36,14 @@ export class TransfersHistoryClient {
   private eventsQueriers: Record<ChainId, SpokePoolEventsQuerier> = {};
   private eventsServices: Record<string, Record<ChainId, SpokePoolEventsQueryService>> = {};
   private pollingIntervalSeconds: number = 15;
-  private pollingTimers: Record<string, NodeJS.Timer[]> = {};
+  private pollingTimers: Record<string, NodeJS.Timer> = {};
 
   constructor(
     config: TransfersHistoryClientParams,
     private logger = new Logger(),
     private transfersRepository = new TransfersRepository()
   ) {
-    if (config.pollingIntervalSeconds) {
+    if (typeof config.pollingIntervalSeconds === "number") {
       this.pollingIntervalSeconds = config.pollingIntervalSeconds;
     }
 
@@ -67,22 +67,28 @@ export class TransfersHistoryClient {
   }
 
   public async startFetchingTransfers(depositorAddr: string) {
-    const timers = this.pollingTimers[depositorAddr];
-    if (timers) throw new Error(`Address ${depositorAddr} is already monitored`);
-
     this.initSpokePoolEventsQueryServices(depositorAddr);
     this.getEventsForDepositor(depositorAddr);
-    const timer = setInterval(() => {
-      this.getEventsForDepositor(depositorAddr);
-    }, this.pollingIntervalSeconds * 1000);
-    this.pollingTimers[depositorAddr] = [...(this.pollingTimers[depositorAddr] || []), timer];
+
+    // add polling if user didn't opted out for polling
+    if (this.pollingIntervalSeconds > 0) {
+      let timer = this.pollingTimers[depositorAddr];
+
+      // prevent triggering multiple polling intervals for the same address
+      if (timer) throw new Error(`Address ${depositorAddr} is already monitored`);
+
+      timer = setInterval(() => {
+        this.getEventsForDepositor(depositorAddr);
+      }, this.pollingIntervalSeconds * 1000);
+      this.pollingTimers[depositorAddr] = timer;
+    }
   }
 
   public stopFetchingTransfers(depositorAddr: string) {
-    const timers = this.pollingTimers[depositorAddr];
+    const timer = this.pollingTimers[depositorAddr];
 
-    if (timers) {
-      timers.map(timer => clearInterval(timer));
+    if (timer) {
+      clearInterval(timer);
       delete this.pollingTimers[depositorAddr];
     }
   }
