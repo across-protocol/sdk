@@ -10,7 +10,11 @@ const { TransfersHistoryClient } = transfersHistory;
 
 const client = new TransfersHistoryClient({
   chains: [
-    { chainId: <chain_id>, providerUrl: <provider_url>, spokePoolContractAddr: <spoke_pool_address> }
+    { chainId: <chain_id>, 
+      providerUrl: <provider_url>, 
+      spokePoolContractAddr: <spoke_pool_address>, 
+      lowerBoundBlockNumber: <block_no>, 
+    }
   ],
   // optional 
   pollingIntervalSeconds: <polling_interval_in_seconds>
