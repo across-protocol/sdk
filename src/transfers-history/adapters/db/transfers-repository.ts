@@ -59,7 +59,7 @@ export class TransfersRepository {
     if (!this.usersTransfers[depositorAddr]) {
       this.usersTransfers[depositorAddr] = { pending: [], filled: [] };
     }
-    this.usersTransfers[depositorAddr].filled = transfers;
+    this.usersTransfers[depositorAddr].pending = transfers;
   }
 
   public setDepositorFilledTransfers(depositorAddr: string, transfers: Transfer[]) {
@@ -67,7 +67,7 @@ export class TransfersRepository {
       this.usersTransfers[depositorAddr] = { filled: [], pending: [] };
     }
 
-    this.usersTransfers[depositorAddr].pending = transfers;
+    this.usersTransfers[depositorAddr].filled = transfers;
   }
 
   public aggregateTransfers(depositorAddr: string) {
@@ -105,7 +105,7 @@ export class TransfersRepository {
   }
 
   public getPendingTransfers(depositorAddr: string, limit?: number, offset?: number) {
-    const transfers = this.usersTransfers[depositorAddr]?.filled || [];
+    const transfers = this.usersTransfers[depositorAddr]?.pending || [];
 
     if (transfers.length === 0) {
       return transfers;
