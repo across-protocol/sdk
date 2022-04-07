@@ -22,9 +22,13 @@ export class SpokePoolEventsQueryService {
   ) {}
 
   public async getEvents() {
-    const from = this.latestBlockNumber
-      ? this.latestBlockNumber + 1
-      : clientConfig.spokePools[this.chainId].lowerBoundBlockNumber;
+    let from;
+
+    if (this.latestBlockNumber) {
+      from = this.latestBlockNumber + 1;
+    } else {
+      from = clientConfig.spokePools[this.chainId].lowerBoundBlockNumber ?? -1;
+    }
     const to = (await this.provider.getBlock("latest")).number;
 
     if (from > to) {
