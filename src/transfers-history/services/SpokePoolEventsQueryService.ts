@@ -41,10 +41,12 @@ export class SpokePoolEventsQueryService {
 
     this.logger.debug(
       "[SpokePoolEventsQueryService::getEvents]",
-      `🟢 chain ${this.chainId}: fetched events from ${from} to ${to}`
+      `🟢 chain ${this.chainId}: fetch events from ${from} to ${to}`
     );
-    const depositEvents = await this.eventsQuerier.getFundsDepositEvents(from, to, this.depositorAddr);
-    const filledRelayEvents = await this.eventsQuerier.getFilledRelayEvents(from, to, this.depositorAddr);
+    const [depositEvents, filledRelayEvents] = await Promise.all([
+      this.eventsQuerier.getFundsDepositEvents(from, to, this.depositorAddr),
+      this.eventsQuerier.getFilledRelayEvents(from, to, this.depositorAddr),
+    ]);
     this.logger.debug(
       "[SpokePoolEventsQueryService::getEvents]",
       `🟢 chain ${this.chainId}: fetched ${depositEvents.length} FundsDeposited events and ${filledRelayEvents.length} FilledRelayEvents`
