@@ -25,6 +25,7 @@ export type TransfersHistoryClientParams = {
     chainId: ChainId;
     providerUrl: string;
     spokePoolContractAddr: string;
+    lowerBoundBlockNumber?: number;
   }[];
   pollingIntervalSeconds?: number;
 };
@@ -59,6 +60,7 @@ export class TransfersHistoryClient {
         undefined,
         this.logger
       );
+      clientConfig.spokePools[chain.chainId] = { lowerBoundBlockNumber: chain.lowerBoundBlockNumber || 0 };
     }
   }
 

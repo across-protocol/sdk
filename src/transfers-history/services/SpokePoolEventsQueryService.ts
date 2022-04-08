@@ -22,9 +22,13 @@ export class SpokePoolEventsQueryService {
   ) {}
 
   public async getEvents() {
-    const from = this.latestBlockNumber
-      ? this.latestBlockNumber + 1
-      : clientConfig.spokePools[this.chainId].lowerBoundBlockNumber;
+    let from;
+
+    if (this.latestBlockNumber) {
+      from = this.latestBlockNumber + 1;
+    } else {
+      from = clientConfig.spokePools[this.chainId].lowerBoundBlockNumber ?? -1;
+    }
     const to = (await this.provider.getBlock("latest")).number;
 
     if (from > to) {
@@ -37,10 +41,12 @@ export class SpokePoolEventsQueryService {
 
     this.logger.debug(
       "[SpokePoolEventsQueryService::getEvents]",
-      `🟢 chain ${this.chainId}: fetched events from ${from} to ${to}`
+      `🟢 chain ${this.chainId}: fetch events from ${from} to ${to}`
     );
-    const depositEvents = await this.eventsQuerier.getFundsDepositEvents(from, to, this.depositorAddr);
-    const filledRelayEvents = await this.eventsQuerier.getFilledRelayEvents(from, to, this.depositorAddr);
+    const [depositEvents, filledRelayEvents] = await Promise.all([
+      this.eventsQuerier.getFundsDepositEvents(from, to, this.depositorAddr),
+      this.eventsQuerier.getFilledRelayEvents(from, to, this.depositorAddr),
+    ]);
     this.logger.debug(
       "[SpokePoolEventsQueryService::getEvents]",
       `🟢 chain ${this.chainId}: fetched ${depositEvents.length} FundsDeposited events and ${filledRelayEvents.length} FilledRelayEvents`

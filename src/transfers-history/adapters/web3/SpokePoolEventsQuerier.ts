@@ -78,27 +78,40 @@ export class SpokePoolEventsQuerier implements ISpokePoolContractEventsQuerier {
     let retryWithLowerBatchSize;
 
     do {
+      const blockRangeSizeAtStart = this.blockRangeSize;
       try {
         retryWithLowerBatchSize = false;
         events = [];
 
         if (this.blockRangeSize) {
-          for (const [intervalStart, intervalEnd] of getSamplesBetween(from, to, this.blockRangeSize)) {
-            const newEvents = await this.spokePool.queryFilter(filters, intervalStart, intervalEnd);
-            events.push(...newEvents);
-          }
+          const intervals = getSamplesBetween(from, to, this.blockRangeSize);
+          // query events only for the first interval to make sure block range is fine
+          const [intervalStart, intervalEnd] = intervals[0];
+          const newEvents = await this.spokePool.queryFilter(filters, intervalStart, intervalEnd);
+          events.push(...newEvents);
+
+          // query the rest of block intervals in parallel in order to get the events
+          const newEventsList = await Promise.all(
+            intervals
+              .slice(1)
+              .map(([intervalStart, intervalEnd]) => this.spokePool.queryFilter(filters, intervalStart, intervalEnd))
+          );
+          events.push(...newEventsList.flat());
         } else {
           const newEvents = await this.spokePool.queryFilter(filters, from, to);
           events.push(...newEvents);
         }
       } catch (error) {
         if ((error as Web3Error).error.code === Web3ErrorCode.BLOCK_RANGE_TOO_LARGE) {
-          const newBlockRangeSize = this.blockRangeSize ? this.blockRangeSize / 2 : DEFAULT_BLOCK_RANGE;
-          this.logger?.debug(
-            `[SpokePoolEventsQuerier::getEventsInBatches]`,
-            `🔴 lowering block range size from ${this.blockRangeSize} to ${(newBlockRangeSize as number) / 2}`
-          );
-          this.blockRangeSize = newBlockRangeSize;
+          // make sure the block range size wasn't modified by a parallel function call
+          if (this.blockRangeSize === blockRangeSizeAtStart) {
+            const newBlockRangeSize = this.blockRangeSize ? this.blockRangeSize / 2 : DEFAULT_BLOCK_RANGE;
+            this.logger?.debug(
+              `[SpokePoolEventsQuerier::getEventsInBatches]`,
+              `🔴 lowering block range size from ${this.blockRangeSize} to ${newBlockRangeSize}`
+            );
+            this.blockRangeSize = newBlockRangeSize;
+          }
           retryWithLowerBatchSize = true;
         } else {
           retryWithLowerBatchSize = false;
