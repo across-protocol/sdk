@@ -5,11 +5,9 @@ export type SpokePoolConfig = {
 };
 
 export type ClientConfig = {
-  web3ProvidersUrls: Record<ChainId, string>;
   spokePools: Record<ChainId, SpokePoolConfig>;
 };
 
 export const clientConfig: ClientConfig = {
-  web3ProvidersUrls: {},
   spokePools: {},
 };

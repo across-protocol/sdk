@@ -23,7 +23,7 @@ export type TransfersHistoryClientEventListener = TransfersUpdatedEventListener;
 export type TransfersHistoryClientParams = {
   chains: {
     chainId: ChainId;
-    providerUrl: string;
+    provider: providers.Provider;
     spokePoolContractAddr: string;
     lowerBoundBlockNumber?: number;
   }[];
@@ -38,6 +38,7 @@ export class TransfersHistoryClient {
   private eventsServices: Record<string, Record<ChainId, SpokePoolEventsQueryService>> = {};
   private pollingIntervalSeconds: number = 15;
   private pollingTimers: Record<string, NodeJS.Timer> = {};
+  private fetchingState: Record<string, "started" | "stopped"> = {};
 
   constructor(
     config: TransfersHistoryClientParams,
@@ -49,8 +50,7 @@ export class TransfersHistoryClient {
     }
 
     for (const chain of config.chains) {
-      clientConfig.web3ProvidersUrls[chain.chainId] = chain.providerUrl;
-      this.web3Providers[chain.chainId] = new providers.JsonRpcProvider(chain.providerUrl);
+      this.web3Providers[chain.chainId] = chain.provider;
       this.spokePoolInstances[chain.chainId] = SpokePool__factory.connect(
         chain.spokePoolContractAddr,
         this.web3Providers[chain.chainId]
@@ -71,7 +71,8 @@ export class TransfersHistoryClient {
   public async startFetchingTransfers(depositorAddr: string) {
     this.initSpokePoolEventsQueryServices(depositorAddr);
     this.getEventsForDepositor(depositorAddr);
-
+    // mark that we started fetching events for depositor address
+    this.fetchingState[depositorAddr] = "started";
     // add polling if user didn't opted out for polling
     if (this.pollingIntervalSeconds > 0) {
       let timer = this.pollingTimers[depositorAddr];
@@ -88,7 +89,8 @@ export class TransfersHistoryClient {
 
   public stopFetchingTransfers(depositorAddr: string) {
     const timer = this.pollingTimers[depositorAddr];
-
+    // mark that the fetching stopped for depositor address
+    this.fetchingState[depositorAddr] = "stopped";
     if (timer) {
       clearInterval(timer);
       delete this.pollingTimers[depositorAddr];
@@ -128,7 +130,12 @@ export class TransfersHistoryClient {
       filledTransfersCount: this.transfersRepository.countFilledTransfers(depositorAddr),
       pendingTransfersCount: this.transfersRepository.countPendingTransfers(depositorAddr),
     };
-    this.eventEmitter.emit(TransfersHistoryEvent.TransfersUpdated, eventData);
+
+    // emit event only if the fetching wasn't stopped for depositor address.
+    // this is to prevent events from being triggered after the fetching was stopped
+    if (this.fetchingState[depositorAddr] === "started") {
+      this.eventEmitter.emit(TransfersHistoryEvent.TransfersUpdated, eventData);
+    }
   }
 
   public getFilledTransfers(depositorAddr: string, limit?: number, offset?: number) {
