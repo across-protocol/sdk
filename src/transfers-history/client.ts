@@ -23,7 +23,7 @@ export type TransfersHistoryClientEventListener = TransfersUpdatedEventListener;
 export type TransfersHistoryClientParams = {
   chains: {
     chainId: ChainId;
-    providerUrl: string;
+    provider: providers.Provider;
     spokePoolContractAddr: string;
     lowerBoundBlockNumber?: number;
   }[];
@@ -50,8 +50,7 @@ export class TransfersHistoryClient {
     }
 
     for (const chain of config.chains) {
-      clientConfig.web3ProvidersUrls[chain.chainId] = chain.providerUrl;
-      this.web3Providers[chain.chainId] = new providers.JsonRpcProvider(chain.providerUrl);
+      this.web3Providers[chain.chainId] = chain.provider;
       this.spokePoolInstances[chain.chainId] = SpokePool__factory.connect(
         chain.spokePoolContractAddr,
         this.web3Providers[chain.chainId]

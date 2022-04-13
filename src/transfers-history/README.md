@@ -11,7 +11,7 @@ const { TransfersHistoryClient } = transfersHistory;
 const client = new TransfersHistoryClient({
   chains: [
     { chainId: <chain_id>, 
-      providerUrl: <provider_url>, 
+      provider: <ethers_provider_instance>, 
       spokePoolContractAddr: <spoke_pool_address>, 
       lowerBoundBlockNumber: <block_no>, 
     }
