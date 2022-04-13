@@ -38,7 +38,7 @@ export class TransfersHistoryClient {
   private eventsServices: Record<string, Record<ChainId, SpokePoolEventsQueryService>> = {};
   private pollingIntervalSeconds: number = 15;
   private pollingTimers: Record<string, NodeJS.Timer> = {};
-  private fetchingState: Record<string, "started" | "stoped"> = {};
+  private fetchingState: Record<string, "started" | "stopped"> = {};
 
   constructor(
     config: TransfersHistoryClientParams,
@@ -91,7 +91,7 @@ export class TransfersHistoryClient {
   public stopFetchingTransfers(depositorAddr: string) {
     const timer = this.pollingTimers[depositorAddr];
     // mark that the fetching stopped for depositor address
-    this.fetchingState[depositorAddr] = "stoped";
+    this.fetchingState[depositorAddr] = "stopped";
     if (timer) {
       clearInterval(timer);
       delete this.pollingTimers[depositorAddr];
