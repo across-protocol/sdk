@@ -84,7 +84,7 @@ export function ethToToken(fromAmount: BigNumberish, price: string | number = 1,
  * @param {BigNumberish} gasPrice - gas price in gwei.
  * @returns {BigNumber} - total fees in wei.
  */
-export const gasToEth = (gas: number, gasPrice: BigNumberish): BigNumber => {
+export const gasToEth = (gas: BigNumberish, gasPrice: BigNumberish): BigNumber => {
   return BigNumber.from(gas).mul(gasPrice);
 };
 
@@ -98,7 +98,7 @@ export const gasToEth = (gas: number, gasPrice: BigNumberish): BigNumber => {
  * @returns {string} - The value of fees native to the token/eth provided, in its smallest unit.
  */
 export function calculateGasFees(
-  gas: number,
+  gas: BigNumberish,
   gasPrice: BigNumberish,
   price: string | number = 1,
   decimals = 18
