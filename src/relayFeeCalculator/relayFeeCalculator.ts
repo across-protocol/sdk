@@ -2,14 +2,13 @@ import assert from "assert";
 import * as uma from "@uma/sdk";
 import { Provider } from "@ethersproject/providers";
 import { BigNumber } from "ethers";
-import { BigNumberish, calculateGasFees, toBNWei } from "../utils";
+import { BigNumberish, toBNWei, nativeToToken, gasCost } from "../utils";
 const Coingecko = uma.Coingecko;
 const { percent, fixedPointAdjustment } = uma.across.utils;
 const { connect: erc20Connect } = uma.clients.erc20;
 
 export interface QueryInterface {
-  getGas: (tokenAddress?: string) => Promise<BigNumberish>;
-  getGasPrice: () => Promise<BigNumberish>;
+  getGasCosts: (tokenAddress?: string) => Promise<BigNumberish>;
   getTokenPrice: (tokenAddress: string) => Promise<number | string>;
   getTokenDecimals: (tokenAddress: string) => Promise<number>;
 }
@@ -17,22 +16,45 @@ export interface QueryInterface {
 // Override this to add different behaviors for different chains.
 export class DefaultQueries implements QueryInterface {
   private coingecko: uma.Coingecko;
+  /**
+   * constructor.
+   *
+   * @param {Provider} provider - For the default query class, the provider is for the destination chain.
+   * @param {string} priceSymbol - The symbol of the native gas token on the destination chain.
+   * @param {} defaultGas - hardcoded gas required to submit a relay on the destination chain.
+   */
   constructor(private provider: Provider, private priceSymbol: string = "eth", private defaultGas = "305572") {
     this.coingecko = new Coingecko();
   }
-  async getGas(): Promise<BigNumberish> {
-    return this.defaultGas;
-  }
-  async getGasPrice(): Promise<BigNumberish> {
+  /**
+   * getGasCosts. This should calculate how much of the native gas token is used for a relay on the destination chain.
+   *
+   * @returns {Promise<BigNumberish>}
+   */
+  async getGasCosts(): Promise<BigNumberish> {
     const { gasPrice, maxFeePerGas } = await this.provider.getFeeData();
-    const result = maxFeePerGas || gasPrice;
-    assert(result, "Unable to get gas price");
-    return result;
+    const price = maxFeePerGas || gasPrice;
+    assert(price, "Unable to get gas price");
+    return gasCost(this.defaultGas, price);
   }
+  /**
+   * getTokenPrice. This should return the price of a token relative to the native gas token on the
+   * destination chain. This is tricky because the token address provided should be the token address
+   * on the destination chain, which may not be easily accessible when sending relay.
+   *
+   * @param {string} tokenAddress
+   * @returns {Promise<number | string>}
+   */
   async getTokenPrice(tokenAddress: string): Promise<number | string> {
     const [, tokenPrice] = await this.coingecko.getCurrentPriceByContract(tokenAddress, this.priceSymbol.toLowerCase());
     return tokenPrice;
   }
+  /**
+   * getTokenDecimals. Gets token decimals, its assumed decimals are the same on both chains.
+   *
+   * @param {string} tokenAddress
+   * @returns {Promise<number>}
+   */
   async getTokenDecimals(tokenAddress: string): Promise<number> {
     const erc20Client = erc20Connect(tokenAddress, this.provider);
     return erc20Client.decimals();
@@ -63,16 +85,15 @@ export class RelayFeeCalculator {
     );
   }
   async relayerFeePercent(amountToRelay: BigNumberish, tokenAddress?: string): Promise<BigNumberish> {
-    const gas = await this.queries.getGas(tokenAddress);
-    const gasPrice = await this.queries.getGasPrice();
+    const gasCosts = await this.queries.getGasCosts(tokenAddress);
+    // if not provided, its assumed the token is the same denomination as the destination gas token
     if (!tokenAddress) {
-      const gasFees = calculateGasFees(gas, gasPrice);
-      return percent(gasFees, amountToRelay).toString();
+      return percent(gasCosts, amountToRelay).toString();
     }
     const tokenPrice = await this.queries.getTokenPrice(tokenAddress);
     const decimals = await this.queries.getTokenDecimals(tokenAddress);
-    const gasFees = calculateGasFees(gas, gasPrice, tokenPrice, decimals);
-    return percent(gasFees, amountToRelay).toString();
+    const gasFeesInToken = nativeToToken(gasCosts, tokenPrice, decimals);
+    return percent(gasFeesInToken, amountToRelay).toString();
   }
   async relayerFeeDetails(amountToRelay: BigNumberish, tokenAddress?: string) {
     let isAmountTooLow = false;

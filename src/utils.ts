@@ -64,14 +64,14 @@ export function max(a: BigNumberish, b: BigNumberish): BN {
 export const fixedPointAdjustment = toBNWei("1");
 
 /**
- * Convert an amount of eth into a token given price and token decimals.
+ * Convert an amount of native gas token into a token given price and token decimals.
  *
- * @param {BigNumberish} fromAmount - Amount of eth to convert.
- * @param {string | number} [ price=1 ] - The price as eth per token, ie how much eth can 1 token buy.
+ * @param {BigNumberish} fromAmount - Amount of native gas token to convert.
+ * @param {string | number} [ price=1 ] - The price as native gas token per token, ie how much native gas token can 1 token buy.
  * @param {} [ toDecimals=18 ] - Number of decimals for the token currency.
  * @returns {string} The number of tokens denominated in token decimals in the smallest unit (wei).
  */
-export function ethToToken(fromAmount: BigNumberish, price: string | number = 1, toDecimals = 18): string {
+export function nativeToToken(fromAmount: BigNumberish, price: string | number = 1, toDecimals = 18): string {
   const priceWei = toBNWei(price);
   const toAmount = toBNWei(fromAmount).div(priceWei);
   return ConvertDecimals(18, toDecimals)(toAmount);
@@ -84,7 +84,7 @@ export function ethToToken(fromAmount: BigNumberish, price: string | number = 1,
  * @param {BigNumberish} gasPrice - gas price in gwei.
  * @returns {BigNumber} - total fees in wei.
  */
-export const gasToEth = (gas: BigNumberish, gasPrice: BigNumberish): BigNumber => {
+export const gasCost = (gas: BigNumberish, gasPrice: BigNumberish): BigNumber => {
   return BigNumber.from(gas).mul(gasPrice);
 };
 
@@ -93,18 +93,18 @@ export const gasToEth = (gas: BigNumberish, gasPrice: BigNumberish): BigNumber =
  *
  * @param {number} gas - The gast cost for transfer, use constants defined in file.
  * @param {BigNumberish} gasPrice - Estimated gas price in wei.
- * @param {string | number} [price = 1] - The price of the token in eth, how much eth can 1 token buy.
+ * @param {string | number} [price = 1] - The price of the token in native gas token, how much native gas token can 1 token buy.
  * @param {number} [decimals=18] - Number of decimals of token.
- * @returns {string} - The value of fees native to the token/eth provided, in its smallest unit.
+ * @returns {string} - The value of fees native to the token provided, in its smallest unit.
  */
 export function calculateGasFees(
-  gas: BigNumberish,
+  gas: number,
   gasPrice: BigNumberish,
   price: string | number = 1,
   decimals = 18
 ): string {
-  const amountEth = gasToEth(gas, gasPrice);
-  return ethToToken(amountEth, price, decimals);
+  const amountNative = gasCost(gas, gasPrice);
+  return nativeToToken(amountNative, price, decimals);
 }
 
 /**
