@@ -1,5 +1,5 @@
-import * as lpFeeCalculator from "./lpFeeCalculator";
-import * as pool from "./pool";
-import * as transfersHistory from "./transfers-history";
+export * as lpFeeCalculator from "./lpFeeCalculator";
+export * as pool from "./pool";
+export * as transfersHistory from "./transfers-history";
+export * as relayFeeCalculator from "./relayFeeCalculator";
 
-export { lpFeeCalculator, pool, transfersHistory };
