@@ -62,6 +62,7 @@ export class DefaultQueries implements QueryInterface {
 }
 
 interface RelayFeeCalculatorConfig {
+  nativeTokenDecimals?: number;
   discountPercent?: number;
   feeLimitPercent?: number;
   queries: QueryInterface;
@@ -71,10 +72,12 @@ export class RelayFeeCalculator {
   private queries: Required<RelayFeeCalculatorConfig>["queries"];
   private discountPercent: Required<RelayFeeCalculatorConfig>["discountPercent"];
   private feeLimitPercent: Required<RelayFeeCalculatorConfig>["feeLimitPercent"];
+  private nativeTokenDecimals: Required<RelayFeeCalculatorConfig>["nativeTokenDecimals"];
   constructor(config: RelayFeeCalculatorConfig) {
     this.queries = config.queries;
     this.discountPercent = config.discountPercent || 0;
     this.feeLimitPercent = config.feeLimitPercent || 0;
+    this.nativeTokenDecimals = config.nativeTokenDecimals || 18;
     assert(
       this.discountPercent >= 0 && this.discountPercent <= 100,
       "discountPercent must be between 0 and 100 percent"
@@ -92,7 +95,7 @@ export class RelayFeeCalculator {
     }
     const tokenPrice = await this.queries.getTokenPrice(tokenAddress);
     const decimals = await this.queries.getTokenDecimals(tokenAddress);
-    const gasFeesInToken = nativeToToken(gasCosts, tokenPrice, decimals);
+    const gasFeesInToken = nativeToToken(gasCosts, tokenPrice, decimals, this.nativeTokenDecimals);
     return percent(gasFeesInToken, amountToRelay).toString();
   }
   async relayerFeeDetails(amountToRelay: BigNumberish, tokenAddress?: string) {

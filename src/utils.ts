@@ -69,12 +69,18 @@ export const fixedPointAdjustment = toBNWei("1");
  * @param {BigNumberish} fromAmount - Amount of native gas token to convert.
  * @param {string | number} [ price=1 ] - The price as native gas token per token, ie how much native gas token can 1 token buy.
  * @param {} [ toDecimals=18 ] - Number of decimals for the token currency.
+ * @param {} [ nativeDecimals=18 ] - Number of decimals for the native token currency.
  * @returns {string} The number of tokens denominated in token decimals in the smallest unit (wei).
  */
-export function nativeToToken(fromAmount: BigNumberish, price: string | number = 1, toDecimals = 18): string {
+export function nativeToToken(
+  fromAmount: BigNumberish,
+  price: string | number = 1,
+  toDecimals = 18,
+  nativeDecimals = 18
+): string {
   const priceWei = toBNWei(price);
   const toAmount = toBNWei(fromAmount).div(priceWei);
-  return ConvertDecimals(18, toDecimals)(toAmount);
+  return ConvertDecimals(nativeDecimals, toDecimals)(toAmount);
 }
 
 /**
