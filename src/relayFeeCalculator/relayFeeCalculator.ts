@@ -1,58 +1,14 @@
 import assert from "assert";
 import * as uma from "@uma/sdk";
-import { Provider } from "@ethersproject/providers";
 import { BigNumber } from "ethers";
-import { BigNumberish, toBNWei, nativeToToken, gasCost } from "../utils";
+import { BigNumberish, toBNWei, nativeToToken } from "../utils";
 const { percent, fixedPointAdjustment } = uma.across.utils;
 
+// This needs to be implemented for every chain and passed into RelayFeeCalculator
 export interface QueryInterface {
   getGasCosts: (tokenSymbol: string) => Promise<BigNumberish>;
   getTokenPrice: (tokenSymbol: string) => Promise<number | string>;
   getTokenDecimals: (tokenSymbol: string) => Promise<number>;
-}
-
-// Example of how to write this query class
-export class ExampleQueries implements QueryInterface {
-  // private coingecko: uma.Coingecko;
-  /**
-   * constructor.
-   *
-   * @param {Provider} provider - For the default query class, the provider is for the destination chain.
-   * @param {string} priceSymbol - The symbol of the native gas token on the destination chain.
-   * @param {} defaultGas - hardcoded gas required to submit a relay on the destination chain.
-   */
-  constructor(private provider: Provider, private defaultGas = "305572") {}
-  /**
-   * getGasCosts. This should calculate how much of the native gas token is used for a relay on the destination chain.
-   *
-   * @returns {Promise<BigNumberish>}
-   */
-  async getGasCosts(): Promise<BigNumberish> {
-    const { gasPrice, maxFeePerGas } = await this.provider.getFeeData();
-    const price = maxFeePerGas || gasPrice;
-    assert(price, "Unable to get gas price");
-    return gasCost(this.defaultGas, price);
-  }
-  /**
-   * getTokenPrice. This should return the price of a token relative to the native gas token on the
-   * destination chain. This is tricky because the token address provided should be the token address
-   * on the destination chain, which may not be easily accessible when sending relay.
-   *
-   * @param {string} tokenSymbol
-   * @returns {Promise<number | string>}
-   */
-  async getTokenPrice(): Promise<number | string> {
-    return 1;
-  }
-  /**
-   * getTokenDecimals. Gets token decimals, its assumed decimals are the same on both chains.
-   *
-   * @param {string} tokenSymbol
-   * @returns {Promise<number>}
-   */
-  async getTokenDecimals(): Promise<number> {
-    return 18;
-  }
 }
 
 export interface RelayFeeCalculatorConfig {
