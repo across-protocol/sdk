@@ -2,11 +2,13 @@ import EventEmitter from "events";
 import { clientConfig } from "./config";
 import { SpokePoolEventsQueryService } from "./services/SpokePoolEventsQueryService";
 import { Logger, LogLevel } from "./adapters/logger";
-import { providers } from "ethers";
+import { BigNumber, providers } from "ethers";
 import { SpokePool, SpokePool__factory } from "@across-protocol/contracts-v2";
 import { ChainId } from "./adapters/web3/model";
 import { SpokePoolEventsQuerier } from "./adapters/web3";
 import { TransfersRepository } from "./adapters/db/transfers-repository";
+import { FilledRelayEvent, FundsDepositedEvent } from "@across-protocol/contracts-v2/dist/typechain/ArbitrumSpokePool";
+import { Transfer } from "./model";
 
 export enum TransfersHistoryEvent {
   TransfersUpdated = "TransfersUpdated",
@@ -115,7 +117,6 @@ export class TransfersHistoryClient {
           this.web3Providers[chainId],
           this.eventsQueriers[chainId],
           this.logger,
-          this.transfersRepository,
           depositorAddr
         );
       }
@@ -123,8 +124,24 @@ export class TransfersHistoryClient {
   }
 
   private async getEventsForDepositor(depositorAddr: string) {
-    await Promise.all(Object.values(this.eventsServices[depositorAddr]).map(eventService => eventService.getEvents()));
+    // query all chains to get the events for the depositor address
+    let events = await Promise.all(
+      Object.values(this.eventsServices[depositorAddr]).map(eventService => eventService.getEvents())
+    );
+    const depositEvents = events
+      .flat()
+      .reduce((acc, val) => [...acc, ...val.depositEvents], [] as FundsDepositedEvent[]);
+    const filledRelayEvents = events
+      .flat()
+      .reduce((acc, val) => [...acc, ...val.filledRelayEvents], [] as FilledRelayEvent[]);
+    const blockTimestampMap = events
+      .flat()
+      .reduce((acc, val) => ({ ...acc, ...val.blockTimestampMap }), {} as { [blockNumber: number]: number });
+
+    depositEvents.map(e => this.insertFundsDepositedEvent(e, blockTimestampMap[e.blockNumber]));
+    filledRelayEvents.map(e => this.insertFilledRelayEvent(e));
     this.transfersRepository.aggregateTransfers(depositorAddr);
+
     const eventData: TransfersUpdatedEventListenerParams = {
       depositorAddr,
       filledTransfersCount: this.transfersRepository.countFilledTransfers(depositorAddr),
@@ -136,6 +153,29 @@ export class TransfersHistoryClient {
     if (this.fetchingState[depositorAddr] === "started") {
       this.eventEmitter.emit(TransfersHistoryEvent.TransfersUpdated, eventData);
     }
+  }
+
+  private insertFundsDepositedEvent(event: FundsDepositedEvent, timestamp: number) {
+    const { args, transactionHash } = event;
+    const { amount, originToken, destinationChainId, depositId, depositor, originChainId } = args;
+    const transfer: Transfer = {
+      amount: BigNumber.from(amount),
+      assetAddr: originToken,
+      depositId: depositId,
+      depositTime: timestamp,
+      depositTxHash: transactionHash,
+      destinationChainId: destinationChainId.toNumber(),
+      filled: BigNumber.from("0"),
+      sourceChainId: originChainId.toNumber(),
+      status: "pending",
+    };
+    this.transfersRepository.insertTransfer(originChainId.toNumber(), depositor, depositId, transfer);
+  }
+
+  private insertFilledRelayEvent(event: FilledRelayEvent) {
+    const { args } = event;
+    const { totalFilledAmount, depositor, depositId, originChainId } = args;
+    this.transfersRepository.updateFilledAmount(originChainId.toNumber(), depositor, depositId, totalFilledAmount);
   }
 
   public getFilledTransfers(depositorAddr: string, limit?: number, offset?: number) {
