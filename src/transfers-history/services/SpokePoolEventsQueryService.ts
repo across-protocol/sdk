@@ -45,7 +45,6 @@ export class SpokePoolEventsQueryService {
       this.eventsQuerier.getFilledRelayEvents(from, to, this.depositorAddr),
     ]);
 
-    console.log(filledRelayEvents.filter(f => f.args.depositId === 9));
     this.logger.debug(
       "[SpokePoolEventsQueryService::getEvents]",
       `🟢 chain ${this.chainId}: fetched ${depositEvents.length} FundsDeposited events and ${filledRelayEvents.length} FilledRelayEvents from block ${from} to block ${to}`
