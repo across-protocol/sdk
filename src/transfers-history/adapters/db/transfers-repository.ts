@@ -38,13 +38,17 @@ export class TransfersRepository {
     this.transfers[chainId][depositorAddr][depositId] = transfer;
   }
 
-  public updateFilledAmount(chainId: ChainId, depositAddr: string, depositId: number, filled: BigNumber) {
-    const oldTransfer = this.transfers[chainId][depositAddr][depositId];
-    this.transfers[chainId][depositAddr][depositId] = {
-      ...oldTransfer,
-      filled,
-      status: oldTransfer.amount.eq(filled) ? "filled" : "pending",
-    };
+  public updateFilledAmount(chainId: ChainId, depositorAddr: string, depositId: number, filled: BigNumber) {
+    const transfer = this.transfers[chainId][depositorAddr][depositId];
+    if (transfer) {
+      this.transfers[chainId][depositorAddr][depositId] = {
+        ...transfer,
+        filled,
+        status: transfer.amount.eq(filled) ? "filled" : "pending",
+      };
+    } else {
+      console.error(`couldn't fill deposit on chain ${chainId}, depositId ${depositId}, depositor ${depositorAddr}`);
+    }
   }
 
   public getTransfersByChainAndDepositor(chainId: ChainId, depositorAddr: string) {
