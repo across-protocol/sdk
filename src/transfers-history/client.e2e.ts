@@ -29,14 +29,22 @@ describe("Client e2e tests", () => {
           spokePoolContractAddr: "0x73549B5639B04090033c1E77a22eE9Aa44C2eBa0",
           lowerBoundBlockNumber: 30475937,
         },
+        {
+          chainId: CHAIN_IDs.RINKEBY,
+          provider: new providers.JsonRpcProvider(process.env[`WEB3_NODE_URL_${CHAIN_IDs.RINKEBY}`] || ""),
+          spokePoolContractAddr: "0xB078bBb35f8E24c2431b9d2a88C0bC0c26CC1F92",
+          lowerBoundBlockNumber: 10485193,
+        },
       ],
     });
     client.setLogLevel("debug");
-    await client.startFetchingTransfers("0x9A8f92a830A5cB89a3816e3D267CB7791c16b04D");
+    await client.startFetchingTransfers("0x718648C8c531F91b528A7757dD2bE813c3940608");
     client.on(TransfersHistoryEvent.TransfersUpdated, () => {
-      const pendingTransfers = client.getPendingTransfers("0x9A8f92a830A5cB89a3816e3D267CB7791c16b04D", 30, 0);
-      client.stopFetchingTransfers("0x9A8f92a830A5cB89a3816e3D267CB7791c16b04D");
+      const pendingTransfers = client.getPendingTransfers("0x718648C8c531F91b528A7757dD2bE813c3940608", 10, 0);
+      const filledTransfers = client.getFilledTransfers("0x718648C8c531F91b528A7757dD2bE813c3940608", 10, 0);
+      client.stopFetchingTransfers("0x718648C8c531F91b528A7757dD2bE813c3940608");
       expect(pendingTransfers.length).toBeGreaterThan(0);
+      expect(filledTransfers.length).toBeGreaterThan(0);
       done();
     });
   });

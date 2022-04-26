@@ -1,13 +1,10 @@
 import { TypedEvent } from "@across-protocol/contracts-v2/dist/typechain/common";
 import { FundsDepositedEvent, FilledRelayEvent } from "@across-protocol/contracts-v2/dist/typechain/SpokePool";
-import { BigNumber, providers } from "ethers";
-
-import { TransfersRepository } from "../adapters/db/transfers-repository";
+import { providers } from "ethers";
 import { Logger } from "../adapters/logger";
 import { ISpokePoolContractEventsQuerier } from "../adapters/web3";
 import { ChainId } from "../adapters/web3/model";
 import { clientConfig } from "../config";
-import { Transfer } from "../model";
 
 export class SpokePoolEventsQueryService {
   private latestBlockNumber: number | undefined;
@@ -17,12 +14,14 @@ export class SpokePoolEventsQueryService {
     private provider: providers.Provider,
     private eventsQuerier: ISpokePoolContractEventsQuerier,
     private logger: Logger,
-    private transfersRepository: TransfersRepository,
     private depositorAddr?: string
   ) {}
 
   public async getEvents() {
     let from;
+    let depositEvents: FundsDepositedEvent[] = [];
+    let filledRelayEvents: FilledRelayEvent[] = [];
+    let blockTimestampMap: { [blockNumber: number]: number } = {};
 
     if (this.latestBlockNumber) {
       from = this.latestBlockNumber + 1;
@@ -32,52 +31,32 @@ export class SpokePoolEventsQueryService {
     const to = (await this.provider.getBlock("latest")).number;
 
     if (from > to) {
-      this.logger.debug(
-        "[SpokePoolEventsQueryService::getEvents]",
-        `🔴 chain ${this.chainId}: from ${from} > to ${to}`
-      );
-      return;
+      this.logger.debug("[SpokePoolEventsQueryService]", `🔴 chain ${this.chainId}: from ${from} > to ${to}`);
+
+      return {
+        depositEvents: [],
+        filledRelayEvents: [],
+        blockTimestampMap: {},
+      };
     }
 
-    this.logger.debug(
-      "[SpokePoolEventsQueryService::getEvents]",
-      `🟢 chain ${this.chainId}: fetch events from ${from} to ${to}`
-    );
-    const [depositEvents, filledRelayEvents] = await Promise.all([
+    [depositEvents, filledRelayEvents] = await Promise.all([
       this.eventsQuerier.getFundsDepositEvents(from, to, this.depositorAddr),
       this.eventsQuerier.getFilledRelayEvents(from, to, this.depositorAddr),
     ]);
+
     this.logger.debug(
       "[SpokePoolEventsQueryService::getEvents]",
-      `🟢 chain ${this.chainId}: fetched ${depositEvents.length} FundsDeposited events and ${filledRelayEvents.length} FilledRelayEvents`
+      `🟢 chain ${this.chainId}: fetched ${depositEvents.length} FundsDeposited events and ${filledRelayEvents.length} FilledRelayEvents from block ${from} to block ${to}`
     );
-    const blockTimestampMap = await this.getBlocksTimestamp([...depositEvents, ...filledRelayEvents]);
-    depositEvents.map(event => this.insertFundsDepositedEvent(event, blockTimestampMap[event.blockNumber]));
-    filledRelayEvents.map(event => this.insertFilledRelayEvent(event));
+    blockTimestampMap = await this.getBlocksTimestamp(depositEvents);
     this.latestBlockNumber = to;
-  }
 
-  private insertFundsDepositedEvent(event: FundsDepositedEvent, timestamp: number) {
-    const { args, transactionHash } = event;
-    const { amount, originToken, destinationChainId, depositId, depositor } = args;
-    const transfer: Transfer = {
-      amount: BigNumber.from(amount),
-      assetAddr: originToken,
-      depositId: depositId,
-      depositTime: timestamp,
-      depositTxHash: transactionHash,
-      destinationChainId: destinationChainId.toNumber(),
-      filled: BigNumber.from("0"),
-      sourceChainId: this.chainId,
-      status: "pending",
+    return {
+      depositEvents,
+      filledRelayEvents,
+      blockTimestampMap,
     };
-    this.transfersRepository.insertTransfer(this.chainId, depositor, depositId, transfer);
-  }
-
-  private insertFilledRelayEvent(event: FilledRelayEvent) {
-    const { args } = event;
-    const { totalFilledAmount, depositor, depositId } = args;
-    this.transfersRepository.updateFilledAmount(this.chainId, depositor, depositId, totalFilledAmount);
   }
 
   /**
