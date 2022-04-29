@@ -16,6 +16,7 @@ const { loop, exists } = uma.utils;
 const {TransactionManager} = uma.across;
 const { parseAndReturnRateModelFromString } = uma.across.rateModel
 const { SECONDS_PER_YEAR, DEFAULT_BLOCK_DELTA} = uma.across.constants;
+const { AddressZero } = ethers.constants;
 
 export type { Provider };
 
@@ -28,6 +29,7 @@ export type Config = {
   rateModelStoreAddress: string;
   confirmations?: number;
   blockDelta?: number;
+  hasArchive?: boolean;
 };
 export type Dependencies = {
   provider: Provider;
@@ -102,9 +104,7 @@ class PoolState {
   ) {}
   public async read(l1Token:string, latestBlock: number, previousBlock?: number) {
     // typechain does not have complete types for call options, so we have to cast blockTag to any
-    const exchangeRatePrevious = await this.contract.callStatic.exchangeRateCurrent(l1Token,{
-      blockTag: previousBlock || latestBlock - 1,
-    } as any);
+    const exchangeRatePrevious = await this.exchangeRateAtBlock(l1Token, previousBlock || latestBlock - 1);
 
     const exchangeRateCurrent = await this.contract.callStatic.exchangeRateCurrent(l1Token);
 
@@ -119,7 +119,9 @@ class PoolState {
       exchangeRateCurrent,
       ...pooledToken,
     }
-
+  }
+  public async exchangeRateAtBlock(l1Token:string, blockTag:number){
+    return this.contract.callStatic.exchangeRateCurrent(l1Token,{ blockTag });
   }
 }
 
@@ -217,11 +219,77 @@ export class PoolEventState {
 }
 
 class UserState {
-  constructor(private contract: uma.clients.erc20.Instance) {}
-  public async read(user: string) {
+  private seen = new Set<string>();
+  private events: uma.clients.erc20.Transfer[] = [];
+  constructor(private contract: uma.clients.erc20.Instance, private userAddress: string, private startBlock = 0) {}
+  private makeId(params: EventIdParams) {
+    return [params.blockNumber, params.transactionIndex, params.logIndex].join("!");
+  }
+  hasEvent(params: EventIdParams) {
+    return this.seen.has(this.makeId(params));
+  }
+  private addEvent(params: EventIdParams) {
+    return this.seen.add(this.makeId(params));
+  }
+  private filterSeen = (params: EventIdParams) => {
+    const seen = this.hasEvent(params);
+    if (!seen) this.addEvent(params);
+    return !seen;
+  };
+  /**
+   * readEvents. Fetch and cache events for the user.
+   *
+   * @param {number} endBlock
+   */
+  public async readEvents(endBlock: number) {
+    if (endBlock <= this.startBlock) return [];
+    const {userAddress} = this
+    const events = (
+      await Promise.all([
+        ...(await this.contract.queryFilter(this.contract.filters.Transfer(userAddress,undefined), this.startBlock, endBlock)),
+        ...(await this.contract.queryFilter(this.contract.filters.Transfer(undefined,userAddress), this.startBlock, endBlock)),
+      ])
+    )
+    // filter out events we have seen
+    .filter(this.filterSeen)
+    // filter out mint/burn transfers
+    .filter((event:uma.clients.erc20.Transfer) => 
+      // ignore mint events
+      event.args.from !== AddressZero && 
+      // ignore burn events
+      event.args.to !== AddressZero &&
+      // ignore self transfer events
+      event.args.from !== event.args.to 
+    )
+    .flat()
+
+    this.events = this.events
+      .concat(events)
+      .sort((a, b) => {
+        if (a.blockNumber !== b.blockNumber) return a.blockNumber - b.blockNumber;
+        if (a.transactionIndex !== b.transactionIndex) return a.transactionIndex - b.transactionIndex;
+        if (a.logIndex !== b.logIndex) return a.logIndex - b.logIndex;
+        throw new Error('Duplicate events at tx hash: ' + a.transactionHash)
+      });
+    // ethers queries are inclusive [start,end] unless start === end, then exclusive (start,end). we increment to make sure we dont see same event twice
+    this.startBlock = endBlock + 1;
+    return this.events
+  }
+  /**
+   * read. Reads the state for the user, building state from events as well as contract calls.
+   *
+   * @param {number} endBlock
+   */
+  public async read(endBlock:number) {
+    const {userAddress} = this
+    const transferEvents = await this.readEvents(endBlock);
+    const state = uma.clients.erc20.getEventState(transferEvents);
+    const balanceTransferred = state?.balances?.[userAddress] || '0';
     return {
-      address: user,
-      balanceOf: await this.contract.balanceOf(user),
+      transferEvents,
+      balanceTransferred,
+      address: userAddress,
+      balanceOf: await this.contract.balanceOf(userAddress),
     };
   }
 }
@@ -256,12 +324,13 @@ function joinUserState(
   poolState: Pool,
   tokenEventState: hubPool.TokenEventState,
   userState: Awaited<ReturnType<UserState["read"]>>,
+  transferValue: BigNumberish = 0,
 ): User {
   const positionValue = BigNumber.from(poolState.exchangeRateCurrent)
     .mul(userState.balanceOf)
     .div(fixedPointAdjustment);
   const totalDeposited = BigNumber.from(tokenEventState.tokenBalances[userState.address] || "0");
-  const feesEarned = positionValue.sub(totalDeposited);
+  const feesEarned = positionValue.sub(totalDeposited.add(transferValue));
   return {
     address: userState.address,
     poolAddress: poolState.address,
@@ -342,6 +411,8 @@ export class Client {
   private erc20s:Record<string, uma.clients.erc20.Instance> = {};
   private intervalStarted = false;
   private rateModelInstance: uma.clients.rateModelStore.Instance;
+  private exchangeRateTable: Record<string,Record<number,BigNumberish>> = {};
+  private userServices: Record<string,Record<string,UserState>> = {};
   constructor(public readonly config: Config, public readonly deps: Dependencies, private emit: EmitState) {
     config.chainId = config.chainId || 1;
     this.hubPool = this.createHubPoolContract(deps.provider)
@@ -361,6 +432,48 @@ export class Client {
   }
   private getOrCreatePoolEvents() {
     return this.poolEvents
+  }
+  private getOrCreateUserService(userAddress:string,tokenAddress:string){
+    if(has(this.userServices,[tokenAddress,userAddress])) return get(this.userServices,[tokenAddress,userAddress]);
+    const erc20Contract = this.getOrCreateErc20Contract(tokenAddress)
+    const userService = new UserState(erc20Contract,userAddress);
+    // this service is stateful now, so needs to be cached
+    set(this.userServices,[tokenAddress,userAddress],userService)
+    return userService
+  }
+  private updateExchangeRateTable(l1TokenAddress:string, exchangeRateTable:Record<number,BigNumberish>):Record<number,BigNumberish>{
+    if(!this.exchangeRateTable[l1TokenAddress]) this.exchangeRateTable[l1TokenAddress] = {}
+    this.exchangeRateTable[l1TokenAddress] = {...this.exchangeRateTable[l1TokenAddress], ...exchangeRateTable}
+    return this.exchangeRateTable[l1TokenAddress]
+  }
+  // calculates the value of each LP token transfer at the block it was sent. this only works if we have archive node
+  async calculateLpTransferValue(l1TokenAddress:string, userState: Awaited<ReturnType<UserState["read"]>>){
+    assert(this.config.hasArchive,'Can only calculate historical lp values with archive node')
+    const contract = this.getOrCreatePoolContract();
+    const pool = new PoolState(contract,this.config.hubPoolAddress);
+    const blockNumbers = userState.transferEvents
+      .map(x=>x.blockNumber)
+      // we are going to lookup exchange rates for block numbers only if we dont already have it
+      .filter(blockNumber=>!this.exchangeRateTable[l1TokenAddress][blockNumber]);
+
+    // new exchange rate lookups
+    const exchangeRateTable = this.updateExchangeRateTable(l1TokenAddress,Object.fromEntries(
+      await Promise.all(blockNumbers.map(async blockNumber=>{
+        return [blockNumber,await pool.exchangeRateAtBlock(l1TokenAddress,blockNumber)]
+      }))
+    ));
+
+    return userState.transferEvents.reduce((result,transfer)=>{
+      const exchangeRate = exchangeRateTable[transfer.blockNumber];
+      if(transfer.args.to === userState.address){
+        return result.add(transfer.args.value.mul(exchangeRate).div(fixedPointAdjustment));
+      }
+      if(transfer.args.from === userState.address){
+        return result.sub(transfer.args.value.mul(exchangeRate).div(fixedPointAdjustment));
+      }
+      // we make sure to filter out any transfers where to/from is the same user
+      return result
+    },BigNumber.from(0))
   }
   private getOrCreateTransactionManager(signer: Signer, address: string) {
     if (this.transactionManagers[address]) return this.transactionManagers[address];
@@ -501,9 +614,9 @@ export class Client {
   hasPoolState(l1TokenAddress: string):boolean {
     return Boolean(this.state.pools[l1TokenAddress]);
   }
-  setUserState(l1TokenAddress:string, userAddress:string, state:User):User{
+  setUserState(l1TokenAddress:string, userAddress:string, state:User):User {
     set(this.state, ["users", userAddress, l1TokenAddress], state);
-    return state
+    return state;
   }
   getUserState(l1TokenAddress: string, userAddress: string):User {
     return get(this.state, ["users", userAddress, l1TokenAddress]);
@@ -517,40 +630,48 @@ export class Client {
   getTxState(id: string):Transaction {
     return get(this.state, ["transactions", id]);
   }
+  private async updateAndEmitUser(userState:Awaited<ReturnType<UserState["read"]>>,poolState:Pool,poolEventState:hubPool.EventState):Promise<void>{
+    const {l1Token:l1TokenAddress} = poolState;
+    const {address:userAddress} = userState;
+    const transferValue = this.config.hasArchive ? await this.calculateLpTransferValue(l1TokenAddress,userState) : 0;
+    const tokenEventState = poolEventState[l1TokenAddress]
+    const newUserState = this.setUserState(l1TokenAddress,userAddress,joinUserState(poolState, tokenEventState, userState,transferValue))
+    this.emit(["users", userAddress, l1TokenAddress], newUserState)
+  }
   private async updateUserWithTransaction(userAddress: string, txReceipt: TransactionReceipt):Promise<void> {
+    const latestBlock = (await this.deps.provider.getBlock("latest"));
     const getPoolEventState = this.getOrCreatePoolEvents();
     const l1TokenAddress = getPoolEventState.getL1TokenFromReceipt(txReceipt);
-    await this.updatePool(l1TokenAddress);
+    await this.updatePool(l1TokenAddress, latestBlock);
     const poolState = this.getPoolState(l1TokenAddress);
+    const poolEventState = await getPoolEventState.readTxReceipt(txReceipt);
+
     const lpToken = poolState.lpToken;
-    const erc20Contract = this.getOrCreateErc20Contract(lpToken)
-    const getUserState = new UserState(erc20Contract);
-    const userState = await getUserState.read(userAddress);
-    const eventState = await getPoolEventState.readTxReceipt(txReceipt);
-    const tokenEventState = eventState[l1TokenAddress]
-    const newUserState = this.setUserState(l1TokenAddress,userAddress,joinUserState(poolState, tokenEventState, userState))
-    this.emit(["users", userAddress, l1TokenAddress], newUserState)
+    const getUserState = this.getOrCreateUserService(userAddress,lpToken)
+    const userState = await getUserState.read(latestBlock.number);
+
+    await this.updateAndEmitUser(userState,poolState,poolEventState)
   }
   async updateUser(userAddress: string, l1TokenAddress: string):Promise<void> {
-    await this.updatePool(l1TokenAddress);
+    const latestBlock = (await this.deps.provider.getBlock("latest"));
+    await this.updatePool(l1TokenAddress, latestBlock);
+
     const poolState = this.getPoolState(l1TokenAddress);
     const lpToken = poolState.lpToken;
-    const latestBlock = (await this.deps.provider.getBlock("latest")).number;
-    const erc20Contract = this.getOrCreateErc20Contract(lpToken)
-    const getUserState = new UserState(erc20Contract);
     const getPoolEventState = this.getOrCreatePoolEvents();
-    const userState = await getUserState.read(userAddress);
-    const eventState = await getPoolEventState.read(latestBlock);
-    const tokenEventState = eventState[l1TokenAddress]
-    const newUserState = this.setUserState(l1TokenAddress,userAddress,joinUserState(poolState, tokenEventState, userState))
-    this.emit(["users", userAddress, l1TokenAddress], newUserState)
+    const poolEventState = await getPoolEventState.read(latestBlock.number);
+
+    const getUserState = this.getOrCreateUserService(userAddress,lpToken)
+    const userState = await getUserState.read(latestBlock.number);
+
+    await this.updateAndEmitUser(userState,poolState,poolEventState);
   }
-  async updatePool(l1TokenAddress:string):Promise<void> {
+  async updatePool(l1TokenAddress:string, overrideLatestBlock?: Block):Promise<void> {
     // default to 100 block delta unless specified otherwise in config
     const { blockDelta = DEFAULT_BLOCK_DELTA } = this.config;
     const contract = this.getOrCreatePoolContract();
     const pool = new PoolState(contract,this.config.hubPoolAddress);
-    const latestBlock = await this.deps.provider.getBlock("latest");
+    const latestBlock = overrideLatestBlock || await this.deps.provider.getBlock("latest");
     const previousBlock = await this.deps.provider.getBlock(latestBlock.number - blockDelta);
     const state = await pool.read(l1TokenAddress,latestBlock.number, previousBlock.number);
 

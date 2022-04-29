@@ -14,7 +14,10 @@ const hubPoolAddress = ethers.utils.getAddress("0xD449Af45a032Df413b497A709EeD3E
 const rateModelStoreAddress = ethers.utils.getAddress("0x5923929DF7A2D6E038bb005B167c1E8a86cd13C8");
 const wethAddress = ethers.utils.getAddress("0xd0A1E359811322d97991E03f863a0C30C2cF029C");
 const daiAddress = ethers.utils.getAddress("0x4F96Fe3b7A6Cf9725f59d353F723c1bDb64CA6Aa");
-const users = [ethers.utils.getAddress("0x9A8f92a830A5cB89a3816e3D267CB7791c16b04D")];
+const users = [
+  ethers.utils.getAddress("0x9A8f92a830A5cB89a3816e3D267CB7791c16b04D"),
+  ethers.utils.getAddress("0x718648C8c531F91b528A7757dD2bE813c3940608"),
+];
 const l1Tokens = [daiAddress, wethAddress];
 const txReceiptHash = "0xb1cad90827baba0d4db5e510fabf12e1bb296f3ab16112d79b8b6af654949d0f";
 const startBlock = 30475928;
@@ -51,8 +54,16 @@ describe("Client", function() {
   let client: Client;
   beforeAll(async () => {
     provider = ethers.getDefaultProvider(process.env.CUSTOM_NODE_URL);
-    client = new Client({ hubPoolAddress, rateModelStoreAddress, wethAddress }, { provider }, (path, data) =>
-      set(state, path, data)
+    client = new Client(
+      {
+        hubPoolAddress,
+        rateModelStoreAddress,
+        wethAddress,
+        // if you have an archive node, set this to true
+        hasArchive: false,
+      },
+      { provider },
+      (path, data) => set(state, path, data)
     );
   });
   test("read users", async function() {
