@@ -103,7 +103,10 @@ export class SpokePoolEventsQuerier implements ISpokePoolContractEventsQuerier {
           events.push(...newEvents);
         }
       } catch (error) {
-        if ((error as Web3Error).error.code === Web3ErrorCode.BLOCK_RANGE_TOO_LARGE) {
+        if (
+          (error as Web3Error).error.code === Web3ErrorCode.BLOCK_RANGE_TOO_LARGE ||
+          (error as Web3Error).error.code === Web3ErrorCode.EXCEEDED_MAXIMUM_BLOCK_RANGE
+        ) {
           // make sure the block range size wasn't modified by a parallel function call
           if (this.blockRangeSize === blockRangeSizeAtStart) {
             const newBlockRangeSize = this.blockRangeSize ? this.blockRangeSize / 2 : DEFAULT_BLOCK_RANGE;
@@ -116,6 +119,7 @@ export class SpokePoolEventsQuerier implements ISpokePoolContractEventsQuerier {
           retryWithLowerBatchSize = true;
         } else {
           retryWithLowerBatchSize = false;
+          console.error(error);
           throw error;
         }
       }

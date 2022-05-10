@@ -32,6 +32,10 @@ export class TransfersRepository {
   public usersTransfers: UsersTransfersStore = usersTransfersStoreInitialValue;
 
   public insertTransfer(chainId: ChainId, depositorAddr: string, depositId: number, transfer: Transfer) {
+    if (!this.transfers[chainId]) {
+      this.transfers[chainId] = {};
+    }
+
     if (!this.transfers[chainId][depositorAddr]) {
       this.transfers[chainId][depositorAddr] = {};
     }
@@ -39,7 +43,7 @@ export class TransfersRepository {
   }
 
   public updateFilledAmount(chainId: ChainId, depositorAddr: string, depositId: number, filled: BigNumber) {
-    const transfer = this.transfers[chainId][depositorAddr][depositId];
+    const transfer = this.transfers?.[chainId]?.[depositorAddr]?.[depositId];
     if (transfer) {
       this.transfers[chainId][depositorAddr][depositId] = {
         ...transfer,
