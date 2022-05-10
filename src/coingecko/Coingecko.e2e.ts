@@ -2,24 +2,24 @@ import assert from "assert";
 import Coingecko from "./Coingecko";
 
 // this requires e2e testing, should only test manually for now
-describe("coingecko", function() {
+describe("coingecko", function () {
   let cg: Coingecko;
-  test("init", function() {
+  test("init", function () {
     cg = Coingecko.get();
     assert.ok(cg);
   });
-  test("getContractDetails", async function() {
+  test("getContractDetails", async function () {
     const address = "0x04fa0d235c4abf4bcf4787af4cf447de572ef828";
     const result = await cg.getContractDetails(address);
     assert.ok(result);
   });
-  test("getCurrentPriceByContract", async function() {
+  test("getCurrentPriceByContract", async function () {
     const address = "0x04fa0d235c4abf4bcf4787af4cf447de572ef828";
     const result = await cg.getCurrentPriceByContract(address);
     assert.ok(result);
     assert.equal(result.length, 2);
   });
-  test("getContractPrices", async function() {
+  test("getContractPrices", async function () {
     const addresses = [
       "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
       "0xeca82185adCE47f39c684352B0439f030f860318",
@@ -44,14 +44,14 @@ describe("coingecko", function() {
     ];
     const result = await cg.getContractPrices(addresses);
     assert.equal(result.length, addresses.length);
-    result.forEach(result => {
+    result.forEach((result) => {
       assert.ok(result.price);
       assert.ok(result.timestamp);
       assert.ok(result.address);
       assert.ok(addresses.includes(result.address));
     });
   });
-  test("getHistoricContractPrices", async function() {
+  test("getHistoricContractPrices", async function () {
     const address = "0x04fa0d235c4abf4bcf4787af4cf447de572ef828";
     // 4 weeks
     const from = Date.now() - 28 * 24 * 1000 * 60 * 60;

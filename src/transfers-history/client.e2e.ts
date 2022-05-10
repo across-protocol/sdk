@@ -6,7 +6,7 @@ import { TransfersHistoryClient, TransfersHistoryEvent } from "./client";
 dotenv.config({ path: ".env" });
 
 describe("Client e2e tests", () => {
-  it("should fetch pending transfers from chain", async done => {
+  it("should fetch pending transfers from chain", async (done) => {
     jest.setTimeout(1000 * 60);
     const client = new TransfersHistoryClient({
       pollingIntervalSeconds: 0,

@@ -18,15 +18,15 @@
     "test": "tsdx test",
     "test:watch": "tsdx test --watch",
     "test:e2e": "tsdx test --config jest-e2e-config.json",
-    "lint": "tsdx lint --fix",
-    "prepare": "tsdx build",
+    "lint": "eslint --fix src",
+    "prepare": "tsdx build && husky install",
     "size": "size-limit",
     "analyze": "size-limit --why"
   },
   "peerDependencies": {},
   "husky": {
     "hooks": {
-      "pre-commit": "tsdx lint"
+      "pre-commit": "yarn lint"
     }
   },
   "module": "dist/sdk-v2.esm.js",
@@ -49,9 +49,19 @@
     "@typechain/hardhat": "^5.0.0",
     "@types/dotenv": "^8.2.0",
     "@types/lodash.get": "^4.4.7",
+    "@typescript-eslint/eslint-plugin": "^5.23.0",
+    "@typescript-eslint/parser": "^5.23.0",
     "dotenv": "^16.0.0",
+    "eslint": "^8.0.1",
+    "eslint-config-prettier": "^8.5.0",
+    "eslint-config-standard": "^17.0.0",
+    "eslint-plugin-import": "^2.25.2",
+    "eslint-plugin-n": "^15.0.0",
+    "eslint-plugin-prettier": "^4.0.0",
+    "eslint-plugin-promise": "^6.0.0",
     "hardhat": "^2.9.1",
-    "husky": "^7.0.4",
+    "husky": "^8.0.0",
+    "prettier": "^2.6.2",
     "size-limit": "^7.0.8",
     "tsdx": "^0.14.1",
     "tslib": "^2.3.1",

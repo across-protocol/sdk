@@ -1,8 +1,8 @@
-import { HubPool, HubPool__factory, HubPoolInterface} from '@across-protocol/contracts-v2';
+import { HubPool, HubPool__factory, HubPoolInterface } from "@across-protocol/contracts-v2";
 
 import type { SignerOrProvider, GetEventType, SerializableEvent } from "@uma/sdk";
 import * as uma from "@uma/sdk";
-const  { Balances } = uma.utils
+const { Balances } = uma.utils;
 
 export type Instance = HubPool;
 export const Factory = HubPool__factory;
@@ -14,8 +14,8 @@ export function connect(address: string, provider: SignerOrProvider): Instance {
 
 export type LiquidityAdded = GetEventType<Instance, "LiquidityAdded">;
 export type LiquidityRemoved = GetEventType<Instance, "LiquidityRemoved">;
-export type  L1TokenEnabledForLiquidityProvision = GetEventType<Instance, "L1TokenEnabledForLiquidityProvision">;
-export type  L2TokenDisabledForLiquidityProvision = GetEventType<Instance, "L2TokenDisabledForLiquidityProvision">;
+export type L1TokenEnabledForLiquidityProvision = GetEventType<Instance, "L1TokenEnabledForLiquidityProvision">;
+export type L2TokenDisabledForLiquidityProvision = GetEventType<Instance, "L2TokenDisabledForLiquidityProvision">;
 
 export type TokenEventState = {
   tokenBalances: uma.utils.Balances;
@@ -23,18 +23,17 @@ export type TokenEventState = {
   l1Token?: string;
   lpToken?: string;
   enabled?: boolean;
-
-}
-export type EventState = Record<string,TokenEventState>
+};
+export type EventState = Record<string, TokenEventState>;
 
 export function eventStateDefaults(): EventState {
-  return { };
+  return {};
 }
-function tokenEventStateDefaults():TokenEventState {
+function tokenEventStateDefaults(): TokenEventState {
   return {
-    tokenBalances:{},
-    lpTokenBalances:{},
-  }
+    tokenBalances: {},
+    lpTokenBalances: {},
+  };
 }
 
 export function reduceEvents(state: EventState, event: SerializableEvent): EventState {
@@ -42,13 +41,13 @@ export function reduceEvents(state: EventState, event: SerializableEvent): Event
     case "LiquidityAdded": {
       const typedEvent = event as LiquidityAdded;
       const { amount, lpTokensMinted, liquidityProvider, l1Token } = typedEvent.args;
-      const tokenEventState = state[l1Token] || tokenEventStateDefaults()
+      const tokenEventState = state[l1Token] || tokenEventStateDefaults();
       const tokens = Balances(tokenEventState.tokenBalances);
       const lpTokens = Balances(tokenEventState.lpTokenBalances);
       tokens.add(liquidityProvider, amount.toString());
       lpTokens.add(liquidityProvider, lpTokensMinted.toString());
 
-      const tokenState =  {
+      const tokenState = {
         ...tokenEventState,
         l1Token,
         tokenBalances: {
@@ -61,19 +60,19 @@ export function reduceEvents(state: EventState, event: SerializableEvent): Event
 
       return {
         ...state,
-        [l1Token]:tokenState
-      }
+        [l1Token]: tokenState,
+      };
     }
     case "LiquidityRemoved": {
       const typedEvent = event as LiquidityRemoved;
-      const { amount, lpTokensBurnt, liquidityProvider , l1Token} = typedEvent.args;
-      const tokenEventState = state[l1Token] || tokenEventStateDefaults()
+      const { amount, lpTokensBurnt, liquidityProvider, l1Token } = typedEvent.args;
+      const tokenEventState = state[l1Token] || tokenEventStateDefaults();
       const tokens = Balances(tokenEventState.tokenBalances);
       const lpTokens = Balances(tokenEventState.lpTokenBalances);
       tokens.sub(liquidityProvider, amount.toString());
       lpTokens.sub(liquidityProvider, lpTokensBurnt.toString());
 
-      const tokenState =  {
+      const tokenState = {
         ...tokenEventState,
         l1Token,
         tokenBalances: {
@@ -86,36 +85,36 @@ export function reduceEvents(state: EventState, event: SerializableEvent): Event
 
       return {
         ...state,
-        [l1Token]:tokenState
-      }
+        [l1Token]: tokenState,
+      };
     }
     case "L1TokenEnabledForLiquidityProvision": {
       const typedEvent = event as L1TokenEnabledForLiquidityProvision;
-      const {l1Token,lpToken} = typedEvent.args;
-      const tokenEventState = state[l1Token] || tokenEventStateDefaults()
+      const { l1Token, lpToken } = typedEvent.args;
+      const tokenEventState = state[l1Token] || tokenEventStateDefaults();
       return {
         ...state,
-        [l1Token]:{
+        [l1Token]: {
           ...tokenEventState,
           lpToken,
           l1Token,
-          enabled:true,
-        }
-      }
+          enabled: true,
+        },
+      };
     }
     case "L2TokenDisabledForLiquidityProvision": {
       const typedEvent = event as L2TokenDisabledForLiquidityProvision;
-      const {l1Token,lpToken} = typedEvent.args;
-      const tokenEventState = state[l1Token] || tokenEventStateDefaults()
+      const { l1Token, lpToken } = typedEvent.args;
+      const tokenEventState = state[l1Token] || tokenEventStateDefaults();
       return {
         ...state,
-        [l1Token]:{
+        [l1Token]: {
           ...tokenEventState,
           lpToken,
           l1Token,
-          enabled:false,
-        }
-      }
+          enabled: false,
+        },
+      };
     }
   }
   return state;

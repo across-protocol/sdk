@@ -1,1 +1,1 @@
-export * as hubPool from './hubPool'
+export * as hubPool from "./hubPool";

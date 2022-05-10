@@ -38,7 +38,7 @@ export class TransfersHistoryClient {
   private spokePoolInstances: Record<ChainId, SpokePool> = {};
   private eventsQueriers: Record<ChainId, SpokePoolEventsQuerier> = {};
   private eventsServices: Record<string, Record<ChainId, SpokePoolEventsQueryService>> = {};
-  private pollingIntervalSeconds: number = 15;
+  private pollingIntervalSeconds = 15;
   private pollingTimers: Record<string, NodeJS.Timer> = {};
   private fetchingState: Record<string, "started" | "stopped"> = {};
 
@@ -104,7 +104,7 @@ export class TransfersHistoryClient {
   }
 
   private initSpokePoolEventsQueryServices(depositorAddr: string) {
-    const chainIds = Object.keys(this.spokePoolInstances).map(chainId => parseInt(chainId));
+    const chainIds = Object.keys(this.spokePoolInstances).map((chainId) => parseInt(chainId));
 
     for (const chainId of chainIds) {
       if (!this.eventsServices[depositorAddr]) {
@@ -125,8 +125,8 @@ export class TransfersHistoryClient {
 
   private async getEventsForDepositor(depositorAddr: string) {
     // query all chains to get the events for the depositor address
-    let events = await Promise.all(
-      Object.values(this.eventsServices[depositorAddr]).map(eventService => eventService.getEvents())
+    const events = await Promise.all(
+      Object.values(this.eventsServices[depositorAddr]).map((eventService) => eventService.getEvents())
     );
     const depositEvents = events
       .flat()
@@ -138,8 +138,8 @@ export class TransfersHistoryClient {
       .flat()
       .reduce((acc, val) => ({ ...acc, ...val.blockTimestampMap }), {} as { [blockNumber: number]: number });
 
-    depositEvents.map(e => this.insertFundsDepositedEvent(e, blockTimestampMap[e.blockNumber]));
-    filledRelayEvents.map(e => this.insertFilledRelayEvent(e));
+    depositEvents.map((e) => this.insertFundsDepositedEvent(e, blockTimestampMap[e.blockNumber]));
+    filledRelayEvents.map((e) => this.insertFilledRelayEvent(e));
     this.transfersRepository.aggregateTransfers(depositorAddr);
 
     const eventData: TransfersUpdatedEventListenerParams = {
