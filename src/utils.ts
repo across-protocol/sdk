@@ -226,9 +226,7 @@ export async function retry<T>(call: () => Promise<T>, times: number, delayS: nu
   let promiseChain = call();
   for (let i = 0; i < times; i++)
     promiseChain = promiseChain.catch(async () => {
-      console.log("delaying");
       await delay(delayS);
-      console.log("done delaying");
       return await call();
     });
   return promiseChain;
