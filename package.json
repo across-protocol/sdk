@@ -76,7 +76,8 @@
     "ethers": "^5.6.1",
     "hardhat-deploy": "^0.11.2",
     "hardhat-gas-reporter": "^1.0.8",
-    "lodash.get": "^4.4.2"
+    "lodash.get": "^4.4.2",
+    "superstruct": "^0.15.4"
   },
   "publishConfig": {
     "registry": "https://registry.npmjs.com/",
