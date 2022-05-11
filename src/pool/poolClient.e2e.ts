@@ -5,13 +5,13 @@ import { TransactionReceipt } from "@ethersproject/abstract-provider";
 import assert from "assert";
 import set from "lodash/set";
 import get from "lodash/get";
-import { hubPool } from "./contracts";
+import { hubPool } from "../contracts";
 
 dotenv.config();
 
 // kovan only
 const hubPoolAddress = ethers.utils.getAddress("0xD449Af45a032Df413b497A709EeD3E8C112EbcE3");
-const rateModelStoreAddress = ethers.utils.getAddress("0x5923929DF7A2D6E038bb005B167c1E8a86cd13C8");
+const configStoreAddress = ethers.utils.getAddress("0xDd74f7603e3fDA6435aEc91F8960a6b8b40415f3");
 const wethAddress = ethers.utils.getAddress("0xd0A1E359811322d97991E03f863a0C30C2cF029C");
 const daiAddress = ethers.utils.getAddress("0x4F96Fe3b7A6Cf9725f59d353F723c1bDb64CA6Aa");
 const users = [
@@ -48,7 +48,7 @@ describe("PoolEventState", function () {
     assert.equal(token, "0x4F96Fe3b7A6Cf9725f59d353F723c1bDb64CA6Aa");
   });
 });
-describe("Client", function () {
+describe("PoolClient", function () {
   const state = {};
   let provider: Provider;
   let client: Client;
@@ -57,7 +57,7 @@ describe("Client", function () {
     client = new Client(
       {
         hubPoolAddress,
-        rateModelStoreAddress,
+        configStoreAddress,
         wethAddress,
         // if you have an archive node, set this to true
         hasArchive: false,

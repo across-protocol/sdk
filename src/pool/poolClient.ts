@@ -9,12 +9,11 @@ import set from "lodash/set";
 import get from "lodash/get";
 import has from "lodash/has";
 import { calculateInstantaneousRate } from "../lpFeeCalculator";
-import { hubPool } from "./contracts";
-const { rateModelStore, erc20 } = uma.clients;
+import { hubPool, acrossConfigStore } from "../contracts";
 
+const { erc20 } = uma.clients;
 const { loop, exists } = uma.utils;
 const { TransactionManager } = uma.across;
-const { parseAndReturnRateModelFromString } = uma.across.rateModel;
 const { SECONDS_PER_YEAR, DEFAULT_BLOCK_DELTA } = uma.across.constants;
 const { AddressZero } = ethers.constants;
 
@@ -26,7 +25,7 @@ export type Config = {
   chainId?: number;
   hubPoolAddress: string;
   wethAddress: string;
-  rateModelStoreAddress: string;
+  configStoreAddress: string;
   confirmations?: number;
   blockDelta?: number;
   hasArchive?: boolean;
@@ -348,7 +347,7 @@ function joinPoolState(
   poolState: Awaited<ReturnType<PoolState["read"]>>,
   latestBlock: Block,
   previousBlock: Block,
-  rateModel?: uma.across.constants.RateModel
+  rateModel?: acrossConfigStore.RateModel
 ): Pool {
   const totalPoolSize = poolState.liquidReserves.add(poolState.utilizedReserves);
   const secondsElapsed = latestBlock.timestamp - previousBlock.timestamp;
@@ -414,14 +413,14 @@ export class Client {
   private poolEvents: PoolEventState;
   private erc20s: Record<string, uma.clients.erc20.Instance> = {};
   private intervalStarted = false;
-  private rateModelInstance: uma.clients.rateModelStore.Instance;
+  private configStoreClient: acrossConfigStore.Client;
   private exchangeRateTable: Record<string, Record<number, BigNumberish>> = {};
   private userServices: Record<string, Record<string, UserState>> = {};
   constructor(public readonly config: Config, public readonly deps: Dependencies, private emit: EmitState) {
     config.chainId = config.chainId || 1;
     this.hubPool = this.createHubPoolContract(deps.provider);
     this.poolEvents = new PoolEventState(this.hubPool);
-    this.rateModelInstance = rateModelStore.connect(config.rateModelStoreAddress, deps.provider);
+    this.configStoreClient = new acrossConfigStore.Client(config.configStoreAddress, deps.provider);
   }
   public getOrCreateErc20Contract(address: string): uma.clients.erc20.Instance {
     if (this.erc20s[address]) return this.erc20s[address];
@@ -695,10 +694,9 @@ export class Client {
     const previousBlock = await this.deps.provider.getBlock(latestBlock.number - blockDelta);
     const state = await pool.read(l1TokenAddress, latestBlock.number, previousBlock.number);
 
-    let rateModel: uma.across.constants.RateModel | undefined = undefined;
+    let rateModel: acrossConfigStore.RateModel | undefined = undefined;
     try {
-      const rateModelRaw = await this.rateModelInstance.callStatic.l1TokenRateModels(state.l1Token);
-      rateModel = parseAndReturnRateModelFromString(rateModelRaw);
+      rateModel = await this.configStoreClient.getRateModel(l1TokenAddress);
     } catch (err) {
       // we could swallow this error or just log it since getting the rate model is optional,
       // but we will just emit it to the caller and let them decide what to do with it.
