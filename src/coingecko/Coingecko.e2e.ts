@@ -16,6 +16,7 @@ describe("coingecko", function() {
   test("getCurrentPriceByContract", async function() {
     const address = "0x04fa0d235c4abf4bcf4787af4cf447de572ef828";
     const result = await cg.getCurrentPriceByContract(address);
+    console.log([typeof result[0], typeof result[1]]);
     assert.ok(result);
     assert.equal(result.length, 2);
   });
