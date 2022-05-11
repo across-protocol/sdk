@@ -3,18 +3,18 @@ import { AcrossConfigStore, AcrossConfigStore__factory } from "@across-protocol/
 import { object, string, Infer, assert } from "superstruct";
 import type { CallOverrides } from "@ethersproject/contracts";
 
-const RateModel = object({
+const RateModelSs = object({
   UBar: string(), // denote the utilization kink along the rate model where the slope of the interest rate model changes.
   R0: string(), // is the interest rate charged at 0 utilization
   R1: string(), // R_0+R_1 is the interest rate charged at UBar
   R2: string(), // R_0+R_1+R_2 is the interest rate charged at 100% utilization
 });
-const L1TokenConfig = object({
-  rateModel: RateModel,
+const L1TokenConfigSs = object({
+  rateModel: RateModelSs,
   transferThreshold: string(),
 });
-export type RateModel = Infer<typeof RateModel>;
-export type L1TokenConfig = Infer<typeof L1TokenConfig>;
+export type RateModel = Infer<typeof RateModelSs>;
+export type L1TokenConfig = Infer<typeof L1TokenConfigSs>;
 
 export class Client {
   public readonly contract: AcrossConfigStore;
@@ -23,7 +23,7 @@ export class Client {
   }
   static parseL1TokenConfig(data: string): L1TokenConfig {
     const l1TokenConfig = JSON.parse(data);
-    assert(l1TokenConfig, L1TokenConfig);
+    assert(l1TokenConfig, L1TokenConfigSs);
     return l1TokenConfig;
   }
   async getL1TokenConfig(l1TokenAddress: string, overrides: CallOverrides = {}): Promise<L1TokenConfig> {
