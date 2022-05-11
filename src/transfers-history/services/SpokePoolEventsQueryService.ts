@@ -39,17 +39,27 @@ export class SpokePoolEventsQueryService {
         blockTimestampMap: {},
       };
     }
-
-    [depositEvents, filledRelayEvents] = await Promise.all([
+    let start = new Date();
+    const [depositEventsSettled, filledRelayEventsSettled] = await Promise.allSettled([
       this.eventsQuerier.getFundsDepositEvents(from, to, this.depositorAddr),
       this.eventsQuerier.getFilledRelayEvents(from, to, this.depositorAddr),
     ]);
-
+    depositEvents = depositEventsSettled.status === "fulfilled" ? depositEventsSettled.value : [];
+    filledRelayEvents = filledRelayEventsSettled.status === "fulfilled" ? filledRelayEventsSettled.value : [];
+    let end = new Date();
     this.logger.debug(
       "[SpokePoolEventsQueryService::getEvents]",
-      `🟢 chain ${this.chainId}: fetched ${depositEvents.length} FundsDeposited events and ${filledRelayEvents.length} FilledRelayEvents from block ${from} to block ${to}`
+      `🟢 chain ${this.chainId}: ${depositEvents.length} FundsDeposited events and ${
+        filledRelayEvents.length
+      } FilledRelayEvents, blocks: ${from} -> ${to}, ${(end.valueOf() - start.valueOf()) / 1000} seconds`
     );
+    start = new Date();
     blockTimestampMap = await this.getBlocksTimestamp(depositEvents);
+    end = new Date();
+    this.logger.debug(
+      "[SpokePoolEventsQueryService::getEvents]",
+      `🟢 chain ${this.chainId}: fetched block numbers in ${(end.valueOf() - start.valueOf()) / 1000} seconds`
+    );
     this.latestBlockNumber = to;
 
     return {
