@@ -140,11 +140,7 @@ export const calcContinuousCompoundInterest = (
   periodsPerYear: Decimalish
 ): string => {
   const years = new Decimal(periodsPerYear).div(periodsElapsed);
-  return new Decimal(endAmount)
-    .div(startAmount)
-    .ln()
-    .div(years)
-    .toString();
+  return new Decimal(endAmount).div(startAmount).ln().div(years).toString();
 };
 /**
  * calcPeriodicCompoundInterest. Taken from https://www.calculatorsoup.com/calculators/financial/compound-interest-calculator.php?given_data=find_r&A=2&P=1&n=365&t=1&given_data_last=find_r&action=solve
@@ -189,12 +185,7 @@ export const calcApr = (
   periodsElapsed: Decimalish,
   periodsPerYear: Decimalish
 ): string => {
-  return new Decimal(endAmount)
-    .sub(startAmount)
-    .div(startAmount)
-    .mul(periodsPerYear)
-    .div(periodsElapsed)
-    .toString();
+  return new Decimal(endAmount).sub(startAmount).div(startAmount).mul(periodsPerYear).div(periodsElapsed).toString();
 };
 /**
  * Takes two values and returns a list of number intervals
@@ -219,7 +210,7 @@ export const getSamplesBetween = (min: number, max: number, size: number) => {
 };
 
 export async function delay(seconds: number) {
-  return new Promise(resolve => setTimeout(resolve, seconds * 1000));
+  return new Promise((resolve) => setTimeout(resolve, seconds * 1000));
 }
 
 export async function retry<T>(call: () => Promise<T>, times: number, delayS: number): Promise<T> {

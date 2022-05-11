@@ -16,16 +16,12 @@ export interface RateModel {
 
 // Calculate the rate for a 0 sized deposit (infinitesimally small).
 export function calculateInstantaneousRate(rateModel: RateModel, utilization: BigNumberish) {
-  const beforeKink = min(utilization, rateModel.UBar)
-    .mul(rateModel.R1)
-    .div(rateModel.UBar);
+  const beforeKink = min(utilization, rateModel.UBar).mul(rateModel.R1).div(rateModel.UBar);
   const afterKink = max(toBN("0"), toBN(utilization).sub(rateModel.UBar))
     .mul(rateModel.R2)
     .div(toBNWei("1").sub(rateModel.UBar));
 
-  return toBN(rateModel.R0)
-    .add(beforeKink)
-    .add(afterKink);
+  return toBN(rateModel.R0).add(beforeKink).add(afterKink);
 }
 
 //  Compute area under curve of the piece-wise linear rate model.
@@ -48,10 +44,7 @@ function calculateAreaUnderRateCurve(rateModel: RateModel, utilization: BN) {
     .div(fixedPointAdjustment)
     .div(fixedPointAdjustment);
 
-  return rectangle1Area
-    .add(triangle1Area)
-    .add(rectangle2Area)
-    .add(triangle2Area);
+  return rectangle1Area.add(triangle1Area).add(rectangle2Area).add(triangle2Area);
 }
 
 // converts an APY rate to a one week rate. Uses the Decimal library to take a fractional exponent
@@ -63,12 +56,7 @@ function convertApyToWeeklyFee(apy: BN) {
   ).minus(new Decimal("1"));
 
   // Convert from decimal back to BN, scaled by 1e18.
-  return toBN(
-    weeklyFeePct
-      .times(fixedPointAdjustment.toString())
-      .floor()
-      .toString()
-  );
+  return toBN(weeklyFeePct.times(fixedPointAdjustment.toString()).floor().toString());
 }
 
 // Calculate the realized yearly LP Fee APY Percent for a given rate model, utilization before and after the deposit.

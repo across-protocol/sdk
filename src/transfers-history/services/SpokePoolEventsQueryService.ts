@@ -77,9 +77,9 @@ export class SpokePoolEventsQueryService {
     const uniqueBlockNumbers = events.reduce((acc, event) => {
       return { ...acc, [event.blockNumber]: true };
     }, {} as Record<number, any>);
-    const uniqueBlockNumbersList = Object.keys(uniqueBlockNumbers).map(blockNumber => parseInt(blockNumber));
-    const blocks = await Promise.all(uniqueBlockNumbersList.map(blockNumber => this.provider.getBlock(blockNumber)));
-    const timestamps = await Promise.all(blocks.map(block => block.timestamp));
+    const uniqueBlockNumbersList = Object.keys(uniqueBlockNumbers).map((blockNumber) => parseInt(blockNumber));
+    const blocks = await Promise.all(uniqueBlockNumbersList.map((blockNumber) => this.provider.getBlock(blockNumber)));
+    const timestamps = await Promise.all(blocks.map((block) => block.timestamp));
     const blockTimestampMap = uniqueBlockNumbersList.reduce(
       (acc, blockNumber, idx) => ({
         ...acc,

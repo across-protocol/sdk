@@ -23,7 +23,7 @@ const txReceiptHash = "0xb1cad90827baba0d4db5e510fabf12e1bb296f3ab16112d79b8b6af
 const startBlock = 30475928;
 const endBlock = 30477298;
 
-describe("PoolEventState", function() {
+describe("PoolEventState", function () {
   let provider: Provider;
   let client: PoolEventState;
   let receipt: TransactionReceipt;
@@ -33,22 +33,22 @@ describe("PoolEventState", function() {
     client = new PoolEventState(instance, startBlock);
     receipt = await provider.getTransactionReceipt(txReceiptHash);
   });
-  test("read events", async function() {
+  test("read events", async function () {
     const result = await client.read(endBlock);
     const nodupe = await client.read(endBlock);
     assert.deepEqual(result, nodupe);
   });
-  test("readTxReceipt", async function() {
+  test("readTxReceipt", async function () {
     const result = client.readTxReceipt(receipt);
     const nodupe = client.readTxReceipt(receipt);
     assert.deepEqual(result, nodupe);
   });
-  test("getL1TokenFromReceipt", async function() {
+  test("getL1TokenFromReceipt", async function () {
     const token = client.getL1TokenFromReceipt(receipt);
     assert.equal(token, "0x4F96Fe3b7A6Cf9725f59d353F723c1bDb64CA6Aa");
   });
 });
-describe("Client", function() {
+describe("Client", function () {
   const state = {};
   let provider: Provider;
   let client: Client;
@@ -66,7 +66,7 @@ describe("Client", function() {
       (path, data) => set(state, path, data)
     );
   });
-  test("read users", async function() {
+  test("read users", async function () {
     jest.setTimeout(30000);
     for (const userAddress of users) {
       for (const l1Token of l1Tokens) {

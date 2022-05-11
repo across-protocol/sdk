@@ -111,7 +111,7 @@ export class SpokePoolEventsQuerier implements ISpokePoolContractEventsQuerier {
           if (this.blockRangeSize === blockRangeSizeAtStart) {
             const newBlockRangeSize = this.blockRangeSize ? this.blockRangeSize / 2 : DEFAULT_BLOCK_RANGE;
             this.logger?.debug(
-              `[SpokePoolEventsQuerier::getEventsInBatches]`,
+              "[SpokePoolEventsQuerier::getEventsInBatches]",
               `🔴 lowering block range size from ${this.blockRangeSize} to ${newBlockRangeSize}`
             );
             this.blockRangeSize = newBlockRangeSize;

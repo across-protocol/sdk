@@ -47,10 +47,7 @@ export class RelayFeeCalculator {
   async relayerFeeDetails(amountToRelay: BigNumberish, tokenSymbol: string) {
     let isAmountTooLow = false;
     const relayFeePercent = await this.relayerFeePercent(amountToRelay, tokenSymbol);
-    const relayFeeTotal = BigNumber.from(relayFeePercent)
-      .mul(amountToRelay)
-      .div(fixedPointAdjustment)
-      .toString();
+    const relayFeeTotal = BigNumber.from(relayFeePercent).mul(amountToRelay).div(fixedPointAdjustment).toString();
     if (this.feeLimitPercent) {
       isAmountTooLow = BigNumber.from(relayFeePercent).gt(toBNWei(this.feeLimitPercent / 100));
     }
