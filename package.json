@@ -19,16 +19,15 @@
     "test:watch": "tsdx test --watch",
     "test:e2e": "tsdx test --config jest-e2e-config.json",
     "lint": "eslint --fix src",
+    "lint-check": "eslint src",
     "prepare": "tsdx build && husky install",
     "size": "size-limit",
     "analyze": "size-limit --why"
   },
-  "peerDependencies": {},
-  "husky": {
-    "hooks": {
-      "pre-commit": "yarn lint"
-    }
+  "lint-staged": {
+    "*.ts": "yarn lint"
   },
+  "peerDependencies": {},
   "module": "dist/sdk-v2.esm.js",
   "size-limit": [
     {
@@ -61,6 +60,7 @@
     "eslint-plugin-promise": "^6.0.0",
     "hardhat": "^2.9.1",
     "husky": "^8.0.0",
+    "lint-staged": "^12.4.1",
     "prettier": "^2.6.2",
     "size-limit": "^7.0.8",
     "tsdx": "^0.14.1",
