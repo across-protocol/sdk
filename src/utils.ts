@@ -218,18 +218,18 @@ export const getSamplesBetween = (min: number, max: number, size: number) => {
   return intervals;
 };
 
-
 export async function delay(seconds: number) {
-  return new Promise((resolve) => setTimeout(resolve, seconds * 1000));
+  return new Promise(resolve => setTimeout(resolve, seconds * 1000));
 }
 
 export async function retry<T>(call: () => Promise<T>, times: number, delayS: number): Promise<T> {
-  if (times <= 1) {
-    return call();
-  } else {
-    return retry(() => call().catch(async () => {
+  let promiseChain = call();
+  for (let i = 0; i < times; i++)
+    promiseChain = promiseChain.catch(async () => {
+      console.log("delaying");
       await delay(delayS);
-      return call();
-    }), times - 1, delayS);
-  }
+      console.log("done delaying");
+      return await call();
+    });
+  return promiseChain;
 }

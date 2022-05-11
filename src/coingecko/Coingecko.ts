@@ -23,14 +23,12 @@ type CoinGeckoPrice = {
 // Singleton Coingecko class.
 class Coingecko {
   private static instance: Coingecko | undefined;
-  private throttlePromise: Promise<unknown> = Promise.resolve();
-
 
   // Retry configuration.
   private retryDelay = 1;
   private numRetries = 3;
 
-  public static getCoingecko(host?: string) {
+  public static get(host?: string) {
     if (!this.instance) this.instance = new Coingecko(host);
     return this.instance;
   }
@@ -70,11 +68,11 @@ class Coingecko {
     platform_id = "ethereum"
   ): Promise<CoinGeckoPrice[]> {
     // Generate a unique set with no repeated. join the set with the required coingecko delimiter.
-    const contract_addresses = Array.from(new Set(addresses.filter((n) => n).values()));
+    const contract_addresses = Array.from(new Set(addresses.filter(n => n).values()));
     assert(contract_addresses.length > 0, "Must supply at least 1 contract address");
     // coingecko returns lowercase addresses, so if you expect checksummed addresses, this lookup table will convert them back without having to add ethers as a dependency
     const lookup = Object.fromEntries(
-      contract_addresses.map((address) => {
+      contract_addresses.map(address => {
         return [address.toLowerCase(), address];
       })
     );
@@ -101,17 +99,17 @@ class Coingecko {
 
   async call(path: string) {
     const sendRequest = async () => {
-    try {
-      const { host } = this;
-      const url = `${host}/${path}`;
-      const result = await axios(url);
-      return result.data;
-    } catch (err) {
-      const msg = get(err, "response.data.error", get(err, "response.statusText", "Unknown Coingecko Error"));
-      throw new Error(msg);
-    }
-  };
-  return retry(sendRequest, this.numRetries, this.retryDelay);
-}
+      try {
+        const { host } = this;
+        const url = `${host}/${path}`;
+        const result = await axios(url);
+        return result.data;
+      } catch (err) {
+        const msg = get(err, "response.data.error", get(err, "response.statusText", "Unknown Coingecko Error"));
+        throw new Error(msg);
+      }
+    };
+    return retry(sendRequest, this.numRetries, this.retryDelay);
+  }
 }
 export default Coingecko;
