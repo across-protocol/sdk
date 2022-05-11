@@ -79,7 +79,7 @@ export class TransfersRepository {
   }
 
   public aggregateTransfers(depositorAddr: string) {
-    const chainsIds = Object.keys(this.transfers).map(chainId => parseInt(chainId));
+    const chainsIds = Object.keys(this.transfers).map((chainId) => parseInt(chainId));
     const transfers: Transfer[] = [];
 
     for (const chainId of chainsIds) {

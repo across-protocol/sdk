@@ -9,13 +9,13 @@ import set from "lodash/set";
 import get from "lodash/get";
 import has from "lodash/has";
 import { calculateInstantaneousRate } from "../lpFeeCalculator";
-import { hubPool } from './contracts'
+import { hubPool } from "./contracts";
 const { rateModelStore, erc20 } = uma.clients;
 
 const { loop, exists } = uma.utils;
-const {TransactionManager} = uma.across;
-const { parseAndReturnRateModelFromString } = uma.across.rateModel
-const { SECONDS_PER_YEAR, DEFAULT_BLOCK_DELTA} = uma.across.constants;
+const { TransactionManager } = uma.across;
+const { parseAndReturnRateModelFromString } = uma.across.rateModel;
+const { SECONDS_PER_YEAR, DEFAULT_BLOCK_DELTA } = uma.across.constants;
 const { AddressZero } = ethers.constants;
 
 export type { Provider };
@@ -80,7 +80,7 @@ export type State = {
   transactions: Record<string, Transaction>;
   error?: Error;
 };
-export type EmitState = (path: string[], data: any) => void;
+export type EmitState = (path: string[], data: Pool | User | Transaction | Error) => void;
 export type PooledToken = {
   // LP token given to LPs of a specific L1 token.
   lpToken: string;
@@ -95,33 +95,30 @@ export type PooledToken = {
   liquidReserves: BigNumber;
   // Number of LP funds reserved to pay out to LPs as fees.
   undistributedLpFees: BigNumber;
-}
+};
 
 class PoolState {
-  constructor(
-    private contract: hubPool.Instance,
-    private address: string
-  ) {}
-  public async read(l1Token:string, latestBlock: number, previousBlock?: number) {
+  constructor(private contract: hubPool.Instance, private address: string) {}
+  public async read(l1Token: string, latestBlock: number, previousBlock?: number) {
     // typechain does not have complete types for call options, so we have to cast blockTag to any
     const exchangeRatePrevious = await this.exchangeRateAtBlock(l1Token, previousBlock || latestBlock - 1);
 
     const exchangeRateCurrent = await this.contract.callStatic.exchangeRateCurrent(l1Token);
 
-    const pooledToken:PooledToken = await this.contract.pooledTokens(l1Token);
+    const pooledToken: PooledToken = await this.contract.pooledTokens(l1Token);
 
     return {
-      address:this.address,
+      address: this.address,
       l1Token,
       latestBlock,
       previousBlock,
       exchangeRatePrevious,
       exchangeRateCurrent,
       ...pooledToken,
-    }
+    };
   }
-  public async exchangeRateAtBlock(l1Token:string, blockTag:number){
-    return this.contract.callStatic.exchangeRateCurrent(l1Token,{ blockTag });
+  public async exchangeRateAtBlock(l1Token: string, blockTag: number) {
+    return this.contract.callStatic.exchangeRateCurrent(l1Token, { blockTag });
   }
 }
 
@@ -180,7 +177,7 @@ export class PoolEventState {
       eventSignature: description.signature,
     };
   }
-  getL1TokenFromReceipt(receipt:TransactionReceipt):string{
+  getL1TokenFromReceipt(receipt: TransactionReceipt): string {
     const events = receipt.logs
       .map((log) => {
         try {
@@ -191,13 +188,13 @@ export class PoolEventState {
         }
       })
       // filter out undefined
-      .filter(exists)
+      .filter(exists);
 
-    const eventState = hubPool.getEventState(events)
-    const l1Tokens = Object.keys(eventState)
-    assert(l1Tokens.length,'Token not found from events')
-    assert(l1Tokens.length === 1,'Multiple tokens found from events')
-    return l1Tokens[0]
+    const eventState = hubPool.getEventState(events);
+    const l1Tokens = Object.keys(eventState);
+    assert(l1Tokens.length, "Token not found from events");
+    assert(l1Tokens.length === 1, "Multiple tokens found from events");
+    return l1Tokens[0];
   }
   readTxReceipt(receipt: TransactionReceipt) {
     const events = receipt.logs
@@ -243,48 +240,55 @@ class UserState {
    */
   public async readEvents(endBlock: number) {
     if (endBlock <= this.startBlock) return [];
-    const {userAddress} = this
+    const { userAddress } = this;
     const events = (
       await Promise.all([
-        ...(await this.contract.queryFilter(this.contract.filters.Transfer(userAddress,undefined), this.startBlock, endBlock)),
-        ...(await this.contract.queryFilter(this.contract.filters.Transfer(undefined,userAddress), this.startBlock, endBlock)),
+        ...(await this.contract.queryFilter(
+          this.contract.filters.Transfer(userAddress, undefined),
+          this.startBlock,
+          endBlock
+        )),
+        ...(await this.contract.queryFilter(
+          this.contract.filters.Transfer(undefined, userAddress),
+          this.startBlock,
+          endBlock
+        )),
       ])
     )
-    // filter out events we have seen
-    .filter(this.filterSeen)
-    // filter out mint/burn transfers
-    .filter((event:uma.clients.erc20.Transfer) => 
-      // ignore mint events
-      event.args.from !== AddressZero && 
-      // ignore burn events
-      event.args.to !== AddressZero &&
-      // ignore self transfer events
-      event.args.from !== event.args.to 
-    )
-    .flat()
+      // filter out events we have seen
+      .filter(this.filterSeen)
+      // filter out mint/burn transfers
+      .filter(
+        (event: uma.clients.erc20.Transfer) =>
+          // ignore mint events
+          event.args.from !== AddressZero &&
+          // ignore burn events
+          event.args.to !== AddressZero &&
+          // ignore self transfer events
+          event.args.from !== event.args.to
+      )
+      .flat();
 
-    this.events = this.events
-      .concat(events)
-      .sort((a, b) => {
-        if (a.blockNumber !== b.blockNumber) return a.blockNumber - b.blockNumber;
-        if (a.transactionIndex !== b.transactionIndex) return a.transactionIndex - b.transactionIndex;
-        if (a.logIndex !== b.logIndex) return a.logIndex - b.logIndex;
-        throw new Error('Duplicate events at tx hash: ' + a.transactionHash)
-      });
+    this.events = this.events.concat(events).sort((a, b) => {
+      if (a.blockNumber !== b.blockNumber) return a.blockNumber - b.blockNumber;
+      if (a.transactionIndex !== b.transactionIndex) return a.transactionIndex - b.transactionIndex;
+      if (a.logIndex !== b.logIndex) return a.logIndex - b.logIndex;
+      throw new Error("Duplicate events at tx hash: " + a.transactionHash);
+    });
     // ethers queries are inclusive [start,end] unless start === end, then exclusive (start,end). we increment to make sure we dont see same event twice
     this.startBlock = endBlock + 1;
-    return this.events
+    return this.events;
   }
   /**
    * read. Reads the state for the user, building state from events as well as contract calls.
    *
    * @param {number} endBlock
    */
-  public async read(endBlock:number) {
-    const {userAddress} = this
+  public async read(endBlock: number) {
+    const { userAddress } = this;
     const transferEvents = await this.readEvents(endBlock);
     const state = uma.clients.erc20.getEventState(transferEvents);
-    const balanceTransferred = state?.balances?.[userAddress] || '0';
+    const balanceTransferred = state?.balances?.[userAddress] || "0";
     return {
       transferEvents,
       balanceTransferred,
@@ -324,7 +328,7 @@ function joinUserState(
   poolState: Pool,
   tokenEventState: hubPool.TokenEventState,
   userState: Awaited<ReturnType<UserState["read"]>>,
-  transferValue: BigNumberish = 0,
+  transferValue: BigNumberish = 0
 ): User {
   const positionValue = BigNumber.from(poolState.exchangeRateCurrent)
     .mul(userState.balanceOf)
@@ -392,7 +396,7 @@ export class ReadPoolClient {
     this.contract = hubPool.connect(address, this.provider);
     this.poolState = new PoolState(this.contract, this.address);
   }
-  public async read(tokenAddress:string, latestBlock: number) {
+  public async read(tokenAddress: string, latestBlock: number) {
     return this.poolState.read(tokenAddress, latestBlock);
   }
 }
@@ -408,72 +412,80 @@ export class Client {
   private hubPool: hubPool.Instance;
   public readonly state: State = { pools: {}, users: {}, transactions: {} };
   private poolEvents: PoolEventState;
-  private erc20s:Record<string, uma.clients.erc20.Instance> = {};
+  private erc20s: Record<string, uma.clients.erc20.Instance> = {};
   private intervalStarted = false;
   private rateModelInstance: uma.clients.rateModelStore.Instance;
-  private exchangeRateTable: Record<string,Record<number,BigNumberish>> = {};
-  private userServices: Record<string,Record<string,UserState>> = {};
+  private exchangeRateTable: Record<string, Record<number, BigNumberish>> = {};
+  private userServices: Record<string, Record<string, UserState>> = {};
   constructor(public readonly config: Config, public readonly deps: Dependencies, private emit: EmitState) {
     config.chainId = config.chainId || 1;
-    this.hubPool = this.createHubPoolContract(deps.provider)
+    this.hubPool = this.createHubPoolContract(deps.provider);
     this.poolEvents = new PoolEventState(this.hubPool);
     this.rateModelInstance = rateModelStore.connect(config.rateModelStoreAddress, deps.provider);
   }
-  public getOrCreateErc20Contract(address:string): uma.clients.erc20.Instance {
-    if(this.erc20s[address]) return this.erc20s[address]
-    this.erc20s[address] = erc20.connect(address,this.deps.provider)
-    return this.erc20s[address]
+  public getOrCreateErc20Contract(address: string): uma.clients.erc20.Instance {
+    if (this.erc20s[address]) return this.erc20s[address];
+    this.erc20s[address] = erc20.connect(address, this.deps.provider);
+    return this.erc20s[address];
   }
   public getOrCreatePoolContract(): hubPool.Instance {
-    return this.hubPool
+    return this.hubPool;
   }
-  public createHubPoolContract(signerOrProvider:Signer | Provider): hubPool.Instance{
-    return hubPool.connect(this.config.hubPoolAddress,signerOrProvider)
+  public createHubPoolContract(signerOrProvider: Signer | Provider): hubPool.Instance {
+    return hubPool.connect(this.config.hubPoolAddress, signerOrProvider);
   }
   private getOrCreatePoolEvents() {
-    return this.poolEvents
+    return this.poolEvents;
   }
-  private getOrCreateUserService(userAddress:string,tokenAddress:string){
-    if(has(this.userServices,[tokenAddress,userAddress])) return get(this.userServices,[tokenAddress,userAddress]);
-    const erc20Contract = this.getOrCreateErc20Contract(tokenAddress)
-    const userService = new UserState(erc20Contract,userAddress);
+  private getOrCreateUserService(userAddress: string, tokenAddress: string) {
+    if (has(this.userServices, [tokenAddress, userAddress])) return get(this.userServices, [tokenAddress, userAddress]);
+    const erc20Contract = this.getOrCreateErc20Contract(tokenAddress);
+    const userService = new UserState(erc20Contract, userAddress);
     // this service is stateful now, so needs to be cached
-    set(this.userServices,[tokenAddress,userAddress],userService)
-    return userService
+    set(this.userServices, [tokenAddress, userAddress], userService);
+    return userService;
   }
-  private updateExchangeRateTable(l1TokenAddress:string, exchangeRateTable:Record<number,BigNumberish>):Record<number,BigNumberish>{
-    if(!this.exchangeRateTable[l1TokenAddress]) this.exchangeRateTable[l1TokenAddress] = {}
-    this.exchangeRateTable[l1TokenAddress] = {...this.exchangeRateTable[l1TokenAddress], ...exchangeRateTable}
-    return this.exchangeRateTable[l1TokenAddress]
+  private updateExchangeRateTable(
+    l1TokenAddress: string,
+    exchangeRateTable: Record<number, BigNumberish>
+  ): Record<number, BigNumberish> {
+    if (!this.exchangeRateTable[l1TokenAddress]) this.exchangeRateTable[l1TokenAddress] = {};
+    this.exchangeRateTable[l1TokenAddress] = { ...this.exchangeRateTable[l1TokenAddress], ...exchangeRateTable };
+    return this.exchangeRateTable[l1TokenAddress];
   }
   // calculates the value of each LP token transfer at the block it was sent. this only works if we have archive node
-  async calculateLpTransferValue(l1TokenAddress:string, userState: Awaited<ReturnType<UserState["read"]>>){
-    assert(this.config.hasArchive,'Can only calculate historical lp values with archive node')
+  async calculateLpTransferValue(l1TokenAddress: string, userState: Awaited<ReturnType<UserState["read"]>>) {
+    assert(this.config.hasArchive, "Can only calculate historical lp values with archive node");
     const contract = this.getOrCreatePoolContract();
-    const pool = new PoolState(contract,this.config.hubPoolAddress);
+    const pool = new PoolState(contract, this.config.hubPoolAddress);
     const blockNumbers = userState.transferEvents
-      .map(x=>x.blockNumber)
+      .map((x) => x.blockNumber)
       // we are going to lookup exchange rates for block numbers only if we dont already have it
-      .filter(blockNumber=>!this.exchangeRateTable[l1TokenAddress][blockNumber]);
+      .filter((blockNumber) => !this.exchangeRateTable[l1TokenAddress][blockNumber]);
 
     // new exchange rate lookups
-    const exchangeRateTable = this.updateExchangeRateTable(l1TokenAddress,Object.fromEntries(
-      await Promise.all(blockNumbers.map(async blockNumber=>{
-        return [blockNumber,await pool.exchangeRateAtBlock(l1TokenAddress,blockNumber)]
-      }))
-    ));
+    const exchangeRateTable = this.updateExchangeRateTable(
+      l1TokenAddress,
+      Object.fromEntries(
+        await Promise.all(
+          blockNumbers.map(async (blockNumber) => {
+            return [blockNumber, await pool.exchangeRateAtBlock(l1TokenAddress, blockNumber)];
+          })
+        )
+      )
+    );
 
-    return userState.transferEvents.reduce((result,transfer)=>{
+    return userState.transferEvents.reduce((result, transfer) => {
       const exchangeRate = exchangeRateTable[transfer.blockNumber];
-      if(transfer.args.to === userState.address){
+      if (transfer.args.to === userState.address) {
         return result.add(transfer.args.value.mul(exchangeRate).div(fixedPointAdjustment));
       }
-      if(transfer.args.from === userState.address){
+      if (transfer.args.from === userState.address) {
         return result.sub(transfer.args.value.mul(exchangeRate).div(fixedPointAdjustment));
       }
       // we make sure to filter out any transfers where to/from is the same user
-      return result
-    },BigNumber.from(0))
+      return result;
+    }, BigNumber.from(0));
   }
   private getOrCreateTransactionManager(signer: Signer, address: string) {
     if (this.transactionManagers[address]) return this.transactionManagers[address];
@@ -491,8 +503,8 @@ export class Client {
         // trigger pool and user update for a known mined transaction
         const tx = this.state.transactions[id];
         this.updateUserWithTransaction(tx.fromAddress, txReceipt).catch((err) => {
-            this.emit(["error"], err);
-          });
+          this.emit(["error"], err);
+        });
       }
       if (event === "error") {
         this.state.transactions[id].state = event;
@@ -504,13 +516,13 @@ export class Client {
     return txman;
   }
   async addEthLiquidity(signer: Signer, l1TokenAmount: BigNumberish, overrides: Overrides = {}) {
-    const {hubPoolAddress, wethAddress:l1Token} = this.config;
+    const { hubPoolAddress, wethAddress: l1Token } = this.config;
     const userAddress = await signer.getAddress();
     const contract = this.getOrCreatePoolContract();
     const txman = this.getOrCreateTransactionManager(signer, userAddress);
 
     // dont allow override value here
-    const request = await contract.populateTransaction.addLiquidity(l1Token,l1TokenAmount, {
+    const request = await contract.populateTransaction.addLiquidity(l1Token, l1TokenAmount, {
       ...overrides,
       value: l1TokenAmount,
     });
@@ -522,20 +534,20 @@ export class Client {
       toAddress: hubPoolAddress,
       fromAddress: userAddress,
       type: "Add Liquidity",
-      description: `Adding ETH to pool`,
+      description: "Adding ETH to pool",
       request,
     };
     this.emit(["transactions", id], { ...this.state.transactions[id] });
     await txman.update();
     return id;
   }
-  async addTokenLiquidity(signer: Signer, l1Token:string, l1TokenAmount: BigNumberish, overrides: Overrides = {}) {
-    const {hubPoolAddress} = this.config;
+  async addTokenLiquidity(signer: Signer, l1Token: string, l1TokenAmount: BigNumberish, overrides: Overrides = {}) {
+    const { hubPoolAddress } = this.config;
     const userAddress = await signer.getAddress();
     const contract = this.getOrCreatePoolContract();
     const txman = this.getOrCreateTransactionManager(signer, userAddress);
 
-    const request = await contract.populateTransaction.addLiquidity(l1Token,l1TokenAmount, overrides);
+    const request = await contract.populateTransaction.addLiquidity(l1Token, l1TokenAmount, overrides);
     const id = await txman.request(request);
 
     this.state.transactions[id] = {
@@ -544,7 +556,7 @@ export class Client {
       toAddress: hubPoolAddress,
       fromAddress: userAddress,
       type: "Add Liquidity",
-      description: `Adding Tokens to pool`,
+      description: "Adding Tokens to pool",
       request,
     };
 
@@ -561,14 +573,14 @@ export class Client {
     const userState = this.getUserState(poolState.l1Token, userAddress);
     return validateWithdraw(poolState, userState, lpAmount);
   }
-  async removeTokenLiquidity(signer: Signer, l1Token:string, lpTokenAmount: BigNumberish, overrides: Overrides = {}) {
-    const {hubPoolAddress} = this.config;
+  async removeTokenLiquidity(signer: Signer, l1Token: string, lpTokenAmount: BigNumberish, overrides: Overrides = {}) {
+    const { hubPoolAddress } = this.config;
     const userAddress = await signer.getAddress();
     await this.validateWithdraw(l1Token, userAddress, lpTokenAmount);
     const contract = this.getOrCreatePoolContract();
     const txman = this.getOrCreateTransactionManager(signer, userAddress);
 
-    const request = await contract.populateTransaction.removeLiquidity(l1Token,lpTokenAmount, false, overrides);
+    const request = await contract.populateTransaction.removeLiquidity(l1Token, lpTokenAmount, false, overrides);
     const id = await txman.request(request);
 
     this.state.transactions[id] = {
@@ -577,7 +589,7 @@ export class Client {
       toAddress: hubPoolAddress,
       fromAddress: userAddress,
       type: "Remove Liquidity",
-      description: `Withdrawing Tokens from pool`,
+      description: "Withdrawing Tokens from pool",
       request,
     };
 
@@ -586,7 +598,7 @@ export class Client {
     return id;
   }
   async removeEthliquidity(signer: Signer, lpTokenAmount: BigNumberish, overrides: Overrides = {}) {
-    const {hubPoolAddress, wethAddress:l1Token} = this.config;
+    const { hubPoolAddress, wethAddress: l1Token } = this.config;
     const userAddress = await signer.getAddress();
     await this.validateWithdraw(l1Token, userAddress, lpTokenAmount);
     const contract = this.getOrCreatePoolContract();
@@ -601,45 +613,53 @@ export class Client {
       toAddress: hubPoolAddress,
       fromAddress: userAddress,
       type: "Remove Liquidity",
-      description: `Withdrawing Eth from pool`,
+      description: "Withdrawing Eth from pool",
       request,
     };
     this.emit(["transactions", id], { ...this.state.transactions[id] });
     await txman.update();
     return id;
   }
-  getPoolState(l1TokenAddress: string):Pool {
+  getPoolState(l1TokenAddress: string): Pool {
     return this.state.pools[l1TokenAddress];
   }
-  hasPoolState(l1TokenAddress: string):boolean {
+  hasPoolState(l1TokenAddress: string): boolean {
     return Boolean(this.state.pools[l1TokenAddress]);
   }
-  setUserState(l1TokenAddress:string, userAddress:string, state:User):User {
+  setUserState(l1TokenAddress: string, userAddress: string, state: User): User {
     set(this.state, ["users", userAddress, l1TokenAddress], state);
     return state;
   }
-  getUserState(l1TokenAddress: string, userAddress: string):User {
+  getUserState(l1TokenAddress: string, userAddress: string): User {
     return get(this.state, ["users", userAddress, l1TokenAddress]);
   }
-  hasUserState(l1TokenAddress: string, userAddress: string):boolean {
+  hasUserState(l1TokenAddress: string, userAddress: string): boolean {
     return has(this.state, ["users", userAddress, l1TokenAddress]);
   }
-  hasTxState(id: string):boolean {
+  hasTxState(id: string): boolean {
     return has(this.state, ["transactions", id]);
   }
-  getTxState(id: string):Transaction {
+  getTxState(id: string): Transaction {
     return get(this.state, ["transactions", id]);
   }
-  private async updateAndEmitUser(userState:Awaited<ReturnType<UserState["read"]>>,poolState:Pool,poolEventState:hubPool.EventState):Promise<void>{
-    const {l1Token:l1TokenAddress} = poolState;
-    const {address:userAddress} = userState;
-    const transferValue = this.config.hasArchive ? await this.calculateLpTransferValue(l1TokenAddress,userState) : 0;
-    const tokenEventState = poolEventState[l1TokenAddress]
-    const newUserState = this.setUserState(l1TokenAddress,userAddress,joinUserState(poolState, tokenEventState, userState,transferValue))
-    this.emit(["users", userAddress, l1TokenAddress], newUserState)
+  private async updateAndEmitUser(
+    userState: Awaited<ReturnType<UserState["read"]>>,
+    poolState: Pool,
+    poolEventState: hubPool.EventState
+  ): Promise<void> {
+    const { l1Token: l1TokenAddress } = poolState;
+    const { address: userAddress } = userState;
+    const transferValue = this.config.hasArchive ? await this.calculateLpTransferValue(l1TokenAddress, userState) : 0;
+    const tokenEventState = poolEventState[l1TokenAddress];
+    const newUserState = this.setUserState(
+      l1TokenAddress,
+      userAddress,
+      joinUserState(poolState, tokenEventState, userState, transferValue)
+    );
+    this.emit(["users", userAddress, l1TokenAddress], newUserState);
   }
-  private async updateUserWithTransaction(userAddress: string, txReceipt: TransactionReceipt):Promise<void> {
-    const latestBlock = (await this.deps.provider.getBlock("latest"));
+  private async updateUserWithTransaction(userAddress: string, txReceipt: TransactionReceipt): Promise<void> {
+    const latestBlock = await this.deps.provider.getBlock("latest");
     const getPoolEventState = this.getOrCreatePoolEvents();
     const l1TokenAddress = getPoolEventState.getL1TokenFromReceipt(txReceipt);
     await this.updatePool(l1TokenAddress, latestBlock);
@@ -647,13 +667,13 @@ export class Client {
     const poolEventState = await getPoolEventState.readTxReceipt(txReceipt);
 
     const lpToken = poolState.lpToken;
-    const getUserState = this.getOrCreateUserService(userAddress,lpToken)
+    const getUserState = this.getOrCreateUserService(userAddress, lpToken);
     const userState = await getUserState.read(latestBlock.number);
 
-    await this.updateAndEmitUser(userState,poolState,poolEventState)
+    await this.updateAndEmitUser(userState, poolState, poolEventState);
   }
-  async updateUser(userAddress: string, l1TokenAddress: string):Promise<void> {
-    const latestBlock = (await this.deps.provider.getBlock("latest"));
+  async updateUser(userAddress: string, l1TokenAddress: string): Promise<void> {
+    const latestBlock = await this.deps.provider.getBlock("latest");
     await this.updatePool(l1TokenAddress, latestBlock);
 
     const poolState = this.getPoolState(l1TokenAddress);
@@ -661,19 +681,19 @@ export class Client {
     const getPoolEventState = this.getOrCreatePoolEvents();
     const poolEventState = await getPoolEventState.read(latestBlock.number);
 
-    const getUserState = this.getOrCreateUserService(userAddress,lpToken)
+    const getUserState = this.getOrCreateUserService(userAddress, lpToken);
     const userState = await getUserState.read(latestBlock.number);
 
-    await this.updateAndEmitUser(userState,poolState,poolEventState);
+    await this.updateAndEmitUser(userState, poolState, poolEventState);
   }
-  async updatePool(l1TokenAddress:string, overrideLatestBlock?: Block):Promise<void> {
+  async updatePool(l1TokenAddress: string, overrideLatestBlock?: Block): Promise<void> {
     // default to 100 block delta unless specified otherwise in config
     const { blockDelta = DEFAULT_BLOCK_DELTA } = this.config;
     const contract = this.getOrCreatePoolContract();
-    const pool = new PoolState(contract,this.config.hubPoolAddress);
-    const latestBlock = overrideLatestBlock || await this.deps.provider.getBlock("latest");
+    const pool = new PoolState(contract, this.config.hubPoolAddress);
+    const latestBlock = overrideLatestBlock || (await this.deps.provider.getBlock("latest"));
     const previousBlock = await this.deps.provider.getBlock(latestBlock.number - blockDelta);
-    const state = await pool.read(l1TokenAddress,latestBlock.number, previousBlock.number);
+    const state = await pool.read(l1TokenAddress, latestBlock.number, previousBlock.number);
 
     let rateModel: uma.across.constants.RateModel | undefined = undefined;
     try {
@@ -682,18 +702,18 @@ export class Client {
     } catch (err) {
       // we could swallow this error or just log it since getting the rate model is optional,
       // but we will just emit it to the caller and let them decide what to do with it.
-      this.emit(["error"], err);
+      this.emit(["error"], err as unknown as Error);
     }
 
     this.state.pools[l1TokenAddress] = joinPoolState(state, latestBlock, previousBlock, rateModel);
     this.emit(["pools", l1TokenAddress], this.state.pools[l1TokenAddress]);
   }
-  async updateTransactions():Promise<void> {
+  async updateTransactions(): Promise<void> {
     for (const txMan of Object.values(this.transactionManagers)) {
       try {
         await txMan.update();
       } catch (err) {
-        this.emit(["error"], err);
+        this.emit(["error"], err as unknown as Error);
       }
     }
   }

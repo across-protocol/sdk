@@ -54,7 +54,11 @@ export class Coingecko {
   async getContractDetails(contract_address: string, platform_id = "ethereum") {
     return this.call(`coins/${platform_id}/contract/${contract_address.toLowerCase()}`);
   }
-  async getCurrentPriceByContract(contract_address: string, currency = "usd", platform_id = "ethereum"): Promise<[string, number]> {
+  async getCurrentPriceByContract(
+    contract_address: string,
+    currency = "usd",
+    platform_id = "ethereum"
+  ): Promise<[string, number]> {
     const result = await this.getContractDetails(contract_address, platform_id);
     const price = get(result, ["market_data", "current_price", currency], null);
     assert(price !== null, "No current price available for: " + contract_address);
@@ -68,11 +72,11 @@ export class Coingecko {
     platform_id = "ethereum"
   ): Promise<CoinGeckoPrice[]> {
     // Generate a unique set with no repeated. join the set with the required coingecko delimiter.
-    const contract_addresses = Array.from(new Set(addresses.filter(n => n).values()));
+    const contract_addresses = Array.from(new Set(addresses.filter((n) => n).values()));
     assert(contract_addresses.length > 0, "Must supply at least 1 contract address");
     // coingecko returns lowercase addresses, so if you expect checksummed addresses, this lookup table will convert them back without having to add ethers as a dependency
     const lookup = Object.fromEntries(
-      contract_addresses.map(address => {
+      contract_addresses.map((address) => {
         return [address.toLowerCase(), address];
       })
     );
@@ -94,7 +98,7 @@ export class Coingecko {
   }
 
   async getPlatforms(): Promise<CoinGeckoAssetPlatform[]> {
-    return this.call(`asset_platforms`);
+    return this.call("asset_platforms");
   }
 
   async call(path: string) {

@@ -12,8 +12,8 @@ import { toBNWei } from "../utils";
 // sample interest rate model. note these tests are in JS and so we can impose the RateModel type.
 const rateModel = { UBar: toBNWei("0.65"), R0: toBNWei("0.00"), R1: toBNWei("0.08"), R2: toBNWei("1.00") };
 
-describe("Realized liquidity provision calculation", function() {
-  it("Realized liquidity provision calculation", async function() {
+describe("Realized liquidity provision calculation", function () {
+  it("Realized liquidity provision calculation", async function () {
     // Define a set of intervals to test over. Each interval contains the utilization at pointA (before deposit), the
     // utilization at pointB (after the deposit), expected APY rate and the expected weekly rate. The numbers are
     // generated from the juypter notebook defined in the comments above.
@@ -31,7 +31,7 @@ describe("Realized liquidity provision calculation", function() {
       { utilA: toBNWei("0"), utilB: toBNWei("1.00"), apy: "229000000000000000", wpy: "3973273191633388" },
     ];
 
-    testedIntervals.forEach(interval => {
+    testedIntervals.forEach((interval) => {
       const apyFeePct = calculateApyFromUtilization(rateModel, interval.utilA, interval.utilB);
       assert.equal(apyFeePct.toString(), interval.apy);
 
