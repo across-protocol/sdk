@@ -65,7 +65,8 @@ export function calculateApyFromUtilization(
   utilizationBeforeDeposit: BN,
   utilizationAfterDeposit: BN
 ) {
-  if (utilizationBeforeDeposit.eq(utilizationAfterDeposit)) throw new Error("Deposit cant have zero size");
+  if (utilizationBeforeDeposit.eq(utilizationAfterDeposit))
+    return calculateInstantaneousRate(rateModel, utilizationBeforeDeposit);
 
   // Get the area of [0, utilizationBeforeDeposit] and [0, utilizationAfterDeposit]
   const areaBeforeDeposit = calculateAreaUnderRateCurve(rateModel, utilizationBeforeDeposit);
