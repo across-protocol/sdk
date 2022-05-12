@@ -15,6 +15,7 @@ export interface RelayFeeCalculatorConfig {
   nativeTokenDecimals?: number;
   discountPercent?: number;
   feeLimitPercent?: number;
+  capitalCostsPercent?: number;
   queries: QueryInterface;
 }
 
@@ -23,11 +24,13 @@ export class RelayFeeCalculator {
   private discountPercent: Required<RelayFeeCalculatorConfig>["discountPercent"];
   private feeLimitPercent: Required<RelayFeeCalculatorConfig>["feeLimitPercent"];
   private nativeTokenDecimals: Required<RelayFeeCalculatorConfig>["nativeTokenDecimals"];
+  private capitalCostsPercent: Required<RelayFeeCalculatorConfig>["capitalCostsPercent"];
   constructor(config: RelayFeeCalculatorConfig) {
     this.queries = config.queries;
     this.discountPercent = config.discountPercent || 0;
     this.feeLimitPercent = config.feeLimitPercent || 0;
     this.nativeTokenDecimals = config.nativeTokenDecimals || 18;
+    this.capitalCostsPercent = config.capitalCostsPercent || 0;
     assert(
       this.discountPercent >= 0 && this.discountPercent <= 100,
       "discountPercent must be between 0 and 100 percent"
@@ -36,13 +39,17 @@ export class RelayFeeCalculator {
       this.feeLimitPercent >= 0 && this.feeLimitPercent <= 100,
       "feeLimitPercent must be between 0 and 100 percent"
     );
+    assert(
+      this.capitalCostsPercent >= 0 && this.capitalCostsPercent <= 100,
+      "capitalCostsPercent must be between 0 and 100 percent"
+    );
   }
   async relayerFeePercent(amountToRelay: BigNumberish, tokenSymbol: string): Promise<BigNumberish> {
     const gasCosts = await this.queries.getGasCosts(tokenSymbol);
     const tokenPrice = await this.queries.getTokenPrice(tokenSymbol);
     const decimals = await this.queries.getTokenDecimals(tokenSymbol);
     const gasFeesInToken = nativeToToken(gasCosts, tokenPrice, decimals, this.nativeTokenDecimals);
-    return percent(gasFeesInToken, amountToRelay).toString();
+    return percent(gasFeesInToken, amountToRelay).add(toBNWei(this.capitalCostsPercent));
   }
   async relayerFeeDetails(amountToRelay: BigNumberish, tokenSymbol: string) {
     let isAmountTooLow = false;
