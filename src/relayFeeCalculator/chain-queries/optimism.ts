@@ -13,6 +13,7 @@ export class OptimismQueries implements QueryInterface {
 
   constructor(
     provider: providers.Provider,
+    readonly symbolMapping = SymbolMapping,
     spokePoolAddress = "0x59485d57EEcc4058F7831f46eE83a7078276b4AE",
     private readonly usdcAddress = "0x7F5c764cBc14f9669B88837ca1490cCa17c31607",
     private readonly simulatedRelayerAddress = "0x9a8f92a830a5cb89a3816e3d267cb7791c16b04d"
@@ -42,11 +43,13 @@ export class OptimismQueries implements QueryInterface {
   }
 
   async getTokenPrice(tokenSymbol: string): Promise<string | number> {
-    const [, price] = await Coingecko.get().getCurrentPriceByContract(SymbolMapping[tokenSymbol].address, "eth");
+    if (!this.symbolMapping[tokenSymbol]) throw new Error(`${tokenSymbol} does not exist in mapping`);
+    const [, price] = await Coingecko.get().getCurrentPriceByContract(this.symbolMapping[tokenSymbol].address, "eth");
     return price;
   }
 
   async getTokenDecimals(tokenSymbol: string): Promise<number> {
-    return SymbolMapping[tokenSymbol].decimals;
+    if (!this.symbolMapping[tokenSymbol]) throw new Error(`${tokenSymbol} does not exist in mapping`);
+    return this.symbolMapping[tokenSymbol].decimals;
   }
 }

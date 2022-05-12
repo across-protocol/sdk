@@ -8,7 +8,7 @@ import axios from "axios";
 const { parseUnits } = utils;
 
 export class PolygonQueries implements QueryInterface {
-  constructor(public readonly averageGas = defaultAverageGas) {}
+  constructor(public readonly averageGas = defaultAverageGas, readonly symbolMapping = SymbolMapping) {}
 
   async getGasCosts(_tokenSymbol: string): Promise<BigNumberish> {
     const result = await axios("https://api.polygonscan.com/api?module=gastracker&action=gasoracle");
@@ -17,12 +17,17 @@ export class PolygonQueries implements QueryInterface {
   }
 
   async getTokenPrice(tokenSymbol: string): Promise<string | number> {
-    const [, tokenPrice] = await Coingecko.get().getCurrentPriceByContract(SymbolMapping[tokenSymbol].address, "usd");
-    const [, maticPrice] = await Coingecko.get().getCurrentPriceByContract(SymbolMapping["MATIC"].address, "usd");
+    if (!this.symbolMapping[tokenSymbol]) throw new Error(`${tokenSymbol} does not exist in mapping`);
+    const [, tokenPrice] = await Coingecko.get().getCurrentPriceByContract(
+      this.symbolMapping[tokenSymbol].address,
+      "usd"
+    );
+    const [, maticPrice] = await Coingecko.get().getCurrentPriceByContract(this.symbolMapping["MATIC"].address, "usd");
     return tokenPrice / maticPrice;
   }
 
   async getTokenDecimals(tokenSymbol: string): Promise<number> {
-    return SymbolMapping[tokenSymbol].decimals;
+    if (!this.symbolMapping[tokenSymbol]) throw new Error(`${tokenSymbol} does not exist in mapping`);
+    return this.symbolMapping[tokenSymbol].decimals;
   }
 }

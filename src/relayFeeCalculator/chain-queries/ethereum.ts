@@ -53,7 +53,7 @@ export const SymbolMapping: { [symbol: string]: { address: string; decimals: num
 export const defaultAverageGas = 50000;
 
 export class EthereumQueries implements QueryInterface {
-  constructor(public readonly averageGas = defaultAverageGas) {}
+  constructor(public readonly averageGas = defaultAverageGas, readonly symbolMapping = SymbolMapping) {}
   async getGasCosts(_tokenSymbol: string): Promise<BigNumberish> {
     const result = await axios("https://api.etherscan.io/api?module=gastracker&action=gasoracle");
     const { FastGasPrice } = result.data.result;
@@ -61,11 +61,13 @@ export class EthereumQueries implements QueryInterface {
   }
 
   async getTokenPrice(tokenSymbol: string): Promise<string | number> {
-    const [, price] = await Coingecko.get().getCurrentPriceByContract(SymbolMapping[tokenSymbol].address, "eth");
+    if (!this.symbolMapping[tokenSymbol]) throw new Error(`${tokenSymbol} does not exist in mapping`);
+    const [, price] = await Coingecko.get().getCurrentPriceByContract(this.symbolMapping[tokenSymbol].address, "eth");
     return price;
   }
 
   async getTokenDecimals(tokenSymbol: string): Promise<number> {
-    return SymbolMapping[tokenSymbol].decimals;
+    if (!this.symbolMapping[tokenSymbol]) throw new Error(`${tokenSymbol} does not exist in mapping`);
+    return this.symbolMapping[tokenSymbol].decimals;
   }
 }
