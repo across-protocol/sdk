@@ -49,7 +49,7 @@ export class RelayFeeCalculator {
     const tokenPrice = await this.queries.getTokenPrice(tokenSymbol);
     const decimals = await this.queries.getTokenDecimals(tokenSymbol);
     const gasFeesInToken = nativeToToken(gasCosts, tokenPrice, decimals, this.nativeTokenDecimals);
-    return percent(gasFeesInToken, amountToRelay).add(toBNWei(this.capitalCostsPercent));
+    return percent(gasFeesInToken, amountToRelay).add(toBNWei(this.capitalCostsPercent / 100));
   }
   async relayerFeeDetails(amountToRelay: BigNumberish, tokenSymbol: string) {
     let isAmountTooLow = false;
