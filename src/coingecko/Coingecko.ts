@@ -21,7 +21,7 @@ type CoinGeckoPrice = {
 };
 
 // Singleton Coingecko class.
-class Coingecko {
+export class Coingecko {
   private static instance: Coingecko | undefined;
 
   // Retry configuration.
@@ -54,7 +54,11 @@ class Coingecko {
   async getContractDetails(contract_address: string, platform_id = "ethereum") {
     return this.call(`coins/${platform_id}/contract/${contract_address.toLowerCase()}`);
   }
-  async getCurrentPriceByContract(contract_address: string, currency = "usd", platform_id = "ethereum") {
+  async getCurrentPriceByContract(
+    contract_address: string,
+    currency = "usd",
+    platform_id = "ethereum"
+  ): Promise<[string, number]> {
     const result = await this.getContractDetails(contract_address, platform_id);
     const price = get(result, ["market_data", "current_price", currency], null);
     assert(price !== null, "No current price available for: " + contract_address);
