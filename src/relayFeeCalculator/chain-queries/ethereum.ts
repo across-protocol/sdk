@@ -50,13 +50,14 @@ export const SymbolMapping: { [symbol: string]: { address: string; decimals: num
   },
 };
 
-export const evmRelayAverageGas = 50000;
+export const defaultAverageGas = 50000;
 
 export class EthereumQueries implements QueryInterface {
+  constructor(public readonly averageGas = defaultAverageGas) {}
   async getGasCosts(tokenSymbol: string): Promise<BigNumberish> {
     const result = await axios("https://api.etherscan.io/api?module=gastracker&action=gasoracle");
     const { FastGasPrice } = result.data.result.FastGasPrice;
-    return parseUnits(FastGasPrice, 9).mul(evmRelayAverageGas).toString();
+    return parseUnits(FastGasPrice, 9).mul(this.averageGas).toString();
   }
 
   async getTokenPrice(tokenSymbol: string): Promise<string | number> {

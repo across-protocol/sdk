@@ -5,12 +5,16 @@ import { SymbolMapping } from "./ethereum";
 import { Coingecko } from "../../coingecko/Coingecko";
 import { ArbitrumSpokePool__factory, ArbitrumSpokePool } from "@across-protocol/contracts-v2";
 
-class ArbitrumQueryInterface implements QueryInterface {
+export class ArbitrumQueryInterface implements QueryInterface {
   private spokePool: ArbitrumSpokePool;
 
-  constructor(readonly provider: ethers.providers.Provider) {
-    // TODO: replace with address getter.
-    this.spokePool = ArbitrumSpokePool__factory.connect("0xe1C367e2b576Ac421a9f46C9cC624935730c36aa", provider);
+  constructor(
+    readonly provider: ethers.providers.Provider,
+    spokePoolAddress = "0xe1C367e2b576Ac421a9f46C9cC624935730c36aa",
+    private readonly usdcAddress = "0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC8",
+    private readonly simulatedRelayerAddress = "0x9a8f92a830a5cb89a3816e3d267cb7791c16b04d"
+  ) {
+    this.spokePool = ArbitrumSpokePool__factory.connect(spokePoolAddress, provider);
   }
 
   async getGasCosts(tokenSymbol: string): Promise<BigNumberish> {
@@ -31,9 +35,9 @@ class ArbitrumQueryInterface implements QueryInterface {
   estimateGas() {
     // Create a dummy transaction to estimate. Note: the simulated caller would need to be holding weth and have approved the contract.
     return this.spokePool.estimateGas.fillRelay(
-      "0x9a8f92a830a5cb89a3816e3d267cb7791c16b04d",
-      "0x9a8f92a830a5cb89a3816e3d267cb7791c16b04d",
-      "0x82aF49447D8a07e3bd95BD0d56f35241523fBab1",
+      "0xBb23Cd0210F878Ea4CcA50e9dC307fb0Ed65Cf6B",
+      "0xBb23Cd0210F878Ea4CcA50e9dC307fb0Ed65Cf6B",
+      this.usdcAddress,
       "10",
       "10",
       "1",
@@ -41,7 +45,7 @@ class ArbitrumQueryInterface implements QueryInterface {
       "1",
       "1",
       "1",
-      { from: "0x9a8f92a830a5cb89a3816e3d267cb7791c16b04d" }
+      { from: this.simulatedRelayerAddress }
     );
   }
 }
