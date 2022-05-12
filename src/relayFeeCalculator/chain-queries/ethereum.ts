@@ -1,10 +1,10 @@
 import { QueryInterface } from "../relayFeeCalculator";
 import { BigNumberish } from "../../utils";
 import { Coingecko } from "../../coingecko/Coingecko";
-import ethers from "ethers";
+import { utils } from "ethers";
 import axios from "axios";
 
-const { parseUnits } = ethers.utils;
+const { parseUnits } = utils;
 
 // Note: these are the mainnet addresses for these symbols meant to be used for pricing.
 export const SymbolMapping: { [symbol: string]: { address: string; decimals: number } } = {
@@ -54,9 +54,9 @@ export const defaultAverageGas = 50000;
 
 export class EthereumQueries implements QueryInterface {
   constructor(public readonly averageGas = defaultAverageGas) {}
-  async getGasCosts(tokenSymbol: string): Promise<BigNumberish> {
+  async getGasCosts(_tokenSymbol: string): Promise<BigNumberish> {
     const result = await axios("https://api.etherscan.io/api?module=gastracker&action=gasoracle");
-    const { FastGasPrice } = result.data.result.FastGasPrice;
+    const { FastGasPrice } = result.data.result;
     return parseUnits(FastGasPrice, 9).mul(this.averageGas).toString();
   }
 
