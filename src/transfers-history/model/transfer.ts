@@ -13,4 +13,5 @@ export type Transfer = {
   assetAddr: string;
   amount: BigNumber;
   depositTxHash: string;
+  fillTxs: string[];
 };

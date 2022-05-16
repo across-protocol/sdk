@@ -76,6 +76,7 @@ describe("Client e2e tests", () => {
       client.stopFetchingTransfers("0x9A8f92a830A5cB89a3816e3D267CB7791c16b04D");
       expect(pendingTransfers.length).toBeGreaterThanOrEqual(0);
       expect(filledTransfers.length).toBeGreaterThanOrEqual(0);
+      expect(filledTransfers[0].fillTxs.length).toBeGreaterThanOrEqual(1);
       done();
     });
   });
