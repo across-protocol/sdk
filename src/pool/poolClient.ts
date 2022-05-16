@@ -12,7 +12,7 @@ import { calculateInstantaneousRate } from "../lpFeeCalculator";
 import { hubPool, acrossConfigStore } from "../contracts";
 
 const { erc20 } = uma.clients;
-const { loop, exists } = uma.utils;
+const { loop } = uma.utils;
 const { TransactionManager } = uma.across;
 const { SECONDS_PER_YEAR, DEFAULT_BLOCK_DELTA } = uma.across.constants;
 const { AddressZero } = ethers.constants;
@@ -29,6 +29,7 @@ export type Config = {
   confirmations?: number;
   blockDelta?: number;
   hasArchive?: boolean;
+  hubPoolStartBlock?: number;
 };
 export type Dependencies = {
   provider: Provider;
@@ -125,49 +126,50 @@ type EventIdParams = { blockNumber: number; transactionIndex: number; logIndex: 
 export class PoolEventState {
   private seen = new Set<string>();
   private iface: ethers.utils.Interface;
-  constructor(
-    private contract: hubPool.Instance,
-    private startBlock = 0,
-    private state: hubPool.EventState = hubPool.eventStateDefaults()
-  ) {
+  // maintain ordered unique list of events so we can calculate state
+  private events: uma.SerializableEvent[] = [];
+  constructor(private contract: hubPool.Instance, private startBlock = 0) {
     this.iface = new ethers.utils.Interface(hubPool.Factory.abi);
   }
-  private makeId(params: EventIdParams) {
-    return [params.blockNumber, params.transactionIndex, params.logIndex].join("!");
-  }
-  hasEvent(params: EventIdParams) {
+  private makeId = (params: EventIdParams): string => {
+    return uma.oracle.utils.eventKey(params);
+  };
+  hasEvent(params: EventIdParams): boolean {
     return this.seen.has(this.makeId(params));
   }
-  private addEvent(params: EventIdParams) {
-    return this.seen.add(this.makeId(params));
+  private addEvent(params: EventIdParams): void {
+    this.seen.add(this.makeId(params));
   }
-  private filterSeen = (params: EventIdParams) => {
+  private filterSeen = (params: EventIdParams): boolean => {
     const seen = this.hasEvent(params);
     if (!seen) this.addEvent(params);
     return !seen;
   };
-  public async read(endBlock: number) {
-    if (endBlock <= this.startBlock) return this.state;
-    const events = (
-      await Promise.all([
-        ...(await this.contract.queryFilter(this.contract.filters.LiquidityAdded(), this.startBlock, endBlock)),
-        ...(await this.contract.queryFilter(this.contract.filters.LiquidityRemoved(), this.startBlock, endBlock)),
-      ])
-    )
-      .filter(this.filterSeen)
-      .sort((a, b) => {
-        if (a.blockNumber !== b.blockNumber) return a.blockNumber - b.blockNumber;
-        if (a.transactionIndex !== b.transactionIndex) return a.transactionIndex - b.transactionIndex;
-        if (a.logIndex !== b.logIndex) return a.logIndex - b.logIndex;
-        // if everything is the same, return a, ie maintain order of array
-        return -1;
-      });
-    // ethers queries are inclusive [start,end] unless start === end, then exclusive (start,end). we increment to make sure we dont see same event twice
-    this.startBlock = endBlock + 1;
-    this.state = hubPool.getEventState(events, this.state);
-    return this.state;
+  private processEvent = (event: uma.SerializableEvent | undefined): void => {
+    if (event == undefined) return;
+    if (!this.filterSeen(event)) return;
+    this.events = uma.oracle.utils.insertOrderedAscending(this.events, event, this.makeId);
+  };
+  private processEvents = (events: Array<uma.SerializableEvent | undefined>): void => {
+    events.forEach(this.processEvent);
+  };
+  public async read(endBlock: number, l1TokenAddress?: string, userAddress?: string): Promise<hubPool.EventState> {
+    const events = await Promise.all([
+      ...(await this.contract.queryFilter(
+        this.contract.filters.LiquidityAdded(l1TokenAddress, undefined, undefined, userAddress),
+        this.startBlock,
+        endBlock
+      )),
+      ...(await this.contract.queryFilter(
+        this.contract.filters.LiquidityRemoved(l1TokenAddress, undefined, undefined, userAddress),
+        this.startBlock,
+        endBlock
+      )),
+    ]);
+    this.processEvents(events);
+    return hubPool.getEventState(this.events);
   }
-  makeEventFromLog(log: Log) {
+  makeEventFromLog(log: Log): uma.SerializableEvent {
     const description = this.iface.parseLog(log);
     return {
       ...log,
@@ -177,40 +179,32 @@ export class PoolEventState {
     };
   }
   getL1TokenFromReceipt(receipt: TransactionReceipt): string {
-    const events = receipt.logs
-      .map((log) => {
-        try {
-          return this.makeEventFromLog(log);
-        } catch (err) {
-          // return nothing, this throws a lot because logs from other contracts are included in receipt
-          return undefined;
-        }
-      })
-      // filter out undefined
-      .filter(exists);
-
-    const eventState = hubPool.getEventState(events);
+    const events = receipt.logs.map((log) => {
+      try {
+        return this.makeEventFromLog(log);
+      } catch (err) {
+        // return nothing, this throws a lot because logs from other contracts are included in receipt
+        return undefined;
+      }
+    });
+    this.processEvents(events);
+    const eventState = hubPool.getEventState(this.events);
     const l1Tokens = Object.keys(eventState);
     assert(l1Tokens.length, "Token not found from events");
     assert(l1Tokens.length === 1, "Multiple tokens found from events");
     return l1Tokens[0];
   }
-  readTxReceipt(receipt: TransactionReceipt) {
-    const events = receipt.logs
-      .map((log) => {
-        try {
-          return this.makeEventFromLog(log);
-        } catch (err) {
-          // return nothing, this throws a lot because logs from other contracts are included in receipt
-          return undefined;
-        }
-      })
-      // filter out undefined
-      .filter(exists)
-      .filter(this.filterSeen);
-
-    this.state = hubPool.getEventState(events, this.state);
-    return this.state;
+  readTxReceipt(receipt: TransactionReceipt): hubPool.EventState {
+    const events = receipt.logs.map((log) => {
+      try {
+        return this.makeEventFromLog(log);
+      } catch (err) {
+        // return nothing, this throws a lot because logs from other contracts are included in receipt
+        return undefined;
+      }
+    });
+    this.processEvents(events);
+    return hubPool.getEventState(this.events);
   }
 }
 
@@ -218,16 +212,16 @@ class UserState {
   private seen = new Set<string>();
   private events: uma.clients.erc20.Transfer[] = [];
   constructor(private contract: uma.clients.erc20.Instance, private userAddress: string, private startBlock = 0) {}
-  private makeId(params: EventIdParams) {
-    return [params.blockNumber, params.transactionIndex, params.logIndex].join("!");
+  private makeId(params: EventIdParams): string {
+    return uma.oracle.utils.eventKey(params);
   }
-  hasEvent(params: EventIdParams) {
+  hasEvent(params: EventIdParams): boolean {
     return this.seen.has(this.makeId(params));
   }
-  private addEvent(params: EventIdParams) {
-    return this.seen.add(this.makeId(params));
+  private addEvent(params: EventIdParams): void {
+    this.seen.add(this.makeId(params));
   }
-  private filterSeen = (params: EventIdParams) => {
+  private filterSeen = (params: EventIdParams): boolean => {
     const seen = this.hasEvent(params);
     if (!seen) this.addEvent(params);
     return !seen;
@@ -237,7 +231,7 @@ class UserState {
    *
    * @param {number} endBlock
    */
-  public async readEvents(endBlock: number) {
+  public async readEvents(endBlock: number): Promise<uma.clients.erc20.Transfer[]> {
     if (endBlock <= this.startBlock) return [];
     const { userAddress } = this;
     const events = (
@@ -419,7 +413,7 @@ export class Client {
   constructor(public readonly config: Config, public readonly deps: Dependencies, private emit: EmitState) {
     config.chainId = config.chainId || 1;
     this.hubPool = this.createHubPoolContract(deps.provider);
-    this.poolEvents = new PoolEventState(this.hubPool);
+    this.poolEvents = new PoolEventState(this.hubPool, this.config.hubPoolStartBlock);
     this.configStoreClient = new acrossConfigStore.Client(config.configStoreAddress, deps.provider);
   }
   public getOrCreateErc20Contract(address: string): uma.clients.erc20.Instance {
@@ -678,7 +672,7 @@ export class Client {
     const poolState = this.getPoolState(l1TokenAddress);
     const lpToken = poolState.lpToken;
     const getPoolEventState = this.getOrCreatePoolEvents();
-    const poolEventState = await getPoolEventState.read(latestBlock.number);
+    const poolEventState = await getPoolEventState.read(latestBlock.number, l1TokenAddress, userAddress);
 
     const getUserState = this.getOrCreateUserService(userAddress, lpToken);
     const userState = await getUserState.read(latestBlock.number);
