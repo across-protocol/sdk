@@ -145,12 +145,11 @@ export class PoolEventState {
     if (!seen) this.addEvent(params);
     return !seen;
   };
-  private processEvent = (event: uma.SerializableEvent | undefined): void => {
-    if (event == undefined) return;
+  private processEvent = (event: uma.SerializableEvent): void => {
     if (!this.filterSeen(event)) return;
     this.events = uma.oracle.utils.insertOrderedAscending(this.events, event, this.makeId);
   };
-  private processEvents = (events: Array<uma.SerializableEvent | undefined>): void => {
+  private processEvents = (events: Array<uma.SerializableEvent>): void => {
     events.forEach(this.processEvent);
   };
   public async read(endBlock: number, l1TokenAddress?: string, userAddress?: string): Promise<hubPool.EventState> {
@@ -169,7 +168,7 @@ export class PoolEventState {
     this.processEvents(events);
     return hubPool.getEventState(this.events);
   }
-  makeEventFromLog(log: Log): uma.SerializableEvent {
+  makeEventFromLog = (log: Log): uma.SerializableEvent => {
     const description = this.iface.parseLog(log);
     return {
       ...log,
@@ -177,32 +176,26 @@ export class PoolEventState {
       event: description.name,
       eventSignature: description.signature,
     };
-  }
+  };
   getL1TokenFromReceipt(receipt: TransactionReceipt): string {
-    const events = receipt.logs.map((log) => {
-      try {
-        return this.makeEventFromLog(log);
-      } catch (err) {
-        // return nothing, this throws a lot because logs from other contracts are included in receipt
-        return undefined;
-      }
-    });
+    const events = receipt.logs
+      .filter((log) => ethers.utils.getAddress(log.address) === ethers.utils.getAddress(this.contract.address))
+      .map(this.makeEventFromLog);
+
+    // save these events
     this.processEvents(events);
-    const eventState = hubPool.getEventState(this.events);
+    // only process token receipt events, becasue we just want the l1 token involved with this transfer
+    const eventState = hubPool.getEventState(events);
+    // event state is keyed by l1token address
     const l1Tokens = Object.keys(eventState);
     assert(l1Tokens.length, "Token not found from events");
     assert(l1Tokens.length === 1, "Multiple tokens found from events");
     return l1Tokens[0];
   }
   readTxReceipt(receipt: TransactionReceipt): hubPool.EventState {
-    const events = receipt.logs.map((log) => {
-      try {
-        return this.makeEventFromLog(log);
-      } catch (err) {
-        // return nothing, this throws a lot because logs from other contracts are included in receipt
-        return undefined;
-      }
-    });
+    const events = receipt.logs
+      .filter((log) => ethers.utils.getAddress(log.address) === ethers.utils.getAddress(this.contract.address))
+      .map(this.makeEventFromLog);
     this.processEvents(events);
     return hubPool.getEventState(this.events);
   }
@@ -454,7 +447,8 @@ export class Client {
     const blockNumbers = userState.transferEvents
       .map((x) => x.blockNumber)
       // we are going to lookup exchange rates for block numbers only if we dont already have it
-      .filter((blockNumber) => !this.exchangeRateTable[l1TokenAddress][blockNumber]);
+      // its possible these values do not exist, so to prevent crashing do optional chaining
+      .filter((blockNumber) => !this.exchangeRateTable?.[l1TokenAddress]?.[blockNumber]);
 
     // new exchange rate lookups
     const exchangeRateTable = this.updateExchangeRateTable(
