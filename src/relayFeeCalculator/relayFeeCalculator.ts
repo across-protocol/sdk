@@ -13,7 +13,8 @@ export interface QueryInterface {
 
 export interface RelayFeeCalculatorConfig {
   nativeTokenDecimals?: number;
-  discountPercent?: number;
+  gasDiscountPercent?: number;
+  capitalDiscountPercent?: number;
   feeLimitPercent?: number;
   capitalCostsPercent?: number;
   queries: QueryInterface;
@@ -21,19 +22,25 @@ export interface RelayFeeCalculatorConfig {
 
 export class RelayFeeCalculator {
   private queries: Required<RelayFeeCalculatorConfig>["queries"];
-  private discountPercent: Required<RelayFeeCalculatorConfig>["discountPercent"];
+  private gasDiscountPercent: Required<RelayFeeCalculatorConfig>["gasDiscountPercent"];
+  private capitalDiscountPercent: Required<RelayFeeCalculatorConfig>["capitalDiscountPercent"];
   private feeLimitPercent: Required<RelayFeeCalculatorConfig>["feeLimitPercent"];
   private nativeTokenDecimals: Required<RelayFeeCalculatorConfig>["nativeTokenDecimals"];
   private capitalCostsPercent: Required<RelayFeeCalculatorConfig>["capitalCostsPercent"];
   constructor(config: RelayFeeCalculatorConfig) {
     this.queries = config.queries;
-    this.discountPercent = config.discountPercent || 0;
+    this.gasDiscountPercent = config.gasDiscountPercent || 0;
+    this.capitalDiscountPercent = config.capitalCostsPercent || 0;
     this.feeLimitPercent = config.feeLimitPercent || 0;
     this.nativeTokenDecimals = config.nativeTokenDecimals || 18;
     this.capitalCostsPercent = config.capitalCostsPercent || 0;
     assert(
-      this.discountPercent >= 0 && this.discountPercent <= 100,
-      "discountPercent must be between 0 and 100 percent"
+      this.gasDiscountPercent >= 0 && this.gasDiscountPercent <= 100,
+      "gasDiscountPercent must be between 0 and 100 percent"
+    );
+    assert(
+      this.capitalDiscountPercent >= 0 && this.capitalDiscountPercent <= 100,
+      "capitalDiscountPercent must be between 0 and 100 percent"
     );
     assert(
       this.feeLimitPercent >= 0 && this.feeLimitPercent <= 100,
@@ -44,26 +51,42 @@ export class RelayFeeCalculator {
       "capitalCostsPercent must be between 0 and 100 percent"
     );
   }
-  async relayerFeePercent(amountToRelay: BigNumberish, tokenSymbol: string): Promise<BigNumberish> {
+  async gasFeePercent(amountToRelay: BigNumberish, tokenSymbol: string): Promise<BigNumber> {
     const gasCosts = await this.queries.getGasCosts(tokenSymbol);
     const tokenPrice = await this.queries.getTokenPrice(tokenSymbol);
     const decimals = await this.queries.getTokenDecimals(tokenSymbol);
     const gasFeesInToken = nativeToToken(gasCosts, tokenPrice, decimals, this.nativeTokenDecimals);
-    return percent(gasFeesInToken, amountToRelay).add(toBNWei(this.capitalCostsPercent / 100)).toString();
+    return percent(gasFeesInToken, amountToRelay);
+  }
+
+  // Note: these variables are unused now, but may be needed in future versions of this function that are more complex.
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  async capitalFeePercent(_amountToRelay: BigNumberish, _tokenSymbol: string): Promise<BigNumber> {
+    return toBNWei(this.capitalCostsPercent / 100);
   }
   async relayerFeeDetails(amountToRelay: BigNumberish, tokenSymbol: string) {
     let isAmountTooLow = false;
-    const relayFeePercent = await this.relayerFeePercent(amountToRelay, tokenSymbol);
-    const relayFeeTotal = BigNumber.from(relayFeePercent).mul(amountToRelay).div(fixedPointAdjustment).toString();
+    const gasFeePercent = await this.gasFeePercent(amountToRelay, tokenSymbol);
+    const gasFeeTotal = gasFeePercent.mul(amountToRelay).div(fixedPointAdjustment);
+    const capitalFeePercent = await this.capitalFeePercent(amountToRelay, tokenSymbol);
+    const capitalFeeTotal = capitalFeePercent.mul(amountToRelay).div(fixedPointAdjustment);
+    const relayFeePercent = gasFeePercent.add(capitalFeePercent);
+    const relayFeeTotal = gasFeeTotal.add(capitalFeeTotal);
+
     if (this.feeLimitPercent) {
-      isAmountTooLow = BigNumber.from(relayFeePercent).gt(toBNWei(this.feeLimitPercent / 100));
+      isAmountTooLow = gasFeePercent.add(capitalFeePercent).gt(toBNWei(this.feeLimitPercent / 100));
     }
     return {
       amountToRelay: amountToRelay.toString(),
       tokenSymbol,
-      relayFeePercent,
-      relayFeeTotal,
-      discountPercent: this.discountPercent,
+      gasFeePercent: gasFeePercent.toString(),
+      gasFeeTotal: gasFeeTotal.toString(),
+      gasDiscountPercent: this.gasDiscountPercent,
+      capitalFeePercent: capitalFeePercent.toString(),
+      capitalFeeTotal: capitalFeeTotal.toString(),
+      capitalDiscountPercent: this.capitalDiscountPercent,
+      relayFeePercent: relayFeePercent.toString(),
+      relayFeeTotal: relayFeeTotal.toString(),
       feeLimitPercent: this.feeLimitPercent,
       isAmountTooLow,
     };
