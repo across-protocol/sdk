@@ -60,7 +60,7 @@ describe("PoolClient", function () {
         configStoreAddress,
         wethAddress,
         // if you have an archive node, set this to true
-        hasArchive: false,
+        hasArchive: true,
       },
       { provider },
       (path, data) => set(state, path, data)

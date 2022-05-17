@@ -168,14 +168,21 @@ export class TransfersHistoryClient {
       filled: BigNumber.from("0"),
       sourceChainId: originChainId.toNumber(),
       status: "pending",
+      fillTxs: [],
     };
     this.transfersRepository.insertTransfer(originChainId.toNumber(), depositor, depositId, transfer);
   }
 
   private insertFilledRelayEvent(event: FilledRelayEvent) {
-    const { args } = event;
+    const { args, transactionHash } = event;
     const { totalFilledAmount, depositor, depositId, originChainId } = args;
-    this.transfersRepository.updateFilledAmount(originChainId.toNumber(), depositor, depositId, totalFilledAmount);
+    this.transfersRepository.updateFilledAmount(
+      originChainId.toNumber(),
+      depositor,
+      depositId,
+      totalFilledAmount,
+      transactionHash
+    );
   }
 
   public getFilledTransfers(depositorAddr: string, limit?: number, offset?: number) {
