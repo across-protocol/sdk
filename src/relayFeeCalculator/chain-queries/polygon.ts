@@ -1,19 +1,18 @@
 import { QueryInterface } from "../relayFeeCalculator";
 import { BigNumberish } from "../../utils";
-import { utils } from "ethers";
+import { providers, BigNumber } from "ethers";
 import { defaultAverageGas, SymbolMapping } from "./ethereum";
 import { Coingecko } from "../../coingecko/Coingecko";
-import axios from "axios";
-
-const { parseUnits } = utils;
 
 export class PolygonQueries implements QueryInterface {
-  constructor(public readonly averageGas = defaultAverageGas, readonly symbolMapping = SymbolMapping) {}
+  constructor(
+    readonly provider: providers.Provider,
+    public readonly averageGas = defaultAverageGas,
+    readonly symbolMapping = SymbolMapping
+  ) {}
 
   async getGasCosts(_tokenSymbol: string): Promise<BigNumberish> {
-    const result = await axios("https://api.polygonscan.com/api?module=gastracker&action=gasoracle");
-    const { FastGasPrice } = result.data.result;
-    return parseUnits(FastGasPrice, 9).mul(this.averageGas).toString();
+    return BigNumber.from(this.provider.getGasPrice()).mul(this.averageGas).toString();
   }
 
   async getTokenPrice(tokenSymbol: string): Promise<string | number> {
@@ -23,7 +22,7 @@ export class PolygonQueries implements QueryInterface {
       "usd"
     );
     const [, maticPrice] = await Coingecko.get().getCurrentPriceByContract(this.symbolMapping["MATIC"].address, "usd");
-    return tokenPrice / maticPrice;
+    return Number((tokenPrice / maticPrice).toFixed(this.symbolMapping["MATIC"].decimals));
   }
 
   async getTokenDecimals(tokenSymbol: string): Promise<number> {

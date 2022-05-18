@@ -52,9 +52,11 @@ export class RelayFeeCalculator {
     );
   }
   async gasFeePercent(amountToRelay: BigNumberish, tokenSymbol: string): Promise<BigNumber> {
-    const gasCosts = await this.queries.getGasCosts(tokenSymbol);
-    const tokenPrice = await this.queries.getTokenPrice(tokenSymbol);
-    const decimals = await this.queries.getTokenDecimals(tokenSymbol);
+    const [gasCosts, tokenPrice, decimals] = await Promise.all([
+      this.queries.getGasCosts(tokenSymbol),
+      this.queries.getTokenPrice(tokenSymbol),
+      this.queries.getTokenDecimals(tokenSymbol),
+    ]);
     const gasFeesInToken = nativeToToken(gasCosts, tokenPrice, decimals, this.nativeTokenDecimals);
     return percent(gasFeesInToken, amountToRelay);
   }
