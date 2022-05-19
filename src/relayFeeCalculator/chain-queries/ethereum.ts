@@ -1,10 +1,7 @@
 import { QueryInterface } from "../relayFeeCalculator";
 import { BigNumberish } from "../../utils";
 import { Coingecko } from "../../coingecko/Coingecko";
-import { utils } from "ethers";
-import axios from "axios";
-
-const { parseUnits } = utils;
+import { providers, BigNumber } from "ethers";
 
 // Note: these are the mainnet addresses for these symbols meant to be used for pricing.
 export const SymbolMapping: { [symbol: string]: { address: string; decimals: number } } = {
@@ -50,17 +47,21 @@ export const SymbolMapping: { [symbol: string]: { address: string; decimals: num
   },
 };
 
-export const defaultAverageGas = 50000;
+export const defaultAverageGas = 116006;
 
 export class EthereumQueries implements QueryInterface {
-  constructor(public readonly averageGas = defaultAverageGas, readonly symbolMapping = SymbolMapping) {}
+  constructor(
+    public readonly provider: providers.Provider,
+    public readonly averageGas = defaultAverageGas,
+    readonly symbolMapping = SymbolMapping
+  ) {}
   async getGasCosts(_tokenSymbol: string): Promise<BigNumberish> {
-    const result = await axios("https://api.etherscan.io/api?module=gastracker&action=gasoracle");
-    const { FastGasPrice } = result.data.result;
-    return parseUnits(FastGasPrice, 9).mul(this.averageGas).toString();
+    return BigNumber.from(await this.provider.getGasPrice())
+      .mul(this.averageGas)
+      .toString();
   }
 
-  async getTokenPrice(tokenSymbol: string): Promise<string | number> {
+  async getTokenPrice(tokenSymbol: string): Promise<number> {
     if (!this.symbolMapping[tokenSymbol]) throw new Error(`${tokenSymbol} does not exist in mapping`);
     const [, price] = await Coingecko.get().getCurrentPriceByContract(this.symbolMapping[tokenSymbol].address, "eth");
     return price;
