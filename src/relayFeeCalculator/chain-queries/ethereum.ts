@@ -17,6 +17,26 @@ export const SymbolMapping: { [symbol: string]: { address: string; decimals: num
     address: "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
     decimals: 18,
   },
+  OETH: {
+    address: "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
+    decimals: 18,
+  },
+  AETH: {
+    address: "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
+    decimals: 18,
+  },
+  KOV: {
+    address: "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
+    decimals: 18,
+  },
+  KOR: {
+    address: "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
+    decimals: 18,
+  },
+  ARETH: {
+    address: "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
+    decimals: 18,
+  },
   UMA: {
     address: "0x04Fa0d235C4abf4BcF4787aF4CF447DE572eF828",
     decimals: 18,
