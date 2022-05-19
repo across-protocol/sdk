@@ -56,7 +56,6 @@ export class EthereumQueries implements QueryInterface {
     readonly symbolMapping = SymbolMapping
   ) {}
   async getGasCosts(_tokenSymbol: string): Promise<BigNumberish> {
-    console.log((await this.provider.getGasPrice()).toString());
     return BigNumber.from(await this.provider.getGasPrice())
       .mul(this.averageGas)
       .toString();
