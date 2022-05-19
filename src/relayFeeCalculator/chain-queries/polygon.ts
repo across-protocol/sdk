@@ -12,7 +12,9 @@ export class PolygonQueries implements QueryInterface {
   ) {}
 
   async getGasCosts(_tokenSymbol: string): Promise<BigNumberish> {
-    return BigNumber.from(this.provider.getGasPrice()).mul(this.averageGas).toString();
+    return BigNumber.from(await this.provider.getGasPrice())
+      .mul(this.averageGas)
+      .toString();
   }
 
   async getTokenPrice(tokenSymbol: string): Promise<string | number> {
@@ -21,6 +23,7 @@ export class PolygonQueries implements QueryInterface {
       this.symbolMapping[tokenSymbol].address,
       "usd"
     );
+
     const [, maticPrice] = await Coingecko.get().getCurrentPriceByContract(this.symbolMapping["MATIC"].address, "usd");
     return Number((tokenPrice / maticPrice).toFixed(this.symbolMapping["MATIC"].decimals));
   }
