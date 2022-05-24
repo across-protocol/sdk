@@ -9,7 +9,7 @@ dotenv.config();
 const configStoreAddress = ethers.utils.getAddress("0xDd74f7603e3fDA6435aEc91F8960a6b8b40415f3");
 const wethAddress = ethers.utils.getAddress("0xd0A1E359811322d97991E03f863a0C30C2cF029C");
 
-describe("PoolEventState", function () {
+describe("AcrossConfigStore", function () {
   let provider: Provider;
   let client: Client;
   beforeAll(async () => {
