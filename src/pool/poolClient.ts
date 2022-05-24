@@ -319,7 +319,7 @@ function joinUserState(
   const positionValue = BigNumber.from(poolState.exchangeRateCurrent)
     .mul(userState.balanceOf)
     .div(fixedPointAdjustment);
-  const totalDeposited = BigNumber.from(tokenEventState.tokenBalances[userState.address] || "0");
+  const totalDeposited = BigNumber.from(tokenEventState?.tokenBalances[userState.address] || "0");
   const feesEarned = positionValue.sub(totalDeposited.add(transferValue));
   return {
     address: userState.address,
