@@ -48,6 +48,7 @@ export type Pool = {
   secondsElapsed: number;
   utilizedReserves: string;
   projectedApr: string;
+  liquidityUtilizationCurrent: string;
 };
 export type User = {
   address: string;
@@ -106,6 +107,7 @@ class PoolState {
     const exchangeRateCurrent = await this.contract.callStatic.exchangeRateCurrent(l1Token);
 
     const pooledToken: PooledToken = await this.contract.pooledTokens(l1Token);
+    const liquidityUtilizationCurrent: BigNumber = await this.contract.callStatic.liquidityUtilizationCurrent(l1Token);
 
     return {
       address: this.address,
@@ -114,6 +116,7 @@ class PoolState {
       previousBlock,
       exchangeRatePrevious,
       exchangeRateCurrent,
+      liquidityUtilizationCurrent,
       ...pooledToken,
     };
   }
@@ -341,6 +344,7 @@ function joinPoolState(
   const blocksElapsed = latestBlock.number - previousBlock.number;
   const exchangeRatePrevious = poolState.exchangeRatePrevious.toString();
   const exchangeRateCurrent = poolState.exchangeRateCurrent.toString();
+  const liquidityUtilizationCurrent = poolState.liquidityUtilizationCurrent.toString();
 
   const estimatedApy = calcPeriodicCompoundInterest(
     exchangeRatePrevious,
@@ -353,8 +357,8 @@ function joinPoolState(
 
   if (rateModel) {
     projectedApr = fromWei(
-      calculateInstantaneousRate(rateModel, poolState.utilizedReserves)
-        .mul(poolState.utilizedReserves)
+      calculateInstantaneousRate(rateModel, liquidityUtilizationCurrent)
+        .mul(liquidityUtilizationCurrent)
         .div(fixedPointAdjustment)
     );
   }
@@ -373,6 +377,7 @@ function joinPoolState(
     secondsElapsed,
     projectedApr,
     utilizedReserves: poolState.utilizedReserves.toString(),
+    liquidityUtilizationCurrent,
   };
 }
 export class ReadPoolClient {
