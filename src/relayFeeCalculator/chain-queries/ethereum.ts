@@ -43,7 +43,7 @@ export const SymbolMapping: { [symbol: string]: { address: string; decimals: num
   },
   WBTC: {
     address: "0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599",
-    decimals: 18,
+    decimals: 8,
   },
   BADGER: {
     address: "0x3472A5A71965499acd81997a54BBA8D852C6E53d",
