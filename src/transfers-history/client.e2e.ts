@@ -44,7 +44,8 @@ describe("Client e2e tests", () => {
         },
       ],
     });
-    // client.setLogLevel("debug");
+
+    client.setLogLevel("debug");
   });
 
   it("should fetch pending transfers from chain", async (done) => {
