@@ -20,6 +20,8 @@ export type TransfersUpdatedEventListenerParams = {
   pendingTransfersCount: number;
 };
 
+export type TrackableAddress = "all" | string;
+
 export type TransfersUpdatedEventListener = (params: TransfersUpdatedEventListenerParams) => void;
 export type TransfersHistoryClientEventListener = TransfersUpdatedEventListener;
 export type TransfersHistoryClientParams = {
@@ -70,7 +72,7 @@ export class TransfersHistoryClient {
     this.logger.setLevel(level);
   }
 
-  public async startFetchingTransfers(depositorAddr: string) {
+  public startFetchingTransfers(depositorAddr: TrackableAddress) {
     this.initSpokePoolEventsQueryServices(depositorAddr);
     this.getEventsForDepositor(depositorAddr);
     // mark that we started fetching events for depositor address
@@ -103,7 +105,7 @@ export class TransfersHistoryClient {
     this.eventEmitter.on(event, cb);
   }
 
-  private initSpokePoolEventsQueryServices(depositorAddr: string) {
+  private initSpokePoolEventsQueryServices(depositorAddr: TrackableAddress) {
     const chainIds = Object.keys(this.spokePoolInstances).map((chainId) => parseInt(chainId));
 
     for (const chainId of chainIds) {
@@ -117,13 +119,13 @@ export class TransfersHistoryClient {
           this.web3Providers[chainId],
           this.eventsQueriers[chainId],
           this.logger,
-          depositorAddr
+          depositorAddr !== "all" ? depositorAddr : undefined
         );
       }
     }
   }
 
-  private async getEventsForDepositor(depositorAddr: string) {
+  private async getEventsForDepositor(depositorAddr: TrackableAddress) {
     // query all chains to get the events for the depositor address
     const events = await Promise.all(
       Object.values(this.eventsServices[depositorAddr]).map((eventService) => eventService.getEvents())
@@ -140,12 +142,21 @@ export class TransfersHistoryClient {
 
     depositEvents.map((e) => this.insertFundsDepositedEvent(e, blockTimestampMap[e.blockNumber]));
     filledRelayEvents.map((e) => this.insertFilledRelayEvent(e));
-    this.transfersRepository.aggregateTransfers(depositorAddr);
+    this.transfersRepository.aggregateTransfers();
+
+    const filledTransfersCount =
+      depositorAddr === "all"
+        ? this.transfersRepository.countAllFilledTransfers()
+        : this.transfersRepository.countFilledTransfers(depositorAddr);
+    const pendingTransfersCount =
+      depositorAddr === "all"
+        ? this.transfersRepository.countAllPendingTransfers()
+        : this.transfersRepository.countPendingTransfers(depositorAddr);
 
     const eventData: TransfersUpdatedEventListenerParams = {
       depositorAddr,
-      filledTransfersCount: this.transfersRepository.countFilledTransfers(depositorAddr),
-      pendingTransfersCount: this.transfersRepository.countPendingTransfers(depositorAddr),
+      filledTransfersCount,
+      pendingTransfersCount,
     };
 
     // emit event only if the fetching wasn't stopped for depositor address.
@@ -185,11 +196,17 @@ export class TransfersHistoryClient {
     );
   }
 
-  public getFilledTransfers(depositorAddr: string, limit?: number, offset?: number) {
+  public getFilledTransfers(depositorAddr: TrackableAddress, limit?: number, offset?: number) {
+    if (depositorAddr === "all") {
+      return this.transfersRepository.getAllFilledTransfers();
+    }
     return this.transfersRepository.getFilledTransfers(depositorAddr, limit, offset);
   }
 
-  public getPendingTransfers(depositorAddr: string, limit?: number, offset?: number) {
+  public getPendingTransfers(depositorAddr: TrackableAddress, limit?: number, offset?: number) {
+    if (depositorAddr === "all") {
+      return this.transfersRepository.getAllPendingTransfers();
+    }
     return this.transfersRepository.getPendingTransfers(depositorAddr, limit, offset);
   }
 }
