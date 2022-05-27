@@ -1,7 +1,7 @@
 {
   "name": "@across-protocol/sdk-v2",
   "author": "UMA Team",
-  "version": "0.1.9",
+  "version": "0.1.10",
   "license": "AGPL-3.0",
   "main": "dist/index.js",
   "typings": "dist/index.d.ts",
@@ -71,7 +71,7 @@
   "dependencies": {
     "@across-protocol/contracts-v2": "^0.0.50",
     "@eth-optimism/sdk": "^1.1.4",
-    "@uma/sdk": "^0.22.1",
+    "@uma/sdk": "^0.23.4",
     "axios": "^0.27.2",
     "decimal.js": "^10.3.1",
     "ethers": "^5.6.1",

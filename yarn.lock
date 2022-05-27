@@ -3534,20 +3534,20 @@
     truffle-deploy-registry "^0.5.1"
     web3 "^1.6.0"
 
-"@uma/contracts-frontend@^0.3.1":
-  version "0.3.1"
-  resolved "https://registry.yarnpkg.com/@uma/contracts-frontend/-/contracts-frontend-0.3.1.tgz#bbcad155c107ba6ab9b3707be8159e69dd57964f"
-  integrity sha512-cldxBwv+gc51AcmcvHB6M2WubcYwUpN6TrY5wysmjvktFmjp/2kIRETSTZlLverrOEujAoy4mL3ivyjLJuWWAA==
+"@uma/contracts-frontend@^0.3.7":
+  version "0.3.7"
+  resolved "https://registry.yarnpkg.com/@uma/contracts-frontend/-/contracts-frontend-0.3.7.tgz#a959490bcf5e6b0cd1d941a60be86f8ff659dd54"
+  integrity sha512-we/ZSf91HQPtYSbGyPAnZmHJCU+hREXWJW4Ee2Ics+/dytTx5M4ecqlwgOq9bXJNHpUMMeq4WdwuxLYJjrW19A==
 
 "@uma/contracts-node@^0.2.0":
   version "0.2.1"
   resolved "https://registry.yarnpkg.com/@uma/contracts-node/-/contracts-node-0.2.1.tgz#29ebba6b2ecba7f0d2dc9b484bc34f0abbdefdaa"
   integrity sha512-7wPkH/m8tD8UMLYUjSXN5gSp/5NsuPRF1icmwXNTWlhp/Mg4qmJHeANjsWP9JCDxlgdSDixA4hJ5qhVOPXFniA==
 
-"@uma/contracts-node@^0.3.1":
-  version "0.3.1"
-  resolved "https://registry.yarnpkg.com/@uma/contracts-node/-/contracts-node-0.3.1.tgz#0a91d02ab5bc32b2ac24de08b140b44a7e1c2a4d"
-  integrity sha512-pBiUnNBIMGSB+ar4YFZsQuhs92vVbNN/ltvHYMhFtJnNJihmgjK7YgVEiDXAgccMqBKqZZtDo9jrtpa0Ubpm+g==
+"@uma/contracts-node@^0.3.7":
+  version "0.3.7"
+  resolved "https://registry.yarnpkg.com/@uma/contracts-node/-/contracts-node-0.3.7.tgz#d2a1afefc021c70b6565558b24cf5fd082b493fd"
+  integrity sha512-mzI7sv+W91Cm7TBjkMioKg0pvHEOgT8QMlCNPmuQtkxUNqMnNJCj6MLzzotF4c6i3YzHsmA+PbiSsh2jVbhftw==
 
 "@uma/core@^2.18.0", "@uma/core@^2.24.0":
   version "2.25.1"
@@ -3562,15 +3562,15 @@
     "@uniswap/v3-core" "^1.0.0-rc.2"
     "@uniswap/v3-periphery" "^1.0.0-beta.23"
 
-"@uma/sdk@^0.22.1":
-  version "0.22.1"
-  resolved "https://registry.yarnpkg.com/@uma/sdk/-/sdk-0.22.1.tgz#6104e93f8fc757f47d6b295cf02471e4e85c5f51"
-  integrity sha512-/CNRPTMjxOr5YZCF6yPjWjTESpzJwS0TehEUup8HGd50ps6pZXQkXjRErwFLaq3Crp3OTOqTKPZaUQHVhMXV9A==
+"@uma/sdk@^0.23.4":
+  version "0.23.4"
+  resolved "https://registry.yarnpkg.com/@uma/sdk/-/sdk-0.23.4.tgz#d27d9d24a45387f983e6a5edb0251925f40db62a"
+  integrity sha512-Sl5droihArcEspdHPz4sbJvcjymUMBGYZOLy87JAgXkC52mn6JHuGzI+7ljTjAAOT2vPhsfxNFEFcVIZHPEg+g==
   dependencies:
     "@google-cloud/datastore" "^6.6.0"
     "@types/lodash-es" "^4.17.5"
-    "@uma/contracts-frontend" "^0.3.1"
-    "@uma/contracts-node" "^0.3.1"
+    "@uma/contracts-frontend" "^0.3.7"
+    "@uma/contracts-node" "^0.3.7"
     axios "^0.24.0"
     bn.js "^4.11.9"
     decimal.js "^10.3.1"
