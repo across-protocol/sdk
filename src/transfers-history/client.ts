@@ -72,11 +72,11 @@ export class TransfersHistoryClient {
     this.logger.setLevel(level);
   }
 
-  public startFetchingTransfers(depositorAddr: TrackableAddress) {
-    this.initSpokePoolEventsQueryServices(depositorAddr);
-    this.getEventsForDepositor(depositorAddr);
-    // mark that we started fetching events for depositor address
+  public async startFetchingTransfers(depositorAddr: TrackableAddress) {
     this.fetchingState[depositorAddr] = "started";
+    this.initSpokePoolEventsQueryServices(depositorAddr);
+    await this.getEventsForDepositor(depositorAddr);
+    // mark that we started fetching events for depositor address
     // add polling if user didn't opted out for polling
     if (this.pollingIntervalSeconds > 0) {
       let timer = this.pollingTimers[depositorAddr];

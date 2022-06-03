@@ -64,7 +64,7 @@ export class TransfersRepository {
       ...transfer,
       filled,
       status: transfer.amount.eq(filled) ? "filled" : "pending",
-      fillTxs: [...transfer.fillTxs, fillTxHash],
+      fillTxs: Array.from(new Set([...transfer.fillTxs, fillTxHash])),
     };
   }
 

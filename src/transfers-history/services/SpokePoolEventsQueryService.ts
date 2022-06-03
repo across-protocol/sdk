@@ -78,7 +78,16 @@ export class SpokePoolEventsQueryService {
       return { ...acc, [event.blockNumber]: true };
     }, {} as Record<number, any>);
     const uniqueBlockNumbersList = Object.keys(uniqueBlockNumbers).map((blockNumber) => parseInt(blockNumber));
-    const blocks = await Promise.all(uniqueBlockNumbersList.map((blockNumber) => this.provider.getBlock(blockNumber)));
+    this.logger.debug(
+      "[getBlocksTimestamp]",
+      `🟢 chain ${this.chainId}: fetching ${uniqueBlockNumbersList.length} blocks`
+    );
+    const blocksChunks = this.getArrayChunks(uniqueBlockNumbersList);
+    const blocks = [];
+    for (const blocksChunk of blocksChunks) {
+      const newBlocks = await Promise.all(blocksChunk.map((blockNumber) => this.provider.getBlock(blockNumber)));
+      blocks.push(...newBlocks);
+    }
     const timestamps = await Promise.all(blocks.map((block) => block.timestamp));
     const blockTimestampMap = uniqueBlockNumbersList.reduce(
       (acc, blockNumber, idx) => ({
@@ -89,5 +98,12 @@ export class SpokePoolEventsQueryService {
     );
 
     return blockTimestampMap;
+  }
+
+  private getArrayChunks(array: any[], chunkSize = 50) {
+    return Array(Math.ceil(array.length / chunkSize))
+      .fill([])
+      .map((_, index) => index * chunkSize)
+      .map((begin) => array.slice(begin, begin + chunkSize));
   }
 }
