@@ -8,10 +8,10 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v2
       - name: Install deps
-        uses: borales/actions-yarn@v2.3.0
+        uses: borales/actions-yarn@v3.0.0
         with:
           cmd: install
       - name: Run tests
-        uses: borales/actions-yarn@v2.3.0
+        uses: borales/actions-yarn@v3.0.0
         with:
           cmd: test --ci --coverage --maxWorkers=2
