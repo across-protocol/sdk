@@ -80,8 +80,17 @@ export function calculateApyFromUtilization(
 export function calculateRealizedLpFeePct(
   rateModel: RateModel,
   utilizationBeforeDeposit: BigNumberish,
-  utilizationAfterDeposit: BigNumberish
+  utilizationAfterDeposit: BigNumberish,
+  truncateDecimals = false
 ) {
   const apy = calculateApyFromUtilization(rateModel, toBN(utilizationBeforeDeposit), toBN(utilizationAfterDeposit));
-  return convertApyToWeeklyFee(apy);
+
+  // ACROSS-V2 UMIP requires that the realized fee percent is floor rounded as decimal to 6 decimals.
+  return truncateDecimals ? truncate18DecimalBN(convertApyToWeeklyFee(apy), 6) : convertApyToWeeklyFee(apy);
+}
+
+export function truncate18DecimalBN(input: BN, digits: number) {
+  const digitsToDrop = 18 - digits;
+  const multiplier = toBN(10).pow(digitsToDrop);
+  return input.div(multiplier).mul(multiplier);
 }
