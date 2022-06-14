@@ -44,7 +44,6 @@ export class RelayFeeCalculator {
     this.feeLimitPercent = config.feeLimitPercent || 0;
     this.nativeTokenDecimals = config.nativeTokenDecimals || 18;
     this.capitalCostsPercent = config.capitalCostsPercent || 0;
-    this.capitalCostsConfig = config.capitalCostsConfig ? JSON.parse(config.capitalCostsConfig) : {};
     assert(
       this.gasDiscountPercent >= 0 && this.gasDiscountPercent <= 100,
       "gasDiscountPercent must be between 0 and 100 percent"
