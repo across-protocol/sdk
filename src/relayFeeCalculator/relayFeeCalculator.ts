@@ -23,9 +23,9 @@ export interface RelayFeeCalculatorConfig {
 
 export const expectedCapitalCostsKeys = ["lowerBound", "upperBound", "cutoff", "decimals"];
 export interface CapitalCostConfig {
-  lowerBound: BigNumber;
-  upperBound: BigNumber;
-  cutoff: BigNumber;
+  lowerBound: string;
+  upperBound: string;
+  cutoff: string;
   decimals: number;
 }
 
@@ -60,50 +60,27 @@ export class RelayFeeCalculator {
       this.capitalCostsPercent >= 0 && this.capitalCostsPercent <= 100,
       "capitalCostsPercent must be between 0 and 100 percent"
     );
-    this.capitalCostsConfig = {};
-    if (config.capitalCostsConfig) {
-      const parsed = JSON.parse(config.capitalCostsConfig);
-      for (const token of Object.keys(parsed)) {
-        this.capitalCostsConfig[token] = this.parseAndReturnCapitalCostsFromString(parsed[token]);
-      }
+    this.capitalCostsConfig = config.capitalCostsConfig ? JSON.parse(config.capitalCostsConfig) : {};
+    for (const token of Object.keys(this.capitalCostsConfig)) {
+      RelayFeeCalculator.validateCapitalCostsConfig(this.capitalCostsConfig[token]);
     }
   }
 
-  parseAndReturnCapitalCostsFromString(capitalCosts: any): CapitalCostConfig {
+  static validateCapitalCostsConfig(_capitalCosts: unknown) {
+    const capitalCosts = _capitalCosts as CapitalCostConfig;
     for (const key of expectedCapitalCostsKeys) {
-      if (!Object.keys(capitalCosts).includes(key)) {
+      if (!Object.keys(capitalCosts as CapitalCostConfig).includes(key)) {
         throw new Error(
           `Capital cost config does not contain all expected keys. Expected keys: [${expectedCapitalCostsKeys}], actual keys: [${Object.keys(
-            expectedCapitalCostsKeys
-          )}]`
-        );
-      }
-    }
-    for (const key of Object.keys(capitalCosts)) {
-      if (!expectedCapitalCostsKeys.includes(key)) {
-        throw new Error(
-          `Capital cost config contains unexpected keys. Expected keys: [${expectedCapitalCostsKeys}], actual keys: [${Object.keys(
-            expectedCapitalCostsKeys
+            capitalCosts
           )}]`
         );
       }
     }
 
-    const sanitizedCapitalCosts = {
-      lowerBound: toBNWei(capitalCosts.lowerBound),
-      upperBound: toBNWei(capitalCosts.upperBound),
-      cutoff: toBNWei(capitalCosts.cutoff),
-      decimals: Number(capitalCosts.decimals),
-    };
-
-    assert(sanitizedCapitalCosts.upperBound.lt(toBNWei("0.01")), "upper bound must be < 1%");
-    assert(
-      sanitizedCapitalCosts.lowerBound.lte(sanitizedCapitalCosts.upperBound),
-      "lower bound must be <= upper bound"
-    );
-    assert(sanitizedCapitalCosts.decimals > 0 && sanitizedCapitalCosts.decimals <= 18, "invalid decimals");
-
-    return sanitizedCapitalCosts;
+    assert(toBN(capitalCosts.upperBound).lt(toBNWei("0.01")), "upper bound must be < 1%");
+    assert(toBN(capitalCosts.lowerBound).lte(capitalCosts.upperBound), "lower bound must be <= upper bound");
+    assert(capitalCosts.decimals > 0 && capitalCosts.decimals <= 18, "invalid decimals");
   }
 
   async gasFeePercent(amountToRelay: BigNumberish, tokenSymbol: string): Promise<BigNumber> {
@@ -131,7 +108,7 @@ export class RelayFeeCalculator {
       // Scale amount "y" to 18 decimals
       const y = toBN(_amountToRelay).mul(toBNWei("1", 18 - config.decimals));
       // At a minimum, the fee will be equal to lower bound fee * y
-      const minCharge = config.lowerBound.mul(y).div(fixedPointAdjustment);
+      const minCharge = toBN(config.lowerBound).mul(y).div(fixedPointAdjustment);
 
       // Charge an increasing marginal fee % up to min(cutoff, y). If y is very close to the cutoff, the fee %
       // will be equal to half the sum of (upper bound + lower bound).
@@ -139,14 +116,14 @@ export class RelayFeeCalculator {
 
       // triangleSlope is slope of fee curve from lower bound to upper bound.
       // triangleCharge is interval of curve from 0 to y for curve = triangleSlope * y
-      const triangleSlope = config.upperBound.sub(config.lowerBound).mul(fixedPointAdjustment).div(config.cutoff);
+      const triangleSlope = toBN(config.upperBound).sub(config.lowerBound).mul(fixedPointAdjustment).div(config.cutoff);
       const triangleHeight = triangleSlope.mul(yTriangle).div(fixedPointAdjustment);
       const triangleCharge = triangleHeight.mul(yTriangle).div(toBNWei(2));
 
       // For any amounts above the cutoff, the marginal fee % will not increase but will be fixed at the upper bound
       // value.
       const yRemainder = max(toBN(0), y.sub(config.cutoff));
-      const remainderCharge = yRemainder.mul(config.upperBound.sub(config.lowerBound)).div(fixedPointAdjustment);
+      const remainderCharge = yRemainder.mul(toBN(config.upperBound).sub(config.lowerBound)).div(fixedPointAdjustment);
 
       return minCharge.add(triangleCharge).add(remainderCharge).mul(fixedPointAdjustment).div(y);
     }

@@ -7,15 +7,15 @@ dotenv.config({ path: ".env" });
 
 const testCapitalCostsConfig: { [token: string]: any } = {
   WBTC: {
-    lowerBound: "0.0003",
-    upperBound: "0.002",
-    cutoff: "15",
+    lowerBound: toBNWei("0.0003").toString(),
+    upperBound: toBNWei("0.002").toString(),
+    cutoff: toBNWei("15").toString(),
     decimals: 8,
   },
   DAI: {
-    lowerBound: "0.0003",
-    upperBound: "0.0015",
-    cutoff: "500000",
+    lowerBound: toBNWei("0.0003").toString(),
+    upperBound: toBNWei("0.0015").toString(),
+    cutoff: toBNWei("500000").toString(),
     decimals: 18,
   },
 };
@@ -47,22 +47,28 @@ describe("RelayFeeCalculator", () => {
   it("capitalFeePercent", async () => {
     // Invalid capital cost configs throws on construction:
     assert.throws(
-      () => new RelayFeeCalculator({ queries, capitalCostsConfig: JSON.stringify({ WBTC: { unknownKey: "0.0003" } }) }),
+      () => new RelayFeeCalculator({ queries, capitalCostsConfig: JSON.stringify({ WBTC: { unknownKey: "value" } }) }),
+      /does not contain all expected keys/
+    );
+    assert.throws(
+      () => RelayFeeCalculator.validateCapitalCostsConfig({ unknownKey: "value" }),
       /does not contain all expected keys/
     );
     assert.throws(
       () =>
         new RelayFeeCalculator({
           queries,
-          capitalCostsConfig: JSON.stringify({ WBTC: { unknownKey: "0.0003", ...testCapitalCostsConfig["WBTC"] } }),
+          capitalCostsConfig: JSON.stringify({
+            WBTC: { ...testCapitalCostsConfig["WBTC"], upperBound: toBNWei("0.01").toString() },
+          }),
         }),
-      /contains unexpected keys/
+      /upper bound must be </
     );
     assert.throws(
       () =>
-        new RelayFeeCalculator({
-          queries,
-          capitalCostsConfig: JSON.stringify({ WBTC: { ...testCapitalCostsConfig["WBTC"], upperBound: "0.01" } }),
+        RelayFeeCalculator.validateCapitalCostsConfig({
+          ...testCapitalCostsConfig["WBTC"],
+          upperBound: toBNWei("0.01").toString(),
         }),
       /upper bound must be </
     );
@@ -71,8 +77,21 @@ describe("RelayFeeCalculator", () => {
         new RelayFeeCalculator({
           queries,
           capitalCostsConfig: JSON.stringify({
-            WBTC: { ...testCapitalCostsConfig["WBTC"], upperBound: "0.001", lowerBound: "0.002" },
+            WBTC: {
+              ...testCapitalCostsConfig["WBTC"],
+              upperBound: toBNWei("0.001").toString(),
+              lowerBound: toBNWei("0.002").toString(),
+            },
           }),
+        }),
+      /lower bound must be <= upper bound/
+    );
+    assert.throws(
+      () =>
+        RelayFeeCalculator.validateCapitalCostsConfig({
+          ...testCapitalCostsConfig["WBTC"],
+          upperBound: toBNWei("0.001").toString(),
+          lowerBound: toBNWei("0.002").toString(),
         }),
       /lower bound must be <= upper bound/
     );
@@ -85,6 +104,10 @@ describe("RelayFeeCalculator", () => {
       /invalid decimals/
     );
     assert.throws(
+      () => RelayFeeCalculator.validateCapitalCostsConfig({ ...testCapitalCostsConfig["WBTC"], decimals: 0 }),
+      /invalid decimals/
+    );
+    assert.throws(
       () =>
         new RelayFeeCalculator({
           queries,
@@ -92,7 +115,10 @@ describe("RelayFeeCalculator", () => {
         }),
       /invalid decimals/
     );
-
+    assert.throws(
+      () => RelayFeeCalculator.validateCapitalCostsConfig({ ...testCapitalCostsConfig["WBTC"], decimals: 19 }),
+      /invalid decimals/
+    );
     const client = new RelayFeeCalculator({
       queries,
       capitalCostsConfig: JSON.stringify(testCapitalCostsConfig),
