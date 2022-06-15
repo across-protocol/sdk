@@ -47,20 +47,12 @@ describe("RelayFeeCalculator", () => {
   it("capitalFeePercent", async () => {
     // Invalid capital cost configs throws on construction:
     assert.throws(
-      () => new RelayFeeCalculator({ queries, capitalCostsConfig: JSON.stringify({ WBTC: { unknownKey: "value" } }) }),
-      /does not contain all expected keys/
-    );
-    assert.throws(
-      () => RelayFeeCalculator.validateCapitalCostsConfig({ unknownKey: "value" }),
-      /does not contain all expected keys/
-    );
-    assert.throws(
       () =>
         new RelayFeeCalculator({
           queries,
-          capitalCostsConfig: JSON.stringify({
+          capitalCostsConfig: {
             WBTC: { ...testCapitalCostsConfig["WBTC"], upperBound: toBNWei("0.01").toString() },
-          }),
+          },
         }),
       /upper bound must be </
     );
@@ -76,13 +68,13 @@ describe("RelayFeeCalculator", () => {
       () =>
         new RelayFeeCalculator({
           queries,
-          capitalCostsConfig: JSON.stringify({
+          capitalCostsConfig: {
             WBTC: {
               ...testCapitalCostsConfig["WBTC"],
               upperBound: toBNWei("0.001").toString(),
               lowerBound: toBNWei("0.002").toString(),
             },
-          }),
+          },
         }),
       /lower bound must be <= upper bound/
     );
@@ -99,7 +91,7 @@ describe("RelayFeeCalculator", () => {
       () =>
         new RelayFeeCalculator({
           queries,
-          capitalCostsConfig: JSON.stringify({ WBTC: { ...testCapitalCostsConfig["WBTC"], decimals: 0 } }),
+          capitalCostsConfig: { WBTC: { ...testCapitalCostsConfig["WBTC"], decimals: 0 } },
         }),
       /invalid decimals/
     );
@@ -111,7 +103,7 @@ describe("RelayFeeCalculator", () => {
       () =>
         new RelayFeeCalculator({
           queries,
-          capitalCostsConfig: JSON.stringify({ WBTC: { ...testCapitalCostsConfig["WBTC"], decimals: 19 } }),
+          capitalCostsConfig: { WBTC: { ...testCapitalCostsConfig["WBTC"], decimals: 19 } },
         }),
       /invalid decimals/
     );
@@ -121,7 +113,7 @@ describe("RelayFeeCalculator", () => {
     );
     const client = new RelayFeeCalculator({
       queries,
-      capitalCostsConfig: JSON.stringify(testCapitalCostsConfig),
+      capitalCostsConfig: testCapitalCostsConfig,
       capitalCostsPercent: 0.01,
     });
 

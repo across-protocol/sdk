@@ -11,22 +11,21 @@ export interface QueryInterface {
   getTokenDecimals: (tokenSymbol: string) => Promise<number>;
 }
 
-export interface RelayFeeCalculatorConfig {
-  nativeTokenDecimals?: number;
-  gasDiscountPercent?: number;
-  capitalDiscountPercent?: number;
-  feeLimitPercent?: number;
-  capitalCostsPercent?: number;
-  capitalCostsConfig?: string;
-  queries: QueryInterface;
-}
-
 export const expectedCapitalCostsKeys = ["lowerBound", "upperBound", "cutoff", "decimals"];
 export interface CapitalCostConfig {
   lowerBound: string;
   upperBound: string;
   cutoff: string;
   decimals: number;
+}
+export interface RelayFeeCalculatorConfig {
+  nativeTokenDecimals?: number;
+  gasDiscountPercent?: number;
+  capitalDiscountPercent?: number;
+  feeLimitPercent?: number;
+  capitalCostsPercent?: number;
+  capitalCostsConfig?: { [token: string]: CapitalCostConfig };
+  queries: QueryInterface;
 }
 
 export class RelayFeeCalculator {
@@ -36,7 +35,7 @@ export class RelayFeeCalculator {
   private feeLimitPercent: Required<RelayFeeCalculatorConfig>["feeLimitPercent"];
   private nativeTokenDecimals: Required<RelayFeeCalculatorConfig>["nativeTokenDecimals"];
   private capitalCostsPercent: Required<RelayFeeCalculatorConfig>["capitalCostsPercent"];
-  private capitalCostsConfig: { [token: string]: CapitalCostConfig };
+  private capitalCostsConfig: Required<RelayFeeCalculatorConfig>["capitalCostsConfig"];
   constructor(config: RelayFeeCalculatorConfig) {
     this.queries = config.queries;
     this.gasDiscountPercent = config.gasDiscountPercent || 0;
@@ -60,24 +59,13 @@ export class RelayFeeCalculator {
       this.capitalCostsPercent >= 0 && this.capitalCostsPercent <= 100,
       "capitalCostsPercent must be between 0 and 100 percent"
     );
-    this.capitalCostsConfig = config.capitalCostsConfig ? JSON.parse(config.capitalCostsConfig) : {};
+    this.capitalCostsConfig = config.capitalCostsConfig || {};
     for (const token of Object.keys(this.capitalCostsConfig)) {
       RelayFeeCalculator.validateCapitalCostsConfig(this.capitalCostsConfig[token]);
     }
   }
 
-  static validateCapitalCostsConfig(_capitalCosts: unknown) {
-    const capitalCosts = _capitalCosts as CapitalCostConfig;
-    for (const key of expectedCapitalCostsKeys) {
-      if (!Object.keys(capitalCosts as CapitalCostConfig).includes(key)) {
-        throw new Error(
-          `Capital cost config does not contain all expected keys. Expected keys: [${expectedCapitalCostsKeys}], actual keys: [${Object.keys(
-            capitalCosts
-          )}]`
-        );
-      }
-    }
-
+  static validateCapitalCostsConfig(capitalCosts: CapitalCostConfig) {
     assert(toBN(capitalCosts.upperBound).lt(toBNWei("0.01")), "upper bound must be < 1%");
     assert(toBN(capitalCosts.lowerBound).lte(capitalCosts.upperBound), "lower bound must be <= upper bound");
     assert(capitalCosts.decimals > 0 && capitalCosts.decimals <= 18, "invalid decimals");
