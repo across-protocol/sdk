@@ -1,7 +1,7 @@
 import assert from "assert";
 import * as uma from "@uma/sdk";
 import { BigNumber } from "ethers";
-import { BigNumberish, toBNWei, nativeToToken } from "../utils";
+import { BigNumberish, toBNWei, nativeToToken, toBN, min, max } from "../utils";
 const { percent, fixedPointAdjustment } = uma.across.utils;
 
 // This needs to be implemented for every chain and passed into RelayFeeCalculator
@@ -11,12 +11,20 @@ export interface QueryInterface {
   getTokenDecimals: (tokenSymbol: string) => Promise<number>;
 }
 
+export const expectedCapitalCostsKeys = ["lowerBound", "upperBound", "cutoff", "decimals"];
+export interface CapitalCostConfig {
+  lowerBound: string;
+  upperBound: string;
+  cutoff: string;
+  decimals: number;
+}
 export interface RelayFeeCalculatorConfig {
   nativeTokenDecimals?: number;
   gasDiscountPercent?: number;
   capitalDiscountPercent?: number;
   feeLimitPercent?: number;
   capitalCostsPercent?: number;
+  capitalCostsConfig?: { [token: string]: CapitalCostConfig };
   queries: QueryInterface;
 }
 
@@ -27,10 +35,11 @@ export class RelayFeeCalculator {
   private feeLimitPercent: Required<RelayFeeCalculatorConfig>["feeLimitPercent"];
   private nativeTokenDecimals: Required<RelayFeeCalculatorConfig>["nativeTokenDecimals"];
   private capitalCostsPercent: Required<RelayFeeCalculatorConfig>["capitalCostsPercent"];
+  private capitalCostsConfig: Required<RelayFeeCalculatorConfig>["capitalCostsConfig"];
   constructor(config: RelayFeeCalculatorConfig) {
     this.queries = config.queries;
     this.gasDiscountPercent = config.gasDiscountPercent || 0;
-    this.capitalDiscountPercent = config.capitalCostsPercent || 0;
+    this.capitalDiscountPercent = config.capitalDiscountPercent || 0;
     this.feeLimitPercent = config.feeLimitPercent || 0;
     this.nativeTokenDecimals = config.nativeTokenDecimals || 18;
     this.capitalCostsPercent = config.capitalCostsPercent || 0;
@@ -50,7 +59,18 @@ export class RelayFeeCalculator {
       this.capitalCostsPercent >= 0 && this.capitalCostsPercent <= 100,
       "capitalCostsPercent must be between 0 and 100 percent"
     );
+    this.capitalCostsConfig = config.capitalCostsConfig || {};
+    for (const token of Object.keys(this.capitalCostsConfig)) {
+      RelayFeeCalculator.validateCapitalCostsConfig(this.capitalCostsConfig[token]);
+    }
   }
+
+  static validateCapitalCostsConfig(capitalCosts: CapitalCostConfig) {
+    assert(toBN(capitalCosts.upperBound).lt(toBNWei("0.01")), "upper bound must be < 1%");
+    assert(toBN(capitalCosts.lowerBound).lte(capitalCosts.upperBound), "lower bound must be <= upper bound");
+    assert(capitalCosts.decimals > 0 && capitalCosts.decimals <= 18, "invalid decimals");
+  }
+
   async gasFeePercent(amountToRelay: BigNumberish, tokenSymbol: string): Promise<BigNumber> {
     const [gasCosts, tokenPrice, decimals] = await Promise.all([
       this.queries.getGasCosts(tokenSymbol),
@@ -64,7 +84,39 @@ export class RelayFeeCalculator {
   // Note: these variables are unused now, but may be needed in future versions of this function that are more complex.
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   async capitalFeePercent(_amountToRelay: BigNumberish, _tokenSymbol: string): Promise<BigNumber> {
-    return toBNWei(this.capitalCostsPercent / 100);
+    // V0: Charge fixed capital fee
+    const defaultFee = toBNWei(this.capitalCostsPercent / 100);
+
+    // V1: Charge fee that scales with size. This will charge a fee % based on a linear fee curve with a "kink" at a
+    // cutoff in the same units as _amountToRelay. Before the kink, the fee % will increase linearly from a lower
+    // bound to an upper bound. After the kink, the fee % increase will be fixed, and slowly approach the upper bound
+    // for very large amount inputs.
+    if (this.capitalCostsConfig[_tokenSymbol]) {
+      const config = this.capitalCostsConfig[_tokenSymbol];
+      // Scale amount "y" to 18 decimals
+      const y = toBN(_amountToRelay).mul(toBNWei("1", 18 - config.decimals));
+      // At a minimum, the fee will be equal to lower bound fee * y
+      const minCharge = toBN(config.lowerBound).mul(y).div(fixedPointAdjustment);
+
+      // Charge an increasing marginal fee % up to min(cutoff, y). If y is very close to the cutoff, the fee %
+      // will be equal to half the sum of (upper bound + lower bound).
+      const yTriangle = min(config.cutoff, y);
+
+      // triangleSlope is slope of fee curve from lower bound to upper bound.
+      // triangleCharge is interval of curve from 0 to y for curve = triangleSlope * y
+      const triangleSlope = toBN(config.upperBound).sub(config.lowerBound).mul(fixedPointAdjustment).div(config.cutoff);
+      const triangleHeight = triangleSlope.mul(yTriangle).div(fixedPointAdjustment);
+      const triangleCharge = triangleHeight.mul(yTriangle).div(toBNWei(2));
+
+      // For any amounts above the cutoff, the marginal fee % will not increase but will be fixed at the upper bound
+      // value.
+      const yRemainder = max(toBN(0), y.sub(config.cutoff));
+      const remainderCharge = yRemainder.mul(toBN(config.upperBound).sub(config.lowerBound)).div(fixedPointAdjustment);
+
+      return minCharge.add(triangleCharge).add(remainderCharge).mul(fixedPointAdjustment).div(y);
+    }
+
+    return defaultFee;
   }
   async relayerFeeDetails(amountToRelay: BigNumberish, tokenSymbol: string) {
     let isAmountTooLow = false;
