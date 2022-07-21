@@ -16,7 +16,7 @@ export class OptimismQueries implements QueryInterface {
     readonly symbolMapping = SymbolMapping,
     spokePoolAddress = "0x59485d57EEcc4058F7831f46eE83a7078276b4AE",
     private readonly usdcAddress = "0x7F5c764cBc14f9669B88837ca1490cCa17c31607",
-    private readonly simulatedRelayerAddress = "0x9a8f92a830a5cb89a3816e3d267cb7791c16b04d"
+    private readonly simulatedRelayerAddress = "0x893d0d70ad97717052e3aa8903d9615804167759"
   ) {
     this.provider = asL2Provider(provider);
     this.spokePool = OptimismSpokePool__factory.connect(spokePoolAddress, provider);
