@@ -1,6 +1,7 @@
-import { BigNumber, ethers } from "ethers";
+import { BigNumber, ethers, PopulatedTransaction, providers, VoidSigner } from "ethers";
 import * as uma from "@uma/sdk";
 import Decimal from "decimal.js";
+import { isL2Provider, L2Provider } from "@eth-optimism/sdk";
 
 export type BigNumberish = string | number | BigNumber;
 export type BN = BigNumber;
@@ -221,4 +222,34 @@ export async function retry<T>(call: () => Promise<T>, times: number, delayS: nu
       return await call();
     });
   return promiseChain;
+}
+
+/**
+ * Estimates the total gas cost required to submit an unsigned (populated) transaction on-chain
+ * @param unsignedTx The unsigned transaction that this function will estimate
+ * @param relayerAddress The address that the transaction will be submitted from ()
+ * @param provider A valid ethers provider - will be used to reason the gas price
+ * @param gasPrice A manually provided gas price - if set, this function will not resolve the current gas price
+ * @returns The total gas cost to submit this transaction - i.e. gasPrice * estimatedGasUnits
+ */
+export async function estimateTotalGasRequiredByUnsignedTransaction(
+  unsignedTx: PopulatedTransaction,
+  relayerAddress: string,
+  provider: providers.Provider | L2Provider<providers.Provider>,
+  gasPrice?: BigNumberish
+): Promise<BigNumberish> {
+  const voidSigner = new VoidSigner(relayerAddress, provider);
+  // Verify if this provider has been L2Provider wrapped
+  if (isL2Provider(provider)) {
+    const populatedTransaction = await voidSigner.populateTransaction(unsignedTx);
+    return (await provider.estimateTotalGasCost(populatedTransaction)).toString();
+  } else {
+    // Estimate the Gas units required to submit this transaction
+    const estimatedGasUnits = await voidSigner.estimateGas(unsignedTx);
+    // Provide a default gas price of the market rate if this condition has not been set
+    const resolvedGasPrice = gasPrice ?? (await provider.getGasPrice());
+    // Find the total gas cost by taking the product of the gas
+    // price & the estimated number of gas units needed
+    return BigNumber.from(resolvedGasPrice).mul(estimatedGasUnits).toString();
+  }
 }
