@@ -14,7 +14,7 @@ export class OptimismQueries implements QueryInterface {
   constructor(
     provider: providers.Provider,
     readonly symbolMapping = SymbolMapping,
-    spokePoolAddress = "0x59485d57EEcc4058F7831f46eE83a7078276b4AE",
+    spokePoolAddress = "0xa420b2d1c0841415A695b81E5B867BCD07Dff8C9",
     private readonly usdcAddress = "0x7F5c764cBc14f9669B88837ca1490cCa17c31607",
     private readonly simulatedRelayerAddress = "0x893d0d70ad97717052e3aa8903d9615804167759"
   ) {
