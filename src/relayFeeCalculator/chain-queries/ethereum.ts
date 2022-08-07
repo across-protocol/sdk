@@ -1,7 +1,12 @@
 import { QueryInterface } from "../relayFeeCalculator";
-import { BigNumberish } from "../../utils";
+import {
+  BigNumberish,
+  createUnsignedFillRelayTransaction,
+  estimateTotalGasRequiredByUnsignedTransaction,
+} from "../../utils";
 import { Coingecko } from "../../coingecko/Coingecko";
-import { providers, BigNumber } from "ethers";
+import { providers } from "ethers";
+import { EthereumSpokePool, EthereumSpokePool__factory } from "@across-protocol/contracts-v2";
 
 // Note: these are the mainnet addresses for these symbols meant to be used for pricing.
 export const SymbolMapping: { [symbol: string]: { address: string; decimals: number } } = {
@@ -70,15 +75,20 @@ export const SymbolMapping: { [symbol: string]: { address: string; decimals: num
 export const defaultAverageGas = 116006;
 
 export class EthereumQueries implements QueryInterface {
+  private spokePool: EthereumSpokePool;
+
   constructor(
     public readonly provider: providers.Provider,
-    public readonly averageGas = defaultAverageGas,
-    readonly symbolMapping = SymbolMapping
-  ) {}
+    readonly symbolMapping = SymbolMapping,
+    readonly spokePoolAddress = "0x4D9079Bb4165aeb4084c526a32695dCfd2F77381",
+    readonly usdcAddress = "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+    readonly simulatedRelayerAddress = "0x9A8f92a830A5cB89a3816e3D267CB7791c16b04D"
+  ) {
+    this.spokePool = EthereumSpokePool__factory.connect(this.spokePoolAddress, this.provider);
+  }
   async getGasCosts(_tokenSymbol: string): Promise<BigNumberish> {
-    return BigNumber.from(await this.provider.getGasPrice())
-      .mul(this.averageGas)
-      .toString();
+    const tx = await createUnsignedFillRelayTransaction(this.spokePool, this.usdcAddress, this.simulatedRelayerAddress);
+    return estimateTotalGasRequiredByUnsignedTransaction(tx, this.simulatedRelayerAddress, this.provider);
   }
 
   async getTokenPrice(tokenSymbol: string): Promise<number> {

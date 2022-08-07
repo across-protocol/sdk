@@ -1,6 +1,10 @@
 import { QueryInterface } from "../relayFeeCalculator";
-import { BigNumberish } from "../../utils";
-import { providers, VoidSigner } from "ethers";
+import {
+  BigNumberish,
+  createUnsignedFillRelayTransaction,
+  estimateTotalGasRequiredByUnsignedTransaction,
+} from "../../utils";
+import { providers } from "ethers";
 import { SymbolMapping } from "./ethereum";
 import { Coingecko } from "../../coingecko/Coingecko";
 import { OptimismSpokePool__factory, OptimismSpokePool } from "@across-protocol/contracts-v2";
@@ -23,23 +27,8 @@ export class OptimismQueries implements QueryInterface {
   }
 
   async getGasCosts(_tokenSymbol: string): Promise<BigNumberish> {
-    // Create a dummy transaction to estimate. Note: the simulated caller would need to be holding weth and have approved the contract.
-    const tx = await this.spokePool.populateTransaction.fillRelay(
-      "0xBb23Cd0210F878Ea4CcA50e9dC307fb0Ed65Cf6B",
-      "0xBb23Cd0210F878Ea4CcA50e9dC307fb0Ed65Cf6B",
-      this.usdcAddress,
-      "10",
-      "10",
-      "1",
-      "1",
-      "1",
-      "1",
-      "1"
-    );
-    const populatedTransaction = await new VoidSigner(this.simulatedRelayerAddress, this.provider).populateTransaction(
-      tx
-    );
-    return (await this.provider.estimateTotalGasCost(populatedTransaction)).toString();
+    const tx = await createUnsignedFillRelayTransaction(this.spokePool, this.usdcAddress, this.simulatedRelayerAddress);
+    return estimateTotalGasRequiredByUnsignedTransaction(tx, this.simulatedRelayerAddress, this.provider);
   }
 
   async getTokenPrice(tokenSymbol: string): Promise<number> {

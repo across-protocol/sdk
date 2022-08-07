@@ -1,20 +1,30 @@
 import { QueryInterface } from "../relayFeeCalculator";
-import { BigNumberish } from "../../utils";
-import { providers, BigNumber } from "ethers";
-import { defaultAverageGas, SymbolMapping } from "./ethereum";
+import {
+  BigNumberish,
+  createUnsignedFillRelayTransaction,
+  estimateTotalGasRequiredByUnsignedTransaction,
+} from "../../utils";
+import { providers } from "ethers";
+import { SymbolMapping } from "./ethereum";
 import { Coingecko } from "../../coingecko/Coingecko";
+import { PolygonSpokePool, PolygonSpokePool__factory } from "@across-protocol/contracts-v2";
 
 export class PolygonQueries implements QueryInterface {
+  private spokePool: PolygonSpokePool;
+
   constructor(
     readonly provider: providers.Provider,
-    public readonly averageGas = defaultAverageGas,
-    readonly symbolMapping = SymbolMapping
-  ) {}
+    readonly symbolMapping = SymbolMapping,
+    readonly spokePoolAddress = "0x69B5c72837769eF1e7C164Abc6515DcFf217F920",
+    readonly usdcAddress = "0x2791bca1f2de4661ed88a30c99a7a9449aa84174",
+    readonly simulatedRelayerAddress = "0x9A8f92a830A5cB89a3816e3D267CB7791c16b04D"
+  ) {
+    this.spokePool = PolygonSpokePool__factory.connect(spokePoolAddress, provider);
+  }
 
   async getGasCosts(_tokenSymbol: string): Promise<BigNumberish> {
-    return BigNumber.from(await this.provider.getGasPrice())
-      .mul(this.averageGas)
-      .toString();
+    const tx = await createUnsignedFillRelayTransaction(this.spokePool, this.usdcAddress, this.simulatedRelayerAddress);
+    return estimateTotalGasRequiredByUnsignedTransaction(tx, this.simulatedRelayerAddress, this.provider);
   }
 
   async getTokenPrice(tokenSymbol: string): Promise<string | number> {
