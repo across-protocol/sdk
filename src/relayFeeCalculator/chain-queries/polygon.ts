@@ -7,10 +7,10 @@ import {
 import { providers } from "ethers";
 import { SymbolMapping } from "./ethereum";
 import { Coingecko } from "../../coingecko/Coingecko";
-import { PolygonSpokePool, PolygonSpokePool__factory } from "@across-protocol/contracts-v2";
+import { PolygonSpokePool__factory, SpokePool } from "@across-protocol/contracts-v2";
 
 export class PolygonQueries implements QueryInterface {
-  private spokePool: PolygonSpokePool;
+  private spokePool: SpokePool;
 
   constructor(
     readonly provider: providers.Provider,

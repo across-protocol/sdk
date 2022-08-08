@@ -7,12 +7,12 @@ import {
 import { utils, providers } from "ethers";
 import { SymbolMapping } from "./ethereum";
 import { Coingecko } from "../../coingecko/Coingecko";
-import { OptimismSpokePool__factory, OptimismSpokePool } from "@across-protocol/contracts-v2";
+import { OptimismSpokePool__factory, SpokePool } from "@across-protocol/contracts-v2";
 
 const { parseUnits } = utils;
 
 export class BobaQueries implements QueryInterface {
-  private spokePool: OptimismSpokePool;
+  private spokePool: SpokePool;
 
   constructor(
     readonly provider: providers.Provider,

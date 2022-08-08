@@ -1,7 +1,8 @@
-import { BaseContract, BigNumber, ethers, PopulatedTransaction, providers, VoidSigner } from "ethers";
+import { BigNumber, ethers, PopulatedTransaction, providers, VoidSigner } from "ethers";
 import * as uma from "@uma/sdk";
 import Decimal from "decimal.js";
 import { isL2Provider, L2Provider } from "@eth-optimism/sdk";
+import { SpokePool } from "@across-protocol/contracts-v2";
 
 export type BigNumberish = string | number | BigNumber;
 export type BN = BigNumber;
@@ -262,13 +263,13 @@ export async function estimateTotalGasRequiredByUnsignedTransaction(
  * @returns A populated (but unsigned) transaction that can be signed/sent or used for estimating gas costs
  */
 export async function createUnsignedFillRelayTransaction(
-  spokePool: BaseContract,
+  spokePool: SpokePool,
   destinationTokenAddress: string,
   simulatedRelayerAddress: string
 ): Promise<PopulatedTransaction> {
-  // Generate a baseline set of function parameters for the fillRelay contract function
+  // Populate and return an unsigned tx as per the given spoke pool
   // NOTE: 0xBb23Cd0210F878Ea4CcA50e9dC307fb0Ed65Cf6B is a dummy address
-  const contractFunctionParams = [
+  return await spokePool.populateTransaction.fillRelay(
     "0xBb23Cd0210F878Ea4CcA50e9dC307fb0Ed65Cf6B",
     "0xBb23Cd0210F878Ea4CcA50e9dC307fb0Ed65Cf6B",
     destinationTokenAddress,
@@ -279,8 +280,6 @@ export async function createUnsignedFillRelayTransaction(
     "1",
     "1",
     "1",
-    { from: simulatedRelayerAddress },
-  ];
-  // Populate and return an unsigned tx as per the given spoke pool
-  return await spokePool.populateTransaction.fillRelay(...contractFunctionParams);
+    { from: simulatedRelayerAddress }
+  );
 }

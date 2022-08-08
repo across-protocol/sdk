@@ -7,10 +7,10 @@ import {
 import { providers } from "ethers";
 import { SymbolMapping } from "./ethereum";
 import { Coingecko } from "../../coingecko/Coingecko";
-import { ArbitrumSpokePool__factory, ArbitrumSpokePool } from "@across-protocol/contracts-v2";
+import { ArbitrumSpokePool__factory, SpokePool } from "@across-protocol/contracts-v2";
 
 export class ArbitrumQueries implements QueryInterface {
-  private spokePool: ArbitrumSpokePool;
+  private spokePool: SpokePool;
 
   constructor(
     readonly provider: providers.Provider,

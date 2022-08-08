@@ -7,12 +7,12 @@ import {
 import { providers } from "ethers";
 import { SymbolMapping } from "./ethereum";
 import { Coingecko } from "../../coingecko/Coingecko";
-import { OptimismSpokePool__factory, OptimismSpokePool } from "@across-protocol/contracts-v2";
+import { OptimismSpokePool__factory, SpokePool } from "@across-protocol/contracts-v2";
 
 import { L2Provider, asL2Provider } from "@eth-optimism/sdk";
 
 export class OptimismQueries implements QueryInterface {
-  private spokePool: OptimismSpokePool;
+  private spokePool: SpokePool;
   readonly provider: L2Provider<providers.Provider>;
 
   constructor(

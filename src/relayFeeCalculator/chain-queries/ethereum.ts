@@ -6,7 +6,7 @@ import {
 } from "../../utils";
 import { Coingecko } from "../../coingecko/Coingecko";
 import { providers } from "ethers";
-import { EthereumSpokePool, EthereumSpokePool__factory } from "@across-protocol/contracts-v2";
+import { EthereumSpokePool__factory, SpokePool } from "@across-protocol/contracts-v2";
 
 // Note: these are the mainnet addresses for these symbols meant to be used for pricing.
 export const SymbolMapping: { [symbol: string]: { address: string; decimals: number } } = {
@@ -73,7 +73,7 @@ export const SymbolMapping: { [symbol: string]: { address: string; decimals: num
 };
 
 export class EthereumQueries implements QueryInterface {
-  private spokePool: EthereumSpokePool;
+  private spokePool: SpokePool;
 
   constructor(
     readonly provider: providers.Provider,
