@@ -1,7 +1,7 @@
 import { BigNumber, ethers, PopulatedTransaction, providers, VoidSigner } from "ethers";
 import * as uma from "@uma/sdk";
 import Decimal from "decimal.js";
-import { isL2Provider, L2Provider } from "@eth-optimism/sdk";
+import { isL2Provider as isOptimismL2Provider, L2Provider } from "@eth-optimism/sdk";
 import { SpokePool } from "@across-protocol/contracts-v2";
 
 export type BigNumberish = string | number | BigNumber;
@@ -241,7 +241,9 @@ export async function estimateTotalGasRequiredByUnsignedTransaction(
 ): Promise<BigNumberish> {
   const voidSigner = new VoidSigner(senderAddress, provider);
   // Verify if this provider has been L2Provider wrapped
-  if (isL2Provider(provider)) {
+  // NOTE: In this case, this will be true if the provider is
+  //       using the Optimism blockchain
+  if (isOptimismL2Provider(provider)) {
     const populatedTransaction = await voidSigner.populateTransaction(unsignedTx);
     return (await provider.estimateTotalGasCost(populatedTransaction)).toString();
   } else {
