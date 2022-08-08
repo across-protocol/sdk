@@ -17,7 +17,7 @@ export class PolygonQueries implements QueryInterface {
     readonly symbolMapping = SymbolMapping,
     readonly spokePoolAddress = "0x69B5c72837769eF1e7C164Abc6515DcFf217F920",
     readonly usdcAddress = "0x2791bca1f2de4661ed88a30c99a7a9449aa84174",
-    readonly simulatedRelayerAddress = "0x9A8f92a830A5cB89a3816e3D267CB7791c16b04D"
+    readonly simulatedRelayerAddress = "0x893d0D70AD97717052E3AA8903D9615804167759"
   ) {
     this.spokePool = PolygonSpokePool__factory.connect(spokePoolAddress, provider);
   }
