@@ -227,18 +227,18 @@ export async function retry<T>(call: () => Promise<T>, times: number, delayS: nu
 /**
  * Estimates the total gas cost required to submit an unsigned (populated) transaction on-chain
  * @param unsignedTx The unsigned transaction that this function will estimate
- * @param relayerAddress The address that the transaction will be submitted from ()
+ * @param senderAddress The address that the transaction will be submitted from
  * @param provider A valid ethers provider - will be used to reason the gas price
  * @param gasPrice A manually provided gas price - if set, this function will not resolve the current gas price
  * @returns The total gas cost to submit this transaction - i.e. gasPrice * estimatedGasUnits
  */
 export async function estimateTotalGasRequiredByUnsignedTransaction(
   unsignedTx: PopulatedTransaction,
-  relayerAddress: string,
+  senderAddress: string,
   provider: providers.Provider | L2Provider<providers.Provider>,
   gasPrice?: BigNumberish
 ): Promise<BigNumberish> {
-  const voidSigner = new VoidSigner(relayerAddress, provider);
+  const voidSigner = new VoidSigner(senderAddress, provider);
   // Verify if this provider has been L2Provider wrapped
   if (isL2Provider(provider)) {
     const populatedTransaction = await voidSigner.populateTransaction(unsignedTx);
