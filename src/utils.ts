@@ -267,6 +267,7 @@ export async function createUnsignedFillRelayTransaction(
   simulatedRelayerAddress: string
 ): Promise<PopulatedTransaction> {
   // Generate a baseline set of function parameters for the fillRelay contract function
+  // NOTE: 0xBb23Cd0210F878Ea4CcA50e9dC307fb0Ed65Cf6B is a dummy address
   const contractFunctionParams = [
     "0xBb23Cd0210F878Ea4CcA50e9dC307fb0Ed65Cf6B",
     "0xBb23Cd0210F878Ea4CcA50e9dC307fb0Ed65Cf6B",
