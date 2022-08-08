@@ -230,6 +230,7 @@ export async function retry<T>(call: () => Promise<T>, times: number, delayS: nu
  * @param unsignedTx The unsigned transaction that this function will estimate
  * @param senderAddress The address that the transaction will be submitted from
  * @param provider A valid ethers provider - will be used to reason the gas price
+ * @param gasMultiplier Represents a percent increase on the total gas cost. For example, 0.2 will increase this resulting value by a factor of 1.2
  * @param gasPrice A manually provided gas price - if set, this function will not resolve the current gas price
  * @returns The total gas cost to submit this transaction - i.e. gasPrice * estimatedGasUnits
  */
@@ -237,15 +238,17 @@ export async function estimateTotalGasRequiredByUnsignedTransaction(
   unsignedTx: PopulatedTransaction,
   senderAddress: string,
   provider: providers.Provider | L2Provider<providers.Provider>,
+  gasMultiplier: number,
   gasPrice?: BigNumberish
 ): Promise<BigNumberish> {
+  const gasTotalMultiplier = 1.0 + gasMultiplier;
   const voidSigner = new VoidSigner(senderAddress, provider);
   // Verify if this provider has been L2Provider wrapped
   // NOTE: In this case, this will be true if the provider is
   //       using the Optimism blockchain
   if (isOptimismL2Provider(provider)) {
     const populatedTransaction = await voidSigner.populateTransaction(unsignedTx);
-    return (await provider.estimateTotalGasCost(populatedTransaction)).toString();
+    return (await provider.estimateTotalGasCost(populatedTransaction)).mul(gasTotalMultiplier).toString();
   } else {
     // Estimate the Gas units required to submit this transaction
     const estimatedGasUnits = await voidSigner.estimateGas(unsignedTx);
@@ -253,7 +256,7 @@ export async function estimateTotalGasRequiredByUnsignedTransaction(
     const resolvedGasPrice = gasPrice ?? (await provider.getGasPrice());
     // Find the total gas cost by taking the product of the gas
     // price & the estimated number of gas units needed
-    return BigNumber.from(resolvedGasPrice).mul(estimatedGasUnits).toString();
+    return BigNumber.from(resolvedGasPrice).mul(gasTotalMultiplier).mul(estimatedGasUnits).toString();
   }
 }
 

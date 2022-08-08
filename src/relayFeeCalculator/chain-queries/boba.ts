@@ -19,7 +19,8 @@ export class BobaQueries implements QueryInterface {
     readonly symbolMapping = SymbolMapping,
     spokePoolAddress = "0xBbc6009fEfFc27ce705322832Cb2068F8C1e0A58",
     private readonly usdcAddress = "0x66a2A913e447d6b4BF33EFbec43aAeF87890FBbc",
-    private readonly simulatedRelayerAddress = "0x893d0d70ad97717052e3aa8903d9615804167759"
+    private readonly simulatedRelayerAddress = "0x893d0d70ad97717052e3aa8903d9615804167759",
+    readonly gasMultiplier: number = 0
   ) {
     // TODO: replace with address getter.
     this.spokePool = OptimismSpokePool__factory.connect(spokePoolAddress, provider);
@@ -31,6 +32,7 @@ export class BobaQueries implements QueryInterface {
       tx,
       this.simulatedRelayerAddress,
       this.provider,
+      this.gasMultiplier,
       parseUnits("1", 9)
     );
   }

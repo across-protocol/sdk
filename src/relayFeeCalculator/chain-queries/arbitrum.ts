@@ -17,14 +17,20 @@ export class ArbitrumQueries implements QueryInterface {
     readonly symbolMapping = SymbolMapping,
     spokePoolAddress = "0xB88690461dDbaB6f04Dfad7df66B7725942FEb9C",
     private readonly usdcAddress = "0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC8",
-    private readonly simulatedRelayerAddress = "0x893d0d70ad97717052e3aa8903d9615804167759"
+    private readonly simulatedRelayerAddress = "0x893d0d70ad97717052e3aa8903d9615804167759",
+    readonly gasMultiplier: number = 0
   ) {
     this.spokePool = ArbitrumSpokePool__factory.connect(spokePoolAddress, provider);
   }
 
   async getGasCosts(_tokenSymbol: string): Promise<BigNumberish> {
     const tx = await createUnsignedFillRelayTransaction(this.spokePool, this.usdcAddress, this.simulatedRelayerAddress);
-    return estimateTotalGasRequiredByUnsignedTransaction(tx, this.simulatedRelayerAddress, this.provider);
+    return estimateTotalGasRequiredByUnsignedTransaction(
+      tx,
+      this.simulatedRelayerAddress,
+      this.provider,
+      this.gasMultiplier
+    );
   }
 
   async getTokenPrice(tokenSymbol: string): Promise<string | number> {
