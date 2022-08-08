@@ -72,8 +72,6 @@ export const SymbolMapping: { [symbol: string]: { address: string; decimals: num
   },
 };
 
-export const defaultAverageGas = 116006;
-
 export class EthereumQueries implements QueryInterface {
   private spokePool: EthereumSpokePool;
 
