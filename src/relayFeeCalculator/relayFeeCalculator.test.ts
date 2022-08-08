@@ -39,6 +39,22 @@ describe("RelayFeeCalculator", () => {
   beforeAll(() => {
     queries = new ExampleQueries();
   });
+  it("gasPercentageFee", async () => {
+    client = new RelayFeeCalculator({ queries });
+    // A list of inputs and ground truth [input, ground truth]
+    const gasFeePercents = [
+      [1000, "30557200000000000000000"],
+      [5000, "6111440000000000000000"],
+      // A test with a prime number
+      [104729, "291774007199534035462"],
+    ];
+    for (const [input, truth] of gasFeePercents) {
+      const result = (await client.gasFeePercent(input, "usdc")).toString();
+      expect(result).toEqual(truth);
+    }
+    // Test that zero amount fails
+    await expect(client.gasFeePercent(0, "USDC")).rejects.toThrowError();
+  });
   it("relayerFeeDetails", async () => {
     client = new RelayFeeCalculator({ queries });
     const result = await client.relayerFeeDetails(100000000, "usdc");
