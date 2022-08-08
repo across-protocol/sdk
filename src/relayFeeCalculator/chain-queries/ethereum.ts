@@ -78,7 +78,7 @@ export class EthereumQueries implements QueryInterface {
   private spokePool: EthereumSpokePool;
 
   constructor(
-    public readonly provider: providers.Provider,
+    readonly provider: providers.Provider,
     readonly symbolMapping = SymbolMapping,
     readonly spokePoolAddress = "0x4D9079Bb4165aeb4084c526a32695dCfd2F77381",
     readonly usdcAddress = "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",

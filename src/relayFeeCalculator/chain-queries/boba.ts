@@ -15,7 +15,7 @@ export class BobaQueries implements QueryInterface {
   private spokePool: OptimismSpokePool;
 
   constructor(
-    private provider: providers.Provider,
+    readonly provider: providers.Provider,
     readonly symbolMapping = SymbolMapping,
     spokePoolAddress = "0xBbc6009fEfFc27ce705322832Cb2068F8C1e0A58",
     private readonly usdcAddress = "0x66a2A913e447d6b4BF33EFbec43aAeF87890FBbc",

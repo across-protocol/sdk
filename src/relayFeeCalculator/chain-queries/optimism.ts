@@ -13,7 +13,7 @@ import { L2Provider, asL2Provider } from "@eth-optimism/sdk";
 
 export class OptimismQueries implements QueryInterface {
   private spokePool: OptimismSpokePool;
-  private provider: L2Provider<providers.Provider>;
+  readonly provider: L2Provider<providers.Provider>;
 
   constructor(
     provider: providers.Provider,
