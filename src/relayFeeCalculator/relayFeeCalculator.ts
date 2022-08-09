@@ -71,6 +71,10 @@ export class RelayFeeCalculator {
     assert(capitalCosts.decimals > 0 && capitalCosts.decimals <= 18, "invalid decimals");
   }
 
+  async getTokenPrice(tokenSymbol: string): Promise<number> {
+    return this.queries.getTokenPrice(tokenSymbol);
+  }
+
   async gasFeePercent(amountToRelay: BigNumberish, tokenSymbol: string, _tokenPrice?: number): Promise<BigNumber> {
     const getGasCosts = this.queries.getGasCosts(tokenSymbol).catch((error) => {
       console.error(`ERROR(gasFeePercent): Error while fetching gas costs ${error}`);
