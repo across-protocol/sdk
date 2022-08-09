@@ -2,6 +2,8 @@
 // NODE_URL_42161
 // NODE_URL_288
 // NODE_URL_10
+// NODE_URL_1
+// NODE_URL_137
 
 import dotenv from "dotenv";
 
@@ -35,7 +37,8 @@ describe("Queries", function () {
     ]);
   });
   test("Ethereum", async function () {
-    const ethereumQueries = new EthereumQueries();
+    const provider = new providers.JsonRpcProvider(process.env.NODE_URL_1);
+    const ethereumQueries = new EthereumQueries(provider);
     await Promise.all([
       ethereumQueries.getGasCosts("USDC"),
       ethereumQueries.getTokenDecimals("USDC"),
@@ -52,7 +55,8 @@ describe("Queries", function () {
     ]);
   });
   test("Polygon", async function () {
-    const polygonQueries = new PolygonQueries();
+    const provider = new providers.JsonRpcProvider(process.env.NODE_URL_137);
+    const polygonQueries = new PolygonQueries(provider);
     await Promise.all([
       polygonQueries.getGasCosts("USDC"),
       polygonQueries.getTokenDecimals("USDC"),

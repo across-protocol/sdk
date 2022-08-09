@@ -1,6 +1,8 @@
-import { BigNumber, ethers } from "ethers";
+import { BigNumber, ethers, PopulatedTransaction, providers, VoidSigner } from "ethers";
 import * as uma from "@uma/sdk";
 import Decimal from "decimal.js";
+import { isL2Provider as isOptimismL2Provider, L2Provider } from "@eth-optimism/sdk";
+import { SpokePool } from "@across-protocol/contracts-v2";
 
 export type BigNumberish = string | number | BigNumber;
 export type BN = BigNumber;
@@ -221,4 +223,64 @@ export async function retry<T>(call: () => Promise<T>, times: number, delayS: nu
       return await call();
     });
   return promiseChain;
+}
+
+/**
+ * Estimates the total gas cost required to submit an unsigned (populated) transaction on-chain
+ * @param unsignedTx The unsigned transaction that this function will estimate
+ * @param senderAddress The address that the transaction will be submitted from
+ * @param provider A valid ethers provider - will be used to reason the gas price
+ * @param gasPrice A manually provided gas price - if set, this function will not resolve the current gas price
+ * @returns The total gas cost to submit this transaction - i.e. gasPrice * estimatedGasUnits
+ */
+export async function estimateTotalGasRequiredByUnsignedTransaction(
+  unsignedTx: PopulatedTransaction,
+  senderAddress: string,
+  provider: providers.Provider | L2Provider<providers.Provider>,
+  gasPrice?: BigNumberish
+): Promise<BigNumberish> {
+  const voidSigner = new VoidSigner(senderAddress, provider);
+  // This branches in the Optimism case because they use a special provider, called L2Provider, and special gas logic
+  // to compute gas costs on Optimism.
+  if (isOptimismL2Provider(provider)) {
+    const populatedTransaction = await voidSigner.populateTransaction(unsignedTx);
+    return (await provider.estimateTotalGasCost(populatedTransaction)).toString();
+  } else {
+    // Estimate the Gas units required to submit this transaction
+    const estimatedGasUnits = await voidSigner.estimateGas(unsignedTx);
+    // Provide a default gas price of the market rate if this condition has not been set
+    const resolvedGasPrice = gasPrice ?? (await provider.getGasPrice());
+    // Find the total gas cost by taking the product of the gas
+    // price & the estimated number of gas units needed
+    return BigNumber.from(resolvedGasPrice).mul(estimatedGasUnits).toString();
+  }
+}
+
+/**
+ * Create an unsigned transaction of a fillRelay contract call
+ * @param spokePool The specific spokepool that will populate this tx
+ * @param destinationTokenAddress A valid ERC20 token (system-wide default is UDSC)
+ * @param simulatedRelayerAddress The relayer address that relays this transaction
+ * @returns A populated (but unsigned) transaction that can be signed/sent or used for estimating gas costs
+ */
+export async function createUnsignedFillRelayTransaction(
+  spokePool: SpokePool,
+  destinationTokenAddress: string,
+  simulatedRelayerAddress: string
+): Promise<PopulatedTransaction> {
+  // Populate and return an unsigned tx as per the given spoke pool
+  // NOTE: 0xBb23Cd0210F878Ea4CcA50e9dC307fb0Ed65Cf6B is a dummy address
+  return await spokePool.populateTransaction.fillRelay(
+    "0xBb23Cd0210F878Ea4CcA50e9dC307fb0Ed65Cf6B",
+    "0xBb23Cd0210F878Ea4CcA50e9dC307fb0Ed65Cf6B",
+    destinationTokenAddress,
+    "10",
+    "10",
+    "1",
+    "1",
+    "1",
+    "1",
+    "1",
+    { from: simulatedRelayerAddress }
+  );
 }

@@ -1,12 +1,16 @@
 import { QueryInterface } from "../relayFeeCalculator";
-import { BigNumberish } from "../../utils";
-import { BigNumber, providers } from "ethers";
+import {
+  BigNumberish,
+  createUnsignedFillRelayTransaction,
+  estimateTotalGasRequiredByUnsignedTransaction,
+} from "../../utils";
+import { providers } from "ethers";
 import { SymbolMapping } from "./ethereum";
 import { Coingecko } from "../../coingecko/Coingecko";
-import { ArbitrumSpokePool__factory, ArbitrumSpokePool } from "@across-protocol/contracts-v2";
+import { SpokePool__factory, SpokePool } from "@across-protocol/contracts-v2";
 
 export class ArbitrumQueries implements QueryInterface {
-  private spokePool: ArbitrumSpokePool;
+  private spokePool: SpokePool;
 
   constructor(
     readonly provider: providers.Provider,
@@ -15,13 +19,12 @@ export class ArbitrumQueries implements QueryInterface {
     private readonly usdcAddress = "0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC8",
     private readonly simulatedRelayerAddress = "0x893d0d70ad97717052e3aa8903d9615804167759"
   ) {
-    this.spokePool = ArbitrumSpokePool__factory.connect(spokePoolAddress, provider);
+    this.spokePool = SpokePool__factory.connect(spokePoolAddress, provider);
   }
 
   async getGasCosts(_tokenSymbol: string): Promise<BigNumberish> {
-    const gasEstimate = await this.estimateGas();
-    const gasPrice = BigNumber.from(await this.provider.getGasPrice());
-    return gasPrice.mul(gasEstimate).toString();
+    const tx = await createUnsignedFillRelayTransaction(this.spokePool, this.usdcAddress, this.simulatedRelayerAddress);
+    return estimateTotalGasRequiredByUnsignedTransaction(tx, this.simulatedRelayerAddress, this.provider);
   }
 
   async getTokenPrice(tokenSymbol: string, coingeckoProApiKey?: string): Promise<number> {
@@ -34,22 +37,5 @@ export class ArbitrumQueries implements QueryInterface {
   getTokenDecimals(tokenSymbol: string): number {
     if (!this.symbolMapping[tokenSymbol]) throw new Error(`${tokenSymbol} does not exist in mapping`);
     return this.symbolMapping[tokenSymbol].decimals;
-  }
-
-  estimateGas() {
-    // Create a dummy transaction to estimate. Note: the simulated caller would need to be holding weth and have approved the contract.
-    return this.spokePool.estimateGas.fillRelay(
-      "0xBb23Cd0210F878Ea4CcA50e9dC307fb0Ed65Cf6B",
-      "0xBb23Cd0210F878Ea4CcA50e9dC307fb0Ed65Cf6B",
-      this.usdcAddress,
-      "10",
-      "10",
-      "1",
-      "1",
-      "1",
-      "1",
-      "1",
-      { from: this.simulatedRelayerAddress }
-    );
   }
 }
