@@ -7,7 +7,7 @@ const { percent, fixedPointAdjustment } = uma.across.utils;
 // This needs to be implemented for every chain and passed into RelayFeeCalculator
 export interface QueryInterface {
   getGasCosts: (tokenSymbol: string) => Promise<BigNumberish>;
-  getTokenPrice: (tokenSymbol: string, coingeckoProApiKey?: string) => Promise<number>;
+  getTokenPrice: (tokenSymbol: string) => Promise<number>;
   getTokenDecimals: (tokenSymbol: string) => number;
 }
 
