@@ -17,14 +17,18 @@ export class PolygonQueries implements QueryInterface {
       .toString();
   }
 
-  async getTokenPrice(tokenSymbol: string): Promise<number> {
+  async getTokenPrice(tokenSymbol: string, coingeckoProApiKey?: string): Promise<number> {
     if (!this.symbolMapping[tokenSymbol]) throw new Error(`${tokenSymbol} does not exist in mapping`);
-    const [, tokenPrice] = await Coingecko.get().getCurrentPriceByContract(
+    const coingeckoInstance = coingeckoProApiKey !== undefined ? Coingecko.getPro(coingeckoProApiKey) : Coingecko.get();
+    const [, tokenPrice] = await coingeckoInstance.getCurrentPriceByContract(
       this.symbolMapping[tokenSymbol].address,
       "usd"
     );
 
-    const [, maticPrice] = await Coingecko.get().getCurrentPriceByContract(this.symbolMapping["MATIC"].address, "usd");
+    const [, maticPrice] = await coingeckoInstance.getCurrentPriceByContract(
+      this.symbolMapping["MATIC"].address,
+      "usd"
+    );
     return Number((tokenPrice / maticPrice).toFixed(this.symbolMapping["MATIC"].decimals));
   }
 

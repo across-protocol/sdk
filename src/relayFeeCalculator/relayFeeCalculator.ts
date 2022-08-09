@@ -7,7 +7,7 @@ const { percent, fixedPointAdjustment } = uma.across.utils;
 // This needs to be implemented for every chain and passed into RelayFeeCalculator
 export interface QueryInterface {
   getGasCosts: (tokenSymbol: string) => Promise<BigNumberish>;
-  getTokenPrice: (tokenSymbol: string) => Promise<number>;
+  getTokenPrice: (tokenSymbol: string, coingeckoProApiKey?: string) => Promise<number>;
   getTokenDecimals: (tokenSymbol: string) => number;
 }
 
@@ -71,8 +71,8 @@ export class RelayFeeCalculator {
     assert(capitalCosts.decimals > 0 && capitalCosts.decimals <= 18, "invalid decimals");
   }
 
-  async getTokenPrice(tokenSymbol: string): Promise<number> {
-    return this.queries.getTokenPrice(tokenSymbol);
+  async getTokenPrice(tokenSymbol: string, coingeckoProApiKey?: string): Promise<number> {
+    return this.queries.getTokenPrice(tokenSymbol, coingeckoProApiKey);
   }
 
   async gasFeePercent(amountToRelay: BigNumberish, tokenSymbol: string, _tokenPrice?: number): Promise<BigNumber> {

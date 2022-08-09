@@ -42,9 +42,10 @@ export class OptimismQueries implements QueryInterface {
     return (await this.provider.estimateTotalGasCost(populatedTransaction)).toString();
   }
 
-  async getTokenPrice(tokenSymbol: string): Promise<number> {
+  async getTokenPrice(tokenSymbol: string, coingeckoProApiKey?: string): Promise<number> {
     if (!this.symbolMapping[tokenSymbol]) throw new Error(`${tokenSymbol} does not exist in mapping`);
-    const [, price] = await Coingecko.get().getCurrentPriceByContract(this.symbolMapping[tokenSymbol].address, "eth");
+    const coingeckoInstance = coingeckoProApiKey !== undefined ? Coingecko.getPro(coingeckoProApiKey) : Coingecko.get();
+    const [, price] = await coingeckoInstance.getCurrentPriceByContract(this.symbolMapping[tokenSymbol].address, "eth");
     return price;
   }
 
