@@ -25,6 +25,7 @@ describe("Queries", function () {
       arbitrumQueries.getGasCosts("USDC"),
       arbitrumQueries.getTokenDecimals("USDC"),
       arbitrumQueries.getTokenPrice("USDC"),
+      arbitrumQueries.getTokenPrice("USDC", process.env.COINGECKO_PRO_API_KEY),
     ]);
   });
   test("Boba", async function () {
@@ -34,6 +35,7 @@ describe("Queries", function () {
       bobaQueries.getGasCosts("USDC"),
       bobaQueries.getTokenDecimals("USDC"),
       bobaQueries.getTokenPrice("USDC"),
+      bobaQueries.getTokenPrice("USDC", process.env.COINGECKO_PRO_API_KEY),
     ]);
   });
   test("Ethereum", async function () {
@@ -43,6 +45,7 @@ describe("Queries", function () {
       ethereumQueries.getGasCosts("USDC"),
       ethereumQueries.getTokenDecimals("USDC"),
       ethereumQueries.getTokenPrice("USDC"),
+      ethereumQueries.getTokenPrice("USDC", process.env.COINGECKO_PRO_API_KEY),
     ]);
   });
   test("Optimism", async function () {
@@ -52,6 +55,7 @@ describe("Queries", function () {
       optimismQueries.getGasCosts("USDC"),
       optimismQueries.getTokenDecimals("USDC"),
       optimismQueries.getTokenPrice("USDC"),
+      optimismQueries.getTokenPrice("USDC", process.env.COINGECKO_PRO_API_KEY),
     ]);
   });
   test("Polygon", async function () {
@@ -61,6 +65,7 @@ describe("Queries", function () {
       polygonQueries.getGasCosts("USDC"),
       polygonQueries.getTokenDecimals("USDC"),
       polygonQueries.getTokenPrice("USDC"),
+      polygonQueries.getTokenPrice("USDC", process.env.COINGECKO_PRO_API_KEY),
     ]);
   });
 });

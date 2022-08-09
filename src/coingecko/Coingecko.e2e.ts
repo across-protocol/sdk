@@ -7,6 +7,8 @@ describe("coingecko", function () {
   test("init", function () {
     cg = Coingecko.get();
     assert.ok(cg);
+    const cgPro = Coingecko.getPro();
+    assert.ok(cgPro);
   });
   test("getContractDetails", async function () {
     const address = "0x04fa0d235c4abf4bcf4787af4cf447de572ef828";
