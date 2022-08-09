@@ -7,7 +7,7 @@ const { percent, fixedPointAdjustment } = uma.across.utils;
 // This needs to be implemented for every chain and passed into RelayFeeCalculator
 export interface QueryInterface {
   getGasCosts: (tokenSymbol: string) => Promise<BigNumberish>;
-  getTokenPrice: (tokenSymbol: string) => Promise<number | string>;
+  getTokenPrice: (tokenSymbol: string) => Promise<number>;
   getTokenDecimals: (tokenSymbol: string) => number;
 }
 
@@ -73,10 +73,12 @@ export class RelayFeeCalculator {
 
   async gasFeePercent(amountToRelay: BigNumberish, tokenSymbol: string): Promise<BigNumber> {
     const getGasCosts = this.queries.getGasCosts(tokenSymbol).catch((error) => {
-      console.log(`ERROR(gasFeePercent): Error while fetching gas costs ${error}`);
+      console.error(`ERROR(gasFeePercent): Error while fetching gas costs ${error}`);
+      throw error;
     });
     const getTokenPrice = this.queries.getTokenPrice(tokenSymbol).catch((error) => {
-      console.log(`ERROR(gasFeePercent): Error while fetching token price ${error}`);
+      console.error(`ERROR(gasFeePercent): Error while fetching token price ${error}`);
+      throw error;
     });
     const [gasCosts, tokenPrice] = await Promise.all([getGasCosts, getTokenPrice]);
     const decimals = this.queries.getTokenDecimals(tokenSymbol);
