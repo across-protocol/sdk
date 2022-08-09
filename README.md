@@ -109,6 +109,7 @@ There are many ways to ship styles, including with CSS-in-JS. TSDX has no opinio
 
 For vanilla CSS, you can include it at the root directory and add it to the `files` section in your `package.json`, so that it can be imported separately by your users and run through their bundler's loader.
 
-## Publishing to NPM
-
-We recommend using [np](https://github.com/sindresorhus/np).
+## Publishing a new version
+1. Bump version in package.json and merge to master. Example: https://github.com/across-protocol/sdk-v2/pull/67
+2. Create a new release with a new tag (version number should be incremented): https://github.com/across-protocol/sdk-v2/releases
+3. Update any upstream repos/binaries that depend on sdk-v2 such as https://github.com/across-protocol/frontend-v2. Example: https://github.com/across-protocol/frontend-v2/pull/202
