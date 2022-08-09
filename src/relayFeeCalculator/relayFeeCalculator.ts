@@ -7,8 +7,8 @@ const { percent, fixedPointAdjustment } = uma.across.utils;
 // This needs to be implemented for every chain and passed into RelayFeeCalculator
 export interface QueryInterface {
   getGasCosts: (tokenSymbol: string) => Promise<BigNumberish>;
-  getTokenPrice: (tokenSymbol: string) => Promise<number | string>;
-  getTokenDecimals: (tokenSymbol: string) => Promise<number>;
+  getTokenPrice: (tokenSymbol: string) => Promise<number>;
+  getTokenDecimals: (tokenSymbol: string) => number;
 }
 
 export const expectedCapitalCostsKeys = ["lowerBound", "upperBound", "cutoff", "decimals"];
@@ -72,11 +72,16 @@ export class RelayFeeCalculator {
   }
 
   async gasFeePercent(amountToRelay: BigNumberish, tokenSymbol: string): Promise<BigNumber> {
-    const [gasCosts, tokenPrice, decimals] = await Promise.all([
-      this.queries.getGasCosts(tokenSymbol),
-      this.queries.getTokenPrice(tokenSymbol),
-      this.queries.getTokenDecimals(tokenSymbol),
-    ]);
+    const getGasCosts = this.queries.getGasCosts(tokenSymbol).catch((error) => {
+      console.error(`ERROR(gasFeePercent): Error while fetching gas costs ${error}`);
+      throw error;
+    });
+    const getTokenPrice = this.queries.getTokenPrice(tokenSymbol).catch((error) => {
+      console.error(`ERROR(gasFeePercent): Error while fetching token price ${error}`);
+      throw error;
+    });
+    const [gasCosts, tokenPrice] = await Promise.all([getGasCosts, getTokenPrice]);
+    const decimals = this.queries.getTokenDecimals(tokenSymbol);
     const gasFeesInToken = nativeToToken(gasCosts, tokenPrice, decimals, this.nativeTokenDecimals);
     return percent(gasFeesInToken, amountToRelay);
   }
@@ -121,8 +126,10 @@ export class RelayFeeCalculator {
   async relayerFeeDetails(amountToRelay: BigNumberish, tokenSymbol: string) {
     let isAmountTooLow = false;
     const gasFeePercent = await this.gasFeePercent(amountToRelay, tokenSymbol);
+    console.log(`INFO(relayerFeeDetails): Computed gasFeePercent ${gasFeePercent}`);
     const gasFeeTotal = gasFeePercent.mul(amountToRelay).div(fixedPointAdjustment);
     const capitalFeePercent = await this.capitalFeePercent(amountToRelay, tokenSymbol);
+    console.log(`INFO(relayerFeeDetails): Computed capitalFeePercent ${capitalFeePercent}`);
     const capitalFeeTotal = capitalFeePercent.mul(amountToRelay).div(fixedPointAdjustment);
     const relayFeePercent = gasFeePercent.add(capitalFeePercent);
     const relayFeeTotal = gasFeeTotal.add(capitalFeeTotal);

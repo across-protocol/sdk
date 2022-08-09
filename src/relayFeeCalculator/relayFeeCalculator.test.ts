@@ -26,10 +26,10 @@ class ExampleQueries implements QueryInterface {
   async getGasCosts(): Promise<BigNumberish> {
     return gasCost(this.defaultGas, "100");
   }
-  async getTokenPrice(): Promise<number | string> {
+  async getTokenPrice(): Promise<number> {
     return 1;
   }
-  async getTokenDecimals(): Promise<number> {
+  getTokenDecimals(): number {
     return 18;
   }
 }
