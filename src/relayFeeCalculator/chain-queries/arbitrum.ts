@@ -7,7 +7,7 @@ import {
 import { providers } from "ethers";
 import { SymbolMapping } from "./ethereum";
 import { Coingecko } from "../../coingecko/Coingecko";
-import { ArbitrumSpokePool__factory, SpokePool } from "@across-protocol/contracts-v2";
+import { SpokePool__factory, SpokePool } from "@across-protocol/contracts-v2";
 
 export class ArbitrumQueries implements QueryInterface {
   private spokePool: SpokePool;
@@ -19,7 +19,7 @@ export class ArbitrumQueries implements QueryInterface {
     private readonly usdcAddress = "0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC8",
     private readonly simulatedRelayerAddress = "0x893d0d70ad97717052e3aa8903d9615804167759"
   ) {
-    this.spokePool = ArbitrumSpokePool__factory.connect(spokePoolAddress, provider);
+    this.spokePool = SpokePool__factory.connect(spokePoolAddress, provider);
   }
 
   async getGasCosts(_tokenSymbol: string): Promise<BigNumberish> {

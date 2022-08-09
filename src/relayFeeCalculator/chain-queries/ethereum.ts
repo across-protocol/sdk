@@ -6,7 +6,7 @@ import {
 } from "../../utils";
 import { Coingecko } from "../../coingecko/Coingecko";
 import { providers } from "ethers";
-import { EthereumSpokePool__factory, SpokePool } from "@across-protocol/contracts-v2";
+import { SpokePool__factory, SpokePool } from "@across-protocol/contracts-v2";
 
 // Note: these are the mainnet addresses for these symbols meant to be used for pricing.
 export const SymbolMapping: { [symbol: string]: { address: string; decimals: number } } = {
@@ -82,7 +82,7 @@ export class EthereumQueries implements QueryInterface {
     readonly usdcAddress = "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
     readonly simulatedRelayerAddress = "0x893d0D70AD97717052E3AA8903D9615804167759"
   ) {
-    this.spokePool = EthereumSpokePool__factory.connect(this.spokePoolAddress, this.provider);
+    this.spokePool = SpokePool__factory.connect(this.spokePoolAddress, this.provider);
   }
   async getGasCosts(_tokenSymbol: string): Promise<BigNumberish> {
     const tx = await createUnsignedFillRelayTransaction(this.spokePool, this.usdcAddress, this.simulatedRelayerAddress);

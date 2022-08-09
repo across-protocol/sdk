@@ -7,7 +7,7 @@ import {
 import { providers } from "ethers";
 import { SymbolMapping } from "./ethereum";
 import { Coingecko } from "../../coingecko/Coingecko";
-import { PolygonSpokePool__factory, SpokePool } from "@across-protocol/contracts-v2";
+import { SpokePool__factory, SpokePool } from "@across-protocol/contracts-v2";
 
 export class PolygonQueries implements QueryInterface {
   private spokePool: SpokePool;
@@ -19,7 +19,7 @@ export class PolygonQueries implements QueryInterface {
     readonly usdcAddress = "0x2791bca1f2de4661ed88a30c99a7a9449aa84174",
     readonly simulatedRelayerAddress = "0x893d0D70AD97717052E3AA8903D9615804167759"
   ) {
-    this.spokePool = PolygonSpokePool__factory.connect(spokePoolAddress, provider);
+    this.spokePool = SpokePool__factory.connect(spokePoolAddress, provider);
   }
 
   async getGasCosts(_tokenSymbol: string): Promise<BigNumberish> {

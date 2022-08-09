@@ -7,7 +7,7 @@ import {
 import { utils, providers } from "ethers";
 import { SymbolMapping } from "./ethereum";
 import { Coingecko } from "../../coingecko/Coingecko";
-import { OptimismSpokePool__factory, SpokePool } from "@across-protocol/contracts-v2";
+import { SpokePool__factory, SpokePool } from "@across-protocol/contracts-v2";
 
 const { parseUnits } = utils;
 
@@ -22,7 +22,7 @@ export class BobaQueries implements QueryInterface {
     private readonly simulatedRelayerAddress = "0x893d0d70ad97717052e3aa8903d9615804167759"
   ) {
     // TODO: replace with address getter.
-    this.spokePool = OptimismSpokePool__factory.connect(spokePoolAddress, provider);
+    this.spokePool = SpokePool__factory.connect(spokePoolAddress, provider);
   }
 
   async getGasCosts(_tokenSymbol: string): Promise<BigNumberish> {

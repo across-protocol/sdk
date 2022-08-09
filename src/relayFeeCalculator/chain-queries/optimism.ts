@@ -7,7 +7,7 @@ import {
 import { providers } from "ethers";
 import { SymbolMapping } from "./ethereum";
 import { Coingecko } from "../../coingecko/Coingecko";
-import { OptimismSpokePool__factory, SpokePool } from "@across-protocol/contracts-v2";
+import { SpokePool__factory, SpokePool } from "@across-protocol/contracts-v2";
 
 import { L2Provider, asL2Provider } from "@eth-optimism/sdk";
 
@@ -23,7 +23,7 @@ export class OptimismQueries implements QueryInterface {
     private readonly simulatedRelayerAddress = "0x893d0d70ad97717052e3aa8903d9615804167759"
   ) {
     this.provider = asL2Provider(provider);
-    this.spokePool = OptimismSpokePool__factory.connect(spokePoolAddress, provider);
+    this.spokePool = SpokePool__factory.connect(spokePoolAddress, provider);
   }
 
   async getGasCosts(_tokenSymbol: string): Promise<BigNumberish> {
