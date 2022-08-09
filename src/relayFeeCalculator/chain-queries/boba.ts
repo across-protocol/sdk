@@ -38,8 +38,7 @@ export class BobaQueries implements QueryInterface {
 
   async getTokenPrice(tokenSymbol: string): Promise<number> {
     if (!this.symbolMapping[tokenSymbol]) throw new Error(`${tokenSymbol} does not exist in mapping`);
-    const coingeckoInstance =
-      this.coingeckoProApiKey !== undefined ? Coingecko.getPro(this.coingeckoProApiKey) : Coingecko.get();
+    const coingeckoInstance = Coingecko.get(this.coingeckoProApiKey);
     const [, price] = await coingeckoInstance.getCurrentPriceByContract(this.symbolMapping[tokenSymbol].address, "eth");
     return price;
   }
