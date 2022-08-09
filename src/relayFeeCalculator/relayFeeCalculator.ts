@@ -71,8 +71,8 @@ export class RelayFeeCalculator {
     assert(capitalCosts.decimals > 0 && capitalCosts.decimals <= 18, "invalid decimals");
   }
 
-  async getTokenPrice(tokenSymbol: string, coingeckoProApiKey?: string): Promise<number> {
-    return this.queries.getTokenPrice(tokenSymbol, coingeckoProApiKey);
+  async getTokenPrice(tokenSymbol: string): Promise<number> {
+    return this.queries.getTokenPrice(tokenSymbol);
   }
 
   async gasFeePercent(amountToRelay: BigNumberish, tokenSymbol: string, _tokenPrice?: number): Promise<BigNumber> {

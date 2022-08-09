@@ -19,7 +19,8 @@ export class BobaQueries implements QueryInterface {
     readonly symbolMapping = SymbolMapping,
     spokePoolAddress = "0xBbc6009fEfFc27ce705322832Cb2068F8C1e0A58",
     private readonly usdcAddress = "0x66a2A913e447d6b4BF33EFbec43aAeF87890FBbc",
-    private readonly simulatedRelayerAddress = "0x893d0d70ad97717052e3aa8903d9615804167759"
+    private readonly simulatedRelayerAddress = "0x893d0d70ad97717052e3aa8903d9615804167759",
+    private readonly coingeckoProApiKey?: string
   ) {
     // TODO: replace with address getter.
     this.spokePool = SpokePool__factory.connect(spokePoolAddress, provider);
@@ -35,9 +36,10 @@ export class BobaQueries implements QueryInterface {
     );
   }
 
-  async getTokenPrice(tokenSymbol: string, coingeckoProApiKey?: string): Promise<number> {
+  async getTokenPrice(tokenSymbol: string): Promise<number> {
     if (!this.symbolMapping[tokenSymbol]) throw new Error(`${tokenSymbol} does not exist in mapping`);
-    const coingeckoInstance = coingeckoProApiKey !== undefined ? Coingecko.getPro(coingeckoProApiKey) : Coingecko.get();
+    const coingeckoInstance =
+      this.coingeckoProApiKey !== undefined ? Coingecko.getPro(this.coingeckoProApiKey) : Coingecko.get();
     const [, price] = await coingeckoInstance.getCurrentPriceByContract(this.symbolMapping[tokenSymbol].address, "eth");
     return price;
   }

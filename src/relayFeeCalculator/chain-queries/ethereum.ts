@@ -80,7 +80,8 @@ export class EthereumQueries implements QueryInterface {
     readonly symbolMapping = SymbolMapping,
     readonly spokePoolAddress = "0x4D9079Bb4165aeb4084c526a32695dCfd2F77381",
     readonly usdcAddress = "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
-    readonly simulatedRelayerAddress = "0x893d0D70AD97717052E3AA8903D9615804167759"
+    readonly simulatedRelayerAddress = "0x893d0D70AD97717052E3AA8903D9615804167759",
+    private readonly coingeckoProApiKey?: string
   ) {
     this.spokePool = SpokePool__factory.connect(this.spokePoolAddress, this.provider);
   }
@@ -89,9 +90,10 @@ export class EthereumQueries implements QueryInterface {
     return estimateTotalGasRequiredByUnsignedTransaction(tx, this.simulatedRelayerAddress, this.provider);
   }
 
-  async getTokenPrice(tokenSymbol: string, coingeckoProApiKey?: string): Promise<number> {
+  async getTokenPrice(tokenSymbol: string): Promise<number> {
     if (!this.symbolMapping[tokenSymbol]) throw new Error(`${tokenSymbol} does not exist in mapping`);
-    const coingeckoInstance = coingeckoProApiKey !== undefined ? Coingecko.getPro(coingeckoProApiKey) : Coingecko.get();
+    const coingeckoInstance =
+      this.coingeckoProApiKey !== undefined ? Coingecko.getPro(this.coingeckoProApiKey) : Coingecko.get();
     const [, price] = await coingeckoInstance.getCurrentPriceByContract(this.symbolMapping[tokenSymbol].address, "eth");
     return price;
   }

@@ -11,7 +11,7 @@ import { ArbitrumQueries } from "./arbitrum";
 
 import { providers } from "ethers";
 import { BobaQueries } from "./boba";
-import { EthereumQueries } from "./ethereum";
+import { EthereumQueries, SymbolMapping } from "./ethereum";
 import { OptimismQueries } from "./optimism";
 import { PolygonQueries } from "./polygon";
 
@@ -25,8 +25,16 @@ describe("Queries", function () {
       arbitrumQueries.getGasCosts("USDC"),
       arbitrumQueries.getTokenDecimals("USDC"),
       arbitrumQueries.getTokenPrice("USDC"),
-      arbitrumQueries.getTokenPrice("USDC", process.env.COINGECKO_PRO_API_KEY),
     ]);
+    const queriesWithCoingeckoProApi = new ArbitrumQueries(
+      provider,
+      SymbolMapping,
+      "0xB88690461dDbaB6f04Dfad7df66B7725942FEb9C",
+      "0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC8",
+      "0x893d0d70ad97717052e3aa8903d9615804167759",
+      process.env.COINGECKO_PRO_API_KEY
+    );
+    await queriesWithCoingeckoProApi.getTokenPrice("USDC");
   });
   test("Boba", async function () {
     const provider = new providers.JsonRpcProvider(process.env.NODE_URL_288);
@@ -35,8 +43,16 @@ describe("Queries", function () {
       bobaQueries.getGasCosts("USDC"),
       bobaQueries.getTokenDecimals("USDC"),
       bobaQueries.getTokenPrice("USDC"),
-      bobaQueries.getTokenPrice("USDC", process.env.COINGECKO_PRO_API_KEY),
     ]);
+    const queriesWithCoingeckoProApi = new ArbitrumQueries(
+      provider,
+      SymbolMapping,
+      "0xBbc6009fEfFc27ce705322832Cb2068F8C1e0A58",
+      "0x66a2A913e447d6b4BF33EFbec43aAeF87890FBbc",
+      "0x893d0d70ad97717052e3aa8903d9615804167759",
+      process.env.COINGECKO_PRO_API_KEY
+    );
+    await queriesWithCoingeckoProApi.getTokenPrice("USDC");
   });
   test("Ethereum", async function () {
     const provider = new providers.JsonRpcProvider(process.env.NODE_URL_1);
@@ -45,8 +61,16 @@ describe("Queries", function () {
       ethereumQueries.getGasCosts("USDC"),
       ethereumQueries.getTokenDecimals("USDC"),
       ethereumQueries.getTokenPrice("USDC"),
-      ethereumQueries.getTokenPrice("USDC", process.env.COINGECKO_PRO_API_KEY),
     ]);
+    const queriesWithCoingeckoProApi = new ArbitrumQueries(
+      provider,
+      SymbolMapping,
+      "0x4D9079Bb4165aeb4084c526a32695dCfd2F77381",
+      "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+      "0x893d0d70ad97717052e3aa8903d9615804167759",
+      process.env.COINGECKO_PRO_API_KEY
+    );
+    await queriesWithCoingeckoProApi.getTokenPrice("USDC");
   });
   test("Optimism", async function () {
     const provider = new providers.JsonRpcProvider(process.env.NODE_URL_10);
@@ -55,8 +79,16 @@ describe("Queries", function () {
       optimismQueries.getGasCosts("USDC"),
       optimismQueries.getTokenDecimals("USDC"),
       optimismQueries.getTokenPrice("USDC"),
-      optimismQueries.getTokenPrice("USDC", process.env.COINGECKO_PRO_API_KEY),
     ]);
+    const queriesWithCoingeckoProApi = new ArbitrumQueries(
+      provider,
+      SymbolMapping,
+      "0xa420b2d1c0841415A695b81E5B867BCD07Dff8C9",
+      "0x7F5c764cBc14f9669B88837ca1490cCa17c31607",
+      "0x893d0d70ad97717052e3aa8903d9615804167759",
+      process.env.COINGECKO_PRO_API_KEY
+    );
+    await queriesWithCoingeckoProApi.getTokenPrice("USDC");
   });
   test("Polygon", async function () {
     const provider = new providers.JsonRpcProvider(process.env.NODE_URL_137);
@@ -65,7 +97,15 @@ describe("Queries", function () {
       polygonQueries.getGasCosts("USDC"),
       polygonQueries.getTokenDecimals("USDC"),
       polygonQueries.getTokenPrice("USDC"),
-      polygonQueries.getTokenPrice("USDC", process.env.COINGECKO_PRO_API_KEY),
     ]);
+    const queriesWithCoingeckoProApi = new ArbitrumQueries(
+      provider,
+      SymbolMapping,
+      "0x69B5c72837769eF1e7C164Abc6515DcFf217F920",
+      "0x2791bca1f2de4661ed88a30c99a7a9449aa84174",
+      "0x893d0d70ad97717052e3aa8903d9615804167759",
+      process.env.COINGECKO_PRO_API_KEY
+    );
+    await queriesWithCoingeckoProApi.getTokenPrice("USDC");
   });
 });
