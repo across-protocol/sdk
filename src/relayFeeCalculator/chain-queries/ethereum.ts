@@ -1,5 +1,4 @@
 import { providers } from "ethers";
-import { EthereumSpokePool__factory } from "@across-protocol/contracts-v2";
 import { BaseQuery } from "./baseQuery";
 
 export type SymbolMappingType = { [symbol: string]: { address: string; decimals: number } };
@@ -77,13 +76,6 @@ export class EthereumQueries extends BaseQuery {
     simulatedRelayerAddress = "0x893d0D70AD97717052E3AA8903D9615804167759",
     gasMultiplier = 0
   ) {
-    super(
-      provider,
-      symbolMapping,
-      EthereumSpokePool__factory.connect(spokePoolAddress, provider),
-      usdcAddress,
-      simulatedRelayerAddress,
-      gasMultiplier
-    );
+    super(provider, symbolMapping, spokePoolAddress, usdcAddress, simulatedRelayerAddress, gasMultiplier);
   }
 }

@@ -1,7 +1,5 @@
 import { providers } from "ethers";
 import { SymbolMapping } from "./ethereum";
-import { OptimismSpokePool__factory } from "@across-protocol/contracts-v2";
-
 import { asL2Provider } from "@eth-optimism/sdk";
 import { BaseQuery } from "./baseQuery";
 
@@ -14,13 +12,6 @@ export class OptimismQueries extends BaseQuery {
     simulatedRelayerAddress = "0x893d0d70ad97717052e3aa8903d9615804167759",
     gasMultiplier = 0
   ) {
-    super(
-      asL2Provider(provider),
-      symbolMapping,
-      OptimismSpokePool__factory.connect(spokePoolAddress, asL2Provider(provider)),
-      usdcAddress,
-      simulatedRelayerAddress,
-      gasMultiplier
-    );
+    super(asL2Provider(provider), symbolMapping, spokePoolAddress, usdcAddress, simulatedRelayerAddress, gasMultiplier);
   }
 }

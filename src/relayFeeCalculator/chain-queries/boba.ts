@@ -1,6 +1,5 @@
 import { utils, providers } from "ethers";
 import { SymbolMapping } from "./ethereum";
-import { OptimismSpokePool__factory } from "@across-protocol/contracts-v2";
 import { BaseQuery } from "./baseQuery";
 
 const { parseUnits } = utils;
@@ -17,7 +16,7 @@ export class BobaQueries extends BaseQuery {
     super(
       provider,
       symbolMapping,
-      OptimismSpokePool__factory.connect(spokePoolAddress, provider),
+      spokePoolAddress,
       usdcAddress,
       simulatedRelayerAddress,
       gasMultiplier,

@@ -1,6 +1,5 @@
 import { providers } from "ethers";
 import { SymbolMapping } from "./ethereum";
-import { ArbitrumSpokePool__factory } from "@across-protocol/contracts-v2";
 import { BaseQuery } from "./baseQuery";
 
 export class ArbitrumQueries extends BaseQuery {
@@ -12,13 +11,6 @@ export class ArbitrumQueries extends BaseQuery {
     simulatedRelayerAddress = "0x893d0d70ad97717052e3aa8903d9615804167759",
     gasMultiplier = 0
   ) {
-    super(
-      provider,
-      symbolMapping,
-      ArbitrumSpokePool__factory.connect(spokePoolAddress, provider),
-      usdcAddress,
-      simulatedRelayerAddress,
-      gasMultiplier
-    );
+    super(provider, symbolMapping, spokePoolAddress, usdcAddress, simulatedRelayerAddress, gasMultiplier);
   }
 }

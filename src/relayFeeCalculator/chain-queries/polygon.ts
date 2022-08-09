@@ -1,7 +1,6 @@
 import { providers } from "ethers";
 import { SymbolMapping } from "./ethereum";
 import { Coingecko } from "../../coingecko/Coingecko";
-import { PolygonSpokePool__factory } from "@across-protocol/contracts-v2";
 import { BaseQuery } from "./baseQuery";
 
 export class PolygonQueries extends BaseQuery {
@@ -16,7 +15,7 @@ export class PolygonQueries extends BaseQuery {
     super(
       provider,
       symbolMapping,
-      PolygonSpokePool__factory.connect(spokePoolAddress, provider),
+      spokePoolAddress,
       usdcAddress,
       simulatedRelayerAddress,
       gasMultiplier,

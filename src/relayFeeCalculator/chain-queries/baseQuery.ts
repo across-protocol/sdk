@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
-import { SpokePool } from "@across-protocol/contracts-v2";
+import { SpokePool, SpokePool__factory } from "@across-protocol/contracts-v2";
 import { L2Provider as L2OptimismWrap } from "@eth-optimism/sdk";
 import { providers } from "ethers";
 import { SymbolMappingType } from ".";
@@ -19,16 +19,20 @@ type Provider = providers.Provider;
  * of running a fillRelay function.
  */
 export abstract class BaseQuery implements QueryInterface {
+  readonly spokePool: SpokePool;
+
   protected constructor(
     readonly provider: Provider | L2OptimismWrap<Provider>,
     readonly symbolMapping: SymbolMappingType,
-    readonly spokePool: SpokePool,
+    readonly spokePoolAddress: string,
     readonly usdcAddress: string,
     readonly simulatedRelayerAddress: string,
     readonly gasMultiplier: number = 0.0,
     readonly fixedGasCost: BigNumberish | undefined = undefined,
     readonly coinGeckoBaseCurrency: string = "eth"
-  ) {}
+  ) {
+    this.spokePool = SpokePool__factory.connect(this.spokePoolAddress, this.provider);
+  }
 
   async getTokenPrice(tokenSymbol: string): Promise<string | number> {
     if (!this.symbolMapping[tokenSymbol]) throw new Error(`${tokenSymbol} does not exist in mapping`);
