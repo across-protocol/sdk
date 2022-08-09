@@ -87,7 +87,7 @@ export class EthereumQueries implements QueryInterface {
     return price;
   }
 
-  async getTokenDecimals(tokenSymbol: string): Promise<number> {
+  getTokenDecimals(tokenSymbol: string): number {
     if (!this.symbolMapping[tokenSymbol]) throw new Error(`${tokenSymbol} does not exist in mapping`);
     return this.symbolMapping[tokenSymbol].decimals;
   }

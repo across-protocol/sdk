@@ -28,7 +28,7 @@ export class PolygonQueries implements QueryInterface {
     return Number((tokenPrice / maticPrice).toFixed(this.symbolMapping["MATIC"].decimals));
   }
 
-  async getTokenDecimals(tokenSymbol: string): Promise<number> {
+  getTokenDecimals(tokenSymbol: string): number {
     if (!this.symbolMapping[tokenSymbol]) throw new Error(`${tokenSymbol} does not exist in mapping`);
     return this.symbolMapping[tokenSymbol].decimals;
   }
