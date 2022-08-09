@@ -1,15 +1,11 @@
-import { QueryInterface } from "../relayFeeCalculator";
-import {
-  BigNumberish,
-  createUnsignedFillRelayTransaction,
-  estimateTotalGasRequiredByUnsignedTransaction,
-} from "../../utils";
-import { Coingecko } from "../../coingecko/Coingecko";
 import { providers } from "ethers";
-import { EthereumSpokePool__factory, SpokePool } from "@across-protocol/contracts-v2";
+import { EthereumSpokePool__factory } from "@across-protocol/contracts-v2";
+import { BaseQuery } from "./baseQuery";
+
+export type SymbolMappingType = { [symbol: string]: { address: string; decimals: number } };
 
 // Note: these are the mainnet addresses for these symbols meant to be used for pricing.
-export const SymbolMapping: { [symbol: string]: { address: string; decimals: number } } = {
+export const SymbolMapping: SymbolMappingType = {
   USDC: {
     address: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
     decimals: 6,
@@ -72,31 +68,22 @@ export const SymbolMapping: { [symbol: string]: { address: string; decimals: num
   },
 };
 
-export class EthereumQueries implements QueryInterface {
-  private spokePool: SpokePool;
-
+export class EthereumQueries extends BaseQuery {
   constructor(
-    readonly provider: providers.Provider,
-    readonly symbolMapping = SymbolMapping,
-    readonly spokePoolAddress = "0x4D9079Bb4165aeb4084c526a32695dCfd2F77381",
-    readonly usdcAddress = "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
-    readonly simulatedRelayerAddress = "0x9A8f92a830A5cB89a3816e3D267CB7791c16b04D"
+    provider: providers.Provider,
+    symbolMapping = SymbolMapping,
+    spokePoolAddress = "0x4D9079Bb4165aeb4084c526a32695dCfd2F77381",
+    usdcAddress = "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+    simulatedRelayerAddress = "0x893d0D70AD97717052E3AA8903D9615804167759",
+    gasMultiplier = 0
   ) {
-    this.spokePool = EthereumSpokePool__factory.connect(this.spokePoolAddress, this.provider);
-  }
-  async getGasCosts(_tokenSymbol: string): Promise<BigNumberish> {
-    const tx = await createUnsignedFillRelayTransaction(this.spokePool, this.usdcAddress, this.simulatedRelayerAddress);
-    return estimateTotalGasRequiredByUnsignedTransaction(tx, this.simulatedRelayerAddress, this.provider);
-  }
-
-  async getTokenPrice(tokenSymbol: string): Promise<number> {
-    if (!this.symbolMapping[tokenSymbol]) throw new Error(`${tokenSymbol} does not exist in mapping`);
-    const [, price] = await Coingecko.get().getCurrentPriceByContract(this.symbolMapping[tokenSymbol].address, "eth");
-    return price;
-  }
-
-  async getTokenDecimals(tokenSymbol: string): Promise<number> {
-    if (!this.symbolMapping[tokenSymbol]) throw new Error(`${tokenSymbol} does not exist in mapping`);
-    return this.symbolMapping[tokenSymbol].decimals;
+    super(
+      provider,
+      symbolMapping,
+      EthereumSpokePool__factory.connect(spokePoolAddress, provider),
+      usdcAddress,
+      simulatedRelayerAddress,
+      gasMultiplier
+    );
   }
 }
