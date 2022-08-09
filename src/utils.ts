@@ -240,9 +240,8 @@ export async function estimateTotalGasRequiredByUnsignedTransaction(
   gasPrice?: BigNumberish
 ): Promise<BigNumberish> {
   const voidSigner = new VoidSigner(senderAddress, provider);
-  // Verify if this provider has been L2Provider wrapped
-  // NOTE: In this case, this will be true if the provider is
-  //       using the Optimism blockchain
+  // This branches in the Optimism case because they use a special provider, called L2Provider, and special gas logic
+  // to compute gas costs on Optimism.
   if (isOptimismL2Provider(provider)) {
     const populatedTransaction = await voidSigner.populateTransaction(unsignedTx);
     return (await provider.estimateTotalGasCost(populatedTransaction)).toString();
