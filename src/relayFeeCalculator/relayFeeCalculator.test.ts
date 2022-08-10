@@ -1,7 +1,7 @@
 import assert from "assert";
 import dotenv from "dotenv";
 import { RelayFeeCalculator, QueryInterface } from "./relayFeeCalculator";
-import { gasCost, BigNumberish, toBNWei } from "../utils";
+import { gasCost, BigNumberish, toBNWei, toBN } from "../utils";
 
 dotenv.config({ path: ".env" });
 
@@ -59,6 +59,16 @@ describe("RelayFeeCalculator", () => {
     client = new RelayFeeCalculator({ queries });
     const result = await client.relayerFeeDetails(100000000, "usdc");
     assert.ok(result);
+
+    // overriding token price also succeeds
+    const resultWithPrice = await client.relayerFeeDetails(100000000, "usdc", 1.01);
+    assert.ok(resultWithPrice);
+
+    // gasFeePercent is lower if token price is higher.
+    assert.equal(
+      true,
+      toBN(resultWithPrice.gasFeePercent).lt((await client.relayerFeeDetails(100000000, "usdc", 1.0)).gasFeePercent)
+    );
   });
   it("capitalFeePercent", async () => {
     // Invalid capital cost configs throws on construction:

@@ -17,7 +17,8 @@ export class ArbitrumQueries implements QueryInterface {
     readonly symbolMapping = SymbolMapping,
     spokePoolAddress = "0xB88690461dDbaB6f04Dfad7df66B7725942FEb9C",
     private readonly usdcAddress = "0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC8",
-    private readonly simulatedRelayerAddress = "0x893d0d70ad97717052e3aa8903d9615804167759"
+    private readonly simulatedRelayerAddress = "0x893d0d70ad97717052e3aa8903d9615804167759",
+    private readonly coingeckoProApiKey?: string
   ) {
     this.spokePool = SpokePool__factory.connect(spokePoolAddress, provider);
   }
@@ -29,7 +30,8 @@ export class ArbitrumQueries implements QueryInterface {
 
   async getTokenPrice(tokenSymbol: string): Promise<number> {
     if (!this.symbolMapping[tokenSymbol]) throw new Error(`${tokenSymbol} does not exist in mapping`);
-    const [, price] = await Coingecko.get().getCurrentPriceByContract(this.symbolMapping[tokenSymbol].address, "eth");
+    const coingeckoInstance = Coingecko.get(this.coingeckoProApiKey);
+    const [, price] = await coingeckoInstance.getCurrentPriceByContract(this.symbolMapping[tokenSymbol].address, "eth");
     return price;
   }
 

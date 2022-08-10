@@ -71,7 +71,11 @@ export class RelayFeeCalculator {
     assert(capitalCosts.decimals > 0 && capitalCosts.decimals <= 18, "invalid decimals");
   }
 
-  async gasFeePercent(amountToRelay: BigNumberish, tokenSymbol: string): Promise<BigNumber> {
+  async getTokenPrice(tokenSymbol: string): Promise<number> {
+    return this.queries.getTokenPrice(tokenSymbol);
+  }
+
+  async gasFeePercent(amountToRelay: BigNumberish, tokenSymbol: string, _tokenPrice?: number): Promise<BigNumber> {
     const getGasCosts = this.queries.getGasCosts(tokenSymbol).catch((error) => {
       console.error(`ERROR(gasFeePercent): Error while fetching gas costs ${error}`);
       throw error;
@@ -80,7 +84,7 @@ export class RelayFeeCalculator {
       console.error(`ERROR(gasFeePercent): Error while fetching token price ${error}`);
       throw error;
     });
-    const [gasCosts, tokenPrice] = await Promise.all([getGasCosts, getTokenPrice]);
+    const [gasCosts, tokenPrice] = await Promise.all([getGasCosts, _tokenPrice !== undefined ? _tokenPrice : getTokenPrice]);
     const decimals = this.queries.getTokenDecimals(tokenSymbol);
     const gasFeesInToken = nativeToToken(gasCosts, tokenPrice, decimals, this.nativeTokenDecimals);
     return percent(gasFeesInToken, amountToRelay);
@@ -123,10 +127,14 @@ export class RelayFeeCalculator {
 
     return defaultFee;
   }
-  async relayerFeeDetails(amountToRelay: BigNumberish, tokenSymbol: string) {
+  async relayerFeeDetails(amountToRelay: BigNumberish, tokenSymbol: string, tokenPrice?: number) {
     let isAmountTooLow = false;
-    const gasFeePercent = await this.gasFeePercent(amountToRelay, tokenSymbol);
-    console.log(`INFO(relayerFeeDetails): Computed gasFeePercent ${gasFeePercent}`);
+    const gasFeePercent = await this.gasFeePercent(amountToRelay, tokenSymbol, tokenPrice);
+    console.log(
+      `INFO(relayerFeeDetails): Computed gasFeePercent ${gasFeePercent}, overrode optional tokenPrice param: ${
+        tokenPrice !== undefined
+      }`
+    );
     const gasFeeTotal = gasFeePercent.mul(amountToRelay).div(fixedPointAdjustment);
     const capitalFeePercent = await this.capitalFeePercent(amountToRelay, tokenSymbol);
     console.log(`INFO(relayerFeeDetails): Computed capitalFeePercent ${capitalFeePercent}`);
