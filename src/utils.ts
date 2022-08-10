@@ -3,6 +3,7 @@ import * as uma from "@uma/sdk";
 import Decimal from "decimal.js";
 import { isL2Provider as isOptimismL2Provider, L2Provider } from "@eth-optimism/sdk";
 import { SpokePool } from "@across-protocol/contracts-v2";
+import assert from "assert";
 
 export type BigNumberish = string | number | BigNumber;
 export type BN = BigNumber;
@@ -241,6 +242,7 @@ export async function estimateTotalGasRequiredByUnsignedTransaction(
   gasMarkup: number,
   gasPrice?: BigNumberish
 ): Promise<BigNumberish> {
+  assert(gasMarkup >= -1 && gasMarkup <= 4, "Gas Markup must be within the range of [-1.0, +4.0]");
   const gasTotalMultiplier = 1.0 + gasMarkup;
   const voidSigner = new VoidSigner(senderAddress, provider);
   // Verify if this provider has been L2Provider wrapped
