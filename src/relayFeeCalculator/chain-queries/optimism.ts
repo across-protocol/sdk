@@ -22,7 +22,8 @@ export class OptimismQueries implements QueryInterface {
     private readonly usdcAddress = "0x7F5c764cBc14f9669B88837ca1490cCa17c31607",
     private readonly simulatedRelayerAddress = "0x893d0d70ad97717052e3aa8903d9615804167759",
     private readonly coingeckoProApiKey?: string,
-    private readonly logger: Logger = DEFAULT_LOGGER
+    private readonly logger: Logger = DEFAULT_LOGGER,
+    readonly gasMarkup: number = 0
   ) {
     this.provider = asL2Provider(provider);
     this.spokePool = SpokePool__factory.connect(spokePoolAddress, provider);
@@ -30,7 +31,12 @@ export class OptimismQueries implements QueryInterface {
 
   async getGasCosts(): Promise<BigNumberish> {
     const tx = await createUnsignedFillRelayTransaction(this.spokePool, this.usdcAddress, this.simulatedRelayerAddress);
-    return estimateTotalGasRequiredByUnsignedTransaction(tx, this.simulatedRelayerAddress, this.provider);
+    return estimateTotalGasRequiredByUnsignedTransaction(
+      tx,
+      this.simulatedRelayerAddress,
+      this.provider,
+      this.gasMarkup
+    );
   }
 
   async getTokenPrice(tokenSymbol: string): Promise<number> {
