@@ -2,6 +2,7 @@ import axios from "axios";
 import assert from "assert";
 import get from "lodash.get";
 import { retry } from "../utils";
+import { Logger } from "../relayFeeCalculator";
 
 export function msToS(ms: number) {
   return Math.floor(ms / 1000);
@@ -28,16 +29,21 @@ export class Coingecko {
   private retryDelay = 1;
   private numRetries = 3;
 
-  public static get(apiKey?: string) {
-    if (!this.instance)
+  public static get(logger: Logger, apiKey?: string) {
+    if (!this.instance) {
       this.instance =
         apiKey === undefined
-          ? new Coingecko("https://api.coingecko.com/api/v3")
-          : new Coingecko("https://pro-api.coingecko.com/api/v3", apiKey);
+          ? new Coingecko("https://api.coingecko.com/api/v3", logger)
+          : new Coingecko("https://pro-api.coingecko.com/api/v3", logger, apiKey);
+    }
     return this.instance;
   }
 
-  private constructor(private readonly host: string, private readonly apiKey?: string) {}
+  private constructor(
+    private readonly host: string,
+    private readonly logger: Logger,
+    private readonly apiKey?: string
+  ) {}
 
   // Fetch historic prices for a `contract` denominated in `currency` between timestamp `from` and `to`. Note timestamps
   // are assumed to be js timestamps and are converted to unixtimestamps by dividing by 1000.
@@ -111,7 +117,7 @@ export class Coingecko {
         const { host } = this;
         const url = `${host}/${path}`;
         const result = await axios(url, { params: { x_cg_pro_api_key: this.apiKey } });
-        console.log(`INFO(coingecko): Sent GET request to url ${result.request.responseURL}`);
+        this.logger.info("sdk-v2/coingecko", `Sent GET request to url ${result.request.responseURL}`, {});
         return result.data;
       } catch (err) {
         const msg = get(err, "response.data.error", get(err, "response.statusText", "Unknown Coingecko Error"));

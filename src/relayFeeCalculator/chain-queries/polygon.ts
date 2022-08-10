@@ -1,4 +1,4 @@
-import { QueryInterface } from "../relayFeeCalculator";
+import { DEFAULT_LOGGER, Logger, QueryInterface } from "../relayFeeCalculator";
 import {
   BigNumberish,
   createUnsignedFillRelayTransaction,
@@ -18,19 +18,20 @@ export class PolygonQueries implements QueryInterface {
     readonly spokePoolAddress = "0x69B5c72837769eF1e7C164Abc6515DcFf217F920",
     readonly usdcAddress = "0x2791bca1f2de4661ed88a30c99a7a9449aa84174",
     readonly simulatedRelayerAddress = "0x893d0D70AD97717052E3AA8903D9615804167759",
-    private readonly coingeckoProApiKey?: string
+    private readonly coingeckoProApiKey?: string,
+    private readonly logger: Logger = DEFAULT_LOGGER
   ) {
     this.spokePool = SpokePool__factory.connect(spokePoolAddress, provider);
   }
 
-  async getGasCosts(_tokenSymbol: string): Promise<BigNumberish> {
+  async getGasCosts(): Promise<BigNumberish> {
     const tx = await createUnsignedFillRelayTransaction(this.spokePool, this.usdcAddress, this.simulatedRelayerAddress);
     return estimateTotalGasRequiredByUnsignedTransaction(tx, this.simulatedRelayerAddress, this.provider);
   }
 
   async getTokenPrice(tokenSymbol: string): Promise<number> {
     if (!this.symbolMapping[tokenSymbol]) throw new Error(`${tokenSymbol} does not exist in mapping`);
-    const coingeckoInstance = Coingecko.get(this.coingeckoProApiKey);
+    const coingeckoInstance = Coingecko.get(this.logger, this.coingeckoProApiKey);
     const [, tokenPrice] = await coingeckoInstance.getCurrentPriceByContract(
       this.symbolMapping[tokenSymbol].address,
       "usd"
