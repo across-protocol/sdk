@@ -242,7 +242,7 @@ export async function estimateTotalGasRequiredByUnsignedTransaction(
   gasMarkup: number,
   gasPrice?: BigNumberish
 ): Promise<BigNumberish> {
-  assert(gasMarkup >= -1 && gasMarkup <= 4, "Gas Markup must be within the range of [-1.0, +4.0]");
+  assert(gasMarkup > -1 && gasMarkup <= 4, "Gas Markup must be within the range of (-1.0, +4.0] so that total gas multiplier is between (0, +5.0]");
   const gasTotalMultiplier = 1.0 + gasMarkup;
   const voidSigner = new VoidSigner(senderAddress, provider);
   // Verify if this provider has been L2Provider wrapped
