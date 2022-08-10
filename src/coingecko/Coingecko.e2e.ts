@@ -1,11 +1,14 @@
 import assert from "assert";
 import Coingecko from "./Coingecko";
+import dotenv from "dotenv";
+dotenv.config({ path: ".env" });
 
 // this requires e2e testing, should only test manually for now
 describe("coingecko", function () {
   let cg: Coingecko;
   test("init", function () {
-    cg = Coingecko.get();
+    if (process.env.COINGECKO_PRO_API_KEY !== undefined) cg = Coingecko.get(process.env.COINGECKO_PRO_API_KEY);
+    else cg = Coingecko.get();
     assert.ok(cg);
   });
   test("getContractDetails", async function () {

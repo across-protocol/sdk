@@ -20,7 +20,8 @@ export class OptimismQueries implements QueryInterface {
     readonly symbolMapping = SymbolMapping,
     spokePoolAddress = "0xa420b2d1c0841415A695b81E5B867BCD07Dff8C9",
     private readonly usdcAddress = "0x7F5c764cBc14f9669B88837ca1490cCa17c31607",
-    private readonly simulatedRelayerAddress = "0x893d0d70ad97717052e3aa8903d9615804167759"
+    private readonly simulatedRelayerAddress = "0x893d0d70ad97717052e3aa8903d9615804167759",
+    private readonly coingeckoProApiKey?: string
   ) {
     this.provider = asL2Provider(provider);
     this.spokePool = SpokePool__factory.connect(spokePoolAddress, provider);
@@ -33,7 +34,8 @@ export class OptimismQueries implements QueryInterface {
 
   async getTokenPrice(tokenSymbol: string): Promise<number> {
     if (!this.symbolMapping[tokenSymbol]) throw new Error(`${tokenSymbol} does not exist in mapping`);
-    const [, price] = await Coingecko.get().getCurrentPriceByContract(this.symbolMapping[tokenSymbol].address, "eth");
+    const coingeckoInstance = Coingecko.get(this.coingeckoProApiKey);
+    const [, price] = await coingeckoInstance.getCurrentPriceByContract(this.symbolMapping[tokenSymbol].address, "eth");
     return price;
   }
 
