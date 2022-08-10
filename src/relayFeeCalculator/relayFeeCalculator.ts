@@ -29,7 +29,7 @@ export interface RelayFeeCalculatorConfig {
 }
 
 export interface LoggingFunction {
-  (at: string, message: string, extraData: { [key: string]: any }): void;
+  (data: { at: string; message: string; [key: string]: any }): void;
 }
 
 export interface Logger {
@@ -100,11 +100,11 @@ export class RelayFeeCalculator {
 
   async gasFeePercent(amountToRelay: BigNumberish, tokenSymbol: string, _tokenPrice?: number): Promise<BigNumber> {
     const getGasCosts = this.queries.getGasCosts().catch((error) => {
-      this.logger.error("sdk-v2/gasFeePercent", "Error while fetching gas costs", { error });
+      this.logger.error({ at: "sdk-v2/gasFeePercent", message: "Error while fetching gas costs", error });
       throw error;
     });
     const getTokenPrice = this.queries.getTokenPrice(tokenSymbol).catch((error) => {
-      this.logger.error("sdk-v2/gasFeePercent", "Error while fetching token price", { error });
+      this.logger.error({ at: "sdk-v2/gasFeePercent", message: "Error while fetching token price", error });
       throw error;
     });
     const [gasCosts, tokenPrice] = await Promise.all([
@@ -156,15 +156,15 @@ export class RelayFeeCalculator {
   async relayerFeeDetails(amountToRelay: BigNumberish, tokenSymbol: string, tokenPrice?: number) {
     let isAmountTooLow = false;
     const gasFeePercent = await this.gasFeePercent(amountToRelay, tokenSymbol, tokenPrice);
-    this.logger.info("sdk-v2/relayerFeeDetails", "Computed gasFeePercent", {
+    this.logger.info({
+      at: "sdk-v2/relayerFeeDetails",
+      message: "Computed gasFeePercent",
       gasFeePercent,
       overriddenTokenPrice: tokenPrice,
     });
     const gasFeeTotal = gasFeePercent.mul(amountToRelay).div(fixedPointAdjustment);
     const capitalFeePercent = await this.capitalFeePercent(amountToRelay, tokenSymbol);
-    this.logger.info("sdk-v2/relayerFeeDetails", "Computed capitalFeePercent", {
-      capitalFeePercent,
-    });
+    this.logger.info({ at: "sdk-v2/relayerFeeDetails", message: "Computed capitalFeePercent", capitalFeePercent });
     const capitalFeeTotal = capitalFeePercent.mul(amountToRelay).div(fixedPointAdjustment);
     const relayFeePercent = gasFeePercent.add(capitalFeePercent);
     const relayFeeTotal = gasFeeTotal.add(capitalFeeTotal);
