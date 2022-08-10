@@ -22,7 +22,7 @@ describe("Queries", function () {
     const provider = new providers.JsonRpcProvider(process.env.NODE_URL_42161);
     const arbitrumQueries = new ArbitrumQueries(provider);
     await Promise.all([
-      arbitrumQueries.getGasCosts("USDC"),
+      arbitrumQueries.getGasCosts(),
       arbitrumQueries.getTokenDecimals("USDC"),
       arbitrumQueries.getTokenPrice("USDC"),
     ]);
@@ -40,7 +40,7 @@ describe("Queries", function () {
     const provider = new providers.JsonRpcProvider(process.env.NODE_URL_288);
     const bobaQueries = new BobaQueries(provider);
     await Promise.all([
-      bobaQueries.getGasCosts("USDC"),
+      bobaQueries.getGasCosts(),
       bobaQueries.getTokenDecimals("USDC"),
       bobaQueries.getTokenPrice("USDC"),
     ]);
@@ -58,7 +58,7 @@ describe("Queries", function () {
     const provider = new providers.JsonRpcProvider(process.env.NODE_URL_1);
     const ethereumQueries = new EthereumQueries(provider);
     await Promise.all([
-      ethereumQueries.getGasCosts("USDC"),
+      ethereumQueries.getGasCosts(),
       ethereumQueries.getTokenDecimals("USDC"),
       ethereumQueries.getTokenPrice("USDC"),
     ]);
@@ -76,7 +76,7 @@ describe("Queries", function () {
     const provider = new providers.JsonRpcProvider(process.env.NODE_URL_10);
     const optimismQueries = new OptimismQueries(provider);
     await Promise.all([
-      optimismQueries.getGasCosts("USDC"),
+      optimismQueries.getGasCosts(),
       optimismQueries.getTokenDecimals("USDC"),
       optimismQueries.getTokenPrice("USDC"),
     ]);
@@ -94,7 +94,7 @@ describe("Queries", function () {
     const provider = new providers.JsonRpcProvider(process.env.NODE_URL_137);
     const polygonQueries = new PolygonQueries(provider);
     await Promise.all([
-      polygonQueries.getGasCosts("USDC"),
+      polygonQueries.getGasCosts(),
       polygonQueries.getTokenDecimals("USDC"),
       polygonQueries.getTokenPrice("USDC"),
     ]);

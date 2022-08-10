@@ -6,7 +6,7 @@ const { percent, fixedPointAdjustment } = uma.across.utils;
 
 // This needs to be implemented for every chain and passed into RelayFeeCalculator
 export interface QueryInterface {
-  getGasCosts: (tokenSymbol: string) => Promise<BigNumberish>;
+  getGasCosts: () => Promise<BigNumberish>;
   getTokenPrice: (tokenSymbol: string) => Promise<number>;
   getTokenDecimals: (tokenSymbol: string) => number;
 }
@@ -28,6 +28,24 @@ export interface RelayFeeCalculatorConfig {
   queries: QueryInterface;
 }
 
+export interface LoggingFunction {
+  (data: { at: string; message: string; [key: string]: any }): void;
+}
+
+export interface Logger {
+  debug: LoggingFunction;
+  info: LoggingFunction;
+  warn: LoggingFunction;
+  error: LoggingFunction;
+}
+
+export const DEFAULT_LOGGER: Logger = {
+  debug: (...args) => console.debug(args),
+  info: (...args) => console.info(args),
+  warn: (...args) => console.warn(args),
+  error: (...args) => console.error(args),
+};
+
 export class RelayFeeCalculator {
   private queries: Required<RelayFeeCalculatorConfig>["queries"];
   private gasDiscountPercent: Required<RelayFeeCalculatorConfig>["gasDiscountPercent"];
@@ -36,7 +54,12 @@ export class RelayFeeCalculator {
   private nativeTokenDecimals: Required<RelayFeeCalculatorConfig>["nativeTokenDecimals"];
   private capitalCostsPercent: Required<RelayFeeCalculatorConfig>["capitalCostsPercent"];
   private capitalCostsConfig: Required<RelayFeeCalculatorConfig>["capitalCostsConfig"];
-  constructor(config: RelayFeeCalculatorConfig) {
+
+  // For logging if set. This function should accept 2 args - severity (INFO, WARN, ERROR) and the logs data, which will
+  // be an object.
+  private logger: Logger;
+
+  constructor(config: RelayFeeCalculatorConfig, logger: Logger = DEFAULT_LOGGER) {
     this.queries = config.queries;
     this.gasDiscountPercent = config.gasDiscountPercent || 0;
     this.capitalDiscountPercent = config.capitalDiscountPercent || 0;
@@ -63,6 +86,8 @@ export class RelayFeeCalculator {
     for (const token of Object.keys(this.capitalCostsConfig)) {
       RelayFeeCalculator.validateCapitalCostsConfig(this.capitalCostsConfig[token]);
     }
+
+    this.logger = logger;
   }
 
   static validateCapitalCostsConfig(capitalCosts: CapitalCostConfig) {
@@ -76,15 +101,18 @@ export class RelayFeeCalculator {
   }
 
   async gasFeePercent(amountToRelay: BigNumberish, tokenSymbol: string, _tokenPrice?: number): Promise<BigNumber> {
-    const getGasCosts = this.queries.getGasCosts(tokenSymbol).catch((error) => {
-      console.error(`ERROR(gasFeePercent): Error while fetching gas costs ${error}`);
+    const getGasCosts = this.queries.getGasCosts().catch((error) => {
+      this.logger.error({ at: "sdk-v2/gasFeePercent", message: "Error while fetching gas costs", error });
       throw error;
     });
     const getTokenPrice = this.queries.getTokenPrice(tokenSymbol).catch((error) => {
-      console.error(`ERROR(gasFeePercent): Error while fetching token price ${error}`);
+      this.logger.error({ at: "sdk-v2/gasFeePercent", message: "Error while fetching token price", error });
       throw error;
     });
-    const [gasCosts, tokenPrice] = await Promise.all([getGasCosts, _tokenPrice !== undefined ? _tokenPrice : getTokenPrice]);
+    const [gasCosts, tokenPrice] = await Promise.all([
+      getGasCosts,
+      _tokenPrice !== undefined ? _tokenPrice : getTokenPrice,
+    ]);
     const decimals = this.queries.getTokenDecimals(tokenSymbol);
     const gasFeesInToken = nativeToToken(gasCosts, tokenPrice, decimals, this.nativeTokenDecimals);
     return percent(gasFeesInToken, amountToRelay);
@@ -130,14 +158,15 @@ export class RelayFeeCalculator {
   async relayerFeeDetails(amountToRelay: BigNumberish, tokenSymbol: string, tokenPrice?: number) {
     let isAmountTooLow = false;
     const gasFeePercent = await this.gasFeePercent(amountToRelay, tokenSymbol, tokenPrice);
-    console.log(
-      `INFO(relayerFeeDetails): Computed gasFeePercent ${gasFeePercent}, overrode optional tokenPrice param: ${
-        tokenPrice !== undefined
-      }`
-    );
+    this.logger.debug({
+      at: "sdk-v2/relayerFeeDetails",
+      message: "Computed gasFeePercent",
+      gasFeePercent,
+      overriddenTokenPrice: tokenPrice,
+    });
     const gasFeeTotal = gasFeePercent.mul(amountToRelay).div(fixedPointAdjustment);
     const capitalFeePercent = await this.capitalFeePercent(amountToRelay, tokenSymbol);
-    console.log(`INFO(relayerFeeDetails): Computed capitalFeePercent ${capitalFeePercent}`);
+    this.logger.debug({ at: "sdk-v2/relayerFeeDetails", message: "Computed capitalFeePercent", capitalFeePercent });
     const capitalFeeTotal = capitalFeePercent.mul(amountToRelay).div(fixedPointAdjustment);
     const relayFeePercent = gasFeePercent.add(capitalFeePercent);
     const relayFeeTotal = gasFeeTotal.add(capitalFeeTotal);
