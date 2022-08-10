@@ -19,14 +19,20 @@ export class PolygonQueries implements QueryInterface {
     readonly usdcAddress = "0x2791bca1f2de4661ed88a30c99a7a9449aa84174",
     readonly simulatedRelayerAddress = "0x893d0D70AD97717052E3AA8903D9615804167759",
     private readonly coingeckoProApiKey?: string,
-    private readonly logger: Logger = DEFAULT_LOGGER
+    private readonly logger: Logger = DEFAULT_LOGGER,
+    readonly gasMarkup: number = 0
   ) {
     this.spokePool = SpokePool__factory.connect(spokePoolAddress, provider);
   }
 
   async getGasCosts(): Promise<BigNumberish> {
     const tx = await createUnsignedFillRelayTransaction(this.spokePool, this.usdcAddress, this.simulatedRelayerAddress);
-    return estimateTotalGasRequiredByUnsignedTransaction(tx, this.simulatedRelayerAddress, this.provider);
+    return estimateTotalGasRequiredByUnsignedTransaction(
+      tx,
+      this.simulatedRelayerAddress,
+      this.provider,
+      this.gasMarkup
+    );
   }
 
   async getTokenPrice(tokenSymbol: string): Promise<number> {

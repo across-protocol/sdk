@@ -21,7 +21,8 @@ export class BobaQueries implements QueryInterface {
     private readonly usdcAddress = "0x66a2A913e447d6b4BF33EFbec43aAeF87890FBbc",
     private readonly simulatedRelayerAddress = "0x893d0d70ad97717052e3aa8903d9615804167759",
     private readonly coingeckoProApiKey?: string,
-    private readonly logger: Logger = DEFAULT_LOGGER
+    private readonly logger: Logger = DEFAULT_LOGGER,
+    readonly gasMarkup: number = 0
   ) {
     // TODO: replace with address getter.
     this.spokePool = SpokePool__factory.connect(spokePoolAddress, provider);
@@ -33,6 +34,7 @@ export class BobaQueries implements QueryInterface {
       tx,
       this.simulatedRelayerAddress,
       this.provider,
+      this.gasMarkup,
       parseUnits("1", 9)
     );
   }

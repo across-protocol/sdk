@@ -82,13 +82,19 @@ export class EthereumQueries implements QueryInterface {
     readonly usdcAddress = "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
     readonly simulatedRelayerAddress = "0x893d0D70AD97717052E3AA8903D9615804167759",
     private readonly coingeckoProApiKey?: string,
-    private readonly logger: Logger = DEFAULT_LOGGER
+    private readonly logger: Logger = DEFAULT_LOGGER,
+    readonly gasMarkup: number = 0
   ) {
     this.spokePool = SpokePool__factory.connect(this.spokePoolAddress, this.provider);
   }
   async getGasCosts(): Promise<BigNumberish> {
     const tx = await createUnsignedFillRelayTransaction(this.spokePool, this.usdcAddress, this.simulatedRelayerAddress);
-    return estimateTotalGasRequiredByUnsignedTransaction(tx, this.simulatedRelayerAddress, this.provider);
+    return estimateTotalGasRequiredByUnsignedTransaction(
+      tx,
+      this.simulatedRelayerAddress,
+      this.provider,
+      this.gasMarkup
+    );
   }
 
   async getTokenPrice(tokenSymbol: string): Promise<number> {
