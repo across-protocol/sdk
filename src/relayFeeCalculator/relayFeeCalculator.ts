@@ -84,7 +84,10 @@ export class RelayFeeCalculator {
       console.error(`ERROR(gasFeePercent): Error while fetching token price ${error}`);
       throw error;
     });
-    const [gasCosts, tokenPrice] = await Promise.all([getGasCosts, _tokenPrice !== undefined ? _tokenPrice : getTokenPrice]);
+    const [gasCosts, tokenPrice] = await Promise.all([
+      getGasCosts,
+      _tokenPrice !== undefined ? _tokenPrice : getTokenPrice,
+    ]);
     const decimals = this.queries.getTokenDecimals(tokenSymbol);
     const gasFeesInToken = nativeToToken(gasCosts, tokenPrice, decimals, this.nativeTokenDecimals);
     return percent(gasFeesInToken, amountToRelay);
