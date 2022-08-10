@@ -117,7 +117,7 @@ export class Coingecko {
         const { host } = this;
         const url = `${host}/${path}`;
         const result = await axios(url, { params: { x_cg_pro_api_key: this.apiKey } });
-        this.logger.info({ at: "sdk-v2/coingecko", message: `Sent GET request to url ${result.request.responseURL}` });
+        this.logger.debug({ at: "sdk-v2/coingecko", message: `Sent GET request to url ${result.request.responseURL}` });
         return result.data;
       } catch (err) {
         const msg = get(err, "response.data.error", get(err, "response.statusText", "Unknown Coingecko Error"));

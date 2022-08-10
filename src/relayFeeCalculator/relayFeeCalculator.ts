@@ -33,12 +33,14 @@ export interface LoggingFunction {
 }
 
 export interface Logger {
+  debug: LoggingFunction;
   info: LoggingFunction;
   warn: LoggingFunction;
   error: LoggingFunction;
 }
 
 export const DEFAULT_LOGGER: Logger = {
+  debug: (...args) => console.debug(args),
   info: (...args) => console.info(args),
   warn: (...args) => console.warn(args),
   error: (...args) => console.error(args),
@@ -156,7 +158,7 @@ export class RelayFeeCalculator {
   async relayerFeeDetails(amountToRelay: BigNumberish, tokenSymbol: string, tokenPrice?: number) {
     let isAmountTooLow = false;
     const gasFeePercent = await this.gasFeePercent(amountToRelay, tokenSymbol, tokenPrice);
-    this.logger.info({
+    this.logger.debug({
       at: "sdk-v2/relayerFeeDetails",
       message: "Computed gasFeePercent",
       gasFeePercent,
@@ -164,7 +166,7 @@ export class RelayFeeCalculator {
     });
     const gasFeeTotal = gasFeePercent.mul(amountToRelay).div(fixedPointAdjustment);
     const capitalFeePercent = await this.capitalFeePercent(amountToRelay, tokenSymbol);
-    this.logger.info({ at: "sdk-v2/relayerFeeDetails", message: "Computed capitalFeePercent", capitalFeePercent });
+    this.logger.debug({ at: "sdk-v2/relayerFeeDetails", message: "Computed capitalFeePercent", capitalFeePercent });
     const capitalFeeTotal = capitalFeePercent.mul(amountToRelay).div(fixedPointAdjustment);
     const relayFeePercent = gasFeePercent.add(capitalFeePercent);
     const relayFeeTotal = gasFeeTotal.add(capitalFeeTotal);
