@@ -8,14 +8,14 @@ export function msToS(ms: number) {
   return Math.floor(ms / 1000);
 }
 
-type CoinGeckoAssetPlatform = {
+export type CoinGeckoAssetPlatform = {
   id: string;
   chain_identifier: number;
   name: string;
   shortname: string;
 };
 
-type CoinGeckoPrice = {
+export type CoinGeckoPrice = {
   address: string;
   timestamp: number;
   price: number;
@@ -127,4 +127,3 @@ export class Coingecko {
     return retry(sendRequest, this.numRetries, this.retryDelay);
   }
 }
-export default Coingecko;
