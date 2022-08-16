@@ -116,8 +116,9 @@ export class Coingecko {
       try {
         const { host } = this;
         const url = `${host}/${path}`;
+        // Log message deliberately suppresses ?x_cg_pro_api_key=<key> for Pro endpoints.
+        this.logger.debug({ at: "sdk-v2/coingecko", message: `Sending GET request to url ${url}` });
         const result = await axios(url, { params: { x_cg_pro_api_key: this.apiKey } });
-        this.logger.debug({ at: "sdk-v2/coingecko", message: `Sent GET request to url ${result.request.responseURL}` });
         return result.data;
       } catch (err) {
         const msg = get(err, "response.data.error", get(err, "response.statusText", "Unknown Coingecko Error"));
