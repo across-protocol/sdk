@@ -147,7 +147,7 @@ export class Coingecko {
           const result = await axios(proUrl, { params: { x_cg_pro_api_key: this.apiKey } });
           return result.data;
         } catch (errPro) {
-          const msg = get(err, "response.data.error", get(err, "response.statusText", "Unknown Coingecko Error"));
+          const msg = get(errPro, "response.data.error", get(errPro, "response.statusText", "Unknown Coingecko Error"));
           throw new Error(msg);
         }
       }
