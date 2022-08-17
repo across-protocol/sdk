@@ -1,4 +1,4 @@
-import axios from "axios";
+import axios, { AxiosError } from "axios";
 import assert from "assert";
 import get from "lodash.get";
 import { retry } from "../utils";
@@ -28,6 +28,7 @@ export class Coingecko {
   // Retry configuration.
   private retryDelay = 1;
   private numRetries = 3;
+  private basicApiTimeout = 130; // ms
 
   public static get(logger: Logger, apiKey?: string) {
     if (!this.instance)
@@ -122,12 +123,13 @@ export class Coingecko {
       const basicUrl = `${host}/${path}`;
 
       try {
-        const result = await axios(basicUrl, { timeout: 200 });
+        const result = await axios(basicUrl, { timeout: this.basicApiTimeout });
         return result.data;
       } catch (err) {
         this.logger.debug({
           at: "sdk-v2/coingecko",
           message: `Basic CG url request failed, falling back to CG PRO host ${proHost}`,
+          errMessage: (err as AxiosError).message,
         });
         const proUrl = `${proHost}/${path}`;
         try {
