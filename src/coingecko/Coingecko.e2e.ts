@@ -1,14 +1,19 @@
 import assert from "assert";
 import Coingecko from "./Coingecko";
 import dotenv from "dotenv";
+import winston from "winston";
 dotenv.config({ path: ".env" });
+
+const dummyLogger = winston.createLogger({
+  level: "debug",
+  transports: [new winston.transports.Console()],
+});
 
 // this requires e2e testing, should only test manually for now
 describe("coingecko", function () {
   let cg: Coingecko;
   test("init", function () {
-    if (process.env.COINGECKO_PRO_API_KEY !== undefined) cg = Coingecko.get(process.env.COINGECKO_PRO_API_KEY);
-    else cg = Coingecko.get();
+    cg = Coingecko.get(dummyLogger, process.env.COINGECKO_PRO_API_KEY);
     assert.ok(cg);
   });
   test("getContractDetails", async function () {
@@ -61,5 +66,14 @@ describe("coingecko", function () {
     const to = Date.now();
     const result = await cg.getHistoricContractPrices(address, from, to);
     assert.ok(result && result.length);
+  });
+  test("Fallback to Pro", async function () {
+    // Default test timeout of 5000ms is too short usually for this test. Manually expand it.
+    jest.setTimeout(30000);
+    // Send tons of basic requests so that we hit pro. Basic has a 50/min rate limit.
+    for (let i = 0; i < 51; i++) {
+      console.log(i);
+      assert.ok(await cg.getCurrentPriceByContract("0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2", "eth"));
+    }
   });
 });

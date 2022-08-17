@@ -122,7 +122,7 @@ export class Coingecko {
       const basicUrl = `${host}/${path}`;
 
       try {
-        const result = await axios(basicUrl, { timeout: 1000 });
+        const result = await axios(basicUrl, { timeout: 500 });
         return result.data;
       } catch (err) {
         this.logger.debug({

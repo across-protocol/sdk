@@ -83,5 +83,8 @@
   "publishConfig": {
     "registry": "https://registry.npmjs.com/",
     "access": "public"
+  },
+  "jest": {
+    "testEnvironment": "node"
   }
 }
