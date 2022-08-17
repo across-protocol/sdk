@@ -30,17 +30,19 @@ export class Coingecko {
   private numRetries = 3;
 
   public static get(logger: Logger, apiKey?: string) {
-    if (!this.instance) {
-      this.instance =
-        apiKey === undefined
-          ? new Coingecko("https://api.coingecko.com/api/v3", logger)
-          : new Coingecko("https://pro-api.coingecko.com/api/v3", logger, apiKey);
-    }
+    if (!this.instance)
+      this.instance = new Coingecko(
+        "https://api.coingecko.com/api/v3",
+        "https://pro-api.coingecko.com/api/v3",
+        logger,
+        apiKey
+      );
     return this.instance;
   }
 
   private constructor(
     private readonly host: string,
+    private readonly proHost: string,
     private readonly logger: Logger,
     private readonly apiKey?: string
   ) {}
@@ -113,15 +115,28 @@ export class Coingecko {
 
   async call(path: string) {
     const sendRequest = async () => {
+      const { host, proHost } = this;
+
+      // Try basic, and then pro as fallback.
+      this.logger.debug({ at: "sdk-v2/coingecko", message: `Sending GET request to host ${host}` });
+      const basicUrl = `${host}/${path}`;
+
       try {
-        const { host } = this;
-        const url = `${host}/${path}`;
-        const result = await axios(url, { params: { x_cg_pro_api_key: this.apiKey } });
-        this.logger.debug({ at: "sdk-v2/coingecko", message: `Sent GET request to url ${result.request.responseURL}` });
+        const result = await axios(basicUrl);
         return result.data;
       } catch (err) {
-        const msg = get(err, "response.data.error", get(err, "response.statusText", "Unknown Coingecko Error"));
-        throw new Error(msg);
+        this.logger.debug({
+          at: "sdk-v2/coingecko",
+          message: `Basic CG url request failed, falling back to CG PRO host ${proHost}`,
+        });
+        const proUrl = `${proHost}/${path}`;
+        try {
+          const result = await axios(proUrl, { params: { x_cg_pro_api_key: this.apiKey } });
+          return result.data;
+        } catch (errPro) {
+          const msg = get(err, "response.data.error", get(err, "response.statusText", "Unknown Coingecko Error"));
+          throw new Error(msg);
+        }
       }
     };
     return retry(sendRequest, this.numRetries, this.retryDelay);
