@@ -118,41 +118,51 @@ export class Coingecko {
     const sendRequest = async () => {
       const { host, proHost } = this;
       this.logger.debug({ at: "sdk-v2/coingecko", message: `Sending GET request to host ${host}` });
-      const basicUrl = `${host}/${path}`;
 
       // If no pro api key, only send basic request:
       if (this.apiKey === undefined) {
-        try {
-          // Don't use timeout if there is no pro API to fallback to.
-          const result = await axios(basicUrl);
-          return result.data;
-        } catch (err) {
-          const msg = get(err, "response.data.error", get(err, "response.statusText", "Unknown Coingecko Error"));
-          throw new Error(msg);
-        }
+        return await this._callBasic(path);
       }
 
       // If pro api key, try basic and use pro as fallback.
       try {
-        const result = await axios(basicUrl, { timeout: this.basicApiTimeout });
-        return result.data;
+        return await this._callBasic(path, this.basicApiTimeout);
       } catch (err) {
         this.logger.debug({
           at: "sdk-v2/coingecko",
           message: `Basic CG url request failed, falling back to CG PRO host ${proHost}`,
           errMessage: (err as AxiosError).message,
         });
-        const proUrl = `${proHost}/${path}`;
-        try {
-          const result = await axios(proUrl, { params: { x_cg_pro_api_key: this.apiKey } });
-          return result.data;
-        } catch (errPro) {
-          const msg = get(errPro, "response.data.error", get(errPro, "response.statusText", "Unknown Coingecko Error"));
-          throw new Error(msg);
-        }
+        return await this._callPro(path);
       }
     };
     return retry(sendRequest, this.numRetries, this.retryDelay);
+  }
+
+  private async _callBasic(path: string, timeout?: number) {
+    const url = `${this.host}/${path}`;
+
+    try {
+      // Don't use timeout if there is no pro API to fallback to.
+      const result = await axios(url, { timeout });
+      return result.data;
+    } catch (err) {
+      const msg = get(err, "response.data.error", get(err, "response.statusText", "Unknown Coingecko Error"));
+      throw new Error(msg);
+    }
+  }
+
+  private async _callPro(path: string) {
+    const url = `${this.proHost}/${path}`;
+
+    try {
+      // Don't use timeout if there is no pro API to fallback to.
+      const result = await axios(url, { params: { x_cg_pro_api_key: this.apiKey } });
+      return result.data;
+    } catch (err) {
+      const msg = get(err, "response.data.error", get(err, "response.statusText", "Unknown Coingecko-Pro Error"));
+      throw new Error(msg);
+    }
   }
 }
 export default Coingecko;
