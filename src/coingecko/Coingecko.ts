@@ -117,11 +117,22 @@ export class Coingecko {
   async call(path: string) {
     const sendRequest = async () => {
       const { host, proHost } = this;
-
-      // Try basic, and then pro as fallback.
       this.logger.debug({ at: "sdk-v2/coingecko", message: `Sending GET request to host ${host}` });
       const basicUrl = `${host}/${path}`;
 
+      // If no pro api key, only send basic request:
+      if (this.apiKey === undefined) {
+        try {
+          // Don't use timeout if there is no pro API to fallback to.
+          const result = await axios(basicUrl);
+          return result.data;
+        } catch (err) {
+          const msg = get(err, "response.data.error", get(err, "response.statusText", "Unknown Coingecko Error"));
+          throw new Error(msg);
+        }
+      }
+
+      // If pro api key, try basic and use pro as fallback.
       try {
         const result = await axios(basicUrl, { timeout: this.basicApiTimeout });
         return result.data;
