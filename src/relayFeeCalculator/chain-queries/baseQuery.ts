@@ -1,7 +1,7 @@
 import { SpokePool, SpokePool__factory } from "@across-protocol/contracts-v2";
 import { L2Provider } from "@eth-optimism/sdk";
 import { providers } from "ethers";
-import Coingecko from "../../coingecko/Coingecko";
+import { Coingecko } from "../../coingecko/Coingecko";
 import {
   BigNumberish,
   createUnsignedFillRelayTransaction,
