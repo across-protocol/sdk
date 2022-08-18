@@ -1,37 +1,31 @@
-import { DEFAULT_LOGGER, Logger, QueryInterface } from "../relayFeeCalculator";
-import {
-  BigNumberish,
-  createUnsignedFillRelayTransaction,
-  estimateTotalGasRequiredByUnsignedTransaction,
-} from "../../utils";
+import { DEFAULT_LOGGER, Logger } from "../relayFeeCalculator";
 import { providers } from "ethers";
 import { SymbolMapping } from "./ethereum";
 import { Coingecko } from "../../coingecko/Coingecko";
-import { SpokePool__factory, SpokePool } from "@across-protocol/contracts-v2";
+import QueryBase from "./baseQuery";
 
-export class PolygonQueries implements QueryInterface {
-  private spokePool: SpokePool;
-
+export class PolygonQueries extends QueryBase {
   constructor(
-    readonly provider: providers.Provider,
-    readonly symbolMapping = SymbolMapping,
-    readonly spokePoolAddress = "0x69B5c72837769eF1e7C164Abc6515DcFf217F920",
-    readonly usdcAddress = "0x2791bca1f2de4661ed88a30c99a7a9449aa84174",
-    readonly simulatedRelayerAddress = "0x893d0D70AD97717052E3AA8903D9615804167759",
-    private readonly coingeckoProApiKey?: string,
-    private readonly logger: Logger = DEFAULT_LOGGER,
-    readonly gasMarkup: number = 0
+    provider: providers.Provider,
+    symbolMapping = SymbolMapping,
+    spokePoolAddress = "0x69B5c72837769eF1e7C164Abc6515DcFf217F920",
+    usdcAddress = "0x2791bca1f2de4661ed88a30c99a7a9449aa84174",
+    simulatedRelayerAddress = "0x893d0D70AD97717052E3AA8903D9615804167759",
+    coingeckoProApiKey?: string,
+    logger: Logger = DEFAULT_LOGGER,
+    gasMarkup = 0
   ) {
-    this.spokePool = SpokePool__factory.connect(spokePoolAddress, provider);
-  }
-
-  async getGasCosts(): Promise<BigNumberish> {
-    const tx = await createUnsignedFillRelayTransaction(this.spokePool, this.usdcAddress, this.simulatedRelayerAddress);
-    return estimateTotalGasRequiredByUnsignedTransaction(
-      tx,
-      this.simulatedRelayerAddress,
-      this.provider,
-      this.gasMarkup
+    super(
+      provider,
+      symbolMapping,
+      spokePoolAddress,
+      usdcAddress,
+      simulatedRelayerAddress,
+      gasMarkup,
+      logger,
+      coingeckoProApiKey,
+      undefined,
+      "usd"
     );
   }
 
@@ -48,10 +42,5 @@ export class PolygonQueries implements QueryInterface {
       "usd"
     );
     return Number((tokenPrice / maticPrice).toFixed(this.symbolMapping["MATIC"].decimals));
-  }
-
-  getTokenDecimals(tokenSymbol: string): number {
-    if (!this.symbolMapping[tokenSymbol]) throw new Error(`${tokenSymbol} does not exist in mapping`);
-    return this.symbolMapping[tokenSymbol].decimals;
   }
 }
