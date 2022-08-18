@@ -64,6 +64,10 @@ export const SymbolMapping: { [symbol: string]: { address: string; decimals: num
     address: "0x7D1AfA7B718fb893dB30A3aBc0Cfc608AaCfeBB0",
     decimals: 18,
   },
+  BAL: {
+    address: "0xba100000625a3754423978a60c9317c58a424e3D",
+    decimals: 18,
+  },
 };
 
 export class EthereumQueries extends QueryBase {
