@@ -70,9 +70,9 @@ describe("coingecko", function () {
   test("Fallback to Pro", async function () {
     // Default test timeout of 5000ms is too short usually for this test. Manually expand it.
     jest.setTimeout(30000);
-    // Send tons of basic requests so that we hit pro. Basic has a 50/min rate limit.
-    for (let i = 0; i < 51; i++) {
-      console.log(i);
+    // Send tons of basic requests so that we hit pro. Basic has a ~50/min rate limit but this varies. In practice
+    // its a bit lower more like ~20-30/min.
+    for (let i = 0; i < 20; i++) {
       assert.ok(await cg.getCurrentPriceByContract("0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2", "eth"));
     }
   });

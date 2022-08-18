@@ -27,8 +27,8 @@ export class Coingecko {
 
   // Retry configuration.
   private retryDelay = 1;
-  private numRetries = 3;
-  private basicApiTimeout = 130; // ms
+  private numRetries = 0; // Most failures are due to 429 rate-limiting, so there is no point in retrying.
+  private basicApiTimeout = 250; // ms
 
   public static get(logger: Logger, apiKey?: string) {
     if (!this.instance)
@@ -136,7 +136,9 @@ export class Coingecko {
         return await this._callPro(path);
       }
     };
-    return retry(sendRequest, this.numRetries, this.retryDelay);
+
+    // Note: If a pro API key is configured, there is no need to retry as the Pro API will act as the basic's fall back.
+    return retry(sendRequest, this.apiKey === undefined ? this.numRetries : 0, this.retryDelay);
   }
 
   private async _callBasic(path: string, timeout?: number) {
@@ -147,7 +149,7 @@ export class Coingecko {
       const result = await axios(url, { timeout });
       return result.data;
     } catch (err) {
-      const msg = get(err, "response.data.error", get(err, "response.statusText", "Unknown Coingecko Error"));
+      const msg = get(err, "response.data.error", get(err, "response.statusText", (err as AxiosError).message));
       throw new Error(msg);
     }
   }
@@ -160,7 +162,7 @@ export class Coingecko {
       const result = await axios(url, { params: { x_cg_pro_api_key: this.apiKey } });
       return result.data;
     } catch (err) {
-      const msg = get(err, "response.data.error", get(err, "response.statusText", "Unknown Coingecko-Pro Error"));
+      const msg = get(err, "response.data.error", get(err, "response.statusText", (err as AxiosError).message));
       throw new Error(msg);
     }
   }
