@@ -55,10 +55,10 @@ export class Coingecko {
     assert(currency, "requires currency symbol");
     assert(from, "requires from timestamp");
     assert(to, "requires to timestamp");
-    from = Math.floor(from / 1000);
-    to = Math.floor(to / 1000);
+    const _from = msToS(from);
+    const _to = msToS(to);
     const result = await this.call(
-      `coins/ethereum/contract/${contract.toLowerCase()}/market_chart/range/?vs_currency=${currency}&from=${from}&to=${to}`
+      `coins/ethereum/contract/${contract.toLowerCase()}/market_chart/range/?vs_currency=${currency}&from=${_from}&to=${_to}`
     );
     // fyi timestamps are returned in ms in contrast to the current price endpoint
     if (result.prices) return result.prices;
