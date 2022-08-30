@@ -7,7 +7,7 @@ export type DistributionRecipient = {
   amount: string;
   accountIndex: number;
   windowIndex: number;
-  proofs: string[];
+  proof: string[];
   metadata: {
     amountBreakdown: {
       [name: string]: string;

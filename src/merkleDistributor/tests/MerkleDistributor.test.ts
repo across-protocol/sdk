@@ -44,7 +44,7 @@ describe("MerkleDistributor", () => {
       windowIndex
     );
     // Each recipient should contain the correct keys which should not be undefined.
-    const expectedKeys: (keyof DistributionRecipient)[] = ["accountIndex", "metadata", "amount", "proofs"];
+    const expectedKeys: (keyof DistributionRecipient)[] = ["accountIndex", "metadata", "amount", "proof"];
     Object.keys(recipientsWithProofs).forEach((recipient) => {
       expectedKeys.forEach((expectedKey) => {
         expect(Object.keys(recipientsWithProofs[recipient]).includes(expectedKey)).toBeTruthy();

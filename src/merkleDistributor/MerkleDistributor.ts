@@ -12,7 +12,7 @@ export class MerkleDistributor {
         ...acc,
         [recipientAddress]: {
           ...recipients[recipientAddress],
-          proofs: merkleTree.getHexProof(recipientLeafs[index]),
+          proof: merkleTree.getHexProof(recipientLeafs[index]),
           windowIndex,
         },
       };
