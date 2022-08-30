@@ -14,8 +14,6 @@ export class MerkleTree {
     this.elements.sort(Buffer.compare);
     // Deduplicate elements
     this.elements = MerkleTree.bufDedup(this.elements);
-
-    // this.bufferElementPositionIndex = this.elements.reduce<{ [hexElement: string]: number }>((acc, el, index) => {
     this.bufferElementPositionIndex = this.elements.reduce((acc, el, index) => {
       return { ...acc, [utils.hexlify(el)]: index };
     }, {});
