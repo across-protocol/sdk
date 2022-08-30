@@ -1,5 +1,6 @@
+import { MerkleTree } from "@across-protocol/contracts-v2";
 import { ethers } from "ethers";
-import { DistributionRecipientsWithProofs, DistributionRecipients, MerkleTree } from "./model";
+import { DistributionRecipientsWithProofs, DistributionRecipient } from "./model";
 
 export class MerkleDistributor {
   /**
@@ -8,17 +9,14 @@ export class MerkleDistributor {
    * @param recipients An object which describes the recipients
    * @param windowIndex Parameter to specify an window index. This allows using the same smart contract for multiple token distributions.
    */
-  static createMerkleDistributionProofs(recipients: DistributionRecipients, windowIndex: number) {
-    const recipientLeafs = Object.keys(recipients).map((addr: string) =>
-      MerkleDistributor.createLeaf(addr, recipients[addr].amount, recipients[addr].accountIndex)
-    );
-    const merkleTree = new MerkleTree(recipientLeafs);
-    const recipientsWithProofs = Object.keys(recipients).reduce((acc, recipientAddress, index) => {
+  static createMerkleDistributionProofs(recipients: DistributionRecipient[], windowIndex: number) {
+    const merkleTree = new MerkleTree<DistributionRecipient>(recipients, MerkleDistributor.createLeaf);
+    const recipientsWithProofs = recipients.reduce((acc, recipient) => {
       return {
         ...acc,
-        [recipientAddress]: {
-          ...recipients[recipientAddress],
-          proof: merkleTree.getHexProof(recipientLeafs[index]),
+        [recipient.account]: {
+          ...recipient,
+          proof: merkleTree.getHexProof(recipient),
           windowIndex,
         },
       };
@@ -29,15 +27,11 @@ export class MerkleDistributor {
   /**
    * Encode the account address, the amount and the account index into a Merkle Tree leaf.
    * It is equivalent to Solidity's keccak256(abi.encode(account, amount))
-   * @param account The address of the recipient
-   * @param amount The tokens amount which has to be distributed to the account address
-   * @param accountIndex The account index
+   * @param recipient The recipient of the token distribution
    * @returns The Merkle Tree leaf
    */
-  static createLeaf(account: string, amount: string, accountIndex: number) {
-    return Buffer.from(
-      ethers.utils.solidityKeccak256(["address", "uint256", "uint256"], [account, amount, accountIndex]).slice(2),
-      "hex"
-    );
+  static createLeaf(recipient: DistributionRecipient) {
+    const { account, amount, accountIndex } = recipient;
+    return ethers.utils.solidityKeccak256(["address", "uint256", "uint256"], [account, amount, accountIndex]);
   }
 }

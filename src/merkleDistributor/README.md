@@ -10,11 +10,12 @@ See tests for more documentation: [MerkleDistributor]("./test/MerkleDistributor.
 ```ts
 import * as across from "@across/sdk-v2"
 
-const { MerkleDistributor, MerkleTree, DistributionRecipients, DistributionRecipient } = across.merkleDistributor;
+const { MerkleDistributor, MerkleTree, DistributionRecipient } = across.merkleDistributor;
 
 const windowIndex = 0;
-const recipients: DistributionRecipients = {
-  "0x00b591bc2b682a0b30dd72bac9406bfa13e5d3cd": {
+const recipients: DistributionRecipient[] = [
+  {
+    account: "0x00b591bc2b682a0b30dd72bac9406bfa13e5d3cd",
     accountIndex: 0,
     amount: "1000000000000000000",
     metadata: {
@@ -23,7 +24,7 @@ const recipients: DistributionRecipients = {
       },
     },
   },
-  // ...other recipients data
-};
+// ...other recipients data
+];
 const { merkleRoot, recipientsWithProofs } = MerkleDistributor.createMerkleDistributionProofs(recipients, windowIndex);
 ```

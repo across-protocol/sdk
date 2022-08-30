@@ -1,10 +1,19 @@
-export type DistributionRecipients = {
-  [address: string]: Pick<DistributionRecipient, "amount" | "accountIndex" | "metadata">;
-};
-export type DistributionRecipientsWithProofs = { [address: string]: DistributionRecipient };
+export type DistributionRecipientsWithProofs = { [address: string]: DistributionRecipientWithProof };
 
 export type DistributionRecipient = {
   amount: string;
+  account: string;
+  accountIndex: number;
+  metadata: {
+    amountBreakdown: {
+      [name: string]: string;
+    };
+  };
+};
+
+export type DistributionRecipientWithProof = {
+  amount: string;
+  account: string;
   accountIndex: number;
   windowIndex: number;
   proof: string[];
@@ -13,11 +22,4 @@ export type DistributionRecipient = {
       [name: string]: string;
     };
   };
-};
-
-export type Distribution = {
-  chainId: number;
-  rewardToken: string;
-  totalRewardsDistributed: string;
-  recipients: DistributionRecipients;
 };
