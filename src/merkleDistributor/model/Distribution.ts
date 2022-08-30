@@ -11,15 +11,7 @@ export type DistributionRecipient = {
   };
 };
 
-export type DistributionRecipientWithProof = {
-  amount: string;
-  account: string;
-  accountIndex: number;
+export type DistributionRecipientWithProof = DistributionRecipient & {
   windowIndex: number;
   proof: string[];
-  metadata: {
-    amountBreakdown: {
-      [name: string]: string;
-    };
-  };
 };

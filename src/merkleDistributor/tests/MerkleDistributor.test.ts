@@ -58,6 +58,5 @@ describe("MerkleDistributor", () => {
     // The merkleRoot should match the expected value.
     const merkleTree = new MerkleTree(dummyRecipients, MerkleDistributor.createLeaf);
     expect(merkleTree.getHexRoot()).toEqual(merkleRoot);
-    console.log(recipientsWithProofs);
   });
 });
