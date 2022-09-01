@@ -78,7 +78,8 @@
     "hardhat-deploy": "^0.11.2",
     "hardhat-gas-reporter": "^1.0.8",
     "lodash.get": "^4.4.2",
-    "superstruct": "^0.15.4"
+    "superstruct": "^0.15.4",
+    "winston": "^3.8.1"
   },
   "publishConfig": {
     "registry": "https://registry.npmjs.com/",
