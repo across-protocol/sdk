@@ -1,17 +1,41 @@
 import assert from "assert";
-import Coingecko from "./Coingecko";
 import dotenv from "dotenv";
 import winston from "winston";
+import * as coingecko from "./Coingecko";
 dotenv.config({ path: ".env" });
+
+const Coingecko = coingecko.Coingecko;
+const msToS = coingecko.msToS;
+type CoinGeckoPrice = coingecko.CoinGeckoPrice;
 
 const dummyLogger = winston.createLogger({
   level: "debug",
   transports: [new winston.transports.Console()],
 });
 
+class TestGecko extends Coingecko {
+
+  private static testInstance: TestGecko | undefined;
+
+  public static get(logger: winston.Logger) {
+    if (!this.testInstance)
+      this.testInstance = new TestGecko(logger);
+    return this.testInstance;
+  }
+
+  // Hack to return protected getPriceCache.
+  _getPriceCache(currency: string, platform_id: string): { [addr: string]: CoinGeckoPrice } {
+    return this.getPriceCache(currency, platform_id);
+  }
+
+  constructor(logger: winston.Logger) {
+    super("127.0.0.1", "127.0.0.1", logger);
+  };
+}
+
 // this requires e2e testing, should only test manually for now
 describe("coingecko", function () {
-  let cg: Coingecko;
+  let cg: coingecko.Coingecko;
   test("init", function () {
     cg = Coingecko.get(dummyLogger, process.env.COINGECKO_PRO_API_KEY);
     assert.ok(cg);
@@ -72,8 +96,47 @@ describe("coingecko", function () {
     jest.setTimeout(30000);
     // Send tons of basic requests so that we hit pro. Basic has a ~50/min rate limit but this varies. In practice
     // its a bit lower more like ~20-30/min.
+
+    cg.maxPriceAge = 0; // Disable cache to force price lookups
     for (let i = 0; i < 20; i++) {
       assert.ok(await cg.getCurrentPriceByContract("0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2", "eth"));
+    }
+  });
+  test("Validate price cache", async function () {
+    // Don't lookup against CoinGecko.
+    let tg: TestGecko = TestGecko.get(dummyLogger);
+    assert.ok(tg);
+
+    const baseCurrency = "eth";
+    const network = "ethereum";
+
+    const priceCache: { [addr: string]: CoinGeckoPrice } = tg._getPriceCache(baseCurrency, network);
+    tg.maxPriceAge = 600; // Bound timestamps by 10 minutes
+    for (let i = 0; i < 10; ++i) {
+      const addr = `0x${i.toString(16).padStart(42, "0")}`; // Non-existent, ensure CG lookup would fail.
+      priceCache[addr] = {
+        address: addr,
+        price: Math.random() * (1 + i),
+        timestamp: msToS(Date.now()) - tg.maxPriceAge + (1 + i),
+      };
+    }
+
+    // Verify cache hit for valid timestamps.
+    for (const expected of Object.values(priceCache)) {
+      const addr: string = expected.address;
+      const result: [timestamp: string, price: number] = await tg.getCurrentPriceByContract(addr, baseCurrency);
+      const timestamp: string = result[0];
+      const price: number = result[1];
+
+      assert.ok(timestamp === expected.timestamp.toString(), `${expected.timestamp} !== ${timestamp}`);
+      assert.ok(price === expected.price, `${expected.price} !== ${price}`);
+    }
+
+    // Invalidate all cached results and verify failed price lookup.
+    tg.maxPriceAge = 1; // seconds
+    for (const expected of Object.values(priceCache)) {
+      const addr: string = expected.address;
+      await expect(tg.getCurrentPriceByContract(addr, baseCurrency)).rejects.toThrow();
     }
   });
 });
