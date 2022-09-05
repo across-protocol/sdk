@@ -1,5 +1,9 @@
 import { TypedEvent } from "@across-protocol/contracts-v2/dist/typechain/common";
-import { FundsDepositedEvent, FilledRelayEvent } from "@across-protocol/contracts-v2/dist/typechain/SpokePool";
+import {
+  FundsDepositedEvent,
+  FilledRelayEvent,
+  RequestedSpeedUpDepositEvent,
+} from "@across-protocol/contracts-v2/dist/typechain/SpokePool";
 import { providers } from "ethers";
 import { Logger } from "../adapters/logger";
 import { ISpokePoolContractEventsQuerier } from "../adapters/web3";
@@ -21,6 +25,7 @@ export class SpokePoolEventsQueryService {
     let from;
     let depositEvents: FundsDepositedEvent[] = [];
     let filledRelayEvents: FilledRelayEvent[] = [];
+    let speedUpDepositEvents: RequestedSpeedUpDepositEvent[] = [];
     let blockTimestampMap: { [blockNumber: number]: number } = {};
 
     if (this.latestBlockNumber) {
@@ -34,27 +39,33 @@ export class SpokePoolEventsQueryService {
       this.logger.debug("[SpokePoolEventsQueryService]", `🔴 chain ${this.chainId}: from ${from} > to ${to}`);
 
       return {
+        emittedFromChainId: this.chainId,
         depositEvents: [],
         filledRelayEvents: [],
+        speedUpDepositEvents: [],
         blockTimestampMap: {},
       };
     }
     let start = new Date();
-    const [depositEventsSettled, filledRelayEventsSettled] = await Promise.allSettled([
+    const [depositEventsSettled, filledRelayEventsSettled, speedUpDepositEventsSettled] = await Promise.allSettled([
       this.eventsQuerier.getFundsDepositEvents(from, to, this.depositorAddr),
       this.eventsQuerier.getFilledRelayEvents(from, to, this.depositorAddr),
+      this.eventsQuerier.getSpeedUpDepositEvents(from, to, this.depositorAddr),
     ]);
     depositEvents = depositEventsSettled.status === "fulfilled" ? depositEventsSettled.value : [];
     filledRelayEvents = filledRelayEventsSettled.status === "fulfilled" ? filledRelayEventsSettled.value : [];
+    speedUpDepositEvents = speedUpDepositEventsSettled.status === "fulfilled" ? speedUpDepositEventsSettled.value : [];
     let end = new Date();
     this.logger.debug(
       "[SpokePoolEventsQueryService::getEvents]",
-      `🟢 chain ${this.chainId}: ${depositEvents.length} FundsDeposited events and ${
+      `🟢 chain ${this.chainId}: ${depositEvents.length} FundsDeposited events, ${
         filledRelayEvents.length
-      } FilledRelayEvents, blocks: ${from} -> ${to}, ${(end.valueOf() - start.valueOf()) / 1000} seconds`
+      } FilledRelayEvents, ${speedUpDepositEvents.length} RequestedSpeedUpDeposit events, blocks: ${from} -> ${to}, ${
+        (end.valueOf() - start.valueOf()) / 1000
+      } seconds`
     );
     start = new Date();
-    blockTimestampMap = await this.getBlocksTimestamp(depositEvents);
+    blockTimestampMap = await this.getBlocksTimestamp([...depositEvents, ...speedUpDepositEvents]);
     end = new Date();
     this.logger.debug(
       "[SpokePoolEventsQueryService::getEvents]",
@@ -63,8 +74,10 @@ export class SpokePoolEventsQueryService {
     this.latestBlockNumber = to;
 
     return {
+      emittedFromChainId: this.chainId,
       depositEvents,
       filledRelayEvents,
+      speedUpDepositEvents,
       blockTimestampMap,
     };
   }
