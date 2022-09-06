@@ -12,6 +12,7 @@ const DEFAULT_BLOCK_RANGE = 100_000;
 export interface ISpokePoolContractEventsQuerier {
   getFundsDepositEvents: (from: number, to: number, depositorAddr?: string) => Promise<TypedEvent<any>[]>;
   getFilledRelayEvents: (from: number, to: number, depositorAddr?: string) => Promise<TypedEvent<any>[]>;
+  getSpeedUpDepositEvents: (from: number, to: number, depositorAddr?: string) => Promise<TypedEvent<any>[]>;
 }
 
 /**
@@ -28,6 +29,10 @@ export class SpokePoolEventsQuerier implements ISpokePoolContractEventsQuerier {
 
   public async getFilledRelayEvents(from: number, to: number, depositorAddr?: string): Promise<TypedEvent<any>[]> {
     return this.getEvents(from, to, this.getFilledRelayEventsFilter(depositorAddr));
+  }
+
+  public async getSpeedUpDepositEvents(from: number, to: number, depositorAddr?: string): Promise<TypedEvent<any>[]> {
+    return this.getEvents(from, to, this.getSpeedUpDepositEventsFilter(depositorAddr));
   }
 
   private getFilledRelayEventsFilter(depositorAddr?: string) {
@@ -68,6 +73,18 @@ export class SpokePoolEventsQuerier implements ISpokePoolContractEventsQuerier {
       );
     }
     return this.spokePool.filters.FundsDeposited();
+  }
+
+  private getSpeedUpDepositEventsFilter(depositorAddr?: string) {
+    if (depositorAddr) {
+      return this.spokePool.filters.RequestedSpeedUpDeposit(
+        undefined,
+        undefined,
+        depositorAddr.toLowerCase(),
+        undefined
+      );
+    }
+    return this.spokePool.filters.RequestedSpeedUpDeposit();
   }
 
   private async getEvents(

@@ -52,7 +52,8 @@ export class TransfersRepository {
     depositorAddr: string,
     depositId: number,
     filled: BigNumber,
-    fillTxHash: string
+    fillTxHash: string,
+    appliedRelayerFeePct: BigNumber
   ) {
     const transfer = this.transfers?.[chainId]?.[depositorAddr]?.[depositId];
     if (!transfer) {
@@ -65,6 +66,39 @@ export class TransfersRepository {
       filled,
       status: transfer.amount.eq(filled) ? "filled" : "pending",
       fillTxs: Array.from(new Set([...transfer.fillTxs, fillTxHash])),
+      currentRelayerFeePct: appliedRelayerFeePct,
+    };
+  }
+
+  public updateRelayerFee(
+    sourceChainId: number,
+    depositorAddr: string,
+    depositId: number,
+    newRelayerFeePct: BigNumber,
+    speedUpTxHash: string,
+    timestamp: number
+  ) {
+    const transfer = this.transfers?.[sourceChainId]?.[depositorAddr]?.[depositId];
+
+    if (!transfer) {
+      console.error(
+        `couldn't update 'relayerFee' on chain ${sourceChainId}, depositId ${depositId}, depositor ${depositorAddr}`
+      );
+      return;
+    }
+
+    this.transfers[transfer.sourceChainId][depositorAddr][depositId] = {
+      ...transfer,
+      currentRelayerFeePct: transfer.status === "pending" ? newRelayerFeePct : transfer.currentRelayerFeePct,
+      speedUps: [
+        // remove possible duplicates
+        ...transfer.speedUps.filter((speedUp) => speedUp.txHash !== speedUpTxHash),
+        {
+          txHash: speedUpTxHash,
+          relayerFeePct: newRelayerFeePct,
+          timestamp,
+        },
+      ],
     };
   }
 
