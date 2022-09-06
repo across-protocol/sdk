@@ -1,12 +1,8 @@
 import assert from "assert";
 import dotenv from "dotenv";
 import winston from "winston";
-import * as coingecko from "./Coingecko";
+import { Coingecko, msToS, CoinGeckoPrice } from "./Coingecko";
 dotenv.config({ path: ".env" });
-
-const Coingecko = coingecko.Coingecko;
-const msToS = coingecko.msToS;
-type CoinGeckoPrice = coingecko.CoinGeckoPrice;
 
 const dummyLogger = winston.createLogger({
   level: "debug",
@@ -35,7 +31,7 @@ class TestGecko extends Coingecko {
 
 // this requires e2e testing, should only test manually for now
 describe("coingecko", function () {
-  let cg: coingecko.Coingecko;
+  let cg: Coingecko;
   test("init", function () {
     cg = Coingecko.get(dummyLogger, process.env.COINGECKO_PRO_API_KEY);
     assert.ok(cg);
