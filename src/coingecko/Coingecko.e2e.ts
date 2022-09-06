@@ -74,9 +74,10 @@ describe("coingecko", function () {
       "0x6B3595068778DD592e39A122f4f5a5cF09C90fE2",
       "0x5F64Ab1544D28732F0A24F4713c2C8ec0dA089f0",
     ];
-    const result = await cg.getContractPrices(addresses);
+
+    const result: CoinGeckoPrice[] = await cg.getContractPrices(addresses);
     assert.equal(result.length, addresses.length);
-    result.forEach((result) => {
+    result.forEach((result: CoinGeckoPrice) => {
       assert.ok(result.price);
       assert.ok(result.timestamp);
       assert.ok(result.address);
