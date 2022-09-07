@@ -6,6 +6,7 @@ Across is a system that uses UMA contracts to quickly move tokens across chains.
 | Name | Description | README | Source Code |
 |---|---|---|---|
 | **LP Fee Calculator** | Calculate LP fee for transfers | [README](./src/lpFeeCalculator/README.md) | [Source Code](./src/lpFeeCalculator/) |
+| **Merkle Distributor** | ACX token distribution | [README](./src/merkleDistributor/README.md) | [Source Code](./src/merkleDistributor/) |
 
 ## TSDX User Guide
 
