@@ -70,11 +70,7 @@ export class Coingecko {
     private readonly logger: Logger,
     private readonly apiKey?: string
   ) {
-    this.prices = {
-      ethereum: {
-        usd: {},
-      },
-    };
+    this.prices = {};
   }
 
   // Fetch historic prices for a `contract` denominated in `currency` between timestamp `from` and `to`. Note timestamps
@@ -115,17 +111,7 @@ export class Coingecko {
         });
       }
 
-      try {
-        // Force price cache update.
-        await this.getContractPrices([contract_address], currency, platform_id);
-      } catch (err) {
-        const errMsg = `Failed to retrieve ${platform_id}/${currency} price for ${contract_address} (${err})`;
-        this.logger.warn({
-          at: "Coingecko#getCurrentPriceByContract",
-          message: errMsg,
-        });
-        throw new Error(errMsg);
-      }
+      await this.getContractPrices([contract_address], currency, platform_id);
       tokenPrice = priceCache[contract_address];
     } else {
       this.logger.debug({
@@ -171,12 +157,23 @@ export class Coingecko {
     type Result = {
       [address: string]: CGTokenPrice;
     };
-    // Coingecko expects a comma-delimited (%2c) list.
-    const result: Result = await this.call(
-      `simple/token_price/${platform_id}?contract_addresses=${contract_addresses.join(
-        "%2C"
-      )}&vs_currencies=${currency}&include_last_updated_at=true`
-    );
+
+    const result: Result;
+    try {
+      // Coingecko expects a comma-delimited (%2c) list.
+      result = await this.call(
+        `simple/token_price/${platform_id}?contract_addresses=${contract_addresses.join(
+          "%2C"
+        )}&vs_currencies=${currency}&include_last_updated_at=true`
+      );
+    } catch (err) {
+      const errMsg = `Failed to retrieve ${platform_id}/${currency} price for ${contract_address} (${err})`;
+      this.logger.debug({
+        at: "Coingecko#getCurrentPriceByContract",
+        message: errMsg,
+      });
+      throw new Error(errMsg);
+    }
 
     // Note: contract_addresses is a reliable reference for the price lookup.
     // priceCache might have been updated subsequently by concurrent price requests.
