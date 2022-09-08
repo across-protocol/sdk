@@ -10,12 +10,10 @@ const dummyLogger = winston.createLogger({
 });
 
 class TestGecko extends Coingecko {
-
   private static testInstance: TestGecko | undefined;
 
   public static get(logger: winston.Logger) {
-    if (!this.testInstance)
-      this.testInstance = new TestGecko(logger);
+    if (!this.testInstance) this.testInstance = new TestGecko(logger);
     return this.testInstance;
   }
 
@@ -26,7 +24,7 @@ class TestGecko extends Coingecko {
 
   constructor(logger: winston.Logger) {
     super("127.0.0.1", "127.0.0.1", logger);
-  };
+  }
 }
 
 // this requires e2e testing, should only test manually for now
@@ -101,7 +99,7 @@ describe("coingecko", function () {
   });
   test("Validate price cache", async function () {
     // Don't lookup against CoinGecko.
-    let tg: TestGecko = TestGecko.get(dummyLogger);
+    const tg: TestGecko = TestGecko.get(dummyLogger);
     assert.ok(tg);
 
     const baseCurrency = "eth";

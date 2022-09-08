@@ -59,7 +59,7 @@ export class Coingecko {
     assert(age >= 0);
     this.logger.debug({
       at: "Coingecko#maxPriceAge",
-      message: `Setting maxPriceAge (S) ${this._maxPriceAge} => ${age}.`
+      message: `Setting maxPriceAge (S) ${this._maxPriceAge} => ${age}.`,
     });
     this._maxPriceAge = age;
   }
@@ -243,7 +243,7 @@ export class Coingecko {
     return retry(sendRequest, this.apiKey === undefined ? this.numRetries : 0, this.retryDelay);
   }
 
-  protected getPriceCache(currency: string, platform_id: string): { [addr: string]: CoinGeckoPrice }  {
+  protected getPriceCache(currency: string, platform_id: string): { [addr: string]: CoinGeckoPrice } {
     if (this.prices[platform_id] === undefined) this.prices[platform_id] = {};
     if (this.prices[platform_id][currency] === undefined) this.prices[platform_id][currency] = {};
     return this.prices[platform_id][currency];
