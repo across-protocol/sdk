@@ -94,7 +94,7 @@ export class Coingecko {
     // annoying, but have to type this to iterate over entries
     type Result = {
       [address: string]: {
-        usd: number;
+        [currency: string]: number;
         last_updated_at: number;
       };
     };
