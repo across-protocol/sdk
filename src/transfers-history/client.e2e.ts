@@ -56,10 +56,13 @@ describe("Client e2e tests", () => {
       console.log(data);
       const pendingTransfers = client.getPendingTransfers("0x9A8f92a830A5cB89a3816e3D267CB7791c16b04D");
       const filledTransfers = client.getFilledTransfers("0x9A8f92a830A5cB89a3816e3D267CB7791c16b04D");
+      const transfersWithSpeedUps = filledTransfers.filter(({ speedUps }) => speedUps.length) || [];
       client.stopFetchingTransfers("0x9A8f92a830A5cB89a3816e3D267CB7791c16b04D");
       expect(pendingTransfers.length).toBeGreaterThanOrEqual(0);
       expect(filledTransfers.length).toBeGreaterThanOrEqual(0);
       expect(filledTransfers[0].fillTxs.length).toBeGreaterThanOrEqual(1);
+      expect(transfersWithSpeedUps.length).toBeGreaterThan(0);
+
       done();
     });
   });
