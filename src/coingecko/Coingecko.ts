@@ -158,7 +158,7 @@ export class Coingecko {
       [address: string]: CGTokenPrice;
     };
 
-    const result: Result;
+    let result: Result = {};
     try {
       // Coingecko expects a comma-delimited (%2c) list.
       result = await this.call(
@@ -167,10 +167,11 @@ export class Coingecko {
         )}&vs_currencies=${currency}&include_last_updated_at=true`
       );
     } catch (err) {
-      const errMsg = `Failed to retrieve ${platform_id}/${currency} price for ${contract_address} (${err})`;
+      const errMsg = `Failed to retrieve ${platform_id}/${currency} prices (${err})`;
       this.logger.debug({
         at: "Coingecko#getCurrentPriceByContract",
         message: errMsg,
+        tokens: contract_addresses,
       });
       throw new Error(errMsg);
     }
