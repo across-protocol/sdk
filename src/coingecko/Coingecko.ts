@@ -94,7 +94,7 @@ export class Coingecko {
     // annoying, but have to type this to iterate over entries
     type Result = {
       [address: string]: {
-        usd: number;
+        [currency: string]: number;
         last_updated_at: number;
       };
     };
@@ -104,7 +104,7 @@ export class Coingecko {
       )}&vs_currencies=${currency}&include_last_updated_at=true`
     );
     return Object.entries(result).map(([key, value]) => {
-      return { address: lookup[key], timestamp: value.last_updated_at, price: value.usd };
+      return { address: lookup[key], timestamp: value.last_updated_at, price: value[currency] };
     });
   }
 
