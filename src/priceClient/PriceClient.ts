@@ -16,7 +16,7 @@ export type PriceCache = {
   [address: string]: TokenPrice;
 };
 
-export function msToS(ms: number) {
+export function msToS(ms: number): number {
   return Math.floor(ms / 1000);
 }
 
@@ -33,7 +33,7 @@ export class PriceClient implements PriceFeedAdapter {
 
   protected constructor(protected logger: Logger) {}
 
-  public static get(logger: Logger) {
+  public static get(logger: Logger): PriceClient {
     if (!this.instance) this.instance = new PriceClient(logger);
 
     return this.instance;
@@ -43,7 +43,7 @@ export class PriceClient implements PriceFeedAdapter {
     return this._maxPriceAge;
   }
 
-  set maxPriceAge(age: number) {
+  set maxPriceAge(age: number): void {
     assert(age >= 0);
     this.logger.debug({
       at: "PriceClient#maxPriceAge",
@@ -53,7 +53,7 @@ export class PriceClient implements PriceFeedAdapter {
   }
 
   // @todo: Could be nice to specify a priority rather than relying on order of addition.
-  async addPriceFeed(priceFeed: PriceFeedAdapter) {
+  async addPriceFeed(priceFeed: PriceFeedAdapter): void {
     assert(!this.priceFeeds.includes(priceFeed), `Price feed ${priceFeed.name} already registered.`);
     this.priceFeeds.push(priceFeed);
     this.logger.debug({
@@ -66,7 +66,7 @@ export class PriceClient implements PriceFeedAdapter {
     return this.priceFeeds.map((priceFeed: PriceFeedAdapter) => priceFeed.name);
   }
 
-  clearPriceFeeds() {
+  clearPriceFeeds(): void {
     const cleared: string[] = this.priceFeeds.map((priceFeed: PriceFeedAdapter) => priceFeed.name);
     this.priceFeeds = [];
     this.logger.debug({
@@ -98,7 +98,6 @@ export class PriceClient implements PriceFeedAdapter {
       const prices: TokenPrice[] = await this.getTokenPrices([address], currency, platform);
       tokenPrice = prices[0];
     }
-
     return tokenPrice;
   }
 
@@ -120,7 +119,7 @@ export class PriceClient implements PriceFeedAdapter {
     return addresses.map((addr: string) => priceCache[addr.toLowerCase()]);
   }
 
-  expireCache(currency: string, platform = "ethereum") {
+  expireCache(currency: string, platform = "ethereum"): void {
     const priceCache = this.getPriceCache(currency, platform);
     Object.values(priceCache).forEach((token: TokenPrice) => (token.timestamp = 0));
     this.logger.debug({ at: "PriceClient#expireCache", message: `Expired ${platform}/${currency} cache.` });
@@ -132,7 +131,7 @@ export class PriceClient implements PriceFeedAdapter {
     return this.prices[platform][currency];
   }
 
-  private initPrices(priceCache: PriceCache, addresses: string[]) {
+  private initPrices(priceCache: PriceCache, addresses: string[]): void {
     addresses.forEach((addr: string) => {
       if (priceCache[addr] === undefined) {
         priceCache[addr] = { address: addr, price: 0, timestamp: 0 };
@@ -169,7 +168,7 @@ export class PriceClient implements PriceFeedAdapter {
     return Object.fromEntries(prices.map((price) => [price.address, price]));
   }
 
-  private updateCache(priceCache: PriceCache, prices: PriceCache, expected: string[]): Promise<void> {
+  private updateCache(priceCache: PriceCache, prices: PriceCache, expected: string[]): void {
     const updated: string[] = [];
     const skipped: { [token: string]: string } = {}; // Includes reason for skipping
 
