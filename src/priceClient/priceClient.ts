@@ -43,7 +43,7 @@ export class PriceClient implements PriceFeedAdapter {
     return this._maxPriceAge;
   }
 
-  set maxPriceAge(age: number): void {
+  set maxPriceAge(age: number) {
     assert(age >= 0);
     this.logger.debug({
       at: "PriceClient#maxPriceAge",
@@ -53,7 +53,7 @@ export class PriceClient implements PriceFeedAdapter {
   }
 
   // @todo: Could be nice to specify a priority rather than relying on order of addition.
-  async addPriceFeed(priceFeed: PriceFeedAdapter): void {
+  addPriceFeed(priceFeed: PriceFeedAdapter): void {
     assert(!this.priceFeeds.includes(priceFeed), `Price feed ${priceFeed.name} already registered.`);
     this.priceFeeds.push(priceFeed);
     this.logger.debug({
