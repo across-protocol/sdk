@@ -169,7 +169,7 @@ export class PriceClient implements PriceFeedAdapter {
     return Object.fromEntries(prices.map((price) => [price.address, price]));
   }
 
-  private async updateCache(priceCache: PriceCache, prices: PriceCache, expected: string[]): Promise<void> {
+  private updateCache(priceCache: PriceCache, prices: PriceCache, expected: string[]): Promise<void> {
     const updated: string[] = [];
     const skipped: { [token: string]: string } = {}; // Includes reason for skipping
 
