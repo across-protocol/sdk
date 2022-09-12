@@ -1,7 +1,7 @@
 import assert from "assert";
 import dotenv from "dotenv";
 import winston from "winston";
-import { Logger, msToS, PriceCache, PriceClient, TokenPrice } from "./PriceClient";
+import { Logger, msToS, PriceCache, PriceClient, TokenPrice } from "./priceClient";
 import { across, coingecko } from "./adapters";
 dotenv.config({ path: ".env" });
 

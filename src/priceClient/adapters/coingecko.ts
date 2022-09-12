@@ -1,4 +1,4 @@
-import { Logger, PriceFeedAdapter, TokenPrice } from "../PriceClient";
+import { Logger, PriceFeedAdapter, TokenPrice } from "../priceClient";
 import { Coingecko as _Coingecko } from "../../coingecko"; // XXX temporary shim
 
 /**

@@ -1,6 +1,6 @@
 import axios, { AxiosError } from "axios";
 import get from "lodash.get";
-import { Logger, msToS, PriceFeedAdapter, TokenPrice } from "../PriceClient";
+import { Logger, msToS, PriceFeedAdapter, TokenPrice } from "../priceClient";
 
 type AcrossPrice = { price: number };
 
