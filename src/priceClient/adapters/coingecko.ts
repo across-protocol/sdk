@@ -9,7 +9,11 @@ export class PriceFeed implements PriceFeedAdapter {
   public readonly host: string;
   private cg: _Coingecko;
 
-  constructor(public readonly logger: Logger, public readonly name: string, private readonly apiKey?: string) {
+  constructor(
+    public readonly name: string,
+    readonly logger: Logger, // @todo: Remove logger (pending merge w/ Coingecko class).
+    private readonly apiKey?: string
+  ) {
     // @todo: Currently not used, but will be once after dedup of _Coingecko.
     this.host =
       typeof this.apiKey === "string" && this.apiKey.length > 0 ? "api.coingecko.com" : "pro-api.coingecko.com";
@@ -20,7 +24,6 @@ export class PriceFeed implements PriceFeedAdapter {
 
   async getPriceByAddress(address: string, currency: string, platform: string): Promise<TokenPrice> {
     const price: TokenPrice[] = await this.getPricesByAddress([address], platform, currency);
-    this.logger.debug({ at: "CoinGeckoPriceFeed#getPrice", message: "Got token price.", price });
     return price[0];
   }
 

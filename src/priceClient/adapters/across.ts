@@ -1,13 +1,13 @@
 import axios, { AxiosError } from "axios";
 import get from "lodash.get";
-import { Logger, msToS, PriceFeedAdapter, TokenPrice } from "../priceClient";
+import { msToS, PriceFeedAdapter, TokenPrice } from "../priceClient";
 
 type AcrossPrice = { price: number };
 
 export class PriceFeed implements PriceFeedAdapter {
   public readonly platforms = ["ethereum"];
 
-  constructor(public readonly logger: Logger, public readonly name: string, public readonly host?: string) {
+  constructor(public readonly name: string, public readonly host?: string) {
     // Allow host to be overridden for test or alternative deployments.
     if (this.host === undefined) this.host = "across.to";
   }
@@ -39,7 +39,6 @@ export class PriceFeed implements PriceFeedAdapter {
     const url = `https://${this.host}/api/coingecko?l1Token=${token}&baseCurrency=${baseCurrency}`;
 
     try {
-      this.logger.debug({ at: "Across#query", message: "Querying api/coingecko.", query: url });
       const result = await axios(url, { timeout });
       return result.data;
     } catch (err) {
