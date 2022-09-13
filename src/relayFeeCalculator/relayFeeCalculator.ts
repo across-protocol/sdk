@@ -158,15 +158,8 @@ export class RelayFeeCalculator {
   async relayerFeeDetails(amountToRelay: BigNumberish, tokenSymbol: string, tokenPrice?: number) {
     let isAmountTooLow = false;
     const gasFeePercent = await this.gasFeePercent(amountToRelay, tokenSymbol, tokenPrice);
-    this.logger.debug({
-      at: "sdk-v2/relayerFeeDetails",
-      message: "Computed gasFeePercent",
-      gasFeePercent,
-      overriddenTokenPrice: tokenPrice,
-    });
     const gasFeeTotal = gasFeePercent.mul(amountToRelay).div(fixedPointAdjustment);
     const capitalFeePercent = await this.capitalFeePercent(amountToRelay, tokenSymbol);
-    this.logger.debug({ at: "sdk-v2/relayerFeeDetails", message: "Computed capitalFeePercent", capitalFeePercent });
     const capitalFeeTotal = capitalFeePercent.mul(amountToRelay).div(fixedPointAdjustment);
     const relayFeePercent = gasFeePercent.add(capitalFeePercent);
     const relayFeeTotal = gasFeeTotal.add(capitalFeeTotal);
