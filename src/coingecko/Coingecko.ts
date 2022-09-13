@@ -219,8 +219,7 @@ export class Coingecko {
 
   async call(path: string) {
     const sendRequest = async () => {
-      const { host, proHost } = this;
-      this.logger.debug({ at: "sdk-v2/coingecko", message: `Sending GET request to host ${host}` });
+      const { proHost } = this;
 
       // If no pro api key, only send basic request:
       if (this.apiKey === undefined) {
