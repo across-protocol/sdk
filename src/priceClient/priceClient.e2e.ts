@@ -81,39 +81,39 @@ describe("PriceClient", function () {
     feedNames.forEach((name) => pc.addPriceFeed(new across.PriceFeed(dummyLogger, name)));
     expect(feedNames).toEqual(pc.listPriceFeeds());
   });
-  test("getTokenPrice: CoinGecko Free", async function () {
+  test("getPriceByAddress: CoinGecko Free", async function () {
     pc.addPriceFeed(new coingecko.PriceFeed(dummyLogger, "CoinGecko Free"));
-    const price: TokenPrice = await pc.getTokenPrice(testAddress);
+    const price: TokenPrice = await pc.getPriceByAddress(testAddress);
     validateTokenPrice(price, testAddress, beginTs);
   });
-  cgProTest("getTokenPrice: CoinGecko Pro", async function () {
+  cgProTest("getPriceByAddress: CoinGecko Pro", async function () {
     pc.addPriceFeed(new coingecko.PriceFeed(dummyLogger, "CoinGecko Pro", cgProApiKey));
-    const price: TokenPrice = await pc.getTokenPrice(testAddress);
+    const price: TokenPrice = await pc.getPriceByAddress(testAddress);
     validateTokenPrice(price, testAddress, beginTs);
   });
-  test("getTokenPrice: Across API", async function () {
+  test("getPriceByAddress: Across API", async function () {
     pc.addPriceFeed(new across.PriceFeed(dummyLogger, "Across API"));
-    const price: TokenPrice = await pc.getTokenPrice(testAddress);
+    const price: TokenPrice = await pc.getPriceByAddress(testAddress);
     validateTokenPrice(price, testAddress, beginTs);
   });
-  test("getTokenPrice: Across failover to Across", async function () {
+  test("getPriceByAddress: Across failover to Across", async function () {
     pc.addPriceFeed(new across.PriceFeed(dummyLogger, "Across API (expect fail)", "127.0.0.1"));
     pc.addPriceFeed(new across.PriceFeed(dummyLogger, "Across API (expect pass)"));
 
-    const price: TokenPrice = await pc.getTokenPrice(testAddress);
+    const price: TokenPrice = await pc.getPriceByAddress(testAddress);
     validateTokenPrice(price, testAddress, beginTs);
   });
-  test("getTokenPrice: Across failover to CoinGecko", async function () {
+  test("getPriceByAddress: Across failover to CoinGecko", async function () {
     pc.addPriceFeed(new across.PriceFeed(dummyLogger, "Across API (expect fail)", "127.0.0.1"));
     pc.addPriceFeed(new coingecko.PriceFeed(dummyLogger, "CoinGecko Free (expect pass)"));
 
-    const price: TokenPrice = await pc.getTokenPrice(testAddress);
+    const price: TokenPrice = await pc.getPriceByAddress(testAddress);
     validateTokenPrice(price, testAddress, beginTs);
   });
-  test("getTokenPrice: Complete price lookup failure", async function () {
+  test("getPriceByAddress: Complete price lookup failure", async function () {
     pc.addPriceFeed(new across.PriceFeed(dummyLogger, "Across API #1 (expect fail)", "127.0.0.1"));
     pc.addPriceFeed(new across.PriceFeed(dummyLogger, "Across API #2 (expect fail)", "127.0.0.1"));
-    await expect(pc.getTokenPrice(addresses["UMA"])).rejects.toThrow();
+    await expect(pc.getPriceByAddress(addresses["UMA"])).rejects.toThrow();
   });
 
   test("Validate price cache", async function () {
@@ -137,7 +137,7 @@ describe("PriceClient", function () {
     // Verify cache hit for valid timestamps.
     for (const expected of Object.values(priceCache)) {
       const addr: string = expected.address;
-      const token: TokenPrice = await tc.getTokenPrice(addr, baseCurrency);
+      const token: TokenPrice = await tc.getPriceByAddress(addr, baseCurrency);
 
       assert.ok(token.timestamp === expected.timestamp, `${expected.timestamp} !== ${token.timestamp}`);
       assert.ok(token.price === expected.price, `${expected.price} !== ${token.price}`);
@@ -147,7 +147,7 @@ describe("PriceClient", function () {
     tc.maxPriceAge = 1; // seconds
     for (const expected of Object.values(priceCache)) {
       const addr: string = expected.address;
-      await expect(tc.getTokenPrice(addr, baseCurrency)).rejects.toThrow();
+      await expect(tc.getPriceByAddress(addr, baseCurrency)).rejects.toThrow();
     }
   });
 });

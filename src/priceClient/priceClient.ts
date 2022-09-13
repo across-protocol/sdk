@@ -8,8 +8,8 @@ export type TokenPrice = CoinGeckoPrice; // Temporary inversion; CoinGecko shoul
 // Represents valid source for spot prices (Across API, CoinGecko, ...)
 export interface PriceFeedAdapter {
   readonly name: string;
-  getTokenPrice(address: string, currency: string, platform: string): Promise<TokenPrice>;
-  getTokenPrices(addresses: string[], currency: string, platform: string): Promise<TokenPrice[]>;
+  getPriceByAddress(address: string, currency: string, platform: string): Promise<TokenPrice>;
+  getPricesByAddress(addresses: string[], currency: string, platform: string): Promise<TokenPrice[]>;
 }
 
 export type PriceCache = {
@@ -76,7 +76,7 @@ export class PriceClient implements PriceFeedAdapter {
     });
   }
 
-  async getTokenPrice(address: string, currency = "usd", platform = "ethereum"): Promise<TokenPrice> {
+  async getPriceByAddress(address: string, currency = "usd", platform = "ethereum"): Promise<TokenPrice> {
     assert(this.priceFeeds.length > 0, "No price feeds are registered.");
     const priceCache: PriceCache = this.getPriceCache(currency, platform);
     const now: number = msToS(Date.now());
@@ -87,7 +87,7 @@ export class PriceClient implements PriceFeedAdapter {
     if (this.maxPriceAge > 0) {
       const age: number = tokenPrice ? now - tokenPrice.timestamp : Number.MAX_VALUE;
       this.logger.debug({
-        at: "PriceClient#getTokenPrice",
+        at: "PriceClient#getPriceByAddress",
         message: `Cache ${cacheMiss ? "miss" : "hit"} on ${platform}/${currency} for token ${address}.`,
         age: `${age} S`,
         price: tokenPrice,
@@ -95,13 +95,13 @@ export class PriceClient implements PriceFeedAdapter {
     }
 
     if (cacheMiss) {
-      const prices: TokenPrice[] = await this.getTokenPrices([address], currency, platform);
+      const prices: TokenPrice[] = await this.getPricesByAddress([address], currency, platform);
       tokenPrice = prices[0];
     }
     return tokenPrice;
   }
 
-  async getTokenPrices(addresses: string[], currency = "usd", platform = "ethereum"): Promise<TokenPrice[]> {
+  async getPricesByAddress(addresses: string[], currency = "usd", platform = "ethereum"): Promise<TokenPrice[]> {
     assert(this.priceFeeds.length > 0, "No price feeds were registerted.");
     const priceCache: PriceCache = this.getPriceCache(currency, platform);
 
@@ -110,7 +110,7 @@ export class PriceClient implements PriceFeedAdapter {
 
     const prices: PriceCache = await this.requestPrices(addresses, currency, platform);
     if (Object.keys(prices).length === 0) {
-      this.logger.warn({ at: "PriceClient#getTokenPrices", message: "Failed to update token prices." });
+      this.logger.warn({ at: "PriceClient#getPricesByAddress", message: "Failed to update token prices." });
       // @todo throw ?
       return [];
     }
@@ -144,11 +144,11 @@ export class PriceClient implements PriceFeedAdapter {
 
     for (const priceFeed of this.priceFeeds) {
       this.logger.debug({
-        at: "PriceClient#getTokenPrice",
+        at: "PriceClient#getPriceByAddress",
         message: `Looking up prices via ${priceFeed.name}.`,
       });
       try {
-        prices = await priceFeed.getTokenPrices(addresses, currency, platform);
+        prices = await priceFeed.getPricesByAddress(addresses, currency, platform);
         if (prices.length === 0) {
           throw Error(`Zero-length response received from ${priceFeed.name}.`);
         }

@@ -18,13 +18,13 @@ export class PriceFeed implements PriceFeedAdapter {
     this.cg.maxPriceAge = 0; // Caching is handled in the PriceClient, so disable it here.
   }
 
-  async getTokenPrice(address: string, currency: string, platform: string): Promise<TokenPrice> {
-    const price: TokenPrice[] = await this.getTokenPrices([address], platform, currency);
-    this.logger.debug({ at: "CoinGeckoPriceFeed#getTokenPrice", message: "Got token price.", price });
+  async getPriceByAddress(address: string, currency: string, platform: string): Promise<TokenPrice> {
+    const price: TokenPrice[] = await this.getPricesByAddress([address], platform, currency);
+    this.logger.debug({ at: "CoinGeckoPriceFeed#getPrice", message: "Got token price.", price });
     return price[0];
   }
 
-  async getTokenPrices(addresses: string[], currency: string, platform: string): Promise<TokenPrice[]> {
+  async getPricesByAddress(addresses: string[], currency: string, platform: string): Promise<TokenPrice[]> {
     return await this.cg.getContractPrices(addresses, currency, platform);
   }
 }

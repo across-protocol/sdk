@@ -12,7 +12,7 @@ export class PriceFeed implements PriceFeedAdapter {
     if (this.host === undefined) this.host = "across.to";
   }
 
-  async getTokenPrice(address: string, currency: string, platform: string): Promise<TokenPrice> {
+  async getPriceByAddress(address: string, currency: string, platform: string): Promise<TokenPrice> {
     if (!this.platforms.includes(platform)) throw Error(`Platform ${platform} not supported.`);
 
     // Note: Assume price is 60 seconds old since the API does not provide a timestamp.
@@ -23,12 +23,12 @@ export class PriceFeed implements PriceFeedAdapter {
   }
 
   // todo: Support bundled prices in the API endpoint.
-  async getTokenPrices(addresses: string[], currency: string, platform: string): Promise<TokenPrice[]> {
+  async getPricesByAddress(addresses: string[], currency: string, platform: string): Promise<TokenPrice[]> {
     if (!this.platforms.includes(platform)) throw Error(`Platform ${platform} not supported.`);
 
     const prices: TokenPrice[] = [];
     for (const address of addresses) {
-      const price: TokenPrice = await this.getTokenPrice(address, currency, platform);
+      const price: TokenPrice = await this.getPriceByAddress(address, currency, platform);
       prices.push(price);
     }
 
