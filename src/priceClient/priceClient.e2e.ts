@@ -112,7 +112,19 @@ describe("PriceClient", function () {
       new across.PriceFeed("Across API #1 (expect fail)", "127.0.0.1"),
       new across.PriceFeed("Across API #2 (expect fail)", "127.0.0.1"),
     ]);
-    await expect(pc.getPriceByAddress(addresses["UMA"])).rejects.toThrow();
+    await expect(pc.getPriceByAddress(testAddress)).rejects.toThrow();
+  });
+
+  test("getPriceByAddress: Across API timeout", async function () {
+    const acrossPriceFeed: across.PriceFeed = new across.PriceFeed("Across API (timeout)");
+    pc = new PriceClient(dummyLogger, [acrossPriceFeed]);
+
+    acrossPriceFeed.timeout = 1; // mS
+    await expect(pc.getPriceByAddress(testAddress)).rejects.toThrow();
+
+    acrossPriceFeed.timeout = 1000; // mS
+    const price: TokenPrice = await pc.getPriceByAddress(testAddress);
+    validateTokenPrice(price, testAddress, beginTs);
   });
 
   test("Validate price cache", async function () {
