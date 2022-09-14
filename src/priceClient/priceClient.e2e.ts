@@ -1,7 +1,7 @@
 import assert from "assert";
 import dotenv from "dotenv";
 import winston from "winston";
-import { Logger, msToS, PriceCache, PriceClient, TokenPrice } from "./priceClient";
+import { Logger, msToS, PriceCache, PriceClient, PriceFeedAdapter, TokenPrice } from "./priceClient";
 import { across, coingecko } from "./adapters";
 dotenv.config({ path: ".env" });
 
@@ -13,20 +13,12 @@ const dummyLogger = winston.createLogger({
 const maxPriceAge = 300;
 
 class TestPriceClient extends PriceClient {
-  private static testInstance: TestPriceClient | undefined;
-
-  public static get(logger: Logger) {
-    if (!this.testInstance) this.testInstance = new TestPriceClient(logger);
-    return this.testInstance;
+  constructor(logger: Logger, priceFeeds: PriceFeedAdapter[]) {
+    super(logger, priceFeeds);
   }
 
-  // Hack to return protected getPriceCache.
-  _getPriceCache(currency: string, platform: string): PriceCache {
+  getProtectedPriceCache(currency: string, platform: string): PriceCache {
     return this.getPriceCache(currency, platform);
-  }
-
-  protected constructor(logger: Logger) {
-    super(logger);
   }
 }
 
@@ -59,15 +51,7 @@ describe("PriceClient", function () {
   let pc: PriceClient;
   let beginTs: number;
 
-  beforeEach(async () => {
-    pc = PriceClient.get(dummyLogger);
-    assert.ok(pc);
-
-    // Remove any previously added price feeds.
-    pc.clearPriceFeeds();
-    expect(pc.listPriceFeeds().length).toEqual(0);
-
-    pc.expireCache(baseCurrency, platform);
+  beforeEach(() => {
     beginTs = msToS(Date.now());
   });
 
@@ -78,76 +62,86 @@ describe("PriceClient", function () {
       .map((name) => {
         return `${name}-${Math.trunc(Math.random() * 100) + 1}`;
       });
-    feedNames.forEach((name) => pc.addPriceFeed(new across.PriceFeed(dummyLogger, name)));
+
+    pc = new PriceClient(
+      dummyLogger,
+      feedNames.map((feedName) => new across.PriceFeed(feedName))
+    );
     expect(feedNames).toEqual(pc.listPriceFeeds());
   });
   test("getPriceByAddress: CoinGecko Free", async function () {
-    pc.addPriceFeed(new coingecko.PriceFeed(dummyLogger, "CoinGecko Free"));
+    pc = new PriceClient(dummyLogger, [new coingecko.PriceFeed("CoinGecko Free", dummyLogger)]);
     const price: TokenPrice = await pc.getPriceByAddress(testAddress);
     validateTokenPrice(price, testAddress, beginTs);
   });
   cgProTest("getPriceByAddress: CoinGecko Pro", async function () {
-    pc.addPriceFeed(new coingecko.PriceFeed(dummyLogger, "CoinGecko Pro", cgProApiKey));
+    pc = new PriceClient(dummyLogger, [new coingecko.PriceFeed("CoinGecko Pro", dummyLogger, cgProApiKey)]);
     const price: TokenPrice = await pc.getPriceByAddress(testAddress);
     validateTokenPrice(price, testAddress, beginTs);
   });
   test("getPriceByAddress: Across API", async function () {
-    pc.addPriceFeed(new across.PriceFeed(dummyLogger, "Across API"));
+    pc = new PriceClient(dummyLogger, [new across.PriceFeed("Across API")]);
     const price: TokenPrice = await pc.getPriceByAddress(testAddress);
     validateTokenPrice(price, testAddress, beginTs);
   });
   test("getPriceByAddress: Across failover to Across", async function () {
-    pc.addPriceFeed(new across.PriceFeed(dummyLogger, "Across API (expect fail)", "127.0.0.1"));
-    pc.addPriceFeed(new across.PriceFeed(dummyLogger, "Across API (expect pass)"));
+    pc = new PriceClient(dummyLogger, [
+      new across.PriceFeed("Across API (expect fail)", "127.0.0.1"),
+      new across.PriceFeed("Across API (expect pass)"),
+    ]);
 
     const price: TokenPrice = await pc.getPriceByAddress(testAddress);
     validateTokenPrice(price, testAddress, beginTs);
   });
   test("getPriceByAddress: Across failover to CoinGecko", async function () {
-    pc.addPriceFeed(new across.PriceFeed(dummyLogger, "Across API (expect fail)", "127.0.0.1"));
-    pc.addPriceFeed(new coingecko.PriceFeed(dummyLogger, "CoinGecko Free (expect pass)"));
+    pc = new PriceClient(dummyLogger, [
+      new across.PriceFeed("Across API (expect fail)", "127.0.0.1"),
+      new coingecko.PriceFeed("CoinGecko Free (expect pass)", dummyLogger),
+    ]);
 
     const price: TokenPrice = await pc.getPriceByAddress(testAddress);
     validateTokenPrice(price, testAddress, beginTs);
   });
   test("getPriceByAddress: Complete price lookup failure", async function () {
-    pc.addPriceFeed(new across.PriceFeed(dummyLogger, "Across API #1 (expect fail)", "127.0.0.1"));
-    pc.addPriceFeed(new across.PriceFeed(dummyLogger, "Across API #2 (expect fail)", "127.0.0.1"));
+    pc = new PriceClient(dummyLogger, [
+      new across.PriceFeed("Across API #1 (expect fail)", "127.0.0.1"),
+      new across.PriceFeed("Across API #2 (expect fail)", "127.0.0.1"),
+    ]);
     await expect(pc.getPriceByAddress(addresses["UMA"])).rejects.toThrow();
   });
 
   test("Validate price cache", async function () {
-    // Don't lookup against CoinGecko.
-    const tc: TestPriceClient = TestPriceClient.get(dummyLogger);
-    assert.ok(tc);
+    // Instantiate a custom subclass of PriceClient; load the cache and force price lookup failures.
+    const pc: TestPriceClient = new TestPriceClient(dummyLogger, [
+      new across.PriceFeed("Across API (expect fail)", "127.0.0.1"),
+    ]);
 
-    const priceCache: PriceCache = tc._getPriceCache(baseCurrency, platform);
-    tc.maxPriceAge = 600; // Bound timestamps by 10 minutes
-    tc.addPriceFeed(new across.PriceFeed(dummyLogger, "Across API (expect fail)", "127.0.0.1"));
+    const priceCache: PriceCache = pc.getProtectedPriceCache(baseCurrency, platform);
+    pc.maxPriceAge = 600; // Bound timestamps by 10 minutes
 
     for (let i = 0; i < 10; ++i) {
       const addr = `0x${i.toString(16).padStart(42, "0")}`; // Non-existent
       priceCache[addr] = {
         address: addr,
         price: Math.random() * (1 + i),
-        timestamp: msToS(Date.now()) - tc.maxPriceAge + (1 + i),
+        timestamp: msToS(Date.now()) - pc.maxPriceAge + (1 + i),
       };
     }
 
     // Verify cache hit for valid timestamps.
     for (const expected of Object.values(priceCache)) {
       const addr: string = expected.address;
-      const token: TokenPrice = await tc.getPriceByAddress(addr, baseCurrency);
+      const token: TokenPrice = await pc.getPriceByAddress(addr, baseCurrency);
 
       assert.ok(token.timestamp === expected.timestamp, `${expected.timestamp} !== ${token.timestamp}`);
       assert.ok(token.price === expected.price, `${expected.price} !== ${token.price}`);
     }
 
     // Invalidate all cached results and verify failed price lookup.
-    tc.maxPriceAge = 1; // seconds
+    pc.maxPriceAge = 1; // seconds
     for (const expected of Object.values(priceCache)) {
       const addr: string = expected.address;
-      await expect(tc.getPriceByAddress(addr, baseCurrency)).rejects.toThrow();
+      await expect(pc.getPriceByAddress(addr, baseCurrency)).rejects.toThrow();
     }
   });
 });

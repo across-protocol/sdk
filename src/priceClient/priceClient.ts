@@ -21,22 +21,17 @@ export function msToS(ms: number): number {
 }
 
 export class PriceClient implements PriceFeedAdapter {
-  private static instance: PriceClient | undefined;
   public readonly name: string = "PriceClient";
   private _maxPriceAge = 300; // seconds
-  private priceFeeds: PriceFeedAdapter[] = [];
-  private prices: {
+  protected prices: {
     [platform: string]: {
       [currency: string]: PriceCache;
     };
   } = {};
 
-  protected constructor(protected logger: Logger) {}
-
-  public static get(logger: Logger): PriceClient {
-    if (!this.instance) this.instance = new PriceClient(logger);
-
-    return this.instance;
+  constructor(protected logger: Logger, readonly priceFeeds: PriceFeedAdapter[]) {
+    assert(logger, "No logging instance supplied.");
+    assert(priceFeeds.length > 0, "No price feeds supplied.");
   }
 
   get maxPriceAge(): number {
@@ -52,28 +47,8 @@ export class PriceClient implements PriceFeedAdapter {
     this._maxPriceAge = age;
   }
 
-  // @todo: Could be nice to specify a priority rather than relying on order of addition.
-  addPriceFeed(priceFeed: PriceFeedAdapter): void {
-    assert(!this.priceFeeds.includes(priceFeed), `Price feed ${priceFeed.name} already registered.`);
-    this.priceFeeds.push(priceFeed);
-    this.logger.debug({
-      at: "PriceClient#addPriceFeed",
-      message: `Appended new price feed: ${priceFeed.name}.`,
-    });
-  }
-
   listPriceFeeds(): string[] {
     return this.priceFeeds.map((priceFeed: PriceFeedAdapter) => priceFeed.name);
-  }
-
-  clearPriceFeeds(): void {
-    const cleared: string[] = this.priceFeeds.map((priceFeed: PriceFeedAdapter) => priceFeed.name);
-    this.priceFeeds = [];
-    this.logger.debug({
-      at: "PriceClient#clearPriceFeeds",
-      message: "Cleared all price feeds.",
-      cleared,
-    });
   }
 
   async getPriceByAddress(address: string, currency = "usd", platform = "ethereum"): Promise<TokenPrice> {
