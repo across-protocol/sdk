@@ -60,7 +60,7 @@ export class PriceClient implements PriceFeedAdapter {
     const cacheMiss = tokenPrice === undefined || now - this.maxPriceAge > tokenPrice.timestamp;
 
     if (this.maxPriceAge > 0) {
-      const age: number = tokenPrice ? now - tokenPrice.timestamp : Number.MAX_VALUE;
+      const age: number = tokenPrice ? now - tokenPrice.timestamp : Number.MAX_SAFE_INTEGER;
       this.logger.debug({
         at: "PriceClient#getPriceByAddress",
         message: `Cache ${cacheMiss ? "miss" : "hit"} on ${platform}/${currency} for token ${address}.`,
