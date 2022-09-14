@@ -5,11 +5,6 @@ import { Logger, msToS, PriceCache, PriceClient, PriceFeedAdapter, TokenPrice } 
 import { across, coingecko } from "./adapters";
 dotenv.config({ path: ".env" });
 
-const dummyLogger = winston.createLogger({
-  level: "debug",
-  transports: [new winston.transports.Console()],
-});
-
 const maxPriceAge = 300;
 
 class TestPriceClient extends PriceClient {
@@ -35,14 +30,15 @@ function validateTokenPrice(tokenPrice: TokenPrice, address: string, timestamp: 
 
 // this requires e2e testing, should only test manually for now
 describe("PriceClient", function () {
+  const dummyLogger: winston.Logger = winston.createLogger({
+    level: "debug",
+    transports: [new winston.transports.Console()],
+  });
+
   const addresses: { [symbol: string]: string } = {
     // lower-case
     UMA: "0x04fa0d235c4abf4bcf4787af4cf447de572ef828",
   };
-
-  // Only attempt to test CG Pro if the environment defines COINGECKO_PRO_API_KEY
-  const cgProApiKey = process.env.COINGECKO_PRO_API_KEY;
-  const cgProTest = typeof cgProApiKey === "string" && cgProApiKey.length > 0 ? test : test.skip;
 
   const testAddress = addresses["UMA"];
   const baseCurrency = "usd";
@@ -69,21 +65,28 @@ describe("PriceClient", function () {
     );
     expect(feedNames).toEqual(pc.listPriceFeeds());
   });
+
   test("getPriceByAddress: CoinGecko Free", async function () {
     pc = new PriceClient(dummyLogger, [new coingecko.PriceFeed("CoinGecko Free", dummyLogger)]);
     const price: TokenPrice = await pc.getPriceByAddress(testAddress);
     validateTokenPrice(price, testAddress, beginTs);
   });
+
+  // Only attempt to test CG Pro if the environment defines COINGECKO_PRO_API_KEY
+  const cgProApiKey = process.env.COINGECKO_PRO_API_KEY;
+  const cgProTest = typeof cgProApiKey === "string" && cgProApiKey.length > 0 ? test : test.skip;
   cgProTest("getPriceByAddress: CoinGecko Pro", async function () {
     pc = new PriceClient(dummyLogger, [new coingecko.PriceFeed("CoinGecko Pro", dummyLogger, cgProApiKey)]);
     const price: TokenPrice = await pc.getPriceByAddress(testAddress);
     validateTokenPrice(price, testAddress, beginTs);
   });
+
   test("getPriceByAddress: Across API", async function () {
     pc = new PriceClient(dummyLogger, [new across.PriceFeed("Across API")]);
     const price: TokenPrice = await pc.getPriceByAddress(testAddress);
     validateTokenPrice(price, testAddress, beginTs);
   });
+
   test("getPriceByAddress: Across failover to Across", async function () {
     pc = new PriceClient(dummyLogger, [
       new across.PriceFeed("Across API (expect fail)", "127.0.0.1"),
@@ -93,6 +96,7 @@ describe("PriceClient", function () {
     const price: TokenPrice = await pc.getPriceByAddress(testAddress);
     validateTokenPrice(price, testAddress, beginTs);
   });
+
   test("getPriceByAddress: Across failover to CoinGecko", async function () {
     pc = new PriceClient(dummyLogger, [
       new across.PriceFeed("Across API (expect fail)", "127.0.0.1"),
@@ -102,6 +106,7 @@ describe("PriceClient", function () {
     const price: TokenPrice = await pc.getPriceByAddress(testAddress);
     validateTokenPrice(price, testAddress, beginTs);
   });
+
   test("getPriceByAddress: Complete price lookup failure", async function () {
     pc = new PriceClient(dummyLogger, [
       new across.PriceFeed("Across API #1 (expect fail)", "127.0.0.1"),
