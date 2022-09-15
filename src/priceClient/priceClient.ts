@@ -125,26 +125,27 @@ export class PriceClient implements PriceFeedAdapter {
       try {
         prices = await priceFeed.getPricesByAddress(addresses, currency, platform);
         if (prices.length === 0) {
-          throw Error(`Zero-length response received from ${priceFeed.name}.`);
+          throw Error(`Zero-length response received from ${priceFeed.name}`);
         }
       } catch (err) {
         this.logger.debug({
           at: "PriceClient#requestPrices",
           message: `Price lookup against ${priceFeed.name} failed (${err}).`,
+          tokens: addresses,
         });
         continue; // Failover to the next price feed...
       }
     }
 
     if (prices.length === 0) {
-      throw Error(`Price lookup failed against all price feeds (${this.listPriceFeeds().toString()}).`);
+      throw Error(`Price lookup failed against all price feeds (${this.listPriceFeeds().toString()})`);
     }
 
     return Object.fromEntries(prices.map((price) => [price.address, price]));
   }
 
   private updateCache(priceCache: PriceCache, prices: PriceCache, expected: string[]): void {
-    const updated: string[] = [];
+    const updated: TokenPrice[] = [];
     const skipped: { [token: string]: string } = {}; // Includes reason for skipping
 
     expected.forEach((addr: string) => {
@@ -158,7 +159,7 @@ export class PriceClient implements PriceFeedAdapter {
       } else if (tokenPrice.timestamp >= priceCache[addr].timestamp) {
         // @todo: Do we care if the token price is older than maxPriceAge?
         priceCache[addr] = tokenPrice;
-        updated.push(addr);
+        updated.push(tokenPrice);
       } else if (tokenPrice.timestamp === priceCache[addr].timestamp) {
         this.logger.debug({
           at: "PriceClient#updateCache",
@@ -171,16 +172,9 @@ export class PriceClient implements PriceFeedAdapter {
     if (updated.length > 0) {
       this.logger.debug({
         at: "PriceClient#updateCache",
-        message: "Updated token prices.",
-        tokens: updated,
-      });
-    }
-
-    if (Object.keys(skipped).length > 0) {
-      this.logger.debug({
-        at: "PriceClient#updateCache",
-        message: "Some token prices were not updated.",
-        tokens: skipped,
+        message: `Updated ${updated.length} token price(s), skipped ${skipped.length ?? 0}.`,
+        tokensUpdated: updated,
+        tokensSkipped: skipped,
       });
     }
   }
