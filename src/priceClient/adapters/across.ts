@@ -1,13 +1,13 @@
 import assert from "assert";
 import axios, { AxiosError } from "axios";
-import get from "lodash.get";
 import { msToS, PriceFeedAdapter, TokenPrice } from "../priceClient";
 
 type AcrossPrice = { price: number };
+const defaultTimeout = 5000; // mS
 
 export class PriceFeed implements PriceFeedAdapter {
   public readonly platforms = ["ethereum"];
-  protected _timeout = 750; // mS
+  protected _timeout = defaultTimeout;
 
   constructor(public readonly name: string, public readonly host?: string) {
     // Allow host to be overridden for test or alternative deployments.
@@ -23,8 +23,8 @@ export class PriceFeed implements PriceFeedAdapter {
     this._timeout = timeout;
   }
 
-  async getPriceByAddress(address: string, currency: string, platform: string): Promise<TokenPrice> {
-    if (!this.platforms.includes(platform)) throw Error(`Platform ${platform} not supported.`);
+  async getPriceByAddress(address: string, currency = "usd", platform = "ethereum"): Promise<TokenPrice> {
+    if (!this.platforms.includes(platform)) throw Error(`Platform ${platform} not supported`);
 
     // Note: Assume price is 60 seconds old since the API does not provide a timestamp.
     const now = msToS(Date.now()) - 60;
@@ -34,8 +34,8 @@ export class PriceFeed implements PriceFeedAdapter {
   }
 
   // todo: Support bundled prices in the API endpoint.
-  async getPricesByAddress(addresses: string[], currency: string, platform: string): Promise<TokenPrice[]> {
-    if (!this.platforms.includes(platform)) throw Error(`Platform ${platform} not supported.`);
+  async getPricesByAddress(addresses: string[], currency = "usd", platform = "ethereum"): Promise<TokenPrice[]> {
+    if (!this.platforms.includes(platform)) throw Error(`Platform ${platform} not supported`);
 
     const prices: TokenPrice[] = [];
     for (const address of addresses) {
@@ -46,15 +46,25 @@ export class PriceFeed implements PriceFeedAdapter {
     return prices;
   }
 
-  private async query(token: string, baseCurrency: string, timeout?: number): Promise<AcrossPrice> {
-    const url = `https://${this.host}/api/coingecko?l1Token=${token}&baseCurrency=${baseCurrency}`;
+  private async query(token: string, baseCurrency = "usd", timeout: number = defaultTimeout): Promise<AcrossPrice> {
+    const url = `https://${this.host}/api/coingecko`;
+    const args = {
+      timeout,
+      params: {
+        l1Token: token,
+        baseCurrency: baseCurrency,
+      },
+    };
 
     try {
-      const result = await axios(url, { timeout });
+      const result = await axios(url, args);
       return result.data;
     } catch (err) {
-      const msg = get(err, "response.data.error", get(err, "response.statusText", (err as AxiosError).message));
-      throw Error(msg);
+      let errMsg = "unknown error";
+      if (err instanceof AxiosError) {
+        errMsg = err.message;
+      }
+      throw new Error(`${this.name} price lookup failure (${errMsg})`);
     }
   }
 }
