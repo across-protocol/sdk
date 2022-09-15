@@ -38,6 +38,10 @@ describe("PriceClient", function () {
   const addresses: { [symbol: string]: string } = {
     // lower-case
     UMA: "0x04fa0d235c4abf4bcf4787af4cf447de572ef828",
+    // checksummed
+    DAI: "0x6B175474E89094C44Da98b954EedeAC495271d0F",
+    USDC: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+    WETH: "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
   };
 
   const testAddress = addresses["UMA"];
@@ -73,7 +77,7 @@ describe("PriceClient", function () {
   });
 
   // Only attempt to test CG Pro if the environment defines COINGECKO_PRO_API_KEY
-  const cgProApiKey = process.env.COINGECKO_PRO_API_KEY;
+  const cgProApiKey: string | undefined = process.env.COINGECKO_PRO_API_KEY;
   const cgProTest = typeof cgProApiKey === "string" && cgProApiKey.length > 0 ? test : test.skip;
   cgProTest("getPriceByAddress: CoinGecko Pro", async function () {
     pc = new PriceClient(dummyLogger, [new coingecko.PriceFeed("CoinGecko Pro", cgProApiKey)]);
@@ -127,7 +131,33 @@ describe("PriceClient", function () {
     validateTokenPrice(price, testAddress, beginTs);
   });
 
-  test("Validate price cache", async function () {
+  // Ensure that all price adapters return a price of 1WETH/ETH and 1USDC/USD.
+  test("getPriceByAddress: Price Coherency", async function () {
+    // Note: Beware of potential rate-limiting when using CoinGecko Free.
+    const cgName: string = cgProApiKey ? "CoinGecko Pro" : "CoinGecko Free";
+    const priceFeeds: PriceFeedAdapter[] = [
+      new across.PriceFeed("Across API"),
+      new coingecko.PriceFeed(cgName, cgProApiKey),
+    ];
+
+    const parityTokens: [string, string][] = [
+      ["usd", addresses["USDC"]],
+      ["eth", addresses["WETH"]],
+    ];
+
+    for (const priceFeed of priceFeeds) {
+      pc = new PriceClient(dummyLogger, [priceFeed]);
+
+      for (const [baseCurrency, address] of parityTokens) {
+        const tokenPrice: TokenPrice = await pc.getPriceByAddress(address, baseCurrency);
+        dummyLogger.debug({ at: "PITA test..:", message: `Got tokenPrice for addr ${address}.`, tokenPrice });
+        validateTokenPrice(tokenPrice, address, beginTs);
+        assert.ok(Math.abs(tokenPrice.price - 1) < 0.05);
+      }
+    }
+  });
+
+  test("getPriceByAddress: Validate price cache", async function () {
     // Instantiate a custom subclass of PriceClient; load the cache and force price lookup failures.
     const pc: TestPriceClient = new TestPriceClient(dummyLogger, [
       new across.PriceFeed("Across API (expect fail)", "127.0.0.1"),
