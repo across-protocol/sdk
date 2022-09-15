@@ -67,7 +67,7 @@ describe("PriceClient", function () {
   });
 
   test("getPriceByAddress: CoinGecko Free", async function () {
-    pc = new PriceClient(dummyLogger, [new coingecko.PriceFeed("CoinGecko Free", dummyLogger)]);
+    pc = new PriceClient(dummyLogger, [new coingecko.PriceFeed("CoinGecko Free")]);
     const price: TokenPrice = await pc.getPriceByAddress(testAddress);
     validateTokenPrice(price, testAddress, beginTs);
   });
@@ -76,7 +76,7 @@ describe("PriceClient", function () {
   const cgProApiKey = process.env.COINGECKO_PRO_API_KEY;
   const cgProTest = typeof cgProApiKey === "string" && cgProApiKey.length > 0 ? test : test.skip;
   cgProTest("getPriceByAddress: CoinGecko Pro", async function () {
-    pc = new PriceClient(dummyLogger, [new coingecko.PriceFeed("CoinGecko Pro", dummyLogger, cgProApiKey)]);
+    pc = new PriceClient(dummyLogger, [new coingecko.PriceFeed("CoinGecko Pro", cgProApiKey)]);
     const price: TokenPrice = await pc.getPriceByAddress(testAddress);
     validateTokenPrice(price, testAddress, beginTs);
   });
@@ -99,8 +99,8 @@ describe("PriceClient", function () {
 
   test("getPriceByAddress: Across failover to CoinGecko", async function () {
     pc = new PriceClient(dummyLogger, [
-      new across.PriceFeed("Across API (expect fail)", "127.0.0.1"),
-      new coingecko.PriceFeed("CoinGecko Free (expect pass)", dummyLogger),
+      new coingecko.PriceFeed("CoinGecko Pro (expect fail)", "xxx-fake-apikey"),
+      new across.PriceFeed("Across API (expect pass)"),
     ]);
 
     const price: TokenPrice = await pc.getPriceByAddress(testAddress);
