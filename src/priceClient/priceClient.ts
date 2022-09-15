@@ -177,13 +177,11 @@ export class PriceClient implements PriceFeedAdapter {
       }
     });
 
-    if (updated.length > 0) {
-      this.logger.debug({
-        at: "PriceClient#updateCache",
-        message: `Updated ${updated.length} token price(s), skipped ${skipped.length ?? 0}.`,
-        tokensUpdated: updated,
-        tokensSkipped: skipped,
-      });
-    }
+    this.logger.debug({
+      at: "PriceClient#updateCache",
+      message: `Updated ${updated.length ?? 0} price(s), skipped ${Object.keys(skipped).length ?? 0}.`,
+      updated,
+      skipped,
+    });
   }
 }
