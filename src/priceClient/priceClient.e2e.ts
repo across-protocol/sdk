@@ -220,4 +220,25 @@ describe("PriceClient", function () {
       await expect(pc.getPriceByAddress(addr, baseCurrency)).rejects.toThrow();
     }
   });
+
+  test("getPricesByAddress: Verify price retrieval", async function () {
+    // Note: Beware of potential rate-limiting when using CoinGecko Free.
+    const cgName: string = cgProApiKey ? "CoinGecko Pro" : "CoinGecko Free";
+    const priceFeeds: PriceFeedAdapter[] = [
+      new across.PriceFeed("Across API"),
+      new coingecko.PriceFeed(cgName, cgProApiKey),
+    ];
+
+    for (const priceFeed of priceFeeds) {
+      pc = new PriceClient(dummyLogger, [priceFeed]);
+
+      const tokenPrices: TokenPrice[] = await pc.getPricesByAddress(Object.values(addresses));
+      expect(tokenPrices.length).toBe(Object.values(addresses).length);
+      Object.values(addresses).forEach((address: string) => {
+        const tokenPrice: TokenPrice | undefined = tokenPrices.find((tokenPrice) => tokenPrice.address === address);
+        assert.ok(tokenPrice, `Could not find address ${address} via ${priceFeed.name}`);
+        validateTokenPrice(tokenPrice, address, beginTs);
+      });
+    }
+  });
 });
