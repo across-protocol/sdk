@@ -131,7 +131,7 @@ export class PriceClient implements PriceFeedAdapter {
       try {
         prices = await priceFeed.getPricesByAddress(addresses, currency);
         if (prices.length === 0) {
-          throw Error(`Zero-length response received from ${priceFeed.name}`);
+          throw Error("Zero-length response received");
         }
       } catch (err) {
         this.logger.debug({
