@@ -24,7 +24,7 @@ function validateTokenPrice(tokenPrice: TokenPrice, address: string, timestamp: 
   assert(tokenPrice.timestamp > 0, `${tokenPrice.timestamp} <= 0`);
   assert(
     tokenPrice.timestamp > timestamp - maxPriceAge,
-    `${tokenPrice.timestamp} <= ${timestamp - maxPriceAge} (timestamp: ${timestamp}, maxPriceAge: ${maxPriceAge}.`
+    `${tokenPrice.timestamp} <= ${timestamp - maxPriceAge} (timestamp: ${timestamp}, maxPriceAge: ${maxPriceAge}`
   );
 }
 
@@ -101,7 +101,7 @@ describe("PriceClient", function () {
     validateTokenPrice(price, testAddress, beginTs);
   });
 
-  test("getPriceByAddress: Across failover to CoinGecko", async function () {
+  test("getPriceByAddress: Coingecko failover to Across", async function () {
     pc = new PriceClient(dummyLogger, [
       new coingecko.PriceFeed("CoinGecko Pro (expect fail)", "xxx-fake-apikey"),
       new across.PriceFeed("Across API (expect pass)"),
@@ -126,7 +126,7 @@ describe("PriceClient", function () {
     acrossPriceFeed.timeout = 1; // mS
     await expect(pc.getPriceByAddress(testAddress)).rejects.toThrow();
 
-    acrossPriceFeed.timeout = 1000; // mS
+    acrossPriceFeed.timeout = 10000; // mS
     const price: TokenPrice = await pc.getPriceByAddress(testAddress);
     validateTokenPrice(price, testAddress, beginTs);
   });
