@@ -51,15 +51,10 @@ export class PriceFeed implements PriceFeedAdapter {
       },
     };
 
-    try {
-      const result = await axios(url, args);
-      return result.data;
-    } catch (err) {
-      let errMsg = "unknown error";
-      if (err instanceof AxiosError) {
-        errMsg = err.message;
-      }
+    const result = await axios(url, args).catch((err) => {
+      const errMsg: string = err instanceof AxiosError ? err.message : "unknown error";
       throw new Error(`${this.name} price lookup failure (${errMsg})`);
-    }
+    });
+    return result.data;
   }
 }
