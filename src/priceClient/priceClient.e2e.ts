@@ -12,8 +12,8 @@ class TestPriceClient extends PriceClient {
     super(logger, priceFeeds);
   }
 
-  getProtectedPriceCache(currency: string, platform: string): PriceCache {
-    return this.getPriceCache(currency, platform);
+  getProtectedPriceCache(currency: string): PriceCache {
+    return this.getPriceCache(currency);
   }
 }
 
@@ -46,7 +46,6 @@ describe("PriceClient", function () {
 
   const testAddress = addresses["UMA"];
   const baseCurrency = "usd";
-  const platform = "ethereum";
 
   let pc: PriceClient;
   let beginTs: number;
@@ -166,7 +165,7 @@ describe("PriceClient", function () {
     // Load the cache with lower-case addresses, then query with an upper-case address.
     // Price lookup is forced to fail, so if the pre-loaded data is returned then the
     // PriceClient is case-insenstive.
-    const priceCache: PriceCache = pc.getProtectedPriceCache(baseCurrency, platform);
+    const priceCache: PriceCache = pc.getProtectedPriceCache(baseCurrency);
     Object.values(addresses).forEach(async (addr: string) => {
       const addrLower = addr.toLowerCase();
       const addrUpper = addr.toUpperCase();
@@ -191,7 +190,7 @@ describe("PriceClient", function () {
       new across.PriceFeed("Across API (expect fail)", "127.0.0.1"),
     ]);
 
-    const priceCache: PriceCache = pc.getProtectedPriceCache(baseCurrency, platform);
+    const priceCache: PriceCache = pc.getProtectedPriceCache(baseCurrency);
     pc.maxPriceAge = 600; // Bound timestamps by 10 minutes
 
     // Pre-populate cache with lower-case addresses.

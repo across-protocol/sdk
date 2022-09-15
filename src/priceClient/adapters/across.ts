@@ -6,7 +6,6 @@ type AcrossPrice = { price: number };
 const defaultTimeout = 5000; // mS
 
 export class PriceFeed implements PriceFeedAdapter {
-  public readonly platforms = ["ethereum"];
   protected _timeout = defaultTimeout;
 
   constructor(public readonly name: string, public readonly host?: string) {
@@ -23,9 +22,7 @@ export class PriceFeed implements PriceFeedAdapter {
     this._timeout = timeout;
   }
 
-  async getPriceByAddress(address: string, currency = "usd", platform = "ethereum"): Promise<TokenPrice> {
-    if (!this.platforms.includes(platform)) throw Error(`Platform ${platform} not supported`);
-
+  async getPriceByAddress(address: string, currency = "usd"): Promise<TokenPrice> {
     // Note: Assume price is 60 seconds old since the API does not provide a timestamp.
     const now = msToS(Date.now()) - 60;
     const acrossPrice: AcrossPrice = await this.query(address, currency, this._timeout);
@@ -34,12 +31,10 @@ export class PriceFeed implements PriceFeedAdapter {
   }
 
   // todo: Support bundled prices in the API endpoint.
-  async getPricesByAddress(addresses: string[], currency = "usd", platform = "ethereum"): Promise<TokenPrice[]> {
-    if (!this.platforms.includes(platform)) throw Error(`Platform ${platform} not supported`);
-
+  async getPricesByAddress(addresses: string[], currency = "usd"): Promise<TokenPrice[]> {
     const prices: TokenPrice[] = [];
     for (const address of addresses) {
-      const price: TokenPrice = await this.getPriceByAddress(address, currency, platform);
+      const price: TokenPrice = await this.getPriceByAddress(address, currency);
       prices.push(price);
     }
 

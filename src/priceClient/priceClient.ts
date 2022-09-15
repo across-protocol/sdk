@@ -8,8 +8,8 @@ export type TokenPrice = CoinGeckoPrice; // Temporary inversion; CoinGecko shoul
 // Represents valid source for spot prices (Across API, CoinGecko, ...)
 export interface PriceFeedAdapter {
   readonly name: string;
-  getPriceByAddress(address: string, currency: string, platform: string): Promise<TokenPrice>;
-  getPricesByAddress(addresses: string[], currency: string, platform: string): Promise<TokenPrice[]>;
+  getPriceByAddress(address: string, currency: string): Promise<TokenPrice>;
+  getPricesByAddress(addresses: string[], currency: string): Promise<TokenPrice[]>;
 }
 
 // It's convenient to map TokenPrice objects by their address, but consumers typically want an array
@@ -29,9 +29,7 @@ export class PriceClient implements PriceFeedAdapter {
   public readonly name: string = "PriceClient";
   private _maxPriceAge = 300; // seconds
   protected prices: {
-    [platform: string]: {
-      [currency: string]: PriceCache;
-    };
+    [currency: string]: PriceCache;
   } = {};
 
   constructor(protected logger: Logger, readonly priceFeeds: PriceFeedAdapter[]) {
@@ -56,9 +54,9 @@ export class PriceClient implements PriceFeedAdapter {
     return this.priceFeeds.map((priceFeed: PriceFeedAdapter) => priceFeed.name);
   }
 
-  async getPriceByAddress(address: string, currency = "usd", platform = "ethereum"): Promise<TokenPrice> {
+  async getPriceByAddress(address: string, currency = "usd"): Promise<TokenPrice> {
     assert(this.priceFeeds.length > 0, "No price feeds are registered.");
-    const priceCache: PriceCache = this.getPriceCache(currency, platform);
+    const priceCache: PriceCache = this.getPriceCache(currency);
     const now: number = msToS(Date.now());
 
     let tokenPrice: TokenPrice | undefined = priceCache[address.toLowerCase()];
@@ -68,27 +66,27 @@ export class PriceClient implements PriceFeedAdapter {
       const age: number = tokenPrice ? now - tokenPrice.timestamp : Number.MAX_SAFE_INTEGER;
       this.logger.debug({
         at: "PriceClient#getPriceByAddress",
-        message: `Cache ${cacheMiss ? "miss" : "hit"} on ${platform}/${currency} for token ${address}.`,
+        message: `Cache ${cacheMiss ? "miss" : "hit"} (${currency}) for token ${address}.`,
         age: `${age} S`,
         price: tokenPrice,
       });
     }
 
     if (cacheMiss) {
-      const prices: TokenPrice[] = await this.getPricesByAddress([address], currency, platform);
+      const prices: TokenPrice[] = await this.getPricesByAddress([address], currency);
       tokenPrice = prices[0];
     }
     return { address, price: tokenPrice.price, timestamp: tokenPrice.timestamp };
   }
 
-  async getPricesByAddress(addresses: string[], currency = "usd", platform = "ethereum"): Promise<TokenPrice[]> {
+  async getPricesByAddress(addresses: string[], currency = "usd"): Promise<TokenPrice[]> {
     assert(this.priceFeeds.length > 0, "No price feeds were registerted.");
-    const priceCache: PriceCache = this.getPriceCache(currency, platform);
+    const priceCache: PriceCache = this.getPriceCache(currency);
 
     // Pre-populate price cache with requested token addresses
     this.initPrices(priceCache, addresses);
 
-    const prices: PriceCache = await this.requestPrices(addresses, currency, platform);
+    const prices: PriceCache = await this.requestPrices(addresses, currency);
     if (Object.keys(prices).length === 0) {
       this.logger.warn({ at: "PriceClient#getPricesByAddress", message: "Failed to update token prices." });
       // @todo throw ?
@@ -102,16 +100,15 @@ export class PriceClient implements PriceFeedAdapter {
     });
   }
 
-  expireCache(currency: string, platform = "ethereum"): void {
-    const priceCache = this.getPriceCache(currency, platform);
+  expireCache(currency: string): void {
+    const priceCache = this.getPriceCache(currency);
     Object.values(priceCache).forEach((token: TokenPrice) => (token.timestamp = 0));
-    this.logger.debug({ at: "PriceClient#expireCache", message: `Expired ${platform}/${currency} cache.` });
+    this.logger.debug({ at: "PriceClient#expireCache", message: `Expired ${currency} cache.` });
   }
 
-  protected getPriceCache(currency: string, platform: string): PriceCache {
-    if (this.prices[platform] === undefined) this.prices[platform] = {};
-    if (this.prices[platform][currency] === undefined) this.prices[platform][currency] = {};
-    return this.prices[platform][currency];
+  protected getPriceCache(currency: string): PriceCache {
+    if (this.prices[currency] === undefined) this.prices[currency] = {};
+    return this.prices[currency];
   }
 
   private initPrices(priceCache: PriceCache, addresses: string[]): void {
@@ -123,7 +120,7 @@ export class PriceClient implements PriceFeedAdapter {
     });
   }
 
-  private async requestPrices(addresses: string[], currency: string, platform: string): Promise<PriceCache> {
+  private async requestPrices(addresses: string[], currency: string): Promise<PriceCache> {
     let prices: TokenPrice[] = [];
 
     for (const priceFeed of this.priceFeeds) {
@@ -132,7 +129,7 @@ export class PriceClient implements PriceFeedAdapter {
         message: `Looking up prices via ${priceFeed.name}.`,
       });
       try {
-        prices = await priceFeed.getPricesByAddress(addresses, currency, platform);
+        prices = await priceFeed.getPricesByAddress(addresses, currency);
         if (prices.length === 0) {
           throw Error(`Zero-length response received from ${priceFeed.name}`);
         }
