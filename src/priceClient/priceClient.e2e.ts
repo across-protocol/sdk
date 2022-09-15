@@ -157,6 +157,34 @@ describe("PriceClient", function () {
     }
   });
 
+  test("getPriceByAddress: Address case insensitivity", async function () {
+    // Instantiate a custom subclass of PriceClient.
+    const pc: TestPriceClient = new TestPriceClient(dummyLogger, [
+      new across.PriceFeed("Across API (expect fail)", "127.0.0.1"),
+    ]);
+
+    // Load the cache with lower-case addresses, then query with an upper-case address.
+    // Price lookup is forced to fail, so if the pre-loaded data is returned then the
+    // PriceClient is case-insenstive.
+    const priceCache: PriceCache = pc.getProtectedPriceCache(baseCurrency, platform);
+    Object.values(addresses).forEach(async (addr: string) => {
+      const addrLower = addr.toLowerCase();
+      const addrUpper = addr.toUpperCase();
+
+      const expected: TokenPrice = {
+        address: "unused",
+        price: Math.random() * 10,
+        timestamp: msToS(Date.now()) - 5,
+      };
+      priceCache[addrLower] = expected;
+
+      const token: TokenPrice = await pc.getPriceByAddress(addrUpper, baseCurrency);
+      validateTokenPrice(token, addrUpper, beginTs);
+      assert.ok(token.price === expected.price, `${token.price} !== ${expected.price}`);
+      assert.ok(token.timestamp === expected.timestamp, `${token.timestamp} !== ${expected.timestamp}`);
+    });
+  });
+
   test("getPriceByAddress: Validate price cache", async function () {
     // Instantiate a custom subclass of PriceClient; load the cache and force price lookup failures.
     const pc: TestPriceClient = new TestPriceClient(dummyLogger, [
@@ -166,12 +194,13 @@ describe("PriceClient", function () {
     const priceCache: PriceCache = pc.getProtectedPriceCache(baseCurrency, platform);
     pc.maxPriceAge = 600; // Bound timestamps by 10 minutes
 
+    // Pre-populate cache with lower-case addresses.
     for (let i = 0; i < 10; ++i) {
-      const addr = `0x${i.toString(16).padStart(42, "0")}`; // Non-existent
+      const addr = `0x${i.toString(16).padStart(42, "0")}`.toLowerCase(); // Non-existent
       priceCache[addr] = {
         address: addr,
         price: Math.random() * (1 + i),
-        timestamp: msToS(Date.now()) - pc.maxPriceAge + (1 + i),
+        timestamp: beginTs - pc.maxPriceAge + (1 + i),
       };
     }
 
@@ -180,8 +209,9 @@ describe("PriceClient", function () {
       const addr: string = expected.address;
       const token: TokenPrice = await pc.getPriceByAddress(addr, baseCurrency);
 
-      assert.ok(token.timestamp === expected.timestamp, `${expected.timestamp} !== ${token.timestamp}`);
-      assert.ok(token.price === expected.price, `${expected.price} !== ${token.price}`);
+      validateTokenPrice(token, addr, pc.maxPriceAge);
+      assert.ok(token.price === expected.price, `${token.price} !== ${expected.price}`);
+      assert.ok(token.timestamp === expected.timestamp, `${token.timestamp} !== ${expected.timestamp}`);
     }
 
     // Invalidate all cached results and verify failed price lookup.

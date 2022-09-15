@@ -12,6 +12,11 @@ export interface PriceFeedAdapter {
   getPricesByAddress(addresses: string[], currency: string, platform: string): Promise<TokenPrice[]>;
 }
 
+// It's convenient to map TokenPrice objects by their address, but consumers typically want an array
+// of TokenPrice objects, so the address must also be embedded within the TokenPrice object. To
+// avoid storing multiple copies of the same TokenPrice, always use the lower-case variant of the
+// address when performing a lookup into the PriceCache, and substitute the provided address into the
+// TokenPrice object when returning to the caller.
 export type PriceCache = {
   [address: string]: TokenPrice;
 };
@@ -56,7 +61,7 @@ export class PriceClient implements PriceFeedAdapter {
     const priceCache: PriceCache = this.getPriceCache(currency, platform);
     const now: number = msToS(Date.now());
 
-    let tokenPrice: TokenPrice | undefined = priceCache[address];
+    let tokenPrice: TokenPrice | undefined = priceCache[address.toLowerCase()];
     const cacheMiss = tokenPrice === undefined || now - this.maxPriceAge > tokenPrice.timestamp;
 
     if (this.maxPriceAge > 0) {
@@ -73,7 +78,7 @@ export class PriceClient implements PriceFeedAdapter {
       const prices: TokenPrice[] = await this.getPricesByAddress([address], currency, platform);
       tokenPrice = prices[0];
     }
-    return tokenPrice;
+    return { address, price: tokenPrice.price, timestamp: tokenPrice.timestamp };
   }
 
   async getPricesByAddress(addresses: string[], currency = "usd", platform = "ethereum"): Promise<TokenPrice[]> {
@@ -91,7 +96,10 @@ export class PriceClient implements PriceFeedAdapter {
     }
 
     this.updateCache(priceCache, prices, addresses);
-    return addresses.map((addr: string) => priceCache[addr.toLowerCase()]);
+    return addresses.map((addr: string) => {
+      const { price, timestamp } = priceCache[addr.toLowerCase()];
+      return { address: addr, price, timestamp };
+    });
   }
 
   expireCache(currency: string, platform = "ethereum"): void {
@@ -107,9 +115,10 @@ export class PriceClient implements PriceFeedAdapter {
   }
 
   private initPrices(priceCache: PriceCache, addresses: string[]): void {
-    addresses.forEach((addr: string) => {
+    addresses.forEach((address: string) => {
+      const addr = address.toLowerCase();
       if (priceCache[addr] === undefined) {
-        priceCache[addr] = { address: addr, price: 0, timestamp: 0 };
+        priceCache[addr] = { address: "unused", price: 0, timestamp: 0 };
       }
     });
   }
@@ -141,29 +150,31 @@ export class PriceClient implements PriceFeedAdapter {
       throw Error(`Price lookup failed against all price feeds (${this.listPriceFeeds().toString()})`);
     }
 
-    return Object.fromEntries(prices.map((price) => [price.address, price]));
+    return Object.fromEntries(prices.map((price) => [price.address.toLowerCase(), price]));
   }
 
   private updateCache(priceCache: PriceCache, prices: PriceCache, expected: string[]): void {
     const updated: TokenPrice[] = [];
     const skipped: { [token: string]: string } = {}; // Includes reason for skipping
 
-    expected.forEach((addr: string) => {
-      const tokenPrice: TokenPrice | undefined = prices[addr.toLowerCase()];
+    expected.forEach((address: string) => {
+      const addr = address.toLowerCase(); // for internal priceCache lookup.
+      const tokenPrice: TokenPrice | undefined = prices[addr];
       const now: number = msToS(Date.now());
 
       if (tokenPrice === undefined) {
-        skipped[addr] = "Not included in price feed response.";
+        skipped[address] = "Not included in price feed response.";
       } else if (tokenPrice.timestamp > now) {
-        skipped[addr] = `Token price timestamp is too new (timestamp ${tokenPrice.timestamp}).`;
+        skipped[address] = `Token price timestamp is too new (timestamp ${tokenPrice.timestamp}).`;
       } else if (tokenPrice.timestamp >= priceCache[addr].timestamp) {
+        const { price, timestamp } = tokenPrice;
         // @todo: Do we care if the token price is older than maxPriceAge?
-        priceCache[addr] = tokenPrice;
+        priceCache[addr] = { address: "unused", price: price, timestamp: timestamp };
         updated.push(tokenPrice);
       } else if (tokenPrice.timestamp === priceCache[addr].timestamp) {
         this.logger.debug({
           at: "PriceClient#updateCache",
-          message: `No new price available for token ${addr}.`,
+          message: `No new price available for token ${address}.`,
           token: tokenPrice,
         });
       }
