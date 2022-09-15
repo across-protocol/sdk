@@ -38,7 +38,7 @@ export class Coingecko {
   // Retry configuration.
   private retryDelay = 1;
   private numRetries = 0; // Most failures are due to 429 rate-limiting, so there is no point in retrying.
-  private basicApiTimeout = 250; // ms
+  private basicApiTimeout = 500; // ms
 
   public static get(logger: Logger, apiKey?: string) {
     if (!this.instance)
