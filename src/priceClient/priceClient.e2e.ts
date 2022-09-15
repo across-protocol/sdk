@@ -19,12 +19,12 @@ class TestPriceClient extends PriceClient {
 
 function validateTokenPrice(tokenPrice: TokenPrice, address: string, timestamp: number) {
   assert.ok(tokenPrice);
-  assert(tokenPrice.address === address);
-  assert(tokenPrice.price > 0);
-  assert(tokenPrice.timestamp > 0);
+  assert(tokenPrice.address === address, `${address} !== ${tokenPrice.address}`);
+  assert(tokenPrice.price > 0, `${tokenPrice.price} <= 0`);
+  assert(tokenPrice.timestamp > 0, `${tokenPrice.timestamp} <= 0`);
   assert(
     tokenPrice.timestamp > timestamp - maxPriceAge,
-    `Surprise timestamp received: ${tokenPrice.timestamp} (expected at least ${timestamp - maxPriceAge}).`
+    `${tokenPrice.timestamp} <= ${timestamp - maxPriceAge} (timestamp: ${timestamp}, maxPriceAge: ${maxPriceAge}.`
   );
 }
 
