@@ -55,45 +55,46 @@ export class PriceClient implements PriceFeedAdapter {
   }
 
   async getPriceByAddress(address: string, currency = "usd"): Promise<TokenPrice> {
-    assert(this.priceFeeds.length > 0, "No price feeds are registered.");
-    const priceCache: PriceCache = this.getPriceCache(currency);
-    const now: number = msToS(Date.now());
-
-    let tokenPrice: TokenPrice | undefined = priceCache[address.toLowerCase()];
-    const cacheMiss = tokenPrice === undefined || now - this.maxPriceAge > tokenPrice.timestamp;
-
-    if (this.maxPriceAge > 0) {
-      const age: number = tokenPrice ? now - tokenPrice.timestamp : Number.MAX_SAFE_INTEGER;
-      this.logger.debug({
-        at: "PriceClient#getPriceByAddress",
-        message: `Cache ${cacheMiss ? "miss" : "hit"} (${currency}) for token ${address}.`,
-        age: `${age} S`,
-        price: tokenPrice,
-      });
-    }
-
-    if (cacheMiss) {
-      const prices: TokenPrice[] = await this.getPricesByAddress([address], currency);
-      tokenPrice = prices[0];
-    }
-    return { address, price: tokenPrice.price, timestamp: tokenPrice.timestamp };
+    const tokenPrices: TokenPrice[] = await this.getPricesByAddress([address], currency);
+    return tokenPrices[0];
   }
 
   async getPricesByAddress(addresses: string[], currency = "usd"): Promise<TokenPrice[]> {
-    assert(this.priceFeeds.length > 0, "No price feeds were registerted.");
+    assert(this.priceFeeds.length > 0, "No price feeds are registered.");
     const priceCache: PriceCache = this.getPriceCache(currency);
 
-    // Pre-populate price cache with requested token addresses
-    this.initPrices(priceCache, addresses);
+    // Determine whether *all* prices are current.
+    const now: number = msToS(Date.now());
+    const missed: { [address: string]: number } = {};
+    addresses.forEach((address: string) => {
+      const addr = address.toLowerCase();
+      let tokenPrice: TokenPrice | undefined = priceCache[addr];
+      if (tokenPrice === undefined) {
+        tokenPrice = priceCache[addr] = { address: "unused", price: 0, timestamp: 0 };
+      }
 
-    const prices: PriceCache = await this.requestPrices(addresses, currency);
-    if (Object.keys(prices).length === 0) {
-      this.logger.warn({ at: "PriceClient#getPricesByAddress", message: "Failed to update token prices." });
-      // @todo throw ?
-      return [];
+      const age: number = tokenPrice ? now - tokenPrice.timestamp : Number.MAX_SAFE_INTEGER;
+      if (age > this.maxPriceAge) {
+        missed[address] = age;
+      }
+    });
+
+    if (Object.keys(missed).length > 0) {
+      const requestAddresses = Object.keys(priceCache);
+      this.logger.debug({
+        at: "PriceClient#getPricesByAddress",
+        message: `${currency.toUpperCase()} cache miss (age > ${this.maxPriceAge} S).`,
+        tokens: missed,
+      });
+      const prices: PriceCache = await this.requestPrices(requestAddresses, currency);
+      if (Object.keys(prices).length === 0) {
+        this.logger.warn({ at: "PriceClient#getPricesByAddress", message: "Failed to update token prices." });
+        // @todo throw ?
+        return [];
+      }
+      this.updateCache(priceCache, prices, requestAddresses);
     }
 
-    this.updateCache(priceCache, prices, addresses);
     return addresses.map((addr: string) => {
       const { price, timestamp } = priceCache[addr.toLowerCase()];
       return { address: addr, price, timestamp };
@@ -109,15 +110,6 @@ export class PriceClient implements PriceFeedAdapter {
   protected getPriceCache(currency: string): PriceCache {
     if (this.prices[currency] === undefined) this.prices[currency] = {};
     return this.prices[currency];
-  }
-
-  private initPrices(priceCache: PriceCache, addresses: string[]): void {
-    addresses.forEach((address: string) => {
-      const addr = address.toLowerCase();
-      if (priceCache[addr] === undefined) {
-        priceCache[addr] = { address: "unused", price: 0, timestamp: 0 };
-      }
-    });
   }
 
   private async requestPrices(addresses: string[], currency: string): Promise<PriceCache> {
