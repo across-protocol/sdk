@@ -247,22 +247,55 @@ export async function estimateTotalGasRequiredByUnsignedTransaction(
     "Gas Markup must be within the range of (-1.0, +4.0] so that total gas multiplier is between (0, +5.0]"
   );
   const gasTotalMultiplier = 1.0 + gasMarkup;
+  const network: providers.Network = await provider.getNetwork(); // Served locally by StaticJsonRpcProvider.
   const voidSigner = new VoidSigner(senderAddress, provider);
-  // Verify if this provider has been L2Provider wrapped
-  // NOTE: In this case, this will be true if the provider is
-  //       using the Optimism blockchain
-  if (isOptimismL2Provider(provider)) {
+
+  if ([10].includes(network.chainId)) {
+    // Verify that this provider has been L2Provider wrapped.
+    assert(isOptimismL2Provider(provider), `Unexpected provider for chain ID ${network.chainId}.`);
+    assert(gasPrice === undefined, `Gas price (${gasPrice}) supplied for Optimism gas estimation (unused).`);
     const populatedTransaction = await voidSigner.populateTransaction(unsignedTx);
     return (await provider.estimateTotalGasCost(populatedTransaction)).mul(gasTotalMultiplier).toString();
-  } else {
-    // Estimate the Gas units required to submit this transaction
-    const estimatedGasUnits = await voidSigner.estimateGas(unsignedTx);
-    // Provide a default gas price of the market rate if this condition has not been set
-    const resolvedGasPrice = gasPrice ?? (await provider.getGasPrice());
-    // Find the total gas cost by taking the product of the gas
-    // price & the estimated number of gas units needed
-    return BigNumber.from(resolvedGasPrice).mul(gasTotalMultiplier).mul(estimatedGasUnits).toString();
   }
+
+  // Estimate the Gas units required to submit this transaction
+  const estimatedGasUnits = await voidSigner.estimateGas(unsignedTx);
+  let resolvedGasPrice: BigNumberish;
+
+  // Use a fixed gas price (if supplied), else query the provider.
+  if (gasPrice) {
+    resolvedGasPrice = gasPrice;
+  } else {
+    // Retrieve feeData; sub in artificially high defaults if anything fails.
+    const feeData: providers.FeeData = await provider
+      .getFeeData()
+      .then((response: providers.FeeData) => {
+        Object.entries(response).forEach(([key, value]) => {
+          if (!BigNumber.isBigNumber(value)) throw new Error(`Unexpected FeeData entry (${key}: ${value})`);
+        });
+        return response;
+      })
+      .catch(() => {
+        return {
+          gasPrice: toBN(Number.MAX_SAFE_INTEGER),
+          maxFeePerGas: toBN(Number.MAX_SAFE_INTEGER),
+          maxPriorityFeePerGas: toBN(0),
+          // lastBaseFeePerGas: toBN(Number.MAX_SAFE_INTEGER), ethers v5.7.x
+        };
+      });
+
+    // @todo: Update to ethers 5.7.x to access FeeData.lastBaseFeePerGas
+    // https://github.com/ethers-io/ethers.js/commit/8314236143a300ae81c1dcc27a7a36640df22061
+    resolvedGasPrice = toBN(feeData.gasPrice || Number.MAX_SAFE_INTEGER);
+    // Arbitrum One ignores maxPriorityFeePerGas.
+    if (![42161].includes(network.chainId)) {
+      resolvedGasPrice = resolvedGasPrice.add(feeData.maxPriorityFeePerGas || 0);
+    }
+  }
+
+  // Find the total gas cost by taking the product of the gas price & the
+  // estimated number of gas units needed.
+  return BigNumber.from(resolvedGasPrice).mul(gasTotalMultiplier).mul(estimatedGasUnits).toString();
 }
 
 /**
