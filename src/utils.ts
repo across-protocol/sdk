@@ -12,6 +12,13 @@ export const AddressZero = ethers.constants.AddressZero;
 
 const { ConvertDecimals } = uma.utils;
 
+type ValidatedFeeData = {
+  gasPrice: BigNumber;
+  maxFeePerGas: BigNumber;
+  maxPriorityFeePerGas: BigNumber;
+  // lastBaseFeePerGas; ethers v5.7.x
+};
+
 /**
  * toBN.
  *
@@ -266,30 +273,33 @@ export async function estimateTotalGasRequiredByUnsignedTransaction(
   if (gasPrice) {
     resolvedGasPrice = gasPrice;
   } else {
+    let feeData: ValidatedFeeData = {
+      gasPrice: toBN(Number.MAX_SAFE_INTEGER),
+      maxFeePerGas: toBN(Number.MAX_SAFE_INTEGER),
+      maxPriorityFeePerGas: toBN(0),
+    };
+
     // Retrieve feeData; sub in artificially high defaults if anything fails.
-    const feeData: providers.FeeData = await provider
-      .getFeeData()
-      .then((response: providers.FeeData) => {
-        Object.entries(response).forEach(([key, value]) => {
-          if (!BigNumber.isBigNumber(value)) throw new Error(`Unexpected FeeData entry (${key}: ${value})`);
-        });
-        return response;
-      })
-      .catch(() => {
-        return {
-          gasPrice: toBN(Number.MAX_SAFE_INTEGER),
-          maxFeePerGas: toBN(Number.MAX_SAFE_INTEGER),
-          maxPriorityFeePerGas: toBN(0),
-          // lastBaseFeePerGas: toBN(Number.MAX_SAFE_INTEGER), ethers v5.7.x
-        };
+    try {
+      const response: providers.FeeData = await provider.getFeeData();
+      const expectedKeys: string[] = Object.keys(feeData);
+      Object.entries(response).forEach(([key, value]) => {
+        if (!expectedKeys.includes(key) || !BigNumber.isBigNumber(value) || value.lt(0))
+          throw new Error(`Unexpected FeeData entry (${key}: ${value})`);
       });
+
+      // All inputs validated; assign verbatim.
+      feeData = response as ValidatedFeeData;
+    } catch {
+      // No logging; not much to do here...
+    }
 
     // @todo: Update to ethers 5.7.x to access FeeData.lastBaseFeePerGas
     // https://github.com/ethers-io/ethers.js/commit/8314236143a300ae81c1dcc27a7a36640df22061
-    resolvedGasPrice = toBN(feeData.gasPrice || Number.MAX_SAFE_INTEGER);
+    resolvedGasPrice = feeData.gasPrice;
     // Arbitrum One ignores maxPriorityFeePerGas.
     if (![42161].includes(network.chainId)) {
-      resolvedGasPrice = resolvedGasPrice.add(feeData.maxPriorityFeePerGas || 0);
+      resolvedGasPrice = resolvedGasPrice.add(feeData.maxPriorityFeePerGas);
     }
   }
 
