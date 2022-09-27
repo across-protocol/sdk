@@ -4,6 +4,7 @@ import Decimal from "decimal.js";
 import { isL2Provider as isOptimismL2Provider, L2Provider } from "@eth-optimism/sdk";
 import { SpokePool } from "@across-protocol/contracts-v2";
 import assert from "assert";
+import { GasPriceEstimate, getGasPriceEstimate } from "./gasPriceOracle";
 
 export type BigNumberish = string | number | BigNumber;
 export type BN = BigNumber;
@@ -11,13 +12,6 @@ export type Decimalish = string | number | Decimal;
 export const AddressZero = ethers.constants.AddressZero;
 
 const { ConvertDecimals } = uma.utils;
-
-type ValidatedFeeData = {
-  gasPrice: BigNumber;
-  maxFeePerGas: BigNumber;
-  maxPriorityFeePerGas: BigNumber;
-  // lastBaseFeePerGas; ethers v5.7.x
-};
 
 /**
  * toBN.
@@ -257,55 +251,25 @@ export async function estimateTotalGasRequiredByUnsignedTransaction(
   const network: providers.Network = await provider.getNetwork(); // Served locally by StaticJsonRpcProvider.
   const voidSigner = new VoidSigner(senderAddress, provider);
 
+  // Optimism is a special case; gas cost is computed by the SDK, without having to query price.
   if ([10].includes(network.chainId)) {
-    // Verify that this provider has been L2Provider wrapped.
     assert(isOptimismL2Provider(provider), `Unexpected provider for chain ID ${network.chainId}.`);
     assert(gasPrice === undefined, `Gas price (${gasPrice}) supplied for Optimism gas estimation (unused).`);
     const populatedTransaction = await voidSigner.populateTransaction(unsignedTx);
     return (await provider.estimateTotalGasCost(populatedTransaction)).mul(gasTotalMultiplier).toString();
   }
 
+  if (!gasPrice) {
+    const gasPriceEstimate: GasPriceEstimate = await getGasPriceEstimate(provider);
+    gasPrice = gasPriceEstimate.maxFeePerGas;
+  }
+
   // Estimate the Gas units required to submit this transaction
   const estimatedGasUnits = await voidSigner.estimateGas(unsignedTx);
-  let resolvedGasPrice: BigNumberish;
-
-  // Use a fixed gas price (if supplied), else query the provider.
-  if (gasPrice) {
-    resolvedGasPrice = gasPrice;
-  } else {
-    let feeData: ValidatedFeeData = {
-      gasPrice: toBN(Number.MAX_SAFE_INTEGER),
-      maxFeePerGas: toBN(Number.MAX_SAFE_INTEGER),
-      maxPriorityFeePerGas: toBN(0),
-    };
-
-    // Retrieve feeData; sub in artificially high defaults if anything fails.
-    try {
-      const response: providers.FeeData = await provider.getFeeData();
-      const expectedKeys: string[] = Object.keys(feeData);
-      Object.entries(response).forEach(([key, value]) => {
-        if (!expectedKeys.includes(key) || !BigNumber.isBigNumber(value) || value.lt(0))
-          throw new Error(`Unexpected FeeData entry (${key}: ${value})`);
-      });
-
-      // All inputs validated; assign verbatim.
-      feeData = response as ValidatedFeeData;
-    } catch {
-      // No logging; not much to do here...
-    }
-
-    // @todo: Update to ethers 5.7.x to access FeeData.lastBaseFeePerGas
-    // https://github.com/ethers-io/ethers.js/commit/8314236143a300ae81c1dcc27a7a36640df22061
-    resolvedGasPrice = feeData.gasPrice;
-    // Arbitrum One ignores maxPriorityFeePerGas.
-    if (![42161].includes(network.chainId)) {
-      resolvedGasPrice = resolvedGasPrice.add(feeData.maxPriorityFeePerGas);
-    }
-  }
 
   // Find the total gas cost by taking the product of the gas price & the
   // estimated number of gas units needed.
-  return BigNumber.from(resolvedGasPrice).mul(gasTotalMultiplier).mul(estimatedGasUnits).toString();
+  return BigNumber.from(gasPrice).mul(gasTotalMultiplier).mul(estimatedGasUnits).toString();
 }
 
 /**

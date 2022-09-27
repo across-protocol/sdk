@@ -5,3 +5,4 @@ export * as relayFeeCalculator from "./relayFeeCalculator";
 export * as utils from "./utils";
 export * as contracts from "./contracts";
 export * as coingecko from "./coingecko";
+export * as gasPriceOracle from "./gasPriceOracle";
