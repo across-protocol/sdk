@@ -31,7 +31,7 @@ async function getProviderFeeData(provider: providers.Provider): Promise<Validat
     const expectedKeys: string[] = Object.keys(feeData);
     Object.entries(response).forEach(([key, value]) => {
       if (expectedKeys.includes(key) && BigNumber.isBigNumber(value) && value.gt(0)) {
-        feeData[key] = toBN(value);
+        feeData[key] = value;
       }
     });
   } catch {
