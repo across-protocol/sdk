@@ -7,7 +7,6 @@ export type GasPriceEstimate = {
 };
 
 type ValidatedFeeData = {
-  [idx: string]: BigNumber;
   gasPrice: BigNumber;
   maxFeePerGas: BigNumber;
   maxPriorityFeePerGas: BigNumber;
@@ -18,25 +17,20 @@ interface GasPriceFeed {
 }
 
 async function getProviderFeeData(provider: providers.Provider): Promise<ValidatedFeeData> {
-  // Start with safe defaults.
-  const feeData: ValidatedFeeData = {
-    gasPrice: toBN(Number.MAX_SAFE_INTEGER),
-    maxFeePerGas: toBN(Number.MAX_SAFE_INTEGER),
-    maxPriorityFeePerGas: toBN(Number.MAX_SAFE_INTEGER),
-    // lastBaseFeePerGas: toBN(Number.MAX_SAFE_INTEGER), @todo: ethers 5.7.x
+  const validateFeeData = (val: BigNumber | null): BigNumber  => {
+    return BigNumber.isBigNumber(val) && val.gt(0) ? val : toBN(Number.MAX_SAFE_INTEGER);
   };
 
-  try {
-    const response: providers.FeeData = await provider.getFeeData();
-    const expectedKeys: string[] = Object.keys(feeData);
-    Object.entries(response).forEach(([key, value]) => {
-      if (expectedKeys.includes(key) && BigNumber.isBigNumber(value) && value.gt(0)) {
-        feeData[key] = value;
-      }
-    });
-  } catch {
-    // No logging, so nothing to do here...
-  }
+  // Not much to do on a failed retrieval, so just suppress it.
+  const response: providers.FeeData = await provider.getFeeData().catch(() => {
+    return {} as providers.FeeData
+  });
+
+  const feeData: ValidatedFeeData = {
+    "gasPrice": validateFeeData(response["gasPrice"]),
+    "maxFeePerGas": validateFeeData(response["maxFeePerGas"]),
+    "maxPriorityFeePerGas": validateFeeData(response["maxPriorityFeePerGas"]),
+  };
 
   return feeData;
 }
