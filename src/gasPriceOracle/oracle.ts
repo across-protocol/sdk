@@ -1,56 +1,38 @@
 import { BigNumber, providers } from "ethers";
-import { toBN } from "../utils";
 
 export type GasPriceEstimate = {
   maxFeePerGas: BigNumber;
   maxPriorityFeePerGas?: BigNumber;
 };
 
-type ValidatedFeeData = {
-  gasPrice: BigNumber;
-  maxFeePerGas: BigNumber;
-  maxPriorityFeePerGas: BigNumber;
-};
-
 interface GasPriceFeed {
-  (provider: providers.Provider): Promise<GasPriceEstimate>;
+  (provider: providers.Provider, chainId: number): Promise<GasPriceEstimate>;
 }
 
-function validateFeeData(val: BigNumber | null): BigNumber {
-  return BigNumber.isBigNumber(val) ? val : toBN(-1);
+function feeDataError(chainId: number, data: providers.FeeData | BigNumber): void {
+  throw new Error(`Malformed FeeData response on chain ID ${chainId} (${JSON.stringify(data)}`);
 }
 
-async function feeDataError(provider: providers.Provider): Promise<void> {
-  const network: providers.Network = await provider.getNetwork();
-  throw new Error(`Malformed FeeData response on chain ID ${network.chainId}`);
-}
+async function legacy(provider: providers.Provider, chainId: number): Promise<GasPriceEstimate> {
+  const gasPrice: BigNumber = await provider.getGasPrice();
 
-async function getProviderFeeData(provider: providers.Provider): Promise<ValidatedFeeData> {
-  const response: providers.FeeData = await provider.getFeeData();
+  if (!BigNumber.isBigNumber(gasPrice)) feeDataError(chainId, gasPrice);
 
   return {
-    gasPrice: validateFeeData(response.gasPrice),
-    maxFeePerGas: validateFeeData(response.maxFeePerGas),
-    maxPriorityFeePerGas: validateFeeData(response.maxPriorityFeePerGas),
+    maxFeePerGas: gasPrice,
   };
-}
-
-async function legacy(provider: providers.Provider): Promise<GasPriceEstimate> {
-  const feeData: ValidatedFeeData = await getProviderFeeData(provider);
-
-  const maxFeePerGas = feeData.gasPrice;
-  if (maxFeePerGas.lt(0)) await feeDataError(provider);
-
-  return { maxFeePerGas };
 }
 
 // @todo: Update to ethers 5.7.x to access FeeData.lastBaseFeePerGas
 // https://github.com/ethers-io/ethers.js/commit/8314236143a300ae81c1dcc27a7a36640df22061
-async function eip1559(provider: providers.Provider): Promise<GasPriceEstimate> {
-  const feeData: ValidatedFeeData = await getProviderFeeData(provider);
+async function eip1559(provider: providers.Provider, chainId: number): Promise<GasPriceEstimate> {
+  const feeData: providers.FeeData = await provider.getFeeData();
 
-  const { maxPriorityFeePerGas, maxFeePerGas } = feeData;
-  if (maxPriorityFeePerGas.lt(0) || maxFeePerGas.lt(0)) await feeDataError(provider);
+  if (!(BigNumber.isBigNumber(feeData.maxPriorityFeePerGas) && BigNumber.isBigNumber(feeData.maxFeePerGas)))
+    feeDataError(chainId, feeData);
+
+  const maxPriorityFeePerGas = feeData.maxPriorityFeePerGas as BigNumber;
+  const maxFeePerGas = feeData.maxFeePerGas as BigNumber;
 
   return {
     maxPriorityFeePerGas: maxPriorityFeePerGas,
@@ -90,6 +72,6 @@ export async function getGasPriceEstimate(
     gasPriceFeed = legacy;
   }
 
-  const gasPriceEstimate: GasPriceEstimate = await gasPriceFeed(provider);
+  const gasPriceEstimate: GasPriceEstimate = await gasPriceFeed(provider, chainId);
   return gasPriceEstimate;
 }
