@@ -22,7 +22,7 @@ function validateFeeData(val: BigNumber | null): BigNumber {
 
 async function feeDataError(provider: providers.Provider): Promise<void> {
   const network: providers.Network = await provider.getNetwork();
-  throw new Error(`Malformed FeeData response on ${network.chainId}`);
+  throw new Error(`Malformed FeeData response on chain ID ${network.chainId}`);
 }
 
 async function getProviderFeeData(provider: providers.Provider): Promise<ValidatedFeeData> {
