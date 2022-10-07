@@ -17,41 +17,44 @@ interface GasPriceFeed {
 }
 
 function validateFeeData(val: BigNumber | null): BigNumber {
-  return BigNumber.isBigNumber(val) ? val : toBN(0);
+  return BigNumber.isBigNumber(val) ? val : toBN(-1);
+}
+
+async function feeDataError(provider: providers.Provider): Promise<void> {
+  const network: providers.Network = await provider.getNetwork();
+  throw new Error(`Malformed FeeData response on ${network.chainId}`);
 }
 
 async function getProviderFeeData(provider: providers.Provider): Promise<ValidatedFeeData> {
-  // Not much to do on a failed retrieval, so just suppress it.
-  const response: providers.FeeData = await provider.getFeeData().catch(() => {
-    return {} as providers.FeeData;
-  });
+  const response: providers.FeeData = await provider.getFeeData();
 
-  const feeData: ValidatedFeeData = {
-    gasPrice: validateFeeData(response["gasPrice"]),
-    maxFeePerGas: validateFeeData(response["maxFeePerGas"]),
-    maxPriorityFeePerGas: validateFeeData(response["maxPriorityFeePerGas"]),
+  return {
+    gasPrice: validateFeeData(response.gasPrice),
+    maxFeePerGas: validateFeeData(response.maxFeePerGas),
+    maxPriorityFeePerGas: validateFeeData(response.maxPriorityFeePerGas),
   };
-
-  return feeData;
 }
 
 async function legacy(provider: providers.Provider): Promise<GasPriceEstimate> {
   const feeData: ValidatedFeeData = await getProviderFeeData(provider);
 
-  return {
-    maxFeePerGas: feeData.gasPrice,
-  };
+  const maxFeePerGas = feeData.gasPrice;
+  if (maxFeePerGas.lt(0)) await feeDataError(provider);
+
+  return { maxFeePerGas };
 }
 
 // @todo: Update to ethers 5.7.x to access FeeData.lastBaseFeePerGas
 // https://github.com/ethers-io/ethers.js/commit/8314236143a300ae81c1dcc27a7a36640df22061
 async function eip1559(provider: providers.Provider): Promise<GasPriceEstimate> {
   const feeData: ValidatedFeeData = await getProviderFeeData(provider);
-  const maxPriorityFeePerGas = feeData.maxPriorityFeePerGas;
+
+  const { maxPriorityFeePerGas, maxFeePerGas } = feeData;
+  if (maxPriorityFeePerGas.lt(0) || maxFeePerGas.lt(0)) await feeDataError(provider);
 
   return {
     maxPriorityFeePerGas: maxPriorityFeePerGas,
-    maxFeePerGas: maxPriorityFeePerGas.add(feeData.maxFeePerGas),
+    maxFeePerGas: maxPriorityFeePerGas.add(maxFeePerGas),
   };
 }
 
