@@ -9,14 +9,14 @@ interface GasPriceFeed {
   (provider: providers.Provider, chainId: number): Promise<GasPriceEstimate>;
 }
 
-function feeDataError(chainId: number, data: providers.FeeData | BigNumber): void {
-  throw new Error(`Malformed FeeData response on chain ID ${chainId} (${JSON.stringify(data)}`);
+function error(method: string, chainId: number, data: providers.FeeData | BigNumber): void {
+  throw new Error(`Malformed ${method} response on chain ID ${chainId} (${JSON.stringify(data)}`);
 }
 
 async function legacy(provider: providers.Provider, chainId: number): Promise<GasPriceEstimate> {
   const gasPrice: BigNumber = await provider.getGasPrice();
 
-  if (!BigNumber.isBigNumber(gasPrice)) feeDataError(chainId, gasPrice);
+  if (!BigNumber.isBigNumber(gasPrice)) error("getGasPrice()", chainId, gasPrice);
 
   return {
     maxFeePerGas: gasPrice,
@@ -29,7 +29,7 @@ async function eip1559(provider: providers.Provider, chainId: number): Promise<G
   const feeData: providers.FeeData = await provider.getFeeData();
 
   if (!(BigNumber.isBigNumber(feeData.maxPriorityFeePerGas) && BigNumber.isBigNumber(feeData.maxFeePerGas)))
-    feeDataError(chainId, feeData);
+    error("getFeeData()", chainId, feeData);
 
   const maxPriorityFeePerGas = feeData.maxPriorityFeePerGas as BigNumber;
   const maxFeePerGas = feeData.maxFeePerGas as BigNumber;
