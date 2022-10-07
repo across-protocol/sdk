@@ -2,7 +2,7 @@ import assert from "assert";
 import dotenv from "dotenv";
 import winston from "winston";
 import { BigNumber, providers } from "ethers";
-import { GasPriceEstimate, getGasPriceEstimate, } from "./oracle";
+import { GasPriceEstimate, getGasPriceEstimate } from "./oracle";
 dotenv.config({ path: ".env" });
 
 const dummyLogger = winston.createLogger({
@@ -13,8 +13,8 @@ const dummyLogger = winston.createLogger({
 /**
  * Note: If NODE_URL_<chainId> envvars exist, they will be used. The
  * RPCs defined below are otherwise used as default/fallback options.
- * These may be subject to rate-limiting, in which case this test will
- * fail because the gas price estimate contains MAX_SAFE_INTEGER values.
+ * These may be subject to rate-limiting, in which case the retrieved
+ * price will revert to 0.
  *
  * Note also that Optimism is only supported as a fallback/legacy test
  * case. It works, but is not the recommended method for conjuring gas
@@ -32,8 +32,8 @@ describe("Gas Price Oracle", function () {
   test("Gas Price Retrieval", async function () {
     jest.setTimeout(15000); // Default timeout (5s) typically too short.
 
-    for (let chainId of Object.keys(networks)) {
-      const envNode = `NODE_URL_${chainId}`
+    for (const chainId of Object.keys(networks)) {
+      const envNode = `NODE_URL_${chainId}`;
       const rpcUrl: string = process.env[envNode] ?? networks[Number(chainId)];
       const provider = new providers.JsonRpcProvider(rpcUrl);
 
@@ -46,14 +46,12 @@ describe("Gas Price Oracle", function () {
 
       assert.ok(gasPrice);
       assert.ok(BigNumber.isBigNumber(gasPrice.maxFeePerGas));
-      assert.ok(gasPrice.maxFeePerGas.gt(0));
-      assert.ok(gasPrice.maxFeePerGas.lt(Number.MAX_SAFE_INTEGER.toString()));
+      assert.ok(gasPrice.maxFeePerGas.gte(0));
 
       if ([1, 137].includes(Number(chainId))) {
         // EIP-1559 (Type 2)
         assert.ok(BigNumber.isBigNumber(gasPrice.maxPriorityFeePerGas));
-        assert.ok(gasPrice.maxPriorityFeePerGas.gt(0));
-        assert.ok(gasPrice.maxPriorityFeePerGas.lt(Number.MAX_SAFE_INTEGER.toString()));
+        assert.ok(gasPrice.maxPriorityFeePerGas.gte(0));
       } else {
         // Legacy (Type 0)
         assert.ok(gasPrice.maxPriorityFeePerGas === undefined);

@@ -16,20 +16,20 @@ interface GasPriceFeed {
   (provider: providers.Provider): Promise<GasPriceEstimate>;
 }
 
-async function getProviderFeeData(provider: providers.Provider): Promise<ValidatedFeeData> {
-  const validateFeeData = (val: BigNumber | null): BigNumber  => {
-    return BigNumber.isBigNumber(val) && val.gt(0) ? val : toBN(Number.MAX_SAFE_INTEGER);
-  };
+function validateFeeData(val: BigNumber | null): BigNumber {
+  return BigNumber.isBigNumber(val) ? val : toBN(0);
+}
 
+async function getProviderFeeData(provider: providers.Provider): Promise<ValidatedFeeData> {
   // Not much to do on a failed retrieval, so just suppress it.
   const response: providers.FeeData = await provider.getFeeData().catch(() => {
-    return {} as providers.FeeData
+    return {} as providers.FeeData;
   });
 
   const feeData: ValidatedFeeData = {
-    "gasPrice": validateFeeData(response["gasPrice"]),
-    "maxFeePerGas": validateFeeData(response["maxFeePerGas"]),
-    "maxPriorityFeePerGas": validateFeeData(response["maxPriorityFeePerGas"]),
+    gasPrice: validateFeeData(response["gasPrice"]),
+    maxFeePerGas: validateFeeData(response["maxFeePerGas"]),
+    maxPriorityFeePerGas: validateFeeData(response["maxPriorityFeePerGas"]),
   };
 
   return feeData;
@@ -40,19 +40,19 @@ async function legacy(provider: providers.Provider): Promise<GasPriceEstimate> {
 
   return {
     maxFeePerGas: feeData.gasPrice,
-  } as GasPriceEstimate;
+  };
 }
 
 // @todo: Update to ethers 5.7.x to access FeeData.lastBaseFeePerGas
 // https://github.com/ethers-io/ethers.js/commit/8314236143a300ae81c1dcc27a7a36640df22061
 async function eip1559(provider: providers.Provider): Promise<GasPriceEstimate> {
   const feeData: ValidatedFeeData = await getProviderFeeData(provider);
-  const maxPriorityFeePerGas: BigNumber = feeData.maxPriorityFeePerGas;
+  const maxPriorityFeePerGas = feeData.maxPriorityFeePerGas;
 
   return {
     maxPriorityFeePerGas: maxPriorityFeePerGas,
     maxFeePerGas: maxPriorityFeePerGas.add(feeData.maxFeePerGas),
-  } as GasPriceEstimate;
+  };
 }
 
 /**
