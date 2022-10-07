@@ -8,7 +8,7 @@ Also, `MerkleDistributor` is a wrapper around the Merkle tree which is used for 
 See tests for more documentation: [MerkleDistributor]("./test/MerkleDistributor.test.ts")
 
 ```ts
-import * as across from "@across/sdk-v2"
+import * as across from "@across-protocol/sdk-v2";
 
 const { MerkleDistributor, MerkleTree, DistributionRecipient } = across.merkleDistributor;
 
