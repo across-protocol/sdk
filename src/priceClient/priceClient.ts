@@ -2,7 +2,7 @@ import assert from "assert";
 import { CoinGeckoPrice } from "../coingecko";
 import { Logger } from "../relayFeeCalculator"; // @todo: Relocate Logger to utils?
 
-export { Logger } from "../relayFeeCalculator"; // Permit adapters to import a common definition.
+export { Logger }; // Permit adapters to import a common definition.
 export type TokenPrice = CoinGeckoPrice; // Temporary inversion; CoinGecko should source from here.
 
 // Represents valid source for spot prices (Across API, CoinGecko, ...)
