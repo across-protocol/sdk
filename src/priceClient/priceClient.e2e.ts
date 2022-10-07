@@ -24,7 +24,7 @@ function validateTokenPrice(tokenPrice: TokenPrice, address: string, timestamp: 
   assert(tokenPrice.timestamp > 0, `${tokenPrice.timestamp} <= 0`);
   assert(
     tokenPrice.timestamp > timestamp - maxPriceAge,
-    `${tokenPrice.timestamp} <= ${timestamp - maxPriceAge} (timestamp: ${timestamp}, maxPriceAge: ${maxPriceAge}`
+    `${tokenPrice.timestamp} <= ${timestamp - maxPriceAge} (timestamp: ${timestamp}, maxPriceAge: ${maxPriceAge})`
   );
 }
 
