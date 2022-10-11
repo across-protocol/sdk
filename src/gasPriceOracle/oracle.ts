@@ -2,7 +2,7 @@ import { BigNumber, providers } from "ethers";
 
 export type GasPriceEstimate = {
   maxFeePerGas: BigNumber;
-  maxPriorityFeePerGas?: BigNumber;
+  maxPriorityFeePerGas: BigNumber;
 };
 
 interface GasPriceFeed {
@@ -16,10 +16,11 @@ function error(method: string, chainId: number, data: providers.FeeData | BigNum
 async function legacy(provider: providers.Provider, chainId: number): Promise<GasPriceEstimate> {
   const gasPrice: BigNumber = await provider.getGasPrice();
 
-  if (!BigNumber.isBigNumber(gasPrice)) error("getGasPrice()", chainId, gasPrice);
+  if (!BigNumber.isBigNumber(gasPrice) || gasPrice.lt(0)) error("getGasPrice()", chainId, gasPrice);
 
   return {
     maxFeePerGas: gasPrice,
+    maxPriorityFeePerGas: BigNumber.from(0),
   };
 }
 
@@ -28,15 +29,16 @@ async function legacy(provider: providers.Provider, chainId: number): Promise<Ga
 async function eip1559(provider: providers.Provider, chainId: number): Promise<GasPriceEstimate> {
   const feeData: providers.FeeData = await provider.getFeeData();
 
-  if (!(BigNumber.isBigNumber(feeData.maxPriorityFeePerGas) && BigNumber.isBigNumber(feeData.maxFeePerGas)))
-    error("getFeeData()", chainId, feeData);
+  [feeData.maxFeePerGas, feeData.maxPriorityFeePerGas].forEach((field: BigNumber | null) => {
+    if (!BigNumber.isBigNumber(field) || field.lt(0)) error("getFeeData()", chainId, feeData);
+  });
 
   const maxPriorityFeePerGas = feeData.maxPriorityFeePerGas as BigNumber;
   const maxFeePerGas = feeData.maxFeePerGas as BigNumber;
 
   return {
     maxPriorityFeePerGas: maxPriorityFeePerGas,
-    maxFeePerGas: maxPriorityFeePerGas.add(maxFeePerGas),
+    maxFeePerGas: maxFeePerGas,
   };
 }
 
@@ -59,6 +61,7 @@ export async function getGasPriceEstimate(
 
   const gasPriceFeeds: { [chainId: number]: GasPriceFeed } = {
     1: eip1559,
+    10: legacy,
     137: eip1559, // @todo: Query Polygon Gas Station directly
     288: legacy,
     42161: legacy,
