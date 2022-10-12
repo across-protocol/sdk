@@ -145,11 +145,11 @@ export class PriceClient implements PriceFeedAdapter {
   private updateCache(priceCache: PriceCache, prices: PriceCache, expected: string[]): void {
     const updated: TokenPrice[] = [];
     const skipped: { [token: string]: string } = {}; // Includes reason for skipping
+    const now: number = msToS(Date.now());
 
     expected.forEach((address: string) => {
       const addr = address.toLowerCase(); // for internal priceCache lookup.
       const tokenPrice: TokenPrice | undefined = prices[addr];
-      const now: number = msToS(Date.now());
 
       if (tokenPrice === undefined) {
         skipped[address] = "Not included in price feed response.";
