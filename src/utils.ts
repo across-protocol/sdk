@@ -4,6 +4,7 @@ import Decimal from "decimal.js";
 import { isL2Provider as isOptimismL2Provider, L2Provider } from "@eth-optimism/sdk";
 import { SpokePool } from "@across-protocol/contracts-v2";
 import assert from "assert";
+import { GasPriceEstimate, getGasPriceEstimate } from "./gasPriceOracle";
 
 export type BigNumberish = string | number | BigNumber;
 export type BN = BigNumber;
@@ -247,22 +248,28 @@ export async function estimateTotalGasRequiredByUnsignedTransaction(
     "Gas Markup must be within the range of (-1.0, +4.0] so that total gas multiplier is between (0, +5.0]"
   );
   const gasTotalMultiplier = 1.0 + gasMarkup;
+  const network: providers.Network = await provider.getNetwork(); // Served locally by StaticJsonRpcProvider.
   const voidSigner = new VoidSigner(senderAddress, provider);
-  // Verify if this provider has been L2Provider wrapped
-  // NOTE: In this case, this will be true if the provider is
-  //       using the Optimism blockchain
-  if (isOptimismL2Provider(provider)) {
+
+  // Optimism is a special case; gas cost is computed by the SDK, without having to query price.
+  if ([10].includes(network.chainId)) {
+    assert(isOptimismL2Provider(provider), `Unexpected provider for chain ID ${network.chainId}.`);
+    assert(gasPrice === undefined, `Gas price (${gasPrice}) supplied for Optimism gas estimation (unused).`);
     const populatedTransaction = await voidSigner.populateTransaction(unsignedTx);
     return (await provider.estimateTotalGasCost(populatedTransaction)).mul(gasTotalMultiplier).toString();
-  } else {
-    // Estimate the Gas units required to submit this transaction
-    const estimatedGasUnits = await voidSigner.estimateGas(unsignedTx);
-    // Provide a default gas price of the market rate if this condition has not been set
-    const resolvedGasPrice = gasPrice ?? (await provider.getGasPrice());
-    // Find the total gas cost by taking the product of the gas
-    // price & the estimated number of gas units needed
-    return BigNumber.from(resolvedGasPrice).mul(gasTotalMultiplier).mul(estimatedGasUnits).toString();
   }
+
+  if (!gasPrice) {
+    const gasPriceEstimate: GasPriceEstimate = await getGasPriceEstimate(provider);
+    gasPrice = gasPriceEstimate.maxFeePerGas;
+  }
+
+  // Estimate the Gas units required to submit this transaction
+  const estimatedGasUnits = await voidSigner.estimateGas(unsignedTx);
+
+  // Find the total gas cost by taking the product of the gas price & the
+  // estimated number of gas units needed.
+  return BigNumber.from(gasPrice).mul(gasTotalMultiplier).mul(estimatedGasUnits).toString();
 }
 
 /**
