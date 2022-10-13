@@ -23,7 +23,7 @@ export class PriceFeed extends BaseHTTPAdapter implements PriceFeedAdapter {
   }
 
   async getPriceByAddress(address: string, currency = "usd"): Promise<TokenPrice> {
-    const price: TokenPrice[] = await this.getPricesByAddress([address], currency);
+    const price = await this.getPricesByAddress([address], currency);
     return price[0];
   }
 

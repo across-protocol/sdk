@@ -55,7 +55,7 @@ export class PriceClient implements PriceFeedAdapter {
   }
 
   async getPriceByAddress(address: string, currency = "usd"): Promise<TokenPrice> {
-    const tokenPrices: TokenPrice[] = await this.getPricesByAddress([address], currency);
+    const tokenPrices = await this.getPricesByAddress([address], currency);
     return tokenPrices[0];
   }
 
@@ -68,12 +68,10 @@ export class PriceClient implements PriceFeedAdapter {
     const missed: { [address: string]: number } = {};
     addresses.forEach((address: string) => {
       const addr = address.toLowerCase();
-      let tokenPrice: TokenPrice | undefined = priceCache[addr];
-      if (tokenPrice === undefined) {
-        tokenPrice = priceCache[addr] = { address: "unused", price: 0, timestamp: 0 };
-      }
+      // note: If priceCache[addr] is undefined, it is assigned here.
+      const tokenPrice = (priceCache[addr] = priceCache[addr] ?? ({ price: 0, timestamp: 0 } as TokenPrice));
+      const age = tokenPrice ? now - tokenPrice.timestamp : Number.MAX_SAFE_INTEGER;
 
-      const age: number = tokenPrice ? now - tokenPrice.timestamp : Number.MAX_SAFE_INTEGER;
       if (age > this.maxPriceAge) {
         missed[address] = age;
       }
@@ -86,7 +84,7 @@ export class PriceClient implements PriceFeedAdapter {
         message: `${currency.toUpperCase()} cache miss (age > ${this.maxPriceAge} S).`,
         tokens: missed,
       });
-      const prices: PriceCache = await this.requestPrices(requestAddresses, currency);
+      const prices = await this.requestPrices(requestAddresses, currency);
       if (Object.keys(prices).length === 0) {
         this.logger.warn({ at: "PriceClient#getPricesByAddress", message: "Failed to update token prices." });
         // @todo throw ?
