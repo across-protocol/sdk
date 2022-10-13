@@ -64,7 +64,7 @@ export class PriceClient implements PriceFeedAdapter {
     const priceCache: PriceCache = this.getPriceCache(currency);
 
     // Determine whether *all* prices are current.
-    const now: number = msToS(Date.now());
+    const now = msToS(Date.now());
     const missed: { [address: string]: number } = {};
     addresses.forEach((address: string) => {
       const addr = address.toLowerCase();
