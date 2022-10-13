@@ -61,7 +61,7 @@ export class PriceClient implements PriceFeedAdapter {
 
   async getPricesByAddress(addresses: string[], currency = "usd"): Promise<TokenPrice[]> {
     assert(this.priceFeeds.length > 0, "No price feeds are registered.");
-    const priceCache: PriceCache = this.getPriceCache(currency);
+    const priceCache = this.getPriceCache(currency);
 
     // Determine whether *all* prices are current.
     const now = msToS(Date.now());
