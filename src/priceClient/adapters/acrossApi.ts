@@ -31,8 +31,8 @@ export class PriceFeed implements PriceFeedAdapter {
   }
 
   // todo: Support bundled prices in the API endpoint.
- getPricesByAddress(addresses: string[], currency = "usd"): Promise<TokenPrice[]> {
-    return Promise.all(addresses.map(address => this.getPriceByAddress(address, currency)));
+  async getPricesByAddress(addresses: string[], currency = "usd"): Promise<TokenPrice[]> {
+    return Promise.all(addresses.map((address) => this.getPriceByAddress(address, currency)));
   }
 
   private async query(token: string, baseCurrency = "usd", timeout: number = defaultTimeout): Promise<AcrossPrice> {
