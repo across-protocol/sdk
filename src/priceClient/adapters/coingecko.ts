@@ -1,6 +1,5 @@
-import assert from "assert";
-import axios, { AxiosError } from "axios";
 import { PriceFeedAdapter, TokenPrice } from "../priceClient";
+import { BaseHTTPAdapter } from "./baseAdapter";
 
 type CoinGeckoTokenPrice = {
   [currency: string]: number;
@@ -13,21 +12,14 @@ type CoinGeckoPriceResponse = {
 
 const defaultTimeout = 5000; // mS
 
-export class PriceFeed implements PriceFeedAdapter {
-  public readonly host: string;
-  protected _timeout = defaultTimeout;
+export class PriceFeed extends BaseHTTPAdapter implements PriceFeedAdapter {
+  private readonly apiKey: string | undefined = undefined;
 
-  constructor(public readonly name: string, private readonly apiKey?: string) {
-    this.host = this.apiKey ? "pro-api.coingecko.com" : "api.coingecko.com";
-  }
-
-  get timeout(): number {
-    return this._timeout;
-  }
-
-  set timeout(timeout: number) {
-    assert(timeout >= 0);
-    this._timeout = timeout;
+  constructor(name: string, { timeout, apiKey }: { timeout?: number; apiKey?: string }) {
+    super(name, apiKey ? "pro-api.coingecko.com" : "api.coingecko.com", {
+      timeout: timeout ?? defaultTimeout,
+    });
+    this.apiKey = apiKey;
   }
 
   async getPriceByAddress(address: string, currency = "usd"): Promise<TokenPrice> {
@@ -36,33 +28,36 @@ export class PriceFeed implements PriceFeedAdapter {
   }
 
   async getPricesByAddress(addresses: string[], currency = "usd"): Promise<TokenPrice[]> {
-    const prices: CoinGeckoPriceResponse = await this.query(addresses, currency);
+    const queryArgs: { [key: string]: boolean | string } = {
+      contract_addresses: addresses.join(","),
+      vs_currencies: currency,
+      include_last_updated_at: true,
+    };
+    if (this.apiKey) queryArgs["x_cg_pro_api_key"] = this.apiKey;
+
+    const prices: unknown = await this.query("api/v3/simple/token_price/ethereum", queryArgs);
+    if (!this.validateResponse(prices, currency))
+      throw new Error(`Unexpected ${this.name} response: ${JSON.stringify(prices)}`);
+
     return addresses.map((addr: string) => {
       const price: CoinGeckoTokenPrice = prices[addr.toLowerCase()];
       return { address: addr, price: price[currency], timestamp: price.last_updated_at };
     });
   }
 
-  private async query(
-    addresses: string[],
-    baseCurrency = "usd",
-    timeout: number = defaultTimeout
-  ): Promise<CoinGeckoPriceResponse> {
-    const url = `https://${this.host}/api/v3/simple/token_price/ethereum`;
-    const args = {
-      timeout,
-      params: {
-        contract_addresses: addresses.join(","),
-        vs_currencies: baseCurrency,
-        include_last_updated_at: true,
-        x_cg_pro_api_key: this.apiKey ?? "",
-      },
-    };
+  private validateResponse(response: unknown, currency: string): response is CoinGeckoPriceResponse {
+    if (typeof response !== "object") return false;
 
-    const result = await axios(url, args).catch((err) => {
-      const errMsg: string = err instanceof AxiosError ? err.message : "unknown error";
-      throw new Error(`${this.name} price lookup failure (${errMsg})`);
+    return !Object.entries(response as object).some(([address, tokenPrice]) => {
+      // prettier-ignore
+      return (
+        /0x[0-9a-fA-F]{40}/.exec(address) === undefined
+        && typeof tokenPrice === "object"
+        && "currency" in tokenPrice
+        && !isNaN(tokenPrice[currency])
+        && "last_updated_at" in tokenPrice
+        && !isNaN(tokenPrice.last_updated_at)
+      );
     });
-    return result.data;
   }
 }
