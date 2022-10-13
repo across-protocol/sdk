@@ -2,7 +2,7 @@ import assert from "assert";
 import dotenv from "dotenv";
 import winston from "winston";
 import { Logger, msToS, PriceCache, PriceClient, PriceFeedAdapter, TokenPrice } from "./priceClient";
-import { across, coingecko } from "./adapters";
+import { acrossApi, coingecko } from "./adapters";
 dotenv.config({ path: ".env" });
 
 const maxPriceAge = 300;
@@ -64,7 +64,7 @@ describe("PriceClient", function () {
 
     pc = new PriceClient(
       dummyLogger,
-      feedNames.map((feedName) => new across.PriceFeed(feedName))
+      feedNames.map((feedName) => new acrossApi.PriceFeed(feedName))
     );
     expect(feedNames).toEqual(pc.listPriceFeeds());
   });
@@ -85,15 +85,15 @@ describe("PriceClient", function () {
   });
 
   test("getPriceByAddress: Across API", async function () {
-    pc = new PriceClient(dummyLogger, [new across.PriceFeed("Across API")]);
+    pc = new PriceClient(dummyLogger, [new acrossApi.PriceFeed("Across API")]);
     const price: TokenPrice = await pc.getPriceByAddress(testAddress);
     validateTokenPrice(price, testAddress, beginTs);
   });
 
   test("getPriceByAddress: Across failover to Across", async function () {
     pc = new PriceClient(dummyLogger, [
-      new across.PriceFeed("Across API (expect fail)", "127.0.0.1"),
-      new across.PriceFeed("Across API (expect pass)"),
+      new acrossApi.PriceFeed("Across API (expect fail)", "127.0.0.1"),
+      new acrossApi.PriceFeed("Across API (expect pass)"),
     ]);
 
     const price: TokenPrice = await pc.getPriceByAddress(testAddress);
@@ -103,7 +103,7 @@ describe("PriceClient", function () {
   test("getPriceByAddress: Coingecko failover to Across", async function () {
     pc = new PriceClient(dummyLogger, [
       new coingecko.PriceFeed("CoinGecko Pro (expect fail)", "xxx-fake-apikey"),
-      new across.PriceFeed("Across API (expect pass)"),
+      new acrossApi.PriceFeed("Across API (expect pass)"),
     ]);
 
     const price: TokenPrice = await pc.getPriceByAddress(testAddress);
@@ -112,14 +112,14 @@ describe("PriceClient", function () {
 
   test("getPriceByAddress: Complete price lookup failure", async function () {
     pc = new PriceClient(dummyLogger, [
-      new across.PriceFeed("Across API #1 (expect fail)", "127.0.0.1"),
-      new across.PriceFeed("Across API #2 (expect fail)", "127.0.0.1"),
+      new acrossApi.PriceFeed("Across API #1 (expect fail)", "127.0.0.1"),
+      new acrossApi.PriceFeed("Across API #2 (expect fail)", "127.0.0.1"),
     ]);
     await expect(pc.getPriceByAddress(testAddress)).rejects.toThrow();
   });
 
   test("getPriceByAddress: Across API timeout", async function () {
-    const acrossPriceFeed: across.PriceFeed = new across.PriceFeed("Across API (timeout)");
+    const acrossPriceFeed: acrossApi.PriceFeed = new acrossApi.PriceFeed("Across API (timeout)");
     pc = new PriceClient(dummyLogger, [acrossPriceFeed]);
 
     acrossPriceFeed.timeout = 1; // mS
@@ -135,7 +135,7 @@ describe("PriceClient", function () {
     // Note: Beware of potential rate-limiting when using CoinGecko Free.
     const cgName: string = cgProApiKey ? "CoinGecko Pro" : "CoinGecko Free";
     const priceFeeds: PriceFeedAdapter[] = [
-      new across.PriceFeed("Across API"),
+      new acrossApi.PriceFeed("Across API"),
       new coingecko.PriceFeed(cgName, cgProApiKey),
     ];
 
@@ -159,7 +159,7 @@ describe("PriceClient", function () {
   test("getPriceByAddress: Address case insensitivity", async function () {
     // Instantiate a custom subclass of PriceClient.
     const pc: TestPriceClient = new TestPriceClient(dummyLogger, [
-      new across.PriceFeed("Across API (expect fail)", "127.0.0.1"),
+      new acrossApi.PriceFeed("Across API (expect fail)", "127.0.0.1"),
     ]);
 
     // Load the cache with lower-case addresses, then query with an upper-case address.
@@ -187,7 +187,7 @@ describe("PriceClient", function () {
   test("getPriceByAddress: Validate price cache", async function () {
     // Instantiate a custom subclass of PriceClient; load the cache and force price lookup failures.
     const pc: TestPriceClient = new TestPriceClient(dummyLogger, [
-      new across.PriceFeed("Across API (expect fail)", "127.0.0.1"),
+      new acrossApi.PriceFeed("Across API (expect fail)", "127.0.0.1"),
     ]);
 
     const priceCache: PriceCache = pc.getProtectedPriceCache(baseCurrency);
@@ -225,7 +225,7 @@ describe("PriceClient", function () {
     // Note: Beware of potential rate-limiting when using CoinGecko Free.
     const cgName: string = cgProApiKey ? "CoinGecko Pro" : "CoinGecko Free";
     const priceFeeds: PriceFeedAdapter[] = [
-      new across.PriceFeed("Across API"),
+      new acrossApi.PriceFeed("Across API"),
       new coingecko.PriceFeed(cgName, cgProApiKey),
     ];
 
