@@ -63,15 +63,15 @@ export class PriceClient implements PriceFeedAdapter {
     assert(this.priceFeeds.length > 0, "No price feeds are registered.");
     const priceCache = this.getPriceCache(currency);
 
-    // Determine whether *all* prices are current.
+    // Determine whether each *requested* price is current.
     const now = msToS(Date.now());
     const missed: { [address: string]: number } = {};
     addresses.forEach((address: string) => {
       const addr = address.toLowerCase();
-      // note: If priceCache[addr] is undefined, it is assigned here.
-      const tokenPrice = (priceCache[addr] = priceCache[addr] ?? ({ price: 0, timestamp: 0 } as TokenPrice));
-      const age = tokenPrice ? now - tokenPrice.timestamp : Number.MAX_SAFE_INTEGER;
+      const tokenPrice = priceCache[addr] ?? ({ price: 0, timestamp: 0 } as TokenPrice);
+      priceCache[addr] = tokenPrice; // Update priceCache if necessary;
 
+      const age = now - tokenPrice.timestamp;
       if (age > this.maxPriceAge) {
         missed[address] = age;
       }
@@ -85,11 +85,6 @@ export class PriceClient implements PriceFeedAdapter {
         tokens: missed,
       });
       const prices = await this.requestPrices(requestAddresses, currency);
-      if (Object.keys(prices).length === 0) {
-        this.logger.warn({ at: "PriceClient#getPricesByAddress", message: "Failed to update token prices." });
-        // @todo throw ?
-        return [];
-      }
       this.updateCache(priceCache, prices, requestAddresses);
     }
 
@@ -120,16 +115,16 @@ export class PriceClient implements PriceFeedAdapter {
       });
       try {
         prices = await priceFeed.getPricesByAddress(addresses, currency);
-        if (prices.length === 0) {
-          throw Error("Zero-length response received");
-        }
+        if (prices.length === 0) throw Error("Zero-length response received");
+        // @todo: Handle partial price retrievals.
+        else if (prices.length === addresses.length) break;
       } catch (err) {
         this.logger.debug({
           at: "PriceClient#requestPrices",
           message: `Price lookup against ${priceFeed.name} failed (${err}).`,
           tokens: addresses,
         });
-        continue; // Failover to the next price feed...
+        // Failover to the next price feed...
       }
     }
 
@@ -143,7 +138,7 @@ export class PriceClient implements PriceFeedAdapter {
   private updateCache(priceCache: PriceCache, prices: PriceCache, expected: string[]): void {
     const updated: TokenPrice[] = [];
     const skipped: { [token: string]: string } = {}; // Includes reason for skipping
-    const now: number = msToS(Date.now());
+    const now = msToS(Date.now());
 
     expected.forEach((address: string) => {
       const addr = address.toLowerCase(); // for internal priceCache lookup.
@@ -156,7 +151,7 @@ export class PriceClient implements PriceFeedAdapter {
       } else if (tokenPrice.timestamp >= priceCache[addr].timestamp) {
         const { price, timestamp } = tokenPrice;
         // @todo: Do we care if the token price is older than maxPriceAge?
-        priceCache[addr] = { address: "unused", price: price, timestamp: timestamp };
+        priceCache[addr] = { price: price, timestamp: timestamp } as TokenPrice;
         updated.push(tokenPrice);
       } else if (tokenPrice.timestamp === priceCache[addr].timestamp) {
         this.logger.debug({

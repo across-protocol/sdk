@@ -31,13 +31,6 @@ export class PriceFeed extends BaseHTTPAdapter implements PriceFeedAdapter {
 
   private validateResponse(response: unknown): response is AcrossPrice {
     if (typeof response !== "object") return false;
-
-    // prettier-ignore
-    return (
-      response !== null
-      && typeof response === "object"
-      && "price" in response
-      && typeof (response as { [key: string]: unknown }).price === "number"
-    );
+    return response !== null && typeof (response as { [key: string]: unknown }).price === "number";
   }
 }
