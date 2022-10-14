@@ -25,6 +25,14 @@ export function msToS(ms: number): number {
   return Math.floor(ms / 1000);
 }
 
+// PriceClient aggregates various user-configured price feeds/sources and retains them for a
+// configurable time period. External price lookups are performed according to an ordered list that
+// is supplied during instantiation. The PriceClient will iterate over the list until a complete set
+// of prices has been retrieved from a single source. External price lookups will opportunistically
+// request new prices for _all_ previously requested tokens. Price lookups into PriceClient will be
+// served out of its local cache if the token price is less than maxPriceAge seconds. This helps to
+// suppress external price lookups and can help to mitigate rate-limiting by external providers.
+// See README.md for further information and usage guidelines.
 export class PriceClient implements PriceFeedAdapter {
   public readonly name: string = "PriceClient";
   private _maxPriceAge = 300; // seconds
