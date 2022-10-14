@@ -158,8 +158,9 @@ export class PriceClient implements PriceFeedAdapter {
         skipped[address] = `Token price timestamp is too new (timestamp ${tokenPrice.timestamp}).`;
       } else if (tokenPrice.timestamp >= priceCache[addr].timestamp) {
         const { price, timestamp } = tokenPrice;
+        // Drop the address; we sub it in when returning to the caller.
         // @todo: Do we care if the token price is older than maxPriceAge?
-        priceCache[addr] = { price: price, timestamp: timestamp } as TokenPrice;
+        priceCache[addr] = { price, timestamp } as TokenPrice;
         updated.push(tokenPrice);
       } else if (tokenPrice.timestamp === priceCache[addr].timestamp) {
         this.logger.debug({
