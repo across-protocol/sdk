@@ -20,7 +20,7 @@ export class BaseHTTPAdapter {
   protected async query(path: string, urlArgs?: object): Promise<unknown> {
     const url = `https://${this.host}/${path ?? ""}`;
     const args = {
-      timeout: this.timeout,
+      timeout: this._timeout,
       params: urlArgs ?? {},
     };
 
