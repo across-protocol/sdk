@@ -52,7 +52,7 @@ export class PriceFeed extends BaseHTTPAdapter implements PriceFeedAdapter {
       if (tokenPrice === undefined) throw new Error(`Token ${addr} missing from ${this.name} response`);
 
       if (tokenPrice.confidence < this.minConfidence)
-        throw new Error(`Token ${addr} has low confidence score (${tokenPrice.confidence}`);
+        throw new Error(`Token ${addr} has low confidence score (${tokenPrice.confidence})`);
 
       return { address: addr, price: tokenPrice.price, timestamp: tokenPrice.timestamp };
     });
