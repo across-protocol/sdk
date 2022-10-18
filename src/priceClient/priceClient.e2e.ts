@@ -2,7 +2,7 @@ import assert from "assert";
 import dotenv from "dotenv";
 import winston from "winston";
 import { Logger, msToS, PriceCache, PriceClient, PriceFeedAdapter, TokenPrice } from "./priceClient";
-import { acrossApi, coingecko } from "./adapters";
+import { acrossApi, coingecko, defiLlama } from "./adapters";
 dotenv.config({ path: ".env" });
 
 const maxPriceAge = 300;
@@ -69,6 +69,12 @@ describe("PriceClient", function () {
     expect(feedNames).toEqual(pc.listPriceFeeds());
   });
 
+  test("getPriceByAddress: Across API", async function () {
+    pc = new PriceClient(dummyLogger, [new acrossApi.PriceFeed("Across API", {})]);
+    const price: TokenPrice = await pc.getPriceByAddress(testAddress);
+    validateTokenPrice(price, testAddress, beginTs);
+  });
+
   test("getPriceByAddress: CoinGecko Free", async function () {
     pc = new PriceClient(dummyLogger, [new coingecko.PriceFeed("CoinGecko Free", {})]);
     const price: TokenPrice = await pc.getPriceByAddress(testAddress);
@@ -85,8 +91,8 @@ describe("PriceClient", function () {
     validateTokenPrice(price, testAddress, beginTs);
   });
 
-  test("getPriceByAddress: Across API", async function () {
-    pc = new PriceClient(dummyLogger, [new acrossApi.PriceFeed("Across API", {})]);
+  test("getPriceByAddress: DefiLlama", async function () {
+    pc = new PriceClient(dummyLogger, [new defiLlama.PriceFeed("DefiLlama", {})]);
     const price: TokenPrice = await pc.getPriceByAddress(testAddress);
     validateTokenPrice(price, testAddress, beginTs);
   });
