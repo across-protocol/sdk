@@ -5,7 +5,7 @@ import { Logger, msToS, PriceCache, PriceClient, PriceFeedAdapter, TokenPrice } 
 import { acrossApi, coingecko, defiLlama } from "./adapters";
 dotenv.config({ path: ".env" });
 
-const maxPriceAge = 300;
+const maxPriceAge = 600;
 
 class TestPriceClient extends PriceClient {
   constructor(logger: Logger, priceFeeds: PriceFeedAdapter[]) {
@@ -92,8 +92,17 @@ describe("PriceClient", function () {
   });
 
   test("getPriceByAddress: DefiLlama", async function () {
+    let price: TokenPrice;
     pc = new PriceClient(dummyLogger, [new defiLlama.PriceFeed("DefiLlama", {})]);
-    const price: TokenPrice = await pc.getPriceByAddress(testAddress);
+    price = await pc.getPriceByAddress(testAddress);
+    validateTokenPrice(price, testAddress, beginTs);
+
+    // Verify that minConfidence works as expected
+    pc = new PriceClient(dummyLogger, [new defiLlama.PriceFeed("DefiLlama", { minConfidence: 1.0 })]);
+    await expect(pc.getPriceByAddress(testAddress)).rejects.toThrow();
+
+    pc = new PriceClient(dummyLogger, [new defiLlama.PriceFeed("DefiLlama", { minConfidence: 0.0 })]);
+    price = await pc.getPriceByAddress(testAddress);
     validateTokenPrice(price, testAddress, beginTs);
   });
 
