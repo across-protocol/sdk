@@ -42,9 +42,7 @@ export class PriceFeed extends BaseHTTPAdapter implements PriceFeedAdapter {
   async getPricesByAddress(addresses: string[], currency = "usd"): Promise<TokenPrice[]> {
     if (currency != "usd") throw new Error(`Currency ${currency} not supported by DefiLlama`);
 
-    const _addresses = addresses.map((address) => `ethereum:${address}`);
-    const path = "prices/current/" + _addresses.join();
-
+    const path = "prices/current/" + addresses.map((address) => `ethereum:${address}`).join();
     const tokenPrices: unknown = await this.query(path, {});
     if (!this.validateResponse(tokenPrices))
       throw new Error(`Unexpected ${this.name} response: ${JSON.stringify(tokenPrices)}`);
