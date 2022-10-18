@@ -137,7 +137,7 @@ export class PriceClient implements PriceFeedAdapter {
     }
 
     if (prices.length === 0) {
-      throw Error(`Price lookup failed against all price feeds (${this.listPriceFeeds().toString()})`);
+      throw Error(`Price lookup failed against all price feeds (${this.listPriceFeeds().join(", ")})`);
     }
 
     return Object.fromEntries(prices.map((price) => [price.address.toLowerCase(), price]));
