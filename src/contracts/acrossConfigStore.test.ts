@@ -20,4 +20,10 @@ describe("Contracts Config Store", () => {
     };
     expect(Client.parseL1TokenConfig(JSON.stringify(structure))).toEqual(BASE_TRUTH);
   });
+  it("should fail to parse the data to parseL1TokenConfig with malformed input", () => {
+    const structure = {
+      rateModel: { UBar: "750000000000000000", R0: "21000000000000000", R1: "0", R2: "600000000000000000" },
+    };
+    expect(() => Client.parseL1TokenConfig(JSON.stringify(structure))).toThrow();
+  });
 });
