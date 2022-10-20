@@ -13,10 +13,10 @@ const dummyLogger = winston.createLogger({
 type FeeData = providers.FeeData;
 
 class MockedProvider extends providers.JsonRpcProvider {
-  public feeData: any;
-  public gasPrice: any;
+  public feeData: BigNumber | number | string | undefined;
+  public gasPrice: BigNumber | number | string | undefined;
 
-  constructor(args: any) {
+  constructor(args: unknown) {
     super(args);
   }
 
@@ -68,7 +68,7 @@ describe("Gas Price Oracle", function () {
   });
 
   beforeEach(() => {
-    for (const [_chainId, provider] of Object.entries(providerInstances)) {
+    for (const [provider] of Object.values(providerInstances)) {
       provider.feeData = {
         gasPrice: stdGasPrice,
         maxFeePerGas: stdMaxFeePerGas,
@@ -133,7 +133,6 @@ describe("Gas Price Oracle", function () {
             (legacyChains.includes(chainId) && ["gasPrice"].includes(field))
           ) {
             await expect(getGasPriceEstimate(provider)).rejects.toThrow();
-
           } else {
             // Expect sane results to be returned; validate them.
             const gasPrice: GasPriceEstimate = await getGasPriceEstimate(provider);
@@ -151,7 +150,6 @@ describe("Gas Price Oracle", function () {
             if (eip1559Chains.includes(chainId)) {
               assert(gasPrice.maxFeePerGas.eq(stdMaxFeePerGas));
               assert(gasPrice.maxPriorityFeePerGas.eq(stdMaxPriorityFeePerGas));
-
             } else {
               // Legacy
               assert(gasPrice.maxFeePerGas.eq(stdGasPrice));
