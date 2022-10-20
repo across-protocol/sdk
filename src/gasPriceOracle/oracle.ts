@@ -10,7 +10,7 @@ interface GasPriceFeed {
 }
 
 function error(method: string, chainId: number, data: providers.FeeData | BigNumber): void {
-  throw new Error(`Malformed ${method} response on chain ID ${chainId} (${JSON.stringify(data)}`);
+  throw new Error(`Malformed ${method} response on chain ID ${chainId} (${JSON.stringify(data)})`);
 }
 
 async function legacy(provider: providers.Provider, chainId: number): Promise<GasPriceEstimate> {
