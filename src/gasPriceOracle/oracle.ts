@@ -34,7 +34,7 @@ async function eip1559(provider: providers.Provider, chainId: number): Promise<G
   });
 
   const maxPriorityFeePerGas = feeData.maxPriorityFeePerGas as BigNumber;
-  const maxFeePerGas = feeData.gasPrice as BigNumber; // note gasPrice is used.
+  const maxFeePerGas = maxPriorityFeePerGas.add(feeData.gasPrice as BigNumber); // note gasPrice is used.
 
   return {
     maxPriorityFeePerGas: maxPriorityFeePerGas,

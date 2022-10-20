@@ -47,8 +47,9 @@ const networks: { [chainId: number]: string } = {
   42161: "https://rpc.ankr.com/arbitrum",
 };
 
+const stdGasPrice = BigNumber.from(10);
 const stdMaxPriorityFeePerGas = BigNumber.from(2); // EIP-1559 chains only
-const stdMaxFeePerGas = stdMaxPriorityFeePerGas.add(10);
+const stdMaxFeePerGas = stdGasPrice.add(stdMaxPriorityFeePerGas);
 const eip1559Chains = [1, 137];
 const legacyChains = [10, 288, 42161];
 
@@ -69,7 +70,7 @@ describe("Gas Price Oracle", function () {
   beforeEach(() => {
     for (const [_chainId, provider] of Object.entries(providerInstances)) {
       provider.feeData = {
-        gasPrice: stdMaxFeePerGas,
+        gasPrice: stdGasPrice,
         maxFeePerGas: stdMaxFeePerGas,
         maxPriorityFeePerGas: stdMaxPriorityFeePerGas,
       };
@@ -92,13 +93,17 @@ describe("Gas Price Oracle", function () {
 
       assert.ok(gasPrice);
       assert.ok(BigNumber.isBigNumber(gasPrice.maxFeePerGas));
-      assert.ok(gasPrice.maxFeePerGas.eq(stdMaxFeePerGas));
 
       if (eip1559Chains.includes(chainId)) {
+        assert.ok(gasPrice.maxFeePerGas.eq(stdMaxFeePerGas), `${gasPrice.maxFeePerGas} != ${stdMaxFeePerGas}`);
         assert.ok(BigNumber.isBigNumber(gasPrice.maxPriorityFeePerGas));
-        assert.ok(gasPrice.maxPriorityFeePerGas.eq(stdMaxPriorityFeePerGas));
+        assert.ok(
+          gasPrice.maxPriorityFeePerGas.eq(stdMaxPriorityFeePerGas),
+          `${gasPrice.maxPriorityFeePerGas} != ${stdMaxPriorityFeePerGas}`
+        );
       } else {
         // Defaults to Legacy (Type 0)
+        assert.ok(gasPrice.maxFeePerGas.eq(stdGasPrice), `${gasPrice.maxFeePerGas} != ${stdGasPrice}`);
         assert.ok(gasPrice.maxPriorityFeePerGas.eq(0));
       }
     }
@@ -115,21 +120,22 @@ describe("Gas Price Oracle", function () {
       // Iterate over various faulty values for gasPrice & feeData.
       for (const field of feeDataFields) {
         for (const value of feeDataValues) {
-          provider.gasPrice = field === "gasPrice" ? value : stdMaxFeePerGas;
+          provider.gasPrice = field === "gasPrice" ? value : stdGasPrice;
           provider.feeData = {
-            gasPrice: field === "gasPrice" ? value : stdMaxFeePerGas,
-            maxFeePerGas: field === "maxFeePerGas" ? value : stdMaxFeePerGas,
+            gasPrice: field === "gasPrice" ? value : stdGasPrice,
+            maxFeePerGas: field === "gasPrice" ? value : stdMaxFeePerGas, // nb. use "lastBaseFeePerGas"
             maxPriorityFeePerGas: field === "maxPriorityFeePerGas" ? value : stdMaxPriorityFeePerGas,
           };
 
-          // For faulty values that we depend on, ensure that an exception is thrown.
-          // Otherwise, validate that the expected values were received.
           if (
-            (eip1559Chains.includes(chainId) && ["maxFeePerGas", "maxPriorityFeePerGas"].includes(field)) ||
+            // Malformed inputs were supplied; ensure an exception is thrown.
+            (eip1559Chains.includes(chainId) && ["gasPrice", "maxPriorityFeePerGas"].includes(field)) ||
             (legacyChains.includes(chainId) && ["gasPrice"].includes(field))
           ) {
             await expect(getGasPriceEstimate(provider)).rejects.toThrow();
+
           } else {
+            // Expect sane results to be returned; validate them.
             const gasPrice: GasPriceEstimate = await getGasPriceEstimate(provider);
 
             dummyLogger.debug({
@@ -139,17 +145,18 @@ describe("Gas Price Oracle", function () {
             });
 
             assert.ok(gasPrice);
-            // maxPriorityFeePerGas => 0 for Type 0 (legacy) chains.
-            const _stdMaxPriorityFeePerGas = eip1559Chains.includes(chainId)
-              ? stdMaxPriorityFeePerGas
-              : BigNumber.from(0);
-            [
-              [gasPrice.maxFeePerGas, stdMaxFeePerGas],
-              [gasPrice.maxPriorityFeePerGas, _stdMaxPriorityFeePerGas],
-            ].forEach(([field, value]) => {
-              assert(BigNumber.isBigNumber(field), `Unexpected field: ${field}`);
-              assert(field.eq(value), `Field ${field} != ${value}`);
-            });
+            assert(BigNumber.isBigNumber(gasPrice.maxFeePerGas));
+            assert(BigNumber.isBigNumber(gasPrice.maxPriorityFeePerGas));
+
+            if (eip1559Chains.includes(chainId)) {
+              assert(gasPrice.maxFeePerGas.eq(stdMaxFeePerGas));
+              assert(gasPrice.maxPriorityFeePerGas.eq(stdMaxPriorityFeePerGas));
+
+            } else {
+              // Legacy
+              assert(gasPrice.maxFeePerGas.eq(stdGasPrice));
+              assert(gasPrice.maxPriorityFeePerGas.eq(0));
+            }
           }
         }
       }
