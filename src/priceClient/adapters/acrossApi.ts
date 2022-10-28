@@ -10,7 +10,7 @@ type AcrossApiArgs = {
 const defaultTimeout = 5000; // mS
 
 export class PriceFeed extends BaseHTTPAdapter implements PriceFeedAdapter {
-  constructor(args?: AcrossApiArgs) {
+  constructor(args: AcrossApiArgs = {}) {
     // Allow host to be overridden for test or alternative deployments.
     super(args?.name ?? "Across API", args?.host ?? "across.to", { timeout: args?.timeout ?? defaultTimeout });
   }
