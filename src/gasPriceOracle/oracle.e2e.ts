@@ -13,19 +13,22 @@ const dummyLogger = winston.createLogger({
 type FeeData = providers.FeeData;
 
 class MockedProvider extends providers.JsonRpcProvider {
-  public feeData: BigNumber | number | string | undefined;
-  public gasPrice: BigNumber | number | string | undefined;
+  // Unknown type => exercise our validation logic
+  public feeData: unknown;
+  public gasPrice: unknown;
 
-  constructor(args: unknown) {
-    super(args);
+  constructor(url: string) {
+    super(url);
   }
 
   override async getFeeData(): Promise<FeeData> {
-    return this.feeData ?? (await super.getFeeData());
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return (this.feeData as any) ?? (await super.getFeeData());
   }
 
   override async getGasPrice(): Promise<BigNumber> {
-    return this.gasPrice !== undefined ? this.gasPrice : await super.getGasPrice();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return this.gasPrice !== undefined ? (this.gasPrice as any) : await super.getGasPrice();
   }
 }
 
@@ -68,19 +71,17 @@ describe("Gas Price Oracle", function () {
   });
 
   beforeEach(() => {
-    for (const [provider] of Object.values(providerInstances)) {
+    for (const provider of Object.values(providerInstances)) {
       provider.feeData = {
         gasPrice: stdGasPrice,
         maxFeePerGas: stdMaxFeePerGas,
         maxPriorityFeePerGas: stdMaxPriorityFeePerGas,
       };
-      provider.gasPrice = provider.feeData.gasPrice;
+      provider.gasPrice = (provider.feeData as FeeData).gasPrice;
     }
   });
 
   test("Gas Price Retrieval", async function () {
-    jest.setTimeout(10000);
-
     for (const [_chainId, provider] of Object.entries(providerInstances)) {
       const chainId = Number(_chainId);
 
@@ -107,10 +108,9 @@ describe("Gas Price Oracle", function () {
         assert.ok(gasPrice.maxPriorityFeePerGas.eq(0));
       }
     }
-  });
+  }, 10000);
 
   test("Gas Price Retrieval Failure", async function () {
-    jest.setTimeout(25000);
     const feeDataFields = ["gasPrice", "maxFeePerGas", "maxPriorityFeePerGas"];
     const feeDataValues = [null, "test", "1234", 5678, BigNumber.from(-1)];
 
@@ -159,7 +159,7 @@ describe("Gas Price Oracle", function () {
         }
       }
     }
-  });
+  }, 25000);
 
   test("Gas Price Fallback Behaviour", async function () {
     for (const provider of Object.values(providerInstances)) {
