@@ -5,13 +5,9 @@ jobs:
     name: Test
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout repo
-        uses: actions/checkout@v2
-      - name: Install deps
-        uses: borales/actions-yarn@v3.0.0
+      - uses: actions/checkout@v3
+      - uses: actions/setup-node@v3
         with:
-          cmd: install
-      - name: Run tests
-        uses: borales/actions-yarn@v3.0.0
-        with:
-          cmd: test --ci --coverage --maxWorkers=2
+          node-version: 16
+      - run: yarn install
+      - run: yarn test --ci --coverage --maxWorkers=2
