@@ -245,9 +245,9 @@ export async function estimateTotalGasRequiredByUnsignedTransaction(
 ): Promise<BigNumberish> {
   assert(
     gasMarkup > -1 && gasMarkup <= 4,
-    "Gas Markup must be within the range of (-1.0, +4.0] so that total gas multiplier is between (0, +5.0]"
+    `Require -1.0 < Gas Markup (${gasMarkup}) <= 4.0 for a total gas multiplier within (0, +5.0]`
   );
-  const gasTotalMultiplier = 1.0 + gasMarkup;
+  const gasTotalMultiplier = toBNWei(1.0 + gasMarkup);
   const network: providers.Network = await provider.getNetwork(); // Served locally by StaticJsonRpcProvider.
   const voidSigner = new VoidSigner(senderAddress, provider);
 
@@ -269,7 +269,7 @@ export async function estimateTotalGasRequiredByUnsignedTransaction(
 
   // Find the total gas cost by taking the product of the gas price & the
   // estimated number of gas units needed.
-  return BigNumber.from(gasPrice).mul(gasTotalMultiplier).mul(estimatedGasUnits).toString();
+  return BigNumber.from(gasPrice).mul(gasTotalMultiplier).div(toBNWei(1)).mul(estimatedGasUnits).toString();
 }
 
 /**
