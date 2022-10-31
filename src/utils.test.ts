@@ -7,7 +7,7 @@ import {
   estimateTotalGasRequiredByUnsignedTransaction,
   retry,
   toBN,
-  toBNWei
+  toBNWei,
 } from "./utils";
 
 dotenv.config();
@@ -36,7 +36,9 @@ describe("Utils test", () => {
 
     const gasPrice = toBNWei(1, 9); // 1 Gwei
 
-    const provider = new providers.JsonRpcProvider(process.env.NODE_URL_1, 1);
+    // @todo: Ensure that NODE_URL_1 is always defined in test CI?
+    const rpcUrl = process.env.NODE_URL_1 ?? "https://cloudflare-eth.com";
+    const provider = new providers.JsonRpcProvider(rpcUrl, 1);
     const spokePool: SpokePool = SpokePool__factory.connect(spokePoolAddress, provider);
 
     const unsignedTxn = await createUnsignedFillRelayTransaction(spokePool, usdcAddress, relayerAddress);
@@ -54,7 +56,7 @@ describe("Utils test", () => {
         relayerAddress,
         provider,
         gasMarkup,
-        gasPrice,
+        gasPrice
       );
       const gasMultiplier = toBNWei(1.0 + gasMarkup);
       expect(toBN(gasEstimate).eq(toBN(refGasEstimate).mul(gasMultiplier).div(toBNWei(1)))).toBe(true);
