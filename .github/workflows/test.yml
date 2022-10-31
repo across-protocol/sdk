@@ -11,9 +11,9 @@ jobs:
         uses: actions/setup-node@v3
         with:
           node-version: 16
-          cmd: install
+          run: npm install
       - name: Run tests
         uses: actions/setup-node@v3
         with:
           node-version: 16
-          cmd: test --ci --coverage --maxWorkers=2
+          run: npm test --ci --coverage --maxWorkers=2

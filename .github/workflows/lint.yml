@@ -10,9 +10,9 @@ jobs:
         uses: actions/setup-node@v3
         with:
           node-version: 16
-          cmd: npm install
+          run: npm install
       - name: Run lint
         uses: actions/setup-node@v3
         with:
           node-version: 16
-          cmd: npm lint
+          run: npm lint
