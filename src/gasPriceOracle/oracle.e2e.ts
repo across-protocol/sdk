@@ -77,7 +77,7 @@ describe("Gas Price Oracle", function () {
         maxFeePerGas: stdMaxFeePerGas,
         maxPriorityFeePerGas: stdMaxPriorityFeePerGas,
       };
-      provider.gasPrice = (provider.feeData as FeeData).gasPrice;
+      provider.gasPrice = stdGasPrice; // Required: same as provider.feeData.gasPrice.
     }
   });
 
