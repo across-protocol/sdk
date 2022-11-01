@@ -256,7 +256,10 @@ export async function estimateTotalGasRequiredByUnsignedTransaction(
     assert(isOptimismL2Provider(provider), `Unexpected provider for chain ID ${network.chainId}.`);
     assert(gasPrice === undefined, `Gas price (${gasPrice}) supplied for Optimism gas estimation (unused).`);
     const populatedTransaction = await voidSigner.populateTransaction(unsignedTx);
-    return (await provider.estimateTotalGasCost(populatedTransaction)).mul(gasTotalMultiplier).toString();
+    return (await provider.estimateTotalGasCost(populatedTransaction))
+      .mul(gasTotalMultiplier)
+      .div(toBNWei(1))
+      .toString();
   }
 
   if (!gasPrice) {
@@ -269,7 +272,7 @@ export async function estimateTotalGasRequiredByUnsignedTransaction(
 
   // Find the total gas cost by taking the product of the gas price & the
   // estimated number of gas units needed.
-  return BigNumber.from(gasPrice).mul(gasTotalMultiplier).div(toBNWei(1)).mul(estimatedGasUnits).toString();
+  return BigNumber.from(gasPrice).mul(gasTotalMultiplier).mul(estimatedGasUnits).div(toBNWei(1)).toString();
 }
 
 /**

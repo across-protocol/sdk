@@ -10,7 +10,7 @@ export const Factory = HubPool__factory;
 export type Interface = HubPoolInterface;
 
 export function connect(address: string, provider: SignerOrProvider): Instance {
-  return Factory.connect(address, provider as unknown as Signer);
+  return Factory.connect(address, provider as Signer);
 }
 
 export type LiquidityAdded = GetEventType<Instance, "LiquidityAdded">;
