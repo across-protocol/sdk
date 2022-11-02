@@ -1,6 +1,6 @@
 import { Provider } from "@ethersproject/providers";
 import { AcrossConfigStore, AcrossConfigStore__factory } from "@across-protocol/contracts-v2";
-import { object, string, Infer, assert } from "superstruct";
+import { object, string, Infer, assert, mask } from "superstruct";
 import type { CallOverrides } from "@ethersproject/contracts";
 
 const RateModelSs = object({
@@ -23,8 +23,9 @@ export class Client {
   }
   static parseL1TokenConfig(data: string): L1TokenConfig {
     const l1TokenConfig = JSON.parse(data);
-    assert(l1TokenConfig, L1TokenConfigSs);
-    return l1TokenConfig;
+    const l1TokenConfigMask = mask(l1TokenConfig, L1TokenConfigSs);
+    assert(l1TokenConfigMask, L1TokenConfigSs);
+    return l1TokenConfigMask;
   }
   async getL1TokenConfig(l1TokenAddress: string, overrides: CallOverrides = {}): Promise<L1TokenConfig> {
     const data = await this.contract.l1TokenConfig(l1TokenAddress, overrides);

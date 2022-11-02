@@ -7,7 +7,11 @@ import { SpokePool, SpokePool__factory } from "@across-protocol/contracts-v2";
 import { ChainId } from "./adapters/web3/model";
 import { SpokePoolEventsQuerier } from "./adapters/web3";
 import { TransfersRepository } from "./adapters/db/transfers-repository";
-import { FilledRelayEvent, FundsDepositedEvent } from "@across-protocol/contracts-v2/dist/typechain/ArbitrumSpokePool";
+import {
+  FilledRelayEvent,
+  FundsDepositedEvent,
+  RequestedSpeedUpDepositEvent,
+} from "@across-protocol/contracts-v2/dist/typechain/ArbitrumSpokePool";
 import { Transfer } from "./model";
 
 export enum TransfersHistoryEvent {
@@ -136,12 +140,25 @@ export class TransfersHistoryClient {
     const filledRelayEvents = events
       .flat()
       .reduce((acc, val) => [...acc, ...val.filledRelayEvents], [] as FilledRelayEvent[]);
+    const speedUpDepositEvents = events.flat().reduce(
+      (acc, val) => [
+        ...acc,
+        ...val.speedUpDepositEvents.map((event) => ({
+          ...event,
+          // we have to enrich the event with this information in order to determine
+          // which exact `transfer` needs to be updated.
+          emittedFromChainId: val.emittedFromChainId,
+        })),
+      ],
+      [] as Array<RequestedSpeedUpDepositEvent & { emittedFromChainId: number }>
+    );
     const blockTimestampMap = events
       .flat()
       .reduce((acc, val) => ({ ...acc, ...val.blockTimestampMap }), {} as { [blockNumber: number]: number });
 
     depositEvents.map((e) => this.insertFundsDepositedEvent(e, blockTimestampMap[e.blockNumber]));
     filledRelayEvents.map((e) => this.insertFilledRelayEvent(e));
+    speedUpDepositEvents.map((e) => this.handleSpeedUpDepositEvent(e, blockTimestampMap[e.blockNumber]));
     this.transfersRepository.aggregateTransfers();
 
     const filledTransfersCount =
@@ -168,7 +185,7 @@ export class TransfersHistoryClient {
 
   private insertFundsDepositedEvent(event: FundsDepositedEvent, timestamp: number) {
     const { args, transactionHash } = event;
-    const { amount, originToken, destinationChainId, depositId, depositor, originChainId } = args;
+    const { amount, originToken, destinationChainId, depositId, depositor, originChainId, relayerFeePct } = args;
     const transfer: Transfer = {
       amount: BigNumber.from(amount),
       assetAddr: originToken,
@@ -180,19 +197,39 @@ export class TransfersHistoryClient {
       sourceChainId: originChainId.toNumber(),
       status: "pending",
       fillTxs: [],
+      initialRelayerFeePct: relayerFeePct,
+      currentRelayerFeePct: relayerFeePct,
+      speedUps: [],
     };
     this.transfersRepository.insertTransfer(originChainId.toNumber(), depositor, depositId, transfer);
   }
 
   private insertFilledRelayEvent(event: FilledRelayEvent) {
     const { args, transactionHash } = event;
-    const { totalFilledAmount, depositor, depositId, originChainId } = args;
+    const { totalFilledAmount, depositor, depositId, originChainId, appliedRelayerFeePct } = args;
     this.transfersRepository.updateFilledAmount(
       originChainId.toNumber(),
       depositor,
       depositId,
       totalFilledAmount,
-      transactionHash
+      transactionHash,
+      appliedRelayerFeePct
+    );
+  }
+
+  private handleSpeedUpDepositEvent(
+    event: RequestedSpeedUpDepositEvent & { emittedFromChainId: number },
+    timestamp: number
+  ) {
+    const { args, transactionHash, emittedFromChainId } = event;
+    const { newRelayerFeePct, depositor, depositId } = args;
+    this.transfersRepository.updateRelayerFee(
+      emittedFromChainId,
+      depositor,
+      depositId,
+      newRelayerFeePct,
+      transactionHash,
+      timestamp
     );
   }
 

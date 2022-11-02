@@ -5,12 +5,9 @@ jobs:
     name: Lint
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
-      - name: Install deps
-        uses: borales/actions-yarn@v3.0.0
+      - uses: actions/checkout@v3
+      - uses: actions/setup-node@v3
         with:
-          cmd: install
-      - name: Run lint
-        uses: borales/actions-yarn@v3.0.0
-        with:
-          cmd: lint
+          node-version: 16
+      - run: yarn install
+      - run: yarn lint

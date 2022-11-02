@@ -14,4 +14,7 @@ export type Transfer = {
   amount: BigNumber;
   depositTxHash: string;
   fillTxs: string[];
+  initialRelayerFeePct: BigNumber;
+  currentRelayerFeePct: BigNumber;
+  speedUps: { txHash: string; relayerFeePct: BigNumber; timestamp: number }[];
 };
