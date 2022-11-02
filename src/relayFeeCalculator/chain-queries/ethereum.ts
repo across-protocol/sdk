@@ -72,6 +72,10 @@ export const SymbolMapping: { [symbol: string]: { address: string; decimals: num
     address: "0xdAC17F958D2ee523a2206206994597C13D831ec7",
     decimals: 6,
   },
+  ACX: {
+    address: "0x44108f0223A3C3028F5Fe7AEC7f9bb2E66beF82F",
+    decimals: 18,
+  },
 };
 
 export class EthereumQueries extends QueryBase {
