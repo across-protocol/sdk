@@ -59,7 +59,7 @@ export class PriceFeed extends BaseHTTPAdapter implements PriceFeedAdapter {
       throw new Error(`Unexpected ${this.name} response: ${JSON.stringify(tokenPrices)}`);
 
     return addresses.map((addr: string) => {
-      const tokenPrice = tokenPrices.coins[`ethereum:${addr.toLowerCase()}`];
+      const tokenPrice = tokenPrices.coins[`ethereum:${addr}`];
       if (tokenPrice === undefined) throw new Error(`Token ${addr} missing from ${this.name} response`);
 
       if (tokenPrice.confidence < this.minConfidence)
@@ -78,7 +78,7 @@ export class PriceFeed extends BaseHTTPAdapter implements PriceFeedAdapter {
     return Object.entries(coins as object).every(([address, tokenPrice]) => {
       // prettier-ignore
       return (
-        /[a-z]+:0x[0-9a-fA-F]{40}/.exec(address) !== undefined
+        /[a-z]+:0[xX][0-9a-fA-F]{40}/.exec(address) !== undefined
         && typeof tokenPrice === "object"
         && typeof tokenPrice.symbol === "string"
         && !isNaN(tokenPrice.decimals)
