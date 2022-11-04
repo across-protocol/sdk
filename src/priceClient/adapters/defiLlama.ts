@@ -15,13 +15,24 @@ type DefiLlamaPriceResponse = {
   };
 };
 
-const defaultTimeout = 5000; // mS
+type DefiLlamaArgs = {
+  name?: string;
+  host?: string;
+  timeout?: number;
+  minConfidence?: number;
+};
 
 export class PriceFeed extends BaseHTTPAdapter implements PriceFeedAdapter {
   private _minConfidence: number;
 
-  constructor(name = "DefiLlama", { timeout, minConfidence = 0.9 }: { timeout?: number; minConfidence?: number }) {
-    super(name, "coins.llama.fi", { timeout: timeout ?? defaultTimeout });
+  constructor({
+    name = "DefiLlama",
+    host = "coins.llama.fi",
+    timeout = 5000,
+    minConfidence = 0.9,
+  }: DefiLlamaArgs = {}) {
+    super(name, host, { timeout });
+    assert(minConfidence >= 0.0 && minConfidence <= 1.0);
     this._minConfidence = minConfidence;
   }
 

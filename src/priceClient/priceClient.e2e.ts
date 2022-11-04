@@ -93,15 +93,15 @@ describe("PriceClient", function () {
 
   test("getPriceByAddress: DefiLlama", async function () {
     let price: TokenPrice;
-    pc = new PriceClient(dummyLogger, [new defiLlama.PriceFeed("DefiLlama", {})]);
+    pc = new PriceClient(dummyLogger, [new defiLlama.PriceFeed()]);
     price = await pc.getPriceByAddress(testAddress);
     validateTokenPrice(price, testAddress, beginTs);
 
     // Verify that minConfidence works as expected
-    pc = new PriceClient(dummyLogger, [new defiLlama.PriceFeed("DefiLlama", { minConfidence: 1.0 })]);
+    pc = new PriceClient(dummyLogger, [new defiLlama.PriceFeed({ minConfidence: 1.0 })]);
     await expect(pc.getPriceByAddress(testAddress)).rejects.toThrow();
 
-    pc = new PriceClient(dummyLogger, [new defiLlama.PriceFeed("DefiLlama", { minConfidence: 0.0 })]);
+    pc = new PriceClient(dummyLogger, [new defiLlama.PriceFeed({ minConfidence: 0.0 })]);
     price = await pc.getPriceByAddress(testAddress);
     validateTokenPrice(price, testAddress, beginTs);
   });
