@@ -12,12 +12,18 @@ type CoinGeckoPriceResponse = {
 
 const defaultTimeout = 5000; // mS
 
+type CoinGeckoArgs = {
+  name?: string;
+  timeout?: number;
+  apiKey?: string;
+};
+
 export class PriceFeed extends BaseHTTPAdapter implements PriceFeedAdapter {
   private readonly apiKey: string | undefined = undefined;
 
-  constructor(name: string, { timeout, apiKey }: { timeout?: number; apiKey?: string }) {
-    super(name, apiKey ? "pro-api.coingecko.com" : "api.coingecko.com", {
-      timeout: timeout ?? defaultTimeout,
+  constructor({ name, apiKey, timeout = defaultTimeout }: CoinGeckoArgs = {}) {
+    super(name ?? apiKey ? "CoinGecko Pro" : "CoinGecko Free", apiKey ? "pro-api.coingecko.com" : "api.coingecko.com", {
+      timeout,
     });
     this.apiKey = apiKey;
   }
