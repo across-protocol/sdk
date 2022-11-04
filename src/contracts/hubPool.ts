@@ -2,6 +2,7 @@ import { HubPool, HubPool__factory, HubPoolInterface } from "@across-protocol/co
 
 import type { SignerOrProvider, GetEventType, SerializableEvent } from "@uma/sdk";
 import * as uma from "@uma/sdk";
+import { Signer } from "ethers";
 const { Balances } = uma.utils;
 
 export type Instance = HubPool;
@@ -9,7 +10,7 @@ export const Factory = HubPool__factory;
 export type Interface = HubPoolInterface;
 
 export function connect(address: string, provider: SignerOrProvider): Instance {
-  return Factory.connect(address, provider);
+  return Factory.connect(address, provider as Signer);
 }
 
 export type LiquidityAdded = GetEventType<Instance, "LiquidityAdded">;

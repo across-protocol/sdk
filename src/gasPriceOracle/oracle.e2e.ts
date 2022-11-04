@@ -14,8 +14,8 @@ type FeeData = providers.FeeData;
 
 class MockedProvider extends providers.JsonRpcProvider {
   // Unknown type => exercise our validation logic
-  public feeData: unknown;
-  public gasPrice: unknown;
+  public testFeeData: unknown;
+  public testGasPrice: unknown;
 
   constructor(url: string) {
     super(url);
@@ -23,12 +23,12 @@ class MockedProvider extends providers.JsonRpcProvider {
 
   override async getFeeData(): Promise<FeeData> {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    return (this.feeData as any) ?? (await super.getFeeData());
+    return (this.testFeeData as any) ?? (await super.getFeeData());
   }
 
   override async getGasPrice(): Promise<BigNumber> {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    return this.gasPrice !== undefined ? (this.gasPrice as any) : await super.getGasPrice();
+    return this.testGasPrice !== undefined ? (this.testGasPrice as any) : await super.getGasPrice();
   }
 }
 
@@ -72,12 +72,12 @@ describe("Gas Price Oracle", function () {
 
   beforeEach(() => {
     for (const provider of Object.values(providerInstances)) {
-      provider.feeData = {
+      provider.testFeeData = {
         gasPrice: stdGasPrice,
         maxFeePerGas: stdMaxFeePerGas,
         maxPriorityFeePerGas: stdMaxPriorityFeePerGas,
       };
-      provider.gasPrice = stdGasPrice; // Required: same as provider.feeData.gasPrice.
+      provider.testGasPrice = stdGasPrice; // Required: same as provider.feeData.gasPrice.
     }
   });
 
@@ -120,8 +120,8 @@ describe("Gas Price Oracle", function () {
       // Iterate over various faulty values for gasPrice & feeData.
       for (const field of feeDataFields) {
         for (const value of feeDataValues) {
-          provider.gasPrice = field === "gasPrice" ? value : stdGasPrice;
-          provider.feeData = {
+          provider.testGasPrice = field === "gasPrice" ? value : stdGasPrice;
+          provider.testFeeData = {
             gasPrice: field === "gasPrice" ? value : stdGasPrice,
             maxFeePerGas: field === "gasPrice" ? value : stdMaxFeePerGas, // nb. use "lastBaseFeePerGas"
             maxPriorityFeePerGas: field === "maxPriorityFeePerGas" ? value : stdMaxPriorityFeePerGas,
@@ -164,7 +164,7 @@ describe("Gas Price Oracle", function () {
   test("Gas Price Fallback Behaviour", async function () {
     for (const provider of Object.values(providerInstances)) {
       const fakeChainId = 1337;
-      provider.gasPrice = stdMaxFeePerGas; // Suppress RPC lookup.
+      provider.testGasPrice = stdMaxFeePerGas; // Suppress RPC lookup.
 
       const gasPrice: GasPriceEstimate = await getGasPriceEstimate(provider, fakeChainId, true);
       assert.ok(gasPrice);
