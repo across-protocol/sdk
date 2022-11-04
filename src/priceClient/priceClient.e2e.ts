@@ -150,7 +150,6 @@ describe("PriceClient", function () {
 
       for (const [baseCurrency, address] of parityTokens) {
         const tokenPrice: TokenPrice = await pc.getPriceByAddress(address, baseCurrency);
-        dummyLogger.debug({ at: "PITA test..:", message: `Got tokenPrice for addr ${address}.`, tokenPrice });
         validateTokenPrice(tokenPrice, address, beginTs);
         assert.ok(Math.abs(tokenPrice.price - 1) < 0.05);
       }
