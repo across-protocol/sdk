@@ -12,12 +12,18 @@ type CoinGeckoPriceResponse = {
 
 const defaultTimeout = 5000; // mS
 
+type CoinGeckoArgs = {
+  name?: string;
+  timeout?: number;
+  apiKey?: string;
+};
+
 export class PriceFeed extends BaseHTTPAdapter implements PriceFeedAdapter {
   private readonly apiKey: string | undefined = undefined;
 
-  constructor(name: string, { timeout, apiKey }: { timeout?: number; apiKey?: string }) {
-    super(name, apiKey ? "pro-api.coingecko.com" : "api.coingecko.com", {
-      timeout: timeout ?? defaultTimeout,
+  constructor({ name, apiKey, timeout = defaultTimeout }: CoinGeckoArgs = {}) {
+    super(name ?? apiKey ? "CoinGecko Pro" : "CoinGecko Free", apiKey ? "pro-api.coingecko.com" : "api.coingecko.com", {
+      timeout,
     });
     this.apiKey = apiKey;
   }
@@ -41,6 +47,8 @@ export class PriceFeed extends BaseHTTPAdapter implements PriceFeedAdapter {
 
     return addresses.map((addr: string) => {
       const price: CoinGeckoTokenPrice = prices[addr.toLowerCase()];
+      if (price === undefined) throw new Error(`Token ${addr} missing from ${this.name} response`);
+
       return { address: addr, price: price[currency], timestamp: price.last_updated_at };
     });
   }
@@ -48,14 +56,12 @@ export class PriceFeed extends BaseHTTPAdapter implements PriceFeedAdapter {
   private validateResponse(response: unknown, currency: string): response is CoinGeckoPriceResponse {
     if (typeof response !== "object") return false;
 
-    return !Object.entries(response as object).some(([address, tokenPrice]) => {
+    return Object.entries(response as object).every(([address, tokenPrice]) => {
       // prettier-ignore
       return (
-        /0x[0-9a-fA-F]{40}/.exec(address) === undefined
+        /0x[0-9a-fA-F]{40}/.exec(address) !== undefined
         && typeof tokenPrice === "object"
-        && "currency" in tokenPrice
         && !isNaN(tokenPrice[currency])
-        && "last_updated_at" in tokenPrice
         && !isNaN(tokenPrice.last_updated_at)
       );
     });
