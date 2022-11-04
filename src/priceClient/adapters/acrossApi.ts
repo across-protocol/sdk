@@ -10,9 +10,9 @@ type AcrossApiArgs = {
 const defaultTimeout = 5000; // mS
 
 export class PriceFeed extends BaseHTTPAdapter implements PriceFeedAdapter {
-  constructor(args: AcrossApiArgs = {}) {
+  constructor({ name = "Across API", host = "across.to", timeout = defaultTimeout }: AcrossApiArgs = {}) {
     // Allow host to be overridden for test or alternative deployments.
-    super(args?.name ?? "Across API", args?.host ?? "across.to", { timeout: args?.timeout ?? defaultTimeout });
+    super(name, host, { timeout });
   }
 
   async getPriceByAddress(address: string, currency = "usd"): Promise<TokenPrice> {

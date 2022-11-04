@@ -21,13 +21,11 @@ type CoinGeckoArgs = {
 export class PriceFeed extends BaseHTTPAdapter implements PriceFeedAdapter {
   private readonly apiKey: string | undefined = undefined;
 
-  constructor(args: CoinGeckoArgs = {}) {
-    super(
-      args?.name ?? args?.apiKey ? "CoinGecko Pro" : "CoinGecko Free",
-      args?.apiKey ? "pro-api.coingecko.com" : "api.coingecko.com",
-      { timeout: args?.timeout ?? defaultTimeout }
-    );
-    this.apiKey = args?.apiKey;
+  constructor({ name, apiKey, timeout = defaultTimeout }: CoinGeckoArgs = {}) {
+    super(name ?? apiKey ? "CoinGecko Pro" : "CoinGecko Free", apiKey ? "pro-api.coingecko.com" : "api.coingecko.com", {
+      timeout,
+    });
+    this.apiKey = apiKey;
   }
 
   async getPriceByAddress(address: string, currency = "usd"): Promise<TokenPrice> {
