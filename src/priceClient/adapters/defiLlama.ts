@@ -51,21 +51,21 @@ export class PriceFeed extends BaseHTTPAdapter implements PriceFeedAdapter {
   }
 
   async getPricesByAddress(addresses: string[], currency = "usd"): Promise<TokenPrice[]> {
-    if (currency != "usd") throw new Error(`Currency ${currency} not supported by DefiLlama`);
+    if (currency != "usd") throw new Error(`Currency ${currency} not supported by ${this.name}`);
 
     const path = "prices/current/" + addresses.map((address) => `ethereum:${address}`).join();
     const tokenPrices: unknown = await this.query(path, {});
     if (!this.validateResponse(tokenPrices))
       throw new Error(`Unexpected ${this.name} response: ${JSON.stringify(tokenPrices)}`);
 
-    return addresses.map((addr: string) => {
-      const tokenPrice = tokenPrices.coins[`ethereum:${addr}`];
-      if (tokenPrice === undefined) throw new Error(`Token ${addr} missing from ${this.name} response`);
+    return addresses.map((address: string) => {
+      const tokenPrice = tokenPrices.coins[`ethereum:${address}`];
+      if (tokenPrice === undefined) throw new Error(`Token ${address} missing from ${this.name} response`);
 
       if (tokenPrice.confidence < this.minConfidence)
-        throw new Error(`Token ${addr} has low confidence score (${tokenPrice.confidence})`);
+        throw new Error(`Token ${address} has low confidence score (${tokenPrice.confidence})`);
 
-      return { address: addr, price: tokenPrice.price, timestamp: tokenPrice.timestamp };
+      return { address, price: tokenPrice.price, timestamp: tokenPrice.timestamp };
     });
   }
 
