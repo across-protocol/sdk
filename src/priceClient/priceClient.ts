@@ -86,14 +86,12 @@ export class PriceClient implements PriceFeedAdapter {
     });
 
     if (Object.keys(missed).length > 0) {
-      const requestAddresses = Object.keys(priceCache);
       this.logger.debug({
         at: "PriceClient#getPricesByAddress",
         message: `${currency.toUpperCase()} cache miss (age > ${this.maxPriceAge} S).`,
         tokens: missed,
       });
-      const prices = await this.requestPrices(requestAddresses, currency);
-      this.updateCache(priceCache, prices, requestAddresses);
+      await this.updatePrices(currency);
     }
 
     return addresses.map((address: string) => {
@@ -113,22 +111,23 @@ export class PriceClient implements PriceFeedAdapter {
     return this.prices[currency];
   }
 
-  private async requestPrices(addresses: string[], currency: string): Promise<PriceCache> {
-    let prices: TokenPrice[] = [];
+  private async updatePrices(currency: string): Promise<void> {
+    const priceCache = this.getPriceCache(currency);
+    let addresses = Object.keys(priceCache);
 
     for (const priceFeed of this.priceFeeds) {
       this.logger.debug({
-        at: "PriceClient#getPriceByAddress",
+        at: "PriceClient#updatePrices",
         message: `Looking up prices via ${priceFeed.name}.`,
+        tokens: addresses,
       });
       try {
-        prices = await priceFeed.getPricesByAddress(addresses, currency);
-        if (prices.length === 0) throw Error("Zero-length response received");
-        // @todo: Handle partial price retrievals.
-        else if (prices.length === addresses.length) break;
+        const prices = await priceFeed.getPricesByAddress(addresses, currency);
+        addresses = await this.updateCache(priceCache, prices, addresses);
+        if (addresses.length === 0) break; // All done
       } catch (err) {
         this.logger.debug({
-          at: "PriceClient#requestPrices",
+          at: "PriceClient#updatePrices",
           message: `Price lookup against ${priceFeed.name} failed (${err}).`,
           tokens: addresses,
         });
@@ -136,21 +135,25 @@ export class PriceClient implements PriceFeedAdapter {
       }
     }
 
-    if (prices.length === 0) {
+    if (addresses.length !== 0) {
+      this.logger.debug({
+        at: "PriceClient#updatePrices",
+        message: "Unable to resolve some token prices.",
+        priceFeeds: this.listPriceFeeds(),
+        tokens: addresses,
+      });
       throw Error(`Price lookup failed against all price feeds (${this.listPriceFeeds().join(", ")})`);
     }
-
-    return Object.fromEntries(prices.map((price) => [price.address.toLowerCase(), price]));
   }
 
-  private updateCache(priceCache: PriceCache, prices: PriceCache, expected: string[]): void {
+  private updateCache(priceCache: PriceCache, prices: TokenPrice[], expected: string[]): string[] {
     const updated: TokenPrice[] = [];
     const skipped: { [token: string]: string } = {}; // Includes reason for skipping
     const now = msToS(Date.now());
 
     expected.forEach((address: string) => {
       const addr = address.toLowerCase(); // for internal priceCache lookup.
-      const tokenPrice: TokenPrice | undefined = prices[addr];
+      const tokenPrice: TokenPrice | undefined = prices.find((price) => price.address.toLowerCase() === addr);
 
       if (tokenPrice === undefined) {
         skipped[address] = "Not included in price feed response.";
@@ -177,5 +180,7 @@ export class PriceClient implements PriceFeedAdapter {
       updated,
       skipped,
     });
+
+    return Object.keys(skipped);
   }
 }

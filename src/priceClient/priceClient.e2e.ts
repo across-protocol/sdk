@@ -16,6 +16,34 @@ class TestPriceClient extends PriceClient {
   }
 }
 
+class TestPriceFeed implements PriceFeedAdapter {
+  public priceRequest: string[] = [];
+  public prices: { [currency: string]: PriceCache } = {};
+
+  constructor(public readonly name = "TestPriceFeed") {}
+
+  async getPriceByAddress(address: string, currency = "usd"): Promise<TokenPrice> {
+    const tokenPrices = await this.getPricesByAddress([address], currency);
+    return tokenPrices[0];
+  }
+
+  async getPricesByAddress(addresses: string[], currency = "usd"): Promise<TokenPrice[]> {
+    this.priceRequest = addresses;
+    const _addresses = addresses.map((address) => address.toLowerCase());
+
+    // Return each cached price that overlaps with the requested list of addresses.
+    return (
+      Object.entries(this.prices[currency])
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        .filter(([address, _]) => _addresses.includes(address.toLowerCase()))
+        .map(([address, tokenPrice]) => {
+          const { price, timestamp } = tokenPrice;
+          return { address, price, timestamp };
+        })
+    );
+  }
+}
+
 const maxPriceAge = 300;
 
 // ACX must be defined separately until it is supported by CoinGecko.
@@ -242,5 +270,46 @@ describe("PriceClient", function () {
         validateTokenPrice(tokenPrice, address, beginTs);
       });
     }
+  });
+
+  test("getPricesByAddress: Price request reduction", async function () {
+    // Test Price Feed #1 does not know about ACX, so it provide an incomplete
+    // response. Verify that the response from Test Price Feed #1 includes all
+    // known tokens, and that the PriceClient proceeds to query Test Price Feed
+    // #2 for *only* the remaining delta addres.
+    const testPriceFeeds: TestPriceFeed[] = [
+      new TestPriceFeed("Test Price Feed #1"),
+      new TestPriceFeed("Test Price Feed #2"),
+    ];
+
+    // Pre-populate the price cache for Test Price Feed #1.
+    testPriceFeeds[0].prices["usd"] = Object.fromEntries(
+      Object.values(addresses).map((address) => {
+        const price = { price: 1.0, timestamp: beginTs } as TokenPrice;
+        return [address.toLowerCase(), price];
+      })
+    );
+
+    testPriceFeeds[1].prices["usd"] = {};
+    testPriceFeeds[1].prices["usd"][acxAddr] = { price: 1.0, timestamp: beginTs } as TokenPrice;
+
+    pc = new PriceClient(dummyLogger, testPriceFeeds);
+
+    // PriceClient cache handles lower-case addresses.
+    const priceRequest = Object.values(addresses);
+    priceRequest.push(acxAddr);
+    dummyLogger.debug({ message: "Price requests before.", priceRequest });
+
+    expect(testPriceFeeds[0].priceRequest).toStrictEqual([]);
+    expect(testPriceFeeds[1].priceRequest).toStrictEqual([]);
+
+    const prices = await pc.getPricesByAddress(priceRequest);
+
+    expect(prices.length).toBe(priceRequest.length);
+    expect(prices.map((price) => price.address)).toStrictEqual(priceRequest);
+
+    // PriceClient maps all input addresses to lower case.
+    expect(testPriceFeeds[0].priceRequest).toStrictEqual(priceRequest.map((address) => address.toLowerCase()));
+    expect(testPriceFeeds[1].priceRequest).toEqual([acxAddr].map((address) => address.toLowerCase()));
   });
 });
