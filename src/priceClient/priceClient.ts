@@ -96,9 +96,9 @@ export class PriceClient implements PriceFeedAdapter {
       this.updateCache(priceCache, prices, requestAddresses);
     }
 
-    return addresses.map((addr: string) => {
-      const { price, timestamp } = priceCache[addr.toLowerCase()];
-      return { address: addr, price, timestamp };
+    return addresses.map((address: string) => {
+      const { price, timestamp } = priceCache[address.toLowerCase()];
+      return { address, price, timestamp };
     });
   }
 
