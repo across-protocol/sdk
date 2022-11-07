@@ -273,10 +273,10 @@ describe("PriceClient", function () {
   });
 
   test("getPricesByAddress: Price request reduction", async function () {
-    // Test Price Feed #1 does not know about ACX, so it provide an incomplete
+    // Test Price Feed #1 does not know about ACX, so it provides an incomplete
     // response. Verify that the response from Test Price Feed #1 includes all
     // known tokens, and that the PriceClient proceeds to query Test Price Feed
-    // #2 for *only* the remaining delta addres.
+    // #2 for *only* the remaining delta address.
     const testPriceFeeds: TestPriceFeed[] = [
       new TestPriceFeed("Test Price Feed #1"),
       new TestPriceFeed("Test Price Feed #2"),
