@@ -3,9 +3,8 @@ import dotenv from "dotenv";
 import winston from "winston";
 import { Logger, msToS, PriceCache, PriceClient, PriceFeedAdapter, TokenPrice } from "./priceClient";
 import { acrossApi, coingecko } from "./adapters";
-dotenv.config({ path: ".env" });
 
-const maxPriceAge = 300;
+dotenv.config({ path: ".env" });
 
 class TestPriceClient extends PriceClient {
   constructor(logger: Logger, priceFeeds: PriceFeedAdapter[]) {
@@ -16,6 +15,19 @@ class TestPriceClient extends PriceClient {
     return this.getPriceCache(currency);
   }
 }
+
+const maxPriceAge = 300;
+
+// ACX must be defined separately until it is supported by CoinGecko.
+const acxAddr = "0x44108f0223a3c3028f5fe7aec7f9bb2e66bef82f";
+const addresses: { [symbol: string]: string } = {
+  // lower-case
+  UMA: "0x04fa0d235c4abf4bcf4787af4cf447de572ef828",
+  // checksummed
+  DAI: "0x6B175474E89094C44Da98b954EedeAC495271d0F",
+  USDC: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+  WETH: "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
+};
 
 function validateTokenPrice(tokenPrice: TokenPrice, address: string, timestamp: number) {
   assert.ok(tokenPrice);
@@ -34,15 +46,6 @@ describe("PriceClient", function () {
     level: "debug",
     transports: [new winston.transports.Console()],
   });
-
-  const addresses: { [symbol: string]: string } = {
-    // lower-case
-    UMA: "0x04fa0d235c4abf4bcf4787af4cf447de572ef828",
-    // checksummed
-    DAI: "0x6B175474E89094C44Da98b954EedeAC495271d0F",
-    USDC: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
-    WETH: "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
-  };
 
   const testAddress = addresses["UMA"];
   const baseCurrency = "usd";
