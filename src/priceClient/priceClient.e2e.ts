@@ -2,10 +2,10 @@ import assert from "assert";
 import dotenv from "dotenv";
 import winston from "winston";
 import { Logger, msToS, PriceCache, PriceClient, PriceFeedAdapter, TokenPrice } from "./priceClient";
-import { acrossApi, coingecko } from "./adapters";
+import { acrossApi, coingecko, defiLlama } from "./adapters";
 dotenv.config({ path: ".env" });
 
-const maxPriceAge = 300;
+const maxPriceAge = 600;
 
 class TestPriceClient extends PriceClient {
   constructor(logger: Logger, priceFeeds: PriceFeedAdapter[]) {
@@ -69,6 +69,12 @@ describe("PriceClient", function () {
     expect(feedNames).toEqual(pc.listPriceFeeds());
   });
 
+  test("getPriceByAddress: Across API", async function () {
+    pc = new PriceClient(dummyLogger, [new acrossApi.PriceFeed()]);
+    const price: TokenPrice = await pc.getPriceByAddress(testAddress);
+    validateTokenPrice(price, testAddress, beginTs);
+  });
+
   test("getPriceByAddress: CoinGecko Free", async function () {
     pc = new PriceClient(dummyLogger, [new coingecko.PriceFeed()]);
     const price: TokenPrice = await pc.getPriceByAddress(testAddress);
@@ -85,9 +91,18 @@ describe("PriceClient", function () {
     validateTokenPrice(price, testAddress, beginTs);
   });
 
-  test("getPriceByAddress: Across API", async function () {
-    pc = new PriceClient(dummyLogger, [new acrossApi.PriceFeed()]);
-    const price: TokenPrice = await pc.getPriceByAddress(testAddress);
+  test("getPriceByAddress: DefiLlama", async function () {
+    let price: TokenPrice;
+    pc = new PriceClient(dummyLogger, [new defiLlama.PriceFeed()]);
+    price = await pc.getPriceByAddress(testAddress);
+    validateTokenPrice(price, testAddress, beginTs);
+
+    // Verify that minConfidence works as expected
+    pc = new PriceClient(dummyLogger, [new defiLlama.PriceFeed({ minConfidence: 1.0 })]);
+    await expect(pc.getPriceByAddress(testAddress)).rejects.toThrow();
+
+    pc = new PriceClient(dummyLogger, [new defiLlama.PriceFeed({ minConfidence: 0.0 })]);
+    price = await pc.getPriceByAddress(testAddress);
     validateTokenPrice(price, testAddress, beginTs);
   });
 
