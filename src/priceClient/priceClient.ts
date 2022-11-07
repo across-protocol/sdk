@@ -153,7 +153,7 @@ export class PriceClient implements PriceFeedAdapter {
 
     expected.forEach((address: string) => {
       const addr = address.toLowerCase(); // for internal priceCache lookup.
-      const tokenPrice: TokenPrice | undefined = prices.find((price) => price.address.toLowerCase() === addr);
+      const tokenPrice: TokenPrice | undefined = prices.find((price) => price?.address?.toLowerCase() === addr);
 
       if (tokenPrice === undefined) {
         skipped[address] = "Not included in price feed response.";

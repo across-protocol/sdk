@@ -45,11 +45,11 @@ export class PriceFeed extends BaseHTTPAdapter implements PriceFeedAdapter {
     if (!this.validateResponse(prices, currency))
       throw new Error(`Unexpected ${this.name} response: ${JSON.stringify(prices)}`);
 
-    return addresses.map((addr: string) => {
-      const price: CoinGeckoTokenPrice = prices[addr.toLowerCase()];
-      if (price === undefined) throw new Error(`Token ${addr} missing from ${this.name} response`);
+    return addresses.map((address: string) => {
+      const price: CoinGeckoTokenPrice = prices[address];
+      if (price === undefined) return price;
 
-      return { address: addr, price: price[currency], timestamp: price.last_updated_at };
+      return { address, price: price[currency], timestamp: price.last_updated_at };
     });
   }
 
