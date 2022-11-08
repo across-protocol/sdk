@@ -54,19 +54,23 @@ export class PriceFeed extends BaseHTTPAdapter implements PriceFeedAdapter {
     if (currency != "usd") throw new Error(`Currency ${currency} not supported by ${this.name}`);
 
     const path = "prices/current/" + addresses.map((address) => `ethereum:${address}`).join();
-    const tokenPrices: unknown = await this.query(path, {});
-    if (!this.validateResponse(tokenPrices))
-      throw new Error(`Unexpected ${this.name} response: ${JSON.stringify(tokenPrices)}`);
+    const response: unknown = await this.query(path, {});
+    if (!this.validateResponse(response))
+      throw new Error(`Unexpected ${this.name} response: ${JSON.stringify(response)}`);
 
-    return addresses.map((address: string) => {
-      const tokenPrice = tokenPrices.coins[`ethereum:${address}`];
-      if (tokenPrice === undefined) throw new Error(`Token ${address} missing from ${this.name} response`);
+    // Normalise the address format: "etherum:"<address> => <address>.
+    const tokenPrices: { [address: string]: DefiLlamaTokenPrice } = Object.fromEntries(
+      Object.entries(response.coins).map(([identifier, tokenPrice]) => [identifier.split(":")[1], tokenPrice])
+    );
 
-      if (tokenPrice.confidence < this.minConfidence)
-        throw new Error(`Token ${address} has low confidence score (${tokenPrice.confidence})`);
-
-      return { address, price: tokenPrice.price, timestamp: tokenPrice.timestamp };
-    });
+    return Object.entries(tokenPrices)
+      .filter(([address, tokenPrice]) => {
+        return addresses.includes(address) && tokenPrice.confidence >= this.minConfidence;
+      })
+      .map(([address, tokenPrice]) => {
+        const { price, timestamp } = tokenPrice;
+        return { address, price, timestamp } as TokenPrice;
+      });
   }
 
   private validateResponse(response: unknown): response is DefiLlamaPriceResponse {
