@@ -58,7 +58,7 @@ export class PriceFeed extends BaseHTTPAdapter implements PriceFeedAdapter {
     if (!this.validateResponse(response))
       throw new Error(`Unexpected ${this.name} response: ${JSON.stringify(response)}`);
 
-    // Normalise the address format: "etherum:"<address> => <address>.
+    // Normalise the address format: "etherum:<address>" => "<address>".
     const tokenPrices: { [address: string]: DefiLlamaTokenPrice } = Object.fromEntries(
       Object.entries(response.coins).map(([identifier, tokenPrice]) => [identifier.split(":")[1], tokenPrice])
     );
