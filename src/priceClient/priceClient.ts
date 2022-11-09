@@ -67,6 +67,9 @@ export class PriceClient implements PriceFeedAdapter {
     return tokenPrices[0];
   }
 
+  // note: Input addresses are *always* converted to lower case for storage as
+  // keys in the PriceClient cache. Adapters will therefore always receive
+  // addresses in lower case form.
   async getPricesByAddress(addresses: string[], currency = "usd"): Promise<TokenPrice[]> {
     assert(this.priceFeeds.length > 0, "No price feeds are registered.");
     const priceCache = this.getPriceCache(currency);

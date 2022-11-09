@@ -44,7 +44,8 @@ class TestPriceFeed implements PriceFeedAdapter {
   }
 }
 
-const maxPriceAge = 600;
+// Don't be too strict on obtaining recent prices.
+const maxPriceAge = 60 * 60 * 30; // seconds
 
 // ACX must be defined separately until it is supported by CoinGecko.
 const acxAddr = "0x44108f0223a3c3028f5fe7aec7f9bb2e66bef82f";
