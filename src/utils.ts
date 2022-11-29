@@ -12,6 +12,14 @@ export type Decimalish = string | number | Decimal;
 export const AddressZero = ethers.constants.AddressZero;
 
 const { ConvertDecimals } = uma.utils;
+const BlockSpeedSample: { [chainId: number]: number } = {
+  1: 10000,
+  10: 400000,
+  137: 40000,
+  288: 1000,
+  42161: 400000,
+};
+const ONE_DAY_SECS = 86400;
 
 /**
  * toBN.
@@ -302,4 +310,28 @@ export async function createUnsignedFillRelayTransaction(
     "1",
     { from: simulatedRelayerAddress }
   );
+}
+
+/**
+ * Calculates the average block production speed over the past ~1 day.
+ * @param provider A valid ethers provider - will be used to calculate block production speed.
+ */
+export async function calculateBlockSpeed(
+  provider: providers.Provider | L2Provider<providers.Provider>
+): Promise<number> {
+  const latestBlock = await provider.getBlock("latest");
+  const latestBlockTimestamp = latestBlock.timestamp;
+  const chainId = (await provider.getNetwork()).chainId;
+  const sampleSpeed = BlockSpeedSample[chainId];
+  let lastBlockNumber = latestBlock.number;
+  let lastBlockTimestamp = latestBlockTimestamp;
+  // Keep searching for the first block older than 1 day.
+  // This is only a rough estimate and can go back further than 1 day. However, this would minimize the number
+  // of requests and is generally accurate unless the rate of block production has been very volatile over a
+  // short period of time.
+  while (latestBlockTimestamp - lastBlockTimestamp < ONE_DAY_SECS) {
+    lastBlockNumber = lastBlockNumber - sampleSpeed;
+    lastBlockTimestamp = (await provider.getBlock(lastBlockNumber)).timestamp;
+  }
+  return ((latestBlock.number - lastBlockNumber) * ONE_DAY_SECS) / (latestBlockTimestamp - lastBlockTimestamp);
 }
