@@ -166,14 +166,14 @@ export const calcPeriodicCompoundInterest = (
   const P = new Decimal(startAmount);
   const t = new Decimal(periodsPerYear).div(periodsElapsed);
   const one = new Decimal(1);
-  return Decimal.max(
-    n.mul(
+  return n
+    .mul(
       A.div(P)
         .pow(one.div(n.div(t)))
         .sub(one)
-    ),
-    0
-  ).toString();
+    )
+    .toFixed(18)
+    .toString();
 };
 
 /**
@@ -190,10 +190,13 @@ export const calcApr = (
   periodsElapsed: Decimalish,
   periodsPerYear: Decimalish
 ): string => {
-  return Decimal.max(
-    new Decimal(endAmount).sub(startAmount).div(startAmount).mul(periodsPerYear).div(periodsElapsed),
-    0
-  ).toString();
+  return new Decimal(endAmount)
+    .sub(startAmount)
+    .div(startAmount)
+    .mul(periodsPerYear)
+    .div(periodsElapsed)
+    .toFixed(18)
+    .toString();
 };
 /**
  * Takes two values and returns a list of number intervals
