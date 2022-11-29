@@ -172,7 +172,7 @@ export const calcPeriodicCompoundInterest = (
         .pow(one.div(n.div(t)))
         .sub(one)
     )
-    .toString();
+    .toFixed(18);
 };
 
 /**
@@ -189,7 +189,7 @@ export const calcApr = (
   periodsElapsed: Decimalish,
   periodsPerYear: Decimalish
 ): string => {
-  return new Decimal(endAmount).sub(startAmount).div(startAmount).mul(periodsPerYear).div(periodsElapsed).toString();
+  return new Decimal(endAmount).sub(startAmount).div(startAmount).mul(periodsPerYear).div(periodsElapsed).toFixed(18);
 };
 /**
  * Takes two values and returns a list of number intervals
