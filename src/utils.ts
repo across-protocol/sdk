@@ -334,17 +334,13 @@ export async function createUnsignedFillRelayTransaction(
  * @param desiredLookback Desired lookback in seconds (e.g. 86400 seconds or 1 day).
  * @return The block number that's at or older than the desired lookback.
  */
-export async function findBlockAtOrOlder(
-  provider: providers.Provider | L2Provider<providers.Provider>,
-  desiredLookback: number
-): Promise<number> {
-  const latestBlock = await provider.getBlock("latest");
-  const latestBlockTimestamp = latestBlock.timestamp;
-  const desiredTimestamp = latestBlockTimestamp - desiredLookback;
-  let lastSkipDistance = BlockScanSkipDistances[(await provider.getNetwork()).chainId];
+export async function findBlockAtOrOlder(provider: providers.Provider, desiredLookback: number): Promise<number> {
+  const [latestBlock, network] = await Promise.all([provider.getBlock("latest"), provider.getNetwork()]);
+  let lastBlockTimestamp = latestBlock.timestamp;
+  let previousLastBlockTimestamp = lastBlockTimestamp;
+  const desiredTimestamp = lastBlockTimestamp - desiredLookback;
+  let lastSkipDistance = BlockScanSkipDistances[network.chainId];
   let lastBlockNumber = latestBlock.number;
-  let previousLastBlockTimestamp = latestBlockTimestamp;
-  let lastBlockTimestamp = latestBlockTimestamp;
   while (lastBlockTimestamp > desiredTimestamp) {
     // Skip the first base case where the last looked up block and the latest block are the same.
     if (previousLastBlockTimestamp - lastBlockTimestamp > 0) {
