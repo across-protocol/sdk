@@ -12,14 +12,16 @@ export type Decimalish = string | number | Decimal;
 export const AddressZero = ethers.constants.AddressZero;
 
 const { ConvertDecimals } = uma.utils;
-const BlockSpeedSample: { [chainId: number]: number } = {
-  1: 10000,
-  10: 400000,
-  137: 40000,
+// These are distances used to traverse when looking for a block with desired lookback.
+// They're meant to be small enough to allow for granularity but large enough to minimize the number of reqests needed
+// to find the desired block.
+const BlockScanSkipDistances: { [chainId: number]: number } = {
+  1: 1000,
+  10: 100000,
+  137: 10000,
   288: 1000,
-  42161: 400000,
+  42161: 100000,
 };
-const ONE_DAY_SECS = 86400;
 
 /**
  * toBN.
@@ -313,25 +315,47 @@ export async function createUnsignedFillRelayTransaction(
 }
 
 /**
- * Calculates the average block production speed over the past ~1 day.
- * @param provider A valid ethers provider - will be used to calculate block production speed.
+ * Search back in time for the first block at or older than the desired lookback.
+ *
+ * The approach here is as below:
+ * 1. We use the skip distances, which are meant to be a couple of hours or less for each chain.
+ * 2. Fetch the first block one skip distance from the latest block. Check its timestamp to see how far back it is
+ * relatively to the latest block.
+ * 3. Apply a multiplier to the skip distance based on the time difference and find a block with the desired lookback
+ * This assumes the block production speed is roughly constant.
+ * 4. Check the timestamp again, if we still haven't achieved the desired lookback, repeat step 3 and go back further.
+ * Otherwise, return the block number.
+ *
+ * This is only a rough estimate and can go back further than desired. However, this would minimize the number
+ * of requests and is generally accurate unless the rate of block production has been very volatile over a
+ * short period of time.
+ *
+ * @param provider A valid provider - will be used to find the block with desired lookback.
+ * @param desiredLookback Desired lookback in seconds (e.g. 86400 seconds or 1 day).
+ * @return The block number that's at or older than the desired lookback.
  */
-export async function calculateBlockSpeed(
-  provider: providers.Provider | L2Provider<providers.Provider>
+export async function findBlockAtOrOlder(
+  provider: providers.Provider | L2Provider<providers.Provider>,
+  desiredLookback: number
 ): Promise<number> {
   const latestBlock = await provider.getBlock("latest");
   const latestBlockTimestamp = latestBlock.timestamp;
+  const desiredTimestamp = latestBlockTimestamp - desiredLookback;
   const chainId = (await provider.getNetwork()).chainId;
-  const sampleSpeed = BlockSpeedSample[chainId];
+  let lastSkipDistance = BlockScanSkipDistances[chainId];
   let lastBlockNumber = latestBlock.number;
+  let previousLastBlockTimestamp = latestBlockTimestamp;
   let lastBlockTimestamp = latestBlockTimestamp;
-  // Keep searching for the first block older than 1 day.
-  // This is only a rough estimate and can go back further than 1 day. However, this would minimize the number
-  // of requests and is generally accurate unless the rate of block production has been very volatile over a
-  // short period of time.
-  while (latestBlockTimestamp - lastBlockTimestamp < ONE_DAY_SECS) {
-    lastBlockNumber = lastBlockNumber - sampleSpeed;
-    lastBlockTimestamp = (await provider.getBlock(lastBlockNumber)).timestamp;
+  while (lastBlockTimestamp > desiredTimestamp) {
+    // Skip the first base case where the last looked up block and the latest block are the same.
+    if (previousLastBlockTimestamp - lastBlockTimestamp > 0) {
+      const lastBlockSpeed = lastSkipDistance / (previousLastBlockTimestamp - lastBlockTimestamp);
+      lastSkipDistance = Math.floor(lastBlockSpeed * (lastBlockTimestamp - desiredTimestamp));
+    }
+    lastBlockNumber = lastBlockNumber - lastSkipDistance;
+    const block = await provider.getBlock(lastBlockNumber);
+    previousLastBlockTimestamp = lastBlockTimestamp;
+    lastBlockTimestamp = block.timestamp;
   }
-  return ((latestBlock.number - lastBlockNumber) * ONE_DAY_SECS) / (latestBlockTimestamp - lastBlockTimestamp);
+  return lastBlockNumber;
 }
