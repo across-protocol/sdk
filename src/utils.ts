@@ -341,14 +341,15 @@ export async function findBlockAtOrOlder(
   const latestBlock = await provider.getBlock("latest");
   const latestBlockTimestamp = latestBlock.timestamp;
   const desiredTimestamp = latestBlockTimestamp - desiredLookback;
-  const chainId = (await provider.getNetwork()).chainId;
-  let lastSkipDistance = BlockScanSkipDistances[chainId];
+  let lastSkipDistance = BlockScanSkipDistances[(await provider.getNetwork()).chainId];
   let lastBlockNumber = latestBlock.number;
   let previousLastBlockTimestamp = latestBlockTimestamp;
   let lastBlockTimestamp = latestBlockTimestamp;
   while (lastBlockTimestamp > desiredTimestamp) {
     // Skip the first base case where the last looked up block and the latest block are the same.
     if (previousLastBlockTimestamp - lastBlockTimestamp > 0) {
+      // Calculate the block speed based on last block query and use it to calculate how many more blocks to go back
+      // to find the block with desired timestamp.
       const lastBlockSpeed = lastSkipDistance / (previousLastBlockTimestamp - lastBlockTimestamp);
       lastSkipDistance = Math.floor(lastBlockSpeed * (lastBlockTimestamp - desiredTimestamp));
     }
