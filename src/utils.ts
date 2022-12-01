@@ -321,10 +321,11 @@ export async function createUnsignedFillRelayTransaction(
  * 1. We use the skip distances, which are meant to be a couple of hours or less for each chain.
  * 2. Fetch the first block one skip distance from the latest block. Check its timestamp to see how far back it is
  * relatively to the latest block.
- * 3. Apply a multiplier to the skip distance based on the time difference and find a block with the desired lookback
- * This assumes the block production speed is roughly constant.
- * 4. Check the timestamp again, if we still haven't achieved the desired lookback, repeat step 3 and go back further.
- * Otherwise, return the block number.
+ * 3. Use the implied block speed from the latest block to one skip distance earlier to approximate how many blocks
+ * earlier we need to lookback to find a block older than the target block. This assumes that the block speed is roughly
+ * constant from latest block until the target block.
+ * 4. Check the timestamp again, if we still haven't achieved the desired look back, repeat steps 2-3 and go back
+ * further. Otherwise, return the block number.
  *
  * This is only a rough estimate and can go back further than desired. However, this would minimize the number
  * of requests and is generally accurate unless the rate of block production has been very volatile over a
