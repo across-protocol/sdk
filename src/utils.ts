@@ -335,24 +335,25 @@ export async function createUnsignedFillRelayTransaction(
  * @return The block number that's at or older than the desired lookback.
  */
 export async function findBlockAtOrOlder(provider: providers.Provider, desiredLookback: number): Promise<number> {
-  const [latestBlock, network] = await Promise.all([provider.getBlock("latest"), provider.getNetwork()]);
-  let lastBlockTimestamp = latestBlock.timestamp;
-  let previousLastBlockTimestamp = lastBlockTimestamp;
-  const desiredTimestamp = lastBlockTimestamp - desiredLookback;
-  let lastSkipDistance = BlockScanSkipDistances[network.chainId];
-  let lastBlockNumber = latestBlock.number;
-  while (lastBlockTimestamp > desiredTimestamp) {
-    // Skip the first base case where the last looked up block and the latest block are the same.
-    if (previousLastBlockTimestamp - lastBlockTimestamp > 0) {
-      // Calculate the block speed based on last block query and use it to calculate how many more blocks to go back
-      // to find the block with desired timestamp.
-      const lastBlockSpeed = lastSkipDistance / (previousLastBlockTimestamp - lastBlockTimestamp);
-      lastSkipDistance = Math.floor(lastBlockSpeed * (lastBlockTimestamp - desiredTimestamp));
-    }
-    lastBlockNumber = lastBlockNumber - lastSkipDistance;
-    const block = await provider.getBlock(lastBlockNumber);
-    previousLastBlockTimestamp = lastBlockTimestamp;
-    lastBlockTimestamp = block.timestamp;
+  const [toBlock, network] = await Promise.all([provider.getBlock("latest"), provider.getNetwork()]);
+  let toBlockTimestamp = toBlock.timestamp;
+  const desiredTimestamp = toBlockTimestamp - desiredLookback;
+  let skipDistance = BlockScanSkipDistances[network.chainId];
+
+  // Fetch the first block to get the block production speed estimate before proceeding further.
+  let fromBlockNumber = toBlock.number - skipDistance;
+  let fromBlock = await provider.getBlock(fromBlockNumber);
+  let fromBlockTimestamp = fromBlock.timestamp;
+  while (fromBlockTimestamp > desiredTimestamp) {
+    // Calculate the block speed based on last block query and use it to calculate how many more blocks to go back
+    // to find the block with desired timestamp.
+    const blockSpeed = skipDistance / (toBlockTimestamp - fromBlockTimestamp);
+    skipDistance = Math.floor(blockSpeed * (fromBlockTimestamp - desiredTimestamp));
+    fromBlockNumber -= skipDistance;
+    fromBlock = await provider.getBlock(fromBlockNumber);
+    // Set toBlock equal to current fromBlock and then decrement fromBlock
+    toBlockTimestamp = fromBlockTimestamp;
+    fromBlockTimestamp = fromBlock.timestamp;
   }
-  return lastBlockNumber;
+  return fromBlockNumber;
 }
