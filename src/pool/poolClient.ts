@@ -518,7 +518,7 @@ export class Client {
       ...overrides,
       value: l1TokenAmount,
     });
-    const id = await txman.request(request);
+    const id = txman.request(request);
 
     this.state.transactions[id] = {
       id,
@@ -656,7 +656,7 @@ export class Client {
     const l1TokenAddress = getPoolEventState.getL1TokenFromReceipt(txReceipt);
     await this.updatePool(l1TokenAddress, latestBlock);
     const poolState = this.getPoolState(l1TokenAddress);
-    const poolEventState = await getPoolEventState.readTxReceipt(txReceipt);
+    const poolEventState = getPoolEventState.readTxReceipt(txReceipt);
 
     const lpToken = poolState.lpToken;
     const getUserState = this.getOrCreateUserService(userAddress, lpToken);
