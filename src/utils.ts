@@ -339,7 +339,9 @@ export async function findBlockAtOrOlder(provider: providers.Provider, desiredLo
   const [toBlock, network] = await Promise.all([provider.getBlock("latest"), provider.getNetwork()]);
   let toBlockTimestamp = toBlock.timestamp;
   const desiredTimestamp = toBlockTimestamp - desiredLookback;
+  assert(desiredTimestamp >= 0, "Desired lookback cannot be more than the current block timestamp");
   let skipDistance = BlockScanSkipDistances[network.chainId];
+  assert(skipDistance > 0, "Skip distance must be strictly positive");
 
   // Fetch the first block to get the block production speed estimate before proceeding further.
   let fromBlockNumber = toBlock.number - skipDistance;
