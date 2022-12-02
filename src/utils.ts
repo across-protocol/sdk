@@ -342,6 +342,7 @@ export async function findBlockAtOrOlder(provider: providers.Provider, desiredLo
   assert(desiredTimestamp >= 0, "Desired lookback cannot be more than the current block timestamp");
   let skipDistance = BlockScanSkipDistances[network.chainId];
   assert(skipDistance > 0, "Skip distance must be strictly positive");
+  assert(skipDistance <= toBlockTimestamp, "Skip distance must be smaller than current block timestamp");
 
   // Fetch the first block to get the block production speed estimate before proceeding further.
   let fromBlockNumber = toBlock.number - skipDistance;
