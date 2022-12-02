@@ -10,6 +10,7 @@ import get from "lodash/get";
 import has from "lodash/has";
 import { calculateInstantaneousRate } from "../lpFeeCalculator";
 import { hubPool, acrossConfigStore } from "../contracts";
+import { AcceleratingDistributor, AcceleratingDistributor__factory } from "@across-protocol/across-token";
 
 const { erc20 } = uma.clients;
 const { loop } = uma.utils;
@@ -24,6 +25,7 @@ export type Awaited<T> = T extends PromiseLike<infer U> ? U : T;
 export type Config = {
   chainId?: number;
   hubPoolAddress: string;
+  acceleratingDistributorAddress: string;
   wethAddress: string;
   configStoreAddress: string;
   confirmations?: number;
@@ -33,6 +35,9 @@ export type Config = {
 };
 export type Dependencies = {
   provider: Provider;
+};
+export type StakeData = {
+  cumulativeBalance: BigNumber;
 };
 export type Pool = {
   address: string;
@@ -315,12 +320,13 @@ export function previewRemoval(
 }
 function joinUserState(
   poolState: Pool,
+  stakeData: StakeData,
   tokenEventState: hubPool.TokenEventState,
   userState: Awaited<ReturnType<UserState["read"]>>,
   transferValue: BigNumberish = 0
 ): User {
   const positionValue = BigNumber.from(poolState.exchangeRateCurrent)
-    .mul(userState.balanceOf)
+    .mul(userState.balanceOf.add(stakeData.cumulativeBalance))
     .div(fixedPointAdjustment);
   const totalDeposited = BigNumber.from(tokenEventState?.tokenBalances[userState.address] || "0");
   const feesEarned = positionValue.sub(totalDeposited.add(transferValue));
@@ -401,6 +407,7 @@ export function validateWithdraw(pool: Pool, user: User, lpTokenAmount: BigNumbe
 export class Client {
   private transactionManagers: Record<string, ReturnType<typeof TransactionManager>> = {};
   private hubPool: hubPool.Instance;
+  private acceleratingDistributor: AcceleratingDistributor;
   public readonly state: State = { pools: {}, users: {}, transactions: {} };
   private poolEvents: PoolEventState;
   private erc20s: Record<string, uma.clients.erc20.Instance> = {};
@@ -411,6 +418,7 @@ export class Client {
   constructor(public readonly config: Config, public readonly deps: Dependencies, private emit: EmitState) {
     config.chainId = config.chainId || 1;
     this.hubPool = this.createHubPoolContract(deps.provider);
+    this.acceleratingDistributor = this.createAcceleratingDistributorContract(deps.provider);
     this.poolEvents = new PoolEventState(this.hubPool, this.config.hubPoolStartBlock);
     this.configStoreClient = new acrossConfigStore.Client(config.configStoreAddress, deps.provider);
   }
@@ -428,6 +436,12 @@ export class Client {
   private getOrCreatePoolEvents() {
     return this.poolEvents;
   }
+  public createAcceleratingDistributorContract(signerOrProvider: Signer | Provider): AcceleratingDistributor {
+    return AcceleratingDistributor__factory.connect(this.config.acceleratingDistributorAddress, signerOrProvider);
+  }
+  public getOrCreateAcceleratingDistributorContract(): AcceleratingDistributor {
+    return this.acceleratingDistributor;
+  }
   private getOrCreateUserService(userAddress: string, tokenAddress: string) {
     if (has(this.userServices, [tokenAddress, userAddress])) return get(this.userServices, [tokenAddress, userAddress]);
     const erc20Contract = this.getOrCreateErc20Contract(tokenAddress);
@@ -444,6 +458,18 @@ export class Client {
     this.exchangeRateTable[l1TokenAddress] = { ...this.exchangeRateTable[l1TokenAddress], ...exchangeRateTable };
     return this.exchangeRateTable[l1TokenAddress];
   }
+  async resolveStakingData(
+    l1TokenAddress: string,
+    userState: Awaited<ReturnType<UserState["read"]>>
+  ): Promise<StakeData> {
+    assert(this.config.acceleratingDistributorAddress, "Must have the accelerating distributor address");
+    const contract = this.getOrCreateAcceleratingDistributorContract();
+    const { cumulativeBalance } = await contract.getUserStake(l1TokenAddress, userState.address);
+    return {
+      cumulativeBalance,
+    };
+  }
+
   // calculates the value of each LP token transfer at the block it was sent. this only works if we have archive node
   async calculateLpTransferValue(l1TokenAddress: string, userState: Awaited<ReturnType<UserState["read"]>>) {
     assert(this.config.hasArchive, "Can only calculate historical lp values with archive node");
@@ -642,11 +668,12 @@ export class Client {
     const { l1Token: l1TokenAddress } = poolState;
     const { address: userAddress } = userState;
     const transferValue = this.config.hasArchive ? await this.calculateLpTransferValue(l1TokenAddress, userState) : 0;
+    const stakeData = await this.resolveStakingData(l1TokenAddress, userState);
     const tokenEventState = poolEventState[l1TokenAddress];
     const newUserState = this.setUserState(
       l1TokenAddress,
       userAddress,
-      joinUserState(poolState, tokenEventState, userState, transferValue)
+      joinUserState(poolState, stakeData, tokenEventState, userState, transferValue)
     );
     this.emit(["users", userAddress, l1TokenAddress], newUserState);
   }
