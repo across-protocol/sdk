@@ -320,13 +320,13 @@ export function previewRemoval(
 }
 function joinUserState(
   poolState: Pool,
-  stakeData: StakeData,
   tokenEventState: hubPool.TokenEventState,
   userState: Awaited<ReturnType<UserState["read"]>>,
-  transferValue: BigNumberish = 0
+  transferValue: BigNumberish = 0,
+  cumulativeStakeBalance: BigNumberish = 0
 ): User {
   const positionValue = BigNumber.from(poolState.exchangeRateCurrent)
-    .mul(userState.balanceOf.add(stakeData.cumulativeBalance))
+    .mul(userState.balanceOf.add(cumulativeStakeBalance))
     .div(fixedPointAdjustment);
   const totalDeposited = BigNumber.from(tokenEventState?.tokenBalances[userState.address] || "0");
   const feesEarned = positionValue.sub(totalDeposited.add(transferValue));
@@ -673,7 +673,7 @@ export class Client {
     const newUserState = this.setUserState(
       l1TokenAddress,
       userAddress,
-      joinUserState(poolState, stakeData, tokenEventState, userState, transferValue)
+      joinUserState(poolState, tokenEventState, userState, transferValue, stakeData.cumulativeBalance)
     );
     this.emit(["users", userAddress, l1TokenAddress], newUserState);
   }
