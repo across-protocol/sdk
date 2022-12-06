@@ -39,6 +39,7 @@ export type Dependencies = {
 export type StakeData = {
   cumulativeBalance: BigNumber;
   stakes: { amount: BigNumber; block: BigNumber; hash: string; staker: string }[];
+  amountAirdropped: BigNumber;
 };
 export type Pool = {
   address: string;
@@ -486,9 +487,20 @@ export class Client {
       })),
     ];
 
+    // Logic: We have a list of staked transactions + a list of unstake
+    // transactions + the user's current balance. We know that if we add
+    // back all the unstake transactions to the cumulative staked balance,
+    // we'll have a value that represents the total amount of funds that
+    // has ever been staked on a user's account. If we then subtract out
+    // the total amount of funds the user has specifically staked from the
+    // external LP pool, we'll be left with exactly how much the user has
+    // claimed through an airdrop.
+    const amountAirdropped = stakes.reduce((acc, previous) => acc.add(previous.amount.mul(-1)), cumulativeBalance);
+
     return {
       cumulativeBalance,
       stakes,
+      amountAirdropped,
     };
   }
 
