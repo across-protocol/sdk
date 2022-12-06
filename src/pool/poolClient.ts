@@ -326,12 +326,15 @@ function joinUserState(
   tokenEventState: hubPool.TokenEventState,
   userState: Awaited<ReturnType<UserState["read"]>>,
   transferValue: BigNumberish = 0,
-  cumulativeStakeBalance: BigNumberish = 0
+  cumulativeStakeBalance: BigNumberish = 0,
+  cumulativeStakeClaimBalance: BigNumberish = 0
 ): User {
   const positionValue = BigNumber.from(poolState.exchangeRateCurrent)
     .mul(userState.balanceOf.add(cumulativeStakeBalance))
     .div(fixedPointAdjustment);
-  const totalDeposited = BigNumber.from(tokenEventState?.tokenBalances[userState.address] || "0");
+  const totalDeposited = BigNumber.from(tokenEventState?.tokenBalances[userState.address] || "0").add(
+    cumulativeStakeClaimBalance
+  );
   const feesEarned = positionValue.sub(totalDeposited.add(transferValue));
   return {
     address: userState.address,
@@ -707,7 +710,14 @@ export class Client {
     const newUserState = this.setUserState(
       l1TokenAddress,
       userAddress,
-      joinUserState(poolState, tokenEventState, userState, transferValue, stakeData.cumulativeBalance)
+      joinUserState(
+        poolState,
+        tokenEventState,
+        userState,
+        transferValue,
+        stakeData.cumulativeBalance,
+        stakeData.amountAirdropped
+      )
     );
     this.emit(["users", userAddress, l1TokenAddress], newUserState);
   }
