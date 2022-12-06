@@ -38,6 +38,7 @@ export type Dependencies = {
 };
 export type StakeData = {
   cumulativeBalance: BigNumber;
+  stakes: { amount: BigNumber; block: BigNumber; hash: string; staker: string }[];
 };
 export type Pool = {
   address: string;
@@ -160,6 +161,7 @@ export class PoolEventState {
   private processEvents = (events: Array<uma.SerializableEvent>): void => {
     events.forEach(this.processEvent);
   };
+
   public async read(endBlock: number, l1TokenAddress?: string, userAddress?: string): Promise<hubPool.EventState> {
     const events = await Promise.all([
       ...(await this.contract.queryFilter(
@@ -465,8 +467,28 @@ export class Client {
     assert(this.config.acceleratingDistributorAddress, "Must have the accelerating distributor address");
     const contract = this.getOrCreateAcceleratingDistributorContract();
     const { cumulativeBalance } = await contract.getUserStake(l1TokenAddress, userState.address);
+
+    const stakeTxs = await contract.queryFilter(contract.filters.Stake(l1TokenAddress, userState.address));
+    const unstakeTxs = await contract.queryFilter(contract.filters.Unstake(l1TokenAddress, userState.address));
+
+    const stakes = [
+      ...stakeTxs.map((tx) => ({
+        amount: tx.args.amount,
+        block: BigNumber.from(tx.blockNumber),
+        hash: tx.transactionHash,
+        staker: tx.args.user,
+      })),
+      ...unstakeTxs.map((tx) => ({
+        amount: tx.args.amount.mul(-1),
+        block: BigNumber.from(tx.blockNumber),
+        hash: tx.transactionHash,
+        staker: tx.args.user,
+      })),
+    ];
+
     return {
       cumulativeBalance,
+      stakes,
     };
   }
 
