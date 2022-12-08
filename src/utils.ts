@@ -12,6 +12,16 @@ export type Decimalish = string | number | Decimal;
 export const AddressZero = ethers.constants.AddressZero;
 
 const { ConvertDecimals } = uma.utils;
+// These are distances used to traverse when looking for a block with desired lookback.
+// They're meant to be small enough to allow for granularity but large enough to minimize the number of reqests needed
+// to find the desired block.
+const BlockScanSkipDistances: { [chainId: number]: number } = {
+  1: 1000,
+  10: 100000,
+  137: 10000,
+  288: 1000,
+  42161: 100000,
+};
 
 /**
  * toBN.
@@ -172,7 +182,7 @@ export const calcPeriodicCompoundInterest = (
         .pow(one.div(n.div(t)))
         .sub(one)
     )
-    .toString();
+    .toFixed(18);
 };
 
 /**
@@ -189,7 +199,7 @@ export const calcApr = (
   periodsElapsed: Decimalish,
   periodsPerYear: Decimalish
 ): string => {
-  return new Decimal(endAmount).sub(startAmount).div(startAmount).mul(periodsPerYear).div(periodsElapsed).toString();
+  return new Decimal(endAmount).sub(startAmount).div(startAmount).mul(periodsPerYear).div(periodsElapsed).toFixed(18);
 };
 /**
  * Takes two values and returns a list of number intervals
@@ -302,4 +312,52 @@ export async function createUnsignedFillRelayTransaction(
     "1",
     { from: simulatedRelayerAddress }
   );
+}
+
+/**
+ * Search back in time for the first block at or older than the desired lookback.
+ *
+ * The approach here is as below:
+ * 1. We use the skip distances, which are meant to be a couple of hours or less for each chain.
+ * 2. Fetch the first block one skip distance from the latest block. Check its timestamp to see how far back it is
+ * relatively to the latest block.
+ * 3. Use the implied block speed from the latest block to one skip distance earlier to approximate how many blocks
+ * earlier we need to lookback to find a block older than the target block. This assumes that the block speed is roughly
+ * constant from latest block until the target block.
+ * 4. Check the timestamp again, if we still haven't achieved the desired look back, repeat steps 2-3 and go back
+ * further. Otherwise, return the block number.
+ *
+ * This is only a rough estimate and can go back further than desired. However, this would minimize the number
+ * of requests and is generally accurate unless the rate of block production has been very volatile over a
+ * short period of time.
+ *
+ * @param provider A valid provider - will be used to find the block with desired lookback.
+ * @param desiredLookback Desired lookback in seconds (e.g. 86400 seconds or 1 day).
+ * @return The block number that's at or older than the desired lookback.
+ */
+export async function findBlockAtOrOlder(provider: providers.Provider, desiredLookback: number): Promise<number> {
+  const [toBlock, network] = await Promise.all([provider.getBlock("latest"), provider.getNetwork()]);
+  let toBlockTimestamp = toBlock.timestamp;
+  const desiredTimestamp = toBlockTimestamp - desiredLookback;
+  assert(desiredTimestamp >= 0, "Desired lookback cannot be more than the current block timestamp");
+  let skipDistance = BlockScanSkipDistances[network.chainId];
+  assert(skipDistance > 0, "Skip distance must be strictly positive");
+  assert(skipDistance <= toBlockTimestamp, "Skip distance must be smaller than current block timestamp");
+
+  // Fetch the first block to get the block production speed estimate before proceeding further.
+  let fromBlockNumber = toBlock.number - skipDistance;
+  let fromBlock = await provider.getBlock(fromBlockNumber);
+  let fromBlockTimestamp = fromBlock.timestamp;
+  while (fromBlockTimestamp > desiredTimestamp) {
+    // Calculate the block speed based on last block query and use it to calculate how many more blocks to go back
+    // to find the block with desired timestamp.
+    const blockSpeed = skipDistance / (toBlockTimestamp - fromBlockTimestamp);
+    skipDistance = Math.floor(blockSpeed * (fromBlockTimestamp - desiredTimestamp));
+    fromBlockNumber -= skipDistance;
+    fromBlock = await provider.getBlock(fromBlockNumber);
+    // Set toBlock equal to current fromBlock and then decrement fromBlock
+    toBlockTimestamp = fromBlockTimestamp;
+    fromBlockTimestamp = fromBlock.timestamp;
+  }
+  return fromBlockNumber;
 }
