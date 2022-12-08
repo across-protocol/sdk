@@ -69,7 +69,7 @@ export class PriceFeed extends BaseHTTPAdapter implements PriceFeedAdapter {
       })
       .map(([address, tokenPrice]) => {
         const { price, timestamp } = tokenPrice;
-        return { address, price, timestamp } as TokenPrice;
+        return { address, price, timestamp };
       });
   }
 

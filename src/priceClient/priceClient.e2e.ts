@@ -4,7 +4,7 @@ import winston from "winston";
 import { Logger, msToS, PriceCache, PriceClient, PriceFeedAdapter, TokenPrice } from "./priceClient";
 import { acrossApi, coingecko, defiLlama } from "./adapters";
 
-dotenv.config({ path: ".env" });
+dotenv.config();
 
 class TestPriceClient extends PriceClient {
   constructor(logger: Logger, priceFeeds: PriceFeedAdapter[]) {
