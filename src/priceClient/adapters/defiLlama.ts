@@ -53,7 +53,7 @@ export class PriceFeed extends BaseHTTPAdapter implements PriceFeedAdapter {
   async getPricesByAddress(addresses: string[], currency = "usd"): Promise<TokenPrice[]> {
     if (currency != "usd") throw new Error(`Currency ${currency} not supported by ${this.name}`);
 
-    const path = "prices/current/" + addresses.map((address) => `ethereum:${address}`).join();
+    const path = "prices/current/" + addresses.map((address) => `ethereum:${address.toLowerCase()}`).join();
     const response: unknown = await this.query(path, {});
     if (!this.validateResponse(response))
       throw new Error(`Unexpected ${this.name} response: ${JSON.stringify(response)}`);
@@ -63,12 +63,12 @@ export class PriceFeed extends BaseHTTPAdapter implements PriceFeedAdapter {
       Object.entries(response.coins).map(([identifier, tokenPrice]) => [identifier.split(":")[1], tokenPrice])
     );
 
-    return Object.entries(tokenPrices)
-      .filter(([address, tokenPrice]) => {
-        return addresses.includes(address) && tokenPrice.confidence >= this.minConfidence;
+    return addresses
+      .filter((address) => {
+        return (tokenPrices[address.toLowerCase()]?.confidence || 0.0) >= this.minConfidence;
       })
-      .map(([address, tokenPrice]) => {
-        const { price, timestamp } = tokenPrice;
+      .map((address) => {
+        const { price, timestamp } = tokenPrices[address.toLowerCase()];
         return { address, price, timestamp };
       });
   }
