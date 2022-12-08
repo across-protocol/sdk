@@ -56,19 +56,50 @@ describe("RelayFeeCalculator", () => {
     await expect(client.gasFeePercent(0, "USDC")).rejects.toThrowError();
   });
   it("relayerFeeDetails", async () => {
-    client = new RelayFeeCalculator({ queries });
-    const result = await client.relayerFeeDetails(100000000, "usdc");
-    assert.ok(result);
+    client = new RelayFeeCalculator({
+      queries,
+      capitalCostsConfig: testCapitalCostsConfig,
+      capitalCostsPercent: 0.01,
+      capitalDiscountPercent: { [1]: 0, [2]: 50, [3]: 100 },
+      gasDiscountPercent: { [4]: 0, [5]: 50, [6]: 100 },
+    });
+
+    const noDiscountDestinationChainId = 999;
+    const noDiscountResult = await client.relayerFeeDetails(100000000, "usdc", noDiscountDestinationChainId);
+    // Check that the appropriate fees are discounted based on the destinationChainId passed in:
+    // - discount is 0, no discount is applied
+    assert.equal(
+      (await client.relayerFeeDetails(100000000, "usdc", 1)).capitalFeePercent,
+      noDiscountResult.capitalFeePercent
+    );
+    // - discount is 50, capital fee should be halved, gas fee should be same
+    assert.equal(
+      (await client.relayerFeeDetails(100000000, "usdc", 2)).capitalFeePercent,
+      toBN(noDiscountResult.capitalFeePercent).div(2)
+    );
+    assert.equal((await client.relayerFeeDetails(100000000, "usdc", 2)).gasFeePercent, noDiscountResult.gasFeePercent);
+    // - discount is 100, capital fee should be 0
+    assert.equal((await client.relayerFeeDetails(100000000, "usdc", 3)).capitalFeePercent, toBN(0));
+    // - discount is 0, no discount is applied
+    assert.equal((await client.relayerFeeDetails(100000000, "usdc", 4)).gasFeePercent, noDiscountResult.gasFeePercent);
+    // - discount is 50, gas fee should be halved, capital fee should be same
+    assert.equal(
+      (await client.relayerFeeDetails(100000000, "usdc", 5)).gasFeePercent,
+      toBN(noDiscountResult.gasFeePercent).div(2)
+    );
+    assert.equal(
+      (await client.relayerFeeDetails(100000000, "usdc", 5)).capitalFeePercent,
+      noDiscountResult.capitalFeePercent
+    );
+    // - discount is 100, gas fee should be 0
+    assert.equal((await client.relayerFeeDetails(100000000, "usdc", 6)).gasFeePercent, toBN(0));
 
     // overriding token price also succeeds
-    const resultWithPrice = await client.relayerFeeDetails(100000000, "usdc", 1.01);
+    const resultWithPrice = await client.relayerFeeDetails(100000000, "usdc", noDiscountDestinationChainId, 1.01);
     assert.ok(resultWithPrice);
 
     // gasFeePercent is lower if token price is higher.
-    assert.equal(
-      true,
-      toBN(resultWithPrice.gasFeePercent).lt((await client.relayerFeeDetails(100000000, "usdc", 1.0)).gasFeePercent)
-    );
+    assert.equal(true, toBN(resultWithPrice.gasFeePercent).lt(noDiscountResult.gasFeePercent));
   });
   it("capitalFeePercent", async () => {
     // Invalid capital cost configs throws on construction:

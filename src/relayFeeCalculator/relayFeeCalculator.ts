@@ -20,8 +20,8 @@ export interface CapitalCostConfig {
 }
 export interface RelayFeeCalculatorConfig {
   nativeTokenDecimals?: number;
-  gasDiscountPercent?: number;
-  capitalDiscountPercent?: number;
+  gasDiscountPercent?: { [chainId: number]: number };
+  capitalDiscountPercent?: { [chainId: number]: number };
   feeLimitPercent?: number;
   capitalCostsPercent?: number;
   capitalCostsConfig?: { [token: string]: CapitalCostConfig };
@@ -61,19 +61,11 @@ export class RelayFeeCalculator {
 
   constructor(config: RelayFeeCalculatorConfig, logger: Logger = DEFAULT_LOGGER) {
     this.queries = config.queries;
-    this.gasDiscountPercent = config.gasDiscountPercent || 0;
-    this.capitalDiscountPercent = config.capitalDiscountPercent || 0;
+    this.gasDiscountPercent = config.gasDiscountPercent || {};
+    this.capitalDiscountPercent = config.capitalDiscountPercent || {};
     this.feeLimitPercent = config.feeLimitPercent || 0;
     this.nativeTokenDecimals = config.nativeTokenDecimals || 18;
     this.capitalCostsPercent = config.capitalCostsPercent || 0;
-    assert(
-      this.gasDiscountPercent >= 0 && this.gasDiscountPercent <= 100,
-      "gasDiscountPercent must be between 0 and 100 percent"
-    );
-    assert(
-      this.capitalDiscountPercent >= 0 && this.capitalDiscountPercent <= 100,
-      "capitalDiscountPercent must be between 0 and 100 percent"
-    );
     assert(
       this.feeLimitPercent >= 0 && this.feeLimitPercent <= 100,
       "feeLimitPercent must be between 0 and 100 percent"
@@ -85,6 +77,18 @@ export class RelayFeeCalculator {
     this.capitalCostsConfig = config.capitalCostsConfig || {};
     for (const token of Object.keys(this.capitalCostsConfig)) {
       RelayFeeCalculator.validateCapitalCostsConfig(this.capitalCostsConfig[token]);
+    }
+    for (const chainId of Object.keys(this.capitalDiscountPercent)) {
+      assert(
+        this.capitalDiscountPercent[Number(chainId)] >= 0 && this.capitalDiscountPercent[Number(chainId)] <= 100,
+        "capitalDiscountPercent must be between 0 and 100 percent"
+      );
+    }
+    for (const chainId of Object.keys(this.gasDiscountPercent)) {
+      assert(
+        this.gasDiscountPercent[Number(chainId)] >= 0 && this.gasDiscountPercent[Number(chainId)] <= 100,
+        "gasDiscountPercent must be between 0 and 100 percent"
+      );
     }
 
     this.logger = logger;
@@ -155,11 +159,24 @@ export class RelayFeeCalculator {
 
     return defaultFee;
   }
-  async relayerFeeDetails(amountToRelay: BigNumberish, tokenSymbol: string, tokenPrice?: number) {
+  async relayerFeeDetails(
+    amountToRelay: BigNumberish,
+    tokenSymbol: string,
+    destinationChainId: number,
+    tokenPrice?: number
+  ) {
     let isAmountTooLow = false;
-    const gasFeePercent = await this.gasFeePercent(amountToRelay, tokenSymbol, tokenPrice);
+    const rawGasFeePercent = await this.gasFeePercent(amountToRelay, tokenSymbol, tokenPrice);
+    const gasFeeDiscountPercent = this.gasDiscountPercent[destinationChainId]
+      ? toBN(100).sub(this.gasDiscountPercent[destinationChainId])
+      : toBN(100);
+    const gasFeePercent = rawGasFeePercent.mul(gasFeeDiscountPercent).div(100);
     const gasFeeTotal = gasFeePercent.mul(amountToRelay).div(fixedPointAdjustment);
-    const capitalFeePercent = await this.capitalFeePercent(amountToRelay, tokenSymbol);
+    const rawCapitalFeePercent = await this.capitalFeePercent(amountToRelay, tokenSymbol);
+    const capitalFeeDiscountPercent = this.capitalDiscountPercent[destinationChainId]
+      ? toBN(100).sub(this.capitalDiscountPercent[destinationChainId])
+      : toBN(100);
+    const capitalFeePercent = rawCapitalFeePercent.mul(capitalFeeDiscountPercent).div(100);
     const capitalFeeTotal = capitalFeePercent.mul(amountToRelay).div(fixedPointAdjustment);
     const relayFeePercent = gasFeePercent.add(capitalFeePercent);
     const relayFeeTotal = gasFeeTotal.add(capitalFeeTotal);
