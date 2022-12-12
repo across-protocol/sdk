@@ -3,9 +3,8 @@ import dotenv from "dotenv";
 import winston from "winston";
 import { Logger, msToS, PriceCache, PriceClient, PriceFeedAdapter, TokenPrice } from "./priceClient";
 import { acrossApi, coingecko, defiLlama } from "./adapters";
-dotenv.config({ path: ".env" });
 
-const maxPriceAge = 600;
+dotenv.config();
 
 class TestPriceClient extends PriceClient {
   constructor(logger: Logger, priceFeeds: PriceFeedAdapter[]) {
@@ -16,6 +15,48 @@ class TestPriceClient extends PriceClient {
     return this.getPriceCache(currency);
   }
 }
+
+class TestPriceFeed implements PriceFeedAdapter {
+  public priceRequest: string[] = [];
+  public prices: { [currency: string]: PriceCache } = {};
+
+  constructor(public readonly name = "TestPriceFeed") {}
+
+  async getPriceByAddress(address: string, currency = "usd"): Promise<TokenPrice> {
+    const tokenPrices = await this.getPricesByAddress([address], currency);
+    return tokenPrices[0];
+  }
+
+  async getPricesByAddress(addresses: string[], currency = "usd"): Promise<TokenPrice[]> {
+    this.priceRequest = addresses;
+    const _addresses = addresses.map((address) => address.toLowerCase());
+
+    // Return each cached price that overlaps with the requested list of addresses.
+    return (
+      Object.entries(this.prices[currency])
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        .filter(([address, _]) => _addresses.includes(address.toLowerCase()))
+        .map(([address, tokenPrice]) => {
+          const { price, timestamp } = tokenPrice;
+          return { address, price, timestamp };
+        })
+    );
+  }
+}
+
+// Don't be too strict on obtaining recent prices.
+const maxPriceAge = 60 * 60 * 30; // seconds
+
+// ACX must be defined separately until it is supported by CoinGecko.
+const acxAddr = "0x44108f0223a3c3028f5fe7aec7f9bb2e66bef82f";
+const addresses: { [symbol: string]: string } = {
+  // lower-case
+  UMA: "0x04fa0d235c4abf4bcf4787af4cf447de572ef828",
+  // checksummed
+  DAI: "0x6B175474E89094C44Da98b954EedeAC495271d0F",
+  USDC: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+  WETH: "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
+};
 
 function validateTokenPrice(tokenPrice: TokenPrice, address: string, timestamp: number) {
   assert.ok(tokenPrice);
@@ -34,15 +75,6 @@ describe("PriceClient", function () {
     level: "debug",
     transports: [new winston.transports.Console()],
   });
-
-  const addresses: { [symbol: string]: string } = {
-    // lower-case
-    UMA: "0x04fa0d235c4abf4bcf4787af4cf447de572ef828",
-    // checksummed
-    DAI: "0x6B175474E89094C44Da98b954EedeAC495271d0F",
-    USDC: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
-    WETH: "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
-  };
 
   const testAddress = addresses["UMA"];
   const baseCurrency = "usd";
@@ -254,5 +286,46 @@ describe("PriceClient", function () {
         validateTokenPrice(tokenPrice, address, beginTs);
       });
     }
+  });
+
+  test("getPricesByAddress: Price request reduction", async function () {
+    // Test Price Feed #1 does not know about ACX, so it provides an incomplete
+    // response. Verify that the response from Test Price Feed #1 includes all
+    // known tokens, and that the PriceClient proceeds to query Test Price Feed
+    // #2 for *only* the remaining delta address.
+    const testPriceFeeds: TestPriceFeed[] = [
+      new TestPriceFeed("Test Price Feed #1"),
+      new TestPriceFeed("Test Price Feed #2"),
+    ];
+
+    // Pre-populate the price cache for Test Price Feed #1.
+    testPriceFeeds[0].prices["usd"] = Object.fromEntries(
+      Object.values(addresses).map((address) => {
+        const price = { price: 1.0, timestamp: beginTs } as TokenPrice;
+        return [address.toLowerCase(), price];
+      })
+    );
+
+    testPriceFeeds[1].prices["usd"] = {};
+    testPriceFeeds[1].prices["usd"][acxAddr] = { price: 1.0, timestamp: beginTs } as TokenPrice;
+
+    pc = new PriceClient(dummyLogger, testPriceFeeds);
+
+    // PriceClient cache handles lower-case addresses.
+    const priceRequest = Object.values(addresses);
+    priceRequest.push(acxAddr);
+    dummyLogger.debug({ message: "Price requests before.", priceRequest });
+
+    expect(testPriceFeeds[0].priceRequest).toStrictEqual([]);
+    expect(testPriceFeeds[1].priceRequest).toStrictEqual([]);
+
+    const prices = await pc.getPricesByAddress(priceRequest);
+
+    expect(prices.length).toBe(priceRequest.length);
+    expect(prices.map((price) => price.address)).toStrictEqual(priceRequest);
+
+    // PriceClient maps all input addresses to lower case.
+    expect(testPriceFeeds[0].priceRequest).toStrictEqual(priceRequest.map((address) => address.toLowerCase()));
+    expect(testPriceFeeds[1].priceRequest).toEqual([acxAddr].map((address) => address.toLowerCase()));
   });
 });

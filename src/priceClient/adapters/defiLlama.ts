@@ -53,20 +53,24 @@ export class PriceFeed extends BaseHTTPAdapter implements PriceFeedAdapter {
   async getPricesByAddress(addresses: string[], currency = "usd"): Promise<TokenPrice[]> {
     if (currency != "usd") throw new Error(`Currency ${currency} not supported by ${this.name}`);
 
-    const path = "prices/current/" + addresses.map((address) => `ethereum:${address}`).join();
-    const tokenPrices: unknown = await this.query(path, {});
-    if (!this.validateResponse(tokenPrices))
-      throw new Error(`Unexpected ${this.name} response: ${JSON.stringify(tokenPrices)}`);
+    const path = "prices/current/" + addresses.map((address) => `ethereum:${address.toLowerCase()}`).join();
+    const response: unknown = await this.query(path, {});
+    if (!this.validateResponse(response))
+      throw new Error(`Unexpected ${this.name} response: ${JSON.stringify(response)}`);
 
-    return addresses.map((address: string) => {
-      const tokenPrice = tokenPrices.coins[`ethereum:${address}`];
-      if (tokenPrice === undefined) throw new Error(`Token ${address} missing from ${this.name} response`);
+    // Normalise the address format: "etherum:<address>" => "<address>".
+    const tokenPrices: { [address: string]: DefiLlamaTokenPrice } = Object.fromEntries(
+      Object.entries(response.coins).map(([identifier, tokenPrice]) => [identifier.split(":")[1], tokenPrice])
+    );
 
-      if (tokenPrice.confidence < this.minConfidence)
-        throw new Error(`Token ${address} has low confidence score (${tokenPrice.confidence})`);
-
-      return { address, price: tokenPrice.price, timestamp: tokenPrice.timestamp };
-    });
+    return addresses
+      .filter((address) => {
+        return (tokenPrices[address.toLowerCase()]?.confidence || 0.0) >= this.minConfidence;
+      })
+      .map((address) => {
+        const { price, timestamp } = tokenPrices[address.toLowerCase()];
+        return { address, price, timestamp };
+      });
   }
 
   private validateResponse(response: unknown): response is DefiLlamaPriceResponse {
