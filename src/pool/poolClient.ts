@@ -10,7 +10,13 @@ import get from "lodash/get";
 import has from "lodash/has";
 import { calculateInstantaneousRate } from "../lpFeeCalculator";
 import { hubPool, acrossConfigStore } from "../contracts";
-import { AcceleratingDistributor, AcceleratingDistributor__factory } from "@across-protocol/across-token";
+import {
+  AcceleratingDistributor,
+  AcceleratingDistributor__factory,
+  MerkleDistributor,
+  MerkleDistributor__factory,
+} from "@across-protocol/across-token";
+import { TypedEvent } from "@across-protocol/across-token/dist/typechain/common";
 
 const { erc20 } = uma.clients;
 const { loop } = uma.utils;
@@ -26,6 +32,7 @@ export type Config = {
   chainId?: number;
   hubPoolAddress: string;
   acceleratingDistributorAddress: string;
+  merkleDistributorAddress: string;
   wethAddress: string;
   configStoreAddress: string;
   confirmations?: number;
@@ -38,7 +45,6 @@ export type Dependencies = {
 };
 export type StakeData = {
   cumulativeBalance: BigNumber;
-  stakes: { amount: BigNumber; block: BigNumber; hash: string; staker: string }[];
   amountAirdropped: BigNumber;
 };
 export type Pool = {
@@ -215,7 +221,12 @@ export class PoolEventState {
 class UserState {
   private seen = new Set<string>();
   private events: uma.clients.erc20.Transfer[] = [];
-  constructor(private contract: uma.clients.erc20.Instance, private userAddress: string, private startBlock = 0) {}
+  constructor(
+    private contract: uma.clients.erc20.Instance,
+    private userAddress: string,
+    private startBlock = 0,
+    private acceleratingDistributorContractAddress = ""
+  ) {}
   private makeId(params: EventIdParams): string {
     return uma.oracle.utils.eventKey(params);
   }
@@ -238,7 +249,13 @@ class UserState {
   public async readEvents(endBlock: number): Promise<uma.clients.erc20.Transfer[]> {
     if (endBlock <= this.startBlock) return [];
     const { userAddress } = this;
-    const events = (
+    const events: TypedEvent<
+      [string, string, uma.oracle.types.ethers.BigNumber] & {
+        from: string;
+        to: string;
+        value: uma.oracle.types.ethers.BigNumber;
+      }
+    >[] = (
       await Promise.all([
         ...(await this.contract.queryFilter(
           this.contract.filters.Transfer(userAddress, undefined),
@@ -261,6 +278,10 @@ class UserState {
           event.args.from !== AddressZero &&
           // ignore burn events
           event.args.to !== AddressZero &&
+          // ignore AD transfer events in
+          event.args.to !== this.acceleratingDistributorContractAddress &&
+          // ignore AD transfer events out
+          event.args.from !== this.acceleratingDistributorContractAddress &&
           // ignore self transfer events
           event.args.from !== event.args.to
       )
@@ -325,9 +346,9 @@ function joinUserState(
   poolState: Pool,
   tokenEventState: hubPool.TokenEventState,
   userState: Awaited<ReturnType<UserState["read"]>>,
-  transferValue: BigNumberish = 0,
-  cumulativeStakeBalance: BigNumberish = 0,
-  cumulativeStakeClaimBalance: BigNumberish = 0
+  transferValue: BigNumber = BigNumber.from(0),
+  cumulativeStakeBalance: BigNumber = BigNumber.from(0),
+  cumulativeStakeClaimBalance: BigNumber = BigNumber.from(0)
 ): User {
   const positionValue = BigNumber.from(poolState.exchangeRateCurrent)
     .mul(userState.balanceOf.add(cumulativeStakeBalance))
@@ -414,6 +435,7 @@ export class Client {
   private transactionManagers: Record<string, ReturnType<typeof TransactionManager>> = {};
   private hubPool: hubPool.Instance;
   private acceleratingDistributor: AcceleratingDistributor;
+  private merkleDistributor: MerkleDistributor;
   public readonly state: State = { pools: {}, users: {}, transactions: {} };
   private poolEvents: PoolEventState;
   private erc20s: Record<string, uma.clients.erc20.Instance> = {};
@@ -425,6 +447,7 @@ export class Client {
     config.chainId = config.chainId || 1;
     this.hubPool = this.createHubPoolContract(deps.provider);
     this.acceleratingDistributor = this.createAcceleratingDistributorContract(deps.provider);
+    this.merkleDistributor = this.createMerkleDistributorContract(deps.provider);
     this.poolEvents = new PoolEventState(this.hubPool, this.config.hubPoolStartBlock);
     this.configStoreClient = new acrossConfigStore.Client(config.configStoreAddress, deps.provider);
   }
@@ -445,8 +468,14 @@ export class Client {
   public createAcceleratingDistributorContract(signerOrProvider: Signer | Provider): AcceleratingDistributor {
     return AcceleratingDistributor__factory.connect(this.config.acceleratingDistributorAddress, signerOrProvider);
   }
+  public createMerkleDistributorContract(signerOrProvider: Signer | Provider): MerkleDistributor {
+    return MerkleDistributor__factory.connect(this.config.merkleDistributorAddress, signerOrProvider);
+  }
   public getOrCreateAcceleratingDistributorContract(): AcceleratingDistributor {
     return this.acceleratingDistributor;
+  }
+  public getOrCreateMerkleDistributorContract(): MerkleDistributor {
+    return this.merkleDistributor;
   }
   private getOrCreateUserService(userAddress: string, tokenAddress: string) {
     if (has(this.userServices, [tokenAddress, userAddress])) return get(this.userServices, [tokenAddress, userAddress]);
@@ -465,45 +494,41 @@ export class Client {
     return this.exchangeRateTable[l1TokenAddress];
   }
   async resolveStakingData(
+    lpToken: string,
     l1TokenAddress: string,
     userState: Awaited<ReturnType<UserState["read"]>>
   ): Promise<StakeData> {
     assert(this.config.acceleratingDistributorAddress, "Must have the accelerating distributor address");
-    const contract = this.getOrCreateAcceleratingDistributorContract();
-    const { cumulativeBalance } = await contract.getUserStake(l1TokenAddress, userState.address);
+    assert(this.config.merkleDistributorAddress, "Must have the merkle distributor address");
 
-    const stakeTxs = await contract.queryFilter(contract.filters.Stake(l1TokenAddress, userState.address));
-    const unstakeTxs = await contract.queryFilter(contract.filters.Unstake(l1TokenAddress, userState.address));
+    // Define the contracts we need to interact with.
+    const acceleratingDistributorContract = this.getOrCreateAcceleratingDistributorContract();
+    const merkleDistributorContract = this.getOrCreateMerkleDistributorContract();
+    const poolContract = this.getOrCreatePoolContract();
 
-    const stakes = [
-      ...stakeTxs.map((tx) => ({
-        amount: tx.args.amount,
-        block: BigNumber.from(tx.blockNumber),
-        hash: tx.transactionHash,
-        staker: tx.args.user,
-      })),
-      ...unstakeTxs.map((tx) => ({
-        amount: tx.args.amount.mul(-1),
-        block: BigNumber.from(tx.blockNumber),
-        hash: tx.transactionHash,
-        staker: tx.args.user,
-      })),
-    ];
+    // Get the list of all claims made by the user.
+    const claimList = await merkleDistributorContract.queryFilter(
+      merkleDistributorContract.filters.Claimed(undefined, undefined, userState.address, undefined, undefined, lpToken)
+    );
 
-    // Logic: We have a list of staked transactions + a list of unstake
-    // transactions + the user's current balance. We know that if we add
-    // back all the unstake transactions to the cumulative staked balance,
-    // we'll have a value that represents the total amount of funds that
-    // has ever been staked on a user's account. If we then subtract out
-    // the total amount of funds the user has specifically staked from the
-    // external LP pool, we'll be left with exactly how much the user has
-    // claimed through an airdrop.
-    const amountAirdropped = stakes.reduce((acc, previous) => acc.add(previous.amount.mul(-1)), cumulativeBalance);
+    // Calculate the total amount of LP tokens claimed by the user from the merkle
+    // distributor contract with the exchange rate at the time of the claim.
+    const amountOfLPClaimed = (
+      await Promise.all(
+        claimList.map(async (claim) =>
+          claim.args.amount.mul(
+            await poolContract.callStatic.exchangeRateCurrent(l1TokenAddress, { blockTag: claim.blockNumber })
+          )
+        )
+      )
+    ).reduce((prev, acc) => acc.add(prev), BigNumber.from(0));
+
+    // Get the cumulative balance of the user from the accelerating distributor contract.
+    const { cumulativeBalance } = await acceleratingDistributorContract.getUserStake(lpToken, userState.address);
 
     return {
       cumulativeBalance,
-      stakes,
-      amountAirdropped,
+      amountAirdropped: amountOfLPClaimed,
     };
   }
 
@@ -702,10 +727,12 @@ export class Client {
     poolState: Pool,
     poolEventState: hubPool.EventState
   ): Promise<void> {
-    const { l1Token: l1TokenAddress } = poolState;
+    const { l1Token: l1TokenAddress, lpToken } = poolState;
     const { address: userAddress } = userState;
-    const transferValue = this.config.hasArchive ? await this.calculateLpTransferValue(l1TokenAddress, userState) : 0;
-    const stakeData = await this.resolveStakingData(l1TokenAddress, userState);
+    const transferValue = this.config.hasArchive
+      ? await this.calculateLpTransferValue(l1TokenAddress, userState)
+      : BigNumber.from(0);
+    const stakeData = await this.resolveStakingData(lpToken, l1TokenAddress, userState);
     const tokenEventState = poolEventState[l1TokenAddress];
     const newUserState = this.setUserState(
       l1TokenAddress,
