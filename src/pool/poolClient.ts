@@ -44,7 +44,6 @@ export type Dependencies = {
 };
 export type StakeData = {
   cumulativeBalance: BigNumber;
-  stakes: { amount: BigNumber; block: BigNumber; hash: string; staker: string }[];
   amountAirdropped: BigNumber;
 };
 export type Pool = {
@@ -331,9 +330,9 @@ function joinUserState(
   poolState: Pool,
   tokenEventState: hubPool.TokenEventState,
   userState: Awaited<ReturnType<UserState["read"]>>,
-  transferValue: BigNumberish = 0,
-  cumulativeStakeBalance: BigNumberish = 0,
-  cumulativeStakeClaimBalance: BigNumberish = 0
+  transferValue: BigNumber = BigNumber.from(0),
+  cumulativeStakeBalance: BigNumber = BigNumber.from(0),
+  cumulativeStakeClaimBalance: BigNumber = BigNumber.from(0)
 ): User {
   const positionValue = BigNumber.from(poolState.exchangeRateCurrent)
     .mul(userState.balanceOf.add(cumulativeStakeBalance))
@@ -485,13 +484,19 @@ export class Client {
   ): Promise<StakeData> {
     assert(this.config.acceleratingDistributorAddress, "Must have the accelerating distributor address");
     assert(this.config.merkleDistributorAddress, "Must have the merkle distributor address");
+
+    // Define the contracts we need to interact with.
     const acceleratingDistributorContract = this.getOrCreateAcceleratingDistributorContract();
     const merkleDistributorContract = this.getOrCreateMerkleDistributorContract();
     const poolContract = this.getOrCreatePoolContract();
 
+    // Get the list of all claims made by the user.
     const claimList = await merkleDistributorContract.queryFilter(
       merkleDistributorContract.filters.Claimed(undefined, undefined, userState.address, undefined, undefined, lpToken)
     );
+
+    // Calculate the total amount of LP tokens claimed by the user from the merkle
+    // distributor contract with the exchange rate at the time of the claim.
     const amountOfLPClaimed = (
       await Promise.all(
         claimList.map(async (claim) =>
@@ -502,32 +507,11 @@ export class Client {
       )
     ).reduce((prev, acc) => acc.add(prev), BigNumber.from(0));
 
+    // Get the cumulative balance of the user from the accelerating distributor contract.
     const { cumulativeBalance } = await acceleratingDistributorContract.getUserStake(lpToken, userState.address);
-    const stakeTxs = await acceleratingDistributorContract.queryFilter(
-      acceleratingDistributorContract.filters.Stake(lpToken, userState.address)
-    );
-    const unstakeTxs = await acceleratingDistributorContract.queryFilter(
-      acceleratingDistributorContract.filters.Unstake(lpToken, userState.address)
-    );
-
-    const stakes = [
-      ...stakeTxs.map((tx) => ({
-        amount: tx.args.amount,
-        block: BigNumber.from(tx.blockNumber),
-        hash: tx.transactionHash,
-        staker: tx.args.user,
-      })),
-      ...unstakeTxs.map((tx) => ({
-        amount: tx.args.amount.mul(-1),
-        block: BigNumber.from(tx.blockNumber),
-        hash: tx.transactionHash,
-        staker: tx.args.user,
-      })),
-    ];
 
     return {
       cumulativeBalance,
-      stakes,
       amountAirdropped: amountOfLPClaimed,
     };
   }
@@ -729,7 +713,9 @@ export class Client {
   ): Promise<void> {
     const { l1Token: l1TokenAddress, lpToken } = poolState;
     const { address: userAddress } = userState;
-    const transferValue = this.config.hasArchive ? await this.calculateLpTransferValue(l1TokenAddress, userState) : 0;
+    const transferValue = this.config.hasArchive
+      ? await this.calculateLpTransferValue(l1TokenAddress, userState)
+      : BigNumber.from(0);
     const stakeData = await this.resolveStakingData(lpToken, l1TokenAddress, userState);
     const tokenEventState = poolEventState[l1TokenAddress];
     const newUserState = this.setUserState(
