@@ -61,5 +61,5 @@ describe("Utils test", () => {
       const gasMultiplier = toBNWei(1.0 + gasMarkup);
       expect(toBN(gasEstimate).eq(toBN(refGasEstimate).mul(gasMultiplier).div(toBNWei(1)))).toBe(true);
     }
-  }, 20000);
+  }, 50000);
 });
