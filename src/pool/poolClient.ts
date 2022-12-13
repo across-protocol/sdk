@@ -16,6 +16,7 @@ import {
   MerkleDistributor,
   MerkleDistributor__factory,
 } from "@across-protocol/across-token";
+import { TypedEvent } from "@across-protocol/across-token/dist/typechain/common";
 
 const { erc20 } = uma.clients;
 const { loop } = uma.utils;
@@ -220,7 +221,12 @@ export class PoolEventState {
 class UserState {
   private seen = new Set<string>();
   private events: uma.clients.erc20.Transfer[] = [];
-  constructor(private contract: uma.clients.erc20.Instance, private userAddress: string, private startBlock = 0) {}
+  constructor(
+    private contract: uma.clients.erc20.Instance,
+    private userAddress: string,
+    private startBlock = 0,
+    private acceleratingDistributorContractAddress = ""
+  ) {}
   private makeId(params: EventIdParams): string {
     return uma.oracle.utils.eventKey(params);
   }
@@ -243,7 +249,13 @@ class UserState {
   public async readEvents(endBlock: number): Promise<uma.clients.erc20.Transfer[]> {
     if (endBlock <= this.startBlock) return [];
     const { userAddress } = this;
-    const events = (
+    const events: TypedEvent<
+      [string, string, uma.oracle.types.ethers.BigNumber] & {
+        from: string;
+        to: string;
+        value: uma.oracle.types.ethers.BigNumber;
+      }
+    >[] = (
       await Promise.all([
         ...(await this.contract.queryFilter(
           this.contract.filters.Transfer(userAddress, undefined),
@@ -266,6 +278,10 @@ class UserState {
           event.args.from !== AddressZero &&
           // ignore burn events
           event.args.to !== AddressZero &&
+          // ignore AD transfer events in
+          event.args.to !== this.acceleratingDistributorContractAddress &&
+          // ignore AD transfer events out
+          event.args.from !== this.acceleratingDistributorContractAddress &&
           // ignore self transfer events
           event.args.from !== event.args.to
       )
