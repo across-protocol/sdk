@@ -315,6 +315,11 @@ export async function createUnsignedFillRelayTransaction(
 }
 
 /**
+ * NOTE: This function is buggy and fails sometimes. Use BlockFinder.getBlockForTimestamp
+ * instead which is safer, albeit slower. This can be imported from @uma/financial-templates-lib.
+ * BlockFinder finds the actual block for a timestamp, which causes it to run slower than this function
+ * which approximates the target block number.
+ *
  * Search back in time for the first block at or older than the desired lookback.
  *
  * The approach here is as below:
