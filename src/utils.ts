@@ -11,6 +11,9 @@ export type BN = BigNumber;
 export type Decimalish = string | number | Decimal;
 export const AddressZero = ethers.constants.AddressZero;
 
+// Used as a signal to protect relayers from running code against an outdated version of the on-chain config store.
+export const CONFIG_STORE_VERSION = 1;
+
 const { ConvertDecimals } = uma.utils;
 // These are distances used to traverse when looking for a block with desired lookback.
 // They're meant to be small enough to allow for granularity but large enough to minimize the number of reqests needed
