@@ -1,6 +1,6 @@
 import { Provider } from "@ethersproject/providers";
 import { AcrossConfigStore, AcrossConfigStore__factory } from "@across-protocol/contracts-v2";
-import { object, string, Infer, assert, mask } from "superstruct";
+import { object, string, Infer, assert, mask, record, optional } from "superstruct";
 import type { CallOverrides } from "@ethersproject/contracts";
 
 const RateModelSs = object({
@@ -11,6 +11,7 @@ const RateModelSs = object({
 });
 const L1TokenConfigSs = object({
   rateModel: RateModelSs,
+  routeRateModel: optional(record(string(), RateModelSs)),
   transferThreshold: string(),
 });
 export type RateModel = Infer<typeof RateModelSs>;
@@ -31,8 +32,18 @@ export class Client {
     const data = await this.contract.l1TokenConfig(l1TokenAddress, overrides);
     return Client.parseL1TokenConfig(data);
   }
-  async getRateModel(l1TokenAddress: string, overrides: CallOverrides = {}): Promise<RateModel> {
+  async getRateModel(
+    l1TokenAddress: string,
+    overrides: CallOverrides = {},
+    originChainId?: number,
+    destinationChainId?: number
+  ): Promise<RateModel> {
     const l1TokenConfig = await this.getL1TokenConfig(l1TokenAddress, overrides);
+    if (originChainId === undefined || destinationChainId === undefined) return l1TokenConfig.rateModel;
+    const routeRateModelKey = `${originChainId}-${destinationChainId}`;
+    if (l1TokenConfig.routeRateModel && l1TokenConfig.routeRateModel[routeRateModelKey]) {
+      return l1TokenConfig.routeRateModel[routeRateModelKey];
+    }
     return l1TokenConfig.rateModel;
   }
 }

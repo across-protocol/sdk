@@ -787,6 +787,9 @@ export class Client {
 
     let rateModel: acrossConfigStore.RateModel | undefined = undefined;
     try {
+      // Use the default rate model (i.e. not any of the routeRateModels to project the Pool's APR). This assumes
+      // that the default rate model is the most often used, but this may change in future if many different
+      // route rate models are set.
       rateModel = await this.configStoreClient.getRateModel(l1TokenAddress);
     } catch (err) {
       // we could swallow this error or just log it since getting the rate model is optional,
