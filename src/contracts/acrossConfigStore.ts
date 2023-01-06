@@ -34,11 +34,12 @@ export class Client {
   }
   async getRateModel(
     l1TokenAddress: string,
-    originChainId: number,
-    destinationChainId: number,
-    overrides: CallOverrides = {}
+    overrides: CallOverrides = {},
+    originChainId?: number,
+    destinationChainId?: number
   ): Promise<RateModel> {
     const l1TokenConfig = await this.getL1TokenConfig(l1TokenAddress, overrides);
+    if (originChainId === undefined || destinationChainId === undefined) return l1TokenConfig.rateModel;
     const routeRateModelKey = `${originChainId}-${destinationChainId}`;
     if (l1TokenConfig.routeRateModel && l1TokenConfig.routeRateModel[routeRateModelKey]) {
       return l1TokenConfig.routeRateModel[routeRateModelKey];

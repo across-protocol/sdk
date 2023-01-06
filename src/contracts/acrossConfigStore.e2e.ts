@@ -5,15 +5,14 @@ import { Client } from "./acrossConfigStore";
 import { Provider } from "@ethersproject/providers";
 
 dotenv.config();
-// kovan only
-const configStoreAddress = ethers.utils.getAddress("0xDd74f7603e3fDA6435aEc91F8960a6b8b40415f3");
-const wethAddress = ethers.utils.getAddress("0xd0A1E359811322d97991E03f863a0C30C2cF029C");
+const configStoreAddress = ethers.utils.getAddress("0x3b03509645713718b78951126e0a6de6f10043f5");
+const wethAddress = ethers.utils.getAddress("0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2");
 
 describe("AcrossConfigStore", function () {
   let provider: Provider;
   let client: Client;
   beforeAll(async () => {
-    provider = ethers.getDefaultProvider(process.env.CUSTOM_NODE_URL);
+    provider = ethers.getDefaultProvider(process.env.NODE_URL_1);
     client = new Client(configStoreAddress, provider);
   });
   test("getL1TokenConfig", async function () {
@@ -21,7 +20,8 @@ describe("AcrossConfigStore", function () {
     assert.ok(result.transferThreshold);
   });
   test("getRateModel", async function () {
-    const result = await client.getRateModel(wethAddress);
+    const result = await client.getRateModel(wethAddress, 1, 10);
+    console.log(result);
     assert.ok(result.UBar);
     assert.ok(result.R0);
     assert.ok(result.R1);
