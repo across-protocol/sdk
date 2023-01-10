@@ -44,12 +44,20 @@ describe("Realized liquidity provision calculation", function () {
       { utilA: toBNWei("0"), utilB: toBNWei("1.00"), apy: "229000000000000000", wpy: "3973000000000000" },
     ];
 
+    // Test special rate model case where dividing by 0 can occur
+    const zeroRateModel = { UBar: toBNWei(0), R0: toBNWei(0), R1: toBNWei(0), R2: toBNWei(0) };
+
     testedIntervals.forEach((interval) => {
       const apyFeePct = calculateApyFromUtilization(rateModel, interval.utilA, interval.utilB);
       assert.equal(apyFeePct.toString(), interval.apy);
 
       const realizedLpFeePct = calculateRealizedLpFeePct(rateModel, interval.utilA, interval.utilB).toString();
       assert.equal(realizedLpFeePct.toString(), interval.wpy);
+
+      assert.ok(calculateApyFromUtilization(zeroRateModel, interval.utilA, interval.utilB));
+      assert.equal(calculateApyFromUtilization(zeroRateModel, interval.utilA, interval.utilB).toString(), "0");
+      assert.ok(calculateRealizedLpFeePct(zeroRateModel, interval.utilA, interval.utilB));
+      assert.equal(calculateRealizedLpFeePct(zeroRateModel, interval.utilA, interval.utilB).toString(), "0");
     });
     testedIntervalsTruncated.forEach((interval) => {
       const apyFeePct = calculateApyFromUtilization(rateModel, interval.utilA, interval.utilB);

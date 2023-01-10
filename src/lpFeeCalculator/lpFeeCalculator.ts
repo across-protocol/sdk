@@ -16,7 +16,11 @@ export interface RateModel {
 
 // Calculate the rate for a 0 sized deposit (infinitesimally small).
 export function calculateInstantaneousRate(rateModel: RateModel, utilization: BigNumberish) {
-  const beforeKink = min(utilization, rateModel.UBar).mul(rateModel.R1).div(rateModel.UBar);
+  // Assuming utilization >= 0, if UBar = 0 then the value beforeKink is 0 since min(>=0, 0) = 0.
+  const beforeKink =
+    rateModel.UBar.toString() === "0"
+      ? toBN(0)
+      : min(utilization, rateModel.UBar).mul(rateModel.R1).div(rateModel.UBar);
   const afterKink = max(toBN("0"), toBN(utilization).sub(rateModel.UBar))
     .mul(rateModel.R2)
     .div(toBNWei("1").sub(rateModel.UBar));
