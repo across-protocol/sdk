@@ -20,11 +20,20 @@ describe("AcrossConfigStore", function () {
     assert.ok(result.transferThreshold);
   });
   test("getRateModel", async function () {
-    const result = await client.getRateModel(wethAddress, 1, 10);
-    console.log(result);
-    assert.ok(result.UBar);
-    assert.ok(result.R0);
-    assert.ok(result.R1);
-    assert.ok(result.R2);
+    // This test works because we know the L1-->L2 route for WETH has a rate model with all properties set to 0 and
+    // that this rate model is different than the default rate model for WETH.
+    const result = await client.getRateModel(wethAddress, {}, 1, 10);
+    const defaultRateModelResult = await client.getRateModel(wethAddress);
+    expect(result).toStrictEqual({
+      UBar: "0",
+      R0: "0",
+      R1: "0",
+      R2: "0",
+    });
+    expect(defaultRateModelResult).not.toStrictEqual(result);
+    assert.ok(defaultRateModelResult.R0);
+    assert.ok(defaultRateModelResult.R1);
+    assert.ok(defaultRateModelResult.UBar);
+    assert.ok(defaultRateModelResult.R2);
   });
 });
