@@ -55,7 +55,9 @@ describe("Realized liquidity provision calculation", function () {
       assert.equal(realizedLpFeePct.toString(), interval.wpy);
 
       assert.ok(calculateApyFromUtilization(zeroRateModel, interval.utilA, interval.utilB));
+      assert.equal(calculateApyFromUtilization(zeroRateModel, interval.utilA, interval.utilB).toString(), "0");
       assert.ok(calculateRealizedLpFeePct(zeroRateModel, interval.utilA, interval.utilB));
+      assert.equal(calculateRealizedLpFeePct(zeroRateModel, interval.utilA, interval.utilB).toString(), "0");
     });
     testedIntervalsTruncated.forEach((interval) => {
       const apyFeePct = calculateApyFromUtilization(rateModel, interval.utilA, interval.utilB);
