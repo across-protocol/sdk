@@ -1,13 +1,13 @@
 import { DEFAULT_LOGGER, Logger } from "../relayFeeCalculator";
 import { providers } from "ethers";
-import { SymbolMapping } from "./ethereum";
+import { TOKEN_SYMBOLS_MAP } from "../../constants";
 import { Coingecko } from "../../coingecko/Coingecko";
 import QueryBase from "./baseQuery";
 
 export class PolygonQueries extends QueryBase {
   constructor(
     provider: providers.Provider,
-    symbolMapping = SymbolMapping,
+    symbolMapping = TOKEN_SYMBOLS_MAP,
     spokePoolAddress = "0x69B5c72837769eF1e7C164Abc6515DcFf217F920",
     usdcAddress = "0x2791bca1f2de4661ed88a30c99a7a9449aa84174",
     simulatedRelayerAddress = "0x893d0D70AD97717052E3AA8903D9615804167759",
@@ -33,12 +33,12 @@ export class PolygonQueries extends QueryBase {
     if (!this.symbolMapping[tokenSymbol]) throw new Error(`${tokenSymbol} does not exist in mapping`);
     const coingeckoInstance = Coingecko.get(this.logger, this.coingeckoProApiKey);
     const [, tokenPrice] = await coingeckoInstance.getCurrentPriceByContract(
-      this.symbolMapping[tokenSymbol].address,
+      this.symbolMapping[tokenSymbol].mainnetAddress,
       "usd"
     );
 
     const [, maticPrice] = await coingeckoInstance.getCurrentPriceByContract(
-      this.symbolMapping["MATIC"].address,
+      this.symbolMapping["MATIC"].mainnetAddress,
       "usd"
     );
     return Number((tokenPrice / maticPrice).toFixed(this.symbolMapping["MATIC"].decimals));

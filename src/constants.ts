@@ -1,0 +1,80 @@
+export const TOKEN_SYMBOLS_MAP = {
+  ACX: {
+    name: "ACX",
+    symbol: "ACX",
+    decimals: 18,
+    mainnetAddress: "0x44108f0223A3C3028F5Fe7AEC7f9bb2E66beF82F",
+  },
+  BAL: {
+    name: "Balancer",
+    symbol: "BAL",
+    decimals: 18,
+    mainnetAddress: "0xba100000625a3754423978a60c9317c58a424e3D",
+  },
+  BADGER: {
+    name: "Badger",
+    symbol: "BADGER",
+    decimals: 18,
+    mainnetAddress: "0x3472A5A71965499acd81997a54BBA8D852C6E53d",
+  },
+  BOBA: {
+    name: "Boba",
+    symbol: "BOBA",
+    decimals: 18,
+    mainnetAddress: "0x42bBFa2e77757C645eeaAd1655E0911a7553Efbc",
+  },
+  DAI: {
+    name: "Dai Stablecoin",
+    symbol: "DAI",
+    decimals: 18,
+    mainnetAddress: "0x6B175474E89094C44Da98b954EedeAC495271d0F",
+  },
+  ETH: {
+    name: "Ether",
+    symbol: "ETH",
+    decimals: 18,
+    mainnetAddress: "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
+  },
+  MATIC: {
+    name: "Matic",
+    symbol: "WMATIC",
+    decimals: 18,
+    mainnetAddress: "0x7D1AfA7B718fb893dB30A3aBc0Cfc608AaCfeBB0",
+  },
+  UMA: {
+    name: "UMA",
+    symbol: "UMA",
+    decimals: 18,
+    mainnetAddress: "0x04Fa0d235C4abf4BcF4787aF4CF447DE572eF828",
+  },
+  USDC: {
+    name: "USD Coin",
+    symbol: "USDC",
+    decimals: 6,
+    mainnetAddress: "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+  },
+  USDT: {
+    name: "USDT",
+    symbol: "USDT",
+    decimals: 6,
+    mainnetAddress: "0xdAC17F958D2ee523a2206206994597C13D831ec7",
+  },
+  WBTC: {
+    name: "Wrapped Bitcoin",
+    symbol: "WBTC",
+    decimals: 8,
+    mainnetAddress: "0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599",
+  },
+  WETH: {
+    name: "Wrapped Ether",
+    symbol: "WETH",
+    decimals: 18,
+    mainnetAddress: "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
+  },
+  WMATIC: {
+    name: "Matic",
+    symbol: "WMATIC",
+    decimals: 18,
+    mainnetAddress: "0x7D1AfA7B718fb893dB30A3aBc0Cfc608AaCfeBB0",
+  },
+};
