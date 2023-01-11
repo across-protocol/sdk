@@ -1,6 +1,6 @@
 import { DEFAULT_LOGGER, Logger } from "../relayFeeCalculator";
 import { providers } from "ethers";
-import { TOKEN_SYMBOLS_MAP } from "../../constants";
+import { CHAIN_IDs, TOKEN_SYMBOLS_MAP } from "../../constants";
 import { Coingecko } from "../../coingecko/Coingecko";
 import QueryBase from "./baseQuery";
 
@@ -33,12 +33,12 @@ export class PolygonQueries extends QueryBase {
     if (!this.symbolMapping[tokenSymbol]) throw new Error(`${tokenSymbol} does not exist in mapping`);
     const coingeckoInstance = Coingecko.get(this.logger, this.coingeckoProApiKey);
     const [, tokenPrice] = await coingeckoInstance.getCurrentPriceByContract(
-      this.symbolMapping[tokenSymbol].mainnetAddress,
+      this.symbolMapping[tokenSymbol].addresses[CHAIN_IDs.MAINNET],
       "usd"
     );
 
     const [, maticPrice] = await coingeckoInstance.getCurrentPriceByContract(
-      this.symbolMapping["MATIC"].mainnetAddress,
+      this.symbolMapping["MATIC"].addresses[CHAIN_IDs.MAINNET],
       "usd"
     );
     return Number((tokenPrice / maticPrice).toFixed(this.symbolMapping["MATIC"].decimals));

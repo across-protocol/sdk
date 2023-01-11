@@ -2,7 +2,7 @@ import { SpokePool, SpokePool__factory } from "@across-protocol/contracts-v2";
 import { L2Provider } from "@eth-optimism/sdk";
 import { providers } from "ethers";
 import { Coingecko } from "../../coingecko";
-import { ChainId } from "../../constants";
+import { CHAIN_IDs } from "../../constants";
 import {
   BigNumberish,
   createUnsignedFillRelayTransaction,
@@ -73,7 +73,7 @@ export default abstract class QueryBase implements QueryInterface {
     if (!this.symbolMapping[tokenSymbol]) throw new Error(`${tokenSymbol} does not exist in mapping`);
     const coingeckoInstance = Coingecko.get(this.logger, this.coingeckoProApiKey);
     const [, price] = await coingeckoInstance.getCurrentPriceByContract(
-      this.symbolMapping[tokenSymbol].addresses[ChainId.MAINNET],
+      this.symbolMapping[tokenSymbol].addresses[CHAIN_IDs.MAINNET],
       this.coingeckoBaseCurrency
     );
     return price;
