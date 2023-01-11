@@ -1,7 +1,7 @@
 import assert from "assert";
 import * as uma from "@uma/sdk";
 import { BigNumber } from "ethers";
-import { BigNumberish, toBNWei, nativeToToken, toBN, min, max } from "../utils";
+import { BigNumberish, toBNWei, nativeToToken, toBN, min, max, MAX_BIG_INT } from "../utils";
 const { percent, fixedPointAdjustment } = uma.across.utils;
 
 // This needs to be implemented for every chain and passed into RelayFeeCalculator
@@ -101,6 +101,8 @@ export class RelayFeeCalculator {
   }
 
   async gasFeePercent(amountToRelay: BigNumberish, tokenSymbol: string, _tokenPrice?: number): Promise<BigNumber> {
+    if (toBN(amountToRelay).eq(0)) return MAX_BIG_INT;
+
     const getGasCosts = this.queries.getGasCosts().catch((error) => {
       this.logger.error({ at: "sdk-v2/gasFeePercent", message: "Error while fetching gas costs", error });
       throw error;
@@ -121,6 +123,9 @@ export class RelayFeeCalculator {
   // Note: these variables are unused now, but may be needed in future versions of this function that are more complex.
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   async capitalFeePercent(_amountToRelay: BigNumberish, _tokenSymbol: string): Promise<BigNumber> {
+    // If amount is 0, then the capital fee % should be the max 100%
+    if (toBN(_amountToRelay).eq(toBN(0))) return MAX_BIG_INT;
+
     // V0: Charge fixed capital fee
     const defaultFee = toBNWei(this.capitalCostsPercent / 100);
 
@@ -130,7 +135,7 @@ export class RelayFeeCalculator {
     // for very large amount inputs.
     if (this.capitalCostsConfig[_tokenSymbol]) {
       const config = this.capitalCostsConfig[_tokenSymbol];
-      // Scale amount "y" to 18 decimals
+      // Scale amount "y" to 18 decimals.
       const y = toBN(_amountToRelay).mul(toBNWei("1", 18 - config.decimals));
       // At a minimum, the fee will be equal to lower bound fee * y
       const minCharge = toBN(config.lowerBound).mul(y).div(fixedPointAdjustment);
@@ -139,9 +144,11 @@ export class RelayFeeCalculator {
       // will be equal to half the sum of (upper bound + lower bound).
       const yTriangle = min(config.cutoff, y);
 
-      // triangleSlope is slope of fee curve from lower bound to upper bound.
+      // triangleSlope is slope of fee curve from lower bound to upper bound. If cutoff is 0, slope is 0.
       // triangleCharge is interval of curve from 0 to y for curve = triangleSlope * y
-      const triangleSlope = toBN(config.upperBound).sub(config.lowerBound).mul(fixedPointAdjustment).div(config.cutoff);
+      const triangleSlope = toBN(config.cutoff).eq(toBN(0))
+        ? toBN(0)
+        : toBN(config.upperBound).sub(config.lowerBound).mul(fixedPointAdjustment).div(config.cutoff);
       const triangleHeight = triangleSlope.mul(yTriangle).div(fixedPointAdjustment);
       const triangleCharge = triangleHeight.mul(yTriangle).div(toBNWei(2));
 
@@ -156,7 +163,6 @@ export class RelayFeeCalculator {
     return defaultFee;
   }
   async relayerFeeDetails(amountToRelay: BigNumberish, tokenSymbol: string, tokenPrice?: number) {
-    let isAmountTooLow = false;
     const gasFeePercent = await this.gasFeePercent(amountToRelay, tokenSymbol, tokenPrice);
     const gasFeeTotal = gasFeePercent.mul(amountToRelay).div(fixedPointAdjustment);
     const capitalFeePercent = await this.capitalFeePercent(amountToRelay, tokenSymbol);
@@ -164,9 +170,24 @@ export class RelayFeeCalculator {
     const relayFeePercent = gasFeePercent.add(capitalFeePercent);
     const relayFeeTotal = gasFeeTotal.add(capitalFeeTotal);
 
-    if (this.feeLimitPercent) {
-      isAmountTooLow = gasFeePercent.add(capitalFeePercent).gt(toBNWei(this.feeLimitPercent / 100));
+    // We don't want the relayer to incur an excessive gas fee charge as a % of the deposited total.
+    // The maximum gas fee % charged is equal to the remaining fee % leftover after subtracting the capital fee %
+    // from the fee limit %. We then compute the minimum deposited amount required to not exceed the maximum
+    // gas fee %: maxGasFeePercent = gasFeeTotal / minDeposit. Refactor this to figure out the minDeposit:
+    // minDeposit = gasFeeTotal / maxGasFeePercent, and subsequently determine
+    // isAmountTooLow = amountToRelay < minDeposit.
+    const maxGasFeePercent = max(toBNWei(this.feeLimitPercent / 100).sub(capitalFeePercent), toBN(0));
+    // If maxGasFee % is 0, then the min deposit should be infinite because there is no deposit amount that would
+    // incur a non zero gas fee % charge. In this case, isAmountTooLow should always be true.
+    let minDeposit: BigNumber, isAmountTooLow: boolean;
+    if (maxGasFeePercent.eq(toBN(0))) {
+      minDeposit = MAX_BIG_INT;
+      isAmountTooLow = true;
+    } else {
+      minDeposit = gasFeeTotal.mul(fixedPointAdjustment).div(maxGasFeePercent);
+      isAmountTooLow = toBN(amountToRelay).lt(minDeposit);
     }
+
     return {
       amountToRelay: amountToRelay.toString(),
       tokenSymbol,
@@ -179,6 +200,8 @@ export class RelayFeeCalculator {
       relayFeePercent: relayFeePercent.toString(),
       relayFeeTotal: relayFeeTotal.toString(),
       feeLimitPercent: this.feeLimitPercent,
+      maxGasFeePercent: maxGasFeePercent.toString(),
+      minDeposit: minDeposit.toString(),
       isAmountTooLow,
     };
   }
