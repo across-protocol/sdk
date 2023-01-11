@@ -156,7 +156,6 @@ export class RelayFeeCalculator {
     return defaultFee;
   }
   async relayerFeeDetails(amountToRelay: BigNumberish, tokenSymbol: string, tokenPrice?: number) {
-    let isAmountTooLow = false;
     const gasFeePercent = await this.gasFeePercent(amountToRelay, tokenSymbol, tokenPrice);
     const gasFeeTotal = gasFeePercent.mul(amountToRelay).div(fixedPointAdjustment);
     const capitalFeePercent = await this.capitalFeePercent(amountToRelay, tokenSymbol);
@@ -164,9 +163,24 @@ export class RelayFeeCalculator {
     const relayFeePercent = gasFeePercent.add(capitalFeePercent);
     const relayFeeTotal = gasFeeTotal.add(capitalFeeTotal);
 
-    if (this.feeLimitPercent) {
-      isAmountTooLow = gasFeePercent.add(capitalFeePercent).gt(toBNWei(this.feeLimitPercent / 100));
+    // We don't want the relayer to incur an excessive gas fee charge as a % of the deposited total.
+    // The maximum gas fee % charged is equal to the remaining fee % leftover after subtracting the capital fee %
+    // from the fee limit %. We then compute the minimum deposited amount required to not exceed the maximum
+    // gas fee %: maxGasFeePercent = gasFeeTotal / minDeposit. Refactor this to figure out the minDeposit:
+    // minDeposit = gasFeeTotal / maxGasFeePercent, and subsequently determine
+    // isAmountTooLow = amountToRelay < minDeposit.
+    const maxGasFeePercent = max(toBNWei(this.feeLimitPercent / 100).sub(capitalFeePercent), BigNumber.from(0));
+    // If maxGasFee % is 0, then the min deposit should be infinite because there is no deposit amount that would
+    // incur a non zero gas fee % charge. In this case, isAmountTooLow should always be true.
+    let minDeposit: BigNumber, isAmountTooLow: boolean;
+    if (maxGasFeePercent.eq("0")) {
+      minDeposit = BigNumber.from(Number.MAX_SAFE_INTEGER.toString());
+      isAmountTooLow = true;
+    } else {
+      minDeposit = gasFeeTotal.mul(fixedPointAdjustment).div(maxGasFeePercent);
+      isAmountTooLow = toBN(amountToRelay).lt(minDeposit);
     }
+
     return {
       amountToRelay: amountToRelay.toString(),
       tokenSymbol,
@@ -179,6 +193,8 @@ export class RelayFeeCalculator {
       relayFeePercent: relayFeePercent.toString(),
       relayFeeTotal: relayFeeTotal.toString(),
       feeLimitPercent: this.feeLimitPercent,
+      maxGasFeePercent: maxGasFeePercent.toString(),
+      minDeposit: minDeposit.toString(),
       isAmountTooLow,
     };
   }
