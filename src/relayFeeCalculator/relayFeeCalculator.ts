@@ -176,11 +176,11 @@ export class RelayFeeCalculator {
     // gas fee %: maxGasFeePercent = gasFeeTotal / minDeposit. Refactor this to figure out the minDeposit:
     // minDeposit = gasFeeTotal / maxGasFeePercent, and subsequently determine
     // isAmountTooLow = amountToRelay < minDeposit.
-    const maxGasFeePercent = max(toBNWei(this.feeLimitPercent / 100).sub(capitalFeePercent), BigNumber.from(0));
+    const maxGasFeePercent = max(toBNWei(this.feeLimitPercent / 100).sub(capitalFeePercent), toBN(0));
     // If maxGasFee % is 0, then the min deposit should be infinite because there is no deposit amount that would
     // incur a non zero gas fee % charge. In this case, isAmountTooLow should always be true.
     let minDeposit: BigNumber, isAmountTooLow: boolean;
-    if (maxGasFeePercent.eq("0")) {
+    if (maxGasFeePercent.eq(toBN(0))) {
       minDeposit = MAX_BIG_INT;
       isAmountTooLow = true;
     } else {
