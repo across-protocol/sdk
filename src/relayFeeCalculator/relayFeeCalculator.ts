@@ -1,7 +1,7 @@
 import assert from "assert";
 import * as uma from "@uma/sdk";
 import { BigNumber } from "ethers";
-import { BigNumberish, toBNWei, nativeToToken, toBN, min, max } from "../utils";
+import { BigNumberish, toBNWei, nativeToToken, toBN, min, max, MAX_BIG_INT } from "../utils";
 const { percent, fixedPointAdjustment } = uma.across.utils;
 
 // This needs to be implemented for every chain and passed into RelayFeeCalculator
@@ -101,6 +101,8 @@ export class RelayFeeCalculator {
   }
 
   async gasFeePercent(amountToRelay: BigNumberish, tokenSymbol: string, _tokenPrice?: number): Promise<BigNumber> {
+    if (toBN(amountToRelay).eq(0)) return MAX_BIG_INT;
+
     const getGasCosts = this.queries.getGasCosts().catch((error) => {
       this.logger.error({ at: "sdk-v2/gasFeePercent", message: "Error while fetching gas costs", error });
       throw error;
@@ -121,6 +123,9 @@ export class RelayFeeCalculator {
   // Note: these variables are unused now, but may be needed in future versions of this function that are more complex.
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   async capitalFeePercent(_amountToRelay: BigNumberish, _tokenSymbol: string): Promise<BigNumber> {
+    // If amount is 0, then the capital fee % should be the max 100%
+    if (toBN(_amountToRelay).eq(toBN(0))) return MAX_BIG_INT;
+
     // V0: Charge fixed capital fee
     const defaultFee = toBNWei(this.capitalCostsPercent / 100);
 
@@ -130,7 +135,7 @@ export class RelayFeeCalculator {
     // for very large amount inputs.
     if (this.capitalCostsConfig[_tokenSymbol]) {
       const config = this.capitalCostsConfig[_tokenSymbol];
-      // Scale amount "y" to 18 decimals
+      // Scale amount "y" to 18 decimals.
       const y = toBN(_amountToRelay).mul(toBNWei("1", 18 - config.decimals));
       // At a minimum, the fee will be equal to lower bound fee * y
       const minCharge = toBN(config.lowerBound).mul(y).div(fixedPointAdjustment);
@@ -139,9 +144,11 @@ export class RelayFeeCalculator {
       // will be equal to half the sum of (upper bound + lower bound).
       const yTriangle = min(config.cutoff, y);
 
-      // triangleSlope is slope of fee curve from lower bound to upper bound.
+      // triangleSlope is slope of fee curve from lower bound to upper bound. If cutoff is 0, slope is 0.
       // triangleCharge is interval of curve from 0 to y for curve = triangleSlope * y
-      const triangleSlope = toBN(config.upperBound).sub(config.lowerBound).mul(fixedPointAdjustment).div(config.cutoff);
+      const triangleSlope = toBN(config.cutoff).eq(toBN(0))
+        ? toBN(0)
+        : toBN(config.upperBound).sub(config.lowerBound).mul(fixedPointAdjustment).div(config.cutoff);
       const triangleHeight = triangleSlope.mul(yTriangle).div(fixedPointAdjustment);
       const triangleCharge = triangleHeight.mul(yTriangle).div(toBNWei(2));
 
@@ -174,7 +181,7 @@ export class RelayFeeCalculator {
     // incur a non zero gas fee % charge. In this case, isAmountTooLow should always be true.
     let minDeposit: BigNumber, isAmountTooLow: boolean;
     if (maxGasFeePercent.eq("0")) {
-      minDeposit = BigNumber.from(Number.MAX_SAFE_INTEGER.toString());
+      minDeposit = MAX_BIG_INT;
       isAmountTooLow = true;
     } else {
       minDeposit = gasFeeTotal.mul(fixedPointAdjustment).div(maxGasFeePercent);

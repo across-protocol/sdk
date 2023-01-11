@@ -10,6 +10,7 @@ export type BigNumberish = string | number | BigNumber;
 export type BN = BigNumber;
 export type Decimalish = string | number | Decimal;
 export const AddressZero = ethers.constants.AddressZero;
+export const MAX_BIG_INT = BigNumber.from(Number.MAX_SAFE_INTEGER.toString());
 
 // Used as a signal to protect relayers from running code against an outdated version of the on-chain config store.
 export const CONFIG_STORE_VERSION = 1;
