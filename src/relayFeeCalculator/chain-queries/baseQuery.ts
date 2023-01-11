@@ -2,6 +2,7 @@ import { SpokePool, SpokePool__factory } from "@across-protocol/contracts-v2";
 import { L2Provider } from "@eth-optimism/sdk";
 import { providers } from "ethers";
 import { Coingecko } from "../../coingecko";
+import { ChainId } from "../../constants";
 import {
   BigNumberish,
   createUnsignedFillRelayTransaction,
@@ -11,7 +12,7 @@ import { Logger, QueryInterface } from "../relayFeeCalculator";
 
 type Provider = providers.Provider;
 type OptimismProvider = L2Provider<Provider>;
-type SymbolMappingType = { [symbol: string]: { mainnetAddress: string; decimals: number } };
+type SymbolMappingType = { [symbol: string]: { addresses: { 1: string }; decimals: number } };
 
 /**
  * A unified QueryBase for querying gas costs, token prices, and decimals of various tokens
@@ -72,7 +73,7 @@ export default abstract class QueryBase implements QueryInterface {
     if (!this.symbolMapping[tokenSymbol]) throw new Error(`${tokenSymbol} does not exist in mapping`);
     const coingeckoInstance = Coingecko.get(this.logger, this.coingeckoProApiKey);
     const [, price] = await coingeckoInstance.getCurrentPriceByContract(
-      this.symbolMapping[tokenSymbol].mainnetAddress,
+      this.symbolMapping[tokenSymbol].addresses[ChainId.MAINNET],
       this.coingeckoBaseCurrency
     );
     return price;
