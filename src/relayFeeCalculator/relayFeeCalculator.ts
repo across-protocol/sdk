@@ -28,6 +28,23 @@ export interface RelayFeeCalculatorConfig {
   queries: QueryInterface;
 }
 
+export interface RelayerFeeDetails {
+  amountToRelay: string;
+  tokenSymbol: string;
+  gasFeePercent: string;
+  gasFeeTotal: string;
+  gasDiscountPercent: number;
+  capitalFeePercent: string;
+  capitalFeeTotal: string;
+  capitalDiscountPercent: number;
+  relayFeePercent: string;
+  relayFeeTotal: string;
+  feeLimitPercent: number;
+  isAmountTooLow: boolean;
+  maxGasFeePercent: string;
+  minDeposit: string;
+}
+
 export interface LoggingFunction {
   (data: { at: string; message: string; [key: string]: any }): void;
 }
@@ -162,7 +179,11 @@ export class RelayFeeCalculator {
 
     return defaultFee;
   }
-  async relayerFeeDetails(amountToRelay: BigNumberish, tokenSymbol: string, tokenPrice?: number) {
+  async relayerFeeDetails(
+    amountToRelay: BigNumberish,
+    tokenSymbol: string,
+    tokenPrice?: number
+  ): Promise<RelayerFeeDetails> {
     const gasFeePercent = await this.gasFeePercent(amountToRelay, tokenSymbol, tokenPrice);
     const gasFeeTotal = gasFeePercent.mul(amountToRelay).div(fixedPointAdjustment);
     const capitalFeePercent = await this.capitalFeePercent(amountToRelay, tokenSymbol);
