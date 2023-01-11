@@ -12,7 +12,13 @@ import { Logger, QueryInterface } from "../relayFeeCalculator";
 
 type Provider = providers.Provider;
 type OptimismProvider = L2Provider<Provider>;
-type SymbolMappingType = { [symbol: string]: { addresses: { 1: string }; decimals: number } };
+type SymbolMappingType = Record<
+  string,
+  {
+    addresses: Record<number, string>;
+    decimals: number;
+  }
+>;
 
 /**
  * A unified QueryBase for querying gas costs, token prices, and decimals of various tokens

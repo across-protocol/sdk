@@ -1,12 +1,12 @@
-export enum CHAIN_IDs {
-  MAINNET = 1,
-  OPTIMISM = 10,
-  ARBITRUM = 42161,
-  BOBA = 288,
-  POLYGON = 137,
-  GOERLI = 5,
-  MUMBAI = 80001,
-}
+export const CHAIN_IDs = {
+  MAINNET: 1,
+  OPTIMISM: 10,
+  ARBITRUM: 42161,
+  BOBA: 288,
+  POLYGON: 137,
+  GOERLI: 5,
+  MUMBAI: 80001,
+};
 
 // NOTE: All addresses should be checksummed
 export const TOKEN_SYMBOLS_MAP = {
