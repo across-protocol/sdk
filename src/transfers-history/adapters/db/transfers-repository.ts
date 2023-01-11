@@ -20,10 +20,8 @@ type UsersTransfersStore = {
 const usersTransfersStoreInitialValue: UsersTransfersStore = {};
 
 const transfersStoreInitialValue: TransfersStore = {
-  [CHAIN_IDs.RINKEBY]: {},
-  [CHAIN_IDs.ARBITRUM_RINKEBY]: {},
-  [CHAIN_IDs.KOVAN]: {},
-  [CHAIN_IDs.OPTIMISM_KOVAN]: {},
+  [CHAIN_IDs.GOERLI]: {},
+  [CHAIN_IDs.POLYGON]: {},
   [CHAIN_IDs.MAINNET]: {},
 };
 
