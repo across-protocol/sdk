@@ -2,7 +2,7 @@ import { ethers } from "ethers";
 
 export type CoingeckoDataReturnType = { price: ethers.BigNumber };
 
-type Fee = {
+export type Fee = {
   total: ethers.BigNumber;
   pct: ethers.BigNumber;
 };
