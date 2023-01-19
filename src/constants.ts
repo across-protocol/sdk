@@ -6,7 +6,7 @@ export const CHAIN_IDs = {
   POLYGON: 137,
   GOERLI: 5,
   MUMBAI: 80001,
-};
+} as const;
 
 // NOTE: All addresses should be checksummed
 export const TOKEN_SYMBOLS_MAP = {
@@ -162,4 +162,4 @@ export const TOKEN_SYMBOLS_MAP = {
       [CHAIN_IDs.MUMBAI]: "0x9c3C9283D3e44854697Cd22D3Faa240Cfb032889",
     },
   },
-};
+} as const;
