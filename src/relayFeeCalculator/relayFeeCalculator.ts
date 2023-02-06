@@ -2,7 +2,6 @@ import assert from "assert";
 import * as uma from "@uma/sdk";
 import { BigNumber } from "ethers";
 import { BigNumberish, toBNWei, nativeToToken, toBN, min, max, MAX_BIG_INT } from "../utils";
-import { ChainId } from "../transfers-history/adapters/web3/model";
 const { percent, fixedPointAdjustment } = uma.across.utils;
 
 // This needs to be implemented for every chain and passed into RelayFeeCalculator
@@ -198,8 +197,8 @@ export class RelayFeeCalculator {
   async capitalFeePercent(
     _amountToRelay: BigNumberish,
     _tokenSymbol: string,
-    _originRoute?: ChainId,
-    _destinationRoute?: ChainId
+    _originRoute?: ChainIdAsString,
+    _destinationRoute?: ChainIdAsString
   ): Promise<BigNumber> {
     // If amount is 0, then the capital fee % should be the max 100%
     if (toBN(_amountToRelay).eq(toBN(0))) return MAX_BIG_INT;
@@ -252,8 +251,8 @@ export class RelayFeeCalculator {
     amountToRelay: BigNumberish,
     tokenSymbol: string,
     tokenPrice?: number,
-    _originRoute?: ChainId,
-    _destinationRoute?: ChainId
+    _originRoute?: ChainIdAsString,
+    _destinationRoute?: ChainIdAsString
   ): Promise<RelayerFeeDetails> {
     const gasFeePercent = await this.gasFeePercent(amountToRelay, tokenSymbol, tokenPrice);
     const gasFeeTotal = gasFeePercent.mul(amountToRelay).div(fixedPointAdjustment);
