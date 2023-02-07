@@ -14,43 +14,6 @@ export interface RateModel {
   R2: BigNumberish; // R_0+R_1+R_2 is the interest rate charged at 100% utilization
 }
 
-// Calculate the rate for a 0 sized deposit (infinitesimally small).
-export function calculateInstantaneousRate(rateModel: RateModel, utilization: BigNumberish) {
-  // Assuming utilization >= 0, if UBar = 0 then the value beforeKink is 0 since min(>=0, 0) = 0.
-  const beforeKink =
-    rateModel.UBar.toString() === "0"
-      ? toBN(0)
-      : min(utilization, rateModel.UBar).mul(rateModel.R1).div(rateModel.UBar);
-  const afterKink = max(toBN("0"), toBN(utilization).sub(rateModel.UBar))
-    .mul(rateModel.R2)
-    .div(toBNWei("1").sub(rateModel.UBar));
-
-  return toBN(rateModel.R0).add(beforeKink).add(afterKink);
-}
-
-//  Compute area under curve of the piece-wise linear rate model.
-function calculateAreaUnderRateCurve(rateModel: RateModel, utilization: BN) {
-  // Area under first piecewise component
-  const utilizationBeforeKink = min(utilization, rateModel.UBar);
-  const rectangle1Area = utilizationBeforeKink.mul(rateModel.R0).div(fixedPointAdjustment);
-  const triangle1Area = toBNWei("0.5")
-    .mul(calculateInstantaneousRate(rateModel, utilizationBeforeKink).sub(rateModel.R0))
-    .mul(utilizationBeforeKink)
-    .div(fixedPointAdjustment)
-    .div(fixedPointAdjustment);
-
-  // Area under second piecewise component
-  const utilizationAfter = max(toBN("0"), utilization.sub(rateModel.UBar));
-  const rectangle2Area = utilizationAfter.mul(toBN(rateModel.R0).add(rateModel.R1)).div(fixedPointAdjustment);
-  const triangle2Area = toBNWei("0.5")
-    .mul(calculateInstantaneousRate(rateModel, utilization).sub(toBN(rateModel.R0).add(rateModel.R1)))
-    .mul(utilizationAfter)
-    .div(fixedPointAdjustment)
-    .div(fixedPointAdjustment);
-
-  return rectangle1Area.add(triangle1Area).add(rectangle2Area).add(triangle2Area);
-}
-
 // converts an APY rate to a one week rate. Uses the Decimal library to take a fractional exponent
 function convertApyToWeeklyFee(apy: BN) {
   // R_week = (1 + apy)^(1/52) - 1
@@ -63,38 +26,147 @@ function convertApyToWeeklyFee(apy: BN) {
   return toBN(weeklyFeePct.times(fixedPointAdjustment.toString()).floor().toString());
 }
 
-// Calculate the realized yearly LP Fee APY Percent for a given rate model, utilization before and after the deposit.
+export function truncate18DecimalBN(input: BN, digits: number) {
+  const digitsToDrop = 18 - digits;
+  const multiplier = toBN(10).pow(digitsToDrop);
+  return input.div(multiplier).mul(multiplier);
+}
+
+export class LPFeeCalculator {
+  constructor(private readonly rateModel: RateModel) {}
+
+  /**
+   * Compute area under curve of the piece-wise linear rate model.
+   * @param rateModel Rate model to be used in this calculation.
+   * @param utilization The current utilization of the pool.
+   * @returns The area under the curve of the piece-wise linear rate model.
+   */
+  public calculateAreaUnderRateCurve(utilization: BN) {
+    // Area under first piecewise component
+    const utilizationBeforeKink = min(utilization, this.rateModel.UBar);
+    const rectangle1Area = utilizationBeforeKink.mul(this.rateModel.R0).div(fixedPointAdjustment);
+    const triangle1Area = toBNWei("0.5")
+      .mul(this.calculateInstantaneousRate(utilizationBeforeKink).sub(this.rateModel.R0))
+      .mul(utilizationBeforeKink)
+      .div(fixedPointAdjustment)
+      .div(fixedPointAdjustment);
+
+    // Area under second piecewise component
+    const utilizationAfter = max(toBN("0"), utilization.sub(this.rateModel.UBar));
+    const rectangle2Area = utilizationAfter
+      .mul(toBN(this.rateModel.R0).add(this.rateModel.R1))
+      .div(fixedPointAdjustment);
+    const triangle2Area = toBNWei("0.5")
+      .mul(this.calculateInstantaneousRate(utilization).sub(toBN(this.rateModel.R0).add(this.rateModel.R1)))
+      .mul(utilizationAfter)
+      .div(fixedPointAdjustment)
+      .div(fixedPointAdjustment);
+
+    return rectangle1Area.add(triangle1Area).add(rectangle2Area).add(triangle2Area);
+  }
+
+  /**
+   * Calculate the instantaneous rate for a 0 sized deposit (infinitesimally small).
+   * @param utilization The current utilization of the pool.
+   * @returns The instantaneous rate for a 0 sized deposit.
+   */
+  public calculateInstantaneousRate(utilization: BigNumberish) {
+    // Assuming utilization >= 0, if UBar = 0 then the value beforeKink is 0 since min(>=0, 0) = 0.
+    const beforeKink =
+      this.rateModel.UBar.toString() === "0"
+        ? toBN(0)
+        : min(utilization, this.rateModel.UBar).mul(this.rateModel.R1).div(this.rateModel.UBar);
+    const afterKink = max(toBN("0"), toBN(utilization).sub(this.rateModel.UBar))
+      .mul(this.rateModel.R2)
+      .div(toBNWei("1").sub(this.rateModel.UBar));
+
+    return toBN(this.rateModel.R0).add(beforeKink).add(afterKink);
+  }
+
+  /**
+   * Calculate the realized LP Fee Percent for a given rate model, utilization before and after the deposit.
+   * @param rateModel Rate model to be used in this calculation.
+   * @param utilizationBeforeDeposit The utilization of the pool before the deposit.
+   * @param utilizationAfterDeposit The utilization of the pool after the deposit.
+   * @param truncateDecimals Whether to truncate the decimals to 6.
+   * @returns The realized LP fee percent.
+   */
+  public calculateRealizedLpFeePct(
+    utilizationBeforeDeposit: BigNumberish,
+    utilizationAfterDeposit: BigNumberish,
+    truncateDecimals = false
+  ) {
+    const apy = this.calculateApyFromUtilization(toBN(utilizationBeforeDeposit), toBN(utilizationAfterDeposit));
+
+    // ACROSS-V2 UMIP requires that the realized fee percent is floor rounded as decimal to 6 decimals.
+    return truncateDecimals ? truncate18DecimalBN(convertApyToWeeklyFee(apy), 6) : convertApyToWeeklyFee(apy);
+  }
+  /**
+   * Calculate the realized yearly LP Fee APY Percent for a given rate model, utilization before and after the deposit.
+   * @param rateModel Rate model to be used in this calculation.
+   * @param utilizationBeforeDeposit The utilization of the pool before the deposit.
+   * @param utilizationAfterDeposit The utilization of the pool after the deposit.
+   * @returns The realized LP fee APY percent.
+   */
+  public calculateApyFromUtilization(utilizationBeforeDeposit: BN, utilizationAfterDeposit: BN) {
+    if (utilizationBeforeDeposit.eq(utilizationAfterDeposit))
+      return this.calculateInstantaneousRate(utilizationBeforeDeposit);
+
+    // Get the area of [0, utilizationBeforeDeposit] and [0, utilizationAfterDeposit]
+    const areaBeforeDeposit = this.calculateAreaUnderRateCurve(utilizationBeforeDeposit);
+    const areaAfterDeposit = this.calculateAreaUnderRateCurve(utilizationAfterDeposit);
+
+    const numerator = areaAfterDeposit.sub(areaBeforeDeposit);
+    const denominator = utilizationAfterDeposit.sub(utilizationBeforeDeposit);
+    return numerator.mul(fixedPointAdjustment).div(denominator);
+  }
+}
+
+/**
+ * Calculate the instantaneous rate for a 0 sized deposit (infinitesimally small).
+ * @param rateModel Rate model to be used in this calculation.
+ * @param utilization The current utilization of the pool.
+ * @deprecated Use `LPFeeCalculator` instead.
+ * @returns The instantaneous rate for a 0 sized deposit.
+ */
+export function calculateInstantaneousRate(rateModel: RateModel, utilization: BigNumberish) {
+  return new LPFeeCalculator(rateModel).calculateInstantaneousRate(utilization);
+}
+
+/**
+ * Calculate the realized yearly LP Fee APY Percent for a given rate model, utilization before and after the deposit.
+ * @param rateModel Rate model to be used in this calculation.
+ * @param utilizationBeforeDeposit The utilization of the pool before the deposit.
+ * @param utilizationAfterDeposit The utilization of the pool after the deposit.
+ * @deprecated Use `LPFeeCalculator` instead.
+ * @returns The realized LP fee APY percent.
+ */
 export function calculateApyFromUtilization(
   rateModel: RateModel,
   utilizationBeforeDeposit: BN,
   utilizationAfterDeposit: BN
 ) {
-  if (utilizationBeforeDeposit.eq(utilizationAfterDeposit))
-    return calculateInstantaneousRate(rateModel, utilizationBeforeDeposit);
-
-  // Get the area of [0, utilizationBeforeDeposit] and [0, utilizationAfterDeposit]
-  const areaBeforeDeposit = calculateAreaUnderRateCurve(rateModel, utilizationBeforeDeposit);
-  const areaAfterDeposit = calculateAreaUnderRateCurve(rateModel, utilizationAfterDeposit);
-
-  const numerator = areaAfterDeposit.sub(areaBeforeDeposit);
-  const denominator = utilizationAfterDeposit.sub(utilizationBeforeDeposit);
-  return numerator.mul(fixedPointAdjustment).div(denominator);
+  return new LPFeeCalculator(rateModel).calculateApyFromUtilization(utilizationBeforeDeposit, utilizationAfterDeposit);
 }
 
+/**
+ * Calculate the realized LP Fee Percent for a given rate model, utilization before and after the deposit.
+ * @param rateModel Rate model to be used in this calculation.
+ * @param utilizationBeforeDeposit The utilization of the pool before the deposit.
+ * @param utilizationAfterDeposit The utilization of the pool after the deposit.
+ * @param truncateDecimals Whether to truncate the decimals to 6.
+ * @deprecated Use `LPFeeCalculator` instead.
+ * @returns The realized LP fee percent.
+ */
 export function calculateRealizedLpFeePct(
   rateModel: RateModel,
   utilizationBeforeDeposit: BigNumberish,
   utilizationAfterDeposit: BigNumberish,
   truncateDecimals = false
 ) {
-  const apy = calculateApyFromUtilization(rateModel, toBN(utilizationBeforeDeposit), toBN(utilizationAfterDeposit));
-
-  // ACROSS-V2 UMIP requires that the realized fee percent is floor rounded as decimal to 6 decimals.
-  return truncateDecimals ? truncate18DecimalBN(convertApyToWeeklyFee(apy), 6) : convertApyToWeeklyFee(apy);
-}
-
-export function truncate18DecimalBN(input: BN, digits: number) {
-  const digitsToDrop = 18 - digits;
-  const multiplier = toBN(10).pow(digitsToDrop);
-  return input.div(multiplier).mul(multiplier);
+  return new LPFeeCalculator(rateModel).calculateRealizedLpFeePct(
+    utilizationBeforeDeposit,
+    utilizationAfterDeposit,
+    truncateDecimals
+  );
 }
