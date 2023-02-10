@@ -5,6 +5,7 @@ import { gasCost, BigNumberish, toBNWei, toBN } from "../utils";
 
 dotenv.config({ path: ".env" });
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const testCapitalCostsConfig: { [token: string]: any } = {
   WBTC: {
     lowerBound: toBNWei("0.0003").toString(),

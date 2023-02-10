@@ -18,13 +18,20 @@ export interface CapitalCostConfig {
   cutoff: string;
   decimals: number;
 }
+type ChainIdAsString = string;
+interface CapitalCostConfigOverride {
+  default: CapitalCostConfig;
+  routeOverrides?: Record<ChainIdAsString, Record<ChainIdAsString, CapitalCostConfig>>;
+}
 export interface RelayFeeCalculatorConfig {
   nativeTokenDecimals?: number;
   gasDiscountPercent?: number;
   capitalDiscountPercent?: number;
   feeLimitPercent?: number;
   capitalCostsPercent?: number;
-  capitalCostsConfig?: { [token: string]: CapitalCostConfig };
+  capitalCostsConfig?: {
+    [token: string]: CapitalCostConfig | CapitalCostConfigOverride;
+  };
   queries: QueryInterface;
 }
 
@@ -46,7 +53,7 @@ export interface RelayerFeeDetails {
 }
 
 export interface LoggingFunction {
-  (data: { at: string; message: string; [key: string]: any }): void;
+  (data: { at: string; message: string; [key: string]: unknown }): void;
 }
 
 export interface Logger {
@@ -70,7 +77,7 @@ export class RelayFeeCalculator {
   private feeLimitPercent: Required<RelayFeeCalculatorConfig>["feeLimitPercent"];
   private nativeTokenDecimals: Required<RelayFeeCalculatorConfig>["nativeTokenDecimals"];
   private capitalCostsPercent: Required<RelayFeeCalculatorConfig>["capitalCostsPercent"];
-  private capitalCostsConfig: Required<RelayFeeCalculatorConfig>["capitalCostsConfig"];
+  private capitalCostsConfig: { [token: string]: CapitalCostConfigOverride };
 
   // For logging if set. This function should accept 2 args - severity (INFO, WARN, ERROR) and the logs data, which will
   // be an object.
@@ -99,15 +106,63 @@ export class RelayFeeCalculator {
       this.capitalCostsPercent >= 0 && this.capitalCostsPercent <= 100,
       "capitalCostsPercent must be between 0 and 100 percent"
     );
-    this.capitalCostsConfig = config.capitalCostsConfig || {};
-    for (const token of Object.keys(this.capitalCostsConfig)) {
-      RelayFeeCalculator.validateCapitalCostsConfig(this.capitalCostsConfig[token]);
+    this.capitalCostsConfig = {};
+    for (const token of Object.keys(config.capitalCostsConfig || {})) {
+      this.capitalCostsConfig[token] = RelayFeeCalculator.validateAndTransformCapitalCostsConfigOverride(
+        (config.capitalCostsConfig || {})[token]
+      );
     }
 
     this.logger = logger;
   }
 
-  static validateCapitalCostsConfig(capitalCosts: CapitalCostConfig) {
+  /**
+   * Type guard to check if a config is a CapitalCostConfigOverride or a CapitalCostConfig.
+   * @param config CapitalCostConfig or CapitalCostConfigOverride
+   * @returns true if the config is a CapitalCostConfigOverride, false otherwise.
+   * @private
+   * @dev This is a type guard that is used to check if a config is a CapitalCostConfigOverride or a CapitalCostConfig.
+   * This is needed because the config can be either a CapitalCostConfig or a CapitalCostConfigOverride. If it's a
+   * CapitalCostConfig, then we need to convert it to a CapitalCostConfigOverride with the default config set with no route
+   * overrides.
+   */
+  private static capitalCostConfigIsOverride(
+    config: CapitalCostConfig | CapitalCostConfigOverride
+  ): config is CapitalCostConfigOverride {
+    return (config as CapitalCostConfigOverride).default !== undefined;
+  }
+
+  /**
+   * Validates a CapitalCostConfigOverride or a CapitalCostConfig.
+   * @param capitalCosts CapitalCostConfig or CapitalCostConfigOverride
+   * @returns CapitalCostConfigOverride
+   */
+  static validateAndTransformCapitalCostsConfigOverride(
+    capitalCosts: CapitalCostConfigOverride | CapitalCostConfig
+  ): CapitalCostConfigOverride {
+    // We need to first convert the config to a baseline type. This is because the config can be either a CapitalCostConfig
+    // or a CapitalCostConfigOverride. If it's a CapitalCostConfig, then we need to convert it to a CapitalCostConfigOverride with
+    // the default config set with no route overrides.
+    const config: CapitalCostConfigOverride = this.capitalCostConfigIsOverride(capitalCosts)
+      ? capitalCosts
+      : { default: capitalCosts };
+
+    // Validate the default config.
+    this.validateCapitalCostsConfig(config.default);
+    // Iterate over all the route overrides and validate them.
+    for (const toChainIdRoutes of Object.values(config.routeOverrides || {})) {
+      for (const override of Object.values(toChainIdRoutes)) {
+        this.validateCapitalCostsConfig(override);
+      }
+    }
+    return config;
+  }
+
+  /**
+   * Validates a CapitalCostConfig.
+   * @param capitalCosts CapitalCostConfig
+   */
+  static validateCapitalCostsConfig(capitalCosts: CapitalCostConfig): void {
     assert(toBN(capitalCosts.upperBound).lt(toBNWei("0.01")), "upper bound must be < 1%");
     assert(toBN(capitalCosts.lowerBound).lte(capitalCosts.upperBound), "lower bound must be <= upper bound");
     assert(capitalCosts.decimals > 0 && capitalCosts.decimals <= 18, "invalid decimals");
@@ -139,7 +194,12 @@ export class RelayFeeCalculator {
 
   // Note: these variables are unused now, but may be needed in future versions of this function that are more complex.
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  async capitalFeePercent(_amountToRelay: BigNumberish, _tokenSymbol: string): Promise<BigNumber> {
+  async capitalFeePercent(
+    _amountToRelay: BigNumberish,
+    _tokenSymbol: string,
+    _originRoute?: ChainIdAsString,
+    _destinationRoute?: ChainIdAsString
+  ): Promise<BigNumber> {
     // If amount is 0, then the capital fee % should be the max 100%
     if (toBN(_amountToRelay).eq(toBN(0))) return MAX_BIG_INT;
 
@@ -151,7 +211,15 @@ export class RelayFeeCalculator {
     // bound to an upper bound. After the kink, the fee % increase will be fixed, and slowly approach the upper bound
     // for very large amount inputs.
     if (this.capitalCostsConfig[_tokenSymbol]) {
-      const config = this.capitalCostsConfig[_tokenSymbol];
+      const overrideConfig = this.capitalCostsConfig[_tokenSymbol];
+      let config = overrideConfig.default;
+      if (_originRoute && _destinationRoute && overrideConfig.routeOverrides) {
+        const potentialDestinationRoutes = overrideConfig.routeOverrides[_originRoute];
+        if (potentialDestinationRoutes) {
+          config = potentialDestinationRoutes[_destinationRoute] || config;
+        }
+      }
+
       // Scale amount "y" to 18 decimals.
       const y = toBN(_amountToRelay).mul(toBNWei("1", 18 - config.decimals));
       // At a minimum, the fee will be equal to lower bound fee * y
@@ -182,11 +250,13 @@ export class RelayFeeCalculator {
   async relayerFeeDetails(
     amountToRelay: BigNumberish,
     tokenSymbol: string,
-    tokenPrice?: number
+    tokenPrice?: number,
+    _originRoute?: ChainIdAsString,
+    _destinationRoute?: ChainIdAsString
   ): Promise<RelayerFeeDetails> {
     const gasFeePercent = await this.gasFeePercent(amountToRelay, tokenSymbol, tokenPrice);
     const gasFeeTotal = gasFeePercent.mul(amountToRelay).div(fixedPointAdjustment);
-    const capitalFeePercent = await this.capitalFeePercent(amountToRelay, tokenSymbol);
+    const capitalFeePercent = await this.capitalFeePercent(amountToRelay, tokenSymbol, _originRoute, _destinationRoute);
     const capitalFeeTotal = capitalFeePercent.mul(amountToRelay).div(fixedPointAdjustment);
     const relayFeePercent = gasFeePercent.add(capitalFeePercent);
     const relayFeeTotal = gasFeeTotal.add(capitalFeeTotal);
