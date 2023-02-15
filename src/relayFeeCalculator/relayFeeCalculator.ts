@@ -19,10 +19,11 @@ export interface CapitalCostConfig {
   decimals: number;
 }
 type ChainIdAsString = string;
-interface CapitalCostConfigOverride {
+export interface CapitalCostConfigOverride {
   default: CapitalCostConfig;
   routeOverrides?: Record<ChainIdAsString, Record<ChainIdAsString, CapitalCostConfig>>;
 }
+export type RelayCapitalCostConfig = CapitalCostConfigOverride | CapitalCostConfig;
 export interface RelayFeeCalculatorConfig {
   nativeTokenDecimals?: number;
   gasDiscountPercent?: number;
