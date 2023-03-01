@@ -1,12 +1,24 @@
 import assert from "assert";
-import axios, { AxiosError } from "axios";
+import axios from "axios";
 
 export type BaseHTTPAdapterArgs = {
   timeout?: number;
+  retries?: number;
 };
 
 export class BaseHTTPAdapter {
+  private _retries = 0;
   private _timeout = 0;
+  protected sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+  get retries(): number {
+    return this._retries;
+  }
+
+  set retries(retries: number) {
+    assert(retries >= 0);
+    this._retries = retries;
+  }
 
   get timeout(): number {
     return this._timeout;
@@ -17,7 +29,12 @@ export class BaseHTTPAdapter {
     this._timeout = timeout;
   }
 
-  constructor(public readonly name: string, public readonly host: string, { timeout = 1000 }: BaseHTTPAdapterArgs) {
+  constructor(
+    public readonly name: string,
+    public readonly host: string,
+    { timeout = 1000, retries = 1 }: BaseHTTPAdapterArgs
+  ) {
+    this.retries = retries;
     this.timeout = timeout; // ms
   }
 
@@ -28,10 +45,18 @@ export class BaseHTTPAdapter {
       params: urlArgs ?? {},
     };
 
-    const result = await axios(url, args).catch((err) => {
-      const errMsg = err instanceof AxiosError ? err.message : err.toString();
-      throw new Error(`${this.name} price lookup failure (${errMsg})`);
-    });
-    return result.data;
+    const errs: string[] = [];
+    let tries = 0;
+    do {
+      try {
+        return (await axios(url, args)).data;
+      } catch (err) {
+        const errMsg = axios.isAxiosError(err) || err instanceof Error ? err.message : "unknown error";
+        errs.push(errMsg);
+        if (++tries <= this.retries) await this.sleep(Math.pow(1.5, tries) * 1000); // simple backoff
+      }
+    } while (tries <= this.retries);
+
+    throw new Error(`${this.name} price lookup failure (${errs.join(", ")})`);
   }
 }

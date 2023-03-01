@@ -12,9 +12,10 @@ export class PriceFeed extends BaseHTTPAdapter implements PriceFeedAdapter {
     name = "Across API",
     host = "across.to",
     timeout = 5000, // ms
+    retries = 3,
   }: AcrossApiArgs = {}) {
     // Allow host to be overridden for test or alternative deployments.
-    super(name, host, { timeout });
+    super(name, host, { timeout, retries });
   }
 
   async getPriceByAddress(address: string, currency = "usd"): Promise<TokenPrice> {

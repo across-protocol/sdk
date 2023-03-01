@@ -28,9 +28,10 @@ export class PriceFeed extends BaseHTTPAdapter implements PriceFeedAdapter {
     name = "DefiLlama",
     host = "coins.llama.fi",
     timeout = 5000,
+    retries = 2,
     minConfidence = 0.9,
   }: DefiLlamaArgs = {}) {
-    super(name, host, { timeout });
+    super(name, host, { timeout, retries });
     assert(minConfidence >= 0.0 && minConfidence <= 1.0);
     this._minConfidence = minConfidence;
   }

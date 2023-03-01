@@ -18,9 +18,10 @@ type CoinGeckoArgs = BaseHTTPAdapterArgs & {
 export class PriceFeed extends BaseHTTPAdapter implements PriceFeedAdapter {
   private readonly apiKey: string | undefined = undefined;
 
-  constructor({ name, apiKey, timeout = 5000 }: CoinGeckoArgs = {}) {
+  constructor({ name, apiKey, timeout = 5000, retries = 3 }: CoinGeckoArgs = {}) {
     super(name ?? apiKey ? "CoinGecko Pro" : "CoinGecko Free", apiKey ? "pro-api.coingecko.com" : "api.coingecko.com", {
       timeout,
+      retries,
     });
     this.apiKey = apiKey;
   }
