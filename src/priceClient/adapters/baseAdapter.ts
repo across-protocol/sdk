@@ -1,8 +1,12 @@
 import assert from "assert";
 import axios, { AxiosError } from "axios";
 
+export type BaseHTTPAdapterArgs = {
+  timeout?: number;
+};
+
 export class BaseHTTPAdapter {
-  private _timeout: number;
+  private _timeout = 0;
 
   get timeout(): number {
     return this._timeout;
@@ -13,8 +17,8 @@ export class BaseHTTPAdapter {
     this._timeout = timeout;
   }
 
-  constructor(public readonly name: string, public readonly host: string, { timeout }: { timeout?: number }) {
-    this._timeout = timeout ?? 1000; // ms
+  constructor(public readonly name: string, public readonly host: string, { timeout = 1000 }: BaseHTTPAdapterArgs) {
+    this.timeout = timeout; // ms
   }
 
   protected async query(path: string, urlArgs?: object): Promise<unknown> {

@@ -1,5 +1,5 @@
 import { PriceFeedAdapter, TokenPrice } from "../priceClient";
-import { BaseHTTPAdapter } from "./baseAdapter";
+import { BaseHTTPAdapter, BaseHTTPAdapterArgs } from "./baseAdapter";
 
 type CoinGeckoTokenPrice = {
   [currency: string]: number;
@@ -10,18 +10,15 @@ type CoinGeckoPriceResponse = {
   [address: string]: CoinGeckoTokenPrice;
 };
 
-const defaultTimeout = 5000; // mS
-
-type CoinGeckoArgs = {
+type CoinGeckoArgs = BaseHTTPAdapterArgs & {
   name?: string;
-  timeout?: number;
   apiKey?: string;
 };
 
 export class PriceFeed extends BaseHTTPAdapter implements PriceFeedAdapter {
   private readonly apiKey: string | undefined = undefined;
 
-  constructor({ name, apiKey, timeout = defaultTimeout }: CoinGeckoArgs = {}) {
+  constructor({ name, apiKey, timeout = 5000 }: CoinGeckoArgs = {}) {
     super(name ?? apiKey ? "CoinGecko Pro" : "CoinGecko Free", apiKey ? "pro-api.coingecko.com" : "api.coingecko.com", {
       timeout,
     });
