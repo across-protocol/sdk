@@ -1,6 +1,6 @@
 import assert from "assert";
 import { PriceFeedAdapter, TokenPrice } from "../priceClient";
-import { BaseHTTPAdapter } from "./baseAdapter";
+import { BaseHTTPAdapter, BaseHTTPAdapterArgs } from "./baseAdapter";
 
 type DefiLlamaTokenPrice = {
   price: number;
@@ -15,10 +15,9 @@ type DefiLlamaPriceResponse = {
   };
 };
 
-type DefiLlamaArgs = {
+type DefiLlamaArgs = BaseHTTPAdapterArgs & {
   name?: string;
   host?: string;
-  timeout?: number;
   minConfidence?: number;
 };
 

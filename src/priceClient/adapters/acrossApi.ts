@@ -1,16 +1,18 @@
 import { msToS, PriceFeedAdapter, TokenPrice } from "../priceClient";
-import { BaseHTTPAdapter } from "./baseAdapter";
+import { BaseHTTPAdapter, BaseHTTPAdapterArgs } from "./baseAdapter";
 
 type AcrossPrice = { price: number };
-type AcrossApiArgs = {
+type AcrossApiArgs = BaseHTTPAdapterArgs & {
   name?: string;
   host?: string;
-  timeout?: number;
 };
-const defaultTimeout = 5000; // mS
 
 export class PriceFeed extends BaseHTTPAdapter implements PriceFeedAdapter {
-  constructor({ name = "Across API", host = "across.to", timeout = defaultTimeout }: AcrossApiArgs = {}) {
+  constructor({
+    name = "Across API",
+    host = "across.to",
+    timeout = 5000, // ms
+  }: AcrossApiArgs = {}) {
     // Allow host to be overridden for test or alternative deployments.
     super(name, host, { timeout });
   }
