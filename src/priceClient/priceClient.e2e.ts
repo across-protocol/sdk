@@ -10,9 +10,9 @@ dotenv.config();
 class TestBaseHTTPAdapter extends BaseHTTPAdapter {
   public nRetries = 0;
 
-  protected sleep = (ms: number) => {
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  protected sleep = (_ms: number) => {
     ++this.nRetries;
-    return new Promise((r) => setTimeout(r, ms > 1 ? 1 : ms));
   };
 
   constructor(name: string, host: string, { timeout = 500, retries = 1 }: BaseHTTPAdapterArgs) {
