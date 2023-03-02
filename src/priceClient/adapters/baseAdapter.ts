@@ -6,10 +6,6 @@ export type BaseHTTPAdapterArgs = {
   retries?: number;
 };
 
-export type BaseHTTPAdapterArgs = {
-  timeout?: number;
-};
-
 export class BaseHTTPAdapter {
   private _retries = 0;
   private _timeout = 0;
