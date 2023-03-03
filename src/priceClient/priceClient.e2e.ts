@@ -10,17 +10,17 @@ dotenv.config();
 class TestBaseHTTPAdapter extends BaseHTTPAdapter {
   public nRetries = 0;
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  protected sleep = (_ms: number) => {
-    ++this.nRetries;
-  };
-
   constructor(name: string, host: string, { timeout = 500, retries = 1 }: BaseHTTPAdapterArgs) {
     super(name, host, { timeout, retries });
   }
 
   async _query(path: string, urlArgs?: object): Promise<unknown> {
     return this.query(path, urlArgs);
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  protected override async sleep(_ms: number): Promise<void> {
+    ++this.nRetries;
   }
 }
 

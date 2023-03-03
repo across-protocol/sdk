@@ -9,7 +9,6 @@ export type BaseHTTPAdapterArgs = {
 export class BaseHTTPAdapter {
   private _retries = 0;
   private _timeout = 0;
-  protected sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
   get retries(): number {
     return this._retries;
@@ -57,6 +56,10 @@ export class BaseHTTPAdapter {
       }
     } while (tries <= this.retries);
 
-    throw new Error(`${this.name} price lookup failure (${errs.join(", ")})`);
+    throw new Error(`${this.name} price lookup failure`, { cause: errs });
+  }
+
+  protected async sleep(ms: number): Promise<void> {
+    return new Promise((r) => setTimeout(r, ms));
   }
 }
