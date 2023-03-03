@@ -90,9 +90,10 @@ function validateTokenPrice(tokenPrice: TokenPrice, address: string, timestamp: 
 describe("PriceClient: BaseHTTPAdapter", function () {
   test("Retry behaviour", async function () {
     for (const retries of [0, 1, 3, 5, 7, 9]) {
-      const baseAdapter = new TestBaseHTTPAdapter("Test", "127.0.0.1", { timeout: 1, retries });
+      const name = `BaseHTTPAdapter test w/ ${retries} retries`;
+      const baseAdapter = new TestBaseHTTPAdapter(name, "127.0.0.1", { timeout: 1, retries });
       expect(baseAdapter.nRetries).toBe(0);
-      await expect(baseAdapter._query("", {})).rejects.toThrow();
+      await expect(baseAdapter._query("", {})).rejects.toThrow(`${name} price lookup failure`);
       expect(baseAdapter.nRetries).toBe(retries);
     }
   });

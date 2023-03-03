@@ -129,10 +129,12 @@ export class PriceClient implements PriceFeedAdapter {
         addresses = await this.updateCache(priceCache, prices, addresses);
         if (addresses.length === 0) break; // All done
       } catch (err) {
+        const cause: string[] = err instanceof Error ? (err.cause as string[]) : ["unknown"];
         this.logger.debug({
           at: "PriceClient#updatePrices",
           message: `Price lookup against ${priceFeed.name} failed (${err}).`,
           tokens: addresses,
+          cause,
         });
         // Failover to the next price feed...
       }
