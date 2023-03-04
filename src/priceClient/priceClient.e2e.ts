@@ -1,4 +1,5 @@
 import assert from "assert";
+import axios from "axios";
 import dotenv from "dotenv";
 import winston from "winston";
 import { Logger, msToS, PriceCache, PriceClient, PriceFeedAdapter, TokenPrice } from "./priceClient";
@@ -88,12 +89,35 @@ function validateTokenPrice(tokenPrice: TokenPrice, address: string, timestamp: 
 }
 
 describe("PriceClient: BaseHTTPAdapter", function () {
-  test("Retry behaviour", async function () {
+  test("Retry behaviour: All failures", async function () {
     for (const retries of [0, 1, 3, 5, 7, 9]) {
       const name = `BaseHTTPAdapter test w/ ${retries} retries`;
       const baseAdapter = new TestBaseHTTPAdapter(name, "127.0.0.1", { timeout: 1, retries });
       expect(baseAdapter.nRetries).toBe(0);
-      await expect(baseAdapter._query("", {})).rejects.toThrow(`${name} price lookup failure`);
+      await expect(baseAdapter._query("", { retries })).rejects.toThrow(`${name} price lookup failure`);
+      expect(baseAdapter.nRetries).toBe(retries);
+    }
+  });
+
+  test("Retry behaviour: Success on the final request", async function () {
+    for (const retries of [1, 3, 5, 7, 9]) {
+      const name = `BaseHTTPAdapter test w/ success on retry ${retries}`;
+      const baseAdapter = new TestBaseHTTPAdapter(name, "127.0.0.1", { timeout: 1, retries });
+      expect(baseAdapter.nRetries).toBe(0);
+
+      // Instantiate callback for HTTP response != 2xx.
+      const interceptor = axios.interceptors.response.use(
+        undefined, // HTTP 2xx.
+        function (error) {
+          const result = retries && baseAdapter.nRetries === retries ? Promise.resolve({}) : Promise.reject(error);
+          return result;
+        }
+      );
+
+      const response = baseAdapter._query("", { retries });
+      await expect(response).resolves.not.toThrow();
+      axios.interceptors.response.eject(interceptor); // Cleanup ASAP.
+
       expect(baseAdapter.nRetries).toBe(retries);
     }
   });
