@@ -129,12 +129,10 @@ export class PriceClient implements PriceFeedAdapter {
         addresses = await this.updateCache(priceCache, prices, addresses);
         if (addresses.length === 0) break; // All done
       } catch (err) {
-        const cause: string[] = err instanceof Error ? (err.cause as string[]) : ["unknown"];
         this.logger.debug({
           at: "PriceClient#updatePrices",
           message: `Price lookup against ${priceFeed.name} failed (${err}).`,
           tokens: addresses,
-          cause,
         });
         // Failover to the next price feed...
       }
@@ -147,7 +145,7 @@ export class PriceClient implements PriceFeedAdapter {
         priceFeeds: this.listPriceFeeds(),
         tokens: addresses,
       });
-      throw Error(`Price lookup failed against all price feeds (${this.listPriceFeeds().join(", ")})`);
+      throw new Error(`Price lookup failed against all price feeds (${this.listPriceFeeds().join(", ")})`);
     }
   }
 

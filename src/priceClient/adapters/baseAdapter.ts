@@ -56,7 +56,7 @@ export class BaseHTTPAdapter {
       }
     } while (tries <= this.retries);
 
-    throw new Error(`${this.name} price lookup failure`, { cause: errs });
+    throw new Error(`${this.name} price lookup failure (${errs.join(", ")})`);
   }
 
   protected async sleep(ms: number): Promise<void> {
