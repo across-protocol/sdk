@@ -1,10 +1,29 @@
 import assert from "assert";
+import axios from "axios";
 import dotenv from "dotenv";
 import winston from "winston";
 import { Logger, msToS, PriceCache, PriceClient, PriceFeedAdapter, TokenPrice } from "./priceClient";
 import { acrossApi, coingecko, defiLlama } from "./adapters";
+import { BaseHTTPAdapter, BaseHTTPAdapterArgs } from "./adapters/baseAdapter";
 
 dotenv.config();
+
+class TestBaseHTTPAdapter extends BaseHTTPAdapter {
+  public nRetries = 0;
+
+  constructor(name: string, host: string, { timeout = 500, retries = 1 }: BaseHTTPAdapterArgs) {
+    super(name, host, { timeout, retries });
+  }
+
+  async _query(path: string, urlArgs?: object): Promise<unknown> {
+    return this.query(path, urlArgs);
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  protected override async sleep(_ms: number): Promise<void> {
+    ++this.nRetries;
+  }
+}
 
 class TestPriceClient extends PriceClient {
   constructor(logger: Logger, priceFeeds: PriceFeedAdapter[]) {
@@ -68,6 +87,41 @@ function validateTokenPrice(tokenPrice: TokenPrice, address: string, timestamp: 
     `${tokenPrice.timestamp} <= ${timestamp - maxPriceAge} (timestamp: ${timestamp}, maxPriceAge: ${maxPriceAge})`
   );
 }
+
+describe("PriceClient: BaseHTTPAdapter", function () {
+  test("Retry behaviour: All failures", async function () {
+    for (const retries of [0, 1, 3, 5, 7, 9]) {
+      const name = `BaseHTTPAdapter test w/ ${retries} retries`;
+      const baseAdapter = new TestBaseHTTPAdapter(name, "127.0.0.1", { timeout: 1, retries });
+      expect(baseAdapter.nRetries).toBe(0);
+      await expect(baseAdapter._query("", { retries })).rejects.toThrow(`${name} price lookup failure`);
+      expect(baseAdapter.nRetries).toBe(retries);
+    }
+  });
+
+  test("Retry behaviour: Success on the final request", async function () {
+    for (const retries of [1, 3, 5, 7, 9]) {
+      const name = `BaseHTTPAdapter test w/ success on retry ${retries}`;
+      const baseAdapter = new TestBaseHTTPAdapter(name, "127.0.0.1", { timeout: 1, retries });
+      expect(baseAdapter.nRetries).toBe(0);
+
+      // Instantiate callback for HTTP response != 2xx.
+      const interceptor = axios.interceptors.response.use(
+        undefined, // HTTP 2xx.
+        function (error) {
+          const result = retries && baseAdapter.nRetries === retries ? Promise.resolve({}) : Promise.reject(error);
+          return result;
+        }
+      );
+
+      const response = baseAdapter._query("", { retries });
+      await expect(response).resolves.not.toThrow();
+      axios.interceptors.response.eject(interceptor); // Cleanup ASAP.
+
+      expect(baseAdapter.nRetries).toBe(retries);
+    }
+  });
+});
 
 // this requires e2e testing, should only test manually for now
 describe("PriceClient", function () {
@@ -140,7 +194,7 @@ describe("PriceClient", function () {
 
   test("getPriceByAddress: Across failover to Across", async function () {
     pc = new PriceClient(dummyLogger, [
-      new acrossApi.PriceFeed({ name: "Across API (expect fail)", host: "127.0.0.1" }),
+      new acrossApi.PriceFeed({ name: "Across API (expect fail)", host: "127.0.0.1", retries: 0 }),
       new acrossApi.PriceFeed({ name: "Across API (expect pass)" }),
     ]);
 
@@ -151,7 +205,7 @@ describe("PriceClient", function () {
   test("getPriceByAddress: Coingecko failover to Across", async function () {
     const _apiKey = "xxx-fake-apikey";
     pc = new PriceClient(dummyLogger, [
-      new coingecko.PriceFeed({ name: "CoinGecko Pro (expect fail)", apiKey: _apiKey }),
+      new coingecko.PriceFeed({ name: "CoinGecko Pro (expect fail)", apiKey: _apiKey, retries: 0 }),
       new acrossApi.PriceFeed({ name: "Across API (expect pass)" }),
     ]);
 
@@ -161,14 +215,14 @@ describe("PriceClient", function () {
 
   test("getPriceByAddress: Complete price lookup failure", async function () {
     pc = new PriceClient(dummyLogger, [
-      new acrossApi.PriceFeed({ name: "Across API #1 (expect fail)", host: "127.0.0.1" }),
-      new acrossApi.PriceFeed({ name: "Across API #2 (expect fail)", host: "127.0.0.1" }),
+      new acrossApi.PriceFeed({ name: "Across API #1 (expect fail)", host: "127.0.0.1", retries: 0 }),
+      new acrossApi.PriceFeed({ name: "Across API #2 (expect fail)", host: "127.0.0.1", retries: 0 }),
     ]);
     await expect(pc.getPriceByAddress(testAddress)).rejects.toThrow();
   });
 
   test("getPriceByAddress: Across API timeout", async function () {
-    const acrossPriceFeed: acrossApi.PriceFeed = new acrossApi.PriceFeed({ name: "Across API (timeout)" });
+    const acrossPriceFeed: acrossApi.PriceFeed = new acrossApi.PriceFeed({ name: "Across API (timeout)", retries: 0 });
     pc = new PriceClient(dummyLogger, [acrossPriceFeed]);
 
     acrossPriceFeed.timeout = 1; // mS
@@ -206,7 +260,7 @@ describe("PriceClient", function () {
   test("getPriceByAddress: Address case insensitivity", async function () {
     // Instantiate a custom subclass of PriceClient.
     const pc: TestPriceClient = new TestPriceClient(dummyLogger, [
-      new acrossApi.PriceFeed({ name: "Across API (expect fail)", host: "127.0.0.1" }),
+      new acrossApi.PriceFeed({ name: "Across API (expect fail)", host: "127.0.0.1", retries: 0 }),
     ]);
 
     // Load the cache with lower-case addresses, then query with an upper-case address.
@@ -234,7 +288,7 @@ describe("PriceClient", function () {
   test("getPriceByAddress: Validate price cache", async function () {
     // Instantiate a custom subclass of PriceClient; load the cache and force price lookup failures.
     const pc: TestPriceClient = new TestPriceClient(dummyLogger, [
-      new acrossApi.PriceFeed({ name: "Across API (expect fail)", host: "127.0.0.1" }),
+      new acrossApi.PriceFeed({ name: "Across API (expect fail)", host: "127.0.0.1", retries: 0 }),
     ]);
 
     const priceCache: PriceCache = pc.getProtectedPriceCache(baseCurrency);
