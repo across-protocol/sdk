@@ -10,3 +10,4 @@ export * as priceClient from "./priceClient";
 export * as merkleDistributor from "./merkleDistributor";
 export * as constants from "./constants";
 export * as interfaces from "./interfaces";
+export * as typeguards from "./typeguards";
