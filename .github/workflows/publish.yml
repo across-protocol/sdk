@@ -26,9 +26,10 @@ jobs:
       - run: yarn
 
       # Setup .npmrc file to publish to npm
-      - uses: actions/setup-node@v2
+      - uses: actions/setup-node@v3
         with:
           node-version: "16.x"
+          always-auth: true
           registry-url: "https://registry.npmjs.org"
 
       # The last two steps will publish the package. Note that we're using
