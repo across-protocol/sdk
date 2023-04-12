@@ -54,10 +54,10 @@ jobs:
         if: steps.release.outputs.tag == ''
         run: yarn publish
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
 
       - name: Publish tagged version
         if: steps.release.outputs.tag != ''
         run: yarn publish --tag ${{ steps.release.outputs.tag }}
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          NPM_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
