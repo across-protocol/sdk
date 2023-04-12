@@ -18,7 +18,6 @@ jobs:
     steps:
       - uses: actions/checkout@v2
 
-      # This is the action in this repo! 👇
       # Note we set an `id` called `release`. We'll use that later...
       - name: Validate and extract release information
         id: release
