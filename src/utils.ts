@@ -370,3 +370,46 @@ export async function findBlockAtOrOlder(provider: providers.Provider, desiredLo
   }
   return fromBlockNumber;
 }
+
+/**
+ * Utility function to get EIP-712 compliant typed data that can be signed with the JSON-RPC method
+ * `eth_signedTypedDataV4` in MetaMask (https://docs.metamask.io/guide/signing-data.html). The resulting signature
+ * can then be used to call the method `speedUpDeposit` of a `SpokePool.sol` contract.
+ * @param depositId The deposit ID to speed up.
+ * @param originChainId The chain ID of the origin chain.
+ * @param updatedRelayerFeePct The new relayer fee percentage.
+ * @param updatedRecipient The new recipient address.
+ * @param updatedMessage The new message that should be provided to the recipient.
+ * @return EIP-712 compliant typed data.
+ */
+export function getUpdateDepositTypedData(
+  depositId: number,
+  originChainId: number,
+  updatedRelayerFeePct: BigNumber,
+  updatedRecipient: string,
+  updatedMessage: string
+) {
+  return {
+    types: {
+      UpdateDepositDetails: [
+        { name: "depositId", type: "uint32" },
+        { name: "originChainId", type: "uint256" },
+        { name: "updatedRelayerFeePct", type: "int64" },
+        { name: "updatedRecipient", type: "address" },
+        { name: "updatedMessage", type: "bytes" },
+      ],
+    },
+    domain: {
+      name: "ACROSS-V2",
+      version: "1.0.0",
+      chainId: Number(originChainId),
+    },
+    message: {
+      depositId,
+      originChainId,
+      updatedRelayerFeePct,
+      updatedRecipient,
+      updatedMessage,
+    },
+  };
+}
