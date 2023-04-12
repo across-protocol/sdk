@@ -5,3 +5,4 @@ export * from "./SpokePool";
 export * from "./Bridge";
 export * from "./UBA";
 export * from "./Error";
+export * from "./TypedData";

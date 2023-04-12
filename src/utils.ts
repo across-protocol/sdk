@@ -5,6 +5,7 @@ import { isL2Provider as isOptimismL2Provider, L2Provider } from "@eth-optimism/
 import { SpokePool } from "@across-protocol/contracts-v2";
 import assert from "assert";
 import { GasPriceEstimate, getGasPriceEstimate } from "./gasPriceOracle";
+import { TypedMessage } from "./interfaces/TypedData";
 
 export type BigNumberish = string | number | BigNumber;
 export type BN = BigNumber;
@@ -371,6 +372,19 @@ export async function findBlockAtOrOlder(provider: providers.Provider, desiredLo
   return fromBlockNumber;
 }
 
+export type UpdateDepositDetailsMessageType = {
+  UpdateDepositDetails: [
+    {
+      name: "depositId";
+      type: "uint32";
+    },
+    { name: "originChainId"; type: "uint256" },
+    { name: "updatedRelayerFeePct"; type: "int64" },
+    { name: "updatedRecipient"; type: "address" },
+    { name: "updatedMessage"; type: "bytes" }
+  ];
+};
+
 /**
  * Utility function to get EIP-712 compliant typed data that can be signed with the JSON-RPC method
  * `eth_signedTypedDataV4` in MetaMask (https://docs.metamask.io/guide/signing-data.html). The resulting signature
@@ -388,7 +402,7 @@ export function getUpdateDepositTypedData(
   updatedRelayerFeePct: BigNumber,
   updatedRecipient: string,
   updatedMessage: string
-) {
+): TypedMessage<UpdateDepositDetailsMessageType> {
   return {
     types: {
       UpdateDepositDetails: [
@@ -399,10 +413,11 @@ export function getUpdateDepositTypedData(
         { name: "updatedMessage", type: "bytes" },
       ],
     },
+    primaryType: "UpdateDepositDetails",
     domain: {
       name: "ACROSS-V2",
       version: "1.0.0",
-      chainId: Number(originChainId),
+      chainId: originChainId,
     },
     message: {
       depositId,
