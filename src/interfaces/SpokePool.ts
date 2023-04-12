@@ -16,12 +16,21 @@ export interface Deposit {
   quoteTimestamp: number;
   realizedLpFeePct: BigNumber; // appended after initialization (not part of Deposit event).
   destinationToken: string; // appended after initialization (not part of Deposit event).
+  message: string;
   speedUpSignature?: string | undefined; // appended after initialization, if deposit was speedup (not part of Deposit event).
   newRelayerFeePct?: BigNumber; // appended after initialization, if deposit was speedup (not part of Deposit event).
 }
 
 export interface DepositWithBlock extends Deposit, SortableEvent {
   quoteBlockNumber: number;
+}
+
+export interface RelayExecutionInfo {
+  recipient: string;
+  message: string;
+  relayerFeePct: BigNumber;
+  isSlowRelay: boolean;
+  payoutAdjustmentPct: BigNumber;
 }
 export interface Fill {
   amount: BigNumber;
@@ -37,7 +46,7 @@ export interface Fill {
   relayer: string;
   depositor: string;
   recipient: string;
-  isSlowRelay: boolean;
+  message: string;
   destinationChainId: number;
 }
 
@@ -49,6 +58,8 @@ export interface SpeedUp {
   newRelayerFeePct: BigNumber;
   depositId: number;
   originChainId: number;
+  updatedRecipient: string;
+  updatedMessage: string;
 }
 
 export interface SlowFill {
@@ -59,10 +70,12 @@ export interface SlowFill {
   originChainId: number;
   relayerFeePct: BigNumber;
   realizedLpFeePct: BigNumber;
+  payoutAdjustmentPct: BigNumber;
   depositId: number;
   destinationToken: string;
   depositor: string;
   recipient: string;
+  message: string;
 }
 
 export interface RefundRequest {
@@ -111,6 +124,7 @@ export interface RelayData {
   depositId: number;
   originChainId: number;
   destinationChainId: number;
+  message: string;
 }
 
 export interface UnfilledDeposit {
