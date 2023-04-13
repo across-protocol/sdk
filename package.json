@@ -70,8 +70,8 @@
     "winston": "^3.8.1"
   },
   "dependencies": {
-    "@across-protocol/contracts-v2": "^2.0.1",
     "@across-protocol/across-token": "^1.0.0",
+    "@across-protocol/contracts-v2": "^2.0.2",
     "@eth-optimism/sdk": "^1.6.0",
     "@uma/sdk": "^0.29.3",
     "axios": "^0.27.2",
