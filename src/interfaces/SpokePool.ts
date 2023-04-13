@@ -80,6 +80,11 @@ export interface SlowFill {
   message: string;
 }
 
+export interface SlowFillLeaf {
+  relayData: RelayData;
+  payoutAdjustmentPct: string;
+}
+
 export interface RefundRequest {
   relayer: string;
   refundToken: string;
