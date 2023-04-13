@@ -315,8 +315,8 @@ export async function createUnsignedFillRelayTransaction(
     "1",
     "1",
     "1",
+    [],
     "1",
-    "",
     { from: simulatedRelayerAddress }
   );
 }
