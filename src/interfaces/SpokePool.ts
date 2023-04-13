@@ -41,18 +41,15 @@ export interface Fill {
   repaymentChainId: number;
   originChainId: number;
   relayerFeePct: BigNumber;
-  appliedRelayerFeePct: BigNumber;
   realizedLpFeePct: BigNumber;
   depositId: number;
   destinationToken: string;
   relayer: string;
   depositor: string;
   recipient: string;
-  appliedRecipient: string;
   message: string;
-  appliedMessage: string;
   destinationChainId: number;
-  isSlowRelay: boolean;
+  updatableRelayData: RelayExecutionInfo;
 }
 
 export interface FillWithBlock extends Fill, SortableEvent {}
