@@ -48,8 +48,11 @@ export interface Fill {
   relayer: string;
   depositor: string;
   recipient: string;
+  appliedRecipient: string;
   message: string;
+  appliedMessage: string;
   destinationChainId: number;
+  isSlowRelay: boolean;
 }
 
 export interface FillWithBlock extends Fill, SortableEvent {}
