@@ -71,7 +71,7 @@
   },
   "dependencies": {
     "@across-protocol/across-token": "^1.0.0",
-    "@across-protocol/contracts-v2": "^2.1.0-beta.1",
+    "@across-protocol/contracts-v2": "^2.1.0-beta.2",
     "@eth-optimism/sdk": "^1.6.0",
     "@uma/sdk": "^0.29.3",
     "axios": "^0.27.2",
