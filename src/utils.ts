@@ -316,7 +316,7 @@ export async function createUnsignedFillRelayTransaction(
     "1",
     "1",
     [],
-    "1",
+    MAX_BIG_INT,
     { from: simulatedRelayerAddress }
   );
 }
