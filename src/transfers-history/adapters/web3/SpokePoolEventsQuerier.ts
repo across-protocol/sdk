@@ -49,8 +49,8 @@ export class SpokePoolEventsQuerier implements ISpokePoolContractEventsQuerier {
         undefined,
         undefined,
         undefined,
-        undefined,
         depositorAddr,
+        undefined,
         undefined,
         undefined
       );
