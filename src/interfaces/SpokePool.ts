@@ -21,7 +21,7 @@ export interface Deposit {
 }
 
 export interface DepositWithBlock extends Deposit, SortableEvent {
-  originBlockNumber: number;
+  quoteBlockNumber: number;
 }
 export interface Fill {
   amount: BigNumber;
