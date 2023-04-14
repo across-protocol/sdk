@@ -206,14 +206,14 @@ export class TransfersHistoryClient {
 
   private insertFilledRelayEvent(event: FilledRelayEvent) {
     const { args, transactionHash } = event;
-    const { totalFilledAmount, depositor, depositId, originChainId, appliedRelayerFeePct } = args;
+    const { totalFilledAmount, depositor, depositId, originChainId, relayerFeePct } = args;
     this.transfersRepository.updateFilledAmount(
       originChainId.toNumber(),
       depositor,
       depositId,
       totalFilledAmount,
       transactionHash,
-      appliedRelayerFeePct
+      relayerFeePct
     );
   }
 
