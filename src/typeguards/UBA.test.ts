@@ -1,16 +1,7 @@
 import { random } from "lodash";
 import { toBN, toBNWei } from "../utils";
-import {
-  DepositWithBlock,
-  FillWithBlock,
-  RefundRequestWithBlock,
-  UbaFlow,
-  UbaOutflow,
-  isUbaInflow,
-  isUbaOutflow,
-  outflowIsFill,
-  outflowIsRefund,
-} from "./";
+import { DepositWithBlock, FillWithBlock, RefundRequestWithBlock, UbaFlow, UbaOutflow } from "../interfaces";
+import { isUbaInflow, isUbaOutflow, outflowIsFill, outflowIsRefund } from "./";
 
 const common = {
   depositId: random(1, 1000, false),
