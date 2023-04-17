@@ -19,9 +19,9 @@ export const isUbaOutflow = (flow: UbaFlow): flow is UbaOutflow => {
 };
 
 export const outflowIsFill = (outflow: UbaOutflow): outflow is FillWithBlock => {
-  return (outflow as FillWithBlock).isSlowRelay !== undefined;
+  return (outflow as FillWithBlock)?.updatableRelayData?.isSlowRelay !== undefined;
 };
 
 export const outflowIsRefund = (outflow: UbaOutflow): outflow is RefundRequestWithBlock => {
-  return (outflow as RefundRequestWithBlock).fillBlock !== undefined;
+  return (outflow as RefundRequestWithBlock)?.fillBlock !== undefined;
 };

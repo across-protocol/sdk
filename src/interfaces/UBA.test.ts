@@ -21,6 +21,7 @@ const common = {
   transactionIndex: 0,
   logIndex: 0,
   transactionHash: "",
+  message: "0x",
 };
 
 const sampleDeposit = {
@@ -45,7 +46,13 @@ const sampleFill = {
   relayer: "",
   depositor: "",
   recipient: "",
-  isSlowRelay: true,
+  updatableRelayData: {
+    isSlowRelay: true,
+    recipient: "",
+    message: "0x",
+    payoutAdjustmentPct: toBNWei(0),
+    relayerFeePct: toBNWei(0.0001),
+  },
   destinationChainId: 10,
 };
 
@@ -69,7 +76,7 @@ describe("UBA Interface", function () {
 
     // FilledRelay event
     for (const slowRelay of [true, false]) {
-      fill.isSlowRelay = slowRelay;
+      fill.updatableRelayData.isSlowRelay = slowRelay;
       expect(isUbaInflow(fill as UbaFlow)).toBe(false);
       expect(isUbaOutflow(fill as UbaFlow)).toBe(true);
       expect(outflowIsFill(fill as UbaOutflow)).toBe(true);
