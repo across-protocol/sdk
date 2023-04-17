@@ -31,7 +31,7 @@ const sampleDeposit = {
   quoteTimestamp: Math.floor(Date.now() / 1000),
   realizedLpFeePct: toBNWei(0.00001),
   destinationToken: "",
-  originBlockNumber: 1,
+  quoteBlockNumber: 1,
 };
 
 const sampleFill = {
