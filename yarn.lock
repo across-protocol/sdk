@@ -11,10 +11,10 @@
     "@uma/common" "^2.17.0"
     hardhat "^2.9.3"
 
-"@across-protocol/contracts-v2@^2.1.0-beta.8":
-  version "2.1.0"
-  resolved "https://registry.yarnpkg.com/@across-protocol/contracts-v2/-/contracts-v2-2.1.0.tgz#94fac8659df610d77572278539e659ba31032cc3"
-  integrity sha512-0AKeiAAQYxccwFRZQGsZMHxD+wZ3Iz/QYEMZwZKVnkaBLHWyO7j/HeN1XSY3YoCcjsW8UL5mmmGP55WyIC6tAQ==
+"@across-protocol/contracts-v2@^2.1.0-beta.6":
+  version "2.1.0-beta.6"
+  resolved "https://registry.yarnpkg.com/@across-protocol/contracts-v2/-/contracts-v2-2.1.0-beta.6.tgz#911885a908cd16443ef946fa58684ed492f4dde7"
+  integrity sha512-b+s82oiE2TuRT9Tz2I9jD5V0kRMt5fC60fQmt+N1wAUYNrtYUG/eUWiO/dxLE65hNCkniEOcABlOwBHJOzkqEg==
   dependencies:
     "@defi-wonderland/smock" "^2.3.4"
     "@eth-optimism/contracts" "^0.5.11"
