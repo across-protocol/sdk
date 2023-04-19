@@ -8,7 +8,7 @@ export class OptimismQueries extends QueryBase {
   constructor(
     provider: providers.Provider,
     symbolMapping = TOKEN_SYMBOLS_MAP,
-    spokePoolAddress = "0xa420b2d1c0841415A695b81E5B867BCD07Dff8C9",
+    spokePoolAddress = "0x79e5462A3544D122152595cba5eefc617c875190",
     usdcAddress = "0x7F5c764cBc14f9669B88837ca1490cCa17c31607",
     simulatedRelayerAddress = "0x893d0d70ad97717052e3aa8903d9615804167759",
     coingeckoProApiKey?: string,

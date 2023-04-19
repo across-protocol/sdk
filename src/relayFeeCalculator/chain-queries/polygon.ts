@@ -8,7 +8,7 @@ export class PolygonQueries extends QueryBase {
   constructor(
     provider: providers.Provider,
     symbolMapping = TOKEN_SYMBOLS_MAP,
-    spokePoolAddress = "0x69B5c72837769eF1e7C164Abc6515DcFf217F920",
+    spokePoolAddress = "0xf9a0c1C775f1B6e156ad3f1DB784520461DDb19e",
     usdcAddress = "0x2791bca1f2de4661ed88a30c99a7a9449aa84174",
     simulatedRelayerAddress = "0x893d0D70AD97717052E3AA8903D9615804167759",
     coingeckoProApiKey?: string,
