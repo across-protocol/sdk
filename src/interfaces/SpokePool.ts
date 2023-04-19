@@ -19,8 +19,8 @@ export interface Deposit {
   message: string;
   speedUpSignature?: string | undefined; // appended after initialization, if deposit was speedup (not part of Deposit event).
   newRelayerFeePct?: BigNumber; // appended after initialization, if deposit was speedup (not part of Deposit event).
-  newRecipient?: string;
-  newMessage?: string;
+  updatedRecipient?: string;
+  updatedMessage?: string;
 }
 
 export interface DepositWithBlock extends Deposit, SortableEvent {
@@ -60,8 +60,8 @@ export interface SpeedUp {
   newRelayerFeePct: BigNumber;
   depositId: number;
   originChainId: number;
-  newRecipient: string;
-  newMessage: string;
+  updatedRecipient: string;
+  updatedMessage: string;
 }
 
 export interface SlowFill {
