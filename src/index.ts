@@ -11,3 +11,4 @@ export * as merkleDistributor from "./merkleDistributor";
 export * as constants from "./constants";
 export * as interfaces from "./interfaces";
 export * as typeguards from "./typeguards";
+export * as clients from "./clients";
