@@ -21,7 +21,6 @@ const common = {
   transactionIndex: 0,
   logIndex: 0,
   transactionHash: "",
-  message: "0x",
 };
 
 const sampleDeposit = {
@@ -33,11 +32,13 @@ const sampleDeposit = {
   realizedLpFeePct: toBNWei(0.00001),
   destinationToken: "",
   quoteBlockNumber: 1,
+  message: "0x",
 };
 
 const sampleFill = {
   totalFilledAmount: toBNWei(0.01),
   fillAmount: toBNWei(0.01),
+  destinationChainId: 10,
   repaymentChainId: 10,
   relayerFeePct: toBNWei(0.0001),
   appliedRelayerFeePct: toBNWei(0.0001),
@@ -46,6 +47,7 @@ const sampleFill = {
   relayer: "",
   depositor: "",
   recipient: "",
+  message: "0x",
   updatableRelayData: {
     isSlowRelay: true,
     recipient: "",
@@ -53,7 +55,6 @@ const sampleFill = {
     payoutAdjustmentPct: toBNWei(0),
     relayerFeePct: toBNWei(0.0001),
   },
-  destinationChainId: 10,
 };
 
 const sampleRefundRequest = {
