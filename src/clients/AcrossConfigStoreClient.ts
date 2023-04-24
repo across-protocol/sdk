@@ -16,7 +16,6 @@ import {
   spreadEventWithBlockNumber,
   toBN,
   MakeOptional,
-  getCurrentTime,
   utf8ToHex,
 } from "../utils";
 import {
