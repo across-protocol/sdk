@@ -1,43 +1,35 @@
-import {
-  spreadEvent,
-  winston,
-  Contract,
-  BigNumber,
-  sortEventsDescending,
-  spreadEventWithBlockNumber,
-  paginatedEventQuery,
-  EventSearchConfig,
-  utf8ToHex,
-  getCurrentTime,
-  MakeOptional,
-  toBN,
-  max,
-  getBlockForTimestamp,
-  sortEventsAscending,
-  Block,
-} from "../../../relayer-v2/src/utils";
+import winston from "winston";
 
-import {
-  CHAIN_ID_LIST_INDICES,
-  CONFIG_STORE_VERSION,
-  DEFAULT_CONFIG_STORE_VERSION,
-} from "../../../relayer-v2/src/common/Constants";
-
-import {
-  L1TokenTransferThreshold,
-  TokenConfig,
-  GlobalConfigUpdate,
-  ParsedTokenConfig,
-  SpokeTargetBalanceUpdate,
-  SpokePoolTargetBalance,
-  RouteRateModelUpdate,
-  ConfigStoreVersionUpdate,
-  DisabledChainsUpdate,
-} from "../../../relayer-v2/src/interfaces";
+import { BigNumber, Contract } from "ethers";
 
 import { BlockFinder, across } from "@uma/sdk";
-import { HubPoolClient } from "../../../relayer-v2/src/clients/HubPoolClient";
+import { HubPoolClient } from ".";
 import { lpFeeCalculator } from "..";
+import {
+  CONFIG_STORE_VERSION,
+  EventSearchConfig,
+  max,
+  paginatedEventQuery,
+  sortEventsAscending,
+  sortEventsDescending,
+  spreadEvent,
+  spreadEventWithBlockNumber,
+  toBN,
+  MakeOptional,
+  getCurrentTime,
+  utf8ToHex,
+} from "../utils";
+import {
+  RouteRateModelUpdate,
+  L1TokenTransferThreshold,
+  GlobalConfigUpdate,
+  SpokeTargetBalanceUpdate,
+  ConfigStoreVersionUpdate,
+  DisabledChainsUpdate,
+  SpokePoolTargetBalance,
+  TokenConfig,
+  ParsedTokenConfig,
+} from "../interfaces";
 
 export const GLOBAL_CONFIG_STORE_KEYS = {
   MAX_RELAYER_REPAYMENT_LEAF_SIZE: "MAX_RELAYER_REPAYMENT_LEAF_SIZE",
@@ -46,8 +38,8 @@ export const GLOBAL_CONFIG_STORE_KEYS = {
   DISABLED_CHAINS: "DISABLED_CHAINS",
 };
 
-export default class AcrossConfigStoreClient {
-  public readonly blockFinder: BlockFinder<Block>;
+export class AcrossConfigStoreClient {
+  public readonly blockFinder;
 
   public cumulativeRateModelUpdates: across.rateModel.RateModelEvent[] = [];
   public cumulativeRouteRateModelUpdates: RouteRateModelUpdate[] = [];
@@ -65,21 +57,20 @@ export default class AcrossConfigStoreClient {
 
   public isUpdated = false;
 
-  protected readonly logger: winston.Logger;
-  protected readonly configStore: Contract;
-  protected readonly hubPoolClient: HubPoolClient;
-  protected readonly eventSearchConfig: MakeOptional<EventSearchConfig, "toBlock"> = {
-    fromBlock: 0,
-    maxBlockLookBack: 0,
-  };
-
-  protected readonly enabledChainIds: number[] = CHAIN_ID_LIST_INDICES;
+  protected readonly enabledChainIds: number[];
 
   constructor(
-    logger: winston.Logger,
-    configStore: Contract,
-    hubPoolClient: HubPoolClient,
-    eventSearchConfig: EventSearchConfig
+    protected readonly logger: winston.Logger,
+    protected readonly configStore: Contract,
+    protected readonly hubPoolClient: HubPoolClient,
+    protected readonly eventSearchConfig: MakeOptional<EventSearchConfig, "toBlock"> = {
+      fromBlock: 0,
+      maxBlockLookBack: 0,
+    },
+    protected readonly configOverride: {
+      chainIdListIndices: number[];
+      defaultConfigStoreVersion: number;
+    } = { chainIdListIndices: [], defaultConfigStoreVersion: 0 }
   ) {
     this.logger = logger;
     this.configStore = configStore;
@@ -88,6 +79,7 @@ export default class AcrossConfigStoreClient {
     this.firstBlockToSearch = eventSearchConfig.fromBlock;
     this.blockFinder = new BlockFinder(this.configStore.provider.getBlock.bind(this.configStore.provider));
     this.rateModelDictionary = new across.rateModel.RateModelDictionary();
+    this.enabledChainIds = this.configOverride.chainIdListIndices;
   }
 
   async computeRealizedLpFeePct(
@@ -254,7 +246,7 @@ export default class AcrossConfigStoreClient {
       (config) => config.timestamp <= timestamp
     );
     if (!config) {
-      return DEFAULT_CONFIG_STORE_VERSION;
+      return this.configOverride.defaultConfigStoreVersion;
     }
     return Number(config.value);
   }
@@ -393,7 +385,7 @@ export default class AcrossConfigStoreClient {
         // Extract last version
         const lastValue =
           this.cumulativeConfigStoreVersionUpdates.length === 0
-            ? DEFAULT_CONFIG_STORE_VERSION
+            ? this.configOverride.defaultConfigStoreVersion
             : Number(
                 this.cumulativeConfigStoreVersionUpdates[this.cumulativeConfigStoreVersionUpdates.length - 1].value
               );
@@ -435,13 +427,7 @@ export default class AcrossConfigStoreClient {
   }
 
   private async getBlockNumber(timestamp: number): Promise<number | undefined> {
-    return await getBlockForTimestamp(
-      this.hubPoolClient.chainId,
-      this.hubPoolClient.chainId,
-      timestamp,
-      getCurrentTime(),
-      this.blockFinder
-    );
+    return (await this.blockFinder.getBlockForTimestamp(timestamp)).number;
   }
 
   protected async getUtilization(
@@ -449,7 +435,7 @@ export default class AcrossConfigStoreClient {
     blockNumber: number,
     amount: BigNumber,
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    timestamp: number
+    _timestamp: number
   ): Promise<{ current: BigNumber; post: BigNumber }> {
     return await this.hubPoolClient.getPostRelayPoolUtilization(l1Token, blockNumber, amount);
   }
