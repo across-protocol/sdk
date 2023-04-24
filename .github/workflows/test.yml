@@ -1,5 +1,7 @@
 name: CI
 on: [push]
+env:
+  NODE_OPTIONS: "--max_old_space_size=4096"
 jobs:
   build:
     name: Test
@@ -9,7 +11,5 @@ jobs:
       - uses: actions/setup-node@v3
         with:
           node-version: 16
-      - run: |
-          export NODE_OPTIONS="--max_old_space_size=4096"
-          yarn install
-          yarn test --ci --coverage --maxWorkers=2
+      - run: yarn install
+      - run: yarn test --ci --coverage --maxWorkers=2
