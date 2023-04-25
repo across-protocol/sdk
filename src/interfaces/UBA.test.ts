@@ -32,11 +32,13 @@ const sampleDeposit = {
   realizedLpFeePct: toBNWei(0.00001),
   destinationToken: "",
   quoteBlockNumber: 1,
+  message: "0x",
 };
 
 const sampleFill = {
   totalFilledAmount: toBNWei(0.01),
   fillAmount: toBNWei(0.01),
+  destinationChainId: 10,
   repaymentChainId: 10,
   relayerFeePct: toBNWei(0.0001),
   appliedRelayerFeePct: toBNWei(0.0001),
@@ -45,8 +47,14 @@ const sampleFill = {
   relayer: "",
   depositor: "",
   recipient: "",
-  isSlowRelay: true,
-  destinationChainId: 10,
+  message: "0x",
+  updatableRelayData: {
+    isSlowRelay: true,
+    recipient: "",
+    message: "0x",
+    payoutAdjustmentPct: toBNWei(0),
+    relayerFeePct: toBNWei(0.0001),
+  },
 };
 
 const sampleRefundRequest = {
@@ -69,7 +77,7 @@ describe("UBA Interface", function () {
 
     // FilledRelay event
     for (const slowRelay of [true, false]) {
-      fill.isSlowRelay = slowRelay;
+      fill.updatableRelayData.isSlowRelay = slowRelay;
       expect(isUbaInflow(fill as UbaFlow)).toBe(false);
       expect(isUbaOutflow(fill as UbaFlow)).toBe(true);
       expect(outflowIsFill(fill as UbaOutflow)).toBe(true);

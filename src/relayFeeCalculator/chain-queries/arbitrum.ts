@@ -7,7 +7,7 @@ export class ArbitrumQueries extends QueryBase {
   constructor(
     provider: providers.Provider,
     symbolMapping = TOKEN_SYMBOLS_MAP,
-    spokePoolAddress = "0xB88690461dDbaB6f04Dfad7df66B7725942FEb9C",
+    spokePoolAddress = "0xe35e9842fceaCA96570B734083f4a58e8F7C5f2A",
     usdcAddress = "0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC8",
     simulatedRelayerAddress = "0x893d0d70ad97717052e3aa8903d9615804167759",
     coingeckoProApiKey?: string,
