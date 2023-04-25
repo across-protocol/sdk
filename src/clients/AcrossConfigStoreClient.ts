@@ -3,7 +3,7 @@ import winston from "winston";
 import { BigNumber, Contract } from "ethers";
 import { Block } from "@ethersproject/abstract-provider";
 import { BlockFinder, across } from "@uma/sdk";
-import { HubPoolClient } from ".";
+import { HubPoolClient } from "./AcrossHubPoolClient";
 import { lpFeeCalculator } from "..";
 import {
   CONFIG_STORE_VERSION,
