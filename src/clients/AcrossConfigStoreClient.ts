@@ -1,7 +1,7 @@
 import winston from "winston";
 
 import { BigNumber, Contract } from "ethers";
-
+import { Block } from "@ethersproject/abstract-provider";
 import { BlockFinder, across } from "@uma/sdk";
 import { HubPoolClient } from ".";
 import { lpFeeCalculator } from "..";
@@ -38,7 +38,7 @@ export const GLOBAL_CONFIG_STORE_KEYS = {
 };
 
 export class AcrossConfigStoreClient {
-  public readonly blockFinder;
+  public readonly blockFinder: BlockFinder<Block>;
 
   public cumulativeRateModelUpdates: across.rateModel.RateModelEvent[] = [];
   public cumulativeRouteRateModelUpdates: RouteRateModelUpdate[] = [];
