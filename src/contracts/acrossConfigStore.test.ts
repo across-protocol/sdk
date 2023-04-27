@@ -1,4 +1,5 @@
 import { Client } from "./acrossConfigStore";
+jest.useFakeTimers();
 
 describe("Contracts Config Store", () => {
   const BASE_TRUTH = {
