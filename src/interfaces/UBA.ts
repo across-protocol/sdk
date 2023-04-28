@@ -25,3 +25,14 @@ export const outflowIsFill = (outflow: UbaOutflow): outflow is FillWithBlock => 
 export const outflowIsRefund = (outflow: UbaOutflow): outflow is RefundRequestWithBlock => {
   return (outflow as RefundRequestWithBlock)?.fillBlock !== undefined;
 };
+
+export type UBASpokeBalanceType = {
+  chainId: number;
+  blockNumber: number;
+  lastValidatedRunningBalance?: BigNumber;
+  recentRequestFlow: UbaFlow[];
+};
+
+export type UBAFeeResult = { depositorFee: BigNumber; relayerFee: BigNumber; totalUBAFee: BigNumber };
+
+export type UBAFlowRange = { startIndex: number; endIndex: number };
