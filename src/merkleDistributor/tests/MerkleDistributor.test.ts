@@ -1,5 +1,6 @@
 import { MerkleTree } from "@across-protocol/contracts-v2";
 import { MerkleDistributor, DistributionRecipient, DistributionRecipientWithProof } from "..";
+jest.useFakeTimers();
 
 const dummyRecipients: DistributionRecipient[] = [
   {

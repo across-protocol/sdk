@@ -1,6 +1,7 @@
 import assert from "assert";
 import * as poolClient from "./poolClient";
 import { BigNumber } from "ethers";
+jest.useFakeTimers();
 
 test("previewRemoval", function () {
   const user = {
