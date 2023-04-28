@@ -1,7 +1,7 @@
 {
   "name": "@across-protocol/sdk-v2",
   "author": "UMA Team",
-  "version": "0.5.2",
+  "version": "0.5.3",
   "license": "AGPL-3.0",
   "main": "dist/index.js",
   "typings": "dist/index.d.ts",
@@ -71,7 +71,7 @@
   },
   "dependencies": {
     "@across-protocol/across-token": "^1.0.0",
-    "@across-protocol/contracts-v2": "2.2.0",
+    "@across-protocol/contracts-v2": "2.2.1",
     "@eth-optimism/sdk": "^1.6.0",
     "@uma/sdk": "^0.29.3",
     "axios": "^0.27.2",
