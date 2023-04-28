@@ -39,7 +39,7 @@ export default class UBAFeeCalculator {
     const originRunningBalance = this.calculateRecentRunningBalance("origin", flowRange);
 
     let depositorFee = toBN(0);
-    let relayerFee = toBN(0);
+    let refundFee = toBN(0);
 
     // Resolve the alpha fee of this action
     const alphaFee = this.config.getBaselineFee(originChain, destinationChain);
@@ -51,15 +51,13 @@ export default class UBAFeeCalculator {
     const utilizationFee = this.config.getUtilizationFee();
 
     // Contribute the utilization fee to the Relayer fee
-    relayerFee = relayerFee.add(utilizationFee);
+    refundFee = refundFee.add(utilizationFee);
 
     // Resolve the balancing fee tuples that are relevant to this operation
     const originBalancingFeeTuples = this.config.getBalancingFeeTuples(originChain);
     const destinationBalancingFeeTuples = this.config.getBalancingFeeTuples(destinationChain);
 
-    relayerFee = relayerFee.add(
-      getRefundBalancingFee(destinationBalancingFeeTuples, destinationRunningBalance, amount)
-    );
+    refundFee = refundFee.add(getRefundBalancingFee(destinationBalancingFeeTuples, destinationRunningBalance, amount));
     depositorFee = depositorFee.add(getDepositBalancingFee(originBalancingFeeTuples, originRunningBalance, amount));
 
     // Find the gas fee of this action in the destination chain
@@ -67,8 +65,8 @@ export default class UBAFeeCalculator {
 
     return {
       depositorFee,
-      relayerFee,
-      totalUBAFee: depositorFee.add(relayerFee),
+      refundFee,
+      totalUBAFee: depositorFee.add(refundFee),
     };
   }
 
