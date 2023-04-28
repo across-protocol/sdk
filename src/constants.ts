@@ -95,7 +95,7 @@ export const TOKEN_SYMBOLS_MAP = {
     name: "Synthetix",
     symbol: "SNX",
     decimals: 18,
-    // Based on https://github.com/Synthetixio/synthetix-docs/blob/master/content/addresses.md
+    // Based on https://github.com/Synthetixio/synthetix-docs/blob/fe83d0757977b1cb7f69796126e71a66295bf264/content/addresses.md
     addresses: {
       [CHAIN_IDs.MAINNET]: "0xC011a73ee8576Fb46F5E1c5751cA3B9Fe0af2a6F",
       [CHAIN_IDs.OPTIMISM]: "0x8700dAec35aF8Ff88c16BdF0418774CB3D7599B4",
