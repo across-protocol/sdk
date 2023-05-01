@@ -1,12 +1,14 @@
 import { BigNumber } from "ethers";
-import { UbaFlow, isUbaInflow, isUbaOutflow } from "../interfaces";
+import { UBAFlowRange, UbaFlow, isUbaInflow, isUbaOutflow } from "../interfaces";
 import { toBN } from "../utils";
+import UBAConfig from "./UBAFeeConfig";
+import { getDepositBalancingFee, getRefundBalancingFee } from "./UBAFeeUtility";
 
 /**
- * @file UBAFeeSpokeStore.ts
+ * @file UBAFeeSpokeCalculator.ts
  * @description UBA Fee Spoke Store - meant to memoize the running balance of a spoke so that we don't have to recompute it N^2 times in the UBA Fee Calculator
  */
-export class UBAFeeSpokeStore {
+export default class UBAFeeSpokeCalculator {
   /**
    * @description The last validated running balance of the spoke
    */
@@ -26,7 +28,8 @@ export class UBAFeeSpokeStore {
   constructor(
     public readonly chainId: number,
     public readonly recentRequestFlow: UbaFlow[],
-    public blockNumber: number
+    public blockNumber: number,
+    private readonly config: UBAConfig
   ) {
     this.lastValidatedRunningBalance = undefined;
     this.cachedRunningBalance = {};
@@ -90,5 +93,48 @@ export class UBAFeeSpokeStore {
    */
   public clearCachedRunningBalance(): void {
     this.cachedRunningBalance = {};
+  }
+
+  /**
+   *
+   */
+  public getDepositFee(amount: BigNumber, refundChainId: number, flowRange?: UBAFlowRange): BigNumber {
+    let depositorFee = toBN(0);
+
+    // Resolve the alpha fee of this action
+    const alphaFee = this.config.getBaselineFee(this.chainId, refundChainId);
+
+    // Contribute the alpha fee to the LP fee
+    depositorFee = depositorFee.add(alphaFee);
+
+    // Resolve the historical running balance of the spoke
+    const depositRunningBalance = this.calculateHistoricalRunningBalance(flowRange?.startIndex, flowRange?.endIndex);
+
+    // Resolve the balancing fee tuples that are relevant to this operation
+    const originBalancingFeeTuples = this.config.getBalancingFeeTuples(this.chainId);
+
+    depositorFee = depositorFee.add(getDepositBalancingFee(originBalancingFeeTuples, depositRunningBalance, amount));
+
+    return depositorFee;
+  }
+
+  public getRefundFee(amount: BigNumber, _depositChainId: number, flowRange?: UBAFlowRange): BigNumber {
+    let refundFee = toBN(0);
+
+    // Resolve the utilization fee
+    const utilizationFee = this.config.getUtilizationFee();
+
+    // Contribute the utilization fee to the Relayer fee
+    refundFee = refundFee.add(utilizationFee);
+
+    // Resolve the running balance of the spoke at the given step
+    const refundRunningBalance = this.calculateHistoricalRunningBalance(flowRange?.startIndex, flowRange?.endIndex);
+
+    // Resolve the balancing fee tuples that are relevant to this operation
+    const refundBalancingFeeTuples = this.config.getBalancingFeeTuples(this.chainId);
+
+    refundFee = refundFee.add(getRefundBalancingFee(refundBalancingFeeTuples, refundRunningBalance, amount));
+
+    return refundFee;
   }
 }
