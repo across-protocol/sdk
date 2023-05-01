@@ -20,7 +20,7 @@ export default class UBAFeeCalculator {
     private readonly config: UBAConfig,
     private readonly logger: Logger,
     protected readonly originSpoke: UBASpokeBalanceType,
-    protected readonly destinationSpoke: UBASpokeBalanceType
+    protected readonly refundSpoke: UBASpokeBalanceType
   ) {
     this.logger.debug("UBA Fee Calculator initialized");
   }
@@ -31,18 +31,18 @@ export default class UBAFeeCalculator {
    * @returns The relevant fee
    */
   public async getUBAFee(amount: BigNumber, flowRange?: UBAFlowRange): Promise<UBAFeeResult> {
-    // Get the origin and destination chain ids
+    // Get the origin and refund chain ids
     const originChain = this.originSpoke.chainId;
-    const destinationChain = this.destinationSpoke.chainId;
+    const refundChain = this.refundSpoke.chainId;
 
-    const destinationRunningBalance = this.calculateRecentRunningBalance("destination", flowRange);
+    const refundRunningBalance = this.calculateRecentRunningBalance("refund", flowRange);
     const originRunningBalance = this.calculateRecentRunningBalance("origin", flowRange);
 
     let depositorFee = toBN(0);
-    let relayerFee = toBN(0);
+    let refundFee = toBN(0);
 
     // Resolve the alpha fee of this action
-    const alphaFee = this.config.getBaselineFee(originChain, destinationChain);
+    const alphaFee = this.config.getBaselineFee(originChain, refundChain);
 
     // Contribute the alpha fee to the LP fee
     depositorFee = depositorFee.add(alphaFee);
@@ -51,30 +51,28 @@ export default class UBAFeeCalculator {
     const utilizationFee = this.config.getUtilizationFee();
 
     // Contribute the utilization fee to the Relayer fee
-    relayerFee = relayerFee.add(utilizationFee);
+    refundFee = refundFee.add(utilizationFee);
 
     // Resolve the balancing fee tuples that are relevant to this operation
     const originBalancingFeeTuples = this.config.getBalancingFeeTuples(originChain);
-    const destinationBalancingFeeTuples = this.config.getBalancingFeeTuples(destinationChain);
+    const refundBalancingFeeTuples = this.config.getBalancingFeeTuples(refundChain);
 
-    relayerFee = relayerFee.add(
-      getRefundBalancingFee(destinationBalancingFeeTuples, destinationRunningBalance, amount)
-    );
+    refundFee = refundFee.add(getRefundBalancingFee(refundBalancingFeeTuples, refundRunningBalance, amount));
     depositorFee = depositorFee.add(getDepositBalancingFee(originBalancingFeeTuples, originRunningBalance, amount));
 
-    // Find the gas fee of this action in the destination chain
+    // Find the gas fee of this action in the refund chain
     // TODO: This value below is related to the gas fee
 
     return {
       depositorFee,
-      relayerFee,
-      totalUBAFee: depositorFee.add(relayerFee),
+      refundFee,
+      totalUBAFee: depositorFee.add(refundFee),
     };
   }
 
-  public getHistoricalUBAFees(type: "destination" | "origin"): Promise<UBAFeeResult[]> {
+  public getHistoricalUBAFees(type: "refund" | "origin"): Promise<UBAFeeResult[]> {
     return Promise.all(
-      (type === "destination" ? this.destinationSpoke : this.originSpoke).recentRequestFlow.map((flow, idx) =>
+      (type === "refund" ? this.refundSpoke : this.originSpoke).recentRequestFlow.map((flow, idx) =>
         this.getUBAFee(flow.amount, { startIndex: 0, endIndex: idx })
       )
     );
@@ -89,7 +87,7 @@ export default class UBAFeeCalculator {
    * @method calculateRecentRunningBalance
    * @memberof UBAFeeCalculator
    */
-  protected calculateRecentRunningBalance(type: "origin" | "destination", flowRange?: UBAFlowRange): BigNumber {
+  protected calculateRecentRunningBalance(type: "origin" | "refund", flowRange?: UBAFlowRange): BigNumber {
     // Reduce over the recent request flow and add the amount to
     // the last validated running balance. If there is no last validated running balance
     // then set the initial value to 0
@@ -104,7 +102,7 @@ export default class UBAFeeCalculator {
         }
       }, validatedRunningBalance ?? toBN(0));
 
-    const spoke = type === "origin" ? this.originSpoke : this.destinationSpoke;
+    const spoke = type === "origin" ? this.originSpoke : this.refundSpoke;
     const flow = flowRange
       ? spoke.recentRequestFlow.slice(flowRange.startIndex, flowRange.endIndex)
       : spoke.recentRequestFlow;
