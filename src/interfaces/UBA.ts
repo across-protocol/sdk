@@ -5,11 +5,6 @@ export type UbaInflow = DepositWithBlock;
 export type UbaOutflow = FillWithBlock | RefundRequestWithBlock;
 export type UbaFlow = UbaInflow | UbaOutflow;
 
-export type UbaRunningRequest = {
-  type: "refund" | "deposit";
-  amount: BigNumber;
-};
-
 export const isUbaInflow = (flow: UbaFlow): flow is UbaInflow => {
   return (flow as UbaInflow)?.quoteTimestamp !== undefined;
 };
@@ -33,6 +28,6 @@ export type UBASpokeBalanceType = {
   recentRequestFlow: UbaFlow[];
 };
 
-export type UBAFeeResult = { depositorFee: BigNumber; relayerFee: BigNumber; totalUBAFee: BigNumber };
+export type UBAFeeResult = { depositorFee: BigNumber; refundFee: BigNumber; totalUBAFee: BigNumber };
 
 export type UBAFlowRange = { startIndex: number; endIndex: number };
