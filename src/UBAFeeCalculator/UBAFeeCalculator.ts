@@ -1,9 +1,10 @@
 import { BigNumber } from "ethers";
-import { UbaFlow, isUbaInflow, isUbaOutflow, UBAFeeResult, UBAFlowRange, UBASpokeBalanceType } from "../interfaces";
+import { UBAFeeResult, UBAFlowRange } from "../interfaces";
 import UBAConfig from "./UBAFeeConfig";
 import { getDepositBalancingFee, getRefundBalancingFee } from "./UBAFeeUtility";
 import { toBN } from "../utils";
 import { Logger } from "winston";
+import { UBAFeeSpokeStore } from "./UBAFeeSpokeStore";
 
 // This file holds the UBA Fee Calculator class. The goal of this class is to keep track
 // of the running balance of a given spoke pool by fetching the most recent confirmed bundle
@@ -19,8 +20,8 @@ export default class UBAFeeCalculator {
   constructor(
     private readonly config: UBAConfig,
     private readonly logger: Logger,
-    protected readonly originSpoke: UBASpokeBalanceType,
-    protected readonly refundSpoke: UBASpokeBalanceType
+    protected readonly originSpoke: UBAFeeSpokeStore,
+    protected readonly refundSpoke: UBAFeeSpokeStore
   ) {
     this.logger.debug("UBA Fee Calculator initialized");
   }
@@ -35,8 +36,14 @@ export default class UBAFeeCalculator {
     const originChain = this.originSpoke.chainId;
     const refundChain = this.refundSpoke.chainId;
 
-    const refundRunningBalance = this.calculateRecentRunningBalance("refund", flowRange);
-    const originRunningBalance = this.calculateRecentRunningBalance("origin", flowRange);
+    const refundRunningBalance = this.refundSpoke.calculateHistoricalRunningBalance(
+      flowRange?.startIndex,
+      flowRange?.endIndex
+    );
+    const originRunningBalance = this.originSpoke.calculateHistoricalRunningBalance(
+      flowRange?.startIndex,
+      flowRange?.endIndex
+    );
 
     let depositorFee = toBN(0);
     let refundFee = toBN(0);
@@ -71,42 +78,9 @@ export default class UBAFeeCalculator {
   }
 
   public getHistoricalUBAFees(type: "refund" | "origin"): Promise<UBAFeeResult[]> {
+    const spoke = type === "refund" ? this.refundSpoke : this.originSpoke;
     return Promise.all(
-      (type === "refund" ? this.refundSpoke : this.originSpoke).recentRequestFlow.map((flow, idx) =>
-        this.getUBAFee(flow.amount, { startIndex: 0, endIndex: idx })
-      )
+      spoke.recentRequestFlow.map((flow, idx) => this.getUBAFee(flow.amount, { startIndex: 0, endIndex: idx }))
     );
-  }
-
-  /**
-   * @description Get the running balance
-   * @param type The type of running balance to get
-   * @param flowRange The range of flows to use to calculate the running balance
-   * @returns void
-   * @protected
-   * @method calculateRecentRunningBalance
-   * @memberof UBAFeeCalculator
-   */
-  protected calculateRecentRunningBalance(type: "origin" | "refund", flowRange?: UBAFlowRange): BigNumber {
-    // Reduce over the recent request flow and add the amount to
-    // the last validated running balance. If there is no last validated running balance
-    // then set the initial value to 0
-    const fn = (flow: UbaFlow[], validatedRunningBalance?: BigNumber) =>
-      flow.reduce((acc, flow) => {
-        if (isUbaInflow(flow)) {
-          return acc.add(toBN(flow.amount));
-        } else if (isUbaOutflow(flow)) {
-          return acc.sub(toBN(flow.amount));
-        } else {
-          return acc;
-        }
-      }, validatedRunningBalance ?? toBN(0));
-
-    const spoke = type === "origin" ? this.originSpoke : this.refundSpoke;
-    const flow = flowRange
-      ? spoke.recentRequestFlow.slice(flowRange.startIndex, flowRange.endIndex)
-      : spoke.recentRequestFlow;
-
-    return fn(flow, spoke.lastValidatedRunningBalance);
   }
 }
