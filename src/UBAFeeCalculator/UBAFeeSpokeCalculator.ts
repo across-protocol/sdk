@@ -1,7 +1,7 @@
 import { BigNumber } from "ethers";
 import { UBAFlowRange, UbaFlow, isUbaInflow, isUbaOutflow } from "../interfaces";
 import { toBN } from "../utils";
-import UBAConfig from "./UBAFeeConfig";
+import UBAConfig, { TupleParameter } from "./UBAFeeConfig";
 import { getDepositBalancingFee, getRefundBalancingFee } from "./UBAFeeUtility";
 
 /**
@@ -24,11 +24,13 @@ export default class UBAFeeSpokeCalculator {
   /**
    * Instantiates a new UBA Fee Spoke Store
    * @param chainId The chain id of the spoke
+   * @param symbol The symbol of the token on the spoke
    * @param recentRequestFlow The recent request flow of the spoke
    * @param blockNumber The most recent block number
    */
   constructor(
     public readonly chainId: number,
+    public readonly symbol: string,
     public readonly recentRequestFlow: UbaFlow[],
     public blockNumber: number,
     private readonly config: UBAConfig
@@ -60,17 +62,30 @@ export default class UBAFeeSpokeCalculator {
       return this.cachedRunningBalance[key];
     }
 
+    // Attempt to resolve the trigger hurdle to include in the running
+    // balance calculation
+    const triggerHurdle = this.getBalanceTriggerThreshold();
+
     // If the last validated running balance is undefined, we need to compute the running balance from scratch
     // This is the case when the UBA Fee Calculator is first initialized or run on a range
     // that we haven't computed the running balance for yet
     const historicalResult = this.recentRequestFlow.slice(startIdx, endIdx).reduce((acc, flow) => {
+      let resultantValue = acc;
       if (isUbaInflow(flow)) {
-        return acc.add(toBN(flow.amount));
+        resultantValue = acc.add(toBN(flow.amount));
       } else if (isUbaOutflow(flow)) {
-        return acc.sub(toBN(flow.amount));
-      } else {
-        return acc;
+        resultantValue = acc.sub(toBN(flow.amount));
       }
+
+      // If the trigger hurdle is surpassed, we need to return the trigger hurdle value
+      // as the running balance. This is because the trigger hurdle is the maximum value we'd like to
+      // organically grow the running balance to. If the running balance exceeds the trigger hurdle,
+      // we need to return the trigger hurdle as the running balance because at this point the dataworker
+      // will be triggered to rebalance the running balance.
+      if (triggerHurdle !== undefined && resultantValue.gt(triggerHurdle[0])) {
+        resultantValue = triggerHurdle[1];
+      }
+      return resultantValue;
     }, this.lastValidatedRunningBalance ?? toBN(0));
 
     // Cache the result
@@ -95,6 +110,16 @@ export default class UBAFeeSpokeCalculator {
    */
   public clearCachedRunningBalance(): void {
     this.cachedRunningBalance = {};
+  }
+
+  /**
+   * A convenience method for resolving the balance trigger threshold for the spoke
+   * and the given symbol
+   * @returns The balance trigger threshold for the spoke and the given symbol
+   * @see UBAConfig.getBalanceTriggerThreshold
+   */
+  public getBalanceTriggerThreshold(): TupleParameter | undefined {
+    return this.config.getBalanceTriggerThreshold(this.chainId, this.symbol);
   }
 
   /**

@@ -2,6 +2,7 @@ import { BigNumber } from "ethers";
 
 type ChainId = number;
 type RouteCombination = string;
+type ChainTokenCombination = string;
 
 export type TupleParameter = [BigNumber, BigNumber];
 type DefaultOverrideStructure<PrimaryValue, OverrideKeyType extends string | number | symbol> = {
@@ -29,14 +30,32 @@ class UBAConfig {
    */
   private readonly balancingFee: DefaultOverrideStructure<TupleParameter[], ChainId>;
 
+  /**
+   * A record of boundry values for each chain and token that define the threshold for when the
+   * running balance should be balanced back to a fixed amount. Due to the fact that this type of
+   * operation is based on a heuristic and is considered a non-event transient property of the
+   * protocol, the threshold must be computed based on the current running balance of the spoke from
+   * the last validated running balance.
+   */
+  private readonly balanceTriggerThreshold: Record<ChainTokenCombination, TupleParameter>;
+
+  /**
+   * Instantiate a new UBA Config object
+   * @param baselineFee A baseline fee that is applied to all transactions to allow LPs to earn a fee
+   * @param utilizationFee A record of piecewise functions for each chain that define the utilization fee to ensure that the bridge responds to periods of high utilization
+   * @param balancingFee A record of piecewise functions for each chain and token that define the balancing fee to ensure either a positive or negative penalty to bridging a token to a chain that is either under or over utilized
+   * @param balanceTriggerThreshold A record of boundry values for each chain and token that define the threshold for when the running balance should be balanced back to a fixed amount. Due to the fact that this type of operation is based on a heuristic and is considered a non-event transient property of the protocol, the threshold must be computed based on the current running balance of the spoke from the last validated running balance.
+   */
   constructor(
     baselineFee: DefaultOverrideStructure<BigNumber, RouteCombination>,
     utilizationFee: BigNumber,
-    balancingFee: DefaultOverrideStructure<TupleParameter[], ChainId>
+    balancingFee: DefaultOverrideStructure<TupleParameter[], ChainId>,
+    balanceTriggerThreshold: Record<ChainTokenCombination, TupleParameter>
   ) {
     this.baselineFee = baselineFee;
     this.utilizationFee = utilizationFee;
     this.balancingFee = balancingFee;
+    this.balanceTriggerThreshold = balanceTriggerThreshold;
   }
 
   /**
@@ -66,6 +85,17 @@ class UBAConfig {
    */
   public getBalancingFeeTuples(chainId: number): TupleParameter[] {
     return this.balancingFee.override?.[chainId] ?? this.balancingFee.default;
+  }
+
+  /**
+   * @description Get the balance trigger threshold for a given chain and token
+   * @param chainId The chain id
+   * @param tokenSymbol The token address
+   * @returns The balance trigger threshold if it exists
+   */
+  public getBalanceTriggerThreshold(chainId: number, tokenSymbol: string): TupleParameter | undefined {
+    const chainTokenCombination = `${chainId}-${tokenSymbol}`;
+    return this.balanceTriggerThreshold[chainTokenCombination];
   }
 }
 
