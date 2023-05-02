@@ -1,8 +1,7 @@
 import { BigNumber } from "ethers";
 import { SortableEvent } from "./Common";
 
-// TODO: see if there's a way to get typechain to directly export this event type.
-export type { FundsDepositedEvent } from "@across-protocol/contracts-v2/dist/typechain/SpokePool";
+export type { FundsDepositedEvent } from "../typechain";
 
 export interface Deposit {
   depositId: number;

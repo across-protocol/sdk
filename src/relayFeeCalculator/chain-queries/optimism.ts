@@ -1,7 +1,7 @@
 import { DEFAULT_LOGGER, Logger } from "../relayFeeCalculator";
 import { providers } from "ethers";
 import { TOKEN_SYMBOLS_MAP } from "../../constants";
-import { asL2Provider } from "@eth-optimism/sdk";
+import { asL2Provider } from "@eth-optimism/sdk/dist/l2-provider";
 import QueryBase from "./baseQuery";
 
 export class OptimismQueries extends QueryBase {

@@ -1,5 +1,5 @@
 import { BigNumber } from "ethers";
-import { MAX_SAFE_JS_INT } from "@uma/common";
+import { MAX_SAFE_JS_INT } from "@uma/common/dist/Constants";
 import { toBN } from "../utils";
 
 /**

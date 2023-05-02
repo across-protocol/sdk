@@ -1,5 +1,4 @@
-import { SpokePool } from "@across-protocol/contracts-v2";
-import { TypedEvent, TypedEventFilter } from "@across-protocol/contracts-v2/dist/typechain/common";
+import { SpokePool, TypedEvent, TypedEventFilter } from "../../../typechain";
 import { getSamplesBetween } from "../../../utils";
 import { Web3Error, Web3ErrorCode } from "./model";
 import { Logger } from "../logger";

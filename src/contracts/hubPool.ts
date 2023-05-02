@@ -1,4 +1,4 @@
-import { HubPool, HubPool__factory, HubPoolInterface } from "@across-protocol/contracts-v2";
+import { HubPool, HubPool__factory, HubPoolInterface } from "../typechain";
 
 import type { SignerOrProvider, GetEventType, SerializableEvent } from "@uma/sdk";
 import * as uma from "@uma/sdk";
