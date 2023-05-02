@@ -98,7 +98,11 @@ export default class UBAFeeSpokeCalculator {
   }
 
   /**
-   *
+   * Calculates the fee for a simulated deposit operation
+   * @param amount The amount of tokens to deposit
+   * @param refundChainId The chain id of the refund spoke
+   * @param flowRange The range of the flow to simulate the deposit for. Defaults to undefined to simulate the deposit for the entire flow.
+   * @returns The fee for the simulated deposit operation
    */
   public getDepositFee(amount: BigNumber, refundChainId: number, flowRange?: UBAFlowRange): BigNumber {
     let depositorFee = toBN(0);
@@ -120,6 +124,13 @@ export default class UBAFeeSpokeCalculator {
     return depositorFee;
   }
 
+  /**
+   * Calculates the fee for a simulated refund operation
+   * @param amount The amount of tokens to refund
+   * @param _depositChainId The chain id of the deposit spoke
+   * @param flowRange The range of the flow to simulate the refund for. Defaults to undefined to simulate the refund for the entire flow.
+   * @returns The fee for the simulated refund operation
+   */
   public getRefundFee(amount: BigNumber, _depositChainId: number, flowRange?: UBAFlowRange): BigNumber {
     let refundFee = toBN(0);
 
