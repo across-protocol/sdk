@@ -1,5 +1,5 @@
 import { Provider } from "@ethersproject/providers";
-import { AcrossConfigStore, AcrossConfigStore__factory } from "@across-protocol/contracts-v2";
+import { AcrossConfigStore, AcrossConfigStore__factory } from "../typechain";
 import { object, string, Infer, assert, mask, record, optional } from "superstruct";
 import type { CallOverrides } from "@ethersproject/contracts";
 

@@ -1,9 +1,4 @@
-import { TypedEvent } from "@across-protocol/contracts-v2/dist/typechain/common";
-import {
-  FundsDepositedEvent,
-  FilledRelayEvent,
-  RequestedSpeedUpDepositEvent,
-} from "@across-protocol/contracts-v2/dist/typechain/SpokePool";
+import { FundsDepositedEvent, FilledRelayEvent, RequestedSpeedUpDepositEvent, TypedEvent } from "../../typechain";
 import { providers } from "ethers";
 import { Logger } from "../adapters/logger";
 import { ISpokePoolContractEventsQuerier } from "../adapters/web3";

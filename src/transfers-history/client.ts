@@ -3,15 +3,16 @@ import { clientConfig } from "./config";
 import { SpokePoolEventsQueryService } from "./services/SpokePoolEventsQueryService";
 import { Logger, LogLevel } from "./adapters/logger";
 import { BigNumber, providers } from "ethers";
-import { SpokePool, SpokePool__factory } from "@across-protocol/contracts-v2";
 import { ChainId } from "./adapters/web3/model";
 import { SpokePoolEventsQuerier } from "./adapters/web3";
 import { TransfersRepository } from "./adapters/db/transfers-repository";
 import {
+  SpokePool,
+  SpokePool__factory,
   FilledRelayEvent,
   FundsDepositedEvent,
   RequestedSpeedUpDepositEvent,
-} from "@across-protocol/contracts-v2/dist/typechain/ArbitrumSpokePool";
+} from "../typechain";
 import { Transfer } from "./model";
 
 export enum TransfersHistoryEvent {

@@ -15,8 +15,8 @@ import {
   AcceleratingDistributor__factory,
   MerkleDistributor,
   MerkleDistributor__factory,
-} from "@across-protocol/across-token";
-import { TypedEvent } from "@across-protocol/across-token/dist/typechain/common";
+  TypedEvent,
+} from "../typechain";
 
 const { erc20 } = uma.clients;
 const { loop } = uma.utils;
