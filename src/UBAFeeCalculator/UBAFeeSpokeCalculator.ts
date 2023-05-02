@@ -5,17 +5,19 @@ import UBAConfig from "./UBAFeeConfig";
 import { getDepositBalancingFee, getRefundBalancingFee } from "./UBAFeeUtility";
 
 /**
- * @file UBAFeeSpokeCalculator.ts
- * @description UBA Fee Spoke Store - meant to memoize the running balance of a spoke so that we don't have to recompute it N^2 times in the UBA Fee Calculator
+ * This file contains the implementation of the UBA Fee Spoke Calculator class. This class is
+ * responsible for calculating the Universal Bridge Adapter fees for a given spoke. This class
+ * contains a caching mechanism to avoid recomputing the running balance of the spoke for each
+ * fee calculation.
  */
 export default class UBAFeeSpokeCalculator {
   /**
-   * @description The last validated running balance of the spoke
+   * The last validated running balance of the spoke
    */
   protected lastValidatedRunningBalance?: BigNumber;
 
   /**
-   * @description The cached running balance of the spoke at each step in the recent request flow
+   * The cached running balance of the spoke at each step in the recent request flow
    */
   private cachedRunningBalance: Record<string, BigNumber>;
 
