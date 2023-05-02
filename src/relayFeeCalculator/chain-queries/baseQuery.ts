@@ -1,5 +1,5 @@
-import { SpokePool, SpokePool__factory } from "@across-protocol/contracts-v2";
-import { L2Provider } from "@eth-optimism/sdk";
+import { SpokePool, SpokePool__factory } from "../../typechain";
+import { L2Provider } from "@eth-optimism/sdk/dist/interfaces/l2-provider";
 import { providers } from "ethers";
 import { Coingecko } from "../../coingecko";
 import { CHAIN_IDs } from "../../constants";

@@ -1,8 +1,9 @@
 import { BigNumber, ethers, PopulatedTransaction, providers, VoidSigner } from "ethers";
 import * as uma from "@uma/sdk";
 import Decimal from "decimal.js";
-import { isL2Provider as isOptimismL2Provider, L2Provider } from "@eth-optimism/sdk";
-import { SpokePool } from "@across-protocol/contracts-v2";
+import { isL2Provider as isOptimismL2Provider } from "@eth-optimism/sdk/dist/l2-provider";
+import { L2Provider } from "@eth-optimism/sdk/dist/interfaces/l2-provider";
+import { SpokePool } from "./typechain";
 import assert from "assert";
 import { GasPriceEstimate, getGasPriceEstimate } from "./gasPriceOracle";
 import { TypedMessage } from "./interfaces/TypedData";
