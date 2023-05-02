@@ -77,13 +77,23 @@ describe("UBA Fee Calculations", () => {
     expect(result.div(parseEther("1")).toString()).to.eq("48750");
   });
 
-  it("should compute the correct deposit fee", () => {
+  it("should compute the correct deposit fee #1", () => {
     const result = getDepositBalancingFee(tuples, toBN(300_000), toBN(50_000));
     expect(result.div(parseEther("1")).toString()).to.eq("-10250");
   });
 
-  it("should compute the correct refund fee", () => {
+  it("should compute the correct deposit fee #2", () => {
+    const result = getDepositBalancingFee(tuples, toBN(300_000), toBN(100_000));
+    expect(result.div(parseEther("1")).toString()).to.eq("-19000");
+  });
+
+  it("should compute the correct refund fee #1", () => {
     const result = getRefundBalancingFee(tuples, toBN(350_000), toBN(50_000));
     expect(result.div(parseEther("1")).toString()).to.eq("10250");
+  });
+
+  it("should compute the correct refund fee #2", () => {
+    const result = getRefundBalancingFee(tuples, toBN(300_000), toBN(100_000));
+    expect(result.div(parseEther("1")).toString()).to.eq("25500");
   });
 });
