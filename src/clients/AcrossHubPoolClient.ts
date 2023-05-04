@@ -511,7 +511,7 @@ export class HubPoolClient {
   }
 
   async update(eventsToQuery?: HubPoolEvent[]): Promise<void> {
-    eventsToQuery ??= Object.keys(this.hubPoolEventFilters()) as HubPoolEvent[]; // Query all events by default.
+    eventsToQuery = eventsToQuery ?? (Object.keys(this.hubPoolEventFilters()) as HubPoolEvent[]); // Query all events by default.
 
     const update = await this._update(eventsToQuery);
     if (!update.success) {
