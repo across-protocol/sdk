@@ -438,23 +438,9 @@ export class AcrossConfigStoreClient {
     l1Token: string,
     blockNumber: number,
     amount: BigNumber,
-    timestamp: number
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    _timestamp: number
   ): Promise<{ current: BigNumber; post: BigNumber }> {
-    const redisClient = await getRedis(this.logger);
-    if (!redisClient) {
-      return await this.hubPoolClient.getPostRelayPoolUtilization(l1Token, blockNumber, amount);
-    }
-    const key = `utilization_${l1Token}_${blockNumber}_${amount.toString()}`;
-    const result = await redisClient.get(key);
-    if (result === null) {
-      const { current, post } = await this.hubPoolClient.getPostRelayPoolUtilization(l1Token, blockNumber, amount);
-      if (shouldCache(getCurrentTime(), timestamp)) {
-        await setRedisKey(key, `${current.toString()},${post.toString()}`, redisClient, 60 * 60 * 24 * 90);
-      }
-      return { current, post };
-    } else {
-      const [current, post] = result.split(",").map(BigNumber.from);
-      return { current, post };
-    }
+    return this.hubPoolClient.getPostRelayPoolUtilization(l1Token, blockNumber, amount);
   }
 }
