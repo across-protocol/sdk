@@ -12,3 +12,4 @@ export * as constants from "./constants";
 export * as interfaces from "./interfaces";
 export * as typeguards from "./typeguards";
 export * as ubaFeeCalculator from "./UBAFeeCalculator";
+export * as typechain from "./typechain";
