@@ -421,13 +421,7 @@ export class AcrossConfigStoreClient {
   }
 
   private async getBlockNumber(timestamp: number): Promise<number | undefined> {
-    return await getBlockForTimestamp(
-      this.hubPoolClient.chainId,
-      this.hubPoolClient.chainId,
-      timestamp,
-      getCurrentTime(),
-      this.blockFinder
-    );
+    return (await this.blockFinder.getBlockForTimestamp(timestamp)).number;
   }
 
   private async getUtilization(
