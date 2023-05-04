@@ -13,6 +13,7 @@ import {
 
 import { Contract, BigNumber } from "ethers";
 import winston from "winston";
+import { Block } from "@ethersproject/abstract-provider";
 
 import {
   L1TokenTransferThreshold,
@@ -38,7 +39,7 @@ export const GLOBAL_CONFIG_STORE_KEYS = {
 };
 
 export class AcrossConfigStoreClient {
-  public readonly blockFinder;
+  public readonly blockFinder: BlockFinder<Block>;
 
   public cumulativeRateModelUpdates: across.rateModel.RateModelEvent[] = [];
   public cumulativeRouteRateModelUpdates: RouteRateModelUpdate[] = [];
