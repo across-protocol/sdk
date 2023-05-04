@@ -14,8 +14,6 @@ import {
 import { Contract, BigNumber } from "ethers";
 import winston from "winston";
 
-import { CHAIN_ID_LIST_INDICES, CONFIG_STORE_VERSION, DEFAULT_CONFIG_STORE_VERSION } from "../common/Constants";
-
 import {
   L1TokenTransferThreshold,
   TokenConfig,
@@ -63,7 +61,10 @@ export class AcrossConfigStoreClient {
     readonly configStore: Contract,
     readonly hubPoolClient: HubPoolClient,
     readonly eventSearchConfig: MakeOptional<EventSearchConfig, "toBlock"> = { fromBlock: 0, maxBlockLookBack: 0 },
-    readonly enabledChainIds: number[] = CHAIN_ID_LIST_INDICES
+    protected readonly configOverride: {
+      enabledChainIds: number[];
+      defaultConfigStoreVersion: number;
+    } = { enabledChainIds: [], defaultConfigStoreVersion: 0 }
   ) {
     this.firstBlockToSearch = eventSearchConfig.fromBlock;
     this.blockFinder = new BlockFinder(this.configStore.provider.getBlock.bind(this.configStore.provider));
@@ -195,7 +196,7 @@ export class AcrossConfigStoreClient {
   getEnabledChainsInBlockRange(
     fromBlock: number,
     toBlock = Number.MAX_SAFE_INTEGER,
-    allPossibleChains = this.enabledChainIds
+    allPossibleChains = this.configOverride.enabledChainIds
   ): number[] {
     if (toBlock < fromBlock) {
       throw new Error(`Invalid block range: fromBlock ${fromBlock} > toBlock ${toBlock}`);
@@ -225,7 +226,7 @@ export class AcrossConfigStoreClient {
       .sort((a, b) => a - b);
   }
 
-  getEnabledChains(block = Number.MAX_SAFE_INTEGER, allPossibleChains = this.enabledChainIds): number[] {
+  getEnabledChains(block = Number.MAX_SAFE_INTEGER, allPossibleChains = this.configOverride.enabledChainIds): number[] {
     // Get most recent disabled chain list before the block specified.
     const currentlyDisabledChains = this.getDisabledChainsForBlock(block);
     return allPossibleChains.filter((chainId) => !currentlyDisabledChains.includes(chainId));
@@ -243,7 +244,7 @@ export class AcrossConfigStoreClient {
       (config) => config.timestamp <= timestamp
     );
     if (!config) {
-      return DEFAULT_CONFIG_STORE_VERSION;
+      return this.configOverride.defaultConfigStoreVersion;
     }
     return Number(config.value);
   }
@@ -254,7 +255,7 @@ export class AcrossConfigStoreClient {
   }
 
   isValidConfigStoreVersion(version: number): boolean {
-    return CONFIG_STORE_VERSION >= version;
+    return this.configOverride.defaultConfigStoreVersion >= version;
   }
 
   async update(): Promise<void> {
@@ -382,7 +383,7 @@ export class AcrossConfigStoreClient {
         // Extract last version
         const lastValue =
           this.cumulativeConfigStoreVersionUpdates.length === 0
-            ? DEFAULT_CONFIG_STORE_VERSION
+            ? this.configOverride.defaultConfigStoreVersion
             : Number(
                 this.cumulativeConfigStoreVersionUpdates[this.cumulativeConfigStoreVersionUpdates.length - 1].value
               );
