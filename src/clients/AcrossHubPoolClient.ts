@@ -315,7 +315,7 @@ export class HubPoolClient {
     return this.proposedRootBundles[this.proposedRootBundles.length - 1] as ProposedRootBundle;
   }
 
-  getFollowingRootBundle(currentRootBundle: ProposedRootBundle): ProposedRootBundle {
+  getFollowingRootBundle(currentRootBundle: ProposedRootBundle): ProposedRootBundle | undefined {
     const index = _.findLastIndex(
       this.proposedRootBundles,
       (bundle) => bundle.blockNumber === currentRootBundle.blockNumber
@@ -559,7 +559,9 @@ export class HubPoolClient {
     // only run iff a new token has been enabled. Will only append iff the info is not there already.
     // Filter out any duplicate addresses. This might happen due to enabling, disabling and re-enabling a token.
     const uniqueL1Tokens = [
-      ...new Set(events["L1TokenEnabledForLiquidityProvision"].map((event) => spreadEvent(event.args).l1Token)),
+      ...Array.from(
+        new Set(events["L1TokenEnabledForLiquidityProvision"].map((event) => spreadEvent(event.args).l1Token))
+      ),
     ];
     const [tokenInfo, lpTokenInfo] = await Promise.all([
       Promise.all(uniqueL1Tokens.map((l1Token: string) => fetchTokenInfo(l1Token, this.hubPool.signer))),
