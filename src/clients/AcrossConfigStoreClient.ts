@@ -1,8 +1,5 @@
 import {
   spreadEvent,
-  winston,
-  Contract,
-  BigNumber,
   sortEventsDescending,
   spreadEventWithBlockNumber,
   paginatedEventQuery,
@@ -12,12 +9,11 @@ import {
   MakeOptional,
   toBN,
   max,
-  getBlockForTimestamp,
-  shouldCache,
-  setRedisKey,
   sortEventsAscending,
-  getRedis,
 } from "../utils";
+
+import { Contract, BigNumber } from "ethers";
+import winston from "winston";
 
 import { CHAIN_ID_LIST_INDICES, CONFIG_STORE_VERSION, DEFAULT_CONFIG_STORE_VERSION } from "../common/Constants";
 
@@ -33,7 +29,7 @@ import {
   DisabledChainsUpdate,
 } from "../interfaces";
 
-import { lpFeeCalculator } from "@across-protocol/sdk-v2";
+import * as lpFeeCalculator from "../lpFeeCalculator";
 import { BlockFinder, across } from "@uma/sdk";
 import { HubPoolClient } from "./HubPoolClient";
 
