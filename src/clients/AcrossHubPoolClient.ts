@@ -1,15 +1,14 @@
-import { assign, Contract, winston, BigNumber, EventSearchConfig, MakeOptional, BigNumberish } from "../utils";
+import { assign, EventSearchConfig, MakeOptional, BigNumberish } from "../utils";
 import {
   fetchTokenInfo,
-  Event,
-  EventFilter,
   sortEventsDescending,
   spreadEvent,
   spreadEventWithBlockNumber,
   paginatedEventQuery,
   toBN,
 } from "../utils";
-import { IGNORED_HUB_EXECUTED_BUNDLES, IGNORED_HUB_PROPOSED_BUNDLES } from "../common";
+import { Contract, BigNumber, Event, EventFilter } from "ethers";
+import winston from "winston";
 import { Deposit, L1Token, CancelledRootBundle, DisputedRootBundle, LpToken } from "../interfaces";
 import { ExecutedRootBundle, PendingRootBundle, ProposedRootBundle } from "../interfaces";
 import { CrossChainContractsSet, DestinationTokenWithBlock, SetPoolRebalanceRoot } from "../interfaces";
@@ -62,7 +61,14 @@ export class HubPoolClient {
     readonly logger: winston.Logger,
     readonly hubPool: Contract,
     readonly chainId: number = 1,
-    readonly eventSearchConfig: MakeOptional<EventSearchConfig, "toBlock"> = { fromBlock: 0, maxBlockLookBack: 0 }
+    readonly eventSearchConfig: MakeOptional<EventSearchConfig, "toBlock"> = { fromBlock: 0, maxBlockLookBack: 0 },
+    protected readonly configOverride: {
+      ignoredHubExecutedBundles: number[];
+      ignoredHubProposedBundles: number[];
+    } = {
+      ignoredHubExecutedBundles: [],
+      ignoredHubProposedBundles: [],
+    }
   ) {
     this.firstBlockToSearch = eventSearchConfig.fromBlock;
   }
@@ -575,7 +581,7 @@ export class HubPoolClient {
 
     this.proposedRootBundles.push(
       ...events["ProposeRootBundle"]
-        .filter((event) => !IGNORED_HUB_PROPOSED_BUNDLES.includes(event.blockNumber))
+        .filter((event) => !this.configOverride.ignoredHubProposedBundles.includes(event.blockNumber))
         .map((event) => {
           return { ...spreadEventWithBlockNumber(event), transactionHash: event.transactionHash } as ProposedRootBundle;
         })
@@ -588,7 +594,7 @@ export class HubPoolClient {
     );
     this.executedRootBundles.push(
       ...events["RootBundleExecuted"]
-        .filter((event) => !IGNORED_HUB_EXECUTED_BUNDLES.includes(event.blockNumber))
+        .filter((event) => !this.configOverride.ignoredHubExecutedBundles.includes(event.blockNumber))
         .map((event) => spreadEventWithBlockNumber(event) as ExecutedRootBundle)
     );
 
