@@ -5,7 +5,6 @@ import {
   paginatedEventQuery,
   EventSearchConfig,
   utf8ToHex,
-  getCurrentTime,
   MakeOptional,
   toBN,
   max,
@@ -31,7 +30,7 @@ import {
 
 import * as lpFeeCalculator from "../lpFeeCalculator";
 import { BlockFinder, across } from "@uma/sdk";
-import { HubPoolClient } from "./HubPoolClient";
+import { HubPoolClient } from "./AcrossHubPoolClient";
 
 export const GLOBAL_CONFIG_STORE_KEYS = {
   MAX_RELAYER_REPAYMENT_LEAF_SIZE: "MAX_RELAYER_REPAYMENT_LEAF_SIZE",
@@ -76,6 +75,10 @@ export class AcrossConfigStoreClient {
     l1Token: string
   ): Promise<{ realizedLpFeePct: BigNumber; quoteBlock: number }> {
     let quoteBlock = await this.getBlockNumber(deposit.quoteTimestamp);
+
+    if (!quoteBlock) {
+      throw new Error(`Could not find block for timestamp ${deposit.quoteTimestamp}`);
+    }
 
     // There is one deposit on optimism for DAI that is right before the DAI rate model was added.
     if (quoteBlock === 14830339) {
