@@ -4,7 +4,7 @@ type ChainId = number;
 type RouteCombination = string;
 type ChainTokenCombination = string;
 
-export type TupleParameter = [minimumCutoff: BigNumber, maximumCutoff: BigNumber];
+export type TupleParameter = [BigNumber, BigNumber];
 export type ThresholdType = { target: BigNumber; threshold: BigNumber };
 type DefaultOverrideStructure<PrimaryValue, OverrideKeyType extends string | number | symbol> = {
   default: PrimaryValue;
