@@ -143,7 +143,7 @@ export class SpokePoolClient {
   }
 
   getRefundRequests(fromBlock?: number, toBlock?: number): RefundRequestWithBlock[] {
-    return isNaN(fromBlock) || isNaN(toBlock)
+    return fromBlock === undefined || toBlock === undefined || isNaN(fromBlock) || isNaN(toBlock)
       ? this.refundRequests
       : this.refundRequests.filter((request) => request.blockNumber >= fromBlock && request.blockNumber <= toBlock);
   }
