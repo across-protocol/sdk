@@ -29,7 +29,7 @@ import {
 
 import * as lpFeeCalculator from "../lpFeeCalculator";
 import { BlockFinder, across } from "@uma/sdk";
-import { HubPoolClient } from "./AcrossHubPoolClient";
+import { HubPoolClient } from "./HubPoolClient";
 
 export const GLOBAL_CONFIG_STORE_KEYS = {
   MAX_RELAYER_REPAYMENT_LEAF_SIZE: "MAX_RELAYER_REPAYMENT_LEAF_SIZE",
