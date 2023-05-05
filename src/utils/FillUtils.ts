@@ -1,6 +1,6 @@
 import { Deposit, Fill } from "../interfaces";
 
-const FILL_DEPOSIT_COMPARISON_KEYS = [
+export const FILL_DEPOSIT_COMPARISON_KEYS = [
   "amount",
   "originChainId",
   "relayerFeePct",
