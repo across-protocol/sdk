@@ -8,7 +8,7 @@ import {
   retry,
   toBN,
   toBNWei,
-} from "./utils";
+} from "./common";
 
 dotenv.config();
 

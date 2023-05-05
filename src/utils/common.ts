@@ -3,10 +3,10 @@ import * as uma from "@uma/sdk";
 import Decimal from "decimal.js";
 import { isL2Provider as isOptimismL2Provider } from "@eth-optimism/sdk/dist/l2-provider";
 import { L2Provider } from "@eth-optimism/sdk/dist/interfaces/l2-provider";
-import { SpokePool } from "./typechain";
+import { SpokePool } from "../typechain";
 import assert from "assert";
-import { GasPriceEstimate, getGasPriceEstimate } from "./gasPriceOracle";
-import { TypedMessage } from "./interfaces/TypedData";
+import { GasPriceEstimate, getGasPriceEstimate } from "../gasPriceOracle";
+import { TypedMessage } from "../interfaces/TypedData";
 
 export type BigNumberish = string | number | BigNumber;
 export type BN = BigNumber;
@@ -229,10 +229,30 @@ export const getSamplesBetween = (min: number, max: number, size: number) => {
   return intervals;
 };
 
+/**
+ * A promise that resolves after a specified number of seconds
+ * @param seconds The number of seconds to wait
+ */
 export async function delay(seconds: number) {
   return new Promise((resolve) => setTimeout(resolve, seconds * 1000));
 }
 
+/**
+ * Converts a string to a hex string
+ * @param input The string to convert
+ * @returns The hex string
+ */
+export function utf8ToHex(input: string) {
+  return ethers.utils.formatBytes32String(input);
+}
+
+/**
+ * Attempt to retry a function call a number of times with a delay between each attempt
+ * @param call The function to call
+ * @param times The number of times to retry
+ * @param delayS The number of seconds to delay between each attempt
+ * @returns The result of the function call.
+ */
 export async function retry<T>(call: () => Promise<T>, times: number, delayS: number): Promise<T> {
   let promiseChain = call();
   for (let i = 0; i < times; i++)
