@@ -1,7 +1,7 @@
 import { BigNumber } from "ethers";
 import { UBAFlowRange, UbaFlow, isUbaInflow, isUbaOutflow } from "../interfaces";
 import { toBN } from "../utils";
-import UBAConfig, { TupleParameter } from "./UBAFeeConfig";
+import UBAConfig, { ThresholdType } from "./UBAFeeConfig";
 import { getDepositBalancingFee, getRefundBalancingFee } from "./UBAFeeUtility";
 
 /**
@@ -82,8 +82,8 @@ export default class UBAFeeSpokeCalculator {
       // organically grow the running balance to. If the running balance exceeds the trigger hurdle,
       // we need to return the trigger hurdle as the running balance because at this point the dataworker
       // will be triggered to rebalance the running balance.
-      if (triggerHurdle !== undefined && resultantValue.gt(triggerHurdle[0])) {
-        resultantValue = triggerHurdle[1];
+      if (triggerHurdle !== undefined && resultantValue.gt(triggerHurdle.threshold)) {
+        resultantValue = triggerHurdle.target;
       }
       return resultantValue;
     }, this.lastValidatedRunningBalance ?? toBN(0));
@@ -118,7 +118,7 @@ export default class UBAFeeSpokeCalculator {
    * @returns The balance trigger threshold for the spoke and the given symbol
    * @see UBAConfig.getBalanceTriggerThreshold
    */
-  public getBalanceTriggerThreshold(): TupleParameter | undefined {
+  public getBalanceTriggerThreshold(): ThresholdType | undefined {
     return this.config.getBalanceTriggerThreshold(this.chainId, this.symbol);
   }
 
