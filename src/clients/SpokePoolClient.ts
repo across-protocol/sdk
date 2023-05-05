@@ -2,16 +2,10 @@ import { groupBy } from "lodash";
 import {
   spreadEvent,
   assign,
-  Contract,
-  BigNumber,
   EventSearchConfig,
-  Promise,
-  Event,
-  EventFilter,
   sortEventsAscendingInPlace,
   DefaultLogLevels,
   MakeOptional,
-  assert,
   sortEventsAscending,
   filledSameDeposit,
   validateFillForDeposit,
@@ -19,6 +13,8 @@ import {
 } from "../utils";
 import { toBN, paginatedEventQuery, spreadEventWithBlockNumber } from "../utils";
 import winston from "winston";
+
+import { Contract, BigNumber, Event, EventFilter } from "ethers";
 
 import { AcrossConfigStoreClient } from "./AcrossConfigStoreClient";
 import {
@@ -291,8 +287,13 @@ export class SpokePoolClient {
     low: number;
     high: number;
   }> {
-    assert(initLow <= initHigh, "Binary search failed because low > high");
-    assert(maxSearches > 0, "maxSearches must be > 0");
+    if (initLow < initHigh) {
+      throw new Error("Binary search failed because low > high");
+    }
+    if (maxSearches <= 0) {
+      throw new Error("maxSearches must be > 0");
+    }
+
     let low = initLow;
     let high = initHigh;
     let i = 0;
@@ -505,9 +506,8 @@ export class SpokePoolClient {
         });
       }
 
-      const dataForQuoteTime: { realizedLpFeePct: BigNumber; quoteBlock: number }[] = await Promise.map(
-        depositEvents,
-        async (event) => this.computeRealizedLpFeePct(event)
+      const dataForQuoteTime: { realizedLpFeePct: BigNumber; quoteBlock: number }[] = await Promise.all(
+        depositEvents.map(async (event) => this.computeRealizedLpFeePct(event))
       );
 
       // Now add any newly fetched events from RPC.
@@ -516,7 +516,7 @@ export class SpokePoolClient {
           earliestEvent: depositEvents[0].blockNumber,
         });
       }
-      for (const [index, event] of depositEvents.entries()) {
+      for (const [index, event] of Array.from(depositEvents.entries())) {
         // Append the realizedLpFeePct.
         const partialDeposit = spreadEventWithBlockNumber(event) as DepositWithBlock;
 
@@ -551,7 +551,7 @@ export class SpokePoolClient {
 
       // Traverse all deposit events and update them with associated speedups, If they exist.
       for (const [, deposits] of Object.entries(this.deposits)) {
-        for (const [index, deposit] of deposits.entries()) {
+        for (const [index, deposit] of Array.from(deposits.entries())) {
           deposits[index] = this.appendMaxSpeedUpSignatureToDeposit(deposit);
         }
       }
