@@ -76,7 +76,7 @@ export class AcrossConfigStoreClient {
     deposit: { quoteTimestamp: number; amount: BigNumber; destinationChainId: number; originChainId: number },
     l1Token: string
   ): Promise<{ realizedLpFeePct: BigNumber; quoteBlock: number }> {
-    let quoteBlock = await this.getBlockNumber(deposit.quoteTimestamp);
+    const quoteBlock = await this.getBlockNumber(deposit.quoteTimestamp);
 
     if (!quoteBlock) {
       throw new Error(`Could not find block for timestamp ${deposit.quoteTimestamp}`);
@@ -88,11 +88,6 @@ export class AcrossConfigStoreClient {
       deposit.destinationChainId,
       quoteBlock
     );
-
-    // There is one deposit on optimism that is right at the margin of when liquidity was first added.
-    if (quoteBlock > 14718100 && quoteBlock < 14718107) {
-      quoteBlock = 14718107;
-    }
 
     const { current, post } = await this.getUtilization(l1Token, quoteBlock, deposit.amount, deposit.quoteTimestamp);
     const realizedLpFeePct = lpFeeCalculator.calculateRealizedLpFeePct(rateModel, current, post);
