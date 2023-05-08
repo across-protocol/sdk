@@ -12,6 +12,8 @@ name: Publish Package to npmjs
 on:
   release:
     types: [created]
+env:
+  NODE_OPTIONS: "--max_old_space_size=4096"
 jobs:
   build:
     runs-on: ubuntu-latest
