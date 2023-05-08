@@ -82,21 +82,6 @@ export class AcrossConfigStoreClient {
       throw new Error(`Could not find block for timestamp ${deposit.quoteTimestamp}`);
     }
 
-    // There is one deposit on optimism for DAI that is right before the DAI rate model was added.
-    if (quoteBlock === 14830339) {
-      quoteBlock = 14830390;
-    }
-
-    // Test SNX deposit was before the rate model update for SNX.
-    if (quoteBlock === 14856066) {
-      quoteBlock = 14856211;
-    }
-
-    // Test deposit on Goerli was before rate model update.
-    if (quoteBlock === 8824889) {
-      quoteBlock = 8825016;
-    }
-
     const rateModel = this.getRateModelForBlockNumber(
       l1Token,
       deposit.originChainId,
