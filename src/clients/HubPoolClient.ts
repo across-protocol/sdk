@@ -39,18 +39,18 @@ type L1TokensToDestinationTokens = {
 };
 export class HubPoolClient {
   // L1Token -> destinationChainId -> destinationToken
-  private l1TokensToDestinationTokens: L1TokensToDestinationTokens = {};
-  private l1Tokens: L1Token[] = []; // L1Tokens and their associated info.
-  private lpTokens: { [token: string]: LpToken } = {};
-  private proposedRootBundles: ProposedRootBundle[] = [];
-  private canceledRootBundles: CancelledRootBundle[] = [];
-  private disputedRootBundles: DisputedRootBundle[] = [];
-  private executedRootBundles: ExecutedRootBundle[] = [];
-  private crossChainContracts: { [l2ChainId: number]: CrossChainContractsSet[] } = {};
-  private l1TokensToDestinationTokensWithBlock: {
+  protected l1TokensToDestinationTokens: L1TokensToDestinationTokens = {};
+  protected l1Tokens: L1Token[] = []; // L1Tokens and their associated info.
+  protected lpTokens: { [token: string]: LpToken } = {};
+  protected proposedRootBundles: ProposedRootBundle[] = [];
+  protected canceledRootBundles: CancelledRootBundle[] = [];
+  protected disputedRootBundles: DisputedRootBundle[] = [];
+  protected executedRootBundles: ExecutedRootBundle[] = [];
+  protected crossChainContracts: { [l2ChainId: number]: CrossChainContractsSet[] } = {};
+  protected l1TokensToDestinationTokensWithBlock: {
     [l1Token: string]: { [destinationChainId: number]: DestinationTokenWithBlock[] };
   } = {};
-  private pendingRootBundle: PendingRootBundle | undefined;
+  protected pendingRootBundle: PendingRootBundle | undefined;
 
   public isUpdated = false;
   public firstBlockToSearch: number;
@@ -648,7 +648,7 @@ export class HubPoolClient {
   // in chainId list, gets the index where its located, and returns the value of the index in
   // bundleBlockEvalNumbers. Returns 0 if `chainId` can't be found in `chainIdList` and if index doesn't
   // exist in bundleBlockEvalNumbers.
-  private getBundleEndBlockForChain(
+  protected getBundleEndBlockForChain(
     proposeRootBundleEvent: ProposedRootBundle,
     chainId: number,
     chainIdList: number[]

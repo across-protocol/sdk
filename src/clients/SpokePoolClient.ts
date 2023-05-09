@@ -43,16 +43,16 @@ export type SpokePoolUpdate = {
 };
 
 export class SpokePoolClient {
-  private currentTime = 0;
-  private depositHashes: { [depositHash: string]: DepositWithBlock } = {};
-  private depositHashesToFills: { [depositHash: string]: FillWithBlock[] } = {};
-  private speedUps: { [depositorAddress: string]: { [depositId: number]: SpeedUp[] } } = {};
-  private depositRoutes: { [originToken: string]: { [DestinationChainId: number]: boolean } } = {};
-  private tokensBridged: TokensBridged[] = [];
-  private rootBundleRelays: RootBundleRelayWithBlock[] = [];
-  private relayerRefundExecutions: RelayerRefundExecutionWithBlock[] = [];
-  private earlyDeposits: FundsDepositedEvent[] = [];
-  private queryableEventNames: string[] = [];
+  protected currentTime = 0;
+  protected depositHashes: { [depositHash: string]: DepositWithBlock } = {};
+  protected depositHashesToFills: { [depositHash: string]: FillWithBlock[] } = {};
+  protected speedUps: { [depositorAddress: string]: { [depositId: number]: SpeedUp[] } } = {};
+  protected depositRoutes: { [originToken: string]: { [DestinationChainId: number]: boolean } } = {};
+  protected tokensBridged: TokensBridged[] = [];
+  protected rootBundleRelays: RootBundleRelayWithBlock[] = [];
+  protected relayerRefundExecutions: RelayerRefundExecutionWithBlock[] = [];
+  protected earlyDeposits: FundsDepositedEvent[] = [];
+  protected queryableEventNames: string[] = [];
   public earliestDepositIdQueried = Number.MAX_SAFE_INTEGER;
   public latestDepositIdQueried = 0;
   public firstDepositIdForSpokePool = Number.MAX_SAFE_INTEGER;
@@ -651,7 +651,7 @@ export class SpokePoolClient {
     return this.configStoreClient?.hubPoolClient as HubPoolClient;
   }
 
-  private async computeRealizedLpFeePct(depositEvent: FundsDepositedEvent) {
+  protected async computeRealizedLpFeePct(depositEvent: FundsDepositedEvent) {
     const hubPoolClient = this.hubPoolClient();
     if (!hubPoolClient || !this.configStoreClient) {
       return { realizedLpFeePct: toBN(0), quoteBlock: 0 };
@@ -667,7 +667,7 @@ export class SpokePoolClient {
     return this.configStoreClient.computeRealizedLpFeePct(deposit, hubPoolClient.getL1TokenForDeposit(deposit));
   }
 
-  private getDestinationTokenForDeposit(deposit: DepositWithBlock): string {
+  protected getDestinationTokenForDeposit(deposit: DepositWithBlock): string {
     const hubPoolClient = this.hubPoolClient();
     if (!hubPoolClient) {
       return ZERO_ADDRESS;
@@ -675,7 +675,7 @@ export class SpokePoolClient {
     return hubPoolClient.getDestinationTokenForDeposit(deposit);
   }
 
-  private log(level: DefaultLogLevels, message: string, data?: AnyObject) {
+  protected log(level: DefaultLogLevels, message: string, data?: AnyObject) {
     this.logger[level]({ at: "SpokePoolClient", chainId: this.chainId, message, ...data });
   }
 }
