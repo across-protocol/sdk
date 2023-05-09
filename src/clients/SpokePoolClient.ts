@@ -287,7 +287,7 @@ export class SpokePoolClient {
     low: number;
     high: number;
   }> {
-    if (initLow < initHigh) {
+    if (initLow > initHigh) {
       throw new Error("Binary search failed because low > high");
     }
     if (maxSearches <= 0) {
