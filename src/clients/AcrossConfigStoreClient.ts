@@ -50,7 +50,7 @@ export class AcrossConfigStoreClient {
   public cumulativeConfigStoreVersionUpdates: ConfigStoreVersionUpdate[] = [];
   public cumulativeDisabledChainUpdates: DisabledChainsUpdate[] = [];
 
-  private rateModelDictionary: across.rateModel.RateModelDictionary;
+  protected rateModelDictionary: across.rateModel.RateModelDictionary;
   public firstBlockToSearch: number;
 
   public hasLatestConfigStoreVersion = false;
@@ -65,7 +65,8 @@ export class AcrossConfigStoreClient {
     protected readonly configOverride: {
       enabledChainIds: number[];
       defaultConfigStoreVersion: number;
-    } = { enabledChainIds: [], defaultConfigStoreVersion: 0 }
+      configStoreVersion: number;
+    }
   ) {
     this.firstBlockToSearch = eventSearchConfig.fromBlock;
     this.blockFinder = new BlockFinder(this.configStore.provider.getBlock.bind(this.configStore.provider));
@@ -236,7 +237,7 @@ export class AcrossConfigStoreClient {
   }
 
   isValidConfigStoreVersion(version: number): boolean {
-    return this.configOverride.defaultConfigStoreVersion >= version;
+    return this.configOverride.configStoreVersion >= version;
   }
 
   async update(): Promise<void> {
@@ -405,11 +406,11 @@ export class AcrossConfigStoreClient {
     return disabledChains.filter((chainId: number) => !isNaN(chainId) && Number.isInteger(chainId) && chainId !== 1);
   }
 
-  private async getBlockNumber(timestamp: number): Promise<number | undefined> {
+  protected async getBlockNumber(timestamp: number): Promise<number | undefined> {
     return (await this.blockFinder.getBlockForTimestamp(timestamp)).number;
   }
 
-  private async getUtilization(
+  protected async getUtilization(
     l1Token: string,
     blockNumber: number,
     amount: BigNumber,
