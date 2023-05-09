@@ -60,6 +60,7 @@ export class HubPoolClient {
   constructor(
     readonly logger: winston.Logger,
     readonly hubPool: Contract,
+    public deploymentBlock = 0,
     readonly chainId: number = 1,
     readonly eventSearchConfig: MakeOptional<EventSearchConfig, "toBlock"> = { fromBlock: 0, maxBlockLookBack: 0 },
     protected readonly configOverride: {
@@ -70,6 +71,7 @@ export class HubPoolClient {
       ignoredHubProposedBundles: [],
     }
   ) {
+    this.latestBlockNumber = deploymentBlock === 0 ? deploymentBlock : deploymentBlock - 1;
     this.firstBlockToSearch = eventSearchConfig.fromBlock;
   }
 
