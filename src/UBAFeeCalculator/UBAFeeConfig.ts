@@ -6,6 +6,7 @@ type ChainTokenCombination = string;
 
 export type TupleParameter = [BigNumber, BigNumber];
 export type ThresholdType = { target: BigNumber; threshold: BigNumber };
+export type ThresholdBoundType = Partial<{ lowerBound: ThresholdType; upperBound: ThresholdType }>;
 type DefaultOverrideStructure<PrimaryValue, OverrideKeyType extends string | number | symbol> = {
   default: PrimaryValue;
   override?: Record<OverrideKeyType, PrimaryValue>;
@@ -38,7 +39,7 @@ class UBAConfig {
    * protocol, the threshold must be computed based on the current running balance of the spoke from
    * the last validated running balance.
    */
-  private readonly balanceTriggerThreshold: Record<ChainTokenCombination, ThresholdType>;
+  private readonly balanceTriggerThreshold: Record<ChainTokenCombination, ThresholdBoundType>;
 
   /**
    * Instantiate a new UBA Config object
@@ -51,7 +52,7 @@ class UBAConfig {
     baselineFee: DefaultOverrideStructure<BigNumber, RouteCombination>,
     utilizationFee: BigNumber,
     balancingFee: DefaultOverrideStructure<TupleParameter[], ChainId>,
-    balanceTriggerThreshold: Record<ChainTokenCombination, ThresholdType>
+    balanceTriggerThreshold: Record<ChainTokenCombination, ThresholdBoundType>
   ) {
     this.baselineFee = baselineFee;
     this.utilizationFee = utilizationFee;
@@ -94,9 +95,9 @@ class UBAConfig {
    * @param tokenSymbol The token address
    * @returns The balance trigger threshold if it exists
    */
-  public getBalanceTriggerThreshold(chainId: number, tokenSymbol: string): ThresholdType | undefined {
+  public getBalanceTriggerThreshold(chainId: number, tokenSymbol: string): ThresholdBoundType {
     const chainTokenCombination = `${chainId}-${tokenSymbol}`;
-    return this.balanceTriggerThreshold[chainTokenCombination];
+    return this.balanceTriggerThreshold[chainTokenCombination] ?? {};
   }
 }
 
