@@ -39,7 +39,8 @@ describe("UBA Fee Calculations", () => {
           [toBN("8000000"), parseUnits("0.25", 18)],
           [toBN("9000000"), parseUnits("0.4", 18)],
         ],
-      }
+      },
+      {}
     );
     tuples = config.getBalancingFeeTuples(0);
   });
