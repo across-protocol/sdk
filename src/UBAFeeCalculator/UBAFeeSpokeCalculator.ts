@@ -46,6 +46,7 @@ export default class UBAFeeSpokeCalculator {
     private readonly config: UBAConfig
   ) {
     this.lastValidatedRunningBalance = undefined;
+    this.lastValidatedIncentiveRunningBalance = undefined;
     this.cachedRunningBalance = {};
   }
 
