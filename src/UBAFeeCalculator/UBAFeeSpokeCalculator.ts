@@ -78,7 +78,7 @@ export default class UBAFeeSpokeCalculator {
     // that we haven't computed the running balance for yet
     const historicalResult: TokenRunningBalance = this.recentRequestFlow.slice(startIdx, endIdx).reduce(
       (acc, flow) => {
-        const resultant: TokenRunningBalance = { ...acc };
+        const resultant: TokenRunningBalance = { runningBalance: toBN(0), incentiveBalance: toBN(0) };
 
         if (isUbaInflow(flow)) {
           resultant.runningBalance = acc.runningBalance.add(flow.amount);
