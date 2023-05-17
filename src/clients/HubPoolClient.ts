@@ -463,12 +463,10 @@ export class HubPoolClient {
       if (runningBalances.length === l1Tokens.length) {
         // Pre-UBA model (no incentives exist).
         incentiveBalances = runningBalances.map(() => toBN(0));
-
       } else if (runningBalances.length === 2 * l1Tokens.length) {
         // UBA model: runningBalances array is a concatenation of runningBalance and incentiveBalance.
         runningBalances = runningBalances.slice(0, l1Tokens.length);
         incentiveBalances = runningBalances.slice(l1Tokens.length);
-
       } else {
         throw new Error(
           "Unexpected ExecutedRootBundle array lengths " +
