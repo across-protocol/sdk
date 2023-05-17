@@ -470,7 +470,8 @@ export class HubPoolClient {
         incentiveBalances = runningBalances.slice(l1Tokens.length);
         this.logger.debug({
           at: "HubPoolClient#getRunningBalanceBeforeBlockForChain",
-          message: "",
+          message: "Updated runningBalances",
+          l1Tokens,
           runningBalances,
           incentiveBalances,
         });
