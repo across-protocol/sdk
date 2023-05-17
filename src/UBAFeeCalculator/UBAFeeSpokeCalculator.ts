@@ -1,5 +1,5 @@
 import { BigNumber } from "ethers";
-import { TokenRunningBalance, UBAFlowRange, UbaFlow, isUbaInflow, isUbaOutflow } from "../interfaces";
+import { TokenRunningBalance, UBAFlowRange, UbaFlow, isUbaInflow } from "../interfaces";
 import { toBN } from "../utils";
 import UBAConfig, { ThresholdBoundType } from "./UBAFeeConfig";
 import { getDepositBalancingFee, getRefundBalancingFee } from "./UBAFeeUtility";
@@ -78,15 +78,13 @@ export default class UBAFeeSpokeCalculator {
     // that we haven't computed the running balance for yet
     const historicalResult: TokenRunningBalance = this.recentRequestFlow.slice(startIdx, endIdx).reduce(
       (acc, flow) => {
-        const resultant: TokenRunningBalance = { runningBalance: toBN(0), incentiveBalance: toBN(0) };
-
-        if (isUbaInflow(flow)) {
-          resultant.runningBalance = acc.runningBalance.add(flow.amount);
-          resultant.incentiveBalance = acc.incentiveBalance.add(flow.amount);
-        } else if (isUbaOutflow(flow)) {
-          resultant.runningBalance = acc.runningBalance.sub(flow.amount);
-          resultant.incentiveBalance = acc.incentiveBalance.sub(flow.amount);
-        }
+        // If the flow is an inflow, we need to add the amount to the running balance
+        // If the flow is an outflow, we need to subtract the amount from the running balance
+        // This is reflected in the incentive balance as well
+        const resultant: TokenRunningBalance = {
+          runningBalance: acc.runningBalance[isUbaInflow(flow) ? "add" : "sub"](flow.amount),
+          incentiveBalance: acc.incentiveBalance[isUbaInflow(flow) ? "add" : "sub"](flow.amount),
+        };
 
         // If the upper trigger hurdle is surpassed, we need to return the trigger hurdle value
         // as the running balance. This is because the trigger hurdle is the maximum value we'd like to
