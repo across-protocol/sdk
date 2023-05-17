@@ -4,6 +4,10 @@ import { toBN } from "../utils";
 import UBAConfig, { ThresholdBoundType } from "./UBAFeeConfig";
 import { getDepositBalancingFee, getRefundBalancingFee } from "./UBAFeeUtility";
 
+type TokenRunningBalanceWithNetSend = TokenRunningBalance & {
+  netRunningBalanceAdjustment: BigNumber;
+};
+
 /**
  * This file contains the implementation of the UBA Fee Spoke Calculator class. This class is
  * responsible for calculating the Universal Bridge Adapter fees for a given spoke. This class
@@ -24,7 +28,7 @@ export default class UBAFeeSpokeCalculator {
   /**
    * The cached running balance of the spoke at each step in the recent request flow
    */
-  private cachedRunningBalance: Record<string, TokenRunningBalance>;
+  private cachedRunningBalance: Record<string, TokenRunningBalanceWithNetSend>;
 
   /**
    * Instantiates a new UBA Fee Spoke Store
@@ -56,7 +60,7 @@ export default class UBAFeeSpokeCalculator {
   public calculateHistoricalRunningBalance(
     startingStepFromLastValidatedBalance?: number,
     lengthOfRunningBalance?: number
-  ): TokenRunningBalance {
+  ): TokenRunningBalanceWithNetSend {
     const startIdx = startingStepFromLastValidatedBalance ?? 0;
     const length = lengthOfRunningBalance ?? this.recentRequestFlow.length + 1;
     const endIdx = startIdx + length;
@@ -76,12 +80,13 @@ export default class UBAFeeSpokeCalculator {
     // If the last validated running balance is undefined, we need to compute the running balance from scratch
     // This is the case when the UBA Fee Calculator is first initialized or run on a range
     // that we haven't computed the running balance for yet
-    const historicalResult: TokenRunningBalance = this.recentRequestFlow.slice(startIdx, endIdx).reduce(
+    const historicalResult: TokenRunningBalanceWithNetSend = this.recentRequestFlow.slice(startIdx, endIdx).reduce(
       (acc, flow) => {
         // If the flow is an inflow, we need to add the amount to the running balance
         // If the flow is an outflow, we need to subtract the amount from the running balance
         // This is reflected in the incentive balance as well
-        const resultant: TokenRunningBalance = {
+        const resultant: TokenRunningBalanceWithNetSend = {
+          netRunningBalanceAdjustment: toBN(acc.netRunningBalanceAdjustment.toString()), // Deep copy via string conversion
           runningBalance: acc.runningBalance[isUbaInflow(flow) ? "add" : "sub"](flow.amount),
           incentiveBalance: acc.incentiveBalance[isUbaInflow(flow) ? "add" : "sub"](flow.amount), // TODO: Add correct incentive balance calculations
         };
@@ -92,6 +97,12 @@ export default class UBAFeeSpokeCalculator {
         // we need to return the trigger hurdle as the running balance because at this point the dataworker
         // will be triggered to rebalance the running balance.
         if (upperBoundTriggerHurdle !== undefined && resultant.runningBalance.gt(upperBoundTriggerHurdle.threshold)) {
+          // Update the net running balance adjustment to reflect the difference between the running balance
+          // and the trigger hurdle
+          resultant.netRunningBalanceAdjustment = resultant.netRunningBalanceAdjustment.add(
+            resultant.runningBalance.sub(upperBoundTriggerHurdle.target)
+          );
+          // Set the running balance to the trigger hurdle
           resultant.runningBalance = upperBoundTriggerHurdle.target;
         }
 
@@ -104,6 +115,12 @@ export default class UBAFeeSpokeCalculator {
           lowerBoundTriggerHurdle !== undefined &&
           resultant.runningBalance.lt(lowerBoundTriggerHurdle.threshold)
         ) {
+          // Update the net running balance adjustment to reflect the difference between the running balance
+          // and the trigger hurdle
+          resultant.netRunningBalanceAdjustment = resultant.netRunningBalanceAdjustment.add(
+            lowerBoundTriggerHurdle.target.sub(resultant.runningBalance)
+          );
+          // Set the running balance to the trigger hurdle
           resultant.runningBalance = lowerBoundTriggerHurdle.target;
         }
 
@@ -112,6 +129,7 @@ export default class UBAFeeSpokeCalculator {
       {
         runningBalance: this.lastValidatedRunningBalance ?? toBN(0),
         incentiveBalance: this.lastValidatedIncentiveRunningBalance ?? toBN(0),
+        netRunningBalanceAdjustment: toBN(0),
       }
     );
 
