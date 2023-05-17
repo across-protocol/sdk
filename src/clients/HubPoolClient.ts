@@ -463,18 +463,12 @@ export class HubPoolClient {
       if (runningBalances.length === l1Tokens.length) {
         // Pre-UBA model (no incentives exist).
         incentiveBalances = runningBalances.map(() => toBN(0));
+
       } else if (runningBalances.length === 2 * l1Tokens.length) {
         // UBA model: runningBalances array is a concatenation of runningBalance and incentiveBalance.
-
         runningBalances = runningBalances.slice(0, l1Tokens.length);
         incentiveBalances = runningBalances.slice(l1Tokens.length);
-        this.logger.debug({
-          at: "HubPoolClient#getRunningBalanceBeforeBlockForChain",
-          message: "Updated runningBalances",
-          l1Tokens,
-          runningBalances,
-          incentiveBalances,
-        });
+
       } else {
         throw new Error(
           "Unexpected ExecutedRootBundle array lengths " +
@@ -487,6 +481,12 @@ export class HubPoolClient {
         .indexOf(l1Token.toLowerCase());
       runningBalance = runningBalances[indexOfL1Token];
       incentiveBalance = incentiveBalances[indexOfL1Token];
+      this.logger.debug({
+        at: "HubPoolClient#getRunningBalanceBeforeBlockForChain",
+        message: `Retrieved runningBalance for HubPool token ${l1Token}`,
+        runningBalances,
+        incentiveBalances,
+      });
     }
 
     return { runningBalance, incentiveBalance };
