@@ -1,13 +1,8 @@
 import { BigNumber } from "ethers";
-import { UBAFlowRange, UbaFlow, isUbaInflow, isUbaOutflow } from "../interfaces";
+import { TokenRunningBalance, UBAFlowRange, UbaFlow, isUbaInflow, isUbaOutflow } from "../interfaces";
 import { toBN } from "../utils";
 import UBAConfig, { ThresholdBoundType } from "./UBAFeeConfig";
 import { getDepositBalancingFee, getRefundBalancingFee } from "./UBAFeeUtility";
-
-type RunningBalanceUnion = {
-  runningBalance: BigNumber;
-  incentivePoolBalance: BigNumber;
-};
 
 /**
  * This file contains the implementation of the UBA Fee Spoke Calculator class. This class is
@@ -29,7 +24,7 @@ export default class UBAFeeSpokeCalculator {
   /**
    * The cached running balance of the spoke at each step in the recent request flow
    */
-  private cachedRunningBalance: Record<string, RunningBalanceUnion>;
+  private cachedRunningBalance: Record<string, TokenRunningBalance>;
 
   /**
    * Instantiates a new UBA Fee Spoke Store
@@ -61,7 +56,7 @@ export default class UBAFeeSpokeCalculator {
   public calculateHistoricalRunningBalance(
     startingStepFromLastValidatedBalance?: number,
     lengthOfRunningBalance?: number
-  ): RunningBalanceUnion {
+  ): TokenRunningBalance {
     const startIdx = startingStepFromLastValidatedBalance ?? 0;
     const length = lengthOfRunningBalance ?? this.recentRequestFlow.length + 1;
     const endIdx = startIdx + length;
@@ -81,16 +76,16 @@ export default class UBAFeeSpokeCalculator {
     // If the last validated running balance is undefined, we need to compute the running balance from scratch
     // This is the case when the UBA Fee Calculator is first initialized or run on a range
     // that we haven't computed the running balance for yet
-    const historicalResult: RunningBalanceUnion = this.recentRequestFlow.slice(startIdx, endIdx).reduce(
+    const historicalResult: TokenRunningBalance = this.recentRequestFlow.slice(startIdx, endIdx).reduce(
       (acc, flow) => {
-        const resultant: RunningBalanceUnion = { ...acc };
+        const resultant: TokenRunningBalance = { ...acc };
 
         if (isUbaInflow(flow)) {
           resultant.runningBalance = acc.runningBalance.add(flow.amount);
-          resultant.incentivePoolBalance = acc.incentivePoolBalance.add(flow.amount);
+          resultant.incentiveBalance = acc.incentiveBalance.add(flow.amount);
         } else if (isUbaOutflow(flow)) {
           resultant.runningBalance = acc.runningBalance.sub(flow.amount);
-          resultant.incentivePoolBalance = acc.incentivePoolBalance.sub(flow.amount);
+          resultant.incentiveBalance = acc.incentiveBalance.sub(flow.amount);
         }
 
         // If the upper trigger hurdle is surpassed, we need to return the trigger hurdle value
@@ -118,7 +113,7 @@ export default class UBAFeeSpokeCalculator {
       },
       {
         runningBalance: this.lastValidatedRunningBalance ?? toBN(0),
-        incentivePoolBalance: this.lastValidatedIncentiveRunningBalance ?? toBN(0),
+        incentiveBalance: this.lastValidatedIncentiveRunningBalance ?? toBN(0),
       }
     );
 
@@ -135,7 +130,7 @@ export default class UBAFeeSpokeCalculator {
    * calculateHistoricalRunningBalance with the default parameters of 0 and the length of the recent request flow.
    * @returns The recent running balance
    */
-  public calculateRecentRunningBalance(): RunningBalanceUnion {
+  public calculateRecentRunningBalance(): TokenRunningBalance {
     return this.calculateHistoricalRunningBalance(0, this.recentRequestFlow.length + 1);
   }
 
