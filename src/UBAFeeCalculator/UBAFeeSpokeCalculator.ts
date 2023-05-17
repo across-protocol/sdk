@@ -83,7 +83,7 @@ export default class UBAFeeSpokeCalculator {
         // This is reflected in the incentive balance as well
         const resultant: TokenRunningBalance = {
           runningBalance: acc.runningBalance[isUbaInflow(flow) ? "add" : "sub"](flow.amount),
-          incentiveBalance: acc.incentiveBalance[isUbaInflow(flow) ? "add" : "sub"](flow.amount),
+          incentiveBalance: acc.incentiveBalance[isUbaInflow(flow) ? "add" : "sub"](flow.amount), // TODO: Add correct incentive balance calculations
         };
 
         // If the upper trigger hurdle is surpassed, we need to return the trigger hurdle value
