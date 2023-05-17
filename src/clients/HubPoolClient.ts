@@ -462,7 +462,7 @@ export class HubPoolClient {
       let incentiveBalances: BigNumber[] = [];
       if (runningBalances.length === l1Tokens.length) {
         // Pre-UBA model (no incentives exist).
-        incentiveBalances = Array.from(runningBalances, () => toBN(0));
+        incentiveBalances = runningBalances.map(() => toBN(0));
       } else if (runningBalances.length === 2 * l1Tokens.length) {
         // UBA model: runningBalances array is a concatenation of runningBalance and incentiveBalance.
 
