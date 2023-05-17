@@ -462,12 +462,12 @@ export class HubPoolClient {
       let incentiveBalances: BigNumber[] = [];
       if (runningBalances.length === l1Tokens.length) {
         // Pre-UBA model (no incentives exist).
-        incentiveBalances = runningBalances.map((_) => toBN(0));
+        incentiveBalances = Array.from(runningBalances, () => toBN(0));
       } else if (runningBalances.length === 2 * l1Tokens.length) {
         // UBA model: runningBalances array is a concatenation of runningBalance and incentiveBalance.
 
-        incentiveBalances = runningBalances.map((_) => toBN(0));
         runningBalances = runningBalances.slice(0, l1Tokens.length);
+        incentiveBalances = runningBalances.slice(l1Tokens.length);
         this.logger.debug({
           at: "HubPoolClient#getRunningBalanceBeforeBlockForChain",
           message: "",
