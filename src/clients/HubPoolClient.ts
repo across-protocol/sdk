@@ -9,7 +9,7 @@ import {
 } from "../utils";
 import { Contract, BigNumber, Event, EventFilter } from "ethers";
 import winston from "winston";
-import { Deposit, L1Token, CancelledRootBundle, DisputedRootBundle, LpToken } from "../interfaces";
+import { Deposit, L1Token, CancelledRootBundle, DisputedRootBundle, LpToken, TokenRunningBalance } from "../interfaces";
 import { ExecutedRootBundle, PendingRootBundle, ProposedRootBundle } from "../interfaces";
 import { CrossChainContractsSet, DestinationTokenWithBlock, SetPoolRebalanceRoot } from "../interfaces";
 import _ from "lodash";
@@ -440,10 +440,12 @@ export class HubPoolClient {
     return endBlock > 0 ? endBlock + 1 : 0;
   }
 
-  getRunningBalanceBeforeBlockForChain(block: number, chain: number, l1Token: string): BigNumber {
-    // Search through ExecutedRootBundle events in descending block order so we find the most recent event not greater
-    // than the target block.
-    const mostRecentExecutedRootBundleEvent = sortEventsDescending(this.executedRootBundles).find(
+  getRunningBalanceBeforeBlockForChain(block: number, chain: number, l1Token: string): TokenRunningBalance {
+    let runningBalance = toBN(0);
+    let incentiveBalance = toBN(0);
+
+    // Search ExecutedRootBundles in descending block order to find the most recent event before the target block.
+    const executedRootBundle = sortEventsDescending(this.executedRootBundles).find(
       (executedLeaf: ExecutedRootBundle) => {
         return (
           executedLeaf.blockNumber <= block &&
@@ -452,21 +454,41 @@ export class HubPoolClient {
         );
       }
     ) as ExecutedRootBundle;
-    if (mostRecentExecutedRootBundleEvent) {
-      // Arguably we don't need to even check these array lengths since we should assume that any proposed root bundle
-      // meets this condition.
-      if (
-        mostRecentExecutedRootBundleEvent.l1Tokens.length !== mostRecentExecutedRootBundleEvent.runningBalances.length
-      ) {
-        throw new Error("runningBalances and L1 token of ExecutedRootBundle event are not same length");
+
+    if (executedRootBundle) {
+      // runningBalances length must be a 1x or 2x multiple of l1Tokens length.
+      const { l1Tokens } = executedRootBundle;
+      let { runningBalances } = executedRootBundle;
+      let incentiveBalances: BigNumber[] = [];
+      if (runningBalances.length === l1Tokens.length) {
+        // Pre-UBA model (no incentives exist).
+        incentiveBalances = runningBalances.map((_) => toBN(0));
+      } else if (runningBalances.length === 2 * l1Tokens.length) {
+        // UBA model: runningBalances array is a concatenation of runningBalance and incentiveBalance.
+
+        incentiveBalances = runningBalances.map((_) => toBN(0));
+        runningBalances = runningBalances.slice(0, l1Tokens.length);
+        this.logger.debug({
+          at: "HubPoolClient#getRunningBalanceBeforeBlockForChain",
+          message: "",
+          runningBalances,
+          incentiveBalances,
+        });
+      } else {
+        throw new Error(
+          "Unexpected ExecutedRootBundle array lengths " +
+            ` (runningBalances: ${runningBalances.length}, l1Tokens: ${l1Tokens.length})` +
+            ` in transaction ${executedRootBundle.transactionHash}`
+        );
       }
-      const indexOfL1Token = mostRecentExecutedRootBundleEvent.l1Tokens
+      const indexOfL1Token = executedRootBundle.l1Tokens
         .map((l1Token) => l1Token.toLowerCase())
         .indexOf(l1Token.toLowerCase());
-      return mostRecentExecutedRootBundleEvent.runningBalances[indexOfL1Token];
-    } else {
-      return toBN(0);
+      runningBalance = runningBalances[indexOfL1Token];
+      incentiveBalance = incentiveBalances[indexOfL1Token];
     }
+
+    return { runningBalance, incentiveBalance };
   }
 
   async _update(eventNames: HubPoolEvent[]): Promise<HubPoolUpdate> {

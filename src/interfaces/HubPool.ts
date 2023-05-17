@@ -50,6 +50,11 @@ export interface ExecutedRootBundle extends SortableEvent {
   proof: string[];
 }
 
+export type TokenRunningBalance = {
+  runningBalance: BigNumber;
+  incentiveBalance: BigNumber;
+};
+
 export interface RelayerRefundLeafWithGroup extends RelayerRefundLeaf {
   groupIndex: number;
 }
