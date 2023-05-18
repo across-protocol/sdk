@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { SpokePool, TypedEvent, TypedEventFilter } from "../../../typechain";
 import { getSamplesBetween } from "../../../utils";
 import { Web3Error, Web3ErrorCode } from "./model";
@@ -86,11 +87,7 @@ export class SpokePoolEventsQuerier implements ISpokePoolContractEventsQuerier {
     return this.spokePool.filters.RequestedSpeedUpDeposit();
   }
 
-  private async getEvents(
-    from: number,
-    to: number,
-    filters: TypedEventFilter<TypedEvent<any>[], any>
-  ): Promise<TypedEvent<any>[]> {
+  private async getEvents(from: number, to: number, filters: TypedEventFilter<TypedEvent>): Promise<TypedEvent<any>[]> {
     let events: TypedEvent<any>[] = [];
     let retryWithLowerBatchSize;
 
