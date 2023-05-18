@@ -11,13 +11,15 @@
     "@uma/common" "^2.17.0"
     hardhat "^2.9.3"
 
-"@across-protocol/contracts-v2@2.2.2":
-  version "2.2.2"
-  resolved "https://registry.yarnpkg.com/@across-protocol/contracts-v2/-/contracts-v2-2.2.2.tgz#ff7684317e93678c88f440eca9e7d398bfbd485a"
-  integrity sha512-y4ouHyRafRv/+L3CgvYE4V4CFWgK9Qm7cOSVusc+l1XTlgdRNgh0JIA41fXE6pG7eu+V6GmayMSUO9tAbH9QDA==
+"@across-protocol/contracts-v2@2.2.3":
+  version "2.2.3"
+  resolved "https://registry.yarnpkg.com/@across-protocol/contracts-v2/-/contracts-v2-2.2.3.tgz#c3df3f8f60910fe6b6dfce32a7e1a224aa1a0396"
+  integrity sha512-JwYiNTLMRIjVcgm01GLMfra3x+pTPTtfdplpJ5DhLXbdin6LEirv7gwAOhykAG8rqYQcWbnwXuBxmWMM/4QY7g==
   dependencies:
     "@defi-wonderland/smock" "^2.3.4"
-    "@eth-optimism/contracts" "^0.5.11"
+    "@eth-optimism/contracts" "^0.5.40"
+    "@ethersproject/abstract-provider" "5.7.0"
+    "@ethersproject/abstract-signer" "5.7.0"
     "@openzeppelin/contracts" "4.8.3"
     "@openzeppelin/contracts-upgradeable" "4.8.3"
     "@uma/common" "^2.29.0"
@@ -1106,7 +1108,7 @@
     ethers "^5.7.0"
     hardhat "^2.9.6"
 
-"@eth-optimism/contracts@0.5.37", "@eth-optimism/contracts@^0.5.11", "@eth-optimism/contracts@^0.5.37", "@eth-optimism/contracts@^0.5.5":
+"@eth-optimism/contracts@0.5.37", "@eth-optimism/contracts@^0.5.37", "@eth-optimism/contracts@^0.5.5":
   version "0.5.37"
   resolved "https://registry.yarnpkg.com/@eth-optimism/contracts/-/contracts-0.5.37.tgz#3aaca1ca1f49ef895d4165cc7bf29c8d1f5b0f56"
   integrity sha512-HbNUUDIM1dUAM0hWPfGp3l9/Zte40zi8QhVbUSIwdYRA7jG7cZgbteqavrjW8wwFqxkWX9IrtA0KAR7pNlSAIQ==
@@ -1115,10 +1117,41 @@
     "@ethersproject/abstract-provider" "^5.7.0"
     "@ethersproject/abstract-signer" "^5.7.0"
 
+"@eth-optimism/contracts@^0.5.40":
+  version "0.5.40"
+  resolved "https://registry.yarnpkg.com/@eth-optimism/contracts/-/contracts-0.5.40.tgz#d13a04a15ea947a69055e6fc74d87e215d4c936a"
+  integrity sha512-MrzV0nvsymfO/fursTB7m/KunkPsCndltVgfdHaT1Aj5Vi6R/doKIGGkOofHX+8B6VMZpuZosKCMQ5lQuqjt8w==
+  dependencies:
+    "@eth-optimism/core-utils" "0.12.0"
+    "@ethersproject/abstract-provider" "^5.7.0"
+    "@ethersproject/abstract-signer" "^5.7.0"
+
 "@eth-optimism/core-utils@0.10.1", "@eth-optimism/core-utils@^0.10.1":
   version "0.10.1"
   resolved "https://registry.yarnpkg.com/@eth-optimism/core-utils/-/core-utils-0.10.1.tgz#44515fbca627532a24c6fd433395f00be8525832"
   integrity sha512-IJvG5UtYvyz6An9QdohlCLoeB3NBFxx2lRJKlPzvYYlfugUNNCHsajRIWIwJTcPRRma0WPd46JUsKACLJDdNrA==
+  dependencies:
+    "@ethersproject/abi" "^5.7.0"
+    "@ethersproject/abstract-provider" "^5.7.0"
+    "@ethersproject/address" "^5.7.0"
+    "@ethersproject/bignumber" "^5.7.0"
+    "@ethersproject/bytes" "^5.7.0"
+    "@ethersproject/constants" "^5.7.0"
+    "@ethersproject/contracts" "^5.7.0"
+    "@ethersproject/hash" "^5.7.0"
+    "@ethersproject/keccak256" "^5.7.0"
+    "@ethersproject/properties" "^5.7.0"
+    "@ethersproject/providers" "^5.7.0"
+    "@ethersproject/rlp" "^5.7.0"
+    "@ethersproject/transactions" "^5.7.0"
+    "@ethersproject/web" "^5.7.0"
+    bufio "^1.0.7"
+    chai "^4.3.4"
+
+"@eth-optimism/core-utils@0.12.0":
+  version "0.12.0"
+  resolved "https://registry.yarnpkg.com/@eth-optimism/core-utils/-/core-utils-0.12.0.tgz#6337e4599a34de23f8eceb20378de2a2de82b0ea"
+  integrity sha512-qW+7LZYCz7i8dRa7SRlUKIo1VBU8lvN0HeXCxJR+z+xtMzMQpPds20XJNCMclszxYQHkXY00fOT6GvFw9ZL6nw==
   dependencies:
     "@ethersproject/abi" "^5.7.0"
     "@ethersproject/abstract-provider" "^5.7.0"
