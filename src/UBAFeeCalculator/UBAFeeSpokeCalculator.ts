@@ -1,8 +1,12 @@
 import { BigNumber } from "ethers";
-import { UBAFlowRange, UbaFlow, isUbaInflow, isUbaOutflow } from "../interfaces";
+import { TokenRunningBalance, UBAFlowRange, UbaFlow, isUbaInflow } from "../interfaces";
 import { toBN } from "../utils";
 import UBAConfig, { ThresholdBoundType } from "./UBAFeeConfig";
 import { getDepositBalancingFee, getRefundBalancingFee } from "./UBAFeeUtility";
+
+type TokenRunningBalanceWithNetSend = TokenRunningBalance & {
+  netRunningBalanceAdjustment: BigNumber;
+};
 
 /**
  * This file contains the implementation of the UBA Fee Spoke Calculator class. This class is
@@ -17,9 +21,14 @@ export default class UBAFeeSpokeCalculator {
   protected lastValidatedRunningBalance?: BigNumber;
 
   /**
+   * The last incentive running balance of the spoke
+   */
+  protected lastValidatedIncentiveRunningBalance?: BigNumber;
+
+  /**
    * The cached running balance of the spoke at each step in the recent request flow
    */
-  private cachedRunningBalance: Record<string, BigNumber>;
+  private cachedRunningBalance: Record<string, TokenRunningBalanceWithNetSend>;
 
   /**
    * Instantiates a new UBA Fee Spoke Store
@@ -36,6 +45,7 @@ export default class UBAFeeSpokeCalculator {
     private readonly config: UBAConfig
   ) {
     this.lastValidatedRunningBalance = undefined;
+    this.lastValidatedIncentiveRunningBalance = undefined;
     this.cachedRunningBalance = {};
   }
 
@@ -50,7 +60,7 @@ export default class UBAFeeSpokeCalculator {
   public calculateHistoricalRunningBalance(
     startingStepFromLastValidatedBalance?: number,
     lengthOfRunningBalance?: number
-  ): BigNumber {
+  ): TokenRunningBalanceWithNetSend {
     const startIdx = startingStepFromLastValidatedBalance ?? 0;
     const length = lengthOfRunningBalance ?? this.recentRequestFlow.length + 1;
     const endIdx = startIdx + length;
@@ -70,34 +80,58 @@ export default class UBAFeeSpokeCalculator {
     // If the last validated running balance is undefined, we need to compute the running balance from scratch
     // This is the case when the UBA Fee Calculator is first initialized or run on a range
     // that we haven't computed the running balance for yet
-    const historicalResult = this.recentRequestFlow.slice(startIdx, endIdx).reduce((acc, flow) => {
-      let resultantValue = acc;
-      if (isUbaInflow(flow)) {
-        resultantValue = acc.add(toBN(flow.amount));
-      } else if (isUbaOutflow(flow)) {
-        resultantValue = acc.sub(toBN(flow.amount));
-      }
+    const historicalResult: TokenRunningBalanceWithNetSend = this.recentRequestFlow.slice(startIdx, endIdx).reduce(
+      (acc, flow) => {
+        // If the flow is an inflow, we need to add the amount to the running balance
+        // If the flow is an outflow, we need to subtract the amount from the running balance
+        // This is reflected in the incentive balance as well
+        const resultant: TokenRunningBalanceWithNetSend = {
+          netRunningBalanceAdjustment: toBN(acc.netRunningBalanceAdjustment.toString()), // Deep copy via string conversion
+          runningBalance: acc.runningBalance[isUbaInflow(flow) ? "add" : "sub"](flow.amount),
+          incentiveBalance: acc.incentiveBalance[isUbaInflow(flow) ? "add" : "sub"](flow.amount), // TODO: Add correct incentive balance calculations
+        };
 
-      // If the upper trigger hurdle is surpassed, we need to return the trigger hurdle value
-      // as the running balance. This is because the trigger hurdle is the maximum value we'd like to
-      // organically grow the running balance to. If the running balance exceeds the trigger hurdle,
-      // we need to return the trigger hurdle as the running balance because at this point the dataworker
-      // will be triggered to rebalance the running balance.
-      if (upperBoundTriggerHurdle !== undefined && resultantValue.gt(upperBoundTriggerHurdle.threshold)) {
-        resultantValue = upperBoundTriggerHurdle.target;
-      }
+        // If the upper trigger hurdle is surpassed, we need to return the trigger hurdle value
+        // as the running balance. This is because the trigger hurdle is the maximum value we'd like to
+        // organically grow the running balance to. If the running balance exceeds the trigger hurdle,
+        // we need to return the trigger hurdle as the running balance because at this point the dataworker
+        // will be triggered to rebalance the running balance.
+        if (upperBoundTriggerHurdle !== undefined && resultant.runningBalance.gt(upperBoundTriggerHurdle.threshold)) {
+          // Update the net running balance adjustment to reflect the difference between the running balance
+          // and the trigger hurdle
+          resultant.netRunningBalanceAdjustment = resultant.netRunningBalanceAdjustment.add(
+            resultant.runningBalance.sub(upperBoundTriggerHurdle.target)
+          );
+          // Set the running balance to the trigger hurdle
+          resultant.runningBalance = upperBoundTriggerHurdle.target;
+        }
 
-      // If the lower trigger hurdle is surpassed, we need to return the trigger hurdle value
-      // as the running balance. This is because the trigger hurdle is the minimum value we'd like to
-      // organically shrink the running balance to. If the running balance is less than the trigger hurdle,
-      // we need to return the trigger hurdle as the running balance because at this point the dataworker
-      // will be triggered to rebalance the running balance.
-      else if (lowerBoundTriggerHurdle !== undefined && resultantValue.lt(lowerBoundTriggerHurdle.threshold)) {
-        resultantValue = lowerBoundTriggerHurdle.target;
-      }
+        // If the lower trigger hurdle is surpassed, we need to return the trigger hurdle value
+        // as the running balance. This is because the trigger hurdle is the minimum value we'd like to
+        // organically shrink the running balance to. If the running balance is less than the trigger hurdle,
+        // we need to return the trigger hurdle as the running balance because at this point the dataworker
+        // will be triggered to rebalance the running balance.
+        else if (
+          lowerBoundTriggerHurdle !== undefined &&
+          resultant.runningBalance.lt(lowerBoundTriggerHurdle.threshold)
+        ) {
+          // Update the net running balance adjustment to reflect the difference between the running balance
+          // and the trigger hurdle
+          resultant.netRunningBalanceAdjustment = resultant.netRunningBalanceAdjustment.add(
+            lowerBoundTriggerHurdle.target.sub(resultant.runningBalance)
+          );
+          // Set the running balance to the trigger hurdle
+          resultant.runningBalance = lowerBoundTriggerHurdle.target;
+        }
 
-      return resultantValue;
-    }, this.lastValidatedRunningBalance ?? toBN(0));
+        return resultant;
+      },
+      {
+        runningBalance: this.lastValidatedRunningBalance ?? toBN(0),
+        incentiveBalance: this.lastValidatedIncentiveRunningBalance ?? toBN(0),
+        netRunningBalanceAdjustment: toBN(0),
+      }
+    );
 
     // Cache the result
     this.cachedRunningBalance[key] = historicalResult;
@@ -112,7 +146,7 @@ export default class UBAFeeSpokeCalculator {
    * calculateHistoricalRunningBalance with the default parameters of 0 and the length of the recent request flow.
    * @returns The recent running balance
    */
-  public calculateRecentRunningBalance(): BigNumber {
+  public calculateRecentRunningBalance(): TokenRunningBalance {
     return this.calculateHistoricalRunningBalance(0, this.recentRequestFlow.length + 1);
   }
 
@@ -155,7 +189,9 @@ export default class UBAFeeSpokeCalculator {
     // Resolve the balancing fee tuples that are relevant to this operation
     const originBalancingFeeTuples = this.config.getBalancingFeeTuples(this.chainId);
 
-    depositorFee = depositorFee.add(getDepositBalancingFee(originBalancingFeeTuples, depositRunningBalance, amount));
+    depositorFee = depositorFee.add(
+      getDepositBalancingFee(originBalancingFeeTuples, depositRunningBalance.runningBalance, amount)
+    );
 
     return depositorFee;
   }
@@ -182,7 +218,9 @@ export default class UBAFeeSpokeCalculator {
     // Resolve the balancing fee tuples that are relevant to this operation
     const refundBalancingFeeTuples = this.config.getBalancingFeeTuples(this.chainId);
 
-    refundFee = refundFee.add(getRefundBalancingFee(refundBalancingFeeTuples, refundRunningBalance, amount));
+    refundFee = refundFee.add(
+      getRefundBalancingFee(refundBalancingFeeTuples, refundRunningBalance.runningBalance, amount)
+    );
 
     return refundFee;
   }
