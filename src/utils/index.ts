@@ -2,6 +2,7 @@ export * from "./common";
 export * from "./EventUtils";
 export * from "./ObjectUtils";
 export * from "./TimeUtils";
+export * from "./TypeGuards";
 export * from "./TypeUtils";
 export * from "./TokenUtils";
 export * from "./LogUtils";
