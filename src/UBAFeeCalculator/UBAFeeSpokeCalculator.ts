@@ -9,7 +9,7 @@ type TokenRunningBalanceWithNetSend = TokenRunningBalance & {
 };
 
 type FlowFee = {
-  lpComponent: BigNumber;
+  lpFee: BigNumber;
   balancingFee: BigNumber;
 };
 
@@ -222,12 +222,12 @@ export default class UBAFeeSpokeCalculator {
     const secondaryFee = secondaryIntegrandFeeFunction(secondaryFlowCurve, secondaryIntegrandStart, amount);
 
     // We can now compute the LP fee component of the fee. This is also considered the incentive fee
-    const lpComponent = primaryFee.sub(secondaryFee);
+    const lpFee = primaryFee.sub(secondaryFee);
 
     // We can now return the fee
     return {
-      lpComponent,
-      balancingFee: primaryFee.sub(lpComponent),
+      lpFee,
+      balancingFee: primaryFee.sub(lpFee),
     };
   }
 
