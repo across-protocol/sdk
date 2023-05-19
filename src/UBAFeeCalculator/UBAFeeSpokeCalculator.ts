@@ -196,12 +196,12 @@ export default class UBAFeeSpokeCalculator {
     const flowCurves = this.config.getBalancingFeeTuples(this.chainId);
 
     // We'll need to determine which flow curve to use based on the flow type
-    const primaryFlowCurve = flowCurves[flowType];
-    const secondaryFlowCurve = flowCurves[flowType === "inflow" ? "outflow" : "inflow"];
+    const mainFlowCurve = flowCurves[flowType];
+    const reverseFlowCurve = flowCurves[flowType === "inflow" ? "outflow" : "inflow"];
 
     // We'll need to figure out the starting runningBalance of the spoke depending on the flow type
-    const primaryIntegrandStart = flowType === "inflow" ? runningBalance : runningBalance.add(amount);
-    const secondaryIntegrandStart = flowType === "inflow" ? runningBalance.add(amount) : runningBalance;
+    const mainIntegrandStart = flowType === "inflow" ? runningBalance : runningBalance.add(amount);
+    const reverseIntegrandStart = flowType === "inflow" ? runningBalance.add(amount) : runningBalance;
 
     // For convenience, let's resolve a structure that makes resolving functions easy to read
     const functionLookup = {
@@ -209,25 +209,25 @@ export default class UBAFeeSpokeCalculator {
       outflow: getRefundBalancingFee,
     };
 
-    // We'll need to resolve the fee function for the primary and secondary integrand
-    const primaryIntegrandFeeFunction = functionLookup[flowType];
-    const secondaryIntegrandFeeFunction = functionLookup[flowType === "inflow" ? "outflow" : "inflow"];
+    // We'll need to resolve the fee function for the main and reverse integrand
+    const mainIntegrandFeeFunction = functionLookup[flowType];
+    const reverseIntegrandFeeFunction = functionLookup[flowType === "inflow" ? "outflow" : "inflow"];
 
     // Next, we'll need to compute the first balancing fee from the running balance of the spoke
     // to the running balance of the spoke + the amount
-    const primaryFee = primaryIntegrandFeeFunction(primaryFlowCurve, primaryIntegrandStart, amount);
+    const mainFee = mainIntegrandFeeFunction(mainFlowCurve, mainIntegrandStart, amount);
 
-    // Next, we'll need to compute the secondary balancing fee. This is the opportunity cost of
+    // Next, we'll need to compute the reverse balancing fee. This is the opportunity cost of
     // the LP fee holders to compute the opposite flow and to essentially reverse the flow
-    const secondaryFee = secondaryIntegrandFeeFunction(secondaryFlowCurve, secondaryIntegrandStart, amount);
+    const reverseFee = reverseIntegrandFeeFunction(reverseFlowCurve, reverseIntegrandStart, amount);
 
     // We can now compute the LP fee component of the fee. This is also considered the incentive fee
-    const lpFee = primaryFee.sub(secondaryFee);
+    const lpFee = mainFee.sub(reverseFee);
 
     // We can now return the fee
     return {
       lpFee,
-      balancingFee: primaryFee.sub(lpFee),
+      balancingFee: mainFee.sub(lpFee),
     };
   }
 
