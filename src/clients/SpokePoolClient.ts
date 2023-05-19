@@ -16,7 +16,6 @@ import winston from "winston";
 
 import { Contract, BigNumber, Event, EventFilter } from "ethers";
 
-import { AcrossConfigStoreClient } from "./AcrossConfigStoreClient";
 import {
   Deposit,
   DepositWithBlock,
@@ -68,7 +67,7 @@ export class SpokePoolClient {
     readonly logger: winston.Logger,
     readonly spokePool: Contract,
     // Can be excluded. This disables some deposit validation.
-    readonly configStoreClient: AcrossConfigStoreClient | null,
+    readonly hubPoolClient: HubPoolClient | null,
     readonly chainId: number,
     public deploymentBlock: number,
     readonly eventSearchConfig: MakeOptional<EventSearchConfig, "toBlock"> = { fromBlock: 0, maxBlockLookBack: 0 }
@@ -457,8 +456,8 @@ export class SpokePoolClient {
   }
 
   async update(eventsToQuery = this.queryableEventNames): Promise<void> {
-    if (this.configStoreClient !== null && !this.configStoreClient.isUpdated) {
-      throw new Error("RateModel not updated");
+    if (this.hubPoolClient !== null && !this.hubPoolClient.isUpdated) {
+      throw new Error("HubPoolClient not updated");
     }
 
     const { events: queryResults, currentTime, ...update } = await this._update(eventsToQuery);
@@ -647,15 +646,11 @@ export class SpokePoolClient {
     }
   }
 
-  public hubPoolClient(): HubPoolClient {
-    return this.configStoreClient?.hubPoolClient as HubPoolClient;
-  }
-
   protected async computeRealizedLpFeePct(depositEvent: FundsDepositedEvent) {
-    const hubPoolClient = this.hubPoolClient();
-    if (!hubPoolClient || !this.configStoreClient) {
+    if (this.hubPoolClient === null) {
       return { realizedLpFeePct: toBN(0), quoteBlock: 0 };
-    } // If there is no rate model client return 0.
+    }
+
     const deposit = {
       amount: depositEvent.args.amount,
       originChainId: Number(depositEvent.args.originChainId),
@@ -664,15 +659,16 @@ export class SpokePoolClient {
       quoteTimestamp: depositEvent.args.quoteTimestamp,
     };
 
-    return this.configStoreClient.computeRealizedLpFeePct(deposit, hubPoolClient.getL1TokenForDeposit(deposit));
+    const l1Token = this.hubPoolClient.getL1TokenForDeposit(deposit);
+    return this.hubPoolClient.computeRealizedLpFeePct(deposit, l1Token);
   }
 
   protected getDestinationTokenForDeposit(deposit: DepositWithBlock): string {
-    const hubPoolClient = this.hubPoolClient();
-    if (!hubPoolClient) {
+    // If there is no rate model client return address(0).
+    if (!this.hubPoolClient) {
       return ZERO_ADDRESS;
-    } // If there is no rate model client return address(0).
-    return hubPoolClient.getDestinationTokenForDeposit(deposit);
+    }
+    return this.hubPoolClient.getDestinationTokenForDeposit(deposit);
   }
 
   protected log(level: DefaultLogLevels, message: string, data?: AnyObject) {
