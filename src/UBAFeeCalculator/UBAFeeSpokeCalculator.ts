@@ -8,6 +8,11 @@ type TokenRunningBalanceWithNetSend = TokenRunningBalance & {
   netRunningBalanceAdjustment: BigNumber;
 };
 
+type FlowFee = {
+  lpComponent: BigNumber;
+  balancingFee: BigNumber;
+};
+
 /**
  * This file contains the implementation of the UBA Fee Spoke Calculator class. This class is
  * responsible for calculating the Universal Bridge Adapter fees for a given spoke. This class
@@ -168,60 +173,81 @@ export default class UBAFeeSpokeCalculator {
   }
 
   /**
+   * A convenience method for resolving the event fee for the spoke and the given symbol and a given flow type
+   * @param amount The amount of tokens to simulate
+   * @param flowType The flow type to simulate
+   * @param flowRange The range of the flow to simulate the event for. Defaults to undefined to simulate the event for the entire flow.
+   * @returns The event fee for the spoke and the given symbol and a given flow type
+   */
+  protected getEventFee(amount: BigNumber, flowType: "inflow" | "outflow", flowRange?: UBAFlowRange): FlowFee {
+    // The rough psuedocode for this function is as follows:
+    // We'll need two inflow/outflow curves
+    // We need to determine which flow curve to use based on the flow type
+    // Compute first balancing fee <- f(x, x+amnt)
+    // Compute second balance fee (oportunity cost) <- g(x+amnt, x)
+    // Incentive Fee (LP Fee Component): first balancing fee - second balance fee
+    // Return (LP Fee + Balancing Fee)
+    // #############################################
+
+    // We'll need to now compute the concept of the running balance of the spoke
+    const { runningBalance } = this.calculateHistoricalRunningBalance(flowRange?.startIndex, flowRange?.endIndex);
+
+    // We first need to resolve the inflow/outflow curves for the deposit and refund spoke
+    const flowCurves = this.config.getBalancingFeeTuples(this.chainId);
+
+    // We'll need to determine which flow curve to use based on the flow type
+    const primaryFlowCurve = flowCurves[flowType];
+    const secondaryFlowCurve = flowCurves[flowType === "inflow" ? "outflow" : "inflow"];
+
+    // We'll need to figure out the starting runningBalance of the spoke depending on the flow type
+    const primaryIntegrandStart = flowType === "inflow" ? runningBalance : runningBalance.add(amount);
+    const secondaryIntegrandStart = flowType === "inflow" ? runningBalance.add(amount) : runningBalance;
+
+    // For convenience, let's resolve a structure that makes resolving functions easy to read
+    const functionLookup = {
+      inflow: getDepositBalancingFee,
+      outflow: getRefundBalancingFee,
+    };
+
+    // We'll need to resolve the fee function for the primary and secondary integrand
+    const primaryIntegrandFeeFunction = functionLookup[flowType];
+    const secondaryIntegrandFeeFunction = functionLookup[flowType === "inflow" ? "outflow" : "inflow"];
+
+    // Next, we'll need to compute the first balancing fee from the running balance of the spoke
+    // to the running balance of the spoke + the amount
+    const primaryFee = primaryIntegrandFeeFunction(primaryFlowCurve, primaryIntegrandStart, amount);
+
+    // Next, we'll need to compute the secondary balancing fee. This is the opportunity cost of
+    // the LP fee holders to compute the opposite flow and to essentially reverse the flow
+    const secondaryFee = secondaryIntegrandFeeFunction(secondaryFlowCurve, secondaryIntegrandStart, amount);
+
+    // We can now compute the LP fee component of the fee. This is also considered the incentive fee
+    const lpComponent = primaryFee.sub(secondaryFee);
+
+    // We can now return the fee
+    return {
+      lpComponent,
+      balancingFee: primaryFee.sub(lpComponent),
+    };
+  }
+
+  /**
    * Calculates the fee for a simulated deposit operation
    * @param amount The amount of tokens to deposit
-   * @param refundChainId The chain id of the refund spoke
    * @param flowRange The range of the flow to simulate the deposit for. Defaults to undefined to simulate the deposit for the entire flow.
    * @returns The fee for the simulated deposit operation
    */
-  public getDepositFee(amount: BigNumber, refundChainId: number, flowRange?: UBAFlowRange): BigNumber {
-    let depositorFee = toBN(0);
-
-    // Resolve the alpha fee of this action
-    const alphaFee = this.config.getBaselineFee(this.chainId, refundChainId);
-
-    // Contribute the alpha fee to the LP fee
-    depositorFee = depositorFee.add(alphaFee);
-
-    // Resolve the historical running balance of the spoke
-    const depositRunningBalance = this.calculateHistoricalRunningBalance(flowRange?.startIndex, flowRange?.endIndex);
-
-    // Resolve the balancing fee tuples that are relevant to this operation
-    const originBalancingFeeTuples = this.config.getBalancingFeeTuples(this.chainId);
-
-    depositorFee = depositorFee.add(
-      getDepositBalancingFee(originBalancingFeeTuples, depositRunningBalance.runningBalance, amount)
-    );
-
-    return depositorFee;
+  public getDepositFee(amount: BigNumber, flowRange?: UBAFlowRange): FlowFee {
+    return this.getEventFee(amount, "inflow", flowRange);
   }
 
   /**
    * Calculates the fee for a simulated refund operation
    * @param amount The amount of tokens to refund
-   * @param _depositChainId The chain id of the deposit spoke
    * @param flowRange The range of the flow to simulate the refund for. Defaults to undefined to simulate the refund for the entire flow.
    * @returns The fee for the simulated refund operation
    */
-  public getRefundFee(amount: BigNumber, _depositChainId: number, flowRange?: UBAFlowRange): BigNumber {
-    let refundFee = toBN(0);
-
-    // Resolve the utilization fee
-    const utilizationFee = this.config.getUtilizationFee();
-
-    // Contribute the utilization fee to the Relayer fee
-    refundFee = refundFee.add(utilizationFee);
-
-    // Resolve the running balance of the spoke at the given step
-    const refundRunningBalance = this.calculateHistoricalRunningBalance(flowRange?.startIndex, flowRange?.endIndex);
-
-    // Resolve the balancing fee tuples that are relevant to this operation
-    const refundBalancingFeeTuples = this.config.getBalancingFeeTuples(this.chainId);
-
-    refundFee = refundFee.add(
-      getRefundBalancingFee(refundBalancingFeeTuples, refundRunningBalance.runningBalance, amount)
-    );
-
-    return refundFee;
+  public getRefundFee(amount: BigNumber, flowRange?: UBAFlowRange): FlowFee {
+    return this.getEventFee(amount, "outflow", flowRange);
   }
 }
