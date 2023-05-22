@@ -11,7 +11,7 @@ type DefaultOverrideStructure<PrimaryValue, OverrideKeyType extends string | num
   default: PrimaryValue;
   override?: Record<OverrideKeyType, PrimaryValue>;
 };
-type FlowTupleParameters = { inflow: TupleParameter[]; outflow: TupleParameter[] };
+export type FlowTupleParameters = { inflow: TupleParameter[]; outflow: TupleParameter[] };
 
 /**
  * Defines the configuration needed to calculate the UBA fees
