@@ -220,7 +220,7 @@ export class AcrossConfigStoreClient {
 
     this.logger.debug({ at: "ConfigStore", message: "Updating ConfigStore client", searchConfig });
     if (searchConfig.fromBlock > searchConfig.toBlock) {
-      this.logger.warn({ at: "ConfigStore", message: "Invalid search config", searchConfig });
+      this.logger.warn({ at: "ConfigStore", message: "Invalid search config.", searchConfig });
       return;
     }
 
@@ -306,7 +306,7 @@ export class AcrossConfigStoreClient {
       } catch (err) {
         if (isDefined((err as Error)?.message)) {
           const error = (err as Error).message;
-          this.logger.warn({ at: "ConfigStore", message: "Caught error during update", error });
+          this.logger.warn({ at: "ConfigStore", message: "Caught error during update.", error });
         }
         continue;
       }
