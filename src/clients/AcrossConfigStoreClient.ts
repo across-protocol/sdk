@@ -1,4 +1,5 @@
 import {
+  isDefined,
   spreadEvent,
   sortEventsDescending,
   spreadEventWithBlockNumber,
@@ -216,14 +217,13 @@ export class AcrossConfigStoreClient {
       toBlock: this.eventSearchConfig.toBlock || (await this.configStore.provider.getBlockNumber()),
       maxBlockLookBack: this.eventSearchConfig.maxBlockLookBack,
     };
-    if (searchConfig.fromBlock > searchConfig.toBlock) {
-      return;
-    } // If the starting block is greater than
 
     this.logger.debug({ at: "ConfigStore", message: "Updating ConfigStore client", searchConfig });
     if (searchConfig.fromBlock > searchConfig.toBlock) {
+      this.logger.warn({ at: "ConfigStore", message: "Invalid search config", searchConfig });
       return;
-    } // If the starting block is greater than the ending block return.
+    }
+
     const [updatedTokenConfigEvents, updatedGlobalConfigEvents] = await Promise.all([
       paginatedEventQuery(this.configStore, this.configStore.filters.UpdatedTokenConfig(), searchConfig),
       paginatedEventQuery(this.configStore, this.configStore.filters.UpdatedGlobalConfig(), searchConfig),
@@ -245,6 +245,12 @@ export class AcrossConfigStoreClient {
 
         // If Token config doesn't contain all expected properties, skip it.
         if (!(rateModelForToken && transferThresholdForToken)) {
+          this.logger.warn({
+            at: "ConfigStore",
+            message: "Ignoring invalid rate model update.",
+            update: args,
+            transferThresholdForToken,
+          });
           continue;
         }
 
@@ -298,6 +304,10 @@ export class AcrossConfigStoreClient {
           this.cumulativeRouteRateModelUpdates.push({ ...passedArgs, routeRateModel: {}, l1Token });
         }
       } catch (err) {
+        if (isDefined((err as Error)?.message)) {
+          const error = (err as Error).message;
+          this.logger.warn({ at: "ConfigStore", message: "Caught error during update", error });
+        }
         continue;
       }
     }
