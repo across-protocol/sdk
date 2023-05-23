@@ -13,7 +13,6 @@ import {
 
 import { Contract, BigNumber } from "ethers";
 import winston from "winston";
-import { Block } from "@ethersproject/abstract-provider";
 
 import {
   L1TokenTransferThreshold,
@@ -27,9 +26,7 @@ import {
   DisabledChainsUpdate,
 } from "../interfaces";
 
-import * as lpFeeCalculator from "../lpFeeCalculator";
-import { BlockFinder, across } from "@uma/sdk";
-import { HubPoolClient } from "./HubPoolClient";
+import { across } from "@uma/sdk";
 
 export const GLOBAL_CONFIG_STORE_KEYS = {
   MAX_RELAYER_REPAYMENT_LEAF_SIZE: "MAX_RELAYER_REPAYMENT_LEAF_SIZE",
@@ -39,8 +36,6 @@ export const GLOBAL_CONFIG_STORE_KEYS = {
 };
 
 export class AcrossConfigStoreClient {
-  public readonly blockFinder: BlockFinder<Block>;
-
   public cumulativeRateModelUpdates: across.rateModel.RateModelEvent[] = [];
   public cumulativeRouteRateModelUpdates: RouteRateModelUpdate[] = [];
   public cumulativeTokenTransferUpdates: L1TokenTransferThreshold[] = [];
@@ -60,7 +55,6 @@ export class AcrossConfigStoreClient {
   constructor(
     readonly logger: winston.Logger,
     readonly configStore: Contract,
-    readonly hubPoolClient: HubPoolClient,
     readonly eventSearchConfig: MakeOptional<EventSearchConfig, "toBlock"> = { fromBlock: 0, maxBlockLookBack: 0 },
     protected readonly configOverride: {
       enabledChainIds: number[];
@@ -69,31 +63,7 @@ export class AcrossConfigStoreClient {
     }
   ) {
     this.firstBlockToSearch = eventSearchConfig.fromBlock;
-    this.blockFinder = new BlockFinder(this.configStore.provider.getBlock.bind(this.configStore.provider));
     this.rateModelDictionary = new across.rateModel.RateModelDictionary();
-  }
-
-  async computeRealizedLpFeePct(
-    deposit: { quoteTimestamp: number; amount: BigNumber; destinationChainId: number; originChainId: number },
-    l1Token: string
-  ): Promise<{ realizedLpFeePct: BigNumber; quoteBlock: number }> {
-    const quoteBlock = await this.getBlockNumber(deposit.quoteTimestamp);
-
-    if (!quoteBlock) {
-      throw new Error(`Could not find block for timestamp ${deposit.quoteTimestamp}`);
-    }
-
-    const rateModel = this.getRateModelForBlockNumber(
-      l1Token,
-      deposit.originChainId,
-      deposit.destinationChainId,
-      quoteBlock
-    );
-
-    const { current, post } = await this.getUtilization(l1Token, quoteBlock, deposit.amount, deposit.quoteTimestamp);
-    const realizedLpFeePct = lpFeeCalculator.calculateRealizedLpFeePct(rateModel, current, post);
-
-    return { realizedLpFeePct, quoteBlock };
   }
 
   getRateModelForBlockNumber(
@@ -404,19 +374,5 @@ export class AcrossConfigStoreClient {
     // If any chain ID's are not integers then ignore. UMIP-157 requires that this key cannot include
     // the chain ID 1.
     return disabledChains.filter((chainId: number) => !isNaN(chainId) && Number.isInteger(chainId) && chainId !== 1);
-  }
-
-  protected async getBlockNumber(timestamp: number): Promise<number | undefined> {
-    return (await this.blockFinder.getBlockForTimestamp(timestamp)).number;
-  }
-
-  protected async getUtilization(
-    l1Token: string,
-    blockNumber: number,
-    amount: BigNumber,
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    _timestamp: number
-  ): Promise<{ current: BigNumber; post: BigNumber }> {
-    return this.hubPoolClient.getPostRelayPoolUtilization(l1Token, blockNumber, amount);
   }
 }

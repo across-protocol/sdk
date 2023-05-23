@@ -1,3 +1,8 @@
+import { Contract, BigNumber, Event, EventFilter } from "ethers";
+import { Block } from "@ethersproject/abstract-provider";
+import { BlockFinder } from "@uma/sdk";
+import winston from "winston";
+import _ from "lodash";
 import { assign, EventSearchConfig, MakeOptional, BigNumberish } from "../utils";
 import {
   fetchTokenInfo,
@@ -7,12 +12,11 @@ import {
   paginatedEventQuery,
   toBN,
 } from "../utils";
-import { Contract, BigNumber, Event, EventFilter } from "ethers";
-import winston from "winston";
 import { Deposit, L1Token, CancelledRootBundle, DisputedRootBundle, LpToken, TokenRunningBalance } from "../interfaces";
 import { ExecutedRootBundle, PendingRootBundle, ProposedRootBundle } from "../interfaces";
 import { CrossChainContractsSet, DestinationTokenWithBlock, SetPoolRebalanceRoot } from "../interfaces";
-import _ from "lodash";
+import * as lpFeeCalculator from "../lpFeeCalculator";
+import { AcrossConfigStoreClient as ConfigStoreClient } from "./";
 
 type _HubPoolUpdate = {
   success: true;
@@ -56,10 +60,12 @@ export class HubPoolClient {
   public firstBlockToSearch: number;
   public latestBlockNumber: number | undefined;
   public currentTime: number | undefined;
+  public readonly blockFinder: BlockFinder<Block>;
 
   constructor(
     readonly logger: winston.Logger,
     readonly hubPool: Contract,
+    readonly configStoreClient: ConfigStoreClient,
     public deploymentBlock = 0,
     readonly chainId: number = 1,
     readonly eventSearchConfig: MakeOptional<EventSearchConfig, "toBlock"> = { fromBlock: 0, maxBlockLookBack: 0 },
@@ -73,6 +79,9 @@ export class HubPoolClient {
   ) {
     this.latestBlockNumber = deploymentBlock === 0 ? deploymentBlock : deploymentBlock - 1;
     this.firstBlockToSearch = eventSearchConfig.fromBlock;
+
+    const provider = this.hubPool.provider;
+    this.blockFinder = new BlockFinder(provider.getBlock.bind(provider));
   }
 
   protected hubPoolEventFilters(): Record<HubPoolEvent, EventFilter> {
@@ -199,6 +208,10 @@ export class HubPoolClient {
     );
   }
 
+  protected async getBlockNumber(timestamp: number): Promise<number | undefined> {
+    return (await this.blockFinder.getBlockForTimestamp(timestamp)).number;
+  }
+
   async getCurrentPoolUtilization(l1Token: string): Promise<BigNumberish> {
     return await this.hubPool.callStatic.liquidityUtilizationCurrent(l1Token);
   }
@@ -217,6 +230,39 @@ export class HubPoolClient {
       this.hubPool.callStatic.liquidityUtilizationPostRelay(l1Token, relaySize, overrides),
     ]);
     return { current, post };
+  }
+
+  protected async getUtilization(
+    l1Token: string,
+    blockNumber: number,
+    amount: BigNumber,
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    _timestamp: number
+  ): Promise<{ current: BigNumber; post: BigNumber }> {
+    return this.getPostRelayPoolUtilization(l1Token, blockNumber, amount);
+  }
+
+  async computeRealizedLpFeePct(
+    deposit: { quoteTimestamp: number; amount: BigNumber; destinationChainId: number; originChainId: number },
+    l1Token: string
+  ): Promise<{ realizedLpFeePct: BigNumber; quoteBlock: number }> {
+    const quoteBlock = await this.getBlockNumber(deposit.quoteTimestamp);
+
+    if (!quoteBlock) {
+      throw new Error(`Could not find block for timestamp ${deposit.quoteTimestamp}`);
+    }
+
+    const rateModel = this.configStoreClient.getRateModelForBlockNumber(
+      l1Token,
+      deposit.originChainId,
+      deposit.destinationChainId,
+      quoteBlock
+    );
+
+    const { current, post } = await this.getUtilization(l1Token, quoteBlock, deposit.amount, deposit.quoteTimestamp);
+    const realizedLpFeePct = lpFeeCalculator.calculateRealizedLpFeePct(rateModel, current, post);
+
+    return { realizedLpFeePct, quoteBlock };
   }
 
   getL1Tokens(): L1Token[] {
@@ -534,6 +580,10 @@ export class HubPoolClient {
   }
 
   async update(eventsToQuery?: HubPoolEvent[]): Promise<void> {
+    if (!this.configStoreClient.isUpdated) {
+      throw new Error("ConfigStoreClient not updated");
+    }
+
     eventsToQuery = eventsToQuery ?? (Object.keys(this.hubPoolEventFilters()) as HubPoolEvent[]); // Query all events by default.
 
     const update = await this._update(eventsToQuery);

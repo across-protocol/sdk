@@ -1,7 +1,7 @@
 {
   "name": "@across-protocol/sdk-v2",
   "author": "UMA Team",
-  "version": "0.6.1",
+  "version": "0.7.0",
   "license": "AGPL-3.0",
   "main": "dist/index.js",
   "typings": "dist/index.d.ts",
@@ -22,7 +22,10 @@
     "lint-check": "eslint src",
     "prepare": "tsdx build && husky install",
     "size": "size-limit",
-    "analyze": "size-limit --why"
+    "analyze": "size-limit --why",
+    "bump-version:major": "yarn version --major --no-git-tag-version --no-commit-hooks",
+    "bump-version:minor": "yarn version --minor --no-git-tag-version --no-commit-hooks",
+    "bump-version:patch": "yarn version --patch --no-git-tag-version --no-commit-hooks"
   },
   "lint-staged": {
     "*.ts": "yarn lint"
@@ -71,7 +74,7 @@
   },
   "dependencies": {
     "@across-protocol/across-token": "^1.0.0",
-    "@across-protocol/contracts-v2": "2.2.2",
+    "@across-protocol/contracts-v2": "2.2.3",
     "@eth-optimism/sdk": "^1.6.0",
     "@uma/financial-templates-lib": "^2.32.11",
     "@uma/sdk": "^0.34.1",
