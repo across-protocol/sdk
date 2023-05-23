@@ -10,7 +10,7 @@ type TokenRunningBalanceWithNetSend = TokenRunningBalance & {
 
 type FlowFee = {
   lpFee: BigNumber;
-  balancingFee: BigNumber;
+  incentiveFee: BigNumber;
 };
 
 /**
@@ -227,7 +227,7 @@ export default class UBAFeeSpokeCalculator {
     // We can now return the fee
     return {
       lpFee,
-      balancingFee: mainFee.sub(lpFee),
+      incentiveFee: mainFee.sub(lpFee),
     };
   }
 
