@@ -1,3 +1,4 @@
+import { Result } from "@ethersproject/abi";
 import { utils as ethersUtils, Event, providers } from "ethers";
 import { random } from "lodash";
 
@@ -11,8 +12,7 @@ type EthersEventTemplate = {
   address: string;
   event: string;
   topics: string[];
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  args: Record<string, any>;
+  args: Result;
   data?: string;
   blockNumber?: number;
   transactionIndex?: number;
