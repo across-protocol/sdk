@@ -216,3 +216,12 @@ export function calculateUtilization(
   const result = numerator.mul(parseEther("1.0")).div(denominator); // We need to multiply by 1e18 to get the correct precision for the result
   return BigNumber.from(10).pow(decimals).sub(result);
 }
+
+/**
+ * A mapping of the balancing fee functions to the inflow/outflow types. This is used to
+ * as a convenience to avoid having to do multiple if/else statements in the UBAFeeCalculator
+ */
+export const balancingFeeFunctionLookupMapping = {
+  inflow: getDepositBalancingFee,
+  outflow: getRefundBalancingFee,
+};

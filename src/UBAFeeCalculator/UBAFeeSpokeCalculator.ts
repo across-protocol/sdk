@@ -2,7 +2,7 @@ import { BigNumber } from "ethers";
 import { TokenRunningBalance, UBAFlowRange, UbaFlow, isUbaInflow } from "../interfaces";
 import { toBN } from "../utils";
 import UBAConfig, { ThresholdBoundType } from "./UBAFeeConfig";
-import { getDepositBalancingFee, getRefundBalancingFee } from "./UBAFeeUtility";
+import { balancingFeeFunctionLookupMapping } from "./UBAFeeUtility";
 
 type TokenRunningBalanceWithNetSend = TokenRunningBalance & {
   netRunningBalanceAdjustment: BigNumber;
@@ -203,15 +203,9 @@ export default class UBAFeeSpokeCalculator {
     const mainIntegrandStart = flowType === "inflow" ? runningBalance : runningBalance.add(amount);
     const reverseIntegrandStart = flowType === "inflow" ? runningBalance.add(amount) : runningBalance;
 
-    // For convenience, let's resolve a structure that makes resolving functions easy to read
-    const functionLookup = {
-      inflow: getDepositBalancingFee,
-      outflow: getRefundBalancingFee,
-    };
-
     // We'll need to resolve the fee function for the main and reverse integrand
-    const mainIntegrandFeeFunction = functionLookup[flowType];
-    const reverseIntegrandFeeFunction = functionLookup[flowType === "inflow" ? "outflow" : "inflow"];
+    const mainIntegrandFeeFunction = balancingFeeFunctionLookupMapping[flowType];
+    const reverseIntegrandFeeFunction = balancingFeeFunctionLookupMapping[flowType === "inflow" ? "outflow" : "inflow"];
 
     // Next, we'll need to compute the first balancing fee from the running balance of the spoke
     // to the running balance of the spoke + the amount
