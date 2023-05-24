@@ -14,8 +14,11 @@ export type Decimalish = string | number | Decimal;
 export const AddressZero = ethers.constants.AddressZero;
 export const MAX_BIG_INT = BigNumber.from(Number.MAX_SAFE_INTEGER.toString());
 
-// Used as a signal to protect relayers from running code against an outdated version of the on-chain config store.
+// Used as a signal to protect bots from running code against an outdated version of the on-chain config store.
 export const CONFIG_STORE_VERSION = 1;
+
+// Version 0 is the implicit version before the config store version was introduced. Required by the ConfigStoreClient.
+export const DEFAULT_CONFIG_STORE_VERSION = 0; // **Do not change this value.**
 
 const { ConvertDecimals } = uma.utils;
 // These are distances used to traverse when looking for a block with desired lookback.

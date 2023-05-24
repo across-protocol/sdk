@@ -1,3 +1,4 @@
+import { CHAIN_ID_LIST_INDICES } from "../constants";
 import {
   spreadEvent,
   sortEventsDescending,
@@ -9,6 +10,8 @@ import {
   toBN,
   max,
   sortEventsAscending,
+  CONFIG_STORE_VERSION,
+  DEFAULT_CONFIG_STORE_VERSION,
 } from "../utils";
 
 import { Contract, BigNumber } from "ethers";
@@ -35,6 +38,12 @@ export const GLOBAL_CONFIG_STORE_KEYS = {
   DISABLED_CHAINS: "DISABLED_CHAINS",
 };
 
+type ConfigStoreOverride = {
+  enabledChainIds: number[];
+  defaultConfigStoreVersion: number;
+  configStoreVersion: number;
+};
+
 export class AcrossConfigStoreClient {
   public cumulativeRateModelUpdates: across.rateModel.RateModelEvent[] = [];
   public cumulativeRouteRateModelUpdates: RouteRateModelUpdate[] = [];
@@ -46,6 +55,7 @@ export class AcrossConfigStoreClient {
   public cumulativeDisabledChainUpdates: DisabledChainsUpdate[] = [];
 
   protected rateModelDictionary: across.rateModel.RateModelDictionary;
+  protected configOverride: ConfigStoreOverride;
   public firstBlockToSearch: number;
 
   public hasLatestConfigStoreVersion = false;
@@ -56,14 +66,20 @@ export class AcrossConfigStoreClient {
     readonly logger: winston.Logger,
     readonly configStore: Contract,
     readonly eventSearchConfig: MakeOptional<EventSearchConfig, "toBlock"> = { fromBlock: 0, maxBlockLookBack: 0 },
-    protected readonly configOverride: {
-      enabledChainIds: number[];
-      defaultConfigStoreVersion: number;
-      configStoreVersion: number;
-    }
+    {
+      enabledChainIds = CHAIN_ID_LIST_INDICES,
+      configStoreVersion = CONFIG_STORE_VERSION,
+      defaultConfigStoreVersion = DEFAULT_CONFIG_STORE_VERSION,
+    }: { enabledChainIds?: number[]; configStoreVersion?: number; defaultConfigStoreVersion?: number } = {}
   ) {
     this.firstBlockToSearch = eventSearchConfig.fromBlock;
     this.rateModelDictionary = new across.rateModel.RateModelDictionary();
+
+    this.configOverride = {
+      enabledChainIds,
+      configStoreVersion: configStoreVersion ?? CONFIG_STORE_VERSION,
+      defaultConfigStoreVersion: defaultConfigStoreVersion ?? DEFAULT_CONFIG_STORE_VERSION,
+    };
   }
 
   getRateModelForBlockNumber(
