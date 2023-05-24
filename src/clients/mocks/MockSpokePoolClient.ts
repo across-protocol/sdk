@@ -4,8 +4,7 @@ import winston from "winston";
 import { randomAddress } from "@across-protocol/contracts-v2/dist/test-utils";
 import { DepositWithBlock, FillWithBlock, RefundRequestWithBlock } from "../../interfaces";
 import { toBN, toBNWei } from "../../utils";
-import { SpokePoolClient } from "../";
-import { SpokePoolUpdate } from "../SpokePoolClient";
+import { SpokePoolClient, SpokePoolUpdate } from "../SpokePoolClient";
 import { EventManager } from "./MockEvents";
 
 // This class replaces internal SpokePoolClient functionality, enabling the

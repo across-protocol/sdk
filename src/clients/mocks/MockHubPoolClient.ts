@@ -3,8 +3,8 @@ import { random } from "lodash";
 import winston from "winston";
 import { randomAddress } from "@across-protocol/contracts-v2/dist/test-utils";
 import { Deposit, L1Token, PendingRootBundle } from "../../interfaces";
-import { AcrossConfigStoreClient as ConfigStoreClient, HubPoolClient } from "../";
-import { HubPoolUpdate } from "../HubPoolClient";
+import { AcrossConfigStoreClient as ConfigStoreClient } from "../AcrossConfigStoreClient";
+import { HubPoolClient, HubPoolUpdate } from "../HubPoolClient";
 import { EventManager } from "./MockEvents";
 
 const emptyRootBundle: PendingRootBundle = {
