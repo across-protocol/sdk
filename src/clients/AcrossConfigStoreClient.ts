@@ -1,6 +1,6 @@
-import { CHAIN_ID_LIST_INDICES } from "../constants";
 import { isError } from "../typeguards";
 import {
+  isDefined,
   spreadEvent,
   sortEventsDescending,
   spreadEventWithBlockNumber,
@@ -11,8 +11,6 @@ import {
   toBN,
   max,
   sortEventsAscending,
-  CONFIG_STORE_VERSION,
-  DEFAULT_CONFIG_STORE_VERSION,
 } from "../utils";
 import { Contract, BigNumber } from "ethers";
 import winston from "winston";
@@ -28,20 +26,17 @@ import {
   ConfigStoreVersionUpdate,
   DisabledChainsUpdate,
 } from "../interfaces";
-
 import { across } from "@uma/sdk";
+
+// Version 0 is the implicit ConfigStore version from before the version attribute was introduced.
+// @dev Do not change this value.
+export const DEFAULT_CONFIG_STORE_VERSION = 0;
 
 export const GLOBAL_CONFIG_STORE_KEYS = {
   MAX_RELAYER_REPAYMENT_LEAF_SIZE: "MAX_RELAYER_REPAYMENT_LEAF_SIZE",
   MAX_POOL_REBALANCE_LEAF_SIZE: "MAX_POOL_REBALANCE_LEAF_SIZE",
   VERSION: "VERSION",
   DISABLED_CHAINS: "DISABLED_CHAINS",
-};
-
-type ConfigStoreOverride = {
-  enabledChainIds: number[];
-  defaultConfigStoreVersion: number;
-  configStoreVersion: number;
 };
 
 export class AcrossConfigStoreClient {
@@ -55,7 +50,6 @@ export class AcrossConfigStoreClient {
   public cumulativeDisabledChainUpdates: DisabledChainsUpdate[] = [];
 
   protected rateModelDictionary: across.rateModel.RateModelDictionary;
-  protected configOverride: ConfigStoreOverride;
   public firstBlockToSearch: number;
 
   public hasLatestConfigStoreVersion = false;
@@ -66,20 +60,11 @@ export class AcrossConfigStoreClient {
     readonly logger: winston.Logger,
     readonly configStore: Contract,
     readonly eventSearchConfig: MakeOptional<EventSearchConfig, "toBlock"> = { fromBlock: 0, maxBlockLookBack: 0 },
-    {
-      enabledChainIds = CHAIN_ID_LIST_INDICES,
-      configStoreVersion = CONFIG_STORE_VERSION,
-      defaultConfigStoreVersion = DEFAULT_CONFIG_STORE_VERSION,
-    }: { enabledChainIds?: number[]; configStoreVersion?: number; defaultConfigStoreVersion?: number } = {}
+    readonly configStoreVersion: number,
+    readonly enabledChainIds: number[]
   ) {
     this.firstBlockToSearch = eventSearchConfig.fromBlock;
     this.rateModelDictionary = new across.rateModel.RateModelDictionary();
-
-    this.configOverride = {
-      enabledChainIds,
-      configStoreVersion,
-      defaultConfigStoreVersion,
-    };
   }
 
   getRateModelForBlockNumber(
@@ -164,7 +149,7 @@ export class AcrossConfigStoreClient {
   getEnabledChainsInBlockRange(
     fromBlock: number,
     toBlock = Number.MAX_SAFE_INTEGER,
-    allPossibleChains = this.configOverride.enabledChainIds
+    allPossibleChains = this.enabledChainIds
   ): number[] {
     if (toBlock < fromBlock) {
       throw new Error(`Invalid block range: fromBlock ${fromBlock} > toBlock ${toBlock}`);
@@ -194,7 +179,7 @@ export class AcrossConfigStoreClient {
       .sort((a, b) => a - b);
   }
 
-  getEnabledChains(block = Number.MAX_SAFE_INTEGER, allPossibleChains = this.configOverride.enabledChainIds): number[] {
+  getEnabledChains(block = Number.MAX_SAFE_INTEGER, allPossibleChains = this.enabledChainIds): number[] {
     // Get most recent disabled chain list before the block specified.
     const currentlyDisabledChains = this.getDisabledChainsForBlock(block);
     return allPossibleChains.filter((chainId) => !currentlyDisabledChains.includes(chainId));
@@ -211,10 +196,7 @@ export class AcrossConfigStoreClient {
     const config = (sortEventsDescending(this.cumulativeConfigStoreVersionUpdates) as ConfigStoreVersionUpdate[]).find(
       (config) => config.timestamp <= timestamp
     );
-    if (!config) {
-      return this.configOverride.defaultConfigStoreVersion;
-    }
-    return Number(config.value);
+    return isDefined(config) ? Number(config.value) : DEFAULT_CONFIG_STORE_VERSION;
   }
 
   hasValidConfigStoreVersionForTimestamp(timestamp: number = Number.MAX_SAFE_INTEGER): boolean {
@@ -223,7 +205,7 @@ export class AcrossConfigStoreClient {
   }
 
   isValidConfigStoreVersion(version: number): boolean {
-    return this.configOverride.configStoreVersion >= version;
+    return this.configStoreVersion >= version;
   }
 
   async update(): Promise<void> {
@@ -359,7 +341,7 @@ export class AcrossConfigStoreClient {
         // Extract last version
         const lastValue =
           this.cumulativeConfigStoreVersionUpdates.length === 0
-            ? this.configOverride.defaultConfigStoreVersion
+            ? DEFAULT_CONFIG_STORE_VERSION
             : Number(
                 this.cumulativeConfigStoreVersionUpdates[this.cumulativeConfigStoreVersionUpdates.length - 1].value
               );

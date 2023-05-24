@@ -1,5 +1,4 @@
-import { DEFAULT_CONFIG_STORE_VERSION } from "../../utils";
-import { AcrossConfigStoreClient } from "../AcrossConfigStoreClient";
+import { AcrossConfigStoreClient, DEFAULT_CONFIG_STORE_VERSION } from "../AcrossConfigStoreClient";
 
 export class MockConfigStoreClient extends AcrossConfigStoreClient {
   public configStoreVersion = DEFAULT_CONFIG_STORE_VERSION;
