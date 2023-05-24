@@ -2,7 +2,7 @@ import { BigNumber } from "ethers";
 import { TokenRunningBalance, UBAFlowRange, UbaFlow, isUbaInflow } from "../interfaces";
 import { toBN } from "../utils";
 import UBAConfig, { ThresholdBoundType } from "./UBAFeeConfig";
-import { balancingFeeFunctionLookupMapping } from "./UBAFeeUtility";
+import { computePiecewiseLinearFunction } from "./UBAFeeUtility";
 
 type TokenRunningBalanceWithNetSend = TokenRunningBalance & {
   netRunningBalanceAdjustment: BigNumber;
@@ -203,17 +203,13 @@ export default class UBAFeeSpokeCalculator {
     const mainIntegrandStart = flowType === "inflow" ? runningBalance : runningBalance.add(amount);
     const reverseIntegrandStart = flowType === "inflow" ? runningBalance.add(amount) : runningBalance;
 
-    // We'll need to resolve the fee function for the main and reverse integrand
-    const mainIntegrandFeeFunction = balancingFeeFunctionLookupMapping[flowType];
-    const reverseIntegrandFeeFunction = balancingFeeFunctionLookupMapping[flowType === "inflow" ? "outflow" : "inflow"];
-
     // Next, we'll need to compute the first balancing fee from the running balance of the spoke
     // to the running balance of the spoke + the amount
-    const mainFee = mainIntegrandFeeFunction(mainFlowCurve, mainIntegrandStart, amount);
+    const mainFee = computePiecewiseLinearFunction(mainFlowCurve, mainIntegrandStart, amount);
 
     // Next, we'll need to compute the reverse balancing fee. This is the opportunity cost of
     // the LP fee holders to compute the opposite flow and to essentially reverse the flow
-    const reverseFee = reverseIntegrandFeeFunction(reverseFlowCurve, reverseIntegrandStart, amount);
+    const reverseFee = computePiecewiseLinearFunction(reverseFlowCurve, reverseIntegrandStart, amount);
 
     // We can now compute the LP fee component of the fee. This is also considered the incentive fee
     const lpFee = mainFee.sub(reverseFee);
