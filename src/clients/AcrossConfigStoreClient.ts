@@ -77,8 +77,8 @@ export class AcrossConfigStoreClient {
 
     this.configOverride = {
       enabledChainIds,
-      configStoreVersion: configStoreVersion ?? CONFIG_STORE_VERSION,
-      defaultConfigStoreVersion: defaultConfigStoreVersion ?? DEFAULT_CONFIG_STORE_VERSION,
+      configStoreVersion,
+      defaultConfigStoreVersion,
     };
   }
 
