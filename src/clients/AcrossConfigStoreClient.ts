@@ -1,5 +1,5 @@
+import { isError } from "../typeguards";
 import {
-  isDefined,
   spreadEvent,
   sortEventsDescending,
   spreadEventWithBlockNumber,
@@ -11,7 +11,6 @@ import {
   max,
   sortEventsAscending,
 } from "../utils";
-
 import { Contract, BigNumber } from "ethers";
 import winston from "winston";
 
@@ -304,9 +303,8 @@ export class AcrossConfigStoreClient {
           this.cumulativeRouteRateModelUpdates.push({ ...passedArgs, routeRateModel: {}, l1Token });
         }
       } catch (err) {
-        if (isDefined((err as Error)?.message)) {
-          const error = (err as Error).message;
-          this.logger.warn({ at: "ConfigStore", message: "Caught error during update.", error });
+        if (isError(err)) {
+          this.logger.warn({ at: "ConfigStore", message: "Caught error during update.", error: err.message });
         }
         continue;
       }
