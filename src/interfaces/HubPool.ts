@@ -45,6 +45,7 @@ export interface ExecutedRootBundle extends SortableEvent {
   bundleLpFees: BigNumber[];
   netSendAmounts: BigNumber[];
   runningBalances: BigNumber[];
+  incentiveBalances: BigNumber[];
   leafId: number;
   l1Tokens: string[];
   proof: string[];

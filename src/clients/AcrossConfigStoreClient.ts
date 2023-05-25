@@ -191,6 +191,7 @@ export class AcrossConfigStoreClient {
     );
   }
 
+  // @dev This method assumes a block with a version change must _not_ coincide with an executed root bundle.
   getConfigStoreVersionForTimestamp(timestamp: number = Number.MAX_SAFE_INTEGER): number {
     const config = (sortEventsDescending(this.cumulativeConfigStoreVersionUpdates) as ConfigStoreVersionUpdate[]).find(
       (config) => config.timestamp <= timestamp

@@ -1,10 +1,12 @@
+import assert from "assert";
 import { Contract, BigNumber, Event, EventFilter } from "ethers";
 import { Block } from "@ethersproject/abstract-provider";
 import { BlockFinder } from "@uma/sdk";
 import winston from "winston";
 import _ from "lodash";
-import { assign, EventSearchConfig, MakeOptional, BigNumberish } from "../utils";
+import { assign, EventSearchConfig, isDefined, MakeOptional, BigNumberish } from "../utils";
 import {
+  UBA_MIN_CONFIG_STORE_VERSION,
   fetchTokenInfo,
   sortEventsDescending,
   spreadEvent,
@@ -487,9 +489,6 @@ export class HubPoolClient {
   }
 
   getRunningBalanceBeforeBlockForChain(block: number, chain: number, l1Token: string): TokenRunningBalance {
-    let runningBalance = toBN(0);
-    let incentiveBalance = toBN(0);
-
     // Search ExecutedRootBundles in descending block order to find the most recent event before the target block.
     const executedRootBundle = sortEventsDescending(this.executedRootBundles).find(
       (executedLeaf: ExecutedRootBundle) => {
@@ -501,37 +500,22 @@ export class HubPoolClient {
       }
     ) as ExecutedRootBundle;
 
+    let runningBalance = toBN(0);
+    let incentiveBalance = toBN(0);
     if (executedRootBundle) {
-      // runningBalances length must be a 1x or 2x multiple of l1Tokens length.
-      const { l1Tokens } = executedRootBundle;
-      let { runningBalances } = executedRootBundle;
-      let incentiveBalances: BigNumber[] = [];
-      if (runningBalances.length === l1Tokens.length) {
-        // Pre-UBA model (no incentives exist).
-        incentiveBalances = runningBalances.map(() => toBN(0));
-      } else if (runningBalances.length === 2 * l1Tokens.length) {
-        // UBA model: runningBalances array is a concatenation of runningBalance and incentiveBalance.
-        runningBalances = runningBalances.slice(0, l1Tokens.length);
-        incentiveBalances = runningBalances.slice(l1Tokens.length);
-      } else {
-        throw new Error(
-          "Unexpected ExecutedRootBundle array lengths " +
-            ` (runningBalances: ${runningBalances.length}, l1Tokens: ${l1Tokens.length})` +
-            ` in transaction ${executedRootBundle.transactionHash}`
-        );
-      }
       const indexOfL1Token = executedRootBundle.l1Tokens
         .map((l1Token) => l1Token.toLowerCase())
         .indexOf(l1Token.toLowerCase());
-      runningBalance = runningBalances[indexOfL1Token];
-      incentiveBalance = incentiveBalances[indexOfL1Token];
-      this.logger.debug({
-        at: "HubPoolClient#getRunningBalanceBeforeBlockForChain",
-        message: `Retrieved runningBalance for HubPool token ${l1Token}`,
-        runningBalances,
-        incentiveBalances,
-      });
+      runningBalance = executedRootBundle.runningBalances[indexOfL1Token];
+      incentiveBalance = executedRootBundle.incentiveBalances[indexOfL1Token];
     }
+
+    this.logger.debug({
+      at: "HubPoolClient#getRunningBalanceBeforeBlockForChain",
+      message: `Retrieved runningBalance for HubPool token ${l1Token}`,
+      runningBalance,
+      incentiveBalance,
+    });
 
     return { runningBalance, incentiveBalance };
   }
@@ -667,11 +651,45 @@ export class HubPoolClient {
     this.disputedRootBundles.push(
       ...events["RootBundleDisputed"].map((event) => spreadEventWithBlockNumber(event) as DisputedRootBundle)
     );
-    this.executedRootBundles.push(
-      ...events["RootBundleExecuted"]
-        .filter((event) => !this.configOverride.ignoredHubExecutedBundles.includes(event.blockNumber))
-        .map((event) => spreadEventWithBlockNumber(event) as ExecutedRootBundle)
-    );
+
+    const configStoreVersions: { [blockNumber: number]: number } = {};
+    for (const event of events["RootBundleExecuted"]) {
+      if (this.configOverride.ignoredHubExecutedBundles.includes(event.blockNumber)) {
+        continue;
+      }
+
+      if (!isDefined(configStoreVersions[event.blockNumber])) {
+        const timestamp = (await event.getBlock()).timestamp;
+        const version = this.configStoreClient.getConfigStoreVersionForTimestamp(timestamp);
+        configStoreVersions[event.blockNumber] = version;
+      }
+      const version = configStoreVersions[event.blockNumber];
+
+      const executedRootBundle = spreadEventWithBlockNumber(event) as ExecutedRootBundle;
+      const { l1Tokens, runningBalances } = executedRootBundle;
+      let expectLength: number = l1Tokens.length;
+
+      if (version < UBA_MIN_CONFIG_STORE_VERSION) {
+        // Pre-UBA model: runningBalances length is 1:1 with l1Tokens length.
+        assert([0, 1].includes(version), `Invalid ConfigStore version: ${version}`);
+        executedRootBundle["incentiveBalances"] = runningBalances.map(() => toBN(0));
+      } else {
+        // UBA model: runningBalances array is a concatenation of pre-UBA runningBalance and incentiveBalance.
+        assert([UBA_MIN_CONFIG_STORE_VERSION].includes(version), `Invalid ConfigStore version: ${version}`);
+        executedRootBundle["incentiveBalances"] = runningBalances.slice(l1Tokens.length);
+        expectLength *= 2;
+      }
+
+      // Safeguard
+      if (runningBalances.length !== expectLength) {
+        throw new Error(
+          `Invalid runningBalances length (${runningBalances.length}) for CONFIG_STORE_VERSION ${version}` +
+            ` in chain ${this.chainId} transaction ${event.transactionHash}`
+        );
+      }
+
+      this.executedRootBundles.push(executedRootBundle);
+    }
 
     // If the contract's current rootBundleProposal() value has an unclaimedPoolRebalanceLeafCount > 0, then
     // it means that either the root bundle proposal is in the challenge period and can be disputed, or it has
