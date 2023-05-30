@@ -1,7 +1,7 @@
 {
   "name": "@across-protocol/sdk-v2",
   "author": "UMA Team",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "license": "AGPL-3.0",
   "main": "dist/index.js",
   "typings": "dist/index.d.ts",
@@ -74,7 +74,7 @@
   },
   "dependencies": {
     "@across-protocol/across-token": "^1.0.0",
-    "@across-protocol/contracts-v2": "2.2.3",
+    "@across-protocol/contracts-v2": "2.3.0",
     "@eth-optimism/sdk": "^1.6.0",
     "@uma/financial-templates-lib": "^2.32.11",
     "@uma/sdk": "^0.34.1",
