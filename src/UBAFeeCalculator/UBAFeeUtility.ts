@@ -1,6 +1,7 @@
 import { BigNumber } from "ethers";
 import { MAX_SAFE_JS_INT } from "@uma/common/dist/Constants";
 import { toBN } from "../utils";
+import { parseEther } from "ethers/lib/utils";
 
 /**
  * Computes a linear integral over a piecewise function
@@ -188,4 +189,27 @@ export function getDepositBalancingFee(
   }
 
   return totalFee;
+}
+
+/**
+ * Computes the utilization at a given point in time based on the
+ * current balances and equity of the hub and spoke pool targets.
+ * @param decimals The number of decimals for the token
+ * @param hubBalance The current balance of the hub pool for the token
+ * @param hubEquity The current equity of the hub pool for the token
+ * @param ethSpokeBalance The current balance of the ETH spoke pool for the token
+ * @param targetSpoke The current balance of the target spoke pool for the token - this is a list.
+ * @returns The utilization of the hub pool
+ */
+export function calculateUtilization(
+  decimals: number,
+  hubBalance: BigNumber,
+  hubEquity: BigNumber,
+  ethSpokeBalance: BigNumber,
+  targetSpoke: BigNumber[]
+) {
+  const numerator = hubBalance.add(ethSpokeBalance).add(targetSpoke.reduce((a, b) => a.add(b), BigNumber.from(0)));
+  const denominator = hubEquity;
+  const dividend = numerator.mul(parseEther("1")).div(denominator).div(parseEther("1.0"));
+  return BigNumber.from(10).pow(decimals).sub(dividend);
 }
