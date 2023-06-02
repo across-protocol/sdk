@@ -1,3 +1,4 @@
+import assert from "assert";
 import { isError } from "../typeguards";
 import {
   isDefined,
@@ -12,7 +13,7 @@ import {
   max,
   sortEventsAscending,
 } from "../utils";
-import { Contract, BigNumber } from "ethers";
+import { Contract, BigNumber, Event } from "ethers";
 import winston from "winston";
 
 import {
@@ -27,6 +28,18 @@ import {
   DisabledChainsUpdate,
 } from "../interfaces";
 import { across } from "@uma/sdk";
+
+type _ConfigStoreUpdate = {
+  success: true;
+  latestBlockNumber: number;
+  searchEndBlock: number;
+  events: {
+    updatedTokenConfigEvents: Event[];
+    updatedGlobalConfigEvents: Event[];
+    globalConfigUpdateTimes: number[];
+  };
+};
+export type ConfigStoreUpdate = { success: false } | _ConfigStoreUpdate;
 
 // Version 0 is the implicit ConfigStore version from before the version attribute was introduced.
 // @dev Do not change this value.
@@ -51,6 +64,7 @@ export class AcrossConfigStoreClient {
 
   protected rateModelDictionary: across.rateModel.RateModelDictionary;
   public firstBlockToSearch: number;
+  public latestBlockNumber = 0;
 
   public hasLatestConfigStoreVersion = false;
 
@@ -208,26 +222,52 @@ export class AcrossConfigStoreClient {
     return this.configStoreVersion >= version;
   }
 
-  async update(): Promise<void> {
+  async _update(): Promise<ConfigStoreUpdate> {
+    const latestBlockNumber = await this.configStore.provider.getBlockNumber();
     const searchConfig = {
       fromBlock: this.firstBlockToSearch,
-      toBlock: this.eventSearchConfig.toBlock || (await this.configStore.provider.getBlockNumber()),
+      toBlock: this.eventSearchConfig.toBlock || latestBlockNumber,
       maxBlockLookBack: this.eventSearchConfig.maxBlockLookBack,
     };
 
-    this.logger.debug({ at: "ConfigStore", message: "Updating ConfigStore client", searchConfig });
     if (searchConfig.fromBlock > searchConfig.toBlock) {
-      this.logger.warn({ at: "ConfigStore", message: "Invalid search config.", searchConfig });
-      return;
+      this.logger.warn({ at: "ConfigStore", message: "Invalid search config.", searchConfig, latestBlockNumber });
+      return { success: false };
     }
 
     const [updatedTokenConfigEvents, updatedGlobalConfigEvents] = await Promise.all([
       paginatedEventQuery(this.configStore, this.configStore.filters.UpdatedTokenConfig(), searchConfig),
       paginatedEventQuery(this.configStore, this.configStore.filters.UpdatedGlobalConfig(), searchConfig),
     ]);
+
     const globalConfigUpdateTimes = (
       await Promise.all(updatedGlobalConfigEvents.map((event) => this.configStore.provider.getBlock(event.blockNumber)))
     ).map((block) => block.timestamp);
+
+    return {
+      success: true,
+      latestBlockNumber,
+      searchEndBlock: searchConfig.toBlock,
+      events: {
+        updatedTokenConfigEvents,
+        updatedGlobalConfigEvents,
+        globalConfigUpdateTimes,
+      },
+    };
+  }
+
+  async update(): Promise<void> {
+    this.logger.debug({ at: "ConfigStore", message: "Updating ConfigStore client" });
+
+    const result = await this._update();
+    if (!result.success) {
+      return;
+    }
+    const { updatedTokenConfigEvents, updatedGlobalConfigEvents, globalConfigUpdateTimes } = result.events;
+    assert(
+      updatedGlobalConfigEvents.length === globalConfigUpdateTimes.length,
+      `GlobalConfigUpdate events mismatch (${updatedGlobalConfigEvents.length} != ${globalConfigUpdateTimes.length})`
+    );
 
     // Save new TokenConfig updates.
     for (const event of updatedTokenConfigEvents) {
@@ -370,8 +410,9 @@ export class AcrossConfigStoreClient {
     this.rateModelDictionary.updateWithEvents(this.cumulativeRateModelUpdates);
 
     this.hasLatestConfigStoreVersion = this.hasValidConfigStoreVersionForTimestamp();
+    this.latestBlockNumber = result.latestBlockNumber;
+    this.firstBlockToSearch = result.searchEndBlock + 1; // Next iteration should start off from where this one ended.
     this.isUpdated = true;
-    this.firstBlockToSearch = searchConfig.toBlock + 1; // Next iteration should start off from where this one ended.
 
     this.logger.debug({ at: "ConfigStore", message: "ConfigStore client updated!" });
   }
