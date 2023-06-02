@@ -31,7 +31,6 @@ import { across } from "@uma/sdk";
 
 type _ConfigStoreUpdate = {
   success: true;
-  latestBlockNumber: number;
   searchEndBlock: number;
   events: {
     updatedTokenConfigEvents: Event[];
@@ -64,7 +63,6 @@ export class AcrossConfigStoreClient {
 
   protected rateModelDictionary: across.rateModel.RateModelDictionary;
   public firstBlockToSearch: number;
-  public latestBlockNumber = 0;
 
   public hasLatestConfigStoreVersion = false;
 
@@ -223,15 +221,14 @@ export class AcrossConfigStoreClient {
   }
 
   async _update(): Promise<ConfigStoreUpdate> {
-    const latestBlockNumber = await this.configStore.provider.getBlockNumber();
     const searchConfig = {
       fromBlock: this.firstBlockToSearch,
-      toBlock: this.eventSearchConfig.toBlock || latestBlockNumber,
+      toBlock: this.eventSearchConfig.toBlock || (await this.configStore.provider.getBlockNumber()),
       maxBlockLookBack: this.eventSearchConfig.maxBlockLookBack,
     };
 
     if (searchConfig.fromBlock > searchConfig.toBlock) {
-      this.logger.warn({ at: "ConfigStore", message: "Invalid search config.", searchConfig, latestBlockNumber });
+      this.logger.warn({ at: "ConfigStore", message: "Invalid search config.", searchConfig });
       return { success: false };
     }
 
@@ -246,7 +243,6 @@ export class AcrossConfigStoreClient {
 
     return {
       success: true,
-      latestBlockNumber,
       searchEndBlock: searchConfig.toBlock,
       events: {
         updatedTokenConfigEvents,
@@ -410,7 +406,6 @@ export class AcrossConfigStoreClient {
     this.rateModelDictionary.updateWithEvents(this.cumulativeRateModelUpdates);
 
     this.hasLatestConfigStoreVersion = this.hasValidConfigStoreVersionForTimestamp();
-    this.latestBlockNumber = result.latestBlockNumber;
     this.firstBlockToSearch = result.searchEndBlock + 1; // Next iteration should start off from where this one ended.
     this.isUpdated = true;
 
