@@ -667,24 +667,24 @@ export class HubPoolClient {
 
       const executedRootBundle = spreadEventWithBlockNumber(event) as ExecutedRootBundle;
       const { l1Tokens, runningBalances } = executedRootBundle;
-      let expectLength: number = l1Tokens.length;
+      const nTokens = l1Tokens.length;
 
       if (version < UBA_MIN_CONFIG_STORE_VERSION) {
         // Pre-UBA model: runningBalances length is 1:1 with l1Tokens length.
         assert([0, 1].includes(version), `Invalid ConfigStore version: ${version}`);
-        executedRootBundle["incentiveBalances"] = runningBalances.map(() => toBN(0));
+        executedRootBundle.incentiveBalances = runningBalances.map(() => toBN(0));
       } else {
         // UBA model: runningBalances array is a concatenation of pre-UBA runningBalance and incentiveBalance.
         assert([UBA_MIN_CONFIG_STORE_VERSION].includes(version), `Invalid ConfigStore version: ${version}`);
-        executedRootBundle["incentiveBalances"] = runningBalances.slice(l1Tokens.length);
-        expectLength *= 2;
+        executedRootBundle.incentiveBalances = runningBalances.slice(nTokens);
+        executedRootBundle.runningBalances = runningBalances.slice(0, nTokens);
       }
 
       // Safeguard
-      if (runningBalances.length !== expectLength) {
+      if (executedRootBundle.runningBalances.length !== nTokens) {
         throw new Error(
-          `Invalid runningBalances length (${runningBalances.length}) for CONFIG_STORE_VERSION ${version}` +
-            ` in chain ${this.chainId} transaction ${event.transactionHash}`
+          `Invalid runningBalances length (${executedRootBundle.runningBalances.length})` +
+            ` for ConfigStore version ${version} in chain ${this.chainId} transaction ${event.transactionHash}`
         );
       }
 
@@ -730,7 +730,7 @@ export class HubPoolClient {
     this.firstBlockToSearch = update.searchEndBlock + 1; // Next iteration should start off from where this one ended.
 
     this.isUpdated = true;
-    this.logger.debug({ at: "HubPoolClient", message: "HubPool client updated!" });
+    this.logger.debug({ at: "HubPoolClient::update", message: "HubPool client updated!", endBlock: latestBlockNumber });
   }
 
   // Returns end block for `chainId` in ProposedRootBundle.bundleBlockEvalNumbers. Looks up chainId
