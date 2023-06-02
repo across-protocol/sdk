@@ -1,4 +1,3 @@
-import assert from "assert";
 import { Contract, BigNumber, Event, EventFilter } from "ethers";
 import { Block } from "@ethersproject/abstract-provider";
 import { BlockFinder } from "@uma/sdk";
@@ -664,11 +663,9 @@ export class HubPoolClient {
 
       if (version < UBA_MIN_CONFIG_STORE_VERSION) {
         // Pre-UBA model: runningBalances length is 1:1 with l1Tokens length.
-        assert([0, 1].includes(version), `Invalid ConfigStore version: ${version}`);
         executedRootBundle.incentiveBalances = runningBalances.map(() => toBN(0));
       } else {
         // UBA model: runningBalances array is a concatenation of pre-UBA runningBalance and incentiveBalance.
-        assert([UBA_MIN_CONFIG_STORE_VERSION].includes(version), `Invalid ConfigStore version: ${version}`);
         executedRootBundle.incentiveBalances = runningBalances.slice(nTokens);
         executedRootBundle.runningBalances = runningBalances.slice(0, nTokens);
       }
