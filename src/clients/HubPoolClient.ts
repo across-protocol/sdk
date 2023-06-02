@@ -510,13 +510,6 @@ export class HubPoolClient {
       incentiveBalance = executedRootBundle.incentiveBalances[indexOfL1Token];
     }
 
-    this.logger.debug({
-      at: "HubPoolClient#getRunningBalanceBeforeBlockForChain",
-      message: `Retrieved runningBalance for HubPool token ${l1Token}`,
-      runningBalance,
-      incentiveBalance,
-    });
-
     return { runningBalance, incentiveBalance };
   }
 
