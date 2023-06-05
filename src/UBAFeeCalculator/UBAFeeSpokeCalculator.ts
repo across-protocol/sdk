@@ -10,7 +10,6 @@ type TokenRunningBalanceWithNetSend = TokenRunningBalance & {
 
 type FlowFee = {
   lpFee: BigNumber;
-  incentiveFee: BigNumber;
 };
 
 /**
@@ -197,27 +196,11 @@ export default class UBAFeeSpokeCalculator {
 
     // Next, we'll need to compute the first balancing fee from the running balance of the spoke
     // to the running balance of the spoke + the amount
-    const mainFee = computePiecewiseLinearFunction(
-      flowCurve,
-      runningBalance,
-      amount.mul(flowType === "inflow" ? 1 : -1)
-    );
-
-    // Next, we'll need to compute the reverse balancing fee. This is the opportunity cost of
-    // the LP fee holders to compute the opposite flow and to essentially reverse the flow
-    const reverseFee = computePiecewiseLinearFunction(
-      flowCurve,
-      runningBalance,
-      amount.mul(flowType === "inflow" ? -1 : 1)
-    );
-
-    // We can now compute the LP fee component of the fee. This is also considered the incentive fee
-    const lpFee = mainFee.sub(reverseFee);
+    const lpFee = computePiecewiseLinearFunction(flowCurve, runningBalance, amount.mul(flowType === "inflow" ? 1 : -1));
 
     // We can now return the fee
     return {
       lpFee,
-      incentiveFee: mainFee.sub(lpFee),
     };
   }
 
