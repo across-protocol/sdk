@@ -1,4 +1,5 @@
 import assert from "assert";
+import { utils } from "@uma/sdk";
 import { isError } from "../typeguards";
 import {
   isDefined,
@@ -282,16 +283,7 @@ export class AcrossConfigStoreClient {
 
         // If Token config doesn't contain all expected properties, skip it.
         if (!(rateModelForToken && transferThresholdForToken)) {
-          const maxWarnAge = 21_600; // ~3 days @ 12s/block.
-          if (result.latestBlockNumber - event.blockNumber < maxWarnAge) {
-            this.logger.warn({
-              at: "ConfigStore",
-              message: "Ignoring invalid rate model update.",
-              update: args,
-              transferThresholdForToken,
-            });
-          }
-          continue;
+          throw new Error("Ignoring invalid rate model update");
         }
 
         // Store RateModel:
@@ -344,8 +336,23 @@ export class AcrossConfigStoreClient {
           this.cumulativeRouteRateModelUpdates.push({ ...passedArgs, routeRateModel: {}, l1Token });
         }
       } catch (err) {
-        if (isError(err)) {
-          this.logger.warn({ at: "ConfigStore", message: "Caught error during update.", error: err.message });
+        // @dev averageBlockTimeSeconds does not actually block.
+        const maxWarnAge = (24 * 60 * 60) / (await utils.averageBlockTimeSeconds());
+        console.log(
+          `${result.latestBlockNumber} - ${event.blockNumber}: ${this.latestBlockNumber - event.blockNumber}`
+        );
+        if (result.latestBlockNumber - event.blockNumber < maxWarnAge) {
+          const errMsg = isError(err) ? err.message : "unknown error";
+          this.logger.warn({
+            at: "ConfigStore::update",
+            message: `Caught error during ConfigStore update: ${errMsg}`,
+            update: args,
+          });
+        } else {
+          this.logger.debug({
+            at: "ConfigStoreClient::update",
+            message: `Skipping invalid historical update at block ${event.blockNumber}`,
+          });
         }
         continue;
       }
