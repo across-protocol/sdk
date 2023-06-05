@@ -193,23 +193,23 @@ export default class UBAFeeSpokeCalculator {
     const { runningBalance } = this.calculateHistoricalRunningBalance(flowRange?.startIndex, flowRange?.endIndex);
 
     // We first need to resolve the inflow/outflow curves for the deposit and refund spoke
-    const flowCurves = this.config.getBalancingFeeTuples(this.chainId);
-
-    // We'll need to determine which flow curve to use based on the flow type
-    const mainFlowCurve = flowCurves[flowType];
-    const reverseFlowCurve = flowCurves[flowType === "inflow" ? "outflow" : "inflow"];
-
-    // We'll need to figure out the starting runningBalance of the spoke depending on the flow type
-    const mainIntegrandStart = flowType === "inflow" ? runningBalance : runningBalance.add(amount);
-    const reverseIntegrandStart = flowType === "inflow" ? runningBalance.add(amount) : runningBalance;
+    const flowCurve = this.config.getBalancingFeeTuples(this.chainId);
 
     // Next, we'll need to compute the first balancing fee from the running balance of the spoke
     // to the running balance of the spoke + the amount
-    const mainFee = computePiecewiseLinearFunction(mainFlowCurve, mainIntegrandStart, amount);
+    const mainFee = computePiecewiseLinearFunction(
+      flowCurve,
+      runningBalance,
+      amount.mul(flowType === "inflow" ? 1 : -1)
+    );
 
     // Next, we'll need to compute the reverse balancing fee. This is the opportunity cost of
     // the LP fee holders to compute the opposite flow and to essentially reverse the flow
-    const reverseFee = computePiecewiseLinearFunction(reverseFlowCurve, reverseIntegrandStart, amount);
+    const reverseFee = computePiecewiseLinearFunction(
+      flowCurve,
+      runningBalance,
+      amount.mul(flowType === "inflow" ? -1 : 1)
+    );
 
     // We can now compute the LP fee component of the fee. This is also considered the incentive fee
     const lpFee = mainFee.sub(reverseFee);
