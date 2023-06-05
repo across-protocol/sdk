@@ -210,6 +210,6 @@ export function calculateUtilization(
 ) {
   const numerator = hubBalance.add(ethSpokeBalance).add(targetSpoke.reduce((a, b) => a.add(b), BigNumber.from(0)));
   const denominator = hubEquity;
-  const dividend = numerator.mul(parseEther("1")).div(denominator).div(parseEther("1.0"));
-  return BigNumber.from(10).pow(decimals).sub(dividend);
+  const result = numerator.mul(parseEther("1")).div(denominator).div(parseEther("1.0"));
+  return BigNumber.from(10).pow(decimals).sub(result);
 }
