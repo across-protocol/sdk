@@ -537,8 +537,8 @@ export class HubPoolClient {
     });
     const timerStart = Date.now();
     const [currentTime, pendingRootBundleProposal, ...events] = await Promise.all([
-      this.hubPool.getCurrentTime(),
-      this.hubPool.rootBundleProposal(),
+      this.hubPool.getCurrentTime({ blockTag: searchConfig.toBlock }),
+      this.hubPool.rootBundleProposal({ blockTag: searchConfig.toBlock }),
       ...eventNames.map((eventName) => paginatedEventQuery(this.hubPool, hubPoolEvents[eventName], searchConfig)),
     ]);
     this.logger.debug({
