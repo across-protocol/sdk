@@ -282,12 +282,15 @@ export class AcrossConfigStoreClient {
 
         // If Token config doesn't contain all expected properties, skip it.
         if (!(rateModelForToken && transferThresholdForToken)) {
-          this.logger.warn({
-            at: "ConfigStore",
-            message: "Ignoring invalid rate model update.",
-            update: args,
-            transferThresholdForToken,
-          });
+          const maxWarnAge = 21_600; // ~3 days @ 12s/block.
+          if (result.latestBlockNumber - event.blockNumber < maxWarnAge) {
+            this.logger.warn({
+              at: "ConfigStore",
+              message: "Ignoring invalid rate model update.",
+              update: args,
+              transferThresholdForToken,
+            });
+          }
           continue;
         }
 
