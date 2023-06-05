@@ -338,9 +338,6 @@ export class AcrossConfigStoreClient {
       } catch (err) {
         // @dev averageBlockTimeSeconds does not actually block.
         const maxWarnAge = (24 * 60 * 60) / (await utils.averageBlockTimeSeconds());
-        console.log(
-          `${result.latestBlockNumber} - ${event.blockNumber}: ${this.latestBlockNumber - event.blockNumber}`
-        );
         if (result.latestBlockNumber - event.blockNumber < maxWarnAge) {
           const errMsg = isError(err) ? err.message : "unknown error";
           this.logger.warn({
