@@ -271,6 +271,7 @@ export class AcrossConfigStoreClient {
     );
 
     // Save new TokenConfig updates.
+    const invalidTokenConfigBlocks: number[] = [];
     for (const event of updatedTokenConfigEvents) {
       const args = {
         ...(spreadEventWithBlockNumber(event) as TokenConfig),
@@ -346,13 +347,18 @@ export class AcrossConfigStoreClient {
             update: args,
           });
         } else {
-          this.logger.debug({
-            at: "ConfigStoreClient::update",
-            message: `Skipping invalid historical update at block ${event.blockNumber}`,
-          });
+          invalidTokenConfigBlocks.push(event.blockNumber);
         }
         continue;
       }
+    }
+
+    if (invalidTokenConfigBlocks.length > 0) {
+      this.logger.debug({
+        at: "ConfigStoreClient::update",
+        message: "Skipped invalid historical updates.",
+        blockNumbers: invalidTokenConfigBlocks,
+      });
     }
 
     // Save new Global config updates.
