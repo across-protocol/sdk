@@ -1,7 +1,6 @@
 import { BigNumber } from "ethers";
 import { MAX_SAFE_JS_INT } from "@uma/common/dist/Constants";
 import { toBN } from "../utils";
-import { parseEther } from "ethers/lib/utils";
 
 /**
  * Computes a linear integral over a piecewise function
@@ -210,6 +209,6 @@ export function calculateUtilization(
 ) {
   const numerator = hubBalance.add(ethSpokeBalance).add(targetSpoke.reduce((a, b) => a.add(b), BigNumber.from(0)));
   const denominator = hubEquity;
-  const result = numerator.mul(parseEther("1")).div(denominator).div(parseEther("1.0"));
+  const result = numerator.div(denominator);
   return BigNumber.from(10).pow(decimals).sub(result);
 }
