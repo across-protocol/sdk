@@ -31,7 +31,7 @@ import {
 import { HubPoolClient } from ".";
 import { ZERO_ADDRESS } from "../constants";
 
-export type SpokePoolUpdate = {
+type _SpokePoolUpdate = {
   success: boolean;
   currentTime: number;
   firstDepositId: number;
@@ -40,6 +40,7 @@ export type SpokePoolUpdate = {
   events: Event[][];
   searchEndBlock: number;
 };
+export type SpokePoolUpdate = { success: false } | _SpokePoolUpdate;
 
 export class SpokePoolClient {
   protected currentTime = 0;
@@ -377,17 +378,9 @@ export class SpokePoolClient {
       }
     }
 
-    const [latestBlockNumber, currentTime] = await Promise.all([
-      this.spokePool.provider.getBlockNumber(),
-      this.spokePool.getCurrentTime(),
-    ]);
+    const latestBlockNumber = await this.spokePool.provider.getBlockNumber();
     if (isNaN(latestBlockNumber) || latestBlockNumber < this.latestBlockNumber) {
       throw new Error(`SpokePoolClient::update: latestBlockNumber ${latestBlockNumber} < ${this.latestBlockNumber}`);
-    } else if (!BigNumber.isBigNumber(currentTime) || currentTime < toBN(this.currentTime)) {
-      const errMsg = BigNumber.isBigNumber(currentTime)
-        ? `currentTime: ${currentTime} < ${toBN(this.currentTime)}`
-        : `currentTime is not a BigNumber: ${JSON.stringify(currentTime)}`;
-      throw new Error(`SpokePoolClient::update: ${errMsg}`);
     }
 
     const searchConfig = {
@@ -397,15 +390,7 @@ export class SpokePoolClient {
     };
     if (searchConfig.fromBlock > searchConfig.toBlock) {
       this.log("warn", "Invalid update() searchConfig.", { searchConfig });
-      return {
-        success: false,
-        currentTime: this.currentTime,
-        firstDepositId,
-        latestBlockNumber: this.latestBlockNumber,
-        latestDepositId: this.latestDepositIdQueried,
-        searchEndBlock: searchConfig.fromBlock - 1,
-        events: [],
-      };
+      return { success: false };
     }
 
     const eventSearchConfigs = eventsToQuery.map((eventName) => {
@@ -435,11 +420,19 @@ export class SpokePoolClient {
     });
 
     const timerStart = Date.now();
-    const [latestDepositId, ...events] = await Promise.all([
-      this.spokePool.numberOfDeposits(),
+    const [latestDepositId, currentTime, ...events] = await Promise.all([
+      this.spokePool.numberOfDeposits({ blockTag: searchConfig.toBlock }),
+      this.spokePool.getCurrentTime({ blockTag: searchConfig.toBlock }),
       ...eventSearchConfigs.map((config) => paginatedEventQuery(this.spokePool, config.filter, config.searchConfig)),
     ]);
     this.log("debug", `Time to query new events from RPC for ${this.chainId}: ${Date.now() - timerStart} ms`);
+
+    if (!BigNumber.isBigNumber(currentTime) || currentTime.lt(this.currentTime)) {
+      const errMsg = BigNumber.isBigNumber(currentTime)
+        ? `currentTime: ${currentTime} < ${toBN(this.currentTime)}`
+        : `currentTime is not a BigNumber: ${JSON.stringify(currentTime)}`;
+      throw new Error(`SpokePoolClient::update: ${errMsg}`);
+    }
 
     // Sort all events to ensure they are stored in a consistent order.
     events.forEach((events: Event[]) => sortEventsAscendingInPlace(events));
@@ -460,13 +453,14 @@ export class SpokePoolClient {
       throw new Error("HubPoolClient not updated");
     }
 
-    const { events: queryResults, currentTime, ...update } = await this._update(eventsToQuery);
+    const update = await this._update(eventsToQuery);
     if (!update.success) {
       // This failure only occurs if the RPC searchConfig is miscomputed, and has only been seen in the hardhat test
       // environment. Normal failures will throw instead. This is therefore an unfortunate workaround until we can
       // understand why we see this in test. @todo: Resolve.
       return;
     }
+    const { events: queryResults, currentTime } = update;
 
     if (eventsToQuery.includes("TokensBridged")) {
       for (const event of queryResults[eventsToQuery.indexOf("TokensBridged")]) {
