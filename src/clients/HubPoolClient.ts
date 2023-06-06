@@ -651,8 +651,7 @@ export class HubPoolClient {
       }
 
       if (!isDefined(configStoreVersions[event.blockNumber])) {
-        const timestamp = (await event.getBlock()).timestamp;
-        const version = this.configStoreClient.getConfigStoreVersionForTimestamp(timestamp);
+        const version = this.configStoreClient.getConfigStoreVersionForBlock(event.blockNumber);
         configStoreVersions[event.blockNumber] = version;
       }
       const version = configStoreVersions[event.blockNumber];
