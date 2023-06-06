@@ -1,5 +1,7 @@
 import { utils as ethersUtils, Event, providers } from "ethers";
 import { random } from "lodash";
+import { randomAddress } from "@across-protocol/contracts-v2/dist/test-utils";
+import { toBN } from "../../utils";
 
 const { id, keccak256, toUtf8Bytes } = ethersUtils;
 
@@ -18,12 +20,12 @@ type EthersEventTemplate = {
   transactionIndex?: number;
 };
 
-const getBlock = async (): Promise<Block> => {
-  throw new Error("getBlock() not supported");
-};
+// May need to populate getTransaction and getTransactionReceipt if calling code starts using it.
+// https://docs.ethers.org/v5/api/providers/provider/#Provider-getTransaction
 const getTransaction = async (): Promise<TransactionResponse> => {
   throw new Error("getTransaction() not supported");
 };
+// https://docs.ethers.org/v5/api/providers/provider/#Provider-getTransactionReceipt
 const getTransactionReceipt = async (): Promise<TransactionReceipt> => {
   throw new Error("getTransactionReceipt() not supported");
 };
@@ -52,6 +54,26 @@ export class EventManager {
     const logIndex = this.logIndexes[_logIndex]++;
 
     const decodeError = new Error(`${event} decoding error`);
+    const parentHash = id(`Across-v2-blockHash-${random(1, 100_000)}`);
+    const blockHash = id(`Across-v2-blockHash-${parentHash}-${random(1, 100_000)}`);
+
+    // getBlock() may later be used to retrieve (for example) the block timestamp.
+    const getBlock = async (): Promise<Block> => {
+      return {
+        hash: blockHash,
+        parentHash,
+        number: blockNumber as number,
+        timestamp: Math.floor(Date.now() / 1000),
+        nonce: "",
+        difficulty: random(1, 1000, false),
+        _difficulty: toBN(random(1, 1000, false)),
+        gasLimit: toBN(random(1_000_000, 10_000_000, false)),
+        gasUsed: toBN(random(1, 1000, false)),
+        miner: randomAddress(),
+        extraData: `Block containing test transaction ${transactionHash}.`,
+        transactions: [transactionHash],
+      };
+    };
 
     return {
       blockNumber,
@@ -63,7 +85,7 @@ export class EventManager {
       data: data ?? id(`Across-v2-random-txndata-${random(1, 100_000)}`),
       topics,
       args,
-      blockHash: id(`Across-v2-blockHash-${random(1, 100_000)}`),
+      blockHash,
       event,
       eventSignature,
       decodeError,
