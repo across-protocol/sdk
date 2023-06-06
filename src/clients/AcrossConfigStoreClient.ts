@@ -393,7 +393,7 @@ export class AcrossConfigStoreClient {
         }
 
         // Extract the current highest version. Require that the version always increments, otherwise skip the update.
-        const lastValue = Number(this.cumulativeConfigStoreVersionUpdates[0]?.value || DEFAULT_CONFIG_STORE_VERSION);
+        const lastValue = Number(this.cumulativeConfigStoreVersionUpdates[0]?.value ?? DEFAULT_CONFIG_STORE_VERSION);
         if (value <= lastValue) {
           continue;
         }
