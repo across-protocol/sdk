@@ -213,7 +213,6 @@ export class AcrossConfigStoreClient {
     return isDefined(config) ? Number(config.value) : DEFAULT_CONFIG_STORE_VERSION;
   }
 
-  // @dev This method assumes a block with a version change must _not_ coincide with an executed root bundle.
   getConfigStoreVersionForBlock(blockNumber: number): number {
     const config = this.cumulativeConfigStoreVersionUpdates.find((config) => config.blockNumber <= blockNumber);
     return isDefined(config) ? Number(config.value) : DEFAULT_CONFIG_STORE_VERSION;
