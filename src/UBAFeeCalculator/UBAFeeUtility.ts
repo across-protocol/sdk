@@ -2,6 +2,7 @@ import { BigNumber } from "ethers";
 import { MAX_SAFE_JS_INT } from "@uma/common/dist/Constants";
 import { toBN } from "../utils";
 import { HUBPOOL_CHAIN_ID } from "../constants";
+import { parseEther } from "ethers/lib/utils";
 
 /**
  * Computes a linear integral over a piecewise function
@@ -212,6 +213,6 @@ export function calculateUtilization(
     .add(ethSpokeBalance)
     .add(spokeTargets.reduce((a, b) => (b.spokeChainId !== HUBPOOL_CHAIN_ID ? a.add(b.target) : a), BigNumber.from(0)));
   const denominator = hubEquity;
-  const result = numerator.div(denominator);
+  const result = numerator.mul(parseEther("1.0")).div(denominator); // We need to multiply by 1e18 to get the correct precision for the result
   return BigNumber.from(10).pow(decimals).sub(result);
 }
