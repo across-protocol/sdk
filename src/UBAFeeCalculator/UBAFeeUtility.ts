@@ -1,6 +1,7 @@
 import { BigNumber } from "ethers";
 import { MAX_SAFE_JS_INT } from "@uma/common/dist/Constants";
 import { toBN } from "../utils";
+import { HUBPOOL_CHAIN_ID } from "../constants";
 
 /**
  * Computes a linear integral over a piecewise function
@@ -205,9 +206,11 @@ export function calculateUtilization(
   hubBalance: BigNumber,
   hubEquity: BigNumber,
   ethSpokeBalance: BigNumber,
-  targetSpoke: BigNumber[]
+  targetSpoke: { target: BigNumber; spokeChainId: number }[]
 ) {
-  const numerator = hubBalance.add(ethSpokeBalance).add(targetSpoke.reduce((a, b) => a.add(b), BigNumber.from(0)));
+  const numerator = hubBalance
+    .add(ethSpokeBalance)
+    .add(targetSpoke.reduce((a, b) => (b.spokeChainId !== HUBPOOL_CHAIN_ID ? a.add(b.target) : a), BigNumber.from(0)));
   const denominator = hubEquity;
   const result = numerator.div(denominator);
   return BigNumber.from(10).pow(decimals).sub(result);
