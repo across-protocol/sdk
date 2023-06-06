@@ -4,6 +4,7 @@ import { isError } from "../typeguards";
 import {
   isDefined,
   spreadEvent,
+  sortEventsAscendingInPlace,
   sortEventsDescending,
   spreadEventWithBlockNumber,
   paginatedEventQuery,
@@ -208,9 +209,12 @@ export class AcrossConfigStoreClient {
   }
 
   getConfigStoreVersionForTimestamp(timestamp: number = Number.MAX_SAFE_INTEGER): number {
-    const config = (sortEventsDescending(this.cumulativeConfigStoreVersionUpdates) as ConfigStoreVersionUpdate[]).find(
-      (config) => config.timestamp <= timestamp
-    );
+    const config = this.cumulativeConfigStoreVersionUpdates.find((config) => config.timestamp <= timestamp);
+    return isDefined(config) ? Number(config.value) : DEFAULT_CONFIG_STORE_VERSION;
+  }
+
+  getConfigStoreVersionForBlock(blockNumber: number): number {
+    const config = this.cumulativeConfigStoreVersionUpdates.find((config) => config.blockNumber <= blockNumber);
     return isDefined(config) ? Number(config.value) : DEFAULT_CONFIG_STORE_VERSION;
   }
 
@@ -240,6 +244,9 @@ export class AcrossConfigStoreClient {
       paginatedEventQuery(this.configStore, this.configStore.filters.UpdatedTokenConfig(), searchConfig),
       paginatedEventQuery(this.configStore, this.configStore.filters.UpdatedGlobalConfig(), searchConfig),
     ]);
+
+    // Events *should* normally be received in ascending order, but explicitly enforce the ordering.
+    [updatedTokenConfigEvents, updatedGlobalConfigEvents].forEach((events) => sortEventsAscendingInPlace(events));
 
     const globalConfigUpdateTimes = (
       await Promise.all(updatedGlobalConfigEvents.map((event) => this.configStore.provider.getBlock(event.blockNumber)))
@@ -385,23 +392,16 @@ export class AcrossConfigStoreClient {
           continue;
         }
 
-        // Extract last version
-        const lastValue =
-          this.cumulativeConfigStoreVersionUpdates.length === 0
-            ? DEFAULT_CONFIG_STORE_VERSION
-            : Number(
-                this.cumulativeConfigStoreVersionUpdates[this.cumulativeConfigStoreVersionUpdates.length - 1].value
-              );
-
-        // If version is not > last version, skip.
+        // Extract the current highest version. Require that the version always increments, otherwise skip the update.
+        const lastValue = Number(this.cumulativeConfigStoreVersionUpdates[0]?.value ?? DEFAULT_CONFIG_STORE_VERSION);
         if (value <= lastValue) {
           continue;
         }
 
-        this.cumulativeConfigStoreVersionUpdates.push({
-          ...args,
-          timestamp: globalConfigUpdateTimes[i],
-        });
+        // Prepend the update to impose descending ordering for version updates.
+        this.cumulativeConfigStoreVersionUpdates = [{ ...args, timestamp: globalConfigUpdateTimes[i] }].concat(
+          this.cumulativeConfigStoreVersionUpdates
+        );
       } else if (args.key === utf8ToHex(GLOBAL_CONFIG_STORE_KEYS.DISABLED_CHAINS)) {
         try {
           const chainIds = this.filterDisabledChains(JSON.parse(args.value) as number[]);
