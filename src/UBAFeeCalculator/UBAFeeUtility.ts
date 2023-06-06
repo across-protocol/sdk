@@ -206,11 +206,11 @@ export function calculateUtilization(
   hubBalance: BigNumber,
   hubEquity: BigNumber,
   ethSpokeBalance: BigNumber,
-  targetSpoke: { target: BigNumber; spokeChainId: number }[]
+  spokeTargets: { target: BigNumber; spokeChainId: number }[]
 ) {
   const numerator = hubBalance
     .add(ethSpokeBalance)
-    .add(targetSpoke.reduce((a, b) => (b.spokeChainId !== HUBPOOL_CHAIN_ID ? a.add(b.target) : a), BigNumber.from(0)));
+    .add(spokeTargets.reduce((a, b) => (b.spokeChainId !== HUBPOOL_CHAIN_ID ? a.add(b.target) : a), BigNumber.from(0)));
   const denominator = hubEquity;
   const result = numerator.div(denominator);
   return BigNumber.from(10).pow(decimals).sub(result);
