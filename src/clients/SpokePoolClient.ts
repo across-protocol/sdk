@@ -442,7 +442,7 @@ export class SpokePoolClient {
       currentTime: currentTime.toNumber(), // uint32
       firstDepositId,
       latestBlockNumber,
-      latestDepositId: Math.max(0, numberOfDeposits - 1),
+      latestDepositId: Math.max(numberOfDeposits - 1, 0),
       searchEndBlock: searchConfig.toBlock,
       events,
     };
