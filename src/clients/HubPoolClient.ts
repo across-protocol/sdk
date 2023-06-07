@@ -534,8 +534,8 @@ export class HubPoolClient {
     });
     const timerStart = Date.now();
     const [currentTime, pendingRootBundleProposal, ...events] = await Promise.all([
-      this.hubPool.getCurrentTime(),
-      this.hubPool.rootBundleProposal(),
+      this.hubPool.getCurrentTime({ blockTag: searchConfig.toBlock }),
+      this.hubPool.rootBundleProposal({ blockTag: searchConfig.toBlock }),
       ...eventNames.map((eventName) => paginatedEventQuery(this.hubPool, hubPoolEvents[eventName], searchConfig)),
     ]);
     this.logger.debug({
@@ -614,7 +614,11 @@ export class HubPoolClient {
     ];
     const [tokenInfo, lpTokenInfo] = await Promise.all([
       Promise.all(uniqueL1Tokens.map((l1Token: string) => fetchTokenInfo(l1Token, this.hubPool.signer))),
-      Promise.all(uniqueL1Tokens.map(async (l1Token: string) => await this.hubPool.pooledTokens(l1Token))),
+      Promise.all(
+        uniqueL1Tokens.map(
+          async (l1Token: string) => await this.hubPool.pooledTokens(l1Token, { blockTag: update.searchEndBlock })
+        )
+      ),
     ]);
     for (const info of tokenInfo) {
       if (!this.l1Tokens.find((token) => token.symbol === info.symbol)) {
