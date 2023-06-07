@@ -72,8 +72,6 @@ export class MockConfigStoreClient extends AcrossConfigStoreClient {
     // Transform 2d-events array into a record.
     const events = Object.fromEntries(eventNames.map((eventName, idx) => [eventName, _events[idx]]));
 
-    console.log(`Returning events: ${JSON.stringify(events, null, 2)}.`);
-
     return {
       success: true,
       latestBlockNumber,
