@@ -11,6 +11,7 @@ type DefaultOverrideStructure<PrimaryValue, OverrideKeyType extends string | num
   default: PrimaryValue;
   override?: Record<OverrideKeyType, PrimaryValue>;
 };
+export type FlowTupleParameters = TupleParameter[];
 
 /**
  * Defines the configuration needed to calculate the UBA fees
@@ -30,7 +31,7 @@ class UBAConfig {
    * either a positive or negative penalty to bridging a token to a chain that is either under or
    * over utilized
    */
-  private readonly balancingFee: DefaultOverrideStructure<TupleParameter[], ChainId>;
+  private readonly balancingFee: DefaultOverrideStructure<FlowTupleParameters, ChainId>;
 
   /**
    * A record of boundry values for each chain and token that define the threshold for when the
@@ -51,7 +52,7 @@ class UBAConfig {
   constructor(
     baselineFee: DefaultOverrideStructure<BigNumber, RouteCombination>,
     utilizationFee: BigNumber,
-    balancingFee: DefaultOverrideStructure<TupleParameter[], ChainId>,
+    balancingFee: DefaultOverrideStructure<FlowTupleParameters, ChainId>,
     balanceTriggerThreshold: Record<ChainTokenCombination, ThresholdBoundType>
   ) {
     this.baselineFee = baselineFee;
@@ -85,7 +86,7 @@ class UBAConfig {
    *  @param chainId The chain id
    * @returns The balancing fee
    */
-  public getBalancingFeeTuples(chainId: number): TupleParameter[] {
+  public getBalancingFeeTuples(chainId: number): FlowTupleParameters {
     return this.balancingFee.override?.[chainId] ?? this.balancingFee.default;
   }
 
