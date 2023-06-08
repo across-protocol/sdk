@@ -5,7 +5,7 @@ import winston from "winston";
 import _ from "lodash";
 import { assign, EventSearchConfig, isDefined, MakeOptional, BigNumberish } from "../utils";
 import {
-  UBA_MIN_CONFIG_STORE_VERSION,
+  isUBA,
   fetchTokenInfo,
   sortEventsDescending,
   spreadEvent,
@@ -654,23 +654,41 @@ export class HubPoolClient {
         continue;
       }
 
-      if (!isDefined(configStoreVersions[event.blockNumber])) {
-        const version = this.configStoreClient.getConfigStoreVersionForBlock(event.blockNumber);
-        configStoreVersions[event.blockNumber] = version;
+      // The applicable version is determined by the block number of the corresponding proposal.
+      let proposalBlockNumber = event.blockNumber;
+      for (let idx = this.proposedRootBundles.length - 1; idx >= 0; --idx) {
+        const rootBundleProposal = this.proposedRootBundles[idx];
+        if (event.blockNumber > rootBundleProposal.blockNumber) {
+          proposalBlockNumber = rootBundleProposal.blockNumber;
+          break;
+        }
       }
-      const version = configStoreVersions[event.blockNumber];
+      if (proposalBlockNumber === event.blockNumber) {
+        this.logger.warn({
+          at: "HubPoolClient#update",
+          message: `Unable to find RootBundleProposal before blockNumber ${event.blockNumber}`,
+          executedRootBundle: event.transactionHash,
+        });
+        continue;
+      }
+
+      if (!isDefined(configStoreVersions[proposalBlockNumber])) {
+        const version = this.configStoreClient.getConfigStoreVersionForBlock(proposalBlockNumber);
+        configStoreVersions[proposalBlockNumber] = version;
+      }
+      const version = configStoreVersions[proposalBlockNumber];
 
       const executedRootBundle = spreadEventWithBlockNumber(event) as ExecutedRootBundle;
       const { l1Tokens, runningBalances } = executedRootBundle;
       const nTokens = l1Tokens.length;
 
-      if (version < UBA_MIN_CONFIG_STORE_VERSION) {
-        // Pre-UBA model: runningBalances length is 1:1 with l1Tokens length.
-        executedRootBundle.incentiveBalances = runningBalances.map(() => toBN(0));
-      } else {
-        // UBA model: runningBalances array is a concatenation of pre-UBA runningBalance and incentiveBalance.
-        executedRootBundle.incentiveBalances = runningBalances.slice(nTokens);
+      if (isUBA(version)) {
+        // runningBalances array is a concatenation of pre-UBA runningBalances and incentiveBalances.
         executedRootBundle.runningBalances = runningBalances.slice(0, nTokens);
+        executedRootBundle.incentiveBalances = runningBalances.slice(nTokens);
+      } else {
+        // Pre-UBA: runningBalances length is 1:1 with l1Tokens length. Pad incentiveBalances with zeroes.
+        executedRootBundle.incentiveBalances = runningBalances.map(() => toBN(0));
       }
 
       // Safeguard
