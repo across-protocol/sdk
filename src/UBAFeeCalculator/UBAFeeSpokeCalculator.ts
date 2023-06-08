@@ -9,7 +9,7 @@ type TokenRunningBalanceWithNetSend = TokenRunningBalance & {
 };
 
 type FlowFee = {
-  lpFee: BigNumber;
+  balancingFee: BigNumber;
 };
 
 /**
@@ -196,11 +196,15 @@ export default class UBAFeeSpokeCalculator {
 
     // Next, we'll need to compute the first balancing fee from the running balance of the spoke
     // to the running balance of the spoke + the amount
-    const lpFee = computePiecewiseLinearFunction(flowCurve, runningBalance, amount.mul(flowType === "inflow" ? 1 : -1));
+    const balancingFee = computePiecewiseLinearFunction(
+      flowCurve,
+      runningBalance,
+      amount.mul(flowType === "inflow" ? 1 : -1)
+    );
 
     // We can now return the fee
     return {
-      lpFee,
+      balancingFee,
     };
   }
 
