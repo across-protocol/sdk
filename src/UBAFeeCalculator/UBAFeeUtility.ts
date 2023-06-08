@@ -1,6 +1,8 @@
 import { BigNumber } from "ethers";
 import { MAX_SAFE_JS_INT } from "@uma/common/dist/Constants";
 import { toBN } from "../utils";
+import { HUBPOOL_CHAIN_ID } from "../constants";
+import { parseEther } from "ethers/lib/utils";
 
 /**
  * Computes a linear integral over a piecewise function
@@ -189,3 +191,123 @@ export function getDepositBalancingFee(
 
   return totalFee;
 }
+
+/**
+ * Returns the minimum of two BigNumbers
+ * @param a The first BigNumber
+ * @param b The second BigNumber
+ * @returns The minimum of the two BigNumbers
+ */
+function minBN(a: BigNumber, b: BigNumber): BigNumber {
+  return a.lt(b) ? a : b;
+}
+
+/**
+ * Returns the maximum of two BigNumbers
+ * @param a The first BigNumber
+ * @param b The second BigNumber
+ * @returns The maximum of the two BigNumbers
+ */
+function maxBN(a: BigNumber, b: BigNumber): BigNumber {
+  return a.gt(b) ? a : b;
+}
+
+/**
+ * Returns the minimum and maximum of two BigNumbers
+ * @param a The first BigNumber
+ * @param b The second BigNumber
+ * @returns The minimum and maximum of the two BigNumbers
+ * @remarks This is a convenience function to avoid having to call minBN and maxBN separately
+ */
+function minMaxBN(a: BigNumber, b: BigNumber): [BigNumber, BigNumber] {
+  return [minBN(a, b), maxBN(a, b)];
+}
+
+/**
+ * Computes a general integral of a linear piecewise function. It is mindful of the sign of the direction
+ * of integration.
+ * @param functionBounds An array of tuples that define the cutoff points and values of the piecewise function
+ * @param x The lower bound of the integral
+ * @param y The upper bound of the integral
+ * @returns The integral of the piecewise function over the given range
+ */
+export function computePiecewiseLinearFunction(
+  functionBounds: [BigNumber, BigNumber][],
+  x: BigNumber,
+  y: BigNumber
+): BigNumber {
+  // Decompose the bounds into the lower and upper bounds
+  const xBar = functionBounds.map((_, idx, arr) => getBounds(arr, idx));
+  // We'll need to determine the sign of the integration direction to determine the scale
+  // This is because we always want to iterate from MIN(x, y) to MAX(x, y). We can get away
+  // with manipulating the direction of x and y because we're integrating a linear function
+  // and the integral is symmetric about the x-axis
+  const scale = x <= y ? 1 : -1;
+  // We want to use the traits of linear integration to our advantage. We know that the integral
+  // should always iterate in the positive x direction. To implement this we'll need to determine
+  // the start and end of the integral as MIN(x, y) and MAX(x, y) respectively.
+  const [lb, ub] = minMaxBN(x, y);
+  // We can now determine the indices of the bounds that we'll need to integrate over. We don't need
+  // to concern ourselves with bounds outside of the needed range because we'd be wasting cycles
+  // iterating over them.
+  const [lbIdx, ubIdx] = [getInterval(functionBounds, lb)[0], getInterval(functionBounds, ub)[0]];
+
+  // We can store the integral in this variable
+  let integral = toBN(0);
+  // We can now iterate over the bounds and perform the integration
+  for (let idx = lbIdx; idx <= ubIdx; idx++) {
+    // We need to be mindful of the fact that we may be integrating over a single interval
+    // and that the bounds of that interval may be the same. If this is the case, we need
+    // to make sure that we don't perform an integration over a zero interval.
+    const _lb = idx == lbIdx ? lb : xBar[idx - 1][0];
+    // If we're at the upper bound, we need to make sure that we don't go out of bounds
+    const _ub = idx == ubIdx ? ub : xBar[idx][1];
+    // If the lower bound is not equal to the upper bound, we can perform the integration
+    // Otherwise we implicitely integrate over a zero interval and add nothing to the integral
+    if (!_lb.eq(_ub)) {
+      // We can now perform the integration by calling the helper function
+      integral = integral.add(performLinearIntegration(functionBounds, idx, _lb, _ub));
+    }
+  }
+  // If the integral is zero, we can return zero - we don't need to perform any additional
+  // computations
+  if (integral.eq(0)) {
+    return toBN(0);
+  }
+  // Otherwise, we can scale the integral to the correct sign and return it with the modifier
+  return integral.mul(scale).div(y.sub(x));
+}
+
+/**
+ * Computes the utilization at a given point in time based on the
+ * current balances and equity of the hub and spoke pool targets.
+ * @param decimals The number of decimals for the token
+ * @param hubBalance The current balance of the hub pool for the token
+ * @param hubEquity The current equity of the hub pool for the token
+ * @param ethSpokeBalance The current balance of the ETH spoke pool for the token
+ * @param targetSpoke The current balance of the target spoke pool for the token - this is a list.
+ * @returns The utilization of the hub pool
+ */
+export function calculateUtilization(
+  decimals: number,
+  hubBalance: BigNumber,
+  hubEquity: BigNumber,
+  ethSpokeBalance: BigNumber,
+  spokeTargets: { target: BigNumber; spokeChainId: number }[]
+) {
+  const numerator = hubBalance
+    .add(ethSpokeBalance)
+    .add(spokeTargets.reduce((a, b) => (b.spokeChainId !== HUBPOOL_CHAIN_ID ? a.add(b.target) : a), BigNumber.from(0)));
+  const denominator = hubEquity;
+  const result = numerator.mul(parseEther("1.0")).div(denominator); // We need to multiply by 1e18 to get the correct precision for the result
+  return BigNumber.from(10).pow(decimals).sub(result);
+}
+
+/**
+ * A mapping of the balancing fee functions to the inflow/outflow types. This is used to
+ * as a convenience to avoid having to do multiple if/else statements in the UBAFeeCalculator
+ */
+export const balancingFeeFunctionLookupMapping = {
+  inflow: getDepositBalancingFee,
+  outflow: getRefundBalancingFee,
+};
