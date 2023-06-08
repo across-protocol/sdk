@@ -399,9 +399,10 @@ export class AcrossConfigStoreClient {
         }
 
         // Prepend the update to impose descending ordering for version updates.
-        this.cumulativeConfigStoreVersionUpdates = [{ ...args, timestamp: globalConfigUpdateTimes[i] }].concat(
-          this.cumulativeConfigStoreVersionUpdates
-        );
+        this.cumulativeConfigStoreVersionUpdates = [
+          { ...args, timestamp: globalConfigUpdateTimes[i] },
+          ...this.cumulativeConfigStoreVersionUpdates,
+        ];
       } else if (args.key === utf8ToHex(GLOBAL_CONFIG_STORE_KEYS.DISABLED_CHAINS)) {
         try {
           const chainIds = this.filterDisabledChains(JSON.parse(args.value) as number[]);
