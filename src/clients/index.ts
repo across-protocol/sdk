@@ -5,4 +5,5 @@ export {
 } from "./AcrossConfigStoreClient";
 export { HubPoolClient } from "./HubPoolClient";
 export { SpokePoolClient } from "./SpokePoolClient";
+export { UBAClient } from "./UBAClient";
 export * as mocks from "./mocks";
