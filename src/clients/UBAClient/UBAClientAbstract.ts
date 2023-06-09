@@ -1,16 +1,22 @@
 import winston from "winston";
 import { RefundRequestWithBlock, UbaFlow } from "../../interfaces";
 import { BigNumber } from "ethers";
+import { UBAFeeSpokeCalculator } from "../../UBAFeeCalculator";
 
 export type RequestValidReturnType = { valid: false; reason: string } | { valid: true };
 export type OpeningBalanceReturnType = { blockNumber: number; spokePoolBalance: BigNumber };
+export type BalancingFeeReturnType = { depositBalancingFee: BigNumber; refundBalancingFee: BigNumber };
 
 /**
  * UBAClient is a base class for UBA functionality. It provides a common interface for UBA functionality to be implemented on top of or extended.
  * This class is not intended to be used directly, but rather extended by other classes that implement the abstract methods.
  */
 export abstract class BaseUBAClient {
-  protected constructor(protected readonly chainIdIndices: number[], protected readonly logger?: winston.Logger) {}
+  protected spokeUBAFeeCalculators: { [chainId: number]: { [token: string]: UBAFeeSpokeCalculator } };
+
+  protected constructor(protected readonly chainIdIndices: number[], protected readonly logger?: winston.Logger) {
+    this.spokeUBAFeeCalculators = {};
+  }
 
   /**
    * Retrieves the opening balance for a given token on a given chainId at a given block number
@@ -67,4 +73,67 @@ export abstract class BaseUBAClient {
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     _refundRequest: RefundRequestWithBlock
   ): RequestValidReturnType;
+
+  protected abstract instantiateUBAFeeCalculator(chainId: number, token: string, fromBlock: number): Promise<void>;
+
+  /**
+   * Calculate the balancing fee of a given token on a given chainId at a given block number
+   * @param spokePoolToken The token to get the balancing fee for
+   * @param amount The amount to get the balancing fee for
+   * @param hubPoolBlockNumber The block number to get the balancing fee for
+   * @param depositChainId The chainId of the deposit
+   * @param refundChainId The chainId of the refund
+   * @returns The balancing fee for the given token on the given chainId at the given block number
+   */
+  protected async computeBalancingFee(
+    spokePoolToken: string,
+    amount: BigNumber,
+    hubPoolBlockNumber: number,
+    depositChainId: number,
+    refundChainId: number
+  ): Promise<BalancingFeeReturnType> {
+    // Verify that the spoke clients are instantiated.
+    await Promise.all([
+      this.instantiateUBAFeeCalculator(depositChainId, spokePoolToken, hubPoolBlockNumber),
+      this.instantiateUBAFeeCalculator(refundChainId, spokePoolToken, hubPoolBlockNumber),
+    ]);
+    // Get the balancing fees.
+    const [{ balancingFee: depositBalancingFee }, { balancingFee: refundBalancingFee }] = await Promise.all([
+      this.spokeUBAFeeCalculators[depositChainId][spokePoolToken].getDepositFee(amount),
+      this.spokeUBAFeeCalculators[refundChainId][spokePoolToken].getRefundFee(amount),
+    ]);
+    return {
+      depositBalancingFee,
+      refundBalancingFee,
+    };
+  }
+
+  protected abstract computeRealizedLpFee(
+    spokePoolToken: string,
+    chainId: number,
+    amount: BigNumber
+  ): Promise<BigNumber>;
+
+  /**
+   * Compute the entire system fee for a given amount. The system fee is the sum of the LP fee and the balancing fee.
+   * @param depositChain The chainId of the deposit
+   * @param refundChain The chainId of the refund
+   * @param spokePoolToken The token to get the system fee for
+   * @param amount The amount to get the system fee for
+   * @param hubPoolBlockNumber The block number to get the system fee for
+   * @returns The system fee for the given token on the given chainId at the given block number
+   */
+  public async computeSystemFee(
+    depositChain: number,
+    refundChain: number,
+    spokePoolToken: string,
+    amount: BigNumber,
+    hubPoolBlockNumber: number
+  ): Promise<BigNumber> {
+    const [lpFee, { depositBalancingFee: balancingFee }] = await Promise.all([
+      this.computeRealizedLpFee(spokePoolToken, depositChain, amount),
+      this.computeBalancingFee(spokePoolToken, amount, hubPoolBlockNumber, depositChain, refundChain),
+    ]);
+    return lpFee.add(balancingFee);
+  }
 }
