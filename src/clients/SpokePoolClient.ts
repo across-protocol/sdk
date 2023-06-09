@@ -420,7 +420,7 @@ export class SpokePoolClient {
     });
 
     const timerStart = Date.now();
-    const [latestDepositId, currentTime, ...events] = await Promise.all([
+    const [numberOfDeposits, currentTime, ...events] = await Promise.all([
       this.spokePool.numberOfDeposits({ blockTag: searchConfig.toBlock }),
       this.spokePool.getCurrentTime({ blockTag: searchConfig.toBlock }),
       ...eventSearchConfigs.map((config) => paginatedEventQuery(this.spokePool, config.filter, config.searchConfig)),
@@ -442,7 +442,7 @@ export class SpokePoolClient {
       currentTime: currentTime.toNumber(), // uint32
       firstDepositId,
       latestBlockNumber,
-      latestDepositId,
+      latestDepositId: Math.max(numberOfDeposits - 1, 0),
       searchEndBlock: searchConfig.toBlock,
       events,
     };
