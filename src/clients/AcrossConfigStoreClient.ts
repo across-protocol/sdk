@@ -448,7 +448,10 @@ export class AcrossConfigStoreClient {
       {
         default: [],
       },
-      {}
+      {},
+      {
+        default: [],
+      }
     );
   }
 }
