@@ -303,6 +303,32 @@ export function calculateUtilization(
   return BigNumber.from(10).pow(decimals).sub(result);
 }
 
+export function calculationUtilizationBoundaries(
+  action: {
+    actionType: "deposit" | "refund";
+    amount: BigNumber;
+    chainId: number;
+  },
+  decimals: number,
+  hubBalance: BigNumber,
+  hubEquity: BigNumber,
+  ethSpokeBalance: BigNumber,
+  spokeTargets: { target: BigNumber; spokeChainId: number }[]
+): { utilizationPostTx: BigNumber; utilizationPreTx: BigNumber } {
+  let newEthSpokeBalance = ethSpokeBalance;
+  if (action.chainId === HUBPOOL_CHAIN_ID) {
+    if (action.actionType === "deposit") {
+      newEthSpokeBalance = newEthSpokeBalance.add(action.amount);
+    } else {
+      newEthSpokeBalance = newEthSpokeBalance.sub(action.amount);
+    }
+  }
+  return {
+    utilizationPreTx: calculateUtilization(decimals, hubBalance, hubEquity, ethSpokeBalance, spokeTargets),
+    utilizationPostTx: calculateUtilization(decimals, hubBalance, hubEquity, newEthSpokeBalance, spokeTargets),
+  };
+}
+
 /**
  * A mapping of the balancing fee functions to the inflow/outflow types. This is used to
  * as a convenience to avoid having to do multiple if/else statements in the UBAFeeCalculator
