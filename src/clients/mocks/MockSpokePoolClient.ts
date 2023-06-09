@@ -2,6 +2,7 @@ import { Contract, Event } from "ethers";
 import { random } from "lodash";
 import winston from "winston";
 import { randomAddress } from "@across-protocol/contracts-v2/dist/test-utils";
+import { ZERO_ADDRESS } from "../../constants";
 import { DepositWithBlock, FillWithBlock, RefundRequestWithBlock } from "../../interfaces";
 import { toBN, toBNWei } from "../../utils";
 import { SpokePoolClient, SpokePoolUpdate } from "../SpokePoolClient";
@@ -149,7 +150,7 @@ export class MockSpokePoolClient extends SpokePoolClient {
       realizedLpFeePct: fill.realizedLpFeePct ?? toBNWei(random(0.00001, 0.0001).toPrecision(6)),
       relayerFeePct,
       depositId,
-      destinationToken: randomAddress(),
+      destinationToken: fill.destinationToken ?? ZERO_ADDRESS, // resolved via HubPoolClient.
       relayer: fill.relayer ?? randomAddress(),
       depositor,
       recipient,
