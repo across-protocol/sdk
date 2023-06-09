@@ -1,3 +1,5 @@
+// THIS CLASS HAS NO PURPOSE RIGHT NOW - IT WILL BE UPDATED IN THE FUTURE
+
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import assert from "assert";
 import winston from "winston";

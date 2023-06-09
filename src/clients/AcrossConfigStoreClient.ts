@@ -432,6 +432,7 @@ export class AcrossConfigStoreClient {
     return disabledChains.filter((chainId: number) => !isNaN(chainId) && Number.isInteger(chainId) && chainId !== 1);
   }
 
+  // THIS IS A STUB FOR NOW
   async getUBAFeeConfig(
     chainId: number,
     token: string,
