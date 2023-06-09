@@ -30,6 +30,7 @@ import {
   DisabledChainsUpdate,
 } from "../interfaces";
 import { across } from "@uma/sdk";
+import { UBAFeeConfig } from "../UBAFeeCalculator";
 
 type _ConfigStoreUpdate = {
   success: true;
@@ -429,5 +430,25 @@ export class AcrossConfigStoreClient {
     // If any chain ID's are not integers then ignore. UMIP-157 requires that this key cannot include
     // the chain ID 1.
     return disabledChains.filter((chainId: number) => !isNaN(chainId) && Number.isInteger(chainId) && chainId !== 1);
+  }
+
+  async getUBAFeeConfig(
+    chainId: number,
+    token: string,
+    blockNumber: number | "latest" = "latest"
+  ): Promise<UBAFeeConfig> {
+    chainId;
+    token;
+    blockNumber;
+    return new UBAFeeConfig(
+      {
+        default: toBN(0),
+      },
+      toBN(0),
+      {
+        default: [],
+      },
+      {}
+    );
   }
 }
