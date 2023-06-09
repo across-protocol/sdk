@@ -1,29 +1,31 @@
 import assert from "assert";
 import winston from "winston";
 import { BigNumber } from "ethers";
-import { DepositWithBlock, FillWithBlock, RefundRequestWithBlock, UbaFlow } from "../interfaces";
-import { HubPoolClient, SpokePoolClient } from "../clients";
-import { isDefined, sortEventsAscending } from "../utils";
+import { DepositWithBlock, FillWithBlock, RefundRequestWithBlock, UbaFlow } from "../../interfaces";
+import { HubPoolClient, SpokePoolClient } from "..";
+import { isDefined, sortEventsAscending } from "../../utils";
+import { RequestValidReturnType, UBAClientManual } from "./UBAClientWithManual";
 
-export class UBAClient {
+export class UBAClientWithRefresh extends UBAClientManual {
   // @dev chainIdIndices supports indexing members of root bundle proposals submitted to the HubPool.
   //      It must include the complete set of chain IDs ever supported by the HubPool.
   // @dev SpokePoolClients may be a subset of the SpokePools that have been deployed.
   constructor(
-    private readonly chainIdIndices: number[],
+    chainIdIndices: number[],
     private readonly hubPoolClient: HubPoolClient,
     private readonly spokePoolClients: { [chainId: number]: SpokePoolClient },
-    private readonly logger?: winston.Logger
+    logger?: winston.Logger
   ) {
+    super(chainIdIndices, { spoke: {} }, logger);
     assert(chainIdIndices.length > 0, "No chainIds provided");
     assert(Object.values(spokePoolClients).length > 0, "No SpokePools provided");
   }
 
-  private resolveClosingBlockNumber(chainId: number, blockNumber: number): number {
+  protected resolveClosingBlockNumber(chainId: number, blockNumber: number): number {
     return this.hubPoolClient.getLatestBundleEndBlockForChain(this.chainIdIndices, blockNumber, chainId);
   }
 
-  getOpeningBalance(
+  public getOpeningBalance(
     chainId: number,
     spokePoolToken: string,
     hubPoolBlockNumber?: number
@@ -69,7 +71,7 @@ export class UBAClient {
    * @param fromBlock       Optional lower bound of the search range. Defaults to the SpokePool deployment block.
    * @param toBlock         Optional upper bound of the search range. Defaults to the latest queried block.
    */
-  getFlows(chainId: number, fromBlock?: number, toBlock?: number): UbaFlow[] {
+  public getFlows(chainId: number, fromBlock?: number, toBlock?: number): UbaFlow[] {
     const spokePoolClient = this.spokePoolClients[chainId];
 
     fromBlock = fromBlock ?? spokePoolClient.deploymentBlock;
@@ -98,17 +100,17 @@ export class UBAClient {
     });
 
     const refundRequests: UbaFlow[] = spokePoolClient.getRefundRequests(fromBlock, toBlock).filter((refundRequest) => {
-      const { valid, reason } = this.refundRequestIsValid(chainId, refundRequest);
-      if (!valid && this.logger !== undefined) {
+      const result = this.refundRequestIsValid(chainId, refundRequest);
+      if (!result.valid && this.logger !== undefined) {
         this.logger.info({
           at: "UBAClient::getFlows",
           message: `Excluding RefundRequest on chain ${chainId}`,
-          reason,
+          reason: result.reason,
           refundRequest,
         });
       }
 
-      return valid;
+      return result.valid;
     });
 
     // This is probably more expensive than we'd like... @todo: optimise.
@@ -126,7 +128,7 @@ export class UBAClient {
    * @param chainId       ChainId of SpokePool where refundRequest originated.
    * @param refundRequest RefundRequest object to be evaluated for validity.
    */
-  refundRequestIsValid(chainId: number, refundRequest: RefundRequestWithBlock): { valid: boolean; reason?: string } {
+  public refundRequestIsValid(chainId: number, refundRequest: RefundRequestWithBlock): RequestValidReturnType {
     const { relayer, amount, refundToken, depositId, originChainId, destinationChainId, realizedLpFeePct, fillBlock } =
       refundRequest;
 
