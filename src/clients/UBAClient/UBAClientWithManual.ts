@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 import assert from "assert";
 import winston from "winston";
 import { RefundRequestWithBlock, UbaFlow } from "../../interfaces";
@@ -90,5 +91,11 @@ export class UBAClientManual extends BaseUBAClient {
     _refundRequest: RefundRequestWithBlock
   ): RequestValidReturnType {
     return { valid: true };
+  }
+  protected instantiateUBAFeeCalculator(_chainId: number, _token: string, _fromBlock: number): Promise<void> {
+    throw new Error("Method not implemented.");
+  }
+  protected computeRealizedLpFee(_spokePoolToken: string, _chainId: number, _amount: BigNumber): Promise<BigNumber> {
+    throw new Error("Method not implemented.");
   }
 }

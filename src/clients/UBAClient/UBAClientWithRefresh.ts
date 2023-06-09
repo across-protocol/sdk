@@ -5,6 +5,7 @@ import { DepositWithBlock, FillWithBlock, RefundRequestWithBlock, UbaFlow } from
 import { HubPoolClient, SpokePoolClient } from "..";
 import { isDefined, sortEventsAscending } from "../../utils";
 import { BaseUBAClient, RequestValidReturnType } from "./UBAClientAbstract";
+import { UBAFeeSpokeCalculator } from "../../UBAFeeCalculator";
 
 export class UBAClientWithRefresh extends BaseUBAClient {
   // @dev chainIdIndices supports indexing members of root bundle proposals submitted to the HubPool.
@@ -159,5 +160,24 @@ export class UBAClientWithRefresh extends BaseUBAClient {
     }
 
     return { valid: true };
+  }
+
+  protected async instantiateUBAFeeCalculator(chainId: number, token: string, fromBlock: number): Promise<void> {
+    const config = this.hubPoolClient.configStoreClient;
+    if (!isDefined(this.spokeUBAFeeCalculators[chainId]?.[token])) {
+      const spokeFeeCalculator = new UBAFeeSpokeCalculator(
+        chainId,
+        token,
+        this.getFlows(chainId, fromBlock),
+        0,
+        await config.getUBAFeeConfig(chainId, token)
+      );
+      this.spokeUBAFeeCalculators[chainId] ??= {};
+      this.spokeUBAFeeCalculators[chainId][token] = spokeFeeCalculator;
+    }
+  }
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  protected computeRealizedLpFee(_spokePoolToken: string, _chainId: number, _amount: BigNumber): Promise<BigNumber> {
+    throw new Error("Method not implemented.");
   }
 }
