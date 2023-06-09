@@ -62,9 +62,9 @@ export class UBAClientManual extends BaseUBAClient {
     if (!isDefined(token)) {
       throw new Error(`Could not resolve ${chainId} token ${spokePoolToken} at block ${hubPoolBlockNumber}`);
     }
-    const openingBalance = token.findLast(
-      (balance) => !hubPoolBlockNumber || balance.blockNumber <= hubPoolBlockNumber
-    );
+    const openingBalance = [...token]
+      .reverse()
+      .find((balance) => !hubPoolBlockNumber || balance.blockNumber <= hubPoolBlockNumber);
     if (!isDefined(openingBalance)) {
       throw new Error(`Could not resolve ${chainId} token ${spokePoolToken} at block ${hubPoolBlockNumber}`);
     }
