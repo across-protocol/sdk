@@ -2,25 +2,6 @@ import winston from "winston";
 import { RefundRequestWithBlock, UbaFlow } from "../../interfaces";
 import { BigNumber } from "ethers";
 
-/**
- * UBAClientState is a type that represents the state of a UBAClient.
- */
-export type UBAClientState = {
-  spoke: {
-    [chainId: number]: {
-      flows: UbaFlow[];
-      latestBlockNumber: number;
-      bundleEndBlocks: number[];
-      openingBalances: {
-        [token: string]: {
-          blockNumber: number;
-          balance: BigNumber;
-        }[];
-      };
-    };
-  };
-};
-
 export type RequestValidReturnType = { valid: false; reason: string } | { valid: true };
 export type OpeningBalanceReturnType = { blockNumber: number; spokePoolBalance: BigNumber };
 

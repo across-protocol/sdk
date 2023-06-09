@@ -2,7 +2,27 @@ import assert from "assert";
 import winston from "winston";
 import { RefundRequestWithBlock, UbaFlow } from "../../interfaces";
 import { isDefined } from "../../utils";
-import { BaseUBAClient, OpeningBalanceReturnType, RequestValidReturnType, UBAClientState } from "./UBAClientAbstract";
+import { BaseUBAClient, OpeningBalanceReturnType, RequestValidReturnType } from "./UBAClientAbstract";
+import { BigNumber } from "ethers";
+
+/**
+ * UBAClientState is a type that represents the state of a UBAClient.
+ */
+type UBAClientState = {
+  spoke: {
+    [chainId: number]: {
+      flows: UbaFlow[];
+      latestBlockNumber: number;
+      bundleEndBlocks: number[];
+      openingBalances: {
+        [token: string]: {
+          blockNumber: number;
+          balance: BigNumber;
+        }[];
+      };
+    };
+  };
+};
 
 /**
  * UBAClient is a base class for UBA functionality. It provides a common interface for UBA functionality to be implemented on top of or extended.
