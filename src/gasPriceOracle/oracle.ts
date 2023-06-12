@@ -61,7 +61,7 @@ export async function getGasPriceEstimate(
 
   const gasPriceFeeds: { [chainId: number]: GasPriceFeed } = {
     1: eip1559,
-    10: legacy,
+    10: eip1559,
     137: eip1559, // @todo: Query Polygon Gas Station directly
     288: legacy,
     42161: legacy,
