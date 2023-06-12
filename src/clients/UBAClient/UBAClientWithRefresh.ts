@@ -6,7 +6,7 @@ import { HubPoolClient, SpokePoolClient } from "..";
 import { isDefined, sortEventsAscending } from "../../utils";
 import { BaseUBAClient, RequestValidReturnType } from "./UBAClientAbstract";
 import { UBAFeeSpokeCalculator } from "../../UBAFeeCalculator";
-
+import { computeRealizedLpFeeForRefresh } from "./UBAClientUtilities";
 export class UBAClientWithRefresh extends BaseUBAClient {
   // @dev chainIdIndices supports indexing members of root bundle proposals submitted to the HubPool.
   //      It must include the complete set of chain IDs ever supported by the HubPool.
@@ -177,7 +177,22 @@ export class UBAClientWithRefresh extends BaseUBAClient {
     }
   }
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  protected computeRealizedLpFee(_spokePoolToken: string, _chainId: number, _amount: BigNumber): Promise<BigNumber> {
-    throw new Error("Method not implemented.");
+  protected async computeRealizedLpFee(
+    l1TokenAddress: string,
+    depositChainId: number,
+    refundChainId: number,
+    amount: BigNumber
+  ): Promise<BigNumber> {
+    const ubaConfig = await this.hubPoolClient.configStoreClient.getUBAFeeConfig(depositChainId, l1TokenAddress);
+    return computeRealizedLpFeeForRefresh(
+      l1TokenAddress,
+      depositChainId,
+      refundChainId,
+      amount,
+      this.hubPoolClient,
+      this.spokePoolClients,
+      ubaConfig.getBaselineFee(refundChainId, depositChainId),
+      ubaConfig.getLpGammaFunctionTuples(depositChainId)
+    );
   }
 }
