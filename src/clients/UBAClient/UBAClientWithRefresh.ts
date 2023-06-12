@@ -172,7 +172,7 @@ export class UBAClientWithRefresh extends BaseUBAClient {
         0,
         await config.getUBAFeeConfig(chainId, token)
       );
-      this.spokeUBAFeeCalculators[chainId] ??= {};
+      this.spokeUBAFeeCalculators[chainId] = this.spokeUBAFeeCalculators[chainId] ?? {};
       this.spokeUBAFeeCalculators[chainId][token] = spokeFeeCalculator;
     }
   }
