@@ -98,7 +98,12 @@ export class UBAClientManual extends BaseUBAClient {
   protected instantiateUBAFeeCalculator(_chainId: number, _token: string, _fromBlock: number): Promise<void> {
     throw new Error("Method not implemented.");
   }
-  protected computeRealizedLpFee(_spokePoolToken: string, _chainId: number, _amount: BigNumber): Promise<BigNumber> {
+  protected computeRealizedLpFee(
+    _l1TokenAddress: string,
+    _depositChainId: number,
+    _refundChainId: number,
+    _amount: BigNumber
+  ): Promise<BigNumber> {
     throw new Error("Method not implemented.");
   }
 }
