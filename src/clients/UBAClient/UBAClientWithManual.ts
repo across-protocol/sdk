@@ -7,6 +7,7 @@ import { RefundRequestWithBlock, UbaFlow } from "../../interfaces";
 import { isDefined } from "../../utils";
 import { BaseUBAClient, OpeningBalanceReturnType, RequestValidReturnType } from "./UBAClientAbstract";
 import { BigNumber } from "ethers";
+import { RelayerFeeDetails } from "../../relayFeeCalculator";
 
 /**
  * UBAClientState is a type that represents the state of a UBAClient.
@@ -104,6 +105,15 @@ export class UBAClientManual extends BaseUBAClient {
     _refundChainId: number,
     _amount: BigNumber
   ): Promise<BigNumber> {
+    throw new Error("Method not implemented.");
+  }
+  protected computeRelayerFees(
+    _tokenSymbol: string,
+    _amount: BigNumber,
+    _depositChainId: number,
+    _refundChainId: number,
+    _tokenPrice?: number | undefined
+  ): Promise<RelayerFeeDetails> {
     throw new Error("Method not implemented.");
   }
 }
