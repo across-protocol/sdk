@@ -46,7 +46,7 @@ export default class UBAFeeSpokeCalculator {
     public readonly symbol: string,
     public readonly recentRequestFlow: UbaFlow[],
     public blockNumber: number,
-    private readonly config: UBAConfig
+    public readonly config: UBAConfig
   ) {
     this.lastValidatedRunningBalance = undefined;
     this.lastValidatedIncentiveRunningBalance = undefined;

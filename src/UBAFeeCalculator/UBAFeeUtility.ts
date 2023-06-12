@@ -303,7 +303,7 @@ export function calculateUtilization(
   return BigNumber.from(10).pow(decimals).sub(result);
 }
 
-export function calculationUtilizationBoundaries(
+export function calculateUtilizationBoundaries(
   action: {
     actionType: "deposit" | "refund";
     amount: BigNumber;
