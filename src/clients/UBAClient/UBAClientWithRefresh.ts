@@ -12,10 +12,10 @@ export class UBAClientWithRefresh extends BaseUBAClient {
   //      It must include the complete set of chain IDs ever supported by the HubPool.
   // @dev SpokePoolClients may be a subset of the SpokePools that have been deployed.
   constructor(
-    chainIdIndices: number[],
+    readonly chainIdIndices: number[],
     private readonly hubPoolClient: HubPoolClient,
     private readonly spokePoolClients: { [chainId: number]: SpokePoolClient },
-    logger?: winston.Logger
+    readonly logger?: winston.Logger
   ) {
     super(chainIdIndices, logger);
     assert(chainIdIndices.length > 0, "No chainIds provided");
