@@ -148,16 +148,32 @@ export abstract class BaseUBAClient {
   }
 
   /**
-   * Compute the relayer fees for a given amount.
+   * Compute the entire relayer fee for a given amount. The relayer fee is the sum of the gas fee, the capital fee.
+   * @param tokenSymbol The token to get the relayer fee for
+   * @param amount The amount to get the relayer fee for
+   * @param depositChainId The chainId of the deposit
+   * @param refundChainId The chainId of the refund
+   * @param tokenPrice The price of the token
+   * @returns The relayer fee for the given token on the given chainId at the given block number
    */
   protected abstract computeRelayerFees(
-    l1TokenAddress: string,
+    tokenSymbol: string,
     amount: BigNumber,
     depositChainId: number,
     refundChainId: number,
     tokenPrice?: number
   ): Promise<RelayerFeeDetails>;
 
+  /**
+   * Compute the entire Relayer fee in the context of the UBA system for a given amount. The relayer fee is the sum of the gas fee, the capital fee, and the balancing fee.
+   * @param depositChain The chainId of the deposit
+   * @param refundChain The chainId of the refund
+   * @param spokePoolToken The token to get the relayer fee for
+   * @param amount The amount to get the relayer fee for
+   * @param hubPoolBlockNumber The block number to get the relayer fee for
+   * @param tokenPrice The price of the token
+   * @returns The relayer fee for the given token on the given chainId at the given block number
+   */
   public async getRelayerFee(
     depositChain: number,
     refundChain: number,
@@ -178,6 +194,16 @@ export abstract class BaseUBAClient {
     };
   }
 
+  /**
+   * Compute the entire UBA fee in the context of the UBA system for a given amount. The UBA fee is comprised of 7 return variables.
+   * @param depositChain The chainId of the deposit
+   * @param refundChain The chainId of the refund
+   * @param spokePoolToken The token to get the relayer fee for
+   * @param amount The amount to get the relayer fee for
+   * @param hubPoolBlockNumber The block number to get the relayer fee for
+   * @param tokenPrice The price of the token
+   * @returns The UBA fee for the given token on the given chainId at the given block number
+   */
   public async getUBAFee(
     depositChain: number,
     refundChain: number,

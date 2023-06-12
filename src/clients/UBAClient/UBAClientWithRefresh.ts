@@ -7,7 +7,6 @@ import { isDefined, sortEventsAscending } from "../../utils";
 import { BaseUBAClient, RequestValidReturnType } from "./UBAClientAbstract";
 import { UBAFeeSpokeCalculator } from "../../UBAFeeCalculator";
 import { computeRealizedLpFeeForRefresh } from "./UBAClientUtilities";
-import { ERC20__factory } from "@across-protocol/across-token";
 import { RelayFeeCalculator, RelayFeeCalculatorConfig, RelayerFeeDetails } from "../../relayFeeCalculator";
 export class UBAClientWithRefresh extends BaseUBAClient {
   // @dev chainIdIndices supports indexing members of root bundle proposals submitted to the HubPool.
@@ -200,18 +199,16 @@ export class UBAClientWithRefresh extends BaseUBAClient {
   }
 
   protected async computeRelayerFees(
-    l1TokenAddress: string,
+    tokenSymbol: string,
     amount: BigNumber,
     depositChainId: number,
     refundChainId: number,
     tokenPrice?: number
   ): Promise<RelayerFeeDetails> {
     const relayCalculator = new RelayFeeCalculator(this.relayerConfiguration);
-    const erc20 = ERC20__factory.connect(l1TokenAddress, this.hubPoolClient.hubPool.provider);
-    const [symbol] = await Promise.all([erc20.symbol()]);
     return relayCalculator.relayerFeeDetails(
       amount,
-      symbol,
+      tokenSymbol,
       tokenPrice,
       depositChainId.toString(),
       refundChainId.toString()
