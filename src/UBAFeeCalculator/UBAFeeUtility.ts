@@ -293,11 +293,12 @@ export function calculateUtilization(
   hubBalance: BigNumber,
   hubEquity: BigNumber,
   ethSpokeBalance: BigNumber,
-  spokeTargets: { target: BigNumber; spokeChainId: number }[]
+  spokeTargets: { target: BigNumber; spokeChainId: number }[],
+  hubPoolChainId = HUBPOOL_CHAIN_ID
 ) {
   const numerator = hubBalance
     .add(ethSpokeBalance)
-    .add(spokeTargets.reduce((a, b) => (b.spokeChainId !== HUBPOOL_CHAIN_ID ? a.add(b.target) : a), BigNumber.from(0)));
+    .add(spokeTargets.reduce((a, b) => (b.spokeChainId !== hubPoolChainId ? a.add(b.target) : a), BigNumber.from(0)));
   const denominator = hubEquity;
   const result = numerator.mul(parseEther("1.0")).div(denominator); // We need to multiply by 1e18 to get the correct precision for the result
   return BigNumber.from(10).pow(decimals).sub(result);
@@ -313,10 +314,11 @@ export function calculateUtilizationBoundaries(
   hubBalance: BigNumber,
   hubEquity: BigNumber,
   ethSpokeBalance: BigNumber,
-  spokeTargets: { target: BigNumber; spokeChainId: number }[]
+  spokeTargets: { target: BigNumber; spokeChainId: number }[],
+  hubPoolChainId = HUBPOOL_CHAIN_ID
 ): { utilizationPostTx: BigNumber; utilizationPreTx: BigNumber } {
   let newEthSpokeBalance = ethSpokeBalance;
-  if (action.chainId === HUBPOOL_CHAIN_ID) {
+  if (action.chainId === hubPoolChainId) {
     if (action.actionType === "deposit") {
       newEthSpokeBalance = newEthSpokeBalance.add(action.amount);
     } else {

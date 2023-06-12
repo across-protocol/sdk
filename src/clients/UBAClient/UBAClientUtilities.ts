@@ -2,7 +2,6 @@ import { BigNumber } from "ethers";
 import { HubPoolClient } from "../HubPoolClient";
 import { ERC20__factory, toBN } from "@across-protocol/contracts-v2";
 import { calculateUtilizationBoundaries, computePiecewiseLinearFunction } from "../../UBAFeeCalculator/UBAFeeUtility";
-import { HUBPOOL_CHAIN_ID } from "../../constants";
 import { SpokePoolClient } from "../SpokePoolClient";
 import { FlowTupleParameters } from "../../UBAFeeCalculator/UBAFeeConfig";
 import { abs, max } from "../../utils";
@@ -34,7 +33,7 @@ export async function computeRealizedLpFeeForRefresh(
   const erc20 = ERC20__factory.connect(l1TokenAddress, hubPoolClient.hubPool.provider);
   const [decimals, ethSpokeBalance, hubBalance, hubEquity, spokeTargets] = await Promise.all([
     erc20.decimals({ blockTag: blockNumber }),
-    erc20.balanceOf(spokePoolClients[HUBPOOL_CHAIN_ID].spokePool.address, { blockTag: blockNumber }),
+    erc20.balanceOf(spokePoolClients[hubPoolClient.chainId].spokePool.address, { blockTag: blockNumber }),
     erc20.balanceOf(hubPoolClient.hubPool.address, { blockTag: blockNumber }),
     erc20.balanceOf(hubPoolClient.hubPool.address, { blockTag: blockNumber }),
     configStoreClient.getUBATargetSpokeBalances([depositChainId, refundChainId], l1TokenAddress, blockNumber),
@@ -45,7 +44,8 @@ export async function computeRealizedLpFeeForRefresh(
     hubBalance,
     hubEquity,
     ethSpokeBalance,
-    spokeTargets
+    spokeTargets,
+    hubPoolClient.chainId
   );
 
   const utilizationDelta = abs(utilizationPostTx.sub(utilizationPreTx));
