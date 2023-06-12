@@ -2,10 +2,19 @@ import winston from "winston";
 import { RefundRequestWithBlock, UbaFlow } from "../../interfaces";
 import { BigNumber } from "ethers";
 import { UBAFeeSpokeCalculator } from "../../UBAFeeCalculator";
+import { RelayerFeeDetails } from "../../relayFeeCalculator";
+import { toBN } from "../../utils";
 
 export type RequestValidReturnType = { valid: false; reason: string } | { valid: true };
 export type OpeningBalanceReturnType = { blockNumber: number; spokePoolBalance: BigNumber };
 export type BalancingFeeReturnType = { depositBalancingFee: BigNumber; refundBalancingFee: BigNumber };
+export type SystemFeeResult = { lpFee: BigNumber; depositBalancingFee: BigNumber; systemFee: BigNumber };
+export type RelayerFeeResult = {
+  relayerGasFee: BigNumber;
+  relayerCapitalFee: BigNumber;
+  relayerBalancingFee: BigNumber;
+  relayerFee: BigNumber;
+};
 
 /**
  * UBAClient is a base class for UBA functionality. It provides a common interface for UBA functionality to be implemented on top of or extended.
@@ -130,11 +139,60 @@ export abstract class BaseUBAClient {
     spokePoolToken: string,
     amount: BigNumber,
     hubPoolBlockNumber: number
-  ): Promise<BigNumber> {
-    const [lpFee, { depositBalancingFee: balancingFee }] = await Promise.all([
+  ): Promise<SystemFeeResult> {
+    const [lpFee, { depositBalancingFee: depositBalancingFee }] = await Promise.all([
       this.computeRealizedLpFee(spokePoolToken, depositChain, refundChain, amount),
       this.computeBalancingFee(spokePoolToken, amount, hubPoolBlockNumber, depositChain, refundChain),
     ]);
-    return lpFee.add(balancingFee);
+    return { lpFee, depositBalancingFee, systemFee: lpFee.add(depositBalancingFee) };
+  }
+
+  /**
+   * Compute the relayer fees for a given amount.
+   */
+  protected abstract computeRelayerFees(
+    l1TokenAddress: string,
+    amount: BigNumber,
+    depositChainId: number,
+    refundChainId: number,
+    tokenPrice?: number
+  ): Promise<RelayerFeeDetails>;
+
+  public async getRelayerFee(
+    depositChain: number,
+    refundChain: number,
+    spokePoolToken: string,
+    amount: BigNumber,
+    hubPoolBlockNumber: number,
+    tokenPrice?: number
+  ): Promise<RelayerFeeResult> {
+    const [relayerFeeDetails, { refundBalancingFee: balancingFee }] = await Promise.all([
+      this.computeRelayerFees(spokePoolToken, amount, depositChain, refundChain, tokenPrice),
+      this.computeBalancingFee(spokePoolToken, amount, hubPoolBlockNumber, depositChain, refundChain),
+    ]);
+    return {
+      relayerGasFee: toBN(relayerFeeDetails.gasFeeTotal),
+      relayerCapitalFee: toBN(relayerFeeDetails.capitalFeeTotal),
+      relayerBalancingFee: balancingFee,
+      relayerFee: balancingFee.add(relayerFeeDetails.relayFeeTotal),
+    };
+  }
+
+  public async getUBAFee(
+    depositChain: number,
+    refundChain: number,
+    spokePoolToken: string,
+    amount: BigNumber,
+    hubPoolBlockNumber: number,
+    tokenPrice?: number
+  ): Promise<RelayerFeeResult & SystemFeeResult> {
+    const [relayerFee, systemFee] = await Promise.all([
+      this.getRelayerFee(depositChain, refundChain, spokePoolToken, amount, hubPoolBlockNumber, tokenPrice),
+      this.computeSystemFee(depositChain, refundChain, spokePoolToken, amount, hubPoolBlockNumber),
+    ]);
+    return {
+      ...relayerFee,
+      ...systemFee,
+    };
   }
 }

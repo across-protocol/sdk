@@ -7,6 +7,8 @@ import { isDefined, sortEventsAscending } from "../../utils";
 import { BaseUBAClient, RequestValidReturnType } from "./UBAClientAbstract";
 import { UBAFeeSpokeCalculator } from "../../UBAFeeCalculator";
 import { computeRealizedLpFeeForRefresh } from "./UBAClientUtilities";
+import { ERC20__factory } from "@across-protocol/across-token";
+import { RelayFeeCalculator, RelayFeeCalculatorConfig, RelayerFeeDetails } from "../../relayFeeCalculator";
 export class UBAClientWithRefresh extends BaseUBAClient {
   // @dev chainIdIndices supports indexing members of root bundle proposals submitted to the HubPool.
   //      It must include the complete set of chain IDs ever supported by the HubPool.
@@ -15,6 +17,7 @@ export class UBAClientWithRefresh extends BaseUBAClient {
     readonly chainIdIndices: number[],
     private readonly hubPoolClient: HubPoolClient,
     private readonly spokePoolClients: { [chainId: number]: SpokePoolClient },
+    private readonly relayerConfiguration: RelayFeeCalculatorConfig,
     readonly logger?: winston.Logger
   ) {
     super(chainIdIndices, logger);
@@ -193,6 +196,25 @@ export class UBAClientWithRefresh extends BaseUBAClient {
       this.spokePoolClients,
       ubaConfig.getBaselineFee(refundChainId, depositChainId),
       ubaConfig.getLpGammaFunctionTuples(depositChainId)
+    );
+  }
+
+  protected async computeRelayerFees(
+    l1TokenAddress: string,
+    amount: BigNumber,
+    depositChainId: number,
+    refundChainId: number,
+    tokenPrice?: number
+  ): Promise<RelayerFeeDetails> {
+    const relayCalculator = new RelayFeeCalculator(this.relayerConfiguration);
+    const erc20 = ERC20__factory.connect(l1TokenAddress, this.hubPoolClient.hubPool.provider);
+    const [symbol] = await Promise.all([erc20.symbol()]);
+    return relayCalculator.relayerFeeDetails(
+      amount,
+      symbol,
+      tokenPrice,
+      depositChainId.toString(),
+      refundChainId.toString()
     );
   }
 }
