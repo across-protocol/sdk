@@ -1,13 +1,13 @@
 import winston from "winston";
 import { RefundRequestWithBlock, UbaFlow } from "../../interfaces";
 import { BigNumber } from "ethers";
-import { UBAFeeSpokeCalculator } from "../../UBAFeeCalculator";
+import { UBAActionType, UBAFeeSpokeCalculator } from "../../UBAFeeCalculator";
 import { RelayerFeeDetails } from "../../relayFeeCalculator";
 import { toBN } from "../../utils";
 
 export type RequestValidReturnType = { valid: false; reason: string } | { valid: true };
 export type OpeningBalanceReturnType = { blockNumber: number; spokePoolBalance: BigNumber };
-export type BalancingFeeReturnType = { depositBalancingFee: BigNumber; refundBalancingFee: BigNumber };
+export type BalancingFeeReturnType = { balancingFee: BigNumber; actionType: UBAActionType };
 export type SystemFeeResult = { lpFee: BigNumber; depositBalancingFee: BigNumber; systemFee: BigNumber };
 export type RelayerFeeResult = {
   relayerGasFee: BigNumber;
@@ -99,21 +99,19 @@ export abstract class BaseUBAClient {
     amount: BigNumber,
     hubPoolBlockNumber: number,
     depositChainId: number,
-    refundChainId: number
+    refundChainId: number,
+    feeType: UBAActionType
   ): Promise<BalancingFeeReturnType> {
+    const tokenId = feeType === UBAActionType.Deposit ? depositChainId : refundChainId;
     // Verify that the spoke clients are instantiated.
-    await Promise.all([
-      this.instantiateUBAFeeCalculator(depositChainId, spokePoolToken, hubPoolBlockNumber),
-      this.instantiateUBAFeeCalculator(refundChainId, spokePoolToken, hubPoolBlockNumber),
-    ]);
+    await this.instantiateUBAFeeCalculator(tokenId, spokePoolToken, hubPoolBlockNumber);
     // Get the balancing fees.
-    const [{ balancingFee: depositBalancingFee }, { balancingFee: refundBalancingFee }] = await Promise.all([
-      this.spokeUBAFeeCalculators[depositChainId][spokePoolToken].getDepositFee(amount),
-      this.spokeUBAFeeCalculators[refundChainId][spokePoolToken].getRefundFee(amount),
-    ]);
+    const { balancingFee } = await this.spokeUBAFeeCalculators[tokenId][spokePoolToken][
+      feeType === UBAActionType.Deposit ? "getDepositFee" : "getRefundFee"
+    ](amount);
     return {
-      depositBalancingFee,
-      refundBalancingFee,
+      balancingFee,
+      actionType: feeType,
     };
   }
 
@@ -140,9 +138,16 @@ export abstract class BaseUBAClient {
     amount: BigNumber,
     hubPoolBlockNumber: number
   ): Promise<SystemFeeResult> {
-    const [lpFee, { depositBalancingFee: depositBalancingFee }] = await Promise.all([
+    const [lpFee, { balancingFee: depositBalancingFee }] = await Promise.all([
       this.computeRealizedLpFee(spokePoolToken, depositChain, refundChain, amount),
-      this.computeBalancingFee(spokePoolToken, amount, hubPoolBlockNumber, depositChain, refundChain),
+      this.computeBalancingFee(
+        spokePoolToken,
+        amount,
+        hubPoolBlockNumber,
+        depositChain,
+        refundChain,
+        UBAActionType.Deposit
+      ),
     ]);
     return { lpFee, depositBalancingFee, systemFee: lpFee.add(depositBalancingFee) };
   }
@@ -182,9 +187,16 @@ export abstract class BaseUBAClient {
     hubPoolBlockNumber: number,
     tokenPrice?: number
   ): Promise<RelayerFeeResult> {
-    const [relayerFeeDetails, { refundBalancingFee: balancingFee }] = await Promise.all([
+    const [relayerFeeDetails, { balancingFee }] = await Promise.all([
       this.computeRelayerFees(spokePoolToken, amount, depositChain, refundChain, tokenPrice),
-      this.computeBalancingFee(spokePoolToken, amount, hubPoolBlockNumber, depositChain, refundChain),
+      this.computeBalancingFee(
+        spokePoolToken,
+        amount,
+        hubPoolBlockNumber,
+        depositChain,
+        refundChain,
+        UBAActionType.Refund
+      ),
     ]);
     return {
       relayerGasFee: toBN(relayerFeeDetails.gasFeeTotal),
