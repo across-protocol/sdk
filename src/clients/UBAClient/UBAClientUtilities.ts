@@ -5,6 +5,7 @@ import { calculateUtilizationBoundaries, computePiecewiseLinearFunction } from "
 import { SpokePoolClient } from "../SpokePoolClient";
 import { FlowTupleParameters } from "../../UBAFeeCalculator/UBAFeeConfig";
 import { max } from "../../utils";
+import { UBAActionType } from "../../UBAFeeCalculator";
 
 /**
  * Compute the realized LP fee for a given amount.
@@ -39,7 +40,7 @@ export async function computeRealizedLpFeeForRefresh(
     configStoreClient.getUBATargetSpokeBalances([depositChainId, refundChainId], l1TokenAddress, blockNumber),
   ]);
   const { utilizationPostTx, utilizationPreTx } = calculateUtilizationBoundaries(
-    { actionType: "deposit", amount, chainId: depositChainId },
+    { actionType: UBAActionType.Deposit, amount, chainId: depositChainId },
     decimals,
     hubBalance,
     hubEquity,

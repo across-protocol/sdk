@@ -3,6 +3,7 @@ import { MAX_SAFE_JS_INT } from "@uma/common/dist/Constants";
 import { toBN } from "../utils";
 import { HUBPOOL_CHAIN_ID } from "../constants";
 import { parseEther } from "ethers/lib/utils";
+import { UBAActionType } from ".";
 
 /**
  * Computes a linear integral over a piecewise function
@@ -306,7 +307,7 @@ export function calculateUtilization(
 
 export function calculateUtilizationBoundaries(
   action: {
-    actionType: "deposit" | "refund";
+    actionType: UBAActionType;
     amount: BigNumber;
     chainId: number;
   },
@@ -319,7 +320,7 @@ export function calculateUtilizationBoundaries(
 ): { utilizationPostTx: BigNumber; utilizationPreTx: BigNumber } {
   let newEthSpokeBalance = ethSpokeBalance;
   if (action.chainId === hubPoolChainId) {
-    if (action.actionType === "deposit") {
+    if (action.actionType === UBAActionType.Deposit) {
       newEthSpokeBalance = newEthSpokeBalance.add(action.amount);
     } else {
       newEthSpokeBalance = newEthSpokeBalance.sub(action.amount);
