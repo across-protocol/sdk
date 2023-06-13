@@ -79,12 +79,9 @@ export class UBAClientManual extends BaseUBAClient {
     if (flows.length === 0) {
       return [];
     }
-    return flows.filter((flow) =>
-      isDefined(fromBlock)
-        ? flow.blockNumber >= fromBlock
-        : true && isDefined(toBlock)
-        ? flow.blockNumber <= toBlock
-        : true
+    return flows.filter(
+      (flow) =>
+        (!isDefined(fromBlock) || flow.blockNumber >= fromBlock) && (!isDefined(toBlock) || flow.blockNumber <= toBlock)
     );
   }
 
