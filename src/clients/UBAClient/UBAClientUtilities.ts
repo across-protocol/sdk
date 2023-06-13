@@ -4,7 +4,7 @@ import { ERC20__factory, toBN } from "@across-protocol/contracts-v2";
 import { calculateUtilizationBoundaries, computePiecewiseLinearFunction } from "../../UBAFeeCalculator/UBAFeeUtility";
 import { SpokePoolClient } from "../SpokePoolClient";
 import { FlowTupleParameters } from "../../UBAFeeCalculator/UBAFeeConfig";
-import { abs, max } from "../../utils";
+import { max } from "../../utils";
 
 /**
  * Compute the realized LP fee for a given amount.
@@ -48,7 +48,7 @@ export async function computeRealizedLpFeeForRefresh(
     hubPoolClient.chainId
   );
 
-  const utilizationDelta = abs(utilizationPostTx.sub(utilizationPreTx));
+  const utilizationDelta = utilizationPostTx.sub(utilizationPreTx).abs();
   const utilizationIntegral = computePiecewiseLinearFunction(gammaCutoff, utilizationPreTx, utilizationPostTx);
   return max(toBN(0), baselineFee.add(utilizationIntegral.div(utilizationDelta)));
 }

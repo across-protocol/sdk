@@ -78,16 +78,6 @@ export function max(a: BigNumberish, b: BigNumberish): BN {
   return bna.gte(bnb) ? bna : bnb;
 }
 
-/**
- * Compute the absolute value of a BigNumber
- * @param _x The BigNumber to compute the absolute value of
- * @returns The absolute value of the given BigNumber
- */
-export function abs(_x: BigNumberish): BN {
-  const x = toBN(_x);
-  return x.lt(0) ? x.mul(-1) : x;
-}
-
 export const fixedPointAdjustment = toBNWei("1");
 
 /**
