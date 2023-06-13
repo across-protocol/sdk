@@ -56,7 +56,7 @@ export class UBAClientManual extends BaseUBAClient {
   public getOpeningBalance(
     chainId: number,
     spokePoolToken: string,
-    hubPoolBlockNumber?: number
+    hubPoolBlockNumber: number = Number.MAX_SAFE_INTEGER
   ): OpeningBalanceReturnType {
     const spoke = this.state.spoke[chainId];
     const token = spoke.openingBalances[spokePoolToken];
@@ -74,15 +74,14 @@ export class UBAClientManual extends BaseUBAClient {
     return { blockNumber, spokePoolBalance };
   }
 
-  public getFlows(chainId: number, fromBlock?: number, toBlock?: number): UbaFlow[] {
+  public getFlows(chainId: number, _fromBlock?: number, _toBlock?: number): UbaFlow[] {
     const { flows } = this.state.spoke[chainId];
     if (flows.length === 0) {
       return [];
     }
-    return flows.filter(
-      (flow) =>
-        (!isDefined(fromBlock) || flow.blockNumber >= fromBlock) && (!isDefined(toBlock) || flow.blockNumber <= toBlock)
-    );
+    const fromBlock = _fromBlock ?? 0;
+    const toBlock = _toBlock ?? Number.MAX_SAFE_INTEGER;
+    return flows.filter((flow) => flow.blockNumber >= fromBlock && flow.blockNumber <= toBlock);
   }
 
   public refundRequestIsValid(
