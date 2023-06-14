@@ -76,12 +76,7 @@ export abstract class BaseUBAClient {
    * @param chainId       ChainId of SpokePool where refundRequest originated.
    * @param refundRequest RefundRequest object to be evaluated for validity.
    */
-  public abstract refundRequestIsValid(
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    _chainId: number,
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    _refundRequest: RefundRequestWithBlock
-  ): RequestValidReturnType;
+  public abstract refundRequestIsValid(chainId: number, refundRequest: RefundRequestWithBlock): RequestValidReturnType;
 
   protected abstract instantiateUBAFeeCalculator(chainId: number, token: string, fromBlock: number): Promise<void>;
 
