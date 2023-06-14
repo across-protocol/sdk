@@ -14,6 +14,7 @@ export type RelayerFeeResult = {
   relayerCapitalFee: BigNumber;
   relayerBalancingFee: BigNumber;
   relayerFee: BigNumber;
+  amountTooLow: boolean;
 };
 
 /**
@@ -198,6 +199,7 @@ export abstract class BaseUBAClient {
       relayerCapitalFee: toBN(relayerFeeDetails.capitalFeeTotal),
       relayerBalancingFee: balancingFee,
       relayerFee: balancingFee.add(relayerFeeDetails.relayFeeTotal),
+      amountTooLow: relayerFeeDetails.isAmountTooLow,
     };
   }
 
@@ -227,5 +229,35 @@ export abstract class BaseUBAClient {
       ...relayerFee,
       ...systemFee,
     };
+  }
+
+  /**
+   * Compute the entire UBA fee in the context of the UBA system for a given amount. The UBA fee is comprised of 7 return variables. This function is used to compute the UBA fee for a given amount on multiple refund chains.
+   * The function returns a record of the UBA fee for each refund chain that is not too low.
+   * @param depositChain The chainId of the deposit
+   * @param refundChainCandidates The chainIds of the refund candidates
+   * @param spokePoolToken The token to get the relayer fee for
+   * @param amount The amount to get the relayer fee for
+   * @param hubPoolBlockNumber The block number to get the relayer fee for
+   * @param tokenPrice The price of the token
+   * @returns A record of the UBA fee for each refund chain that is not too low
+   */
+  public async getUBAFeeFromCandidates(
+    depositChain: number,
+    refundChainCandidates: number[],
+    spokePoolToken: string,
+    amount: BigNumber,
+    hubPoolBlockNumber: number,
+    tokenPrice?: number
+  ): Promise<Record<number, RelayerFeeResult & SystemFeeResult>> {
+    const transformation = await Promise.all(
+      refundChainCandidates.map(async (refundChain) => {
+        return [
+          refundChain,
+          await this.getUBAFee(depositChain, refundChain, spokePoolToken, amount, hubPoolBlockNumber, tokenPrice),
+        ] as [number, RelayerFeeResult & SystemFeeResult];
+      })
+    );
+    return Object.fromEntries(transformation.filter(([, result]) => !result.amountTooLow));
   }
 }
