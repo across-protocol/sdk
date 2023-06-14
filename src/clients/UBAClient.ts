@@ -45,7 +45,7 @@ export class UBAClient {
       blockNumber = prevEndBlock + 1;
       assert(blockNumber <= spokePoolClient.latestBlockNumber);
     }
-    const spokePoolBalance = this.hubPoolClient.getRunningBalanceBeforeBlockForChain(
+    const { runningBalance: spokePoolBalance } = this.hubPoolClient.getRunningBalanceBeforeBlockForChain(
       hubPoolBlockNumber,
       chainId,
       hubPoolToken
