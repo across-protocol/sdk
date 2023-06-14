@@ -12,7 +12,7 @@ export class UBAClientWithRefresh extends BaseUBAClient {
   /**
    * The RelayFeeCalculator is used to compute the relayer fee for a given amount of tokens.
    */
-  private readonly relayCalculator;
+  private readonly relayCalculator: RelayFeeCalculator;
 
   // @dev chainIdIndices supports indexing members of root bundle proposals submitted to the HubPool.
   //      It must include the complete set of chain IDs ever supported by the HubPool.
