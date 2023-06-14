@@ -3,8 +3,9 @@ import { Block } from "@ethersproject/abstract-provider";
 import { BlockFinder } from "@uma/sdk";
 import winston from "winston";
 import _ from "lodash";
-import { assign, EventSearchConfig, MakeOptional, BigNumberish } from "../utils";
+import { assign, EventSearchConfig, isDefined, MakeOptional, BigNumberish } from "../utils";
 import {
+  isUBA,
   fetchTokenInfo,
   sortEventsDescending,
   spreadEvent,
@@ -12,7 +13,7 @@ import {
   paginatedEventQuery,
   toBN,
 } from "../utils";
-import { Deposit, L1Token, CancelledRootBundle, DisputedRootBundle, LpToken } from "../interfaces";
+import { Deposit, L1Token, CancelledRootBundle, DisputedRootBundle, LpToken, TokenRunningBalance } from "../interfaces";
 import { ExecutedRootBundle, PendingRootBundle, ProposedRootBundle } from "../interfaces";
 import { CrossChainContractsSet, DestinationTokenWithBlock, SetPoolRebalanceRoot } from "../interfaces";
 import * as lpFeeCalculator from "../lpFeeCalculator";
@@ -486,10 +487,9 @@ export class HubPoolClient {
     return endBlock > 0 ? endBlock + 1 : 0;
   }
 
-  getRunningBalanceBeforeBlockForChain(block: number, chain: number, l1Token: string): BigNumber {
-    // Search through ExecutedRootBundle events in descending block order so we find the most recent event not greater
-    // than the target block.
-    const mostRecentExecutedRootBundleEvent = sortEventsDescending(this.executedRootBundles).find(
+  getRunningBalanceBeforeBlockForChain(block: number, chain: number, l1Token: string): TokenRunningBalance {
+    // Search ExecutedRootBundles in descending block order to find the most recent event before the target block.
+    const executedRootBundle = sortEventsDescending(this.executedRootBundles).find(
       (executedLeaf: ExecutedRootBundle) => {
         return (
           executedLeaf.blockNumber <= block &&
@@ -498,21 +498,18 @@ export class HubPoolClient {
         );
       }
     ) as ExecutedRootBundle;
-    if (mostRecentExecutedRootBundleEvent) {
-      // Arguably we don't need to even check these array lengths since we should assume that any proposed root bundle
-      // meets this condition.
-      if (
-        mostRecentExecutedRootBundleEvent.l1Tokens.length !== mostRecentExecutedRootBundleEvent.runningBalances.length
-      ) {
-        throw new Error("runningBalances and L1 token of ExecutedRootBundle event are not same length");
-      }
-      const indexOfL1Token = mostRecentExecutedRootBundleEvent.l1Tokens
+
+    let runningBalance = toBN(0);
+    let incentiveBalance = toBN(0);
+    if (executedRootBundle) {
+      const indexOfL1Token = executedRootBundle.l1Tokens
         .map((l1Token) => l1Token.toLowerCase())
         .indexOf(l1Token.toLowerCase());
-      return mostRecentExecutedRootBundleEvent.runningBalances[indexOfL1Token];
-    } else {
-      return toBN(0);
+      runningBalance = executedRootBundle.runningBalances[indexOfL1Token];
+      incentiveBalance = executedRootBundle.incentiveBalances[indexOfL1Token];
     }
+
+    return { runningBalance, incentiveBalance };
   }
 
   async _update(eventNames: HubPoolEvent[]): Promise<HubPoolUpdate> {
@@ -537,8 +534,8 @@ export class HubPoolClient {
     });
     const timerStart = Date.now();
     const [currentTime, pendingRootBundleProposal, ...events] = await Promise.all([
-      this.hubPool.getCurrentTime(),
-      this.hubPool.rootBundleProposal(),
+      this.hubPool.getCurrentTime({ blockTag: searchConfig.toBlock }),
+      this.hubPool.rootBundleProposal({ blockTag: searchConfig.toBlock }),
       ...eventNames.map((eventName) => paginatedEventQuery(this.hubPool, hubPoolEvents[eventName], searchConfig)),
     ]);
     this.logger.debug({
@@ -617,7 +614,11 @@ export class HubPoolClient {
     ];
     const [tokenInfo, lpTokenInfo] = await Promise.all([
       Promise.all(uniqueL1Tokens.map((l1Token: string) => fetchTokenInfo(l1Token, this.hubPool.signer))),
-      Promise.all(uniqueL1Tokens.map(async (l1Token: string) => await this.hubPool.pooledTokens(l1Token))),
+      Promise.all(
+        uniqueL1Tokens.map(
+          async (l1Token: string) => await this.hubPool.pooledTokens(l1Token, { blockTag: update.searchEndBlock })
+        )
+      ),
     ]);
     for (const info of tokenInfo) {
       if (!this.l1Tokens.find((token) => token.symbol === info.symbol)) {
@@ -646,11 +647,60 @@ export class HubPoolClient {
     this.disputedRootBundles.push(
       ...events["RootBundleDisputed"].map((event) => spreadEventWithBlockNumber(event) as DisputedRootBundle)
     );
-    this.executedRootBundles.push(
-      ...events["RootBundleExecuted"]
-        .filter((event) => !this.configOverride.ignoredHubExecutedBundles.includes(event.blockNumber))
-        .map((event) => spreadEventWithBlockNumber(event) as ExecutedRootBundle)
-    );
+
+    const configStoreVersions: { [blockNumber: number]: number } = {};
+    for (const event of events["RootBundleExecuted"]) {
+      if (this.configOverride.ignoredHubExecutedBundles.includes(event.blockNumber)) {
+        continue;
+      }
+
+      // The applicable version is determined by the block number of the corresponding proposal.
+      let proposalBlockNumber = event.blockNumber;
+      for (let idx = this.proposedRootBundles.length - 1; idx >= 0; --idx) {
+        const rootBundleProposal = this.proposedRootBundles[idx];
+        if (event.blockNumber > rootBundleProposal.blockNumber) {
+          proposalBlockNumber = rootBundleProposal.blockNumber;
+          break;
+        }
+      }
+      if (proposalBlockNumber === event.blockNumber) {
+        this.logger.warn({
+          at: "HubPoolClient#update",
+          message: `Unable to find RootBundleProposal before blockNumber ${event.blockNumber}`,
+          executedRootBundle: event.transactionHash,
+        });
+        continue;
+      }
+
+      if (!isDefined(configStoreVersions[proposalBlockNumber])) {
+        const version = this.configStoreClient.getConfigStoreVersionForBlock(proposalBlockNumber);
+        configStoreVersions[proposalBlockNumber] = version;
+      }
+      const version = configStoreVersions[proposalBlockNumber];
+
+      const executedRootBundle = spreadEventWithBlockNumber(event) as ExecutedRootBundle;
+      const { l1Tokens, runningBalances } = executedRootBundle;
+      const nTokens = l1Tokens.length;
+
+      if (isUBA(version)) {
+        // runningBalances array is a concatenation of pre-UBA runningBalances and incentiveBalances.
+        executedRootBundle.runningBalances = runningBalances.slice(0, nTokens);
+        executedRootBundle.incentiveBalances = runningBalances.slice(nTokens);
+      } else {
+        // Pre-UBA: runningBalances length is 1:1 with l1Tokens length. Pad incentiveBalances with zeroes.
+        executedRootBundle.incentiveBalances = runningBalances.map(() => toBN(0));
+      }
+
+      // Safeguard
+      if (executedRootBundle.runningBalances.length !== nTokens) {
+        throw new Error(
+          `Invalid runningBalances length (${executedRootBundle.runningBalances.length})` +
+            ` for ConfigStore version ${version} in chain ${this.chainId} transaction ${event.transactionHash}`
+        );
+      }
+
+      this.executedRootBundles.push(executedRootBundle);
+    }
 
     // If the contract's current rootBundleProposal() value has an unclaimedPoolRebalanceLeafCount > 0, then
     // it means that either the root bundle proposal is in the challenge period and can be disputed, or it has
@@ -691,7 +741,7 @@ export class HubPoolClient {
     this.firstBlockToSearch = update.searchEndBlock + 1; // Next iteration should start off from where this one ended.
 
     this.isUpdated = true;
-    this.logger.debug({ at: "HubPoolClient", message: "HubPool client updated!" });
+    this.logger.debug({ at: "HubPoolClient::update", message: "HubPool client updated!", endBlock: latestBlockNumber });
   }
 
   // Returns end block for `chainId` in ProposedRootBundle.bundleBlockEvalNumbers. Looks up chainId

@@ -1,7 +1,10 @@
+import assert from "assert";
+import { utils } from "@uma/sdk";
 import { isError } from "../typeguards";
 import {
   isDefined,
   spreadEvent,
+  sortEventsAscendingInPlace,
   sortEventsDescending,
   spreadEventWithBlockNumber,
   paginatedEventQuery,
@@ -12,7 +15,7 @@ import {
   max,
   sortEventsAscending,
 } from "../utils";
-import { Contract, BigNumber } from "ethers";
+import { Contract, BigNumber, Event } from "ethers";
 import winston from "winston";
 
 import {
@@ -27,6 +30,18 @@ import {
   DisabledChainsUpdate,
 } from "../interfaces";
 import { across } from "@uma/sdk";
+
+type _ConfigStoreUpdate = {
+  success: true;
+  latestBlockNumber: number;
+  searchEndBlock: number;
+  events: {
+    updatedTokenConfigEvents: Event[];
+    updatedGlobalConfigEvents: Event[];
+    globalConfigUpdateTimes: number[];
+  };
+};
+export type ConfigStoreUpdate = { success: false } | _ConfigStoreUpdate;
 
 // Version 0 is the implicit ConfigStore version from before the version attribute was introduced.
 // @dev Do not change this value.
@@ -51,6 +66,7 @@ export class AcrossConfigStoreClient {
 
   protected rateModelDictionary: across.rateModel.RateModelDictionary;
   public firstBlockToSearch: number;
+  public latestBlockNumber = 0;
 
   public hasLatestConfigStoreVersion = false;
 
@@ -193,9 +209,12 @@ export class AcrossConfigStoreClient {
   }
 
   getConfigStoreVersionForTimestamp(timestamp: number = Number.MAX_SAFE_INTEGER): number {
-    const config = (sortEventsDescending(this.cumulativeConfigStoreVersionUpdates) as ConfigStoreVersionUpdate[]).find(
-      (config) => config.timestamp <= timestamp
-    );
+    const config = this.cumulativeConfigStoreVersionUpdates.find((config) => config.timestamp <= timestamp);
+    return isDefined(config) ? Number(config.value) : DEFAULT_CONFIG_STORE_VERSION;
+  }
+
+  getConfigStoreVersionForBlock(blockNumber: number): number {
+    const config = this.cumulativeConfigStoreVersionUpdates.find((config) => config.blockNumber <= blockNumber);
     return isDefined(config) ? Number(config.value) : DEFAULT_CONFIG_STORE_VERSION;
   }
 
@@ -208,26 +227,55 @@ export class AcrossConfigStoreClient {
     return this.configStoreVersion >= version;
   }
 
-  async update(): Promise<void> {
+  async _update(): Promise<ConfigStoreUpdate> {
+    const latestBlockNumber = await this.configStore.provider.getBlockNumber();
     const searchConfig = {
       fromBlock: this.firstBlockToSearch,
-      toBlock: this.eventSearchConfig.toBlock || (await this.configStore.provider.getBlockNumber()),
+      toBlock: this.eventSearchConfig.toBlock || latestBlockNumber,
       maxBlockLookBack: this.eventSearchConfig.maxBlockLookBack,
     };
 
-    this.logger.debug({ at: "ConfigStore", message: "Updating ConfigStore client", searchConfig });
     if (searchConfig.fromBlock > searchConfig.toBlock) {
-      this.logger.warn({ at: "ConfigStore", message: "Invalid search config.", searchConfig });
-      return;
+      this.logger.warn({ at: "ConfigStore", message: "Invalid search config.", searchConfig, latestBlockNumber });
+      return { success: false };
     }
 
     const [updatedTokenConfigEvents, updatedGlobalConfigEvents] = await Promise.all([
       paginatedEventQuery(this.configStore, this.configStore.filters.UpdatedTokenConfig(), searchConfig),
       paginatedEventQuery(this.configStore, this.configStore.filters.UpdatedGlobalConfig(), searchConfig),
     ]);
+
+    // Events *should* normally be received in ascending order, but explicitly enforce the ordering.
+    [updatedTokenConfigEvents, updatedGlobalConfigEvents].forEach((events) => sortEventsAscendingInPlace(events));
+
     const globalConfigUpdateTimes = (
       await Promise.all(updatedGlobalConfigEvents.map((event) => this.configStore.provider.getBlock(event.blockNumber)))
     ).map((block) => block.timestamp);
+
+    return {
+      success: true,
+      latestBlockNumber,
+      searchEndBlock: searchConfig.toBlock,
+      events: {
+        updatedTokenConfigEvents,
+        updatedGlobalConfigEvents,
+        globalConfigUpdateTimes,
+      },
+    };
+  }
+
+  async update(): Promise<void> {
+    this.logger.debug({ at: "ConfigStore", message: "Updating ConfigStore client" });
+
+    const result = await this._update();
+    if (!result.success) {
+      return;
+    }
+    const { updatedTokenConfigEvents, updatedGlobalConfigEvents, globalConfigUpdateTimes } = result.events;
+    assert(
+      updatedGlobalConfigEvents.length === globalConfigUpdateTimes.length,
+      `GlobalConfigUpdate events mismatch (${updatedGlobalConfigEvents.length} != ${globalConfigUpdateTimes.length})`
+    );
 
     // Save new TokenConfig updates.
     for (const event of updatedTokenConfigEvents) {
@@ -242,13 +290,7 @@ export class AcrossConfigStoreClient {
 
         // If Token config doesn't contain all expected properties, skip it.
         if (!(rateModelForToken && transferThresholdForToken)) {
-          this.logger.warn({
-            at: "ConfigStore",
-            message: "Ignoring invalid rate model update.",
-            update: args,
-            transferThresholdForToken,
-          });
-          continue;
+          throw new Error("Ignoring invalid rate model update");
         }
 
         // Store RateModel:
@@ -301,8 +343,20 @@ export class AcrossConfigStoreClient {
           this.cumulativeRouteRateModelUpdates.push({ ...passedArgs, routeRateModel: {}, l1Token });
         }
       } catch (err) {
-        if (isError(err)) {
-          this.logger.warn({ at: "ConfigStore", message: "Caught error during update.", error: err.message });
+        // @dev averageBlockTimeSeconds does not actually block.
+        const maxWarnAge = (24 * 60 * 60) / (await utils.averageBlockTimeSeconds());
+        if (result.latestBlockNumber - event.blockNumber < maxWarnAge) {
+          const errMsg = isError(err) ? err.message : "unknown error";
+          this.logger.warn({
+            at: "ConfigStore::update",
+            message: `Caught error during ConfigStore update: ${errMsg}`,
+            update: args,
+          });
+        } else {
+          this.logger.debug({
+            at: "ConfigStoreClient::update",
+            message: `Skipping invalid historical update at block ${event.blockNumber}`,
+          });
         }
         continue;
       }
@@ -338,23 +392,17 @@ export class AcrossConfigStoreClient {
           continue;
         }
 
-        // Extract last version
-        const lastValue =
-          this.cumulativeConfigStoreVersionUpdates.length === 0
-            ? DEFAULT_CONFIG_STORE_VERSION
-            : Number(
-                this.cumulativeConfigStoreVersionUpdates[this.cumulativeConfigStoreVersionUpdates.length - 1].value
-              );
-
-        // If version is not > last version, skip.
+        // Extract the current highest version. Require that the version always increments, otherwise skip the update.
+        const lastValue = Number(this.cumulativeConfigStoreVersionUpdates[0]?.value ?? DEFAULT_CONFIG_STORE_VERSION);
         if (value <= lastValue) {
           continue;
         }
 
-        this.cumulativeConfigStoreVersionUpdates.push({
-          ...args,
-          timestamp: globalConfigUpdateTimes[i],
-        });
+        // Prepend the update to impose descending ordering for version updates.
+        this.cumulativeConfigStoreVersionUpdates = [
+          { ...args, timestamp: globalConfigUpdateTimes[i] },
+          ...this.cumulativeConfigStoreVersionUpdates,
+        ];
       } else if (args.key === utf8ToHex(GLOBAL_CONFIG_STORE_KEYS.DISABLED_CHAINS)) {
         try {
           const chainIds = this.filterDisabledChains(JSON.parse(args.value) as number[]);
@@ -370,8 +418,9 @@ export class AcrossConfigStoreClient {
     this.rateModelDictionary.updateWithEvents(this.cumulativeRateModelUpdates);
 
     this.hasLatestConfigStoreVersion = this.hasValidConfigStoreVersionForTimestamp();
+    this.latestBlockNumber = result.latestBlockNumber;
+    this.firstBlockToSearch = result.searchEndBlock + 1; // Next iteration should start off from where this one ended.
     this.isUpdated = true;
-    this.firstBlockToSearch = searchConfig.toBlock + 1; // Next iteration should start off from where this one ended.
 
     this.logger.debug({ at: "ConfigStore", message: "ConfigStore client updated!" });
   }

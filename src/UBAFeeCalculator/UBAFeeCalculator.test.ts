@@ -8,13 +8,13 @@ import {
   getRefundBalancingFee,
   performLinearIntegration,
 } from "./UBAFeeUtility";
-import { TupleParameter } from "./UBAFeeConfig";
+import { FlowTupleParameters } from "./UBAFeeConfig";
 import { MAX_SAFE_JS_INT } from "@uma/common";
 import { parseEther, parseUnits } from "ethers/lib/utils";
 
 describe("UBA Fee Calculations", () => {
   let config: UBAFeeConfig;
-  let tuples: TupleParameter[];
+  let tuples: FlowTupleParameters;
 
   beforeEach(() => {
     config = new UBAFeeConfig(
