@@ -19,7 +19,7 @@ import { UBAActionType } from "../../UBAFeeCalculator";
  * @param gammaCutoff The gamma cutoff to use for this given token - used in the piecewise linear function calculation
  * @returns The realized LP fee for the given token on the given chainId at the given block number
  */
-export async function computeRealizedLpFeeForRefresh(
+export async function computeLpFeeForRefresh(
   l1TokenAddress: string,
   depositChainId: number,
   refundChainId: number,

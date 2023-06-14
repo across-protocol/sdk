@@ -6,7 +6,7 @@ import { HubPoolClient, SpokePoolClient } from "..";
 import { isDefined, sortEventsAscending } from "../../utils";
 import { BaseUBAClient, RequestValidReturnType } from "./UBAClientAbstract";
 import { UBAFeeSpokeCalculator } from "../../UBAFeeCalculator";
-import { computeRealizedLpFeeForRefresh } from "./UBAClientUtilities";
+import { computeLpFeeForRefresh } from "./UBAClientUtilities";
 import { RelayFeeCalculator, RelayFeeCalculatorConfig, RelayerFeeDetails } from "../../relayFeeCalculator";
 export class UBAClientWithRefresh extends BaseUBAClient {
   // @dev chainIdIndices supports indexing members of root bundle proposals submitted to the HubPool.
@@ -178,15 +178,14 @@ export class UBAClientWithRefresh extends BaseUBAClient {
       this.spokeUBAFeeCalculators[chainId][token] = spokeFeeCalculator;
     }
   }
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  protected async computeRealizedLpFee(
+  protected async computeLpFee(
     l1TokenAddress: string,
     depositChainId: number,
     refundChainId: number,
     amount: BigNumber
   ): Promise<BigNumber> {
     const ubaConfig = await this.hubPoolClient.configStoreClient.getUBAFeeConfig(depositChainId, l1TokenAddress);
-    return computeRealizedLpFeeForRefresh(
+    return computeLpFeeForRefresh(
       l1TokenAddress,
       depositChainId,
       refundChainId,

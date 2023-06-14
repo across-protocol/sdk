@@ -110,7 +110,7 @@ export abstract class BaseUBAClient {
     };
   }
 
-  protected abstract computeRealizedLpFee(
+  protected abstract computeLpFee(
     l1TokenAddress: string,
     depositChainId: number,
     refundChainId: number,
@@ -134,7 +134,7 @@ export abstract class BaseUBAClient {
     hubPoolBlockNumber: number
   ): Promise<SystemFeeResult> {
     const [lpFee, { balancingFee: depositBalancingFee }] = await Promise.all([
-      this.computeRealizedLpFee(spokePoolToken, depositChain, refundChain, amount),
+      this.computeLpFee(spokePoolToken, depositChain, refundChain, amount),
       this.computeBalancingFee(
         spokePoolToken,
         amount,
