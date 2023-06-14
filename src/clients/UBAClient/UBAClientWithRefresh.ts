@@ -9,6 +9,11 @@ import { UBAFeeSpokeCalculator } from "../../UBAFeeCalculator";
 import { computeLpFeeForRefresh } from "./UBAClientUtilities";
 import { RelayFeeCalculator, RelayFeeCalculatorConfig, RelayerFeeDetails } from "../../relayFeeCalculator";
 export class UBAClientWithRefresh extends BaseUBAClient {
+  /**
+   * The RelayFeeCalculator is used to compute the relayer fee for a given amount of tokens.
+   */
+  private readonly relayCalculator;
+
   // @dev chainIdIndices supports indexing members of root bundle proposals submitted to the HubPool.
   //      It must include the complete set of chain IDs ever supported by the HubPool.
   // @dev SpokePoolClients may be a subset of the SpokePools that have been deployed.
@@ -22,6 +27,7 @@ export class UBAClientWithRefresh extends BaseUBAClient {
     super(chainIdIndices, logger);
     assert(chainIdIndices.length > 0, "No chainIds provided");
     assert(Object.values(spokePoolClients).length > 0, "No SpokePools provided");
+    this.relayCalculator = new RelayFeeCalculator(this.relayerConfiguration);
   }
 
   protected resolveClosingBlockNumber(chainId: number, blockNumber: number): number {
@@ -204,8 +210,7 @@ export class UBAClientWithRefresh extends BaseUBAClient {
     refundChainId: number,
     tokenPrice?: number
   ): Promise<RelayerFeeDetails> {
-    const relayCalculator = new RelayFeeCalculator(this.relayerConfiguration);
-    return relayCalculator.relayerFeeDetails(
+    return this.relayCalculator.relayerFeeDetails(
       amount,
       tokenSymbol,
       tokenPrice,
