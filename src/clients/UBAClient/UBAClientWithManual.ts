@@ -96,7 +96,7 @@ export class UBAClientManual extends BaseUBAClient {
     throw new Error("Method not implemented.");
   }
   protected computeLpFee(
-    _l1TokenAddress: string,
+    _hubPoolTokenAddress: string,
     _depositChainId: number,
     _refundChainId: number,
     _amount: BigNumber

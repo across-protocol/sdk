@@ -185,14 +185,14 @@ export class UBAClientWithRefresh extends BaseUBAClient {
     }
   }
   protected async computeLpFee(
-    l1TokenAddress: string,
+    hubPoolTokenAddress: string,
     depositChainId: number,
     refundChainId: number,
     amount: BigNumber
   ): Promise<BigNumber> {
-    const ubaConfig = await this.hubPoolClient.configStoreClient.getUBAFeeConfig(depositChainId, l1TokenAddress);
+    const ubaConfig = await this.hubPoolClient.configStoreClient.getUBAFeeConfig(depositChainId, hubPoolTokenAddress);
     return computeLpFeeForRefresh(
-      l1TokenAddress,
+      hubPoolTokenAddress,
       depositChainId,
       refundChainId,
       amount,

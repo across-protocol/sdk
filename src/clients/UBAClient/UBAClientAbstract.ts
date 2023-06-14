@@ -111,7 +111,7 @@ export abstract class BaseUBAClient {
   }
 
   protected abstract computeLpFee(
-    l1TokenAddress: string,
+    hubPoolTokenAddress: string,
     depositChainId: number,
     refundChainId: number,
     amount: BigNumber
