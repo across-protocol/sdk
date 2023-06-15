@@ -6,7 +6,7 @@ import { HubPoolClient, SpokePoolClient } from "..";
 import { isDefined, sortEventsAscending } from "../../utils";
 import { BaseUBAClient, RequestValidReturnType } from "./UBAClientAbstract";
 import { UBAFeeSpokeCalculator } from "../../UBAFeeCalculator";
-import { computeLpFeeForRefresh } from "./UBAClientUtilities";
+import { computeLpFeeForRefresh, getUBAFeeConfig } from "./UBAClientUtilities";
 import { RelayFeeCalculator, RelayFeeCalculatorConfig, RelayerFeeDetails } from "../../relayFeeCalculator";
 export class UBAClientWithRefresh extends BaseUBAClient {
   /**
@@ -171,14 +171,13 @@ export class UBAClientWithRefresh extends BaseUBAClient {
   }
 
   protected async instantiateUBAFeeCalculator(chainId: number, token: string, fromBlock: number): Promise<void> {
-    const config = this.hubPoolClient.configStoreClient;
     if (!isDefined(this.spokeUBAFeeCalculators[chainId]?.[token])) {
       const spokeFeeCalculator = new UBAFeeSpokeCalculator(
         chainId,
         token,
         this.getFlows(chainId, fromBlock),
         0,
-        await config.getUBAFeeConfig(chainId, token)
+        await getUBAFeeConfig(chainId, token)
       );
       this.spokeUBAFeeCalculators[chainId] = this.spokeUBAFeeCalculators[chainId] ?? {};
       this.spokeUBAFeeCalculators[chainId][token] = spokeFeeCalculator;
@@ -190,7 +189,7 @@ export class UBAClientWithRefresh extends BaseUBAClient {
     refundChainId: number,
     amount: BigNumber
   ): Promise<BigNumber> {
-    const ubaConfig = await this.hubPoolClient.configStoreClient.getUBAFeeConfig(depositChainId, hubPoolTokenAddress);
+    const ubaConfig = await getUBAFeeConfig(depositChainId, hubPoolTokenAddress);
     return computeLpFeeForRefresh(
       hubPoolTokenAddress,
       depositChainId,
