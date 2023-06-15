@@ -3,7 +3,7 @@ import { HubPoolClient } from "../HubPoolClient";
 import { ERC20__factory, toBN } from "@across-protocol/contracts-v2";
 import { calculateUtilizationBoundaries, computePiecewiseLinearFunction } from "../../UBAFeeCalculator/UBAFeeUtility";
 import { SpokePoolClient } from "../SpokePoolClient";
-import { FlowTupleParameters } from "../../UBAFeeCalculator/UBAFeeConfig";
+import UBAFeeConfig, { FlowTupleParameters } from "../../UBAFeeCalculator/UBAFeeConfig";
 import { max } from "../../utils";
 import { UBAActionType } from "../../UBAFeeCalculator";
 
@@ -52,4 +52,28 @@ export async function computeLpFeeForRefresh(
   const utilizationDelta = utilizationPostTx.sub(utilizationPreTx).abs();
   const utilizationIntegral = computePiecewiseLinearFunction(gammaCutoff, utilizationPreTx, utilizationPostTx);
   return max(toBN(0), baselineFee.add(utilizationIntegral.div(utilizationDelta)));
+}
+
+// THIS IS A STUB FOR NOW
+export async function getUBAFeeConfig(
+  chainId: number,
+  token: string,
+  blockNumber: number | "latest" = "latest"
+): Promise<UBAFeeConfig> {
+  chainId;
+  token;
+  blockNumber;
+  return new UBAFeeConfig(
+    {
+      default: toBN(0),
+    },
+    toBN(0),
+    {
+      default: [],
+    },
+    {},
+    {
+      default: [],
+    }
+  );
 }

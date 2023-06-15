@@ -30,7 +30,6 @@ import {
   DisabledChainsUpdate,
 } from "../interfaces";
 import { across } from "@uma/sdk";
-import { UBAFeeConfig } from "../UBAFeeCalculator";
 
 type _ConfigStoreUpdate = {
   success: true;
@@ -441,29 +440,5 @@ export class AcrossConfigStoreClient {
       const target = this.getSpokeTargetBalancesForBlock(l1TokenAddress, chainId, blockNumber).target;
       return { spokeChainId: chainId, target };
     });
-  }
-
-  // THIS IS A STUB FOR NOW
-  async getUBAFeeConfig(
-    chainId: number,
-    token: string,
-    blockNumber: number | "latest" = "latest"
-  ): Promise<UBAFeeConfig> {
-    chainId;
-    token;
-    blockNumber;
-    return new UBAFeeConfig(
-      {
-        default: toBN(0),
-      },
-      toBN(0),
-      {
-        default: [],
-      },
-      {},
-      {
-        default: [],
-      }
-    );
   }
 }
