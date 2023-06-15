@@ -61,7 +61,7 @@ class PolygonGasStation extends BaseHTTPAdapter {
       return false;
     }
     const _gasPrice = gasPrice as Polygon1559GasPrice;
-    return [_gasPrice.maxPriorityFee, _gasPrice.maxFee].every((field) => ["number", "string"].includes(typeof field);
+    return [_gasPrice.maxPriorityFee, _gasPrice.maxFee].every((field) => ["number", "string"].includes(typeof field));
   }
 }
 
