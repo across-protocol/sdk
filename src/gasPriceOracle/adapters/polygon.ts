@@ -28,8 +28,7 @@ type Provider = providers.Provider;
 class PolygonGasStation extends BaseHTTPAdapter {
   readonly chainId: number;
 
-  constructor({ chainId, host, timeout = 3000, retries = 2 }: GasStationArgs = {}) {
-    chainId = chainId ?? 137;
+  constructor({ chainId = 137, host, timeout = 3000, retries = 2 }: GasStationArgs = {}) {
     host = host ?? chainId === 137 ? "gasstation.polygon.technology" : "gasstation-testnet.polygon.technology";
 
     super("Polygon Gas Station", host, { timeout, retries });
