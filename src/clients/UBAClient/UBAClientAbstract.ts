@@ -102,9 +102,10 @@ export abstract class BaseUBAClient {
     // Verify that the spoke clients are instantiated.
     await this.instantiateUBAFeeCalculator(tokenId, spokePoolToken, hubPoolBlockNumber);
     // Get the balancing fees.
-    const { balancingFee } = await this.spokeUBAFeeCalculators[tokenId][spokePoolToken][
-      feeType === UBAActionType.Deposit ? "getDepositFee" : "getRefundFee"
-    ](amount);
+    const { balancingFee } =
+      this.spokeUBAFeeCalculators[tokenId][spokePoolToken][
+        feeType === UBAActionType.Deposit ? "getDepositFee" : "getRefundFee"
+      ](amount);
     return {
       balancingFee,
       actionType: feeType,
