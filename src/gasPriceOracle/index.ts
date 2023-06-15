@@ -1,1 +1,1 @@
-export * from "./oracle";
+export { GasPriceEstimate, getGasPriceEstimate } from "./oracle";
