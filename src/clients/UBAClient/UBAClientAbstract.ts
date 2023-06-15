@@ -90,7 +90,7 @@ export abstract class BaseUBAClient {
    * @param refundChainId The chainId of the refund
    * @returns The balancing fee for the given token on the given chainId at the given block number
    */
-  protected async computeBalancingFee(
+  public async computeBalancingFee(
     spokePoolToken: string,
     amount: BigNumber,
     hubPoolBlockNumber: number,
