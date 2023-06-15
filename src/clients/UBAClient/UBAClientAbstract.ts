@@ -86,24 +86,22 @@ export abstract class BaseUBAClient {
    * @param spokePoolToken The token to get the balancing fee for
    * @param amount The amount to get the balancing fee for
    * @param hubPoolBlockNumber The block number to get the balancing fee for
-   * @param depositChainId The chainId of the deposit
-   * @param refundChainId The chainId of the refund
+   * @param chainId The chainId to get the balancing fee for. If the feeType is Deposit, this is the deposit chainId. If the feeType is Refund, this is the refund chainId.
+   * @param feeType The type of fee to calculate
    * @returns The balancing fee for the given token on the given chainId at the given block number
    */
   public async computeBalancingFee(
     spokePoolToken: string,
     amount: BigNumber,
     hubPoolBlockNumber: number,
-    depositChainId: number,
-    refundChainId: number,
+    chainId: number,
     feeType: UBAActionType
   ): Promise<BalancingFeeReturnType> {
-    const tokenId = feeType === UBAActionType.Deposit ? depositChainId : refundChainId;
     // Verify that the spoke clients are instantiated.
-    await this.instantiateUBAFeeCalculator(tokenId, spokePoolToken, hubPoolBlockNumber);
+    await this.instantiateUBAFeeCalculator(chainId, spokePoolToken, hubPoolBlockNumber);
     // Get the balancing fees.
     const { balancingFee } =
-      this.spokeUBAFeeCalculators[tokenId][spokePoolToken][
+      this.spokeUBAFeeCalculators[chainId][spokePoolToken][
         feeType === UBAActionType.Deposit ? "getDepositFee" : "getRefundFee"
       ](amount);
     return {
@@ -117,8 +115,8 @@ export abstract class BaseUBAClient {
    * @param spokePoolToken The token to get the balancing fee for
    * @param amount The amount to get the balancing fee for
    * @param hubPoolBlockNumber The block number to get the balancing fee for
-   * @param depositChainId The chainId of the deposit
-   * @param refundChainIds The chainIds of the refunds
+   * @param chainIds The chainId to get the balancing fee for. If the feeType is Deposit, this is the deposit chainId. If the feeType is Refund, this is the refund chainId.
+   * @param feeType The type of fee to calculate
    * @returns The balancing fee for the given token on the given chainId at the given block number
    * @note This function is used to compute the balancing fee for a given amount on multiple refund chains.
    */
@@ -126,14 +124,11 @@ export abstract class BaseUBAClient {
     spokePoolToken: string,
     amount: BigNumber,
     hubPoolBlockNumber: number,
-    depositChainId: number,
-    refundChainIds: number[],
+    chainIds: number[],
     feeType: UBAActionType
   ): Promise<BalancingFeeReturnType[]> {
     return Promise.all(
-      refundChainIds.map((refundChainId) =>
-        this.computeBalancingFee(spokePoolToken, amount, hubPoolBlockNumber, depositChainId, refundChainId, feeType)
-      )
+      chainIds.map((chainId) => this.computeBalancingFee(spokePoolToken, amount, hubPoolBlockNumber, chainId, feeType))
     );
   }
 
@@ -162,14 +157,7 @@ export abstract class BaseUBAClient {
   ): Promise<SystemFeeResult> {
     const [lpFee, { balancingFee: depositBalancingFee }] = await Promise.all([
       this.computeLpFee(spokePoolToken, depositChain, refundChain, amount),
-      this.computeBalancingFee(
-        spokePoolToken,
-        amount,
-        hubPoolBlockNumber,
-        depositChain,
-        refundChain,
-        UBAActionType.Deposit
-      ),
+      this.computeBalancingFee(spokePoolToken, amount, hubPoolBlockNumber, depositChain, UBAActionType.Deposit),
     ]);
     return { lpFee, depositBalancingFee, systemFee: lpFee.add(depositBalancingFee) };
   }
@@ -211,14 +199,7 @@ export abstract class BaseUBAClient {
   ): Promise<RelayerFeeResult> {
     const [relayerFeeDetails, { balancingFee }] = await Promise.all([
       this.computeRelayerFees(spokePoolToken, amount, depositChain, refundChain, tokenPrice),
-      this.computeBalancingFee(
-        spokePoolToken,
-        amount,
-        hubPoolBlockNumber,
-        depositChain,
-        refundChain,
-        UBAActionType.Refund
-      ),
+      this.computeBalancingFee(spokePoolToken, amount, hubPoolBlockNumber, refundChain, UBAActionType.Refund),
     ]);
     return {
       relayerGasFee: toBN(relayerFeeDetails.gasFeeTotal),
