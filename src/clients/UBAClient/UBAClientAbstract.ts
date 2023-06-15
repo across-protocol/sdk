@@ -112,6 +112,31 @@ export abstract class BaseUBAClient {
     };
   }
 
+  /**
+   * Calculate the balancing fee of a given token on a given chainId at a given block number for multiple refund chains
+   * @param spokePoolToken The token to get the balancing fee for
+   * @param amount The amount to get the balancing fee for
+   * @param hubPoolBlockNumber The block number to get the balancing fee for
+   * @param depositChainId The chainId of the deposit
+   * @param refundChainIds The chainIds of the refunds
+   * @returns The balancing fee for the given token on the given chainId at the given block number
+   * @note This function is used to compute the balancing fee for a given amount on multiple refund chains.
+   */
+  public computeBalancingFees(
+    spokePoolToken: string,
+    amount: BigNumber,
+    hubPoolBlockNumber: number,
+    depositChainId: number,
+    refundChainIds: number[],
+    feeType: UBAActionType
+  ): Promise<BalancingFeeReturnType[]> {
+    return Promise.all(
+      refundChainIds.map((refundChainId) =>
+        this.computeBalancingFee(spokePoolToken, amount, hubPoolBlockNumber, depositChainId, refundChainId, feeType)
+      )
+    );
+  }
+
   protected abstract computeLpFee(
     hubPoolTokenAddress: string,
     depositChainId: number,
