@@ -23,8 +23,6 @@ type GasStationArgs = BaseHTTPAdapterArgs & {
   host?: string;
 };
 
-type Provider = providers.Provider;
-
 class PolygonGasStation extends BaseHTTPAdapter {
   readonly chainId: number;
 
@@ -65,7 +63,7 @@ class PolygonGasStation extends BaseHTTPAdapter {
   }
 }
 
-export async function polygonGasStation(provider: Provider, chainId: number): Promise<GasPriceEstimate> {
+export async function polygonGasStation(provider: providers.Provider, chainId: number): Promise<GasPriceEstimate> {
   const gasStation = new PolygonGasStation({ chainId: chainId });
   try {
     return await gasStation.getFeeData();
