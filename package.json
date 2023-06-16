@@ -1,7 +1,7 @@
 {
   "name": "@across-protocol/sdk-v2",
   "author": "UMA Team",
-  "version": "0.9.0",
+  "version": "0.9.1",
   "license": "AGPL-3.0",
   "main": "dist/index.js",
   "typings": "dist/index.d.ts",
