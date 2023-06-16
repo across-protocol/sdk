@@ -1,29 +1,7 @@
-import { BigNumber, providers } from "ethers";
-import { eip1559, polygonGasStation } from "./adapters";
-
-export type GasPriceEstimate = {
-  maxFeePerGas: BigNumber;
-  maxPriorityFeePerGas: BigNumber;
-};
-
-interface GasPriceFeed {
-  (provider: providers.Provider, chainId: number): Promise<GasPriceEstimate>;
-}
-
-export function gasPriceError(method: string, chainId: number, data: providers.FeeData | BigNumber): void {
-  throw new Error(`Malformed ${method} response on chain ID ${chainId} (${JSON.stringify(data)})`);
-}
-
-async function legacy(provider: providers.Provider, chainId: number): Promise<GasPriceEstimate> {
-  const gasPrice: BigNumber = await provider.getGasPrice();
-
-  if (!BigNumber.isBigNumber(gasPrice) || gasPrice.lt(0)) gasPriceError("getGasPrice()", chainId, gasPrice);
-
-  return {
-    maxFeePerGas: gasPrice,
-    maxPriorityFeePerGas: BigNumber.from(0),
-  };
-}
+import { providers } from "ethers";
+import { eip1559, legacy } from "./adapters/ethereum";
+import { polygonGasStation } from "./adapters/polygon";
+import { GasPriceEstimate, GasPriceFeed } from "./types";
 
 /**
  * Provide an estimate for the current gas price for a particular chain.
