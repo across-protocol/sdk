@@ -1,2 +1,2 @@
-export * from "./eip1559";
+export * from "./ethereum";
 export * from "./polygon";
