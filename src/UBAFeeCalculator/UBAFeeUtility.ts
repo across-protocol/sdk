@@ -3,7 +3,7 @@ import { MAX_SAFE_JS_INT } from "@uma/common/dist/Constants";
 import { toBN } from "../utils";
 import { HUBPOOL_CHAIN_ID } from "../constants";
 import { parseEther } from "ethers/lib/utils";
-import { UBAActionType } from ".";
+import { UBAActionType } from "./UBAFeeTypes";
 
 /**
  * Computes a linear integral over a piecewise function

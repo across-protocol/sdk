@@ -1,6 +1,6 @@
 import { expect } from "chai";
 import { toBN } from "../utils";
-import { UBAFeeConfig } from ".";
+import UBAFeeConfig from "./UBAFeeConfig";
 import {
   getBounds,
   getDepositBalancingFee,
