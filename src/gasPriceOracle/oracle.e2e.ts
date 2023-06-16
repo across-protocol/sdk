@@ -2,7 +2,7 @@ import assert from "assert";
 import dotenv from "dotenv";
 import winston from "winston";
 import { BigNumber, providers } from "ethers";
-import { GasPriceEstimate, getGasPriceEstimate } from "./oracle";
+import { GasPriceEstimate, getGasPriceEstimate } from "./";
 dotenv.config({ path: ".env" });
 
 const dummyLogger = winston.createLogger({
