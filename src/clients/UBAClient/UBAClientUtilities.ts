@@ -5,7 +5,7 @@ import { calculateUtilizationBoundaries, computePiecewiseLinearFunction } from "
 import { SpokePoolClient } from "../SpokePoolClient";
 import UBAFeeConfig, { FlowTupleParameters } from "../../UBAFeeCalculator/UBAFeeConfig";
 import { max } from "../../utils";
-import { UBAActionType } from "../../UBAFeeCalculator";
+import { UBAActionType } from "../../UBAFeeCalculator/UBAFeeTypes";
 
 /**
  * Compute the realized LP fee for a given amount.

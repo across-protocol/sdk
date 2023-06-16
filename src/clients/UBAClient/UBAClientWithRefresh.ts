@@ -30,7 +30,33 @@ export class UBAClientWithRefresh extends BaseUBAClient {
     this.relayCalculator = new RelayFeeCalculator(this.relayerConfiguration);
   }
 
+  public async update(): Promise<void> {
+    // Update the Across config store
+    await this.hubPoolClient.configStoreClient.update();
+    // Update the HubPool
+    await this.hubPoolClient.update();
+    // Update the SpokePools
+    await Promise.all(Object.values(this.spokePoolClients).map(async (spokePoolClient) => spokePoolClient.update()));
+    // Update the UBAFeeCalculators
+    await Promise.all(
+      Object.entries(this.spokeUBAFeeCalculators).flatMap(([chainId, spokeUBAFeeCalculator]) =>
+        Object.keys(spokeUBAFeeCalculator).map((token) =>
+          this.instantiateUBAFeeCalculator(parseInt(chainId), token, this.hubPoolClient.latestBlockNumber ?? 0)
+        )
+      )
+    );
+  }
+
+  protected assertNecessaryClientsUpdated(): void {
+    const isUpdated =
+      this.hubPoolClient.configStoreClient.isUpdated &&
+      this.hubPoolClient.isUpdated &&
+      Object.values(this.spokePoolClients).every((spokePoolClient) => spokePoolClient.isUpdated);
+    assert(isUpdated, "UBAClientWithRefresh: Clients not updated");
+  }
+
   protected resolveClosingBlockNumber(chainId: number, blockNumber: number): number {
+    this.assertNecessaryClientsUpdated();
     return this.hubPoolClient.getLatestBundleEndBlockForChain(this.chainIdIndices, blockNumber, chainId);
   }
 
@@ -40,6 +66,7 @@ export class UBAClientWithRefresh extends BaseUBAClient {
     hubPoolBlockNumber?: number
   ): { blockNumber: number; spokePoolBalance: BigNumber } {
     if (!isDefined(hubPoolBlockNumber)) {
+      this.assertNecessaryClientsUpdated();
       // todo: Fix this type assertion.
       hubPoolBlockNumber = this.hubPoolClient.latestBlockNumber as number;
     }
@@ -66,6 +93,7 @@ export class UBAClientWithRefresh extends BaseUBAClient {
   }
 
   public getFlows(chainId: number, fromBlock?: number, toBlock?: number): UbaFlow[] {
+    this.assertNecessaryClientsUpdated();
     const spokePoolClient = this.spokePoolClients[chainId];
 
     fromBlock = fromBlock ?? spokePoolClient.deploymentBlock;
@@ -114,6 +142,7 @@ export class UBAClientWithRefresh extends BaseUBAClient {
   }
 
   public refundRequestIsValid(chainId: number, refundRequest: RefundRequestWithBlock): RequestValidReturnType {
+    this.assertNecessaryClientsUpdated();
     const { relayer, amount, refundToken, depositId, originChainId, destinationChainId, realizedLpFeePct, fillBlock } =
       refundRequest;
 
@@ -171,6 +200,7 @@ export class UBAClientWithRefresh extends BaseUBAClient {
   }
 
   protected async instantiateUBAFeeCalculator(chainId: number, token: string, fromBlock: number): Promise<void> {
+    this.assertNecessaryClientsUpdated();
     if (!isDefined(this.spokeUBAFeeCalculators[chainId]?.[token])) {
       const spokeFeeCalculator = new UBAFeeSpokeCalculator(
         chainId,
@@ -189,6 +219,7 @@ export class UBAClientWithRefresh extends BaseUBAClient {
     refundChainId: number,
     amount: BigNumber
   ): Promise<BigNumber> {
+    this.assertNecessaryClientsUpdated();
     const ubaConfig = await getUBAFeeConfig(depositChainId, hubPoolTokenAddress);
     return computeLpFeeForRefresh(
       hubPoolTokenAddress,
@@ -209,6 +240,7 @@ export class UBAClientWithRefresh extends BaseUBAClient {
     refundChainId: number,
     tokenPrice?: number
   ): Promise<RelayerFeeDetails> {
+    this.assertNecessaryClientsUpdated();
     return this.relayCalculator.relayerFeeDetails(
       amount,
       tokenSymbol,

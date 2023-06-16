@@ -1,7 +1,8 @@
 import winston from "winston";
 import { RefundRequestWithBlock, UbaFlow } from "../../interfaces";
 import { BigNumber } from "ethers";
-import { UBAActionType, UBAFeeSpokeCalculator } from "../../UBAFeeCalculator";
+import { UBAFeeSpokeCalculator } from "../../UBAFeeCalculator";
+import { UBAActionType } from "../../UBAFeeCalculator/UBAFeeTypes";
 import { RelayerFeeDetails } from "../../relayFeeCalculator";
 import { toBN } from "../../utils";
 
