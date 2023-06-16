@@ -430,4 +430,15 @@ export class AcrossConfigStoreClient {
     // the chain ID 1.
     return disabledChains.filter((chainId: number) => !isNaN(chainId) && Number.isInteger(chainId) && chainId !== 1);
   }
+
+  async getUBATargetSpokeBalances(
+    chainIds: number[],
+    l1TokenAddress: string,
+    blockNumber?: number
+  ): Promise<{ spokeChainId: number; target: BigNumber }[]> {
+    return chainIds.map((chainId) => {
+      const target = this.getSpokeTargetBalancesForBlock(l1TokenAddress, chainId, blockNumber).target;
+      return { spokeChainId: chainId, target };
+    });
+  }
 }

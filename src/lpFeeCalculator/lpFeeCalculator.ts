@@ -126,7 +126,6 @@ export class LPFeeCalculator {
  * Calculate the instantaneous rate for a 0 sized deposit (infinitesimally small).
  * @param rateModel Rate model to be used in this calculation.
  * @param utilization The current utilization of the pool.
- * @deprecated Use `LPFeeCalculator` instead.
  * @returns The instantaneous rate for a 0 sized deposit.
  */
 export function calculateInstantaneousRate(rateModel: RateModel, utilization: BigNumberish) {
@@ -138,7 +137,6 @@ export function calculateInstantaneousRate(rateModel: RateModel, utilization: Bi
  * @param rateModel Rate model to be used in this calculation.
  * @param utilizationBeforeDeposit The utilization of the pool before the deposit.
  * @param utilizationAfterDeposit The utilization of the pool after the deposit.
- * @deprecated Use `LPFeeCalculator` instead.
  * @returns The realized LP fee APY percent.
  */
 export function calculateApyFromUtilization(
@@ -155,7 +153,6 @@ export function calculateApyFromUtilization(
  * @param utilizationBeforeDeposit The utilization of the pool before the deposit.
  * @param utilizationAfterDeposit The utilization of the pool after the deposit.
  * @param truncateDecimals Whether to truncate the decimals to 6.
- * @deprecated Use `LPFeeCalculator` instead.
  * @returns The realized LP fee percent.
  */
 export function calculateRealizedLpFeePct(
