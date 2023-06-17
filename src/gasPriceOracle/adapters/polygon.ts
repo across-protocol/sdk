@@ -29,7 +29,7 @@ type GasStationArgs = BaseHTTPAdapterArgs & {
 class PolygonGasStation extends BaseHTTPAdapter {
   readonly chainId: number;
 
-  constructor({ chainId = 137, host, timeout = 3000, retries = 2 }: GasStationArgs = {}) {
+  constructor({ chainId = 137, host, timeout = 1500, retries = 1 }: GasStationArgs = {}) {
     host = host ?? chainId === 137 ? "gasstation.polygon.technology" : "gasstation-testnet.polygon.technology";
 
     super("Polygon Gas Station", host, { timeout, retries });
@@ -37,7 +37,7 @@ class PolygonGasStation extends BaseHTTPAdapter {
   }
 
   async getFeeData(strategy: "safeLow" | "standard" | "fast" = "fast"): Promise<GasPriceEstimate> {
-    const gas = await this.query("/v2", {});
+    const gas = await this.query("v2", {});
 
     const gasPrice: Polygon1559GasPrice = (gas as GasStationV2Response)?.[strategy];
     if (!this.isPolygon1559GasPrice(gasPrice)) {

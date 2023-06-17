@@ -1,6 +1,5 @@
 import { providers } from "ethers";
-import { eip1559, legacy } from "./adapters/ethereum";
-import { polygonGasStation } from "./adapters/polygon";
+import { eip1559, eip1559_arbitrum, legacy, polygonGasStation } from "./adapters";
 import { GasPriceEstimate, GasPriceFeed } from "./types";
 
 /**
@@ -25,7 +24,7 @@ export async function getGasPriceEstimate(
     10: eip1559,
     137: polygonGasStation,
     288: legacy,
-    42161: legacy,
+    42161: eip1559_arbitrum,
   };
 
   let gasPriceFeed: GasPriceFeed = gasPriceFeeds[chainId];
