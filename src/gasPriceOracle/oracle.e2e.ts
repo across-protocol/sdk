@@ -1,3 +1,4 @@
+// @note: This test is _not_ run automatically as part of git hooks or CI.
 import dotenv from "dotenv";
 import winston from "winston";
 import { BigNumber, providers, utils as ethersUtils } from "ethers";
@@ -97,14 +98,15 @@ describe("Gas Price Oracle", function () {
       expect(BigNumber.isBigNumber(maxPriorityFeePerGas)).toBe(true);
 
       if (eip1559Chains.includes(chainId)) {
-        // Special handling for Arbitrum - priority fee is refunded, so it's dropped from estimates.
-        if (chainId === 42161) {
-          expect(maxFeePerGas.eq(stdLastBaseFeePerGas.add(1))).toBe(true);
-          expect(maxPriorityFeePerGas.eq(1)).toBe(true);
-        } else if (chainId === 137) {
+        if (chainId === 137) {
+          // The Polygon gas station isn't mocked, so just ensure that the fees have a valid relationship.
           expect(maxFeePerGas.gt(0)).toBe(true);
           expect(maxPriorityFeePerGas.gt(0)).toBe(true);
           expect(maxPriorityFeePerGas.lt(maxFeePerGas)).toBe(true);
+        } else if (chainId === 42161) {
+          // Arbitrum priority fees are refunded, so drop the priority fee from estimates.
+          expect(maxFeePerGas.eq(stdLastBaseFeePerGas.add(1))).toBe(true);
+          expect(maxPriorityFeePerGas.eq(1)).toBe(true);
         } else {
           expect(maxFeePerGas.eq(stdMaxFeePerGas)).toBe(true);
           expect(maxPriorityFeePerGas.eq(stdMaxPriorityFeePerGas)).toBe(true);
@@ -159,13 +161,13 @@ describe("Gas Price Oracle", function () {
             expect(BigNumber.isBigNumber(maxPriorityFeePerGas)).toBe(true);
 
             if (eip1559Chains.includes(chainId)) {
-              if (chainId === 42161) {
-                expect(maxFeePerGas.eq(stdLastBaseFeePerGas.add(1))).toBe(true);
-                expect(maxPriorityFeePerGas.eq(1)).toBe(true);
-              } else if (chainId === 137) {
+              if (chainId === 137) {
                 expect(maxFeePerGas.gt(0)).toBe(true);
                 expect(maxPriorityFeePerGas.gt(0)).toBe(true);
                 expect(maxPriorityFeePerGas.lt(maxFeePerGas)).toBe(true);
+              } else if (chainId === 42161) {
+                expect(maxFeePerGas.eq(stdLastBaseFeePerGas.add(1))).toBe(true);
+                expect(maxPriorityFeePerGas.eq(1)).toBe(true);
               } else {
                 expect(maxFeePerGas.eq(stdMaxFeePerGas)).toBe(true);
                 expect(maxPriorityFeePerGas.eq(stdMaxPriorityFeePerGas)).toBe(true);
