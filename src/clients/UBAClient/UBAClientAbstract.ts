@@ -142,23 +142,23 @@ export abstract class BaseUBAClient {
 
   /**
    * Compute the entire system fee for a given amount. The system fee is the sum of the LP fee and the balancing fee.
-   * @param depositChain The chainId of the deposit
-   * @param refundChain The chainId of the refund
+   * @param depositChainId The chainId of the deposit
+   * @param destinationChainId The chainId of the transaction
    * @param spokePoolToken The token to get the system fee for
    * @param amount The amount to get the system fee for
    * @param hubPoolBlockNumber The block number to get the system fee for
    * @returns The system fee for the given token on the given chainId at the given block number
    */
   public async computeSystemFee(
-    depositChain: number,
-    refundChain: number,
+    depositChainId: number,
+    destinationChainId: number,
     spokePoolToken: string,
     amount: BigNumber,
     hubPoolBlockNumber: number
   ): Promise<SystemFeeResult> {
     const [lpFee, { balancingFee: depositBalancingFee }] = await Promise.all([
-      this.computeLpFee(spokePoolToken, depositChain, refundChain, amount),
-      this.computeBalancingFee(spokePoolToken, amount, hubPoolBlockNumber, depositChain, UBAActionType.Deposit),
+      this.computeLpFee(spokePoolToken, depositChainId, destinationChainId, amount),
+      this.computeBalancingFee(spokePoolToken, amount, hubPoolBlockNumber, depositChainId, UBAActionType.Deposit),
     ]);
     return { lpFee, depositBalancingFee, systemFee: lpFee.add(depositBalancingFee) };
   }
