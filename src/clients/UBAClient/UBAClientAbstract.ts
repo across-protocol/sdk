@@ -158,7 +158,7 @@ export abstract class BaseUBAClient {
   ): Promise<SystemFeeResult> {
     const [lpFee, { balancingFee: depositBalancingFee }] = await Promise.all([
       this.computeLpFee(spokePoolToken, depositChainId, destinationChainId, amount),
-      this.computeBalancingFee(spokePoolToken, amount, hubPoolBlockNumber, destinationChainId, UBAActionType.Deposit),
+      this.computeBalancingFee(spokePoolToken, amount, hubPoolBlockNumber, depositChainId, UBAActionType.Deposit),
     ]);
     return { lpFee, depositBalancingFee, systemFee: lpFee.add(depositBalancingFee) };
   }
