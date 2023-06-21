@@ -1,5 +1,5 @@
 import { Result } from "@ethersproject/abi";
-import { delay } from "@uma/financial-templates-lib";
+import { delay } from "./common";
 import { SortableEvent } from "../interfaces";
 import { Contract, Event, EventFilter } from "ethers";
 

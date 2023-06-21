@@ -1,10 +1,10 @@
 import { BigNumber } from "ethers";
 import { HubPoolClient } from "../HubPoolClient";
-import { ERC20__factory, toBN } from "@across-protocol/contracts-v2";
 import { calculateUtilizationBoundaries, computePiecewiseLinearFunction } from "../../UBAFeeCalculator/UBAFeeUtility";
 import { SpokePoolClient } from "../SpokePoolClient";
 import UBAFeeConfig, { FlowTupleParameters } from "../../UBAFeeCalculator/UBAFeeConfig";
-import { max } from "../../utils";
+import { max, toBN } from "../../utils";
+import { ERC20__factory } from "../../typechain";
 import { UBAActionType } from "../../UBAFeeCalculator/UBAFeeTypes";
 
 /**
