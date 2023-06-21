@@ -30,8 +30,6 @@ describe("Utils test", () => {
   });
 
   it("apply gas multiplier", async () => {
-    jest.setTimeout(50_000);
-
     const spokePoolAddress = "0xB88690461dDbaB6f04Dfad7df66B7725942FEb9C"; // mainnet
     const usdcAddress = "0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC8";
     const relayerAddress = "0x893d0d70ad97717052e3aa8903d9615804167759";
@@ -63,5 +61,5 @@ describe("Utils test", () => {
       const gasMultiplier = toBNWei(1.0 + gasMarkup);
       expect(toBN(gasEstimate).eq(toBN(refGasEstimate).mul(gasMultiplier).div(toBNWei(1)))).toBe(true);
     }
-  });
+  }, 50000);
 });
