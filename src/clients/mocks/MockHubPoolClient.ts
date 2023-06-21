@@ -1,7 +1,7 @@
 import { BigNumber, Contract, Event } from "ethers";
 import { random } from "lodash";
 import winston from "winston";
-import { randomAddress } from "@across-protocol/contracts-v2/dist/test-utils";
+import { randomAddress } from "../../utils";
 import { Deposit, L1Token, PendingRootBundle } from "../../interfaces";
 import { AcrossConfigStoreClient as ConfigStoreClient } from "../AcrossConfigStoreClient";
 import { HubPoolClient, HubPoolUpdate } from "../HubPoolClient";
