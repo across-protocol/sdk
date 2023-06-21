@@ -448,3 +448,7 @@ export function getUpdateDepositTypedData(
     },
   };
 }
+
+export function randomAddress() {
+  return ethers.utils.getAddress(ethers.utils.hexlify(ethers.utils.randomBytes(20)));
+}

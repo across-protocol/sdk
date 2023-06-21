@@ -1,7 +1,6 @@
 import { utils as ethersUtils, Event, providers } from "ethers";
 import { random } from "lodash";
-import { randomAddress } from "@across-protocol/contracts-v2/dist/test-utils";
-import { toBN } from "../../utils";
+import { toBN, randomAddress } from "../../utils";
 
 const { id, keccak256, toUtf8Bytes } = ethersUtils;
 

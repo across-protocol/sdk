@@ -1,10 +1,9 @@
 import { Contract, Event } from "ethers";
 import { random } from "lodash";
 import winston from "winston";
-import { randomAddress } from "@across-protocol/contracts-v2/dist/test-utils";
 import { ZERO_ADDRESS } from "../../constants";
 import { DepositWithBlock, FillWithBlock, RefundRequestWithBlock } from "../../interfaces";
-import { toBN, toBNWei } from "../../utils";
+import { toBN, toBNWei, randomAddress } from "../../utils";
 import { SpokePoolClient, SpokePoolUpdate } from "../SpokePoolClient";
 import { EventManager } from "./MockEvents";
 
