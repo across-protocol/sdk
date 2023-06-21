@@ -4,7 +4,8 @@ import { BigNumber } from "ethers";
 import { DepositWithBlock, FillWithBlock, RefundRequestWithBlock, UbaFlow } from "../../interfaces";
 import { HubPoolClient, SpokePoolClient } from "..";
 import { isDefined, sortEventsAscending } from "../../utils";
-import { BaseUBAClient, RequestValidReturnType } from "./UBAClientAbstract";
+import { UBAActionType } from "../../UBAFeeCalculator/UBAFeeTypes";
+import { BaseUBAClient, RequestValidReturnType, SystemFeeResult } from "./UBAClientAbstract";
 import { UBAFeeSpokeCalculator } from "../../UBAFeeCalculator";
 import { computeLpFeeForRefresh, getUBAFeeConfig } from "./UBAClientUtilities";
 import { RelayFeeCalculator, RelayFeeCalculatorConfig, RelayerFeeDetails } from "../../relayFeeCalculator";
@@ -248,5 +249,24 @@ export class UBAClientWithRefresh extends BaseUBAClient {
       depositChainId.toString(),
       refundChainId.toString()
     );
+  }
+
+  public async computeSystemFee(
+    depositChainId: number,
+    destinationChainId: number,
+    spokePoolToken: string,
+    amount: BigNumber,
+    hubPoolBlockNumber: number
+  ): Promise<SystemFeeResult> {
+    const hubPoolToken = this.hubPoolClient.getL1TokenCounterpartAtBlock(
+      depositChainId,
+      spokePoolToken,
+      hubPoolBlockNumber
+    );
+    const [lpFee, { balancingFee: depositBalancingFee }] = await Promise.all([
+      this.computeLpFee(hubPoolToken, depositChainId, destinationChainId, amount),
+      this.computeBalancingFee(spokePoolToken, amount, hubPoolBlockNumber, depositChainId, UBAActionType.Deposit),
+    ]);
+    return { lpFee, depositBalancingFee, systemFee: lpFee.add(depositBalancingFee) };
   }
 }
