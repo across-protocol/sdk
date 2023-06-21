@@ -216,7 +216,7 @@ export class UBAClientWithRefresh extends BaseUBAClient {
   protected async computeLpFee(
     hubPoolTokenAddress: string,
     depositChainId: number,
-    refundChainId: number,
+    destinationChainId: number,
     amount: BigNumber
   ): Promise<BigNumber> {
     this.assertNecessaryClientsUpdated();
@@ -224,11 +224,11 @@ export class UBAClientWithRefresh extends BaseUBAClient {
     return computeLpFeeForRefresh(
       hubPoolTokenAddress,
       depositChainId,
-      refundChainId,
+      destinationChainId,
       amount,
       this.hubPoolClient,
       this.spokePoolClients,
-      ubaConfig.getBaselineFee(refundChainId, depositChainId),
+      ubaConfig.getBaselineFee(destinationChainId, depositChainId),
       ubaConfig.getLpGammaFunctionTuples(depositChainId)
     );
   }
