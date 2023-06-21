@@ -7,7 +7,7 @@ export { AcrossMerkleDistributor__factory } from "@across-protocol/contracts-v2/
 export { AcrossConfigStore__factory } from "@across-protocol/contracts-v2/dist/typechain/factories/contracts/AcrossConfigStore__factory";
 export { HubPool__factory } from "@across-protocol/contracts-v2/dist/typechain/factories/contracts/HubPool__factory";
 export { SpokePool__factory } from "@across-protocol/contracts-v2/dist/typechain/factories/contracts/SpokePool.sol/SpokePool__factory";
-export { ERC20__factory } from "@across-protocol/contracts-v2";
+export { ERC20__factory } from "@across-protocol/contracts-v2/dist/typechain/factories/@openzeppelin/contracts/token/ERC20/ERC20__factory";
 
 export { AcceleratingDistributor__factory } from "@across-protocol/across-token/dist/typechain/factories/AcceleratingDistributor__factory";
 export { ClaimAndStake__factory } from "@across-protocol/across-token/dist/typechain/factories/ClaimAndStake__factory";
