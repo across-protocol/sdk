@@ -55,12 +55,13 @@ export function performLinearIntegration(
  * @returns The upper and lower bounds of the interval
  */
 export function getBounds(cutoffArray: [BigNumber, BigNumber][], index: number): [BigNumber, BigNumber] {
+  const largestBound = BigNumber.from(parseUnits((-MAX_SAFE_JS_INT).toString(), 18)).mul(-1);
   if (index === 0) {
-    return [BigNumber.from(-MAX_SAFE_JS_INT), cutoffArray[0][0]];
-  } else if (index >= cutoffArray.length) {
-    return [cutoffArray[cutoffArray.length - 1][0], BigNumber.from(MAX_SAFE_JS_INT)];
-  } else {
+    return [largestBound.mul(-1), cutoffArray[0][0]];
+  } else if (index < cutoffArray.length) {
     return [cutoffArray[index - 1][0], cutoffArray[index][0]];
+  } else {
+    return [cutoffArray[cutoffArray.length - 1][0], largestBound];
   }
 }
 
