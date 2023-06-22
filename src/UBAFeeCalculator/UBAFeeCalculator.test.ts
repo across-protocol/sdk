@@ -2,6 +2,7 @@ import { expect } from "chai";
 import { toBN } from "../utils";
 import UBAFeeConfig from "./UBAFeeConfig";
 import {
+  computePiecewiseLinearFunction,
   getBounds,
   getDepositBalancingFee,
   getInterval,
@@ -11,6 +12,7 @@ import {
 import { FlowTupleParameters } from "./UBAFeeConfig";
 import { MAX_SAFE_JS_INT } from "@uma/common";
 import { parseEther, parseUnits } from "ethers/lib/utils";
+import { BigNumber } from "ethers";
 
 describe("UBA Fee Calculations", () => {
   let config: UBAFeeConfig;
@@ -56,7 +58,7 @@ describe("UBA Fee Calculations", () => {
     const [idx, [lowerBound, upperBound]] = getInterval(tuples, toBN("12000000"));
     expect(idx).to.eq(14);
     expect(lowerBound.toString()).to.eq("9000000");
-    expect(upperBound.toString()).to.eq(MAX_SAFE_JS_INT.toString());
+    expect(upperBound.toString()).to.eq(BigNumber.from(MAX_SAFE_JS_INT).mul(parseEther("1")).toString().toString());
   });
 
   it("should integrate the correct value: test #1", () => {
@@ -97,5 +99,76 @@ describe("UBA Fee Calculations", () => {
   it("should compute the correct refund fee #2", () => {
     const result = getRefundBalancingFee(tuples, toBN(300_000), toBN(100_000));
     expect(result.div(parseEther("1")).toString()).to.eq("25500");
+  });
+});
+
+describe.only("UBA Fee Calculations from Data", () => {
+  let gammaCutoffArray: FlowTupleParameters;
+  let omegaCutoffArray: FlowTupleParameters;
+
+  beforeEach(() => {
+    gammaCutoffArray = [
+      [toBN("500000000000000000"), toBN("0")],
+      [toBN("750000000000000000"), toBN("100000000000000")],
+      [toBN("950000000000000000"), toBN("10000000000000000")],
+    ];
+
+    omegaCutoffArray = [
+      [toBN("0"), toBN("-100000000000000")],
+      [toBN("250000000000000000000"), toBN("0")],
+      [toBN("500000000000000000000"), toBN("0")],
+      [toBN("750000000000000000000"), toBN("100000000000000")],
+      [toBN("1500000000000000000000"), toBN("10000000000000000")],
+    ];
+
+    omegaCutoffArray;
+  });
+
+  it("should integrate the correct value: test #1", () => {
+    const result = computePiecewiseLinearFunction(
+      gammaCutoffArray,
+      toBN("600000000000000000"),
+      toBN("625000000000000000")
+    );
+    expect(result.toString()).to.eq("1125000000000");
+  });
+
+  it("should integrate the correct value: test #2", () => {
+    const result = computePiecewiseLinearFunction(
+      gammaCutoffArray,
+      toBN("500000000000000000"),
+      toBN("625000000000000000")
+    );
+    expect(result.toString()).to.eq("3125000000000");
+  });
+
+  it("should integrate the correct value: test #3", () => {
+    const result = computePiecewiseLinearFunction(gammaCutoffArray, toBN("0"), toBN("400000000000000000"));
+    expect(result.toString()).to.eq("0");
+  });
+
+  it.only("should integrate the correct value: test #4", () => {
+    const result = computePiecewiseLinearFunction(gammaCutoffArray, toBN("0"), toBN("1000000000000000000"));
+    expect(result.toString()).to.eq("1522500000000000");
+  });
+
+  it("should retrieve the proper bounds. Test #1", () => {
+    const [lowerBound, upperBound] = getBounds(gammaCutoffArray, 0);
+    expect(lowerBound.toString()).to.eq(BigNumber.from(-MAX_SAFE_JS_INT).mul(parseEther("1")).toString());
+    expect(upperBound.toString()).to.eq("500000000000000000");
+  });
+
+  it("should retrieve the proper bounds. Test #2", () => {
+    const [lowerBound, upperBound] = getBounds(gammaCutoffArray, 1);
+
+    expect(lowerBound.toString()).to.eq("500000000000000000");
+    expect(upperBound.toString()).to.eq("750000000000000000");
+  });
+
+  it("should retrieve the proper bounds. Test #3", () => {
+    const [lowerBound, upperBound] = getBounds(omegaCutoffArray, 4);
+
+    expect(lowerBound.toString()).to.eq("750000000000000000000");
+    expect(upperBound.toString()).to.eq("1500000000000000000000");
   });
 });
