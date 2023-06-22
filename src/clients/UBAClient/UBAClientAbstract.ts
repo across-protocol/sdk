@@ -84,7 +84,7 @@ export abstract class BaseUBAClient {
 
   /**
    * Calculate the balancing fee of a given token on a given chainId at a given block number
-   * @param spokePoolToken The token to get the balancing fee for
+   * @param tokenSymbol The token to get the balancing fee for
    * @param amount The amount to get the balancing fee for
    * @param hubPoolBlockNumber The block number to get the balancing fee for
    * @param chainId The chainId to get the balancing fee for. If the feeType is Deposit, this is the deposit chainId. If the feeType is Refund, this is the refund chainId.
@@ -92,17 +92,17 @@ export abstract class BaseUBAClient {
    * @returns The balancing fee for the given token on the given chainId at the given block number
    */
   public async computeBalancingFee(
-    spokePoolToken: string,
+    tokenSymbol: string,
     amount: BigNumber,
     hubPoolBlockNumber: number,
     chainId: number,
     feeType: UBAActionType
   ): Promise<BalancingFeeReturnType> {
     // Verify that the spoke clients are instantiated.
-    await this.instantiateUBAFeeCalculator(chainId, spokePoolToken, hubPoolBlockNumber);
+    await this.instantiateUBAFeeCalculator(chainId, tokenSymbol, hubPoolBlockNumber);
     // Get the balancing fees.
     const { balancingFee } =
-      this.spokeUBAFeeCalculators[chainId][spokePoolToken][
+      this.spokeUBAFeeCalculators[chainId][tokenSymbol][
         feeType === UBAActionType.Deposit ? "getDepositFee" : "getRefundFee"
       ](amount);
     return {
@@ -113,7 +113,7 @@ export abstract class BaseUBAClient {
 
   /**
    * Calculate the balancing fee of a given token on a given chainId at a given block number for multiple refund chains
-   * @param spokePoolToken The token to get the balancing fee for
+   * @param tokenSymbol The token to get the balancing fee for
    * @param amount The amount to get the balancing fee for
    * @param hubPoolBlockNumber The block number to get the balancing fee for
    * @param chainIds The chainId to get the balancing fee for. If the feeType is Deposit, this is the deposit chainId. If the feeType is Refund, this is the refund chainId.
@@ -122,14 +122,14 @@ export abstract class BaseUBAClient {
    * @note This function is used to compute the balancing fee for a given amount on multiple refund chains.
    */
   public computeBalancingFees(
-    spokePoolToken: string,
+    tokenSymbol: string,
     amount: BigNumber,
     hubPoolBlockNumber: number,
     chainIds: number[],
     feeType: UBAActionType
   ): Promise<BalancingFeeReturnType[]> {
     return Promise.all(
-      chainIds.map((chainId) => this.computeBalancingFee(spokePoolToken, amount, hubPoolBlockNumber, chainId, feeType))
+      chainIds.map((chainId) => this.computeBalancingFee(tokenSymbol, amount, hubPoolBlockNumber, chainId, feeType))
     );
   }
 
@@ -144,7 +144,8 @@ export abstract class BaseUBAClient {
    * Compute the entire system fee for a given amount. The system fee is the sum of the LP fee and the balancing fee.
    * @param depositChainId The chainId of the deposit
    * @param destinationChainId The chainId of the transaction
-   * @param spokePoolToken The token to get the system fee for
+   * @param tokenSymbol The token to get the system fee for
+   * @param hubPoolTokenAddress The token address of the token on the hub pool chain
    * @param amount The amount to get the system fee for
    * @param hubPoolBlockNumber The block number to get the system fee for
    * @returns The system fee for the given token on the given chainId at the given block number
@@ -152,13 +153,14 @@ export abstract class BaseUBAClient {
   public async computeSystemFee(
     depositChainId: number,
     destinationChainId: number,
-    spokePoolToken: string,
+    tokenSymbol: string,
+    hubPoolTokenAddress: string,
     amount: BigNumber,
     hubPoolBlockNumber: number
   ): Promise<SystemFeeResult> {
     const [lpFee, { balancingFee: depositBalancingFee }] = await Promise.all([
-      this.computeLpFee(spokePoolToken, depositChainId, destinationChainId, amount),
-      this.computeBalancingFee(spokePoolToken, amount, hubPoolBlockNumber, depositChainId, UBAActionType.Deposit),
+      this.computeLpFee(hubPoolTokenAddress, depositChainId, destinationChainId, amount),
+      this.computeBalancingFee(tokenSymbol, amount, hubPoolBlockNumber, depositChainId, UBAActionType.Deposit),
     ]);
     return { lpFee, depositBalancingFee, systemFee: lpFee.add(depositBalancingFee) };
   }
@@ -184,7 +186,7 @@ export abstract class BaseUBAClient {
    * Compute the entire Relayer fee in the context of the UBA system for a given amount. The relayer fee is the sum of the gas fee, the capital fee, and the balancing fee.
    * @param depositChain The chainId of the deposit
    * @param refundChain The chainId of the refund
-   * @param spokePoolToken The token to get the relayer fee for
+   * @param tokenSymbol The token to get the relayer fee for
    * @param amount The amount to get the relayer fee for
    * @param hubPoolBlockNumber The block number to get the relayer fee for
    * @param tokenPrice The price of the token
@@ -193,14 +195,14 @@ export abstract class BaseUBAClient {
   public async getRelayerFee(
     depositChain: number,
     refundChain: number,
-    spokePoolToken: string,
+    tokenSymbol: string,
     amount: BigNumber,
     hubPoolBlockNumber: number,
     tokenPrice?: number
   ): Promise<RelayerFeeResult> {
     const [relayerFeeDetails, { balancingFee }] = await Promise.all([
-      this.computeRelayerFees(spokePoolToken, amount, depositChain, refundChain, tokenPrice),
-      this.computeBalancingFee(spokePoolToken, amount, hubPoolBlockNumber, refundChain, UBAActionType.Refund),
+      this.computeRelayerFees(tokenSymbol, amount, depositChain, refundChain, tokenPrice),
+      this.computeBalancingFee(tokenSymbol, amount, hubPoolBlockNumber, refundChain, UBAActionType.Refund),
     ]);
     return {
       relayerGasFee: toBN(relayerFeeDetails.gasFeeTotal),
@@ -215,7 +217,8 @@ export abstract class BaseUBAClient {
    * Compute the entire UBA fee in the context of the UBA system for a given amount. The UBA fee is comprised of 7 return variables.
    * @param depositChain The chainId of the deposit
    * @param refundChain The chainId of the refund
-   * @param spokePoolToken The token to get the relayer fee for
+   * @param tokenSymbol The token to get the relayer fee for
+   * @param hubPoolTokenAddress The token address of the token on the hub pool chain
    * @param amount The amount to get the relayer fee for
    * @param hubPoolBlockNumber The block number to get the relayer fee for
    * @param tokenPrice The price of the token
@@ -224,14 +227,15 @@ export abstract class BaseUBAClient {
   public async getUBAFee(
     depositChain: number,
     refundChain: number,
-    spokePoolToken: string,
+    tokenSymbol: string,
+    hubPoolTokenAddress: string,
     amount: BigNumber,
     hubPoolBlockNumber: number,
     tokenPrice?: number
   ): Promise<RelayerFeeResult & SystemFeeResult> {
     const [relayerFee, systemFee] = await Promise.all([
-      this.getRelayerFee(depositChain, refundChain, spokePoolToken, amount, hubPoolBlockNumber, tokenPrice),
-      this.computeSystemFee(depositChain, refundChain, spokePoolToken, amount, hubPoolBlockNumber),
+      this.getRelayerFee(depositChain, refundChain, tokenSymbol, amount, hubPoolBlockNumber, tokenPrice),
+      this.computeSystemFee(depositChain, refundChain, tokenSymbol, hubPoolTokenAddress, amount, hubPoolBlockNumber),
     ]);
     return {
       ...relayerFee,
@@ -244,7 +248,8 @@ export abstract class BaseUBAClient {
    * The function returns a record of the UBA fee for each refund chain that is not too low.
    * @param depositChain The chainId of the deposit
    * @param refundChainCandidates The chainIds of the refund candidates
-   * @param spokePoolToken The token to get the relayer fee for
+   * @param tokenSymbol The token to get the relayer fee for
+   * @param hubPoolTokenAddress The token address of the token on the hub pool chain
    * @param amount The amount to get the relayer fee for
    * @param hubPoolBlockNumber The block number to get the relayer fee for
    * @param tokenPrice The price of the token
@@ -253,7 +258,8 @@ export abstract class BaseUBAClient {
   public async getUBAFeeFromCandidates(
     depositChain: number,
     refundChainCandidates: number[],
-    spokePoolToken: string,
+    tokenSymbol: string,
+    hubPoolTokenAddress: string,
     amount: BigNumber,
     hubPoolBlockNumber: number,
     tokenPrice?: number
@@ -262,7 +268,15 @@ export abstract class BaseUBAClient {
       refundChainCandidates.map(async (refundChain) => {
         return [
           refundChain,
-          await this.getUBAFee(depositChain, refundChain, spokePoolToken, amount, hubPoolBlockNumber, tokenPrice),
+          await this.getUBAFee(
+            depositChain,
+            refundChain,
+            tokenSymbol,
+            hubPoolTokenAddress,
+            amount,
+            hubPoolBlockNumber,
+            tokenPrice
+          ),
         ] as [number, RelayerFeeResult & SystemFeeResult];
       })
     );
