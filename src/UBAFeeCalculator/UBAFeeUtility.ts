@@ -2,7 +2,7 @@ import { BigNumber } from "ethers";
 import { MAX_SAFE_JS_INT } from "@uma/common/dist/Constants";
 import { toBN } from "../utils";
 import { HUBPOOL_CHAIN_ID } from "../constants";
-import { parseEther } from "ethers/lib/utils";
+import { parseEther, parseUnits } from "ethers/lib/utils";
 import { UBAActionType } from "./UBAFeeTypes";
 
 /**
@@ -257,7 +257,6 @@ export function computePiecewiseLinearFunction(
   // to concern ourselves with bounds outside of the needed range because we'd be wasting cycles
   // iterating over them.
   const [lbIdx, ubIdx] = [getInterval(functionBounds, lb)[0], getInterval(functionBounds, ub)[0]];
-
   // We can store the integral in this variable
   let integral = toBN(0);
   // We can now iterate over the bounds and perform the integration
@@ -271,17 +270,13 @@ export function computePiecewiseLinearFunction(
     // If the lower bound is not equal to the upper bound, we can perform the integration
     // Otherwise we implicitely integrate over a zero interval and add nothing to the integral
     if (!_lb.eq(_ub)) {
+      const currentIntegration = performLinearIntegration(functionBounds, idx, _lb, _ub);
       // We can now perform the integration by calling the helper function
-      integral = integral.add(performLinearIntegration(functionBounds, idx, _lb, _ub));
+      integral = integral.add(currentIntegration);
     }
   }
-  // If the integral is zero, we can return zero - we don't need to perform any additional
-  // computations
-  if (integral.eq(0)) {
-    return toBN(0);
-  }
   // Otherwise, we can scale the integral to the correct sign and return it with the modifier
-  return integral.mul(scale).div(y.sub(x));
+  return integral.mul(scale);
 }
 
 /**
