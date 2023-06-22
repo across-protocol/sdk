@@ -17,16 +17,20 @@ export function performLinearIntegration(
   cutoffArray: [BigNumber, BigNumber][],
   index: number,
   integralStart: BigNumber,
-  integralEnd: BigNumber
+  integralEnd: BigNumber,
+  precisionDecimals = 18
 ): BigNumber {
+  const scaler = BigNumber.from(10).pow(precisionDecimals);
   const lengthUnderCurve = integralEnd.sub(integralStart);
   const resolveValue = (index: number): BigNumber => cutoffArray[index][1];
-  let feeIntegral = resolveValue(Math.min(index, cutoffArray.length - 1)).mul(lengthUnderCurve);
+  let feeIntegral = resolveValue(
+    index === 0 ? 0 : index === cutoffArray.length ? cutoffArray.length - 1 : index - 1
+  ).mul(lengthUnderCurve); // (y - x) * fbar[-1]
   // If we're not in the bounds of this array, we need to perform an additional computation
   if (index > 0 && index < cutoffArray.length) {
     const [currCutoff, currValue] = cutoffArray[index];
     const [prevCutoff, prevValue] = cutoffArray[index - 1];
-    const slope = prevValue.sub(currValue).div(prevCutoff.sub(currCutoff));
+    const slope = prevValue.sub(currValue).mul(scaler).div(prevCutoff.sub(currCutoff));
     // We need to compute a discrete integral at this point. We have the following
     // psuedo code:
     // fee_integral = (
@@ -37,11 +41,11 @@ export function performLinearIntegration(
     //     )
     // )
     // NOT: we define the variables above [x_i, fx_i ] as [currCutoff, currValue] in the code below
-    const integralEndExpression = integralEnd.pow(2).div(2).sub(currCutoff.mul(integralEnd));
-    const integralStartExpression = integralStart.pow(2).div(2).sub(currCutoff.mul(integralStart));
+    const integralEndExpression = integralEnd.pow(2).div(2).sub(prevCutoff.mul(integralEnd));
+    const integralStartExpression = integralStart.pow(2).div(2).sub(prevCutoff.mul(integralStart));
     feeIntegral = feeIntegral.add(slope.mul(integralEndExpression.sub(integralStartExpression)));
   }
-  return feeIntegral;
+  return feeIntegral.div(scaler).div(scaler);
 }
 
 /**
