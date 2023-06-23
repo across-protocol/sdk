@@ -17,10 +17,9 @@ export function performLinearIntegration(
   cutoffArray: [BigNumber, BigNumber][],
   index: number,
   integralStart: BigNumber,
-  integralEnd: BigNumber,
-  precisionDecimals = 18
+  integralEnd: BigNumber
 ): BigNumber {
-  const scaler = BigNumber.from(10).pow(precisionDecimals);
+  const scaler = parseEther("1.0");
   const lengthUnderCurve = integralEnd.sub(integralStart);
   const resolveValue = (index: number): BigNumber => cutoffArray[index][1];
   let feeIntegral = resolveValue(
