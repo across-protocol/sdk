@@ -18,7 +18,7 @@ describe("UBA Fee Calculations", () => {
   let config: UBAFeeConfig;
   let tuples: FlowTupleParameters;
 
-  beforeEach(() => {
+  beforeAll(() => {
     config = new UBAFeeConfig(
       {
         default: toBN("300000000000000"),
@@ -106,7 +106,7 @@ describe("UBA Fee Calculations from Data", () => {
   let gammaCutoffArray: FlowTupleParameters;
   let omegaCutoffArray: FlowTupleParameters;
 
-  beforeEach(() => {
+  beforeAll(() => {
     gammaCutoffArray = [
       [toBN("500000000000000000"), toBN("0")],
       [toBN("750000000000000000"), toBN("100000000000000")],
