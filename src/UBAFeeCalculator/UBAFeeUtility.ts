@@ -19,14 +19,18 @@ export function performLinearIntegration(
   integralStart: BigNumber,
   integralEnd: BigNumber
 ): BigNumber {
+  console.log(`_lb: ${integralStart}, _ub: ${integralEnd}`);
+  console.log(cutoffArray.map((x) => x.map((y) => y.toString())));
+
   const scaler = parseEther("1.0");
   const lengthUnderCurve = integralEnd.sub(integralStart);
   const resolveValue = (index: number): BigNumber => cutoffArray[index][1];
   let feeIntegral = resolveValue(
     index === 0 ? 0 : index === cutoffArray.length ? cutoffArray.length - 1 : index - 1
   ).mul(lengthUnderCurve); // (y - x) * fbar[-1]
+  console.log(feeIntegral.toString());
   // If we're not in the bounds of this array, we need to perform an additional computation
-  if (index > 0 && index < cutoffArray.length) {
+  if (index > 0 && index < cutoffArray.length - 1) {
     const [currCutoff, currValue] = cutoffArray[index];
     const [prevCutoff, prevValue] = cutoffArray[index - 1];
     const slope = prevValue.sub(currValue).mul(scaler).div(prevCutoff.sub(currCutoff));
@@ -42,9 +46,11 @@ export function performLinearIntegration(
     // NOT: we define the variables above [x_i, fx_i ] as [currCutoff, currValue] in the code below
     const integralEndExpression = integralEnd.pow(2).div(2).sub(prevCutoff.mul(integralEnd));
     const integralStartExpression = integralStart.pow(2).div(2).sub(prevCutoff.mul(integralStart));
-    feeIntegral = feeIntegral.add(slope.mul(integralEndExpression.sub(integralStartExpression)));
+    const slopeIntegration = slope.mul(integralEndExpression.sub(integralStartExpression));
+
+    feeIntegral = feeIntegral.add(slopeIntegration).div(scaler);
   }
-  return feeIntegral.div(scaler).div(scaler);
+  return feeIntegral.div(scaler);
 }
 
 /**
@@ -55,12 +61,13 @@ export function performLinearIntegration(
  */
 export function getBounds(cutoffArray: [BigNumber, BigNumber][], index: number): [BigNumber, BigNumber] {
   const largestBound = BigNumber.from(parseUnits((-MAX_SAFE_JS_INT).toString(), 18)).mul(-1);
+  const length = cutoffArray.length;
   if (index === 0) {
     return [largestBound.mul(-1), cutoffArray[0][0]];
-  } else if (index < cutoffArray.length) {
+  } else if (index < length) {
     return [cutoffArray[index - 1][0], cutoffArray[index][0]];
   } else {
-    return [cutoffArray[cutoffArray.length - 1][0], largestBound];
+    return [cutoffArray[length - 1][0], largestBound];
   }
 }
 
@@ -76,7 +83,7 @@ export function getInterval(
 ): [number, [BigNumber, BigNumber]] {
   let result: [number, [BigNumber, BigNumber]] = [
     -1,
-    [BigNumber.from(-MAX_SAFE_JS_INT), BigNumber.from(MAX_SAFE_JS_INT)],
+    [BigNumber.from(-MAX_SAFE_JS_INT).mul(parseEther("1.0")), BigNumber.from(MAX_SAFE_JS_INT).mul(parseEther("1.0"))],
   ];
   for (let i = 0; i <= cutoffArray.length; i++) {
     const [lowerBound, upperBound] = getBounds(cutoffArray, i);
@@ -241,13 +248,17 @@ export function computePiecewiseLinearFunction(
   x: BigNumber,
   y: BigNumber
 ): BigNumber {
+  functionBounds = [
+    ...functionBounds,
+    [BigNumber.from(MAX_SAFE_JS_INT).mul(parseEther("1.0")), functionBounds[functionBounds.length - 1][1]],
+  ];
   // Decompose the bounds into the lower and upper bounds
   const xBar = functionBounds.map((_, idx, arr) => getBounds(arr, idx));
   // We'll need to determine the sign of the integration direction to determine the scale
   // This is because we always want to iterate from MIN(x, y) to MAX(x, y). We can get away
   // with manipulating the direction of x and y because we're integrating a linear function
   // and the integral is symmetric about the x-axis
-  const scale = x <= y ? 1 : -1;
+  const scale = x.lte(y) ? 1 : -1;
   // We want to use the traits of linear integration to our advantage. We know that the integral
   // should always iterate in the positive x direction. To implement this we'll need to determine
   // the start and end of the integral as MIN(x, y) and MAX(x, y) respectively.
@@ -263,7 +274,7 @@ export function computePiecewiseLinearFunction(
     // We need to be mindful of the fact that we may be integrating over a single interval
     // and that the bounds of that interval may be the same. If this is the case, we need
     // to make sure that we don't perform an integration over a zero interval.
-    const _lb = idx == lbIdx ? lb : xBar[idx - 1][0];
+    const _lb = idx == lbIdx ? lb : xBar[idx][0];
     // If we're at the upper bound, we need to make sure that we don't go out of bounds
     const _ub = idx == ubIdx ? ub : xBar[idx][1];
     // If the lower bound is not equal to the upper bound, we can perform the integration

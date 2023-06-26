@@ -148,7 +148,11 @@ describe.only("UBA Fee Calculations from Data", () => {
   });
 
   it.only("should integrate the correct value: test #4", () => {
-    const result = computePiecewiseLinearFunction(gammaCutoffArray, toBN("0"), toBN("1000000000000000000"));
+    const result = computePiecewiseLinearFunction(
+      gammaCutoffArray,
+      toBN("750000000000000000"),
+      toBN("950000000000000000")
+    );
     expect(result.toString()).to.eq("1522500000000000");
   });
 
