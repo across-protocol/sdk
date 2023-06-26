@@ -19,16 +19,12 @@ export function performLinearIntegration(
   integralStart: BigNumber,
   integralEnd: BigNumber
 ): BigNumber {
-  console.log(`_lb: ${integralStart}, _ub: ${integralEnd}`);
-  console.log(cutoffArray.map((x) => x.map((y) => y.toString())));
-
   const scaler = parseEther("1.0");
   const lengthUnderCurve = integralEnd.sub(integralStart);
   const resolveValue = (index: number): BigNumber => cutoffArray[index][1];
-  let feeIntegral = resolveValue(
-    index === 0 ? 0 : index === cutoffArray.length ? cutoffArray.length - 1 : index - 1
-  ).mul(lengthUnderCurve); // (y - x) * fbar[-1]
-  console.log(feeIntegral.toString());
+  let feeIntegral = resolveValue(index === 0 ? 0 : index === cutoffArray.length ? cutoffArray.length - 1 : index - 1)
+    .mul(lengthUnderCurve)
+    .div(scaler); // (y - x) * fbar[-1]
   // If we're not in the bounds of this array, we need to perform an additional computation
   if (index > 0 && index < cutoffArray.length - 1) {
     const [currCutoff, currValue] = cutoffArray[index];
@@ -46,11 +42,10 @@ export function performLinearIntegration(
     // NOT: we define the variables above [x_i, fx_i ] as [currCutoff, currValue] in the code below
     const integralEndExpression = integralEnd.pow(2).div(2).sub(prevCutoff.mul(integralEnd));
     const integralStartExpression = integralStart.pow(2).div(2).sub(prevCutoff.mul(integralStart));
-    const slopeIntegration = slope.mul(integralEndExpression.sub(integralStartExpression));
-
-    feeIntegral = feeIntegral.add(slopeIntegration).div(scaler);
+    const slopeIntegration = slope.mul(integralEndExpression.sub(integralStartExpression)).div(scaler).div(scaler);
+    feeIntegral = feeIntegral.add(slopeIntegration);
   }
-  return feeIntegral.div(scaler);
+  return feeIntegral;
 }
 
 /**

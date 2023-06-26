@@ -63,46 +63,46 @@ describe("UBA Fee Calculations", () => {
 
   it("should integrate the correct value: test #1", () => {
     const result = performLinearIntegration(tuples, 0, toBN(0), toBN(100_000));
-    expect(result.div(parseEther("1")).toString()).to.eq("-40000");
+    expect(result.toString()).to.eq("-40000");
   });
 
   it("should integrate the correct value: test #2", () => {
     const result = performLinearIntegration(tuples, 0, toBN(100_000), toBN(0));
-    expect(result.div(parseEther("1")).toString()).to.eq("40000");
+    expect(result.toString()).to.eq("40000");
   });
 
   it("should integrate the correct value: test #3", () => {
     const result = performLinearIntegration(tuples, 1, toBN(100_000), toBN(250_000));
-    expect(result.div(parseEther("1")).toString()).to.eq("-48750");
+    expect(result.toString()).to.eq("-48750");
   });
 
   it("should integrate the correct value: test #4", () => {
     const result = performLinearIntegration(tuples, 1, toBN(250_000), toBN(100_000));
-    expect(result.div(parseEther("1")).toString()).to.eq("48750");
+    expect(result.toString()).to.eq("48750");
   });
 
   it("should compute the correct deposit fee #1", () => {
     const result = getDepositBalancingFee(tuples, toBN(300_000), toBN(50_000));
-    expect(result.div(parseEther("1")).toString()).to.eq("-10250");
+    expect(result.toString()).to.eq("-10250");
   });
 
   it("should compute the correct deposit fee #2", () => {
     const result = getDepositBalancingFee(tuples, toBN(300_000), toBN(100_000));
-    expect(result.div(parseEther("1")).toString()).to.eq("-19000");
+    expect(result.toString()).to.eq("-19000");
   });
 
   it("should compute the correct refund fee #1", () => {
     const result = getRefundBalancingFee(tuples, toBN(350_000), toBN(50_000));
-    expect(result.div(parseEther("1")).toString()).to.eq("10250");
+    expect(result.toString()).to.eq("10250");
   });
 
   it("should compute the correct refund fee #2", () => {
     const result = getRefundBalancingFee(tuples, toBN(300_000), toBN(100_000));
-    expect(result.div(parseEther("1")).toString()).to.eq("25500");
+    expect(result.toString()).to.eq("25500");
   });
 });
 
-describe.only("UBA Fee Calculations from Data", () => {
+describe("UBA Fee Calculations from Data", () => {
   let gammaCutoffArray: FlowTupleParameters;
   let omegaCutoffArray: FlowTupleParameters;
 
@@ -147,12 +147,8 @@ describe.only("UBA Fee Calculations from Data", () => {
     expect(result.toString()).to.eq("0");
   });
 
-  it.only("should integrate the correct value: test #4", () => {
-    const result = computePiecewiseLinearFunction(
-      gammaCutoffArray,
-      toBN("750000000000000000"),
-      toBN("950000000000000000")
-    );
+  it("should integrate the correct value: test #4", () => {
+    const result = computePiecewiseLinearFunction(gammaCutoffArray, toBN("0"), toBN("1000000000000000000"));
     expect(result.toString()).to.eq("1522500000000000");
   });
 
