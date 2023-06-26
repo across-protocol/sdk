@@ -22,7 +22,12 @@ export function performLinearIntegration(
   const scaler = parseEther("1.0");
   const lengthUnderCurve = integralEnd.sub(integralStart);
   const resolveValue = (index: number): BigNumber => cutoffArray[index][1];
-  let feeIntegral = resolveValue(index === 0 ? 0 : index === cutoffArray.length ? cutoffArray.length - 1 : index - 1)
+  // We now need to compute the initial area of the integral. This is required
+  // for all cases. However, we need to be mindful of the bounds of the array.
+  // If we're at the first index, we need to make sure that we don't go out of bounds
+  // Therefore, we want to resolve the value at the current index - 1, being mindful
+  // that our smallest value is 0, and the largest value is the length of the array - 1.
+  let feeIntegral = resolveValue(Math.max(0, Math.min(cutoffArray.length - 1, index - 1)))
     .mul(lengthUnderCurve)
     .div(scaler); // (y - x) * fbar[-1]
   // If we're not in the bounds of this array, we need to perform an additional computation
