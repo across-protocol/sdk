@@ -1,9 +1,9 @@
 import { BigNumber } from "ethers";
 import { MAX_SAFE_JS_INT } from "@uma/common/dist/Constants";
-import { toBN } from "../utils";
+import { fixedPointAdjustment, toBN } from "../utils";
 import { HUBPOOL_CHAIN_ID } from "../constants";
-import { parseEther, parseUnits } from "ethers/lib/utils";
 import { UBAActionType } from "./UBAFeeTypes";
+import { parseUnits } from "ethers/lib/utils";
 
 /**
  * Computes a linear integral over a piecewise function
@@ -19,7 +19,6 @@ export function performLinearIntegration(
   integralStart: BigNumber,
   integralEnd: BigNumber
 ): BigNumber {
-  const scaler = parseEther("1.0");
   const lengthUnderCurve = integralEnd.sub(integralStart);
   const resolveValue = (index: number): BigNumber => cutoffArray[index][1];
   // We now need to compute the initial area of the integral. This is required
@@ -29,12 +28,12 @@ export function performLinearIntegration(
   // that our smallest value is 0, and the largest value is the length of the array - 1.
   let feeIntegral = resolveValue(Math.max(0, Math.min(cutoffArray.length - 1, index - 1)))
     .mul(lengthUnderCurve)
-    .div(scaler); // (y - x) * fbar[-1]
+    .div(fixedPointAdjustment); // (y - x) * fbar[-1]
   // If we're not in the bounds of this array, we need to perform an additional computation
   if (index > 0 && index < cutoffArray.length - 1) {
     const [currCutoff, currValue] = cutoffArray[index];
     const [prevCutoff, prevValue] = cutoffArray[index - 1];
-    const slope = prevValue.sub(currValue).mul(scaler).div(prevCutoff.sub(currCutoff));
+    const slope = prevValue.sub(currValue).mul(fixedPointAdjustment).div(prevCutoff.sub(currCutoff));
     // We need to compute a discrete integral at this point. We have the following
     // psuedo code:
     // fee_integral = (
@@ -47,7 +46,10 @@ export function performLinearIntegration(
     // NOT: we define the variables above [x_i, fx_i ] as [currCutoff, currValue] in the code below
     const integralEndExpression = integralEnd.pow(2).div(2).sub(prevCutoff.mul(integralEnd));
     const integralStartExpression = integralStart.pow(2).div(2).sub(prevCutoff.mul(integralStart));
-    const slopeIntegration = slope.mul(integralEndExpression.sub(integralStartExpression)).div(scaler).div(scaler);
+    const slopeIntegration = slope
+      .mul(integralEndExpression.sub(integralStartExpression))
+      .div(fixedPointAdjustment)
+      .div(fixedPointAdjustment);
     feeIntegral = feeIntegral.add(slopeIntegration);
   }
   return feeIntegral;
@@ -83,7 +85,10 @@ export function getInterval(
 ): [number, [BigNumber, BigNumber]] {
   let result: [number, [BigNumber, BigNumber]] = [
     -1,
-    [BigNumber.from(-MAX_SAFE_JS_INT).mul(parseEther("1.0")), BigNumber.from(MAX_SAFE_JS_INT).mul(parseEther("1.0"))],
+    [
+      BigNumber.from(-MAX_SAFE_JS_INT).mul(fixedPointAdjustment),
+      BigNumber.from(MAX_SAFE_JS_INT).mul(fixedPointAdjustment),
+    ],
   ];
   for (let i = 0; i <= cutoffArray.length; i++) {
     const [lowerBound, upperBound] = getBounds(cutoffArray, i);
@@ -250,7 +255,7 @@ export function computePiecewiseLinearFunction(
 ): BigNumber {
   functionBounds = [
     ...functionBounds,
-    [BigNumber.from(MAX_SAFE_JS_INT).mul(parseEther("1.0")), functionBounds[functionBounds.length - 1][1]],
+    [BigNumber.from(MAX_SAFE_JS_INT).mul(fixedPointAdjustment), functionBounds[functionBounds.length - 1][1]],
   ];
   // Decompose the bounds into the lower and upper bounds
   const xBar = functionBounds.map((_, idx, arr) => getBounds(arr, idx));
@@ -311,7 +316,7 @@ export function calculateUtilization(
     .add(ethSpokeBalance)
     .add(spokeTargets.reduce((a, b) => (b.spokeChainId !== hubPoolChainId ? a.add(b.target) : a), BigNumber.from(0)));
   const denominator = hubEquity;
-  const result = numerator.mul(parseEther("1.0")).div(denominator); // We need to multiply by 1e18 to get the correct precision for the result
+  const result = numerator.mul(fixedPointAdjustment).div(denominator); // We need to multiply by 1e18 to get the correct precision for the result
   return BigNumber.from(10).pow(decimals).sub(result);
 }
 
