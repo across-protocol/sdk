@@ -1,9 +1,9 @@
 import { BigNumber } from "ethers";
 import { MAX_SAFE_JS_INT } from "@uma/common/dist/Constants";
-import { toBN } from "../utils";
+import { fixedPointAdjustment, toBN } from "../utils";
 import { HUBPOOL_CHAIN_ID } from "../constants";
-import { parseEther } from "ethers/lib/utils";
 import { UBAActionType } from "./UBAFeeTypes";
+import { parseUnits } from "ethers/lib/utils";
 
 /**
  * Computes a linear integral over a piecewise function
@@ -21,12 +21,19 @@ export function performLinearIntegration(
 ): BigNumber {
   const lengthUnderCurve = integralEnd.sub(integralStart);
   const resolveValue = (index: number): BigNumber => cutoffArray[index][1];
-  let feeIntegral = resolveValue(Math.min(index, cutoffArray.length - 1)).mul(lengthUnderCurve);
+  // We now need to compute the initial area of the integral. This is required
+  // for all cases. However, we need to be mindful of the bounds of the array.
+  // If we're at the first index, we need to make sure that we don't go out of bounds
+  // Therefore, we want to resolve the value at the current index - 1, being mindful
+  // that our smallest value is 0, and the largest value is the length of the array - 1.
+  let feeIntegral = resolveValue(Math.max(0, Math.min(cutoffArray.length - 1, index - 1)))
+    .mul(lengthUnderCurve)
+    .div(fixedPointAdjustment); // (y - x) * fbar[-1]
   // If we're not in the bounds of this array, we need to perform an additional computation
-  if (index > 0 && index < cutoffArray.length) {
+  if (index > 0 && index < cutoffArray.length - 1) {
     const [currCutoff, currValue] = cutoffArray[index];
     const [prevCutoff, prevValue] = cutoffArray[index - 1];
-    const slope = prevValue.sub(currValue).div(prevCutoff.sub(currCutoff));
+    const slope = prevValue.sub(currValue).mul(fixedPointAdjustment).div(prevCutoff.sub(currCutoff));
     // We need to compute a discrete integral at this point. We have the following
     // psuedo code:
     // fee_integral = (
@@ -37,9 +44,13 @@ export function performLinearIntegration(
     //     )
     // )
     // NOT: we define the variables above [x_i, fx_i ] as [currCutoff, currValue] in the code below
-    const integralEndExpression = integralEnd.pow(2).div(2).sub(currCutoff.mul(integralEnd));
-    const integralStartExpression = integralStart.pow(2).div(2).sub(currCutoff.mul(integralStart));
-    feeIntegral = feeIntegral.add(slope.mul(integralEndExpression.sub(integralStartExpression)));
+    const integralEndExpression = integralEnd.pow(2).div(2).sub(prevCutoff.mul(integralEnd));
+    const integralStartExpression = integralStart.pow(2).div(2).sub(prevCutoff.mul(integralStart));
+    const slopeIntegration = slope
+      .mul(integralEndExpression.sub(integralStartExpression))
+      .div(fixedPointAdjustment)
+      .div(fixedPointAdjustment);
+    feeIntegral = feeIntegral.add(slopeIntegration);
   }
   return feeIntegral;
 }
@@ -51,12 +62,14 @@ export function performLinearIntegration(
  * @returns The upper and lower bounds of the interval
  */
 export function getBounds(cutoffArray: [BigNumber, BigNumber][], index: number): [BigNumber, BigNumber] {
+  const largestBound = BigNumber.from(parseUnits((-MAX_SAFE_JS_INT).toString(), 18)).mul(-1);
+  const length = cutoffArray.length;
   if (index === 0) {
-    return [BigNumber.from(-MAX_SAFE_JS_INT), cutoffArray[0][0]];
-  } else if (index >= cutoffArray.length) {
-    return [cutoffArray[cutoffArray.length - 1][0], BigNumber.from(MAX_SAFE_JS_INT)];
-  } else {
+    return [largestBound.mul(-1), cutoffArray[0][0]];
+  } else if (index < length) {
     return [cutoffArray[index - 1][0], cutoffArray[index][0]];
+  } else {
+    return [cutoffArray[length - 1][0], largestBound];
   }
 }
 
@@ -72,7 +85,10 @@ export function getInterval(
 ): [number, [BigNumber, BigNumber]] {
   let result: [number, [BigNumber, BigNumber]] = [
     -1,
-    [BigNumber.from(-MAX_SAFE_JS_INT), BigNumber.from(MAX_SAFE_JS_INT)],
+    [
+      BigNumber.from(-MAX_SAFE_JS_INT).mul(fixedPointAdjustment),
+      BigNumber.from(MAX_SAFE_JS_INT).mul(fixedPointAdjustment),
+    ],
   ];
   for (let i = 0; i <= cutoffArray.length; i++) {
     const [lowerBound, upperBound] = getBounds(cutoffArray, i);
@@ -237,13 +253,17 @@ export function computePiecewiseLinearFunction(
   x: BigNumber,
   y: BigNumber
 ): BigNumber {
+  functionBounds = [
+    ...functionBounds,
+    [BigNumber.from(MAX_SAFE_JS_INT).mul(fixedPointAdjustment), functionBounds[functionBounds.length - 1][1]],
+  ];
   // Decompose the bounds into the lower and upper bounds
   const xBar = functionBounds.map((_, idx, arr) => getBounds(arr, idx));
   // We'll need to determine the sign of the integration direction to determine the scale
   // This is because we always want to iterate from MIN(x, y) to MAX(x, y). We can get away
   // with manipulating the direction of x and y because we're integrating a linear function
   // and the integral is symmetric about the x-axis
-  const scale = x <= y ? 1 : -1;
+  const scale = x.lte(y) ? 1 : -1;
   // We want to use the traits of linear integration to our advantage. We know that the integral
   // should always iterate in the positive x direction. To implement this we'll need to determine
   // the start and end of the integral as MIN(x, y) and MAX(x, y) respectively.
@@ -252,7 +272,6 @@ export function computePiecewiseLinearFunction(
   // to concern ourselves with bounds outside of the needed range because we'd be wasting cycles
   // iterating over them.
   const [lbIdx, ubIdx] = [getInterval(functionBounds, lb)[0], getInterval(functionBounds, ub)[0]];
-
   // We can store the integral in this variable
   let integral = toBN(0);
   // We can now iterate over the bounds and perform the integration
@@ -260,23 +279,19 @@ export function computePiecewiseLinearFunction(
     // We need to be mindful of the fact that we may be integrating over a single interval
     // and that the bounds of that interval may be the same. If this is the case, we need
     // to make sure that we don't perform an integration over a zero interval.
-    const _lb = idx == lbIdx ? lb : xBar[idx - 1][0];
+    const _lb = idx == lbIdx ? lb : xBar[idx][0];
     // If we're at the upper bound, we need to make sure that we don't go out of bounds
     const _ub = idx == ubIdx ? ub : xBar[idx][1];
     // If the lower bound is not equal to the upper bound, we can perform the integration
     // Otherwise we implicitely integrate over a zero interval and add nothing to the integral
     if (!_lb.eq(_ub)) {
+      const currentIntegration = performLinearIntegration(functionBounds, idx, _lb, _ub);
       // We can now perform the integration by calling the helper function
-      integral = integral.add(performLinearIntegration(functionBounds, idx, _lb, _ub));
+      integral = integral.add(currentIntegration);
     }
   }
-  // If the integral is zero, we can return zero - we don't need to perform any additional
-  // computations
-  if (integral.eq(0)) {
-    return toBN(0);
-  }
   // Otherwise, we can scale the integral to the correct sign and return it with the modifier
-  return integral.mul(scale).div(y.sub(x));
+  return integral.mul(scale);
 }
 
 /**
@@ -301,7 +316,7 @@ export function calculateUtilization(
     .add(ethSpokeBalance)
     .add(spokeTargets.reduce((a, b) => (b.spokeChainId !== hubPoolChainId ? a.add(b.target) : a), BigNumber.from(0)));
   const denominator = hubEquity;
-  const result = numerator.mul(parseEther("1.0")).div(denominator); // We need to multiply by 1e18 to get the correct precision for the result
+  const result = numerator.mul(fixedPointAdjustment).div(denominator); // We need to multiply by 1e18 to get the correct precision for the result
   return BigNumber.from(10).pow(decimals).sub(result);
 }
 
