@@ -3,7 +3,6 @@ import { MAX_SAFE_JS_INT } from "@uma/common/dist/Constants";
 import { fixedPointAdjustment, toBN } from "../utils";
 import { HUBPOOL_CHAIN_ID } from "../constants";
 import { UBAActionType } from "./UBAFeeTypes";
-import { parseUnits } from "ethers/lib/utils";
 
 /**
  * Computes a linear integral over a piecewise function
@@ -62,14 +61,13 @@ export function performLinearIntegration(
  * @returns The upper and lower bounds of the interval
  */
 export function getBounds(cutoffArray: [BigNumber, BigNumber][], index: number): [BigNumber, BigNumber] {
-  const largestBound = BigNumber.from(parseUnits((-MAX_SAFE_JS_INT).toString(), 18)).mul(-1);
   const length = cutoffArray.length;
   if (index === 0) {
-    return [largestBound.mul(-1), cutoffArray[0][0]];
+    return [BigNumber.from(-MAX_SAFE_JS_INT).mul(fixedPointAdjustment), cutoffArray[0][0]];
   } else if (index < length) {
     return [cutoffArray[index - 1][0], cutoffArray[index][0]];
   } else {
-    return [cutoffArray[length - 1][0], largestBound];
+    return [cutoffArray[length - 1][0], BigNumber.from(MAX_SAFE_JS_INT).mul(fixedPointAdjustment)];
   }
 }
 
