@@ -47,12 +47,23 @@ export class UBAClientWithRefresh extends BaseUBAClient {
     );
   }
 
+  /**
+   * Performs and assert that the necessary clients have been updated at least once.
+   */
   protected assertNecessaryClientsUpdated(): void {
-    const isUpdated =
+    assert(this.areNecessaryClientsUpdated(), "UBAClientWithRefresh: Clients not updated");
+  }
+
+  /**
+   * Verifies that the necessary clients have been updated at least once.
+   * @returns true if all necessary clients have been updated at least once.
+   */
+  protected areNecessaryClientsUpdated(): boolean {
+    return (
       this.hubPoolClient.configStoreClient.isUpdated &&
       this.hubPoolClient.isUpdated &&
-      Object.values(this.spokePoolClients).every((spokePoolClient) => spokePoolClient.isUpdated);
-    assert(isUpdated, "UBAClientWithRefresh: Clients not updated");
+      Object.values(this.spokePoolClients).every((spokePoolClient) => spokePoolClient.isUpdated)
+    );
   }
 
   protected resolveClosingBlockNumber(chainId: number, blockNumber: number): number {
