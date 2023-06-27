@@ -82,9 +82,7 @@ export class SpokePoolClient {
       FundsDeposited: this.spokePool.filters.FundsDeposited(),
       RequestedSpeedUpDeposit: this.spokePool.filters.RequestedSpeedUpDeposit(),
       FilledRelay: this.spokePool.filters.FilledRelay(),
-      // This is a hack for now but leave disabled until we need it, and until after certain bots like
-      // Finalizer needs to keep reading from deprecated SpokePool, that is missing this event signature.
-      // RefundRequested: this.spokePool.filters.refundRequested(),
+      RefundRequested: this.spokePool.filters.RefundRequested(),
       EnabledDepositRoute: this.spokePool.filters.EnabledDepositRoute(),
       TokensBridged: this.spokePool.filters.TokensBridged(),
       RelayedRootBundle: this.spokePool.filters.RelayedRootBundle(),
