@@ -30,13 +30,21 @@ export class UBAClientWithRefresh extends BaseUBAClient {
     this.relayCalculator = new RelayFeeCalculator(this.relayerConfiguration);
   }
 
-  public async update(): Promise<void> {
-    // Update the Across config store
-    await this.hubPoolClient.configStoreClient.update();
-    // Update the HubPool
-    await this.hubPoolClient.update();
-    // Update the SpokePools
-    await Promise.all(Object.values(this.spokePoolClients).map(async (spokePoolClient) => spokePoolClient.update()));
+  /**
+   * Updates the clients and UBAFeeCalculators.
+   * @param forceRefresh An optional boolean to force a refresh of the clients.
+   */
+  public async update(forceClientRefresh?: boolean): Promise<void> {
+    // Update the clients if the necessary clients have not been updated at least once.
+    // Also update if forceClientRefresh is true.
+    if (forceClientRefresh || !this.areNecessaryClientsUpdated()) {
+      // Update the Across config store
+      await this.hubPoolClient.configStoreClient.update();
+      // Update the HubPool
+      await this.hubPoolClient.update();
+      // Update the SpokePools
+      await Promise.all(Object.values(this.spokePoolClients).map(async (spokePoolClient) => spokePoolClient.update()));
+    }
     // Update the UBAFeeCalculators
     await Promise.all(
       Object.entries(this.spokeUBAFeeCalculators).flatMap(([chainId, spokeUBAFeeCalculator]) =>
