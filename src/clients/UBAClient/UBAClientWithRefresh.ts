@@ -19,8 +19,8 @@ export class UBAClientWithRefresh extends BaseUBAClient {
   // @dev SpokePoolClients may be a subset of the SpokePools that have been deployed.
   constructor(
     readonly chainIdIndices: number[],
-    private readonly hubPoolClient: HubPoolClient,
-    private readonly spokePoolClients: { [chainId: number]: SpokePoolClient },
+    public readonly hubPoolClient: HubPoolClient,
+    public readonly spokePoolClients: { [chainId: number]: SpokePoolClient },
     private readonly relayerConfiguration: RelayFeeCalculatorConfig,
     readonly logger?: winston.Logger
   ) {
@@ -30,13 +30,21 @@ export class UBAClientWithRefresh extends BaseUBAClient {
     this.relayCalculator = new RelayFeeCalculator(this.relayerConfiguration);
   }
 
-  public async update(): Promise<void> {
-    // Update the Across config store
-    await this.hubPoolClient.configStoreClient.update();
-    // Update the HubPool
-    await this.hubPoolClient.update();
-    // Update the SpokePools
-    await Promise.all(Object.values(this.spokePoolClients).map(async (spokePoolClient) => spokePoolClient.update()));
+  /**
+   * Updates the clients and UBAFeeCalculators.
+   * @param forceRefresh An optional boolean to force a refresh of the clients.
+   */
+  public async update(forceClientRefresh?: boolean): Promise<void> {
+    // Update the clients if the necessary clients have not been updated at least once.
+    // Also update if forceClientRefresh is true.
+    if (forceClientRefresh || !this.areNecessaryClientsUpdated()) {
+      // Update the Across config store
+      await this.hubPoolClient.configStoreClient.update();
+      // Update the HubPool
+      await this.hubPoolClient.update();
+      // Update the SpokePools
+      await Promise.all(Object.values(this.spokePoolClients).map(async (spokePoolClient) => spokePoolClient.update()));
+    }
     // Update the UBAFeeCalculators
     await Promise.all(
       Object.entries(this.spokeUBAFeeCalculators).flatMap(([chainId, spokeUBAFeeCalculator]) =>
@@ -47,12 +55,23 @@ export class UBAClientWithRefresh extends BaseUBAClient {
     );
   }
 
+  /**
+   * Performs and assert that the necessary clients have been updated at least once.
+   */
   protected assertNecessaryClientsUpdated(): void {
-    const isUpdated =
+    assert(this.areNecessaryClientsUpdated(), "UBAClientWithRefresh: Clients not updated");
+  }
+
+  /**
+   * Verifies that the necessary clients have been updated at least once.
+   * @returns true if all necessary clients have been updated at least once.
+   */
+  protected areNecessaryClientsUpdated(): boolean {
+    return (
       this.hubPoolClient.configStoreClient.isUpdated &&
       this.hubPoolClient.isUpdated &&
-      Object.values(this.spokePoolClients).every((spokePoolClient) => spokePoolClient.isUpdated);
-    assert(isUpdated, "UBAClientWithRefresh: Clients not updated");
+      Object.values(this.spokePoolClients).every((spokePoolClient) => spokePoolClient.isUpdated)
+    );
   }
 
   protected resolveClosingBlockNumber(chainId: number, blockNumber: number): number {
