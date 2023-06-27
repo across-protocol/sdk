@@ -19,8 +19,8 @@ export class UBAClientWithRefresh extends BaseUBAClient {
   // @dev SpokePoolClients may be a subset of the SpokePools that have been deployed.
   constructor(
     readonly chainIdIndices: number[],
-    private readonly hubPoolClient: HubPoolClient,
-    private readonly spokePoolClients: { [chainId: number]: SpokePoolClient },
+    public readonly hubPoolClient: HubPoolClient,
+    public readonly spokePoolClients: { [chainId: number]: SpokePoolClient },
     private readonly relayerConfiguration: RelayFeeCalculatorConfig,
     readonly logger?: winston.Logger
   ) {
