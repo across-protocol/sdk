@@ -29,6 +29,7 @@ export abstract class BaseUBAClient {
     this.spokeUBAFeeCalculators = {};
   }
 
+  // This is pretty much the same algorithm i'm trying to explain in computeBalancingFee
   // public async getFlowsForChain(events: Event[]) {
   //   // Given an input of deposit, fill, refundRequest events for a chain,
   //   // and an input of all snapshotted running balances (i.e. contained in proposed root bundles in the HubPool),
