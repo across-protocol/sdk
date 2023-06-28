@@ -31,10 +31,14 @@ export abstract class BaseUBAClient {
 
   // public async getFlowsForChain(events: Event[]) {
   //   // Given an input of deposit, fill, refundRequest events for a chain,
+  //   // and an input of all snapshotted running balances (i.e. contained in proposed root bundles in the HubPool),
   //   // give me the deterministic time series of VALID flows.
   //   // Per enabled chain, per supported token:
-  //   // - Going through flows in order, compute balancing fee for that flow and assign the latest running balance
-  //   // and balancing fee to that flow.
+  //   // - Going through flows in ascending order:
+  //   // - Find most recent preceding running balance for that flow
+  //   // - Validate all flows that occurred between that preceding running balance and the current flow
+  //   // - We should now know the running balance for the current flow as the net of all the above flows
+  //   // - Use that running balance to determine the balancing fee for the flow.
   //   // - Clients can now instantly get the balancing fees for each flow
   //   // - Ideally, cache each resultant flow.
   // }
