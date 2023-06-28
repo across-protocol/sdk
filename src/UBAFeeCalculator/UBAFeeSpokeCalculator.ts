@@ -20,38 +20,22 @@ type FlowFee = {
  */
 export default class UBAFeeSpokeCalculator {
   /**
-   * The last validated running balance of the spoke
-   */
-  protected lastValidatedRunningBalance?: BigNumber;
-
-  /**
-   * The last incentive running balance of the spoke
-   */
-  protected lastValidatedIncentiveRunningBalance?: BigNumber;
-
-  /**
-   * The cached running balance of the spoke at each step in the recent request flow
-   */
-  private cachedRunningBalance: Record<string, TokenRunningBalanceWithNetSend>;
-
-  /**
    * Instantiates a new UBA Fee Spoke Store
    * @param chainId The chain id of the spoke
    * @param symbol The symbol of the token on the spoke
    * @param recentRequestFlow The recent request flow of the spoke
-   * @param blockNumber The most recent block number
+   * @param lastValidatedRunningBalance The last validated running balance of the spoke
+   * @param lastValidatedIncentiveRunningBalance The last validated incentive running balance of the spoke
+   * @param config The UBA Fee Config
    */
   constructor(
     public readonly chainId: number,
     public readonly symbol: string,
     public readonly recentRequestFlow: UbaFlow[],
-    public blockNumber: number,
+    public readonly lastValidatedRunningBalance: BigNumber,
+    public readonly lastValidatedIncentiveRunningBalance: BigNumber,
     public readonly config: UBAConfig
-  ) {
-    this.lastValidatedRunningBalance = undefined;
-    this.lastValidatedIncentiveRunningBalance = undefined;
-    this.cachedRunningBalance = {};
-  }
+  ) {}
 
   /**
    * Calculates the historical running balance of the spoke from the last validated running balance
@@ -68,13 +52,6 @@ export default class UBAFeeSpokeCalculator {
     const startIdx = startingStepFromLastValidatedBalance ?? 0;
     const length = lengthOfRunningBalance ?? this.recentRequestFlow.length + 1;
     const endIdx = startIdx + length;
-    const key = `${startIdx}-${endIdx}`;
-
-    // If the key is in the cache, return the cached value
-    // We don't need to compute the running balance again
-    if (key in this.cachedRunningBalance) {
-      return this.cachedRunningBalance[key];
-    }
 
     // Attempt to resolve the trigger hurdle to include in the running
     // balance calculation
@@ -136,10 +113,6 @@ export default class UBAFeeSpokeCalculator {
         netRunningBalanceAdjustment: toBN(0),
       }
     );
-
-    // Cache the result
-    this.cachedRunningBalance[key] = historicalResult;
-
     // Return the result
     return historicalResult;
   }
@@ -152,13 +125,6 @@ export default class UBAFeeSpokeCalculator {
    */
   public calculateRecentRunningBalance(): TokenRunningBalance {
     return this.calculateHistoricalRunningBalance(0, this.recentRequestFlow.length + 1);
-  }
-
-  /**
-   * Clears the cached running balance of the spoke
-   */
-  public clearCachedRunningBalance(): void {
-    this.cachedRunningBalance = {};
   }
 
   /**
