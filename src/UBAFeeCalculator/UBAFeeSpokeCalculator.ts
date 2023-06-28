@@ -91,7 +91,7 @@ export default class UBAFeeSpokeCalculator {
         // This is reflected in the incentive balance as well
         const resultant: TokenRunningBalanceWithNetSend = {
           netRunningBalanceAdjustment: toBN(acc.netRunningBalanceAdjustment.toString()), // Deep copy via string conversion
-          runningBalance: acc.runningBalance[isUbaInflow(flow) ? "add" : "sub"](flow.amount),
+          runningBalance: acc.runningBalance[isUbaInflow(flow) ? "add" : "sub"](flow.amount), // TODO: Need to .sub(balancingFee) from this
           incentiveBalance: acc.incentiveBalance[isUbaInflow(flow) ? "add" : "sub"](flow.amount), // TODO: Add correct incentive balance calculations
         };
 
