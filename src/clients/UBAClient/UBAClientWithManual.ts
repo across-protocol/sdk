@@ -47,6 +47,8 @@ export class UBAClientManual extends BaseUBAClient {
     super(chainIdIndices, logger);
     assert(chainIdIndices.length > 0, "No chainIds provided");
     assert(Object.values(state.spoke).length > 0, "No SpokePools provided");
+
+    // Using `state`, pass into await this.getFlowsForChain()
   }
 
   protected resolveClosingBlockNumber(chainId: number, blockNumber: number): number {

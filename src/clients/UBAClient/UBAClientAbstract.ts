@@ -29,6 +29,16 @@ export abstract class BaseUBAClient {
     this.spokeUBAFeeCalculators = {};
   }
 
+  // public async getFlowsForChain(events: Event[]) {
+  //   // Given an input of deposit, fill, refundRequest events for a chain,
+  //   // give me the deterministic time series of VALID flows.
+  //   // Per enabled chain, per supported token:
+  //   // - Going through flows in order, compute balancing fee for that flow and assign the latest running balance
+  //   // and balancing fee to that flow.
+  //   // - Clients can now instantly get the balancing fees for each flow
+  //   // - Ideally, cache each resultant flow.
+  // }
+
   /**
    * Retrieves the opening balance for a given token on a given chainId at a given block number
    * @param chainId The chainId to get the opening balance for

@@ -54,12 +54,8 @@ export class UBAClientWithRefresh extends BaseUBAClient {
       )
     );
 
-    // Per enabled chain, per supported token:
-    // - Build time series of VALID flows (deposits, fills, refunds)
-    // - Going through flows in order, compute balancing fee for that flow and assign the latest running balance
-    // and balancing fee to that flow.
-    // - Clients can now instantly get the balancing fees for each flow
-    // - Ideally, cache each resultant flow.
+    // load events from SpokePoolClients and feed into:
+    // await this.getFlowsForChain(DepositWithBlock.concat(FillWithBlock).concat(RefundRequestWithBlock));
   }
 
   /**
@@ -133,6 +129,7 @@ export class UBAClientWithRefresh extends BaseUBAClient {
           deposit.blockNumber >= (fromBlock as number) && deposit.blockNumber <= (toBlock as number)
       );
 
+    // TODO: Validate fill.
     // Filter out:
     // - Fills that request refunds on a different chain.
     // - Subsequent fills after an initial partial fill.
@@ -147,6 +144,7 @@ export class UBAClientWithRefresh extends BaseUBAClient {
       return result;
     });
 
+    // TODO: Validate that refund corresponds with a fill that set correct fee.
     const refundRequests: UbaFlow[] = spokePoolClient.getRefundRequests(fromBlock, toBlock).filter((refundRequest) => {
       const result = this.refundRequestIsValid(chainId, refundRequest);
       if (!result.valid && this.logger !== undefined) {
