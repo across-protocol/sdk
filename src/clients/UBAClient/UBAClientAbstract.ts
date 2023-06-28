@@ -95,10 +95,38 @@ export abstract class BaseUBAClient {
     tokenSymbol: string,
     amount: BigNumber,
     hubPoolBlockNumber: number,
+    // balancingActionBlockNumber: number,
     chainId: number,
     feeType: UBAActionType
   ): Promise<BalancingFeeReturnType> {
-    // Verify that the spoke clients are instantiated.
+    // 1. Get latest running balance before balancingActionBlockNumber for `chainId`: openingRunningBalance.
+    // 2. Get all *valid flows between bundle end block in last snapshotted bundle and balancingActionBlockNumber.
+    // 3. Use the above to pass into getDepositFee(latestRunningBalance, amount).
+
+    // * To get all valid flows, go through them one by one and validate their balancing fees by recursively calling
+    // back into this function computeBalancingFee(). This should be possible if you go through the flows in order.
+
+    // For example:
+    // - runningBalance snapshotted at block 1 on Ethereum for the `chainId` where the bundle end block was 7 = 100
+    // - amount = +10 (+ for deposit, - for refund), hubPoolBlockNumber = 5, balancingActionBlockNumber = 10
+    // - The following events have happened on the deposit origin `chainId`:
+    // - [block, amount]: [1, +25], [2, -10], [6, +85], [8, +50], [9, -10], [9, +500], [10, -99]
+    // - Now let's follow the above algorithm:
+    // - 1) Get latest running balance before balancingActionBlockNumber for `chainId`: balancingActionBlockNumber = 10,
+    //      and latest running balance for `chainId` was 100 at bundle end block 7. 7 < 10, so openingRunningBalance = 100.
+    // - 2) Get all *valid flows between 7 and balancingActionBlockNumber = 10: We need to go through the
+    //      flows in order. First flow is occurred at block 8 on `chainId` and deposited 50. Call `getDepositFee(100, +50)`
+    //      let's say that it returns 3%. So, validate that the flow [8, +50] used the correct fee. Next, validate the
+    //      flow that occurred at block 9 and refunded 10. Call `getDepositFee(150, -10)` where we pass in 150 as the
+    //      "latest" running balance because we validated that the flow [8, +50] was valid. Let's say that it returns 2%.
+    //      Let's then imagine that the refund for 10 tokens incorrectly set the balancing fee (i.e. it should have been 2%).
+    //      That means that we need to ignore that -10 value. So the next flow to validate is [9, +500]. Call
+    //      getDepositFee(150, +500) and let's say that it returns 4%. We will pretend this flow used the correct fee.
+    //      The final flow to validate is [10, -99]. Call getDepositFee(650, -99) and let's say that it returns 3.5%
+    //      and the event was valid.
+    // - 3) Now we know the latest running balance before the balancingActionBlockNumber was 650 - 99 = 551.
+    //      To get the balancing fee, we call getDepositFee(551, +10).    // Verify that the spoke clients are instantiated.
+
     await this.instantiateUBAFeeCalculator(chainId, tokenSymbol, hubPoolBlockNumber);
     // Get the balancing fees.
     const { balancingFee } =
