@@ -74,91 +74,103 @@ export class UBAClientWithRefresh extends BaseUBAClient {
     );
   }
 
-  protected resolveClosingBlockNumber(chainId: number, blockNumber: number): number {
-    this.assertNecessaryClientsUpdated();
-    return this.hubPoolClient.getLatestBundleEndBlockForChain(this.chainIdIndices, blockNumber, chainId);
-  }
+  // protected resolveClosingBlockNumber(chainId: number, blockNumber: number): number {
+  //   this.assertNecessaryClientsUpdated();
+  //   return this.hubPoolClient.getLatestBundleEndBlockForChain(this.chainIdIndices, blockNumber, chainId);
+  // }
 
-  public getOpeningBalance(
-    chainId: number,
-    spokePoolToken: string,
-    hubPoolBlockNumber?: number
-  ): { blockNumber: number; spokePoolBalance: BigNumber } {
-    if (!isDefined(hubPoolBlockNumber)) {
-      this.assertNecessaryClientsUpdated();
-      // todo: Fix this type assertion.
-      hubPoolBlockNumber = this.hubPoolClient.latestBlockNumber as number;
-    }
 
-    const hubPoolToken = this.hubPoolClient.getL1TokenCounterpartAtBlock(chainId, spokePoolToken, hubPoolBlockNumber);
-    if (!isDefined(hubPoolToken)) {
-      throw new Error(`Could not resolve ${chainId} token ${spokePoolToken} at block ${hubPoolBlockNumber}`);
-    }
+  // getOPeningBalance Can be entirely replaced with this: 
+    //   hubPoolClient.getRunningBalanceBeforeBlockForChain(
+    //     balancingActionBlockNumber,
+    //     chainId,
+    //     l1Token
+    //   )
 
-    const spokePoolClient = this.spokePoolClients[chainId];
-    const prevEndBlock = this.resolveClosingBlockNumber(chainId, hubPoolBlockNumber);
-    let blockNumber = spokePoolClient.deploymentBlock;
-    if (prevEndBlock > blockNumber) {
-      blockNumber = prevEndBlock + 1;
-      assert(blockNumber <= spokePoolClient.latestBlockNumber);
-    }
-    const { runningBalance: spokePoolBalance } = this.hubPoolClient.getRunningBalanceBeforeBlockForChain(
-      hubPoolBlockNumber,
-      chainId,
-      hubPoolToken
-    );
+  // public getOpeningBalance(
+  //   chainId: number,
+  //   spokePoolToken: string,
+  //   blockNumber?: number
+  // ): { blockNumber: number; spokePoolBalance: BigNumber } {
+  //   if (!isDefined(hubPoolBlockNumber)) {
+  //     this.assertNecessaryClientsUpdated();
+  //     // todo: Fix this type assertion.
+  //     hubPoolBlockNumber = this.hubPoolClient.latestBlockNumber as number;
+  //   }
 
-    return { blockNumber, spokePoolBalance };
-  }
+  //   const hubPoolToken = this.hubPoolClient.getL1TokenCounterpartAtBlock(chainId, spokePoolToken, hubPoolBlockNumber);
+  //   if (!isDefined(hubPoolToken)) {
+  //     throw new Error(`Could not resolve ${chainId} token ${spokePoolToken} at block ${hubPoolBlockNumber}`);
+  //   }
 
-  public getFlows(chainId: number, fromBlock?: number, toBlock?: number): UbaFlow[] {
-    this.assertNecessaryClientsUpdated();
-    const spokePoolClient = this.spokePoolClients[chainId];
+  //   const spokePoolClient = this.spokePoolClients[chainId];
+  //   const prevEndBlock = this.hubPoolClient.getRunningBalanceBeforeBlockForChain(
+    //   hubPoolBlockNumber,
+    //   chainId,
+    //   hubPoolToken
+    // );
+  //   let blockNumber = spokePoolClient.deploymentBlock;
+  //   if (prevEndBlock > blockNumber) {
+  //     blockNumber = prevEndBlock + 1;
+  //     assert(blockNumber <= spokePoolClient.latestBlockNumber);
+  //   }
+  //   const { runningBalance: spokePoolBalance } = this.hubPoolClient.getRunningBalanceBeforeBlockForChain(
+  //     hubPoolBlockNumber,
+  //     chainId,
+  //     hubPoolToken
+  //   );
 
-    fromBlock = fromBlock ?? spokePoolClient.deploymentBlock;
-    toBlock = toBlock ?? spokePoolClient.latestBlockNumber;
+  //   return { blockNumber, spokePoolBalance };
+  // }
 
-    // @todo: Fix these type assertions.
-    const deposits: UbaFlow[] = spokePoolClient
-      .getDeposits()
-      .filter(
-        (deposit: DepositWithBlock) =>
-          deposit.blockNumber >= (fromBlock as number) && deposit.blockNumber <= (toBlock as number)
-      );
+  // public getFlows(chainId: number, fromBlock?: number, toBlock?: number): UbaFlow[] {
+  //   this.assertNecessaryClientsUpdated();
+  //   const spokePoolClient = this.spokePoolClients[chainId];
 
-    // Filter out:
-    // - Fills that request refunds on a different chain.
-    // - Subsequent fills after an initial partial fill.
-    // - Slow fills.
-    const fills: UbaFlow[] = spokePoolClient.getFills().filter((fill: FillWithBlock) => {
-      const result =
-        fill.repaymentChainId === spokePoolClient.chainId &&
-        fill.fillAmount.eq(fill.totalFilledAmount) &&
-        fill.updatableRelayData.isSlowRelay === false &&
-        fill.blockNumber > (fromBlock as number) &&
-        fill.blockNumber < (toBlock as number);
-      return result;
-    });
+  //   fromBlock = fromBlock ?? spokePoolClient.deploymentBlock;
+  //   toBlock = toBlock ?? spokePoolClient.latestBlockNumber;
 
-    const refundRequests: UbaFlow[] = spokePoolClient.getRefundRequests(fromBlock, toBlock).filter((refundRequest) => {
-      const result = this.refundRequestIsValid(chainId, refundRequest);
-      if (!result.valid && this.logger !== undefined) {
-        this.logger.info({
-          at: "UBAClient::getFlows",
-          message: `Excluding RefundRequest on chain ${chainId}`,
-          reason: result.reason,
-          refundRequest,
-        });
-      }
+  //   // @todo: Fix these type assertions.
+  //   const deposits: UbaFlow[] = spokePoolClient
+  //     .getDeposits()
+  //     .filter(
+  //       (deposit: DepositWithBlock) =>
+  //         deposit.blockNumber >= (fromBlock as number) && deposit.blockNumber <= (toBlock as number)
+  //     );
 
-      return result.valid;
-    });
+  //   // Filter out:
+  //   // - Fills that request refunds on a different chain.
+  //   // - Subsequent fills after an initial partial fill.
+  //   // - Slow fills.
+  //   const fills: UbaFlow[] = spokePoolClient.getFills().filter((fill: FillWithBlock) => {
+  //     const result =
+  //       fill.repaymentChainId === spokePoolClient.chainId &&
+  //       fill.fillAmount.eq(fill.totalFilledAmount) &&
+  //       fill.updatableRelayData.isSlowRelay === false &&
+  //       fill.blockNumber > (fromBlock as number) &&
+  //       fill.blockNumber < (toBlock as number);
+  //     return result;
+  //   });
 
-    // This is probably more expensive than we'd like... @todo: optimise.
-    const flows = sortEventsAscending(deposits.concat(fills).concat(refundRequests));
+  //   const refundRequests: UbaFlow[] = spokePoolClient.getRefundRequests(fromBlock, toBlock).filter((refundRequest) => {
+  //     const result = this.refundRequestIsValid(chainId, refundRequest);
+  //     if (!result.valid && this.logger !== undefined) {
+  //       this.logger.info({
+  //         at: "UBAClient::getFlows",
+  //         message: `Excluding RefundRequest on chain ${chainId}`,
+  //         reason: result.reason,
+  //         refundRequest,
+  //       });
+  //     }
 
-    return flows;
-  }
+  //     return result.valid;
+  //   });
+
+  //   // This is probably more expensive than we'd like... @todo: optimise.
+  //   const flows = sortEventsAscending(deposits.concat(fills).concat(refundRequests));
+
+  //   return flows;
+  // }
 
   public refundRequestIsValid(chainId: number, refundRequest: RefundRequestWithBlock): RequestValidReturnType {
     this.assertNecessaryClientsUpdated();

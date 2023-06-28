@@ -1,56 +1,77 @@
 import winston from "winston";
-import { RefundRequestWithBlock, UbaFlow } from "../../interfaces";
+import { RefundRequestWithBlock, UbaFlow, UbaOutflow } from "../../interfaces";
 import { BigNumber } from "ethers";
-import { UBAFeeSpokeCalculator } from "../../UBAFeeCalculator";
 import { UBAActionType } from "../../UBAFeeCalculator/UBAFeeTypes";
 import { RelayerFeeDetails } from "../../relayFeeCalculator";
 import { toBN } from "../../utils";
-
-export type RequestValidReturnType = { valid: false; reason: string } | { valid: true };
-export type OpeningBalanceReturnType = { blockNumber: number; spokePoolBalance: BigNumber };
-export type BalancingFeeReturnType = { balancingFee: BigNumber; actionType: UBAActionType };
-export type SystemFeeResult = { lpFee: BigNumber; depositBalancingFee: BigNumber; systemFee: BigNumber };
-export type RelayerFeeResult = {
-  relayerGasFee: BigNumber;
-  relayerCapitalFee: BigNumber;
-  relayerBalancingFee: BigNumber;
-  relayerFee: BigNumber;
-  amountTooLow: boolean;
-};
+import {
+  OpeningBalanceReturnType,
+  RequestValidReturnType,
+  BalancingFeeReturnType,
+  SystemFeeResult,
+  RelayerFeeResult,
+  UBABundleState,
+  UBAChainState,
+} from "./UBAClientTypes";
+import { UBAFeeSpokeCalculator } from "../../UBAFeeCalculator";
 
 /**
  * UBAClient is a base class for UBA functionality. It provides a common interface for UBA functionality to be implemented on top of or extended.
  * This class is not intended to be used directly, but rather extended by other classes that implement the abstract methods.
  */
 export abstract class BaseUBAClient {
-  protected spokeUBAFeeCalculators: { [chainId: number]: { [token: string]: UBAFeeSpokeCalculator } };
+  /**
+   * A mapping of Token Symbols to a mapping of ChainIds to a list of bundle states.
+   * @note The bundle states are sorted in ascending order by block number.
+   */
+  private bundleStates: {
+    [chainId: number]: UBAChainState;
+  };
 
-  protected constructor(protected readonly chainIdIndices: number[], protected readonly logger?: winston.Logger) {
-    this.spokeUBAFeeCalculators = {};
+  protected constructor(
+    protected readonly chainIdIndices: number[],
+    protected readonly tokens: string[],
+    protected readonly logger?: winston.Logger
+  ) {
+    this.bundleStates = {};
+  }
+
+  /**
+   * Resolves the array of bundle states for a given token on a given chainId
+   * @param chainId The chainId to get the bundle states for
+   * @param tokenSymbol The token to get the bundle states for
+   * @returns The array of bundle states for the given token on the given chainId if it exists, otherwise an empty array
+   */
+  protected retrieveBundleStates(chainId: number, tokenSymbol: string): UBABundleState[] {
+    return this.bundleStates?.[chainId]?.bundles?.[tokenSymbol] ?? [];
   }
 
   /**
    * Retrieves the opening balance for a given token on a given chainId at a given block number
    * @param chainId The chainId to get the opening balance for
    * @param spokePoolToken The token to get the opening balance for
-   * @param hubPoolBlockNumber The block number to get the opening balance for
+   * @param blockNumber The block number to get the opening balance for
    * @returns The opening balance for the given token on the given chainId at the given block number
    * @throws If the token cannot be found for the given chainId
    * @throws If the opening balance cannot be found for the given token on the given chainId at the given block number
    */
-  public abstract getOpeningBalance(
+  public getOpeningBalance(
     chainId: number,
-    spokePoolToken: string,
-    hubPoolBlockNumber?: number
-  ): OpeningBalanceReturnType;
-
-  /**
-   * Gets the latest block number for a given chainId in the state of the lastest closing block
-   * @param chainId The chainId to get the latest block number for
-   * @returns The latest block number for the given chainId
-   * @note Assumes that the `spoke[...].bundleEndBlocks` are sorted in ascending order
-   */
-  protected abstract resolveClosingBlockNumber(chainId: number, blockNumber: number): number;
+    tokenSymbol: string,
+    blockNumber: number
+  ): OpeningBalanceReturnType | undefined {
+    const relevantBundleStates = this.retrieveBundleStates(chainId, tokenSymbol);
+    if (relevantBundleStates.length === 0) {
+      throw new Error(`No bundle states found for token ${tokenSymbol} on chain ${chainId}`);
+    }
+    const result = relevantBundleStates.find((bundleState) => bundleState.blockNumber <= blockNumber);
+    return result
+      ? {
+          blockNumber: result.blockNumber,
+          spokePoolBalance: result.openingBalance,
+        }
+      : undefined;
+  }
 
   /**
    * @description Construct the ordered sequence of SpokePool flows between two blocks.
@@ -67,7 +88,17 @@ export abstract class BaseUBAClient {
    * @param fromBlock       Optional lower bound of the search range. Defaults to the SpokePool deployment block.
    * @param toBlock         Optional upper bound of the search range. Defaults to the latest queried block.
    */
-  public abstract getFlows(chainId: number, fromBlock?: number, toBlock?: number): UbaFlow[];
+  public getFlows(chainId: number, tokenSymbol: string, fromBlock?: number, toBlock?: number): UbaFlow[] {
+    const relevantBundleStates = this.retrieveBundleStates(chainId, tokenSymbol);
+    return relevantBundleStates
+      .flatMap((bundleState) => bundleState.flows)
+      .map((flow) => flow.flow)
+      .filter(
+        (flow) =>
+          (fromBlock === undefined || flow.blockNumber >= fromBlock) &&
+          (toBlock === undefined || flow.blockNumber <= toBlock)
+      );
+  }
 
   /**
    * @description Evaluate an RefundRequest object for validity.
@@ -78,9 +109,53 @@ export abstract class BaseUBAClient {
    * @param chainId       ChainId of SpokePool where refundRequest originated.
    * @param refundRequest RefundRequest object to be evaluated for validity.
    */
-  public abstract refundRequestIsValid(chainId: number, refundRequest: RefundRequestWithBlock): RequestValidReturnType;
+  public refundRequestIsValid(chainId: number, refundRequest: RefundRequestWithBlock): RequestValidReturnType {
+    /** @TODO CREATE A LOOKUP */
+    const result = this.getFlows(chainId, refundRequest.refundToken).some((flow) => {
+      return (
+        flow.logIndex == refundRequest.logIndex &&
+        flow.blockNumber == refundRequest.blockNumber &&
+        flow.transactionHash == refundRequest.transactionHash &&
+        flow.transactionIndex == refundRequest.transactionIndex
+      );
+    });
+    if(!result) {
+      return {
+        valid: false,
+        reason: "RefundRequest is not a valid flow because it didn't appear in the list of validated flows.";
+      }
+    } else {
+      return {
+        valid: true
+      }
+    }
+  }
 
-  protected abstract instantiateUBAFeeCalculator(chainId: number, token: string, fromBlock: number): Promise<void>;
+  private async computeBalancingFeeInternal(
+    tokenSymbol: string,
+    amount: BigNumber,
+    balancingActionBlockNumber: number,
+    chainId: number,
+    feeType: UBAActionType
+  ): Promise<BalancingFeeReturnType> {
+    // Opening balance for the balancing action blockNumber.
+    const relevantBundleStates = this.retrieveBundleStates(chainId, tokenSymbol);
+    const specificBundleState = relevantBundleStates.findLast((bundleState) => bundleState.blockNumber <= balancingActionBlockNumber);
+    if(!specificBundleState) {
+      throw new Error(`No bundle states found for token ${tokenSymbol} on chain ${chainId}`);
+    } 
+    /** @TODO ADD TX INDEX COMPARISON */
+    const flows = (specificBundleState?.flows ?? []).filter((flow) => flow.flow.blockNumber <= balancingActionBlockNumber).map(({flow}) => flow);
+    const calculator = new UBAFeeSpokeCalculator(chainId, tokenSymbol, flows, balancingActionBlockNumber, specificBundleState.config.ubaConfig);
+    const { balancingFee } =
+      calculator[
+        feeType === UBAActionType.Deposit ? "getDepositFee" : "getRefundFee"
+      ](amount);
+    return {
+      balancingFee,
+      actionType: feeType,
+    };
+  }
 
   /**
    * Calculate the balancing fee of a given token on a given chainId at a given block number
@@ -95,18 +170,26 @@ export abstract class BaseUBAClient {
     tokenSymbol: string,
     amount: BigNumber,
     hubPoolBlockNumber: number,
+    balancingActionBlockNumber: number,
     chainId: number,
     feeType: UBAActionType
   ): Promise<BalancingFeeReturnType> {
-    // Verify that the spoke clients are instantiated.
-    await this.instantiateUBAFeeCalculator(chainId, tokenSymbol, hubPoolBlockNumber);
-    // Get the balancing fees.
-    const { balancingFee } =
-      this.spokeUBAFeeCalculators[chainId][tokenSymbol][
-        feeType === UBAActionType.Deposit ? "getDepositFee" : "getRefundFee"
-      ](amount);
+    // Opening balance for the balancing action blockNumber.
+    const relevantBundleStates = this.retrieveBundleStates(chainId, tokenSymbol);
+    const specificBundleState = relevantBundleStates.findLast((bundleState) => bundleState.blockNumber <= balancingActionBlockNumber);
+    /** @TODO ADD TX INDEX COMPARISON */
+    const flows = (specificBundleState?.flows ?? []).filter((flow) => flow.flow.blockNumber <= balancingActionBlockNumber);
+    
+
+    // // Verify that the spoke clients are instantiated.
+    // await this.instantiateUBAFeeCalculator(chainId, tokenSymbol, hubPoolBlockNumber);
+    // // Get the balancing fees.
+    // const { balancingFee } =
+    //   this.spokeUBAFeeCalculators[chainId][tokenSymbol][
+    //     feeType === UBAActionType.Deposit ? "getDepositFee" : "getRefundFee"
+    //   ](amount);
     return {
-      balancingFee,
+      balancingFee: toBN(0),
       actionType: feeType,
     };
   }
