@@ -94,12 +94,18 @@ export abstract class BaseUBAClient {
   public async computeBalancingFee(
     tokenSymbol: string,
     amount: BigNumber,
-    hubPoolBlockNumber: number,
+    hubPoolBlockNumber: number, // block corresponding to quote timestamp of deposit or refund
     // balancingActionBlockNumber: number,
-    chainId: number,
+    chainId: number, // same chain as balancingAction
     feeType: UBAActionType
   ): Promise<BalancingFeeReturnType> {
+    // Idea: Maybe move the following algorithm to the update() method in the UBAClient
     // 1. Get latest running balance before balancingActionBlockNumber for `chainId`: openingRunningBalance.
+    // hubPoolClient.getRunningBalanceBeforeBlockForChain(
+    //   balancingActionBlockNumber,
+    //   chainId,
+    //   l1Token
+    // )
     // 2. Get all *valid flows between bundle end block in last snapshotted bundle and balancingActionBlockNumber.
     // 3. Use the above to pass into getDepositFee(latestRunningBalance, amount).
 
@@ -107,12 +113,14 @@ export abstract class BaseUBAClient {
     // back into this function computeBalancingFee(). This should be possible if you go through the flows in order.
 
     // For example:
+    // - `chainId` = 10, Optimism
     // - runningBalance snapshotted at block 1 on Ethereum for the `chainId` where the bundle end block was 7 = 100
-    // - amount = +10 (+ for deposit, - for refund), hubPoolBlockNumber = 5, balancingActionBlockNumber = 10
-    // - The following events have happened on the deposit origin `chainId`:
+    // - we want to get the balancing fee for a deposit amount = +10 (+ for deposit, - for refund),
+    //   Ethereum block = 5, Optimism block = 10
+    // - The following events have happened on the deposit origin `chainId`, Optimism:
     // - [block, amount]: [1, +25], [2, -10], [6, +85], [8, +50], [9, -10], [9, +500], [10, -99]
     // - Now let's follow the above algorithm:
-    // - 1) Get latest running balance before balancingActionBlockNumber for `chainId`: balancingActionBlockNumber = 10,
+    // - 1) Get latest running balance before balancingActionBlockNumber for Optimism: balancingActionBlockNumber = 10,
     //      and latest running balance for `chainId` was 100 at bundle end block 7. 7 < 10, so openingRunningBalance = 100.
     // - 2) Get all *valid flows between 7 and balancingActionBlockNumber = 10: We need to go through the
     //      flows in order. First flow is occurred at block 8 on `chainId` and deposited 50. Call `getDepositFee(100, +50)`
@@ -125,8 +133,13 @@ export abstract class BaseUBAClient {
     //      The final flow to validate is [10, -99]. Call getDepositFee(650, -99) and let's say that it returns 3.5%
     //      and the event was valid.
     // - 3) Now we know the latest running balance before the balancingActionBlockNumber was 650 - 99 = 551.
-    //      To get the balancing fee, we call getDepositFee(551, +10).    // Verify that the spoke clients are instantiated.
+    //      To get the balancing fee, we call getDepositFee(551, +10).
 
+    // Optimizations:
+    // 1) Deposits are always valid, you can't forget a deposit so it will always contribute to a flow
+    // 2) Refunds are not always valid so you need to validate that the fill/refund used the correct system fee.
+
+    // Verify that the spoke clients are instantiated.
     await this.instantiateUBAFeeCalculator(chainId, tokenSymbol, hubPoolBlockNumber);
     // Get the balancing fees.
     const { balancingFee } =

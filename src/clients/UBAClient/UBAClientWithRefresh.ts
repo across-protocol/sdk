@@ -53,6 +53,13 @@ export class UBAClientWithRefresh extends BaseUBAClient {
         )
       )
     );
+
+    // Per enabled chain, per supported token:
+    // - Build time series of VALID flows (deposits, fills, refunds)
+    // - Going through flows in order, compute balancing fee for that flow and assign the latest running balance
+    // and balancing fee to that flow.
+    // - Clients can now instantly get the balancing fees for each flow
+    // - Ideally, cache each resultant flow.
   }
 
   /**
