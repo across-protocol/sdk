@@ -167,7 +167,8 @@ export async function updateUBAClient(
         constructedBundle.config.ubaConfig
       );
       for (const flow of recentFlows) {
-        const { runningBalance } = calculator.calculateHistoricalRunningBalance(0, constructedBundle.flows.length);
+        const { runningBalance, incentiveBalance, netRunningBalanceAdjustment } =
+          calculator.calculateHistoricalRunningBalance(0, constructedBundle.flows.length);
         const { balancingFee: depositBalancingFee } = calculator.getDepositFee(flow.amount, {
           startIndex: 0,
           endIndex: constructedBundle.flows.length,
@@ -190,6 +191,8 @@ export async function updateUBAClient(
         constructedBundle.flows.push({
           flow,
           runningBalance,
+          incentiveBalance,
+          netRunningBalanceAdjustment,
           relayerFee: {
             relayerBalancingFee,
             relayerCapitalFee: relayerBalancingFee, // TODO ASSIGN REAL VALUES
