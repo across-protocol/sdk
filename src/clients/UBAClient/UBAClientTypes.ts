@@ -37,5 +37,7 @@ export type UBABundleState = {
     systemFee: SystemFeeResult;
     relayerFee: RelayerFeeResult;
     runningBalance: BigNumber;
+    incentiveBalance: BigNumber;
+    netRunningBalanceAdjustment: BigNumber;
   }[];
 };
