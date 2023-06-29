@@ -1,9 +1,7 @@
 import winston from "winston";
-import { RefundRequestWithBlock, UbaFlow, UbaOutflow } from "../../interfaces";
+import { RefundRequestWithBlock, UbaFlow } from "../../interfaces";
 import { BigNumber } from "ethers";
 import { UBAActionType } from "../../UBAFeeCalculator/UBAFeeTypes";
-import { RelayerFeeDetails } from "../../relayFeeCalculator";
-import { toBN } from "../../utils";
 import {
   OpeningBalanceReturnType,
   RequestValidReturnType,
@@ -14,6 +12,8 @@ import {
   UBAChainState,
 } from "./UBAClientTypes";
 import { UBAFeeSpokeCalculator } from "../../UBAFeeCalculator";
+import { FlowTupleParameters } from "../../UBAFeeCalculator/UBAFeeConfig";
+import { computeLpFeeStateful } from "./UBAClientUtilities";
 
 /**
  * UBAClient is a base class for UBA functionality. It provides a common interface for UBA functionality to be implemented on top of or extended.
@@ -24,11 +24,11 @@ export abstract class BaseUBAClient {
    * A mapping of Token Symbols to a mapping of ChainIds to a list of bundle states.
    * @note The bundle states are sorted in ascending order by block number.
    */
-  private bundleStates: {
+  protected bundleStates: {
     [chainId: number]: UBAChainState;
   };
 
-  protected constructor(
+  constructor(
     protected readonly chainIdIndices: number[],
     protected readonly tokens: string[],
     protected readonly logger?: winston.Logger
@@ -110,7 +110,6 @@ export abstract class BaseUBAClient {
    * @param refundRequest RefundRequest object to be evaluated for validity.
    */
   public refundRequestIsValid(chainId: number, refundRequest: RefundRequestWithBlock): RequestValidReturnType {
-    /** @TODO CREATE A LOOKUP */
     const result = this.getFlows(chainId, refundRequest.refundToken).some((flow) => {
       return (
         flow.logIndex == refundRequest.logIndex &&
@@ -119,77 +118,58 @@ export abstract class BaseUBAClient {
         flow.transactionIndex == refundRequest.transactionIndex
       );
     });
-    if(!result) {
+    if (!result) {
       return {
         valid: false,
-        reason: "RefundRequest is not a valid flow because it didn't appear in the list of validated flows.";
-      }
+        reason: "RefundRequest is not a valid flow because it didn't appear in the list of validated flows.",
+      };
     } else {
       return {
-        valid: true
-      }
+        valid: true,
+      };
     }
-  }
-
-  private async computeBalancingFeeInternal(
-    tokenSymbol: string,
-    amount: BigNumber,
-    balancingActionBlockNumber: number,
-    chainId: number,
-    feeType: UBAActionType
-  ): Promise<BalancingFeeReturnType> {
-    // Opening balance for the balancing action blockNumber.
-    const relevantBundleStates = this.retrieveBundleStates(chainId, tokenSymbol);
-    const specificBundleState = relevantBundleStates.findLast((bundleState) => bundleState.blockNumber <= balancingActionBlockNumber);
-    if(!specificBundleState) {
-      throw new Error(`No bundle states found for token ${tokenSymbol} on chain ${chainId}`);
-    } 
-    /** @TODO ADD TX INDEX COMPARISON */
-    const flows = (specificBundleState?.flows ?? []).filter((flow) => flow.flow.blockNumber <= balancingActionBlockNumber).map(({flow}) => flow);
-    const calculator = new UBAFeeSpokeCalculator(chainId, tokenSymbol, flows, balancingActionBlockNumber, specificBundleState.config.ubaConfig);
-    const { balancingFee } =
-      calculator[
-        feeType === UBAActionType.Deposit ? "getDepositFee" : "getRefundFee"
-      ](amount);
-    return {
-      balancingFee,
-      actionType: feeType,
-    };
   }
 
   /**
    * Calculate the balancing fee of a given token on a given chainId at a given block number
    * @param tokenSymbol The token to get the balancing fee for
    * @param amount The amount to get the balancing fee for
-   * @param hubPoolBlockNumber The block number to get the balancing fee for
+   * @param balancingActionBlockNumber The block number to get the balancing fee for
    * @param chainId The chainId to get the balancing fee for. If the feeType is Deposit, this is the deposit chainId. If the feeType is Refund, this is the refund chainId.
    * @param feeType The type of fee to calculate
    * @returns The balancing fee for the given token on the given chainId at the given block number
    */
-  public async computeBalancingFee(
+  public computeBalancingFee(
     tokenSymbol: string,
     amount: BigNumber,
-    hubPoolBlockNumber: number,
     balancingActionBlockNumber: number,
     chainId: number,
     feeType: UBAActionType
-  ): Promise<BalancingFeeReturnType> {
+  ): BalancingFeeReturnType {
     // Opening balance for the balancing action blockNumber.
     const relevantBundleStates = this.retrieveBundleStates(chainId, tokenSymbol);
-    const specificBundleState = relevantBundleStates.findLast((bundleState) => bundleState.blockNumber <= balancingActionBlockNumber);
+    const specificBundleState = relevantBundleStates.findLast(
+      (bundleState) => bundleState.blockNumber <= balancingActionBlockNumber
+    );
+    if (!specificBundleState) {
+      throw new Error(`No bundle states found for token ${tokenSymbol} on chain ${chainId}`);
+    }
     /** @TODO ADD TX INDEX COMPARISON */
-    const flows = (specificBundleState?.flows ?? []).filter((flow) => flow.flow.blockNumber <= balancingActionBlockNumber);
-    
-
-    // // Verify that the spoke clients are instantiated.
-    // await this.instantiateUBAFeeCalculator(chainId, tokenSymbol, hubPoolBlockNumber);
-    // // Get the balancing fees.
-    // const { balancingFee } =
-    //   this.spokeUBAFeeCalculators[chainId][tokenSymbol][
-    //     feeType === UBAActionType.Deposit ? "getDepositFee" : "getRefundFee"
-    //   ](amount);
+    const flows = (specificBundleState?.flows ?? []).filter(
+      (flow) => flow.flow.blockNumber <= balancingActionBlockNumber
+    );
+    const calculator = new UBAFeeSpokeCalculator(
+      chainId,
+      tokenSymbol,
+      flows.map(({ flow }) => flow),
+      specificBundleState.openingBalance,
+      specificBundleState.openingIncentiveBalance,
+      specificBundleState.config.ubaConfig
+    );
+    // Get the balancing fees.
+    const { balancingFee } = calculator[feeType === UBAActionType.Deposit ? "getDepositFee" : "getRefundFee"](amount);
     return {
-      balancingFee: toBN(0),
+      balancingFee: balancingFee,
       actionType: feeType,
     };
   }
@@ -216,12 +196,34 @@ export abstract class BaseUBAClient {
     );
   }
 
-  protected abstract computeLpFee(
-    hubPoolTokenAddress: string,
+  protected computeLpFee(
+    amount: BigNumber,
     depositChainId: number,
-    destinationChainId: number,
-    amount: BigNumber
-  ): Promise<BigNumber>;
+    hubPoolChainId: number,
+    decimals: number,
+    hubBalance: BigNumber,
+    hubEquity: BigNumber,
+    ethSpokeBalance: BigNumber,
+    spokeTargets: {
+      spokeChainId: number;
+      target: BigNumber;
+    }[],
+    baselineFee: BigNumber,
+    gammaCutoff: FlowTupleParameters
+  ): BigNumber {
+    return computeLpFeeStateful(
+      amount,
+      depositChainId,
+      hubPoolChainId,
+      decimals,
+      hubBalance,
+      hubEquity,
+      ethSpokeBalance,
+      spokeTargets,
+      baselineFee,
+      gammaCutoff
+    );
+  }
 
   /**
    * Compute the entire system fee for a given amount. The system fee is the sum of the LP fee and the balancing fee.
@@ -233,67 +235,19 @@ export abstract class BaseUBAClient {
    * @param hubPoolBlockNumber The block number to get the system fee for
    * @returns The system fee for the given token on the given chainId at the given block number
    */
-  public async computeSystemFee(
+  public computeSystemFee(
     depositChainId: number,
     destinationChainId: number,
     tokenSymbol: string,
     hubPoolTokenAddress: string,
     amount: BigNumber,
     hubPoolBlockNumber: number
-  ): Promise<SystemFeeResult> {
-    const [lpFee, { balancingFee: depositBalancingFee }] = await Promise.all([
+  ): SystemFeeResult {
+    const [lpFee, { balancingFee: depositBalancingFee }] = [
       this.computeLpFee(hubPoolTokenAddress, depositChainId, destinationChainId, amount),
       this.computeBalancingFee(tokenSymbol, amount, hubPoolBlockNumber, depositChainId, UBAActionType.Deposit),
-    ]);
+    ];
     return { lpFee, depositBalancingFee, systemFee: lpFee.add(depositBalancingFee) };
-  }
-
-  /**
-   * Compute the entire relayer fee for a given amount. The relayer fee is the sum of the gas fee, the capital fee.
-   * @param tokenSymbol The token to get the relayer fee for
-   * @param amount The amount to get the relayer fee for
-   * @param depositChainId The chainId of the deposit
-   * @param refundChainId The chainId of the refund
-   * @param tokenPrice The price of the token
-   * @returns The relayer fee for the given token on the given chainId at the given block number
-   */
-  protected abstract computeRelayerFees(
-    tokenSymbol: string,
-    amount: BigNumber,
-    depositChainId: number,
-    refundChainId: number,
-    tokenPrice?: number
-  ): Promise<RelayerFeeDetails>;
-
-  /**
-   * Compute the entire Relayer fee in the context of the UBA system for a given amount. The relayer fee is the sum of the gas fee, the capital fee, and the balancing fee.
-   * @param depositChain The chainId of the deposit
-   * @param refundChain The chainId of the refund
-   * @param tokenSymbol The token to get the relayer fee for
-   * @param amount The amount to get the relayer fee for
-   * @param hubPoolBlockNumber The block number to get the relayer fee for
-   * @param tokenPrice The price of the token
-   * @returns The relayer fee for the given token on the given chainId at the given block number
-   */
-  public async getRelayerFee(
-    depositChain: number,
-    refundChain: number,
-    tokenSymbol: string,
-    amount: BigNumber,
-    hubPoolBlockNumber: number,
-    tokenPrice?: number
-  ): Promise<RelayerFeeResult> {
-    const [relayerFeeDetails, { balancingFee }] = await Promise.all([
-      this.computeRelayerFees(tokenSymbol, amount, depositChain, refundChain, tokenPrice),
-      this.computeBalancingFee(tokenSymbol, amount, hubPoolBlockNumber, refundChain, UBAActionType.Refund),
-    ]);
-    return {
-      relayerGasFee: toBN(relayerFeeDetails.gasFeeTotal),
-      relayerCapitalFee: toBN(relayerFeeDetails.capitalFeeTotal),
-      relayerBalancingFee: balancingFee,
-      relayerFee: balancingFee.add(relayerFeeDetails.relayFeeTotal),
-      amountTooLow: relayerFeeDetails.isAmountTooLow,
-    };
   }
 
   /**
@@ -307,21 +261,20 @@ export abstract class BaseUBAClient {
    * @param tokenPrice The price of the token
    * @returns The UBA fee for the given token on the given chainId at the given block number
    */
-  public async getUBAFee(
+  public getUBAFee(
     depositChain: number,
     refundChain: number,
     tokenSymbol: string,
     hubPoolTokenAddress: string,
     amount: BigNumber,
-    hubPoolBlockNumber: number,
-    tokenPrice?: number
-  ): Promise<RelayerFeeResult & SystemFeeResult> {
-    const [relayerFee, systemFee] = await Promise.all([
-      this.getRelayerFee(depositChain, refundChain, tokenSymbol, amount, hubPoolBlockNumber, tokenPrice),
+    hubPoolBlockNumber: number
+  ): { relayerBalancingFee: BigNumber } & SystemFeeResult {
+    const [relayerFee, systemFee] = [
+      this.computeBalancingFee(tokenSymbol, amount, hubPoolBlockNumber, refundChain, UBAActionType.Refund),
       this.computeSystemFee(depositChain, refundChain, tokenSymbol, hubPoolTokenAddress, amount, hubPoolBlockNumber),
-    ]);
+    ];
     return {
-      ...relayerFee,
+      relayerBalancingFee: relayerFee.balancingFee,
       ...systemFee,
     };
   }
@@ -338,31 +291,27 @@ export abstract class BaseUBAClient {
    * @param tokenPrice The price of the token
    * @returns A record of the UBA fee for each refund chain that is not too low
    */
-  public async getUBAFeeFromCandidates(
+  public getUBAFeeFromCandidates(
     depositChain: number,
     refundChainCandidates: number[],
     tokenSymbol: string,
     hubPoolTokenAddress: string,
     amount: BigNumber,
-    hubPoolBlockNumber: number,
-    tokenPrice?: number
-  ): Promise<Record<number, RelayerFeeResult & SystemFeeResult>> {
-    const transformation = await Promise.all(
-      refundChainCandidates.map(async (refundChain) => {
-        return [
-          refundChain,
-          await this.getUBAFee(
-            depositChain,
-            refundChain,
-            tokenSymbol,
-            hubPoolTokenAddress,
-            amount,
-            hubPoolBlockNumber,
-            tokenPrice
-          ),
-        ] as [number, RelayerFeeResult & SystemFeeResult];
-      })
-    );
+    hubPoolBlockNumber: number
+  ): Record<number, RelayerFeeResult & SystemFeeResult> {
+    const transformation = refundChainCandidates.map((refundChain) => {
+      return [
+        refundChain,
+        this.getUBAFee(depositChain, refundChain, tokenSymbol, hubPoolTokenAddress, amount, hubPoolBlockNumber),
+      ] as [number, RelayerFeeResult & SystemFeeResult];
+    });
     return Object.fromEntries(transformation.filter(([, result]) => !result.amountTooLow));
+  }
+
+  public update(state?: { [chainId: number]: UBAChainState }): Promise<void> {
+    if (state) {
+      this.bundleStates = state;
+    }
+    return Promise.resolve();
   }
 }

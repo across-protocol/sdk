@@ -45,6 +45,49 @@ export async function computeLpFeeForRefresh(
     erc20.balanceOf(hubPoolClient.hubPool.address, { blockTag: blockNumber }),
     configStoreClient.getUBATargetSpokeBalances([depositChainId, refundChainId], hubPoolTokenAddress, blockNumber),
   ]);
+  return computeLpFeeStateful(
+    amount,
+    depositChainId,
+    hubPoolClient.chainId,
+    decimals,
+    hubBalance,
+    hubEquity,
+    ethSpokeBalance,
+    spokeTargets,
+    baselineFee,
+    gammaCutoff
+  );
+}
+
+/**
+ * Compute the realized LP fee for a given amount. This function is stateless and does not require a hubpool client.
+ * @param amount The amount that is being deposited
+ * @param depositChainId The chainId of the deposit
+ * @param hubPoolChainId The chainId of the hub pool
+ * @param decimals The number of decimals for the token
+ * @param hubBalance The balance of the hub pool
+ * @param hubEquity The equity of the hub pool
+ * @param ethSpokeBalance The balance of the spoke pool on the mainnet spoke
+ * @param spokeTargets The spoke targets for the spoke pool
+ * @param baselineFee The baseline fee to use for this given token
+ * @param gammaCutoff The gamma cutoff to use for this given token - used in the piecewise linear function calculation
+ * @returns The realized LP fee for the given token on the given chainId at the given block number
+ */
+export function computeLpFeeStateful(
+  amount: BigNumber,
+  depositChainId: number,
+  hubPoolChainId: number,
+  decimals: number,
+  hubBalance: BigNumber,
+  hubEquity: BigNumber,
+  ethSpokeBalance: BigNumber,
+  spokeTargets: {
+    spokeChainId: number;
+    target: BigNumber;
+  }[],
+  baselineFee: BigNumber,
+  gammaCutoff: FlowTupleParameters
+) {
   const { utilizationPostTx, utilizationPreTx } = calculateUtilizationBoundaries(
     { actionType: UBAActionType.Deposit, amount, chainId: depositChainId },
     decimals,
@@ -52,7 +95,7 @@ export async function computeLpFeeForRefresh(
     hubEquity,
     ethSpokeBalance,
     spokeTargets,
-    hubPoolClient.chainId
+    hubPoolChainId
   );
 
   const utilizationDelta = utilizationPostTx.sub(utilizationPreTx).abs();
@@ -137,6 +180,7 @@ export async function updateUBAClient(
         ...(referenceBundleIndex !== -1 ? availableBundles[referenceBundleIndex] : { flows: [] }),
         blockNumber,
         openingBalance: spokePoolBalance,
+        openingIncentiveBalance: incentiveBalance,
         config: {
           ubaConfig: await getUBAFeeConfig(chainId, tokenSymbol, blockNumber),
         },
