@@ -28,6 +28,7 @@ export type UBAChainState = {
 
 export type UBABundleState = {
   openingBalance: BigNumber;
+  openingIncentiveBalance: BigNumber;
   blockNumber: number;
   config: {
     ubaConfig: UBAConfig;
