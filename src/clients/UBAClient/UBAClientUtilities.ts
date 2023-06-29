@@ -11,6 +11,7 @@ import { MAX_BUNDLE_CACHE_SIZE } from "./UBAClientConstants";
 import { DepositWithBlock, FillWithBlock, RefundRequestWithBlock, UbaFlow } from "../../interfaces";
 import { Logger } from "winston";
 import { UBAFeeSpokeCalculator } from "../../UBAFeeCalculator";
+import { RelayFeeCalculator, RelayFeeCalculatorConfig } from "../../relayFeeCalculator";
 
 /**
  * Compute the realized LP fee for a given amount.
@@ -90,6 +91,7 @@ export async function updateUBAClient(
   relevantTokenSymbols: string[],
   hubPoolBlockNumber: number,
   updateInternalClients = true,
+  relayFeeCalculatorConfig: RelayFeeCalculatorConfig,
   currentState?: {
     [chainId: number]: UBAChainState;
   }
@@ -188,6 +190,16 @@ export async function updateUBAClient(
           constructedBundle.config.ubaConfig.getLpGammaFunctionTuples(flow.destinationChainId)
         );
 
+        const relayFeeCalculator = new RelayFeeCalculator(relayFeeCalculatorConfig);
+        const { capitalFeeTotal, relayFeeTotal, gasFeeTotal, isAmountTooLow } =
+          await relayFeeCalculator.relayerFeeDetails(
+            flow.amount,
+            tokenSymbol,
+            undefined,
+            flow.originChainId.toString(),
+            flow.destinationChainId.toString()
+          );
+
         constructedBundle.flows.push({
           flow,
           runningBalance,
@@ -195,10 +207,10 @@ export async function updateUBAClient(
           netRunningBalanceAdjustment,
           relayerFee: {
             relayerBalancingFee,
-            relayerCapitalFee: relayerBalancingFee, // TODO ASSIGN REAL VALUES
-            relayerFee: relayerBalancingFee, // TODO ASSIGN REAL VALUES
-            relayerGasFee: toBN(0), // TODO ASSIGN REAL VALUES
-            amountTooLow: false, // TODO ASSIGN REAL VALUES
+            relayerCapitalFee: toBN(capitalFeeTotal),
+            relayerFee: toBN(relayFeeTotal).add(relayerBalancingFee),
+            relayerGasFee: toBN(gasFeeTotal),
+            amountTooLow: isAmountTooLow,
           },
           systemFee: {
             depositBalancingFee,
