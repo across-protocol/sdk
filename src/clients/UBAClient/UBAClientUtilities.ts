@@ -9,9 +9,10 @@ import { UBAActionType } from "../../UBAFeeCalculator/UBAFeeTypes";
 import { RequestValidReturnType, UBABundleState, UBAChainState } from "./UBAClientTypes";
 import { DepositWithBlock, FillWithBlock, RefundRequestWithBlock, UbaFlow } from "../../interfaces";
 import { Logger } from "winston";
-import { UBAFeeSpokeCalculator } from "../../UBAFeeCalculator";
+import { analog } from "../../UBAFeeCalculator";
 import { RelayFeeCalculator, RelayFeeCalculatorConfig } from "../../relayFeeCalculator";
 import { TOKEN_SYMBOLS_MAP } from "@across-protocol/contracts-v2";
+import { getDepositFee, getRefundFee } from "../../UBAFeeCalculator/UBAFeeSpokeCalculatorAnalog";
 
 /**
  * Compute the realized LP fee for a given amount.
@@ -229,26 +230,36 @@ export async function updateUBAClient(
             startingBundleBlockNumber,
             endingBundleBlockNumber
           );
-          // Instantiate a UBAFeeSpokeCalculator
-          const calculator = new UBAFeeSpokeCalculator(
-            chainId,
-            tokenSymbol,
-            recentFlows,
-            spokePoolBalance,
-            incentiveBalance,
-            constructedBundle.config.ubaConfig
-          );
           for (const flow of recentFlows) {
+            const previousFlows = constructedBundle.flows.map((flow) => flow.flow);
+            const previousFlowsIncludingCurrent = previousFlows.concat(flow);
             const { runningBalance, incentiveBalance, netRunningBalanceAdjustment } =
-              calculator.calculateHistoricalRunningBalance(0, constructedBundle.flows.length);
-            const { balancingFee: depositBalancingFee } = calculator.getDepositFee(flow.amount, {
-              startIndex: 0,
-              endIndex: constructedBundle.flows.length,
-            });
-            const { balancingFee: relayerBalancingFee } = calculator.getRefundFee(flow.amount, {
-              startIndex: 0,
-              endIndex: constructedBundle.flows.length,
-            });
+              analog.calculateHistoricalRunningBalance(
+                previousFlowsIncludingCurrent,
+                constructedBundle.openingBalance,
+                constructedBundle.openingIncentiveBalance,
+                chainId,
+                tokenSymbol,
+                constructedBundle.config.ubaConfig
+              );
+            const { balancingFee: depositBalancingFee } = getDepositFee(
+              flow.amount,
+              previousFlows,
+              constructedBundle.openingBalance,
+              constructedBundle.openingIncentiveBalance,
+              chainId,
+              tokenSymbol,
+              constructedBundle.config.ubaConfig
+            );
+            const { balancingFee: relayerBalancingFee } = getRefundFee(
+              flow.amount,
+              previousFlows,
+              constructedBundle.openingBalance,
+              constructedBundle.openingIncentiveBalance,
+              chainId,
+              tokenSymbol,
+              constructedBundle.config.ubaConfig
+            );
             const lpFee = await computeLpFeeForRefresh(
               tokenSymbol,
               flow.originChainId,
