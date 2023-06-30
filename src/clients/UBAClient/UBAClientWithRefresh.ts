@@ -1,7 +1,7 @@
 import assert from "assert";
 import winston from "winston";
 import { HubPoolClient, SpokePoolClient } from "..";
-import { BaseUBAClient } from "./UBAClientAbstract";
+import { BaseUBAClient } from "./UBAClientBase";
 import { updateUBAClient } from "./UBAClientUtilities";
 import { RelayFeeCalculator, RelayFeeCalculatorConfig } from "../../relayFeeCalculator";
 import { UBAChainState } from "./UBAClientTypes";
