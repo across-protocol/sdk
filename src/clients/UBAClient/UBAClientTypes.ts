@@ -29,7 +29,7 @@ export type UBAChainState = {
 export type UBABundleState = {
   openingBalance: BigNumber;
   openingIncentiveBalance: BigNumber;
-  blockNumber: number;
+  openingBlockNumberForSpokeChain: number;
   config: {
     ubaConfig: UBAConfig;
     tokenDecimals: number;

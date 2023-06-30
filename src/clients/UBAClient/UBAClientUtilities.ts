@@ -207,7 +207,7 @@ export async function updateUBAClient(
           // Construct the bundle. If the bundle already exists, use the existing bundle
           const constructedBundle: UBABundleState = {
             flows: [],
-            blockNumber: startingBundleBlockNumber,
+            openingBlockNumberForSpokeChain: startingBundleBlockNumber,
             openingBalance: spokePoolBalance,
             openingIncentiveBalance: incentiveBalance,
             config: {

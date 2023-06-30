@@ -83,10 +83,12 @@ export abstract class BaseUBAClient {
     if (relevantBundleStates.length === 0) {
       throw new Error(`No bundle states found for token ${tokenSymbol} on chain ${chainId}`);
     }
-    const result = relevantBundleStates.find((bundleState) => bundleState.blockNumber <= blockNumber);
+    const result = relevantBundleStates.find(
+      (bundleState) => bundleState.openingBlockNumberForSpokeChain <= blockNumber
+    );
     return result
       ? {
-          blockNumber: result.blockNumber,
+          blockNumber: result.openingBlockNumberForSpokeChain,
           spokePoolBalance: result.openingBalance,
         }
       : undefined;
@@ -169,7 +171,7 @@ export abstract class BaseUBAClient {
     const relevantBundleStates = this.retrieveBundleStates(chainId, tokenSymbol);
     const specificBundleState = findLast(
       relevantBundleStates,
-      (bundleState) => bundleState.blockNumber <= balancingActionBlockNumber
+      (bundleState) => bundleState.openingBlockNumberForSpokeChain <= balancingActionBlockNumber
     );
     if (!specificBundleState) {
       throw new Error(`No bundle states found for token ${tokenSymbol} on chain ${chainId}`);
