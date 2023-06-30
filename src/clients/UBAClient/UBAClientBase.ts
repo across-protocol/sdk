@@ -14,6 +14,7 @@ import {
 } from "./UBAClientTypes";
 import { UBAFeeSpokeCalculator } from "../../UBAFeeCalculator";
 import { computeLpFeeStateful } from "./UBAClientUtilities";
+import { findLast } from "../../utils/ArrayUtils";
 
 /**
  * UBAClient is a base class for UBA functionality. It provides a common interface for UBA functionality to be implemented on top of or extended.
@@ -166,7 +167,8 @@ export abstract class BaseUBAClient {
   ): BalancingFeeReturnType {
     // Opening balance for the balancing action blockNumber.
     const relevantBundleStates = this.retrieveBundleStates(chainId, tokenSymbol);
-    const specificBundleState = relevantBundleStates.findLast(
+    const specificBundleState = findLast(
+      relevantBundleStates,
       (bundleState) => bundleState.blockNumber <= balancingActionBlockNumber
     );
     if (!specificBundleState) {
