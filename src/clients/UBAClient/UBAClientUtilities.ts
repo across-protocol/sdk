@@ -12,6 +12,7 @@ import { DepositWithBlock, FillWithBlock, RefundRequestWithBlock, UbaFlow } from
 import { Logger } from "winston";
 import { UBAFeeSpokeCalculator } from "../../UBAFeeCalculator";
 import { RelayFeeCalculator, RelayFeeCalculatorConfig } from "../../relayFeeCalculator";
+import { TOKEN_SYMBOLS_MAP } from "@across-protocol/contracts-v2";
 
 /**
  * Compute the realized LP fee for a given amount.
@@ -175,6 +176,20 @@ export async function updateUBAClient(
       );
       // Find the bundle that has the same block number as the current block number
       const referenceBundleIndex = availableBundles.findLastIndex((bundle) => bundle.blockNumber === blockNumber);
+
+      const tokenMappingLookup = (
+        TOKEN_SYMBOLS_MAP as Record<string, { addresses: { [x: number]: string }; decimals: number }>
+      )[tokenSymbol];
+      const hubPoolTokenAddress = tokenMappingLookup.addresses[hubPoolClient.chainId];
+      const tokenDecimals = tokenMappingLookup.decimals;
+      const erc20 = ERC20__factory.connect(hubPoolTokenAddress, hubPoolClient.hubPool.provider);
+      const [hubBalance, hubEquity, ethSpokeBalance, spokeTargets] = await Promise.all([
+        erc20.balanceOf(hubPoolClient.hubPool.address, { blockTag: blockNumber }),
+        erc20.balanceOf(hubPoolClient.hubPool.address, { blockTag: blockNumber }),
+        erc20.balanceOf(spokePoolClient.spokePool.address, { blockTag: blockNumber }),
+        hubPoolClient.configStoreClient.getUBATargetSpokeBalances([chainId], hubPoolTokenAddress, blockNumber),
+      ]);
+
       // Construct the bundle. If the bundle already exists, use the existing bundle
       const constructedBundle: UBABundleState = {
         ...(referenceBundleIndex !== -1 ? availableBundles[referenceBundleIndex] : { flows: [] }),
@@ -183,6 +198,11 @@ export async function updateUBAClient(
         openingIncentiveBalance: incentiveBalance,
         config: {
           ubaConfig: await getUBAFeeConfig(chainId, tokenSymbol, blockNumber),
+          tokenDecimals,
+          hubBalance,
+          hubEquity,
+          hubPoolSpokeBalance: ethSpokeBalance,
+          spokeTargets,
         },
       };
       // If the bundle already exists, replace it
@@ -302,6 +322,17 @@ function getOpeningTokenBalances(
   };
 }
 
+/**
+ * Retrieves the flows for a given chainId.
+ * @param chainId The chainId to retrieve flows for
+ * @param chainIdIndices The chainIds of the spoke pools that align with the spoke pool clients
+ * @param spokePoolClients A mapping of chainIds to spoke pool clients
+ * @param hubPoolClient A hub pool client instance to query the hub pool
+ * @param fromBlock The block number to start retrieving flows from
+ * @param toBlock The block number to stop retrieving flows from
+ * @param logger A logger instance to log messages to. Optional
+ * @returns The flows for the given chainId
+ */
 function getFlows(
   chainId: number,
   chainIdIndices: number[],
@@ -358,6 +389,15 @@ function getFlows(
   return flows;
 }
 
+/**
+ * Validate a refund request.
+ * @param chainId The chainId of the spoke pool
+ * @param chainIdIndices The chainIds of the spoke pools that align with the spoke pool clients
+ * @param spokePoolClients A mapping of chainIds to spoke pool clients
+ * @param hubPoolClient The hub pool client
+ * @param refundRequest The refund request to validate
+ * @returns Whether or not the refund request is valid
+ */
 function refundRequestIsValid(
   chainId: number,
   chainIdIndices: number[],
