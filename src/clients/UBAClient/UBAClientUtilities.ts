@@ -7,7 +7,6 @@ import { isDefined, max, sortEventsAscending, toBN } from "../../utils";
 import { ERC20__factory } from "../../typechain";
 import { UBAActionType } from "../../UBAFeeCalculator/UBAFeeTypes";
 import { RequestValidReturnType, UBABundleState, UBAChainState } from "./UBAClientTypes";
-import { MAX_BUNDLE_LOOKBACK_SIZE } from "./UBAClientConstants";
 import { DepositWithBlock, FillWithBlock, RefundRequestWithBlock, UbaFlow } from "../../interfaces";
 import { Logger } from "winston";
 import { UBAFeeSpokeCalculator } from "../../UBAFeeCalculator";
@@ -135,7 +134,8 @@ export async function updateUBAClient(
   relevantTokenSymbols: string[],
   hubPoolBlockNumber: number,
   updateInternalClients = true,
-  relayFeeCalculatorConfig: RelayFeeCalculatorConfig
+  relayFeeCalculatorConfig: RelayFeeCalculatorConfig,
+  maxBundleStates: number
 ): Promise<{
   [chainId: number]: UBAChainState;
 }> {
@@ -165,7 +165,7 @@ export async function updateUBAClient(
       // Find the last MAX_BUNDLE_LOOKBACK_SIZE bundle start/end blocks for this token
       let startingBlock = hubPoolBlockNumber;
       const bundleBounds: { start: number; end: number }[] = [];
-      for (let i = 0; i < MAX_BUNDLE_LOOKBACK_SIZE; i++) {
+      for (let i = 0; i < maxBundleStates; i++) {
         const lastPreviousBlock = hubPoolClient.getLatestBundleEndBlockForChain(
           relevantChainIds,
           startingBlock,
