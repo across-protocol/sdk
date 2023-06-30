@@ -1,1 +1,0 @@
-export const MAX_BUNDLE_LOOKBACK_SIZE = 5;

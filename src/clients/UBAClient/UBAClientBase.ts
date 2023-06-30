@@ -28,9 +28,17 @@ export abstract class BaseUBAClient {
     [chainId: number]: UBAChainState;
   };
 
+  /**
+   * Constructs a new UBAClientBase instance
+   * @param chainIdIndices All ID indices as they appear in the contracts
+   * @param tokens A list of all tokens that the UBA functionality should be implemented for
+   * @param maxBundleStates The maximum number of bundle states to keep in memory
+   * @param logger An optional logger to use for logging
+   */
   constructor(
     protected readonly chainIdIndices: number[],
     protected readonly tokens: string[],
+    protected readonly maxBundleStates: number,
     protected readonly logger?: winston.Logger
   ) {
     this.bundleStates = {};

@@ -20,9 +20,10 @@ export class UBAClientWithRefresh extends BaseUBAClient {
     protected readonly hubPoolClient: HubPoolClient,
     protected readonly spokePoolClients: { [chainId: number]: SpokePoolClient },
     protected readonly relayerConfiguration: RelayFeeCalculatorConfig,
+    readonly maxBundleStates: number,
     readonly logger?: winston.Logger
   ) {
-    super(chainIdIndices, tokens, logger);
+    super(chainIdIndices, tokens, maxBundleStates, logger);
     assert(chainIdIndices.length > 0, "No chainIds provided");
     assert(Object.values(spokePoolClients).length > 0, "No SpokePools provided");
     this.relayCalculator = new RelayFeeCalculator(this.relayerConfiguration);
@@ -55,7 +56,7 @@ export class UBAClientWithRefresh extends BaseUBAClient {
         this.hubPoolClient.latestBlockNumber ?? 0,
         forceClientRefresh,
         this.relayerConfiguration,
-        this.bundleStates
+        this.maxBundleStates
       )
     );
   }
