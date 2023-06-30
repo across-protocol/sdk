@@ -213,21 +213,19 @@ export async function updateUBAClient(
       else {
         availableBundles.push(constructedBundle);
       }
-      // Find the last flow avaialble in the bundle
-      const lastFlow = constructedBundle.flows[constructedBundle.flows.length - 1];
-      // If the last flow exists, call getFlows with the last flow's block number as the fromBlock
+      // These flows are guaranteed to be sorted in ascending order
       const recentFlows = getFlows(
         chainId,
         relevantChainIds,
         spokePoolClients,
         hubPoolClient,
-        lastFlow?.flow.blockNumber ?? chainState.spokeChain.bundleEndBlockNumber
+        chainState.spokeChain.bundleEndBlockNumber
       );
       // Instantiate a UBAFeeSpokeCalculator
       const calculator = new UBAFeeSpokeCalculator(
         chainId,
         tokenSymbol,
-        [...constructedBundle.flows.map(({ flow }) => flow), ...recentFlows],
+        recentFlows,
         spokePoolBalance,
         incentiveBalance,
         constructedBundle.config.ubaConfig
