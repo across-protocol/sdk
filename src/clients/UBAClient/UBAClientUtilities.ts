@@ -7,7 +7,7 @@ import { isDefined, max, sortEventsAscending, toBN } from "../../utils";
 import { ERC20__factory } from "../../typechain";
 import { UBAActionType } from "../../UBAFeeCalculator/UBAFeeTypes";
 import { RequestValidReturnType, UBABundleState, UBAChainState } from "./UBAClientTypes";
-import { MAX_BUNDLE_CACHE_SIZE } from "./UBAClientConstants";
+import { MAX_BUNDLE_LOOKBACK_SIZE } from "./UBAClientConstants";
 import { DepositWithBlock, FillWithBlock, RefundRequestWithBlock, UbaFlow } from "../../interfaces";
 import { Logger } from "winston";
 import { UBAFeeSpokeCalculator } from "../../UBAFeeCalculator";
@@ -135,10 +135,7 @@ export async function updateUBAClient(
   relevantTokenSymbols: string[],
   hubPoolBlockNumber: number,
   updateInternalClients = true,
-  relayFeeCalculatorConfig: RelayFeeCalculatorConfig,
-  currentState?: {
-    [chainId: number]: UBAChainState;
-  }
+  relayFeeCalculatorConfig: RelayFeeCalculatorConfig
 ): Promise<{
   [chainId: number]: UBAChainState;
 }> {
@@ -152,7 +149,7 @@ export async function updateUBAClient(
     const spokePoolClient = spokePoolClients[chainId];
 
     const chainState: UBAChainState = {
-      bundles: currentState?.[chainId]?.bundles ?? {},
+      bundles: {},
       spokeChain: {
         deploymentBlockNumber: spokePoolClient.deploymentBlock,
         bundleEndBlockNumber: hubPoolClient.getLatestBundleEndBlockForChain(
@@ -165,129 +162,138 @@ export async function updateUBAClient(
     };
 
     for (const tokenSymbol of relevantTokenSymbols) {
-      // Get the bundles for this token
-      const availableBundles = chainState.bundles[tokenSymbol] ?? [];
-      // Get the block number and opening balance for this token
-      const { blockNumber, spokePoolBalance, incentiveBalance } = getOpeningTokenBalances(
-        chainId,
-        tokenSymbol,
-        hubPoolClient,
-        hubPoolBlockNumber
-      );
-      // Find the bundle that has the same block number as the current block number
-      const referenceBundleIndex = availableBundles.findLastIndex((bundle) => bundle.blockNumber === blockNumber);
-
-      const tokenMappingLookup = (
-        TOKEN_SYMBOLS_MAP as Record<string, { addresses: { [x: number]: string }; decimals: number }>
-      )[tokenSymbol];
-      const hubPoolTokenAddress = tokenMappingLookup.addresses[hubPoolClient.chainId];
-      const tokenDecimals = tokenMappingLookup.decimals;
-      const erc20 = ERC20__factory.connect(hubPoolTokenAddress, hubPoolClient.hubPool.provider);
-      const [hubBalance, hubEquity, ethSpokeBalance, spokeTargets] = await Promise.all([
-        erc20.balanceOf(hubPoolClient.hubPool.address, { blockTag: blockNumber }),
-        erc20.balanceOf(hubPoolClient.hubPool.address, { blockTag: blockNumber }),
-        erc20.balanceOf(spokePoolClient.spokePool.address, { blockTag: blockNumber }),
-        hubPoolClient.configStoreClient.getUBATargetSpokeBalances([chainId], hubPoolTokenAddress, blockNumber),
-      ]);
-
-      // Construct the bundle. If the bundle already exists, use the existing bundle
-      const constructedBundle: UBABundleState = {
-        ...(referenceBundleIndex !== -1 ? availableBundles[referenceBundleIndex] : { flows: [] }),
-        blockNumber,
-        openingBalance: spokePoolBalance,
-        openingIncentiveBalance: incentiveBalance,
-        config: {
-          ubaConfig: await getUBAFeeConfig(chainId, tokenSymbol, blockNumber),
-          tokenDecimals,
-          hubBalance,
-          hubEquity,
-          hubPoolSpokeBalance: ethSpokeBalance,
-          spokeTargets,
-        },
-      };
-      // If the bundle already exists, replace it
-      if (referenceBundleIndex !== -1) {
-        availableBundles[referenceBundleIndex] = constructedBundle;
-      }
-      // Otherwise, add it to the list of bundles
-      else {
-        availableBundles.push(constructedBundle);
-      }
-      // These flows are guaranteed to be sorted in ascending order
-      const recentFlows = getFlows(
-        chainId,
-        relevantChainIds,
-        spokePoolClients,
-        hubPoolClient,
-        chainState.spokeChain.bundleEndBlockNumber
-      );
-      // Instantiate a UBAFeeSpokeCalculator
-      const calculator = new UBAFeeSpokeCalculator(
-        chainId,
-        tokenSymbol,
-        recentFlows,
-        spokePoolBalance,
-        incentiveBalance,
-        constructedBundle.config.ubaConfig
-      );
-      for (const flow of recentFlows) {
-        const { runningBalance, incentiveBalance, netRunningBalanceAdjustment } =
-          calculator.calculateHistoricalRunningBalance(0, constructedBundle.flows.length);
-        const { balancingFee: depositBalancingFee } = calculator.getDepositFee(flow.amount, {
-          startIndex: 0,
-          endIndex: constructedBundle.flows.length,
-        });
-        const { balancingFee: relayerBalancingFee } = calculator.getRefundFee(flow.amount, {
-          startIndex: 0,
-          endIndex: constructedBundle.flows.length,
-        });
-        const lpFee = await computeLpFeeForRefresh(
-          tokenSymbol,
-          flow.originChainId,
-          flow.destinationChainId,
-          flow.amount,
-          hubPoolClient,
-          spokePoolClients,
-          constructedBundle.config.ubaConfig.getBaselineFee(flow.destinationChainId, flow.originChainId),
-          constructedBundle.config.ubaConfig.getLpGammaFunctionTuples(flow.destinationChainId)
+      // Find the last MAX_BUNDLE_LOOKBACK_SIZE bundle start/end blocks for this token
+      let startingBlock = hubPoolBlockNumber;
+      const bundleBounds: { start: number; end: number }[] = [];
+      for (let i = 0; i < MAX_BUNDLE_LOOKBACK_SIZE; i++) {
+        const lastPreviousBlock = hubPoolClient.getLatestBundleEndBlockForChain(
+          relevantChainIds,
+          startingBlock,
+          chainId
         );
-
-        const relayFeeCalculator = new RelayFeeCalculator(relayFeeCalculatorConfig);
-        const { capitalFeeTotal, relayFeeTotal, gasFeeTotal, isAmountTooLow } =
-          await relayFeeCalculator.relayerFeeDetails(
-            flow.amount,
-            tokenSymbol,
-            undefined,
-            flow.originChainId.toString(),
-            flow.destinationChainId.toString()
-          );
-
-        constructedBundle.flows.push({
-          flow,
-          runningBalance,
-          incentiveBalance,
-          netRunningBalanceAdjustment,
-          relayerFee: {
-            relayerBalancingFee,
-            relayerCapitalFee: toBN(capitalFeeTotal),
-            relayerFee: toBN(relayFeeTotal).add(relayerBalancingFee),
-            relayerGasFee: toBN(gasFeeTotal),
-            amountTooLow: isAmountTooLow,
-          },
-          systemFee: {
-            depositBalancingFee,
-            lpFee,
-            systemFee: lpFee.add(depositBalancingFee),
-          },
+        // Push the structure to the start of the list
+        bundleBounds.unshift({
+          start: startingBlock,
+          end: lastPreviousBlock,
         });
+        startingBlock = lastPreviousBlock - 1;
       }
-      // Verify that there is less than MAX_BUNDLE_CACHE_SIZE bundles in the cache
-      // If there are more, remove the oldest bundle
-      if (availableBundles.length > MAX_BUNDLE_CACHE_SIZE) {
-        availableBundles.shift();
-      }
+      // Iterate through the bundle bounds and find the bundles that are available
+      const constructedBundles = await Promise.all(
+        bundleBounds.map(async ({ end: endingBundleBlockNumber }) => {
+          // Get the block number and opening balance for this token
+          const {
+            blockNumber: startingBundleBlockNumber,
+            spokePoolBalance,
+            incentiveBalance,
+          } = getOpeningTokenBalances(chainId, tokenSymbol, hubPoolClient, endingBundleBlockNumber);
+          const tokenMappingLookup = (
+            TOKEN_SYMBOLS_MAP as Record<string, { addresses: { [x: number]: string }; decimals: number }>
+          )[tokenSymbol];
+          const hubPoolTokenAddress = tokenMappingLookup.addresses[hubPoolClient.chainId];
+          const tokenDecimals = tokenMappingLookup.decimals;
+          const erc20 = ERC20__factory.connect(hubPoolTokenAddress, hubPoolClient.hubPool.provider);
+          const [hubBalance, hubEquity, ethSpokeBalance, spokeTargets] = await Promise.all([
+            erc20.balanceOf(hubPoolClient.hubPool.address, { blockTag: endingBundleBlockNumber }),
+            erc20.balanceOf(hubPoolClient.hubPool.address, { blockTag: endingBundleBlockNumber }),
+            erc20.balanceOf(spokePoolClient.spokePool.address, { blockTag: endingBundleBlockNumber }),
+            hubPoolClient.configStoreClient.getUBATargetSpokeBalances(
+              [chainId],
+              hubPoolTokenAddress,
+              endingBundleBlockNumber
+            ),
+          ]);
+
+          // Construct the bundle. If the bundle already exists, use the existing bundle
+          const constructedBundle: UBABundleState = {
+            flows: [],
+            blockNumber: startingBundleBlockNumber,
+            openingBalance: spokePoolBalance,
+            openingIncentiveBalance: incentiveBalance,
+            config: {
+              ubaConfig: await getUBAFeeConfig(chainId, tokenSymbol, startingBundleBlockNumber),
+              tokenDecimals,
+              hubBalance,
+              hubEquity,
+              hubPoolSpokeBalance: ethSpokeBalance,
+              spokeTargets,
+            },
+          };
+          // These flows are guaranteed to be sorted in ascending order
+          // Get the flows from the start of the bundle to the end of the bundle
+          const recentFlows = getFlows(
+            chainId,
+            relevantChainIds,
+            spokePoolClients,
+            hubPoolClient,
+            startingBundleBlockNumber,
+            endingBundleBlockNumber
+          );
+          // Instantiate a UBAFeeSpokeCalculator
+          const calculator = new UBAFeeSpokeCalculator(
+            chainId,
+            tokenSymbol,
+            recentFlows,
+            spokePoolBalance,
+            incentiveBalance,
+            constructedBundle.config.ubaConfig
+          );
+          for (const flow of recentFlows) {
+            const { runningBalance, incentiveBalance, netRunningBalanceAdjustment } =
+              calculator.calculateHistoricalRunningBalance(0, constructedBundle.flows.length);
+            const { balancingFee: depositBalancingFee } = calculator.getDepositFee(flow.amount, {
+              startIndex: 0,
+              endIndex: constructedBundle.flows.length,
+            });
+            const { balancingFee: relayerBalancingFee } = calculator.getRefundFee(flow.amount, {
+              startIndex: 0,
+              endIndex: constructedBundle.flows.length,
+            });
+            const lpFee = await computeLpFeeForRefresh(
+              tokenSymbol,
+              flow.originChainId,
+              flow.destinationChainId,
+              flow.amount,
+              hubPoolClient,
+              spokePoolClients,
+              constructedBundle.config.ubaConfig.getBaselineFee(flow.destinationChainId, flow.originChainId),
+              constructedBundle.config.ubaConfig.getLpGammaFunctionTuples(flow.destinationChainId)
+            );
+
+            const relayFeeCalculator = new RelayFeeCalculator(relayFeeCalculatorConfig);
+            const { capitalFeeTotal, relayFeeTotal, gasFeeTotal, isAmountTooLow } =
+              await relayFeeCalculator.relayerFeeDetails(
+                flow.amount,
+                tokenSymbol,
+                undefined,
+                flow.originChainId.toString(),
+                flow.destinationChainId.toString()
+              );
+
+            constructedBundle.flows.push({
+              flow,
+              runningBalance,
+              incentiveBalance,
+              netRunningBalanceAdjustment,
+              relayerFee: {
+                relayerBalancingFee,
+                relayerCapitalFee: toBN(capitalFeeTotal),
+                relayerFee: toBN(relayFeeTotal).add(relayerBalancingFee),
+                relayerGasFee: toBN(gasFeeTotal),
+                amountTooLow: isAmountTooLow,
+              },
+              systemFee: {
+                depositBalancingFee,
+                lpFee,
+                systemFee: lpFee.add(depositBalancingFee),
+              },
+            });
+          }
+          return constructedBundle;
+        })
+      );
       // Set the bundles for this token
-      chainState.bundles[tokenSymbol] = availableBundles;
+      chainState.bundles[tokenSymbol] = constructedBundles;
     }
     ubaChainStates[chainId] = chainState;
   }
