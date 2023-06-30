@@ -1,7 +1,7 @@
 import { BigNumber } from "ethers";
 import { UbaFlow } from "../../interfaces";
 import { UBAActionType } from "../../UBAFeeCalculator/UBAFeeTypes";
-import UBAConfig from "../../UBAFeeCalculator/UBAFeeConfig";
+import UBAConfig, { FlowTupleParameters } from "../../UBAFeeCalculator/UBAFeeConfig";
 
 export type RequestValidReturnType = { valid: false; reason: string } | { valid: true };
 export type OpeningBalanceReturnType = { blockNumber: number; spokePoolBalance: BigNumber };
@@ -32,6 +32,14 @@ export type UBABundleState = {
   blockNumber: number;
   config: {
     ubaConfig: UBAConfig;
+    tokenDecimals: number;
+    hubBalance: BigNumber;
+    hubEquity: BigNumber;
+    hubPoolSpokeBalance: BigNumber;
+    spokeTargets: {
+      spokeChainId: number;
+      target: BigNumber;
+    }[];
   };
   flows: {
     flow: UbaFlow;
@@ -41,4 +49,17 @@ export type UBABundleState = {
     incentiveBalance: BigNumber;
     netRunningBalanceAdjustment: BigNumber;
   }[];
+};
+
+export type UBALPFeeOverride = {
+  decimals: number;
+  hubBalance: BigNumber;
+  hubEquity: BigNumber;
+  ethSpokeBalance: BigNumber;
+  spokeTargets: {
+    spokeChainId: number;
+    target: BigNumber;
+  }[];
+  baselineFee: BigNumber;
+  gammaCutoff: FlowTupleParameters;
 };

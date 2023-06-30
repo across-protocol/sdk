@@ -10,9 +10,9 @@ import {
   RelayerFeeResult,
   UBABundleState,
   UBAChainState,
+  UBALPFeeOverride,
 } from "./UBAClientTypes";
 import { UBAFeeSpokeCalculator } from "../../UBAFeeCalculator";
-import { FlowTupleParameters } from "../../UBAFeeCalculator/UBAFeeConfig";
 import { computeLpFeeStateful } from "./UBAClientUtilities";
 
 /**
@@ -44,6 +44,16 @@ export abstract class BaseUBAClient {
    */
   protected retrieveBundleStates(chainId: number, tokenSymbol: string): UBABundleState[] {
     return this.bundleStates?.[chainId]?.bundles?.[tokenSymbol] ?? [];
+  }
+
+  /**
+   * Resolves the last bundle state for a given token on a given chainId
+   * @param chainId The chainId to get the last bundle state for
+   * @param tokenSymbol The token to get the last bundle state for
+   * @returns The last bundle state for the given token on the given chainId if it exists, otherwise undefined
+   */
+  protected retrieveLastBundleState(chainId: number, tokenSymbol: string): UBABundleState | undefined {
+    return this.retrieveBundleStates(chainId, tokenSymbol).at(-1);
   }
 
   /**
@@ -196,21 +206,41 @@ export abstract class BaseUBAClient {
     );
   }
 
+  /**
+   * Compute the LP fee for a given amount. The LP fee is the fee paid to the LP for providing liquidity.
+   * @param amount The amount to get the LP fee for
+   * @param depositChainId The chainId of the deposit
+   * @param hubPoolChainId The chainId of the hub pool
+   * @param tokenSymbol The token to get the LP fee for
+   * @param refundChainId The chainId of the refund
+   * @param overrides The overrides to use for the LP fee calculation
+   * @returns The LP fee for the given token on the given chainId at the given block number
+   */
   protected computeLpFee(
     amount: BigNumber,
     depositChainId: number,
     hubPoolChainId: number,
-    decimals: number,
-    hubBalance: BigNumber,
-    hubEquity: BigNumber,
-    ethSpokeBalance: BigNumber,
-    spokeTargets: {
-      spokeChainId: number;
-      target: BigNumber;
-    }[],
-    baselineFee: BigNumber,
-    gammaCutoff: FlowTupleParameters
+    tokenSymbol: string,
+    refundChainId?: number,
+    overrides?: UBALPFeeOverride
   ): BigNumber {
+    if (!overrides) {
+      const recentBundleState = this.retrieveLastBundleState(hubPoolChainId, tokenSymbol);
+      if (!recentBundleState) {
+        throw new Error(`No bundle states found for token ${tokenSymbol} on chain ${hubPoolChainId}`);
+      }
+      overrides = {
+        decimals: recentBundleState.config.tokenDecimals,
+        hubBalance: recentBundleState.config.hubBalance,
+        hubEquity: recentBundleState.config.hubEquity,
+        ethSpokeBalance: recentBundleState.config.hubPoolSpokeBalance,
+        spokeTargets: recentBundleState.config.spokeTargets,
+        baselineFee: recentBundleState.config.ubaConfig.getBaselineFee(refundChainId ?? depositChainId, depositChainId),
+        gammaCutoff: recentBundleState.config.ubaConfig.getLpGammaFunctionTuples(depositChainId),
+      };
+    }
+    const { decimals, hubBalance, hubEquity, ethSpokeBalance, spokeTargets, baselineFee, gammaCutoff } = overrides;
+
     return computeLpFeeStateful(
       amount,
       depositChainId,
@@ -230,21 +260,21 @@ export abstract class BaseUBAClient {
    * @param depositChainId The chainId of the deposit
    * @param destinationChainId The chainId of the transaction
    * @param tokenSymbol The token to get the system fee for
-   * @param hubPoolTokenAddress The token address of the token on the hub pool chain
    * @param amount The amount to get the system fee for
    * @param hubPoolBlockNumber The block number to get the system fee for
+   * @param overrides The overrides to use for the LP fee calculation
    * @returns The system fee for the given token on the given chainId at the given block number
    */
   public computeSystemFee(
     depositChainId: number,
     destinationChainId: number,
     tokenSymbol: string,
-    hubPoolTokenAddress: string,
     amount: BigNumber,
-    hubPoolBlockNumber: number
+    hubPoolBlockNumber: number,
+    overrides?: UBALPFeeOverride
   ): SystemFeeResult {
     const [lpFee, { balancingFee: depositBalancingFee }] = [
-      this.computeLpFee(hubPoolTokenAddress, depositChainId, destinationChainId, amount),
+      this.computeLpFee(amount, depositChainId, destinationChainId, tokenSymbol, undefined, overrides),
       this.computeBalancingFee(tokenSymbol, amount, hubPoolBlockNumber, depositChainId, UBAActionType.Deposit),
     ];
     return { lpFee, depositBalancingFee, systemFee: lpFee.add(depositBalancingFee) };
@@ -258,20 +288,20 @@ export abstract class BaseUBAClient {
    * @param hubPoolTokenAddress The token address of the token on the hub pool chain
    * @param amount The amount to get the relayer fee for
    * @param hubPoolBlockNumber The block number to get the relayer fee for
-   * @param tokenPrice The price of the token
+   * @param overrides The overrides to use for the LP fee calculation
    * @returns The UBA fee for the given token on the given chainId at the given block number
    */
   public getUBAFee(
     depositChain: number,
     refundChain: number,
     tokenSymbol: string,
-    hubPoolTokenAddress: string,
     amount: BigNumber,
-    hubPoolBlockNumber: number
+    hubPoolBlockNumber: number,
+    overrides?: UBALPFeeOverride
   ): { relayerBalancingFee: BigNumber } & SystemFeeResult {
     const [relayerFee, systemFee] = [
       this.computeBalancingFee(tokenSymbol, amount, hubPoolBlockNumber, refundChain, UBAActionType.Refund),
-      this.computeSystemFee(depositChain, refundChain, tokenSymbol, hubPoolTokenAddress, amount, hubPoolBlockNumber),
+      this.computeSystemFee(depositChain, refundChain, tokenSymbol, amount, hubPoolBlockNumber, overrides),
     ];
     return {
       relayerBalancingFee: relayerFee.balancingFee,
@@ -285,24 +315,23 @@ export abstract class BaseUBAClient {
    * @param depositChain The chainId of the deposit
    * @param refundChainCandidates The chainIds of the refund candidates
    * @param tokenSymbol The token to get the relayer fee for
-   * @param hubPoolTokenAddress The token address of the token on the hub pool chain
    * @param amount The amount to get the relayer fee for
    * @param hubPoolBlockNumber The block number to get the relayer fee for
-   * @param tokenPrice The price of the token
+   * @param overrides The overrides to use for the LP fee calculation
    * @returns A record of the UBA fee for each refund chain that is not too low
    */
   public getUBAFeeFromCandidates(
     depositChain: number,
     refundChainCandidates: number[],
     tokenSymbol: string,
-    hubPoolTokenAddress: string,
     amount: BigNumber,
-    hubPoolBlockNumber: number
+    hubPoolBlockNumber: number,
+    overrides?: UBALPFeeOverride
   ): Record<number, RelayerFeeResult & SystemFeeResult> {
     const transformation = refundChainCandidates.map((refundChain) => {
       return [
         refundChain,
-        this.getUBAFee(depositChain, refundChain, tokenSymbol, hubPoolTokenAddress, amount, hubPoolBlockNumber),
+        this.getUBAFee(depositChain, refundChain, tokenSymbol, amount, hubPoolBlockNumber, overrides),
       ] as [number, RelayerFeeResult & SystemFeeResult];
     });
     return Object.fromEntries(transformation.filter(([, result]) => !result.amountTooLow));
