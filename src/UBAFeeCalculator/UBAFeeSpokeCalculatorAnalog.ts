@@ -2,7 +2,7 @@
 
 import { BigNumber } from "ethers";
 import { UbaFlow, isUbaInflow } from "../interfaces";
-import { TokenRunningBalanceWithNetSend, UBAFlowFee } from "./UBAFeeTypes";
+import { TokenRunningBalanceWithNetSend, UBAActionType, UBAFlowFee } from "./UBAFeeTypes";
 import UBAConfig from "./UBAFeeConfig";
 import { toBN } from "../utils";
 import { computePiecewiseLinearFunction } from "./UBAFeeUtility";
@@ -200,3 +200,14 @@ export function getRefundFee(
     config
   );
 }
+
+/**
+ * A convenience lookup table for the fee calculation functions
+ * @see getDepositFee
+ * @see getRefundFee
+ * @see getEventFee
+ */
+export const feeCalculationFunctionsForUBA: Record<UBAActionType, typeof getDepositFee | typeof getRefundFee> = {
+  deposit: getDepositFee,
+  refund: getRefundFee,
+};

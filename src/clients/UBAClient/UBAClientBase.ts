@@ -13,9 +13,9 @@ import {
   UBALPFeeOverride,
   UBAClientState,
 } from "./UBAClientTypes";
-import { UBAFeeSpokeCalculator } from "../../UBAFeeCalculator";
 import { computeLpFeeStateful } from "./UBAClientUtilities";
 import { findLast } from "../../utils/ArrayUtils";
+import { feeCalculationFunctionsForUBA } from "../../UBAFeeCalculator/UBAFeeSpokeCalculatorAnalog";
 
 /**
  * UBAClient is a base class for UBA functionality. It provides a common interface for UBA functionality to be implemented on top of or extended.
@@ -179,16 +179,15 @@ export abstract class BaseUBAClient {
     const flows = (specificBundleState?.flows ?? []).filter(
       (flow) => flow.flow.blockNumber <= balancingActionBlockNumber
     );
-    const calculator = new UBAFeeSpokeCalculator(
-      chainId,
-      tokenSymbol,
+    const { balancingFee } = feeCalculationFunctionsForUBA[feeType](
+      amount,
       flows.map(({ flow }) => flow),
       specificBundleState.openingBalance,
       specificBundleState.openingIncentiveBalance,
+      chainId,
+      tokenSymbol,
       specificBundleState.config.ubaConfig
     );
-    // Get the balancing fees.
-    const { balancingFee } = calculator[feeType === UBAActionType.Deposit ? "getDepositFee" : "getRefundFee"](amount);
     return {
       balancingFee: balancingFee,
       actionType: feeType,
