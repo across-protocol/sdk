@@ -21,9 +21,11 @@ export type UBAChainState = {
     bundleEndBlockNumber: number;
     latestBlockNumber: number;
   };
-  bundles: {
-    [tokenSymbol: string]: UBABundleState[];
-  };
+  bundles: UBABundleTokenState;
+};
+
+export type UBABundleTokenState = {
+  [tokenSymbol: string]: UBABundleState[];
 };
 
 type ModifiedUBAFlow = {
