@@ -26,29 +26,33 @@ export type UBAChainState = {
   };
 };
 
+type ModifiedUBAFlow = {
+  flow: UbaFlow;
+  systemFee: SystemFeeResult;
+  relayerFee: RelayerFeeResult;
+  runningBalance: BigNumber;
+  incentiveBalance: BigNumber;
+  netRunningBalanceAdjustment: BigNumber;
+};
+
+type UBABundleConfig = {
+  ubaConfig: UBAConfig;
+  tokenDecimals: number;
+  hubBalance: BigNumber;
+  hubEquity: BigNumber;
+  hubPoolSpokeBalance: BigNumber;
+  spokeTargets: {
+    spokeChainId: number;
+    target: BigNumber;
+  }[];
+};
+
 export type UBABundleState = {
   openingBalance: BigNumber;
   openingIncentiveBalance: BigNumber;
   openingBlockNumberForSpokeChain: number;
-  config: {
-    ubaConfig: UBAConfig;
-    tokenDecimals: number;
-    hubBalance: BigNumber;
-    hubEquity: BigNumber;
-    hubPoolSpokeBalance: BigNumber;
-    spokeTargets: {
-      spokeChainId: number;
-      target: BigNumber;
-    }[];
-  };
-  flows: {
-    flow: UbaFlow;
-    systemFee: SystemFeeResult;
-    relayerFee: RelayerFeeResult;
-    runningBalance: BigNumber;
-    incentiveBalance: BigNumber;
-    netRunningBalanceAdjustment: BigNumber;
-  }[];
+  config: UBABundleConfig;
+  flows: ModifiedUBAFlow[];
 };
 
 export type UBALPFeeOverride = {
@@ -62,4 +66,8 @@ export type UBALPFeeOverride = {
   }[];
   baselineFee: BigNumber;
   gammaCutoff: FlowTupleParameters;
+};
+
+export type UBAClientState = {
+  [chainId: number]: UBAChainState;
 };
