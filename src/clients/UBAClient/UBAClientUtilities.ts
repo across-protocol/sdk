@@ -6,7 +6,13 @@ import UBAFeeConfig, { FlowTupleParameters } from "../../UBAFeeCalculator/UBAFee
 import { isDefined, max, sortEventsAscending, toBN } from "../../utils";
 import { ERC20__factory } from "../../typechain";
 import { UBAActionType } from "../../UBAFeeCalculator/UBAFeeTypes";
-import { RequestValidReturnType, UBABundleState, UBAChainState, UBAClientState } from "./UBAClientTypes";
+import {
+  RequestValidReturnType,
+  UBABundleState,
+  UBABundleTokenState,
+  UBAChainState,
+  UBAClientState,
+} from "./UBAClientTypes";
 import { DepositWithBlock, FillWithBlock, RefundRequestWithBlock, UbaFlow } from "../../interfaces";
 import { Logger } from "winston";
 import { analog } from "../../UBAFeeCalculator";
@@ -142,9 +148,7 @@ export async function updateUBAClient(
     await hubPoolClient.update();
     await Promise.all(Object.values(spokePoolClients).map((spokePoolClient) => spokePoolClient.update()));
   }
-  const ubaChainStates: { [chainId: number]: UBAChainState } = {};
-
-  for (const chainId of relevantChainIds) {
+  return await relevantChainIds.reduce(async (accumulator, chainId) => {
     const spokePoolClient = spokePoolClients[chainId];
 
     const chainState: UBAChainState = {
@@ -160,7 +164,7 @@ export async function updateUBAClient(
       },
     };
 
-    for (const tokenSymbol of relevantTokenSymbols) {
+    const tokenStates = await relevantTokenSymbols.reduce(async (accumulator, tokenSymbol) => {
       // Find the last MAX_BUNDLE_LOOKBACK_SIZE bundle start/end blocks for this token
       let startingBlock = hubPoolBlockNumber;
       const bundleBounds: { start: number; end: number }[] = [];
@@ -301,13 +305,17 @@ export async function updateUBAClient(
           return constructedBundle;
         })
       );
-      // Set the bundles for this token
-      chainState.bundles[tokenSymbol] = constructedBundles;
-    }
-    ubaChainStates[chainId] = chainState;
-  }
-  // Return the updated chain states
-  return ubaChainStates;
+      return {
+        ...(await accumulator),
+        [tokenSymbol]: constructedBundles,
+      };
+    }, Promise.resolve({} as UBABundleTokenState));
+    chainState.bundles = tokenStates;
+    return {
+      ...(await accumulator),
+      [chainId]: chainState,
+    };
+  }, Promise.resolve({} as { [chainId: number]: UBAChainState }));
 }
 
 function getOpeningTokenBalances(
