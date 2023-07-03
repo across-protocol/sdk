@@ -11,6 +11,7 @@ import {
   UBABundleState,
   UBAChainState,
   UBALPFeeOverride,
+  UBAClientState,
 } from "./UBAClientTypes";
 import { UBAFeeSpokeCalculator } from "../../UBAFeeCalculator";
 import { computeLpFeeStateful } from "./UBAClientUtilities";
@@ -25,9 +26,7 @@ export abstract class BaseUBAClient {
    * A mapping of Token Symbols to a mapping of ChainIds to a list of bundle states.
    * @note The bundle states are sorted in ascending order by block number.
    */
-  protected bundleStates: {
-    [chainId: number]: UBAChainState;
-  };
+  protected bundleStates: UBAClientState;
 
   /**
    * Constructs a new UBAClientBase instance

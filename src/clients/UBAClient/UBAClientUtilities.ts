@@ -6,7 +6,7 @@ import UBAFeeConfig, { FlowTupleParameters } from "../../UBAFeeCalculator/UBAFee
 import { isDefined, max, sortEventsAscending, toBN } from "../../utils";
 import { ERC20__factory } from "../../typechain";
 import { UBAActionType } from "../../UBAFeeCalculator/UBAFeeTypes";
-import { RequestValidReturnType, UBABundleState, UBAChainState } from "./UBAClientTypes";
+import { RequestValidReturnType, UBABundleState, UBAChainState, UBAClientState } from "./UBAClientTypes";
 import { DepositWithBlock, FillWithBlock, RefundRequestWithBlock, UbaFlow } from "../../interfaces";
 import { Logger } from "winston";
 import { analog } from "../../UBAFeeCalculator";
@@ -137,9 +137,7 @@ export async function updateUBAClient(
   updateInternalClients = true,
   relayFeeCalculatorConfig: RelayFeeCalculatorConfig,
   maxBundleStates: number
-): Promise<{
-  [chainId: number]: UBAChainState;
-}> {
+): Promise<UBAClientState> {
   if (updateInternalClients) {
     await hubPoolClient.update();
     await Promise.all(Object.values(spokePoolClients).map((spokePoolClient) => spokePoolClient.update()));
