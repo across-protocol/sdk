@@ -6,6 +6,7 @@ import { TokenRunningBalanceWithNetSend, UBAActionType, UBAFlowFee } from "./UBA
 import UBAConfig from "./UBAFeeConfig";
 import { toBN } from "../utils";
 import { computePiecewiseLinearFunction } from "./UBAFeeUtility";
+import { analog } from ".";
 
 /**
  * Calculates the running balance for a given token on a spoke chain
@@ -34,14 +35,29 @@ export function calculateHistoricalRunningBalance(
   // This is the case when the UBA Fee Calculator is first initialized or run on a range
   // that we haven't computed the running balance for yet
   const historicalResult: TokenRunningBalanceWithNetSend = flows.reduce(
-    (acc, flow) => {
+    (acc, flow, idx, arr) => {
+      // Compute the balancing fee for the flow
+      // We are going to use as the fill-in for the incentive fee. We must compute it here
+      // because the incentive fee is dependent on the running balance of the spoke
+      // and we need to compute the fee on the previous flows not including the current flow
+      const { balancingFee: incentiveFee } = analog.getEventFee(
+        flow.amount,
+        isUbaInflow(flow) ? "inflow" : "outflow",
+        arr.slice(0, idx),
+        acc.runningBalance,
+        acc.incentiveBalance,
+        chainId,
+        tokenSymbol,
+        config
+      );
+
       // If the flow is an inflow, we need to add the amount to the running balance
       // If the flow is an outflow, we need to subtract the amount from the running balance
       // This is reflected in the incentive balance as well
       const resultant: TokenRunningBalanceWithNetSend = {
         netRunningBalanceAdjustment: toBN(acc.netRunningBalanceAdjustment.toString()), // Deep copy via string conversion
-        runningBalance: acc.runningBalance[isUbaInflow(flow) ? "add" : "sub"](flow.amount),
-        incentiveBalance: acc.incentiveBalance[isUbaInflow(flow) ? "add" : "sub"](flow.amount), // TODO: Add correct incentive balance calculations
+        runningBalance: acc.runningBalance[isUbaInflow(flow) ? "add" : "sub"](flow.amount).sub(incentiveFee),
+        incentiveBalance: acc.incentiveBalance[isUbaInflow(flow) ? "add" : "sub"](flow.amount).add(incentiveFee),
       };
 
       // If the upper trigger hurdle is surpassed, we need to return the trigger hurdle value
