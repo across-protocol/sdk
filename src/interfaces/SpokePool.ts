@@ -90,6 +90,7 @@ export interface RefundRequest {
   amount: BigNumber;
   originChainId: number;
   destinationChainId: number;
+  repaymentChainId: number;
   realizedLpFeePct: BigNumber;
   depositId: number;
   fillBlock: BigNumber;

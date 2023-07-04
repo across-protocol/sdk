@@ -14,7 +14,7 @@ export const isUbaOutflow = (flow: UbaFlow): flow is UbaOutflow => {
 };
 
 export const outflowIsFill = (outflow: UbaOutflow): outflow is FillWithBlock => {
-  return (outflow as FillWithBlock)?.repaymentChainId !== undefined;
+  return (outflow as FillWithBlock)?.updatableRelayData !== undefined;
 };
 
 export const outflowIsRefund = (outflow: UbaOutflow): outflow is RefundRequestWithBlock => {
