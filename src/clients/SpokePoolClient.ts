@@ -42,6 +42,10 @@ type _SpokePoolUpdate = {
 };
 export type SpokePoolUpdate = { success: false } | _SpokePoolUpdate;
 
+/**
+ * SpokePoolClient is a client for the SpokePool contract. It is responsible for querying the SpokePool contract
+ * for events and storing them in memory. It also provides some convenience methods for querying the stored events.
+ */
 export class SpokePoolClient {
   protected currentTime = 0;
   protected depositHashes: { [depositHash: string]: DepositWithBlock } = {};
@@ -64,6 +68,15 @@ export class SpokePoolClient {
   public fills: { [OriginChainId: number]: FillWithBlock[] } = {};
   public refundRequests: RefundRequestWithBlock[] = [];
 
+  /**
+   * Creates a new SpokePoolClient.
+   * @param logger A logger instance.
+   * @param spokePool The SpokePool contract instance that this client will query.
+   * @param hubPoolClient An optional HubPoolClient instance. This is used to fetch spoke data that is not stored on the SpokePool contract but is stored on the HubPool contract.
+   * @param chainId The chain ID of the chain that this client is querying.
+   * @param deploymentBlock The block number that the SpokePool contract was deployed at.
+   * @param eventSearchConfig An optional EventSearchConfig object that controls how far back in history the client will search for events. If not provided, the client will only search for events from the deployment block.
+   */
   constructor(
     readonly logger: winston.Logger,
     readonly spokePool: Contract,
@@ -77,7 +90,7 @@ export class SpokePoolClient {
     this.queryableEventNames = Object.keys(this._queryableEventNames());
   }
 
-  _queryableEventNames(): { [eventName: string]: EventFilter } {
+  public _queryableEventNames(): { [eventName: string]: EventFilter } {
     return {
       FundsDeposited: this.spokePool.filters.FundsDeposited(),
       RequestedSpeedUpDeposit: this.spokePool.filters.RequestedSpeedUpDeposit(),
@@ -90,67 +103,137 @@ export class SpokePoolClient {
     };
   }
 
-  getDepositsForDestinationChain(destinationChainId: number): DepositWithBlock[] {
+  /**
+   * Retrieves a list of deposits from the SpokePool contract destined for the given destination chain ID.
+   * @param destinationChainId The destination chain ID.
+   * @returns A list of deposits.
+   */
+  public getDepositsForDestinationChain(destinationChainId: number): DepositWithBlock[] {
     return this.deposits[destinationChainId] || [];
   }
 
-  getDeposits(): DepositWithBlock[] {
+  /**
+   * Retrieves a list of deposits from the SpokePool contract that are associated with this spoke pool.
+   * @returns A list of deposits.
+   * @note This method returns all deposits, regardless of destination chain ID in sorted order.
+   */
+  public getDeposits(): DepositWithBlock[] {
     return sortEventsAscendingInPlace(Object.values(this.deposits).flat());
   }
 
-  getTokensBridged(): TokensBridged[] {
+  /**
+   * Retrieves a list of the tokens that have been bridged.
+   * @returns A list of tokens.
+   */
+  public getTokensBridged(): TokensBridged[] {
     return this.tokensBridged;
   }
 
-  getDepositRoutes(): { [originToken: string]: { [DestinationChainId: number]: boolean } } {
+  /**
+   * Retrieves a mapping of tokens and their associated destination chain IDs that can be bridged.
+   * @returns A mapping of tokens and their associated destination chain IDs in a nested mapping.
+   */
+  public getDepositRoutes(): { [originToken: string]: { [DestinationChainId: number]: boolean } } {
     return this.depositRoutes;
   }
 
-  isDepositRouteEnabled(originToken: string, destinationChainId: number): boolean {
+  /**
+   * Determines whether a deposit route is enabled for the given origin token and destination chain ID.
+   * @param originToken The origin token address.
+   * @param destinationChainId The destination chain ID.
+   * @returns True if the deposit route is enabled, false otherwise.
+   */
+  public isDepositRouteEnabled(originToken: string, destinationChainId: number): boolean {
     return this.depositRoutes[originToken]?.[destinationChainId] ?? false;
   }
 
-  getAllOriginTokens(): string[] {
+  /**
+   * Retrieves a list of all the available origin tokens that can be bridged.
+   * @returns A list of origin tokens.
+   */
+  public getAllOriginTokens(): string[] {
     return Object.keys(this.depositRoutes);
   }
 
-  getFills(): FillWithBlock[] {
+  /**
+   * Retrieves a list of fills from the SpokePool contract.
+   * @returns A list of fills.
+   */
+  public getFills(): FillWithBlock[] {
     return sortEventsAscendingInPlace(Object.values(this.fills).flat());
   }
 
-  getFillsForOriginChain(originChainId: number): FillWithBlock[] {
+  /**
+   * Retrieves a list of fills from a specific origin chain ID.
+   * @param originChainId The origin chain ID.
+   * @returns A list of fills.
+   */
+  public getFillsForOriginChain(originChainId: number): FillWithBlock[] {
     return this.fills[originChainId] || [];
   }
 
-  getFillsForRelayer(relayer: string): FillWithBlock[] {
+  /**
+   * Retrieves a list of fills from a specific relayer address.
+   * @param relayer The relayer address.
+   * @returns A list of fills.
+   */
+  public getFillsForRelayer(relayer: string): FillWithBlock[] {
     return this.getFills().filter((fill) => fill.relayer === relayer);
   }
 
-  getFillsWithBlockInRange(startingBlock: number, endingBlock: number): FillWithBlock[] {
+  /**
+   * Retrieves a list of fills from a given block range.
+   * @param startingBlock The starting block number.
+   * @param endingBlock The ending block number.
+   * @returns A list of fills.
+   */
+  public getFillsWithBlockInRange(startingBlock: number, endingBlock: number): FillWithBlock[] {
     return this.getFills().filter((fill) => fill.blockNumber >= startingBlock && fill.blockNumber <= endingBlock);
   }
 
-  getRefundRequests(fromBlock?: number, toBlock?: number): RefundRequestWithBlock[] {
+  /**
+   * Retrieves a list of refund requests from the SpokePool contract that are within an optional block range.
+   * @param fromBlock The starting block number. If not provided, requests will not be filtered by any bounds.
+   * @param toBlock The ending block number. If not provided, requests will not be filtered by any bounds.
+   * @returns A list of refund requests.
+   */
+  public getRefundRequests(fromBlock?: number, toBlock?: number): RefundRequestWithBlock[] {
     return fromBlock === undefined || toBlock === undefined || isNaN(fromBlock) || isNaN(toBlock)
       ? this.refundRequests
       : this.refundRequests.filter((request) => request.blockNumber >= fromBlock && request.blockNumber <= toBlock);
   }
 
-  getRootBundleRelays(): RootBundleRelayWithBlock[] {
+  /**
+   * Retrieves a list of root bundle relays from the SpokePool contract.
+   * @returns A list of root bundle relays.
+   */
+  public getRootBundleRelays(): RootBundleRelayWithBlock[] {
     return this.rootBundleRelays;
   }
 
-  getLatestRootBundleId(): number {
+  /**
+   * Retrieves the ID of the latest root bundle.
+   * @returns The ID of the latest root bundle. This will be 0 if no root bundles have been relayed.
+   */
+  public getLatestRootBundleId(): number {
     return this.rootBundleRelays.length > 0
       ? this.rootBundleRelays[this.rootBundleRelays.length - 1]?.rootBundleId + 1
       : 0;
   }
 
-  getRelayerRefundExecutions(): RelayerRefundExecutionWithBlock[] {
+  /**
+   * Retrieves a list of relayer refund executions from the SpokePool contract.
+   * @returns A list of relayer refund executions.
+   */
+  public getRelayerRefundExecutions(): RelayerRefundExecutionWithBlock[] {
     return this.relayerRefundExecutions;
   }
 
-  getExecutedRefunds(relayerRefundRoot: string): {
+  /**
+   * Retrieves a mapping of token addresses to relayer addresses to the amount of refunds that have been executed.
+   * @returns A mapping of token addresses to relayer addresses to the amount of refunds that have been executed.
+   */
+  public getExecutedRefunds(relayerRefundRoot: string): {
     [tokenAddress: string]: {
       [relayer: string]: BigNumber;
     };
@@ -183,7 +266,12 @@ export class SpokePoolClient {
     return executedRefunds;
   }
 
-  appendMaxSpeedUpSignatureToDeposit(deposit: DepositWithBlock): DepositWithBlock {
+  /**
+   * Appends a speed up signature to a specific deposit.
+   * @param deposit The deposit to append the speed up signature to.
+   * @returns A new deposit instance with the speed up signature appended to the deposit.
+   */
+  public appendMaxSpeedUpSignatureToDeposit(deposit: DepositWithBlock): DepositWithBlock {
     const maxSpeedUp = this.speedUps[deposit.depositor]?.[deposit.depositId]?.reduce((prev, current) =>
       prev.newRelayerFeePct.gt(current.newRelayerFeePct) ? prev : current
     );
@@ -204,12 +292,24 @@ export class SpokePoolClient {
     };
   }
 
-  getDepositForFill(fill: Fill): DepositWithBlock | undefined {
+  /**
+   * Find a corresponding deposit for a given fill.
+   * @param fill The fill to find a corresponding deposit for.
+   * @returns The corresponding deposit if found, undefined otherwise.
+   */
+  public getDepositForFill(fill: Fill): DepositWithBlock | undefined {
     const depositWithMatchingDepositId = this.depositHashes[this.getDepositHash(fill)];
     return validateFillForDeposit(fill, depositWithMatchingDepositId) ? depositWithMatchingDepositId : undefined;
   }
 
-  getValidUnfilledAmountForDeposit(deposit: Deposit): {
+  /**
+   * Find the unfilled amount for a given deposit. This is the full deposit amount minus the total filled amount.
+   * @param deposit The deposit to find the unfilled amount for.
+   * @param fillCount The number of fills that have been applied to this deposit.
+   * @param invalidFills The invalid fills that have been applied to this deposit.
+   * @returns The unfilled amount.
+   */
+  public getValidUnfilledAmountForDeposit(deposit: Deposit): {
     unfilledAmount: BigNumber;
     fillCount: number;
     invalidFills: Fill[];
@@ -266,17 +366,33 @@ export class SpokePoolClient {
     };
   }
 
-  getDepositHash(event: Deposit | Fill): string {
+  /**
+   * Formulate a hash for a given deposit or fill
+   * @param event The deposit or fill to formulate a hash for.
+   * @returns The hash.
+   * @note This hash is used to match deposits and fills together.
+   * @note This hash takes the form of: `${depositId}-${originChainId}`.
+   */
+  public getDepositHash(event: Deposit | Fill): string {
     return `${event.depositId}-${event.originChainId}`;
   }
 
-  // We want to find the block range that satisfies these conditions:
-  // - the low block has deposit count <= targetDepositId
-  // - the high block has a deposit count > targetDepositId.
-  // This way the caller can search for a FundsDeposited event between [low, high] that will always
-  // contain the event emitted when deposit ID was incremented to targetDepositId + 1. This is the same transaction
-  // where the deposit with deposit ID = targetDepositId was created.
-  async _getBlockRangeForDepositId(
+  /**
+   * Find the block range that contains the deposit ID. This is a binary search that searches for the block range
+   * that contains the deposit ID.
+   * @param targetDepositId The target deposit ID to search for.
+   * @param initLow The initial lower bound of the block range to search.
+   * @param initHigh The initial upper bound of the block range to search.
+   * @param maxSearches The maximum number of searches to perform. This is used to prevent infinite loops.
+   * @returns The block range that contains the deposit ID.
+   * @note  // We want to find the block range that satisfies these conditions:
+   *        // - the low block has deposit count <= targetDepositId
+   *        // - the high block has a deposit count > targetDepositId.
+   *        // This way the caller can search for a FundsDeposited event between [low, high] that will always
+   *        // contain the event emitted when deposit ID was incremented to targetDepositId + 1. This is the same transaction
+   *        // where the deposit with deposit ID = targetDepositId was created.
+   */
+  public async _getBlockRangeForDepositId(
     targetDepositId: number,
     initLow: number,
     initHigh: number,
@@ -322,11 +438,23 @@ export class SpokePoolClient {
     throw new Error("Failed to find deposit ID");
   }
 
-  async _getDepositIdAtBlock(blockTag: number): Promise<number> {
+  /**
+   * Finds the deposit id at a specific block number.
+   * @param blockTag The block number to search for the deposit ID at.
+   * @returns The deposit ID.
+   */
+  public async _getDepositIdAtBlock(blockTag: number): Promise<number> {
     return await this.spokePool.numberOfDeposits({ blockTag });
   }
 
-  async queryHistoricalMatchingFills(fill: Fill, deposit: Deposit, toBlock: number): Promise<FillWithBlock[]> {
+  /**
+   * Queries the SpokePool contract for a list of historical fills that match the given fill and deposit.
+   * @param fill The fill to match.
+   * @param deposit The deposit to match.
+   * @param toBlock The block number to search up to.
+   * @returns A list of fills that match the given fill and deposit.
+   */
+  public async queryHistoricalMatchingFills(fill: Fill, deposit: Deposit, toBlock: number): Promise<FillWithBlock[]> {
     const searchConfig = {
       fromBlock: this.deploymentBlock,
       toBlock,
@@ -337,7 +465,13 @@ export class SpokePoolClient {
     );
   }
 
-  async queryFillsInBlockRange(matchingFill: Fill, searchConfig: EventSearchConfig): Promise<FillWithBlock[]> {
+  /**
+   * Queries the SpokePool contract for a list of fills that match the given fill.
+   * @param fill The fill to match.
+   * @param searchConfig The search configuration.
+   * @returns A Promise that resolves to a list of fills that match the given fill.
+   */
+  public async queryFillsInBlockRange(matchingFill: Fill, searchConfig: EventSearchConfig): Promise<FillWithBlock[]> {
     // Filtering on the fill's depositor address, the only indexed deposit field in the FilledRelay event,
     // should speed up this search a bit.
     // TODO: Once depositId is indexed in FilledRelay event, filter on that as well.
@@ -366,6 +500,12 @@ export class SpokePoolClient {
     return sortEventsAscending(fills.filter((_fill) => filledSameDeposit(_fill, matchingFill)));
   }
 
+  /**
+   * Performs an update to refresh the state of this client. This will query the SpokePool contract for new events
+   * and store them in memory. This method is the primary method for updating the state of this client.
+   * @param eventsToQuery An optional list of events to query. If not provided, all events will be queried.
+   * @returns A Promise that resolves to a SpokePoolUpdate object.
+   */
   protected async _update(eventsToQuery: string[]): Promise<SpokePoolUpdate> {
     // Find the earliest known depositId. This assumes no deposits were placed in the deployment block.
     let firstDepositId: number = this.firstDepositIdForSpokePool;
@@ -446,7 +586,15 @@ export class SpokePoolClient {
     };
   }
 
-  async update(eventsToQuery = this.queryableEventNames): Promise<void> {
+  /**
+   * A wrapper over the `_update` method that handles errors and logs. This method additionally calls into the
+   * HubPoolClient to update the state of this client with data from the HubPool contract.
+   * @param eventsToQuery An optional list of events to query. If not provided, all events will be queried.
+   * @returns A Promise that resolves to a SpokePoolUpdate object.
+   * @note This method is the primary method for updating the state of this client externally.
+   * @see _update
+   */
+  public async update(eventsToQuery = this.queryableEventNames): Promise<void> {
     if (this.hubPoolClient !== null && !this.hubPoolClient.isUpdated) {
       throw new Error("HubPoolClient not updated");
     }
@@ -627,7 +775,13 @@ export class SpokePoolClient {
     });
   }
 
-  static getExecutedRefundLeafL2Token(chainId: number, eventL2Token: string): string {
+  /**
+   * Retrieves the l2TokenAddress for a given executed refund leaf.
+   * @param chainId The chain ID of the executed refund leaf.
+   * @param eventL2Token The l2TokenAddress of the executed refund leaf.
+   * @returns The l2TokenAddress of the executed refund leaf.
+   */
+  public static getExecutedRefundLeafL2Token(chainId: number, eventL2Token: string): string {
     // If execution of WETH refund leaf occurred on an OVM spoke pool, then we'll convert its l2Token from the native
     // token address to the wrapped token address. This is because the OVM_SpokePool modifies the l2TokenAddress prop
     // in _bridgeTokensToHubPool before emitting the ExecutedRelayerRefundLeaf event.
@@ -642,6 +796,11 @@ export class SpokePoolClient {
     }
   }
 
+  /**
+   * Computes the realized LP fee percentage for a given deposit.
+   * @param depositEvent The deposit event to compute the realized LP fee percentage for.
+   * @returns The realized LP fee percentage.
+   */
   protected async computeRealizedLpFeePct(depositEvent: FundsDepositedEvent) {
     if (this.hubPoolClient === null) {
       return { realizedLpFeePct: toBN(0), quoteBlock: 0 };
@@ -659,6 +818,11 @@ export class SpokePoolClient {
     return this.hubPoolClient.computeRealizedLpFeePct(deposit, l1Token);
   }
 
+  /**
+   * Retrieves the destination token for a given deposit.
+   * @param deposit The deposit to retrieve the destination token for.
+   * @returns The destination token.
+   */
   protected getDestinationTokenForDeposit(deposit: DepositWithBlock): string {
     // If there is no rate model client return address(0).
     if (!this.hubPoolClient) {
@@ -667,7 +831,21 @@ export class SpokePoolClient {
     return this.hubPoolClient.getDestinationTokenForDeposit(deposit);
   }
 
+  /**
+   * Performs a log for a specific level, message and data.
+   * @param level The log level.
+   * @param message The log message.
+   * @param data Optional data to log.
+   */
   protected log(level: DefaultLogLevels, message: string, data?: AnyObject) {
     this.logger[level]({ at: "SpokePoolClient", chainId: this.chainId, message, ...data });
+  }
+
+  /**
+   * Retrieves the current time from the SpokePool contract.
+   * @returns The current time.
+   */
+  public getCurrentTime(): number {
+    return this.currentTime;
   }
 }
