@@ -12,6 +12,7 @@ import {
   UBAChainState,
   UBALPFeeOverride,
   UBAClientState,
+  ClosingBalanceReturnType,
 } from "./UBAClientTypes";
 import { computeLpFeeStateful } from "./UBAClientUtilities";
 import { findLast } from "../../utils/ArrayUtils";
@@ -91,6 +92,43 @@ export abstract class BaseUBAClient {
           spokePoolBalance: result.openingBalance,
         }
       : undefined;
+  }
+
+  /**
+   * Retrieves the closing balance for a given token on a given chainId at a given block number
+   * @param chainId The chainId to get the closing balance for
+   * @param spokePoolToken The token to get the closing balance for
+   * @param blockNumber The block number to get the closing balance for
+   * @returns The closing balance for the given token on the given chainId at the given block number
+   * @throws If the token cannot be found for the given chainId
+   * @throws If the closing balance cannot be found for the given token on the given chainId at the given block number
+   */
+  public getClosingBalance(
+    chainId: number,
+    tokenSymbol: string,
+    blockNumber: number
+  ): ClosingBalanceReturnType | undefined {
+    const relevantBundleStates = this.retrieveBundleStates(chainId, tokenSymbol);
+    if (relevantBundleStates.length === 0) {
+      throw new Error(`No bundle states found for token ${tokenSymbol} on chain ${chainId}`);
+    }
+    const result = relevantBundleStates.find(
+      (bundleState) => bundleState.openingBlockNumberForSpokeChain <= blockNumber
+    );
+    if (!result) {
+      return undefined;
+    }
+    const flow = findLast(result.flows, (flow) => flow.flow.blockNumber <= blockNumber);
+    if (!flow) {
+      return undefined;
+    }
+    return {
+      systemFee: flow.systemFee,
+      relayerFee: flow.relayerFee,
+      runningBalance: flow.runningBalance,
+      incentiveBalance: flow.incentiveBalance,
+      netRunningBalanceAdjustment: flow.netRunningBalanceAdjustment,
+    };
   }
 
   /**
