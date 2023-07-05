@@ -54,20 +54,9 @@ export async function resolveCorrespondingDepositForFill(
   fill: FillWithBlock,
   spokePoolClients: SpokePoolClients
 ): Promise<DepositWithBlock | undefined> {
-  const originClient = spokePoolClients[fill.originChainId];
-  const matchedDeposit = originClient.getDepositForFill(fill);
-  if (matchedDeposit) {
-    return matchedDeposit;
-  } else {
-    // Matched deposit for fill was not found in spoke client. This situation should be rare so let's
-    // send some extra RPC requests to blocks older than the spoke client's initial event search config
-    // to find the deposit if it exists.
-    const spokePoolClient = spokePoolClients[fill.originChainId];
-    const historicalDeposit = await queryHistoricalDepositForFill(spokePoolClient, fill);
-    if (historicalDeposit) {
-      return historicalDeposit;
-    } else {
-      return undefined;
-    }
-  }
+  // Matched deposit for fill was not found in spoke client. This situation should be rare so let's
+  // send some extra RPC requests to blocks older than the spoke client's initial event search config
+  // to find the deposit if it exists.
+  const spokePoolClient = spokePoolClients[fill.originChainId];
+  return queryHistoricalDepositForFill(spokePoolClient, fill);
 }
