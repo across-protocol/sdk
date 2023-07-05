@@ -722,8 +722,12 @@ export class SpokePoolClient {
           earliestEvent: refundRequests[0].blockNumber,
         });
       }
+      // repaymentChainId is not part of the on-chain event, so add it here.
       for (const refundRequest of refundRequests) {
-        this.refundRequests.push(spreadEventWithBlockNumber(refundRequest) as RefundRequestWithBlock);
+        this.refundRequests.push({
+          ...spreadEventWithBlockNumber(refundRequest),
+          repaymentChainId: this.chainId,
+        } as RefundRequestWithBlock);
       }
     }
 

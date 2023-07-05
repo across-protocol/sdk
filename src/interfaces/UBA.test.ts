@@ -63,6 +63,7 @@ const sampleRefundRequest = {
   realizedLpFeePct: toBNWei(0.0001),
   fillBlock: toBN(random(1, 1000, false)),
   previousIdenticalRequests: toBN(0),
+  repaymentChainId: 137,
 };
 
 describe("UBA Interface", function () {
