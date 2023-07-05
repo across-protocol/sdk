@@ -3,7 +3,14 @@ import { HubPoolClient } from "../HubPoolClient";
 import { calculateUtilizationBoundaries, computePiecewiseLinearFunction } from "../../UBAFeeCalculator/UBAFeeUtility";
 import { SpokePoolClient } from "../SpokePoolClient";
 import UBAFeeConfig, { FlowTupleParameters } from "../../UBAFeeCalculator/UBAFeeConfig";
-import { isDefined, max, sortEventsAscending, toBN } from "../../utils";
+import {
+  SpokePoolClients,
+  isDefined,
+  max,
+  resolveCorrespondingDepositForFill,
+  sortEventsAscending,
+  toBN,
+} from "../../utils";
 import { ERC20__factory } from "../../typechain";
 import { UBAActionType } from "../../UBAFeeCalculator/UBAFeeTypes";
 import {
@@ -19,6 +26,7 @@ import { analog } from "../../UBAFeeCalculator";
 import { RelayFeeCalculator, RelayFeeCalculatorConfig } from "../../relayFeeCalculator";
 import { TOKEN_SYMBOLS_MAP } from "@across-protocol/contracts-v2";
 import { getDepositFee, getRefundFee } from "../../UBAFeeCalculator/UBAFeeSpokeCalculatorAnalog";
+import { filterAsync } from "../../utils/ArrayUtils";
 
 /**
  * Compute the realized LP fee for a given amount.
@@ -224,7 +232,7 @@ export async function updateUBAClient(
           };
           // These flows are guaranteed to be sorted in ascending order
           // Get the flows from the start of the bundle to the end of the bundle
-          const recentFlows = getFlows(
+          const recentFlows = await getFlows(
             chainId,
             relevantChainIds,
             spokePoolClients,
@@ -354,15 +362,15 @@ function getOpeningTokenBalances(
  * @param logger A logger instance to log messages to. Optional
  * @returns The flows for the given chainId
  */
-function getFlows(
+async function getFlows(
   chainId: number,
   chainIdIndices: number[],
-  spokePoolClients: { [chainId: number]: SpokePoolClient },
+  spokePoolClients: SpokePoolClients,
   hubPoolClient: HubPoolClient,
   fromBlock?: number,
   toBlock?: number,
   logger?: Logger
-): UbaFlow[] {
+): Promise<UbaFlow[]> {
   const spokePoolClient = spokePoolClients[chainId];
 
   fromBlock = fromBlock ?? spokePoolClient.deploymentBlock;
@@ -380,14 +388,18 @@ function getFlows(
   // - Fills that request refunds on a different chain.
   // - Subsequent fills after an initial partial fill.
   // - Slow fills.
-  const fills: UbaFlow[] = spokePoolClient.getFills().filter((fill: FillWithBlock) => {
-    const result =
+  // - Fills that are considered "invalid" by the spoke pool client.
+  const fills: UbaFlow[] = await filterAsync(spokePoolClient.getFills(), async (fill: FillWithBlock) => {
+    const validWithinBounds =
       fill.repaymentChainId === spokePoolClient.chainId &&
       fill.fillAmount.eq(fill.totalFilledAmount) &&
       fill.updatableRelayData.isSlowRelay === false &&
       fill.blockNumber > (fromBlock as number) &&
       fill.blockNumber < (toBlock as number);
-    return result;
+
+    const hasMatchingDeposit = (await resolveCorrespondingDepositForFill(fill, spokePoolClients)) !== undefined;
+
+    return validWithinBounds || hasMatchingDeposit;
   });
 
   const refundRequests: UbaFlow[] = spokePoolClient.getRefundRequests(fromBlock, toBlock).filter((refundRequest) => {

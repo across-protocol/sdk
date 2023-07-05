@@ -25,3 +25,18 @@ export function findLast<T>(array: T[], predicate: (value: T, index: number, obj
   const index = findLastIndex(array, predicate);
   return index >= 0 ? array[index] : undefined;
 }
+
+/**
+ * Performs an asynchronous filter operation on an array. This function behaves like Array.prototype.filter, but
+ * accepts an asynchronous predicate function.
+ * @param array The array to filter.
+ * @param predicate The asynchronous predicate function to apply to each element.
+ * @returns A promise that resolves to an array of elements that match the predicate.
+ */
+export async function filterAsync<T>(
+  array: T[],
+  predicate: (value: T, index: number, obj: T[]) => Promise<boolean>
+): Promise<T[]> {
+  const results = await Promise.all(array.map(predicate));
+  return array.filter((_, index) => results[index]);
+}
