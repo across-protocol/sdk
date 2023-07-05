@@ -850,6 +850,17 @@ export class SpokePoolClient {
     return this.currentTime;
   }
 
+  /**
+   * Finds a deposit for a given deposit ID, destination chain ID and depositor address. This method will search for
+   * the deposit in the SpokePool contract and return it if found. If the deposit is not found, this method will
+   * perform a binary search to find the block range that contains the deposit ID and then perform an eth_getLogs
+   * call to find the deposit.
+   * @param depositId The deposit ID to find.
+   * @param destinationChainId The destination chain ID to find.
+   * @param depositor The depositor address to find.
+   * @returns The deposit if found.
+   * @note This method is used to find deposits that are outside of the search range of this client.
+   */
   async findDeposit(depositId: number, destinationChainId: number, depositor: string): Promise<DepositWithBlock> {
     // Binary search for block where SpokePool.numberOfDeposits incremented to fill.depositId + 1.
     // This way we can get the blocks before and after the deposit with deposit ID = fill.depositId
