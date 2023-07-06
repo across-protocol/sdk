@@ -81,10 +81,10 @@ export class SpokePoolEventsQueryService {
    * Take and array of contract events and return the timestamp of the blocks as a dictionary
    * @param events
    */
-  private async getBlocksTimestamp(events: TypedEvent<any>[]) {
+  private async getBlocksTimestamp<T>(events: TypedEvent<T[]>[]) {
     const uniqueBlockNumbers = events.reduce((acc, event) => {
       return { ...acc, [event.blockNumber]: true };
-    }, {} as Record<number, any>);
+    }, {} as Record<number, boolean>);
     const uniqueBlockNumbersList = Object.keys(uniqueBlockNumbers).map((blockNumber) => parseInt(blockNumber));
     this.logger.debug(
       "[getBlocksTimestamp]",
@@ -108,7 +108,7 @@ export class SpokePoolEventsQueryService {
     return blockTimestampMap;
   }
 
-  private getArrayChunks(array: any[], chunkSize = 50) {
+  private getArrayChunks<T>(array: T[], chunkSize = 50): T[][] {
     return Array(Math.ceil(array.length / chunkSize))
       .fill([])
       .map((_, index) => index * chunkSize)

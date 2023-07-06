@@ -1,5 +1,5 @@
+import { SpokePoolClient } from "../clients";
 import { Deposit, DepositWithBlock, Fill, FillWithBlock } from "../interfaces";
-import { queryHistoricalDepositForFill } from "./DepositUtils";
 import { SpokePoolClients } from "./TypeUtils";
 
 export const FILL_DEPOSIT_COMPARISON_KEYS = [
@@ -59,4 +59,42 @@ export async function resolveCorrespondingDepositForFill(
   // to find the deposit if it exists.
   const spokePoolClient = spokePoolClients[fill.originChainId];
   return queryHistoricalDepositForFill(spokePoolClient, fill);
+}
+
+// of a deposit older or younger than its fixed lookback.
+export async function queryHistoricalDepositForFill(
+  spokePoolClient: SpokePoolClient,
+  fill: Fill
+): Promise<DepositWithBlock | undefined> {
+  if (fill.originChainId !== spokePoolClient.chainId) {
+    throw new Error(`OriginChainId mismatch (${fill.originChainId} != ${spokePoolClient.chainId})`);
+  }
+
+  // We need to update client so we know the first and last deposit ID's queried for this spoke pool client, as well
+  // as the global first and last deposit ID's for this spoke pool.
+  if (!spokePoolClient.isUpdated) {
+    throw new Error("SpokePoolClient must be updated before querying historical deposits");
+  }
+
+  if (
+    fill.depositId < spokePoolClient.firstDepositIdForSpokePool ||
+    fill.depositId > spokePoolClient.lastDepositIdForSpokePool
+  ) {
+    return undefined;
+  }
+
+  if (
+    fill.depositId >= spokePoolClient.earliestDepositIdQueried &&
+    fill.depositId <= spokePoolClient.latestDepositIdQueried
+  ) {
+    return spokePoolClient.getDepositForFill(fill);
+  }
+
+  const deposit: DepositWithBlock = await spokePoolClient.findDeposit(
+    fill.depositId,
+    fill.destinationChainId,
+    fill.depositor
+  );
+
+  return validateFillForDeposit(fill, deposit) ? deposit : undefined;
 }
