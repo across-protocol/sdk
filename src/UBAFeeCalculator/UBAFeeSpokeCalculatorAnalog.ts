@@ -6,7 +6,6 @@ import { TokenRunningBalanceWithNetSend, UBAActionType, UBAFlowFee } from "./UBA
 import UBAConfig from "./UBAFeeConfig";
 import { toBN } from "../utils";
 import { computePiecewiseLinearFunction } from "./UBAFeeUtility";
-import { analog } from ".";
 
 /**
  * Calculates the running balance for a given token on a spoke chain
@@ -40,7 +39,7 @@ export function calculateHistoricalRunningBalance(
       // We are going to use as the fill-in for the incentive fee. We must compute it here
       // because the incentive fee is dependent on the running balance of the spoke
       // and we need to compute the fee on the previous flows not including the current flow
-      const { balancingFee: incentiveFee } = analog.getEventFee(
+      const { balancingFee: incentiveFee } = getEventFee(
         flow.amount,
         isUbaInflow(flow) ? "inflow" : "outflow",
         arr.slice(0, idx),
