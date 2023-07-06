@@ -198,9 +198,10 @@ export class SpokePoolClient {
    * @returns A list of refund requests.
    */
   public getRefundRequests(fromBlock?: number, toBlock?: number): RefundRequestWithBlock[] {
-    return fromBlock === undefined || toBlock === undefined || isNaN(fromBlock) || isNaN(toBlock)
+    const refundRequests = fromBlock === undefined || toBlock === undefined || isNaN(fromBlock) || isNaN(toBlock)
       ? this.refundRequests
       : this.refundRequests.filter((request) => request.blockNumber >= fromBlock && request.blockNumber <= toBlock);
+    return [ ...refundRequests ];
   }
 
   /**
