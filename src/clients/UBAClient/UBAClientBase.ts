@@ -1,10 +1,9 @@
 import winston from "winston";
-import { RefundRequestWithBlock, UbaFlow } from "../../interfaces";
+import { UbaFlow } from "../../interfaces";
 import { BigNumber } from "ethers";
 import { UBAActionType } from "../../UBAFeeCalculator/UBAFeeTypes";
 import {
   OpeningBalanceReturnType,
-  RequestValidReturnType,
   BalancingFeeReturnType,
   SystemFeeResult,
   RelayerFeeResult,
@@ -156,36 +155,6 @@ export abstract class BaseUBAClient {
           (fromBlock === undefined || flow.blockNumber >= fromBlock) &&
           (toBlock === undefined || flow.blockNumber <= toBlock)
       );
-  }
-
-  /**
-   * @description Evaluate an RefundRequest object for validity.
-   * @dev  Callers should evaluate 'valid' before 'reason' in the return object.
-   * @dev  The following RefundRequest attributes are not evaluated for validity and should be checked separately:
-   * @dev  - previousIdenticalRequests
-   * @dev  - Age of blockNumber (i.e. according to SpokePool finality)
-   * @param chainId       ChainId of SpokePool where refundRequest originated.
-   * @param refundRequest RefundRequest object to be evaluated for validity.
-   */
-  public refundRequestIsValid(chainId: number, refundRequest: RefundRequestWithBlock): RequestValidReturnType {
-    const result = this.getFlows(chainId, refundRequest.refundToken).some((flow) => {
-      return (
-        flow.logIndex == refundRequest.logIndex &&
-        flow.blockNumber == refundRequest.blockNumber &&
-        flow.transactionHash == refundRequest.transactionHash &&
-        flow.transactionIndex == refundRequest.transactionIndex
-      );
-    });
-    if (!result) {
-      return {
-        valid: false,
-        reason: "RefundRequest is not a valid flow because it didn't appear in the list of validated flows.",
-      };
-    } else {
-      return {
-        valid: true,
-      };
-    }
   }
 
   /**

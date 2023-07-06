@@ -401,19 +401,21 @@ async function getFlows(
     return validWithinBounds || hasMatchingDeposit;
   });
 
-  const refundRequests: UbaFlow[] = spokePoolClient.getRefundRequests(fromBlock, toBlock).filter((refundRequest) => {
-    const result = refundRequestIsValid(chainId, chainIdIndices, spokePoolClients, hubPoolClient, refundRequest);
-    if (!result.valid && logger !== undefined) {
-      logger.info({
-        at: "UBAClient::getFlows",
-        message: `Excluding RefundRequest on chain ${chainId}`,
-        reason: result.reason,
-        refundRequest,
-      });
-    }
+  const refundRequests: UbaFlow[] = await filterAsync(
+    spokePoolClient.getRefundRequests(fromBlock, toBlock),
+    async (refundRequest) => {
+      const result = await refundRequestIsValid(chainIdIndices, spokePoolClients, hubPoolClient, refundRequest);
+      if (!result.valid && logger !== undefined) {
+        logger.info({
+          at: "UBAClient::getFlows",
+          message: `Excluding RefundRequest on chain ${chainId}`,
+          reason: result.reason,
+          refundRequest,
+        });
+      }
 
-    return result.valid;
-  });
+      return result.valid;
+    });
 
   // This is probably more expensive than we'd like... @todo: optimise.
   const flows = sortEventsAscending(deposits.concat(fills).concat(refundRequests));
@@ -430,32 +432,38 @@ async function getFlows(
  * @param refundRequest The refund request to validate
  * @returns Whether or not the refund request is valid
  */
-function refundRequestIsValid(
-  chainId: number,
+async function refundRequestIsValid(
   chainIdIndices: number[],
   spokePoolClients: SpokePoolClients,
   hubPoolClient: HubPoolClient,
   refundRequest: RefundRequestWithBlock
-): RequestValidReturnType {
-  const { relayer, amount, refundToken, depositId, originChainId, destinationChainId, realizedLpFeePct, fillBlock } =
-    refundRequest;
+): Promise<RequestValidReturnType> {
+  const {
+    relayer,
+    amount,
+    refundToken,
+    depositId,
+    originChainId,
+    destinationChainId,
+    repaymentChainId,
+    realizedLpFeePct,
+    fillBlock,
+  } = refundRequest;
 
   if (!chainIdIndices.includes(originChainId)) {
     return { valid: false, reason: "Invalid originChainId" };
   }
-  const originSpoke = spokePoolClients[originChainId];
 
-  if (!chainIdIndices.includes(destinationChainId) || destinationChainId === chainId) {
+  if (!chainIdIndices.includes(destinationChainId) || destinationChainId === repaymentChainId) {
     return { valid: false, reason: "Invalid destinationChainId" };
   }
   const destSpoke = spokePoolClients[destinationChainId];
 
   if (fillBlock.lt(destSpoke.deploymentBlock) || fillBlock.gt(destSpoke.latestBlockNumber)) {
+    const { deploymentBlock, latestBlockNumber } = destSpoke;
     return {
       valid: false,
-      reason:
-        `FillBlock (${fillBlock} out of SpokePool range` +
-        ` [${destSpoke.deploymentBlock}, ${destSpoke.latestBlockNumber}]`,
+      reason: `FillBlock (${fillBlock} out of SpokePool range [${deploymentBlock}, ${latestBlockNumber}]`,
     };
   }
 
@@ -475,7 +483,7 @@ function refundRequestIsValid(
     return { valid: false, reason: "Unable to find matching fill" };
   }
 
-  const deposit = originSpoke.getDepositForFill(fill);
+  const deposit = await resolveCorrespondingDepositForFill(fill, spokePoolClients);
   if (!isDefined(deposit)) {
     return { valid: false, reason: "Unable to find matching deposit" };
   }
@@ -485,7 +493,7 @@ function refundRequestIsValid(
   // @todo: Resolve to the HubPool block number at the time of the RefundRequest ?
   const hubPoolBlockNumber = hubPoolClient.latestBlockNumber ?? hubPoolClient.deploymentBlock - 1;
   try {
-    hubPoolClient.getL1TokenCounterpartAtBlock(chainId, refundToken, hubPoolBlockNumber);
+    hubPoolClient.getL1TokenCounterpartAtBlock(repaymentChainId, refundToken, hubPoolBlockNumber);
   } catch {
     return { valid: false, reason: `Refund token unknown at HubPool block ${hubPoolBlockNumber}` };
   }
