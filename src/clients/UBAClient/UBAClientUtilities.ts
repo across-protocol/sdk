@@ -401,9 +401,9 @@ async function getFlows(
     return validWithinBounds || hasMatchingDeposit;
   });
 
-  const refundRequests: UbaFlow[] = spokePoolClient
-    .getRefundRequests(fromBlock, toBlock)
-    .filter(async (refundRequest) => {
+  const refundRequests: UbaFlow[] = await filterAsync(
+    spokePoolClient.getRefundRequests(fromBlock, toBlock),
+    async (refundRequest) => {
       const result = await refundRequestIsValid(chainIdIndices, spokePoolClients, hubPoolClient, refundRequest);
       if (!result.valid && logger !== undefined) {
         logger.info({
