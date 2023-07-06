@@ -1,5 +1,7 @@
 export * from "./common";
+export * from "./DepositUtils";
 export * from "./EventUtils";
+export * from "./FillUtils";
 export * from "./ObjectUtils";
 export * from "./TimeUtils";
 export * from "./TypeGuards";
