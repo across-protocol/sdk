@@ -432,7 +432,7 @@ async function getFlows(
  * @param refundRequest The refund request to validate
  * @returns Whether or not the refund request is valid
  */
-async function refundRequestIsValid(
+export async function refundRequestIsValid(
   chainIdIndices: number[],
   spokePoolClients: SpokePoolClients,
   hubPoolClient: HubPoolClient,
