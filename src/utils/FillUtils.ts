@@ -1,4 +1,6 @@
-import { Deposit, Fill } from "../interfaces";
+import { Deposit, DepositWithBlock, Fill, FillWithBlock } from "../interfaces";
+import { queryHistoricalDepositForFill } from "./DepositUtils";
+import { SpokePoolClients } from "./TypeUtils";
 
 export const FILL_DEPOSIT_COMPARISON_KEYS = [
   "amount",
@@ -38,4 +40,23 @@ export function validateFillForDeposit(fill: Fill, deposit?: Deposit): boolean {
   return FILL_DEPOSIT_COMPARISON_KEYS.every((key) => {
     return fill[key] !== undefined && fill[key].toString() === deposit[key]?.toString();
   });
+}
+
+/**
+ * Resolves the corresponding deposit for a fill. This function will first check the spoke client's deposit cache
+ * for the deposit. If the deposit is not found, it will query the spoke client's RPC provider for the deposit as
+ * it assumes that the deposit is older than the spoke client's initial event search config.
+ * @param fill The fill to resolve the corresponding deposit for
+ * @param spokePoolClients The spoke clients to query for the deposit
+ * @returns The corresponding deposit for the fill, or undefined if the deposit was not found
+ */
+export async function resolveCorrespondingDepositForFill(
+  fill: FillWithBlock,
+  spokePoolClients: SpokePoolClients
+): Promise<DepositWithBlock | undefined> {
+  // Matched deposit for fill was not found in spoke client. This situation should be rare so let's
+  // send some extra RPC requests to blocks older than the spoke client's initial event search config
+  // to find the deposit if it exists.
+  const spokePoolClient = spokePoolClients[fill.originChainId];
+  return queryHistoricalDepositForFill(spokePoolClient, fill);
 }
