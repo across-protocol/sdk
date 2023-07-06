@@ -4,4 +4,4 @@ export type MakeOptional<Type, Key extends keyof Type> = Omit<Type, Key> & Parti
 
 export type AnyObject = Record<string, unknown>;
 
-export type SpokePoolClients = Record<string, SpokePoolClient>;
+export type SpokePoolClients = Record<number, SpokePoolClient>;

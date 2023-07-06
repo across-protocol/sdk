@@ -1,7 +1,6 @@
 import { BigNumber } from "ethers";
 import { HubPoolClient } from "../HubPoolClient";
 import { calculateUtilizationBoundaries, computePiecewiseLinearFunction } from "../../UBAFeeCalculator/UBAFeeUtility";
-import { SpokePoolClient } from "../SpokePoolClient";
 import UBAFeeConfig, { FlowTupleParameters } from "../../UBAFeeCalculator/UBAFeeConfig";
 import {
   SpokePoolClients,
@@ -46,7 +45,7 @@ export async function computeLpFeeForRefresh(
   refundChainId: number,
   amount: BigNumber,
   hubPoolClient: HubPoolClient,
-  spokePoolClients: { [chainId: number]: SpokePoolClient },
+  spokePoolClients: SpokePoolClients,
   baselineFee: BigNumber,
   gammaCutoff: FlowTupleParameters,
   blockNumber?: number
@@ -144,7 +143,7 @@ export async function getUBAFeeConfig(
 
 export async function updateUBAClient(
   hubPoolClient: HubPoolClient,
-  spokePoolClients: { [chainId: number]: SpokePoolClient },
+  spokePoolClients: SpokePoolClients,
   relevantChainIds: number[],
   relevantTokenSymbols: string[],
   hubPoolBlockNumber: number,
@@ -323,7 +322,7 @@ export async function updateUBAClient(
       ...(await accumulator),
       [chainId]: chainState,
     };
-  }, Promise.resolve({} as { [chainId: number]: UBAChainState }));
+  }, Promise.resolve({}));
 }
 
 function getOpeningTokenBalances(
@@ -434,7 +433,7 @@ async function getFlows(
 function refundRequestIsValid(
   chainId: number,
   chainIdIndices: number[],
-  spokePoolClients: { [chainId: number]: SpokePoolClient },
+  spokePoolClients: SpokePoolClients,
   hubPoolClient: HubPoolClient,
   refundRequest: RefundRequestWithBlock
 ): RequestValidReturnType {
