@@ -415,7 +415,8 @@ async function getFlows(
       }
 
       return result.valid;
-    });
+    }
+  );
 
   // This is probably more expensive than we'd like... @todo: optimise.
   const flows = sortEventsAscending(deposits.concat(fills).concat(refundRequests));

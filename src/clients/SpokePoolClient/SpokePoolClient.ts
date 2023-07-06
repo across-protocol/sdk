@@ -10,8 +10,8 @@ import {
   filledSameDeposit,
   validateFillForDeposit,
   AnyObject,
-} from "../utils";
-import { toBN, paginatedEventQuery, spreadEventWithBlockNumber } from "../utils";
+} from "../../utils";
+import { toBN, paginatedEventQuery, spreadEventWithBlockNumber } from "../../utils";
 import winston from "winston";
 
 import { Contract, BigNumber, Event, EventFilter } from "ethers";
@@ -27,10 +27,10 @@ import {
   SpeedUp,
   TokensBridged,
   FundsDepositedEvent,
-} from "../interfaces";
-import { HubPoolClient } from ".";
-import { ZERO_ADDRESS } from "../constants";
-import { getNetworkName } from "../utils/NetworkUtils";
+} from "../../interfaces";
+import { HubPoolClient } from "..";
+import { ZERO_ADDRESS } from "../../constants";
+import { getNetworkName } from "../../utils/NetworkUtils";
 
 type _SpokePoolUpdate = {
   success: boolean;
