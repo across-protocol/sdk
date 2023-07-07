@@ -516,11 +516,13 @@ export type SpokePoolFillFilter = SpokePoolEventFilter & {
   isSlowRelay?: boolean;
 };
 
-// @description Search for fills recorded by a specific SpokePool.
-// @param chainId Chain ID of the relevant SpokePoolClient instance.
-// @param spokePoolClients Set of SpokePoolClient instances, mapped by chain ID.
-// @param filter  Optional filtering criteria.
-// @returns Array of FillWithBlock events matching the chain ID and optional filtering criteria.
+/**
+ * @description Search for fills recorded by a specific SpokePool.
+ * @param chainId Chain ID of the relevant SpokePoolClient instance.
+ * @param spokePoolClients Set of SpokePoolClient instances, mapped by chain ID.
+ * @param filter  Optional filtering criteria.
+ * @returns Array of FillWithBlock events matching the chain ID and optional filtering criteria.
+ */
 export async function getFills(
   chainId: number,
   spokePoolClients: SpokePoolClients,
@@ -560,13 +562,15 @@ export async function getFills(
   return fills;
 }
 
-// @description Search for refund requests recorded by a specific SpokePool.
-// @param chainId Chain ID of the relevant SpokePoolClient instance.
-// @param chainIdIndices Complete set of ordered chain IDs.
-// @param hubPoolClient HubPoolClient instance.
-// @param spokePoolClients Set of SpokePoolClient instances, mapped by chain ID.
-// @param filter  Optional filtering criteria.
-// @returns Array of RefundRequestWithBlock events matching the chain ID and optional filtering criteria.
+/**
+ *@description Search for refund requests recorded by a specific SpokePool.
+ * @param chainId Chain ID of the relevant SpokePoolClient instance.
+ * @param chainIdIndices Complete set of ordered chain IDs.
+ * @param hubPoolClient HubPoolClient instance.
+ * @param spokePoolClients Set of SpokePoolClient instances, mapped by chain ID.
+ * @param filter  Optional filtering criteria.
+ * @returns Array of RefundRequestWithBlock events matching the chain ID and optional filtering criteria.
+ */
 export async function getRefundRequests(
   chainId: number,
   chainIdIndices: number[],
