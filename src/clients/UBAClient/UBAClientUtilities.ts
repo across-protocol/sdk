@@ -532,7 +532,7 @@ export async function getFills(
   const { originChainId, repaymentChainId, relayer, isSlowRelay, fromBlock } = filter;
 
   const fills = await filterAsync(spokePoolClient.getFills(), async (fill) => {
-    if (isDefined(fromBlock) && spokePoolClient.latestBlockNumber - fill.blockNumber > fromBlock) {
+    if (isDefined(fromBlock) && fill.blockNumber > fromBlock) {
       return false;
     }
 
@@ -582,7 +582,7 @@ export async function getRefundRequests(
   const refundRequests = await filterAsync(spokePoolClient.getRefundRequests(), async (refundRequest) => {
     assert(refundRequest.repaymentChainId === chainId);
 
-    if (isDefined(fromBlock) && spokePoolClient.latestBlockNumber - refundRequest.blockNumber > fromBlock) {
+    if (isDefined(fromBlock) && refundRequest.blockNumber > fromBlock) {
       return false;
     }
 
