@@ -532,10 +532,6 @@ export async function getFills(
   const { originChainId, repaymentChainId, relayer, isSlowRelay, fromBlock } = filter;
 
   const fills = await filterAsync(spokePoolClient.getFills(), async (fill) => {
-    if (!isDefined(spokePoolClient)) {
-      return false;
-    }
-
     if (isDefined(fromBlock) && spokePoolClient.latestBlockNumber - fill.blockNumber > fromBlock) {
       return false;
     }
