@@ -1,11 +1,14 @@
+import assert from "assert";
 import { BigNumber } from "ethers";
 import { HubPoolClient } from "../HubPoolClient";
 import { calculateUtilizationBoundaries, computePiecewiseLinearFunction } from "../../UBAFeeCalculator/UBAFeeUtility";
 import UBAFeeConfig, { FlowTupleParameters } from "../../UBAFeeCalculator/UBAFeeConfig";
 import {
   SpokePoolClients,
+  filterAsync,
   isDefined,
   max,
+  queryHistoricalDepositForFill,
   resolveCorrespondingDepositForFill,
   sortEventsAscending,
   toBN,
@@ -25,7 +28,6 @@ import { analog } from "../../UBAFeeCalculator";
 import { RelayFeeCalculator, RelayFeeCalculatorConfig } from "../../relayFeeCalculator";
 import { TOKEN_SYMBOLS_MAP } from "@across-protocol/contracts-v2";
 import { getDepositFee, getRefundFee } from "../../UBAFeeCalculator/UBAFeeSpokeCalculatorAnalog";
-import { filterAsync } from "../../utils/ArrayUtils";
 
 /**
  * Compute the realized LP fee for a given amount.
@@ -415,7 +417,8 @@ async function getFlows(
       }
 
       return result.valid;
-    });
+    }
+  );
 
   // This is probably more expensive than we'd like... @todo: optimise.
   const flows = sortEventsAscending(deposits.concat(fills).concat(refundRequests));
@@ -499,4 +502,107 @@ export async function refundRequestIsValid(
   }
 
   return { valid: true };
+}
+
+export type SpokePoolEventFilter = {
+  originChainId?: number;
+  destinationChainId?: number;
+  relayer?: string;
+  fromBlock?: number;
+};
+
+export type SpokePoolFillFilter = SpokePoolEventFilter & {
+  repaymentChainId?: number;
+  isSlowRelay?: boolean;
+};
+
+// @description Search for fills recorded by a specific SpokePool.
+// @param chainId Chain ID of the relevant SpokePoolClient instance.
+// @param spokePoolClients Set of SpokePoolClient instances, mapped by chain ID.
+// @param filter  Optional filtering criteria.
+// @returns Array of FillWithBlock events matching the chain ID and optional filtering criteria.
+export async function getFills(
+  chainId: number,
+  spokePoolClients: SpokePoolClients,
+  filter: SpokePoolFillFilter = {}
+): Promise<FillWithBlock[]> {
+  const spokePoolClient = spokePoolClients[chainId];
+  assert(isDefined(spokePoolClient));
+
+  const { originChainId, repaymentChainId, relayer, isSlowRelay, fromBlock } = filter;
+
+  const fills = await filterAsync(spokePoolClient.getFills(), async (fill) => {
+    if (!isDefined(spokePoolClient)) {
+      return false;
+    }
+
+    if (isDefined(fromBlock) && spokePoolClient.latestBlockNumber - fill.blockNumber > fromBlock) {
+      return false;
+    }
+
+    // @dev tsdx and old Typescript seem to prevent dynamic iteration over the filter, so evaluate the keys manually.
+    if (
+      (isDefined(originChainId) && fill.originChainId !== originChainId) ||
+      (isDefined(repaymentChainId) && fill.repaymentChainId !== repaymentChainId) ||
+      (isDefined(relayer) && fill.relayer !== relayer) ||
+      (isDefined(isSlowRelay) && fill.updatableRelayData.isSlowRelay !== isSlowRelay)
+    ) {
+      return false;
+    }
+
+    // @dev The SDK-v2 UBAClient stores the base SpokePoolClient definition, but here we use an extended variant.
+    // This will be resolved when upstreaming to SDK-v2.
+    const originSpokePoolClient = spokePoolClients[fill.originChainId];
+    if (!isDefined(originSpokePoolClient)) {
+      return false;
+    }
+
+    const deposit = await queryHistoricalDepositForFill(originSpokePoolClient, fill);
+    return isDefined(deposit);
+  });
+
+  return fills;
+}
+
+// @description Search for refund requests recorded by a specific SpokePool.
+// @param chainId Chain ID of the relevant SpokePoolClient instance.
+// @param chainIdIndices Complete set of ordered chain IDs.
+// @param hubPoolClient HubPoolClient instance.
+// @param spokePoolClients Set of SpokePoolClient instances, mapped by chain ID.
+// @param filter  Optional filtering criteria.
+// @returns Array of RefundRequestWithBlock events matching the chain ID and optional filtering criteria.
+export async function getRefundRequests(
+  chainId: number,
+  chainIdIndices: number[],
+  hubPoolClient: HubPoolClient,
+  spokePoolClients: SpokePoolClients,
+  filter: SpokePoolEventFilter = {}
+): Promise<RefundRequestWithBlock[]> {
+  const spokePoolClient = spokePoolClients[chainId];
+  assert(isDefined(spokePoolClient));
+
+  const { originChainId, destinationChainId, relayer, fromBlock } = filter;
+
+  const refundRequests = await filterAsync(spokePoolClient.getRefundRequests(), async (refundRequest) => {
+    assert(refundRequest.repaymentChainId === chainId);
+
+    if (isDefined(fromBlock) && spokePoolClient.latestBlockNumber - refundRequest.blockNumber > fromBlock) {
+      return false;
+    }
+
+    // @dev tsdx and old Typescript seem to prevent dynamic iteration over the filter, so evaluate the keys manually.
+    if (
+      (isDefined(originChainId) && refundRequest.originChainId !== originChainId) ||
+      (isDefined(destinationChainId) && refundRequest.destinationChainId !== destinationChainId) ||
+      (isDefined(relayer) && refundRequest.relayer !== relayer)
+    ) {
+      return false;
+    }
+
+    const result = await refundRequestIsValid(chainIdIndices, spokePoolClients, hubPoolClient, refundRequest);
+
+    return result.valid;
+  });
+
+  return refundRequests;
 }
