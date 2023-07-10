@@ -1,2 +1,2 @@
-export * from "./AcrossConfigStoreClient";
 export * from "./ConfigStoreParsingUtilities";
+export * from "./superstructs";
