@@ -1,6 +1,7 @@
 import { BigNumber } from "ethers";
 import { SortableEvent } from "./Common";
 import { across } from "@uma/sdk";
+
 export interface ParsedTokenConfig {
   transferThreshold: string;
   rateModel: across.rateModel.RateModelDictionary;
@@ -62,11 +63,7 @@ export interface DisabledChainsUpdate extends SortableEvent {
  * record is enforced to have a default entry within the "default" key.
  * @type Value The type of the values in the dictionary.
  */
-type RecordWithDefaultEntry<Value> = {
-  default: Value;
-} & {
-  [key: string]: Value;
-};
+type RecordWithDefaultEntry<Value> = Record<string, Value>;
 
 /**
  * A generic type for a dictionary that has two keys representing parallel arrays
@@ -148,3 +145,8 @@ export type UBAOnChainConfigType = UBAAgnosticConfigType<string>;
  * A type for the UBA config object after it has been parsed.
  */
 export type UBAParsedConfigType = UBAAgnosticConfigType<BigNumber>;
+
+/**
+ * A type for UBAConfig Update events.
+ */
+export type UBAConfigUpdates = SortableEvent & { config: UBAParsedConfigType };
