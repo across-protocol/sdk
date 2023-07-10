@@ -66,27 +66,6 @@ export abstract class BaseUBAClient extends BaseAbstractClient {
   }
 
   /**
-   * Retrieves the bundle state for a given token on a given chainId preceding a given block number
-   * @param chainId The chainId to get the opening balance for
-   * @param spokePoolToken The token to get the opening balance for
-   * @param blockNumber The block number to get the opening balance for
-   * @returns The opening balance for the given token on the given chainId at the given block number
-   * @throws If the token cannot be found for the given chainId
-   * @throws If the opening balance cannot be found for the given token on the given chainId at the given block number
-   */
-  public getPrecedingBundleState(
-    chainId: number,
-    tokenSymbol: string,
-    blockNumber: number
-  ): OpeningBalanceReturnType | undefined {
-    const relevantBundleStates = this.retrieveBundleStates(chainId, tokenSymbol);
-    if (relevantBundleStates.length === 0) {
-      throw new Error(`No bundle states found for token ${tokenSymbol} on chain ${chainId}`);
-    }
-    return findLast(relevantBundleStates, (bundleState) => bundleState.openingBlockNumberForSpokeChain <= blockNumber);
-  }
-
-  /**
    * @description Construct the ordered sequence of SpokePool flows between two blocks.
    * @note Assumptions:
    * @note Deposits, Fills and RefundRequests have been pre-verified by the SpokePool contract or SpokePoolClient, i.e.:
