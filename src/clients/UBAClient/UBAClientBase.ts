@@ -83,7 +83,8 @@ export abstract class BaseUBAClient {
     if (relevantBundleStates.length === 0) {
       throw new Error(`No bundle states found for token ${tokenSymbol} on chain ${chainId}`);
     }
-    const result = relevantBundleStates.find(
+    const result = findLast(
+      relevantBundleStates,
       (bundleState) => bundleState.openingBlockNumberForSpokeChain <= blockNumber
     );
     return result
