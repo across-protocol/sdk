@@ -12,6 +12,7 @@ import {
   UBALPFeeOverride,
   UBAClientState,
   ClosingBalanceReturnType,
+  ModifiedUBAFlow,
 } from "./UBAClientTypes";
 import { computeLpFeeStateful } from "./UBAClientUtilities";
 import { findLast } from "../../utils/ArrayUtils";
@@ -146,12 +147,36 @@ export abstract class BaseUBAClient {
    * @param toBlock         Optional upper bound of the search range. Defaults to the latest queried block.
    */
   public getFlows(chainId: number, tokenSymbol: string, fromBlock?: number, toBlock?: number): UbaFlow[] {
+    return this.getFlowsWithClosingBalances(chainId, tokenSymbol, fromBlock, toBlock).map(({ flow }) => flow);
+  }
+
+  /**
+   * Construct the ordered sequence of SpokePool flows between two blocks. This function returns the flows with closing balances.
+   * @note Assumptions:
+   * @note Deposits, Fills and RefundRequests have been pre-verified by the SpokePool contract or SpokePoolClient, i.e.:
+   * @note - Deposit events contain valid information.
+   * @note - Fill events correspond to valid deposits.
+   * @note - RefundRequest events correspond to valid fills.
+   * @note In order to provide up-to-date prices, UBA functionality may want to follow close to "latest" and so may still
+   * @note be exposed to finality risk. Additional verification that can only be performed within the UBA context:
+   * @note - Only the first instance of a partial fill for a deposit is accepted. The total deposit amount is taken, and
+   * @note   subsequent partial, complete or slow fills are disregarded.
+   * @param spokePoolClient SpokePoolClient instance for this chain.
+   * @param fromBlock       Optional lower bound of the search range. Defaults to the SpokePool deployment block.
+   * @param toBlock         Optional upper bound of the search range. Defaults to the latest queried block.
+   * @returns The flows with closing balances for the given token on the given chainId between the given block numbers
+   */
+  public getFlowsWithClosingBalances(
+    chainId: number,
+    tokenSymbol: string,
+    fromBlock?: number,
+    toBlock?: number
+  ): ModifiedUBAFlow[] {
     const relevantBundleStates = this.retrieveBundleStates(chainId, tokenSymbol);
     return relevantBundleStates
       .flatMap((bundleState) => bundleState.flows)
-      .map((flow) => flow.flow)
       .filter(
-        (flow) =>
+        ({ flow }) =>
           (fromBlock === undefined || flow.blockNumber >= fromBlock) &&
           (toBlock === undefined || flow.blockNumber <= toBlock)
       );

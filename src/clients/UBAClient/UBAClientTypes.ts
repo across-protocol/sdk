@@ -35,7 +35,7 @@ export type UBABundleTokenState = {
   [tokenSymbol: string]: UBABundleState[];
 };
 
-type ModifiedUBAFlow = {
+export type ModifiedUBAFlow = {
   flow: UbaFlow;
 } & ClosingBalanceReturnType;
 
