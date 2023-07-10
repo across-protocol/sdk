@@ -21,7 +21,7 @@ export abstract class BaseAbstractClient {
    * @param value Whether the client has been updated since it was created.
    * @throws Error if the client has already been updated and the value is false.
    */
-  protected set isUpdated(value: boolean) {
+  public set isUpdated(value: boolean) {
     if (this._isUpdated === true && !value) {
       throw new Error("Cannot set isUpdated to false once it is true");
     }
