@@ -148,7 +148,7 @@ export abstract class BaseUBAClient {
    * @param toBlock         Optional upper bound of the search range. Defaults to the latest queried block.
    */
   public getFlows(chainId: number, tokenSymbol: string, fromBlock?: number, toBlock?: number): UbaFlow[] {
-    return this.getFlowsWithClosingBalances(chainId, tokenSymbol, fromBlock, toBlock).map(({ flow }) => flow);
+    return this.getModifiedFlows(chainId, tokenSymbol, fromBlock, toBlock).map(({ flow }) => flow);
   }
 
   /**
@@ -167,7 +167,7 @@ export abstract class BaseUBAClient {
    * @param toBlock         Optional upper bound of the search range. Defaults to the latest queried block.
    * @returns The flows with closing balances for the given token on the given chainId between the given block numbers
    */
-  public getFlowsWithClosingBalances(
+  public getModifiedFlows(
     chainId: number,
     tokenSymbol: string,
     fromBlock?: number,
