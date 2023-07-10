@@ -195,7 +195,6 @@ export async function updateUBAClient(
       if (!l1TokenAddress) {
         throw new Error(`No L1 token address mapped to symbol ${tokenSymbol}`);
       }
-      const l2TokenAddress = hubPoolClient.getL1TokensToDestinationTokens()[l1TokenAddress][chainId];
       const constructedBundles = await Promise.all(
         bundleBounds.map(async ({ end: endingBundleBlockNumber }) => {
           // Get the block number and opening balance for this token
@@ -203,7 +202,7 @@ export async function updateUBAClient(
             blockNumber: startingBundleBlockNumber,
             spokePoolBalance,
             incentiveBalance,
-          } = getOpeningTokenBalances(chainId, l2TokenAddress, hubPoolClient, endingBundleBlockNumber);
+          } = getOpeningTokenBalances(chainId, l1TokenAddress, hubPoolClient, endingBundleBlockNumber);
           const tokenMappingLookup = (
             TOKEN_SYMBOLS_MAP as Record<string, { addresses: { [x: number]: string }; decimals: number }>
           )[tokenSymbol];
@@ -334,7 +333,7 @@ export async function updateUBAClient(
 
 export function getOpeningTokenBalances(
   chainId: number,
-  spokePoolTokenAddress: string,
+  l1TokenAddress: string,
   hubPoolClient: HubPoolClient,
   hubPoolBlockNumber?: number
 ): { blockNumber: number; spokePoolBalance: BigNumber; incentiveBalance: BigNumber } {
@@ -344,11 +343,7 @@ export function getOpeningTokenBalances(
     }
     hubPoolBlockNumber = hubPoolClient.latestBlockNumber;
   }
-  const hubPoolToken = hubPoolClient.getL1TokenCounterpartAtBlock(chainId, spokePoolTokenAddress, hubPoolBlockNumber);
-  if (!isDefined(hubPoolToken)) {
-    throw new Error(`Could not resolve ${chainId} token ${spokePoolTokenAddress} at block ${hubPoolBlockNumber}`);
-  }
-  const balances = hubPoolClient.getRunningBalanceBeforeBlockForChain(hubPoolBlockNumber, chainId, hubPoolToken);
+  const balances = hubPoolClient.getRunningBalanceBeforeBlockForChain(hubPoolBlockNumber, chainId, l1TokenAddress);
   const endBlock = hubPoolClient.getLatestBundleEndBlockForChain([chainId], hubPoolBlockNumber, chainId);
   return {
     blockNumber: endBlock,
