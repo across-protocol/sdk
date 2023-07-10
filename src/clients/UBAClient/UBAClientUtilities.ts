@@ -28,6 +28,8 @@ import { analog } from "../../UBAFeeCalculator";
 import { RelayFeeCalculator, RelayFeeCalculatorConfig } from "../../relayFeeCalculator";
 import { TOKEN_SYMBOLS_MAP } from "@across-protocol/contracts-v2";
 import { getDepositFee, getRefundFee } from "../../UBAFeeCalculator/UBAFeeSpokeCalculatorAnalog";
+import { filterAsync } from "../../utils/ArrayUtils";
+import { AcrossConfigStoreClient } from "../AcrossConfigStoreClient";
 
 /**
  * Compute the realized LP fee for a given amount.
@@ -119,16 +121,41 @@ export function computeLpFeeStateful(
   return max(toBN(0), baselineFee.add(utilizationIntegral.div(utilizationDelta)));
 }
 
-// THIS IS A STUB FOR NOW
-// TODO: Load from configStoreClient's memory. Should be synchronous call.
-export function getUBAFeeConfig(
+export async function getUBAFeeConfig(
+  configClient: AcrossConfigStoreClient,
   chainId: number,
   token: string,
   blockNumber: number | "latest" = "latest"
-): UBAFeeConfig {
-  chainId;
-  token;
-  blockNumber;
+): Promise<UBAFeeConfig> {
+  // If the config client has not been updated at least
+  // once, update it.
+  if (!configClient.isUpdated) {
+    await configClient.update();
+  }
+  const ubaConfig = configClient.getUBAConfig(token, blockNumber === "latest" ? undefined : blockNumber);
+  if (ubaConfig === undefined) {
+    throw new Error("UBA config not found");
+  }
+
+  // Create a function which finds the key with the highest precidence
+  const findKeyByPrecidence = (obj: Record<string, unknown>): string => {
+    // Get the keys of the object
+    const keys = Object.keys(obj);
+    // 1. The chainId as a direct key
+    const directKey = keys.find((key) => key === chainId.toString());
+    // 2. The chainId as a key in a range. {chainId}-{chainId}
+    const withinWeighting = keys.find((key) => key.includes(`${chainId}-`) || key.includes(`-${chainId}`));
+    // 3. The default key
+    const defaultKey = "default";
+    // Return the key with the highest precidence
+    return directKey ?? withinWeighting ?? defaultKey;
+  };
+
+  const alpha = ubaConfig.alpha[findKeyByPrecidence(ubaConfig.alpha)];
+  const gamma = ubaConfig.gamma[findKeyByPrecidence(ubaConfig.gamma)];
+  const omega = ubaConfig.omega[findKeyByPrecidence(ubaConfig.omega)];
+  const rebalance = ubaConfig.rebalance[findKeyByPrecidence(ubaConfig.rebalance)];
+
   return new UBAFeeConfig(
     {
       default: toBN(0),
@@ -229,7 +256,12 @@ export async function updateUBAClient(
             openingBalance: spokePoolBalance,
             openingIncentiveBalance: incentiveBalance,
             config: {
-              ubaConfig: getUBAFeeConfig(chainId, tokenSymbol, startingBundleBlockNumber),
+              ubaConfig: await getUBAFeeConfig(
+                hubPoolClient.configStoreClient,
+                chainId,
+                tokenSymbol,
+                startingBundleBlockNumber
+              ),
               tokenDecimals,
               hubBalance,
               hubEquity,

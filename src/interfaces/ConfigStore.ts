@@ -149,4 +149,4 @@ export type UBAParsedConfigType = UBAAgnosticConfigType<BigNumber>;
 /**
  * A type for UBAConfig Update events.
  */
-export type UBAConfigUpdates = SortableEvent & { config: UBAParsedConfigType };
+export type UBAConfigUpdates = SortableEvent & { config: UBAParsedConfigType; l1Token: string };

@@ -14,6 +14,7 @@ import {
   toBN,
   max,
   sortEventsAscending,
+  findLast,
 } from "../../utils";
 import { Contract, BigNumber, Event } from "ethers";
 import winston from "winston";
@@ -29,6 +30,7 @@ import {
   ConfigStoreVersionUpdate,
   DisabledChainsUpdate,
   UBAConfigUpdates,
+  UBAParsedConfigType,
 } from "../../interfaces";
 import { across } from "@uma/sdk";
 import { parseUBAConfigFromOnChain } from "./ConfigStoreParsingUtilities";
@@ -296,6 +298,12 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
           throw new Error("Ignoring invalid rate model update");
         }
 
+        // Store RateModel:
+        // TODO: Temporarily reformat the shape of the event that we pass into the sdk.rateModel class to make it fit
+        // the expected shape. This is a fix for now that we should eventually replace when we change the sdk.rateModel
+        // class itself to work with the generalized ConfigStore.
+        const l1Token = args.key;
+
         // For now, we'll need to check if this value is undefined. In the
         // future, we should make this a required field.
         if (parsedValue.uba !== undefined) {
@@ -303,14 +311,8 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
           const ubaConfig = parseUBAConfigFromOnChain(parsedValue?.uba);
           // eslint-disable-next-line @typescript-eslint/no-unused-vars
           const { value: _value, key: _key, ...passedArgs } = args;
-          this.ubaConfigUpdates.push({ ...passedArgs, config: ubaConfig });
+          this.ubaConfigUpdates.push({ ...passedArgs, config: ubaConfig, l1Token });
         }
-
-        // Store RateModel:
-        // TODO: Temporarily reformat the shape of the event that we pass into the sdk.rateModel class to make it fit
-        // the expected shape. This is a fix for now that we should eventually replace when we change the sdk.rateModel
-        // class itself to work with the generalized ConfigStore.
-        const l1Token = args.key;
 
         // Drop value and key before passing args.
         // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -453,5 +455,19 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
       const target = this.getSpokeTargetBalancesForBlock(l1TokenAddress, chainId, blockNumber).target;
       return { spokeChainId: chainId, target };
     });
+  }
+
+  /**
+   * Retrieves a UBA config for a given L1 token address and block number.
+   * @param l1TokenAddress The L1 token address to retrieve the config for
+   * @param blockNumber The block number to retrieve the config for. If not provided, the latest config will be returned.
+   * @returns The UBA config for the given L1 token address and block number, or undefined if no config exists.
+   */
+  getUBAConfig(l1TokenAddress: string, blockNumber?: number): UBAParsedConfigType | undefined {
+    const config = findLast(
+      sortEventsAscending(this.ubaConfigUpdates),
+      (config) => config.l1Token === l1TokenAddress && (!blockNumber || config.blockNumber <= blockNumber)
+    );
+    return config?.config;
   }
 }
