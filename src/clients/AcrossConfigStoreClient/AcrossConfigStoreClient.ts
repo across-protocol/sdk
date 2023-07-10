@@ -28,8 +28,10 @@ import {
   RouteRateModelUpdate,
   ConfigStoreVersionUpdate,
   DisabledChainsUpdate,
+  UBAConfigUpdates,
 } from "../../interfaces";
 import { across } from "@uma/sdk";
+import { parseUBAConfigFromOnChain } from "./ConfigStoreParsingUtilities";
 import { BaseAbstractClient } from "./BaseAbstractClient";
 
 type _ConfigStoreUpdate = {
@@ -57,6 +59,7 @@ export const GLOBAL_CONFIG_STORE_KEYS = {
 
 export class AcrossConfigStoreClient extends BaseAbstractClient {
   public cumulativeRateModelUpdates: across.rateModel.RateModelEvent[] = [];
+  public ubaConfigUpdates: UBAConfigUpdates[] = [];
   public cumulativeRouteRateModelUpdates: RouteRateModelUpdate[] = [];
   public cumulativeTokenTransferUpdates: L1TokenTransferThreshold[] = [];
   public cumulativeMaxRefundCountUpdates: GlobalConfigUpdate[] = [];
@@ -291,6 +294,16 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
         // If Token config doesn't contain all expected properties, skip it.
         if (!(rateModelForToken && transferThresholdForToken)) {
           throw new Error("Ignoring invalid rate model update");
+        }
+
+        // For now, we'll need to check if this value is undefined. In the
+        // future, we should make this a required field.
+        if (parsedValue.uba !== undefined) {
+          // Parse and store UBA config
+          const ubaConfig = parseUBAConfigFromOnChain(parsedValue?.uba);
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars
+          const { value: _value, key: _key, ...passedArgs } = args;
+          this.ubaConfigUpdates.push({ ...passedArgs, config: ubaConfig });
         }
 
         // Store RateModel:
