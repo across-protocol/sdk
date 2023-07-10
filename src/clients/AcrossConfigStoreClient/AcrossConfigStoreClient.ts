@@ -1,6 +1,6 @@
 import assert from "assert";
 import { utils } from "@uma/sdk";
-import { isError } from "../typeguards";
+import { isError } from "../../typeguards";
 import {
   isDefined,
   spreadEvent,
@@ -14,7 +14,7 @@ import {
   toBN,
   max,
   sortEventsAscending,
-} from "../utils";
+} from "../../utils";
 import { Contract, BigNumber, Event } from "ethers";
 import winston from "winston";
 
@@ -28,7 +28,7 @@ import {
   RouteRateModelUpdate,
   ConfigStoreVersionUpdate,
   DisabledChainsUpdate,
-} from "../interfaces";
+} from "../../interfaces";
 import { across } from "@uma/sdk";
 import { BaseAbstractClient } from "./BaseAbstractClient";
 
