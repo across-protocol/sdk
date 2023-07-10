@@ -3,7 +3,6 @@ import { UbaFlow } from "../../interfaces";
 import { BigNumber } from "ethers";
 import { UBAActionType } from "../../UBAFeeCalculator/UBAFeeTypes";
 import {
-  OpeningBalanceReturnType,
   BalancingFeeReturnType,
   SystemFeeResult,
   RelayerFeeResult,
@@ -11,7 +10,6 @@ import {
   UBAChainState,
   UBALPFeeOverride,
   UBAClientState,
-  ClosingBalanceReturnType,
   ModifiedUBAFlow,
 } from "./UBAClientTypes";
 import { computeLpFeeStateful } from "./UBAClientUtilities";
