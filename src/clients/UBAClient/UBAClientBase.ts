@@ -67,6 +67,14 @@ export abstract class BaseUBAClient extends BaseAbstractClient {
     return this.retrieveBundleStates(chainId, tokenSymbol).at(-1);
   }
 
+  _getPrecedingBundleState(chainId: number, tokenSymbol: string, blockNumber: number): UBABundleState | undefined {
+    const relevantBundleStates = this.retrieveBundleStates(chainId, tokenSymbol);
+    if (relevantBundleStates.length === 0) {
+      throw new Error(`No bundle states found for token ${tokenSymbol} on chain ${chainId}`);
+    }
+    return findLast(relevantBundleStates, (bundleState) => bundleState.openingBlockNumberForSpokeChain <= blockNumber);
+  }
+
   /**
    * Retrieves the opening balance for a given token on a given chainId at a given block number
    * @param chainId The chainId to get the opening balance for
@@ -81,18 +89,11 @@ export abstract class BaseUBAClient extends BaseAbstractClient {
     tokenSymbol: string,
     blockNumber: number
   ): OpeningBalanceReturnType | undefined {
-    const relevantBundleStates = this.retrieveBundleStates(chainId, tokenSymbol);
-    if (relevantBundleStates.length === 0) {
-      throw new Error(`No bundle states found for token ${tokenSymbol} on chain ${chainId}`);
-    }
-    const result = findLast(
-      relevantBundleStates,
-      (bundleState) => bundleState.openingBlockNumberForSpokeChain <= blockNumber
-    );
-    return result
+    const precedingBundleState = this._getPrecedingBundleState(chainId, tokenSymbol, blockNumber);
+    return precedingBundleState
       ? {
-          blockNumber: result.openingBlockNumberForSpokeChain,
-          spokePoolBalance: result.openingBalance,
+          blockNumber: precedingBundleState.openingBlockNumberForSpokeChain,
+          spokePoolBalance: precedingBundleState.openingBalance,
         }
       : undefined;
   }
@@ -111,17 +112,11 @@ export abstract class BaseUBAClient extends BaseAbstractClient {
     tokenSymbol: string,
     blockNumber: number
   ): ClosingBalanceReturnType | undefined {
-    const relevantBundleStates = this.retrieveBundleStates(chainId, tokenSymbol);
-    if (relevantBundleStates.length === 0) {
-      throw new Error(`No bundle states found for token ${tokenSymbol} on chain ${chainId}`);
-    }
-    const result = relevantBundleStates.find(
-      (bundleState) => bundleState.openingBlockNumberForSpokeChain <= blockNumber
-    );
-    if (!result) {
+    const precedingBundleState = this._getPrecedingBundleState(chainId, tokenSymbol, blockNumber);
+    if (!precedingBundleState) {
       return undefined;
     }
-    const flow = findLast(result.flows, (flow) => flow.flow.blockNumber <= blockNumber);
+    const flow = findLast(precedingBundleState.flows, (flow) => flow.flow.blockNumber <= blockNumber);
     if (!flow) {
       return undefined;
     }
