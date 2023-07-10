@@ -1,11 +1,10 @@
 import { BigNumber, Contract, Event } from "ethers";
-import { random } from "lodash";
 import winston from "winston";
 import { randomAddress } from "../../utils";
 import { Deposit, L1Token, PendingRootBundle } from "../../interfaces";
 import { AcrossConfigStoreClient as ConfigStoreClient } from "../AcrossConfigStoreClient";
 import { HubPoolClient, HubPoolUpdate } from "../HubPoolClient";
-import { EventManager } from "./MockEvents";
+import { EventManager, getEventManager } from "./MockEvents";
 
 const emptyRootBundle: PendingRootBundle = {
   poolRebalanceRoot: "",
@@ -19,7 +18,6 @@ const emptyRootBundle: PendingRootBundle = {
 };
 
 export class MockHubPoolClient extends HubPoolClient {
-  public readonly minBlockRange = 10;
   public rootBundleProposal = emptyRootBundle;
 
   private events: Event[] = [];
@@ -30,9 +28,15 @@ export class MockHubPoolClient extends HubPoolClient {
   private returnedL1TokenForDeposit = "";
   private eventManager: EventManager;
 
-  constructor(logger: winston.Logger, hubPool: Contract, configStoreClient: ConfigStoreClient, deploymentBlock = 0) {
-    super(logger, hubPool, configStoreClient, deploymentBlock);
-    this.eventManager = new EventManager(this.eventSignatures);
+  constructor(
+    logger: winston.Logger,
+    hubPool: Contract,
+    configStoreClient: ConfigStoreClient,
+    deploymentBlock = 0,
+    chainId = 1
+  ) {
+    super(logger, hubPool, configStoreClient, deploymentBlock, chainId);
+    this.eventManager = getEventManager(chainId, this.eventSignatures, deploymentBlock);
   }
 
   addEvent(event: Event): void {
@@ -83,7 +87,7 @@ export class MockHubPoolClient extends HubPoolClient {
 
   async _update(eventNames: string[]): Promise<HubPoolUpdate> {
     // Generate new "on chain" responses.
-    const latestBlockNumber = (this.latestBlockNumber ?? 0) + random(this.minBlockRange, this.minBlockRange * 5, false);
+    const latestBlockNumber = this.eventManager.blockNumber;
     const currentTime = Math.floor(Date.now() / 1000);
 
     // Ensure an array for every requested event exists, in the requested order.
@@ -110,7 +114,6 @@ export class MockHubPoolClient extends HubPoolClient {
     };
   }
 
-  // Event signatures. Not strictly required, but they make generated events more recognisable.
   public readonly eventSignatures: Record<string, string> = {
     SetEnableDepositRoute: "uint256,uint256,address,bool",
     SetPoolRebalanceRoute: "uint256,address,address",
@@ -133,7 +136,6 @@ export class MockHubPoolClient extends HubPoolClient {
       address: this.hubPool.address,
       topics: topics.map((topic) => topic.toString()),
       args,
-      blockNumber: this.firstBlockToSearch,
     });
   }
 
@@ -169,7 +171,6 @@ export class MockHubPoolClient extends HubPoolClient {
       address: this.hubPool.address,
       topics: topics.map((topic) => topic.toString()),
       args,
-      blockNumber: this.firstBlockToSearch,
     });
   }
 
@@ -204,7 +205,6 @@ export class MockHubPoolClient extends HubPoolClient {
       address: this.hubPool.address,
       topics: topics.map((topic) => topic.toString()),
       args,
-      blockNumber: this.firstBlockToSearch,
     });
   }
 }
