@@ -16,12 +16,13 @@ import {
 import { computeLpFeeStateful } from "./UBAClientUtilities";
 import { findLast } from "../../utils/ArrayUtils";
 import { analog } from "../../UBAFeeCalculator";
+import { BaseAbstractClient } from "../BaseAbstractClient";
 
 /**
  * UBAClient is a base class for UBA functionality. It provides a common interface for UBA functionality to be implemented on top of or extended.
  * This class is not intended to be used directly, but rather extended by other classes that implement the abstract methods.
  */
-export abstract class BaseUBAClient {
+export abstract class BaseUBAClient extends BaseAbstractClient {
   /**
    * A mapping of Token Symbols to a mapping of ChainIds to a list of bundle states.
    * @note The bundle states are sorted in ascending order by block number.
@@ -41,6 +42,7 @@ export abstract class BaseUBAClient {
     protected readonly maxBundleStates: number,
     protected readonly logger?: winston.Logger
   ) {
+    super();
     this.bundleStates = {};
   }
 
@@ -358,6 +360,7 @@ export abstract class BaseUBAClient {
     if (state) {
       this.bundleStates = state;
     }
+    this.isUpdated = true;
     return Promise.resolve();
   }
 }

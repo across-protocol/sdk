@@ -30,6 +30,7 @@ import {
   DisabledChainsUpdate,
 } from "../interfaces";
 import { across } from "@uma/sdk";
+import { BaseAbstractClient } from "./BaseAbstractClient";
 
 type _ConfigStoreUpdate = {
   success: true;
@@ -54,7 +55,7 @@ export const GLOBAL_CONFIG_STORE_KEYS = {
   DISABLED_CHAINS: "DISABLED_CHAINS",
 };
 
-export class AcrossConfigStoreClient {
+export class AcrossConfigStoreClient extends BaseAbstractClient {
   public cumulativeRateModelUpdates: across.rateModel.RateModelEvent[] = [];
   public cumulativeRouteRateModelUpdates: RouteRateModelUpdate[] = [];
   public cumulativeTokenTransferUpdates: L1TokenTransferThreshold[] = [];
@@ -70,8 +71,6 @@ export class AcrossConfigStoreClient {
 
   public hasLatestConfigStoreVersion = false;
 
-  public isUpdated = false;
-
   constructor(
     readonly logger: winston.Logger,
     readonly configStore: Contract,
@@ -79,6 +78,7 @@ export class AcrossConfigStoreClient {
     readonly configStoreVersion: number,
     readonly enabledChainIds: number[]
   ) {
+    super();
     this.firstBlockToSearch = eventSearchConfig.fromBlock;
     this.rateModelDictionary = new across.rateModel.RateModelDictionary();
   }
