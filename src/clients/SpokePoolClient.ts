@@ -31,6 +31,7 @@ import {
 import { HubPoolClient } from ".";
 import { ZERO_ADDRESS } from "../constants";
 import { getNetworkName } from "../utils/NetworkUtils";
+import { BaseAbstractClient } from "./BaseAbstractClient";
 
 type _SpokePoolUpdate = {
   success: boolean;
@@ -47,7 +48,7 @@ export type SpokePoolUpdate = { success: false } | _SpokePoolUpdate;
  * SpokePoolClient is a client for the SpokePool contract. It is responsible for querying the SpokePool contract
  * for events and storing them in memory. It also provides some convenience methods for querying the stored events.
  */
-export class SpokePoolClient {
+export class SpokePoolClient extends BaseAbstractClient {
   protected currentTime = 0;
   protected depositHashes: { [depositHash: string]: DepositWithBlock } = {};
   protected depositHashesToFills: { [depositHash: string]: FillWithBlock[] } = {};
@@ -62,7 +63,6 @@ export class SpokePoolClient {
   public latestDepositIdQueried = 0;
   public firstDepositIdForSpokePool = Number.MAX_SAFE_INTEGER;
   public lastDepositIdForSpokePool = Number.MAX_SAFE_INTEGER;
-  public isUpdated = false;
   public firstBlockToSearch: number;
   public latestBlockNumber = 0;
   public deposits: { [DestinationChainId: number]: DepositWithBlock[] } = {};
@@ -87,6 +87,7 @@ export class SpokePoolClient {
     public deploymentBlock: number,
     readonly eventSearchConfig: MakeOptional<EventSearchConfig, "toBlock"> = { fromBlock: 0, maxBlockLookBack: 0 }
   ) {
+    super();
     this.firstBlockToSearch = eventSearchConfig.fromBlock;
     this.queryableEventNames = Object.keys(this._queryableEventNames());
   }
