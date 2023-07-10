@@ -3,7 +3,6 @@ import { UbaFlow } from "../../interfaces";
 import { BigNumber } from "ethers";
 import { UBAActionType } from "../../UBAFeeCalculator/UBAFeeTypes";
 import {
-  OpeningBalanceReturnType,
   BalancingFeeReturnType,
   SystemFeeResult,
   RelayerFeeResult,
@@ -11,7 +10,6 @@ import {
   UBAChainState,
   UBALPFeeOverride,
   UBAClientState,
-  ClosingBalanceReturnType,
   ModifiedUBAFlow,
 } from "./UBAClientTypes";
 import { computeLpFeeStateful } from "./UBAClientUtilities";
@@ -65,73 +63,6 @@ export abstract class BaseUBAClient extends BaseAbstractClient {
    */
   protected retrieveLastBundleState(chainId: number, tokenSymbol: string): UBABundleState | undefined {
     return this.retrieveBundleStates(chainId, tokenSymbol).at(-1);
-  }
-
-  /**
-   * Retrieves the opening balance for a given token on a given chainId at a given block number
-   * @param chainId The chainId to get the opening balance for
-   * @param spokePoolToken The token to get the opening balance for
-   * @param blockNumber The block number to get the opening balance for
-   * @returns The opening balance for the given token on the given chainId at the given block number
-   * @throws If the token cannot be found for the given chainId
-   * @throws If the opening balance cannot be found for the given token on the given chainId at the given block number
-   */
-  public getOpeningBalance(
-    chainId: number,
-    tokenSymbol: string,
-    blockNumber: number
-  ): OpeningBalanceReturnType | undefined {
-    const relevantBundleStates = this.retrieveBundleStates(chainId, tokenSymbol);
-    if (relevantBundleStates.length === 0) {
-      throw new Error(`No bundle states found for token ${tokenSymbol} on chain ${chainId}`);
-    }
-    const result = findLast(
-      relevantBundleStates,
-      (bundleState) => bundleState.openingBlockNumberForSpokeChain <= blockNumber
-    );
-    return result
-      ? {
-          blockNumber: result.openingBlockNumberForSpokeChain,
-          spokePoolBalance: result.openingBalance,
-        }
-      : undefined;
-  }
-
-  /**
-   * Retrieves the closing balance for a given token on a given chainId at a given block number
-   * @param chainId The chainId to get the closing balance for
-   * @param spokePoolToken The token to get the closing balance for
-   * @param blockNumber The block number to get the closing balance for
-   * @returns The closing balance for the given token on the given chainId at the given block number
-   * @throws If the token cannot be found for the given chainId
-   * @throws If the closing balance cannot be found for the given token on the given chainId at the given block number
-   */
-  public getClosingBalance(
-    chainId: number,
-    tokenSymbol: string,
-    blockNumber: number
-  ): ClosingBalanceReturnType | undefined {
-    const relevantBundleStates = this.retrieveBundleStates(chainId, tokenSymbol);
-    if (relevantBundleStates.length === 0) {
-      throw new Error(`No bundle states found for token ${tokenSymbol} on chain ${chainId}`);
-    }
-    const result = relevantBundleStates.find(
-      (bundleState) => bundleState.openingBlockNumberForSpokeChain <= blockNumber
-    );
-    if (!result) {
-      return undefined;
-    }
-    const flow = findLast(result.flows, (flow) => flow.flow.blockNumber <= blockNumber);
-    if (!flow) {
-      return undefined;
-    }
-    return {
-      systemFee: flow.systemFee,
-      relayerFee: flow.relayerFee,
-      runningBalance: flow.runningBalance,
-      incentiveBalance: flow.incentiveBalance,
-      netRunningBalanceAdjustment: flow.netRunningBalanceAdjustment,
-    };
   }
 
   /**

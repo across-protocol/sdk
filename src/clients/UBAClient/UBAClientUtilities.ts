@@ -118,11 +118,12 @@ export function computeLpFeeStateful(
 }
 
 // THIS IS A STUB FOR NOW
-export async function getUBAFeeConfig(
+// TODO: Load from configStoreClient's memory. Should be synchronous call.
+export function getUBAFeeConfig(
   chainId: number,
   token: string,
   blockNumber: number | "latest" = "latest"
-): Promise<UBAFeeConfig> {
+): UBAFeeConfig {
   chainId;
   token;
   blockNumber;
@@ -189,6 +190,11 @@ export async function updateUBAClient(
         startingBlock = lastPreviousBlock - 1;
       }
       // Iterate through the bundle bounds and find the bundles that are available
+      // TODO: Replace the following code by mapping by this entire client by l1TokenAddress instead of tokenSymbol.
+      const l1TokenAddress = hubPoolClient.getL1Tokens().find((token) => token.symbol === tokenSymbol)?.address;
+      if (!l1TokenAddress) {
+        throw new Error(`No L1 token address mapped to symbol ${tokenSymbol}`);
+      }
       const constructedBundles = await Promise.all(
         bundleBounds.map(async ({ end: endingBundleBlockNumber }) => {
           // Get the block number and opening balance for this token
@@ -196,7 +202,7 @@ export async function updateUBAClient(
             blockNumber: startingBundleBlockNumber,
             spokePoolBalance,
             incentiveBalance,
-          } = getOpeningTokenBalances(chainId, tokenSymbol, hubPoolClient, endingBundleBlockNumber);
+          } = getOpeningTokenBalances(chainId, l1TokenAddress, hubPoolClient, endingBundleBlockNumber);
           const tokenMappingLookup = (
             TOKEN_SYMBOLS_MAP as Record<string, { addresses: { [x: number]: string }; decimals: number }>
           )[tokenSymbol];
@@ -221,7 +227,7 @@ export async function updateUBAClient(
             openingBalance: spokePoolBalance,
             openingIncentiveBalance: incentiveBalance,
             config: {
-              ubaConfig: await getUBAFeeConfig(chainId, tokenSymbol, startingBundleBlockNumber),
+              ubaConfig: getUBAFeeConfig(chainId, tokenSymbol, startingBundleBlockNumber),
               tokenDecimals,
               hubBalance,
               hubEquity,
@@ -325,9 +331,9 @@ export async function updateUBAClient(
   }, Promise.resolve({}));
 }
 
-function getOpeningTokenBalances(
+export function getOpeningTokenBalances(
   chainId: number,
-  spokePoolTokenAddress: string,
+  l1TokenAddress: string,
   hubPoolClient: HubPoolClient,
   hubPoolBlockNumber?: number
 ): { blockNumber: number; spokePoolBalance: BigNumber; incentiveBalance: BigNumber } {
@@ -337,11 +343,7 @@ function getOpeningTokenBalances(
     }
     hubPoolBlockNumber = hubPoolClient.latestBlockNumber;
   }
-  const hubPoolToken = hubPoolClient.getL1TokenCounterpartAtBlock(chainId, spokePoolTokenAddress, hubPoolBlockNumber);
-  if (!isDefined(hubPoolToken)) {
-    throw new Error(`Could not resolve ${chainId} token ${spokePoolTokenAddress} at block ${hubPoolBlockNumber}`);
-  }
-  const balances = hubPoolClient.getRunningBalanceBeforeBlockForChain(hubPoolBlockNumber, chainId, hubPoolToken);
+  const balances = hubPoolClient.getRunningBalanceBeforeBlockForChain(hubPoolBlockNumber, chainId, l1TokenAddress);
   const endBlock = hubPoolClient.getLatestBundleEndBlockForChain([chainId], hubPoolBlockNumber, chainId);
   return {
     blockNumber: endBlock,
