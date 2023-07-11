@@ -1,20 +1,23 @@
-import { array, object, record, string, intersection, refine } from "superstruct";
+import { array, object, record, string, refine, union } from "superstruct";
 
-const CorrectRoutingRule = refine(string(), "CorrectRoutingRule", (value) =>
-  // Verifies the key against a regex. The regex is verifying that a route is
-  // formatted as follows: "{chainId}" or "{chainId}-{chainId}" where {chainId} is
-  // a number.
-  /^\d+(-\d+)?$/.test(value)
+const CorrectRoutingRule = refine(
+  string(),
+  "CorrectRoutingRule",
+  (value) =>
+    // Verifies the key against a regex. The regex is verifying that a route is
+    // formatted as follows: "{chainId}" or "{chainId}-{chainId}" where {chainId} is
+    // a number.
+    /^\d+[-]\d+$/.test(value) || value === "default"
 );
 
 export const UBA_CONFIG_ONCHAIN_SCHEMA = object({
-  alpha: intersection([
+  alpha: union([
     object({
       default: string(),
     }),
     record(CorrectRoutingRule, string()),
   ]),
-  gamma: intersection([
+  gamma: union([
     object({
       default: object({
         cutoff: array(string()),
@@ -29,7 +32,7 @@ export const UBA_CONFIG_ONCHAIN_SCHEMA = object({
       })
     ),
   ]),
-  omega: intersection([
+  omega: union([
     object({
       default: object({
         cutoff: array(string()),
@@ -44,7 +47,7 @@ export const UBA_CONFIG_ONCHAIN_SCHEMA = object({
       })
     ),
   ]),
-  rebalance: intersection([
+  rebalance: union([
     object({
       default: object({
         threshold_lower: string(),
