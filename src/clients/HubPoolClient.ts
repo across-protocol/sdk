@@ -18,6 +18,7 @@ import { ExecutedRootBundle, PendingRootBundle, ProposedRootBundle } from "../in
 import { CrossChainContractsSet, DestinationTokenWithBlock, SetPoolRebalanceRoot } from "../interfaces";
 import * as lpFeeCalculator from "../lpFeeCalculator";
 import { AcrossConfigStoreClient as ConfigStoreClient } from "./";
+import { BaseAbstractClient } from "./BaseAbstractClient";
 
 type _HubPoolUpdate = {
   success: true;
@@ -42,7 +43,7 @@ type HubPoolEvent =
 type L1TokensToDestinationTokens = {
   [l1Token: string]: { [destinationChainId: number]: string };
 };
-export class HubPoolClient {
+export class HubPoolClient extends BaseAbstractClient {
   // L1Token -> destinationChainId -> destinationToken
   protected l1TokensToDestinationTokens: L1TokensToDestinationTokens = {};
   protected l1Tokens: L1Token[] = []; // L1Tokens and their associated info.
@@ -57,7 +58,6 @@ export class HubPoolClient {
   } = {};
   protected pendingRootBundle: PendingRootBundle | undefined;
 
-  public isUpdated = false;
   public firstBlockToSearch: number;
   public latestBlockNumber: number | undefined;
   public currentTime: number | undefined;
@@ -78,6 +78,7 @@ export class HubPoolClient {
       ignoredHubProposedBundles: [],
     }
   ) {
+    super();
     this.latestBlockNumber = deploymentBlock === 0 ? deploymentBlock : deploymentBlock - 1;
     this.firstBlockToSearch = eventSearchConfig.fromBlock;
 

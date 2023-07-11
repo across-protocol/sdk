@@ -3,7 +3,6 @@ import { UbaFlow } from "../../interfaces";
 import { BigNumber } from "ethers";
 import { UBAActionType } from "../../UBAFeeCalculator/UBAFeeTypes";
 import {
-  OpeningBalanceReturnType,
   BalancingFeeReturnType,
   SystemFeeResult,
   RelayerFeeResult,
@@ -11,17 +10,18 @@ import {
   UBAChainState,
   UBALPFeeOverride,
   UBAClientState,
-  ClosingBalanceReturnType,
+  ModifiedUBAFlow,
 } from "./UBAClientTypes";
 import { computeLpFeeStateful } from "./UBAClientUtilities";
 import { findLast } from "../../utils/ArrayUtils";
 import { analog } from "../../UBAFeeCalculator";
+import { BaseAbstractClient } from "../BaseAbstractClient";
 
 /**
  * UBAClient is a base class for UBA functionality. It provides a common interface for UBA functionality to be implemented on top of or extended.
  * This class is not intended to be used directly, but rather extended by other classes that implement the abstract methods.
  */
-export abstract class BaseUBAClient {
+export abstract class BaseUBAClient extends BaseAbstractClient {
   /**
    * A mapping of Token Symbols to a mapping of ChainIds to a list of bundle states.
    * @note The bundle states are sorted in ascending order by block number.
@@ -41,6 +41,7 @@ export abstract class BaseUBAClient {
     protected readonly maxBundleStates: number,
     protected readonly logger?: winston.Logger
   ) {
+    super();
     this.bundleStates = {};
   }
 
@@ -65,72 +66,6 @@ export abstract class BaseUBAClient {
   }
 
   /**
-   * Retrieves the opening balance for a given token on a given chainId at a given block number
-   * @param chainId The chainId to get the opening balance for
-   * @param spokePoolToken The token to get the opening balance for
-   * @param blockNumber The block number to get the opening balance for
-   * @returns The opening balance for the given token on the given chainId at the given block number
-   * @throws If the token cannot be found for the given chainId
-   * @throws If the opening balance cannot be found for the given token on the given chainId at the given block number
-   */
-  public getOpeningBalance(
-    chainId: number,
-    tokenSymbol: string,
-    blockNumber: number
-  ): OpeningBalanceReturnType | undefined {
-    const relevantBundleStates = this.retrieveBundleStates(chainId, tokenSymbol);
-    if (relevantBundleStates.length === 0) {
-      throw new Error(`No bundle states found for token ${tokenSymbol} on chain ${chainId}`);
-    }
-    const result = relevantBundleStates.find(
-      (bundleState) => bundleState.openingBlockNumberForSpokeChain <= blockNumber
-    );
-    return result
-      ? {
-          blockNumber: result.openingBlockNumberForSpokeChain,
-          spokePoolBalance: result.openingBalance,
-        }
-      : undefined;
-  }
-
-  /**
-   * Retrieves the closing balance for a given token on a given chainId at a given block number
-   * @param chainId The chainId to get the closing balance for
-   * @param spokePoolToken The token to get the closing balance for
-   * @param blockNumber The block number to get the closing balance for
-   * @returns The closing balance for the given token on the given chainId at the given block number
-   * @throws If the token cannot be found for the given chainId
-   * @throws If the closing balance cannot be found for the given token on the given chainId at the given block number
-   */
-  public getClosingBalance(
-    chainId: number,
-    tokenSymbol: string,
-    blockNumber: number
-  ): ClosingBalanceReturnType | undefined {
-    const relevantBundleStates = this.retrieveBundleStates(chainId, tokenSymbol);
-    if (relevantBundleStates.length === 0) {
-      throw new Error(`No bundle states found for token ${tokenSymbol} on chain ${chainId}`);
-    }
-    const result = relevantBundleStates.find(
-      (bundleState) => bundleState.openingBlockNumberForSpokeChain <= blockNumber
-    );
-    if (!result) {
-      return undefined;
-    }
-    const flow = findLast(result.flows, (flow) => flow.flow.blockNumber <= blockNumber);
-    if (!flow) {
-      return undefined;
-    }
-    return {
-      systemFee: flow.systemFee,
-      relayerFee: flow.relayerFee,
-      runningBalance: flow.runningBalance,
-      incentiveBalance: flow.incentiveBalance,
-      netRunningBalanceAdjustment: flow.netRunningBalanceAdjustment,
-    };
-  }
-
-  /**
    * @description Construct the ordered sequence of SpokePool flows between two blocks.
    * @note Assumptions:
    * @note Deposits, Fills and RefundRequests have been pre-verified by the SpokePool contract or SpokePoolClient, i.e.:
@@ -146,12 +81,36 @@ export abstract class BaseUBAClient {
    * @param toBlock         Optional upper bound of the search range. Defaults to the latest queried block.
    */
   public getFlows(chainId: number, tokenSymbol: string, fromBlock?: number, toBlock?: number): UbaFlow[] {
+    return this.getModifiedFlows(chainId, tokenSymbol, fromBlock, toBlock).map(({ flow }) => flow);
+  }
+
+  /**
+   * Construct the ordered sequence of SpokePool flows between two blocks. This function returns the flows with closing balances.
+   * @note Assumptions:
+   * @note Deposits, Fills and RefundRequests have been pre-verified by the SpokePool contract or SpokePoolClient, i.e.:
+   * @note - Deposit events contain valid information.
+   * @note - Fill events correspond to valid deposits.
+   * @note - RefundRequest events correspond to valid fills.
+   * @note In order to provide up-to-date prices, UBA functionality may want to follow close to "latest" and so may still
+   * @note be exposed to finality risk. Additional verification that can only be performed within the UBA context:
+   * @note - Only the first instance of a partial fill for a deposit is accepted. The total deposit amount is taken, and
+   * @note   subsequent partial, complete or slow fills are disregarded.
+   * @param spokePoolClient SpokePoolClient instance for this chain.
+   * @param fromBlock       Optional lower bound of the search range. Defaults to the SpokePool deployment block.
+   * @param toBlock         Optional upper bound of the search range. Defaults to the latest queried block.
+   * @returns The flows with closing balances for the given token on the given chainId between the given block numbers
+   */
+  public getModifiedFlows(
+    chainId: number,
+    tokenSymbol: string,
+    fromBlock?: number,
+    toBlock?: number
+  ): ModifiedUBAFlow[] {
     const relevantBundleStates = this.retrieveBundleStates(chainId, tokenSymbol);
     return relevantBundleStates
       .flatMap((bundleState) => bundleState.flows)
-      .map((flow) => flow.flow)
       .filter(
-        (flow) =>
+        ({ flow }) =>
           (fromBlock === undefined || flow.blockNumber >= fromBlock) &&
           (toBlock === undefined || flow.blockNumber <= toBlock)
       );
@@ -358,6 +317,7 @@ export abstract class BaseUBAClient {
     if (state) {
       this.bundleStates = state;
     }
+    this.isUpdated = true;
     return Promise.resolve();
   }
 }

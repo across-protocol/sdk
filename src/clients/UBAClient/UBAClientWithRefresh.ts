@@ -39,7 +39,7 @@ export class UBAClientWithRefresh extends BaseUBAClient {
     }
     // Update the clients if the necessary clients have not been updated at least once.
     // Also update if forceClientRefresh is true.
-    if (forceClientRefresh || !this.areNecessaryClientsUpdated()) {
+    if (forceClientRefresh || !this.isUpdated) {
       // Update the Across config store
       await this.hubPoolClient.configStoreClient.update();
       // Update the HubPool
@@ -61,22 +61,12 @@ export class UBAClientWithRefresh extends BaseUBAClient {
     );
   }
 
-  /**
-   * Performs and assert that the necessary clients have been updated at least once.
-   */
-  protected assertNecessaryClientsUpdated(): void {
-    assert(this.areNecessaryClientsUpdated(), "UBAClientWithRefresh: Clients not updated");
-  }
-
-  /**
-   * Verifies that the necessary clients have been updated at least once.
-   * @returns true if all necessary clients have been updated at least once.
-   */
-  protected areNecessaryClientsUpdated(): boolean {
+  public get isUpdated(): boolean {
     return (
       this.hubPoolClient.configStoreClient.isUpdated &&
       this.hubPoolClient.isUpdated &&
-      Object.values(this.spokePoolClients).every((spokePoolClient) => spokePoolClient.isUpdated)
+      Object.values(this.spokePoolClients).every((spokePoolClient) => spokePoolClient.isUpdated) &&
+      this.isUpdated
     );
   }
 }

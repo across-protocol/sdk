@@ -4,14 +4,6 @@ import { UBAActionType } from "../../UBAFeeCalculator/UBAFeeTypes";
 import UBAConfig, { FlowTupleParameters } from "../../UBAFeeCalculator/UBAFeeConfig";
 
 export type RequestValidReturnType = { valid: false; reason: string } | { valid: true };
-export type OpeningBalanceReturnType = { blockNumber: number; spokePoolBalance: BigNumber };
-export type ClosingBalanceReturnType = {
-  systemFee: SystemFeeResult;
-  relayerFee: RelayerFeeResult;
-  runningBalance: BigNumber;
-  incentiveBalance: BigNumber;
-  netRunningBalanceAdjustment: BigNumber;
-};
 export type BalancingFeeReturnType = { balancingFee: BigNumber; actionType: UBAActionType };
 export type SystemFeeResult = { lpFee: BigNumber; depositBalancingFee: BigNumber; systemFee: BigNumber };
 export type RelayerFeeResult = {
@@ -35,7 +27,7 @@ export type UBABundleTokenState = {
   [tokenSymbol: string]: UBABundleState[];
 };
 
-type ModifiedUBAFlow = {
+export type ModifiedUBAFlow = {
   flow: UbaFlow;
 } & ClosingBalanceReturnType;
 
