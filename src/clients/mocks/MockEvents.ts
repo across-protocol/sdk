@@ -115,6 +115,13 @@ export class EventManager {
   }
 }
 
+/**
+ * @description Retrieve an instance of the EventManager for a specific chain, or instantiate a new one.
+ * @param chainId Chain ID to retrieve EventManager for.
+ * @param eventSignatures Event Signatures to append to EventManager instance.
+ * @param Initial blockNumber to use if a new EventManager is instantiated.
+ * @returns EventManager instance for chain ID.
+ */
 export function getEventManager(
   chainId: number,
   eventSignatures?: Record<string, string>,
@@ -128,8 +135,4 @@ export function getEventManager(
     eventManager.addEventSignatures(eventSignatures);
   }
   return eventManager;
-}
-
-export function resetEventManagers(): void {
-  eventManagers = {};
 }
