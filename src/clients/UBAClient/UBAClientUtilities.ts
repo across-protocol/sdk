@@ -28,7 +28,6 @@ import { analog } from "../../UBAFeeCalculator";
 import { RelayFeeCalculator, RelayFeeCalculatorConfig } from "../../relayFeeCalculator";
 import { TOKEN_SYMBOLS_MAP } from "@across-protocol/contracts-v2";
 import { getDepositFee, getRefundFee } from "../../UBAFeeCalculator/UBAFeeSpokeCalculatorAnalog";
-import { filterAsync } from "../../utils/ArrayUtils";
 import { AcrossConfigStoreClient } from "../AcrossConfigStoreClient";
 
 /**
@@ -121,52 +120,80 @@ export function computeLpFeeStateful(
   return max(toBN(0), baselineFee.add(utilizationIntegral.div(utilizationDelta)));
 }
 
-export async function getUBAFeeConfig(
+/**
+ * Omit the default key from a dictionary
+ * @param obj The dictionary to omit the default key from
+ * @returns The dictionary without the default key
+ * @note This is used to omit the default key from the UBA config
+ */
+function omitDefaultKeys<T>(obj: Record<string, T>): Record<string, T> {
+  return Object.keys(obj).reduce((acc, key) => {
+    if (key !== "default") {
+      return {
+        ...acc,
+        [key]: obj[key],
+      };
+    }
+    return acc;
+  }, {});
+}
+
+function collapseParallelArrays<T, U>(arr1: T[], arr2: U[]): [T, U][] {
+  return arr1.map((val, index) => [val, arr2[index]]);
+}
+
+export function getUBAFeeConfig(
   configClient: AcrossConfigStoreClient,
   chainId: number,
   token: string,
   blockNumber: number | "latest" = "latest"
-): Promise<UBAFeeConfig> {
+): UBAFeeConfig {
   // If the config client has not been updated at least
-  // once, update it.
+  // once, throw
   if (!configClient.isUpdated) {
-    await configClient.update();
+    throw new Error("Config client not updated");
   }
   const ubaConfig = configClient.getUBAConfig(token, blockNumber === "latest" ? undefined : blockNumber);
   if (ubaConfig === undefined) {
     throw new Error("UBA config not found");
   }
 
-  // Create a function which finds the key with the highest precidence
-  const findKeyByPrecidence = (obj: Record<string, unknown>): string => {
-    // Get the keys of the object
-    const keys = Object.keys(obj);
-    // 1. The chainId as a direct key
-    const directKey = keys.find((key) => key === chainId.toString());
-    // 2. The chainId as a key in a range. {chainId}-{chainId}
-    const withinWeighting = keys.find((key) => key.includes(`${chainId}-`) || key.includes(`-${chainId}`));
-    // 3. The default key
-    const defaultKey = "default";
-    // Return the key with the highest precidence
-    return directKey ?? withinWeighting ?? defaultKey;
-  };
+  const omegaDefault = ubaConfig.omega["default"];
+  const omegaOverride = omitDefaultKeys(ubaConfig.omega);
 
-  const alpha = ubaConfig.alpha[findKeyByPrecidence(ubaConfig.alpha)];
-  const gamma = ubaConfig.gamma[findKeyByPrecidence(ubaConfig.gamma)];
-  const omega = ubaConfig.omega[findKeyByPrecidence(ubaConfig.omega)];
-  const rebalance = ubaConfig.rebalance[findKeyByPrecidence(ubaConfig.rebalance)];
+  const gammaDefault = ubaConfig.gamma["default"];
+  const gammaOverride = omitDefaultKeys(ubaConfig.gamma);
+
+  const threshold = ubaConfig.rebalance[String(chainId)];
 
   return new UBAFeeConfig(
     {
-      default: toBN(0),
+      default: ubaConfig.alpha["default"],
+      override: omitDefaultKeys(ubaConfig.alpha),
     },
-    toBN(0),
     {
-      default: [],
+      default: collapseParallelArrays(omegaDefault.cutoff, omegaDefault.value),
+      override: Object.fromEntries(
+        Object.entries(omegaOverride).map(([key, value]) => [key, collapseParallelArrays(value.cutoff, value.value)])
+      ),
     },
-    {},
     {
-      default: [],
+      [chainId]: {
+        lowerBound: {
+          target: threshold.target_lower,
+          threshold: threshold.threshold_lower,
+        },
+        upperBound: {
+          target: threshold.target_upper,
+          threshold: threshold.threshold_upper,
+        },
+      },
+    },
+    {
+      default: collapseParallelArrays(gammaDefault.cutoff, gammaDefault.value),
+      override: Object.fromEntries(
+        Object.entries(gammaOverride).map(([key, value]) => [key, collapseParallelArrays(value.cutoff, value.value)])
+      ),
     }
   );
 }
@@ -256,7 +283,7 @@ export async function updateUBAClient(
             openingBalance: spokePoolBalance,
             openingIncentiveBalance: incentiveBalance,
             config: {
-              ubaConfig: await getUBAFeeConfig(
+              ubaConfig: getUBAFeeConfig(
                 hubPoolClient.configStoreClient,
                 chainId,
                 tokenSymbol,
