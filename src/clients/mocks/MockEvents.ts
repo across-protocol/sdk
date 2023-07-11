@@ -1,6 +1,7 @@
+import assert from "assert";
 import { utils as ethersUtils, Event, providers } from "ethers";
 import { random } from "lodash";
-import { toBN, randomAddress } from "../../utils";
+import { isDefined, randomAddress, toBN } from "../../utils";
 
 const { id, keccak256, toUtf8Bytes } = ethersUtils;
 
@@ -19,6 +20,8 @@ type EthersEventTemplate = {
   transactionIndex?: number;
 };
 
+let eventManagers: { [chainId: number]: EventManager } = {};
+
 // May need to populate getTransaction and getTransactionReceipt if calling code starts using it.
 // https://docs.ethers.org/v5/api/providers/provider/#Provider-getTransaction
 const getTransaction = async (): Promise<TransactionResponse> => {
@@ -34,8 +37,19 @@ const removeListener = (): void => {
 
 export class EventManager {
   private logIndexes: Record<string, number> = {};
+  public readonly minBlockRange = 10;
+  public readonly eventSignatures: Record<string, string> = {};
 
-  constructor(public readonly eventSignatures: Record<string, string>) {}
+  constructor(public blockNumber = 0) {}
+
+  addEventSignatures(eventSignatures: Record<string, string>): void {
+    Object.entries(eventSignatures).forEach(([event, signature]) => {
+      if (isDefined(this.eventSignatures[event])) {
+        assert(signature === this.eventSignatures[event], `Event ${event} conflict detected.`);
+      }
+      this.eventSignatures[event] = signature;
+    });
+  }
 
   generateEvent(inputs: EthersEventTemplate): Event {
     const { address, event, topics: _topics, data, args } = inputs;
@@ -44,7 +58,12 @@ export class EventManager {
 
     let { blockNumber, transactionIndex } = inputs;
 
-    blockNumber = blockNumber ?? random(1, 100_000, false);
+    // Increment the block number by at least 1, by default. The caller may override
+    // to force the same block number to be used, but never a previous block number.
+    blockNumber = blockNumber ?? random(this.blockNumber + 1, this.blockNumber + this.minBlockRange, false);
+    assert(blockNumber >= this.blockNumber, `${blockNumber} < ${this.blockNumber}`);
+    this.blockNumber = blockNumber;
+
     transactionIndex = transactionIndex ?? random(1, 32, false);
     const transactionHash = id(`Across-v2-${event}-${blockNumber}-${transactionIndex}-${random(1, 100_000)}`);
 
@@ -94,4 +113,26 @@ export class EventManager {
       removeListener,
     } as Event;
   }
+}
+
+/**
+ * @description Retrieve an instance of the EventManager for a specific chain, or instantiate a new one.
+ * @param chainId Chain ID to retrieve EventManager for.
+ * @param eventSignatures Event Signatures to append to EventManager instance.
+ * @param Initial blockNumber to use if a new EventManager is instantiated.
+ * @returns EventManager instance for chain ID.
+ */
+export function getEventManager(
+  chainId: number,
+  eventSignatures?: Record<string, string>,
+  blockNumber?: number
+): EventManager {
+  if (!isDefined(eventManagers[chainId])) {
+    eventManagers[chainId] = new EventManager(blockNumber);
+  }
+  const eventManager = eventManagers[chainId];
+  if (isDefined(eventSignatures)) {
+    eventManager.addEventSignatures(eventSignatures);
+  }
+  return eventManager;
 }

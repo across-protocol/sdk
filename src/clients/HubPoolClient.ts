@@ -695,7 +695,7 @@ export class HubPoolClient extends BaseAbstractClient {
       // Safeguard
       if (executedRootBundle.runningBalances.length !== nTokens) {
         throw new Error(
-          `Invalid runningBalances length (${executedRootBundle.runningBalances.length})` +
+          `Invalid runningBalances length (${executedRootBundle.runningBalances.length} !== ${nTokens})` +
             ` for ConfigStore version ${version} in chain ${this.chainId} transaction ${event.transactionHash}`
         );
       }

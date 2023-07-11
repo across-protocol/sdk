@@ -1,15 +1,13 @@
 import winston from "winston";
 import { Contract, Event } from "ethers";
-import { random } from "lodash";
 import { EventSearchConfig, utf8ToHex } from "../../utils";
 import { AcrossConfigStoreClient, ConfigStoreUpdate, DEFAULT_CONFIG_STORE_VERSION } from "../AcrossConfigStoreClient";
-import { EventManager } from "./MockEvents";
+import { EventManager, getEventManager } from "./MockEvents";
 
 export class MockConfigStoreClient extends AcrossConfigStoreClient {
-  public readonly minBlockRange = 10;
   public configStoreVersion = DEFAULT_CONFIG_STORE_VERSION;
-  private events: Event[] = [];
   private eventManager: EventManager;
+  private events: Event[] = [];
 
   // Event signatures. Not strictly required, but they make generated events more recognisable.
   public readonly eventSignatures: Record<string, string> = {
@@ -24,10 +22,11 @@ export class MockConfigStoreClient extends AcrossConfigStoreClient {
     eventSearchConfig: EventSearchConfig,
     configStoreVersion: number,
     enabledChainIds: number[],
+    chainId = 1,
     public readonly mockUpdate = false
   ) {
     super(logger, configStore, eventSearchConfig, configStoreVersion, enabledChainIds);
-    this.eventManager = new EventManager(this.eventSignatures);
+    this.eventManager = getEventManager(chainId, this.eventSignatures);
   }
 
   setConfigStoreVersion(version: number): void {
@@ -49,8 +48,7 @@ export class MockConfigStoreClient extends AcrossConfigStoreClient {
     }
 
     const eventNames = ["UpdatedGlobalConfig", "UpdatedTokenConfig"];
-    // Generate new "on chain" responses.
-    const latestBlockNumber = (this.latestBlockNumber ?? 0) + random(this.minBlockRange, this.minBlockRange * 5, false);
+    const latestBlockNumber = this.eventManager.blockNumber;
 
     // Ensure an array for every requested event exists, in the requested order.
     // All requested event types must be populated in the array (even if empty).
@@ -101,7 +99,6 @@ export class MockConfigStoreClient extends AcrossConfigStoreClient {
       address: this.configStore.address,
       topics: topics.map((topic) => topic.toString()),
       args,
-      blockNumber: this.latestBlockNumber + 1,
     });
 
     this.addEvent(configEvent);

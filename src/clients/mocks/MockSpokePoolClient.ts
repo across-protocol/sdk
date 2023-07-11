@@ -1,3 +1,4 @@
+import assert from "assert";
 import { Contract, Event } from "ethers";
 import { random } from "lodash";
 import winston from "winston";
@@ -5,21 +6,21 @@ import { ZERO_ADDRESS } from "../../constants";
 import { DepositWithBlock, FillWithBlock, RefundRequestWithBlock } from "../../interfaces";
 import { toBN, toBNWei, randomAddress } from "../../utils";
 import { SpokePoolClient, SpokePoolUpdate } from "../SpokePoolClient";
-import { EventManager } from "./MockEvents";
+import { EventManager, getEventManager } from "./MockEvents";
 
 // This class replaces internal SpokePoolClient functionality, enabling the
 // user to bypass on-chain queries and inject ethers Event objects directly.
 export class MockSpokePoolClient extends SpokePoolClient {
+  private eventManager: EventManager;
   private events: Event[] = [];
-  public readonly minBlockRange = 10;
   // Allow tester to set the numberOfDeposits() returned by SpokePool at a block height.
   public depositIdAtBlock: number[] = [];
-  private eventManager: EventManager;
+  public numberOfDeposits = 0;
 
   constructor(logger: winston.Logger, spokePool: Contract, chainId: number, deploymentBlock: number) {
     super(logger, spokePool, null, chainId, deploymentBlock);
     this.latestBlockNumber = deploymentBlock;
-    this.eventManager = new EventManager(this.eventSignatures);
+    this.eventManager = getEventManager(chainId, this.eventSignatures, deploymentBlock);
   }
 
   addEvent(event: Event): void {
@@ -51,7 +52,7 @@ export class MockSpokePoolClient extends SpokePoolClient {
     eventsToQuery.push("RefundRequested");
 
     // Generate new "on chain" responses.
-    const latestBlockNumber = this.latestBlockNumber + random(this.minBlockRange, this.minBlockRange * 5, false);
+    const latestBlockNumber = this.eventManager.blockNumber;
     const currentTime = Math.floor(Date.now() / 1000);
 
     // Ensure an array for every requested event exists, in the requested order.
@@ -94,8 +95,12 @@ export class MockSpokePoolClient extends SpokePoolClient {
   generateDeposit(deposit: DepositWithBlock): Event {
     const event = "FundsDeposited";
 
-    const { depositId, blockNumber, transactionIndex } = deposit;
-    let { depositor, destinationChainId } = deposit;
+    const { blockNumber, transactionIndex } = deposit;
+    let { depositId, depositor, destinationChainId } = deposit;
+    depositId = depositId ?? this.numberOfDeposits;
+    assert(depositId >= this.numberOfDeposits, `${depositId} < ${this.numberOfDeposits}`);
+    this.numberOfDeposits = depositId + 1;
+
     destinationChainId = destinationChainId ?? random(1, 42161, false);
     depositor = depositor ?? randomAddress();
 
@@ -217,7 +222,6 @@ export class MockSpokePoolClient extends SpokePoolClient {
       address: this.spokePool.address,
       topics: topics.map((topic) => topic.toString()),
       args,
-      blockNumber: this.latestBlockNumber + 1,
     });
   }
 }
