@@ -29,7 +29,12 @@ export type UBABundleTokenState = {
 
 export type ModifiedUBAFlow = {
   flow: UbaFlow;
-} & ClosingBalanceReturnType;
+  systemFee: SystemFeeResult;
+  relayerFee: RelayerFeeResult;
+  runningBalance: BigNumber;
+  incentiveBalance: BigNumber;
+  netRunningBalanceAdjustment: BigNumber;
+};
 
 type UBABundleConfig = {
   ubaConfig: UBAConfig;
