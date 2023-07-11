@@ -23,7 +23,6 @@ describe("UBA Fee Calculations", () => {
       {
         default: toBN("300000000000000"),
       },
-      toBN(0),
       {
         default: [
           [toBN("100000"), parseUnits("-0.4", 18)],
