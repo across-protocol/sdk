@@ -312,7 +312,6 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
           // eslint-disable-next-line @typescript-eslint/no-unused-vars
           const { value: _value, key: _key, ...passedArgs } = args;
           this.ubaConfigUpdates.push({ ...passedArgs, config: ubaConfig, l1Token });
-          sortEventsAscendingInPlace(this.ubaConfigUpdates);
         }
 
         // Drop value and key before passing args.
@@ -377,6 +376,7 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
         continue;
       }
     }
+    sortEventsAscendingInPlace(this.ubaConfigUpdates);
 
     // Save new Global config updates.
     for (let i = 0; i < updatedGlobalConfigEvents.length; i++) {
