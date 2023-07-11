@@ -34,7 +34,7 @@ import {
 } from "../../interfaces";
 import { across } from "@uma/sdk";
 import { parseUBAConfigFromOnChain } from "./ConfigStoreParsingUtilities";
-import { BaseAbstractClient } from "./BaseAbstractClient";
+import { BaseAbstractClient } from "../BaseAbstractClient";
 
 type _ConfigStoreUpdate = {
   success: true;
