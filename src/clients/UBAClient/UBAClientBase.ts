@@ -7,7 +7,6 @@ import {
   SystemFeeResult,
   RelayerFeeResult,
   UBABundleState,
-  UBAChainState,
   UBALPFeeOverride,
   UBAClientState,
   ModifiedUBAFlow,
@@ -313,7 +312,12 @@ export abstract class BaseUBAClient extends BaseAbstractClient {
     return Object.fromEntries(transformation.filter(([, result]) => !result.amountTooLow));
   }
 
-  public update(state?: { [chainId: number]: UBAChainState }): Promise<void> {
+  /**
+   * Updates this UBAClient with a new state instance.
+   * @param state The new state to include. If `state` is undefined/null, then it will be ignored
+   * @returns void.
+   */
+  public update(state?: UBAClientState): Promise<void> {
     if (state) {
       this.bundleStates = state;
     }
