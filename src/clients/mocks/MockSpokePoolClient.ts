@@ -99,7 +99,7 @@ export class MockSpokePoolClient extends SpokePoolClient {
     let { depositId, depositor, destinationChainId } = deposit;
     depositId = depositId ?? this.numberOfDeposits;
     assert(depositId >= this.numberOfDeposits, `${depositId} < ${this.numberOfDeposits}`);
-    this.numberOfDeposits = ++depositId;
+    this.numberOfDeposits = depositId + 1;
 
     destinationChainId = destinationChainId ?? random(1, 42161, false);
     depositor = depositor ?? randomAddress();
