@@ -155,7 +155,7 @@ export function getUBAFeeConfig(
   }
   const ubaConfig = configClient.getUBAConfig(token, blockNumber === "latest" ? undefined : blockNumber);
   if (ubaConfig === undefined) {
-    throw new Error("UBA config not found");
+    throw new Error(`UBA config for blockTag ${blockNumber} not found`);
   }
 
   const omegaDefault = ubaConfig.omega["default"];
