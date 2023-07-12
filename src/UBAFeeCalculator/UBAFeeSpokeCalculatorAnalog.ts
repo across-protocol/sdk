@@ -8,13 +8,17 @@ import { min, toBN } from "../utils";
 import { computePiecewiseLinearFunction } from "./UBAFeeUtility";
 
 /**
- * Calculates the running balance for a given token on a spoke chain
- * @param flows The flows to calculate the running balance for
- * @param lastValidatedRunningBalance The last validated running balance for the token
- * @param lastValidatedIncentiveRunningBalance The last validated incentive running balance for the token
+ * Calculates the running balances for a given token on a spoke chain produced by the set of flows and beginning with
+ * the validated running balances.
+ * @param flows The flows to calculate the running balance for. These must all be within the same root bundle period
+ * follows the one that snapshotted the last validated running balances.
+ * @param lastValidatedRunningBalance The last validated running balance for the token and chain ID validated in
+ * a root bundle in the HubPool.
+ * @param lastValidatedIncentiveRunningBalance The last validated incentive running balance for the token and chain ID
+ * validated in a root bundle in the HubPool.
  * @param chainId The chain id of the spoke chain
  * @param tokenSymbol The token symbol of the token to calculate the running balance for
- * @param config The UBAConfig to use for the calculation
+ * @param config The UBAConfig to use for the calculation. This must apply to all `flows`.
  * @returns The running balance for the token
  */
 export function calculateHistoricalRunningBalance(
@@ -43,8 +47,8 @@ export function calculateHistoricalRunningBalance(
         flow.amount,
         isUbaInflow(flow) ? "inflow" : "outflow",
         arr.slice(0, idx),
-        acc.runningBalance,
-        acc.incentiveBalance,
+        lastValidatedRunningBalance,
+        lastValidatedIncentiveRunningBalance,
         chainId,
         tokenSymbol,
         config
@@ -104,6 +108,21 @@ export function calculateHistoricalRunningBalance(
   return historicalResult;
 }
 
+/**
+ * Returns the balancing fee for a given event that produces a flow of `flowType` of size `amount`.
+ * @param amount Amount of inflow or outflow produced by event that we're computing a balancing fee for.
+ * @param flowType Inflow or Outflow.
+ * @param previousFlows The set of flows that precede the input event that are older than the last validated root
+ * bundle.
+ * @param lastValidatedRunningBalance The last validated running balance for the token and chain ID validated in
+ * a root bundle. This is used only to pass back to the `calculateHistoricalRunningBalance` function in order to
+ * compute the latest running balances prior to this event.
+ * @param lastValidatedIncentiveRunningBalance See comment for `lastValidatedRunningBalance`.
+ * @param chainId
+ * @param tokenSymbol
+ * @param config
+ * @returns
+ */
 export function getEventFee(
   amount: BigNumber,
   flowType: "inflow" | "outflow",
