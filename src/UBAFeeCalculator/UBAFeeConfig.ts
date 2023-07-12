@@ -45,6 +45,16 @@ class UBAConfig {
   private readonly lpGammaFunction: DefaultOverrideStructure<FlowTupleParameters, ChainId>;
 
   /**
+   * A DAO controlled variable to track any donations made to the incentivePool liquidity
+   */
+  private readonly incentivePoolAdjustment: BigNumber;
+
+  /**
+   * Used to scale rewards when a fee is larger than the incentive balance
+   */
+  private readonly ubaRewardMultiplier: BigNumber;
+
+  /**
    * Instantiate a new UBA Config object
    * @param baselineFee A baseline fee that is applied to all transactions to allow LPs to earn a fee
    * @param balancingFee A record of piecewise functions for each chain and token that define the balancing fee to ensure either a positive or negative penalty to bridging a token to a chain that is either under or over utilized
@@ -55,12 +65,16 @@ class UBAConfig {
     baselineFee: DefaultOverrideStructure<BigNumber, RouteCombination>,
     balancingFee: DefaultOverrideStructure<FlowTupleParameters, ChainId>,
     balanceTriggerThreshold: Record<ChainTokenCombination, ThresholdBoundType>,
-    lpGammaFunction: DefaultOverrideStructure<FlowTupleParameters, ChainId>
+    lpGammaFunction: DefaultOverrideStructure<FlowTupleParameters, ChainId>,
+    incentivePoolAdjustment: BigNumber,
+    ubaRewardMultiplier: BigNumber
   ) {
     this.baselineFee = baselineFee;
     this.balancingFee = balancingFee;
     this.balanceTriggerThreshold = balanceTriggerThreshold;
     this.lpGammaFunction = lpGammaFunction;
+    this.incentivePoolAdjustment = incentivePoolAdjustment;
+    this.ubaRewardMultiplier = ubaRewardMultiplier;
   }
 
   /**
@@ -101,6 +115,22 @@ class UBAConfig {
   public getBalanceTriggerThreshold(chainId: number, tokenSymbol: string): ThresholdBoundType {
     const chainTokenCombination = `${chainId}-${tokenSymbol}`;
     return this.balanceTriggerThreshold[chainTokenCombination] ?? this.balanceTriggerThreshold;
+  }
+
+  /**
+   * Get the incentive pool adjustment
+   * @returns The incentive pool adjustment
+   */
+  public getIncentivePoolAdjustment(): BigNumber {
+    return this.incentivePoolAdjustment;
+  }
+
+  /**
+   * Get the UBA reward multiplier
+   * @returns The UBA reward multiplier
+   */
+  public getUbaRewardMultiplier(): BigNumber {
+    return this.ubaRewardMultiplier;
   }
 }
 
