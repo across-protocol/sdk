@@ -42,7 +42,9 @@ describe("UBA Fee Calculations", () => {
         ],
       },
       {},
-      { default: [] }
+      { default: [] },
+      {},
+      {}
     );
     tuples = config.getBalancingFeeTuples(0);
   });
