@@ -122,10 +122,10 @@ class UBAConfig {
   /**
    * Get the incentive pool adjustment
    * @param chainId The chain id
-   * @returns The incentive pool adjustment
+   * @returns The incentive pool adjustment. Defaults to 0 if not set
    */
   public getIncentivePoolAdjustment(chainId: string): BigNumber {
-    return this.incentivePoolAdjustment[chainId] ?? 0;
+    return this.incentivePoolAdjustment[chainId] ?? 0; // Default to 0 if not set
   }
 
   /**
