@@ -145,7 +145,7 @@ export function getEventFee(
   );
 
   // Apply hardcoded multiplier if incentive fee is a reward instead of a penalty
-  if (balancingFee.lt(0)) {
+  if (balancingFee.gt(0)) {
     // This should never error. `getUbaRewardMultiplier` should default to 1
     balancingFee = balancingFee.mul(config.getUbaRewardMultiplier(chainId.toString()));
   }
