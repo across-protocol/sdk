@@ -4,7 +4,7 @@ import { BigNumber } from "ethers";
 import { UbaFlow, isUbaInflow } from "../interfaces";
 import { TokenRunningBalanceWithNetSend, UBAActionType, UBAFlowFee } from "./UBAFeeTypes";
 import UBAConfig from "./UBAFeeConfig";
-import { toBN } from "../utils";
+import { fixedPointAdjustment, toBN } from "../utils";
 import { computePiecewiseLinearFunction } from "./UBAFeeUtility";
 
 /**
@@ -138,11 +138,16 @@ export function getEventFee(
 
   // Next, we'll need to compute the first balancing fee from the running balance of the spoke
   // to the running balance of the spoke + the amount
-  const balancingFee = computePiecewiseLinearFunction(
+  let balancingFee = computePiecewiseLinearFunction(
     flowCurve,
     runningBalance,
     amount.mul(flowType === "inflow" ? 1 : -1)
   );
+
+  // We need to account for the balancing fee being greater than the incentive balance
+  if (balancingFee.gt(lastValidatedIncentiveRunningBalance)) {
+    balancingFee = balancingFee.mul(config.getUbaRewardMultiplier()).div(fixedPointAdjustment);
+  }
 
   // We can now return the fee
   return {
