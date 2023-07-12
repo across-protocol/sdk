@@ -10,8 +10,7 @@ import { computePiecewiseLinearFunction } from "./UBAFeeUtility";
 /**
  * Calculates the running balances for a given token on a spoke chain produced by the set of flows and beginning with
  * the validated running balances.
- * @param flows The flows to calculate the running balance for. These must all be within the same root bundle period
- * follows the one that snapshotted the last validated running balances.
+ * @param flows The flows to calculate the running balance for.
  * @param lastValidatedRunningBalance The last validated running balance for the token and chain ID validated in
  * a root bundle in the HubPool.
  * @param lastValidatedIncentiveRunningBalance The last validated incentive running balance for the token and chain ID
