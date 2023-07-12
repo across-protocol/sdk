@@ -124,7 +124,7 @@ export function getEventFee(
   // #############################################
 
   // We'll need to now compute the concept of the running balance of the spoke
-  const { runningBalance } = calculateHistoricalRunningBalance(
+  const { runningBalance, incentiveBalance } = calculateHistoricalRunningBalance(
     previousFlows,
     lastValidatedRunningBalance,
     lastValidatedIncentiveRunningBalance,
@@ -145,11 +145,8 @@ export function getEventFee(
   );
 
   // We need to account for the balancing fee being greater than the incentive balance
-  if (balancingFee.gt(lastValidatedIncentiveRunningBalance)) {
-    const discountFactor = min(
-      BigNumber.from(1),
-      balancingFee.sub(lastValidatedIncentiveRunningBalance).div(balancingFee)
-    );
+  if (balancingFee.gt(incentiveBalance)) {
+    const discountFactor = min(BigNumber.from(1), balancingFee.sub(incentiveBalance).div(balancingFee));
     balancingFee = balancingFee.mul(BigNumber.from(1).sub(discountFactor));
   }
 
