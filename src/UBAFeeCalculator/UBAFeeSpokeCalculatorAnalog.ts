@@ -61,7 +61,11 @@ export function calculateHistoricalRunningBalance(
       // organically grow the running balance to. If the running balance exceeds the trigger hurdle,
       // we need to return the trigger hurdle as the running balance because at this point the dataworker
       // will be triggered to rebalance the running balance.
-      if (upperBoundTriggerHurdle !== undefined && resultant.runningBalance.gt(upperBoundTriggerHurdle.threshold)) {
+      if (
+        upperBoundTriggerHurdle !== undefined &&
+        !upperBoundTriggerHurdle.threshold.isZero() &&
+        resultant.runningBalance.gt(upperBoundTriggerHurdle.threshold)
+      ) {
         // Update the net running balance adjustment to reflect the difference between the running balance
         // and the trigger hurdle
         resultant.netRunningBalanceAdjustment = resultant.netRunningBalanceAdjustment.add(
@@ -78,6 +82,7 @@ export function calculateHistoricalRunningBalance(
       // will be triggered to rebalance the running balance.
       else if (
         lowerBoundTriggerHurdle !== undefined &&
+        !lowerBoundTriggerHurdle.threshold.isZero() &&
         resultant.runningBalance.lt(lowerBoundTriggerHurdle.threshold)
       ) {
         // Update the net running balance adjustment to reflect the difference between the running balance
