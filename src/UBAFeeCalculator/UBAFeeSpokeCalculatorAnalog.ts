@@ -147,12 +147,6 @@ export function getEventFee(
   // This should never error. `getUbaRewardMultiplier` should default to 1
   const rewardMultiplier = config.getUbaRewardMultiplier(chainId.toString());
 
-  // We need to account for the balancing fee being greater than the incentive balance
-  if (balancingFee.gt(incentiveBalance)) {
-    const discountFactor = min(BigNumber.from(1), balancingFee.sub(incentiveBalance).div(balancingFee));
-    balancingFee = balancingFee.mul(BigNumber.from(1).sub(discountFactor));
-  }
-
   if (balancingFee.gt(incentiveBalance)) {
     const discountFactor = min(BigNumber.from(1), balancingFee.sub(incentiveBalance).div(balancingFee));
     balancingFee = balancingFee.mul(BigNumber.from(1).sub(discountFactor));
