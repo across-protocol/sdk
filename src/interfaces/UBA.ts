@@ -29,5 +29,3 @@ export type UBASpokeBalanceType = {
 };
 
 export type UBAFeeResult = { depositorFee: BigNumber; refundFee: BigNumber; totalUBAFee: BigNumber };
-
-export type UBAFlowRange = { startIndex: number; endIndex: number };

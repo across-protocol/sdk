@@ -259,7 +259,7 @@ export async function updateUBAClient(
           const {
             blockNumber: startingBundleBlockNumber,
             spokePoolBalance,
-            incentiveBalance,
+            incentiveBalance: initialIncentiveBalance,
           } = getOpeningTokenBalances(chainId, l1TokenAddress, hubPoolClient, endingBundleBlockNumber);
           const tokenMappingLookup = (
             TOKEN_SYMBOLS_MAP as Record<string, { addresses: { [x: number]: string }; decimals: number }>
@@ -283,7 +283,7 @@ export async function updateUBAClient(
             flows: [],
             openingBlockNumberForSpokeChain: startingBundleBlockNumber,
             openingBalance: spokePoolBalance,
-            openingIncentiveBalance: incentiveBalance,
+            openingIncentiveBalance: initialIncentiveBalance,
             config: {
               ubaConfig: getUBAFeeConfig(
                 hubPoolClient.configStoreClient,
@@ -311,31 +311,30 @@ export async function updateUBAClient(
           for (const flow of recentFlows) {
             const previousFlows = constructedBundle.flows.map((flow) => flow.flow);
             const previousFlowsIncludingCurrent = previousFlows.concat(flow);
-            const { runningBalance, incentiveBalance, netRunningBalanceAdjustment } =
-              analog.calculateHistoricalRunningBalance(
-                previousFlowsIncludingCurrent,
-                constructedBundle.openingBalance,
-                constructedBundle.openingIncentiveBalance,
-                chainId,
-                tokenSymbol,
-                constructedBundle.config.ubaConfig
-              );
-            const { balancingFee: depositBalancingFee } = getDepositFee(
-              flow.amount,
-              previousFlows,
+            const {
+              runningBalance: lastRunningBalance,
+              incentiveBalance: lastIncentiveBalance,
+              netRunningBalanceAdjustment,
+            } = analog.calculateHistoricalRunningBalance(
+              previousFlowsIncludingCurrent,
               constructedBundle.openingBalance,
               constructedBundle.openingIncentiveBalance,
               chainId,
               tokenSymbol,
               constructedBundle.config.ubaConfig
             );
+            const { balancingFee: depositBalancingFee } = getDepositFee(
+              flow.amount,
+              lastRunningBalance,
+              lastIncentiveBalance,
+              chainId,
+              constructedBundle.config.ubaConfig
+            );
             const { balancingFee: relayerBalancingFee } = getRefundFee(
               flow.amount,
-              previousFlows,
-              constructedBundle.openingBalance,
-              constructedBundle.openingIncentiveBalance,
+              lastRunningBalance,
+              lastIncentiveBalance,
               chainId,
-              tokenSymbol,
               constructedBundle.config.ubaConfig
             );
             const lpFee = await computeLpFeeForRefresh(
@@ -361,8 +360,8 @@ export async function updateUBAClient(
 
             constructedBundle.flows.push({
               flow,
-              runningBalance,
-              incentiveBalance,
+              runningBalance: lastRunningBalance,
+              incentiveBalance: lastIncentiveBalance,
               netRunningBalanceAdjustment,
               relayerFee: {
                 relayerBalancingFee,

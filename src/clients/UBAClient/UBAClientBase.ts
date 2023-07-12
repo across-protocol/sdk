@@ -144,13 +144,19 @@ export abstract class BaseUBAClient extends BaseAbstractClient {
     const flows = (specificBundleState?.flows ?? []).filter(
       (flow) => flow.flow.blockNumber <= balancingActionBlockNumber
     );
-    const { balancingFee } = analog.feeCalculationFunctionsForUBA[feeType](
-      amount,
+    const { runningBalance, incentiveBalance } = analog.calculateHistoricalRunningBalance(
       flows.map(({ flow }) => flow),
       specificBundleState.openingBalance,
       specificBundleState.openingIncentiveBalance,
       chainId,
       tokenSymbol,
+      specificBundleState.config.ubaConfig
+    );
+    const { balancingFee } = analog.feeCalculationFunctionsForUBA[feeType](
+      amount,
+      runningBalance,
+      incentiveBalance,
+      chainId,
       specificBundleState.config.ubaConfig
     );
     return {
