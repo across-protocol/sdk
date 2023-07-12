@@ -33,15 +33,10 @@ export function calculateHistoricalRunningBalance(
   const { upperBound: upperBoundTriggerHurdle, lowerBound: lowerBoundTriggerHurdle } =
     config.getBalanceTriggerThreshold(chainId, tokenSymbol);
 
-  // If the last validated running balance is undefined, we need to compute the running balance from scratch
-  // This is the case when the UBA Fee Calculator is first initialized or run on a range
-  // that we haven't computed the running balance for yet
   const historicalResult: TokenRunningBalanceWithNetSend = flows.reduce(
     (acc, flow) => {
-      // Compute the balancing fee for the flow
-      // We are going to use as the fill-in for the incentive fee. We must compute it here
-      // because the incentive fee is dependent on the running balance of the spoke
-      // and we need to compute the fee on the previous flows not including the current flow
+      // Compute the balancing fee for the flow. This depends on the running balance as of this flow, which
+      // is essentially the lastValidatedRunningBalance plus any accumulations from the flows preceding this one.
       const { balancingFee: incentiveFee } = getEventFee(
         flow.amount,
         isUbaInflow(flow) ? "inflow" : "outflow",
@@ -51,6 +46,7 @@ export function calculateHistoricalRunningBalance(
         config
       );
 
+      // Now, add this flow's amount to the accumulated running balance.
       // If the flow is an inflow, we need to add the amount to the running balance
       // If the flow is an outflow, we need to subtract the amount from the running balance
       // This is reflected in the incentive balance as well
