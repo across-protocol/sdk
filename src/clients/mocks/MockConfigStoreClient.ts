@@ -1,3 +1,4 @@
+import assert from "assert";
 import winston from "winston";
 import { Contract, Event, ethers } from "ethers";
 import { EventSearchConfig, utf8ToHex } from "../../utils";
@@ -6,7 +7,7 @@ import { EventManager, getEventManager } from "./MockEvents";
 
 export class MockConfigStoreClient extends AcrossConfigStoreClient {
   public configStoreVersion = DEFAULT_CONFIG_STORE_VERSION;
-  private eventManager: EventManager;
+  private eventManager: EventManager | null;
   private events: Event[] = [];
 
   // Event signatures. Not strictly required, but they make generated events more recognisable.
@@ -23,11 +24,10 @@ export class MockConfigStoreClient extends AcrossConfigStoreClient {
     configStoreVersion: number,
     enabledChainIds: number[],
     chainId = 1,
-    public readonly mockUpdate = false
+    mockUpdate = false
   ) {
     super(logger, configStore, eventSearchConfig, configStoreVersion, enabledChainIds);
-    this.eventManager = getEventManager(chainId, this.eventSignatures);
-    this.configStoreVersion = configStoreVersion;
+    this.eventManager = mockUpdate ? getEventManager(chainId, this.eventSignatures) : null;
   }
 
   getConfigStoreVersionForBlock(): number {
@@ -48,7 +48,7 @@ export class MockConfigStoreClient extends AcrossConfigStoreClient {
 
   async _update(): Promise<ConfigStoreUpdate> {
     // Backwards compatibility for pre-existing MockConfigStoreClient users.
-    if (!this.mockUpdate) {
+    if (this.eventManager === null) {
       return super._update();
     }
 
@@ -100,6 +100,8 @@ export class MockConfigStoreClient extends AcrossConfigStoreClient {
   }
 
   private generateConfig(event: string, key: string, value: string, blockNumber?: number): Event {
+    assert(this.eventManager !== null);
+
     const topics = [key, value];
     const args = { key, value };
 
