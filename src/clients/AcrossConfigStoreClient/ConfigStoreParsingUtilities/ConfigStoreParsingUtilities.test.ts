@@ -4,6 +4,8 @@ const validConfigStore: { reason: string; value: unknown }[] = [
   {
     reason: "valid config",
     value: {
+      incentivePoolAdjustment: "23",
+      ubaRewardMultiplier: "23",
       alpha: {
         default: "23",
       },
