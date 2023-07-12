@@ -125,7 +125,7 @@ class UBAConfig {
    * @returns The incentive pool adjustment
    */
   public getIncentivePoolAdjustment(chainId: string): BigNumber {
-    return this.incentivePoolAdjustment[chainId];
+    return this.incentivePoolAdjustment[chainId] ?? 0;
   }
 
   /**
