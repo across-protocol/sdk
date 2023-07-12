@@ -306,6 +306,7 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
 
         // For now, we'll need to check if this value is undefined. In the
         // future, we should make this a required field.
+        // FIXME remove false
         // eslint-disable-next-line no-constant-condition
         if (parsedValue?.uba !== undefined && false) {
           // Parse and store UBA config
