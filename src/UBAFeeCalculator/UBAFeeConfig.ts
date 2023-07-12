@@ -22,11 +22,6 @@ class UBAConfig {
    */
   private readonly baselineFee: DefaultOverrideStructure<BigNumber, RouteCombination>;
   /**
-   * A record of piecewise functions for each chain that define the utilization fee to ensure that
-   * the bridge responds to periods of high utilization
-   */
-  private readonly utilizationFee: BigNumber;
-  /**
    * A record of piecewise functions for each chain and token that define the balancing fee to ensure
    * either a positive or negative penalty to bridging a token to a chain that is either under or
    * over utilized
@@ -52,20 +47,17 @@ class UBAConfig {
   /**
    * Instantiate a new UBA Config object
    * @param baselineFee A baseline fee that is applied to all transactions to allow LPs to earn a fee
-   * @param utilizationFee A record of piecewise functions for each chain that define the utilization fee to ensure that the bridge responds to periods of high utilization
    * @param balancingFee A record of piecewise functions for each chain and token that define the balancing fee to ensure either a positive or negative penalty to bridging a token to a chain that is either under or over utilized
    * @param balanceTriggerThreshold A record of boundry values for each chain and token that define the threshold for when the running balance should be balanced back to a fixed amount. Due to the fact that this type of operation is based on a heuristic and is considered a non-event transient property of the protocol, the threshold must be computed based on the current running balance of the spoke from the last validated running balance.
    * @param lpGammaFunction A record of piecewise functions for each chain that define the utilization fee to ensure that the bridge responds to periods of high utilization
    */
   constructor(
     baselineFee: DefaultOverrideStructure<BigNumber, RouteCombination>,
-    utilizationFee: BigNumber,
     balancingFee: DefaultOverrideStructure<FlowTupleParameters, ChainId>,
     balanceTriggerThreshold: Record<ChainTokenCombination, ThresholdBoundType>,
     lpGammaFunction: DefaultOverrideStructure<FlowTupleParameters, ChainId>
   ) {
     this.baselineFee = baselineFee;
-    this.utilizationFee = utilizationFee;
     this.balancingFee = balancingFee;
     this.balanceTriggerThreshold = balanceTriggerThreshold;
     this.lpGammaFunction = lpGammaFunction;
@@ -80,15 +72,6 @@ class UBAConfig {
   public getBaselineFee(destinationChainId: number, originChainId: number): BigNumber {
     const routeCombination = `${originChainId}-${destinationChainId}`;
     return this.baselineFee.override?.[routeCombination] ?? this.baselineFee.default;
-  }
-
-  /**
-   * @description Get the utilization fee for a given chain
-   * @returns The utilization fee
-   */
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  public getUtilizationFee(): BigNumber {
-    return this.utilizationFee;
   }
 
   /**
@@ -117,7 +100,7 @@ class UBAConfig {
    */
   public getBalanceTriggerThreshold(chainId: number, tokenSymbol: string): ThresholdBoundType {
     const chainTokenCombination = `${chainId}-${tokenSymbol}`;
-    return this.balanceTriggerThreshold[chainTokenCombination] ?? {};
+    return this.balanceTriggerThreshold[chainTokenCombination] ?? this.balanceTriggerThreshold;
   }
 }
 

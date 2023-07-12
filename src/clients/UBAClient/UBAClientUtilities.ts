@@ -28,6 +28,7 @@ import { analog } from "../../UBAFeeCalculator";
 import { RelayFeeCalculator, RelayFeeCalculatorConfig } from "../../relayFeeCalculator";
 import { TOKEN_SYMBOLS_MAP } from "@across-protocol/contracts-v2";
 import { getDepositFee, getRefundFee } from "../../UBAFeeCalculator/UBAFeeSpokeCalculatorAnalog";
+import { AcrossConfigStoreClient } from "../AcrossConfigStoreClient";
 
 /**
  * Compute the realized LP fee for a given amount.
@@ -119,27 +120,80 @@ export function computeLpFeeStateful(
   return max(toBN(0), baselineFee.add(utilizationIntegral.div(utilizationDelta)));
 }
 
-// THIS IS A STUB FOR NOW
-// TODO: Load from configStoreClient's memory. Should be synchronous call.
+/**
+ * Omit the default key from a dictionary
+ * @param obj The dictionary to omit the default key from
+ * @returns The dictionary without the default key
+ * @note This is used to omit the default key from the UBA config
+ */
+function omitDefaultKeys<T>(obj: Record<string, T>): Record<string, T> {
+  return Object.keys(obj).reduce((acc, key) => {
+    if (key !== "default") {
+      return {
+        ...acc,
+        [key]: obj[key],
+      };
+    }
+    return acc;
+  }, {});
+}
+
+function collapseParallelArrays<T, U>(arr1: T[], arr2: U[]): [T, U][] {
+  return arr1.map((val, index) => [val, arr2[index]]);
+}
+
 export function getUBAFeeConfig(
+  configClient: AcrossConfigStoreClient,
   chainId: number,
   token: string,
   blockNumber: number | "latest" = "latest"
 ): UBAFeeConfig {
-  chainId;
-  token;
-  blockNumber;
+  // If the config client has not been updated at least
+  // once, throw
+  if (!configClient.isUpdated) {
+    throw new Error("Config client not updated");
+  }
+  const ubaConfig = configClient.getUBAConfig(token, blockNumber === "latest" ? undefined : blockNumber);
+  if (ubaConfig === undefined) {
+    throw new Error(`UBA config for blockTag ${blockNumber} not found`);
+  }
+
+  const omegaDefault = ubaConfig.omega["default"];
+  const omegaOverride = omitDefaultKeys(ubaConfig.omega);
+
+  const gammaDefault = ubaConfig.gamma["default"];
+  const gammaOverride = omitDefaultKeys(ubaConfig.gamma);
+
+  const threshold = ubaConfig.rebalance[String(chainId)];
+
   return new UBAFeeConfig(
     {
-      default: toBN(0),
+      default: ubaConfig.alpha["default"],
+      override: omitDefaultKeys(ubaConfig.alpha),
     },
-    toBN(0),
     {
-      default: [],
+      default: collapseParallelArrays(omegaDefault.cutoff, omegaDefault.value),
+      override: Object.fromEntries(
+        Object.entries(omegaOverride).map(([key, value]) => [key, collapseParallelArrays(value.cutoff, value.value)])
+      ),
     },
-    {},
     {
-      default: [],
+      [chainId]: {
+        lowerBound: {
+          target: threshold.target_lower,
+          threshold: threshold.threshold_lower,
+        },
+        upperBound: {
+          target: threshold.target_upper,
+          threshold: threshold.threshold_upper,
+        },
+      },
+    },
+    {
+      default: collapseParallelArrays(gammaDefault.cutoff, gammaDefault.value),
+      override: Object.fromEntries(
+        Object.entries(gammaOverride).map(([key, value]) => [key, collapseParallelArrays(value.cutoff, value.value)])
+      ),
     }
   );
 }
@@ -229,7 +283,12 @@ export async function updateUBAClient(
             openingBalance: spokePoolBalance,
             openingIncentiveBalance: incentiveBalance,
             config: {
-              ubaConfig: getUBAFeeConfig(chainId, tokenSymbol, startingBundleBlockNumber),
+              ubaConfig: getUBAFeeConfig(
+                hubPoolClient.configStoreClient,
+                chainId,
+                tokenSymbol,
+                startingBundleBlockNumber
+              ),
               tokenDecimals,
               hubBalance,
               hubEquity,

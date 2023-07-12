@@ -1,6 +1,6 @@
 import assert from "assert";
 import { utils } from "@uma/sdk";
-import { isError } from "../typeguards";
+import { isError } from "../../typeguards";
 import {
   isDefined,
   spreadEvent,
@@ -14,7 +14,8 @@ import {
   toBN,
   max,
   sortEventsAscending,
-} from "../utils";
+  findLast,
+} from "../../utils";
 import { Contract, BigNumber, Event } from "ethers";
 import winston from "winston";
 
@@ -28,9 +29,12 @@ import {
   RouteRateModelUpdate,
   ConfigStoreVersionUpdate,
   DisabledChainsUpdate,
-} from "../interfaces";
+  UBAConfigUpdates,
+  UBAParsedConfigType,
+} from "../../interfaces";
 import { across } from "@uma/sdk";
-import { BaseAbstractClient } from "./BaseAbstractClient";
+import { parseUBAConfigFromOnChain } from "./ConfigStoreParsingUtilities";
+import { BaseAbstractClient } from "../BaseAbstractClient";
 
 type _ConfigStoreUpdate = {
   success: true;
@@ -57,6 +61,7 @@ export const GLOBAL_CONFIG_STORE_KEYS = {
 
 export class AcrossConfigStoreClient extends BaseAbstractClient {
   public cumulativeRateModelUpdates: across.rateModel.RateModelEvent[] = [];
+  public ubaConfigUpdates: UBAConfigUpdates[] = [];
   public cumulativeRouteRateModelUpdates: RouteRateModelUpdate[] = [];
   public cumulativeTokenTransferUpdates: L1TokenTransferThreshold[] = [];
   public cumulativeMaxRefundCountUpdates: GlobalConfigUpdate[] = [];
@@ -299,6 +304,18 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
         // class itself to work with the generalized ConfigStore.
         const l1Token = args.key;
 
+        // For now, we'll need to check if this value is undefined. In the
+        // future, we should make this a required field.
+        // FIXME remove false
+        // eslint-disable-next-line no-constant-condition
+        if (parsedValue?.uba !== undefined && false) {
+          // Parse and store UBA config
+          const ubaConfig = parseUBAConfigFromOnChain(parsedValue.uba);
+          // eslint-disable-next-line @typescript-eslint/no-unused-vars
+          const { value: _value, key: _key, ...passedArgs } = args;
+          this.ubaConfigUpdates.push({ ...passedArgs, config: ubaConfig, l1Token });
+        }
+
         // Drop value and key before passing args.
         // eslint-disable-next-line @typescript-eslint/no-unused-vars
         const { value, key, ...passedArgs } = args;
@@ -361,6 +378,7 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
         continue;
       }
     }
+    sortEventsAscendingInPlace(this.ubaConfigUpdates);
 
     // Save new Global config updates.
     for (let i = 0; i < updatedGlobalConfigEvents.length; i++) {
@@ -440,5 +458,19 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
       const target = this.getSpokeTargetBalancesForBlock(l1TokenAddress, chainId, blockNumber).target;
       return { spokeChainId: chainId, target };
     });
+  }
+
+  /**
+   * Retrieves a UBA config for a given L1 token address and block number.
+   * @param l1TokenAddress The L1 token address to retrieve the config for
+   * @param blockNumber The block number to retrieve the config for. If not provided, the latest config will be returned.
+   * @returns The UBA config for the given L1 token address and block number, or undefined if no config exists.
+   */
+  getUBAConfig(l1TokenAddress: string, blockNumber?: number): UBAParsedConfigType | undefined {
+    const config = findLast(
+      this.ubaConfigUpdates,
+      (config) => config.l1Token === l1TokenAddress && (!blockNumber || config.blockNumber <= blockNumber)
+    );
+    return config?.config;
   }
 }
