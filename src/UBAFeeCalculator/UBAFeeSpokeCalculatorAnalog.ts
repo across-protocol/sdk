@@ -4,7 +4,7 @@ import { BigNumber } from "ethers";
 import { UbaFlow, isUbaInflow } from "../interfaces";
 import { TokenRunningBalanceWithNetSend, UBAActionType, UBAFlowFee } from "./UBAFeeTypes";
 import UBAConfig from "./UBAFeeConfig";
-import { fixedPointAdjustment, toBN } from "../utils";
+import { min, toBN } from "../utils";
 import { computePiecewiseLinearFunction } from "./UBAFeeUtility";
 
 /**
@@ -146,7 +146,11 @@ export function getEventFee(
 
   // We need to account for the balancing fee being greater than the incentive balance
   if (balancingFee.gt(lastValidatedIncentiveRunningBalance)) {
-    balancingFee = balancingFee.mul(config.getUbaRewardMultiplier(chainId.toString())).div(fixedPointAdjustment);
+    const discountFactor = min(
+      BigNumber.from(1),
+      balancingFee.sub(lastValidatedIncentiveRunningBalance).div(balancingFee)
+    );
+    balancingFee = balancingFee.mul(BigNumber.from(1).sub(discountFactor));
   }
 
   // We can now return the fee

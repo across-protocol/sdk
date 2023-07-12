@@ -131,10 +131,10 @@ class UBAConfig {
   /**
    * Get the UBA reward multiplier
    * @param chainId The chain id
-   * @returns The UBA reward multiplier
+   * @returns The UBA reward multiplier. Defaults to 1 if not set
    */
   public getUbaRewardMultiplier(chainId: string): BigNumber {
-    return this.ubaRewardMultiplier[chainId];
+    return this.ubaRewardMultiplier[chainId] ?? 1; // Default to 1 if not set
   }
 }
 
