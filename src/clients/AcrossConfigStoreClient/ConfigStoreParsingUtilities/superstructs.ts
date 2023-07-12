@@ -10,7 +10,11 @@ const CorrectRoutingRule = refine(
     /^\d+[-]\d+$/.test(value) || value === "default"
 );
 
+const NumericStringRule = refine(string(), "NumericStringRule", (value) => /^\d+$/.test(value));
+
 export const UBA_CONFIG_ONCHAIN_SCHEMA = object({
+  incentivePoolAdjustment: record(NumericStringRule, string()),
+  ubaRewardMultiplier: record(NumericStringRule, string()),
   alpha: union([
     object({
       default: string(),

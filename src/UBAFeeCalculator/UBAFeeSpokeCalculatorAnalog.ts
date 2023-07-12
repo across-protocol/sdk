@@ -4,7 +4,7 @@ import { BigNumber } from "ethers";
 import { UbaFlow, isUbaInflow } from "../interfaces";
 import { TokenRunningBalanceWithNetSend, UBAActionType, UBAFlowFee } from "./UBAFeeTypes";
 import UBAConfig from "./UBAFeeConfig";
-import { toBN } from "../utils";
+import { min, toBN } from "../utils";
 import { computePiecewiseLinearFunction } from "./UBAFeeUtility";
 
 /**
@@ -124,7 +124,7 @@ export function getEventFee(
   // #############################################
 
   // We'll need to now compute the concept of the running balance of the spoke
-  const { runningBalance } = calculateHistoricalRunningBalance(
+  const { runningBalance, incentiveBalance } = calculateHistoricalRunningBalance(
     previousFlows,
     lastValidatedRunningBalance,
     lastValidatedIncentiveRunningBalance,
@@ -138,11 +138,24 @@ export function getEventFee(
 
   // Next, we'll need to compute the first balancing fee from the running balance of the spoke
   // to the running balance of the spoke + the amount
-  const balancingFee = computePiecewiseLinearFunction(
+  let balancingFee = computePiecewiseLinearFunction(
     flowCurve,
     runningBalance,
     amount.mul(flowType === "inflow" ? 1 : -1)
   );
+
+  // Apply hardcoded multiplier if incentive fee is a reward instead of a penalty
+  if (balancingFee.gt(0)) {
+    // This should never error. `getUbaRewardMultiplier` should default to 1
+    balancingFee = balancingFee.mul(config.getUbaRewardMultiplier(chainId.toString()));
+  }
+
+  // if the chainId is not found in the config
+  // If P << uncappedIncentiveFee, discountFactor approaches 100%. Capped at 100%
+  if (balancingFee.gt(incentiveBalance)) {
+    const discountFactor = min(BigNumber.from(1), balancingFee.sub(incentiveBalance).div(balancingFee));
+    balancingFee = balancingFee.mul(BigNumber.from(1).sub(discountFactor));
+  }
 
   // We can now return the fee
   return {

@@ -194,7 +194,9 @@ export function getUBAFeeConfig(
       override: Object.fromEntries(
         Object.entries(gammaOverride).map(([key, value]) => [key, collapseParallelArrays(value.cutoff, value.value)])
       ),
-    }
+    },
+    ubaConfig.incentivePoolAdjustment,
+    ubaConfig.ubaRewardMultiplier
   );
 }
 

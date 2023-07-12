@@ -45,22 +45,38 @@ class UBAConfig {
   private readonly lpGammaFunction: DefaultOverrideStructure<FlowTupleParameters, ChainId>;
 
   /**
+   * A DAO controlled variable to track any donations made to the incentivePool liquidity
+   */
+  private readonly incentivePoolAdjustment: Record<string, BigNumber>;
+
+  /**
+   * Used to scale rewards when a fee is larger than the incentive balance
+   */
+  private readonly ubaRewardMultiplier: Record<string, BigNumber>;
+
+  /**
    * Instantiate a new UBA Config object
    * @param baselineFee A baseline fee that is applied to all transactions to allow LPs to earn a fee
    * @param balancingFee A record of piecewise functions for each chain and token that define the balancing fee to ensure either a positive or negative penalty to bridging a token to a chain that is either under or over utilized
    * @param balanceTriggerThreshold A record of boundry values for each chain and token that define the threshold for when the running balance should be balanced back to a fixed amount. Due to the fact that this type of operation is based on a heuristic and is considered a non-event transient property of the protocol, the threshold must be computed based on the current running balance of the spoke from the last validated running balance.
    * @param lpGammaFunction A record of piecewise functions for each chain that define the utilization fee to ensure that the bridge responds to periods of high utilization
+   * @param incentivePoolAdjustment A DAO controlled variable to track any donations made to the incentivePool liquidity
+   * @param ubaRewardMultiplier Used to scale rewards when a fee is larger than the incentive balance
    */
   constructor(
     baselineFee: DefaultOverrideStructure<BigNumber, RouteCombination>,
     balancingFee: DefaultOverrideStructure<FlowTupleParameters, ChainId>,
     balanceTriggerThreshold: Record<ChainTokenCombination, ThresholdBoundType>,
-    lpGammaFunction: DefaultOverrideStructure<FlowTupleParameters, ChainId>
+    lpGammaFunction: DefaultOverrideStructure<FlowTupleParameters, ChainId>,
+    incentivePoolAdjustment: Record<string, BigNumber>,
+    ubaRewardMultiplier: Record<string, BigNumber>
   ) {
     this.baselineFee = baselineFee;
     this.balancingFee = balancingFee;
     this.balanceTriggerThreshold = balanceTriggerThreshold;
     this.lpGammaFunction = lpGammaFunction;
+    this.incentivePoolAdjustment = incentivePoolAdjustment;
+    this.ubaRewardMultiplier = ubaRewardMultiplier;
   }
 
   /**
@@ -101,6 +117,24 @@ class UBAConfig {
   public getBalanceTriggerThreshold(chainId: number, tokenSymbol: string): ThresholdBoundType {
     const chainTokenCombination = `${chainId}-${tokenSymbol}`;
     return this.balanceTriggerThreshold[chainTokenCombination] ?? this.balanceTriggerThreshold;
+  }
+
+  /**
+   * Get the incentive pool adjustment
+   * @param chainId The chain id
+   * @returns The incentive pool adjustment. Defaults to 0 if not set
+   */
+  public getIncentivePoolAdjustment(chainId: string): BigNumber {
+    return this.incentivePoolAdjustment[chainId] ?? 0; // Default to 0 if not set
+  }
+
+  /**
+   * Get the UBA reward multiplier
+   * @param chainId The chain id
+   * @returns The UBA reward multiplier. Defaults to 1 if not set
+   */
+  public getUbaRewardMultiplier(chainId: string): BigNumber {
+    return this.ubaRewardMultiplier[chainId] ?? 1; // Default to 1 if not set
   }
 }
 
