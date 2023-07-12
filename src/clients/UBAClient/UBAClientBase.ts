@@ -36,6 +36,7 @@ export abstract class BaseUBAClient extends BaseAbstractClient {
    */
   constructor(
     protected readonly chainIdIndices: number[],
+    protected readonly hubPoolChainId: number,
     protected readonly tokens: string[],
     protected readonly maxBundleStates: number,
     protected readonly logger?: winston.Logger
@@ -185,7 +186,6 @@ export abstract class BaseUBAClient extends BaseAbstractClient {
    * Compute the LP fee for a given amount. The LP fee is the fee paid to the LP for providing liquidity.
    * @param amount The amount to get the LP fee for
    * @param depositChainId The chainId of the deposit
-   * @param hubPoolChainId The chainId of the hub pool
    * @param tokenSymbol The token to get the LP fee for
    * @param refundChainId The chainId of the refund
    * @param overrides The overrides to use for the LP fee calculation
@@ -194,15 +194,14 @@ export abstract class BaseUBAClient extends BaseAbstractClient {
   protected computeLpFee(
     amount: BigNumber,
     depositChainId: number,
-    hubPoolChainId: number,
     tokenSymbol: string,
     refundChainId?: number,
     overrides?: UBALPFeeOverride
   ): BigNumber {
     if (!overrides) {
-      const recentBundleState = this.retrieveLastBundleState(hubPoolChainId, tokenSymbol);
+      const recentBundleState = this.retrieveLastBundleState(this.hubPoolChainId, tokenSymbol);
       if (!recentBundleState) {
-        throw new Error(`No bundle states found for token ${tokenSymbol} on chain ${hubPoolChainId}`);
+        throw new Error(`No bundle states found for token ${tokenSymbol} on chain ${this.hubPoolChainId}`);
       }
       overrides = {
         decimals: recentBundleState.config.tokenDecimals,
@@ -219,7 +218,7 @@ export abstract class BaseUBAClient extends BaseAbstractClient {
     return computeLpFeeStateful(
       amount,
       depositChainId,
-      hubPoolChainId,
+      this.hubPoolChainId,
       decimals,
       hubBalance,
       hubEquity,
