@@ -144,17 +144,17 @@ export function getEventFee(
     amount.mul(flowType === "inflow" ? 1 : -1)
   );
 
+  // Apply hardcoded multiplier if incentive fee is a reward instead of a penalty
+  if (balancingFee.lt(0)) {
+    // This should never error. `getUbaRewardMultiplier` should default to 1
+    balancingFee = balancingFee.mul(config.getUbaRewardMultiplier(chainId.toString()));
+  }
+
   // if the chainId is not found in the config
   // If P << uncappedIncentiveFee, discountFactor approaches 100%. Capped at 100%
   if (balancingFee.gt(incentiveBalance)) {
     const discountFactor = min(BigNumber.from(1), balancingFee.sub(incentiveBalance).div(balancingFee));
     balancingFee = balancingFee.mul(BigNumber.from(1).sub(discountFactor));
-  }
-
-  // Apply hardcoded multiplier if incentive fee is a reward instead of a penalty
-  if (balancingFee.lt(0)) {
-    // This should never error. `getUbaRewardMultiplier` should default to 1
-    balancingFee = balancingFee.mul(config.getUbaRewardMultiplier(chainId.toString()));
   }
 
   // We can now return the fee
