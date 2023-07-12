@@ -26,8 +26,12 @@ export function parseUBAConfigFromOnChain(config?: UBAOnChainConfigType): UBAPar
     throw new Error("No config provided");
   }
   return {
-    incentivePoolAdjustment: BigNumber.from(config.incentivePoolAdjustment),
-    ubaRewardMultiplier: BigNumber.from(config.ubaRewardMultiplier),
+    incentivePoolAdjustment: Object.fromEntries(
+      Object.entries(config.incentivePoolAdjustment).map(([key, value]) => [key, BigNumber.from(value)])
+    ),
+    ubaRewardMultiplier: Object.fromEntries(
+      Object.entries(config.ubaRewardMultiplier).map(([key, value]) => [key, BigNumber.from(value)])
+    ),
     alpha: Object.fromEntries(Object.entries(config.alpha).map(([key, value]) => [key, BigNumber.from(value)])),
     gamma: Object.fromEntries(
       Object.entries(config.gamma).map(([key, value]) => [

@@ -90,11 +90,11 @@ type UBAAgnosticConfigType<T> = {
   /**
    * A DAO controlled variable to track any donations made to the incentivePool liquidity
    */
-  incentivePoolAdjustment: T;
+  incentivePoolAdjustment: Record<string, T>;
   /**
    * Used to scale rewards when a fee is larger than the incentive balance
    */
-  ubaRewardMultiplier: T;
+  ubaRewardMultiplier: Record<string, T>;
   /**
    * This is a scalar value that is a constant percentage of each transfer that is allocated for LPs.
    * This value can be determined by token and route-by-route.

@@ -47,12 +47,12 @@ class UBAConfig {
   /**
    * A DAO controlled variable to track any donations made to the incentivePool liquidity
    */
-  private readonly incentivePoolAdjustment: BigNumber;
+  private readonly incentivePoolAdjustment: Record<string, BigNumber>;
 
   /**
    * Used to scale rewards when a fee is larger than the incentive balance
    */
-  private readonly ubaRewardMultiplier: BigNumber;
+  private readonly ubaRewardMultiplier: Record<string, BigNumber>;
 
   /**
    * Instantiate a new UBA Config object
@@ -60,14 +60,16 @@ class UBAConfig {
    * @param balancingFee A record of piecewise functions for each chain and token that define the balancing fee to ensure either a positive or negative penalty to bridging a token to a chain that is either under or over utilized
    * @param balanceTriggerThreshold A record of boundry values for each chain and token that define the threshold for when the running balance should be balanced back to a fixed amount. Due to the fact that this type of operation is based on a heuristic and is considered a non-event transient property of the protocol, the threshold must be computed based on the current running balance of the spoke from the last validated running balance.
    * @param lpGammaFunction A record of piecewise functions for each chain that define the utilization fee to ensure that the bridge responds to periods of high utilization
+   * @param incentivePoolAdjustment A DAO controlled variable to track any donations made to the incentivePool liquidity
+   * @param ubaRewardMultiplier Used to scale rewards when a fee is larger than the incentive balance
    */
   constructor(
     baselineFee: DefaultOverrideStructure<BigNumber, RouteCombination>,
     balancingFee: DefaultOverrideStructure<FlowTupleParameters, ChainId>,
     balanceTriggerThreshold: Record<ChainTokenCombination, ThresholdBoundType>,
     lpGammaFunction: DefaultOverrideStructure<FlowTupleParameters, ChainId>,
-    incentivePoolAdjustment: BigNumber,
-    ubaRewardMultiplier: BigNumber
+    incentivePoolAdjustment: Record<string, BigNumber>,
+    ubaRewardMultiplier: Record<string, BigNumber>
   ) {
     this.baselineFee = baselineFee;
     this.balancingFee = balancingFee;
@@ -119,18 +121,20 @@ class UBAConfig {
 
   /**
    * Get the incentive pool adjustment
+   * @param chainId The chain id
    * @returns The incentive pool adjustment
    */
-  public getIncentivePoolAdjustment(): BigNumber {
-    return this.incentivePoolAdjustment;
+  public getIncentivePoolAdjustment(chainId: string): BigNumber {
+    return this.incentivePoolAdjustment[chainId];
   }
 
   /**
    * Get the UBA reward multiplier
+   * @param chainId The chain id
    * @returns The UBA reward multiplier
    */
-  public getUbaRewardMultiplier(): BigNumber {
-    return this.ubaRewardMultiplier;
+  public getUbaRewardMultiplier(chainId: string): BigNumber {
+    return this.ubaRewardMultiplier[chainId];
   }
 }
 

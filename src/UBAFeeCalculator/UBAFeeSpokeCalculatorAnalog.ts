@@ -146,7 +146,7 @@ export function getEventFee(
 
   // We need to account for the balancing fee being greater than the incentive balance
   if (balancingFee.gt(lastValidatedIncentiveRunningBalance)) {
-    balancingFee = balancingFee.mul(config.getUbaRewardMultiplier()).div(fixedPointAdjustment);
+    balancingFee = balancingFee.mul(config.getUbaRewardMultiplier(chainId.toString())).div(fixedPointAdjustment);
   }
 
   // We can now return the fee
