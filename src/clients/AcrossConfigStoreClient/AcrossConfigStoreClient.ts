@@ -306,9 +306,9 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
 
         // For now, we'll need to check if this value is undefined. In the
         // future, we should make this a required field.
-        if (parsedValue.uba !== undefined) {
+        if (parsedValue?.uba !== undefined) {
           // Parse and store UBA config
-          const ubaConfig = parseUBAConfigFromOnChain(parsedValue?.uba);
+          const ubaConfig = parseUBAConfigFromOnChain(parsedValue.uba);
           // eslint-disable-next-line @typescript-eslint/no-unused-vars
           const { value: _value, key: _key, ...passedArgs } = args;
           this.ubaConfigUpdates.push({ ...passedArgs, config: ubaConfig, l1Token });
