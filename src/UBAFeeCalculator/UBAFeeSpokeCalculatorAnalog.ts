@@ -105,17 +105,17 @@ export function calculateHistoricalRunningBalance(
  * Returns the balancing fee for a given event that produces a flow of `flowType` of size `amount`.
  * @param amount Amount of inflow or outflow produced by event that we're computing a balancing fee for.
  * @param flowType Inflow or Outflow.
- * @param latestRunningBalance The latest running balance preceding this event.
- * @param latestIncentiveBalance The latest incentive balance preceding this event.
- * @param chainId
- * @param config
+ * @param lastRunningBalance The latest running balance preceding this event.
+ * @param lastIncentiveBalance The latest incentive balance preceding this event.
+ * @param chainId The chain id of the spoke chain
+ * @param config The UBAConfig to use for the calculation
  * @returns
  */
 export function getEventFee(
   amount: BigNumber,
   flowType: "inflow" | "outflow",
-  latestRunningBalance: BigNumber,
-  latestIncentiveBalance: BigNumber,
+  lastRunningBalance: BigNumber,
+  lastIncentiveBalance: BigNumber,
   chainId: number,
   config: UBAConfig
 ): UBAFlowFee {
@@ -135,7 +135,7 @@ export function getEventFee(
   // to the running balance of the spoke + the amount
   let balancingFee = computePiecewiseLinearFunction(
     flowCurve,
-    latestRunningBalance,
+    lastRunningBalance,
     amount.mul(flowType === "inflow" ? 1 : -1)
   );
 
@@ -147,8 +147,8 @@ export function getEventFee(
 
   // if the chainId is not found in the config
   // If P << uncappedIncentiveFee, discountFactor approaches 100%. Capped at 100%
-  if (balancingFee.gt(latestIncentiveBalance)) {
-    const discountFactor = min(BigNumber.from(1), balancingFee.sub(latestIncentiveBalance).div(balancingFee));
+  if (balancingFee.gt(lastIncentiveBalance)) {
+    const discountFactor = min(BigNumber.from(1), balancingFee.sub(lastIncentiveBalance).div(balancingFee));
     balancingFee = balancingFee.mul(BigNumber.from(1).sub(discountFactor));
   }
 
