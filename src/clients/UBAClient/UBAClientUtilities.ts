@@ -322,20 +322,16 @@ export async function updateUBAClient(
               );
             const { balancingFee: depositBalancingFee } = getDepositFee(
               flow.amount,
-              previousFlows,
-              constructedBundle.openingBalance,
-              constructedBundle.openingIncentiveBalance,
+              runningBalance,
+              incentiveBalance,
               chainId,
-              tokenSymbol,
               constructedBundle.config.ubaConfig
             );
             const { balancingFee: relayerBalancingFee } = getRefundFee(
               flow.amount,
-              previousFlows,
-              constructedBundle.openingBalance,
-              constructedBundle.openingIncentiveBalance,
+              runningBalance,
+              incentiveBalance,
               chainId,
-              tokenSymbol,
               constructedBundle.config.ubaConfig
             );
             const lpFee = await computeLpFeeForRefresh(

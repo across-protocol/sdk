@@ -38,7 +38,7 @@ export function calculateHistoricalRunningBalance(
   // This is the case when the UBA Fee Calculator is first initialized or run on a range
   // that we haven't computed the running balance for yet
   const historicalResult: TokenRunningBalanceWithNetSend = flows.reduce(
-    (acc, flow, idx, arr) => {
+    (acc, flow) => {
       // Compute the balancing fee for the flow
       // We are going to use as the fill-in for the incentive fee. We must compute it here
       // because the incentive fee is dependent on the running balance of the spoke
@@ -46,11 +46,9 @@ export function calculateHistoricalRunningBalance(
       const { balancingFee: incentiveFee } = getEventFee(
         flow.amount,
         isUbaInflow(flow) ? "inflow" : "outflow",
-        arr.slice(0, idx),
-        lastValidatedRunningBalance,
-        lastValidatedIncentiveRunningBalance,
+        acc.runningBalance,
+        acc.incentiveBalance,
         chainId,
-        tokenSymbol,
         config
       );
 
@@ -112,25 +110,18 @@ export function calculateHistoricalRunningBalance(
  * Returns the balancing fee for a given event that produces a flow of `flowType` of size `amount`.
  * @param amount Amount of inflow or outflow produced by event that we're computing a balancing fee for.
  * @param flowType Inflow or Outflow.
- * @param previousFlows The set of flows that precede the input event that are older than the last validated root
- * bundle.
- * @param lastValidatedRunningBalance The last validated running balance for the token and chain ID validated in
- * a root bundle. This is used only to pass back to the `calculateHistoricalRunningBalance` function in order to
- * compute the latest running balances prior to this event.
- * @param lastValidatedIncentiveRunningBalance See comment for `lastValidatedRunningBalance`.
+ * @param latestRunningBalance The latest running balance preceding this event.
+ * @param latestIncentiveBalance The latest incentive balance preceding this event.
  * @param chainId
- * @param tokenSymbol
  * @param config
  * @returns
  */
 export function getEventFee(
   amount: BigNumber,
   flowType: "inflow" | "outflow",
-  previousFlows: UbaFlow[],
-  lastValidatedRunningBalance: BigNumber,
-  lastValidatedIncentiveRunningBalance: BigNumber,
+  latestRunningBalance: BigNumber,
+  latestIncentiveBalance: BigNumber,
   chainId: number,
-  tokenSymbol: string,
   config: UBAConfig
 ): UBAFlowFee {
   // The rough psuedocode for this function is as follows:
@@ -142,16 +133,6 @@ export function getEventFee(
   // Return (LP Fee + Balancing Fee)
   // #############################################
 
-  // We'll need to now compute the concept of the running balance of the spoke
-  const { runningBalance, incentiveBalance } = calculateHistoricalRunningBalance(
-    previousFlows,
-    lastValidatedRunningBalance,
-    lastValidatedIncentiveRunningBalance,
-    chainId,
-    tokenSymbol,
-    config
-  );
-
   // We first need to resolve the inflow/outflow curves for the deposit and refund spoke
   const flowCurve = config.getBalancingFeeTuples(chainId);
 
@@ -159,7 +140,7 @@ export function getEventFee(
   // to the running balance of the spoke + the amount
   let balancingFee = computePiecewiseLinearFunction(
     flowCurve,
-    runningBalance,
+    latestRunningBalance,
     amount.mul(flowType === "inflow" ? 1 : -1)
   );
 
@@ -171,8 +152,8 @@ export function getEventFee(
 
   // if the chainId is not found in the config
   // If P << uncappedIncentiveFee, discountFactor approaches 100%. Capped at 100%
-  if (balancingFee.gt(incentiveBalance)) {
-    const discountFactor = min(BigNumber.from(1), balancingFee.sub(incentiveBalance).div(balancingFee));
+  if (balancingFee.gt(latestIncentiveBalance)) {
+    const discountFactor = min(BigNumber.from(1), balancingFee.sub(latestIncentiveBalance).div(balancingFee));
     balancingFee = balancingFee.mul(BigNumber.from(1).sub(discountFactor));
   }
 
@@ -185,32 +166,26 @@ export function getEventFee(
 /**
  * Calculates the fee for a deposit on a spoke chain
  * @param amount The amount of the deposit
- * @param previousFlows The previous flows of the spoke
  * @param lastValidatedRunningBalance The last validated running balance of the spoke
  * @param lastValidatedIncentiveRunningBalance The last validated incentive running balance of the spoke
  * @param chainId The chain id of the spoke chain
- * @param tokenSymbol The token symbol of the token to calculate the fee for
  * @param config The UBAConfig to use for the calculation
  * @returns The fee for the deposit
  * @see getEventFee
  */
 export function getDepositFee(
   amount: BigNumber,
-  previousFlows: UbaFlow[],
   lastValidatedRunningBalance: BigNumber,
   lastValidatedIncentiveRunningBalance: BigNumber,
   chainId: number,
-  tokenSymbol: string,
   config: UBAConfig
 ): UBAFlowFee {
   return getEventFee(
     amount,
     "inflow",
-    previousFlows,
     lastValidatedRunningBalance,
     lastValidatedIncentiveRunningBalance,
     chainId,
-    tokenSymbol,
     config
   );
 }
@@ -218,32 +193,26 @@ export function getDepositFee(
 /**
  * Calculates the fee for a refund on a spoke chain
  * @param amount The amount of the refund
- * @param previousFlows The previous flows of the spoke
  * @param lastValidatedRunningBalance The last validated running balance of the spoke
  * @param lastValidatedIncentiveRunningBalance The last validated incentive running balance of the spoke
  * @param chainId The chain id of the spoke chain
- * @param tokenSymbol The token symbol of the token to calculate the fee for
  * @param config The UBAConfig to use for the calculation
  * @returns The fee for the refund
  * @see getEventFee
  */
 export function getRefundFee(
   amount: BigNumber,
-  previousFlows: UbaFlow[],
   lastValidatedRunningBalance: BigNumber,
   lastValidatedIncentiveRunningBalance: BigNumber,
   chainId: number,
-  tokenSymbol: string,
   config: UBAConfig
 ): UBAFlowFee {
   return getEventFee(
     amount,
     "outflow",
-    previousFlows,
     lastValidatedRunningBalance,
     lastValidatedIncentiveRunningBalance,
     chainId,
-    tokenSymbol,
     config
   );
 }
