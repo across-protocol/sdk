@@ -1,5 +1,5 @@
 import { BigNumber } from "ethers";
-import { TokenRunningBalance, UBAFlowRange, UbaFlow } from "../interfaces";
+import { TokenRunningBalance, UbaFlow } from "../interfaces";
 import UBAConfig, { ThresholdBoundType } from "./UBAFeeConfig";
 import { TokenRunningBalanceWithNetSend, UBAFlowFee } from "./UBAFeeTypes";
 import { calculateHistoricalRunningBalance, getEventFee } from "./UBAFeeSpokeCalculatorAnalog";
@@ -80,20 +80,15 @@ export default class UBAFeeSpokeCalculator {
    * A convenience method for resolving the event fee for the spoke and the given symbol and a given flow type
    * @param amount The amount of tokens to simulate
    * @param flowType The flow type to simulate
-   * @param flowRange The range of the flow to simulate the event for. Defaults to undefined to simulate the event for the entire flow.
    * @returns The event fee for the spoke and the given symbol and a given flow type
    */
-  protected getEventFee(amount: BigNumber, flowType: "inflow" | "outflow", flowRange?: UBAFlowRange): UBAFlowFee {
+  protected getEventFee(amount: BigNumber, flowType: "inflow" | "outflow"): UBAFlowFee {
     return getEventFee(
       amount,
       flowType,
-      this.recentRequestFlow.filter(
-        (_, idx) => !flowRange || (idx >= flowRange.startIndex && idx <= flowRange.endIndex)
-      ),
       this.lastValidatedRunningBalance,
       this.lastValidatedIncentiveRunningBalance,
       this.chainId,
-      this.symbol,
       this.config
     );
   }
@@ -101,11 +96,10 @@ export default class UBAFeeSpokeCalculator {
   /**
    * Calculates the fee for a simulated deposit operation
    * @param amount The amount of tokens to deposit
-   * @param flowRange The range of the flow to simulate the deposit for. Defaults to undefined to simulate the deposit for the entire flow.
    * @returns The fee for the simulated deposit operation
    */
-  public getDepositFee(amount: BigNumber, flowRange?: UBAFlowRange): UBAFlowFee {
-    return this.getEventFee(amount, "inflow", flowRange);
+  public getDepositFee(amount: BigNumber): UBAFlowFee {
+    return this.getEventFee(amount, "inflow");
   }
 
   /**
@@ -114,7 +108,7 @@ export default class UBAFeeSpokeCalculator {
    * @param flowRange The range of the flow to simulate the refund for. Defaults to undefined to simulate the refund for the entire flow.
    * @returns The fee for the simulated refund operation
    */
-  public getRefundFee(amount: BigNumber, flowRange?: UBAFlowRange): UBAFlowFee {
-    return this.getEventFee(amount, "outflow", flowRange);
+  public getRefundFee(amount: BigNumber): UBAFlowFee {
+    return this.getEventFee(amount, "outflow");
   }
 }
