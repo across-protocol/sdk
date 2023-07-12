@@ -11,6 +11,8 @@ const CorrectRoutingRule = refine(
 );
 
 export const UBA_CONFIG_ONCHAIN_SCHEMA = object({
+  incentivePoolAdjustment: string(),
+  ubaRewardMultiplier: string(),
   alpha: union([
     object({
       default: string(),
