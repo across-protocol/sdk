@@ -20,7 +20,7 @@ type EthersEventTemplate = {
   transactionIndex?: number;
 };
 
-let eventManagers: { [chainId: number]: EventManager } = {};
+const eventManagers: { [chainId: number]: EventManager } = {};
 
 // May need to populate getTransaction and getTransactionReceipt if calling code starts using it.
 // https://docs.ethers.org/v5/api/providers/provider/#Provider-getTransaction

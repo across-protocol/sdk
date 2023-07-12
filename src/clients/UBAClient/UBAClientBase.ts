@@ -175,9 +175,9 @@ export abstract class BaseUBAClient extends BaseAbstractClient {
     hubPoolBlockNumber: number,
     chainIds: number[],
     feeType: UBAActionType
-  ): Promise<BalancingFeeReturnType[]> {
-    return Promise.all(
-      chainIds.map((chainId) => this.computeBalancingFee(tokenSymbol, amount, hubPoolBlockNumber, chainId, feeType))
+  ): BalancingFeeReturnType[] {
+    return chainIds.map((chainId) =>
+      this.computeBalancingFee(tokenSymbol, amount, hubPoolBlockNumber, chainId, feeType)
     );
   }
 
@@ -317,7 +317,7 @@ export abstract class BaseUBAClient extends BaseAbstractClient {
    * @param state The new state to include. If `state` is undefined/null, then it will be ignored
    * @returns void.
    */
-  public update(state?: UBAClientState): Promise<void> {
+  public async update(state?: UBAClientState): Promise<void> {
     if (state) {
       this.bundleStates = state;
     }

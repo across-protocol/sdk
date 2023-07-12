@@ -35,7 +35,7 @@ export class UBAClientWithRefresh extends BaseUBAClient {
    */
   public async update(state: { [chainId: number]: UBAChainState }, forceClientRefresh?: boolean): Promise<void> {
     if (state) {
-      super.update(state);
+      await super.update(state);
     }
     // Update the clients if the necessary clients have not been updated at least once.
     // Also update if forceClientRefresh is true.
