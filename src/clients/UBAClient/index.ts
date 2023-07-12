@@ -1,6 +1,6 @@
 export * from "./UBAClientUtilities";
 
-export { UBAActionType } from "../../UBAFeeCalculator/UBAFeeTypes";
-export { BalancingFeeReturnType as UBABalancingFee, SystemFeeResult as UBASystemFee } from "./UBAClientTypes";
+export * from "../../UBAFeeCalculator/UBAFeeTypes";
+export * from "./UBAClientTypes";
 export { UBAClientWithRefresh as UBAClient } from "./UBAClientWithRefresh";
 export { BaseUBAClient as BaseUBAClient } from "./UBAClientBase";
