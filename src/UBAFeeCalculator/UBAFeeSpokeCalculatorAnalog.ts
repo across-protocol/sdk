@@ -62,7 +62,7 @@ export function calculateHistoricalRunningBalance(
       // organically grow the running balance to. If the running balance exceeds the trigger hurdle,
       // we need to return the trigger hurdle as the running balance because at this point the dataworker
       // will be triggered to rebalance the running balance.
-      if (upperBoundTriggerHurdle !== undefined && resultant.runningBalance.gt(upperBoundTriggerHurdle.threshold)) {
+      if (upperBoundTriggerHurdle.threshold.gt(0) && resultant.runningBalance.gt(upperBoundTriggerHurdle.threshold)) {
         // If we are over the target, subtract the difference from the net running balance adjustment
         // so that the dataworker can instruct the spoke pool to return funds to the hub pool.
         resultant.netRunningBalanceAdjustment = resultant.netRunningBalanceAdjustment.sub(
@@ -78,7 +78,7 @@ export function calculateHistoricalRunningBalance(
       // we need to return the trigger hurdle as the running balance because at this point the dataworker
       // will be triggered to rebalance the running balance.
       else if (
-        lowerBoundTriggerHurdle !== undefined &&
+        lowerBoundTriggerHurdle.threshold.gt(0) &&
         resultant.runningBalance.lt(lowerBoundTriggerHurdle.threshold)
       ) {
         // If we are under the target, add the difference to the net running balance adjustment

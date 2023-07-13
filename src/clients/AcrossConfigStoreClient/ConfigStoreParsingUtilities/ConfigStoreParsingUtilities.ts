@@ -36,19 +36,13 @@ export function parseUBAConfigFromOnChain(config?: UBAOnChainConfigType): UBAPar
     gamma: Object.fromEntries(
       Object.entries(config.gamma).map(([key, value]) => [
         key,
-        {
-          cutoff: value.cutoff.map((cutoff) => BigNumber.from(cutoff)),
-          value: value.value.map((value) => BigNumber.from(value)),
-        },
+        value.map((tuple) => tuple.map((value) => BigNumber.from(value)) as [BigNumber, BigNumber]),
       ])
     ),
     omega: Object.fromEntries(
       Object.entries(config.omega).map(([key, value]) => [
         key,
-        {
-          cutoff: value.cutoff.map((cutoff) => BigNumber.from(cutoff)),
-          value: value.value.map((value) => BigNumber.from(value)),
-        },
+        value.map((tuple) => tuple.map((value) => BigNumber.from(value)) as [BigNumber, BigNumber]),
       ])
     ),
     rebalance: Object.fromEntries(

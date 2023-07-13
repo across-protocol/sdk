@@ -2,7 +2,7 @@ import assert from "assert";
 import { BigNumber } from "ethers";
 import { HubPoolClient } from "../HubPoolClient";
 import { calculateUtilizationBoundaries, computePiecewiseLinearFunction } from "../../UBAFeeCalculator/UBAFeeUtility";
-import UBAFeeConfig, { FlowTupleParameters } from "../../UBAFeeCalculator/UBAFeeConfig";
+import UBAFeeConfig from "../../UBAFeeCalculator/UBAFeeConfig";
 import {
   SpokePoolClients,
   filterAsync,
@@ -14,7 +14,7 @@ import {
   toBN,
 } from "../../utils";
 import { ERC20__factory } from "../../typechain";
-import { UBAActionType } from "../../UBAFeeCalculator/UBAFeeTypes";
+import { UBAActionType, FlowTupleParameters } from "../../UBAFeeCalculator/UBAFeeTypes";
 import {
   RequestValidReturnType,
   UBABundleState,
@@ -138,10 +138,6 @@ function omitDefaultKeys<T>(obj: Record<string, T>): Record<string, T> {
   }, {});
 }
 
-function collapseParallelArrays<T, U>(arr1: T[], arr2: U[]): [T, U][] {
-  return arr1.map((val, index) => [val, arr2[index]]);
-}
-
 export function getUBAFeeConfig(
   configClient: AcrossConfigStoreClient,
   chainId: number,
@@ -166,34 +162,43 @@ export function getUBAFeeConfig(
 
   const threshold = ubaConfig.rebalance[String(chainId)];
 
+  const chainTokenCombination = `${chainId}-${token}`;
   return new UBAFeeConfig(
     {
       default: ubaConfig.alpha["default"],
       override: omitDefaultKeys(ubaConfig.alpha),
     },
     {
-      default: collapseParallelArrays(omegaDefault.cutoff, omegaDefault.value),
-      override: Object.fromEntries(
-        Object.entries(omegaOverride).map(([key, value]) => [key, collapseParallelArrays(value.cutoff, value.value)])
-      ),
+      default: omegaDefault,
+      override: omegaOverride,
     },
     {
-      [chainId]: {
+      default: {
         lowerBound: {
-          target: threshold.target_lower,
-          threshold: threshold.threshold_lower,
+          target: toBN(0),
+          threshold: toBN(0),
         },
         upperBound: {
-          target: threshold.target_upper,
-          threshold: threshold.threshold_upper,
+          target: toBN(0),
+          threshold: toBN(0),
+        },
+      },
+      override: {
+        [chainTokenCombination]: {
+          lowerBound: {
+            target: threshold.target_lower,
+            threshold: threshold.threshold_lower,
+          },
+          upperBound: {
+            target: threshold.target_upper,
+            threshold: threshold.threshold_upper,
+          },
         },
       },
     },
     {
-      default: collapseParallelArrays(gammaDefault.cutoff, gammaDefault.value),
-      override: Object.fromEntries(
-        Object.entries(gammaOverride).map(([key, value]) => [key, collapseParallelArrays(value.cutoff, value.value)])
-      ),
+      default: gammaDefault,
+      override: gammaOverride,
     },
     ubaConfig.incentivePoolAdjustment,
     ubaConfig.ubaRewardMultiplier
