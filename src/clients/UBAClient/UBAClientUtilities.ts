@@ -166,6 +166,7 @@ export function getUBAFeeConfig(
 
   const threshold = ubaConfig.rebalance[String(chainId)];
 
+  const chainTokenCombination = `${chainId}-${token}`;
   return new UBAFeeConfig(
     {
       default: ubaConfig.alpha["default"],
@@ -178,14 +179,26 @@ export function getUBAFeeConfig(
       ),
     },
     {
-      [chainId]: {
+      default: {
         lowerBound: {
-          target: threshold.target_lower,
-          threshold: threshold.threshold_lower,
+          target: toBN(0),
+          threshold: toBN(0),
         },
         upperBound: {
-          target: threshold.target_upper,
-          threshold: threshold.threshold_upper,
+          target: toBN(0),
+          threshold: toBN(0),
+        },
+      },
+      override: {
+        [chainTokenCombination]: {
+          lowerBound: {
+            target: threshold.target_lower,
+            threshold: threshold.threshold_lower,
+          },
+          upperBound: {
+            target: threshold.target_upper,
+            threshold: threshold.threshold_upper,
+          },
         },
       },
     },
