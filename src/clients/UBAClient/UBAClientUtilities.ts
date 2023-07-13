@@ -542,6 +542,8 @@ export async function refundRequestIsValid(
     };
   }
 
+  // @dev: In almost all cases we should only count refunds where this value is 0. However, sometimes its possible
+  // that an initial refund request is thrown out due to some odd timing bug so this might be overly restrictive.
   if (previousIdenticalRequests.gt(0)) {
     return { valid: false, reason: "Previous identical request exists" };
   }
@@ -565,6 +567,10 @@ export async function refundRequestIsValid(
   });
   if (!isDefined(fill)) {
     return { valid: false, reason: "Unable to find matching fill" };
+  }
+
+  if (fill.blockNumber !== fillBlock) {
+    return { valid: false, reason: "Fill block number does not match refund request block number" };
   }
 
   const deposit = await resolveCorrespondingDepositForFill(fill, spokePoolClients);
