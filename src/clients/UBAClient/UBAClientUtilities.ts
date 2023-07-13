@@ -173,14 +173,18 @@ export function getUBAFeeConfig(
     },
     {
       [chainId]: {
-        lowerBound: {
-          target: threshold.target_lower,
-          threshold: threshold.threshold_lower,
-        },
-        upperBound: {
-          target: threshold.target_upper,
-          threshold: threshold.threshold_upper,
-        },
+        lowerBound: threshold.target_lower.isZero()
+          ? undefined
+          : {
+              target: threshold.target_lower,
+              threshold: threshold.threshold_lower,
+            },
+        upperBound: threshold.target_upper.isZero()
+          ? undefined
+          : {
+              target: threshold.target_upper,
+              threshold: threshold.threshold_upper,
+            },
       },
     },
     {
