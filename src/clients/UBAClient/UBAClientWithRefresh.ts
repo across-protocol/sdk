@@ -3,14 +3,9 @@ import winston from "winston";
 import { HubPoolClient, SpokePoolClient } from "..";
 import { BaseUBAClient } from "./UBAClientBase";
 import { updateUBAClient } from "./UBAClientUtilities";
-import { RelayFeeCalculator, RelayFeeCalculatorConfigWithMap } from "../../relayFeeCalculator";
+import { RelayFeeCalculatorConfigWithMap } from "../../relayFeeCalculator";
 import { UBAChainState } from "./UBAClientTypes";
 export class UBAClientWithRefresh extends BaseUBAClient {
-  /**
-   * The RelayFeeCalculator is used to compute the relayer fee for a given amount of tokens.
-   */
-  protected readonly relayCalculator: RelayFeeCalculator;
-
   // @dev chainIdIndices supports indexing members of root bundle proposals submitted to the HubPool.
   //      It must include the complete set of chain IDs ever supported by the HubPool.
   // @dev SpokePoolClients may be a subset of the SpokePools that have been deployed.
@@ -18,7 +13,7 @@ export class UBAClientWithRefresh extends BaseUBAClient {
     readonly chainIdIndices: number[],
     readonly tokens: string[],
     protected readonly hubPoolClient: HubPoolClient,
-    protected readonly spokePoolClients: { [chainId: number]: SpokePoolClient },
+    public readonly spokePoolClients: { [chainId: number]: SpokePoolClient },
     protected readonly relayerConfiguration: RelayFeeCalculatorConfigWithMap,
     readonly maxBundleStates: number,
     readonly logger?: winston.Logger
@@ -26,7 +21,6 @@ export class UBAClientWithRefresh extends BaseUBAClient {
     super(chainIdIndices, tokens, maxBundleStates, logger);
     assert(chainIdIndices.length > 0, "No chainIds provided");
     assert(Object.values(spokePoolClients).length > 0, "No SpokePools provided");
-    this.relayCalculator = new RelayFeeCalculator(this.relayerConfiguration);
   }
 
   /**
