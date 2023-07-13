@@ -6,7 +6,6 @@ import { TokenRunningBalanceWithNetSend, UBAActionType, UBAFlowFee } from "./UBA
 import UBAConfig from "./UBAFeeConfig";
 import { min, toBN } from "../utils";
 import { computePiecewiseLinearFunction } from "./UBAFeeUtility";
-import { isTriggerHurdleDefined } from "../typeguards/uba";
 
 /**
  * Calculates the running balances for a given token on a spoke chain produced by the set of flows and beginning with
