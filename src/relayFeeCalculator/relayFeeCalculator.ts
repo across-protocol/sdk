@@ -39,7 +39,6 @@ export interface RelayFeeCalculatorConfigWithQueries extends BaseRelayFeeCalcula
 }
 export interface RelayFeeCalculatorConfigWithMap extends BaseRelayFeeCalculatorConfig {
   queriesMap: Record<number, QueryInterface>;
-  destinationChainId: number;
 }
 export type RelayFeeCalculatorConfig = RelayFeeCalculatorConfigWithQueries | RelayFeeCalculatorConfigWithMap;
 
@@ -91,12 +90,17 @@ export class RelayFeeCalculator {
   // be an object.
   private logger: Logger;
 
-  constructor(config: RelayFeeCalculatorConfig, logger: Logger = DEFAULT_LOGGER) {
+  constructor(config: RelayFeeCalculatorConfigWithQueries, logger?: Logger);
+  constructor(config: RelayFeeCalculatorConfigWithMap, logger?: Logger, destinationChainId?: number);
+  constructor(config?: RelayFeeCalculatorConfig, logger?: Logger, destinationChainId?: number) {
+    assert(config, "config must be provided");
+
     if ("queries" in config) {
       this.queries = config.queries;
     } else {
-      assert(config.queriesMap[config.destinationChainId], "No queries provided for destination chain");
-      this.queries = config.queriesMap[config.destinationChainId];
+      assert(destinationChainId !== undefined, "destinationChainId must be provided if queriesMap is provided");
+      assert(config.queriesMap[destinationChainId], "No queries provided for destination chain");
+      this.queries = config.queriesMap[destinationChainId];
     }
 
     this.gasDiscountPercent = config.gasDiscountPercent || 0;
@@ -127,7 +131,7 @@ export class RelayFeeCalculator {
       );
     }
 
-    this.logger = logger;
+    this.logger = logger || DEFAULT_LOGGER;
   }
 
   /**
