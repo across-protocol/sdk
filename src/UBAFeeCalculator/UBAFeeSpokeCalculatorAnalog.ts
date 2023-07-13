@@ -137,7 +137,7 @@ export function getEventFee(
   let balancingFee = computePiecewiseLinearFunction(
     flowCurve,
     lastRunningBalance,
-    amount.mul(flowType === "inflow" ? 1 : -1)
+    lastRunningBalance.add(amount.mul(flowType === "inflow" ? 1 : -1))
   );
 
   // Apply hardcoded multiplier if incentive fee is a reward instead of a penalty
