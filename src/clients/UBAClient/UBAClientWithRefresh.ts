@@ -3,7 +3,7 @@ import winston from "winston";
 import { HubPoolClient, SpokePoolClient } from "..";
 import { BaseUBAClient } from "./UBAClientBase";
 import { updateUBAClient } from "./UBAClientUtilities";
-import { RelayFeeCalculator, RelayFeeCalculatorConfig } from "../../relayFeeCalculator";
+import { RelayFeeCalculator, RelayFeeCalculatorConfigWithMap } from "../../relayFeeCalculator";
 import { UBAChainState } from "./UBAClientTypes";
 export class UBAClientWithRefresh extends BaseUBAClient {
   /**
@@ -19,7 +19,7 @@ export class UBAClientWithRefresh extends BaseUBAClient {
     readonly tokens: string[],
     protected readonly hubPoolClient: HubPoolClient,
     protected readonly spokePoolClients: { [chainId: number]: SpokePoolClient },
-    protected readonly relayerConfiguration: RelayFeeCalculatorConfig,
+    protected readonly relayerConfiguration: RelayFeeCalculatorConfigWithMap,
     readonly maxBundleStates: number,
     readonly logger?: winston.Logger
   ) {

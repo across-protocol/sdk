@@ -25,7 +25,7 @@ import {
 import { DepositWithBlock, FillWithBlock, RefundRequestWithBlock, UbaFlow } from "../../interfaces";
 import { Logger } from "winston";
 import { analog } from "../../UBAFeeCalculator";
-import { RelayFeeCalculator, RelayFeeCalculatorConfig } from "../../relayFeeCalculator";
+import { RelayFeeCalculator, RelayFeeCalculatorConfigWithMap } from "../../relayFeeCalculator";
 import { TOKEN_SYMBOLS_MAP } from "@across-protocol/contracts-v2";
 import { getDepositFee, getRefundFee } from "../../UBAFeeCalculator/UBAFeeSpokeCalculatorAnalog";
 import { AcrossConfigStoreClient } from "../AcrossConfigStoreClient";
@@ -207,7 +207,7 @@ export async function updateUBAClient(
   relevantTokenSymbols: string[],
   hubPoolBlockNumber: number,
   updateInternalClients = true,
-  relayFeeCalculatorConfig: RelayFeeCalculatorConfig,
+  relayFeeCalculatorConfig: RelayFeeCalculatorConfigWithMap,
   maxBundleStates: number
 ): Promise<UBAClientState> {
   if (updateInternalClients) {
@@ -348,7 +348,11 @@ export async function updateUBAClient(
               constructedBundle.config.ubaConfig.getLpGammaFunctionTuples(flow.destinationChainId)
             );
 
-            const relayFeeCalculator = new RelayFeeCalculator(relayFeeCalculatorConfig);
+            const relayFeeCalculator = new RelayFeeCalculator(
+              relayFeeCalculatorConfig,
+              undefined,
+              flow.destinationChainId
+            );
             const { capitalFeeTotal, relayFeeTotal, gasFeeTotal, isAmountTooLow } =
               await relayFeeCalculator.relayerFeeDetails(
                 flow.amount,
