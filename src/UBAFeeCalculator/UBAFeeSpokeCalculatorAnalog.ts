@@ -50,11 +50,12 @@ export function calculateHistoricalRunningBalance(
       // Now, add this flow's amount to the accumulated running balance.
       // If the flow is an inflow, we need to add the amount to the running balance
       // If the flow is an outflow, we need to subtract the amount from the running balance
-      // This is reflected in the incentive balance as well
+      // Incentive balances for each flow can be negative or positive so simply add them to the accumulatedd
+      // incentive balance.
       const resultant: TokenRunningBalanceWithNetSend = {
         netRunningBalanceAdjustment: toBN(acc.netRunningBalanceAdjustment.toString()), // Deep copy via string conversion
         runningBalance: acc.runningBalance[isUbaInflow(flow) ? "add" : "sub"](flow.amount).sub(incentiveFee),
-        incentiveBalance: acc.incentiveBalance[isUbaInflow(flow) ? "add" : "sub"](flow.amount).add(incentiveFee),
+        incentiveBalance: acc.incentiveBalance.add(incentiveFee),
       };
 
       // If the upper trigger hurdle is surpassed, we need to return the trigger hurdle value
@@ -66,9 +67,9 @@ export function calculateHistoricalRunningBalance(
         isTriggerHurdleDefined(upperBoundTriggerHurdle) &&
         resultant.runningBalance.gt(upperBoundTriggerHurdle.threshold)
       ) {
-        // Update the net running balance adjustment to reflect the difference between the running balance
-        // and the trigger hurdle
-        resultant.netRunningBalanceAdjustment = resultant.netRunningBalanceAdjustment.add(
+        // If we are over the target, subtract the difference from the net running balance adjustment
+        // so that the dataworker can instruct the spoke pool to return funds to the hub pool.
+        resultant.netRunningBalanceAdjustment = resultant.netRunningBalanceAdjustment.sub(
           resultant.runningBalance.sub(upperBoundTriggerHurdle.target)
         );
         // Set the running balance to the trigger hurdle
@@ -84,8 +85,8 @@ export function calculateHistoricalRunningBalance(
         isTriggerHurdleDefined(lowerBoundTriggerHurdle) &&
         resultant.runningBalance.lt(lowerBoundTriggerHurdle.threshold)
       ) {
-        // Update the net running balance adjustment to reflect the difference between the running balance
-        // and the trigger hurdle
+        // If we are under the target, add the difference to the net running balance adjustment
+        // so that the dataworker can instruct the hub pool to send funds to the spokepool.
         resultant.netRunningBalanceAdjustment = resultant.netRunningBalanceAdjustment.add(
           lowerBoundTriggerHurdle.target.sub(resultant.runningBalance)
         );

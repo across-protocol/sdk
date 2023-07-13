@@ -24,7 +24,7 @@ export interface CapitalCostConfigOverride {
   routeOverrides?: Record<ChainIdAsString, Record<ChainIdAsString, CapitalCostConfig>>;
 }
 export type RelayCapitalCostConfig = CapitalCostConfigOverride | CapitalCostConfig;
-export interface RelayFeeCalculatorConfig {
+export interface BaseRelayFeeCalculatorConfig {
   nativeTokenDecimals?: number;
   gasDiscountPercent?: number;
   capitalDiscountPercent?: number;
@@ -33,8 +33,14 @@ export interface RelayFeeCalculatorConfig {
   capitalCostsConfig?: {
     [token: string]: CapitalCostConfig | CapitalCostConfigOverride;
   };
+}
+export interface RelayFeeCalculatorConfigWithQueries extends BaseRelayFeeCalculatorConfig {
   queries: QueryInterface;
 }
+export interface RelayFeeCalculatorConfigWithMap extends BaseRelayFeeCalculatorConfig {
+  queriesMap: Record<number, QueryInterface>;
+}
+export type RelayFeeCalculatorConfig = RelayFeeCalculatorConfigWithQueries | RelayFeeCalculatorConfigWithMap;
 
 export interface RelayerFeeDetails {
   amountToRelay: string;
@@ -72,7 +78,7 @@ export const DEFAULT_LOGGER: Logger = {
 };
 
 export class RelayFeeCalculator {
-  private queries: Required<RelayFeeCalculatorConfig>["queries"];
+  private queries: QueryInterface;
   private gasDiscountPercent: Required<RelayFeeCalculatorConfig>["gasDiscountPercent"];
   private capitalDiscountPercent: Required<RelayFeeCalculatorConfig>["capitalDiscountPercent"];
   private feeLimitPercent: Required<RelayFeeCalculatorConfig>["feeLimitPercent"];
@@ -84,8 +90,19 @@ export class RelayFeeCalculator {
   // be an object.
   private logger: Logger;
 
-  constructor(config: RelayFeeCalculatorConfig, logger: Logger = DEFAULT_LOGGER) {
-    this.queries = config.queries;
+  constructor(config: RelayFeeCalculatorConfigWithQueries, logger?: Logger);
+  constructor(config: RelayFeeCalculatorConfigWithMap, logger?: Logger, destinationChainId?: number);
+  constructor(config?: RelayFeeCalculatorConfig, logger?: Logger, destinationChainId?: number) {
+    assert(config, "config must be provided");
+
+    if ("queries" in config) {
+      this.queries = config.queries;
+    } else {
+      assert(destinationChainId !== undefined, "destinationChainId must be provided if queriesMap is provided");
+      assert(config.queriesMap[destinationChainId], "No queries provided for destination chain");
+      this.queries = config.queriesMap[destinationChainId];
+    }
+
     this.gasDiscountPercent = config.gasDiscountPercent || 0;
     this.capitalDiscountPercent = config.capitalDiscountPercent || 0;
     this.feeLimitPercent = config.feeLimitPercent || 0;
@@ -114,7 +131,7 @@ export class RelayFeeCalculator {
       );
     }
 
-    this.logger = logger;
+    this.logger = logger || DEFAULT_LOGGER;
   }
 
   /**
