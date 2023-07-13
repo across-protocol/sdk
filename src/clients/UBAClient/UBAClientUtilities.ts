@@ -2,7 +2,7 @@ import assert from "assert";
 import { BigNumber } from "ethers";
 import { HubPoolClient } from "../HubPoolClient";
 import { calculateUtilizationBoundaries, computePiecewiseLinearFunction } from "../../UBAFeeCalculator/UBAFeeUtility";
-import UBAFeeConfig, { FlowTupleParameters } from "../../UBAFeeCalculator/UBAFeeConfig";
+import UBAFeeConfig from "../../UBAFeeCalculator/UBAFeeConfig";
 import {
   SpokePoolClients,
   filterAsync,
@@ -14,7 +14,7 @@ import {
   toBN,
 } from "../../utils";
 import { ERC20__factory } from "../../typechain";
-import { UBAActionType } from "../../UBAFeeCalculator/UBAFeeTypes";
+import { UBAActionType, FlowTupleParameters } from "../../UBAFeeCalculator/UBAFeeTypes";
 import {
   RequestValidReturnType,
   UBABundleState,
