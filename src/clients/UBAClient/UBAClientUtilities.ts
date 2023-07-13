@@ -574,22 +574,19 @@ export async function refundRequestIsValid(
 
   // Verify that the refundToken maps to a known HubPool token and is the correct
   // token for the chain where the refund was sent from.
-  // Note: the refundToken must be valid at the time of the Fill *and* the RefundRequest.
-  // @todo: This really should be using the hub pool block equivalent of the fillBlock. Its unlikely to be a problem
-  // since L1 tokens are rarely expected to be remapped but its worth solving.
-  const hubPoolBlockNumber = hubPoolClient.latestBlockNumber!;
+  // Note: the refundToken must be valid at the time the deposit was sent.
   try {
     const l1TokenForFill = hubPoolClient.getL1TokenCounterpartAtBlock(
       fill.destinationChainId,
       fill.destinationToken,
-      hubPoolBlockNumber
+      deposit.quoteBlockNumber
     );
     const expectedRefundToken = hubPoolClient.getDestinationTokenForL1Token(l1TokenForFill, repaymentChainId);
     if (expectedRefundToken !== refundToken) {
       return { valid: false, reason: `Refund token does not map to expected refund token ${refundToken}` };
     }
   } catch {
-    return { valid: false, reason: `Refund token unknown at HubPool block ${hubPoolBlockNumber}` };
+    return { valid: false, reason: `Refund token unknown at deposit quote block ${deposit.quoteBlockNumber}` };
   }
 
   return { valid: true, matchingFill: fill };
