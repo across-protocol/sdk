@@ -138,10 +138,6 @@ function omitDefaultKeys<T>(obj: Record<string, T>): Record<string, T> {
   }, {});
 }
 
-function collapseParallelArrays<T, U>(arr1: T[], arr2: U[]): [T, U][] {
-  return arr1.map((val, index) => [val, arr2[index]]);
-}
-
 export function getUBAFeeConfig(
   configClient: AcrossConfigStoreClient,
   chainId: number,
@@ -173,10 +169,8 @@ export function getUBAFeeConfig(
       override: omitDefaultKeys(ubaConfig.alpha),
     },
     {
-      default: collapseParallelArrays(omegaDefault.cutoff, omegaDefault.value),
-      override: Object.fromEntries(
-        Object.entries(omegaOverride).map(([key, value]) => [key, collapseParallelArrays(value.cutoff, value.value)])
-      ),
+      default: omegaDefault,
+      override: omegaOverride,
     },
     {
       default: {
@@ -203,10 +197,8 @@ export function getUBAFeeConfig(
       },
     },
     {
-      default: collapseParallelArrays(gammaDefault.cutoff, gammaDefault.value),
-      override: Object.fromEntries(
-        Object.entries(gammaOverride).map(([key, value]) => [key, collapseParallelArrays(value.cutoff, value.value)])
-      ),
+      default: gammaDefault,
+      override: gammaOverride,
     },
     ubaConfig.incentivePoolAdjustment,
     ubaConfig.ubaRewardMultiplier

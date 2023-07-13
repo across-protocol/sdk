@@ -6,6 +6,7 @@ import { TokenRunningBalanceWithNetSend, UBAActionType, UBAFlowFee } from "./UBA
 import UBAConfig from "./UBAFeeConfig";
 import { min, toBN } from "../utils";
 import { computePiecewiseLinearFunction } from "./UBAFeeUtility";
+import { isTriggerHurdleDefined } from "../typeguards/uba";
 
 /**
  * Calculates the running balances for a given token on a spoke chain produced by the set of flows and beginning with
@@ -65,7 +66,7 @@ export function calculateHistoricalRunningBalance(
       if (upperBoundTriggerHurdle.threshold.gt(0) && resultant.runningBalance.gt(upperBoundTriggerHurdle.threshold)) {
         // Update the net running balance adjustment to reflect the difference between the running balance
         // and the trigger hurdle
-        resultant.netRunningBalanceAdjustment = resultant.netRunningBalanceAdjustment.add(
+        resultant.netRunningBalanceAdjustment = resultant.netRunningBalanceAdjustment.sub(
           resultant.runningBalance.sub(upperBoundTriggerHurdle.target)
         );
         // Set the running balance to the trigger hurdle

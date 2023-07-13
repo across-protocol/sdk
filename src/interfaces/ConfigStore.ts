@@ -66,14 +66,10 @@ export interface DisabledChainsUpdate extends SortableEvent {
 type RecordWithDefaultEntry<Value> = Record<string, Value>;
 
 /**
- * A generic type for a dictionary that has two keys representing parallel arrays
- * of cutoff points and values. The cutoff points are sorted in ascending order.
+ * A generic type for an array of tuples.
  * @type Value The type of the values in the array.
  */
-type CutoffAndValueArray<Value> = {
-  cutoff: Value[];
-  value: Value[];
-};
+type ArrayOfTuples<Value> = [Value, Value][];
 
 /**
  * A type for the UBA config object stored both on and off chain.
@@ -105,7 +101,7 @@ type UBAAgnosticConfigType<T> = {
    * those points) that determine additional LP fees as a function of utilization. This piecewise
    * linear function can be determined by token and chain-by-chain.
    */
-  gamma: RecordWithDefaultEntry<CutoffAndValueArray<T>>;
+  gamma: RecordWithDefaultEntry<ArrayOfTuples<T>>;
   /**
    * This is a piecewise linear function (defined by a vector of cut-off points and the values at
    * those points) that determine the balancing fees (rewards) that are imposed on (paid to) a user
@@ -113,7 +109,7 @@ type UBAAgnosticConfigType<T> = {
    * each token/chain combination. A transfer will incur a balancing fee on both the origin and destination
    * chains.
    */
-  omega: RecordWithDefaultEntry<CutoffAndValueArray<T>>;
+  omega: RecordWithDefaultEntry<ArrayOfTuples<T>>;
   /**
    * This is a set of parameters that determine when a rebalance is triggered. A rebalance is triggered
    * when the utilization of a pool is outside of the range defined by the lower and upper thresholds.
