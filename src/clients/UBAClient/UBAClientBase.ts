@@ -50,7 +50,7 @@ export class BaseUBAClient extends BaseAbstractClient {
    * @param tokenSymbol The token to get the bundle states for
    * @returns The array of bundle states for the given token on the given chainId if it exists, otherwise an empty array
    */
-  protected retrieveBundleStates(chainId: number, tokenSymbol: string): UBABundleState[] {
+  public retrieveBundleStates(chainId: number, tokenSymbol: string): UBABundleState[] {
     return this.bundleStates?.[chainId]?.bundles?.[tokenSymbol] ?? [];
   }
 
@@ -60,7 +60,7 @@ export class BaseUBAClient extends BaseAbstractClient {
    * @param tokenSymbol The token to get the last bundle state for
    * @returns The last bundle state for the given token on the given chainId if it exists, otherwise undefined
    */
-  protected retrieveLastBundleState(chainId: number, tokenSymbol: string): UBABundleState | undefined {
+  public retrieveLastBundleState(chainId: number, tokenSymbol: string): UBABundleState | undefined {
     return this.retrieveBundleStates(chainId, tokenSymbol).at(-1);
   }
 
