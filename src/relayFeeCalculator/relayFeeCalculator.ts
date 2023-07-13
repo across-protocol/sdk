@@ -24,7 +24,7 @@ export interface CapitalCostConfigOverride {
   routeOverrides?: Record<ChainIdAsString, Record<ChainIdAsString, CapitalCostConfig>>;
 }
 export type RelayCapitalCostConfig = CapitalCostConfigOverride | CapitalCostConfig;
-export interface RelayFeeCalculatorConfig {
+export interface BaseRelayFeeCalculatorConfig {
   nativeTokenDecimals?: number;
   gasDiscountPercent?: number;
   capitalDiscountPercent?: number;
@@ -33,8 +33,15 @@ export interface RelayFeeCalculatorConfig {
   capitalCostsConfig?: {
     [token: string]: CapitalCostConfig | CapitalCostConfigOverride;
   };
+}
+export interface RelayFeeCalculatorConfigWithQueries extends BaseRelayFeeCalculatorConfig {
   queries: QueryInterface;
 }
+export interface RelayFeeCalculatorConfigWithMap extends BaseRelayFeeCalculatorConfig {
+  queriesMap: Record<number, QueryInterface>;
+  destinationChainId: number;
+}
+export type RelayFeeCalculatorConfig = RelayFeeCalculatorConfigWithQueries | RelayFeeCalculatorConfigWithMap;
 
 export interface RelayerFeeDetails {
   amountToRelay: string;
@@ -72,7 +79,7 @@ export const DEFAULT_LOGGER: Logger = {
 };
 
 export class RelayFeeCalculator {
-  private queries: Required<RelayFeeCalculatorConfig>["queries"];
+  private queries: QueryInterface;
   private gasDiscountPercent: Required<RelayFeeCalculatorConfig>["gasDiscountPercent"];
   private capitalDiscountPercent: Required<RelayFeeCalculatorConfig>["capitalDiscountPercent"];
   private feeLimitPercent: Required<RelayFeeCalculatorConfig>["feeLimitPercent"];
@@ -85,7 +92,13 @@ export class RelayFeeCalculator {
   private logger: Logger;
 
   constructor(config: RelayFeeCalculatorConfig, logger: Logger = DEFAULT_LOGGER) {
-    this.queries = config.queries;
+    if ("queries" in config) {
+      this.queries = config.queries;
+    } else {
+      assert(config.queriesMap[config.destinationChainId], "No queries provided for destination chain");
+      this.queries = config.queriesMap[config.destinationChainId];
+    }
+
     this.gasDiscountPercent = config.gasDiscountPercent || 0;
     this.capitalDiscountPercent = config.capitalDiscountPercent || 0;
     this.feeLimitPercent = config.feeLimitPercent || 0;
