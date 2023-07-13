@@ -1,7 +1,7 @@
 import { BigNumber } from "ethers";
 import { TokenRunningBalance, UbaFlow } from "../interfaces";
-import UBAConfig, { ThresholdBoundType } from "./UBAFeeConfig";
-import { TokenRunningBalanceWithNetSend, UBAFlowFee } from "./UBAFeeTypes";
+import UBAConfig from "./UBAFeeConfig";
+import { TokenRunningBalanceWithNetSend, UBAFlowFee, ThresholdBoundType } from "./UBAFeeTypes";
 import { calculateHistoricalRunningBalance, getEventFee } from "./UBAFeeSpokeCalculatorAnalog";
 
 /**
