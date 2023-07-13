@@ -2,7 +2,7 @@ import assert from "assert";
 import { BigNumber } from "ethers";
 import { HubPoolClient } from "../HubPoolClient";
 import { calculateUtilizationBoundaries, computePiecewiseLinearFunction } from "../../UBAFeeCalculator/UBAFeeUtility";
-import UBAFeeConfig, { FlowTupleParameters } from "../../UBAFeeCalculator/UBAFeeConfig";
+import UBAFeeConfig from "../../UBAFeeCalculator/UBAFeeConfig";
 import {
   SpokePoolClients,
   filterAsync,
@@ -14,7 +14,7 @@ import {
   toBN,
 } from "../../utils";
 import { ERC20__factory } from "../../typechain";
-import { UBAActionType } from "../../UBAFeeCalculator/UBAFeeTypes";
+import { UBAActionType, FlowTupleParameters } from "../../UBAFeeCalculator/UBAFeeTypes";
 import {
   RequestValidReturnType,
   UBABundleState,
@@ -162,6 +162,7 @@ export function getUBAFeeConfig(
 
   const threshold = ubaConfig.rebalance[String(chainId)];
 
+  const chainTokenCombination = `${chainId}-${token}`;
   return new UBAFeeConfig(
     {
       default: ubaConfig.alpha["default"],
@@ -172,19 +173,27 @@ export function getUBAFeeConfig(
       override: omegaOverride,
     },
     {
-      [chainId]: {
-        lowerBound: threshold.target_lower.isZero()
-          ? undefined
-          : {
-              target: threshold.target_lower,
-              threshold: threshold.threshold_lower,
-            },
-        upperBound: threshold.target_upper.isZero()
-          ? undefined
-          : {
-              target: threshold.target_upper,
-              threshold: threshold.threshold_upper,
-            },
+      default: {
+        lowerBound: {
+          target: toBN(0),
+          threshold: toBN(0),
+        },
+        upperBound: {
+          target: toBN(0),
+          threshold: toBN(0),
+        },
+      },
+      override: {
+        [chainTokenCombination]: {
+          lowerBound: {
+            target: threshold.target_lower,
+            threshold: threshold.threshold_lower,
+          },
+          upperBound: {
+            target: threshold.target_upper,
+            threshold: threshold.threshold_upper,
+          },
+        },
       },
     },
     {

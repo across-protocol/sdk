@@ -9,7 +9,7 @@ import {
   getRefundBalancingFee,
   performLinearIntegration,
 } from "./UBAFeeUtility";
-import { FlowTupleParameters } from "./UBAFeeConfig";
+import { FlowTupleParameters } from "./UBAFeeTypes";
 import { MAX_SAFE_JS_INT } from "@uma/common";
 import { parseEther, parseUnits } from "ethers/lib/utils";
 import { BigNumber } from "ethers";
@@ -41,7 +41,12 @@ describe("UBA Fee Calculations", () => {
           [toBN("9000000"), parseUnits("0.4", 18)],
         ],
       },
-      {},
+      {
+        default: {
+          lowerBound: { target: toBN("0"), threshold: toBN("0") },
+          upperBound: { target: toBN("0"), threshold: toBN("0") },
+        },
+      },
       { default: [] },
       {},
       {}

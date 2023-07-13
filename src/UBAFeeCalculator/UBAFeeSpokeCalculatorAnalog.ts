@@ -6,7 +6,6 @@ import { TokenRunningBalanceWithNetSend, UBAActionType, UBAFlowFee } from "./UBA
 import UBAConfig from "./UBAFeeConfig";
 import { min, toBN } from "../utils";
 import { computePiecewiseLinearFunction } from "./UBAFeeUtility";
-import { isTriggerHurdleDefined } from "../typeguards/uba";
 
 /**
  * Calculates the running balances for a given token on a spoke chain produced by the set of flows and beginning with
@@ -63,10 +62,7 @@ export function calculateHistoricalRunningBalance(
       // organically grow the running balance to. If the running balance exceeds the trigger hurdle,
       // we need to return the trigger hurdle as the running balance because at this point the dataworker
       // will be triggered to rebalance the running balance.
-      if (
-        isTriggerHurdleDefined(upperBoundTriggerHurdle) &&
-        resultant.runningBalance.gt(upperBoundTriggerHurdle.threshold)
-      ) {
+      if (upperBoundTriggerHurdle.threshold.gt(0) && resultant.runningBalance.gt(upperBoundTriggerHurdle.threshold)) {
         // If we are over the target, subtract the difference from the net running balance adjustment
         // so that the dataworker can instruct the spoke pool to return funds to the hub pool.
         resultant.netRunningBalanceAdjustment = resultant.netRunningBalanceAdjustment.sub(
@@ -82,7 +78,7 @@ export function calculateHistoricalRunningBalance(
       // we need to return the trigger hurdle as the running balance because at this point the dataworker
       // will be triggered to rebalance the running balance.
       else if (
-        isTriggerHurdleDefined(lowerBoundTriggerHurdle) &&
+        lowerBoundTriggerHurdle.threshold.gt(0) &&
         resultant.runningBalance.lt(lowerBoundTriggerHurdle.threshold)
       ) {
         // If we are under the target, add the difference to the net running balance adjustment

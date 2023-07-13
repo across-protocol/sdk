@@ -1,7 +1,7 @@
 import { BigNumber } from "ethers";
 import { UbaFlow } from "../../interfaces";
-import { UBAActionType } from "../../UBAFeeCalculator/UBAFeeTypes";
-import UBAConfig, { FlowTupleParameters } from "../../UBAFeeCalculator/UBAFeeConfig";
+import { UBAActionType, FlowTupleParameters } from "../../UBAFeeCalculator/UBAFeeTypes";
+import UBAConfig from "../../UBAFeeCalculator/UBAFeeConfig";
 
 export type RequestValidReturnType = { valid: false; reason: string } | { valid: true };
 export type BalancingFeeReturnType = { balancingFee: BigNumber; actionType: UBAActionType };
