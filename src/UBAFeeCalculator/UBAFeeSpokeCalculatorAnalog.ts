@@ -49,11 +49,12 @@ export function calculateHistoricalRunningBalance(
       // Now, add this flow's amount to the accumulated running balance.
       // If the flow is an inflow, we need to add the amount to the running balance
       // If the flow is an outflow, we need to subtract the amount from the running balance
-      // This is reflected in the incentive balance as well
+      // Incentive balances for each flow can be negative or positive so simply add them to the accumulatedd
+      // incentive balance.
       const resultant: TokenRunningBalanceWithNetSend = {
         netRunningBalanceAdjustment: toBN(acc.netRunningBalanceAdjustment.toString()), // Deep copy via string conversion
         runningBalance: acc.runningBalance[isUbaInflow(flow) ? "add" : "sub"](flow.amount).sub(incentiveFee),
-        incentiveBalance: acc.incentiveBalance[isUbaInflow(flow) ? "add" : "sub"](flow.amount).add(incentiveFee),
+        incentiveBalance: acc.incentiveBalance.add(incentiveFee),
       };
 
       // If the upper trigger hurdle is surpassed, we need to return the trigger hurdle value
