@@ -13,7 +13,7 @@ export class UBAClientWithRefresh extends BaseUBAClient {
     readonly chainIdIndices: number[],
     readonly tokens: string[],
     protected readonly hubPoolClient: HubPoolClient,
-    readonly spokePoolClients: { [chainId: number]: SpokePoolClient },
+    public readonly spokePoolClients: { [chainId: number]: SpokePoolClient },
     protected readonly relayerConfiguration: RelayFeeCalculatorConfigWithMap,
     readonly maxBundleStates: number,
     readonly logger?: winston.Logger
