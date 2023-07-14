@@ -57,19 +57,28 @@ export function calculateHistoricalRunningBalance(
         incentiveBalance: acc.incentiveBalance.add(incentiveFee),
       };
 
+      const { target: upperBoundTarget, threshold: upperBoundThreshold } = upperBoundTriggerHurdle;
+      const { target: lowerBoundTarget, threshold: lowerBoundThreshold } = lowerBoundTriggerHurdle;
+
       // If the upper trigger hurdle is surpassed, we need to return the trigger hurdle value
       // as the running balance. This is because the trigger hurdle is the maximum value we'd like to
       // organically grow the running balance to. If the running balance exceeds the trigger hurdle,
       // we need to return the trigger hurdle as the running balance because at this point the dataworker
       // will be triggered to rebalance the running balance.
-      if (upperBoundTriggerHurdle.threshold.gt(0) && resultant.runningBalance.gt(upperBoundTriggerHurdle.threshold)) {
+
+      if (
+        upperBoundTarget !== undefined &&
+        upperBoundThreshold !== undefined &&
+        upperBoundThreshold.gt(0) &&
+        resultant.runningBalance.gt(upperBoundThreshold)
+      ) {
         // If we are over the target, subtract the difference from the net running balance adjustment
         // so that the dataworker can instruct the spoke pool to return funds to the hub pool.
         resultant.netRunningBalanceAdjustment = resultant.netRunningBalanceAdjustment.sub(
-          resultant.runningBalance.sub(upperBoundTriggerHurdle.target)
+          resultant.runningBalance.sub(upperBoundTarget)
         );
         // Set the running balance to the trigger hurdle
-        resultant.runningBalance = upperBoundTriggerHurdle.target;
+        resultant.runningBalance = upperBoundTarget;
       }
 
       // If the lower trigger hurdle is surpassed, we need to return the trigger hurdle value
@@ -78,16 +87,18 @@ export function calculateHistoricalRunningBalance(
       // we need to return the trigger hurdle as the running balance because at this point the dataworker
       // will be triggered to rebalance the running balance.
       else if (
-        lowerBoundTriggerHurdle.threshold.gt(0) &&
-        resultant.runningBalance.lt(lowerBoundTriggerHurdle.threshold)
+        lowerBoundTarget !== undefined &&
+        lowerBoundThreshold !== undefined &&
+        lowerBoundThreshold.gt(0) &&
+        resultant.runningBalance.lt(lowerBoundThreshold)
       ) {
         // If we are under the target, add the difference to the net running balance adjustment
         // so that the dataworker can instruct the hub pool to send funds to the spokepool.
         resultant.netRunningBalanceAdjustment = resultant.netRunningBalanceAdjustment.add(
-          lowerBoundTriggerHurdle.target.sub(resultant.runningBalance)
+          lowerBoundTarget.sub(resultant.runningBalance)
         );
         // Set the running balance to the trigger hurdle
-        resultant.runningBalance = lowerBoundTriggerHurdle.target;
+        resultant.runningBalance = lowerBoundTarget;
       }
 
       return resultant;

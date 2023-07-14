@@ -10,6 +10,7 @@ import {
   filledSameDeposit,
   validateFillForDeposit,
   AnyObject,
+  MAX_BIG_INT,
 } from "../utils";
 import { toBN, paginatedEventQuery, spreadEventWithBlockNumber } from "../utils";
 import winston from "winston";
@@ -804,8 +805,11 @@ export class SpokePoolClient extends BaseAbstractClient {
    * @returns The realized LP fee percentage.
    */
   protected async computeRealizedLpFeePct(depositEvent: FundsDepositedEvent) {
+    // If no hub pool client, we're using this for testing. So set quote block very high
+    // so that if its ever used to look up a configuration for a block, it will always match with some
+    // configuration because the quote block will always be greater than the updated config event block height.
     if (this.hubPoolClient === null) {
-      return { realizedLpFeePct: toBN(0), quoteBlock: 0 };
+      return { realizedLpFeePct: toBN(0), quoteBlock: MAX_BIG_INT.toNumber() };
     }
 
     const deposit = {
