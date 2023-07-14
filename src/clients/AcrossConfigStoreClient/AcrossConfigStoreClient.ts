@@ -35,6 +35,7 @@ import {
 import { across } from "@uma/sdk";
 import { parseUBAConfigFromOnChain } from "./ConfigStoreParsingUtilities";
 import { BaseAbstractClient } from "../BaseAbstractClient";
+import { parseJSONWithNumericString } from "../../utils/JSONUtils";
 
 type _ConfigStoreUpdate = {
   success: true;
@@ -289,7 +290,7 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
       };
 
       try {
-        const parsedValue = JSON.parse(args.value) as ParsedTokenConfig;
+        const parsedValue = parseJSONWithNumericString(args.value) as ParsedTokenConfig;
         const rateModelForToken = JSON.stringify(parsedValue.rateModel);
         const transferThresholdForToken = parsedValue.transferThreshold;
 
