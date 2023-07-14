@@ -26,7 +26,7 @@ import { DepositWithBlock, FillWithBlock, RefundRequestWithBlock, UbaFlow } from
 import { Logger } from "winston";
 import { analog } from "../../UBAFeeCalculator";
 import { RelayFeeCalculator, RelayFeeCalculatorConfigWithMap } from "../../relayFeeCalculator";
-import { TOKEN_SYMBOLS_MAP } from "@across-protocol/contracts-v2";
+import { TOKEN_SYMBOLS_MAP } from "../../constants";
 import { getDepositFee, getRefundFee } from "../../UBAFeeCalculator/UBAFeeSpokeCalculatorAnalog";
 import { AcrossConfigStoreClient } from "../AcrossConfigStoreClient";
 
