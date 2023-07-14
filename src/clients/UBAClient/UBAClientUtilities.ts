@@ -588,7 +588,7 @@ export async function refundRequestIsValid(
       return { valid: false, reason: `Refund token does not map to expected refund token ${refundToken}` };
     }
   } catch {
-    return { valid: false, reason: `Refund token unknown at deposit quote block ${deposit.quoteBlockNumber}` };
+    return { valid: false, reason: `Refund token unknown at HubPool block ${deposit.quoteBlockNumber}` };
   }
 
   return { valid: true, matchingFill: fill };
