@@ -6,7 +6,7 @@
  * @param jsonString The JSON string to parse
  * @returns The parsed JSON object or undefined if the JSON string is invalid
  */
-export function parseJSONWithNumericString(jsonString: string): Record<string, unknown> | undefined {
+export function parseJSONWithNumericString(jsonString: string): unknown | undefined {
   try {
     return JSON.parse(jsonString, (_key, value) => {
       if (typeof value === "number") {

@@ -27,10 +27,10 @@ export function parseUBAConfigFromOnChain(config?: UBAOnChainConfigType): UBAPar
   }
   return {
     incentivePoolAdjustment: Object.fromEntries(
-      Object.entries(config.incentivePoolAdjustment).map(([key, value]) => [key, BigNumber.from(value)])
+      Object.entries(config.incentivePoolAdjustment ?? {}).map(([key, value]) => [key, BigNumber.from(value)])
     ),
     ubaRewardMultiplier: Object.fromEntries(
-      Object.entries(config.ubaRewardMultiplier).map(([key, value]) => [key, BigNumber.from(value)])
+      Object.entries(config.ubaRewardMultiplier ?? {}).map(([key, value]) => [key, BigNumber.from(value)])
     ),
     alpha: Object.fromEntries(Object.entries(config.alpha).map(([key, value]) => [key, BigNumber.from(value)])),
     gamma: Object.fromEntries(
@@ -46,15 +46,21 @@ export function parseUBAConfigFromOnChain(config?: UBAOnChainConfigType): UBAPar
       ])
     ),
     rebalance: Object.fromEntries(
-      Object.entries(config.rebalance).map(([key, value]) => [
-        key,
-        {
-          threshold_lower: BigNumber.from(value.threshold_lower),
-          threshold_upper: BigNumber.from(value.threshold_upper),
-          target_lower: BigNumber.from(value.target_lower),
-          target_upper: BigNumber.from(value.target_upper),
-        },
-      ])
+      Object.entries(config.rebalance).map(
+        ([key, { threshold_lower, threshold_upper, target_lower, target_upper }]) => {
+          const upperExists = threshold_upper !== undefined && target_upper !== undefined;
+          const lowerExists = threshold_lower !== undefined && target_lower !== undefined;
+          return [
+            key,
+            {
+              threshold_lower: lowerExists ? BigNumber.from(threshold_lower) : undefined,
+              target_lower: lowerExists ? BigNumber.from(target_lower) : undefined,
+              threshold_upper: upperExists ? BigNumber.from(threshold_upper) : undefined,
+              target_upper: upperExists ? BigNumber.from(target_upper) : undefined,
+            },
+          ];
+        }
+      )
     ),
   };
 }
