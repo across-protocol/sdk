@@ -614,7 +614,7 @@ export class HubPoolClient extends BaseAbstractClient {
       ),
     ];
     const [tokenInfo, lpTokenInfo] = await Promise.all([
-      Promise.all(uniqueL1Tokens.map((l1Token: string) => fetchTokenInfo(l1Token, this.hubPool.signer))),
+      Promise.all(uniqueL1Tokens.map((l1Token: string) => fetchTokenInfo(l1Token, this.hubPool.provider))),
       Promise.all(
         uniqueL1Tokens.map(
           async (l1Token: string) => await this.hubPool.pooledTokens(l1Token, { blockTag: update.searchEndBlock })

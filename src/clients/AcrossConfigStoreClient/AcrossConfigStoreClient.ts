@@ -306,14 +306,28 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
 
         // For now, we'll need to check if this value is undefined. In the
         // future, we should make this a required field.
-        // FIXME remove false
-        // eslint-disable-next-line no-constant-condition
-        if (parsedValue?.uba !== undefined && false) {
-          // Parse and store UBA config
-          const ubaConfig = parseUBAConfigFromOnChain(parsedValue.uba);
-          // eslint-disable-next-line @typescript-eslint/no-unused-vars
-          const { value: _value, key: _key, ...passedArgs } = args;
-          this.ubaConfigUpdates.push({ ...passedArgs, config: ubaConfig, l1Token });
+        if (parsedValue?.uba !== undefined) {
+          this.logger.debug({
+            at: "ConfigStore::update",
+            message: `Found UBA config for ${l1Token}`,
+          });
+          try {
+            // Parse and store UBA config
+            const ubaConfig = parseUBAConfigFromOnChain(parsedValue.uba);
+            // eslint-disable-next-line @typescript-eslint/no-unused-vars
+            const { value: _value, key: _key, ...passedArgs } = args;
+            this.logger.debug({
+              at: "ConfigStore::update",
+              message: `Parsed UBA config for ${l1Token}. Config: ${JSON.stringify(ubaConfig)}`,
+            });
+            this.ubaConfigUpdates.push({ ...passedArgs, config: ubaConfig, l1Token });
+          } catch (e) {
+            this.logger.warn({
+              at: "ConfigStore::update",
+              message: `Failed to parse UBA config for ${l1Token}`,
+              error: e,
+            });
+          }
         }
 
         // Drop value and key before passing args.

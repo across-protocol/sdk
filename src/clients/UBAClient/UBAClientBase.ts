@@ -20,7 +20,7 @@ import { BaseAbstractClient } from "../BaseAbstractClient";
  * UBAClient is a base class for UBA functionality. It provides a common interface for UBA functionality to be implemented on top of or extended.
  * This class is not intended to be used directly, but rather extended by other classes that implement the abstract methods.
  */
-export abstract class BaseUBAClient extends BaseAbstractClient {
+export class BaseUBAClient extends BaseAbstractClient {
   /**
    * A mapping of Token Symbols to a mapping of ChainIds to a list of bundle states.
    * @note The bundle states are sorted in ascending order by block number.
@@ -50,7 +50,7 @@ export abstract class BaseUBAClient extends BaseAbstractClient {
    * @param tokenSymbol The token to get the bundle states for
    * @returns The array of bundle states for the given token on the given chainId if it exists, otherwise an empty array
    */
-  protected retrieveBundleStates(chainId: number, tokenSymbol: string): UBABundleState[] {
+  public retrieveBundleStates(chainId: number, tokenSymbol: string): UBABundleState[] {
     return this.bundleStates?.[chainId]?.bundles?.[tokenSymbol] ?? [];
   }
 
@@ -60,7 +60,7 @@ export abstract class BaseUBAClient extends BaseAbstractClient {
    * @param tokenSymbol The token to get the last bundle state for
    * @returns The last bundle state for the given token on the given chainId if it exists, otherwise undefined
    */
-  protected retrieveLastBundleState(chainId: number, tokenSymbol: string): UBABundleState | undefined {
+  public retrieveLastBundleState(chainId: number, tokenSymbol: string): UBABundleState | undefined {
     return this.retrieveBundleStates(chainId, tokenSymbol).at(-1);
   }
 
