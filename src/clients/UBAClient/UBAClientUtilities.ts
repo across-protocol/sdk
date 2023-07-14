@@ -653,7 +653,7 @@ export async function getFills(
 }
 
 /**
- *@description Search for refund requests recorded by a specific SpokePool.
+ * @description Search for refund requests recorded by a specific SpokePool.
  * @param chainId Chain ID of the relevant SpokePoolClient instance.
  * @param chainIdIndices Complete set of ordered chain IDs.
  * @param hubPoolClient HubPoolClient instance.
