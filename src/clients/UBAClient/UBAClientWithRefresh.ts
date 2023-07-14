@@ -12,7 +12,7 @@ export class UBAClientWithRefresh extends BaseUBAClient {
   constructor(
     readonly chainIdIndices: number[],
     readonly tokens: string[],
-    public readonly hubPoolClient: HubPoolClient,
+    protected readonly hubPoolClient: HubPoolClient,
     public readonly spokePoolClients: { [chainId: number]: SpokePoolClient },
     protected readonly relayerConfiguration: RelayFeeCalculatorConfigWithMap,
     readonly maxBundleStates: number,
