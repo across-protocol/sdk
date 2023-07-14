@@ -86,11 +86,11 @@ type UBAAgnosticConfigType<T> = {
   /**
    * A DAO controlled variable to track any donations made to the incentivePool liquidity
    */
-  incentivePoolAdjustment: Record<string, T>;
+  incentivePoolAdjustment?: Record<string, T>;
   /**
    * Used to scale rewards when a fee is larger than the incentive balance
    */
-  ubaRewardMultiplier: Record<string, T>;
+  ubaRewardMultiplier?: Record<string, T>;
   /**
    * This is a scalar value that is a constant percentage of each transfer that is allocated for LPs.
    * This value can be determined by token and route-by-route.
@@ -120,23 +120,23 @@ type UBAAgnosticConfigType<T> = {
      * the reallocation of funds. i.e. If the running balance on a chain moves below (above) threshold_lower
      * (threshold_upper) then the bridge moves funds from Ethereum to the chain (from the chain to Ethereum).
      */
-    threshold_lower: T;
+    threshold_lower?: T;
     /**
      * For tokens/chains that have a supported bridge, these are the lower and upper threshold that trigger
      * the reallocation of funds. i.e. If the running balance on a chain moves below (above) threshold_lower
      * (threshold_upper) then the bridge moves funds from Ethereum to the chain (from the chain to Ethereum).
      */
-    threshold_upper: T;
+    threshold_upper?: T;
     /**
      * For tokens/chains that have a supported bridge, these are the values that are targeted whenever funds
      * are reallocated.
      */
-    target_lower: T;
+    target_lower?: T;
     /**
      * For tokens/chains that have a supported bridge, these are the values that are targeted whenever funds
      * are reallocated.
      */
-    target_upper: T;
+    target_upper?: T;
   }>;
 };
 
