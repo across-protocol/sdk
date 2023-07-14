@@ -3,6 +3,7 @@ import { FillWithBlock, UbaFlow } from "../../interfaces";
 import { UBAActionType, FlowTupleParameters } from "../../UBAFeeCalculator/UBAFeeTypes";
 import UBAConfig from "../../UBAFeeCalculator/UBAFeeConfig";
 
+// @todo: Revert to this after bumping typescript: { valid: true, fill: FillWithBlock } | { valid: false, reason: string } ;
 export type RequestValidReturnType = { valid: boolean; reason?: string; matchingFill?: FillWithBlock };
 export type BalancingFeeReturnType = { balancingFee: BigNumber; actionType: UBAActionType };
 export type SystemFeeResult = { lpFee: BigNumber; depositBalancingFee: BigNumber; systemFee: BigNumber };
