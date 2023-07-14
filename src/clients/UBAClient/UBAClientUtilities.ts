@@ -569,10 +569,6 @@ export async function refundRequestIsValid(
     return { valid: false, reason: "Unable to find matching fill" };
   }
 
-  if (fill.blockNumber !== fillBlock) {
-    return { valid: false, reason: "Fill block number does not match refund request block number" };
-  }
-
   const deposit = await resolveCorrespondingDepositForFill(fill, spokePoolClients);
   if (!isDefined(deposit)) {
     return { valid: false, reason: "Unable to find matching deposit" };
