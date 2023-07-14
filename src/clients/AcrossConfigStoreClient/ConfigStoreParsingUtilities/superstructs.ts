@@ -1,4 +1,4 @@
-import { array, object, record, string, refine, union } from "superstruct";
+import { array, object, record, string, refine, union, optional } from "superstruct";
 
 /**
  * This is a superstruct that verifies that the routing rule is formatted correctly.
@@ -43,8 +43,8 @@ const NumericTupleRule = refine(array(NumericStringRule), "NumericTupleRule", (v
  *   - target_upper: a numeric string
  */
 export const UBA_CONFIG_ONCHAIN_SCHEMA = object({
-  incentivePoolAdjustment: record(NumericStringRule, NumericStringRule),
-  ubaRewardMultiplier: record(NumericStringRule, NumericStringRule),
+  incentivePoolAdjustment: optional(record(NumericStringRule, NumericStringRule)),
+  ubaRewardMultiplier: optional(record(NumericStringRule, NumericStringRule)),
   alpha: union([
     object({
       default: NumericStringRule,
@@ -56,19 +56,19 @@ export const UBA_CONFIG_ONCHAIN_SCHEMA = object({
   rebalance: union([
     object({
       default: object({
-        threshold_lower: NumericStringRule,
-        threshold_upper: NumericStringRule,
-        target_lower: NumericStringRule,
-        target_upper: NumericStringRule,
+        threshold_lower: optional(NumericStringRule),
+        threshold_upper: optional(NumericStringRule),
+        target_lower: optional(NumericStringRule),
+        target_upper: optional(NumericStringRule),
       }),
     }),
     record(
       NumericStringRule,
       object({
-        threshold_lower: NumericStringRule,
-        threshold_upper: NumericStringRule,
-        target_lower: NumericStringRule,
-        target_upper: NumericStringRule,
+        threshold_lower: optional(NumericStringRule),
+        threshold_upper: optional(NumericStringRule),
+        target_lower: optional(NumericStringRule),
+        target_upper: optional(NumericStringRule),
       })
     ),
   ]),
