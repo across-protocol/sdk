@@ -43,12 +43,12 @@ class UBAConfig {
   /**
    * A DAO controlled variable to track any donations made to the incentivePool liquidity
    */
-  protected readonly incentivePoolAdjustment?: Record<string, BigNumber>;
+  protected readonly incentivePoolAdjustment: Record<string, BigNumber>;
 
   /**
    * Used to scale rewards when a fee is larger than the incentive balance
    */
-  protected readonly ubaRewardMultiplier?: Record<string, BigNumber>;
+  protected readonly ubaRewardMultiplier: Record<string, BigNumber>;
 
   /**
    * Instantiate a new UBA Config object
@@ -64,8 +64,8 @@ class UBAConfig {
     balancingFee: DefaultOverrideStructure<FlowTupleParameters, ChainId>,
     balanceTriggerThreshold: DefaultOverrideStructure<ThresholdBoundType, ChainTokenCombination>,
     lpGammaFunction: DefaultOverrideStructure<FlowTupleParameters, ChainId>,
-    incentivePoolAdjustment?: Record<string, BigNumber>,
-    ubaRewardMultiplier?: Record<string, BigNumber>
+    incentivePoolAdjustment: Record<string, BigNumber> = {},
+    ubaRewardMultiplier: Record<string, BigNumber> = {}
   ) {
     this.baselineFee = baselineFee;
     this.balancingFee = balancingFee;
