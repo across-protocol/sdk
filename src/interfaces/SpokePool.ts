@@ -138,6 +138,7 @@ export interface UnfilledDeposit {
   deposit: Deposit;
   unfilledAmount: BigNumber;
   hasFirstPartialFill?: boolean;
+  relayerBalancingFee?: BigNumber;
 }
 
 export interface UnfilledDepositsForOriginChain {
