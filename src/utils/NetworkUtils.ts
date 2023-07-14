@@ -1,4 +1,4 @@
-import { PublicNetworks } from "@uma/common";
+import { PublicNetworks } from "@uma/common/dist/PublicNetworks";
 
 /**
  * Resolves a network name from a network id.
