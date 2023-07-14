@@ -522,6 +522,7 @@ export async function refundRequestIsValid(
     repaymentChainId,
     realizedLpFeePct,
     fillBlock,
+    previousIdenticalRequests,
   } = refundRequest;
 
   if (!chainIdIndices.includes(originChainId)) {
@@ -541,14 +542,25 @@ export async function refundRequestIsValid(
     };
   }
 
-  // Validate relayer and depositId.
+  // @dev: In almost all cases we should only count refunds where this value is 0. However, sometimes its possible
+  // that an initial refund request is thrown out due to some odd timing bug so this might be overly restrictive.
+  if (previousIdenticalRequests.gt(0)) {
+    return { valid: false, reason: "Previous identical request exists" };
+  }
+
+  // Validate relayer and depositId. Also check that fill requested refund on same chain that
+  // refund was sent.
   const fill = destSpoke.getFillsForRelayer(relayer).find((fill) => {
     // prettier-ignore
     return (
         fill.depositId === depositId
         && fill.originChainId === originChainId
         && fill.destinationChainId === destinationChainId
+        // Must have requested refund on chain that refund was sent on.
+        && fill.repaymentChainId === repaymentChainId
+        // Must be a full fill to qualify for a refund.
         && fill.amount.eq(amount)
+        && fill.fillAmount.eq(amount)
         && fill.realizedLpFeePct.eq(realizedLpFeePct)
         && fill.blockNumber === fillBlock.toNumber()
       );
@@ -562,17 +574,24 @@ export async function refundRequestIsValid(
     return { valid: false, reason: "Unable to find matching deposit" };
   }
 
-  // Verify that the refundToken maps to a known HubPool token.
-  // Note: the refundToken must be valid at the time of the Fill *and* the RefundRequest.
-  // @todo: Resolve to the HubPool block number at the time of the RefundRequest ?
-  const hubPoolBlockNumber = hubPoolClient.latestBlockNumber ?? hubPoolClient.deploymentBlock - 1;
+  // Verify that the refundToken maps to a known HubPool token and is the correct
+  // token for the chain where the refund was sent from.
+  // Note: the refundToken must be valid at the time the deposit was sent.
   try {
-    hubPoolClient.getL1TokenCounterpartAtBlock(repaymentChainId, refundToken, hubPoolBlockNumber);
+    const l1TokenForFill = hubPoolClient.getL1TokenCounterpartAtBlock(
+      fill.destinationChainId,
+      fill.destinationToken,
+      deposit.quoteBlockNumber
+    );
+    const expectedRefundToken = hubPoolClient.getDestinationTokenForL1Token(l1TokenForFill, repaymentChainId);
+    if (expectedRefundToken !== refundToken) {
+      return { valid: false, reason: `Refund token does not map to expected refund token ${refundToken}` };
+    }
   } catch {
-    return { valid: false, reason: `Refund token unknown at HubPool block ${hubPoolBlockNumber}` };
+    return { valid: false, reason: `Refund token unknown at HubPool block ${deposit.quoteBlockNumber}` };
   }
 
-  return { valid: true };
+  return { valid: true, matchingFill: fill };
 }
 
 export type SpokePoolEventFilter = {
