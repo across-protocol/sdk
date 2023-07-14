@@ -175,7 +175,7 @@ export class HubPoolClient extends BaseAbstractClient {
     return l1Token;
   }
 
-  getL1TokenCounterpartAtBlock(l2ChainId: number, l2Token: string, l1Block: number): string {
+  getL1TokenCounterpartAtBlock(l2ChainId: number, l2Token: string, hubPoolBlock: number): string {
     const l1Token = Object.keys(this.l1TokensToDestinationTokensWithBlock).find((_l1Token) => {
       // If this token doesn't exist on this L2, return false.
       if (this.l1TokensToDestinationTokensWithBlock[_l1Token][l2ChainId] === undefined) {
@@ -184,12 +184,12 @@ export class HubPoolClient extends BaseAbstractClient {
 
       // Find the last mapping published before the target block.
       return sortEventsDescending(this.l1TokensToDestinationTokensWithBlock[_l1Token][l2ChainId]).find(
-        (mapping: DestinationTokenWithBlock) => mapping.l2Token === l2Token && mapping.blockNumber <= l1Block
+        (mapping: DestinationTokenWithBlock) => mapping.l2Token === l2Token && mapping.blockNumber <= hubPoolBlock
       );
     });
     if (!l1Token) {
       throw new Error(
-        `Could not find L1 token mapping for chain ${l2ChainId} and L2 token ${l2Token} equal to or earlier than block ${l1Block}!`
+        `Could not find L1 token mapping for chain ${l2ChainId} and L2 token ${l2Token} equal to or earlier than block ${hubPoolBlock}!`
       );
     }
     return l1Token;
