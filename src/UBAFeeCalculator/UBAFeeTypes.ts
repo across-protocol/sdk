@@ -16,5 +16,5 @@ export type UBAFlowFee = {
 
 export type TupleParameter = [BigNumber, BigNumber];
 export type FlowTupleParameters = TupleParameter[];
-export type ThresholdType = { target: BigNumber; threshold: BigNumber };
+export type ThresholdType = { target?: BigNumber; threshold?: BigNumber };
 export type ThresholdBoundType = { lowerBound: ThresholdType; upperBound: ThresholdType };
