@@ -26,9 +26,14 @@ import { DepositWithBlock, FillWithBlock, RefundRequestWithBlock, UbaFlow } from
 import { Logger } from "winston";
 import { analog } from "../../UBAFeeCalculator";
 import { RelayFeeCalculator, RelayFeeCalculatorConfigWithMap } from "../../relayFeeCalculator";
-import { TOKEN_SYMBOLS_MAP } from "../../constants";
+import { CHAIN_ID_LIST_INDICES, TOKEN_SYMBOLS_MAP } from "../../constants";
 import { getDepositFee, getRefundFee } from "../../UBAFeeCalculator/UBAFeeSpokeCalculatorAnalog";
 import { AcrossConfigStoreClient } from "../AcrossConfigStoreClient";
+import {
+  blockRangesAreInvalidForSpokeClients,
+  getBlockRangeForChain,
+  getImpliedBundleBlockRanges,
+} from "../../utils/BundleUtils";
 
 /**
  * Compute the realized LP fee for a given amount.
@@ -205,6 +210,18 @@ export function getUBAFeeConfig(
   );
 }
 
+/**
+ * Load validated bundle states. Returns the most recent `maxBundleStates` # of bundles.
+ * @param hubPoolClient
+ * @param spokePoolClients
+ * @param relevantChainIds
+ * @param relevantTokenSymbols
+ * @param hubPoolBlockNumber
+ * @param updateInternalClients
+ * @param relayFeeCalculatorConfig
+ * @param maxBundleStates
+ * @returns
+ */
 export async function updateUBAClient(
   hubPoolClient: HubPoolClient,
   spokePoolClients: SpokePoolClients,
@@ -219,6 +236,11 @@ export async function updateUBAClient(
     await hubPoolClient.update();
     await Promise.all(Object.values(spokePoolClients).map((spokePoolClient) => spokePoolClient.update()));
   }
+  relevantChainIds.forEach((chainId) => {
+    if (!CHAIN_ID_LIST_INDICES.includes(chainId)) {
+      throw new Error(`Unsupported chainId ${chainId} in Across. Valid chains are ${CHAIN_ID_LIST_INDICES}`);
+    }
+  });
   return await relevantChainIds.reduce(async (accumulator, chainId) => {
     const spokePoolClient = spokePoolClients[chainId];
 
@@ -236,21 +258,38 @@ export async function updateUBAClient(
     };
 
     const tokenStates = await relevantTokenSymbols.reduce(async (accumulator, tokenSymbol) => {
-      // Find the last MAX_BUNDLE_LOOKBACK_SIZE bundle start/end blocks for this token
-      let startingBlock = hubPoolBlockNumber;
+      let toBlock = hubPoolBlockNumber;
+      // Reconstruct bundle ranges based on published end blocks.
       const bundleBounds: { start: number; end: number }[] = [];
       for (let i = 0; i < maxBundleStates; i++) {
-        const lastPreviousBlock = hubPoolClient.getLatestBundleEndBlockForChain(
-          relevantChainIds,
-          startingBlock,
-          chainId
+        // Get the most recent bundle end range for this chain published in a bundle before `toBlock`.
+        const latestExecutedRootBundle = hubPoolClient.getNthFullyExecutedRootBundle(-1, toBlock);
+        if (!latestExecutedRootBundle) {
+          throw new Error(`No validated root bundle found before hubpool block ${toBlock}`);
+        }
+        const rootBundleBlockRanges = getImpliedBundleBlockRanges(
+          hubPoolClient,
+          hubPoolClient.configStoreClient,
+          latestExecutedRootBundle
         );
+        // Make sure our spoke pool clients have the block ranges we need to look up data in this bundle range:
+        if (blockRangesAreInvalidForSpokeClients(spokePoolClients, rootBundleBlockRanges)) {
+          throw new Error(
+            `Spoke pool clients do not have the block ranges necessary to look up data for bundles ${
+              latestExecutedRootBundle.blockNumber
+            }: ${JSON.stringify(rootBundleBlockRanges)}`
+          );
+        }
+        const blockRangeForChain = getBlockRangeForChain(rootBundleBlockRanges, chainId);
+
         // Push the structure to the start of the list
         bundleBounds.unshift({
-          start: startingBlock,
-          end: lastPreviousBlock,
+          start: blockRangeForChain[0],
+          end: blockRangeForChain[1],
         });
-        startingBlock = lastPreviousBlock - 1;
+
+        // Decrement toBlock to the start of the most recently grabbed bundle.
+        toBlock = latestExecutedRootBundle.blockNumber;
       }
       // Iterate through the bundle bounds and find the bundles that are available
       // TODO: Replace the following code by mapping by this entire client by l1TokenAddress instead of tokenSymbol.
@@ -466,8 +505,8 @@ async function getFlows(
       fill.repaymentChainId === spokePoolClient.chainId &&
       fill.fillAmount.eq(fill.totalFilledAmount) &&
       fill.updatableRelayData.isSlowRelay === false &&
-      fill.blockNumber > (fromBlock as number) &&
-      fill.blockNumber < (toBlock as number);
+      fill.blockNumber >= (fromBlock as number) &&
+      fill.blockNumber <= (toBlock as number);
 
     const hasMatchingDeposit = (await resolveCorrespondingDepositForFill(fill, spokePoolClients)) !== undefined;
 
