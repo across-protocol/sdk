@@ -39,6 +39,10 @@ export class MockHubPoolClient extends HubPoolClient {
     this.eventManager = getEventManager(chainId, this.eventSignatures, deploymentBlock);
   }
 
+  setLatestBlockNumber(blockNumber: number) {
+    this.latestBlockNumber = blockNumber;
+  }
+
   addEvent(event: Event): void {
     this.events.push(event);
   }

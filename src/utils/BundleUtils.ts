@@ -128,9 +128,7 @@ export function blockRangesAreInvalidForSpokeClients(
     // Note: Math.max the from block with the deployment block of the spoke pool to handle the edge case for the first
     // bundle that set its start blocks equal 0.
     const bundleRangeFromBlock = Math.max(spokePoolClients[chainId].deploymentBlock, blockRangeForChain[0]);
-    const earliestSpokePoolClientBlock = spokePoolClients[chainId].firstBlockToSearch;
-    if (earliestSpokePoolClientBlock === 0)
-      throw new Error(`SpokePoolClient for chain ${chainId} has firstBlockToSearch of 0 and is not updated`);
-    return bundleRangeFromBlock <= earliestSpokePoolClientBlock || bundleRangeToBlock > clientLastBlockQueried;
+    const earliestSpokePoolClientBlockSearched = spokePoolClients[chainId].eventSearchConfig.fromBlock;
+    return bundleRangeFromBlock <= earliestSpokePoolClientBlockSearched || bundleRangeToBlock > clientLastBlockQueried;
   });
 }

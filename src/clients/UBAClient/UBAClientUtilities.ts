@@ -210,6 +210,15 @@ export function getUBAFeeConfig(
   );
 }
 
+/**
+ * Returns most recent `maxBundleStates` bundle ranges for a given chain, in chronological ascending order.
+ * @param chainId
+ * @param maxBundleStates If this is larger than available validated bundles in the HubPoolClient, will throw an error.
+ * @param mostRecentHubPoolBlock Only returns the most recent validated bundles proposed before this block.
+ * @param hubPoolClient
+ * @param spokePoolClients
+ * @returns
+ */
 export function getMostRecentBundleBlockRanges(
   chainId: number,
   maxBundleStates: number,
@@ -235,7 +244,7 @@ export function getMostRecentBundleBlockRanges(
     // Make sure our spoke pool clients have the block ranges we need to look up data in this bundle range:
     if (blockRangesAreInvalidForSpokeClients(spokePoolClients, rootBundleBlockRanges)) {
       throw new Error(
-        `Spoke pool clients do not have the block ranges necessary to look up data for bundles ${
+        `Spoke pool clients do not have the block ranges necessary to look up data for bundle proposed at block ${
           latestExecutedRootBundle.blockNumber
         }: ${JSON.stringify(rootBundleBlockRanges)}`
       );
@@ -302,6 +311,7 @@ export async function updateUBAClient(
     };
 
     // Grab all bundle ranges for this chain. This logic is isolated into a function that we can unit test.
+    // The bundles are returned in ascending order.
     const bundleBounds = getMostRecentBundleBlockRanges(
       chainId,
       maxBundleStates,
