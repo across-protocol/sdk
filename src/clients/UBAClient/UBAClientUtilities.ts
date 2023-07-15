@@ -210,6 +210,50 @@ export function getUBAFeeConfig(
   );
 }
 
+export function getMostRecentBundleBlockRanges(
+  chainId: number,
+  maxBundleStates: number,
+  mostRecentHubPoolBlock: number,
+  hubPoolClient: HubPoolClient,
+  spokePoolClients: SpokePoolClients
+): { start: number; end: number }[] {
+  let toBlock = mostRecentHubPoolBlock;
+
+  // Reconstruct bundle ranges based on published end blocks.
+  const bundleBounds: { start: number; end: number }[] = [];
+  for (let i = 0; i < maxBundleStates; i++) {
+    // Get the most recent bundle end range for this chain published in a bundle before `toBlock`.
+    const latestExecutedRootBundle = hubPoolClient.getNthFullyExecutedRootBundle(-1, toBlock);
+    if (!latestExecutedRootBundle) {
+      throw new Error(`No validated root bundle found before hubpool block ${toBlock}`);
+    }
+    const rootBundleBlockRanges = getImpliedBundleBlockRanges(
+      hubPoolClient,
+      hubPoolClient.configStoreClient,
+      latestExecutedRootBundle
+    );
+    // Make sure our spoke pool clients have the block ranges we need to look up data in this bundle range:
+    if (blockRangesAreInvalidForSpokeClients(spokePoolClients, rootBundleBlockRanges)) {
+      throw new Error(
+        `Spoke pool clients do not have the block ranges necessary to look up data for bundles ${
+          latestExecutedRootBundle.blockNumber
+        }: ${JSON.stringify(rootBundleBlockRanges)}`
+      );
+    }
+    const blockRangeForChain = getBlockRangeForChain(rootBundleBlockRanges, chainId);
+
+    // Push the structure to the start of the list
+    bundleBounds.unshift({
+      start: blockRangeForChain[0],
+      end: blockRangeForChain[1],
+    });
+
+    // Decrement toBlock to the start of the most recently grabbed bundle.
+    toBlock = latestExecutedRootBundle.blockNumber;
+  }
+
+  return bundleBounds;
+}
 /**
  * Load validated bundle states. Returns the most recent `maxBundleStates` # of bundles.
  * @param hubPoolClient
@@ -257,40 +301,21 @@ export async function updateUBAClient(
       },
     };
 
+    // Grab all bundle ranges for this chain. This logic is isolated into a function that we can unit test.
+    const bundleBounds = getMostRecentBundleBlockRanges(
+      chainId,
+      maxBundleStates,
+      hubPoolBlockNumber,
+      hubPoolClient,
+      spokePoolClients
+    );
+
+    // Now, for each token, load the bundle data including:
+    // - valid flows in the bundle
+    // - opening running balance
+    // - opening incentive balance
+    // - UBA config to apply when charging fees to flows in bundle
     const tokenStates = await relevantTokenSymbols.reduce(async (accumulator, tokenSymbol) => {
-      let toBlock = hubPoolBlockNumber;
-      // Reconstruct bundle ranges based on published end blocks.
-      const bundleBounds: { start: number; end: number }[] = [];
-      for (let i = 0; i < maxBundleStates; i++) {
-        // Get the most recent bundle end range for this chain published in a bundle before `toBlock`.
-        const latestExecutedRootBundle = hubPoolClient.getNthFullyExecutedRootBundle(-1, toBlock);
-        if (!latestExecutedRootBundle) {
-          throw new Error(`No validated root bundle found before hubpool block ${toBlock}`);
-        }
-        const rootBundleBlockRanges = getImpliedBundleBlockRanges(
-          hubPoolClient,
-          hubPoolClient.configStoreClient,
-          latestExecutedRootBundle
-        );
-        // Make sure our spoke pool clients have the block ranges we need to look up data in this bundle range:
-        if (blockRangesAreInvalidForSpokeClients(spokePoolClients, rootBundleBlockRanges)) {
-          throw new Error(
-            `Spoke pool clients do not have the block ranges necessary to look up data for bundles ${
-              latestExecutedRootBundle.blockNumber
-            }: ${JSON.stringify(rootBundleBlockRanges)}`
-          );
-        }
-        const blockRangeForChain = getBlockRangeForChain(rootBundleBlockRanges, chainId);
-
-        // Push the structure to the start of the list
-        bundleBounds.unshift({
-          start: blockRangeForChain[0],
-          end: blockRangeForChain[1],
-        });
-
-        // Decrement toBlock to the start of the most recently grabbed bundle.
-        toBlock = latestExecutedRootBundle.blockNumber;
-      }
       // Iterate through the bundle bounds and find the bundles that are available
       // TODO: Replace the following code by mapping by this entire client by l1TokenAddress instead of tokenSymbol.
       const l1TokenAddress = hubPoolClient.getL1Tokens().find((token) => token.symbol === tokenSymbol)?.address;
