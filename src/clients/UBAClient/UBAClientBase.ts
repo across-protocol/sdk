@@ -153,14 +153,14 @@ export class BaseUBAClient extends BaseAbstractClient {
       specificBundleState.openingIncentiveBalance,
       chainId,
       tokenSymbol,
-      specificBundleState.config.ubaConfig
+      specificBundleState.config
     );
     const { balancingFee } = analog.feeCalculationFunctionsForUBA[feeType](
       amount,
       runningBalance,
       incentiveBalance,
       chainId,
-      specificBundleState.config.ubaConfig
+      specificBundleState.config
     );
     return {
       balancingFee: balancingFee,
@@ -227,18 +227,18 @@ export class BaseUBAClient extends BaseAbstractClient {
         erc20.balanceOf(hubPoolClient.hubPool.address, { blockTag: hubPoolBlockNumber }),
         erc20.balanceOf(hubPoolClient.hubPool.address, { blockTag: hubPoolBlockNumber }),
       ]);
-      const ubaConfigForBundle = recentBundleState.config.ubaConfig;
+      const ubaConfigForBundle = recentBundleState.config;
       // We will need to sum them all up for this token to compute the LP fee correctly.
       const cumulativeSpokeTargets =
         ubaConfigForBundle.getTotalSpokeTargetBalanceForComputingLpFee(hubPoolTokenAddress);
       overrides = {
-        decimals: recentBundleState.config.tokenDecimals,
+        decimals: tokenMappingLookup.decimals,
         hubBalance,
         hubEquity,
         ethSpokeBalance,
         cumulativeSpokeTargets,
-        baselineFee: recentBundleState.config.ubaConfig.getBaselineFee(refundChainId ?? depositChainId, depositChainId),
-        gammaCutoff: recentBundleState.config.ubaConfig.getLpGammaFunctionTuples(depositChainId),
+        baselineFee: recentBundleState.config.getBaselineFee(refundChainId ?? depositChainId, depositChainId),
+        gammaCutoff: recentBundleState.config.getLpGammaFunctionTuples(depositChainId),
       };
     }
     const { decimals, hubBalance, hubEquity, ethSpokeBalance, cumulativeSpokeTargets, baselineFee, gammaCutoff } =

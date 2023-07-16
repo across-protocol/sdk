@@ -33,16 +33,11 @@ export type ModifiedUBAFlow = {
   netRunningBalanceAdjustment: BigNumber;
 };
 
-type UBABundleConfig = {
-  ubaConfig: UBAConfig;
-  tokenDecimals: number;
-};
-
 export type UBABundleState = {
   openingBalance: BigNumber;
   openingIncentiveBalance: BigNumber;
   openingBlockNumberForSpokeChain: number;
-  config: UBABundleConfig;
+  config: UBAConfig;
   flows: ModifiedUBAFlow[];
 };
 

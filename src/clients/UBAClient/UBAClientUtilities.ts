@@ -19,7 +19,7 @@ import { RequestValidReturnType, UBABundleState, UBAChainState, UBAClientState }
 import { DepositWithBlock, FillWithBlock, ProposedRootBundle, RefundRequestWithBlock, UbaFlow } from "../../interfaces";
 import { Logger } from "winston";
 import { analog } from "../../UBAFeeCalculator";
-import { CHAIN_ID_LIST_INDICES, TOKEN_SYMBOLS_MAP } from "../../constants";
+import { CHAIN_ID_LIST_INDICES } from "../../constants";
 import { getDepositFee, getRefundFee } from "../../UBAFeeCalculator/UBAFeeSpokeCalculatorAnalog";
 import { AcrossConfigStoreClient } from "../AcrossConfigStoreClient";
 import {
@@ -42,7 +42,6 @@ import {
  */
 export async function computeLpFeeForRefresh(
   hubPoolTokenAddress: string,
-  decimals: number,
   cumulativeSpokeTargets: BigNumber,
   originChainId: number,
   refundChainId: number,
@@ -53,6 +52,11 @@ export async function computeLpFeeForRefresh(
   gammaCutoff: FlowTupleParameters,
   blockNumber?: number
 ): Promise<BigNumber> {
+  const hubPoolTokenInfo = hubPoolClient.getTokenInfoForL1Token(hubPoolTokenAddress);
+  if (!hubPoolTokenInfo) {
+    throw new Error(`Token ${hubPoolTokenAddress} not found in hub pool client`);
+  }
+  const tokenDecimals = hubPoolTokenInfo.decimals;
   const erc20 = ERC20__factory.connect(hubPoolTokenAddress, hubPoolClient.hubPool.provider);
   // Grab the balances of the spoke pool and hub pool at the given block number.
   const [ethSpokeBalance, hubBalance, hubEquity] = await Promise.all([
@@ -65,7 +69,7 @@ export async function computeLpFeeForRefresh(
     originChainId,
     refundChainId,
     hubPoolClient.chainId,
-    decimals,
+    tokenDecimals,
     hubBalance,
     hubEquity,
     ethSpokeBalance,
@@ -371,10 +375,6 @@ export async function updateUBAClient(
                 l1TokenAddress,
                 executedLeafForChain
               );
-              const tokenMappingLookup = (
-                TOKEN_SYMBOLS_MAP as Record<string, { addresses: { [x: number]: string }; decimals: number }>
-              )[tokenSymbol];
-              const tokenDecimals = tokenMappingLookup.decimals;
 
               // Grab the configured UBA target and spoke balances for all chains set at the start of this bundle.
 
@@ -396,10 +396,7 @@ export async function updateUBAClient(
                 openingBlockNumberForSpokeChain: startingBundleBlockNumber,
                 openingBalance: runningBalance,
                 openingIncentiveBalance: incentiveBalance,
-                config: {
-                  ubaConfig: ubaConfigForBundle,
-                  tokenDecimals,
-                },
+                config: ubaConfigForBundle,
               };
 
               // TODO: Return a promise for each loop iteration and promise.all them
@@ -419,25 +416,24 @@ export async function updateUBAClient(
                     constructedBundle.openingIncentiveBalance,
                     chainId,
                     tokenSymbol,
-                    constructedBundle.config.ubaConfig
+                    constructedBundle.config
                   );
                   const { balancingFee: depositBalancingFee } = getDepositFee(
                     flow.amount,
                     lastRunningBalance,
                     lastIncentiveBalance,
                     chainId,
-                    constructedBundle.config.ubaConfig
+                    constructedBundle.config
                   );
                   const { balancingFee: relayerBalancingFee } = getRefundFee(
                     flow.amount,
                     lastRunningBalance,
                     lastIncentiveBalance,
                     chainId,
-                    constructedBundle.config.ubaConfig
+                    constructedBundle.config
                   );
                   const lpFee = await computeLpFeeForRefresh(
                     l1TokenAddress,
-                    tokenDecimals,
                     cumulativeSpokeTargets,
                     // @dev Assume that flow is taking refund on destination chain ID for purposes of computing the LP fee.
                     // This is encoded in the UMIP as the way to compute utilization.
@@ -446,8 +442,8 @@ export async function updateUBAClient(
                     flow.amount,
                     hubPoolClient,
                     spokePoolClients,
-                    constructedBundle.config.ubaConfig.getBaselineFee(flow.destinationChainId, flow.originChainId),
-                    constructedBundle.config.ubaConfig.getLpGammaFunctionTuples(flow.destinationChainId)
+                    constructedBundle.config.getBaselineFee(flow.destinationChainId, flow.originChainId),
+                    constructedBundle.config.getLpGammaFunctionTuples(flow.destinationChainId)
                   );
                   constructedBundle.flows.push({
                     flow,
