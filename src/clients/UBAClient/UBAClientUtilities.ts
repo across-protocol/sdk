@@ -43,7 +43,7 @@ import {
 export async function computeLpFeeForRefresh(
   hubPoolTokenAddress: string,
   decimals: number,
-  spokeTargets: { spokeChainId: number; target: BigNumber }[],
+  cumulativeSpokeTargets: BigNumber,
   originChainId: number,
   refundChainId: number,
   amount: BigNumber,
@@ -69,7 +69,7 @@ export async function computeLpFeeForRefresh(
     hubBalance,
     hubEquity,
     ethSpokeBalance,
-    spokeTargets,
+    cumulativeSpokeTargets,
     baselineFee,
     gammaCutoff
   );
@@ -99,10 +99,7 @@ export function computeLpFeeStateful(
   hubBalance: BigNumber,
   hubEquity: BigNumber,
   ethSpokeBalance: BigNumber,
-  spokeTargets: {
-    spokeChainId: number;
-    target: BigNumber;
-  }[],
+  cumulativeSpokeTargets: BigNumber,
   baselineFee: BigNumber,
   gammaCutoff: FlowTupleParameters
 ) {
@@ -120,7 +117,7 @@ export function computeLpFeeStateful(
     hubEquity,
     ethSpokeBalance,
     newEthSpokeBalance,
-    spokeTargets
+    cumulativeSpokeTargets
   );
 
   const utilizationDelta = utilizationPostTx.sub(utilizationPreTx).abs();
@@ -149,7 +146,7 @@ function omitDefaultKeys<T>(obj: Record<string, T>): Record<string, T> {
 export function getUBAFeeConfig(
   configClient: AcrossConfigStoreClient,
   chainId: number,
-  token: string,
+  l1TokenAddress: string,
   blockNumber: number | "latest" = "latest"
 ): UBAFeeConfig {
   // If the config client has not been updated at least
@@ -157,7 +154,7 @@ export function getUBAFeeConfig(
   if (!configClient.isUpdated) {
     throw new Error("Config client not updated");
   }
-  const ubaConfig = configClient.getUBAConfig(token, blockNumber === "latest" ? undefined : blockNumber);
+  const ubaConfig = configClient.getUBAConfig(l1TokenAddress, blockNumber === "latest" ? undefined : blockNumber);
   if (ubaConfig === undefined) {
     throw new Error(`UBA config for blockTag ${blockNumber} not found`);
   }
@@ -170,7 +167,7 @@ export function getUBAFeeConfig(
 
   const threshold = ubaConfig.rebalance[String(chainId)];
 
-  const chainTokenCombination = `${chainId}-${token}`;
+  const chainTokenCombination = `${chainId}-${l1TokenAddress}`;
   return new UBAFeeConfig(
     {
       default: ubaConfig.alpha["default"],
@@ -357,6 +354,9 @@ export async function updateUBAClient(
             endingBundleBlockNumber
           );
 
+          // These values are the same for each token for this bundle, so cache them.
+          let cumulativeSpokeTargets: BigNumber;
+          let ubaConfigForBundle: UBAFeeConfig;
           await Promise.all(
             relevantTokenSymbols.map(async (tokenSymbol) => {
               // TODO: Replace the following code by mapping by this entire client by l1TokenAddress instead of tokenSymbol.
@@ -374,15 +374,21 @@ export async function updateUBAClient(
               const tokenMappingLookup = (
                 TOKEN_SYMBOLS_MAP as Record<string, { addresses: { [x: number]: string }; decimals: number }>
               )[tokenSymbol];
-              const hubPoolTokenAddress = tokenMappingLookup.addresses[hubPoolClient.chainId];
               const tokenDecimals = tokenMappingLookup.decimals;
 
               // Grab the configured UBA target and spoke balances for all chains set at the start of this bundle.
-              // We will need to sum them all up for this token to compute the LP fee correctly.
-              const spokeTargets = await hubPoolClient.configStoreClient.getUBATargetSpokeBalances(
-                hubPoolTokenAddress,
+
+              // Load the config set at the start of this bundle. We assume that all flows will be charged
+              // fees using this same config. Any configuration update changes that occurred during this
+              // bundle range will apply to the following bundle.
+              ubaConfigForBundle = getUBAFeeConfig(
+                hubPoolClient.configStoreClient,
+                chainId,
+                l1TokenAddress,
                 startingBundleBlockNumber
               );
+              // We will need to sum them all up for this token to compute the LP fee correctly.
+              cumulativeSpokeTargets = ubaConfigForBundle.getTotalSpokeTargetBalanceForComputingLpFee(l1TokenAddress);
 
               // Construct the bundle data for this token.
               const constructedBundle: UBABundleState = {
@@ -391,17 +397,8 @@ export async function updateUBAClient(
                 openingBalance: runningBalance,
                 openingIncentiveBalance: incentiveBalance,
                 config: {
-                  // Importantly load the config set at the start of this bundle. We assume that all flows will be charged
-                  // fees using this same config. Any configuration update changes that occurred during this
-                  // bundle range will apply to the following bundle.
-                  ubaConfig: getUBAFeeConfig(
-                    hubPoolClient.configStoreClient,
-                    chainId,
-                    tokenSymbol,
-                    startingBundleBlockNumber
-                  ),
+                  ubaConfig: ubaConfigForBundle,
                   tokenDecimals,
-                  spokeTargets,
                 },
               };
 
@@ -441,7 +438,7 @@ export async function updateUBAClient(
                   const lpFee = await computeLpFeeForRefresh(
                     l1TokenAddress,
                     tokenDecimals,
-                    spokeTargets,
+                    cumulativeSpokeTargets,
                     // @dev Assume that flow is taking refund on destination chain ID for purposes of computing the LP fee.
                     // This is encoded in the UMIP as the way to compute utilization.
                     flow.originChainId,

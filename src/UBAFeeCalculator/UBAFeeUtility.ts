@@ -1,7 +1,6 @@
 import { BigNumber } from "ethers";
 import { MAX_SAFE_JS_INT } from "@uma/common/dist/Constants";
 import { fixedPointAdjustment, toBN } from "../utils";
-import { HUBPOOL_CHAIN_ID } from "../constants";
 
 /**
  * Computes a linear integral over a piecewise function
@@ -306,12 +305,9 @@ export function calculateUtilization(
   hubBalance: BigNumber,
   hubEquity: BigNumber,
   ethSpokeBalance: BigNumber,
-  spokeTargets: { target: BigNumber; spokeChainId: number }[],
-  hubPoolChainId = HUBPOOL_CHAIN_ID
+  cumulativeSpokeTargets: BigNumber
 ) {
-  const numerator = hubBalance
-    .add(ethSpokeBalance)
-    .add(spokeTargets.reduce((a, b) => (b.spokeChainId !== hubPoolChainId ? a.add(b.target) : a), BigNumber.from(0)));
+  const numerator = hubBalance.add(ethSpokeBalance).add(cumulativeSpokeTargets);
   const denominator = hubEquity;
   const result = numerator.mul(fixedPointAdjustment).div(denominator); // We need to multiply by 1e18 to get the correct precision for the result
   return BigNumber.from(10).pow(decimals).sub(result);
@@ -323,11 +319,17 @@ export function calculateUtilizationBoundaries(
   hubEquity: BigNumber,
   ethSpokeBalance: BigNumber,
   newEthSpokeBalance: BigNumber,
-  spokeTargets: { target: BigNumber; spokeChainId: number }[]
+  cumulativeSpokeTargets: BigNumber
 ): { utilizationPostTx: BigNumber; utilizationPreTx: BigNumber } {
   return {
-    utilizationPreTx: calculateUtilization(decimals, hubBalance, hubEquity, ethSpokeBalance, spokeTargets),
-    utilizationPostTx: calculateUtilization(decimals, hubBalance, hubEquity, newEthSpokeBalance, spokeTargets),
+    utilizationPreTx: calculateUtilization(decimals, hubBalance, hubEquity, ethSpokeBalance, cumulativeSpokeTargets),
+    utilizationPostTx: calculateUtilization(
+      decimals,
+      hubBalance,
+      hubEquity,
+      newEthSpokeBalance,
+      cumulativeSpokeTargets
+    ),
   };
 }
 

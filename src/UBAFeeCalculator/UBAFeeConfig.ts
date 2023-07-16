@@ -1,5 +1,6 @@
 import { BigNumber } from "ethers";
 import { ThresholdBoundType, FlowTupleParameters } from "./UBAFeeTypes";
+import { CHAIN_ID_LIST_INDICES, HUBPOOL_CHAIN_ID } from "../constants";
 
 type ChainId = number;
 type RouteCombination = string;
@@ -107,12 +108,34 @@ class UBAConfig {
   /**
    * @description Get the balance trigger threshold for a given chain and token
    * @param chainId The chain id
-   * @param tokenSymbol The token address
+   * @param l1TokenAddress The token address
    * @returns The balance trigger threshold if it exists
    */
-  public getBalanceTriggerThreshold(chainId: number, tokenSymbol: string): ThresholdBoundType {
-    const chainTokenCombination = `${chainId}-${tokenSymbol}`;
+  public getBalanceTriggerThreshold(chainId: number, l1TokenAddress: string): ThresholdBoundType {
+    const chainTokenCombination = `${chainId}-${l1TokenAddress}`;
     return this.balanceTriggerThreshold.override?.[chainTokenCombination] ?? this.balanceTriggerThreshold.default;
+  }
+
+  /**
+   * Arbitrarily return upper bound target. This could be the average of the upper and lower bound targets but
+   * for now return upper bound target.
+   * @param chainId
+   * @param l1TokenAddress
+   * @returns
+   */
+  public getTargetBalance(chainId: number, l1TokenAddress: string): BigNumber {
+    const thresholdConfig = this.getBalanceTriggerThreshold(chainId, l1TokenAddress);
+    return thresholdConfig?.upperBound?.target ?? BigNumber.from(0);
+  }
+
+  /**
+   * Get sum of all spoke target balances for all chains besides hub pool chain for l1TokenAddress.
+   * This output should be used to compute LP fee based on total spoke target
+   */
+  public getTotalSpokeTargetBalanceForComputingLpFee(l1TokenAddress: string): BigNumber {
+    return CHAIN_ID_LIST_INDICES.filter((chainId) => chainId !== HUBPOOL_CHAIN_ID).reduce((sum, chainId) => {
+      return sum.add(this.getTargetBalance(chainId, l1TokenAddress));
+    }, BigNumber.from(0));
   }
 
   /**

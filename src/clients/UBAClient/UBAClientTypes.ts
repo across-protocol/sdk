@@ -36,10 +36,6 @@ export type ModifiedUBAFlow = {
 type UBABundleConfig = {
   ubaConfig: UBAConfig;
   tokenDecimals: number;
-  spokeTargets: {
-    spokeChainId: number;
-    target: BigNumber;
-  }[];
 };
 
 export type UBABundleState = {
