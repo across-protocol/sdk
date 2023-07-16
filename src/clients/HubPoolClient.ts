@@ -500,6 +500,10 @@ export class HubPoolClient extends BaseAbstractClient {
       }
     ) as ExecutedRootBundle;
 
+    return this.getRunningBalanceForToken(l1Token, executedRootBundle);
+  }
+
+  getRunningBalanceForToken(l1Token: string, executedRootBundle: ExecutedRootBundle): TokenRunningBalance {
     let runningBalance = toBN(0);
     let incentiveBalance = toBN(0);
     if (executedRootBundle) {

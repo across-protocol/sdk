@@ -8,11 +8,7 @@ export type RequestValidReturnType = { valid: boolean; reason?: string; matching
 export type BalancingFeeReturnType = { balancingFee: BigNumber; actionType: UBAActionType };
 export type SystemFeeResult = { lpFee: BigNumber; depositBalancingFee: BigNumber; systemFee: BigNumber };
 export type RelayerFeeResult = {
-  relayerGasFee: BigNumber;
-  relayerCapitalFee: BigNumber;
   relayerBalancingFee: BigNumber;
-  relayerFee: BigNumber;
-  amountTooLow: boolean;
 };
 
 export type UBAChainState = {
@@ -40,9 +36,6 @@ export type ModifiedUBAFlow = {
 type UBABundleConfig = {
   ubaConfig: UBAConfig;
   tokenDecimals: number;
-  hubBalance: BigNumber;
-  hubEquity: BigNumber;
-  hubPoolSpokeBalance: BigNumber;
   spokeTargets: {
     spokeChainId: number;
     target: BigNumber;

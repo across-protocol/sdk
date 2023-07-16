@@ -9,5 +9,5 @@ export const HUBPOOL_CHAIN_ID = 1;
  * in the same order as the following list. To add a new chain ID, append it to the end of the list. Never delete
  * a chain ID. The on-chain ConfigStore should store a list of enabled/disabled chain ID's that are a subset
  * of this list, so this list is simply the list of all possible Chain ID's that Across could support.
-**/
+ **/
 export const CHAIN_ID_LIST_INDICES = [1, 10, 137, 288, 42161];

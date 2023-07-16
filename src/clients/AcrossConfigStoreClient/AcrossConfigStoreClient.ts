@@ -36,6 +36,7 @@ import { across } from "@uma/sdk";
 import { parseUBAConfigFromOnChain } from "./ConfigStoreParsingUtilities";
 import { BaseAbstractClient } from "../BaseAbstractClient";
 import { parseJSONWithNumericString } from "../../utils/JSONUtils";
+import { CHAIN_ID_LIST_INDICES } from "../../constants";
 
 type _ConfigStoreUpdate = {
   success: true;
@@ -462,11 +463,10 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
   }
 
   async getUBATargetSpokeBalances(
-    chainIds: number[],
     l1TokenAddress: string,
     blockNumber?: number
   ): Promise<{ spokeChainId: number; target: BigNumber }[]> {
-    return chainIds.map((chainId) => {
+    return CHAIN_ID_LIST_INDICES.map((chainId) => {
       const target = this.getSpokeTargetBalancesForBlock(l1TokenAddress, chainId, blockNumber).target;
       return { spokeChainId: chainId, target };
     });

@@ -14,18 +14,11 @@ import {
   toBN,
 } from "../../utils";
 import { ERC20__factory } from "../../typechain";
-import { UBAActionType, FlowTupleParameters } from "../../UBAFeeCalculator/UBAFeeTypes";
-import {
-  RequestValidReturnType,
-  UBABundleState,
-  UBABundleTokenState,
-  UBAChainState,
-  UBAClientState,
-} from "./UBAClientTypes";
-import { DepositWithBlock, FillWithBlock, RefundRequestWithBlock, UbaFlow } from "../../interfaces";
+import { FlowTupleParameters } from "../../UBAFeeCalculator/UBAFeeTypes";
+import { RequestValidReturnType, UBABundleState, UBAChainState, UBAClientState } from "./UBAClientTypes";
+import { DepositWithBlock, FillWithBlock, ProposedRootBundle, RefundRequestWithBlock, UbaFlow } from "../../interfaces";
 import { Logger } from "winston";
 import { analog } from "../../UBAFeeCalculator";
-import { RelayFeeCalculator, RelayFeeCalculatorConfigWithMap } from "../../relayFeeCalculator";
 import { CHAIN_ID_LIST_INDICES, TOKEN_SYMBOLS_MAP } from "../../constants";
 import { getDepositFee, getRefundFee } from "../../UBAFeeCalculator/UBAFeeSpokeCalculatorAnalog";
 import { AcrossConfigStoreClient } from "../AcrossConfigStoreClient";
@@ -49,7 +42,9 @@ import {
  */
 export async function computeLpFeeForRefresh(
   hubPoolTokenAddress: string,
-  depositChainId: number,
+  decimals: number,
+  spokeTargets: { spokeChainId: number; target: BigNumber }[],
+  originChainId: number,
   refundChainId: number,
   amount: BigNumber,
   hubPoolClient: HubPoolClient,
@@ -58,18 +53,17 @@ export async function computeLpFeeForRefresh(
   gammaCutoff: FlowTupleParameters,
   blockNumber?: number
 ): Promise<BigNumber> {
-  const configStoreClient = hubPoolClient.configStoreClient;
   const erc20 = ERC20__factory.connect(hubPoolTokenAddress, hubPoolClient.hubPool.provider);
-  const [decimals, ethSpokeBalance, hubBalance, hubEquity, spokeTargets] = await Promise.all([
-    erc20.decimals({ blockTag: blockNumber }),
+  // Grab the balances of the spoke pool and hub pool at the given block number.
+  const [ethSpokeBalance, hubBalance, hubEquity] = await Promise.all([
     erc20.balanceOf(spokePoolClients[hubPoolClient.chainId].spokePool.address, { blockTag: blockNumber }),
     erc20.balanceOf(hubPoolClient.hubPool.address, { blockTag: blockNumber }),
     erc20.balanceOf(hubPoolClient.hubPool.address, { blockTag: blockNumber }),
-    configStoreClient.getUBATargetSpokeBalances([depositChainId, refundChainId], hubPoolTokenAddress, blockNumber),
   ]);
   return computeLpFeeStateful(
     amount,
-    depositChainId,
+    originChainId,
+    refundChainId,
     hubPoolClient.chainId,
     decimals,
     hubBalance,
@@ -83,8 +77,9 @@ export async function computeLpFeeForRefresh(
 
 /**
  * Compute the realized LP fee for a given amount. This function is stateless and does not require a hubpool client.
+ * The utilization delta coming from a deposit on the originChainId plus a refund on the refundChainId is used
+ * to construct the fee.
  * @param amount The amount that is being deposited
- * @param depositChainId The chainId of the deposit
  * @param hubPoolChainId The chainId of the hub pool
  * @param decimals The number of decimals for the token
  * @param hubBalance The balance of the hub pool
@@ -97,7 +92,8 @@ export async function computeLpFeeForRefresh(
  */
 export function computeLpFeeStateful(
   amount: BigNumber,
-  depositChainId: number,
+  originChainId: number,
+  refundChainId: number,
   hubPoolChainId: number,
   decimals: number,
   hubBalance: BigNumber,
@@ -110,14 +106,21 @@ export function computeLpFeeStateful(
   baselineFee: BigNumber,
   gammaCutoff: FlowTupleParameters
 ) {
+  // A deposit on Ethereum raises the eth spoke balance while a refund decreases it.
+  let newEthSpokeBalance = ethSpokeBalance;
+  if (originChainId === hubPoolChainId) {
+    newEthSpokeBalance = newEthSpokeBalance.add(amount);
+  }
+  if (refundChainId === hubPoolChainId) {
+    newEthSpokeBalance = newEthSpokeBalance.sub(amount);
+  }
   const { utilizationPostTx, utilizationPreTx } = calculateUtilizationBoundaries(
-    { actionType: UBAActionType.Deposit, amount, chainId: depositChainId },
     decimals,
     hubBalance,
     hubEquity,
     ethSpokeBalance,
-    spokeTargets,
-    hubPoolChainId
+    newEthSpokeBalance,
+    spokeTargets
   );
 
   const utilizationDelta = utilizationPostTx.sub(utilizationPreTx).abs();
@@ -219,17 +222,17 @@ export function getUBAFeeConfig(
  * @param spokePoolClients
  * @returns
  */
-export function getMostRecentBundleBlockRanges(
+export function getMostRecentBundles(
   chainId: number,
   maxBundleStates: number,
   mostRecentHubPoolBlock: number,
   hubPoolClient: HubPoolClient,
   spokePoolClients: SpokePoolClients
-): { start: number; end: number }[] {
+): { bundle: ProposedRootBundle; start: number; end: number }[] {
   let toBlock = mostRecentHubPoolBlock;
 
   // Reconstruct bundle ranges based on published end blocks.
-  const bundleBounds: { start: number; end: number }[] = [];
+  const bundleData: { start: number; end: number; bundle: ProposedRootBundle }[] = [];
   for (let i = 0; i < maxBundleStates; i++) {
     // Get the most recent bundle end range for this chain published in a bundle before `toBlock`.
     const latestExecutedRootBundle = hubPoolClient.getNthFullyExecutedRootBundle(-1, toBlock);
@@ -252,7 +255,8 @@ export function getMostRecentBundleBlockRanges(
     const blockRangeForChain = getBlockRangeForChain(rootBundleBlockRanges, chainId);
 
     // Push the structure to the start of the list
-    bundleBounds.unshift({
+    bundleData.unshift({
+      bundle: latestExecutedRootBundle,
       start: blockRangeForChain[0],
       end: blockRangeForChain[1],
     });
@@ -261,7 +265,7 @@ export function getMostRecentBundleBlockRanges(
     toBlock = latestExecutedRootBundle.blockNumber;
   }
 
-  return bundleBounds;
+  return bundleData;
 }
 /**
  * Load validated bundle states. Returns the most recent `maxBundleStates` # of bundles.
@@ -269,7 +273,7 @@ export function getMostRecentBundleBlockRanges(
  * @param spokePoolClients
  * @param relevantChainIds
  * @param relevantTokenSymbols
- * @param hubPoolBlockNumber
+ * @param latestHubPoolBlockNumber
  * @param updateInternalClients
  * @param relayFeeCalculatorConfig
  * @param maxBundleStates
@@ -280,9 +284,8 @@ export async function updateUBAClient(
   spokePoolClients: SpokePoolClients,
   relevantChainIds: number[],
   relevantTokenSymbols: string[],
-  hubPoolBlockNumber: number,
+  latestHubPoolBlockNumber: number,
   updateInternalClients = true,
-  relayFeeCalculatorConfig: RelayFeeCalculatorConfigWithMap,
   maxBundleStates: number
 ): Promise<UBAClientState> {
   if (updateInternalClients) {
@@ -294,91 +297,57 @@ export async function updateUBAClient(
       throw new Error(`Unsupported chainId ${chainId} in Across. Valid chains are ${CHAIN_ID_LIST_INDICES}`);
     }
   });
-  return await relevantChainIds.reduce(async (accumulator, chainId) => {
-    const spokePoolClient = spokePoolClients[chainId];
 
-    const chainState: UBAChainState = {
-      bundles: {},
-      spokeChain: {
-        deploymentBlockNumber: spokePoolClient.deploymentBlock,
-        bundleEndBlockNumber: hubPoolClient.getLatestBundleEndBlockForChain(
-          relevantChainIds,
-          hubPoolBlockNumber,
-          chainId
-        ),
-        latestBlockNumber: spokePoolClient.latestBlockNumber,
-      },
-    };
+  const ubaClientState: UBAClientState = {};
+  await Promise.all(
+    relevantChainIds.map(async (chainId) => {
+      const spokePoolClient = spokePoolClients[chainId];
 
-    // Grab all bundle ranges for this chain. This logic is isolated into a function that we can unit test.
-    // The bundles are returned in ascending order.
-    const bundleBounds = getMostRecentBundleBlockRanges(
-      chainId,
-      maxBundleStates,
-      hubPoolBlockNumber,
-      hubPoolClient,
-      spokePoolClients
-    );
+      const chainState: UBAChainState = {
+        bundles: {},
+        spokeChain: {
+          deploymentBlockNumber: spokePoolClient.deploymentBlock,
+          bundleEndBlockNumber: hubPoolClient.getLatestBundleEndBlockForChain(
+            relevantChainIds,
+            latestHubPoolBlockNumber,
+            chainId
+          ),
+          latestBlockNumber: spokePoolClient.latestBlockNumber,
+        },
+      };
+      ubaClientState[chainId] = chainState;
 
-    // Now, for each token, load the bundle data including:
-    // - valid flows in the bundle
-    // - opening running balance
-    // - opening incentive balance
-    // - UBA config to apply when charging fees to flows in bundle
-    const tokenStates = await relevantTokenSymbols.reduce(async (accumulator, tokenSymbol) => {
-      // Iterate through the bundle bounds and find the bundles that are available
-      // TODO: Replace the following code by mapping by this entire client by l1TokenAddress instead of tokenSymbol.
-      const l1TokenAddress = hubPoolClient.getL1Tokens().find((token) => token.symbol === tokenSymbol)?.address;
-      if (!l1TokenAddress) {
-        throw new Error(`No L1 token address mapped to symbol ${tokenSymbol}`);
-      }
-      const constructedBundles = await Promise.all(
-        bundleBounds.map(async ({ end: endingBundleBlockNumber }) => {
+      // Grab all bundles for this chain. This logic is isolated into a function that we can unit test.
+      // The bundles are returned in ascending order.
+      const bundles = getMostRecentBundles(
+        chainId,
+        maxBundleStates,
+        latestHubPoolBlockNumber,
+        hubPoolClient,
+        spokePoolClients
+      );
+
+      // For each bundle, load common data that we'll use for all tokens in bundle, and then load flow data
+      // for each token. This is a triple loop that we run in parallel at each level:
+      // 1. Loop through all bundles
+      // 2. Loop through all tokens
+      // 3. Loop through all flows for token in bundle
+      // At the end of these three loops we'll have flow data for each token for each bundle.
+      await Promise.all(
+        bundles.map(async ({ end: endingBundleBlockNumber, bundle, start: startingBundleBlockNumber }) => {
           // Get the block number and opening balance for this token
-          const {
-            blockNumber: startingBundleBlockNumber,
-            spokePoolBalance,
-            incentiveBalance: initialIncentiveBalance,
-          } = getOpeningTokenBalances(chainId, l1TokenAddress, hubPoolClient, endingBundleBlockNumber);
-          const tokenMappingLookup = (
-            TOKEN_SYMBOLS_MAP as Record<string, { addresses: { [x: number]: string }; decimals: number }>
-          )[tokenSymbol];
-          const hubPoolTokenAddress = tokenMappingLookup.addresses[hubPoolClient.chainId];
-          const tokenDecimals = tokenMappingLookup.decimals;
-          const erc20 = ERC20__factory.connect(hubPoolTokenAddress, hubPoolClient.hubPool.provider);
-          const [hubBalance, hubEquity, ethSpokeBalance, spokeTargets] = await Promise.all([
-            erc20.balanceOf(hubPoolClient.hubPool.address, { blockTag: endingBundleBlockNumber }),
-            erc20.balanceOf(hubPoolClient.hubPool.address, { blockTag: endingBundleBlockNumber }),
-            erc20.balanceOf(spokePoolClient.spokePool.address, { blockTag: endingBundleBlockNumber }),
-            hubPoolClient.configStoreClient.getUBATargetSpokeBalances(
-              [chainId],
-              hubPoolTokenAddress,
-              endingBundleBlockNumber
-            ),
-          ]);
+          const executedLeafForChain = hubPoolClient
+            .getExecutedLeavesForRootBundle(bundle, latestHubPoolBlockNumber)
+            .find((leaf) => leaf.chainId === chainId);
+          if (!executedLeafForChain) {
+            throw new Error(
+              `No executed leaf found for chain ${chainId} in root bundle proposed at ${bundle.transactionHash}`
+            );
+          }
 
-          // Construct the bundle. If the bundle already exists, use the existing bundle
-          const constructedBundle: UBABundleState = {
-            flows: [],
-            openingBlockNumberForSpokeChain: startingBundleBlockNumber,
-            openingBalance: spokePoolBalance,
-            openingIncentiveBalance: initialIncentiveBalance,
-            config: {
-              ubaConfig: getUBAFeeConfig(
-                hubPoolClient.configStoreClient,
-                chainId,
-                tokenSymbol,
-                startingBundleBlockNumber
-              ),
-              tokenDecimals,
-              hubBalance,
-              hubEquity,
-              hubPoolSpokeBalance: ethSpokeBalance,
-              spokeTargets,
-            },
-          };
-          // These flows are guaranteed to be sorted in ascending order
-          // Get the flows from the start of the bundle to the end of the bundle
+          // For performance reasons, grab all flows for bundle up front. This way we don't need to traverse internal
+          // spoke pool client event arrays multiple times for each token.
+          // These flows are assumed to be sorted in ascending order.
           const recentFlows = await getFlows(
             chainId,
             relevantChainIds,
@@ -387,114 +356,146 @@ export async function updateUBAClient(
             startingBundleBlockNumber,
             endingBundleBlockNumber
           );
-          for (const flow of recentFlows) {
-            const previousFlows = constructedBundle.flows.map((flow) => flow.flow);
-            const previousFlowsIncludingCurrent = previousFlows.concat(flow);
-            const {
-              runningBalance: lastRunningBalance,
-              incentiveBalance: lastIncentiveBalance,
-              netRunningBalanceAdjustment,
-            } = analog.calculateHistoricalRunningBalance(
-              previousFlowsIncludingCurrent,
-              constructedBundle.openingBalance,
-              constructedBundle.openingIncentiveBalance,
-              chainId,
-              tokenSymbol,
-              constructedBundle.config.ubaConfig
-            );
-            const { balancingFee: depositBalancingFee } = getDepositFee(
-              flow.amount,
-              lastRunningBalance,
-              lastIncentiveBalance,
-              chainId,
-              constructedBundle.config.ubaConfig
-            );
-            const { balancingFee: relayerBalancingFee } = getRefundFee(
-              flow.amount,
-              lastRunningBalance,
-              lastIncentiveBalance,
-              chainId,
-              constructedBundle.config.ubaConfig
-            );
-            const lpFee = await computeLpFeeForRefresh(
-              tokenSymbol,
-              flow.originChainId,
-              flow.destinationChainId,
-              flow.amount,
-              hubPoolClient,
-              spokePoolClients,
-              constructedBundle.config.ubaConfig.getBaselineFee(flow.destinationChainId, flow.originChainId),
-              constructedBundle.config.ubaConfig.getLpGammaFunctionTuples(flow.destinationChainId)
-            );
 
-            const relayFeeCalculator = new RelayFeeCalculator(
-              relayFeeCalculatorConfig,
-              undefined,
-              flow.destinationChainId
-            );
-            const { capitalFeeTotal, relayFeeTotal, gasFeeTotal, isAmountTooLow } =
-              await relayFeeCalculator.relayerFeeDetails(
-                flow.amount,
-                tokenSymbol,
-                undefined,
-                flow.originChainId.toString(),
-                flow.destinationChainId.toString()
+          await Promise.all(
+            relevantTokenSymbols.map(async (tokenSymbol) => {
+              // TODO: Replace the following code by mapping by this entire client by l1TokenAddress instead of tokenSymbol.
+              const l1TokenAddress = hubPoolClient.getL1Tokens().find((token) => token.symbol === tokenSymbol)?.address;
+              if (!l1TokenAddress) {
+                throw new Error(`No L1 token address mapped to symbol ${tokenSymbol}`);
+              }
+
+              // Get the block number and opening balance for this token. This can be read directly from root bundle
+              // data that we've already loaded.
+              const { runningBalance, incentiveBalance } = hubPoolClient.getRunningBalanceForToken(
+                l1TokenAddress,
+                executedLeafForChain
+              );
+              const tokenMappingLookup = (
+                TOKEN_SYMBOLS_MAP as Record<string, { addresses: { [x: number]: string }; decimals: number }>
+              )[tokenSymbol];
+              const hubPoolTokenAddress = tokenMappingLookup.addresses[hubPoolClient.chainId];
+              const tokenDecimals = tokenMappingLookup.decimals;
+
+              // Grab the configured UBA target and spoke balances for all chains set at the start of this bundle.
+              // We will need to sum them all up for this token to compute the LP fee correctly.
+              const spokeTargets = await hubPoolClient.configStoreClient.getUBATargetSpokeBalances(
+                hubPoolTokenAddress,
+                startingBundleBlockNumber
               );
 
-            constructedBundle.flows.push({
-              flow,
-              runningBalance: lastRunningBalance,
-              incentiveBalance: lastIncentiveBalance,
-              netRunningBalanceAdjustment,
-              relayerFee: {
-                relayerBalancingFee,
-                relayerCapitalFee: toBN(capitalFeeTotal),
-                relayerFee: toBN(relayFeeTotal).add(relayerBalancingFee),
-                relayerGasFee: toBN(gasFeeTotal),
-                amountTooLow: isAmountTooLow,
-              },
-              systemFee: {
-                depositBalancingFee,
-                lpFee,
-                systemFee: lpFee.add(depositBalancingFee),
-              },
-            });
-          }
-          return constructedBundle;
+              // Construct the bundle data for this token.
+              const constructedBundle: UBABundleState = {
+                flows: [],
+                openingBlockNumberForSpokeChain: startingBundleBlockNumber,
+                openingBalance: runningBalance,
+                openingIncentiveBalance: incentiveBalance,
+                config: {
+                  // Importantly load the config set at the start of this bundle. We assume that all flows will be charged
+                  // fees using this same config. Any configuration update changes that occurred during this
+                  // bundle range will apply to the following bundle.
+                  ubaConfig: getUBAFeeConfig(
+                    hubPoolClient.configStoreClient,
+                    chainId,
+                    tokenSymbol,
+                    startingBundleBlockNumber
+                  ),
+                  tokenDecimals,
+                  spokeTargets,
+                },
+              };
+
+              // TODO: Return a promise for each loop iteration and promise.all them
+              await Promise.all(
+                recentFlows.map(async (flow) => {
+                  // Previous flows will be populated with all flows we've stored into the `constructedBundle.flows`
+                  // array so far. On the first `flow`, this will be an empty array.
+                  const previousFlows = constructedBundle.flows.map((flow) => flow.flow);
+                  const previousFlowsIncludingCurrent = previousFlows.concat(flow);
+                  const {
+                    runningBalance: lastRunningBalance,
+                    incentiveBalance: lastIncentiveBalance,
+                    netRunningBalanceAdjustment,
+                  } = analog.calculateHistoricalRunningBalance(
+                    previousFlowsIncludingCurrent,
+                    constructedBundle.openingBalance,
+                    constructedBundle.openingIncentiveBalance,
+                    chainId,
+                    tokenSymbol,
+                    constructedBundle.config.ubaConfig
+                  );
+                  const { balancingFee: depositBalancingFee } = getDepositFee(
+                    flow.amount,
+                    lastRunningBalance,
+                    lastIncentiveBalance,
+                    chainId,
+                    constructedBundle.config.ubaConfig
+                  );
+                  const { balancingFee: relayerBalancingFee } = getRefundFee(
+                    flow.amount,
+                    lastRunningBalance,
+                    lastIncentiveBalance,
+                    chainId,
+                    constructedBundle.config.ubaConfig
+                  );
+                  const lpFee = await computeLpFeeForRefresh(
+                    l1TokenAddress,
+                    tokenDecimals,
+                    spokeTargets,
+                    // @dev Assume that flow is taking refund on destination chain ID for purposes of computing the LP fee.
+                    // This is encoded in the UMIP as the way to compute utilization.
+                    flow.originChainId,
+                    flow.destinationChainId,
+                    flow.amount,
+                    hubPoolClient,
+                    spokePoolClients,
+                    constructedBundle.config.ubaConfig.getBaselineFee(flow.destinationChainId, flow.originChainId),
+                    constructedBundle.config.ubaConfig.getLpGammaFunctionTuples(flow.destinationChainId)
+                  );
+                  constructedBundle.flows.push({
+                    flow,
+                    runningBalance: lastRunningBalance,
+                    incentiveBalance: lastIncentiveBalance,
+                    netRunningBalanceAdjustment,
+                    relayerFee: {
+                      relayerBalancingFee,
+                    },
+                    systemFee: {
+                      depositBalancingFee,
+                      lpFee,
+                      systemFee: lpFee.add(depositBalancingFee),
+                    },
+                  });
+                  // TODO: Do we actually need to load the relay fee for each flow? It doesn't affect the balancing fees
+                  // for subsequent flows or the history of running balances. The only time we really need to construct
+                  // a relay fee for a flow is when we're trying to give a quote in the Vercel API in real time.
+                  // const relayFeeCalculator = new RelayFeeCalculator(
+                  //   relayFeeCalculatorConfig,
+                  //   undefined,
+                  //   flow.destinationChainId
+                  // );
+                  // const { capitalFeeTotal, relayFeeTotal, gasFeeTotal, isAmountTooLow } =
+                  //   await relayFeeCalculator.relayerFeeDetails(
+                  //     flow.amount,
+                  //     tokenSymbol,
+                  //     undefined,
+                  //     flow.originChainId.toString(),
+                  //     flow.destinationChainId.toString()
+                  //   );
+                })
+              );
+
+              // Push the fully filled out flow data for this bundle to the list of bundle states for this token.
+              if (!chainState.bundles[tokenSymbol]) chainState.bundles[tokenSymbol] = [];
+              chainState.bundles[tokenSymbol].push(constructedBundle);
+            })
+          );
         })
       );
-      return {
-        ...(await accumulator),
-        [tokenSymbol]: constructedBundles,
-      };
-    }, Promise.resolve({} as UBABundleTokenState));
-    chainState.bundles = tokenStates;
-    return {
-      ...(await accumulator),
-      [chainId]: chainState,
-    };
-  }, Promise.resolve({}));
-}
+    })
+  );
 
-export function getOpeningTokenBalances(
-  chainId: number,
-  l1TokenAddress: string,
-  hubPoolClient: HubPoolClient,
-  hubPoolBlockNumber?: number
-): { blockNumber: number; spokePoolBalance: BigNumber; incentiveBalance: BigNumber } {
-  if (!isDefined(hubPoolBlockNumber)) {
-    if (!isDefined(hubPoolClient.latestBlockNumber)) {
-      throw new Error("Could not resolve latest block number for hub pool client");
-    }
-    hubPoolBlockNumber = hubPoolClient.latestBlockNumber;
-  }
-  const balances = hubPoolClient.getRunningBalanceBeforeBlockForChain(hubPoolBlockNumber, chainId, l1TokenAddress);
-  const endBlock = hubPoolClient.getLatestBundleEndBlockForChain([chainId], hubPoolBlockNumber, chainId);
-  return {
-    blockNumber: endBlock,
-    spokePoolBalance: balances.runningBalance,
-    incentiveBalance: balances.incentiveBalance,
-  };
+  return ubaClientState;
 }
 
 /**

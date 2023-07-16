@@ -2,7 +2,6 @@ import { BigNumber } from "ethers";
 import { MAX_SAFE_JS_INT } from "@uma/common/dist/Constants";
 import { fixedPointAdjustment, toBN } from "../utils";
 import { HUBPOOL_CHAIN_ID } from "../constants";
-import { UBAActionType } from "./UBAFeeTypes";
 
 /**
  * Computes a linear integral over a piecewise function
@@ -319,26 +318,13 @@ export function calculateUtilization(
 }
 
 export function calculateUtilizationBoundaries(
-  action: {
-    actionType: UBAActionType;
-    amount: BigNumber;
-    chainId: number;
-  },
   decimals: number,
   hubBalance: BigNumber,
   hubEquity: BigNumber,
   ethSpokeBalance: BigNumber,
-  spokeTargets: { target: BigNumber; spokeChainId: number }[],
-  hubPoolChainId = HUBPOOL_CHAIN_ID
+  newEthSpokeBalance: BigNumber,
+  spokeTargets: { target: BigNumber; spokeChainId: number }[]
 ): { utilizationPostTx: BigNumber; utilizationPreTx: BigNumber } {
-  let newEthSpokeBalance = ethSpokeBalance;
-  if (action.chainId === hubPoolChainId) {
-    if (action.actionType === UBAActionType.Deposit) {
-      newEthSpokeBalance = newEthSpokeBalance.add(action.amount);
-    } else {
-      newEthSpokeBalance = newEthSpokeBalance.sub(action.amount);
-    }
-  }
   return {
     utilizationPreTx: calculateUtilization(decimals, hubBalance, hubEquity, ethSpokeBalance, spokeTargets),
     utilizationPostTx: calculateUtilization(decimals, hubBalance, hubEquity, newEthSpokeBalance, spokeTargets),
