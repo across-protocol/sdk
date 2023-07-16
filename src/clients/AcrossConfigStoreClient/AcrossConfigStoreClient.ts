@@ -36,7 +36,6 @@ import { across } from "@uma/sdk";
 import { parseUBAConfigFromOnChain } from "./ConfigStoreParsingUtilities";
 import { BaseAbstractClient } from "../BaseAbstractClient";
 import { parseJSONWithNumericString } from "../../utils/JSONUtils";
-import { CHAIN_ID_LIST_INDICES } from "../../constants";
 
 type _ConfigStoreUpdate = {
   success: true;
@@ -90,6 +89,10 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
     this.rateModelDictionary = new across.rateModel.RateModelDictionary();
   }
 
+  // <-- START LEGACY CONFIGURATION OBJECTS -->
+  // @dev The following configuration objects are pre-UBA fee model configurations and are deprecated as of version
+  // 2 of the ConfigStore. They are kept here for backwards compatibility.
+
   getRateModelForBlockNumber(
     l1Token: string,
     originChainId: number | string,
@@ -137,6 +140,7 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
     const targetBalance = config?.spokeTargetBalances?.[chainId];
     return targetBalance || { target: toBN(0), threshold: toBN(0) };
   }
+  // <-- END LEGACY CONFIGURATION OBJECTS -->
 
   getMaxRefundCountForRelayerRefundLeafForBlock(blockNumber: number = Number.MAX_SAFE_INTEGER): number {
     const config = (sortEventsDescending(this.cumulativeMaxRefundCountUpdates) as GlobalConfigUpdate[]).find(
@@ -460,16 +464,6 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
     // If any chain ID's are not integers then ignore. UMIP-157 requires that this key cannot include
     // the chain ID 1.
     return disabledChains.filter((chainId: number) => !isNaN(chainId) && Number.isInteger(chainId) && chainId !== 1);
-  }
-
-  async getUBATargetSpokeBalances(
-    l1TokenAddress: string,
-    blockNumber?: number
-  ): Promise<{ spokeChainId: number; target: BigNumber }[]> {
-    return CHAIN_ID_LIST_INDICES.map((chainId) => {
-      const target = this.getSpokeTargetBalancesForBlock(l1TokenAddress, chainId, blockNumber).target;
-      return { spokeChainId: chainId, target };
-    });
   }
 
   /**
