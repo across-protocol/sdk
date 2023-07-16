@@ -51,10 +51,7 @@ export type UBALPFeeOverride = {
   hubBalance: BigNumber;
   hubEquity: BigNumber;
   ethSpokeBalance: BigNumber;
-  spokeTargets: {
-    spokeChainId: number;
-    target: BigNumber;
-  }[];
+  cumulativeSpokeTargets: BigNumber;
   baselineFee: BigNumber;
   gammaCutoff: FlowTupleParameters;
 };

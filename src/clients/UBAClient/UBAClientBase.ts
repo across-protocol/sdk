@@ -227,21 +227,22 @@ export class BaseUBAClient extends BaseAbstractClient {
         erc20.balanceOf(hubPoolClient.hubPool.address, { blockTag: hubPoolBlockNumber }),
         erc20.balanceOf(hubPoolClient.hubPool.address, { blockTag: hubPoolBlockNumber }),
       ]);
-      const spokeTargets = await hubPoolClient.configStoreClient.getUBATargetSpokeBalances(
-        hubPoolTokenAddress,
-        hubPoolBlockNumber
-      );
+      const ubaConfigForBundle = recentBundleState.config.ubaConfig;
+      // We will need to sum them all up for this token to compute the LP fee correctly.
+      const cumulativeSpokeTargets =
+        ubaConfigForBundle.getTotalSpokeTargetBalanceForComputingLpFee(hubPoolTokenAddress);
       overrides = {
         decimals: recentBundleState.config.tokenDecimals,
         hubBalance,
         hubEquity,
         ethSpokeBalance,
-        spokeTargets,
+        cumulativeSpokeTargets,
         baselineFee: recentBundleState.config.ubaConfig.getBaselineFee(refundChainId ?? depositChainId, depositChainId),
         gammaCutoff: recentBundleState.config.ubaConfig.getLpGammaFunctionTuples(depositChainId),
       };
     }
-    const { decimals, hubBalance, hubEquity, ethSpokeBalance, spokeTargets, baselineFee, gammaCutoff } = overrides;
+    const { decimals, hubBalance, hubEquity, ethSpokeBalance, cumulativeSpokeTargets, baselineFee, gammaCutoff } =
+      overrides;
 
     return computeLpFeeStateful(
       amount,
@@ -252,7 +253,7 @@ export class BaseUBAClient extends BaseAbstractClient {
       hubBalance,
       hubEquity,
       ethSpokeBalance,
-      spokeTargets,
+      cumulativeSpokeTargets,
       baselineFee,
       gammaCutoff
     );
