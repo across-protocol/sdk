@@ -147,14 +147,14 @@ export function getUBAFeeConfig(
   configClient: AcrossConfigStoreClient,
   chainId: number,
   l1TokenAddress: string,
-  blockNumber: number | "latest" = "latest"
+  blockNumber?: number
 ): UBAFeeConfig {
   // If the config client has not been updated at least
   // once, throw
   if (!configClient.isUpdated) {
     throw new Error("Config client not updated");
   }
-  const ubaConfig = configClient.getUBAConfig(l1TokenAddress, blockNumber === "latest" ? undefined : blockNumber);
+  const ubaConfig = configClient.getUBAConfig(l1TokenAddress, blockNumber);
   if (ubaConfig === undefined) {
     throw new Error(`UBA config for blockTag ${blockNumber} not found`);
   }

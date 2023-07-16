@@ -15,6 +15,7 @@ import {
   max,
   sortEventsAscending,
   findLast,
+  UBA_MIN_CONFIG_STORE_VERSION,
 } from "../../utils";
 import { Contract, BigNumber, Event } from "ethers";
 import winston from "winston";
@@ -87,6 +88,22 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
     super();
     this.firstBlockToSearch = eventSearchConfig.fromBlock;
     this.rateModelDictionary = new across.rateModel.RateModelDictionary();
+  }
+
+  /**
+   * Retrieves the most recently set UBA config for a given L1 token address before a block number.
+   * @param l1TokenAddress The L1 token address to retrieve the config for
+   * @param blockNumber The block number to retrieve the config for. If not specified, sets block to max integer
+   * meaning that this function will return the latest config.
+   * @returns The UBA config for the given L1 token address and block number, or undefined if no config exists
+   * before blockNumber.
+   */
+  getUBAConfig(l1TokenAddress: string, blockNumber = Number.MAX_SAFE_INTEGER): UBAParsedConfigType | undefined {
+    const config = findLast(
+      this.ubaConfigUpdates,
+      (config) => config.l1Token === l1TokenAddress && config.blockNumber <= blockNumber
+    );
+    return config?.config;
   }
 
   // <-- START LEGACY CONFIGURATION OBJECTS -->
@@ -234,6 +251,10 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
     return this.isValidConfigStoreVersion(version);
   }
 
+  isUBA(): boolean {
+    return this.configStoreVersion >= UBA_MIN_CONFIG_STORE_VERSION;
+  }
+
   isValidConfigStoreVersion(version: number): boolean {
     return this.configStoreVersion >= version;
   }
@@ -300,7 +321,7 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
         const transferThresholdForToken = parsedValue.transferThreshold;
 
         // If Token config doesn't contain all expected properties, skip it.
-        if (!(rateModelForToken && transferThresholdForToken)) {
+        if (!this.isUBA() && !(rateModelForToken && transferThresholdForToken)) {
           throw new Error("Ignoring invalid rate model update");
         }
 
@@ -464,19 +485,5 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
     // If any chain ID's are not integers then ignore. UMIP-157 requires that this key cannot include
     // the chain ID 1.
     return disabledChains.filter((chainId: number) => !isNaN(chainId) && Number.isInteger(chainId) && chainId !== 1);
-  }
-
-  /**
-   * Retrieves a UBA config for a given L1 token address and block number.
-   * @param l1TokenAddress The L1 token address to retrieve the config for
-   * @param blockNumber The block number to retrieve the config for. If not provided, the latest config will be returned.
-   * @returns The UBA config for the given L1 token address and block number, or undefined if no config exists.
-   */
-  getUBAConfig(l1TokenAddress: string, blockNumber?: number): UBAParsedConfigType | undefined {
-    const config = findLast(
-      this.ubaConfigUpdates,
-      (config) => config.l1Token === l1TokenAddress && (!blockNumber || config.blockNumber <= blockNumber)
-    );
-    return config?.config;
   }
 }
