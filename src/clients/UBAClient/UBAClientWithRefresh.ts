@@ -58,21 +58,19 @@ export class UBAClientWithRefresh extends BaseUBAClient {
    * @param depositChainId The chainId of the deposit
    * @param refundChainId The chainId of the refund
    * @param amount The amount that is being deposited
-   * @param hubPoolClient A hubpool client instance to query the hubpool
+   * @param hubPoolClient A hub pool client instance to query the hub pool
    * @param spokePoolClients A mapping of spoke chainIds to spoke pool clients
    * @returns The realized LP fee for the given token on the given chainId at the given block number
    */
-  public async computeLpFee(
+  public async computeRefreshedLpFee(
     hubPoolBlockNumber: number,
     amount: BigNumber,
     depositChainId: number,
     refundChainId: number,
-    tokenSymbol: string,
-    _hubBalance?: BigNumber,
-    _hubLiquidReserves?: BigNumber
+    tokenSymbol: string
   ): Promise<BigNumber> {
     const { hubBalance, hubLiquidReserves } = await getLpFeeParams(hubPoolBlockNumber, tokenSymbol, this.hubPoolClient);
-    return await super.computeLpFee(
+    return super.computeLpFee(
       hubPoolBlockNumber,
       amount,
       depositChainId,
@@ -83,17 +81,15 @@ export class UBAClientWithRefresh extends BaseUBAClient {
     );
   }
 
-  public async computeSystemFee(
+  public async computeRefreshedSystemFee(
     hubPoolBlockNumber: number,
     amount: BigNumber,
     depositChainId: number,
     destinationChainId: number,
-    tokenSymbol: string,
-    _hubBalance: BigNumber,
-    _hubLiquidReserves: BigNumber
+    tokenSymbol: string
   ): Promise<SystemFeeResult> {
     const { hubBalance, hubLiquidReserves } = await getLpFeeParams(hubPoolBlockNumber, tokenSymbol, this.hubPoolClient);
-    return await super.computeSystemFee(
+    return super.computeSystemFee(
       hubPoolBlockNumber,
       amount,
       depositChainId,

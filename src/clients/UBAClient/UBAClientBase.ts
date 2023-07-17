@@ -200,7 +200,7 @@ export class BaseUBAClient extends BaseAbstractClient {
    * @param hubPoolBlockNumber The block number to get the LP fee for
    * @returns The LP fee for the given token on the given chainId at the given block number
    */
-  protected async computeLpFee(
+  protected computeLpFee(
     hubPoolBlockNumber: number,
     amount: BigNumber,
     depositChainId: number,
@@ -208,7 +208,7 @@ export class BaseUBAClient extends BaseAbstractClient {
     tokenSymbol: string,
     hubBalance: BigNumber,
     hubLiquidReserves: BigNumber
-  ): Promise<BigNumber> {
+  ): BigNumber {
     // It doesn't actually matter which `chainId` we query the bundle state for. Its only important
     // that we return the bundle config for the correct token that was used at the time of the hubPoolBlockNumber.
     // To be safe, use the hub chain since its guaranteed to have a bundle state in memory.
@@ -248,7 +248,7 @@ export class BaseUBAClient extends BaseAbstractClient {
    * @param overrides The overrides to use for the LP fee calculation
    * @returns The system fee for the given token on the given chainId at the given block number
    */
-  public async computeSystemFee(
+  public computeSystemFee(
     hubPoolBlockNumber: number,
     amount: BigNumber,
     depositChainId: number,
@@ -256,8 +256,8 @@ export class BaseUBAClient extends BaseAbstractClient {
     tokenSymbol: string,
     hubBalance: BigNumber,
     hubLiquidReserves: BigNumber
-  ): Promise<SystemFeeResult> {
-    const lpFee = await this.computeLpFee(
+  ): SystemFeeResult {
+    const lpFee = this.computeLpFee(
       hubPoolBlockNumber,
       amount,
       depositChainId,

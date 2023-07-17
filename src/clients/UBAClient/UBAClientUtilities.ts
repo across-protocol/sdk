@@ -598,7 +598,7 @@ async function getFlows(
           }
           return {
             ...refundRequest,
-            quoteBlockNumber: result.matchingDeposit.quoteBlockNumber,
+            quoteBlockNumber: matchingDeposit.quoteBlockNumber,
           };
         } else {
           return undefined;
