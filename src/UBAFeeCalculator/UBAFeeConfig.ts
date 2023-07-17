@@ -108,11 +108,11 @@ class UBAConfig {
   /**
    * @description Get the balance trigger threshold for a given chain and token
    * @param chainId The chain id
-   * @param l1TokenAddress The token address
+   * @param tokenSymbol The token
    * @returns The balance trigger threshold if it exists
    */
-  public getBalanceTriggerThreshold(chainId: number, l1TokenAddress: string): ThresholdBoundType {
-    const chainTokenCombination = `${chainId}-${l1TokenAddress}`;
+  public getBalanceTriggerThreshold(chainId: number, tokenSymbol: string): ThresholdBoundType {
+    const chainTokenCombination = `${chainId}-${tokenSymbol}`;
     return this.balanceTriggerThreshold.override?.[chainTokenCombination] ?? this.balanceTriggerThreshold.default;
   }
 
@@ -123,8 +123,8 @@ class UBAConfig {
    * @param l1TokenAddress
    * @returns
    */
-  public getTargetBalance(chainId: number, l1TokenAddress: string): BigNumber {
-    const thresholdConfig = this.getBalanceTriggerThreshold(chainId, l1TokenAddress);
+  public getTargetBalance(chainId: number, tokenSymbol: string): BigNumber {
+    const thresholdConfig = this.getBalanceTriggerThreshold(chainId, tokenSymbol);
     return thresholdConfig?.upperBound?.target ?? BigNumber.from(0);
   }
 
@@ -132,9 +132,9 @@ class UBAConfig {
    * Get sum of all spoke target balances for all chains besides hub pool chain for l1TokenAddress.
    * This output should be used to compute LP fee based on total spoke target
    */
-  public getTotalSpokeTargetBalanceForComputingLpFee(l1TokenAddress: string): BigNumber {
+  public getTotalSpokeTargetBalanceForComputingLpFee(tokenSymbol: string): BigNumber {
     return CHAIN_ID_LIST_INDICES.filter((chainId) => chainId !== HUBPOOL_CHAIN_ID).reduce((sum, chainId) => {
-      return sum.add(this.getTargetBalance(chainId, l1TokenAddress));
+      return sum.add(this.getTargetBalance(chainId, tokenSymbol));
     }, BigNumber.from(0));
   }
 

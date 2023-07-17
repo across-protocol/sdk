@@ -364,10 +364,11 @@ export async function updateUBAClient(
           await Promise.all(
             relevantTokenSymbols.map(async (tokenSymbol) => {
               // TODO: Replace the following code by mapping by this entire client by l1TokenAddress instead of tokenSymbol.
-              const l1TokenAddress = hubPoolClient.getL1Tokens().find((token) => token.symbol === tokenSymbol)?.address;
-              if (!l1TokenAddress) {
+              const l1TokenInfo = hubPoolClient.getL1Tokens().find((token) => token.symbol === tokenSymbol);
+              if (!l1TokenInfo) {
                 throw new Error(`No L1 token address mapped to symbol ${tokenSymbol}`);
               }
+              const l1TokenAddress = l1TokenInfo.address;
 
               // Get the block number and opening balance for this token. This can be read directly from root bundle
               // data that we've already loaded.
@@ -388,7 +389,9 @@ export async function updateUBAClient(
                 startingBundleBlockNumber
               );
               // We will need to sum them all up for this token to compute the LP fee correctly.
-              cumulativeSpokeTargets = ubaConfigForBundle.getTotalSpokeTargetBalanceForComputingLpFee(l1TokenAddress);
+              cumulativeSpokeTargets = ubaConfigForBundle.getTotalSpokeTargetBalanceForComputingLpFee(
+                l1TokenInfo.symbol
+              );
 
               // Construct the bundle data for this token.
               const constructedBundle: UBABundleState = {

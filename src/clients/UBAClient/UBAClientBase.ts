@@ -218,7 +218,7 @@ export class BaseUBAClient extends BaseAbstractClient {
       }
       // TODO: Fix this by looking up the token address from the token symbol at the time of the hubPoolBlockNumber
       const tokenMappingLookup = (
-        TOKEN_SYMBOLS_MAP as Record<string, { addresses: { [x: number]: string }; decimals: number }>
+        TOKEN_SYMBOLS_MAP as Record<string, { addresses: { [x: number]: string }; decimals: number; symbol: string }>
       )[tokenSymbol];
       const hubPoolTokenAddress = tokenMappingLookup.addresses[hubPoolClient.chainId];
       const erc20 = ERC20__factory.connect(hubPoolTokenAddress, hubPoolClient.hubPool.provider);
@@ -229,8 +229,9 @@ export class BaseUBAClient extends BaseAbstractClient {
       ]);
       const ubaConfigForBundle = recentBundleState.config;
       // We will need to sum them all up for this token to compute the LP fee correctly.
-      const cumulativeSpokeTargets =
-        ubaConfigForBundle.getTotalSpokeTargetBalanceForComputingLpFee(hubPoolTokenAddress);
+      const cumulativeSpokeTargets = ubaConfigForBundle.getTotalSpokeTargetBalanceForComputingLpFee(
+        tokenMappingLookup.symbol
+      );
       overrides = {
         decimals: tokenMappingLookup.decimals,
         hubBalance,
