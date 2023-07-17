@@ -471,7 +471,7 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
    * @returns The UBA config for the given L1 token address and block number, or undefined if no config exists
    * before blockNumber.
    */
-  getUBAConfig(l1TokenAddress: string, blockNumber = Number.MAX_SAFE_INTEGER): UBAParsedConfigType | undefined {
+  public getUBAConfig(l1TokenAddress: string, blockNumber = Number.MAX_SAFE_INTEGER): UBAParsedConfigType | undefined {
     // We only care about searching on the block number and not any events that occurred in the same block
     // but with a lower transaction index. In other words, if the UBA config was updated as the absolute
     // last transaction in a block, the update still applies to all preceding UBA events in the same block.
