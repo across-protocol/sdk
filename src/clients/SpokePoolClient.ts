@@ -15,7 +15,7 @@ import {
 import { toBN, paginatedEventQuery, spreadEventWithBlockNumber } from "../utils";
 import winston from "winston";
 
-import { Contract, BigNumber, Event, EventFilter } from "ethers";
+import { Contract, BigNumber, Event, EventFilter, ethers } from "ethers";
 
 import {
   Deposit,
@@ -261,7 +261,7 @@ export class SpokePoolClient extends BaseAbstractClient {
         const relayer = refundLeaf.refundAddresses[i];
         const refundAmount = refundLeaf.refundAmounts[i];
         if (executedTokenRefunds[relayer] === undefined) {
-          executedTokenRefunds[relayer] = BigNumber.from(0);
+          executedTokenRefunds[relayer] = ethers.constants.Zero;
         }
         executedTokenRefunds[relayer] = executedTokenRefunds[relayer].add(refundAmount);
       }

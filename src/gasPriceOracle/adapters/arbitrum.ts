@@ -1,4 +1,4 @@
-import { BigNumber, providers, utils as ethersUtils } from "ethers";
+import { ethers, providers, utils as ethersUtils } from "ethers";
 import { GasPriceEstimate } from "../types";
 import { eip1559 } from "./ethereum";
 
@@ -17,5 +17,5 @@ export async function eip1559_arbitrum(provider: providers.Provider, chainId: nu
   // The caller may apply scaling as they wish afterwards.
   const maxFeePerGas = _maxFeePerGas.sub(maxPriorityFeePerGas).add(1);
 
-  return { maxPriorityFeePerGas: BigNumber.from(1), maxFeePerGas };
+  return { maxPriorityFeePerGas: ethers.constants.One, maxFeePerGas };
 }

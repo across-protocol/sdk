@@ -14,6 +14,7 @@ import {
   RequestedSpeedUpDepositEvent,
 } from "../typechain";
 import { Transfer } from "./model";
+import { ethers } from "ethers";
 
 export enum TransfersHistoryEvent {
   TransfersUpdated = "TransfersUpdated",
@@ -194,7 +195,7 @@ export class TransfersHistoryClient {
       depositTime: timestamp,
       depositTxHash: transactionHash,
       destinationChainId: destinationChainId.toNumber(),
-      filled: BigNumber.from("0"),
+      filled: ethers.constants.Zero,
       sourceChainId: originChainId.toNumber(),
       status: "pending",
       fillTxs: [],
