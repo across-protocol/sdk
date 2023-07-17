@@ -131,6 +131,8 @@ class UBAConfig {
   /**
    * Get sum of all spoke target balances for all chains besides hub pool chain for l1TokenAddress.
    * This output should be used to compute LP fee based on total spoke target
+   * @param tokenSymbol The token to find target balances for
+   * @returns The sum of token balances for a specific token symbol
    */
   public getTotalSpokeTargetBalanceForComputingLpFee(tokenSymbol: string): BigNumber {
     return CHAIN_ID_LIST_INDICES.reduce((sum, chainId) => {
