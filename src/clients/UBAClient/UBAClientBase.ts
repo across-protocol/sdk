@@ -13,6 +13,7 @@ import { computeLpFeeStateful } from "./UBAClientUtilities";
 import { findLast } from "../../utils/ArrayUtils";
 import { analog } from "../../UBAFeeCalculator";
 import { BaseAbstractClient } from "../BaseAbstractClient";
+import _ from "lodash";
 
 /**
  * UBAClient is a base class for UBA functionality. It provides a common interface for UBA functionality to be implemented on top of or extended.
@@ -76,12 +77,8 @@ export class BaseUBAClient extends BaseAbstractClient {
     chainId: number,
     tokenSymbol: string
   ): UBABundleState | undefined {
-    const sortedDescendingBundleStates = [
-      ...this.retrieveBundleStates(chainId, tokenSymbol).sort(
-        (a, b) => b.openingBlockNumberForSpokeChain - a.openingBlockNumberForSpokeChain
-      ),
-    ];
-    return sortedDescendingBundleStates.find(
+    return _.findLast(
+      this.retrieveBundleStates(chainId, tokenSymbol),
       (bundleState: UBABundleState) => bundleState.openingBlockNumberForSpokeChain <= hubPoolBlockNumber
     );
   }
