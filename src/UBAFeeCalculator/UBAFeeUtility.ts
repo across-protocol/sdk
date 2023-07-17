@@ -290,44 +290,6 @@ export function computePiecewiseLinearFunction(
   return integral.mul(scale);
 }
 
-export function calculateUtilization(
-  decimals: number,
-  hubBalance: BigNumber,
-  hubLiquidReserves: BigNumber,
-  ethSpokeDelta: BigNumber,
-  cumulativeSpokeTargets: BigNumber
-) {
-  const numerator = hubLiquidReserves.add(ethSpokeDelta).add(cumulativeSpokeTargets);
-  const denominator = hubBalance;
-  const result = numerator.mul(fixedPointAdjustment).div(denominator); // We need to multiply by 1e18 to get the correct precision for the result
-  return BigNumber.from(10).pow(decimals).sub(result);
-}
-
-export function calculateUtilizationBoundaries(
-  decimals: number,
-  hubBalance: BigNumber,
-  hubLiquidReserves: BigNumber,
-  newEthSpokeBalance: BigNumber,
-  cumulativeSpokeTargets: BigNumber
-): { utilizationPostTx: BigNumber; utilizationPreTx: BigNumber } {
-  return {
-    utilizationPreTx: calculateUtilization(
-      decimals,
-      hubBalance,
-      hubLiquidReserves,
-      newEthSpokeBalance,
-      cumulativeSpokeTargets
-    ),
-    utilizationPostTx: calculateUtilization(
-      decimals,
-      hubBalance,
-      hubLiquidReserves,
-      newEthSpokeBalance,
-      cumulativeSpokeTargets
-    ),
-  };
-}
-
 /**
  * A mapping of the balancing fee functions to the inflow/outflow types. This is used to
  * as a convenience to avoid having to do multiple if/else statements in the UBAFeeCalculator
