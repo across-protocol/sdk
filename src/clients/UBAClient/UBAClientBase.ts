@@ -69,7 +69,7 @@ export class BaseUBAClient extends BaseAbstractClient {
    * @param hubPoolBlockNumber The bundle state was proposed at or before this block
    * @param chainId
    * @param tokenSymbol
-   * @returns
+   * @returns the most recent bundle state for a given chain and token combination prior to the given block number.
    */
   public retrieveBundleStateForBlock(
     hubPoolBlockNumber: number,
