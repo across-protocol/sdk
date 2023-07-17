@@ -13,7 +13,6 @@ import { computeLpFeeStateful } from "./UBAClientUtilities";
 import { findLast } from "../../utils/ArrayUtils";
 import { analog } from "../../UBAFeeCalculator";
 import { BaseAbstractClient } from "../BaseAbstractClient";
-import { TOKEN_SYMBOLS_MAP } from "@across-protocol/contracts-v2";
 
 /**
  * UBAClient is a base class for UBA functionality. It provides a common interface for UBA functionality to be implemented on top of or extended.
@@ -202,12 +201,9 @@ export class BaseUBAClient extends BaseAbstractClient {
    */
   protected computeLpFee(
     hubPoolBlockNumber: number,
-    amount: BigNumber,
     depositChainId: number,
     refundChainId: number,
-    tokenSymbol: string,
-    hubBalance: BigNumber,
-    hubLiquidReserves: BigNumber
+    tokenSymbol: string
   ): BigNumber {
     // It doesn't actually matter which `chainId` we query the bundle state for. Its only important
     // that we return the bundle config for the correct token that was used at the time of the hubPoolBlockNumber.
@@ -216,26 +212,8 @@ export class BaseUBAClient extends BaseAbstractClient {
     if (!bundleState) {
       throw new Error(`No bundle states found for token ${tokenSymbol} before block ${hubPoolBlockNumber}`);
     }
-    const tokenMappingLookup = (
-      TOKEN_SYMBOLS_MAP as Record<string, { addresses: { [x: number]: string }; decimals: number; symbol: string }>
-    )[tokenSymbol];
-    const ubaConfigForBundle = bundleState.config;
-    const cumulativeSpokeTargets = ubaConfigForBundle.getTotalSpokeTargetBalanceForComputingLpFee(
-      tokenMappingLookup.symbol
-    );
 
-    return computeLpFeeStateful(
-      amount,
-      depositChainId,
-      refundChainId,
-      this.hubChainId,
-      tokenMappingLookup.decimals,
-      hubBalance,
-      hubLiquidReserves,
-      cumulativeSpokeTargets,
-      bundleState.config.getBaselineFee(refundChainId ?? depositChainId, depositChainId),
-      bundleState.config.getLpGammaFunctionTuples(depositChainId)
-    );
+    return computeLpFeeStateful(bundleState.config.getBaselineFee(refundChainId ?? depositChainId, depositChainId));
   }
 
   /**
@@ -253,19 +231,9 @@ export class BaseUBAClient extends BaseAbstractClient {
     amount: BigNumber,
     depositChainId: number,
     destinationChainId: number,
-    tokenSymbol: string,
-    hubBalance: BigNumber,
-    hubLiquidReserves: BigNumber
+    tokenSymbol: string
   ): SystemFeeResult {
-    const lpFee = this.computeLpFee(
-      hubPoolBlockNumber,
-      amount,
-      depositChainId,
-      destinationChainId,
-      tokenSymbol,
-      hubBalance,
-      hubLiquidReserves
-    );
+    const lpFee = this.computeLpFee(hubPoolBlockNumber, depositChainId, destinationChainId, tokenSymbol);
     const { balancingFee: depositBalancingFee } = this.computeBalancingFee(
       tokenSymbol,
       amount,

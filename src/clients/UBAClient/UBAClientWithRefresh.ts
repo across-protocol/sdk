@@ -2,9 +2,8 @@ import assert from "assert";
 import winston from "winston";
 import { HubPoolClient, SpokePoolClient } from "..";
 import { BaseUBAClient } from "./UBAClientBase";
-import { getLpFeeParams, updateUBAClient } from "./UBAClientUtilities";
-import { SystemFeeResult, UBAChainState } from "./UBAClientTypes";
-import { BigNumber } from "ethers";
+import { updateUBAClient } from "./UBAClientUtilities";
+import { UBAChainState } from "./UBAClientTypes";
 export class UBAClientWithRefresh extends BaseUBAClient {
   // @dev chainIdIndices supports indexing members of root bundle proposals submitted to the HubPool.
   //      It must include the complete set of chain IDs ever supported by the HubPool.
@@ -51,55 +50,6 @@ export class UBAClientWithRefresh extends BaseUBAClient {
       )
     );
   }
-
-  /**
-   * Compute the realized LP fee for a given amount.
-   * @param hubPoolTokenAddress The L1 token address to get the LP fee
-   * @param depositChainId The chainId of the deposit
-   * @param refundChainId The chainId of the refund
-   * @param amount The amount that is being deposited
-   * @param hubPoolClient A hub pool client instance to query the hub pool
-   * @param spokePoolClients A mapping of spoke chainIds to spoke pool clients
-   * @returns The realized LP fee for the given token on the given chainId at the given block number
-   */
-  public async computeRefreshedLpFee(
-    hubPoolBlockNumber: number,
-    amount: BigNumber,
-    depositChainId: number,
-    refundChainId: number,
-    tokenSymbol: string
-  ): Promise<BigNumber> {
-    const { hubBalance, hubLiquidReserves } = await getLpFeeParams(hubPoolBlockNumber, tokenSymbol, this.hubPoolClient);
-    return super.computeLpFee(
-      hubPoolBlockNumber,
-      amount,
-      depositChainId,
-      refundChainId,
-      tokenSymbol,
-      hubBalance,
-      hubLiquidReserves
-    );
-  }
-
-  public async computeRefreshedSystemFee(
-    hubPoolBlockNumber: number,
-    amount: BigNumber,
-    depositChainId: number,
-    destinationChainId: number,
-    tokenSymbol: string
-  ): Promise<SystemFeeResult> {
-    const { hubBalance, hubLiquidReserves } = await getLpFeeParams(hubPoolBlockNumber, tokenSymbol, this.hubPoolClient);
-    return super.computeSystemFee(
-      hubPoolBlockNumber,
-      amount,
-      depositChainId,
-      destinationChainId,
-      tokenSymbol,
-      hubBalance,
-      hubLiquidReserves
-    );
-  }
-
   public get isUpdated(): boolean {
     return (
       this.hubPoolClient.configStoreClient.isUpdated &&

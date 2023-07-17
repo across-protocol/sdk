@@ -1,20 +1,17 @@
 import assert from "assert";
-import { BigNumber, ethers } from "ethers";
+import { BigNumber } from "ethers";
 import { HubPoolClient } from "../HubPoolClient";
-import { calculateUtilizationBoundaries, computePiecewiseLinearFunction } from "../../UBAFeeCalculator/UBAFeeUtility";
 import UBAFeeConfig from "../../UBAFeeCalculator/UBAFeeConfig";
 import {
   SpokePoolClients,
   filterAsync,
   isDefined,
-  max,
   queryHistoricalDepositForFill,
   resolveCorrespondingDepositForFill,
   sortEventsAscending,
   toBN,
 } from "../../utils";
 import { ERC20__factory } from "../../typechain";
-import { FlowTupleParameters } from "../../UBAFeeCalculator/UBAFeeTypes";
 import { RequestValidReturnType, UBABundleState, UBAChainState, UBAClientState } from "./UBAClientTypes";
 import { DepositWithBlock, FillWithBlock, ProposedRootBundle, RefundRequestWithBlock, UbaFlow } from "../../interfaces";
 import { Logger } from "winston";
@@ -64,101 +61,18 @@ export async function getLpFeeParams(
   };
 }
 
-/**
- * Compute the realized LP fee for a given amount.
- * @param hubPoolTokenAddress The L1 token address to get the LP fee
- * @param depositChainId The chainId of the deposit
- * @param refundChainId The chainId of the refund
- * @param amount The amount that is being deposited
- * @param hubPoolClient A hubpool client instance to query the hubpool
- * @param spokePoolClients A mapping of spoke chainIds to spoke pool clients
- * @param baselineFee The baseline fee to use for this given token
- * @param gammaCutoff The gamma cutoff to use for this given token - used in the piecewise linear function calculation
- * @returns The realized LP fee for the given token on the given chainId at the given block number
- */
-export async function computeLpFeeForRefresh(
-  hubPoolTokenAddress: string,
-  cumulativeSpokeTargets: BigNumber,
-  originChainId: number,
-  refundChainId: number,
-  amount: BigNumber,
-  hubPoolClient: HubPoolClient,
-  baselineFee: BigNumber,
-  gammaCutoff: FlowTupleParameters,
-  hubPoolBlockNuber: number
-): Promise<BigNumber> {
-  const hubPoolTokenInfo = hubPoolClient.getTokenInfoForL1Token(hubPoolTokenAddress);
-  if (!hubPoolTokenInfo) {
-    throw new Error(`Token ${hubPoolTokenAddress} not found in hub pool client`);
-  }
-  const { hubBalance, hubLiquidReserves } = await getLpFeeParams(
-    hubPoolBlockNuber,
-    hubPoolTokenInfo.symbol,
-    hubPoolClient
-  );
-  const tokenDecimals = hubPoolTokenInfo.decimals;
-  return computeLpFeeStateful(
-    amount,
-    originChainId,
-    refundChainId,
-    hubPoolClient.chainId,
-    tokenDecimals,
-    hubBalance,
-    hubLiquidReserves,
-    cumulativeSpokeTargets,
-    baselineFee,
-    gammaCutoff
-  );
+export function computeLpFeeForRefresh(baselineFee: BigNumber): BigNumber {
+  return computeLpFeeStateful(baselineFee);
 }
 
 /**
- * Compute the realized LP fee for a given amount. This function is stateless and does not require a hubpool client.
- * The utilization delta coming from a deposit on the originChainId plus a refund on the refundChainId is used
- * to construct the fee.
- * @param amount The amount that is being deposited
- * @param hubPoolChainId The chainId of the hub pool
- * @param decimals The number of decimals for the token
- * @param hubBalance The balance of the hub pool
- * @param hubEquity The equity of the hub pool
- * @param ethSpokeBalance The balance of the spoke pool on the mainnet spoke
- * @param spokeTargets The spoke targets for the spoke pool
- * @param baselineFee The baseline fee to use for this given token
- * @param gammaCutoff The gamma cutoff to use for this given token - used in the piecewise linear function calculation
- * @returns The realized LP fee for the given token on the given chainId at the given block number
+ * Compute the LP fee for a given amount. This function is stateless and does not require a hubpool client.
  */
-export function computeLpFeeStateful(
-  amount: BigNumber,
-  originChainId: number,
-  refundChainId: number,
-  hubPoolChainId: number,
-  decimals: number,
-  hubBalance: BigNumber,
-  hubLiquidReserves: BigNumber,
-  cumulativeSpokeTargets: BigNumber,
-  baselineFee: BigNumber,
-  gammaCutoff: FlowTupleParameters
-) {
-  if (originChainId === refundChainId) {
-    throw new Error("Cannot compute LP fee for deposit where originChainId === refundChainId");
-  }
-  // A deposit on Ethereum raises the eth spoke balance while a refund decreases it.
-  let ethSpokeDelta = ethers.constants.Zero;
-  if (originChainId === hubPoolChainId) {
-    ethSpokeDelta = amount;
-  } else if (refundChainId === hubPoolChainId) {
-    ethSpokeDelta = amount.mul(-1);
-  }
-  const { utilizationPostTx, utilizationPreTx } = calculateUtilizationBoundaries(
-    decimals,
-    hubBalance,
-    hubLiquidReserves,
-    ethSpokeDelta,
-    cumulativeSpokeTargets
-  );
-
-  const utilizationDelta = utilizationPostTx.sub(utilizationPreTx).abs();
-  const utilizationIntegral = computePiecewiseLinearFunction(gammaCutoff, utilizationPreTx, utilizationPostTx);
-  return max(toBN(0), baselineFee.add(utilizationIntegral.div(utilizationDelta)));
+export function computeLpFeeStateful(baselineFee: BigNumber) {
+  // @dev Temporarily, the LP fee only comprises the baselineFee. In the future, a variable component will be
+  // added to the baseline fee that takes into account the utilized liquidity in the system and how the the bridge
+  // defined by { amount, originChain, refundChain, hubPoolBlock } affects that liquidity.
+  return baselineFee;
 }
 
 /**
@@ -395,7 +309,6 @@ export async function updateUBAClient(
           );
 
           // These values are the same for each token for this bundle, so cache them.
-          let cumulativeSpokeTargets: BigNumber;
           let ubaConfigForBundle: UBAFeeConfig;
           await Promise.all(
             relevantTokenSymbols.map(async (tokenSymbol) => {
@@ -424,11 +337,6 @@ export async function updateUBAClient(
                 l1TokenAddress,
                 startingBundleBlockNumber
               );
-              // We will need to sum them all up for this token to compute the LP fee correctly.
-              cumulativeSpokeTargets = ubaConfigForBundle.getTotalSpokeTargetBalanceForComputingLpFee(
-                l1TokenInfo.symbol
-              );
-
               // Construct the bundle data for this token.
               const constructedBundle: UBABundleState = {
                 flows: [],
@@ -438,68 +346,55 @@ export async function updateUBAClient(
                 config: ubaConfigForBundle,
               };
 
-              // TODO: Return a promise for each loop iteration and promise.all them
-              await Promise.all(
-                recentFlows.map(async (flow) => {
-                  // Previous flows will be populated with all flows we've stored into the `constructedBundle.flows`
-                  // array so far. On the first `flow`, this will be an empty array.
-                  const previousFlows = constructedBundle.flows.map((flow) => flow.flow);
-                  const previousFlowsIncludingCurrent = previousFlows.concat(flow);
-                  const {
-                    runningBalance: lastRunningBalance,
-                    incentiveBalance: lastIncentiveBalance,
-                    netRunningBalanceAdjustment,
-                  } = analog.calculateHistoricalRunningBalance(
-                    previousFlowsIncludingCurrent,
-                    constructedBundle.openingBalance,
-                    constructedBundle.openingIncentiveBalance,
-                    chainId,
-                    tokenSymbol,
-                    constructedBundle.config
-                  );
-                  const { balancingFee: depositBalancingFee } = getDepositFee(
-                    flow.amount,
-                    lastRunningBalance,
-                    lastIncentiveBalance,
-                    chainId,
-                    constructedBundle.config
-                  );
-                  const { balancingFee: relayerBalancingFee } = getRefundFee(
-                    flow.amount,
-                    lastRunningBalance,
-                    lastIncentiveBalance,
-                    chainId,
-                    constructedBundle.config
-                  );
-                  const lpFee = await computeLpFeeForRefresh(
-                    l1TokenAddress,
-                    cumulativeSpokeTargets,
-                    // @dev Assume that flow is taking refund on destination chain ID for purposes of computing the LP fee.
-                    // This is encoded in the UMIP as the way to compute utilization.
-                    flow.originChainId,
-                    flow.destinationChainId,
-                    flow.amount,
-                    hubPoolClient,
-                    constructedBundle.config.getBaselineFee(flow.destinationChainId, flow.originChainId),
-                    constructedBundle.config.getLpGammaFunctionTuples(flow.destinationChainId),
-                    flow.quoteBlockNumber
-                  );
-                  constructedBundle.flows.push({
-                    flow,
-                    runningBalance: lastRunningBalance,
-                    incentiveBalance: lastIncentiveBalance,
-                    netRunningBalanceAdjustment,
-                    relayerFee: {
-                      relayerBalancingFee,
-                    },
-                    systemFee: {
-                      depositBalancingFee,
-                      lpFee,
-                      systemFee: lpFee.add(depositBalancingFee),
-                    },
-                  });
-                })
-              );
+              recentFlows.forEach((flow) => {
+                // Previous flows will be populated with all flows we've stored into the `constructedBundle.flows`
+                // array so far. On the first `flow`, this will be an empty array.
+                const previousFlows = constructedBundle.flows.map((flow) => flow.flow);
+                const previousFlowsIncludingCurrent = previousFlows.concat(flow);
+                const {
+                  runningBalance: lastRunningBalance,
+                  incentiveBalance: lastIncentiveBalance,
+                  netRunningBalanceAdjustment,
+                } = analog.calculateHistoricalRunningBalance(
+                  previousFlowsIncludingCurrent,
+                  constructedBundle.openingBalance,
+                  constructedBundle.openingIncentiveBalance,
+                  chainId,
+                  tokenSymbol,
+                  constructedBundle.config
+                );
+                const { balancingFee: depositBalancingFee } = getDepositFee(
+                  flow.amount,
+                  lastRunningBalance,
+                  lastIncentiveBalance,
+                  chainId,
+                  constructedBundle.config
+                );
+                const { balancingFee: relayerBalancingFee } = getRefundFee(
+                  flow.amount,
+                  lastRunningBalance,
+                  lastIncentiveBalance,
+                  chainId,
+                  constructedBundle.config
+                );
+                const lpFee = computeLpFeeForRefresh(
+                  constructedBundle.config.getBaselineFee(flow.destinationChainId, flow.originChainId)
+                );
+                constructedBundle.flows.push({
+                  flow,
+                  runningBalance: lastRunningBalance,
+                  incentiveBalance: lastIncentiveBalance,
+                  netRunningBalanceAdjustment,
+                  relayerFee: {
+                    relayerBalancingFee,
+                  },
+                  systemFee: {
+                    depositBalancingFee,
+                    lpFee,
+                    systemFee: lpFee.add(depositBalancingFee),
+                  },
+                });
+              });
 
               // Push the fully filled out flow data for this bundle to the list of bundle states for this token.
               if (!chainState.bundles[tokenSymbol]) chainState.bundles[tokenSymbol] = [];
