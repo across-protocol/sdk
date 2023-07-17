@@ -28,6 +28,14 @@ import {
   getImpliedBundleBlockRanges,
 } from "../../utils/BundleUtils";
 
+/**
+ * Returns the inputs to the LP Fee calculation for a hub pool block height. This wraps
+ * the async logic needed for fetching HubPool balances and liquid reserves at a given block height.
+ * @param hubPoolBlockNumber
+ * @param tokenSymbol
+ * @param hubPoolClient
+ * @returns
+ */
 export async function getLpFeeParams(
   hubPoolBlockNumber: number,
   tokenSymbol: string,
@@ -490,22 +498,6 @@ export async function updateUBAClient(
                       systemFee: lpFee.add(depositBalancingFee),
                     },
                   });
-                  // TODO: Do we actually need to load the relay fee for each flow? It doesn't affect the balancing fees
-                  // for subsequent flows or the history of running balances. The only time we really need to construct
-                  // a relay fee for a flow is when we're trying to give a quote in the Vercel API in real time.
-                  // const relayFeeCalculator = new RelayFeeCalculator(
-                  //   relayFeeCalculatorConfig,
-                  //   undefined,
-                  //   flow.destinationChainId
-                  // );
-                  // const { capitalFeeTotal, relayFeeTotal, gasFeeTotal, isAmountTooLow } =
-                  //   await relayFeeCalculator.relayerFeeDetails(
-                  //     flow.amount,
-                  //     tokenSymbol,
-                  //     undefined,
-                  //     flow.originChainId.toString(),
-                  //     flow.destinationChainId.toString()
-                  //   );
                 })
               );
 
@@ -600,9 +592,13 @@ async function getFlows(
         }
 
         if (result.valid) {
+          const matchingDeposit = result.matchingDeposit;
+          if (matchingDeposit === undefined) {
+            throw new Error("refundRequestIsValid returned true but matchingDeposit is undefined");
+          }
           return {
             ...refundRequest,
-            quoteBlockNumber: result.matchingDeposit?.quoteBlockNumber,
+            quoteBlockNumber: result.matchingDeposit.quoteBlockNumber,
           };
         } else {
           return undefined;
