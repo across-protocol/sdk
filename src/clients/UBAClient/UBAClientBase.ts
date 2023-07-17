@@ -6,7 +6,6 @@ import {
   BalancingFeeReturnType,
   SystemFeeResult,
   UBABundleState,
-  UBALPFeeOverride,
   UBAClientState,
   ModifiedUBAFlow,
 } from "./UBAClientTypes";
@@ -14,9 +13,6 @@ import { computeLpFeeStateful } from "./UBAClientUtilities";
 import { findLast } from "../../utils/ArrayUtils";
 import { analog } from "../../UBAFeeCalculator";
 import { BaseAbstractClient } from "../BaseAbstractClient";
-import { HubPoolClient } from "../HubPoolClient";
-import { SpokePoolClients } from "../../utils";
-import { ERC20__factory } from "../../typechain";
 import { TOKEN_SYMBOLS_MAP } from "@across-protocol/contracts-v2";
 
 /**
@@ -35,12 +31,14 @@ export class BaseUBAClient extends BaseAbstractClient {
    * @param chainIdIndices All ID indices as they appear in the contracts
    * @param tokens A list of all tokens that the UBA functionality should be implemented for
    * @param maxBundleStates The maximum number of bundle states to keep in memory
+   * @param hubChainId The chainId of the hub chain
    * @param logger An optional logger to use for logging
    */
   constructor(
     protected readonly chainIdIndices: number[],
     protected readonly tokens: string[],
     protected readonly maxBundleStates: number,
+    protected readonly hubChainId: number,
     protected readonly logger?: winston.Logger
   ) {
     super();
@@ -68,35 +66,41 @@ export class BaseUBAClient extends BaseAbstractClient {
   }
 
   /**
+   * Returns the most recent bundle state for a chain and token that was created before a given block number.
+   * @param hubPoolBlockNumber The bundle state was proposed at or before this block
+   * @param chainId
+   * @param tokenSymbol
+   * @returns
+   */
+  public retrieveBundleStateForBlock(
+    hubPoolBlockNumber: number,
+    chainId: number,
+    tokenSymbol: string
+  ): UBABundleState | undefined {
+    const sortedDescendingBundleStates = [
+      ...this.retrieveBundleStates(chainId, tokenSymbol).sort(
+        (a, b) => b.openingBlockNumberForSpokeChain - a.openingBlockNumberForSpokeChain
+      ),
+    ];
+    return sortedDescendingBundleStates.find(
+      (bundleState: UBABundleState) => bundleState.openingBlockNumberForSpokeChain <= hubPoolBlockNumber
+    );
+  }
+
+  /**
    * @description Construct the ordered sequence of SpokePool flows between two blocks.
-   * @note Assumptions:
-   * @note Deposits, Fills and RefundRequests have been pre-verified by the SpokePool contract or SpokePoolClient, i.e.:
-   * @note - Deposit events contain valid information.
-   * @note - Fill events correspond to valid deposits.
-   * @note - RefundRequest events correspond to valid fills.
-   * @note In order to provide up-to-date prices, UBA functionality may want to follow close to "latest" and so may still
-   * @note be exposed to finality risk. Additional verification that can only be performed within the UBA context:
-   * @note - Only the first instance of a partial fill for a deposit is accepted. The total deposit amount is taken, and
-   * @note   subsequent partial, complete or slow fills are disregarded.
    * @param spokePoolClient SpokePoolClient instance for this chain.
    * @param fromBlock       Optional lower bound of the search range. Defaults to the SpokePool deployment block.
    * @param toBlock         Optional upper bound of the search range. Defaults to the latest queried block.
+   * @return UBA flows in chronological ascending order.
    */
   public getFlows(chainId: number, tokenSymbol: string, fromBlock?: number, toBlock?: number): UbaFlow[] {
     return this.getModifiedFlows(chainId, tokenSymbol, fromBlock, toBlock).map(({ flow }) => flow);
   }
 
   /**
-   * Construct the ordered sequence of SpokePool flows between two blocks. This function returns the flows with closing balances.
-   * @note Assumptions:
-   * @note Deposits, Fills and RefundRequests have been pre-verified by the SpokePool contract or SpokePoolClient, i.e.:
-   * @note - Deposit events contain valid information.
-   * @note - Fill events correspond to valid deposits.
-   * @note - RefundRequest events correspond to valid fills.
-   * @note In order to provide up-to-date prices, UBA functionality may want to follow close to "latest" and so may still
-   * @note be exposed to finality risk. Additional verification that can only be performed within the UBA context:
-   * @note - Only the first instance of a partial fill for a deposit is accepted. The total deposit amount is taken, and
-   * @note   subsequent partial, complete or slow fills are disregarded.
+   * Construct the ordered sequence of SpokePool flows between two blocks. This function returns the flows with
+   * additional fee data.
    * @param spokePoolClient SpokePoolClient instance for this chain.
    * @param fromBlock       Optional lower bound of the search range. Defaults to the SpokePool deployment block.
    * @param toBlock         Optional upper bound of the search range. Defaults to the latest queried block.
@@ -191,13 +195,9 @@ export class BaseUBAClient extends BaseAbstractClient {
   }
 
   /**
-   * Compute the latest LP fee for a given amount. The LP fee is the fee paid to the LP for providing liquidity.
-   * @param amount The amount to get the LP fee for
-   * @param depositChainId The chainId of the deposit
-   * @param hubPoolChainId The chainId of the hub pool
-   * @param tokenSymbol The token to get the LP fee for
-   * @param refundChainId The chainId of the refund
-   * @param overrides The overrides to use for the LP fee calculation
+   * Compute the LP fee for a given amount. The LP fee is the fee paid to the LP for providing liquidity and
+   * it is based on the Hub balances and Spoke target configs at the `hubPoolBlockNumber`.
+   * @param hubPoolBlockNumber The block number to get the LP fee for
    * @returns The LP fee for the given token on the given chainId at the given block number
    */
   protected async computeLpFee(
@@ -205,63 +205,41 @@ export class BaseUBAClient extends BaseAbstractClient {
     amount: BigNumber,
     depositChainId: number,
     refundChainId: number,
-    hubPoolChainId: number,
     tokenSymbol: string,
-    hubPoolClient: HubPoolClient,
-    spokePoolClients: SpokePoolClients,
-    overrides?: UBALPFeeOverride
+    hubBalance: BigNumber,
+    hubLiquidReserves: BigNumber
   ): Promise<BigNumber> {
-    if (!overrides) {
-      const recentBundleState = this.retrieveLastBundleState(hubPoolChainId, tokenSymbol);
-      if (!recentBundleState) {
-        throw new Error(`No bundle states found for token ${tokenSymbol} on chain ${hubPoolChainId}`);
-      }
-      // TODO: Fix this by looking up the token address from the token symbol at the time of the hubPoolBlockNumber
-      const tokenMappingLookup = (
-        TOKEN_SYMBOLS_MAP as Record<string, { addresses: { [x: number]: string }; decimals: number; symbol: string }>
-      )[tokenSymbol];
-      const hubPoolTokenAddress = tokenMappingLookup.addresses[hubPoolClient.chainId];
-      const erc20 = ERC20__factory.connect(hubPoolTokenAddress, hubPoolClient.hubPool.provider);
-      const [ethSpokeBalance, hubBalance, hubEquity] = await Promise.all([
-        erc20.balanceOf(spokePoolClients[hubPoolClient.chainId].spokePool.address, { blockTag: hubPoolBlockNumber }),
-        erc20.balanceOf(hubPoolClient.hubPool.address, { blockTag: hubPoolBlockNumber }),
-        erc20.balanceOf(hubPoolClient.hubPool.address, { blockTag: hubPoolBlockNumber }),
-      ]);
-      const ubaConfigForBundle = recentBundleState.config;
-      // We will need to sum them all up for this token to compute the LP fee correctly.
-      const cumulativeSpokeTargets = ubaConfigForBundle.getTotalSpokeTargetBalanceForComputingLpFee(
-        tokenMappingLookup.symbol
-      );
-      overrides = {
-        decimals: tokenMappingLookup.decimals,
-        hubBalance,
-        hubEquity,
-        ethSpokeBalance,
-        cumulativeSpokeTargets,
-        baselineFee: recentBundleState.config.getBaselineFee(refundChainId ?? depositChainId, depositChainId),
-        gammaCutoff: recentBundleState.config.getLpGammaFunctionTuples(depositChainId),
-      };
+    // It doesn't actually matter which `chainId` we query the bundle state for. Its only important
+    // that we return the bundle config for the correct token that was used at the time of the hubPoolBlockNumber.
+    // To be safe, use the hub chain since its guaranteed to have a bundle state in memory.
+    const bundleState = this.retrieveBundleStateForBlock(hubPoolBlockNumber, this.hubChainId, tokenSymbol);
+    if (!bundleState) {
+      throw new Error(`No bundle states found for token ${tokenSymbol} before block ${hubPoolBlockNumber}`);
     }
-    const { decimals, hubBalance, hubEquity, ethSpokeBalance, cumulativeSpokeTargets, baselineFee, gammaCutoff } =
-      overrides;
+    const tokenMappingLookup = (
+      TOKEN_SYMBOLS_MAP as Record<string, { addresses: { [x: number]: string }; decimals: number; symbol: string }>
+    )[tokenSymbol];
+    const ubaConfigForBundle = bundleState.config;
+    const cumulativeSpokeTargets = ubaConfigForBundle.getTotalSpokeTargetBalanceForComputingLpFee(
+      tokenMappingLookup.symbol
+    );
 
     return computeLpFeeStateful(
       amount,
       depositChainId,
       refundChainId,
-      hubPoolChainId,
-      decimals,
+      this.hubChainId,
+      tokenMappingLookup.decimals,
       hubBalance,
-      hubEquity,
-      ethSpokeBalance,
+      hubLiquidReserves,
       cumulativeSpokeTargets,
-      baselineFee,
-      gammaCutoff
+      bundleState.config.getBaselineFee(refundChainId ?? depositChainId, depositChainId),
+      bundleState.config.getLpGammaFunctionTuples(depositChainId)
     );
   }
 
   /**
-   * Compute the latest system fee for a given amount. The system fee is the sum of the LP fee and the balancing fee.
+   * Compute the system fee for a given amount. The system fee is the sum of the LP fee and the balancing fee.
    * @param depositChainId The chainId of the deposit
    * @param destinationChainId The chainId of the transaction
    * @param tokenSymbol The token to get the system fee for
@@ -271,25 +249,22 @@ export class BaseUBAClient extends BaseAbstractClient {
    * @returns The system fee for the given token on the given chainId at the given block number
    */
   public async computeSystemFee(
+    hubPoolBlockNumber: number,
+    amount: BigNumber,
     depositChainId: number,
     destinationChainId: number,
     tokenSymbol: string,
-    hubPoolClient: HubPoolClient,
-    spokePoolClients: SpokePoolClients,
-    amount: BigNumber,
-    hubPoolBlockNumber: number,
-    overrides?: UBALPFeeOverride
+    hubBalance: BigNumber,
+    hubLiquidReserves: BigNumber
   ): Promise<SystemFeeResult> {
     const lpFee = await this.computeLpFee(
       hubPoolBlockNumber,
       amount,
       depositChainId,
       destinationChainId,
-      hubPoolClient.chainId,
       tokenSymbol,
-      hubPoolClient,
-      spokePoolClients,
-      overrides
+      hubBalance,
+      hubLiquidReserves
     );
     const { balancingFee: depositBalancingFee } = this.computeBalancingFee(
       tokenSymbol,

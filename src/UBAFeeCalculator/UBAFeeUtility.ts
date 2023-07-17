@@ -290,25 +290,15 @@ export function computePiecewiseLinearFunction(
   return integral.mul(scale);
 }
 
-/**
- * Computes the utilization at a given point in time based on the
- * current balances and equity of the hub and spoke pool targets.
- * @param decimals The number of decimals for the token
- * @param hubBalance The current balance of the hub pool for the token
- * @param hubEquity The current equity of the hub pool for the token
- * @param ethSpokeBalance The current balance of the ETH spoke pool for the token
- * @param targetSpoke The current balance of the target spoke pool for the token - this is a list.
- * @returns The utilization of the hub pool
- */
 export function calculateUtilization(
   decimals: number,
   hubBalance: BigNumber,
-  hubEquity: BigNumber,
-  ethSpokeBalance: BigNumber,
+  hubLiquidReserves: BigNumber,
+  ethSpokeDelta: BigNumber,
   cumulativeSpokeTargets: BigNumber
 ) {
-  const numerator = hubBalance.add(ethSpokeBalance).add(cumulativeSpokeTargets);
-  const denominator = hubEquity;
+  const numerator = hubLiquidReserves.add(ethSpokeDelta).add(cumulativeSpokeTargets);
+  const denominator = hubBalance;
   const result = numerator.mul(fixedPointAdjustment).div(denominator); // We need to multiply by 1e18 to get the correct precision for the result
   return BigNumber.from(10).pow(decimals).sub(result);
 }
@@ -316,17 +306,22 @@ export function calculateUtilization(
 export function calculateUtilizationBoundaries(
   decimals: number,
   hubBalance: BigNumber,
-  hubEquity: BigNumber,
-  ethSpokeBalance: BigNumber,
+  hubLiquidReserves: BigNumber,
   newEthSpokeBalance: BigNumber,
   cumulativeSpokeTargets: BigNumber
 ): { utilizationPostTx: BigNumber; utilizationPreTx: BigNumber } {
   return {
-    utilizationPreTx: calculateUtilization(decimals, hubBalance, hubEquity, ethSpokeBalance, cumulativeSpokeTargets),
+    utilizationPreTx: calculateUtilization(
+      decimals,
+      hubBalance,
+      hubLiquidReserves,
+      newEthSpokeBalance,
+      cumulativeSpokeTargets
+    ),
     utilizationPostTx: calculateUtilization(
       decimals,
       hubBalance,
-      hubEquity,
+      hubLiquidReserves,
       newEthSpokeBalance,
       cumulativeSpokeTargets
     ),

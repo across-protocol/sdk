@@ -1,6 +1,6 @@
 import { BigNumber, ethers } from "ethers";
 import { ThresholdBoundType, FlowTupleParameters } from "./UBAFeeTypes";
-import { CHAIN_ID_LIST_INDICES, HUBPOOL_CHAIN_ID } from "../constants";
+import { CHAIN_ID_LIST_INDICES } from "../constants";
 
 type ChainId = number;
 type RouteCombination = string;
@@ -133,7 +133,7 @@ class UBAConfig {
    * This output should be used to compute LP fee based on total spoke target
    */
   public getTotalSpokeTargetBalanceForComputingLpFee(tokenSymbol: string): BigNumber {
-    return CHAIN_ID_LIST_INDICES.filter((chainId) => chainId !== HUBPOOL_CHAIN_ID).reduce((sum, chainId) => {
+    return CHAIN_ID_LIST_INDICES.reduce((sum, chainId) => {
       return sum.add(this.getTargetBalance(chainId, tokenSymbol));
     }, ethers.constants.Zero);
   }

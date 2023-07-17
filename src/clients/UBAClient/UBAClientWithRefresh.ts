@@ -2,8 +2,9 @@ import assert from "assert";
 import winston from "winston";
 import { HubPoolClient, SpokePoolClient } from "..";
 import { BaseUBAClient } from "./UBAClientBase";
-import { updateUBAClient } from "./UBAClientUtilities";
-import { UBAChainState } from "./UBAClientTypes";
+import { getLpFeeParams, updateUBAClient } from "./UBAClientUtilities";
+import { SystemFeeResult, UBAChainState } from "./UBAClientTypes";
+import { BigNumber } from "ethers";
 export class UBAClientWithRefresh extends BaseUBAClient {
   // @dev chainIdIndices supports indexing members of root bundle proposals submitted to the HubPool.
   //      It must include the complete set of chain IDs ever supported by the HubPool.
@@ -16,7 +17,7 @@ export class UBAClientWithRefresh extends BaseUBAClient {
     readonly maxBundleStates: number,
     readonly logger?: winston.Logger
   ) {
-    super(chainIdIndices, tokens, maxBundleStates, logger);
+    super(chainIdIndices, tokens, maxBundleStates, hubPoolClient.chainId, logger);
     assert(chainIdIndices.length > 0, "No chainIds provided");
     assert(Object.values(spokePoolClients).length > 0, "No SpokePools provided");
   }
@@ -45,10 +46,61 @@ export class UBAClientWithRefresh extends BaseUBAClient {
         this.spokePoolClients,
         this.chainIdIndices,
         this.tokens,
-        this.hubPoolClient.latestBlockNumber ?? 0,
         forceClientRefresh,
         this.maxBundleStates
       )
+    );
+  }
+
+  /**
+   * Compute the realized LP fee for a given amount.
+   * @param hubPoolTokenAddress The L1 token address to get the LP fee
+   * @param depositChainId The chainId of the deposit
+   * @param refundChainId The chainId of the refund
+   * @param amount The amount that is being deposited
+   * @param hubPoolClient A hubpool client instance to query the hubpool
+   * @param spokePoolClients A mapping of spoke chainIds to spoke pool clients
+   * @returns The realized LP fee for the given token on the given chainId at the given block number
+   */
+  public async computeLpFee(
+    hubPoolBlockNumber: number,
+    amount: BigNumber,
+    depositChainId: number,
+    refundChainId: number,
+    tokenSymbol: string,
+    _hubBalance?: BigNumber,
+    _hubLiquidReserves?: BigNumber
+  ): Promise<BigNumber> {
+    const { hubBalance, hubLiquidReserves } = await getLpFeeParams(hubPoolBlockNumber, tokenSymbol, this.hubPoolClient);
+    return await super.computeLpFee(
+      hubPoolBlockNumber,
+      amount,
+      depositChainId,
+      refundChainId,
+      tokenSymbol,
+      hubBalance,
+      hubLiquidReserves
+    );
+  }
+
+  public async computeSystemFee(
+    hubPoolBlockNumber: number,
+    amount: BigNumber,
+    depositChainId: number,
+    destinationChainId: number,
+    tokenSymbol: string,
+    _hubBalance: BigNumber,
+    _hubLiquidReserves: BigNumber
+  ): Promise<SystemFeeResult> {
+    const { hubBalance, hubLiquidReserves } = await getLpFeeParams(hubPoolBlockNumber, tokenSymbol, this.hubPoolClient);
+    return await super.computeSystemFee(
+      hubPoolBlockNumber,
+      amount,
+      depositChainId,
+      destinationChainId,
+      tokenSymbol,
+      hubBalance,
+      hubLiquidReserves
     );
   }
 

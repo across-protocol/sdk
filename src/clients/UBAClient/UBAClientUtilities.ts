@@ -1,5 +1,5 @@
 import assert from "assert";
-import { BigNumber } from "ethers";
+import { BigNumber, ethers } from "ethers";
 import { HubPoolClient } from "../HubPoolClient";
 import { calculateUtilizationBoundaries, computePiecewiseLinearFunction } from "../../UBAFeeCalculator/UBAFeeUtility";
 import UBAFeeConfig from "../../UBAFeeCalculator/UBAFeeConfig";
@@ -28,6 +28,34 @@ import {
   getImpliedBundleBlockRanges,
 } from "../../utils/BundleUtils";
 
+export async function getLpFeeParams(
+  hubPoolBlockNumber: number,
+  tokenSymbol: string,
+  hubPoolClient: HubPoolClient
+): Promise<{ hubBalance: BigNumber; hubLiquidReserves: BigNumber }> {
+  if (!hubPoolClient.latestBlockNumber || hubPoolClient.latestBlockNumber < hubPoolBlockNumber) {
+    throw new Error(
+      `HubPool block number ${hubPoolBlockNumber} is greater than latest HubPoolClient block number ${hubPoolClient.latestBlockNumber}`
+    );
+  }
+  const hubPoolTokenInfo = hubPoolClient.getL1Tokens().find((token) => token.symbol === tokenSymbol);
+  if (!hubPoolTokenInfo) {
+    throw new Error(`No L1 token address mapped to symbol ${tokenSymbol}`);
+  }
+  const hubPoolTokenAddress = hubPoolTokenInfo.address;
+  const erc20 = ERC20__factory.connect(hubPoolTokenAddress, hubPoolClient.hubPool.provider);
+  // Grab the balances of the spoke pool and hub pool at the given block number.
+  const [hubBalance, hubLiquidReserves] = await Promise.all([
+    erc20.balanceOf(hubPoolClient.hubPool.address, { blockTag: hubPoolBlockNumber }),
+    hubPoolClient.hubPool.pooledTokens(hubPoolTokenAddress, { blockTag: hubPoolBlockNumber }),
+  ]);
+
+  return {
+    hubBalance,
+    hubLiquidReserves,
+  };
+}
+
 /**
  * Compute the realized LP fee for a given amount.
  * @param hubPoolTokenAddress The L1 token address to get the LP fee
@@ -47,23 +75,20 @@ export async function computeLpFeeForRefresh(
   refundChainId: number,
   amount: BigNumber,
   hubPoolClient: HubPoolClient,
-  spokePoolClients: SpokePoolClients,
   baselineFee: BigNumber,
   gammaCutoff: FlowTupleParameters,
-  blockNumber?: number
+  hubPoolBlockNuber: number
 ): Promise<BigNumber> {
   const hubPoolTokenInfo = hubPoolClient.getTokenInfoForL1Token(hubPoolTokenAddress);
   if (!hubPoolTokenInfo) {
     throw new Error(`Token ${hubPoolTokenAddress} not found in hub pool client`);
   }
+  const { hubBalance, hubLiquidReserves } = await getLpFeeParams(
+    hubPoolBlockNuber,
+    hubPoolTokenInfo.symbol,
+    hubPoolClient
+  );
   const tokenDecimals = hubPoolTokenInfo.decimals;
-  const erc20 = ERC20__factory.connect(hubPoolTokenAddress, hubPoolClient.hubPool.provider);
-  // Grab the balances of the spoke pool and hub pool at the given block number.
-  const [ethSpokeBalance, hubBalance, hubEquity] = await Promise.all([
-    erc20.balanceOf(spokePoolClients[hubPoolClient.chainId].spokePool.address, { blockTag: blockNumber }),
-    erc20.balanceOf(hubPoolClient.hubPool.address, { blockTag: blockNumber }),
-    erc20.balanceOf(hubPoolClient.hubPool.address, { blockTag: blockNumber }),
-  ]);
   return computeLpFeeStateful(
     amount,
     originChainId,
@@ -71,8 +96,7 @@ export async function computeLpFeeForRefresh(
     hubPoolClient.chainId,
     tokenDecimals,
     hubBalance,
-    hubEquity,
-    ethSpokeBalance,
+    hubLiquidReserves,
     cumulativeSpokeTargets,
     baselineFee,
     gammaCutoff
@@ -101,26 +125,26 @@ export function computeLpFeeStateful(
   hubPoolChainId: number,
   decimals: number,
   hubBalance: BigNumber,
-  hubEquity: BigNumber,
-  ethSpokeBalance: BigNumber,
+  hubLiquidReserves: BigNumber,
   cumulativeSpokeTargets: BigNumber,
   baselineFee: BigNumber,
   gammaCutoff: FlowTupleParameters
 ) {
-  // A deposit on Ethereum raises the eth spoke balance while a refund decreases it.
-  let newEthSpokeBalance = ethSpokeBalance;
-  if (originChainId === hubPoolChainId) {
-    newEthSpokeBalance = newEthSpokeBalance.add(amount);
+  if (originChainId === refundChainId) {
+    throw new Error("Cannot compute LP fee for deposit where originChainId === refundChainId");
   }
-  if (refundChainId === hubPoolChainId) {
-    newEthSpokeBalance = newEthSpokeBalance.sub(amount);
+  // A deposit on Ethereum raises the eth spoke balance while a refund decreases it.
+  let ethSpokeDelta = ethers.constants.Zero;
+  if (originChainId === hubPoolChainId) {
+    ethSpokeDelta = amount;
+  } else if (refundChainId === hubPoolChainId) {
+    ethSpokeDelta = amount.mul(-1);
   }
   const { utilizationPostTx, utilizationPreTx } = calculateUtilizationBoundaries(
     decimals,
     hubBalance,
-    hubEquity,
-    ethSpokeBalance,
-    newEthSpokeBalance,
+    hubLiquidReserves,
+    ethSpokeDelta,
     cumulativeSpokeTargets
   );
 
@@ -218,7 +242,7 @@ export function getUBAFeeConfig(
  * Returns most recent `maxBundleStates` bundle ranges for a given chain, in chronological ascending order.
  * @param chainId
  * @param maxBundleStates If this is larger than available validated bundles in the HubPoolClient, will throw an error.
- * @param mostRecentHubPoolBlock Only returns the most recent validated bundles proposed before this block.
+ * @param hubPoolBlock Only returns the most recent validated bundles proposed before this block.
  * @param hubPoolClient
  * @param spokePoolClients
  * @returns
@@ -226,11 +250,11 @@ export function getUBAFeeConfig(
 export function getMostRecentBundles(
   chainId: number,
   maxBundleStates: number,
-  mostRecentHubPoolBlock: number,
+  hubPoolBlock: number,
   hubPoolClient: HubPoolClient,
   spokePoolClients: SpokePoolClients
 ): { bundle: ProposedRootBundle; start: number; end: number }[] {
-  let toBlock = mostRecentHubPoolBlock;
+  let toBlock = hubPoolBlock;
 
   // Reconstruct bundle ranges based on published end blocks.
   const bundleData: { start: number; end: number; bundle: ProposedRootBundle }[] = [];
@@ -285,7 +309,6 @@ export async function updateUBAClient(
   spokePoolClients: SpokePoolClients,
   relevantChainIds: number[],
   relevantTokenSymbols: string[],
-  latestHubPoolBlockNumber: number,
   updateInternalClients = true,
   maxBundleStates: number
 ): Promise<UBAClientState> {
@@ -298,6 +321,11 @@ export async function updateUBAClient(
       throw new Error(`Unsupported chainId ${chainId} in Across. Valid chains are ${CHAIN_ID_LIST_INDICES}`);
     }
   });
+
+  const latestHubPoolBlockNumber = hubPoolClient.latestBlockNumber;
+  if (!latestHubPoolBlockNumber) {
+    throw new Error("Hub pool client not updated");
+  }
 
   const ubaClientState: UBAClientState = {};
   await Promise.all(
@@ -444,9 +472,9 @@ export async function updateUBAClient(
                     flow.destinationChainId,
                     flow.amount,
                     hubPoolClient,
-                    spokePoolClients,
                     constructedBundle.config.getBaselineFee(flow.destinationChainId, flow.originChainId),
-                    constructedBundle.config.getLpGammaFunctionTuples(flow.destinationChainId)
+                    constructedBundle.config.getLpGammaFunctionTuples(flow.destinationChainId),
+                    flow.quoteBlockNumber
                   );
                   constructedBundle.flows.push({
                     flow,
@@ -532,35 +560,56 @@ async function getFlows(
   // - Subsequent fills after an initial partial fill.
   // - Slow fills.
   // - Fills that are considered "invalid" by the spoke pool client.
-  const fills: UbaFlow[] = await filterAsync(spokePoolClient.getFills(), async (fill: FillWithBlock) => {
-    const validWithinBounds =
-      fill.repaymentChainId === spokePoolClient.chainId &&
-      fill.fillAmount.eq(fill.totalFilledAmount) &&
-      fill.updatableRelayData.isSlowRelay === false &&
-      fill.blockNumber >= (fromBlock as number) &&
-      fill.blockNumber <= (toBlock as number);
+  const fills: UbaFlow[] = (
+    await Promise.all(
+      spokePoolClient.getFills().map(async (fill: FillWithBlock): Promise<UbaFlow | undefined> => {
+        const validWithinBounds =
+          fill.repaymentChainId === spokePoolClient.chainId &&
+          fill.fillAmount.eq(fill.totalFilledAmount) &&
+          fill.updatableRelayData.isSlowRelay === false &&
+          fill.blockNumber >= (fromBlock as number) &&
+          fill.blockNumber <= (toBlock as number);
+        if (!validWithinBounds) {
+          return undefined;
+        } else {
+          const matchingDeposit = await resolveCorrespondingDepositForFill(fill, spokePoolClients);
+          if (matchingDeposit === undefined) {
+            return undefined;
+          } else {
+            return {
+              ...fill,
+              quoteBlockNumber: matchingDeposit.quoteBlockNumber,
+            };
+          }
+        }
+      })
+    )
+  ).filter((fill) => fill !== undefined) as UbaFlow[];
 
-    const hasMatchingDeposit = (await resolveCorrespondingDepositForFill(fill, spokePoolClients)) !== undefined;
+  const refundRequests: UbaFlow[] = (
+    await Promise.all(
+      spokePoolClient.getRefundRequests(fromBlock, toBlock).map(async (refundRequest) => {
+        const result = await refundRequestIsValid(chainIdIndices, spokePoolClients, hubPoolClient, refundRequest);
+        if (!result.valid && logger !== undefined) {
+          logger.info({
+            at: "UBAClient::getFlows",
+            message: `Excluding RefundRequest on chain ${chainId}`,
+            reason: result.reason,
+            refundRequest,
+          });
+        }
 
-    return validWithinBounds || hasMatchingDeposit;
-  });
-
-  const refundRequests: UbaFlow[] = await filterAsync(
-    spokePoolClient.getRefundRequests(fromBlock, toBlock),
-    async (refundRequest) => {
-      const result = await refundRequestIsValid(chainIdIndices, spokePoolClients, hubPoolClient, refundRequest);
-      if (!result.valid && logger !== undefined) {
-        logger.info({
-          at: "UBAClient::getFlows",
-          message: `Excluding RefundRequest on chain ${chainId}`,
-          reason: result.reason,
-          refundRequest,
-        });
-      }
-
-      return result.valid;
-    }
-  );
+        if (result.valid) {
+          return {
+            ...refundRequest,
+            quoteBlockNumber: result.matchingDeposit?.quoteBlockNumber,
+          };
+        } else {
+          return undefined;
+        }
+      })
+    )
+  ).filter((refundRequest) => refundRequest !== undefined) as UbaFlow[];
 
   // This is probably more expensive than we'd like... @todo: optimise.
   const flows = sortEventsAscending(deposits.concat(fills).concat(refundRequests));
@@ -662,7 +711,7 @@ export async function refundRequestIsValid(
     return { valid: false, reason: `Refund token unknown at HubPool block ${deposit.quoteBlockNumber}` };
   }
 
-  return { valid: true, matchingFill: fill };
+  return { valid: true, matchingFill: fill, matchingDeposit: deposit };
 }
 
 export type SpokePoolEventFilter = {
