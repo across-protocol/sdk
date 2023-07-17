@@ -108,7 +108,7 @@ class UBAConfig {
   /**
    * @description Get the balance trigger threshold for a given chain and token
    * @param chainId The chain id
-   * @param tokenSymbol The token
+   * @param tokenSymbol The symbol of the token which will be resolved
    * @returns The balance trigger threshold if it exists
    */
   public getBalanceTriggerThreshold(chainId: number, tokenSymbol: string): ThresholdBoundType {
