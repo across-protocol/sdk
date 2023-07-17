@@ -94,17 +94,22 @@ function omitDefaultKeys<T>(obj: Record<string, T>): Record<string, T> {
 }
 
 export function getUBAFeeConfig(
-  configClient: AcrossConfigStoreClient,
+  hubPoolClient: HubPoolClient,
   chainId: number,
-  l1TokenAddress: string,
+  tokenSymbol: string,
   blockNumber?: number
 ): UBAFeeConfig {
+  const configClient = hubPoolClient.configStoreClient;
   // If the config client has not been updated at least
   // once, throw
   if (!configClient.isUpdated) {
     throw new Error("Config client not updated");
   }
-  const ubaConfig = configClient.getUBAConfig(l1TokenAddress, blockNumber);
+  const l1TokenInfo = hubPoolClient.getL1Tokens().find((token) => token.symbol === tokenSymbol);
+  if (!l1TokenInfo) {
+    throw new Error("L1 token can't be found, have you updated hub pool client?");
+  }
+  const ubaConfig = configClient.getUBAConfig(l1TokenInfo?.address, blockNumber);
   if (ubaConfig === undefined) {
     throw new Error(`UBA config for blockTag ${blockNumber} not found`);
   }
@@ -117,7 +122,7 @@ export function getUBAFeeConfig(
 
   const threshold = ubaConfig.rebalance[String(chainId)];
 
-  const chainTokenCombination = `${chainId}-${l1TokenAddress}`;
+  const chainTokenCombination = `${chainId}-${tokenSymbol}`;
   return new UBAFeeConfig(
     {
       default: ubaConfig.alpha["default"],
@@ -331,12 +336,7 @@ export async function updateUBAClient(
               // Load the config set at the start of this bundle. We assume that all flows will be charged
               // fees using this same config. Any configuration update changes that occurred during this
               // bundle range will apply to the following bundle.
-              ubaConfigForBundle = getUBAFeeConfig(
-                hubPoolClient.configStoreClient,
-                chainId,
-                l1TokenAddress,
-                startingBundleBlockNumber
-              );
+              ubaConfigForBundle = getUBAFeeConfig(hubPoolClient, chainId, tokenSymbol, startingBundleBlockNumber);
               // Construct the bundle data for this token.
               const constructedBundle: UBABundleState = {
                 flows: [],
@@ -458,17 +458,15 @@ async function getFlows(
           fill.blockNumber <= (toBlock as number);
         if (!validWithinBounds) {
           return undefined;
-        } else {
-          const matchingDeposit = await resolveCorrespondingDepositForFill(fill, spokePoolClients);
-          if (matchingDeposit === undefined) {
-            return undefined;
-          } else {
-            return {
-              ...fill,
-              quoteBlockNumber: matchingDeposit.quoteBlockNumber,
-            };
-          }
         }
+        const matchingDeposit = await resolveCorrespondingDepositForFill(fill, spokePoolClients);
+        if (matchingDeposit === undefined) {
+          return undefined;
+        }
+        return {
+          ...fill,
+          quoteBlockNumber: matchingDeposit.quoteBlockNumber,
+        };
       })
     )
   ).filter((fill) => fill !== undefined) as UbaFlow[];
