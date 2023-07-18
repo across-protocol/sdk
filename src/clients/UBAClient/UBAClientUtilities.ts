@@ -77,6 +77,8 @@ export function computeLpFeeForRefresh(baselineFee: BigNumber): BigNumber {
   return computeLpFeeStateful(baselineFee);
 }
 
+// TODO: Revise this.
+
 /**
  * Compute the LP fee for a given amount. This function is stateless and does not require a hubpool client.
  */
