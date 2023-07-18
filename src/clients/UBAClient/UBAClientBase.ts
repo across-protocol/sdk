@@ -1,6 +1,6 @@
 import winston from "winston";
 import { UbaFlow } from "../../interfaces";
-import { BigNumber } from "ethers";
+import { BigNumber, ethers } from "ethers";
 import { UBAActionType } from "../../UBAFeeCalculator/UBAFeeTypes";
 import { BalancingFeeReturnType, UBABundleState, UBAClientState, ModifiedUBAFlow } from "./UBAClientTypes";
 import { findLast } from "../../utils/ArrayUtils";
@@ -129,6 +129,17 @@ export class BaseUBAClient extends BaseAbstractClient {
   ): BalancingFeeReturnType {
     // Opening balance for the balancing action blockNumber.
     const relevantBundleStates = this.retrieveBundleStates(chainId, tokenSymbol);
+
+    // If there are no bundle states for this token on this chain, then there is no fee.
+    // This is a case where the token is newly supported and there are both no flows
+    // yet and no root bundles that have been proposed.
+    if (relevantBundleStates.length === 0) {
+      return {
+        balancingFee: ethers.constants.Zero,
+        actionType: feeType,
+      };
+    }
+
     const specificBundleState = findLast(
       relevantBundleStates,
       (bundleState) => bundleState.openingBlockNumberForSpokeChain <= balancingActionBlockNumber
