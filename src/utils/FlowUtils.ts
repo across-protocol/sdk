@@ -34,6 +34,10 @@ export function validateFillForDeposit(fill: Fill, deposit?: Deposit): boolean {
     return false;
   }
 
+  if (deposit.realizedLpFeePct === undefined) {
+    throw new Error("realizedLpFeePct should never be undefined pre UBA");
+  }
+
   // Note: this short circuits when a key is found where the comparison doesn't match.
   // TODO: if we turn on "strict" in the tsconfig, the elements of FILL_DEPOSIT_COMPARISON_KEYS will be automatically
   // validated against the fields in Fill and Deposit, generating an error if there is a discrepency.
@@ -43,9 +47,11 @@ export function validateFillForDeposit(fill: Fill, deposit?: Deposit): boolean {
 }
 
 /**
- * Resolves the corresponding deposit for a fill. This function will first check the spoke client's deposit cache
- * for the deposit. If the deposit is not found, it will query the spoke client's RPC provider for the deposit as
- * it assumes that the deposit is older than the spoke client's initial event search config.
+ * Resolves the corresponding deposit for a fill. Unlike in the Pre UBA clients, this function does NOT
+ * fall back to querying fresh RPC events to try to find a fill. Instead, if the deposit can't be found
+ * then this code will just crash, protecting the caller's funds. This is because if we were to find an old
+ * deposit, we'd need to recompute its expected realizedLpFeePct, which would be based on the deposit balancing
+ * fee and therefore requires more information from the flows preceding it. This is a future TODO.
  * @param fill The fill to resolve the corresponding deposit for
  * @param spokePoolClients The spoke clients to query for the deposit
  * @returns The corresponding deposit for the fill, or undefined if the deposit was not found
@@ -76,6 +82,7 @@ export async function queryHistoricalDepositForFill(
     throw new Error("SpokePoolClient must be updated before querying historical deposits");
   }
 
+  // If someone fills with a clearly bogus deposit ID then we can quickly mark it as invalid
   if (
     fill.depositId < spokePoolClient.firstDepositIdForSpokePool ||
     fill.depositId > spokePoolClient.lastDepositIdForSpokePool
@@ -90,11 +97,15 @@ export async function queryHistoricalDepositForFill(
     return spokePoolClient.getDepositForFill(fill);
   }
 
-  const deposit: DepositWithBlock = await spokePoolClient.findDeposit(
-    fill.depositId,
-    fill.destinationChainId,
-    fill.depositor
+  // Unlike in the Pre UBA clients, this function does NOT
+  // fall back to querying fresh RPC events to try to find a fill. Instead, if the deposit can't be found
+  // then this code will just crash, protecting the caller's funds. This is because if we were to find an old
+  // deposit, we'd need to recompute its expected realizedLpFeePct, which would be based on the deposit balancing
+  // fee and therefore requires more information from the flows preceding it. This is a future TODO.
+  // The downside of not implementing this is that filling an old deposit will cause the UBAClient to crash until
+  // its lookback is extended, which then makes it run very slowly. The implementation should reconstruct the bundle
+  // state containing the deposit (if it exists) and then use that to compute the deposit balancing fee.
+  throw new Error(
+    `Can't find historical deposit for fill ${fill.depositId} and haven't implemented historical lookups of deposits in UBA model outside of initial SpokePoolClient search`
   );
-
-  return validateFillForDeposit(fill, deposit) ? deposit : undefined;
 }

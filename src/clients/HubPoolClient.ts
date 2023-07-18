@@ -3,9 +3,8 @@ import { Block } from "@ethersproject/abstract-provider";
 import { BlockFinder } from "@uma/sdk";
 import winston from "winston";
 import _ from "lodash";
-import { assign, EventSearchConfig, isDefined, MakeOptional, BigNumberish } from "../utils";
+import { assign, EventSearchConfig, isDefined, MakeOptional, BigNumberish, isUBA } from "../utils";
 import {
-  isUBA,
   fetchTokenInfo,
   sortEventsDescending,
   spreadEvent,
@@ -247,11 +246,25 @@ export class HubPoolClient extends BaseAbstractClient {
   async computeRealizedLpFeePct(
     deposit: { quoteTimestamp: number; amount: BigNumber; destinationChainId: number; originChainId: number },
     l1Token: string
-  ): Promise<{ realizedLpFeePct: BigNumber; quoteBlock: number }> {
+  ): Promise<{ realizedLpFeePct: BigNumber | undefined; quoteBlock: number }> {
     const quoteBlock = await this.getBlockNumber(deposit.quoteTimestamp);
-
     if (!quoteBlock) {
       throw new Error(`Could not find block for timestamp ${deposit.quoteTimestamp}`);
+    }
+
+    const version = this.configStoreClient.getConfigStoreVersionForTimestamp(deposit.quoteTimestamp);
+    if (isUBA(version)) {
+      if (!this.configStoreClient.hasLatestConfigStoreVersion) {
+        throw new Error(
+          `ConfigStoreClient cannot handle UBA config store version for quote timestamp ${deposit.quoteTimestamp}`
+        );
+      }
+      // If UBA deposit then we can't compute the realizedLpFeePct until after we've updated the UBA Client. The
+      // UBA Client first needs an updated HubPoolClient so for now we'll leave this as undefined.
+      return {
+        realizedLpFeePct: undefined,
+        quoteBlock,
+      };
     }
 
     const rateModel = this.configStoreClient.getRateModelForBlockNumber(
