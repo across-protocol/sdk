@@ -7,6 +7,7 @@ import {
   filterAsync,
   getTokenSymbolForFlow,
   isDefined,
+  isUBA,
   mapAsync,
   queryHistoricalDepositForFill,
   resolveCorrespondingDepositForFill,
@@ -252,18 +253,23 @@ export function getMostRecentBundleBlockRanges(
   let toBlock = hubPoolBlock;
 
   // Reconstruct bundle ranges based on published end blocks.
+
+  // Bundle states are examined in chronological descending order.
   const bundleData: { start: number; end: number; proposalBlock: number }[] = [];
   for (let i = 0; i < maxBundleStates; i++) {
     // Get the most recent bundle end range for this chain published in a bundle before `toBlock`.
     const latestExecutedRootBundle = hubPoolClient.getNthFullyExecutedRootBundle(-1, toBlock);
     if (!latestExecutedRootBundle) {
+      // TODO: I'm not sure the following logic is correct but I'm trying to handle the case where
+      // there are no preceding validated bundles for this chain and token but we still want to
+      // apply UBA fees to a flow.
       // No more validated bundles left, exit early and add to the beginning of the list one bundle
       // if we haven't loaded any bundles.
       if (bundleData.length === 0) {
         bundleData.unshift({
           proposalBlock: toBlock,
           start: spokePoolClients[chainId].deploymentBlock,
-          end: spokePoolClients[chainId].latestBlockNumber,
+          end: spokePoolClients[chainId].latestBlockSearched,
         });
       }
       break;
@@ -280,6 +286,16 @@ export function getMostRecentBundleBlockRanges(
           latestExecutedRootBundle.blockNumber
         }: ${JSON.stringify(rootBundleBlockRanges)}`
       );
+    }
+
+    // If UBA is not enabled for this bundle, exit early since no subsequent bundles will be enabled
+    // for the UBA, as the UBA was a non-reversible change.
+    const hubPoolStartBlockForChain = getBlockRangeForChain(rootBundleBlockRanges, hubPoolClient.chainId);
+    const versionForBundle = hubPoolClient.configStoreClient.getConfigStoreVersionForBlock(
+      hubPoolStartBlockForChain[0]
+    );
+    if (!isUBA(versionForBundle)) {
+      break;
     }
     const blockRangeForChain = getBlockRangeForChain(rootBundleBlockRanges, chainId);
 
@@ -335,6 +351,8 @@ export async function getModifiedFlow(
       return [_chainId, bundles];
     })
   );
+
+  // What if there are 0 bundle ranges?
 
   // Instantiate new spoke pool clients that will look back at older data:
   const newSpokePoolClients = Object.fromEntries(
