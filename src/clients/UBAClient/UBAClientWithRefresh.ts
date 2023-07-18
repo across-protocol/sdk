@@ -3,7 +3,6 @@ import winston from "winston";
 import { HubPoolClient, SpokePoolClient } from "..";
 import { BaseUBAClient } from "./UBAClientBase";
 import { updateUBAClient } from "./UBAClientUtilities";
-import { RelayFeeCalculatorConfigWithMap } from "../../relayFeeCalculator";
 import { UBAChainState } from "./UBAClientTypes";
 export class UBAClientWithRefresh extends BaseUBAClient {
   // @dev chainIdIndices supports indexing members of root bundle proposals submitted to the HubPool.
@@ -14,11 +13,10 @@ export class UBAClientWithRefresh extends BaseUBAClient {
     readonly tokens: string[],
     protected readonly hubPoolClient: HubPoolClient,
     public readonly spokePoolClients: { [chainId: number]: SpokePoolClient },
-    protected readonly relayerConfiguration: RelayFeeCalculatorConfigWithMap,
     readonly maxBundleStates: number,
     readonly logger?: winston.Logger
   ) {
-    super(chainIdIndices, tokens, maxBundleStates, logger);
+    super(chainIdIndices, tokens, maxBundleStates, hubPoolClient.chainId, logger);
     assert(chainIdIndices.length > 0, "No chainIds provided");
     assert(Object.values(spokePoolClients).length > 0, "No SpokePools provided");
   }
@@ -47,14 +45,11 @@ export class UBAClientWithRefresh extends BaseUBAClient {
         this.spokePoolClients,
         this.chainIdIndices,
         this.tokens,
-        this.hubPoolClient.latestBlockNumber ?? 0,
         forceClientRefresh,
-        this.relayerConfiguration,
         this.maxBundleStates
       )
     );
   }
-
   public get isUpdated(): boolean {
     return (
       this.hubPoolClient.configStoreClient.isUpdated &&

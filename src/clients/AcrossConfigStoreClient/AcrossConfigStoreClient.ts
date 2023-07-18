@@ -89,6 +89,10 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
     this.rateModelDictionary = new across.rateModel.RateModelDictionary();
   }
 
+  // <-- START LEGACY CONFIGURATION OBJECTS -->
+  // @dev The following configuration objects are pre-UBA fee model configurations and are deprecated as of version
+  // 2 of the ConfigStore. They are kept here for backwards compatibility.
+
   getRateModelForBlockNumber(
     l1Token: string,
     originChainId: number | string,
@@ -136,6 +140,7 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
     const targetBalance = config?.spokeTargetBalances?.[chainId];
     return targetBalance || { target: toBN(0), threshold: toBN(0) };
   }
+  // <-- END LEGACY CONFIGURATION OBJECTS -->
 
   getMaxRefundCountForRelayerRefundLeafForBlock(blockNumber: number = Number.MAX_SAFE_INTEGER): number {
     const config = (sortEventsDescending(this.cumulativeMaxRefundCountUpdates) as GlobalConfigUpdate[]).find(
@@ -291,22 +296,10 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
 
       try {
         const parsedValue = parseJSONWithNumericString(args.value) as ParsedTokenConfig;
-        const rateModelForToken = JSON.stringify(parsedValue.rateModel);
-        const transferThresholdForToken = parsedValue.transferThreshold;
 
-        // If Token config doesn't contain all expected properties, skip it.
-        if (!(rateModelForToken && transferThresholdForToken)) {
-          throw new Error("Ignoring invalid rate model update");
-        }
-
-        // Store RateModel:
-        // TODO: Temporarily reformat the shape of the event that we pass into the sdk.rateModel class to make it fit
-        // the expected shape. This is a fix for now that we should eventually replace when we change the sdk.rateModel
-        // class itself to work with the generalized ConfigStore.
         const l1Token = args.key;
 
-        // For now, we'll need to check if this value is undefined. In the
-        // future, we should make this a required field.
+        // For now use the presence of `uba` or `rateModel` to decide which configs to parse.
         if (parsedValue?.uba !== undefined) {
           try {
             // Parse and store UBA config
@@ -328,48 +321,57 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
           }
         }
 
-        // Drop value and key before passing args.
+        // TODO: Temporarily reformat the shape of the event that we pass into the sdk.rateModel class to make it fit
+        // the expected shape. This is a fix for now that we should eventually replace when we change the sdk.rateModel
+        // class itself to work with the generalized ConfigStore.
         // eslint-disable-next-line @typescript-eslint/no-unused-vars
         const { value, key, ...passedArgs } = args;
-        this.cumulativeRateModelUpdates.push({ ...passedArgs, rateModel: rateModelForToken, l1Token });
 
-        // Store transferThreshold
-        this.cumulativeTokenTransferUpdates.push({
-          ...passedArgs,
-          transferThreshold: toBN(transferThresholdForToken),
-          l1Token,
-        });
+        // Drop value and key before passing args.
+        if (parsedValue?.rateModel !== undefined) {
+          const rateModelForToken = JSON.stringify(parsedValue.rateModel);
+          this.cumulativeRateModelUpdates.push({ ...passedArgs, rateModel: rateModelForToken, l1Token });
 
-        // Store spokeTargetBalances
-        if (parsedValue?.spokeTargetBalances) {
-          // Note: cast is required because fromEntries always produces string keys, despite the function returning a
-          // numerical key.
-          const targetBalances = Object.fromEntries(
-            Object.entries(parsedValue.spokeTargetBalances).map(([chainId, targetBalance]) => {
-              const target = max(toBN(targetBalance.target), toBN(0));
-              const threshold = max(toBN(targetBalance.threshold), toBN(0));
-              return [chainId, { target, threshold }];
-            })
-          ) as SpokeTargetBalanceUpdate["spokeTargetBalances"];
-          this.cumulativeSpokeTargetBalanceUpdates.push({
-            ...passedArgs,
-            spokeTargetBalances: targetBalances,
-            l1Token,
-          });
-        } else {
-          this.cumulativeSpokeTargetBalanceUpdates.push({ ...passedArgs, spokeTargetBalances: {}, l1Token });
-        }
+          if (parsedValue?.transferThreshold !== undefined) {
+            const transferThresholdForToken = parsedValue.transferThreshold;
+            this.cumulativeTokenTransferUpdates.push({
+              ...passedArgs,
+              transferThreshold: toBN(transferThresholdForToken),
+              l1Token,
+            });
+          }
 
-        // Store route-specific rate models
-        if (parsedValue?.routeRateModel) {
-          const routeRateModel = Object.fromEntries(
-            Object.entries(parsedValue.routeRateModel).map(([path, routeRateModel]) => {
-              return [path, JSON.stringify(routeRateModel)];
-            })
-          );
-          this.cumulativeRouteRateModelUpdates.push({ ...passedArgs, routeRateModel, l1Token });
-        } else {
-          this.cumulativeRouteRateModelUpdates.push({ ...passedArgs, routeRateModel: {}, l1Token });
+          // Store spokeTargetBalances
+          if (parsedValue?.spokeTargetBalances) {
+            // Note: cast is required because fromEntries always produces string keys, despite the function returning a
+            // numerical key.
+            const targetBalances = Object.fromEntries(
+              Object.entries(parsedValue.spokeTargetBalances).map(([chainId, targetBalance]) => {
+                const target = max(toBN(targetBalance.target), toBN(0));
+                const threshold = max(toBN(targetBalance.threshold), toBN(0));
+                return [chainId, { target, threshold }];
+              })
+            ) as SpokeTargetBalanceUpdate["spokeTargetBalances"];
+            this.cumulativeSpokeTargetBalanceUpdates.push({
+              ...passedArgs,
+              spokeTargetBalances: targetBalances,
+              l1Token,
+            });
+          } else {
+            this.cumulativeSpokeTargetBalanceUpdates.push({ ...passedArgs, spokeTargetBalances: {}, l1Token });
+          }
+
+          // Store route-specific rate models
+          if (parsedValue?.routeRateModel) {
+            const routeRateModel = Object.fromEntries(
+              Object.entries(parsedValue.routeRateModel).map(([path, routeRateModel]) => {
+                return [path, JSON.stringify(routeRateModel)];
+              })
+            );
+            this.cumulativeRouteRateModelUpdates.push({ ...passedArgs, routeRateModel, l1Token });
+          } else {
+            this.cumulativeRouteRateModelUpdates.push({ ...passedArgs, routeRateModel: {}, l1Token });
+          }
         }
       } catch (err) {
         // @dev averageBlockTimeSeconds does not actually block.
@@ -461,27 +463,23 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
     return disabledChains.filter((chainId: number) => !isNaN(chainId) && Number.isInteger(chainId) && chainId !== 1);
   }
 
-  async getUBATargetSpokeBalances(
-    chainIds: number[],
-    l1TokenAddress: string,
-    blockNumber?: number
-  ): Promise<{ spokeChainId: number; target: BigNumber }[]> {
-    return chainIds.map((chainId) => {
-      const target = this.getSpokeTargetBalancesForBlock(l1TokenAddress, chainId, blockNumber).target;
-      return { spokeChainId: chainId, target };
-    });
-  }
-
   /**
-   * Retrieves a UBA config for a given L1 token address and block number.
+   * Retrieves the most recently set UBA config for a given L1 token address before a block number.
    * @param l1TokenAddress The L1 token address to retrieve the config for
-   * @param blockNumber The block number to retrieve the config for. If not provided, the latest config will be returned.
-   * @returns The UBA config for the given L1 token address and block number, or undefined if no config exists.
+   * @param blockNumber The block number to retrieve the config for. If not specified, sets block to max integer
+   * meaning that this function will return the latest config.
+   * @returns The UBA config for the given L1 token address and block number, or undefined if no config exists
+   * before blockNumber.
    */
-  getUBAConfig(l1TokenAddress: string, blockNumber?: number): UBAParsedConfigType | undefined {
+  public getUBAConfig(l1TokenAddress: string, blockNumber = Number.MAX_SAFE_INTEGER): UBAParsedConfigType | undefined {
+    // We only care about searching on the block number and not any events that occurred in the same block
+    // but with a lower transaction index. In other words, if the UBA config was updated as the absolute
+    // last transaction in a block, the update still applies to all preceding UBA events in the same block.
+    // This is a simplifying assumption that we can make because the ConfigStore admin role is whitelisted and assumed
+    // to be acting in the best interest of the protocol.
     const config = findLast(
       this.ubaConfigUpdates,
-      (config) => config.l1Token === l1TokenAddress && (!blockNumber || config.blockNumber <= blockNumber)
+      (config) => config.l1Token === l1TokenAddress && config.blockNumber <= blockNumber
     );
     return config?.config;
   }

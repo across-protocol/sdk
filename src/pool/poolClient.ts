@@ -346,9 +346,9 @@ function joinUserState(
   poolState: Pool,
   tokenEventState: hubPool.TokenEventState,
   userState: Awaited<ReturnType<UserState["read"]>>,
-  transferValue: BigNumber = BigNumber.from(0),
-  cumulativeStakeBalance: BigNumber = BigNumber.from(0),
-  cumulativeStakeClaimBalance: BigNumber = BigNumber.from(0)
+  transferValue: BigNumber = ethers.constants.Zero,
+  cumulativeStakeBalance: BigNumber = ethers.constants.Zero,
+  cumulativeStakeClaimBalance: BigNumber = ethers.constants.Zero
 ): User {
   const positionValue = BigNumber.from(poolState.exchangeRateCurrent)
     .mul(userState.balanceOf.add(cumulativeStakeBalance))
@@ -521,7 +521,7 @@ export class Client {
           )
         )
       )
-    ).reduce((prev, acc) => acc.add(prev), BigNumber.from(0));
+    ).reduce((prev, acc) => acc.add(prev), ethers.constants.Zero);
 
     // Get the cumulative balance of the user from the accelerating distributor contract.
     const { cumulativeBalance } = await acceleratingDistributorContract.getUserStake(lpToken, userState.address);
@@ -565,7 +565,7 @@ export class Client {
       }
       // we make sure to filter out any transfers where to/from is the same user
       return result;
-    }, BigNumber.from(0));
+    }, ethers.constants.Zero);
   }
   private getOrCreateTransactionManager(signer: Signer, address: string) {
     if (this.transactionManagers[address]) return this.transactionManagers[address];
@@ -731,7 +731,7 @@ export class Client {
     const { address: userAddress } = userState;
     const transferValue = this.config.hasArchive
       ? await this.calculateLpTransferValue(l1TokenAddress, userState)
-      : BigNumber.from(0);
+      : ethers.constants.Zero;
     const stakeData = await this.resolveStakingData(lpToken, l1TokenAddress, userState);
     const tokenEventState = poolEventState[l1TokenAddress];
     const newUserState = this.setUserState(

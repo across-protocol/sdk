@@ -13,7 +13,7 @@ export interface Deposit {
   destinationChainId: number;
   relayerFeePct: BigNumber;
   quoteTimestamp: number;
-  realizedLpFeePct: BigNumber; // appended after initialization (not part of Deposit event).
+  realizedLpFeePct?: BigNumber; // appended after initialization (not part of Deposit event).
   destinationToken: string; // appended after initialization (not part of Deposit event).
   message: string;
   speedUpSignature?: string | undefined; // appended after initialization, if deposit was speedup (not part of Deposit event).

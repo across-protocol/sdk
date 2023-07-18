@@ -1,8 +1,6 @@
 import { BigNumber } from "ethers";
 import { MAX_SAFE_JS_INT } from "@uma/common/dist/Constants";
 import { fixedPointAdjustment, toBN } from "../utils";
-import { HUBPOOL_CHAIN_ID } from "../constants";
-import { UBAActionType } from "./UBAFeeTypes";
 
 /**
  * Computes a linear integral over a piecewise function
@@ -290,59 +288,6 @@ export function computePiecewiseLinearFunction(
   }
   // Otherwise, we can scale the integral to the correct sign and return it with the modifier
   return integral.mul(scale);
-}
-
-/**
- * Computes the utilization at a given point in time based on the
- * current balances and equity of the hub and spoke pool targets.
- * @param decimals The number of decimals for the token
- * @param hubBalance The current balance of the hub pool for the token
- * @param hubEquity The current equity of the hub pool for the token
- * @param ethSpokeBalance The current balance of the ETH spoke pool for the token
- * @param targetSpoke The current balance of the target spoke pool for the token - this is a list.
- * @returns The utilization of the hub pool
- */
-export function calculateUtilization(
-  decimals: number,
-  hubBalance: BigNumber,
-  hubEquity: BigNumber,
-  ethSpokeBalance: BigNumber,
-  spokeTargets: { target: BigNumber; spokeChainId: number }[],
-  hubPoolChainId = HUBPOOL_CHAIN_ID
-) {
-  const numerator = hubBalance
-    .add(ethSpokeBalance)
-    .add(spokeTargets.reduce((a, b) => (b.spokeChainId !== hubPoolChainId ? a.add(b.target) : a), BigNumber.from(0)));
-  const denominator = hubEquity;
-  const result = numerator.mul(fixedPointAdjustment).div(denominator); // We need to multiply by 1e18 to get the correct precision for the result
-  return BigNumber.from(10).pow(decimals).sub(result);
-}
-
-export function calculateUtilizationBoundaries(
-  action: {
-    actionType: UBAActionType;
-    amount: BigNumber;
-    chainId: number;
-  },
-  decimals: number,
-  hubBalance: BigNumber,
-  hubEquity: BigNumber,
-  ethSpokeBalance: BigNumber,
-  spokeTargets: { target: BigNumber; spokeChainId: number }[],
-  hubPoolChainId = HUBPOOL_CHAIN_ID
-): { utilizationPostTx: BigNumber; utilizationPreTx: BigNumber } {
-  let newEthSpokeBalance = ethSpokeBalance;
-  if (action.chainId === hubPoolChainId) {
-    if (action.actionType === UBAActionType.Deposit) {
-      newEthSpokeBalance = newEthSpokeBalance.add(action.amount);
-    } else {
-      newEthSpokeBalance = newEthSpokeBalance.sub(action.amount);
-    }
-  }
-  return {
-    utilizationPreTx: calculateUtilization(decimals, hubBalance, hubEquity, ethSpokeBalance, spokeTargets),
-    utilizationPostTx: calculateUtilization(decimals, hubBalance, hubEquity, newEthSpokeBalance, spokeTargets),
-  };
 }
 
 /**

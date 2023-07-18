@@ -47,20 +47,20 @@ export default class MockedApiClient extends AbstractApiClient {
     return Promise.resolve(
       this.mockedData.SuggestedFees ?? {
         relayerFee: {
-          pct: ethers.BigNumber.from("1"),
-          total: ethers.BigNumber.from("1"),
+          pct: ethers.constants.One,
+          total: ethers.constants.One,
         },
         relayerCapitalFee: {
-          pct: ethers.BigNumber.from("1"),
-          total: ethers.BigNumber.from("1"),
+          pct: ethers.constants.One,
+          total: ethers.constants.One,
         },
         relayerGasFee: {
-          pct: ethers.BigNumber.from("1"),
-          total: ethers.BigNumber.from("1"),
+          pct: ethers.constants.One,
+          total: ethers.constants.One,
         },
         isAmountTooLow: false,
-        quoteBlock: ethers.BigNumber.from("1"),
-        quoteTimestamp: ethers.BigNumber.from("1"),
+        quoteBlock: ethers.constants.One,
+        quoteTimestamp: ethers.constants.One,
       }
     );
   }

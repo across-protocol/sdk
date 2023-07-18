@@ -15,7 +15,7 @@ import {
 import { toBN, paginatedEventQuery, spreadEventWithBlockNumber } from "../utils";
 import winston from "winston";
 
-import { Contract, BigNumber, Event, EventFilter } from "ethers";
+import { Contract, BigNumber, Event, EventFilter, ethers } from "ethers";
 
 import {
   Deposit,
@@ -65,8 +65,8 @@ export class SpokePoolClient extends BaseAbstractClient {
   public firstDepositIdForSpokePool = Number.MAX_SAFE_INTEGER;
   public lastDepositIdForSpokePool = Number.MAX_SAFE_INTEGER;
   public firstBlockToSearch: number;
+  public latestBlockSearched: number;
   public latestBlockNumber = 0;
-  public deposits: { [DestinationChainId: number]: DepositWithBlock[] } = {};
   public fills: { [OriginChainId: number]: FillWithBlock[] } = {};
   public refundRequests: RefundRequestWithBlock[] = [];
 
@@ -90,6 +90,7 @@ export class SpokePoolClient extends BaseAbstractClient {
   ) {
     super();
     this.firstBlockToSearch = eventSearchConfig.fromBlock;
+    this.latestBlockSearched = eventSearchConfig.fromBlock;
     this.queryableEventNames = Object.keys(this._queryableEventNames());
   }
 
@@ -112,7 +113,7 @@ export class SpokePoolClient extends BaseAbstractClient {
    * @returns A list of deposits.
    */
   public getDepositsForDestinationChain(destinationChainId: number): DepositWithBlock[] {
-    return this.deposits[destinationChainId] || [];
+    return Object.values(this.depositHashes).filter((deposit) => deposit.destinationChainId === destinationChainId);
   }
 
   /**
@@ -121,7 +122,7 @@ export class SpokePoolClient extends BaseAbstractClient {
    * @note This method returns all deposits, regardless of destination chain ID in sorted order.
    */
   public getDeposits(): DepositWithBlock[] {
-    return sortEventsAscendingInPlace(Object.values(this.deposits).flat());
+    return sortEventsAscendingInPlace(Object.values(this.depositHashes));
   }
 
   /**
@@ -261,7 +262,7 @@ export class SpokePoolClient extends BaseAbstractClient {
         const relayer = refundLeaf.refundAddresses[i];
         const refundAmount = refundLeaf.refundAmounts[i];
         if (executedTokenRefunds[relayer] === undefined) {
-          executedTokenRefunds[relayer] = BigNumber.from(0);
+          executedTokenRefunds[relayer] = ethers.constants.Zero;
         }
         executedTokenRefunds[relayer] = executedTokenRefunds[relayer].add(refundAmount);
       }
@@ -303,6 +304,21 @@ export class SpokePoolClient extends BaseAbstractClient {
   public getDepositForFill(fill: Fill): DepositWithBlock | undefined {
     const depositWithMatchingDepositId = this.depositHashes[this.getDepositHash(fill)];
     return validateFillForDeposit(fill, depositWithMatchingDepositId) ? depositWithMatchingDepositId : undefined;
+  }
+
+  /**
+   * @dev TODO This function is a bit of a hack for now and its dangerous to leave public because it allows the caller to
+   * manipulate internal data that was set at update() time. This is a workaround the current structure where UBAClient
+   * is dependent on SpokePoolClient, but one of the SpokePoolClient's internal data structures, `deposits` is dependent
+   * on the UBA client state being updated in order to have set correct realizedLpFeePcts. This function is currently
+   * designed to be called by the UBA client for each deposit that is loaded and have it reset the realizedLpFeePct
+   * equal to the depositBalancingFee plus the LP fee.
+   */
+  public updateDepositRealizedLpFeePct(event: Deposit, realizedLpFeePct: BigNumber): void {
+    this.depositHashes[this.getDepositHash(event)] = {
+      ...this.depositHashes[this.getDepositHash(event)],
+      realizedLpFeePct,
+    };
   }
 
   /**
@@ -376,7 +392,7 @@ export class SpokePoolClient extends BaseAbstractClient {
    * @note This hash is used to match deposits and fills together.
    * @note This hash takes the form of: `${depositId}-${originChainId}`.
    */
-  public getDepositHash(event: Deposit | Fill): string {
+  public getDepositHash(event: Deposit | Fill | DepositWithBlock | FillWithBlock): string {
     return `${event.depositId}-${event.originChainId}`;
   }
 
@@ -648,7 +664,7 @@ export class SpokePoolClient extends BaseAbstractClient {
         });
       }
 
-      const dataForQuoteTime: { realizedLpFeePct: BigNumber; quoteBlock: number }[] = await Promise.all(
+      const dataForQuoteTime: { realizedLpFeePct: BigNumber | undefined; quoteBlock: number }[] = await Promise.all(
         depositEvents.map(async (event) => this.computeRealizedLpFeePct(event))
       );
 
@@ -671,7 +687,6 @@ export class SpokePoolClient extends BaseAbstractClient {
         };
 
         assign(this.depositHashes, [this.getDepositHash(deposit)], deposit);
-        assign(this.deposits, [deposit.destinationChainId], [deposit]);
 
         if (deposit.depositId < this.earliestDepositIdQueried) {
           this.earliestDepositIdQueried = deposit.depositId;
@@ -692,10 +707,8 @@ export class SpokePoolClient extends BaseAbstractClient {
       }
 
       // Traverse all deposit events and update them with associated speedups, If they exist.
-      for (const [, deposits] of Object.entries(this.deposits)) {
-        for (const [index, deposit] of Array.from(deposits.entries())) {
-          deposits[index] = this.appendMaxSpeedUpSignatureToDeposit(deposit);
-        }
+      for (const deposits of Object.entries(this.depositHashes)) {
+        this.depositHashes[deposits[0]] = this.appendMaxSpeedUpSignatureToDeposit(deposits[1]);
       }
     }
 
@@ -772,6 +785,7 @@ export class SpokePoolClient extends BaseAbstractClient {
     this.latestBlockNumber = update.latestBlockNumber;
     this.lastDepositIdForSpokePool = update.latestDepositId;
     this.firstBlockToSearch = update.searchEndBlock + 1;
+    this.latestBlockSearched = update.searchEndBlock;
     this.isUpdated = true;
     this.log("debug", `SpokePool client for chain ${this.chainId} updated!`, {
       nextFirstBlockToSearch: this.firstBlockToSearch,

@@ -1,5 +1,6 @@
-import { BigNumber } from "ethers";
+import { BigNumber, ethers } from "ethers";
 import { ThresholdBoundType, FlowTupleParameters } from "./UBAFeeTypes";
+import { CHAIN_ID_LIST_INDICES } from "../constants";
 
 type ChainId = number;
 type RouteCombination = string;
@@ -107,7 +108,7 @@ class UBAConfig {
   /**
    * @description Get the balance trigger threshold for a given chain and token
    * @param chainId The chain id
-   * @param tokenSymbol The token address
+   * @param tokenSymbol The symbol of the token which will be resolved
    * @returns The balance trigger threshold if it exists
    */
   public getBalanceTriggerThreshold(chainId: number, tokenSymbol: string): ThresholdBoundType {
@@ -116,12 +117,36 @@ class UBAConfig {
   }
 
   /**
+   * Arbitrarily return upper bound target. This could be the average of the upper and lower bound targets but
+   * for now return upper bound target.
+   * @param chainId
+   * @param l1TokenAddress
+   * @returns
+   */
+  public getTargetBalance(chainId: number, tokenSymbol: string): BigNumber {
+    const thresholdConfig = this.getBalanceTriggerThreshold(chainId, tokenSymbol);
+    return thresholdConfig?.upperBound?.target ?? ethers.constants.Zero;
+  }
+
+  /**
+   * Get sum of all spoke target balances for all chains besides hub pool chain for l1TokenAddress.
+   * This output should be used to compute LP fee based on total spoke target
+   * @param tokenSymbol The token to find target balances for
+   * @returns The sum of token balances for a specific token symbol
+   */
+  public getTotalSpokeTargetBalanceForComputingLpFee(tokenSymbol: string): BigNumber {
+    return CHAIN_ID_LIST_INDICES.reduce((sum, chainId) => {
+      return sum.add(this.getTargetBalance(chainId, tokenSymbol));
+    }, ethers.constants.Zero);
+  }
+
+  /**
    * Get the incentive pool adjustment
    * @param chainId The chain id
    * @returns The incentive pool adjustment. Defaults to 0 if not set
    */
   public getIncentivePoolAdjustment(chainId: string): BigNumber {
-    return this.incentivePoolAdjustment?.[chainId] ?? BigNumber.from(0); // Default to 0 if not set
+    return this.incentivePoolAdjustment?.[chainId] ?? ethers.constants.Zero; // Default to 0 if not set
   }
 
   /**
@@ -130,7 +155,7 @@ class UBAConfig {
    * @returns The UBA reward multiplier. Defaults to 1 if not set
    */
   public getUbaRewardMultiplier(chainId: string): BigNumber {
-    return this.ubaRewardMultiplier?.[chainId] ?? BigNumber.from(1); // Default to 1 if not set
+    return this.ubaRewardMultiplier?.[chainId] ?? ethers.constants.One; // Default to 1 if not set
   }
 }
 

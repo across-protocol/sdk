@@ -1,4 +1,4 @@
-import { BigNumber, providers } from "ethers";
+import { BigNumber, providers, ethers } from "ethers";
 import { GasPriceEstimate } from "../types";
 import { gasPriceError } from "../util";
 
@@ -22,6 +22,6 @@ export async function legacy(provider: providers.Provider, chainId: number): Pro
 
   return {
     maxFeePerGas: gasPrice,
-    maxPriorityFeePerGas: BigNumber.from(0),
+    maxPriorityFeePerGas: ethers.constants.Zero,
   };
 }
