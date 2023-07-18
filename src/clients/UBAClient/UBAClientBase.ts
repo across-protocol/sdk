@@ -2,14 +2,7 @@ import winston from "winston";
 import { UbaFlow } from "../../interfaces";
 import { BigNumber } from "ethers";
 import { UBAActionType } from "../../UBAFeeCalculator/UBAFeeTypes";
-import {
-  BalancingFeeReturnType,
-  SystemFeeResult,
-  UBABundleState,
-  UBAClientState,
-  ModifiedUBAFlow,
-} from "./UBAClientTypes";
-import { computeLpFeeStateful } from "./UBAClientUtilities";
+import { BalancingFeeReturnType, UBABundleState, UBAClientState, ModifiedUBAFlow } from "./UBAClientTypes";
 import { findLast } from "../../utils/ArrayUtils";
 import { analog } from "../../UBAFeeCalculator";
 import { BaseAbstractClient } from "../BaseAbstractClient";
@@ -195,57 +188,6 @@ export class BaseUBAClient extends BaseAbstractClient {
     return chainIds.map((chainId) =>
       this.computeBalancingFee(tokenSymbol, amount, hubPoolBlockNumber, chainId, feeType)
     );
-  }
-
-  /**
-   * Compute the LP fee for a given amount. The LP fee is the fee paid to the LP for providing liquidity and
-   * it is based on the Hub balances and Spoke target configs at the `hubPoolBlockNumber`.
-   * @param hubPoolBlockNumber The block number to get the LP fee for
-   * @returns The LP fee for the given token on the given chainId at the given block number
-   */
-  protected computeLpFee(
-    hubPoolBlockNumber: number,
-    depositChainId: number,
-    refundChainId: number,
-    tokenSymbol: string
-  ): BigNumber {
-    // It doesn't actually matter which `chainId` we query the bundle state for. Its only important
-    // that we return the bundle config for the correct token that was used at the time of the hubPoolBlockNumber.
-    // To be safe, use the hub chain since its guaranteed to have a bundle state in memory.
-    const bundleState = this.retrieveBundleStateForBlock(hubPoolBlockNumber, this.hubChainId, tokenSymbol);
-    if (!bundleState) {
-      throw new Error(`No bundle states found for token ${tokenSymbol} before block ${hubPoolBlockNumber}`);
-    }
-
-    return computeLpFeeStateful(bundleState.config.getBaselineFee(refundChainId ?? depositChainId, depositChainId));
-  }
-
-  /**
-   * Compute the system fee for a given amount. The system fee is the sum of the LP fee and the balancing fee.
-   * @param depositChainId The chainId of the deposit
-   * @param destinationChainId The chainId of the transaction
-   * @param tokenSymbol The token to get the system fee for
-   * @param amount The amount to get the system fee for
-   * @param hubPoolBlockNumber The block number to get the system fee for
-   * @param overrides The overrides to use for the LP fee calculation
-   * @returns The system fee for the given token on the given chainId at the given block number
-   */
-  public computeSystemFee(
-    hubPoolBlockNumber: number,
-    amount: BigNumber,
-    depositChainId: number,
-    destinationChainId: number,
-    tokenSymbol: string
-  ): SystemFeeResult {
-    const lpFee = this.computeLpFee(hubPoolBlockNumber, depositChainId, destinationChainId, tokenSymbol);
-    const { balancingFee: depositBalancingFee } = this.computeBalancingFee(
-      tokenSymbol,
-      amount,
-      hubPoolBlockNumber,
-      depositChainId,
-      UBAActionType.Deposit
-    );
-    return { lpFee, depositBalancingFee, systemFee: lpFee.add(depositBalancingFee) };
   }
 
   /**

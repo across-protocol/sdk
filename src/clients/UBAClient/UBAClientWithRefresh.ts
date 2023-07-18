@@ -1,9 +1,10 @@
 import assert from "assert";
 import winston from "winston";
-import { HubPoolClient, SpokePoolClient } from "..";
+import { HubPoolClient, SpokePoolClient, UBAActionType } from "..";
 import { BaseUBAClient } from "./UBAClientBase";
-import { updateUBAClient } from "./UBAClientUtilities";
-import { UBAChainState } from "./UBAClientTypes";
+import { computeLpFeeStateful, getUBAFeeConfig, updateUBAClient } from "./UBAClientUtilities";
+import { SystemFeeResult, UBAChainState } from "./UBAClientTypes";
+import { BigNumber } from "ethers";
 export class UBAClientWithRefresh extends BaseUBAClient {
   // @dev chainIdIndices supports indexing members of root bundle proposals submitted to the HubPool.
   //      It must include the complete set of chain IDs ever supported by the HubPool.
@@ -19,6 +20,38 @@ export class UBAClientWithRefresh extends BaseUBAClient {
     super(chainIdIndices, tokens, maxBundleStates, hubPoolClient.chainId, logger);
     assert(chainIdIndices.length > 0, "No chainIds provided");
     assert(Object.values(spokePoolClients).length > 0, "No SpokePools provided");
+  }
+
+  /**
+   * Compute the system fee for a given amount. The system fee is the sum of the LP fee and the balancing fee.
+   * @param depositChainId The chainId of the deposit
+   * @param destinationChainId The chainId of the transaction
+   * @param tokenSymbol The token to get the system fee for
+   * @param amount The amount to get the system fee for
+   * @param hubPoolBlockNumber The block number to get the system fee for
+   * @param overrides The overrides to use for the LP fee calculation
+   * @returns The system fee for the given token on the given chainId at the given block number
+   */
+  public computeSystemFee(
+    hubPoolBlockNumber: number,
+    amount: BigNumber,
+    depositChainId: number,
+    destinationChainId: number,
+    tokenSymbol: string
+  ): SystemFeeResult {
+    // Grab bundle config at block for the deposit chain.
+    const bundleConfig = getUBAFeeConfig(this.hubPoolClient, depositChainId, tokenSymbol, hubPoolBlockNumber);
+    const lpFee = computeLpFeeStateful(
+      bundleConfig.getBaselineFee(destinationChainId ?? depositChainId, depositChainId)
+    );
+    const { balancingFee: depositBalancingFee } = this.computeBalancingFee(
+      tokenSymbol,
+      amount,
+      hubPoolBlockNumber,
+      depositChainId,
+      UBAActionType.Deposit
+    );
+    return { lpFee, depositBalancingFee, systemFee: lpFee.add(depositBalancingFee) };
   }
 
   /**
