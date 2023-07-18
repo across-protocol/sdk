@@ -25,7 +25,7 @@ export class UBAClientWithRefresh extends BaseUBAClient {
    * Updates the clients and UBAFeeCalculators.
    * @param forceRefresh An optional boolean to force a refresh of the clients.
    */
-  public async update(state: UBAClientState, forceClientRefresh?: boolean): Promise<void> {
+  public async update(state?: UBAClientState, forceClientRefresh?: boolean): Promise<void> {
     const newState =
       state && Object.entries(state).length > 0
         ? state
