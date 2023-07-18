@@ -58,4 +58,7 @@ export class UBAClientWithRefresh extends BaseUBAClient {
       this.isUpdated
     );
   }
+  public set isUpdated(value: boolean) {
+    this.isUpdated = value;
+  }
 }
