@@ -659,24 +659,17 @@ async function getFlows(
   // - Fills that are considered "invalid" by the spoke pool client.
   const fills: UbaFlow[] = (
     await Promise.all(
-      spokePoolClient.getFills().map(async (fill: FillWithBlock): Promise<UbaFlow | undefined> => {
-        const validWithinBounds =
-          fill.repaymentChainId === spokePoolClient.chainId &&
-          fill.fillAmount.eq(fill.totalFilledAmount) &&
-          fill.updatableRelayData.isSlowRelay === false &&
-          fill.blockNumber >= (fromBlock as number) &&
-          fill.blockNumber <= (toBlock as number);
-        if (!validWithinBounds) {
-          return undefined;
-        }
-        const matchingDeposit = await resolveCorrespondingDepositForFill(fill, spokePoolClients);
-        if (matchingDeposit === undefined) {
-          return undefined;
-        }
-        return {
-          ...fill,
-          quoteBlockNumber: matchingDeposit.quoteBlockNumber,
-        };
+      (
+        await getFills(chainId, hubPoolClient, spokePoolClients, {
+          fromBlock,
+          toBlock,
+          repaymentChainId: chainId,
+          isSlowRelay: false,
+        })
+      ).filter((fill: FillWithBlock) => {
+        // We only want to include full fills as flows. Partial fills need to request refunds and those refunds
+        // will be included as flows.
+        return fill.fillAmount.eq(fill.totalFilledAmount);
       })
     )
   ).filter((fill) => fill !== undefined) as UbaFlow[];
@@ -780,16 +773,21 @@ export async function refundRequestIsValid(
       );
   });
   if (!isDefined(fill)) {
-    // TODO: We need to do a look back for a fill if we can't find it. We can't assume it doesn't exist, similar to
-    // why we try to do a longer lookback below for a deposit. The problem with looking up the fill is that there is no
-    // deterministic way to eliminate the possibility that a fill exists.
-    // However, its OK to assume this refund is invalid for now since we assume that refunds are sent very close
-    // to the time of the fill.
-    // Can try to use `getModifiedFlow` in combination with some other call here.
-    return { valid: false, reason: "Unable to find matching fill" };
+    // If fill block is
+    if (fillBlock.lt(destSpoke.eventSearchConfig.fromBlock)) {
+      // TODO: We need to do a look back for a fill if we can't find it. We can't assume it doesn't exist, similar to
+      // why we try to do a longer lookback below for a deposit. The problem with looking up the fill is that there is no
+      // deterministic way to eliminate the possibility that a fill exists.
+      // However, its OK to assume this refund is invalid for now since we assume that refunds are sent very close
+      // to the time of the fill.
+      // Can try to use `getModifiedFlow` in combination with some new findFill method in the SpokePoolClient.
+      throw new Error("Unimplemented: refund request fillBlock is older than spoke pool client from block");
+    } else {
+      return { valid: false, reason: "Unable to find matching fill" };
+    }
   }
 
-  const deposit = await resolveCorrespondingDepositForFill(fill, spokePoolClients);
+  const deposit = await resolveCorrespondingDepositForFill(fill, spokePoolClients, hubPoolClient);
   if (!isDefined(deposit)) {
     return { valid: false, reason: "Unable to find matching deposit" };
   }
@@ -819,6 +817,7 @@ export type SpokePoolEventFilter = {
   destinationChainId?: number;
   relayer?: string;
   fromBlock?: number;
+  toBlock?: number;
 };
 
 export type SpokePoolFillFilter = SpokePoolEventFilter & {
@@ -835,39 +834,43 @@ export type SpokePoolFillFilter = SpokePoolEventFilter & {
  */
 export async function getFills(
   chainId: number,
+  hubPoolClient: HubPoolClient,
   spokePoolClients: SpokePoolClients,
   filter: SpokePoolFillFilter = {}
-): Promise<FillWithBlock[]> {
+): Promise<(FillWithBlock & { quoteBlockNumber: number })[]> {
   const spokePoolClient = spokePoolClients[chainId];
   assert(isDefined(spokePoolClient));
 
-  const { originChainId, repaymentChainId, relayer, isSlowRelay, fromBlock } = filter;
+  const { originChainId, repaymentChainId, relayer, isSlowRelay, fromBlock, toBlock } = filter;
 
-  const fills = await filterAsync(spokePoolClient.getFills(), async (fill) => {
-    if (isDefined(fromBlock) && fromBlock > fill.blockNumber) {
-      return false;
-    }
+  const fills = (
+    await mapAsync(spokePoolClient.getFills(), async (fill) => {
+      if (isDefined(fromBlock) && fromBlock > fill.blockNumber) {
+        return undefined;
+      }
+      if (isDefined(toBlock) && toBlock < fill.blockNumber) {
+        return undefined;
+      }
 
-    // @dev tsdx and old Typescript seem to prevent dynamic iteration over the filter, so evaluate the keys manually.
-    if (
-      (isDefined(originChainId) && fill.originChainId !== originChainId) ||
-      (isDefined(repaymentChainId) && fill.repaymentChainId !== repaymentChainId) ||
-      (isDefined(relayer) && fill.relayer !== relayer) ||
-      (isDefined(isSlowRelay) && fill.updatableRelayData.isSlowRelay !== isSlowRelay)
-    ) {
-      return false;
-    }
+      // @dev tsdx and old Typescript seem to prevent dynamic iteration over the filter, so evaluate the keys manually.
+      if (
+        (isDefined(originChainId) && fill.originChainId !== originChainId) ||
+        (isDefined(repaymentChainId) && fill.repaymentChainId !== repaymentChainId) ||
+        (isDefined(relayer) && fill.relayer !== relayer) ||
+        (isDefined(isSlowRelay) && fill.updatableRelayData.isSlowRelay !== isSlowRelay)
+      ) {
+        return undefined;
+      }
 
-    // @dev The SDK-v2 UBAClient stores the base SpokePoolClient definition, but here we use an extended variant.
-    // This will be resolved when upstreaming to SDK-v2.
-    const originSpokePoolClient = spokePoolClients[fill.originChainId];
-    if (!isDefined(originSpokePoolClient)) {
-      return false;
-    }
-
-    const deposit = await queryHistoricalDepositForFill(originSpokePoolClient, fill);
-    return isDefined(deposit);
-  });
+      const deposit = await queryHistoricalDepositForFill(hubPoolClient, spokePoolClients, fill);
+      if (deposit !== undefined) {
+        return {
+          ...fill,
+          quoteBlockNumber: deposit.quoteBlockNumber,
+        };
+      } else return undefined;
+    })
+  ).filter(isDefined);
 
   return fills;
 }

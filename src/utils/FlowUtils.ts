@@ -1,4 +1,4 @@
-import { HubPoolClient, SpokePoolClient } from "../clients";
+import { HubPoolClient, getModifiedFlow } from "../clients";
 import {
   Deposit,
   DepositWithBlock,
@@ -102,56 +102,70 @@ export function validateFillForDeposit(fill: Fill, deposit?: Deposit): boolean {
  */
 export async function resolveCorrespondingDepositForFill(
   fill: FillWithBlock,
-  spokePoolClients: SpokePoolClients
+  spokePoolClients: SpokePoolClients,
+  hubPoolClient: HubPoolClient
 ): Promise<DepositWithBlock | undefined> {
   // Matched deposit for fill was not found in spoke client. This situation should be rare so let's
   // send some extra RPC requests to blocks older than the spoke client's initial event search config
   // to find the deposit if it exists.
-  const spokePoolClient = spokePoolClients[fill.originChainId];
-  return queryHistoricalDepositForFill(spokePoolClient, fill);
+  return queryHistoricalDepositForFill(hubPoolClient, spokePoolClients, fill);
 }
 
 // of a deposit older or younger than its fixed lookback.
 export async function queryHistoricalDepositForFill(
-  spokePoolClient: SpokePoolClient,
+  hubPoolClient: HubPoolClient,
+  spokePoolClients: SpokePoolClients,
   fill: Fill
 ): Promise<DepositWithBlock | undefined> {
-  if (fill.originChainId !== spokePoolClient.chainId) {
-    throw new Error(`OriginChainId mismatch (${fill.originChainId} != ${spokePoolClient.chainId})`);
-  }
+  const originSpokePoolClient = spokePoolClients[fill.originChainId];
 
   // We need to update client so we know the first and last deposit ID's queried for this spoke pool client, as well
   // as the global first and last deposit ID's for this spoke pool.
-  if (!spokePoolClient.isUpdated) {
+  if (!originSpokePoolClient.isUpdated) {
     throw new Error("SpokePoolClient must be updated before querying historical deposits");
   }
 
   // If someone fills with a clearly bogus deposit ID then we can quickly mark it as invalid
   if (
-    fill.depositId < spokePoolClient.firstDepositIdForSpokePool ||
-    fill.depositId > spokePoolClient.lastDepositIdForSpokePool
+    fill.depositId < originSpokePoolClient.firstDepositIdForSpokePool ||
+    fill.depositId > originSpokePoolClient.lastDepositIdForSpokePool
   ) {
     return undefined;
   }
 
   if (
-    fill.depositId >= spokePoolClient.earliestDepositIdQueried &&
-    fill.depositId <= spokePoolClient.latestDepositIdQueried
+    fill.depositId >= originSpokePoolClient.earliestDepositIdQueried &&
+    fill.depositId <= originSpokePoolClient.latestDepositIdQueried
   ) {
-    return spokePoolClient.getDepositForFill(fill);
+    return originSpokePoolClient.getDepositForFill(fill);
   }
 
-  // Unlike in the Pre UBA clients, this function does NOT
-  // fall back to querying fresh RPC events to try to find a fill. Instead, if the deposit can't be found
-  // then this code will just crash, protecting the caller's funds. This is because if we were to find an old
-  // deposit, we'd need to recompute its expected realizedLpFeePct, which would be based on the deposit balancing
-  // fee and therefore requires more information from the flows preceding it. This is a future TODO.
-  // The downside of not implementing this is that filling an old deposit will cause the UBAClient to crash until
-  // its lookback is extended, which then makes it run very slowly. The implementation should reconstruct the bundle
-  // state containing the deposit (if it exists) and then use that to compute the deposit balancing fee.
-  throw new Error(
-    `Can't find historical deposit for fill ${fill.depositId} and haven't implemented historical lookups of deposits in UBA model outside of initial SpokePoolClient search`
+  // At this stage, deposit is not in spoke pool client's search range. Perform an expensive, additional data query
+  // to try to validate this deposit.
+  const timerStart = Date.now();
+  hubPoolClient.logger.debug({
+    at: "queryHistoricalDepositForFill",
+    message: "Loading historical bundle to try to find matching deposit for fill",
+    fill,
+  });
+  const deposit: DepositWithBlock = await originSpokePoolClient.findDeposit(
+    fill.depositId,
+    fill.destinationChainId,
+    fill.depositor
   );
-
-  // TODO: Try using getModifiedFlow() here plus spokePoolClient.findDeposit() to validate the flow.
+  hubPoolClient.logger.debug({
+    at: "queryHistoricalDepositForFill",
+    message: "Found matching deposit candidate for fill, fetching bundle data to set fees",
+    timeElapsed: Date.now() - timerStart,
+    deposit,
+  });
+  const depositFees = await getModifiedFlow(deposit.originChainId, deposit, hubPoolClient, spokePoolClients);
+  hubPoolClient.logger.debug({
+    at: "queryHistoricalDepositForFill",
+    message: "Recomputed deposit realizedLpFee",
+    timeElapsed: Date.now() - timerStart,
+    depositFees,
+  });
+  deposit.realizedLpFeePct = depositFees.systemFee.systemFee;
+  return validateFillForDeposit(fill, deposit) ? deposit : undefined;
 }
