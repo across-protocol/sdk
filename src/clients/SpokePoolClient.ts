@@ -832,6 +832,7 @@ export class SpokePoolClient extends BaseAbstractClient {
       destinationChainId: Number(depositEvent.args.destinationChainId),
       originToken: depositEvent.args.originToken,
       quoteTimestamp: depositEvent.args.quoteTimestamp,
+      blockNumber: depositEvent.blockNumber,
     };
 
     const l1Token = this.hubPoolClient.getL1TokenForDeposit(deposit);

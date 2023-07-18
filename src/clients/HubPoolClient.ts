@@ -1,9 +1,18 @@
-import { Contract, BigNumber, Event, EventFilter } from "ethers";
+import { Contract, BigNumber, Event, EventFilter, ethers } from "ethers";
 import { Block } from "@ethersproject/abstract-provider";
 import { BlockFinder } from "@uma/sdk";
 import winston from "winston";
 import _ from "lodash";
-import { assign, EventSearchConfig, isDefined, MakeOptional, BigNumberish, isUBA } from "../utils";
+import {
+  assign,
+  EventSearchConfig,
+  isDefined,
+  MakeOptional,
+  BigNumberish,
+  isUBA,
+  getImpliedBundleBlockRanges,
+  getBlockRangeForChain,
+} from "../utils";
 import {
   fetchTokenInfo,
   sortEventsDescending,
@@ -18,6 +27,7 @@ import { CrossChainContractsSet, DestinationTokenWithBlock, SetPoolRebalanceRoot
 import * as lpFeeCalculator from "../lpFeeCalculator";
 import { AcrossConfigStoreClient as ConfigStoreClient } from "./";
 import { BaseAbstractClient } from "./BaseAbstractClient";
+import { CHAIN_ID_LIST_INDICES } from "../constants";
 
 type _HubPoolUpdate = {
   success: true;
@@ -244,7 +254,13 @@ export class HubPoolClient extends BaseAbstractClient {
   }
 
   async computeRealizedLpFeePct(
-    deposit: { quoteTimestamp: number; amount: BigNumber; destinationChainId: number; originChainId: number },
+    deposit: {
+      quoteTimestamp: number;
+      amount: BigNumber;
+      destinationChainId: number;
+      originChainId: number;
+      blockNumber: number;
+    },
     l1Token: string
   ): Promise<{ realizedLpFeePct: BigNumber | undefined; quoteBlock: number }> {
     const quoteBlock = await this.getBlockNumber(deposit.quoteTimestamp);
@@ -252,9 +268,18 @@ export class HubPoolClient extends BaseAbstractClient {
       throw new Error(`Could not find block for timestamp ${deposit.quoteTimestamp}`);
     }
 
-    const version = this.configStoreClient.getConfigStoreVersionForTimestamp(deposit.quoteTimestamp);
-    if (isUBA(version)) {
-      if (!this.configStoreClient.hasLatestConfigStoreVersion) {
+    // To determine if a deposit should be applied a UBA fee, we need to check the start block of the bundle
+    // that would contain this deposit.
+    const bundleStartBlockContainingDeposit = this.getBundleStartBlockContainingBlock(
+      deposit.blockNumber,
+      deposit.originChainId,
+      this.latestBlockNumber
+    );
+    const versionAppliedToDeposit = this.configStoreClient.getConfigStoreVersionForBlock(
+      bundleStartBlockContainingDeposit
+    );
+    if (isUBA(versionAppliedToDeposit)) {
+      if (!this.configStoreClient.isValidConfigStoreVersion(versionAppliedToDeposit)) {
         throw new Error(
           `ConfigStoreClient cannot handle UBA config store version for quote timestamp ${deposit.quoteTimestamp}`
         );
@@ -267,6 +292,7 @@ export class HubPoolClient extends BaseAbstractClient {
       };
     }
 
+    // Otherwise, use the legacy fee model which is based ont he deposit quote block.
     const rateModel = this.configStoreClient.getRateModelForBlockNumber(
       l1Token,
       deposit.originChainId,
@@ -306,6 +332,45 @@ export class HubPoolClient extends BaseAbstractClient {
     return this.getTokenInfoForDeposit(deposit);
   }
 
+  /**
+   * @notice Return the bundle start block for the bundle containing the event with a given block number.
+   * @param eventBlock The event happened at this block on `eventChain`.
+   * @param eventChain The event happened on this chain.
+   * @param hubPoolLatestBlock Optional param that can be used to optimize the search time for which
+   * bundle contains the event
+   */
+  getBundleStartBlockContainingBlock(eventBlock: number, eventChain: number, hubPoolLatestBlock?: number): number {
+    // First find the latest executed bundle as of `hubPoolLatestBlock`.
+    const latestExecutedBundle = this.getNthFullyExecutedRootBundle(-1, hubPoolLatestBlock);
+
+    // If there is no latest executed bundle, then return the spoke's activation block. This means that there is no
+    // bundle before `hubPoolLatestBlock` containing the event block so the next bundle will start at
+    // the activation block and contain the event.
+    if (!latestExecutedBundle) {
+      return (
+        this.getSpokePoolActivationBlock(eventChain, this.getSpokePoolForBlock(eventChain, hubPoolLatestBlock)) ?? 0
+      );
+    }
+
+    // Construct the bundle's block range
+    const blockRange = getImpliedBundleBlockRanges(this, this.configStoreClient, latestExecutedBundle);
+    const blockRangeForChain = getBlockRangeForChain(blockRange, eventChain);
+
+    // If event is greater than the latest bundle's end block, then the next bundle will contain the event. The
+    // the next bundle will start at this end block + 1
+    if (eventBlock > blockRangeForChain[1]) {
+      return blockRangeForChain[1] + 1;
+    }
+
+    // Now check if the event is greater than the start block. If so, return the start block.
+    if (eventBlock >= blockRangeForChain[0]) {
+      return blockRangeForChain[0];
+    }
+
+    // At this point we need to repeat the above steps starting at the validated bundle preceding `latestExecutedBundle`.
+    return this.getBundleStartBlockContainingBlock(eventBlock, eventChain, latestExecutedBundle.blockNumber);
+  }
+
   // Root bundles are valid if all of their pool rebalance leaves have been executed before the next bundle, or the
   // latest mainnet block to search. Whichever comes first.
   isRootBundleValid(rootBundle: ProposedRootBundle, latestMainnetBlock: number): boolean {
@@ -323,7 +388,7 @@ export class HubPoolClient extends BaseAbstractClient {
     latestMainnetBlock: number,
     block: number,
     chain: number,
-    chainIdList: number[]
+    chainIdList = CHAIN_ID_LIST_INDICES
   ): number | undefined {
     let endingBlockNumber: number | undefined;
     // Search proposed root bundles in reverse chronological order.
@@ -703,7 +768,12 @@ export class HubPoolClient extends BaseAbstractClient {
       if (isUBA(version)) {
         // runningBalances array is a concatenation of pre-UBA runningBalances and incentiveBalances.
         executedRootBundle.runningBalances = runningBalances.slice(0, nTokens);
-        executedRootBundle.incentiveBalances = runningBalances.slice(nTokens);
+        // If bundle hasn't added incentive balance values, then assume they are 0.
+        // TODO: They really should be equal to the last validated incentive balance value.
+        executedRootBundle.incentiveBalances =
+          runningBalances.length > nTokens
+            ? runningBalances.slice(nTokens)
+            : Array(nTokens).fill(ethers.constants.Zero);
       } else {
         // Pre-UBA: runningBalances length is 1:1 with l1Tokens length. Pad incentiveBalances with zeroes.
         executedRootBundle.incentiveBalances = runningBalances.map(() => toBN(0));
