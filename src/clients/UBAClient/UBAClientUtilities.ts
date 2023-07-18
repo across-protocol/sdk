@@ -255,7 +255,7 @@ export async function getModifiedFlow(
     tokenSymbol = hubPoolClient.getTokenInfo(flow.originChainId, flow.originToken)?.symbol;
   } else if (outflowIsFill(flow as UbaOutflow)) {
     if (chainId !== flow.destinationChainId) {
-      throw new Error(`ChainId ${chainId} should be fill.destinationChainId`);
+      throw new Error(`ChainId mismatch on chain ${fill.destinationChainId} fill for chain ${fill.originChainId} deposit ${fill.depositId} (${chainId} != ${fill.destinationChainId})`);
     }
     tokenSymbol = hubPoolClient.getTokenInfo(flow.destinationChainId, (flow as FillWithBlock).destinationToken)?.symbol;
   } else if (chainId !== (flow as RefundRequestWithBlock).repaymentChainId) {
