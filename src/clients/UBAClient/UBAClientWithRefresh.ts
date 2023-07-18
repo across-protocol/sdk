@@ -1,6 +1,8 @@
 import assert from "assert";
 import winston from "winston";
-import { HubPoolClient, SpokePoolClient, UBAActionType } from "..";
+import { SpokePoolClient } from "../SpokePoolClient";
+import { HubPoolClient } from "../HubPoolClient";
+import { UBAActionType } from "../../UBAFeeCalculator/UBAFeeTypes";
 import { BaseUBAClient } from "./UBAClientBase";
 import { computeLpFeeStateful, getUBAFeeConfig, updateUBAClient } from "./UBAClientUtilities";
 import { SystemFeeResult, UBAChainState } from "./UBAClientTypes";
