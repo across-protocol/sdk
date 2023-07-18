@@ -316,7 +316,10 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
             this.logger.warn({
               at: "ConfigStore::update",
               message: `Failed to parse UBA config for ${l1Token}`,
-              error: e,
+              error: {
+                message: (e as Error)?.message,
+                stack: (e as Error)?.stack,
+              },
             });
           }
         }
