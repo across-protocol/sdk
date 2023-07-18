@@ -83,8 +83,12 @@ class UBAConfig {
    * @returns The baseline fee
    */
   public getBaselineFee(destinationChainId: number, originChainId: number): BigNumber {
-    const routeCombination = `${originChainId}-${destinationChainId}`;
-    return this.baselineFee.override?.[routeCombination] ?? this.baselineFee.default;
+    return (
+      this.baselineFee.override?.[`${originChainId}-${destinationChainId}`] ??
+      this.baselineFee.override?.[`${destinationChainId}-${originChainId}`] ??
+      this.baselineFee.default ??
+      ethers.constants.Zero
+    );
   }
 
   /**
