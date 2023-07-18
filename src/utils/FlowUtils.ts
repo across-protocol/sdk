@@ -108,4 +108,6 @@ export async function queryHistoricalDepositForFill(
   throw new Error(
     `Can't find historical deposit for fill ${fill.depositId} and haven't implemented historical lookups of deposits in UBA model outside of initial SpokePoolClient search`
   );
+
+  // TODO: Try using getModifiedFlow() here plus spokePoolClient.findDeposit() to validate the flow.
 }

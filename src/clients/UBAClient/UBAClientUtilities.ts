@@ -39,7 +39,6 @@ import {
   getImpliedBundleBlockRanges,
 } from "../../utils/BundleUtils";
 import { SpokePoolClient } from "../SpokePoolClient";
-import _ from "lodash";
 
 /**
  * Returns the inputs to the LP Fee calculation for a hub pool block height. This wraps
@@ -793,6 +792,7 @@ export async function refundRequestIsValid(
     // deterministic way to eliminate the possibility that a fill exists.
     // However, its OK to assume this refund is invalid for now since we assume that refunds are sent very close
     // to the time of the fill.
+    // Can try to use `getModifiedFlow` in combination with some other call here.
     return { valid: false, reason: "Unable to find matching fill" };
   }
 
