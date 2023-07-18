@@ -258,11 +258,14 @@ export function getMostRecentBundleBlockRanges(
     const latestExecutedRootBundle = hubPoolClient.getNthFullyExecutedRootBundle(-1, toBlock);
     if (!latestExecutedRootBundle) {
       // No more validated bundles left, exit early and add to the beginning of the list one bundle
-      bundleData.unshift({
-        proposalBlock: toBlock,
-        start: spokePoolClients[chainId].deploymentBlock,
-        end: toBlock,
-      });
+      // if we haven't loaded any bundles.
+      if (bundleData.length === 0) {
+        bundleData.unshift({
+          proposalBlock: toBlock,
+          start: spokePoolClients[chainId].deploymentBlock,
+          end: spokePoolClients[chainId].latestBlockNumber,
+        });
+      }
       break;
     }
     const rootBundleBlockRanges = getImpliedBundleBlockRanges(
