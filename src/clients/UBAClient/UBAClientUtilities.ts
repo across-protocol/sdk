@@ -1,5 +1,5 @@
 import assert from "assert";
-import { BigNumber } from "ethers";
+import { BigNumber, ethers } from "ethers";
 import { HubPoolClient } from "../HubPoolClient";
 import UBAFeeConfig from "../../UBAFeeCalculator/UBAFeeConfig";
 import {
@@ -256,7 +256,13 @@ export function getMostRecentBundleBlockRanges(
     // Get the most recent bundle end range for this chain published in a bundle before `toBlock`.
     const latestExecutedRootBundle = hubPoolClient.getNthFullyExecutedRootBundle(-1, toBlock);
     if (!latestExecutedRootBundle) {
-      throw new Error(`No validated root bundle found before hubpool block ${toBlock}`);
+      // No more validated bundles left, exit early and add to the beginning of the list one bundle
+      bundleData.unshift({
+        proposalBlock: toBlock,
+        start: spokePoolClients[chainId].deploymentBlock,
+        end: toBlock,
+      });
+      break;
     }
     const rootBundleBlockRanges = getImpliedBundleBlockRanges(
       hubPoolClient,
@@ -511,7 +517,10 @@ export function getOpeningBalances(
 ): TokenRunningBalance {
   const precedingValidatedBundle = hubPoolClient.getLatestFullyExecutedRootBundle(hubPoolBlock);
   if (!precedingValidatedBundle) {
-    throw new Error(`No validated bundle found for bundle proposed before ${hubPoolBlock}`);
+    return {
+      runningBalance: ethers.constants.Zero,
+      incentiveBalance: ethers.constants.Zero,
+    };
   }
   const executedLeafForChain = hubPoolClient
     .getExecutedLeavesForRootBundle(precedingValidatedBundle, hubPoolBlock)
