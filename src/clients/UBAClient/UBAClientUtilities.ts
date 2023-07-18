@@ -39,6 +39,7 @@ import {
   getImpliedBundleBlockRanges,
 } from "../../utils/BundleUtils";
 import { SpokePoolClient } from "../SpokePoolClient";
+import { stringifyJSONWithNumericString } from "../../utils/JSONUtils";
 
 /**
  * Returns the inputs to the LP Fee calculation for a hub pool block height. This wraps
@@ -925,8 +926,12 @@ export async function getRefundRequests(
   return refundRequests;
 }
 
+export function serializeUBAClientState(ubaClientState: UBAClientState): string {
+  return stringifyJSONWithNumericString(ubaClientState);
+}
+
 /**
- * @todo Improve type safety.
+ * @todo Improve type safety and reduce `any`s.
  * @description Deserializes a serialized `UBAClientState` object.
  * @param serializedUBAClientState Serialized `UBAClientState` object that for example gets returned
  * when calling `updateUBAClient` and serializing the result.
@@ -1106,9 +1111,18 @@ function deserializeUBAFeeConfig(serializedUBAFeeConfig: {
 
 function deserializeBigNumberValues(obj: object = {}) {
   return Object.entries(obj).reduce((acc, [key, value]) => {
-    return {
-      ...acc,
-      [key]: typeof value === "object" && value.type === "BigNumber" ? BigNumber.from(value) : value,
-    };
+    try {
+      const parsedBigNumber = BigNumber.from(value);
+      return {
+        ...acc,
+        [key]: parsedBigNumber,
+      };
+    } catch {
+      // If throws then value is not a BigNumber.
+      return {
+        ...acc,
+        [key]: value,
+      };
+    }
   }, {});
 }
