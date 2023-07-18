@@ -1,5 +1,15 @@
-import { SpokePoolClient } from "../clients";
-import { Deposit, DepositWithBlock, Fill, FillWithBlock } from "../interfaces";
+import { HubPoolClient, SpokePoolClient } from "../clients";
+import {
+  Deposit,
+  DepositWithBlock,
+  Fill,
+  FillWithBlock,
+  RefundRequestWithBlock,
+  UbaFlow,
+  UbaOutflow,
+  isUbaInflow,
+  outflowIsFill,
+} from "../interfaces";
 import { SpokePoolClients } from "./TypeUtils";
 
 export const FILL_DEPOSIT_COMPARISON_KEYS = [
@@ -14,6 +24,40 @@ export const FILL_DEPOSIT_COMPARISON_KEYS = [
   "destinationToken",
   "message",
 ] as const;
+
+export function getTokenSymbolForFlow(
+  flow: UbaFlow,
+  chainId: number,
+  hubPoolClient: HubPoolClient
+): string | undefined {
+  let tokenSymbol: string | undefined;
+  if (isUbaInflow(flow)) {
+    if (chainId !== flow.originChainId) {
+      throw new Error(
+        `ChainId mismatch on chain ${flow.originChainId} deposit ${flow.depositId} (${chainId} != ${flow.originChainId})`
+      );
+    }
+    tokenSymbol = hubPoolClient.getTokenInfo(flow.originChainId, flow.originToken)?.symbol;
+  } else if (outflowIsFill(flow as UbaOutflow)) {
+    if (chainId !== flow.destinationChainId) {
+      throw new Error(
+        `ChainId mismatch on chain ${flow.destinationChainId} fill for chain ${flow.originChainId} deposit ${flow.depositId} (${chainId} != ${flow.destinationChainId})`
+      );
+    }
+    tokenSymbol = hubPoolClient.getTokenInfo(flow.destinationChainId, (flow as FillWithBlock).destinationToken)?.symbol;
+  } else if (chainId !== (flow as RefundRequestWithBlock).repaymentChainId) {
+    if (chainId !== flow.repaymentChainId) {
+      throw new Error(
+        `ChainId mismatch on chain ${flow.repaymentChainId} for chain ${flow.originChainId} deposit ${flow.depositId} (${chainId} != ${flow.repaymentChainId})`
+      );
+    }
+    tokenSymbol = hubPoolClient.getTokenInfo(
+      flow.repaymentChainId,
+      (flow as RefundRequestWithBlock).refundToken
+    )?.symbol;
+  }
+  return tokenSymbol;
+}
 
 export function filledSameDeposit(fillA: Fill, fillB: Fill): boolean {
   return (
@@ -108,4 +152,6 @@ export async function queryHistoricalDepositForFill(
   throw new Error(
     `Can't find historical deposit for fill ${fill.depositId} and haven't implemented historical lookups of deposits in UBA model outside of initial SpokePoolClient search`
   );
+
+  // TODO: Try using getModifiedFlow() here plus spokePoolClient.findDeposit() to validate the flow.
 }
