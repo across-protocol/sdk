@@ -250,17 +250,23 @@ export async function getModifiedFlow(
   let tokenSymbol: string | undefined;
   if (isUbaInflow(flow)) {
     if (chainId !== flow.originChainId) {
-      throw new Error(`ChainId mismatch on chain ${deposit.originChainId} deposit ${deposit.depositId} (${chainId} != ${deposit.originChainId})`);
+      throw new Error(
+        `ChainId mismatch on chain ${flow.originChainId} deposit ${flow.depositId} (${chainId} != ${flow.originChainId})`
+      );
     }
     tokenSymbol = hubPoolClient.getTokenInfo(flow.originChainId, flow.originToken)?.symbol;
   } else if (outflowIsFill(flow as UbaOutflow)) {
     if (chainId !== flow.destinationChainId) {
-      throw new Error(`ChainId mismatch on chain ${fill.destinationChainId} fill for chain ${fill.originChainId} deposit ${fill.depositId} (${chainId} != ${fill.destinationChainId})`);
+      throw new Error(
+        `ChainId mismatch on chain ${flow.destinationChainId} fill for chain ${flow.originChainId} deposit ${flow.depositId} (${chainId} != ${flow.destinationChainId})`
+      );
     }
     tokenSymbol = hubPoolClient.getTokenInfo(flow.destinationChainId, (flow as FillWithBlock).destinationToken)?.symbol;
   } else if (chainId !== (flow as RefundRequestWithBlock).repaymentChainId) {
     if (chainId !== flow.repaymentChainId) {
-      throw new Error(`ChainId mismatch on chain ${refund.repaymentChainId} for chain ${refund.originChainId} deposit ${refund.depositId} (${chainId} != ${refund.repaymentChainId})`);
+      throw new Error(
+        `ChainId mismatch on chain ${flow.repaymentChainId} for chain ${flow.originChainId} deposit ${flow.depositId} (${chainId} != ${flow.repaymentChainId})`
+      );
     }
     tokenSymbol = hubPoolClient.getTokenInfo(
       flow.repaymentChainId,
