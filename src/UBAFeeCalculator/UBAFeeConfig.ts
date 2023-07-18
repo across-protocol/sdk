@@ -1,6 +1,7 @@
 import { BigNumber, ethers } from "ethers";
 import { ThresholdBoundType, FlowTupleParameters } from "./UBAFeeTypes";
 import { CHAIN_ID_LIST_INDICES } from "../constants";
+import { stringifyJSONWithNumericString } from "../utils/JSONUtils";
 
 type ChainId = number;
 type RouteCombination = string;
@@ -156,6 +157,17 @@ class UBAConfig {
    */
   public getUbaRewardMultiplier(chainId: string): BigNumber {
     return this.ubaRewardMultiplier?.[chainId] ?? ethers.constants.One; // Default to 1 if not set
+  }
+
+  public toJSON() {
+    return {
+      baselineFee: JSON.parse(stringifyJSONWithNumericString(this.baselineFee)),
+      balancingFee: JSON.parse(stringifyJSONWithNumericString(this.balancingFee)),
+      balanceTriggerThreshold: JSON.parse(stringifyJSONWithNumericString(this.balanceTriggerThreshold)),
+      lpGammaFunction: JSON.parse(stringifyJSONWithNumericString(this.lpGammaFunction)),
+      incentivePoolAdjustment: JSON.parse(stringifyJSONWithNumericString(this.incentivePoolAdjustment)),
+      ubaRewardMultiplier: JSON.parse(stringifyJSONWithNumericString(this.ubaRewardMultiplier)),
+    };
   }
 }
 
