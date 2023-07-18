@@ -1,3 +1,5 @@
+import { BigNumber } from "ethers";
+
 /**
  * This function converts a JSON string into a JSON object. The caveat is that if
  * the parser detects a number, it will convert it to a string and floor it to
@@ -17,4 +19,20 @@ export function parseJSONWithNumericString(jsonString: string): unknown | undefi
   } catch (e) {
     return undefined;
   }
+}
+
+/**
+ * This function converts an object into a JSON string. The caveat is that if
+ * the parser detects a BigNumber or BN, it will convert it to a string.
+ * @param obj The object to stringify
+ * @returns The stringified JSON object
+ * @throws Error if the object cannot be stringified
+ */
+export function stringifyJSONWithNumericString(obj: unknown): string {
+  return JSON.stringify(obj, (_key, value) => {
+    if (BigNumber.isBigNumber(value)) {
+      return value.toString();
+    }
+    return value;
+  });
 }
