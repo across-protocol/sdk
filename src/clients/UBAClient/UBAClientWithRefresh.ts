@@ -28,6 +28,7 @@ export class UBAClientWithRefresh extends BaseUBAClient {
   public async update(state: { [chainId: number]: UBAChainState }, forceClientRefresh?: boolean): Promise<void> {
     if (state) {
       await super.update(state);
+      return;
     }
     // Update the clients if the necessary clients have not been updated at least once.
     // Also update if forceClientRefresh is true.
@@ -39,7 +40,7 @@ export class UBAClientWithRefresh extends BaseUBAClient {
       // Update the SpokePools
       await Promise.all(Object.values(this.spokePoolClients).map(async (spokePoolClient) => spokePoolClient.update()));
     }
-    this.update(
+    return this.update(
       await updateUBAClient(
         this.hubPoolClient,
         this.spokePoolClients,

@@ -30,8 +30,8 @@ export function parseJSONWithNumericString(jsonString: string): unknown | undefi
  */
 export function stringifyJSONWithNumericString(obj: unknown): string {
   return JSON.stringify(obj, (_key, value) => {
-    if (BigNumber.isBigNumber(value)) {
-      return value.toString();
+    if (typeof value === "object" && value !== null && value.type === "BigNumber") {
+      return BigNumber.from(value).toString();
     }
     return value;
   });
