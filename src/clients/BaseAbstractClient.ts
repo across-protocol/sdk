@@ -2,7 +2,7 @@
  * Base class for all clients to extend.
  */
 export abstract class BaseAbstractClient {
-  private _isUpdated: boolean;
+  protected _isUpdated: boolean;
 
   constructor() {
     this._isUpdated = false;
