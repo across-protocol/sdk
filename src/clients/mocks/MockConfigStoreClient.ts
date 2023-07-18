@@ -29,6 +29,10 @@ export class MockConfigStoreClient extends AcrossConfigStoreClient {
     this.eventManager = getEventManager(chainId, this.eventSignatures);
   }
 
+  getConfigStoreVersionForBlock(_blockNumber: number): number {
+    return this.configStoreVersion;
+  }
+
   setConfigStoreVersion(version: number): void {
     this.configStoreVersion = version;
   }

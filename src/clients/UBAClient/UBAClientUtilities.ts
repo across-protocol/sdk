@@ -1,5 +1,5 @@
 import assert from "assert";
-import { BigNumber } from "ethers";
+import { BigNumber, ethers, BigNumberish } from "ethers";
 import { HubPoolClient } from "../HubPoolClient";
 import UBAFeeConfig from "../../UBAFeeCalculator/UBAFeeConfig";
 import { filterAsync, mapAsync } from "../../utils/ArrayUtils";
@@ -35,6 +35,7 @@ import {
   getImpliedBundleBlockRanges,
 } from "../../utils/BundleUtils";
 import { SpokePoolClient } from "../SpokePoolClient";
+import { stringifyJSONWithNumericString } from "../../utils/JSONUtils";
 
 /**
  * Returns the inputs to the LP Fee calculation for a hub pool block height. This wraps
@@ -157,12 +158,12 @@ export function getUBAFeeConfig(
       override: {
         [chainTokenCombination]: {
           lowerBound: {
-            target: threshold.target_lower,
-            threshold: threshold.threshold_lower,
+            target: threshold?.target_lower,
+            threshold: threshold?.threshold_lower,
           },
           upperBound: {
-            target: threshold.target_upper,
-            threshold: threshold.threshold_upper,
+            target: threshold?.target_upper,
+            threshold: threshold?.threshold_upper,
           },
         },
       },
@@ -252,7 +253,16 @@ export function getMostRecentBundleBlockRanges(
     // Get the most recent bundle end range for this chain published in a bundle before `toBlock`.
     const latestExecutedRootBundle = hubPoolClient.getNthFullyExecutedRootBundle(-1, toBlock);
     if (!latestExecutedRootBundle) {
-      throw new Error(`No validated root bundle found before hubpool block ${toBlock}`);
+      // No more validated bundles left, exit early and add to the beginning of the list one bundle
+      // if we haven't loaded any bundles.
+      if (bundleData.length === 0) {
+        bundleData.unshift({
+          proposalBlock: toBlock,
+          start: spokePoolClients[chainId].deploymentBlock,
+          end: spokePoolClients[chainId].latestBlockNumber,
+        });
+      }
+      break;
     }
     const rootBundleBlockRanges = getImpliedBundleBlockRanges(
       hubPoolClient,
@@ -587,7 +597,10 @@ export function getOpeningBalances(
 ): TokenRunningBalance {
   const precedingValidatedBundle = hubPoolClient.getLatestFullyExecutedRootBundle(hubPoolBlock);
   if (!precedingValidatedBundle) {
-    throw new Error(`No validated bundle found for bundle proposed before ${hubPoolBlock}`);
+    return {
+      runningBalance: ethers.constants.Zero,
+      incentiveBalance: ethers.constants.Zero,
+    };
   }
   const executedLeafForChain = hubPoolClient
     .getExecutedLeavesForRootBundle(precedingValidatedBundle, hubPoolBlock)
@@ -993,4 +1006,205 @@ export async function getRefundRequests(
   });
 
   return refundRequests;
+}
+
+export function serializeUBAClientState(ubaClientState: UBAClientState): string {
+  return stringifyJSONWithNumericString(ubaClientState);
+}
+
+/**
+ * @todo Improve type safety and reduce `any`s.
+ * @description Deserializes a serialized `UBAClientState` object.
+ * @param serializedUBAClientState Serialized `UBAClientState` object that for example gets returned
+ * when calling `updateUBAClient` and serializing the result.
+ * @returns Deserialized `UBAClientState` object. Specifically with `{ type: "BigNumber", value: "0x0" }`
+ * converted to `BigNumber` instances. And a correct `UBAFeeConfig` instance.
+ */
+export function deserializeUBAClientState(serializedUBAClientState: object): UBAClientState {
+  return Object.entries(serializedUBAClientState).reduce((acc, [chainId, chainState]) => {
+    if (typeof chainState !== "object") {
+      throw new Error(`Failed to parse chain state for chain ${chainId}`);
+    }
+
+    return {
+      ...acc,
+      [chainId]: {
+        ...chainState,
+        bundles: Object.entries(chainState.bundles).reduce((acc, [tokenSymbol, bundleStates]) => {
+          if (!Array.isArray(bundleStates)) {
+            throw new Error(`Failed to parse bundle states for token ${tokenSymbol}`);
+          }
+
+          return {
+            ...acc,
+            [tokenSymbol]: bundleStates.map((bundleState) => {
+              const deserializedUBAFeeConfig = deserializeUBAFeeConfig(bundleState.config);
+              return {
+                ...bundleState,
+                openingBalance: BigNumber.from(bundleState.openingBalance),
+                openingIncentiveBalance: BigNumber.from(bundleState.openingIncentiveBalance),
+                config: new UBAFeeConfig(
+                  deserializedUBAFeeConfig.baselineFee,
+                  deserializedUBAFeeConfig.balancingFee,
+                  deserializedUBAFeeConfig.balanceTriggerThreshold,
+                  deserializedUBAFeeConfig.lpGammaFunction,
+                  deserializedUBAFeeConfig.incentivePoolAdjustment,
+                  deserializedUBAFeeConfig.ubaRewardMultiplier
+                ),
+                flows: bundleState.flows.map(deserializeModifiedUBAFlow),
+              };
+            }),
+          };
+        }, {}),
+      },
+    };
+  }, {});
+}
+
+function deserializeModifiedUBAFlow(serializedModifiedUBAFlow: {
+  flow: any;
+  systemFee: any;
+  relayerFee: any;
+  runningBalance: any;
+  incentiveBalance: any;
+  netRunningBalanceAdjustment: any;
+}) {
+  return {
+    flow: deserializeBigNumberValues(serializedModifiedUBAFlow.flow),
+    systemFee: deserializeBigNumberValues(serializedModifiedUBAFlow.systemFee),
+    relayerFee: deserializeBigNumberValues(serializedModifiedUBAFlow.relayerFee),
+    runningBalance: BigNumber.from(serializedModifiedUBAFlow.runningBalance),
+    incentiveBalance: BigNumber.from(serializedModifiedUBAFlow.incentiveBalance),
+    netRunningBalanceAdjustment: BigNumber.from(serializedModifiedUBAFlow.netRunningBalanceAdjustment),
+  };
+}
+
+function deserializeUBAFeeConfig(serializedUBAFeeConfig: {
+  baselineFee: {
+    default: BigNumberish;
+    override: Record<string, BigNumberish>;
+  };
+  balancingFee: {
+    default: [BigNumberish, BigNumberish][];
+    override: Record<string, [BigNumberish, BigNumberish][]>;
+  };
+  balanceTriggerThreshold: {
+    default: {
+      lowerBound: {
+        target?: BigNumberish;
+        threshold?: BigNumberish;
+      };
+      upperBound: {
+        target?: BigNumberish;
+        threshold?: BigNumberish;
+      };
+    };
+    override: Record<
+      string,
+      {
+        lowerBound?: {
+          target?: BigNumberish;
+          threshold?: BigNumberish;
+        };
+        upperBound?: {
+          target?: BigNumberish;
+          threshold?: BigNumberish;
+        };
+      }
+    >;
+  };
+  lpGammaFunction: {
+    default: [BigNumberish, BigNumberish][];
+    override: Record<string, [BigNumberish, BigNumberish][]>;
+  };
+  incentivePoolAdjustment: Record<string, BigNumber>;
+  ubaRewardMultiplier: Record<string, BigNumber>;
+}) {
+  return {
+    baselineFee: {
+      default: BigNumber.from(serializedUBAFeeConfig.baselineFee.default),
+      override: Object.entries(serializedUBAFeeConfig.baselineFee.override ?? {}).reduce((acc, [key, value]) => {
+        acc[key] = BigNumber.from(value);
+        return acc;
+      }, {} as Record<string, BigNumber>),
+    },
+    balancingFee: {
+      default: serializedUBAFeeConfig.balancingFee.default.map((tuple) =>
+        tuple.map((value) => BigNumber.from(value))
+      ) as [BigNumber, BigNumber][],
+      override: Object.entries(serializedUBAFeeConfig.balancingFee.override ?? {}).reduce((acc, [key, value]) => {
+        acc[key] = value.map((tuple) => tuple.map((value) => BigNumber.from(value))) as [BigNumber, BigNumber][];
+        return acc;
+      }, {} as Record<string, [BigNumber, BigNumber][]>),
+    },
+    balanceTriggerThreshold: {
+      default: {
+        lowerBound: deserializeBigNumberValues(serializedUBAFeeConfig.balanceTriggerThreshold.default.lowerBound),
+        upperBound: deserializeBigNumberValues(serializedUBAFeeConfig.balanceTriggerThreshold.default.upperBound),
+      },
+      override: Object.entries(serializedUBAFeeConfig.balanceTriggerThreshold.override ?? {}).reduce(
+        (acc, [key, value]) => {
+          acc[key] = {
+            lowerBound: deserializeBigNumberValues(value.lowerBound),
+            upperBound: deserializeBigNumberValues(value.upperBound),
+          };
+          return acc;
+        },
+        {} as Record<
+          string,
+          {
+            lowerBound: {
+              target?: BigNumber;
+              threshold?: BigNumber;
+            };
+            upperBound: {
+              target?: BigNumber;
+              threshold?: BigNumber;
+            };
+          }
+        >
+      ),
+    },
+    lpGammaFunction: {
+      default: serializedUBAFeeConfig.lpGammaFunction.default.map((tuple) =>
+        tuple.map((value) => BigNumber.from(value))
+      ) as [BigNumber, BigNumber][],
+      override: Object.entries(serializedUBAFeeConfig.lpGammaFunction.override ?? {}).reduce((acc, [key, value]) => {
+        acc[key] = value.map((tuple) => tuple.map((value) => BigNumber.from(value))) as [BigNumber, BigNumber][];
+        return acc;
+      }, {} as Record<string, [BigNumber, BigNumber][]>),
+    },
+    incentivePoolAdjustment: Object.entries(serializedUBAFeeConfig.incentivePoolAdjustment ?? {}).reduce(
+      (acc, [key, value]) => {
+        acc[key] = BigNumber.from(value);
+        return acc;
+      },
+      {} as Record<string, BigNumber>
+    ),
+    ubaRewardMultiplier: Object.entries(serializedUBAFeeConfig.ubaRewardMultiplier ?? {}).reduce(
+      (acc, [key, value]) => {
+        acc[key] = BigNumber.from(value);
+        return acc;
+      },
+      {} as Record<string, BigNumber>
+    ),
+  };
+}
+
+function deserializeBigNumberValues(obj: object = {}) {
+  return Object.entries(obj).reduce((acc, [key, value]) => {
+    try {
+      const parsedBigNumber = BigNumber.from(value);
+      return {
+        ...acc,
+        [key]: parsedBigNumber,
+      };
+    } catch {
+      // If throws then value is not a BigNumber.
+      return {
+        ...acc,
+        [key]: value,
+      };
+    }
+  }, {});
 }
