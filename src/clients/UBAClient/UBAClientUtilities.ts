@@ -5,6 +5,7 @@ import UBAFeeConfig from "../../UBAFeeCalculator/UBAFeeConfig";
 import {
   SpokePoolClients,
   filterAsync,
+  getTokenSymbolForFlow,
   isDefined,
   queryHistoricalDepositForFill,
   resolveCorrespondingDepositForFill,
@@ -25,9 +26,7 @@ import {
   RefundRequestWithBlock,
   TokenRunningBalance,
   UbaFlow,
-  UbaOutflow,
   isUbaInflow,
-  outflowIsFill,
 } from "../../interfaces";
 import { Logger } from "winston";
 import { analog } from "../../UBAFeeCalculator";
@@ -180,6 +179,58 @@ export function getUBAFeeConfig(
   );
 }
 
+export function getFeesForFlow(
+  flow: UbaFlow,
+  precedingFlowsInBundle: UbaFlow[],
+  bundleState: UBABundleState,
+  chainId: number,
+  tokenSymbol: string
+): {
+  lpFee: BigNumber;
+  relayerBalancingFee: BigNumber;
+  depositBalancingFee: BigNumber;
+  lastRunningBalance: BigNumber;
+  lastIncentiveBalance: BigNumber;
+  netRunningBalanceAdjustment: BigNumber;
+} {
+  const {
+    runningBalance: lastRunningBalance,
+    incentiveBalance: lastIncentiveBalance,
+    netRunningBalanceAdjustment,
+  } = analog.calculateHistoricalRunningBalance(
+    precedingFlowsInBundle,
+    bundleState.openingBalance,
+    bundleState.openingIncentiveBalance,
+    chainId,
+    tokenSymbol,
+    bundleState.config
+  );
+  const { balancingFee: depositBalancingFee } = getDepositFee(
+    flow.amount,
+    lastRunningBalance,
+    lastIncentiveBalance,
+    chainId,
+    bundleState.config
+  );
+  const { balancingFee: relayerBalancingFee } = getRefundFee(
+    flow.amount,
+    lastRunningBalance,
+    lastIncentiveBalance,
+    chainId,
+    bundleState.config
+  );
+  const lpFee = computeLpFeeForRefresh(bundleState.config.getBaselineFee(flow.destinationChainId, flow.originChainId));
+
+  return {
+    lpFee,
+    relayerBalancingFee,
+    depositBalancingFee,
+    lastRunningBalance,
+    lastIncentiveBalance,
+    netRunningBalanceAdjustment,
+  };
+}
+
 /**
  * Returns most recent `maxBundleStates` bundle ranges for a given chain, in chronological ascending order.
  * @param chainId
@@ -235,44 +286,24 @@ export function getMostRecentBundleBlockRanges(
   return bundleData;
 }
 
-// TODO:
+// TODO: Unit test this
 /**
  * Return the flow with all associated fees so that caller can validate an arbitrary flow at a point intime.
  * This can be used to validate a deposit that is much older than spoke pool client's lookback.
  * @param flow
+ * @bundlesToLoad The number of bundle states to load to validate the flow data. This should always be greater than 0.
+ * We'll always load the bundle directly preceding the flow since we need that at a minimum to get the running balance
+ * of the flow. Loading more bundles adds additional assurance that we'll be able to validate all flows in the
+ * bundle preceding the flow, for example when validating deposits that are older than a fill.
  */
 export async function getModifiedFlow(
   chainId: number,
   flow: UbaFlow,
   hubPoolClient: HubPoolClient,
-  spokePoolClients: SpokePoolClients
+  spokePoolClients: SpokePoolClients,
+  bundlesToLoad = 3
 ): Promise<ModifiedUBAFlow> {
-  let tokenSymbol: string | undefined;
-  if (isUbaInflow(flow)) {
-    if (chainId !== flow.originChainId) {
-      throw new Error(
-        `ChainId mismatch on chain ${flow.originChainId} deposit ${flow.depositId} (${chainId} != ${flow.originChainId})`
-      );
-    }
-    tokenSymbol = hubPoolClient.getTokenInfo(flow.originChainId, flow.originToken)?.symbol;
-  } else if (outflowIsFill(flow as UbaOutflow)) {
-    if (chainId !== flow.destinationChainId) {
-      throw new Error(
-        `ChainId mismatch on chain ${flow.destinationChainId} fill for chain ${flow.originChainId} deposit ${flow.depositId} (${chainId} != ${flow.destinationChainId})`
-      );
-    }
-    tokenSymbol = hubPoolClient.getTokenInfo(flow.destinationChainId, (flow as FillWithBlock).destinationToken)?.symbol;
-  } else if (chainId !== (flow as RefundRequestWithBlock).repaymentChainId) {
-    if (chainId !== flow.repaymentChainId) {
-      throw new Error(
-        `ChainId mismatch on chain ${flow.repaymentChainId} for chain ${flow.originChainId} deposit ${flow.depositId} (${chainId} != ${flow.repaymentChainId})`
-      );
-    }
-    tokenSymbol = hubPoolClient.getTokenInfo(
-      flow.repaymentChainId,
-      (flow as RefundRequestWithBlock).refundToken
-    )?.symbol;
-  }
+  const tokenSymbol = getTokenSymbolForFlow(flow, chainId, hubPoolClient);
   if (!tokenSymbol) {
     throw new Error(`Could not find token symbol for chain ${chainId} and flow ${JSON.stringify(flow)}`);
   }
@@ -282,9 +313,7 @@ export async function getModifiedFlow(
     Object.keys(spokePoolClients).map((_chainId) => {
       const bundles = getMostRecentBundleBlockRanges(
         Number(_chainId),
-        // 3 seems like a reasonable number of bundles to lookback to guarantee we can validate all events in the
-        // most recent one.
-        3,
+        bundlesToLoad,
         flow.quoteBlockNumber,
         hubPoolClient,
         spokePoolClients
@@ -308,7 +337,7 @@ export async function getModifiedFlow(
           maxBlockLookBack: spokePoolClients[spokeChain].eventSearchConfig.maxBlockLookBack,
         };
         const newSpokeClient = new SpokePoolClient(
-          new Logger(),
+          spokePoolClients[chainId].logger,
           spokePoolClients[chainId].spokePool,
           hubPoolClient,
           Number(_chainId),
@@ -322,60 +351,40 @@ export async function getModifiedFlow(
     )
   );
 
-  // Now, load flow data only for the chainId of the flow we care about.
-  const constructedBundlesForChain: UBABundleState[] = [];
-  for (const bundleRange of bundleRanges[chainId]) {
-    const bundleData = await getFlowDataForBundle(
+  // Now, load flow data only for the chainId of the flow we care about. The spoke pool clients should have set
+  // their event search settings old enough to validate all flows in this bundle.
+  const bundleRangeBeforeFlow = bundleRanges[chainId][bundleRanges[chainId].length - 1];
+  const bundleData = (
+    await getFlowDataForBundle(
       hubPoolClient,
       newSpokePoolClients,
-      bundleRange.start,
-      bundleRange.end,
+      bundleRangeBeforeFlow.start,
+      bundleRangeBeforeFlow.end,
       chainId,
       [tokenSymbol],
-      bundleRange.proposalBlock
-    );
-    const bundleDataForToken = bundleData.find((bundle) => bundle.tokenSymbol === tokenSymbol);
-    if (!bundleDataForToken) {
-      throw new Error(`Could not find bundle data for token ${tokenSymbol}`);
-    }
-    constructedBundlesForChain.push(bundleDataForToken);
-  }
+      bundleRangeBeforeFlow.proposalBlock
+    )
+  )[0];
 
   // Get the running balance at the time of the flow.
-  // TODO: Can we assume that last bundle contains flow?
-  const bundleBeforeFlow = constructedBundlesForChain[constructedBundlesForChain.length - 1];
-  if (!bundleBeforeFlow || bundleBeforeFlow.openingBlockNumberForSpokeChain > flow.blockNumber) {
+  if (!bundleData || bundleData.openingBlockNumberForSpokeChain > flow.blockNumber) {
     throw new Error("Couldn't find bundle with start block < flow.block");
   }
-  const precedingFlows = bundleBeforeFlow.flows.filter((bundleFlow) => bundleFlow.flow.blockNumber <= flow.blockNumber);
-  const { runningBalance, incentiveBalance, netRunningBalanceAdjustment } = analog.calculateHistoricalRunningBalance(
+  const precedingFlows = bundleData.flows.filter((bundleFlow) => bundleFlow.flow.blockNumber <= flow.blockNumber);
+  const {
+    lpFee,
+    relayerBalancingFee,
+    depositBalancingFee,
+    lastRunningBalance,
+    lastIncentiveBalance,
+    netRunningBalanceAdjustment,
+  } = getFeesForFlow(
+    flow,
     precedingFlows.map((flow) => flow.flow),
-    bundleBeforeFlow.openingBalance,
-    bundleBeforeFlow.openingIncentiveBalance,
+    bundleData,
     chainId,
-    tokenSymbol,
-    bundleBeforeFlow.config
+    tokenSymbol
   );
-
-  // Finally, return the fees:
-  const { balancingFee: depositBalancingFee } = getDepositFee(
-    flow.amount,
-    runningBalance,
-    incentiveBalance,
-    chainId,
-    bundleBeforeFlow.config
-  );
-  const { balancingFee: relayerBalancingFee } = getRefundFee(
-    flow.amount,
-    runningBalance,
-    incentiveBalance,
-    chainId,
-    bundleBeforeFlow.config
-  );
-  const lpFee = computeLpFeeForRefresh(
-    bundleBeforeFlow.config.getBaselineFee(flow.destinationChainId, flow.originChainId)
-  );
-
   return {
     flow,
     systemFee: {
@@ -386,8 +395,8 @@ export async function getModifiedFlow(
     relayerFee: {
       relayerBalancingFee,
     },
-    runningBalance,
-    incentiveBalance,
+    runningBalance: lastRunningBalance,
+    incentiveBalance: lastIncentiveBalance,
     netRunningBalanceAdjustment,
   };
 }
@@ -577,34 +586,13 @@ export async function getFlowDataForBundle(
         const previousFlows = constructedBundle.flows.map((flow) => flow.flow);
         const previousFlowsIncludingCurrent = previousFlows.concat(flow);
         const {
-          runningBalance: lastRunningBalance,
-          incentiveBalance: lastIncentiveBalance,
+          lpFee,
+          relayerBalancingFee,
+          depositBalancingFee,
+          lastRunningBalance,
+          lastIncentiveBalance,
           netRunningBalanceAdjustment,
-        } = analog.calculateHistoricalRunningBalance(
-          previousFlowsIncludingCurrent,
-          constructedBundle.openingBalance,
-          constructedBundle.openingIncentiveBalance,
-          chainId,
-          tokenSymbol,
-          constructedBundle.config
-        );
-        const { balancingFee: depositBalancingFee } = getDepositFee(
-          flow.amount,
-          lastRunningBalance,
-          lastIncentiveBalance,
-          chainId,
-          constructedBundle.config
-        );
-        const { balancingFee: relayerBalancingFee } = getRefundFee(
-          flow.amount,
-          lastRunningBalance,
-          lastIncentiveBalance,
-          chainId,
-          constructedBundle.config
-        );
-        const lpFee = computeLpFeeForRefresh(
-          constructedBundle.config.getBaselineFee(flow.destinationChainId, flow.originChainId)
-        );
+        } = getFeesForFlow(flow, previousFlowsIncludingCurrent, constructedBundle, chainId, tokenSymbol);
         constructedBundle.flows.push({
           flow,
           runningBalance: lastRunningBalance,
