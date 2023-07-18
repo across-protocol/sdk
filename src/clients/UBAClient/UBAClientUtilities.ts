@@ -250,7 +250,7 @@ export async function getModifiedFlow(
   let tokenSymbol: string | undefined;
   if (isUbaInflow(flow)) {
     if (chainId !== flow.originChainId) {
-      throw new Error(`ChainId ${chainId} should be deposit.originChainId`);
+      throw new Error(`ChainId mismatch on chain ${deposit.originChainId} deposit ${deposit.depositId} (${chainId} != ${deposit.originChainId})`);
     }
     tokenSymbol = hubPoolClient.getTokenInfo(flow.originChainId, flow.originToken)?.symbol;
   } else if (outflowIsFill(flow as UbaOutflow)) {
