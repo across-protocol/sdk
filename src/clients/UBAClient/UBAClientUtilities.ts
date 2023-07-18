@@ -161,12 +161,12 @@ export function getUBAFeeConfig(
       override: {
         [chainTokenCombination]: {
           lowerBound: {
-            target: threshold.target_lower,
-            threshold: threshold.threshold_lower,
+            target: threshold?.target_lower,
+            threshold: threshold?.threshold_lower,
           },
           upperBound: {
-            target: threshold.target_upper,
-            threshold: threshold.threshold_upper,
+            target: threshold?.target_upper,
+            threshold: threshold?.threshold_upper,
           },
         },
       },
