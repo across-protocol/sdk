@@ -559,6 +559,7 @@ export async function getFlowDataForBundle(
       const constructedBundle: UBABundleState & { tokenSymbol: string } = {
         flows: [],
         openingBlockNumberForSpokeChain: startingBundleBlockNumber,
+        closingBlockNumberForSpokeChain: endingBundleBlockNumber,
         openingBalance: runningBalance,
         openingIncentiveBalance: incentiveBalance,
         config: ubaConfigForBundle,

@@ -42,6 +42,7 @@ export type UBABundleState = {
   openingBalance: BigNumber;
   openingIncentiveBalance: BigNumber;
   openingBlockNumberForSpokeChain: number;
+  closingBlockNumberForSpokeChain: number;
   config: UBAConfig;
   flows: ModifiedUBAFlow[];
 };

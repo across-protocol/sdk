@@ -143,6 +143,13 @@ export class BaseUBAClient extends BaseAbstractClient {
     if (!specificBundleState) {
       throw new Error(`No bundle states found for token ${tokenSymbol} on chain ${chainId}`);
     }
+
+    // If there are no flows in the bundle AFTER the balancingActionBlockNumber then its safer to throw an error
+    // then risk returning an invalid Balancing fee because we're missing flows preceding the
+    //  balancingActionBlockNumber.
+    if (specificBundleState.closingBlockNumberForSpokeChain < balancingActionBlockNumber) {
+      throw new Error("Bundle end block doesn't cover flow");
+    }
     /** @TODO ADD TX INDEX COMPARISON */
     const flows = (specificBundleState?.flows ?? []).filter(
       (flow) => flow.flow.blockNumber <= balancingActionBlockNumber
