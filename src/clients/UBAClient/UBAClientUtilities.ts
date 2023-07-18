@@ -7,6 +7,7 @@ import {
   filterAsync,
   getTokenSymbolForFlow,
   isDefined,
+  mapAsync,
   queryHistoricalDepositForFill,
   resolveCorrespondingDepositForFill,
   sortEventsAscending,
@@ -327,28 +328,26 @@ export async function getModifiedFlow(
 
   // Instantiate new spoke pool clients that will look back at older data:
   const newSpokePoolClients = Object.fromEntries(
-    await Promise.all(
-      Object.keys(spokePoolClients).map(async (_chainId) => {
-        const spokeChain = Number(_chainId);
-        // Span spoke pool client event searches from oldest bundle's start to newest bundle's end:
-        const spokePoolClientSearchSettings = {
-          fromBlock: bundleRanges[spokeChain][0].start,
-          toBlock: bundleRanges[spokeChain][bundleRanges[spokeChain].length - 1].end,
-          maxBlockLookBack: spokePoolClients[spokeChain].eventSearchConfig.maxBlockLookBack,
-        };
-        const newSpokeClient = new SpokePoolClient(
-          spokePoolClients[chainId].logger,
-          spokePoolClients[chainId].spokePool,
-          hubPoolClient,
-          Number(_chainId),
-          spokePoolClients[chainId].deploymentBlock,
-          spokePoolClientSearchSettings
-        );
-        await newSpokeClient.update();
+    await mapAsync(Object.keys(spokePoolClients), async (_chainId) => {
+      const spokeChain = Number(_chainId);
+      // Span spoke pool client event searches from oldest bundle's start to newest bundle's end:
+      const spokePoolClientSearchSettings = {
+        fromBlock: bundleRanges[spokeChain][0].start,
+        toBlock: bundleRanges[spokeChain][bundleRanges[spokeChain].length - 1].end,
+        maxBlockLookBack: spokePoolClients[spokeChain].eventSearchConfig.maxBlockLookBack,
+      };
+      const newSpokeClient = new SpokePoolClient(
+        spokePoolClients[chainId].logger,
+        spokePoolClients[chainId].spokePool,
+        hubPoolClient,
+        Number(_chainId),
+        spokePoolClients[chainId].deploymentBlock,
+        spokePoolClientSearchSettings
+      );
+      await newSpokeClient.update();
 
-        return [chainId, newSpokeClient];
-      })
-    )
+      return [chainId, newSpokeClient];
+    })
   );
 
   // Now, load flow data only for the chainId of the flow we care about. The spoke pool clients should have set
