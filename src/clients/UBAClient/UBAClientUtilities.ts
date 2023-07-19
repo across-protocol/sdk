@@ -548,14 +548,10 @@ export function getUbaActivationBundleStartBlocks(hubPoolClient: HubPoolClient, 
  * @returns
  */
 export function getUbaActivationBlock(configStoreClient: AcrossConfigStoreClient): number {
-  const config = configStoreClient.cumulativeConfigStoreVersionUpdates.find((config) => {
+  return configStoreClient.cumulativeConfigStoreVersionUpdates.find((config) => {
     isUBA(Number(config.value));
-  });
-  if (config) {
-    return config.blockNumber;
-  } else {
-    return Number.MAX_SAFE_INTEGER;
-  }
+  })?.blockNumber ?? Number.MAX_SAFE_INTEGER;
+
 }
 
 export function isUbaBlock(block: number, configStoreClient: AcrossConfigStoreClient): boolean {
