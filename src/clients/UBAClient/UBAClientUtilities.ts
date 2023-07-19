@@ -862,7 +862,6 @@ export async function refundRequestIsValid(
       );
   });
   if (!isDefined(fill)) {
-    // If fill block is
     if (fillBlock.lt(destSpoke.eventSearchConfig.fromBlock)) {
       // TODO: We need to do a look back for a fill if we can't find it. We can't assume it doesn't exist, similar to
       // why we try to do a longer lookback below for a deposit. The problem with looking up the fill is that there is no
