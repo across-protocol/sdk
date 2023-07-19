@@ -31,7 +31,6 @@ import {
 } from "../../interfaces";
 import { Logger } from "winston";
 import { analog } from "../../UBAFeeCalculator";
-import { CHAIN_ID_LIST_INDICES } from "../../constants";
 import { getDepositFee, getRefundFee } from "../../UBAFeeCalculator/UBAFeeSpokeCalculatorAnalog";
 import {
   blockRangesAreInvalidForSpokeClients,
@@ -435,9 +434,10 @@ export async function updateUBAClient(
     await hubPoolClient.update();
     await Promise.all(Object.values(spokePoolClients).map((spokePoolClient) => spokePoolClient.update()));
   }
+  const chainIds = hubPoolClient.configStoreClient.enabledChainIds;
   relevantChainIds.forEach((chainId) => {
-    if (!CHAIN_ID_LIST_INDICES.includes(chainId)) {
-      throw new Error(`Unsupported chainId ${chainId} in Across. Valid chains are ${CHAIN_ID_LIST_INDICES}`);
+    if (!chainIds.includes(chainId)) {
+      throw new Error(`Unsupported chainId ${chainId} in Across. Valid chains are ${chainIds}`);
     }
   });
 
