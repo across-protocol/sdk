@@ -7,7 +7,7 @@ import { getFeesForFlow, updateUBAClient } from "./UBAClientUtilities";
 import { SystemFeeResult, UBAClientState } from "./UBAClientTypes";
 import { UbaInflow } from "../../interfaces";
 import { findLast } from "../../utils";
-import { BigNumber } from "ethers";
+import { BigNumber, ethers } from "ethers";
 export class UBAClientWithRefresh extends BaseUBAClient {
   // @dev chainIdIndices supports indexing members of root bundle proposals submitted to the HubPool.
   //      It must include the complete set of chain IDs ever supported by the HubPool.
@@ -61,17 +61,39 @@ export class UBAClientWithRefresh extends BaseUBAClient {
   }
 
   /**
-   * This is meant to be called by the Fee Quoting API to give an indiciative fee, rather than an exact fee
-   * for the next deposit.
-   * @param amount
-   * @param chainId
-   * @param tokenSymbol
+   * This is meant to be called by the Fee Quoting API to give an indicative fee, rather than an exact fee
+   * for a theoretical deposit.
    */
-  public getLatestFeesForDeposit(deposit: UbaInflow): {
+  public getLatestFeesForDeposit(
+    amount: BigNumber,
+    blockNumber: number,
+    originToken: string,
+    originChainId: number,
+    destinationChainId: number
+  ): {
     lpFee: BigNumber;
     relayerBalancingFee: BigNumber;
     depositBalancingFee: BigNumber;
   } {
+    const deposit: UbaInflow = {
+      blockNumber,
+      amount,
+      originToken,
+      originChainId,
+      destinationChainId,
+      // Unused params:
+      recipient: "",
+      depositId: 0,
+      relayerFeePct: ethers.constants.Zero,
+      quoteTimestamp: 0,
+      destinationToken: "",
+      message: "",
+      quoteBlockNumber: 0,
+      logIndex: 0,
+      transactionHash: "",
+      transactionIndex: 0,
+      depositor: "",
+    };
     const tokenSymbol = this.hubPoolClient.getL1TokenInfoForL2Token(deposit.originToken, deposit.originChainId)?.symbol;
     if (!tokenSymbol) throw new Error("No token symbol found");
 
@@ -81,9 +103,14 @@ export class UBAClientWithRefresh extends BaseUBAClient {
       throw new Error("No bundle states in memory");
     }
 
+    if (lastBundleState.openingBlockNumberForSpokeChain > deposit.blockNumber) {
+      throw new Error("Latest bundle start block doesn't cover flow");
+    }
+
     const { lpFee, depositBalancingFee, relayerBalancingFee } = getFeesForFlow(
       deposit,
-      lastBundleState.flows.map(({ flow }) => flow),
+      // Pass in all flows that precede the deposit
+      lastBundleState.flows.filter(({ flow }) => flow.blockNumber <= deposit.blockNumber).map(({ flow }) => flow),
       // We make an assumption that latest UBA config will be applied to the flow. This isn't necessarily true
       // if the current bundle is pending liveness. In that case we'd want to grab the config set at the
       // bundle start block. However because this function is designed to return an approximation, this is
