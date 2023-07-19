@@ -84,8 +84,12 @@ class UBAConfig {
    * @returns The baseline fee
    */
   public getBaselineFee(destinationChainId: number, originChainId: number): BigNumber {
-    const routeCombination = `${originChainId}-${destinationChainId}`;
-    return this.baselineFee.override?.[routeCombination] ?? this.baselineFee.default;
+    return (
+      this.baselineFee.override?.[`${originChainId}-${destinationChainId}`] ??
+      this.baselineFee.override?.[`${destinationChainId}-${originChainId}`] ??
+      this.baselineFee.default ??
+      ethers.constants.Zero
+    );
   }
 
   /**
@@ -114,7 +118,13 @@ class UBAConfig {
    */
   public getBalanceTriggerThreshold(chainId: number, tokenSymbol: string): ThresholdBoundType {
     const chainTokenCombination = `${chainId}-${tokenSymbol}`;
-    return this.balanceTriggerThreshold.override?.[chainTokenCombination] ?? this.balanceTriggerThreshold.default;
+    return (
+      this.balanceTriggerThreshold.override?.[chainTokenCombination] ??
+      this.balanceTriggerThreshold.default ?? {
+        upperBound: {}, // Default to empty object if not set
+        lowerBound: {}, // Default to empty object if not set
+      }
+    );
   }
 
   /**
