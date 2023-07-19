@@ -25,8 +25,8 @@ import { ExecutedRootBundle, PendingRootBundle, ProposedRootBundle } from "../in
 import { CrossChainContractsSet, DestinationTokenWithBlock, SetPoolRebalanceRoot } from "../interfaces";
 import * as lpFeeCalculator from "../lpFeeCalculator";
 import { AcrossConfigStoreClient as ConfigStoreClient } from "./";
+import { isUbaBlock } from "./UBAClient/UBAClientUtilities";
 import { BaseAbstractClient } from "./BaseAbstractClient";
-import { CHAIN_ID_LIST_INDICES } from "../constants";
 
 type _HubPoolUpdate = {
   success: true;
@@ -274,7 +274,7 @@ export class HubPoolClient extends BaseAbstractClient {
       deposit.originChainId,
       this.latestBlockNumber
     );
-    if (this.configStoreClient.isUbaBlock(bundleStartBlockContainingDeposit)) {
+    if (isUbaBlock(bundleStartBlockContainingDeposit, this.configStoreClient)) {
       // If UBA deposit then we can't compute the realizedLpFeePct until after we've updated the UBA Client.
       return {
         realizedLpFeePct: undefined,
@@ -409,21 +409,6 @@ export class HubPoolClient extends BaseAbstractClient {
       endingBlockNumber = bundleEvalBlockNumber;
     }
     return endingBlockNumber;
-  }
-
-  /**
-   * Returns bundle range start blocks for first bundle that UBA was activated
-   * @param chainIds Chains to return start blocks for.
-   * */
-  getUbaActivationBundleStartBlocks(chainIds: number[] = CHAIN_ID_LIST_INDICES): number[] {
-    if (!isDefined(this.latestBlockNumber)) {
-      throw new Error("getUbaActivationBundleStartBlocks: latestBlockNumber is not set");
-    }
-    const ubaActivationHubPoolBlock = this.configStoreClient.getUbaActivationBlock();
-    const bundleStartBlocks = chainIds.map((chainId) => {
-      return this.getBundleStartBlockContainingBlock(ubaActivationHubPoolBlock, chainId);
-    });
-    return bundleStartBlocks;
   }
 
   // TODO: This might not be necessary since the cumulative root bundle count doesn't grow fast enough, but consider
