@@ -117,7 +117,13 @@ class UBAConfig {
    */
   public getBalanceTriggerThreshold(chainId: number, tokenSymbol: string): ThresholdBoundType {
     const chainTokenCombination = `${chainId}-${tokenSymbol}`;
-    return this.balanceTriggerThreshold.override?.[chainTokenCombination] ?? this.balanceTriggerThreshold.default;
+    return (
+      this.balanceTriggerThreshold.override?.[chainTokenCombination] ??
+      this.balanceTriggerThreshold.default ?? {
+        upperBound: {}, // Default to empty object if not set
+        lowerBound: {}, // Default to empty object if not set
+      }
+    );
   }
 
   /**
