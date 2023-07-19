@@ -50,3 +50,19 @@ export type UBABundleState = {
 export type UBAClientState = {
   [chainId: number]: UBAChainState;
 };
+
+export type SpokePoolEventFilter = {
+  originChainId?: number;
+  destinationChainId?: number;
+  relayer?: string;
+  fromBlock?: number;
+};
+
+export type SpokePoolFillFilter = {
+  relayer?: string;
+  fromBlock?: number;
+  toBlock?: number;
+  repaymentChainId?: number;
+  isSlowRelay?: boolean;
+  isCompleteFill?: boolean;
+};

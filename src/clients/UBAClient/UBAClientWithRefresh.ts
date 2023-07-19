@@ -131,6 +131,7 @@ export class UBAClientWithRefresh extends BaseUBAClient {
 
   /**
    * Updates the clients and UBAFeeCalculators.
+   * @param state An optional UBAClientState to use instead of fetching from the clients.
    * @param forceRefresh An optional boolean to force a refresh of the clients.
    */
   public async update(state?: UBAClientState, forceClientRefresh?: boolean): Promise<void> {
