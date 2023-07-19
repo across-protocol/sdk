@@ -341,7 +341,7 @@ export class HubPoolClient extends BaseAbstractClient {
     // If there is no latest executed bundle, then return the spoke's activation block. This means that there is no
     // bundle before `hubPoolLatestBlock` containing the event block so the next bundle will start at
     // the activation block and contain the event.
-    if (!latestExecutedBundle) {
+    if (!isDefined(latestExecutedBundle)) {
       return this.getSpokeActivationBlockForChain(eventChain);
     }
 
@@ -414,14 +414,14 @@ export class HubPoolClient extends BaseAbstractClient {
 
   /**
    * Returns bundle range start blocks for first bundle that UBA was activated
+   * @param chainIds Chains to return start blocks for.
    * */
   getUbaActivationBundleStartBlocks(chainIds: number[] = CHAIN_ID_LIST_INDICES): number[] {
-    if (!this.latestBlockNumber) {
+    if (!isDefined(this.latestBlockNumber)) {
       throw new Error("getUbaActivationBundleStartBlocks: latestBlockNumber is not set");
     }
     const ubaActivationHubPoolBlock = this.configStoreClient.getUbaActivationBlock();
     const bundleStartBlocks = chainIds.map((chainId) => {
-      // Otherwise, return the start block of the bundle containing the end block.
       return this.getBundleStartBlockContainingBlock(ubaActivationHubPoolBlock, chainId);
     });
     return bundleStartBlocks;
@@ -776,8 +776,8 @@ export class HubPoolClient extends BaseAbstractClient {
       if (isUBA(version)) {
         // runningBalances array is a concatenation of pre-UBA runningBalances and incentiveBalances.
         executedRootBundle.runningBalances = runningBalances.slice(0, nTokens);
-        // If bundle hasn't added incentive balance values, then assume they are 0.
-        // TODO: They really should be equal to the last validated incentive balance value.
+        // If bundle hasn't added incentive balance values, then assume they are 0. This is in place
+        // to make sure that the incentiveBalances isn't undefined.
         executedRootBundle.incentiveBalances =
           runningBalances.length > nTokens
             ? runningBalances.slice(nTokens)

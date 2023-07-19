@@ -354,8 +354,6 @@ export async function getModifiedFlow(
     })
   );
 
-  // What if there are 0 bundle ranges?
-
   // Instantiate new spoke pool clients that will look back at older data:
   const newSpokePoolClients = Object.fromEntries(
     await mapAsync(Object.keys(spokePoolClients), async (_chainId) => {
