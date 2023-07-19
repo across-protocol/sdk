@@ -4,7 +4,7 @@ import { SpokePoolClient } from "../SpokePoolClient";
 import { HubPoolClient } from "../HubPoolClient";
 import { BaseUBAClient } from "./UBAClientBase";
 import { getFeesForFlow, updateUBAClient } from "./UBAClientUtilities";
-import { SystemFeeResult, UBAClientState } from "./UBAClientTypes";
+import { SystemFeeResult, UBABundleState, UBAClientState } from "./UBAClientTypes";
 import { UbaInflow } from "../../interfaces";
 import { findLast } from "../../utils";
 import { BigNumber, ethers } from "ethers";
@@ -25,33 +25,44 @@ export class UBAClientWithRefresh extends BaseUBAClient {
     assert(Object.values(spokePoolClients).length > 0, "No SpokePools provided");
   }
 
+  _getBundleStateContainingBlock(chainId: number, tokenSymbol: string, block: number): UBABundleState {
+    const relevantBundleStates = this.retrieveBundleStates(chainId, tokenSymbol);
+    const specificBundleState = findLast(
+      relevantBundleStates,
+      (bundleState) => bundleState.openingBlockNumberForSpokeChain <= block
+    );
+    if (!specificBundleState) {
+      throw new Error(`No bundle states found for token ${tokenSymbol} on chain ${chainId}`);
+    }
+
+    // If there are no flows in the bundle AFTER the balancingActionBlockNumber then its safer to throw an error
+    // then risk returning an invalid Balancing fee because we're missing flows preceding the
+    //  balancingActionBlockNumber.
+    if (specificBundleState.closingBlockNumberForSpokeChain < block) {
+      throw new Error(
+        `Bundle end block ${specificBundleState.closingBlockNumberForSpokeChain} doesn't cover flow block ${block}`
+      );
+    }
+
+    return specificBundleState;
+  }
   /**
    * @notice Intended to be called by Relayer to set `realizedLpFeePct` for a deposit.
    */
   public computeSystemFeeForDeposit(deposit: UbaInflow): SystemFeeResult {
     const tokenSymbol = this.hubPoolClient.getL1TokenInfoForL2Token(deposit.originToken, deposit.originChainId)?.symbol;
     if (!tokenSymbol) throw new Error("No token symbol found");
-    const relevantBundleStates = this.retrieveBundleStates(deposit.originChainId, tokenSymbol);
-    const specificBundleState = findLast(
-      relevantBundleStates,
-      (bundleState) => bundleState.openingBlockNumberForSpokeChain <= deposit.blockNumber
+    const specificBundleState = this._getBundleStateContainingBlock(
+      deposit.originChainId,
+      tokenSymbol,
+      deposit.blockNumber
     );
-    if (!specificBundleState) {
-      throw new Error(`No bundle states found for token ${tokenSymbol} on chain ${deposit.originChainId}`);
-    }
-
-    // If there are no flows in the bundle AFTER the balancingActionBlockNumber then its safer to throw an error
-    // then risk returning an invalid Balancing fee because we're missing flows preceding the
-    //  balancingActionBlockNumber.
-    if (specificBundleState.closingBlockNumberForSpokeChain < deposit.blockNumber) {
-      throw new Error("Bundle end block doesn't cover flow");
-    }
 
     // Find matching flow in bundle state:
     const matchingFlow = specificBundleState.flows.find(({ flow }) => {
       // TODO: Is there more validation needed here? I assume no because the bundle states are already
       // sanitized on update()
-      return flow.depositId === deposit.depositId;
+      return flow.depositId === deposit.depositId && flow.originChainId === deposit.originChainId;
     });
     if (!matchingFlow) {
       throw new Error("Found bundle state containing flow but no matching flow found for deposit");
@@ -96,26 +107,17 @@ export class UBAClientWithRefresh extends BaseUBAClient {
     };
     const tokenSymbol = this.hubPoolClient.getL1TokenInfoForL2Token(deposit.originToken, deposit.originChainId)?.symbol;
     if (!tokenSymbol) throw new Error("No token symbol found");
-
-    // Grab latest bundle state:
-    const lastBundleState = this.retrieveLastBundleState(deposit.originChainId, tokenSymbol);
-    if (!lastBundleState) {
-      throw new Error("No bundle states in memory");
-    }
-
-    if (lastBundleState.openingBlockNumberForSpokeChain > deposit.blockNumber) {
-      throw new Error("Latest bundle start block doesn't cover flow");
-    }
+    const specificBundleState = this._getBundleStateContainingBlock(
+      deposit.originChainId,
+      tokenSymbol,
+      deposit.blockNumber
+    );
 
     const { lpFee, depositBalancingFee, relayerBalancingFee } = getFeesForFlow(
       deposit,
-      // Pass in all flows that precede the deposit
-      lastBundleState.flows.filter(({ flow }) => flow.blockNumber <= deposit.blockNumber).map(({ flow }) => flow),
-      // We make an assumption that latest UBA config will be applied to the flow. This isn't necessarily true
-      // if the current bundle is pending liveness. In that case we'd want to grab the config set at the
-      // bundle start block. However because this function is designed to return an approximation, this is
-      // a useful simplification.
-      lastBundleState,
+      // Pass in all flows that precede the deposit.
+      specificBundleState.flows.filter(({ flow }) => flow.blockNumber <= deposit.blockNumber).map(({ flow }) => flow),
+      specificBundleState,
       deposit.originChainId,
       tokenSymbol
     );

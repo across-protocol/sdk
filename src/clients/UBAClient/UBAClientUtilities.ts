@@ -544,6 +544,10 @@ export async function updateUBAClient(
         throw new Error(`Spoke pool client ${chainId} has not searched all blocks in bundle range`);
       }
 
+      // TODO: We are stuck here. Given a list of bundle block ranges and functions like getFlows(chainId, tokenSymbol)
+      // that return all flows for a bundle range for a chain and token, how do you validate the set of flows
+      // and charge balancing fees to all of them?
+
       // For each bundle, load common data that we'll use for all tokens in bundle, and then load flow data
       // for each token. This is a triple loop that we run in parallel at each level:
       // 1. Loop through all bundles
