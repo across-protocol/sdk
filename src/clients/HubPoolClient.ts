@@ -20,7 +20,15 @@ import {
   paginatedEventQuery,
   toBN,
 } from "../utils";
-import { Deposit, L1Token, CancelledRootBundle, DisputedRootBundle, LpToken, TokenRunningBalance } from "../interfaces";
+import {
+  Deposit,
+  L1Token,
+  CancelledRootBundle,
+  DisputedRootBundle,
+  LpToken,
+  TokenRunningBalance,
+  DepositWithBlock,
+} from "../interfaces";
 import { ExecutedRootBundle, PendingRootBundle, ProposedRootBundle } from "../interfaces";
 import { CrossChainContractsSet, DestinationTokenWithBlock, SetPoolRebalanceRoot } from "../interfaces";
 import * as lpFeeCalculator from "../lpFeeCalculator";
@@ -253,13 +261,10 @@ export class HubPoolClient extends BaseAbstractClient {
   }
 
   async computeRealizedLpFeePct(
-    deposit: {
-      quoteTimestamp: number;
-      amount: BigNumber;
-      destinationChainId: number;
-      originChainId: number;
-      blockNumber: number;
-    },
+    deposit: Pick<
+      DepositWithBlock,
+      "quoteTimestamp" | "amount" | "destinationChainId" | "originChainId" | "blockNumber"
+    >,
     l1Token: string
   ): Promise<{ realizedLpFeePct: BigNumber | undefined; quoteBlock: number }> {
     const quoteBlock = await this.getBlockNumber(deposit.quoteTimestamp);
@@ -754,7 +759,7 @@ export class HubPoolClient extends BaseAbstractClient {
       const nTokens = l1Tokens.length;
 
       // Safeguard
-      if (![nTokens, nTokens*2].includes(runningBalances.length)) {
+      if (![nTokens, nTokens * 2].includes(runningBalances.length)) {
         throw new Error(
           `Invalid runningBalances length: ${runningBalances.length}. Expected ${nTokens} or ${nTokens * 2} for chain ${
             this.chainId
