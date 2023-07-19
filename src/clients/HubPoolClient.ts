@@ -733,24 +733,6 @@ export class HubPoolClient extends BaseAbstractClient {
         continue;
       }
 
-      // The applicable version is determined by the block number of the corresponding proposal.
-      let proposalBlockNumber = event.blockNumber;
-      for (let idx = this.proposedRootBundles.length - 1; idx >= 0; --idx) {
-        const rootBundleProposal = this.proposedRootBundles[idx];
-        if (event.blockNumber > rootBundleProposal.blockNumber) {
-          proposalBlockNumber = rootBundleProposal.blockNumber;
-          break;
-        }
-      }
-      if (proposalBlockNumber === event.blockNumber) {
-        this.logger.warn({
-          at: "HubPoolClient#update",
-          message: `Unable to find RootBundleProposal before blockNumber ${event.blockNumber}`,
-          executedRootBundle: event.transactionHash,
-        });
-        continue;
-      }
-
       // Set running balances and incentive balances for this bundle.
       // Pre-UBA: runningBalances length is 1:1 with l1Tokens length. Pad incentiveBalances with zeroes.
       // Post-UBA: runningBalances array is a concatenation of pre-UBA runningBalances and incentiveBalances.
