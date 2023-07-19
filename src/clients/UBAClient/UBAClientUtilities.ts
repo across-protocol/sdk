@@ -2,7 +2,7 @@ import assert from "assert";
 import { BigNumber, BigNumberish } from "ethers";
 import { HubPoolClient } from "../HubPoolClient";
 import UBAFeeConfig from "../../UBAFeeCalculator/UBAFeeConfig";
-import { filterAsync, mapAsync } from "../../utils/ArrayUtils";
+import { mapAsync } from "../../utils/ArrayUtils";
 import { SpokePoolClients } from "../../utils/TypeUtils";
 import { isDefined } from "../../utils/TypeGuards";
 import { sortEventsAscending } from "../../utils/EventUtils";
@@ -17,7 +17,6 @@ import {
   UBAClientState,
 } from "./UBAClientTypes";
 import { DepositWithBlock, Fill, FillWithBlock, RefundRequestWithBlock, UbaFlow, isUbaInflow } from "../../interfaces";
-import { Logger } from "winston";
 import { analog } from "../../UBAFeeCalculator";
 import { getDepositFee, getRefundFee } from "../../UBAFeeCalculator/UBAFeeSpokeCalculatorAnalog";
 import {
@@ -327,7 +326,7 @@ export async function getModifiedFlow(
       const bundles = getMostRecentBundleBlockRanges(
         Number(_chainId),
         bundlesToLoad,
-        flow.quoteBlockNumber,
+        isUbaInflow(flow) ? flow.quoteBlockNumber : flow.matchedDeposit.quoteBlockNumber,
         hubPoolClient,
         spokePoolClients
       );
@@ -552,6 +551,9 @@ export async function updateUBAClient(
       // At the end of these three loops we'll have flow data for each token for each bundle.
       await Promise.all(
         bundles.map(async ({ end: endingBundleBlockNumber, start: startingBundleBlockNumber }) => {
+          // Get bundle state data for each block range and each token for this chain.
+          // Since we're going through the bundles in chronological ascending order, we
+          // push to the bundle state array for each token to maintain the order.
           const constructedBundlesForChain = await getFlowDataForBundle(
             hubPoolClient,
             spokePoolClients,
@@ -713,8 +715,7 @@ async function getFlows(
   spokePoolClients: SpokePoolClients,
   hubPoolClient: HubPoolClient,
   fromBlock?: number,
-  toBlock?: number,
-  logger?: Logger
+  toBlock?: number
 ): Promise<UbaFlow[]> {
   const spokePoolClient = spokePoolClients[chainId];
 
@@ -735,50 +736,22 @@ async function getFlows(
   // - Slow fills.
   // - Fills that are considered "invalid" by the spoke pool client.
   const fills: UbaFlow[] = (
-    await Promise.all(
-      (
-        await getFills(chainId, hubPoolClient, spokePoolClients, {
-          fromBlock,
-          toBlock,
-          repaymentChainId: chainId,
-          isSlowRelay: false,
-        })
-      ).filter((fill: FillWithBlock) => {
-        // We only want to include full fills as flows. Partial fills need to request refunds and those refunds
-        // will be included as flows.
-        return fill.fillAmount.eq(fill.totalFilledAmount);
-      })
-    )
-  ).filter((fill) => fill !== undefined) as UbaFlow[];
+    await getValidFillCandidates(chainId, hubPoolClient, spokePoolClients, {
+      fromBlock,
+      toBlock,
+      repaymentChainId: chainId,
+      isSlowRelay: false,
+    })
+  ).filter((fill: FillWithBlock) => {
+    // We only want to include full fills as flows. Partial fills need to request refunds and those refunds
+    // will be included as flows.
+    return fill.fillAmount.eq(fill.totalFilledAmount);
+  }) as UbaFlow[];
 
-  const refundRequests: UbaFlow[] = (
-    await Promise.all(
-      spokePoolClient.getRefundRequests(fromBlock, toBlock).map(async (refundRequest) => {
-        const result = await refundRequestIsValid(spokePoolClients, hubPoolClient, refundRequest);
-        if (!result.valid && logger !== undefined) {
-          logger.info({
-            at: "UBAClient::getFlows",
-            message: `Excluding RefundRequest on chain ${chainId}`,
-            reason: result.reason,
-            refundRequest,
-          });
-        }
-
-        if (result.valid) {
-          const matchingDeposit = result.matchingDeposit;
-          if (matchingDeposit === undefined) {
-            throw new Error("refundRequestIsValid returned true but matchingDeposit is undefined");
-          }
-          return {
-            ...refundRequest,
-            quoteBlockNumber: matchingDeposit.quoteBlockNumber,
-          };
-        } else {
-          return undefined;
-        }
-      })
-    )
-  ).filter((refundRequest) => refundRequest !== undefined) as UbaFlow[];
+  const refundRequests: UbaFlow[] = await getValidRefundCandidates(chainId, hubPoolClient, spokePoolClients, {
+    fromBlock,
+    toBlock,
+  });
 
   // This is probably more expensive than we'd like... @todo: optimise.
   const flows = sortEventsAscending(deposits.concat(fills).concat(refundRequests));
@@ -863,6 +836,8 @@ export async function refundRequestIsValid(
     }
   }
 
+  // Now, match the deposit against a fill but don't check the realizedLpFeePct parameter because it will be
+  // undefined in the spoke pool client until we validate it later.
   const deposit = await queryHistoricalDepositForFill(hubPoolClient, spokePoolClients, fill);
   if (!isDefined(deposit)) {
     return { valid: false, reason: "Unable to find matching deposit" };
@@ -888,36 +863,32 @@ export async function refundRequestIsValid(
   return { valid: true, matchingFill: fill, matchingDeposit: deposit };
 }
 
-export type SpokePoolEventFilter = {
-  originChainId?: number;
-  destinationChainId?: number;
+export type SpokePoolFillFilter = {
   relayer?: string;
   fromBlock?: number;
   toBlock?: number;
-};
-
-export type SpokePoolFillFilter = SpokePoolEventFilter & {
   repaymentChainId?: number;
   isSlowRelay?: boolean;
 };
 
 /**
- * @description Search for fills recorded by a specific SpokePool.
+ * @description Search for fills recorded by a specific SpokePool. These fills are matched against deposits
+ * on all fields except for `realizedLpFeePct` which isn't filled yet.
  * @param chainId Chain ID of the relevant SpokePoolClient instance.
  * @param spokePoolClients Set of SpokePoolClient instances, mapped by chain ID.
  * @param filter  Optional filtering criteria.
  * @returns Array of FillWithBlock events matching the chain ID and optional filtering criteria.
  */
-export async function getFills(
+export async function getValidFillCandidates(
   chainId: number,
   hubPoolClient: HubPoolClient,
   spokePoolClients: SpokePoolClients,
   filter: SpokePoolFillFilter = {}
-): Promise<(FillWithBlock & { quoteBlockNumber: number })[]> {
+): Promise<(FillWithBlock & { matchedDeposit: DepositWithBlock })[]> {
   const spokePoolClient = spokePoolClients[chainId];
   assert(isDefined(spokePoolClient));
 
-  const { originChainId, repaymentChainId, relayer, isSlowRelay, fromBlock, toBlock } = filter;
+  const { repaymentChainId, relayer, isSlowRelay, fromBlock, toBlock } = filter;
 
   const fills = (
     await mapAsync(spokePoolClient.getFills(), async (fill) => {
@@ -930,7 +901,6 @@ export async function getFills(
 
       // @dev tsdx and old Typescript seem to prevent dynamic iteration over the filter, so evaluate the keys manually.
       if (
-        (isDefined(originChainId) && fill.originChainId !== originChainId) ||
         (isDefined(repaymentChainId) && fill.repaymentChainId !== repaymentChainId) ||
         (isDefined(relayer) && fill.relayer !== relayer) ||
         (isDefined(isSlowRelay) && fill.updatableRelayData.isSlowRelay !== isSlowRelay)
@@ -938,11 +908,13 @@ export async function getFills(
         return undefined;
       }
 
+      // This deposit won't have a realizedLpFeePct field defined if its a UBA deposit, therefore match the fill
+      // against all of the deposit fields except for this field which we'll fill in later.
       const deposit = await queryHistoricalDepositForFill(hubPoolClient, spokePoolClients, fill);
       if (deposit !== undefined) {
         return {
           ...fill,
-          quoteBlockNumber: deposit.quoteBlockNumber,
+          matchedDeposit: deposit,
         };
       } else return undefined;
     })
@@ -951,48 +923,36 @@ export async function getFills(
   return fills;
 }
 
-/**
- * @description Search for refund requests recorded by a specific SpokePool.
- * @param chainId Chain ID of the relevant SpokePoolClient instance.
- * @param chainIdIndices Complete set of ordered chain IDs.
- * @param hubPoolClient HubPoolClient instance.
- * @param spokePoolClients Set of SpokePoolClient instances, mapped by chain ID.
- * @param filter  Optional filtering criteria.
- * @returns Array of RefundRequestWithBlock events matching the chain ID and optional filtering criteria.
- */
-export async function getRefundRequests(
+export async function getValidRefundCandidates(
   chainId: number,
   hubPoolClient: HubPoolClient,
   spokePoolClients: SpokePoolClients,
-  filter: SpokePoolEventFilter = {}
-): Promise<RefundRequestWithBlock[]> {
+  filter: Pick<SpokePoolFillFilter, "fromBlock" | "toBlock"> = {}
+): Promise<(RefundRequestWithBlock & { matchedDeposit: DepositWithBlock })[]> {
   const spokePoolClient = spokePoolClients[chainId];
   assert(isDefined(spokePoolClient));
 
-  const { originChainId, destinationChainId, relayer, fromBlock } = filter;
+  const { fromBlock, toBlock } = filter;
 
-  const refundRequests = await filterAsync(spokePoolClient.getRefundRequests(), async (refundRequest) => {
-    assert(refundRequest.repaymentChainId === chainId);
-
-    if (isDefined(fromBlock) && fromBlock > refundRequest.blockNumber) {
-      return false;
-    }
-
-    // @dev tsdx and old Typescript seem to prevent dynamic iteration over the filter, so evaluate the keys manually.
-    if (
-      (isDefined(originChainId) && refundRequest.originChainId !== originChainId) ||
-      (isDefined(destinationChainId) && refundRequest.destinationChainId !== destinationChainId) ||
-      (isDefined(relayer) && refundRequest.relayer !== relayer)
-    ) {
-      return false;
-    }
-
-    const result = await refundRequestIsValid(spokePoolClients, hubPoolClient, refundRequest);
-
-    return result.valid;
-  });
-
-  return refundRequests;
+  return (
+    await mapAsync(spokePoolClient.getRefundRequests(fromBlock, toBlock), async (refundRequest) => {
+      const result = await refundRequestIsValid(spokePoolClients, hubPoolClient, refundRequest);
+      if (result.valid) {
+        const matchedDeposit = result.matchingDeposit;
+        if (matchedDeposit === undefined) {
+          throw new Error("refundRequestIsValid returned true but matchingDeposit is undefined");
+        }
+        return {
+          ...refundRequest,
+          matchedDeposit,
+        };
+      } else {
+        return undefined;
+      }
+    })
+  ).filter((refundRequest) => refundRequest !== undefined) as (RefundRequestWithBlock & {
+    matchedDeposit: DepositWithBlock;
+  })[];
 }
 
 export function serializeUBAClientState(ubaClientState: UBAClientState): string {
