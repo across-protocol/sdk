@@ -1,4 +1,4 @@
-import { Contract, BigNumber, Event, EventFilter, ethers } from "ethers";
+import { Contract, BigNumber, Event, EventFilter } from "ethers";
 import { Block } from "@ethersproject/abstract-provider";
 import { BlockFinder } from "@uma/sdk";
 import winston from "winston";
@@ -9,7 +9,6 @@ import {
   isDefined,
   MakeOptional,
   BigNumberish,
-  isUBA,
   getImpliedBundleBlockRanges,
   getBlockRangeForChain,
 } from "../utils";
@@ -380,9 +379,9 @@ export class HubPoolClient extends BaseAbstractClient {
   getRootBundleEvalBlockNumberContainingBlock(
     latestMainnetBlock: number,
     block: number,
-    chain: number,
-    chainIdList = CHAIN_ID_LIST_INDICES
+    chain: number
   ): number | undefined {
+    const chainIdList = this.configStoreClient.enabledChainIds;
     let endingBlockNumber: number | undefined;
     // Search proposed root bundles in reverse chronological order.
     for (let i = this.proposedRootBundles.length - 1; i >= 0; i--) {
@@ -739,7 +738,6 @@ export class HubPoolClient extends BaseAbstractClient {
       ...events["RootBundleDisputed"].map((event) => spreadEventWithBlockNumber(event) as DisputedRootBundle)
     );
 
-    const configStoreVersions: { [blockNumber: number]: number } = {};
     for (const event of events["RootBundleExecuted"]) {
       if (this.configOverride.ignoredHubExecutedBundles.includes(event.blockNumber)) {
         continue;
@@ -763,38 +761,24 @@ export class HubPoolClient extends BaseAbstractClient {
         continue;
       }
 
-      if (!isDefined(configStoreVersions[proposalBlockNumber])) {
-        const version = this.configStoreClient.getConfigStoreVersionForBlock(proposalBlockNumber);
-        configStoreVersions[proposalBlockNumber] = version;
-      }
-      const version = configStoreVersions[proposalBlockNumber];
-
+      // Set running balances and incentive balances for this bundle.
+      // Pre-UBA: runningBalances length is 1:1 with l1Tokens length. Pad incentiveBalances with zeroes.
+      // Post-UBA: runningBalances array is a concatenation of pre-UBA runningBalances and incentiveBalances.
       const executedRootBundle = spreadEventWithBlockNumber(event) as ExecutedRootBundle;
       const { l1Tokens, runningBalances } = executedRootBundle;
       const nTokens = l1Tokens.length;
 
-      if (isUBA(version)) {
-        // runningBalances array is a concatenation of pre-UBA runningBalances and incentiveBalances.
-        executedRootBundle.runningBalances = runningBalances.slice(0, nTokens);
-        // If bundle hasn't added incentive balance values, then assume they are 0. This is in place
-        // to make sure that the incentiveBalances isn't undefined.
-        executedRootBundle.incentiveBalances =
-          runningBalances.length > nTokens
-            ? runningBalances.slice(nTokens)
-            : Array(nTokens).fill(ethers.constants.Zero);
-      } else {
-        // Pre-UBA: runningBalances length is 1:1 with l1Tokens length. Pad incentiveBalances with zeroes.
-        executedRootBundle.incentiveBalances = runningBalances.map(() => toBN(0));
-      }
-
       // Safeguard
-      if (executedRootBundle.runningBalances.length !== nTokens) {
+      if (runningBalances.length !== nTokens || runningBalances.length !== nTokens * 2) {
         throw new Error(
-          `Invalid runningBalances length (${executedRootBundle.runningBalances.length} !== ${nTokens})` +
-            ` for ConfigStore version ${version} in chain ${this.chainId} transaction ${event.transactionHash}`
+          `Invalid runningBalances length: ${runningBalances.length}. Expected ${nTokens} or ${nTokens * 2} for chain ${
+            this.chainId
+          } transaction ${event.transactionHash}`
         );
       }
-
+      executedRootBundle.runningBalances = runningBalances.slice(0, nTokens);
+      executedRootBundle.incentiveBalances =
+        runningBalances.length > nTokens ? runningBalances.slice(nTokens) : runningBalances.map(() => toBN(0));
       this.executedRootBundles.push(executedRootBundle);
     }
 
