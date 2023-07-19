@@ -7,7 +7,6 @@ import {
   filterAsync,
   getTokenSymbolForFlow,
   isDefined,
-  isUBA,
   mapAsync,
   queryHistoricalDepositForFill,
   resolveCorrespondingDepositForFill,
