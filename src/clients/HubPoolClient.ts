@@ -754,7 +754,7 @@ export class HubPoolClient extends BaseAbstractClient {
       const nTokens = l1Tokens.length;
 
       // Safeguard
-      if (runningBalances.length !== nTokens || runningBalances.length !== nTokens * 2) {
+      if (![nTokens, nTokens*2].includes(runningBalances.length)) {
         throw new Error(
           `Invalid runningBalances length: ${runningBalances.length}. Expected ${nTokens} or ${nTokens * 2} for chain ${
             this.chainId
