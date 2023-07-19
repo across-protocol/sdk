@@ -792,23 +792,17 @@ async function getFlows(
   // - Fills that request refunds on a different chain.
   // - Subsequent fills after an initial partial fill.
   // - Slow fills.
+  // - Fills that are not complete fills.
   // - Fills that are considered "invalid" by the spoke pool client.
-  const fills: UbaFlow[] = (
-    await Promise.all(
-      (
-        await getFills(chainId, hubPoolClient, spokePoolClients, {
-          fromBlock,
-          toBlock,
-          repaymentChainId: chainId,
-          isSlowRelay: false,
-        })
-      ).filter((fill: FillWithBlock) => {
-        // We only want to include full fills as flows. Partial fills need to request refunds and those refunds
-        // will be included as flows.
-        return fill.fillAmount.eq(fill.totalFilledAmount);
-      })
-    )
-  ).filter((fill) => fill !== undefined) as UbaFlow[];
+  const fills: UbaFlow[] = await Promise.all(
+    await getFills(chainId, hubPoolClient, spokePoolClients, {
+      fromBlock,
+      toBlock,
+      repaymentChainId: chainId,
+      isSlowRelay: false,
+      isCompleteFill: true,
+    })
+  );
 
   const refundRequests: UbaFlow[] = (
     await Promise.all(
@@ -958,6 +952,7 @@ export type SpokePoolEventFilter = {
 export type SpokePoolFillFilter = SpokePoolEventFilter & {
   repaymentChainId?: number;
   isSlowRelay?: boolean;
+  isCompleteFill?: boolean;
 };
 
 /**
@@ -976,7 +971,7 @@ export async function getFills(
   const spokePoolClient = spokePoolClients[chainId];
   assert(isDefined(spokePoolClient));
 
-  const { originChainId, repaymentChainId, relayer, isSlowRelay, fromBlock, toBlock } = filter;
+  const { originChainId, repaymentChainId, relayer, isSlowRelay, isCompleteFill, fromBlock, toBlock } = filter;
 
   const fills = (
     await mapAsync(spokePoolClient.getFills(), async (fill) => {
@@ -994,6 +989,10 @@ export async function getFills(
         (isDefined(relayer) && fill.relayer !== relayer) ||
         (isDefined(isSlowRelay) && fill.updatableRelayData.isSlowRelay !== isSlowRelay)
       ) {
+        return undefined;
+      }
+
+      if (isDefined(isCompleteFill) && isCompleteFill !== fill.fillAmount.eq(fill.totalFilledAmount)) {
         return undefined;
       }
 
