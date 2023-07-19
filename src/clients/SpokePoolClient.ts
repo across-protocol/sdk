@@ -297,9 +297,11 @@ export class SpokePoolClient extends BaseAbstractClient {
    * @param fill The fill to find a corresponding deposit for.
    * @returns The corresponding deposit if found, undefined otherwise.
    */
-  public getDepositForFill(fill: Fill): DepositWithBlock | undefined {
+  public getDepositForFill(fill: Fill, fillFieldsToIgnore: string[] = []): DepositWithBlock | undefined {
     const depositWithMatchingDepositId = this.depositHashes[this.getDepositHash(fill)];
-    return validateFillForDeposit(fill, depositWithMatchingDepositId) ? depositWithMatchingDepositId : undefined;
+    return validateFillForDeposit(fill, depositWithMatchingDepositId, fillFieldsToIgnore)
+      ? depositWithMatchingDepositId
+      : undefined;
   }
 
   /**

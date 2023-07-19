@@ -414,7 +414,8 @@ export async function getModifiedFlow(
 export async function queryHistoricalDepositForFill(
   hubPoolClient: HubPoolClient,
   spokePoolClients: SpokePoolClients,
-  fill: Fill
+  fill: Fill,
+  fillFieldsToIgnore: string[] = []
 ): Promise<DepositWithBlock | undefined> {
   const originSpokePoolClient = spokePoolClients[fill.originChainId];
 
@@ -436,7 +437,7 @@ export async function queryHistoricalDepositForFill(
     fill.depositId >= originSpokePoolClient.earliestDepositIdQueried &&
     fill.depositId <= originSpokePoolClient.latestDepositIdQueried
   ) {
-    return originSpokePoolClient.getDepositForFill(fill);
+    return originSpokePoolClient.getDepositForFill(fill, fillFieldsToIgnore);
   }
 
   // At this stage, deposit is not in spoke pool client's search range. Perform an expensive, additional data query
@@ -466,7 +467,7 @@ export async function queryHistoricalDepositForFill(
     depositFees,
   });
   deposit.realizedLpFeePct = depositFees.systemFee.systemFee;
-  return validateFillForDeposit(fill, deposit) ? deposit : undefined;
+  return validateFillForDeposit(fill, deposit, fillFieldsToIgnore) ? deposit : undefined;
 }
 
 /**
@@ -614,8 +615,9 @@ export async function getFlowDataForBundle(
 ): Promise<(UBABundleState & { tokenSymbol: string })[]> {
   // For performance reasons, grab all flows for bundle up front. This way we don't need to traverse internal
   // spoke pool client event arrays multiple times for each token.
-  // These flows are assumed to be sorted in ascending order.
-  const recentFlows = await getFlows(
+  // These flows are assumed to be sorted in ascending order. All deposits are assumed to be valid flows, while all
+  // outflows are treated as "candidates". We need to validate them individually.
+  const unvalidatedBundleFlows = await getFlows(
     chainId,
     spokePoolClients,
     hubPoolClient,
@@ -658,11 +660,11 @@ export async function getFlowDataForBundle(
         tokenSymbol,
       };
 
-      recentFlows.forEach((flow) => {
+      unvalidatedBundleFlows.forEach((unvalidatedFlow) => {
         // Previous flows will be populated with all flows we've stored into the `constructedBundle.flows`
         // array so far. On the first `flow`, this will be an empty array.
         const previousFlows = constructedBundle.flows.map((flow) => flow.flow);
-        const previousFlowsIncludingCurrent = previousFlows.concat(flow);
+        const previousFlowsIncludingCurrent = previousFlows.concat(unvalidatedFlow);
         const {
           lpFee,
           relayerBalancingFee,
@@ -670,9 +672,34 @@ export async function getFlowDataForBundle(
           lastRunningBalance,
           lastIncentiveBalance,
           netRunningBalanceAdjustment,
-        } = getFeesForFlow(flow, previousFlowsIncludingCurrent, constructedBundle, chainId, tokenSymbol);
+        } = getFeesForFlow(unvalidatedFlow, previousFlowsIncludingCurrent, constructedBundle, chainId, tokenSymbol);
+
+        // If flow a deposit, then its always valid. Add it to the bundle flows.
+        if (isUbaInflow(unvalidatedFlow)) {
+          // Hack for now: Since UBAClient is dependent on SpokePoolClient, fill in the deposit realizedLpFeePct
+          // based on system fee we just computed.
+          spokePoolClients[unvalidatedFlow.originChainId].updateDepositRealizedLpFeePct(
+            unvalidatedFlow,
+            lpFee.add(depositBalancingFee)
+          );
+        }
+        // If flow is a fill, then validate that its realizedLpFeePct matches its deposit's expected
+        // realizedLpFeePct.
+        else {
+          // At this point we have either a fill that matched with a deposit on all fields besides realizedLpFeePct,
+          // or a refund that matched with a fill that matched with a deposit on all fields besides realizedLpFeePct.
+          // So, it now suffices to match the flow's realizedLpFeePct against the matched deposit's expected
+          // realizedLpFeePct.
+          const expectedRealizedLpFeePctForDeposit = depositBalancingFee.add(lpFee);
+          if (!unvalidatedFlow.realizedLpFeePct.eq(expectedRealizedLpFeePctForDeposit)) {
+            return;
+          }
+        }
+
+        // Flow is validated, add it to constructed bundle state. This ensures that the next flow fee reconstruction
+        // will have updated running balances and incentive pool sizes.
         constructedBundle.flows.push({
-          flow,
+          flow: unvalidatedFlow,
           runningBalance: lastRunningBalance,
           incentiveBalance: lastIncentiveBalance,
           netRunningBalanceAdjustment,
@@ -685,11 +712,6 @@ export async function getFlowDataForBundle(
             systemFee: lpFee.add(depositBalancingFee),
           },
         });
-        // Hack for now: Since UBAClient is dependent on SpokePoolClient, fill in the deposit realizedLpFeePct
-        // based on system fee we just computed.
-        if (isUbaInflow(flow)) {
-          spokePoolClients[flow.originChainId].updateDepositRealizedLpFeePct(flow, lpFee.add(depositBalancingFee));
-        }
       });
 
       return constructedBundle;
@@ -736,22 +758,34 @@ async function getFlows(
   // - Slow fills.
   // - Fills that are considered "invalid" by the spoke pool client.
   const fills: UbaFlow[] = (
-    await getValidFillCandidates(chainId, hubPoolClient, spokePoolClients, {
-      fromBlock,
-      toBlock,
-      repaymentChainId: chainId,
-      isSlowRelay: false,
-    })
+    await getValidFillCandidates(
+      chainId,
+      hubPoolClient,
+      spokePoolClients,
+      {
+        fromBlock,
+        toBlock,
+        repaymentChainId: chainId,
+        isSlowRelay: false,
+      },
+      ["realizedLpFeePct"]
+    )
   ).filter((fill: FillWithBlock) => {
     // We only want to include full fills as flows. Partial fills need to request refunds and those refunds
     // will be included as flows.
     return fill.fillAmount.eq(fill.totalFilledAmount);
   }) as UbaFlow[];
 
-  const refundRequests: UbaFlow[] = await getValidRefundCandidates(chainId, hubPoolClient, spokePoolClients, {
-    fromBlock,
-    toBlock,
-  });
+  const refundRequests: UbaFlow[] = await getValidRefundCandidates(
+    chainId,
+    hubPoolClient,
+    spokePoolClients,
+    {
+      fromBlock,
+      toBlock,
+    },
+    ["realizedLpFeePct"]
+  );
 
   // This is probably more expensive than we'd like... @todo: optimise.
   const flows = sortEventsAscending(deposits.concat(fills).concat(refundRequests));
@@ -771,7 +805,8 @@ async function getFlows(
 export async function refundRequestIsValid(
   spokePoolClients: SpokePoolClients,
   hubPoolClient: HubPoolClient,
-  refundRequest: RefundRequestWithBlock
+  refundRequest: RefundRequestWithBlock,
+  ignoredDepositValidationParams: string[] = []
 ): Promise<RequestValidReturnType> {
   const {
     relayer,
@@ -838,7 +873,12 @@ export async function refundRequestIsValid(
 
   // Now, match the deposit against a fill but don't check the realizedLpFeePct parameter because it will be
   // undefined in the spoke pool client until we validate it later.
-  const deposit = await queryHistoricalDepositForFill(hubPoolClient, spokePoolClients, fill);
+  const deposit = await queryHistoricalDepositForFill(
+    hubPoolClient,
+    spokePoolClients,
+    fill,
+    ignoredDepositValidationParams
+  );
   if (!isDefined(deposit)) {
     return { valid: false, reason: "Unable to find matching deposit" };
   }
@@ -883,7 +923,8 @@ export async function getValidFillCandidates(
   chainId: number,
   hubPoolClient: HubPoolClient,
   spokePoolClients: SpokePoolClients,
-  filter: SpokePoolFillFilter = {}
+  filter: SpokePoolFillFilter = {},
+  ignoredDepositValidationParams: string[] = []
 ): Promise<(FillWithBlock & { matchedDeposit: DepositWithBlock })[]> {
   const spokePoolClient = spokePoolClients[chainId];
   assert(isDefined(spokePoolClient));
@@ -910,7 +951,12 @@ export async function getValidFillCandidates(
 
       // This deposit won't have a realizedLpFeePct field defined if its a UBA deposit, therefore match the fill
       // against all of the deposit fields except for this field which we'll fill in later.
-      const deposit = await queryHistoricalDepositForFill(hubPoolClient, spokePoolClients, fill);
+      const deposit = await queryHistoricalDepositForFill(
+        hubPoolClient,
+        spokePoolClients,
+        fill,
+        ignoredDepositValidationParams
+      );
       if (deposit !== undefined) {
         return {
           ...fill,
@@ -927,7 +973,8 @@ export async function getValidRefundCandidates(
   chainId: number,
   hubPoolClient: HubPoolClient,
   spokePoolClients: SpokePoolClients,
-  filter: Pick<SpokePoolFillFilter, "fromBlock" | "toBlock"> = {}
+  filter: Pick<SpokePoolFillFilter, "fromBlock" | "toBlock"> = {},
+  ignoredDepositValidationParams: string[] = []
 ): Promise<(RefundRequestWithBlock & { matchedDeposit: DepositWithBlock })[]> {
   const spokePoolClient = spokePoolClients[chainId];
   assert(isDefined(spokePoolClient));
@@ -936,7 +983,12 @@ export async function getValidRefundCandidates(
 
   return (
     await mapAsync(spokePoolClient.getRefundRequests(fromBlock, toBlock), async (refundRequest) => {
-      const result = await refundRequestIsValid(spokePoolClients, hubPoolClient, refundRequest);
+      const result = await refundRequestIsValid(
+        spokePoolClients,
+        hubPoolClient,
+        refundRequest,
+        ignoredDepositValidationParams
+      );
       if (result.valid) {
         const matchedDeposit = result.matchingDeposit;
         if (matchedDeposit === undefined) {
