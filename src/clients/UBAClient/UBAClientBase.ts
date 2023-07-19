@@ -1,10 +1,6 @@
 import winston from "winston";
 import { UbaFlow } from "../../interfaces";
-import { BigNumber } from "ethers";
-import { UBAActionType } from "../../UBAFeeCalculator/UBAFeeTypes";
-import { BalancingFeeReturnType, UBABundleState, UBAClientState, ModifiedUBAFlow } from "./UBAClientTypes";
-import { findLast } from "../../utils/ArrayUtils";
-import { analog } from "../../UBAFeeCalculator";
+import { UBABundleState, UBAClientState, ModifiedUBAFlow } from "./UBAClientTypes";
 import { BaseAbstractClient } from "../BaseAbstractClient";
 import _ from "lodash";
 
@@ -109,85 +105,6 @@ export class BaseUBAClient extends BaseAbstractClient {
           (fromBlock === undefined || flow.blockNumber >= fromBlock) &&
           (toBlock === undefined || flow.blockNumber <= toBlock)
       );
-  }
-
-  /**
-   * Calculate the balancing fee of a given token on a given chainId at a given block number
-   * @param tokenSymbol The token to get the balancing fee for
-   * @param amount The amount to get the balancing fee for
-   * @param balancingActionBlockNumber The block number to get the balancing fee for
-   * @param chainId The chainId to get the balancing fee for. If the feeType is Deposit, this is the deposit chainId. If the feeType is Refund, this is the refund chainId.
-   * @param feeType The type of fee to calculate
-   * @returns The balancing fee for the given token on the given chainId at the given block number
-   */
-  public computeBalancingFee(
-    tokenSymbol: string,
-    amount: BigNumber,
-    balancingActionBlockNumber: number,
-    chainId: number,
-    feeType: UBAActionType
-  ): BalancingFeeReturnType {
-    // Opening balance for the balancing action blockNumber.
-    const relevantBundleStates = this.retrieveBundleStates(chainId, tokenSymbol);
-    const specificBundleState = findLast(
-      relevantBundleStates,
-      (bundleState) => bundleState.openingBlockNumberForSpokeChain <= balancingActionBlockNumber
-    );
-    if (!specificBundleState) {
-      throw new Error(`No bundle states found for token ${tokenSymbol} on chain ${chainId}`);
-    }
-
-    // If there are no flows in the bundle AFTER the balancingActionBlockNumber then its safer to throw an error
-    // then risk returning an invalid Balancing fee because we're missing flows preceding the
-    //  balancingActionBlockNumber.
-    if (specificBundleState.closingBlockNumberForSpokeChain < balancingActionBlockNumber) {
-      throw new Error("Bundle end block doesn't cover flow");
-    }
-    /** @TODO ADD TX INDEX COMPARISON */
-    const flows = (specificBundleState?.flows ?? []).filter(
-      (flow) => flow.flow.blockNumber <= balancingActionBlockNumber
-    );
-    const { runningBalance, incentiveBalance } = analog.calculateHistoricalRunningBalance(
-      flows.map(({ flow }) => flow),
-      specificBundleState.openingBalance,
-      specificBundleState.openingIncentiveBalance,
-      chainId,
-      tokenSymbol,
-      specificBundleState.config
-    );
-    const { balancingFee } = analog.feeCalculationFunctionsForUBA[feeType](
-      amount,
-      runningBalance,
-      incentiveBalance,
-      chainId,
-      specificBundleState.config
-    );
-    return {
-      balancingFee: balancingFee,
-      actionType: feeType,
-    };
-  }
-
-  /**
-   * Calculate the balancing fee of a given token on a given chainId at a given block number for multiple refund chains
-   * @param tokenSymbol The token to get the balancing fee for
-   * @param amount The amount to get the balancing fee for
-   * @param hubPoolBlockNumber The block number to get the balancing fee for
-   * @param chainIds The chainId to get the balancing fee for. If the feeType is Deposit, this is the deposit chainId. If the feeType is Refund, this is the refund chainId.
-   * @param feeType The type of fee to calculate
-   * @returns The balancing fee for the given token on the given chainId at the given block number
-   * @note This function is used to compute the balancing fee for a given amount on multiple refund chains.
-   */
-  public computeBalancingFees(
-    tokenSymbol: string,
-    amount: BigNumber,
-    hubPoolBlockNumber: number,
-    chainIds: number[],
-    feeType: UBAActionType
-  ): BalancingFeeReturnType[] {
-    return chainIds.map((chainId) =>
-      this.computeBalancingFee(tokenSymbol, amount, hubPoolBlockNumber, chainId, feeType)
-    );
   }
 
   /**

@@ -2,10 +2,11 @@ import assert from "assert";
 import winston from "winston";
 import { SpokePoolClient } from "../SpokePoolClient";
 import { HubPoolClient } from "../HubPoolClient";
-import { UBAActionType } from "../../UBAFeeCalculator/UBAFeeTypes";
 import { BaseUBAClient } from "./UBAClientBase";
-import { computeLpFeeStateful, getUBAFeeConfig, updateUBAClient } from "./UBAClientUtilities";
+import { getFeesForFlow, updateUBAClient } from "./UBAClientUtilities";
 import { SystemFeeResult, UBAClientState } from "./UBAClientTypes";
+import { UbaInflow } from "../../interfaces";
+import { findLast } from "../../utils";
 import { BigNumber } from "ethers";
 export class UBAClientWithRefresh extends BaseUBAClient {
   // @dev chainIdIndices supports indexing members of root bundle proposals submitted to the HubPool.
@@ -25,35 +26,78 @@ export class UBAClientWithRefresh extends BaseUBAClient {
   }
 
   /**
-   * Compute the system fee for a given amount. The system fee is the sum of the LP fee and the balancing fee.
-   * @param depositChainId The chainId of the deposit
-   * @param destinationChainId The chainId of the transaction
-   * @param tokenSymbol The token to get the system fee for
-   * @param amount The amount to get the system fee for
-   * @param hubPoolBlockNumber The block number to get the system fee for
-   * @param overrides The overrides to use for the LP fee calculation
-   * @returns The system fee for the given token on the given chainId at the given block number
+   * @notice Intended to be called by Relayer to set `realizedLpFeePct` for a deposit.
    */
-  public computeSystemFee(
-    hubPoolBlockNumber: number,
-    amount: BigNumber,
-    depositChainId: number,
-    destinationChainId: number,
-    tokenSymbol: string
-  ): SystemFeeResult {
-    // Grab bundle config at block for the deposit chain.
-    const bundleConfig = getUBAFeeConfig(this.hubPoolClient, depositChainId, tokenSymbol, hubPoolBlockNumber);
-    const lpFee = computeLpFeeStateful(
-      bundleConfig.getBaselineFee(destinationChainId ?? depositChainId, depositChainId)
+  public computeSystemFeeForDeposit(deposit: UbaInflow): SystemFeeResult {
+    const tokenSymbol = this.hubPoolClient.getL1TokenInfoForL2Token(deposit.originToken, deposit.originChainId)?.symbol;
+    if (!tokenSymbol) throw new Error("No token symbol found");
+    const relevantBundleStates = this.retrieveBundleStates(deposit.originChainId, tokenSymbol);
+    const specificBundleState = findLast(
+      relevantBundleStates,
+      (bundleState) => bundleState.openingBlockNumberForSpokeChain <= deposit.blockNumber
     );
-    const { balancingFee: depositBalancingFee } = this.computeBalancingFee(
-      tokenSymbol,
-      amount,
-      hubPoolBlockNumber,
-      depositChainId,
-      UBAActionType.Deposit
+    if (!specificBundleState) {
+      throw new Error(`No bundle states found for token ${tokenSymbol} on chain ${deposit.originChainId}`);
+    }
+
+    // If there are no flows in the bundle AFTER the balancingActionBlockNumber then its safer to throw an error
+    // then risk returning an invalid Balancing fee because we're missing flows preceding the
+    //  balancingActionBlockNumber.
+    if (specificBundleState.closingBlockNumberForSpokeChain < deposit.blockNumber) {
+      throw new Error("Bundle end block doesn't cover flow");
+    }
+
+    // Find matching flow in bundle state:
+    const matchingFlow = specificBundleState.flows.find(({ flow }) => {
+      // TODO: Is there more validation needed here? I assume no because the bundle states are already
+      // sanitized on update()
+      return flow.depositId === deposit.depositId;
+    });
+    if (!matchingFlow) {
+      throw new Error("Found bundle state containing flow but no matching flow found for deposit");
+    }
+
+    return matchingFlow?.systemFee;
+  }
+
+  /**
+   * This is meant to be called by the Fee Quoting API to give an indiciative fee, rather than an exact fee
+   * for the next deposit.
+   * @param amount
+   * @param chainId
+   * @param tokenSymbol
+   */
+  public getLatestFeesForDeposit(deposit: UbaInflow): {
+    lpFee: BigNumber;
+    relayerBalancingFee: BigNumber;
+    depositBalancingFee: BigNumber;
+  } {
+    const tokenSymbol = this.hubPoolClient.getL1TokenInfoForL2Token(deposit.originToken, deposit.originChainId)?.symbol;
+    if (!tokenSymbol) throw new Error("No token symbol found");
+
+    // Grab latest bundle state:
+    const lastBundleState = this.retrieveLastBundleState(deposit.originChainId, tokenSymbol);
+    if (!lastBundleState) {
+      throw new Error("No bundle states in memory");
+    }
+
+    const { lpFee, depositBalancingFee, relayerBalancingFee } = getFeesForFlow(
+      deposit,
+      lastBundleState.flows.map(({ flow }) => flow),
+      // We make an assumption that latest UBA config will be applied to the flow. This isn't necessarily true
+      // if the current bundle is pending liveness. In that case we'd want to grab the config set at the
+      // bundle start block. However because this function is designed to return an approximation, this is
+      // a useful simplification.
+      lastBundleState,
+      deposit.originChainId,
+      tokenSymbol
     );
-    return { lpFee, depositBalancingFee, systemFee: lpFee.add(depositBalancingFee) };
+
+    return {
+      lpFee,
+      depositBalancingFee,
+      relayerBalancingFee,
+    };
   }
 
   /**
