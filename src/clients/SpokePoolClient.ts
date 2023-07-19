@@ -1,18 +1,14 @@
 import { groupBy } from "lodash";
+import { assign, EventSearchConfig, DefaultLogLevels, MakeOptional, AnyObject, MAX_BIG_INT } from "../utils";
+import { toBN } from "../utils/common";
+import { validateFillForDeposit, filledSameDeposit } from "../utils/FlowUtils";
 import {
   spreadEvent,
-  assign,
-  EventSearchConfig,
-  sortEventsAscendingInPlace,
-  DefaultLogLevels,
-  MakeOptional,
+  paginatedEventQuery,
+  spreadEventWithBlockNumber,
   sortEventsAscending,
-  filledSameDeposit,
-  validateFillForDeposit,
-  AnyObject,
-  MAX_BIG_INT,
-} from "../utils";
-import { toBN, paginatedEventQuery, spreadEventWithBlockNumber } from "../utils";
+  sortEventsAscendingInPlace,
+} from "../utils/EventUtils";
 import winston from "winston";
 
 import { Contract, BigNumber, Event, EventFilter, ethers } from "ethers";
@@ -29,7 +25,7 @@ import {
   TokensBridged,
   FundsDepositedEvent,
 } from "../interfaces";
-import { HubPoolClient } from ".";
+import { HubPoolClient } from "./HubPoolClient";
 import { ZERO_ADDRESS } from "../constants";
 import { getNetworkName } from "../utils/NetworkUtils";
 import { BaseAbstractClient } from "./BaseAbstractClient";
@@ -301,9 +297,11 @@ export class SpokePoolClient extends BaseAbstractClient {
    * @param fill The fill to find a corresponding deposit for.
    * @returns The corresponding deposit if found, undefined otherwise.
    */
-  public getDepositForFill(fill: Fill): DepositWithBlock | undefined {
+  public getDepositForFill(fill: Fill, fillFieldsToIgnore: string[] = []): DepositWithBlock | undefined {
     const depositWithMatchingDepositId = this.depositHashes[this.getDepositHash(fill)];
-    return validateFillForDeposit(fill, depositWithMatchingDepositId) ? depositWithMatchingDepositId : undefined;
+    return validateFillForDeposit(fill, depositWithMatchingDepositId, fillFieldsToIgnore)
+      ? depositWithMatchingDepositId
+      : undefined;
   }
 
   /**
