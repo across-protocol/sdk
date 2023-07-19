@@ -15,6 +15,7 @@ import {
   max,
   sortEventsAscending,
   findLast,
+  isUBA,
 } from "../../utils";
 import { Contract, BigNumber, Event } from "ethers";
 import winston from "winston";
@@ -232,6 +233,31 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
   hasValidConfigStoreVersionForTimestamp(timestamp: number = Number.MAX_SAFE_INTEGER): boolean {
     const version = this.getConfigStoreVersionForTimestamp(timestamp);
     return this.isValidConfigStoreVersion(version);
+  }
+
+  /**
+   * Return first block number where UBA was activated by setting "Version" GlobalConfig in ConfigStore
+   * @returns
+   */
+  getUbaActivationBlock(): number {
+    const config = this.cumulativeConfigStoreVersionUpdates.find((config) => {
+      isUBA(Number(config.value));
+    });
+    if (config) {
+      return config.blockNumber;
+    } else {
+      return Number.MAX_SAFE_INTEGER;
+    }
+  }
+
+  public isUbaBlock(block: number): boolean {
+    const versionAppliedToDeposit = this.getConfigStoreVersionForBlock(block);
+    return isUBA(versionAppliedToDeposit);
+  }
+
+  public canSupportUbaBlock(block: number): boolean {
+    const versionAppliedToDeposit = this.getConfigStoreVersionForBlock(block);
+    return this.isValidConfigStoreVersion(versionAppliedToDeposit);
   }
 
   isValidConfigStoreVersion(version: number): boolean {

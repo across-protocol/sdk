@@ -275,17 +275,8 @@ export class HubPoolClient extends BaseAbstractClient {
       deposit.originChainId,
       this.latestBlockNumber
     );
-    const versionAppliedToDeposit = this.configStoreClient.getConfigStoreVersionForBlock(
-      bundleStartBlockContainingDeposit
-    );
-    if (isUBA(versionAppliedToDeposit)) {
-      if (!this.configStoreClient.isValidConfigStoreVersion(versionAppliedToDeposit)) {
-        throw new Error(
-          `ConfigStoreClient cannot handle UBA config store version for quote timestamp ${deposit.quoteTimestamp}`
-        );
-      }
-      // If UBA deposit then we can't compute the realizedLpFeePct until after we've updated the UBA Client. The
-      // UBA Client first needs an updated HubPoolClient so for now we'll leave this as undefined.
+    if (this.configStoreClient.isUbaBlock(bundleStartBlockContainingDeposit)) {
+      // If UBA deposit then we can't compute the realizedLpFeePct until after we've updated the UBA Client.
       return {
         realizedLpFeePct: undefined,
         quoteBlock,
@@ -332,6 +323,10 @@ export class HubPoolClient extends BaseAbstractClient {
     return this.getTokenInfoForDeposit(deposit);
   }
 
+  getSpokeActivationBlockForChain(chainId: number): number {
+    return this.getSpokePoolActivationBlock(chainId, this.getSpokePoolForBlock(chainId)) ?? 0;
+  }
+
   /**
    * @notice Return the bundle start block for the bundle containing the event with a given block number.
    * @param eventBlock The event happened at this block on `eventChain`.
@@ -347,9 +342,7 @@ export class HubPoolClient extends BaseAbstractClient {
     // bundle before `hubPoolLatestBlock` containing the event block so the next bundle will start at
     // the activation block and contain the event.
     if (!latestExecutedBundle) {
-      return (
-        this.getSpokePoolActivationBlock(eventChain, this.getSpokePoolForBlock(eventChain, hubPoolLatestBlock)) ?? 0
-      );
+      return this.getSpokeActivationBlockForChain(eventChain);
     }
 
     // Construct the bundle's block range
@@ -417,6 +410,21 @@ export class HubPoolClient extends BaseAbstractClient {
       endingBlockNumber = bundleEvalBlockNumber;
     }
     return endingBlockNumber;
+  }
+
+  /**
+   * Returns bundle range start blocks for first bundle that UBA was activated
+   * */
+  getUbaActivationBundleStartBlocks(chainIds: number[] = CHAIN_ID_LIST_INDICES): number[] {
+    if (!this.latestBlockNumber) {
+      throw new Error("getUbaActivationBundleStartBlocks: latestBlockNumber is not set");
+    }
+    const ubaActivationHubPoolBlock = this.configStoreClient.getUbaActivationBlock();
+    const bundleStartBlocks = chainIds.map((chainId) => {
+      // Otherwise, return the start block of the bundle containing the end block.
+      return this.getBundleStartBlockContainingBlock(ubaActivationHubPoolBlock, chainId);
+    });
+    return bundleStartBlocks;
   }
 
   // TODO: This might not be necessary since the cumulative root bundle count doesn't grow fast enough, but consider
