@@ -1,5 +1,5 @@
 import assert from "assert";
-import { BigNumber, ethers, BigNumberish } from "ethers";
+import { BigNumber, BigNumberish } from "ethers";
 import { HubPoolClient } from "../HubPoolClient";
 import UBAFeeConfig from "../../UBAFeeCalculator/UBAFeeConfig";
 import { filterAsync, mapAsync } from "../../utils/ArrayUtils";
@@ -16,15 +16,7 @@ import {
   UBAChainState,
   UBAClientState,
 } from "./UBAClientTypes";
-import {
-  DepositWithBlock,
-  Fill,
-  FillWithBlock,
-  RefundRequestWithBlock,
-  TokenRunningBalance,
-  UbaFlow,
-  isUbaInflow,
-} from "../../interfaces";
+import { DepositWithBlock, Fill, FillWithBlock, RefundRequestWithBlock, UbaFlow, isUbaInflow } from "../../interfaces";
 import { Logger } from "winston";
 import { analog } from "../../UBAFeeCalculator";
 import { getDepositFee, getRefundFee } from "../../UBAFeeCalculator/UBAFeeSpokeCalculatorAnalog";
@@ -246,13 +238,13 @@ export function getMostRecentBundleBlockRanges(
   hubPoolBlock: number,
   hubPoolClient: HubPoolClient,
   spokePoolClients: SpokePoolClients
-): { proposalBlock: number; start: number; end: number }[] {
+): { start: number; end: number }[] {
   let toBlock = hubPoolBlock;
 
   // Reconstruct bundle ranges based on published end blocks.
 
   // Bundle states are examined in chronological descending order.
-  const bundleData: { start: number; end: number; proposalBlock: number }[] = [];
+  const bundleData: { start: number; end: number }[] = [];
   for (let i = 0; i < maxBundleStates; i++) {
     // Get the most recent bundle end range for this chain published in a bundle before `toBlock`.
     const latestExecutedRootBundle = hubPoolClient.getNthFullyExecutedRootBundle(-1, toBlock);
@@ -264,8 +256,6 @@ export function getMostRecentBundleBlockRanges(
       if (bundleData.length === 0) {
         const ubaActivationBundleStartBlock = getUbaActivationBundleStartBlocks(hubPoolClient, [chainId])[0];
         bundleData.push({
-          // Bundle hasn't been proposed yet so set it to latest block seen.
-          proposalBlock: spokePoolClients[chainId].latestBlockSearched,
           // Tell caller to load data for events beginning at the start of the UBA version added to the ConfigStore
           start: ubaActivationBundleStartBlock,
           // Load data until the latest block known.
@@ -298,7 +288,6 @@ export function getMostRecentBundleBlockRanges(
     // Push the block range for this chain to the start of the list
     const blockRangeForChain = getBlockRangeForChain(rootBundleBlockRanges, chainId);
     bundleData.push({
-      proposalBlock: latestExecutedRootBundle.blockNumber,
       start: blockRangeForChain[0],
       end: blockRangeForChain[1],
     });
@@ -308,27 +297,6 @@ export function getMostRecentBundleBlockRanges(
   }
 
   return bundleData;
-}
-
-/**
- * Resolves the corresponding deposit for a fill. Unlike in the Pre UBA clients, this function does NOT
- * fall back to querying fresh RPC events to try to find a fill. Instead, if the deposit can't be found
- * then this code will just crash, protecting the caller's funds. This is because if we were to find an old
- * deposit, we'd need to recompute its expected realizedLpFeePct, which would be based on the deposit balancing
- * fee and therefore requires more information from the flows preceding it. This is a future TODO.
- * @param fill The fill to resolve the corresponding deposit for
- * @param spokePoolClients The spoke clients to query for the deposit
- * @returns The corresponding deposit for the fill, or undefined if the deposit was not found
- */
-export async function resolveCorrespondingDepositForFill(
-  fill: FillWithBlock,
-  spokePoolClients: SpokePoolClients,
-  hubPoolClient: HubPoolClient
-): Promise<DepositWithBlock | undefined> {
-  // Matched deposit for fill was not found in spoke client. This situation should be rare so let's
-  // send some extra RPC requests to blocks older than the spoke client's initial event search config
-  // to find the deposit if it exists.
-  return queryHistoricalDepositForFill(hubPoolClient, spokePoolClients, fill);
 }
 
 // TODO: Unit test this
@@ -404,8 +372,7 @@ export async function getModifiedFlow(
       bundleRangeBeforeFlow.start,
       bundleRangeBeforeFlow.end,
       chainId,
-      [tokenSymbol],
-      bundleRangeBeforeFlow.proposalBlock
+      [tokenSymbol]
     )
   )[0];
 
@@ -584,15 +551,14 @@ export async function updateUBAClient(
       // 3. Loop through all flows for token in bundle
       // At the end of these three loops we'll have flow data for each token for each bundle.
       await Promise.all(
-        bundles.map(async ({ end: endingBundleBlockNumber, proposalBlock, start: startingBundleBlockNumber }) => {
+        bundles.map(async ({ end: endingBundleBlockNumber, start: startingBundleBlockNumber }) => {
           const constructedBundlesForChain = await getFlowDataForBundle(
             hubPoolClient,
             spokePoolClients,
             startingBundleBlockNumber,
             endingBundleBlockNumber,
             chainId,
-            relevantTokenSymbols,
-            proposalBlock
+            relevantTokenSymbols
           );
           constructedBundlesForChain.forEach(({ tokenSymbol, ...bundleState }) => {
             // Push the fully filled out flow data for this bundle to the list of bundle states for this token.
@@ -636,37 +602,13 @@ export function isUbaBlock(block: number, configStoreClient: AcrossConfigStoreCl
   return isUBA(versionAppliedToDeposit);
 }
 
-export function getOpeningBalances(
-  hubPoolClient: HubPoolClient,
-  chainId: number,
-  l1TokenAddress: string,
-  hubPoolBlock: number
-): TokenRunningBalance {
-  const precedingValidatedBundle = hubPoolClient.getLatestFullyExecutedRootBundle(hubPoolBlock);
-  if (!precedingValidatedBundle) {
-    return {
-      runningBalance: ethers.constants.Zero,
-      incentiveBalance: ethers.constants.Zero,
-    };
-  }
-  const executedLeafForChain = hubPoolClient
-    .getExecutedLeavesForRootBundle(precedingValidatedBundle, hubPoolBlock)
-    .find((leaf) => leaf.chainId === chainId);
-  if (!executedLeafForChain) {
-    throw new Error(
-      `No executed leaf found for chain ${chainId} in root bundle proposed at ${precedingValidatedBundle.transactionHash}`
-    );
-  }
-  return hubPoolClient.getRunningBalanceForToken(l1TokenAddress, executedLeafForChain);
-}
 export async function getFlowDataForBundle(
   hubPoolClient: HubPoolClient,
   spokePoolClients: SpokePoolClients,
   startingBundleBlockNumber: number,
   endingBundleBlockNumber: number,
   chainId: number,
-  relevantTokenSymbols: string[],
-  bundleProposalBlock: number
+  relevantTokenSymbols: string[]
 ): Promise<(UBABundleState & { tokenSymbol: string })[]> {
   // For performance reasons, grab all flows for bundle up front. This way we don't need to traverse internal
   // spoke pool client event arrays multiple times for each token.
@@ -693,11 +635,10 @@ export async function getFlowDataForBundle(
       // bundle before latestHubPoolBlockNumber. We do that by looking up executed leaves for that validated bundle
       // which must have occurred before the bundleProposalTime. Using that executed leaf data we can pull
       // out the running balances snapshotted before the bundleProposalBlock
-      const { runningBalance, incentiveBalance } = getOpeningBalances(
-        hubPoolClient,
+      const { runningBalance, incentiveBalance } = hubPoolClient.getRunningBalanceBeforeBlockForChain(
+        startingBundleBlockNumber,
         chainId,
-        l1TokenAddress,
-        bundleProposalBlock
+        l1TokenAddress
       );
 
       // Load the config set at the start of this bundle. We assume that all flows will be charged
@@ -922,7 +863,7 @@ export async function refundRequestIsValid(
     }
   }
 
-  const deposit = await resolveCorrespondingDepositForFill(fill, spokePoolClients, hubPoolClient);
+  const deposit = await queryHistoricalDepositForFill(hubPoolClient, spokePoolClients, fill);
   if (!isDefined(deposit)) {
     return { valid: false, reason: "Unable to find matching deposit" };
   }
