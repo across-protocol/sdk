@@ -760,6 +760,7 @@ async function getFlows(
   // - Fills that request refunds on a different chain.
   // - Subsequent fills after an initial partial fill.
   // - Slow fills.
+  // - Fills that are not complete fills.
   // - Fills that are considered "invalid" by the spoke pool client.
   const fills: UbaFlow[] = (
     await getValidFillCandidates(
@@ -771,6 +772,7 @@ async function getFlows(
         toBlock,
         repaymentChainId: chainId,
         isSlowRelay: false,
+        isCompleteFill: true,
       },
       ["realizedLpFeePct"]
     )
@@ -913,6 +915,7 @@ export type SpokePoolFillFilter = {
   toBlock?: number;
   repaymentChainId?: number;
   isSlowRelay?: boolean;
+  isCompleteFill?: boolean;
 };
 
 /**
@@ -933,7 +936,7 @@ export async function getValidFillCandidates(
   const spokePoolClient = spokePoolClients[chainId];
   assert(isDefined(spokePoolClient));
 
-  const { repaymentChainId, relayer, isSlowRelay, fromBlock, toBlock } = filter;
+  const { repaymentChainId, relayer, isSlowRelay, isCompleteFill, fromBlock, toBlock } = filter;
 
   const fills = (
     await mapAsync(spokePoolClient.getFills(), async (fill) => {
@@ -950,6 +953,10 @@ export async function getValidFillCandidates(
         (isDefined(relayer) && fill.relayer !== relayer) ||
         (isDefined(isSlowRelay) && fill.updatableRelayData.isSlowRelay !== isSlowRelay)
       ) {
+        return undefined;
+      }
+
+      if (isDefined(isCompleteFill) && isCompleteFill !== fill.fillAmount.eq(fill.totalFilledAmount)) {
         return undefined;
       }
 
