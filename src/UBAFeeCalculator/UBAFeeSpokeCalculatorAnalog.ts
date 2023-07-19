@@ -6,7 +6,13 @@ import { TokenRunningBalanceWithNetSend, UBAActionType, UBAFlowFee } from "./UBA
 import UBAConfig from "./UBAFeeConfig";
 import { min, toBN } from "../utils";
 import { computePiecewiseLinearFunction } from "./UBAFeeUtility";
+import { ModifiedUBAFlow, RelayerFeeResult, SystemFeeResult } from "../clients";
 
+export type UbaFlowWithFees = {
+  flow: UbaFlow;
+  systemFee: SystemFeeResult;
+  relayerFee: RelayerFeeResult;
+};
 /**
  * Calculates the running balances for a given token on a spoke chain produced by the set of flows and beginning with
  * the validated running balances.
@@ -21,7 +27,8 @@ import { computePiecewiseLinearFunction } from "./UBAFeeUtility";
  * @returns The running balance for the token
  */
 export function calculateHistoricalRunningBalance(
-  flows: UbaFlow[],
+  newFlow: UbaFlowWithFees,
+  flows: ModifiedUBAFlow[],
   lastValidatedRunningBalance: BigNumber,
   lastValidatedIncentiveRunningBalance: BigNumber,
   chainId: number,
@@ -33,18 +40,9 @@ export function calculateHistoricalRunningBalance(
   const { upperBound: upperBoundTriggerHurdle, lowerBound: lowerBoundTriggerHurdle } =
     config.getBalanceTriggerThreshold(chainId, tokenSymbol);
 
-  const historicalResult: TokenRunningBalanceWithNetSend = flows.reduce(
-    (acc, flow) => {
-      // Compute the balancing fee for the flow. This depends on the running balance as of this flow, which
-      // is essentially the lastValidatedRunningBalance plus any accumulations from the flows preceding this one.
-      const { balancingFee: incentiveFee } = getEventFee(
-        flow.amount,
-        isUbaInflow(flow) ? "inflow" : "outflow",
-        acc.runningBalance,
-        acc.incentiveBalance,
-        chainId,
-        config
-      );
+  const historicalResult: TokenRunningBalanceWithNetSend = (flows as UbaFlowWithFees[]).concat(newFlow).reduce(
+    (acc, { flow, relayerFee, systemFee }) => {
+      const incentiveFee = isUbaInflow(flow) ? systemFee.depositBalancingFee : relayerFee.relayerBalancingFee;
 
       // Now, add this flow's amount to the accumulated running balance.
       // If the flow is an inflow, we need to add the amount to the running balance

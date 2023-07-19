@@ -1,8 +1,8 @@
 import assert from "assert";
-import { BigNumber, ethers, BigNumberish } from "ethers";
+import { BigNumber, BigNumberish } from "ethers";
 import { HubPoolClient } from "../HubPoolClient";
 import UBAFeeConfig from "../../UBAFeeCalculator/UBAFeeConfig";
-import { filterAsync, mapAsync } from "../../utils/ArrayUtils";
+import { mapAsync } from "../../utils/ArrayUtils";
 import { SpokePoolClients } from "../../utils/TypeUtils";
 import { isDefined } from "../../utils/TypeGuards";
 import { sortEventsAscending } from "../../utils/EventUtils";
@@ -21,13 +21,12 @@ import {
   Fill,
   FillWithBlock,
   RefundRequestWithBlock,
-  TokenRunningBalance,
   UbaFlow,
   isUbaInflow,
+  isUbaOutflow,
 } from "../../interfaces";
-import { Logger } from "winston";
 import { analog } from "../../UBAFeeCalculator";
-import { getDepositFee, getRefundFee } from "../../UBAFeeCalculator/UBAFeeSpokeCalculatorAnalog";
+import { UbaFlowWithFees, getRefundFee } from "../../UBAFeeCalculator/UBAFeeSpokeCalculatorAnalog";
 import {
   blockRangesAreInvalidForSpokeClients,
   getBlockRangeForChain,
@@ -180,10 +179,11 @@ export function getUBAFeeConfig(
 
 export function getFeesForFlow(
   flow: UbaFlow,
-  precedingFlowsInBundle: UbaFlow[],
+  precedingFlowsInBundle: ModifiedUBAFlow[],
   bundleState: UBABundleState,
   chainId: number,
-  tokenSymbol: string
+  tokenSymbol: string,
+  hubPoolClient: HubPoolClient
 ): {
   lpFee: BigNumber;
   relayerBalancingFee: BigNumber;
@@ -192,11 +192,69 @@ export function getFeesForFlow(
   lastIncentiveBalance: BigNumber;
   netRunningBalanceAdjustment: BigNumber;
 } {
+  // Compute the balancing fees for the flow. Both deposit and refund balancing fees are based on
+  // the opening balance of the bundle containing the flow.
+  const matchedDeposit: DepositWithBlock = isUbaOutflow(flow) ? flow.matchedDeposit : flow;
+  const l1TokenAddress = hubPoolClient.getL1TokenForDeposit(matchedDeposit);
+  // We can always compute this opening balance for the deposit deterministically since it only
+  // fetches from on-chain published running balances.
+  const openingBalanceForDeposit = hubPoolClient.getRunningBalanceBeforeBlockForChain(
+    matchedDeposit.blockNumber,
+    matchedDeposit.originChainId,
+    l1TokenAddress
+  );
+  const bundleStartBlockForDeposit = hubPoolClient.getBundleStartBlockContainingBlock(
+    matchedDeposit.blockNumber,
+    matchedDeposit.originChainId,
+    hubPoolClient.latestBlockNumber
+  );
+  const ubaConfigForDeposit = getUBAFeeConfig(
+    hubPoolClient,
+    matchedDeposit.originChainId,
+    tokenSymbol,
+    bundleStartBlockForDeposit
+  );
+  // To get correct balancing fees use the latest incentive pool balance as of the latest preceding flow:
+  const latestIncentiveBalance =
+    precedingFlowsInBundle.length > 0
+      ? precedingFlowsInBundle[precedingFlowsInBundle.length - 1].incentiveBalance
+      : bundleState.openingIncentiveBalance;
+
+  const { balancingFee: depositBalancingFee } = analog.getDepositFee(
+    matchedDeposit.amount,
+    openingBalanceForDeposit.runningBalance,
+    latestIncentiveBalance,
+    matchedDeposit.originChainId,
+    ubaConfigForDeposit
+  );
+  const { balancingFee: relayerBalancingFee } = getRefundFee(
+    flow.amount,
+    bundleState.openingBalance,
+    latestIncentiveBalance,
+    chainId,
+    bundleState.config
+  );
+  const lpFee = computeLpFeeForRefresh(bundleState.config.getBaselineFee(flow.destinationChainId, flow.originChainId));
+
+  // Now, assuming this flow is valid and all preceding flows are valid, compute the resultant running balance for this
+  // flow.
+  const newFlow: UbaFlowWithFees = {
+    flow,
+    systemFee: {
+      depositBalancingFee,
+      lpFee,
+      systemFee: depositBalancingFee.add(lpFee),
+    },
+    relayerFee: {
+      relayerBalancingFee,
+    },
+  };
   const {
     runningBalance: lastRunningBalance,
     incentiveBalance: lastIncentiveBalance,
     netRunningBalanceAdjustment,
   } = analog.calculateHistoricalRunningBalance(
+    newFlow,
     precedingFlowsInBundle,
     bundleState.openingBalance,
     bundleState.openingIncentiveBalance,
@@ -204,21 +262,6 @@ export function getFeesForFlow(
     tokenSymbol,
     bundleState.config
   );
-  const { balancingFee: depositBalancingFee } = getDepositFee(
-    flow.amount,
-    lastRunningBalance,
-    lastIncentiveBalance,
-    chainId,
-    bundleState.config
-  );
-  const { balancingFee: relayerBalancingFee } = getRefundFee(
-    flow.amount,
-    lastRunningBalance,
-    lastIncentiveBalance,
-    chainId,
-    bundleState.config
-  );
-  const lpFee = computeLpFeeForRefresh(bundleState.config.getBaselineFee(flow.destinationChainId, flow.originChainId));
 
   return {
     lpFee,
@@ -246,13 +289,13 @@ export function getMostRecentBundleBlockRanges(
   hubPoolBlock: number,
   hubPoolClient: HubPoolClient,
   spokePoolClients: SpokePoolClients
-): { proposalBlock: number; start: number; end: number }[] {
+): { start: number; end: number }[] {
   let toBlock = hubPoolBlock;
 
   // Reconstruct bundle ranges based on published end blocks.
 
   // Bundle states are examined in chronological descending order.
-  const bundleData: { start: number; end: number; proposalBlock: number }[] = [];
+  const bundleData: { start: number; end: number }[] = [];
   for (let i = 0; i < maxBundleStates; i++) {
     // Get the most recent bundle end range for this chain published in a bundle before `toBlock`.
     const latestExecutedRootBundle = hubPoolClient.getNthFullyExecutedRootBundle(-1, toBlock);
@@ -264,8 +307,6 @@ export function getMostRecentBundleBlockRanges(
       if (bundleData.length === 0) {
         const ubaActivationBundleStartBlock = getUbaActivationBundleStartBlocks(hubPoolClient, [chainId])[0];
         bundleData.push({
-          // Bundle hasn't been proposed yet so set it to latest block seen.
-          proposalBlock: spokePoolClients[chainId].latestBlockSearched,
           // Tell caller to load data for events beginning at the start of the UBA version added to the ConfigStore
           start: ubaActivationBundleStartBlock,
           // Load data until the latest block known.
@@ -298,7 +339,6 @@ export function getMostRecentBundleBlockRanges(
     // Push the block range for this chain to the start of the list
     const blockRangeForChain = getBlockRangeForChain(rootBundleBlockRanges, chainId);
     bundleData.push({
-      proposalBlock: latestExecutedRootBundle.blockNumber,
       start: blockRangeForChain[0],
       end: blockRangeForChain[1],
     });
@@ -308,27 +348,6 @@ export function getMostRecentBundleBlockRanges(
   }
 
   return bundleData;
-}
-
-/**
- * Resolves the corresponding deposit for a fill. Unlike in the Pre UBA clients, this function does NOT
- * fall back to querying fresh RPC events to try to find a fill. Instead, if the deposit can't be found
- * then this code will just crash, protecting the caller's funds. This is because if we were to find an old
- * deposit, we'd need to recompute its expected realizedLpFeePct, which would be based on the deposit balancing
- * fee and therefore requires more information from the flows preceding it. This is a future TODO.
- * @param fill The fill to resolve the corresponding deposit for
- * @param spokePoolClients The spoke clients to query for the deposit
- * @returns The corresponding deposit for the fill, or undefined if the deposit was not found
- */
-export async function resolveCorrespondingDepositForFill(
-  fill: FillWithBlock,
-  spokePoolClients: SpokePoolClients,
-  hubPoolClient: HubPoolClient
-): Promise<DepositWithBlock | undefined> {
-  // Matched deposit for fill was not found in spoke client. This situation should be rare so let's
-  // send some extra RPC requests to blocks older than the spoke client's initial event search config
-  // to find the deposit if it exists.
-  return queryHistoricalDepositForFill(hubPoolClient, spokePoolClients, fill);
 }
 
 // TODO: Unit test this
@@ -359,7 +378,7 @@ export async function getModifiedFlow(
       const bundles = getMostRecentBundleBlockRanges(
         Number(_chainId),
         bundlesToLoad,
-        flow.quoteBlockNumber,
+        isUbaInflow(flow) ? flow.quoteBlockNumber : flow.matchedDeposit.quoteBlockNumber,
         hubPoolClient,
         spokePoolClients
       );
@@ -404,8 +423,7 @@ export async function getModifiedFlow(
       bundleRangeBeforeFlow.start,
       bundleRangeBeforeFlow.end,
       chainId,
-      [tokenSymbol],
-      bundleRangeBeforeFlow.proposalBlock
+      [tokenSymbol]
     )
   )[0];
 
@@ -421,13 +439,7 @@ export async function getModifiedFlow(
     lastRunningBalance,
     lastIncentiveBalance,
     netRunningBalanceAdjustment,
-  } = getFeesForFlow(
-    flow,
-    precedingFlows.map((flow) => flow.flow),
-    bundleData,
-    chainId,
-    tokenSymbol
-  );
+  } = getFeesForFlow(flow, precedingFlows, bundleData, chainId, tokenSymbol, hubPoolClient);
   return {
     flow,
     systemFee: {
@@ -448,7 +460,8 @@ export async function getModifiedFlow(
 export async function queryHistoricalDepositForFill(
   hubPoolClient: HubPoolClient,
   spokePoolClients: SpokePoolClients,
-  fill: Fill
+  fill: Fill,
+  fillFieldsToIgnore: string[] = []
 ): Promise<DepositWithBlock | undefined> {
   const originSpokePoolClient = spokePoolClients[fill.originChainId];
 
@@ -470,7 +483,7 @@ export async function queryHistoricalDepositForFill(
     fill.depositId >= originSpokePoolClient.earliestDepositIdQueried &&
     fill.depositId <= originSpokePoolClient.latestDepositIdQueried
   ) {
-    return originSpokePoolClient.getDepositForFill(fill);
+    return originSpokePoolClient.getDepositForFill(fill, fillFieldsToIgnore);
   }
 
   // At this stage, deposit is not in spoke pool client's search range. Perform an expensive, additional data query
@@ -500,7 +513,7 @@ export async function queryHistoricalDepositForFill(
     depositFees,
   });
   deposit.realizedLpFeePct = depositFees.systemFee.systemFee;
-  return validateFillForDeposit(fill, deposit) ? deposit : undefined;
+  return validateFillForDeposit(fill, deposit, fillFieldsToIgnore) ? deposit : undefined;
 }
 
 /**
@@ -584,15 +597,17 @@ export async function updateUBAClient(
       // 3. Loop through all flows for token in bundle
       // At the end of these three loops we'll have flow data for each token for each bundle.
       await Promise.all(
-        bundles.map(async ({ end: endingBundleBlockNumber, proposalBlock, start: startingBundleBlockNumber }) => {
+        bundles.map(async ({ end: endingBundleBlockNumber, start: startingBundleBlockNumber }) => {
+          // Get bundle state data for each block range and each token for this chain.
+          // Since we're going through the bundles in chronological ascending order, we
+          // push to the bundle state array for each token to maintain the order.
           const constructedBundlesForChain = await getFlowDataForBundle(
             hubPoolClient,
             spokePoolClients,
             startingBundleBlockNumber,
             endingBundleBlockNumber,
             chainId,
-            relevantTokenSymbols,
-            proposalBlock
+            relevantTokenSymbols
           );
           constructedBundlesForChain.forEach(({ tokenSymbol, ...bundleState }) => {
             // Push the fully filled out flow data for this bundle to the list of bundle states for this token.
@@ -636,42 +651,19 @@ export function isUbaBlock(block: number, configStoreClient: AcrossConfigStoreCl
   return isUBA(versionAppliedToDeposit);
 }
 
-export function getOpeningBalances(
-  hubPoolClient: HubPoolClient,
-  chainId: number,
-  l1TokenAddress: string,
-  hubPoolBlock: number
-): TokenRunningBalance {
-  const precedingValidatedBundle = hubPoolClient.getLatestFullyExecutedRootBundle(hubPoolBlock);
-  if (!precedingValidatedBundle) {
-    return {
-      runningBalance: ethers.constants.Zero,
-      incentiveBalance: ethers.constants.Zero,
-    };
-  }
-  const executedLeafForChain = hubPoolClient
-    .getExecutedLeavesForRootBundle(precedingValidatedBundle, hubPoolBlock)
-    .find((leaf) => leaf.chainId === chainId);
-  if (!executedLeafForChain) {
-    throw new Error(
-      `No executed leaf found for chain ${chainId} in root bundle proposed at ${precedingValidatedBundle.transactionHash}`
-    );
-  }
-  return hubPoolClient.getRunningBalanceForToken(l1TokenAddress, executedLeafForChain);
-}
 export async function getFlowDataForBundle(
   hubPoolClient: HubPoolClient,
   spokePoolClients: SpokePoolClients,
   startingBundleBlockNumber: number,
   endingBundleBlockNumber: number,
   chainId: number,
-  relevantTokenSymbols: string[],
-  bundleProposalBlock: number
+  relevantTokenSymbols: string[]
 ): Promise<(UBABundleState & { tokenSymbol: string })[]> {
   // For performance reasons, grab all flows for bundle up front. This way we don't need to traverse internal
   // spoke pool client event arrays multiple times for each token.
-  // These flows are assumed to be sorted in ascending order.
-  const recentFlows = await getFlows(
+  // These flows are assumed to be sorted in ascending order. All deposits are assumed to be valid flows, while all
+  // outflows are treated as "candidates". We need to validate them individually.
+  const unvalidatedBundleFlows = await getFlows(
     chainId,
     spokePoolClients,
     hubPoolClient,
@@ -689,15 +681,11 @@ export async function getFlowDataForBundle(
       }
       const l1TokenAddress = l1TokenInfo.address;
 
-      // Get the block number and opening balance for this token. We do this by looking up the last validated
-      // bundle before latestHubPoolBlockNumber. We do that by looking up executed leaves for that validated bundle
-      // which must have occurred before the bundleProposalTime. Using that executed leaf data we can pull
-      // out the running balances snapshotted before the bundleProposalBlock
-      const { runningBalance, incentiveBalance } = getOpeningBalances(
-        hubPoolClient,
+      // Get the opening running balance for this chain and token before the starting bundle block number.
+      const { runningBalance, incentiveBalance } = hubPoolClient.getRunningBalanceBeforeBlockForChain(
+        startingBundleBlockNumber,
         chainId,
-        l1TokenAddress,
-        bundleProposalBlock
+        l1TokenAddress
       );
 
       // Load the config set at the start of this bundle. We assume that all flows will be charged
@@ -715,11 +703,16 @@ export async function getFlowDataForBundle(
         tokenSymbol,
       };
 
-      recentFlows.forEach((flow) => {
-        // Previous flows will be populated with all flows we've stored into the `constructedBundle.flows`
+      // We assume we can validate flows sequentially for this chain without relying on flow data from other chains.
+      // This is because the running balance we use as input to compute flow balancing fees is based on the opening
+      // running balance of the bundle containing the flow.
+      unvalidatedBundleFlows.forEach((unvalidatedFlow) => {
+        // Previous flows will be populated with all flows we've validated and stored into the `constructedBundle.flows`
         // array so far. On the first `flow`, this will be an empty array.
-        const previousFlows = constructedBundle.flows.map((flow) => flow.flow);
-        const previousFlowsIncludingCurrent = previousFlows.concat(flow);
+        const precedingValidatedFlows = constructedBundle.flows;
+
+        // Load the expected fees for this flow so we can validate it. If its valid we'll add it to the
+        // constructed bundle state.
         const {
           lpFee,
           relayerBalancingFee,
@@ -727,9 +720,41 @@ export async function getFlowDataForBundle(
           lastRunningBalance,
           lastIncentiveBalance,
           netRunningBalanceAdjustment,
-        } = getFeesForFlow(flow, previousFlowsIncludingCurrent, constructedBundle, chainId, tokenSymbol);
+        } = getFeesForFlow(
+          unvalidatedFlow,
+          precedingValidatedFlows,
+          constructedBundle,
+          chainId,
+          tokenSymbol,
+          hubPoolClient
+        );
+
+        // If flow a deposit, then its always valid. Add it to the bundle flows.
+        if (isUbaInflow(unvalidatedFlow)) {
+          // Hack for now: Since UBAClient is dependent on SpokePoolClient, fill in the deposit realizedLpFeePct
+          // based on system fee we just computed.
+          spokePoolClients[unvalidatedFlow.originChainId].updateDepositRealizedLpFeePct(
+            unvalidatedFlow,
+            lpFee.add(depositBalancingFee)
+          );
+        }
+        // If flow is a fill, then validate that its realizedLpFeePct matches its deposit's expected
+        // realizedLpFeePct.
+        else {
+          // At this point we have either a fill that matched with a deposit on all fields besides realizedLpFeePct,
+          // or a refund that matched with a fill that matched with a deposit on all fields besides realizedLpFeePct.
+          // So, it now suffices to match the flow's realizedLpFeePct against the matched deposit's expected
+          // realizedLpFeePct.
+          const expectedRealizedLpFeePctForDeposit = depositBalancingFee.add(lpFee);
+          if (!unvalidatedFlow.realizedLpFeePct.eq(expectedRealizedLpFeePctForDeposit)) {
+            return;
+          }
+        }
+
+        // Flow is validated, add it to constructed bundle state. This ensures that the next flow fee reconstruction
+        // will have updated running balances and incentive pool sizes.
         constructedBundle.flows.push({
-          flow,
+          flow: unvalidatedFlow,
           runningBalance: lastRunningBalance,
           incentiveBalance: lastIncentiveBalance,
           netRunningBalanceAdjustment,
@@ -742,11 +767,6 @@ export async function getFlowDataForBundle(
             systemFee: lpFee.add(depositBalancingFee),
           },
         });
-        // Hack for now: Since UBAClient is dependent on SpokePoolClient, fill in the deposit realizedLpFeePct
-        // based on system fee we just computed.
-        if (isUbaInflow(flow)) {
-          spokePoolClients[flow.originChainId].updateDepositRealizedLpFeePct(flow, lpFee.add(depositBalancingFee));
-        }
       });
 
       return constructedBundle;
@@ -772,8 +792,7 @@ async function getFlows(
   spokePoolClients: SpokePoolClients,
   hubPoolClient: HubPoolClient,
   fromBlock?: number,
-  toBlock?: number,
-  logger?: Logger
+  toBlock?: number
 ): Promise<UbaFlow[]> {
   const spokePoolClient = spokePoolClients[chainId];
 
@@ -794,50 +813,34 @@ async function getFlows(
   // - Slow fills.
   // - Fills that are considered "invalid" by the spoke pool client.
   const fills: UbaFlow[] = (
-    await Promise.all(
-      (
-        await getFills(chainId, hubPoolClient, spokePoolClients, {
-          fromBlock,
-          toBlock,
-          repaymentChainId: chainId,
-          isSlowRelay: false,
-        })
-      ).filter((fill: FillWithBlock) => {
-        // We only want to include full fills as flows. Partial fills need to request refunds and those refunds
-        // will be included as flows.
-        return fill.fillAmount.eq(fill.totalFilledAmount);
-      })
+    await getValidFillCandidates(
+      chainId,
+      hubPoolClient,
+      spokePoolClients,
+      {
+        fromBlock,
+        toBlock,
+        repaymentChainId: chainId,
+        isSlowRelay: false,
+      },
+      ["realizedLpFeePct"]
     )
-  ).filter((fill) => fill !== undefined) as UbaFlow[];
+  ).filter((fill: FillWithBlock) => {
+    // We only want to include full fills as flows. Partial fills need to request refunds and those refunds
+    // will be included as flows.
+    return fill.fillAmount.eq(fill.totalFilledAmount);
+  }) as UbaFlow[];
 
-  const refundRequests: UbaFlow[] = (
-    await Promise.all(
-      spokePoolClient.getRefundRequests(fromBlock, toBlock).map(async (refundRequest) => {
-        const result = await refundRequestIsValid(spokePoolClients, hubPoolClient, refundRequest);
-        if (!result.valid && logger !== undefined) {
-          logger.info({
-            at: "UBAClient::getFlows",
-            message: `Excluding RefundRequest on chain ${chainId}`,
-            reason: result.reason,
-            refundRequest,
-          });
-        }
-
-        if (result.valid) {
-          const matchingDeposit = result.matchingDeposit;
-          if (matchingDeposit === undefined) {
-            throw new Error("refundRequestIsValid returned true but matchingDeposit is undefined");
-          }
-          return {
-            ...refundRequest,
-            quoteBlockNumber: matchingDeposit.quoteBlockNumber,
-          };
-        } else {
-          return undefined;
-        }
-      })
-    )
-  ).filter((refundRequest) => refundRequest !== undefined) as UbaFlow[];
+  const refundRequests: UbaFlow[] = await getValidRefundCandidates(
+    chainId,
+    hubPoolClient,
+    spokePoolClients,
+    {
+      fromBlock,
+      toBlock,
+    },
+    ["realizedLpFeePct"]
+  );
 
   // This is probably more expensive than we'd like... @todo: optimise.
   const flows = sortEventsAscending(deposits.concat(fills).concat(refundRequests));
@@ -857,7 +860,8 @@ async function getFlows(
 export async function refundRequestIsValid(
   spokePoolClients: SpokePoolClients,
   hubPoolClient: HubPoolClient,
-  refundRequest: RefundRequestWithBlock
+  refundRequest: RefundRequestWithBlock,
+  ignoredDepositValidationParams: string[] = []
 ): Promise<RequestValidReturnType> {
   const {
     relayer,
@@ -922,7 +926,14 @@ export async function refundRequestIsValid(
     }
   }
 
-  const deposit = await resolveCorrespondingDepositForFill(fill, spokePoolClients, hubPoolClient);
+  // Now, match the deposit against a fill but don't check the realizedLpFeePct parameter because it will be
+  // undefined in the spoke pool client until we validate it later.
+  const deposit = await queryHistoricalDepositForFill(
+    hubPoolClient,
+    spokePoolClients,
+    fill,
+    ignoredDepositValidationParams
+  );
   if (!isDefined(deposit)) {
     return { valid: false, reason: "Unable to find matching deposit" };
   }
@@ -947,36 +958,33 @@ export async function refundRequestIsValid(
   return { valid: true, matchingFill: fill, matchingDeposit: deposit };
 }
 
-export type SpokePoolEventFilter = {
-  originChainId?: number;
-  destinationChainId?: number;
+export type SpokePoolFillFilter = {
   relayer?: string;
   fromBlock?: number;
   toBlock?: number;
-};
-
-export type SpokePoolFillFilter = SpokePoolEventFilter & {
   repaymentChainId?: number;
   isSlowRelay?: boolean;
 };
 
 /**
- * @description Search for fills recorded by a specific SpokePool.
+ * @description Search for fills recorded by a specific SpokePool. These fills are matched against deposits
+ * on all fields except for `realizedLpFeePct` which isn't filled yet.
  * @param chainId Chain ID of the relevant SpokePoolClient instance.
  * @param spokePoolClients Set of SpokePoolClient instances, mapped by chain ID.
  * @param filter  Optional filtering criteria.
  * @returns Array of FillWithBlock events matching the chain ID and optional filtering criteria.
  */
-export async function getFills(
+export async function getValidFillCandidates(
   chainId: number,
   hubPoolClient: HubPoolClient,
   spokePoolClients: SpokePoolClients,
-  filter: SpokePoolFillFilter = {}
-): Promise<(FillWithBlock & { quoteBlockNumber: number })[]> {
+  filter: SpokePoolFillFilter = {},
+  ignoredDepositValidationParams: string[] = []
+): Promise<(FillWithBlock & { matchedDeposit: DepositWithBlock })[]> {
   const spokePoolClient = spokePoolClients[chainId];
   assert(isDefined(spokePoolClient));
 
-  const { originChainId, repaymentChainId, relayer, isSlowRelay, fromBlock, toBlock } = filter;
+  const { repaymentChainId, relayer, isSlowRelay, fromBlock, toBlock } = filter;
 
   const fills = (
     await mapAsync(spokePoolClient.getFills(), async (fill) => {
@@ -989,7 +997,6 @@ export async function getFills(
 
       // @dev tsdx and old Typescript seem to prevent dynamic iteration over the filter, so evaluate the keys manually.
       if (
-        (isDefined(originChainId) && fill.originChainId !== originChainId) ||
         (isDefined(repaymentChainId) && fill.repaymentChainId !== repaymentChainId) ||
         (isDefined(relayer) && fill.relayer !== relayer) ||
         (isDefined(isSlowRelay) && fill.updatableRelayData.isSlowRelay !== isSlowRelay)
@@ -997,11 +1004,18 @@ export async function getFills(
         return undefined;
       }
 
-      const deposit = await queryHistoricalDepositForFill(hubPoolClient, spokePoolClients, fill);
+      // This deposit won't have a realizedLpFeePct field defined if its a UBA deposit, therefore match the fill
+      // against all of the deposit fields except for this field which we'll fill in later.
+      const deposit = await queryHistoricalDepositForFill(
+        hubPoolClient,
+        spokePoolClients,
+        fill,
+        ignoredDepositValidationParams
+      );
       if (deposit !== undefined) {
         return {
           ...fill,
-          quoteBlockNumber: deposit.quoteBlockNumber,
+          matchedDeposit: deposit,
         };
       } else return undefined;
     })
@@ -1010,48 +1024,42 @@ export async function getFills(
   return fills;
 }
 
-/**
- * @description Search for refund requests recorded by a specific SpokePool.
- * @param chainId Chain ID of the relevant SpokePoolClient instance.
- * @param chainIdIndices Complete set of ordered chain IDs.
- * @param hubPoolClient HubPoolClient instance.
- * @param spokePoolClients Set of SpokePoolClient instances, mapped by chain ID.
- * @param filter  Optional filtering criteria.
- * @returns Array of RefundRequestWithBlock events matching the chain ID and optional filtering criteria.
- */
-export async function getRefundRequests(
+export async function getValidRefundCandidates(
   chainId: number,
   hubPoolClient: HubPoolClient,
   spokePoolClients: SpokePoolClients,
-  filter: SpokePoolEventFilter = {}
-): Promise<RefundRequestWithBlock[]> {
+  filter: Pick<SpokePoolFillFilter, "fromBlock" | "toBlock"> = {},
+  ignoredDepositValidationParams: string[] = []
+): Promise<(RefundRequestWithBlock & { matchedDeposit: DepositWithBlock })[]> {
   const spokePoolClient = spokePoolClients[chainId];
   assert(isDefined(spokePoolClient));
 
-  const { originChainId, destinationChainId, relayer, fromBlock } = filter;
+  const { fromBlock, toBlock } = filter;
 
-  const refundRequests = await filterAsync(spokePoolClient.getRefundRequests(), async (refundRequest) => {
-    assert(refundRequest.repaymentChainId === chainId);
-
-    if (isDefined(fromBlock) && fromBlock > refundRequest.blockNumber) {
-      return false;
-    }
-
-    // @dev tsdx and old Typescript seem to prevent dynamic iteration over the filter, so evaluate the keys manually.
-    if (
-      (isDefined(originChainId) && refundRequest.originChainId !== originChainId) ||
-      (isDefined(destinationChainId) && refundRequest.destinationChainId !== destinationChainId) ||
-      (isDefined(relayer) && refundRequest.relayer !== relayer)
-    ) {
-      return false;
-    }
-
-    const result = await refundRequestIsValid(spokePoolClients, hubPoolClient, refundRequest);
-
-    return result.valid;
-  });
-
-  return refundRequests;
+  return (
+    await mapAsync(spokePoolClient.getRefundRequests(fromBlock, toBlock), async (refundRequest) => {
+      const result = await refundRequestIsValid(
+        spokePoolClients,
+        hubPoolClient,
+        refundRequest,
+        ignoredDepositValidationParams
+      );
+      if (result.valid) {
+        const matchedDeposit = result.matchingDeposit;
+        if (matchedDeposit === undefined) {
+          throw new Error("refundRequestIsValid returned true but matchingDeposit is undefined");
+        }
+        return {
+          ...refundRequest,
+          matchedDeposit,
+        };
+      } else {
+        return undefined;
+      }
+    })
+  ).filter((refundRequest) => refundRequest !== undefined) as (RefundRequestWithBlock & {
+    matchedDeposit: DepositWithBlock;
+  })[];
 }
 
 export function serializeUBAClientState(ubaClientState: UBAClientState): string {
