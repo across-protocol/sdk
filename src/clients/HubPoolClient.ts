@@ -3,7 +3,15 @@ import { Block } from "@ethersproject/abstract-provider";
 import { BlockFinder } from "@uma/sdk";
 import winston from "winston";
 import _ from "lodash";
-import { assign, EventSearchConfig, isDefined, MakeOptional, BigNumberish, isUBA } from "../utils";
+import {
+  assign,
+  EventSearchConfig,
+  isDefined,
+  MakeOptional,
+  BigNumberish,
+  getImpliedBundleBlockRanges,
+  getBlockRangeForChain,
+} from "../utils";
 import {
   fetchTokenInfo,
   sortEventsDescending,
@@ -12,11 +20,20 @@ import {
   paginatedEventQuery,
   toBN,
 } from "../utils";
-import { Deposit, L1Token, CancelledRootBundle, DisputedRootBundle, LpToken, TokenRunningBalance } from "../interfaces";
+import {
+  Deposit,
+  L1Token,
+  CancelledRootBundle,
+  DisputedRootBundle,
+  LpToken,
+  TokenRunningBalance,
+  DepositWithBlock,
+} from "../interfaces";
 import { ExecutedRootBundle, PendingRootBundle, ProposedRootBundle } from "../interfaces";
 import { CrossChainContractsSet, DestinationTokenWithBlock, SetPoolRebalanceRoot } from "../interfaces";
 import * as lpFeeCalculator from "../lpFeeCalculator";
 import { AcrossConfigStoreClient as ConfigStoreClient } from "./";
+import { isUbaBlock } from "./UBAClient/UBAClientUtilities";
 import { BaseAbstractClient } from "./BaseAbstractClient";
 
 type _HubPoolUpdate = {
@@ -244,7 +261,10 @@ export class HubPoolClient extends BaseAbstractClient {
   }
 
   async computeRealizedLpFeePct(
-    deposit: { quoteTimestamp: number; amount: BigNumber; destinationChainId: number; originChainId: number },
+    deposit: Pick<
+      DepositWithBlock,
+      "quoteTimestamp" | "amount" | "destinationChainId" | "originChainId" | "blockNumber"
+    >,
     l1Token: string
   ): Promise<{ realizedLpFeePct: BigNumber | undefined; quoteBlock: number }> {
     const quoteBlock = await this.getBlockNumber(deposit.quoteTimestamp);
@@ -252,21 +272,22 @@ export class HubPoolClient extends BaseAbstractClient {
       throw new Error(`Could not find block for timestamp ${deposit.quoteTimestamp}`);
     }
 
-    const version = this.configStoreClient.getConfigStoreVersionForTimestamp(deposit.quoteTimestamp);
-    if (isUBA(version)) {
-      if (!this.configStoreClient.hasLatestConfigStoreVersion) {
-        throw new Error(
-          `ConfigStoreClient cannot handle UBA config store version for quote timestamp ${deposit.quoteTimestamp}`
-        );
-      }
-      // If UBA deposit then we can't compute the realizedLpFeePct until after we've updated the UBA Client. The
-      // UBA Client first needs an updated HubPoolClient so for now we'll leave this as undefined.
+    // To determine if a deposit should be applied a UBA fee, we need to check the start block of the bundle
+    // that would contain this deposit.
+    const bundleStartBlockContainingDeposit = this.getBundleStartBlockContainingBlock(
+      deposit.blockNumber,
+      deposit.originChainId,
+      this.latestBlockNumber
+    );
+    if (isUbaBlock(bundleStartBlockContainingDeposit, this.configStoreClient)) {
+      // If UBA deposit then we can't compute the realizedLpFeePct until after we've updated the UBA Client.
       return {
         realizedLpFeePct: undefined,
         quoteBlock,
       };
     }
 
+    // Otherwise, use the legacy fee model which is based ont he deposit quote block.
     const rateModel = this.configStoreClient.getRateModelForBlockNumber(
       l1Token,
       deposit.originChainId,
@@ -306,6 +327,47 @@ export class HubPoolClient extends BaseAbstractClient {
     return this.getTokenInfoForDeposit(deposit);
   }
 
+  getSpokeActivationBlockForChain(chainId: number): number {
+    return this.getSpokePoolActivationBlock(chainId, this.getSpokePoolForBlock(chainId)) ?? 0;
+  }
+
+  /**
+   * @notice Return the bundle start block for the bundle containing the event with a given block number.
+   * @param eventBlock The event happened at this block on `eventChain`.
+   * @param eventChain The event happened on this chain.
+   * @param hubPoolLatestBlock Optional param that can be used to optimize the search time for which
+   * bundle contains the event
+   */
+  getBundleStartBlockContainingBlock(eventBlock: number, eventChain: number, hubPoolLatestBlock?: number): number {
+    // First find the latest executed bundle as of `hubPoolLatestBlock`.
+    const latestExecutedBundle = this.getNthFullyExecutedRootBundle(-1, hubPoolLatestBlock);
+
+    // If there is no latest executed bundle, then return the spoke's activation block. This means that there is no
+    // bundle before `hubPoolLatestBlock` containing the event block so the next bundle will start at
+    // the activation block and contain the event.
+    if (!isDefined(latestExecutedBundle)) {
+      return this.getSpokeActivationBlockForChain(eventChain);
+    }
+
+    // Construct the bundle's block range
+    const blockRange = getImpliedBundleBlockRanges(this, this.configStoreClient, latestExecutedBundle);
+    const blockRangeForChain = getBlockRangeForChain(blockRange, eventChain);
+
+    // If event is greater than the latest bundle's end block, then the next bundle will contain the event. The
+    // the next bundle will start at this end block + 1
+    if (eventBlock > blockRangeForChain[1]) {
+      return blockRangeForChain[1] + 1;
+    }
+
+    // Now check if the event is greater than the start block. If so, return the start block.
+    if (eventBlock >= blockRangeForChain[0]) {
+      return blockRangeForChain[0];
+    }
+
+    // At this point we need to repeat the above steps starting at the validated bundle preceding `latestExecutedBundle`.
+    return this.getBundleStartBlockContainingBlock(eventBlock, eventChain, latestExecutedBundle.blockNumber);
+  }
+
   // Root bundles are valid if all of their pool rebalance leaves have been executed before the next bundle, or the
   // latest mainnet block to search. Whichever comes first.
   isRootBundleValid(rootBundle: ProposedRootBundle, latestMainnetBlock: number): boolean {
@@ -322,9 +384,9 @@ export class HubPoolClient extends BaseAbstractClient {
   getRootBundleEvalBlockNumberContainingBlock(
     latestMainnetBlock: number,
     block: number,
-    chain: number,
-    chainIdList: number[]
+    chain: number
   ): number | undefined {
+    const chainIdList = this.configStoreClient.enabledChainIds;
     let endingBlockNumber: number | undefined;
     // Search proposed root bundles in reverse chronological order.
     for (let i = this.proposedRootBundles.length - 1; i >= 0; i--) {
@@ -666,57 +728,29 @@ export class HubPoolClient extends BaseAbstractClient {
       ...events["RootBundleDisputed"].map((event) => spreadEventWithBlockNumber(event) as DisputedRootBundle)
     );
 
-    const configStoreVersions: { [blockNumber: number]: number } = {};
     for (const event of events["RootBundleExecuted"]) {
       if (this.configOverride.ignoredHubExecutedBundles.includes(event.blockNumber)) {
         continue;
       }
 
-      // The applicable version is determined by the block number of the corresponding proposal.
-      let proposalBlockNumber = event.blockNumber;
-      for (let idx = this.proposedRootBundles.length - 1; idx >= 0; --idx) {
-        const rootBundleProposal = this.proposedRootBundles[idx];
-        if (event.blockNumber > rootBundleProposal.blockNumber) {
-          proposalBlockNumber = rootBundleProposal.blockNumber;
-          break;
-        }
-      }
-      if (proposalBlockNumber === event.blockNumber) {
-        this.logger.warn({
-          at: "HubPoolClient#update",
-          message: `Unable to find RootBundleProposal before blockNumber ${event.blockNumber}`,
-          executedRootBundle: event.transactionHash,
-        });
-        continue;
-      }
-
-      if (!isDefined(configStoreVersions[proposalBlockNumber])) {
-        const version = this.configStoreClient.getConfigStoreVersionForBlock(proposalBlockNumber);
-        configStoreVersions[proposalBlockNumber] = version;
-      }
-      const version = configStoreVersions[proposalBlockNumber];
-
+      // Set running balances and incentive balances for this bundle.
+      // Pre-UBA: runningBalances length is 1:1 with l1Tokens length. Pad incentiveBalances with zeroes.
+      // Post-UBA: runningBalances array is a concatenation of pre-UBA runningBalances and incentiveBalances.
       const executedRootBundle = spreadEventWithBlockNumber(event) as ExecutedRootBundle;
       const { l1Tokens, runningBalances } = executedRootBundle;
       const nTokens = l1Tokens.length;
 
-      if (isUBA(version)) {
-        // runningBalances array is a concatenation of pre-UBA runningBalances and incentiveBalances.
-        executedRootBundle.runningBalances = runningBalances.slice(0, nTokens);
-        executedRootBundle.incentiveBalances = runningBalances.slice(nTokens);
-      } else {
-        // Pre-UBA: runningBalances length is 1:1 with l1Tokens length. Pad incentiveBalances with zeroes.
-        executedRootBundle.incentiveBalances = runningBalances.map(() => toBN(0));
-      }
-
       // Safeguard
-      if (executedRootBundle.runningBalances.length !== nTokens) {
+      if (![nTokens, nTokens * 2].includes(runningBalances.length)) {
         throw new Error(
-          `Invalid runningBalances length (${executedRootBundle.runningBalances.length} !== ${nTokens})` +
-            ` for ConfigStore version ${version} in chain ${this.chainId} transaction ${event.transactionHash}`
+          `Invalid runningBalances length: ${runningBalances.length}. Expected ${nTokens} or ${nTokens * 2} for chain ${
+            this.chainId
+          } transaction ${event.transactionHash}`
         );
       }
-
+      executedRootBundle.runningBalances = runningBalances.slice(0, nTokens);
+      executedRootBundle.incentiveBalances =
+        runningBalances.length > nTokens ? runningBalances.slice(nTokens) : runningBalances.map(() => toBN(0));
       this.executedRootBundles.push(executedRootBundle);
     }
 

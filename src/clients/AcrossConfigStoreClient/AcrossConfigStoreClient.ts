@@ -233,7 +233,6 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
     const version = this.getConfigStoreVersionForTimestamp(timestamp);
     return this.isValidConfigStoreVersion(version);
   }
-
   isValidConfigStoreVersion(version: number): boolean {
     return this.configStoreVersion >= version;
   }
