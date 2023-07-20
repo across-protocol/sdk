@@ -1007,7 +1007,14 @@ export async function getValidRefundCandidates(
   const { fromBlock, toBlock } = filter;
 
   return (
-    await mapAsync(spokePoolClient.getRefundRequests(fromBlock, toBlock), async (refundRequest) => {
+    await mapAsync(spokePoolClient.getRefundRequests(), async (refundRequest) => {
+      if (isDefined(fromBlock) && fromBlock > refundRequest.blockNumber) {
+        return undefined;
+      }
+      if (isDefined(toBlock) && toBlock < refundRequest.blockNumber) {
+        return undefined;
+      }
+
       const result = await refundRequestIsValid(
         spokePoolClients,
         hubPoolClient,
