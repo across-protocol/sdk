@@ -23,6 +23,10 @@ export class MockSpokePoolClient extends SpokePoolClient {
     this.eventManager = getEventManager(chainId, this.eventSignatures, deploymentBlock);
   }
 
+  setLatestBlockSearched(blockNumber: number): void {
+    this.latestBlockSearched = blockNumber;
+  }
+
   addEvent(event: Event): void {
     this.events.push(event);
   }

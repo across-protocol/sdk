@@ -351,7 +351,7 @@ export class HubPoolClient extends BaseAbstractClient {
 
     // Construct the bundle's block range
     const blockRange = getImpliedBundleBlockRanges(this, this.configStoreClient, latestExecutedBundle);
-    const blockRangeForChain = getBlockRangeForChain(blockRange, eventChain);
+    const blockRangeForChain = getBlockRangeForChain(blockRange, eventChain, this.configStoreClient.enabledChainIds);
 
     // If event is greater than the latest bundle's end block, then the next bundle will contain the event. The
     // the next bundle will start at this end block + 1
@@ -384,9 +384,10 @@ export class HubPoolClient extends BaseAbstractClient {
   getRootBundleEvalBlockNumberContainingBlock(
     latestMainnetBlock: number,
     block: number,
-    chain: number
+    chain: number,
+    chainIdListOverride?: number[]
   ): number | undefined {
-    const chainIdList = this.configStoreClient.enabledChainIds;
+    const chainIdList = chainIdListOverride ?? this.configStoreClient.enabledChainIds;
     let endingBlockNumber: number | undefined;
     // Search proposed root bundles in reverse chronological order.
     for (let i = this.proposedRootBundles.length - 1; i >= 0; i--) {

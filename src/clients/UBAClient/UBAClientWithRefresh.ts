@@ -4,7 +4,7 @@ import { SpokePoolClient } from "../SpokePoolClient";
 import { HubPoolClient } from "../HubPoolClient";
 import { BaseUBAClient } from "./UBAClientBase";
 import { getFeesForFlow, updateUBAClient } from "./UBAClientUtilities";
-import { SystemFeeResult, UBABundleState, UBAClientState } from "./UBAClientTypes";
+import { RelayerFeeResult, SystemFeeResult, UBABundleState, UBAClientState } from "./UBAClientTypes";
 import { UbaInflow } from "../../interfaces";
 import { findLast } from "../../utils";
 import { BigNumber, ethers } from "ethers";
@@ -49,7 +49,7 @@ export class UBAClientWithRefresh extends BaseUBAClient {
   /**
    * @notice Intended to be called by Relayer to set `realizedLpFeePct` for a deposit.
    */
-  public computeSystemFeeForDeposit(deposit: UbaInflow): SystemFeeResult {
+  public computeFeesForDeposit(deposit: UbaInflow): { systemFee: SystemFeeResult; relayerFee: RelayerFeeResult } {
     const tokenSymbol = this.hubPoolClient.getL1TokenInfoForL2Token(deposit.originToken, deposit.originChainId)?.symbol;
     if (!tokenSymbol) throw new Error("No token symbol found");
     const specificBundleState = this._getBundleStateContainingBlock(
@@ -68,7 +68,10 @@ export class UBAClientWithRefresh extends BaseUBAClient {
       throw new Error("Found bundle state containing flow but no matching flow found for deposit");
     }
 
-    return matchingFlow?.systemFee;
+    return {
+      systemFee: matchingFlow.systemFee,
+      relayerFee: matchingFlow.relayerFee,
+    };
   }
 
   /**
