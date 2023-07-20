@@ -1,6 +1,6 @@
 import { BigNumber, Contract, Event } from "ethers";
 import winston from "winston";
-import { randomAddress } from "../../utils";
+import { randomAddress, assign } from "../../utils";
 import { Deposit, L1Token, PendingRootBundle } from "../../interfaces";
 import { AcrossConfigStoreClient as ConfigStoreClient } from "../AcrossConfigStoreClient";
 import { HubPoolClient, HubPoolUpdate } from "../HubPoolClient";
@@ -37,6 +37,21 @@ export class MockHubPoolClient extends HubPoolClient {
   ) {
     super(logger, hubPool, configStoreClient, deploymentBlock, chainId);
     this.eventManager = getEventManager(chainId, this.eventSignatures, deploymentBlock);
+  }
+
+  setCrossChainContracts(chainId: number, contract: string, blockNumber = 0): void {
+    assign(
+      this.crossChainContracts,
+      [chainId],
+      [
+        {
+          spokePool: contract,
+          blockNumber: blockNumber,
+          transactionIndex: 0,
+          logIndex: 0,
+        },
+      ]
+    );
   }
 
   setLatestBlockNumber(blockNumber: number) {

@@ -254,7 +254,7 @@ export function getMostRecentBundleBlockRanges(
       // spoke block searched.
       if (bundleData.length === 0) {
         const ubaActivationBundleStartBlock = getUbaActivationBundleStartBlocks(hubPoolClient, [chainId])[0];
-        bundleData.push({
+        bundleData.unshift({
           // Tell caller to load data for events beginning at the start of the UBA version added to the ConfigStore
           start: ubaActivationBundleStartBlock,
           // Load data until the latest block known.
@@ -269,7 +269,13 @@ export function getMostRecentBundleBlockRanges(
       latestExecutedRootBundle
     );
     // Make sure our spoke pool clients have the block ranges we need to look up data in this bundle range:
-    if (blockRangesAreInvalidForSpokeClients(spokePoolClients, rootBundleBlockRanges)) {
+    if (
+      blockRangesAreInvalidForSpokeClients(
+        spokePoolClients,
+        rootBundleBlockRanges,
+        hubPoolClient.configStoreClient.enabledChainIds
+      )
+    ) {
       throw new Error(
         `Spoke pool clients do not have the block ranges necessary to look up data for bundle proposed at block ${
           latestExecutedRootBundle.blockNumber
@@ -279,14 +285,22 @@ export function getMostRecentBundleBlockRanges(
 
     // If UBA is not enabled for this bundle, exit early since no subsequent bundles will be enabled
     // for the UBA, as the UBA was a non-reversible change.
-    const hubPoolStartBlock = getBlockRangeForChain(rootBundleBlockRanges, hubPoolClient.chainId)[0];
+    const hubPoolStartBlock = getBlockRangeForChain(
+      rootBundleBlockRanges,
+      hubPoolClient.chainId,
+      hubPoolClient.configStoreClient.enabledChainIds
+    )[0];
     if (!isUbaBlock(hubPoolStartBlock, hubPoolClient.configStoreClient)) {
       break;
     }
 
     // Push the block range for this chain to the start of the list
-    const blockRangeForChain = getBlockRangeForChain(rootBundleBlockRanges, chainId);
-    bundleData.push({
+    const blockRangeForChain = getBlockRangeForChain(
+      rootBundleBlockRanges,
+      chainId,
+      hubPoolClient.configStoreClient.enabledChainIds
+    );
+    bundleData.unshift({
       start: blockRangeForChain[0],
       end: blockRangeForChain[1],
     });
