@@ -12,6 +12,7 @@ import { ERC20__factory } from "../../typechain";
 import {
   ModifiedUBAFlow,
   RequestValidReturnType,
+  SpokePoolFillFilter,
   UBABundleState,
   UBAChainState,
   UBAClientState,
@@ -32,10 +33,10 @@ import { isUBA } from "../../utils/UBAUtils";
 /**
  * Returns the inputs to the LP Fee calculation for a hub pool block height. This wraps
  * the async logic needed for fetching HubPool balances and liquid reserves at a given block height.
- * @param hubPoolBlockNumber
- * @param tokenSymbol
- * @param hubPoolClient
- * @returns
+ * @param hubPoolBlockNumber The block height to fetch the LP fee inputs for.
+ * @param tokenSymbol The token symbol to fetch the LP fee inputs for.
+ * @param hubPoolClient The hub pool client to use for fetching the LP fee inputs.
+ * @returns The hub balance and liquid reserves for the given token at the given block height.
  */
 export async function getLpFeeParams(
   hubPoolBlockNumber: number,
@@ -65,14 +66,24 @@ export async function getLpFeeParams(
   };
 }
 
+/**
+ * Returns the LP fee for a given amount. This function is stateless and does not require a hubpool client.
+ * @param baselineFee The baseline fee to use for the LP fee calculation.
+ * @returns The LP fee for the given amount.
+ * @note This function is essentially a wrapper around computeLpFeeStateful. It is used to compute the LP fee
+ * for a given amount without needing to instantiate a hub pool client.
+ */
 export function computeLpFeeForRefresh(baselineFee: BigNumber): BigNumber {
   return computeLpFeeStateful(baselineFee);
 }
 
 /**
  * Compute the LP fee for a given amount. This function is stateless and does not require a hubpool client.
+ * @param baselineFee The baseline fee to use for the LP fee calculation.
+ * @returns The LP fee for the given amount.
+ * @note This function is a wrapper around returning the baseline fee.
  */
-export function computeLpFeeStateful(baselineFee: BigNumber) {
+export function computeLpFeeStateful(baselineFee: BigNumber): BigNumber {
   // @dev Temporarily, the LP fee only comprises the baselineFee. In the future, a variable component will be
   // added to the baseline fee that takes into account the utilized liquidity in the system and how the the bridge
   // defined by { amount, originChain, refundChain, hubPoolBlock } affects that liquidity.
@@ -97,6 +108,17 @@ function omitDefaultKeys<T>(obj: Record<string, T>): Record<string, T> {
   }, {});
 }
 
+/**
+ * Returns the UBA config for a given chainId and tokenSymbol at a given block height.
+ * @param hubPoolClient The hub pool client to use for fetching the UBA config. This client's config store client must be updated.
+ * @param chainId The chainId to fetch the UBA config for.
+ * @param tokenSymbol The token symbol to fetch the UBA config for.
+ * @param blockNumber The block height to fetch the UBA config for.
+ * @returns The UBA config for the given chainId and tokenSymbol at the given block height.
+ * @throws If the config store client has not been updated at least once.
+ * @throws If the L1 token address cannot be found for the given token symbol.
+ * @throws If the UBA config for the given block height cannot be found.
+ */
 export function getUBAFeeConfig(
   hubPoolClient: HubPoolClient,
   chainId: number,
@@ -224,12 +246,12 @@ export function getFeesForFlow(
 /**
  * Returns most recent `maxBundleStates` bundle ranges for a given chain, in chronological ascending order.
  * Will only returns bundle ranges that are subject to UBA rules, which is based on the bundle's start block.
- * @param chainId
+ * @param chainId The chainId to get bundle ranges for.
  * @param maxBundleStates If this is larger than available validated bundles in the HubPoolClient, will throw an error.
  * @param hubPoolBlock Only returns the most recent validated bundles proposed before this block.
- * @param hubPoolClient
- * @param spokePoolClients
- * @returns
+ * @param hubPoolClient The hub pool client to use for fetching the bundle ranges.
+ * @param spokePoolClients The spoke pool clients to use for fetching the bundle ranges.
+ * @returns The most recent `maxBundleStates` bundle ranges for a given chain, in chronological ascending order.
  */
 export function getMostRecentBundleBlockRanges(
   chainId: number,
@@ -486,15 +508,17 @@ export async function queryHistoricalDepositForFill(
 
 /**
  * Load validated bundle states. Returns the most recent `maxBundleStates` # of bundles.
- * @param hubPoolClient
- * @param spokePoolClients
- * @param relevantChainIds
- * @param relevantTokenSymbols
- * @param latestHubPoolBlockNumber
- * @param updateInternalClients
- * @param relayFeeCalculatorConfig
- * @param maxBundleStates
- * @returns
+ * @param hubPoolClient The hub pool client to use for fetching the bundle ranges.
+ * @param spokePoolClients The spoke pool clients to use for fetching the bundle ranges.
+ * @param relevantChainIds The chainIds to load bundle states for.
+ * @param relevantTokenSymbols The token symbols to load bundle states for.
+ * @param updateInternalClients If true, will update the hub pool client and all spoke pool clients before loading bundle states. Defaults to true.
+ * @param maxBundleStates The maximum number of bundle states to load for each chain.
+ * @param latestHubPoolBlockNumber The latest block number to load bundle states for. If not provided, will use the latest block number from the hub pool client.
+ * @returns All the required state to instantiate a UBAClient instance.
+ * @throws If the hub pool client has not been updated at least once.
+ * @throws If the hub pool client does not have a latest block number.
+ * @throws If the spoke pools are out of range for the latest validated bundle.
  */
 export async function updateUBAClient(
   hubPoolClient: HubPoolClient,
@@ -618,11 +642,30 @@ export function getUbaActivationBlock(configStoreClient: AcrossConfigStoreClient
   );
 }
 
+/**
+ * Returns true if UBA was activated at the given block number
+ * @param block The block number to compare against the UBA activation block
+ * @param configStoreClient The config store client to use for fetching the UBA activation block
+ * @returns True if UBA was activated at the given block number
+ */
 export function isUbaBlock(block: number, configStoreClient: AcrossConfigStoreClient): boolean {
   const versionAppliedToDeposit = configStoreClient.getConfigStoreVersionForBlock(block);
   return isUBA(versionAppliedToDeposit);
 }
 
+/**
+ * Returns the flow data for a given bundle range for a given chain and token.
+ * @param hubPoolClient The hub pool client to use for fetching the bundle ranges.
+ * @param spokePoolClients The spoke pool clients to use for fetching the bundle ranges.
+ * @param startingBundleBlockNumber The block number to start retrieving flows from
+ * @param endingBundleBlockNumber The block number to stop retrieving flows from
+ * @param chainId The chainId to retrieve flows for
+ * @param relevantTokenSymbols The token symbols to load bundle states for.
+ * @param bundleProposalBlock The block number of the bundle proposal
+ * @returns The most recent `maxBundleStates` bundle ranges for a given chain, in chronological ascending order.
+ * @throw If the token symbol cannot be found.
+ * @throw If the L1 token address cannot be found for the given token symbol.
+ */
 export async function getFlowDataForBundle(
   hubPoolClient: HubPoolClient,
   spokePoolClients: SpokePoolClients,
@@ -923,18 +966,8 @@ export async function refundRequestIsValid(
   return { valid: true, matchingFill: fill, matchingDeposit: deposit };
 }
 
-export type SpokePoolFillFilter = {
-  relayer?: string;
-  fromBlock?: number;
-  toBlock?: number;
-  repaymentChainId?: number;
-  isSlowRelay?: boolean;
-  isCompleteFill?: boolean;
-};
-
 /**
- * @description Search for fills recorded by a specific SpokePool. These fills are matched against deposits
- * on all fields except for `realizedLpFeePct` which isn't filled yet.
+ * Search for fills recorded by a specific SpokePool. These fills are matched against deposits on all fields except for `realizedLpFeePct` which isn't filled yet.
  * @param chainId Chain ID of the relevant SpokePoolClient instance.
  * @param spokePoolClients Set of SpokePoolClient instances, mapped by chain ID.
  * @param filter  Optional filtering criteria.
@@ -994,6 +1027,15 @@ export async function getValidFillCandidates(
   return fills;
 }
 
+/**
+ * Search for refund requests recorded by a specific SpokePool.
+ * @param chainId Chain ID of the relevant SpokePoolClient instance.
+ * @param chainIdIndices Complete set of ordered chain IDs.
+ * @param hubPoolClient HubPoolClient instance.
+ * @param spokePoolClients Set of SpokePoolClient instances, mapped by chain ID.
+ * @param filter  Optional filtering criteria.
+ * @returns Array of RefundRequestWithBlock events matching the chain ID and optional filtering criteria.
+ */
 export async function getValidRefundCandidates(
   chainId: number,
   hubPoolClient: HubPoolClient,
@@ -1039,17 +1081,21 @@ export async function getValidRefundCandidates(
   })[];
 }
 
+/**
+ * Serializes a `UBAClientState` object.
+ * @param ubaClientState `UBAClientState` object to serialize.
+ * @returns Serialized `UBAClientState` object as a string.
+ * @note The resulting string can be deserialized using `deserializeUBAClientState`.
+ */
 export function serializeUBAClientState(ubaClientState: UBAClientState): string {
   return stringifyJSONWithNumericString(ubaClientState);
 }
 
 /**
  * @todo Improve type safety and reduce `any`s.
- * @description Deserializes a serialized `UBAClientState` object.
- * @param serializedUBAClientState Serialized `UBAClientState` object that for example gets returned
- * when calling `updateUBAClient` and serializing the result.
- * @returns Deserialized `UBAClientState` object. Specifically with `{ type: "BigNumber", value: "0x0" }`
- * converted to `BigNumber` instances. And a correct `UBAFeeConfig` instance.
+ * Deserializes a serialized `UBAClientState` object.
+ * @param serializedUBAClientState Serialized `UBAClientState` object that for example gets returned when calling `updateUBAClient` and serializing the result.
+ * @returns Deserialized `UBAClientState` object. Specifically with `{ type: "BigNumber", value: "0x0" } converted to `BigNumber` instances. And a correct `UBAFeeConfig` instance.
  */
 export function deserializeUBAClientState(serializedUBAClientState: object): UBAClientState {
   return Object.entries(serializedUBAClientState).reduce((acc, [chainId, chainState]) => {
@@ -1093,12 +1139,12 @@ export function deserializeUBAClientState(serializedUBAClientState: object): UBA
 }
 
 function deserializeModifiedUBAFlow(serializedModifiedUBAFlow: {
-  flow: any;
-  systemFee: any;
-  relayerFee: any;
-  runningBalance: any;
-  incentiveBalance: any;
-  netRunningBalanceAdjustment: any;
+  flow: Record<string, unknown>;
+  systemFee: Record<string, unknown>;
+  relayerFee: Record<string, unknown>;
+  runningBalance: Record<string, unknown>;
+  incentiveBalance: Record<string, unknown>;
+  netRunningBalanceAdjustment: Record<string, unknown>;
 }) {
   return {
     flow: deserializeBigNumberValues(serializedModifiedUBAFlow.flow),
@@ -1222,6 +1268,11 @@ function deserializeUBAFeeConfig(serializedUBAFeeConfig: {
   };
 }
 
+/**
+ * Serializes a `UBABundleState` object.
+ * @param obj The object to deserialize.
+ * @returns An object with all BigNumber values converted to strings.
+ */
 function deserializeBigNumberValues(obj: object = {}) {
   return Object.entries(obj).reduce((acc, [key, value]) => {
     try {
