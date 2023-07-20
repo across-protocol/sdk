@@ -17,14 +17,12 @@ export class BaseUBAClient extends BaseAbstractClient {
 
   /**
    * Constructs a new UBAClientBase instance
-   * @param chainIdIndices All ID indices as they appear in the contracts
    * @param tokens A list of all tokens that the UBA functionality should be implemented for
    * @param maxBundleStates The maximum number of bundle states to keep in memory
    * @param hubChainId The chainId of the hub chain
    * @param logger An optional logger to use for logging
    */
   constructor(
-    protected readonly chainIdIndices: number[],
     protected readonly tokens: string[],
     protected readonly maxBundleStates: number,
     protected readonly hubChainId: number,

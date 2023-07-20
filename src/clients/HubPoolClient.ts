@@ -339,6 +339,23 @@ export class HubPoolClient extends BaseAbstractClient {
    * bundle contains the event
    */
   getBundleStartBlockContainingBlock(eventBlock: number, eventChain: number, hubPoolLatestBlock?: number): number {
+    return this.getBundleStartBlocksForProposalContainingBlock(eventBlock, eventChain, hubPoolLatestBlock)[0];
+  }
+
+  /**
+   * Return start blocks for all block ranges in bundle that contained the event emitted at `eventBlock` on `eventChain`
+   * @param eventBlock
+   * @param eventChain
+   * @param hubPoolLatestBlock
+   * @returns
+   */
+  getBundleStartBlocksForProposalContainingBlock(
+    eventBlock: number,
+    eventChain: number,
+    hubPoolLatestBlock?: number
+  ): number[] {
+    const enabledChains = this.configStoreClient.enabledChainIds;
+
     // First find the latest executed bundle as of `hubPoolLatestBlock`.
     const latestExecutedBundle = this.getNthFullyExecutedRootBundle(-1, hubPoolLatestBlock);
 
@@ -346,26 +363,37 @@ export class HubPoolClient extends BaseAbstractClient {
     // bundle before `hubPoolLatestBlock` containing the event block so the next bundle will start at
     // the activation block and contain the event.
     if (!isDefined(latestExecutedBundle)) {
-      return this.getSpokeActivationBlockForChain(eventChain);
+      return enabledChains.map((chainId) => this.getSpokeActivationBlockForChain(chainId));
     }
 
     // Construct the bundle's block range
-    const blockRange = getImpliedBundleBlockRanges(this, this.configStoreClient, latestExecutedBundle);
-    const blockRangeForChain = getBlockRangeForChain(blockRange, eventChain, this.configStoreClient.enabledChainIds);
+    const blockRanges = getImpliedBundleBlockRanges(this, this.configStoreClient, latestExecutedBundle);
+    const blockRangesForChains = Object.fromEntries(
+      enabledChains.map((chainId) => [chainId, getBlockRangeForChain(blockRanges, chainId, enabledChains)])
+    );
+
+    // Now compare the eventBlock against the eventBlockRange.
+    const eventBlockRange = getBlockRangeForChain(blockRanges, eventChain, enabledChains);
+    // console.log(blockRangesForChains, eventBlockRange, eventChain, eventBlock, enabledChains)
 
     // If event is greater than the latest bundle's end block, then the next bundle will contain the event. The
-    // the next bundle will start at this end block + 1
-    if (eventBlock > blockRangeForChain[1]) {
-      return blockRangeForChain[1] + 1;
+    // the next bundle will start at these end blocks + 1
+    if (eventBlock > eventBlockRange[1]) {
+      return enabledChains.map((chainId) => blockRangesForChains[chainId][1] + 1);
     }
 
-    // Now check if the event is greater than the start block. If so, return the start block.
-    if (eventBlock >= blockRangeForChain[0]) {
-      return blockRangeForChain[0];
+    // Now check if the event is greater than the latest bundle's start block. If so, return the start blocks
+    // for each chain.
+    if (eventBlock >= eventBlockRange[0]) {
+      return enabledChains.map((chainId) => blockRangesForChains[chainId][0]);
     }
 
     // At this point we need to repeat the above steps starting at the validated bundle preceding `latestExecutedBundle`.
-    return this.getBundleStartBlockContainingBlock(eventBlock, eventChain, latestExecutedBundle.blockNumber);
+    return this.getBundleStartBlocksForProposalContainingBlock(
+      eventBlock,
+      eventChain,
+      latestExecutedBundle.blockNumber
+    );
   }
 
   // Root bundles are valid if all of their pool rebalance leaves have been executed before the next bundle, or the

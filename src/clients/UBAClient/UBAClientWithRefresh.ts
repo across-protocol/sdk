@@ -3,25 +3,40 @@ import winston from "winston";
 import { SpokePoolClient } from "../SpokePoolClient";
 import { HubPoolClient } from "../HubPoolClient";
 import { BaseUBAClient } from "./UBAClientBase";
-import { getFeesForFlow, updateUBAClient } from "./UBAClientUtilities";
-import { RelayerFeeResult, SystemFeeResult, UBABundleState, UBAClientState } from "./UBAClientTypes";
-import { UbaInflow } from "../../interfaces";
-import { findLast } from "../../utils";
-import { BigNumber, ethers } from "ethers";
+import {
+  computeLpFeeForRefresh,
+  flowComparisonFunction,
+  getFlowChain,
+  getFlows,
+  getMostRecentBundleBlockRanges,
+  getUBAFeeConfig,
+} from "./UBAClientUtilities";
+import { ModifiedUBAFlow, UBABundleState, UBAClientState } from "./UBAClientTypes";
+import { UbaFlow, UbaInflow, isUbaInflow, outflowIsFill } from "../../interfaces";
+import { findLast, forEachAsync, getBlockForChain, getBlockRangeForChain, isDefined, mapAsync } from "../../utils";
+import { analog } from "../../UBAFeeCalculator";
+import { getDepositFee, getRefundFee } from "../../UBAFeeCalculator/UBAFeeSpokeCalculatorAnalog";
+import { BigNumber } from "ethers";
 export class UBAClientWithRefresh extends BaseUBAClient {
+  public chainIdIndices: number[];
+
+  // We should cache this data structure in Redis:
+  // chainId => JSON.stringify(blockRanges) => flows
+  public validatedFlowsPerBundle: Record<number, Record<string, ModifiedUBAFlow[]>> = {};
+
   // @dev chainIdIndices supports indexing members of root bundle proposals submitted to the HubPool.
   //      It must include the complete set of chain IDs ever supported by the HubPool.
   // @dev SpokePoolClients may be a subset of the SpokePools that have been deployed.
   constructor(
-    readonly chainIdIndices: number[],
     readonly tokens: string[],
     protected readonly hubPoolClient: HubPoolClient,
     public readonly spokePoolClients: { [chainId: number]: SpokePoolClient },
     readonly maxBundleStates: number,
     readonly logger?: winston.Logger
   ) {
-    super(chainIdIndices, tokens, maxBundleStates, hubPoolClient.chainId, logger);
-    assert(chainIdIndices.length > 0, "No chainIds provided");
+    super(tokens, maxBundleStates, hubPoolClient.chainId, logger);
+    this.chainIdIndices = Object.keys(this.spokePoolClients).map((chainId) => Number(chainId));
+    assert(this.chainIdIndices.length > 0, "No chainIds provided");
     assert(Object.values(spokePoolClients).length > 0, "No SpokePools provided");
   }
 
@@ -46,10 +61,15 @@ export class UBAClientWithRefresh extends BaseUBAClient {
 
     return specificBundleState;
   }
+
   /**
    * @notice Intended to be called by Relayer to set `realizedLpFeePct` for a deposit.
    */
-  public computeFeesForDeposit(deposit: UbaInflow): { systemFee: SystemFeeResult; relayerFee: RelayerFeeResult } {
+  public computeFeesForDeposit(deposit: UbaInflow): {
+    lpFee: BigNumber;
+    relayerBalancingFee: BigNumber;
+    depositBalancingFee: BigNumber;
+  } {
     const tokenSymbol = this.hubPoolClient.getL1TokenInfoForL2Token(deposit.originToken, deposit.originChainId)?.symbol;
     if (!tokenSymbol) throw new Error("No token symbol found");
     const specificBundleState = this._getBundleStateContainingBlock(
@@ -68,87 +88,332 @@ export class UBAClientWithRefresh extends BaseUBAClient {
       throw new Error("Found bundle state containing flow but no matching flow found for deposit");
     }
 
+    // Figure out approximate relayer balancing fee if deposit was relayed and refunded on destination chain
+    const { runningBalance, incentiveBalance } = analog.calculateHistoricalRunningBalance(
+      // All flows in bundle preceding deposit
+      specificBundleState.flows.filter((f) => flowComparisonFunction(f.flow, deposit) <= 0).map(({ flow }) => flow),
+      specificBundleState.openingBalance,
+      specificBundleState.openingIncentiveBalance,
+      deposit.destinationChainId,
+      tokenSymbol,
+      specificBundleState.config
+    );
+    const { balancingFee } = getRefundFee(
+      deposit.amount,
+      runningBalance,
+      incentiveBalance,
+      deposit.destinationChainId,
+      specificBundleState.config
+    );
+
     return {
-      systemFee: matchingFlow.systemFee,
-      relayerFee: matchingFlow.relayerFee,
+      lpFee: matchingFlow.lpFee,
+      relayerBalancingFee: balancingFee,
+      depositBalancingFee: matchingFlow.balancingFee,
     };
   }
 
   /**
-   * This is meant to be called by the Fee Quoting API to give an indicative fee, rather than an exact fee
-   * for a theoretical deposit.
+   * Validate flows in bundle block ranges.
+   * @param blockRanges
+   * @param tokenSymbol
+   * @returns
    */
-  public getLatestFeesForDeposit(
-    amount: BigNumber,
-    blockNumber: number,
-    originToken: string,
-    originChainId: number,
-    destinationChainId: number
-  ): {
-    lpFee: BigNumber;
-    relayerBalancingFee: BigNumber;
-    depositBalancingFee: BigNumber;
-  } {
-    const deposit: UbaInflow = {
-      blockNumber,
-      amount,
-      originToken,
-      originChainId,
-      destinationChainId,
-      // Unused params:
-      recipient: "",
-      depositId: 0,
-      relayerFeePct: ethers.constants.Zero,
-      quoteTimestamp: 0,
-      destinationToken: "",
-      message: "",
-      quoteBlockNumber: 0,
-      logIndex: 0,
-      transactionHash: "",
-      transactionIndex: 0,
-      depositor: "",
-    };
-    const tokenSymbol = this.hubPoolClient.getL1TokenInfoForL2Token(deposit.originToken, deposit.originChainId)?.symbol;
-    if (!tokenSymbol) throw new Error("No token symbol found");
-    const specificBundleState = this._getBundleStateContainingBlock(
-      deposit.originChainId,
+  public async validateFlowsInBundle(blockRanges: number[][], tokenSymbol: string): Promise<void> {
+    const bundleKey = JSON.stringify(blockRanges.map(([startBlock]) => startBlock));
+    // Load common data:
+    const l1TokenAddress = this.hubPoolClient.getL1Tokens().find((token) => token.symbol === tokenSymbol)?.address;
+    if (!l1TokenAddress) throw new Error("No L1 token address found for token symbol");
+
+    // 00. Load latest block.timestamps for each chain.
+
+    // 0. Conveniently map block ranges to each chain.
+    const blockRangesForChain: Record<number, number[]> = Object.fromEntries(
+      this.chainIdIndices.map((chainId) => {
+        if (!isDefined(this.validatedFlowsPerBundle[chainId])) {
+          this.validatedFlowsPerBundle[chainId] = {};
+        }
+        if (!isDefined(this.validatedFlowsPerBundle[chainId][bundleKey])) {
+          this.validatedFlowsPerBundle[chainId][bundleKey] = [];
+        }
+        return [chainId, getBlockRangeForChain(blockRanges, chainId)];
+      })
+    );
+
+    // 1. Combine flows from all chain block ranges in this bundle.
+    const flowsInBundle = (
+      await mapAsync(this.chainIdIndices, async (chainId) => {
+        const [startBlock, endBlock] = blockRangesForChain[chainId];
+        // TODO: Cache this getFlows result to make more performant.
+        // If getFlows doesn't error, then all fills in the range have been matched against a deposit in another
+        // spoke client's memory. If this errors, then we'll need to widen the spoke pool client's lookback
+        // to find the older deposit. This would greatly reduce runtime for this bot so we should cache the
+        // result of this function so that future calls can more easily validate an outflow against a cached inflow.
+        return await getFlows(chainId, this.spokePoolClients, this.hubPoolClient, startBlock, endBlock);
+      })
+    )
+      .flat()
+      .sort((a, b) => a.blockTimestamp - b.blockTimestamp);
+
+    // 3. Validate all flows in ascending order.
+    await forEachAsync(flowsInBundle, async (flow) => {
+      const flowChain = getFlowChain(flow);
+      // Since we're validating flows in ascending order, all flows in this array have already been validated
+      // and precede the flow.
+      const precedingValidatedFlows = this.validatedFlowsPerBundle[flowChain][bundleKey];
+      const validatedFlow = await this.validateFlow(flow, precedingValidatedFlows);
+      if (isDefined(validatedFlow)) {
+        this.validatedFlowsPerBundle[flowChain][bundleKey].push(validatedFlow);
+      }
+    });
+  }
+
+  /**
+   * Return flow with computed fees if it is valid. Otherwise, return undefined. Inflows are always valid,
+   * while outflows need to match against an inflow and set the correct system fee.
+   * @param flow
+   * @returns
+   */
+  async validateFlow(
+    flow: UbaFlow,
+    precedingValidatedFlows: ModifiedUBAFlow[] = []
+  ): Promise<ModifiedUBAFlow | undefined> {
+    // ASSUMPTION: When calling this function, the caller assumes that all flows loaded by the SpokePoolClients
+    // with a block.timestamp < flow.block.timestamp have already been validated. This means that we can
+    // assume that `this.validatedFlowsPerChain` is updated through the flow.block.timestamp.
+
+    // Load common information that depends on what type of flow we're validating:
+    // For a deposit, the flow happens on the origin chain.
+    // For a refund or fill, the flow happens on the repayment or destination chain.
+    let flowChain: number, tokenSymbol: string | undefined;
+    if (isUbaInflow(flow)) {
+      flowChain = flow.originChainId;
+
+      // // If the flow is a deposit, then we might have already validated it.
+      // const existingValidatedDeposit = this.validatedFlowsPerChain[flowChain].find((f) => f.flow.depositId === flow.depositId)
+      // if (isDefined(existingValidatedDeposit)) {
+      //   return existingValidatedDeposit
+      // }
+      tokenSymbol = this.hubPoolClient.getL1TokenInfoForL2Token(flow.originToken, flowChain)?.symbol;
+    } else {
+      // If outflow, we need to make sure that the matched deposit is not a pre UBA deposit. pre UBA deposits
+      // have defined realizedLpFeePct's at this stage:
+      if (isDefined(flow.matchedDeposit.realizedLpFeePct)) {
+        return undefined;
+      }
+      // If the flow is a fill, then we need to validate its matched deposit.
+      if (outflowIsFill(flow)) {
+        flowChain = flow.destinationChainId;
+        tokenSymbol = this.hubPoolClient.getL1TokenInfoForL2Token(flow.destinationToken, flowChain)?.symbol;
+      } else {
+        flowChain = flow.repaymentChainId;
+        tokenSymbol = this.hubPoolClient.getL1TokenInfoForL2Token(flow.refundToken, flowChain)?.symbol;
+      }
+    }
+    if (!isDefined(tokenSymbol)) throw new Error("No token symbol found");
+    const l1TokenAddress = this.hubPoolClient.getL1Tokens().find((token) => token.symbol === tokenSymbol)?.address;
+    if (!isDefined(l1TokenAddress)) throw new Error("No L1 token address found for token symbol");
+
+    // Get opening balance and config at the time of the bundle containing the flow.
+    const startingBundleForFlow = this.hubPoolClient.getBundleStartBlockContainingBlock(flow.blockNumber, flowChain);
+    const openingBalanceForChain = this.hubPoolClient.getRunningBalanceBeforeBlockForChain(
+      startingBundleForFlow,
+      flowChain,
+      l1TokenAddress
+    );
+    const ubaConfigForChain = getUBAFeeConfig(this.hubPoolClient, flowChain, tokenSymbol, startingBundleForFlow);
+
+    // Figure out the running balance so far for this flow's chain. This is based on all already validated flows
+    // for this chain.
+    const {
+      runningBalance: flowOpeningRunningBalance,
+      incentiveBalance: flowOpeningIncentiveBalance,
+      netRunningBalanceAdjustment: flowOpeningNetRunningBalanceAdjustment,
+    } = analog.calculateHistoricalRunningBalance(
+      precedingValidatedFlows.map(({ flow }) => flow),
+      openingBalanceForChain.runningBalance,
+      openingBalanceForChain.incentiveBalance,
+      flowChain,
       tokenSymbol,
-      deposit.blockNumber
+      ubaConfigForChain
     );
 
-    const { lpFee, depositBalancingFee, relayerBalancingFee } = getFeesForFlow(
-      deposit,
-      // Pass in all flows that precede the deposit.
-      specificBundleState.flows.filter(({ flow }) => flow.blockNumber <= deposit.blockNumber).map(({ flow }) => flow),
-      specificBundleState,
-      deposit.originChainId,
-      tokenSymbol
-    );
+    // Use the opening balance to compute expected flow fees:
+    let balancingFee: BigNumber;
+    if (isUbaInflow(flow)) {
+      ({ balancingFee } = getDepositFee(
+        flow.amount,
+        flowOpeningRunningBalance,
+        flowOpeningIncentiveBalance,
+        flowChain,
+        ubaConfigForChain
+      ));
+    } else {
+      ({ balancingFee } = getRefundFee(
+        flow.amount,
+        flowOpeningRunningBalance,
+        flowOpeningIncentiveBalance,
+        flowChain,
+        ubaConfigForChain
+      ));
+    }
 
-    return {
-      lpFee,
-      depositBalancingFee,
-      relayerBalancingFee,
-    };
+    // Figure out the LP fee which is based only on the flow's origin and destination chain.
+    const lpFee = computeLpFeeForRefresh(ubaConfigForChain.getBaselineFee(flow.destinationChainId, flow.originChainId));
+
+    // Now we have all information we need to validate the flow:
+    // If deposit, then flow is always valid:
+    if (isUbaInflow(flow)) {
+      return {
+        flow,
+        balancingFee,
+        lpFee,
+        runningBalance: flowOpeningRunningBalance,
+        incentiveBalance: flowOpeningIncentiveBalance,
+        netRunningBalanceAdjustment: flowOpeningNetRunningBalanceAdjustment,
+      };
+    } else {
+      // Now we need to validate the refund or fill.
+      // ASSUMPTION: the flow is already matched against a deposit, so it suffices
+      // only to check if the fill matches with a valid deposit.
+
+      // Rule 1. The fill must match with a deposit who's blockTimestamp is < fill.blockTimestamp.
+      if (flow.blockTimestamp < flow.matchedDeposit.blockTimestamp) {
+        // TODO: We cannot invalidate a fill if the block.timestamp on the deposit.origin chain is not > than the
+        // the fill's timestamp. This is because its still possible to send a deposit on the origin chain
+        // that would validate this fill. This deposit would then be added to the `validatedFlows[deposit.originChain]`
+        // list, which would have made the fill's
+        console.log(
+          "Flow is invalid because its blockTimestamp is less than its matched deposit's blockTimestamp",
+          flow
+        );
+      } else {
+        // Rule 2: Validate the fill.realizedLpFeePct against the expected matched deposit systemFee.
+
+        // We need to figure out the system fee for the matched deposit. We assume that the flow has already been
+        // validated against a deposit by getFlows() so it suffices to look up the deposit in the spoke pool
+        // client's memory. If we can't find it now, then there is an unexpected bug.
+        const matchedDeposit = flow.matchedDeposit;
+        let matchedDepositFlow: ModifiedUBAFlow | undefined;
+
+        const matchedDepositBundleStartBlocks = this.hubPoolClient.getBundleStartBlocksForProposalContainingBlock(
+          matchedDeposit.blockNumber,
+          matchedDeposit.originChainId
+        );
+        const matchedDepositBundleKey = JSON.stringify(matchedDepositBundleStartBlocks);
+
+        // Try to see if we can easily
+        // look up cached flow information using the matchedDepositBundleKey and flow.matchedDeposit.originChainId.
+        const cache_matchedDepositBundleFlows =
+          this.validatedFlowsPerBundle?.[matchedDeposit.originChainId]?.[matchedDepositBundleKey];
+        if (isDefined(cache_matchedDepositBundleFlows)) {
+          matchedDepositFlow = cache_matchedDepositBundleFlows.find(
+            ({ flow }) =>
+              flow.depositId === matchedDeposit.depositId && flow.originChainId === matchedDeposit.originChainId
+          );
+        }
+
+        // If not, then we need to recurse and validate this bundle.
+        if (!isDefined(matchedDepositFlow)) {
+          const matchedDepositBundleBlockRanges = this.chainIdIndices.map((chainId) => [
+            getBlockForChain(
+              matchedDepositBundleStartBlocks,
+              chainId,
+              this.hubPoolClient.configStoreClient.enabledChainIds
+            ),
+            this.spokePoolClients[chainId].latestBlockSearched,
+          ]);
+          await this.validateFlowsInBundle(matchedDepositBundleBlockRanges, tokenSymbol);
+          const cache_matchedDepositBundleFlows =
+            this.validatedFlowsPerBundle?.[matchedDeposit.originChainId]?.[matchedDepositBundleKey];
+          matchedDepositFlow = cache_matchedDepositBundleFlows.find(
+            ({ flow }) =>
+              flow.depositId === matchedDeposit.depositId && flow.originChainId === matchedDeposit.originChainId
+          );
+        }
+
+        // At this point we couldn't find a flow in the cache or from newly validated data that matches the
+        // flow.matchedDeposit. This is unexpected and perhaps means we need to widen the spoke pool client lookback.
+        if (!isDefined(matchedDepositFlow)) {
+          console.log(matchedDepositFlow);
+          throw new Error("Could not validate or invalidate matched deposit");
+        }
+        const expectedRealizedLpFeePctForMatchedDeposit = matchedDepositFlow.lpFee.add(matchedDepositFlow.balancingFee);
+        if (expectedRealizedLpFeePctForMatchedDeposit.eq(flow.realizedLpFeePct)) {
+          return {
+            flow,
+            balancingFee,
+            lpFee,
+            runningBalance: flowOpeningRunningBalance,
+            incentiveBalance: flowOpeningIncentiveBalance,
+            netRunningBalanceAdjustment: flowOpeningNetRunningBalanceAdjustment,
+          };
+        } else {
+          console.log(
+            "Matched deposit was validated by incorrect realized lp fee pct set for outflow",
+            flow,
+            matchedDepositFlow
+          );
+        }
+      }
+    }
+    return undefined;
+  }
+
+  /**
+   * Returns a convenient mapping of the most recent block ranges for each chain.
+   * Assumptions: For each chain, there should be the same number of block ranges returned.
+   * @param bundleCount Block ranges to fetch per chain
+   * @returns A dictionary mapping chainId to an array of block ranges, where the ranges are arrays of length two
+   *         and the first element is the start block and the second element is the end block.
+   */
+  public getMostRecentBundleBlockRangesPerChain(bundleCount: number): Record<number, number[][]> {
+    // Load common data:
+    const latestHubPoolBlock = this.hubPoolClient.latestBlockNumber;
+    if (!isDefined(latestHubPoolBlock)) throw new Error("HubPoolClient not updated");
+
+    return this.chainIdIndices.reduce((acc, chainId) => {
+      // Gets the most recent `bundleCount` block ranges for this chain.
+      const _blockRangesForChain = getMostRecentBundleBlockRanges(
+        chainId,
+        bundleCount,
+        latestHubPoolBlock,
+        this.hubPoolClient,
+        this.spokePoolClients
+      ).map(({ start, end }) => [start, end]);
+      // Make the last bundle to cover until the last spoke client searched block
+      _blockRangesForChain[_blockRangesForChain.length - 1][1] = this.spokePoolClients[chainId].latestBlockSearched;
+
+      // Map the block ranges to this chain and move on to the next chain.
+      acc[chainId] = _blockRangesForChain;
+      return acc;
+    }, {} as Record<number, number[][]>);
   }
 
   /**
    * Updates the clients and UBAFeeCalculators.
    * @param forceRefresh An optional boolean to force a refresh of the clients.
    */
-  public async update(state?: UBAClientState, forceClientRefresh?: boolean): Promise<void> {
-    const newState =
-      state && Object.entries(state).length > 0
-        ? state
-        : await updateUBAClient(
-            this.hubPoolClient,
-            this.spokePoolClients,
-            this.chainIdIndices,
-            this.tokens,
-            forceClientRefresh,
-            this.maxBundleStates
-          );
-    await super.update(newState);
+  public async update(_state?: UBAClientState, _forceClientRefresh?: boolean): Promise<void> {
+    console.log("SDK UPDATING");
+
+    // DEMO: Try loading bundle data for the most recent WETH bundle.
+    const token = "WETH";
+
+    // Load all UBA bundles for each chain:
+    const bundleBlockRangesPerChain = this.getMostRecentBundleBlockRangesPerChain(100);
+    console.log("Mapping of block ranges per chain", bundleBlockRangesPerChain);
+    const chainIdIndices = Object.keys(bundleBlockRangesPerChain).map((chainId) => Number(chainId));
+
+    // Get the block ranges for all chains from the oldest
+    const mostRecentBundleBlockRanges = chainIdIndices.map((chain) => bundleBlockRangesPerChain[chain][0]);
+    console.log("Validating flows for bundle", mostRecentBundleBlockRanges);
+    return;
+
+    // Grab validated flows for this bundle:
+    const validatedFlows = await this.validateFlowsInBundle(mostRecentBundleBlockRanges, token);
+    console.log(`Validated flows for ${token}`, validatedFlows);
+    return;
   }
   public get isUpdated(): boolean {
     return (

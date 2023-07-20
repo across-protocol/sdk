@@ -31,8 +31,8 @@ export type UBABundleTokenState = {
 
 export type ModifiedUBAFlow = {
   flow: UbaFlow;
-  systemFee: SystemFeeResult;
-  relayerFee: RelayerFeeResult;
+  balancingFee: BigNumber;
+  lpFee: BigNumber;
   runningBalance: BigNumber;
   incentiveBalance: BigNumber;
   netRunningBalanceAdjustment: BigNumber;

@@ -1,5 +1,13 @@
 import { groupBy } from "lodash";
-import { assign, EventSearchConfig, DefaultLogLevels, MakeOptional, AnyObject, MAX_BIG_INT } from "../utils";
+import {
+  assign,
+  EventSearchConfig,
+  DefaultLogLevels,
+  MakeOptional,
+  AnyObject,
+  MAX_BIG_INT,
+  forEachAsync,
+} from "../utils";
 import { toBN } from "../utils/common";
 import { validateFillForDeposit, filledSameDeposit } from "../utils/FlowUtils";
 import {
@@ -672,7 +680,7 @@ export class SpokePoolClient extends BaseAbstractClient {
           earliestEvent: depositEvents[0].blockNumber,
         });
       }
-      for (const [index, event] of Array.from(depositEvents.entries())) {
+      await forEachAsync(Array.from(depositEvents.entries()), async ([index, event]) => {
         // Append the realizedLpFeePct.
         const partialDeposit = spreadEventWithBlockNumber(event) as DepositWithBlock;
 
@@ -682,6 +690,7 @@ export class SpokePoolClient extends BaseAbstractClient {
           realizedLpFeePct: dataForQuoteTime[index].realizedLpFeePct,
           destinationToken: this.getDestinationTokenForDeposit(partialDeposit),
           quoteBlockNumber: dataForQuoteTime[index].quoteBlock,
+          blockTimestamp: (await this.spokePool.provider.getBlock(partialDeposit.blockNumber)).timestamp,
         };
 
         assign(this.depositHashes, [this.getDepositHash(deposit)], deposit);
@@ -692,9 +701,12 @@ export class SpokePoolClient extends BaseAbstractClient {
         if (deposit.depositId > this.latestDepositIdQueried) {
           this.latestDepositIdQueried = deposit.depositId;
         }
-      }
+      });
     }
 
+    // TODO: When validating fills with deposits for the purposes of UBA flows, do we need to consider
+    // speed ups as well? For example, do we need to also consider that the speed up is before the fill
+    // timestamp to be applied for the fill? My brain hurts.
     // Update deposits with speed up requests from depositor.
     if (eventsToQuery.includes("RequestedSpeedUpDeposit")) {
       const speedUpEvents = queryResults[eventsToQuery.indexOf("RequestedSpeedUpDeposit")];
@@ -718,11 +730,15 @@ export class SpokePoolClient extends BaseAbstractClient {
           earliestEvent: fillEvents[0].blockNumber,
         });
       }
-      for (const event of fillEvents) {
-        const fill = spreadEventWithBlockNumber(event) as FillWithBlock;
+      await forEachAsync(fillEvents, async (event) => {
+        const fillData = spreadEventWithBlockNumber(event);
+        const fill = {
+          ...fillData,
+          blockTimestamp: (await this.spokePool.provider.getBlock(fillData.blockNumber)).timestamp,
+        } as FillWithBlock;
         assign(this.fills, [fill.originChainId], [fill]);
         assign(this.depositHashesToFills, [this.getDepositHash(fill)], [fill]);
-      }
+      });
     }
 
     // @note: In Across 2.5, callers will simultaneously request [FundsDeposited, FilledRelay, RefundsRequested].
@@ -736,13 +752,16 @@ export class SpokePoolClient extends BaseAbstractClient {
           earliestEvent: refundRequests[0].blockNumber,
         });
       }
-      // repaymentChainId is not part of the on-chain event, so add it here.
-      for (const refundRequest of refundRequests) {
-        this.refundRequests.push({
-          ...spreadEventWithBlockNumber(refundRequest),
+      await forEachAsync(refundRequests, async (event) => {
+        const refundRequestData = spreadEventWithBlockNumber(event);
+        const refundRequest = {
+          ...refundRequestData,
+          // repaymentChainId is not part of the on-chain event, so add it here.
           repaymentChainId: this.chainId,
-        } as RefundRequestWithBlock);
-      }
+          blockTimestamp: (await this.spokePool.provider.getBlock(refundRequestData.blockNumber)).timestamp,
+        };
+        this.refundRequests.push(refundRequest as RefundRequestWithBlock);
+      });
     }
 
     if (eventsToQuery.includes("EnabledDepositRoute")) {

@@ -1,4 +1,4 @@
-import { MerkleTree } from "@across-protocol/contracts-v2/dist/utils/MerkleTree";
+import { MerkleTree } from "@across-protocol/contracts-v2";
 import { BigNumber } from "ethers";
 
 export interface SortableEvent {
