@@ -681,7 +681,10 @@ export async function getFlowDataForBundle(
       }
       const l1TokenAddress = l1TokenInfo.address;
 
-      // Get the opening running balance for this chain and token before the starting bundle block number.
+      // Get the block number and opening balance for this token. We do this by looking up the last validated
+      // bundle before latestHubPoolBlockNumber. We do that by looking up executed leaves for that validated bundle
+      // which must have occurred before the bundleProposalTime. Using that executed leaf data we can pull
+      // out the running balances snapshotted before the bundleProposalBlock
       const { runningBalance, incentiveBalance } = hubPoolClient.getRunningBalanceBeforeBlockForChain(
         startingBundleBlockNumber,
         chainId,
@@ -703,16 +706,10 @@ export async function getFlowDataForBundle(
         tokenSymbol,
       };
 
-      // We assume we can validate flows sequentially for this chain without relying on flow data from other chains.
-      // This is because the running balance we use as input to compute flow balancing fees is based on the opening
-      // running balance of the bundle containing the flow.
       unvalidatedBundleFlows.forEach((unvalidatedFlow) => {
-        // Previous flows will be populated with all flows we've validated and stored into the `constructedBundle.flows`
+        // Previous flows will be populated with all flows we've stored into the `constructedBundle.flows`
         // array so far. On the first `flow`, this will be an empty array.
-        const precedingValidatedFlows = constructedBundle.flows;
-
-        // Load the expected fees for this flow so we can validate it. If its valid we'll add it to the
-        // constructed bundle state.
+        const previousFlows = constructedBundle.flows;
         const {
           lpFee,
           relayerBalancingFee,
@@ -720,14 +717,7 @@ export async function getFlowDataForBundle(
           lastRunningBalance,
           lastIncentiveBalance,
           netRunningBalanceAdjustment,
-        } = getFeesForFlow(
-          unvalidatedFlow,
-          precedingValidatedFlows,
-          constructedBundle,
-          chainId,
-          tokenSymbol,
-          hubPoolClient
-        );
+        } = getFeesForFlow(unvalidatedFlow, previousFlows, constructedBundle, chainId, tokenSymbol, hubPoolClient);
 
         // If flow a deposit, then its always valid. Add it to the bundle flows.
         if (isUbaInflow(unvalidatedFlow)) {
@@ -811,6 +801,7 @@ async function getFlows(
   // - Fills that request refunds on a different chain.
   // - Subsequent fills after an initial partial fill.
   // - Slow fills.
+  // - Fills that are not complete fills.
   // - Fills that are considered "invalid" by the spoke pool client.
   const fills: UbaFlow[] = (
     await getValidFillCandidates(
@@ -822,6 +813,7 @@ async function getFlows(
         toBlock,
         repaymentChainId: chainId,
         isSlowRelay: false,
+        isCompleteFill: true,
       },
       ["realizedLpFeePct"]
     )
@@ -964,6 +956,7 @@ export type SpokePoolFillFilter = {
   toBlock?: number;
   repaymentChainId?: number;
   isSlowRelay?: boolean;
+  isCompleteFill?: boolean;
 };
 
 /**
@@ -984,7 +977,7 @@ export async function getValidFillCandidates(
   const spokePoolClient = spokePoolClients[chainId];
   assert(isDefined(spokePoolClient));
 
-  const { repaymentChainId, relayer, isSlowRelay, fromBlock, toBlock } = filter;
+  const { repaymentChainId, relayer, isSlowRelay, isCompleteFill, fromBlock, toBlock } = filter;
 
   const fills = (
     await mapAsync(spokePoolClient.getFills(), async (fill) => {
@@ -1001,6 +994,10 @@ export async function getValidFillCandidates(
         (isDefined(relayer) && fill.relayer !== relayer) ||
         (isDefined(isSlowRelay) && fill.updatableRelayData.isSlowRelay !== isSlowRelay)
       ) {
+        return undefined;
+      }
+
+      if (isDefined(isCompleteFill) && isCompleteFill !== fill.fillAmount.eq(fill.totalFilledAmount)) {
         return undefined;
       }
 
