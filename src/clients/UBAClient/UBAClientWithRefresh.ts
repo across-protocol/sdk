@@ -6,14 +6,16 @@ import { BaseUBAClient } from "./UBAClientBase";
 import {
   computeLpFeeForRefresh,
   flowComparisonFunction,
+  getBundleKeyForFlow,
   getFlowChain,
   getFlows,
   getMostRecentBundleBlockRanges,
   getUBAFeeConfig,
+  sortFlowsAscending,
 } from "./UBAClientUtilities";
 import { ModifiedUBAFlow, UBABundleState, UBAClientState } from "./UBAClientTypes";
 import { UbaFlow, UbaInflow, isUbaInflow, outflowIsFill } from "../../interfaces";
-import { findLast, forEachAsync, getBlockForChain, getBlockRangeForChain, isDefined, mapAsync } from "../../utils";
+import { findLast, getBlockForChain, getBlockRangeForChain, isDefined, mapAsync } from "../../utils";
 import { analog } from "../../UBAFeeCalculator";
 import { getDepositFee, getRefundFee } from "../../UBAFeeCalculator/UBAFeeSpokeCalculatorAnalog";
 import { BigNumber } from "ethers";
@@ -120,7 +122,6 @@ export class UBAClientWithRefresh extends BaseUBAClient {
    * @returns
    */
   public async validateFlowsInBundle(blockRanges: number[][], tokenSymbol: string): Promise<void> {
-    const bundleKey = JSON.stringify(blockRanges.map(([startBlock]) => startBlock));
     // Load common data:
     const l1TokenAddress = this.hubPoolClient.getL1Tokens().find((token) => token.symbol === tokenSymbol)?.address;
     if (!l1TokenAddress) throw new Error("No L1 token address found for token symbol");
@@ -133,39 +134,45 @@ export class UBAClientWithRefresh extends BaseUBAClient {
         if (!isDefined(this.validatedFlowsPerBundle[chainId])) {
           this.validatedFlowsPerBundle[chainId] = {};
         }
-        if (!isDefined(this.validatedFlowsPerBundle[chainId][bundleKey])) {
-          this.validatedFlowsPerBundle[chainId][bundleKey] = [];
-        }
-        return [chainId, getBlockRangeForChain(blockRanges, chainId)];
+        return [chainId, getBlockRangeForChain(blockRanges, chainId, this.chainIdIndices)];
       })
     );
 
     // 1. Combine flows from all chain block ranges in this bundle.
-    const flowsInBundle = (
-      await mapAsync(this.chainIdIndices, async (chainId) => {
-        const [startBlock, endBlock] = blockRangesForChain[chainId];
-        // TODO: Cache this getFlows result to make more performant.
-        // If getFlows doesn't error, then all fills in the range have been matched against a deposit in another
-        // spoke client's memory. If this errors, then we'll need to widen the spoke pool client's lookback
-        // to find the older deposit. This would greatly reduce runtime for this bot so we should cache the
-        // result of this function so that future calls can more easily validate an outflow against a cached inflow.
-        return await getFlows(chainId, this.spokePoolClients, this.hubPoolClient, startBlock, endBlock);
-      })
-    )
-      .flat()
-      .sort((a, b) => a.blockTimestamp - b.blockTimestamp);
+    const flowsInBundle = sortFlowsAscending(
+      (
+        await mapAsync(this.chainIdIndices, async (chainId) => {
+          const [startBlock, endBlock] = blockRangesForChain[chainId];
+          // TODO: Cache this getFlows result to make more performant.
+          // If getFlows doesn't error, then all fills in the range have been matched against a deposit in another
+          // spoke client's memory. If this errors, then we'll need to widen the spoke pool client's lookback
+          // to find the older deposit. This would greatly reduce runtime for this bot so we should cache the
+          // result of this function so that future calls can more easily validate an outflow against a cached inflow.
+          return await getFlows(tokenSymbol, chainId, this.spokePoolClients, this.hubPoolClient, startBlock, endBlock);
+        })
+      ).flat()
+    );
 
-    // 3. Validate all flows in ascending order.
-    await forEachAsync(flowsInBundle, async (flow) => {
+    // 3. Validate all flows in ascending order. We don't want to do these in parallel we actually want to do
+    // these sequentially.
+    for (const flow of flowsInBundle) {
       const flowChain = getFlowChain(flow);
+      const bundleKey = getBundleKeyForFlow(flow.blockNumber, flowChain, this.hubPoolClient);
+      if (!isDefined(this.validatedFlowsPerBundle[flowChain][bundleKey])) {
+        this.validatedFlowsPerBundle[flowChain][bundleKey] = [];
+      }
+      console.log(`Trying to validate flow for chain ${flowChain} and key ${bundleKey}`);
       // Since we're validating flows in ascending order, all flows in this array have already been validated
       // and precede the flow.
       const precedingValidatedFlows = this.validatedFlowsPerBundle[flowChain][bundleKey];
       const validatedFlow = await this.validateFlow(flow, precedingValidatedFlows);
       if (isDefined(validatedFlow)) {
+        console.log(`Validated flow for chain ${flowChain} and key ${bundleKey}`, validatedFlow);
         this.validatedFlowsPerBundle[flowChain][bundleKey].push(validatedFlow);
+      } else {
+        console.log("Invalidated flow", flow);
       }
-    });
+    }
   }
 
   /**
@@ -178,6 +185,8 @@ export class UBAClientWithRefresh extends BaseUBAClient {
     flow: UbaFlow,
     precedingValidatedFlows: ModifiedUBAFlow[] = []
   ): Promise<ModifiedUBAFlow | undefined> {
+    const latestHubPoolBlock = this.hubPoolClient.latestBlockNumber;
+    if (!isDefined(latestHubPoolBlock)) throw new Error("HubPoolClient not updated");
     // ASSUMPTION: When calling this function, the caller assumes that all flows loaded by the SpokePoolClients
     // with a block.timestamp < flow.block.timestamp have already been validated. This means that we can
     // assume that `this.validatedFlowsPerChain` is updated through the flow.block.timestamp.
@@ -214,15 +223,27 @@ export class UBAClientWithRefresh extends BaseUBAClient {
     const l1TokenAddress = this.hubPoolClient.getL1Tokens().find((token) => token.symbol === tokenSymbol)?.address;
     if (!isDefined(l1TokenAddress)) throw new Error("No L1 token address found for token symbol");
 
-    // Get opening balance and config at the time of the bundle containing the flow.
-    const startingBundleForFlow = this.hubPoolClient.getBundleStartBlockContainingBlock(flow.blockNumber, flowChain);
-    const openingBalanceForChain = this.hubPoolClient.getRunningBalanceBeforeBlockForChain(
-      startingBundleForFlow,
+    // Get opening balance and config at the time of the bundle containing the flow. We basically want to grab
+    // the latest validated bundle preceding the bundle containing the flow.
+    const startBlocks = this.hubPoolClient.getBundleStartBlocksForProposalContainingBlock(flow.blockNumber, flowChain);
+    const mainnetStartBlock = getBlockForChain(
+      startBlocks,
+      this.hubPoolClient.chainId,
+      this.hubPoolClient.configStoreClient.enabledChainIds
+    );
+    // TODO: Fix this: get running balance for bundle.
+    const openingBalanceForChain = this.hubPoolClient.getOpeningRunningBalanceForEvent(
+      flow.blockNumber,
       flowChain,
       l1TokenAddress
     );
-    const ubaConfigForChain = getUBAFeeConfig(this.hubPoolClient, flowChain, tokenSymbol, startingBundleForFlow);
+    const ubaConfigForChain = getUBAFeeConfig(this.hubPoolClient, flowChain, tokenSymbol, mainnetStartBlock);
 
+    console.log(
+      `Opening balance for chain ${flowChain} and block ${flow.blockNumber} for ${l1TokenAddress}`,
+      openingBalanceForChain
+    );
+    console.log(`Loaded latest UBA config as of ${mainnetStartBlock}`);
     // Figure out the running balance so far for this flow's chain. This is based on all already validated flows
     // for this chain.
     const {
@@ -300,16 +321,42 @@ export class UBAClientWithRefresh extends BaseUBAClient {
           matchedDeposit.blockNumber,
           matchedDeposit.originChainId
         );
-        const matchedDepositBundleKey = JSON.stringify(matchedDepositBundleStartBlocks);
+        const matchedDepositBundleKey = getBundleKeyForFlow(
+          matchedDeposit.blockNumber,
+          matchedDeposit.originChainId,
+          this.hubPoolClient
+        );
+
+        // // If bundle key and matched deposit bundle key are the same then the matched deposit should be in the
+        // // same bundle as the fill.
+        // const bundleKey = getBundleKeyForFlow(flow.blockNumber, flowChain, this.hubPoolClient);
+        // if (matchedDepositBundleKey === bundleKey) {
+        //   matchedDepositFlow = precedingValidatedFlows.find(
+        //     ({ flow }) =>
+        //       flow.depositId === matchedDeposit.depositId && flow.originChainId === matchedDeposit.originChainId
+        //   );
+        //   if (!isDefined(matchedDepositFlow)) {
+        //     throw new Error(`Could not find matched deposit in same bundle as fill`)
+        //   } else {
+        //     console.log(`Found matched deposit in same bundle as fill`, matchedDepositFlow)
+        //   }
+        // }
 
         // Try to see if we can easily
         // look up cached flow information using the matchedDepositBundleKey and flow.matchedDeposit.originChainId.
         const cache_matchedDepositBundleFlows =
           this.validatedFlowsPerBundle?.[matchedDeposit.originChainId]?.[matchedDepositBundleKey];
         if (isDefined(cache_matchedDepositBundleFlows)) {
+          console.log(
+            `Looking in cache for matched deposit ${matchedDeposit.originChainId} and ${matchedDepositBundleKey}}`
+          );
           matchedDepositFlow = cache_matchedDepositBundleFlows.find(
             ({ flow }) =>
               flow.depositId === matchedDeposit.depositId && flow.originChainId === matchedDeposit.originChainId
+          );
+        } else {
+          console.log(
+            `Could not find cache for ${matchedDeposit.originChainId} and ${matchedDepositBundleKey} when trying to validate flow`
           );
         }
 
@@ -323,13 +370,21 @@ export class UBAClientWithRefresh extends BaseUBAClient {
             ),
             this.spokePoolClients[chainId].latestBlockSearched,
           ]);
-          await this.validateFlowsInBundle(matchedDepositBundleBlockRanges, tokenSymbol);
-          const cache_matchedDepositBundleFlows =
-            this.validatedFlowsPerBundle?.[matchedDeposit.originChainId]?.[matchedDepositBundleKey];
-          matchedDepositFlow = cache_matchedDepositBundleFlows.find(
-            ({ flow }) =>
-              flow.depositId === matchedDeposit.depositId && flow.originChainId === matchedDeposit.originChainId
+          console.log(
+            "We need to recurse to validate the matched deposit",
+            flow,
+            matchedDepositBundleBlockRanges,
+            matchedDepositBundleKey
           );
+          process.exit(0);
+
+          // await this.validateFlowsInBundle(matchedDepositBundleBlockRanges, tokenSymbol);
+          // const cache_matchedDepositBundleFlows =
+          //   this.validatedFlowsPerBundle?.[matchedDeposit.originChainId]?.[matchedDepositBundleKey];
+          // matchedDepositFlow = cache_matchedDepositBundleFlows.find(
+          //   ({ flow }) =>
+          //     flow.depositId === matchedDeposit.depositId && flow.originChainId === matchedDeposit.originChainId
+          // );
         }
 
         // At this point we couldn't find a flow in the cache or from newly validated data that matches the
@@ -350,9 +405,7 @@ export class UBAClientWithRefresh extends BaseUBAClient {
           };
         } else {
           console.log(
-            "Matched deposit was validated by incorrect realized lp fee pct set for outflow",
-            flow,
-            matchedDepositFlow
+            `Matched deposit was validated by incorrect realized lp fee pct set for outflow, expected ${expectedRealizedLpFeePctForMatchedDeposit.toString()}`
           );
         }
       }
@@ -408,11 +461,9 @@ export class UBAClientWithRefresh extends BaseUBAClient {
     // Get the block ranges for all chains from the oldest
     const mostRecentBundleBlockRanges = chainIdIndices.map((chain) => bundleBlockRangesPerChain[chain][0]);
     console.log("Validating flows for bundle", mostRecentBundleBlockRanges);
-    return;
 
     // Grab validated flows for this bundle:
-    const validatedFlows = await this.validateFlowsInBundle(mostRecentBundleBlockRanges, token);
-    console.log(`Validated flows for ${token}`, validatedFlows);
+    await this.validateFlowsInBundle(mostRecentBundleBlockRanges, token);
     return;
   }
   public get isUpdated(): boolean {

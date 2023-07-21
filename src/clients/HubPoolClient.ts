@@ -1,4 +1,4 @@
-import { Contract, BigNumber, Event, EventFilter } from "ethers";
+import { Contract, BigNumber, Event, EventFilter, ethers } from "ethers";
 import { Block } from "@ethersproject/abstract-provider";
 import { BlockFinder } from "@uma/sdk";
 import winston from "winston";
@@ -374,7 +374,6 @@ export class HubPoolClient extends BaseAbstractClient {
 
     // Now compare the eventBlock against the eventBlockRange.
     const eventBlockRange = getBlockRangeForChain(blockRanges, eventChain, enabledChains);
-    // console.log(blockRangesForChains, eventBlockRange, eventChain, eventBlock, enabledChains)
 
     // If event is greater than the latest bundle's end block, then the next bundle will contain the event. The
     // the next bundle will start at these end blocks + 1
@@ -394,6 +393,13 @@ export class HubPoolClient extends BaseAbstractClient {
       eventChain,
       latestExecutedBundle.blockNumber
     );
+  }
+
+  getExecutedLeavesForProposedRootBundle(rootBundle: ProposedRootBundle): ExecutedRootBundle[] {
+    const nextRootBundle = this.getFollowingRootBundle(rootBundle);
+    if (isDefined(nextRootBundle)) {
+      return this.getExecutedLeavesForRootBundle(rootBundle, nextRootBundle?.blockNumber);
+    } else return [];
   }
 
   // Root bundles are valid if all of their pool rebalance leaves have been executed before the next bundle, or the
@@ -590,6 +596,71 @@ export class HubPoolClient extends BaseAbstractClient {
     // This assumes that chain ID's are only added to the chain ID list over time, and that chains are never
     // deleted.
     return endBlock > 0 ? endBlock + 1 : 0;
+  }
+
+  /**
+   * Return the latest validated running balance for the given token.
+   * @param eventBlock
+   * @param eventChain
+   * @param l1Token
+   * @param hubPoolLatestBlock
+   * @returns
+   */
+  getOpeningRunningBalanceForEvent(
+    eventBlock: number,
+    eventChain: number,
+    l1Token: string,
+    hubPoolLatestBlock?: number
+  ): TokenRunningBalance {
+    const enabledChains = this.configStoreClient.enabledChainIds;
+
+    // First find the latest executed bundle as of `hubPoolLatestBlock`.
+    const latestExecutedBundle = this.getNthFullyExecutedRootBundle(-1, hubPoolLatestBlock);
+
+    // If there is no latest executed bundle, then return 0. This means that there is no
+    // bundle before `hubPoolLatestBlock` containing the event block.
+    if (!isDefined(latestExecutedBundle)) {
+      return {
+        runningBalance: ethers.constants.Zero,
+        incentiveBalance: ethers.constants.Zero,
+      };
+    }
+
+    // Construct the bundle's block range
+    const blockRanges = getImpliedBundleBlockRanges(this, this.configStoreClient, latestExecutedBundle);
+
+    // Now compare the eventBlock against the eventBlockRange.
+    const eventBlockRange = getBlockRangeForChain(blockRanges, eventChain, enabledChains);
+
+    // If event block is after the bundle end block, use the running balances for this bundle. We need to enforce
+    // that the bundle end block is less than the event block to ensure that the running balance from this bundle
+    // precedes the event block.
+    if (eventBlock > eventBlockRange[1]) {
+      // This can't be empty since we've already validated that this bundle is fully executed.
+      const executedLeavesForBundle = this.getExecutedLeavesForProposedRootBundle(latestExecutedBundle);
+      if (executedLeavesForBundle.length === 0) {
+        throw new Error("No executed leaves found for bundle");
+      }
+      const executedLeaf = executedLeavesForBundle.find((executedLeaf) => executedLeaf.chainId === eventChain);
+      if (!executedLeaf) {
+        // If no executed leaf in this bundle for the chain, then need to look for an older executed bundle.
+        return this.getOpeningRunningBalanceForEvent(eventBlock, eventChain, l1Token, latestExecutedBundle.blockNumber);
+      }
+      const l1TokenIndex = executedLeaf.l1Tokens.indexOf(l1Token);
+      if (l1TokenIndex === -1) {
+        // If l1 token not included in this bundle, then need to look for an older executed bundle.
+        return this.getOpeningRunningBalanceForEvent(eventBlock, eventChain, l1Token, latestExecutedBundle.blockNumber);
+      }
+      const runningBalance = executedLeaf.runningBalances[l1TokenIndex];
+      const incentiveBalance = executedLeaf.incentiveBalances[l1TokenIndex];
+      return {
+        runningBalance,
+        incentiveBalance,
+      };
+    }
+
+    // Event is either in the bundle or before it, look for an older executed bundle.
+    return this.getOpeningRunningBalanceForEvent(eventBlock, eventChain, l1Token, latestExecutedBundle.blockNumber);
   }
 
   getRunningBalanceBeforeBlockForChain(block: number, chain: number, l1Token: string): TokenRunningBalance {

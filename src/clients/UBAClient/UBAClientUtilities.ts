@@ -102,7 +102,7 @@ export function getUBAFeeConfig(
   hubPoolClient: HubPoolClient,
   chainId: number,
   tokenSymbol: string,
-  blockNumber?: number
+  hubBlockNumber?: number
 ): UBAFeeConfig {
   const configClient = hubPoolClient.configStoreClient;
   // If the config client has not been updated at least
@@ -114,9 +114,9 @@ export function getUBAFeeConfig(
   if (!l1TokenInfo) {
     throw new Error("L1 token can't be found, have you updated hub pool client?");
   }
-  const ubaConfig = configClient.getUBAConfig(l1TokenInfo?.address, blockNumber);
+  const ubaConfig = configClient.getUBAConfig(l1TokenInfo?.address, hubBlockNumber);
   if (ubaConfig === undefined) {
-    throw new Error(`UBA config for blockTag ${blockNumber} not found`);
+    throw new Error(`UBA config for blockTag ${hubBlockNumber} not found`);
   }
 
   const omegaDefault = ubaConfig.omega["default"];
@@ -429,6 +429,7 @@ export function getFlowChain(flow: UbaFlow): number {
  * @returns The flows for the given chainId
  */
 export async function getFlows(
+  tokenSymbol: string,
   chainId: number,
   spokePoolClients: SpokePoolClients,
   hubPoolClient: HubPoolClient,
@@ -442,12 +443,14 @@ export async function getFlows(
 
   // @todo: Fix these type assertions.
   const deposits: UbaFlow[] = await mapAsync(
-    spokePoolClient
-      .getDeposits()
-      .filter(
-        (deposit: DepositWithBlock) =>
-          deposit.blockNumber >= (fromBlock as number) && deposit.blockNumber <= (toBlock as number)
-      ),
+    spokePoolClient.getDeposits().filter((deposit: DepositWithBlock) => {
+      const _tokenSymbol = hubPoolClient.getL1TokenInfoForL2Token(deposit.originToken, deposit.originChainId)?.symbol;
+      return (
+        _tokenSymbol === tokenSymbol &&
+        deposit.blockNumber >= (fromBlock as number) &&
+        deposit.blockNumber <= (toBlock as number)
+      );
+    }),
     async (deposit: DepositWithBlock) => {
       return {
         ...deposit,
@@ -475,21 +478,30 @@ export async function getFlows(
       ["realizedLpFeePct"]
     )
   ).filter((fill: FillWithBlock) => {
+    const _tokenSymbol = hubPoolClient.getL1TokenInfoForL2Token(fill.destinationToken, fill.destinationChainId)?.symbol;
     // We only want to include full fills as flows. Partial fills need to request refunds and those refunds
     // will be included as flows.
-    return fill.fillAmount.eq(fill.totalFilledAmount);
+    return _tokenSymbol === tokenSymbol && fill.fillAmount.eq(fill.totalFilledAmount);
   }) as UbaFlow[];
 
-  const refundRequests: UbaFlow[] = await getValidRefundCandidates(
-    chainId,
-    hubPoolClient,
-    spokePoolClients,
-    {
-      fromBlock,
-      toBlock,
-    },
-    ["realizedLpFeePct"]
-  );
+  const refundRequests: UbaFlow[] = (
+    await getValidRefundCandidates(
+      chainId,
+      hubPoolClient,
+      spokePoolClients,
+      {
+        fromBlock,
+        toBlock,
+      },
+      ["realizedLpFeePct"]
+    )
+  ).filter((refundRequest: RefundRequestWithBlock) => {
+    const _tokenSymbol = hubPoolClient.getL1TokenInfoForL2Token(
+      refundRequest.refundToken,
+      refundRequest.repaymentChainId
+    )?.symbol;
+    return _tokenSymbol === tokenSymbol;
+  });
 
   // This is probably more expensive than we'd like... @todo: optimise.
   const flows = sortEventsAscending(deposits.concat(fills).concat(refundRequests));
@@ -497,6 +509,10 @@ export async function getFlows(
   return flows;
 }
 
+export function getBundleKeyForFlow(eventBlock: number, eventChain: number, hubPoolClient: HubPoolClient): string {
+  const bundleStartBlocks = hubPoolClient.getBundleStartBlocksForProposalContainingBlock(eventBlock, eventChain);
+  return JSON.stringify(bundleStartBlocks);
+}
 /**
  * The return value should be a number whose sign indicates the relative order of the two elements:
  * negative if a is less than b, positive if a is greater than b, and zero if they are equal.
@@ -506,13 +522,15 @@ export async function getFlows(
  */
 export function flowComparisonFunction(a: UbaFlow, b: UbaFlow): number {
   if (a.blockTimestamp !== b.blockTimestamp) {
-    return a.blockNumber - b.blockNumber;
+    return a.blockTimestamp - b.blockTimestamp;
   }
 
   // If fx and fx have same blockTimestamp and same quote block then... FML... what do?
   const quoteBlockX = isUbaInflow(a) ? a.quoteBlockNumber : a.matchedDeposit.quoteBlockNumber;
   const quoteBlockY = isUbaInflow(b) ? b.quoteBlockNumber : b.matchedDeposit.quoteBlockNumber;
-  return quoteBlockY - quoteBlockX;
+  return quoteBlockX - quoteBlockY;
+
+  // TODO: Figure out more precise sorting algo if we get here.
 }
 export function sortFlowsDescendingInPlace(flows: UbaFlow[]): UbaFlow[] {
   return flows.sort((fx, fy) => flowComparisonFunction(fy, fx));
@@ -520,6 +538,10 @@ export function sortFlowsDescendingInPlace(flows: UbaFlow[]): UbaFlow[] {
 
 export function sortFlowsAscendingInPlace(flows: UbaFlow[]): UbaFlow[] {
   return flows.sort((fx, fy) => flowComparisonFunction(fx, fy));
+}
+
+export function sortFlowsAscending(flows: UbaFlow[]): UbaFlow[] {
+  return sortFlowsAscendingInPlace([...flows]);
 }
 
 /**
