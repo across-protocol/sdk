@@ -16,19 +16,6 @@ export type RelayerFeeResult = {
   relayerBalancingFee: BigNumber;
 };
 
-export type UBAChainState = {
-  spokeChain: {
-    deploymentBlockNumber: number;
-    bundleEndBlockNumber: number;
-    latestBlockNumber: number;
-  };
-  bundles: UBABundleTokenState;
-};
-
-export type UBABundleTokenState = {
-  [tokenSymbol: string]: UBABundleState[];
-};
-
 export type ModifiedUBAFlow = {
   flow: UbaFlow;
   balancingFee: BigNumber;
@@ -38,6 +25,14 @@ export type ModifiedUBAFlow = {
   netRunningBalanceAdjustment: BigNumber;
 };
 
+export type UBAClientState = {
+  [chainId: number]: UBABundleTokenState;
+};
+
+export type UBABundleTokenState = {
+  [tokenSymbol: string]: UBABundleState[];
+};
+
 export type UBABundleState = {
   openingBalance: BigNumber;
   openingIncentiveBalance: BigNumber;
@@ -45,8 +40,4 @@ export type UBABundleState = {
   closingBlockNumberForSpokeChain: number;
   config: UBAConfig;
   flows: ModifiedUBAFlow[];
-};
-
-export type UBAClientState = {
-  [chainId: number]: UBAChainState;
 };

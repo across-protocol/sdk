@@ -18,7 +18,7 @@ import { UbaFlow, UbaInflow, isUbaInflow, outflowIsFill } from "../../interfaces
 import { findLast, getBlockForChain, getBlockRangeForChain, isDefined, mapAsync } from "../../utils";
 import { analog } from "../../UBAFeeCalculator";
 import { getDepositFee, getRefundFee } from "../../UBAFeeCalculator/UBAFeeSpokeCalculatorAnalog";
-import { BigNumber } from "ethers";
+import { BigNumber, ethers } from "ethers";
 export class UBAClientWithRefresh extends BaseUBAClient {
   public chainIdIndices: number[];
 
@@ -205,11 +205,6 @@ export class UBAClientWithRefresh extends BaseUBAClient {
       // }
       tokenSymbol = this.hubPoolClient.getL1TokenInfoForL2Token(flow.originToken, flowChain)?.symbol;
     } else {
-      // If outflow, we need to make sure that the matched deposit is not a pre UBA deposit. pre UBA deposits
-      // have defined realizedLpFeePct's at this stage:
-      if (isDefined(flow.matchedDeposit.realizedLpFeePct)) {
-        return undefined;
-      }
       // If the flow is a fill, then we need to validate its matched deposit.
       if (outflowIsFill(flow)) {
         flowChain = flow.destinationChainId;
@@ -245,13 +240,9 @@ export class UBAClientWithRefresh extends BaseUBAClient {
     );
     console.log(`Loaded latest UBA config as of ${mainnetStartBlock}`);
     // Figure out the running balance so far for this flow's chain. This is based on all already validated flows
-    // for this chain.
-    const {
-      runningBalance: flowOpeningRunningBalance,
-      incentiveBalance: flowOpeningIncentiveBalance,
-      netRunningBalanceAdjustment: flowOpeningNetRunningBalanceAdjustment,
-    } = analog.calculateHistoricalRunningBalance(
-      precedingValidatedFlows.map(({ flow }) => flow),
+    // for this chain plus the current flow assuming its valid.
+    const { runningBalance, incentiveBalance, netRunningBalanceAdjustment } = analog.calculateHistoricalRunningBalance(
+      precedingValidatedFlows.map(({ flow }) => flow).concat(flow),
       openingBalanceForChain.runningBalance,
       openingBalanceForChain.incentiveBalance,
       flowChain,
@@ -262,21 +253,9 @@ export class UBAClientWithRefresh extends BaseUBAClient {
     // Use the opening balance to compute expected flow fees:
     let balancingFee: BigNumber;
     if (isUbaInflow(flow)) {
-      ({ balancingFee } = getDepositFee(
-        flow.amount,
-        flowOpeningRunningBalance,
-        flowOpeningIncentiveBalance,
-        flowChain,
-        ubaConfigForChain
-      ));
+      ({ balancingFee } = getDepositFee(flow.amount, runningBalance, incentiveBalance, flowChain, ubaConfigForChain));
     } else {
-      ({ balancingFee } = getRefundFee(
-        flow.amount,
-        flowOpeningRunningBalance,
-        flowOpeningIncentiveBalance,
-        flowChain,
-        ubaConfigForChain
-      ));
+      ({ balancingFee } = getRefundFee(flow.amount, runningBalance, incentiveBalance, flowChain, ubaConfigForChain));
     }
 
     // Figure out the LP fee which is based only on the flow's origin and destination chain.
@@ -289,14 +268,51 @@ export class UBAClientWithRefresh extends BaseUBAClient {
         flow,
         balancingFee,
         lpFee,
-        runningBalance: flowOpeningRunningBalance,
-        incentiveBalance: flowOpeningIncentiveBalance,
-        netRunningBalanceAdjustment: flowOpeningNetRunningBalanceAdjustment,
+        runningBalance,
+        incentiveBalance,
+        netRunningBalanceAdjustment,
       };
     } else {
       // Now we need to validate the refund or fill.
       // ASSUMPTION: the flow is already matched against a deposit, so it suffices
       // only to check if the fill matches with a valid deposit.
+
+      // We need to make sure that the matched deposit is not a pre UBA deposit. pre UBA deposits
+      // have defined realizedLpFeePct's at this stage so they are trivial to validate.
+      if (isDefined(flow.matchedDeposit.realizedLpFeePct)) {
+        // TODO: Potentially add additional safety check that we're identifying the matched deposit correctly.
+        // const hubStartBlock = this.hubPoolClient.getBundleStartBlockContainingBlock(flow.matchedDeposit.blockNumber, flow.matchedDeposit.originChainId);
+        // isUBA(this.hubPoolClient.configStoreClient.getConfigStoreVersionForBlock(hubStartBlock))
+        if (flow.matchedDeposit.realizedLpFeePct.eq(flow.realizedLpFeePct)) {
+          // For pre UBA refund, the running balance should not be affected by this refund.
+          const {
+            runningBalance: precedingRunningBalance,
+            incentiveBalance: precedingIncentiveBalance,
+            netRunningBalanceAdjustment: precedingNetRunningBalanceAdjustment,
+          } = analog.calculateHistoricalRunningBalance(
+            precedingValidatedFlows.map(({ flow }) => flow),
+            openingBalanceForChain.runningBalance,
+            openingBalanceForChain.incentiveBalance,
+            flowChain,
+            tokenSymbol,
+            ubaConfigForChain
+          );
+          console.log("Outflow matched a pre-UBA deposit");
+          return {
+            flow,
+            // Balancing fee for a pre UBA refund is 0
+            balancingFee: ethers.constants.Zero,
+            // Set realized LP fee for fill equal to the realized LP fee for the matched deposit.
+            lpFee: flow.realizedLpFeePct,
+            runningBalance: precedingRunningBalance,
+            incentiveBalance: precedingIncentiveBalance,
+            netRunningBalanceAdjustment: precedingNetRunningBalanceAdjustment,
+          };
+        } else {
+          console.log("Flow matched a pre-UBA deposit, but it was invalid because it set the wrong LP fee");
+          return undefined;
+        }
+      }
 
       // Rule 1. The fill must match with a deposit who's blockTimestamp is < fill.blockTimestamp.
       if (flow.blockTimestamp < flow.matchedDeposit.blockTimestamp) {
@@ -399,9 +415,9 @@ export class UBAClientWithRefresh extends BaseUBAClient {
             flow,
             balancingFee,
             lpFee,
-            runningBalance: flowOpeningRunningBalance,
-            incentiveBalance: flowOpeningIncentiveBalance,
-            netRunningBalanceAdjustment: flowOpeningNetRunningBalanceAdjustment,
+            runningBalance,
+            incentiveBalance,
+            netRunningBalanceAdjustment,
           };
         } else {
           console.log(
