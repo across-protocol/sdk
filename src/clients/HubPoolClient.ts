@@ -378,7 +378,16 @@ export class HubPoolClient extends BaseAbstractClient {
     // If event is greater than the latest bundle's end block, then the next bundle will contain the event. The
     // the next bundle will start at these end blocks + 1
     if (eventBlock > eventBlockRange[1]) {
-      return enabledChains.map((chainId) => blockRangesForChains[chainId][1] + 1);
+      // If the chain is disabled as of `hubPoolLatestBlock`, then don't add 1
+      const enabledChainsForProposal = this.configStoreClient.getEnabledChains(
+        hubPoolLatestBlock,
+        this.configStoreClient.enabledChainIds
+      );
+      return enabledChains.map((chainId) => {
+        if (!enabledChainsForProposal.includes(chainId)) {
+          return blockRangesForChains[chainId][1];
+        } else return blockRangesForChains[chainId][1] + 1;
+      });
     }
 
     // Now check if the event is greater than the latest bundle's start block. If so, return the start blocks

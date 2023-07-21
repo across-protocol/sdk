@@ -8,8 +8,7 @@ import { isDefined } from "../../utils/TypeGuards";
 import { sortEventsAscending } from "../../utils/EventUtils";
 import { toBN } from "../../utils/common";
 import { validateFillForDeposit } from "../../utils/FlowUtils";
-import { ERC20__factory } from "../../typechain";
-import { RequestValidReturnType, UBABundleState, UBAClientState } from "./UBAClientTypes";
+import { ModifiedUBAFlow, RequestValidReturnType, UBAClientState } from "./UBAClientTypes";
 import {
   DepositWithBlock,
   Fill,
@@ -17,54 +16,14 @@ import {
   RefundRequestWithBlock,
   UbaFlow,
   isUbaInflow,
+  isUbaOutflow,
   outflowIsFill,
+  outflowIsRefund,
 } from "../../interfaces";
-import { analog } from "../../UBAFeeCalculator";
-import { getDepositFee, getRefundFee } from "../../UBAFeeCalculator/UBAFeeSpokeCalculatorAnalog";
-import {
-  blockRangesAreInvalidForSpokeClients,
-  getBlockRangeForChain,
-  getImpliedBundleBlockRanges,
-} from "../../utils/BundleUtils";
+import { getBlockRangeForChain, getImpliedBundleBlockRanges } from "../../utils/BundleUtils";
 import { stringifyJSONWithNumericString } from "../../utils/JSONUtils";
 import { AcrossConfigStoreClient } from "../AcrossConfigStoreClient";
 import { isUBA } from "../../utils/UBAUtils";
-
-/**
- * Returns the inputs to the LP Fee calculation for a hub pool block height. This wraps
- * the async logic needed for fetching HubPool balances and liquid reserves at a given block height.
- * @param hubPoolBlockNumber
- * @param tokenSymbol
- * @param hubPoolClient
- * @returns
- */
-export async function getLpFeeParams(
-  hubPoolBlockNumber: number,
-  tokenSymbol: string,
-  hubPoolClient: HubPoolClient
-): Promise<{ hubBalance: BigNumber; hubLiquidReserves: BigNumber }> {
-  if (!hubPoolClient.latestBlockNumber || hubPoolClient.latestBlockNumber < hubPoolBlockNumber) {
-    throw new Error(
-      `HubPool block number ${hubPoolBlockNumber} is greater than latest HubPoolClient block number ${hubPoolClient.latestBlockNumber}`
-    );
-  }
-  const hubPoolTokenInfo = hubPoolClient.getL1Tokens().find((token) => token.symbol === tokenSymbol);
-  if (!hubPoolTokenInfo) {
-    throw new Error(`No L1 token address mapped to symbol ${tokenSymbol}`);
-  }
-  const hubPoolTokenAddress = hubPoolTokenInfo.address;
-  const erc20 = ERC20__factory.connect(hubPoolTokenAddress, hubPoolClient.hubPool.provider);
-  // Grab the balances of the spoke pool and hub pool at the given block number.
-  const [hubBalance, hubLiquidReserves] = await Promise.all([
-    erc20.balanceOf(hubPoolClient.hubPool.address, { blockTag: hubPoolBlockNumber }),
-    hubPoolClient.hubPool.pooledTokens(hubPoolTokenAddress, { blockTag: hubPoolBlockNumber }),
-  ]);
-
-  return {
-    hubBalance,
-    hubLiquidReserves,
-  };
-}
 
 export function computeLpFeeForRefresh(baselineFee: BigNumber): BigNumber {
   return computeLpFeeStateful(baselineFee);
@@ -170,58 +129,6 @@ export function getUBAFeeConfig(
   );
 }
 
-export function getFeesForFlow(
-  flow: UbaFlow,
-  precedingFlowsInBundle: UbaFlow[],
-  bundleState: UBABundleState,
-  chainId: number,
-  tokenSymbol: string
-): {
-  lpFee: BigNumber;
-  relayerBalancingFee: BigNumber;
-  depositBalancingFee: BigNumber;
-  lastRunningBalance: BigNumber;
-  lastIncentiveBalance: BigNumber;
-  netRunningBalanceAdjustment: BigNumber;
-} {
-  const {
-    runningBalance: lastRunningBalance,
-    incentiveBalance: lastIncentiveBalance,
-    netRunningBalanceAdjustment,
-  } = analog.calculateHistoricalRunningBalance(
-    precedingFlowsInBundle,
-    bundleState.openingBalance,
-    bundleState.openingIncentiveBalance,
-    chainId,
-    tokenSymbol,
-    bundleState.config
-  );
-  const { balancingFee: depositBalancingFee } = getDepositFee(
-    flow.amount,
-    lastRunningBalance,
-    lastIncentiveBalance,
-    chainId,
-    bundleState.config
-  );
-  const { balancingFee: relayerBalancingFee } = getRefundFee(
-    flow.amount,
-    lastRunningBalance,
-    lastIncentiveBalance,
-    chainId,
-    bundleState.config
-  );
-  const lpFee = computeLpFeeForRefresh(bundleState.config.getBaselineFee(flow.destinationChainId, flow.originChainId));
-
-  return {
-    lpFee,
-    relayerBalancingFee,
-    depositBalancingFee,
-    lastRunningBalance,
-    lastIncentiveBalance,
-    netRunningBalanceAdjustment,
-  };
-}
-
 /**
  * Returns most recent `maxBundleStates` bundle ranges for a given chain, in chronological ascending order.
  * Will only returns bundle ranges that are subject to UBA rules, which is based on the bundle's start block.
@@ -279,21 +186,6 @@ export function getMostRecentBundleBlockRanges(
     )[0];
     if (!isUbaBlock(hubPoolStartBlock, hubPoolClient.configStoreClient)) {
       break;
-    }
-
-    // Make sure our spoke pool clients have the block ranges we need to look up data in this bundle range:
-    if (
-      blockRangesAreInvalidForSpokeClients(
-        spokePoolClients,
-        rootBundleBlockRanges,
-        hubPoolClient.configStoreClient.enabledChainIds
-      )
-    ) {
-      throw new Error(
-        `Spoke pool clients do not have the block ranges necessary to look up data for bundle proposed at block ${
-          latestExecutedRootBundle.blockNumber
-        }: ${JSON.stringify(rootBundleBlockRanges)}`
-      );
     }
 
     // Push the block range for this chain to the start of the list
@@ -509,9 +401,8 @@ export async function getFlows(
   return flows;
 }
 
-export function getBundleKeyForFlow(eventBlock: number, eventChain: number, hubPoolClient: HubPoolClient): string {
-  const bundleStartBlocks = hubPoolClient.getBundleStartBlocksForProposalContainingBlock(eventBlock, eventChain);
-  return JSON.stringify(bundleStartBlocks);
+export function getBundleKeyForBlockRanges(blockRanges: number[][]): string {
+  return JSON.stringify(blockRanges.map((blockRange) => blockRange[0]));
 }
 /**
  * The return value should be a number whose sign indicates the relative order of the two elements:
@@ -531,9 +422,6 @@ export function flowComparisonFunction(a: UbaFlow, b: UbaFlow): number {
   return quoteBlockX - quoteBlockY;
 
   // TODO: Figure out more precise sorting algo if we get here.
-}
-export function sortFlowsDescendingInPlace(flows: UbaFlow[]): UbaFlow[] {
-  return flows.sort((fx, fy) => flowComparisonFunction(fy, fx));
 }
 
 export function sortFlowsAscendingInPlace(flows: UbaFlow[]): UbaFlow[] {
@@ -659,6 +547,29 @@ export type SpokePoolFillFilter = {
   isSlowRelay?: boolean;
   isCompleteFill?: boolean;
 };
+
+/**
+ * @notice Get the matching flow in a stream of already validated flows. Useful for seeing if an outflow's
+ * matched inflow `targetFlow` is in the `allValidatedFlows` list.
+ * @param allFlows
+ * @param targetFlow
+ * @returns
+ */
+export function getMatchingFlow(
+  allValidatedFlows: ModifiedUBAFlow[],
+  targetFlow: UbaFlow
+): ModifiedUBAFlow | undefined {
+  // TODO: I feel like this can be a lot simpler.
+  return allValidatedFlows?.find(({ flow }) => {
+    if (isUbaInflow(targetFlow)) {
+      return isUbaInflow(flow) && flow.depositId === targetFlow.depositId;
+    } else if (outflowIsFill(targetFlow)) {
+      return isUbaOutflow(flow) && outflowIsFill(flow) && flow.depositId === targetFlow.depositId;
+    } else {
+      return isUbaOutflow(flow) && outflowIsRefund(flow) && flow.depositId === targetFlow.depositId;
+    }
+  });
+}
 
 /**
  * @description Search for fills recorded by a specific SpokePool. These fills are matched against deposits
