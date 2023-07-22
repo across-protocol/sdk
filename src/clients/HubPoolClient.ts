@@ -404,13 +404,6 @@ export class HubPoolClient extends BaseAbstractClient {
     );
   }
 
-  getExecutedLeavesForProposedRootBundle(rootBundle: ProposedRootBundle): ExecutedRootBundle[] {
-    const nextRootBundle = this.getFollowingRootBundle(rootBundle);
-    if (isDefined(nextRootBundle)) {
-      return this.getExecutedLeavesForRootBundle(rootBundle, nextRootBundle?.blockNumber);
-    } else return [];
-  }
-
   // Root bundles are valid if all of their pool rebalance leaves have been executed before the next bundle, or the
   // latest mainnet block to search. Whichever comes first.
   isRootBundleValid(rootBundle: ProposedRootBundle, latestMainnetBlock: number): boolean {
@@ -619,7 +612,7 @@ export class HubPoolClient extends BaseAbstractClient {
     eventBlock: number,
     eventChain: number,
     l1Token: string,
-    hubPoolLatestBlock?: number
+    hubPoolLatestBlock: number
   ): TokenRunningBalance {
     const enabledChains = this.configStoreClient.enabledChainIds;
 
@@ -646,7 +639,7 @@ export class HubPoolClient extends BaseAbstractClient {
     // precedes the event block.
     if (eventBlock > eventBlockRange[1]) {
       // This can't be empty since we've already validated that this bundle is fully executed.
-      const executedLeavesForBundle = this.getExecutedLeavesForProposedRootBundle(latestExecutedBundle);
+      const executedLeavesForBundle = this.getExecutedLeavesForRootBundle(latestExecutedBundle, hubPoolLatestBlock);
       if (executedLeavesForBundle.length === 0) {
         throw new Error("No executed leaves found for bundle");
       }

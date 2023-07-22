@@ -664,11 +664,13 @@ export class SpokePoolClient extends BaseAbstractClient {
       });
       this.earlyDeposits = earlyDeposits;
 
-      if (depositEvents.length > 0) {
-        this.log("debug", `Fetching realizedLpFeePct for ${depositEvents.length} deposits on chain ${this.chainId}`, {
-          numDeposits: depositEvents.length,
-        });
-      }
+      // Do we need this log anymore post UBA? It shouldn't cost any extra time to load realizedLpFeePct
+      // for post UBA deposits.
+      // if (depositEvents.length > 0) {
+      //   this.log("debug", `Fetching realizedLpFeePct for ${depositEvents.length} deposits on chain ${this.chainId}`, {
+      //     numDeposits: depositEvents.length,
+      //   });
+      // }
 
       const dataForQuoteTime: { realizedLpFeePct: BigNumber | undefined; quoteBlock: number }[] = await Promise.all(
         depositEvents.map(async (event) => this.computeRealizedLpFeePct(event))
