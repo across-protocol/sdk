@@ -322,6 +322,8 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
       // and precede the flow.
       const precedingValidatedFlows = this.validatedFlowsPerBundle[bundleKeyForBlockRanges][flowChain];
       console.group(`Trying to validate flow for chain ${flowChain} and key ${bundleKeyForBlockRanges}`, {
+        isUbaInflow: isUbaInflow(flow),
+        isUbaOutflow: isUbaOutflow(flow),
         flowChain,
         transactionhash: flow.transactionHash,
         amount: flow.amount,
@@ -333,7 +335,8 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
           transactionhash: (flow as UbaOutflow).matchedDeposit.transactionHash,
           blockTimestamp: (flow as UbaOutflow).matchedDeposit.blockTimestamp,
           blockNumber: (flow as UbaOutflow).matchedDeposit.blockNumber,
-          realizedLpFeePct: (flow as UbaOutflow).realizedLpFeePct,
+          // This should be defined only if its a pre UBA deposit.
+          realizedLpFeePct: (flow as UbaOutflow).matchedDeposit?.realizedLpFeePct,
         },
       });
 
@@ -349,6 +352,16 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
           lpFee: validatedFlow.lpFee.toString(),
         });
         this.validatedFlowsPerBundle[bundleKeyForBlockRanges][flowChain].push(validatedFlow);
+
+        // We can now set the realizedLpFeePct for the deposit in the SpokePoolClient, which was not
+        // known to the SpokePoolClient at the time it queried the deposit.
+        if (isUbaOutflow(validatedFlow.flow) && !isDefined(validatedFlow.flow.matchedDeposit.realizedLpFeePct)) {
+          console.log("👾 Validated outflow, updating its matched deposit's realizedLpFeePct");
+          this.spokePoolClients[validatedFlow.flow.matchedDeposit.originChainId].updateDepositRealizedLpFeePct(
+            validatedFlow.flow.matchedDeposit,
+            validatedFlow.flow.realizedLpFeePct
+          );
+        }
       } else {
         console.log("Invalidated flow ❌");
       }
@@ -443,25 +456,28 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
     // Figure out the LP fee which is based only on the flow's origin and destination chain.
     const lpFee = computeLpFeeForRefresh(ubaConfigForChain.getBaselineFee(flow.destinationChainId, flow.originChainId));
 
+    const newModifiedFlow: ModifiedUBAFlow = {
+      flow,
+      balancingFee,
+      lpFee,
+      runningBalance,
+      incentiveBalance,
+      netRunningBalanceAdjustment,
+    };
+
     // Now we have all information we need to validate the flow:
     // If deposit, then flow is always valid:
     if (isUbaInflow(flow)) {
-      return {
-        flow,
-        balancingFee,
-        lpFee,
-        runningBalance,
-        incentiveBalance,
-        netRunningBalanceAdjustment,
-      };
+      return newModifiedFlow;
     } else {
       // Now we need to validate the refund or fill.
 
       // ASSUMPTION: the flow is already matched against a deposit by `getFlows` when comparing
       // all params besides `realizedLpFeePct`.
 
-      // We need to make sure that the matched deposit is not a pre UBA deposit. pre UBA deposits
-      // have defined realizedLpFeePct's at this stage so they are trivial to validate.
+      // We need to make sure that the matched deposit is not a pre UBA deposit. Only pre UBA deposits
+      // have defined realizedLpFeePct's at the time they are loaded in the flow.matchedDeposit
+      // entry at this stage so they are trivial to validate.
       if (isDefined(flow.matchedDeposit.realizedLpFeePct)) {
         console.log("- Flow matched a pre-UBA deposit");
         // TODO: Potentially add additional safety check that we're identifying the matched deposit correctly as
@@ -536,28 +552,30 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
           // Its possible that a matched deposit is in a later bundle because of the way the dataworker constructs
           // bundle block ranges. This is possible if the fill is near the end of the previous bundle before the deposit
           // which is at the beginning.
-
           // We first try to check existing validated flows in the later bundle to see if we've already
           // validated this flow.
           const bundleForMatchedDeposit = this.getUbaBundleBlockRangeContainingFlow(
             matchedDeposit.blockNumber,
             matchedDeposit.originChainId
           );
-          const followingBundleKey = getBundleKeyForBlockRanges(bundleForMatchedDeposit);
-          const followingValidatedFlows =
-            this.validatedFlowsPerBundle[followingBundleKey][matchedDeposit.originChainId];
-          matchedDepositFlow = getMatchingFlow(followingValidatedFlows, matchedDeposit);
+          console.log("- ➡️ Matched deposit bundle block range is after flow's", {
+            bundleForMatchedDeposit,
+          });
+          matchedDepositFlow = this.getMatchingFlow(
+            matchedDeposit.blockNumber,
+            matchedDeposit.originChainId,
+            matchedDeposit
+          );
           if (isDefined(matchedDepositFlow)) {
             console.log("- Found matched deposit in bundle after fill");
           } else {
             // We now need to recurse:
-            console.log("- Matched deposit bundle block range is after flow's", {
-              bundleForMatchedDeposit,
-              blockRangesContainingFlow,
-            });
-
-            // TODO: Call this.validateFlowsInBundle(), but haven't tested in the forwards direction.
-            process.exit();
+            console.log("- We need to recurse to validate the matched deposit, matched deposit bundle blocks:");
+            const matchedDepositBundleFlows = await this.validateFlowsInBundle(bundleForMatchedDeposit, tokenSymbol);
+            matchedDepositFlow = getMatchingFlow(
+              matchedDepositBundleFlows[matchedDeposit.originChainId],
+              matchedDeposit
+            );
           }
         } else if (
           matchedDeposit.blockNumber >= matchedDepositBlockRangeInFlowBundle[0] &&
@@ -573,7 +591,7 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
             throw new Error("Could not find matched deposit in same bundle as fill");
           } else {
             console.log("- Found matched deposit in same bundle as fill");
-            return matchedDepositFlow;
+            return newModifiedFlow;
           }
         } else {
           // The bundle containing the matched deposit is older than current bundle range for flow.
@@ -582,26 +600,21 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
             matchedDeposit.blockNumber,
             matchedDeposit.originChainId
           );
-          const previousBundleKey = getBundleKeyForBlockRanges(bundleForMatchedDeposit);
-
-          console.log("- Matched deposit bundle block range is older than flow's", {
+          console.log("- ⬅️ Matched deposit bundle block range is older than flow's", {
             bundleForMatchedDeposit,
-            previousBundleKey,
-            blockRangesContainingFlow,
           });
-
-          // Try to see if we can easily
-          // look up cached flow information using the matchedDepositBundleKey and flow.matchedDeposit.originChainId.
-          const cache_matchedDepositBundleFlows =
-            this.validatedFlowsPerBundle?.[previousBundleKey]?.[matchedDeposit.originChainId];
-          matchedDepositFlow = getMatchingFlow(cache_matchedDepositBundleFlows, matchedDeposit);
-
+          matchedDepositFlow = this.getMatchingFlow(
+            matchedDeposit.blockNumber,
+            matchedDeposit.originChainId,
+            matchedDeposit
+          );
           // If not found in cache, then we need to recurse and validate this bundle.
           if (!isDefined(matchedDepositFlow)) {
             console.log("- We need to recurse to validate the matched deposit, matched deposit bundle blocks:");
             const matchedDepositBundleFlows = await this.validateFlowsInBundle(bundleForMatchedDeposit, tokenSymbol);
-            matchedDepositFlow = matchedDepositBundleFlows[matchedDeposit.originChainId].find(
-              ({ flow }) => isUbaInflow(flow) && flow.depositId === matchedDeposit.depositId
+            matchedDepositFlow = getMatchingFlow(
+              matchedDepositBundleFlows[matchedDeposit.originChainId],
+              matchedDeposit
             );
           }
         }
@@ -616,16 +629,9 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
         const expectedRealizedLpFeePctForMatchedDeposit = matchedDepositFlow.lpFee.add(matchedDepositFlow.balancingFee);
         // eslint-disable-next-line no-constant-condition
         if (true) {
-          // Temporarily set to always true  to test pre UBA deposits.
+          // Temporarily set to always true to test pre UBA deposits.
           // if (expectedRealizedLpFeePctForMatchedDeposit.eq(flow.realizedLpFeePct)) {
-          return {
-            flow,
-            balancingFee,
-            lpFee,
-            runningBalance,
-            incentiveBalance,
-            netRunningBalanceAdjustment,
-          };
+          return newModifiedFlow;
         } else {
           console.log(
             `- Matched deposit was validated by incorrect realized lp fee pct set for outflow, expected ${expectedRealizedLpFeePctForMatchedDeposit.toString()}`
@@ -634,6 +640,14 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
       }
     }
     return undefined;
+  }
+
+  private getMatchingFlow(flowBlock: number, flowChain: number, flow: UbaFlow): ModifiedUBAFlow | undefined {
+    const bundleContainingFLow = this.getUbaBundleBlockRangeContainingFlow(flowBlock, flowChain);
+    const bundleKey = getBundleKeyForBlockRanges(bundleContainingFLow);
+    const validatedFlowsInBundle = this.validatedFlowsPerBundle[bundleKey][flowChain];
+    const matchingFlow = getMatchingFlow(validatedFlowsInBundle, flow);
+    return matchingFlow;
   }
 
   /**
@@ -724,6 +738,7 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
         // Validate flows, which should load them into memory.
         const modifiedFlowsInBundle = await this.validateFlowsInBundle(mostRecentBundleBlockRanges, token);
 
+        // TODO: This filter doesn't seem right, it doesn't seem to show any fills at all, only deposits.
         // Print readable breakdown of validated flows.
         const readableFlows = Object.fromEntries(
           this.chainIdIndices.map((chainId) => {

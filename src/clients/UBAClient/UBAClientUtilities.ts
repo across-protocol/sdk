@@ -616,16 +616,10 @@ export async function getValidFillCandidates(
       // against all of the deposit fields except for this field which we'll fill in later.
       const deposit = await UBA_queryHistoricalDepositForFill(spokePoolClients, fill, ignoredDepositValidationParams);
       if (deposit !== undefined) {
-        // If deposit has a realizedLpFeePct set then its a pre UBA deposit so this fill must be invalid. We assume
-        // this fill is a UBA fill.
-        if (isDefined(deposit.realizedLpFeePct)) {
-          return undefined;
-        } else {
-          return {
-            ...fill,
-            matchedDeposit: deposit,
-          };
-        }
+        return {
+          ...fill,
+          matchedDeposit: deposit,
+        };
       } else return undefined;
     })
   ).filter(isDefined);
