@@ -11,6 +11,7 @@ import {
   BigNumberish,
   getImpliedBundleBlockRanges,
   getBlockRangeForChain,
+  getBlockForChain,
 } from "../utils";
 import {
   fetchTokenInfo,
@@ -272,14 +273,19 @@ export class HubPoolClient extends BaseAbstractClient {
       throw new Error(`Could not find block for timestamp ${deposit.quoteTimestamp}`);
     }
 
-    // To determine if a deposit should be applied a UBA fee, we need to check the start block of the bundle
+    // To determine if a deposit should be applied a UBA fee, we need to check the *hub chain* start block of the bundle
     // that would contain this deposit.
-    const bundleStartBlockContainingDeposit = this.getBundleStartBlockContainingBlock(
+    const bundleStartBlockContainingDeposit = this.getBundleStartBlocksForProposalContainingBlock(
       deposit.blockNumber,
       deposit.originChainId,
       this.latestBlockNumber
     );
-    if (isUbaBlock(bundleStartBlockContainingDeposit, this.configStoreClient)) {
+    const depositMainnetStartBlock = getBlockForChain(
+      bundleStartBlockContainingDeposit,
+      this.chainId,
+      this.configStoreClient.enabledChainIds
+    );
+    if (isUbaBlock(depositMainnetStartBlock, this.configStoreClient)) {
       // If UBA deposit then we can't compute the realizedLpFeePct until after we've updated the UBA Client.
       return {
         realizedLpFeePct: undefined,
@@ -329,17 +335,6 @@ export class HubPoolClient extends BaseAbstractClient {
 
   getSpokeActivationBlockForChain(chainId: number): number {
     return this.getSpokePoolActivationBlock(chainId, this.getSpokePoolForBlock(chainId)) ?? 0;
-  }
-
-  /**
-   * @notice Return the bundle start block for the bundle containing the event with a given block number.
-   * @param eventBlock The event happened at this block on `eventChain`.
-   * @param eventChain The event happened on this chain.
-   * @param hubPoolLatestBlock Optional param that can be used to optimize the search time for which
-   * bundle contains the event
-   */
-  getBundleStartBlockContainingBlock(eventBlock: number, eventChain: number, hubPoolLatestBlock?: number): number {
-    return this.getBundleStartBlocksForProposalContainingBlock(eventBlock, eventChain, hubPoolLatestBlock)[0];
   }
 
   /**

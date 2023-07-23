@@ -20,7 +20,7 @@ import {
   outflowIsFill,
   outflowIsRefund,
 } from "../../interfaces";
-import { getBlockRangeForChain, getImpliedBundleBlockRanges } from "../../utils/BundleUtils";
+import { getBlockForChain, getBlockRangeForChain, getImpliedBundleBlockRanges } from "../../utils/BundleUtils";
 import { stringifyJSONWithNumericString } from "../../utils/JSONUtils";
 import { AcrossConfigStoreClient } from "../AcrossConfigStoreClient";
 import { isUBA } from "../../utils/UBAUtils";
@@ -132,6 +132,8 @@ export function getUBAFeeConfig(
 /**
  * Returns most recent `maxBundleStates` bundle ranges for a given chain, in chronological ascending order.
  * Will only returns bundle ranges that are subject to UBA rules, which is based on the bundle's start block.
+ * Additionally, includes potential next bundle block ranges which extend until the latest spoke pool client search
+ * windows, so that the caller can call this function to cover all UBA events.
  * @param chainId
  * @param maxBundleStates If this is larger than available validated bundles in the HubPoolClient, will throw an error.
  * @param hubPoolBlock Only returns the most recent validated bundles proposed before this block.
@@ -156,19 +158,6 @@ export function getMostRecentBundleBlockRanges(
     // Get the most recent bundle end range for this chain published in a bundle before `toBlock`.
     const latestExecutedRootBundle = hubPoolClient.getNthFullyExecutedRootBundle(-1, toBlock);
     if (!latestExecutedRootBundle) {
-      // If we haven't saved any bundles yet and we're exiting early because we can't find one, then
-      // there probably hasn't been a bundle validated yet containing this chain. This is not necessarily
-      // an error so inject a block range from the UBA activation block of this chain to the latest
-      // spoke block searched.
-      if (bundleData.length === 0) {
-        const ubaActivationBundleStartBlock = getUbaActivationBundleStartBlocks(hubPoolClient, [chainId])[0];
-        bundleData.unshift({
-          // Tell caller to load data for events beginning at the start of the UBA version added to the ConfigStore
-          start: ubaActivationBundleStartBlock,
-          // Load data until the latest block known.
-          end: spokePoolClients[chainId].latestBlockSearched,
-        });
-      }
       break;
     }
     const rootBundleBlockRanges = getImpliedBundleBlockRanges(
@@ -178,7 +167,7 @@ export function getMostRecentBundleBlockRanges(
     );
 
     // If UBA is not enabled for this bundle, exit early since no subsequent bundles will be enabled
-    // for the UBA, as the UBA was a non-reversible change.
+    // for the UBA, as the UBA was a non-reversible change and we're only looking older in the past from here.
     const hubPoolStartBlock = getBlockRangeForChain(
       rootBundleBlockRanges,
       hubPoolClient.chainId,
@@ -201,6 +190,31 @@ export function getMostRecentBundleBlockRanges(
 
     // Decrement toBlock to the start of the most recently grabbed bundle.
     toBlock = latestExecutedRootBundle.blockNumber;
+  }
+
+  // If we haven't saved any bundles yet, then
+  // there probably hasn't been a bundle validated after the UBA activation block containing this chain. This is not necessarily
+  // an error so inject a block range from the UBA activation block of this chain to the latest
+  // spoke block searched so we can query all UBA eligible events for this chain.
+  if (bundleData.length === 0) {
+    const ubaActivationBundleStartBlocks = getUbaActivationBundleStartBlocks(hubPoolClient);
+    const ubaActivationBundleStartBlockForChain = getBlockForChain(
+      ubaActivationBundleStartBlocks,
+      chainId,
+      hubPoolClient.configStoreClient.enabledChainIds
+    );
+    bundleData.unshift({
+      // Tell caller to load data for events beginning at the start of the UBA version added to the ConfigStore
+      start: ubaActivationBundleStartBlockForChain,
+      // We'll extend this end block if the spoke pool client for this chain is defined.
+      end: ubaActivationBundleStartBlockForChain,
+    });
+  }
+
+  if (isDefined(spokePoolClients[chainId])) {
+    // Make the last bundle to cover until the last spoke client searched block, unless a spoke pool
+    // client was provided for the chain. In this case we assume that chain is disabled.
+    bundleData[bundleData.length - 1].end = spokePoolClients[chainId].latestBlockSearched;
   }
 
   return bundleData;
@@ -263,12 +277,13 @@ export async function UBA_queryHistoricalDepositForFill(
  * Returns bundle range start blocks for first bundle that UBA was activated
  * @param chainIds Chains to return start blocks for.
  * */
-export function getUbaActivationBundleStartBlocks(hubPoolClient: HubPoolClient, chainIds: number[]): number[] {
+export function getUbaActivationBundleStartBlocks(hubPoolClient: HubPoolClient): number[] {
   const ubaActivationHubPoolBlock = getUbaActivationBlock(hubPoolClient.configStoreClient);
-  const bundleStartBlocks = chainIds.map((chainId) => {
-    return hubPoolClient.getBundleStartBlockContainingBlock(ubaActivationHubPoolBlock, chainId);
-  });
-  return bundleStartBlocks;
+  return hubPoolClient.getBundleStartBlocksForProposalContainingBlock(
+    ubaActivationHubPoolBlock,
+    hubPoolClient.chainId,
+    hubPoolClient.latestBlockNumber
+  );
 }
 
 /**

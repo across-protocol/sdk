@@ -10,3 +10,4 @@ export * from "./LogUtils";
 export * from "./FlowUtils";
 export * from "./UBAUtils";
 export * from "./BundleUtils";
+export * from "./RedisUtils";
