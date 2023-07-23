@@ -34,7 +34,7 @@ import { ExecutedRootBundle, PendingRootBundle, ProposedRootBundle } from "../in
 import { CrossChainContractsSet, DestinationTokenWithBlock, SetPoolRebalanceRoot } from "../interfaces";
 import * as lpFeeCalculator from "../lpFeeCalculator";
 import { AcrossConfigStoreClient as ConfigStoreClient } from "./";
-import { isUbaBlock } from "./UBAClient/UBAClientUtilities";
+import { isUBABlock } from "./UBAClient/UBAClientUtilities";
 import { BaseAbstractClient } from "./BaseAbstractClient";
 
 type _HubPoolUpdate = {
@@ -285,7 +285,7 @@ export class HubPoolClient extends BaseAbstractClient {
       this.chainId,
       this.configStoreClient.enabledChainIds
     );
-    if (isUbaBlock(depositMainnetStartBlock, this.configStoreClient)) {
+    if (isUBABlock(depositMainnetStartBlock)) {
       // If UBA deposit then we can't compute the realizedLpFeePct until after we've updated the UBA Client.
       return {
         realizedLpFeePct: undefined,

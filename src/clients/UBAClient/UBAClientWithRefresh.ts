@@ -10,6 +10,7 @@ import {
   getMatchingFlow,
   getMostRecentBundleBlockRanges,
   getUBAFeeConfig,
+  getUbaActivationBundleStartBlocks,
   sortFlowsAscending,
 } from "./UBAClientUtilities";
 import { ModifiedUBAFlow, UBAClientState } from "./UBAClientTypes";
@@ -29,11 +30,14 @@ import {
   getBlockRangeForChain,
   isDefined,
   mapAsync,
+  toBNWei,
 } from "../../utils";
 import { analog } from "../../UBAFeeCalculator";
 import { getDepositFee, getRefundFee } from "../../UBAFeeCalculator/UBAFeeSpokeCalculatorAnalog";
 import { BigNumber, ethers } from "ethers";
 import { BaseAbstractClient } from "../BaseAbstractClient";
+import { createClient } from "redis";
+import { objectWithBigNumberReviver } from "../../utils/RedisUtils";
 
 /**
  * @notice This class reconstructs UBA bundle data for every bundle that has been created since the
@@ -61,8 +65,12 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
   // since it only depends on HubPoolClient event history.
   public ubaBundleBlockRanges: number[][][] = [];
 
+  public latestBlockTimestamps: Record<number, number> = {};
+
   // This logger is currently copied from the HubPoolClient's logger.
   public logger: winston.Logger;
+
+  private redisClient: ReturnType<typeof createClient> | undefined;
 
   /**
    * @param tokens Tokens to load bundle state for.
@@ -79,6 +87,12 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
     this.chainIdIndices = this.hubPoolClient.configStoreClient.enabledChainIds;
     assert(this.chainIdIndices.length > 0, "No chainIds provided");
     assert(Object.values(spokePoolClients).length > 0, "No SpokePools provided");
+    const redisURL = process.env.REDIS_URL || "redis://localhost:6379";
+    try {
+      this.redisClient = createClient({ url: redisURL });
+    } catch (err) {
+      console.log(`Could not find redis server at ${redisURL}`);
+    }
   }
 
   // /////////////////
@@ -223,11 +237,6 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
     const l1TokenAddress = this.hubPoolClient.getL1Tokens().find((token) => token.symbol === tokenSymbol)?.address;
     if (!l1TokenAddress) throw new Error("No L1 token address found for token symbol");
 
-    // TODO: Load latest block.timestamps for each chain. We'll use this to decide when we can't invalidate a fill,
-    // such as when its matched deposit chain hasn't advanced past the fill's block.timestamp yet. This prevents
-    // us from prematurely invalidating a fill that could be validated by a deposit sent now on the origin chain that
-    // would still satisfy the requirement that deposit.blockTimestamp < fill.blockTimestamp.
-
     // Precompute key for cached validated flows. Flows are cached per bundle block ranges and per chain.
     const bundleKeyForBlockRanges = getBundleKeyForBlockRanges(blockRanges);
     if (!isDefined(this.validatedFlowsPerBundle[bundleKeyForBlockRanges])) {
@@ -237,17 +246,6 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
       this.validatedFlowsPerBundle[bundleKeyForBlockRanges][tokenSymbol] = {};
     }
 
-    // Exit early if we can find the validated flow data for this bundle from an external storage layer.
-    // TODO Should first try to load the flow data here from an IPFS lookup. If that fails, we need to reconstruct it.
-    // const cachedValidatedFlowsInBundle: Record<number, ModifiedUBAFlow[] = ipfsClient.get(bundleKeyForBlockRanges)
-    // if (isDefined(cachedValidatedFlowsInBundle)) {
-    //   this.chainIdIndices.map((chainId) => {
-    //     this.validatedFlowsPerBundle[bundleKeyForBlockRanges][chainId] = cachedValidatedFlowsInBundle[chainId]
-    //   })
-    //   return cachedValidatedFlowsInBundle
-    // }
-
-    // We couldn't find this bundle's data in the cache so we need to freshly load it.
     // Make sure our spoke pool clients have a large enough block range to cover this range.
     if (blockRangesAreInvalidForSpokeClients(this.spokePoolClients, blockRanges, this.chainIdIndices)) {
       throw new Error(
@@ -268,7 +266,7 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
     );
 
     // Combine flows from all chain block ranges in this bundle.
-    console.group(`Loading flows for token ${tokenSymbol} for block ranges`, blockRanges);
+    console.log(`Loading flows for token ${tokenSymbol} for block ranges ${bundleKeyForBlockRanges}`);
     const flowsInBundle = sortFlowsAscending(
       (
         await mapAsync(this.chainIdIndices, async (chainId) => {
@@ -276,7 +274,6 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
 
           // Don't load flows for disabled block ranges in this bundle.
           if (startBlock === endBlock) {
-            console.log(`- Chain ${chainId} disabled, skipping`);
             return [];
           }
 
@@ -289,7 +286,6 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
             startBlock,
             endBlock
           );
-          console.log(`- Chain ${chainId} flows length: ${flows.length}`);
 
           // Print out readable breakdown of flows.
           const prettyFlows = flows.reduce(
@@ -305,12 +301,11 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
             },
             { fills: 0, refunds: 0, deposits: 0 }
           );
-          console.log("- flow breakdown:", prettyFlows);
+          console.log(`- flow breakdown for ${bundleKeyForBlockRanges} for chain ${chainId}:`, prettyFlows);
           return flows;
         })
       ).flat()
     );
-    console.groupEnd();
 
     // Validate all flows in ascending order. We don't want to do these in parallel we actually want to do
     // these sequentially. This will work assuming that all outflows can only be validated against inflows that
@@ -346,6 +341,7 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
       // Validate this flow and cache it if it is valid.
       console.log(`- precedingValidatedFlows length: ${precedingValidatedFlows.length}`);
       const validatedFlow = await this.validateFlow(flow, precedingValidatedFlows);
+
       if (isDefined(validatedFlow)) {
         console.log("Validated ✅", {
           runningBalance: validatedFlow.runningBalance,
@@ -354,6 +350,11 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
           balancingFee: validatedFlow.balancingFee.toString(),
           lpFee: validatedFlow.lpFee.toString(),
         });
+        // Temporarily add a balancing fee for outflows so we can test relayer refund leaf construction logic
+        // correctly adds these to relayer refunds.
+        if (isUbaOutflow(flow)) {
+          validatedFlow.balancingFee = toBNWei("0.01");
+        }
         this.validatedFlowsPerBundle[bundleKeyForBlockRanges][tokenSymbol][flowChain].push(validatedFlow);
 
         // We can now set the realizedLpFeePct for the deposit in the SpokePoolClient, which was not
@@ -430,12 +431,21 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
       latestHubPoolBlock
     );
     const ubaConfigForChain = getUBAFeeConfig(this.hubPoolClient, flowChain, tokenSymbol, mainnetStartBlock);
+    const runningBalanceThresholds = ubaConfigForChain.getBalanceTriggerThreshold(flowChain, tokenSymbol);
     console.log("- Bundle information for flow", {
       blockRangesContainingFlow,
       openingBalanceForChain,
       ubaConfigBaselineFeeCurve: ubaConfigForChain
         .getBaselineFee(flow.destinationChainId, flow.originChainId)
         .toString(),
+      upperRunningBalanceThresholds: {
+        target: runningBalanceThresholds.upperBound?.target?.toString(),
+        threshold: runningBalanceThresholds.upperBound?.threshold?.toString(),
+      },
+      lowerRunningBalanceThresholds: {
+        target: runningBalanceThresholds.lowerBound?.target?.toString(),
+        threshold: runningBalanceThresholds.lowerBound?.threshold?.toString(),
+      },
     });
 
     // Figure out the running balance so far for this flow's chain. This is based on all already validated flows
@@ -488,8 +498,6 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
         // a pre UBA deposit. If the deposit is not pre UBA but has a set realizedLpFeePct at this point
         // its a bug.
 
-        // const hubStartBlock = this.hubPoolClient.getBundleStartBlockContainingBlock(flow.matchedDeposit.blockNumber, flow.matchedDeposit.originChainId);
-        // isUBA(this.hubPoolClient.configStoreClient.getConfigStoreVersionForBlock(hubStartBlock))
         if (flow.matchedDeposit.realizedLpFeePct.eq(flow.realizedLpFeePct)) {
           // For pre UBA refund, the running balance should not be affected by this refund.
           // TODO: The above rule I think is arbitrary, we could decide to count these against
@@ -528,6 +536,16 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
         // TODO: We cannot invalidate a fill if the latest block.timestamp on the deposit.origin chain is not > than the
         // the fill's timestamp. This is because its still possible to send a deposit on the origin chain
         // that would validate this fill.
+        // Figure out how to handle this without crashing.
+        if (this.latestBlockTimestamps[flow.matchedDeposit.originChainId] < flow.blockTimestamp) {
+          throw new Error(
+            `We cannot invalidate a fill if the latest block.timestamp ${
+              this.latestBlockTimestamps[flow.matchedDeposit.originChainId]
+            } on the deposit.origin chain is not > than the fill's timestamp ${
+              flow.blockTimestamp
+            }. This is because its still possible to send a deposit on the origin chain that would validate this fill.`
+          );
+        }
         console.log("- Flow is invalid because its blockTimestamp is less than its matched deposit's blockTimestamp");
       } else {
         // Check the RealizedLpFeePct Rule:
@@ -684,7 +702,7 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
     const latestHubPoolBlock = this.hubPoolClient.latestBlockNumber;
     if (!isDefined(latestHubPoolBlock)) throw new Error("HubPoolClient not updated");
 
-    return this.hubPoolClient.configStoreClient.enabledChainIds.reduce((acc, chainId) => {
+    return this.chainIdIndices.reduce((acc, chainId) => {
       // Gets the most recent `bundleCount` block ranges for this chain.
       const _blockRangesForChain = getMostRecentBundleBlockRanges(
         chainId,
@@ -693,12 +711,29 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
         this.hubPoolClient,
         this.spokePoolClients
       ).map(({ start, end }) => [start, end]);
-      // Make the last bundle to cover until the last spoke client searched block, unless a spoke pool
-      // client was provided for the chain. In this case we assume that chain is disabled.
-      if (isDefined(this.spokePoolClients[chainId])) {
-        _blockRangesForChain[_blockRangesForChain.length - 1][1] = this.spokePoolClients[chainId].latestBlockSearched;
-      }
 
+      // Sanity check that block ranges cover from UBA activation bundle start block for chain to latest spoke pool
+      // client block searched:
+      const ubaActivationBundleStartBlockForChain = getBlockForChain(
+        getUbaActivationBundleStartBlocks(),
+        chainId,
+        this.chainIdIndices
+      );
+      if (
+        _blockRangesForChain[0][0] !== ubaActivationBundleStartBlockForChain ||
+        (isDefined(this.spokePoolClients[chainId]) &&
+          _blockRangesForChain.slice(-1)[0][1] !== this.spokePoolClients[chainId].latestBlockSearched)
+      ) {
+        console.log(
+          _blockRangesForChain[0],
+          _blockRangesForChain.slice(-1)[0],
+          getUbaActivationBundleStartBlocks(),
+          this.spokePoolClients[chainId]?.latestBlockSearched
+        );
+        throw new Error(
+          `Block ranges for chain ${chainId} do not cover from UBA activation bundle start block to latest spoke pool client block searched`
+        );
+      }
       // Map the block ranges to this chain and move on to the next chain.
       acc[chainId] = _blockRangesForChain;
       return acc;
@@ -722,17 +757,45 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
     return blockRangesContainingFlow;
   }
 
+  public getRedisKeyForBundle = (bundleBlockRanges: number[][], tokenSymbol: string, chainId: number): string => {
+    return `${getBundleKeyForBlockRanges(bundleBlockRanges)}-${tokenSymbol}-${chainId}`;
+  };
+
+  private appendValidatedFlowsToClassState(
+    chainId: number,
+    tokenSymbol: string,
+    flows: ModifiedUBAFlow[],
+    bundleBlockRanges: number[][]
+  ) {
+    const bundleKey = getBundleKeyForBlockRanges(bundleBlockRanges);
+    if (!isDefined(this.validatedFlowsPerBundle[bundleKey])) {
+      this.validatedFlowsPerBundle[bundleKey] = {};
+    }
+    if (!isDefined(this.validatedFlowsPerBundle[bundleKey][tokenSymbol])) {
+      this.validatedFlowsPerBundle[bundleKey][tokenSymbol] = {};
+    }
+    if (!isDefined(this.validatedFlowsPerBundle[bundleKey][tokenSymbol][chainId])) {
+      this.validatedFlowsPerBundle[bundleKey][tokenSymbol][chainId] = [];
+    }
+    this.validatedFlowsPerBundle[bundleKey][tokenSymbol][chainId].push(...flows);
+  }
+
   /**
    * Updates the bundle state.
    */
   public async update(): Promise<void> {
+    // Connect redis client that we'll use to cache and load older validated bundles.
+    if (isDefined(this.redisClient)) {
+      await this.redisClient.connect();
+    }
+
     this.logger.debug({
       at: "UBAClientWithRefresh",
       message: "❤️‍🔥😭  Updating UBA Client",
     });
 
     // DEMO: limiting the tokens to test temporarily:
-    const tokens = ["WETH", "USDC"];
+    const tokens = ["USDC"]; // this.hubPoolClient.getL1Tokens().map((token) => token.symbol);
 
     // Load all UBA bundle block ranges for each chain:
     const blockRangesByChain = this.getMostRecentBundleBlockRangesPerChain(100);
@@ -748,24 +811,96 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
     this.ubaBundleBlockRanges = bundleBlockRanges;
     console.log("UBA bundle block ranges we're storing in class memory", this.ubaBundleBlockRanges);
 
-    // Demo: Limit loading state to only the most recent bundle. This will neccessarily load state
-    // for older bundles as well...
+    // Load latest timestamps per chain:
+    const latestTimestampsPerChain = Object.fromEntries(
+      (
+        await mapAsync(this.chainIdIndices, async (chainId) => {
+          if (!isDefined(this.spokePoolClients[chainId])) return undefined;
+          const spokeProvider = this.spokePoolClients[chainId].spokePool.provider;
+          return [chainId, (await spokeProvider.getBlock(await spokeProvider.getBlockNumber())).timestamp];
+        })
+      ).filter(isDefined)
+    );
+    this.latestBlockTimestamps = latestTimestampsPerChain;
+    console.log("Latest block timestamps per chain", this.latestBlockTimestamps);
+
+    // First try to load bundle states from redis into memory to make the validateFlowsInBundle call significantly faster:
+    if (isDefined(this.redisClient)) {
+      // Never load the latest bundle state from redis, since we'll always want to re-validate it as its bundle
+      // cannot have been validated yet.
+      for (let i = this.ubaBundleBlockRanges.length - 2; i >= 0; i--) {
+        const mostRecentBundleBlockRanges = this.ubaBundleBlockRanges[i];
+        await forEachAsync(tokens, async (token) => {
+          await forEachAsync(this.chainIdIndices, async (chainId) => {
+            const redisKeyForBundle = this.getRedisKeyForBundle(mostRecentBundleBlockRanges, token, chainId);
+            const modifiedFlowsInBundleRaw = await this.redisClient?.get(redisKeyForBundle);
+            if (isDefined(modifiedFlowsInBundleRaw)) {
+              const modifiedFlowsInBundle = JSON.parse(modifiedFlowsInBundleRaw, objectWithBigNumberReviver);
+              console.log(`💿 Loaded bundle state from redis for key ${redisKeyForBundle}`);
+              this.appendValidatedFlowsToClassState(chainId, token, modifiedFlowsInBundle, mostRecentBundleBlockRanges);
+            } else {
+              console.log(`No entry for key ${redisKeyForBundle} in redis`);
+            }
+          });
+        });
+      }
+    }
+
+    // Validate flows for each token and chain inside a bundle, for all bundle block ranges in order.
     const newUbaClientState: UBAClientState = {};
+    // Skip loading from the cache for the latest bundle range which isn't validated yet.
     for (let i = this.ubaBundleBlockRanges.length - 1; i >= 0; i--) {
       const mostRecentBundleBlockRanges = this.ubaBundleBlockRanges[i];
       console.log("Validating flows for bundle", mostRecentBundleBlockRanges);
+      const bundleKeyForBlockRanges = getBundleKeyForBlockRanges(mostRecentBundleBlockRanges);
       await forEachAsync(tokens, async (token) => {
-        // Validate flows, which should load them into memory.
-        const modifiedFlowsInBundle = await this.validateFlowsInBundle(mostRecentBundleBlockRanges, token);
+        let modifiedFlowsInBundle: Record<number, ModifiedUBAFlow[]>;
+        // We can skip the next step if we've already loaded flows for all chains from the cache:
+        // eslint-disable-next-line no-constant-condition
+        if (
+          this.chainIdIndices.every((chainId) => {
+            const cachedFlows = this.validatedFlowsPerBundle?.[bundleKeyForBlockRanges]?.[token]?.[chainId];
+            return isDefined(cachedFlows);
+          })
+        ) {
+          console.log(
+            `- Skipping validation for bundle ${bundleKeyForBlockRanges} for token ${token} because flows for all chains are already cached`
+          );
+          modifiedFlowsInBundle = Object.fromEntries(
+            this.chainIdIndices.map((chainId) => {
+              const cachedFlows = this.validatedFlowsPerBundle?.[bundleKeyForBlockRanges]?.[token]?.[chainId];
+              return [chainId, cachedFlows];
+            })
+          );
+        } else {
+          // Validate flows, which should load them into memory.
+          modifiedFlowsInBundle = await this.validateFlowsInBundle(mostRecentBundleBlockRanges, token);
+        }
 
-        // Load into UBA client state.
-        this.chainIdIndices.map((chainId) => {
+        // Load into UBA client state and optionally save into external state.
+        await forEachAsync(this.chainIdIndices, async (chainId) => {
           if (!isDefined(newUbaClientState[chainId])) newUbaClientState[chainId] = {};
           if (!isDefined(newUbaClientState[chainId][token])) newUbaClientState[chainId][token] = [];
           newUbaClientState[chainId][token].push({
             bundleBlockRanges: mostRecentBundleBlockRanges,
             flows: modifiedFlowsInBundle[chainId],
           });
+
+          // TODO: Shouldn't load  most recent bundle state into redis, only older ones.
+          const redisKeyForBundle = this.getRedisKeyForBundle(mostRecentBundleBlockRanges, token, chainId);
+          console.log(`- Storing new bundle state under key ${redisKeyForBundle}`);
+          // Note, we opt to store arrays as strings in redis rather than using the redis.json module because
+          // we don't plan to manipulate the data inside redis, so we really only want to optimize for writing
+          // and reading. The redis.json module is more performant for manipulating data while inside redis.
+          if (isDefined(this.redisClient)) {
+            await this.redisClient.set(
+              redisKeyForBundle,
+              JSON.stringify(modifiedFlowsInBundle[chainId])
+              // I don't think we want these keys to expire since we'll likely always need data from the beginning
+              // of the UBA activation block to validate even the latest bundles, because of the recursive nature
+              // of how we compute running balances as a function of all prior validated bundle history.
+            );
+          }
         });
       });
     }

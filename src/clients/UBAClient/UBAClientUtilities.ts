@@ -22,8 +22,6 @@ import {
 } from "../../interfaces";
 import { getBlockForChain, getBlockRangeForChain, getImpliedBundleBlockRanges } from "../../utils/BundleUtils";
 import { stringifyJSONWithNumericString } from "../../utils/JSONUtils";
-import { AcrossConfigStoreClient } from "../AcrossConfigStoreClient";
-import { isUBA } from "../../utils/UBAUtils";
 
 export function computeLpFeeForRefresh(baselineFee: BigNumber): BigNumber {
   return computeLpFeeStateful(baselineFee);
@@ -173,7 +171,7 @@ export function getMostRecentBundleBlockRanges(
       hubPoolClient.chainId,
       hubPoolClient.configStoreClient.enabledChainIds
     )[0];
-    if (!isUbaBlock(hubPoolStartBlock, hubPoolClient.configStoreClient)) {
+    if (!isUBABlock(hubPoolStartBlock)) {
       break;
     }
 
@@ -197,7 +195,7 @@ export function getMostRecentBundleBlockRanges(
   // an error so inject a block range from the UBA activation block of this chain to the latest
   // spoke block searched so we can query all UBA eligible events for this chain.
   if (bundleData.length === 0) {
-    const ubaActivationBundleStartBlocks = getUbaActivationBundleStartBlocks(hubPoolClient);
+    const ubaActivationBundleStartBlocks = getUbaActivationBundleStartBlocks();
     const ubaActivationBundleStartBlockForChain = getBlockForChain(
       ubaActivationBundleStartBlocks,
       chainId,
@@ -277,30 +275,17 @@ export async function UBA_queryHistoricalDepositForFill(
  * Returns bundle range start blocks for first bundle that UBA was activated
  * @param chainIds Chains to return start blocks for.
  * */
-export function getUbaActivationBundleStartBlocks(hubPoolClient: HubPoolClient): number[] {
-  const ubaActivationHubPoolBlock = getUbaActivationBlock(hubPoolClient.configStoreClient);
-  return hubPoolClient.getBundleStartBlocksForProposalContainingBlock(
-    ubaActivationHubPoolBlock,
-    hubPoolClient.chainId,
-    hubPoolClient.latestBlockNumber
-  );
+export function getUbaActivationBundleStartBlocks(): number[] {
+  // Hardcode this but consider building a more dynamic binary search on all executed bundle block ranges to find
+  // the first bundle where the UBA was activated.
+  // return [17757738, 107269734, 45432266, 977154, 114218757];
+  // return [17756989, 107265233, 45428120, 977154, 114183981];
+  return [17756248, 107260737, 45424000, 977154, 114148563];
+  // return [Number.MAX_SAFE_INTEGER, Number.MAX_SAFE_INTEGER, Number.MAX_SAFE_INTEGER, Number.MAX_SAFE_INTEGER, Number.MAX_SAFE_INTEGER];
 }
 
-/**
- * Return first block number where UBA was activated by setting "Version" GlobalConfig in ConfigStore
- * @returns
- */
-export function getUbaActivationBlock(configStoreClient: AcrossConfigStoreClient): number {
-  return (
-    configStoreClient.cumulativeConfigStoreVersionUpdates.find((config) => {
-      isUBA(Number(config.value));
-    })?.blockNumber ?? Number.MAX_SAFE_INTEGER
-  );
-}
-
-export function isUbaBlock(block: number, configStoreClient: AcrossConfigStoreClient): boolean {
-  const versionAppliedToDeposit = configStoreClient.getConfigStoreVersionForBlock(block);
-  return isUBA(versionAppliedToDeposit);
+export function isUBABlock(block: number): boolean {
+  return block >= getUbaActivationBundleStartBlocks()[0];
 }
 
 /**
