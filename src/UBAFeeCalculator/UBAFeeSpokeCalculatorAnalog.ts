@@ -1,10 +1,10 @@
 /** Provides the static, procedural versions of the functions provided in the UBAFeeSpokeCalculator */
 
-import { BigNumber } from "ethers";
+import { BigNumber, ethers } from "ethers";
 import { UbaFlow, isUbaInflow } from "../interfaces";
 import { TokenRunningBalanceWithNetSend, UBAActionType, UBAFlowFee } from "./UBAFeeTypes";
 import UBAConfig from "./UBAFeeConfig";
-import { min, toBN } from "../utils";
+import { fixedPointAdjustment, max, min, toBN, toBNWei } from "../utils";
 import { computePiecewiseLinearFunction } from "./UBAFeeUtility";
 
 /**
@@ -21,7 +21,7 @@ import { computePiecewiseLinearFunction } from "./UBAFeeUtility";
  * @returns The running balance for the token
  */
 export function calculateHistoricalRunningBalance(
-  flows: UbaFlow[],
+  flows: (UbaFlow & { incentiveFeePct: BigNumber })[],
   lastValidatedRunningBalance: BigNumber,
   lastValidatedIncentiveRunningBalance: BigNumber,
   chainId: number,
@@ -35,22 +35,14 @@ export function calculateHistoricalRunningBalance(
 
   const historicalResult: TokenRunningBalanceWithNetSend = flows.reduce(
     (acc, flow) => {
-      // Compute the balancing fee for the flow. This depends on the running balance as of this flow, which
-      // is essentially the lastValidatedRunningBalance plus any accumulations from the flows preceding this one.
-      const { balancingFee: incentiveFee } = getEventFee(
-        flow.amount,
-        isUbaInflow(flow) ? "inflow" : "outflow",
-        acc.runningBalance,
-        acc.incentiveBalance,
-        chainId,
-        config
-      );
-
       // Now, add this flow's amount to the accumulated running balance.
       // If the flow is an inflow, we need to add the amount to the running balance
       // If the flow is an outflow, we need to subtract the amount from the running balance
       // Incentive balances for each flow can be negative or positive so simply add them to the accumulatedd
       // incentive balance.
+      // @dev Positive incentive fees are added to the incentive pot. Negative incentive fees are rewards
+      // paid out of the pot. The incentive pot should never go negative.
+      const incentiveFee = max(ethers.constants.Zero, flow.incentiveFeePct.mul(flow.amount).div(fixedPointAdjustment));
       const resultant: TokenRunningBalanceWithNetSend = {
         netRunningBalanceAdjustment: toBN(acc.netRunningBalanceAdjustment.toString()), // Deep copy via string conversion
         runningBalance: acc.runningBalance[isUbaInflow(flow) ? "add" : "sub"](flow.amount).sub(incentiveFee),
@@ -145,28 +137,42 @@ export function getEventFee(
 
   // Next, we'll need to compute the first balancing fee from the running balance of the spoke
   // to the running balance of the spoke + the amount
-  let balancingFee = computePiecewiseLinearFunction(
+  let balancingFeePct = computePiecewiseLinearFunction(
     flowCurve,
     lastRunningBalance,
     lastRunningBalance.add(amount.mul(flowType === "inflow" ? 1 : -1))
   );
 
-  // Apply hardcoded multiplier if incentive fee is a reward instead of a penalty
-  if (balancingFee.gt(0)) {
-    // This should never error. `getUbaRewardMultiplier` should default to 1
-    balancingFee = balancingFee.mul(config.getUbaRewardMultiplier(chainId.toString()));
-  }
+  // TODO: Force a balancing fee of != 0 to test the incentive balance accumulation.
+  balancingFeePct = flowType === "inflow" ? toBNWei("0.01") : toBNWei("0.01").mul(-1);
 
-  // if the chainId is not found in the config
-  // If P << uncappedIncentiveFee, discountFactor approaches 100%. Capped at 100%
-  if (balancingFee.gt(lastIncentiveBalance)) {
-    const discountFactor = min(BigNumber.from(1), balancingFee.sub(lastIncentiveBalance).div(balancingFee));
-    balancingFee = balancingFee.mul(BigNumber.from(1).sub(discountFactor));
+  // If the balancing fee is a reward paid to the user or relayer then we might need to discount it.
+
+  // First, apply hardcoded multiplier if incentive fee is a reward instead of a penalty
+  if (balancingFeePct.lt(0)) {
+    // This should never error. `getUbaRewardMultiplier` should default to 1
+    balancingFeePct = balancingFeePct.mul(config.getUbaRewardMultiplier(chainId.toString())).div(fixedPointAdjustment);
+
+    const balancingFee = balancingFeePct.mul(amount).div(fixedPointAdjustment).mul(-1);
+    // If P << uncappedIncentiveFee, discountFactor approaches 100%. Capped at 100% so that a reward
+    // never turns into a penalty.
+    // @dev balancing fee, amount, and last incentive balance should all be in the same decimals precision.
+    if (balancingFee.gt(lastIncentiveBalance)) {
+      console.log(
+        `- discounting balancing reward because it exceeds incentive balance. Starting balancing reward = ${balancingFee}, incentive balance = ${lastIncentiveBalance}`
+      );
+      const discountFactor = min(
+        fixedPointAdjustment,
+        balancingFee.sub(lastIncentiveBalance).mul(fixedPointAdjustment).div(balancingFee)
+      );
+      balancingFeePct = balancingFeePct.mul(fixedPointAdjustment.sub(discountFactor)).div(fixedPointAdjustment);
+      console.log(`- Discount factor = ${discountFactor}%, resultant balancing fee = ${balancingFeePct}%`);
+    }
   }
 
   // We can now return the fee
   return {
-    balancingFee,
+    balancingFee: balancingFeePct,
   };
 }
 

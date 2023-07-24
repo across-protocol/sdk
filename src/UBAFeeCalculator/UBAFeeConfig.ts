@@ -2,6 +2,7 @@ import { BigNumber, ethers } from "ethers";
 import { ThresholdBoundType, FlowTupleParameters } from "./UBAFeeTypes";
 import { CHAIN_ID_LIST_INDICES } from "../constants";
 import { stringifyJSONWithNumericString } from "../utils/JSONUtils";
+import { fixedPointAdjustment } from "../utils";
 
 type ChainId = number;
 type RouteCombination = string;
@@ -166,7 +167,7 @@ class UBAConfig {
    * @returns The UBA reward multiplier. Defaults to 1 if not set
    */
   public getUbaRewardMultiplier(chainId: string): BigNumber {
-    return this.ubaRewardMultiplier?.[chainId] ?? ethers.constants.One; // Default to 1 if not set
+    return this.ubaRewardMultiplier?.[chainId] ?? fixedPointAdjustment; // Default to 1 if not set
   }
 
   public toJSON() {

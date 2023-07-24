@@ -25,6 +25,7 @@ import {
 } from "../../interfaces";
 import {
   blockRangesAreInvalidForSpokeClients,
+  fixedPointAdjustment,
   forEachAsync,
   getBlockForChain,
   getBlockRangeForChain,
@@ -132,8 +133,8 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
     }
 
     return {
-      lpFee: matchingFlow.lpFee,
-      depositBalancingFee: matchingFlow.balancingFee,
+      lpFee: matchingFlow.lpFee.mul(deposit.amount).div(fixedPointAdjustment),
+      depositBalancingFee: matchingFlow.balancingFee.mul(deposit.amount).div(fixedPointAdjustment),
     };
   }
 
@@ -164,7 +165,12 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
     // Compute the fees that would be charged if `amount` was filled by the caller and the fill was
     // slotted in next on this chain.
     const { runningBalance, incentiveBalance } = analog.calculateHistoricalRunningBalance(
-      lastBundleState.flows.map(({ flow }) => flow),
+      lastBundleState.flows.map(({ flow, balancingFee }) => {
+        return {
+          ...flow,
+          incentiveFeePct: balancingFee,
+        };
+      }),
       lastFlow.runningBalance,
       lastFlow.incentiveBalance,
       repaymentChainId,
@@ -178,7 +184,7 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
       repaymentChainId,
       ubaConfigForBundle
     );
-    return balancingFee;
+    return balancingFee.mul(amount).div(fixedPointAdjustment);
   }
 
   /**
@@ -340,7 +346,7 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
 
       // Validate this flow and cache it if it is valid.
       console.log(`- precedingValidatedFlows length: ${precedingValidatedFlows.length}`);
-      const validatedFlow = await this.validateFlow(flow, precedingValidatedFlows);
+      const validatedFlow = await this.validateFlow(flow);
 
       if (isDefined(validatedFlow)) {
         console.log("Validated ✅", {
@@ -350,11 +356,6 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
           balancingFee: validatedFlow.balancingFee.toString(),
           lpFee: validatedFlow.lpFee.toString(),
         });
-        // Temporarily add a balancing fee for outflows so we can test relayer refund leaf construction logic
-        // correctly adds these to relayer refunds.
-        if (isUbaOutflow(flow)) {
-          validatedFlow.balancingFee = toBNWei("0.01");
-        }
         this.validatedFlowsPerBundle[bundleKeyForBlockRanges][tokenSymbol][flowChain].push(validatedFlow);
 
         // We can now set the realizedLpFeePct for the deposit in the SpokePoolClient, which was not
@@ -389,10 +390,7 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
    * this preceding set shouldn't be modified anymore.
    * @returns
    */
-  private async validateFlow(
-    flow: UbaFlow,
-    precedingValidatedFlows: ModifiedUBAFlow[] = []
-  ): Promise<ModifiedUBAFlow | undefined> {
+  private async validateFlow(flow: UbaFlow): Promise<ModifiedUBAFlow | undefined> {
     const latestHubPoolBlock = this.hubPoolClient.latestBlockNumber;
     if (!isDefined(latestHubPoolBlock)) throw new Error("HubPoolClient not updated");
 
@@ -448,10 +446,47 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
       },
     });
 
+    // Use the opening balance to compute expected flow fees:
+    const bundleKey = getBundleKeyForBlockRanges(blockRangesContainingFlow);
+    const precedingValidatedFlows = this.validatedFlowsPerBundle[bundleKey][tokenSymbol][flowChain];
+    const lastFlow = precedingValidatedFlows[precedingValidatedFlows.length - 1];
+    const latestRunningBalance = lastFlow?.runningBalance ?? openingBalanceForChain.runningBalance;
+    const latestIncentiveBalance = lastFlow?.incentiveBalance ?? openingBalanceForChain.incentiveBalance;
+    let potentialBalancingFee: BigNumber;
+    if (isUbaInflow(flow)) {
+      ({ balancingFee: potentialBalancingFee } = getDepositFee(
+        flow.amount,
+        latestRunningBalance,
+        latestIncentiveBalance,
+        flowChain,
+        ubaConfigForChain
+      ));
+    } else {
+      ({ balancingFee: potentialBalancingFee } = getRefundFee(
+        flow.amount,
+        latestRunningBalance,
+        latestIncentiveBalance,
+        flowChain,
+        ubaConfigForChain
+      ));
+    }
+
     // Figure out the running balance so far for this flow's chain. This is based on all already validated flows
     // for this chain plus the current flow assuming it is valid.
+    // TODO: Could optimize this more by only passing in the latest flow along with latest balance counts
+    // from last flow in preceding.
     const { runningBalance, incentiveBalance, netRunningBalanceAdjustment } = analog.calculateHistoricalRunningBalance(
-      precedingValidatedFlows.map(({ flow }) => flow).concat(flow),
+      precedingValidatedFlows
+        .map(({ flow, balancingFee }) => {
+          return {
+            ...flow,
+            incentiveFeePct: balancingFee,
+          };
+        })
+        .concat({
+          ...flow,
+          incentiveFeePct: potentialBalancingFee,
+        }),
       openingBalanceForChain.runningBalance,
       openingBalanceForChain.incentiveBalance,
       flowChain,
@@ -459,20 +494,12 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
       ubaConfigForChain
     );
 
-    // Use the opening balance to compute expected flow fees:
-    let balancingFee: BigNumber;
-    if (isUbaInflow(flow)) {
-      ({ balancingFee } = getDepositFee(flow.amount, runningBalance, incentiveBalance, flowChain, ubaConfigForChain));
-    } else {
-      ({ balancingFee } = getRefundFee(flow.amount, runningBalance, incentiveBalance, flowChain, ubaConfigForChain));
-    }
-
     // Figure out the LP fee which is based only on the flow's origin and destination chain.
     const lpFee = computeLpFeeForRefresh(ubaConfigForChain.getBaselineFee(flow.destinationChainId, flow.originChainId));
 
     const newModifiedFlow: ModifiedUBAFlow = {
       flow,
-      balancingFee,
+      balancingFee: potentialBalancingFee,
       lpFee,
       runningBalance,
       incentiveBalance,
@@ -507,7 +534,12 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
             incentiveBalance: precedingIncentiveBalance,
             netRunningBalanceAdjustment: precedingNetRunningBalanceAdjustment,
           } = analog.calculateHistoricalRunningBalance(
-            precedingValidatedFlows.map(({ flow }) => flow),
+            precedingValidatedFlows.map(({ flow, balancingFee }) => {
+              return {
+                ...flow,
+                incentiveFeePct: balancingFee,
+              };
+            }),
             openingBalanceForChain.runningBalance,
             openingBalanceForChain.incentiveBalance,
             flowChain,
@@ -607,7 +639,6 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
           // The matched deposit is in the same bundle as the flow. This is an easy case since we know the deposit
           // must have been validated already.
           console.log("- Matched deposit should be in same bundle as flow");
-          const bundleKey = getBundleKeyForBlockRanges(blockRangesContainingFlow);
           const validatedFlowsOnOriginChain =
             this.validatedFlowsPerBundle[bundleKey][tokenSymbol][matchedDeposit.originChainId];
           matchedDepositFlow = getMatchingFlow(validatedFlowsOnOriginChain, matchedDeposit);
