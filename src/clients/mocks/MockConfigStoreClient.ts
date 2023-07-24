@@ -1,5 +1,5 @@
 import winston from "winston";
-import { Contract, Event } from "ethers";
+import { Contract, Event, ethers } from "ethers";
 import { EventSearchConfig, utf8ToHex } from "../../utils";
 import { AcrossConfigStoreClient, ConfigStoreUpdate, DEFAULT_CONFIG_STORE_VERSION } from "../AcrossConfigStoreClient";
 import { EventManager, getEventManager } from "./MockEvents";
@@ -30,7 +30,7 @@ export class MockConfigStoreClient extends AcrossConfigStoreClient {
     this.configStoreVersion = configStoreVersion;
   }
 
-  getConfigStoreVersionForBlock(_blockNumber: number): number {
+  getConfigStoreVersionForBlock(): number {
     return this.configStoreVersion;
   }
 
@@ -87,15 +87,19 @@ export class MockConfigStoreClient extends AcrossConfigStoreClient {
     };
   }
 
-  updateGlobalConfig(key: string, value: string): Event {
-    return this.generateConfig("UpdatedGlobalConfig", utf8ToHex(key), value);
+  updateGlobalConfig(key: string, value: string, blockNumber?: number): Event {
+    return this.generateConfig("UpdatedGlobalConfig", utf8ToHex(key), value, blockNumber);
   }
 
-  updateTokenConfig(key: string, value: string): Event {
-    return this.generateConfig("UpdatedTokenConfig", utf8ToHex(key), value);
+  updateTokenConfig(key: string, value: string, blockNumber?: number): Event {
+    // Verify that the key is a valid address
+    if (ethers.utils.isAddress(key) === false) {
+      throw new Error(`Invalid address: ${key}`);
+    }
+    return this.generateConfig("UpdatedTokenConfig", key, value, blockNumber);
   }
 
-  private generateConfig(event: string, key: string, value: string): Event {
+  private generateConfig(event: string, key: string, value: string, blockNumber?: number): Event {
     const topics = [key, value];
     const args = { key, value };
 
@@ -104,6 +108,7 @@ export class MockConfigStoreClient extends AcrossConfigStoreClient {
       address: this.configStore.address,
       topics: topics.map((topic) => topic.toString()),
       args,
+      blockNumber,
     });
 
     this.addEvent(configEvent);
