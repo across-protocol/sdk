@@ -72,6 +72,8 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
 
   private redisClient: ReturnType<typeof createClient> | undefined;
 
+  // TODO: Allow constructor to pass in a CacheClient which must have set() and get() defined. For now, force the
+  // deployer to use Redis to facilitate testing.
   /**
    * @param tokens Tokens to load bundle state for.
    * @param hubPoolClient
@@ -508,6 +510,9 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
       return newModifiedFlow;
     } else {
       // Now we need to validate the refund or fill.
+      if (!isDefined(flow.realizedLpFeePct)) {
+        throw new Error("Outflow has undefined realizedLpFeePct");
+      }
 
       // ASSUMPTION: the flow is already matched against a deposit by `getFlows` when comparing
       // all params besides `realizedLpFeePct`.
@@ -549,17 +554,21 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
       // balance at the time of the deposit flow.
       // I *think* (with a lot of uncertainty) we should put this before the timing rule so that we can take advantage of this rule to overcome
       // chain haltings where a chain's blockTimestamps stops progressing?
-      // if (ubaConfigForChain.isBalancingFeeCurveFlatAtZero(flow.matchedDeposit.originChainId)) {
-      //   console.log(`- Flow matched a deposit on a chain with a flat balancing fee curve at 0`);
-      //   const lpFeePct = newModifiedFlow.lpFee.mul(fixedPointAdjustment).div(flow.amount);
-      //   if (!flow.realizedLpFeePct.eq(lpFeePct)) {
-      //     console.log(`- Flow realizedLpFeePct not equal to lp fee component, expected ${lpFeePct.toString()}, actual: ${flow.realizedLpFeePct.toString()}`)
-      //     return undefined;
-      //   }
-      //   else {
-      //     return newModifiedFlow;
-      //   }
-      // }
+      if (ubaConfigForChain.isBalancingFeeCurveFlatAtZero(flow.matchedDeposit.originChainId)) {
+        console.log("- Flow matched a deposit on a chain with a flat balancing fee curve at 0");
+        const lpFeePct = newModifiedFlow.lpFee.mul(fixedPointAdjustment).div(flow.amount);
+        // TODO: Set to true currently so we can make Dataworker validate fills that are live on Mainnet even if
+        // UBA isn't activated.
+        // eslint-disable-next-line no-constant-condition
+        if (false && !lpFeePct.eq(flow.realizedLpFeePct as BigNumber)) {
+          console.log(
+            `- Flow realizedLpFeePct not equal to lp fee component, expected ${lpFeePct.toString()}, actual: ${flow.realizedLpFeePct?.toString()}`
+          );
+          return undefined;
+        } else {
+          return newModifiedFlow;
+        }
+      }
 
       // Check the Timing Rule:
       // The fill must match with a deposit who's blockTimestamp is < fill.blockTimestamp.
@@ -831,7 +840,7 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
     });
 
     // DEMO: limiting the tokens to test temporarily:
-    const tokens = ["DAI"]; // this.hubPoolClient.getL1Tokens().map((token) => token.symbol);
+    const tokens = this.hubPoolClient.getL1Tokens().map((token) => token.symbol);
 
     // Load all UBA bundle block ranges for each chain:
     const blockRangesByChain = this.getMostRecentBundleBlockRangesPerChain(100);
@@ -862,7 +871,7 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
 
     // First try to load bundle states from redis into memory to make the validateFlowsInBundle call significantly faster:
     // eslint-disable-next-line no-constant-condition
-    if (false && isDefined(this.redisClient)) {
+    if (isDefined(this.redisClient)) {
       // Never load the latest bundle state from redis, since we'll always want to re-validate it as its bundle
       // cannot have been validated yet.
       for (let i = this.ubaBundleBlockRanges.length - 2; i >= 0; i--) {
@@ -914,7 +923,7 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
           modifiedFlowsInBundle = await this.validateFlowsInBundle(mostRecentBundleBlockRanges, token);
         }
 
-        // Load into UBA client state and optionally save into external state.
+        // Save into UBA client state and optionally save into external state.
         await forEachAsync(this.chainIdIndices, async (chainId) => {
           if (!isDefined(newUbaClientState[chainId])) newUbaClientState[chainId] = {};
           if (!isDefined(newUbaClientState[chainId][token])) newUbaClientState[chainId][token] = [];
@@ -967,7 +976,5 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
         console.log(`Reading bundle state for ${token} for block ranges`, bundleBlockRange, breakdown);
       });
     }
-    // Terminate process here so we can read these logs without getting flooded by dataworker logs.
-    process.exit();
   }
 }

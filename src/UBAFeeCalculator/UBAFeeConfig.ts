@@ -102,6 +102,15 @@ class UBAConfig {
     return this.balancingFee.override?.[chainId] ?? this.balancingFee.default;
   }
 
+  public getZeroFeePointOnBalancingFeeCurve(chainId: number): BigNumber {
+    const balancingFeeTuples = this.getBalancingFeeTuples(chainId);
+    const zeroPoint = balancingFeeTuples.find((tuple) => tuple[1].eq(0));
+    if (!zeroPoint) {
+      throw new Error(`No zero point on balancing fee curve for chain ${chainId}`);
+    }
+    return zeroPoint[0];
+  }
+
   public isBalancingFeeCurveFlatAtZero(chainId: number): boolean {
     const balancingFeeCurve = this.getBalancingFeeTuples(chainId);
     return balancingFeeCurve.length === 1 && balancingFeeCurve[0][0].eq(0) && balancingFeeCurve[0][1].eq(0);

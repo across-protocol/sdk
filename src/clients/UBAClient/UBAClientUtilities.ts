@@ -84,7 +84,7 @@ export function getUBAFeeConfig(
   const threshold = ubaConfig.rebalance[String(chainId)];
 
   const chainTokenCombination = `${chainId}-${tokenSymbol}`;
-  return new UBAFeeConfig(
+  const newConfig = new UBAFeeConfig(
     {
       default: ubaConfig.alpha["default"],
       override: omitDefaultKeys(ubaConfig.alpha),
@@ -124,6 +124,15 @@ export function getUBAFeeConfig(
     ubaConfig.incentivePoolAdjustment,
     ubaConfig.ubaRewardMultiplier
   );
+
+  // Validate omega curves:
+  // - Each curve must have a zero point.
+  const omegaDefaultZeroCurve = newConfig.getZeroFeePointOnBalancingFeeCurve(chainId);
+  if (!isDefined(omegaDefaultZeroCurve)) {
+    throw new Error(`Omega curve for chain ${chainId} does not have a zero point`);
+  }
+
+  return newConfig;
 }
 
 /**
