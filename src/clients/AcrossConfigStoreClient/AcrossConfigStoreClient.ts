@@ -37,7 +37,6 @@ import { across } from "@uma/sdk";
 import { parseUBAConfigFromOnChain } from "./ConfigStoreParsingUtilities";
 import { BaseAbstractClient } from "../BaseAbstractClient";
 import { parseJSONWithNumericString } from "../../utils/JSONUtils";
-import { getUbaActivationBundleStartBlocks } from "../UBAClient";
 
 type _ConfigStoreUpdate = {
   success: true;
@@ -226,8 +225,16 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
     return isDefined(config) ? Number(config.value) : DEFAULT_CONFIG_STORE_VERSION;
   }
 
+  getUBAActivationBlock(): number | undefined {
+    return 17762200;
+    return this.cumulativeConfigStoreVersionUpdates.find((config) => {
+      return Number(config.value) >= UBA_MIN_CONFIG_STORE_VERSION;
+    })?.blockNumber;
+  }
+
   getConfigStoreVersionForBlock(_blockNumber: number = Number.MAX_SAFE_INTEGER): number {
-    return _blockNumber >= getUbaActivationBundleStartBlocks()[0]
+    const ubaActivationBlock = this.getUBAActivationBlock();
+    return isDefined(ubaActivationBlock) && _blockNumber >= ubaActivationBlock
       ? UBA_MIN_CONFIG_STORE_VERSION
       : DEFAULT_CONFIG_STORE_VERSION;
     // const config = this.cumulativeConfigStoreVersionUpdates.find((config) => config.blockNumber <= blockNumber);

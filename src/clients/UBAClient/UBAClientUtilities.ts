@@ -5,7 +5,6 @@ import UBAFeeConfig from "../../UBAFeeCalculator/UBAFeeConfig";
 import { mapAsync } from "../../utils/ArrayUtils";
 import { SpokePoolClients } from "../../utils/TypeUtils";
 import { isDefined } from "../../utils/TypeGuards";
-import { sortEventsAscending } from "../../utils/EventUtils";
 import { toBN } from "../../utils/common";
 import { validateFillForDeposit } from "../../utils/FlowUtils";
 import { ModifiedUBAFlow, RequestValidReturnType, UBAClientState } from "./UBAClientTypes";
@@ -149,6 +148,12 @@ export function getMostRecentBundleBlockRanges(
   let toBlock = hubPoolBlock;
 
   // Reconstruct bundle ranges based on published end blocks.
+  const ubaActivationStartBlocks = getUbaActivationBundleStartBlocks(hubPoolClient);
+  const ubaActivationHubStartBlock = getBlockForChain(
+    ubaActivationStartBlocks,
+    hubPoolClient.chainId,
+    hubPoolClient.configStoreClient.enabledChainIds
+  );
 
   // Bundle states are examined in chronological descending order.
   const bundleData: { start: number; end: number }[] = [];
@@ -171,7 +176,7 @@ export function getMostRecentBundleBlockRanges(
       hubPoolClient.chainId,
       hubPoolClient.configStoreClient.enabledChainIds
     )[0];
-    if (!isUBABlock(hubPoolStartBlock)) {
+    if (!(hubPoolStartBlock >= ubaActivationHubStartBlock)) {
       break;
     }
 
@@ -195,7 +200,7 @@ export function getMostRecentBundleBlockRanges(
   // an error so inject a block range from the UBA activation block of this chain to the latest
   // spoke block searched so we can query all UBA eligible events for this chain.
   if (bundleData.length === 0) {
-    const ubaActivationBundleStartBlocks = getUbaActivationBundleStartBlocks();
+    const ubaActivationBundleStartBlocks = getUbaActivationBundleStartBlocks(hubPoolClient);
     const ubaActivationBundleStartBlockForChain = getBlockForChain(
       ubaActivationBundleStartBlocks,
       chainId,
@@ -275,17 +280,44 @@ export async function UBA_queryHistoricalDepositForFill(
  * Returns bundle range start blocks for first bundle that UBA was activated
  * @param chainIds Chains to return start blocks for.
  * */
-export function getUbaActivationBundleStartBlocks(): number[] {
-  // Hardcode this but consider building a more dynamic binary search on all executed bundle block ranges to find
-  // the first bundle where the UBA was activated.
-  // return [17757738, 107269734, 45432266, 977154, 114218757];
-  // return [17756989, 107265233, 45428120, 977154, 114183981];
-  return [17756248, 107260737, 45424000, 977154, 114148563];
-  // return [Number.MAX_SAFE_INTEGER, Number.MAX_SAFE_INTEGER, Number.MAX_SAFE_INTEGER, Number.MAX_SAFE_INTEGER, Number.MAX_SAFE_INTEGER];
-}
-
-export function isUBABlock(block: number): boolean {
-  return block >= getUbaActivationBundleStartBlocks()[0];
+export function getUbaActivationBundleStartBlocks(hubPoolClient: HubPoolClient): number[] {
+  const latestHubPoolBlock = hubPoolClient.latestBlockNumber;
+  if (!isDefined(latestHubPoolBlock)) {
+    throw new Error("HubPoolClient has undefined latestBlockNumber");
+  }
+  const ubaActivationBlock = hubPoolClient.configStoreClient.getUBAActivationBlock();
+  if (isDefined(ubaActivationBlock)) {
+    const nextValidatedBundle = hubPoolClient.getProposedRootBundles().find((bundle) => {
+      if (bundle.blockNumber >= ubaActivationBlock) {
+        const isValidated = hubPoolClient.isRootBundleValid(bundle, latestHubPoolBlock);
+        return isValidated;
+      } else {
+        return false;
+      }
+    });
+    if (isDefined(nextValidatedBundle)) {
+      const bundleBlockRanges = getImpliedBundleBlockRanges(
+        hubPoolClient,
+        hubPoolClient.configStoreClient,
+        nextValidatedBundle
+      );
+      const bundleStartBlocks = bundleBlockRanges.map(([startBlock]) => startBlock);
+      return bundleStartBlocks;
+    } else {
+      // No validated bundles after UBA activation block, UBA should be activated on next bundle start blocks.
+      const chainIdIndices = hubPoolClient.configStoreClient.enabledChainIds;
+      const nextBundleStartBlocks = chainIdIndices.map((chainId) =>
+        hubPoolClient.getNextBundleStartBlockNumber(chainIdIndices, latestHubPoolBlock, chainId)
+      );
+      console.log(
+        "No validated bundle after UBA activation block, UBA should be activated on next bundle start blocks:",
+        nextBundleStartBlocks
+      );
+      return nextBundleStartBlocks;
+    }
+  } else {
+    throw new Error(`UBA was not activated yet as of ${latestHubPoolBlock}`);
+  }
 }
 
 /**
@@ -396,7 +428,7 @@ export async function getFlows(
   });
 
   // This is probably more expensive than we'd like... @todo: optimise.
-  const flows = sortEventsAscending(deposits.concat(fills).concat(refundRequests));
+  const flows = sortFlowsAscending(deposits.concat(fills).concat(refundRequests));
 
   return flows;
 }

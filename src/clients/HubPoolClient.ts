@@ -34,7 +34,6 @@ import { ExecutedRootBundle, PendingRootBundle, ProposedRootBundle } from "../in
 import { CrossChainContractsSet, DestinationTokenWithBlock, SetPoolRebalanceRoot } from "../interfaces";
 import * as lpFeeCalculator from "../lpFeeCalculator";
 import { AcrossConfigStoreClient as ConfigStoreClient } from "./";
-import { isUBABlock } from "./UBAClient/UBAClientUtilities";
 import { BaseAbstractClient } from "./BaseAbstractClient";
 
 type _HubPoolUpdate = {
@@ -285,7 +284,8 @@ export class HubPoolClient extends BaseAbstractClient {
       this.chainId,
       this.configStoreClient.enabledChainIds
     );
-    if (isUBABlock(depositMainnetStartBlock)) {
+    const ubaActivationBlock = this.configStoreClient.getUBAActivationBlock();
+    if (isDefined(ubaActivationBlock) && depositMainnetStartBlock >= ubaActivationBlock) {
       // If UBA deposit then we can't compute the realizedLpFeePct until after we've updated the UBA Client.
       return {
         realizedLpFeePct: undefined,
@@ -655,8 +655,9 @@ export class HubPoolClient extends BaseAbstractClient {
       // TODO: While testing against mainnet bundles, we *always* need to negate running balances.
       const runningBalance = executedLeaf.runningBalances[l1TokenIndex];
       const incentiveBalance = executedLeaf.incentiveBalances[l1TokenIndex];
+      const ubaActivationBlock = this.configStoreClient.getUBAActivationBlock();
       // eslint-disable-next-line no-constant-condition
-      if (true || !isUBABlock(blockRanges[0][0])) {
+      if (true || (isDefined(ubaActivationBlock) && blockRanges[0][0] >= ubaActivationBlock!)) {
         return {
           runningBalance: runningBalance.mul(-1),
           // Incentive balance starts at 0.
