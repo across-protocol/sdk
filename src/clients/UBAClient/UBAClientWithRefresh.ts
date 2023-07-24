@@ -795,7 +795,7 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
     });
 
     // DEMO: limiting the tokens to test temporarily:
-    const tokens = ["USDC"]; // this.hubPoolClient.getL1Tokens().map((token) => token.symbol);
+    const tokens = ["DAI"]; // this.hubPoolClient.getL1Tokens().map((token) => token.symbol);
 
     // Load all UBA bundle block ranges for each chain:
     const blockRangesByChain = this.getMostRecentBundleBlockRangesPerChain(100);
@@ -825,7 +825,8 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
     console.log("Latest block timestamps per chain", this.latestBlockTimestamps);
 
     // First try to load bundle states from redis into memory to make the validateFlowsInBundle call significantly faster:
-    if (isDefined(this.redisClient)) {
+    // eslint-disable-next-line no-constant-condition
+    if (false && isDefined(this.redisClient)) {
       // Never load the latest bundle state from redis, since we'll always want to re-validate it as its bundle
       // cannot have been validated yet.
       for (let i = this.ubaBundleBlockRanges.length - 2; i >= 0; i--) {

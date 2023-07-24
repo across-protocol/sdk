@@ -648,12 +648,26 @@ export class HubPoolClient extends BaseAbstractClient {
         // If l1 token not included in this bundle, then need to look for an older executed bundle.
         return this.getOpeningRunningBalanceForEvent(eventBlock, eventChain, l1Token, latestExecutedBundle.blockNumber);
       }
+
+      // Finally, we need to do a final check if the latest executed root bundle was the final pre UBA one. If so, then
+      // its running balances need to be negated, because in the pre UBA world we counted "positive balances" held
+      // by spoke pools as negative running balances.
+      // TODO: While testing against mainnet bundles, we *always* need to negate running balances.
       const runningBalance = executedLeaf.runningBalances[l1TokenIndex];
       const incentiveBalance = executedLeaf.incentiveBalances[l1TokenIndex];
-      return {
-        runningBalance,
-        incentiveBalance,
-      };
+      // eslint-disable-next-line no-constant-condition
+      if (true || !isUBABlock(blockRanges[0][0])) {
+        return {
+          runningBalance: runningBalance.mul(-1),
+          // Incentive balance starts at 0.
+          incentiveBalance: ethers.constants.Zero,
+        };
+      } else {
+        return {
+          runningBalance,
+          incentiveBalance,
+        };
+      }
     }
 
     // Event is either in the bundle or before it, look for an older executed bundle.
