@@ -692,6 +692,7 @@ export class SpokePoolClient extends BaseAbstractClient {
           realizedLpFeePct: dataForQuoteTime[index].realizedLpFeePct,
           destinationToken: this.getDestinationTokenForDeposit(partialDeposit),
           quoteBlockNumber: dataForQuoteTime[index].quoteBlock,
+          // TODO: Cache this result:
           blockTimestamp: (await this.spokePool.provider.getBlock(partialDeposit.blockNumber)).timestamp,
         };
 

@@ -31,7 +31,6 @@ import {
   getBlockRangeForChain,
   isDefined,
   mapAsync,
-  toBNWei,
 } from "../../utils";
 import { analog } from "../../UBAFeeCalculator";
 import { getDepositFee, getRefundFee } from "../../UBAFeeCalculator/UBAFeeSpokeCalculatorAnalog";
@@ -134,7 +133,7 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
 
     return {
       lpFee: matchingFlow.lpFee.mul(deposit.amount).div(fixedPointAdjustment),
-      depositBalancingFee: matchingFlow.balancingFee.mul(deposit.amount).div(fixedPointAdjustment),
+      depositBalancingFee: matchingFlow.balancingFee,
     };
   }
 
@@ -168,7 +167,7 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
       lastBundleState.flows.map(({ flow, balancingFee }) => {
         return {
           ...flow,
-          incentiveFeePct: balancingFee,
+          incentiveFee: balancingFee,
         };
       }),
       lastFlow.runningBalance,
@@ -184,7 +183,7 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
       repaymentChainId,
       ubaConfigForBundle
     );
-    return balancingFee.mul(amount).div(fixedPointAdjustment);
+    return balancingFee;
   }
 
   /**
@@ -233,7 +232,7 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
     // This should only be called with exact block ranges already stored in this.ubaBundleBlockRanges.
     if (
       !this.ubaBundleBlockRanges.some((bundleBlockRanges) => {
-        return JSON.stringify(bundleBlockRanges) === JSON.stringify(bundleBlockRanges);
+        return JSON.stringify(blockRanges) === JSON.stringify(bundleBlockRanges);
       })
     ) {
       throw new Error("Invalid block ranges not found in this.ubaBundleBlockRanges state");
@@ -470,32 +469,29 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
         ubaConfigForChain
       ));
     }
+    console.log("- Potential balancing fee for flow", potentialBalancingFee.toString());
 
     // Figure out the running balance so far for this flow's chain. This is based on all already validated flows
     // for this chain plus the current flow assuming it is valid.
-    // TODO: Could optimize this more by only passing in the latest flow along with latest balance counts
-    // from last flow in preceding.
     const { runningBalance, incentiveBalance, netRunningBalanceAdjustment } = analog.calculateHistoricalRunningBalance(
-      precedingValidatedFlows
-        .map(({ flow, balancingFee }) => {
-          return {
-            ...flow,
-            incentiveFeePct: balancingFee,
-          };
-        })
-        .concat({
+      [
+        {
           ...flow,
-          incentiveFeePct: potentialBalancingFee,
-        }),
-      openingBalanceForChain.runningBalance,
-      openingBalanceForChain.incentiveBalance,
+          incentiveFee: potentialBalancingFee,
+        },
+      ],
+      latestRunningBalance,
+      latestIncentiveBalance,
       flowChain,
       tokenSymbol,
       ubaConfigForChain
     );
 
     // Figure out the LP fee which is based only on the flow's origin and destination chain.
-    const lpFee = computeLpFeeForRefresh(ubaConfigForChain.getBaselineFee(flow.destinationChainId, flow.originChainId));
+    const lpFeePct = computeLpFeeForRefresh(
+      ubaConfigForChain.getBaselineFee(flow.destinationChainId, flow.originChainId)
+    );
+    const lpFee = lpFeePct.mul(flow.amount).div(fixedPointAdjustment);
 
     const newModifiedFlow: ModifiedUBAFlow = {
       flow,
@@ -527,40 +523,43 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
 
         if (flow.matchedDeposit.realizedLpFeePct.eq(flow.realizedLpFeePct)) {
           // For pre UBA refund, the running balance should not be affected by this refund.
-          // TODO: The above rule I think is arbitrary, we could decide to count these against
-          // the running balances, but ideologically it doesn't make sense to me.
-          const {
-            runningBalance: precedingRunningBalance,
-            incentiveBalance: precedingIncentiveBalance,
-            netRunningBalanceAdjustment: precedingNetRunningBalanceAdjustment,
-          } = analog.calculateHistoricalRunningBalance(
-            precedingValidatedFlows.map(({ flow, balancingFee }) => {
-              return {
-                ...flow,
-                incentiveFeePct: balancingFee,
-              };
-            }),
-            openingBalanceForChain.runningBalance,
-            openingBalanceForChain.incentiveBalance,
-            flowChain,
-            tokenSymbol,
-            ubaConfigForChain
-          );
+          // TODO: The above rule I think is arbitrary-- we *could* decide to count these against
+          // the running balances, but ideologically it doesn't make sense to me. Its ultimately
+          // not a big decision I think.
+          const latestNetRunningBalanceAdjustment = lastFlow?.netRunningBalanceAdjustment ?? ethers.constants.Zero;
           return {
             flow,
             // Balancing fee for a pre UBA refund is 0
             balancingFee: ethers.constants.Zero,
             // Set realized LP fee for fill equal to the realized LP fee for the matched deposit.
-            lpFee: flow.realizedLpFeePct,
-            runningBalance: precedingRunningBalance,
-            incentiveBalance: precedingIncentiveBalance,
-            netRunningBalanceAdjustment: precedingNetRunningBalanceAdjustment,
+            lpFee: flow.realizedLpFeePct.mul(flow.amount).div(fixedPointAdjustment),
+            runningBalance: latestRunningBalance,
+            incentiveBalance: latestIncentiveBalance,
+            netRunningBalanceAdjustment: latestNetRunningBalanceAdjustment,
           };
         } else {
           console.log("- Flow matched a pre-UBA deposit, but it was invalid because it set the wrong LP fee");
           return undefined;
         }
       }
+
+      // TODO: There is a clever optimization we can make and exit early: If the UBA config
+      // at the time of the matched deposit has a flat balancing fee, then its realizedLpFeePct only depends
+      // on the lpFee component as we can assume the balancing fee was 0 regardless of the running
+      // balance at the time of the deposit flow.
+      // I *think* (with a lot of uncertainty) we should put this before the timing rule so that we can take advantage of this rule to overcome
+      // chain haltings where a chain's blockTimestamps stops progressing?
+      // if (ubaConfigForChain.isBalancingFeeCurveFlatAtZero(flow.matchedDeposit.originChainId)) {
+      //   console.log(`- Flow matched a deposit on a chain with a flat balancing fee curve at 0`);
+      //   const lpFeePct = newModifiedFlow.lpFee.mul(fixedPointAdjustment).div(flow.amount);
+      //   if (!flow.realizedLpFeePct.eq(lpFeePct)) {
+      //     console.log(`- Flow realizedLpFeePct not equal to lp fee component, expected ${lpFeePct.toString()}, actual: ${flow.realizedLpFeePct.toString()}`)
+      //     return undefined;
+      //   }
+      //   else {
+      //     return newModifiedFlow;
+      //   }
+      // }
 
       // Check the Timing Rule:
       // The fill must match with a deposit who's blockTimestamp is < fill.blockTimestamp.
@@ -682,10 +681,17 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
         }
 
         // Note: This will always be false when testing against pre UBA deposits on production networks.
-        const expectedRealizedLpFeePctForMatchedDeposit = matchedDepositFlow.lpFee.add(matchedDepositFlow.balancingFee);
+        const expectedRealizedLpFeeForMatchedDeposit = matchedDepositFlow.lpFee.add(matchedDepositFlow.balancingFee);
+        const expectedRealizedLpFeePctForMatchedDeposit = expectedRealizedLpFeeForMatchedDeposit
+          .mul(fixedPointAdjustment)
+          .div(matchedDepositFlow.flow.amount);
+        console.log(
+          `- Expected realized lp fee pct for matched deposit: ${expectedRealizedLpFeePctForMatchedDeposit.toString()}, actual: ${matchedDepositFlow.flow.realizedLpFeePct?.toString()}`
+        );
         // eslint-disable-next-line no-constant-condition
         if (true) {
           // Temporarily set to always true to test pre UBA deposits.
+          // TODO: There might be some precision loss here which we should allow for.
           // if (expectedRealizedLpFeePctForMatchedDeposit.eq(flow.realizedLpFeePct)) {
           return newModifiedFlow;
         } else {
@@ -746,7 +752,7 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
       // Sanity check that block ranges cover from UBA activation bundle start block for chain to latest spoke pool
       // client block searched:
       const ubaActivationBundleStartBlockForChain = getBlockForChain(
-        getUbaActivationBundleStartBlocks(),
+        getUbaActivationBundleStartBlocks(this.hubPoolClient),
         chainId,
         this.chainIdIndices
       );
@@ -756,9 +762,8 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
           _blockRangesForChain.slice(-1)[0][1] !== this.spokePoolClients[chainId].latestBlockSearched)
       ) {
         console.log(
-          _blockRangesForChain[0],
-          _blockRangesForChain.slice(-1)[0],
-          getUbaActivationBundleStartBlocks(),
+          _blockRangesForChain,
+          getUbaActivationBundleStartBlocks(this.hubPoolClient),
           this.spokePoolClients[chainId]?.latestBlockSearched
         );
         throw new Error(

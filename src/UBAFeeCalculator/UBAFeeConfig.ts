@@ -102,6 +102,11 @@ class UBAConfig {
     return this.balancingFee.override?.[chainId] ?? this.balancingFee.default;
   }
 
+  public isBalancingFeeCurveFlatAtZero(chainId: number): boolean {
+    const balancingFeeCurve = this.getBalancingFeeTuples(chainId);
+    return balancingFeeCurve.length === 1 && balancingFeeCurve[0][0].eq(0) && balancingFeeCurve[0][1].eq(0);
+  }
+
   /**
    * @description Get the lp gamma function tuples for a given chain
    * @param chainId The chain id
