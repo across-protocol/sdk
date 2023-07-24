@@ -244,6 +244,15 @@ export function utf8ToHex(input: string) {
 }
 
 /**
+ * Converts a hex string to a utf8 string
+ * @param input The hex string to convert
+ * @returns The utf8 string
+ */
+export function hexToUtf8(input: string) {
+  return ethers.utils.parseBytes32String(input);
+}
+
+/**
  * Attempt to retry a function call a number of times with a delay between each attempt
  * @param call The function to call
  * @param times The number of times to retry
