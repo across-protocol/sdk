@@ -727,11 +727,11 @@ export class SpokePoolClient extends BaseAbstractClient {
         });
       }
       await forEachAsync(fillEvents, async (event) => {
-        const fillData = spreadEventWithBlockNumber(event);
-        const fill = {
-          ...fillData,
-          blockTimestamp: (await this.spokePool.provider.getBlock(fillData.blockNumber)).timestamp,
-        } as FillWithBlock;
+        const rawFill = spreadEventWithBlockNumber(event) as FillWithBlock;
+        const fill: FillWithBlock = {
+          ...rawFill,
+          blockTimestamp: (await this.spokePool.provider.getBlock(rawFill.blockNumber)).timestamp,
+        };
         assign(this.fills, [fill.originChainId], [fill]);
         assign(this.depositHashesToFills, [this.getDepositHash(fill)], [fill]);
       });
@@ -749,14 +749,14 @@ export class SpokePoolClient extends BaseAbstractClient {
         });
       }
       await forEachAsync(refundRequests, async (event) => {
-        const refundRequestData = spreadEventWithBlockNumber(event);
-        const refundRequest = {
-          ...refundRequestData,
+        const rawRefundRequest = spreadEventWithBlockNumber(event) as RefundRequestWithBlock;
+        const refundRequest: RefundRequestWithBlock = {
+          ...rawRefundRequest,
           // repaymentChainId is not part of the on-chain event, so add it here.
           repaymentChainId: this.chainId,
-          blockTimestamp: (await this.spokePool.provider.getBlock(refundRequestData.blockNumber)).timestamp,
+          blockTimestamp: (await this.spokePool.provider.getBlock(rawRefundRequest.blockNumber)).timestamp,
         };
-        this.refundRequests.push(refundRequest as RefundRequestWithBlock);
+        this.refundRequests.push(refundRequest);
       });
     }
 
