@@ -23,6 +23,7 @@ export interface Deposit {
 }
 
 export interface DepositWithBlock extends Deposit, SortableEvent {
+  blockTimestamp: number;
   quoteBlockNumber: number;
 }
 
@@ -51,7 +52,9 @@ export interface Fill {
   updatableRelayData: RelayExecutionInfo;
 }
 
-export interface FillWithBlock extends Fill, SortableEvent {}
+export interface FillWithBlock extends Fill, SortableEvent {
+  blockTimestamp: number;
+}
 
 export interface SpeedUp {
   depositor: string;
@@ -97,7 +100,9 @@ export interface RefundRequest {
   previousIdenticalRequests: BigNumber;
 }
 
-export interface RefundRequestWithBlock extends RefundRequest, SortableEvent {}
+export interface RefundRequestWithBlock extends RefundRequest, SortableEvent {
+  blockTimestamp: number;
+}
 
 export interface RootBundleRelay {
   rootBundleId: number;

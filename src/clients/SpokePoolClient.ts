@@ -1,5 +1,13 @@
 import { groupBy } from "lodash";
-import { assign, EventSearchConfig, DefaultLogLevels, MakeOptional, AnyObject, MAX_BIG_INT } from "../utils";
+import {
+  assign,
+  EventSearchConfig,
+  DefaultLogLevels,
+  MakeOptional,
+  AnyObject,
+  MAX_BIG_INT,
+  forEachAsync,
+} from "../utils";
 import { toBN } from "../utils/common";
 import { validateFillForDeposit, filledSameDeposit } from "../utils/FlowUtils";
 import {
@@ -672,16 +680,16 @@ export class SpokePoolClient extends BaseAbstractClient {
           earliestEvent: depositEvents[0].blockNumber,
         });
       }
-      for (const [index, event] of Array.from(depositEvents.entries())) {
-        // Append the realizedLpFeePct.
-        const partialDeposit = spreadEventWithBlockNumber(event) as DepositWithBlock;
+      await forEachAsync(Array.from(depositEvents.entries()), async ([index, event]) => {
+        const rawDeposit = spreadEventWithBlockNumber(event) as DepositWithBlock;
 
-        // Append destination token and realized lp fee to deposit.
+        // Derive and append the destination token, LP fee, quote block number and block timestamp from the event.
         const deposit: DepositWithBlock = {
-          ...partialDeposit,
+          ...rawDeposit,
           realizedLpFeePct: dataForQuoteTime[index].realizedLpFeePct,
-          destinationToken: this.getDestinationTokenForDeposit(partialDeposit),
+          destinationToken: this.getDestinationTokenForDeposit(rawDeposit),
           quoteBlockNumber: dataForQuoteTime[index].quoteBlock,
+          blockTimestamp: (await this.spokePool.provider.getBlock(rawDeposit.blockNumber)).timestamp,
         };
 
         assign(this.depositHashes, [this.getDepositHash(deposit)], deposit);
@@ -692,7 +700,7 @@ export class SpokePoolClient extends BaseAbstractClient {
         if (deposit.depositId > this.latestDepositIdQueried) {
           this.latestDepositIdQueried = deposit.depositId;
         }
-      }
+      });
     }
 
     // Update deposits with speed up requests from depositor.
@@ -718,11 +726,15 @@ export class SpokePoolClient extends BaseAbstractClient {
           earliestEvent: fillEvents[0].blockNumber,
         });
       }
-      for (const event of fillEvents) {
-        const fill = spreadEventWithBlockNumber(event) as FillWithBlock;
+      await forEachAsync(fillEvents, async (event) => {
+        const fillData = spreadEventWithBlockNumber(event);
+        const fill = {
+          ...fillData,
+          blockTimestamp: (await this.spokePool.provider.getBlock(fillData.blockNumber)).timestamp,
+        } as FillWithBlock;
         assign(this.fills, [fill.originChainId], [fill]);
         assign(this.depositHashesToFills, [this.getDepositHash(fill)], [fill]);
-      }
+      });
     }
 
     // @note: In Across 2.5, callers will simultaneously request [FundsDeposited, FilledRelay, RefundsRequested].
@@ -736,13 +748,16 @@ export class SpokePoolClient extends BaseAbstractClient {
           earliestEvent: refundRequests[0].blockNumber,
         });
       }
-      // repaymentChainId is not part of the on-chain event, so add it here.
-      for (const refundRequest of refundRequests) {
-        this.refundRequests.push({
-          ...spreadEventWithBlockNumber(refundRequest),
+      await forEachAsync(refundRequests, async (event) => {
+        const refundRequestData = spreadEventWithBlockNumber(event);
+        const refundRequest = {
+          ...refundRequestData,
+          // repaymentChainId is not part of the on-chain event, so add it here.
           repaymentChainId: this.chainId,
-        } as RefundRequestWithBlock);
-      }
+          blockTimestamp: (await this.spokePool.provider.getBlock(refundRequestData.blockNumber)).timestamp,
+        };
+        this.refundRequests.push(refundRequest as RefundRequestWithBlock);
+      });
     }
 
     if (eventsToQuery.includes("EnabledDepositRoute")) {
