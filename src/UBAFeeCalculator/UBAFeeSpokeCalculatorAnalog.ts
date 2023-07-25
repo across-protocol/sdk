@@ -166,7 +166,8 @@ export function getEventFee(
 
     // First, apply hardcoded multiplier if incentive fee is a reward instead of a penalty
     // This should never error. `getUbaRewardMultiplier` should default to 1 and be in 18 decimal precision
-    balancingFee = balancingFee.mul(config.getUbaRewardMultiplier(chainId.toString())).div(fixedPointAdjustment);
+    const ubaRewardMultiplier = config.getUbaRewardMultiplier(chainId.toString());
+    balancingFee = balancingFee.mul(ubaRewardMultiplier).div(fixedPointAdjustment);
 
     // Next, compute the amount of fees that would be required to be paid out of the incentive balance
     // to bring the the balance fee to 0. This is found by finding the point on the flow curve

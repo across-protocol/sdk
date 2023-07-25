@@ -324,10 +324,7 @@ export function getOpeningRunningBalanceForEvent(
   );
 }
 
-// Load a deposit for a fill if the fill's deposit ID is outside this client's search range.
-// This can be used by the Dataworker to determine whether to give a relayer a refund for a fill
-// of a deposit older or younger than its fixed lookback.
-export async function UBA_queryHistoricalDepositForFill(
+export async function getMatchedDeposit(
   spokePoolClients: SpokePoolClients,
   fill: Fill,
   fillFieldsToIgnore: string[] = []
@@ -547,13 +544,14 @@ export function flowComparisonFunction(a: UbaFlow, b: UbaFlow): number {
     return a.blockTimestamp - b.blockTimestamp;
   }
 
-  // If fx and fx have same blockTimestamp and same quote block then... FML... what do?
   const quoteBlockX = isUbaInflow(a) ? a.quoteBlockNumber : a.matchedDeposit.quoteBlockNumber;
   const quoteBlockY = isUbaInflow(b) ? b.quoteBlockNumber : b.matchedDeposit.quoteBlockNumber;
   if (quoteBlockX !== quoteBlockY) {
     return quoteBlockX - quoteBlockY;
   }
 
+  // If fx and fy have same blockTimestamp and same quote block then it gets a bit arbitrary. Whatever
+  // we decide here we should push into the UMIP.
   // In the case of inflow vs outflow, return inflow first:
   if (isUbaInflow(a) && isUbaOutflow(b)) {
     return -1;
@@ -561,7 +559,7 @@ export function flowComparisonFunction(a: UbaFlow, b: UbaFlow): number {
     return 1;
   }
 
-  // If we get down here its a bit arbitrary, so return ordered by size for now:
+  // If we get down here, then return ordered by size for now:
   return a.amount.sub(b.amount).toNumber();
 }
 
@@ -655,7 +653,7 @@ export async function refundRequestIsValid(
 
   // Now, match the deposit against a fill but don't check the realizedLpFeePct parameter because it will be
   // undefined in the spoke pool client until we validate it later.
-  const deposit = await UBA_queryHistoricalDepositForFill(spokePoolClients, fill, ignoredDepositValidationParams);
+  const deposit = await getMatchedDeposit(spokePoolClients, fill, ignoredDepositValidationParams);
   if (!isDefined(deposit)) {
     return { valid: false, reason: "Unable to find matching deposit" };
   }
@@ -692,6 +690,8 @@ export type SpokePoolFillFilter = {
 /**
  * @notice Get the matching flow in a stream of already validated flows. Useful for seeing if an outflow's
  * matched inflow `targetFlow` is in the `allValidatedFlows` list.
+ * @dev Assumes `allValidatedFlows` are all validated UBA flows so there should be no duplicate
+ * origin chain and deposit id combinations.
  * @param allFlows
  * @param targetFlow
  * @returns
@@ -748,7 +748,7 @@ export async function getValidFillCandidates(
 
       // This deposit won't have a realizedLpFeePct field defined if its a UBA deposit, therefore match the fill
       // against all of the deposit fields except for this field which we'll fill in later.
-      const deposit = await UBA_queryHistoricalDepositForFill(spokePoolClients, fill, ignoredDepositValidationParams);
+      const deposit = await getMatchedDeposit(spokePoolClients, fill, ignoredDepositValidationParams);
       if (deposit !== undefined) {
         return {
           ...fill,
