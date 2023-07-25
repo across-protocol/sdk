@@ -11,6 +11,7 @@ import {
   BigNumberish,
   getImpliedBundleBlockRanges,
   getBlockRangeForChain,
+  stringifyJSONWithNumericString,
 } from "../utils";
 import {
   fetchTokenInfo,
@@ -28,6 +29,8 @@ import {
   LpToken,
   TokenRunningBalance,
   DepositWithBlock,
+  ProposedRootBundleStringified,
+  ExecutedRootBundleStringified,
 } from "../interfaces";
 import { ExecutedRootBundle, PendingRootBundle, ProposedRootBundle } from "../interfaces";
 import { CrossChainContractsSet, DestinationTokenWithBlock, SetPoolRebalanceRoot } from "../interfaces";
@@ -818,5 +821,76 @@ export class HubPoolClient extends BaseAbstractClient {
       return 0;
     }
     return bundleEvaluationBlockNumbers[chainIdIndex].toNumber();
+  }
+
+  public updateFromJSON(hubPoolClientState: Partial<ReturnType<HubPoolClient["toJSON"]>>): void {
+    const keysToUpdate = Object.keys(hubPoolClientState);
+
+    this.logger.debug({
+      at: "HubPoolClient",
+      message: "Updating HubPool client from JSON",
+      keys: keysToUpdate,
+    });
+
+    if (keysToUpdate.length === 0) {
+      return;
+    }
+
+    if (!this.configStoreClient.isUpdated) {
+      throw new Error("ConfigStoreClient not updated");
+    }
+
+    this.l1TokensToDestinationTokens = hubPoolClientState.l1TokensToDestinationTokens || {};
+    this.l1Tokens = hubPoolClientState.l1Tokens || [];
+    this.lpTokens = hubPoolClientState.lpTokens || {};
+    this.proposedRootBundles = (hubPoolClientState.proposedRootBundles || []).map((bundle) => ({
+      ...bundle,
+      bundleEvaluationBlockNumbers: bundle.bundleEvaluationBlockNumbers.map((block) => BigNumber.from(block)),
+    }));
+    this.canceledRootBundles = hubPoolClientState.canceledRootBundles || [];
+    this.disputedRootBundles = hubPoolClientState.disputedRootBundles || [];
+    this.executedRootBundles = (hubPoolClientState.executedRootBundles || []).map((bundle) => ({
+      ...bundle,
+      bundleLpFees: bundle.bundleLpFees.map((fee) => BigNumber.from(fee)),
+      netSendAmounts: bundle.netSendAmounts.map((amount) => BigNumber.from(amount)),
+      runningBalances: bundle.runningBalances.map((balance) => BigNumber.from(balance)),
+      incentiveBalances: bundle.incentiveBalances.map((balance) => BigNumber.from(balance)),
+    }));
+    this.pendingRootBundle = hubPoolClientState.pendingRootBundle;
+    this.crossChainContracts = hubPoolClientState.crossChainContracts || {};
+    this.l1TokensToDestinationTokensWithBlock = hubPoolClientState.l1TokensToDestinationTokensWithBlock || {};
+    this.firstBlockToSearch = hubPoolClientState.firstBlockToSearch || 0;
+    this.latestBlockNumber = hubPoolClientState.latestBlockNumber || 0;
+    this.currentTime = hubPoolClientState.currentTime || 0;
+    this.isUpdated = true;
+  }
+
+  public toJSON() {
+    return {
+      deploymentBlock: this.deploymentBlock,
+      chainId: this.chainId,
+      eventSearchConfig: this.eventSearchConfig,
+      configOverride: this.configOverride,
+
+      firstBlockToSearch: this.firstBlockToSearch,
+      latestBlockNumber: this.latestBlockNumber,
+      currentTime: this.currentTime,
+
+      l1TokensToDestinationTokens: this.l1TokensToDestinationTokens,
+      l1Tokens: this.l1Tokens,
+      lpTokens: this.lpTokens,
+
+      proposedRootBundles: this.proposedRootBundles.map((bundle) =>
+        JSON.parse(stringifyJSONWithNumericString(bundle))
+      ) as ProposedRootBundleStringified[],
+      canceledRootBundles: this.canceledRootBundles,
+      disputedRootBundles: this.disputedRootBundles,
+      executedRootBundles: this.executedRootBundles.map((bundle) =>
+        JSON.parse(stringifyJSONWithNumericString(bundle))
+      ) as ExecutedRootBundleStringified[],
+      pendingRootBundle: this.pendingRootBundle,
+      crossChainContracts: this.crossChainContracts,
+      l1TokensToDestinationTokensWithBlock: this.l1TokensToDestinationTokensWithBlock,
+    };
   }
 }
