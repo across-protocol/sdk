@@ -3,18 +3,19 @@ import winston from "winston";
 import { SpokePoolClient } from "../SpokePoolClient";
 import { HubPoolClient } from "../HubPoolClient";
 import {
-  computeLpFeeForRefresh,
   getBundleKeyForBlockRanges,
   getFlowChain,
   getFlows,
   getMatchingFlow,
   getMostRecentBundleBlockRanges,
+  getOpeningRunningBalanceForEvent,
   getUBAFeeConfig,
   getUbaActivationBundleStartBlocks,
   sortFlowsAscending,
 } from "./UBAClientUtilities";
 import { ModifiedUBAFlow, UBAClientState } from "./UBAClientTypes";
 import {
+  TokenRunningBalance,
   UbaFlow,
   UbaInflow,
   UbaOutflow,
@@ -38,6 +39,7 @@ import { BigNumber, ethers } from "ethers";
 import { BaseAbstractClient } from "../BaseAbstractClient";
 import { createClient } from "redis";
 import { objectWithBigNumberReviver } from "../../utils/RedisUtils";
+import UBAConfig from "../../UBAFeeCalculator/UBAFeeConfig";
 
 /**
  * @notice This class reconstructs UBA bundle data for every bundle that has been created since the
@@ -51,6 +53,8 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
   // Bundle states from older, already validated, bundles should ideally be loaded directly
   // from an external storage layer rather than reconstructed fresh from this class.
   public bundleStates: UBAClientState = {};
+
+  public bundleTokenSharedState: Record<string, { openingBalances: TokenRunningBalance; ubaConfig: UBAConfig }> = {};
 
   // Convenient variable storing this.hubPoolClient.spokePoolClients
   public chainIdIndices: number[];
@@ -174,6 +178,7 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
       }),
       lastFlow.runningBalance,
       lastFlow.incentiveBalance,
+      lastFlow.netRunningBalanceAdjustment,
       repaymentChainId,
       refundTokenSymbol,
       ubaConfigForBundle
@@ -219,6 +224,16 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
   // PRIVATE METHODS:
   //
   // /////////////////
+
+  /**
+   * @notice Compute the LP fee for a given amount.
+   */
+  private computeLpFee(baselineFee: BigNumber) {
+    // @dev Temporarily, the LP fee only comprises the baselineFee. In the future, a variable component will be
+    // added to the baseline fee that takes into account the utilized liquidity in the system and how the the bridge
+    // defined by { amount, originChain, refundChain, hubPoolBlock } affects that liquidity.
+    return baselineFee;
+  }
 
   /**
    * Validate flows in bundle block ranges. Returns the flows mapped by chain ID where the flow occurred and also
@@ -385,10 +400,6 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
    * Return flow with computed fees if it is valid. Otherwise, return undefined. Inflows are always valid,
    * while outflows need to match against an inflow and have set the correct realizedLpFeePct
    * @param flow
-   * @param precedingValidatedFlows TODO: This could be removed if we read directly from the cache since
-   * one assumption we make is that flows are validated in ascending order, meaning that all flows
-   * returned by this.validatedFlowsPerBundle for this flow's bundleKey and chain precede this flow. Moreover,
-   * this preceding set shouldn't be modified anymore.
    * @returns
    */
   private async validateFlow(flow: UbaFlow): Promise<ModifiedUBAFlow | undefined> {
@@ -414,22 +425,14 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
     const l1TokenAddress = this.hubPoolClient.getL1Tokens().find((token) => token.symbol === tokenSymbol)?.address;
     if (!isDefined(l1TokenAddress)) throw new Error("No L1 token address found for token symbol");
 
-    // Get opening balance and config at the time of the bundle containing the flow. We basically want to grab
-    // the latest validated bundle preceding the bundle containing the flow.
+    // Get opening balance and config at the start time of the bundle containing the flow. We basically want to grab
+    // the latest validated bundle preceding the bundle containing the flow. This should have been
+    // preloaded already into the memory state.
     const blockRangesContainingFlow = this.getUbaBundleBlockRangeContainingFlow(flow.blockNumber, flowChain);
-    const startBlocks = blockRangesContainingFlow.map(([start]) => start);
-    const mainnetStartBlock = getBlockForChain(
-      startBlocks,
-      this.hubPoolClient.chainId,
-      this.hubPoolClient.configStoreClient.enabledChainIds
-    );
-    const openingBalanceForChain = this.hubPoolClient.getOpeningRunningBalanceForEvent(
-      flow.blockNumber,
-      flowChain,
-      l1TokenAddress,
-      latestHubPoolBlock
-    );
-    const ubaConfigForChain = getUBAFeeConfig(this.hubPoolClient, flowChain, tokenSymbol, mainnetStartBlock);
+    const keyForBundleState = this.getKeyForBundle(blockRangesContainingFlow, tokenSymbol, flowChain);
+    const bundleSharedState = this.bundleTokenSharedState[keyForBundleState];
+    const openingBalanceForChain = bundleSharedState.openingBalances;
+    const ubaConfigForChain = bundleSharedState.ubaConfig;
     const runningBalanceThresholds = ubaConfigForChain.getBalanceTriggerThreshold(flowChain, tokenSymbol);
     console.log("- Bundle information for flow", {
       blockRangesContainingFlow,
@@ -453,6 +456,7 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
     const lastFlow = precedingValidatedFlows[precedingValidatedFlows.length - 1];
     const latestRunningBalance = lastFlow?.runningBalance ?? openingBalanceForChain.runningBalance;
     const latestIncentiveBalance = lastFlow?.incentiveBalance ?? openingBalanceForChain.incentiveBalance;
+    const latestNetRunningBalanceAdjustment = lastFlow?.netRunningBalanceAdjustment ?? ethers.constants.Zero;
     let potentialBalancingFee: BigNumber;
     if (isUbaInflow(flow)) {
       ({ balancingFee: potentialBalancingFee } = getDepositFee(
@@ -484,15 +488,14 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
       ],
       latestRunningBalance,
       latestIncentiveBalance,
+      latestNetRunningBalanceAdjustment,
       flowChain,
       tokenSymbol,
       ubaConfigForChain
     );
 
     // Figure out the LP fee which is based only on the flow's origin and destination chain.
-    const lpFeePct = computeLpFeeForRefresh(
-      ubaConfigForChain.getBaselineFee(flow.destinationChainId, flow.originChainId)
-    );
+    const lpFeePct = this.computeLpFee(ubaConfigForChain.getBaselineFee(flow.destinationChainId, flow.originChainId));
     const lpFee = lpFeePct.mul(flow.amount).div(fixedPointAdjustment);
 
     const newModifiedFlow: ModifiedUBAFlow = {
@@ -527,20 +530,12 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
         // its a bug.
 
         if (flow.matchedDeposit.realizedLpFeePct.eq(flow.realizedLpFeePct)) {
-          // For pre UBA refund, the running balance should not be affected by this refund.
-          // TODO: The above rule I think is arbitrary-- we *could* decide to count these against
-          // the running balances, but ideologically it doesn't make sense to me. Its ultimately
-          // not a big decision I think.
-          const latestNetRunningBalanceAdjustment = lastFlow?.netRunningBalanceAdjustment ?? ethers.constants.Zero;
           return {
-            flow,
+            ...newModifiedFlow,
             // Balancing fee for a pre UBA refund is 0
             balancingFee: ethers.constants.Zero,
             // Set realized LP fee for fill equal to the realized LP fee for the matched deposit.
             lpFee: flow.realizedLpFeePct.mul(flow.amount).div(fixedPointAdjustment),
-            runningBalance: latestRunningBalance,
-            incentiveBalance: latestIncentiveBalance,
-            netRunningBalanceAdjustment: latestNetRunningBalanceAdjustment,
           };
         } else {
           console.log("- Flow matched a pre-UBA deposit, but it was invalid because it set the wrong LP fee");
@@ -548,19 +543,26 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
         }
       }
 
-      // TODO: There is a clever optimization we can make and exit early: If the UBA config
+      // This is a clever optimization we can make and exit early: If the UBA config
       // at the time of the matched deposit has a flat balancing fee, then its realizedLpFeePct only depends
       // on the lpFee component as we can assume the balancing fee was 0 regardless of the running
       // balance at the time of the deposit flow.
       // I *think* (with a lot of uncertainty) we should put this before the timing rule so that we can take advantage of this rule to overcome
       // chain haltings where a chain's blockTimestamps stops progressing?
-      if (ubaConfigForChain.isBalancingFeeCurveFlatAtZero(flow.matchedDeposit.originChainId)) {
+      const matchedDeposit = flow.matchedDeposit;
+      const bundleForMatchedDeposit = this.getUbaBundleBlockRangeContainingFlow(
+        matchedDeposit.blockNumber,
+        matchedDeposit.originChainId
+      );
+      const depositBundleKey = this.getKeyForBundle(bundleForMatchedDeposit, tokenSymbol, matchedDeposit.originChainId);
+      const depositBundleState = this.bundleTokenSharedState[depositBundleKey];
+      const ubaConfigForDeposit = depositBundleState.ubaConfig;
+      if (ubaConfigForDeposit.isBalancingFeeCurveFlatAtZero(flow.matchedDeposit.originChainId)) {
         console.log("- Flow matched a deposit on a chain with a flat balancing fee curve at 0");
         const lpFeePct = newModifiedFlow.lpFee.mul(fixedPointAdjustment).div(flow.amount);
-        // TODO: Set to true currently so we can make Dataworker validate fills that are live on Mainnet even if
-        // UBA isn't activated.
+        // TODO: Hardcode this to always validate these deposits:
         // eslint-disable-next-line no-constant-condition
-        if (false && !lpFeePct.eq(flow.realizedLpFeePct as BigNumber)) {
+        if (!lpFeePct.eq(flow.realizedLpFeePct as BigNumber)) {
           console.log(
             `- Flow realizedLpFeePct not equal to lp fee component, expected ${lpFeePct.toString()}, actual: ${flow.realizedLpFeePct?.toString()}`
           );
@@ -573,10 +575,10 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
       // Check the Timing Rule:
       // The fill must match with a deposit who's blockTimestamp is < fill.blockTimestamp.
       if (flow.blockTimestamp < flow.matchedDeposit.blockTimestamp) {
-        // TODO: We cannot invalidate a fill if the latest block.timestamp on the deposit.origin chain is not > than the
+        // We cannot invalidate a fill if the latest block.timestamp on the deposit.origin chain is not > than the
         // the fill's timestamp. This is because its still possible to send a deposit on the origin chain
         // that would validate this fill.
-        // Figure out how to handle this without crashing.
+        // TODO: Figure out how to handle this without crashing.
         if (this.latestBlockTimestamps[flow.matchedDeposit.originChainId] < flow.blockTimestamp) {
           throw new Error(
             `We cannot invalidate a fill if the latest block.timestamp ${
@@ -590,8 +592,6 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
       } else {
         // Check the RealizedLpFeePct Rule:
         // Validate the fill.realizedLpFeePct against the expected matched deposit lpFee + balancingFee
-
-        const matchedDeposit = flow.matchedDeposit;
 
         // We're going to try to identify the `matchedDepositFlow` which includes the balancing
         // fees and latest running balance for the matched deposit in its relevant bundle state.
@@ -616,10 +616,6 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
           // which is at the beginning.
           // We first try to check existing validated flows in the later bundle to see if we've already
           // validated this flow.
-          const bundleForMatchedDeposit = this.getUbaBundleBlockRangeContainingFlow(
-            matchedDeposit.blockNumber,
-            matchedDeposit.originChainId
-          );
           console.log("- ➡️ Matched deposit bundle block range is after flow's", {
             bundleForMatchedDeposit,
           });
@@ -659,10 +655,6 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
         } else {
           // The bundle containing the matched deposit is older than current bundle range for flow.
           // We might need to recurse here if we haven't validated the deposit yet.
-          const bundleForMatchedDeposit = this.getUbaBundleBlockRangeContainingFlow(
-            matchedDeposit.blockNumber,
-            matchedDeposit.originChainId
-          );
           console.log("- ⬅️ Matched deposit bundle block range is older than flow's", {
             bundleForMatchedDeposit,
           });
@@ -697,11 +689,15 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
         console.log(
           `- Expected realized lp fee pct for matched deposit: ${expectedRealizedLpFeePctForMatchedDeposit.toString()}, actual: ${matchedDepositFlow.flow.realizedLpFeePct?.toString()}`
         );
-        // eslint-disable-next-line no-constant-condition
-        if (true) {
-          // Temporarily set to always true to test pre UBA deposits.
-          // TODO: There might be some precision loss here which we should allow for.
-          // if (expectedRealizedLpFeePctForMatchedDeposit.eq(flow.realizedLpFeePct)) {
+        // We allow for some precision loss because of the way we compute balancing fees. The balancing fee curves are integrated
+        // by computePiecewiseLinearFunction and they return values, so we set balancing fees equal to those values divided by
+        // flow amounts, which produces precision loss.
+        if (
+          expectedRealizedLpFeePctForMatchedDeposit.eq(
+            flow.realizedLpFeePct.mul(1.01) ||
+              expectedRealizedLpFeePctForMatchedDeposit.eq(flow.realizedLpFeePct.mul(0.99))
+          )
+        ) {
           return newModifiedFlow;
         } else {
           console.log(
@@ -744,16 +740,11 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
    *         and the first element is the start block and the second element is the end block.
    */
   private getMostRecentBundleBlockRangesPerChain(bundleCount: number): Record<number, number[][]> {
-    // Load common data:
-    const latestHubPoolBlock = this.hubPoolClient.latestBlockNumber;
-    if (!isDefined(latestHubPoolBlock)) throw new Error("HubPoolClient not updated");
-
     return this.chainIdIndices.reduce((acc, chainId) => {
       // Gets the most recent `bundleCount` block ranges for this chain.
       const _blockRangesForChain = getMostRecentBundleBlockRanges(
         chainId,
         bundleCount,
-        latestHubPoolBlock,
         this.hubPoolClient,
         this.spokePoolClients
       ).map(({ start, end }) => [start, end]);
@@ -802,7 +793,7 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
     return blockRangesContainingFlow;
   }
 
-  public getRedisKeyForBundle = (bundleBlockRanges: number[][], tokenSymbol: string, chainId: number): string => {
+  public getKeyForBundle = (bundleBlockRanges: number[][], tokenSymbol: string, chainId: number): string => {
     return `${getBundleKeyForBlockRanges(bundleBlockRanges)}-${tokenSymbol}-${chainId}`;
   };
 
@@ -834,13 +825,15 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
       await this.redisClient.connect();
     }
 
+    const latestHubPoolBlock = this.hubPoolClient.latestBlockNumber;
+    if (!isDefined(latestHubPoolBlock)) throw new Error("HubPoolClient not updated");
+
     this.logger.debug({
       at: "UBAClientWithRefresh",
       message: "❤️‍🔥😭  Updating UBA Client",
     });
 
-    // DEMO: limiting the tokens to test temporarily:
-    const tokens = this.hubPoolClient.getL1Tokens().map((token) => token.symbol);
+    const tokens = this.tokens;
 
     // Load all UBA bundle block ranges for each chain:
     const blockRangesByChain = this.getMostRecentBundleBlockRangesPerChain(100);
@@ -855,6 +848,45 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
     }
     this.ubaBundleBlockRanges = bundleBlockRanges;
     console.log("UBA bundle block ranges we're storing in class memory", this.ubaBundleBlockRanges);
+
+    // Pre-load bundle configs and opening balances for each chain and token per bundle range:
+    for (let i = 0; i < this.ubaBundleBlockRanges.length; i++) {
+      const bundleBlockRange = this.ubaBundleBlockRanges[i];
+      const startBlocks = bundleBlockRange.map(([start]) => start);
+      const mainnetStartBlock = getBlockForChain(startBlocks, this.hubPoolClient.chainId, this.chainIdIndices);
+      tokens.forEach((token) => {
+        const l1TokenAddress = this.hubPoolClient.getL1Tokens().find((_token) => _token.symbol === token)?.address;
+        if (!isDefined(l1TokenAddress)) throw new Error("No L1 token address found for token symbol");
+        this.chainIdIndices.forEach((chainId) => {
+          if (!isDefined(this.spokePoolClients[chainId])) {
+            return;
+          }
+          const bundleStateKey = this.getKeyForBundle(bundleBlockRange, token, chainId);
+          const startBlock = getBlockForChain(
+            startBlocks,
+            chainId,
+            this.hubPoolClient.configStoreClient.enabledChainIds
+          );
+          const openingBalances = getOpeningRunningBalanceForEvent(
+            this.hubPoolClient,
+            // Pass in a start block for the bundle containing the flow to this function so we always
+            // get a running balance from the last validated bundle before this flow's bundle.
+            startBlock,
+            chainId,
+            l1TokenAddress,
+            latestHubPoolBlock
+          );
+          console.log(
+            `Setting running balance ${openingBalances.runningBalance.toString()} for bundle range ${bundleStateKey}}`
+          );
+          const ubaConfig = getUBAFeeConfig(this.hubPoolClient, chainId, token, mainnetStartBlock);
+          this.bundleTokenSharedState[bundleStateKey] = {
+            openingBalances,
+            ubaConfig,
+          };
+        });
+      });
+    }
 
     // Load latest timestamps per chain:
     const latestTimestampsPerChain = Object.fromEntries(
@@ -878,7 +910,7 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
         const mostRecentBundleBlockRanges = this.ubaBundleBlockRanges[i];
         await forEachAsync(tokens, async (token) => {
           await forEachAsync(this.chainIdIndices, async (chainId) => {
-            const redisKeyForBundle = this.getRedisKeyForBundle(mostRecentBundleBlockRanges, token, chainId);
+            const redisKeyForBundle = this.getKeyForBundle(mostRecentBundleBlockRanges, token, chainId);
             const modifiedFlowsInBundleRaw = await this.redisClient?.get(redisKeyForBundle);
             if (isDefined(modifiedFlowsInBundleRaw)) {
               const modifiedFlowsInBundle = JSON.parse(modifiedFlowsInBundleRaw, objectWithBigNumberReviver);
@@ -894,8 +926,7 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
 
     // Validate flows for each token and chain inside a bundle, for all bundle block ranges in order.
     const newUbaClientState: UBAClientState = {};
-    // Skip loading from the cache for the latest bundle range which isn't validated yet.
-    for (let i = this.ubaBundleBlockRanges.length - 1; i >= 0; i--) {
+    for (let i = 0; i < this.ubaBundleBlockRanges.length; i++) {
       const mostRecentBundleBlockRanges = this.ubaBundleBlockRanges[i];
       console.log("Validating flows for bundle", mostRecentBundleBlockRanges);
       const bundleKeyForBlockRanges = getBundleKeyForBlockRanges(mostRecentBundleBlockRanges);
@@ -932,8 +963,7 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
             flows: modifiedFlowsInBundle[chainId],
           });
 
-          // TODO: Shouldn't load  most recent bundle state into redis, only older ones.
-          const redisKeyForBundle = this.getRedisKeyForBundle(mostRecentBundleBlockRanges, token, chainId);
+          const redisKeyForBundle = this.getKeyForBundle(mostRecentBundleBlockRanges, token, chainId);
           console.log(`- Storing new bundle state under key ${redisKeyForBundle}`);
           // Note, we opt to store arrays as strings in redis rather than using the redis.json module because
           // we don't plan to manipulate the data inside redis, so we really only want to optimize for writing
@@ -954,7 +984,7 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
     this.bundleStates = newUbaClientState;
     this.isUpdated = true;
 
-    // Log bundle states in readable form.
+    // Log bundle states in readable form and check outputs:
     for (let i = 0; i < this.ubaBundleBlockRanges.length; i++) {
       tokens.forEach((token) => {
         const bundleBlockRange = this.ubaBundleBlockRanges[i];
@@ -963,11 +993,65 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
             const bundleState = this.bundleStates[chainId]?.[token]?.[i];
             if (isDefined(bundleState)) {
               const { flows } = bundleState;
+              const lastFlow = flows.at(-1);
+              if (!isDefined(lastFlow)) return undefined;
+
+              const fills = flows.filter(({ flow }) => isUbaOutflow(flow) && outflowIsFill(flow));
+              const deposits = flows.filter(({ flow }) => isUbaInflow(flow));
+              const refunds = flows.filter(({ flow }) => isUbaOutflow(flow) && outflowIsRefund(flow));
+
+              const bundleKey = this.getKeyForBundle(bundleBlockRange, token, chainId);
+              const sharedStateForBundle = this.bundleTokenSharedState[bundleKey];
+
+              const inflows = deposits.reduce((sum, { flow }) => {
+                sum = sum.add(flow.amount);
+                return sum;
+              }, ethers.constants.Zero);
+              const fillOutflows = fills.reduce((sum, { flow }) => {
+                sum = sum.add(flow.amount);
+                return sum;
+              }, ethers.constants.Zero);
+              const refundOutflows = flows.reduce((sum, { balancingFee }) => {
+                return sum.add(balancingFee);
+              }, ethers.constants.Zero);
+              const balancingFees = flows.reduce((sum, { balancingFee }) => {
+                return sum.add(balancingFee);
+              }, ethers.constants.Zero);
               const readableFlows = {
-                fills: flows.filter(({ flow }) => isUbaOutflow(flow) && outflowIsFill(flow)).length,
-                deposits: flows.filter(({ flow }) => isUbaInflow(flow)).length,
-                refunds: flows.filter(({ flow }) => isUbaOutflow(flow) && outflowIsRefund(flow)).length,
+                fills: fills.length,
+                fillRunningBalanceRemoved: fillOutflows.mul(-1).toString(),
+                deposits: deposits.length,
+                depositRunningBalanceAdded: inflows.toString(),
+                refunds: refunds.length,
+                refundRunningBalanceRemoved: refundOutflows.mul(-1).toString(),
+                balancingFeesAdded: balancingFees.toString(),
+                lpFeesAdded: flows
+                  .reduce((sum, { lpFee }) => {
+                    return sum.add(lpFee);
+                  }, ethers.constants.Zero)
+                  .toString(),
+                netRunningBalanceAdjustment: lastFlow.netRunningBalanceAdjustment.toString(),
+                openingRunningBalance: sharedStateForBundle.openingBalances.runningBalance.toString(),
+                closingRunningBalance: lastFlow.runningBalance.toString(),
+                openingIncentiveBalance: sharedStateForBundle.openingBalances.incentiveBalance.toString(),
+                closingIncentiveBalance: lastFlow.incentiveBalance.toString(),
               };
+
+              // Sanity check:
+              // - opening running balance minus outflows plus inflows minus balancing fees plus net running balance adjustments = closing running balance
+              const expectedClosingBalance = sharedStateForBundle.openingBalances.runningBalance
+                .add(inflows)
+                .sub(refundOutflows)
+                .sub(fillOutflows)
+                .sub(balancingFees)
+                .add(lastFlow.netRunningBalanceAdjustment);
+              if (!expectedClosingBalance.eq(lastFlow.runningBalance)) {
+                console.log(
+                  `[${chainId}-${getBundleKeyForBlockRanges(
+                    bundleBlockRange
+                  )}] Expected closing balance ${expectedClosingBalance.toString()} to equal actual closing balance ${lastFlow.runningBalance.toString()}`
+                );
+              }
               return [chainId, readableFlows];
             } else return undefined;
           })

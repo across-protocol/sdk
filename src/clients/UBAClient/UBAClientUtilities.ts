@@ -1,5 +1,5 @@
 import assert from "assert";
-import { BigNumber, BigNumberish } from "ethers";
+import { BigNumber, BigNumberish, ethers } from "ethers";
 import { HubPoolClient } from "../HubPoolClient";
 import UBAFeeConfig from "../../UBAFeeCalculator/UBAFeeConfig";
 import { mapAsync } from "../../utils/ArrayUtils";
@@ -13,28 +13,14 @@ import {
   Fill,
   FillWithBlock,
   RefundRequestWithBlock,
+  TokenRunningBalance,
   UbaFlow,
   isUbaInflow,
   isUbaOutflow,
   outflowIsFill,
-  outflowIsRefund,
 } from "../../interfaces";
 import { getBlockForChain, getBlockRangeForChain, getImpliedBundleBlockRanges } from "../../utils/BundleUtils";
 import { stringifyJSONWithNumericString } from "../../utils/JSONUtils";
-
-export function computeLpFeeForRefresh(baselineFee: BigNumber): BigNumber {
-  return computeLpFeeStateful(baselineFee);
-}
-
-/**
- * Compute the LP fee for a given amount. This function is stateless and does not require a hubpool client.
- */
-export function computeLpFeeStateful(baselineFee: BigNumber) {
-  // @dev Temporarily, the LP fee only comprises the baselineFee. In the future, a variable component will be
-  // added to the baseline fee that takes into account the utilized liquidity in the system and how the the bridge
-  // defined by { amount, originChain, refundChain, hubPoolBlock } affects that liquidity.
-  return baselineFee;
-}
 
 /**
  * Omit the default key from a dictionary
@@ -150,11 +136,13 @@ export function getUBAFeeConfig(
 export function getMostRecentBundleBlockRanges(
   chainId: number,
   maxBundleStates: number,
-  hubPoolBlock: number,
   hubPoolClient: HubPoolClient,
   spokePoolClients: SpokePoolClients
 ): { start: number; end: number }[] {
-  let toBlock = hubPoolBlock;
+  let toBlock = hubPoolClient.latestBlockNumber;
+  if (!isDefined(toBlock)) {
+    throw new Error("HubPoolClient has undefined latestBlockNumber");
+  }
 
   // Reconstruct bundle ranges based on published end blocks.
   const ubaActivationStartBlocks = getUbaActivationBundleStartBlocks(hubPoolClient);
@@ -232,6 +220,110 @@ export function getMostRecentBundleBlockRanges(
   return bundleData;
 }
 
+/**
+ * Return the latest validated running balance for the given token.
+ * @param eventBlock
+ * @param eventChain
+ * @param l1Token
+ * @param hubPoolLatestBlock
+ * @returns
+ */
+export function getOpeningRunningBalanceForEvent(
+  hubPoolClient: HubPoolClient,
+  eventBlock: number,
+  eventChain: number,
+  l1Token: string,
+  hubPoolLatestBlock: number
+): TokenRunningBalance {
+  const enabledChains = hubPoolClient.configStoreClient.enabledChainIds;
+
+  // First find the latest executed bundle as of `hubPoolLatestBlock`.
+  const latestExecutedBundle = hubPoolClient.getNthFullyExecutedRootBundle(-1, hubPoolLatestBlock);
+
+  // If there is no latest executed bundle, then return 0. This means that there is no
+  // bundle before `hubPoolLatestBlock` containing the event block.
+  if (!isDefined(latestExecutedBundle)) {
+    return {
+      runningBalance: ethers.constants.Zero,
+      incentiveBalance: ethers.constants.Zero,
+    };
+  }
+
+  // Construct the bundle's block range
+  const blockRanges = getImpliedBundleBlockRanges(hubPoolClient, hubPoolClient.configStoreClient, latestExecutedBundle);
+
+  // Now compare the eventBlock against the eventBlockRange.
+  const eventBlockRange = getBlockRangeForChain(blockRanges, eventChain, enabledChains);
+
+  // If event block is after the bundle end block, use the running balances for this bundle. We need to enforce
+  // that the bundle end block is less than the event block to ensure that the running balance from this bundle
+  // precedes the event block.
+  if (eventBlock > eventBlockRange[1]) {
+    // This can't be empty since we've already validated that this bundle is fully executed.
+    const executedLeavesForBundle = hubPoolClient.getExecutedLeavesForRootBundle(
+      latestExecutedBundle,
+      hubPoolLatestBlock
+    );
+    if (executedLeavesForBundle.length === 0) {
+      throw new Error("No executed leaves found for bundle");
+    }
+    const executedLeaf = executedLeavesForBundle.find((executedLeaf) => executedLeaf.chainId === eventChain);
+    if (!executedLeaf) {
+      // If no executed leaf in this bundle for the chain, then need to look for an older executed bundle.
+      return getOpeningRunningBalanceForEvent(
+        hubPoolClient,
+        eventBlock,
+        eventChain,
+        l1Token,
+        latestExecutedBundle.blockNumber
+      );
+    }
+    const l1TokenIndex = executedLeaf.l1Tokens.indexOf(l1Token);
+    if (l1TokenIndex === -1) {
+      // If l1 token not included in this bundle, then need to look for an older executed bundle.
+      return getOpeningRunningBalanceForEvent(
+        hubPoolClient,
+        eventBlock,
+        eventChain,
+        l1Token,
+        latestExecutedBundle.blockNumber
+      );
+    }
+
+    // Finally, we need to do a final check if the latest executed root bundle was the final pre UBA one. If so, then
+    // its running balances need to be negated, because in the pre UBA world we counted "positive balances" held
+    // by spoke pools as negative running balances.
+    const runningBalance = executedLeaf.runningBalances[l1TokenIndex];
+    const incentiveBalance = executedLeaf.incentiveBalances[l1TokenIndex];
+
+    console.log(`Event ${eventBlock} on chain ${eventChain} is after bundle`, latestExecutedBundle);
+    console.log(`Using running balance ${runningBalance.toString()} for event chain`);
+    const ubaActivationStartBlocks = getUbaActivationBundleStartBlocks(hubPoolClient);
+    const ubaActivationStartBlockForChain = getBlockForChain(ubaActivationStartBlocks, eventChain, enabledChains);
+    if (blockRanges[0][0] >= ubaActivationStartBlockForChain) {
+      return {
+        runningBalance: runningBalance.mul(-1),
+        // Incentive balance starts at 0.
+        incentiveBalance: ethers.constants.Zero,
+      };
+    } else {
+      return {
+        runningBalance,
+        incentiveBalance,
+      };
+    }
+  }
+
+  // Event is either in the bundle or before it, look for an older executed bundle.
+  return getOpeningRunningBalanceForEvent(
+    hubPoolClient,
+    eventBlock,
+    eventChain,
+    l1Token,
+    latestExecutedBundle.blockNumber
+  );
+}
+
 // Load a deposit for a fill if the fill's deposit ID is outside this client's search range.
 // This can be used by the Dataworker to determine whether to give a relayer a refund for a fill
 // of a deposit older or younger than its fixed lookback.
@@ -263,24 +355,8 @@ export async function UBA_queryHistoricalDepositForFill(
     return originSpokePoolClient.getDepositForFill(fill, fillFieldsToIgnore);
   }
 
-  // TODO: Add Redis
-  // let deposit: DepositWithBlock, cachedDeposit: Deposit | undefined;
-  // const redisClient = await getRedis(spokePoolClient.logger);
-  // if (redisClient) {
-  //   cachedDeposit = await getDeposit(getRedisDepositKey(fill), redisClient);
-  // }
-
-  // if (isDefined(cachedDeposit)) {
-  //   deposit = cachedDeposit as DepositWithBlock;
-  //   // Assert that cache hasn't been corrupted.
-  //   assert(deposit.depositId === fill.depositId && deposit.originChainId === fill.originChainId);
-  // } else {
+  // TODO: Add Redis to reduce some of these `findDeposit` calls
   const deposit = await originSpokePoolClient.findDeposit(fill.depositId, fill.destinationChainId, fill.depositor);
-
-  // if (redisClient) {
-  //   await setDeposit(deposit, getCurrentTime(), redisClient, 24 * 60 * 60);
-  // }
-  // }
 
   return validateFillForDeposit(fill, deposit, fillFieldsToIgnore) ? deposit : undefined;
 }
@@ -460,9 +536,19 @@ export function flowComparisonFunction(a: UbaFlow, b: UbaFlow): number {
   // If fx and fx have same blockTimestamp and same quote block then... FML... what do?
   const quoteBlockX = isUbaInflow(a) ? a.quoteBlockNumber : a.matchedDeposit.quoteBlockNumber;
   const quoteBlockY = isUbaInflow(b) ? b.quoteBlockNumber : b.matchedDeposit.quoteBlockNumber;
-  return quoteBlockX - quoteBlockY;
+  if (quoteBlockX !== quoteBlockY) {
+    return quoteBlockX - quoteBlockY;
+  }
 
-  // TODO: Figure out more precise sorting algo if we get here.
+  // In the case of inflow vs outflow, return inflow first:
+  if (isUbaInflow(a) && isUbaOutflow(b)) {
+    return -1;
+  } else if (isUbaInflow(b) && isUbaOutflow(a)) {
+    return 1;
+  }
+
+  // If we get down here its a bit arbitrary, so return ordered by size for now:
+  return a.amount.sub(b.amount).toNumber();
 }
 
 export function sortFlowsAscendingInPlace(flows: UbaFlow[]): UbaFlow[] {
@@ -600,15 +686,8 @@ export function getMatchingFlow(
   allValidatedFlows: ModifiedUBAFlow[],
   targetFlow: UbaFlow
 ): ModifiedUBAFlow | undefined {
-  // TODO: I feel like this can be a lot simpler.
   return allValidatedFlows?.find(({ flow }) => {
-    if (isUbaInflow(targetFlow)) {
-      return isUbaInflow(flow) && flow.depositId === targetFlow.depositId;
-    } else if (outflowIsFill(targetFlow)) {
-      return isUbaOutflow(flow) && outflowIsFill(flow) && flow.depositId === targetFlow.depositId;
-    } else {
-      return isUbaOutflow(flow) && outflowIsRefund(flow) && flow.depositId === targetFlow.depositId;
-    }
+    return flow.depositId === targetFlow.depositId && flow.originChainId === targetFlow.originChainId;
   });
 }
 

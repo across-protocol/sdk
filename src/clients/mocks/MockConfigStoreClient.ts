@@ -1,6 +1,6 @@
 import winston from "winston";
 import { Contract, Event } from "ethers";
-import { EventSearchConfig, utf8ToHex } from "../../utils";
+import { EventSearchConfig, MakeOptional, isDefined, utf8ToHex } from "../../utils";
 import { AcrossConfigStoreClient, ConfigStoreUpdate, DEFAULT_CONFIG_STORE_VERSION } from "../AcrossConfigStoreClient";
 import { EventManager, getEventManager } from "./MockEvents";
 
@@ -8,6 +8,7 @@ export class MockConfigStoreClient extends AcrossConfigStoreClient {
   public configStoreVersion = DEFAULT_CONFIG_STORE_VERSION;
   private eventManager: EventManager;
   private events: Event[] = [];
+  private ubaActivationBlockOverride: number | undefined;
 
   // Event signatures. Not strictly required, but they make generated events more recognisable.
   public readonly eventSignatures: Record<string, string> = {
@@ -19,7 +20,7 @@ export class MockConfigStoreClient extends AcrossConfigStoreClient {
   constructor(
     logger: winston.Logger,
     configStore: Contract,
-    eventSearchConfig: EventSearchConfig,
+    eventSearchConfig: MakeOptional<EventSearchConfig, "toBlock"> = { fromBlock: 0, maxBlockLookBack: 0 },
     configStoreVersion: number,
     enabledChainIds: number[],
     chainId = 1,
@@ -28,6 +29,14 @@ export class MockConfigStoreClient extends AcrossConfigStoreClient {
     super(logger, configStore, eventSearchConfig, configStoreVersion, enabledChainIds);
     this.eventManager = getEventManager(chainId, this.eventSignatures);
     this.configStoreVersion = configStoreVersion;
+  }
+
+  setUBAActivationBlock(blockNumber: number | undefined): void {
+    this.ubaActivationBlockOverride = blockNumber;
+  }
+
+  getUBAActivationBlock(): number | undefined {
+    return isDefined(this.ubaActivationBlockOverride) ? this.ubaActivationBlockOverride : super.getUBAActivationBlock();
   }
 
   getConfigStoreVersionForBlock(_blockNumber: number): number {

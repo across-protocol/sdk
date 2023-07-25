@@ -226,7 +226,6 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
   }
 
   getUBAActivationBlock(): number | undefined {
-    return 17762200;
     return this.cumulativeConfigStoreVersionUpdates.find((config) => {
       return Number(config.value) >= UBA_MIN_CONFIG_STORE_VERSION;
     })?.blockNumber;
