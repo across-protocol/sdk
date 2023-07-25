@@ -41,13 +41,6 @@ function omitDefaultKeys<T>(obj: Record<string, T>): Record<string, T> {
   }, {});
 }
 
-/**
- * Parses a UBAParsedConfigType into a UBAFeeConfig
- * @param chainId The chain ID to parse the UBA config for
- * @param tokenSymbol The token symbol to parse the UBA config for
- * @param ubaConfig The UBAParsedConfigType to parse
- * @returns The parsed UBAFeeConfig
- */
 export function parseUBAFeeConfig(
   chainId: number,
   tokenSymbol: string,
@@ -66,7 +59,7 @@ export function parseUBAFeeConfig(
   const threshold = ubaConfig.rebalance[String(chainId)];
 
   const chainTokenCombination = `${chainId}-${tokenSymbol}`;
-  const newConfig = new UBAFeeConfig(
+  return new UBAFeeConfig(
     {
       default: ubaConfig.alpha["default"],
       override: omitDefaultKeys(ubaConfig.alpha),
@@ -106,17 +99,49 @@ export function parseUBAFeeConfig(
     ubaConfig.incentivePoolAdjustment,
     ubaConfig.ubaRewardMultiplier
   );
+}
+
+/**
+ * Returns the UBA config for a given chainId and tokenSymbol at a given block height.
+ * @param hubPoolClient The hub pool client to use for fetching the UBA config. This client's config store client must be updated.
+ * @param chainId The chainId to fetch the UBA config for.
+ * @param tokenSymbol The token symbol to fetch the UBA config for.
+ * @param blockNumber The block height to fetch the UBA config for.
+ * @returns The UBA config for the given chainId and tokenSymbol at the given block height.
+ * @throws If the config store client has not been updated at least once.
+ * @throws If the L1 token address cannot be found for the given token symbol.
+ * @throws If the UBA config for the given block height cannot be found.
+ */
+export function getUBAFeeConfig(
+  hubPoolClient: HubPoolClient,
+  chainId: number,
+  tokenSymbol: string,
+  blockNumber?: number
+): UBAFeeConfig {
+  const configClient = hubPoolClient.configStoreClient;
+  // If the config client has not been updated at least
+  // once, throw
+  if (!configClient.isUpdated) {
+    throw new Error("Config client not updated");
+  }
+  const l1TokenInfo = hubPoolClient.getL1Tokens().find((token) => token.symbol === tokenSymbol);
+  if (!l1TokenInfo) {
+    throw new Error("L1 token can't be found, have you updated hub pool client?");
+  }
+  const rawUbaConfig = configClient.getUBAConfig(l1TokenInfo?.address, blockNumber);
+  const ubaConfig = parseUBAFeeConfig(chainId, tokenSymbol, rawUbaConfig);
+  if (ubaConfig === undefined) {
+    throw new Error(`UBA config for blockTag ${blockNumber} not found`);
+  }
 
   // Validate omega curves:
   // - Each curve must have a zero point.
-  const omegaDefaultZeroCurve = newConfig.getZeroFeePointOnBalancingFeeCurve(chainId);
+  const omegaDefaultZeroCurve = ubaConfig.getZeroFeePointOnBalancingFeeCurve(chainId);
   if (!isDefined(omegaDefaultZeroCurve)) {
     throw new Error(`Omega curve for chain ${chainId} does not have a zero point`);
   }
-
-  return newConfig;
+  return ubaConfig;
 }
-
 /**
  * Returns most recent `maxBundleStates` bundle ranges for a given chain, in chronological ascending order.
  * Will only returns bundle ranges that are subject to UBA rules, which is based on the bundle's start block.
