@@ -840,28 +840,48 @@ export class HubPoolClient extends BaseAbstractClient {
       throw new Error("ConfigStoreClient not updated");
     }
 
-    this.l1TokensToDestinationTokens = hubPoolClientState.l1TokensToDestinationTokens || {};
-    this.l1Tokens = hubPoolClientState.l1Tokens || [];
-    this.lpTokens = hubPoolClientState.lpTokens || {};
-    this.proposedRootBundles = (hubPoolClientState.proposedRootBundles || []).map((bundle) => ({
-      ...bundle,
-      bundleEvaluationBlockNumbers: bundle.bundleEvaluationBlockNumbers.map((block) => BigNumber.from(block)),
-    }));
-    this.canceledRootBundles = hubPoolClientState.canceledRootBundles || [];
-    this.disputedRootBundles = hubPoolClientState.disputedRootBundles || [];
-    this.executedRootBundles = (hubPoolClientState.executedRootBundles || []).map((bundle) => ({
-      ...bundle,
-      bundleLpFees: bundle.bundleLpFees.map((fee) => BigNumber.from(fee)),
-      netSendAmounts: bundle.netSendAmounts.map((amount) => BigNumber.from(amount)),
-      runningBalances: bundle.runningBalances.map((balance) => BigNumber.from(balance)),
-      incentiveBalances: bundle.incentiveBalances.map((balance) => BigNumber.from(balance)),
-    }));
-    this.pendingRootBundle = hubPoolClientState.pendingRootBundle;
-    this.crossChainContracts = hubPoolClientState.crossChainContracts || {};
-    this.l1TokensToDestinationTokensWithBlock = hubPoolClientState.l1TokensToDestinationTokensWithBlock || {};
-    this.firstBlockToSearch = hubPoolClientState.firstBlockToSearch || 0;
-    this.latestBlockNumber = hubPoolClientState.latestBlockNumber || 0;
-    this.currentTime = hubPoolClientState.currentTime || 0;
+    const {
+      l1TokensToDestinationTokens = this.l1TokensToDestinationTokens,
+      l1Tokens = this.l1Tokens,
+      lpTokens = this.lpTokens,
+      canceledRootBundles = this.canceledRootBundles,
+      disputedRootBundles = this.disputedRootBundles,
+      pendingRootBundle = this.pendingRootBundle,
+      crossChainContracts = this.crossChainContracts,
+      l1TokensToDestinationTokensWithBlock = this.l1TokensToDestinationTokensWithBlock,
+      firstBlockToSearch = this.firstBlockToSearch,
+      latestBlockNumber = this.latestBlockNumber,
+      currentTime = this.currentTime,
+      proposedRootBundles,
+      executedRootBundles,
+    } = hubPoolClientState;
+
+    this.l1TokensToDestinationTokens = l1TokensToDestinationTokens;
+    this.l1Tokens = l1Tokens;
+    this.lpTokens = lpTokens;
+    this.proposedRootBundles = proposedRootBundles
+      ? proposedRootBundles.map((bundle) => ({
+          ...bundle,
+          bundleEvaluationBlockNumbers: bundle.bundleEvaluationBlockNumbers.map((block) => BigNumber.from(block)),
+        }))
+      : this.proposedRootBundles;
+    this.canceledRootBundles = canceledRootBundles;
+    this.disputedRootBundles = disputedRootBundles;
+    this.executedRootBundles = executedRootBundles
+      ? executedRootBundles.map((bundle) => ({
+          ...bundle,
+          bundleLpFees: bundle.bundleLpFees.map((fee) => BigNumber.from(fee)),
+          netSendAmounts: bundle.netSendAmounts.map((amount) => BigNumber.from(amount)),
+          runningBalances: bundle.runningBalances.map((balance) => BigNumber.from(balance)),
+          incentiveBalances: bundle.incentiveBalances.map((balance) => BigNumber.from(balance)),
+        }))
+      : this.executedRootBundles;
+    this.pendingRootBundle = pendingRootBundle;
+    this.crossChainContracts = crossChainContracts;
+    this.l1TokensToDestinationTokensWithBlock = l1TokensToDestinationTokensWithBlock;
+    this.firstBlockToSearch = firstBlockToSearch;
+    this.latestBlockNumber = latestBlockNumber;
+    this.currentTime = currentTime;
     this.isUpdated = true;
   }
 

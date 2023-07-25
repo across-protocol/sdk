@@ -962,9 +962,21 @@ export class SpokePoolClient extends BaseAbstractClient {
     return deposit;
   }
 
-  public updateFromJSON(spokePoolClientState: ReturnType<SpokePoolClient["toJSON"]>) {
-    this.currentTime = spokePoolClientState.currentTime;
-    this.depositHashes = Object.entries(spokePoolClientState.depositHashes).reduce(
+  public updateFromJSON(spokePoolClientState: Partial<ReturnType<SpokePoolClient["toJSON"]>>) {
+    const keysToUpdate = Object.keys(spokePoolClientState);
+
+    this.logger.debug({
+      at: "SpokePoolClient",
+      message: "Updating SpokePool client from JSON",
+      keys: keysToUpdate,
+    });
+
+    if (keysToUpdate.length === 0) {
+      return;
+    }
+
+    this.currentTime = spokePoolClientState.currentTime || this.currentTime;
+    this.depositHashes = Object.entries(spokePoolClientState.depositHashes || {}).reduce(
       (acc, [hash, deposit]) => ({
         ...acc,
         [hash]: {
@@ -977,7 +989,7 @@ export class SpokePoolClient extends BaseAbstractClient {
       }),
       {} as Record<string, DepositWithBlock>
     );
-    this.depositHashesToFills = Object.entries(spokePoolClientState.depositHashesToFills).reduce(
+    this.depositHashesToFills = Object.entries(spokePoolClientState.depositHashesToFills || {}).reduce(
       (acc, [hash, fills]) => ({
         ...acc,
         [hash]: fills.map((fill) => ({
@@ -996,7 +1008,7 @@ export class SpokePoolClient extends BaseAbstractClient {
       }),
       {} as Record<string, FillWithBlock[]>
     );
-    this.speedUps = Object.entries(spokePoolClientState.speedUps).reduce((acc, [depositor, speedUpsMap]) => {
+    this.speedUps = Object.entries(spokePoolClientState.speedUps || {}).reduce((acc, [depositor, speedUpsMap]) => {
       const speedUps = Object.entries(speedUpsMap).reduce(
         (acc, [depositId, speedUps]) => ({
           ...acc,
@@ -1009,30 +1021,30 @@ export class SpokePoolClient extends BaseAbstractClient {
       );
       return { ...acc, [depositor]: speedUps };
     }, {});
-    this.depositRoutes = spokePoolClientState.depositRoutes;
-    this.tokensBridged = spokePoolClientState.tokensBridged.map((tokenBridged) => ({
+    this.depositRoutes = spokePoolClientState.depositRoutes || {};
+    this.tokensBridged = (spokePoolClientState.tokensBridged || []).map((tokenBridged) => ({
       ...tokenBridged,
       amountToReturn: BigNumber.from(tokenBridged.amountToReturn),
     }));
-    (this.rootBundleRelays = spokePoolClientState.rootBundleRelays),
-      (this.relayerRefundExecutions = spokePoolClientState.relayerRefundExecutions.map((refundExecution) => ({
-        ...refundExecution,
-        amountToReturn: BigNumber.from(refundExecution.amountToReturn),
-        refundAmounts: refundExecution.refundAmounts.map((refundAmount) => BigNumber.from(refundAmount)),
-      })));
-    this.earlyDeposits = spokePoolClientState.earlyDeposits.map((deposit) => ({
+    this.rootBundleRelays = spokePoolClientState.rootBundleRelays || [];
+    this.relayerRefundExecutions = (spokePoolClientState.relayerRefundExecutions || []).map((refundExecution) => ({
+      ...refundExecution,
+      amountToReturn: BigNumber.from(refundExecution.amountToReturn),
+      refundAmounts: refundExecution.refundAmounts.map((refundAmount) => BigNumber.from(refundAmount)),
+    }));
+    this.earlyDeposits = (spokePoolClientState.earlyDeposits || []).map((deposit) => ({
       ...deposit,
       amount: BigNumber.from(deposit.amount),
       originChainId: BigNumber.from(deposit.originChainId),
       destinationChainId: BigNumber.from(deposit.destinationChainId),
       relayerFeePct: BigNumber.from(deposit.relayerFeePct),
     }));
-    this.queryableEventNames = spokePoolClientState.queryableEventNames;
-    this.earliestDepositIdQueried = spokePoolClientState.earliestDepositIdQueried;
-    this.latestDepositIdQueried = spokePoolClientState.latestDepositIdQueried;
-    this.firstBlockToSearch = spokePoolClientState.firstBlockToSearch;
-    this.latestBlockSearched = spokePoolClientState.latestBlockSearched;
-    this.fills = Object.entries(spokePoolClientState.fills).reduce(
+    this.queryableEventNames = spokePoolClientState.queryableEventNames || this.queryableEventNames;
+    this.earliestDepositIdQueried = spokePoolClientState.earliestDepositIdQueried || this.earliestDepositIdQueried;
+    this.latestDepositIdQueried = spokePoolClientState.latestDepositIdQueried || this.latestDepositIdQueried;
+    this.firstBlockToSearch = spokePoolClientState.firstBlockToSearch || this.firstBlockToSearch;
+    this.latestBlockSearched = spokePoolClientState.latestBlockSearched || this.latestBlockSearched;
+    this.fills = Object.entries(spokePoolClientState.fills || []).reduce(
       (acc, [chainId, fills]) => ({
         ...acc,
         [chainId]: fills.map((fill) => ({
@@ -1051,7 +1063,7 @@ export class SpokePoolClient extends BaseAbstractClient {
       }),
       {}
     );
-    this.refundRequests = spokePoolClientState.refundRequests.map((refundRequest) => ({
+    this.refundRequests = (spokePoolClientState.refundRequests || []).map((refundRequest) => ({
       ...refundRequest,
       amount: BigNumber.from(refundRequest.amount),
       realizedLpFeePct: BigNumber.from(refundRequest.realizedLpFeePct),

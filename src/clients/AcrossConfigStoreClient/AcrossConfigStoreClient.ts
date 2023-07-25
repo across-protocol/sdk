@@ -502,44 +502,61 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
       return;
     }
 
-    this.cumulativeRateModelUpdates = configStoreClientState.cumulativeRateModelUpdates || [];
-    this.ubaConfigUpdates = (configStoreClientState.ubaConfigUpdates || []).map((update) => {
-      return {
-        ...update,
-        config: parseUBAConfigFromOnChain(update.config),
-      };
-    });
-    this.cumulativeRouteRateModelUpdates = configStoreClientState.cumulativeRouteRateModelUpdates || [];
-    this.cumulativeTokenTransferUpdates = (configStoreClientState.cumulativeTokenTransferUpdates || []).map(
-      (update) => {
-        return {
-          ...update,
-          transferThreshold: BigNumber.from(update.transferThreshold),
-        };
-      }
-    );
-    this.cumulativeMaxRefundCountUpdates = configStoreClientState.cumulativeMaxRefundCountUpdates || [];
-    this.cumulativeMaxL1TokenCountUpdates = configStoreClientState.cumulativeMaxL1TokenCountUpdates || [];
-    this.cumulativeSpokeTargetBalanceUpdates = (configStoreClientState.cumulativeSpokeTargetBalanceUpdates || []).map(
-      (update) => {
-        return {
-          ...update,
-          spokeTargetBalances: Object.entries(update.spokeTargetBalances || {}).reduce(
-            (acc, [chainId, { target, threshold }]) => ({
-              ...acc,
-              [chainId]: { target: BigNumber.from(target), threshold: BigNumber.from(threshold) },
-            }),
-            {}
-          ),
-        };
-      }
-    );
-    this.cumulativeConfigStoreVersionUpdates = configStoreClientState.cumulativeConfigStoreVersionUpdates || [];
-    this.cumulativeDisabledChainUpdates = configStoreClientState.cumulativeDisabledChainUpdates || [];
-    this.firstBlockToSearch = configStoreClientState.firstBlockToSearch || 0;
-    this.hasLatestConfigStoreVersion = configStoreClientState.hasLatestConfigStoreVersion || false;
-    this.latestBlockNumber = configStoreClientState.latestBlockNumber || 0;
-    this.rateModelDictionary.updateWithEvents(configStoreClientState.cumulativeRateModelUpdates || []);
+    const {
+      cumulativeRateModelUpdates = this.cumulativeRateModelUpdates,
+      cumulativeRouteRateModelUpdates = this.cumulativeRouteRateModelUpdates,
+      cumulativeMaxRefundCountUpdates = this.cumulativeMaxRefundCountUpdates,
+      cumulativeMaxL1TokenCountUpdates = this.cumulativeMaxL1TokenCountUpdates,
+      cumulativeConfigStoreVersionUpdates = this.cumulativeConfigStoreVersionUpdates,
+      cumulativeDisabledChainUpdates = this.cumulativeDisabledChainUpdates,
+      firstBlockToSearch = this.firstBlockToSearch,
+      hasLatestConfigStoreVersion = this.hasLatestConfigStoreVersion,
+      latestBlockNumber = this.latestBlockNumber,
+      ubaConfigUpdates,
+      cumulativeTokenTransferUpdates,
+      cumulativeSpokeTargetBalanceUpdates,
+    } = configStoreClientState;
+
+    this.cumulativeRateModelUpdates = cumulativeRateModelUpdates;
+    this.ubaConfigUpdates = ubaConfigUpdates
+      ? ubaConfigUpdates.map((update) => {
+          return {
+            ...update,
+            config: parseUBAConfigFromOnChain(update.config),
+          };
+        })
+      : this.ubaConfigUpdates;
+    this.cumulativeRouteRateModelUpdates = cumulativeRouteRateModelUpdates;
+    this.cumulativeTokenTransferUpdates = cumulativeTokenTransferUpdates
+      ? cumulativeTokenTransferUpdates.map((update) => {
+          return {
+            ...update,
+            transferThreshold: BigNumber.from(update.transferThreshold),
+          };
+        })
+      : this.cumulativeTokenTransferUpdates;
+    this.cumulativeMaxRefundCountUpdates = cumulativeMaxRefundCountUpdates;
+    this.cumulativeMaxL1TokenCountUpdates = cumulativeMaxL1TokenCountUpdates;
+    this.cumulativeSpokeTargetBalanceUpdates = cumulativeSpokeTargetBalanceUpdates
+      ? cumulativeSpokeTargetBalanceUpdates.map((update) => {
+          return {
+            ...update,
+            spokeTargetBalances: Object.entries(update.spokeTargetBalances || {}).reduce(
+              (acc, [chainId, { target, threshold }]) => ({
+                ...acc,
+                [chainId]: { target: BigNumber.from(target), threshold: BigNumber.from(threshold) },
+              }),
+              {}
+            ),
+          };
+        })
+      : [];
+    this.cumulativeConfigStoreVersionUpdates = cumulativeConfigStoreVersionUpdates;
+    this.cumulativeDisabledChainUpdates = cumulativeDisabledChainUpdates;
+    this.firstBlockToSearch = firstBlockToSearch;
+    this.hasLatestConfigStoreVersion = hasLatestConfigStoreVersion;
+    this.latestBlockNumber = latestBlockNumber;
+    this.rateModelDictionary.updateWithEvents(cumulativeRateModelUpdates);
     this.isUpdated = true;
   }
 
