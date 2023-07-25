@@ -47,10 +47,6 @@ export class MockConfigStoreClient extends AcrossConfigStoreClient {
     this.configStoreVersion = version;
   }
 
-  isValidConfigStoreVersion(_version: number): boolean {
-    return this.configStoreVersion >= _version;
-  }
-
   addEvent(event: Event): void {
     this.events.push(event);
   }
