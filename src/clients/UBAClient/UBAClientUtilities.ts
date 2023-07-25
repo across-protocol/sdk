@@ -581,7 +581,8 @@ export function flowComparisonFunction(a: UbaFlow, b: UbaFlow): number {
   }
 
   // If we get down here, then return ordered by size for now:
-  return a.amount.sub(b.amount).toNumber();
+  const amountDiff = a.amount.sub(b.amount);
+  return amountDiff.eq(0) ? 0 : amountDiff.lt(0) ? -1 : 1;
 }
 
 export function sortFlowsAscendingInPlace(flows: UbaFlow[]): UbaFlow[] {

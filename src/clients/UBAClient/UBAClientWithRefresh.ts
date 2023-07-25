@@ -15,6 +15,7 @@ import {
 } from "./UBAClientUtilities";
 import { ModifiedUBAFlow, UBAClientState } from "./UBAClientTypes";
 import {
+  CachingMechanismInterface,
   TokenRunningBalance,
   UbaFlow,
   UbaInflow,
@@ -37,8 +38,6 @@ import { analog } from "../../UBAFeeCalculator";
 import { getDepositFee, getRefundFee } from "../../UBAFeeCalculator/UBAFeeSpokeCalculatorAnalog";
 import { BigNumber, ethers } from "ethers";
 import { BaseAbstractClient } from "../BaseAbstractClient";
-import { createClient } from "redis";
-import { objectWithBigNumberReviver } from "../../utils/RedisUtils";
 import UBAConfig from "../../UBAFeeCalculator/UBAFeeConfig";
 
 /**
@@ -74,8 +73,6 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
   // This logger is currently copied from the HubPoolClient's logger.
   public logger: winston.Logger;
 
-  private redisClient: ReturnType<typeof createClient> | undefined;
-
   // TODO: Allow constructor to pass in a CacheClient which must have set() and get() defined. For now, force the
   // deployer to use Redis to facilitate testing.
   /**
@@ -86,19 +83,14 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
   constructor(
     readonly tokens: string[],
     protected readonly hubPoolClient: HubPoolClient,
-    public readonly spokePoolClients: { [chainId: number]: SpokePoolClient }
+    public readonly spokePoolClients: { [chainId: number]: SpokePoolClient },
+    protected readonly cachingClient?: CachingMechanismInterface
   ) {
     super();
     this.logger = this.hubPoolClient.logger;
     this.chainIdIndices = this.hubPoolClient.configStoreClient.enabledChainIds;
     assert(this.chainIdIndices.length > 0, "No chainIds provided");
     assert(Object.values(spokePoolClients).length > 0, "No SpokePools provided");
-    const redisURL = process.env.REDIS_URL || "redis://localhost:6379";
-    try {
-      this.redisClient = createClient({ url: redisURL });
-    } catch (err) {
-      console.log(`Could not find redis server at ${redisURL}`);
-    }
   }
 
   // /////////////////
@@ -815,11 +807,6 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
    * Updates the bundle state.
    */
   public async update(): Promise<void> {
-    // Connect redis client that we'll use to cache and load older validated bundles.
-    if (isDefined(this.redisClient)) {
-      await this.redisClient.connect();
-    }
-
     const latestHubPoolBlock = this.hubPoolClient.latestBlockNumber;
     if (!isDefined(latestHubPoolBlock)) throw new Error("HubPoolClient not updated");
 
@@ -898,7 +885,7 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
 
     // First try to load bundle states from redis into memory to make the validateFlowsInBundle call significantly faster:
     // eslint-disable-next-line no-constant-condition
-    if (isDefined(this.redisClient)) {
+    if (isDefined(this.cachingClient)) {
       // Never load the latest bundle state from redis, since we'll always want to re-validate it as its bundle
       // cannot have been validated yet.
       for (let i = this.ubaBundleBlockRanges.length - 2; i >= 0; i--) {
@@ -906,10 +893,9 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
         await forEachAsync(tokens, async (token) => {
           await forEachAsync(this.chainIdIndices, async (chainId) => {
             const redisKeyForBundle = this.getKeyForBundle(mostRecentBundleBlockRanges, token, chainId);
-            const modifiedFlowsInBundleRaw = await this.redisClient?.get(redisKeyForBundle);
-            if (isDefined(modifiedFlowsInBundleRaw)) {
-              const modifiedFlowsInBundle = JSON.parse(modifiedFlowsInBundleRaw, objectWithBigNumberReviver);
-              console.log(`💿 Loaded bundle state from redis for key ${redisKeyForBundle}`);
+            const modifiedFlowsInBundle = await this.cachingClient?.get<ModifiedUBAFlow[]>(redisKeyForBundle);
+            if (isDefined(modifiedFlowsInBundle)) {
+              console.log(`💿 Loaded bundle state from cache using key ${redisKeyForBundle}`);
               this.appendValidatedFlowsToClassState(chainId, token, modifiedFlowsInBundle, mostRecentBundleBlockRanges);
             } else {
               console.log(`No entry for key ${redisKeyForBundle} in redis`);
@@ -963,10 +949,10 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
           // Note, we opt to store arrays as strings in redis rather than using the redis.json module because
           // we don't plan to manipulate the data inside redis, so we really only want to optimize for writing
           // and reading. The redis.json module is more performant for manipulating data while inside redis.
-          if (isDefined(this.redisClient)) {
-            await this.redisClient.set(
+          if (isDefined(this.cachingClient)) {
+            await this.cachingClient.set(
               redisKeyForBundle,
-              JSON.stringify(modifiedFlowsInBundle[chainId])
+              modifiedFlowsInBundle[chainId]
               // I don't think we want these keys to expire since we'll likely always need data from the beginning
               // of the UBA activation block to validate even the latest bundles, because of the recursive nature
               // of how we compute running balances as a function of all prior validated bundle history.
