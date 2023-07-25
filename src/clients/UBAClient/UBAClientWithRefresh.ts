@@ -115,10 +115,12 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
     if (!tokenSymbol) throw new Error("No token symbol found");
 
     // Grab bundle state containing deposit using the bundle state's block ranges.
-    const specificBundleState = this.bundleStates[deposit.originChainId][tokenSymbol].find(({ bundleBlockRanges }) => {
-      const blockRangeForChain = getBlockRangeForChain(bundleBlockRanges, deposit.originChainId, this.chainIdIndices);
-      return blockRangeForChain[0] <= deposit.blockNumber && blockRangeForChain[1] >= deposit.blockNumber;
-    });
+    const specificBundleState = this.bundleStates?.[deposit.originChainId]?.[tokenSymbol]?.find(
+      ({ bundleBlockRanges }) => {
+        const blockRangeForChain = getBlockRangeForChain(bundleBlockRanges, deposit.originChainId, this.chainIdIndices);
+        return blockRangeForChain[0] <= deposit.blockNumber && blockRangeForChain[1] >= deposit.blockNumber;
+      }
+    );
     if (!specificBundleState) {
       throw new Error("No bundle state found for deposit, have you updated this client?");
     }
@@ -139,6 +141,7 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
    * @notice Can be used by Relayer to approximate next refund balancing fees on refund chain. This is useful
    * for the relayer because they can only assume that their fill gets mined as the "next" fill on the destination
    * chain.
+   * @dev Should work even if there are no validated flows or no bundle states yet.
    */
   public computeBalancingFeeForNextRefund(
     repaymentChainId: number,
@@ -148,32 +151,45 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
     this.assertUpdated();
 
     // Grab latest flow to get the latest running balance on the desired refund chain for the desired token.
-    const lastBundleState = this.bundleStates[repaymentChainId][refundTokenSymbol].slice(-1)[0];
-    const lastFlow = lastBundleState.flows.slice(-1)[0];
-    const lastBundleBlockRanges = lastBundleState.bundleBlockRanges;
-    const bundleKey = this.getKeyForBundle(lastBundleBlockRanges, refundTokenSymbol, repaymentChainId);
-    const ubaConfigForBundle = this.bundleTokenSharedState[bundleKey].ubaConfig;
+    const lastBundleState = this.bundleStates?.[repaymentChainId]?.[refundTokenSymbol]?.at(-1);
+    let ubaConfigForBundle: UBAConfig | undefined,
+      latestRunningBalance: BigNumber | undefined,
+      latestIncentiveBalance: BigNumber | undefined;
+    if (isDefined(lastBundleState)) {
+      const lastBundleBlockRanges = lastBundleState.bundleBlockRanges;
+      const bundleKey = this.getKeyForBundle(lastBundleBlockRanges, refundTokenSymbol, repaymentChainId);
+      ubaConfigForBundle = this.bundleTokenSharedState[bundleKey].ubaConfig;
+      const lastFlow = lastBundleState.flows.at(-1);
+      if (isDefined(lastFlow)) {
+        // Compute the fees that would be charged if `amount` was filled by the caller and the fill was
+        // slotted in next on this chain.
+        const { runningBalance, incentiveBalance } = analog.calculateHistoricalRunningBalance(
+          lastBundleState.flows.map(({ flow, balancingFee }) => {
+            return {
+              ...flow,
+              incentiveFee: balancingFee,
+            };
+          }),
+          lastFlow.runningBalance,
+          lastFlow.incentiveBalance,
+          lastFlow.netRunningBalanceAdjustment,
+          repaymentChainId,
+          refundTokenSymbol,
+          ubaConfigForBundle
+        );
+        latestRunningBalance = runningBalance;
+        latestIncentiveBalance = incentiveBalance;
+      }
+    }
 
-    // Compute the fees that would be charged if `amount` was filled by the caller and the fill was
-    // slotted in next on this chain.
-    const { runningBalance, incentiveBalance } = analog.calculateHistoricalRunningBalance(
-      lastBundleState.flows.map(({ flow, balancingFee }) => {
-        return {
-          ...flow,
-          incentiveFee: balancingFee,
-        };
-      }),
-      lastFlow.runningBalance,
-      lastFlow.incentiveBalance,
-      lastFlow.netRunningBalanceAdjustment,
-      repaymentChainId,
-      refundTokenSymbol,
-      ubaConfigForBundle
-    );
+    if (!isDefined(latestRunningBalance)) latestRunningBalance = ethers.constants.Zero;
+    if (!isDefined(latestIncentiveBalance)) latestIncentiveBalance = ethers.constants.Zero;
+    if (!isDefined(ubaConfigForBundle))
+      ubaConfigForBundle = getUBAFeeConfig(this.hubPoolClient, repaymentChainId, refundTokenSymbol);
     const { balancingFee } = getRefundFee(
       amount,
-      runningBalance,
-      incentiveBalance,
+      latestRunningBalance,
+      latestIncentiveBalance,
       repaymentChainId,
       ubaConfigForBundle
     );
@@ -181,7 +197,8 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
   }
 
   /**
-   * @notice Expected to be called by dataworker to reconstruct bundle roots.
+   * @notice Expected to be called by dataworker to reconstruct bundle roots using validated flow information
+   * in bundle.
    */
   public getModifiedFlows(
     chainId: number,
@@ -244,7 +261,7 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
 
     // Load common data:
     const l1TokenAddress = this.hubPoolClient.getL1Tokens().find((token) => token.symbol === tokenSymbol)?.address;
-    if (!l1TokenAddress) throw new Error("No L1 token address found for token symbol");
+    if (!l1TokenAddress) throw new Error(`No L1 token address found for token symbol ${tokenSymbol}`);
 
     // Precompute key for cached validated flows. Flows are cached per bundle block ranges and per chain.
     const bundleKeyForBlockRanges = getBundleKeyForBlockRanges(blockRanges);
@@ -743,10 +760,16 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
         chainId,
         this.chainIdIndices
       );
+      if (_blockRangesForChain.length === 0) {
+        throw new Error(`Should never return 0 length block ranges for chain ${chainId}`);
+      }
       if (
+        // Check 1: start block of first block range should be equal to UBA activation bundle start block for chain
         _blockRangesForChain[0][0] !== ubaActivationBundleStartBlockForChain ||
+        // Check 2: end block of last block range should be equal to latest spoke pool client block searched
         (isDefined(this.spokePoolClients[chainId]) &&
-          _blockRangesForChain.slice(-1)[0][1] !== this.spokePoolClients[chainId].latestBlockSearched)
+          // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+          _blockRangesForChain.at(-1)![1] !== this.spokePoolClients[chainId].latestBlockSearched)
       ) {
         console.log(
           _blockRangesForChain,
@@ -838,7 +861,7 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
       const mainnetStartBlock = getBlockForChain(startBlocks, this.hubPoolClient.chainId, this.chainIdIndices);
       tokens.forEach((token) => {
         const l1TokenAddress = this.hubPoolClient.getL1Tokens().find((_token) => _token.symbol === token)?.address;
-        if (!isDefined(l1TokenAddress)) throw new Error("No L1 token address found for token symbol");
+        if (!isDefined(l1TokenAddress)) throw new Error(`No L1 token address found for token symbol ${token}`);
         this.chainIdIndices.forEach((chainId) => {
           if (!isDefined(this.spokePoolClients[chainId])) {
             return;
