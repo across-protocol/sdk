@@ -189,17 +189,16 @@ export function parseUBAFeeConfig(
  * @param chainId The chainId to fetch the UBA config for.
  * @param tokenSymbol The token symbol to fetch the UBA config for.
  * @param blockNumber The block height to fetch the UBA config for.
- * @returns The UBA config for the given chainId and tokenSymbol at the given block height.
+ * @returns The UBA config for the given chainId and tokenSymbol at the given block height. If the config is not found, returns undefined.
  * @throws If the config store client has not been updated at least once.
  * @throws If the L1 token address cannot be found for the given token symbol.
- * @throws If the UBA config for the given block height cannot be found.
  */
 export function getUBAFeeConfig(
   hubPoolClient: HubPoolClient,
   chainId: number,
   tokenSymbol: string,
   blockNumber?: number
-): UBAFeeConfig {
+): UBAFeeConfig | undefined {
   const configClient = hubPoolClient.configStoreClient;
   // If the config client has not been updated at least
   // once, throw
@@ -212,9 +211,6 @@ export function getUBAFeeConfig(
   }
   const rawUbaConfig = configClient.getUBAConfig(l1TokenInfo?.address, blockNumber);
   const ubaConfig = parseUBAFeeConfig(chainId, tokenSymbol, rawUbaConfig);
-  if (ubaConfig === undefined) {
-    throw new Error(`UBA config for blockTag ${blockNumber} not found`);
-  }
   return ubaConfig;
 }
 
@@ -736,7 +732,8 @@ export async function getFlowDataForBundle(
       // Load the config set at the start of this bundle. We assume that all flows will be charged
       // fees using this same config. Any configuration update changes that occurred during this
       // bundle range will apply to the following bundle.
-      ubaConfigForBundle = getUBAFeeConfig(hubPoolClient, chainId, tokenSymbol, startingBundleBlockNumber);
+      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+      ubaConfigForBundle = getUBAFeeConfig(hubPoolClient, chainId, tokenSymbol, startingBundleBlockNumber)!;
       // Construct the bundle data for this token.
       const constructedBundle: UBABundleState & { tokenSymbol: string } = {
         flows: [],
