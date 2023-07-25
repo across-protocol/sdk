@@ -24,6 +24,7 @@ export function calculateHistoricalRunningBalance(
   flows: (UbaFlow & { incentiveFee: BigNumber })[],
   lastValidatedRunningBalance: BigNumber,
   lastValidatedIncentiveRunningBalance: BigNumber,
+  lastNetRunningBalanceAdjustment: BigNumber,
   chainId: number,
   tokenSymbol: string,
   config: UBAConfig
@@ -106,7 +107,7 @@ export function calculateHistoricalRunningBalance(
     {
       runningBalance: lastValidatedRunningBalance ?? toBN(0),
       incentiveBalance: lastValidatedIncentiveRunningBalance ?? toBN(0),
-      netRunningBalanceAdjustment: toBN(0),
+      netRunningBalanceAdjustment: lastNetRunningBalanceAdjustment ?? toBN(0),
     }
   );
   // Return the result
