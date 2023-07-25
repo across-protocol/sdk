@@ -361,6 +361,20 @@ export async function UBA_queryHistoricalDepositForFill(
   return validateFillForDeposit(fill, deposit, fillFieldsToIgnore) ? deposit : undefined;
 }
 
+export function isUBAActivatedAtBlock(hubPoolClient: HubPoolClient, block: number): boolean {
+  try {
+    const ubaActivationBlocks = getUbaActivationBundleStartBlocks(hubPoolClient);
+    const mainnetUbaActivationStartBlock = getBlockForChain(
+      ubaActivationBlocks,
+      hubPoolClient.chainId,
+      hubPoolClient.configStoreClient.enabledChainIds
+    );
+    return block >= mainnetUbaActivationStartBlock;
+  } catch (err) {
+    // UBA not activated yet or hub pool client not updated
+    return false;
+  }
+}
 /**
  * Returns bundle range start blocks for first bundle that UBA was activated
  * @param chainIds Chains to return start blocks for.

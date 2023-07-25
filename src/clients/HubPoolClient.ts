@@ -35,6 +35,7 @@ import { CrossChainContractsSet, DestinationTokenWithBlock, SetPoolRebalanceRoot
 import * as lpFeeCalculator from "../lpFeeCalculator";
 import { AcrossConfigStoreClient as ConfigStoreClient } from "./AcrossConfigStoreClient/AcrossConfigStoreClient";
 import { BaseAbstractClient } from "./BaseAbstractClient";
+import { isUBAActivatedAtBlock } from "./UBAClient/UBAClientUtilities";
 
 type _HubPoolUpdate = {
   success: true;
@@ -284,8 +285,7 @@ export class HubPoolClient extends BaseAbstractClient {
       this.chainId,
       this.configStoreClient.enabledChainIds
     );
-    const ubaActivationBlock = this.configStoreClient.getUBAActivationBlock();
-    if (isDefined(ubaActivationBlock) && depositMainnetStartBlock >= ubaActivationBlock) {
+    if (isUBAActivatedAtBlock(this, depositMainnetStartBlock)) {
       // If UBA deposit then we can't compute the realizedLpFeePct until after we've updated the UBA Client.
       return {
         realizedLpFeePct: undefined,
@@ -354,11 +354,11 @@ export class HubPoolClient extends BaseAbstractClient {
     // First find the latest executed bundle as of `hubPoolLatestBlock`.
     const latestExecutedBundle = this.getNthFullyExecutedRootBundle(-1, hubPoolLatestBlock);
 
-    // If there is no latest executed bundle, then return the spoke's activation block. This means that there is no
+    // If there is no latest executed bundle, then return 0. This means that there is no
     // bundle before `hubPoolLatestBlock` containing the event block so the next bundle will start at
-    // the activation block and contain the event.
+    // 0 and contain the event.
     if (!isDefined(latestExecutedBundle)) {
-      return enabledChains.map((chainId) => this.getSpokeActivationBlockForChain(chainId));
+      return Array(enabledChains.length).fill(0);
     }
 
     // Construct the bundle's block range
