@@ -402,6 +402,10 @@ export class SpokePoolClient extends BaseAbstractClient {
     return `${event.depositId}-${event.originChainId}`;
   }
 
+  public async getBlockData(block: number): Promise<ethers.providers.Block> {
+    return await this.spokePool.provider.getBlock(block);
+  }
+
   /**
    * Find the block range that contains the deposit ID. This is a binary search that searches for the block range
    * that contains the deposit ID.
@@ -664,14 +668,6 @@ export class SpokePoolClient extends BaseAbstractClient {
       });
       this.earlyDeposits = earlyDeposits;
 
-      // Do we need this log anymore post UBA? It shouldn't cost any extra time to load realizedLpFeePct
-      // for post UBA deposits.
-      // if (depositEvents.length > 0) {
-      //   this.log("debug", `Fetching realizedLpFeePct for ${depositEvents.length} deposits on chain ${this.chainId}`, {
-      //     numDeposits: depositEvents.length,
-      //   });
-      // }
-
       const dataForQuoteTime: { realizedLpFeePct: BigNumber | undefined; quoteBlock: number }[] = await Promise.all(
         depositEvents.map(async (event) => this.computeRealizedLpFeePct(event))
       );
@@ -693,7 +689,7 @@ export class SpokePoolClient extends BaseAbstractClient {
           destinationToken: this.getDestinationTokenForDeposit(partialDeposit),
           quoteBlockNumber: dataForQuoteTime[index].quoteBlock,
           // TODO: Cache this result:
-          blockTimestamp: (await this.spokePool.provider.getBlock(partialDeposit.blockNumber)).timestamp,
+          blockTimestamp: (await this.getBlockData(partialDeposit.blockNumber)).timestamp,
         };
 
         assign(this.depositHashes, [this.getDepositHash(deposit)], deposit);
@@ -737,7 +733,7 @@ export class SpokePoolClient extends BaseAbstractClient {
         const fillData = spreadEventWithBlockNumber(event);
         const fill = {
           ...fillData,
-          blockTimestamp: (await this.spokePool.provider.getBlock(fillData.blockNumber)).timestamp,
+          blockTimestamp: (await this.getBlockData(fillData.blockNumber)).timestamp,
         } as FillWithBlock;
         assign(this.fills, [fill.originChainId], [fill]);
         assign(this.depositHashesToFills, [this.getDepositHash(fill)], [fill]);
@@ -755,13 +751,14 @@ export class SpokePoolClient extends BaseAbstractClient {
           earliestEvent: refundRequests[0].blockNumber,
         });
       }
+
       await forEachAsync(refundRequests, async (event) => {
         const refundRequestData = spreadEventWithBlockNumber(event);
         const refundRequest = {
           ...refundRequestData,
           // repaymentChainId is not part of the on-chain event, so add it here.
           repaymentChainId: this.chainId,
-          blockTimestamp: (await this.spokePool.provider.getBlock(refundRequestData.blockNumber)).timestamp,
+          blockTimestamp: (await this.getBlockData(refundRequestData.blockNumber)).timestamp,
         };
         this.refundRequests.push(refundRequest as RefundRequestWithBlock);
       });

@@ -1,5 +1,5 @@
 import assert from "assert";
-import { Contract, Event } from "ethers";
+import { Contract, Event, ethers } from "ethers";
 import { random } from "lodash";
 import winston from "winston";
 import { ZERO_ADDRESS } from "../../constants";
@@ -13,6 +13,7 @@ import { EventManager, getEventManager } from "./MockEvents";
 export class MockSpokePoolClient extends SpokePoolClient {
   private eventManager: EventManager;
   private events: Event[] = [];
+  private blockTimestamp = 0;
   // Allow tester to set the numberOfDeposits() returned by SpokePool at a block height.
   public depositIdAtBlock: number[] = [];
   public numberOfDeposits = 0;
@@ -44,6 +45,14 @@ export class MockSpokePoolClient extends SpokePoolClient {
       this.depositIdAtBlock[i] = _depositIds[i];
       lastDepositId = _depositIds[i];
     }
+  }
+
+  setBlockTimestamp(timestamp: number): void {
+    this.blockTimestamp = timestamp;
+  }
+
+  async getBlockData(_block: number) {
+    return { timestamp: this.blockTimestamp ?? Math.floor(Date.now() / 1000) } as ethers.providers.Block;
   }
 
   async _getDepositIdAtBlock(blockTag: number): Promise<number> {

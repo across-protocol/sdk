@@ -300,7 +300,7 @@ export function getOpeningRunningBalanceForEvent(
     console.log(`Using running balance ${runningBalance.toString()} for event chain`);
     const ubaActivationStartBlocks = getUbaActivationBundleStartBlocks(hubPoolClient);
     const ubaActivationStartBlockForChain = getBlockForChain(ubaActivationStartBlocks, eventChain, enabledChains);
-    if (blockRanges[0][0] >= ubaActivationStartBlockForChain) {
+    if (blockRanges[0][0] < ubaActivationStartBlockForChain) {
       return {
         runningBalance: runningBalance.mul(-1),
         // Incentive balance starts at 0.

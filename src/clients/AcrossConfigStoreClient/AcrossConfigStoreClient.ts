@@ -231,13 +231,9 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
     })?.blockNumber;
   }
 
-  getConfigStoreVersionForBlock(_blockNumber: number = Number.MAX_SAFE_INTEGER): number {
-    const ubaActivationBlock = this.getUBAActivationBlock();
-    return isDefined(ubaActivationBlock) && _blockNumber >= ubaActivationBlock
-      ? UBA_MIN_CONFIG_STORE_VERSION
-      : DEFAULT_CONFIG_STORE_VERSION;
-    // const config = this.cumulativeConfigStoreVersionUpdates.find((config) => config.blockNumber <= blockNumber);
-    // return isDefined(config) ? Number(config.value) : DEFAULT_CONFIG_STORE_VERSION;
+  getConfigStoreVersionForBlock(blockNumber: number = Number.MAX_SAFE_INTEGER): number {
+    const config = this.cumulativeConfigStoreVersionUpdates.find((config) => config.blockNumber <= blockNumber);
+    return isDefined(config) ? Number(config.value) : DEFAULT_CONFIG_STORE_VERSION;
   }
 
   hasValidConfigStoreVersionForTimestamp(timestamp: number = Number.MAX_SAFE_INTEGER): boolean {

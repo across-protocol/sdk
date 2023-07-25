@@ -159,13 +159,8 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
     const lastBundleState = this.bundleStates[repaymentChainId][refundTokenSymbol].slice(-1)[0];
     const lastFlow = lastBundleState.flows.slice(-1)[0];
     const lastBundleBlockRanges = lastBundleState.bundleBlockRanges;
-    const mainnetStartBlock = getBlockRangeForChain(lastBundleBlockRanges, repaymentChainId, this.chainIdIndices)[0];
-    const ubaConfigForBundle = getUBAFeeConfig(
-      this.hubPoolClient,
-      repaymentChainId,
-      refundTokenSymbol,
-      mainnetStartBlock
-    );
+    const bundleKey = this.getKeyForBundle(lastBundleBlockRanges, refundTokenSymbol, repaymentChainId);
+    const ubaConfigForBundle = this.bundleTokenSharedState[bundleKey].ubaConfig;
 
     // Compute the fees that would be charged if `amount` was filled by the caller and the fill was
     // slotted in next on this chain.
