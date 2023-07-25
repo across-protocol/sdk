@@ -565,14 +565,8 @@ export function flowComparisonFunction(a: UbaFlow, b: UbaFlow): number {
     return a.blockTimestamp - b.blockTimestamp;
   }
 
-  const quoteBlockX = isUbaInflow(a) ? a.quoteBlockNumber : a.matchedDeposit.quoteBlockNumber;
-  const quoteBlockY = isUbaInflow(b) ? b.quoteBlockNumber : b.matchedDeposit.quoteBlockNumber;
-  if (quoteBlockX !== quoteBlockY) {
-    return quoteBlockX - quoteBlockY;
-  }
-
-  // If fx and fy have same blockTimestamp and same quote block then it gets a bit arbitrary. Whatever
-  // we decide here we should push into the UMIP.
+  // If fx and fy have same blockTimestamp then it gets a bit arbitrary. Whatever
+  // we implement here we should match with the UMIP.
   // In the case of inflow vs outflow, return inflow first:
   if (isUbaInflow(a) && isUbaOutflow(b)) {
     return -1;
