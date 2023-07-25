@@ -1,4 +1,3 @@
-import { MerkleTree } from "@across-protocol/contracts-v2";
 import { BigNumber } from "ethers";
 
 export interface SortableEvent {
@@ -10,9 +9,4 @@ export interface SortableEvent {
 
 export interface BigNumberForToken {
   [l1TokenAddress: string]: BigNumber;
-}
-
-export interface TreeData<T> {
-  tree: MerkleTree<T>;
-  leaves: T[];
 }
