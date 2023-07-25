@@ -36,3 +36,12 @@ export type UBABundleState = {
   bundleBlockRanges: number[][];
   flows: ModifiedUBAFlow[];
 };
+
+export type SpokePoolFillFilter = {
+  relayer?: string;
+  fromBlock?: number;
+  toBlock?: number;
+  repaymentChainId?: number;
+  isSlowRelay?: boolean;
+  isCompleteFill?: boolean;
+};

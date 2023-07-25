@@ -7,13 +7,14 @@ import { SpokePoolClients } from "../../utils/TypeUtils";
 import { isDefined } from "../../utils/TypeGuards";
 import { toBN } from "../../utils/common";
 import { validateFillForDeposit } from "../../utils/FlowUtils";
-import { ModifiedUBAFlow, RequestValidReturnType, UBAClientState } from "./UBAClientTypes";
+import { ModifiedUBAFlow, RequestValidReturnType, SpokePoolFillFilter, UBAClientState } from "./UBAClientTypes";
 import {
   DepositWithBlock,
   Fill,
   FillWithBlock,
   RefundRequestWithBlock,
   TokenRunningBalance,
+  UBAParsedConfigType,
   UbaFlow,
   isUbaInflow,
   isUbaOutflow,
@@ -40,25 +41,20 @@ function omitDefaultKeys<T>(obj: Record<string, T>): Record<string, T> {
   }, {});
 }
 
-export function getUBAFeeConfig(
-  hubPoolClient: HubPoolClient,
+/**
+ * Parses a UBAParsedConfigType into a UBAFeeConfig
+ * @param chainId The chain ID to parse the UBA config for
+ * @param tokenSymbol The token symbol to parse the UBA config for
+ * @param ubaConfig The UBAParsedConfigType to parse
+ * @returns The parsed UBAFeeConfig
+ */
+export function parseUBAFeeConfig(
   chainId: number,
   tokenSymbol: string,
-  hubBlockNumber?: number
-): UBAFeeConfig {
-  const configClient = hubPoolClient.configStoreClient;
-  // If the config client has not been updated at least
-  // once, throw
-  if (!configClient.isUpdated) {
-    throw new Error("Config client not updated");
-  }
-  const l1TokenInfo = hubPoolClient.getL1Tokens().find((token) => token.symbol === tokenSymbol);
-  if (!l1TokenInfo) {
-    throw new Error("L1 token can't be found, have you updated hub pool client?");
-  }
-  const ubaConfig = configClient.getUBAConfig(l1TokenInfo?.address, hubBlockNumber);
-  if (ubaConfig === undefined) {
-    throw new Error(`UBA config for blockTag ${hubBlockNumber} not found`);
+  ubaConfig?: UBAParsedConfigType
+): UBAFeeConfig | undefined {
+  if (!ubaConfig) {
+    return undefined;
   }
 
   const omegaDefault = ubaConfig.omega["default"];
@@ -129,9 +125,9 @@ export function getUBAFeeConfig(
  * @param chainId
  * @param maxBundleStates If this is larger than available validated bundles in the HubPoolClient, will throw an error.
  * @param hubPoolBlock Only returns the most recent validated bundles proposed before this block.
- * @param hubPoolClient
- * @param spokePoolClients
- * @returns
+ * @param hubPoolClient The hub pool client to use for fetching the bundle ranges.
+ * @param spokePoolClients The spoke pool clients to use for fetching the bundle ranges.
+ * @returns The most recent `maxBundleStates` bundle ranges for a given chain, in chronological ascending order.
  */
 export function getMostRecentBundleBlockRanges(
   chainId: number,
@@ -678,15 +674,6 @@ export async function refundRequestIsValid(
   return { valid: true, matchingFill: fill, matchingDeposit: deposit };
 }
 
-export type SpokePoolFillFilter = {
-  relayer?: string;
-  fromBlock?: number;
-  toBlock?: number;
-  repaymentChainId?: number;
-  isSlowRelay?: boolean;
-  isCompleteFill?: boolean;
-};
-
 /**
  * @notice Get the matching flow in a stream of already validated flows. Useful for seeing if an outflow's
  * matched inflow `targetFlow` is in the `allValidatedFlows` list.
@@ -761,6 +748,15 @@ export async function getValidFillCandidates(
   return fills;
 }
 
+/**
+ * Search for refund requests recorded by a specific SpokePool.
+ * @param chainId Chain ID of the relevant SpokePoolClient instance.
+ * @param chainIdIndices Complete set of ordered chain IDs.
+ * @param hubPoolClient HubPoolClient instance.
+ * @param spokePoolClients Set of SpokePoolClient instances, mapped by chain ID.
+ * @param filter  Optional filtering criteria.
+ * @returns Array of RefundRequestWithBlock events matching the chain ID and optional filtering criteria.
+ */
 export async function getValidRefundCandidates(
   chainId: number,
   hubPoolClient: HubPoolClient,
@@ -806,17 +802,21 @@ export async function getValidRefundCandidates(
   })[];
 }
 
+/**
+ * Serializes a `UBAClientState` object.
+ * @param ubaClientState `UBAClientState` object to serialize.
+ * @returns Serialized `UBAClientState` object as a string.
+ * @note The resulting string can be deserialized using `deserializeUBAClientState`.
+ */
 export function serializeUBAClientState(ubaClientState: UBAClientState): string {
   return stringifyJSONWithNumericString(ubaClientState);
 }
 
 /**
  * @todo Improve type safety and reduce `any`s.
- * @description Deserializes a serialized `UBAClientState` object.
- * @param serializedUBAClientState Serialized `UBAClientState` object that for example gets returned
- * when calling `updateUBAClient` and serializing the result.
- * @returns Deserialized `UBAClientState` object. Specifically with `{ type: "BigNumber", value: "0x0" }`
- * converted to `BigNumber` instances. And a correct `UBAFeeConfig` instance.
+ * Deserializes a serialized `UBAClientState` object.
+ * @param serializedUBAClientState Serialized `UBAClientState` object that for example gets returned when calling `updateUBAClient` and serializing the result.
+ * @returns Deserialized `UBAClientState` object. Specifically with `{ type: "BigNumber", value: "0x0" } converted to `BigNumber` instances. And a correct `UBAFeeConfig` instance.
  */
 export function deserializeUBAClientState(serializedUBAClientState: object): UBAClientState {
   return Object.entries(serializedUBAClientState).reduce((acc, [chainId, chainState]) => {
@@ -860,12 +860,12 @@ export function deserializeUBAClientState(serializedUBAClientState: object): UBA
 }
 
 function deserializeModifiedUBAFlow(serializedModifiedUBAFlow: {
-  flow: any;
-  systemFee: any;
-  relayerFee: any;
-  runningBalance: any;
-  incentiveBalance: any;
-  netRunningBalanceAdjustment: any;
+  flow: Record<string, unknown>;
+  systemFee: Record<string, unknown>;
+  relayerFee: Record<string, unknown>;
+  runningBalance: Record<string, unknown>;
+  incentiveBalance: Record<string, unknown>;
+  netRunningBalanceAdjustment: Record<string, unknown>;
 }) {
   return {
     flow: deserializeBigNumberValues(serializedModifiedUBAFlow.flow),
@@ -989,6 +989,11 @@ function deserializeUBAFeeConfig(serializedUBAFeeConfig: {
   };
 }
 
+/**
+ * Serializes a `UBABundleState` object.
+ * @param obj The object to deserialize.
+ * @returns An object with all BigNumber values converted to strings.
+ */
 function deserializeBigNumberValues(obj: object = {}) {
   return Object.entries(obj).reduce((acc, [key, value]) => {
     try {
