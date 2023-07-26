@@ -3,7 +3,7 @@ import { CachingMechanismInterface } from "../interfaces";
 import { Struct } from "superstruct";
 import winston from "winston";
 import PinataClient from "@pinata/sdk";
-import { jsonReviverWithBigNumbers, jsonReplacerWithBigNumbers } from "../utils";
+import { jsonReviverWithBigNumbers, jsonReplacerWithBigNumbers, formattedLog } from "../utils";
 
 /**
  * A client for interacting with the IPFS. This is a wrapper around the IPFS API.
@@ -42,7 +42,15 @@ export class IPFSClient implements CachingMechanismInterface {
     if (!key) {
       return null;
     }
-    this.logger?.info(`Retrieving value from IPFS with key ${key}`);
+    formattedLog(this.logger, {
+      level: "debug",
+      message: `Retrieving value from IPFS with key ${key}`,
+      at: {
+        location: "IPFSClient",
+        function: "get",
+      },
+    });
+
     const arrivedResult = await retrieveValueFromIPFS(key, this.publicGatewayURL);
     if (!arrivedResult) {
       return null;
@@ -50,7 +58,14 @@ export class IPFSClient implements CachingMechanismInterface {
     const revivedResult = JSON.parse(arrivedResult, jsonReviverWithBigNumbers);
 
     if (_structValidator && !_structValidator.is(revivedResult)) {
-      this.logger?.warn(`Retrieved value from IPFS with key ${key} does not match the expected type`);
+      formattedLog(this.logger, {
+        level: "warn",
+        message: `Retrieved value from IPFS with key ${key} does not match the expected type`,
+        at: {
+          location: "IPFSClient",
+          function: "get",
+        },
+      });
       return null;
     }
 
@@ -76,7 +91,14 @@ export class IPFSClient implements CachingMechanismInterface {
    * @returns The CID of the value stored.
    */
   setWithReturnID<T>(key: string, value: T): Promise<string | undefined> {
-    this.logger?.info(`Setting value from IPFS with key ${key}`);
+    formattedLog(this.logger, {
+      level: "debug",
+      message: `Setting value from IPFS with key ${key}`,
+      at: {
+        location: "IPFSClient",
+        function: "setWithReturnID",
+      },
+    });
     return storeValueInIPFS(JSON.stringify(value, jsonReplacerWithBigNumbers), this.client);
   }
 }
