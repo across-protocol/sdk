@@ -24,6 +24,7 @@ export interface Deposit {
 }
 
 export interface DepositWithBlock extends Deposit, SortableEvent {
+  blockTimestamp: number;
   quoteBlockNumber: number;
   blockTimestamp: number;
 }
