@@ -4,13 +4,16 @@ import { getEventFee, getDepositFee, getRefundFee } from "./UBAFeeSpokeCalculato
 import { toBN } from "../utils";
 import { parseEther } from "ethers/lib/utils";
 
-describe.only("UBAFeeSpokeCalculatorAnalog", () => {
+describe("UBAFeeSpokeCalculatorAnalog", () => {
   const defaultConfig = new UBAConfig(
     {
       default: toBN(0),
     },
     {
-      default: [[toBN(0), parseEther("2")]],
+      default: [
+        [toBN(0), toBN(0)],
+        [toBN(0), parseEther("2")],
+      ],
     },
     {
       default: {
@@ -41,12 +44,10 @@ describe.only("UBAFeeSpokeCalculatorAnalog", () => {
       const lastRunningBalance = BigNumber.from(1000);
       const lastIncentiveBalance = BigNumber.from(1000);
 
-      // This should result in a fee of -20 due to the fixtures creation.
-
       const chainId = 1;
       const flowType = "outflow";
       const fee = getEventFee(amount, flowType, lastRunningBalance, lastIncentiveBalance, chainId, defaultConfig);
-      expect(fee.balancingFee.toString()).toEqual("-20");
+      expect(fee.balancingFee.toString()).toEqual("-10");
     });
 
     it("should return a balanceFee of 0 if the amount is 0", () => {
@@ -64,7 +65,7 @@ describe.only("UBAFeeSpokeCalculatorAnalog", () => {
       const lastRunningBalance = BigNumber.from(1000);
       const lastIncentiveBalance = BigNumber.from(-1000);
       const chainId = 1;
-      const flowType = "inflow";
+      const flowType = "outflow";
       const fee = getEventFee(amount, flowType, lastRunningBalance, lastIncentiveBalance, chainId, defaultConfig);
       expect(fee.balancingFee.toString()).toEqual("0");
     });
@@ -74,12 +75,12 @@ describe.only("UBAFeeSpokeCalculatorAnalog", () => {
       const lastRunningBalance = BigNumber.from(1000);
       const lastIncentiveBalance = BigNumber.from(0);
       const chainId = 1;
-      const flowType = "inflow";
+      const flowType = "outflow";
       const fee = getEventFee(amount, flowType, lastRunningBalance, lastIncentiveBalance, chainId, defaultConfig);
       expect(fee.balancingFee.toString()).toEqual("0");
     });
 
-    describe.only("Should correctly apply a reward multiplier", () => {
+    describe("Should correctly apply a reward multiplier", () => {
       for (const fee of [-23, 0, 23]) {
         const signToZero = fee === 0 ? "==" : fee > 0 ? ">" : "<";
         it(`should return a balance fee a discounted balance fee if the fee is ${signToZero} 0`, () => {
@@ -87,7 +88,7 @@ describe.only("UBAFeeSpokeCalculatorAnalog", () => {
           const lastRunningBalance = BigNumber.from(1000);
           const lastIncentiveBalance = BigNumber.from(1000);
           const chainId = 1;
-          const flowType = "inflow";
+          const flowType = "outflow";
 
           const originalFee = getEventFee(
             amount,
@@ -103,7 +104,10 @@ describe.only("UBAFeeSpokeCalculatorAnalog", () => {
               default: toBN(0),
             },
             {
-              default: [[toBN(0), parseEther("2")]],
+              default: [
+                [toBN(0), toBN(0)],
+                [toBN(0), parseEther("2")],
+              ],
             },
             {
               default: {
@@ -116,7 +120,7 @@ describe.only("UBAFeeSpokeCalculatorAnalog", () => {
             },
             {},
             {
-              [chainId]: toBN(fee),
+              [chainId]: parseEther(String(fee)),
             }
           );
 
@@ -126,7 +130,7 @@ describe.only("UBAFeeSpokeCalculatorAnalog", () => {
       }
     });
 
-    it.only("should return a discounted balance fee if the lastIncentiveBalance is positive", () => {
+    it("should return a discounted balance fee if the lastIncentiveBalance is positive", () => {
       const amount = BigNumber.from(10);
       const lastRunningBalance = BigNumber.from(1000);
       const lastIncentiveBalance = BigNumber.from(1000);
