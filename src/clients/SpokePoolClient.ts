@@ -1,11 +1,9 @@
-import { providers } from "ethers";
 import { groupBy } from "lodash";
 import {
   assign,
   EventSearchConfig,
   DefaultLogLevels,
   MakeOptional,
-  mapAsync,
   AnyObject,
   MAX_BIG_INT,
   forEachAsync,
@@ -34,20 +32,11 @@ import {
   SpeedUp,
   TokensBridged,
   FundsDepositedEvent,
-  DepositWithBlockStringified,
-  FillWithBlockStringified,
-  SpeedUpStringified,
-  TokensBridgedStringified,
-  RelayerRefundExecutionWithBlockStringified,
-  FundsDepositedEventStringified,
-  RefundRequestWithBlockStringified,
 } from "../interfaces";
 import { HubPoolClient } from "./HubPoolClient";
 import { ZERO_ADDRESS } from "../constants";
 import { getNetworkName } from "../utils/NetworkUtils";
 import { BaseAbstractClient } from "./BaseAbstractClient";
-
-type Block = providers.Block;
 
 type _SpokePoolUpdate = {
   success: boolean;
@@ -56,7 +45,6 @@ type _SpokePoolUpdate = {
   latestBlockNumber: number;
   latestDepositId: number;
   events: Event[][];
-  blocks: { [blockNumber: number]: Block };
   searchEndBlock: number;
 };
 export type SpokePoolUpdate = { success: false } | _SpokePoolUpdate;
@@ -616,26 +604,6 @@ export class SpokePoolClient extends BaseAbstractClient {
     // Sort all events to ensure they are stored in a consistent order.
     events.forEach((events: Event[]) => sortEventsAscendingInPlace(events));
 
-    // Collate the relevant set of block numbers and filter for uniqueness, then query each corresponding block.
-    const blockNumbers = Array.from(
-      new Set(
-        ["FundsDeposited", "FilledRelay", "RefundRequested"]
-          .filter((eventName) => eventsToQuery.includes(eventName))
-          .map((eventName) => {
-            const idx = eventsToQuery.indexOf(eventName);
-            // tsc needs type hints on this map...
-            return (events[idx] as Event[]).map(({ blockNumber }) => blockNumber);
-          })
-          .flat()
-      )
-    );
-    const blocks = Object.fromEntries(
-      await mapAsync(blockNumbers, async (blockNumber) => {
-        const block = await this.spokePool.provider.getBlock(blockNumber);
-        return [blockNumber, block];
-      })
-    );
-
     return {
       success: true,
       currentTime: currentTime.toNumber(), // uint32
@@ -644,7 +612,6 @@ export class SpokePoolClient extends BaseAbstractClient {
       latestDepositId: Math.max(numberOfDeposits - 1, 0),
       searchEndBlock: searchConfig.toBlock,
       events,
-      blocks,
     };
   }
 
@@ -668,7 +635,7 @@ export class SpokePoolClient extends BaseAbstractClient {
       // understand why we see this in test. @todo: Resolve.
       return;
     }
-    const { events: queryResults, blocks, currentTime } = update;
+    const { events: queryResults, currentTime } = update;
 
     if (eventsToQuery.includes("TokensBridged")) {
       for (const event of queryResults[eventsToQuery.indexOf("TokensBridged")]) {
@@ -715,12 +682,11 @@ export class SpokePoolClient extends BaseAbstractClient {
         // Append the realizedLpFeePct.
         const partialDeposit = spreadEventWithBlockNumber(event) as DepositWithBlock;
 
-        // Derive and append the destination token, LP fee, quote block number and block timestamp from the event.
-        // @dev Deposit events may _also_ include early deposits, in which case we did not retrieve a block.
+        // Append destination token and realized lp fee to deposit.
         const deposit: DepositWithBlock = {
-          ...rawDeposit,
+          ...partialDeposit,
           realizedLpFeePct: dataForQuoteTime[index].realizedLpFeePct,
-          destinationToken: this.getDestinationTokenForDeposit(rawDeposit),
+          destinationToken: this.getDestinationTokenForDeposit(partialDeposit),
           quoteBlockNumber: dataForQuoteTime[index].quoteBlock,
           // TODO: Cache this result:
           blockTimestamp: (await this.getBlockData(partialDeposit.blockNumber)).timestamp,
@@ -998,159 +964,5 @@ export class SpokePoolClient extends BaseAbstractClient {
     });
 
     return deposit;
-  }
-
-  public updateFromJSON(spokePoolClientState: Partial<ReturnType<SpokePoolClient["toJSON"]>>) {
-    const keysToUpdate = Object.keys(spokePoolClientState);
-
-    this.logger.debug({
-      at: "SpokePoolClient",
-      message: "Updating SpokePool client from JSON",
-      keys: keysToUpdate,
-    });
-
-    if (keysToUpdate.length === 0) {
-      return;
-    }
-
-    this.currentTime = spokePoolClientState.currentTime || this.currentTime;
-    this.depositHashes = Object.entries(spokePoolClientState.depositHashes || {}).reduce(
-      (acc, [hash, deposit]) => ({
-        ...acc,
-        [hash]: {
-          ...deposit,
-          amount: BigNumber.from(deposit.amount),
-          relayerFeePct: BigNumber.from(deposit.relayerFeePct),
-          realizedLpFeePct: deposit.relayerFeePct ? BigNumber.from(deposit.realizedLpFeePct) : undefined,
-          newRelayerFeePct: deposit.newRelayerFeePct ? BigNumber.from(deposit.newRelayerFeePct) : undefined,
-        },
-      }),
-      {} as Record<string, DepositWithBlock>
-    );
-    this.depositHashesToFills = Object.entries(spokePoolClientState.depositHashesToFills || {}).reduce(
-      (acc, [hash, fills]) => ({
-        ...acc,
-        [hash]: fills.map((fill) => ({
-          ...fill,
-          amount: BigNumber.from(fill.amount),
-          totalFilledAmount: BigNumber.from(fill.totalFilledAmount),
-          fillAmount: BigNumber.from(fill.fillAmount),
-          relayerFeePct: BigNumber.from(fill.relayerFeePct),
-          realizedLpFeePct: BigNumber.from(fill.realizedLpFeePct),
-          updatableRelayData: {
-            ...fill.updatableRelayData,
-            relayerFeePct: BigNumber.from(fill.updatableRelayData.relayerFeePct),
-            payoutAdjustmentPct: BigNumber.from(fill.updatableRelayData.payoutAdjustmentPct),
-          },
-        })),
-      }),
-      {} as Record<string, FillWithBlock[]>
-    );
-    this.speedUps = Object.entries(spokePoolClientState.speedUps || {}).reduce((acc, [depositor, speedUpsMap]) => {
-      const speedUps = Object.entries(speedUpsMap).reduce(
-        (acc, [depositId, speedUps]) => ({
-          ...acc,
-          [depositId]: speedUps.map((speedUp) => ({
-            ...speedUp,
-            newRelayerFeePct: BigNumber.from(speedUp.newRelayerFeePct),
-          })),
-        }),
-        {} as Record<string, SpeedUp[]>
-      );
-      return { ...acc, [depositor]: speedUps };
-    }, {});
-    this.depositRoutes = spokePoolClientState.depositRoutes || {};
-    this.tokensBridged = (spokePoolClientState.tokensBridged || []).map((tokenBridged) => ({
-      ...tokenBridged,
-      amountToReturn: BigNumber.from(tokenBridged.amountToReturn),
-    }));
-    this.rootBundleRelays = spokePoolClientState.rootBundleRelays || [];
-    this.relayerRefundExecutions = (spokePoolClientState.relayerRefundExecutions || []).map((refundExecution) => ({
-      ...refundExecution,
-      amountToReturn: BigNumber.from(refundExecution.amountToReturn),
-      refundAmounts: refundExecution.refundAmounts.map((refundAmount) => BigNumber.from(refundAmount)),
-    }));
-    this.earlyDeposits = (spokePoolClientState.earlyDeposits || []).map((deposit) => ({
-      ...deposit,
-      amount: BigNumber.from(deposit.amount),
-      originChainId: BigNumber.from(deposit.originChainId),
-      destinationChainId: BigNumber.from(deposit.destinationChainId),
-      relayerFeePct: BigNumber.from(deposit.relayerFeePct),
-    }));
-    this.queryableEventNames = spokePoolClientState.queryableEventNames || this.queryableEventNames;
-    this.earliestDepositIdQueried = spokePoolClientState.earliestDepositIdQueried || this.earliestDepositIdQueried;
-    this.latestDepositIdQueried = spokePoolClientState.latestDepositIdQueried || this.latestDepositIdQueried;
-    this.firstBlockToSearch = spokePoolClientState.firstBlockToSearch || this.firstBlockToSearch;
-    this.latestBlockSearched = spokePoolClientState.latestBlockSearched || this.latestBlockSearched;
-    this.fills = Object.entries(spokePoolClientState.fills || []).reduce(
-      (acc, [chainId, fills]) => ({
-        ...acc,
-        [chainId]: fills.map((fill) => ({
-          ...fill,
-          amount: BigNumber.from(fill.amount),
-          totalFilledAmount: BigNumber.from(fill.totalFilledAmount),
-          fillAmount: BigNumber.from(fill.fillAmount),
-          relayerFeePct: BigNumber.from(fill.relayerFeePct),
-          realizedLpFeePct: BigNumber.from(fill.realizedLpFeePct),
-          updatableRelayData: {
-            ...fill.updatableRelayData,
-            relayerFeePct: BigNumber.from(fill.updatableRelayData.relayerFeePct),
-            payoutAdjustmentPct: BigNumber.from(fill.updatableRelayData.payoutAdjustmentPct),
-          },
-        })),
-      }),
-      {}
-    );
-    this.refundRequests = (spokePoolClientState.refundRequests || []).map((refundRequest) => ({
-      ...refundRequest,
-      amount: BigNumber.from(refundRequest.amount),
-      realizedLpFeePct: BigNumber.from(refundRequest.realizedLpFeePct),
-      previousIdenticalRequests: BigNumber.from(refundRequest.previousIdenticalRequests),
-      fillBlock: BigNumber.from(refundRequest.fillBlock),
-    }));
-    this.isUpdated = true;
-  }
-
-  public toJSON() {
-    return {
-      chainId: this.chainId,
-      deploymentBlock: this.deploymentBlock,
-      eventSearchConfig: this.eventSearchConfig,
-
-      currentTime: this.currentTime,
-      depositHashes: JSON.parse(stringifyJSONWithNumericString(this.depositHashes)) as Record<
-        string,
-        DepositWithBlockStringified
-      >,
-      depositHashesToFills: JSON.parse(stringifyJSONWithNumericString(this.depositHashesToFills)) as Record<
-        string,
-        FillWithBlockStringified[]
-      >,
-      speedUps: JSON.parse(stringifyJSONWithNumericString(this.speedUps)) as {
-        [depositorAddress: string]: {
-          [depositId: number]: SpeedUpStringified[];
-        };
-      },
-      depositRoutes: this.depositRoutes,
-      tokensBridged: JSON.parse(stringifyJSONWithNumericString(this.tokensBridged)) as TokensBridgedStringified[],
-      rootBundleRelays: this.rootBundleRelays,
-      relayerRefundExecutions: JSON.parse(
-        stringifyJSONWithNumericString(this.relayerRefundExecutions)
-      ) as RelayerRefundExecutionWithBlockStringified[],
-      earlyDeposits: JSON.parse(stringifyJSONWithNumericString(this.earlyDeposits)) as FundsDepositedEventStringified[],
-      queryableEventNames: this.queryableEventNames,
-
-      earliestDepositIdQueried: this.earliestDepositIdQueried,
-      earliestDepositIdForSpokePool: this.firstDepositIdForSpokePool,
-      latestDepositIdQueried: this.latestDepositIdQueried,
-      latestDepositIdForSpokePool: this.lastDepositIdForSpokePool,
-      firstBlockToSearch: this.firstBlockToSearch,
-      latestBlockSearched: this.latestBlockSearched,
-      isUpdated: this.isUpdated,
-      fills: JSON.parse(stringifyJSONWithNumericString(this.fills)) as Record<string, FillWithBlockStringified[]>,
-      refundRequests: JSON.parse(
-        stringifyJSONWithNumericString(this.refundRequests)
-      ) as RefundRequestWithBlockStringified[],
-    };
   }
 }

@@ -1,5 +1,5 @@
 import { random } from "lodash";
-import { getCurrentTime, toBN, toBNWei } from "../utils";
+import { toBN, toBNWei } from "../utils";
 import {
   DepositWithBlock,
   FillWithBlock,
@@ -12,15 +12,12 @@ import {
   outflowIsRefund,
 } from "./";
 
-const now = getCurrentTime();
-
 const common = {
   depositId: random(1, 1000, false),
   amount: toBNWei(0.01),
   originChainId: 1,
   destinationChainId: 10,
   blockNumber: 1,
-  blockTimestamp: now,
   transactionIndex: 0,
   logIndex: 0,
   transactionHash: "",
@@ -32,7 +29,7 @@ const sampleDeposit = {
   recipient: "",
   originToken: "",
   relayerFeePct: toBNWei(0.0001),
-  quoteTimestamp: now,
+  quoteTimestamp: Math.floor(Date.now() / 1000),
   realizedLpFeePct: toBNWei(0.00001),
   destinationToken: "",
   quoteBlockNumber: 1,

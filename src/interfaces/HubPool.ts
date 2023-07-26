@@ -30,10 +30,6 @@ export interface ProposedRootBundle extends SortableEvent {
   proposer: string;
 }
 
-export type ProposedRootBundleStringified = Omit<ProposedRootBundle, "bundleEvaluationBlockNumbers"> & {
-  bundleEvaluationBlockNumbers: string[];
-};
-
 export interface CancelledRootBundle extends SortableEvent {
   disputer: string;
   requestTime: number;
@@ -54,16 +50,6 @@ export interface ExecutedRootBundle extends SortableEvent {
   l1Tokens: string[];
   proof: string[];
 }
-
-export type ExecutedRootBundleStringified = Omit<
-  ExecutedRootBundle,
-  "bundleLpFees" | "netSendAmounts" | "runningBalances" | "incentiveBalances"
-> & {
-  bundleLpFees: string[];
-  netSendAmounts: string[];
-  runningBalances: string[];
-  incentiveBalances: string[];
-};
 
 export type TokenRunningBalance = {
   runningBalance: BigNumber;

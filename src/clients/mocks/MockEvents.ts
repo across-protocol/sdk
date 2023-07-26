@@ -76,7 +76,6 @@ export class EventManager {
     const blockHash = id(`Across-v2-blockHash-${parentHash}-${random(1, 100_000)}`);
 
     // getBlock() may later be used to retrieve (for example) the block timestamp.
-    // @todo: If multiple events coincide on the same block number, this callback should return the same Block object.
     const getBlock = async (): Promise<Block> => {
       return {
         hash: blockHash,
