@@ -1,1 +1,1 @@
-export * from "./IPFSClient";
+export * from "./IPFS";

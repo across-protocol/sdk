@@ -1,16 +1,16 @@
-import { buildIPFSClient, retrieveValueFromIPFS, storeValueInIPFS } from "../utils/IPFSUtils";
-import { CachingMechanismInterface } from "../interfaces";
+import { buildIPFSClient, retrieveValueFromIPFS, storeValueInIPFS } from "../../utils/IPFSUtils";
+import { CachingMechanismInterface } from "../../interfaces";
 import { Struct } from "superstruct";
 import winston from "winston";
 import PinataClient from "@pinata/sdk";
-import { jsonReviverWithBigNumbers, jsonReplacerWithBigNumbers, formattedLog } from "../utils";
+import { jsonReviverWithBigNumbers, jsonReplacerWithBigNumbers, formattedLog } from "../../utils";
 
 /**
  * A client for interacting with the IPFS. This is a wrapper around the IPFS API.
  * This client also is a part of the caching mechanism interface.
  * @see https://docs.ipfs.io/reference/http/api/
  */
-export class IPFSClient implements CachingMechanismInterface {
+export class PinataIPFSClient implements CachingMechanismInterface {
   /**
    * The IPFS client instance
    */
