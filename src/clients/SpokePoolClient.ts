@@ -787,8 +787,7 @@ export class SpokePoolClient extends BaseAbstractClient {
         const rawRefundRequest = spreadEventWithBlockNumber(event) as RefundRequestWithBlock;
         const refundRequest: RefundRequestWithBlock = {
           ...rawRefundRequest,
-          // repaymentChainId is not part of the on-chain event, so add it here.
-          repaymentChainId: this.chainId,
+          repaymentChainId: this.chainId, // repaymentChainId is not part of the on-chain event, so add it here.
           blockTimestamp: blocks[event.blockNumber].timestamp,
         };
         this.refundRequests.push(refundRequest);
