@@ -73,24 +73,12 @@ export class IPFSClient implements CachingMechanismInterface {
   }
 
   /**
-   * Stores a value in the IPFS.
-   * @param key An optional key to store the value with. This is purely in the metadata of the CID.
-   * @param value The value to store.
-   * @returns Whether or not the value was stored.
-   * @note This method does not return the CID of the value stored. If you need the CID, use `setWithReturnID`.
-   */
-  async set<T>(_key: string, value: T): Promise<boolean> {
-    const result = await this.setWithReturnID(_key, value);
-    return result !== undefined;
-  }
-
-  /**
    * Stores a value in the IPFS and returns the CID of the value stored.
    * @param key An optional key to store the value with. This is purely in the metadata of the CID.
    * @param value The value to store.
    * @returns The CID of the value stored.
    */
-  setWithReturnID<T>(key: string, value: T): Promise<string | undefined> {
+  set<T>(key: string, value: T): Promise<string | undefined> {
     formattedLog(this.logger, {
       level: "debug",
       message: `Setting value from IPFS with key ${key}`,
