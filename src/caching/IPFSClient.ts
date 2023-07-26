@@ -1,14 +1,9 @@
-import {
-  buildIPFSClient,
-  jsonReplacerWithBigNumbers,
-  jsonReviverWithBigNumbers,
-  retrieveValueFromIPFS,
-  storeValueInIPFS,
-} from "../utils/IPFSUtils";
+import { buildIPFSClient, retrieveValueFromIPFS, storeValueInIPFS } from "../utils/IPFSUtils";
 import { CachingMechanismInterface } from "../interfaces";
 import { Struct } from "superstruct";
 import winston from "winston";
 import PinataClient from "@pinata/sdk";
+import { jsonReviverWithBigNumbers, jsonReplacerWithBigNumbers } from "../utils";
 
 /**
  * A client for interacting with the IPFS. This is a wrapper around the IPFS API.
