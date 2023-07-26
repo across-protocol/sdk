@@ -553,8 +553,13 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
         // its a bug.
 
         if (flow.matchedDeposit.realizedLpFeePct.eq(flow.realizedLpFeePct)) {
+          // If flow matched with a pre UBA deposit then the flow should accrue no balancing fees and not impact
+          // running balances so we should use the running balances from before the flow.
           return {
             ...newModifiedFlow,
+            runningBalance: latestRunningBalance,
+            incentiveBalance: latestIncentiveBalance,
+            netRunningBalanceAdjustment: latestNetRunningBalanceAdjustment,
             // Balancing fee for a pre UBA refund is 0
             balancingFee: ethers.constants.Zero,
             // Set realized LP fee for fill equal to the realized LP fee for the matched deposit.
