@@ -104,6 +104,10 @@ export class MockHubPoolClient extends HubPoolClient {
     return this.returnedL1TokenForDeposit ?? super.getL1TokenForDeposit(_deposit);
   }
 
+  getL1TokenInfoForL2Token(l2Token: string, _chain: number): L1Token {
+    return this.getTokenInfoForL1Token(l2Token) ?? this.tokenInfoToReturn;
+  }
+
   async _update(eventNames: string[]): Promise<HubPoolUpdate> {
     // Generate new "on chain" responses.
     const latestBlockNumber = this.eventManager.blockNumber;

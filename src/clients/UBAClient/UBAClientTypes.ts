@@ -1,6 +1,7 @@
 import { BigNumber } from "ethers";
-import { DepositWithBlock, FillWithBlock, UbaFlow } from "../../interfaces";
+import { DepositWithBlock, FillWithBlock, TokenRunningBalance, UbaFlow } from "../../interfaces";
 import { UBAActionType } from "../../UBAFeeCalculator/UBAFeeTypes";
+import UBAConfig from "../../UBAFeeCalculator/UBAFeeConfig";
 
 // @todo: Revert to this after bumping typescript: { valid: true, fill: FillWithBlock } | { valid: false, reason: string } ;
 export type RequestValidReturnType = {
@@ -29,13 +30,16 @@ export type UBAClientState = {
 };
 
 export type UBABundleTokenState = {
-  [tokenSymbol: string]: UBABundleState[];
+  [tokenSymbol: string]: (UBABundleState & { bundleBlockRanges: number[][] })[];
 };
 
 export type UBABundleState = {
-  bundleBlockRanges: number[][];
   flows: ModifiedUBAFlow[];
+  ubaConfig: UBAConfig;
+  openingBalances: TokenRunningBalance;
 };
+
+export type CachedUBABundleState = UBABundleState & { loadedFromCache: boolean };
 
 export type SpokePoolFillFilter = {
   relayer?: string;
