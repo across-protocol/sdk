@@ -22,14 +22,30 @@ export interface L1TokenTransferThreshold extends SortableEvent {
   l1Token: string;
 }
 
+export type L1TokenTransferThresholdStringified = Omit<L1TokenTransferThreshold, "transferThreshold"> & {
+  transferThreshold: string;
+};
+
 export interface SpokePoolTargetBalance {
   target: BigNumber;
   threshold: BigNumber;
 }
 
+export type SpokePoolTargetBalanceStringified = Omit<SpokePoolTargetBalance, "threshold" | "target"> & {
+  target: string;
+  threshold: string;
+};
+
 export interface SpokeTargetBalanceUpdate extends SortableEvent {
   spokeTargetBalances?: {
     [chainId: number]: SpokePoolTargetBalance;
+  };
+  l1Token: string;
+}
+
+export interface SpokeTargetBalanceUpdateStringified extends SortableEvent {
+  spokeTargetBalances?: {
+    [chainId: number]: SpokePoolTargetBalanceStringified;
   };
   l1Token: string;
 }
@@ -155,5 +171,13 @@ export type UBAParsedConfigType = UBAAgnosticConfigType<BigNumber>;
  */
 export type UBAConfigUpdates = SortableEvent & {
   config: UBAParsedConfigType;
+  l1Token: string;
+};
+
+/**
+ * A type for stringified UBAConfig Update events.
+ */
+export type UBASerializedConfigUpdates = SortableEvent & {
+  config: UBAOnChainConfigType;
   l1Token: string;
 };

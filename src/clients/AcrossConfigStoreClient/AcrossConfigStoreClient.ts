@@ -21,6 +21,7 @@ import winston from "winston";
 
 import {
   L1TokenTransferThreshold,
+  L1TokenTransferThresholdStringified,
   TokenConfig,
   GlobalConfigUpdate,
   ParsedTokenConfig,
@@ -31,11 +32,13 @@ import {
   DisabledChainsUpdate,
   UBAConfigUpdates,
   UBAParsedConfigType,
+  UBASerializedConfigUpdates,
+  SpokeTargetBalanceUpdateStringified,
 } from "../../interfaces";
 import { across } from "@uma/sdk";
 import { parseUBAConfigFromOnChain } from "./ConfigStoreParsingUtilities";
 import { BaseAbstractClient } from "../BaseAbstractClient";
-import { parseJSONWithNumericString } from "../../utils/JSONUtils";
+import { parseJSONWithNumericString, stringifyJSONWithNumericString } from "../../utils/JSONUtils";
 
 type _ConfigStoreUpdate = {
   success: true;
@@ -484,5 +487,103 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
       (config) => config.l1Token === l1TokenAddress && config.blockNumber <= blockNumber
     );
     return config?.config;
+  }
+
+  public updateFromJSON(configStoreClientState: Partial<ReturnType<AcrossConfigStoreClient["toJSON"]>>) {
+    const keysToUpdate = Object.keys(configStoreClientState);
+
+    this.logger.debug({
+      at: "ConfigStoreClient",
+      message: "Updating ConfigStoreClient from JSON",
+      keys: keysToUpdate,
+    });
+
+    if (keysToUpdate.length === 0) {
+      return;
+    }
+
+    const {
+      cumulativeRateModelUpdates = this.cumulativeRateModelUpdates,
+      cumulativeRouteRateModelUpdates = this.cumulativeRouteRateModelUpdates,
+      cumulativeMaxRefundCountUpdates = this.cumulativeMaxRefundCountUpdates,
+      cumulativeMaxL1TokenCountUpdates = this.cumulativeMaxL1TokenCountUpdates,
+      cumulativeConfigStoreVersionUpdates = this.cumulativeConfigStoreVersionUpdates,
+      cumulativeDisabledChainUpdates = this.cumulativeDisabledChainUpdates,
+      firstBlockToSearch = this.firstBlockToSearch,
+      hasLatestConfigStoreVersion = this.hasLatestConfigStoreVersion,
+      latestBlockNumber = this.latestBlockNumber,
+      ubaConfigUpdates,
+      cumulativeTokenTransferUpdates,
+      cumulativeSpokeTargetBalanceUpdates,
+    } = configStoreClientState;
+
+    this.cumulativeRateModelUpdates = cumulativeRateModelUpdates;
+    this.ubaConfigUpdates = ubaConfigUpdates
+      ? ubaConfigUpdates.map((update) => {
+          return {
+            ...update,
+            config: parseUBAConfigFromOnChain(update.config),
+          };
+        })
+      : this.ubaConfigUpdates;
+    this.cumulativeRouteRateModelUpdates = cumulativeRouteRateModelUpdates;
+    this.cumulativeTokenTransferUpdates = cumulativeTokenTransferUpdates
+      ? cumulativeTokenTransferUpdates.map((update) => {
+          return {
+            ...update,
+            transferThreshold: BigNumber.from(update.transferThreshold),
+          };
+        })
+      : this.cumulativeTokenTransferUpdates;
+    this.cumulativeMaxRefundCountUpdates = cumulativeMaxRefundCountUpdates;
+    this.cumulativeMaxL1TokenCountUpdates = cumulativeMaxL1TokenCountUpdates;
+    this.cumulativeSpokeTargetBalanceUpdates = cumulativeSpokeTargetBalanceUpdates
+      ? cumulativeSpokeTargetBalanceUpdates.map((update) => {
+          return {
+            ...update,
+            spokeTargetBalances: Object.entries(update.spokeTargetBalances || {}).reduce(
+              (acc, [chainId, { target, threshold }]) => ({
+                ...acc,
+                [chainId]: { target: BigNumber.from(target), threshold: BigNumber.from(threshold) },
+              }),
+              {}
+            ),
+          };
+        })
+      : [];
+    this.cumulativeConfigStoreVersionUpdates = cumulativeConfigStoreVersionUpdates;
+    this.cumulativeDisabledChainUpdates = cumulativeDisabledChainUpdates;
+    this.firstBlockToSearch = firstBlockToSearch;
+    this.hasLatestConfigStoreVersion = hasLatestConfigStoreVersion;
+    this.latestBlockNumber = latestBlockNumber;
+    this.rateModelDictionary.updateWithEvents(cumulativeRateModelUpdates);
+    this.isUpdated = true;
+  }
+
+  public toJSON() {
+    return {
+      eventSearchConfig: this.eventSearchConfig,
+      configStoreVersion: this.configStoreVersion,
+      enabledChainIds: this.enabledChainIds,
+
+      cumulativeRateModelUpdates: this.cumulativeRateModelUpdates,
+      ubaConfigUpdates: JSON.parse(
+        stringifyJSONWithNumericString(this.ubaConfigUpdates)
+      ) as UBASerializedConfigUpdates[],
+      cumulativeRouteRateModelUpdates: this.cumulativeRouteRateModelUpdates,
+      cumulativeTokenTransferUpdates: JSON.parse(
+        stringifyJSONWithNumericString(this.cumulativeTokenTransferUpdates)
+      ) as L1TokenTransferThresholdStringified[],
+      cumulativeMaxRefundCountUpdates: this.cumulativeMaxRefundCountUpdates,
+      cumulativeMaxL1TokenCountUpdates: this.cumulativeMaxL1TokenCountUpdates,
+      cumulativeSpokeTargetBalanceUpdates: JSON.parse(
+        stringifyJSONWithNumericString(this.cumulativeSpokeTargetBalanceUpdates)
+      ) as SpokeTargetBalanceUpdateStringified[],
+      cumulativeConfigStoreVersionUpdates: this.cumulativeConfigStoreVersionUpdates,
+      cumulativeDisabledChainUpdates: this.cumulativeDisabledChainUpdates,
+      firstBlockToSearch: this.firstBlockToSearch,
+      latestBlockNumber: this.latestBlockNumber,
+      hasLatestConfigStoreVersion: this.hasLatestConfigStoreVersion,
+    };
   }
 }
