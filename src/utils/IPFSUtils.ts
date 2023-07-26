@@ -18,11 +18,14 @@ export async function retrieveValueFromIPFS(
 ): Promise<string | undefined> {
   try {
     const result = await axios.get(`${publicGatewayURL}/ipfs/${contentHash}`, {
+      // We need to set the Accept header to text/plain to avoid
+      // any anomalies with the response
       headers: {
         Accept: "text/plain",
       },
+      // We want just the raw response, not the parsed response
+      transformResponse: (r) => r,
     });
-    console.log(result.data);
     return result.data;
   } catch (e) {
     return undefined;
