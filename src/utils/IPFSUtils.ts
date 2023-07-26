@@ -33,11 +33,16 @@ export async function retrieveValueFromIPFS(contentHash: string, publicGatewayUR
 
 /**
  * Pins a value to the IPFS network
+ * @param key A key to use for pinning the value. This is a metadata field.
  * @param content The value to pin
  * @param client The IPFS client to use
  * @returns The content hash of the pinned value
  */
-export async function storeValueInIPFS(content: string, client: PinataClient): Promise<string> {
-  const result = await client.pinJSONToIPFS(JSON.parse(content));
+export async function storeValueInIPFS(key: string, content: string, client: PinataClient): Promise<string> {
+  const result = await client.pinJSONToIPFS(JSON.parse(content), {
+    pinataMetadata: {
+      name: key,
+    },
+  });
   return result.IpfsHash;
 }

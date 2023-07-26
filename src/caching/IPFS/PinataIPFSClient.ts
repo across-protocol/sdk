@@ -87,6 +87,6 @@ export class PinataIPFSClient implements CachingMechanismInterface {
         function: "setWithReturnID",
       },
     });
-    return storeValueInIPFS(JSON.stringify(value, jsonReplacerWithBigNumbers), this.client);
+    return storeValueInIPFS(key, JSON.stringify(value, jsonReplacerWithBigNumbers), this.client);
   }
 }
