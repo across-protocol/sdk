@@ -15,26 +15,20 @@ export function buildIPFSClient(APIKey: string, secretAPIKey: string): PinataCli
  * Retrieves a value from an IPFS gateway
  * @param contentHash The content hash of the value to retrieve
  * @param publicGatewayURL The URL of the public IPFS gateway to use
- * @returns The value, or undefined if it could not be retrieved
+ * @returns The value retrieved from the IPFS gateway
+ * @throws Error if the value could not be retrieved
  */
-export async function retrieveValueFromIPFS(
-  contentHash: string,
-  publicGatewayURL: string
-): Promise<string | undefined> {
-  try {
-    const result = await axios.get(`${publicGatewayURL}/ipfs/${contentHash}`, {
-      // We need to set the Accept header to text/plain to avoid
-      // any anomalies with the response
-      headers: {
-        Accept: "text/plain",
-      },
-      // We want just the raw response, not the parsed response
-      transformResponse: (r) => r,
-    });
-    return result.data;
-  } catch (e) {
-    return undefined;
-  }
+export async function retrieveValueFromIPFS(contentHash: string, publicGatewayURL: string): Promise<string> {
+  const result = await axios.get(`${publicGatewayURL}/ipfs/${contentHash}`, {
+    // We need to set the Accept header to text/plain to avoid
+    // any anomalies with the response
+    headers: {
+      Accept: "text/plain",
+    },
+    // We want just the raw response, not the parsed response
+    transformResponse: (r) => r,
+  });
+  return result.data;
 }
 
 /**
