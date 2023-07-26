@@ -1,6 +1,5 @@
 import PinataClient from "@pinata/sdk";
 import axios from "axios";
-import { BigNumber } from "ethers";
 
 /**
  * Build an IPFS client for interacting with the IPFS API
@@ -47,38 +46,4 @@ export async function retrieveValueFromIPFS(
 export async function storeValueInIPFS(content: string, client: PinataClient): Promise<string> {
   const result = await client.pinJSONToIPFS(JSON.parse(content));
   return result.IpfsHash;
-}
-
-/**
- * A replacer for use in `JSON.stringify` that converts big numbers to numeric strings.
- * @param _key Unused
- * @param value The value to convert
- * @returns The converted value
- */
-export function jsonReplacerWithBigNumbers(_key: string, value: unknown): unknown {
-  // We need to check if this is a big number, because the JSON parser
-  // is not aware of BigNumbers and will convert them to the string representation
-  // of the object itself which is not what we want.
-  if (value instanceof BigNumber) {
-    return value.toString();
-  }
-  return value;
-}
-
-/**
- * A reviver for use in `JSON.parse` that converts numeric strings to big numbers.
- * @param _key Unused
- * @param value The value to convert
- * @returns The converted value
- */
-export function jsonReviverWithBigNumbers(_key: string, value: unknown): unknown {
-  // We need to check for both strings and big numbers, because the JSON parser
-  // is not aware of BigNumbers.
-  if (typeof value === "string" && /^-?\d+$/.test(value)) {
-    const bigNumber = BigNumber.from(value);
-    if (bigNumber.toString() === value) {
-      return bigNumber;
-    }
-  }
-  return value;
 }
