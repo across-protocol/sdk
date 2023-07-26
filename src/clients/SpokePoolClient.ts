@@ -1,9 +1,11 @@
+import { providers } from "ethers";
 import { groupBy } from "lodash";
 import {
   assign,
   EventSearchConfig,
   DefaultLogLevels,
   MakeOptional,
+  mapAsync,
   AnyObject,
   MAX_BIG_INT,
   stringifyJSONWithNumericString,
@@ -45,6 +47,8 @@ import { ZERO_ADDRESS } from "../constants";
 import { getNetworkName } from "../utils/NetworkUtils";
 import { BaseAbstractClient } from "./BaseAbstractClient";
 
+type Block = providers.Block;
+
 type _SpokePoolUpdate = {
   success: boolean;
   currentTime: number;
@@ -52,6 +56,7 @@ type _SpokePoolUpdate = {
   latestBlockNumber: number;
   latestDepositId: number;
   events: Event[][];
+  blocks: { [blockNumber: number]: Block };
   searchEndBlock: number;
 };
 export type SpokePoolUpdate = { success: false } | _SpokePoolUpdate;
@@ -607,6 +612,26 @@ export class SpokePoolClient extends BaseAbstractClient {
     // Sort all events to ensure they are stored in a consistent order.
     events.forEach((events: Event[]) => sortEventsAscendingInPlace(events));
 
+    // Collate the relevant set of block numbers and filter for uniqueness, then query each corresponding block.
+    const blockNumbers = Array.from(
+      new Set(
+        ["FundsDeposited", "FilledRelay", "RefundRequested"]
+          .filter((eventName) => eventsToQuery.includes(eventName))
+          .map((eventName) => {
+            const idx = eventsToQuery.indexOf(eventName);
+            // tsc needs type hints on this map...
+            return (events[idx] as Event[]).map(({ blockNumber }) => blockNumber);
+          })
+          .flat()
+      )
+    );
+    const blocks = Object.fromEntries(
+      await mapAsync(blockNumbers, async (blockNumber) => {
+        const block = await this.spokePool.provider.getBlock(blockNumber);
+        return [blockNumber, block];
+      })
+    );
+
     return {
       success: true,
       currentTime: currentTime.toNumber(), // uint32
@@ -615,6 +640,7 @@ export class SpokePoolClient extends BaseAbstractClient {
       latestDepositId: Math.max(numberOfDeposits - 1, 0),
       searchEndBlock: searchConfig.toBlock,
       events,
+      blocks,
     };
   }
 
@@ -638,7 +664,7 @@ export class SpokePoolClient extends BaseAbstractClient {
       // understand why we see this in test. @todo: Resolve.
       return;
     }
-    const { events: queryResults, currentTime } = update;
+    const { events: queryResults, blocks, currentTime } = update;
 
     if (eventsToQuery.includes("TokensBridged")) {
       for (const event of queryResults[eventsToQuery.indexOf("TokensBridged")]) {
@@ -687,16 +713,18 @@ export class SpokePoolClient extends BaseAbstractClient {
           earliestEvent: depositEvents[0].blockNumber,
         });
       }
-      for (const [index, event] of Array.from(depositEvents.entries())) {
-        // Append the realizedLpFeePct.
-        const partialDeposit = spreadEventWithBlockNumber(event) as DepositWithBlock;
 
-        // Append destination token and realized lp fee to deposit.
+      for (const [index, event] of Array.from(depositEvents.entries())) {
+        const rawDeposit = spreadEventWithBlockNumber(event) as DepositWithBlock;
+
+        // Derive and append the destination token, LP fee, quote block number and block timestamp from the event.
+        // @dev Deposit events may _also_ include early deposits, in which case we did not retrieve a block.
         const deposit: DepositWithBlock = {
-          ...partialDeposit,
+          ...rawDeposit,
           realizedLpFeePct: dataForQuoteTime[index].realizedLpFeePct,
-          destinationToken: this.getDestinationTokenForDeposit(partialDeposit),
+          destinationToken: this.getDestinationTokenForDeposit(rawDeposit),
           quoteBlockNumber: dataForQuoteTime[index].quoteBlock,
+          blockTimestamp: blocks[event.blockNumber]?.timestamp ?? (await event.getBlock()).timestamp,
         };
 
         assign(this.depositHashes, [this.getDepositHash(deposit)], deposit);
@@ -734,7 +762,11 @@ export class SpokePoolClient extends BaseAbstractClient {
         });
       }
       for (const event of fillEvents) {
-        const fill = spreadEventWithBlockNumber(event) as FillWithBlock;
+        const rawFill = spreadEventWithBlockNumber(event) as FillWithBlock;
+        const fill: FillWithBlock = {
+          ...rawFill,
+          blockTimestamp: blocks[event.blockNumber].timestamp,
+        };
         assign(this.fills, [fill.originChainId], [fill]);
         assign(this.depositHashesToFills, [this.getDepositHash(fill)], [fill]);
       }
@@ -751,12 +783,14 @@ export class SpokePoolClient extends BaseAbstractClient {
           earliestEvent: refundRequests[0].blockNumber,
         });
       }
-      // repaymentChainId is not part of the on-chain event, so add it here.
-      for (const refundRequest of refundRequests) {
-        this.refundRequests.push({
-          ...spreadEventWithBlockNumber(refundRequest),
-          repaymentChainId: this.chainId,
-        } as RefundRequestWithBlock);
+      for (const event of refundRequests) {
+        const rawRefundRequest = spreadEventWithBlockNumber(event) as RefundRequestWithBlock;
+        const refundRequest: RefundRequestWithBlock = {
+          ...rawRefundRequest,
+          repaymentChainId: this.chainId, // repaymentChainId is not part of the on-chain event, so add it here.
+          blockTimestamp: blocks[event.blockNumber].timestamp,
+        };
+        this.refundRequests.push(refundRequest);
       }
     }
 

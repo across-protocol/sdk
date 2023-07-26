@@ -24,6 +24,7 @@ export interface Deposit {
 }
 
 export interface DepositWithBlock extends Deposit, SortableEvent {
+  blockTimestamp: number;
   quoteBlockNumber: number;
 }
 
@@ -69,7 +70,9 @@ export interface Fill {
   updatableRelayData: RelayExecutionInfo;
 }
 
-export interface FillWithBlock extends Fill, SortableEvent {}
+export interface FillWithBlock extends Fill, SortableEvent {
+  blockTimestamp: number;
+}
 
 export type FillWithBlockStringified = Omit<
   FillWithBlock,
@@ -131,7 +134,9 @@ export interface RefundRequest {
   previousIdenticalRequests: BigNumber;
 }
 
-export interface RefundRequestWithBlock extends RefundRequest, SortableEvent {}
+export interface RefundRequestWithBlock extends RefundRequest, SortableEvent {
+  blockTimestamp: number;
+}
 
 export type RefundRequestWithBlockStringified = Omit<
   RefundRequestWithBlock,

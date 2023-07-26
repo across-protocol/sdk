@@ -98,6 +98,7 @@ export class UBAClientWithRefresh extends BaseUBAClient {
       // Unused params:
       recipient: "",
       depositId: 0,
+      blockTimestamp: 0,
       relayerFeePct: ethers.constants.Zero,
       quoteTimestamp: 0,
       destinationToken: "",
