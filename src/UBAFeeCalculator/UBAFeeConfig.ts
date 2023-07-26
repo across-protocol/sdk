@@ -3,6 +3,7 @@ import { ThresholdBoundType, FlowTupleParameters } from "./UBAFeeTypes";
 import { CHAIN_ID_LIST_INDICES } from "../constants";
 import { stringifyJSONWithNumericString } from "../utils/JSONUtils";
 import { fixedPointAdjustment } from "../utils";
+import { assertValidityOfFeeCurve } from "./UBAFeeUtility";
 
 type ChainId = number;
 type RouteCombination = string;
@@ -76,6 +77,30 @@ class UBAConfig {
     this.lpGammaFunction = lpGammaFunction;
     this.incentivePoolAdjustment = incentivePoolAdjustment;
     this.ubaRewardMultiplier = ubaRewardMultiplier;
+
+    // Validate the config
+    this.assertValidityOfAllFeeCurves();
+  }
+
+  /**
+   * Assert the validity of all fee curves. This is a helper function
+   * that is called in the constructor to ensure that all fee curves
+   * are valid.
+   */
+  private assertValidityOfAllFeeCurves(): void {
+    // Find all the fee curves that could possibiliy be used
+    // in the UBA fee calculation. Specifically, these are the
+    // balancing fee curve and the lp gamma function curve. The
+    // curves are available for all overrides as well as their
+    // default counterparts.
+    const allBalancingFlows = [
+      this.balancingFee.default,
+      ...Object.values(this.balancingFee.override ?? {}),
+      this.lpGammaFunction.default,
+      ...Object.values(this.lpGammaFunction.override ?? {}),
+    ];
+    // Iterate through each curve and assert that it is valid
+    allBalancingFlows.forEach(assertValidityOfFeeCurve);
   }
 
   /**

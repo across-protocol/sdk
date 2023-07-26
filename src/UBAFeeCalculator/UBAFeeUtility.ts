@@ -1,6 +1,7 @@
 import { BigNumber } from "ethers";
 import { MAX_SAFE_JS_INT } from "@uma/common/dist/Constants";
 import { fixedPointAdjustment, toBN } from "../utils";
+import { FlowTupleParameters } from "./UBAFeeTypes";
 
 /**
  * Computes a linear integral over a piecewise function
@@ -298,3 +299,29 @@ export const balancingFeeFunctionLookupMapping = {
   inflow: getDepositBalancingFee,
   outflow: getRefundBalancingFee,
 };
+
+/**
+ * Asserts that the fee curve is valid per the UBA specification.
+ * @param feeCurve The fee curve whose validity we are asserting
+ * @throws An error if the fee curve is invalid
+ * @note This function is only testing for structural validity. It does not test for
+ *       the validity of the parameters of the fee curve.
+ */
+export function assertValidityOfFeeCurve(feeCurve: FlowTupleParameters): void {
+  // Ensure that the fee curve has at least one element
+  if (feeCurve.length === 0) {
+    throw new Error("Balancing fee curve must have at least one point");
+  }
+  // Ensure that the fee curve has tuples of length 2
+  if (feeCurve.some((tuple) => tuple.length !== 2)) {
+    throw new Error("Balancing fee curve must be a list of tuples");
+  }
+  // Ensure that there is a zero point in the fee curve
+  if (!feeCurve.some((tuple) => tuple[1].eq(0))) {
+    throw new Error("Balancing fee curve must have a zero point");
+  }
+  // Ensure that the x values are monotonically increasing
+  if (feeCurve.some((tuple, idx, arr) => idx > 0 && tuple[0].lte(arr[idx - 1][0]))) {
+    throw new Error("Balancing fee curve must have strictly increasing x values");
+  }
+}
