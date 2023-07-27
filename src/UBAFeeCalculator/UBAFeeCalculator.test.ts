@@ -47,7 +47,7 @@ describe("UBA Fee Calculations", () => {
           upperBound: { target: toBN("0"), threshold: toBN("0") },
         },
       },
-      { default: [[toBN("0"), parseUnits("0", 18)]] },
+      { default: [[toBN("0"), toBN("0")]] },
       {},
       {}
     );

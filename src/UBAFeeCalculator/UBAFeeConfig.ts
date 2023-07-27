@@ -62,7 +62,6 @@ class UBAConfig {
    * @param lpGammaFunction A record of piecewise functions for each chain that define the utilization fee to ensure that the bridge responds to periods of high utilization
    * @param incentivePoolAdjustment A DAO controlled variable to track any donations made to the incentivePool liquidity
    * @param ubaRewardMultiplier Used to scale rewards when a fee is larger than the incentive balance
-   * @param assertValidityOfFeeCurves Assert the validity of all fee curves. If true, this will throw an error if any of the fee curves are invalid. If false, this will not throw an error if any of the fee curves are invalid.
    * @throws Error if any of the fee curves are invalid and assertValidityOfFeeCurves is true
    */
   constructor(
