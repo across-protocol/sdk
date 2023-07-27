@@ -1,12 +1,14 @@
 import assert from "assert";
-import { Contract, Event, ethers } from "ethers";
+import { Contract, Event, ethers, providers } from "ethers";
 import { random } from "lodash";
 import winston from "winston";
 import { ZERO_ADDRESS } from "../../constants";
 import { DepositWithBlock, FillWithBlock, RefundRequestWithBlock } from "../../interfaces";
-import { toBN, toBNWei, randomAddress } from "../../utils";
+import { toBN, toBNWei, forEachAsync, randomAddress } from "../../utils";
 import { SpokePoolClient, SpokePoolUpdate } from "../SpokePoolClient";
 import { EventManager, getEventManager } from "./MockEvents";
+
+type Block = providers.Block;
 
 // This class replaces internal SpokePoolClient functionality, enabling the
 // user to bypass on-chain queries and inject ethers Event objects directly.
@@ -68,13 +70,16 @@ export class MockSpokePoolClient extends SpokePoolClient {
     const latestBlockNumber = this.eventManager.blockNumber;
     const currentTime = Math.floor(Date.now() / 1000);
 
+    const blocks: { [blockNumber: number]: Block } = {};
+
     // Ensure an array for every requested event exists, in the requested order.
     // All requested event types must be populated in the array (even if empty).
     const events: Event[][] = eventsToQuery.map(() => []);
-    this.events.flat().forEach((event) => {
+    await forEachAsync(this.events.flat(), async (event) => {
       const idx = eventsToQuery.indexOf(event.event as string);
       if (idx !== -1) {
         events[idx].push(event);
+        blocks[event.blockNumber] = await event.getBlock();
       }
     });
     this.events = [];
@@ -92,8 +97,8 @@ export class MockSpokePoolClient extends SpokePoolClient {
       latestBlockNumber,
       latestDepositId,
       currentTime,
-      blocks: [],
       events,
+      blocks,
       searchEndBlock: this.eventSearchConfig.toBlock || latestBlockNumber,
     };
   }
