@@ -379,15 +379,15 @@ export async function getMatchedDeposit(
   return validateFillForDeposit(fill, deposit, fillFieldsToIgnore) ? deposit : undefined;
 }
 
-export function isUBAActivatedAtBlock(hubPoolClient: HubPoolClient, block: number): boolean {
+export function isUBAActivatedAtBlock(hubPoolClient: HubPoolClient, block: number, chain: number): boolean {
   try {
     const ubaActivationBlocks = getUbaActivationBundleStartBlocks(hubPoolClient);
-    const mainnetUbaActivationStartBlock = getBlockForChain(
+    const ubaActivationStartBlockForChain = getBlockForChain(
       ubaActivationBlocks,
-      hubPoolClient.chainId,
+      chain,
       hubPoolClient.configStoreClient.enabledChainIds
     );
-    return block >= mainnetUbaActivationStartBlock;
+    return block >= ubaActivationStartBlockForChain;
   } catch (err) {
     // UBA not activated yet or hub pool client not updated
     return false;

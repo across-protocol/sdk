@@ -11,7 +11,6 @@ import {
   BigNumberish,
   getImpliedBundleBlockRanges,
   getBlockRangeForChain,
-  getBlockForChain,
 } from "../utils";
 import {
   fetchTokenInfo,
@@ -273,19 +272,8 @@ export class HubPoolClient extends BaseAbstractClient {
       throw new Error(`Could not find block for timestamp ${deposit.quoteTimestamp}`);
     }
 
-    // To determine if a deposit should be applied a UBA fee, we need to check the *hub chain* start block of the bundle
-    // that would contain this deposit.
-    const bundleStartBlockContainingDeposit = this.getBundleStartBlocksForProposalContainingBlock(
-      deposit.blockNumber,
-      deposit.originChainId,
-      this.latestBlockNumber
-    );
-    const depositMainnetStartBlock = getBlockForChain(
-      bundleStartBlockContainingDeposit,
-      this.chainId,
-      this.configStoreClient.enabledChainIds
-    );
-    if (isUBAActivatedAtBlock(this, depositMainnetStartBlock)) {
+    // Compare deposit block against UBA bundle start blocks.
+    if (isUBAActivatedAtBlock(this, deposit.blockNumber, deposit.originChainId)) {
       // If UBA deposit then we can't compute the realizedLpFeePct until after we've updated the UBA Client.
       return {
         realizedLpFeePct: undefined,

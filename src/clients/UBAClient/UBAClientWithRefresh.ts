@@ -414,16 +414,6 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
           lpFee: validatedFlow.lpFee.toString(),
         });
         this.appendValidatedFlowsToClassState(flowChain, tokenSymbol, [validatedFlow], blockRanges);
-
-        // We can now set the realizedLpFeePct for the deposit in the SpokePoolClient, which was not
-        // known to the SpokePoolClient at the time it queried the deposit.
-        if (isUbaOutflow(validatedFlow.flow) && !isDefined(validatedFlow.flow.matchedDeposit.realizedLpFeePct)) {
-          console.log("👾 Validated outflow, updating its matched deposit's realizedLpFeePct");
-          this.spokePoolClients[validatedFlow.flow.matchedDeposit.originChainId].updateDepositRealizedLpFeePct(
-            validatedFlow.flow.matchedDeposit,
-            validatedFlow.flow.realizedLpFeePct
-          );
-        }
       } else {
         console.log("Invalidated flow ❌");
       }
@@ -840,7 +830,7 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
       return blockRangeForChain[0] <= flowBlock && flowBlock <= blockRangeForChain[1];
     });
     if (!blockRangesContainingFlow) {
-      throw new Error("Could not find bundle block range containing flow");
+      throw new Error(`Could not find bundle block range containing flow at block ${flowBlock} on chain ${flowChain}`);
     }
     return blockRangesContainingFlow;
   }
@@ -1027,7 +1017,27 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
       });
     }
 
-    // Now load into ubaClientState. This way the caller now can access bundle states two ways:
+    // For each validated outflow, update its matched deposit's realizedLpFeePct in the spoke pool client:
+    for (let i = 0; i < this.ubaBundleBlockRanges.length; i++) {
+      const mostRecentBundleBlockRanges = this.ubaBundleBlockRanges[i];
+      this.chainIdIndices.forEach((chainId) => {
+        tokens.forEach((token) => {
+          const modifiedFlowsInBundle = this.getBundleState(mostRecentBundleBlockRanges, token, chainId).flows;
+          modifiedFlowsInBundle.forEach(({ flow }) => {
+            // We can now set the realizedLpFeePct for the deposit in the SpokePoolClient, which was not
+            // known to the SpokePoolClient at the time it queried the deposit.
+            if (isUbaOutflow(flow) && !isDefined(flow.matchedDeposit.realizedLpFeePct)) {
+              this.spokePoolClients[flow.matchedDeposit.originChainId].updateDepositRealizedLpFeePct(
+                flow.matchedDeposit,
+                flow.realizedLpFeePct
+              );
+            }
+          });
+        });
+      });
+    }
+
+    // At last, load into ubaClientState. This way the caller now can access bundle states two ways:
     // via ubaCientState or via ubaBundleState.
     this.ubaClientState = newUbaClientState;
     this.isUpdated = true;
