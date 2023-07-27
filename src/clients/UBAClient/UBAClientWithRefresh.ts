@@ -918,13 +918,12 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
 
     // Load latest timestamps per chain:
     const latestTimestampsPerChain = Object.fromEntries(
-      (
-        await mapAsync(this.chainIdIndices, async (chainId) => {
+      this.chainIdIndices
+        .map((chainId) => {
           if (!isDefined(this.spokePoolClients[chainId])) return undefined;
-          const spokeProvider = this.spokePoolClients[chainId].spokePool.provider;
-          return [chainId, (await spokeProvider.getBlock(await spokeProvider.getBlockNumber())).timestamp];
+          return [chainId, this.spokePoolClients[chainId].getCurrentTime()];
         })
-      ).filter(isDefined)
+        .filter(isDefined)
     );
     this.latestBlockTimestamps = latestTimestampsPerChain;
     console.log("Latest block timestamps per chain", this.latestBlockTimestamps);
