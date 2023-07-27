@@ -19,13 +19,13 @@ class UBAConfig {
   /**
    * A baseline fee that is applied to all transactions to allow LPs to earn a fee
    */
-  protected readonly baselineFee: DefaultOverrideStructure<BigNumber, RouteCombination>;
+  protected baselineFee: DefaultOverrideStructure<BigNumber, RouteCombination>;
   /**
    * A record of piecewise functions for each chain and token that define the balancing fee to ensure
    * either a positive or negative penalty to bridging a token to a chain that is either under or
    * over utilized
    */
-  protected readonly balancingFee: DefaultOverrideStructure<FlowTupleParameters, ChainId>;
+  protected balancingFee: DefaultOverrideStructure<FlowTupleParameters, ChainId>;
 
   /**
    * A record of boundry values for each chain and token that define the threshold for when the
@@ -34,24 +34,24 @@ class UBAConfig {
    * protocol, the threshold must be computed based on the current running balance of the spoke from
    * the last validated running balance.
    */
-  protected readonly balanceTriggerThreshold: DefaultOverrideStructure<ThresholdBoundType, ChainTokenCombination>;
+  protected balanceTriggerThreshold: DefaultOverrideStructure<ThresholdBoundType, ChainTokenCombination>;
 
   /**
    * A record of piecewise functions for each chain that define the utilization fee to ensure that
    * the bridge responds to periods of high utilization. We can integrate over this function to
    * find the realized lp percent fee.
    */
-  protected readonly lpGammaFunction: DefaultOverrideStructure<FlowTupleParameters, ChainId>;
+  protected lpGammaFunction: DefaultOverrideStructure<FlowTupleParameters, ChainId>;
 
   /**
    * A DAO controlled variable to track any donations made to the incentivePool liquidity
    */
-  protected readonly incentivePoolAdjustment: Record<string, BigNumber>;
+  protected incentivePoolAdjustment: Record<string, BigNumber>;
 
   /**
    * Used to scale rewards when a fee is larger than the incentive balance
    */
-  protected readonly ubaRewardMultiplier: Record<string, BigNumber>;
+  protected ubaRewardMultiplier: Record<string, BigNumber>;
 
   /**
    * Instantiate a new UBA Config object
