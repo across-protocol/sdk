@@ -37,6 +37,7 @@ import { analog } from "../../UBAFeeCalculator";
 import { getDepositFee, getRefundFee } from "../../UBAFeeCalculator/UBAFeeSpokeCalculatorAnalog";
 import { BigNumber, ethers } from "ethers";
 import { BaseAbstractClient } from "../BaseAbstractClient";
+import UBAConfig from "../../UBAFeeCalculator/UBAFeeConfig";
 
 /**
  * @notice This class reconstructs UBA bundle data for every bundle that has been created since the
@@ -231,12 +232,28 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
    * @param chainId
    * @returns
    */
-  // public getLatestBundleState(tokenSymbol: string, chain: number): {
-  //   flows: ModifiedUBAFlow[],
-  //   ubaConfig: UBAConfig
-  // } {
+  public getLatestBundleState(
+    tokenSymbol: string,
+    chainId: number
+  ): {
+    flows: ModifiedUBAFlow[];
+    ubaConfig: UBAConfig;
+  } {
+    this.assertUpdated();
 
-  // }
+    const latestBlockRange = this.ubaBundleBlockRanges.at(-1);
+    if (!latestBlockRange) {
+      throw new Error("No block ranges stored, have you updated this client?");
+    }
+
+    const lastBundleState = this.getBundleState(latestBlockRange, tokenSymbol, chainId);
+    const ubaConfig = lastBundleState.ubaConfig;
+
+    return {
+      flows: lastBundleState.flows,
+      ubaConfig,
+    };
+  }
 
   // /////////////////
   //
@@ -556,7 +573,7 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
           // If flow matched with a pre UBA deposit then the flow should accrue no balancing fees and not impact
           // running balances so we should use the running balances from before the flow.
           return {
-            ...newModifiedFlow,
+            flow,
             runningBalance: latestRunningBalance,
             incentiveBalance: latestIncentiveBalance,
             netRunningBalanceAdjustment: latestNetRunningBalanceAdjustment,
