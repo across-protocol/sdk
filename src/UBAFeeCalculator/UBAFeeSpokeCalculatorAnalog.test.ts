@@ -11,7 +11,8 @@ describe("UBAFeeSpokeCalculatorAnalog", () => {
     },
     {
       default: [
-        [toBN(0), toBN(0)],
+        [toBN(-1), toBN(0)],
+        // Hardcode the config to be 200% as a fee for all flows
         [toBN(0), parseEther("2")],
       ],
     },
@@ -105,7 +106,8 @@ describe("UBAFeeSpokeCalculatorAnalog", () => {
             },
             {
               default: [
-                [toBN(0), toBN(0)],
+                [toBN(-1), toBN(0)],
+                // Hardcode the config to be 200% as a fee for all flows
                 [toBN(0), parseEther("2")],
               ],
             },
