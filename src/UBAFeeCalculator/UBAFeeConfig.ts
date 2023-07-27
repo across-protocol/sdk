@@ -95,14 +95,11 @@ class UBAConfig {
     // balancing fee curve and the lp gamma function curve. The
     // curves are available for all overrides as well as their
     // default counterparts.
-    const allBalancingFlows = [
-      this.balancingFee.default,
-      ...Object.values(this.balancingFee.override ?? {}),
-      this.lpGammaFunction.default,
-      ...Object.values(this.lpGammaFunction.override ?? {}),
-    ];
+    const omega = [this.balancingFee.default, ...Object.values(this.balancingFee.override ?? {})];
+    const gamma = [this.lpGammaFunction.default, ...Object.values(this.lpGammaFunction.override ?? {})];
     // Iterate through each curve and assert that it is valid
-    allBalancingFlows.forEach(assertValidityOfFeeCurve);
+    omega.forEach((f) => assertValidityOfFeeCurve(f, true));
+    gamma.forEach((f) => assertValidityOfFeeCurve(f, false));
   }
 
   /**
