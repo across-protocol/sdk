@@ -5,7 +5,7 @@ import { HubPoolClient } from "../HubPoolClient";
 import {
   getBundleKeyForBlockRanges,
   getFlowChain,
-  getFlows,
+  getUBAFlows,
   getMatchingFlow,
   getMostRecentBundleBlockRanges,
   getOpeningRunningBalanceForEvent,
@@ -321,8 +321,8 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
             return [];
           }
 
-          // TODO: Cache this getFlows result to make more performant.
-          const flows = await getFlows(
+          // TODO: Cache this result to make more performant.
+          const flows = await getUBAFlows(
             tokenSymbol,
             chainId,
             this.spokePoolClients,
@@ -540,7 +540,7 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
         throw new Error("Outflow has undefined realizedLpFeePct");
       }
 
-      // ASSUMPTION: the flow is already matched against a deposit by `getFlows` when comparing
+      // ASSUMPTION: the flow is already matched against a deposit by `getUBAFlows` when comparing
       // all params besides `realizedLpFeePct`.
 
       // We need to make sure that the matched deposit is not a pre UBA deposit. Only pre UBA deposits
@@ -1027,9 +1027,16 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
               const lastFlow = flows.at(-1);
               if (!isDefined(lastFlow)) return undefined;
 
-              const fills = flows.filter(({ flow }) => isUbaOutflow(flow) && outflowIsFill(flow));
+              // Filter out outflows matched with pre UBA deposits from the list
+              const fills = flows.filter(
+                ({ flow }) =>
+                  isUbaOutflow(flow) && outflowIsFill(flow) && flow.matchedDeposit.realizedLpFeePct === undefined
+              );
               const deposits = flows.filter(({ flow }) => isUbaInflow(flow));
-              const refunds = flows.filter(({ flow }) => isUbaOutflow(flow) && outflowIsRefund(flow));
+              const refunds = flows.filter(
+                ({ flow }) =>
+                  isUbaOutflow(flow) && outflowIsRefund(flow) && flow.matchedDeposit.realizedLpFeePct === undefined
+              );
 
               const inflows = deposits.reduce((sum, { flow }) => {
                 sum = sum.add(flow.amount);

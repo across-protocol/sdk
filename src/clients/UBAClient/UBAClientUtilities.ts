@@ -459,7 +459,9 @@ export function getFlowChain(flow: UbaFlow): number {
 }
 
 /**
- * Retrieves the flows for a given chainId.
+ * Retrieves the flows for a given chainId. This is designed only to work with UBA start and end blocks as
+ * the realizedLpFeePct for deposits is not compared against fills. Retrieving any "Pre UBA" deposits with
+ * defined realizedLpFeePct will cause this function to throw.
  * @param chainId The chainId to retrieve flows for
  * @param chainIdIndices The chainIds of the spoke pools that align with the spoke pool clients
  * @param spokePoolClients A mapping of chainIds to spoke pool clients
@@ -469,7 +471,7 @@ export function getFlowChain(flow: UbaFlow): number {
  * @param logger A logger instance to log messages to. Optional
  * @returns The flows for the given chainId
  */
-export async function getFlows(
+export async function getUBAFlows(
   tokenSymbol: string,
   chainId: number,
   spokePoolClients: SpokePoolClients,
@@ -483,21 +485,20 @@ export async function getFlows(
   toBlock = toBlock ?? spokePoolClient.eventSearchConfig.toBlock;
 
   // @todo: Fix these type assertions.
-  const deposits: UbaFlow[] = await mapAsync(
-    spokePoolClient.getDeposits().filter((deposit: DepositWithBlock) => {
-      const _tokenSymbol = hubPoolClient.getL1TokenInfoForL2Token(deposit.originToken, deposit.originChainId)?.symbol;
-      return (
-        _tokenSymbol === tokenSymbol &&
-        deposit.blockNumber >= (fromBlock as number) &&
-        deposit.blockNumber <= (toBlock as number)
-      );
-    }),
-    async (deposit: DepositWithBlock) => {
-      return {
-        ...deposit,
-      };
-    }
-  );
+  const deposits: UbaFlow[] = spokePoolClient.getDeposits().filter((deposit: DepositWithBlock) => {
+    const _tokenSymbol = hubPoolClient.getL1TokenInfoForL2Token(deposit.originToken, deposit.originChainId)?.symbol;
+    return (
+      _tokenSymbol === tokenSymbol &&
+      deposit.blockNumber >= (fromBlock as number) &&
+      deposit.blockNumber <= (toBlock as number)
+    );
+  });
+  const preUBADeposit = deposits.find((deposit) => isDefined(deposit.realizedLpFeePct));
+  if (isDefined(preUBADeposit)) {
+    throw new Error(
+      `Found a UBA deposit with a defined realizedLpFeePct at block ${preUBADeposit.blockNumber} on chain ${preUBADeposit.originChainId}`
+    );
+  }
 
   // Filter out:
   // - Fills that request refunds on a different chain.
@@ -524,6 +525,8 @@ export async function getFlows(
     // will be included as flows.
     return _tokenSymbol === tokenSymbol && fill.fillAmount.eq(fill.totalFilledAmount);
   }) as UbaFlow[];
+
+  // TODO: For each fill, add a matchedFill, or expected realizedLpFeePct value to the matched deposit.
 
   const refundRequests: UbaFlow[] = (
     await getValidRefundCandidates(
