@@ -80,10 +80,10 @@ describe("UBAFeeSpokeCalculatorAnalog", () => {
       expect(fee.balancingFee.toString()).toEqual("0");
     });
 
-    describe("Should correctly apply a reward multiplier", () => {
-      for (const fee of [-23, 0, 23]) {
-        const signToZero = fee === 0 ? "==" : fee > 0 ? ">" : "<";
-        it(`should return a balance fee a discounted balance fee if the fee is ${signToZero} 0`, () => {
+    describe("getEventFee should correctly apply a reward multiplier", () => {
+      for (const multiplier of [-23, 0, 23]) {
+        const signToZero = multiplier === 0 ? "==" : multiplier > 0 ? ">" : "<";
+        it(`should return a discounted balance fee if the multiplier is ${signToZero} 0`, () => {
           const amount = BigNumber.from(10);
           const lastRunningBalance = BigNumber.from(1000);
           const lastIncentiveBalance = BigNumber.from(1000);
@@ -120,12 +120,12 @@ describe("UBAFeeSpokeCalculatorAnalog", () => {
             },
             {},
             {
-              [chainId]: parseEther(String(fee)),
+              [chainId]: parseEther(String(multiplier)),
             }
           );
 
           const modifiedFee = getEventFee(amount, flowType, lastRunningBalance, lastIncentiveBalance, chainId, config);
-          expect(modifiedFee.balancingFee.toString()).toEqual(originalFee.balancingFee.mul(fee).toString());
+          expect(modifiedFee.balancingFee.toString()).toEqual(originalFee.balancingFee.mul(multiplier).toString());
         });
       }
     });
