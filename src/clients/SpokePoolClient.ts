@@ -1,15 +1,6 @@
 import { providers } from "ethers";
 import { groupBy } from "lodash";
-import {
-  assign,
-  EventSearchConfig,
-  DefaultLogLevels,
-  MakeOptional,
-  mapAsync,
-  AnyObject,
-  MAX_BIG_INT,
-  stringifyJSONWithNumericString,
-} from "../utils";
+import { assign, EventSearchConfig, DefaultLogLevels, MakeOptional, mapAsync, AnyObject, MAX_BIG_INT } from "../utils";
 import { toBN } from "../utils/common";
 import { validateFillForDeposit, filledSameDeposit } from "../utils/FlowUtils";
 import {
