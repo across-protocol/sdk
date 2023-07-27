@@ -141,6 +141,10 @@ describe("UBAFeeSpokeCalculatorAnalog", () => {
     });
   });
 
+  // The following tests are designed around ensuring that our `getEventFee` specific functions (getDepositFee and getRefundFee) are
+  // calculating the same fee as the `getEventFee` function. This is to ensure that the `getEventFee` function is working as expected
+  // as well as the `getDepositFee` and `getRefundFee` functions.
+  // Based on their design, these calculation functions should always return the same fee as the `getEventFee` function.
   for (const [flowName, flowType] of [
     ["getDepositFee", "inflow"],
     ["getRefundFee", "outflow"],
