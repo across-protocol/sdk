@@ -95,6 +95,20 @@ describe("UBAFeeSpokeCalculatorAnalog", () => {
       const fee = getEventFee(amount, flowType, lastRunningBalance, lastIncentiveBalance, chainId, defaultConfig);
       expect(fee.balancingFee.toString()).toEqual("20");
     });
+
+    it("should apply a discount if the incentive balance is below the feesToBringFeePctToZero", () => {
+      const config = new MockUBAConfig();
+      // These values are set such that our feeToBringFeePctToZero is higher than the balancing fee
+      // within the getEventFee function. This is to ensure that the discount is applied for this test
+      // case.
+      const amount = BigNumber.from(1000);
+      const lastRunningBalance = BigNumber.from(1000);
+      const lastIncentiveBalance = BigNumber.from(1000);
+      const chainId = 1;
+      const flowType = "outflow";
+      const fee = getEventFee(amount, flowType, lastRunningBalance, lastIncentiveBalance, chainId, config);
+      expect(fee.balancingFee.toString()).toEqual("-20");
+    });
   });
 
   // The following tests are designed around ensuring that our `getEventFee` specific functions (getDepositFee and getRefundFee) are
