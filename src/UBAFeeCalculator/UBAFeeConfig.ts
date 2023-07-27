@@ -71,8 +71,7 @@ class UBAConfig {
     balanceTriggerThreshold: DefaultOverrideStructure<ThresholdBoundType, ChainTokenCombination>,
     lpGammaFunction: DefaultOverrideStructure<FlowTupleParameters, ChainId>,
     incentivePoolAdjustment: Record<string, BigNumber> = {},
-    ubaRewardMultiplier: Record<string, BigNumber> = {},
-    assertValidityOfFeeCurves = true
+    ubaRewardMultiplier: Record<string, BigNumber> = {}
   ) {
     this.baselineFee = baselineFee;
     this.balancingFee = balancingFee;
@@ -82,9 +81,7 @@ class UBAConfig {
     this.ubaRewardMultiplier = ubaRewardMultiplier;
 
     // Validate the config
-    if (assertValidityOfFeeCurves) {
-      this.assertValidityOfAllFeeCurves();
-    }
+    this.assertValidityOfAllFeeCurves();
   }
 
   /**

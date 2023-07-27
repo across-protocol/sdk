@@ -47,10 +47,9 @@ describe("UBA Fee Calculations", () => {
           upperBound: { target: toBN("0"), threshold: toBN("0") },
         },
       },
-      { default: [] },
+      { default: [[toBN("0"), parseUnits("0", 18)]] },
       {},
-      {},
-      false
+      {}
     );
     tuples = config.getBalancingFeeTuples(0);
   });
