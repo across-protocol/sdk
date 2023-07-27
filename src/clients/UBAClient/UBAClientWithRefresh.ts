@@ -153,11 +153,11 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
     }
 
     const lastBundleState = this.getBundleState(latestBlockRange, refundTokenSymbol, repaymentChainId);
-    let latestRunningBalance: BigNumber | undefined, latestIncentiveBalance: BigNumber | undefined;
 
+    let latestRunningBalance = ethers.constants.Zero;
+    let latestIncentiveBalance = ethers.constants.Zero;
     // Load latest bundle config.
     const ubaConfigForBundle = lastBundleState.ubaConfig;
-
     // Check if there are any flows in this bundle state. If there are not, then we can assume that
     // running balances are 0.
     const lastFlow = lastBundleState.flows.at(-1);
@@ -180,10 +180,8 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
       );
       latestRunningBalance = runningBalance;
       latestIncentiveBalance = incentiveBalance;
-    } else {
-      latestRunningBalance = ethers.constants.Zero;
-      latestIncentiveBalance = ethers.constants.Zero;
     }
+
     const { balancingFee } = getRefundFee(
       amount,
       latestRunningBalance,
