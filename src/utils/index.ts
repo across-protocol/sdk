@@ -11,3 +11,4 @@ export * from "./FlowUtils";
 export * from "./UBAUtils";
 export * from "./BundleUtils";
 export * from "./JSONUtils";
+export * from "./IPFSUtils";
