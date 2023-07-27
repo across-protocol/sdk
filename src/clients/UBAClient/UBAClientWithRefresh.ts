@@ -32,6 +32,7 @@ import {
   getBlockRangeForChain,
   isDefined,
   mapAsync,
+  toBNWei,
 } from "../../utils";
 import { analog } from "../../UBAFeeCalculator";
 import { getDepositFee, getRefundFee } from "../../UBAFeeCalculator/UBAFeeSpokeCalculatorAnalog";
@@ -678,17 +679,14 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
           matchedDeposit.blockNumber >= matchedDepositBlockRangeInFlowBundle[0] &&
           matchedDeposit.blockNumber <= matchedDepositBlockRangeInFlowBundle[1]
         ) {
-          // The matched deposit is in the same bundle as the flow. This is an easy case since we know the deposit
-          // must have been validated already.
+          // The matched deposit is in the same bundle as the flow.
           console.log("- Matched deposit should be in same bundle as flow");
           const validatedFlowsOnOriginChain = depositBundleState.flows;
           matchedDepositFlow = getMatchingFlow(validatedFlowsOnOriginChain, matchedDeposit);
           if (!isDefined(matchedDepositFlow)) {
             throw new Error("Could not find matched deposit in same bundle as fill");
-          } else {
-            console.log("- Found matched deposit in same bundle as fill");
-            return newModifiedFlow;
           }
+          console.log("- Found matched deposit in same bundle as fill");
         } else {
           // The bundle containing the matched deposit is older than current bundle range for flow.
           // We might need to recurse here if we haven't validated the deposit yet.
@@ -724,21 +722,23 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
           .mul(fixedPointAdjustment)
           .div(matchedDepositFlow.flow.amount);
         console.log(
-          `- Expected realized lp fee pct for matched deposit: ${expectedRealizedLpFeePctForMatchedDeposit.toString()}, actual: ${matchedDepositFlow.flow.realizedLpFeePct?.toString()}`
+          `- Expected realized lp fee pct for matched deposit: ${expectedRealizedLpFeePctForMatchedDeposit.toString()}, actual: ${flow.realizedLpFeePct?.toString()}`
         );
         // We allow for some precision loss because of the way we compute balancing fees. The balancing fee curves are integrated
         // by computePiecewiseLinearFunction and they return values, so we set balancing fees equal to those values divided by
         // flow amounts, which produces precision loss.
         if (
-          expectedRealizedLpFeePctForMatchedDeposit.eq(
-            flow.realizedLpFeePct.mul(1.01) ||
-              expectedRealizedLpFeePctForMatchedDeposit.eq(flow.realizedLpFeePct.mul(0.99))
+          expectedRealizedLpFeePctForMatchedDeposit.lte(
+            flow.realizedLpFeePct.mul(toBNWei("1.01")).div(fixedPointAdjustment)
+          ) ||
+          expectedRealizedLpFeePctForMatchedDeposit.gte(
+            flow.realizedLpFeePct.mul(toBNWei("0.99")).div(fixedPointAdjustment)
           )
         ) {
           return newModifiedFlow;
         } else {
           console.log(
-            `- Matched deposit was validated by incorrect realized lp fee pct set for outflow, expected ${expectedRealizedLpFeePctForMatchedDeposit.toString()}`
+            `- Matched deposit was invalidated by incorrect realized lp fee pct set for outflow, expected ${expectedRealizedLpFeePctForMatchedDeposit.toString()}`
           );
         }
       }
