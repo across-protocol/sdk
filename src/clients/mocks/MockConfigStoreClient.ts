@@ -1,7 +1,7 @@
 import assert from "assert";
 import winston from "winston";
 import { Contract, Event, ethers } from "ethers";
-import { EventSearchConfig, MakeOptional, isDefined, utf8ToHex } from "../../utils";
+import { EventSearchConfig, MakeOptional, utf8ToHex } from "../../utils";
 import { AcrossConfigStoreClient, ConfigStoreUpdate, DEFAULT_CONFIG_STORE_VERSION } from "../AcrossConfigStoreClient";
 import { EventManager, getEventManager } from "./MockEvents";
 
@@ -36,7 +36,7 @@ export class MockConfigStoreClient extends AcrossConfigStoreClient {
   }
 
   getUBAActivationBlock(): number | undefined {
-    return isDefined(this.ubaActivationBlockOverride) ? this.ubaActivationBlockOverride : super.getUBAActivationBlock();
+    return this.ubaActivationBlockOverride ?? super.getUBAActivationBlock();
   }
 
   getConfigStoreVersionForBlock(_blockNumber: number): number {
