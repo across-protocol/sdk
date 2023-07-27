@@ -1,33 +1,10 @@
 import { BigNumber } from "ethers";
-import UBAConfig from "./UBAFeeConfig";
 import { getEventFee, getDepositFee, getRefundFee } from "./UBAFeeSpokeCalculatorAnalog";
 import { toBN } from "../utils";
-import { parseEther } from "ethers/lib/utils";
+import { MockUBAConfig } from "../clients/mocks";
 
 describe("UBAFeeSpokeCalculatorAnalog", () => {
-  const defaultConfig = new UBAConfig(
-    {
-      default: toBN(0),
-    },
-    {
-      default: [
-        [toBN(-1), toBN(0)],
-        // Hardcode the config to be 200% as a fee for all flows
-        [toBN(0), parseEther("2")],
-      ],
-    },
-    {
-      default: {
-        upperBound: {},
-        lowerBound: {},
-      },
-    },
-    {
-      default: [[toBN(0), parseEther("1")]],
-    },
-    {},
-    {}
-  );
+  const defaultConfig = new MockUBAConfig();
 
   describe("getEventFee", () => {
     it("should calculate the balancing fee for an inflow event", () => {
@@ -48,7 +25,7 @@ describe("UBAFeeSpokeCalculatorAnalog", () => {
       const chainId = 1;
       const flowType = "outflow";
       const fee = getEventFee(amount, flowType, lastRunningBalance, lastIncentiveBalance, chainId, defaultConfig);
-      expect(fee.balancingFee.toString()).toEqual("-10");
+      expect(fee.balancingFee.toString()).toEqual("0");
     });
 
     it("should return a balanceFee of 0 if the amount is 0", () => {
@@ -100,31 +77,8 @@ describe("UBAFeeSpokeCalculatorAnalog", () => {
             defaultConfig
           );
 
-          const config = new UBAConfig(
-            {
-              default: toBN(0),
-            },
-            {
-              default: [
-                [toBN(-1), toBN(0)],
-                // Hardcode the config to be 200% as a fee for all flows
-                [toBN(0), parseEther("2")],
-              ],
-            },
-            {
-              default: {
-                upperBound: {},
-                lowerBound: {},
-              },
-            },
-            {
-              default: [[toBN(0), parseEther("1")]],
-            },
-            {},
-            {
-              [chainId]: parseEther(String(multiplier)),
-            }
-          );
+          const config = new MockUBAConfig();
+          config.setRewardMultiplier(chainId.toString(), toBN(multiplier));
 
           const modifiedFee = getEventFee(amount, flowType, lastRunningBalance, lastIncentiveBalance, chainId, config);
           expect(modifiedFee.balancingFee.toString()).toEqual(originalFee.balancingFee.mul(multiplier).toString());
