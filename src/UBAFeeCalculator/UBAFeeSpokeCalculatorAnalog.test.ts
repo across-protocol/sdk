@@ -2,6 +2,7 @@ import { BigNumber } from "ethers";
 import { getEventFee, getDepositFee, getRefundFee } from "./UBAFeeSpokeCalculatorAnalog";
 import { toBN } from "../utils";
 import { MockUBAConfig } from "../clients/mocks";
+import { computePiecewiseLinearFunction } from "./UBAFeeUtility";
 
 describe("UBAFeeSpokeCalculatorAnalog", () => {
   const defaultConfig = new MockUBAConfig();
@@ -92,6 +93,16 @@ describe("UBAFeeSpokeCalculatorAnalog", () => {
       const lastIncentiveBalance = BigNumber.from(1000);
       const chainId = 1;
       const flowType = "inflow";
+
+      const zeroFeePoint = defaultConfig.getZeroFeePointOnBalancingFeeCurve(chainId);
+      const feeToBringFeePctToZero = computePiecewiseLinearFunction(
+        defaultConfig.getBalancingFeeTuples(chainId),
+        zeroFeePoint,
+        lastRunningBalance
+      ).abs();
+
+      expect(feeToBringFeePctToZero.gt(lastIncentiveBalance)).toBeTruthy();
+
       const fee = getEventFee(amount, flowType, lastRunningBalance, lastIncentiveBalance, chainId, defaultConfig);
       expect(fee.balancingFee.toString()).toEqual("20");
     });
