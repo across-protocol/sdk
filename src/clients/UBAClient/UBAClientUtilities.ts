@@ -213,10 +213,9 @@ export function getMostRecentBundleBlockRanges(
     toBlock = latestExecutedRootBundle.blockNumber;
   }
 
-  // If we haven't saved any bundles yet, then
-  // there probably hasn't been a bundle validated after the UBA activation block containing this chain. This is not necessarily
-  // an error so inject a block range from the UBA activation block of this chain to the latest
-  // spoke block searched so we can query all UBA eligible events for this chain.
+  // If we haven't saved any bundles yet, then there probably hasn't been a bundle validated after the UBA activation
+  // block containing this chain. This is not necessarily an error, so inject a block range from the activation block
+  // of this chain to the latest spoke block searched so we can query all UBA eligible events.
   if (bundleData.length === 0) {
     const ubaActivationBundleStartBlocks = getUbaActivationBundleStartBlocks(hubPoolClient);
     const ubaActivationBundleStartBlockForChain = getBlockForChain(
@@ -243,12 +242,12 @@ export function getMostRecentBundleBlockRanges(
 
 /**
  * Return the latest validated running balance for the given token.
- * @param eventBlock
- * @param eventChain
- * @param l1Token
- * @param hubPoolLatestBlock
- * @returns
- */
+ * @param eventBlock Block number on SpokePool chain.
+ * @param eventChain SpokePool chain ID.
+ * @param l1Token Address of token on the HubPool chain.
+ * @param hubPoolLatestBlock Most recent block to query from. Queries progress backwards in reverse chronology.
+ * @returns Token running balance as at eventBlock.
+ **/
 export function getOpeningRunningBalanceForEvent(
   hubPoolClient: HubPoolClient,
   eventBlock: number,
@@ -405,12 +404,9 @@ export function getUbaActivationBundleStartBlocks(hubPoolClient: HubPoolClient):
   const ubaActivationBlock = hubPoolClient.configStoreClient.getUBAActivationBlock();
   if (isDefined(ubaActivationBlock)) {
     const nextValidatedBundle = hubPoolClient.getProposedRootBundles().find((bundle) => {
-      if (bundle.blockNumber >= ubaActivationBlock) {
-        const isValidated = hubPoolClient.isRootBundleValid(bundle, latestHubPoolBlock);
-        return isValidated;
-      } else {
-        return false;
-      }
+      return bundle.blockNumber >= ubaActivationBlock
+        ? hubPoolClient.isRootBundleValid(bundle, latestHubPoolBlock)
+        : false;
     });
     if (isDefined(nextValidatedBundle)) {
       const bundleBlockRanges = getImpliedBundleBlockRanges(
@@ -486,12 +482,11 @@ export async function getUBAFlows(
 
   // @todo: Fix these type assertions.
   const deposits: UbaFlow[] = spokePoolClient.getDeposits().filter((deposit: DepositWithBlock) => {
+    if (deposit.blockNumber < (fromBlock as number) || deposit.blockNumber > (toBlock as number)) {
+      return false;
+    }
     const _tokenSymbol = hubPoolClient.getL1TokenInfoForL2Token(deposit.originToken, deposit.originChainId)?.symbol;
-    return (
-      _tokenSymbol === tokenSymbol &&
-      deposit.blockNumber >= (fromBlock as number) &&
-      deposit.blockNumber <= (toBlock as number)
-    );
+    return _tokenSymbol === tokenSymbol;
   });
   const preUBADeposit = deposits.find((deposit) => isDefined(deposit.realizedLpFeePct));
   if (isDefined(preUBADeposit)) {
@@ -523,7 +518,7 @@ export async function getUBAFlows(
     const _tokenSymbol = hubPoolClient.getL1TokenInfoForL2Token(fill.destinationToken, fill.destinationChainId)?.symbol;
     // We only want to include full fills as flows. Partial fills need to request refunds and those refunds
     // will be included as flows.
-    return _tokenSymbol === tokenSymbol && fill.fillAmount.eq(fill.totalFilledAmount);
+    return fill.fillAmount.eq(fill.totalFilledAmount) && _tokenSymbol === tokenSymbol;
   }) as UbaFlow[];
 
   // TODO: For each fill, add a matchedFill, or expected realizedLpFeePct value to the matched deposit.
@@ -577,9 +572,18 @@ export function flowComparisonFunction(a: UbaFlow, b: UbaFlow): number {
     return 1;
   }
 
+  // We can compare on transaction index and log index when comparing same way
+  // flows on same chain (i.e. deposits with deposits, fills with fills,
+  // refunds with refunds)
+  if (a.transactionIndex !== b.transactionIndex) {
+    return a.transactionIndex - b.transactionIndex;
+  } else if (a.logIndex !== b.logIndex) {
+    return a.logIndex - b.logIndex;
+  }
+
   // If we get down here, then return ordered by size for now:
   const amountDiff = a.amount.sub(b.amount);
-  return amountDiff.eq(0) ? 0 : amountDiff.lt(0) ? -1 : 1;
+  return amountDiff.isZero() ? 0 : amountDiff.lt(0) ? -1 : 1;
 }
 
 export function sortFlowsAscendingInPlace(flows: UbaFlow[]): UbaFlow[] {

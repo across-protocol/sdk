@@ -24,7 +24,6 @@ const common = {
   transactionIndex: 0,
   logIndex: 0,
   transactionHash: "",
-  blockTimestamp: 123,
 };
 
 const sampleDeposit = {
