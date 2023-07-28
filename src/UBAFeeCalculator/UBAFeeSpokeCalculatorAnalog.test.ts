@@ -1,6 +1,6 @@
-import { BigNumber } from "ethers";
+import { BigNumber, utils } from "ethers";
 import { getEventFee, getDepositFee, getRefundFee } from "./UBAFeeSpokeCalculatorAnalog";
-import { fixedPointAdjustment, toBNWei } from "../utils";
+import { fixedPointAdjustment } from "../utils";
 import { MockUBAConfig } from "../clients/mocks";
 import { computePiecewiseLinearFunction } from "./UBAFeeUtility";
 
@@ -60,31 +60,38 @@ describe("UBAFeeSpokeCalculatorAnalog", () => {
     });
 
     describe("getEventFee should correctly apply a reward multiplier", () => {
-      for (const rawMultiplier of ["-23", "-1.2", "0.2", "1.2", "3.4", "10"]) {
-        const multiplier = toBNWei(rawMultiplier);
+      for (const rawMultiplier of ["-1", "1.2", "0.2", "1.2", "3.4", "7"]) {
+        const multiplier = utils.parseEther(rawMultiplier);
         it(`should return a discounted balance. Test with ${rawMultiplier}`, () => {
           const amount = BigNumber.from(10);
-          const lastRunningBalance = BigNumber.from(1000);
-          const lastIncentiveBalance = BigNumber.from(1000);
+          const lastRunningBalance = BigNumber.from(10000);
+          const lastIncentiveBalance = BigNumber.from(1000000);
           const chainId = 1;
           const flowType = "outflow";
+          const config = new MockUBAConfig();
 
-          const originalFee = getEventFee(
+          const originalBalancingFee = getEventFee(
             amount,
             flowType,
             lastRunningBalance,
             lastIncentiveBalance,
             chainId,
-            defaultConfig
-          );
+            config
+          ).balancingFee;
 
-          const config = new MockUBAConfig();
           config.setRewardMultiplier(chainId.toString(), multiplier);
 
-          const modifiedFee = getEventFee(amount, flowType, lastRunningBalance, lastIncentiveBalance, chainId, config);
-          expect(modifiedFee.balancingFee.toString()).toEqual(
-            originalFee.balancingFee.mul(multiplier).div(fixedPointAdjustment).toString()
-          );
+          const modifiedBalancingFee = getEventFee(
+            amount,
+            flowType,
+            lastRunningBalance,
+            lastIncentiveBalance,
+            chainId,
+            config
+          ).balancingFee;
+
+          const originalBalancingFeeWithMultiplier = originalBalancingFee.mul(multiplier).div(fixedPointAdjustment);
+          expect(modifiedBalancingFee.toString()).toEqual(originalBalancingFeeWithMultiplier.toString());
         });
       }
     });
