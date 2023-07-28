@@ -1,6 +1,6 @@
 import { BigNumber, utils } from "ethers";
 import { getEventFee, getDepositFee, getRefundFee } from "./UBAFeeSpokeCalculatorAnalog";
-import { fixedPointAdjustment } from "../utils";
+import { fixedPointAdjustment, toBNWei } from "../utils";
 import { MockUBAConfig } from "../clients/mocks";
 import { computePiecewiseLinearFunction } from "./UBAFeeUtility";
 
@@ -57,6 +57,42 @@ describe("UBAFeeSpokeCalculatorAnalog", () => {
       const flowType = "outflow";
       const fee = getEventFee(amount, flowType, lastRunningBalance, lastIncentiveBalance, chainId, defaultConfig);
       expect(fee.balancingFee.toString()).toEqual("0");
+    });
+
+    it.only("should have an expected discount factor", () => {
+      const amount = toBNWei(10, 6);
+      const lastRunningBalance = toBNWei(2000, 6);
+      const lastIncentiveBalance = toBNWei(100, 6);
+      const chainId = 1;
+      const flowType = "outflow";
+      const config = new MockUBAConfig();
+
+      config.setBalancingFeeCurve(chainId.toString(), [
+        [toBNWei(0, 6), toBNWei(0, 0)],
+        [toBNWei(1, 6), toBNWei(0.2, 18)],
+      ]);
+
+      const discountFactorBalancingFee = getEventFee(
+        amount,
+        flowType,
+        lastRunningBalance,
+        lastIncentiveBalance,
+        chainId,
+        config
+      ).balancingFee;
+
+      config.setRewardMultiplier(chainId.toString(), toBNWei("0.25006251562", 18));
+
+      const multiplierBalancingFee = getEventFee(
+        amount,
+        flowType,
+        lastRunningBalance,
+        lastRunningBalance,
+        chainId,
+        config
+      ).balancingFee;
+
+      expect(discountFactorBalancingFee.toString()).toEqual(multiplierBalancingFee.toString());
     });
 
     describe("getEventFee should correctly apply a reward multiplier", () => {
