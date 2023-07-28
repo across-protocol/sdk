@@ -569,6 +569,9 @@ export function flowComparisonFunction(a: UbaFlow, b: UbaFlow): number {
   // We can compare on transaction index and log index when comparing same way
   // flows on same chain (i.e. deposits with deposits, fills with fills,
   // refunds with refunds).
+  if (a.blockNumber !== b.blockNumber) {
+    return a.blockNumber - b.blockNumber;
+  }
   if (a.transactionIndex !== b.transactionIndex) {
     return a.transactionIndex - b.transactionIndex;
   }
