@@ -1,6 +1,6 @@
 import { BigNumber } from "ethers";
 import { getEventFee, getDepositFee, getRefundFee } from "./UBAFeeSpokeCalculatorAnalog";
-import { toBN } from "../utils";
+import { fixedPointAdjustment, toBNWei } from "../utils";
 import { MockUBAConfig } from "../clients/mocks";
 import { computePiecewiseLinearFunction } from "./UBAFeeUtility";
 
@@ -60,9 +60,9 @@ describe("UBAFeeSpokeCalculatorAnalog", () => {
     });
 
     describe("getEventFee should correctly apply a reward multiplier", () => {
-      for (const multiplier of [-23, 0, 23]) {
-        const signToZero = multiplier === 0 ? "==" : multiplier > 0 ? ">" : "<";
-        it(`should return a discounted balance fee if the multiplier is ${signToZero} 0`, () => {
+      for (const rawMultiplier of ["-23", "-1.2", "0.2", "1.2", "3.4", "10"]) {
+        const multiplier = toBNWei(rawMultiplier);
+        it(`should return a discounted balance. Test with ${rawMultiplier}`, () => {
           const amount = BigNumber.from(10);
           const lastRunningBalance = BigNumber.from(1000);
           const lastIncentiveBalance = BigNumber.from(1000);
@@ -79,10 +79,12 @@ describe("UBAFeeSpokeCalculatorAnalog", () => {
           );
 
           const config = new MockUBAConfig();
-          config.setRewardMultiplier(chainId.toString(), toBN(multiplier));
+          config.setRewardMultiplier(chainId.toString(), multiplier);
 
           const modifiedFee = getEventFee(amount, flowType, lastRunningBalance, lastIncentiveBalance, chainId, config);
-          expect(modifiedFee.balancingFee.toString()).toEqual(originalFee.balancingFee.mul(multiplier).toString());
+          expect(modifiedFee.balancingFee.toString()).toEqual(
+            originalFee.balancingFee.mul(multiplier).div(fixedPointAdjustment).toString()
+          );
         });
       }
     });
