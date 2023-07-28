@@ -44,7 +44,6 @@ export function calculateHistoricalRunningBalance(
       // @dev Positive incentive fees are added to the incentive pot. Negative incentive fees are rewards
       // paid out of the pot. The incentive pot should never go negative.
       const incentiveFee = flow.incentiveFee;
-      console.log(incentiveFee.toString(), acc.incentiveBalance.toString());
       if (incentiveFee.mul(-1).gt(acc.incentiveBalance)) {
         throw new Error(
           `Incentive balance will go negative after subtracting flow's incentive reward of ${incentiveFee.toString()} from incentive balance of ${acc.incentiveBalance.toString()}`

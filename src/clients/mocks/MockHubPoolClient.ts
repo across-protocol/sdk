@@ -26,6 +26,7 @@ export class MockHubPoolClient extends HubPoolClient {
   private tokenInfoToReturn: L1Token = { address: "", decimals: 0, symbol: "" };
   private l1TokensToDestinationTokensMock: { [l1Token: string]: { [destinationChainId: number]: string } } = {};
   private returnedL1TokenForDeposit = "";
+  private returnedDestinationTokenForL1Token = "";
   private eventManager: EventManager;
 
   constructor(
@@ -90,6 +91,7 @@ export class MockHubPoolClient extends HubPoolClient {
 
   getDestinationTokenForL1Token(l1Token: string, destinationChainId: number): string {
     return (
+      this.returnedDestinationTokenForL1Token ??
       this.l1TokensToDestinationTokensMock[l1Token]?.[destinationChainId] ??
       super.getDestinationTokenForL1Token(l1Token, destinationChainId)
     );
@@ -97,6 +99,10 @@ export class MockHubPoolClient extends HubPoolClient {
 
   setReturnedL1TokenForDeposit(l1Token: string) {
     this.returnedL1TokenForDeposit = l1Token;
+  }
+
+  setDestinationTokenForL1Token(destinationToken: string) {
+    this.returnedDestinationTokenForL1Token = destinationToken;
   }
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars

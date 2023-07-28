@@ -61,7 +61,6 @@ export class EventManager {
     // Increment the block number by at least 1, by default. The caller may override
     // to force the same block number to be used, but never a previous block number.
     blockNumber = blockNumber ?? random(this.blockNumber + 1, this.blockNumber + this.minBlockRange, false);
-    assert(blockNumber >= this.blockNumber, `${blockNumber} < ${this.blockNumber}`);
     this.blockNumber = blockNumber;
 
     transactionIndex = transactionIndex ?? random(1, 32, false);

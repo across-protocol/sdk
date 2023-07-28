@@ -1,5 +1,5 @@
 import assert from "assert";
-import { BigNumber, Contract, Event, ethers, providers } from "ethers";
+import { BigNumber, Contract, Event, providers } from "ethers";
 import { random } from "lodash";
 import winston from "winston";
 import { ZERO_ADDRESS } from "../../constants";
@@ -15,12 +15,12 @@ type Block = providers.Block;
 export class MockSpokePoolClient extends SpokePoolClient {
   private eventManager: EventManager;
   private events: Event[] = [];
-  private blockTimestamp = 0;
   private realizedLpFeePctOverride: BigNumber | undefined;
   private destinationTokenForChainOverride: Record<number, string> = {};
   // Allow tester to set the numberOfDeposits() returned by SpokePool at a block height.
   public depositIdAtBlock: number[] = [];
   public numberOfDeposits = 0;
+  public blocks: Record<number, Block> = {};
 
   constructor(logger: winston.Logger, spokePool: Contract, chainId: number, deploymentBlock: number) {
     super(logger, spokePool, null, chainId, deploymentBlock);
@@ -71,16 +71,6 @@ export class MockSpokePoolClient extends SpokePoolClient {
       lastDepositId = _depositIds[i];
     }
   }
-
-  setBlockTimestamp(timestamp: number): void {
-    this.blockTimestamp = timestamp;
-  }
-
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  async getBlockData(_block: number) {
-    return { timestamp: this.blockTimestamp ?? Math.floor(Date.now() / 1000) } as ethers.providers.Block;
-  }
-
   async _getDepositIdAtBlock(blockTag: number): Promise<number> {
     return this.depositIdAtBlock[blockTag];
   }
@@ -107,6 +97,7 @@ export class MockSpokePoolClient extends SpokePoolClient {
       }
     });
     this.events = [];
+    this.blocks = blocks;
 
     // Update latestDepositIdQueried.
     const idx = eventsToQuery.indexOf("FundsDeposited");
