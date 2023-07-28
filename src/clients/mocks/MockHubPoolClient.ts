@@ -104,6 +104,10 @@ export class MockHubPoolClient extends HubPoolClient {
     return this.returnedL1TokenForDeposit ?? super.getL1TokenForDeposit(_deposit);
   }
 
+  getL1TokenCounterpartAtBlock(l2ChainId: number, l2Token: string, hubPoolBlock: number): string {
+    return this.returnedL1TokenForDeposit ?? super.getL1TokenCounterpartAtBlock(l2ChainId, l2Token, hubPoolBlock);
+  }
+
   getL1TokenInfoForL2Token(l2Token: string, _chain: number): L1Token {
     return this.getTokenInfoForL1Token(l2Token) ?? this.tokenInfoToReturn;
   }

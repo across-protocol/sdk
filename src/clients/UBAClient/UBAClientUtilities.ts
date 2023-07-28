@@ -458,13 +458,12 @@ export function getFlowChain(flow: UbaFlow): number {
  * Retrieves the flows for a given chainId. This is designed only to work with UBA start and end blocks as
  * the realizedLpFeePct for deposits is not compared against fills. Retrieving any "Pre UBA" deposits with
  * defined realizedLpFeePct will cause this function to throw.
+ * * @param tokenSymbol Symbol of token to retrieve flows for.
  * @param chainId The chainId to retrieve flows for
- * @param chainIdIndices The chainIds of the spoke pools that align with the spoke pool clients
  * @param spokePoolClients A mapping of chainIds to spoke pool clients
  * @param hubPoolClient A hub pool client instance to query the hub pool
  * @param fromBlock The block number to start retrieving flows from
  * @param toBlock The block number to stop retrieving flows from
- * @param logger A logger instance to log messages to. Optional
  * @returns The flows for the given chainId
  */
 export async function getUBAFlows(
@@ -574,16 +573,11 @@ export function flowComparisonFunction(a: UbaFlow, b: UbaFlow): number {
 
   // We can compare on transaction index and log index when comparing same way
   // flows on same chain (i.e. deposits with deposits, fills with fills,
-  // refunds with refunds)
+  // refunds with refunds).
   if (a.transactionIndex !== b.transactionIndex) {
     return a.transactionIndex - b.transactionIndex;
-  } else if (a.logIndex !== b.logIndex) {
-    return a.logIndex - b.logIndex;
   }
-
-  // If we get down here, then return ordered by size for now:
-  const amountDiff = a.amount.sub(b.amount);
-  return amountDiff.isZero() ? 0 : amountDiff.lt(0) ? -1 : 1;
+  return a.logIndex - b.logIndex;
 }
 
 export function sortFlowsAscendingInPlace(flows: UbaFlow[]): UbaFlow[] {
@@ -725,6 +719,7 @@ export function getMatchingFlow(
  * @param chainId Chain ID of the relevant SpokePoolClient instance.
  * @param spokePoolClients Set of SpokePoolClient instances, mapped by chain ID.
  * @param filter  Optional filtering criteria.
+ * @param ignoredDepositValidationParams Event fields to ignore when matching a Fill to a Deposit.
  * @returns Array of FillWithBlock events matching the chain ID and optional filtering criteria.
  */
 export async function getValidFillCandidates(

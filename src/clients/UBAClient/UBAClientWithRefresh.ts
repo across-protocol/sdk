@@ -13,7 +13,7 @@ import {
   getUbaActivationBundleStartBlocks,
   sortFlowsAscending,
 } from "./UBAClientUtilities";
-import { CachedUBABundleState, ModifiedUBAFlow, UBAClientState } from "./UBAClientTypes";
+import { CachedUBABundleState, ModifiedUBAFlow, SystemFeeResult, UBAClientState } from "./UBAClientTypes";
 import {
   CachingMechanismInterface,
   UbaFlow,
@@ -73,8 +73,6 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
   // This logger is currently copied from the HubPoolClient's logger.
   public logger: winston.Logger;
 
-  // TODO: Allow constructor to pass in a CacheClient which must have set() and get() defined. For now, force the
-  // deployer to use Redis to facilitate testing.
   /**
    * @param tokens Tokens to load bundle state for.
    * @param hubPoolClient
@@ -105,10 +103,7 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
    * realizedLpFeePct for this deposit should be equal to the lpFee plus the depositBalancingFee.
    * @param deposit Should be the deposit that the caller wants to compute the realizedLpFeePct for.
    */
-  public computeFeesForDeposit(deposit: UbaInflow): {
-    lpFee: BigNumber;
-    depositBalancingFee: BigNumber;
-  } {
+  public computeFeesForDeposit(deposit: UbaInflow): SystemFeeResult {
     this.assertUpdated();
 
     const tokenSymbol = this.hubPoolClient.getL1TokenInfoForL2Token(deposit.originToken, deposit.originChainId)?.symbol;
@@ -127,9 +122,12 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
       throw new Error("Found bundle state containing flow but no matching flow found for deposit");
     }
 
+    const lpFee = matchingFlow.lpFee.mul(deposit.amount).div(fixedPointAdjustment);
+    const depositBalancingFee = matchingFlow.balancingFee;
     return {
-      lpFee: matchingFlow.lpFee.mul(deposit.amount).div(fixedPointAdjustment),
-      depositBalancingFee: matchingFlow.balancingFee,
+      lpFee,
+      depositBalancingFee,
+      systemFee: lpFee.add(depositBalancingFee),
     };
   }
 
@@ -221,7 +219,8 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
   }
 
   public getKeyForBundle = (bundleBlockRanges: number[][], tokenSymbol: string, chainId: number): string => {
-    return `${getBundleKeyForBlockRanges(bundleBlockRanges)}-${tokenSymbol}-${chainId}`;
+    // Add a fixed prefix to all keys so we can more easily flush all bundle state keys.
+    return `UBA_BUNDLE_STATE_${getBundleKeyForBlockRanges(bundleBlockRanges)}-${tokenSymbol}-${chainId}`;
   };
 
   /**
@@ -245,11 +244,9 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
       throw new Error("No block ranges stored, have you updated this client?");
     }
 
-    const lastBundleState = this.getBundleState(latestBlockRange, tokenSymbol, chainId);
-    const ubaConfig = lastBundleState.ubaConfig;
-
+    const { flows, ubaConfig } = this.getBundleState(latestBlockRange, tokenSymbol, chainId);
     return {
-      flows: lastBundleState.flows,
+      flows,
       ubaConfig,
     };
   }
@@ -884,9 +881,6 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
         const l1TokenAddress = this.hubPoolClient.getL1Tokens().find((_token) => _token.symbol === token)?.address;
         if (!isDefined(l1TokenAddress)) throw new Error(`No L1 token address found for token symbol ${token}`);
         this.chainIdIndices.forEach((chainId) => {
-          // if (!isDefined(this.spokePoolClients[chainId])) {
-          //   return;
-          // }
           const bundleStateKey = this.getKeyForBundle(bundleBlockRange, token, chainId);
           const startBlock = getBlockForChain(
             startBlocks,
@@ -929,11 +923,8 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
     console.log("Latest block timestamps per chain", this.latestBlockTimestamps);
 
     // First try to load bundle states from redis into memory to make the validateFlowsInBundle call significantly faster:
-    // eslint-disable-next-line no-constant-condition
     if (isDefined(this.cachingClient)) {
-      // Never load the latest bundle state from redis, since we'll always want to re-validate it as its bundle
-      // cannot have been validated yet.
-      for (let i = this.ubaBundleBlockRanges.length - 2; i >= 0; i--) {
+      for (let i = this.ubaBundleBlockRanges.length - 1; i >= 0; i--) {
         const mostRecentBundleBlockRanges = this.ubaBundleBlockRanges[i];
         await forEachAsync(tokens, async (token) => {
           await forEachAsync(this.chainIdIndices, async (chainId) => {
@@ -996,6 +987,13 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
             openingBalances: bundleState.openingBalances,
           });
 
+          // We shouldn't cache the latest bundle state as it will always be unexecuted (i.e. its still
+          // pending the challenge period or its leaves haven't been fully executed).
+          // Moreover, we shouldn't cache bundles until we've seen a minimum number of bundles executed since UBA
+          // genesis for safety reasons as this logic won't have been well tested until then.
+          if (this.ubaBundleBlockRanges.length <= 30) return; // TODO: Remove this line once we feel comfortable
+          // with caching bundles.
+          if (i === this.ubaBundleBlockRanges.length - 1) return;
           const redisKeyForBundle = this.getKeyForBundle(mostRecentBundleBlockRanges, token, chainId);
           console.log(`- Storing new bundle state under key ${redisKeyForBundle}`);
           // Note, we opt to store arrays as strings in redis rather than using the redis.json module because

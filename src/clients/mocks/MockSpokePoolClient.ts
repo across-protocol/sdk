@@ -1,9 +1,9 @@
 import assert from "assert";
-import { Contract, Event, ethers, providers } from "ethers";
+import { BigNumber, Contract, Event, ethers, providers } from "ethers";
 import { random } from "lodash";
 import winston from "winston";
 import { ZERO_ADDRESS } from "../../constants";
-import { DepositWithBlock, FillWithBlock, RefundRequestWithBlock } from "../../interfaces";
+import { DepositWithBlock, FillWithBlock, FundsDepositedEvent, RefundRequestWithBlock } from "../../interfaces";
 import { toBN, toBNWei, forEachAsync, randomAddress } from "../../utils";
 import { SpokePoolClient, SpokePoolUpdate } from "../SpokePoolClient";
 import { EventManager, getEventManager } from "./MockEvents";
@@ -16,6 +16,8 @@ export class MockSpokePoolClient extends SpokePoolClient {
   private eventManager: EventManager;
   private events: Event[] = [];
   private blockTimestamp = 0;
+  private realizedLpFeePctOverride: BigNumber | undefined;
+  private destinationTokenForChainOverride: Record<number, string> = {};
   // Allow tester to set the numberOfDeposits() returned by SpokePool at a block height.
   public depositIdAtBlock: number[] = [];
   public numberOfDeposits = 0;
@@ -24,6 +26,27 @@ export class MockSpokePoolClient extends SpokePoolClient {
     super(logger, spokePool, null, chainId, deploymentBlock);
     this.latestBlockNumber = deploymentBlock;
     this.eventManager = getEventManager(chainId, this.eventSignatures, deploymentBlock);
+  }
+
+  setDefaultRealizedLpFeePct(fee: BigNumber | undefined): void {
+    this.realizedLpFeePctOverride = fee;
+  }
+
+  async computeRealizedLpFeePct(depositEvent: FundsDepositedEvent) {
+    return (
+      {
+        realizedLpFeePct: this.realizedLpFeePctOverride,
+        quoteBlock: depositEvent.blockNumber,
+      } ?? (await super.computeRealizedLpFeePct(depositEvent))
+    );
+  }
+
+  setDestinationTokenForChain(chainId: number, token: string): void {
+    this.destinationTokenForChainOverride[chainId] = token;
+  }
+
+  getDestinationTokenForDeposit(deposit: DepositWithBlock): string {
+    return this.destinationTokenForChainOverride[deposit.originChainId] ?? super.getDestinationTokenForDeposit(deposit);
   }
 
   setLatestBlockSearched(blockNumber: number): void {
