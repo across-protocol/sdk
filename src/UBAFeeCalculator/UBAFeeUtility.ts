@@ -326,8 +326,8 @@ export function assertValidityOfFeeCurve(feeCurve: FlowTupleParameters, validate
     throw new Error("Balancing fee curve must have strictly increasing x values");
   }
 
-  // Ensure that the y values are strictly monotonically increasing
-  if (feeCurve.some((tuple, idx, arr) => idx > 0 && tuple[1].lte(arr[idx - 1][1]))) {
-    throw new Error("Balancing fee curve must have strictly increasing y values");
+  // Ensure that the y values are monotonically increasing
+  if (feeCurve.some((tuple, idx, arr) => idx > 0 && tuple[1].lt(arr[idx - 1][1]))) {
+    throw new Error("Balancing fee curve must have increasing y values");
   }
 }
