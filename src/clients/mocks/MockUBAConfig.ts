@@ -11,11 +11,7 @@ export class MockUBAConfig extends UBAConfig {
         default: toBN(0),
       },
       {
-        default: [
-          // Hardcode the config to be 200% as a fee for all flows
-          [toBN(0), parseEther("2")],
-          [toBN(100000), toBN(0)],
-        ],
+        default: [[toBN(100000), toBN(0)]],
       },
       {
         default: {
@@ -29,6 +25,11 @@ export class MockUBAConfig extends UBAConfig {
       {},
       {}
     );
+    this.balancingFee.default = [
+      // Hardcode the config to be 200% as a fee for all flows
+      [toBN(0), parseEther("2")],
+      [toBN(100000), toBN(0)],
+    ];
   }
 
   public setBalancingFeeCurve(chainId: string, curve: FlowTupleParameters) {
