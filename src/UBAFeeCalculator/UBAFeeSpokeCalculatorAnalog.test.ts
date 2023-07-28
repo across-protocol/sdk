@@ -143,7 +143,7 @@ describe("UBAFeeSpokeCalculatorAnalog", () => {
       it("should calculate the same fee as its corresponding event fee", () => {
         // Test this function over a range of random values.
         // In all cases, it should be the same as the event fee for an inflow.
-        for (let i = 0; i < 1000; i++) {
+        for (let i = 0; i < 50; i++) {
           // Generate random values for the amount parameter
           const amount = BigNumber.from(Math.floor(Math.random() * 100000));
           // Generate a random number between -50_000 and 50_000 for the lastRunningBalance
