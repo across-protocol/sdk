@@ -141,12 +141,6 @@ export function getUBAFeeConfig(
     throw new Error(`UBA config for blockTag ${blockNumber} not found`);
   }
 
-  // Validate omega curves:
-  // - Each curve must have a zero point.
-  const omegaDefaultZeroCurve = ubaConfig.getZeroFeePointOnBalancingFeeCurve(chainId);
-  if (!isDefined(omegaDefaultZeroCurve)) {
-    throw new Error(`Omega curve for chain ${chainId} does not have a zero point`);
-  }
   return ubaConfig;
 }
 /**
@@ -201,7 +195,7 @@ export function getMostRecentBundleBlockRanges(
       hubPoolClient.chainId,
       hubPoolClient.configStoreClient.enabledChainIds
     )[0];
-    if (!(hubPoolStartBlock >= ubaActivationHubStartBlock)) {
+    if (hubPoolStartBlock < ubaActivationHubStartBlock) {
       break;
     }
 
