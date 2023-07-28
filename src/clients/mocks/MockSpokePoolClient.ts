@@ -1,27 +1,52 @@
 import assert from "assert";
-import { Contract, Event, ethers } from "ethers";
+import { BigNumber, Contract, Event, providers } from "ethers";
 import { random } from "lodash";
 import winston from "winston";
 import { ZERO_ADDRESS } from "../../constants";
-import { DepositWithBlock, FillWithBlock, RefundRequestWithBlock } from "../../interfaces";
-import { toBN, toBNWei, randomAddress } from "../../utils";
+import { DepositWithBlock, FillWithBlock, FundsDepositedEvent, RefundRequestWithBlock } from "../../interfaces";
+import { toBN, toBNWei, forEachAsync, randomAddress } from "../../utils";
 import { SpokePoolClient, SpokePoolUpdate } from "../SpokePoolClient";
 import { EventManager, getEventManager } from "./MockEvents";
+
+type Block = providers.Block;
 
 // This class replaces internal SpokePoolClient functionality, enabling the
 // user to bypass on-chain queries and inject ethers Event objects directly.
 export class MockSpokePoolClient extends SpokePoolClient {
-  private eventManager: EventManager;
+  public eventManager: EventManager;
   private events: Event[] = [];
-  private blockTimestamp = 0;
+  private realizedLpFeePctOverride: BigNumber | undefined;
+  private destinationTokenForChainOverride: Record<number, string> = {};
   // Allow tester to set the numberOfDeposits() returned by SpokePool at a block height.
   public depositIdAtBlock: number[] = [];
   public numberOfDeposits = 0;
+  public blocks: Record<number, Block> = {};
 
   constructor(logger: winston.Logger, spokePool: Contract, chainId: number, deploymentBlock: number) {
     super(logger, spokePool, null, chainId, deploymentBlock);
     this.latestBlockNumber = deploymentBlock;
     this.eventManager = getEventManager(chainId, this.eventSignatures, deploymentBlock);
+  }
+
+  setDefaultRealizedLpFeePct(fee: BigNumber | undefined): void {
+    this.realizedLpFeePctOverride = fee;
+  }
+
+  async computeRealizedLpFeePct(depositEvent: FundsDepositedEvent) {
+    return (
+      {
+        realizedLpFeePct: this.realizedLpFeePctOverride,
+        quoteBlock: depositEvent.blockNumber,
+      } ?? (await super.computeRealizedLpFeePct(depositEvent))
+    );
+  }
+
+  setDestinationTokenForChain(chainId: number, token: string): void {
+    this.destinationTokenForChainOverride[chainId] = token;
+  }
+
+  getDestinationTokenForDeposit(deposit: DepositWithBlock): string {
+    return this.destinationTokenForChainOverride[deposit.originChainId] ?? super.getDestinationTokenForDeposit(deposit);
   }
 
   setLatestBlockSearched(blockNumber: number): void {
@@ -46,15 +71,6 @@ export class MockSpokePoolClient extends SpokePoolClient {
       lastDepositId = _depositIds[i];
     }
   }
-
-  setBlockTimestamp(timestamp: number): void {
-    this.blockTimestamp = timestamp;
-  }
-
-  async getBlockData(_block: number) {
-    return { timestamp: this.blockTimestamp ?? Math.floor(Date.now() / 1000) } as ethers.providers.Block;
-  }
-
   async _getDepositIdAtBlock(blockTag: number): Promise<number> {
     return this.depositIdAtBlock[blockTag];
   }
@@ -68,16 +84,20 @@ export class MockSpokePoolClient extends SpokePoolClient {
     const latestBlockNumber = this.eventManager.blockNumber;
     const currentTime = Math.floor(Date.now() / 1000);
 
+    const blocks: { [blockNumber: number]: Block } = {};
+
     // Ensure an array for every requested event exists, in the requested order.
     // All requested event types must be populated in the array (even if empty).
     const events: Event[][] = eventsToQuery.map(() => []);
-    this.events.flat().forEach((event) => {
+    await forEachAsync(this.events.flat(), async (event) => {
       const idx = eventsToQuery.indexOf(event.event as string);
       if (idx !== -1) {
         events[idx].push(event);
+        blocks[event.blockNumber] = await event.getBlock();
       }
     });
     this.events = [];
+    this.blocks = blocks;
 
     // Update latestDepositIdQueried.
     const idx = eventsToQuery.indexOf("FundsDeposited");
@@ -93,6 +113,7 @@ export class MockSpokePoolClient extends SpokePoolClient {
       latestDepositId,
       currentTime,
       events,
+      blocks,
       searchEndBlock: this.eventSearchConfig.toBlock || latestBlockNumber,
     };
   }

@@ -1,5 +1,5 @@
 import { BigNumber } from "ethers";
-import { DepositWithBlock, FillWithBlock, UbaFlow } from "../../interfaces";
+import { DepositWithBlock, FillWithBlock, TokenRunningBalance, UbaFlow } from "../../interfaces";
 import { UBAActionType } from "../../UBAFeeCalculator/UBAFeeTypes";
 
 // @todo: Revert to this after bumping typescript: { valid: true, fill: FillWithBlock } | { valid: false, reason: string } ;
@@ -29,8 +29,16 @@ export type UBAClientState = {
 };
 
 export type UBABundleTokenState = {
-  [tokenSymbol: string]: UBABundleState[];
+  [tokenSymbol: string]: (UBABundleState & { bundleBlockRanges: number[][] })[];
 };
+
+export type UBABundleState = {
+  flows: ModifiedUBAFlow[];
+  ubaConfig: UBAConfig;
+  openingBalances: TokenRunningBalance;
+};
+
+export type CachedUBABundleState = UBABundleState & { loadedFromCache: boolean };
 
 export type UBABundleState = {
   bundleBlockRanges: number[][];

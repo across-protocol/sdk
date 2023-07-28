@@ -6,12 +6,10 @@ import _ from "lodash";
 import {
   assign,
   EventSearchConfig,
-  isDefined,
   MakeOptional,
   BigNumberish,
-  getImpliedBundleBlockRanges,
-  getBlockRangeForChain,
-  getBlockForChain,
+  stringifyJSONWithNumericString,
+  isDefined,
 } from "../utils";
 import {
   fetchTokenInfo,
@@ -29,6 +27,8 @@ import {
   LpToken,
   TokenRunningBalance,
   DepositWithBlock,
+  ProposedRootBundleStringified,
+  ExecutedRootBundleStringified,
 } from "../interfaces";
 import { ExecutedRootBundle, PendingRootBundle, ProposedRootBundle } from "../interfaces";
 import { CrossChainContractsSet, DestinationTokenWithBlock, SetPoolRebalanceRoot } from "../interfaces";
@@ -268,24 +268,16 @@ export class HubPoolClient extends BaseAbstractClient {
     >,
     l1Token: string
   ): Promise<{ realizedLpFeePct: BigNumber | undefined; quoteBlock: number }> {
+    if (!isDefined(this.currentTime)) {
+      throw new Error("HubPoolClient has not set a currentTime");
+    }
     const quoteBlock = await this.getBlockNumber(deposit.quoteTimestamp);
-    if (!quoteBlock) {
+    if (!isDefined(quoteBlock)) {
       throw new Error(`Could not find block for timestamp ${deposit.quoteTimestamp}`);
     }
 
-    // To determine if a deposit should be applied a UBA fee, we need to check the *hub chain* start block of the bundle
-    // that would contain this deposit.
-    const bundleStartBlockContainingDeposit = this.getBundleStartBlocksForProposalContainingBlock(
-      deposit.blockNumber,
-      deposit.originChainId,
-      this.latestBlockNumber
-    );
-    const depositMainnetStartBlock = getBlockForChain(
-      bundleStartBlockContainingDeposit,
-      this.chainId,
-      this.configStoreClient.enabledChainIds
-    );
-    if (isUBAActivatedAtBlock(this, depositMainnetStartBlock)) {
+    // Compare deposit block against UBA bundle start blocks.
+    if (isUBAActivatedAtBlock(this, deposit.blockNumber, deposit.originChainId)) {
       // If UBA deposit then we can't compute the realizedLpFeePct until after we've updated the UBA Client.
       return {
         realizedLpFeePct: undefined,
@@ -335,68 +327,6 @@ export class HubPoolClient extends BaseAbstractClient {
 
   getSpokeActivationBlockForChain(chainId: number): number {
     return this.getSpokePoolActivationBlock(chainId, this.getSpokePoolForBlock(chainId)) ?? 0;
-  }
-
-  /**
-   * Return start blocks for all block ranges in bundle that contained the event emitted at `eventBlock` on `eventChain`
-   * @param eventBlock
-   * @param eventChain
-   * @param hubPoolLatestBlock
-   * @returns
-   */
-  getBundleStartBlocksForProposalContainingBlock(
-    eventBlock: number,
-    eventChain: number,
-    hubPoolLatestBlock?: number
-  ): number[] {
-    const enabledChains = this.configStoreClient.enabledChainIds;
-
-    // First find the latest executed bundle as of `hubPoolLatestBlock`.
-    const latestExecutedBundle = this.getNthFullyExecutedRootBundle(-1, hubPoolLatestBlock);
-
-    // If there is no latest executed bundle, then return 0. This means that there is no
-    // bundle before `hubPoolLatestBlock` containing the event block so the next bundle will start at
-    // 0 and contain the event.
-    if (!isDefined(latestExecutedBundle)) {
-      return Array(enabledChains.length).fill(0);
-    }
-
-    // Construct the bundle's block range
-    const blockRanges = getImpliedBundleBlockRanges(this, this.configStoreClient, latestExecutedBundle);
-    const blockRangesForChains = Object.fromEntries(
-      enabledChains.map((chainId) => [chainId, getBlockRangeForChain(blockRanges, chainId, enabledChains)])
-    );
-
-    // Now compare the eventBlock against the eventBlockRange.
-    const eventBlockRange = getBlockRangeForChain(blockRanges, eventChain, enabledChains);
-
-    // If event is greater than the latest bundle's end block, then the next bundle will contain the event. The
-    // the next bundle will start at these end blocks + 1
-    if (eventBlock > eventBlockRange[1]) {
-      // If the chain is disabled as of `hubPoolLatestBlock`, then don't add 1
-      const enabledChainsForProposal = this.configStoreClient.getEnabledChains(
-        hubPoolLatestBlock,
-        this.configStoreClient.enabledChainIds
-      );
-      return enabledChains.map((chainId) => {
-        if (!enabledChainsForProposal.includes(chainId)) {
-          return blockRangesForChains[chainId][1];
-        } else return blockRangesForChains[chainId][1] + 1;
-      });
-    }
-
-    // Now check if the event is greater than the latest bundle's start block. If so, return the start blocks
-    // for each chain.
-    if (eventBlock >= eventBlockRange[0]) {
-      return enabledChains.map((chainId) => blockRangesForChains[chainId][0]);
-    }
-
-    // At this point we need to repeat the above steps starting at the validated bundle preceding `latestExecutedBundle`.
-    return this.getBundleStartBlocksForProposalContainingBlock(
-      eventBlock,
-      eventChain,
-      latestExecutedBundle.blockNumber
-    );
   }
 
   // Root bundles are valid if all of their pool rebalance leaves have been executed before the next bundle, or the
@@ -849,5 +779,96 @@ export class HubPoolClient extends BaseAbstractClient {
       return 0;
     }
     return bundleEvaluationBlockNumbers[chainIdIndex].toNumber();
+  }
+
+  public updateFromJSON(hubPoolClientState: Partial<ReturnType<HubPoolClient["toJSON"]>>): void {
+    const keysToUpdate = Object.keys(hubPoolClientState);
+
+    this.logger.debug({
+      at: "HubPoolClient",
+      message: "Updating HubPool client from JSON",
+      keys: keysToUpdate,
+    });
+
+    if (keysToUpdate.length === 0) {
+      return;
+    }
+
+    if (!this.configStoreClient.isUpdated) {
+      throw new Error("ConfigStoreClient not updated");
+    }
+
+    const {
+      l1TokensToDestinationTokens = this.l1TokensToDestinationTokens,
+      l1Tokens = this.l1Tokens,
+      lpTokens = this.lpTokens,
+      canceledRootBundles = this.canceledRootBundles,
+      disputedRootBundles = this.disputedRootBundles,
+      pendingRootBundle = this.pendingRootBundle,
+      crossChainContracts = this.crossChainContracts,
+      l1TokensToDestinationTokensWithBlock = this.l1TokensToDestinationTokensWithBlock,
+      firstBlockToSearch = this.firstBlockToSearch,
+      latestBlockNumber = this.latestBlockNumber,
+      currentTime = this.currentTime,
+      proposedRootBundles,
+      executedRootBundles,
+    } = hubPoolClientState;
+
+    this.l1TokensToDestinationTokens = l1TokensToDestinationTokens;
+    this.l1Tokens = l1Tokens;
+    this.lpTokens = lpTokens;
+    this.proposedRootBundles = proposedRootBundles
+      ? proposedRootBundles.map((bundle) => ({
+          ...bundle,
+          bundleEvaluationBlockNumbers: bundle.bundleEvaluationBlockNumbers.map((block) => BigNumber.from(block)),
+        }))
+      : this.proposedRootBundles;
+    this.canceledRootBundles = canceledRootBundles;
+    this.disputedRootBundles = disputedRootBundles;
+    this.executedRootBundles = executedRootBundles
+      ? executedRootBundles.map((bundle) => ({
+          ...bundle,
+          bundleLpFees: bundle.bundleLpFees.map((fee) => BigNumber.from(fee)),
+          netSendAmounts: bundle.netSendAmounts.map((amount) => BigNumber.from(amount)),
+          runningBalances: bundle.runningBalances.map((balance) => BigNumber.from(balance)),
+          incentiveBalances: bundle.incentiveBalances.map((balance) => BigNumber.from(balance)),
+        }))
+      : this.executedRootBundles;
+    this.pendingRootBundle = pendingRootBundle;
+    this.crossChainContracts = crossChainContracts;
+    this.l1TokensToDestinationTokensWithBlock = l1TokensToDestinationTokensWithBlock;
+    this.firstBlockToSearch = firstBlockToSearch;
+    this.latestBlockNumber = latestBlockNumber;
+    this.currentTime = currentTime;
+    this.isUpdated = true;
+  }
+
+  public toJSON() {
+    return {
+      deploymentBlock: this.deploymentBlock,
+      chainId: this.chainId,
+      eventSearchConfig: this.eventSearchConfig,
+      configOverride: this.configOverride,
+
+      firstBlockToSearch: this.firstBlockToSearch,
+      latestBlockNumber: this.latestBlockNumber,
+      currentTime: this.currentTime,
+
+      l1TokensToDestinationTokens: this.l1TokensToDestinationTokens,
+      l1Tokens: this.l1Tokens,
+      lpTokens: this.lpTokens,
+
+      proposedRootBundles: this.proposedRootBundles.map((bundle) =>
+        JSON.parse(stringifyJSONWithNumericString(bundle))
+      ) as ProposedRootBundleStringified[],
+      canceledRootBundles: this.canceledRootBundles,
+      disputedRootBundles: this.disputedRootBundles,
+      executedRootBundles: this.executedRootBundles.map((bundle) =>
+        JSON.parse(stringifyJSONWithNumericString(bundle))
+      ) as ExecutedRootBundleStringified[],
+      pendingRootBundle: this.pendingRootBundle,
+      crossChainContracts: this.crossChainContracts,
+      l1TokensToDestinationTokensWithBlock: this.l1TokensToDestinationTokensWithBlock,
+    };
   }
 }

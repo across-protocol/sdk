@@ -3,6 +3,7 @@ import { ThresholdBoundType, FlowTupleParameters } from "./UBAFeeTypes";
 import { CHAIN_ID_LIST_INDICES } from "../constants";
 import { stringifyJSONWithNumericString } from "../utils/JSONUtils";
 import { fixedPointAdjustment } from "../utils";
+import { assertValidityOfFeeCurve } from "./UBAFeeUtility";
 
 type ChainId = number;
 type RouteCombination = string;
@@ -61,6 +62,7 @@ class UBAConfig {
    * @param lpGammaFunction A record of piecewise functions for each chain that define the utilization fee to ensure that the bridge responds to periods of high utilization
    * @param incentivePoolAdjustment A DAO controlled variable to track any donations made to the incentivePool liquidity
    * @param ubaRewardMultiplier Used to scale rewards when a fee is larger than the incentive balance
+   * @throws Error if any of the fee curves are invalid and assertValidityOfFeeCurves is true
    */
   constructor(
     baselineFee: DefaultOverrideStructure<BigNumber, RouteCombination>,
@@ -76,6 +78,27 @@ class UBAConfig {
     this.lpGammaFunction = lpGammaFunction;
     this.incentivePoolAdjustment = incentivePoolAdjustment;
     this.ubaRewardMultiplier = ubaRewardMultiplier;
+
+    // Validate the config
+    this.assertValidityOfAllFeeCurves();
+  }
+
+  /**
+   * Assert the validity of all fee curves. This is a helper function
+   * that is called in the constructor to ensure that all fee curves
+   * are valid.
+   */
+  private assertValidityOfAllFeeCurves(): void {
+    // Find all the fee curves that could possibiliy be used
+    // in the UBA fee calculation. Specifically, these are the
+    // balancing fee curve and the lp gamma function curve. The
+    // curves are available for all overrides as well as their
+    // default counterparts.
+    const omega = [this.balancingFee.default, ...Object.values(this.balancingFee.override ?? {})];
+    const gamma = [this.lpGammaFunction.default, ...Object.values(this.lpGammaFunction.override ?? {})];
+    // Iterate through each curve and assert that it is valid
+    omega.forEach((f) => assertValidityOfFeeCurve(f, true));
+    gamma.forEach((f) => assertValidityOfFeeCurve(f, false));
   }
 
   /**

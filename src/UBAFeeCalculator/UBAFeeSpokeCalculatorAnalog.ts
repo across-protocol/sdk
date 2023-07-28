@@ -54,9 +54,9 @@ export function calculateHistoricalRunningBalance(
         runningBalance: acc.runningBalance[isUbaInflow(flow) ? "add" : "sub"](flow.amount).sub(incentiveFee),
         incentiveBalance: max(ethers.constants.Zero, acc.incentiveBalance.add(incentiveFee)),
       };
-      console.log(
-        `- Added ${incentiveFee.toString()} to existing incentive pot ${acc.incentiveBalance.toString()}, new incentive pot = ${resultant.incentiveBalance.toString()}`
-      );
+      // console.log(
+      //   `- Added ${incentiveFee.toString()} to existing incentive pot ${acc.incentiveBalance.toString()}, new incentive pot = ${resultant.incentiveBalance.toString()}`
+      // );
 
       const { target: upperBoundTarget, threshold: upperBoundThreshold } = upperBoundTriggerHurdle;
       const { target: lowerBoundTarget, threshold: lowerBoundThreshold } = lowerBoundTriggerHurdle;
@@ -116,13 +116,14 @@ export function calculateHistoricalRunningBalance(
 
 /**
  * Returns the balancing fee for a given event that produces a flow of `flowType` of size `amount`.
+ * Can return a negative fee if the fee is a reward.
  * @param amount Amount of inflow or outflow produced by event that we're computing a balancing fee for.
  * @param flowType Inflow or Outflow.
  * @param lastRunningBalance The latest running balance preceding this event.
  * @param lastIncentiveBalance The latest incentive balance preceding this event.
  * @param chainId The chain id of the spoke chain
  * @param config The UBAConfig to use for the calculation
- * @returns
+ * @returns The incentive fee to charge, NOT a percentage.
  */
 export function getEventFee(
   amount: BigNumber,
@@ -132,33 +133,24 @@ export function getEventFee(
   chainId: number,
   config: UBAConfig
 ): UBAFlowFee {
-  // The rough psuedocode for this function is as follows:
-  // We'll need two inflow/outflow curves
-  // We need to determine which flow curve to use based on the flow type
-  // Compute first balancing fee <- f(x, x+amnt)
-  // Compute second balance fee (oportunity cost) <- g(x+amnt, x)
-  // Incentive Fee (LP Fee Component): first balancing fee - second balance fee
-  // Return (LP Fee + Balancing Fee)
-  // #############################################
-
-  // We first need to resolve the inflow/outflow curves for the deposit and refund spoke
+  // We first need to resolve the inflow/outflow curves for the flow chain
   const flowCurve = config.getBalancingFeeTuples(chainId);
 
-  // Next, we'll need to compute the first balancing fee from the running balance of the spoke
-  // to the running balance of the spoke + the amount
+  // Next, we'll need to compute the balancing fee by integrating the flow curve from the running balance to
+  // the running balance post-flow.
   let balancingFee = computePiecewiseLinearFunction(
     flowCurve,
     lastRunningBalance,
     lastRunningBalance.add(amount.mul(flowType === "inflow" ? 1 : -1))
   );
 
-  // If the balancing fee is a reward paid to the user or relayer then we might need to discount it.
-  // Negative balancing fees are rewards.
+  // If the balancing fee is a reward paid to the user or relayer then we might need to discount it based on
+  // availbale rewards. Negative balancing fees are rewards.
   if (balancingFee.lt(0)) {
     // If incentive balance is <= 0 then return early because the balancing reward must be 0 as there are
     // no incentives to pay with.
     if (lastIncentiveBalance.lte(0)) {
-      console.log("- Last incentive balance is 0, balancing fee must be 0");
+      // console.log("- Last incentive balance is 0, balancing fee must be 0");
       return {
         balancingFee: ethers.constants.Zero,
       };
@@ -170,26 +162,28 @@ export function getEventFee(
     balancingFee = balancingFee.mul(ubaRewardMultiplier).div(fixedPointAdjustment);
 
     // Next, compute the amount of fees that would be required to be paid out of the incentive balance
-    // to bring the the balance fee to 0. This is found by finding the point on the flow curve
+    // to bring the the marginal balance fee to 0. This is found by finding the point on the flow curve
     // where the fee is 0 and integrating from there to the last running balance without including
-    // the current action.
+    // the current action. In other words, this is the total amount of incentive fees that must be reserved
+    // in the incentive balance at a minimum to "incentivize" depositors/relayers to bring the running
+    // balance to its target.
     const zeroFeePoint = config.getZeroFeePointOnBalancingFeeCurve(chainId);
     const feesToBringFeePctToZero = computePiecewiseLinearFunction(flowCurve, zeroFeePoint, lastRunningBalance).abs();
-    console.log(`- feesToBringFeePctToZero = ${feesToBringFeePctToZero.toString()}`);
+    // console.log(`- feesToBringFeePctToZero = ${feesToBringFeePctToZero.toString()}`);
 
     // The discount factor to apply is equal to the balance fee to bring the fee % back to 0 divided
     // by the incentive balance, capped at 100%.
     // @dev balancing fee, amount, and last incentive balance should all be in the same decimals precision.
     if (feesToBringFeePctToZero.gt(lastIncentiveBalance)) {
-      console.log(
-        `- discounting balancing reward because feesToBringFeePctToZero exceeds incentive balance. Starting balancing fee = ${balancingFee.toString()}, incentive balance = ${lastIncentiveBalance.toString()}`
-      );
+      // console.log(
+      //   `- discounting balancing reward because feesToBringFeePctToZero exceeds incentive balance. Starting balancing fee = ${balancingFee.toString()}, incentive balance = ${lastIncentiveBalance.toString()}`
+      // );
 
       // Discount factor should be in 18 decimal precision and should always be <= 1 since
       // feesToBringFeePctToZero > lastIncentiveBalance
       const discountFactor = lastIncentiveBalance.mul(fixedPointAdjustment).div(feesToBringFeePctToZero);
       balancingFee = balancingFee.mul(discountFactor).div(fixedPointAdjustment);
-      console.log(`- Discount factor = ${discountFactor}%, resultant balancing fee = ${balancingFee}`);
+      // console.log(`- Discount factor = ${discountFactor}%, resultant balancing fee = ${balancingFee}`);
     }
   }
 

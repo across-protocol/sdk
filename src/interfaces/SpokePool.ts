@@ -1,5 +1,6 @@
 import { BigNumber } from "ethers";
 import { SortableEvent } from "./Common";
+import { FundsDepositedEvent } from "../typechain";
 
 export type { FundsDepositedEvent } from "../typechain";
 
@@ -23,9 +24,20 @@ export interface Deposit {
 }
 
 export interface DepositWithBlock extends Deposit, SortableEvent {
+  blockTimestamp: number;
   quoteBlockNumber: number;
   blockTimestamp: number;
 }
+
+export type DepositWithBlockStringified = Omit<
+  DepositWithBlock,
+  "amount" | "relayerFeePct" | "realizedLpFeePct" | "newRelayerFeePct"
+> & {
+  amount: string;
+  relayerFeePct: string;
+  realizedLpFeePct?: string;
+  newRelayerFeePct?: string;
+};
 
 export interface RelayExecutionInfo {
   recipient: string;
@@ -34,6 +46,13 @@ export interface RelayExecutionInfo {
   isSlowRelay: boolean;
   payoutAdjustmentPct: BigNumber;
 }
+export type RelayerRefundExecutionInfoStringified = Omit<
+  RelayExecutionInfo,
+  "relayerFeePct" | "payoutAdjustmentPct"
+> & {
+  relayerFeePct: string;
+  payoutAdjustmentPct: string;
+};
 export interface Fill {
   amount: BigNumber;
   totalFilledAmount: BigNumber;
@@ -56,6 +75,18 @@ export interface FillWithBlock extends Fill, SortableEvent {
   blockTimestamp: number;
 }
 
+export type FillWithBlockStringified = Omit<
+  FillWithBlock,
+  "amount" | "relayerFeePct" | "totalFilledAmount" | "fillAmount" | "realizedLpFeePct" | "updatableRelayData"
+> & {
+  amount: string;
+  totalFilledAmount: string;
+  fillAmount: string;
+  relayerFeePct: string;
+  realizedLpFeePct: string;
+  updatableRelayData: RelayerRefundExecutionInfoStringified;
+};
+
 export interface SpeedUp {
   depositor: string;
   depositorSignature: string;
@@ -65,6 +96,10 @@ export interface SpeedUp {
   updatedRecipient: string;
   updatedMessage: string;
 }
+
+export type SpeedUpStringified = Omit<SpeedUp, "newRelayerFeePct"> & {
+  newRelayerFeePct: string;
+};
 
 export interface SlowFill {
   relayHash: string;
@@ -104,6 +139,16 @@ export interface RefundRequestWithBlock extends RefundRequest, SortableEvent {
   blockTimestamp: number;
 }
 
+export type RefundRequestWithBlockStringified = Omit<
+  RefundRequestWithBlock,
+  "amount" | "realizedLpFeePct" | "previousIdenticalRequests" | "fillBlock" | "previousIdenticalRequests"
+> & {
+  amount: string;
+  realizedLpFeePct: string;
+  previousIdenticalRequests: string;
+  fillBlock: string;
+};
+
 export interface RootBundleRelay {
   rootBundleId: number;
   relayerRefundRoot: string;
@@ -124,6 +169,14 @@ export interface RelayerRefundExecution {
 }
 
 export interface RelayerRefundExecutionWithBlock extends RelayerRefundExecution, SortableEvent {}
+
+export type RelayerRefundExecutionWithBlockStringified = Omit<
+  RelayerRefundExecutionWithBlock,
+  "amountToReturn" | "refundAmounts"
+> & {
+  amountToReturn: string;
+  refundAmounts: string[];
+};
 
 // Used in pool by spokePool to execute a slow relay.
 export interface RelayData {
@@ -177,3 +230,17 @@ export interface TokensBridged extends SortableEvent {
   l2TokenAddress: string;
   caller: string;
 }
+
+export type TokensBridgedStringified = Omit<TokensBridged, "amountToReturn"> & {
+  amountToReturn: string;
+};
+
+export type FundsDepositedEventStringified = Omit<
+  FundsDepositedEvent,
+  "amount" | "originChainId" | "destinationChainId" | "relayerFeePct"
+> & {
+  amount: string;
+  originChainId: string;
+  destinationChainId: string;
+  relayerFeePct: string;
+};

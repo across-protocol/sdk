@@ -134,12 +134,6 @@ export function getUBAFeeConfig(
     throw new Error(`UBA config for blockTag ${blockNumber} not found`);
   }
 
-  // Validate omega curves:
-  // - Each curve must have a zero point.
-  const omegaDefaultZeroCurve = ubaConfig.getZeroFeePointOnBalancingFeeCurve(chainId);
-  if (!isDefined(omegaDefaultZeroCurve)) {
-    throw new Error(`Omega curve for chain ${chainId} does not have a zero point`);
-  }
   return ubaConfig;
 }
 /**
@@ -194,7 +188,7 @@ export function getMostRecentBundleBlockRanges(
       hubPoolClient.chainId,
       hubPoolClient.configStoreClient.enabledChainIds
     )[0];
-    if (!(hubPoolStartBlock >= ubaActivationHubStartBlock)) {
+    if (hubPoolStartBlock < ubaActivationHubStartBlock) {
       break;
     }
 
@@ -213,10 +207,9 @@ export function getMostRecentBundleBlockRanges(
     toBlock = latestExecutedRootBundle.blockNumber;
   }
 
-  // If we haven't saved any bundles yet, then
-  // there probably hasn't been a bundle validated after the UBA activation block containing this chain. This is not necessarily
-  // an error so inject a block range from the UBA activation block of this chain to the latest
-  // spoke block searched so we can query all UBA eligible events for this chain.
+  // If we haven't saved any bundles yet, then there probably hasn't been a bundle validated after the UBA activation
+  // block containing this chain. This is not necessarily an error, so inject a block range from the activation block
+  // of this chain to the latest spoke block searched so we can query all UBA eligible events.
   if (bundleData.length === 0) {
     const ubaActivationBundleStartBlocks = getUbaActivationBundleStartBlocks(hubPoolClient);
     const ubaActivationBundleStartBlockForChain = getBlockForChain(
@@ -243,12 +236,12 @@ export function getMostRecentBundleBlockRanges(
 
 /**
  * Return the latest validated running balance for the given token.
- * @param eventBlock
- * @param eventChain
- * @param l1Token
- * @param hubPoolLatestBlock
- * @returns
- */
+ * @param eventBlock Block number on SpokePool chain.
+ * @param eventChain SpokePool chain ID.
+ * @param l1Token Address of token on the HubPool chain.
+ * @param hubPoolLatestBlock Most recent block to query from. Queries progress backwards in reverse chronology.
+ * @returns Token running balance as at eventBlock.
+ **/
 export function getOpeningRunningBalanceForEvent(
   hubPoolClient: HubPoolClient,
   eventBlock: number,
@@ -317,8 +310,6 @@ export function getOpeningRunningBalanceForEvent(
     const runningBalance = executedLeaf.runningBalances[l1TokenIndex];
     const incentiveBalance = executedLeaf.incentiveBalances[l1TokenIndex];
 
-    console.log(`Event ${eventBlock} on chain ${eventChain} is after bundle`, latestExecutedBundle);
-    console.log(`Using running balance ${runningBalance.toString()} for event chain`);
     const ubaActivationStartBlocks = getUbaActivationBundleStartBlocks(hubPoolClient);
     const ubaActivationStartBlockForChain = getBlockForChain(ubaActivationStartBlocks, eventChain, enabledChains);
     if (blockRanges[0][0] < ubaActivationStartBlockForChain) {
@@ -379,15 +370,15 @@ export async function getMatchedDeposit(
   return validateFillForDeposit(fill, deposit, fillFieldsToIgnore) ? deposit : undefined;
 }
 
-export function isUBAActivatedAtBlock(hubPoolClient: HubPoolClient, block: number): boolean {
+export function isUBAActivatedAtBlock(hubPoolClient: HubPoolClient, block: number, chain: number): boolean {
   try {
     const ubaActivationBlocks = getUbaActivationBundleStartBlocks(hubPoolClient);
-    const mainnetUbaActivationStartBlock = getBlockForChain(
+    const ubaActivationStartBlockForChain = getBlockForChain(
       ubaActivationBlocks,
-      hubPoolClient.chainId,
+      chain,
       hubPoolClient.configStoreClient.enabledChainIds
     );
-    return block >= mainnetUbaActivationStartBlock;
+    return block >= ubaActivationStartBlockForChain;
   } catch (err) {
     // UBA not activated yet or hub pool client not updated
     return false;
@@ -405,12 +396,9 @@ export function getUbaActivationBundleStartBlocks(hubPoolClient: HubPoolClient):
   const ubaActivationBlock = hubPoolClient.configStoreClient.getUBAActivationBlock();
   if (isDefined(ubaActivationBlock)) {
     const nextValidatedBundle = hubPoolClient.getProposedRootBundles().find((bundle) => {
-      if (bundle.blockNumber >= ubaActivationBlock) {
-        const isValidated = hubPoolClient.isRootBundleValid(bundle, latestHubPoolBlock);
-        return isValidated;
-      } else {
-        return false;
-      }
+      return bundle.blockNumber >= ubaActivationBlock
+        ? hubPoolClient.isRootBundleValid(bundle, latestHubPoolBlock)
+        : false;
     });
     if (isDefined(nextValidatedBundle)) {
       const bundleBlockRanges = getImpliedBundleBlockRanges(
@@ -425,10 +413,6 @@ export function getUbaActivationBundleStartBlocks(hubPoolClient: HubPoolClient):
       const chainIdIndices = hubPoolClient.configStoreClient.enabledChainIds;
       const nextBundleStartBlocks = chainIdIndices.map((chainId) =>
         hubPoolClient.getNextBundleStartBlockNumber(chainIdIndices, latestHubPoolBlock, chainId)
-      );
-      console.log(
-        "No validated bundle after UBA activation block, UBA should be activated on next bundle start blocks:",
-        nextBundleStartBlocks
       );
       return nextBundleStartBlocks;
     }
@@ -459,17 +443,18 @@ export function getFlowChain(flow: UbaFlow): number {
 }
 
 /**
- * Retrieves the flows for a given chainId.
+ * Retrieves the flows for a given chainId. This is designed only to work with UBA start and end blocks as
+ * the realizedLpFeePct for deposits is not compared against fills. Retrieving any "Pre UBA" deposits with
+ * defined realizedLpFeePct will cause this function to throw.
+ * * @param tokenSymbol Symbol of token to retrieve flows for.
  * @param chainId The chainId to retrieve flows for
- * @param chainIdIndices The chainIds of the spoke pools that align with the spoke pool clients
  * @param spokePoolClients A mapping of chainIds to spoke pool clients
  * @param hubPoolClient A hub pool client instance to query the hub pool
  * @param fromBlock The block number to start retrieving flows from
  * @param toBlock The block number to stop retrieving flows from
- * @param logger A logger instance to log messages to. Optional
  * @returns The flows for the given chainId
  */
-export async function getFlows(
+export async function getUBAFlows(
   tokenSymbol: string,
   chainId: number,
   spokePoolClients: SpokePoolClients,
@@ -483,21 +468,19 @@ export async function getFlows(
   toBlock = toBlock ?? spokePoolClient.eventSearchConfig.toBlock;
 
   // @todo: Fix these type assertions.
-  const deposits: UbaFlow[] = await mapAsync(
-    spokePoolClient.getDeposits().filter((deposit: DepositWithBlock) => {
-      const _tokenSymbol = hubPoolClient.getL1TokenInfoForL2Token(deposit.originToken, deposit.originChainId)?.symbol;
-      return (
-        _tokenSymbol === tokenSymbol &&
-        deposit.blockNumber >= (fromBlock as number) &&
-        deposit.blockNumber <= (toBlock as number)
-      );
-    }),
-    async (deposit: DepositWithBlock) => {
-      return {
-        ...deposit,
-      };
+  const deposits: UbaFlow[] = spokePoolClient.getDeposits().filter((deposit: DepositWithBlock) => {
+    if (deposit.blockNumber < (fromBlock as number) || deposit.blockNumber > (toBlock as number)) {
+      return false;
     }
-  );
+    const _tokenSymbol = hubPoolClient.getL1TokenInfoForL2Token(deposit.originToken, deposit.originChainId)?.symbol;
+    return _tokenSymbol === tokenSymbol;
+  });
+  const preUBADeposit = deposits.find((deposit) => isDefined(deposit.realizedLpFeePct));
+  if (isDefined(preUBADeposit)) {
+    throw new Error(
+      `Found a UBA deposit with a defined realizedLpFeePct at block ${preUBADeposit.blockNumber} on chain ${preUBADeposit.originChainId}`
+    );
+  }
 
   // Filter out:
   // - Fills that request refunds on a different chain.
@@ -522,8 +505,10 @@ export async function getFlows(
     const _tokenSymbol = hubPoolClient.getL1TokenInfoForL2Token(fill.destinationToken, fill.destinationChainId)?.symbol;
     // We only want to include full fills as flows. Partial fills need to request refunds and those refunds
     // will be included as flows.
-    return _tokenSymbol === tokenSymbol && fill.fillAmount.eq(fill.totalFilledAmount);
+    return fill.fillAmount.eq(fill.totalFilledAmount) && _tokenSymbol === tokenSymbol;
   }) as UbaFlow[];
+
+  // TODO: For each fill, add a matchedFill, or expected realizedLpFeePct value to the matched deposit.
 
   const refundRequests: UbaFlow[] = (
     await getValidRefundCandidates(
@@ -574,9 +559,16 @@ export function flowComparisonFunction(a: UbaFlow, b: UbaFlow): number {
     return 1;
   }
 
-  // If we get down here, then return ordered by size for now:
-  const amountDiff = a.amount.sub(b.amount);
-  return amountDiff.eq(0) ? 0 : amountDiff.lt(0) ? -1 : 1;
+  // We can compare on transaction index and log index when comparing same way
+  // flows on same chain (i.e. deposits with deposits, fills with fills,
+  // refunds with refunds).
+  if (a.blockNumber !== b.blockNumber) {
+    return a.blockNumber - b.blockNumber;
+  }
+  if (a.transactionIndex !== b.transactionIndex) {
+    return a.transactionIndex - b.transactionIndex;
+  }
+  return a.logIndex - b.logIndex;
 }
 
 export function sortFlowsAscendingInPlace(flows: UbaFlow[]): UbaFlow[] {
@@ -718,6 +710,7 @@ export function getMatchingFlow(
  * @param chainId Chain ID of the relevant SpokePoolClient instance.
  * @param spokePoolClients Set of SpokePoolClient instances, mapped by chain ID.
  * @param filter  Optional filtering criteria.
+ * @param ignoredDepositValidationParams Event fields to ignore when matching a Fill to a Deposit.
  * @returns Array of FillWithBlock events matching the chain ID and optional filtering criteria.
  */
 export async function getValidFillCandidates(
