@@ -41,6 +41,13 @@ function omitDefaultKeys<T>(obj: Record<string, T>): Record<string, T> {
   }, {});
 }
 
+/**
+ * Parses a UBAParsedConfigType into a UBAFeeConfig
+ * @param chainId The chain ID to parse the UBA config for
+ * @param tokenSymbol The token symbol to parse the UBA config for
+ * @param ubaConfig The UBAParsedConfigType to parse
+ * @returns The parsed UBAFeeConfig
+ */
 export function parseUBAFeeConfig(
   chainId: number,
   tokenSymbol: string,

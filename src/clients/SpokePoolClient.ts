@@ -414,10 +414,6 @@ export class SpokePoolClient extends BaseAbstractClient {
     return `${event.depositId}-${event.originChainId}`;
   }
 
-  public async getBlockData(block: number): Promise<ethers.providers.Block> {
-    return await this.spokePool.provider.getBlock(block);
-  }
-
   /**
    * Find the block range that contains the deposit ID. This is a binary search that searches for the block range
    * that contains the deposit ID.
@@ -733,7 +729,7 @@ export class SpokePoolClient extends BaseAbstractClient {
         if (deposit.depositId > this.latestDepositIdQueried) {
           this.latestDepositIdQueried = deposit.depositId;
         }
-      });
+      }
     }
 
     // TODO: When validating fills with deposits for the purposes of UBA flows, do we need to consider
@@ -770,7 +766,7 @@ export class SpokePoolClient extends BaseAbstractClient {
         };
         assign(this.fills, [fill.originChainId], [fill]);
         assign(this.depositHashesToFills, [this.getDepositHash(fill)], [fill]);
-      });
+      }
     }
 
     // @note: In Across 2.5, callers will simultaneously request [FundsDeposited, FilledRelay, RefundsRequested].

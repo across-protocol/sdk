@@ -320,8 +320,6 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
         return [chainId, getBlockRangeForChain(blockRanges, chainId, this.chainIdIndices)];
       })
     );
-    return balancingFee;
-  }
 
     // Combine flows from all chain block ranges in this bundle.
     const flowsInBundle = sortFlowsAscending(
