@@ -59,7 +59,7 @@ describe("UBAFeeSpokeCalculatorAnalog", () => {
       expect(fee.balancingFee.toString()).toEqual("0");
     });
 
-    it.only("should have an expected discount factor", () => {
+    it("should have an expected discount factor", () => {
       const amount = toBNWei(10, 6);
       const lastRunningBalance = toBNWei(2000, 6);
       const lastIncentiveBalance = toBNWei(100, 6);
@@ -81,9 +81,7 @@ describe("UBAFeeSpokeCalculatorAnalog", () => {
         config
       ).balancingFee;
 
-      config.setRewardMultiplier(chainId.toString(), toBNWei("0.25006251562", 18));
-
-      const multiplierBalancingFee = getEventFee(
+      const nonDiscountedFee = getEventFee(
         amount,
         flowType,
         lastRunningBalance,
@@ -91,6 +89,9 @@ describe("UBAFeeSpokeCalculatorAnalog", () => {
         chainId,
         config
       ).balancingFee;
+
+      const expectedMultiplier = toBNWei("0.25006251562", 18);
+      const multiplierBalancingFee = nonDiscountedFee.mul(expectedMultiplier).div(fixedPointAdjustment);
 
       expect(discountFactorBalancingFee.toString()).toEqual(multiplierBalancingFee.toString());
     });
