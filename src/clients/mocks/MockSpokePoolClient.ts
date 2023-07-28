@@ -13,7 +13,7 @@ type Block = providers.Block;
 // This class replaces internal SpokePoolClient functionality, enabling the
 // user to bypass on-chain queries and inject ethers Event objects directly.
 export class MockSpokePoolClient extends SpokePoolClient {
-  private eventManager: EventManager;
+  public eventManager: EventManager;
   private events: Event[] = [];
   private realizedLpFeePctOverride: BigNumber | undefined;
   private destinationTokenForChainOverride: Record<number, string> = {};

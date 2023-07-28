@@ -91,8 +91,8 @@ export class MockHubPoolClient extends HubPoolClient {
 
   getDestinationTokenForL1Token(l1Token: string, destinationChainId: number): string {
     return (
-      this.returnedDestinationTokenForL1Token ??
       this.l1TokensToDestinationTokensMock[l1Token]?.[destinationChainId] ??
+      this.returnedDestinationTokenForL1Token ??
       super.getDestinationTokenForL1Token(l1Token, destinationChainId)
     );
   }
