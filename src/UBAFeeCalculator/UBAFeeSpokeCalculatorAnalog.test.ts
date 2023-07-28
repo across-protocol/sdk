@@ -60,7 +60,7 @@ describe("UBAFeeSpokeCalculatorAnalog", () => {
     });
 
     describe("getEventFee should correctly apply a reward multiplier", () => {
-      for (const rawMultiplier of ["-1", "1.2", "0.2", "1.2", "3.4", "7"]) {
+      for (const rawMultiplier of ["-1", "0", "1.2", "0.2", "1.2", "3.4", "7"]) {
         const multiplier = utils.parseEther(rawMultiplier);
         it(`should return a discounted balance. Test with ${rawMultiplier}`, () => {
           const amount = BigNumber.from(10);
