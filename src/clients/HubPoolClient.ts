@@ -6,12 +6,10 @@ import _ from "lodash";
 import {
   assign,
   EventSearchConfig,
-  isDefined,
   MakeOptional,
   BigNumberish,
-  getImpliedBundleBlockRanges,
-  getBlockRangeForChain,
   stringifyJSONWithNumericString,
+  isDefined,
 } from "../utils";
 import {
   fetchTokenInfo,
@@ -35,9 +33,9 @@ import {
 import { ExecutedRootBundle, PendingRootBundle, ProposedRootBundle } from "../interfaces";
 import { CrossChainContractsSet, DestinationTokenWithBlock, SetPoolRebalanceRoot } from "../interfaces";
 import * as lpFeeCalculator from "../lpFeeCalculator";
-import { AcrossConfigStoreClient as ConfigStoreClient } from "./";
-import { isUbaBlock } from "./UBAClient/UBAClientUtilities";
+import { AcrossConfigStoreClient as ConfigStoreClient } from "./AcrossConfigStoreClient/AcrossConfigStoreClient";
 import { BaseAbstractClient } from "./BaseAbstractClient";
+import { isUBAActivatedAtBlock } from "./UBAClient/UBAClientUtilities";
 
 type _HubPoolUpdate = {
   success: true;
@@ -85,7 +83,7 @@ export class HubPoolClient extends BaseAbstractClient {
   constructor(
     readonly logger: winston.Logger,
     readonly hubPool: Contract,
-    readonly configStoreClient: ConfigStoreClient,
+    public configStoreClient: ConfigStoreClient,
     public deploymentBlock = 0,
     readonly chainId: number = 1,
     readonly eventSearchConfig: MakeOptional<EventSearchConfig, "toBlock"> = { fromBlock: 0, maxBlockLookBack: 0 },
@@ -270,19 +268,16 @@ export class HubPoolClient extends BaseAbstractClient {
     >,
     l1Token: string
   ): Promise<{ realizedLpFeePct: BigNumber | undefined; quoteBlock: number }> {
+    if (!isDefined(this.currentTime)) {
+      throw new Error("HubPoolClient has not set a currentTime");
+    }
     const quoteBlock = await this.getBlockNumber(deposit.quoteTimestamp);
-    if (!quoteBlock) {
+    if (!isDefined(quoteBlock)) {
       throw new Error(`Could not find block for timestamp ${deposit.quoteTimestamp}`);
     }
 
-    // To determine if a deposit should be applied a UBA fee, we need to check the start block of the bundle
-    // that would contain this deposit.
-    const bundleStartBlockContainingDeposit = this.getBundleStartBlockContainingBlock(
-      deposit.blockNumber,
-      deposit.originChainId,
-      this.latestBlockNumber
-    );
-    if (isUbaBlock(bundleStartBlockContainingDeposit, this.configStoreClient)) {
+    // Compare deposit block against UBA bundle start blocks.
+    if (isUBAActivatedAtBlock(this, deposit.blockNumber, deposit.originChainId)) {
       // If UBA deposit then we can't compute the realizedLpFeePct until after we've updated the UBA Client.
       return {
         realizedLpFeePct: undefined,
@@ -332,43 +327,6 @@ export class HubPoolClient extends BaseAbstractClient {
 
   getSpokeActivationBlockForChain(chainId: number): number {
     return this.getSpokePoolActivationBlock(chainId, this.getSpokePoolForBlock(chainId)) ?? 0;
-  }
-
-  /**
-   * @notice Return the bundle start block for the bundle containing the event with a given block number.
-   * @param eventBlock The event happened at this block on `eventChain`.
-   * @param eventChain The event happened on this chain.
-   * @param hubPoolLatestBlock Optional param that can be used to optimize the search time for which
-   * bundle contains the event
-   */
-  getBundleStartBlockContainingBlock(eventBlock: number, eventChain: number, hubPoolLatestBlock?: number): number {
-    // First find the latest executed bundle as of `hubPoolLatestBlock`.
-    const latestExecutedBundle = this.getNthFullyExecutedRootBundle(-1, hubPoolLatestBlock);
-
-    // If there is no latest executed bundle, then return the spoke's activation block. This means that there is no
-    // bundle before `hubPoolLatestBlock` containing the event block so the next bundle will start at
-    // the activation block and contain the event.
-    if (!isDefined(latestExecutedBundle)) {
-      return this.getSpokeActivationBlockForChain(eventChain);
-    }
-
-    // Construct the bundle's block range
-    const blockRange = getImpliedBundleBlockRanges(this, this.configStoreClient, latestExecutedBundle);
-    const blockRangeForChain = getBlockRangeForChain(blockRange, eventChain, this.configStoreClient.enabledChainIds);
-
-    // If event is greater than the latest bundle's end block, then the next bundle will contain the event. The
-    // the next bundle will start at this end block + 1
-    if (eventBlock > blockRangeForChain[1]) {
-      return blockRangeForChain[1] + 1;
-    }
-
-    // Now check if the event is greater than the start block. If so, return the start block.
-    if (eventBlock >= blockRangeForChain[0]) {
-      return blockRangeForChain[0];
-    }
-
-    // At this point we need to repeat the above steps starting at the validated bundle preceding `latestExecutedBundle`.
-    return this.getBundleStartBlockContainingBlock(eventBlock, eventChain, latestExecutedBundle.blockNumber);
   }
 
   // Root bundles are valid if all of their pool rebalance leaves have been executed before the next bundle, or the

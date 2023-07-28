@@ -15,6 +15,7 @@ import {
   max,
   sortEventsAscending,
   findLast,
+  UBA_MIN_CONFIG_STORE_VERSION,
 } from "../../utils";
 import { Contract, BigNumber, Event } from "ethers";
 import winston from "winston";
@@ -227,16 +228,19 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
     return isDefined(config) ? Number(config.value) : DEFAULT_CONFIG_STORE_VERSION;
   }
 
-  getConfigStoreVersionForBlock(blockNumber: number): number {
+  getUBAActivationBlock(): number | undefined {
+    return this.cumulativeConfigStoreVersionUpdates.find((config) => {
+      return Number(config.value) >= UBA_MIN_CONFIG_STORE_VERSION;
+    })?.blockNumber;
+  }
+
+  getConfigStoreVersionForBlock(blockNumber: number = Number.MAX_SAFE_INTEGER): number {
     const config = this.cumulativeConfigStoreVersionUpdates.find((config) => config.blockNumber <= blockNumber);
     return isDefined(config) ? Number(config.value) : DEFAULT_CONFIG_STORE_VERSION;
   }
 
   hasValidConfigStoreVersionForTimestamp(timestamp: number = Number.MAX_SAFE_INTEGER): boolean {
     const version = this.getConfigStoreVersionForTimestamp(timestamp);
-    return this.isValidConfigStoreVersion(version);
-  }
-  isValidConfigStoreVersion(version: number): boolean {
     return this.configStoreVersion >= version;
   }
 

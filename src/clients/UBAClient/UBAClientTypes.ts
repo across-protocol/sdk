@@ -1,5 +1,5 @@
 import { BigNumber } from "ethers";
-import { DepositWithBlock, FillWithBlock, UbaFlow } from "../../interfaces";
+import { DepositWithBlock, FillWithBlock, TokenRunningBalance, UbaFlow } from "../../interfaces";
 import { UBAActionType } from "../../UBAFeeCalculator/UBAFeeTypes";
 import UBAConfig from "../../UBAFeeCalculator/UBAFeeConfig";
 
@@ -16,40 +16,30 @@ export type RelayerFeeResult = {
   relayerBalancingFee: BigNumber;
 };
 
-export type UBAChainState = {
-  spokeChain: {
-    deploymentBlockNumber: number;
-    bundleEndBlockNumber: number;
-    latestBlockNumber: number;
-  };
-  bundles: UBABundleTokenState;
-};
-
-export type UBABundleTokenState = {
-  [tokenSymbol: string]: UBABundleState[];
-};
-
 export type ModifiedUBAFlow = {
   flow: UbaFlow;
-  systemFee: SystemFeeResult;
-  relayerFee: RelayerFeeResult;
+  balancingFee: BigNumber;
+  lpFee: BigNumber;
   runningBalance: BigNumber;
   incentiveBalance: BigNumber;
   netRunningBalanceAdjustment: BigNumber;
 };
 
-export type UBABundleState = {
-  openingBalance: BigNumber;
-  openingIncentiveBalance: BigNumber;
-  openingBlockNumberForSpokeChain: number;
-  closingBlockNumberForSpokeChain: number;
-  config: UBAConfig;
-  flows: ModifiedUBAFlow[];
+export type UBAClientState = {
+  [chainId: number]: UBABundleTokenState;
 };
 
-export type UBAClientState = {
-  [chainId: number]: UBAChainState;
+export type UBABundleTokenState = {
+  [tokenSymbol: string]: (UBABundleState & { bundleBlockRanges: number[][] })[];
 };
+
+export type UBABundleState = {
+  flows: ModifiedUBAFlow[];
+  ubaConfig: UBAConfig;
+  openingBalances: TokenRunningBalance;
+};
+
+export type CachedUBABundleState = UBABundleState & { loadedFromCache: boolean };
 
 export type SpokePoolFillFilter = {
   relayer?: string;

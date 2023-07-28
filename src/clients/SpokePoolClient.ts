@@ -697,12 +697,6 @@ export class SpokePoolClient extends BaseAbstractClient {
       });
       this.earlyDeposits = earlyDeposits;
 
-      if (depositEvents.length > 0) {
-        this.log("debug", `Fetching realizedLpFeePct for ${depositEvents.length} deposits on chain ${this.chainId}`, {
-          numDeposits: depositEvents.length,
-        });
-      }
-
       const dataForQuoteTime: { realizedLpFeePct: BigNumber | undefined; quoteBlock: number }[] = await Promise.all(
         depositEvents.map(async (event) => this.computeRealizedLpFeePct(event))
       );
@@ -738,6 +732,9 @@ export class SpokePoolClient extends BaseAbstractClient {
       }
     }
 
+    // TODO: When validating fills with deposits for the purposes of UBA flows, do we need to consider
+    // speed ups as well? For example, do we need to also consider that the speed up is before the fill
+    // timestamp to be applied for the fill? My brain hurts.
     // Update deposits with speed up requests from depositor.
     if (eventsToQuery.includes("RequestedSpeedUpDeposit")) {
       const speedUpEvents = queryResults[eventsToQuery.indexOf("RequestedSpeedUpDeposit")];
