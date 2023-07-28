@@ -972,7 +972,9 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
         await forEachAsync(tokens, async (token) => {
           await forEachAsync(this.chainIdIndices, async (chainId) => {
             const redisKeyForBundle = this.getKeyForBundle(mostRecentBundleBlockRanges, token, chainId);
-            const modifiedFlowsInBundle = await this.cachingClient?.get<ModifiedUBAFlow[]>(redisKeyForBundle);
+            const modifiedFlowsInBundle: ModifiedUBAFlow[] | undefined | null = await this.cachingClient?.get(
+              redisKeyForBundle
+            );
             if (isDefined(modifiedFlowsInBundle)) {
               // console.log(`💿 Loaded bundle state from cache using key ${redisKeyForBundle}`);
               this.appendValidatedFlowsToClassState(chainId, token, modifiedFlowsInBundle, mostRecentBundleBlockRanges);

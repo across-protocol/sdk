@@ -29,7 +29,6 @@ export function calculateHistoricalRunningBalance(
   tokenSymbol: string,
   config: UBAConfig
 ): TokenRunningBalanceWithNetSend {
-  console.log(flows, lastValidatedIncentiveRunningBalance);
   // Attempt to resolve the trigger hurdle to include in the running
   // balance calculation
   const { upperBound: upperBoundTriggerHurdle, lowerBound: lowerBoundTriggerHurdle } =
