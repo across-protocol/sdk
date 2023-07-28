@@ -108,6 +108,7 @@ export class MockHubPoolClient extends HubPoolClient {
     return this.returnedL1TokenForDeposit ?? super.getL1TokenCounterpartAtBlock(l2ChainId, l2Token, hubPoolBlock);
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   getL1TokenInfoForL2Token(l2Token: string, _chain: number): L1Token {
     return this.getTokenInfoForL1Token(l2Token) ?? this.tokenInfoToReturn;
   }

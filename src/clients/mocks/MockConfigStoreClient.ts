@@ -39,6 +39,7 @@ export class MockConfigStoreClient extends AcrossConfigStoreClient {
     return this.ubaActivationBlockOverride ?? super.getUBAActivationBlock();
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   getConfigStoreVersionForBlock(_blockNumber: number): number {
     return this.configStoreVersion;
   }

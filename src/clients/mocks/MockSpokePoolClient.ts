@@ -76,6 +76,7 @@ export class MockSpokePoolClient extends SpokePoolClient {
     this.blockTimestamp = timestamp;
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   async getBlockData(_block: number) {
     return { timestamp: this.blockTimestamp ?? Math.floor(Date.now() / 1000) } as ethers.providers.Block;
   }

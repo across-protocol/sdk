@@ -41,6 +41,13 @@ function omitDefaultKeys<T>(obj: Record<string, T>): Record<string, T> {
   }, {});
 }
 
+/**
+ * Parses a UBAParsedConfigType into a UBAFeeConfig
+ * @param chainId The chain ID to parse the UBA config for
+ * @param tokenSymbol The token symbol to parse the UBA config for
+ * @param ubaConfig The UBAParsedConfigType to parse
+ * @returns The parsed UBAFeeConfig
+ */
 export function parseUBAFeeConfig(
   chainId: number,
   tokenSymbol: string,
@@ -316,8 +323,6 @@ export function getOpeningRunningBalanceForEvent(
     const runningBalance = executedLeaf.runningBalances[l1TokenIndex];
     const incentiveBalance = executedLeaf.incentiveBalances[l1TokenIndex];
 
-    console.log(`Event ${eventBlock} on chain ${eventChain} is after bundle`, latestExecutedBundle);
-    console.log(`Using running balance ${runningBalance.toString()} for event chain`);
     const ubaActivationStartBlocks = getUbaActivationBundleStartBlocks(hubPoolClient);
     const ubaActivationStartBlockForChain = getBlockForChain(ubaActivationStartBlocks, eventChain, enabledChains);
     if (blockRanges[0][0] < ubaActivationStartBlockForChain) {
@@ -421,10 +426,6 @@ export function getUbaActivationBundleStartBlocks(hubPoolClient: HubPoolClient):
       const chainIdIndices = hubPoolClient.configStoreClient.enabledChainIds;
       const nextBundleStartBlocks = chainIdIndices.map((chainId) =>
         hubPoolClient.getNextBundleStartBlockNumber(chainIdIndices, latestHubPoolBlock, chainId)
-      );
-      console.log(
-        "No validated bundle after UBA activation block, UBA should be activated on next bundle start blocks:",
-        nextBundleStartBlocks
       );
       return nextBundleStartBlocks;
     }

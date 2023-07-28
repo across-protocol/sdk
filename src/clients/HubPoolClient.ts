@@ -3,7 +3,14 @@ import { Block } from "@ethersproject/abstract-provider";
 import { BlockFinder } from "@uma/sdk";
 import winston from "winston";
 import _ from "lodash";
-import { assign, EventSearchConfig, MakeOptional, BigNumberish, stringifyJSONWithNumericString } from "../utils";
+import {
+  assign,
+  EventSearchConfig,
+  MakeOptional,
+  BigNumberish,
+  stringifyJSONWithNumericString,
+  isDefined,
+} from "../utils";
 import {
   fetchTokenInfo,
   sortEventsDescending,
@@ -261,8 +268,19 @@ export class HubPoolClient extends BaseAbstractClient {
     >,
     l1Token: string
   ): Promise<{ realizedLpFeePct: BigNumber | undefined; quoteBlock: number }> {
+    if (!isDefined(this.currentTime)) {
+      throw new Error("HubPoolClient has not set a currentTime");
+    }
+    if (deposit.quoteTimestamp >= this.currentTime) {
+      // this.getBlockNumber() ultimately uses UMA's blockFinder.getBlockForTimestamp(), which will return the
+      // latest block for future timestamps. So if we ever receive a Deposit with a future quoteTimestamp
+      // then we will resolve the incorrect quoteBlock which could affect this realizedLpFeePct calculation.
+      throw new Error(
+        `deposit.quoteTimestamp ${deposit.quoteTimestamp} is in the future, will not be able to resolve an accurate quote block`
+      );
+    }
     const quoteBlock = await this.getBlockNumber(deposit.quoteTimestamp);
-    if (!quoteBlock) {
+    if (!isDefined(quoteBlock)) {
       throw new Error(`Could not find block for timestamp ${deposit.quoteTimestamp}`);
     }
 
