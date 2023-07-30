@@ -5,7 +5,7 @@ import { MockUBAConfig } from "../clients/mocks";
 import { computePiecewiseLinearFunction } from "./UBAFeeUtility";
 
 describe("UBAFeeSpokeCalculatorAnalog", () => {
-  describe.only("getEventFee", () => {
+  describe("getEventFee", () => {
     // Create a chain Id that we can reference anywhere
     // without any magic numbers.
     const chainId = "1";
