@@ -1,6 +1,6 @@
 import { BigNumber, utils } from "ethers";
 import { getEventFee, getDepositFee, getRefundFee } from "./UBAFeeSpokeCalculatorAnalog";
-import { toBNWei } from "../utils";
+import { fixedPointAdjustment, toBNWei } from "../utils";
 import { MockUBAConfig } from "../clients/mocks";
 import { computePiecewiseLinearFunction } from "./UBAFeeUtility";
 
@@ -183,6 +183,73 @@ describe("UBAFeeSpokeCalculatorAnalog", () => {
         // We expect that the fee is equal to the baseline fee multiplied by the reward multiplier.
         expect(fee.toString()).toEqual(expectedFee.toString());
       }
+    });
+    // Finally, we want to test the specific code path where the balancing fee is negative initially
+    // and the incentive balance is positive, and the zero fee threshold is met. In this case,
+    // we expect that the fee will be discounted by the amount to bring the fee back to zero.
+    // Note: we are going to need to create a contrived UBAConfig to test this case.
+    it("should return a balancing fee that is discounted by the amount to bring the fee back to zero if the balancing fee is initially negative and incentive balance is positive and above the zero fee threshold", () => {
+      // We want to start by setting up a config that has a basic balancing fee curve.
+      // The curve itself is important in this case because we need to create a fee that
+      // meets our requirements for this test.
+      const config = new MockUBAConfig();
+      // We'll set this to a simple step curve
+      config.setBalancingFeeCurve(chainId, [
+        [toBNWei(0, 6), toBNWei(0, 0)],
+        [toBNWei(1, 6), toBNWei(1, 18)],
+      ]);
+      // We'll also set the multiplier to one to ensure that we don't have any
+      // additional reward multiplier that would affect our calculations.
+      config.setRewardMultiplier(chainId, utils.parseEther("1"));
+      // We set the amount, lastRunningBalance, and lastIncentiveBalance for our test.
+      const amount = toBNWei(10, 6);
+      const lastRunningBalance = toBNWei(1000, 6);
+      let lastIncentiveBalance = toBNWei(1000, 6);
+      // We call the getEventFee function with the parameters we've set above.
+      const baselineFee = getEventFee(
+        amount,
+        "outflow",
+        lastRunningBalance,
+        lastIncentiveBalance,
+        Number(chainId),
+        config
+      ).balancingFee;
+      // We need to ensure for clarity that our baseline fee is negative.
+      expect(baselineFee.lt(0)).toBeTruthy();
+      // We can now step down the lastIncentiveBalance to ensure that we meet the zero fee threshold.
+      lastIncentiveBalance = toBNWei(990, 6);
+      // We call the getEventFee function with the parameters we've set above.
+      // We now want to ensure that a discount is applied to the fee to bring it back to zero. What
+      // this should result in is a fee that is larger than the baseline fee ( less negative ).
+      const fee = getEventFee(
+        amount,
+        "outflow",
+        lastRunningBalance,
+        lastIncentiveBalance,
+        Number(chainId),
+        config
+      ).balancingFee;
+      // We expect that the fee is greater than the baseline fee.
+      expect(fee.gt(baselineFee)).toBeTruthy();
+
+      // From the above data, we know that our zeroPoint is 0. So, in order to compute the
+      // zeroPointFee, we need to compute the integral of the curve from 0 to the lastRunningBalance.
+      // In numerical terms, this is an integral from the range [0, 1000e6].
+      // We can compute this discount factor now.
+      const zeroPointFee = computePiecewiseLinearFunction(
+        config.getBalancingFeeTuples(Number(chainId)),
+        BigNumber.from(0),
+        lastRunningBalance
+      ).abs(); // We need the absolute value as we're looking for magnitude.
+      // As a result, we can expect that the multiplier is:
+      const multiplier = lastIncentiveBalance.mul(fixedPointAdjustment).div(zeroPointFee);
+      // We can now compute the expected fee.
+      const expectedFee = baselineFee.mul(multiplier).div(fixedPointAdjustment);
+      // We expect that the fee is equal to the expected fee.
+      // NOTE: the reason we can expect this even though we change the lastIncentiveBalance is because
+      //       the lastIncentive balance only comes into play when our zeroPoint balance threshold
+      //       is met. In this case, we're ensuring that the zeroPoint balance threshold is met.
+      expect(fee.toString()).toEqual(expectedFee.toString());
     });
   });
 
