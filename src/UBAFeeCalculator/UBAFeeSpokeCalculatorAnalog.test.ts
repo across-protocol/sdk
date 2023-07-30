@@ -5,9 +5,8 @@ import { MockUBAConfig } from "../clients/mocks";
 import { computePiecewiseLinearFunction } from "./UBAFeeUtility";
 
 describe("UBAFeeSpokeCalculatorAnalog", () => {
-  const defaultConfig = new MockUBAConfig();
-
   describe("getEventFee", () => {
+    const defaultConfig = new MockUBAConfig();
     it("should calculate the balancing fee for an inflow event", () => {
       const amount = BigNumber.from(10);
       const lastRunningBalance = BigNumber.from(1000);
@@ -177,6 +176,11 @@ describe("UBAFeeSpokeCalculatorAnalog", () => {
     ["getRefundFee", "outflow"],
   ]) {
     describe(flowName, () => {
+      // Create a default config to use for all tests in this suite. We don't necessarily need to use this config
+      // with any specific values, but we do need to use the same config for all tests in this suite. This is because
+      // we're specifically comparing that the output of the getRefund/getDeposit functions are the same as the output
+      // as a getEventFee function using the similar inputs.
+      const defaultConfig = new MockUBAConfig();
       it("should calculate the same fee as its corresponding event fee", () => {
         // Test this function over a range of random values.
         // In all cases, it should be the same as the event fee for an inflow.
