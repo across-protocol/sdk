@@ -10,6 +10,9 @@ describe("UBAFeeSpokeCalculatorAnalog", () => {
     // without any magic numbers.
     const chainId = "1";
 
+    // This is the base case for this function. We want to ensure that if we have a
+    // positive balancing fee result, that the result is equal to the integration of
+    // the balancing fee curve without any additional modifiers.
     it("should expect if our balancing fee is positive, that the result is a single integration", () => {
       // We start with a basic config that's been instantiated.
       const config = new MockUBAConfig();
@@ -78,6 +81,9 @@ describe("UBAFeeSpokeCalculatorAnalog", () => {
       ).toEqual("0");
     });
 
+    // We now want to test the specific code path where the balancing fee is negative initially
+    // but the incentive balance is not positive (i.e. 0 or negative). In this case, we expect
+    // that the fee will be zero.
     it("should return a balancing fee of 0 if the balancing fee is initially negative and incentive balance is non-positive", () => {
       // We want to start by setting up a config that has a basic balancing fee curve.
       // The curve itself isn't necessarily important, but we do want to ensure that
@@ -114,6 +120,69 @@ describe("UBAFeeSpokeCalculatorAnalog", () => {
       lastIncentiveBalance = toBNWei(-10, 6);
       fee = getEventFee(amount, "outflow", lastRunningBalance, lastIncentiveBalance, 1, config).balancingFee;
       expect(fee.toString()).toEqual("0");
+    });
+
+    // We now want to test the specific code path where the balancing fee is negative initially
+    // and the incentive balance is positive, but the zero fee threshold is not met. In this case,
+    // we expect that the fee will simply be discounted by the reward multiplier provided in the
+    // config.
+    it("should return a balancing fee that is discounted by the reward multiplier if the balancing fee is initially negative and incentive balance is positive but below the zero fee threshold", () => {
+      // We want to start by setting up a config that has a basic balancing fee curve.
+      // The curve itself isn't necessarily important, but we do want to ensure that
+      // we have a valid curve that will return an expected negative number when we
+      // test for an outflow event.
+      const config = new MockUBAConfig();
+      config.setBalancingFeeCurve(chainId, [
+        [toBNWei(0, 6), toBNWei(0, 0)],
+        [toBNWei(1, 6), toBNWei(0.2, 18)],
+      ]);
+      // We set the reward multiplier to be 1. This is to ensure that we don't have any
+      // additional reward multiplier that would affect our calculations. Note: this is
+      // the base case of our test. We will be changing this value later in the test.
+      config.setRewardMultiplier(chainId, utils.parseEther("1"));
+      // We set the amount, lastRunningBalance, and lastIncentiveBalance for our test.
+      const amount = toBNWei(10, 6);
+      const lastRunningBalance = toBNWei(1000, 6);
+      const lastIncentiveBalance = toBNWei(1000, 6);
+      // We call the getEventFee function with the parameters we've set above.
+      const baselineFee = getEventFee(
+        amount,
+        "outflow",
+        lastRunningBalance,
+        lastIncentiveBalance,
+        Number(chainId),
+        config
+      ).balancingFee;
+      // Since our lastIncentiveBalance is positive, we expect that the fee will be negative.
+      expect(baselineFee.lt(0)).toBeTruthy();
+      // Now that we have our baseline fee that is negative, we can set the reward multiplier
+      // to various values to ensure that the fee is discounted by the reward multiplier.
+      // Let's create a list of reward multipliers to test. Note: these values are numeric strings
+      // that we will convert to BigNumber values.
+      // NOTE: we want to test a range of positive, non-zero, and zero values.
+      const rewardMultipliers = ["0.5", "0.25", "0.1", "0.01", "0.001", "-1.2", "0"];
+      // We'll iterate over these values and ensure that the fee is discounted by the reward multiplier.
+      for (const rawRewardMultiplier of rewardMultipliers) {
+        // We convert the rawRewardMultiplier to a BigNumber value.
+        const rewardMultiplier = utils.parseEther(rawRewardMultiplier);
+        // We set the reward multiplier in the config.
+        config.setRewardMultiplier(chainId, rewardMultiplier);
+        // We call the getEventFee function with the parameters we've set above.
+        const fee = getEventFee(
+          amount,
+          "outflow",
+          lastRunningBalance,
+          lastIncentiveBalance,
+          Number(chainId),
+          config
+        ).balancingFee;
+        // We can now resove what we expect the multiplier to be against the baseline fee.
+        // Note: we'll need to offset by the fixedPointAdjustment to ensure that we're
+        // comparing the same decimals.
+        const expectedFee = baselineFee.mul(rewardMultiplier).div(utils.parseEther("1"));
+        // We expect that the fee is equal to the baseline fee multiplied by the reward multiplier.
+        expect(fee.toString()).toEqual(expectedFee.toString());
+      }
     });
   });
 
