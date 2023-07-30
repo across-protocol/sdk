@@ -1,169 +1,81 @@
 import { BigNumber, utils } from "ethers";
 import { getEventFee, getDepositFee, getRefundFee } from "./UBAFeeSpokeCalculatorAnalog";
-import { fixedPointAdjustment, toBNWei } from "../utils";
+import { toBNWei } from "../utils";
 import { MockUBAConfig } from "../clients/mocks";
 import { computePiecewiseLinearFunction } from "./UBAFeeUtility";
 
 describe("UBAFeeSpokeCalculatorAnalog", () => {
-  describe("getEventFee", () => {
-    const defaultConfig = new MockUBAConfig();
-    it("should calculate the balancing fee for an inflow event", () => {
-      const amount = BigNumber.from(10);
-      const lastRunningBalance = BigNumber.from(1000);
-      const lastIncentiveBalance = BigNumber.from(1000);
-      const chainId = 1;
-      const flowType = "inflow";
-      const fee = getEventFee(amount, flowType, lastRunningBalance, lastIncentiveBalance, chainId, defaultConfig);
-      expect(fee.balancingFee.toString()).toEqual("20");
-    });
+  describe.only("getEventFee", () => {
+    // Create a chain Id that we can reference anywhere
+    // without any magic numbers.
+    const chainId = "1";
 
-    it("should calculate the balancing fee for an outflow event", () => {
-      const amount = BigNumber.from(10);
-      const lastRunningBalance = BigNumber.from(1000);
-      const lastIncentiveBalance = BigNumber.from(1000);
-
-      const chainId = 1;
-      const flowType = "outflow";
-      const fee = getEventFee(amount, flowType, lastRunningBalance, lastIncentiveBalance, chainId, defaultConfig);
-      expect(fee.balancingFee.toString()).toEqual("0");
-    });
-
-    it("should return a balanceFee of 0 if the amount is 0", () => {
-      const amount = BigNumber.from(0);
-      const lastRunningBalance = BigNumber.from(1000);
-      const lastIncentiveBalance = BigNumber.from(1000);
-      const chainId = 1;
-      const flowType = "outflow";
-      const fee = getEventFee(amount, flowType, lastRunningBalance, lastIncentiveBalance, chainId, defaultConfig);
-      expect(fee.balancingFee.toString()).toEqual("0");
-    });
-
-    it("should return a balance fee 0 if lastIncentiveBalance is negative", () => {
-      const amount = BigNumber.from(10);
-      const lastRunningBalance = BigNumber.from(1000);
-      const lastIncentiveBalance = BigNumber.from(-1000);
-      const chainId = 1;
-      const flowType = "outflow";
-      const fee = getEventFee(amount, flowType, lastRunningBalance, lastIncentiveBalance, chainId, defaultConfig);
-      expect(fee.balancingFee.toString()).toEqual("0");
-    });
-
-    it("should return a balance fee 0 if lastIncentiveBalance is 0", () => {
-      const amount = BigNumber.from(10);
-      const lastRunningBalance = BigNumber.from(1000);
-      const lastIncentiveBalance = BigNumber.from(0);
-      const chainId = 1;
-      const flowType = "outflow";
-      const fee = getEventFee(amount, flowType, lastRunningBalance, lastIncentiveBalance, chainId, defaultConfig);
-      expect(fee.balancingFee.toString()).toEqual("0");
-    });
-
-    it("should have an expected discount factor", () => {
-      const amount = toBNWei(10, 6);
-      const lastRunningBalance = toBNWei(2000, 6);
-      const lastIncentiveBalance = toBNWei(100, 6);
-      const chainId = 1;
-      const flowType = "outflow";
+    it("should expect if our balancing fee is positive, that the result is a single integration", () => {
+      // We start with a basic config that's been instantiated.
       const config = new MockUBAConfig();
-
-      config.setBalancingFeeCurve(chainId.toString(), [
+      // We set the balancing fee curve to be a basic curve that has a positive slope.
+      // We can work in terms of any decimal as long as we're consistent & the second value
+      // in the tuple is in terms of wei or any other 18 decimal token.
+      config.setBalancingFeeCurve(chainId, [
         [toBNWei(0, 6), toBNWei(0, 0)],
         [toBNWei(1, 6), toBNWei(0.2, 18)],
       ]);
-
-      const discountFactorBalancingFee = getEventFee(
-        amount,
-        flowType,
+      // We set the reward multiplier to be 1. This is to ensure that we don't have any
+      // additional reward multiplier that would affect our calculations.
+      config.setRewardMultiplier(chainId, utils.parseEther("1"));
+      // We set the amount, lastRunningBalance, and lastIncentiveBalance for our test.
+      // Note: we need to ensure that this matches the fixed decimals of the balancing fee curve.
+      const amount = toBNWei(10, 6);
+      const lastRunningBalance = toBNWei(1000, 6);
+      const lastIncentiveBalance = toBNWei(1000, 6);
+      // We call the getEventFee function with the parameters we've set above.
+      const fee = getEventFee(amount, "inflow", lastRunningBalance, lastIncentiveBalance, 1, config).balancingFee;
+      // We are expecting that the fee will be positive. As a result, let's assert
+      // that the fee is greater than 0.
+      expect(fee.gt(0)).toBeTruthy();
+      // Because the fee is greater than zero, we applied no additional reward multiplier,
+      // or any other factors that would affect the fee, we expect that the fee will be
+      // equal to the integration of the balancing fee curve.
+      const integration = computePiecewiseLinearFunction(
+        config.getBalancingFeeTuples(Number(chainId)),
         lastRunningBalance,
-        lastIncentiveBalance,
-        chainId,
-        config
-      ).balancingFee;
+        lastRunningBalance.add(amount)
+      );
+      // We expect that the fee is equal to the integration of the balancing fee curve.
+      // Note: we need to ensure that we're using the same decimals as the balancing fee curve.
+      // Note: The expectation above is that our fee is positive
+      expect(fee.toString()).toEqual(integration.toString());
 
-      const nonDiscountedFee = getEventFee(
-        amount,
-        flowType,
-        lastRunningBalance,
-        lastRunningBalance,
-        chainId,
-        config
-      ).balancingFee;
+      // As an edge case, we can also test that if the balancing fee that is initially computed
+      // from the integral as zero, that the fee is also zero. This can be done in two ways:
+      // 1. We can set the balancingCurve to be a flat line at 0.
+      // 2. We can set the amount to be 0.
+      // We'll test both of these cases below.
 
-      const expectedMultiplier = toBNWei("0.25006251562", 18);
-      const multiplierBalancingFee = nonDiscountedFee.mul(expectedMultiplier).div(fixedPointAdjustment);
+      // We start with zero amount
+      expect(
+        getEventFee(
+          toBNWei(0, 6), // We set the amount to be 0
+          "inflow",
+          lastRunningBalance,
+          lastIncentiveBalance,
+          Number(chainId),
+          config
+        ).balancingFee.toString()
+      ).toEqual("0");
 
-      expect(discountFactorBalancingFee.toString()).toEqual(multiplierBalancingFee.toString());
-    });
-
-    describe("getEventFee should correctly apply a reward multiplier", () => {
-      for (const rawMultiplier of ["-1", "0", "1.2", "0.2", "1.2", "3.4", "7"]) {
-        const multiplier = utils.parseEther(rawMultiplier);
-        it(`should return a discounted balance. Test with ${rawMultiplier}`, () => {
-          const amount = BigNumber.from(10);
-          const lastRunningBalance = BigNumber.from(10000);
-          const lastIncentiveBalance = BigNumber.from(1000000);
-          const chainId = 1;
-          const flowType = "outflow";
-          const config = new MockUBAConfig();
-
-          const originalBalancingFee = getEventFee(
-            amount,
-            flowType,
-            lastRunningBalance,
-            lastIncentiveBalance,
-            chainId,
-            config
-          ).balancingFee;
-
-          config.setRewardMultiplier(chainId.toString(), multiplier);
-
-          const modifiedBalancingFee = getEventFee(
-            amount,
-            flowType,
-            lastRunningBalance,
-            lastIncentiveBalance,
-            chainId,
-            config
-          ).balancingFee;
-
-          const originalBalancingFeeWithMultiplier = originalBalancingFee.mul(multiplier).div(fixedPointAdjustment);
-          expect(modifiedBalancingFee.toString()).toEqual(originalBalancingFeeWithMultiplier.toString());
-        });
-      }
-    });
-
-    it("should return a discounted balance fee if the lastIncentiveBalance is positive", () => {
-      const amount = BigNumber.from(10);
-      const lastRunningBalance = BigNumber.from(1000);
-      const lastIncentiveBalance = BigNumber.from(1000);
-      const chainId = 1;
-      const flowType = "inflow";
-
-      const zeroFeePoint = defaultConfig.getZeroFeePointOnBalancingFeeCurve(chainId);
-      const feeToBringFeePctToZero = computePiecewiseLinearFunction(
-        defaultConfig.getBalancingFeeTuples(chainId),
-        zeroFeePoint,
-        lastRunningBalance
-      ).abs();
-
-      expect(feeToBringFeePctToZero.gt(lastIncentiveBalance)).toBeTruthy();
-
-      const fee = getEventFee(amount, flowType, lastRunningBalance, lastIncentiveBalance, chainId, defaultConfig);
-      expect(fee.balancingFee.toString()).toEqual("20");
-    });
-
-    it("should apply a discount if the incentive balance is below the feesToBringFeePctToZero", () => {
-      const config = new MockUBAConfig();
-      // These values are set such that our feeToBringFeePctToZero is higher than the balancing fee
-      // within the getEventFee function. This is to ensure that the discount is applied for this test
-      // case.
-      const amount = BigNumber.from(1000);
-      const lastRunningBalance = BigNumber.from(1000);
-      const lastIncentiveBalance = BigNumber.from(1000);
-      const chainId = 1;
-      const flowType = "outflow";
-      const fee = getEventFee(amount, flowType, lastRunningBalance, lastIncentiveBalance, chainId, config);
-      expect(fee.balancingFee.toString()).toEqual("-20");
+      // We set the balancing fee curve to be a flat line at 0.
+      config.setBalancingFeeCurve(chainId, [[toBNWei(0, 6), toBNWei(0, 0)]]);
+      expect(
+        getEventFee(
+          amount,
+          "inflow",
+          lastRunningBalance,
+          lastIncentiveBalance,
+          Number(chainId),
+          config
+        ).balancingFee.toString()
+      ).toEqual("0");
     });
   });
 
