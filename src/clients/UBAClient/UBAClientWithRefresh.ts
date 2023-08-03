@@ -924,7 +924,7 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
           const startBlock = getBlockForChain(
             startBlocks,
             chainId,
-            this.hubPoolClient.configStoreClient.getEnabledChains(mainnetStartBlock)
+          this.chainIdIndices
           );
           const openingBalances = getOpeningRunningBalanceForEvent(
             this.hubPoolClient,
