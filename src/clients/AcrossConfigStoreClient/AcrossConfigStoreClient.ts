@@ -124,6 +124,17 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
     return across.rateModel.parseAndReturnRateModelFromString(config.routeRateModel[route]);
   }
 
+  /**
+   * Resolves the chain ids that were available to the protocol at a given block range.
+   * @param blockNumber Block number to search for. Defaults to latest block.
+   * @returns List of chain IDs that were available to the protocol at the given block number.
+   * @note This dynamic functionality has been added after the launch of Across.
+   * @note This function will return a default list of chain IDs if the block requested
+   *       existed before the initial inclusion of this dynamic key/value entry. In the
+   *       case that a block number is requested that is before the initial inclusion of
+   *       this key/value entry, the function will return the default list of chain IDs as
+   *       outlined per the UMIP (https://github.com/UMAprotocol/UMIPs/pull/590).
+   */
   getChainIdIndicesForBlock(blockNumber: number = Number.MAX_SAFE_INTEGER): number[] {
     const config = (sortEventsDescending(this.chainIdIndicesUpdates) as GlobalConfigUpdate<number[]>[]).find(
       (config) => config.blockNumber <= blockNumber
