@@ -215,7 +215,7 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
         }
         // If any of the possible chains are not listed in this disabled chain update and are not already in the
         // enabled chain list, then add them to the list.
-        this.getChainIdIndicesForBlock(disabledChainUpdate.blockNumber).forEach((chainId) => {
+        enabledChainsAtFromBlock.forEach((chainId) => {
           if (!disabledChainUpdate.chainIds.includes(chainId) && !enabledChains.includes(chainId)) {
             enabledChains.push(chainId);
           }
