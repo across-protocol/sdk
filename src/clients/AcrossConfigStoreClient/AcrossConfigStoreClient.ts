@@ -614,7 +614,7 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
     return {
       eventSearchConfig: this.eventSearchConfig,
       configStoreVersion: this.configStoreVersion,
-      enabledChainIds: this.chainIdIndicesUpdates,
+      chainIdIndicesUpdates: this.chainIdIndicesUpdates,
       cumulativeRateModelUpdates: this.cumulativeRateModelUpdates,
       ubaConfigUpdates: JSON.parse(
         stringifyJSONWithNumericString(this.ubaConfigUpdates)
