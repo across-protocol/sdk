@@ -377,7 +377,7 @@ export async function getMatchedDeposit(
 export function isUBAActivatedAtBlock(hubPoolClient: HubPoolClient, block: number, chain: number): boolean {
   try {
     const ubaActivationBlocks = getUbaActivationBundleStartBlocks(hubPoolClient);
-    const enabledChainsIndices = hubPoolClient.configStoreClient.getEnabledChains(ubaActivationBlocks[0]);
+    const enabledChainsIndices = hubPoolClient.configStoreClient.getEnabledChains();
     // Find the first activation block where the index matches the chain
     const activationBlock =
       ubaActivationBlocks.find((_, idx) => enabledChainsIndices[idx] === chain) ?? Number.MAX_SAFE_INTEGER;
