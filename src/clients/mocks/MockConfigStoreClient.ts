@@ -23,11 +23,10 @@ export class MockConfigStoreClient extends AcrossConfigStoreClient {
     configStore: Contract,
     eventSearchConfig: MakeOptional<EventSearchConfig, "toBlock"> = { fromBlock: 0, maxBlockLookBack: 0 },
     configStoreVersion: number,
-    enabledChainIds: number[],
     chainId = 1,
     mockUpdate = false
   ) {
-    super(logger, configStore, eventSearchConfig, configStoreVersion, enabledChainIds);
+    super(logger, configStore, eventSearchConfig, configStoreVersion);
     this.eventManager = mockUpdate ? getEventManager(chainId, this.eventSignatures) : null;
   }
 

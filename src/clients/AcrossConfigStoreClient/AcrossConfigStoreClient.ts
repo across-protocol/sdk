@@ -434,18 +434,6 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
         // Let's parse this via JSON.parse. Since we've passed the regex check, we can
         // be sure that this is a valid array of positive integers.
         const chainIndices = JSON.parse(rawChainIndices) as number[];
-        // We need to now check that all the indices exist and do not contain duplicates.
-        // This is essentially a set of indices that exist in the array length. For example,
-        // for a length of 5, the valid indices must contain [0, 1, 2, 3, 4].
-        // Let's check for this condition and for duplicates. If we find this to be invalid,
-        // we'll skip this update.
-        if (
-          chainIndices.length !== new Set(chainIndices).size ||
-          chainIndices.some((index) => index < 0 || index >= chainIndices.length)
-        ) {
-          this.logger.warn({ at: "ConfigStore", message: `The array ${chainIndices} is invalid.` });
-          continue;
-        }
         // If all else passes, we can add this update.
         this.chainIdIndicesUpdates.push({ ...args, value: chainIndices });
       } else if (args.key === utf8ToHex(GLOBAL_CONFIG_STORE_KEYS.MAX_POOL_REBALANCE_LEAF_SIZE)) {
