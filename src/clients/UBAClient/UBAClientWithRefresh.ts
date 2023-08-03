@@ -85,7 +85,7 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
   ) {
     super();
     this.logger = this.hubPoolClient.logger;
-    this.chainIdIndices = this.hubPoolClient.configStoreClient.enabledChainIds;
+    this.chainIdIndices = this.hubPoolClient.configStoreClient.getEnabledChains();
     assert(this.chainIdIndices.length > 0, "No chainIds provided");
     assert(Object.values(spokePoolClients).length > 0, "No SpokePools provided");
   }
@@ -835,7 +835,7 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
           message: `Block ranges for chain ${chainId} do not cover from UBA activation bundle start block to latest spoke pool client block searched`,
           startBlockForChain: _blockRangesForChain[0][0],
           ubaActivationBundleStartBlockForChain,
-          endBlockForChain: _blockRangesForChain.at(-1)![1],
+          endBlockForChain: _blockRangesForChain.at(-1)?.[1],
           latestSpokePoolClientBlockSearched: this.spokePoolClients[chainId]?.latestBlockSearched,
         });
         throw new Error(
@@ -924,7 +924,7 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
           const startBlock = getBlockForChain(
             startBlocks,
             chainId,
-            this.hubPoolClient.configStoreClient.enabledChainIds
+          this.chainIdIndices
           );
           const openingBalances = getOpeningRunningBalanceForEvent(
             this.hubPoolClient,

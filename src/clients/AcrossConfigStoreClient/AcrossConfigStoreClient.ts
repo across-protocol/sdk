@@ -57,12 +57,13 @@ export type ConfigStoreUpdate = { success: false } | _ConfigStoreUpdate;
 // @dev Do not change this value.
 export const DEFAULT_CONFIG_STORE_VERSION = 0;
 
-export const GLOBAL_CONFIG_STORE_KEYS = {
-  MAX_RELAYER_REPAYMENT_LEAF_SIZE: "MAX_RELAYER_REPAYMENT_LEAF_SIZE",
-  MAX_POOL_REBALANCE_LEAF_SIZE: "MAX_POOL_REBALANCE_LEAF_SIZE",
-  VERSION: "VERSION",
-  DISABLED_CHAINS: "DISABLED_CHAINS",
-};
+export enum GLOBAL_CONFIG_STORE_KEYS {
+  MAX_RELAYER_REPAYMENT_LEAF_SIZE = "MAX_RELAYER_REPAYMENT_LEAF_SIZE",
+  MAX_POOL_REBALANCE_LEAF_SIZE = "MAX_POOL_REBALANCE_LEAF_SIZE",
+  VERSION = "VERSION",
+  DISABLED_CHAINS = "DISABLED_CHAINS",
+  CHAIN_ID_INDICES = "CHAIN_ID_INDICES",
+}
 
 export class AcrossConfigStoreClient extends BaseAbstractClient {
   public cumulativeRateModelUpdates: across.rateModel.RateModelEvent[] = [];
@@ -71,6 +72,7 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
   public cumulativeTokenTransferUpdates: L1TokenTransferThreshold[] = [];
   public cumulativeMaxRefundCountUpdates: GlobalConfigUpdate[] = [];
   public cumulativeMaxL1TokenCountUpdates: GlobalConfigUpdate[] = [];
+  public chainIdIndicesUpdates: GlobalConfigUpdate<number[]>[] = [];
   public cumulativeSpokeTargetBalanceUpdates: SpokeTargetBalanceUpdate[] = [];
   public cumulativeConfigStoreVersionUpdates: ConfigStoreVersionUpdate[] = [];
   public cumulativeDisabledChainUpdates: DisabledChainsUpdate[] = [];
@@ -85,8 +87,7 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
     readonly logger: winston.Logger,
     readonly configStore: Contract,
     readonly eventSearchConfig: MakeOptional<EventSearchConfig, "toBlock"> = { fromBlock: 0, maxBlockLookBack: 0 },
-    readonly configStoreVersion: number,
-    readonly enabledChainIds: number[]
+    readonly configStoreVersion: number
   ) {
     super();
     this.firstBlockToSearch = eventSearchConfig.fromBlock;
@@ -121,6 +122,24 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
       return undefined;
     }
     return across.rateModel.parseAndReturnRateModelFromString(config.routeRateModel[route]);
+  }
+
+  /**
+   * Resolves the chain ids that were available to the protocol at a given block range.
+   * @param blockNumber Block number to search for. Defaults to latest block.
+   * @returns List of chain IDs that were available to the protocol at the given block number.
+   * @note This dynamic functionality has been added after the launch of Across.
+   * @note This function will return a default list of chain IDs if the block requested
+   *       existed before the initial inclusion of this dynamic key/value entry. In the
+   *       case that a block number is requested that is before the initial inclusion of
+   *       this key/value entry, the function will return the default list of chain IDs as
+   *       outlined per the UMIP (https://github.com/UMAprotocol/UMIPs/pull/590).
+   */
+  getChainIdIndicesForBlock(blockNumber: number = Number.MAX_SAFE_INTEGER): number[] {
+    const config = (sortEventsDescending(this.chainIdIndicesUpdates) as GlobalConfigUpdate<number[]>[]).find(
+      (config) => config.blockNumber <= blockNumber
+    );
+    return config?.value ?? [1, 10, 137, 288, 42161];
   }
 
   getTokenTransferThresholdForBlock(l1Token: string, blockNumber: number = Number.MAX_SAFE_INTEGER): BigNumber {
@@ -177,17 +196,13 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
    * @param allPossibleChains Returned list will be a subset of this list.
    * @returns List of chain IDs that have been enabled at least once in the block range. Sorted from lowest to highest.
    */
-  getEnabledChainsInBlockRange(
-    fromBlock: number,
-    toBlock = Number.MAX_SAFE_INTEGER,
-    allPossibleChains = this.enabledChainIds
-  ): number[] {
+  getEnabledChainsInBlockRange(fromBlock: number, toBlock = Number.MAX_SAFE_INTEGER): number[] {
     if (toBlock < fromBlock) {
       throw new Error(`Invalid block range: fromBlock ${fromBlock} > toBlock ${toBlock}`);
     }
     // Initiate list with all chains enabled at the fromBlock.
     const disabledChainsAtFromBlock = this.getDisabledChainsForBlock(fromBlock);
-    const enabledChainsAtFromBlock = allPossibleChains.filter(
+    const enabledChainsAtFromBlock = this.getChainIdIndicesForBlock(fromBlock).filter(
       (chainId) => !disabledChainsAtFromBlock.includes(chainId)
     );
 
@@ -200,7 +215,7 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
         }
         // If any of the possible chains are not listed in this disabled chain update and are not already in the
         // enabled chain list, then add them to the list.
-        allPossibleChains.forEach((chainId) => {
+        enabledChainsAtFromBlock.forEach((chainId) => {
           if (!disabledChainUpdate.chainIds.includes(chainId) && !enabledChains.includes(chainId)) {
             enabledChains.push(chainId);
           }
@@ -210,10 +225,10 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
       .sort((a, b) => a - b);
   }
 
-  getEnabledChains(block = Number.MAX_SAFE_INTEGER, allPossibleChains = this.enabledChainIds): number[] {
+  getEnabledChains(block = Number.MAX_SAFE_INTEGER): number[] {
     // Get most recent disabled chain list before the block specified.
     const currentlyDisabledChains = this.getDisabledChainsForBlock(block);
-    return allPossibleChains.filter((chainId) => !currentlyDisabledChains.includes(chainId));
+    return this.getChainIdIndicesForBlock(block).filter((chainId) => !currentlyDisabledChains.includes(chainId));
   }
 
   getDisabledChainsForBlock(blockNumber: number = Number.MAX_SAFE_INTEGER): number[] {
@@ -417,6 +432,37 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
         if (!isNaN(args.value)) {
           this.cumulativeMaxRefundCountUpdates.push(args);
         }
+      } else if (args.key === utf8ToHex(GLOBAL_CONFIG_STORE_KEYS.CHAIN_ID_INDICES)) {
+        // First remove out all the spaces
+        const rawChainIndices = String(args.value).replace(/\s/g, "");
+        // Sanity check to verify that this is a string representation of an array of
+        // positive integers. Let's confirm this via a regex.
+        if (!rawChainIndices.match(/^\[[0-9,]+\]$/)) {
+          this.logger.warn({ at: "ConfigStore", message: `The array ${rawChainIndices} is invalid.` });
+          // If not a valid array, skip.
+          continue;
+        }
+        // Parse this via JSON.parse. Since we've passed the regex check, we can
+        // be sure that this is a valid array of positive integers.
+        const chainIndices = JSON.parse(rawChainIndices) as number[];
+
+        // We now need to check that we're only appending positive integers to the
+        // chainIndices array on each update. If this isn't the case, we're going to
+        // need to skip this update & warn.
+        // Resolve the previous update. If there is no previous update, then we can
+        // assume that the default chain indices are being used. These default chain
+        // indices are [1, 10, 137, 288, 42161] (outlined in UMIP-157)
+        const previousUpdate = this.chainIdIndicesUpdates.at(-1)?.value ?? [1, 10, 137, 288, 42161];
+        // We should now check that previousUpdate is a subset of chainIndices.
+        if (!previousUpdate.every((chainId, idx) => chainIndices[idx] === chainId)) {
+          this.logger.warn({
+            at: "ConfigStoreClient#update",
+            message: `The array ${rawChainIndices} is invalid. It must be a superset of the previous array ${previousUpdate}`,
+          });
+          continue;
+        }
+        // If all else passes, we can add this update.
+        this.chainIdIndicesUpdates.push({ ...args, value: chainIndices });
       } else if (args.key === utf8ToHex(GLOBAL_CONFIG_STORE_KEYS.MAX_POOL_REBALANCE_LEAF_SIZE)) {
         if (!isNaN(args.value)) {
           this.cumulativeMaxL1TokenCountUpdates.push(args);
@@ -568,8 +614,7 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
     return {
       eventSearchConfig: this.eventSearchConfig,
       configStoreVersion: this.configStoreVersion,
-      enabledChainIds: this.enabledChainIds,
-
+      chainIdIndicesUpdates: this.chainIdIndicesUpdates,
       cumulativeRateModelUpdates: this.cumulativeRateModelUpdates,
       ubaConfigUpdates: JSON.parse(
         stringifyJSONWithNumericString(this.ubaConfigUpdates)
