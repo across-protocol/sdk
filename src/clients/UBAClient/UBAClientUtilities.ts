@@ -150,7 +150,6 @@ export function getUBAFeeConfig(
  * windows, so that the caller can call this function to cover all UBA events.
  * @param chainId
  * @param maxBundleStates If this is larger than available validated bundles in the HubPoolClient, will throw an error.
- * @param hubPoolBlock Only returns the most recent validated bundles proposed before this block.
  * @param hubPoolClient The hub pool client to use for fetching the bundle ranges.
  * @param spokePoolClients The spoke pool clients to use for fetching the bundle ranges.
  * @returns The most recent `maxBundleStates` bundle ranges for a given chain, in chronological ascending order.
