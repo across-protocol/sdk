@@ -188,7 +188,7 @@ export function getMostRecentBundleBlockRanges(
     const hubPoolStartBlock = getBlockRangeForChain(
       rootBundleBlockRanges,
       hubPoolClient.chainId,
-      hubPoolClient.configStoreClient.getEnabledChains(latestExecutedRootBundle.blockNumber)
+      hubPoolClient.configStoreClient.getEnabledChains()
     )[0];
     if (hubPoolStartBlock < ubaActivationHubStartBlock) {
       break;
