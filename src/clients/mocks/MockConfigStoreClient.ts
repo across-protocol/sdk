@@ -2,7 +2,12 @@ import assert from "assert";
 import winston from "winston";
 import { Contract, Event, ethers } from "ethers";
 import { EventSearchConfig, MakeOptional, utf8ToHex } from "../../utils";
-import { AcrossConfigStoreClient, ConfigStoreUpdate, DEFAULT_CONFIG_STORE_VERSION } from "../AcrossConfigStoreClient";
+import {
+  AcrossConfigStoreClient,
+  ConfigStoreUpdate,
+  DEFAULT_CONFIG_STORE_VERSION,
+  GLOBAL_CONFIG_STORE_KEYS,
+} from "../AcrossConfigStoreClient";
 import { EventManager, getEventManager } from "./MockEvents";
 
 export class MockConfigStoreClient extends AcrossConfigStoreClient {
@@ -24,10 +29,14 @@ export class MockConfigStoreClient extends AcrossConfigStoreClient {
     eventSearchConfig: MakeOptional<EventSearchConfig, "toBlock"> = { fromBlock: 0, maxBlockLookBack: 0 },
     configStoreVersion: number,
     chainId = 1,
-    mockUpdate = false
+    mockUpdate = false,
+    enabledChainIdsOverride?: number[]
   ) {
     super(logger, configStore, eventSearchConfig, configStoreVersion);
     this.eventManager = mockUpdate ? getEventManager(chainId, this.eventSignatures) : null;
+    if (enabledChainIdsOverride) {
+      this.updateGlobalConfig(GLOBAL_CONFIG_STORE_KEYS.CHAIN_ID_INDICES, JSON.stringify(enabledChainIdsOverride), 0);
+    }
   }
 
   setUBAActivationBlock(blockNumber: number | undefined): void {
