@@ -454,7 +454,7 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
         // indices are [1, 10, 137, 288, 42161] (outlined in UMIP-157)
         const previousUpdate = this.chainIdIndicesUpdates.at(-1)?.value ?? [1, 10, 137, 288, 42161];
         // We should now check that previousUpdate is a subset of chainIndices.
-        if (!previousUpdate.every((chainId) => chainIndices.includes(chainId))) {
+        if (!previousUpdate.every((chainId, idx) => chainIndices[idx] === chainId)) {
           this.logger.warn({
             at: "ConfigStoreClient#update",
             message: `The array ${rawChainIndices} is invalid. It must be a superset of the previous array ${previousUpdate}`,
