@@ -75,7 +75,7 @@ export function getImpliedBundleBlockRanges(
     const fromBlock = prevRootBundle?.bundleEvaluationBlockNumbers?.[i]
       ? prevRootBundle.bundleEvaluationBlockNumbers[i].toNumber() + 1
       : 0;
-    const chainId = configStoreClient.getEnabledChains(fromBlock)[i];
+    const chainId = enabledChains[i];
     if (!enabledChains.includes(chainId)) {
       return [endBlock.toNumber(), endBlock.toNumber()];
     }
