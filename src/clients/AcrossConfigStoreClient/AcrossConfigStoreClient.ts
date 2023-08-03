@@ -442,9 +442,25 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
           // If not a valid array, skip.
           continue;
         }
-        // Let's parse this via JSON.parse. Since we've passed the regex check, we can
+        // Parse this via JSON.parse. Since we've passed the regex check, we can
         // be sure that this is a valid array of positive integers.
         const chainIndices = JSON.parse(rawChainIndices) as number[];
+
+        // We now need to check that we're only appending positive integers to the
+        // chainIndices array on each update. If this isn't the case, we're going to
+        // need to skip this update & warn.
+        // Resolve the previous update. If there is no previous update, then we can
+        // assume that the default chain indices are being used. These default chain
+        // indices are [1, 10, 137, 288, 42161] (outlined in UMIP-157)
+        const previousUpdate = this.chainIdIndicesUpdates.at(-1)?.value ?? [1, 10, 137, 288, 42161];
+        // We should now check that previousUpdate is a subset of chainIndices.
+        if (!previousUpdate.every((chainId) => chainIndices.includes(chainId))) {
+          this.logger.warn({
+            at: "ConfigStoreClient#update",
+            message: `The array ${rawChainIndices} is invalid. It must be a superset of the previous array ${previousUpdate}`,
+          });
+          continue;
+        }
         // If all else passes, we can add this update.
         this.chainIdIndicesUpdates.push({ ...args, value: chainIndices });
       } else if (args.key === utf8ToHex(GLOBAL_CONFIG_STORE_KEYS.MAX_POOL_REBALANCE_LEAF_SIZE)) {
