@@ -1,5 +1,4 @@
 import { AcrossConfigStoreClient, HubPoolClient, SpokePoolClient } from "../clients";
-import { CHAIN_ID_LIST_INDICES } from "../constants";
 import { ProposedRootBundle } from "../interfaces";
 
 /**
@@ -16,7 +15,7 @@ import { ProposedRootBundle } from "../interfaces";
 export function getBlockForChain(
   bundleEvaluationBlockNumbers: number[],
   chain: number,
-  chainIdListForBundleEvaluationBlockNumbers: number[] = CHAIN_ID_LIST_INDICES
+  chainIdListForBundleEvaluationBlockNumbers: number[]
 ): number {
   const indexForChain = chainIdListForBundleEvaluationBlockNumbers.indexOf(chain);
   if (indexForChain === -1) {
@@ -39,7 +38,7 @@ export function getBlockForChain(
 export function getBlockRangeForChain(
   blockRanges: number[][],
   chain: number,
-  chainIdListForBundleEvaluationBlockNumbers: number[] = CHAIN_ID_LIST_INDICES
+  chainIdListForBundleEvaluationBlockNumbers: number[]
 ): number[] {
   const indexForChain = chainIdListForBundleEvaluationBlockNumbers.indexOf(chain);
   if (indexForChain === -1) {
@@ -89,7 +88,7 @@ export function getImpliedBundleBlockRanges(
 export function blockRangesAreInvalidForSpokeClients(
   spokePoolClients: Record<number, SpokePoolClient>,
   blockRanges: number[][],
-  chainIdListForBundleEvaluationBlockNumbers: number[] = CHAIN_ID_LIST_INDICES
+  chainIdListForBundleEvaluationBlockNumbers: number[]
 ): boolean {
   if (blockRanges.length !== chainIdListForBundleEvaluationBlockNumbers.length) {
     throw new Error("DataworkerUtils#blockRangesAreInvalidForSpokeClients: Invalid bundle block range length");
