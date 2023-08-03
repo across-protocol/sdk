@@ -413,7 +413,7 @@ export function getUbaActivationBundleStartBlocks(hubPoolClient: HubPoolClient):
       return bundleStartBlocks;
     } else {
       // No validated bundles after UBA activation block, UBA should be activated on next bundle start blocks.
-      const chainIdIndices = hubPoolClient.configStoreClient.getEnabledChains(ubaActivationBlock);
+      const chainIdIndices = hubPoolClient.configStoreClient.getEnabledChains();
       const nextBundleStartBlocks = chainIdIndices.map((chainId) =>
         hubPoolClient.getNextBundleStartBlockNumber(chainIdIndices, latestHubPoolBlock, chainId)
       );
