@@ -253,7 +253,7 @@ export function getOpeningRunningBalanceForEvent(
   l1Token: string,
   hubPoolLatestBlock: number
 ): TokenRunningBalance {
-  const enabledChains = hubPoolClient.configStoreClient.getEnabledChains(hubPoolLatestBlock);
+  const enabledChains = hubPoolClient.configStoreClient.getEnabledChains();
 
   // First find the latest executed bundle as of `hubPoolLatestBlock`.
   const latestExecutedBundle = hubPoolClient.getNthFullyExecutedRootBundle(-1, hubPoolLatestBlock);
