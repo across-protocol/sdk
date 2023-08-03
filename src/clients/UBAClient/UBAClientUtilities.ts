@@ -198,7 +198,7 @@ export function getMostRecentBundleBlockRanges(
     const blockRangeForChain = getBlockRangeForChain(
       rootBundleBlockRanges,
       chainId,
-      hubPoolClient.configStoreClient.getEnabledChains(latestExecutedRootBundle.blockNumber)
+      hubPoolClient.configStoreClient.getEnabledChains()
     );
     bundleData.unshift({
       start: blockRangeForChain[0],
