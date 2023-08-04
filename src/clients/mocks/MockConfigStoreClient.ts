@@ -1,7 +1,7 @@
 import assert from "assert";
 import winston from "winston";
 import { Contract, Event, ethers } from "ethers";
-import { EventSearchConfig, MakeOptional, utf8ToHex } from "../../utils";
+import { EventSearchConfig, MakeOptional, isDefined, utf8ToHex } from "../../utils";
 import {
   AcrossConfigStoreClient,
   ConfigStoreUpdate,
@@ -35,7 +35,7 @@ export class MockConfigStoreClient extends AcrossConfigStoreClient {
   ) {
     super(logger, configStore, eventSearchConfig, configStoreVersion);
     this.eventManager = mockUpdate ? getEventManager(chainId, this.eventSignatures) : null;
-    if (availableChainIdsOverride !== undefined && this.eventManager) {
+    if (isDefined(this.eventManager) && this.eventManager) {
       this.updateGlobalConfig(
         GLOBAL_CONFIG_STORE_KEYS.CHAIN_ID_INDICES,
         JSON.stringify(availableChainIdsOverride),
