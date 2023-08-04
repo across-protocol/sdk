@@ -13,7 +13,6 @@ import {
   MakeOptional,
   toBN,
   max,
-  sortEventsAscending,
   findLast,
   UBA_MIN_CONFIG_STORE_VERSION,
 } from "../../utils";
@@ -211,7 +210,7 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
 
     // If there are any disabled chain updates in the block range, then we might need to update the list of enabled
     // chains in the block range.
-    sortEventsAscending(this.cumulativeDisabledChainUpdates)
+    this.cumulativeDisabledChainUpdates
       .filter((e) => e.blockNumber <= toBlock && e.blockNumber >= fromBlock)
       .forEach((e) => {
         // If disabled chain update no longer includes a previously disabled chain, then add it back to the enabled chains
