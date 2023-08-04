@@ -464,7 +464,7 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
           // If all else passes, we can add this update.
           this.chainIdIndicesUpdates.push({ ...args, value: chainIndices });
         } catch (e) {
-          this.logger.warn({ at: "ConfigStore", message: `Value is malformed: ${args.value}` });
+          this.logger.warn({ at: "ConfigStore::update", message: `Failed to parse chain ID indices: ${args.value}` });
         }
       } else if (args.key === utf8ToHex(GLOBAL_CONFIG_STORE_KEYS.MAX_POOL_REBALANCE_LEAF_SIZE)) {
         if (!isNaN(args.value)) {
