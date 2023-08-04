@@ -15,6 +15,8 @@ import {
   max,
   findLast,
   UBA_MIN_CONFIG_STORE_VERSION,
+  isArrayOf,
+  isPositiveInteger,
 } from "../../utils";
 import { Contract, BigNumber, Event } from "ethers";
 import winston from "winston";
@@ -431,36 +433,34 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
           this.cumulativeMaxRefundCountUpdates.push(args);
         }
       } else if (args.key === utf8ToHex(GLOBAL_CONFIG_STORE_KEYS.CHAIN_ID_INDICES)) {
-        // First remove out all the spaces
-        const rawChainIndices = String(args.value).replace(/\s/g, "");
-        // Sanity check to verify that this is a string representation of an array of
-        // positive integers. Let's confirm this via a regex.
-        if (!rawChainIndices.match(/^\[[0-9,]+\]$/)) {
-          this.logger.warn({ at: "ConfigStore", message: `The array ${rawChainIndices} is invalid.` });
-          // If not a valid array, skip.
-          continue;
+        try {
+          const chainIndices = JSON.parse(args.value);
+          // Check that the array is valid and that every element is a number.
+          if (!isArrayOf<number>(chainIndices, isPositiveInteger)) {
+            this.logger.warn({ at: "ConfigStore", message: `The array ${chainIndices} is invalid.` });
+            // If not a valid array, skip.
+            continue;
+          }
+          // We now need to check that we're only appending positive integers to the
+          // chainIndices array on each update. If this isn't the case, we're going to
+          // need to skip this update & warn.
+          // Resolve the previous update. If there is no previous update, then we can
+          // assume that the default chain indices are being used. These default chain
+          // indices are [1, 10, 137, 288, 42161] (outlined in UMIP-157)
+          const previousUpdate = this.chainIdIndicesUpdates.at(-1)?.value ?? [1, 10, 137, 288, 42161];
+          // We should now check that previousUpdate is a subset of chainIndices.
+          if (!previousUpdate.every((chainId, idx) => chainIndices[idx] === chainId)) {
+            this.logger.warn({
+              at: "ConfigStoreClient#update",
+              message: `The array ${chainIndices} is invalid. It must be a superset of the previous array ${previousUpdate}`,
+            });
+            continue;
+          }
+          // If all else passes, we can add this update.
+          this.chainIdIndicesUpdates.push({ ...args, value: chainIndices });
+        } catch (e) {
+          this.logger.warn({ at: "ConfigStore::update", message: `Failed to parse chain ID indices: ${args.value}` });
         }
-        // Parse this via JSON.parse. Since we've passed the regex check, we can
-        // be sure that this is a valid array of positive integers.
-        const chainIndices = JSON.parse(rawChainIndices) as number[];
-
-        // We now need to check that we're only appending positive integers to the
-        // chainIndices array on each update. If this isn't the case, we're going to
-        // need to skip this update & warn.
-        // Resolve the previous update. If there is no previous update, then we can
-        // assume that the default chain indices are being used. These default chain
-        // indices are [1, 10, 137, 288, 42161] (outlined in UMIP-157)
-        const previousUpdate = this.chainIdIndicesUpdates.at(-1)?.value ?? [1, 10, 137, 288, 42161];
-        // We should now check that previousUpdate is a subset of chainIndices.
-        if (!previousUpdate.every((chainId, idx) => chainIndices[idx] === chainId)) {
-          this.logger.warn({
-            at: "ConfigStoreClient#update",
-            message: `The array ${rawChainIndices} is invalid. It must be a superset of the previous array ${previousUpdate}`,
-          });
-          continue;
-        }
-        // If all else passes, we can add this update.
-        this.chainIdIndicesUpdates.push({ ...args, value: chainIndices });
       } else if (args.key === utf8ToHex(GLOBAL_CONFIG_STORE_KEYS.MAX_POOL_REBALANCE_LEAF_SIZE)) {
         if (!isNaN(args.value)) {
           this.cumulativeMaxL1TokenCountUpdates.push(args);
