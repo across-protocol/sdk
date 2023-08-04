@@ -16,6 +16,7 @@ import {
   findLast,
   UBA_MIN_CONFIG_STORE_VERSION,
   isArrayOf,
+  isPositiveInteger,
 } from "../../utils";
 import { Contract, BigNumber, Event } from "ethers";
 import winston from "winston";
@@ -40,7 +41,6 @@ import { across } from "@uma/sdk";
 import { parseUBAConfigFromOnChain } from "./ConfigStoreParsingUtilities";
 import { BaseAbstractClient } from "../BaseAbstractClient";
 import { parseJSONWithNumericString, stringifyJSONWithNumericString } from "../../utils/JSONUtils";
-import { isInteger, isPositiveInteger } from "../../utils/NumberUtils";
 
 type _ConfigStoreUpdate = {
   success: true;
