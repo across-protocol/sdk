@@ -434,7 +434,11 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
         }
       } else if (args.key === utf8ToHex(GLOBAL_CONFIG_STORE_KEYS.CHAIN_ID_INDICES)) {
         try {
-          const chainIndices = JSON.parse(args.value);
+          // We need to parse the chain ID indices array from the stringified JSON. However,
+          // the on-chain string has quotes around the array, which will parse our JSON as a
+          // string instead of an array. We need to remove these quotes before parsing.
+          // To be sure, we can check for single quotes, double quotes, and spaces.
+          const chainIndices = JSON.parse(args.value.replace(/['"\s]/g, ""));
           // Check that the array is valid and that every element is a number.
           if (!isArrayOf<number>(chainIndices, isPositiveInteger)) {
             this.logger.warn({ at: "ConfigStore", message: `The array ${chainIndices} is invalid.` });
