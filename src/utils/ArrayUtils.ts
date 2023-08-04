@@ -142,6 +142,6 @@ export async function includesAsync<T>(
  * @returns True if the array is an array of the specified type, or false otherwise.
  * @note This function uses Array.prototype.every.
  */
-export function isArrayOf<T>(array: unknown[], predicate: (value: unknown) => value is T): array is T[] {
-  return array.every(predicate);
+export function isArrayOf<T>(array: unknown, predicate: (value: unknown) => value is T): array is T[] {
+  return Array.isArray(array) && array.every(predicate);
 }
