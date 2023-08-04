@@ -41,6 +41,7 @@ import { across } from "@uma/sdk";
 import { parseUBAConfigFromOnChain } from "./ConfigStoreParsingUtilities";
 import { BaseAbstractClient } from "../BaseAbstractClient";
 import { parseJSONWithNumericString, stringifyJSONWithNumericString } from "../../utils/JSONUtils";
+import { PROTOCOL_DEFAULT_CHAIN_ID_INDICES } from "../../constants";
 
 type _ConfigStoreUpdate = {
   success: true;
@@ -140,7 +141,7 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
     const config = (sortEventsDescending(this.chainIdIndicesUpdates) as GlobalConfigUpdate<number[]>[]).find(
       (config) => config.blockNumber <= blockNumber
     );
-    return config?.value ?? [1, 10, 137, 288, 42161];
+    return config?.value ?? PROTOCOL_DEFAULT_CHAIN_ID_INDICES;
   }
 
   getTokenTransferThresholdForBlock(l1Token: string, blockNumber: number = Number.MAX_SAFE_INTEGER): BigNumber {
@@ -445,13 +446,22 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
             // If not a valid array, skip.
             continue;
           }
+          // Let's also check that the array doesn't contain any duplicates.
+          if (new Set(chainIndices).size !== chainIndices.length) {
+            this.logger.warn({
+              at: "ConfigStore",
+              message: `The array ${chainIndices} contains duplicates making it invalid.`,
+            });
+            // If not a valid array, skip.
+            continue;
+          }
           // We now need to check that we're only appending positive integers to the
           // chainIndices array on each update. If this isn't the case, we're going to
           // need to skip this update & warn.
           // Resolve the previous update. If there is no previous update, then we can
           // assume that the default chain indices are being used. These default chain
           // indices are [1, 10, 137, 288, 42161] (outlined in UMIP-157)
-          const previousUpdate = this.chainIdIndicesUpdates.at(-1)?.value ?? [1, 10, 137, 288, 42161];
+          const previousUpdate = this.chainIdIndicesUpdates.at(-1)?.value ?? PROTOCOL_DEFAULT_CHAIN_ID_INDICES;
           // We should now check that previousUpdate is a subset of chainIndices.
           if (!previousUpdate.every((chainId, idx) => chainIndices[idx] === chainId)) {
             this.logger.warn({
