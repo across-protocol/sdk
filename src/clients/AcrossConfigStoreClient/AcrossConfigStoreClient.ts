@@ -193,36 +193,40 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
    * @param fromBlock Start block to search inclusive
    * @param toBlock End block to search inclusive. Defaults to MAX_SAFE_INTEGER, so grabs all disabled chain events
    * up until `latest`.
-   * @param allPossibleChains Returned list will be a subset of this list.
    * @returns List of chain IDs that have been enabled at least once in the block range. Sorted from lowest to highest.
    */
   getEnabledChainsInBlockRange(fromBlock: number, toBlock = Number.MAX_SAFE_INTEGER): number[] {
-    if (toBlock < fromBlock) {
+    // If our fromBlock is greater than our toBlock, then we have an invalid range.
+    if (fromBlock > toBlock) {
       throw new Error(`Invalid block range: fromBlock ${fromBlock} > toBlock ${toBlock}`);
     }
-    // Initiate list with all chains enabled at the fromBlock.
+
+    // Initiate list with all possible chains enabled at the toBlock while removing any chains
+    // that were disabled at the from block.
     const disabledChainsAtFromBlock = this.getDisabledChainsForBlock(fromBlock);
-    const enabledChainsAtFromBlock = this.getChainIdIndicesForBlock(fromBlock).filter(
+    const allPossibleChains = this.getChainIdIndicesForBlock(toBlock);
+    const enabledChainsInBlockRange = allPossibleChains.filter(
       (chainId) => !disabledChainsAtFromBlock.includes(chainId)
     );
 
-    // Update list of enabled chains with any of the candidate chains that have been removed from the
-    // disabled list during the block range.
-    return sortEventsAscending(this.cumulativeDisabledChainUpdates)
-      .reduce((enabledChains: number[], disabledChainUpdate) => {
-        if (disabledChainUpdate.blockNumber > toBlock || disabledChainUpdate.blockNumber < fromBlock) {
-          return enabledChains;
-        }
-        // If any of the possible chains are not listed in this disabled chain update and are not already in the
-        // enabled chain list, then add them to the list.
-        enabledChainsAtFromBlock.forEach((chainId) => {
-          if (!disabledChainUpdate.chainIds.includes(chainId) && !enabledChains.includes(chainId)) {
-            enabledChains.push(chainId);
+    // If there are any disabled chain updates in the block range, then we might need to update the list of enabled
+    // chains in the block range.
+    sortEventsAscending(this.cumulativeDisabledChainUpdates)
+      .filter((e) => e.blockNumber <= toBlock && e.blockNumber >= fromBlock)
+      .forEach((e) => {
+        // If disabled chain update no longer includes a previously disabled chain, then add it back to the enabled chains
+        // list.
+        const newDisabledSet = e.chainIds;
+        disabledChainsAtFromBlock.forEach((disabledChain) => {
+          // New disabled set doesn't include this chain that was previously disabled so it was re-enabled at this point
+          // in the block range.
+          if (!newDisabledSet.includes(disabledChain)) {
+            enabledChainsInBlockRange.push(disabledChain);
           }
         });
-        return enabledChains;
-      }, enabledChainsAtFromBlock)
-      .sort((a, b) => a - b);
+      });
+    // Return the enabled chains in the block range sorted in the same order as the chain indices.
+    return allPossibleChains.filter((chainId) => enabledChainsInBlockRange.includes(chainId));
   }
 
   getEnabledChains(block = Number.MAX_SAFE_INTEGER): number[] {
