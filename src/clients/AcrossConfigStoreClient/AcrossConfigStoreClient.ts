@@ -436,11 +436,12 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
           this.cumulativeMaxRefundCountUpdates.push(args);
         }
       } else if (args.key === utf8ToHex(GLOBAL_CONFIG_STORE_KEYS.CHAIN_ID_INDICES)) {
-        // First remove out all the spaces
-        const rawChainIndices = String(args.value).replace(/\s/g, "");
+        // First remove out all the spaces and quotes
+        const rawChainIndices = String(args.value).replace(/['"\s]/g, "");
         // Sanity check to verify that this is a string representation of an array of
         // positive integers. Let's confirm this via a regex.
-        if (!rawChainIndices.match(/^\[[0-9,]+\]$/)) {
+        // A valid array is of the form: [1,2,3,4,5,10,100]
+        if (!/^\[\d+(,\d+)*\]$/.test(rawChainIndices)) {
           this.logger.warn({ at: "ConfigStore", message: `The array ${rawChainIndices} is invalid.` });
           // If not a valid array, skip.
           continue;
