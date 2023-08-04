@@ -35,8 +35,12 @@ export class MockConfigStoreClient extends AcrossConfigStoreClient {
   ) {
     super(logger, configStore, eventSearchConfig, configStoreVersion);
     this.eventManager = mockUpdate ? getEventManager(chainId, this.eventSignatures) : null;
-    if (availableChainIdsOverride !== undefined && mockUpdate) {
-      this.updateGlobalConfig(GLOBAL_CONFIG_STORE_KEYS.CHAIN_ID_INDICES, JSON.stringify(availableChainIdsOverride), 0);
+    if (availableChainIdsOverride !== undefined && this.eventManager) {
+      this.updateGlobalConfig(
+        GLOBAL_CONFIG_STORE_KEYS.CHAIN_ID_INDICES,
+        JSON.stringify(availableChainIdsOverride),
+        this.eventManager.blockNumber
+      );
     }
   }
 
