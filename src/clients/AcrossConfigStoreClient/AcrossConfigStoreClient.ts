@@ -330,11 +330,6 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
             const ubaConfig = parseUBAConfigFromOnChain(parsedValue.uba);
             // eslint-disable-next-line @typescript-eslint/no-unused-vars
             const { value: _value, key: _key, ...passedArgs } = args;
-            this.logger.debug({
-              at: "ConfigStore::update",
-              message: `Parsed UBA config for ${l1Token}`,
-              ubaConfig,
-            });
             this.ubaConfigUpdates.push({ ...passedArgs, config: ubaConfig, l1Token });
           } catch (e) {
             this.logger.warn({
