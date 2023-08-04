@@ -15,6 +15,7 @@ import {
   max,
   findLast,
   UBA_MIN_CONFIG_STORE_VERSION,
+  isArrayOf,
 } from "../../utils";
 import { Contract, BigNumber, Event } from "ethers";
 import winston from "winston";
@@ -39,6 +40,7 @@ import { across } from "@uma/sdk";
 import { parseUBAConfigFromOnChain } from "./ConfigStoreParsingUtilities";
 import { BaseAbstractClient } from "../BaseAbstractClient";
 import { parseJSONWithNumericString, stringifyJSONWithNumericString } from "../../utils/JSONUtils";
+import { isInteger, isPositiveInteger } from "../../utils/NumberUtils";
 
 type _ConfigStoreUpdate = {
   success: true;
@@ -437,9 +439,9 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
         }
       } else if (args.key === utf8ToHex(GLOBAL_CONFIG_STORE_KEYS.CHAIN_ID_INDICES)) {
         try {
-          const chainIndices = JSON.parse(args.value) as number[];
+          const chainIndices = JSON.parse(args.value);
           // Check that the array is valid and that every element is a number.
-          if (!Array.isArray(chainIndices) || chainIndices.some((chainId) => isNaN(chainId))) {
+          if (!isArrayOf<number>(chainIndices, isPositiveInteger)) {
             this.logger.warn({ at: "ConfigStore", message: `The array ${chainIndices} is invalid.` });
             // If not a valid array, skip.
             continue;
