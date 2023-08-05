@@ -47,6 +47,7 @@ const networks: { [chainId: number]: string } = {
   10: "https://mainnet.optimism.io",
   137: "https://polygon.llamarpc.com",
   288: "https://mainnet.boba.network",
+  324: "https://mainnet.era.zksync.io",
   42161: "https://rpc.ankr.com/arbitrum",
 };
 
@@ -55,7 +56,7 @@ const stdMaxPriorityFeePerGas = ethersUtils.parseUnits("1.5", 9); // EIP-1559 ch
 const stdLastBaseFeePerGas = stdGasPrice.sub(stdMaxPriorityFeePerGas);
 const stdMaxFeePerGas = stdGasPrice;
 const eip1559Chains = [1, 10, 137, 42161];
-const legacyChains = [288];
+const legacyChains = [288, 324];
 
 let providerInstances: { [chainId: number]: MockedProvider } = {};
 
