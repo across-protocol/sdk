@@ -347,7 +347,7 @@ export class HubPoolClient extends BaseAbstractClient {
     chain: number,
     chainIdListOverride?: number[]
   ): number | undefined {
-    const chainIdList = chainIdListOverride ?? this.configStoreClient.getEnabledChains(latestMainnetBlock);
+    const chainIdList = chainIdListOverride ?? this.configStoreClient.getChainIdIndicesForBlock(latestMainnetBlock);
     let endingBlockNumber: number | undefined;
     // Search proposed root bundles in reverse chronological order.
     for (let i = this.proposedRootBundles.length - 1; i >= 0; i--) {
