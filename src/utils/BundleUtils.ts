@@ -66,21 +66,46 @@ export function getImpliedBundleBlockRanges(
   // If chain is disabled for this bundle block range, end block should be same as previous bundle.
   // Otherwise the range should be previous bundle's endBlock + 1 to current bundle's end block.
 
-  // Get enabled chains for this bundle block range.
-  // Don't let caller override the list of enabled chains when constructing an implied bundle block range,
-  // since this function is designed to reconstruct a historical bundle block range.
-  const enabledChains = configStoreClient.getEnabledChains(rootBundle.blockNumber);
+  // Get enabled chains at the mainnet start block of the current root bundle.
+  // We'll check each chain represented in the bundleEvaluationBlockNumbers to see if it's enabled and
+  // use that to determine the implied block range.
+  const mainnetStartBlock = prevRootBundle?.bundleEvaluationBlockNumbers[0].toNumber() ?? 0;
+  const enabledChainsAtMainnetStartBlock = configStoreClient.getEnabledChains(mainnetStartBlock);
 
-  return rootBundle.bundleEvaluationBlockNumbers.map((endBlock, i) => {
+  // Load all chain indices in order to map bundle evaluation block numbers to enabled chains list.
+  const chainIdIndices = configStoreClient.getChainIdIndicesForBlock(rootBundle.blockNumber);
+  const result = rootBundle.bundleEvaluationBlockNumbers.map((endBlock, i) => {
     const fromBlock = prevRootBundle?.bundleEvaluationBlockNumbers?.[i]
       ? prevRootBundle.bundleEvaluationBlockNumbers[i].toNumber() + 1
       : 0;
-    const chainId = enabledChains[i];
-    if (!enabledChains.includes(chainId)) {
+    const chainId = chainIdIndices[i];
+    if (!enabledChainsAtMainnetStartBlock.includes(chainId)) {
       return [endBlock.toNumber(), endBlock.toNumber()];
     }
     return [fromBlock, endBlock.toNumber()];
   });
+
+  // Lastly, sanity check the results to catch errors early:
+  // 1. If the chain is enabled, the start block should be less than or equal to the end block.
+  // 2. If the chain is disabled, the start block should be equal to the end block.
+  result.forEach(([start, end], i) => {
+    const chainId = chainIdIndices[i];
+    if (enabledChainsAtMainnetStartBlock.includes(chainId)) {
+      if (start >= end) {
+        throw new Error(
+          `Invalid block range for enabled chain ${chainId}: start block ${start} is greater than or equal to end block ${end}`
+        );
+      }
+    } else {
+      if (start !== end) {
+        throw new Error(
+          `Invalid block range for disabled chain ${chainId}: start block ${start} is not equal to end block ${end}`
+        );
+      }
+    }
+  });
+
+  return result;
 }
 
 // Return true if we won't be able to construct a root bundle for the bundle block ranges ("blockRanges") because
