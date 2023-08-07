@@ -138,10 +138,13 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
    *       outlined per the UMIP (https://github.com/UMAprotocol/UMIPs/pull/590).
    */
   getChainIdIndicesForBlock(blockNumber: number = Number.MAX_SAFE_INTEGER): number[] {
-    const config = (sortEventsDescending(this.chainIdIndicesUpdates) as GlobalConfigUpdate<number[]>[]).find(
-      (config) => config.blockNumber <= blockNumber
-    );
-    return config?.value ?? PROTOCOL_DEFAULT_CHAIN_ID_INDICES;
+    // Resolve the chain ID indices for the block number requested.
+    const chainIdUpdates = sortEventsDescending(this.chainIdIndicesUpdates);
+    // Iterate through each of the chain ID updates and resolve the first update that is
+    // less than or equal to the block number requested.
+    const chainIdIndices = chainIdUpdates.find((update) => update.blockNumber <= blockNumber)?.value;
+    // Return either the found value or the protocol default.
+    return chainIdIndices ?? PROTOCOL_DEFAULT_CHAIN_ID_INDICES;
   }
 
   getTokenTransferThresholdForBlock(l1Token: string, blockNumber: number = Number.MAX_SAFE_INTEGER): BigNumber {
