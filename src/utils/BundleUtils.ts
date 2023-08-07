@@ -86,7 +86,7 @@ export function getImpliedBundleBlockRanges(
   });
 
   // Lastly, sanity check the results to catch errors early:
-  // 1. If the chain is enabled, the start block should be less than or equal to the end block.
+  // 1. If the chain is enabled, the start block should be strictly less than to the end block.
   // 2. If the chain is disabled, the start block should be equal to the end block.
   result.forEach(([start, end], i) => {
     const chainId = chainIdIndices[i];
