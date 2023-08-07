@@ -86,10 +86,12 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
     public readonly spokePoolClients: { [chainId: number]: SpokePoolClient },
     protected readonly cachingClient?: CachingMechanismInterface
   ) {
-    super();
+    super("UBAClientWithRefresh", [
+      hubPoolClient,
+      ...Object.values(spokePoolClients),
+      hubPoolClient?.configStoreClient,
+    ]);
     this.logger = this.hubPoolClient.logger;
-    // In order to load the enabled chains, we need to make sure that the config store client is updated.
-    assert(this.hubPoolClient.configStoreClient.isUpdated, "ConfigStoreClient must be updated");
     this.enabledChainIds = this.hubPoolClient.configStoreClient.getEnabledChains();
     assert(this.enabledChainIds.length > 0, "No chainIds provided");
     this.enabledChainIds.forEach((chainId) => {
