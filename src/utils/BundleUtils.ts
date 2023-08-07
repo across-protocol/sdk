@@ -74,7 +74,7 @@ export function getImpliedBundleBlockRanges(
 
   // Load all chain indices in order to map bundle evaluation block numbers to enabled chains list.
   const chainIdIndices = configStoreClient.getChainIdIndicesForBlock(rootBundle.blockNumber);
-  return rootBundle.bundleEvaluationBlockNumbers.map((endBlock, i) => {
+  const result = rootBundle.bundleEvaluationBlockNumbers.map((endBlock, i) => {
     const fromBlock = prevRootBundle?.bundleEvaluationBlockNumbers?.[i]
       ? prevRootBundle.bundleEvaluationBlockNumbers[i].toNumber() + 1
       : 0;
@@ -84,6 +84,28 @@ export function getImpliedBundleBlockRanges(
     }
     return [fromBlock, endBlock.toNumber()];
   });
+
+  // Lastly, sanity check the results to catch errors early:
+  // 1. If the chain is enabled, the start block should be less than or equal to the end block.
+  // 2. If the chain is disabled, the start block should be equal to the end block.
+  result.forEach(([start, end], i) => {
+    const chainId = chainIdIndices[i];
+    if (enabledChainsAtMainnetStartBlock.includes(chainId)) {
+      if (start >= end) {
+        throw new Error(
+          `Invalid block range for enabled chain ${chainId}: start block ${start} is greater than or equal to end block ${end}`
+        );
+      }
+    } else {
+      if (start !== end) {
+        throw new Error(
+          `Invalid block range for disabled chain ${chainId}: start block ${start} is not equal to end block ${end}`
+        );
+      }
+    }
+  });
+
+  return result;
 }
 
 // Return true if we won't be able to construct a root bundle for the bundle block ranges ("blockRanges") because
