@@ -13,7 +13,7 @@ describe("UBAFeeSpokeCalculatorAnalog", () => {
     // This is the base case for this function. We want to ensure that if we have a
     // positive balancing fee result, that the result is equal to the integration of
     // the balancing fee curve without any additional modifiers.
-    it("should expect if our balancing fee is positive, that the result is a single integration", () => {
+    it("if balancing fee is positive, then the result is a single integration", () => {
       // We start with a basic config that's been instantiated.
       const config = new MockUBAConfig();
       // We set the balancing fee curve to be a basic curve that has a positive slope.
