@@ -94,7 +94,7 @@ export class HubPoolClient extends BaseAbstractClient {
       ignoredHubProposedBundles: [],
     }
   ) {
-    super();
+    super("HubPoolClient", [configStoreClient]);
     this.latestBlockNumber = deploymentBlock === 0 ? deploymentBlock : deploymentBlock - 1;
     this.firstBlockToSearch = eventSearchConfig.fromBlock;
 

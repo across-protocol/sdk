@@ -91,7 +91,7 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
     readonly eventSearchConfig: MakeOptional<EventSearchConfig, "toBlock"> = { fromBlock: 0, maxBlockLookBack: 0 },
     readonly configStoreVersion: number
   ) {
-    super();
+    super("ConfigStore");
     this.firstBlockToSearch = eventSearchConfig.fromBlock;
     this.rateModelDictionary = new across.rateModel.RateModelDictionary();
   }

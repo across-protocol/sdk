@@ -1,11 +1,25 @@
+import { assertClientsAreUpdated } from "../utils";
+
 /**
  * Base class for all clients to extend.
  */
 export abstract class BaseAbstractClient {
   protected _isUpdated: boolean;
 
-  constructor() {
+  /**
+   * @param clientName The name of the client.
+   * @param clientsRequiredToBeUpdated The clients that are required to be updated before this client can be updated.
+   * @throws Error if the required clients are not updated.
+   */
+  constructor(
+    readonly clientName?: string,
+    clientsRequiredToBeUpdated: (BaseAbstractClient | undefined | null)[] = []
+  ) {
     this._isUpdated = false;
+    // Assert that the required clients are updated
+    // Note: this function doesn't actually update the clients, it just asserts that they are updated
+    //       as we are in the constructor and are not allowed to call async functions
+    assertClientsAreUpdated(...clientsRequiredToBeUpdated);
   }
 
   /**

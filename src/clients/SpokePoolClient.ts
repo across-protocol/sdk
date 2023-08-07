@@ -104,7 +104,7 @@ export class SpokePoolClient extends BaseAbstractClient {
     public deploymentBlock: number,
     readonly eventSearchConfig: MakeOptional<EventSearchConfig, "toBlock"> = { fromBlock: 0, maxBlockLookBack: 0 }
   ) {
-    super();
+    super("SpokePoolClient", [hubPoolClient, hubPoolClient?.configStoreClient]);
     this.firstBlockToSearch = eventSearchConfig.fromBlock;
     this.latestBlockSearched = eventSearchConfig.fromBlock;
     this.queryableEventNames = Object.keys(this._queryableEventNames());
