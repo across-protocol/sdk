@@ -1,7 +1,7 @@
 import assert from "assert";
 import winston from "winston";
 import { Contract, Event, ethers } from "ethers";
-import { EventSearchConfig, MakeOptional, utf8ToHex } from "../../utils";
+import { EventSearchConfig, MakeOptional, isDefined, utf8ToHex } from "../../utils";
 import {
   AcrossConfigStoreClient,
   ConfigStoreUpdate,
@@ -15,6 +15,7 @@ export class MockConfigStoreClient extends AcrossConfigStoreClient {
   private eventManager: EventManager | null;
   private events: Event[] = [];
   private ubaActivationBlockOverride: number | undefined;
+  private availableChainIdsOverride: number[] | undefined;
 
   // Event signatures. Not strictly required, but they make generated events more recognisable.
   public readonly eventSignatures: Record<string, string> = {
@@ -30,13 +31,25 @@ export class MockConfigStoreClient extends AcrossConfigStoreClient {
     configStoreVersion: number,
     chainId = 1,
     mockUpdate = false,
-    enabledChainIdsOverride?: number[]
+    availableChainIdsOverride?: number[]
   ) {
     super(logger, configStore, eventSearchConfig, configStoreVersion);
     this.eventManager = mockUpdate ? getEventManager(chainId, this.eventSignatures) : null;
-    if (enabledChainIdsOverride) {
-      this.updateGlobalConfig(GLOBAL_CONFIG_STORE_KEYS.CHAIN_ID_INDICES, JSON.stringify(enabledChainIdsOverride), 0);
+    if (isDefined(this.eventManager) && this.eventManager) {
+      this.updateGlobalConfig(
+        GLOBAL_CONFIG_STORE_KEYS.CHAIN_ID_INDICES,
+        JSON.stringify(availableChainIdsOverride),
+        this.eventManager.blockNumber
+      );
     }
+  }
+
+  setAvailableChains(chainIds: number[]): void {
+    this.availableChainIdsOverride = chainIds;
+  }
+
+  getChainIdIndicesForBlock(block?: number): number[] {
+    return this.availableChainIdsOverride ?? super.getChainIdIndicesForBlock(block);
   }
 
   setUBAActivationBlock(blockNumber: number | undefined): void {

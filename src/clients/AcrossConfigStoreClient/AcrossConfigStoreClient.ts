@@ -13,9 +13,10 @@ import {
   MakeOptional,
   toBN,
   max,
-  sortEventsAscending,
   findLast,
   UBA_MIN_CONFIG_STORE_VERSION,
+  isArrayOf,
+  isPositiveInteger,
 } from "../../utils";
 import { Contract, BigNumber, Event } from "ethers";
 import winston from "winston";
@@ -40,6 +41,7 @@ import { across } from "@uma/sdk";
 import { parseUBAConfigFromOnChain } from "./ConfigStoreParsingUtilities";
 import { BaseAbstractClient } from "../BaseAbstractClient";
 import { parseJSONWithNumericString, stringifyJSONWithNumericString } from "../../utils/JSONUtils";
+import { PROTOCOL_DEFAULT_CHAIN_ID_INDICES } from "../../constants";
 
 type _ConfigStoreUpdate = {
   success: true;
@@ -139,7 +141,7 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
     const config = (sortEventsDescending(this.chainIdIndicesUpdates) as GlobalConfigUpdate<number[]>[]).find(
       (config) => config.blockNumber <= blockNumber
     );
-    return config?.value ?? [1, 10, 137, 288, 42161];
+    return config?.value ?? PROTOCOL_DEFAULT_CHAIN_ID_INDICES;
   }
 
   getTokenTransferThresholdForBlock(l1Token: string, blockNumber: number = Number.MAX_SAFE_INTEGER): BigNumber {
@@ -193,36 +195,40 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
    * @param fromBlock Start block to search inclusive
    * @param toBlock End block to search inclusive. Defaults to MAX_SAFE_INTEGER, so grabs all disabled chain events
    * up until `latest`.
-   * @param allPossibleChains Returned list will be a subset of this list.
    * @returns List of chain IDs that have been enabled at least once in the block range. Sorted from lowest to highest.
    */
   getEnabledChainsInBlockRange(fromBlock: number, toBlock = Number.MAX_SAFE_INTEGER): number[] {
-    if (toBlock < fromBlock) {
+    // If our fromBlock is greater than our toBlock, then we have an invalid range.
+    if (fromBlock > toBlock) {
       throw new Error(`Invalid block range: fromBlock ${fromBlock} > toBlock ${toBlock}`);
     }
-    // Initiate list with all chains enabled at the fromBlock.
+
+    // Initiate list with all possible chains enabled at the toBlock while removing any chains
+    // that were disabled at the from block.
     const disabledChainsAtFromBlock = this.getDisabledChainsForBlock(fromBlock);
-    const enabledChainsAtFromBlock = this.getChainIdIndicesForBlock(fromBlock).filter(
+    const allPossibleChains = this.getChainIdIndicesForBlock(toBlock);
+    const enabledChainsInBlockRange = allPossibleChains.filter(
       (chainId) => !disabledChainsAtFromBlock.includes(chainId)
     );
 
-    // Update list of enabled chains with any of the candidate chains that have been removed from the
-    // disabled list during the block range.
-    return sortEventsAscending(this.cumulativeDisabledChainUpdates)
-      .reduce((enabledChains: number[], disabledChainUpdate) => {
-        if (disabledChainUpdate.blockNumber > toBlock || disabledChainUpdate.blockNumber < fromBlock) {
-          return enabledChains;
-        }
-        // If any of the possible chains are not listed in this disabled chain update and are not already in the
-        // enabled chain list, then add them to the list.
-        enabledChainsAtFromBlock.forEach((chainId) => {
-          if (!disabledChainUpdate.chainIds.includes(chainId) && !enabledChains.includes(chainId)) {
-            enabledChains.push(chainId);
+    // If there are any disabled chain updates in the block range, then we might need to update the list of enabled
+    // chains in the block range.
+    this.cumulativeDisabledChainUpdates
+      .filter((e) => e.blockNumber <= toBlock && e.blockNumber >= fromBlock)
+      .forEach((e) => {
+        // If disabled chain update no longer includes a previously disabled chain, then add it back to the enabled chains
+        // list.
+        const newDisabledSet = e.chainIds;
+        disabledChainsAtFromBlock.forEach((disabledChain) => {
+          // New disabled set doesn't include this chain that was previously disabled so it was re-enabled at this point
+          // in the block range.
+          if (!newDisabledSet.includes(disabledChain)) {
+            enabledChainsInBlockRange.push(disabledChain);
           }
         });
-        return enabledChains;
-      }, enabledChainsAtFromBlock)
-      .sort((a, b) => a - b);
+      });
+    // Return the enabled chains in the block range sorted in the same order as the chain indices.
+    return allPossibleChains.filter((chainId) => enabledChainsInBlockRange.includes(chainId));
   }
 
   getEnabledChains(block = Number.MAX_SAFE_INTEGER): number[] {
@@ -327,11 +333,6 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
             const ubaConfig = parseUBAConfigFromOnChain(parsedValue.uba);
             // eslint-disable-next-line @typescript-eslint/no-unused-vars
             const { value: _value, key: _key, ...passedArgs } = args;
-            this.logger.debug({
-              at: "ConfigStore::update",
-              message: `Parsed UBA config for ${l1Token}`,
-              ubaConfig,
-            });
             this.ubaConfigUpdates.push({ ...passedArgs, config: ubaConfig, l1Token });
           } catch (e) {
             this.logger.warn({
@@ -433,36 +434,47 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
           this.cumulativeMaxRefundCountUpdates.push(args);
         }
       } else if (args.key === utf8ToHex(GLOBAL_CONFIG_STORE_KEYS.CHAIN_ID_INDICES)) {
-        // First remove out all the spaces
-        const rawChainIndices = String(args.value).replace(/\s/g, "");
-        // Sanity check to verify that this is a string representation of an array of
-        // positive integers. Let's confirm this via a regex.
-        if (!rawChainIndices.match(/^\[[0-9,]+\]$/)) {
-          this.logger.warn({ at: "ConfigStore", message: `The array ${rawChainIndices} is invalid.` });
-          // If not a valid array, skip.
-          continue;
+        try {
+          // We need to parse the chain ID indices array from the stringified JSON. However,
+          // the on-chain string has quotes around the array, which will parse our JSON as a
+          // string instead of an array. We need to remove these quotes before parsing.
+          // To be sure, we can check for single quotes, double quotes, and spaces.
+          const chainIndices = JSON.parse(args.value.replace(/['"\s]/g, ""));
+          // Check that the array is valid and that every element is a number.
+          if (!isArrayOf<number>(chainIndices, isPositiveInteger)) {
+            this.logger.warn({ at: "ConfigStore", message: `The array ${chainIndices} is invalid.` });
+            // If not a valid array, skip.
+            continue;
+          }
+          // Let's also check that the array doesn't contain any duplicates.
+          if (new Set(chainIndices).size !== chainIndices.length) {
+            this.logger.warn({
+              at: "ConfigStore",
+              message: `The array ${chainIndices} contains duplicates making it invalid.`,
+            });
+            // If not a valid array, skip.
+            continue;
+          }
+          // We now need to check that we're only appending positive integers to the
+          // chainIndices array on each update. If this isn't the case, we're going to
+          // need to skip this update & warn.
+          // Resolve the previous update. If there is no previous update, then we can
+          // assume that the default chain indices are being used. These default chain
+          // indices are [1, 10, 137, 288, 42161] (outlined in UMIP-157)
+          const previousUpdate = this.chainIdIndicesUpdates.at(-1)?.value ?? PROTOCOL_DEFAULT_CHAIN_ID_INDICES;
+          // We should now check that previousUpdate is a subset of chainIndices.
+          if (!previousUpdate.every((chainId, idx) => chainIndices[idx] === chainId)) {
+            this.logger.warn({
+              at: "ConfigStoreClient#update",
+              message: `The array ${chainIndices} is invalid. It must be a superset of the previous array ${previousUpdate}`,
+            });
+            continue;
+          }
+          // If all else passes, we can add this update.
+          this.chainIdIndicesUpdates.push({ ...args, value: chainIndices });
+        } catch (e) {
+          this.logger.warn({ at: "ConfigStore::update", message: `Failed to parse chain ID indices: ${args.value}` });
         }
-        // Parse this via JSON.parse. Since we've passed the regex check, we can
-        // be sure that this is a valid array of positive integers.
-        const chainIndices = JSON.parse(rawChainIndices) as number[];
-
-        // We now need to check that we're only appending positive integers to the
-        // chainIndices array on each update. If this isn't the case, we're going to
-        // need to skip this update & warn.
-        // Resolve the previous update. If there is no previous update, then we can
-        // assume that the default chain indices are being used. These default chain
-        // indices are [1, 10, 137, 288, 42161] (outlined in UMIP-157)
-        const previousUpdate = this.chainIdIndicesUpdates.at(-1)?.value ?? [1, 10, 137, 288, 42161];
-        // We should now check that previousUpdate is a subset of chainIndices.
-        if (!previousUpdate.every((chainId, idx) => chainIndices[idx] === chainId)) {
-          this.logger.warn({
-            at: "ConfigStoreClient#update",
-            message: `The array ${rawChainIndices} is invalid. It must be a superset of the previous array ${previousUpdate}`,
-          });
-          continue;
-        }
-        // If all else passes, we can add this update.
-        this.chainIdIndicesUpdates.push({ ...args, value: chainIndices });
       } else if (args.key === utf8ToHex(GLOBAL_CONFIG_STORE_KEYS.MAX_POOL_REBALANCE_LEAF_SIZE)) {
         if (!isNaN(args.value)) {
           this.cumulativeMaxL1TokenCountUpdates.push(args);
