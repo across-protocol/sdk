@@ -137,6 +137,6 @@ export function blockRangesAreInvalidForSpokeClients(
     // bundle that set its start blocks equal 0.
     const bundleRangeFromBlock = Math.max(spokePoolClients[chainId].deploymentBlock, start);
     const earliestSpokePoolClientBlockSearched = spokePoolClients[chainId].eventSearchConfig.fromBlock;
-    return bundleRangeFromBlock <= earliestSpokePoolClientBlockSearched || end > clientLastBlockQueried;
+    return bundleRangeFromBlock < earliestSpokePoolClientBlockSearched || end > clientLastBlockQueried;
   });
 }
