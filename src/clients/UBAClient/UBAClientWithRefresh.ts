@@ -271,7 +271,7 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
     const bundleState = this.ubaBundleStates[key];
     if (!isDefined(bundleState)) {
       throw new Error(
-        `Bundle state for chain ${chainId}, token ${tokenSymbol} and block range ${bundleState} should exist`
+        `Bundle state for chain ${chainId}, token ${tokenSymbol} and block range ${blockRange} should exist`
       );
     }
     return bundleState;
@@ -900,15 +900,43 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
     const tokens = this.tokens;
 
     // Load all UBA bundle block ranges for each chain:
+    this.logger.debug({
+      at: "UBAClientWithRefresh#getMostRecentBundleBlockRangesPerChain",
+      message: "Loaded UBA bundle start blocks",
+      ubaActivationBundleStartBlockForChain: getUbaActivationBundleStartBlocks(this.hubPoolClient),
+    });
     const blockRangesByChain = this.getMostRecentBundleBlockRangesPerChain(100);
+
+    // Mainnet will always be the first chain in the chainIdIndices array and it will never have disabled
+    // or missing block
     const bundleBlockRangesCount = blockRangesByChain[this.chainIdIndices[0]].length;
     const bundleBlockRanges: number[][][] = [];
     for (let i = 0; i < bundleBlockRangesCount; i++) {
       bundleBlockRanges.push(
-        this.chainIdIndices.map((chainId) => {
-          return blockRangesByChain[chainId][i];
-        })
+        this.chainIdIndices
+          .map((chainId) => {
+            // If chain has exactly one bundle, which is possible if the chain was recently
+            // added to the chain ID list, then fill block ranges with zero length ranges.
+            const blockRangeCountForChain = blockRangesByChain[chainId].length;
+            if (blockRangeCountForChain === 1) {
+              const firstBlockRange = blockRangesByChain[chainId][0];
+              // If chain is missing block ranges, fill the first few ranges for it with zero block ranges
+              // that start and end at the first block range for the chain's start block.
+              if (i < bundleBlockRangesCount - blockRangeCountForChain) {
+                return [firstBlockRange[0], firstBlockRange[0]];
+              } else {
+                return firstBlockRange;
+              }
+            }
+            return blockRangesByChain[chainId][i];
+          })
+          .filter(isDefined)
       );
+    }
+
+    // Validate that block ranges are equal length for all bundles.
+    if (bundleBlockRanges.some((blockRange) => blockRange.length !== this.chainIdIndices.length)) {
+      throw new Error("Block ranges are not equal length for all bundles");
     }
     this.ubaBundleBlockRanges = bundleBlockRanges;
     this.logger.debug({
