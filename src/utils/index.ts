@@ -13,4 +13,3 @@ export * from "./BundleUtils";
 export * from "./JSONUtils";
 export * from "./IPFSUtils";
 export * from "./NumberUtils";
-export * from "./BlockUtils";
