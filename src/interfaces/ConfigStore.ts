@@ -62,11 +62,11 @@ export interface TokenConfig extends SortableEvent {
   value: string;
 }
 
-export interface GlobalConfigUpdate extends SortableEvent {
-  value: number;
+export interface GlobalConfigUpdate<ValueStore = number> extends SortableEvent {
+  value: ValueStore;
 }
 
-export interface ConfigStoreVersionUpdate extends GlobalConfigUpdate {
+export interface ConfigStoreVersionUpdate<ValueStore = number> extends GlobalConfigUpdate<ValueStore> {
   timestamp: number;
 }
 

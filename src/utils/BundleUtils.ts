@@ -1,5 +1,4 @@
 import { AcrossConfigStoreClient, HubPoolClient, SpokePoolClient } from "../clients";
-import { CHAIN_ID_LIST_INDICES } from "../constants";
 import { ProposedRootBundle } from "../interfaces";
 
 /**
@@ -16,7 +15,7 @@ import { ProposedRootBundle } from "../interfaces";
 export function getBlockForChain(
   bundleEvaluationBlockNumbers: number[],
   chain: number,
-  chainIdListForBundleEvaluationBlockNumbers: number[] = CHAIN_ID_LIST_INDICES
+  chainIdListForBundleEvaluationBlockNumbers: number[]
 ): number {
   const indexForChain = chainIdListForBundleEvaluationBlockNumbers.indexOf(chain);
   if (indexForChain === -1) {
@@ -39,7 +38,7 @@ export function getBlockForChain(
 export function getBlockRangeForChain(
   blockRanges: number[][],
   chain: number,
-  chainIdListForBundleEvaluationBlockNumbers: number[] = CHAIN_ID_LIST_INDICES
+  chainIdListForBundleEvaluationBlockNumbers: number[]
 ): number[] {
   const indexForChain = chainIdListForBundleEvaluationBlockNumbers.indexOf(chain);
   if (indexForChain === -1) {
@@ -67,21 +66,46 @@ export function getImpliedBundleBlockRanges(
   // If chain is disabled for this bundle block range, end block should be same as previous bundle.
   // Otherwise the range should be previous bundle's endBlock + 1 to current bundle's end block.
 
-  // Get enabled chains for this bundle block range.
-  // Don't let caller override the list of enabled chains when constructing an implied bundle block range,
-  // since this function is designed to reconstruct a historical bundle block range.
-  const enabledChains = configStoreClient.getEnabledChains(rootBundle.blockNumber, configStoreClient.enabledChainIds);
+  // Get enabled chains at the mainnet start block of the current root bundle.
+  // We'll check each chain represented in the bundleEvaluationBlockNumbers to see if it's enabled and
+  // use that to determine the implied block range.
+  const mainnetStartBlock = prevRootBundle?.bundleEvaluationBlockNumbers[0].toNumber() ?? 0;
+  const enabledChainsAtMainnetStartBlock = configStoreClient.getEnabledChains(mainnetStartBlock);
 
-  return rootBundle.bundleEvaluationBlockNumbers.map((endBlock, i) => {
-    const chainId = configStoreClient.enabledChainIds[i];
+  // Load all chain indices in order to map bundle evaluation block numbers to enabled chains list.
+  const chainIdIndices = configStoreClient.getChainIdIndicesForBlock(rootBundle.blockNumber);
+  const result = rootBundle.bundleEvaluationBlockNumbers.map((endBlock, i) => {
     const fromBlock = prevRootBundle?.bundleEvaluationBlockNumbers?.[i]
       ? prevRootBundle.bundleEvaluationBlockNumbers[i].toNumber() + 1
       : 0;
-    if (!enabledChains.includes(chainId)) {
+    const chainId = chainIdIndices[i];
+    if (!enabledChainsAtMainnetStartBlock.includes(chainId)) {
       return [endBlock.toNumber(), endBlock.toNumber()];
     }
     return [fromBlock, endBlock.toNumber()];
   });
+
+  // Lastly, sanity check the results to catch errors early:
+  // 1. If the chain is enabled, the start block should be strictly less than to the end block.
+  // 2. If the chain is disabled, the start block should be equal to the end block.
+  result.forEach(([start, end], i) => {
+    const chainId = chainIdIndices[i];
+    if (enabledChainsAtMainnetStartBlock.includes(chainId)) {
+      if (start >= end) {
+        throw new Error(
+          `Invalid block range for enabled chain ${chainId}: start block ${start} is greater than or equal to end block ${end}`
+        );
+      }
+    } else {
+      if (start !== end) {
+        throw new Error(
+          `Invalid block range for disabled chain ${chainId}: start block ${start} is not equal to end block ${end}`
+        );
+      }
+    }
+  });
+
+  return result;
 }
 
 // Return true if we won't be able to construct a root bundle for the bundle block ranges ("blockRanges") because
@@ -89,22 +113,15 @@ export function getImpliedBundleBlockRanges(
 export function blockRangesAreInvalidForSpokeClients(
   spokePoolClients: Record<number, SpokePoolClient>,
   blockRanges: number[][],
-  chainIdListForBundleEvaluationBlockNumbers: number[] = CHAIN_ID_LIST_INDICES
+  chainIdListForBundleEvaluationBlockNumbers: number[]
 ): boolean {
-  if (blockRanges.length !== chainIdListForBundleEvaluationBlockNumbers.length) {
-    throw new Error("DataworkerUtils#blockRangesAreInvalidForSpokeClients: Invalid bundle block range length");
-  }
-  return chainIdListForBundleEvaluationBlockNumbers.some((chainId) => {
-    const blockRangeForChain = getBlockRangeForChain(
-      blockRanges,
-      Number(chainId),
-      chainIdListForBundleEvaluationBlockNumbers
-    );
-    if (isNaN(blockRangeForChain[1]) || isNaN(blockRangeForChain[0])) {
+  return blockRanges.some(([start, end], index) => {
+    const chainId = chainIdListForBundleEvaluationBlockNumbers[index];
+    if (isNaN(end) || isNaN(start)) {
       return true;
     }
     // If block range is 0 then chain is disabled, we don't need to query events for this chain.
-    if (blockRangeForChain[1] === blockRangeForChain[0]) {
+    if (end === start) {
       return false;
     }
 
@@ -115,12 +132,11 @@ export function blockRangesAreInvalidForSpokeClients(
 
     const clientLastBlockQueried =
       spokePoolClients[chainId].eventSearchConfig.toBlock ?? spokePoolClients[chainId].latestBlockNumber;
-    const bundleRangeToBlock = blockRangeForChain[1];
 
     // Note: Math.max the from block with the deployment block of the spoke pool to handle the edge case for the first
     // bundle that set its start blocks equal 0.
-    const bundleRangeFromBlock = Math.max(spokePoolClients[chainId].deploymentBlock, blockRangeForChain[0]);
+    const bundleRangeFromBlock = Math.max(spokePoolClients[chainId].deploymentBlock, start);
     const earliestSpokePoolClientBlockSearched = spokePoolClients[chainId].eventSearchConfig.fromBlock;
-    return bundleRangeFromBlock <= earliestSpokePoolClientBlockSearched || bundleRangeToBlock > clientLastBlockQueried;
+    return bundleRangeFromBlock < earliestSpokePoolClientBlockSearched || end > clientLastBlockQueried;
   });
 }

@@ -1,6 +1,5 @@
 import { BigNumber, ethers } from "ethers";
 import { ThresholdBoundType, FlowTupleParameters } from "./UBAFeeTypes";
-import { CHAIN_ID_LIST_INDICES } from "../constants";
 import { stringifyJSONWithNumericString } from "../utils/JSONUtils";
 import { fixedPointAdjustment } from "../utils";
 import { assertValidityOfFeeCurve } from "./UBAFeeUtility";
@@ -175,18 +174,6 @@ class UBAConfig {
   public getTargetBalance(chainId: number, tokenSymbol: string): BigNumber {
     const thresholdConfig = this.getBalanceTriggerThreshold(chainId, tokenSymbol);
     return thresholdConfig?.upperBound?.target ?? ethers.constants.Zero;
-  }
-
-  /**
-   * Get sum of all spoke target balances for all chains besides hub pool chain for l1TokenAddress.
-   * This output should be used to compute LP fee based on total spoke target
-   * @param tokenSymbol The token to find target balances for
-   * @returns The sum of token balances for a specific token symbol
-   */
-  public getTotalSpokeTargetBalanceForComputingLpFee(tokenSymbol: string): BigNumber {
-    return CHAIN_ID_LIST_INDICES.reduce((sum, chainId) => {
-      return sum.add(this.getTargetBalance(chainId, tokenSymbol));
-    }, ethers.constants.Zero);
   }
 
   /**

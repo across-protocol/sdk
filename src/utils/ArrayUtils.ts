@@ -134,3 +134,14 @@ export async function includesAsync<T>(
 ): Promise<boolean> {
   return someAsync(array, predicate);
 }
+
+/**
+ * A generic type guard for arrays of a specific type.
+ * @param array The array to test.
+ * @param predicate The type guard predicate function to apply to each element.
+ * @returns True if the array is an array of the specified type, or false otherwise.
+ * @note This function uses Array.prototype.every.
+ */
+export function isArrayOf<T>(array: unknown, predicate: (value: unknown) => value is T): array is T[] {
+  return Array.isArray(array) && array.every(predicate);
+}

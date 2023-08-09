@@ -150,7 +150,6 @@ export function getUBAFeeConfig(
  * windows, so that the caller can call this function to cover all UBA events.
  * @param chainId
  * @param maxBundleStates If this is larger than available validated bundles in the HubPoolClient, will throw an error.
- * @param hubPoolBlock Only returns the most recent validated bundles proposed before this block.
  * @param hubPoolClient The hub pool client to use for fetching the bundle ranges.
  * @param spokePoolClients The spoke pool clients to use for fetching the bundle ranges.
  * @returns The most recent `maxBundleStates` bundle ranges for a given chain, in chronological ascending order.
@@ -168,11 +167,7 @@ export function getMostRecentBundleBlockRanges(
 
   // Reconstruct bundle ranges based on published end blocks.
   const ubaActivationStartBlocks = getUbaActivationBundleStartBlocks(hubPoolClient);
-  const ubaActivationHubStartBlock = getBlockForChain(
-    ubaActivationStartBlocks,
-    hubPoolClient.chainId,
-    hubPoolClient.configStoreClient.enabledChainIds
-  );
+  const ubaActivationHubStartBlock = ubaActivationStartBlocks[0];
 
   // Bundle states are examined in chronological descending order.
   const bundleData: { start: number; end: number }[] = [];
@@ -182,6 +177,13 @@ export function getMostRecentBundleBlockRanges(
     if (!latestExecutedRootBundle) {
       break;
     }
+
+    // If chain is inactive for this bundle, exit early since no subsequent bundles will be enabled.
+    const chainIndex = hubPoolClient.configStoreClient.getChainIdIndicesForBlock().indexOf(chainId);
+    if (chainIndex >= latestExecutedRootBundle.bundleEvaluationBlockNumbers.length) {
+      break;
+    }
+
     const rootBundleBlockRanges = getImpliedBundleBlockRanges(
       hubPoolClient,
       hubPoolClient.configStoreClient,
@@ -193,7 +195,7 @@ export function getMostRecentBundleBlockRanges(
     const hubPoolStartBlock = getBlockRangeForChain(
       rootBundleBlockRanges,
       hubPoolClient.chainId,
-      hubPoolClient.configStoreClient.enabledChainIds
+      hubPoolClient.configStoreClient.getChainIdIndicesForBlock()
     )[0];
     if (hubPoolStartBlock < ubaActivationHubStartBlock) {
       break;
@@ -203,7 +205,7 @@ export function getMostRecentBundleBlockRanges(
     const blockRangeForChain = getBlockRangeForChain(
       rootBundleBlockRanges,
       chainId,
-      hubPoolClient.configStoreClient.enabledChainIds
+      hubPoolClient.configStoreClient.getChainIdIndicesForBlock()
     );
     bundleData.unshift({
       start: blockRangeForChain[0],
@@ -222,7 +224,7 @@ export function getMostRecentBundleBlockRanges(
     const ubaActivationBundleStartBlockForChain = getBlockForChain(
       ubaActivationBundleStartBlocks,
       chainId,
-      hubPoolClient.configStoreClient.enabledChainIds
+      hubPoolClient.configStoreClient.getChainIdIndicesForBlock()
     );
     bundleData.unshift({
       // Tell caller to load data for events beginning at the start of the UBA version added to the ConfigStore
@@ -256,7 +258,7 @@ export function getOpeningRunningBalanceForEvent(
   l1Token: string,
   hubPoolLatestBlock: number
 ): TokenRunningBalance {
-  const enabledChains = hubPoolClient.configStoreClient.enabledChainIds;
+  const chainIdIndices = hubPoolClient.configStoreClient.getChainIdIndicesForBlock();
 
   // First find the latest executed bundle as of `hubPoolLatestBlock`.
   const latestExecutedBundle = hubPoolClient.getNthFullyExecutedRootBundle(-1, hubPoolLatestBlock);
@@ -270,11 +272,20 @@ export function getOpeningRunningBalanceForEvent(
     };
   }
 
+  // If chain was not active in bundle, return 0.
+  const chainIndex = chainIdIndices.indexOf(eventChain);
+  if (chainIndex >= latestExecutedBundle.bundleEvaluationBlockNumbers.length) {
+    return {
+      runningBalance: ethers.constants.Zero,
+      incentiveBalance: ethers.constants.Zero,
+    };
+  }
+
   // Construct the bundle's block range
   const blockRanges = getImpliedBundleBlockRanges(hubPoolClient, hubPoolClient.configStoreClient, latestExecutedBundle);
 
   // Now compare the eventBlock against the eventBlockRange.
-  const eventBlockRange = getBlockRangeForChain(blockRanges, eventChain, enabledChains);
+  const eventBlockRange = getBlockRangeForChain(blockRanges, eventChain, chainIdIndices);
 
   // If event block is after the bundle end block, use the running balances for this bundle. We need to enforce
   // that the bundle end block is less than the event block to ensure that the running balance from this bundle
@@ -318,7 +329,7 @@ export function getOpeningRunningBalanceForEvent(
     const incentiveBalance = executedLeaf.incentiveBalances[l1TokenIndex];
 
     const ubaActivationStartBlocks = getUbaActivationBundleStartBlocks(hubPoolClient);
-    const ubaActivationStartBlockForChain = getBlockForChain(ubaActivationStartBlocks, eventChain, enabledChains);
+    const ubaActivationStartBlockForChain = getBlockForChain(ubaActivationStartBlocks, eventChain, chainIdIndices);
     if (blockRanges[0][0] < ubaActivationStartBlockForChain) {
       return {
         runningBalance: runningBalance.mul(-1),
@@ -398,12 +409,11 @@ export async function getMatchedDeposit(
 export function isUBAActivatedAtBlock(hubPoolClient: HubPoolClient, block: number, chain: number): boolean {
   try {
     const ubaActivationBlocks = getUbaActivationBundleStartBlocks(hubPoolClient);
-    const ubaActivationStartBlockForChain = getBlockForChain(
-      ubaActivationBlocks,
-      chain,
-      hubPoolClient.configStoreClient.enabledChainIds
-    );
-    return block >= ubaActivationStartBlockForChain;
+    const chainIdIndices = hubPoolClient.configStoreClient.getChainIdIndicesForBlock();
+    // Find the first activation block where the index matches the chain
+    const activationBlock =
+      ubaActivationBlocks.find((_, idx) => chainIdIndices[idx] === chain) ?? Number.MAX_SAFE_INTEGER;
+    return block >= activationBlock;
   } catch (err) {
     // UBA not activated yet or hub pool client not updated
     return false;
@@ -418,6 +428,7 @@ export function getUbaActivationBundleStartBlocks(hubPoolClient: HubPoolClient):
   if (!isDefined(latestHubPoolBlock)) {
     throw new Error("HubPoolClient has undefined latestBlockNumber");
   }
+  const chainIdIndices = hubPoolClient.configStoreClient.getChainIdIndicesForBlock();
   const ubaActivationBlock = hubPoolClient.configStoreClient.getUBAActivationBlock();
   if (isDefined(ubaActivationBlock)) {
     const nextValidatedBundle = hubPoolClient.getProposedRootBundles().find((bundle) => {
@@ -431,11 +442,19 @@ export function getUbaActivationBundleStartBlocks(hubPoolClient: HubPoolClient):
         hubPoolClient.configStoreClient,
         nextValidatedBundle
       );
-      const bundleStartBlocks = bundleBlockRanges.map(([startBlock]) => startBlock);
+
+      const bundleStartBlocks = chainIdIndices.map((chainId, i) => {
+        // If chain was not active in `nextValidatedBundle`, then return 0 as the start block. This chain's next
+        // bundle start block will be 0.
+        if (i >= nextValidatedBundle.bundleEvaluationBlockNumbers.length) {
+          return 0;
+        }
+        const startBlock = getBlockRangeForChain(bundleBlockRanges, chainId, chainIdIndices)[0];
+        return startBlock;
+      });
       return bundleStartBlocks;
     } else {
       // No validated bundles after UBA activation block, UBA should be activated on next bundle start blocks.
-      const chainIdIndices = hubPoolClient.configStoreClient.enabledChainIds;
       const nextBundleStartBlocks = chainIdIndices.map((chainId) =>
         hubPoolClient.getNextBundleStartBlockNumber(chainIdIndices, latestHubPoolBlock, chainId)
       );

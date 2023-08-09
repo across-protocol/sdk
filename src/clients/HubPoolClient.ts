@@ -49,7 +49,6 @@ export type HubPoolUpdate = { success: false } | _HubPoolUpdate;
 
 type HubPoolEvent =
   | "SetPoolRebalanceRoute"
-  | "SetPoolRebalanceRoute"
   | "L1TokenEnabledForLiquidityProvision"
   | "ProposeRootBundle"
   | "RootBundleCanceled"
@@ -348,7 +347,7 @@ export class HubPoolClient extends BaseAbstractClient {
     chain: number,
     chainIdListOverride?: number[]
   ): number | undefined {
-    const chainIdList = chainIdListOverride ?? this.configStoreClient.enabledChainIds;
+    const chainIdList = chainIdListOverride ?? this.configStoreClient.getChainIdIndicesForBlock(latestMainnetBlock);
     let endingBlockNumber: number | undefined;
     // Search proposed root bundles in reverse chronological order.
     for (let i = this.proposedRootBundles.length - 1; i >= 0; i--) {

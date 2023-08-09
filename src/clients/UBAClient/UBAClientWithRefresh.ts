@@ -59,7 +59,10 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
   // be populated for all block ranges where the UBA is active after calling update().
   public ubaBundleStates: Record<string, CachedUBABundleState> = {};
 
-  // Convenient variable storing this.hubPoolClient.configStoreClient.enabledChains
+  // Chains we want to load new bundle data for.
+  public enabledChainIds: number[];
+
+  // Canonical chain ID indices mapping chains to bundle evaluation end blocks.
   public chainIdIndices: number[];
 
   // All bundle ranges loaded by this client. Should contain all bundle ranges for all validated bundles
@@ -89,9 +92,12 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
   ) {
     super();
     this.logger = this.hubPoolClient.logger;
-    this.chainIdIndices = this.hubPoolClient.configStoreClient.enabledChainIds;
-    assert(this.chainIdIndices.length > 0, "No chainIds provided");
-    assert(Object.values(spokePoolClients).length > 0, "No SpokePools provided");
+    this.enabledChainIds = this.hubPoolClient.configStoreClient.getEnabledChains();
+    assert(this.enabledChainIds.length > 0, "No chainIds provided");
+    this.enabledChainIds.forEach((chainId) => {
+      assert(isDefined(spokePoolClients[chainId]), `No SpokePool provided for chainId ${chainId}`);
+    });
+    this.chainIdIndices = this.hubPoolClient.configStoreClient.getChainIdIndicesForBlock();
   }
 
   // /////////////////
@@ -269,7 +275,7 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
     const bundleState = this.ubaBundleStates[key];
     if (!isDefined(bundleState)) {
       throw new Error(
-        `Bundle state for chain ${chainId}, token ${tokenSymbol} and block range ${bundleState} should exist`
+        `Bundle state for chain ${chainId}, token ${tokenSymbol} and block range ${blockRange} should exist`
       );
     }
     return bundleState;
@@ -320,7 +326,7 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
 
     // Conveniently map block ranges to each chain.
     const blockRangesForChain: Record<number, number[]> = Object.fromEntries(
-      this.chainIdIndices.map((chainId) => {
+      this.enabledChainIds.map((chainId) => {
         return [chainId, getBlockRangeForChain(blockRanges, chainId, this.chainIdIndices)];
       })
     );
@@ -328,7 +334,7 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
     // Combine flows from all chain block ranges in this bundle.
     const flowsInBundle = sortFlowsAscending(
       (
-        await mapAsync(this.chainIdIndices, async (chainId) => {
+        await mapAsync(this.enabledChainIds, async (chainId) => {
           const [startBlock, endBlock] = blockRangesForChain[chainId];
 
           // Don't load flows for disabled block ranges in this bundle.
@@ -427,7 +433,7 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
     }
 
     return Object.fromEntries(
-      this.chainIdIndices.map((chainId) => {
+      this.enabledChainIds.map((chainId) => {
         const bundleStateForChain = this.getBundleState(blockRanges, tokenSymbol, chainId);
         return [chainId, bundleStateForChain.flows];
       })
@@ -839,7 +845,7 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
           message: `Block ranges for chain ${chainId} do not cover from UBA activation bundle start block to latest spoke pool client block searched`,
           startBlockForChain: _blockRangesForChain[0][0],
           ubaActivationBundleStartBlockForChain,
-          endBlockForChain: _blockRangesForChain.at(-1)![1],
+          endBlockForChain: _blockRangesForChain.at(-1)?.[1],
           latestSpokePoolClientBlockSearched: this.spokePoolClients[chainId]?.latestBlockSearched,
         });
         throw new Error(
@@ -892,20 +898,49 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
     this.logger.debug({
       at: "UBAClientWithRefresh",
       message: "❤️‍🔥😭  Updating UBA Client",
+      enabledChains: this.enabledChainIds,
     });
 
     const tokens = this.tokens;
 
     // Load all UBA bundle block ranges for each chain:
+    this.logger.debug({
+      at: "UBAClientWithRefresh#getMostRecentBundleBlockRangesPerChain",
+      message: "Loaded UBA bundle start blocks",
+      ubaActivationBundleStartBlockForChain: getUbaActivationBundleStartBlocks(this.hubPoolClient),
+    });
     const blockRangesByChain = this.getMostRecentBundleBlockRangesPerChain(100);
+
+    // Mainnet will always be the first chain in the chainIdIndices array and it will never have disabled
+    // or missing block
     const bundleBlockRangesCount = blockRangesByChain[this.chainIdIndices[0]].length;
     const bundleBlockRanges: number[][][] = [];
     for (let i = 0; i < bundleBlockRangesCount; i++) {
       bundleBlockRanges.push(
-        this.chainIdIndices.map((chainId) => {
-          return blockRangesByChain[chainId][i];
-        })
+        this.chainIdIndices
+          .map((chainId) => {
+            // If chain has exactly one bundle, which is possible if the chain was recently
+            // added to the chain ID list, then fill block ranges with zero length ranges.
+            const blockRangeCountForChain = blockRangesByChain[chainId].length;
+            if (blockRangeCountForChain === 1) {
+              const firstBlockRange = blockRangesByChain[chainId][0];
+              // If chain is missing block ranges, fill the first few ranges for it with zero block ranges
+              // that start and end at the first block range for the chain's start block.
+              if (i < bundleBlockRangesCount - blockRangeCountForChain) {
+                return [firstBlockRange[0], firstBlockRange[0]];
+              } else {
+                return firstBlockRange;
+              }
+            }
+            return blockRangesByChain[chainId][i];
+          })
+          .filter(isDefined)
       );
+    }
+
+    // Validate that block ranges are equal length for all bundles.
+    if (bundleBlockRanges.some((blockRange) => blockRange.length !== this.chainIdIndices.length)) {
+      throw new Error("Block ranges are not equal length for all bundles");
     }
     this.ubaBundleBlockRanges = bundleBlockRanges;
     this.logger.debug({
@@ -923,13 +958,9 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
       tokens.forEach((token) => {
         const l1TokenAddress = this.hubPoolClient.getL1Tokens().find((_token) => _token.symbol === token)?.address;
         if (!isDefined(l1TokenAddress)) throw new Error(`No L1 token address found for token symbol ${token}`);
-        this.chainIdIndices.forEach((chainId) => {
+        this.enabledChainIds.forEach((chainId) => {
           const bundleStateKey = this.getKeyForBundle(bundleBlockRange, token, chainId);
-          const startBlock = getBlockForChain(
-            startBlocks,
-            chainId,
-            this.hubPoolClient.configStoreClient.enabledChainIds
-          );
+          const startBlock = getBlockForChain(startBlocks, chainId, this.chainIdIndices);
           const openingBalances = getOpeningRunningBalanceForEvent(
             this.hubPoolClient,
             // Pass in a start block for the bundle containing the flow to this function so we always
@@ -955,7 +986,7 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
 
     // Load latest timestamps per chain:
     const latestTimestampsPerChain = Object.fromEntries(
-      this.chainIdIndices
+      this.enabledChainIds
         .map((chainId) => {
           if (!isDefined(this.spokePoolClients[chainId])) return undefined;
           return [chainId, this.spokePoolClients[chainId].getCurrentTime()];
@@ -993,7 +1024,7 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
           continue;
         }
         await forEachAsync(tokens, async (token) => {
-          await forEachAsync(this.chainIdIndices, async (chainId) => {
+          await forEachAsync(this.enabledChainIds, async (chainId) => {
             const redisKeyForBundle = this.getKeyForBundle(mostRecentBundleBlockRanges, token, chainId);
             const modifiedFlowsInBundle: ModifiedUBAFlow[] | undefined | null = await this.cachingClient?.get(
               redisKeyForBundle
@@ -1031,7 +1062,7 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
 
         // We can skip the next step if we've already loaded flows for all chains from the cache:
         if (
-          this.chainIdIndices.every((chainId) => {
+          this.enabledChainIds.every((chainId) => {
             return this.getBundleState(mostRecentBundleBlockRanges, token, chainId).loadedFromCache;
           })
         ) {
@@ -1040,7 +1071,7 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
           //   `- Skipping validation for bundle ${bundleKeyForBlockRanges} for token ${token} because flows for all chains are already cached`
           // );
           modifiedFlowsInBundle = Object.fromEntries(
-            this.chainIdIndices.map((chainId) => {
+            this.enabledChainIds.map((chainId) => {
               const cachedFlows = this.getBundleState(mostRecentBundleBlockRanges, token, chainId).flows;
               return [chainId, cachedFlows];
             })
@@ -1053,7 +1084,7 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
         }
 
         // Save into UBA client state
-        await forEachAsync(this.chainIdIndices, async (chainId) => {
+        await forEachAsync(this.enabledChainIds, async (chainId) => {
           if (!isDefined(newUbaClientState[chainId])) newUbaClientState[chainId] = {};
           if (!isDefined(newUbaClientState[chainId][token])) newUbaClientState[chainId][token] = [];
           const bundleState = this.getBundleState(mostRecentBundleBlockRanges, token, chainId);
@@ -1092,7 +1123,7 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
     // For each validated outflow, update its matched deposit's realizedLpFeePct in the spoke pool client:
     for (let i = 0; i < this.ubaBundleBlockRanges.length; i++) {
       const mostRecentBundleBlockRanges = this.ubaBundleBlockRanges[i];
-      this.chainIdIndices.forEach((chainId) => {
+      this.enabledChainIds.forEach((chainId) => {
         tokens.forEach((token) => {
           const modifiedFlowsInBundle = this.getBundleState(mostRecentBundleBlockRanges, token, chainId).flows;
           modifiedFlowsInBundle.forEach(({ flow }) => {
@@ -1118,7 +1149,7 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
     for (let i = 0; i < this.ubaBundleBlockRanges.length; i++) {
       tokens.forEach((token) => {
         const bundleBlockRange = this.ubaBundleBlockRanges[i];
-        const breakdownPerChain = this.chainIdIndices
+        const breakdownPerChain = this.enabledChainIds
           .map((chainId) => {
             const bundleState = this.getBundleState(bundleBlockRange, token, chainId);
             if (isDefined(bundleState)) {
