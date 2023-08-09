@@ -133,7 +133,7 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
    * @param ConfigStore chain ID.
    * @dev If the resolved chain ID is part of the default set, assume the protocol defaults.
    *      Otherwise, assume this is a test deployment with a lone chain ID.
-   * @dev The protocol defaults are [1, 10, 137, 288, 42161](outlined in UMIP-157).
+   * @dev The protocol defaults are [1, 10, 137, 288, 42161] (outlined in UMIP-157).
    * @dev chainId is marked optional to appease tsc. It must always be passed in.
    */
   protected implicitChainIdIndices(chainId?: number): number[] {
