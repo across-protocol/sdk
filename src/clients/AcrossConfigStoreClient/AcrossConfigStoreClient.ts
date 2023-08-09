@@ -45,6 +45,7 @@ import { PROTOCOL_DEFAULT_CHAIN_ID_INDICES } from "../../constants";
 
 type _ConfigStoreUpdate = {
   success: true;
+  chainId: number;
   latestBlockNumber: number;
   searchEndBlock: number;
   events: {
@@ -84,6 +85,7 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
   public latestBlockNumber = 0;
 
   public hasLatestConfigStoreVersion = false;
+  public chainId: number | undefined;
 
   constructor(
     readonly logger: winston.Logger,
@@ -127,6 +129,21 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
   }
 
   /**
+   * Resolve the implied set of chain ID indices based on the chain ID of the ConfigStore.
+   * @param ConfigStore chain ID.
+   * @dev If the resolved chain ID is part of the default set, assume the protocol defaults.
+   *      Otherwise, assume this is a test deployment with a lone chain ID.
+   * @dev The protocol defaults are [1, 10, 137, 288, 42161](outlined in UMIP-157).
+   * @dev chainId is marked optional to appease tsc. It must always be passed in.
+   */
+  protected implicitChainIdIndices(chainId?: number): number[] {
+    assert(isDefined(chainId), `ConfigStoreClient used before update`);
+    return PROTOCOL_DEFAULT_CHAIN_ID_INDICES[0] === chainId
+      ? PROTOCOL_DEFAULT_CHAIN_ID_INDICES
+      : [chainId];
+  }
+
+  /**
    * Resolves the chain ids that were available to the protocol at a given block range.
    * @param blockNumber Block number to search for. Defaults to latest block.
    * @returns List of chain IDs that were available to the protocol at the given block number.
@@ -143,8 +160,9 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
     // Iterate through each of the chain ID updates and resolve the first update that is
     // less than or equal to the block number requested.
     const chainIdIndices = chainIdUpdates.find((update) => update.blockNumber <= blockNumber)?.value;
+
     // Return either the found value or the protocol default.
-    return chainIdIndices ?? PROTOCOL_DEFAULT_CHAIN_ID_INDICES;
+    return chainIdIndices ?? this.implicitChainIdIndices(this.chainId);
   }
 
   getTokenTransferThresholdForBlock(l1Token: string, blockNumber: number = Number.MAX_SAFE_INTEGER): BigNumber {
@@ -269,6 +287,7 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
   }
 
   async _update(): Promise<ConfigStoreUpdate> {
+    const chainId = this.chainId ?? (await this.configStore.provider.getNetwork()).chainId;
     const latestBlockNumber = await this.configStore.provider.getBlockNumber();
     const searchConfig = {
       fromBlock: this.firstBlockToSearch,
@@ -295,6 +314,7 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
 
     return {
       success: true,
+      chainId,
       latestBlockNumber,
       searchEndBlock: searchConfig.toBlock,
       events: {
@@ -312,6 +332,7 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
     if (!result.success) {
       return;
     }
+    const { chainId} = result;
     const { updatedTokenConfigEvents, updatedGlobalConfigEvents, globalConfigUpdateTimes } = result.events;
     assert(
       updatedGlobalConfigEvents.length === globalConfigUpdateTimes.length,
@@ -458,13 +479,10 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
             // If not a valid array, skip.
             continue;
           }
-          // We now need to check that we're only appending positive integers to the
-          // chainIndices array on each update. If this isn't the case, we're going to
-          // need to skip this update & warn.
-          // Resolve the previous update. If there is no previous update, then we can
-          // assume that the default chain indices are being used. These default chain
-          // indices are [1, 10, 137, 288, 42161] (outlined in UMIP-157)
-          const previousUpdate = this.chainIdIndicesUpdates.at(-1)?.value ?? PROTOCOL_DEFAULT_CHAIN_ID_INDICES;
+          // Now check that we're only appending positive integers to the chainIndices array on each
+          // update. If this isn't the case, skip the update & warn. If there is no previous update,
+          // resolve an implcit chain ID list.
+          const previousUpdate = this.chainIdIndicesUpdates.at(-1)?.value ?? this.implicitChainIdIndices(chainId);
           // We should now check that previousUpdate is a subset of chainIndices.
           if (!previousUpdate.every((chainId, idx) => chainIndices[idx] === chainId)) {
             this.logger.warn({
@@ -522,6 +540,7 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
     this.hasLatestConfigStoreVersion = this.hasValidConfigStoreVersionForTimestamp();
     this.latestBlockNumber = result.latestBlockNumber;
     this.firstBlockToSearch = result.searchEndBlock + 1; // Next iteration should start off from where this one ended.
+    this.chainId = this.chainId ?? chainId; // Update on the first run only.
     this.isUpdated = true;
 
     this.logger.debug({ at: "ConfigStore", message: "ConfigStore client updated!" });
