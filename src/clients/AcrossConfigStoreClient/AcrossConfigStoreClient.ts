@@ -130,7 +130,7 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
 
   /**
    * Resolve the implied set of chain ID indices based on the chain ID of the ConfigStore.
-   * @param ConfigStore chain ID.
+   * @param chainId Chain ID of the ConfigStore.
    * @dev If the resolved chain ID is part of the default set, assume the protocol defaults.
    *      Otherwise, assume this is a test deployment with a lone chain ID.
    * @dev The protocol defaults are [1, 10, 137, 288, 42161] (outlined in UMIP-157).
