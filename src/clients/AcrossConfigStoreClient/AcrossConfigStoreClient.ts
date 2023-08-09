@@ -137,10 +137,8 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
    * @dev chainId is marked optional to appease tsc. It must always be passed in.
    */
   protected implicitChainIdIndices(chainId?: number): number[] {
-    assert(isDefined(chainId), `ConfigStoreClient used before update`);
-    return PROTOCOL_DEFAULT_CHAIN_ID_INDICES[0] === chainId
-      ? PROTOCOL_DEFAULT_CHAIN_ID_INDICES
-      : [chainId];
+    assert(isDefined(chainId), "ConfigStoreClient used before update");
+    return PROTOCOL_DEFAULT_CHAIN_ID_INDICES[0] === chainId ? PROTOCOL_DEFAULT_CHAIN_ID_INDICES : [chainId];
   }
 
   /**
@@ -332,7 +330,7 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
     if (!result.success) {
       return;
     }
-    const { chainId} = result;
+    const { chainId } = result;
     const { updatedTokenConfigEvents, updatedGlobalConfigEvents, globalConfigUpdateTimes } = result.events;
     assert(
       updatedGlobalConfigEvents.length === globalConfigUpdateTimes.length,

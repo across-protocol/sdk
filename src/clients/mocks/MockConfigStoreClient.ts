@@ -34,6 +34,7 @@ export class MockConfigStoreClient extends AcrossConfigStoreClient {
     availableChainIdsOverride?: number[]
   ) {
     super(logger, configStore, eventSearchConfig, configStoreVersion);
+    this.chainId = chainId;
     this.eventManager = mockUpdate ? getEventManager(chainId, this.eventSignatures) : null;
     if (isDefined(this.eventManager) && this.eventManager) {
       this.updateGlobalConfig(
@@ -104,6 +105,7 @@ export class MockConfigStoreClient extends AcrossConfigStoreClient {
 
     return {
       success: true,
+      chainId: this.chainId as number,
       latestBlockNumber,
       searchEndBlock: this.eventSearchConfig.toBlock || latestBlockNumber,
       events: {
