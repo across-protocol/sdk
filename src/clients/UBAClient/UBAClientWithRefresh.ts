@@ -821,7 +821,6 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
         this.hubPoolClient,
         this.spokePoolClients
       ).map(({ start, end }) => [start, end]);
-      console.log(_blockRangesForChain);
 
       // Sanity check that block ranges cover from UBA activation bundle start block for chain to latest spoke pool
       // client block searched:
