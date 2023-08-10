@@ -63,7 +63,9 @@ export class MockConfigStoreClient extends AcrossConfigStoreClient {
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   getConfigStoreVersionForBlock(_blockNumber: number): number {
-    return this.configStoreVersion;
+    return this.configStoreVersion === DEFAULT_CONFIG_STORE_VERSION
+      ? super.getConfigStoreVersionForBlock(_blockNumber)
+      : this.configStoreVersion;
   }
 
   setConfigStoreVersion(version: number): void {
