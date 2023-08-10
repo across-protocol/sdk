@@ -34,6 +34,7 @@ export class MockConfigStoreClient extends AcrossConfigStoreClient {
     availableChainIdsOverride?: number[]
   ) {
     super(logger, configStore, eventSearchConfig, configStoreVersion);
+    this.chainId = chainId;
     this.eventManager = mockUpdate ? getEventManager(chainId, this.eventSignatures) : null;
     if (isDefined(this.eventManager) && this.eventManager) {
       this.updateGlobalConfig(
@@ -62,7 +63,9 @@ export class MockConfigStoreClient extends AcrossConfigStoreClient {
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   getConfigStoreVersionForBlock(_blockNumber: number): number {
-    return this.configStoreVersion;
+    return this.configStoreVersion === DEFAULT_CONFIG_STORE_VERSION
+      ? super.getConfigStoreVersionForBlock(_blockNumber)
+      : this.configStoreVersion;
   }
 
   setConfigStoreVersion(version: number): void {
@@ -104,6 +107,7 @@ export class MockConfigStoreClient extends AcrossConfigStoreClient {
 
     return {
       success: true,
+      chainId: this.chainId as number,
       latestBlockNumber,
       searchEndBlock: this.eventSearchConfig.toBlock || latestBlockNumber,
       events: {
