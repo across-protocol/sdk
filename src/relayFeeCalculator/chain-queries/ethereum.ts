@@ -1,15 +1,47 @@
+import { getDeployedAddress } from "@across-protocol/contracts-v2";
 import { DEFAULT_LOGGER, Logger } from "../relayFeeCalculator";
 import { providers } from "ethers";
-import QueryBase from "./baseQuery";
 import { TOKEN_SYMBOLS_MAP } from "../../constants";
+import { DEFAULT_SIMULATED_RELAYER_ADDRESS } from "./baseQuery";
+import QueryBase from "./baseQuery";
+
+const chainId = 1;
+const testChainId = 5;
 
 export class EthereumQueries extends QueryBase {
   constructor(
     provider: providers.Provider,
     symbolMapping = TOKEN_SYMBOLS_MAP,
-    spokePoolAddress = "0x5c7BCd6E7De5423a257D81B442095A1a6ced35C5",
-    usdcAddress = "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
-    simulatedRelayerAddress = "0x893d0D70AD97717052E3AA8903D9615804167759",
+    spokePoolAddress = getDeployedAddress("SpokePool", chainId),
+    usdcAddress = TOKEN_SYMBOLS_MAP.USDC.addresses[chainId],
+    simulatedRelayerAddress = DEFAULT_SIMULATED_RELAYER_ADDRESS,
+    coingeckoProApiKey?: string,
+    logger: Logger = DEFAULT_LOGGER,
+    gasMarkup = 0
+  ) {
+    super(
+      provider,
+      symbolMapping,
+      spokePoolAddress,
+      usdcAddress,
+      simulatedRelayerAddress,
+      gasMarkup,
+      logger,
+      coingeckoProApiKey
+    );
+  }
+}
+
+/**
+ * Query class for Ethereum Görli.
+ */
+export class EthereumGoerliQueries extends QueryBase {
+  constructor(
+    provider: providers.Provider,
+    symbolMapping = TOKEN_SYMBOLS_MAP,
+    spokePoolAddress = getDeployedAddress("SpokePool", testChainId),
+    usdcAddress = TOKEN_SYMBOLS_MAP.USDC.addresses[testChainId],
+    simulatedRelayerAddress = "0x9A8f92a830A5cB89a3816e3D267CB7791c16b04D",
     coingeckoProApiKey?: string,
     logger: Logger = DEFAULT_LOGGER,
     gasMarkup = 0

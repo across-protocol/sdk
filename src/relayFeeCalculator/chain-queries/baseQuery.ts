@@ -21,6 +21,11 @@ type SymbolMappingType = Record<
 >;
 
 /**
+ * Default address to use when simulating the gas cost of filling a relay.
+ */
+export const DEFAULT_SIMULATED_RELAYER_ADDRESS = "0x893d0D70AD97717052E3AA8903D9615804167759";
+
+/**
  * A unified QueryBase for querying gas costs, token prices, and decimals of various tokens
  * on a blockchain.
  */
