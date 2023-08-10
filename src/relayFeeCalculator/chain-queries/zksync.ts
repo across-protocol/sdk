@@ -26,3 +26,27 @@ export class ZkSyncQueries extends QueryBase {
     );
   }
 }
+
+export class zkSyncGoerliQueries extends QueryBase {
+  constructor(
+    provider: providers.Provider,
+    symbolMapping = TOKEN_SYMBOLS_MAP,
+    spokePoolAddress = "0x863859ef502F0Ee9676626ED5B418037252eFeb2",
+    usdcAddress = "0x0faF6df7054946141266420b43783387A78d82A9",
+    simulatedRelayerAddress = "0x9A8f92a830A5cB89a3816e3D267CB7791c16b04D",
+    coingeckoProApiKey?: string,
+    logger: Logger = DEFAULT_LOGGER,
+    gasMarkup = 0
+  ) {
+    super(
+      provider,
+      symbolMapping,
+      spokePoolAddress,
+      usdcAddress,
+      simulatedRelayerAddress,
+      gasMarkup,
+      logger,
+      coingeckoProApiKey
+    );
+  }
+}
