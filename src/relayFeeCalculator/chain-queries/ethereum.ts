@@ -35,7 +35,7 @@ export class EthereumGoerliQueries extends QueryBase {
   constructor(
     provider: providers.Provider,
     symbolMapping = TOKEN_SYMBOLS_MAP,
-    spokePoolAddress = "0x5c7BCd6E7De5423a257D81B442095A1a6ced35C5",
+    spokePoolAddress = getDeployedAddress("SpokePool", 5),
     usdcAddress = TOKEN_SYMBOLS_MAP.USDC.addresses[5],
     simulatedRelayerAddress = "0x9A8f92a830A5cB89a3816e3D267CB7791c16b04D",
     coingeckoProApiKey?: string,
