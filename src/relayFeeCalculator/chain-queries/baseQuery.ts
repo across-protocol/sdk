@@ -21,6 +21,11 @@ type SymbolMappingType = Record<
 >;
 
 /**
+ * Default address to use when simulating the gas cost of filling a relay.
+ */
+export const DEFAULT_SIMULATED_RELAYER_ADDRESS = "0x893d0D70AD97717052E3AA8903D9615804167759";
+
+/**
  * A unified QueryBase for querying gas costs, token prices, and decimals of various tokens
  * on a blockchain.
  */
@@ -44,7 +49,7 @@ export default abstract class QueryBase implements QueryInterface {
     readonly symbolMapping: SymbolMappingType,
     readonly spokePoolAddress: string,
     readonly usdcAddress: string,
-    readonly simulatedRelayerAddress: string,
+    readonly simulatedRelayerAddress = "0x893d0d70ad97717052e3aa8903d9615804167759",
     readonly gasMarkup: number,
     readonly logger: Logger,
     readonly coingeckoProApiKey?: string,
