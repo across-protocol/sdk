@@ -49,7 +49,7 @@ export default abstract class QueryBase implements QueryInterface {
     readonly symbolMapping: SymbolMappingType,
     readonly spokePoolAddress: string,
     readonly usdcAddress: string,
-    readonly simulatedRelayerAddress = "0x893d0d70ad97717052e3aa8903d9615804167759",
+    readonly simulatedRelayerAddress: string,
     readonly gasMarkup: number,
     readonly logger: Logger,
     readonly coingeckoProApiKey?: string,
