@@ -1,15 +1,18 @@
+import { getDeployedAddress } from "@across-protocol/contracts-v2";
 import { DEFAULT_LOGGER, Logger } from "../relayFeeCalculator";
 import { providers } from "ethers";
 import { TOKEN_SYMBOLS_MAP } from "../../constants";
 import { DEFAULT_SIMULATED_RELAYER_ADDRESS } from "./baseQuery";
 import QueryBase from "./baseQuery";
 
+const chainId = 1;
+
 export class EthereumQueries extends QueryBase {
   constructor(
     provider: providers.Provider,
     symbolMapping = TOKEN_SYMBOLS_MAP,
-    spokePoolAddress = "0x5c7BCd6E7De5423a257D81B442095A1a6ced35C5",
-    usdcAddress = TOKEN_SYMBOLS_MAP.USDC.addresses[1],
+    spokePoolAddress = getDeployedAddress("SpokePool", chainId),
+    usdcAddress = TOKEN_SYMBOLS_MAP.USDC.addresses[chainId],
     simulatedRelayerAddress = DEFAULT_SIMULATED_RELAYER_ADDRESS,
     coingeckoProApiKey?: string,
     logger: Logger = DEFAULT_LOGGER,
