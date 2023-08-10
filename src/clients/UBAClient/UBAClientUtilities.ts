@@ -382,7 +382,25 @@ export async function getMatchedDeposit(
     return originSpokePoolClient.getDepositForFill(fill, fillFieldsToIgnore);
   }
 
-  // TODO: Add Redis to reduce some of these `findDeposit` calls
+  // TODO: Try to access caching client to reduce some of these `findDeposit` calls. To get access to the cache, we
+  // probably want to move this function into the UBAClient class.
+  // let deposit: DepositWithBlock, cachedDeposit: Deposit | undefined;
+  // const redisClient = await getRedis(originSpokePoolClient.logger);
+  // if (redisClient) {
+  //   cachedDeposit = await getDeposit(getRedisDepositKey(fill), redisClient);
+  // }
+  // if (isDefined(cachedDeposit)) {
+  //   deposit = cachedDeposit as DepositWithBlock;
+  //   // Assert that cache hasn't been corrupted.
+  //   assert(deposit.depositId === fill.depositId && deposit.originChainId === fill.originChainId);
+  // } else {
+  //   deposit = await originSpokePoolClient.findDeposit(fill.depositId, fill.destinationChainId, fill.depositor);
+
+  //   if (redisClient) {
+  //     await setDeposit(deposit, getCurrentTime(), redisClient, 24 * 60 * 60);
+  //   }
+  // }
+
   const deposit = await originSpokePoolClient.findDeposit(fill.depositId, fill.destinationChainId, fill.depositor);
 
   return validateFillForDeposit(fill, deposit, fillFieldsToIgnore) ? deposit : undefined;

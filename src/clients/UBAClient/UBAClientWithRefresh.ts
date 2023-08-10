@@ -38,6 +38,7 @@ import { getDepositFee, getRefundFee } from "../../UBAFeeCalculator/UBAFeeSpokeC
 import { BigNumber, ethers } from "ethers";
 import { BaseAbstractClient } from "../BaseAbstractClient";
 import UBAConfig from "../../UBAFeeCalculator/UBAFeeConfig";
+import { UBAClientConfig } from "./UBAClientConfig";
 
 /**
  * @notice This class reconstructs UBA bundle data for every bundle that has been created since the
@@ -76,11 +77,14 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
   public logger: winston.Logger;
 
   /**
+   * @notice Constructs a new UBAClientinstance.
+   * @param clientConfig Configuration to customize the UBAClient instance.
    * @param tokens Tokens to load bundle state for.
    * @param hubPoolClient
    * @param spokePoolClients
    */
   constructor(
+    readonly clientConfig: UBAClientConfig,
     readonly tokens: string[],
     protected readonly hubPoolClient: HubPoolClient,
     public readonly spokePoolClients: { [chainId: number]: SpokePoolClient },
@@ -817,6 +821,7 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
         this.hubPoolClient,
         this.spokePoolClients
       ).map(({ start, end }) => [start, end]);
+      console.log(_blockRangesForChain);
 
       // Sanity check that block ranges cover from UBA activation bundle start block for chain to latest spoke pool
       // client block searched:
@@ -915,13 +920,13 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
       bundleBlockRanges.push(
         this.chainIdIndices
           .map((chainId) => {
-            // If chain has exactly one bundle, which is possible if the chain was recently
-            // added to the chain ID list, then fill block ranges with zero length ranges.
+            // If chain has a bundle beginning at chain 0, then the chain was recently
+            // added to the chain ID list, so fill preceding block ranges with zero length ranges so that
+            // the number of block ranges for this chain equals the number of block ranges for other chains.
             const blockRangeCountForChain = blockRangesByChain[chainId].length;
-            if (blockRangeCountForChain === 1) {
+            if (blockRangeCountForChain < bundleBlockRangesCount) {
               const firstBlockRange = blockRangesByChain[chainId][0];
-              // If chain is missing block ranges, fill the first few ranges for it with zero block ranges
-              // that start and end at the first block range for the chain's start block.
+              // Add block ranges with zero length to the beginning of the bundle block ranges for this chain
               if (i < bundleBlockRangesCount - blockRangeCountForChain) {
                 return [firstBlockRange[0], firstBlockRange[0]];
               } else {
@@ -1000,6 +1005,25 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
     if (isDefined(this.cachingClient)) {
       for (let i = this.ubaBundleBlockRanges.length - 1; i >= 0; i--) {
         const mostRecentBundleBlockRanges = this.ubaBundleBlockRanges[i];
+
+        // Check if this bundle is older than the oldest bundle we want to load from the cache:
+        const mainnetBundleStartBlock = getBlockRangeForChain(
+          mostRecentBundleBlockRanges,
+          this.hubPoolClient.chainId,
+          this.chainIdIndices
+        )[0];
+        if (
+          isDefined(this.clientConfig.latestMainnetBundleStartBlockToLoadFromCache) &&
+          this.clientConfig.latestMainnetBundleStartBlockToLoadFromCache > mainnetBundleStartBlock
+        ) {
+          this.logger.debug({
+            at: "UBAClientWithRefresh#update",
+            message: `Skipping loading bundle data from cache for bundle with mainnet start block ${mainnetBundleStartBlock} because it's older than the oldest bundle we want to load from the cache`,
+            bundleBlockRanges: mostRecentBundleBlockRanges,
+            oldestMainnetStartBlockToLoadFromCache: this.clientConfig.latestMainnetBundleStartBlockToLoadFromCache,
+          });
+          continue;
+        }
         await forEachAsync(tokens, async (token) => {
           await forEachAsync(this.enabledChainIds, async (chainId) => {
             const redisKeyForBundle = this.getKeyForBundle(mostRecentBundleBlockRanges, token, chainId);
@@ -1007,13 +1031,22 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
               redisKeyForBundle
             );
             if (isDefined(modifiedFlowsInBundle)) {
-              // console.log(`💿 Loaded bundle state from cache using key ${redisKeyForBundle}`);
+              this.logger.debug({
+                at: "UBAClientWithRefresh#update",
+                message: `💿 Loaded bundle state from cache using key ${redisKeyForBundle}`,
+                bundleBlockRanges: mostRecentBundleBlockRanges,
+                flowsLoaded: modifiedFlowsInBundle.length,
+              });
               this.appendValidatedFlowsToClassState(chainId, token, modifiedFlowsInBundle, mostRecentBundleBlockRanges);
 
               // Mark as loaded from cache.
               this.getBundleState(mostRecentBundleBlockRanges, token, chainId).loadedFromCache = true;
             } else {
-              // console.log(`No entry for key ${redisKeyForBundle} in redis`);
+              this.logger.debug({
+                at: "UBAClientWithRefresh#update",
+                message: `No entry for key ${redisKeyForBundle} in redis`,
+                bundleBlockRanges: mostRecentBundleBlockRanges,
+              });
             }
           });
         });
