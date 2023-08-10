@@ -821,6 +821,7 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
         this.hubPoolClient,
         this.spokePoolClients
       ).map(({ start, end }) => [start, end]);
+      console.log(_blockRangesForChain);
 
       // Sanity check that block ranges cover from UBA activation bundle start block for chain to latest spoke pool
       // client block searched:
@@ -919,13 +920,13 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
       bundleBlockRanges.push(
         this.chainIdIndices
           .map((chainId) => {
-            // If chain has exactly one bundle, which is possible if the chain was recently
-            // added to the chain ID list, then fill block ranges with zero length ranges.
+            // If chain has a bundle beginning at chain 0, then the chain was recently
+            // added to the chain ID list, so fill preceding block ranges with zero length ranges so that
+            // the number of block ranges for this chain equals the number of block ranges for other chains.
             const blockRangeCountForChain = blockRangesByChain[chainId].length;
-            if (blockRangeCountForChain === 1) {
+            if (blockRangeCountForChain < bundleBlockRangesCount) {
               const firstBlockRange = blockRangesByChain[chainId][0];
-              // If chain is missing block ranges, fill the first few ranges for it with zero block ranges
-              // that start and end at the first block range for the chain's start block.
+              // Add block ranges with zero length to the beginning of the bundle block ranges for this chain
               if (i < bundleBlockRangesCount - blockRangeCountForChain) {
                 return [firstBlockRange[0], firstBlockRange[0]];
               } else {
