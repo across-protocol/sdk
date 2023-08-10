@@ -38,7 +38,7 @@ import { getDepositFee, getRefundFee } from "../../UBAFeeCalculator/UBAFeeSpokeC
 import { BigNumber, ethers } from "ethers";
 import { BaseAbstractClient } from "../BaseAbstractClient";
 import UBAConfig from "../../UBAFeeCalculator/UBAFeeConfig";
-import UBAClientConfig from "./UBAClientConfig";
+import { UBAClientConfig } from "./UBAClientConfig";
 
 /**
  * @notice This class reconstructs UBA bundle data for every bundle that has been created since the
