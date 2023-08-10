@@ -284,9 +284,21 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
     return this.configStoreVersion >= version;
   }
 
+  /**
+   * Resolve the chain ID for the ConfigStore Provider instance.
+   * @dev When the provider is a StatisJsonRpcProvider instance, the getNetwork() is non-blocking.
+   * @returns Chain ID for the ConfigStore deployment.
+   */
+  protected async resolveChainId(): Promise<number> {
+    return this.chainId ?? (await this.configStore.provider.getNetwork()).chainId;
+  }
+
   async _update(): Promise<ConfigStoreUpdate> {
-    const chainId = this.chainId ?? (await this.configStore.provider.getNetwork()).chainId;
-    const latestBlockNumber = await this.configStore.provider.getBlockNumber();
+    const [chainId, latestBlockNumber] = await Promise.all([
+      this.resolveChainId(),
+      this.configStore.provider.getBlockNumber(),
+    ]);
+
     const searchConfig = {
       fromBlock: this.firstBlockToSearch,
       toBlock: this.eventSearchConfig.toBlock || latestBlockNumber,
