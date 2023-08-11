@@ -25,6 +25,7 @@ export async function getGasPriceEstimate(
     137: polygonGasStation,
     288: legacy,
     324: legacy,
+    8453: eip1559,
     42161: eip1559_arbitrum,
   };
 
