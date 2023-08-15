@@ -1,15 +1,16 @@
 import { DEFAULT_LOGGER, Logger } from "../relayFeeCalculator";
 import { utils, providers } from "ethers";
-import QueryBase from "./baseQuery";
-import { TOKEN_SYMBOLS_MAP } from "../../constants";
+import QueryBase, { DEFAULT_SIMULATED_RELAYER_ADDRESS } from "./baseQuery";
+import { CHAIN_IDs, TOKEN_SYMBOLS_MAP } from "../../constants";
+import { getDeployedAddress } from "../../utils/DeploymentUtils";
 
 export class BobaQueries extends QueryBase {
   constructor(
     provider: providers.Provider,
     symbolMapping = TOKEN_SYMBOLS_MAP,
-    spokePoolAddress = "0xBbc6009fEfFc27ce705322832Cb2068F8C1e0A58",
-    usdcAddress = "0x66a2A913e447d6b4BF33EFbec43aAeF87890FBbc",
-    simulatedRelayerAddress = "0x893d0d70ad97717052e3aa8903d9615804167759",
+    spokePoolAddress = getDeployedAddress("SpokePool", CHAIN_IDs.BOBA),
+    usdcAddress = TOKEN_SYMBOLS_MAP.USDC.addresses[CHAIN_IDs.BOBA],
+    simulatedRelayerAddress = DEFAULT_SIMULATED_RELAYER_ADDRESS,
     coingeckoProApiKey?: string,
     logger: Logger = DEFAULT_LOGGER,
     gasMarkup = 0
