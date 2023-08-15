@@ -4,12 +4,13 @@ import { providers } from "ethers";
 import { TOKEN_SYMBOLS_MAP, CHAIN_IDs } from "../../constants";
 import { DEFAULT_SIMULATED_RELAYER_ADDRESS } from "./baseQuery";
 import QueryBase from "./baseQuery";
+import { getDeployedAddress } from "@across-protocol/contracts-v2";
 
 export class ZkSyncQueries extends QueryBase {
   constructor(
     provider: providers.Provider,
     symbolMapping = TOKEN_SYMBOLS_MAP,
-    spokePoolAddress = "0xE0B015E54d54fc84a6cB9B666099c46adE9335FF", // @todo upgrade contracts-v2
+    spokePoolAddress = getDeployedAddress("SpokePool", CHAIN_IDs.ZK_SYNC),
     usdcAddress = TOKEN_SYMBOLS_MAP.USDC.addresses[CHAIN_IDs.ZK_SYNC],
     simulatedRelayerAddress = DEFAULT_SIMULATED_RELAYER_ADDRESS,
     coingeckoProApiKey?: string,
