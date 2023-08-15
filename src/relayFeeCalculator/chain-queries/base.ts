@@ -1,4 +1,4 @@
-import { getDeployedAddress } from "@across-protocol/contracts-v2";
+import { getDeployedAddress } from "../../utils/DeploymentUtils";
 import { DEFAULT_LOGGER, Logger } from "../relayFeeCalculator";
 import { providers } from "ethers";
 import { TOKEN_SYMBOLS_MAP } from "../../constants";

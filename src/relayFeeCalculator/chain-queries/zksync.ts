@@ -1,10 +1,9 @@
-// import { getDeployedAddress } from "../../utils/DeploymentUtils";
+import { getDeployedAddress } from "../../utils/DeploymentUtils";
 import { DEFAULT_LOGGER, Logger } from "../relayFeeCalculator";
 import { providers } from "ethers";
 import { TOKEN_SYMBOLS_MAP, CHAIN_IDs } from "../../constants";
 import { DEFAULT_SIMULATED_RELAYER_ADDRESS } from "./baseQuery";
 import QueryBase from "./baseQuery";
-import { getDeployedAddress } from "@across-protocol/contracts-v2";
 
 export class ZkSyncQueries extends QueryBase {
   constructor(
