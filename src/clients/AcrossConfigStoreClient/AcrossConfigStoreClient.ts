@@ -293,7 +293,7 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
     return this.chainId ?? (await this.configStore.provider.getNetwork()).chainId;
   }
 
-  async _update(): Promise<ConfigStoreUpdate> {
+  protected async _update(): Promise<ConfigStoreUpdate> {
     const [chainId, latestBlockNumber] = await Promise.all([
       this.resolveChainId(),
       this.configStore.provider.getBlockNumber(),

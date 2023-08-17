@@ -3,6 +3,7 @@ export {
   GLOBAL_CONFIG_STORE_KEYS,
   AcrossConfigStoreClient,
   parseUBAConfigFromOnChain,
+  ConfigStoreUpdate,
 } from "./AcrossConfigStoreClient";
 export { HubPoolClient } from "./HubPoolClient";
 export { SpokePoolClient } from "./SpokePoolClient";
