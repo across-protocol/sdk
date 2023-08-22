@@ -33,11 +33,11 @@ function _createEtherscanLinkMarkdown(hex: string, chainId = 1): string | null {
   const shortURLString = createShortHexString(hex);
   // Transaction hash
   if (hex.length == 66) {
-    return `<${createEtherscanLinkFromTx(chainId)}tx/${hex}|${shortURLString}>`;
+    return `<${createEtherscanLinkFromTx(chainId)}/tx/${hex}|${shortURLString}>`;
   }
   // Account
   else if (hex.length == 42) {
-    return `<${createEtherscanLinkFromTx(chainId)}address/${hex}|${shortURLString}>`;
+    return `<${createEtherscanLinkFromTx(chainId)}/address/${hex}|${shortURLString}>`;
   }
   return null;
 }
