@@ -15,3 +15,4 @@ export * from "./IPFSUtils";
 export * from "./NumberUtils";
 export * from "./DeploymentUtils";
 export * from "./FormattingUtils";
+export * from "./BlockExplorerUtils";
