@@ -34,3 +34,5 @@ export const PUBLIC_NETWORKS: { [chainId: number]: { name: string; etherscan: st
   84531: { name: "base-goerli", etherscan: "https://basescan.org" },
   421613: { name: "arbitrum-goerli", etherscan: "https://goerli.arbiscan.io" },
 };
+
+export const DEFAULT_BLOCKCHAIN_EXPLORER_DOMAIN = "https://etherscan.io";
