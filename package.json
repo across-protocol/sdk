@@ -1,7 +1,7 @@
 {
   "name": "@across-protocol/sdk-v2",
   "author": "UMA Team",
-  "version": "0.15.18",
+  "version": "0.15.20",
   "license": "AGPL-3.0",
   "main": "dist/index.js",
   "typings": "dist/index.d.ts",
@@ -23,9 +23,9 @@
     "prepare": "tsdx build && husky install",
     "size": "size-limit",
     "analyze": "size-limit --why",
-    "bump-version:major": "yarn version --major --no-git-tag-version --no-commit-hooks",
-    "bump-version:minor": "yarn version --minor --no-git-tag-version --no-commit-hooks",
-    "bump-version:patch": "yarn version --patch --no-git-tag-version --no-commit-hooks"
+    "bump-version:major": "yarn version --major --no-git-tag-version --no-commit-hooks && git commit -m 'chore: bump version' ./package.json",
+    "bump-version:minor": "yarn version --minor --no-git-tag-version --no-commit-hooks && git commit -m 'chore: bump version' ./package.json",
+    "bump-version:patch": "yarn version --patch --no-git-tag-version --no-commit-hooks && git commit -m 'chore: bump version' ./package.json"
   },
   "lint-staged": {
     "*.ts": "yarn lint"
