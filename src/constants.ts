@@ -28,7 +28,7 @@ export const PUBLIC_NETWORKS: { [chainId: number]: { name: string; etherscan: st
     etherscan: "https://polygonscan.com/",
   },
   324: { name: "zksync", etherscan: "https://explorer.zksync.io/" },
-  8453: { name: "base", etherscan: "https://mainnet.basescan.org" },
+  8453: { name: "base", etherscan: "https://basescan.org" },
   42161: { name: "arbitrum", etherscan: "https://arbiscan.io/" },
   43114: { name: "avalanche", etherscan: "https://snowtrace.io/" },
   84531: { name: "base-goerli", etherscan: "https://basescan.org/" },
