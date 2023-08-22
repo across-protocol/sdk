@@ -21,7 +21,7 @@ export const PUBLIC_NETWORKS: { [chainId: number]: { name: string; etherscan: st
     name: "mainnet",
     etherscan: "https://etherscan.io",
   },
-  5: { name: "goerli", etherscan: "https://goerli.etherscan.i/" },
+  5: { name: "goerli", etherscan: "https://goerli.etherscan.io" },
   10: { name: "optimism", etherscan: "https://optimistic.etherscan.io" },
   137: {
     name: "polygon-matic",
