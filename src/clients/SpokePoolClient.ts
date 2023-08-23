@@ -9,8 +9,8 @@ import {
   AnyObject,
   MAX_BIG_INT,
   stringifyJSONWithNumericString,
+  toBN,
 } from "../utils";
-import { toBN } from "../utils/common";
 import { validateFillForDeposit, filledSameDeposit } from "../utils/FlowUtils";
 import {
   spreadEvent,

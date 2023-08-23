@@ -207,7 +207,7 @@ export class RelayFeeCalculator {
     ]);
     const decimals = this.queries.getTokenDecimals(tokenSymbol);
     const gasFeesInToken = nativeToToken(gasCosts, tokenPrice, decimals, this.nativeTokenDecimals);
-    return percent(gasFeesInToken, amountToRelay);
+    return percent(gasFeesInToken, amountToRelay.toString());
   }
 
   // Note: these variables are unused now, but may be needed in future versions of this function that are more complex.
