@@ -54,8 +54,26 @@ export const formatFeePct = (relayerFeePct: BigNumber): string => {
  * @returns The shortened hexadecimal string.
  * @example createShortHexString("0x772871a444c6e4e9903d8533a5a13101b74037158123e6709470f0afbf6e7d94") -> "0x7787...7d94"
  */
-export function createShortHexString(hex: string): string {
-  return hex.substring(0, 5) + "..." + hex.substring(hex.length - 6, hex.length);
+export function createShortHexString(hex: string, maxLength = 8) {
+  // Store if the hex string has a leading 0x
+  const hasPrefix = /^0x/.test(hex);
+  // Remove the leading 0x if it exists
+  hex = hex.replace(/^0x/, "");
+  // If we have more maxLength then the hex size, we can simply
+  // return the hex directly.
+  if (hex.length <= maxLength) {
+    return hex;
+  }
+  // We can simulate rounding by adding 0.5 to the integer. If
+  // we had an odd division, the floor will add one additional
+  // character to the left side.
+  const leftCharacters = Math.floor(maxLength / 2 + 0.5);
+  // A simple floor division between the max character length
+  const rightCharacters = Math.floor(maxLength / 2);
+  // Combine the two sides.
+  const result = `${hex.substring(0, leftCharacters)}...${hex.substring(hex.length - rightCharacters)}`;
+  // Append the prefix if it was originally provided
+  return (hasPrefix ? "0x" : "") + result;
 }
 
 /**
