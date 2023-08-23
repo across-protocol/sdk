@@ -104,7 +104,7 @@ export function convertFromWei(weiVal: string, decimals: number): string {
  * @see shortenHexString
  */
 export function shortenHexStrings(addresses: string[]): string[] {
-  return addresses.map((address) => shortenHexString(address));
+  return addresses.map(shortenHexString);
 }
 
 /**
