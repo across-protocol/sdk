@@ -5,7 +5,6 @@ import UBAFeeConfig from "../../UBAFeeCalculator/UBAFeeConfig";
 import { mapAsync } from "../../utils/ArrayUtils";
 import { SpokePoolClients } from "../../utils/TypeUtils";
 import { isDefined } from "../../utils/TypeGuards";
-import { toBN } from "../../utils/common";
 import { validateFillForDeposit } from "../../utils/FlowUtils";
 import { ModifiedUBAFlow, RequestValidReturnType, SpokePoolFillFilter, UBAClientState } from "./UBAClientTypes";
 import {
@@ -22,6 +21,7 @@ import {
 } from "../../interfaces";
 import { getBlockForChain, getBlockRangeForChain, getImpliedBundleBlockRanges } from "../../utils/BundleUtils";
 import { stringifyJSONWithNumericString } from "../../utils/JSONUtils";
+import { toBN } from "../../utils";
 
 /**
  * Omit the default key from a dictionary
