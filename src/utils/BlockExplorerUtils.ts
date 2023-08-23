@@ -16,7 +16,7 @@ export function blockExplorerLink(txHashOrAddress: string, chainId: number | str
  * @param networkId The network to link to.
  * @returns The block explorer link. If the networkId is not supported, the default block explorer mainnet link will be returned.
  */
-export function createBlockExplorerLinkFromTx(networkId: number): string {
+export function resolveBlockExplorerDomain(networkId: number): string {
   return PUBLIC_NETWORKS[networkId]?.etherscan ?? DEFAULT_BLOCKCHAIN_EXPLORER_DOMAIN;
 }
 
@@ -33,11 +33,11 @@ function _createBlockExplorerLinkMarkdown(hex: string, chainId = 1): string | nu
   const shortURLString = createShortHexString(hex);
   // Transaction hash
   if (hex.length == 66) {
-    return `<${createBlockExplorerLinkFromTx(chainId)}/tx/${hex}|${shortURLString}>`;
+    return `<${resolveBlockExplorerDomain(chainId)}/tx/${hex}|${shortURLString}>`;
   }
   // Account
   else if (hex.length == 42) {
-    return `<${createBlockExplorerLinkFromTx(chainId)}/address/${hex}|${shortURLString}>`;
+    return `<${resolveBlockExplorerDomain(chainId)}/address/${hex}|${shortURLString}>`;
   }
   return null;
 }
