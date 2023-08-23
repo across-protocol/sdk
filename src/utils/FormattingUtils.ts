@@ -52,7 +52,7 @@ export const formatFeePct = (relayerFeePct: BigNumber): string => {
  * Shortens a lengthy hexadecimal string to a shorter version with an ellipsis in the middle.
  * @param hex A hexadecimal string to be shortened.
  * @returns The shortened hexadecimal string.
- * @example shortenHexString("0x772871a444c6e4e9903d8533a5a13101b74037158123e6709470f0afbf6e7d94") -> "0x7787...7d94"
+ * @example createShortHexString("0x772871a444c6e4e9903d8533a5a13101b74037158123e6709470f0afbf6e7d94") -> "0x7787...7d94"
  */
 export function createShortHexString(hex: string): string {
   return hex.substring(0, 5) + "..." + hex.substring(hex.length - 6, hex.length);
@@ -101,17 +101,8 @@ export function convertFromWei(weiVal: string, decimals: number): string {
  * Shortens a list of addresses to a shorter version with only the first 10 characters.
  * @param addresses A list of addresses to shorten.
  * @returns A list of shortened addresses.
- * @see shortenHexString
+ * @see createShortHexString
  */
 export function shortenHexStrings(addresses: string[]): string[] {
-  return addresses.map(shortenHexString);
-}
-
-/**
- * Shortens a hexadecimal string to a shorter version with only the first 10 characters.
- * @param hexString A hexadecimal string to shorten.
- * @returns The shortened hexadecimal string.
- */
-export function shortenHexString(hexString: string): string {
-  return hexString.substring(0, 10);
+  return addresses.map(createShortHexString);
 }
