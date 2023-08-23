@@ -27,14 +27,19 @@ export function toGWei(num: BigNumberish): BN {
 /**
  * Converts a stringified number into a BigNumber. If the string version of the num contains a `.` then it is a number which needs to be parsed to a string int.
  * @param num The number to parse.
+ * @param rounding The rounding method to use if the number has a decimal point. Defaults to "floor" or rounding down. Valid values are "floor", "round", and "ceil
  * @returns The parsed BigNumber.
  * @note This is a temporary function until we can backport support for decimal points to @across-protocol/sdk-v2.
  */
-export const toBN = (num: BigNumberish): BN => {
+export const toBN = (num: BigNumberish, rounding: "floor" | "round" | "ceil" = "floor"): BN => {
   // If the string version of the num contains a `.` then it is a number which needs to be parsed to a string int.
   if (num.toString().includes(".")) {
-    return BigNumber.from(parseInt(num.toString()));
+    // Resolve a rounding function from the rounding parameter.
+    const roundingFunction = Math[rounding];
+    // Parse the number to a string float and round it.
+    return BigNumber.from(roundingFunction(parseFloat(num.toString())));
   }
+  // Otherwise, it is a string int and we can parse it directly.
   return BigNumber.from(num.toString());
 };
 
