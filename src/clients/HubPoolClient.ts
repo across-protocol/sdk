@@ -10,6 +10,8 @@ import {
   BigNumberish,
   stringifyJSONWithNumericString,
   isDefined,
+  getCurrentTime,
+  shouldCache,
 } from "../utils";
 import {
   fetchTokenInfo,
@@ -29,6 +31,7 @@ import {
   DepositWithBlock,
   ProposedRootBundleStringified,
   ExecutedRootBundleStringified,
+  CachingMechanismInterface,
 } from "../interfaces";
 import { ExecutedRootBundle, PendingRootBundle, ProposedRootBundle } from "../interfaces";
 import { CrossChainContractsSet, DestinationTokenWithBlock, SetPoolRebalanceRoot } from "../interfaces";
@@ -92,9 +95,10 @@ export class HubPoolClient extends BaseAbstractClient {
     } = {
       ignoredHubExecutedBundles: [],
       ignoredHubProposedBundles: [],
-    }
+    },
+    cachingMechanism?: CachingMechanismInterface
   ) {
-    super();
+    super(cachingMechanism);
     this.latestBlockNumber = deploymentBlock === 0 ? deploymentBlock : deploymentBlock - 1;
     this.firstBlockToSearch = eventSearchConfig.fromBlock;
 
@@ -254,10 +258,39 @@ export class HubPoolClient extends BaseAbstractClient {
     l1Token: string,
     blockNumber: number,
     amount: BigNumber,
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    _timestamp: number
+    timestamp: number
   ): Promise<{ current: BigNumber; post: BigNumber }> {
-    return this.getPostRelayPoolUtilization(l1Token, blockNumber, amount);
+    // Resolve this function call as an async anonymous function
+    // This way, since we have to use this call several times, we
+    // only need to invoke the shorter function name.
+    const resolver = async () => this.getPostRelayPoolUtilization(l1Token, blockNumber, amount);
+    // Resolve the cache locally so that we can appease typescript
+    const cache = this.cachingMechanism;
+    // If there is no cache, just resolve the function
+    if (!cache) {
+      return resolver();
+    }
+    // Otherwise, let's resolve the key
+    const key = `utilization_${l1Token}_${blockNumber}_${amount.toString()}`;
+    // Resolve the key from the cache
+    const result = await cache.get<string>(key);
+    // We were able to find a valid result, so let's return it
+    if (isDefined(result)) {
+      const [current, post] = result.split(",").map(BigNumber.from);
+      return { current, post };
+    }
+    // We were not able to find a valid result, so let's resolve the function
+    // and store the result in the cache
+    else {
+      const { current, post } = await resolver();
+      // First determine if we should cache the result
+      if (shouldCache(getCurrentTime(), timestamp, 60 * 60 * 24 * 90)) {
+        // If we should cache the result, then let's store it
+        await cache.set(key, `${current.toString()},${post.toString()}`, 60 * 60 * 24 * 90);
+      }
+      // Return the result
+      return { current, post };
+    }
   }
 
   async computeRealizedLpFeePct(

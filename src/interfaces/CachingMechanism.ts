@@ -11,7 +11,7 @@ export interface CachingMechanismInterface {
    * @param key The key to retrieve.
    * @returns The value if it exists, otherwise null.
    */
-  get<ObjectType, OverrideType>(
+  get<ObjectType, OverrideType = unknown>(
     key?: string,
     structValidator?: Struct<unknown, unknown>,
     overrides?: OverrideType
