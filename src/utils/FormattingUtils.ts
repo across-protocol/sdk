@@ -34,10 +34,16 @@ export function toGWei(num: BigNumberish): BN {
 export const toBN = (num: BigNumberish, rounding: "floor" | "round" | "ceil" = "floor"): BN => {
   // If the string version of the num contains a `.` then it is a number which needs to be parsed to a string int.
   if (num.toString().includes(".")) {
-    // Resolve a rounding function from the rounding parameter.
-    const roundingFunction = Math[rounding];
-    // Parse the number to a string float and round it.
-    return BigNumber.from(roundingFunction(parseFloat(num.toString())));
+    // Destructure the integer and decimal parts of the number.
+    const [integer, decimal] = num.toString().split(".");
+    // We can determine if we need to round in a losseless way. First we need to check
+    // if the number just has a decimal point with no decimal places. If it does, we
+    // can just return the integer. However, if it has a decimal point with decimal
+    // places, then we can automatically round up if ceil is specified or if round is
+    // specified and the first decimal is greater than or equal to 5.
+    const roundUp = decimal.length > 0 && (rounding === "ceil" || (rounding === "round" && parseInt(decimal[0]) >= 5));
+    // If we need to round up, we can just add 1 to the integer.
+    return BigNumber.from(integer).add(roundUp ? 1 : 0);
   }
   // Otherwise, it is a string int and we can parse it directly.
   return BigNumber.from(num.toString());
