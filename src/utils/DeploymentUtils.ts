@@ -1,7 +1,5 @@
-import * as contracts from "@across-protocol/contracts-v2";
-
-export const {
+export {
   getContractInfoFromAddress,
   getDeployedAddress,
-  getDeployedBlockNumber
-} = contracts;
+  getDeployedBlockNumber,
+} from "@across-protocol/contracts-v2/dist/src/DeploymentUtils";
