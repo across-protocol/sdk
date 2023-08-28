@@ -1,4 +1,4 @@
-import { PUBLIC_NETWORKS, DEFAULT_BLOCKCHAIN_EXPLORER_DOMAIN } from "../constants";
+import { PUBLIC_NETWORKS } from "../constants";
 import { createShortHexString } from "./FormattingUtils";
 
 /**
@@ -17,7 +17,11 @@ export function blockExplorerLink(txHashOrAddress: string, chainId: number | str
  * @returns The block explorer link. If the networkId is not supported, the default block explorer mainnet link will be returned.
  */
 export function resolveBlockExplorerDomain(networkId: number): string {
-  return PUBLIC_NETWORKS[networkId]?.etherscan ?? DEFAULT_BLOCKCHAIN_EXPLORER_DOMAIN;
+  const explorerLink = PUBLIC_NETWORKS[networkId]?.etherscan;
+  if (!explorerLink) {
+    throw new Error(`Block explorer link does not exist for networkId: ${networkId}`);
+  }
+  return explorerLink;
 }
 
 /**
@@ -27,17 +31,21 @@ export function resolveBlockExplorerDomain(networkId: number): string {
  * @returns A formatted markdown block explorer link to the given transaction hash or address on the given chainId.
  */
 function _createBlockExplorerLinkMarkdown(hex: string, chainId = 1): string | null {
-  if (hex.substring(0, 2) != "0x") {
-    return null;
-  }
-  const shortURLString = createShortHexString(hex);
-  // Transaction hash
-  if (hex.length == 66) {
-    return `<${resolveBlockExplorerDomain(chainId)}/tx/${hex}|${shortURLString}>`;
-  }
-  // Account
-  else if (hex.length == 42) {
-    return `<${resolveBlockExplorerDomain(chainId)}/address/${hex}|${shortURLString}>`;
+  try {
+    if (hex.substring(0, 2) != "0x") {
+      return null;
+    }
+    const shortURLString = createShortHexString(hex);
+    // Transaction hash
+    if (hex.length == 66) {
+      return `<${resolveBlockExplorerDomain(chainId)}/tx/${hex}|${shortURLString}>`;
+    }
+    // Account
+    else if (hex.length == 42) {
+      return `<${resolveBlockExplorerDomain(chainId)}/address/${hex}|${shortURLString}>`;
+    }
+  } catch (e) {
+    throw new Error(`Could not create block explorer link. ChainId: ${chainId}, Hex: ${hex}`);
   }
   return null;
 }
