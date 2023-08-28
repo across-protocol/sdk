@@ -1,5 +1,7 @@
+import { ethers } from "ethers";
 import { PUBLIC_NETWORKS } from "../constants";
 import { createShortHexString } from "./FormattingUtils";
+import { isDefined } from "./TypeGuards";
 
 /**
  * Creates a block explorer link for a transaction or address on a given network.
@@ -16,12 +18,29 @@ export function blockExplorerLink(txHashOrAddress: string, chainId: number | str
  * @param networkId The network to link to.
  * @returns The block explorer link. If the networkId is not supported, the default block explorer mainnet link will be returned.
  */
-export function resolveBlockExplorerDomain(networkId: number): string {
-  const explorerLink = PUBLIC_NETWORKS[networkId]?.etherscan;
-  if (!explorerLink) {
-    throw new Error(`Block explorer link does not exist for networkId: ${networkId}`);
-  }
-  return explorerLink;
+export function resolveBlockExplorerDomain(networkId: number): string | undefined {
+  return PUBLIC_NETWORKS[networkId]?.etherscan;
+}
+
+/**
+ * Constructs a URL for a given list of domain parts.
+ * @param domain The domain to construct a URL for.
+ * @param parts The relative path of parts to append to the domain. These parts will be joined with a "/".
+ * @returns The constructed URL.
+ * @see resolveBlockExplorerDomain
+ * @example constructURL("https://example.com", ["path", "to", "resource"]) => "https://example.com/path/to/resource"
+ * @example constructURL("https://example.com", ["path", "to", "resource", ""]) => "https://example.com/path/to/resource"
+ * @example constructURL("https://example.com", ["path", "to//", "resource",]) => "https://example.com/path/to/resource"
+ */
+function constructURL(domain: string, parts: string[]): string {
+  // Further split the parts by "/" to handle any parts that contain multiple "/".
+  parts = parts.flatMap((p) => p.split("/"));
+  // Remove any empty parts.
+  parts = parts.filter((p) => p !== "");
+  // Join the parts with a "/".
+  const path = parts.join("/");
+  // Remove any trailing "/".
+  return `${domain}/${path}`.replace(/\/+$/, "");
 }
 
 /**
@@ -31,21 +50,31 @@ export function resolveBlockExplorerDomain(networkId: number): string {
  * @returns A formatted markdown block explorer link to the given transaction hash or address on the given chainId.
  */
 function _createBlockExplorerLinkMarkdown(hex: string, chainId = 1): string | null {
-  try {
-    if (hex.substring(0, 2) != "0x") {
-      return null;
+  // Attempt to resolve the block explorer domain for the given chainId.
+  const explorerDomain = resolveBlockExplorerDomain(chainId);
+  // If the chainId is not supported, return an unsupported link.
+  if (!isDefined(explorerDomain)) {
+    return `<unsupported chain/hash ${chainId}:${hex}>}`;
+  }
+  // Ensure that the first two characters are "0x". If they are not, append them.
+  if (hex.substring(0, 2) !== "0x") {
+    hex = `0x${hex}`;
+  }
+  // Ensure that the hex string is a valid hexadecimal string.
+  if (!ethers.utils.isHexString(hex)) {
+    return null;
+  }
+  // Resolve the short URL string.
+  const shortURLString = createShortHexString(hex);
+  // Iterate over the two possible hex lengths.
+  for (const [length, route] of [
+    [66, "tx"],
+    [42, "address"],
+  ] as [number, string][]) {
+    // If the hex string is the correct length, return the link.
+    if (hex.length === length) {
+      return `<${constructURL(explorerDomain, [route, hex])}|${shortURLString}>`;
     }
-    const shortURLString = createShortHexString(hex);
-    // Transaction hash
-    if (hex.length == 66) {
-      return `<${resolveBlockExplorerDomain(chainId)}/tx/${hex}|${shortURLString}>`;
-    }
-    // Account
-    else if (hex.length == 42) {
-      return `<${resolveBlockExplorerDomain(chainId)}/address/${hex}|${shortURLString}>`;
-    }
-  } catch (e) {
-    throw new Error(`Could not create block explorer link. ChainId: ${chainId}, Hex: ${hex}`);
   }
   return null;
 }
@@ -57,6 +86,6 @@ function _createBlockExplorerLinkMarkdown(hex: string, chainId = 1): string | nu
  * @returns A list of formatted markdown block explorer links to the given transaction hashes or addresses on the given chainId.
  * @see blockExplorerLink
  */
-export function blockExplorer(txHashesOrAddresses: string[], chainId: number | string): string {
+export function blockExplorerLinks(txHashesOrAddresses: string[], chainId: number | string): string {
   return txHashesOrAddresses.map((hash) => `${blockExplorerLink(hash, chainId)}\n`).join("");
 }
