@@ -8,7 +8,7 @@ import {
   retry,
   toBNWei,
 } from "./common";
-import { toBN } from "./FormattingUtils";
+import { toBN } from "./BigNumberUtils";
 
 dotenv.config();
 

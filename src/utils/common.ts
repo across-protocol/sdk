@@ -7,7 +7,7 @@ import { SpokePool } from "../typechain";
 import assert from "assert";
 import { GasPriceEstimate, getGasPriceEstimate } from "../gasPriceOracle";
 import { TypedMessage } from "../interfaces/TypedData";
-import { BN, toBN, BigNumberish } from "./FormattingUtils";
+import { BN, toBN, BigNumberish } from "./BigNumberUtils";
 
 export type Decimalish = string | number | Decimal;
 export const AddressZero = ethers.constants.AddressZero;

@@ -1,42 +1,8 @@
 import { ethers, BigNumber } from "ethers";
 import { createFormatFunction } from "@uma/common";
+import { toBN } from "./BigNumberUtils";
 
 export { createFormatFunction };
-
-export type BigNumberish = ethers.BigNumberish;
-export type BN = ethers.BigNumber;
-
-/**
- * Parse a stringified number into a BigNumber.
- * @param num The number to parse.
- * @returns The parsed BigNumber.
- */
-export function toWei(num: BigNumberish): BN {
-  return ethers.utils.parseEther(num.toString());
-}
-
-/**
- * Parse a stringified number into a BigNumber with 9 decimal places.
- * @param num The number to parse.
- * @returns The parsed BigNumber.
- */
-export function toGWei(num: BigNumberish): BN {
-  return ethers.utils.parseUnits(num.toString(), 9);
-}
-
-/**
- * Converts a stringified number into a BigNumber. If the string version of the num contains a `.` then it is a number which needs to be parsed to a string int.
- * @param num The number to parse.
- * @returns The parsed BigNumber.
- * @note This is a temporary function until we can backport support for decimal points to @across-protocol/sdk-v2.
- */
-export const toBN = (num: BigNumberish): BN => {
-  // If the string version of the num contains a `.` then it is a number which needs to be parsed to a string int.
-  if (num.toString().includes(".")) {
-    return BigNumber.from(parseInt(num.toString()));
-  }
-  return BigNumber.from(num.toString());
-};
 
 export const formatFeePct = (relayerFeePct: BigNumber): string => {
   // 1e18 = 100% so 1e16 = 1%.
@@ -46,11 +12,32 @@ export const formatFeePct = (relayerFeePct: BigNumber): string => {
 /**
  * Shortens a lengthy hexadecimal string to a shorter version with an ellipsis in the middle.
  * @param hex A hexadecimal string to be shortened.
+ * @param maxLength The maximum length of the shortened string. Defaults to 8.
+ * @param delimiter The delimiter to use in the middle of the shortened string. Defaults to "...".
  * @returns The shortened hexadecimal string.
- * @example shortenHexString("0x772871a444c6e4e9903d8533a5a13101b74037158123e6709470f0afbf6e7d94") -> "0x7787...7d94"
+ * @example createShortHexString("0x772871a444c6e4e9903d8533a5a13101b74037158123e6709470f0afbf6e7d94") -> "0x7787...7d94"
  */
-export function createShortHexString(hex: string): string {
-  return hex.substring(0, 5) + "..." + hex.substring(hex.length - 6, hex.length);
+export function createShortHexString(hex: string, maxLength = 8, delimiter = ".."): string {
+  // If we have more maxLength then the hex size, we can simply
+  // return the hex directly.
+  if (hex.length <= maxLength) {
+    return hex;
+  }
+  // Resolve the maximum available after we account for the delimiter.
+  const maxAvailable = maxLength - delimiter.length;
+  // Sanity check to make sure we have enough characters to
+  // create a shortened version.
+  if (maxAvailable <= 0) {
+    throw new Error("Invalid max length");
+  }
+  // We can simulate rounding by adding 0.5 to the integer. If
+  // we had an odd division, the floor will add one additional
+  // character to the left side.
+  const leftCharacters = Math.floor(maxAvailable / 2 + 0.5);
+  // A simple floor division between the max character length
+  const rightCharacters = Math.floor(maxAvailable / 2);
+  // Combine the two sides with the delimiter in the middle.
+  return `${hex.substring(0, leftCharacters)}${delimiter}${hex.substring(hex.length - rightCharacters)}`;
 }
 
 /**
@@ -96,17 +83,8 @@ export function convertFromWei(weiVal: string, decimals: number): string {
  * Shortens a list of addresses to a shorter version with only the first 10 characters.
  * @param addresses A list of addresses to shorten.
  * @returns A list of shortened addresses.
- * @see shortenHexString
+ * @see createShortHexString
  */
 export function shortenHexStrings(addresses: string[]): string[] {
-  return addresses.map((address) => shortenHexString(address));
-}
-
-/**
- * Shortens a hexadecimal string to a shorter version with only the first 10 characters.
- * @param hexString A hexadecimal string to shorten.
- * @returns The shortened hexadecimal string.
- */
-export function shortenHexString(hexString: string): string {
-  return hexString.substring(0, 10);
+  return addresses.map((h) => createShortHexString(h));
 }
