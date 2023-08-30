@@ -9,7 +9,7 @@ import { ethers, BigNumber } from "ethers";
 export type BigNumberish = ethers.BigNumberish;
 export type BN = ethers.BigNumber;
 
-export const { AddressZero: ZERO_ADDRESS, Zero: bnZero, One: bnOne, MaxUint256: bnUint256Max } = ethers.constants;
+export const { Zero: bnZero, One: bnOne, MaxUint256: bnUint256Max } = ethers.constants;
 
 /**
  * Converts a stringified number into a BigNumber with 18 decimal places.
