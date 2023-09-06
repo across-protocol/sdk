@@ -1,5 +1,7 @@
+import { constants as ethersConstants } from "ethers";
 export { CHAIN_IDs, TOKEN_SYMBOLS_MAP } from "@across-protocol/contracts-v2/dist/utils/constants";
-export const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
+
+export const { AddressZero: ZERO_ADDRESS } = ethersConstants;
 
 /**
  * This is the protocol default chain Id for the hub pool.
