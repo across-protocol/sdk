@@ -848,7 +848,10 @@ export class SpokePoolClient extends BaseAbstractClient {
     // in _bridgeTokensToHubPool before emitting the ExecutedRelayerRefundLeaf event.
     // Here is the contract code referenced:
     // - https://github.com/across-protocol/contracts-v2/blob/954528a4620863d1c868e54a370fd8556d5ed05c/contracts/Ovm_SpokePool.sol#L142
-    if (chainId === 10 && eventL2Token.toLowerCase() === "0xdeaddeaddeaddeaddeaddeaddeaddeaddead0000") {
+    if (
+      (chainId === 10 || chainId === 8453) &&
+      eventL2Token.toLowerCase() === "0xdeaddeaddeaddeaddeaddeaddeaddeaddead0000"
+    ) {
       return "0x4200000000000000000000000000000000000006";
     } else if (chainId === 288 && eventL2Token.toLowerCase() === "0x4200000000000000000000000000000000000006") {
       return "0xDeadDeAddeAddEAddeadDEaDDEAdDeaDDeAD0000";
