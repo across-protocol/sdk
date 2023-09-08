@@ -13,7 +13,7 @@
     "node": ">=16.18.0"
   },
   "scripts": {
-    "start": "nodemon -e ts,tsx,json,js,jsx --watch ./src --ignore ./dist --exec 'yarn build - --incremental'",
+    "start": "nodemon -e ts,tsx,json,js,jsx --watch ./src --ignore ./dist --exec 'yarn build --incremental'",
     "build": "tsc --project ./tsconfig.build.json",
     "test": "jest",
     "test:watch": "jest --watch",
