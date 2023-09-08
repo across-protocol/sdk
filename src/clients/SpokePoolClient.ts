@@ -438,11 +438,22 @@ export class SpokePoolClient extends BaseAbstractClient {
     low: number;
     high: number;
   }> {
+    console.log("NEXT");
+
     if (initLow > initHigh) {
       throw new Error("Binary search failed because low > high");
     }
+    if (initLow < 0 || initHigh < 0) {
+      throw new Error("Binary search failed because low or high < 0");
+    }
     if (maxSearches <= 0) {
       throw new Error("maxSearches must be > 0");
+    }
+
+    // If the deposit ID at the initial high block is less than the target deposit ID, then we know that
+    // the target deposit ID must be greater than the initial high block, so we can throw an error.
+    if ((await this._getDepositIdAtBlock(initHigh)) < targetDepositId) {
+      throw new Error("Failed to find deposit ID");
     }
 
     let low = initLow;
