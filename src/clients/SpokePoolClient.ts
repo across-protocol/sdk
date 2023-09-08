@@ -438,7 +438,6 @@ export class SpokePoolClient extends BaseAbstractClient {
     low: number;
     high: number;
   }> {
-    console.log("NEXT");
 
     if (initLow > initHigh) {
       throw new Error("Binary search failed because low > high");
