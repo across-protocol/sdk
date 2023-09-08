@@ -22,3 +22,5 @@ dist
 .env.development.local
 .env.test.local
 .env.production.local
+
+tsconfig.build.tsbuildinfo
