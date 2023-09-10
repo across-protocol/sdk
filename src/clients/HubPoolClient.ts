@@ -18,6 +18,7 @@ import {
   spreadEventWithBlockNumber,
   paginatedEventQuery,
   toBN,
+  toBNWei,
 } from "../utils";
 import {
   Deposit,
@@ -263,7 +264,13 @@ export class HubPoolClient extends BaseAbstractClient {
   async computeRealizedLpFeePct(
     deposit: Pick<
       DepositWithBlock,
-      "quoteTimestamp" | "amount" | "destinationChainId" | "originChainId" | "blockNumber"
+      | "quoteTimestamp"
+      | "amount"
+      | "destinationChainId"
+      | "originChainId"
+      | "depositId"
+      | "blockNumber"
+      | "transactionHash"
     >,
     l1Token: string
   ): Promise<{ realizedLpFeePct: BigNumber | undefined; quoteBlock: number }> {
@@ -273,6 +280,20 @@ export class HubPoolClient extends BaseAbstractClient {
     const quoteBlock = await this.getBlockNumber(deposit.quoteTimestamp);
     if (!isDefined(quoteBlock)) {
       throw new Error(`Could not find block for timestamp ${deposit.quoteTimestamp}`);
+    }
+
+    if (deposit.quoteTimestamp > this.currentTime) {
+      this.logger.info({
+        at: "HubPoolClient::computeRealizedLpFeePct",
+        message: "Received request for utilization on deposit with future quoteTimestamp",
+        originChainId: deposit.originChainId,
+        depositId: deposit.depositId,
+        transactionHash: deposit.transactionHash,
+      });
+
+      // Return an impossible HubPool utilization to force any fill to fail validation.
+      // nb. quoteBlock is almost certainly wrong because it will resolve to _latest_ for future timestamps.
+      return { realizedLpFeePct: toBNWei(1), quoteBlock };
     }
 
     // Compare deposit block against UBA bundle start blocks.
