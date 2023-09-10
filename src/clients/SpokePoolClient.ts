@@ -10,6 +10,7 @@ import {
   MAX_BIG_INT,
   stringifyJSONWithNumericString,
   toBN,
+  isDefined,
 } from "../utils";
 import { validateFillForDeposit, filledSameDeposit } from "../utils/FlowUtils";
 import {
@@ -672,6 +673,11 @@ export class SpokePoolClient extends BaseAbstractClient {
       }
     }
 
+    const hubCurrentTime = this.hubPoolClient?.currentTime;
+    if (!isDefined(hubCurrentTime)) {
+      throw new Error("HubPoolClient's currentTime is not defined");
+    }
+
     // For each depositEvent, compute the realizedLpFeePct. Note this means that we are only finding this value on the
     // new deposits that were found in the searchConfig (new from the previous run). This is important as this operation
     // is heavy as there is a fair bit of block number lookups that need to happen. Note this call REQUIRES that the
@@ -682,7 +688,7 @@ export class SpokePoolClient extends BaseAbstractClient {
         ...this.earlyDeposits,
       ];
       const { earlyDeposits = [], depositEvents = [] } = groupBy(allDeposits, (depositEvent) => {
-        if (depositEvent.args.quoteTimestamp > currentTime) {
+        if (depositEvent.args.quoteTimestamp > currentTime || depositEvent.args.quoteTimestamp > hubCurrentTime) {
           const { args, transactionHash } = depositEvent;
           this.logger.debug({
             at: "SpokePoolClient#update",
