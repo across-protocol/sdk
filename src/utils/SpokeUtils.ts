@@ -20,11 +20,18 @@ export async function getBlockRangeForDepositId(
   initLow: number,
   initHigh: number,
   maxSearches: number,
-  spokePool: SpokePool
+  spokePool: SpokePool,
+  deploymentBlock = 0
 ): Promise<{
   low: number;
   high: number;
 }> {
+  // Get the most recent block from the spoke pool contract.
+  const mostRecentBlockNumber = await spokePool.provider.getBlockNumber();
+
+  // Set the initial high block to the most recent block number or the initial high block, whichever is smaller.
+  initHigh = Math.min(initHigh, mostRecentBlockNumber);
+
   // Define a mapping of block numbers to deposit IDs. This is used to cache the deposit ID at a block number
   // so we don't need to make an eth_call request to get the deposit ID at a block number more than once.
   const queriedIds: Record<number, number> = {};
@@ -33,15 +40,17 @@ export async function getBlockRangeForDepositId(
   // queriedIds cache to see if the deposit ID at the block number has already been queried. If not, it will
   // make an eth_call request to get the deposit ID at the block number. It will then cache the deposit ID
   // in the queriedIds cache.
-  const getDepositIdAtBlock = async (blockNumber: number): Promise<number> => {
+  const _getDepositIdAtBlock = async (blockNumber: number): Promise<number> => {
     if (queriedIds[blockNumber] === undefined) {
-      queriedIds[blockNumber] = await spokePool.numberOfDeposits({ blockTag: blockNumber });
+      queriedIds[blockNumber] = await getDepositIdAtBlock(spokePool, blockNumber);
     }
     return queriedIds[blockNumber];
   };
 
+  console.log("Low: ", initLow, "High: ", initHigh, "Target: ", targetDepositId, "Max: ", maxSearches);
+
   // Sanity check to ensure that init Low is greater than or equal to zero.
-  if (initLow < 0) {
+  if (initLow < deploymentBlock) {
     throw new Error("Binary search failed because low must be >= 0");
   }
 
@@ -55,15 +64,29 @@ export async function getBlockRangeForDepositId(
     throw new Error("maxSearches must be > 0");
   }
 
+  // Sanity check to ensure that deploymentBlock is greater than or equal to zero.
+  if (deploymentBlock < 0) {
+    throw new Error("deploymentBlock must be >= 0");
+  }
+
   // If the deposit ID at the initial high block is less than the target deposit ID, then we know that
   // the target deposit ID must be greater than the initial high block, so we can throw an error.
-  if ((await getDepositIdAtBlock(initHigh)) < targetDepositId) {
+  if ((await _getDepositIdAtBlock(initHigh)) <= targetDepositId) {
+    // initLow   = 5: Deposits Num: 10
+    //                                     // targetId = 11  <- fail (triggers this error)          // 10 <= 11
+    //                                     // targetId = 10  <- fail (triggers this error)          // 10 <= 10
+    //                                     // targetId = 09  <- pass (does not trigger this error)  // 10 <= 09
     throw new Error("Failed to find deposit ID");
   }
 
   // If the deposit ID at the initial low block is greater than the target deposit ID, then we know that
   // the target deposit ID must be less than the initial low block, so we can throw an error.
-  if ((await getDepositIdAtBlock(initLow)) > targetDepositId) {
+  if ((await _getDepositIdAtBlock(Math.max(deploymentBlock, initLow - 1))) > targetDepositId) {
+    // initLow   = 5: Deposits Num: 10
+    // initLow-1 = 4: Deposits Num:  2
+    //                                     // targetId = 1 <- fail (triggers this error)
+    //                                     // targetId = 2 <- pass (does not trigger this error)
+    //                                     // targetId = 3 <- pass (does not trigger this error)
     throw new Error("Failed to find deposit ID");
   }
 
@@ -79,14 +102,12 @@ export async function getBlockRangeForDepositId(
     const mid = Math.floor((low + high) / 2);
 
     // Get the deposit ID at the mid point.
-    const midDepositId = await getDepositIdAtBlock(mid);
+    const midDepositId = await _getDepositIdAtBlock(mid);
 
     // Get the deposit ID of the block previous to the mid point.
     // We can use this to get the range that the current midpoint block
     // has between the previous block and the current block.
-    // NOTE: If the midpoint is block 0, then we can assume that the deposit ID
-    //       of the previous block is 0.
-    const prevDepositId = mid === 0 ? 0 : await getDepositIdAtBlock(mid - 1);
+    const prevDepositId = await _getDepositIdAtBlock(Math.max(deploymentBlock, mid - 1));
 
     // Let's define the range of the current midpoint block.
     // The range is [prevDepositId, midDepositId - 1].
@@ -97,7 +118,7 @@ export async function getBlockRangeForDepositId(
     // midpoint deposit ID range, then we know that the target deposit ID
     // must be in the lower half of the block range.
     if (targetDepositId < lowRange) {
-      high = mid - 1;
+      high = mid;
     }
     // If our target deposit ID is greater than the largest range of our
     // midpoint deposit ID range, then we know that the target deposit ID

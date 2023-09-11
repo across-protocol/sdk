@@ -1,4 +1,4 @@
-import { providers } from "ethers";
+import { Contract, providers } from "ethers";
 import { groupBy } from "lodash";
 import {
   assign,
@@ -99,7 +99,7 @@ export class SpokePoolClient extends BaseAbstractClient {
    */
   constructor(
     readonly logger: winston.Logger,
-    readonly spokePool: SpokePool,
+    readonly spokePool: Contract,
     // Can be excluded. This disables some deposit validation.
     readonly hubPoolClient: HubPoolClient | null,
     readonly chainId: number,
@@ -440,7 +440,7 @@ export class SpokePoolClient extends BaseAbstractClient {
     low: number;
     high: number;
   }> {
-    return getBlockRangeForDepositId(targetDepositId, initLow, initHigh, maxSearches, this.spokePool);
+    return getBlockRangeForDepositId(targetDepositId, initLow, initHigh, maxSearches, this.spokePool as SpokePool);
   }
 
   /**
@@ -449,7 +449,7 @@ export class SpokePoolClient extends BaseAbstractClient {
    * @returns The deposit ID.
    */
   public async _getDepositIdAtBlock(blockTag: number): Promise<number> {
-    return getDepositIdAtBlock(this.spokePool, blockTag);
+    return getDepositIdAtBlock(this.spokePool as SpokePool, blockTag);
   }
 
   /**
