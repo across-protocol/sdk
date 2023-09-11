@@ -978,19 +978,25 @@ function deserializeUBAFeeConfig(serializedUBAFeeConfig: {
   return {
     baselineFee: {
       default: BigNumber.from(serializedUBAFeeConfig.baselineFee.default),
-      override: Object.entries(serializedUBAFeeConfig.baselineFee.override ?? {}).reduce((acc, [key, value]) => {
-        acc[key] = BigNumber.from(value);
-        return acc;
-      }, {} as Record<string, BigNumber>),
+      override: Object.entries(serializedUBAFeeConfig.baselineFee.override ?? {}).reduce(
+        (acc, [key, value]) => {
+          acc[key] = BigNumber.from(value);
+          return acc;
+        },
+        {} as Record<string, BigNumber>
+      ),
     },
     balancingFee: {
       default: serializedUBAFeeConfig.balancingFee.default.map((tuple) =>
         tuple.map((value) => BigNumber.from(value))
       ) as [BigNumber, BigNumber][],
-      override: Object.entries(serializedUBAFeeConfig.balancingFee.override ?? {}).reduce((acc, [key, value]) => {
-        acc[key] = value.map((tuple) => tuple.map((value) => BigNumber.from(value))) as [BigNumber, BigNumber][];
-        return acc;
-      }, {} as Record<string, [BigNumber, BigNumber][]>),
+      override: Object.entries(serializedUBAFeeConfig.balancingFee.override ?? {}).reduce(
+        (acc, [key, value]) => {
+          acc[key] = value.map((tuple) => tuple.map((value) => BigNumber.from(value))) as [BigNumber, BigNumber][];
+          return acc;
+        },
+        {} as Record<string, [BigNumber, BigNumber][]>
+      ),
     },
     balanceTriggerThreshold: {
       default: {
@@ -1024,10 +1030,13 @@ function deserializeUBAFeeConfig(serializedUBAFeeConfig: {
       default: serializedUBAFeeConfig.lpGammaFunction.default.map((tuple) =>
         tuple.map((value) => BigNumber.from(value))
       ) as [BigNumber, BigNumber][],
-      override: Object.entries(serializedUBAFeeConfig.lpGammaFunction.override ?? {}).reduce((acc, [key, value]) => {
-        acc[key] = value.map((tuple) => tuple.map((value) => BigNumber.from(value))) as [BigNumber, BigNumber][];
-        return acc;
-      }, {} as Record<string, [BigNumber, BigNumber][]>),
+      override: Object.entries(serializedUBAFeeConfig.lpGammaFunction.override ?? {}).reduce(
+        (acc, [key, value]) => {
+          acc[key] = value.map((tuple) => tuple.map((value) => BigNumber.from(value))) as [BigNumber, BigNumber][];
+          return acc;
+        },
+        {} as Record<string, [BigNumber, BigNumber][]>
+      ),
     },
     incentivePoolAdjustment: Object.entries(serializedUBAFeeConfig.incentivePoolAdjustment ?? {}).reduce(
       (acc, [key, value]) => {

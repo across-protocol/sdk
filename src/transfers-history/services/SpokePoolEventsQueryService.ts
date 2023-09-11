@@ -82,9 +82,12 @@ export class SpokePoolEventsQueryService {
    * @param events
    */
   private async getBlocksTimestamp<T>(events: TypedEvent<T[]>[]) {
-    const uniqueBlockNumbers = events.reduce((acc, event) => {
-      return { ...acc, [event.blockNumber]: true };
-    }, {} as Record<number, boolean>);
+    const uniqueBlockNumbers = events.reduce(
+      (acc, event) => {
+        return { ...acc, [event.blockNumber]: true };
+      },
+      {} as Record<number, boolean>
+    );
     const uniqueBlockNumbersList = Object.keys(uniqueBlockNumbers).map((blockNumber) => parseInt(blockNumber));
     this.logger.debug(
       "[getBlocksTimestamp]",

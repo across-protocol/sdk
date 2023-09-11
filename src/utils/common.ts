@@ -383,7 +383,7 @@ export type UpdateDepositDetailsMessageType = {
     { name: "originChainId"; type: "uint256" },
     { name: "updatedRelayerFeePct"; type: "int64" },
     { name: "updatedRecipient"; type: "address" },
-    { name: "updatedMessage"; type: "bytes" }
+    { name: "updatedMessage"; type: "bytes" },
   ];
 };
 
