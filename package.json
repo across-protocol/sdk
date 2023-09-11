@@ -3,8 +3,6 @@
   "author": "UMA Team",
   "version": "0.15.22",
   "license": "AGPL-3.0",
-  "main": "dist/index.js",
-  "typings": "dist/index.d.ts",
   "files": [
     "dist",
     "src"
@@ -14,7 +12,10 @@
   },
   "scripts": {
     "start": "nodemon -e ts,tsx,json,js,jsx --watch ./src --ignore ./dist --exec 'yarn build --incremental'",
-    "build": "tsc --project ./tsconfig.build.json",
+    "build": "yarn run clean && yarn run build:cjs && yarn run build:esm && yarn run build:types",
+    "build:cjs": "tsc --project tsconfig.build.json --module commonjs --outDir ./dist/cjs --removeComments --verbatimModuleSyntax false && echo > ./dist/cjs/package.json '{\"type\":\"commonjs\"}'",
+    "build:esm": "tsc --project tsconfig.build.json --module es2015 --outDir ./dist/esm && echo > ./dist/esm/package.json '{\"type\":\"module\",\"sideEffects\":false}'",
+    "build:types": "tsc --project tsconfig.build.json --module esnext --declarationDir ./dist/types --emitDeclarationOnly --declaration --declarationMap",
     "test": "jest",
     "test:watch": "jest --watch",
     "test:e2e": "jest --config jest-e2e-config.json",
@@ -23,6 +24,7 @@
     "prepare": "tsc --project ./tsconfig.build.json && husky install",
     "size": "size-limit",
     "analyze": "size-limit --why",
+    "clean": "rimraf dist",
     "bump-version:major": "yarn version --major --no-git-tag-version --no-commit-hooks && git commit -m 'chore: bump version' ./package.json",
     "bump-version:minor": "yarn version --minor --no-git-tag-version --no-commit-hooks && git commit -m 'chore: bump version' ./package.json",
     "bump-version:patch": "yarn version --patch --no-git-tag-version --no-commit-hooks && git commit -m 'chore: bump version' ./package.json"
@@ -31,7 +33,7 @@
     "*.ts": "yarn lint"
   },
   "peerDependencies": {},
-  "module": "dist/sdk-v2.esm.js",
+  "sideEffects": false,
   "size-limit": [
     {
       "path": "dist/sdk-v2.cjs.production.min.js",
@@ -74,7 +76,7 @@
     "ts-jest": "^29.1.1",
     "tslib": "^2.3.1",
     "typechain": "^7.0.1",
-    "typescript": "^4.6.2",
+    "typescript": "5",
     "winston": "^3.8.1"
   },
   "dependencies": {
@@ -96,5 +98,107 @@
   "jest": {
     "preset": "ts-jest",
     "testEnvironment": "node"
+  },
+  "main": "./dist/cjs/index.js",
+  "module": "./dist/esm/index.js",
+  "types": "./dist/types/index.d.ts",
+  "typings": "./dist/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/types/index.d.ts",
+      "import": "./dist/esm/index.js",
+      "default": "./dist/cjs/index.js"
+    },
+    "./constants": {
+      "types": "./dist/types/constants.d.ts",
+      "import": "./dist/esm/constants.js",
+      "default": "./dist/cjs/constants.js"
+    },
+    "./typechain": {
+      "types": "./dist/types/typechain.d.ts",
+      "import": "./dist/esm/typechain.js",
+      "default": "./dist/cjs/typechain.js"
+    },
+    "./apiClient": {
+      "types": "./dist/types/apiClient/index.d.ts",
+      "import": "./dist/esm/apiClient/index.js",
+      "default": "./dist/cjs/apiClient/index.js"
+    },
+    "./caching": {
+      "types": "./dist/types/caching/index.d.ts",
+      "import": "./dist/esm/caching/index.js",
+      "default": "./dist/cjs/caching/index.js"
+    },
+    "./clients": {
+      "types": "./dist/types/clients/index.d.ts",
+      "import": "./dist/esm/clients/index.js",
+      "default": "./dist/cjs/clients/index.js"
+    },
+    "./coingecko": {
+      "types": "./dist/types/coingecko/index.d.ts",
+      "import": "./dist/esm/coingecko/index.js",
+      "default": "./dist/cjs/coingecko/index.js"
+    },
+    "./contracts": {
+      "types": "./dist/types/contracts/index.d.ts",
+      "import": "./dist/esm/contracts/index.js",
+      "default": "./dist/cjs/contracts/index.js"
+    },
+    "./gasPriceOracle": {
+      "types": "./dist/types/gasPriceOracle/index.d.ts",
+      "import": "./dist/esm/gasPriceOracle/index.js",
+      "default": "./dist/cjs/gasPriceOracle/index.js"
+    },
+    "./interfaces": {
+      "types": "./dist/types/interfaces/index.d.ts",
+      "import": "./dist/esm/interfaces/index.js",
+      "default": "./dist/cjs/interfaces/index.js"
+    },
+    "./lpFeeCalculator": {
+      "types": "./dist/types/lpFeeCalculator/index.d.ts",
+      "import": "./dist/esm/lpFeeCalculator/index.js",
+      "default": "./dist/cjs/lpFeeCalculator/index.js"
+    },
+    "./merkleDistributor": {
+      "types": "./dist/types/merkleDistributor/index.d.ts",
+      "import": "./dist/esm/merkleDistributor/index.js",
+      "default": "./dist/cjs/merkleDistributor/index.js"
+    },
+    "./pool": {
+      "types": "./dist/types/pool/index.d.ts",
+      "import": "./dist/esm/pool/index.js",
+      "default": "./dist/cjs/pool/index.js"
+    },
+    "./priceClient": {
+      "types": "./dist/types/priceClient/index.d.ts",
+      "import": "./dist/esm/priceClient/index.js",
+      "default": "./dist/cjs/priceClient/index.js"
+    },
+    "./relayFeeCalculator": {
+      "types": "./dist/types/relayFeeCalculator/index.d.ts",
+      "import": "./dist/esm/relayFeeCalculator/index.js",
+      "default": "./dist/cjs/relayFeeCalculator/index.js"
+    },
+    "./transfers-history": {
+      "types": "./dist/types/transfers-history/index.d.ts",
+      "import": "./dist/esm/transfers-history/index.js",
+      "default": "./dist/cjs/transfers-history/index.js"
+    },
+    "./typeguards": {
+      "types": "./dist/types/typeguards/index.d.ts",
+      "import": "./dist/esm/typeguards/index.js",
+      "default": "./dist/cjs/typeguards/index.js"
+    },
+    "./UBAFeeCalculator": {
+      "types": "./dist/types/UBAFeeCalculator/index.d.ts",
+      "import": "./dist/esm/UBAFeeCalculator/index.js",
+      "default": "./dist/cjs/UBAFeeCalculator/index.js"
+    },
+    "./utils": {
+      "types": "./dist/types/utils/index.d.ts",
+      "import": "./dist/esm/utils/index.js",
+      "default": "./dist/cjs/utils/index.js"
+    },
+    "./package.json": "./package.json"
   }
 }
