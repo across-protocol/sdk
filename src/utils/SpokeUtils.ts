@@ -28,7 +28,6 @@ export async function getBlockRangeForDepositId(
 }> {
   // Get the most recent block from the spoke pool contract.
   const mostRecentBlockNumber = await spokePool.provider.getBlockNumber();
-
   // Set the initial high block to the most recent block number or the initial high block, whichever is smaller.
   initHigh = Math.min(initHigh, mostRecentBlockNumber);
 
@@ -42,12 +41,14 @@ export async function getBlockRangeForDepositId(
   // in the queriedIds cache.
   const _getDepositIdAtBlock = async (blockNumber: number): Promise<number> => {
     if (queriedIds[blockNumber] === undefined) {
-      queriedIds[blockNumber] = await getDepositIdAtBlock(spokePool, blockNumber);
+      const resultId = await getDepositIdAtBlock(spokePool, blockNumber);
+      if (!Number.isInteger(resultId)) {
+        throw new Error("Invalid deposit count");
+      }
+      queriedIds[blockNumber] = resultId;
     }
     return queriedIds[blockNumber];
   };
-
-  console.log("Low: ", initLow, "High: ", initHigh, "Target: ", targetDepositId, "Max: ", maxSearches);
 
   // Sanity check to ensure that init Low is greater than or equal to zero.
   if (initLow < deploymentBlock) {
@@ -76,7 +77,7 @@ export async function getBlockRangeForDepositId(
     //                                     // targetId = 11  <- fail (triggers this error)          // 10 <= 11
     //                                     // targetId = 10  <- fail (triggers this error)          // 10 <= 10
     //                                     // targetId = 09  <- pass (does not trigger this error)  // 10 <= 09
-    throw new Error("Failed to find deposit ID");
+    throw new Error("Failed to find deposit ID: Target Id is greater than the initial high block");
   }
 
   // If the deposit ID at the initial low block is greater than the target deposit ID, then we know that
@@ -87,7 +88,7 @@ export async function getBlockRangeForDepositId(
     //                                     // targetId = 1 <- fail (triggers this error)
     //                                     // targetId = 2 <- pass (does not trigger this error)
     //                                     // targetId = 3 <- pass (does not trigger this error)
-    throw new Error("Failed to find deposit ID");
+    throw new Error("Failed to find deposit ID: Target Id is less than the initial low block");
   }
 
   // Define the low and high block numbers for the binary search.
@@ -104,34 +105,27 @@ export async function getBlockRangeForDepositId(
     // Get the deposit ID at the mid point.
     const midDepositId = await _getDepositIdAtBlock(mid);
 
-    // Get the deposit ID of the block previous to the mid point.
-    // We can use this to get the range that the current midpoint block
-    // has between the previous block and the current block.
-    const prevDepositId = await _getDepositIdAtBlock(Math.max(deploymentBlock, mid - 1));
-
     // Let's define the range of the current midpoint block.
-    // The range is [prevDepositId, midDepositId - 1].
-    const lowRange = prevDepositId;
     const highRange = midDepositId - 1;
 
     // If our target deposit ID is less than the smallest range of our
     // midpoint deposit ID range, then we know that the target deposit ID
     // must be in the lower half of the block range.
-    if (targetDepositId < lowRange) {
+    if (targetDepositId <= highRange) {
       high = mid;
     }
     // If our target deposit ID is greater than the largest range of our
     // midpoint deposit ID range, then we know that the target deposit ID
     // must be in the upper half of the block range.
-    else if (targetDepositId > highRange) {
+    else {
       low = mid + 1;
     }
-    // Otherwise, we've found the block range that contains the deposit ID.
-    else {
-      low = mid;
-      high = mid;
-    }
-  } while (++searches < maxSearches && low < high);
+  } while (++searches <= maxSearches && low < high);
+
+  // Sanity check to ensure that our low was not greater than our high.
+  if (low > high) {
+    throw new Error("Binary search failed. (low > high) SHOULD NEVER HAPPEN (but here we are)");
+  }
 
   // We've either found the block range or we've exceeded the maximum number of searches.
   // In either case, the block range is [low, high] so we can return it.
