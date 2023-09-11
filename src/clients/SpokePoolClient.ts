@@ -21,7 +21,7 @@ import {
 } from "../utils/EventUtils";
 import winston from "winston";
 
-import { Contract, BigNumber, Event, EventFilter, ethers } from "ethers";
+import { BigNumber, Event, EventFilter, ethers } from "ethers";
 
 import {
   Deposit,
@@ -46,6 +46,8 @@ import { HubPoolClient } from "./HubPoolClient";
 import { ZERO_ADDRESS } from "../constants";
 import { getNetworkName } from "../utils/NetworkUtils";
 import { BaseAbstractClient } from "./BaseAbstractClient";
+import { getBlockRangeForDepositId, getDepositIdAtBlock } from "../utils/SpokeUtils";
+import { SpokePool } from "../typechain";
 
 type Block = providers.Block;
 
@@ -97,7 +99,7 @@ export class SpokePoolClient extends BaseAbstractClient {
    */
   constructor(
     readonly logger: winston.Logger,
-    readonly spokePool: Contract,
+    readonly spokePool: SpokePool,
     // Can be excluded. This disables some deposit validation.
     readonly hubPoolClient: HubPoolClient | null,
     readonly chainId: number,
@@ -438,51 +440,7 @@ export class SpokePoolClient extends BaseAbstractClient {
     low: number;
     high: number;
   }> {
-
-    if (initLow > initHigh) {
-      throw new Error("Binary search failed because low > high");
-    }
-    if (initLow < 0 || initHigh < 0) {
-      throw new Error("Binary search failed because low or high < 0");
-    }
-    if (maxSearches <= 0) {
-      throw new Error("maxSearches must be > 0");
-    }
-
-    // If the deposit ID at the initial high block is less than the target deposit ID, then we know that
-    // the target deposit ID must be greater than the initial high block, so we can throw an error.
-    if ((await this._getDepositIdAtBlock(initHigh)) < targetDepositId) {
-      throw new Error("Failed to find deposit ID");
-    }
-
-    let low = initLow;
-    let high = initHigh;
-    let i = 0;
-    do {
-      const mid = Math.floor((high + low) / 2);
-      const searchedDepositId = await this._getDepositIdAtBlock(mid);
-      if (!Number.isInteger(searchedDepositId)) {
-        throw new Error("Invalid deposit count");
-      }
-
-      // Caller can set maxSearches to minimize number of binary searches and eth_call requests.
-      if (i++ >= maxSearches) {
-        return { low, high };
-      }
-
-      // Since the deposit ID can jump by more than 1 in a block (e.g. if multiple deposits are sent
-      // in the same block), we need to search inclusively on on the low and high, instead of the
-      // traditional binary search where we set high to mid - 1 and low to mid + 1. This makes sure we
-      // don't accidentally skip over mid which contains multiple deposit ID's.
-      if (targetDepositId > searchedDepositId) {
-        low = mid;
-      } else if (targetDepositId < searchedDepositId) {
-        high = mid;
-      } else {
-        return { low, high };
-      }
-    } while (low <= high);
-    throw new Error("Failed to find deposit ID");
+    return getBlockRangeForDepositId(targetDepositId, initLow, initHigh, maxSearches, this.spokePool);
   }
 
   /**
@@ -491,7 +449,7 @@ export class SpokePoolClient extends BaseAbstractClient {
    * @returns The deposit ID.
    */
   public async _getDepositIdAtBlock(blockTag: number): Promise<number> {
-    return await this.spokePool.numberOfDeposits({ blockTag });
+    return getDepositIdAtBlock(this.spokePool, blockTag);
   }
 
   /**
