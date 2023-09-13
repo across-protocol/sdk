@@ -17,7 +17,7 @@ describe("AcrossConfigStore", function () {
   });
   test("getL1TokenConfig", async function () {
     const result = await client.getL1TokenConfig(wethAddress);
-    assert.ok(result.transferThreshold);
+    assert.ok(result.rateModel);
   });
   test("getRateModel", async function () {
     // This test works because we know the L1-->L2 route for WETH has a rate model with all properties set to 0 and
