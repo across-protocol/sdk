@@ -440,7 +440,14 @@ export class SpokePoolClient extends BaseAbstractClient {
     low: number;
     high: number;
   }> {
-    return getBlockRangeForDepositId(targetDepositId, initLow, initHigh, maxSearches, this.spokePool as SpokePool);
+    return getBlockRangeForDepositId(
+      targetDepositId,
+      initLow,
+      initHigh,
+      maxSearches,
+      this.spokePool as SpokePool,
+      this.deploymentBlock
+    );
   }
 
   /**
@@ -901,15 +908,16 @@ export class SpokePoolClient extends BaseAbstractClient {
    * @note This method is used to find deposits that are outside of the search range of this client.
    */
   async findDeposit(depositId: number, destinationChainId: number, depositor: string): Promise<DepositWithBlock> {
-    // Binary search for block where SpokePool.numberOfDeposits incremented to fill.depositId + 1.
-    // This way we can get the blocks before and after the deposit with deposit ID = fill.depositId
-    // and use those blocks to optimize the search for that deposit. Stop searches after a maximum
-    // # of searches to limit number of eth_call requests. Make an eth_getLogs call on the remaining block range
-    // (i.e. the [low, high] remaining from the binary search) to find the target deposit ID.
+    // Binary search for block. This way we can get the blocks before and after the deposit with
+    // deposit ID = fill.depositId and use those blocks to optimize the search for that deposit.
+    // Stop searches after a maximum # of searches to limit number of eth_call requests. Make an
+    // eth_getLogs call on the remaining block range (i.e. the [low, high] remaining from the binary
+    // search) to find the target deposit ID.
+    //
     // @dev Limiting between 5-10 searches empirically performs best when there are ~300,000 deposits
     // for a spoke pool and we're looking for a deposit <5 days older than HEAD.
     const searchBounds = await this._getBlockRangeForDepositId(
-      depositId + 1,
+      depositId,
       this.deploymentBlock,
       this.latestBlockNumber,
       7

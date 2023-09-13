@@ -50,14 +50,14 @@ export async function getBlockRangeForDepositId(
     return queriedIds[blockNumber];
   };
 
-  // Sanity check to ensure that init Low is greater than or equal to zero.
-  if (initLow < deploymentBlock) {
-    throw new Error("Binary search failed because low must be >= 0");
-  }
-
   // Sanity check to ensure that initHigh is greater than or equal to initLow.
   if (initLow > initHigh) {
     throw new Error("Binary search failed because low > high");
+  }
+
+  // Sanity check to ensure that init Low is greater than or equal to zero.
+  if (initLow < deploymentBlock) {
+    throw new Error("Binary search failed because low must be >= deploymentBlock");
   }
 
   // Sanity check to ensure that maxSearches is greater than zero.
@@ -105,13 +105,13 @@ export async function getBlockRangeForDepositId(
     // Get the deposit ID at the mid point.
     const midDepositId = await _getDepositIdAtBlock(mid);
 
-    // Let's define the range of the current midpoint block.
-    const highRange = midDepositId - 1;
+    // Let's define the latest ID of the current midpoint block.
+    const accountedIdByMidBlock = midDepositId - 1;
 
     // If our target deposit ID is less than the smallest range of our
     // midpoint deposit ID range, then we know that the target deposit ID
     // must be in the lower half of the block range.
-    if (targetDepositId <= highRange) {
+    if (targetDepositId <= accountedIdByMidBlock) {
       high = mid;
     }
     // If our target deposit ID is greater than the largest range of our
@@ -120,6 +120,9 @@ export async function getBlockRangeForDepositId(
     else {
       low = mid + 1;
     }
+
+    // We want to iterate until we've either found the block range or we've
+    // exceeded the maximum number of searches.
   } while (++searches <= maxSearches && low < high);
 
   // Sanity check to ensure that our low was not greater than our high.
