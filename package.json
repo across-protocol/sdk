@@ -1,7 +1,7 @@
 {
   "name": "@across-protocol/sdk-v2",
   "author": "UMA Team",
-  "version": "0.15.22",
+  "version": "0.16.0",
   "license": "AGPL-3.0",
   "files": [
     "dist",
@@ -11,7 +11,7 @@
     "node": ">=16.18.0"
   },
   "scripts": {
-    "start": "nodemon -e ts,tsx,json,js,jsx --watch ./src --ignore ./dist --exec 'yarn build --incremental'",
+    "start": "nodemon -e ts,tsx,json,js,jsx --watch ./src --ignore ./dist --exec 'yarn build'",
     "build": "yarn run clean && yarn run build:cjs && yarn run build:esm && yarn run build:types",
     "build:cjs": "tsc --project tsconfig.build.json --module commonjs --outDir ./dist/cjs --removeComments --verbatimModuleSyntax false && echo > ./dist/cjs/package.json '{\"type\":\"commonjs\"}'",
     "build:esm": "tsc --project tsconfig.build.json --module es2015 --outDir ./dist/esm && echo > ./dist/esm/package.json '{\"type\":\"module\",\"sideEffects\":false}'",
