@@ -3,6 +3,13 @@ export { CHAIN_IDs, TOKEN_SYMBOLS_MAP } from "@across-protocol/contracts-v2/dist
 
 export const { AddressZero: ZERO_ADDRESS } = ethersConstants;
 
+// 2^96 - 1 is a conservative erc20 max allowance.
+export const MAX_SAFE_ALLOWANCE = "79228162514264337593543950335";
+
+export const MAX_SAFE_JS_INT = "4294967297"; // 2^32 + 1
+
+export const SECONDS_PER_YEAR = 31557600; // 365.25 days per year.
+
 /**
  * This is the protocol default chain Id for the hub pool.
  */

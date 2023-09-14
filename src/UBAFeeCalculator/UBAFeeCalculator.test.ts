@@ -1,5 +1,6 @@
 import { expect } from "chai";
-import { toBN } from "../utils";
+import { MAX_SAFE_JS_INT } from "../constants";
+import { bnZero, toBN } from "../utils";
 import UBAFeeConfig from "./UBAFeeConfig";
 import {
   computePiecewiseLinearFunction,
@@ -10,7 +11,6 @@ import {
   performLinearIntegration,
 } from "./UBAFeeUtility";
 import { FlowTupleParameters } from "./UBAFeeTypes";
-import { MAX_SAFE_JS_INT } from "@uma/common";
 import { parseEther, parseUnits } from "ethers/lib/utils";
 import { BigNumber } from "ethers";
 
@@ -43,11 +43,11 @@ describe("UBA Fee Calculations", () => {
       },
       {
         default: {
-          lowerBound: { target: toBN("0"), threshold: toBN("0") },
-          upperBound: { target: toBN("0"), threshold: toBN("0") },
+          lowerBound: { target: bnZero, threshold: bnZero },
+          upperBound: { target: bnZero, threshold: bnZero },
         },
       },
-      { default: [[toBN("0"), toBN("0")]] },
+      { default: [[bnZero, bnZero]] },
       {},
       {}
     );
@@ -68,12 +68,12 @@ describe("UBA Fee Calculations", () => {
   });
 
   it("should integrate the correct value: test #1", () => {
-    const result = performLinearIntegration(tuples, 0, toBN(0), toBN(100_000));
+    const result = performLinearIntegration(tuples, 0, bnZero, toBN(100_000));
     expect(result.toString()).to.eq("-40000");
   });
 
   it("should integrate the correct value: test #2", () => {
-    const result = performLinearIntegration(tuples, 0, toBN(100_000), toBN(0));
+    const result = performLinearIntegration(tuples, 0, toBN(100_000), bnZero);
     expect(result.toString()).to.eq("40000");
   });
 
@@ -114,15 +114,15 @@ describe("UBA Fee Calculations from Data", () => {
 
   beforeAll(() => {
     gammaCutoffArray = [
-      [toBN("500000000000000000"), toBN("0")],
+      [toBN("500000000000000000"), bnZero],
       [toBN("750000000000000000"), toBN("100000000000000")],
       [toBN("950000000000000000"), toBN("10000000000000000")],
     ];
 
     omegaCutoffArray = [
-      [toBN("0"), toBN("-100000000000000")],
-      [toBN("250000000000000000000"), toBN("0")],
-      [toBN("500000000000000000000"), toBN("0")],
+      [bnZero, toBN("-100000000000000")],
+      [toBN("250000000000000000000"), bnZero],
+      [toBN("500000000000000000000"), bnZero],
       [toBN("750000000000000000000"), toBN("100000000000000")],
       [toBN("1500000000000000000000"), toBN("10000000000000000")],
     ];
@@ -149,12 +149,12 @@ describe("UBA Fee Calculations from Data", () => {
   });
 
   it("should integrate the correct value: test #3", () => {
-    const result = computePiecewiseLinearFunction(gammaCutoffArray, toBN("0"), toBN("400000000000000000"));
+    const result = computePiecewiseLinearFunction(gammaCutoffArray, bnZero, toBN("400000000000000000"));
     expect(result.toString()).to.eq("0");
   });
 
   it("should integrate the correct value: test #4", () => {
-    const result = computePiecewiseLinearFunction(gammaCutoffArray, toBN("0"), toBN("1000000000000000000"));
+    const result = computePiecewiseLinearFunction(gammaCutoffArray, bnZero, toBN("1000000000000000000"));
     expect(result.toString()).to.eq("1522500000000000");
   });
 

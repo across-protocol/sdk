@@ -1,5 +1,5 @@
 import { BigNumber } from "ethers";
-import { MAX_SAFE_JS_INT } from "@uma/common/dist/Constants";
+import { MAX_SAFE_JS_INT } from "../constants";
 import { fixedPointAdjustment, toBN } from "../utils";
 import { FlowTupleParameters } from "./UBAFeeTypes";
 
