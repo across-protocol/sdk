@@ -288,7 +288,7 @@ export class HubPoolClient extends BaseAbstractClient {
       // response if the is outside of 24 hours from the current time.
       if (shouldCache(getCurrentTime(), timestamp, 60 * 60 * 24)) {
         // If we should cache the result, then let's store it
-        // We can store it as with the default 7 day TTL
+        // We can store it as with the default 14 day TTL
         await cache.set(key, `${current.toString()},${post.toString()}`, DEFAULT_CACHING_TTL);
       }
       // Return the result
