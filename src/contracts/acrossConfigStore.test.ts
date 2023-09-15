@@ -16,13 +16,26 @@ describe("Contracts Config Store", () => {
         "10": { threshold: "50000000000000000000", target: "20000000000000000000" },
         "42161": { threshold: "100000000000000000000", target: "20000000000000000000" },
       },
+      extraKey: "x",
     };
     expect(Client.parseL1TokenConfig(JSON.stringify(structure))).toEqual(BASE_TRUTH);
   });
   it("should fail to parse the data to parseL1TokenConfig with malformed input", () => {
-    const structure = {
-      rateModel: "x",
-    };
-    expect(() => Client.parseL1TokenConfig(JSON.stringify(structure))).toThrow();
+    const invalidStructures = [
+      {
+        rateModel: "x",
+      },
+      {
+        // Invalid rate model keys
+        rateModel: { ubar: "123" },
+      },
+      {
+        // Invalid rate model values
+        rateModel: { UBar: "x" },
+      },
+    ];
+    invalidStructures.forEach((structure) => {
+      expect(() => Client.parseL1TokenConfig(JSON.stringify(structure))).toThrow();
+    });
   });
 });
