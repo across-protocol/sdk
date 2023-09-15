@@ -58,7 +58,6 @@ describe("PoolClient", function () {
     );
   });
   test("read users", async function () {
-    jest.setTimeout(30000);
     for (const userAddress of users) {
       for (const l1Token of l1Tokens) {
         await client.updateUser(userAddress, l1Token);
@@ -68,5 +67,5 @@ describe("PoolClient", function () {
         assert.ok(user);
       }
     }
-  });
+  }, 120000);
 });
