@@ -38,3 +38,5 @@ export const PUBLIC_NETWORKS: { [chainId: number]: { name: string; etherscan: st
 };
 
 export const DEFAULT_BLOCKCHAIN_EXPLORER_DOMAIN = "https://etherscan.io";
+
+export const DEFAULT_CACHING_TTL = 60 * 60 * 24 * 7; // 1 week

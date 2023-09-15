@@ -39,6 +39,7 @@ import * as lpFeeCalculator from "../lpFeeCalculator";
 import { AcrossConfigStoreClient as ConfigStoreClient } from "./AcrossConfigStoreClient/AcrossConfigStoreClient";
 import { BaseAbstractClient } from "./BaseAbstractClient";
 import { isUBAActivatedAtBlock } from "./UBAClient/UBAClientUtilities";
+import { DEFAULT_CACHING_TTL } from "../constants";
 
 type _HubPoolUpdate = {
   success: true;
@@ -283,10 +284,12 @@ export class HubPoolClient extends BaseAbstractClient {
     // and store the result in the cache
     else {
       const { current, post } = await resolver();
-      // First determine if we should cache the result
+      // First determine if we should cache the result. We should cache the
+      // response if the is outside of 24 hours from the current time.
       if (shouldCache(getCurrentTime(), timestamp, 60 * 60 * 24)) {
         // If we should cache the result, then let's store it
-        await cache.set(key, `${current.toString()},${post.toString()}`, 60 * 60 * 24);
+        // We can store it as with the default 7 day TTL
+        await cache.set(key, `${current.toString()},${post.toString()}`, DEFAULT_CACHING_TTL);
       }
       // Return the result
       return { current, post };
