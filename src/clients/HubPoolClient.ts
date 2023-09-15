@@ -284,9 +284,9 @@ export class HubPoolClient extends BaseAbstractClient {
     else {
       const { current, post } = await resolver();
       // First determine if we should cache the result
-      if (shouldCache(getCurrentTime(), timestamp, 60 * 60 * 24 * 90)) {
+      if (shouldCache(getCurrentTime(), timestamp, 60 * 60 * 24)) {
         // If we should cache the result, then let's store it
-        await cache.set(key, `${current.toString()},${post.toString()}`, 60 * 60 * 24 * 90);
+        await cache.set(key, `${current.toString()},${post.toString()}`, 60 * 60 * 24);
       }
       // Return the result
       return { current, post };
