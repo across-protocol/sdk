@@ -24,3 +24,15 @@ export function formattedLog(
     });
   }
 }
+
+/**
+ * Asserts the truth of a condition. If the condition is false, an error is thrown with the provided message.
+ * @param condition The condition to assert.
+ * @param message The message to throw if the condition is false.
+ * @throws Error if the condition is false.
+ */
+export function assert(condition: boolean, message: string): void {
+  if (!condition) {
+    throw new Error(message);
+  }
+}
