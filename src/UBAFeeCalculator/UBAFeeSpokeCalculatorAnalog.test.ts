@@ -167,9 +167,9 @@ describe("UBAFeeSpokeCalculatorAnalog", () => {
           // the base case of our test. We will be changing this value later in the test.
           config.setRewardMultiplier(chainId, utils.parseEther("1"));
           // We set the amount, lastRunningBalance, and lastIncentiveBalance for our test.
-          const amount = toBNWei(10, decimalCount);
-          const lastRunningBalance = toBNWei(1000, decimalCount);
-          const lastIncentiveBalance = toBNWei(1000, decimalCount);
+          const amount = toBNWei(100, decimalCount);
+          const lastRunningBalance = toBNWei(10000, decimalCount);
+          const lastIncentiveBalance = toBNWei(10000, decimalCount);
           // We call the getEventFee function with the parameters we've set above.
           const baselineFee = getEventFee(
             amount,
