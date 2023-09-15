@@ -19,14 +19,13 @@ describe("UBAFeeSpokeCalculatorAnalog", () => {
           // We should iterate for 1000 iterations to ensure that we have a good sample size
           // for our fuzz testing.
           for (let iteration = 1; iteration <= 1000; iteration++) {
-            // We set the amount, lastRunningBalance, multiplier, and lastIncentiveBalance for our test.
+            // We set the amount, lastRunningBalance, and lastIncentiveBalance for our test.
             // Note: We can do this by generating random numbers
             // Note: we need to ensure that this matches the fixed decimals of the balancing fee curve.
             // Note: we need to ensure that the value is never 0 for these tests.
             const amount = toBNWei(Math.floor(100 * Math.random()) + 1, decimalCount);
             const lastRunningBalance = toBNWei(Math.floor(10_000 * Math.random() + 1), decimalCount);
             const lastIncentiveBalance = toBNWei(Math.floor(10_000 * Math.random()) + 1, decimalCount);
-            const rewardMultiplier = utils.parseEther(Math.random().toFixed(18));
 
             // We can establish a positive slope with a randomized curve.
             const positiveSlope = toBNWei(Math.random().toFixed(18), 18);
@@ -42,7 +41,7 @@ describe("UBAFeeSpokeCalculatorAnalog", () => {
             ]);
             // We set the reward multiplier to be 1. This is to ensure that we don't have any
             // additional reward multiplier that would affect our calculations.
-            config.setRewardMultiplier(chainId, rewardMultiplier);
+            config.setRewardMultiplier(chainId, utils.parseEther("1"));
             // We call the getEventFee function with the parameters we've set above.
             const fee = getEventFee(amount, "inflow", lastRunningBalance, lastIncentiveBalance, 1, config).balancingFee;
             // We are expecting that the fee will be positive. As a result, let's assert
@@ -101,13 +100,12 @@ describe("UBAFeeSpokeCalculatorAnalog", () => {
           // We should iterate for 1000 iterations to ensure that we have a good sample size
           // for our fuzz testing.
           for (let iteration = 1; iteration <= 1000; iteration++) {
-            // We set the amount, lastRunningBalance, and multiplier for our test.
+            // We set the amount and lastRunningBalance for our test.
             // Note: We can do this by generating random numbers
             // Note: we need to ensure that this matches the fixed decimals of the balancing fee curve.
             // Note: we need to ensure that the value is never 0 for these tests.
             const amount = toBNWei(Math.floor(100 * Math.random()) + 1, decimalCount);
             const lastRunningBalance = toBNWei(Math.floor(10_000 * Math.random() + 1), decimalCount);
-            const rewardMultiplier = utils.parseEther(Math.random().toFixed(18));
 
             // We can establish a positive slope with a randomized curve.
             const positiveSlope = toBNWei(Math.random().toFixed(18), 18);
@@ -125,7 +123,7 @@ describe("UBAFeeSpokeCalculatorAnalog", () => {
             // additional reward multiplier that would affect our calculations. Note: this is
             // not required since we won't be reaching that branching factor in our function, but
             // it is good to be explicit.
-            config.setRewardMultiplier(chainId, rewardMultiplier);
+            config.setRewardMultiplier(chainId, utils.parseEther("1"));
 
             // We'll set the lastIncentiveBalance to be positive initially. This will ensure that we
             // branch into the negative incentive balance case. We will redefine this value to
