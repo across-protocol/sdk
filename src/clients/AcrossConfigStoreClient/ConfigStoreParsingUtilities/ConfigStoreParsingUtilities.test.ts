@@ -198,7 +198,7 @@ describe("Test that we can effectively parse the UBA Config", () => {
         reason: string;
         value: unknown;
       }[],
-      boolean
+      boolean,
     ][]
   ).forEach(([store, expected]) => {
     describe(`Test that we can effectively parse the UBA Config with ${expected ? "valid" : "invalid"} inputs`, () => {
