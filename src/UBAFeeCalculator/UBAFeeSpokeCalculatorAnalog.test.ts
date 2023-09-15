@@ -16,71 +16,82 @@ describe("UBAFeeSpokeCalculatorAnalog", () => {
         // positive balancing fee result, that the result is equal to the integration of
         // the balancing fee curve without any additional modifiers.
         it("if balancing fee is positive, then the result is a single integration", () => {
-          // We start with a basic config that's been instantiated.
-          const config = new MockUBAConfig();
-          // We set the balancing fee curve to be a basic curve that has a positive slope.
-          // We can work in terms of any decimal as long as we're consistent & the second value
-          // in the tuple is in terms of wei or any other 18 decimal token.
-          config.setBalancingFeeCurve(chainId, [
-            [toBNWei(0, decimalCount), toBNWei(0, 0)],
-            [toBNWei(1, decimalCount), toBNWei(0.2, 18)],
-          ]);
-          // We set the reward multiplier to be 1. This is to ensure that we don't have any
-          // additional reward multiplier that would affect our calculations.
-          config.setRewardMultiplier(chainId, utils.parseEther("1"));
-          // We set the amount, lastRunningBalance, and lastIncentiveBalance for our test.
-          // Note: we need to ensure that this matches the fixed decimals of the balancing fee curve.
-          const amount = toBNWei(10, decimalCount);
-          const lastRunningBalance = toBNWei(1000, decimalCount);
-          const lastIncentiveBalance = toBNWei(1000, decimalCount);
-          // We call the getEventFee function with the parameters we've set above.
-          const fee = getEventFee(amount, "inflow", lastRunningBalance, lastIncentiveBalance, 1, config).balancingFee;
-          // We are expecting that the fee will be positive. As a result, let's assert
-          // that the fee is greater than 0.
-          expect(fee.gt(0)).toBeTruthy();
-          // Because the fee is greater than zero, we applied no additional reward multiplier,
-          // or any other factors that would affect the fee, we expect that the fee will be
-          // equal to the integration of the balancing fee curve.
-          const integration = computePiecewiseLinearFunction(
-            config.getBalancingFeeTuples(Number(chainId)),
-            lastRunningBalance,
-            lastRunningBalance.add(amount)
-          );
-          // We expect that the fee is equal to the integration of the balancing fee curve.
-          // Note: we need to ensure that we're using the same decimals as the balancing fee curve.
-          // Note: The expectation above is that our fee is positive
-          expect(fee.toString()).toEqual(integration.toString());
+          // We should iterate for 1000 iterations to ensure that we have a good sample size
+          // for our fuzz testing.
+          for (let iteration = 1; iteration <= 1000; iteration++) {
+            // We set the amount, lastRunningBalance, multiplier, and lastIncentiveBalance for our test.
+            // Note: We can do this by generating random numbers
+            // Note: we need to ensure that this matches the fixed decimals of the balancing fee curve.
+            // Note: we need to ensure that the value is never 0 for these tests.
+            const amount = toBNWei(Math.floor(100 * Math.random()) + 1, decimalCount);
+            const lastRunningBalance = toBNWei(Math.floor(10_000 * Math.random() + 1), decimalCount);
+            const lastIncentiveBalance = toBNWei(Math.floor(10_000 * Math.random()) + 1, decimalCount);
+            const rewardMultiplier = utils.parseEther(Math.random().toFixed(18));
 
-          // As an edge case, we can also test that if the balancing fee that is initially computed
-          // from the integral as zero, that the fee is also zero. This can be done in two ways:
-          // 1. We can set the balancingCurve to be a flat line at 0.
-          // 2. We can set the amount to be 0.
-          // We'll test both of these cases below.
+            // We can establish a positive slope with a randomized curve.
+            const positiveSlope = toBNWei(Math.random().toFixed(18), 18);
 
-          // We start with zero amount
-          expect(
-            getEventFee(
-              toBNWei(0, decimalCount), // We set the amount to be 0
-              "inflow",
+            // We start with a basic config that's been instantiated.
+            const config = new MockUBAConfig();
+            // We set the balancing fee curve to be a basic curve that has a positive slope.
+            // We can work in terms of any decimal as long as we're consistent & the second value
+            // in the tuple is in terms of wei or any other 18 decimal token.
+            config.setBalancingFeeCurve(chainId, [
+              [toBNWei(0, decimalCount), toBNWei(0, 0)],
+              [toBNWei(1, decimalCount), positiveSlope],
+            ]);
+            // We set the reward multiplier to be 1. This is to ensure that we don't have any
+            // additional reward multiplier that would affect our calculations.
+            config.setRewardMultiplier(chainId, rewardMultiplier);
+            // We call the getEventFee function with the parameters we've set above.
+            const fee = getEventFee(amount, "inflow", lastRunningBalance, lastIncentiveBalance, 1, config).balancingFee;
+            // We are expecting that the fee will be positive. As a result, let's assert
+            // that the fee is greater than 0.
+            expect(fee.gt(0)).toBeTruthy();
+            // Because the fee is greater than zero, we applied no additional reward multiplier,
+            // or any other factors that would affect the fee, we expect that the fee will be
+            // equal to the integration of the balancing fee curve.
+            const integration = computePiecewiseLinearFunction(
+              config.getBalancingFeeTuples(Number(chainId)),
               lastRunningBalance,
-              lastIncentiveBalance,
-              Number(chainId),
-              config
-            ).balancingFee.toString()
-          ).toEqual("0");
+              lastRunningBalance.add(amount)
+            );
+            // We expect that the fee is equal to the integration of the balancing fee curve.
+            // Note: we need to ensure that we're using the same decimals as the balancing fee curve.
+            // Note: The expectation above is that our fee is positive
+            expect(fee.toString()).toEqual(integration.toString());
 
-          // We set the balancing fee curve to be a flat line at 0.
-          config.setBalancingFeeCurve(chainId, [[toBNWei(0, decimalCount), toBNWei(0, 0)]]);
-          expect(
-            getEventFee(
-              amount,
-              "inflow",
-              lastRunningBalance,
-              lastIncentiveBalance,
-              Number(chainId),
-              config
-            ).balancingFee.toString()
-          ).toEqual("0");
+            // As an edge case, we can also test that if the balancing fee that is initially computed
+            // from the integral as zero, that the fee is also zero. This can be done in two ways:
+            // 1. We can set the balancingCurve to be a flat line at 0.
+            // 2. We can set the amount to be 0.
+            // We'll test both of these cases below.
+
+            // We start with zero amount
+            expect(
+              getEventFee(
+                toBNWei(0, decimalCount), // We set the amount to be 0
+                "inflow",
+                lastRunningBalance,
+                lastIncentiveBalance,
+                Number(chainId),
+                config
+              ).balancingFee.toString()
+            ).toEqual("0");
+
+            // We set the balancing fee curve to be a flat line at 0.
+            config.setBalancingFeeCurve(chainId, [[toBNWei(0, decimalCount), toBNWei(0, 0)]]);
+            expect(
+              getEventFee(
+                amount,
+                "inflow",
+                lastRunningBalance,
+                lastIncentiveBalance,
+                Number(chainId),
+                config
+              ).balancingFee.toString()
+            ).toEqual("0");
+          }
         });
 
         // We now want to test the specific code path where the balancing fee is negative initially
