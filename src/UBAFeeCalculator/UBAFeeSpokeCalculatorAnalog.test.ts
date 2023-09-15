@@ -98,41 +98,54 @@ describe("UBAFeeSpokeCalculatorAnalog", () => {
         // but the incentive balance is not positive (i.e. 0 or negative). In this case, we expect
         // that the fee will be zero.
         it("should return a balancing fee of 0 if the balancing fee is initially negative and incentive balance is non-positive", () => {
-          // We want to start by setting up a config that has a basic balancing fee curve.
-          // The curve itself isn't necessarily important, but we do want to ensure that
-          // we have a valid curve that will return an expected negative number when we
-          // test for an outflow event.
-          const config = new MockUBAConfig();
-          config.setBalancingFeeCurve(chainId, [
-            [toBNWei(0, decimalCount), toBNWei(0, 0)],
-            [toBNWei(1, decimalCount), toBNWei(0.2, 18)],
-          ]);
-          // We set the reward multiplier to be 1. This is to ensure that we don't have any
-          // additional reward multiplier that would affect our calculations. Note: this is
-          // not required since we won't be reaching that branching factor in our function, but
-          // it is good to be explicit.
-          config.setRewardMultiplier(chainId, utils.parseEther("1"));
-          // We set the amount, lastRunningBalance, and lastIncentiveBalance for our test.
-          const amount = toBNWei(10, decimalCount);
-          const lastRunningBalance = toBNWei(1000, decimalCount);
-          // We'll set the lastIncentiveBalance to be positive initially. This will ensure that we
-          // branch into the negative incentive balance case. We will redefine this value to
-          // be zero and negative later in the code.
-          let lastIncentiveBalance = toBNWei(10, decimalCount);
-          // We call the getEventFee function with the parameters we've set above.
-          let fee = getEventFee(amount, "outflow", lastRunningBalance, lastIncentiveBalance, 1, config).balancingFee;
-          // Since our lastIncentiveBalance is positive, we expect that the fee will be negative.
-          expect(fee.lt(0)).toBeTruthy();
-          // Now we can set the lastIncentiveBalance to be zero to ensure that calling our fee
-          // again will result in a zero
-          lastIncentiveBalance = toBNWei(0, decimalCount);
-          fee = getEventFee(amount, "outflow", lastRunningBalance, lastIncentiveBalance, 1, config).balancingFee;
-          expect(fee.toString()).toEqual("0");
-          // Finally, we can set the lastIncentiveBalance to be negative to ensure that calling
-          // our fee again will result in a zero
-          lastIncentiveBalance = toBNWei(-10, decimalCount);
-          fee = getEventFee(amount, "outflow", lastRunningBalance, lastIncentiveBalance, 1, config).balancingFee;
-          expect(fee.toString()).toEqual("0");
+          // We should iterate for 1000 iterations to ensure that we have a good sample size
+          // for our fuzz testing.
+          for (let iteration = 1; iteration <= 1000; iteration++) {
+            // We set the amount, lastRunningBalance, and multiplier for our test.
+            // Note: We can do this by generating random numbers
+            // Note: we need to ensure that this matches the fixed decimals of the balancing fee curve.
+            // Note: we need to ensure that the value is never 0 for these tests.
+            const amount = toBNWei(Math.floor(100 * Math.random()) + 1, decimalCount);
+            const lastRunningBalance = toBNWei(Math.floor(10_000 * Math.random() + 1), decimalCount);
+            const rewardMultiplier = utils.parseEther(Math.random().toFixed(18));
+
+            // We can establish a positive slope with a randomized curve.
+            const positiveSlope = toBNWei(Math.random().toFixed(18), 18);
+
+            // We want to start by setting up a config that has a basic balancing fee curve.
+            // The curve itself isn't necessarily important, but we do want to ensure that
+            // we have a valid curve that will return an expected negative number when we
+            // test for an outflow event.
+            const config = new MockUBAConfig();
+            config.setBalancingFeeCurve(chainId, [
+              [toBNWei(0, decimalCount), toBNWei(0, 0)],
+              [toBNWei(1, decimalCount), positiveSlope],
+            ]);
+            // We set the reward multiplier to be 1. This is to ensure that we don't have any
+            // additional reward multiplier that would affect our calculations. Note: this is
+            // not required since we won't be reaching that branching factor in our function, but
+            // it is good to be explicit.
+            config.setRewardMultiplier(chainId, rewardMultiplier);
+
+            // We'll set the lastIncentiveBalance to be positive initially. This will ensure that we
+            // branch into the negative incentive balance case. We will redefine this value to
+            // be zero and negative later in the code.
+            let lastIncentiveBalance = toBNWei(Math.floor(Math.random() * 100) + 1, decimalCount);
+            // We call the getEventFee function with the parameters we've set above.
+            let fee = getEventFee(amount, "outflow", lastRunningBalance, lastIncentiveBalance, 1, config).balancingFee;
+            // Since our lastIncentiveBalance is positive, we expect that the fee will be negative.
+            expect(fee.lt(0)).toBeTruthy();
+            // Now we can set the lastIncentiveBalance to be zero to ensure that calling our fee
+            // again will result in a zero
+            lastIncentiveBalance = toBNWei(0, decimalCount);
+            fee = getEventFee(amount, "outflow", lastRunningBalance, lastIncentiveBalance, 1, config).balancingFee;
+            expect(fee.toString()).toEqual("0");
+            // Finally, we can set the lastIncentiveBalance to be negative to ensure that calling
+            // our fee again will result in a zero
+            lastIncentiveBalance = toBNWei(Math.floor(Math.random() * -100) + 1, decimalCount);
+            fee = getEventFee(amount, "outflow", lastRunningBalance, lastIncentiveBalance, 1, config).balancingFee;
+            expect(fee.toString()).toEqual("0");
+          }
         });
 
         // We now want to test the specific code path where the balancing fee is negative initially
