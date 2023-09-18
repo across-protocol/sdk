@@ -1,53 +1,53 @@
 import { Contract, providers } from "ethers";
 import { groupBy } from "lodash";
+import winston from "winston";
 import {
-  assign,
-  EventSearchConfig,
-  DefaultLogLevels,
-  MakeOptional,
-  mapAsync,
   AnyObject,
+  DefaultLogLevels,
+  EventSearchConfig,
   MAX_BIG_INT,
+  MakeOptional,
+  assign,
+  mapAsync,
   stringifyJSONWithNumericString,
   toBN,
 } from "../utils";
-import { validateFillForDeposit, filledSameDeposit } from "../utils/FlowUtils";
 import {
-  spreadEvent,
   paginatedEventQuery,
-  spreadEventWithBlockNumber,
   sortEventsAscending,
   sortEventsAscendingInPlace,
+  spreadEvent,
+  spreadEventWithBlockNumber,
 } from "../utils/EventUtils";
-import winston from "winston";
+import { filledSameDeposit, validateFillForDeposit } from "../utils/FlowUtils";
 
 import { BigNumber, Event, EventFilter, ethers } from "ethers";
 
+import { ZERO_ADDRESS } from "../constants";
 import {
   Deposit,
   DepositWithBlock,
+  DepositWithBlockStringified,
   Fill,
   FillWithBlock,
+  FillWithBlockStringified,
+  FundsDepositedEvent,
+  FundsDepositedEventStringified,
   RefundRequestWithBlock,
+  RefundRequestWithBlockStringified,
   RelayerRefundExecutionWithBlock,
+  RelayerRefundExecutionWithBlockStringified,
   RootBundleRelayWithBlock,
   SpeedUp,
-  TokensBridged,
-  FundsDepositedEvent,
-  DepositWithBlockStringified,
-  FillWithBlockStringified,
   SpeedUpStringified,
+  TokensBridged,
   TokensBridgedStringified,
-  RelayerRefundExecutionWithBlockStringified,
-  FundsDepositedEventStringified,
-  RefundRequestWithBlockStringified,
 } from "../interfaces";
-import { HubPoolClient } from "./HubPoolClient";
-import { ZERO_ADDRESS } from "../constants";
-import { getNetworkName } from "../utils/NetworkUtils";
-import { BaseAbstractClient } from "./BaseAbstractClient";
-import { getBlockRangeForDepositId, getDepositIdAtBlock } from "../utils/SpokeUtils";
 import { SpokePool } from "../typechain";
+import { getNetworkName } from "../utils/NetworkUtils";
+import { getBlockRangeForDepositId, getDepositIdAtBlock } from "../utils/SpokeUtils";
+import { BaseAbstractClient } from "./BaseAbstractClient";
+import { HubPoolClient } from "./HubPoolClient";
 
 type Block = providers.Block;
 
