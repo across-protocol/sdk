@@ -123,7 +123,7 @@ export async function getBlockRangeForDepositId(
 
   // Sanity check to ensure that our low was not greater than our high.
   if (low > high) {
-    throw new Error("Binary search failed. (low > high) SHOULD NEVER HAPPEN (but here we are)");
+    throw new Error(`Binary search failed (${low} > ${high}). SHOULD NEVER HAPPEN (but here we are)`);
   }
 
   // We've either found the block range or we've exceeded the maximum number of searches.
