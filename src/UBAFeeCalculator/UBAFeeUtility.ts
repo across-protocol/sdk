@@ -1,7 +1,7 @@
 import { BigNumber } from "ethers";
-import { MAX_SAFE_JS_INT } from "../constants";
 import { fixedPointAdjustment, toBN } from "../utils";
 import { FlowTupleParameters } from "./UBAFeeTypes";
+import { UBA_BOUNDS_RANGE_MAX, UBA_BOUNDS_RANGE_MIN } from "../constants";
 
 /**
  * Computes a linear integral over a piecewise function
@@ -62,11 +62,11 @@ export function performLinearIntegration(
 export function getBounds(cutoffArray: [BigNumber, BigNumber][], index: number): [BigNumber, BigNumber] {
   const length = cutoffArray.length;
   if (index === 0) {
-    return [BigNumber.from(-MAX_SAFE_JS_INT).mul(fixedPointAdjustment), cutoffArray[0][0]];
+    return [UBA_BOUNDS_RANGE_MIN, cutoffArray[0][0]];
   } else if (index < length) {
     return [cutoffArray[index - 1][0], cutoffArray[index][0]];
   } else {
-    return [cutoffArray[length - 1][0], BigNumber.from(MAX_SAFE_JS_INT).mul(fixedPointAdjustment)];
+    return [cutoffArray[length - 1][0], UBA_BOUNDS_RANGE_MAX];
   }
 }
 
@@ -80,13 +80,7 @@ export function getInterval(
   cutoffArray: [BigNumber, BigNumber][],
   target: BigNumber
 ): [number, [BigNumber, BigNumber]] {
-  let result: [number, [BigNumber, BigNumber]] = [
-    -1,
-    [
-      BigNumber.from(-MAX_SAFE_JS_INT).mul(fixedPointAdjustment),
-      BigNumber.from(MAX_SAFE_JS_INT).mul(fixedPointAdjustment),
-    ],
-  ];
+  let result: [number, [BigNumber, BigNumber]] = [-1, [UBA_BOUNDS_RANGE_MIN, UBA_BOUNDS_RANGE_MAX]];
   for (let i = 0; i <= cutoffArray.length; i++) {
     const [lowerBound, upperBound] = getBounds(cutoffArray, i);
     if (target.gte(lowerBound) && target.lt(upperBound)) {
@@ -250,10 +244,7 @@ export function computePiecewiseLinearFunction(
   x: BigNumber,
   y: BigNumber
 ): BigNumber {
-  functionBounds = [
-    ...functionBounds,
-    [BigNumber.from(MAX_SAFE_JS_INT).mul(fixedPointAdjustment), functionBounds[functionBounds.length - 1][1]],
-  ];
+  functionBounds = [...functionBounds, [UBA_BOUNDS_RANGE_MAX, functionBounds[functionBounds.length - 1][1]]];
   // Decompose the bounds into the lower and upper bounds
   const xBar = functionBounds.map((_, idx, arr) => getBounds(arr, idx));
   // We'll need to determine the sign of the integration direction to determine the scale
