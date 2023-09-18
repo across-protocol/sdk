@@ -88,7 +88,7 @@ export async function getBlockRangeForDepositId(
     //                                     // targetId = 1 <- fail (triggers this error)
     //                                     // targetId = 2 <- pass (does not trigger this error)
     //                                     // targetId = 3 <- pass (does not trigger this error)
-    throw new Error("Failed to find deposit ID: Target Id is less than the initial low block");
+    throw new Error(`Target depositId is less than the initial low block (${targetDepositId} > ${initLow})`);
   }
 
   // Define the low and high block numbers for the binary search.
