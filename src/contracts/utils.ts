@@ -3,14 +3,22 @@ import { BigNumber, BigNumberish, Event } from "ethers";
 import { isDefined } from "../utils";
 
 /**
- * Migrated directly from @uma/sdk.
+ * @dev Originally imported from @uma/sdk.
  * @dev This code is intended to support existing use of contracts/hubPool.ts and should not be used for new code.
  * @todo Refactor contracts/hubPool.ts to avoid the need for this.
  */
 
+export type SerializableEvent = Omit<
+  Event,
+  "decode" | "removeListener" | "getBlock" | "getTransaction" | "getTransactionReceipt"
+>;
+
 // useful for maintaining balances from events
 export type Balances = { [key: string]: string };
 
+/**
+ * Utility for maintaining records of a token balance.
+ */
 export function Balances(balances: Balances = {}) {
   function create(id: string, amount = "0") {
     assert(!has(id), "balance already exists");
@@ -46,8 +54,3 @@ export function Balances(balances: Balances = {}) {
 
   return { create, add, sub, get, balances, set, has, getOrCreate };
 }
-
-export type SerializableEvent = Omit<
-  Event,
-  "decode" | "removeListener" | "getBlock" | "getTransaction" | "getTransactionReceipt"
->;
