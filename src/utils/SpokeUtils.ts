@@ -77,7 +77,7 @@ export async function getBlockRangeForDepositId(
     //                                     // targetId = 11  <- fail (triggers this error)          // 10 <= 11
     //                                     // targetId = 10  <- fail (triggers this error)          // 10 <= 10
     //                                     // targetId = 09  <- pass (does not trigger this error)  // 10 <= 09
-    throw new Error("Failed to find deposit ID: Target Id is greater than the initial high block");
+    throw new Error(`Target depositId is greater than the initial high block (${targetDepositId} > ${initHigh})`);
   }
 
   // If the deposit ID at the initial low block is greater than the target deposit ID, then we know that
