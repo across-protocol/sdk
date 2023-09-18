@@ -16,7 +16,7 @@ export type RateModelEvent = {
   l1Token: string;
 };
 
-interface RateModel {
+export interface RateModel {
   UBar: string; // denote the utilization kink along the rate model where the slope of the interest rate model changes.
   R0: string; // is the interest rate charged at 0 utilization
   R1: string; // R_0+R_1 is the interest rate charged at UBar

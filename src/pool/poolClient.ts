@@ -1,15 +1,25 @@
 import assert from "assert";
+import { ExpandedERC20__factory as erc20 } from "@across-protocol/contracts-v2";
 import * as uma from "@uma/sdk";
-import { toBNWei, fixedPointAdjustment, calcPeriodicCompoundInterest, calcApr, BigNumberish, fromWei } from "../utils";
-import { ethers, Signer, BigNumber } from "ethers";
+import {
+  delay as sleep,
+  toBNWei,
+  fixedPointAdjustment,
+  calcPeriodicCompoundInterest,
+  calcApr,
+  BigNumberish,
+  fromWei,
+} from "../utils";
+import { SECONDS_PER_YEAR, ZERO_ADDRESS } from "../constants";
+import { ethers, Event, BigNumber, Signer } from "ethers";
 import type { Overrides } from "@ethersproject/contracts";
 import { TransactionRequest, TransactionReceipt, Log } from "@ethersproject/abstract-provider";
 import { Provider, Block } from "@ethersproject/providers";
-import set from "lodash/set";
-import get from "lodash/get";
-import has from "lodash/has";
+import { get, has, set } from "lodash";
 import { calculateInstantaneousRate } from "../lpFeeCalculator";
+import { RateModel } from "../lpFeeCalculator/rateModel";
 import { hubPool, acrossConfigStore } from "../contracts";
+import { SerializableEvent } from "../contracts/utils";
 import {
   AcceleratingDistributor,
   AcceleratingDistributor__factory,
@@ -17,12 +27,7 @@ import {
   MerkleDistributor__factory,
   TypedEvent,
 } from "../typechain";
-
-const { erc20 } = uma.clients;
-const { loop } = uma.utils;
-const { TransactionManager } = uma.across;
-const { SECONDS_PER_YEAR, DEFAULT_BLOCK_DELTA } = uma.across.constants;
-const { AddressZero } = ethers.constants;
+import { TransactionManager } from "./TransactionManager";
 
 export type { Provider };
 
@@ -111,6 +116,16 @@ export type PooledToken = {
   undistributedLpFees: BigNumber;
 };
 
+// Loop forever but wait until execution is finished before starting next timer. Throw an error to break this
+// or add another utlity function if you need it to end on condition.
+async function loop(fn: (...args: any[]) => any, delay: number, ...args: any[]) {
+  do {
+    await fn(...args);
+    await sleep(delay);
+    /* eslint-disable-next-line no-constant-condition */
+  } while (true);
+}
+
 class PoolState {
   constructor(private contract: hubPool.Instance, private address: string) {}
   public async read(l1Token: string, latestBlock: number, previousBlock?: number) {
@@ -143,7 +158,7 @@ export class PoolEventState {
   private seen = new Set<string>();
   private iface: ethers.utils.Interface;
   // maintain ordered unique list of events so we can calculate state
-  private events: uma.SerializableEvent[] = [];
+  private events: SerializableEvent[] = [];
   constructor(private contract: hubPool.Instance, private startBlock = 0) {
     this.iface = new ethers.utils.Interface(hubPool.Factory.abi);
   }
@@ -161,11 +176,11 @@ export class PoolEventState {
     if (!seen) this.addEvent(params);
     return !seen;
   };
-  private processEvent = (event: uma.SerializableEvent): void => {
+  private processEvent = (event: SerializableEvent): void => {
     if (!this.filterSeen(event)) return;
     this.events = uma.oracle.utils.insertOrderedAscending(this.events, event, this.makeId);
   };
-  private processEvents = (events: Array<uma.SerializableEvent>): void => {
+  private processEvents = (events: Array<SerializableEvent>): void => {
     events.forEach(this.processEvent);
   };
 
@@ -185,7 +200,7 @@ export class PoolEventState {
     this.processEvents(events);
     return hubPool.getEventState(this.events);
   }
-  makeEventFromLog = (log: Log): uma.SerializableEvent => {
+  makeEventFromLog = (log: Log): SerializableEvent => {
     const description = this.iface.parseLog(log);
     return {
       ...log,
@@ -220,7 +235,8 @@ export class PoolEventState {
 
 class UserState {
   private seen = new Set<string>();
-  private events: uma.clients.erc20.Transfer[] = [];
+  private events: Event[] = [];
+
   constructor(
     private contract: uma.clients.erc20.Instance,
     private userAddress: string,
@@ -246,14 +262,14 @@ class UserState {
    *
    * @param {number} endBlock
    */
-  public async readEvents(endBlock: number): Promise<uma.clients.erc20.Transfer[]> {
+  public async readEvents(endBlock: number): Promise<Event[]> {
     if (endBlock <= this.startBlock) return [];
     const { userAddress } = this;
     const events: TypedEvent<
-      [string, string, uma.oracle.types.ethers.BigNumber] & {
+      [string, string, BigNumber] & {
         from: string;
         to: string;
-        value: uma.oracle.types.ethers.BigNumber;
+        value: BigNumber;
       }
     >[] = (
       await Promise.all([
@@ -275,9 +291,9 @@ class UserState {
       .filter(
         (event: uma.clients.erc20.Transfer) =>
           // ignore mint events
-          event.args.from !== AddressZero &&
+          event.args.from !== ZERO_ADDRESS &&
           // ignore burn events
-          event.args.to !== AddressZero &&
+          event.args.to !== ZERO_ADDRESS &&
           // ignore AD transfer events in
           event.args.to !== this.acceleratingDistributorContractAddress &&
           // ignore AD transfer events out
@@ -370,7 +386,7 @@ function joinPoolState(
   poolState: Awaited<ReturnType<PoolState["read"]>>,
   latestBlock: Block,
   previousBlock: Block,
-  rateModel?: acrossConfigStore.RateModel
+  rateModel?: RateModel
 ): Pool {
   const totalPoolSize = poolState.liquidReserves.add(poolState.utilizedReserves);
   const secondsElapsed = latestBlock.timestamp - previousBlock.timestamp;
@@ -432,7 +448,7 @@ export function validateWithdraw(pool: Pool, user: User, lpTokenAmount: BigNumbe
 }
 
 export class Client {
-  private transactionManagers: Record<string, ReturnType<typeof TransactionManager>> = {};
+  private transactionManagers: Record<string, TransactionManager> = {};
   private hubPool: hubPool.Instance;
   private acceleratingDistributor: AcceleratingDistributor;
   private merkleDistributor: MerkleDistributor;
@@ -557,10 +573,10 @@ export class Client {
 
     return userState.transferEvents.reduce((result, transfer) => {
       const exchangeRate = exchangeRateTable[transfer.blockNumber];
-      if (transfer.args.to === userState.address) {
+      if (transfer?.args?.to === userState.address) {
         return result.add(transfer.args.value.mul(exchangeRate).div(fixedPointAdjustment));
       }
-      if (transfer.args.from === userState.address) {
+      if (transfer?.args?.from === userState.address) {
         return result.sub(transfer.args.value.mul(exchangeRate).div(fixedPointAdjustment));
       }
       // we make sure to filter out any transfers where to/from is the same user
@@ -569,7 +585,7 @@ export class Client {
   }
   private getOrCreateTransactionManager(signer: Signer, address: string) {
     if (this.transactionManagers[address]) return this.transactionManagers[address];
-    const txman = TransactionManager({ confirmations: this.config.confirmations }, signer, (event, id, data) => {
+    const txman = new TransactionManager({ confirmations: this.config.confirmations }, signer, (event, id, data) => {
       if (event === "submitted") {
         this.state.transactions[id].state = event;
         this.state.transactions[id].hash = data as string;
@@ -628,7 +644,7 @@ export class Client {
     const txman = this.getOrCreateTransactionManager(signer, userAddress);
 
     const request = await contract.populateTransaction.addLiquidity(l1Token, l1TokenAmount, overrides);
-    const id = await txman.request(request);
+    const id = txman.request(request);
 
     this.state.transactions[id] = {
       id,
@@ -661,7 +677,7 @@ export class Client {
     const txman = this.getOrCreateTransactionManager(signer, userAddress);
 
     const request = await contract.populateTransaction.removeLiquidity(l1Token, lpTokenAmount, false, overrides);
-    const id = await txman.request(request);
+    const id = txman.request(request);
 
     this.state.transactions[id] = {
       id,
@@ -685,7 +701,7 @@ export class Client {
     const txman = this.getOrCreateTransactionManager(signer, userAddress);
 
     const request = await contract.populateTransaction.removeLiquidity(l1Token, lpTokenAmount, true, overrides);
-    const id = await txman.request(request);
+    const id = txman.request(request);
 
     this.state.transactions[id] = {
       id,
@@ -777,15 +793,15 @@ export class Client {
     await this.updateAndEmitUser(userState, poolState, poolEventState);
   }
   async updatePool(l1TokenAddress: string, overrideLatestBlock?: Block): Promise<void> {
-    // default to 100 block delta unless specified otherwise in config
-    const { blockDelta = DEFAULT_BLOCK_DELTA } = this.config;
+    // Lookup exchange rate based on 10 block delta unless overridden by config
+    const { blockDelta = 10 } = this.config;
     const contract = this.getOrCreatePoolContract();
     const pool = new PoolState(contract, this.config.hubPoolAddress);
     const latestBlock = overrideLatestBlock || (await this.deps.provider.getBlock("latest"));
     const previousBlock = await this.deps.provider.getBlock(latestBlock.number - blockDelta);
     const state = await pool.read(l1TokenAddress, latestBlock.number, previousBlock.number);
 
-    let rateModel: acrossConfigStore.RateModel | undefined = undefined;
+    let rateModel: RateModel | undefined = undefined;
     try {
       // Use the default rate model (i.e. not any of the routeRateModels to project the Pool's APR). This assumes
       // that the default rate model is the most often used, but this may change in future if many different

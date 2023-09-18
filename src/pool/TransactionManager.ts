@@ -1,6 +1,9 @@
 import assert from "assert";
 import { Signer } from "ethers";
 import { TransactionRequest, TransactionReceipt } from "@ethersproject/abstract-provider";
+import { isDefined } from "../utils";
+
+export type Emit = (event: string, key: string, data: TransactionReceipt | string | TransactionRequest | Error) => void;
 
 function makeKey(tx: TransactionRequest) {
   return JSON.stringify(
@@ -13,61 +16,64 @@ function makeKey(tx: TransactionRequest) {
 type Config = {
   confirmations?: number;
 };
-export type Emit = (event: string, key: string, data: TransactionReceipt | string | TransactionRequest | Error) => void;
-export default (config: Config, signer: Signer, emit: Emit = () => null) => {
-  assert(signer.provider, "signer requires a provider, use signer.connect(provider)");
-  const { confirmations = 3 } = config;
-  const requests = new Map<string, TransactionRequest>();
-  const submissions = new Map<string, string>();
-  const mined = new Map<string, TransactionReceipt>();
-  function request(unsignedTx: TransactionRequest) {
+
+export class TransactionManager {
+  protected confirmations: number;
+  protected requests: Record<string, TransactionRequest> = {};
+  protected mined: Record<string, TransactionReceipt> = {};
+  protected submissions: Record<string, string> = {};
+
+  constructor(config: Config, private readonly signer: Signer, private readonly emit: Emit = () => null) {
+    assert(signer.provider, "signer requires a provider, use signer.connect(provider)");
+    this.confirmations = config.confirmations ?? 3;
+  }
+
+  request(unsignedTx: TransactionRequest): string {
     // this no longer calls signer.populateTransaction, to allow metamask to fill in missing details instead
     // use overrides if you want to manually fill in other tx details, including the overrides.customData field.
     const populated = unsignedTx;
     const key = makeKey(populated);
-    assert(!requests.has(key), "Transaction already in progress");
-    requests.set(key, populated);
+    assert(!isDefined(this.requests[key]), "Transaction already in progress");
+    this.requests[key] = populated;
     return key;
   }
-  async function processRequest(key: string) {
-    const request = requests.get(key);
+
+  async processRequest(key: string): Promise<void> {
+    const request = this.requests[key];
     assert(request, "invalid request");
-    // always delete request, it should only be submitted once
-    requests.delete(key);
+    delete this.requests[key]; // always delete request, it should only be submitted once.
     try {
-      const sent = await signer.sendTransaction(request);
-      submissions.set(key, sent.hash);
-      emit("submitted", key, sent.hash);
+      const sent = await this.signer.sendTransaction(request);
+      this.submissions[key] = sent.hash;
+      this.emit("submitted", key, sent.hash);
     } catch (err) {
-      emit("error", key, err as Error);
+      this.emit("error", key, err as Error);
     }
   }
-  async function processSubmission(key: string) {
-    const hash = submissions.get(key);
+
+  async processSubmission(key: string) {
+    const hash = this.submissions[key];
     assert(hash, "invalid submission");
-    assert(signer.provider, "signer requires a provider, use signer.connect(provider)");
+    assert(this.signer.provider, "signer requires a provider, use signer.connect(provider)");
     // we look for this transaction, but it may never find it if its sped up
-    const receipt = await signer.provider.getTransactionReceipt(hash).catch(() => undefined);
+    const receipt = await this.signer.provider.getTransactionReceipt(hash).catch(() => undefined);
     if (receipt == null) return;
-    if (receipt.confirmations < confirmations) return;
-    submissions.delete(key);
-    mined.set(key, receipt);
-    emit("mined", key, receipt);
+    if (receipt.confirmations < this.confirmations) return;
+    delete this.submissions[key];
+    this.mined[key] = receipt;
+    this.emit("mined", key, receipt);
   }
-  async function isMined(key: string) {
-    return mined.get(key);
+
+  isMined(key: string): boolean {
+    return isDefined(this.mined[key]);
   }
-  async function update() {
-    for (const key of requests.keys()) {
-      await processRequest(key);
+
+  async update() {
+    for (const key of Object.keys(this.requests)) {
+      await this.processRequest(key);
     }
-    for (const key of submissions.keys()) {
-      await processSubmission(key);
+    for (const key of Object.keys(this.submissions)) {
+      await this.processSubmission(key);
     }
   }
-  return {
-    request,
-    isMined,
-    update,
-  };
-};
+}
