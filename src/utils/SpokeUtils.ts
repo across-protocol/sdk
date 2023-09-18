@@ -26,11 +26,6 @@ export async function getBlockRangeForDepositId(
   low: number;
   high: number;
 }> {
-  // Get the most recent block from the spoke pool contract.
-  const mostRecentBlockNumber = await spokePool.provider.getBlockNumber();
-  // Set the initial high block to the most recent block number or the initial high block, whichever is smaller.
-  initHigh = Math.min(initHigh, mostRecentBlockNumber);
-
   // Define a mapping of block numbers to deposit IDs. This is used to cache the deposit ID at a block number
   // so we don't need to make an eth_call request to get the deposit ID at a block number more than once.
   const queriedIds: Record<number, number> = {};
@@ -45,6 +40,16 @@ export async function getBlockRangeForDepositId(
     }
     return queriedIds[blockNumber];
   };
+
+  // Get the most recent block from the spoke pool contract, the deposit ID
+  // at the low block, and the deposit ID at the high block in parallel.
+  const [mostRecentBlockNumber, highestPossibleDepositIdInRange, lowestPossibleDepositIdInRange] = await Promise.all([
+    spokePool.provider.getBlockNumber(),
+    _getDepositIdAtBlock(initHigh),
+    _getDepositIdAtBlock(Math.max(deploymentBlock, initLow - 1)),
+  ]);
+  // Set the initial high block to the most recent block number or the initial high block, whichever is smaller.
+  initHigh = Math.min(initHigh, mostRecentBlockNumber);
 
   // Sanity check to ensure that initHigh is greater than or equal to initLow.
   if (initLow > initHigh) {
@@ -68,7 +73,7 @@ export async function getBlockRangeForDepositId(
 
   // If the deposit ID at the initial high block is less than the target deposit ID, then we know that
   // the target deposit ID must be greater than the initial high block, so we can throw an error.
-  if ((await _getDepositIdAtBlock(initHigh)) <= targetDepositId) {
+  if (highestPossibleDepositIdInRange <= targetDepositId) {
     // initLow   = 5: Deposits Num: 10
     //                                     // targetId = 11  <- fail (triggers this error)          // 10 <= 11
     //                                     // targetId = 10  <- fail (triggers this error)          // 10 <= 10
@@ -78,7 +83,7 @@ export async function getBlockRangeForDepositId(
 
   // If the deposit ID at the initial low block is greater than the target deposit ID, then we know that
   // the target deposit ID must be less than the initial low block, so we can throw an error.
-  if ((await _getDepositIdAtBlock(Math.max(deploymentBlock, initLow - 1))) > targetDepositId) {
+  if (lowestPossibleDepositIdInRange > targetDepositId) {
     // initLow   = 5: Deposits Num: 10
     // initLow-1 = 4: Deposits Num:  2
     //                                     // targetId = 1 <- fail (triggers this error)
