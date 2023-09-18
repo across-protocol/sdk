@@ -41,11 +41,7 @@ export async function getBlockRangeForDepositId(
   // in the queriedIds cache.
   const _getDepositIdAtBlock = async (blockNumber: number): Promise<number> => {
     if (queriedIds[blockNumber] === undefined) {
-      const resultId = await getDepositIdAtBlock(spokePool, blockNumber);
-      if (!Number.isInteger(resultId)) {
-        throw new Error("Invalid deposit count");
-      }
-      queriedIds[blockNumber] = resultId;
+      queriedIds[blockNumber] = await getDepositIdAtBlock(spokePool, blockNumber);
     }
     return queriedIds[blockNumber];
   };
@@ -141,5 +137,10 @@ export async function getBlockRangeForDepositId(
  * @returns The deposit ID.
  */
 export async function getDepositIdAtBlock(contract: SpokePool, blockTag: number): Promise<number> {
-  return await contract.numberOfDeposits({ blockTag });
+  const depositIdAtBlock = await contract.numberOfDeposits({ blockTag });
+  // Sanity check to ensure that the deposit ID is an integer and is greater than or equal to zero.
+  if (!Number.isInteger(depositIdAtBlock) || depositIdAtBlock < 0) {
+    throw new Error("Invalid deposit count");
+  }
+  return depositIdAtBlock;
 }
