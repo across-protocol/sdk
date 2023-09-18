@@ -1,4 +1,4 @@
-import { constants as ethersConstants } from "ethers";
+import { constants as ethersConstants, BigNumber, utils } from "ethers";
 export { CHAIN_IDs, TOKEN_SYMBOLS_MAP } from "@across-protocol/contracts-v2/dist/utils/constants";
 
 export const { AddressZero: ZERO_ADDRESS } = ethersConstants;
@@ -40,3 +40,6 @@ export const PUBLIC_NETWORKS: { [chainId: number]: { name: string; etherscan: st
 export const DEFAULT_BLOCKCHAIN_EXPLORER_DOMAIN = "https://etherscan.io";
 
 export const DEFAULT_CACHING_TTL = 60 * 60 * 24 * 7 * 2; // 2 Weeks
+
+export const UBA_BOUNDS_RANGE_MAX = BigNumber.from(String(Number.MAX_SAFE_INTEGER)).mul(utils.parseEther("1.0"));
+export const UBA_BOUNDS_RANGE_MIN = UBA_BOUNDS_RANGE_MAX.mul(-1);
