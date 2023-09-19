@@ -13,6 +13,9 @@ export const SECONDS_PER_YEAR = 31557600; // 365.25 days per year.
  */
 export const HUBPOOL_CHAIN_ID = 1;
 
+// List of versions where certain UMIP features were deprecated
+export const TRANSFER_THRESHOLD_MAX_CONFIG_STORE_VERSION = 2;
+
 /**
  * A default list of chain Ids that the protocol supports. This is outlined
  * in the UMIP (https://github.com/UMAprotocol/UMIPs/pull/590) and is used
@@ -48,3 +51,4 @@ export const DEFAULT_CACHING_TTL = 60 * 60 * 24 * 7 * 2; // 2 Weeks
 
 export const UBA_BOUNDS_RANGE_MAX = BigNumber.from(String(Number.MAX_SAFE_INTEGER)).mul(utils.parseEther("1.0"));
 export const UBA_BOUNDS_RANGE_MIN = UBA_BOUNDS_RANGE_MAX.mul(-1);
+
