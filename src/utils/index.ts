@@ -18,3 +18,4 @@ export * from "./FormattingUtils";
 export * from "./BlockExplorerUtils";
 export * from "./BigNumberUtils";
 export * from "./CachingUtils";
+export * from "./NetworkUtils";
