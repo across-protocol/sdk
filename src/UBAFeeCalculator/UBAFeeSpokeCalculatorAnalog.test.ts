@@ -213,7 +213,7 @@ describe("UBAFeeSpokeCalculatorAnalog", () => {
         // and the incentive balance is positive, and the zero fee threshold is met. In this case,
         // we expect that the fee will be discounted by the amount to bring the fee back to zero.
         // Note: we are going to need to create a contrived UBAConfig to test this case.
-        it("should return a balancing fee that is discounted by the amount to bring the fee back to zero if the balancing fee is initially negative and incentive balance is positive and above the zero fee threshold", () => {
+        it("should return a balancing fee that is discounted by the amount to bring the fee back to zero if the balancing fee is initially negative and incentive balance is positive and below the zero fee threshold", () => {
           // We should iterate for 1000 iterations to ensure that we have a good sample size
           // for our fuzz testing.
           for (let i = 0; i < 1000; i++) {
