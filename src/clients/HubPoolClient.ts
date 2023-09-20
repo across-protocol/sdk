@@ -6,12 +6,12 @@ import _ from "lodash";
 import {
   assign,
   EventSearchConfig,
-  isDefined,
   MakeOptional,
   BigNumberish,
-  getImpliedBundleBlockRanges,
-  getBlockRangeForChain,
   stringifyJSONWithNumericString,
+  isDefined,
+  getCurrentTime,
+  shouldCache,
 } from "../utils";
 import {
   fetchTokenInfo,
@@ -31,13 +31,15 @@ import {
   DepositWithBlock,
   ProposedRootBundleStringified,
   ExecutedRootBundleStringified,
+  CachingMechanismInterface,
 } from "../interfaces";
 import { ExecutedRootBundle, PendingRootBundle, ProposedRootBundle } from "../interfaces";
 import { CrossChainContractsSet, DestinationTokenWithBlock, SetPoolRebalanceRoot } from "../interfaces";
 import * as lpFeeCalculator from "../lpFeeCalculator";
-import { AcrossConfigStoreClient as ConfigStoreClient } from "./";
-import { isUbaBlock } from "./UBAClient/UBAClientUtilities";
+import { AcrossConfigStoreClient as ConfigStoreClient } from "./AcrossConfigStoreClient/AcrossConfigStoreClient";
 import { BaseAbstractClient } from "./BaseAbstractClient";
+import { isUBAActivatedAtBlock } from "./UBAClient/UBAClientUtilities";
+import { DEFAULT_CACHING_TTL } from "../constants";
 
 type _HubPoolUpdate = {
   success: true;
@@ -50,7 +52,6 @@ type _HubPoolUpdate = {
 export type HubPoolUpdate = { success: false } | _HubPoolUpdate;
 
 type HubPoolEvent =
-  | "SetPoolRebalanceRoute"
   | "SetPoolRebalanceRoute"
   | "L1TokenEnabledForLiquidityProvision"
   | "ProposeRootBundle"
@@ -85,7 +86,7 @@ export class HubPoolClient extends BaseAbstractClient {
   constructor(
     readonly logger: winston.Logger,
     readonly hubPool: Contract,
-    readonly configStoreClient: ConfigStoreClient,
+    public configStoreClient: ConfigStoreClient,
     public deploymentBlock = 0,
     readonly chainId: number = 1,
     readonly eventSearchConfig: MakeOptional<EventSearchConfig, "toBlock"> = { fromBlock: 0, maxBlockLookBack: 0 },
@@ -95,9 +96,10 @@ export class HubPoolClient extends BaseAbstractClient {
     } = {
       ignoredHubExecutedBundles: [],
       ignoredHubProposedBundles: [],
-    }
+    },
+    cachingMechanism?: CachingMechanismInterface
   ) {
-    super();
+    super(cachingMechanism);
     this.latestBlockNumber = deploymentBlock === 0 ? deploymentBlock : deploymentBlock - 1;
     this.firstBlockToSearch = eventSearchConfig.fromBlock;
 
@@ -257,10 +259,41 @@ export class HubPoolClient extends BaseAbstractClient {
     l1Token: string,
     blockNumber: number,
     amount: BigNumber,
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    _timestamp: number
+    timestamp: number
   ): Promise<{ current: BigNumber; post: BigNumber }> {
-    return this.getPostRelayPoolUtilization(l1Token, blockNumber, amount);
+    // Resolve this function call as an async anonymous function
+    // This way, since we have to use this call several times, we
+    // only need to invoke the shorter function name.
+    const resolver = async () => this.getPostRelayPoolUtilization(l1Token, blockNumber, amount);
+    // Resolve the cache locally so that we can appease typescript
+    const cache = this.cachingMechanism;
+    // If there is no cache, just resolve the function
+    if (!cache) {
+      return resolver();
+    }
+    // Otherwise, let's resolve the key
+    const key = `utilization_${l1Token}_${blockNumber}_${amount.toString()}`;
+    // Resolve the key from the cache
+    const result = await cache.get<string>(key);
+    // We were able to find a valid result, so let's return it
+    if (isDefined(result)) {
+      const [current, post] = result.split(",").map(BigNumber.from);
+      return { current, post };
+    }
+    // We were not able to find a valid result, so let's resolve the function
+    // and store the result in the cache
+    else {
+      const { current, post } = await resolver();
+      // First determine if we should cache the result. We should cache the
+      // response if the is outside of 24 hours from the current time.
+      if (shouldCache(getCurrentTime(), timestamp, 60 * 60 * 24)) {
+        // If we should cache the result, then let's store it
+        // We can store it as with the default 14 day TTL
+        await cache.set(key, `${current.toString()},${post.toString()}`, DEFAULT_CACHING_TTL);
+      }
+      // Return the result
+      return { current, post };
+    }
   }
 
   async computeRealizedLpFeePct(
@@ -270,19 +303,23 @@ export class HubPoolClient extends BaseAbstractClient {
     >,
     l1Token: string
   ): Promise<{ realizedLpFeePct: BigNumber | undefined; quoteBlock: number }> {
+    if (!isDefined(this.currentTime)) {
+      throw new Error("HubPoolClient has not set a currentTime");
+    }
+
+    if (deposit.quoteTimestamp > this.currentTime) {
+      throw new Error(
+        `Cannot compute lp fee percent for quote timestamp ${deposit.quoteTimestamp} in the future. Current time: ${this.currentTime}.`
+      );
+    }
+
     const quoteBlock = await this.getBlockNumber(deposit.quoteTimestamp);
-    if (!quoteBlock) {
+    if (!isDefined(quoteBlock)) {
       throw new Error(`Could not find block for timestamp ${deposit.quoteTimestamp}`);
     }
 
-    // To determine if a deposit should be applied a UBA fee, we need to check the start block of the bundle
-    // that would contain this deposit.
-    const bundleStartBlockContainingDeposit = this.getBundleStartBlockContainingBlock(
-      deposit.blockNumber,
-      deposit.originChainId,
-      this.latestBlockNumber
-    );
-    if (isUbaBlock(bundleStartBlockContainingDeposit, this.configStoreClient)) {
+    // Compare deposit block against UBA bundle start blocks.
+    if (isUBAActivatedAtBlock(this, deposit.blockNumber, deposit.originChainId)) {
       // If UBA deposit then we can't compute the realizedLpFeePct until after we've updated the UBA Client.
       return {
         realizedLpFeePct: undefined,
@@ -334,43 +371,6 @@ export class HubPoolClient extends BaseAbstractClient {
     return this.getSpokePoolActivationBlock(chainId, this.getSpokePoolForBlock(chainId)) ?? 0;
   }
 
-  /**
-   * @notice Return the bundle start block for the bundle containing the event with a given block number.
-   * @param eventBlock The event happened at this block on `eventChain`.
-   * @param eventChain The event happened on this chain.
-   * @param hubPoolLatestBlock Optional param that can be used to optimize the search time for which
-   * bundle contains the event
-   */
-  getBundleStartBlockContainingBlock(eventBlock: number, eventChain: number, hubPoolLatestBlock?: number): number {
-    // First find the latest executed bundle as of `hubPoolLatestBlock`.
-    const latestExecutedBundle = this.getNthFullyExecutedRootBundle(-1, hubPoolLatestBlock);
-
-    // If there is no latest executed bundle, then return the spoke's activation block. This means that there is no
-    // bundle before `hubPoolLatestBlock` containing the event block so the next bundle will start at
-    // the activation block and contain the event.
-    if (!isDefined(latestExecutedBundle)) {
-      return this.getSpokeActivationBlockForChain(eventChain);
-    }
-
-    // Construct the bundle's block range
-    const blockRange = getImpliedBundleBlockRanges(this, this.configStoreClient, latestExecutedBundle);
-    const blockRangeForChain = getBlockRangeForChain(blockRange, eventChain, this.configStoreClient.enabledChainIds);
-
-    // If event is greater than the latest bundle's end block, then the next bundle will contain the event. The
-    // the next bundle will start at this end block + 1
-    if (eventBlock > blockRangeForChain[1]) {
-      return blockRangeForChain[1] + 1;
-    }
-
-    // Now check if the event is greater than the start block. If so, return the start block.
-    if (eventBlock >= blockRangeForChain[0]) {
-      return blockRangeForChain[0];
-    }
-
-    // At this point we need to repeat the above steps starting at the validated bundle preceding `latestExecutedBundle`.
-    return this.getBundleStartBlockContainingBlock(eventBlock, eventChain, latestExecutedBundle.blockNumber);
-  }
-
   // Root bundles are valid if all of their pool rebalance leaves have been executed before the next bundle, or the
   // latest mainnet block to search. Whichever comes first.
   isRootBundleValid(rootBundle: ProposedRootBundle, latestMainnetBlock: number): boolean {
@@ -390,7 +390,7 @@ export class HubPoolClient extends BaseAbstractClient {
     chain: number,
     chainIdListOverride?: number[]
   ): number | undefined {
-    const chainIdList = chainIdListOverride ?? this.configStoreClient.enabledChainIds;
+    const chainIdList = chainIdListOverride ?? this.configStoreClient.getChainIdIndicesForBlock(latestMainnetBlock);
     let endingBlockNumber: number | undefined;
     // Search proposed root bundles in reverse chronological order.
     for (let i = this.proposedRootBundles.length - 1; i >= 0; i--) {

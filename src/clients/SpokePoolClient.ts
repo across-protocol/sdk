@@ -1,14 +1,17 @@
+import { providers } from "ethers";
 import { groupBy } from "lodash";
 import {
   assign,
   EventSearchConfig,
   DefaultLogLevels,
   MakeOptional,
+  mapAsync,
   AnyObject,
   MAX_BIG_INT,
   stringifyJSONWithNumericString,
+  toBN,
+  isDefined,
 } from "../utils";
-import { toBN } from "../utils/common";
 import { validateFillForDeposit, filledSameDeposit } from "../utils/FlowUtils";
 import {
   spreadEvent,
@@ -45,6 +48,8 @@ import { ZERO_ADDRESS } from "../constants";
 import { getNetworkName } from "../utils/NetworkUtils";
 import { BaseAbstractClient } from "./BaseAbstractClient";
 
+type Block = providers.Block;
+
 type _SpokePoolUpdate = {
   success: boolean;
   currentTime: number;
@@ -52,6 +57,7 @@ type _SpokePoolUpdate = {
   latestBlockNumber: number;
   latestDepositId: number;
   events: Event[][];
+  blocks: { [blockNumber: number]: Block };
   searchEndBlock: number;
 };
 export type SpokePoolUpdate = { success: false } | _SpokePoolUpdate;
@@ -607,6 +613,26 @@ export class SpokePoolClient extends BaseAbstractClient {
     // Sort all events to ensure they are stored in a consistent order.
     events.forEach((events: Event[]) => sortEventsAscendingInPlace(events));
 
+    // Collate the relevant set of block numbers and filter for uniqueness, then query each corresponding block.
+    const blockNumbers = Array.from(
+      new Set(
+        ["FundsDeposited", "FilledRelay", "RefundRequested"]
+          .filter((eventName) => eventsToQuery.includes(eventName))
+          .map((eventName) => {
+            const idx = eventsToQuery.indexOf(eventName);
+            // tsc needs type hints on this map...
+            return (events[idx] as Event[]).map(({ blockNumber }) => blockNumber);
+          })
+          .flat()
+      )
+    );
+    const blocks = Object.fromEntries(
+      await mapAsync(blockNumbers, async (blockNumber) => {
+        const block = await this.spokePool.provider.getBlock(blockNumber);
+        return [blockNumber, block];
+      })
+    );
+
     return {
       success: true,
       currentTime: currentTime.toNumber(), // uint32
@@ -615,6 +641,7 @@ export class SpokePoolClient extends BaseAbstractClient {
       latestDepositId: Math.max(numberOfDeposits - 1, 0),
       searchEndBlock: searchConfig.toBlock,
       events,
+      blocks,
     };
   }
 
@@ -638,12 +665,17 @@ export class SpokePoolClient extends BaseAbstractClient {
       // understand why we see this in test. @todo: Resolve.
       return;
     }
-    const { events: queryResults, currentTime } = update;
+    const { events: queryResults, blocks, currentTime } = update;
 
     if (eventsToQuery.includes("TokensBridged")) {
       for (const event of queryResults[eventsToQuery.indexOf("TokensBridged")]) {
         this.tokensBridged.push(spreadEventWithBlockNumber(event) as TokensBridged);
       }
+    }
+
+    const hubCurrentTime = this.hubPoolClient?.currentTime;
+    if (!isDefined(hubCurrentTime)) {
+      throw new Error("HubPoolClient's currentTime is not defined");
     }
 
     // For each depositEvent, compute the realizedLpFeePct. Note this means that we are only finding this value on the
@@ -656,7 +688,7 @@ export class SpokePoolClient extends BaseAbstractClient {
         ...this.earlyDeposits,
       ];
       const { earlyDeposits = [], depositEvents = [] } = groupBy(allDeposits, (depositEvent) => {
-        if (depositEvent.args.quoteTimestamp > currentTime) {
+        if (depositEvent.args.quoteTimestamp > currentTime || depositEvent.args.quoteTimestamp > hubCurrentTime) {
           const { args, transactionHash } = depositEvent;
           this.logger.debug({
             at: "SpokePoolClient#update",
@@ -671,12 +703,6 @@ export class SpokePoolClient extends BaseAbstractClient {
       });
       this.earlyDeposits = earlyDeposits;
 
-      if (depositEvents.length > 0) {
-        this.log("debug", `Fetching realizedLpFeePct for ${depositEvents.length} deposits on chain ${this.chainId}`, {
-          numDeposits: depositEvents.length,
-        });
-      }
-
       const dataForQuoteTime: { realizedLpFeePct: BigNumber | undefined; quoteBlock: number }[] = await Promise.all(
         depositEvents.map(async (event) => this.computeRealizedLpFeePct(event))
       );
@@ -687,16 +713,18 @@ export class SpokePoolClient extends BaseAbstractClient {
           earliestEvent: depositEvents[0].blockNumber,
         });
       }
-      for (const [index, event] of Array.from(depositEvents.entries())) {
-        // Append the realizedLpFeePct.
-        const partialDeposit = spreadEventWithBlockNumber(event) as DepositWithBlock;
 
-        // Append destination token and realized lp fee to deposit.
+      for (const [index, event] of Array.from(depositEvents.entries())) {
+        const rawDeposit = spreadEventWithBlockNumber(event) as DepositWithBlock;
+
+        // Derive and append the destination token, LP fee, quote block number and block timestamp from the event.
+        // @dev Deposit events may _also_ include early deposits, in which case we did not retrieve a block.
         const deposit: DepositWithBlock = {
-          ...partialDeposit,
+          ...rawDeposit,
           realizedLpFeePct: dataForQuoteTime[index].realizedLpFeePct,
-          destinationToken: this.getDestinationTokenForDeposit(partialDeposit),
+          destinationToken: this.getDestinationTokenForDeposit(rawDeposit),
           quoteBlockNumber: dataForQuoteTime[index].quoteBlock,
+          blockTimestamp: blocks[event.blockNumber]?.timestamp ?? (await event.getBlock()).timestamp,
         };
 
         assign(this.depositHashes, [this.getDepositHash(deposit)], deposit);
@@ -710,6 +738,9 @@ export class SpokePoolClient extends BaseAbstractClient {
       }
     }
 
+    // TODO: When validating fills with deposits for the purposes of UBA flows, do we need to consider
+    // speed ups as well? For example, do we need to also consider that the speed up is before the fill
+    // timestamp to be applied for the fill? My brain hurts.
     // Update deposits with speed up requests from depositor.
     if (eventsToQuery.includes("RequestedSpeedUpDeposit")) {
       const speedUpEvents = queryResults[eventsToQuery.indexOf("RequestedSpeedUpDeposit")];
@@ -734,7 +765,11 @@ export class SpokePoolClient extends BaseAbstractClient {
         });
       }
       for (const event of fillEvents) {
-        const fill = spreadEventWithBlockNumber(event) as FillWithBlock;
+        const rawFill = spreadEventWithBlockNumber(event) as FillWithBlock;
+        const fill: FillWithBlock = {
+          ...rawFill,
+          blockTimestamp: blocks[event.blockNumber].timestamp,
+        };
         assign(this.fills, [fill.originChainId], [fill]);
         assign(this.depositHashesToFills, [this.getDepositHash(fill)], [fill]);
       }
@@ -751,12 +786,14 @@ export class SpokePoolClient extends BaseAbstractClient {
           earliestEvent: refundRequests[0].blockNumber,
         });
       }
-      // repaymentChainId is not part of the on-chain event, so add it here.
-      for (const refundRequest of refundRequests) {
-        this.refundRequests.push({
-          ...spreadEventWithBlockNumber(refundRequest),
-          repaymentChainId: this.chainId,
-        } as RefundRequestWithBlock);
+      for (const event of refundRequests) {
+        const rawRefundRequest = spreadEventWithBlockNumber(event) as RefundRequestWithBlock;
+        const refundRequest: RefundRequestWithBlock = {
+          ...rawRefundRequest,
+          repaymentChainId: this.chainId, // repaymentChainId is not part of the on-chain event, so add it here.
+          blockTimestamp: blocks[event.blockNumber].timestamp,
+        };
+        this.refundRequests.push(refundRequest);
       }
     }
 
@@ -817,7 +854,10 @@ export class SpokePoolClient extends BaseAbstractClient {
     // in _bridgeTokensToHubPool before emitting the ExecutedRelayerRefundLeaf event.
     // Here is the contract code referenced:
     // - https://github.com/across-protocol/contracts-v2/blob/954528a4620863d1c868e54a370fd8556d5ed05c/contracts/Ovm_SpokePool.sol#L142
-    if (chainId === 10 && eventL2Token.toLowerCase() === "0xdeaddeaddeaddeaddeaddeaddeaddeaddead0000") {
+    if (
+      (chainId === 10 || chainId === 8453) &&
+      eventL2Token.toLowerCase() === "0xdeaddeaddeaddeaddeaddeaddeaddeaddead0000"
+    ) {
       return "0x4200000000000000000000000000000000000006";
     } else if (chainId === 288 && eventL2Token.toLowerCase() === "0x4200000000000000000000000000000000000006") {
       return "0xDeadDeAddeAddEAddeadDEaDDEAdDeaDDeAD0000";

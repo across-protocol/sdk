@@ -6,9 +6,9 @@ import {
   createUnsignedFillRelayTransaction,
   estimateTotalGasRequiredByUnsignedTransaction,
   retry,
-  toBN,
   toBNWei,
 } from "./common";
+import { toBN } from "./BigNumberUtils";
 
 dotenv.config();
 

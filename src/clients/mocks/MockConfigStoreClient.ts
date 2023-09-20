@@ -1,14 +1,21 @@
 import assert from "assert";
 import winston from "winston";
 import { Contract, Event, ethers } from "ethers";
-import { EventSearchConfig, utf8ToHex } from "../../utils";
-import { AcrossConfigStoreClient, ConfigStoreUpdate, DEFAULT_CONFIG_STORE_VERSION } from "../AcrossConfigStoreClient";
+import { EventSearchConfig, MakeOptional, isDefined, utf8ToHex } from "../../utils";
+import {
+  AcrossConfigStoreClient,
+  ConfigStoreUpdate,
+  DEFAULT_CONFIG_STORE_VERSION,
+  GLOBAL_CONFIG_STORE_KEYS,
+} from "../AcrossConfigStoreClient";
 import { EventManager, getEventManager } from "./MockEvents";
 
 export class MockConfigStoreClient extends AcrossConfigStoreClient {
   public configStoreVersion = DEFAULT_CONFIG_STORE_VERSION;
   private eventManager: EventManager | null;
   private events: Event[] = [];
+  private ubaActivationBlockOverride: number | undefined;
+  private availableChainIdsOverride: number[] | undefined;
 
   // Event signatures. Not strictly required, but they make generated events more recognisable.
   public readonly eventSignatures: Record<string, string> = {
@@ -20,26 +27,49 @@ export class MockConfigStoreClient extends AcrossConfigStoreClient {
   constructor(
     logger: winston.Logger,
     configStore: Contract,
-    eventSearchConfig: EventSearchConfig,
+    eventSearchConfig: MakeOptional<EventSearchConfig, "toBlock"> = { fromBlock: 0, maxBlockLookBack: 0 },
     configStoreVersion: number,
-    enabledChainIds: number[],
     chainId = 1,
-    mockUpdate = false
+    mockUpdate = false,
+    availableChainIdsOverride?: number[]
   ) {
-    super(logger, configStore, eventSearchConfig, configStoreVersion, enabledChainIds);
+    super(logger, configStore, eventSearchConfig, configStoreVersion);
+    this.chainId = chainId;
     this.eventManager = mockUpdate ? getEventManager(chainId, this.eventSignatures) : null;
+    if (isDefined(this.eventManager) && this.eventManager) {
+      this.updateGlobalConfig(
+        GLOBAL_CONFIG_STORE_KEYS.CHAIN_ID_INDICES,
+        JSON.stringify(availableChainIdsOverride),
+        this.eventManager.blockNumber
+      );
+    }
   }
 
-  getConfigStoreVersionForBlock(): number {
-    return this.configStoreVersion;
+  setAvailableChains(chainIds: number[]): void {
+    this.availableChainIdsOverride = chainIds;
+  }
+
+  getChainIdIndicesForBlock(block?: number): number[] {
+    return this.availableChainIdsOverride ?? super.getChainIdIndicesForBlock(block);
+  }
+
+  setUBAActivationBlock(blockNumber: number | undefined): void {
+    this.ubaActivationBlockOverride = blockNumber;
+  }
+
+  getUBAActivationBlock(): number | undefined {
+    return this.ubaActivationBlockOverride ?? super.getUBAActivationBlock();
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  getConfigStoreVersionForBlock(_blockNumber: number): number {
+    return this.configStoreVersion === DEFAULT_CONFIG_STORE_VERSION
+      ? super.getConfigStoreVersionForBlock(_blockNumber)
+      : this.configStoreVersion;
   }
 
   setConfigStoreVersion(version: number): void {
     this.configStoreVersion = version;
-  }
-
-  isValidConfigStoreVersion(_version: number): boolean {
-    return this.configStoreVersion >= _version;
   }
 
   addEvent(event: Event): void {
@@ -77,6 +107,7 @@ export class MockConfigStoreClient extends AcrossConfigStoreClient {
 
     return {
       success: true,
+      chainId: this.chainId as number,
       latestBlockNumber,
       searchEndBlock: this.eventSearchConfig.toBlock || latestBlockNumber,
       events: {

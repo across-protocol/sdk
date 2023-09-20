@@ -10,9 +10,8 @@ import {
   performLinearIntegration,
 } from "./UBAFeeUtility";
 import { FlowTupleParameters } from "./UBAFeeTypes";
-import { MAX_SAFE_JS_INT } from "@uma/common";
-import { parseEther, parseUnits } from "ethers/lib/utils";
-import { BigNumber } from "ethers";
+import { parseUnits } from "ethers/lib/utils";
+import { UBA_BOUNDS_RANGE_MAX, UBA_BOUNDS_RANGE_MIN } from "../constants";
 
 describe("UBA Fee Calculations", () => {
   let config: UBAFeeConfig;
@@ -47,7 +46,7 @@ describe("UBA Fee Calculations", () => {
           upperBound: { target: toBN("0"), threshold: toBN("0") },
         },
       },
-      { default: [] },
+      { default: [[toBN("0"), toBN("0")]] },
       {},
       {}
     );
@@ -64,7 +63,7 @@ describe("UBA Fee Calculations", () => {
     const [idx, [lowerBound, upperBound]] = getInterval(tuples, toBN("12000000"));
     expect(idx).to.eq(14);
     expect(lowerBound.toString()).to.eq("9000000");
-    expect(upperBound.toString()).to.eq(BigNumber.from(MAX_SAFE_JS_INT).mul(parseEther("1")).toString().toString());
+    expect(upperBound.toString()).to.eq(UBA_BOUNDS_RANGE_MAX.toString());
   });
 
   it("should integrate the correct value: test #1", () => {
@@ -160,7 +159,7 @@ describe("UBA Fee Calculations from Data", () => {
 
   it("should retrieve the proper bounds. Test #1", () => {
     const [lowerBound, upperBound] = getBounds(gammaCutoffArray, 0);
-    expect(lowerBound.toString()).to.eq(BigNumber.from(-MAX_SAFE_JS_INT).mul(parseEther("1")).toString());
+    expect(lowerBound.toString()).to.eq(UBA_BOUNDS_RANGE_MIN.toString());
     expect(upperBound.toString()).to.eq("500000000000000000");
   });
 

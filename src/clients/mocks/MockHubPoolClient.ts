@@ -26,6 +26,7 @@ export class MockHubPoolClient extends HubPoolClient {
   private tokenInfoToReturn: L1Token = { address: "", decimals: 0, symbol: "" };
   private l1TokensToDestinationTokensMock: { [l1Token: string]: { [destinationChainId: number]: string } } = {};
   private returnedL1TokenForDeposit = "";
+  private returnedDestinationTokenForL1Token = "";
   private eventManager: EventManager;
 
   constructor(
@@ -91,6 +92,7 @@ export class MockHubPoolClient extends HubPoolClient {
   getDestinationTokenForL1Token(l1Token: string, destinationChainId: number): string {
     return (
       this.l1TokensToDestinationTokensMock[l1Token]?.[destinationChainId] ??
+      this.returnedDestinationTokenForL1Token ??
       super.getDestinationTokenForL1Token(l1Token, destinationChainId)
     );
   }
@@ -99,9 +101,22 @@ export class MockHubPoolClient extends HubPoolClient {
     this.returnedL1TokenForDeposit = l1Token;
   }
 
+  setDestinationTokenForL1Token(destinationToken: string) {
+    this.returnedDestinationTokenForL1Token = destinationToken;
+  }
+
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   getL1TokenForDeposit(_deposit: Deposit) {
     return this.returnedL1TokenForDeposit ?? super.getL1TokenForDeposit(_deposit);
+  }
+
+  getL1TokenCounterpartAtBlock(l2ChainId: number, l2Token: string, hubPoolBlock: number): string {
+    return this.returnedL1TokenForDeposit ?? super.getL1TokenCounterpartAtBlock(l2ChainId, l2Token, hubPoolBlock);
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  getL1TokenInfoForL2Token(l2Token: string, _chain: number): L1Token {
+    return this.getTokenInfoForL1Token(l2Token) ?? this.tokenInfoToReturn;
   }
 
   async _update(eventNames: string[]): Promise<HubPoolUpdate> {

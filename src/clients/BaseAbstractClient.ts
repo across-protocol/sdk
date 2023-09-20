@@ -1,10 +1,17 @@
+import { CachingMechanismInterface } from "../interfaces";
+import { isDefined } from "../utils";
+
 /**
  * Base class for all clients to extend.
  */
 export abstract class BaseAbstractClient {
   protected _isUpdated: boolean;
 
-  constructor() {
+  /**
+   * Creates a new client.
+   * @param cachingMechanism The caching mechanism to use for this client. If not provided, the client will not rely on an external cache.
+   */
+  constructor(protected cachingMechanism?: CachingMechanismInterface) {
     this._isUpdated = false;
   }
 
@@ -35,5 +42,13 @@ export abstract class BaseAbstractClient {
     if (!this.isUpdated) {
       throw new Error("Client not updated");
     }
+  }
+
+  /**
+   * Determines if the client has an external cache.
+   * @returns Whether the client has an external cache.
+   */
+  protected hasCachingMechanism(): boolean {
+    return isDefined(this.cachingMechanism);
   }
 }

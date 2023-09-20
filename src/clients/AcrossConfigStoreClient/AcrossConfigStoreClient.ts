@@ -13,8 +13,10 @@ import {
   MakeOptional,
   toBN,
   max,
-  sortEventsAscending,
   findLast,
+  UBA_MIN_CONFIG_STORE_VERSION,
+  isArrayOf,
+  isPositiveInteger,
 } from "../../utils";
 import { Contract, BigNumber, Event } from "ethers";
 import winston from "winston";
@@ -39,9 +41,11 @@ import { across } from "@uma/sdk";
 import { parseUBAConfigFromOnChain } from "./ConfigStoreParsingUtilities";
 import { BaseAbstractClient } from "../BaseAbstractClient";
 import { parseJSONWithNumericString, stringifyJSONWithNumericString } from "../../utils/JSONUtils";
+import { PROTOCOL_DEFAULT_CHAIN_ID_INDICES } from "../../constants";
 
 type _ConfigStoreUpdate = {
   success: true;
+  chainId: number;
   latestBlockNumber: number;
   searchEndBlock: number;
   events: {
@@ -56,12 +60,13 @@ export type ConfigStoreUpdate = { success: false } | _ConfigStoreUpdate;
 // @dev Do not change this value.
 export const DEFAULT_CONFIG_STORE_VERSION = 0;
 
-export const GLOBAL_CONFIG_STORE_KEYS = {
-  MAX_RELAYER_REPAYMENT_LEAF_SIZE: "MAX_RELAYER_REPAYMENT_LEAF_SIZE",
-  MAX_POOL_REBALANCE_LEAF_SIZE: "MAX_POOL_REBALANCE_LEAF_SIZE",
-  VERSION: "VERSION",
-  DISABLED_CHAINS: "DISABLED_CHAINS",
-};
+export enum GLOBAL_CONFIG_STORE_KEYS {
+  MAX_RELAYER_REPAYMENT_LEAF_SIZE = "MAX_RELAYER_REPAYMENT_LEAF_SIZE",
+  MAX_POOL_REBALANCE_LEAF_SIZE = "MAX_POOL_REBALANCE_LEAF_SIZE",
+  VERSION = "VERSION",
+  DISABLED_CHAINS = "DISABLED_CHAINS",
+  CHAIN_ID_INDICES = "CHAIN_ID_INDICES",
+}
 
 export class AcrossConfigStoreClient extends BaseAbstractClient {
   public cumulativeRateModelUpdates: across.rateModel.RateModelEvent[] = [];
@@ -70,6 +75,7 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
   public cumulativeTokenTransferUpdates: L1TokenTransferThreshold[] = [];
   public cumulativeMaxRefundCountUpdates: GlobalConfigUpdate[] = [];
   public cumulativeMaxL1TokenCountUpdates: GlobalConfigUpdate[] = [];
+  public chainIdIndicesUpdates: GlobalConfigUpdate<number[]>[] = [];
   public cumulativeSpokeTargetBalanceUpdates: SpokeTargetBalanceUpdate[] = [];
   public cumulativeConfigStoreVersionUpdates: ConfigStoreVersionUpdate[] = [];
   public cumulativeDisabledChainUpdates: DisabledChainsUpdate[] = [];
@@ -79,13 +85,13 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
   public latestBlockNumber = 0;
 
   public hasLatestConfigStoreVersion = false;
+  public chainId: number | undefined;
 
   constructor(
     readonly logger: winston.Logger,
     readonly configStore: Contract,
     readonly eventSearchConfig: MakeOptional<EventSearchConfig, "toBlock"> = { fromBlock: 0, maxBlockLookBack: 0 },
-    readonly configStoreVersion: number,
-    readonly enabledChainIds: number[]
+    readonly configStoreVersion: number
   ) {
     super();
     this.firstBlockToSearch = eventSearchConfig.fromBlock;
@@ -120,6 +126,41 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
       return undefined;
     }
     return across.rateModel.parseAndReturnRateModelFromString(config.routeRateModel[route]);
+  }
+
+  /**
+   * Resolve the implied set of chain ID indices based on the chain ID of the ConfigStore.
+   * @param chainId Chain ID of the ConfigStore.
+   * @dev If the resolved chain ID is part of the default set, assume the protocol defaults.
+   *      Otherwise, assume this is a test deployment with a lone chain ID.
+   * @dev The protocol defaults are [1, 10, 137, 288, 42161] (outlined in UMIP-157).
+   * @dev chainId is marked optional to appease tsc. It must always be passed in.
+   */
+  protected implicitChainIdIndices(chainId?: number): number[] {
+    assert(isDefined(chainId), "ConfigStoreClient used before update");
+    return PROTOCOL_DEFAULT_CHAIN_ID_INDICES[0] === chainId ? PROTOCOL_DEFAULT_CHAIN_ID_INDICES : [chainId];
+  }
+
+  /**
+   * Resolves the chain ids that were available to the protocol at a given block range.
+   * @param blockNumber Block number to search for. Defaults to latest block.
+   * @returns List of chain IDs that were available to the protocol at the given block number.
+   * @note This dynamic functionality has been added after the launch of Across.
+   * @note This function will return a default list of chain IDs if the block requested
+   *       existed before the initial inclusion of this dynamic key/value entry. In the
+   *       case that a block number is requested that is before the initial inclusion of
+   *       this key/value entry, the function will return the default list of chain IDs as
+   *       outlined per the UMIP (https://github.com/UMAprotocol/UMIPs/pull/590).
+   */
+  getChainIdIndicesForBlock(blockNumber: number = Number.MAX_SAFE_INTEGER): number[] {
+    // Resolve the chain ID indices for the block number requested.
+    const chainIdUpdates = sortEventsDescending(this.chainIdIndicesUpdates);
+    // Iterate through each of the chain ID updates and resolve the first update that is
+    // less than or equal to the block number requested.
+    const chainIdIndices = chainIdUpdates.find((update) => update.blockNumber <= blockNumber)?.value;
+
+    // Return either the found value or the protocol default.
+    return chainIdIndices ?? this.implicitChainIdIndices(this.chainId);
   }
 
   getTokenTransferThresholdForBlock(l1Token: string, blockNumber: number = Number.MAX_SAFE_INTEGER): BigNumber {
@@ -173,46 +214,46 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
    * @param fromBlock Start block to search inclusive
    * @param toBlock End block to search inclusive. Defaults to MAX_SAFE_INTEGER, so grabs all disabled chain events
    * up until `latest`.
-   * @param allPossibleChains Returned list will be a subset of this list.
    * @returns List of chain IDs that have been enabled at least once in the block range. Sorted from lowest to highest.
    */
-  getEnabledChainsInBlockRange(
-    fromBlock: number,
-    toBlock = Number.MAX_SAFE_INTEGER,
-    allPossibleChains = this.enabledChainIds
-  ): number[] {
-    if (toBlock < fromBlock) {
+  getEnabledChainsInBlockRange(fromBlock: number, toBlock = Number.MAX_SAFE_INTEGER): number[] {
+    // If our fromBlock is greater than our toBlock, then we have an invalid range.
+    if (fromBlock > toBlock) {
       throw new Error(`Invalid block range: fromBlock ${fromBlock} > toBlock ${toBlock}`);
     }
-    // Initiate list with all chains enabled at the fromBlock.
+
+    // Initiate list with all possible chains enabled at the toBlock while removing any chains
+    // that were disabled at the from block.
     const disabledChainsAtFromBlock = this.getDisabledChainsForBlock(fromBlock);
-    const enabledChainsAtFromBlock = allPossibleChains.filter(
+    const allPossibleChains = this.getChainIdIndicesForBlock(toBlock);
+    const enabledChainsInBlockRange = allPossibleChains.filter(
       (chainId) => !disabledChainsAtFromBlock.includes(chainId)
     );
 
-    // Update list of enabled chains with any of the candidate chains that have been removed from the
-    // disabled list during the block range.
-    return sortEventsAscending(this.cumulativeDisabledChainUpdates)
-      .reduce((enabledChains: number[], disabledChainUpdate) => {
-        if (disabledChainUpdate.blockNumber > toBlock || disabledChainUpdate.blockNumber < fromBlock) {
-          return enabledChains;
-        }
-        // If any of the possible chains are not listed in this disabled chain update and are not already in the
-        // enabled chain list, then add them to the list.
-        allPossibleChains.forEach((chainId) => {
-          if (!disabledChainUpdate.chainIds.includes(chainId) && !enabledChains.includes(chainId)) {
-            enabledChains.push(chainId);
+    // If there are any disabled chain updates in the block range, then we might need to update the list of enabled
+    // chains in the block range.
+    this.cumulativeDisabledChainUpdates
+      .filter((e) => e.blockNumber <= toBlock && e.blockNumber >= fromBlock)
+      .forEach((e) => {
+        // If disabled chain update no longer includes a previously disabled chain, then add it back to the enabled chains
+        // list.
+        const newDisabledSet = e.chainIds;
+        disabledChainsAtFromBlock.forEach((disabledChain) => {
+          // New disabled set doesn't include this chain that was previously disabled so it was re-enabled at this point
+          // in the block range.
+          if (!newDisabledSet.includes(disabledChain)) {
+            enabledChainsInBlockRange.push(disabledChain);
           }
         });
-        return enabledChains;
-      }, enabledChainsAtFromBlock)
-      .sort((a, b) => a - b);
+      });
+    // Return the enabled chains in the block range sorted in the same order as the chain indices.
+    return allPossibleChains.filter((chainId) => enabledChainsInBlockRange.includes(chainId));
   }
 
-  getEnabledChains(block = Number.MAX_SAFE_INTEGER, allPossibleChains = this.enabledChainIds): number[] {
+  getEnabledChains(block = Number.MAX_SAFE_INTEGER): number[] {
     // Get most recent disabled chain list before the block specified.
     const currentlyDisabledChains = this.getDisabledChainsForBlock(block);
-    return allPossibleChains.filter((chainId) => !currentlyDisabledChains.includes(chainId));
+    return this.getChainIdIndicesForBlock(block).filter((chainId) => !currentlyDisabledChains.includes(chainId));
   }
 
   getDisabledChainsForBlock(blockNumber: number = Number.MAX_SAFE_INTEGER): number[] {
@@ -227,21 +268,37 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
     return isDefined(config) ? Number(config.value) : DEFAULT_CONFIG_STORE_VERSION;
   }
 
-  getConfigStoreVersionForBlock(blockNumber: number): number {
+  getUBAActivationBlock(): number | undefined {
+    return this.cumulativeConfigStoreVersionUpdates.find((config) => {
+      return Number(config.value) >= UBA_MIN_CONFIG_STORE_VERSION;
+    })?.blockNumber;
+  }
+
+  getConfigStoreVersionForBlock(blockNumber: number = Number.MAX_SAFE_INTEGER): number {
     const config = this.cumulativeConfigStoreVersionUpdates.find((config) => config.blockNumber <= blockNumber);
     return isDefined(config) ? Number(config.value) : DEFAULT_CONFIG_STORE_VERSION;
   }
 
   hasValidConfigStoreVersionForTimestamp(timestamp: number = Number.MAX_SAFE_INTEGER): boolean {
     const version = this.getConfigStoreVersionForTimestamp(timestamp);
-    return this.isValidConfigStoreVersion(version);
-  }
-  isValidConfigStoreVersion(version: number): boolean {
     return this.configStoreVersion >= version;
   }
 
-  async _update(): Promise<ConfigStoreUpdate> {
-    const latestBlockNumber = await this.configStore.provider.getBlockNumber();
+  /**
+   * Resolve the chain ID for the ConfigStore Provider instance.
+   * @dev When the provider is a StatisJsonRpcProvider instance, the getNetwork() is non-blocking.
+   * @returns Chain ID for the ConfigStore deployment.
+   */
+  protected async resolveChainId(): Promise<number> {
+    return this.chainId ?? (await this.configStore.provider.getNetwork()).chainId;
+  }
+
+  protected async _update(): Promise<ConfigStoreUpdate> {
+    const [chainId, latestBlockNumber] = await Promise.all([
+      this.resolveChainId(),
+      this.configStore.provider.getBlockNumber(),
+    ]);
+
     const searchConfig = {
       fromBlock: this.firstBlockToSearch,
       toBlock: this.eventSearchConfig.toBlock || latestBlockNumber,
@@ -267,6 +324,7 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
 
     return {
       success: true,
+      chainId,
       latestBlockNumber,
       searchEndBlock: searchConfig.toBlock,
       events: {
@@ -284,6 +342,7 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
     if (!result.success) {
       return;
     }
+    const { chainId } = result;
     const { updatedTokenConfigEvents, updatedGlobalConfigEvents, globalConfigUpdateTimes } = result.events;
     assert(
       updatedGlobalConfigEvents.length === globalConfigUpdateTimes.length,
@@ -308,11 +367,6 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
             const ubaConfig = parseUBAConfigFromOnChain(parsedValue.uba);
             // eslint-disable-next-line @typescript-eslint/no-unused-vars
             const { value: _value, key: _key, ...passedArgs } = args;
-            this.logger.debug({
-              at: "ConfigStore::update",
-              message: `Parsed UBA config for ${l1Token}`,
-              ubaConfig,
-            });
             this.ubaConfigUpdates.push({ ...passedArgs, config: ubaConfig, l1Token });
           } catch (e) {
             this.logger.warn({
@@ -413,6 +467,45 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
         if (!isNaN(args.value)) {
           this.cumulativeMaxRefundCountUpdates.push(args);
         }
+      } else if (args.key === utf8ToHex(GLOBAL_CONFIG_STORE_KEYS.CHAIN_ID_INDICES)) {
+        try {
+          // We need to parse the chain ID indices array from the stringified JSON. However,
+          // the on-chain string has quotes around the array, which will parse our JSON as a
+          // string instead of an array. We need to remove these quotes before parsing.
+          // To be sure, we can check for single quotes, double quotes, and spaces.
+          const chainIndices = JSON.parse(args.value.replace(/['"\s]/g, ""));
+          // Check that the array is valid and that every element is a number.
+          if (!isArrayOf<number>(chainIndices, isPositiveInteger)) {
+            this.logger.warn({ at: "ConfigStore", message: `The array ${chainIndices} is invalid.` });
+            // If not a valid array, skip.
+            continue;
+          }
+          // Let's also check that the array doesn't contain any duplicates.
+          if (new Set(chainIndices).size !== chainIndices.length) {
+            this.logger.warn({
+              at: "ConfigStore",
+              message: `The array ${chainIndices} contains duplicates making it invalid.`,
+            });
+            // If not a valid array, skip.
+            continue;
+          }
+          // Now check that we're only appending positive integers to the chainIndices array on each
+          // update. If this isn't the case, skip the update & warn. If there is no previous update,
+          // resolve an implcit chain ID list.
+          const previousUpdate = this.chainIdIndicesUpdates.at(-1)?.value ?? this.implicitChainIdIndices(chainId);
+          // We should now check that previousUpdate is a subset of chainIndices.
+          if (!previousUpdate.every((chainId, idx) => chainIndices[idx] === chainId)) {
+            this.logger.warn({
+              at: "ConfigStoreClient#update",
+              message: `The array ${chainIndices} is invalid. It must be a superset of the previous array ${previousUpdate}`,
+            });
+            continue;
+          }
+          // If all else passes, we can add this update.
+          this.chainIdIndicesUpdates.push({ ...args, value: chainIndices });
+        } catch (e) {
+          this.logger.warn({ at: "ConfigStore::update", message: `Failed to parse chain ID indices: ${args.value}` });
+        }
       } else if (args.key === utf8ToHex(GLOBAL_CONFIG_STORE_KEYS.MAX_POOL_REBALANCE_LEAF_SIZE)) {
         if (!isNaN(args.value)) {
           this.cumulativeMaxL1TokenCountUpdates.push(args);
@@ -457,6 +550,7 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
     this.hasLatestConfigStoreVersion = this.hasValidConfigStoreVersionForTimestamp();
     this.latestBlockNumber = result.latestBlockNumber;
     this.firstBlockToSearch = result.searchEndBlock + 1; // Next iteration should start off from where this one ended.
+    this.chainId = this.chainId ?? chainId; // Update on the first run only.
     this.isUpdated = true;
 
     this.logger.debug({ at: "ConfigStore", message: "ConfigStore client updated!" });
@@ -564,8 +658,7 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
     return {
       eventSearchConfig: this.eventSearchConfig,
       configStoreVersion: this.configStoreVersion,
-      enabledChainIds: this.enabledChainIds,
-
+      chainIdIndicesUpdates: this.chainIdIndicesUpdates,
       cumulativeRateModelUpdates: this.cumulativeRateModelUpdates,
       ubaConfigUpdates: JSON.parse(
         stringifyJSONWithNumericString(this.ubaConfigUpdates)

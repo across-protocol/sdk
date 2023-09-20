@@ -1,12 +1,12 @@
 import { BigNumber } from "ethers";
+import { RateModelDictionary } from "../lpFeeCalculator/rateModel";
 import { SortableEvent } from "./Common";
-import { across } from "@uma/sdk";
 
 export interface ParsedTokenConfig {
   transferThreshold: string;
-  rateModel: across.rateModel.RateModelDictionary;
+  rateModel: RateModelDictionary;
   routeRateModel?: {
-    [path: string]: across.rateModel.RateModelDictionary;
+    [path: string]: RateModelDictionary;
   };
   uba?: UBAOnChainConfigType;
   spokeTargetBalances?: {
@@ -62,11 +62,11 @@ export interface TokenConfig extends SortableEvent {
   value: string;
 }
 
-export interface GlobalConfigUpdate extends SortableEvent {
-  value: number;
+export interface GlobalConfigUpdate<ValueStore = number> extends SortableEvent {
+  value: ValueStore;
 }
 
-export interface ConfigStoreVersionUpdate extends GlobalConfigUpdate {
+export interface ConfigStoreVersionUpdate<ValueStore = number> extends GlobalConfigUpdate<ValueStore> {
   timestamp: number;
 }
 

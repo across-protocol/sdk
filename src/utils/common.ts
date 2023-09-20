@@ -7,9 +7,8 @@ import { SpokePool } from "../typechain";
 import assert from "assert";
 import { GasPriceEstimate, getGasPriceEstimate } from "../gasPriceOracle";
 import { TypedMessage } from "../interfaces/TypedData";
+import { BN, toBN, BigNumberish } from "./BigNumberUtils";
 
-export type BigNumberish = string | number | BigNumber;
-export type BN = BigNumber;
 export type Decimalish = string | number | Decimal;
 export const AddressZero = ethers.constants.AddressZero;
 export const MAX_BIG_INT = BigNumber.from(Number.MAX_SAFE_INTEGER.toString());
@@ -25,14 +24,6 @@ const BlockScanSkipDistances: { [chainId: number]: number } = {
   288: 1000,
   42161: 100000,
 };
-
-/**
- * toBN.
- *
- * @param {BigNumberish} num
- * @returns {BN}
- */
-export const toBN = (num: BigNumberish): BN => BigNumber.from(num.toString());
 
 /**
  * toBNWei.
@@ -232,24 +223,6 @@ export const getSamplesBetween = (min: number, max: number, size: number) => {
  */
 export async function delay(seconds: number) {
   return new Promise((resolve) => setTimeout(resolve, seconds * 1000));
-}
-
-/**
- * Converts a string to a hex string
- * @param input The string to convert
- * @returns The hex string
- */
-export function utf8ToHex(input: string) {
-  return ethers.utils.formatBytes32String(input);
-}
-
-/**
- * Converts a hex string to a utf8 string
- * @param input The hex string to convert
- * @returns The utf8 string
- */
-export function hexToUtf8(input: string) {
-  return ethers.utils.parseBytes32String(input);
 }
 
 /**

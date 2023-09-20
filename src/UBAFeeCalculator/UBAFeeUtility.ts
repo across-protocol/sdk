@@ -1,6 +1,7 @@
 import { BigNumber } from "ethers";
-import { MAX_SAFE_JS_INT } from "@uma/common/dist/Constants";
 import { fixedPointAdjustment, toBN } from "../utils";
+import { FlowTupleParameters } from "./UBAFeeTypes";
+import { UBA_BOUNDS_RANGE_MAX, UBA_BOUNDS_RANGE_MIN } from "../constants";
 
 /**
  * Computes a linear integral over a piecewise function
@@ -61,11 +62,11 @@ export function performLinearIntegration(
 export function getBounds(cutoffArray: [BigNumber, BigNumber][], index: number): [BigNumber, BigNumber] {
   const length = cutoffArray.length;
   if (index === 0) {
-    return [BigNumber.from(-MAX_SAFE_JS_INT).mul(fixedPointAdjustment), cutoffArray[0][0]];
+    return [UBA_BOUNDS_RANGE_MIN, cutoffArray[0][0]];
   } else if (index < length) {
     return [cutoffArray[index - 1][0], cutoffArray[index][0]];
   } else {
-    return [cutoffArray[length - 1][0], BigNumber.from(MAX_SAFE_JS_INT).mul(fixedPointAdjustment)];
+    return [cutoffArray[length - 1][0], UBA_BOUNDS_RANGE_MAX];
   }
 }
 
@@ -79,13 +80,7 @@ export function getInterval(
   cutoffArray: [BigNumber, BigNumber][],
   target: BigNumber
 ): [number, [BigNumber, BigNumber]] {
-  let result: [number, [BigNumber, BigNumber]] = [
-    -1,
-    [
-      BigNumber.from(-MAX_SAFE_JS_INT).mul(fixedPointAdjustment),
-      BigNumber.from(MAX_SAFE_JS_INT).mul(fixedPointAdjustment),
-    ],
-  ];
+  let result: [number, [BigNumber, BigNumber]] = [-1, [UBA_BOUNDS_RANGE_MIN, UBA_BOUNDS_RANGE_MAX]];
   for (let i = 0; i <= cutoffArray.length; i++) {
     const [lowerBound, upperBound] = getBounds(cutoffArray, i);
     if (target.gte(lowerBound) && target.lt(upperBound)) {
@@ -249,10 +244,7 @@ export function computePiecewiseLinearFunction(
   x: BigNumber,
   y: BigNumber
 ): BigNumber {
-  functionBounds = [
-    ...functionBounds,
-    [BigNumber.from(MAX_SAFE_JS_INT).mul(fixedPointAdjustment), functionBounds[functionBounds.length - 1][1]],
-  ];
+  functionBounds = [...functionBounds, [UBA_BOUNDS_RANGE_MAX, functionBounds[functionBounds.length - 1][1]]];
   // Decompose the bounds into the lower and upper bounds
   const xBar = functionBounds.map((_, idx, arr) => getBounds(arr, idx));
   // We'll need to determine the sign of the integration direction to determine the scale
@@ -298,3 +290,35 @@ export const balancingFeeFunctionLookupMapping = {
   inflow: getDepositBalancingFee,
   outflow: getRefundBalancingFee,
 };
+
+/**
+ * Asserts that the fee curve is valid per the UBA specification.
+ * @param feeCurve The fee curve whose validity we are asserting
+ * @param validateZeroPoint Whether or not to validate that there is a zero point in the fee curve
+ * @throws An error if the fee curve is invalid
+ * @note This function is only testing for structural validity. It does not test for
+ *       the validity of the parameters of the fee curve.
+ */
+export function assertValidityOfFeeCurve(feeCurve: FlowTupleParameters, validateZeroPoint: boolean): void {
+  // Ensure that the fee curve has at least one element
+  if (feeCurve.length === 0) {
+    throw new Error("Balancing fee curve must have at least one point");
+  }
+  // Ensure that the fee curve has tuples of length 2
+  if (feeCurve.some((tuple) => tuple.length !== 2)) {
+    throw new Error("Balancing fee curve must be a list of tuples");
+  }
+  // Ensure that there is a zero point in the fee curve
+  if (validateZeroPoint && !feeCurve.some((tuple) => tuple[1].eq(0))) {
+    throw new Error("Balancing fee curve must have a zero point");
+  }
+  // Ensure that the x values are strictly monotonically increasing
+  if (feeCurve.some((tuple, idx, arr) => idx > 0 && tuple[0].lte(arr[idx - 1][0]))) {
+    throw new Error("Balancing fee curve must have strictly increasing x values");
+  }
+
+  // Ensure that the y values are monotonically increasing
+  if (feeCurve.some((tuple, idx, arr) => idx > 0 && tuple[1].lt(arr[idx - 1][1]))) {
+    throw new Error("Balancing fee curve must have increasing y values");
+  }
+}

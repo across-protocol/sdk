@@ -1,16 +1,18 @@
+import { getDeployedAddress } from "../../utils/DeploymentUtils";
 import { DEFAULT_LOGGER, Logger } from "../relayFeeCalculator";
 import { providers } from "ethers";
 import { CHAIN_IDs, TOKEN_SYMBOLS_MAP } from "../../constants";
 import { Coingecko } from "../../coingecko/Coingecko";
+import { DEFAULT_SIMULATED_RELAYER_ADDRESS } from "./baseQuery";
 import QueryBase from "./baseQuery";
 
 export class PolygonQueries extends QueryBase {
   constructor(
     provider: providers.Provider,
     symbolMapping = TOKEN_SYMBOLS_MAP,
-    spokePoolAddress = "0x9295ee1d8C5b022Be115A2AD3c30C72E34e7F096",
-    usdcAddress = "0x2791bca1f2de4661ed88a30c99a7a9449aa84174",
-    simulatedRelayerAddress = "0x893d0D70AD97717052E3AA8903D9615804167759",
+    spokePoolAddress = getDeployedAddress("SpokePool", CHAIN_IDs.POLYGON),
+    usdcAddress = TOKEN_SYMBOLS_MAP.USDC.addresses[CHAIN_IDs.POLYGON],
+    simulatedRelayerAddress = DEFAULT_SIMULATED_RELAYER_ADDRESS,
     coingeckoProApiKey?: string,
     logger: Logger = DEFAULT_LOGGER,
     gasMarkup = 0
