@@ -306,6 +306,13 @@ export class HubPoolClient extends BaseAbstractClient {
     if (!isDefined(this.currentTime)) {
       throw new Error("HubPoolClient has not set a currentTime");
     }
+
+    if (deposit.quoteTimestamp > this.currentTime) {
+      throw new Error(
+        `Cannot compute lp fee percent for quote timestamp ${deposit.quoteTimestamp} in the future. Current time: ${this.currentTime}.`
+      );
+    }
+
     const quoteBlock = await this.getBlockNumber(deposit.quoteTimestamp);
     if (!isDefined(quoteBlock)) {
       throw new Error(`Could not find block for timestamp ${deposit.quoteTimestamp}`);
