@@ -58,10 +58,10 @@ export default (config: Config, signer: Signer, emit: Emit = () => null) => {
     return mined.get(key);
   }
   async function update() {
-    for (const key of requests.keys()) {
+    for (const key of Object.keys(requests)) {
       await processRequest(key);
     }
-    for (const key of submissions.keys()) {
+    for (const key of Object.keys(submissions)) {
       await processSubmission(key);
     }
   }
