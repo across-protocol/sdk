@@ -105,11 +105,18 @@
   "types": "./dist/types/index.d.ts",
   "typings": "./dist/types/index.d.ts",
   "exports": {
-    "./*": {
-      "types": "./build/types/*.d.ts",
-      "require": "./build/cjs/*.js",
-      "import": "./build/esm/*.js",
-      "default": "./build/esm/*.js"
+    ".": {
+      "require": "./dist/cjs/index.js",
+      "import": "./dist/esm/index.js",
+      "types": "./dist/types/index.d.ts"
+    },
+    "./dist/cjs/*": {
+      "require": "./dist/cjs/*.js",
+      "import": "./dist/esm/*.js"
+    },
+    "./dist/esm/*": {
+      "require": "./dist/cjs/*.js",
+      "import": "./dist/esm/*.js"
     }
   }
 }
