@@ -3,7 +3,7 @@ import { RateModelDictionary } from "../lpFeeCalculator/rateModel";
 import { SortableEvent } from "./Common";
 
 export interface ParsedTokenConfig {
-  rateModel: across.rateModel.RateModelDictionary;
+  rateModel: RateModelDictionary;
   routeRateModel?: {
     [path: string]: RateModelDictionary;
   };
