@@ -1,7 +1,7 @@
 {
   "name": "@across-protocol/sdk-v2",
   "author": "UMA Team",
-  "version": "0.16.1",
+  "version": "0.16.2",
   "license": "AGPL-3.0",
   "files": [
     "dist",
@@ -21,7 +21,7 @@
     "test:e2e": "jest --config jest-e2e-config.json",
     "lint": "eslint --fix src",
     "lint-check": "eslint src",
-    "prepare": "tsc --project ./tsconfig.build.json && husky install",
+    "prepare": "yarn build && husky install",
     "size": "size-limit",
     "analyze": "size-limit --why",
     "clean": "rm -rf ./dist",
