@@ -5,6 +5,7 @@
   "license": "AGPL-3.0",
   "main": "dist/index.js",
   "typings": "dist/index.d.ts",
+  "homepage": "https://docs.across.to/v/developer-docs/developers/across-sdk",
   "files": [
     "dist",
     "src"
