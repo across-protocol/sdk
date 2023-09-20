@@ -1,5 +1,4 @@
 import { BigNumber, ethers, PopulatedTransaction, providers, VoidSigner } from "ethers";
-import * as uma from "@uma/sdk";
 import Decimal from "decimal.js";
 import { isL2Provider as isOptimismL2Provider } from "@eth-optimism/sdk/dist/l2-provider";
 import { L2Provider } from "@eth-optimism/sdk/dist/interfaces/l2-provider";
@@ -8,12 +7,12 @@ import assert from "assert";
 import { GasPriceEstimate, getGasPriceEstimate } from "../gasPriceOracle";
 import { TypedMessage } from "../interfaces/TypedData";
 import { BN, toBN, BigNumberish } from "./BigNumberUtils";
+import { ConvertDecimals } from "./FormattingUtils";
 
 export type Decimalish = string | number | Decimal;
 export const AddressZero = ethers.constants.AddressZero;
 export const MAX_BIG_INT = BigNumber.from(Number.MAX_SAFE_INTEGER.toString());
 
-const { ConvertDecimals } = uma.utils;
 // These are distances used to traverse when looking for a block with desired lookback.
 // They're meant to be small enough to allow for granularity but large enough to minimize the number of reqests needed
 // to find the desired block.
@@ -88,7 +87,7 @@ export function nativeToToken(
 ): string {
   const priceWei = toBNWei(price);
   const toAmount = toBNWei(fromAmount).div(priceWei);
-  return ConvertDecimals(nativeDecimals, toDecimals)(toAmount);
+  return ConvertDecimals(nativeDecimals, toDecimals)(toAmount.toString()).toString();
 }
 
 /**

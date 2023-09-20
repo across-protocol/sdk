@@ -1,8 +1,8 @@
 import { ethers, BigNumber } from "ethers";
-import { createFormatFunction } from "@uma/common";
 import { toBN } from "./BigNumberUtils";
+import { createFormatFunction, ConvertDecimals } from "./FormattingUtilsInternal";
 
-export { createFormatFunction };
+export { createFormatFunction, ConvertDecimals };
 
 export const formatFeePct = (relayerFeePct: BigNumber): string => {
   // 1e18 = 100% so 1e16 = 1%.
