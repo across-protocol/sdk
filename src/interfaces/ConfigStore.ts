@@ -3,7 +3,6 @@ import { RateModelDictionary } from "../lpFeeCalculator/rateModel";
 import { SortableEvent } from "./Common";
 
 export interface ParsedTokenConfig {
-  transferThreshold: string;
   rateModel: RateModelDictionary;
   routeRateModel?: {
     [path: string]: RateModelDictionary;
@@ -16,15 +15,6 @@ export interface ParsedTokenConfig {
     };
   };
 }
-
-export interface L1TokenTransferThreshold extends SortableEvent {
-  transferThreshold: BigNumber;
-  l1Token: string;
-}
-
-export type L1TokenTransferThresholdStringified = Omit<L1TokenTransferThreshold, "transferThreshold"> & {
-  transferThreshold: string;
-};
 
 export interface SpokePoolTargetBalance {
   target: BigNumber;

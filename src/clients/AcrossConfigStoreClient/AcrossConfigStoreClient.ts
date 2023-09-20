@@ -22,8 +22,6 @@ import { Contract, BigNumber, Event } from "ethers";
 import winston from "winston";
 
 import {
-  L1TokenTransferThreshold,
-  L1TokenTransferThresholdStringified,
   TokenConfig,
   GlobalConfigUpdate,
   ParsedTokenConfig,
@@ -72,7 +70,6 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
   public cumulativeRateModelUpdates: across.rateModel.RateModelEvent[] = [];
   public ubaConfigUpdates: UBAConfigUpdates[] = [];
   public cumulativeRouteRateModelUpdates: RouteRateModelUpdate[] = [];
-  public cumulativeTokenTransferUpdates: L1TokenTransferThreshold[] = [];
   public cumulativeMaxRefundCountUpdates: GlobalConfigUpdate[] = [];
   public cumulativeMaxL1TokenCountUpdates: GlobalConfigUpdate[] = [];
   public chainIdIndicesUpdates: GlobalConfigUpdate<number[]>[] = [];
@@ -161,16 +158,6 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
 
     // Return either the found value or the protocol default.
     return chainIdIndices ?? this.implicitChainIdIndices(this.chainId);
-  }
-
-  getTokenTransferThresholdForBlock(l1Token: string, blockNumber: number = Number.MAX_SAFE_INTEGER): BigNumber {
-    const config = (sortEventsDescending(this.cumulativeTokenTransferUpdates) as L1TokenTransferThreshold[]).find(
-      (config) => config.blockNumber <= blockNumber && config.l1Token === l1Token
-    );
-    if (!config) {
-      throw new Error(`Could not find TransferThreshold for L1 token ${l1Token} before block ${blockNumber}`);
-    }
-    return config.transferThreshold;
   }
 
   getSpokeTargetBalancesForBlock(
@@ -391,15 +378,6 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
           const rateModelForToken = JSON.stringify(parsedValue.rateModel);
           this.cumulativeRateModelUpdates.push({ ...passedArgs, rateModel: rateModelForToken, l1Token });
 
-          if (parsedValue?.transferThreshold !== undefined) {
-            const transferThresholdForToken = parsedValue.transferThreshold;
-            this.cumulativeTokenTransferUpdates.push({
-              ...passedArgs,
-              transferThreshold: toBN(transferThresholdForToken),
-              l1Token,
-            });
-          }
-
           // Store spokeTargetBalances
           if (parsedValue?.spokeTargetBalances) {
             // Note: cast is required because fromEntries always produces string keys, despite the function returning a
@@ -607,7 +585,6 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
       hasLatestConfigStoreVersion = this.hasLatestConfigStoreVersion,
       latestBlockNumber = this.latestBlockNumber,
       ubaConfigUpdates,
-      cumulativeTokenTransferUpdates,
       cumulativeSpokeTargetBalanceUpdates,
     } = configStoreClientState;
 
@@ -621,14 +598,6 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
         })
       : this.ubaConfigUpdates;
     this.cumulativeRouteRateModelUpdates = cumulativeRouteRateModelUpdates;
-    this.cumulativeTokenTransferUpdates = cumulativeTokenTransferUpdates
-      ? cumulativeTokenTransferUpdates.map((update) => {
-          return {
-            ...update,
-            transferThreshold: BigNumber.from(update.transferThreshold),
-          };
-        })
-      : this.cumulativeTokenTransferUpdates;
     this.cumulativeMaxRefundCountUpdates = cumulativeMaxRefundCountUpdates;
     this.cumulativeMaxL1TokenCountUpdates = cumulativeMaxL1TokenCountUpdates;
     this.cumulativeSpokeTargetBalanceUpdates = cumulativeSpokeTargetBalanceUpdates
@@ -664,9 +633,6 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
         stringifyJSONWithNumericString(this.ubaConfigUpdates)
       ) as UBASerializedConfigUpdates[],
       cumulativeRouteRateModelUpdates: this.cumulativeRouteRateModelUpdates,
-      cumulativeTokenTransferUpdates: JSON.parse(
-        stringifyJSONWithNumericString(this.cumulativeTokenTransferUpdates)
-      ) as L1TokenTransferThresholdStringified[],
       cumulativeMaxRefundCountUpdates: this.cumulativeMaxRefundCountUpdates,
       cumulativeMaxL1TokenCountUpdates: this.cumulativeMaxL1TokenCountUpdates,
       cumulativeSpokeTargetBalanceUpdates: JSON.parse(

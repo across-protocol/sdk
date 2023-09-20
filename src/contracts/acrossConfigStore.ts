@@ -12,7 +12,6 @@ const RateModelSs = object({
 const L1TokenConfigSs = object({
   rateModel: RateModelSs,
   routeRateModel: optional(record(string(), RateModelSs)),
-  transferThreshold: string(),
 });
 export type RateModel = Infer<typeof RateModelSs>;
 export type L1TokenConfig = Infer<typeof L1TokenConfigSs>;
