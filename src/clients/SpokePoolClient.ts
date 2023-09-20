@@ -644,6 +644,10 @@ export class SpokePoolClient extends BaseAbstractClient {
     };
   }
 
+  _isEarlyDeposit(depositEvent: FundsDepositedEvent, currentTime: number): boolean {
+    return depositEvent.args.quoteTimestamp > currentTime;
+  }
+
   /**
    * A wrapper over the `_update` method that handles errors and logs. This method additionally calls into the
    * HubPoolClient to update the state of this client with data from the HubPool contract.
@@ -682,7 +686,7 @@ export class SpokePoolClient extends BaseAbstractClient {
         ...this.earlyDeposits,
       ];
       const { earlyDeposits = [], depositEvents = [] } = groupBy(allDeposits, (depositEvent) => {
-        if (depositEvent.args.quoteTimestamp > currentTime) {
+        if (this._isEarlyDeposit(depositEvent, currentTime)) {
           const { args, transactionHash } = depositEvent;
           this.logger.debug({
             at: "SpokePoolClient#update",
