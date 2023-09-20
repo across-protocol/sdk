@@ -5,10 +5,11 @@ type Provider = providers.Provider;
 
 const networks: { [chainId: number]: string } = {
   1: "https://eth.llamarpc.com",
-  10: "https://mainnet.optimism.io",
+  10: "https://optimism.llamarpc.com",
   137: "https://polygon.llamarpc.com",
   384: "https://mainnet.era.zksync.io",
-  42161: "https://rpc.ankr.com/arbitrum",
+  8453: "https://mainnet.base.org",
+  42161: "https://arbitrum.llamarpc.com",
 };
 
 describe("BlockUtils", () => {
