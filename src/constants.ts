@@ -14,7 +14,7 @@ export const SECONDS_PER_YEAR = 31557600; // 365.25 days per year.
 export const HUBPOOL_CHAIN_ID = 1;
 
 // List of versions where certain UMIP features were deprecated
-export const TRANSFER_THRESHOLD_MAX_CONFIG_STORE_VERSION = 2;
+export const TRANSFER_THRESHOLD_MAX_CONFIG_STORE_VERSION = 1;
 
 /**
  * A default list of chain Ids that the protocol supports. This is outlined
