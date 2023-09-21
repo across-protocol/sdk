@@ -813,49 +813,52 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
    *         and the first element is the start block and the second element is the end block.
    */
   private getMostRecentBundleBlockRangesPerChain(bundleCount: number): Record<number, number[][]> {
-    return this.chainIdIndices.reduce((acc, chainId) => {
-      // Gets the most recent `bundleCount` block ranges for this chain.
-      const _blockRangesForChain = getMostRecentBundleBlockRanges(
-        chainId,
-        bundleCount,
-        this.hubPoolClient,
-        this.spokePoolClients
-      ).map(({ start, end }) => [start, end]);
+    return this.chainIdIndices.reduce(
+      (acc, chainId) => {
+        // Gets the most recent `bundleCount` block ranges for this chain.
+        const _blockRangesForChain = getMostRecentBundleBlockRanges(
+          chainId,
+          bundleCount,
+          this.hubPoolClient,
+          this.spokePoolClients
+        ).map(({ start, end }) => [start, end]);
 
-      // Sanity check that block ranges cover from UBA activation bundle start block for chain to latest spoke pool
-      // client block searched:
-      const ubaActivationBundleStartBlockForChain = getBlockForChain(
-        getUbaActivationBundleStartBlocks(this.hubPoolClient),
-        chainId,
-        this.chainIdIndices
-      );
-      if (_blockRangesForChain.length === 0) {
-        throw new Error(`Should never return 0 length block ranges for chain ${chainId}`);
-      }
-      if (
-        // Check 1: start block of first block range should be equal to UBA activation bundle start block for chain
-        _blockRangesForChain[0][0] !== ubaActivationBundleStartBlockForChain ||
-        // Check 2: end block of last block range should be equal to latest spoke pool client block searched
-        (isDefined(this.spokePoolClients[chainId]) &&
-          // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-          _blockRangesForChain.at(-1)![1] !== this.spokePoolClients[chainId].latestBlockSearched)
-      ) {
-        this.logger.error({
-          at: "UBAClientWithRefresh#getMostRecentBundleBlockRangesPerChain",
-          message: `Block ranges for chain ${chainId} do not cover from UBA activation bundle start block to latest spoke pool client block searched`,
-          startBlockForChain: _blockRangesForChain[0][0],
-          ubaActivationBundleStartBlockForChain,
-          endBlockForChain: _blockRangesForChain.at(-1)?.[1],
-          latestSpokePoolClientBlockSearched: this.spokePoolClients[chainId]?.latestBlockSearched,
-        });
-        throw new Error(
-          `Block ranges for chain ${chainId} do not cover from UBA activation bundle start block to latest spoke pool client block searched`
+        // Sanity check that block ranges cover from UBA activation bundle start block for chain to latest spoke pool
+        // client block searched:
+        const ubaActivationBundleStartBlockForChain = getBlockForChain(
+          getUbaActivationBundleStartBlocks(this.hubPoolClient),
+          chainId,
+          this.chainIdIndices
         );
-      }
-      // Map the block ranges to this chain and move on to the next chain.
-      acc[chainId] = _blockRangesForChain;
-      return acc;
-    }, {} as Record<number, number[][]>);
+        if (_blockRangesForChain.length === 0) {
+          throw new Error(`Should never return 0 length block ranges for chain ${chainId}`);
+        }
+        if (
+          // Check 1: start block of first block range should be equal to UBA activation bundle start block for chain
+          _blockRangesForChain[0][0] !== ubaActivationBundleStartBlockForChain ||
+          // Check 2: end block of last block range should be equal to latest spoke pool client block searched
+          (isDefined(this.spokePoolClients[chainId]) &&
+            // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+            _blockRangesForChain.at(-1)![1] !== this.spokePoolClients[chainId].latestBlockSearched)
+        ) {
+          this.logger.error({
+            at: "UBAClientWithRefresh#getMostRecentBundleBlockRangesPerChain",
+            message: `Block ranges for chain ${chainId} do not cover from UBA activation bundle start block to latest spoke pool client block searched`,
+            startBlockForChain: _blockRangesForChain[0][0],
+            ubaActivationBundleStartBlockForChain,
+            endBlockForChain: _blockRangesForChain.at(-1)?.[1],
+            latestSpokePoolClientBlockSearched: this.spokePoolClients[chainId]?.latestBlockSearched,
+          });
+          throw new Error(
+            `Block ranges for chain ${chainId} do not cover from UBA activation bundle start block to latest spoke pool client block searched`
+          );
+        }
+        // Map the block ranges to this chain and move on to the next chain.
+        acc[chainId] = _blockRangesForChain;
+        return acc;
+      },
+      {} as Record<number, number[][]>
+    );
   }
 
   /**
@@ -1026,9 +1029,8 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
         await forEachAsync(tokens, async (token) => {
           await forEachAsync(this.enabledChainIds, async (chainId) => {
             const redisKeyForBundle = this.getKeyForBundle(mostRecentBundleBlockRanges, token, chainId);
-            const modifiedFlowsInBundle: ModifiedUBAFlow[] | undefined | null = await this.cachingClient?.get(
-              redisKeyForBundle
-            );
+            const modifiedFlowsInBundle: ModifiedUBAFlow[] | undefined | null =
+              await this.cachingClient?.get(redisKeyForBundle);
             if (isDefined(modifiedFlowsInBundle)) {
               this.logger.debug({
                 at: "UBAClientWithRefresh#update",
