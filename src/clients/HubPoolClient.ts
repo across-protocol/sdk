@@ -1,10 +1,9 @@
 import { Contract, BigNumber, Event, EventFilter } from "ethers";
-import { Block } from "@ethersproject/abstract-provider";
-import { BlockFinder } from "@uma/sdk";
 import winston from "winston";
 import _ from "lodash";
 import {
   assign,
+  BlockFinder,
   EventSearchConfig,
   MakeOptional,
   BigNumberish,
@@ -12,8 +11,6 @@ import {
   isDefined,
   getCurrentTime,
   shouldCache,
-} from "../utils";
-import {
   fetchTokenInfo,
   sortEventsDescending,
   spreadEvent,
@@ -81,7 +78,7 @@ export class HubPoolClient extends BaseAbstractClient {
   public firstBlockToSearch: number;
   public latestBlockNumber: number | undefined;
   public currentTime: number | undefined;
-  public readonly blockFinder: BlockFinder<Block>;
+  public readonly blockFinder: BlockFinder;
 
   constructor(
     readonly logger: winston.Logger,
@@ -104,7 +101,7 @@ export class HubPoolClient extends BaseAbstractClient {
     this.firstBlockToSearch = eventSearchConfig.fromBlock;
 
     const provider = this.hubPool.provider;
-    this.blockFinder = new BlockFinder(provider.getBlock.bind(provider));
+    this.blockFinder = new BlockFinder(provider);
   }
 
   protected hubPoolEventFilters(): Record<HubPoolEvent, EventFilter> {
