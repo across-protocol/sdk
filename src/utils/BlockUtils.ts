@@ -38,8 +38,8 @@ export async function averageBlockTime(
     return { average: cache.average, blockRange: cache.blockRange };
   }
 
-  latestBlockNumber = latestBlockNumber ?? (await provider.getBlockNumber());
-  blockRange = blockRange ?? defaultBlockRange;
+  latestBlockNumber ??= await provider.getBlockNumber();
+  blockRange ??= defaultBlockRange;
 
   const [firstBlock, lastBlock] = await Promise.all([
     provider.getBlock(latestBlockNumber - blockRange),
