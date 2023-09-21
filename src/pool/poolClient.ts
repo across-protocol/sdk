@@ -119,7 +119,7 @@ export type PooledToken = {
 // Loop forever but wait until execution is finished before starting next timer. Throw an error to break this
 // or add another utlity function if you need it to end on condition.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function loop(fn: (...args: any[]) => any, delay: number, ...args: any[]) {
+async function loop(fn: (...args: unknown[]) => unknown, delay: number, ...args: unknown[]) {
   do {
     await fn(...args);
     await sleep(delay);

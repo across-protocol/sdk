@@ -23,7 +23,11 @@ export class TransactionManager {
   protected mined: Record<string, TransactionReceipt> = {};
   protected submissions: Record<string, string> = {};
 
-  constructor(config: Config, private readonly signer: Signer, private readonly emit: Emit = () => null) {
+  constructor(
+    config: Config,
+    private readonly signer: Signer,
+    private readonly emit: Emit = () => null
+  ) {
     assert(signer.provider, "signer requires a provider, use signer.connect(provider)");
     this.confirmations = config.confirmations ?? 3;
   }
