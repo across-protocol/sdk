@@ -49,10 +49,8 @@ export function getTokenSymbolForFlow(
         `ChainId mismatch on chain ${flow.repaymentChainId} for chain ${flow.originChainId} deposit ${flow.depositId} (${chainId} != ${flow.repaymentChainId})`
       );
     }
-    tokenSymbol = hubPoolClient.getTokenInfo(
-      flow.repaymentChainId,
-      (flow as RefundRequestWithBlock).refundToken
-    )?.symbol;
+    tokenSymbol = hubPoolClient.getTokenInfo(flow.repaymentChainId, (flow as RefundRequestWithBlock).refundToken)
+      ?.symbol;
   }
   return tokenSymbol;
 }
