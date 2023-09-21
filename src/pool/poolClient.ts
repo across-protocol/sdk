@@ -116,17 +116,6 @@ export type PooledToken = {
   undistributedLpFees: BigNumber;
 };
 
-// Loop forever but wait until execution is finished before starting next timer. Throw an error to break this
-// or add another utlity function if you need it to end on condition.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function loop(fn: (...args: unknown[]) => unknown, delay: number, ...args: unknown[]) {
-  do {
-    await fn(...args);
-    await sleep(delay);
-    /* eslint-disable-next-line no-constant-condition */
-  } while (true);
-}
-
 class PoolState {
   constructor(
     private contract: hubPool.Instance,
@@ -455,6 +444,16 @@ export function validateWithdraw(pool: Pool, user: User, lpTokenAmount: BigNumbe
   assert(BigNumber.from(l1TokensToReturn).gt("0"), "Must withdraw amount greater than 0");
   assert(BigNumber.from(lpTokenAmount).lte(user.lpTokens), "You cannot withdraw more than you have");
   return { lpTokenAmount, l1TokensToReturn: l1TokensToReturn.toString() };
+}
+
+// Loop forever but wait until execution is finished before starting next timer. Throw an error to break this
+// or add another utility function if you need it to end on condition.
+async function loop(fn: (...args: unknown[]) => unknown, delay: number, ...args: unknown[]) {
+  do {
+    await fn(...args);
+    await sleep(delay);
+    /* eslint-disable-next-line no-constant-condition */
+  } while (true);
 }
 
 export class Client {
