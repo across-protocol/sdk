@@ -6,7 +6,7 @@ const validConfigStore: { reason: string; value: unknown }[] = [
     reason: "realistic config",
     value: (
       parseJSONWithNumericString(
-        '{"rateModel":{"UBar":"750000000000000000","R0":"21000000000000000","R1":"0","R2":"600000000000000000"},"routeRateModel":{"1-10":{"UBar":"0","R0":"0","R1":"0","R2":"0"},"1-137":{"UBar":"0","R0":"0","R1":"0","R2":"0"},"1-288":{"UBar":"0","R0":"0","R1":"0","R2":"0"},"1-42161":{"UBar":"0","R0":"0","R1":"0","R2":"0"}},"transferThreshold":"0","spokeTargetBalances":{"10":{"threshold":"500000000000000000000","target":"350000000000000000000"},"137":{"target":"0","threshold":"10000000000000000000"},"42161":{"threshold":"600000000000000000000","target":"400000000000000000000"}},"uba":{"incentivePoolAdjustment": {}, "ubaRewardMultiplier": {}, "alpha":{"default":200000000000000,"1-10":0,"1-137":0,"1-42161":0},"gamma":{"default":[[500000000000000000,0],[650000000000000000,500000000000000],[750000000000000000,1000000000000000],[850000000000000000,2500000000000000],[900000000000000000,5000000000000000],[950000000000000000,50000000000000000]]},"omega":{"10":[[0,0]],"137":[[0,0]],"42161":[[0,0]],"default":[[0,0]]},"rebalance":{"10":{"threshold_lower":0,"target_lower":0,"threshold_upper":500000000000000000000,"target_upper":350000000000000000000},"137":{"threshold_lower":0,"target_lower":0,"threshold_upper":25000000000000000000,"target_upper":15000000000000000000},"42161":{"threshold_lower":0,"target_lower":0,"threshold_upper":600000000000000000000,"target_upper":400000000000000000000},"default":{"threshold_lower":0,"target_lower":0,"threshold_upper":0,"target_upper":0}}}}'
+        '{"rateModel":{"UBar":"750000000000000000","R0":"21000000000000000","R1":"0","R2":"600000000000000000"},"routeRateModel":{"1-10":{"UBar":"0","R0":"0","R1":"0","R2":"0"},"1-137":{"UBar":"0","R0":"0","R1":"0","R2":"0"},"1-288":{"UBar":"0","R0":"0","R1":"0","R2":"0"},"1-42161":{"UBar":"0","R0":"0","R1":"0","R2":"0"}},"spokeTargetBalances":{"10":{"threshold":"500000000000000000000","target":"350000000000000000000"},"137":{"target":"0","threshold":"10000000000000000000"},"42161":{"threshold":"600000000000000000000","target":"400000000000000000000"}},"uba":{"incentivePoolAdjustment": {}, "ubaRewardMultiplier": {}, "alpha":{"default":200000000000000,"1-10":0,"1-137":0,"1-42161":0},"gamma":{"default":[[500000000000000000,0],[650000000000000000,500000000000000],[750000000000000000,1000000000000000],[850000000000000000,2500000000000000],[900000000000000000,5000000000000000],[950000000000000000,50000000000000000]]},"omega":{"10":[[0,0]],"137":[[0,0]],"42161":[[0,0]],"default":[[0,0]]},"rebalance":{"10":{"threshold_lower":0,"target_lower":0,"threshold_upper":500000000000000000000,"target_upper":350000000000000000000},"137":{"threshold_lower":0,"target_lower":0,"threshold_upper":25000000000000000000,"target_upper":15000000000000000000},"42161":{"threshold_lower":0,"target_lower":0,"threshold_upper":600000000000000000000,"target_upper":400000000000000000000},"default":{"threshold_lower":0,"target_lower":0,"threshold_upper":0,"target_upper":0}}}}'
       ) as Record<string, unknown>
     )["uba"],
   },
@@ -198,7 +198,7 @@ describe("Test that we can effectively parse the UBA Config", () => {
         reason: string;
         value: unknown;
       }[],
-      boolean
+      boolean,
     ][]
   ).forEach(([store, expected]) => {
     describe(`Test that we can effectively parse the UBA Config with ${expected ? "valid" : "invalid"} inputs`, () => {

@@ -87,7 +87,7 @@ export function nativeToToken(
 ): string {
   const priceWei = toBNWei(price);
   const toAmount = toBNWei(fromAmount).div(priceWei);
-  return ConvertDecimals(nativeDecimals, toDecimals)(toAmount.toString()).toString();
+  return ConvertDecimals(nativeDecimals, toDecimals)(toAmount).toString();
 }
 
 /**
@@ -382,7 +382,7 @@ export type UpdateDepositDetailsMessageType = {
     { name: "originChainId"; type: "uint256" },
     { name: "updatedRelayerFeePct"; type: "int64" },
     { name: "updatedRecipient"; type: "address" },
-    { name: "updatedMessage"; type: "bytes" }
+    { name: "updatedMessage"; type: "bytes" },
   ];
 };
 

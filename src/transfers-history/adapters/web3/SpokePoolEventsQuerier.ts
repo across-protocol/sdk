@@ -21,7 +21,11 @@ export interface ISpokePoolContractEventsQuerier {
  * length of the response
  */
 export class SpokePoolEventsQuerier implements ISpokePoolContractEventsQuerier {
-  constructor(private spokePool: SpokePool, private blockRangeSize?: number, private logger?: Logger) {}
+  constructor(
+    private spokePool: SpokePool,
+    private blockRangeSize?: number,
+    private logger?: Logger
+  ) {}
 
   public async getFundsDepositEvents(from: number, to: number, depositorAddr?: string): Promise<TypedEvent<any>[]> {
     return this.getEvents(from, to, this.getDepositEventsFilters(depositorAddr));

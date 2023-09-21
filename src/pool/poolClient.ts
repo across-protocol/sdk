@@ -128,7 +128,10 @@ async function loop(fn: (...args: any[]) => any, delay: number, ...args: any[]) 
 }
 
 class PoolState {
-  constructor(private contract: hubPool.Instance, private address: string) {}
+  constructor(
+    private contract: hubPool.Instance,
+    private address: string
+  ) {}
   public async read(l1Token: string, latestBlock: number, previousBlock?: number) {
     // typechain does not have complete types for call options, so we have to cast blockTag to any
     const exchangeRatePrevious = await this.exchangeRateAtBlock(l1Token, previousBlock || latestBlock - 1);
@@ -160,7 +163,10 @@ export class PoolEventState {
   private iface: ethers.utils.Interface;
   // maintain ordered unique list of events so we can calculate state
   private events: SerializableEvent[] = [];
-  constructor(private contract: hubPool.Instance, private startBlock = 0) {
+  constructor(
+    private contract: hubPool.Instance,
+    private startBlock = 0
+  ) {
     this.iface = new ethers.utils.Interface(hubPool.Factory.abi);
   }
   private makeId = (params: EventIdParams): string => {
@@ -433,7 +439,10 @@ function joinPoolState(
 export class ReadPoolClient {
   private poolState: PoolState;
   private contract: hubPool.Instance;
-  constructor(private address: string, private provider: Provider) {
+  constructor(
+    private address: string,
+    private provider: Provider
+  ) {
     this.contract = hubPool.connect(address, this.provider);
     this.poolState = new PoolState(this.contract, this.address);
   }
@@ -460,7 +469,11 @@ export class Client {
   private configStoreClient: acrossConfigStore.Client;
   private exchangeRateTable: Record<string, Record<number, BigNumberish>> = {};
   private userServices: Record<string, Record<string, UserState>> = {};
-  constructor(public readonly config: Config, public readonly deps: Dependencies, private emit: EmitState) {
+  constructor(
+    public readonly config: Config,
+    public readonly deps: Dependencies,
+    private emit: EmitState
+  ) {
     config.chainId = config.chainId || 1;
     this.hubPool = this.createHubPoolContract(deps.provider);
     this.acceleratingDistributor = this.createAcceleratingDistributorContract(deps.provider);

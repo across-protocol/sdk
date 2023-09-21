@@ -40,7 +40,10 @@ export class PriceClient implements PriceFeedAdapter {
     [currency: string]: PriceCache;
   } = {};
 
-  constructor(protected logger: Logger, readonly priceFeeds: PriceFeedAdapter[]) {
+  constructor(
+    protected logger: Logger,
+    readonly priceFeeds: PriceFeedAdapter[]
+  ) {
     assert(logger, "No logging instance supplied.");
     assert(priceFeeds.length > 0, "No price feeds supplied.");
   }
