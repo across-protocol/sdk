@@ -7,15 +7,15 @@ type Opts = {
   blockRange?: number;
 };
 
-// Archive requests typically commence at 128 blocks past the head of the chain.
-// Round down to 120 blocks to avoid slipping into archive territory.
-const defaultBlockRange = 120;
-
 type BlockTimeAverage = {
   average: number;
   blockRange: number;
   timestamp: number;
 };
+
+// Archive requests typically commence at 128 blocks past the head of the chain.
+// Round down to 120 blocks to avoid slipping into archive territory.
+const defaultBlockRange = 120;
 
 // Retain computations for 15 minutes.
 const cacheTTL = 60 * 15;
