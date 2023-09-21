@@ -1,4 +1,4 @@
-import { providers } from "ethers";
+import type { Provider } from "@ethersproject/abstract-provider";
 import { isDefined } from "./TypeGuards";
 import { getCurrentTime } from "./TimeUtils";
 
@@ -26,7 +26,7 @@ const blockTimes: { [chainId: number]: BlockTimeAverage } = {};
  * @returns Average number of seconds per block.
  */
 export async function averageBlockTime(
-  provider: providers.Provider,
+  provider: Provider,
   { latestBlockNumber, blockRange }: Opts = {}
 ): Promise<{ average: number; blockRange: number }> {
   // Does not block for StaticJsonRpcProvider.
