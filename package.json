@@ -1,7 +1,7 @@
 {
   "name": "@across-protocol/sdk-v2",
   "author": "UMA Team",
-  "version": "0.16.3",
+  "version": "0.16.4",
   "license": "AGPL-3.0",
   "homepage": "https://docs.across.to/v/developer-docs/developers/across-sdk",
   "files": [
@@ -75,7 +75,6 @@
     "prettier": "^3.0.3",
     "size-limit": "^7.0.8",
     "ts-jest": "^29.1.1",
-    "tslib": "^2.6.2",
     "typechain": "^7.0.1",
     "typescript": "5",
     "winston": "^3.8.1"
@@ -91,7 +90,8 @@
     "decimal.js": "^10.3.1",
     "ethers": "^5.7.2",
     "lodash.get": "^4.4.2",
-    "superstruct": "^0.15.4"
+    "superstruct": "^0.15.4",
+    "tslib": "^2.6.2"
   },
   "publishConfig": {
     "registry": "https://registry.npmjs.com/",
