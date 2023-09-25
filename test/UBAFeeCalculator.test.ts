@@ -1,6 +1,5 @@
-import { expect } from "chai";
-import { bnZero, toBN } from "../utils";
-import UBAFeeConfig from "./UBAFeeConfig";
+import { bnZero, toBN } from "../src/utils";
+import UBAFeeConfig from "../src/UBAFeeCalculator/UBAFeeConfig";
 import {
   computePiecewiseLinearFunction,
   getBounds,
@@ -8,16 +7,17 @@ import {
   getInterval,
   getRefundBalancingFee,
   performLinearIntegration,
-} from "./UBAFeeUtility";
-import { FlowTupleParameters } from "./UBAFeeTypes";
+} from "../src/UBAFeeCalculator/UBAFeeUtility";
+import { FlowTupleParameters } from "../src/UBAFeeCalculator/UBAFeeTypes";
 import { parseUnits } from "ethers/lib/utils";
-import { UBA_BOUNDS_RANGE_MAX, UBA_BOUNDS_RANGE_MIN } from "../constants";
+import { UBA_BOUNDS_RANGE_MAX, UBA_BOUNDS_RANGE_MIN } from "../src/constants";
+import { expect } from "./utils";
 
 describe("UBA Fee Calculations", () => {
   let config: UBAFeeConfig;
   let tuples: FlowTupleParameters;
 
-  beforeAll(() => {
+  beforeEach(() => {
     config = new UBAFeeConfig(
       {
         default: toBN("300000000000000"),
@@ -111,7 +111,7 @@ describe("UBA Fee Calculations from Data", () => {
   let gammaCutoffArray: FlowTupleParameters;
   let omegaCutoffArray: FlowTupleParameters;
 
-  beforeAll(() => {
+  before(() => {
     gammaCutoffArray = [
       [toBN("500000000000000000"), bnZero],
       [toBN("750000000000000000"), toBN("100000000000000")],

@@ -3,6 +3,7 @@ import { getEventFee, getDepositFee, getRefundFee } from "../src/UBAFeeCalculato
 import { fixedPointAdjustment, toBNWei } from "../src/utils";
 import { MockUBAConfig } from "../src/clients/mocks";
 import { computePiecewiseLinearFunction } from "../src/UBAFeeCalculator/UBAFeeUtility";
+import { expect } from "./utils";
 
 describe("UBAFeeSpokeCalculatorAnalog", () => {
   describe("getEventFee", () => {
@@ -46,7 +47,7 @@ describe("UBAFeeSpokeCalculatorAnalog", () => {
             const fee = getEventFee(amount, "inflow", lastRunningBalance, lastIncentiveBalance, 1, config).balancingFee;
             // We are expecting that the fee will be positive. As a result, let's assert
             // that the fee is greater than 0.
-            expect(fee.gt(0)).toBeTruthy();
+            expect(fee.gt(0)).to.be.true;
             // Because the fee is greater than zero, we applied no additional reward multiplier,
             // or any other factors that would affect the fee, we expect that the fee will be
             // equal to the integration of the balancing fee curve.
@@ -58,7 +59,7 @@ describe("UBAFeeSpokeCalculatorAnalog", () => {
             // We expect that the fee is equal to the integration of the balancing fee curve.
             // Note: we need to ensure that we're using the same decimals as the balancing fee curve.
             // Note: The expectation above is that our fee is positive
-            expect(fee.toString()).toEqual(integration.toString());
+            expect(fee.toString()).to.be.eq(integration.toString());
 
             // As an edge case, we can also test that if the balancing fee that is initially computed
             // from the integral as zero, that the fee is also zero. This can be done in two ways:
@@ -76,7 +77,7 @@ describe("UBAFeeSpokeCalculatorAnalog", () => {
                 Number(chainId),
                 config
               ).balancingFee.toString()
-            ).toEqual("0");
+            ).to.be.eq("0");
 
             // We set the balancing fee curve to be a flat line at 0.
             config.setBalancingFeeCurve(chainId, [[toBNWei(0, decimalCount), toBNWei(0, 0)]]);
@@ -89,7 +90,7 @@ describe("UBAFeeSpokeCalculatorAnalog", () => {
                 Number(chainId),
                 config
               ).balancingFee.toString()
-            ).toEqual("0");
+            ).to.be.eq("0");
           }
         });
 
@@ -132,17 +133,17 @@ describe("UBAFeeSpokeCalculatorAnalog", () => {
             // We call the getEventFee function with the parameters we've set above.
             let fee = getEventFee(amount, "outflow", lastRunningBalance, lastIncentiveBalance, 1, config).balancingFee;
             // Since our lastIncentiveBalance is positive, we expect that the fee will be negative.
-            expect(fee.lt(0)).toBeTruthy();
+            expect(fee.lt(0)).to.be.true;
             // Now we can set the lastIncentiveBalance to be zero to ensure that calling our fee
             // again will result in a zero
             lastIncentiveBalance = toBNWei(0, decimalCount);
             fee = getEventFee(amount, "outflow", lastRunningBalance, lastIncentiveBalance, 1, config).balancingFee;
-            expect(fee.toString()).toEqual("0");
+            expect(fee.toString()).to.be.eq("0");
             // Finally, we can set the lastIncentiveBalance to be negative to ensure that calling
             // our fee again will result in a zero
             lastIncentiveBalance = toBNWei(Math.floor(Math.random() * -100) + 1, decimalCount);
             fee = getEventFee(amount, "outflow", lastRunningBalance, lastIncentiveBalance, 1, config).balancingFee;
-            expect(fee.toString()).toEqual("0");
+            expect(fee.toString()).to.be.eq("0");
           }
         });
 
@@ -178,7 +179,7 @@ describe("UBAFeeSpokeCalculatorAnalog", () => {
             config
           ).balancingFee;
           // Since our lastIncentiveBalance is positive, we expect that the fee will be negative.
-          expect(baselineFee.lt(0)).toBeTruthy();
+          expect(baselineFee.lt(0)).to.be.true;
           // Now that we have our baseline fee that is negative, we can set the reward multiplier
           // to various values to ensure that the fee is discounted by the reward multiplier.
           // Let's create a list of reward multipliers to test. Note: these values are numeric strings
@@ -205,7 +206,7 @@ describe("UBAFeeSpokeCalculatorAnalog", () => {
             // comparing the same decimals.
             const expectedFee = baselineFee.mul(rewardMultiplier).div(utils.parseEther("1"));
             // We expect that the fee is equal to the baseline fee multiplied by the reward multiplier.
-            expect(fee.toString()).toEqual(expectedFee.toString());
+            expect(fee.toString()).to.be.eq(expectedFee.toString());
           }
         });
 
@@ -244,7 +245,7 @@ describe("UBAFeeSpokeCalculatorAnalog", () => {
               config
             ).balancingFee;
             // We need to ensure for clarity that our baseline fee is negative.
-            expect(baselineFee.lt(0)).toBeTruthy();
+            expect(baselineFee.lt(0)).to.be.true;
             // We can now step down the lastIncentiveBalance to ensure that we meet the zero fee threshold.
             lastIncentiveBalance = toBNWei(Math.floor(Math.random() * 500) + 500, decimalCount);
             // We call the getEventFee function with the parameters we've set above.
@@ -259,7 +260,7 @@ describe("UBAFeeSpokeCalculatorAnalog", () => {
               config
             ).balancingFee;
             // We expect that the fee is greater than the baseline fee.
-            expect(fee.gt(baselineFee)).toBeTruthy();
+            expect(fee.gt(baselineFee)).to.be.true;
 
             // From the above data, we know that our zeroPoint is 0. So, in order to compute the
             // zeroPointFee, we need to compute the integral of the curve from 0 to the lastRunningBalance.
@@ -278,7 +279,7 @@ describe("UBAFeeSpokeCalculatorAnalog", () => {
             // NOTE: the reason we can expect this even though we change the lastIncentiveBalance is because
             //       the lastIncentive balance only comes into play when our zeroPoint balance threshold
             //       is met. In this case, we're ensuring that the zeroPoint balance threshold is met.
-            expect(fee.toString()).toEqual(expectedFee.toString());
+            expect(fee.toString()).to.be.eq(expectedFee.toString());
           }
         });
       });
@@ -327,7 +328,7 @@ describe("UBAFeeSpokeCalculatorAnalog", () => {
             chainId,
             defaultConfig
           );
-          expect(fee.balancingFee.toString()).toEqual(eventFee.balancingFee.toString());
+          expect(fee.balancingFee.toString()).to.be.eq(eventFee.balancingFee.toString());
         }
       });
     });

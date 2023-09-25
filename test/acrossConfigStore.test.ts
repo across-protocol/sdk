@@ -1,5 +1,5 @@
-import { expect } from "chai";
 import { Client } from "../src/contracts/acrossConfigStore";
+import { expect } from "./utils";
 
 describe("Contracts Config Store", () => {
   const BASE_TRUTH = {
