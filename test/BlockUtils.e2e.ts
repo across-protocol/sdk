@@ -1,5 +1,5 @@
 import { providers } from "ethers";
-import { averageBlockTime } from "./BlockUtils";
+import { averageBlockTime } from "../src/utils/BlockUtils";
 
 type Provider = providers.Provider;
 

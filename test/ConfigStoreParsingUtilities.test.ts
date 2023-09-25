@@ -1,5 +1,5 @@
-import { parseJSONWithNumericString } from "../../../utils/JSONUtils";
-import { isUBAOnChainConfig } from "./ConfigStoreParsingUtilities";
+import { parseJSONWithNumericString } from "../src/utils/JSONUtils";
+import { isUBAOnChainConfig } from "../src/clients/AcrossConfigStoreClient/ConfigStoreParsingUtilities/ConfigStoreParsingUtilities";
 
 const validConfigStore: { reason: string; value: unknown }[] = [
   {

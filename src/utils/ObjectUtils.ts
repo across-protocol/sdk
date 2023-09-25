@@ -66,3 +66,12 @@ export function groupObjectCountsByProp(objects: any[], getProp: (obj: any) => s
     return result;
   }, {});
 }
+
+/**
+ * Filter out falsy keys from an object. Falsy keys are keys with values of false, null, undefined, 0, or empty string.
+ * @param obj The object to filter
+ * @returns A new object with falsy keys removed
+ */
+export function filterFalsyKeys(obj: Record<string | number, unknown>): Record<string | number, unknown> {
+  return Object.fromEntries(Object.entries(obj).filter(([, v]) => v));
+}

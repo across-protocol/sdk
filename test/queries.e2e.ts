@@ -7,13 +7,13 @@
 
 import dotenv from "dotenv";
 
-import { ArbitrumQueries } from "./arbitrum";
+import { ArbitrumQueries } from "../src/relayFeeCalculator/chain-queries/arbitrum";
 
 import { providers } from "ethers";
-import { BobaQueries } from "./boba";
-import { EthereumQueries } from "./ethereum";
-import { OptimismQueries } from "./optimism";
-import { PolygonQueries } from "./polygon";
+import { BobaQueries } from "../src/relayFeeCalculator/chain-queries/boba";
+import { EthereumQueries } from "../src/relayFeeCalculator/chain-queries/ethereum";
+import { OptimismQueries } from "../src/relayFeeCalculator/chain-queries/optimism";
+import { PolygonQueries } from "../src/relayFeeCalculator/chain-queries/polygon";
 
 dotenv.config();
 

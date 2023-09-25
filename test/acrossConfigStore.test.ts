@@ -1,5 +1,5 @@
-import { Client } from "./acrossConfigStore";
-jest.useFakeTimers();
+import { expect } from "chai";
+import { Client } from "../src/contracts/acrossConfigStore";
 
 describe("Contracts Config Store", () => {
   const BASE_TRUTH = {
@@ -7,7 +7,7 @@ describe("Contracts Config Store", () => {
   };
   it("should parse parseL1TokenConfig correctly with exactly the right data", () => {
     const structure = BASE_TRUTH;
-    expect(Client.parseL1TokenConfig(JSON.stringify(structure))).toEqual(BASE_TRUTH);
+    expect(Client.parseL1TokenConfig(JSON.stringify(structure))).to.deep.eq(BASE_TRUTH);
   });
   it("should parse parseL1TokenConfig correctly with additional unneeded params", () => {
     const structure = {
@@ -18,7 +18,7 @@ describe("Contracts Config Store", () => {
       },
       extraKey: "x",
     };
-    expect(Client.parseL1TokenConfig(JSON.stringify(structure))).toEqual(BASE_TRUTH);
+    expect(Client.parseL1TokenConfig(JSON.stringify(structure))).to.deep.include(BASE_TRUTH);
   });
   it("should fail to parse the data to parseL1TokenConfig with malformed input", () => {
     const invalidStructures = [
@@ -35,7 +35,7 @@ describe("Contracts Config Store", () => {
       },
     ];
     invalidStructures.forEach((structure) => {
-      expect(() => Client.parseL1TokenConfig(JSON.stringify(structure))).toThrow();
+      expect(() => Client.parseL1TokenConfig(JSON.stringify(structure))).to.throw();
     });
   });
 });

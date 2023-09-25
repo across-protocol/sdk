@@ -1,4 +1,4 @@
-import { blockExplorerLinks, blockExplorerLink, resolveBlockExplorerDomain } from "../utils/BlockExplorerUtils";
+import { blockExplorerLinks, blockExplorerLink, resolveBlockExplorerDomain } from "../src/utils/BlockExplorerUtils";
 
 describe("BlockExplorerUtils", () => {
   describe("blockExplorerLink", () => {

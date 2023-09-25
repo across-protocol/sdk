@@ -1,5 +1,5 @@
 import { ethers } from "ethers";
-import { toWei, toGWei, toBN } from "./BigNumberUtils";
+import { toWei, toGWei, toBN } from "../src/utils/BigNumberUtils";
 
 describe("BigNumberUtils", () => {
   describe("toWei", () => {

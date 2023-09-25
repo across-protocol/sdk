@@ -1,7 +1,7 @@
 import dotenv from "dotenv";
 import { providers } from "ethers";
-import { CHAIN_IDs } from "./adapters/web3/model";
-import { TransfersHistoryClient, TransfersHistoryEvent } from "./client";
+import { CHAIN_IDs } from "../src/transfers-history/adapters/web3/model";
+import { TransfersHistoryClient, TransfersHistoryEvent } from "../src/transfers-history/client";
 
 dotenv.config({ path: ".env" });
 
