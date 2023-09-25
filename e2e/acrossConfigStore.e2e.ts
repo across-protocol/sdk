@@ -3,6 +3,7 @@ import assert from "assert";
 import { ethers } from "ethers";
 import { Client } from "../src/contracts/acrossConfigStore";
 import { Provider } from "@ethersproject/providers";
+import { expect } from "../test/utils";
 
 dotenv.config();
 const configStoreAddress = ethers.utils.getAddress("0x3b03509645713718b78951126e0a6de6f10043f5");
@@ -24,13 +25,13 @@ describe("AcrossConfigStore", function () {
     // that this rate model is different than the default rate model for WETH.
     const result = await client.getRateModel(wethAddress, {}, 1, 10);
     const defaultRateModelResult = await client.getRateModel(wethAddress);
-    expect(result).toStrictEqual({
+    expect(result).to.deep.eq({
       UBar: "0",
       R0: "0",
       R1: "0",
       R2: "0",
     });
-    expect(defaultRateModelResult).not.toStrictEqual(result);
+    expect(defaultRateModelResult).not.to.deep.eq(result);
     assert.ok(defaultRateModelResult.R0);
     assert.ok(defaultRateModelResult.R1);
     assert.ok(defaultRateModelResult.UBar);

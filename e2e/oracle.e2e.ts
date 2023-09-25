@@ -3,6 +3,7 @@ import dotenv from "dotenv";
 import winston from "winston";
 import { BigNumber, providers, utils as ethersUtils } from "ethers";
 import { getGasPriceEstimate } from "../src/gasPriceOracle";
+import { assertPromiseError, expect } from "../test/utils";
 dotenv.config({ path: ".env" });
 
 const dummyLogger = winston.createLogger({
@@ -62,7 +63,7 @@ const legacyChains = [288, 324];
 let providerInstances: { [chainId: number]: MockedProvider } = {};
 
 describe("Gas Price Oracle", function () {
-  beforeAll(() => {
+  before(() => {
     providerInstances = Object.fromEntries(
       Object.entries(networks).map(([_chainId, _rpcUrl]) => {
         const chainId = Number(_chainId);
@@ -84,7 +85,7 @@ describe("Gas Price Oracle", function () {
     }
   });
 
-  test("Gas Price Retrieval", async function () {
+  it("Gas Price Retrieval", async function () {
     for (const [_chainId, provider] of Object.entries(providerInstances)) {
       const chainId = Number(_chainId);
 
@@ -96,32 +97,32 @@ describe("Gas Price Oracle", function () {
         maxPriorityFeePerGas,
       });
 
-      expect(BigNumber.isBigNumber(maxFeePerGas)).toBe(true);
-      expect(BigNumber.isBigNumber(maxPriorityFeePerGas)).toBe(true);
+      expect(BigNumber.isBigNumber(maxFeePerGas)).to.be.true;
+      expect(BigNumber.isBigNumber(maxPriorityFeePerGas)).to.be.true;
 
       if (eip1559Chains.includes(chainId)) {
         if (chainId === 137) {
           // The Polygon gas station isn't mocked, so just ensure that the fees have a valid relationship.
-          expect(maxFeePerGas.gt(0)).toBe(true);
-          expect(maxPriorityFeePerGas.gt(0)).toBe(true);
-          expect(maxPriorityFeePerGas.lt(maxFeePerGas)).toBe(true);
+          expect(maxFeePerGas.gt(0)).to.be.true;
+          expect(maxPriorityFeePerGas.gt(0)).to.be.true;
+          expect(maxPriorityFeePerGas.lt(maxFeePerGas)).to.be.true;
         } else if (chainId === 42161) {
           // Arbitrum priority fees are refunded, so drop the priority fee from estimates.
-          expect(maxFeePerGas.eq(stdLastBaseFeePerGas.add(1))).toBe(true);
-          expect(maxPriorityFeePerGas.eq(1)).toBe(true);
+          expect(maxFeePerGas.eq(stdLastBaseFeePerGas.add(1))).to.be.true;
+          expect(maxPriorityFeePerGas.eq(1)).to.be.true;
         } else {
-          expect(maxFeePerGas.eq(stdMaxFeePerGas)).toBe(true);
-          expect(maxPriorityFeePerGas.eq(stdMaxPriorityFeePerGas)).toBe(true);
+          expect(maxFeePerGas.eq(stdMaxFeePerGas)).to.be.true;
+          expect(maxPriorityFeePerGas.eq(stdMaxPriorityFeePerGas)).to.be.true;
         }
       } else {
         // Defaults to Legacy (Type 0)
-        expect(maxFeePerGas.eq(stdGasPrice)).toBe(true);
-        expect(maxPriorityFeePerGas.eq(0)).toBe(true);
+        expect(maxFeePerGas.eq(stdGasPrice)).to.be.true;
+        expect(maxPriorityFeePerGas.eq(0)).to.be.true;
       }
     }
-  }, 10000);
+  });
 
-  test("Gas Price Retrieval Failure", async function () {
+  it("Gas Price Retrieval Failure", async function () {
     const feeDataFields = ["gasPrice", "lastBaseFeePerGas", "maxPriorityFeePerGas"];
     const feeDataValues = [null, "test", "1234", 5678, BigNumber.from(-1)];
 
@@ -147,7 +148,7 @@ describe("Gas Price Oracle", function () {
               ["lastBaseFeePerGas", "maxPriorityFeePerGas"].includes(field))
           ) {
             provider.testGasPrice = field === "gasPrice" ? value : stdGasPrice;
-            await expect(getGasPriceEstimate(provider, chainId)).rejects.toThrow();
+            await assertPromiseError(getGasPriceEstimate(provider, chainId));
           } else {
             // Expect sane results to be returned; validate them.
             const { maxFeePerGas, maxPriorityFeePerGas } = await getGasPriceEstimate(provider, chainId);
@@ -159,33 +160,33 @@ describe("Gas Price Oracle", function () {
               maxPriorityFeePerGas,
             });
 
-            expect(BigNumber.isBigNumber(maxFeePerGas)).toBe(true);
-            expect(BigNumber.isBigNumber(maxPriorityFeePerGas)).toBe(true);
+            expect(BigNumber.isBigNumber(maxFeePerGas)).to.be.true;
+            expect(BigNumber.isBigNumber(maxPriorityFeePerGas)).to.be.true;
 
             if (eip1559Chains.includes(chainId)) {
               if (chainId === 137) {
-                expect(maxFeePerGas.gt(0)).toBe(true);
-                expect(maxPriorityFeePerGas.gt(0)).toBe(true);
-                expect(maxPriorityFeePerGas.lt(maxFeePerGas)).toBe(true);
+                expect(maxFeePerGas.gt(0)).to.be.true;
+                expect(maxPriorityFeePerGas.gt(0)).to.be.true;
+                expect(maxPriorityFeePerGas.lt(maxFeePerGas)).to.be.true;
               } else if (chainId === 42161) {
-                expect(maxFeePerGas.eq(stdLastBaseFeePerGas.add(1))).toBe(true);
-                expect(maxPriorityFeePerGas.eq(1)).toBe(true);
+                expect(maxFeePerGas.eq(stdLastBaseFeePerGas.add(1))).to.be.true;
+                expect(maxPriorityFeePerGas.eq(1)).to.be.true;
               } else {
-                expect(maxFeePerGas.eq(stdMaxFeePerGas)).toBe(true);
-                expect(maxPriorityFeePerGas.eq(stdMaxPriorityFeePerGas)).toBe(true);
+                expect(maxFeePerGas.eq(stdMaxFeePerGas)).to.be.true;
+                expect(maxPriorityFeePerGas.eq(stdMaxPriorityFeePerGas)).to.be.true;
               }
             } else {
               // Legacy
-              expect(maxFeePerGas.eq(stdGasPrice)).toBe(true);
-              expect(maxPriorityFeePerGas.eq(0)).toBe(true);
+              expect(maxFeePerGas.eq(stdGasPrice)).to.be.true;
+              expect(maxPriorityFeePerGas.eq(0)).to.be.true;
             }
           }
         }
       }
     }
-  }, 25000);
+  });
 
-  test("Gas Price Fallback Behaviour", async function () {
+  it("Gas Price Fallback Behaviour", async function () {
     for (const provider of Object.values(providerInstances)) {
       const fakeChainId = 1337;
 
@@ -200,14 +201,14 @@ describe("Gas Price Oracle", function () {
       const { maxFeePerGas, maxPriorityFeePerGas } = await getGasPriceEstimate(provider, fakeChainId, true);
 
       // Require legacy pricing when fallback is permitted.
-      expect(BigNumber.isBigNumber(maxFeePerGas)).toBe(true);
-      expect(maxFeePerGas.eq(stdMaxFeePerGas)).toBe(true);
+      expect(BigNumber.isBigNumber(maxFeePerGas)).to.be.true;
+      expect(maxFeePerGas.eq(stdMaxFeePerGas)).to.be.true;
 
-      expect(BigNumber.isBigNumber(maxPriorityFeePerGas)).toBe(true);
-      expect(maxPriorityFeePerGas.eq(0)).toBe(true);
+      expect(BigNumber.isBigNumber(maxPriorityFeePerGas)).to.be.true;
+      expect(maxPriorityFeePerGas.eq(0)).to.be.true;
 
       // Verify an assertion is thrown when fallback is not permitted.
-      await expect(getGasPriceEstimate(provider, fakeChainId, false)).rejects.toThrow();
+      await assertPromiseError(getGasPriceEstimate(provider, fakeChainId, false));
     }
   });
 });

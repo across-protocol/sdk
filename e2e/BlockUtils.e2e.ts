@@ -15,7 +15,7 @@ const networks: { [chainId: number]: string } = {
 describe("BlockUtils", () => {
   let rpcProviders: Provider[] = [];
 
-  beforeAll(() => {
+  beforeEach(() => {
     rpcProviders = Object.entries(networks).map(([chainId, _rpcUrl]) => {
       const rpcUrl: string = process.env[`NODE_URL_${chainId}`] ?? _rpcUrl;
       const provider = new providers.StaticJsonRpcProvider(rpcUrl);

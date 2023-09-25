@@ -18,7 +18,7 @@ import { PolygonQueries } from "../src/relayFeeCalculator/chain-queries/polygon"
 dotenv.config();
 
 describe("Queries", function () {
-  test("Arbitrum", async function () {
+  it("Arbitrum", async function () {
     const provider = new providers.JsonRpcProvider(process.env.NODE_URL_42161);
     const arbitrumQueries = new ArbitrumQueries(
       provider,
@@ -34,7 +34,7 @@ describe("Queries", function () {
       arbitrumQueries.getTokenPrice("USDC"),
     ]);
   });
-  test("Boba", async function () {
+  it("Boba", async function () {
     const provider = new providers.JsonRpcProvider(process.env.NODE_URL_288);
     const bobaQueries = new BobaQueries(
       provider,
@@ -50,7 +50,7 @@ describe("Queries", function () {
       bobaQueries.getTokenPrice("USDC"),
     ]);
   });
-  test("Ethereum", async function () {
+  it("Ethereum", async function () {
     const provider = new providers.JsonRpcProvider(process.env.NODE_URL_1);
     const ethereumQueries = new EthereumQueries(
       provider,
@@ -66,7 +66,7 @@ describe("Queries", function () {
       ethereumQueries.getTokenPrice("USDC"),
     ]);
   });
-  test("Optimism", async function () {
+  it("Optimism", async function () {
     const provider = new providers.JsonRpcProvider(process.env.NODE_URL_10);
     const optimismQueries = new OptimismQueries(
       provider,
@@ -82,7 +82,7 @@ describe("Queries", function () {
       optimismQueries.getTokenPrice("USDC"),
     ]);
   });
-  test("Polygon", async function () {
+  it("Polygon", async function () {
     const provider = new providers.JsonRpcProvider(process.env.NODE_URL_137);
     const polygonQueries = new PolygonQueries(
       provider,

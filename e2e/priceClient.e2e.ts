@@ -5,6 +5,7 @@ import winston from "winston";
 import { Logger, msToS, PriceCache, PriceClient, PriceFeedAdapter, TokenPrice } from "../src/priceClient/priceClient";
 import { acrossApi, coingecko, defiLlama } from "../src/priceClient/adapters";
 import { BaseHTTPAdapter, BaseHTTPAdapterArgs } from "../src/priceClient/adapters/baseAdapter";
+import { assertPromiseError, assertPromisePasses, expect } from "../test/utils";
 
 dotenv.config();
 
@@ -89,21 +90,21 @@ function validateTokenPrice(tokenPrice: TokenPrice, address: string, timestamp: 
 }
 
 describe("PriceClient: BaseHTTPAdapter", function () {
-  test("Retry behaviour: All failures", async function () {
+  it("Retry behaviour: All failures", async function () {
     for (const retries of [0, 1, 3, 5, 7, 9]) {
       const name = `BaseHTTPAdapter test w/ ${retries} retries`;
       const baseAdapter = new TestBaseHTTPAdapter(name, "127.0.0.1", { timeout: 1, retries });
-      expect(baseAdapter.nRetries).toBe(0);
-      await expect(baseAdapter._query("", { retries })).rejects.toThrow(`${name} price lookup failure`);
-      expect(baseAdapter.nRetries).toBe(retries);
+      expect(baseAdapter.nRetries).to.be.eq(0);
+      await assertPromiseError(baseAdapter._query("", { retries }), `${name} price lookup failure`);
+      expect(baseAdapter.nRetries).to.be.eq(retries);
     }
   });
 
-  test("Retry behaviour: Success on the final request", async function () {
+  it("Retry behaviour: Success on the final request", async function () {
     for (const retries of [1, 3, 5, 7, 9]) {
       const name = `BaseHTTPAdapter test w/ success on retry ${retries}`;
       const baseAdapter = new TestBaseHTTPAdapter(name, "127.0.0.1", { timeout: 1, retries });
-      expect(baseAdapter.nRetries).toBe(0);
+      expect(baseAdapter.nRetries).to.be.eq(0);
 
       // Instantiate callback for HTTP response != 2xx.
       const interceptor = axios.interceptors.response.use(
@@ -115,10 +116,10 @@ describe("PriceClient: BaseHTTPAdapter", function () {
       );
 
       const response = baseAdapter._query("", { retries });
-      await expect(response).resolves.not.toThrow();
+      await assertPromisePasses(response);
       axios.interceptors.response.eject(interceptor); // Cleanup ASAP.
 
-      expect(baseAdapter.nRetries).toBe(retries);
+      expect(baseAdapter.nRetries).to.be.eq(retries);
     }
   });
 });
@@ -140,7 +141,7 @@ describe("PriceClient", function () {
     beginTs = msToS(Date.now());
   });
 
-  test("Price feed ordering", async function () {
+  it("Price feed ordering", async function () {
     // Generate a list with ~random names; nb. names are not (currently?) required to be unique.
     const feedNames = Array(3)
       .fill("Test PriceFeed")
@@ -152,16 +153,16 @@ describe("PriceClient", function () {
       dummyLogger,
       feedNames.map((feedName) => new acrossApi.PriceFeed({ name: feedName }))
     );
-    expect(feedNames).toEqual(pc.listPriceFeeds());
+    expect(feedNames).to.be.eq(pc.listPriceFeeds());
   });
 
-  test("getPriceByAddress: Across API", async function () {
+  it("getPriceByAddress: Across API", async function () {
     pc = new PriceClient(dummyLogger, [new acrossApi.PriceFeed()]);
     const price: TokenPrice = await pc.getPriceByAddress(testAddress);
     validateTokenPrice(price, testAddress, beginTs);
   });
 
-  test("getPriceByAddress: CoinGecko Free", async function () {
+  it("getPriceByAddress: CoinGecko Free", async function () {
     pc = new PriceClient(dummyLogger, [new coingecko.PriceFeed()]);
     const price: TokenPrice = await pc.getPriceByAddress(testAddress);
     validateTokenPrice(price, testAddress, beginTs);
@@ -177,7 +178,7 @@ describe("PriceClient", function () {
     validateTokenPrice(price, testAddress, beginTs);
   });
 
-  test("getPriceByAddress: DefiLlama", async function () {
+  it("getPriceByAddress: DefiLlama", async function () {
     let price: TokenPrice;
     pc = new PriceClient(dummyLogger, [new defiLlama.PriceFeed()]);
     price = await pc.getPriceByAddress(testAddress);
@@ -185,14 +186,14 @@ describe("PriceClient", function () {
 
     // Verify that minConfidence works as expected
     pc = new PriceClient(dummyLogger, [new defiLlama.PriceFeed({ minConfidence: 1.0 })]);
-    await expect(pc.getPriceByAddress(testAddress)).rejects.toThrow();
+    await assertPromiseError(pc.getPriceByAddress(testAddress));
 
     pc = new PriceClient(dummyLogger, [new defiLlama.PriceFeed({ minConfidence: 0.0 })]);
     price = await pc.getPriceByAddress(testAddress);
     validateTokenPrice(price, testAddress, beginTs);
   });
 
-  test("getPriceByAddress: Across failover to Across", async function () {
+  it("getPriceByAddress: Across failover to Across", async function () {
     pc = new PriceClient(dummyLogger, [
       new acrossApi.PriceFeed({ name: "Across API (expect fail)", host: "127.0.0.1", retries: 0 }),
       new acrossApi.PriceFeed({ name: "Across API (expect pass)" }),
@@ -202,7 +203,7 @@ describe("PriceClient", function () {
     validateTokenPrice(price, testAddress, beginTs);
   });
 
-  test("getPriceByAddress: Coingecko failover to Across", async function () {
+  it("getPriceByAddress: Coingecko failover to Across", async function () {
     const _apiKey = "xxx-fake-apikey";
     pc = new PriceClient(dummyLogger, [
       new coingecko.PriceFeed({ name: "CoinGecko Pro (expect fail)", apiKey: _apiKey, retries: 0 }),
@@ -213,20 +214,20 @@ describe("PriceClient", function () {
     validateTokenPrice(price, testAddress, beginTs);
   });
 
-  test("getPriceByAddress: Complete price lookup failure", async function () {
+  it("getPriceByAddress: Complete price lookup failure", async function () {
     pc = new PriceClient(dummyLogger, [
       new acrossApi.PriceFeed({ name: "Across API #1 (expect fail)", host: "127.0.0.1", retries: 0 }),
       new acrossApi.PriceFeed({ name: "Across API #2 (expect fail)", host: "127.0.0.1", retries: 0 }),
     ]);
-    await expect(pc.getPriceByAddress(testAddress)).rejects.toThrow();
+    await assertPromiseError(pc.getPriceByAddress(testAddress));
   });
 
-  test("getPriceByAddress: Across API timeout", async function () {
+  it("getPriceByAddress: Across API timeout", async function () {
     const acrossPriceFeed: acrossApi.PriceFeed = new acrossApi.PriceFeed({ name: "Across API (timeout)", retries: 0 });
     pc = new PriceClient(dummyLogger, [acrossPriceFeed]);
 
     acrossPriceFeed.timeout = 1; // mS
-    await expect(pc.getPriceByAddress(testAddress)).rejects.toThrow();
+    await assertPromiseError(pc.getPriceByAddress(testAddress));
 
     acrossPriceFeed.timeout = 10000; // mS
     const price: TokenPrice = await pc.getPriceByAddress(testAddress);
@@ -234,7 +235,7 @@ describe("PriceClient", function () {
   });
 
   // Ensure that all price adapters return a price of 1WETH/ETH and 1USDC/USD.
-  test("getPriceByAddress: Price Coherency", async function () {
+  it("getPriceByAddress: Price Coherency", async function () {
     // Note: Beware of potential rate-limiting when using CoinGecko Free.
     const priceFeeds: PriceFeedAdapter[] = [
       new acrossApi.PriceFeed(),
@@ -257,7 +258,7 @@ describe("PriceClient", function () {
     }
   });
 
-  test("getPriceByAddress: Address case insensitivity", async function () {
+  it("getPriceByAddress: Address case insensitivity", async function () {
     // Instantiate a custom subclass of PriceClient.
     const pc: TestPriceClient = new TestPriceClient(dummyLogger, [
       new acrossApi.PriceFeed({ name: "Across API (expect fail)", host: "127.0.0.1", retries: 0 }),
@@ -285,7 +286,7 @@ describe("PriceClient", function () {
     });
   });
 
-  test("getPriceByAddress: Validate price cache", async function () {
+  it("getPriceByAddress: Validate price cache", async function () {
     // Instantiate a custom subclass of PriceClient; load the cache and force price lookup failures.
     const pc: TestPriceClient = new TestPriceClient(dummyLogger, [
       new acrossApi.PriceFeed({ name: "Across API (expect fail)", host: "127.0.0.1", retries: 0 }),
@@ -318,11 +319,11 @@ describe("PriceClient", function () {
     pc.maxPriceAge = 1; // seconds
     for (const expected of Object.values(priceCache)) {
       const addr: string = expected.address;
-      await expect(pc.getPriceByAddress(addr, baseCurrency)).rejects.toThrow();
+      await assertPromiseError(pc.getPriceByAddress(addr, baseCurrency));
     }
   });
 
-  test("getPricesByAddress: Verify price retrieval", async function () {
+  it("getPricesByAddress: Verify price retrieval", async function () {
     // Note: Beware of potential rate-limiting when using CoinGecko Free.
     const priceFeeds: PriceFeedAdapter[] = [
       new acrossApi.PriceFeed(),
@@ -333,7 +334,7 @@ describe("PriceClient", function () {
       pc = new PriceClient(dummyLogger, [priceFeed]);
 
       const tokenPrices: TokenPrice[] = await pc.getPricesByAddress(Object.values(addresses));
-      expect(tokenPrices.length).toBe(Object.values(addresses).length);
+      expect(tokenPrices.length).to.be.eq(Object.values(addresses).length);
       Object.values(addresses).forEach((address: string) => {
         const tokenPrice: TokenPrice | undefined = tokenPrices.find((tokenPrice) => tokenPrice.address === address);
         assert.ok(tokenPrice, `Could not find address ${address} via ${priceFeed.name}`);
@@ -342,7 +343,7 @@ describe("PriceClient", function () {
     }
   });
 
-  test("getPricesByAddress: Price request reduction", async function () {
+  it("getPricesByAddress: Price request reduction", async function () {
     // Test Price Feed #1 does not know about ACX, so it provides an incomplete
     // response. Verify that the response from Test Price Feed #1 includes all
     // known tokens, and that the PriceClient proceeds to query Test Price Feed
@@ -370,16 +371,16 @@ describe("PriceClient", function () {
     priceRequest.push(acxAddr);
     dummyLogger.debug({ message: "Price requests before.", priceRequest });
 
-    expect(testPriceFeeds[0].priceRequest).toStrictEqual([]);
-    expect(testPriceFeeds[1].priceRequest).toStrictEqual([]);
+    expect(testPriceFeeds[0].priceRequest).to.deep.eq([]);
+    expect(testPriceFeeds[1].priceRequest).to.deep.eq([]);
 
     const prices = await pc.getPricesByAddress(priceRequest);
 
-    expect(prices.length).toBe(priceRequest.length);
-    expect(prices.map((price) => price.address)).toStrictEqual(priceRequest);
+    expect(prices.length).to.be.eq(priceRequest.length);
+    expect(prices.map((price) => price.address)).to.deep.eq(priceRequest);
 
     // PriceClient maps all input addresses to lower case.
-    expect(testPriceFeeds[0].priceRequest).toStrictEqual(priceRequest.map((address) => address.toLowerCase()));
-    expect(testPriceFeeds[1].priceRequest).toEqual([acxAddr].map((address) => address.toLowerCase()));
+    expect(testPriceFeeds[0].priceRequest).to.deep.eq(priceRequest.map((address) => address.toLowerCase()));
+    expect(testPriceFeeds[1].priceRequest).to.be.eq([acxAddr].map((address) => address.toLowerCase()));
   });
 });

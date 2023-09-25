@@ -2,13 +2,14 @@ import dotenv from "dotenv";
 import { providers } from "ethers";
 import { CHAIN_IDs } from "../src/transfers-history/adapters/web3/model";
 import { TransfersHistoryClient, TransfersHistoryEvent } from "../src/transfers-history/client";
+import { expect } from "../test/utils";
 
 dotenv.config({ path: ".env" });
 
 describe("Client e2e tests", () => {
   let client: TransfersHistoryClient;
 
-  beforeAll(() => {
+  beforeEach(() => {
     client = new TransfersHistoryClient({
       pollingIntervalSeconds: 5,
       chains: [
@@ -49,8 +50,6 @@ describe("Client e2e tests", () => {
   });
 
   it("should fetch pending transfers from chain", async (done) => {
-    jest.setTimeout(1000 * 60);
-
     client.startFetchingTransfers("0x9A8f92a830A5cB89a3816e3D267CB7791c16b04D");
     client.on(TransfersHistoryEvent.TransfersUpdated, (data) => {
       console.log(data);
@@ -58,10 +57,10 @@ describe("Client e2e tests", () => {
       const filledTransfers = client.getFilledTransfers("0x9A8f92a830A5cB89a3816e3D267CB7791c16b04D");
       const transfersWithSpeedUps = filledTransfers.filter(({ speedUps }) => speedUps.length) || [];
       client.stopFetchingTransfers("0x9A8f92a830A5cB89a3816e3D267CB7791c16b04D");
-      expect(pendingTransfers.length).toBeGreaterThanOrEqual(0);
-      expect(filledTransfers.length).toBeGreaterThanOrEqual(0);
-      expect(filledTransfers[0].fillTxs.length).toBeGreaterThanOrEqual(1);
-      expect(transfersWithSpeedUps.length).toBeGreaterThan(0);
+      expect(pendingTransfers.length).to.be.greaterThanOrEqual(0);
+      expect(filledTransfers.length).to.be.greaterThanOrEqual(0);
+      expect(filledTransfers[0].fillTxs.length).to.be.greaterThanOrEqual(1);
+      expect(transfersWithSpeedUps.length).to.be.greaterThan(0);
 
       done();
     });
@@ -69,15 +68,14 @@ describe("Client e2e tests", () => {
 
   it("should fetch all transfers", async (done) => {
     let iteration = 0;
-    jest.setTimeout(1000 * 60);
     client.startFetchingTransfers("all");
     client.on(TransfersHistoryEvent.TransfersUpdated, () => {
       iteration++;
       const pendingTransfers = client.getPendingTransfers("all");
       const filledTransfers = client.getFilledTransfers("all");
       console.log({ pendingTransfers: pendingTransfers.length, filledTransfers: filledTransfers.length });
-      expect(pendingTransfers.length).toBeGreaterThanOrEqual(0);
-      expect(filledTransfers.length).toBeGreaterThanOrEqual(0);
+      expect(pendingTransfers.length).to.be.greaterThanOrEqual(0);
+      expect(filledTransfers.length).to.be.greaterThanOrEqual(0);
 
       if (iteration === 3) {
         client.stopFetchingTransfers("all");

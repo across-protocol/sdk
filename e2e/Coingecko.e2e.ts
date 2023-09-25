@@ -2,6 +2,7 @@ import assert from "assert";
 import dotenv from "dotenv";
 import winston from "winston";
 import { Coingecko, msToS, CoinGeckoPrice } from "../src/coingecko/Coingecko";
+import { expect } from "../test/utils";
 dotenv.config({ path: ".env" });
 
 const dummyLogger = winston.createLogger({
@@ -30,22 +31,22 @@ class TestGecko extends Coingecko {
 // this requires e2e testing, should only test manually for now
 describe("coingecko", function () {
   let cg: Coingecko;
-  test("init", function () {
+  it("init", function () {
     cg = Coingecko.get(dummyLogger, process.env.COINGECKO_PRO_API_KEY);
     assert.ok(cg);
   });
-  test("getContractDetails", async function () {
+  it("getContractDetails", async function () {
     const address = "0x04fa0d235c4abf4bcf4787af4cf447de572ef828";
     const result = await cg.getContractDetails(address);
     assert.ok(result);
   });
-  test("getCurrentPriceByContract", async function () {
+  it("getCurrentPriceByContract", async function () {
     const address = "0x04fa0d235c4abf4bcf4787af4cf447de572ef828";
     const result = await cg.getCurrentPriceByContract(address);
     assert.ok(result);
     assert.equal(result.length, 2);
   });
-  test("getContractPrices", async function () {
+  it("getContractPrices", async function () {
     const addresses = [
       "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",
       "0xeca82185adCE47f39c684352B0439f030f860318",
@@ -78,7 +79,7 @@ describe("coingecko", function () {
       assert.ok(addresses.includes(result.address));
     });
   });
-  test("getHistoricContractPrices", async function () {
+  it("getHistoricContractPrices", async function () {
     const address = "0x04fa0d235c4abf4bcf4787af4cf447de572ef828";
     // 4 weeks
     const from = Date.now() - 28 * 24 * 1000 * 60 * 60;
@@ -86,9 +87,7 @@ describe("coingecko", function () {
     const result = await cg.getHistoricContractPrices(address, from, to);
     assert.ok(result && result.length);
   });
-  test("Fallback to Pro", async function () {
-    // Default test timeout of 5000ms is too short usually for this test. Manually expand it.
-    jest.setTimeout(30000);
+  it("Fallback to Pro", async function () {
     // Send tons of basic requests so that we hit pro. Basic has a ~50/min rate limit but this varies. In practice
     // its a bit lower more like ~20-30/min.
 
@@ -97,7 +96,7 @@ describe("coingecko", function () {
       assert.ok(await cg.getCurrentPriceByContract("0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2", "eth"));
     }
   });
-  test("Validate price cache", async function () {
+  it("Validate price cache", async function () {
     // Don't lookup against CoinGecko.
     const tg: TestGecko = TestGecko.get(dummyLogger);
     assert.ok(tg);
@@ -131,7 +130,7 @@ describe("coingecko", function () {
     tg.maxPriceAge = 1; // seconds
     for (const expected of Object.values(priceCache)) {
       const addr: string = expected.address;
-      await expect(tg.getCurrentPriceByContract(addr, baseCurrency)).rejects.toThrow();
+      await expect(tg.getCurrentPriceByContract(addr, baseCurrency)).to.throw;
     }
   });
 });
