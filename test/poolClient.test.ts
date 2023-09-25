@@ -1,5 +1,5 @@
 import assert from "assert";
-import * as poolClient from "./poolClient";
+import * as poolClient from "../src/pool/poolClient";
 import { BigNumber } from "ethers";
 jest.useFakeTimers();
 

@@ -1,5 +1,5 @@
 import { random } from "lodash";
-import { getCurrentTime, toBN, toBNWei } from "../utils";
+import { getCurrentTime, toBN, toBNWei } from "../src/utils";
 import {
   DepositWithBlock,
   FillWithBlock,
@@ -10,7 +10,7 @@ import {
   isUbaOutflow,
   outflowIsFill,
   outflowIsRefund,
-} from "./";
+} from "../src/interfaces";
 
 const now = getCurrentTime();
 

@@ -1,13 +1,13 @@
-import { BaseAbstractClient } from "./BaseAbstractClient";
+import { BaseAbstractClient } from "../src/clients/BaseAbstractClient";
 
 class TestAbstractClient extends BaseAbstractClient {}
 
 describe("Test that the BaseAbstractClient class works as expected", () => {
-  test("Test that the constructor works as expected", () => {
+  it("Test that the constructor works as expected", () => {
     const client = new TestAbstractClient();
     expect(client).toBeInstanceOf(TestAbstractClient);
   });
-  test("Test that the isUdpated variable works as expected", () => {
+  it("Test that the isUdpated variable works as expected", () => {
     const client = new TestAbstractClient();
     expect(client.isUpdated).toBeDefined();
     expect(client.isUpdated).toBeFalsy();

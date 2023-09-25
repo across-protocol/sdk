@@ -2,7 +2,7 @@
 import dotenv from "dotenv";
 import winston from "winston";
 import { BigNumber, providers, utils as ethersUtils } from "ethers";
-import { getGasPriceEstimate } from "./";
+import { getGasPriceEstimate } from "../src/gasPriceOracle";
 dotenv.config({ path: ".env" });
 
 const dummyLogger = winston.createLogger({

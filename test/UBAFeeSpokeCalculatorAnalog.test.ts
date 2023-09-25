@@ -1,8 +1,8 @@
 import { BigNumber, utils } from "ethers";
-import { getEventFee, getDepositFee, getRefundFee } from "./UBAFeeSpokeCalculatorAnalog";
-import { fixedPointAdjustment, toBNWei } from "../utils";
-import { MockUBAConfig } from "../clients/mocks";
-import { computePiecewiseLinearFunction } from "./UBAFeeUtility";
+import { getEventFee, getDepositFee, getRefundFee } from "../src/UBAFeeCalculator/UBAFeeSpokeCalculatorAnalog";
+import { fixedPointAdjustment, toBNWei } from "../src/utils";
+import { MockUBAConfig } from "../src/clients/mocks";
+import { computePiecewiseLinearFunction } from "../src/UBAFeeCalculator/UBAFeeUtility";
 
 describe("UBAFeeSpokeCalculatorAnalog", () => {
   describe("getEventFee", () => {

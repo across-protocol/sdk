@@ -1,7 +1,7 @@
 import assert from "assert";
 import dotenv from "dotenv";
-import { RelayFeeCalculator, QueryInterface } from "./relayFeeCalculator";
-import { gasCost, BigNumberish, toBNWei, toBN } from "../utils";
+import { RelayFeeCalculator, QueryInterface } from "../src/relayFeeCalculator/relayFeeCalculator";
+import { gasCost, BigNumberish, toBNWei, toBN } from "../src/utils";
 
 dotenv.config({ path: ".env" });
 

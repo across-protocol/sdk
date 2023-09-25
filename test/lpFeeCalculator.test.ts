@@ -6,8 +6,8 @@
 
 import assert from "assert";
 // Function to test
-import { calculateApyFromUtilization, calculateRealizedLpFeePct } from ".";
-import { toBNWei } from "../utils";
+import { calculateApyFromUtilization, calculateRealizedLpFeePct } from "../src/lpFeeCalculator";
+import { toBNWei } from "../src/utils";
 
 // sample interest rate model. note these tests are in JS and so we can impose the RateModel type.
 const rateModel = { UBar: toBNWei("0.65"), R0: toBNWei("0.00"), R1: toBNWei("0.08"), R2: toBNWei("1.00") };

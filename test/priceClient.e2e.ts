@@ -2,9 +2,9 @@ import assert from "assert";
 import axios from "axios";
 import dotenv from "dotenv";
 import winston from "winston";
-import { Logger, msToS, PriceCache, PriceClient, PriceFeedAdapter, TokenPrice } from "./priceClient";
-import { acrossApi, coingecko, defiLlama } from "./adapters";
-import { BaseHTTPAdapter, BaseHTTPAdapterArgs } from "./adapters/baseAdapter";
+import { Logger, msToS, PriceCache, PriceClient, PriceFeedAdapter, TokenPrice } from "../src/priceClient/priceClient";
+import { acrossApi, coingecko, defiLlama } from "../src/priceClient/adapters";
+import { BaseHTTPAdapter, BaseHTTPAdapterArgs } from "../src/priceClient/adapters/baseAdapter";
 
 dotenv.config();
 
