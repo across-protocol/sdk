@@ -1,10 +1,10 @@
 import dotenv from "dotenv";
-import { Client, Provider, PoolEventState } from "./poolClient";
+import { Client, Provider, PoolEventState } from "../src/pool";
 import { ethers } from "ethers";
 import assert from "assert";
 import set from "lodash/set";
 import get from "lodash/get";
-import { hubPool } from "../contracts";
+import { hubPool } from "../src/contracts";
 
 dotenv.config();
 
@@ -26,12 +26,12 @@ const endBlock = 30477298;
 describe("PoolEventState", function () {
   let provider: Provider;
   let client: PoolEventState;
-  beforeAll(async () => {
+  before(async () => {
     provider = ethers.getDefaultProvider(process.env.CUSTOM_NODE_URL);
     const instance = hubPool.connect(hubPoolAddress, provider);
     client = new PoolEventState(instance, startBlock);
   });
-  test("read events", async function () {
+  it("read events", async function () {
     const result = await client.read(endBlock);
     const nodupe = await client.read(endBlock);
     assert.deepEqual(result, nodupe);
@@ -41,7 +41,7 @@ describe("PoolClient", function () {
   const state = {};
   let provider: Provider;
   let client: Client;
-  beforeAll(async () => {
+  before(async () => {
     provider = ethers.getDefaultProvider(process.env.CUSTOM_NODE_URL);
     client = new Client(
       {
@@ -57,7 +57,7 @@ describe("PoolClient", function () {
       (path, data) => set(state, path, data)
     );
   });
-  test("read users", async function () {
+  it("read users", async function () {
     for (const userAddress of users) {
       for (const l1Token of l1Tokens) {
         await client.updateUser(userAddress, l1Token);
@@ -67,5 +67,5 @@ describe("PoolClient", function () {
         assert.ok(user);
       }
     }
-  }, 120000);
+  });
 });
