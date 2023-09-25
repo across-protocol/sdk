@@ -1,9 +1,8 @@
-import assert from "assert";
 import * as poolClient from "../src/pool/poolClient";
 import { BigNumber } from "ethers";
-jest.useFakeTimers();
+import { expect } from "./utils";
 
-test("previewRemoval", function () {
+it("previewRemoval", function () {
   const user = {
     address: "0x9A8f92a830A5cB89a3816e3D267CB7791c16b04D",
     lpTokens: "900000000000000000",
@@ -12,7 +11,8 @@ test("previewRemoval", function () {
     feesEarned: "541941830509",
   };
   const result = poolClient.previewRemoval(user, 0.75);
-  assert.equal(BigNumber.from(result.position.recieve).add(result.position.remain).toString(), user.totalDeposited);
-  assert.equal(BigNumber.from(result.fees.recieve).add(result.fees.remain).toString(), user.feesEarned);
-  assert.equal(BigNumber.from(result.total.recieve).add(result.total.remain).toString(), user.positionValue);
+
+  expect(BigNumber.from(result.total.recieve).add(result.total.remain).toString()).to.be.eq(user.positionValue);
+  expect(BigNumber.from(result.position.recieve).add(result.position.remain).toString()).to.be.eq(user.totalDeposited);
+  expect(BigNumber.from(result.fees.recieve).add(result.fees.remain).toString()).to.be.eq(user.feesEarned);
 });

@@ -11,6 +11,7 @@ import {
   outflowIsFill,
   outflowIsRefund,
 } from "../src/interfaces";
+import { expect } from "./utils";
 
 const now = getCurrentTime();
 
@@ -70,28 +71,28 @@ const sampleRefundRequest = {
 };
 
 describe("UBA Interface", function () {
-  test("Predicates", function () {
+  it("Predicates", function () {
     const deposit: DepositWithBlock = { ...common, ...sampleDeposit };
     const fill: FillWithBlock = { ...common, ...sampleFill };
     const refundRequest: RefundRequestWithBlock = { ...common, ...sampleRefundRequest };
 
     // FundsDeposited event. All UbaInflows are Deposits.
-    expect(isUbaInflow(deposit as UbaFlow)).toBe(true);
-    expect(isUbaOutflow(deposit as UbaFlow)).toBe(false);
+    expect(isUbaInflow(deposit as UbaFlow)).to.be.true;
+    expect(isUbaOutflow(deposit as UbaFlow)).to.be.false;
 
     // FilledRelay event
     for (const slowRelay of [true, false]) {
       fill.updatableRelayData.isSlowRelay = slowRelay;
-      expect(isUbaInflow(fill as UbaFlow)).toBe(false);
-      expect(isUbaOutflow(fill as UbaFlow)).toBe(true);
-      expect(outflowIsFill(fill as UbaOutflow)).toBe(true);
-      expect(outflowIsRefund(fill as UbaOutflow)).toBe(false);
+      expect(isUbaInflow(fill as UbaFlow)).to.be.false;
+      expect(isUbaOutflow(fill as UbaFlow)).to.be.true;
+      expect(outflowIsFill(fill as UbaOutflow)).to.be.true;
+      expect(outflowIsRefund(fill as UbaOutflow)).to.be.false;
     }
 
     // RefundRequested event
-    expect(isUbaInflow(refundRequest as UbaFlow)).toBe(false);
-    expect(isUbaOutflow(refundRequest as UbaFlow)).toBe(true);
-    expect(outflowIsFill(refundRequest as UbaOutflow)).toBe(false);
-    expect(outflowIsRefund(refundRequest as UbaOutflow)).toBe(true);
+    expect(isUbaInflow(refundRequest as UbaFlow)).to.be.false;
+    expect(isUbaOutflow(refundRequest as UbaFlow)).to.be.true;
+    expect(outflowIsFill(refundRequest as UbaOutflow)).to.be.false;
+    expect(outflowIsRefund(refundRequest as UbaOutflow)).to.be.true;
   });
 });

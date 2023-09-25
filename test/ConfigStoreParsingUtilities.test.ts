@@ -1,5 +1,6 @@
 import { parseJSONWithNumericString } from "../src/utils/JSONUtils";
 import { isUBAOnChainConfig } from "../src/clients/AcrossConfigStoreClient/ConfigStoreParsingUtilities/ConfigStoreParsingUtilities";
+import { expect } from "./utils";
 
 const validConfigStore: { reason: string; value: unknown }[] = [
   {
@@ -203,8 +204,8 @@ describe("Test that we can effectively parse the UBA Config", () => {
   ).forEach(([store, expected]) => {
     describe(`Test that we can effectively parse the UBA Config with ${expected ? "valid" : "invalid"} inputs`, () => {
       store.forEach(({ value, reason }, index) => {
-        test(`${reason} [Test: ${index + 1}]`, () => {
-          expect(isUBAOnChainConfig(value)).toBe(expected);
+        it(`${reason} [Test: ${index + 1}]`, () => {
+          expect(isUBAOnChainConfig(value)).to.be.eq(expected);
         });
       });
     });

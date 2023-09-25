@@ -7,8 +7,9 @@ import {
   estimateTotalGasRequiredByUnsignedTransaction,
   retry,
   toBNWei,
-} from "./common";
-import { toBN } from "./BigNumberUtils";
+} from "../src/utils/common";
+import { toBN } from "../src/utils/BigNumberUtils";
+import { expect } from "./utils";
 
 dotenv.config();
 
@@ -59,7 +60,7 @@ describe("Utils test", () => {
         gasPrice
       );
       const gasMultiplier = toBNWei(1.0 + gasMarkup);
-      expect(toBN(gasEstimate).eq(toBN(refGasEstimate).mul(gasMultiplier).div(toBNWei(1)))).toBe(true);
+      expect(toBN(gasEstimate).eq(toBN(refGasEstimate).mul(gasMultiplier).div(toBNWei(1))));
     }
-  }, 50000);
+  });
 });

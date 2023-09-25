@@ -1,7 +1,7 @@
-import assert from "assert";
 import dotenv from "dotenv";
 import { RelayFeeCalculator, QueryInterface } from "../src/relayFeeCalculator/relayFeeCalculator";
 import { gasCost, BigNumberish, toBNWei, toBN } from "../src/utils";
+import { assert, expect } from "./utils";
 
 dotenv.config({ path: ".env" });
 
@@ -50,7 +50,7 @@ class ExampleQueries implements QueryInterface {
 describe("RelayFeeCalculator", () => {
   let client: RelayFeeCalculator;
   let queries: ExampleQueries;
-  beforeAll(() => {
+  beforeEach(() => {
     queries = new ExampleQueries();
   });
   it("gasPercentageFee", async () => {
@@ -67,7 +67,7 @@ describe("RelayFeeCalculator", () => {
     ];
     for (const [input, truth] of gasFeePercents) {
       const result = (await client.gasFeePercent(input, "usdc")).toString();
-      expect(result).toEqual(truth);
+      expect(result).to.be.eq(truth);
     }
   });
   it("relayerFeeDetails", async () => {

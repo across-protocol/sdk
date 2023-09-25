@@ -1,6 +1,6 @@
 import { MerkleTree } from "@across-protocol/contracts-v2";
 import { MerkleDistributor, DistributionRecipient, DistributionRecipientWithProof } from "../src/merkleDistributor";
-jest.useFakeTimers();
+import { expect } from "./utils";
 
 const dummyRecipients: DistributionRecipient[] = [
   {
@@ -52,12 +52,12 @@ describe("MerkleDistributor", () => {
     const expectedKeys: (keyof DistributionRecipientWithProof)[] = ["accountIndex", "metadata", "amount", "proof"];
     Object.keys(recipientsWithProofs).forEach((recipient) => {
       expectedKeys.forEach((expectedKey) => {
-        expect(Object.keys(recipientsWithProofs[recipient]).includes(expectedKey)).toBeTruthy();
-        expect(recipientsWithProofs[recipient][expectedKey]).toBeDefined();
+        expect(Object.keys(recipientsWithProofs[recipient]).includes(expectedKey)).to.be.true;
+        expect(recipientsWithProofs[recipient][expectedKey]).to.not.be.undefined;
       });
     });
     // The merkleRoot should match the expected value.
     const merkleTree = new MerkleTree(dummyRecipients, MerkleDistributor.createLeaf);
-    expect(merkleTree.getHexRoot()).toEqual(merkleRoot);
+    expect(merkleTree.getHexRoot()).to.deep.eq(merkleRoot);
   });
 });
