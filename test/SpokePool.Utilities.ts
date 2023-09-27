@@ -1,31 +1,27 @@
 import { random } from "lodash";
-import { clients, utils as sdkUtils } from "@across-protocol/sdk-v2";
-import { DepositWithBlock, FillWithBlock, RefundRequestWithBlock } from "../../relayer-v2/src/interfaces";
-import { ZERO_ADDRESS } from "../../relayer-v2/src/utils";
-import {
-  DEFAULT_CONFIG_STORE_VERSION,
-  MockConfigStoreClient,
-  MockHubPoolClient,
-  MockSpokePoolClient,
-} from "../../relayer-v2/test/mocks";
+import { clients, utils as sdkUtils } from "../src";
+import { expect } from "chai";
+import { DEFAULT_CONFIG_STORE_VERSION } from "../src/clients";
+import { MockHubPoolClient, MockSpokePoolClient, MockConfigStoreClient } from "../src/clients/mocks";
+import { DepositWithBlock, FillWithBlock, RefundRequestWithBlock } from "../src/interfaces";
+import { ZERO_ADDRESS } from "./constants";
 import {
   createSpyLogger,
-  deployConfigStore,
-  deploySpokePool,
-  expect,
-  ethers,
   fillFromDeposit,
   refundRequestFromFill,
+  deployConfigStore,
   hubPoolFixture,
-  SignerWithAddress,
-  randomAddress,
-} from "../../relayer-v2/test/utils";
+  deploySpokePool,
+  ethers,
+  contractsV2Utils,
+} from "./utils";
+import { randomAddress } from "../src/utils";
 
 type EventSearchConfig = sdkUtils.EventSearchConfig;
 
 const { getValidFillCandidates, getValidRefundCandidates } = clients;
 
-let owner: SignerWithAddress;
+let owner: contractsV2Utils.SignerWithAddress;
 let chainIds: number[];
 let originChainId: number, destinationChainId: number, repaymentChainId: number;
 let hubPoolClient: MockHubPoolClient;
@@ -86,6 +82,13 @@ const generateValidRefundRequest = async (
 describe("SpokePoolClient: Event Filtering", async function () {
   beforeEach(async function () {
     [owner] = await ethers.getSigners();
+
+    // Sanity Check: Ensure that owner.provider is defined
+    expect(owner.provider).to.not.be.undefined;
+    if (owner.provider === undefined) {
+      throw new Error("owner.provider is undefined");
+    }
+
     destinationChainId = (await owner.provider.getNetwork()).chainId as number;
 
     originChainId = random(100_000, 1_000_000, false);
@@ -101,9 +104,9 @@ describe("SpokePoolClient: Event Filtering", async function () {
       configStore,
       {} as EventSearchConfig,
       DEFAULT_CONFIG_STORE_VERSION,
-      chainIds,
       undefined,
-      mockUpdate
+      mockUpdate,
+      chainIds
     );
     await configStoreClient.update();
 

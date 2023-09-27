@@ -1,6 +1,7 @@
 import { BigNumber } from "ethers";
 import { SortableEvent } from "./Common";
 import { FundsDepositedEvent } from "../typechain";
+import { SpokePoolClient } from "../clients";
 
 export type { FundsDepositedEvent } from "../typechain";
 
@@ -243,3 +244,7 @@ export type FundsDepositedEventStringified = Omit<
   destinationChainId: string;
   relayerFeePct: string;
 };
+
+export interface SpokePoolClientsByChain {
+  [chainId: number]: SpokePoolClient;
+}

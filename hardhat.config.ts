@@ -17,6 +17,7 @@ import "hardhat-gas-reporter";
 import "solidity-coverage";
 import "hardhat-deploy";
 import "@openzeppelin/hardhat-upgrades";
+import { NetworkUserConfig } from "hardhat/types";
 
 dotenv.config();
 
@@ -69,7 +70,7 @@ const config: HardhatUserConfig = {
       accounts: { mnemonic },
       companionNetworks: { l1: "mainnet" },
       zksync: true,
-    },
+    } as unknown as NetworkUserConfig,
     "arbitrum-rinkeby": {
       chainId: 421611,
       url: getNodeUrl("arbitrum-rinkeby", true, 421611),

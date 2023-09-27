@@ -2,13 +2,13 @@ import * as utils from "@across-protocol/contracts-v2/dist/test-utils";
 
 import { TokenRolesEnum } from "@uma/common";
 import { SpyTransport, bigNumberFormatter } from "@uma/financial-templates-lib";
-import { constants as ethersConstants, providers } from "ethers";
+import { providers } from "ethers";
 import {
   AcrossConfigStoreClient as ConfigStoreClient,
   GLOBAL_CONFIG_STORE_KEYS,
   HubPoolClient,
 } from "../../src/clients";
-import { Deposit, Fill, FillWithBlock, RelayerRefundLeaf, RunningBalances } from "../../src/interfaces";
+import { Deposit, Fill } from "../../src/interfaces";
 import { toBN, toBNWei, utf8ToHex } from "../../src/utils";
 import {
   DEFAULT_BLOCK_RANGE_FOR_CHAIN,
@@ -23,7 +23,7 @@ import { BigNumber, Contract, SignerWithAddress, deposit } from "./index";
 export { MAX_SAFE_ALLOWANCE, MAX_UINT_VAL } from "@uma/common";
 export { sinon, winston };
 
-import { AcrossConfigStore, MerkleTree } from "@across-protocol/contracts-v2";
+import { AcrossConfigStore } from "@across-protocol/contracts-v2";
 import chai, { expect } from "chai";
 import chaiExclude from "chai-exclude";
 import _ from "lodash";
@@ -38,11 +38,11 @@ const assert = chai.assert;
 export { assert, chai };
 
 export function deepEqualsWithBigNumber(x: unknown, y: unknown, omitKeys: string[] = []): boolean {
-  if (x === undefined || y === undefined) {
+  if (x === undefined || y === undefined || x === null || y === null) {
     return false;
   }
   const sortedKeysX = Object.fromEntries(
-    Object.keys(x ?? {})
+    Object.keys(x)
       .sort()
       .map((key) => [key, x?.[key]])
   );
@@ -96,7 +96,7 @@ export function createSpyLogger(): SpyLoggerResult {
     transports: [
       new SpyTransport({ level: "debug" }, { spy }),
       process.env.LOG_IN_TEST ? new winston.transports.Console() : null,
-    ].filter((n) => n),
+    ].filter((n) => n) as winston.transport[],
   });
 
   return { spy, spyLogger };
@@ -234,8 +234,8 @@ export async function deployNewTokenMapping(
 
   // Give signer initial balance and approve hub pool and spoke pool to pull funds from it
   await addLiquidity(l1TokenHolder, hubPool, l1Token, amountToSeedLpPool);
-  await setupTokensForWallet(spokePool, l2TokenHolder, [l2Token, l2TokenDestination], null, 100);
-  await setupTokensForWallet(spokePoolDestination, l2TokenHolder, [l2TokenDestination, l2Token], null, 100);
+  await setupTokensForWallet(spokePool, l2TokenHolder, [l2Token, l2TokenDestination], undefined, 100);
+  await setupTokensForWallet(spokePoolDestination, l2TokenHolder, [l2TokenDestination, l2Token], undefined, 100);
 
   // Set time to provider time so blockfinder can find block for deposit quote time.
   await spokePool.setCurrentTime(await getLastBlockTime(spokePool.provider));
@@ -275,6 +275,11 @@ export async function simpleDeposit(
     amountToDeposit,
     depositRelayerFeePct
   );
+  // Sanity Check: Ensure that the deposit was successful.
+  expect(depositObject).to.not.be.null;
+  if (!depositObject) {
+    throw new Error("Deposit object is null");
+  }
   return {
     ...depositObject,
     realizedLpFeePct: toBNWei("0"),
@@ -303,7 +308,7 @@ export async function addLiquidity(
   l1Token: utils.Contract,
   amount: utils.BigNumber
 ): Promise<void> {
-  await utils.seedWallet(signer, [l1Token], null, amount);
+  await utils.seedWallet(signer, [l1Token], undefined, amount);
   await l1Token.connect(signer).approve(hubPool.address, amount);
   await hubPool.enableL1TokenForLiquidityProvision(l1Token.address);
   await hubPool.connect(signer).addLiquidity(l1Token.address, amount);
@@ -365,6 +370,12 @@ export async function buildFill(
   pctOfDepositToFill: number,
   repaymentChainId?: number
 ): Promise<Fill> {
+  // Sanity Check: ensure realizedLpFeePct is defined
+  expect(deposit.realizedLpFeePct).to.not.be.undefined;
+  if (!deposit.realizedLpFeePct) {
+    throw new Error("realizedLpFeePct is undefined");
+  }
+
   await spokePool.connect(relayer).fillRelay(
     ...utils.getFillRelayParams(
       utils.getRelayHash(
@@ -428,7 +439,7 @@ export async function buildModifiedFill(
   pctOfDepositToFill: number,
   newRecipient?: string,
   newMessage?: string
-): Promise<Fill> {
+): Promise<Fill | null> {
   const relayDataFromFill = {
     depositor: fillToBuildFrom.depositor,
     recipient: fillToBuildFrom.recipient,
@@ -501,7 +512,12 @@ export async function buildFillForRepaymentChain(
   pctOfDepositToFill: number,
   repaymentChainId: number,
   destinationToken: string = depositToFill.destinationToken
-): Promise<Fill> {
+): Promise<Fill | null> {
+  // Sanity Check: ensure realizedLpFeePct is defined
+  expect(depositToFill.realizedLpFeePct).to.not.be.undefined;
+  if (!depositToFill.realizedLpFeePct) {
+    throw new Error("realizedLpFeePct is undefined");
+  }
   const relayDataFromDeposit = {
     depositor: depositToFill.depositor,
     recipient: depositToFill.recipient,
@@ -552,44 +568,6 @@ export async function buildFillForRepaymentChain(
   }
 }
 
-export async function buildRefundRequest(
-  spokePool: Contract,
-  relayer: SignerWithAddress,
-  fill: FillWithBlock,
-  refundToken: string,
-  maxCount?: BigNumber
-): Promise<TransactionResponse> {
-  // @note: These chainIds should align, but don't! @todo: Fix!
-  // const chainId = (await spokePool.provider.getNetwork()).chainId;
-  // assert.isTrue(fill.repaymentChainId === chainId);
-
-  const {
-    originChainId,
-    depositId,
-    destinationChainId,
-    fillAmount: amount,
-    realizedLpFeePct,
-    blockNumber: fillBlock,
-  } = fill;
-
-  maxCount ??= ethersConstants.MaxUint256;
-
-  const refundRequest = await spokePool
-    .connect(relayer)
-    .requestRefund(
-      refundToken,
-      amount,
-      originChainId,
-      destinationChainId,
-      realizedLpFeePct,
-      depositId,
-      fillBlock,
-      maxCount
-    );
-
-  return refundRequest;
-}
-
 // Returns expected leaves ordered by origin chain ID and then deposit ID(ascending). Ordering is implemented
 // same way that dataworker orders them.
 export function buildSlowRelayLeaves(
@@ -598,6 +576,11 @@ export function buildSlowRelayLeaves(
 ): ContractsV2SlowFill[] {
   return deposits
     .map((_deposit, i) => {
+      // Sanity Check: ensure realizedLpFeePct is defined
+      expect(_deposit.realizedLpFeePct).to.not.be.undefined;
+      if (!_deposit.realizedLpFeePct) {
+        throw new Error("realizedLpFeePct is undefined");
+      }
       return {
         relayData: {
           depositor: _deposit.depositor,
@@ -621,44 +604,6 @@ export function buildSlowRelayLeaves(
         return Number(relayA.depositId) - Number(relayB.depositId);
       }
     });
-}
-
-// Adds `leafId` to incomplete input `leaves` and then constructs a relayer refund leaf tree.
-export async function buildRelayerRefundTreeWithUnassignedLeafIds(
-  leaves: {
-    chainId: number;
-    amountToReturn: BigNumber;
-    l2TokenAddress: string;
-    refundAddresses: string[];
-    refundAmounts: BigNumber[];
-  }[]
-): Promise<MerkleTree<RelayerRefundLeaf>> {
-  return buildRelayerRefundTree(
-    leaves.map((leaf, id) => {
-      return { ...leaf, leafId: id };
-    })
-  );
-}
-
-export async function constructPoolRebalanceTree(
-  runningBalances: RunningBalances,
-  realizedLpFees: RunningBalances
-): Promise<{
-  leaves: utils.PoolRebalanceLeaf[];
-  tree: MerkleTree<utils.PoolRebalanceLeaf>;
-  startingRunningBalances: utils.BigNumber;
-}> {
-  const leaves = utils.buildPoolRebalanceLeaves(
-    Object.keys(runningBalances).map((x) => Number(x)), // Where funds are getting sent.
-    Object.values(runningBalances).map((runningBalanceForL1Token) => Object.keys(runningBalanceForL1Token)), // l1Tokens.
-    Object.values(realizedLpFees).map((realizedLpForL1Token) => Object.values(realizedLpForL1Token)), // bundleLpFees.
-    Object.values(runningBalances).map((_) => Object.values(_).map(() => toBNWei(-100))), // netSendAmounts.
-    Object.values(runningBalances).map((_) => Object.values(_).map(() => toBNWei(100))), // runningBalances.
-    Object.keys(runningBalances).map(() => 0) // group index
-  );
-  const tree = await utils.buildPoolRebalanceLeafTree(leaves);
-
-  return { leaves, tree, startingRunningBalances: toBNWei(100) };
 }
 
 export async function buildSlowFill(
@@ -735,7 +680,7 @@ export function createRefunds(
  * @returns The latest block number.
  */
 export function getLastBlockNumber(): Promise<number> {
-  return (utils.ethers.provider as providers.Provider).getBlockNumber();
+  return (utils.ethers.provider as unknown as providers.Provider).getBlockNumber();
 }
 
 export function convertMockedConfigClient(client: unknown): client is ConfigStoreClient {

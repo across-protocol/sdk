@@ -1,6 +1,7 @@
 import { DEFAULT_CONFIG_STORE_VERSION } from "../src/clients";
 import { randomAddress, toWei, originChainId, destinationChainId, repaymentChainId } from "./utils";
 
+export const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
 export const CONFIG_STORE_VERSION = DEFAULT_CONFIG_STORE_VERSION;
 export const randomL1Token = randomAddress();
 export const randomOriginToken = randomAddress();
