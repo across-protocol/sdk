@@ -12,7 +12,6 @@ import {
   enableRoutesOnHubPool,
   Contract,
   enableRoutes,
-  sampleRateModel,
   createSpyLogger,
   winston,
   deployAndConfigureHubPool,
@@ -126,8 +125,7 @@ export async function setupHubPool(
     owner,
     [l1Token_1, l1Token_2],
     maxL1TokensPerPoolRebalanceLeaf,
-    maxRefundPerRelayerRefundLeaf,
-    sampleRateModel
+    maxRefundPerRelayerRefundLeaf
   );
 
   const configStoreClient = new MockConfigStoreClient(spyLogger, configStore);

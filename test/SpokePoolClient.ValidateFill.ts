@@ -27,7 +27,7 @@ import {
 
 import { AcrossConfigStoreClient as ConfigStoreClient, HubPoolClient, SpokePoolClient } from "../src/clients";
 import { MockConfigStoreClient, MockSpokePoolClient } from "./mocks";
-import { utils } from "@across-protocol/sdk-v2";
+import { utils } from "../src";
 import { CHAIN_ID_TEST_LIST, repaymentChainId } from "./constants";
 const { validateFillForDeposit } = utils;
 
