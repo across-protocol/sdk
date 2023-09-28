@@ -59,7 +59,6 @@
     "@types/lodash.get": "^4.4.7",
     "@typescript-eslint/eslint-plugin": "^6.6.0",
     "@typescript-eslint/parser": "^6.6.0",
-    "@uma/financial-templates-lib": "^2.33.0",
     "chai": "^4.3.8",
     "chai-exclude": "^2.1.0",
     "dotenv": "^16.0.0",
@@ -85,7 +84,8 @@
     "ts-node": "^10.9.1",
     "typechain": "^8.3.1",
     "typescript": "5",
-    "winston": "^3.10.0"
+    "winston": "^3.10.0",
+    "winston-transport": "^4.5.0"
   },
   "dependencies": {
     "@across-protocol/across-token": "^1.0.0",
