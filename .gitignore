@@ -30,3 +30,4 @@ tsconfig.build.tsbuildinfo
 cache
 yarn-error.log
 yarn-debug.log*
+gasReporterOutput.json
