@@ -9,6 +9,8 @@ dist
 
 # testing
 /coverage
+/artifacts
+/typechain-types
 
 # production
 /build
