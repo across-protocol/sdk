@@ -71,7 +71,7 @@ describe("HubPoolClient: Deposit to Destination Token", async function () {
     };
     expect(hubPoolClient.getDestinationTokenForDeposit(depositData)).to.equal(randomDestinationToken);
 
-    // Now try changing the destination token. Client should correctly handel this.
+    // Now try changing the destination token. Client should correctly handle this.
     await hubPool.setPoolRebalanceRoute(destinationChainId, randomL1Token, randomDestinationToken2);
     await hubPoolClient.update();
     expect(hubPoolClient.getL1TokensToDestinationTokens()).to.deep.equal({
