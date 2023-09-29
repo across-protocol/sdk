@@ -1,6 +1,4 @@
 import * as utils from "@across-protocol/contracts-v2/dist/test-utils";
-
-import { TokenRolesEnum } from "@uma/common";
 import { providers } from "ethers";
 import {
   AcrossConfigStoreClient as ConfigStoreClient,
@@ -19,7 +17,6 @@ import {
   zeroAddress,
 } from "../constants";
 import { BigNumber, Contract, SignerWithAddress, deposit } from "./index";
-export { MAX_SAFE_ALLOWANCE, MAX_UINT_VAL } from "@uma/common";
 export { sinon, winston };
 
 import { AcrossConfigStore } from "@across-protocol/contracts-v2";
@@ -36,6 +33,12 @@ chai.use(chaiExclude);
 
 const assert = chai.assert;
 export { assert, chai };
+
+const TokenRolesEnum = {
+  OWNER: "0",
+  MINTER: "1",
+  BURNER: "3",
+};
 
 export function deepEqualsWithBigNumber(x: unknown, y: unknown, omitKeys: string[] = []): boolean {
   if (x === undefined || y === undefined || x === null || y === null) {
