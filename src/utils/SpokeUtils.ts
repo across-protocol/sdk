@@ -48,28 +48,30 @@ export async function getBlockRangeForDepositId(
     _getDepositIdAtBlock(initHigh),
     _getDepositIdAtBlock(Math.max(deploymentBlock, initLow - 1)),
   ]);
+
   // Set the initial high block to the most recent block number or the initial high block, whichever is smaller.
   initHigh = Math.min(initHigh, mostRecentBlockNumber);
 
-  // Sanity check to ensure that initHigh is greater than or equal to initLow.
-  if (initLow > initHigh) {
-    throw new Error("Binary search failed because low > high");
-  }
-
-  // Sanity check to ensure that init Low is greater than or equal to zero.
-  if (initLow < deploymentBlock) {
-    throw new Error("Binary search failed because low must be >= deploymentBlock");
-  }
-
-  // Sanity check to ensure that maxSearches is greater than zero.
-  if (maxSearches <= 0) {
-    throw new Error("maxSearches must be > 0");
-  }
-
-  // Sanity check to ensure that deploymentBlock is greater than or equal to zero.
-  if (deploymentBlock < 0) {
-    throw new Error("deploymentBlock must be >= 0");
-  }
+  // We will now set a list of sanity checks to ensure that the binary search will not fail
+  // due to invalid input parameters.
+  // If any of these sanity checks fail, then we will throw an error.
+  (
+    [
+      // Sanity check to ensure that initHigh is greater than or equal to initLow.
+      [initLow <= initHigh, "Binary search failed because low > high"],
+      // Sanity check to ensure that init Low is greater than or equal to zero.
+      [initLow >= deploymentBlock, "Binary search failed because low must be >= deploymentBlock"],
+      // Sanity check to ensure that maxSearches is greater than zero.
+      [maxSearches > 0, "maxSearches must be > 0"],
+      // Sanity check to ensure that deploymentBlock is greater than or equal to zero.
+      [deploymentBlock >= 0, "deploymentBlock must be >= 0"],
+    ] as [boolean, string][]
+  ).forEach(([condition, errorMessage]) => {
+    // If the condition is false, then we will throw an error.
+    if (!condition) {
+      throw new Error(errorMessage);
+    }
+  });
 
   // If the deposit ID at the initial high block is less than the target deposit ID, then we know that
   // the target deposit ID must be greater than the initial high block, so we can throw an error.
