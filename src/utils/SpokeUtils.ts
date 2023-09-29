@@ -1,4 +1,4 @@
-import { SpokePool } from "../typechain";
+import { Contract } from "ethers";
 
 /**
  * Find the block range that contains the deposit ID. This is a binary search that searches for the block range
@@ -20,7 +20,7 @@ export async function getBlockRangeForDepositId(
   initLow: number,
   initHigh: number,
   maxSearches: number,
-  spokePool: SpokePool,
+  spokePool: Contract,
   deploymentBlock = 0
 ): Promise<{
   low: number;
@@ -141,7 +141,7 @@ export async function getBlockRangeForDepositId(
  * @param blockTag The block number to search for the deposit ID at.
  * @returns The deposit ID.
  */
-export async function getDepositIdAtBlock(contract: SpokePool, blockTag: number): Promise<number> {
+export async function getDepositIdAtBlock(contract: Contract, blockTag: number): Promise<number> {
   const depositIdAtBlock = await contract.numberOfDeposits({ blockTag });
   // Sanity check to ensure that the deposit ID is an integer and is greater than or equal to zero.
   if (!Number.isInteger(depositIdAtBlock) || depositIdAtBlock < 0) {
