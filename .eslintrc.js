@@ -14,8 +14,10 @@ module.exports = {
   parserOptions: {
     ecmaVersion: "latest",
     sourceType: "module",
+    project: "./tsconfig.json",
+    include: ["./src/**/*.ts", "./test/**/*.ts", ".eslintrc.js"],
   },
-  plugins: ["prettier", "@typescript-eslint"],
+  plugins: ["node", "prettier", "@typescript-eslint", "mocha", "chai-expect"],
   rules: {
     "prettier/prettier": ["warn"],
     indent: 0, // avoid conflict with prettier's indent system
@@ -24,5 +26,10 @@ module.exports = {
     semi: ["error", "always"],
     "spaced-comment": ["error", "always", { exceptions: ["-", "+"] }],
     "no-console": 0,
+    "@typescript-eslint/no-unused-vars": ["error", { ignoreRestSiblings: true }],
+    "chai-expect/missing-assertion": 2,
+    "no-duplicate-imports": "error",
+    "require-await": "error",
+    "@typescript-eslint/no-floating-promises": ["error"],
   },
 };

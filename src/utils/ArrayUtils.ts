@@ -48,10 +48,7 @@ export async function filterAsync<T>(
  * @param mapper The asynchronous mapper function to apply to each element.
  * @returns A promise that resolves to an array of mapped elements.
  */
-export async function mapAsync<T, U>(
-  array: T[],
-  mapper: (value: T, index: number, obj: T[]) => Promise<U>
-): Promise<U[]> {
+export function mapAsync<T, U>(array: T[], mapper: (value: T, index: number, obj: T[]) => Promise<U>): Promise<U[]> {
   return Promise.all(array.map(mapper));
 }
 
@@ -128,7 +125,7 @@ export async function everyAsync<T>(
  * @returns A promise that resolves to true if any element matches the predicate, or false if no element matches.
  * @note This function uses someAsync.
  */
-export async function includesAsync<T>(
+export function includesAsync<T>(
   array: T[],
   predicate: (value: T, index: number, obj: T[]) => Promise<boolean>
 ): Promise<boolean> {

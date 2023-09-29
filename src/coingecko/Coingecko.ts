@@ -89,7 +89,7 @@ export class Coingecko {
     if (result.prices) return result.prices;
     throw new Error("Something went wrong fetching coingecko prices!");
   }
-  async getContractDetails(contract_address: string, platform_id = "ethereum") {
+  getContractDetails(contract_address: string, platform_id = "ethereum") {
     return this.call(`coins/${platform_id}/contract/${contract_address.toLowerCase()}`);
   }
   async getCurrentPriceByContract(
@@ -213,11 +213,11 @@ export class Coingecko {
     return addresses.map((addr: string) => priceCache[addr]);
   }
 
-  async getPlatforms(): Promise<CoinGeckoAssetPlatform[]> {
+  getPlatforms(): Promise<CoinGeckoAssetPlatform[]> {
     return this.call("asset_platforms");
   }
 
-  async call(path: string) {
+  call(path: string) {
     const sendRequest = async () => {
       const { proHost } = this;
 
