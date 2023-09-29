@@ -1,4 +1,4 @@
-import { Contract, providers } from "ethers";
+import { BigNumber, Contract, Event, EventFilter, ethers, providers } from "ethers";
 import { groupBy } from "lodash";
 import winston from "winston";
 import {
@@ -20,8 +20,6 @@ import {
   spreadEventWithBlockNumber,
 } from "../utils/EventUtils";
 import { filledSameDeposit, validateFillForDeposit } from "../utils/FlowUtils";
-
-import { BigNumber, Event, EventFilter, ethers } from "ethers";
 
 import { ZERO_ADDRESS } from "../constants";
 import {
@@ -431,7 +429,7 @@ export class SpokePoolClient extends BaseAbstractClient {
    *        // contain the event emitted when deposit ID was incremented to targetDepositId + 1. This is the same transaction
    *        // where the deposit with deposit ID = targetDepositId was created.
    */
-  public async _getBlockRangeForDepositId(
+  public _getBlockRangeForDepositId(
     targetDepositId: number,
     initLow: number,
     initHigh: number,
@@ -455,7 +453,7 @@ export class SpokePoolClient extends BaseAbstractClient {
    * @param blockTag The block number to search for the deposit ID at.
    * @returns The deposit ID.
    */
-  public async _getDepositIdAtBlock(blockTag: number): Promise<number> {
+  public _getDepositIdAtBlock(blockTag: number): Promise<number> {
     return getDepositIdAtBlock(this.spokePool as SpokePool, blockTag);
   }
 
@@ -677,7 +675,7 @@ export class SpokePoolClient extends BaseAbstractClient {
       this.earlyDeposits = earlyDeposits;
 
       const dataForQuoteTime: { realizedLpFeePct: BigNumber | undefined; quoteBlock: number }[] = await Promise.all(
-        depositEvents.map(async (event) => this.computeRealizedLpFeePct(event))
+        depositEvents.map((event) => this.computeRealizedLpFeePct(event))
       );
 
       // Now add any newly fetched events from RPC.
@@ -844,7 +842,7 @@ export class SpokePoolClient extends BaseAbstractClient {
    * @param depositEvent The deposit event to compute the realized LP fee percentage for.
    * @returns The realized LP fee percentage.
    */
-  protected async computeRealizedLpFeePct(depositEvent: FundsDepositedEvent) {
+  protected computeRealizedLpFeePct(depositEvent: FundsDepositedEvent) {
     // If no hub pool client, we're using this for testing. So set quote block very high
     // so that if its ever used to look up a configuration for a block, it will always match with some
     // configuration because the quote block will always be greater than the updated config event block height.
