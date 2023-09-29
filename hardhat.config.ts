@@ -1,3 +1,4 @@
+import "hardhat-watcher";
 import "@nomiclabs/hardhat-etherscan";
 import "@nomiclabs/hardhat-waffle";
 import "@openzeppelin/hardhat-upgrades";
@@ -18,6 +19,13 @@ const config: HardhatUserConfig = {
   },
   mocha: {
     timeout: 100000,
+  },
+  watcher: {
+    test: {
+      tasks: [{ command: "test" }],
+      files: ["./test/**/*", "./src/**/*", "./contracts/**/*"],
+      verbose: true,
+    },
   },
 };
 
