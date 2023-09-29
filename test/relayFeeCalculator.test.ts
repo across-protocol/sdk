@@ -94,7 +94,7 @@ describe("RelayFeeCalculator", () => {
     // Compute relay fee details for an $1000 transfer. Capital fee % is 0 so maxGasFeePercent should be equal to fee
     // limit percent.
     const relayerFeeDetails = await client.relayerFeeDetails(1000e6, "usdc");
-    assert.equal(relayerFeeDetails.maxGasFeePercent, toBNWei("0.1"));
+    assert.equal(relayerFeeDetails.maxGasFeePercent, toBNWei("0.1").toString());
     assert.equal(relayerFeeDetails.gasFeeTotal, "305572"); // 305,572 gas units
     assert.equal(relayerFeeDetails.minDeposit, toBNWei("3.05572", 6).toString()); // 305,572 / 0.1 = 3055720 then divide by 1e6
     assert.equal(relayerFeeDetails.isAmountTooLow, false);
