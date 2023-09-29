@@ -4,7 +4,7 @@ import { expect } from "chai";
 import { DEFAULT_CONFIG_STORE_VERSION } from "../src/clients";
 import { MockHubPoolClient, MockSpokePoolClient, MockConfigStoreClient } from "../src/clients/mocks";
 import { DepositWithBlock, FillWithBlock, RefundRequestWithBlock } from "../src/interfaces";
-import { ZERO_ADDRESS } from "./constants";
+import { ZERO_ADDRESS } from "../src/constants";
 import {
   createSpyLogger,
   fillFromDeposit,
