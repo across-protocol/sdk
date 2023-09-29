@@ -1,8 +1,16 @@
 import assert from "assert";
-import * as uma from "@uma/sdk";
 import { BigNumber } from "ethers";
-import { BigNumberish, toBNWei, nativeToToken, toBN, min, max, MAX_BIG_INT } from "../utils";
-const { percent, fixedPointAdjustment } = uma.across.utils;
+import {
+  BigNumberish,
+  fixedPointAdjustment,
+  toBNWei,
+  nativeToToken,
+  toBN,
+  min,
+  max,
+  percent,
+  MAX_BIG_INT,
+} from "../utils";
 
 // This needs to be implemented for every chain and passed into RelayFeeCalculator
 export interface QueryInterface {
