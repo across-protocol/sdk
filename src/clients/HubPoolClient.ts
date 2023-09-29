@@ -1,45 +1,47 @@
-import { Contract, BigNumber, Event, EventFilter } from "ethers";
 import { Block } from "@ethersproject/abstract-provider";
 import { BlockFinder } from "@uma/sdk";
-import winston from "winston";
+import { BigNumber, Contract, Event, EventFilter } from "ethers";
 import _ from "lodash";
+import winston from "winston";
+import { DEFAULT_CACHING_TTL } from "../constants";
 import {
-  assign,
+  CachingMechanismInterface,
+  CancelledRootBundle,
+  CrossChainContractsSet,
+  Deposit,
+  DepositWithBlock,
+  DestinationTokenWithBlock,
+  DisputedRootBundle,
+  ExecutedRootBundle,
+  ExecutedRootBundleStringified,
+  L1Token,
+  LpToken,
+  PendingRootBundle,
+  ProposedRootBundle,
+  ProposedRootBundleStringified,
+  SetPoolRebalanceRoot,
+  TokenRunningBalance,
+} from "../interfaces";
+import * as lpFeeCalculator from "../lpFeeCalculator";
+import {
+  BigNumberish,
   EventSearchConfig,
   MakeOptional,
-  BigNumberish,
-  stringifyJSONWithNumericString,
-  isDefined,
-  getCurrentTime,
-  shouldCache,
-} from "../utils";
-import {
+  assign,
   fetchTokenInfo,
+  getCurrentTime,
+  isDefined,
+  paginatedEventQuery,
+  shouldCache,
   sortEventsDescending,
   spreadEvent,
   spreadEventWithBlockNumber,
-  paginatedEventQuery,
+  stringifyJSONWithNumericString,
   toBN,
 } from "../utils";
-import {
-  Deposit,
-  L1Token,
-  CancelledRootBundle,
-  DisputedRootBundle,
-  LpToken,
-  TokenRunningBalance,
-  DepositWithBlock,
-  ProposedRootBundleStringified,
-  ExecutedRootBundleStringified,
-  CachingMechanismInterface,
-} from "../interfaces";
-import { ExecutedRootBundle, PendingRootBundle, ProposedRootBundle } from "../interfaces";
-import { CrossChainContractsSet, DestinationTokenWithBlock, SetPoolRebalanceRoot } from "../interfaces";
-import * as lpFeeCalculator from "../lpFeeCalculator";
 import { AcrossConfigStoreClient as ConfigStoreClient } from "./AcrossConfigStoreClient/AcrossConfigStoreClient";
 import { BaseAbstractClient } from "./BaseAbstractClient";
 import { isUBAActivatedAtBlock } from "./UBAClient/UBAClientUtilities";
-import { DEFAULT_CACHING_TTL } from "../constants";
 
 type _HubPoolUpdate = {
   success: true;
@@ -264,7 +266,7 @@ export class HubPoolClient extends BaseAbstractClient {
     // Resolve this function call as an async anonymous function
     // This way, since we have to use this call several times, we
     // only need to invoke the shorter function name.
-    const resolver = async () => this.getPostRelayPoolUtilization(l1Token, blockNumber, amount);
+    const resolver = () => this.getPostRelayPoolUtilization(l1Token, blockNumber, amount);
     // Resolve the cache locally so that we can appease typescript
     const cache = this.cachingMechanism;
     // If there is no cache, just resolve the function

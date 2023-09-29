@@ -54,7 +54,7 @@ export default (config: Config, signer: Signer, emit: Emit = () => null) => {
     mined.set(key, receipt);
     emit("mined", key, receipt);
   }
-  async function isMined(key: string) {
+  function isMined(key: string) {
     return mined.get(key);
   }
   async function update() {

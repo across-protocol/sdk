@@ -119,7 +119,7 @@ export class MockHubPoolClient extends HubPoolClient {
     return this.getTokenInfoForL1Token(l2Token) ?? this.tokenInfoToReturn;
   }
 
-  async _update(eventNames: string[]): Promise<HubPoolUpdate> {
+  _update(eventNames: string[]): Promise<HubPoolUpdate> {
     // Generate new "on chain" responses.
     const latestBlockNumber = this.eventManager.blockNumber;
     const currentTime = Math.floor(Date.now() / 1000);
@@ -138,14 +138,14 @@ export class MockHubPoolClient extends HubPoolClient {
     // Transform 2d-events array into a record.
     const events = Object.fromEntries(eventNames.map((eventName, idx) => [eventName, _events[idx]]));
 
-    return {
+    return Promise.resolve({
       success: true,
       currentTime,
       latestBlockNumber,
       pendingRootBundleProposal: this.rootBundleProposal,
       events,
       searchEndBlock: this.eventSearchConfig.toBlock || latestBlockNumber,
-    };
+    });
   }
 
   public readonly eventSignatures: Record<string, string> = {

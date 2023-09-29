@@ -1,51 +1,50 @@
-import { providers } from "ethers";
 import { groupBy } from "lodash";
+import winston from "winston";
 import {
-  assign,
-  EventSearchConfig,
-  DefaultLogLevels,
-  MakeOptional,
-  mapAsync,
   AnyObject,
+  DefaultLogLevels,
+  EventSearchConfig,
   MAX_BIG_INT,
+  MakeOptional,
+  assign,
+  mapAsync,
   stringifyJSONWithNumericString,
   toBN,
 } from "../utils";
-import { validateFillForDeposit, filledSameDeposit } from "../utils/FlowUtils";
 import {
-  spreadEvent,
   paginatedEventQuery,
-  spreadEventWithBlockNumber,
   sortEventsAscending,
   sortEventsAscendingInPlace,
+  spreadEvent,
+  spreadEventWithBlockNumber,
 } from "../utils/EventUtils";
-import winston from "winston";
+import { filledSameDeposit, validateFillForDeposit } from "../utils/FlowUtils";
 
-import { Contract, BigNumber, Event, EventFilter, ethers } from "ethers";
+import { providers, BigNumber, Contract, Event, EventFilter, ethers } from "ethers";
 
+import { ZERO_ADDRESS } from "../constants";
 import {
   Deposit,
   DepositWithBlock,
+  DepositWithBlockStringified,
   Fill,
   FillWithBlock,
+  FillWithBlockStringified,
+  FundsDepositedEvent,
+  FundsDepositedEventStringified,
   RefundRequestWithBlock,
+  RefundRequestWithBlockStringified,
   RelayerRefundExecutionWithBlock,
+  RelayerRefundExecutionWithBlockStringified,
   RootBundleRelayWithBlock,
   SpeedUp,
-  TokensBridged,
-  FundsDepositedEvent,
-  DepositWithBlockStringified,
-  FillWithBlockStringified,
   SpeedUpStringified,
+  TokensBridged,
   TokensBridgedStringified,
-  RelayerRefundExecutionWithBlockStringified,
-  FundsDepositedEventStringified,
-  RefundRequestWithBlockStringified,
 } from "../interfaces";
-import { HubPoolClient } from "./HubPoolClient";
-import { ZERO_ADDRESS } from "../constants";
 import { getNetworkName } from "../utils/NetworkUtils";
 import { BaseAbstractClient } from "./BaseAbstractClient";
+import { HubPoolClient } from "./HubPoolClient";
 
 type Block = providers.Block;
 
@@ -702,7 +701,7 @@ export class SpokePoolClient extends BaseAbstractClient {
       this.earlyDeposits = earlyDeposits;
 
       const dataForQuoteTime: { realizedLpFeePct: BigNumber | undefined; quoteBlock: number }[] = await Promise.all(
-        depositEvents.map(async (event) => this.computeRealizedLpFeePct(event))
+        depositEvents.map((event) => this.computeRealizedLpFeePct(event))
       );
 
       // Now add any newly fetched events from RPC.
@@ -869,7 +868,7 @@ export class SpokePoolClient extends BaseAbstractClient {
    * @param depositEvent The deposit event to compute the realized LP fee percentage for.
    * @returns The realized LP fee percentage.
    */
-  protected async computeRealizedLpFeePct(depositEvent: FundsDepositedEvent) {
+  protected computeRealizedLpFeePct(depositEvent: FundsDepositedEvent) {
     // If no hub pool client, we're using this for testing. So set quote block very high
     // so that if its ever used to look up a configuration for a block, it will always match with some
     // configuration because the quote block will always be greater than the updated config event block height.

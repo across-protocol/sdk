@@ -27,15 +27,15 @@ export class SpokePoolEventsQuerier implements ISpokePoolContractEventsQuerier {
     private logger?: Logger
   ) {}
 
-  public async getFundsDepositEvents(from: number, to: number, depositorAddr?: string): Promise<TypedEvent<any>[]> {
+  public getFundsDepositEvents(from: number, to: number, depositorAddr?: string): Promise<TypedEvent<any>[]> {
     return this.getEvents(from, to, this.getDepositEventsFilters(depositorAddr));
   }
 
-  public async getFilledRelayEvents(from: number, to: number, depositorAddr?: string): Promise<TypedEvent<any>[]> {
+  public getFilledRelayEvents(from: number, to: number, depositorAddr?: string): Promise<TypedEvent<any>[]> {
     return this.getEvents(from, to, this.getFilledRelayEventsFilter(depositorAddr));
   }
 
-  public async getSpeedUpDepositEvents(from: number, to: number, depositorAddr?: string): Promise<TypedEvent<any>[]> {
+  public getSpeedUpDepositEvents(from: number, to: number, depositorAddr?: string): Promise<TypedEvent<any>[]> {
     return this.getEvents(from, to, this.getSpeedUpDepositEventsFilter(depositorAddr));
   }
 

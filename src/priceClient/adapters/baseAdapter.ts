@@ -59,7 +59,7 @@ export class BaseHTTPAdapter {
     throw new Error(`${this.name} price lookup failure (${errs.join(", ")})`);
   }
 
-  protected async sleep(ms: number): Promise<void> {
+  protected sleep(ms: number): Promise<void> {
     return new Promise((r) => setTimeout(r, ms));
   }
 }
