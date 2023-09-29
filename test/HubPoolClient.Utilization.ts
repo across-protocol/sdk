@@ -19,6 +19,7 @@ import {
   ethers,
   expect,
   hubPoolFixture,
+  mineRandomBlocks,
   originChainId,
   repaymentChainId,
   setupTokensForWallet,
@@ -98,6 +99,10 @@ describe("HubPool Utilization", async function () {
 
     hubPoolClient = new HubPoolClient(createSpyLogger().spyLogger, hubPool, configStoreClient);
     await configStoreClient.update();
+    // Mine some blocks to get the rate model to update.
+    for (let i = 0; i < 10; i++) {
+      await mineRandomBlocks();
+    }
     await hubPoolClient.update();
   });
 
