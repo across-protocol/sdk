@@ -1,5 +1,5 @@
-import { DEFAULT_CONFIG_STORE_VERSION } from "../src/clients";
-import { randomAddress, toWei, originChainId, destinationChainId, repaymentChainId } from "./utils";
+import { DEFAULT_CONFIG_STORE_VERSION } from "./mocks";
+import { destinationChainId, originChainId, randomAddress, repaymentChainId, toWei } from "./utils";
 
 export const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000";
 export const CONFIG_STORE_VERSION = DEFAULT_CONFIG_STORE_VERSION;
