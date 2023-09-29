@@ -26,8 +26,7 @@ export async function getBlockRangeForDepositId(
   low: number;
   high: number;
 }> {
-  // Define a mapping of block numbers to deposit IDs. This is used to cache the deposit ID at a block number
-  // so we don't need to make an eth_call request to get the deposit ID at a block number more than once.
+  // Define a mapping of block numbers to number of deposits at that block. This saves repeated lookups.
   const queriedIds: Record<number, number> = {};
 
   // Define a llambda function to get the deposit ID at a block number. This function will first check the
