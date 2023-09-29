@@ -8,7 +8,6 @@ import {
 import { Deposit, Fill } from "../../src/interfaces";
 import { toBN, toBNWei, utf8ToHex } from "../../src/utils";
 import {
-  DEFAULT_BLOCK_RANGE_FOR_CHAIN,
   MAX_L1_TOKENS_PER_POOL_REBALANCE_LEAF,
   MAX_REFUNDS_PER_RELAYER_REFUND_LEAF,
   amountToDeposit,
@@ -25,7 +24,7 @@ import chaiExclude from "chai-exclude";
 import _ from "lodash";
 import sinon from "sinon";
 import winston, { LogEntry } from "winston";
-import { ContractsV2SlowFill, SpokePoolDeploymentResult, SpyLoggerResult } from "../types";
+import { SpokePoolDeploymentResult, SpyLoggerResult } from "../types";
 import { PROTOCOL_DEFAULT_CHAIN_ID_INDICES } from "../../src/constants";
 import { SpyTransport } from "./SpyTransport";
 
@@ -193,61 +192,6 @@ export async function deployAndConfigureHubPool(
   await l1Token_2.addMember(TokenRolesEnum.MINTER, signer.address);
 
   return { hubPool, mockAdapter, l1Token_1, l1Token_2, hubPoolDeploymentBlock: receipt.blockNumber };
-}
-
-export async function deployNewTokenMapping(
-  l2TokenHolder: utils.SignerWithAddress,
-  l1TokenHolder: utils.SignerWithAddress,
-  spokePool: utils.Contract,
-  spokePoolDestination: utils.Contract,
-  configStore: utils.Contract,
-  hubPool: utils.Contract,
-  amountToSeedLpPool: BigNumber
-): Promise<{
-  l2Token: utils.Contract;
-  l1Token: utils.Contract;
-}> {
-  // Deploy L2 token and enable it for deposits:
-  const spokePoolChainId = await spokePool.chainId();
-  const l2Token = await (await utils.getContractFactory("ExpandedERC20", l2TokenHolder)).deploy("L2 Token", "L2", 18);
-  await l2Token.addMember(TokenRolesEnum.MINTER, l2TokenHolder.address);
-
-  // Deploy second L2 token that is destination chain's counterpart to L2 token.
-  const spokePoolDestinationChainId = await spokePoolDestination.chainId();
-  const l2TokenDestination = await (
-    await utils.getContractFactory("ExpandedERC20", l2TokenHolder)
-  ).deploy("L2 Token Destination", "L2", 18);
-  await l2TokenDestination.addMember(TokenRolesEnum.MINTER, l2TokenHolder.address);
-
-  await utils.enableRoutes(spokePoolDestination, [
-    { originToken: l2TokenDestination.address, destinationChainId: spokePoolChainId },
-  ]);
-  await utils.enableRoutes(spokePool, [
-    { originToken: l2Token.address, destinationChainId: spokePoolDestinationChainId },
-  ]);
-
-  // Deploy L1 token and set as counterpart for L2 token:
-  const l1Token = await (await utils.getContractFactory("ExpandedERC20", l1TokenHolder)).deploy("L1 Token", "L1", 18);
-  await l1Token.addMember(TokenRolesEnum.MINTER, l1TokenHolder.address);
-  await enableRoutesOnHubPool(hubPool, [
-    { destinationChainId: spokePoolChainId, l1Token, destinationToken: l2Token },
-    { destinationChainId: spokePoolDestinationChainId, l1Token, destinationToken: l2TokenDestination },
-  ]);
-  await configStore.updateTokenConfig(l1Token.address, JSON.stringify({ rateModel: sampleRateModel }));
-
-  // Give signer initial balance and approve hub pool and spoke pool to pull funds from it
-  await addLiquidity(l1TokenHolder, hubPool, l1Token, amountToSeedLpPool);
-  await setupTokensForWallet(spokePool, l2TokenHolder, [l2Token, l2TokenDestination], undefined, 100);
-  await setupTokensForWallet(spokePoolDestination, l2TokenHolder, [l2TokenDestination, l2Token], undefined, 100);
-
-  // Set time to provider time so blockfinder can find block for deposit quote time.
-  await spokePool.setCurrentTime(await getLastBlockTime(spokePool.provider));
-  await spokePoolDestination.setCurrentTime(await getLastBlockTime(spokePoolDestination.provider));
-
-  return {
-    l2Token,
-    l1Token,
-  };
 }
 
 export async function enableRoutesOnHubPool(
@@ -506,176 +450,6 @@ export async function buildModifiedFill(
   } else {
     return null;
   }
-}
-
-export async function buildFillForRepaymentChain(
-  spokePool: Contract,
-  relayer: SignerWithAddress,
-  depositToFill: Deposit,
-  pctOfDepositToFill: number,
-  repaymentChainId: number,
-  destinationToken: string = depositToFill.destinationToken
-): Promise<Fill | null> {
-  // Sanity Check: ensure realizedLpFeePct is defined
-  expect(depositToFill.realizedLpFeePct).to.not.be.undefined;
-  if (!depositToFill.realizedLpFeePct) {
-    throw new Error("realizedLpFeePct is undefined");
-  }
-  const relayDataFromDeposit = {
-    depositor: depositToFill.depositor,
-    recipient: depositToFill.recipient,
-    destinationToken,
-    amount: depositToFill.amount,
-    originChainId: depositToFill.originChainId.toString(),
-    destinationChainId: depositToFill.destinationChainId.toString(),
-    realizedLpFeePct: depositToFill.realizedLpFeePct,
-    relayerFeePct: depositToFill.relayerFeePct,
-    depositId: depositToFill.depositId.toString(),
-  };
-  await spokePool.connect(relayer).fillRelay(
-    ...utils.getFillRelayParams(
-      appendMessageToResult(relayDataFromDeposit),
-      depositToFill.amount
-        .mul(toBNWei(1).sub(depositToFill.realizedLpFeePct.add(depositToFill.relayerFeePct)))
-        .mul(toBNWei(pctOfDepositToFill))
-        .div(toBNWei(1))
-        .div(toBNWei(1)),
-      repaymentChainId
-    )
-  );
-  const [events, destinationChainId] = await Promise.all([
-    spokePool.queryFilter(spokePool.filters.FilledRelay()),
-    spokePool.chainId(),
-  ]);
-  const lastEvent = events[events.length - 1];
-  if (lastEvent.args) {
-    return {
-      amount: lastEvent.args.amount,
-      totalFilledAmount: lastEvent.args.totalFilledAmount,
-      fillAmount: lastEvent.args.fillAmount,
-      repaymentChainId: Number(lastEvent.args.repaymentChainId),
-      originChainId: Number(lastEvent.args.originChainId),
-      relayerFeePct: lastEvent.args.relayerFeePct,
-      realizedLpFeePct: lastEvent.args.realizedLpFeePct,
-      depositId: lastEvent.args.depositId,
-      destinationToken: lastEvent.args.destinationToken,
-      relayer: lastEvent.args.relayer,
-      message: lastEvent.args.message,
-      depositor: lastEvent.args.depositor,
-      recipient: lastEvent.args.recipient,
-      updatableRelayData: lastEvent.args.updatableRelayData,
-      destinationChainId: Number(destinationChainId),
-    };
-  } else {
-    return null;
-  }
-}
-
-// Returns expected leaves ordered by origin chain ID and then deposit ID(ascending). Ordering is implemented
-// same way that dataworker orders them.
-export function buildSlowRelayLeaves(
-  deposits: Deposit[],
-  payoutAdjustmentPcts: BigNumber[] = []
-): ContractsV2SlowFill[] {
-  return deposits
-    .map((_deposit, i) => {
-      // Sanity Check: ensure realizedLpFeePct is defined
-      expect(_deposit.realizedLpFeePct).to.not.be.undefined;
-      if (!_deposit.realizedLpFeePct) {
-        throw new Error("realizedLpFeePct is undefined");
-      }
-      return {
-        relayData: {
-          depositor: _deposit.depositor,
-          recipient: _deposit.recipient,
-          destinationToken: _deposit.destinationToken,
-          amount: _deposit.amount,
-          originChainId: _deposit.originChainId.toString(),
-          destinationChainId: _deposit.destinationChainId.toString(),
-          realizedLpFeePct: _deposit.realizedLpFeePct,
-          relayerFeePct: _deposit.relayerFeePct,
-          depositId: _deposit.depositId.toString(),
-          message: _deposit.message,
-        },
-        payoutAdjustmentPct: BigNumber.from(payoutAdjustmentPcts[i]?.toString() ?? "0"),
-      };
-    }) // leaves should be ordered by origin chain ID and then deposit ID (ascending).
-    .sort(({ relayData: relayA }, { relayData: relayB }) => {
-      if (relayA.originChainId !== relayB.originChainId) {
-        return Number(relayA.originChainId) - Number(relayB.originChainId);
-      } else {
-        return Number(relayA.depositId) - Number(relayB.depositId);
-      }
-    });
-}
-
-export async function buildSlowFill(
-  spokePool: Contract,
-  lastFillForDeposit: Fill,
-  relayer: SignerWithAddress,
-  proof: string[],
-  rootBundleId = "0"
-): Promise<Fill> {
-  await spokePool
-    .connect(relayer)
-    .executeSlowRelayLeaf(
-      lastFillForDeposit.depositor,
-      lastFillForDeposit.recipient,
-      lastFillForDeposit.destinationToken,
-      lastFillForDeposit.amount.toString(),
-      lastFillForDeposit.originChainId.toString(),
-      lastFillForDeposit.realizedLpFeePct.toString(),
-      lastFillForDeposit.relayerFeePct.toString(),
-      lastFillForDeposit.depositId.toString(),
-      rootBundleId,
-      lastFillForDeposit.message,
-      "0",
-      proof
-    );
-  return {
-    ...lastFillForDeposit,
-    totalFilledAmount: lastFillForDeposit.amount, // Slow relay always fully fills deposit
-    fillAmount: lastFillForDeposit.amount.sub(lastFillForDeposit.totalFilledAmount), // Fills remaining after latest fill for deposit
-    updatableRelayData: {
-      relayerFeePct: toBN(0),
-      isSlowRelay: true,
-      recipient: lastFillForDeposit.recipient,
-      message: lastFillForDeposit.message,
-      payoutAdjustmentPct: toBN(0),
-    },
-    repaymentChainId: 0, // Always set to 0 for slow fills
-    relayer: relayer.address, // Set to caller of `executeSlowRelayLeaf`
-  };
-}
-
-// We use the offset input to bypass the bundleClient's cache key, which is the bundle block range. So, to make sure
-// that the client requeries fresh blockchain state, we need to slightly offset the block range to produce a different
-// cache key.
-export function getDefaultBlockRange(toBlockOffset: number): number[][] {
-  return DEFAULT_BLOCK_RANGE_FOR_CHAIN.map((range) => [range[0], range[1] + toBlockOffset]);
-}
-
-export function createRefunds(
-  address: string,
-  refundAmount: BigNumber,
-  token: string
-): Record<
-  string,
-  {
-    refunds: Record<string, BigNumber>;
-    fills: Fill[];
-    totalRefundAmount: BigNumber;
-    realizedLpFees: BigNumber;
-  }
-> {
-  return {
-    [token]: {
-      refunds: { [address]: refundAmount },
-      fills: [],
-      totalRefundAmount: toBN(0),
-      realizedLpFees: toBN(0),
-    },
-  };
 }
 
 /**
