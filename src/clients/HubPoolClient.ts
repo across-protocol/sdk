@@ -3,8 +3,6 @@ import _ from "lodash";
 import winston from "winston";
 import { DEFAULT_CACHING_TTL } from "../constants";
 import {
-  assign,
-  BlockFinder,
   CachingMechanismInterface,
   CancelledRootBundle,
   CrossChainContractsSet,
@@ -25,6 +23,7 @@ import {
 import * as lpFeeCalculator from "../lpFeeCalculator";
 import {
   BigNumberish,
+  BlockFinder,
   EventSearchConfig,
   MakeOptional,
   assign,
@@ -33,7 +32,6 @@ import {
   isDefined,
   paginatedEventQuery,
   shouldCache,
-  fetchTokenInfo,
   sortEventsDescending,
   spreadEvent,
   spreadEventWithBlockNumber,
