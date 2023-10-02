@@ -1,4 +1,5 @@
 export * from "./common";
+export * from "./abi";
 export * from "./ArrayUtils";
 export * from "./BlockUtils";
 export * from "./EventUtils";
