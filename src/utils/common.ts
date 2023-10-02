@@ -220,7 +220,7 @@ export const getSamplesBetween = (min: number, max: number, size: number) => {
  * A promise that resolves after a specified number of seconds
  * @param seconds The number of seconds to wait
  */
-export async function delay(seconds: number) {
+export function delay(seconds: number) {
   return new Promise((resolve) => setTimeout(resolve, seconds * 1000));
 }
 
@@ -231,7 +231,7 @@ export async function delay(seconds: number) {
  * @param delayS The number of seconds to delay between each attempt
  * @returns The result of the function call.
  */
-export async function retry<T>(call: () => Promise<T>, times: number, delayS: number): Promise<T> {
+export function retry<T>(call: () => Promise<T>, times: number, delayS: number): Promise<T> {
   let promiseChain = call();
   for (let i = 0; i < times; i++)
     promiseChain = promiseChain.catch(async () => {

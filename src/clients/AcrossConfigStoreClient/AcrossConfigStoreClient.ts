@@ -1,45 +1,43 @@
+import { utils, across } from "@uma/sdk";
 import assert from "assert";
-import { utils } from "@uma/sdk";
+import { BigNumber, Contract, Event } from "ethers";
+import winston from "winston";
 import { isError } from "../../typeguards";
 import {
+  EventSearchConfig,
+  MakeOptional,
+  UBA_MIN_CONFIG_STORE_VERSION,
+  findLast,
+  isArrayOf,
   isDefined,
-  spreadEvent,
+  isPositiveInteger,
+  max,
+  paginatedEventQuery,
   sortEventsAscendingInPlace,
   sortEventsDescending,
+  spreadEvent,
   spreadEventWithBlockNumber,
-  paginatedEventQuery,
-  EventSearchConfig,
-  utf8ToHex,
-  MakeOptional,
   toBN,
-  max,
-  findLast,
-  UBA_MIN_CONFIG_STORE_VERSION,
-  isArrayOf,
-  isPositiveInteger,
+  utf8ToHex,
 } from "../../utils";
-import { Contract, BigNumber, Event } from "ethers";
-import winston from "winston";
-
+import { PROTOCOL_DEFAULT_CHAIN_ID_INDICES } from "../../constants";
 import {
-  TokenConfig,
-  GlobalConfigUpdate,
-  ParsedTokenConfig,
-  SpokeTargetBalanceUpdate,
-  SpokePoolTargetBalance,
-  RouteRateModelUpdate,
   ConfigStoreVersionUpdate,
   DisabledChainsUpdate,
+  GlobalConfigUpdate,
+  ParsedTokenConfig,
+  RouteRateModelUpdate,
+  SpokePoolTargetBalance,
+  SpokeTargetBalanceUpdate,
+  SpokeTargetBalanceUpdateStringified,
+  TokenConfig,
   UBAConfigUpdates,
   UBAParsedConfigType,
   UBASerializedConfigUpdates,
-  SpokeTargetBalanceUpdateStringified,
 } from "../../interfaces";
-import { across } from "@uma/sdk";
-import { parseUBAConfigFromOnChain } from "./ConfigStoreParsingUtilities";
-import { BaseAbstractClient } from "../BaseAbstractClient";
 import { parseJSONWithNumericString, stringifyJSONWithNumericString } from "../../utils/JSONUtils";
-import { PROTOCOL_DEFAULT_CHAIN_ID_INDICES } from "../../constants";
+import { BaseAbstractClient } from "../BaseAbstractClient";
+import { parseUBAConfigFromOnChain } from "./ConfigStoreParsingUtilities";
 
 type _ConfigStoreUpdate = {
   success: true;

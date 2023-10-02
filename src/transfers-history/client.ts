@@ -2,7 +2,7 @@ import EventEmitter from "events";
 import { clientConfig } from "./config";
 import { SpokePoolEventsQueryService } from "./services/SpokePoolEventsQueryService";
 import { Logger, LogLevel } from "./adapters/logger";
-import { BigNumber, providers } from "ethers";
+import { BigNumber, providers, ethers } from "ethers";
 import { ChainId } from "./adapters/web3/model";
 import { SpokePoolEventsQuerier } from "./adapters/web3";
 import { TransfersRepository } from "./adapters/db/transfers-repository";
@@ -14,7 +14,6 @@ import {
   RequestedSpeedUpDepositEvent,
 } from "../typechain";
 import { Transfer } from "./model";
-import { ethers } from "ethers";
 
 export enum TransfersHistoryEvent {
   TransfersUpdated = "TransfersUpdated",
@@ -90,8 +89,8 @@ export class TransfersHistoryClient {
       // prevent triggering multiple polling intervals for the same address
       if (timer) throw new Error(`Address ${depositorAddr} is already monitored`);
 
-      timer = setInterval(() => {
-        this.getEventsForDepositor(depositorAddr);
+      timer = setInterval(async () => {
+        await this.getEventsForDepositor(depositorAddr);
       }, this.pollingIntervalSeconds * 1000);
       this.pollingTimers[depositorAddr] = timer;
     }

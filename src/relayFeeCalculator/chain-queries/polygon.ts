@@ -3,8 +3,7 @@ import { DEFAULT_LOGGER, Logger } from "../relayFeeCalculator";
 import { providers } from "ethers";
 import { CHAIN_IDs, TOKEN_SYMBOLS_MAP } from "../../constants";
 import { Coingecko } from "../../coingecko/Coingecko";
-import { DEFAULT_SIMULATED_RELAYER_ADDRESS } from "./baseQuery";
-import QueryBase from "./baseQuery";
+import QueryBase, { DEFAULT_SIMULATED_RELAYER_ADDRESS } from "./baseQuery";
 
 export class PolygonQueries extends QueryBase {
   constructor(

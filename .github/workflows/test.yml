@@ -12,4 +12,4 @@ jobs:
         with:
           node-version: 16
       - run: yarn install
-      - run: yarn test --ci --coverage --maxWorkers=2
+      - run: yarn test

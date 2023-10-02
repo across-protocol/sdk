@@ -9,6 +9,8 @@ dist
 
 # testing
 /coverage
+/artifacts
+/typechain-types
 
 # production
 /build
@@ -23,3 +25,9 @@ dist
 .env.test.local
 .env.production.local
 tsconfig.build.tsbuildinfo
+
+# debug
+cache
+yarn-error.log
+yarn-debug.log*
+gasReporterOutput.json

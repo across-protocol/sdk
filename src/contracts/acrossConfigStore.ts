@@ -2,6 +2,7 @@ import { Provider } from "@ethersproject/providers";
 import { AcrossConfigStore, AcrossConfigStore__factory } from "../typechain";
 import { object, string, Infer, assert, mask, record, optional } from "superstruct";
 import type { CallOverrides } from "@ethersproject/contracts";
+import { filterFalsyKeys } from "../utils";
 
 const RateModelSs = object({
   UBar: string(), // denote the utilization kink along the rate model where the slope of the interest rate model changes.
@@ -23,7 +24,7 @@ export class Client {
   }
   static parseL1TokenConfig(data: string): L1TokenConfig {
     const l1TokenConfig = JSON.parse(data);
-    const l1TokenConfigMask = mask(l1TokenConfig, L1TokenConfigSs);
+    const l1TokenConfigMask = filterFalsyKeys(mask(l1TokenConfig, L1TokenConfigSs));
     assert(l1TokenConfigMask, L1TokenConfigSs);
     return l1TokenConfigMask;
   }

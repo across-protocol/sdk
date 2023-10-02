@@ -24,11 +24,11 @@ const eventManagers: { [chainId: number]: EventManager } = {};
 
 // May need to populate getTransaction and getTransactionReceipt if calling code starts using it.
 // https://docs.ethers.org/v5/api/providers/provider/#Provider-getTransaction
-const getTransaction = async (): Promise<TransactionResponse> => {
+const getTransaction = (): Promise<TransactionResponse> => {
   throw new Error("getTransaction() not supported");
 };
 // https://docs.ethers.org/v5/api/providers/provider/#Provider-getTransactionReceipt
-const getTransactionReceipt = async (): Promise<TransactionReceipt> => {
+const getTransactionReceipt = (): Promise<TransactionReceipt> => {
   throw new Error("getTransactionReceipt() not supported");
 };
 const removeListener = (): void => {
@@ -77,8 +77,8 @@ export class EventManager {
 
     // getBlock() may later be used to retrieve (for example) the block timestamp.
     // @todo: If multiple events coincide on the same block number, this callback should return the same Block object.
-    const getBlock = async (): Promise<Block> => {
-      return {
+    const getBlock = (): Promise<Block> => {
+      return Promise.resolve({
         hash: blockHash,
         parentHash,
         number: blockNumber as number,
@@ -91,7 +91,7 @@ export class EventManager {
         miner: randomAddress(),
         extraData: `Block containing test transaction ${transactionHash}.`,
         transactions: [transactionHash],
-      };
+      });
     };
 
     return {

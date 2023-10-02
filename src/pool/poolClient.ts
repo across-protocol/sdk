@@ -136,7 +136,7 @@ class PoolState {
       ...pooledToken,
     };
   }
-  public async exchangeRateAtBlock(l1Token: string, blockTag: number) {
+  public exchangeRateAtBlock(l1Token: string, blockTag: number) {
     return this.contract.callStatic.exchangeRateCurrent(l1Token, { blockTag });
   }
 }
@@ -429,7 +429,7 @@ export class ReadPoolClient {
     this.contract = hubPool.connect(address, this.provider);
     this.poolState = new PoolState(this.contract, this.address);
   }
-  public async read(tokenAddress: string, latestBlock: number) {
+  public read(tokenAddress: string, latestBlock: number) {
     return this.poolState.read(tokenAddress, latestBlock);
   }
 }
@@ -823,7 +823,7 @@ export class Client {
     }
   }
   // starts transaction checking intervals, defaults to 30 seconds
-  async startInterval(delayMs = 30000) {
+  startInterval(delayMs = 30000) {
     assert(!this.intervalStarted, "Interval already started, try stopping first");
     this.intervalStarted = true;
     loop(async () => {
@@ -834,7 +834,7 @@ export class Client {
     });
   }
   // starts transaction checking intervals
-  async stopInterval() {
+  stopInterval() {
     this.intervalStarted = false;
   }
 }

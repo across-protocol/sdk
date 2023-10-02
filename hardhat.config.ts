@@ -1,39 +1,32 @@
-import * as dotenv from "dotenv";
-
-import { HardhatUserConfig } from "hardhat/config";
-import { getNodeUrl, getMnemonic } from "@uma/common";
-
+import "hardhat-watcher";
 import "@nomiclabs/hardhat-etherscan";
 import "@nomiclabs/hardhat-waffle";
+import "@openzeppelin/hardhat-upgrades";
 import "@typechain/hardhat";
 import "hardhat-deploy";
-
-dotenv.config();
+import "hardhat-gas-reporter";
+import { HardhatUserConfig } from "hardhat/config";
+import "solidity-coverage";
 
 const solcVersion = "0.8.18";
-const mnemonic = getMnemonic();
 
-const hardhatConfig: HardhatUserConfig = {
+const config: HardhatUserConfig = {
   solidity: {
     compilers: [{ version: solcVersion, settings: { optimizer: { enabled: true, runs: 1000000 }, viaIR: true } }],
   },
   networks: {
     hardhat: { accounts: { accountsBalance: "1000000000000000000000000" } },
-    mainnet: {
-      url: getNodeUrl("mainnet", true, 1),
-      accounts: { mnemonic },
-      saveDeployments: true,
-      chainId: 1,
+  },
+  mocha: {
+    timeout: 100000,
+  },
+  watcher: {
+    test: {
+      tasks: [{ command: "test" }],
+      files: ["./test/**/*", "./src/**/*", "./contracts/**/*"],
+      verbose: true,
     },
   },
-  etherscan: {
-    apiKey: {
-      mainnet: process.env.ETHERSCAN_API_KEY!,
-    },
-  },
-  namedAccounts: { deployer: 0 },
 };
 
-module.exports = {
-  ...hardhatConfig,
-};
+export default config;
