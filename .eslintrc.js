@@ -14,7 +14,7 @@ module.exports = {
   parserOptions: {
     ecmaVersion: "latest",
     sourceType: "module",
-    project: "./tsconfig.json",
+    project: "./tsconfig.lint.json",
     include: ["./src/**/*.ts", "./test/**/*.ts", ".eslintrc.js"],
   },
   plugins: ["node", "prettier", "@typescript-eslint", "mocha", "chai-expect"],
