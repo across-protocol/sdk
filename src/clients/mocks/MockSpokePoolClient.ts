@@ -53,6 +53,10 @@ export class MockSpokePoolClient extends SpokePoolClient {
     this.latestBlockSearched = blockNumber;
   }
 
+  setLatestBlockNumber(blockNumber: number): void {
+    this.latestBlockNumber = blockNumber;
+  }
+
   addEvent(event: Event): void {
     this.events.push(event);
   }
