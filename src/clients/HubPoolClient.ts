@@ -3,7 +3,7 @@ import { BlockFinder } from "@uma/sdk";
 import { BigNumber, Contract, Event, EventFilter } from "ethers";
 import _ from "lodash";
 import winston from "winston";
-import { DEFAULT_CACHING_TTL } from "../constants";
+import { DEFAULT_CACHING_SAFE_LAG, DEFAULT_CACHING_TTL } from "../constants";
 import {
   CachingMechanismInterface,
   CancelledRootBundle,
@@ -288,7 +288,7 @@ export class HubPoolClient extends BaseAbstractClient {
       const { current, post } = await resolver();
       // First determine if we should cache the result. We should cache the
       // response if the is outside of 24 hours from the current time.
-      if (shouldCache(getCurrentTime(), timestamp, 60 * 60 * 24)) {
+      if (shouldCache(getCurrentTime(), timestamp, DEFAULT_CACHING_SAFE_LAG)) {
         // If we should cache the result, then let's store it
         // We can store it as with the default 14 day TTL
         await cache.set(key, `${current.toString()},${post.toString()}`, DEFAULT_CACHING_TTL);

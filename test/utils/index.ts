@@ -3,6 +3,7 @@ export * from "@across-protocol/contracts-v2/dist/test-utils";
 export * from "./utils";
 export * from "./BlockchainUtils";
 export * from "./SpokePoolUtils";
+export * from "./SpyTransport";
 
 export { smock } from "@defi-wonderland/smock";
 
