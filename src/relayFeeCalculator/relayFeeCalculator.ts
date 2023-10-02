@@ -1,8 +1,16 @@
 import assert from "assert";
-import * as uma from "@uma/sdk";
 import { BigNumber } from "ethers";
-import { BigNumberish, toBNWei, nativeToToken, toBN, min, max, MAX_BIG_INT } from "../utils";
-const { percent, fixedPointAdjustment } = uma.across.utils;
+import {
+  BigNumberish,
+  fixedPointAdjustment,
+  toBNWei,
+  nativeToToken,
+  toBN,
+  min,
+  max,
+  percent,
+  MAX_BIG_INT,
+} from "../utils";
 
 // This needs to be implemented for every chain and passed into RelayFeeCalculator
 export interface QueryInterface {
@@ -186,7 +194,7 @@ export class RelayFeeCalculator {
     assert(capitalCosts.decimals > 0 && capitalCosts.decimals <= 18, "invalid decimals");
   }
 
-  async getTokenPrice(tokenSymbol: string): Promise<number> {
+  getTokenPrice(tokenSymbol: string): Promise<number> {
     return this.queries.getTokenPrice(tokenSymbol);
   }
 
@@ -212,12 +220,12 @@ export class RelayFeeCalculator {
 
   // Note: these variables are unused now, but may be needed in future versions of this function that are more complex.
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  async capitalFeePercent(
+  capitalFeePercent(
     _amountToRelay: BigNumberish,
     _tokenSymbol: string,
     _originRoute?: ChainIdAsString,
     _destinationRoute?: ChainIdAsString
-  ): Promise<BigNumber> {
+  ): BigNumber {
     // If amount is 0, then the capital fee % should be the max 100%
     if (toBN(_amountToRelay).eq(toBN(0))) return MAX_BIG_INT;
 

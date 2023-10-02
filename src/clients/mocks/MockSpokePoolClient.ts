@@ -71,8 +71,8 @@ export class MockSpokePoolClient extends SpokePoolClient {
       lastDepositId = _depositIds[i];
     }
   }
-  async _getDepositIdAtBlock(blockTag: number): Promise<number> {
-    return this.depositIdAtBlock[blockTag];
+  _getDepositIdAtBlock(blockTag: number): Promise<number> {
+    return Promise.resolve(this.depositIdAtBlock[blockTag]);
   }
 
   async _update(eventsToQuery: string[]): Promise<SpokePoolUpdate> {

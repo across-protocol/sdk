@@ -1,51 +1,51 @@
-import { providers } from "ethers";
+import { BigNumber, Contract, Event, EventFilter, ethers, providers } from "ethers";
 import { groupBy } from "lodash";
+import winston from "winston";
 import {
-  assign,
-  EventSearchConfig,
-  DefaultLogLevels,
-  MakeOptional,
-  mapAsync,
   AnyObject,
+  DefaultLogLevels,
+  EventSearchConfig,
   MAX_BIG_INT,
+  MakeOptional,
+  assign,
+  mapAsync,
   stringifyJSONWithNumericString,
   toBN,
 } from "../utils";
-import { validateFillForDeposit, filledSameDeposit } from "../utils/FlowUtils";
 import {
-  spreadEvent,
   paginatedEventQuery,
-  spreadEventWithBlockNumber,
   sortEventsAscending,
   sortEventsAscendingInPlace,
+  spreadEvent,
+  spreadEventWithBlockNumber,
 } from "../utils/EventUtils";
-import winston from "winston";
+import { filledSameDeposit, validateFillForDeposit } from "../utils/FlowUtils";
 
-import { Contract, BigNumber, Event, EventFilter, ethers } from "ethers";
-
+import { ZERO_ADDRESS } from "../constants";
 import {
   Deposit,
   DepositWithBlock,
+  DepositWithBlockStringified,
   Fill,
   FillWithBlock,
+  FillWithBlockStringified,
+  FundsDepositedEvent,
+  FundsDepositedEventStringified,
   RefundRequestWithBlock,
+  RefundRequestWithBlockStringified,
   RelayerRefundExecutionWithBlock,
+  RelayerRefundExecutionWithBlockStringified,
   RootBundleRelayWithBlock,
   SpeedUp,
-  TokensBridged,
-  FundsDepositedEvent,
-  DepositWithBlockStringified,
-  FillWithBlockStringified,
   SpeedUpStringified,
+  TokensBridged,
   TokensBridgedStringified,
-  RelayerRefundExecutionWithBlockStringified,
-  FundsDepositedEventStringified,
-  RefundRequestWithBlockStringified,
 } from "../interfaces";
-import { HubPoolClient } from "./HubPoolClient";
-import { ZERO_ADDRESS } from "../constants";
+import { SpokePool } from "../typechain";
 import { getNetworkName } from "../utils/NetworkUtils";
+import { getBlockRangeForDepositId, getDepositIdAtBlock } from "../utils/SpokeUtils";
 import { BaseAbstractClient } from "./BaseAbstractClient";
+import { HubPoolClient } from "./HubPoolClient";
 
 type Block = providers.Block;
 
@@ -429,7 +429,7 @@ export class SpokePoolClient extends BaseAbstractClient {
    *        // contain the event emitted when deposit ID was incremented to targetDepositId + 1. This is the same transaction
    *        // where the deposit with deposit ID = targetDepositId was created.
    */
-  public async _getBlockRangeForDepositId(
+  public _getBlockRangeForDepositId(
     targetDepositId: number,
     initLow: number,
     initHigh: number,
@@ -438,41 +438,14 @@ export class SpokePoolClient extends BaseAbstractClient {
     low: number;
     high: number;
   }> {
-    if (initLow > initHigh) {
-      throw new Error("Binary search failed because low > high");
-    }
-    if (maxSearches <= 0) {
-      throw new Error("maxSearches must be > 0");
-    }
-
-    let low = initLow;
-    let high = initHigh;
-    let i = 0;
-    do {
-      const mid = Math.floor((high + low) / 2);
-      const searchedDepositId = await this._getDepositIdAtBlock(mid);
-      if (!Number.isInteger(searchedDepositId)) {
-        throw new Error("Invalid deposit count");
-      }
-
-      // Caller can set maxSearches to minimize number of binary searches and eth_call requests.
-      if (i++ >= maxSearches) {
-        return { low, high };
-      }
-
-      // Since the deposit ID can jump by more than 1 in a block (e.g. if multiple deposits are sent
-      // in the same block), we need to search inclusively on on the low and high, instead of the
-      // traditional binary search where we set high to mid - 1 and low to mid + 1. This makes sure we
-      // don't accidentally skip over mid which contains multiple deposit ID's.
-      if (targetDepositId > searchedDepositId) {
-        low = mid;
-      } else if (targetDepositId < searchedDepositId) {
-        high = mid;
-      } else {
-        return { low, high };
-      }
-    } while (low <= high);
-    throw new Error("Failed to find deposit ID");
+    return getBlockRangeForDepositId(
+      targetDepositId,
+      initLow,
+      initHigh,
+      maxSearches,
+      this.spokePool as SpokePool,
+      this.deploymentBlock
+    );
   }
 
   /**
@@ -480,8 +453,8 @@ export class SpokePoolClient extends BaseAbstractClient {
    * @param blockTag The block number to search for the deposit ID at.
    * @returns The deposit ID.
    */
-  public async _getDepositIdAtBlock(blockTag: number): Promise<number> {
-    return await this.spokePool.numberOfDeposits({ blockTag });
+  public _getDepositIdAtBlock(blockTag: number): Promise<number> {
+    return getDepositIdAtBlock(this.spokePool as SpokePool, blockTag);
   }
 
   /**
@@ -702,7 +675,7 @@ export class SpokePoolClient extends BaseAbstractClient {
       this.earlyDeposits = earlyDeposits;
 
       const dataForQuoteTime: { realizedLpFeePct: BigNumber | undefined; quoteBlock: number }[] = await Promise.all(
-        depositEvents.map(async (event) => this.computeRealizedLpFeePct(event))
+        depositEvents.map((event) => this.computeRealizedLpFeePct(event))
       );
 
       // Now add any newly fetched events from RPC.
@@ -869,7 +842,7 @@ export class SpokePoolClient extends BaseAbstractClient {
    * @param depositEvent The deposit event to compute the realized LP fee percentage for.
    * @returns The realized LP fee percentage.
    */
-  protected async computeRealizedLpFeePct(depositEvent: FundsDepositedEvent) {
+  protected computeRealizedLpFeePct(depositEvent: FundsDepositedEvent) {
     // If no hub pool client, we're using this for testing. So set quote block very high
     // so that if its ever used to look up a configuration for a block, it will always match with some
     // configuration because the quote block will always be greater than the updated config event block height.
@@ -933,15 +906,16 @@ export class SpokePoolClient extends BaseAbstractClient {
    * @note This method is used to find deposits that are outside of the search range of this client.
    */
   async findDeposit(depositId: number, destinationChainId: number, depositor: string): Promise<DepositWithBlock> {
-    // Binary search for block where SpokePool.numberOfDeposits incremented to fill.depositId + 1.
-    // This way we can get the blocks before and after the deposit with deposit ID = fill.depositId
-    // and use those blocks to optimize the search for that deposit. Stop searches after a maximum
-    // # of searches to limit number of eth_call requests. Make an eth_getLogs call on the remaining block range
-    // (i.e. the [low, high] remaining from the binary search) to find the target deposit ID.
+    // Binary search for block. This way we can get the blocks before and after the deposit with
+    // deposit ID = fill.depositId and use those blocks to optimize the search for that deposit.
+    // Stop searches after a maximum # of searches to limit number of eth_call requests. Make an
+    // eth_getLogs call on the remaining block range (i.e. the [low, high] remaining from the binary
+    // search) to find the target deposit ID.
+    //
     // @dev Limiting between 5-10 searches empirically performs best when there are ~300,000 deposits
     // for a spoke pool and we're looking for a deposit <5 days older than HEAD.
     const searchBounds = await this._getBlockRangeForDepositId(
-      depositId + 1,
+      depositId,
       this.deploymentBlock,
       this.latestBlockNumber,
       7
