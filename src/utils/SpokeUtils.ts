@@ -35,6 +35,8 @@ export async function getBlockRangeForDepositId(
   // If any of these sanity checks fail, then we will throw an error.
   (
     [
+      // Sanity check to ensure that the spoke pool client is updated
+      [spokePool.isUpdated, "Spoke pool client is not updated"],
       // Sanity check to ensure that initHigh is greater than or equal to initLow.
       [initLow <= initHigh, "Binary search failed because low > high"],
       // Sanity check to ensure that init Low is greater than or equal to zero.
