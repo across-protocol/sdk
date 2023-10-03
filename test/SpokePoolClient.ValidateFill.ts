@@ -316,6 +316,8 @@ describe("SpokePoolClient: Fill Validation", async function () {
       spokePool2DeploymentBlock
     );
 
+    fuzzClient.isUpdated = true;
+
     const initLow = fuzzClient.deploymentBlock;
     const initHigh = 1000000;
     const depositIds = Array(initHigh + 1).fill(0);
