@@ -68,33 +68,33 @@ export async function getBlockRangeForDepositId(
   };
 
   // Get the the deposit ID at the low block, and the deposit ID at the high block in parallel.
-  const [highestPossibleDepositIdInRange, lowestPossibleDepositIdInRange] = await Promise.all([
+  const [highestDepositIdInRange, lowestDepositIdInRange] = await Promise.all([
     _getDepositIdAtBlock(initHigh),
     _getDepositIdAtBlock(Math.max(deploymentBlock, initLow - 1)),
   ]);
 
   // If the deposit ID at the initial high block is less than the target deposit ID, then we know that
   // the target deposit ID must be greater than the initial high block, so we can throw an error.
-  if (highestPossibleDepositIdInRange <= targetDepositId) {
+  if (highestDepositIdInRange <= targetDepositId) {
     // initLow   = 5: Deposits Num: 10
     //                                     // targetId = 11  <- fail (triggers this error)          // 10 <= 11
     //                                     // targetId = 10  <- fail (triggers this error)          // 10 <= 10
     //                                     // targetId = 09  <- pass (does not trigger this error)  // 10 <= 09
     throw new Error(
-      `Target depositId is greater than the initial high block (${targetDepositId} > ${highestPossibleDepositIdInRange})`
+      `Target depositId is greater than the initial high block (${targetDepositId} > ${highestDepositIdInRange})`
     );
   }
 
   // If the deposit ID at the initial low block is greater than the target deposit ID, then we know that
   // the target deposit ID must be less than the initial low block, so we can throw an error.
-  if (lowestPossibleDepositIdInRange > targetDepositId) {
+  if (lowestDepositIdInRange > targetDepositId) {
     // initLow   = 5: Deposits Num: 10
     // initLow-1 = 4: Deposits Num:  2
     //                                     // targetId = 1 <- fail (triggers this error)
     //                                     // targetId = 2 <- pass (does not trigger this error)
     //                                     // targetId = 3 <- pass (does not trigger this error)
     throw new Error(
-      `Target depositId is less than the initial low block (${targetDepositId} > ${lowestPossibleDepositIdInRange})`
+      `Target depositId is less than the initial low block (${targetDepositId} > ${lowestDepositIdInRange})`
     );
   }
 
