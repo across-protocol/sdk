@@ -14,7 +14,7 @@ export class SpyTransport extends Transport {
     this.spy = spyOptions.spy; // local instance of the spy to capture passed messages.
   }
 
-  async log(info: unknown, callback: () => void): Promise<void> {
+  log(info: unknown, callback: () => void): void {
     // Add info sent to the winston transport to the spy. This enables unit tests to validate what is passed to winston.
     this.spy(info);
     callback();
