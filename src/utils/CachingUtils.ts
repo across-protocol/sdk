@@ -2,6 +2,7 @@ import { DEFAULT_CACHING_SAFE_LAG, DEFAULT_CACHING_TTL } from "../constants";
 import { CachingMechanismInterface, Deposit, Fill } from "../interfaces";
 import { assert } from "./LogUtils";
 import { composeRevivers, objectWithBigNumberReviver } from "./ReviverUtils";
+import { getCurrentTime } from "./TimeUtils";
 import { isDefined } from "./TypeGuards";
 
 export function shouldCache(eventTimestamp: number, latestTime: number, cachingMaxAge: number): boolean {
@@ -27,6 +28,15 @@ export async function setDepositInCache(
   cache: CachingMechanismInterface,
   expirySeconds = DEFAULT_CACHING_TTL
 ): Promise<void> {
+  const currentTimeInSeconds = getCurrentTime();
+  // We should first confirm that neither the deposit's quoteTimestamp nor the currentChainTime
+  // are in the future. If they are, we should not cache the deposit.
+  if (deposit.quoteTimestamp > currentTimeInSeconds || currentChainTime > currentTimeInSeconds) {
+    return;
+  }
+
+  // We should note here that the user can theoretically set the deposit's quoteTimestamp
+  // to whatever they want. As a result, this could be used to manipulate the caching mechanism.
   if (shouldCache(deposit.quoteTimestamp, currentChainTime, DEFAULT_CACHING_SAFE_LAG)) {
     await cache.set(getDepositKey(deposit), JSON.stringify(deposit), expirySeconds);
   }
