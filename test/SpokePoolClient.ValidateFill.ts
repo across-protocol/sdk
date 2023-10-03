@@ -202,6 +202,9 @@ describe("SpokePoolClient: Fill Validation", async function () {
     // @dev In this test we mine random counts of block between deposits to "fuzz" test the binary search algo
     // which can produce different results depending on the total search range and where deposit events fall.
 
+    // Let's set the spoke pool client's isUpdated to true
+    spokePoolClient1.isUpdated = true;
+
     // Send 2 deposits and mine blocks between them to ensure deposits are in different blocks.
     await deposit(spokePool_1, erc20_1, depositor, depositor, destinationChainId);
     await mineRandomBlocks();
