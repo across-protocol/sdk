@@ -16,13 +16,16 @@ class TestBaseHTTPAdapter extends BaseHTTPAdapter {
     super(name, host, { timeout, retries });
   }
 
-  async _query(path: string, urlArgs?: object): Promise<unknown> {
+  _query(path: string, urlArgs?: object): Promise<unknown> {
     return this.query(path, urlArgs);
   }
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  protected override async sleep(_ms: number): Promise<void> {
-    ++this.nRetries;
+  protected override sleep(_ms: number): Promise<void> {
+    return new Promise((next) => {
+      ++this.nRetries;
+      next();
+    });
   }
 }
 
@@ -47,12 +50,12 @@ class TestPriceFeed implements PriceFeedAdapter {
     return tokenPrices[0];
   }
 
-  async getPricesByAddress(addresses: string[], currency = "usd"): Promise<TokenPrice[]> {
+  getPricesByAddress(addresses: string[], currency = "usd"): Promise<TokenPrice[]> {
     this.priceRequest = addresses;
     const _addresses = addresses.map((address) => address.toLowerCase());
 
     // Return each cached price that overlaps with the requested list of addresses.
-    return (
+    return Promise.resolve(
       Object.entries(this.prices[currency])
         // eslint-disable-next-line @typescript-eslint/no-unused-vars
         .filter(([address, _]) => _addresses.includes(address.toLowerCase()))
@@ -141,7 +144,7 @@ describe("PriceClient", function () {
     beginTs = msToS(Date.now());
   });
 
-  it("Price feed ordering", async function () {
+  it("Price feed ordering", function () {
     // Generate a list with ~random names; nb. names are not (currently?) required to be unique.
     const feedNames = Array(3)
       .fill("Test PriceFeed")
@@ -258,7 +261,7 @@ describe("PriceClient", function () {
     }
   });
 
-  it("getPriceByAddress: Address case insensitivity", async function () {
+  it("getPriceByAddress: Address case insensitivity", function () {
     // Instantiate a custom subclass of PriceClient.
     const pc: TestPriceClient = new TestPriceClient(dummyLogger, [
       new acrossApi.PriceFeed({ name: "Across API (expect fail)", host: "127.0.0.1", retries: 0 }),
