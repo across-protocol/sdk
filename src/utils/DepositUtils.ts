@@ -1,4 +1,4 @@
-import { assert } from "chai";
+import assert from "assert";
 import { SpokePoolClient } from "../clients";
 import { Fill, DepositWithBlock, Deposit, CachingMechanismInterface } from "../interfaces";
 import { validateFillForDeposit } from "./FlowUtils";
