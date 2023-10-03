@@ -21,12 +21,14 @@ export async function getBlockRangeForDepositId(
   initLow: number,
   initHigh: number,
   maxSearches: number,
-  spokePool: SpokePoolClient,
-  deploymentBlock = 0
+  spokePool: SpokePoolClient
 ): Promise<{
   low: number;
   high: number;
 }> {
+  // Resolve the deployment block number.
+  const deploymentBlock = spokePool.deploymentBlock;
+
   // Set the initial high block to the most recent block number or the initial high block, whichever is smaller.
   initHigh = Math.min(initHigh, spokePool.latestBlockNumber);
 
