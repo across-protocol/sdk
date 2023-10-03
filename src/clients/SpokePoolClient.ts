@@ -438,14 +438,7 @@ export class SpokePoolClient extends BaseAbstractClient {
     low: number;
     high: number;
   }> {
-    return getBlockRangeForDepositId(
-      targetDepositId,
-      initLow,
-      initHigh,
-      maxSearches,
-      this.spokePool as SpokePool,
-      this.deploymentBlock
-    );
+    return getBlockRangeForDepositId(targetDepositId, initLow, initHigh, maxSearches, this, this.deploymentBlock);
   }
 
   /**

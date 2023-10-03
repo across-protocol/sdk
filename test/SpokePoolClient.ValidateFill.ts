@@ -202,13 +202,15 @@ describe("SpokePoolClient: Fill Validation", async function () {
     // @dev In this test we mine random counts of block between deposits to "fuzz" test the binary search algo
     // which can produce different results depending on the total search range and where deposit events fall.
 
+    // Let's set the spoke pool client's isUpdated to true
+    spokePoolClient1.isUpdated = true;
+
     // Send 2 deposits and mine blocks between them to ensure deposits are in different blocks.
     await deposit(spokePool_1, erc20_1, depositor, depositor, destinationChainId);
     await mineRandomBlocks();
     await deposit(spokePool_1, erc20_1, depositor, depositor, destinationChainId);
     await mineRandomBlocks();
-    const [deposit0Event, deposit1Event] = await spokePool_1.queryFilter("FundsDeposited");
-    const deposit0Block = deposit0Event.blockNumber;
+    const [, deposit1Event] = await spokePool_1.queryFilter("FundsDeposited");
     const deposit1Block = deposit1Event.blockNumber;
 
     // Throws when low < high
@@ -220,16 +222,18 @@ describe("SpokePoolClient: Fill Validation", async function () {
     // Set spoke pool client's latest to be the latest block so that the binary search defaults the "high" block
     // to this.
     spokePoolClient1.latestBlockNumber = await spokePool_1.provider.getBlockNumber();
-    // Searching for deposit ID 0 should exit after one iteration, which maintains the invariant that
-    // the range low <= correct block < range high.
+    // Searching for deposit ID 0 with 10 max searches should return the block range that deposit ID 0 was mined in.
+    // Note: the search range is inclusive, so the range should include the block that deposit ID 0 was mined in.
     const searchRange0 = await spokePoolClient1._getBlockRangeForDepositId(
       0,
       spokePool1DeploymentBlock,
       spokePoolClient1.latestBlockNumber,
       10
     );
-    expect(searchRange0.low).to.equal(spokePool1DeploymentBlock);
-    expect(searchRange0.high).to.equal(spokePoolClient1.latestBlockNumber);
+    // The range should be within the spoke pool's deployment block and the latest block.
+    // We can assume this because the binary search will always return a range that is within the search bounds.
+    expect(searchRange0.low).to.greaterThanOrEqual(spokePool1DeploymentBlock);
+    expect(searchRange0.high).to.lessThanOrEqual(spokePoolClient1.latestBlockNumber);
 
     // Searching for deposit ID 1 should also match invariants:
     // - range low <= correct block
@@ -242,21 +246,25 @@ describe("SpokePoolClient: Fill Validation", async function () {
       spokePoolClient1.latestBlockNumber,
       10
     );
-    const searchRange2 = await spokePoolClient1._getBlockRangeForDepositId(
-      2,
-      spokePool1DeploymentBlock,
-      spokePoolClient1.latestBlockNumber,
-      10
-    );
-    expect(searchRange1.high).to.be.greaterThanOrEqual(deposit0Block);
-    expect(searchRange1.low).to.be.lessThanOrEqual(deposit0Block);
-    expect(searchRange2.high).to.be.greaterThanOrEqual(deposit1Block);
-    expect(searchRange2.low).to.be.lessThanOrEqual(deposit1Block);
 
-    // Searching for deposit ID 3 that doesn't exist yet should throw.
-    void assertPromiseError(
-      spokePoolClient1._getBlockRangeForDepositId(3, spokePool1DeploymentBlock, spokePoolClient1.latestBlockNumber, 10),
-      "Failed to find deposit ID"
+    expect(searchRange1.high).to.be.greaterThanOrEqual(deposit1Block);
+    expect(searchRange1.low).to.be.lessThanOrEqual(deposit1Block);
+
+    // Searching for deposit ID 2 that doesn't exist yet should throw.
+    await assertPromiseError(
+      spokePoolClient1._getBlockRangeForDepositId(2, spokePool1DeploymentBlock, spokePoolClient1.latestBlockNumber, 10),
+      "Target depositId is greater than the initial high block"
+    );
+
+    // Searching for deposit ID -1 that doesn't exist should throw.
+    await assertPromiseError(
+      spokePoolClient1._getBlockRangeForDepositId(
+        -1,
+        spokePool1DeploymentBlock,
+        spokePoolClient1.latestBlockNumber,
+        10
+      ),
+      "Target depositId is less than the initial low block"
     );
 
     // Now send multiple deposits in the same block.
@@ -291,19 +299,16 @@ describe("SpokePoolClient: Fill Validation", async function () {
       spokePoolClient1.latestBlockNumber,
       10
     );
-    const searchRange5 = await spokePoolClient1._getBlockRangeForDepositId(
-      5,
-      spokePool1DeploymentBlock,
-      spokePoolClient1.latestBlockNumber,
-      10
+
+    await assertPromiseError(
+      spokePoolClient1._getBlockRangeForDepositId(5, spokePool1DeploymentBlock, spokePoolClient1.latestBlockNumber, 10),
+      "Target depositId is greater than the initial high block"
     );
 
     expect(searchRange3.high).to.be.greaterThanOrEqual(depositEvents[2].blockNumber);
     expect(searchRange3.low).to.be.lessThanOrEqual(depositEvents[2].blockNumber);
     expect(searchRange4.high).to.be.greaterThanOrEqual(depositEvents[3].blockNumber);
     expect(searchRange4.low).to.be.lessThanOrEqual(depositEvents[3].blockNumber);
-    expect(searchRange5.high).to.be.greaterThanOrEqual(depositEvents[4].blockNumber);
-    expect(searchRange5.low).to.be.lessThanOrEqual(depositEvents[4].blockNumber);
   });
 
   it("Fuzz: get search bounds for deposit ID", async function () {
@@ -314,9 +319,11 @@ describe("SpokePoolClient: Fill Validation", async function () {
       spokePool2DeploymentBlock
     );
 
-    const initLow = 0;
+    fuzzClient.isUpdated = true;
+
+    const initLow = fuzzClient.deploymentBlock;
     const initHigh = 1000000;
-    const depositIds = Array(initHigh - initLow + 1).fill(0);
+    const depositIds = Array(initHigh + 1).fill(0);
 
     const testIterations = 1000;
 
@@ -329,6 +336,7 @@ describe("SpokePoolClient: Fill Validation", async function () {
       depositIds[i] = depositIds[i - 1] + increment;
     }
     fuzzClient.setDepositIds(depositIds);
+    fuzzClient.setLatestBlockNumber(initHigh + 1);
 
     for (let i = 0; i < testIterations; i++) {
       // Randomize target between highest and lowest values in deposit IDs.
@@ -338,22 +346,36 @@ describe("SpokePoolClient: Fill Validation", async function () {
       const maxSearches = Math.floor(Math.random() * 19) + 1;
       const results = await fuzzClient._getBlockRangeForDepositId(target, initLow, initHigh, maxSearches);
 
-      // The correct block is the first block to increment beyond the target. Check that the range
-      // contains the correct block where deposit ID incremented to the target + 1.
-      const correctBlock = depositIds.findIndex((depositId) => depositId > target);
-      expect(depositIds[correctBlock] > target).to.be.true;
-      expect(results.low <= correctBlock).to.be.true;
-      expect(results.high >= correctBlock).to.be.true;
+      // The "correct" block is the first block whose previous block's deposit ID is greater than
+      // or equal to the target and whose deposit ID count is greater than the target.
+      const correctBlock = depositIds.findIndex(
+        (depositId, idx) => idx > 0 && target >= depositIds[idx - 1] && target < depositId
+      );
 
-      // Check other invariants.
+      // Resolve the deposit number at the correct block.
+      const startingInclusiveDepositIdAtCorrectBlock = depositIds[correctBlock - 1];
+      const endingInclusiveDepositIdAtCorrectBlock = depositIds[correctBlock];
+
+      // Resolve the true range of what our binary search should have returned.
+      const startingInclusiveDepositIdAtLowRange = depositIds[results.low - 1];
+      const endingInclusiveDepositIdAtHighRange = depositIds[results.high] - 1;
+
+      // We should expect that the target is within the correct block's range
+      // Note: this is a sanity check to ensure that our test is valid.
+      expect(target >= startingInclusiveDepositIdAtCorrectBlock).to.be.true;
+      expect(target <= endingInclusiveDepositIdAtCorrectBlock).to.be.true;
+
+      // We should expect that the target is within the range returned by the binary search.
+      expect(target >= startingInclusiveDepositIdAtLowRange).to.be.true;
+      expect(target <= endingInclusiveDepositIdAtHighRange).to.be.true;
+
+      // We should expect the correct block to be within the range returned by the binary search.
+      expect(correctBlock >= results.low).to.be.true;
+      expect(correctBlock <= results.high).to.be.true;
+
+      // We should expect that our range is within the bounds of our initial range.
       expect(results.low >= initLow).to.be.true;
       expect(results.high <= initHigh).to.be.true;
-
-      // The block range should return a range containing:
-      // - a low block with deposit count <= target
-      // - a high block with deposit count > target.
-      expect(depositIds[results.low] <= target).to.be.true;
-      expect(depositIds[results.high] > target).to.be.true;
     }
   });
 
