@@ -1,4 +1,5 @@
 import { Contract } from "ethers";
+import { SpokePoolClient } from "../clients";
 
 /**
  * Find the block range that contains the deposit ID. This is a binary search that searches for the block range
@@ -20,42 +21,24 @@ export async function getBlockRangeForDepositId(
   initLow: number,
   initHigh: number,
   maxSearches: number,
-  spokePool: Contract,
-  deploymentBlock = 0
+  spokePool: SpokePoolClient
 ): Promise<{
   low: number;
   high: number;
 }> {
-  // Define a mapping of block numbers to number of deposits at that block. This saves repeated lookups.
-  const queriedIds: Record<number, number> = {};
-
-  // Define a llambda function to get the deposit ID at a block number. This function will first check the
-  // queriedIds cache to see if the deposit ID at the block number has already been queried. If not, it will
-  // make an eth_call request to get the deposit ID at the block number. It will then cache the deposit ID
-  // in the queriedIds cache.
-  const _getDepositIdAtBlock = async (blockNumber: number): Promise<number> => {
-    if (queriedIds[blockNumber] === undefined) {
-      queriedIds[blockNumber] = await getDepositIdAtBlock(spokePool, blockNumber);
-    }
-    return queriedIds[blockNumber];
-  };
-
-  // Get the most recent block from the spoke pool contract, the deposit ID
-  // at the low block, and the deposit ID at the high block in parallel.
-  const [mostRecentBlockNumber, highestPossibleDepositIdInRange, lowestPossibleDepositIdInRange] = await Promise.all([
-    spokePool.provider.getBlockNumber(),
-    _getDepositIdAtBlock(initHigh),
-    _getDepositIdAtBlock(Math.max(deploymentBlock, initLow - 1)),
-  ]);
+  // Resolve the deployment block number.
+  const deploymentBlock = spokePool.deploymentBlock;
 
   // Set the initial high block to the most recent block number or the initial high block, whichever is smaller.
-  initHigh = Math.min(initHigh, mostRecentBlockNumber);
+  initHigh = Math.min(initHigh, spokePool.latestBlockNumber);
 
   // We will now set a list of sanity checks to ensure that the binary search will not fail
   // due to invalid input parameters.
   // If any of these sanity checks fail, then we will throw an error.
   (
     [
+      // Sanity check to ensure that the spoke pool client is updated
+      [spokePool.isUpdated, "Spoke pool client is not updated"],
       // Sanity check to ensure that initHigh is greater than or equal to initLow.
       [initLow <= initHigh, "Binary search failed because low > high"],
       // Sanity check to ensure that init Low is greater than or equal to zero.
@@ -72,25 +55,47 @@ export async function getBlockRangeForDepositId(
     }
   });
 
+  // Define a mapping of block numbers to number of deposits at that block. This saves repeated lookups.
+  const queriedIds: Record<number, number> = {};
+
+  // Define a llambda function to get the deposit ID at a block number. This function will first check the
+  // queriedIds cache to see if the deposit ID at the block number has already been queried. If not, it will
+  // make an eth_call request to get the deposit ID at the block number. It will then cache the deposit ID
+  // in the queriedIds cache.
+  const _getDepositIdAtBlock = async (blockNumber: number): Promise<number> => {
+    queriedIds[blockNumber] ??= await spokePool._getDepositIdAtBlock(blockNumber);
+    return queriedIds[blockNumber];
+  };
+
+  // Get the the deposit ID at the low block, and the deposit ID at the high block in parallel.
+  const [highestDepositIdInRange, lowestDepositIdInRange] = await Promise.all([
+    _getDepositIdAtBlock(initHigh),
+    _getDepositIdAtBlock(Math.max(deploymentBlock, initLow - 1)),
+  ]);
+
   // If the deposit ID at the initial high block is less than the target deposit ID, then we know that
   // the target deposit ID must be greater than the initial high block, so we can throw an error.
-  if (highestPossibleDepositIdInRange <= targetDepositId) {
+  if (highestDepositIdInRange <= targetDepositId) {
     // initLow   = 5: Deposits Num: 10
     //                                     // targetId = 11  <- fail (triggers this error)          // 10 <= 11
     //                                     // targetId = 10  <- fail (triggers this error)          // 10 <= 10
     //                                     // targetId = 09  <- pass (does not trigger this error)  // 10 <= 09
-    throw new Error(`Target depositId is greater than the initial high block (${targetDepositId} > ${initHigh})`);
+    throw new Error(
+      `Target depositId is greater than the initial high block (${targetDepositId} > ${highestDepositIdInRange})`
+    );
   }
 
   // If the deposit ID at the initial low block is greater than the target deposit ID, then we know that
   // the target deposit ID must be less than the initial low block, so we can throw an error.
-  if (lowestPossibleDepositIdInRange > targetDepositId) {
+  if (lowestDepositIdInRange > targetDepositId) {
     // initLow   = 5: Deposits Num: 10
     // initLow-1 = 4: Deposits Num:  2
     //                                     // targetId = 1 <- fail (triggers this error)
     //                                     // targetId = 2 <- pass (does not trigger this error)
     //                                     // targetId = 3 <- pass (does not trigger this error)
-    throw new Error(`Target depositId is less than the initial low block (${targetDepositId} > ${initLow})`);
+    throw new Error(
+      `Target depositId is less than the initial low block (${targetDepositId} > ${lowestDepositIdInRange})`
+    );
   }
 
   // Define the low and high block numbers for the binary search.
