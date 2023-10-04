@@ -79,7 +79,7 @@ const generateValidRefundRequest = async (
   return { deposit: deposit as DepositWithBlock, fill: fill as FillWithBlock, refundRequest: refundRequest };
 };
 
-describe("SpokePoolClient: Event Filtering", async function () {
+describe("SpokePoolClient: Event Filtering", function () {
   beforeEach(async function () {
     [owner] = await ethers.getSigners();
 

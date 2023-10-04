@@ -15,11 +15,15 @@ dotenv.config();
 
 describe("Utils test", () => {
   it("retry", async () => {
-    const failN = (numFails: number) => async () => {
-      if (numFails-- > 0) throw new Error("Failed!");
-      return true;
+    const failN = (numFails: number) => {
+      return () =>
+        new Promise((resolve, reject) => {
+          if (numFails-- > 0) {
+            reject();
+          }
+          resolve(true);
+        });
     };
-
     await Promise.all([
       assert.doesNotReject(() => retry(failN(0), 0, 1)),
       assert.rejects(() => retry(failN(1), 0, 1)),
@@ -60,7 +64,10 @@ describe("Utils test", () => {
         gasPrice
       );
       const gasMultiplier = toBNWei(1.0 + gasMarkup);
-      expect(toBN(gasEstimate).eq(toBN(refGasEstimate).mul(gasMultiplier).div(toBNWei(1))));
+
+      const expectedValue = toBN(refGasEstimate).mul(gasMultiplier).div(toBNWei(1));
+
+      expect(String(gasEstimate)).to.be.equal(String(expectedValue));
     }
   });
 });

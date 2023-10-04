@@ -12,7 +12,7 @@ const wethAddress = ethers.utils.getAddress("0xc02aaa39b223fe8d0a0e5c4f27ead9083
 describe("AcrossConfigStore", function () {
   let provider: Provider;
   let client: Client;
-  beforeEach(async () => {
+  beforeEach(() => {
     provider = ethers.getDefaultProvider(process.env.NODE_URL_1);
     client = new Client(configStoreAddress, provider);
   });

@@ -36,12 +36,12 @@ const testCapitalCostsConfig: { [token: string]: any } = {
 // Example of how to write this query class
 class ExampleQueries implements QueryInterface {
   constructor(private defaultGas = "305572") {}
-  async getGasCosts(): Promise<BigNumberish> {
-    return gasCost(this.defaultGas, 1e9); // 1 gwei
+  getGasCosts(): Promise<BigNumberish> {
+    return Promise.resolve(gasCost(this.defaultGas, 1e9)); // 1 gwei
   }
-  async getTokenPrice(): Promise<number> {
+  getTokenPrice(): Promise<number> {
     // Return token price denominated in ETH, assuming ETH is native token.
-    return 1 / 1000; // 1 USDC = 1 / $1000 ETH/USD
+    return Promise.resolve(1 / 1000); // 1 USDC = 1 / $1000 ETH/USD
   }
   getTokenDecimals(): number {
     return 6;

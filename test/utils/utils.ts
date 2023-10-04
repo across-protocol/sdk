@@ -72,6 +72,15 @@ export async function assertPromiseError<T>(promise: Promise<T>, errMessage?: st
     }
   }
 }
+export async function assertPromisePasses<T>(promise: Promise<T>): Promise<void> {
+  try {
+    await promise;
+  } catch (e: unknown) {
+    const err: Error = e as Error;
+    throw new Error("Promise failed: " + err.message);
+  }
+}
+
 export async function setupTokensForWallet(
   contractToApprove: utils.Contract,
   wallet: utils.SignerWithAddress,

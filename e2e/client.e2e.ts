@@ -50,7 +50,7 @@ describe("Client e2e tests", () => {
   });
 
   it("should fetch pending transfers from chain", async (done) => {
-    client.startFetchingTransfers("0x9A8f92a830A5cB89a3816e3D267CB7791c16b04D");
+    await client.startFetchingTransfers("0x9A8f92a830A5cB89a3816e3D267CB7791c16b04D");
     client.on(TransfersHistoryEvent.TransfersUpdated, (data) => {
       console.log(data);
       const pendingTransfers = client.getPendingTransfers("0x9A8f92a830A5cB89a3816e3D267CB7791c16b04D");
@@ -68,7 +68,7 @@ describe("Client e2e tests", () => {
 
   it("should fetch all transfers", async (done) => {
     let iteration = 0;
-    client.startFetchingTransfers("all");
+    await client.startFetchingTransfers("all");
     client.on(TransfersHistoryEvent.TransfersUpdated, () => {
       iteration++;
       const pendingTransfers = client.getPendingTransfers("all");

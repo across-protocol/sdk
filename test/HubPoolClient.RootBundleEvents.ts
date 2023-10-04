@@ -46,7 +46,7 @@ async function constructSimpleTree(runningBalance: BigNumber) {
   return { leaves, tree };
 }
 
-describe("HubPoolClient: RootBundle Events", async function () {
+describe("HubPoolClient: RootBundle Events", function () {
   beforeEach(async function () {
     ({ hubPool, l1Token_1, l1Token_2, timer, owner, dataworker } = await setupHubPool(
       ethers,
@@ -425,7 +425,7 @@ describe("HubPoolClient: RootBundle Events", async function () {
     );
   });
 
-  describe("HubPoolClient: UBA-specific runningBalances tests", async function () {
+  describe("HubPoolClient: UBA-specific runningBalances tests", function () {
     const hubPoolChainId = 1;
     const chainIds = [10, 137, 42161];
     const maxConfigStoreVersion = constants.CONFIG_STORE_VERSION + 1;
