@@ -714,12 +714,16 @@ export async function refundRequestIsValid(
   // token for the chain where the refund was sent from.
   // Note: the refundToken must be valid at the time the deposit was sent.
   try {
-    const l1TokenForFill = hubPoolClient.getL1TokenCounterpartAtBlock(
-      fill.destinationChainId,
+    const l1TokenForFill = hubPoolClient.getL1TokenForL2TokenAtBlock(
       fill.destinationToken,
+      fill.destinationChainId,
       deposit.quoteBlockNumber
     );
-    const expectedRefundToken = hubPoolClient.getDestinationTokenForL1Token(l1TokenForFill, repaymentChainId);
+    const expectedRefundToken = hubPoolClient.getL2TokenForL1TokenAtBlock(
+      l1TokenForFill,
+      repaymentChainId,
+      deposit.quoteBlockNumber
+    );
     if (expectedRefundToken !== refundToken) {
       return { valid: false, reason: `Refund token does not map to expected refund token ${refundToken}` };
     }

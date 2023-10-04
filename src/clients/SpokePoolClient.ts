@@ -631,7 +631,7 @@ export class SpokePoolClient extends BaseAbstractClient {
    * @see _update
    */
   public async update(eventsToQuery = this.queryableEventNames): Promise<void> {
-    if (this.hubPoolClient !== null && !this.hubPoolClient.isUpdated) {
+    if (this.hubPoolClient === null || (this.hubPoolClient !== null && !this.hubPoolClient.isUpdated)) {
       throw new Error("HubPoolClient not updated");
     }
 
@@ -881,8 +881,7 @@ export class SpokePoolClient extends BaseAbstractClient {
       blockNumber: depositEvent.blockNumber,
     };
 
-    const l1Token = this.hubPoolClient.getL1TokenForDeposit(deposit);
-    return this.hubPoolClient.computeRealizedLpFeePct(deposit, l1Token);
+    return this.hubPoolClient.computeRealizedLpFeePct(deposit);
   }
 
   /**
@@ -895,7 +894,13 @@ export class SpokePoolClient extends BaseAbstractClient {
     if (!this.hubPoolClient) {
       return ZERO_ADDRESS;
     }
-    return this.hubPoolClient.getDestinationTokenForDeposit(deposit);
+
+    const latestBundleEndBlock = this.hubPoolClient.getLatestBundleEndBlockForDeposit(deposit.quoteBlockNumber);
+    return this.hubPoolClient.getL2TokenForL1TokenAtBlock(
+      deposit.originToken,
+      deposit.originChainId,
+      latestBundleEndBlock
+    );
   }
 
   /**
@@ -976,14 +981,14 @@ export class SpokePoolClient extends BaseAbstractClient {
       );
     }
     const partialDeposit = spreadEventWithBlockNumber(event) as DepositWithBlock;
-    const { realizedLpFeePct, quoteBlock: quoteBlockNumber } = await this.computeRealizedLpFeePct(event); // Append the realizedLpFeePct.
+    const { realizedLpFeePct, quoteBlock: hubBlock } = await this.computeRealizedLpFeePct(event); // Append the realizedLpFeePct.
 
     // Append destination token and realized lp fee to deposit.
     const deposit: DepositWithBlock = {
       ...partialDeposit,
       realizedLpFeePct,
       destinationToken: this.getDestinationTokenForDeposit(partialDeposit),
-      quoteBlockNumber,
+      quoteBlockNumber: hubBlock,
     };
 
     this.logger.debug({

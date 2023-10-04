@@ -93,7 +93,7 @@ export class MockHubPoolClient extends HubPoolClient {
     return (
       this.l1TokensToDestinationTokensMock[l1Token]?.[destinationChainId] ??
       this.returnedDestinationTokenForL1Token ??
-      super.getDestinationTokenForL1Token(l1Token, destinationChainId)
+      super.getL2TokenForL1TokenAtBlock(l1Token, destinationChainId)
     );
   }
 
@@ -107,11 +107,13 @@ export class MockHubPoolClient extends HubPoolClient {
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   getL1TokenForDeposit(_deposit: Deposit) {
-    return this.returnedL1TokenForDeposit ?? super.getL1TokenForDeposit(_deposit);
+    return (
+      this.returnedL1TokenForDeposit ?? super.getL1TokenForL2TokenAtBlock(_deposit.originToken, _deposit.originChainId)
+    );
   }
 
   getL1TokenCounterpartAtBlock(l2ChainId: number, l2Token: string, hubPoolBlock: number): string {
-    return this.returnedL1TokenForDeposit ?? super.getL1TokenCounterpartAtBlock(l2ChainId, l2Token, hubPoolBlock);
+    return this.returnedL1TokenForDeposit ?? super.getL1TokenForL2TokenAtBlock(l2Token, l2ChainId, hubPoolBlock);
   }
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
