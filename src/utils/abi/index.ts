@@ -19,7 +19,7 @@ export async function getABI(contractName: string): Promise<ContractInterface> {
     return JSON.parse(await fs.readFile(`${__dirname}/contracts/${contractName}.json`, { encoding: "utf8" }));
   } catch (err) {
     // @dev fs methods can return errors that are not Error objects (i.e. errno).
-    const msg = isError(err) ? err.message : (err as Record<string, unknown>)?.code ?? "unknown error";
-    throw new Error(`Unable to retrieve ${contractName} ABI (${msg})`);
+    const msg = isError(err) ? err.message : (err as Record<string, unknown>)?.code;
+    throw new Error(`Unable to retrieve ${contractName} ABI (${msg ?? "unknown error"})`);
   }
 }
