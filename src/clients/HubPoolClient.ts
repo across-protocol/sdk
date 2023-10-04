@@ -1,5 +1,3 @@
-import { Block } from "@ethersproject/abstract-provider";
-import { BlockFinder } from "@uma/sdk";
 import { BigNumber, Contract, Event, EventFilter } from "ethers";
 import _ from "lodash";
 import winston from "winston";
@@ -25,6 +23,7 @@ import {
 import * as lpFeeCalculator from "../lpFeeCalculator";
 import {
   BigNumberish,
+  BlockFinder,
   EventSearchConfig,
   MakeOptional,
   assign,
@@ -83,7 +82,7 @@ export class HubPoolClient extends BaseAbstractClient {
   public firstBlockToSearch: number;
   public latestBlockNumber: number | undefined;
   public currentTime: number | undefined;
-  public readonly blockFinder: BlockFinder<Block>;
+  public readonly blockFinder: BlockFinder;
 
   constructor(
     readonly logger: winston.Logger,
@@ -106,7 +105,7 @@ export class HubPoolClient extends BaseAbstractClient {
     this.firstBlockToSearch = eventSearchConfig.fromBlock;
 
     const provider = this.hubPool.provider;
-    this.blockFinder = new BlockFinder(provider.getBlock.bind(provider));
+    this.blockFinder = new BlockFinder(provider);
   }
 
   protected hubPoolEventFilters(): Record<HubPoolEvent, EventFilter> {
