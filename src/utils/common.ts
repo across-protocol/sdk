@@ -10,6 +10,7 @@ import { BN, toBN, BigNumberish, bnUint256Max } from "./BigNumberUtils";
 import { ConvertDecimals } from "./FormattingUtils";
 import { Fill } from "../interfaces";
 import { isContractAddress } from "./AddressUtils";
+import { getTokenBalance } from "./TokenUtils";
 
 export type Decimalish = string | number | Decimal;
 export const AddressZero = ethers.constants.AddressZero;
@@ -320,7 +321,7 @@ export async function createUnsignedFillRelayTransactionFromFill(
     }
     const [isRecipientAContract, relayerBalanceOfToken] = await Promise.all([
       isContractAddress(recipientAddress, provider),
-      provider.getBalance(fillToSimulate.destinationToken),
+      getTokenBalance(relayerAddress, fillToSimulate.destinationToken, provider),
     ]);
     if (!isRecipientAContract) {
       throw new Error("Could not simulate message fill. Recipient address is not a contract address");
