@@ -24,7 +24,7 @@ export class MockHubPoolClient extends HubPoolClient {
 
   private l1TokensMock: L1Token[] = []; // L1Tokens and their associated info.
   private tokenInfoToReturn: L1Token = { address: "", decimals: 0, symbol: "" };
-  private returnedL1TokenForDeposit = "";
+  private returnedL1TokenForDeposit: string | undefined = undefined;
   private returnedL2TokenForDeposit: { [chainId: number]: string } = {};
 
   private eventManager: EventManager;
@@ -95,7 +95,7 @@ export class MockHubPoolClient extends HubPoolClient {
     this.returnedL1TokenForDeposit = l1Token;
   }
 
-  getL1TokenForDeposit(event: Pick<DepositWithBlock, "quoteBlockNumber" | "originToken" | "originChainId">): string {
+  getL1TokenForDeposit(event: Pick<DepositWithBlock, "blockNumber" | "originToken" | "originChainId">): string {
     return this.returnedL1TokenForDeposit ?? super.getL1TokenForDeposit(event);
   }
 
@@ -105,7 +105,7 @@ export class MockHubPoolClient extends HubPoolClient {
 
   getL2TokenForDeposit(
     chainId: number,
-    event: Pick<DepositWithBlock, "quoteBlockNumber" | "originToken" | "originChainId">
+    event: Pick<DepositWithBlock, "blockNumber" | "originToken" | "originChainId">
   ): string {
     return this.returnedL2TokenForDeposit[chainId] ?? super.getL2TokenForDeposit(chainId, event);
   }
