@@ -13,7 +13,7 @@ import {
   createDepositForSimulatingGas,
 } from "../utils";
 import { Deposit } from "../interfaces";
-import { RISK_LABS_RELAYER_ADDRESS } from "../constants";
+import { DEFAULT_SIMULATED_RELAYER_ADDRESS } from "../constants";
 
 // This needs to be implemented for every chain and passed into RelayFeeCalculator
 export interface QueryInterface {
@@ -210,7 +210,7 @@ export class RelayFeeCalculator {
       message: string;
       recipientAddress: string;
     },
-    relayerAddress = RISK_LABS_RELAYER_ADDRESS,
+    relayerAddress = DEFAULT_SIMULATED_RELAYER_ADDRESS,
     _tokenPrice?: number
   ): Promise<BigNumber> {
     if (toBN(amountToRelay).eq(0)) return MAX_BIG_INT;
@@ -317,7 +317,7 @@ export class RelayFeeCalculator {
       Number(originRoute),
       Number(destinationRoute),
       messagePayload,
-      messagePayload?.relayerAddress ?? RISK_LABS_RELAYER_ADDRESS,
+      messagePayload?.relayerAddress ?? DEFAULT_SIMULATED_RELAYER_ADDRESS,
       tokenPrice
     );
     const gasFeeTotal = gasFeePercent.mul(amountToRelay).div(fixedPointAdjustment);

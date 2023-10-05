@@ -1,7 +1,7 @@
 import { DEFAULT_LOGGER, Logger } from "../relayFeeCalculator";
 import { utils, providers } from "ethers";
-import QueryBase, { DEFAULT_SIMULATED_RELAYER_ADDRESS } from "./baseQuery";
-import { CHAIN_IDs, TOKEN_SYMBOLS_MAP } from "../../constants";
+import QueryBase from "./baseQuery";
+import { CHAIN_IDs, DEFAULT_SIMULATED_RELAYER_ADDRESS, TOKEN_SYMBOLS_MAP } from "../../constants";
 import { getDeployedAddress } from "../../utils/DeploymentUtils";
 
 export class BobaQueries extends QueryBase {

@@ -1,8 +1,8 @@
 import { providers } from "ethers";
-import { CHAIN_IDs, TOKEN_SYMBOLS_MAP } from "../../constants";
+import { CHAIN_IDs, DEFAULT_SIMULATED_RELAYER_ADDRESS, TOKEN_SYMBOLS_MAP } from "../../constants";
 import { getDeployedAddress } from "../../utils/DeploymentUtils";
 import { DEFAULT_LOGGER, Logger } from "../relayFeeCalculator";
-import QueryBase, { DEFAULT_SIMULATED_RELAYER_ADDRESS } from "./baseQuery";
+import QueryBase from "./baseQuery";
 
 export class EthereumQueries extends QueryBase {
   constructor(

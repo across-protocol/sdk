@@ -1,9 +1,9 @@
 import { getDeployedAddress } from "../../utils/DeploymentUtils";
 import { DEFAULT_LOGGER, Logger } from "../relayFeeCalculator";
 import { providers } from "ethers";
-import { CHAIN_IDs, TOKEN_SYMBOLS_MAP } from "../../constants";
+import { CHAIN_IDs, DEFAULT_SIMULATED_RELAYER_ADDRESS, TOKEN_SYMBOLS_MAP } from "../../constants";
 import { Coingecko } from "../../coingecko/Coingecko";
-import QueryBase, { DEFAULT_SIMULATED_RELAYER_ADDRESS } from "./baseQuery";
+import QueryBase from "./baseQuery";
 
 export class PolygonQueries extends QueryBase {
   constructor(

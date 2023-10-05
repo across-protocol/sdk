@@ -1,8 +1,11 @@
-import { RISK_LABS_RELAYER_ADDRESS } from "../constants";
+import { DEFAULT_SIMULATED_RELAYER_ADDRESS } from "../constants";
 import { Deposit, Fill } from "../interfaces";
 import { bnZero } from "./BigNumberUtils";
 
-export function buildFillForSimulatingFullDeposit(deposit: Deposit, relayerAddress = RISK_LABS_RELAYER_ADDRESS): Fill {
+export function buildFillForSimulatingFullDeposit(
+  deposit: Deposit,
+  relayerAddress = DEFAULT_SIMULATED_RELAYER_ADDRESS
+): Fill {
   return {
     amount: deposit.amount,
     fillAmount: deposit.amount, // We're simulating a full fill

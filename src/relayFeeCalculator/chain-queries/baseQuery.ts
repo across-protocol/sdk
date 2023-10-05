@@ -2,7 +2,7 @@ import { SpokePool, SpokePool__factory } from "../../typechain";
 import { L2Provider } from "@eth-optimism/sdk/dist/interfaces/l2-provider";
 import { providers } from "ethers";
 import { Coingecko } from "../../coingecko";
-import { CHAIN_IDs, RISK_LABS_RELAYER_ADDRESS } from "../../constants";
+import { CHAIN_IDs } from "../../constants";
 import {
   BigNumberish,
   buildFillForSimulatingFullDeposit,
@@ -21,11 +21,6 @@ type SymbolMappingType = Record<
     decimals: number;
   }
 >;
-
-/**
- * Default address to use when simulating the gas cost of filling a relay.
- */
-export const DEFAULT_SIMULATED_RELAYER_ADDRESS = RISK_LABS_RELAYER_ADDRESS;
 
 /**
  * A unified QueryBase for querying gas costs, token prices, and decimals of various tokens

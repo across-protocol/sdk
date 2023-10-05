@@ -1,9 +1,9 @@
 import { getDeployedAddress } from "../../utils/DeploymentUtils";
 import { DEFAULT_LOGGER, Logger } from "../relayFeeCalculator";
 import { providers } from "ethers";
-import { TOKEN_SYMBOLS_MAP } from "../../constants";
+import { DEFAULT_SIMULATED_RELAYER_ADDRESS, TOKEN_SYMBOLS_MAP } from "../../constants";
 import { asL2Provider } from "@eth-optimism/sdk/dist/l2-provider";
-import QueryBase, { DEFAULT_SIMULATED_RELAYER_ADDRESS } from "./baseQuery";
+import QueryBase from "./baseQuery";
 
 const baseChainId = 8453;
 const baseGoerliChainId = 84531;
