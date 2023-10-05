@@ -5,7 +5,9 @@ import { validateFillForDeposit } from "./FlowUtils";
 import { getCurrentTime } from "./TimeUtils";
 import { isDefined } from "./TypeGuards";
 import { getDepositInCache, getDepositKey, setDepositInCache } from "./CachingUtils";
-import { DEFAULT_CACHING_TTL } from "../constants";
+import { DEFAULT_CACHING_TTL, ZERO_ADDRESS } from "../constants";
+import { resolveContractFromSymbol } from "./TokenUtils";
+import { BigNumberish, bnZero, toBN } from "./BigNumberUtils";
 
 // Load a deposit for a fill if the fill's deposit ID is outside this client's search range.
 // This can be used by the Dataworker to determine whether to give a relayer a refund for a fill
@@ -70,4 +72,39 @@ export async function queryHistoricalDepositForFill(
   }
 
   return validateFillForDeposit(fill, deposit) ? deposit : undefined;
+}
+
+export function createDepositForSimulatingGas(
+  amountToRelay: BigNumberish,
+  tokenSymbol: string,
+  originChainId: string,
+  destinationChainId: string,
+  relayerAddress: string,
+  messagePayload?: {
+    message: string;
+    recipientAddress: string;
+  }
+): Deposit {
+  const originToken = resolveContractFromSymbol(tokenSymbol, originChainId);
+  const destinationToken = resolveContractFromSymbol(tokenSymbol, destinationChainId);
+  if (!isDefined(originToken) || !isDefined(destinationToken)) {
+    throw new Error(`Could not resolve token contract for ${tokenSymbol} on ${originChainId} or ${destinationChainId}`);
+  }
+
+  return {
+    // We want to set the deposit ID to 0 so that there
+    // is no chance of a collision with a real deposit
+    depositId: 0,
+    amount: toBN(amountToRelay),
+    depositor: relayerAddress ?? ZERO_ADDRESS,
+    destinationChainId: Number(destinationChainId),
+    originChainId: Number(originChainId),
+    message: messagePayload?.message ?? "0x",
+    originToken,
+    destinationToken,
+    recipient: messagePayload?.recipientAddress ?? ZERO_ADDRESS,
+    relayerFeePct: bnZero,
+    realizedLpFeePct: bnZero,
+    quoteTimestamp: getCurrentTime(),
+  };
 }
