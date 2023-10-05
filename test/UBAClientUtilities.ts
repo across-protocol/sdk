@@ -59,8 +59,6 @@ describe("UBAClientUtilities", function () {
     });
     // Make all deposits return the same L1 token.
     hubPoolClient.setReturnedL1TokenForDeposit(l1Token);
-    // Make all destination tokens link wth l1 token.
-    hubPoolClient.setDestinationTokenForL1Token(l2Token);
 
     await hubPoolClient.update();
     const latestBlockNumber = await hubPool.provider.getBlockNumber();
@@ -68,6 +66,9 @@ describe("UBAClientUtilities", function () {
 
     spokePoolClients = {};
     for (const originChainId of chainIds) {
+      // Make all destination tokens link wth l1 token.
+      hubPoolClient.setReturnedL2TokenForDeposit(originChainId, l2Token);
+
       const { spokePool } = await deploySpokePool(ethers);
       const deploymentBlock = await spokePool.provider.getBlockNumber();
 

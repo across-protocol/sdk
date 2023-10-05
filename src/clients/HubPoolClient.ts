@@ -226,7 +226,10 @@ export class HubPoolClient extends BaseAbstractClient {
     // validated bundle end block. L1-->L2 token mappings are set via PoolRebalanceRoutes
     // which occur on mainnet, so we use the latest token mapping equal to or less than
     // the validated bundle's mainnet end block.
-    const latestValidatedMainnetBundleEndBlock = this.getMainnetConfigBlockForEvent(deposit.blockNumber, deposit.originChainId);
+    const latestValidatedMainnetBundleEndBlock = this.getMainnetConfigBlockForEvent(
+      deposit.blockNumber,
+      deposit.originChainId
+    );
 
     // Get the latest token mapping as of the latest validated bundle end block, unless this value is 0, then use
     // the latest hub block number. This handles the case where deposits are sent
@@ -257,7 +260,10 @@ export class HubPoolClient extends BaseAbstractClient {
     // validated bundle end block. L1-->L2 token mappings are set via PoolRebalanceRoutes
     // which occur on mainnet, so we use the latest token mapping equal to or less than
     // the validated bundle's mainnet end block.
-    const latestValidatedMainnetBundleEndBlock = this.getMainnetConfigBlockForEvent(deposit.blockNumber, deposit.originChainId);
+    const latestValidatedMainnetBundleEndBlock = this.getMainnetConfigBlockForEvent(
+      deposit.blockNumber,
+      deposit.originChainId
+    );
 
     // Get the latest token mapping as of the latest validated bundle end block, unless this value is 0, then use
     // the latest hub block number. This handles the case where deposits are sent
@@ -470,16 +476,12 @@ export class HubPoolClient extends BaseAbstractClient {
 
   /**
    * Returns the latest validated mainnet bundle end block preceding an event. We first find the bundle that would
-   * @param eventBlock 
-   * @param eventChain 
-   * @param chainIdListOverride 
-   * @returns 
+   * @param eventBlock
+   * @param eventChain
+   * @param chainIdListOverride
+   * @returns
    */
-  getMainnetConfigBlockForEvent(
-    eventBlock: number,
-    eventChain: number,
-    chainIdListOverride?: number[]
-  ): number {
+  getMainnetConfigBlockForEvent(eventBlock: number, eventChain: number, chainIdListOverride?: number[]): number {
     if (this.latestBlockNumber === undefined) {
       throw new Error("HubPoolClient::getMainnetConfigBlockForEvent client not updated");
     }
@@ -496,21 +498,20 @@ export class HubPoolClient extends BaseAbstractClient {
     // If the bundle end block is undefined or 0, then that means event can be processed at the earliest
     // in the next bundle. So, use the latest validated mainnet end block as of now as the lowest possible
     // mainnet block to use to load a configuration for.
-   if (!bundleEndBlock) {
-    return this.getLatestBundleEndBlockForChain(chainIdList, this.latestBlockNumber, this.chainId)
-   }
-   // Otherwise, return the mainnet end block before this bundle:
+    if (!bundleEndBlock) {
+      return this.getLatestBundleEndBlockForChain(chainIdList, this.latestBlockNumber, this.chainId);
+    }
+    // Otherwise, return the mainnet end block before this bundle:
     else {
       const precedingBundle = _.findLast(this.proposedRootBundles, (bundle: ProposedRootBundle) => {
         const endBlockForChain = this.getBundleEndBlockForChain(bundle, eventChain, chainIdList);
-        return endBlockForChain < bundleEndBlock
-      })
+        return endBlockForChain < bundleEndBlock;
+      });
       // If no preceding bundle was found, return 0 as a default.
       if (!precedingBundle) {
         return 0;
-      }
-      else return this.getBundleEndBlockForChain(precedingBundle, this.chainId, chainIdList)
-   }
+      } else return this.getBundleEndBlockForChain(precedingBundle, this.chainId, chainIdList);
+    }
   }
 
   // TODO: This might not be necessary since the cumulative root bundle count doesn't grow fast enough, but consider

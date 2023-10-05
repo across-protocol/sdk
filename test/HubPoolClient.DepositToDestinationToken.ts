@@ -155,7 +155,7 @@ describe("HubPoolClient: Deposit to Destination Token", function () {
     };
 
     // No validated bundles before the deposit, so return latest route.
-    expect(hubPoolClient.getMainnetConfigBlockForEvent(depositData.blockNumber, depositData.originChainId)).to.equal(0)
+    expect(hubPoolClient.getMainnetConfigBlockForEvent(depositData.blockNumber, depositData.originChainId)).to.equal(0);
     expect(hubPoolClient.getL1TokenForDeposit(depositData)).to.equal(randomOriginToken);
 
     // Now validate a bundle, and then update the route.
@@ -168,7 +168,9 @@ describe("HubPoolClient: Deposit to Destination Token", function () {
 
     // The L1 token fetched for a deposit event following the bundle should use the
     // event before the bundle.
-    expect(hubPoolClient.getMainnetConfigBlockForEvent(validatedBlock1, depositData.originChainId)).to.equal(e1.blockNumber)
+    expect(hubPoolClient.getMainnetConfigBlockForEvent(validatedBlock1, depositData.originChainId)).to.equal(
+      e1.blockNumber
+    );
     expect(hubPoolClient.getL1TokenForDeposit({ ...depositData, blockNumber: validatedBlock1 })).to.equal(
       randomOriginToken
     );
@@ -179,7 +181,9 @@ describe("HubPoolClient: Deposit to Destination Token", function () {
 
     // Validate one more bundle and check that the route has updated to e2.
     const validatedBlock2 = await validateAnotherBundle([originChainId], e2.blockNumber);
-    expect(hubPoolClient.getMainnetConfigBlockForEvent(validatedBlock2, depositData.originChainId)).to.equal(e2.blockNumber)
+    expect(hubPoolClient.getMainnetConfigBlockForEvent(validatedBlock2, depositData.originChainId)).to.equal(
+      e2.blockNumber
+    );
     expect(hubPoolClient.getL1TokenForDeposit({ ...depositData, blockNumber: validatedBlock2 })).to.equal(
       randomDestinationToken
     );
@@ -202,7 +206,7 @@ describe("HubPoolClient: Deposit to Destination Token", function () {
     };
 
     // No validated bundles before the deposit, so return latest route.
-    expect(hubPoolClient.getMainnetConfigBlockForEvent(depositData.blockNumber, depositData.originChainId)).to.equal(0)
+    expect(hubPoolClient.getMainnetConfigBlockForEvent(depositData.blockNumber, depositData.originChainId)).to.equal(0);
     expect(hubPoolClient.getL2TokenForDeposit(originChainId, depositData)).to.equal(randomDestinationToken);
 
     // Now validate a bundle, and then update the route.
@@ -215,7 +219,9 @@ describe("HubPoolClient: Deposit to Destination Token", function () {
 
     // The L2 token fetched for a deposit event following the bundle should use the
     // event before the bundle.
-    expect(hubPoolClient.getMainnetConfigBlockForEvent(validatedBlock1, depositData.originChainId)).to.equal(e2.blockNumber)
+    expect(hubPoolClient.getMainnetConfigBlockForEvent(validatedBlock1, depositData.originChainId)).to.equal(
+      e2.blockNumber
+    );
     expect(
       hubPoolClient.getL2TokenForDeposit(originChainId, { ...depositData, blockNumber: validatedBlock1 })
     ).to.equal(randomDestinationToken);
@@ -229,7 +235,9 @@ describe("HubPoolClient: Deposit to Destination Token", function () {
 
     // If we validate another bundle, then the L2 token should be updated.
     const validatedBlock2 = await validateAnotherBundle([originChainId, destinationChainId], e3.blockNumber);
-    expect(hubPoolClient.getMainnetConfigBlockForEvent(validatedBlock2, depositData.originChainId)).to.equal(e3.blockNumber)
+    expect(hubPoolClient.getMainnetConfigBlockForEvent(validatedBlock2, depositData.originChainId)).to.equal(
+      e3.blockNumber
+    );
     expect(
       hubPoolClient.getL2TokenForDeposit(originChainId, {
         ...depositData,
@@ -238,49 +246,49 @@ describe("HubPoolClient: Deposit to Destination Token", function () {
       })
     ).to.equal(randomL1Token);
   });
-  it("Get mainnet config for deposit event", async function() {
-    await hubPoolClient.update()
+  it("Get mainnet config for deposit event", async function () {
+    await hubPoolClient.update();
     // No bundles containing chain, returns 0 which is the next bundle's mainnet start block.
-    expect(hubPoolClient.getMainnetConfigBlockForEvent(0, 1, [1,2,3])).to.equal(0);
+    expect(hubPoolClient.getMainnetConfigBlockForEvent(0, 1, [1, 2, 3])).to.equal(0);
 
     // Add a bundle:
-    await validateAnotherBundle([1,2,3], 100);
+    await validateAnotherBundle([1, 2, 3], 100);
     // If the bundle contains the block for the chain (i.e. end block of 100 contains block [0, 100]), return the
-    // latest validated mainnet end block. 
-    expect(hubPoolClient.getMainnetConfigBlockForEvent(0, 1, [1,2,3])).to.equal(0);
-    expect(hubPoolClient.getMainnetConfigBlockForEvent(10, 1, [1,2,3])).to.equal(0);
-    expect(hubPoolClient.getMainnetConfigBlockForEvent(100, 1, [1,2,3])).to.equal(0);
+    // latest validated mainnet end block.
+    expect(hubPoolClient.getMainnetConfigBlockForEvent(0, 1, [1, 2, 3])).to.equal(0);
+    expect(hubPoolClient.getMainnetConfigBlockForEvent(10, 1, [1, 2, 3])).to.equal(0);
+    expect(hubPoolClient.getMainnetConfigBlockForEvent(100, 1, [1, 2, 3])).to.equal(0);
 
     // Bundle does not contain any block for chain 9, so return the latest validated mainnet end block.
-    expect(hubPoolClient.getMainnetConfigBlockForEvent(0, 9, [1,2,3])).to.equal(100);
-    expect(hubPoolClient.getMainnetConfigBlockForEvent(10, 9, [1,2,3])).to.equal(100);
-    expect(hubPoolClient.getMainnetConfigBlockForEvent(100, 9, [1,2,3])).to.equal(100);
-    expect(hubPoolClient.getMainnetConfigBlockForEvent(101, 9, [1,2,3])).to.equal(100);
+    expect(hubPoolClient.getMainnetConfigBlockForEvent(0, 9, [1, 2, 3])).to.equal(100);
+    expect(hubPoolClient.getMainnetConfigBlockForEvent(10, 9, [1, 2, 3])).to.equal(100);
+    expect(hubPoolClient.getMainnetConfigBlockForEvent(100, 9, [1, 2, 3])).to.equal(100);
+    expect(hubPoolClient.getMainnetConfigBlockForEvent(101, 9, [1, 2, 3])).to.equal(100);
 
     // There is no bundle containing block 101 on chain 1, so return the latest validated mainnet end block.
-    expect(hubPoolClient.getMainnetConfigBlockForEvent(101, 1, [1,2,3])).to.equal(100);
+    expect(hubPoolClient.getMainnetConfigBlockForEvent(101, 1, [1, 2, 3])).to.equal(100);
 
     // Add a bundle:
-    await validateAnotherBundle([1,2,3], 200);
+    await validateAnotherBundle([1, 2, 3], 200);
 
     // Now, any block for a chain in [1,2,3] between [101, 200] should return 100
-    expect(hubPoolClient.getMainnetConfigBlockForEvent(101, 1, [1,2,3])).to.equal(100);
-    expect(hubPoolClient.getMainnetConfigBlockForEvent(110, 1, [1,2,3])).to.equal(100);
-    expect(hubPoolClient.getMainnetConfigBlockForEvent(200, 1, [1,2,3])).to.equal(100);
+    expect(hubPoolClient.getMainnetConfigBlockForEvent(101, 1, [1, 2, 3])).to.equal(100);
+    expect(hubPoolClient.getMainnetConfigBlockForEvent(110, 1, [1, 2, 3])).to.equal(100);
+    expect(hubPoolClient.getMainnetConfigBlockForEvent(200, 1, [1, 2, 3])).to.equal(100);
 
     // Block [0, 100] should still return 0
-    expect(hubPoolClient.getMainnetConfigBlockForEvent(0, 1, [1,2,3])).to.equal(0);
-    expect(hubPoolClient.getMainnetConfigBlockForEvent(100, 1, [1,2,3])).to.equal(0);
+    expect(hubPoolClient.getMainnetConfigBlockForEvent(0, 1, [1, 2, 3])).to.equal(0);
+    expect(hubPoolClient.getMainnetConfigBlockForEvent(100, 1, [1, 2, 3])).to.equal(0);
 
     // Any block for chain [1,2,3] above 200 should return 200
-    expect(hubPoolClient.getMainnetConfigBlockForEvent(201, 1, [1,2,3])).to.equal(200);
+    expect(hubPoolClient.getMainnetConfigBlockForEvent(201, 1, [1, 2, 3])).to.equal(200);
 
     // Bundle does not contain any block for chain 9, so return the latest validated mainnet end block.
-    expect(hubPoolClient.getMainnetConfigBlockForEvent(0, 9, [1,2,3])).to.equal(200);
-    expect(hubPoolClient.getMainnetConfigBlockForEvent(10, 9, [1,2,3])).to.equal(200);
-    expect(hubPoolClient.getMainnetConfigBlockForEvent(100, 9, [1,2,3])).to.equal(200);
-    expect(hubPoolClient.getMainnetConfigBlockForEvent(101, 9, [1,2,3])).to.equal(200);
-    expect(hubPoolClient.getMainnetConfigBlockForEvent(200, 9, [1,2,3])).to.equal(200);
-    expect(hubPoolClient.getMainnetConfigBlockForEvent(201, 9, [1,2,3])).to.equal(200);
-  })
+    expect(hubPoolClient.getMainnetConfigBlockForEvent(0, 9, [1, 2, 3])).to.equal(200);
+    expect(hubPoolClient.getMainnetConfigBlockForEvent(10, 9, [1, 2, 3])).to.equal(200);
+    expect(hubPoolClient.getMainnetConfigBlockForEvent(100, 9, [1, 2, 3])).to.equal(200);
+    expect(hubPoolClient.getMainnetConfigBlockForEvent(101, 9, [1, 2, 3])).to.equal(200);
+    expect(hubPoolClient.getMainnetConfigBlockForEvent(200, 9, [1, 2, 3])).to.equal(200);
+    expect(hubPoolClient.getMainnetConfigBlockForEvent(201, 9, [1, 2, 3])).to.equal(200);
+  });
 });
