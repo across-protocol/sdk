@@ -166,11 +166,14 @@ export class HubPoolClient extends BaseAbstractClient {
   }
 
   // Returns the latest L2 token to use for an L1 token as of the input hub block.
-  getL2TokenForL1TokenAtBlock(
+  protected getL2TokenForL1TokenAtBlock(
     l1Token: string,
     destinationChainId: number,
     latestHubBlock = Number.MAX_SAFE_INTEGER
   ): string {
+    if (!this.l1TokensToDestinationTokensWithBlock?.[l1Token]?.[destinationChainId]) {
+      throw new Error(`Could not find L2 token mapping for chain ${destinationChainId} and L1 token ${l1Token}`);
+    }
     // Find the last mapping published before the target block.
     const l2Token: DestinationTokenWithBlock | undefined = sortEventsDescending(
       this.l1TokensToDestinationTokensWithBlock[l1Token][destinationChainId]
@@ -184,28 +187,89 @@ export class HubPoolClient extends BaseAbstractClient {
   }
 
   // Returns the latest L1 token to use for an L2 token as of the input hub block.
-  getL1TokenForL2TokenAtBlock(
+  protected getL1TokenForL2TokenAtBlock(
     l2Token: string,
     destinationChainId: number,
     latestHubBlock = Number.MAX_SAFE_INTEGER
   ): string {
-    const l1Token = Object.keys(this.l1TokensToDestinationTokensWithBlock).find((_l1Token) => {
-      // If this token doesn't exist on this L2, return false.
-      if (this.l1TokensToDestinationTokensWithBlock[_l1Token][destinationChainId] === undefined) {
-        return false;
-      }
-
-      // Find the last mapping published before the target block.
-      return sortEventsDescending(this.l1TokensToDestinationTokensWithBlock[_l1Token][destinationChainId]).find(
-        (mapping: DestinationTokenWithBlock) => mapping.l2Token === l2Token && mapping.blockNumber <= latestHubBlock
-      );
-    });
-    if (!l1Token) {
+    const l2Tokens = Object.keys(this.l1TokensToDestinationTokensWithBlock)
+      .map((l1Token) => {
+        // If this token doesn't exist on this L2, skip it
+        if (this.l1TokensToDestinationTokensWithBlock[l1Token][destinationChainId] === undefined) {
+          return undefined;
+        }
+        // Return all matching L2 token mappings that are equal to or earlier than the target block.
+        return this.l1TokensToDestinationTokensWithBlock[l1Token][destinationChainId].filter(
+          (mapping) => mapping.l2Token === l2Token && mapping.blockNumber <= latestHubBlock
+        );
+      })
+      .filter(isDefined)
+      .flat();
+    if (l2Tokens.length === 0) {
       throw new Error(
         `Could not find L1 token mapping for chain ${destinationChainId} and L2 token ${l2Token} equal to or earlier than block ${latestHubBlock}!`
       );
     }
-    return l1Token;
+    // Find the last mapping published before the target block.
+    return sortEventsDescending(l2Tokens)[0].l1Token;
+  }
+
+  private _getMainnetBundleEndBlockBeforeDeposit(event: Pick<DepositWithBlock, "quoteBlockNumber">): number {
+    // Destination token should be set equal to the L2 token set as of the latest
+    // validated bundle end block. L1-->L2 token mappings are set via PoolRebalanceRoutes
+    // which occur on mainnet, so we use the latest token mapping equal to or less than
+    // the validated bundle's mainnet end block.
+    const latestChainIdList = this.configStoreClient.getChainIdIndicesForBlock(event.quoteBlockNumber);
+    const latestValidatedMainnetBundleEndBlock = this.getLatestBundleEndBlockForChain(
+      latestChainIdList,
+      event.quoteBlockNumber,
+      this.chainId
+    );
+    return latestValidatedMainnetBundleEndBlock;
+  }
+
+  /**
+   * Returns the L1 token that should be used for an L2 Bridge event. This function is
+   * designed to be used by the caller to associate the L2 token with its mapped L1 token
+   * at the HubPool equivalent block number of the L2 event.
+   * @param event Deposit event
+   * @param returns string L1 token counterpart for Deposit
+   */
+  getL1TokenForDeposit(event: Pick<DepositWithBlock, "quoteBlockNumber" | "originToken" | "originChainId">): string {
+    const latestValidatedMainnetBundleEndBlock = this._getMainnetBundleEndBlockBeforeDeposit(event);
+
+    // Get the latest token mapping as of the higher of the latest validated bundle end block
+    // and the deposit quote block number. This handles the case where deposits are sent
+    // before the first bundle is validated.
+    return this.getL1TokenForL2TokenAtBlock(
+      event.originToken,
+      event.originChainId,
+      latestValidatedMainnetBundleEndBlock === 0 ? event.quoteBlockNumber : latestValidatedMainnetBundleEndBlock
+    );
+  }
+
+  /**
+   * Returns the L2 token that should be used as a counterpart to a deposit event. For example, the caller
+   * might want to know what the refund token will be on l2ChainId for the deposit event.
+   * @param l2ChainId Chain where caller wants to get L2 token counterpart for
+   * @param event Deposit event
+   * @returns string L2 token counterpart on l2ChainId
+   */
+  getL2TokenForDeposit(
+    l2ChainId: number,
+    event: Pick<DepositWithBlock, "quoteBlockNumber" | "originToken" | "originChainId">
+  ): string {
+    const l1Token = this.getL1TokenForDeposit(event);
+    const latestValidatedMainnetBundleEndBlock = this._getMainnetBundleEndBlockBeforeDeposit(event);
+
+    // Get the latest token mapping as of the higher of the latest validated bundle end block
+    // and the deposit quote block number. This handles the case where deposits are sent
+    // before the first bundle is validated.
+    return this.getL2TokenForL1TokenAtBlock(
+      l1Token,
+      l2ChainId,
+      latestValidatedMainnetBundleEndBlock === 0 ? event.quoteBlockNumber : latestValidatedMainnetBundleEndBlock
+    );
   }
 
   getLatestBundleEndBlockForDeposit(quoteBlock: number): number {
@@ -315,8 +379,7 @@ export class HubPoolClient extends BaseAbstractClient {
       };
     }
 
-    const latestBundleEndBlock = this.getLatestBundleEndBlockForDeposit(quoteBlock);
-    const l1Token = this.getL1TokenForL2TokenAtBlock(deposit.originToken, deposit.originChainId, latestBundleEndBlock);
+    const l1Token = this.getL1TokenForDeposit({ ...deposit, quoteBlockNumber: quoteBlock });
 
     // Otherwise, use the legacy fee model which is based ont he deposit quote block.
     const rateModel = this.configStoreClient.getRateModelForBlockNumber(
@@ -679,6 +742,7 @@ export class HubPoolClient extends BaseAbstractClient {
         [args.l1Token, args.destinationChainId],
         [
           {
+            l1Token: args.l1Token,
             l2Token: args.destinationToken,
             blockNumber: args.blockNumber,
             transactionIndex: args.transactionIndex,

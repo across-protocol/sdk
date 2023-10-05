@@ -1,7 +1,7 @@
 import { BigNumber, Contract, Event } from "ethers";
 import winston from "winston";
 import { randomAddress, assign } from "../../utils";
-import { Deposit, L1Token, PendingRootBundle } from "../../interfaces";
+import { DepositWithBlock, L1Token, PendingRootBundle } from "../../interfaces";
 import { AcrossConfigStoreClient as ConfigStoreClient } from "../AcrossConfigStoreClient";
 import { HubPoolClient, HubPoolUpdate } from "../HubPoolClient";
 import { EventManager, getEventManager } from "./MockEvents";
@@ -24,9 +24,7 @@ export class MockHubPoolClient extends HubPoolClient {
 
   private l1TokensMock: L1Token[] = []; // L1Tokens and their associated info.
   private tokenInfoToReturn: L1Token = { address: "", decimals: 0, symbol: "" };
-  private l1TokensToDestinationTokensMock: { [l1Token: string]: { [destinationChainId: number]: string } } = {};
   private returnedL1TokenForDeposit = "";
-  private returnedDestinationTokenForL1Token = "";
   private eventManager: EventManager;
 
   constructor(
@@ -75,6 +73,14 @@ export class MockHubPoolClient extends HubPoolClient {
     return this.tokenInfoToReturn;
   }
 
+  getL1TokenForL2TokenAtBlock(l2Token: string, destinationChainId: number, latestHubBlock?: number): string {
+    return super.getL1TokenForL2TokenAtBlock(l2Token, destinationChainId, latestHubBlock);
+  }
+
+  getL2TokenForL1TokenAtBlock(l1Token: string, destinationChainId: number, latestHubBlock?: number): string {
+    return super.getL2TokenForL1TokenAtBlock(l1Token, destinationChainId, latestHubBlock);
+  }
+
   getTokenInfoForL1Token(l1Token: string): L1Token | undefined {
     return this.l1TokensMock.find((token) => token.address === l1Token);
   }
@@ -89,14 +95,6 @@ export class MockHubPoolClient extends HubPoolClient {
     this.l1TokensToDestinationTokensMock = l1TokensToDestinationTokens;
   }
 
-  getDestinationTokenForL1Token(l1Token: string, destinationChainId: number): string {
-    return (
-      this.l1TokensToDestinationTokensMock[l1Token]?.[destinationChainId] ??
-      this.returnedDestinationTokenForL1Token ??
-      super.getL2TokenForL1TokenAtBlock(l1Token, destinationChainId)
-    );
-  }
-
   setReturnedL1TokenForDeposit(l1Token: string) {
     this.returnedL1TokenForDeposit = l1Token;
   }
@@ -105,15 +103,8 @@ export class MockHubPoolClient extends HubPoolClient {
     this.returnedDestinationTokenForL1Token = destinationToken;
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  getL1TokenForDeposit(_deposit: Deposit) {
-    return (
-      this.returnedL1TokenForDeposit ?? super.getL1TokenForL2TokenAtBlock(_deposit.originToken, _deposit.originChainId)
-    );
-  }
-
-  getL1TokenCounterpartAtBlock(l2ChainId: number, l2Token: string, hubPoolBlock: number): string {
-    return this.returnedL1TokenForDeposit ?? super.getL1TokenForL2TokenAtBlock(l2Token, l2ChainId, hubPoolBlock);
+  getL1TokenForDeposit(event: Pick<DepositWithBlock, "quoteBlockNumber" | "originToken" | "originChainId">): string {
+    return this.returnedL1TokenForDeposit ?? super.getL1TokenForDeposit(event);
   }
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars

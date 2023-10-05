@@ -895,12 +895,7 @@ export class SpokePoolClient extends BaseAbstractClient {
       return ZERO_ADDRESS;
     }
 
-    const latestBundleEndBlock = this.hubPoolClient.getLatestBundleEndBlockForDeposit(deposit.quoteBlockNumber);
-    return this.hubPoolClient.getL2TokenForL1TokenAtBlock(
-      deposit.originToken,
-      deposit.originChainId,
-      latestBundleEndBlock
-    );
+    return this.hubPoolClient.getL2TokenForDeposit(deposit.destinationChainId, deposit);
   }
 
   /**
