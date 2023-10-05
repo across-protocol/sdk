@@ -976,14 +976,14 @@ export class SpokePoolClient extends BaseAbstractClient {
       );
     }
     const partialDeposit = spreadEventWithBlockNumber(event) as DepositWithBlock;
-    const { realizedLpFeePct, quoteBlock: hubBlock } = await this.computeRealizedLpFeePct(event); // Append the realizedLpFeePct.
+    const { realizedLpFeePct, quoteBlock: quoteBlockNumber } = await this.computeRealizedLpFeePct(event); // Append the realizedLpFeePct.
 
     // Append destination token and realized lp fee to deposit.
     const deposit: DepositWithBlock = {
       ...partialDeposit,
       realizedLpFeePct,
       destinationToken: this.getDestinationTokenForDeposit(partialDeposit),
-      quoteBlockNumber: hubBlock,
+      quoteBlockNumber,
     };
 
     this.logger.debug({

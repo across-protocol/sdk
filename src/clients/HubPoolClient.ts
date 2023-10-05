@@ -476,14 +476,17 @@ export class HubPoolClient extends BaseAbstractClient {
 
   /**
    * Returns the latest validated mainnet bundle end block preceding an event. We first find the bundle that would
-   * @param eventBlock
-   * @param eventChain
-   * @param chainIdListOverride
-   * @returns
+   * have contained the event and then find the bundle preceding it. This preceding bundle's mainnet bundle end block
+   * is returned.
+   * @param eventBlock Block number of event on event chain
+   * @param eventChain Event chain where event was emitted
+   * @param chainIdListOverride Mostly used for testing. If not provided, then the chainIdList is fetched from the
+   * ConfigStoreClient.
+   * @returns Latest validated mainnet bundle end block number at the time of the event emission.
    */
   getMainnetConfigBlockForEvent(eventBlock: number, eventChain: number, chainIdListOverride?: number[]): number {
     if (this.latestBlockNumber === undefined) {
-      throw new Error("HubPoolClient::getMainnetConfigBlockForEvent client not updated");
+      throw new Error("HubPoolClient#getMainnetConfigBlockForEvent client not updated");
     }
     const chainIdList = chainIdListOverride ?? this.configStoreClient.getChainIdIndicesForBlock(this.latestBlockNumber);
 
@@ -495,9 +498,10 @@ export class HubPoolClient extends BaseAbstractClient {
       chainIdList
     );
 
-    // If the bundle end block is undefined or 0, then that means event can be processed at the earliest
-    // in the next bundle. So, use the latest validated mainnet end block as of now as the lowest possible
-    // mainnet block to use to load a configuration for.
+    // If the bundle end block is undefined or 0, then that means this event can be processed, at the earliest,
+    // in the next bundle. In other words, this event has not been included in a bundle yet because its block height is
+    // too high or its chain ID is unknown. So, use the latest validated mainnet end block which will be our best
+    // guess as to the validated mainnet block preceding this event.
     if (!bundleEndBlock) {
       return this.getLatestBundleEndBlockForChain(chainIdList, this.latestBlockNumber, this.chainId);
     }
