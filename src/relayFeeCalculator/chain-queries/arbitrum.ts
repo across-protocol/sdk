@@ -9,22 +9,12 @@ export class ArbitrumQueries extends QueryBase {
     provider: providers.Provider,
     symbolMapping = TOKEN_SYMBOLS_MAP,
     spokePoolAddress = getDeployedAddress("SpokePool", CHAIN_IDs.ARBITRUM),
-    usdcAddress = TOKEN_SYMBOLS_MAP.USDC.addresses[CHAIN_IDs.ARBITRUM],
     simulatedRelayerAddress = DEFAULT_SIMULATED_RELAYER_ADDRESS,
     coingeckoProApiKey?: string,
     logger: Logger = DEFAULT_LOGGER,
     gasMarkup = 0
   ) {
-    super(
-      provider,
-      symbolMapping,
-      spokePoolAddress,
-      usdcAddress,
-      simulatedRelayerAddress,
-      gasMarkup,
-      logger,
-      coingeckoProApiKey
-    );
+    super(provider, symbolMapping, spokePoolAddress, simulatedRelayerAddress, gasMarkup, logger, coingeckoProApiKey);
   }
 }
 
@@ -33,21 +23,11 @@ export class ArbitrumGoerliQueries extends QueryBase {
     provider: providers.Provider,
     symbolMapping = TOKEN_SYMBOLS_MAP,
     spokePoolAddress = getDeployedAddress("SpokePool", CHAIN_IDs.ARBITRUM_GOERLI),
-    usdcAddress = TOKEN_SYMBOLS_MAP.USDC.addresses[CHAIN_IDs.ARBITRUM_GOERLI],
     simulatedRelayerAddress = "0x9A8f92a830A5cB89a3816e3D267CB7791c16b04D",
     coingeckoProApiKey?: string,
     logger: Logger = DEFAULT_LOGGER,
     gasMarkup = 0
   ) {
-    super(
-      provider,
-      symbolMapping,
-      spokePoolAddress,
-      usdcAddress,
-      simulatedRelayerAddress,
-      gasMarkup,
-      logger,
-      coingeckoProApiKey
-    );
+    super(provider, symbolMapping, spokePoolAddress, simulatedRelayerAddress, gasMarkup, logger, coingeckoProApiKey);
   }
 }

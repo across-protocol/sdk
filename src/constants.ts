@@ -52,3 +52,5 @@ export const DEFAULT_CACHING_SAFE_LAG = 60 * 60 * 24; // 1 Day
 
 export const UBA_BOUNDS_RANGE_MAX = BigNumber.from(String(Number.MAX_SAFE_INTEGER)).mul(utils.parseEther("1.0"));
 export const UBA_BOUNDS_RANGE_MIN = UBA_BOUNDS_RANGE_MAX.mul(-1);
+
+export const RISK_LABS_RELAYER_ADDRESS = "0x428ab2ba90eba0a4be7af34c9ac451ab061ac010";
