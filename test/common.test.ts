@@ -3,13 +3,15 @@ import { SpokePool, SpokePool__factory } from "@across-protocol/contracts-v2";
 import dotenv from "dotenv";
 import { providers } from "ethers";
 import {
-  createUnsignedFillRelayTransaction,
+  createUnsignedFillRelayTransactionFromFill,
   estimateTotalGasRequiredByUnsignedTransaction,
   retry,
   toBNWei,
 } from "../src/utils/common";
 import { toBN } from "../src/utils/BigNumberUtils";
 import { expect } from "./utils";
+import { buildFillForSimulatingFullDeposit, createDepositForSimulatingGas } from "../src/utils";
+import { Fill } from "../src/interfaces";
 
 dotenv.config();
 
@@ -36,7 +38,6 @@ describe("Utils test", () => {
 
   it("apply gas multiplier", async () => {
     const spokePoolAddress = "0xB88690461dDbaB6f04Dfad7df66B7725942FEb9C"; // mainnet
-    const usdcAddress = "0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC8";
     const relayerAddress = "0x893d0d70ad97717052e3aa8903d9615804167759";
 
     const gasPrice = toBNWei(1, 9); // 1 Gwei
@@ -46,7 +47,9 @@ describe("Utils test", () => {
     const provider = new providers.JsonRpcProvider(rpcUrl, 1);
     const spokePool: SpokePool = SpokePool__factory.connect(spokePoolAddress, provider);
 
-    const unsignedTxn = await createUnsignedFillRelayTransaction(spokePool, usdcAddress, relayerAddress);
+    const deposit = createDepositForSimulatingGas("1", "USDC", "42161", "10", relayerAddress);
+    const fill: Fill = buildFillForSimulatingFullDeposit(deposit, relayerAddress);
+    const unsignedTxn = await createUnsignedFillRelayTransactionFromFill(spokePool, fill);
     const refGasEstimate = await estimateTotalGasRequiredByUnsignedTransaction(
       unsignedTxn,
       relayerAddress,
