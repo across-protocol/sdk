@@ -94,6 +94,7 @@
   },
   "dependencies": {
     "@across-protocol/across-token": "^1.0.0",
+    "@across-protocol/constants-v2": "^1.0.4",
     "@across-protocol/contracts-v2": "^2.4.4",
     "@eth-optimism/sdk": "^2.1.0",
     "@pinata/sdk": "^2.1.0",

@@ -1,5 +1,5 @@
 import { constants as ethersConstants, BigNumber, utils } from "ethers";
-export { CHAIN_IDs, TOKEN_SYMBOLS_MAP } from "@across-protocol/contracts-v2/dist/utils/constants";
+export { CHAIN_IDs, TOKEN_SYMBOLS_MAP } from "@across-protocol/constants-v2";
 
 export const { AddressZero: ZERO_ADDRESS } = ethersConstants;
 
