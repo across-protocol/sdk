@@ -1,4 +1,4 @@
-import { providers } from "ethers";
+import { providers, utils } from "ethers";
 
 /**
  * Checks if a contract is deployed at the given address
@@ -7,8 +7,8 @@ import { providers } from "ethers";
  * @returns A boolean indicating if a contract is deployed at the given address or not (true = contract, false = no contract)
  */
 export async function isContractAddress(address: string, provider: providers.Provider): Promise<boolean> {
-  // A base case for if the address is null
-  if (!address) {
+  // A base case for if the address is null or malformed
+  if (!address || !utils.isAddress(address)) {
     return false;
   }
   // Retrieve the code at the address
