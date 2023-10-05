@@ -6,7 +6,7 @@ import { SpokePool } from "../typechain";
 import assert from "assert";
 import { GasPriceEstimate, getGasPriceEstimate } from "../gasPriceOracle";
 import { TypedMessage } from "../interfaces/TypedData";
-import { BN, toBN, BigNumberish } from "./BigNumberUtils";
+import { BN, toBN, BigNumberish, bnUint256Max } from "./BigNumberUtils";
 import { ConvertDecimals } from "./FormattingUtils";
 import { Fill } from "../interfaces";
 import { isContractAddress } from "./AddressUtils";
@@ -341,7 +341,7 @@ export async function createUnsignedFillRelayTransactionFromFill(
     fillToSimulate.relayerFeePct,
     fillToSimulate.depositId,
     message,
-    MAX_BIG_INT,
+    bnUint256Max,
     { from: relayerAddress }
   );
 }
