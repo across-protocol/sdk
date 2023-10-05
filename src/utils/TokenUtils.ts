@@ -1,5 +1,6 @@
-import * as constants from "../constants";
+import { BlockTag } from "@ethersproject/abstract-provider";
 import { BigNumber, Contract, providers, Signer } from "ethers";
+import * as constants from "../constants";
 import { L1Token } from "../interfaces";
 import { ERC20__factory } from "../typechain";
 const { TOKEN_SYMBOLS_MAP, CHAIN_IDs } = constants;
@@ -42,7 +43,7 @@ export function getTokenBalance(
   address: string,
   tokenAddress: string,
   signerOrProvider: SignerOrProvider,
-  blockTag: number | "latest" = "latest"
+  blockTag: BlockTag = "latest"
 ): Promise<BigNumber> {
   const token = ERC20__factory.connect(tokenAddress, signerOrProvider);
   return token.balanceOf(address, { blockTag });
