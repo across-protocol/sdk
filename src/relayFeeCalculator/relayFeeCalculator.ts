@@ -210,8 +210,6 @@ export class RelayFeeCalculator {
       message: string;
       recipientAddress: string;
     },
-    // recipientAddress: string,
-    // message = "0x",
     relayerAddress = RISK_LABS_RELAYER_ADDRESS,
     _tokenPrice?: number
   ): Promise<BigNumber> {
