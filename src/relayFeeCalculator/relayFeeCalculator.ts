@@ -12,7 +12,6 @@ import {
   MAX_BIG_INT,
   createDepositForSimulatingGas,
 } from "../utils";
-import { BaseQueries } from "./chain-queries";
 import { Deposit } from "../interfaces";
 import { RISK_LABS_RELAYER_ADDRESS } from "../constants";
 
@@ -47,10 +46,10 @@ export interface BaseRelayFeeCalculatorConfig {
   };
 }
 export interface RelayFeeCalculatorConfigWithQueries extends BaseRelayFeeCalculatorConfig {
-  queries: BaseQueries;
+  queries: QueryInterface;
 }
 export interface RelayFeeCalculatorConfigWithMap extends BaseRelayFeeCalculatorConfig {
-  queriesMap: Record<number, BaseQueries>;
+  queriesMap: Record<number, QueryInterface>;
 }
 export type RelayFeeCalculatorConfig = RelayFeeCalculatorConfigWithQueries | RelayFeeCalculatorConfigWithMap;
 
@@ -90,7 +89,7 @@ export const DEFAULT_LOGGER: Logger = {
 };
 
 export class RelayFeeCalculator {
-  private queries: BaseQueries;
+  private queries: QueryInterface;
   private gasDiscountPercent: Required<RelayFeeCalculatorConfig>["gasDiscountPercent"];
   private capitalDiscountPercent: Required<RelayFeeCalculatorConfig>["capitalDiscountPercent"];
   private feeLimitPercent: Required<RelayFeeCalculatorConfig>["feeLimitPercent"];
@@ -310,7 +309,7 @@ export class RelayFeeCalculator {
     messagePayload?: {
       message: string;
       recipientAddress: string;
-      relayerAddress: string;
+      relayerAddress?: string;
     },
     tokenPrice?: number
   ): Promise<RelayerFeeDetails> {
