@@ -631,7 +631,7 @@ export class SpokePoolClient extends BaseAbstractClient {
    * @see _update
    */
   public async update(eventsToQuery = this.queryableEventNames): Promise<void> {
-    if (this.hubPoolClient === null || (this.hubPoolClient !== null && !this.hubPoolClient.isUpdated)) {
+    if (this.hubPoolClient !== null && !this.hubPoolClient.isUpdated) {
       throw new Error("HubPoolClient not updated");
     }
 

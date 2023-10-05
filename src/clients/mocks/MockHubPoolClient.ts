@@ -25,6 +25,8 @@ export class MockHubPoolClient extends HubPoolClient {
   private l1TokensMock: L1Token[] = []; // L1Tokens and their associated info.
   private tokenInfoToReturn: L1Token = { address: "", decimals: 0, symbol: "" };
   private returnedL1TokenForDeposit = "";
+  private returnedL2TokenForDeposit: { [chainId: number]: string } = {};
+
   private eventManager: EventManager;
 
   constructor(
@@ -89,22 +91,23 @@ export class MockHubPoolClient extends HubPoolClient {
     this.tokenInfoToReturn = tokenInfo;
   }
 
-  setL1TokensToDestinationTokens(l1TokensToDestinationTokens: {
-    [l1Token: string]: { [destinationChainId: number]: string };
-  }) {
-    this.l1TokensToDestinationTokensMock = l1TokensToDestinationTokens;
-  }
-
   setReturnedL1TokenForDeposit(l1Token: string) {
     this.returnedL1TokenForDeposit = l1Token;
   }
 
-  setDestinationTokenForL1Token(destinationToken: string) {
-    this.returnedDestinationTokenForL1Token = destinationToken;
-  }
-
   getL1TokenForDeposit(event: Pick<DepositWithBlock, "quoteBlockNumber" | "originToken" | "originChainId">): string {
     return this.returnedL1TokenForDeposit ?? super.getL1TokenForDeposit(event);
+  }
+
+  setReturnedL2TokenForDeposit(chainId: number, l2Token: string) {
+    this.returnedL2TokenForDeposit[chainId] = l2Token;
+  }
+
+  getL2TokenForDeposit(
+    chainId: number,
+    event: Pick<DepositWithBlock, "quoteBlockNumber" | "originToken" | "originChainId">
+  ): string {
+    return this.returnedL2TokenForDeposit[chainId] ?? super.getL2TokenForDeposit(chainId, event);
   }
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars

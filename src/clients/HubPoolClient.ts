@@ -238,9 +238,11 @@ export class HubPoolClient extends BaseAbstractClient {
   getL1TokenForDeposit(event: Pick<DepositWithBlock, "quoteBlockNumber" | "originToken" | "originChainId">): string {
     const latestValidatedMainnetBundleEndBlock = this._getMainnetBundleEndBlockBeforeDeposit(event);
 
-    // Get the latest token mapping as of the higher of the latest validated bundle end block
-    // and the deposit quote block number. This handles the case where deposits are sent
-    // before the first bundle is validated.
+    // Get the latest token mapping as of the latest validated bundle end block, unless this value is 0, then use
+    // the deposit quote block number. This handles the case where deposits are sent
+    // before the first bundle is validated. This unfortunately produces a situation where the first bundle could have
+    // multiple L1 tokens mapped to deposits for the same L2 token, but its unlikely in production that a pool rebalance
+    // root is changed before the first bundle is validated.
     return this.getL1TokenForL2TokenAtBlock(
       event.originToken,
       event.originChainId,
@@ -259,12 +261,15 @@ export class HubPoolClient extends BaseAbstractClient {
     l2ChainId: number,
     event: Pick<DepositWithBlock, "quoteBlockNumber" | "originToken" | "originChainId">
   ): string {
+    // First get L1 token associated with deposit.
     const l1Token = this.getL1TokenForDeposit(event);
     const latestValidatedMainnetBundleEndBlock = this._getMainnetBundleEndBlockBeforeDeposit(event);
 
-    // Get the latest token mapping as of the higher of the latest validated bundle end block
-    // and the deposit quote block number. This handles the case where deposits are sent
-    // before the first bundle is validated.
+    // Get the latest token mapping as of the latest validated bundle end block, unless this value is 0, then use
+    // the deposit quote block number. This handles the case where deposits are sent
+    // before the first bundle is validated. This unfortunately produces a situation where the first bundle could have
+    // multiple L2 tokens mapped to deposits with the same L1 token, but its unlikely in production that a pool rebalance
+    // root is changed before the first bundle is validated.
     return this.getL2TokenForL1TokenAtBlock(
       l1Token,
       l2ChainId,

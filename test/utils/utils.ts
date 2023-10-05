@@ -290,7 +290,10 @@ export async function buildDepositStruct(
   return {
     ...deposit,
     message: "0x",
-    destinationToken: hubPoolClient.getL2TokenForL1TokenAtBlock(deposit.originToken, deposit.originChainId, quoteBlock),
+    destinationToken: hubPoolClient.getL2TokenForDeposit(deposit.destinationChainId, {
+      ...deposit,
+      quoteBlockNumber: quoteBlock,
+    }),
     quoteBlockNumber: quoteBlock,
     realizedLpFeePct,
     blockNumber: await getLastBlockNumber(),
@@ -317,7 +320,7 @@ export async function buildDeposit(
   );
   // Sanity Check: Ensure that the deposit was successful.
   expect(_deposit).to.not.be.null;
-  return await buildDepositStruct(appendMessageToResult(_deposit), hubPoolClient, l1TokenForDepositedToken);
+  return await buildDepositStruct(appendMessageToResult(_deposit), hubPoolClient);
 }
 
 // Submits a fillRelay transaction and returns the Fill struct that that clients will interact with.

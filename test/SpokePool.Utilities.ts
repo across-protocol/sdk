@@ -114,7 +114,7 @@ describe("SpokePoolClient: Event Filtering", function () {
     const deploymentBlock = await hubPool.provider.getBlockNumber();
     hubPoolClient = new MockHubPoolClient(logger, hubPool, configStoreClient, deploymentBlock, originChainId);
     hubPoolClient.setReturnedL1TokenForDeposit(ZERO_ADDRESS);
-    hubPoolClient.setDestinationTokenForL1Token(ZERO_ADDRESS);
+    await hubPoolClient.update();
 
     for (const chainId of chainIds) {
       // @dev the underlying chainId will be the same for all three SpokePools.
