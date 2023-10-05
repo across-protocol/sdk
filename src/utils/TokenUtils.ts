@@ -18,18 +18,14 @@ export const getL2TokenAddresses = (l1TokenAddress: string): { [chainId: number]
   })?.addresses;
 };
 
+/**
+ * Returns the contract address for a given token symbol and chainId.
+ * @param symbol A case-insensitive token symbol.
+ * @param chainId The chainId to resolve the contract address for.
+ * @returns The contract address for the given token symbol and chainId, or undefined if the token symbol is not supported.
+ */
 export const resolveContractFromSymbol = (symbol: string, chainId: string): string | undefined => {
-  return (
-    TOKEN_SYMBOLS_MAP as Record<
-      string,
-      {
-        name: string;
-        symbol: string;
-        decimals: number;
-        addresses: {
-          [x: number]: string;
-        };
-      }
-    >
-  )[symbol]?.addresses[Number(chainId)];
+  return Object.values(TOKEN_SYMBOLS_MAP).find((details) => {
+    return details.symbol.toLowerCase() === symbol.toLowerCase();
+  })?.addresses[Number(chainId)];
 };
