@@ -8,6 +8,8 @@ import { GasPriceEstimate, getGasPriceEstimate } from "../gasPriceOracle";
 import { TypedMessage } from "../interfaces/TypedData";
 import { BN, toBN, BigNumberish } from "./BigNumberUtils";
 import { ConvertDecimals } from "./FormattingUtils";
+import { Fill } from "../interfaces";
+import { isContractAddress } from "./AddressUtils";
 
 export type Decimalish = string | number | Decimal;
 export const AddressZero = ethers.constants.AddressZero;
@@ -290,37 +292,57 @@ export async function estimateTotalGasRequiredByUnsignedTransaction(
 }
 
 /**
- * Create an unsigned transaction of a fillRelay contract call
- * @param spokePool The specific spokepool that will populate this tx
- * @param destinationTokenAddress A valid ERC20 token (system-wide default is UDSC)
- * @param simulatedRelayerAddress The relayer address that relays this transaction
- * @returns A populated (but unsigned) transaction that can be signed/sent or used for estimating gas costs
+ * Create an unsigned transaction to fill a relay. This function is used to simulate the gas cost of filling a relay.
+ * @param spokePool A valid SpokePool contract instance
+ * @param fillToSimulate The fill that this function will use to populate the unsigned transaction
+ * @returns An unsigned transaction that can be used to simulate the gas cost of filling a relay
  */
-export async function createUnsignedFillRelayTransaction(
+export async function createUnsignedFillRelayTransactionFromFill(
   spokePool: SpokePool,
-  destinationTokenAddress: string,
-  simulatedRelayerAddress: string,
-  messagePayload?: {
-    recipientAddress: string;
-    message: string;
-  }
+  fillToSimulate: Fill
 ): Promise<PopulatedTransaction> {
-  // Populate and return an unsigned tx as per the given spoke pool
-  // NOTE: 0xBb23Cd0210F878Ea4CcA50e9dC307fb0Ed65Cf6B is a dummy address
-  return await spokePool.populateTransaction.fillRelay(
-    "0xBb23Cd0210F878Ea4CcA50e9dC307fb0Ed65Cf6B",
-    messagePayload?.recipientAddress ?? "0xBb23Cd0210F878Ea4CcA50e9dC307fb0Ed65Cf6B",
-    destinationTokenAddress,
-    "10",
-    "10",
-    "1",
-    "1",
-    "1",
-    "1",
-    "1",
-    messagePayload?.message ?? "0x",
+  const {
+    message,
+    recipient: recipientAddress,
+    relayer: relayerAddress,
+    amount: amountToRelay,
+    depositor: depositorAddress,
+  } = fillToSimulate;
+  const provider = spokePool.provider;
+
+  const isMessageEmpty = message.length === 0 || message === "0x";
+  // Only continue sanity checks if the message is not empty
+  if (!isMessageEmpty) {
+    const isRecipientAnAddress = ethers.utils.isAddress(recipientAddress);
+    const isRelayerAnAddress = ethers.utils.isAddress(relayerAddress);
+    if (!isRecipientAnAddress || !isRelayerAnAddress) {
+      throw new Error("Could not simulate message fill. Recipient address or relayer address is not a valid address");
+    }
+    const [isRecipientAContract, relayerBalanceOfToken] = await Promise.all([
+      isContractAddress(recipientAddress, provider),
+      provider.getBalance(fillToSimulate.destinationToken),
+    ]);
+    if (isRecipientAContract) {
+      throw new Error("Could not simulate message fill. Recipient address is a contract address");
+    }
+    if (toBN(relayerBalanceOfToken).lt(toBN(amountToRelay))) {
+      throw new Error("Could not simulate message fill. Partial fills are not supported with message relaying");
+    }
+  }
+  return spokePool.populateTransaction.fillRelay(
+    depositorAddress,
+    recipientAddress,
+    fillToSimulate.destinationToken,
+    amountToRelay,
     MAX_BIG_INT,
-    { from: simulatedRelayerAddress }
+    fillToSimulate.repaymentChainId,
+    fillToSimulate.originChainId,
+    fillToSimulate.realizedLpFeePct,
+    fillToSimulate.relayerFeePct,
+    fillToSimulate.depositId,
+    message,
+    MAX_BIG_INT,
+    { from: relayerAddress }
   );
 }
 

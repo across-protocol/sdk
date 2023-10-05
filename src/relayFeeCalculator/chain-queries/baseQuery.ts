@@ -5,10 +5,12 @@ import { Coingecko } from "../../coingecko";
 import { CHAIN_IDs, RISK_LABS_RELAYER_ADDRESS } from "../../constants";
 import {
   BigNumberish,
-  createUnsignedFillRelayTransaction,
+  buildFillForSimulatingFullDeposit,
+  createUnsignedFillRelayTransactionFromFill,
   estimateTotalGasRequiredByUnsignedTransaction,
 } from "../../utils";
 import { Logger, QueryInterface } from "../relayFeeCalculator";
+import { Deposit } from "../../interfaces";
 
 type Provider = providers.Provider;
 type OptimismProvider = L2Provider<Provider>;
@@ -62,20 +64,13 @@ export default abstract class QueryBase implements QueryInterface {
    * Retrieves the current gas costs of performing a fillRelay contract at the referenced Spoke Pool
    * @returns The gas estimate for this function call (multplied with the optional buffer)
    */
-  async getGasCosts(messagePayload?: {
-    message: string;
-    recipientAddress: string;
-    relayerAddress: string;
-  }): Promise<BigNumberish> {
-    const tx = await createUnsignedFillRelayTransaction(
-      this.spokePool,
-      this.usdcAddress,
-      messagePayload?.relayerAddress ?? this.simulatedRelayerAddress,
-      messagePayload
-    );
+  async getGasCosts(deposit: Deposit, relayAddress?: string): Promise<BigNumberish> {
+    const relayerToSimulate = relayAddress ?? this.simulatedRelayerAddress;
+    const correspondingFill = buildFillForSimulatingFullDeposit(deposit, relayerToSimulate);
+    const tx = await createUnsignedFillRelayTransactionFromFill(this.spokePool, correspondingFill);
     const estimatedGas = await estimateTotalGasRequiredByUnsignedTransaction(
       tx,
-      this.simulatedRelayerAddress,
+      relayerToSimulate,
       this.provider,
       this.gasMarkup,
       this.fixedGasPrice
