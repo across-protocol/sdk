@@ -322,8 +322,8 @@ export async function createUnsignedFillRelayTransactionFromFill(
       isContractAddress(recipientAddress, provider),
       provider.getBalance(fillToSimulate.destinationToken),
     ]);
-    if (isRecipientAContract) {
-      throw new Error("Could not simulate message fill. Recipient address is a contract address");
+    if (!isRecipientAContract) {
+      throw new Error("Could not simulate message fill. Recipient address is not a contract address");
     }
     if (toBN(relayerBalanceOfToken).lt(toBN(amountToRelay))) {
       throw new Error("Could not simulate message fill. Partial fills are not supported with message relaying");
