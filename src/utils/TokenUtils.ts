@@ -17,3 +17,19 @@ export const getL2TokenAddresses = (l1TokenAddress: string): { [chainId: number]
     return details.addresses[CHAIN_IDs.MAINNET] === l1TokenAddress;
   })?.addresses;
 };
+
+export const resolveContractFromSymbol = (symbol: string, chainId: string): string | undefined => {
+  return (
+    TOKEN_SYMBOLS_MAP as Record<
+      string,
+      {
+        name: string;
+        symbol: string;
+        decimals: number;
+        addresses: {
+          [x: number]: string;
+        };
+      }
+    >
+  )[symbol]?.addresses[Number(chainId)];
+};

@@ -63,8 +63,17 @@ export default abstract class QueryBase implements QueryInterface {
    * Retrieves the current gas costs of performing a fillRelay contract at the referenced Spoke Pool
    * @returns The gas estimate for this function call (multplied with the optional buffer)
    */
-  async getGasCosts(): Promise<BigNumberish> {
-    const tx = await createUnsignedFillRelayTransaction(this.spokePool, this.usdcAddress, this.simulatedRelayerAddress);
+  async getGasCosts(messagePayload?: {
+    message: string;
+    recipientAddress: string;
+    relayerAddress: string;
+  }): Promise<BigNumberish> {
+    const tx = await createUnsignedFillRelayTransaction(
+      this.spokePool,
+      this.usdcAddress,
+      messagePayload?.relayerAddress ?? this.simulatedRelayerAddress,
+      messagePayload
+    );
     const estimatedGas = await estimateTotalGasRequiredByUnsignedTransaction(
       tx,
       this.simulatedRelayerAddress,

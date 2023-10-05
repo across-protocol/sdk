@@ -299,13 +299,17 @@ export async function estimateTotalGasRequiredByUnsignedTransaction(
 export async function createUnsignedFillRelayTransaction(
   spokePool: SpokePool,
   destinationTokenAddress: string,
-  simulatedRelayerAddress: string
+  simulatedRelayerAddress: string,
+  messagePayload?: {
+    recipientAddress: string;
+    message: string;
+  }
 ): Promise<PopulatedTransaction> {
   // Populate and return an unsigned tx as per the given spoke pool
   // NOTE: 0xBb23Cd0210F878Ea4CcA50e9dC307fb0Ed65Cf6B is a dummy address
   return await spokePool.populateTransaction.fillRelay(
     "0xBb23Cd0210F878Ea4CcA50e9dC307fb0Ed65Cf6B",
-    "0xBb23Cd0210F878Ea4CcA50e9dC307fb0Ed65Cf6B",
+    messagePayload?.recipientAddress ?? "0xBb23Cd0210F878Ea4CcA50e9dC307fb0Ed65Cf6B",
     destinationTokenAddress,
     "10",
     "10",
@@ -314,7 +318,7 @@ export async function createUnsignedFillRelayTransaction(
     "1",
     "1",
     "1",
-    [],
+    messagePayload?.message ?? "0x",
     MAX_BIG_INT,
     { from: simulatedRelayerAddress }
   );

@@ -1,5 +1,5 @@
 import assert from "assert";
-import { BigNumber } from "ethers";
+import { BigNumber, ethers } from "ethers";
 import {
   BigNumberish,
   fixedPointAdjustment,
@@ -10,14 +10,32 @@ import {
   max,
   percent,
   MAX_BIG_INT,
+  resolveContractFromSymbol,
+  isDefined,
 } from "../utils";
+import { isContractAddress } from "../utils/AddressUtils";
+import { BaseQueries } from "./chain-queries";
 
 // This needs to be implemented for every chain and passed into RelayFeeCalculator
 export interface QueryInterface {
-  getGasCosts: () => Promise<BigNumberish>;
+  getGasCosts: (messagePayload?: {
+    message: string;
+    recipientAddress: string;
+    relayerAddress: string;
+  }) => Promise<BigNumberish>;
   getTokenPrice: (tokenSymbol: string) => Promise<number>;
   getTokenDecimals: (tokenSymbol: string) => number;
 }
+
+export type SimulatedMessageRelayResult =
+  | {
+      success: true;
+      gasUsed: BigNumber;
+    }
+  | {
+      success: false;
+      error: string;
+    };
 
 export const expectedCapitalCostsKeys = ["lowerBound", "upperBound", "cutoff", "decimals"];
 export interface CapitalCostConfig {
@@ -43,10 +61,10 @@ export interface BaseRelayFeeCalculatorConfig {
   };
 }
 export interface RelayFeeCalculatorConfigWithQueries extends BaseRelayFeeCalculatorConfig {
-  queries: QueryInterface;
+  queries: BaseQueries;
 }
 export interface RelayFeeCalculatorConfigWithMap extends BaseRelayFeeCalculatorConfig {
-  queriesMap: Record<number, QueryInterface>;
+  queriesMap: Record<number, BaseQueries>;
 }
 export type RelayFeeCalculatorConfig = RelayFeeCalculatorConfigWithQueries | RelayFeeCalculatorConfigWithMap;
 
@@ -86,7 +104,7 @@ export const DEFAULT_LOGGER: Logger = {
 };
 
 export class RelayFeeCalculator {
-  private queries: QueryInterface;
+  private queries: BaseQueries;
   private gasDiscountPercent: Required<RelayFeeCalculatorConfig>["gasDiscountPercent"];
   private capitalDiscountPercent: Required<RelayFeeCalculatorConfig>["capitalDiscountPercent"];
   private feeLimitPercent: Required<RelayFeeCalculatorConfig>["feeLimitPercent"];
@@ -198,10 +216,19 @@ export class RelayFeeCalculator {
     return this.queries.getTokenPrice(tokenSymbol);
   }
 
-  async gasFeePercent(amountToRelay: BigNumberish, tokenSymbol: string, _tokenPrice?: number): Promise<BigNumber> {
+  async gasFeePercent(
+    amountToRelay: BigNumberish,
+    tokenSymbol: string,
+    messageArgs?: {
+      message: string;
+      recipientAddress: string;
+      relayerAddress: string;
+    },
+    _tokenPrice?: number
+  ): Promise<BigNumber> {
     if (toBN(amountToRelay).eq(0)) return MAX_BIG_INT;
 
-    const getGasCosts = this.queries.getGasCosts().catch((error) => {
+    const getGasCosts = this.queries.getGasCosts(messageArgs).catch((error) => {
       this.logger.error({ at: "sdk-v2/gasFeePercent", message: "Error while fetching gas costs", error });
       throw error;
     });
@@ -277,12 +304,48 @@ export class RelayFeeCalculator {
     amountToRelay: BigNumberish,
     tokenSymbol: string,
     tokenPrice?: number,
-    _originRoute?: ChainIdAsString,
-    _destinationRoute?: ChainIdAsString
+    originRoute?: ChainIdAsString,
+    destinationRoute?: ChainIdAsString,
+    messagePayload?: {
+      message: string;
+      recipientAddress: string;
+      relayerAddress: string;
+    }
   ): Promise<RelayerFeeDetails> {
-    const gasFeePercent = await this.gasFeePercent(amountToRelay, tokenSymbol, tokenPrice);
+    if (messagePayload) {
+      if (!isDefined(destinationRoute)) {
+        throw new Error("Could not simulate message fill. Destination route is not a valid chain ID");
+      }
+      const isMessageEmpty = messagePayload.message.length === 0 || messagePayload.message === "0x";
+      // Only continue sanity checks if the message is not empty
+      if (!isMessageEmpty) {
+        const isRecipientAnAddress = ethers.utils.isAddress(messagePayload.recipientAddress);
+        const isRelayerAnAddress = ethers.utils.isAddress(messagePayload.relayerAddress);
+        if (!isRecipientAnAddress || !isRelayerAnAddress) {
+          throw new Error(
+            "Could not simulate message fill. Recipient address or relayer address is not a valid address"
+          );
+        }
+        const tokenAddress = resolveContractFromSymbol(tokenSymbol, destinationRoute);
+        if (!tokenAddress) {
+          throw new Error("Could not simulate message fill. Token address is not defined");
+        }
+        const [isRecipientAContract, relayerBalanceOfToken] = await Promise.all([
+          isContractAddress(messagePayload.recipientAddress, this.queries.provider),
+          this.queries.provider.getBalance(tokenAddress),
+        ]);
+        if (isRecipientAContract) {
+          throw new Error("Could not simulate message fill. Recipient address is a contract address");
+        }
+        if (toBN(relayerBalanceOfToken).lt(toBN(amountToRelay))) {
+          throw new Error("Could not simulate message fill. Partial fills are not supported with message relaying");
+        }
+      }
+    }
+
+    const gasFeePercent = await this.gasFeePercent(amountToRelay, tokenSymbol, messagePayload, tokenPrice);
     const gasFeeTotal = gasFeePercent.mul(amountToRelay).div(fixedPointAdjustment);
-    const capitalFeePercent = await this.capitalFeePercent(amountToRelay, tokenSymbol, _originRoute, _destinationRoute);
+    const capitalFeePercent = this.capitalFeePercent(amountToRelay, tokenSymbol, originRoute, destinationRoute);
     const capitalFeeTotal = capitalFeePercent.mul(amountToRelay).div(fixedPointAdjustment);
     const relayFeePercent = gasFeePercent.add(capitalFeePercent);
     const relayFeeTotal = gasFeeTotal.add(capitalFeeTotal);
