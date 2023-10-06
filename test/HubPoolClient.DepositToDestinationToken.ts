@@ -225,6 +225,20 @@ describe("HubPoolClient: Deposit to Destination Token", function () {
     expect(
       hubPoolClient.getL2TokenForDeposit(originChainId, { ...depositData, blockNumber: validatedBlock1 })
     ).to.equal(randomDestinationToken);
+
+    // Both updates to the L2 token and previous L2 token map to the same L2 token on the `destinationChainId`
+    expect(
+      hubPoolClient.getL2TokenForDeposit(destinationChainId, {
+        ...depositData,
+        blockNumber: validatedBlock1,
+        originToken: randomOriginToken,
+      })
+    ).to.equal(randomL1Token);
+    expect(
+      hubPoolClient.getL2TokenForDeposit(destinationChainId, { ...depositData, blockNumber: validatedBlock1 })
+    ).to.equal(randomL1Token);
+
+    // e3 PoolRebalanceRoute update hasn't been validated yet.
     expect(() =>
       hubPoolClient.getL1TokenForDeposit({
         ...depositData,
