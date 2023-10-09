@@ -221,26 +221,12 @@ export class HubPoolClient extends BaseAbstractClient {
    * @param deposit Deposit event
    * @param returns string L1 token counterpart for Deposit
    */
-  getL1TokenForDeposit(deposit: Pick<DepositWithBlock, "blockNumber" | "originToken" | "originChainId">): string {
-    // Destination token should be set equal to the L2 token set as of the latest
-    // validated bundle end block. L1-->L2 token mappings are set via PoolRebalanceRoutes
-    // which occur on mainnet, so we use the latest token mapping equal to or less than
-    // the validated bundle's mainnet end block.
-    const latestValidatedMainnetBundleEndBlock = this.getMainnetConfigBlockForEvent(
-      deposit.blockNumber,
-      deposit.originChainId
-    );
+  getL1TokenForDeposit(deposit: Pick<DepositWithBlock, "originToken" | "originChainId">): string {
+    // L1-->L2 token mappings are set via PoolRebalanceRoutes which occur on mainnet,
+    // so we use the latest token mapping. This way if a very old deposit is filled, the relayer can use the
+    // latest L2 token mapping to find the L1 token counterpart.
 
-    // Get the latest token mapping as of the latest validated bundle end block, unless this value is 0, then use
-    // the latest hub block number. This handles the case where deposits are sent
-    // before the first bundle is validated. This unfortunately produces a situation where the first bundle could have
-    // multiple L1 tokens mapped to deposits for the same L2 token, but its unlikely in production that a pool rebalance
-    // root is changed before the first bundle is validated.
-    return this.getL1TokenForL2TokenAtBlock(
-      deposit.originToken,
-      deposit.originChainId,
-      latestValidatedMainnetBundleEndBlock === 0 ? this.latestBlockNumber : latestValidatedMainnetBundleEndBlock
-    );
+    return this.getL1TokenForL2TokenAtBlock(deposit.originToken, deposit.originChainId, this.latestBlockNumber);
   }
 
   /**
@@ -250,31 +236,12 @@ export class HubPoolClient extends BaseAbstractClient {
    * @param event Deposit event
    * @returns string L2 token counterpart on l2ChainId
    */
-  getL2TokenForDeposit(
-    l2ChainId: number,
-    deposit: Pick<DepositWithBlock, "blockNumber" | "originToken" | "originChainId">
-  ): string {
+  getL2TokenForDeposit(l2ChainId: number, deposit: Pick<DepositWithBlock, "originToken" | "originChainId">): string {
     // First get L1 token associated with deposit.
     const l1Token = this.getL1TokenForDeposit(deposit);
-    // Destination token should be set equal to the L2 token set as of the latest
-    // validated bundle end block. L1-->L2 token mappings are set via PoolRebalanceRoutes
-    // which occur on mainnet, so we use the latest token mapping equal to or less than
-    // the validated bundle's mainnet end block.
-    const latestValidatedMainnetBundleEndBlock = this.getMainnetConfigBlockForEvent(
-      deposit.blockNumber,
-      deposit.originChainId
-    );
 
-    // Get the latest token mapping as of the latest validated bundle end block, unless this value is 0, then use
-    // the latest hub block number. This handles the case where deposits are sent
-    // before the first bundle is validated. This unfortunately produces a situation where the first bundle could have
-    // multiple L2 tokens mapped to deposits with the same L1 token, but its unlikely in production that a pool rebalance
-    // root is changed before the first bundle is validated.
-    return this.getL2TokenForL1TokenAtBlock(
-      l1Token,
-      l2ChainId,
-      latestValidatedMainnetBundleEndBlock === 0 ? this.latestBlockNumber : latestValidatedMainnetBundleEndBlock
-    );
+    // Use the latest hub block number to find the L2 token counterpart.
+    return this.getL2TokenForL1TokenAtBlock(l1Token, l2ChainId, this.latestBlockNumber);
   }
 
   l2TokenEnabledForL1Token(l1Token: string, destinationChainId: number): boolean {
@@ -472,50 +439,6 @@ export class HubPoolClient extends BaseAbstractClient {
       endingBlockNumber = bundleEvalBlockNumber;
     }
     return endingBlockNumber;
-  }
-
-  /**
-   * Returns the latest validated mainnet bundle end block preceding an event. We first find the bundle that would
-   * have contained the event and then find the bundle preceding it. This preceding bundle's mainnet bundle end block
-   * is returned.
-   * @param eventBlock Block number of event on event chain
-   * @param eventChain Event chain where event was emitted
-   * @param chainIdListOverride Mostly used for testing. If not provided, then the chainIdList is fetched from the
-   * ConfigStoreClient.
-   * @returns Latest validated mainnet bundle end block number at the time of the event emission.
-   */
-  getMainnetConfigBlockForEvent(eventBlock: number, eventChain: number, chainIdListOverride?: number[]): number {
-    if (this.latestBlockNumber === undefined) {
-      throw new Error("HubPoolClient#getMainnetConfigBlockForEvent client not updated");
-    }
-    const chainIdList = chainIdListOverride ?? this.configStoreClient.getChainIdIndicesForBlock(this.latestBlockNumber);
-
-    // Get the bundle end block for the bundle containing the event.
-    const bundleEndBlock = this.getRootBundleEvalBlockNumberContainingBlock(
-      this.latestBlockNumber,
-      eventBlock,
-      eventChain,
-      chainIdList
-    );
-
-    // If the bundle end block is undefined or 0, then that means this event can be processed, at the earliest,
-    // in the next bundle. In other words, this event has not been included in a bundle yet because its block height is
-    // too high or its chain ID is unknown. So, use the latest validated mainnet end block which will be our best
-    // guess as to the validated mainnet block preceding this event.
-    if (!bundleEndBlock) {
-      return this.getLatestBundleEndBlockForChain(chainIdList, this.latestBlockNumber, this.chainId);
-    }
-    // Otherwise, return the mainnet end block before this bundle:
-    else {
-      const precedingBundle = _.findLast(this.proposedRootBundles, (bundle: ProposedRootBundle) => {
-        const endBlockForChain = this.getBundleEndBlockForChain(bundle, eventChain, chainIdList);
-        return endBlockForChain < bundleEndBlock;
-      });
-      // If no preceding bundle was found, return 0 as a default.
-      if (!precedingBundle) {
-        return 0;
-      } else return this.getBundleEndBlockForChain(precedingBundle, this.chainId, chainIdList);
-    }
   }
 
   // TODO: This might not be necessary since the cumulative root bundle count doesn't grow fast enough, but consider
