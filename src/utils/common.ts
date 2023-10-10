@@ -1,15 +1,14 @@
-import { BigNumber, ethers, PopulatedTransaction, providers, VoidSigner } from "ethers";
-import Decimal from "decimal.js";
-import { isL2Provider as isOptimismL2Provider } from "@eth-optimism/sdk/dist/l2-provider";
 import { L2Provider } from "@eth-optimism/sdk/dist/interfaces/l2-provider";
-import { SpokePool } from "../typechain";
+import { isL2Provider as isOptimismL2Provider } from "@eth-optimism/sdk/dist/l2-provider";
 import assert from "assert";
+import Decimal from "decimal.js";
+import { BigNumber, ethers, PopulatedTransaction, providers, VoidSigner } from "ethers";
 import { GasPriceEstimate, getGasPriceEstimate } from "../gasPriceOracle";
-import { TypedMessage } from "../interfaces/TypedData";
-import { BN, toBN, BigNumberish, bnUint256Max } from "./BigNumberUtils";
-import { ConvertDecimals } from "./FormattingUtils";
 import { Fill } from "../interfaces";
-import { isContractAddress } from "./AddressUtils";
+import { TypedMessage } from "../interfaces/TypedData";
+import { SpokePool } from "../typechain";
+import { BigNumberish, BN, bnUint256Max, toBN } from "./BigNumberUtils";
+import { ConvertDecimals } from "./FormattingUtils";
 import { getTokenBalance } from "./TokenUtils";
 
 export type Decimalish = string | number | Decimal;
@@ -312,19 +311,14 @@ export async function createUnsignedFillRelayTransactionFromFill(
   const provider = spokePool.provider;
 
   const isMessageEmpty = message.length === 0 || message === "0x";
-  // Only continue sanity checks if the message is not empty
+
+  // Only continue sanity checks if the message
   if (!isMessageEmpty) {
+    const relayerBalanceOfToken = await getTokenBalance(relayerAddress, fillToSimulate.destinationToken, provider);
     const isRecipientAnAddress = ethers.utils.isAddress(recipientAddress);
     const isRelayerAnAddress = ethers.utils.isAddress(relayerAddress);
     if (!isRecipientAnAddress || !isRelayerAnAddress) {
       throw new Error("Could not simulate message fill. Recipient address or relayer address is not a valid address");
-    }
-    const [isRecipientAContract, relayerBalanceOfToken] = await Promise.all([
-      isContractAddress(recipientAddress, provider),
-      getTokenBalance(relayerAddress, fillToSimulate.destinationToken, provider),
-    ]);
-    if (!isRecipientAContract) {
-      throw new Error("Could not simulate message fill. Recipient address is not a contract address");
     }
     if (toBN(relayerBalanceOfToken).lt(toBN(amountToRelay))) {
       throw new Error("Could not simulate message fill. Partial fills are not supported with message relaying");
