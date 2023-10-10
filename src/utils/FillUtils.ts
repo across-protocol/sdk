@@ -1,36 +1,49 @@
-import { DEFAULT_SIMULATED_RELAYER_ADDRESS } from "../constants";
-import { Deposit, Fill } from "../interfaces";
-import { bnZero } from "./BigNumberUtils";
+import { BigNumberish } from "ethers";
+import { DEFAULT_SIMULATED_RELAYER_ADDRESS, EMPTY_MESSAGE } from "../constants";
+import { Fill } from "../interfaces";
+import { bnZero, toBN } from "./BigNumberUtils";
+import { resolveContractFromSymbol } from "./TokenUtils";
+import { isDefined } from "./TypeGuards";
+import { randomAddress } from "./common";
 
 export function buildFillForSimulatingFullDeposit(
-  deposit: Deposit,
+  amountToRelay: BigNumberish,
+  tokenSymbol: string,
+  originChainId: number,
+  destinationChainId: number,
+  recipientAddress: string,
+  message: string = EMPTY_MESSAGE,
+  depositorAddress = randomAddress(),
   relayerAddress = DEFAULT_SIMULATED_RELAYER_ADDRESS
 ): Fill {
+  const destinationToken = resolveContractFromSymbol(tokenSymbol, String(destinationChainId));
+  if (!isDefined(destinationToken)) {
+    throw new Error(`Could not resolve token contract for ${tokenSymbol} on ${destinationChainId}`);
+  }
+  const amount = toBN(amountToRelay);
   return {
-    amount: deposit.amount,
-    fillAmount: deposit.amount, // We're simulating a full fill
-    depositId: deposit.depositId,
-    destinationChainId: deposit.destinationChainId,
-    originChainId: deposit.originChainId,
-    totalFilledAmount: deposit.amount,
+    amount,
+    fillAmount: amount, // We're simulating a full fill
+    depositId: 0, // We want to avoid a direct depositId collision
+    destinationChainId,
+    originChainId,
+    destinationToken: destinationToken,
+    totalFilledAmount: amount,
     // We can set this to the destinationChainId since we are simulating a
     // full fill and we don't care
-    repaymentChainId: deposit.destinationChainId,
-    destinationToken: deposit.destinationToken,
+    repaymentChainId: destinationChainId,
     relayer: relayerAddress,
-    depositor: deposit.depositor,
-    message: deposit.message,
-    recipient: deposit.recipient,
-    relayerFeePct: deposit.relayerFeePct,
-    // We can do our best to accurately set the LP fee pct, but it's not
-    // required for the simulation
-    realizedLpFeePct: deposit.realizedLpFeePct ?? bnZero,
+    depositor: depositorAddress,
+    message: message,
+    recipient: recipientAddress,
+    relayerFeePct: bnZero,
+    realizedLpFeePct: bnZero,
     updatableRelayData: {
       isSlowRelay: false,
-      message: deposit.message,
+      message: message,
       payoutAdjustmentPct: bnZero,
-      recipient: deposit.recipient,
-      relayerFeePct: deposit.relayerFeePct,
+      recipient: recipientAddress,
+      relayerFeePct: bnZero,
     },
   };
 }

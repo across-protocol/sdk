@@ -301,13 +301,7 @@ export async function createUnsignedFillRelayTransactionFromFill(
   spokePool: SpokePool,
   fillToSimulate: Fill
 ): Promise<PopulatedTransaction> {
-  const {
-    message,
-    recipient: recipientAddress,
-    relayer: relayerAddress,
-    amount: amountToRelay,
-    depositor: depositorAddress,
-  } = fillToSimulate;
+  const { message, recipient: recipientAddress, relayer: relayerAddress, amount: amountToRelay } = fillToSimulate;
   const provider = spokePool.provider;
 
   const isMessageEmpty = message.length === 0 || message === "0x";
@@ -325,17 +319,17 @@ export async function createUnsignedFillRelayTransactionFromFill(
     }
   }
   return spokePool.populateTransaction.fillRelay(
-    depositorAddress,
-    recipientAddress,
+    fillToSimulate.depositor,
+    fillToSimulate.recipient,
     fillToSimulate.destinationToken,
-    amountToRelay,
+    fillToSimulate.amount,
     MAX_BIG_INT,
     fillToSimulate.repaymentChainId,
     fillToSimulate.originChainId,
     fillToSimulate.realizedLpFeePct,
     fillToSimulate.relayerFeePct,
     fillToSimulate.depositId,
-    message,
+    fillToSimulate.message,
     bnUint256Max,
     { from: relayerAddress }
   );

@@ -2,13 +2,10 @@ import assert from "assert";
 import { SpokePoolClient } from "../clients";
 import { DEFAULT_CACHING_TTL } from "../constants";
 import { CachingMechanismInterface, Deposit, DepositWithBlock, Fill } from "../interfaces";
-import { BigNumberish, bnZero, toBN } from "./BigNumberUtils";
 import { getDepositInCache, getDepositKey, setDepositInCache } from "./CachingUtils";
 import { validateFillForDeposit } from "./FlowUtils";
 import { getCurrentTime } from "./TimeUtils";
-import { resolveContractFromSymbol } from "./TokenUtils";
 import { isDefined } from "./TypeGuards";
-import { randomAddress } from "./common";
 
 // Load a deposit for a fill if the fill's deposit ID is outside this client's search range.
 // This can be used by the Dataworker to determine whether to give a relayer a refund for a fill
@@ -73,37 +70,4 @@ export async function queryHistoricalDepositForFill(
   }
 
   return validateFillForDeposit(fill, deposit) ? deposit : undefined;
-}
-
-export function createDepositForSimulatingGas(
-  amountToRelay: BigNumberish,
-  tokenSymbol: string,
-  originChainId: string,
-  destinationChainId: string,
-  recipientAddress: string,
-  message?: string,
-  depositorAddress = randomAddress()
-): Deposit {
-  const originToken = resolveContractFromSymbol(tokenSymbol, originChainId);
-  const destinationToken = resolveContractFromSymbol(tokenSymbol, destinationChainId);
-  if (!isDefined(originToken) || !isDefined(destinationToken)) {
-    throw new Error(`Could not resolve token contract for ${tokenSymbol} on ${originChainId} or ${destinationChainId}`);
-  }
-
-  return {
-    // We want to set the deposit ID to 0 so that there
-    // is no chance of a collision with a real deposit
-    depositId: 0,
-    amount: toBN(amountToRelay),
-    depositor: depositorAddress,
-    destinationChainId: Number(destinationChainId),
-    originChainId: Number(originChainId),
-    message: message ?? "0x",
-    originToken,
-    destinationToken,
-    recipient: recipientAddress,
-    relayerFeePct: bnZero,
-    realizedLpFeePct: bnZero,
-    quoteTimestamp: getCurrentTime(),
-  };
 }

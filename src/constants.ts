@@ -54,3 +54,5 @@ export const UBA_BOUNDS_RANGE_MAX = BigNumber.from(String(Number.MAX_SAFE_INTEGE
 export const UBA_BOUNDS_RANGE_MIN = UBA_BOUNDS_RANGE_MAX.mul(-1);
 
 export const DEFAULT_SIMULATED_RELAYER_ADDRESS = "0x428AB2BA90Eba0a4Be7aF34C9Ac451ab061AC010";
+
+export const EMPTY_MESSAGE = "0x";

@@ -10,14 +10,20 @@ import {
   max,
   percent,
   MAX_BIG_INT,
-  createDepositForSimulatingGas,
 } from "../utils";
-import { Deposit } from "../interfaces";
-import { DEFAULT_SIMULATED_RELAYER_ADDRESS } from "../constants";
+import { DEFAULT_SIMULATED_RELAYER_ADDRESS, EMPTY_MESSAGE } from "../constants";
 
 // This needs to be implemented for every chain and passed into RelayFeeCalculator
 export interface QueryInterface {
-  getGasCosts: (deposit: Deposit, relayAddress?: string) => Promise<BigNumberish>;
+  getGasCosts: (
+    amountToRelay: BigNumber,
+    tokenSymbol: string,
+    originChainId: number,
+    destinationChainId: number,
+    recipientAddress: string,
+    message: string,
+    relayerAddress: string
+  ) => Promise<BigNumberish>;
   getTokenPrice: (tokenSymbol: string) => Promise<number>;
   getTokenDecimals: (tokenSymbol: string) => number;
 }
@@ -207,7 +213,7 @@ export class RelayFeeCalculator {
     originChainId: number,
     destinationChainId: number,
     recipientAddress: string,
-    message?: string,
+    message = EMPTY_MESSAGE,
     relayerAddress = DEFAULT_SIMULATED_RELAYER_ADDRESS,
     _tokenPrice?: number
   ): Promise<BigNumber> {
@@ -215,14 +221,12 @@ export class RelayFeeCalculator {
 
     const getGasCosts = this.queries
       .getGasCosts(
-        createDepositForSimulatingGas(
-          amountToRelay,
-          tokenSymbol,
-          originChainId.toString(),
-          destinationChainId.toString(),
-          recipientAddress,
-          message
-        ),
+        toBN(amountToRelay),
+        tokenSymbol,
+        originChainId,
+        destinationChainId,
+        recipientAddress,
+        message,
         relayerAddress
       )
       .catch((error) => {
