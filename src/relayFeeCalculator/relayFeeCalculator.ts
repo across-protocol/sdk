@@ -206,10 +206,8 @@ export class RelayFeeCalculator {
     tokenSymbol: string,
     originChainId: number,
     destinationChainId: number,
-    messagePayload?: {
-      message: string;
-      recipientAddress: string;
-    },
+    recipientAddress: string,
+    message?: string,
     relayerAddress = DEFAULT_SIMULATED_RELAYER_ADDRESS,
     _tokenPrice?: number
   ): Promise<BigNumber> {
@@ -223,7 +221,8 @@ export class RelayFeeCalculator {
           originChainId.toString(),
           destinationChainId.toString(),
           relayerAddress,
-          messagePayload
+          recipientAddress,
+          message
         ),
         relayerAddress
       )
@@ -304,20 +303,19 @@ export class RelayFeeCalculator {
     tokenSymbol: string,
     originRoute: ChainIdAsString,
     destinationRoute: ChainIdAsString,
-    messagePayload?: {
-      message: string;
-      recipientAddress: string;
-      relayerAddress?: string;
-    },
-    tokenPrice?: number
+    recipientAddress: string,
+    message?: string,
+    tokenPrice?: number,
+    relayerAddress = DEFAULT_SIMULATED_RELAYER_ADDRESS
   ): Promise<RelayerFeeDetails> {
     const gasFeePercent = await this.gasFeePercent(
       amountToRelay,
       tokenSymbol,
       Number(originRoute),
       Number(destinationRoute),
-      messagePayload,
-      messagePayload?.relayerAddress ?? DEFAULT_SIMULATED_RELAYER_ADDRESS,
+      recipientAddress,
+      message,
+      relayerAddress,
       tokenPrice
     );
     const gasFeeTotal = gasFeePercent.mul(amountToRelay).div(fixedPointAdjustment);

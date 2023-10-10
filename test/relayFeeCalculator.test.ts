@@ -1,7 +1,7 @@
 import dotenv from "dotenv";
 import { RelayFeeCalculator, QueryInterface } from "../src/relayFeeCalculator/relayFeeCalculator";
 import { gasCost, BigNumberish, toBNWei, toBN } from "../src/utils";
-import { assert, expect } from "./utils";
+import { assert, expect, randomAddress } from "./utils";
 
 dotenv.config({ path: ".env" });
 
@@ -66,24 +66,24 @@ describe("RelayFeeCalculator", () => {
       [104729, toBNWei("2.917740071995340354").toString()], // ~291%
     ];
     for (const [input, truth] of gasFeePercents) {
-      const result = (await client.gasFeePercent(input, "usdc", 1, 10)).toString();
+      const result = (await client.gasFeePercent(input, "usdc", 1, 10, randomAddress())).toString();
       expect(result).to.be.eq(truth);
     }
   });
   it("relayerFeeDetails", async () => {
     client = new RelayFeeCalculator({ queries });
-    const result = await client.relayerFeeDetails(100e6, "usdc", "10", "1");
+    const result = await client.relayerFeeDetails(100e6, "usdc", "10", "1", randomAddress());
     assert.ok(result);
 
     // overriding token price also succeeds
-    const resultWithPrice = await client.relayerFeeDetails(100e6, "usdc", "10", "1", undefined, 1.01);
+    const resultWithPrice = await client.relayerFeeDetails(100e6, "usdc", "10", "1", randomAddress(), undefined, 1.01);
     assert.ok(resultWithPrice);
 
     // gasFeePercent is lower if token price is higher.
     assert.equal(
       true,
       toBN(resultWithPrice.gasFeePercent).lt(
-        (await client.relayerFeeDetails(100e6, "usdc", "1", "10", undefined, 1.0)).gasFeePercent
+        (await client.relayerFeeDetails(100e6, "usdc", "1", "10", randomAddress(), undefined, 1.0)).gasFeePercent
       )
     );
 
@@ -95,13 +95,13 @@ describe("RelayFeeCalculator", () => {
     client = new RelayFeeCalculator({ queries, feeLimitPercent: 10 });
     // Compute relay fee details for an $1000 transfer. Capital fee % is 0 so maxGasFeePercent should be equal to fee
     // limit percent.
-    const relayerFeeDetails = await client.relayerFeeDetails(1000e6, "usdc", "10", "1");
+    const relayerFeeDetails = await client.relayerFeeDetails(1000e6, "usdc", "10", "1", randomAddress());
     assert.equal(relayerFeeDetails.maxGasFeePercent, toBNWei("0.1").toString());
     assert.equal(relayerFeeDetails.gasFeeTotal, "305572"); // 305,572 gas units
     assert.equal(relayerFeeDetails.minDeposit, toBNWei("3.05572", 6).toString()); // 305,572 / 0.1 = 3055720 then divide by 1e6
     assert.equal(relayerFeeDetails.isAmountTooLow, false);
-    assert.equal((await client.relayerFeeDetails(10e6, "usdc", "10", "1")).isAmountTooLow, false);
-    assert.equal((await client.relayerFeeDetails(1e6, "usdc", "10", "1")).isAmountTooLow, true);
+    assert.equal((await client.relayerFeeDetails(10e6, "usdc", "10", "1", randomAddress())).isAmountTooLow, false);
+    assert.equal((await client.relayerFeeDetails(1e6, "usdc", "10", "1", randomAddress())).isAmountTooLow, true);
   });
   it("capitalFeePercent", () => {
     // Invalid capital cost configs throws on construction:

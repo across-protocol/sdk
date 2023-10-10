@@ -1,13 +1,14 @@
 import assert from "assert";
 import { SpokePoolClient } from "../clients";
-import { Fill, DepositWithBlock, Deposit, CachingMechanismInterface } from "../interfaces";
+import { DEFAULT_CACHING_TTL } from "../constants";
+import { CachingMechanismInterface, Deposit, DepositWithBlock, Fill } from "../interfaces";
+import { BigNumberish, bnZero, toBN } from "./BigNumberUtils";
+import { getDepositInCache, getDepositKey, setDepositInCache } from "./CachingUtils";
 import { validateFillForDeposit } from "./FlowUtils";
 import { getCurrentTime } from "./TimeUtils";
-import { isDefined } from "./TypeGuards";
-import { getDepositInCache, getDepositKey, setDepositInCache } from "./CachingUtils";
-import { DEFAULT_CACHING_TTL, ZERO_ADDRESS } from "../constants";
 import { resolveContractFromSymbol } from "./TokenUtils";
-import { BigNumberish, bnZero, toBN } from "./BigNumberUtils";
+import { isDefined } from "./TypeGuards";
+import { randomAddress } from "./common";
 
 // Load a deposit for a fill if the fill's deposit ID is outside this client's search range.
 // This can be used by the Dataworker to determine whether to give a relayer a refund for a fill
@@ -80,10 +81,8 @@ export function createDepositForSimulatingGas(
   originChainId: string,
   destinationChainId: string,
   relayerAddress: string,
-  messagePayload?: {
-    message: string;
-    recipientAddress: string;
-  }
+  recipientAddress: string,
+  message?: string
 ): Deposit {
   const originToken = resolveContractFromSymbol(tokenSymbol, originChainId);
   const destinationToken = resolveContractFromSymbol(tokenSymbol, destinationChainId);
@@ -96,13 +95,13 @@ export function createDepositForSimulatingGas(
     // is no chance of a collision with a real deposit
     depositId: 0,
     amount: toBN(amountToRelay),
-    depositor: relayerAddress ?? ZERO_ADDRESS,
+    depositor: relayerAddress ?? randomAddress(),
     destinationChainId: Number(destinationChainId),
     originChainId: Number(originChainId),
-    message: messagePayload?.message ?? "0x",
+    message: message ?? "0x",
     originToken,
     destinationToken,
-    recipient: messagePayload?.recipientAddress ?? ZERO_ADDRESS,
+    recipient: recipientAddress,
     relayerFeePct: bnZero,
     realizedLpFeePct: bnZero,
     quoteTimestamp: getCurrentTime(),
