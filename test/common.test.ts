@@ -5,7 +5,6 @@ import { providers } from "ethers";
 import {
   createUnsignedFillRelayTransactionFromFill,
   estimateTotalGasRequiredByUnsignedTransaction,
-  randomAddress,
   retry,
   toBNWei,
 } from "../src/utils/common";
@@ -48,7 +47,7 @@ describe("Utils test", () => {
     const provider = new providers.JsonRpcProvider(rpcUrl, 1);
     const spokePool: SpokePool = SpokePool__factory.connect(spokePoolAddress, provider);
 
-    const deposit = createDepositForSimulatingGas("1", "USDC", "42161", "10", relayerAddress, randomAddress());
+    const deposit = createDepositForSimulatingGas("1", "USDC", "42161", "10", relayerAddress);
     const fill: Fill = buildFillForSimulatingFullDeposit(deposit, relayerAddress);
     const unsignedTxn = await createUnsignedFillRelayTransactionFromFill(spokePool, fill);
     const refGasEstimate = await estimateTotalGasRequiredByUnsignedTransaction(

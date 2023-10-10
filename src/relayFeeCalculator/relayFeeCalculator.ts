@@ -220,7 +220,6 @@ export class RelayFeeCalculator {
           tokenSymbol,
           originChainId.toString(),
           destinationChainId.toString(),
-          relayerAddress,
           recipientAddress,
           message
         ),

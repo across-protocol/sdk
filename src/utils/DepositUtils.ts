@@ -80,9 +80,9 @@ export function createDepositForSimulatingGas(
   tokenSymbol: string,
   originChainId: string,
   destinationChainId: string,
-  relayerAddress: string,
   recipientAddress: string,
-  message?: string
+  message?: string,
+  depositorAddress = randomAddress()
 ): Deposit {
   const originToken = resolveContractFromSymbol(tokenSymbol, originChainId);
   const destinationToken = resolveContractFromSymbol(tokenSymbol, destinationChainId);
@@ -95,7 +95,7 @@ export function createDepositForSimulatingGas(
     // is no chance of a collision with a real deposit
     depositId: 0,
     amount: toBN(amountToRelay),
-    depositor: relayerAddress ?? randomAddress(),
+    depositor: depositorAddress,
     destinationChainId: Number(destinationChainId),
     originChainId: Number(originChainId),
     message: message ?? "0x",
