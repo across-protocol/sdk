@@ -9,7 +9,6 @@ import { TypedMessage } from "../interfaces/TypedData";
 import { SpokePool } from "../typechain";
 import { BigNumberish, BN, bnUint256Max, toBN } from "./BigNumberUtils";
 import { ConvertDecimals } from "./FormattingUtils";
-import { getTokenBalance } from "./TokenUtils";
 
 export type Decimalish = string | number | Decimal;
 export const AddressZero = ethers.constants.AddressZero;
@@ -297,27 +296,10 @@ export async function estimateTotalGasRequiredByUnsignedTransaction(
  * @param fillToSimulate The fill that this function will use to populate the unsigned transaction
  * @returns An unsigned transaction that can be used to simulate the gas cost of filling a relay
  */
-export async function createUnsignedFillRelayTransactionFromFill(
+export function createUnsignedFillRelayTransactionFromFill(
   spokePool: SpokePool,
   fillToSimulate: Fill
 ): Promise<PopulatedTransaction> {
-  const { message, recipient: recipientAddress, relayer: relayerAddress, amount: amountToRelay } = fillToSimulate;
-  const provider = spokePool.provider;
-
-  const isMessageEmpty = message.length === 0 || message === "0x";
-
-  // Only continue sanity checks if the message
-  if (!isMessageEmpty) {
-    const relayerBalanceOfToken = await getTokenBalance(relayerAddress, fillToSimulate.destinationToken, provider);
-    const isRecipientAnAddress = ethers.utils.isAddress(recipientAddress);
-    const isRelayerAnAddress = ethers.utils.isAddress(relayerAddress);
-    if (!isRecipientAnAddress || !isRelayerAnAddress) {
-      throw new Error("Could not simulate message fill. Recipient address or relayer address is not a valid address");
-    }
-    if (toBN(relayerBalanceOfToken).lt(toBN(amountToRelay))) {
-      throw new Error("Could not simulate message fill. Partial fills are not supported with message relaying");
-    }
-  }
   return spokePool.populateTransaction.fillRelay(
     fillToSimulate.depositor,
     fillToSimulate.recipient,
@@ -331,7 +313,7 @@ export async function createUnsignedFillRelayTransactionFromFill(
     fillToSimulate.depositId,
     fillToSimulate.message,
     bnUint256Max,
-    { from: relayerAddress }
+    { from: fillToSimulate.relayer }
   );
 }
 
