@@ -65,6 +65,9 @@ export async function queryHistoricalDepositForFill(
         fill,
         cachedDeposit,
       });
+      // By setting this value to undefined, we eventually have to pull
+      // the deposit from our spoke pool client. Because this new deposit
+      // is formed correctly, we will cache it below.
       cachedDeposit = undefined;
     }
   }
