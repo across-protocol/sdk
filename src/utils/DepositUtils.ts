@@ -55,6 +55,9 @@ export async function queryHistoricalDepositForFill(
   let deposit: DepositWithBlock, cachedDeposit: Deposit | undefined;
   if (cache) {
     cachedDeposit = await getDepositInCache(getDepositKey(fill), cache);
+    // We only want to warn and remove the cached deposit if it
+    //    A: exists
+    //    B: is not formed correctly
     if (isDefined(cachedDeposit) && !isDepositFormedCorrectly(cachedDeposit)) {
       spokePoolClient.logger.warn({
         at: "[SDK]:DepositUtils#queryHistoricalDepositForFill",
