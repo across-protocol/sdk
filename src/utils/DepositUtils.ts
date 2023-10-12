@@ -1,11 +1,11 @@
-import assert from "assert";
 import { SpokePoolClient } from "../clients";
-import { Fill, DepositWithBlock, Deposit, CachingMechanismInterface } from "../interfaces";
+import { DEFAULT_CACHING_TTL } from "../constants";
+import { CachingMechanismInterface, Deposit, DepositWithBlock, Fill } from "../interfaces";
+import { getDepositInCache, getDepositKey, setDepositInCache } from "./CachingUtils";
 import { validateFillForDeposit } from "./FlowUtils";
 import { getCurrentTime } from "./TimeUtils";
 import { isDefined } from "./TypeGuards";
-import { getDepositInCache, getDepositKey, setDepositInCache } from "./CachingUtils";
-import { DEFAULT_CACHING_TTL } from "../constants";
+import { isDepositFormedCorrectly } from "./ValidatorUtils";
 
 // Load a deposit for a fill if the fill's deposit ID is outside this client's search range.
 // This can be used by the Dataworker to determine whether to give a relayer a refund for a fill
@@ -55,15 +55,21 @@ export async function queryHistoricalDepositForFill(
   let deposit: DepositWithBlock, cachedDeposit: Deposit | undefined;
   if (cache) {
     cachedDeposit = await getDepositInCache(getDepositKey(fill), cache);
+    if (isDefined(cachedDeposit) && !isDepositFormedCorrectly(cachedDeposit)) {
+      spokePoolClient.logger.warn({
+        at: "[SDK]:DepositUtils#queryHistoricalDepositForFill",
+        message: "Cached deposit was not formed correctly, removing from cache",
+        fill,
+        cachedDeposit,
+      });
+      cachedDeposit = undefined;
+    }
   }
 
   if (isDefined(cachedDeposit)) {
     deposit = cachedDeposit as DepositWithBlock;
-    // Assert that cache hasn't been corrupted.
-    assert(deposit.depositId === fill.depositId && deposit.originChainId === fill.originChainId);
   } else {
     deposit = await spokePoolClient.findDeposit(fill.depositId, fill.destinationChainId, fill.depositor);
-
     if (cache) {
       await setDepositInCache(deposit, getCurrentTime(), cache, DEFAULT_CACHING_TTL);
     }
