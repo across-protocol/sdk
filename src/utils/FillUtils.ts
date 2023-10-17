@@ -1,7 +1,7 @@
 import { BigNumberish } from "ethers";
 import { DEFAULT_SIMULATED_RELAYER_ADDRESS, EMPTY_MESSAGE } from "../constants";
 import { Fill } from "../interfaces";
-import { bnZero, toBN } from "./BigNumberUtils";
+import { bnUint32Max, bnZero, toBN } from "./BigNumberUtils";
 import { resolveContractFromSymbol } from "./TokenUtils";
 import { isDefined } from "./TypeGuards";
 import { randomAddress } from "./common";
@@ -24,7 +24,7 @@ export function buildFillForSimulatingFullDeposit(
   return {
     amount,
     fillAmount: amount, // We're simulating a full fill
-    depositId: 0, // We want to avoid a direct depositId collision
+    depositId: bnUint32Max.toNumber(), // We want to avoid a direct depositId collision
     destinationChainId,
     originChainId,
     destinationToken: destinationToken,
