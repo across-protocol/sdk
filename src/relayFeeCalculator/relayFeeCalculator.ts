@@ -127,10 +127,11 @@ export class RelayFeeCalculator {
       "feeLimitPercent must be between 0 and 100 percent"
     );
     this.capitalCostsConfig = Object.fromEntries(
-      Object.entries(config.capitalCostsConfig || {}).map(([token, capitalCosts]) => {
+      Object.entries(config.capitalCostsConfig).map(([token, capitalCosts]) => {
         return [token.toUpperCase(), RelayFeeCalculator.validateAndTransformCapitalCostsConfigOverride(capitalCosts)];
       })
     );
+    assert(Object.keys(this.capitalCostsConfig).length > 0, "capitalCostsConfig must have at least one entry");
     this.logger = logger || DEFAULT_LOGGER;
   }
 
