@@ -1,7 +1,7 @@
 {
   "name": "@across-protocol/sdk-v2",
   "author": "UMA Team",
-  "version": "0.17.2",
+  "version": "0.17.4",
   "license": "AGPL-3.0",
   "homepage": "https://docs.across.to/v/developer-docs/developers/across-sdk",
   "files": [
@@ -15,9 +15,12 @@
     "vc:dev": "vercel dev",
     "start": "nodemon -e ts,tsx,json,js,jsx --watch ./src --ignore ./dist --exec 'yarn build'",
     "build": "yarn run clean && yarn run build:cjs && yarn run build:esm && yarn run build:types",
-    "build:cjs": "tsc --project tsconfig.build.json --module commonjs --outDir ./dist/cjs --removeComments --verbatimModuleSyntax false && echo > ./dist/cjs/package.json '{\"type\":\"commonjs\"}'",
-    "build:esm": "tsc --project tsconfig.build.json --module es2015 --outDir ./dist/esm && echo > ./dist/esm/package.json '{\"type\":\"module\",\"sideEffects\":false}'",
+    "build:cjs": "tsc --project tsconfig.build.json --module commonjs --outDir ./dist/cjs --removeComments --verbatimModuleSyntax false && echo > ./dist/cjs/package.json '{\"type\":\"commonjs\"}' && yarn copy-abi:cjs",
+    "build:esm": "tsc --project tsconfig.build.json --module es2015 --outDir ./dist/esm && echo > ./dist/esm/package.json '{\"type\":\"module\",\"sideEffects\":false}' && yarn copy-abi:esm",
     "build:types": "tsc --project tsconfig.build.json --module esnext --declarationDir ./dist/types --emitDeclarationOnly --declaration --declarationMap",
+    "copy-abi:cjs": "DIR=cjs yarn copy-abi",
+    "copy-abi:esm": "DIR=esm yarn copy-abi",
+    "copy-abi": "abi=utils/abi/contracts; dstdir=\"./dist/${DIR}/${abi}\"; mkdir -p \"${dstdir}\"; cp ./src/${abi}/*.json \"${dstdir}\"",
     "test": "hardhat test",
     "test:watch": "hardhat watch test",
     "lint": "eslint --fix src test e2e",

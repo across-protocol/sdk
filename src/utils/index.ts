@@ -1,4 +1,5 @@
 export * from "./common";
+export * from "./abi";
 export * from "./ArrayUtils";
 export * from "./BlockUtils";
 export * from "./EventUtils";
@@ -22,4 +23,5 @@ export * from "./CachingUtils";
 export * from "./NetworkUtils";
 export * from "./ReviverUtils";
 export * from "./DepositUtils";
+export * from "./ValidatorUtils";
 export * from "./FillUtils";

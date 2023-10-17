@@ -10,6 +10,7 @@ import {
   max,
   percent,
   MAX_BIG_INT,
+  isDefined,
 } from "../utils";
 import { DEFAULT_SIMULATED_RELAYER_ADDRESS, EMPTY_MESSAGE } from "../constants";
 
@@ -46,8 +47,7 @@ export interface BaseRelayFeeCalculatorConfig {
   gasDiscountPercent?: number;
   capitalDiscountPercent?: number;
   feeLimitPercent?: number;
-  capitalCostsPercent?: number;
-  capitalCostsConfig?: {
+  capitalCostsConfig: {
     [token: string]: CapitalCostConfig | CapitalCostConfigOverride;
   };
 }
@@ -100,7 +100,6 @@ export class RelayFeeCalculator {
   private capitalDiscountPercent: Required<RelayFeeCalculatorConfig>["capitalDiscountPercent"];
   private feeLimitPercent: Required<RelayFeeCalculatorConfig>["feeLimitPercent"];
   private nativeTokenDecimals: Required<RelayFeeCalculatorConfig>["nativeTokenDecimals"];
-  private capitalCostsPercent: Required<RelayFeeCalculatorConfig>["capitalCostsPercent"];
   private capitalCostsConfig: { [token: string]: CapitalCostConfigOverride };
 
   // For logging if set. This function should accept 2 args - severity (INFO, WARN, ERROR) and the logs data, which will
@@ -124,7 +123,6 @@ export class RelayFeeCalculator {
     this.capitalDiscountPercent = config.capitalDiscountPercent || 0;
     this.feeLimitPercent = config.feeLimitPercent || 0;
     this.nativeTokenDecimals = config.nativeTokenDecimals || 18;
-    this.capitalCostsPercent = config.capitalCostsPercent || 0;
     assert(
       this.gasDiscountPercent >= 0 && this.gasDiscountPercent <= 100,
       "gasDiscountPercent must be between 0 and 100 percent"
@@ -137,17 +135,12 @@ export class RelayFeeCalculator {
       this.feeLimitPercent >= 0 && this.feeLimitPercent <= 100,
       "feeLimitPercent must be between 0 and 100 percent"
     );
-    assert(
-      this.capitalCostsPercent >= 0 && this.capitalCostsPercent <= 100,
-      "capitalCostsPercent must be between 0 and 100 percent"
+    this.capitalCostsConfig = Object.fromEntries(
+      Object.entries(config.capitalCostsConfig).map(([token, capitalCosts]) => {
+        return [token.toUpperCase(), RelayFeeCalculator.validateAndTransformCapitalCostsConfigOverride(capitalCosts)];
+      })
     );
-    this.capitalCostsConfig = {};
-    for (const token of Object.keys(config.capitalCostsConfig || {})) {
-      this.capitalCostsConfig[token] = RelayFeeCalculator.validateAndTransformCapitalCostsConfigOverride(
-        (config.capitalCostsConfig || {})[token]
-      );
-    }
-
+    assert(Object.keys(this.capitalCostsConfig).length > 0, "capitalCostsConfig must have at least one entry");
     this.logger = logger || DEFAULT_LOGGER;
   }
 
@@ -257,22 +250,26 @@ export class RelayFeeCalculator {
     // If amount is 0, then the capital fee % should be the max 100%
     if (toBN(_amountToRelay).eq(toBN(0))) return MAX_BIG_INT;
 
-    // V0: Charge fixed capital fee
-    const defaultFee = toBNWei(this.capitalCostsPercent / 100);
-
+    // V0: Ensure that there is a capital fee available for the token.
+    // If not, then we should throw an error because this is indicative
+    // of a misconfiguration.
+    const tokenCostConfig = this.capitalCostsConfig[_tokenSymbol.toUpperCase()];
+    if (!isDefined(tokenCostConfig)) {
+      this.logger.error({
+        at: "sdk-v2/capitalFeePercent",
+        message: `No capital fee available for token ${_tokenSymbol}`,
+      });
+      throw new Error(`No capital cost config available for token ${_tokenSymbol}`);
+    }
     // V1: Charge fee that scales with size. This will charge a fee % based on a linear fee curve with a "kink" at a
     // cutoff in the same units as _amountToRelay. Before the kink, the fee % will increase linearly from a lower
     // bound to an upper bound. After the kink, the fee % increase will be fixed, and slowly approach the upper bound
     // for very large amount inputs.
-    if (this.capitalCostsConfig[_tokenSymbol]) {
-      const overrideConfig = this.capitalCostsConfig[_tokenSymbol];
-      let config = overrideConfig.default;
-      if (_originRoute && _destinationRoute && overrideConfig.routeOverrides) {
-        const potentialDestinationRoutes = overrideConfig.routeOverrides[_originRoute];
-        if (potentialDestinationRoutes) {
-          config = potentialDestinationRoutes[_destinationRoute] || config;
-        }
-      }
+    else {
+      const config =
+        isDefined(_originRoute) && isDefined(_destinationRoute)
+          ? tokenCostConfig.routeOverrides?.[_originRoute]?.[_destinationRoute] ?? tokenCostConfig.default
+          : tokenCostConfig.default;
 
       // Scale amount "y" to 18 decimals.
       const y = toBN(_amountToRelay).mul(toBNWei("1", 18 - config.decimals));
@@ -298,8 +295,6 @@ export class RelayFeeCalculator {
 
       return minCharge.add(triangleCharge).add(remainderCharge).mul(fixedPointAdjustment).div(y);
     }
-
-    return defaultFee;
   }
   async relayerFeeDetails(
     amountToRelay: BigNumberish,

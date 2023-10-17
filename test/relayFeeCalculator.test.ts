@@ -6,7 +6,9 @@ import { assert, expect, randomAddress } from "./utils";
 dotenv.config({ path: ".env" });
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-const testCapitalCostsConfig: { [token: string]: any } = {
+const testCapitalCostsConfig: {
+  [token: string]: { lowerBound: string; upperBound: string; cutoff: string; decimals: number };
+} = {
   WBTC: {
     lowerBound: toBNWei("0.0003").toString(),
     upperBound: toBNWei("0.002").toString(),
@@ -31,6 +33,12 @@ const testCapitalCostsConfig: { [token: string]: any } = {
     cutoff: "0",
     decimals: 8,
   },
+  USDC: {
+    lowerBound: toBNWei("0").toString(),
+    upperBound: toBNWei("0").toString(),
+    cutoff: toBNWei("0").toString(),
+    decimals: 6,
+  },
 };
 
 // Example of how to write this query class
@@ -54,7 +62,7 @@ describe("RelayFeeCalculator", () => {
     queries = new ExampleQueries();
   });
   it("gasPercentageFee", async () => {
-    client = new RelayFeeCalculator({ queries });
+    client = new RelayFeeCalculator({ queries, capitalCostsConfig: testCapitalCostsConfig });
     // A list of inputs and ground truth [input, ground truth]
     const gasFeePercents = [
       [0, Number.MAX_SAFE_INTEGER.toString()], // Infinite%
@@ -71,7 +79,7 @@ describe("RelayFeeCalculator", () => {
     }
   });
   it("relayerFeeDetails", async () => {
-    client = new RelayFeeCalculator({ queries });
+    client = new RelayFeeCalculator({ queries, capitalCostsConfig: testCapitalCostsConfig });
     const result = await client.relayerFeeDetails(100e6, "usdc", "10", "1", randomAddress());
     assert.ok(result);
 
@@ -92,7 +100,7 @@ describe("RelayFeeCalculator", () => {
     assert.equal(resultWithPrice.minDeposit, Number.MAX_SAFE_INTEGER.toString());
 
     // Set fee limit percent to 10%:
-    client = new RelayFeeCalculator({ queries, feeLimitPercent: 10 });
+    client = new RelayFeeCalculator({ queries, feeLimitPercent: 10, capitalCostsConfig: testCapitalCostsConfig });
     // Compute relay fee details for an $1000 transfer. Capital fee % is 0 so maxGasFeePercent should be equal to fee
     // limit percent.
     const relayerFeeDetails = await client.relayerFeeDetails(1000e6, "usdc", "10", "1", randomAddress());
@@ -173,11 +181,13 @@ describe("RelayFeeCalculator", () => {
     const client = new RelayFeeCalculator({
       queries,
       capitalCostsConfig: testCapitalCostsConfig,
-      capitalCostsPercent: 0.01,
     });
 
-    // If token doesn't have a config set, then returns default fixed fee %:
-    assert.equal(client.capitalFeePercent(toBNWei("1"), "UNKNOWN").toString(), toBNWei("0.0001").toString());
+    // If token doesn't have a config set, then throws an error.
+    assert.throws(
+      () => client.capitalFeePercent(toBNWei("1"), "UNKNOWN"),
+      /No capital cost config available for token/
+    );
 
     // Test with different decimals:
 
