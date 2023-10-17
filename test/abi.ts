@@ -1,6 +1,6 @@
 import * as fs from "fs/promises";
 import { getABI, getABIDir } from "../src/utils/abi";
-import { assertPromiseError, expect } from "./utils";
+import { assertPromiseError, assertPromisePasses } from "./utils";
 
 describe("ABI Utils", () => {
   describe("getABI", () => {
@@ -10,7 +10,7 @@ describe("ABI Utils", () => {
       // Strip any trailing '.json', since readdir() returns the
       // full filename but callers should only supply the ABI name.
       for (const abiFile of abiFiles.map((abi) => abi.slice(0, abi.lastIndexOf(".json")))) {
-        expect(await getABI(abiFile)).to.not.throw;
+        await assertPromisePasses(getABI(abiFile));
       }
     });
 
