@@ -238,13 +238,10 @@ export class RelayFeeCalculator {
     // bound to an upper bound. After the kink, the fee % increase will be fixed, and slowly approach the upper bound
     // for very large amount inputs.
     else {
-      let config = tokenCostConfig.default;
-      if (_originRoute && _destinationRoute && tokenCostConfig.routeOverrides) {
-        const potentialDestinationRoutes = tokenCostConfig.routeOverrides[_originRoute];
-        if (potentialDestinationRoutes) {
-          config = potentialDestinationRoutes[_destinationRoute] || config;
-        }
-      }
+      const config =
+        isDefined(_originRoute) && isDefined(_destinationRoute)
+          ? tokenCostConfig.routeOverrides?.[_originRoute]?.[_destinationRoute] ?? tokenCostConfig.default
+          : tokenCostConfig.default;
 
       // Scale amount "y" to 18 decimals.
       const y = toBN(_amountToRelay).mul(toBNWei("1", 18 - config.decimals));
