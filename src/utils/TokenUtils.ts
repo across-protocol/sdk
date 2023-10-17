@@ -3,6 +3,7 @@ import { BigNumber, Contract, providers, Signer } from "ethers";
 import * as constants from "../constants";
 import { L1Token } from "../interfaces";
 import { ERC20__factory } from "../typechain";
+import { isDefined } from "./TypeGuards";
 const { TOKEN_SYMBOLS_MAP, CHAIN_IDs } = constants;
 
 type SignerOrProvider = providers.Provider | Signer;
@@ -30,6 +31,19 @@ export const resolveContractFromSymbol = (symbol: string, chainId: string): stri
     return details.symbol.toLowerCase() === symbol.toLowerCase();
   })?.addresses[Number(chainId)];
 };
+
+export function getTokenInformationFromAddress(address: string): L1Token | undefined {
+  const details = Object.values(TOKEN_SYMBOLS_MAP).find((details) => {
+    return details.addresses[CHAIN_IDs.MAINNET].toLowerCase() === address.toLowerCase();
+  });
+  return isDefined(details)
+    ? {
+        decimals: details.decimals,
+        symbol: details.symbol,
+        address,
+      }
+    : undefined;
+}
 
 /**
  * Retrieves the ERC20 balance for a given address and token address.

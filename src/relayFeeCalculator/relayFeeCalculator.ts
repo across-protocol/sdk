@@ -11,20 +11,14 @@ import {
   percent,
   MAX_BIG_INT,
   isDefined,
+  getTokenInformationFromAddress,
 } from "../utils";
-import { DEFAULT_SIMULATED_RELAYER_ADDRESS, EMPTY_MESSAGE } from "../constants";
+import { DEFAULT_SIMULATED_RELAYER_ADDRESS } from "../constants";
+import { Deposit } from "../interfaces";
 
 // This needs to be implemented for every chain and passed into RelayFeeCalculator
 export interface QueryInterface {
-  getGasCosts: (
-    amountToRelay: BigNumber,
-    tokenSymbol: string,
-    originChainId: number,
-    destinationChainId: number,
-    recipientAddress: string,
-    message: string,
-    relayerAddress: string
-  ) => Promise<BigNumberish>;
+  getGasCosts: (deposit: Deposit, amountToRelay: BigNumberish, relayerAddress: string) => Promise<BigNumberish>;
   getTokenPrice: (tokenSymbol: string) => Promise<number>;
   getTokenDecimals: (tokenSymbol: string) => number;
 }
@@ -201,32 +195,23 @@ export class RelayFeeCalculator {
   }
 
   async gasFeePercent(
+    deposit: Deposit,
     amountToRelay: BigNumberish,
-    tokenSymbol: string,
-    originChainId: number,
-    destinationChainId: number,
-    recipientAddress: string,
-    message = EMPTY_MESSAGE,
     relayerAddress = DEFAULT_SIMULATED_RELAYER_ADDRESS,
     _tokenPrice?: number
   ): Promise<BigNumber> {
+    const tokenInformation = getTokenInformationFromAddress(deposit.originToken);
+    if (!isDefined(tokenInformation)) {
+      throw new Error(`Could not find token information for ${deposit.originToken}`);
+    }
+
     if (toBN(amountToRelay).eq(0)) return MAX_BIG_INT;
 
-    const getGasCosts = this.queries
-      .getGasCosts(
-        toBN(amountToRelay),
-        tokenSymbol,
-        originChainId,
-        destinationChainId,
-        recipientAddress,
-        message,
-        relayerAddress
-      )
-      .catch((error) => {
-        this.logger.error({ at: "sdk-v2/gasFeePercent", message: "Error while fetching gas costs", error });
-        throw error;
-      });
-    const getTokenPrice = this.queries.getTokenPrice(tokenSymbol).catch((error) => {
+    const getGasCosts = this.queries.getGasCosts(deposit, amountToRelay, relayerAddress).catch((error) => {
+      this.logger.error({ at: "sdk-v2/gasFeePercent", message: "Error while fetching gas costs", error });
+      throw error;
+    });
+    const getTokenPrice = this.queries.getTokenPrice(tokenInformation.symbol).catch((error) => {
       this.logger.error({ at: "sdk-v2/gasFeePercent", message: "Error while fetching token price", error });
       throw error;
     });
@@ -234,7 +219,7 @@ export class RelayFeeCalculator {
       getGasCosts,
       _tokenPrice !== undefined ? _tokenPrice : getTokenPrice,
     ]);
-    const decimals = this.queries.getTokenDecimals(tokenSymbol);
+    const decimals = this.queries.getTokenDecimals(tokenInformation.symbol);
     const gasFeesInToken = nativeToToken(gasCosts, tokenPrice, decimals, this.nativeTokenDecimals);
     return percent(gasFeesInToken, amountToRelay.toString());
   }
@@ -297,27 +282,29 @@ export class RelayFeeCalculator {
     }
   }
   async relayerFeeDetails(
-    amountToRelay: BigNumberish,
-    tokenSymbol: string,
-    originRoute: ChainIdAsString,
-    destinationRoute: ChainIdAsString,
-    recipientAddress: string,
-    message?: string,
-    tokenPrice?: number,
+    deposit: Deposit,
+    amountToRelay?: BigNumberish,
     relayerAddress = DEFAULT_SIMULATED_RELAYER_ADDRESS
   ): Promise<RelayerFeeDetails> {
-    const gasFeePercent = await this.gasFeePercent(
-      amountToRelay,
-      tokenSymbol,
-      Number(originRoute),
-      Number(destinationRoute),
-      recipientAddress,
-      message,
-      relayerAddress,
-      tokenPrice
-    );
+    // If the amount to relay is not provided, then we
+    // should use the full deposit amount.
+    if (!isDefined(amountToRelay)) {
+      amountToRelay = deposit.amount;
+    }
+
+    const tokenInformation = getTokenInformationFromAddress(deposit.originToken);
+    if (!isDefined(tokenInformation)) {
+      throw new Error(`Could not find token information for ${deposit.originToken}`);
+    }
+
+    const gasFeePercent = await this.gasFeePercent(deposit, amountToRelay, relayerAddress);
     const gasFeeTotal = gasFeePercent.mul(amountToRelay).div(fixedPointAdjustment);
-    const capitalFeePercent = this.capitalFeePercent(amountToRelay, tokenSymbol, originRoute, destinationRoute);
+    const capitalFeePercent = this.capitalFeePercent(
+      amountToRelay,
+      tokenInformation.symbol,
+      deposit.originChainId.toString(),
+      deposit.destinationChainId.toString()
+    );
     const capitalFeeTotal = capitalFeePercent.mul(amountToRelay).div(fixedPointAdjustment);
     const relayFeePercent = gasFeePercent.add(capitalFeePercent);
     const relayFeeTotal = gasFeeTotal.add(capitalFeeTotal);
@@ -342,7 +329,7 @@ export class RelayFeeCalculator {
 
     return {
       amountToRelay: amountToRelay.toString(),
-      tokenSymbol,
+      tokenSymbol: tokenInformation.symbol,
       gasFeePercent: gasFeePercent.toString(),
       gasFeeTotal: gasFeeTotal.toString(),
       gasDiscountPercent: this.gasDiscountPercent,
