@@ -11,6 +11,7 @@ import { BigNumberish, BN, bnUint256Max, bnZero, toBN } from "./BigNumberUtils";
 import { ConvertDecimals } from "./FormattingUtils";
 import { isMessageEmpty } from "./DepositUtils";
 import { isContractDeployedToAddress } from "./AddressUtils";
+import { getTokenBalance } from "./TokenUtils";
 
 export type Decimalish = string | number | Decimal;
 export const AddressZero = ethers.constants.AddressZero;
@@ -307,14 +308,6 @@ export async function createUnsignedFillRelayTransactionFromFill(
 ): Promise<PopulatedTransaction> {
   // We should perform some basic validation on our deposit.
 
-  // We should ensure that the amount to fill is less than or equal to the
-  // amount that was deposited.
-  if (amountToFill.gt(deposit.amount)) {
-    throw new Error(
-      `Amount to fill (${amountToFill.toString()}) is greater than the amount deposited (${deposit.amount.toString()})`
-    );
-  }
-
   // We should ensure that if a message is present
   // in either the original deposit or a sped-up deposit AND the
   // recipient is a contract, then we should ensure that the amount
@@ -338,8 +331,7 @@ export async function createUnsignedFillRelayTransactionFromFill(
   // We should check that the relayer has enough balance to facilitate this
   // transaction before we populate it.
   const relayerBalanceForToken =
-    _relayerBalanceForToken ??
-    (await ERC20__factory.connect(deposit.originToken, spokePool.provider).balanceOf(relayerAddress));
+    _relayerBalanceForToken ?? (await getTokenBalance(relayerAddress, deposit.originToken, spokePool.provider));
   if (relayerBalanceForToken.lt(amountToFill)) {
     throw new Error(
       `Relayer balance for token (${relayerBalanceForToken.toString()}) is less than the amount to fill (${amountToFill.toString()})`
