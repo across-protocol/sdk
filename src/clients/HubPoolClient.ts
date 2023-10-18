@@ -221,12 +221,12 @@ export class HubPoolClient extends BaseAbstractClient {
    * @param deposit Deposit event
    * @param returns string L1 token counterpart for Deposit
    */
-  getL1TokenForDeposit(deposit: Pick<DepositWithBlock, "originToken" | "originChainId">): string {
+  getL1TokenForDeposit(deposit: Pick<DepositWithBlock, "quoteBlockNumber" | "originToken" | "originChainId">): string {
     // L1-->L2 token mappings are set via PoolRebalanceRoutes which occur on mainnet,
     // so we use the latest token mapping. This way if a very old deposit is filled, the relayer can use the
     // latest L2 token mapping to find the L1 token counterpart.
 
-    return this.getL1TokenForL2TokenAtBlock(deposit.originToken, deposit.originChainId, this.latestBlockNumber);
+    return this.getL1TokenForL2TokenAtBlock(deposit.originToken, deposit.originChainId, deposit.quoteBlockNumber);
   }
 
   /**
@@ -236,12 +236,15 @@ export class HubPoolClient extends BaseAbstractClient {
    * @param event Deposit event
    * @returns string L2 token counterpart on l2ChainId
    */
-  getL2TokenForDeposit(l2ChainId: number, deposit: Pick<DepositWithBlock, "originToken" | "originChainId">): string {
+  getL2TokenForDeposit(
+    l2ChainId: number,
+    deposit: Pick<DepositWithBlock, "quoteBlockNumber" | "originToken" | "originChainId">
+  ): string {
     // First get L1 token associated with deposit.
     const l1Token = this.getL1TokenForDeposit(deposit);
 
     // Use the latest hub block number to find the L2 token counterpart.
-    return this.getL2TokenForL1TokenAtBlock(l1Token, l2ChainId, this.latestBlockNumber);
+    return this.getL2TokenForL1TokenAtBlock(l1Token, l2ChainId, deposit.quoteBlockNumber);
   }
 
   l2TokenEnabledForL1Token(l1Token: string, destinationChainId: number): boolean {
@@ -337,7 +340,7 @@ export class HubPoolClient extends BaseAbstractClient {
       };
     }
 
-    const l1Token = this.getL1TokenForDeposit(deposit);
+    const l1Token = this.getL1TokenForDeposit({ ...deposit, quoteBlockNumber: quoteBlock });
 
     // Otherwise, use the legacy fee model which is based ont he deposit quote block.
     const rateModel = this.configStoreClient.getRateModelForBlockNumber(

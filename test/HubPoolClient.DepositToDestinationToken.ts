@@ -118,19 +118,30 @@ describe("HubPoolClient: Deposit to Destination Token", function () {
     const e0 = await hubPoolClient.setPoolRebalanceRoute(originChainId, randomL1Token, randomOriginToken);
     hubPoolClient.addEvent(e0);
     await hubPoolClient.update();
-    expect(hubPoolClient.getL1TokenForDeposit(depositData)).to.equal(randomL1Token);
+    expect(hubPoolClient.getL1TokenForDeposit({ ...depositData, quoteBlockNumber: e0.blockNumber })).to.equal(
+      randomL1Token
+    );
 
-    const e1 = await hubPoolClient.setPoolRebalanceRoute(originChainId, randomOriginToken, randomOriginToken);
-    hubPoolClient.addEvent(e1);
-    await hubPoolClient.update();
-    expect(hubPoolClient.getL1TokenForDeposit(depositData)).to.equal(randomOriginToken);
+    // quote block too early
+    expect(() => hubPoolClient.getL1TokenForDeposit({ ...depositData, quoteBlockNumber: 0 })).to.throw(
+      /Could not find L1 token mapping/
+    );
 
+    // no deposit with matching origin token
     expect(() =>
       hubPoolClient.getL1TokenForDeposit({
         ...depositData,
         originToken: randomL1Token,
+        quoteBlockNumber: e0.blockNumber,
       })
     ).to.throw(/Could not find L1 token mapping/);
+
+    const e1 = await hubPoolClient.setPoolRebalanceRoute(originChainId, randomOriginToken, randomOriginToken);
+    hubPoolClient.addEvent(e1);
+    await hubPoolClient.update();
+    expect(hubPoolClient.getL1TokenForDeposit({ ...depositData, quoteBlockNumber: e1.blockNumber })).to.equal(
+      randomOriginToken
+    );
   });
   it("Gets L2 token for deposit", async function () {
     const depositData = {
@@ -143,18 +154,34 @@ describe("HubPoolClient: Deposit to Destination Token", function () {
     hubPoolClient.addEvent(e0);
     hubPoolClient.addEvent(e1);
     await hubPoolClient.update();
-    expect(hubPoolClient.getL2TokenForDeposit(destinationChainId, depositData)).to.equal(randomDestinationToken);
+    expect(
+      hubPoolClient.getL2TokenForDeposit(destinationChainId, { ...depositData, quoteBlockNumber: e1.blockNumber })
+    ).to.equal(randomDestinationToken);
+
+    // origin chain token is set but none for destination chain yet, as of e0.
+    expect(() =>
+      hubPoolClient.getL2TokenForDeposit(destinationChainId, { ...depositData, quoteBlockNumber: e0.blockNumber })
+    ).to.throw(/Could not find L2 token mapping/);
+
+    // quote block too early
+    expect(() =>
+      hubPoolClient.getL2TokenForDeposit(destinationChainId, { ...depositData, quoteBlockNumber: 0 })
+    ).to.throw(/Could not find L1 token mapping/);
+
+    // No deposit with matching token.
+    expect(() =>
+      hubPoolClient.getL2TokenForDeposit(destinationChainId, {
+        ...depositData,
+        originToken: randomL1Token,
+        quoteBlockNumber: e0.blockNumber,
+      })
+    ).to.throw(/Could not find L1 token mapping/);
 
     const e2 = await hubPoolClient.setPoolRebalanceRoute(destinationChainId, randomL1Token, randomL1Token);
     hubPoolClient.addEvent(e2);
     await hubPoolClient.update();
-    expect(hubPoolClient.getL2TokenForDeposit(destinationChainId, depositData)).to.equal(randomL1Token);
-
-    expect(() =>
-      hubPoolClient.getL1TokenForDeposit({
-        ...depositData,
-        originToken: randomL1Token,
-      })
-    ).to.throw(/Could not find L1 token mapping/);
+    expect(
+      hubPoolClient.getL2TokenForDeposit(destinationChainId, { ...depositData, quoteBlockNumber: e2.blockNumber })
+    ).to.equal(randomL1Token);
   });
 });
