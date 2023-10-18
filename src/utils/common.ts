@@ -6,7 +6,7 @@ import { BigNumber, ethers, PopulatedTransaction, providers, VoidSigner } from "
 import { GasPriceEstimate, getGasPriceEstimate } from "../gasPriceOracle";
 import { Deposit } from "../interfaces";
 import { TypedMessage } from "../interfaces/TypedData";
-import { ERC20__factory, SpokePool } from "../typechain";
+import { SpokePool } from "../typechain";
 import { BigNumberish, BN, bnUint256Max, bnZero, toBN } from "./BigNumberUtils";
 import { ConvertDecimals } from "./FormattingUtils";
 import { isMessageEmpty } from "./DepositUtils";
