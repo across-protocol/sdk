@@ -277,7 +277,7 @@ export class RelayFeeCalculator {
   ): Promise<RelayerFeeDetails> {
     const gasFeePercent = await this.gasFeePercent(amountToRelay, tokenSymbol, tokenPrice);
     const gasFeeTotal = gasFeePercent.mul(amountToRelay).div(fixedPointAdjustment);
-    const capitalFeePercent = await this.capitalFeePercent(amountToRelay, tokenSymbol, _originRoute, _destinationRoute);
+    const capitalFeePercent = this.capitalFeePercent(amountToRelay, tokenSymbol, _originRoute, _destinationRoute);
     const capitalFeeTotal = capitalFeePercent.mul(amountToRelay).div(fixedPointAdjustment);
     const relayFeePercent = gasFeePercent.add(capitalFeePercent);
     const relayFeeTotal = gasFeeTotal.add(capitalFeeTotal);
