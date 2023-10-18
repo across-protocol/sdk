@@ -9,9 +9,7 @@ import {
   toBNWei,
 } from "../src/utils/common";
 import { toBN } from "../src/utils/BigNumberUtils";
-import { expect } from "./utils";
-import { buildFillForSimulatingFullDeposit } from "../src/utils";
-import { Fill } from "../src/interfaces";
+import { buildDepositForRelayerFeeTest, expect } from "./utils";
 
 dotenv.config();
 
@@ -47,17 +45,8 @@ describe("Utils test", () => {
     const provider = new providers.JsonRpcProvider(rpcUrl, 1);
     const spokePool: SpokePool = SpokePool__factory.connect(spokePoolAddress, provider);
 
-    const fill: Fill = buildFillForSimulatingFullDeposit(
-      "1",
-      "usdc",
-      42161,
-      10,
-      relayerAddress,
-      undefined,
-      relayerAddress,
-      relayerAddress
-    );
-    const unsignedTxn = await createUnsignedFillRelayTransactionFromFill(spokePool, fill);
+    const deposit = buildDepositForRelayerFeeTest("1", "usdc", 1, 10);
+    const unsignedTxn = await createUnsignedFillRelayTransactionFromFill(spokePool, deposit, toBN(1), relayerAddress);
     const refGasEstimate = await estimateTotalGasRequiredByUnsignedTransaction(
       unsignedTxn,
       relayerAddress,

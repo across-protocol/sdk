@@ -339,7 +339,7 @@ export async function createUnsignedFillRelayTransactionFromFill(
   // transaction before we populate it.
   const relayerBalanceForToken =
     _relayerBalanceForToken ??
-    (await ERC20__factory.connect(deposit.destinationToken, spokePool.provider).balanceOf(relayerAddress));
+    (await ERC20__factory.connect(deposit.originToken, spokePool.provider).balanceOf(relayerAddress));
   if (relayerBalanceForToken.lt(amountToFill)) {
     throw new Error(
       `Relayer balance for token (${relayerBalanceForToken.toString()}) is less than the amount to fill (${amountToFill.toString()})`
