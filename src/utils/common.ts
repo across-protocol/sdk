@@ -4,11 +4,13 @@ import assert from "assert";
 import Decimal from "decimal.js";
 import { BigNumber, ethers, PopulatedTransaction, providers, VoidSigner } from "ethers";
 import { GasPriceEstimate, getGasPriceEstimate } from "../gasPriceOracle";
-import { Fill } from "../interfaces";
+import { Deposit } from "../interfaces";
 import { TypedMessage } from "../interfaces/TypedData";
-import { SpokePool } from "../typechain";
-import { BigNumberish, BN, bnUint256Max, toBN } from "./BigNumberUtils";
+import { ERC20__factory, SpokePool } from "../typechain";
+import { BigNumberish, BN, bnUint256Max, bnZero, toBN } from "./BigNumberUtils";
 import { ConvertDecimals } from "./FormattingUtils";
+import { isMessageEmpty } from "./DepositUtils";
+import { isContractDeployedToAddress } from "./AddressUtils";
 
 export type Decimalish = string | number | Decimal;
 export const AddressZero = ethers.constants.AddressZero;
@@ -296,24 +298,69 @@ export async function estimateTotalGasRequiredByUnsignedTransaction(
  * @param fillToSimulate The fill that this function will use to populate the unsigned transaction
  * @returns An unsigned transaction that can be used to simulate the gas cost of filling a relay
  */
-export function createUnsignedFillRelayTransactionFromFill(
+export async function createUnsignedFillRelayTransactionFromFill(
   spokePool: SpokePool,
-  fillToSimulate: Fill
+  deposit: Deposit,
+  amountToFill: BN,
+  relayerAddress: string,
+  _relayerBalanceForToken?: BN
 ): Promise<PopulatedTransaction> {
+  // We should perform some basic validation on our deposit.
+
+  // We should ensure that the amount to fill is less than or equal to the
+  // amount that was deposited.
+  if (amountToFill.gt(deposit.amount)) {
+    throw new Error(
+      `Amount to fill (${amountToFill.toString()}) is greater than the amount deposited (${deposit.amount.toString()})`
+    );
+  }
+
+  // We should ensure that if a message is present
+  // in either the original deposit or a sped-up deposit AND the
+  // recipient is a contract, then we should ensure that the amount
+  // being filled is equal to the amount that the recipient expects.
+  // I.E. No partial fills.
+
+  // We can compute all synchronous checks first, and then perform the
+  // asynchronous check last.
+  if (isMessageEmpty(deposit.updatedMessage ?? deposit.message) && !deposit.amount.eq(amountToFill)) {
+    const isRecipientAContract = await isContractDeployedToAddress(
+      deposit.updatedRecipient ?? deposit.recipient,
+      spokePool.provider
+    );
+    if (isRecipientAContract) {
+      throw new Error(
+        "Partial fills on deposits with messages are not allowed. If the recipient is a contract, then the amount to fill must be equal to the amount deposited."
+      );
+    }
+  }
+
+  // We should check that the relayer has enough balance to facilitate this
+  // transaction before we populate it.
+  const relayerBalanceForToken =
+    _relayerBalanceForToken ??
+    (await ERC20__factory.connect(deposit.destinationToken, spokePool.provider).balanceOf(relayerAddress));
+  if (relayerBalanceForToken.lt(amountToFill)) {
+    throw new Error(
+      `Relayer balance for token (${relayerBalanceForToken.toString()}) is less than the amount to fill (${amountToFill.toString()})`
+    );
+  }
+
+  // If we have made it this far, then we can populate the transaction.
   return spokePool.populateTransaction.fillRelay(
-    fillToSimulate.depositor,
-    fillToSimulate.recipient,
-    fillToSimulate.destinationToken,
-    fillToSimulate.amount,
-    MAX_BIG_INT,
-    fillToSimulate.repaymentChainId,
-    fillToSimulate.originChainId,
-    fillToSimulate.realizedLpFeePct,
-    fillToSimulate.relayerFeePct,
-    fillToSimulate.depositId,
-    fillToSimulate.message,
+    deposit.depositor,
+    deposit.updatedRecipient ?? deposit.recipient,
+    deposit.destinationToken,
+    amountToFill,
+    deposit.amount,
+    deposit.destinationChainId, // Let's assume that the destination chain ID is the same as the repayment chain ID.
+    deposit.originChainId,
+    deposit.realizedLpFeePct ?? bnZero, // Let's assume that the realized LP fee is 0 if it is not present.
+    deposit.relayerFeePct,
+    deposit.depositId,
+    deposit.updatedMessage ?? deposit.message,
     bnUint256Max,
-    { from: fillToSimulate.relayer }
+    { from: relayerAddress }
   );
 }
 
