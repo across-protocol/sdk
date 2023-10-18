@@ -1,12 +1,20 @@
 import * as utils from "@across-protocol/contracts-v2/dist/test-utils";
-import { providers } from "ethers";
+import { BigNumberish, providers } from "ethers";
 import {
   AcrossConfigStoreClient as ConfigStoreClient,
   GLOBAL_CONFIG_STORE_KEYS,
   HubPoolClient,
 } from "../../src/clients";
 import { Deposit, Fill } from "../../src/interfaces";
-import { toBN, toBNWei, utf8ToHex } from "../../src/utils";
+import {
+  bnUint32Max,
+  bnZero,
+  getCurrentTime,
+  resolveContractFromSymbol,
+  toBN,
+  toBNWei,
+  utf8ToHex,
+} from "../../src/utils";
 import {
   MAX_L1_TOKENS_PER_POOL_REBALANCE_LEAF,
   MAX_REFUNDS_PER_RELAYER_REFUND_LEAF,
@@ -25,7 +33,7 @@ import _ from "lodash";
 import sinon from "sinon";
 import winston, { LogEntry } from "winston";
 import { SpokePoolDeploymentResult, SpyLoggerResult } from "../types";
-import { PROTOCOL_DEFAULT_CHAIN_ID_INDICES } from "../../src/constants";
+import { EMPTY_MESSAGE, PROTOCOL_DEFAULT_CHAIN_ID_INDICES } from "../../src/constants";
 import { SpyTransport } from "./SpyTransport";
 
 chai.use(chaiExclude);
@@ -512,3 +520,31 @@ const iterativelyReplaceBigNumbers = (obj: Record<string | symbol, unknown> | ob
   // Only copy if something changed. Otherwise, return the original object.
   return copyNeeded ? Object.fromEntries(replacements) : obj;
 };
+
+export function buildDepositForRelayerFeeTest(
+  amount: BigNumberish,
+  tokenSymbol: string,
+  originChainId: string | number,
+  toChainId: string | number
+): Deposit {
+  const originToken = resolveContractFromSymbol(tokenSymbol, String(originChainId));
+  const destinationToken = resolveContractFromSymbol(tokenSymbol, String(toChainId));
+  expect(originToken).to.not.be.undefined;
+  expect(destinationToken).to.not.undefined;
+  if (!originToken || !destinationToken) {
+    throw new Error("Token not found");
+  }
+  return {
+    amount: toBN(amount),
+    depositId: bnUint32Max.toNumber(),
+    depositor: utils.randomAddress(),
+    recipient: utils.randomAddress(),
+    relayerFeePct: bnZero,
+    message: EMPTY_MESSAGE,
+    originChainId: 1,
+    destinationChainId: 10,
+    quoteTimestamp: getCurrentTime(),
+    originToken,
+    destinationToken,
+  };
+}
