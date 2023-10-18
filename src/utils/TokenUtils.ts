@@ -34,7 +34,7 @@ export const resolveContractFromSymbol = (symbol: string, chainId: string): stri
 
 export function getTokenInformationFromAddress(address: string): L1Token | undefined {
   const details = Object.values(TOKEN_SYMBOLS_MAP).find((details) => {
-    return details.addresses[CHAIN_IDs.MAINNET].toLowerCase() === address.toLowerCase();
+    return Object.values(details.addresses).some((t) => t.toLowerCase() === address.toLowerCase());
   });
   return isDefined(details)
     ? {
