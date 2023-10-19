@@ -5,7 +5,7 @@ import { Coingecko } from "../../coingecko";
 import { CHAIN_IDs, DEFAULT_SIMULATED_RELAYER_ADDRESS } from "../../constants";
 import {
   BigNumberish,
-  createUnsignedFillRelayTransactionFromFill,
+  createUnsignedFillRelayTransactionFromDeposit,
   estimateTotalGasRequiredByUnsignedTransaction,
   isDefined,
   toBN,
@@ -67,7 +67,7 @@ export default abstract class QueryBase implements QueryInterface {
     _relayerBalanceForToken?: BigNumberish
   ): Promise<BigNumberish> {
     const relayerToSimulate = relayAddress ?? this.simulatedRelayerAddress;
-    const tx = await createUnsignedFillRelayTransactionFromFill(
+    const tx = await createUnsignedFillRelayTransactionFromDeposit(
       this.spokePool,
       deposit,
       toBN(amountToRelay),

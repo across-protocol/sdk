@@ -3,7 +3,7 @@ import { SpokePool, SpokePool__factory } from "@across-protocol/contracts-v2";
 import dotenv from "dotenv";
 import { providers } from "ethers";
 import {
-  createUnsignedFillRelayTransactionFromFill,
+  createUnsignedFillRelayTransactionFromDeposit,
   estimateTotalGasRequiredByUnsignedTransaction,
   retry,
   toBNWei,
@@ -46,7 +46,12 @@ describe("Utils test", () => {
     const spokePool: SpokePool = SpokePool__factory.connect(spokePoolAddress, provider);
 
     const deposit = buildDepositForRelayerFeeTest("1", "usdc", 1, 10);
-    const unsignedTxn = await createUnsignedFillRelayTransactionFromFill(spokePool, deposit, toBN(1), relayerAddress);
+    const unsignedTxn = await createUnsignedFillRelayTransactionFromDeposit(
+      spokePool,
+      deposit,
+      toBN(1),
+      relayerAddress
+    );
     const refGasEstimate = await estimateTotalGasRequiredByUnsignedTransaction(
       unsignedTxn,
       relayerAddress,

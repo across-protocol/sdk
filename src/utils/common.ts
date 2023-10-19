@@ -299,7 +299,7 @@ export async function estimateTotalGasRequiredByUnsignedTransaction(
  * @param fillToSimulate The fill that this function will use to populate the unsigned transaction
  * @returns An unsigned transaction that can be used to simulate the gas cost of filling a relay
  */
-export async function createUnsignedFillRelayTransactionFromFill(
+export async function createUnsignedFillRelayTransactionFromDeposit(
   spokePool: SpokePool,
   deposit: Deposit,
   amountToFill: BN,
