@@ -305,8 +305,6 @@ export async function createUnsignedFillRelayTransactionFromDeposit(
   relayerAddress: string,
   _relayerBalanceForToken?: BN
 ): Promise<PopulatedTransaction> {
-  // We should perform some basic validation on our deposit.
-
   // We should check that the relayer has enough balance to facilitate this
   // transaction before we populate it.
   const relayerBalanceForToken =
