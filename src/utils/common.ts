@@ -12,6 +12,7 @@ import { ConvertDecimals } from "./FormattingUtils";
 import { isMessageEmpty } from "./DepositUtils";
 import { isContractDeployedToAddress } from "./AddressUtils";
 import { getTokenBalance } from "./TokenUtils";
+import { isDefined } from "./TypeGuards";
 
 export type Decimalish = string | number | Decimal;
 export const AddressZero = ethers.constants.AddressZero;
@@ -339,21 +340,42 @@ export async function createUnsignedFillRelayTransactionFromDeposit(
   }
 
   // If we have made it this far, then we can populate the transaction.
-  return spokePool.populateTransaction.fillRelay(
-    deposit.depositor,
-    deposit.updatedRecipient ?? deposit.recipient,
-    deposit.destinationToken,
-    amountToFill,
-    deposit.amount,
-    deposit.destinationChainId, // Let's assume that the destination chain ID is the same as the repayment chain ID.
-    deposit.originChainId,
-    deposit.realizedLpFeePct ?? bnZero, // Let's assume that the realized LP fee is 0 if it is not present.
-    deposit.relayerFeePct,
-    deposit.depositId,
-    deposit.updatedMessage ?? deposit.message,
-    bnUint256Max,
-    { from: relayerAddress }
-  );
+  if (isDefined(deposit.speedUpSignature)) {
+    return spokePool.populateTransaction.fillRelayWithUpdatedDeposit(
+      deposit.depositor,
+      deposit.recipient,
+      deposit.updatedRecipient ?? "0x",
+      deposit.destinationToken,
+      amountToFill,
+      deposit.amount,
+      deposit.destinationChainId, // Let's assume that the destination chain ID is the same as the repayment chain ID.
+      deposit.originChainId,
+      deposit.realizedLpFeePct ?? bnZero, // Let's assume that the realized LP fee is 0 if it is not present.
+      deposit.relayerFeePct,
+      deposit.realizedLpFeePct ?? bnZero,
+      deposit.depositId,
+      deposit.message,
+      deposit.updatedMessage ?? "0x",
+      deposit.speedUpSignature,
+      bnUint256Max
+    );
+  } else {
+    return spokePool.populateTransaction.fillRelay(
+      deposit.depositor,
+      deposit.recipient,
+      deposit.destinationToken,
+      amountToFill,
+      deposit.amount,
+      deposit.destinationChainId, // Let's assume that the destination chain ID is the same as the repayment chain ID.
+      deposit.originChainId,
+      deposit.realizedLpFeePct ?? bnZero, // Let's assume that the realized LP fee is 0 if it is not present.
+      deposit.relayerFeePct,
+      deposit.depositId,
+      deposit.message,
+      bnUint256Max,
+      { from: relayerAddress }
+    );
+  }
 }
 
 /**
