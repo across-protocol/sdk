@@ -1,3 +1,4 @@
+import assert from "assert";
 import { SpokePoolClient } from "../clients";
 import { DEFAULT_CACHING_TTL, EMPTY_MESSAGE } from "../constants";
 import { CachingMechanismInterface, Deposit, DepositWithBlock, Fill } from "../interfaces";
@@ -91,4 +92,24 @@ export async function queryHistoricalDepositForFill(
  */
 export function isMessageEmpty(message = EMPTY_MESSAGE): boolean {
   return message === "" || message === "0x";
+}
+
+/**
+ * Determines if a deposit was updated via a speed-up transaction.
+ * @param deposit Deposit to evaluate.
+ * @returns True if the deposit was updated, otherwise false.
+ */
+export function isDepositSpedUp(deposit: Deposit): boolean {
+  return isDefined(deposit.speedUpSignature) && isDefined(deposit.newRelayerFeePct);
+}
+
+/**
+ * Resolves the applicable message for a deposit.
+ * @param deposit Deposit to evaluate.
+ * @returns Original or updated message string, depending on whether the depositor updated the deposit.
+ */
+export function resolveDepositMessage(deposit: Deposit): string {
+  const message = isDepositSpedUp(deposit) ? deposit.updatedMessage : deposit.message;
+  assert(isDefined(message)); // Appease tsc about the updatedMessage being possibly undefined.
+  return message;
 }
