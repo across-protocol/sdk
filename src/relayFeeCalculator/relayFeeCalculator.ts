@@ -298,9 +298,7 @@ export class RelayFeeCalculator {
   ): Promise<RelayerFeeDetails> {
     // If the amount to relay is not provided, then we
     // should use the full deposit amount.
-    if (!isDefined(amountToRelay)) {
-      amountToRelay = deposit.amount;
-    }
+    amountToRelay ??= deposit.amount;
 
     const tokenInformation = getTokenInformationFromAddress(deposit.originToken);
     if (!isDefined(tokenInformation)) {
