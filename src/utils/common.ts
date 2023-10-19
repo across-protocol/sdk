@@ -9,8 +9,6 @@ import { TypedMessage } from "../interfaces/TypedData";
 import { SpokePool } from "../typechain";
 import { BigNumberish, BN, bnUint256Max, bnZero, toBN } from "./BigNumberUtils";
 import { ConvertDecimals } from "./FormattingUtils";
-import { isMessageEmpty } from "./DepositUtils";
-import { isContractDeployedToAddress } from "./AddressUtils";
 import { getTokenBalance } from "./TokenUtils";
 import { isDefined } from "./TypeGuards";
 
@@ -308,26 +306,6 @@ export async function createUnsignedFillRelayTransactionFromDeposit(
   _relayerBalanceForToken?: BN
 ): Promise<PopulatedTransaction> {
   // We should perform some basic validation on our deposit.
-
-  // We should ensure that if a message is present
-  // in either the original deposit or a sped-up deposit AND the
-  // recipient is a contract, then we should ensure that the amount
-  // being filled is equal to the amount that the recipient expects.
-  // I.E. No partial fills.
-
-  // We can compute all synchronous checks first, and then perform the
-  // asynchronous check last.
-  if (isMessageEmpty(deposit.updatedMessage ?? deposit.message) && !deposit.amount.eq(amountToFill)) {
-    const isRecipientAContract = await isContractDeployedToAddress(
-      deposit.updatedRecipient ?? deposit.recipient,
-      spokePool.provider
-    );
-    if (isRecipientAContract) {
-      throw new Error(
-        "Partial fills on deposits with messages are not allowed. If the recipient is a contract, then the amount to fill must be equal to the amount deposited."
-      );
-    }
-  }
 
   // We should check that the relayer has enough balance to facilitate this
   // transaction before we populate it.
