@@ -7,7 +7,7 @@ import { GasPriceEstimate, getGasPriceEstimate } from "../gasPriceOracle";
 import { Deposit } from "../interfaces";
 import { TypedMessage } from "../interfaces/TypedData";
 import { SpokePool } from "../typechain";
-import { BigNumberish, BN, bnUint256Max, bnZero, toBN } from "./BigNumberUtils";
+import { BigNumberish, BN, bnUint256Max, toBN } from "./BigNumberUtils";
 import { ConvertDecimals } from "./FormattingUtils";
 import { getTokenBalance } from "./TokenUtils";
 import { isDefined } from "./TypeGuards";
@@ -315,41 +315,58 @@ export async function createUnsignedFillRelayTransactionFromDeposit(
     );
   }
 
+  // We need to assume certain fields exist
+  const realizedLpFeePct = deposit.realizedLpFeePct;
+  assert(isDefined(realizedLpFeePct));
+
   // If we have made it this far, then we can populate the transaction.
   if (isDefined(deposit.speedUpSignature)) {
+    // If the deposit has a speed up signature, then we need to verify that certain
+    // fields are present.
+
+    const updatedRecipient = deposit.updatedRecipient;
+    const updatedMessage = deposit.updatedMessage;
+    const updatedRelayerFeePct = deposit.newRelayerFeePct;
+    assert(isDefined(updatedRecipient) && isDefined(updatedMessage) && isDefined(updatedRelayerFeePct));
+
     return spokePool.populateTransaction.fillRelayWithUpdatedDeposit(
       deposit.depositor,
       deposit.recipient,
-      deposit.updatedRecipient ?? "0x",
+      updatedRecipient,
       deposit.destinationToken,
-      amountToFill,
       deposit.amount,
-      deposit.destinationChainId, // Let's assume that the destination chain ID is the same as the repayment chain ID.
+      amountToFill,
+      deposit.destinationChainId,
       deposit.originChainId,
-      deposit.realizedLpFeePct ?? bnZero, // Let's assume that the realized LP fee is 0 if it is not present.
+      realizedLpFeePct,
       deposit.relayerFeePct,
-      deposit.realizedLpFeePct ?? bnZero,
+      updatedRelayerFeePct,
       deposit.depositId,
       deposit.message,
-      deposit.updatedMessage ?? "0x",
+      updatedMessage,
       deposit.speedUpSignature,
-      bnUint256Max
+      bnUint256Max,
+      {
+        from: relayerAddress,
+      }
     );
   } else {
     return spokePool.populateTransaction.fillRelay(
       deposit.depositor,
       deposit.recipient,
       deposit.destinationToken,
-      amountToFill,
       deposit.amount,
-      deposit.destinationChainId, // Let's assume that the destination chain ID is the same as the repayment chain ID.
+      amountToFill,
+      deposit.destinationChainId, // Assume we're refunding to destination
       deposit.originChainId,
-      deposit.realizedLpFeePct ?? bnZero, // Let's assume that the realized LP fee is 0 if it is not present.
+      realizedLpFeePct,
       deposit.relayerFeePct,
       deposit.depositId,
       deposit.message,
       bnUint256Max,
-      { from: relayerAddress }
+      {
+        from: relayerAddress,
+      }
     );
   }
 }
