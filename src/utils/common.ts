@@ -9,7 +9,6 @@ import { TypedMessage } from "../interfaces/TypedData";
 import { SpokePool } from "../typechain";
 import { BigNumberish, BN, bnUint256Max, toBN } from "./BigNumberUtils";
 import { ConvertDecimals } from "./FormattingUtils";
-import { getTokenBalance } from "./TokenUtils";
 import { isDefined } from "./TypeGuards";
 
 export type Decimalish = string | number | Decimal;
@@ -298,23 +297,12 @@ export async function estimateTotalGasRequiredByUnsignedTransaction(
  * @param fillToSimulate The fill that this function will use to populate the unsigned transaction
  * @returns An unsigned transaction that can be used to simulate the gas cost of filling a relay
  */
-export async function createUnsignedFillRelayTransactionFromDeposit(
+export function createUnsignedFillRelayTransactionFromDeposit(
   spokePool: SpokePool,
   deposit: Deposit,
   amountToFill: BN,
-  relayerAddress: string,
-  _relayerBalanceForToken?: BN
+  relayerAddress: string
 ): Promise<PopulatedTransaction> {
-  // We should check that the relayer has enough balance to facilitate this
-  // transaction before we populate it.
-  const relayerBalanceForToken =
-    _relayerBalanceForToken ?? (await getTokenBalance(relayerAddress, deposit.originToken, spokePool.provider));
-  if (relayerBalanceForToken.lt(amountToFill)) {
-    throw new Error(
-      `Relayer balance for token (${relayerBalanceForToken.toString()}) is less than the amount to fill (${amountToFill.toString()})`
-    );
-  }
-
   // We need to assume certain fields exist
   const realizedLpFeePct = deposit.realizedLpFeePct;
   assert(isDefined(realizedLpFeePct));

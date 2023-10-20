@@ -7,7 +7,6 @@ import {
   BigNumberish,
   createUnsignedFillRelayTransactionFromDeposit,
   estimateTotalGasRequiredByUnsignedTransaction,
-  isDefined,
   toBN,
 } from "../../utils";
 import { Logger, QueryInterface } from "../relayFeeCalculator";
@@ -63,16 +62,14 @@ export default abstract class QueryBase implements QueryInterface {
   async getGasCosts(
     deposit: Deposit,
     amountToRelay: BigNumberish,
-    relayAddress = DEFAULT_SIMULATED_RELAYER_ADDRESS,
-    _relayerBalanceForToken?: BigNumberish
+    relayAddress = DEFAULT_SIMULATED_RELAYER_ADDRESS
   ): Promise<BigNumberish> {
     const relayerToSimulate = relayAddress ?? this.simulatedRelayerAddress;
     const tx = await createUnsignedFillRelayTransactionFromDeposit(
       this.spokePool,
       deposit,
       toBN(amountToRelay),
-      relayerToSimulate,
-      isDefined(_relayerBalanceForToken) ? toBN(_relayerBalanceForToken) : undefined
+      relayerToSimulate
     );
     const estimatedGas = await estimateTotalGasRequiredByUnsignedTransaction(
       tx,
