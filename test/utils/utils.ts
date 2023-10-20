@@ -546,5 +546,6 @@ export function buildDepositForRelayerFeeTest(
     quoteTimestamp: getCurrentTime(),
     originToken,
     destinationToken,
+    realizedLpFeePct: bnZero,
   };
 }
