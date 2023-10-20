@@ -1,6 +1,6 @@
 import assert from "assert";
 import { SpokePoolClient } from "../clients";
-import { DEFAULT_CACHING_TTL } from "../constants";
+import { DEFAULT_CACHING_TTL, EMPTY_MESSAGE } from "../constants";
 import { CachingMechanismInterface, Deposit, DepositWithBlock, Fill } from "../interfaces";
 import { getDepositInCache, getDepositKey, setDepositInCache } from "./CachingUtils";
 import { validateFillForDeposit } from "./FlowUtils";
@@ -83,6 +83,15 @@ export async function queryHistoricalDepositForFill(
   }
 
   return validateFillForDeposit(fill, deposit) ? deposit : undefined;
+}
+
+/**
+ * Determines if a message is empty or not.
+ * @param message The message to check.
+ * @returns True if the message is empty, false otherwise.
+ */
+export function isMessageEmpty(message = EMPTY_MESSAGE): boolean {
+  return message === "" || message === "0x";
 }
 
 /**

@@ -1,7 +1,7 @@
 import dotenv from "dotenv";
 import { RelayFeeCalculator, QueryInterface } from "../src/relayFeeCalculator/relayFeeCalculator";
 import { gasCost, BigNumberish, toBNWei, toBN } from "../src/utils";
-import { assert, expect } from "./utils";
+import { assert, buildDepositForRelayerFeeTest, expect, randomAddress } from "./utils";
 
 dotenv.config({ path: ".env" });
 
@@ -74,24 +74,32 @@ describe("RelayFeeCalculator", () => {
       [104729, toBNWei("2.917740071995340354").toString()], // ~291%
     ];
     for (const [input, truth] of gasFeePercents) {
-      const result = (await client.gasFeePercent(input, "usdc")).toString();
+      const result = (
+        await client.gasFeePercent(buildDepositForRelayerFeeTest(input, "usdc", 1, 10), input)
+      ).toString();
       expect(result).to.be.eq(truth);
     }
   });
   it("relayerFeeDetails", async () => {
     client = new RelayFeeCalculator({ queries, capitalCostsConfig: testCapitalCostsConfig });
-
-    const result = await client.relayerFeeDetails(100e6, "usdc");
+    const result = await client.relayerFeeDetails(buildDepositForRelayerFeeTest(100e6, "usdc", "10", "1"), 100e6);
     assert.ok(result);
-
     // overriding token price also succeeds
-    const resultWithPrice = await client.relayerFeeDetails(100e6, "usdc", 1.01);
+    const resultWithPrice = await client.relayerFeeDetails(
+      buildDepositForRelayerFeeTest(100e6, "usdc", "10", "1"),
+      100e6,
+      randomAddress(),
+      1.01
+    );
     assert.ok(resultWithPrice);
 
     // gasFeePercent is lower if token price is higher.
     assert.equal(
       true,
-      toBN(resultWithPrice.gasFeePercent).lt((await client.relayerFeeDetails(100e6, "usdc", 1.0)).gasFeePercent)
+      toBN(resultWithPrice.gasFeePercent).lt(
+        (await client.relayerFeeDetails(buildDepositForRelayerFeeTest(100e6, "usdc", "1", "10"), 100e6, undefined, 1.0))
+          .gasFeePercent
+      )
     );
 
     // With fee limit defaulted to 0%, the maxGasFeePercent should be 0 and the minDeposit should be infinite.
@@ -102,15 +110,24 @@ describe("RelayFeeCalculator", () => {
     client = new RelayFeeCalculator({ queries, feeLimitPercent: 10, capitalCostsConfig: testCapitalCostsConfig });
     // Compute relay fee details for an $1000 transfer. Capital fee % is 0 so maxGasFeePercent should be equal to fee
     // limit percent.
-    const relayerFeeDetails = await client.relayerFeeDetails(1000e6, "usdc");
+    const relayerFeeDetails = await client.relayerFeeDetails(
+      buildDepositForRelayerFeeTest(1000e6, "usdc", "10", "1"),
+      1000e6
+    );
     assert.equal(relayerFeeDetails.maxGasFeePercent, toBNWei("0.1").toString());
     assert.equal(relayerFeeDetails.gasFeeTotal, "305572"); // 305,572 gas units
     assert.equal(relayerFeeDetails.minDeposit, toBNWei("3.05572", 6).toString()); // 305,572 / 0.1 = 3055720 then divide by 1e6
     assert.equal(relayerFeeDetails.isAmountTooLow, false);
-    assert.equal((await client.relayerFeeDetails(10e6, "usdc")).isAmountTooLow, false);
-    assert.equal((await client.relayerFeeDetails(1e6, "usdc")).isAmountTooLow, true);
+    assert.equal(
+      (await client.relayerFeeDetails(buildDepositForRelayerFeeTest(10e6, "usdc", "10", "1"), 10e6)).isAmountTooLow,
+      false
+    );
+    assert.equal(
+      (await client.relayerFeeDetails(buildDepositForRelayerFeeTest(1e6, "usdc", "10", "1"), 1e6)).isAmountTooLow,
+      true
+    );
   });
-  it("capitalFeePercent", async () => {
+  it("capitalFeePercent", () => {
     // Invalid capital cost configs throws on construction:
     assert.throws(
       () =>
@@ -192,63 +209,48 @@ describe("RelayFeeCalculator", () => {
 
     // Amount near zero should charge slightly more than lower bound
     assert.equal(
-      (await client.capitalFeePercent(toBNWei("0.001", 8), "WBTC")).toString(),
+      client.capitalFeePercent(toBNWei("0.001", 8), "WBTC").toString(),
       toBNWei("0.000300056666666").toString()
     );
-    assert.equal((await client.capitalFeePercent(toBNWei("1"), "DAI")).toString(), toBNWei("0.0003000012").toString());
+    assert.equal(client.capitalFeePercent(toBNWei("1"), "DAI").toString(), toBNWei("0.0003000012").toString());
     // Amount right below cutoff should charge slightly below 1/2 of (lower bound + upper bound)
     assert.equal(
-      (await client.capitalFeePercent(toBNWei("14.999", 8), "WBTC")).toString(),
+      client.capitalFeePercent(toBNWei("14.999", 8), "WBTC").toString(),
       toBNWei("0.00114994333333333").toString()
     );
-    assert.equal(
-      (await client.capitalFeePercent(toBNWei("499999"), "DAI")).toString(),
-      toBNWei("0.0008999988").toString()
-    );
+    assert.equal(client.capitalFeePercent(toBNWei("499999"), "DAI").toString(), toBNWei("0.0008999988").toString());
     // Amount >>> than cutoff should charge slightly below upper bound
     assert.equal(
-      (await client.capitalFeePercent(toBNWei("600", 8), "WBTC")).toString(),
+      client.capitalFeePercent(toBNWei("600", 8), "WBTC").toString(),
       toBNWei("0.001978749999999999").toString()
     );
-    assert.equal(
-      (await client.capitalFeePercent(toBNWei("20000000"), "DAI")).toString(),
-      toBNWei("0.001485").toString()
-    );
+    assert.equal(client.capitalFeePercent(toBNWei("20000000"), "DAI").toString(), toBNWei("0.001485").toString());
     // Handles zero cutoff where triangle charge is 0. Should charge upper bound on any amount.
+    assert.equal(client.capitalFeePercent(toBNWei("1"), "ZERO_CUTOFF_DAI").toString(), toBNWei("0.0015").toString());
     assert.equal(
-      (await client.capitalFeePercent(toBNWei("1"), "ZERO_CUTOFF_DAI")).toString(),
+      client.capitalFeePercent(toBNWei("499999"), "ZERO_CUTOFF_DAI").toString(),
       toBNWei("0.0015").toString()
     );
     assert.equal(
-      (await client.capitalFeePercent(toBNWei("499999"), "ZERO_CUTOFF_DAI")).toString(),
+      client.capitalFeePercent(toBNWei("20000000"), "ZERO_CUTOFF_DAI").toString(),
       toBNWei("0.0015").toString()
     );
     assert.equal(
-      (await client.capitalFeePercent(toBNWei("20000000"), "ZERO_CUTOFF_DAI")).toString(),
-      toBNWei("0.0015").toString()
-    );
-    assert.equal(
-      (await client.capitalFeePercent(toBNWei("0.001", 8), "ZERO_CUTOFF_WBTC")).toString(),
+      client.capitalFeePercent(toBNWei("0.001", 8), "ZERO_CUTOFF_WBTC").toString(),
       toBNWei("0.002").toString()
     );
     assert.equal(
-      (await client.capitalFeePercent(toBNWei("14.999", 8), "ZERO_CUTOFF_WBTC")).toString(),
+      client.capitalFeePercent(toBNWei("14.999", 8), "ZERO_CUTOFF_WBTC").toString(),
       toBNWei("0.002").toString()
     );
     assert.equal(
-      (await client.capitalFeePercent(toBNWei("600", 8), "ZERO_CUTOFF_WBTC")).toString(),
+      client.capitalFeePercent(toBNWei("600", 8), "ZERO_CUTOFF_WBTC").toString(),
       toBNWei("0.002").toString()
     );
     // Handles zero amount and charges Infinity% in all cases.
-    assert.equal(
-      (await client.capitalFeePercent("0", "ZERO_CUTOFF_DAI")).toString(),
-      Number.MAX_SAFE_INTEGER.toString()
-    );
-    assert.equal((await client.capitalFeePercent("0", "DAI")).toString(), Number.MAX_SAFE_INTEGER.toString());
-    assert.equal(
-      (await client.capitalFeePercent("0", "ZERO_CUTOFF_WBTC")).toString(),
-      Number.MAX_SAFE_INTEGER.toString()
-    );
-    assert.equal((await client.capitalFeePercent("0", "WBTC")).toString(), Number.MAX_SAFE_INTEGER.toString());
+    assert.equal(client.capitalFeePercent("0", "ZERO_CUTOFF_DAI").toString(), Number.MAX_SAFE_INTEGER.toString());
+    assert.equal(client.capitalFeePercent("0", "DAI").toString(), Number.MAX_SAFE_INTEGER.toString());
+    assert.equal(client.capitalFeePercent("0", "ZERO_CUTOFF_WBTC").toString(), Number.MAX_SAFE_INTEGER.toString());
+    assert.equal(client.capitalFeePercent("0", "WBTC").toString(), Number.MAX_SAFE_INTEGER.toString());
   });
 });

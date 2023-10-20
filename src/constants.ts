@@ -1,5 +1,5 @@
 import { constants as ethersConstants, BigNumber, utils } from "ethers";
-export { CHAIN_IDs, TOKEN_SYMBOLS_MAP } from "@across-protocol/contracts-v2/dist/utils/constants";
+export { CHAIN_IDs, TOKEN_SYMBOLS_MAP } from "@across-protocol/constants-v2";
 
 export const { AddressZero: ZERO_ADDRESS } = ethersConstants;
 
@@ -52,3 +52,7 @@ export const DEFAULT_CACHING_SAFE_LAG = 60 * 60 * 24; // 1 Day
 
 export const UBA_BOUNDS_RANGE_MAX = BigNumber.from(String(Number.MAX_SAFE_INTEGER)).mul(utils.parseEther("1.0"));
 export const UBA_BOUNDS_RANGE_MIN = UBA_BOUNDS_RANGE_MAX.mul(-1);
+
+export const DEFAULT_SIMULATED_RELAYER_ADDRESS = "0x428AB2BA90Eba0a4Be7aF34C9Ac451ab061AC010";
+
+export const EMPTY_MESSAGE = "0x";
