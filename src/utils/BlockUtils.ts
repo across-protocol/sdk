@@ -49,6 +49,9 @@ export async function averageBlockTime(
     return { average: cache.average, blockRange: cache.blockRange };
   }
 
+  // If the caller was not specific about latestBlockNumber, resolve it via the
+  // RPC provider. Subtract an offset to account for various RPC provider sync
+  // issues that might occur when querying the latest block.
   if (!isDefined(latestBlockNumber)) {
     latestBlockNumber = await provider.getBlockNumber();
     latestBlockNumber -= latestBlockOffset ?? defaultLatestBlockOffset;
