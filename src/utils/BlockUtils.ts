@@ -186,23 +186,39 @@ export async function getCachedBlockForTimestamp(
   provider: Provider,
   cache?: CachingMechanismInterface
 ): Promise<number> {
-  // If no redis client, then request block from blockFinder. Otherwise try to load from redis cache.
+  // Resolve a convenience function to directly compute what we're
+  // looking for.
+  const resolver = async () => (await blockFinder.getBlockForTimestamp(timestamp)).number;
+
+  // If no redis client, then request block from blockFinder.
   if (!isDefined(cache)) {
-    return (await blockFinder.getBlockForTimestamp(timestamp)).number;
+    return resolver();
   }
-  const key = `${chainId}_block_number_${timestamp}`;
-  const result = await cache.get<string>(key);
-  if (result === null) {
-    const [currentBlock, { number: blockNumber }] = await Promise.all([
-      provider.getBlock("latest"),
-      blockFinder.getBlockForTimestamp(timestamp),
-    ]);
-    // Expire key after 90 days.
-    if (shouldCache(timestamp, currentBlock.timestamp, DEFAULT_CACHING_SAFE_LAG)) {
-      await cache.set(key, blockNumber.toString(), 60 * 60 * 24 * 90); // 90 days
+  // Cache exists. We should first check if it's possible to retrieve the block number from cache.
+  else {
+    // Grab the latest block number
+    const latestBlockNumber = await provider.getBlock("latest");
+    // Resolve the key for the block number.
+    const key = `${chainId}_block_number_${timestamp}`;
+    // See if it's even possible to retrieve the block number from cache.
+    if (shouldCache(timestamp, latestBlockNumber.timestamp, DEFAULT_CACHING_SAFE_LAG)) {
+      // Attempt to retrieve the block number from cache.
+      const result = await cache.get<string>(key);
+      // If the block number is in cache, then return it.
+      if (result !== null) {
+        return parseInt(result);
+      }
+      // Otherwise, we need to resolve the block number and cache it.
+      else {
+        const blockNumber = await resolver();
+        // Expire key after 90 days.
+        await cache.set(key, blockNumber.toString(), 60 * 60 * 24 * 90); // 90 days
+        return blockNumber;
+      }
     }
-    return blockNumber;
-  } else {
-    return parseInt(result);
+    // It's too early to cache this key. Resolve the block number and return it.
+    else {
+      return resolver();
+    }
   }
 }
