@@ -21,7 +21,12 @@ const defaultBlockRange = 120;
 
 // Retain computations for 15 minutes.
 const cacheTTL = 60 * 15;
-const blockTimes: { [chainId: number]: BlockTimeAverage } = {};
+const now = getCurrentTime(); // Seed the cache with initial values.
+const blockTimes: { [chainId: number]: BlockTimeAverage } = {
+  1: { average: 12.5, timestamp: now, blockRange: 1 },
+  10: { average: 2, timestamp: now, blockRange: 1 },
+  8453: { average: 2, timestamp: now, blockRange: 1 },
+};
 
 /**
  * @description Compute the average block time over a block range.
