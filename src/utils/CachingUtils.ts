@@ -27,7 +27,7 @@ export async function setDepositInCache(
   currentChainTime: number,
   cache: CachingMechanismInterface,
   expirySeconds = DEFAULT_CACHING_TTL,
-  cacheFollowDistance = DEFAULT_CACHING_SAFE_LAG
+  timeToCache = DEFAULT_CACHING_SAFE_LAG
 ): Promise<void> {
   const currentTimeInSeconds = getCurrentTime();
   // We should first confirm that neither the deposit's quoteTimestamp nor the currentChainTime
@@ -38,7 +38,7 @@ export async function setDepositInCache(
 
   // We should note here that the user can theoretically set the deposit's quoteTimestamp
   // to whatever they want. As a result, this could be used to manipulate the caching mechanism.
-  if (shouldCache(deposit.quoteTimestamp, currentChainTime, cacheFollowDistance)) {
+  if (shouldCache(deposit.quoteTimestamp, currentChainTime, timeToCache)) {
     await cache.set(getDepositKey(deposit), JSON.stringify(deposit), expirySeconds);
   }
 }

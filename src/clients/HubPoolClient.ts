@@ -94,7 +94,7 @@ export class HubPoolClient extends BaseAbstractClient {
     protected readonly configOverride: {
       ignoredHubExecutedBundles: number[];
       ignoredHubProposedBundles: number[];
-      cacheFollowDistance?: number;
+      timeToCache?: number;
     } = {
       ignoredHubExecutedBundles: [],
       ignoredHubProposedBundles: [],
@@ -262,7 +262,7 @@ export class HubPoolClient extends BaseAbstractClient {
     blockNumber: number,
     amount: BigNumber,
     timestamp: number,
-    cacheFollowDistance: number
+    timeToCache: number
   ): Promise<{ current: BigNumber; post: BigNumber }> {
     // Resolve this function call as an async anonymous function
     // This way, since we have to use this call several times, we
@@ -289,7 +289,7 @@ export class HubPoolClient extends BaseAbstractClient {
       const { current, post } = await resolver();
       // First determine if we should cache the result. We should cache the
       // response if the is outside of 24 hours from the current time.
-      if (shouldCache(getCurrentTime(), timestamp, cacheFollowDistance)) {
+      if (shouldCache(getCurrentTime(), timestamp, timeToCache)) {
         // If we should cache the result, then let's store it
         // We can store it as with the default 14 day TTL
         await cache.set(key, `${current.toString()},${post.toString()}`, DEFAULT_CACHING_TTL);
@@ -331,13 +331,13 @@ export class HubPoolClient extends BaseAbstractClient {
       quoteBlock
     );
 
-    const cacheFollowDistance = this.configOverride.cacheFollowDistance ?? DEFAULT_CACHING_SAFE_LAG;
+    const timeToCache = this.configOverride.timeToCache ?? DEFAULT_CACHING_SAFE_LAG;
     const { current, post } = await this.getUtilization(
       l1Token,
       quoteBlock,
       deposit.amount,
       deposit.quoteTimestamp,
-      cacheFollowDistance
+      timeToCache
     );
     const realizedLpFeePct = lpFeeCalculator.calculateRealizedLpFeePct(rateModel, current, post);
 
