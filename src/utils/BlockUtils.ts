@@ -193,29 +193,29 @@ export async function getCachedBlockForTimestamp(
   if (!isDefined(cache)) {
     return resolver();
   }
+
   // Cache exists. We should first check if it's possible to retrieve the block number from cache.
-  else {
-    // Resolve the key for the block number.
-    const key = `${chainId}_block_number_${timestamp}`;
-    // See if it's even possible to retrieve the block number from cache.
-    if (shouldCache(timestamp, getCurrentTime(), DEFAULT_CACHING_SAFE_LAG)) {
-      // Attempt to retrieve the block number from cache.
-      const result = await cache.get<string>(key);
-      // If the block number is in cache, then return it.
-      if (result !== null) {
-        return parseInt(result);
-      }
-      // Otherwise, we need to resolve the block number and cache it.
-      else {
-        const blockNumber = await resolver();
-        // Expire key after 90 days.
-        await cache.set(key, blockNumber.toString(), 60 * 60 * 24 * 90); // 90 days
-        return blockNumber;
-      }
+
+  // Resolve the key for the block number.
+  const key = `${chainId}_block_number_${timestamp}`;
+  // See if it's even possible to retrieve the block number from cache.
+  if (shouldCache(timestamp, getCurrentTime(), DEFAULT_CACHING_SAFE_LAG)) {
+    // Attempt to retrieve the block number from cache.
+    const result = await cache.get<string>(key);
+    // If the block number is in cache, then return it.
+    if (result !== null) {
+      return parseInt(result);
     }
-    // It's too early to cache this key. Resolve the block number and return it.
+    // Otherwise, we need to resolve the block number and cache it.
     else {
-      return resolver();
+      const blockNumber = await resolver();
+      // Expire key after 90 days.
+      await cache.set(key, blockNumber.toString(), 60 * 60 * 24 * 90); // 90 days
+      return blockNumber;
     }
+  }
+  // It's too early to cache this key. Resolve the block number and return it.
+  else {
+    return resolver();
   }
 }
