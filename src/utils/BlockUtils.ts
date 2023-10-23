@@ -183,7 +183,6 @@ export async function getCachedBlockForTimestamp(
   chainId: number,
   timestamp: number,
   blockFinder: BlockFinder,
-  provider: Provider,
   cache?: CachingMechanismInterface
 ): Promise<number> {
   // Resolve a convenience function to directly compute what we're
@@ -196,12 +195,10 @@ export async function getCachedBlockForTimestamp(
   }
   // Cache exists. We should first check if it's possible to retrieve the block number from cache.
   else {
-    // Grab the latest block number
-    const latestBlockNumber = await provider.getBlock("latest");
     // Resolve the key for the block number.
     const key = `${chainId}_block_number_${timestamp}`;
     // See if it's even possible to retrieve the block number from cache.
-    if (shouldCache(timestamp, latestBlockNumber.timestamp, DEFAULT_CACHING_SAFE_LAG)) {
+    if (shouldCache(timestamp, getCurrentTime(), DEFAULT_CACHING_SAFE_LAG)) {
       // Attempt to retrieve the block number from cache.
       const result = await cache.get<string>(key);
       // If the block number is in cache, then return it.

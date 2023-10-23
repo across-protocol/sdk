@@ -234,13 +234,7 @@ export class HubPoolClient extends BaseAbstractClient {
   }
 
   getBlockNumber(timestamp: number): Promise<number | undefined> {
-    return getCachedBlockForTimestamp(
-      this.chainId,
-      timestamp,
-      this.blockFinder,
-      this.hubPool.provider,
-      this.cachingMechanism
-    );
+    return getCachedBlockForTimestamp(this.chainId, timestamp, this.blockFinder, this.cachingMechanism);
   }
 
   async getCurrentPoolUtilization(l1Token: string): Promise<BigNumberish> {
