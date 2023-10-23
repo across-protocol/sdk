@@ -28,6 +28,7 @@ import {
   MakeOptional,
   assign,
   fetchTokenInfo,
+  getCachedBlockForTimestamp,
   getCurrentTime,
   isDefined,
   paginatedEventQuery,
@@ -233,8 +234,8 @@ export class HubPoolClient extends BaseAbstractClient {
     );
   }
 
-  protected async getBlockNumber(timestamp: number): Promise<number | undefined> {
-    return (await this.blockFinder.getBlockForTimestamp(timestamp)).number;
+  getBlockNumber(timestamp: number): Promise<number | undefined> {
+    return getCachedBlockForTimestamp(this.chainId, timestamp, this.blockFinder, this.cachingMechanism);
   }
 
   async getCurrentPoolUtilization(l1Token: string): Promise<BigNumberish> {
