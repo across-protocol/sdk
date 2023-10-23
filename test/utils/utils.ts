@@ -284,10 +284,14 @@ export async function buildDepositStruct(
   hubPoolClient: HubPoolClient,
   l1TokenForDepositedToken: Contract
 ): Promise<Deposit & { quoteBlockNumber: number; blockNumber: number }> {
+  const blockNumber = await hubPoolClient.getBlockNumber(deposit.quoteTimestamp);
+  if (!blockNumber) {
+    throw new Error("Timestamp is undefined");
+  }
   const { quoteBlock, realizedLpFeePct } = await hubPoolClient.computeRealizedLpFeePct(
     {
       ...deposit,
-      blockNumber: (await hubPoolClient.blockFinder.getBlockForTimestamp(deposit.quoteTimestamp)).number,
+      blockNumber,
     },
     l1TokenForDepositedToken.address
   );

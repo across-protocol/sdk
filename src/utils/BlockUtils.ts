@@ -3,6 +3,9 @@ import type { Block, Provider } from "@ethersproject/abstract-provider";
 import { clamp, sortedIndexBy } from "lodash";
 import { isDefined } from "./TypeGuards";
 import { getCurrentTime } from "./TimeUtils";
+import { CachingMechanismInterface } from "../interfaces";
+import { shouldCache } from "./CachingUtils";
+import { DEFAULT_CACHING_SAFE_LAG } from "../constants";
 
 type Opts = {
   latestBlockNumber?: number;
@@ -164,5 +167,42 @@ export class BlockFinder {
     } else {
       return this.findBlock(startBlock, newBlock, timestamp);
     }
+  }
+}
+
+/**
+ * @notice Get the block number for a given timestamp fresh from on-chain data if not found in redis cache.
+ * If redis cache is not available, then requests block from blockFinder.
+ * @param chainId Chain to load block finder for.
+ * @param timestamp Approximate timestamp of the to requested block number.
+ * @param blockFinder Caller can optionally pass in a block finder object to use instead of creating a new one
+ * or loading from cache. This is useful for testing primarily.
+ * @returns Block number for the requested timestamp.
+ */
+export async function getCachedBlockForTimestamp(
+  chainId: number,
+  timestamp: number,
+  blockFinder: BlockFinder,
+  provider: Provider,
+  cache?: CachingMechanismInterface
+): Promise<number> {
+  // If no redis client, then request block from blockFinder. Otherwise try to load from redis cache.
+  if (!isDefined(cache)) {
+    return (await blockFinder.getBlockForTimestamp(timestamp)).number;
+  }
+  const key = `${chainId}_block_number_${timestamp}`;
+  const result = await cache.get<string>(key);
+  if (result === null) {
+    const [currentBlock, { number: blockNumber }] = await Promise.all([
+      provider.getBlock("latest"),
+      blockFinder.getBlockForTimestamp(timestamp),
+    ]);
+    // Expire key after 90 days.
+    if (shouldCache(timestamp, currentBlock.timestamp, DEFAULT_CACHING_SAFE_LAG)) {
+      await cache.set(key, blockNumber.toString(), 60 * 60 * 24 * 90); // 90 days
+    }
+    return blockNumber;
+  } else {
+    return parseInt(result);
   }
 }
