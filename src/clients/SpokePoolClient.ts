@@ -8,6 +8,7 @@ import {
   MAX_BIG_INT,
   MakeOptional,
   assign,
+  isDefined,
   mapAsync,
   stringifyJSONWithNumericString,
   toBN,
@@ -56,7 +57,8 @@ type _SpokePoolUpdate = {
   latestBlockNumber: number;
   latestDepositId: number;
   events: Event[][];
-  blocks: { [blockNumber: number]: Block };
+  // Blocks are only used if the UBA is active and events need to be ordered by blockTimestamp
+  blocks?: { [blockNumber: number]: Block };
   searchEndBlock: number;
 };
 export type SpokePoolUpdate = { success: false } | _SpokePoolUpdate;
@@ -591,12 +593,18 @@ export class SpokePoolClient extends BaseAbstractClient {
           .flat()
       )
     );
-    const blocks = Object.fromEntries(
-      await mapAsync(blockNumbers, async (blockNumber) => {
-        const block = await this.spokePool.provider.getBlock(blockNumber);
-        return [blockNumber, block];
-      })
-    );
+
+    // Load block timestamps if the UBA is active so that the UBAClient can order events using blockTimestamp.
+    // Otherwise skip this RPC call.
+    const isUBAActivated = isDefined(this.hubPoolClient?.configStoreClient?.getUBAActivationBlock());
+    const blocks = isUBAActivated
+      ? undefined
+      : Object.fromEntries(
+          await mapAsync(blockNumbers, async (blockNumber) => {
+            const block = await this.spokePool.provider.getBlock(blockNumber);
+            return [blockNumber, block];
+          })
+        );
 
     return {
       success: true,
@@ -688,7 +696,11 @@ export class SpokePoolClient extends BaseAbstractClient {
           realizedLpFeePct: dataForQuoteTime[index].realizedLpFeePct,
           destinationToken: this.getDestinationTokenForDeposit(rawDeposit),
           quoteBlockNumber: dataForQuoteTime[index].quoteBlock,
-          blockTimestamp: blocks[event.blockNumber]?.timestamp ?? (await event.getBlock()).timestamp,
+          // If UBA is not active, `blocks` will be undefined and unused so default to 0 and avoid extra RPC
+          // call.
+          blockTimestamp: isDefined(blocks)
+            ? blocks[event.blockNumber]?.timestamp ?? (await event.getBlock()).timestamp
+            : 0,
         };
 
         assign(this.depositHashes, [this.getDepositHash(deposit)], deposit);
