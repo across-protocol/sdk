@@ -5,3 +5,4 @@ export * from "./optimism";
 export * from "./polygon";
 export * from "./zksync";
 export * from "./base";
+export * from "./baseQuery";
