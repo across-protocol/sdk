@@ -1,12 +1,12 @@
 import { toBNWei } from "./utils";
 import { randomAddress, createRandomBytes32, expect, toBN, BigNumber } from "./constants";
-import { DepositWithBlock, FillWithBlock, UbaFlow, UbaInflow, UbaOutflow } from "../src/interfaces";
+import { UBADepositWithBlock, UBAFillWithBlock, UbaFlow, UbaInflow, UbaOutflow } from "../src/interfaces";
 import { ubaFeeCalculator } from "../src";
 import { MockUBAConfig } from "./mocks/MockUBAConfig";
 
 let originToken: string, destinationToken: string;
 let depositor: string, recipient: string;
-let deposit: DepositWithBlock, fill: FillWithBlock;
+let deposit: UBADepositWithBlock, fill: UBAFillWithBlock;
 let config: MockUBAConfig;
 
 const originChainId = 10;

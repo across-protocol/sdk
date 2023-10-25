@@ -8,7 +8,7 @@ import { Deposit } from "../src/interfaces";
 
 describe("validatorUtils", () => {
   describe("isDeposit", () => {
-    let deposit: interfaces.DepositWithBlock;
+    let deposit: interfaces.UBADepositWithBlock;
     beforeEach(() => {
       deposit = {
         depositId: 1,

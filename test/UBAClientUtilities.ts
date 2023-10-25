@@ -9,7 +9,15 @@ import {
   hubPoolFixture,
 } from "./utils";
 import { CHAIN_ID_TEST_LIST, expect, randomAddress, toBNWei } from "./constants";
-import { DepositWithBlock, FillWithBlock, RefundRequestWithBlock, SpokePoolClientsByChain } from "../src/interfaces";
+import {
+  DepositWithBlock,
+  FillWithBlock,
+  RefundRequestWithBlock,
+  SpokePoolClientsByChain,
+  UBADepositWithBlock,
+  UBAFillWithBlock,
+  UBARefundRequestWithBlock,
+} from "../src/interfaces";
 import { clients, interfaces } from "../src";
 import { MockConfigStoreClient, MockHubPoolClient, MockSpokePoolClient } from "./mocks";
 const { getMostRecentBundleBlockRanges, getUbaActivationBundleStartBlocks, getOpeningRunningBalanceForEvent } = clients;
@@ -319,7 +327,7 @@ describe("UBAClientUtilities", function () {
         message: "0x",
         quoteBlockNumber: 200,
         blockTimestamp: 10,
-      } as DepositWithBlock;
+      } as UBADepositWithBlock;
       // We need to match this fill with the deposit
       fill = {
         fillAmount: deposit.amount,
@@ -346,7 +354,7 @@ describe("UBAClientUtilities", function () {
         realizedLpFeePct: toBNWei("0.01"),
         message: "0x",
         blockTimestamp: 11,
-      } as FillWithBlock;
+      } as UBAFillWithBlock;
 
       // We need to match this with the refund.
       refund = {
@@ -362,7 +370,7 @@ describe("UBAClientUtilities", function () {
         depositId: fill.depositId,
         previousIdenticalRequests: toBN(0),
         blockTimestamp: 10,
-      } as RefundRequestWithBlock;
+      } as UBARefundRequestWithBlock;
     });
     // Generate mock events, very simple tests to start
     it("Returns UBA deposits", async function () {

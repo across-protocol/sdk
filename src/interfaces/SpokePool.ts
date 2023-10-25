@@ -25,8 +25,12 @@ export interface Deposit {
 }
 
 export interface DepositWithBlock extends Deposit, SortableEvent {
-  blockTimestamp: number;
   quoteBlockNumber: number;
+  blockTimestamp?: number;
+}
+
+export interface UBADepositWithBlock extends DepositWithBlock {
+  blockTimestamp: number;
 }
 
 export type DepositWithBlockStringified = Omit<
@@ -72,6 +76,10 @@ export interface Fill {
 }
 
 export interface FillWithBlock extends Fill, SortableEvent {
+  blockTimestamp?: number;
+}
+
+export interface UBAFillWithBlock extends FillWithBlock {
   blockTimestamp: number;
 }
 
@@ -136,6 +144,10 @@ export interface RefundRequest {
 }
 
 export interface RefundRequestWithBlock extends RefundRequest, SortableEvent {
+  blockTimestamp?: number;
+}
+
+export interface UBARefundRequestWithBlock extends RefundRequestWithBlock {
   blockTimestamp: number;
 }
 
