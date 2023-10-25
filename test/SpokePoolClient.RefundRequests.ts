@@ -1,6 +1,6 @@
 import { groupBy } from "lodash";
 import { MockSpokePoolClient } from "./mocks";
-import { RefundRequestWithBlock, UBARefundRequestWithBlock } from "../src/interfaces";
+import { RefundRequestWithBlock } from "../src/interfaces";
 import { spreadEventWithBlockNumber } from "../src/utils";
 import {
   createSpyLogger,
@@ -61,18 +61,18 @@ describe("SpokePoolClient: Refund Requests", function () {
     const nEvents = 5;
     const minExpectedBlockNumber = latestBlockNumber + nEvents;
 
-    let refundRequestEvents: UBARefundRequestWithBlock[] = [];
+    let refundRequestEvents: RefundRequestWithBlock[] = [];
     for (let txn = 0; txn < nEvents; ++txn) {
       // Barebones Event - only absolutely necessary fields are populated.
       const blockNumber = latestBlockNumber + 1 + txn;
-      const refundRequest = { relayer, originChainId, blockNumber } as UBARefundRequestWithBlock;
+      const refundRequest = { relayer, originChainId, blockNumber } as RefundRequestWithBlock;
       const testEvent = spokePoolClient.generateRefundRequest(refundRequest);
       spokePoolClient.addEvent(testEvent);
       refundRequestEvents.push({
         ...spreadEventWithBlockNumber(testEvent),
         repaymentChainId,
         blockTimestamp: (await testEvent.getBlock()).timestamp,
-      } as UBARefundRequestWithBlock);
+      } as RefundRequestWithBlock);
     }
     await spokePoolClient.update();
     refundRequestEvents = refundRequestEvents.map((e) => {
@@ -81,7 +81,7 @@ describe("SpokePoolClient: Refund Requests", function () {
         ...e,
         blockTimestamp: block.timestamp,
       };
-    }) as UBARefundRequestWithBlock[];
+    }) as RefundRequestWithBlock[];
     expect(spokePoolClient.latestBlockNumber - latestBlockNumber).to.be.at.least(nEvents);
 
     // Filter out the RefundRequests at the fringes.

@@ -11,10 +11,9 @@ import {
   DepositWithBlock,
   Fill,
   FillWithBlock,
+  RefundRequestWithBlock,
   TokenRunningBalance,
-  UBADepositWithBlock,
   UBAParsedConfigType,
-  UBARefundRequestWithBlock,
   UbaFlow,
   isUbaInflow,
   isUbaOutflow,
@@ -513,15 +512,13 @@ export async function getUBAFlows(
   toBlock = toBlock ?? spokePoolClient.eventSearchConfig.toBlock;
 
   // @todo: Fix these type assertions.
-  const deposits: UbaFlow[] = (spokePoolClient.getDeposits() as UBADepositWithBlock[]).filter(
-    (deposit: UBADepositWithBlock) => {
-      if (deposit.blockNumber < (fromBlock as number) || deposit.blockNumber > (toBlock as number)) {
-        return false;
-      }
-      const _tokenSymbol = hubPoolClient.getL1TokenInfoForL2Token(deposit.originToken, deposit.originChainId)?.symbol;
-      return _tokenSymbol === tokenSymbol;
+  const deposits: UbaFlow[] = spokePoolClient.getDeposits().filter((deposit: DepositWithBlock) => {
+    if (deposit.blockNumber < (fromBlock as number) || deposit.blockNumber > (toBlock as number)) {
+      return false;
     }
-  );
+    const _tokenSymbol = hubPoolClient.getL1TokenInfoForL2Token(deposit.originToken, deposit.originChainId)?.symbol;
+    return _tokenSymbol === tokenSymbol;
+  });
   const preUBADeposit = deposits.find((deposit) => isDefined(deposit.realizedLpFeePct));
   if (isDefined(preUBADeposit)) {
     throw new Error(
@@ -568,7 +565,7 @@ export async function getUBAFlows(
       },
       ["realizedLpFeePct"]
     )
-  ).filter((refundRequest: UBARefundRequestWithBlock) => {
+  ).filter((refundRequest: RefundRequestWithBlock) => {
     const _tokenSymbol = hubPoolClient.getL1TokenInfoForL2Token(
       refundRequest.refundToken,
       refundRequest.repaymentChainId
@@ -638,7 +635,7 @@ export function sortFlowsAscending(flows: UbaFlow[]): UbaFlow[] {
 export async function refundRequestIsValid(
   spokePoolClients: SpokePoolClients,
   hubPoolClient: HubPoolClient,
-  refundRequest: UBARefundRequestWithBlock,
+  refundRequest: RefundRequestWithBlock,
   ignoredDepositValidationParams: string[] = []
 ): Promise<RequestValidReturnType> {
   const {
@@ -823,14 +820,14 @@ export async function getValidRefundCandidates(
   spokePoolClients: SpokePoolClients,
   filter: Pick<SpokePoolFillFilter, "fromBlock" | "toBlock"> = {},
   ignoredDepositValidationParams: string[] = []
-): Promise<(UBARefundRequestWithBlock & { matchedDeposit: UBADepositWithBlock })[]> {
+): Promise<(RefundRequestWithBlock & { matchedDeposit: DepositWithBlock })[]> {
   const spokePoolClient = spokePoolClients[chainId];
   assert(isDefined(spokePoolClient));
 
   const { fromBlock, toBlock } = filter;
 
   return (
-    await mapAsync(spokePoolClient.getRefundRequests() as UBARefundRequestWithBlock[], async (refundRequest) => {
+    await mapAsync(spokePoolClient.getRefundRequests(), async (refundRequest) => {
       if (isDefined(fromBlock) && fromBlock > refundRequest.blockNumber) {
         return undefined;
       }
@@ -857,8 +854,8 @@ export async function getValidRefundCandidates(
         return undefined;
       }
     })
-  ).filter((refundRequest) => refundRequest !== undefined) as (UBARefundRequestWithBlock & {
-    matchedDeposit: UBADepositWithBlock;
+  ).filter((refundRequest) => refundRequest !== undefined) as (RefundRequestWithBlock & {
+    matchedDeposit: DepositWithBlock;
   })[];
 }
 

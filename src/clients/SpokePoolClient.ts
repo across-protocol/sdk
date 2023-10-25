@@ -41,9 +41,6 @@ import {
   SpeedUpStringified,
   TokensBridged,
   TokensBridgedStringified,
-  UBADepositWithBlock,
-  UBAFillWithBlock,
-  UBARefundRequestWithBlock,
 } from "../interfaces";
 import { SpokePool } from "../typechain";
 import { getNetworkName } from "../utils/NetworkUtils";
@@ -702,10 +699,10 @@ export class SpokePoolClient extends BaseAbstractClient {
           realizedLpFeePct: dataForQuoteTime[index].realizedLpFeePct,
           destinationToken: this.getDestinationTokenForDeposit(rawDeposit),
           quoteBlockNumber: dataForQuoteTime[index].quoteBlock,
+          blockTimestamp: 0,
         };
         if (isDefined(blocks)) {
-          (deposit as UBADepositWithBlock).blockTimestamp =
-            blocks[event.blockNumber]?.timestamp ?? (await event.getBlock()).timestamp;
+          deposit.blockTimestamp = blocks[event.blockNumber]?.timestamp ?? (await event.getBlock()).timestamp;
         }
 
         assign(this.depositHashes, [this.getDepositHash(deposit)], deposit);
@@ -749,9 +746,10 @@ export class SpokePoolClient extends BaseAbstractClient {
         const rawFill = spreadEventWithBlockNumber(event) as FillWithBlock;
         const fill: FillWithBlock = {
           ...rawFill,
+          blockTimestamp: 0,
         };
         if (isDefined(blocks)) {
-          (fill as UBAFillWithBlock).blockTimestamp = blocks[event.blockNumber].timestamp;
+          fill.blockTimestamp = blocks[event.blockNumber].timestamp;
         }
         assign(this.fills, [fill.originChainId], [fill]);
         assign(this.depositHashesToFills, [this.getDepositHash(fill)], [fill]);
@@ -774,9 +772,10 @@ export class SpokePoolClient extends BaseAbstractClient {
         const refundRequest: RefundRequestWithBlock = {
           ...rawRefundRequest,
           repaymentChainId: this.chainId, // repaymentChainId is not part of the on-chain event, so add it here.
+          blockTimestamp: 0,
         };
         if (isDefined(blocks)) {
-          (refundRequest as UBARefundRequestWithBlock).blockTimestamp = blocks[event.blockNumber].timestamp;
+          refundRequest.blockTimestamp = blocks[event.blockNumber].timestamp;
         }
         this.refundRequests.push(refundRequest);
       }
