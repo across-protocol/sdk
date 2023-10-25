@@ -583,31 +583,34 @@ export class SpokePoolClient extends BaseAbstractClient {
     // Sort all events to ensure they are stored in a consistent order.
     events.forEach((events: Event[]) => sortEventsAscendingInPlace(events));
 
-    // Collate the relevant set of block numbers and filter for uniqueness, then query each corresponding block.
-    const blockNumbers = Array.from(
-      new Set(
-        ["FundsDeposited", "FilledRelay", "RefundRequested"]
-          .filter((eventName) => eventsToQuery.includes(eventName))
-          .map((eventName) => {
-            const idx = eventsToQuery.indexOf(eventName);
-            // tsc needs type hints on this map...
-            return (events[idx] as Event[]).map(({ blockNumber }) => blockNumber);
-          })
-          .flat()
-      )
-    );
-
     // Load block timestamps if the UBA is active so that the UBAClient can order events using blockTimestamp.
     // Otherwise skip this RPC call.
+    let blocks: { [blockNumber: number]: Block } | undefined = undefined;
+    let blockNumbers: number[] = [];
     const isUBAActivated = isDefined(this.hubPoolClient?.configStoreClient.getUBAActivationBlock());
-    const blocks = isUBAActivated
-      ? Object.fromEntries(
-          await mapAsync(blockNumbers, async (blockNumber) => {
-            const block = await this.spokePool.provider.getBlock(blockNumber);
-            return [blockNumber, block];
-          })
+    if (isUBAActivated) {
+      // Collate the relevant set of block numbers and filter for uniqueness, then query each corresponding block.
+      blockNumbers = Array.from(
+        new Set(
+          ["FundsDeposited", "FilledRelay", "RefundRequested"]
+            .filter((eventName) => eventsToQuery.includes(eventName))
+            .map((eventName) => {
+              const idx = eventsToQuery.indexOf(eventName);
+              // tsc needs type hints on this map...
+              return (events[idx] as Event[]).map(({ blockNumber }) => blockNumber);
+            })
+            .flat()
         )
-      : undefined;
+      );
+      blocks = isUBAActivated
+        ? Object.fromEntries(
+            await mapAsync(blockNumbers, async (blockNumber) => {
+              const block = await this.spokePool.provider.getBlock(blockNumber);
+              return [blockNumber, block];
+            })
+          )
+        : undefined;
+    }
 
     return {
       success: true,
