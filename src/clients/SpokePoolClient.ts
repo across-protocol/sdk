@@ -700,7 +700,7 @@ export class SpokePoolClient extends BaseAbstractClient {
           destinationToken: this.getDestinationTokenForDeposit(rawDeposit),
           quoteBlockNumber: dataForQuoteTime[index].quoteBlock,
         };
-        if (blocks !== undefined) {
+        if (isDefined(blocks)) {
           (deposit as UBADepositWithBlock).blockTimestamp =
             blocks[event.blockNumber]?.timestamp ?? (await event.getBlock()).timestamp;
         }
@@ -747,7 +747,7 @@ export class SpokePoolClient extends BaseAbstractClient {
         const fill: FillWithBlock = {
           ...rawFill,
         };
-        if (blocks !== undefined) {
+        if (isDefined(blocks)) {
           (fill as UBAFillWithBlock).blockTimestamp = blocks[event.blockNumber].timestamp;
         }
         assign(this.fills, [fill.originChainId], [fill]);
@@ -772,7 +772,7 @@ export class SpokePoolClient extends BaseAbstractClient {
           ...rawRefundRequest,
           repaymentChainId: this.chainId, // repaymentChainId is not part of the on-chain event, so add it here.
         };
-        if (blocks !== undefined) {
+        if (isDefined(blocks)) {
           (refundRequest as UBARefundRequestWithBlock).blockTimestamp = blocks[event.blockNumber].timestamp;
         }
         this.refundRequests.push(refundRequest);
