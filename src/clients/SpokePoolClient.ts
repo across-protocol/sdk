@@ -599,15 +599,15 @@ export class SpokePoolClient extends BaseAbstractClient {
 
     // Load block timestamps if the UBA is active so that the UBAClient can order events using blockTimestamp.
     // Otherwise skip this RPC call.
-    const isUBAActivated = isDefined(this.hubPoolClient?.configStoreClient?.getUBAActivationBlock());
+    const isUBAActivated = isDefined(this.hubPoolClient?.configStoreClient.getUBAActivationBlock());
     const blocks = isUBAActivated
-      ? undefined
-      : Object.fromEntries(
+      ? Object.fromEntries(
           await mapAsync(blockNumbers, async (blockNumber) => {
             const block = await this.spokePool.provider.getBlock(blockNumber);
             return [blockNumber, block];
           })
-        );
+        )
+      : undefined;
 
     return {
       success: true,
