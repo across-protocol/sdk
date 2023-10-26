@@ -8,6 +8,7 @@ import {
   MAX_BIG_INT,
   MakeOptional,
   assign,
+  isDefined,
   mapAsync,
   stringifyJSONWithNumericString,
   toBN,
@@ -56,7 +57,8 @@ type _SpokePoolUpdate = {
   latestBlockNumber: number;
   latestDepositId: number;
   events: Event[][];
-  blocks: { [blockNumber: number]: Block };
+  // Blocks are only used if the UBA is active and events need to be ordered by blockTimestamp
+  blocks?: { [blockNumber: number]: Block };
   searchEndBlock: number;
 };
 export type SpokePoolUpdate = { success: false } | _SpokePoolUpdate;
@@ -578,25 +580,31 @@ export class SpokePoolClient extends BaseAbstractClient {
     // Sort all events to ensure they are stored in a consistent order.
     events.forEach((events: Event[]) => sortEventsAscendingInPlace(events));
 
-    // Collate the relevant set of block numbers and filter for uniqueness, then query each corresponding block.
-    const blockNumbers = Array.from(
-      new Set(
-        ["FundsDeposited", "FilledRelay", "RefundRequested"]
-          .filter((eventName) => eventsToQuery.includes(eventName))
-          .map((eventName) => {
-            const idx = eventsToQuery.indexOf(eventName);
-            // tsc needs type hints on this map...
-            return (events[idx] as Event[]).map(({ blockNumber }) => blockNumber);
-          })
-          .flat()
-      )
-    );
-    const blocks = Object.fromEntries(
-      await mapAsync(blockNumbers, async (blockNumber) => {
-        const block = await this.spokePool.provider.getBlock(blockNumber);
-        return [blockNumber, block];
-      })
-    );
+    // Load block timestamps if the UBA is active so that the UBAClient can order events using blockTimestamp.
+    // Otherwise skip these extra RPC calls.
+    let blocks: { [blockNumber: number]: Block } | undefined = undefined;
+    const isUBAActivated = isDefined(this.hubPoolClient?.configStoreClient.getUBAActivationBlock());
+    if (isUBAActivated) {
+      // Collate the relevant set of block numbers and filter for uniqueness, then query each corresponding block.
+      const blockNumbers = Array.from(
+        new Set(
+          ["FundsDeposited", "FilledRelay", "RefundRequested"]
+            .filter((eventName) => eventsToQuery.includes(eventName))
+            .map((eventName) => {
+              const idx = eventsToQuery.indexOf(eventName);
+              // tsc needs type hints on this map...
+              return (events[idx] as Event[]).map(({ blockNumber }) => blockNumber);
+            })
+            .flat()
+        )
+      );
+      blocks = Object.fromEntries(
+        await mapAsync(blockNumbers, async (blockNumber) => {
+          const block = await this.spokePool.provider.getBlock(blockNumber);
+          return [blockNumber, block];
+        })
+      );
+    }
 
     return {
       success: true,
@@ -688,8 +696,13 @@ export class SpokePoolClient extends BaseAbstractClient {
           realizedLpFeePct: dataForQuoteTime[index].realizedLpFeePct,
           destinationToken: this.getDestinationTokenForDeposit(rawDeposit),
           quoteBlockNumber: dataForQuoteTime[index].quoteBlock,
-          blockTimestamp: blocks[event.blockNumber]?.timestamp ?? (await event.getBlock()).timestamp,
+          blockTimestamp: 0,
         };
+        // Override the default blockTimestamp of 0 only if the UBA is active and we have pre-queried block times
+        // for each event.
+        if (isDefined(blocks)) {
+          deposit.blockTimestamp = blocks[event.blockNumber]?.timestamp ?? (await event.getBlock()).timestamp;
+        }
 
         assign(this.depositHashes, [this.getDepositHash(deposit)], deposit);
 
@@ -732,8 +745,13 @@ export class SpokePoolClient extends BaseAbstractClient {
         const rawFill = spreadEventWithBlockNumber(event) as FillWithBlock;
         const fill: FillWithBlock = {
           ...rawFill,
-          blockTimestamp: blocks[event.blockNumber].timestamp,
+          blockTimestamp: 0,
         };
+        // Override the default blockTimestamp of 0 only if the UBA is active and we have pre-queried block times
+        // for each event.
+        if (isDefined(blocks)) {
+          fill.blockTimestamp = blocks[event.blockNumber].timestamp;
+        }
         assign(this.fills, [fill.originChainId], [fill]);
         assign(this.depositHashesToFills, [this.getDepositHash(fill)], [fill]);
       }
@@ -755,8 +773,13 @@ export class SpokePoolClient extends BaseAbstractClient {
         const refundRequest: RefundRequestWithBlock = {
           ...rawRefundRequest,
           repaymentChainId: this.chainId, // repaymentChainId is not part of the on-chain event, so add it here.
-          blockTimestamp: blocks[event.blockNumber].timestamp,
+          blockTimestamp: 0,
         };
+        // Override the default blockTimestamp of 0 only if the UBA is active and we have pre-queried block times
+        // for each event.
+        if (isDefined(blocks)) {
+          refundRequest.blockTimestamp = blocks[event.blockNumber].timestamp;
+        }
         this.refundRequests.push(refundRequest);
       }
     }
