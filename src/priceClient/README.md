@@ -10,7 +10,7 @@ The PriceClient aggregates user-defined preferential list of price feeds. This p
  - Currently supported price feeds:
      - CoinGecko (Free & Pro)
      - Across API
- - Candiates for future addition:
+ - Candidates for future addition:
      - DefiLlama
      - On-chain lookups (i.e. Uniswap)
 
@@ -22,7 +22,7 @@ This code can be independently used by bots, the frontend, and the backend Acros
 The interface exposed by this feature maps very closely to our existing Coingecko API.
 
 ### Preferential token price lookups
-The PriceClient is initialised with an ordered list of Price Feeds. When performing price lookups, it will itereate through this list until it is able to successfully resolve a price for the requested tokens.
+The PriceClient is initialised with an ordered list of Price Feeds. When performing price lookups, it will iterate through this list until it is able to successfully resolve a price for the requested tokens.
 
 ### Token price cache with configurable age
 PriceClient.maxPriceAge controls the maximum age (in seconds) for cached prices. When a price is requested by a caller, the PriceClient will serve directly out of its internal cache if it holds a price that is younger than the maximum price age. This bypasses an external price lookup and may be used to mitigate rate-limiting. If no price is held, or if an expired price is held, then the PriceClient will perform the lookup against its ordered list of price feeds.

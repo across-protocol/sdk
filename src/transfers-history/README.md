@@ -1,6 +1,6 @@
 # Transfers history client
 
-This client is used for fetching the history of the assets tranfered between chains using Across V2 contracts.
+This client is used for fetching the history of the assets tranferred between chains using Across V2 contracts.
 
 ## Usage
 ```ts
