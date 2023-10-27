@@ -286,7 +286,7 @@ export class RelayFeeCalculator {
   async relayerFeeDetails(
     deposit: Deposit,
     amountToRelay?: BigNumberish,
-    amountToSimulate = bnOne,
+    amountToSimulate = bnOne as BigNumberish,
     relayerAddress = DEFAULT_SIMULATED_RELAYER_ADDRESS,
     _tokenPrice?: number
   ): Promise<RelayerFeeDetails> {
