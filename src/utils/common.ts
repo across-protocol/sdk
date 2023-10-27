@@ -7,10 +7,9 @@ import { GasPriceEstimate, getGasPriceEstimate } from "../gasPriceOracle";
 import { Deposit } from "../interfaces";
 import { TypedMessage } from "../interfaces/TypedData";
 import { SpokePool } from "../typechain";
-import { BigNumberish, BN, bnOne, bnUint256Max, toBN } from "./BigNumberUtils";
+import { BigNumberish, BN, bnUint256Max, toBN } from "./BigNumberUtils";
 import { ConvertDecimals } from "./FormattingUtils";
 import { isDefined } from "./TypeGuards";
-import { isMessageEmpty } from "./DepositUtils";
 
 export type Decimalish = string | number | Decimal;
 export const AddressZero = ethers.constants.AddressZero;
@@ -301,24 +300,18 @@ export async function estimateTotalGasRequiredByUnsignedTransaction(
 export function createUnsignedFillRelayTransactionFromDeposit(
   spokePool: SpokePool,
   deposit: Deposit,
-  _amountToFill: BN,
+  amountToFill: BN,
   relayerAddress: string
 ): Promise<PopulatedTransaction> {
   // We need to assume certain fields exist
   const realizedLpFeePct = deposit.realizedLpFeePct;
   assert(isDefined(realizedLpFeePct));
 
-  // We can conditionally decide which amount to fill. We know that if
-  // a message is empty, then we just want to verify that we are capable
-  // of doing a zero-fill. The code path in the Spoke Pool does not change
-  // and we will get an accurate estimate of gas used. However, if a message
-  // is not empty, then we want to fill the entire amount.
-  const amountToFill = isMessageEmpty(deposit.message) ? bnOne : _amountToFill;
-
   // If we have made it this far, then we can populate the transaction.
   if (isDefined(deposit.speedUpSignature)) {
     // If the deposit has a speed up signature, then we need to verify that certain
     // fields are present.
+
     const updatedRecipient = deposit.updatedRecipient;
     const updatedMessage = deposit.updatedMessage;
     const updatedRelayerFeePct = deposit.newRelayerFeePct;

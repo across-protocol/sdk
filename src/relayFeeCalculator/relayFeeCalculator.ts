@@ -12,6 +12,7 @@ import {
   MAX_BIG_INT,
   isDefined,
   getTokenInformationFromAddress,
+  bnOne,
 } from "../utils";
 import { DEFAULT_SIMULATED_RELAYER_ADDRESS } from "../constants";
 import { Deposit } from "../interfaces";
@@ -197,6 +198,7 @@ export class RelayFeeCalculator {
   async gasFeePercent(
     deposit: Deposit,
     amountToRelay: BigNumberish,
+    amountToSimulate: BigNumberish,
     relayerAddress = DEFAULT_SIMULATED_RELAYER_ADDRESS,
     _tokenPrice?: number
   ): Promise<BigNumber> {
@@ -207,7 +209,7 @@ export class RelayFeeCalculator {
 
     if (toBN(amountToRelay).eq(0)) return MAX_BIG_INT;
 
-    const getGasCosts = this.queries.getGasCosts(deposit, amountToRelay, relayerAddress).catch((error) => {
+    const getGasCosts = this.queries.getGasCosts(deposit, amountToSimulate, relayerAddress).catch((error) => {
       this.logger.error({ at: "sdk-v2/gasFeePercent", message: "Error while fetching gas costs", error });
       throw error;
     });
@@ -284,6 +286,7 @@ export class RelayFeeCalculator {
   async relayerFeeDetails(
     deposit: Deposit,
     amountToRelay?: BigNumberish,
+    amountToSimulate = bnOne,
     relayerAddress = DEFAULT_SIMULATED_RELAYER_ADDRESS,
     _tokenPrice?: number
   ): Promise<RelayerFeeDetails> {
@@ -296,7 +299,13 @@ export class RelayFeeCalculator {
       throw new Error(`Could not find token information for ${deposit.originToken}`);
     }
 
-    const gasFeePercent = await this.gasFeePercent(deposit, amountToRelay, relayerAddress, _tokenPrice);
+    const gasFeePercent = await this.gasFeePercent(
+      deposit,
+      amountToRelay,
+      amountToSimulate,
+      relayerAddress,
+      _tokenPrice
+    );
     const gasFeeTotal = gasFeePercent.mul(amountToRelay).div(fixedPointAdjustment);
     const capitalFeePercent = this.capitalFeePercent(
       amountToRelay,
