@@ -2,7 +2,7 @@ import { L2Provider } from "@eth-optimism/sdk/dist/interfaces/l2-provider";
 import { isL2Provider as isOptimismL2Provider } from "@eth-optimism/sdk/dist/l2-provider";
 import assert from "assert";
 import Decimal from "decimal.js";
-import { BigNumber, ethers, PopulatedTransaction, providers, VoidSigner } from "ethers";
+import { BigNumber, ethers, PopulatedTransaction, providers, utils, VoidSigner } from "ethers";
 import { GasPriceEstimate, getGasPriceEstimate } from "../gasPriceOracle";
 import { Deposit } from "../interfaces";
 import { TypedMessage } from "../interfaces/TypedData";
@@ -10,6 +10,8 @@ import { SpokePool } from "../typechain";
 import { BigNumberish, BN, bnUint256Max, toBN } from "./BigNumberUtils";
 import { ConvertDecimals } from "./FormattingUtils";
 import { isDefined } from "./TypeGuards";
+import { isMessageEmpty } from "./DepositUtils";
+import { getTokenInformationFromAddress } from "./TokenUtils";
 
 export type Decimalish = string | number | Decimal;
 export const AddressZero = ethers.constants.AddressZero;
@@ -300,18 +302,27 @@ export async function estimateTotalGasRequiredByUnsignedTransaction(
 export function createUnsignedFillRelayTransactionFromDeposit(
   spokePool: SpokePool,
   deposit: Deposit,
-  amountToFill: BN,
+  _amountToFill: BN,
   relayerAddress: string
 ): Promise<PopulatedTransaction> {
+  // Get token decimals
+  const tokenInformation = getTokenInformationFromAddress(deposit.destinationToken);
+  if (!isDefined(tokenInformation)) {
+    throw new Error("Could not resolve token information");
+  }
+
   // We need to assume certain fields exist
   const realizedLpFeePct = deposit.realizedLpFeePct;
   assert(isDefined(realizedLpFeePct));
+
+  const amountToFill = isMessageEmpty(deposit.message)
+    ? utils.parseUnits("0.1", tokenInformation.decimals)
+    : _amountToFill;
 
   // If we have made it this far, then we can populate the transaction.
   if (isDefined(deposit.speedUpSignature)) {
     // If the deposit has a speed up signature, then we need to verify that certain
     // fields are present.
-
     const updatedRecipient = deposit.updatedRecipient;
     const updatedMessage = deposit.updatedMessage;
     const updatedRelayerFeePct = deposit.newRelayerFeePct;
