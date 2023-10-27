@@ -2,16 +2,15 @@ import { L2Provider } from "@eth-optimism/sdk/dist/interfaces/l2-provider";
 import { isL2Provider as isOptimismL2Provider } from "@eth-optimism/sdk/dist/l2-provider";
 import assert from "assert";
 import Decimal from "decimal.js";
-import { BigNumber, ethers, PopulatedTransaction, providers, utils, VoidSigner } from "ethers";
+import { BigNumber, ethers, PopulatedTransaction, providers, VoidSigner } from "ethers";
 import { GasPriceEstimate, getGasPriceEstimate } from "../gasPriceOracle";
 import { Deposit } from "../interfaces";
 import { TypedMessage } from "../interfaces/TypedData";
 import { SpokePool } from "../typechain";
-import { BigNumberish, BN, bnUint256Max, toBN } from "./BigNumberUtils";
+import { BigNumberish, BN, bnOne, bnUint256Max, toBN } from "./BigNumberUtils";
 import { ConvertDecimals } from "./FormattingUtils";
 import { isDefined } from "./TypeGuards";
 import { isMessageEmpty } from "./DepositUtils";
-import { getTokenInformationFromAddress } from "./TokenUtils";
 
 export type Decimalish = string | number | Decimal;
 export const AddressZero = ethers.constants.AddressZero;
@@ -305,19 +304,16 @@ export function createUnsignedFillRelayTransactionFromDeposit(
   _amountToFill: BN,
   relayerAddress: string
 ): Promise<PopulatedTransaction> {
-  // Get token decimals
-  const tokenInformation = getTokenInformationFromAddress(deposit.destinationToken);
-  if (!isDefined(tokenInformation)) {
-    throw new Error("Could not resolve token information");
-  }
-
   // We need to assume certain fields exist
   const realizedLpFeePct = deposit.realizedLpFeePct;
   assert(isDefined(realizedLpFeePct));
 
-  const amountToFill = isMessageEmpty(deposit.message)
-    ? utils.parseUnits("0.1", tokenInformation.decimals)
-    : _amountToFill;
+  // We can conditionally decide which amount to fill. We know that if
+  // a message is empty, then we just want to verify that we are capable
+  // of doing a zero-fill. The code path in the Spoke Pool does not change
+  // and we will get an accurate estimate of gas used. However, if a message
+  // is not empty, then we want to fill the entire amount.
+  const amountToFill = isMessageEmpty(deposit.message) ? bnOne : _amountToFill;
 
   // If we have made it this far, then we can populate the transaction.
   if (isDefined(deposit.speedUpSignature)) {
