@@ -10,6 +10,7 @@ import { SpokePool } from "../typechain";
 import { BigNumberish, BN, bnUint256Max, toBN } from "./BigNumberUtils";
 import { ConvertDecimals } from "./FormattingUtils";
 import { isDefined } from "./TypeGuards";
+import { isDepositSpedUp } from "./DepositUtils";
 
 export type Decimalish = string | number | Decimal;
 export const AddressZero = ethers.constants.AddressZero;
@@ -308,7 +309,7 @@ export function createUnsignedFillRelayTransactionFromDeposit(
   assert(isDefined(realizedLpFeePct));
 
   // If we have made it this far, then we can populate the transaction.
-  if (isDefined(deposit.speedUpSignature)) {
+  if (isDepositSpedUp(deposit)) {
     // If the deposit has a speed up signature, then we need to verify that certain
     // fields are present.
 
