@@ -43,3 +43,17 @@ export class PolygonQueries extends QueryBase {
     return Number((tokenPrice / maticPrice).toFixed(this.symbolMapping["MATIC"].decimals));
   }
 }
+
+export class PolygonMumbaiQueries extends PolygonQueries {
+  constructor(
+    provider: providers.Provider,
+    symbolMapping = TOKEN_SYMBOLS_MAP,
+    spokePoolAddress = getDeployedAddress("SpokePool", CHAIN_IDs.MUMBAI),
+    simulatedRelayerAddress = "0x9A8f92a830A5cB89a3816e3D267CB7791c16b04D",
+    coingeckoProApiKey?: string,
+    logger: Logger = DEFAULT_LOGGER,
+    gasMarkup = 0
+  ) {
+    super(provider, symbolMapping, spokePoolAddress, simulatedRelayerAddress, coingeckoProApiKey, logger, gasMarkup);
+  }
+}
