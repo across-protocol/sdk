@@ -75,7 +75,7 @@ describe("RelayFeeCalculator", () => {
     ];
     for (const [input, truth] of gasFeePercents) {
       const result = (
-        await client.gasFeePercent(buildDepositForRelayerFeeTest(input, "usdc", 1, 10), input, input)
+        await client.gasFeePercent(buildDepositForRelayerFeeTest(input, "usdc", 1, 10), input, false)
       ).toString();
       expect(result).to.be.eq(truth);
     }
@@ -88,7 +88,7 @@ describe("RelayFeeCalculator", () => {
     const resultWithPrice = await client.relayerFeeDetails(
       buildDepositForRelayerFeeTest(100e6, "usdc", "10", "1"),
       100e6,
-      100e6,
+      false,
       randomAddress(),
       1.01
     );
@@ -102,7 +102,7 @@ describe("RelayFeeCalculator", () => {
           await client.relayerFeeDetails(
             buildDepositForRelayerFeeTest(100e6, "usdc", "1", "10"),
             100e6,
-            100e6,
+            false,
             undefined,
             1.0
           )
