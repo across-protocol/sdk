@@ -30,7 +30,7 @@ export class zkSyncGoerliQueries extends QueryBase {
   constructor(
     provider: providers.Provider,
     symbolMapping = TOKEN_SYMBOLS_MAP,
-    spokePoolAddress = "0x863859ef502F0Ee9676626ED5B418037252eFeb2", // @todo upgrade contracts-v2
+    spokePoolAddress = getDeployedAddress("SpokePool", CHAIN_IDs.ZK_SYNC_GOERLI),
     simulatedRelayerAddress = DEFAULT_SIMULATED_RELAYER_ADDRESS_TEST,
     coingeckoProApiKey?: string,
     logger: Logger = DEFAULT_LOGGER,
