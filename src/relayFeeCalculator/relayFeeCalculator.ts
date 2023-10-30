@@ -13,6 +13,7 @@ import {
   isDefined,
   getTokenInformationFromAddress,
   bnOne,
+  jsonReplacerWithBigNumbers,
 } from "../utils";
 import { DEFAULT_SIMULATED_RELAYER_ADDRESS } from "../constants";
 import { Deposit } from "../interfaces";
@@ -231,11 +232,23 @@ export class RelayFeeCalculator {
     const getGasCosts = this.queries
       .getGasCosts(deposit, simulateZeroFill ? bnOne : amountToRelay, relayerAddress)
       .catch((error) => {
-        this.logger.error({ at: "sdk-v2/gasFeePercent", message: "Error while fetching gas costs", error });
+        this.logger.error({
+          at: "sdk-v2/gasFeePercent",
+          message: "Error while fetching gas costs",
+          error,
+          simulateZeroFill,
+          deposit: JSON.stringify(deposit, jsonReplacerWithBigNumbers),
+        });
         throw error;
       });
     const getTokenPrice = this.queries.getTokenPrice(tokenInformation.symbol).catch((error) => {
-      this.logger.error({ at: "sdk-v2/gasFeePercent", message: "Error while fetching token price", error });
+      this.logger.error({
+        at: "sdk-v2/gasFeePercent",
+        message: "Error while fetching token price",
+        error,
+        simulateZeroFill,
+        deposit: JSON.stringify(deposit, jsonReplacerWithBigNumbers),
+      });
       throw error;
     });
     const [gasCosts, tokenPrice] = await Promise.all([
