@@ -1,7 +1,12 @@
 import { getDeployedAddress } from "../../utils/DeploymentUtils";
 import { DEFAULT_LOGGER, Logger } from "../relayFeeCalculator";
 import { providers } from "ethers";
-import { TOKEN_SYMBOLS_MAP, CHAIN_IDs, DEFAULT_SIMULATED_RELAYER_ADDRESS } from "../../constants";
+import {
+  TOKEN_SYMBOLS_MAP,
+  CHAIN_IDs,
+  DEFAULT_SIMULATED_RELAYER_ADDRESS,
+  DEFAULT_SIMULATED_RELAYER_ADDRESS_TEST
+} from "../../constants";
 import QueryBase from "./baseQuery";
 
 export class ZkSyncQueries extends QueryBase {
@@ -26,7 +31,7 @@ export class zkSyncGoerliQueries extends QueryBase {
     provider: providers.Provider,
     symbolMapping = TOKEN_SYMBOLS_MAP,
     spokePoolAddress = "0x863859ef502F0Ee9676626ED5B418037252eFeb2", // @todo upgrade contracts-v2
-    simulatedRelayerAddress = "0x9A8f92a830A5cB89a3816e3D267CB7791c16b04D",
+    simulatedRelayerAddress = DEFAULT_SIMULATED_RELAYER_ADDRESS_TEST,
     coingeckoProApiKey?: string,
     logger: Logger = DEFAULT_LOGGER,
     gasMarkup = 0
