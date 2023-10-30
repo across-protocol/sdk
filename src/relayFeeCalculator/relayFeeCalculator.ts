@@ -12,7 +12,6 @@ import {
   MAX_BIG_INT,
   isDefined,
   getTokenInformationFromAddress,
-  bnOne,
 } from "../utils";
 import { DEFAULT_SIMULATED_RELAYER_ADDRESS } from "../constants";
 import { Deposit } from "../interfaces";
@@ -229,7 +228,14 @@ export class RelayFeeCalculator {
     if (toBN(amountToRelay).eq(0)) return MAX_BIG_INT;
 
     const getGasCosts = this.queries
-      .getGasCosts(deposit, simulateZeroFill ? bnOne : amountToRelay, relayerAddress)
+      .getGasCosts(
+        {
+          ...deposit,
+          amount: simulateZeroFill ? toBN(100) : deposit.amount,
+        },
+        simulateZeroFill ? toBN(100) : amountToRelay,
+        relayerAddress
+      )
       .catch((error) => {
         this.logger.error({
           at: "sdk-v2/gasFeePercent",
@@ -245,8 +251,8 @@ export class RelayFeeCalculator {
         at: "sdk-v2/gasFeePercent",
         message: "Error while fetching token price",
         error,
-        simulateZeroFill,
-        deposit,
+        destinationChainId: deposit.destinationChainId,
+        destinationToken: deposit.destinationToken,
       });
       throw error;
     });
