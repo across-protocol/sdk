@@ -1,5 +1,10 @@
 import { providers } from "ethers";
-import { CHAIN_IDs, DEFAULT_SIMULATED_RELAYER_ADDRESS, TOKEN_SYMBOLS_MAP } from "../../constants";
+import {
+  CHAIN_IDs,
+  DEFAULT_SIMULATED_RELAYER_ADDRESS,
+  DEFAULT_SIMULATED_RELAYER_ADDRESS_TEST,
+  TOKEN_SYMBOLS_MAP
+} from "../../constants";
 import { getDeployedAddress } from "../../utils/DeploymentUtils";
 import { DEFAULT_LOGGER, Logger } from "../relayFeeCalculator";
 import QueryBase from "./baseQuery";
@@ -26,7 +31,7 @@ export class EthereumGoerliQueries extends QueryBase {
     provider: providers.Provider,
     symbolMapping = TOKEN_SYMBOLS_MAP,
     spokePoolAddress = getDeployedAddress("SpokePool", CHAIN_IDs.GOERLI),
-    simulatedRelayerAddress = "0x9A8f92a830A5cB89a3816e3D267CB7791c16b04D",
+    simulatedRelayerAddress = DEFAULT_SIMULATED_RELAYER_ADDRESS_TEST,
     coingeckoProApiKey?: string,
     logger: Logger = DEFAULT_LOGGER,
     gasMarkup = 0
