@@ -12,7 +12,6 @@
     "node": ">=16.18.0"
   },
   "scripts": {
-    "vc:dev": "vercel dev",
     "start": "nodemon -e ts,tsx,json,js,jsx --watch ./src --ignore ./dist --exec 'yarn build'",
     "build": "yarn run clean && yarn run build:cjs && yarn run build:esm && yarn run build:types",
     "build:cjs": "tsc --project tsconfig.build.json --module commonjs --outDir ./dist/cjs --removeComments --verbatimModuleSyntax false && echo > ./dist/cjs/package.json '{\"type\":\"commonjs\"}' && yarn copy-abi:cjs",
