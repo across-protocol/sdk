@@ -13,7 +13,6 @@ import {
   isDefined,
   getTokenInformationFromAddress,
   bnOne,
-  jsonReplacerWithBigNumbers,
 } from "../utils";
 import { DEFAULT_SIMULATED_RELAYER_ADDRESS } from "../constants";
 import { Deposit } from "../interfaces";
@@ -237,7 +236,7 @@ export class RelayFeeCalculator {
           message: "Error while fetching gas costs",
           error,
           simulateZeroFill,
-          deposit: JSON.stringify(deposit, jsonReplacerWithBigNumbers),
+          deposit,
         });
         throw error;
       });
@@ -247,7 +246,7 @@ export class RelayFeeCalculator {
         message: "Error while fetching token price",
         error,
         simulateZeroFill,
-        deposit: JSON.stringify(deposit, jsonReplacerWithBigNumbers),
+        deposit,
       });
       throw error;
     });
