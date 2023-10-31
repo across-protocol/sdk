@@ -216,7 +216,7 @@ export class RelayFeeCalculator {
   async gasFeePercent(
     deposit: Deposit,
     amountToRelay: BigNumberish,
-    simulateZeroFill = true,
+    simulateZeroFill = false,
     relayerAddress = DEFAULT_SIMULATED_RELAYER_ADDRESS,
     _tokenPrice?: number
   ): Promise<BigNumber> {
@@ -339,7 +339,7 @@ export class RelayFeeCalculator {
   async relayerFeeDetails(
     deposit: Deposit,
     amountToRelay?: BigNumberish,
-    simulateZeroFill = true,
+    simulateZeroFill = false,
     relayerAddress = DEFAULT_SIMULATED_RELAYER_ADDRESS,
     _tokenPrice?: number
   ): Promise<RelayerFeeDetails> {
