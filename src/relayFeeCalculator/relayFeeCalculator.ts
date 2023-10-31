@@ -194,9 +194,29 @@ export class RelayFeeCalculator {
     return this.queries.getTokenPrice(tokenSymbol);
   }
 
+  /**
+   * Calculate the gas fee as a % of the amount to relay.
+   * @param deposit A valid deposit object to reason about
+   * @param amountToRelay The amount that we should fill the deposit for
+   * @param simulateZeroFill Whether to simulate a zero fill for the gas cost simulation
+   *        A fill of 1 wei which would result in a slow/partial fill.
+   *        You should do this if you're not worried about simulating a proper fill of a deposit
+   *        with a message or if you are worried a fill amount that could exceed the balance of
+   *        the relayer.
+   * @param relayerAddress The relayer that will be used for the gas cost simulation
+   * @param _tokenPrice The token price for normalizing fees
+   * @returns The fee as a % of the amount to relay.
+   * @note Setting simulateZeroFill to true will result on the gas costs being estimated
+   *       on a zero fill. However, the percentage will be returned as a percentage of the
+   *       amount to relay. This is useful for determining the maximum gas fee % that a
+   *       relayer may need to make on a regular fill. You will get differing results if
+   *       a message & recipient contract is provided as this function may not simulate with
+   *       the correct parameters to see a full fill.
+   */
   async gasFeePercent(
     deposit: Deposit,
     amountToRelay: BigNumberish,
+    simulateZeroFill = false,
     relayerAddress = DEFAULT_SIMULATED_RELAYER_ADDRESS,
     _tokenPrice?: number
   ): Promise<BigNumber> {
@@ -207,12 +227,33 @@ export class RelayFeeCalculator {
 
     if (toBN(amountToRelay).eq(0)) return MAX_BIG_INT;
 
-    const getGasCosts = this.queries.getGasCosts(deposit, amountToRelay, relayerAddress).catch((error) => {
-      this.logger.error({ at: "sdk-v2/gasFeePercent", message: "Error while fetching gas costs", error });
-      throw error;
-    });
+    const getGasCosts = this.queries
+      .getGasCosts(
+        {
+          ...deposit,
+          amount: simulateZeroFill ? toBN(100) : deposit.amount,
+        },
+        simulateZeroFill ? toBN(100) : amountToRelay,
+        relayerAddress
+      )
+      .catch((error) => {
+        this.logger.error({
+          at: "sdk-v2/gasFeePercent",
+          message: "Error while fetching gas costs",
+          error,
+          simulateZeroFill,
+          deposit,
+        });
+        throw error;
+      });
     const getTokenPrice = this.queries.getTokenPrice(tokenInformation.symbol).catch((error) => {
-      this.logger.error({ at: "sdk-v2/gasFeePercent", message: "Error while fetching token price", error });
+      this.logger.error({
+        at: "sdk-v2/gasFeePercent",
+        message: "Error while fetching token price",
+        error,
+        destinationChainId: deposit.destinationChainId,
+        destinationToken: deposit.destinationToken,
+      });
       throw error;
     });
     const [gasCosts, tokenPrice] = await Promise.all([
@@ -281,9 +322,24 @@ export class RelayFeeCalculator {
       return minCharge.add(triangleCharge).add(remainderCharge).mul(fixedPointAdjustment).div(y);
     }
   }
+
+  /**
+   * Retrieves the relayer fee details for a deposit.
+   * @param deposit A valid deposit object to reason about
+   * @param amountToRelay The amount that the relayer would simulate a fill for
+   * @param simulateZeroFill Whether to simulate a zero fill for the gas cost simulation
+   *       For simulateZeroFill: A fill of 1 wei which would result in a slow/partial fill.
+   *       You should do this if you're not worried about simulating a proper fill of a deposit
+   *       with a message or if you are worried a fill amount that could exceed the balance of
+   *       the relayer.
+   * @param relayerAddress The relayer that will be used for the gas cost simulation
+   * @param _tokenPrice The token price for normalizing fees
+   * @returns A resulting `RelayerFeeDetails` object
+   */
   async relayerFeeDetails(
     deposit: Deposit,
     amountToRelay?: BigNumberish,
+    simulateZeroFill = false,
     relayerAddress = DEFAULT_SIMULATED_RELAYER_ADDRESS,
     _tokenPrice?: number
   ): Promise<RelayerFeeDetails> {
@@ -296,7 +352,13 @@ export class RelayFeeCalculator {
       throw new Error(`Could not find token information for ${deposit.originToken}`);
     }
 
-    const gasFeePercent = await this.gasFeePercent(deposit, amountToRelay, relayerAddress, _tokenPrice);
+    const gasFeePercent = await this.gasFeePercent(
+      deposit,
+      amountToRelay,
+      simulateZeroFill,
+      relayerAddress,
+      _tokenPrice
+    );
     const gasFeeTotal = gasFeePercent.mul(amountToRelay).div(fixedPointAdjustment);
     const capitalFeePercent = this.capitalFeePercent(
       amountToRelay,
