@@ -10,6 +10,7 @@ import { SpokePool } from "../typechain";
 import { BigNumberish, BN, bnUint256Max, toBN } from "./BigNumberUtils";
 import { ConvertDecimals } from "./FormattingUtils";
 import { isDefined } from "./TypeGuards";
+import { chainIsOPStack } from "./NetworkUtils";
 
 export type Decimalish = string | number | Decimal;
 export const AddressZero = ethers.constants.AddressZero;
@@ -264,12 +265,12 @@ export async function estimateTotalGasRequiredByUnsignedTransaction(
     `Require -1.0 < Gas Markup (${gasMarkup}) <= 4.0 for a total gas multiplier within (0, +5.0]`
   );
   const gasTotalMultiplier = toBNWei(1.0 + gasMarkup);
-  const network: providers.Network = await provider.getNetwork(); // Served locally by StaticJsonRpcProvider.
+  const { chainId } = await provider.getNetwork();
   const voidSigner = new VoidSigner(senderAddress, provider);
 
-  // Optimism is a special case; gas cost is computed by the SDK, without having to query price.
-  if ([10].includes(network.chainId)) {
-    assert(isOptimismL2Provider(provider), `Unexpected provider for chain ID ${network.chainId}.`);
+  // OP stack is a special case; gas cost is computed by the SDK, without having to query price.
+  if (chainIsOPStack(chainId)) {
+    assert(isOptimismL2Provider(provider), `Unexpected provider for chain ID ${chainId}.`);
     assert(gasPrice === undefined, `Gas price (${gasPrice}) supplied for Optimism gas estimation (unused).`);
     const populatedTransaction = await voidSigner.populateTransaction(unsignedTx);
     return (await provider.estimateTotalGasCost(populatedTransaction))

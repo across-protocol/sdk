@@ -46,3 +46,12 @@ export function getNativeTokenSymbol(chainId: number | string): string {
   }
   return "ETH";
 }
+
+/**
+ * Determines whether a chain ID is an Optimism OP Stack implementation.
+ * @param chainId Chain ID to evaluate.
+ * @returns True if chainId is an OP stack, otherwise false.
+ */
+export function chainIsOPStack(chainId: number): boolean {
+  return [10, 8453, 69, 420, 84531].includes(chainId);
+}
