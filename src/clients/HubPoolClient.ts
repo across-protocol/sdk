@@ -1,3 +1,4 @@
+import assert from "assert";
 import { BigNumber, Contract, Event, EventFilter } from "ethers";
 import _ from "lodash";
 import winston from "winston";
@@ -31,6 +32,7 @@ import {
   getCachedBlockForTimestamp,
   getCurrentTime,
   isDefined,
+  mapAsync,
   paginatedEventQuery,
   shouldCache,
   sortEventsDescending,
@@ -343,6 +345,188 @@ export class HubPoolClient extends BaseAbstractClient {
     const realizedLpFeePct = lpFeeCalculator.calculateRealizedLpFeePct(rateModel, current, post);
 
     return { realizedLpFeePct, quoteBlock };
+  }
+
+  /**
+   * For a HubPool token at a specific block number, compute the relevant utilization.
+   * @param hubPoolToken HubPool token to query utilization for.
+   * @param blocknumber Block number to query utilization at.
+   * @param amount Amount to query. If set to 0, the closing utilization at blockNumber is returned.
+   * @param amount timestamp Associated quoteTimestamp for query, used for caching evaluation.
+   * @param timeToCache Age at which the response is able to be cached.
+   * @returns HubPool utilization at `blockNumber` after optional `amount` increase in utilization.
+   */
+  protected async _getUtilization(
+    hubPoolToken: string,
+    blockNumber: number,
+    amount: BigNumber,
+    timestamp: number,
+    timeToCache: number
+  ): Promise<BigNumber> {
+    // Resolve this function call as an async anonymous function
+    const resolver = async () => {
+      const overrides = { blockTag: blockNumber };
+      if (amount.eq(0)) {
+        // For zero amount, just get the utilisation at `blockNumber`.
+        return await this.hubPool.callStatic.liquidityUtilizationCurrent(hubPoolToken, overrides);
+      }
+
+      return await this.hubPool.callStatic.liquidityUtilizationPostRelay(hubPoolToken, amount, overrides);
+    };
+
+    // Resolve the cache locally so that we can appease typescript
+    const cache = this.cachingMechanism;
+
+    // If there is no cache or the timestamp is not old enough to be cached, just resolve the function.
+    if (!cache || !shouldCache(getCurrentTime(), timestamp, timeToCache)) {
+      return resolver();
+    }
+
+    // Otherwise, let's resolve the key
+    const key = amount.eq(0)
+      ? `utilization_${hubPoolToken}_${blockNumber}`
+      : `utilization_${hubPoolToken}_${blockNumber}_${amount.toString()}`;
+    const result = await cache.get<string>(key);
+    if (isDefined(result)) {
+      return BigNumber.from(result);
+    }
+
+    // We were not able to find a valid result, so let's resolve the function.
+    const utilization = await resolver();
+    if (cache && shouldCache(getCurrentTime(), timestamp, timeToCache)) {
+      // If we should cache the result, store it for up to DEFAULT_CACHING_TTL.
+      await cache.set(key, `${utilization.toString()}`, DEFAULT_CACHING_TTL);
+    }
+
+    return utilization;
+  }
+
+  async batchComputeRealizedLpFeePct(
+    deposits: Pick<
+      DepositWithBlock,
+      "quoteTimestamp" | "amount" | "originChainId" | "originToken" | "destinationChainId" | "blockNumber"
+    >[]
+  ): Promise<{ quoteBlock: number; realizedLpFeePct?: BigNumber }[]> {
+    if (!isDefined(this.currentTime)) {
+      throw new Error("HubPoolClient has not set a currentTime");
+    }
+    const timeToCache = this.configOverride.timeToCache ?? DEFAULT_CACHING_SAFE_LAG;
+
+    // Map SpokePool tokens to HubPool tokens, and each HubPool token to a quoteTimestamp.
+    // This will later be reconciled to a HubPool blockNumber.
+    const hubPoolTokens: { [originToken: string]: string } = {};
+    const utilizationTimestamps: { [hubPoolToken: string]: number[] } = {};
+    const { originChainId: firstOriginChainId } = deposits[0];
+    deposits.forEach((deposit) => {
+      const { originChainId, originToken, quoteTimestamp } = deposit;
+      assert(
+        originChainId === firstOriginChainId,
+        "Cannot compute bulk realizedLpFeePct for disparate origin chains" +
+          ` (${originChainId} != ${firstOriginChainId})`
+      );
+
+      // Resolve the HubPool token address, if it isn't already known.
+      const hubPoolToken = hubPoolTokens[originToken] ?? this.getL1TokenForDeposit(deposit);
+      hubPoolTokens[originToken] ??= hubPoolToken;
+
+      // Append the quoteTimestamp for this HubPool token, if it isn't already enqueued.
+      utilizationTimestamps[hubPoolToken] ??= [];
+      if (!utilizationTimestamps[hubPoolToken].includes(quoteTimestamp)) {
+        utilizationTimestamps[hubPoolToken].push(quoteTimestamp);
+      }
+    });
+
+    // Filter all deposits for unique quoteTimestamps, to be resolved to a blockNumber in parallel.
+    const quoteTimestamps = Array.from(new Set(deposits.map(({ quoteTimestamp }) => quoteTimestamp)));
+    this.logger.info({
+      at: "HubPoolClient#batchComputeRealizedLpFeePct",
+      message: `Consolidated ${deposits.length} deposits to ${quoteTimestamps.length} timestamps to query.`,
+      chainId: firstOriginChainId,
+    });
+
+    let start = getCurrentTime();
+    // Map deposit quoteTimestamps to HubPool block numbers.
+    const quoteBlocks = Object.fromEntries(
+      await mapAsync(quoteTimestamps, async (quoteTimestamp) => {
+        const quoteBlock = await this.getBlockNumber(quoteTimestamp);
+        if (!isDefined(quoteBlock)) {
+          throw new Error(`Could not find block for timestamp ${quoteTimestamp}`);
+        }
+        return [quoteTimestamp, quoteBlock];
+      })
+    );
+    this.logger.info({
+      at: "HubPoolClient#batchComputeRealizedLpFeePct",
+      message: `Fetched ${Object.keys(quoteBlocks).length} blocks in ${getCurrentTime() - start} seconds.`,
+      chainId: firstOriginChainId,
+    });
+
+    // Convenience closure to resolve existing HubPool token utilisation for an array of blocks.
+    // Produces a mapping of blockNumber -> utilization for a specific token.
+    const resolveOpeningUtilization = async (hubPoolToken: string) => {
+      const quoteTimestamps = utilizationTimestamps[hubPoolToken];
+      return Object.fromEntries(
+        await mapAsync(quoteTimestamps, async (quoteTimestamp) => {
+          const blockNumber = quoteBlocks[quoteTimestamp];
+          const amount = toBN("0");
+          const utilization = await this._getUtilization(
+            hubPoolToken,
+            blockNumber,
+            amount,
+            quoteTimestamp,
+            timeToCache
+          );
+          return [blockNumber, utilization];
+        })
+      );
+    };
+
+    // For each token / quoteBlock pair, resolve the utilisation for each quoted block.
+    // This can be reused for each deposit with the same HubPool token and quoteTimestamp pair.
+    start = getCurrentTime();
+    const utilization: { [hubPoolToken: string]: { [blockNumber: number]: BigNumber } } = Object.fromEntries(
+      await mapAsync(Object.values(hubPoolTokens), async (hubPoolToken) => {
+        return [hubPoolToken, await resolveOpeningUtilization(hubPoolToken)];
+      })
+    );
+    this.logger.info({
+      at: "HubPoolClient#batchComputeRealizedLpFeePct",
+      message: `Computed static HubPool utilization in ${getCurrentTime() - start} seconds.`,
+      chainId: firstOriginChainId,
+    });
+
+    // For each deposit, compute the post-relay HubPool utilisation independently.
+    const lpFees = await mapAsync(deposits, async (deposit) => {
+      const { amount, originToken, originChainId, destinationChainId, quoteTimestamp } = deposit;
+      const quoteBlock = quoteBlocks[quoteTimestamp];
+
+      // Compare deposit block against UBA bundle start blocks.
+      if (isUBAActivatedAtBlock(this, deposit.blockNumber, deposit.originChainId)) {
+        // If UBA deposit then we can't compute the realizedLpFeePct until after we've updated the UBA Client.
+        return {
+          realizedLpFeePct: undefined,
+          quoteBlock,
+        };
+      }
+
+      // Otherwise, use the legacy fee model which is based ont he deposit quote block.
+      const hubPoolToken = hubPoolTokens[originToken];
+      const rateModel = this.configStoreClient.getRateModelForBlockNumber(
+        hubPoolToken,
+        originChainId,
+        destinationChainId,
+        quoteBlock
+      );
+
+      const preUtilization = utilization[hubPoolToken][quoteBlock];
+      const postUtilization = await this._getUtilization(hubPoolToken, quoteBlock, amount, quoteTimestamp, timeToCache);
+      const realizedLpFeePct = lpFeeCalculator.calculateRealizedLpFeePct(rateModel, preUtilization, postUtilization);
+
+      return { quoteBlock, realizedLpFeePct };
+    });
+
+    // @dev The caller expects to receive an array in the same length and ordering as the input `deposits`.
+    return lpFees;
   }
 
   getL1Tokens(): L1Token[] {

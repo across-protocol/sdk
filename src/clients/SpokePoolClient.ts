@@ -3,6 +3,7 @@ import { groupBy } from "lodash";
 import winston from "winston";
 import {
   AnyObject,
+  bnZero,
   DefaultLogLevels,
   EventSearchConfig,
   MAX_BIG_INT,
@@ -675,9 +676,13 @@ export class SpokePoolClient extends BaseAbstractClient {
       });
       this.earlyDeposits = earlyDeposits;
 
-      const dataForQuoteTime: { realizedLpFeePct: BigNumber | undefined; quoteBlock: number }[] = await Promise.all(
-        depositEvents.map((event) => this.computeRealizedLpFeePct(event))
-      );
+      // const dataForQuoteTime = await Promise.all(depositEvents.map((event) => this.computeRealizedLpFeePct(event)));
+      const dataForQuoteTime = await this.batchComputeRealizedLpFeePct(depositEvents);
+      this.logger.debug({
+        at: "SpokePoolClient",
+        message: `Computed realizedLpFees on ${this.chainId}!`,
+        dataForQuoteTime,
+      });
 
       // Now add any newly fetched events from RPC.
       if (depositEvents.length > 0) {
@@ -880,6 +885,37 @@ export class SpokePoolClient extends BaseAbstractClient {
   }
 
   /**
+   * Computes the realized LP fee percentage for a batch of deposits.
+   * @dev Computing in batch opens up for efficiencies, e.g. in quoteTimestamp -> blockNumber resolution.
+   * @param depositEvents The array of deposit events to compute the realized LP fee percentage for.
+   * @returns The array of realized LP fee percentages and associated HubPool block numbers.
+   */
+  protected async batchComputeRealizedLpFeePct(depositEvents: FundsDepositedEvent[]) {
+    // If no hub pool client, we're using this for testing. Set quote block very high so that if it's ever
+    // used to look up a configuration for a block, it will always match with the latest configuration.
+    if (this.hubPoolClient === null) {
+      const realizedLpFeePct = bnZero;
+      const quoteBlock = MAX_BIG_INT.toNumber();
+      return depositEvents.map(() => {
+        return { realizedLpFeePct, quoteBlock };
+      });
+    }
+
+    const deposits = depositEvents.map(({ args, blockNumber }) => {
+      return {
+        amount: args.amount,
+        originChainId: Number(args.originChainId),
+        destinationChainId: Number(args.destinationChainId),
+        originToken: args.originToken,
+        quoteTimestamp: args.quoteTimestamp,
+        blockNumber: blockNumber,
+      };
+    });
+
+    return await this.hubPoolClient.batchComputeRealizedLpFeePct(deposits);
+  }
+
+  /**
    * Retrieves the destination token for a given deposit.
    * @param deposit The deposit to retrieve the destination token for.
    * @returns The destination token.
@@ -970,7 +1006,7 @@ export class SpokePoolClient extends BaseAbstractClient {
       );
     }
     const partialDeposit = spreadEventWithBlockNumber(event) as DepositWithBlock;
-    const { realizedLpFeePct, quoteBlock: quoteBlockNumber } = await this.computeRealizedLpFeePct(event); // Append the realizedLpFeePct.
+    const { realizedLpFeePct, quoteBlock: quoteBlockNumber } = (await this.batchComputeRealizedLpFeePct([event]))[0]; // Append the realizedLpFeePct.
 
     // Append destination token and realized lp fee to deposit.
     const deposit: DepositWithBlock = {
