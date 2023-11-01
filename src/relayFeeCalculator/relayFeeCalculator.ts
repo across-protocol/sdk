@@ -18,7 +18,11 @@ import { Deposit } from "../interfaces";
 
 // This needs to be implemented for every chain and passed into RelayFeeCalculator
 export interface QueryInterface {
-  getGasCosts: (deposit: Deposit, amountToRelay: BigNumberish, relayerAddress: string) => Promise<BigNumberish>;
+  getGasCosts: (
+    deposit: Deposit,
+    amountToRelay: BigNumberish,
+    relayerAddress: string
+  ) => Promise<{ gasCost: BigNumberish; gasTokenCost: BigNumberish }>;
   getTokenPrice: (tokenSymbol: string) => Promise<number>;
   getTokenDecimals: (tokenSymbol: string) => number;
 }
@@ -256,12 +260,12 @@ export class RelayFeeCalculator {
       });
       throw error;
     });
-    const [gasCosts, tokenPrice] = await Promise.all([
+    const [{ gasTokenCost }, tokenPrice] = await Promise.all([
       getGasCosts,
       _tokenPrice !== undefined ? _tokenPrice : getTokenPrice,
     ]);
     const decimals = this.queries.getTokenDecimals(tokenInformation.symbol);
-    const gasFeesInToken = nativeToToken(gasCosts, tokenPrice, decimals, this.nativeTokenDecimals);
+    const gasFeesInToken = nativeToToken(gasTokenCost, tokenPrice, decimals, this.nativeTokenDecimals);
     return percent(gasFeesInToken, amountToRelay.toString());
   }
 
