@@ -106,7 +106,9 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
     // Use route-rate model if available, otherwise use default rate model for l1Token.
     const route = `${originChainId}-${destinationChainId}`;
     const routeRateModel = this.getRouteRateModelForBlockNumber(l1Token, route, blockNumber);
-    return routeRateModel ?? this.rateModelDictionary.getRateModelForBlockNumber(l1Token, blockNumber);
+    return routeRateModel
+      ??
+      this.rateModelDictionary.getRateModelForBlockNumber(l1Token, blockNumber);
   }
 
   getRouteRateModelForBlockNumber(
