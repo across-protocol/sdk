@@ -245,8 +245,8 @@ export function retry<T>(call: () => Promise<T>, times: number, delayS: number):
 }
 
 export type TransactionCostEstimate = {
-  nativeGasCost: BigNumber; // gas
-  tokenGasCost: BigNumber; // wei/gas
+  nativeGasCost: BigNumber; // Units: gas
+  tokenGasCost: BigNumber; // Units: wei (nativeGasCost * wei/gas)
 };
 
 /**
