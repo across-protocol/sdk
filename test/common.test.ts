@@ -53,7 +53,10 @@ describe("Utils test", () => {
       toBN(1),
       relayerAddress
     );
-    const { gasCost: refGasCost, gasTokenCost: refGasEstimate } = await estimateTotalGasRequiredByUnsignedTransaction(
+    const {
+      nativeGasCost: refGasCost,
+      tokenGasCost: refGasEstimate
+    } = await estimateTotalGasRequiredByUnsignedTransaction(
       unsignedTxn,
       relayerAddress,
       provider,
@@ -63,7 +66,7 @@ describe("Utils test", () => {
     expect(toBN(refGasEstimate).eq(toBN(refGasCost).mul(gasPrice))).to.be.true;
 
     for (let gasMarkup = -0.99; gasMarkup <= 4.0; gasMarkup += 0.33) {
-      const { gasCost, gasTokenCost } = await estimateTotalGasRequiredByUnsignedTransaction(
+      const { nativeGasCost, tokenGasCost } = await estimateTotalGasRequiredByUnsignedTransaction(
         unsignedTxn,
         relayerAddress,
         provider,
@@ -72,8 +75,8 @@ describe("Utils test", () => {
       );
       const gasMultiplier = toBNWei(1.0 + gasMarkup);
 
-      expect(toBN(gasCost).eq((toBN(refGasCost).mul(gasMultiplier).div(fixedPointAdjustment)))).to.be.true;
-      expect(toBN(gasTokenCost).eq(toBN(refGasEstimate).mul(gasMultiplier).div(fixedPointAdjustment))).to.be.true;
+      expect(toBN(nativeGasCost).eq((toBN(refGasCost).mul(gasMultiplier).div(fixedPointAdjustment)))).to.be.true;
+      expect(toBN(tokenGasCost).eq(toBN(refGasEstimate).mul(gasMultiplier).div(fixedPointAdjustment))).to.be.true;
     }
   });
 });

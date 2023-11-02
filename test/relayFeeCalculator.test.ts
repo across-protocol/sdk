@@ -1,6 +1,6 @@
 import dotenv from "dotenv";
 import { RelayFeeCalculator, QueryInterface } from "../src/relayFeeCalculator/relayFeeCalculator";
-import { BigNumberish, toBNWei, toBN, toGWei } from "../src/utils";
+import { toBNWei, toBN, toGWei, TransactionCostEstimate } from "../src/utils";
 import { assert, buildDepositForRelayerFeeTest, expect, randomAddress } from "./utils";
 
 dotenv.config({ path: ".env" });
@@ -45,12 +45,12 @@ const testCapitalCostsConfig: {
 class ExampleQueries implements QueryInterface {
   constructor(private defaultGas = "305572") {}
 
-  getGasCosts(): Promise<{ gasCost: BigNumberish; gasTokenCost: BigNumberish }> {
+  getGasCosts(): Promise<TransactionCostEstimate> {
     const getGasCost = () => {
       const { defaultGas: gasCost } = this;
       return {
-        gasCost: toBN(gasCost),
-        gasTokenCost: toBN(gasCost).mul(toGWei("1")),
+        nativeGasCost: toBN(gasCost),
+        tokenGasCost: toBN(gasCost).mul(toGWei("1")),
       };
     };
 
