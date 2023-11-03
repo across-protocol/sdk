@@ -421,7 +421,7 @@ export class HubPoolClient extends BaseAbstractClient {
       const { originChainId, originToken, quoteTimestamp } = deposit;
       assert(
         originChainId === firstOriginChainId,
-        "Cannot compute bulk realizedLpFeePct for disparate origin chains" +
+        "Cannot compute bulk realizedLpFeePct for different origin chains" +
           ` (${originChainId} != ${firstOriginChainId})`
       );
 
