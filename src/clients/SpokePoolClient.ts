@@ -722,24 +722,28 @@ export class SpokePoolClient extends BaseAbstractClient {
     if (eventsToQuery.includes("RequestedSpeedUpDeposit")) {
       const speedUpEvents = queryResults[eventsToQuery.indexOf("RequestedSpeedUpDeposit")];
 
-      const newSpeedUps: SpeedUp[] = [];
       for (const event of speedUpEvents) {
         const speedUp: SpeedUp = { ...spreadEvent(event.args), originChainId: this.chainId };
         assign(this.speedUps, [speedUp.depositor, speedUp.depositId], [speedUp]);
-        newSpeedUps.push(speedUp);
       }
 
-      // `appendMaxSpeedUpSignatureToDeposit` assumes that all this.speedUps has all speedups stored into memory.
-      for (const speedUp of newSpeedUps) {
-        // Find deposit hash matching this speed up event and update the deposit data associated with the hash,
-        // if the hash+data exists.
-        const depositHash = this.getDepositHash(speedUp);
+      // `appendMaxSpeedUpSignatureToDeposit` assu,es that all this.speedUps has all speedups stored into memory.
+      for (const [, speedUpDataByDepositId] of Object.entries(this.speedUps)) {
+        for (const [, speedUps] of Object.entries(speedUpDataByDepositId)) {
+          for (const speedUp of speedUps) {
+            // Find deposit hash matching this speed up event and update the deposit data associated with the hash,
+            // if the hash+data exists.
+            const depositHash = this.getDepositHash(speedUp);
 
-        // We can assume all deposits in this lookback window are loaded in-memory already so if the depositHash
-        // is not mapped to a deposit, then we can throw away the speedup as it can't be applied to anything.
-        const depositDataAssociatedWithSpeedUp = this.depositHashes[depositHash];
-        if (isDefined(depositDataAssociatedWithSpeedUp)) {
-          this.depositHashes[depositHash] = this.appendMaxSpeedUpSignatureToDeposit(depositDataAssociatedWithSpeedUp);
+            // We can assume all deposits in this lookback window are loaded in-memory already so if the depositHash
+            // is not mapped to a deposit, then we can throw away the speedup as it can't be applied to anything.
+            const depositDataAssociatedWithSpeedUp = this.depositHashes[depositHash];
+            if (isDefined(depositDataAssociatedWithSpeedUp)) {
+              this.depositHashes[depositHash] = this.appendMaxSpeedUpSignatureToDeposit(
+                depositDataAssociatedWithSpeedUp
+              );
+            }
+          }
         }
       }
     }
