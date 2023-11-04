@@ -729,7 +729,7 @@ export class SpokePoolClient extends BaseAbstractClient {
         newSpeedUps.push(speedUp);
       }
 
-      // `appendMaxSpeedUpSignatureToDeposit` assu,es that all this.speedUps has all speedups stored into memory.
+      // `appendMaxSpeedUpSignatureToDeposit` assumes that all this.speedUps has all speedups stored into memory.
       for (const speedUp of newSpeedUps) {
         // Find deposit hash matching this speed up event and update the deposit data associated with the hash,
         // if the hash+data exists.
