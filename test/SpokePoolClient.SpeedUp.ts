@@ -130,6 +130,9 @@ describe("SpokePoolClient: SpeedUp", function () {
     // Deposit is not returned until we reach deposit.quoteTimestamp.
     expect(spokePoolClient.getDepositsForDestinationChain(destinationChainId).length).to.equal(0);
     await spokePool.setCurrentTime(deposit.quoteTimestamp);
+
+    // Clear out spoke pool client data and re-update so that it should now see the formerly "early" deposit.
+    spokePoolClient = new SpokePoolClient(createSpyLogger().spyLogger, spokePool, null, originChainId, deploymentBlock);
     await spokePoolClient.update();
 
     // After speedup should return the appended object with the new fee information and signature.
