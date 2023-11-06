@@ -727,7 +727,7 @@ export class SpokePoolClient extends BaseAbstractClient {
         assign(this.speedUps, [speedUp.depositor, speedUp.depositId], [speedUp]);
       }
 
-      // `appendMaxSpeedUpSignatureToDeposit` assu,es that all this.speedUps has all speedups stored into memory.
+      // `appendMaxSpeedUpSignatureToDeposit` assumes that all this.speedUps has all speedups stored in memory.
       for (const [, speedUpDataByDepositId] of Object.entries(this.speedUps)) {
         for (const [, speedUps] of Object.entries(speedUpDataByDepositId)) {
           for (const speedUp of speedUps) {
