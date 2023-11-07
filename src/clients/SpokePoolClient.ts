@@ -412,7 +412,7 @@ export class SpokePoolClient extends BaseAbstractClient {
    * @note This hash is used to match deposits and fills together.
    * @note This hash takes the form of: `${depositId}-${originChainId}`.
    */
-  public getDepositHash(event: Deposit | Fill | DepositWithBlock | FillWithBlock): string {
+  public getDepositHash(event: { depositId: number; originChainId: number }): string {
     return `${event.depositId}-${event.originChainId}`;
   }
 
@@ -725,11 +725,17 @@ export class SpokePoolClient extends BaseAbstractClient {
       for (const event of speedUpEvents) {
         const speedUp: SpeedUp = { ...spreadEvent(event.args), originChainId: this.chainId };
         assign(this.speedUps, [speedUp.depositor, speedUp.depositId], [speedUp]);
-      }
 
-      // Traverse all deposit events and update them with associated speedups, If they exist.
-      for (const deposits of Object.entries(this.depositHashes)) {
-        this.depositHashes[deposits[0]] = this.appendMaxSpeedUpSignatureToDeposit(deposits[1]);
+        // Find deposit hash matching this speed up event and update the deposit data associated with the hash,
+        // if the hash+data exists.
+        const depositHash = this.getDepositHash(speedUp);
+
+        // We can assume all deposits in this lookback window are loaded in-memory already so if the depositHash
+        // is not mapped to a deposit, then we can throw away the speedup as it can't be applied to anything.
+        const depositDataAssociatedWithSpeedUp = this.depositHashes[depositHash];
+        if (isDefined(depositDataAssociatedWithSpeedUp)) {
+          this.depositHashes[depositHash] = this.appendMaxSpeedUpSignatureToDeposit(depositDataAssociatedWithSpeedUp);
+        }
       }
     }
 
