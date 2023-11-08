@@ -680,8 +680,7 @@ export class SpokePoolClient extends BaseAbstractClient {
       const dataForQuoteTime = await this.batchComputeRealizedLpFeePct(depositEvents);
       this.logger.debug({
         at: "SpokePoolClient",
-        message: `Computed realizedLpFees on ${this.chainId}!`,
-        dataForQuoteTime,
+        message: `Computed ${dataForQuoteTime.length} realizedLpFees on ${this.chainId}!`,
       });
 
       // Now add any newly fetched events from RPC.
