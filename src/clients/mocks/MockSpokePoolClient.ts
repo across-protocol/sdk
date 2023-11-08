@@ -4,7 +4,7 @@ import { random } from "lodash";
 import winston from "winston";
 import { ZERO_ADDRESS } from "../../constants";
 import { DepositWithBlock, FillWithBlock, FundsDepositedEvent, RefundRequestWithBlock } from "../../interfaces";
-import { toBN, toBNWei, forEachAsync, randomAddress } from "../../utils";
+import { isDefined, toBN, toBNWei, forEachAsync, mapAsync, randomAddress } from "../../utils";
 import { SpokePoolClient, SpokePoolUpdate } from "../SpokePoolClient";
 import { EventManager, getEventManager } from "./MockEvents";
 
@@ -39,6 +39,13 @@ export class MockSpokePoolClient extends SpokePoolClient {
         quoteBlock: depositEvent.blockNumber,
       } ?? (await super.computeRealizedLpFeePct(depositEvent))
     );
+  }
+
+  async batchComputeRealizedLpFeePct(depositEvents: FundsDepositedEvent[]) {
+    const realizedLpFeePct = this.realizedLpFeePctOverride;
+    return isDefined(realizedLpFeePct)
+      ? depositEvents.map(({ blockNumber: quoteBlock }) => { return { realizedLpFeePct, quoteBlock } })
+      : super.batchComputeRealizedLpFeePct(depositEvents);
   }
 
   setDestinationTokenForChain(chainId: number, token: string): void {
