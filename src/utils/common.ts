@@ -3,7 +3,7 @@ import { isL2Provider as isOptimismL2Provider } from "@eth-optimism/sdk/dist/l2-
 import assert from "assert";
 import Decimal from "decimal.js";
 import { BigNumber, ethers, PopulatedTransaction, providers, VoidSigner } from "ethers";
-import { GasPriceEstimate, getGasPriceEstimate } from "../gasPriceOracle";
+import { getGasPriceEstimate } from "../gasPriceOracle";
 import { Deposit } from "../interfaces";
 import { TypedMessage } from "../interfaces/TypedData";
 import { SpokePool } from "../typechain";
@@ -244,14 +244,19 @@ export function retry<T>(call: () => Promise<T>, times: number, delayS: number):
   return promiseChain;
 }
 
+export type TransactionCostEstimate = {
+  nativeGasCost: BigNumber; // Units: gas
+  tokenGasCost: BigNumber; // Units: wei (nativeGasCost * wei/gas)
+};
+
 /**
- * Estimates the total gas cost required to submit an unsigned (populated) transaction on-chain
- * @param unsignedTx The unsigned transaction that this function will estimate
- * @param senderAddress The address that the transaction will be submitted from
- * @param provider A valid ethers provider - will be used to reason the gas price
- * @param gasMarkup Represents a percent increase on the total gas cost. For example, 0.2 will increase this resulting value by a factor of 1.2
- * @param gasPrice A manually provided gas price - if set, this function will not resolve the current gas price
- * @returns The total gas cost to submit this transaction - i.e. gasPrice * estimatedGasUnits
+ * Estimates the total gas cost required to submit an unsigned (populated) transaction on-chain.
+ * @param unsignedTx The unsigned transaction that this function will estimate.
+ * @param senderAddress The address that the transaction will be submitted from.
+ * @param provider A valid ethers provider - will be used to reason the gas price.
+ * @param gasMarkup Markup on the estimated gas cost. For example, 0.2 will increase this resulting value 1.2x.
+ * @param gasPrice A manually provided gas price - if set, this function will not resolve the current gas price.
+ * @returns Estimated cost in units of gas and the underlying gas token (gasPrice * estimatedGasUnits).
  */
 export async function estimateTotalGasRequiredByUnsignedTransaction(
   unsignedTx: PopulatedTransaction,
@@ -259,7 +264,7 @@ export async function estimateTotalGasRequiredByUnsignedTransaction(
   provider: providers.Provider | L2Provider<providers.Provider>,
   gasMarkup: number,
   gasPrice?: BigNumberish
-): Promise<BigNumberish> {
+): Promise<TransactionCostEstimate> {
   assert(
     gasMarkup > -1 && gasMarkup <= 4,
     `Require -1.0 < Gas Markup (${gasMarkup}) <= 4.0 for a total gas multiplier within (0, +5.0]`
@@ -268,28 +273,32 @@ export async function estimateTotalGasRequiredByUnsignedTransaction(
   const { chainId } = await provider.getNetwork();
   const voidSigner = new VoidSigner(senderAddress, provider);
 
+  // Estimate the Gas units required to submit this transaction.
+  let nativeGasCost = await voidSigner.estimateGas(unsignedTx);
+  let tokenGasCost: BigNumber;
+
   // OP stack is a special case; gas cost is computed by the SDK, without having to query price.
   if (chainIsOPStack(chainId)) {
     assert(isOptimismL2Provider(provider), `Unexpected provider for chain ID ${chainId}.`);
     assert(gasPrice === undefined, `Gas price (${gasPrice}) supplied for Optimism gas estimation (unused).`);
     const populatedTransaction = await voidSigner.populateTransaction(unsignedTx);
-    return (await provider.estimateTotalGasCost(populatedTransaction))
-      .mul(gasTotalMultiplier)
-      .div(toBNWei(1))
-      .toString();
+    tokenGasCost = await provider.estimateTotalGasCost(populatedTransaction);
+  } else {
+    if (!gasPrice) {
+      const gasPriceEstimate = await getGasPriceEstimate(provider);
+      gasPrice = gasPriceEstimate.maxFeePerGas;
+    }
+    tokenGasCost = nativeGasCost.mul(gasPrice);
   }
 
-  if (!gasPrice) {
-    const gasPriceEstimate: GasPriceEstimate = await getGasPriceEstimate(provider);
-    gasPrice = gasPriceEstimate.maxFeePerGas;
-  }
+  // Scale the results by the computed multiplier.
+  nativeGasCost = nativeGasCost.mul(gasTotalMultiplier).div(fixedPointAdjustment);
+  tokenGasCost = tokenGasCost.mul(gasTotalMultiplier).div(fixedPointAdjustment);
 
-  // Estimate the Gas units required to submit this transaction
-  const estimatedGasUnits = await voidSigner.estimateGas(unsignedTx);
-
-  // Find the total gas cost by taking the product of the gas price & the
-  // estimated number of gas units needed.
-  return BigNumber.from(gasPrice).mul(gasTotalMultiplier).mul(estimatedGasUnits).div(toBNWei(1)).toString();
+  return {
+    nativeGasCost, // Units: gas
+    tokenGasCost, // Units: wei (nativeGasCost * wei/gas)
+  };
 }
 
 /**
