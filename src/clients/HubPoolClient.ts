@@ -359,19 +359,19 @@ export class HubPoolClient extends BaseAbstractClient {
   protected async _getUtilization(
     hubPoolToken: string,
     blockNumber: number,
-    amount: BigNumber,
+    depositAmount: BigNumber,
     timestamp: number,
     timeToCache: number
   ): Promise<BigNumber> {
     // Resolve this function call as an async anonymous function
     const resolver = async () => {
       const overrides = { blockTag: blockNumber };
-      if (amount.eq(0)) {
+      if (depositAmount.eq(0)) {
         // For zero amount, just get the utilisation at `blockNumber`.
         return await this.hubPool.callStatic.liquidityUtilizationCurrent(hubPoolToken, overrides);
       }
 
-      return await this.hubPool.callStatic.liquidityUtilizationPostRelay(hubPoolToken, amount, overrides);
+      return await this.hubPool.callStatic.liquidityUtilizationPostRelay(hubPoolToken, depositAmount, overrides);
     };
 
     // Resolve the cache locally so that we can appease typescript
@@ -383,9 +383,9 @@ export class HubPoolClient extends BaseAbstractClient {
     }
 
     // Otherwise, let's resolve the key
-    const key = amount.eq(0)
+    const key = depositAmount.eq(0)
       ? `utilization_${hubPoolToken}_${blockNumber}`
-      : `utilization_${hubPoolToken}_${blockNumber}_${amount.toString()}`;
+      : `utilization_${hubPoolToken}_${blockNumber}_${depositAmount.toString()}`;
     const result = await cache.get<string>(key);
     if (isDefined(result)) {
       return BigNumber.from(result);
