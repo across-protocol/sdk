@@ -407,6 +407,7 @@ export class HubPoolClient extends BaseAbstractClient {
       "quoteTimestamp" | "amount" | "originChainId" | "originToken" | "destinationChainId" | "blockNumber"
     >[]
   ): Promise<{ quoteBlock: number; realizedLpFeePct?: BigNumber }[]> {
+    assert(deposits.length > 0, "No deposits supplied to batchComputeRealizedLpFeePct");
     if (!isDefined(this.currentTime)) {
       throw new Error("HubPoolClient has not set a currentTime");
     }
