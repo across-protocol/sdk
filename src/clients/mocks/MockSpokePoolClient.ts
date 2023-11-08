@@ -43,14 +43,16 @@ export class MockSpokePoolClient extends SpokePoolClient {
     const { blockNumber: quoteBlock } = depositEvent;
     return realizedLpFeePctOverride
       ? { realizedLpFeePct, quoteBlock }
-      : super.computeRealizedLpFeePct(depositEvent);
+      : await super.computeRealizedLpFeePct(depositEvent);
   }
 
   async batchComputeRealizedLpFeePct(depositEvents: FundsDepositedEvent[]) {
     const { realizedLpFeePct, realizedLpFeePctOverride } = this;
     return realizedLpFeePctOverride
-      ? depositEvents.map(({ blockNumber: quoteBlock }) => { return { realizedLpFeePct, quoteBlock } })
-      : super.batchComputeRealizedLpFeePct(depositEvents);
+      ? depositEvents.map(({ blockNumber: quoteBlock }) => {
+          return { realizedLpFeePct, quoteBlock };
+        })
+      : await super.batchComputeRealizedLpFeePct(depositEvents);
   }
 
   setDestinationTokenForChain(chainId: number, token: string): void {

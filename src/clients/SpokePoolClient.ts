@@ -918,9 +918,7 @@ export class SpokePoolClient extends BaseAbstractClient {
       };
     });
 
-    return deposits.length > 0
-      ? await this.hubPoolClient.batchComputeRealizedLpFeePct(deposits)
-      : [];
+    return deposits.length > 0 ? await this.hubPoolClient.batchComputeRealizedLpFeePct(deposits) : [];
   }
 
   /**
