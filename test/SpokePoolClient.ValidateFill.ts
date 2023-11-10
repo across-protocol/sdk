@@ -268,14 +268,14 @@ describe("SpokePoolClient: Fill Validation", function () {
     );
 
     // Now send multiple deposits in the same block.
-    const depositParams = getDepositParams(
-      depositor.address,
-      erc20_1.address,
-      toBNWei("1"),
-      destinationChainId,
-      toBNWei("0.01"),
-      await spokePool_1.getCurrentTime()
-    );
+    const depositParams = getDepositParams({
+      recipient: depositor.address,
+      originToken: erc20_1.address,
+      amount: toBNWei("1"),
+      destinationChainId: destinationChainId,
+      relayerFeePct: toBNWei("0.01"),
+      quoteTimestamp: await spokePool_1.getCurrentTime()
+    });
     const depositData = await spokePool_1.populateTransaction.deposit(...depositParams);
     await spokePool_1.connect(depositor).multicall(Array(3).fill(depositData.data));
     expect(await spokePool_1.numberOfDeposits()).to.equal(5);
