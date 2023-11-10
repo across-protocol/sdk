@@ -103,7 +103,7 @@
     "@pinata/sdk": "^2.1.0",
     "@types/mocha": "^10.0.1",
     "@uma/sdk": "^0.34.1",
-    "axios": "^0.27.2",
+    "axios": "^1.6.0",
     "big-number": "^2.0.0",
     "decimal.js": "^10.3.1",
     "ethers": "^5.7.2",
