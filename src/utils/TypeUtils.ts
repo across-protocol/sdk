@@ -5,3 +5,5 @@ export type MakeOptional<Type, Key extends keyof Type> = Omit<Type, Key> & Parti
 export type AnyObject = Record<string, unknown>;
 
 export type SpokePoolClients = Record<number, SpokePoolClient>;
+
+export type Reviver = (key: string, value: unknown) => unknown;

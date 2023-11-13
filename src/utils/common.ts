@@ -1,13 +1,16 @@
-import { BigNumber, ethers, PopulatedTransaction, providers, VoidSigner } from "ethers";
-import Decimal from "decimal.js";
-import { isL2Provider as isOptimismL2Provider } from "@eth-optimism/sdk/dist/l2-provider";
 import { L2Provider } from "@eth-optimism/sdk/dist/interfaces/l2-provider";
-import { SpokePool } from "../typechain";
+import { isL2Provider as isOptimismL2Provider } from "@eth-optimism/sdk/dist/l2-provider";
 import assert from "assert";
-import { GasPriceEstimate, getGasPriceEstimate } from "../gasPriceOracle";
+import Decimal from "decimal.js";
+import { BigNumber, ethers, PopulatedTransaction, providers, VoidSigner } from "ethers";
+import { getGasPriceEstimate } from "../gasPriceOracle";
+import { Deposit } from "../interfaces";
 import { TypedMessage } from "../interfaces/TypedData";
-import { BN, toBN, BigNumberish } from "./BigNumberUtils";
+import { SpokePool } from "../typechain";
+import { BigNumberish, BN, bnUint256Max, toBN } from "./BigNumberUtils";
 import { ConvertDecimals } from "./FormattingUtils";
+import { isDefined } from "./TypeGuards";
+import { chainIsOPStack } from "./NetworkUtils";
 
 export type Decimalish = string | number | Decimal;
 export const AddressZero = ethers.constants.AddressZero;
@@ -241,14 +244,19 @@ export function retry<T>(call: () => Promise<T>, times: number, delayS: number):
   return promiseChain;
 }
 
+export type TransactionCostEstimate = {
+  nativeGasCost: BigNumber; // Units: gas
+  tokenGasCost: BigNumber; // Units: wei (nativeGasCost * wei/gas)
+};
+
 /**
- * Estimates the total gas cost required to submit an unsigned (populated) transaction on-chain
- * @param unsignedTx The unsigned transaction that this function will estimate
- * @param senderAddress The address that the transaction will be submitted from
- * @param provider A valid ethers provider - will be used to reason the gas price
- * @param gasMarkup Represents a percent increase on the total gas cost. For example, 0.2 will increase this resulting value by a factor of 1.2
- * @param gasPrice A manually provided gas price - if set, this function will not resolve the current gas price
- * @returns The total gas cost to submit this transaction - i.e. gasPrice * estimatedGasUnits
+ * Estimates the total gas cost required to submit an unsigned (populated) transaction on-chain.
+ * @param unsignedTx The unsigned transaction that this function will estimate.
+ * @param senderAddress The address that the transaction will be submitted from.
+ * @param provider A valid ethers provider - will be used to reason the gas price.
+ * @param gasMarkup Markup on the estimated gas cost. For example, 0.2 will increase this resulting value 1.2x.
+ * @param gasPrice A manually provided gas price - if set, this function will not resolve the current gas price.
+ * @returns Estimated cost in units of gas and the underlying gas token (gasPrice * estimatedGasUnits).
  */
 export async function estimateTotalGasRequiredByUnsignedTransaction(
   unsignedTx: PopulatedTransaction,
@@ -256,68 +264,109 @@ export async function estimateTotalGasRequiredByUnsignedTransaction(
   provider: providers.Provider | L2Provider<providers.Provider>,
   gasMarkup: number,
   gasPrice?: BigNumberish
-): Promise<BigNumberish> {
+): Promise<TransactionCostEstimate> {
   assert(
     gasMarkup > -1 && gasMarkup <= 4,
     `Require -1.0 < Gas Markup (${gasMarkup}) <= 4.0 for a total gas multiplier within (0, +5.0]`
   );
   const gasTotalMultiplier = toBNWei(1.0 + gasMarkup);
-  const network: providers.Network = await provider.getNetwork(); // Served locally by StaticJsonRpcProvider.
+  const { chainId } = await provider.getNetwork();
   const voidSigner = new VoidSigner(senderAddress, provider);
 
-  // Optimism is a special case; gas cost is computed by the SDK, without having to query price.
-  if ([10].includes(network.chainId)) {
-    assert(isOptimismL2Provider(provider), `Unexpected provider for chain ID ${network.chainId}.`);
+  // Estimate the Gas units required to submit this transaction.
+  let nativeGasCost = await voidSigner.estimateGas(unsignedTx);
+  let tokenGasCost: BigNumber;
+
+  // OP stack is a special case; gas cost is computed by the SDK, without having to query price.
+  if (chainIsOPStack(chainId)) {
+    assert(isOptimismL2Provider(provider), `Unexpected provider for chain ID ${chainId}.`);
     assert(gasPrice === undefined, `Gas price (${gasPrice}) supplied for Optimism gas estimation (unused).`);
     const populatedTransaction = await voidSigner.populateTransaction(unsignedTx);
-    return (await provider.estimateTotalGasCost(populatedTransaction))
-      .mul(gasTotalMultiplier)
-      .div(toBNWei(1))
-      .toString();
+    tokenGasCost = await provider.estimateTotalGasCost(populatedTransaction);
+  } else {
+    if (!gasPrice) {
+      const gasPriceEstimate = await getGasPriceEstimate(provider);
+      gasPrice = gasPriceEstimate.maxFeePerGas;
+    }
+    tokenGasCost = nativeGasCost.mul(gasPrice);
   }
 
-  if (!gasPrice) {
-    const gasPriceEstimate: GasPriceEstimate = await getGasPriceEstimate(provider);
-    gasPrice = gasPriceEstimate.maxFeePerGas;
-  }
+  // Scale the results by the computed multiplier.
+  nativeGasCost = nativeGasCost.mul(gasTotalMultiplier).div(fixedPointAdjustment);
+  tokenGasCost = tokenGasCost.mul(gasTotalMultiplier).div(fixedPointAdjustment);
 
-  // Estimate the Gas units required to submit this transaction
-  const estimatedGasUnits = await voidSigner.estimateGas(unsignedTx);
-
-  // Find the total gas cost by taking the product of the gas price & the
-  // estimated number of gas units needed.
-  return BigNumber.from(gasPrice).mul(gasTotalMultiplier).mul(estimatedGasUnits).div(toBNWei(1)).toString();
+  return {
+    nativeGasCost, // Units: gas
+    tokenGasCost, // Units: wei (nativeGasCost * wei/gas)
+  };
 }
 
 /**
- * Create an unsigned transaction of a fillRelay contract call
- * @param spokePool The specific spokepool that will populate this tx
- * @param destinationTokenAddress A valid ERC20 token (system-wide default is UDSC)
- * @param simulatedRelayerAddress The relayer address that relays this transaction
- * @returns A populated (but unsigned) transaction that can be signed/sent or used for estimating gas costs
+ * Create an unsigned transaction to fill a relay. This function is used to simulate the gas cost of filling a relay.
+ * @param spokePool A valid SpokePool contract instance
+ * @param fillToSimulate The fill that this function will use to populate the unsigned transaction
+ * @returns An unsigned transaction that can be used to simulate the gas cost of filling a relay
  */
-export async function createUnsignedFillRelayTransaction(
+export function createUnsignedFillRelayTransactionFromDeposit(
   spokePool: SpokePool,
-  destinationTokenAddress: string,
-  simulatedRelayerAddress: string
+  deposit: Deposit,
+  amountToFill: BN,
+  relayerAddress: string
 ): Promise<PopulatedTransaction> {
-  // Populate and return an unsigned tx as per the given spoke pool
-  // NOTE: 0xBb23Cd0210F878Ea4CcA50e9dC307fb0Ed65Cf6B is a dummy address
-  return await spokePool.populateTransaction.fillRelay(
-    "0xBb23Cd0210F878Ea4CcA50e9dC307fb0Ed65Cf6B",
-    "0xBb23Cd0210F878Ea4CcA50e9dC307fb0Ed65Cf6B",
-    destinationTokenAddress,
-    "10",
-    "10",
-    "1",
-    "1",
-    "1",
-    "1",
-    "1",
-    [],
-    MAX_BIG_INT,
-    { from: simulatedRelayerAddress }
-  );
+  // We need to assume certain fields exist
+  const realizedLpFeePct = deposit.realizedLpFeePct;
+  assert(isDefined(realizedLpFeePct));
+
+  // If we have made it this far, then we can populate the transaction.
+  if (isDefined(deposit.speedUpSignature)) {
+    // If the deposit has a speed up signature, then we need to verify that certain
+    // fields are present.
+
+    const updatedRecipient = deposit.updatedRecipient;
+    const updatedMessage = deposit.updatedMessage;
+    const updatedRelayerFeePct = deposit.newRelayerFeePct;
+    assert(isDefined(updatedRecipient) && isDefined(updatedMessage) && isDefined(updatedRelayerFeePct));
+
+    return spokePool.populateTransaction.fillRelayWithUpdatedDeposit(
+      deposit.depositor,
+      deposit.recipient,
+      updatedRecipient,
+      deposit.destinationToken,
+      deposit.amount,
+      amountToFill,
+      deposit.destinationChainId,
+      deposit.originChainId,
+      realizedLpFeePct,
+      deposit.relayerFeePct,
+      updatedRelayerFeePct,
+      deposit.depositId,
+      deposit.message,
+      updatedMessage,
+      deposit.speedUpSignature,
+      bnUint256Max,
+      {
+        from: relayerAddress,
+      }
+    );
+  } else {
+    return spokePool.populateTransaction.fillRelay(
+      deposit.depositor,
+      deposit.recipient,
+      deposit.destinationToken,
+      deposit.amount,
+      amountToFill,
+      deposit.destinationChainId, // Assume we're refunding to destination
+      deposit.originChainId,
+      realizedLpFeePct,
+      deposit.relayerFeePct,
+      deposit.depositId,
+      deposit.message,
+      bnUint256Max,
+      {
+        from: relayerAddress,
+      }
+    );
+  }
 }
 
 /**

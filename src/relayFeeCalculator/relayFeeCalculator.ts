@@ -10,11 +10,16 @@ import {
   max,
   percent,
   MAX_BIG_INT,
+  isDefined,
+  getTokenInformationFromAddress,
+  TransactionCostEstimate,
 } from "../utils";
+import { DEFAULT_SIMULATED_RELAYER_ADDRESS } from "../constants";
+import { Deposit } from "../interfaces";
 
 // This needs to be implemented for every chain and passed into RelayFeeCalculator
 export interface QueryInterface {
-  getGasCosts: () => Promise<BigNumberish>;
+  getGasCosts: (deposit: Deposit, fillAmount: BigNumberish, relayer: string) => Promise<TransactionCostEstimate>;
   getTokenPrice: (tokenSymbol: string) => Promise<number>;
   getTokenDecimals: (tokenSymbol: string) => number;
 }
@@ -37,8 +42,7 @@ export interface BaseRelayFeeCalculatorConfig {
   gasDiscountPercent?: number;
   capitalDiscountPercent?: number;
   feeLimitPercent?: number;
-  capitalCostsPercent?: number;
-  capitalCostsConfig?: {
+  capitalCostsConfig: {
     [token: string]: CapitalCostConfig | CapitalCostConfigOverride;
   };
 }
@@ -91,7 +95,6 @@ export class RelayFeeCalculator {
   private capitalDiscountPercent: Required<RelayFeeCalculatorConfig>["capitalDiscountPercent"];
   private feeLimitPercent: Required<RelayFeeCalculatorConfig>["feeLimitPercent"];
   private nativeTokenDecimals: Required<RelayFeeCalculatorConfig>["nativeTokenDecimals"];
-  private capitalCostsPercent: Required<RelayFeeCalculatorConfig>["capitalCostsPercent"];
   private capitalCostsConfig: { [token: string]: CapitalCostConfigOverride };
 
   // For logging if set. This function should accept 2 args - severity (INFO, WARN, ERROR) and the logs data, which will
@@ -115,7 +118,6 @@ export class RelayFeeCalculator {
     this.capitalDiscountPercent = config.capitalDiscountPercent || 0;
     this.feeLimitPercent = config.feeLimitPercent || 0;
     this.nativeTokenDecimals = config.nativeTokenDecimals || 18;
-    this.capitalCostsPercent = config.capitalCostsPercent || 0;
     assert(
       this.gasDiscountPercent >= 0 && this.gasDiscountPercent <= 100,
       "gasDiscountPercent must be between 0 and 100 percent"
@@ -128,17 +130,12 @@ export class RelayFeeCalculator {
       this.feeLimitPercent >= 0 && this.feeLimitPercent <= 100,
       "feeLimitPercent must be between 0 and 100 percent"
     );
-    assert(
-      this.capitalCostsPercent >= 0 && this.capitalCostsPercent <= 100,
-      "capitalCostsPercent must be between 0 and 100 percent"
+    this.capitalCostsConfig = Object.fromEntries(
+      Object.entries(config.capitalCostsConfig).map(([token, capitalCosts]) => {
+        return [token.toUpperCase(), RelayFeeCalculator.validateAndTransformCapitalCostsConfigOverride(capitalCosts)];
+      })
     );
-    this.capitalCostsConfig = {};
-    for (const token of Object.keys(config.capitalCostsConfig || {})) {
-      this.capitalCostsConfig[token] = RelayFeeCalculator.validateAndTransformCapitalCostsConfigOverride(
-        (config.capitalCostsConfig || {})[token]
-      );
-    }
-
+    assert(Object.keys(this.capitalCostsConfig).length > 0, "capitalCostsConfig must have at least one entry");
     this.logger = logger || DEFAULT_LOGGER;
   }
 
@@ -198,23 +195,74 @@ export class RelayFeeCalculator {
     return this.queries.getTokenPrice(tokenSymbol);
   }
 
-  async gasFeePercent(amountToRelay: BigNumberish, tokenSymbol: string, _tokenPrice?: number): Promise<BigNumber> {
+  /**
+   * Calculate the gas fee as a % of the amount to relay.
+   * @param deposit A valid deposit object to reason about
+   * @param amountToRelay The amount that we should fill the deposit for
+   * @param simulateZeroFill Whether to simulate a zero fill for the gas cost simulation
+   *        A fill of 1 wei which would result in a slow/partial fill.
+   *        You should do this if you're not worried about simulating a proper fill of a deposit
+   *        with a message or if you are worried a fill amount that could exceed the balance of
+   *        the relayer.
+   * @param relayerAddress The relayer that will be used for the gas cost simulation
+   * @param _tokenPrice The token price for normalizing fees
+   * @returns The fee as a % of the amount to relay.
+   * @note Setting simulateZeroFill to true will result on the gas costs being estimated
+   *       on a zero fill. However, the percentage will be returned as a percentage of the
+   *       amount to relay. This is useful for determining the maximum gas fee % that a
+   *       relayer may need to make on a regular fill. You will get differing results if
+   *       a message & recipient contract is provided as this function may not simulate with
+   *       the correct parameters to see a full fill.
+   */
+  async gasFeePercent(
+    deposit: Deposit,
+    amountToRelay: BigNumberish,
+    simulateZeroFill = false,
+    relayerAddress = DEFAULT_SIMULATED_RELAYER_ADDRESS,
+    _tokenPrice?: number
+  ): Promise<BigNumber> {
+    const tokenInformation = getTokenInformationFromAddress(deposit.originToken);
+    if (!isDefined(tokenInformation)) {
+      throw new Error(`Could not find token information for ${deposit.originToken}`);
+    }
+
     if (toBN(amountToRelay).eq(0)) return MAX_BIG_INT;
 
-    const getGasCosts = this.queries.getGasCosts().catch((error) => {
-      this.logger.error({ at: "sdk-v2/gasFeePercent", message: "Error while fetching gas costs", error });
+    const getGasCosts = this.queries
+      .getGasCosts(
+        {
+          ...deposit,
+          amount: simulateZeroFill ? toBN(100) : deposit.amount,
+        },
+        simulateZeroFill ? toBN(100) : amountToRelay,
+        relayerAddress
+      )
+      .catch((error) => {
+        this.logger.error({
+          at: "sdk-v2/gasFeePercent",
+          message: "Error while fetching gas costs",
+          error,
+          simulateZeroFill,
+          deposit,
+        });
+        throw error;
+      });
+    const getTokenPrice = this.queries.getTokenPrice(tokenInformation.symbol).catch((error) => {
+      this.logger.error({
+        at: "sdk-v2/gasFeePercent",
+        message: "Error while fetching token price",
+        error,
+        destinationChainId: deposit.destinationChainId,
+        destinationToken: deposit.destinationToken,
+      });
       throw error;
     });
-    const getTokenPrice = this.queries.getTokenPrice(tokenSymbol).catch((error) => {
-      this.logger.error({ at: "sdk-v2/gasFeePercent", message: "Error while fetching token price", error });
-      throw error;
-    });
-    const [gasCosts, tokenPrice] = await Promise.all([
+    const [{ tokenGasCost }, tokenPrice] = await Promise.all([
       getGasCosts,
       _tokenPrice !== undefined ? _tokenPrice : getTokenPrice,
     ]);
-    const decimals = this.queries.getTokenDecimals(tokenSymbol);
-    const gasFeesInToken = nativeToToken(gasCosts, tokenPrice, decimals, this.nativeTokenDecimals);
+    const decimals = this.queries.getTokenDecimals(tokenInformation.symbol);
+    const gasFeesInToken = nativeToToken(tokenGasCost, tokenPrice, decimals, this.nativeTokenDecimals);
     return percent(gasFeesInToken, amountToRelay.toString());
   }
 
@@ -229,22 +277,26 @@ export class RelayFeeCalculator {
     // If amount is 0, then the capital fee % should be the max 100%
     if (toBN(_amountToRelay).eq(toBN(0))) return MAX_BIG_INT;
 
-    // V0: Charge fixed capital fee
-    const defaultFee = toBNWei(this.capitalCostsPercent / 100);
-
+    // V0: Ensure that there is a capital fee available for the token.
+    // If not, then we should throw an error because this is indicative
+    // of a misconfiguration.
+    const tokenCostConfig = this.capitalCostsConfig[_tokenSymbol.toUpperCase()];
+    if (!isDefined(tokenCostConfig)) {
+      this.logger.error({
+        at: "sdk-v2/capitalFeePercent",
+        message: `No capital fee available for token ${_tokenSymbol}`,
+      });
+      throw new Error(`No capital cost config available for token ${_tokenSymbol}`);
+    }
     // V1: Charge fee that scales with size. This will charge a fee % based on a linear fee curve with a "kink" at a
     // cutoff in the same units as _amountToRelay. Before the kink, the fee % will increase linearly from a lower
     // bound to an upper bound. After the kink, the fee % increase will be fixed, and slowly approach the upper bound
     // for very large amount inputs.
-    if (this.capitalCostsConfig[_tokenSymbol]) {
-      const overrideConfig = this.capitalCostsConfig[_tokenSymbol];
-      let config = overrideConfig.default;
-      if (_originRoute && _destinationRoute && overrideConfig.routeOverrides) {
-        const potentialDestinationRoutes = overrideConfig.routeOverrides[_originRoute];
-        if (potentialDestinationRoutes) {
-          config = potentialDestinationRoutes[_destinationRoute] || config;
-        }
-      }
+    else {
+      const config =
+        isDefined(_originRoute) && isDefined(_destinationRoute)
+          ? tokenCostConfig.routeOverrides?.[_originRoute]?.[_destinationRoute] ?? tokenCostConfig.default
+          : tokenCostConfig.default;
 
       // Scale amount "y" to 18 decimals.
       const y = toBN(_amountToRelay).mul(toBNWei("1", 18 - config.decimals));
@@ -270,19 +322,51 @@ export class RelayFeeCalculator {
 
       return minCharge.add(triangleCharge).add(remainderCharge).mul(fixedPointAdjustment).div(y);
     }
-
-    return defaultFee;
   }
+
+  /**
+   * Retrieves the relayer fee details for a deposit.
+   * @param deposit A valid deposit object to reason about
+   * @param amountToRelay The amount that the relayer would simulate a fill for
+   * @param simulateZeroFill Whether to simulate a zero fill for the gas cost simulation
+   *       For simulateZeroFill: A fill of 1 wei which would result in a slow/partial fill.
+   *       You should do this if you're not worried about simulating a proper fill of a deposit
+   *       with a message or if you are worried a fill amount that could exceed the balance of
+   *       the relayer.
+   * @param relayerAddress The relayer that will be used for the gas cost simulation
+   * @param _tokenPrice The token price for normalizing fees
+   * @returns A resulting `RelayerFeeDetails` object
+   */
   async relayerFeeDetails(
-    amountToRelay: BigNumberish,
-    tokenSymbol: string,
-    tokenPrice?: number,
-    _originRoute?: ChainIdAsString,
-    _destinationRoute?: ChainIdAsString
+    deposit: Deposit,
+    amountToRelay?: BigNumberish,
+    simulateZeroFill = false,
+    relayerAddress = DEFAULT_SIMULATED_RELAYER_ADDRESS,
+    _tokenPrice?: number
   ): Promise<RelayerFeeDetails> {
-    const gasFeePercent = await this.gasFeePercent(amountToRelay, tokenSymbol, tokenPrice);
+    // If the amount to relay is not provided, then we
+    // should use the full deposit amount.
+    amountToRelay ??= deposit.amount;
+
+    const tokenInformation = getTokenInformationFromAddress(deposit.originToken);
+    if (!isDefined(tokenInformation)) {
+      throw new Error(`Could not find token information for ${deposit.originToken}`);
+    }
+
+    const gasFeePercent = await this.gasFeePercent(
+      deposit,
+      amountToRelay,
+      simulateZeroFill,
+      relayerAddress,
+      _tokenPrice
+    );
     const gasFeeTotal = gasFeePercent.mul(amountToRelay).div(fixedPointAdjustment);
-    const capitalFeePercent = await this.capitalFeePercent(amountToRelay, tokenSymbol, _originRoute, _destinationRoute);
+    const capitalFeePercent = this.capitalFeePercent(
+      amountToRelay,
+      tokenInformation.symbol,
+      deposit.originChainId.toString(),
+      deposit.destinationChainId.toString()
+    );
     const capitalFeeTotal = capitalFeePercent.mul(amountToRelay).div(fixedPointAdjustment);
     const relayFeePercent = gasFeePercent.add(capitalFeePercent);
     const relayFeeTotal = gasFeeTotal.add(capitalFeeTotal);
@@ -307,7 +391,7 @@ export class RelayFeeCalculator {
 
     return {
       amountToRelay: amountToRelay.toString(),
-      tokenSymbol,
+      tokenSymbol: tokenInformation.symbol,
       gasFeePercent: gasFeePercent.toString(),
       gasFeeTotal: gasFeeTotal.toString(),
       gasDiscountPercent: this.gasDiscountPercent,

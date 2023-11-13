@@ -1,9 +1,7 @@
-import { Block } from "@ethersproject/abstract-provider";
-import { BlockFinder } from "@uma/sdk";
 import { BigNumber, Contract, Event, EventFilter } from "ethers";
 import _ from "lodash";
 import winston from "winston";
-import { DEFAULT_CACHING_TTL } from "../constants";
+import { DEFAULT_CACHING_SAFE_LAG, DEFAULT_CACHING_TTL } from "../constants";
 import {
   CachingMechanismInterface,
   CancelledRootBundle,
@@ -25,10 +23,12 @@ import {
 import * as lpFeeCalculator from "../lpFeeCalculator";
 import {
   BigNumberish,
+  BlockFinder,
   EventSearchConfig,
   MakeOptional,
   assign,
   fetchTokenInfo,
+  getCachedBlockForTimestamp,
   getCurrentTime,
   isDefined,
   paginatedEventQuery,
@@ -83,7 +83,7 @@ export class HubPoolClient extends BaseAbstractClient {
   public firstBlockToSearch: number;
   public latestBlockNumber: number | undefined;
   public currentTime: number | undefined;
-  public readonly blockFinder: BlockFinder<Block>;
+  public readonly blockFinder: BlockFinder;
 
   constructor(
     readonly logger: winston.Logger,
@@ -95,6 +95,7 @@ export class HubPoolClient extends BaseAbstractClient {
     protected readonly configOverride: {
       ignoredHubExecutedBundles: number[];
       ignoredHubProposedBundles: number[];
+      timeToCache?: number;
     } = {
       ignoredHubExecutedBundles: [],
       ignoredHubProposedBundles: [],
@@ -106,7 +107,7 @@ export class HubPoolClient extends BaseAbstractClient {
     this.firstBlockToSearch = eventSearchConfig.fromBlock;
 
     const provider = this.hubPool.provider;
-    this.blockFinder = new BlockFinder(provider.getBlock.bind(provider));
+    this.blockFinder = new BlockFinder(provider);
   }
 
   protected hubPoolEventFilters(): Record<HubPoolEvent, EventFilter> {
@@ -233,8 +234,8 @@ export class HubPoolClient extends BaseAbstractClient {
     );
   }
 
-  protected async getBlockNumber(timestamp: number): Promise<number | undefined> {
-    return (await this.blockFinder.getBlockForTimestamp(timestamp)).number;
+  getBlockNumber(timestamp: number): Promise<number | undefined> {
+    return getCachedBlockForTimestamp(this.chainId, timestamp, this.blockFinder, this.cachingMechanism);
   }
 
   async getCurrentPoolUtilization(l1Token: string): Promise<BigNumberish> {
@@ -261,7 +262,8 @@ export class HubPoolClient extends BaseAbstractClient {
     l1Token: string,
     blockNumber: number,
     amount: BigNumber,
-    timestamp: number
+    timestamp: number,
+    timeToCache: number
   ): Promise<{ current: BigNumber; post: BigNumber }> {
     // Resolve this function call as an async anonymous function
     // This way, since we have to use this call several times, we
@@ -288,7 +290,7 @@ export class HubPoolClient extends BaseAbstractClient {
       const { current, post } = await resolver();
       // First determine if we should cache the result. We should cache the
       // response if the is outside of 24 hours from the current time.
-      if (shouldCache(getCurrentTime(), timestamp, 60 * 60 * 24)) {
+      if (shouldCache(getCurrentTime(), timestamp, timeToCache)) {
         // If we should cache the result, then let's store it
         // We can store it as with the default 14 day TTL
         await cache.set(key, `${current.toString()},${post.toString()}`, DEFAULT_CACHING_TTL);
@@ -330,7 +332,14 @@ export class HubPoolClient extends BaseAbstractClient {
       quoteBlock
     );
 
-    const { current, post } = await this.getUtilization(l1Token, quoteBlock, deposit.amount, deposit.quoteTimestamp);
+    const timeToCache = this.configOverride.timeToCache ?? DEFAULT_CACHING_SAFE_LAG;
+    const { current, post } = await this.getUtilization(
+      l1Token,
+      quoteBlock,
+      deposit.amount,
+      deposit.quoteTimestamp,
+      timeToCache
+    );
     const realizedLpFeePct = lpFeeCalculator.calculateRealizedLpFeePct(rateModel, current, post);
 
     return { realizedLpFeePct, quoteBlock };

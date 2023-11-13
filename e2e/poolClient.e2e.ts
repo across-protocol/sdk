@@ -26,7 +26,7 @@ const endBlock = 30477298;
 describe("PoolEventState", function () {
   let provider: Provider;
   let client: PoolEventState;
-  before(async () => {
+  before(() => {
     provider = ethers.getDefaultProvider(process.env.CUSTOM_NODE_URL);
     const instance = hubPool.connect(hubPoolAddress, provider);
     client = new PoolEventState(instance, startBlock);
@@ -41,7 +41,7 @@ describe("PoolClient", function () {
   const state = {};
   let provider: Provider;
   let client: Client;
-  before(async () => {
+  before(() => {
     provider = ethers.getDefaultProvider(process.env.CUSTOM_NODE_URL);
     client = new Client(
       {

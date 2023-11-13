@@ -88,9 +88,9 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
     readonly tokens: string[],
     protected readonly hubPoolClient: HubPoolClient,
     public readonly spokePoolClients: { [chainId: number]: SpokePoolClient },
-    protected readonly cachingClient?: CachingMechanismInterface
+    cachingClient?: CachingMechanismInterface
   ) {
-    super();
+    super(cachingClient);
     this.logger = this.hubPoolClient.logger;
     this.enabledChainIds = this.hubPoolClient.configStoreClient.getEnabledChains();
     assert(this.enabledChainIds.length > 0, "No chainIds provided");
@@ -1004,7 +1004,7 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
     });
 
     // First try to load bundle states from redis into memory to make the validateFlowsInBundle call significantly faster:
-    if (isDefined(this.cachingClient)) {
+    if (isDefined(this.cachingMechanism)) {
       for (let i = this.ubaBundleBlockRanges.length - 1; i >= 0; i--) {
         const mostRecentBundleBlockRanges = this.ubaBundleBlockRanges[i];
 
@@ -1030,7 +1030,7 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
           await forEachAsync(this.enabledChainIds, async (chainId) => {
             const redisKeyForBundle = this.getKeyForBundle(mostRecentBundleBlockRanges, token, chainId);
             const modifiedFlowsInBundle: ModifiedUBAFlow[] | undefined | null =
-              await this.cachingClient?.get(redisKeyForBundle);
+              await this.cachingMechanism?.get(redisKeyForBundle);
             if (isDefined(modifiedFlowsInBundle)) {
               this.logger.debug({
                 at: "UBAClientWithRefresh#update",
@@ -1109,8 +1109,8 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
           // Note, we opt to store arrays as strings in redis rather than using the redis.json module because
           // we don't plan to manipulate the data inside redis, so we really only want to optimize for writing
           // and reading. The redis.json module is more performant for manipulating data while inside redis.
-          if (isDefined(this.cachingClient)) {
-            await this.cachingClient.set(
+          if (isDefined(this.cachingMechanism)) {
+            await this.cachingMechanism.set(
               redisKeyForBundle,
               modifiedFlowsInBundle[chainId]
               // I don't think we want these keys to expire since we'll likely always need data from the beginning

@@ -46,3 +46,30 @@ export function getNativeTokenSymbol(chainId: number | string): string {
   }
   return "ETH";
 }
+
+/**
+ * Determines whether a chain ID is part of the production network.
+ * @param chainId Chain ID to query.
+ * @returns true if the chain ID is part of the production network, otherwise false.
+ */
+export function chainIsProd(chainId: number): boolean {
+  return [1, 10, 137, 324, 8453, 42161].includes(chainId);
+}
+
+/**
+ * Determines whether a chain ID is part of the production network.
+ * @param chainId Chain ID to query.
+ * @returns true if the chain ID is part of the production network, otherwise false.
+ */
+export function chainIsTestnet(chainId: number): boolean {
+  return [5, 280, 420, 80001, 84531, 421613].includes(chainId);
+}
+
+/**
+ * Determines whether a chain ID is an Optimism OP Stack implementation.
+ * @param chainId Chain ID to evaluate.
+ * @returns True if chainId is an OP stack, otherwise false.
+ */
+export function chainIsOPStack(chainId: number): boolean {
+  return [10, 8453, 69, 420, 84531].includes(chainId);
+}

@@ -23,13 +23,13 @@ import {
   getDepositParams,
   mineRandomBlocks,
   winston,
+  lastSpyLogIncludes,
 } from "./utils";
 
 import { AcrossConfigStoreClient as ConfigStoreClient, HubPoolClient, SpokePoolClient } from "../src/clients";
 import { MockConfigStoreClient, MockSpokePoolClient } from "./mocks";
-import { utils } from "../src";
+import { validateFillForDeposit, queryHistoricalDepositForFill } from "../src/utils";
 import { CHAIN_ID_TEST_LIST, repaymentChainId } from "./constants";
-const { validateFillForDeposit } = utils;
 
 let spokePool_1: Contract, erc20_1: Contract, spokePool_2: Contract, erc20_2: Contract, hubPool: Contract;
 let owner: SignerWithAddress, depositor: SignerWithAddress, relayer: SignerWithAddress;
@@ -42,7 +42,7 @@ let spy: sinon.SinonSpy;
 let spokePoolClient2: SpokePoolClient, hubPoolClient: HubPoolClient;
 let spokePoolClient1: SpokePoolClient, configStoreClient: ConfigStoreClient;
 
-describe("SpokePoolClient: Fill Validation", async function () {
+describe("SpokePoolClient: Fill Validation", function () {
   beforeEach(async function () {
     [owner, depositor, relayer] = await ethers.getSigners();
     // Creat two spoke pools: one to act as the source and the other to act as the destination.
@@ -268,14 +268,14 @@ describe("SpokePoolClient: Fill Validation", async function () {
     );
 
     // Now send multiple deposits in the same block.
-    const depositParams = getDepositParams(
-      depositor.address,
-      erc20_1.address,
-      toBNWei("1"),
-      destinationChainId,
-      toBNWei("0.01"),
-      await spokePool_1.getCurrentTime()
-    );
+    const depositParams = getDepositParams({
+      recipient: depositor.address,
+      originToken: erc20_1.address,
+      amount: toBNWei("1"),
+      destinationChainId: destinationChainId,
+      relayerFeePct: toBNWei("0.01"),
+      quoteTimestamp: await spokePool_1.getCurrentTime()
+    });
     const depositData = await spokePool_1.populateTransaction.deposit(...depositParams);
     await spokePool_1.connect(depositor).multicall(Array(3).fill(depositData.data));
     expect(await spokePool_1.numberOfDeposits()).to.equal(5);
@@ -378,13 +378,6 @@ describe("SpokePoolClient: Fill Validation", async function () {
       expect(results.high <= initHigh).to.be.true;
     }
   });
-
-  // TODO: Fix these tests. The reason is that we don't have the historical
-  //       query functions ported as it will require refactoring the client
-  //       to accept a cache mechanism. This isn't an issue, but we should do
-  //       it in a separate PR.
-
-  /** 
 
   it("Can fetch older deposit matching fill", async function () {
     const deposit = await buildDeposit(hubPoolClient, spokePool_1, erc20_1, l1Token, depositor, destinationChainId);
@@ -501,8 +494,6 @@ describe("SpokePoolClient: Fill Validation", async function () {
     await queryHistoricalDepositForFill(spokePoolClient1, fill);
     expect(lastSpyLogIncludes(spy, "Queried RPC for deposit")).is.not.true;
   });
-
-  **/
 
   it("Returns sped up deposit matched with fill", async function () {
     const deposit_1 = await buildDeposit(hubPoolClient, spokePool_1, erc20_1, l1Token, depositor, destinationChainId);

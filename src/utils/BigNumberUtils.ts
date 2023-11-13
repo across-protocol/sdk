@@ -11,6 +11,8 @@ export type BN = ethers.BigNumber;
 
 export const { Zero: bnZero, One: bnOne, MaxUint256: bnUint256Max } = ethers.constants;
 
+export const bnUint32Max = BigNumber.from("0xffffffff");
+
 /**
  * Converts a stringified number into a BigNumber with 18 decimal places.
  * @param num The number to parse.
