@@ -1,4 +1,13 @@
 /**
+ * De-duplicates an array by filtering it via a Set.
+ * @param array The array to de-duplicate.
+ * @returns A new array, filtered for uniqueness.
+ */
+export function dedupArray<T>(array: []): T[] {
+  return Array.from(new Set(array));
+}
+
+/**
  * Returns the last index of an array that matches the given predicate.
  * @note Emulates Array.prototype.findLastIndex
  * @param array The array to search.
