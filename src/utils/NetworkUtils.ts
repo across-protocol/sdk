@@ -1,8 +1,5 @@
 import { PublicNetworks } from "@uma/common/dist/PublicNetworks";
-
-export const productionChainIds = [1, 10, 137, 324, 8453, 42161];
-export const testnetChainIds = [5, 280, 420, 80001, 84531, 421613];
-
+import { PRODUCTION_CHAIN_IDS, TESTNET_CHAIN_IDS } from "../constants";
 /**
  * Resolves a network name from a network id.
  * @param networkId The network id to resolve the name for
@@ -56,7 +53,7 @@ export function getNativeTokenSymbol(chainId: number | string): string {
  * @returns true if the chain ID is part of the production network, otherwise false.
  */
 export function chainIsProd(chainId: number): boolean {
-  return productionChainIds.includes(chainId);
+  return PRODUCTION_CHAIN_IDS.includes(chainId);
 }
 
 /**
@@ -65,7 +62,7 @@ export function chainIsProd(chainId: number): boolean {
  * @returns true if the chain ID is part of the production network, otherwise false.
  */
 export function chainIsTestnet(chainId: number): boolean {
-  return testnetChainIds.includes(chainId);
+  return TESTNET_CHAIN_IDS.includes(chainId);
 }
 
 /**
