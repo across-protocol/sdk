@@ -3,7 +3,7 @@
  * @param array The array to de-duplicate.
  * @returns A new array, filtered for uniqueness.
  */
-export function dedupArray<T>(array: []): T[] {
+export function dedupArray<T>(array: T[]): T[] {
   return Array.from(new Set(array));
 }
 
