@@ -66,7 +66,7 @@ export async function averageBlockTime(
   }
   blockRange ??= defaultBlockRange;
 
-  const earliestBlockNumber = latestBlockNumber - blockRange;
+  const earliestBlockNumber = Math.max(latestBlockNumber - blockRange, 0);
   const [firstBlock, lastBlock] = await Promise.all([
     provider.getBlock(earliestBlockNumber),
     provider.getBlock(latestBlockNumber),
@@ -87,7 +87,8 @@ export async function averageBlockTime(
 
 async function estimateBlocksElapsed(seconds: number, cushionPercentage = 0.0, provider: Provider): Promise<number> {
   const cushionMultiplier = cushionPercentage + 1.0;
-  const { average } = await averageBlockTime(provider);
+  const blockRange = await provider.getBlockNumber();
+  const { average } = await averageBlockTime(provider, { blockRange });
   return Math.floor((seconds * cushionMultiplier) / average);
 }
 
