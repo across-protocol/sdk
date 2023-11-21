@@ -42,7 +42,6 @@ import { parseUBAConfigFromOnChain } from "./ConfigStoreParsingUtilities";
 type _ConfigStoreUpdate = {
   success: true;
   chainId: number;
-  latestBlockNumber: number;
   searchEndBlock: number;
   events: {
     updatedTokenConfigEvents: Event[];
@@ -279,19 +278,18 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
   }
 
   protected async _update(): Promise<ConfigStoreUpdate> {
-    const [chainId, latestBlockNumber] = await Promise.all([
-      this.resolveChainId(),
-      this.configStore.provider.getBlockNumber(),
-    ]);
+    const chainId = await this.resolveChainId();
 
     const searchConfig = {
       fromBlock: this.firstBlockToSearch,
-      toBlock: this.eventSearchConfig.toBlock || latestBlockNumber,
+      toBlock: this.eventSearchConfig.toBlock || (await this.configStore.provider.getBlockNumber()),
       maxBlockLookBack: this.eventSearchConfig.maxBlockLookBack,
     };
 
+    this.logger.debug({ at: "AcrossConfigStore", message: "Updating ConfigStore client", searchConfig });
+
     if (searchConfig.fromBlock > searchConfig.toBlock) {
-      this.logger.warn({ at: "ConfigStore", message: "Invalid search config.", searchConfig, latestBlockNumber });
+      this.logger.warn({ at: "AcrossConfigStore", message: "Invalid search config.", searchConfig });
       return { success: false };
     }
 
@@ -310,7 +308,6 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
     return {
       success: true,
       chainId,
-      latestBlockNumber,
       searchEndBlock: searchConfig.toBlock,
       events: {
         updatedTokenConfigEvents,
@@ -321,8 +318,6 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
   }
 
   async update(): Promise<void> {
-    this.logger.debug({ at: "ConfigStore", message: "Updating ConfigStore client" });
-
     const result = await this._update();
     if (!result.success) {
       return;
@@ -411,7 +406,7 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
       } catch (err) {
         // @dev averageBlockTimeSeconds does not actually block.
         const maxWarnAge = (24 * 60 * 60) / (await utils.averageBlockTimeSeconds());
-        if (result.latestBlockNumber - event.blockNumber < maxWarnAge) {
+        if (result.searchEndBlock - event.blockNumber < maxWarnAge) {
           const errMsg = isError(err) ? err.message : "unknown error";
           this.logger.warn({
             at: "ConfigStore::update",
@@ -524,7 +519,7 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
     this.rateModelDictionary.updateWithEvents(this.cumulativeRateModelUpdates);
 
     this.hasLatestConfigStoreVersion = this.hasValidConfigStoreVersionForTimestamp();
-    this.latestBlockNumber = result.latestBlockNumber;
+    this.latestBlockNumber = result.searchEndBlock;
     this.firstBlockToSearch = result.searchEndBlock + 1; // Next iteration should start off from where this one ended.
     this.chainId = this.chainId ?? chainId; // Update on the first run only.
     this.isUpdated = true;

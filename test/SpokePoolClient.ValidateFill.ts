@@ -274,7 +274,7 @@ describe("SpokePoolClient: Fill Validation", function () {
       amount: toBNWei("1"),
       destinationChainId: destinationChainId,
       relayerFeePct: toBNWei("0.01"),
-      quoteTimestamp: await spokePool_1.getCurrentTime()
+      quoteTimestamp: await spokePool_1.getCurrentTime(),
     });
     const depositData = await spokePool_1.populateTransaction.deposit(...depositParams);
     await spokePool_1.connect(depositor).multicall(Array(3).fill(depositData.data));

@@ -5,7 +5,7 @@ import {
   TOKEN_SYMBOLS_MAP,
   CHAIN_IDs,
   DEFAULT_SIMULATED_RELAYER_ADDRESS,
-  DEFAULT_SIMULATED_RELAYER_ADDRESS_TEST
+  DEFAULT_SIMULATED_RELAYER_ADDRESS_TEST,
 } from "../../constants";
 import { asL2Provider } from "@eth-optimism/sdk/dist/l2-provider";
 import QueryBase from "./baseQuery";
