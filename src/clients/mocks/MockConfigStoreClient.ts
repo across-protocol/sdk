@@ -108,7 +108,6 @@ export class MockConfigStoreClient extends AcrossConfigStoreClient {
     return {
       success: true,
       chainId: this.chainId as number,
-      latestBlockNumber,
       searchEndBlock: this.eventSearchConfig.toBlock || latestBlockNumber,
       events: {
         updatedGlobalConfigEvents: events["UpdatedGlobalConfig"],
