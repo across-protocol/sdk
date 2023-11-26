@@ -1,6 +1,7 @@
 /**
- * De-duplicates an array by filtering it via a Set.
- * @param array The array to de-duplicate.
+ * Deduplicates an array by filtering it via a Set.
+ * @notice Should not be used for deduplicating arrays of complex types.
+ * @param array The array to deduplicate.
  * @returns A new array, filtered for uniqueness.
  */
 export function dedupArray<T>(array: T[]): T[] {
