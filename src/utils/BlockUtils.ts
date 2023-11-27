@@ -91,6 +91,11 @@ async function estimateBlocksElapsed(seconds: number, cushionPercentage = 0.0, p
   return Math.floor((seconds * cushionMultiplier) / average);
 }
 
+export type BlockFinderHint = {
+  lowBlock?: number;
+  highBlock?: number;
+};
+
 export class BlockFinder {
   constructor(
     private readonly provider: Provider,
@@ -101,7 +106,7 @@ export class BlockFinder {
    * @notice Gets the latest block whose timestamp is <= the provided timestamp.
    * @param {number} timestamp timestamp to search.
    */
-  public async getBlockForTimestamp(timestamp: number | string): Promise<Block> {
+  public async getBlockForTimestamp(timestamp: number | string, hints: BlockFinderHint): Promise<Block> {
     timestamp = Number(timestamp);
     assert(timestamp !== undefined && timestamp !== null, "timestamp must be provided");
     // If the last block we have stored is too early, grab the latest block.
@@ -110,7 +115,11 @@ export class BlockFinder {
       if (timestamp >= block.timestamp) return block;
     }
 
-    // Check the first block. If it's grater than our timestamp, we need to find an earlier block.
+    // Prime the BlockFinder cache with any supplied hints.
+    // If the hint is accurante then this will bypass the subsequent estimation.
+    await Promise.all(Object.values(hints).map((blockNumber) => this.getBlock(blockNumber)));
+
+    // Check the first block. If it's greater than our timestamp, we need to find an earlier block.
     if (this.blocks[0].timestamp > timestamp) {
       const initialBlock = this.blocks[0];
       // We use a 2x cushion to reduce the number of iterations in the following loop and increase the chance
@@ -212,11 +221,12 @@ export async function getCachedBlockForTimestamp(
   chainId: number,
   timestamp: number,
   blockFinder: BlockFinder,
-  cache?: CachingMechanismInterface
+  cache?: CachingMechanismInterface,
+  hints: BlockFinderHint = {}
 ): Promise<number> {
   // Resolve a convenience function to directly compute what we're
   // looking for.
-  const resolver = async () => (await blockFinder.getBlockForTimestamp(timestamp)).number;
+  const resolver = async () => (await blockFinder.getBlockForTimestamp(timestamp, hints)).number;
 
   // If no redis client, then request block from blockFinder.
   if (!isDefined(cache)) {
