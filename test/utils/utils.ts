@@ -282,7 +282,6 @@ export async function addLiquidity(
 export async function buildDepositStruct(
   deposit: Omit<Deposit, "destinationToken" | "realizedLpFeePct">,
   hubPoolClient: HubPoolClient,
-  l1TokenForDepositedToken: Contract
 ): Promise<Deposit & { quoteBlockNumber: number; blockNumber: number }> {
   const blockNumber = await hubPoolClient.getBlockNumber(deposit.quoteTimestamp);
   if (!blockNumber) {
@@ -293,7 +292,6 @@ export async function buildDepositStruct(
       ...deposit,
       blockNumber,
     },
-    l1TokenForDepositedToken.address
   );
   return {
     ...deposit,
@@ -308,7 +306,6 @@ export async function buildDeposit(
   hubPoolClient: HubPoolClient,
   spokePool: Contract,
   tokenToDeposit: Contract,
-  l1TokenForDepositedToken: Contract,
   recipientAndDepositor: SignerWithAddress,
   _destinationChainId: number,
   _amountToDeposit: BigNumber = amountToDeposit,
@@ -325,7 +322,7 @@ export async function buildDeposit(
   );
   // Sanity Check: Ensure that the deposit was successful.
   expect(_deposit).to.not.be.null;
-  return await buildDepositStruct(appendMessageToResult(_deposit), hubPoolClient, l1TokenForDepositedToken);
+  return await buildDepositStruct(appendMessageToResult(_deposit), hubPoolClient);
 }
 
 // Submits a fillRelay transaction and returns the Fill struct that that clients will interact with.

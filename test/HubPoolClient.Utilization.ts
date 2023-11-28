@@ -130,7 +130,7 @@ describe("HubPool Utilization", function () {
 
     // Relayed amount being 10% of total LP amount should give exact same results as this test in v1:
     // - https://github.com/UMAprotocol/protocol/blob/3b1a88ead18088e8056ecfefb781c97fce7fdf4d/packages/financial-templates-lib/test/clients/InsuredBridgeL1Client.js#L1037
-    expect((await hubPoolClient.computeRealizedLpFeePct(depositData, l1Token.address)).realizedLpFeePct).to.equal(
+    expect((await hubPoolClient.computeRealizedLpFeePct(depositData)).realizedLpFeePct).to.equal(
       toBNWei("0.000117987509354032")
     );
 
