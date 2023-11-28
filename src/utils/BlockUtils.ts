@@ -116,7 +116,7 @@ export class BlockFinder {
     }
 
     // Prime the BlockFinder cache with any supplied hints.
-    // If the hint is accurante then this will bypass the subsequent estimation.
+    // If the hint is accurate, then this will bypass the subsequent estimation.
     await Promise.all(
       Object.values(hint)
         .filter((blockNumber) => isDefined)
