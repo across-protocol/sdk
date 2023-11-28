@@ -483,6 +483,16 @@ export class HubPoolClient extends BaseAbstractClient {
     return await mapAsync(deposits, (deposit) => computeRealizedLpFeePct(deposit));
   }
 
+  async computeRealizedLpFeePct(
+    deposit: Pick<
+      DepositWithBlock,
+      "quoteTimestamp" | "amount" | "originChainId" | "originToken" | "destinationChainId" | "blockNumber"
+    >
+  ): Promise<RealizedLpFee> {
+    const [lpFee] = await this.batchComputeRealizedLpFeePct([deposit]);
+    return lpFee;
+  }
+
   getL1Tokens(): L1Token[] {
     return this.l1Tokens;
   }
