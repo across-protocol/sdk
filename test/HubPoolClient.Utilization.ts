@@ -16,6 +16,7 @@ import {
   createSpyLogger,
   deployConfigStore,
   deploySpokePoolWithToken,
+  enableRoutesOnHubPool,
   ethers,
   expect,
   hubPoolFixture,
@@ -76,6 +77,11 @@ describe("HubPool Utilization", function () {
     ({ hubPool, timer, dai: l1Token, weth } = await hubPoolFixture());
     await hubPool.setCrossChainContracts(1, randomAddress(), randomAddress());
     await hubPool.enableL1TokenForLiquidityProvision(l1Token.address);
+
+    await enableRoutesOnHubPool(hubPool, [
+      { destinationChainId: originChainId, l1Token, destinationToken: l2Token },
+      { destinationChainId: destinationChainId, l1Token: l2Token, destinationToken: l1Token },
+    ]);
 
     let fromBlock: number;
     ({ configStore, deploymentBlock: fromBlock } = await deployConfigStore(owner, []));
