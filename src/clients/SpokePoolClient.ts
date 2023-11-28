@@ -676,7 +676,6 @@ export class SpokePoolClient extends BaseAbstractClient {
       });
       this.earlyDeposits = earlyDeposits;
 
-      // const dataForQuoteTime = await Promise.all(depositEvents.map((event) => this.computeRealizedLpFeePct(event)));
       const dataForQuoteTime = await this.batchComputeRealizedLpFeePct(depositEvents);
       this.logger.debug({
         at: "SpokePoolClient",
@@ -861,32 +860,6 @@ export class SpokePoolClient extends BaseAbstractClient {
     } else {
       return eventL2Token;
     }
-  }
-
-  /**
-   * Computes the realized LP fee percentage for a given deposit.
-   * @param depositEvent The deposit event to compute the realized LP fee percentage for.
-   * @returns The realized LP fee percentage.
-   */
-  protected computeRealizedLpFeePct(depositEvent: FundsDepositedEvent) {
-    // If no hub pool client, we're using this for testing. So set quote block very high
-    // so that if its ever used to look up a configuration for a block, it will always match with some
-    // configuration because the quote block will always be greater than the updated config event block height.
-    if (this.hubPoolClient === null) {
-      return { realizedLpFeePct: toBN(0), quoteBlock: MAX_BIG_INT.toNumber() };
-    }
-
-    const deposit = {
-      amount: depositEvent.args.amount,
-      originChainId: Number(depositEvent.args.originChainId),
-      destinationChainId: Number(depositEvent.args.destinationChainId),
-      originToken: depositEvent.args.originToken,
-      quoteTimestamp: depositEvent.args.quoteTimestamp,
-      blockNumber: depositEvent.blockNumber,
-    };
-
-    const l1Token = this.hubPoolClient.getL1TokenForDeposit(deposit);
-    return this.hubPoolClient.computeRealizedLpFeePct(deposit, l1Token);
   }
 
   /**

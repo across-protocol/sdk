@@ -304,51 +304,6 @@ export class HubPoolClient extends BaseAbstractClient {
     }
   }
 
-  async computeRealizedLpFeePct(
-    deposit: Pick<
-      DepositWithBlock,
-      "quoteTimestamp" | "amount" | "destinationChainId" | "originChainId" | "blockNumber"
-    >,
-    l1Token: string
-  ): Promise<{ realizedLpFeePct: BigNumber | undefined; quoteBlock: number }> {
-    if (!isDefined(this.currentTime)) {
-      throw new Error("HubPoolClient has not set a currentTime");
-    }
-    const quoteBlock = await this.getBlockNumber(deposit.quoteTimestamp);
-    if (!isDefined(quoteBlock)) {
-      throw new Error(`Could not find block for timestamp ${deposit.quoteTimestamp}`);
-    }
-
-    // Compare deposit block against UBA bundle start blocks.
-    if (isUBAActivatedAtBlock(this, deposit.blockNumber, deposit.originChainId)) {
-      // If UBA deposit then we can't compute the realizedLpFeePct until after we've updated the UBA Client.
-      return {
-        realizedLpFeePct: undefined,
-        quoteBlock,
-      };
-    }
-
-    // Otherwise, use the legacy fee model which is based ont he deposit quote block.
-    const rateModel = this.configStoreClient.getRateModelForBlockNumber(
-      l1Token,
-      deposit.originChainId,
-      deposit.destinationChainId,
-      quoteBlock
-    );
-
-    const timeToCache = this.configOverride.timeToCache ?? DEFAULT_CACHING_SAFE_LAG;
-    const { current, post } = await this.getUtilization(
-      l1Token,
-      quoteBlock,
-      deposit.amount,
-      deposit.quoteTimestamp,
-      timeToCache
-    );
-    const realizedLpFeePct = lpFeeCalculator.calculateRealizedLpFeePct(rateModel, current, post);
-
-    return { realizedLpFeePct, quoteBlock };
-  }
-
   /**
    * For a HubPool token at a specific block number, compute the relevant utilization.
    * @param hubPoolToken HubPool token to query utilization for.
