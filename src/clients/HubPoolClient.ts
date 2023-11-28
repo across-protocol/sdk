@@ -25,6 +25,8 @@ import * as lpFeeCalculator from "../lpFeeCalculator";
 import {
   BigNumberish,
   BlockFinder,
+  bnZero,
+  dedupArray,
   EventSearchConfig,
   MakeOptional,
   assign,
@@ -411,19 +413,25 @@ export class HubPoolClient extends BaseAbstractClient {
     if (!isDefined(this.currentTime)) {
       throw new Error("HubPoolClient has not set a currentTime");
     }
-    const timeToCache = this.configOverride.timeToCache ?? DEFAULT_CACHING_SAFE_LAG;
 
-    // Map SpokePool tokens to HubPool tokens, and each HubPool token to a quoteTimestamp.
-    // This will later be reconciled to a HubPool blockNumber.
+    // Map SpokePool token addresses to HubPool token addresses.
     const hubPoolTokens: { [originToken: string]: string } = {};
+
+    // Map each HubPool token to an array of unqiue quoteTimestamps.
     const utilizationTimestamps: { [hubPoolToken: string]: number[] } = {};
-    const { originChainId: firstOriginChainId } = deposits[0];
-    deposits.forEach((deposit) => {
-      const { originChainId, originToken, quoteTimestamp } = deposit;
+
+    // Map each HubPool token to utilization at a particular block number.
+    let utilization: { [hubPoolToken: string]: { [blockNumber: number]: BigNumber } } = {};
+
+    let quoteBlocks: { [quoteTimestamp: number]: number } = {};
+
+    // Helper to resolve the unqiue hubPoolToken & quoteTimestamp mappings.
+    const resolveUniqueQuoteTimestamps = (deposit: (typeof deposits)[0]): void => {
+      const { originChainId } = deposits[0];
+      const { originChainId: chainId, originToken, quoteTimestamp } = deposit;
       assert(
-        originChainId === firstOriginChainId,
-        "Cannot compute bulk realizedLpFeePct for different origin chains" +
-          ` (${originChainId} != ${firstOriginChainId})`
+        chainId === originChainId,
+        `Cannot compute bulk realizedLpFeePct for different origin chains (${chainId} != ${originChainId})`
       );
 
       // Resolve the HubPool token address, if it isn't already known.
@@ -435,45 +443,27 @@ export class HubPoolClient extends BaseAbstractClient {
       if (!utilizationTimestamps[hubPoolToken].includes(quoteTimestamp)) {
         utilizationTimestamps[hubPoolToken].push(quoteTimestamp);
       }
-    });
+    };
 
-    // Filter all deposits for unique quoteTimestamps, to be resolved to a blockNumber in parallel.
-    const quoteTimestamps = Array.from(new Set(deposits.map(({ quoteTimestamp }) => quoteTimestamp)));
-    this.logger.info({
-      at: "HubPoolClient#batchComputeRealizedLpFeePct",
-      message: `Consolidated ${deposits.length} deposits to ${quoteTimestamps.length} timestamps to query.`,
-      chainId: firstOriginChainId,
-    });
+    // Helper to resolve a quoteTimestamp to a HubPool block number.
+    const resolveTimestampsToBlocks = async (quoteTimestamp: number): Promise<[number, number]> => {
+      const quoteBlock = await this.getBlockNumber(quoteTimestamp);
+      if (!isDefined(quoteBlock)) {
+        throw new Error(`Could not find block for timestamp ${quoteTimestamp}`);
+      }
+      return [quoteTimestamp, quoteBlock];
+    };
 
-    let start = getCurrentTime();
-    // Map deposit quoteTimestamps to HubPool block numbers.
-    const quoteBlocks = Object.fromEntries(
-      await mapAsync(quoteTimestamps, async (quoteTimestamp) => {
-        const quoteBlock = await this.getBlockNumber(quoteTimestamp);
-        if (!isDefined(quoteBlock)) {
-          throw new Error(`Could not find block for timestamp ${quoteTimestamp}`);
-        }
-        return [quoteTimestamp, quoteBlock];
-      })
-    );
-    this.logger.info({
-      at: "HubPoolClient#batchComputeRealizedLpFeePct",
-      message: `Fetched ${Object.keys(quoteBlocks).length} blocks in ${getCurrentTime() - start} seconds.`,
-      chainId: firstOriginChainId,
-    });
-
-    // Convenience closure to resolve existing HubPool token utilisation for an array of blocks.
+    // Helper to resolve existing HubPool token utilisation for an array of unique block numbers.
     // Produces a mapping of blockNumber -> utilization for a specific token.
-    const resolveOpeningUtilization = async (hubPoolToken: string) => {
-      const quoteTimestamps = utilizationTimestamps[hubPoolToken];
+    const resolveUtilization = async (hubPoolToken: string): Promise<Record<number, BigNumber>> => {
       return Object.fromEntries(
-        await mapAsync(quoteTimestamps, async (quoteTimestamp) => {
+        await mapAsync(utilizationTimestamps[hubPoolToken], async (quoteTimestamp) => {
           const blockNumber = quoteBlocks[quoteTimestamp];
-          const amount = toBN("0");
           const utilization = await this._getUtilization(
             hubPoolToken,
             blockNumber,
-            amount,
+            bnZero, // amount
             quoteTimestamp,
             timeToCache
           );
@@ -482,32 +472,15 @@ export class HubPoolClient extends BaseAbstractClient {
       );
     };
 
-    // For each token / quoteBlock pair, resolve the utilisation for each quoted block.
-    // This can be reused for each deposit with the same HubPool token and quoteTimestamp pair.
-    start = getCurrentTime();
-    const utilization: { [hubPoolToken: string]: { [blockNumber: number]: BigNumber } } = Object.fromEntries(
-      await mapAsync(Object.values(hubPoolTokens), async (hubPoolToken) => {
-        return [hubPoolToken, await resolveOpeningUtilization(hubPoolToken)];
-      })
-    );
-    this.logger.info({
-      at: "HubPoolClient#batchComputeRealizedLpFeePct",
-      message: `Computed static HubPool utilization in ${getCurrentTime() - start} seconds.`,
-      chainId: firstOriginChainId,
-    });
-
-    // For each deposit, compute the post-relay HubPool utilisation independently.
-    const lpFees = await mapAsync(deposits, async (deposit) => {
+    // Helper compute the realizedLpFeePct of an individual deposit based on pre-retrieved batch data.
+    const computeRealizedLpFeePct = async (deposit: (typeof deposits)[0]) => {
       const { amount, originToken, originChainId, destinationChainId, quoteTimestamp } = deposit;
       const quoteBlock = quoteBlocks[quoteTimestamp];
 
-      // Compare deposit block against UBA bundle start blocks.
+      // Compare deposit block against UBA bundle start blocks. If the deposit is post-UBA
+      // then realizedLpFeePct computation is deferred until after UBA Client update.
       if (isUBAActivatedAtBlock(this, deposit.blockNumber, deposit.originChainId)) {
-        // If UBA deposit then we can't compute the realizedLpFeePct until after we've updated the UBA Client.
-        return {
-          realizedLpFeePct: undefined,
-          quoteBlock,
-        };
+        return { quoteBlock, realizedLpFeePct: undefined };
       }
 
       // Otherwise, use the legacy fee model which is based ont he deposit quote block.
@@ -524,7 +497,33 @@ export class HubPoolClient extends BaseAbstractClient {
       const realizedLpFeePct = lpFeeCalculator.calculateRealizedLpFeePct(rateModel, preUtilization, postUtilization);
 
       return { quoteBlock, realizedLpFeePct };
-    });
+    };
+
+    /**
+     * Execution flow starts here.
+     */
+    const timeToCache = this.configOverride.timeToCache ?? DEFAULT_CACHING_SAFE_LAG;
+
+    // Identify the unique hubPoolToken & quoteTimestamp mappings. This is used to optimise subsequent HubPool queries.
+    deposits.forEach((deposit) => resolveUniqueQuoteTimestamps(deposit));
+
+    // Filter all deposits for unique quoteTimestamps, to be resolved to a blockNumber in parallel.
+    const quoteTimestamps = dedupArray(deposits.map(({ quoteTimestamp }) => quoteTimestamp));
+    quoteBlocks = Object.fromEntries(
+      await mapAsync(quoteTimestamps, (quoteTimestamp) => resolveTimestampsToBlocks(quoteTimestamp))
+    );
+
+    // For each token / quoteBlock pair, resolve the utilisation for each quoted block.
+    // This can be reused for each deposit with the same HubPool token and quoteTimestamp pair.
+    utilization = Object.fromEntries(
+      await mapAsync(Object.values(hubPoolTokens), async (hubPoolToken) => [
+        hubPoolToken,
+        await resolveUtilization(hubPoolToken),
+      ])
+    );
+
+    // For each deposit, compute the post-relay HubPool utilisation independently.
+    const lpFees = await mapAsync(deposits, (deposit) => computeRealizedLpFeePct(deposit));
 
     // @dev The caller expects to receive an array in the same length and ordering as the input `deposits`.
     return lpFees;
