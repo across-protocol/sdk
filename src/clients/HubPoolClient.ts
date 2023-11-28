@@ -18,6 +18,7 @@ import {
   PendingRootBundle,
   ProposedRootBundle,
   ProposedRootBundleStringified,
+  RealizedLpFee,
   SetPoolRebalanceRoot,
   TokenRunningBalance,
 } from "../interfaces";
@@ -363,7 +364,7 @@ export class HubPoolClient extends BaseAbstractClient {
       DepositWithBlock,
       "quoteTimestamp" | "amount" | "originChainId" | "originToken" | "destinationChainId" | "blockNumber"
     >[]
-  ): Promise<{ quoteBlock: number; realizedLpFeePct?: BigNumber }[]> {
+  ): Promise<RealizedLpFee[]> {
     assert(deposits.length > 0, "No deposits supplied to batchComputeRealizedLpFeePct");
     if (!isDefined(this.currentTime)) {
       throw new Error("HubPoolClient has not set a currentTime");

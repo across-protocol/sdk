@@ -33,6 +33,7 @@ import {
   FillWithBlockStringified,
   FundsDepositedEvent,
   FundsDepositedEventStringified,
+  RealizedLpFee,
   RefundRequestWithBlock,
   RefundRequestWithBlockStringified,
   RelayerRefundExecutionWithBlock,
@@ -868,7 +869,7 @@ export class SpokePoolClient extends BaseAbstractClient {
    * @param depositEvents The array of deposit events to compute the realized LP fee percentage for.
    * @returns The array of realized LP fee percentages and associated HubPool block numbers.
    */
-  protected async batchComputeRealizedLpFeePct(depositEvents: FundsDepositedEvent[]) {
+  protected async batchComputeRealizedLpFeePct(depositEvents: FundsDepositedEvent[]): Promise<RealizedLpFee[]> {
     // If no hub pool client, we're using this for testing. Set quote block very high so that if it's ever
     // used to look up a configuration for a block, it will always match with the latest configuration.
     if (this.hubPoolClient === null) {
@@ -891,6 +892,16 @@ export class SpokePoolClient extends BaseAbstractClient {
     });
 
     return deposits.length > 0 ? await this.hubPoolClient.batchComputeRealizedLpFeePct(deposits) : [];
+  }
+
+  /**
+   * Computes the realized LP fee percentage for a given deposit.
+   * @param depositEvent The deposit event to compute the realized LP fee percentage for.
+   * @returns The realized LP fee percentage.
+   */
+  protected async computeRealizedLpFeePct(depositEvent: FundsDepositedEvent): Promise<RealizedLpFee> {
+    const [lpFee] = await this.batchComputeRealizedLpFeePct([depositEvent]);
+    return lpFee;
   }
 
   /**
