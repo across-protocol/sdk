@@ -106,7 +106,7 @@ export class BlockFinder {
    * @notice Gets the latest block whose timestamp is <= the provided timestamp.
    * @param {number} timestamp timestamp to search.
    */
-  public async getBlockForTimestamp(timestamp: number | string, hints: BlockFinderHint): Promise<Block> {
+  public async getBlockForTimestamp(timestamp: number | string, hint: BlockFinderHint = {}): Promise<Block> {
     timestamp = Number(timestamp);
     assert(timestamp !== undefined && timestamp !== null, "timestamp must be provided");
     // If the last block we have stored is too early, grab the latest block.
@@ -118,7 +118,7 @@ export class BlockFinder {
     // Prime the BlockFinder cache with any supplied hints.
     // If the hint is accurante then this will bypass the subsequent estimation.
     await Promise.all(
-      Object.values(hints)
+      Object.values(hint)
         .filter((blockNumber) => isDefined)
         .map((blockNumber) => this.getBlock(blockNumber))
     );
@@ -226,11 +226,11 @@ export async function getCachedBlockForTimestamp(
   timestamp: number,
   blockFinder: BlockFinder,
   cache?: CachingMechanismInterface,
-  hints: BlockFinderHint = {}
+  hint?: BlockFinderHint
 ): Promise<number> {
   // Resolve a convenience function to directly compute what we're
   // looking for.
-  const resolver = async () => (await blockFinder.getBlockForTimestamp(timestamp, hints)).number;
+  const resolver = async () => (await blockFinder.getBlockForTimestamp(timestamp, hint)).number;
 
   // If no redis client, then request block from blockFinder.
   if (!isDefined(cache)) {
