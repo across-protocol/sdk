@@ -104,7 +104,8 @@ export class BlockFinder {
 
   /**
    * @notice Gets the latest block whose timestamp is <= the provided timestamp.
-   * @param {number} timestamp timestamp to search.
+   * @param number Timestamp timestamp to search.
+   * @param hints Optional low and high block to bound the search space.
    */
   public async getBlockForTimestamp(timestamp: number | string, hints: BlockFinderHints = {}): Promise<Block> {
     timestamp = Number(timestamp);
