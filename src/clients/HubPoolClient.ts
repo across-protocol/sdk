@@ -359,6 +359,16 @@ export class HubPoolClient extends BaseAbstractClient {
     return utilization;
   }
 
+  async computeRealizedLpFeePct(
+    deposit: Pick<
+      DepositWithBlock,
+      "quoteTimestamp" | "amount" | "originChainId" | "originToken" | "destinationChainId" | "blockNumber"
+    >
+  ): Promise<RealizedLpFee> {
+    const [lpFee] = await this.batchComputeRealizedLpFeePct([deposit]);
+    return lpFee;
+  }
+
   async batchComputeRealizedLpFeePct(
     deposits: Pick<
       DepositWithBlock,
@@ -481,16 +491,6 @@ export class HubPoolClient extends BaseAbstractClient {
     // For each deposit, compute the post-relay HubPool utilisation independently.
     // @dev The caller expects to receive an array in the same length and ordering as the input `deposits`.
     return await mapAsync(deposits, (deposit) => computeRealizedLpFeePct(deposit));
-  }
-
-  async computeRealizedLpFeePct(
-    deposit: Pick<
-      DepositWithBlock,
-      "quoteTimestamp" | "amount" | "originChainId" | "originToken" | "destinationChainId" | "blockNumber"
-    >
-  ): Promise<RealizedLpFee> {
-    const [lpFee] = await this.batchComputeRealizedLpFeePct([deposit]);
-    return lpFee;
   }
 
   getL1Tokens(): L1Token[] {

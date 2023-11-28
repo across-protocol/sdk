@@ -864,6 +864,16 @@ export class SpokePoolClient extends BaseAbstractClient {
   }
 
   /**
+   * Computes the realized LP fee percentage for a given deposit.
+   * @param depositEvent The deposit event to compute the realized LP fee percentage for.
+   * @returns The realized LP fee percentage.
+   */
+  protected async computeRealizedLpFeePct(depositEvent: FundsDepositedEvent): Promise<RealizedLpFee> {
+    const [lpFee] = await this.batchComputeRealizedLpFeePct([depositEvent]);
+    return lpFee;
+  }
+
+  /**
    * Computes the realized LP fee percentage for a batch of deposits.
    * @dev Computing in batch opens up for efficiencies, e.g. in quoteTimestamp -> blockNumber resolution.
    * @param depositEvents The array of deposit events to compute the realized LP fee percentage for.
@@ -892,16 +902,6 @@ export class SpokePoolClient extends BaseAbstractClient {
     });
 
     return deposits.length > 0 ? await this.hubPoolClient.batchComputeRealizedLpFeePct(deposits) : [];
-  }
-
-  /**
-   * Computes the realized LP fee percentage for a given deposit.
-   * @param depositEvent The deposit event to compute the realized LP fee percentage for.
-   * @returns The realized LP fee percentage.
-   */
-  protected async computeRealizedLpFeePct(depositEvent: FundsDepositedEvent): Promise<RealizedLpFee> {
-    const [lpFee] = await this.batchComputeRealizedLpFeePct([depositEvent]);
-    return lpFee;
   }
 
   /**
