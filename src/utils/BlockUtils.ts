@@ -119,7 +119,7 @@ export class BlockFinder {
     // If the hint is accurate, then this will bypass the subsequent estimation.
     await Promise.all(
       Object.values(hint)
-        .filter((blockNumber) => isDefined)
+        .filter((blockNumber) => isDefined(blockNumber))
         .map((blockNumber) => this.getBlock(blockNumber))
     );
 
