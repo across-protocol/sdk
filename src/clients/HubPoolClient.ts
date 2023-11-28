@@ -523,10 +523,8 @@ export class HubPoolClient extends BaseAbstractClient {
     );
 
     // For each deposit, compute the post-relay HubPool utilisation independently.
-    const lpFees = await mapAsync(deposits, (deposit) => computeRealizedLpFeePct(deposit));
-
     // @dev The caller expects to receive an array in the same length and ordering as the input `deposits`.
-    return lpFees;
+    return await mapAsync(deposits, (deposit) => computeRealizedLpFeePct(deposit));
   }
 
   getL1Tokens(): L1Token[] {
