@@ -117,7 +117,11 @@ export class BlockFinder {
 
     // Prime the BlockFinder cache with any supplied hints.
     // If the hint is accurante then this will bypass the subsequent estimation.
-    await Promise.all(Object.values(hints).map((blockNumber) => this.getBlock(blockNumber)));
+    await Promise.all(
+      Object.values(hints)
+        .filter((blockNumber) => isDefined)
+        .map((blockNumber) => this.getBlock(blockNumber))
+    );
 
     // Check the first block. If it's greater than our timestamp, we need to find an earlier block.
     if (this.blocks[0].timestamp > timestamp) {
