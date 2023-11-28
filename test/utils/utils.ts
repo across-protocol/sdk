@@ -281,18 +281,16 @@ export async function addLiquidity(
 // Submits a deposit transaction and returns the Deposit struct that that clients interact with.
 export async function buildDepositStruct(
   deposit: Omit<Deposit, "destinationToken" | "realizedLpFeePct">,
-  hubPoolClient: HubPoolClient,
+  hubPoolClient: HubPoolClient
 ): Promise<Deposit & { quoteBlockNumber: number; blockNumber: number }> {
   const blockNumber = await hubPoolClient.getBlockNumber(deposit.quoteTimestamp);
   if (!blockNumber) {
     throw new Error("Timestamp is undefined");
   }
-  const { quoteBlock, realizedLpFeePct } = await hubPoolClient.computeRealizedLpFeePct(
-    {
-      ...deposit,
-      blockNumber,
-    },
-  );
+  const { quoteBlock, realizedLpFeePct } = await hubPoolClient.computeRealizedLpFeePct({
+    ...deposit,
+    blockNumber,
+  });
   return {
     ...deposit,
     message: "0x",

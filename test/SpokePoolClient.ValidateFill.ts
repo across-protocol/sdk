@@ -466,13 +466,7 @@ describe("SpokePoolClient: Fill Validation", function () {
   });
 
   it("Ignores fills with deposit ID > latest deposit ID in spoke pool", async function () {
-    const sampleDeposit = await buildDeposit(
-      hubPoolClient,
-      spokePool_1,
-      erc20_1,
-      depositor,
-      destinationChainId
-    );
+    const sampleDeposit = await buildDeposit(hubPoolClient, spokePool_1, erc20_1, depositor, destinationChainId);
     // Override the deposit ID that we are "filling" to be > 1, the latest deposit ID in spoke pool 1.
     await buildFill(
       spokePool_2,
