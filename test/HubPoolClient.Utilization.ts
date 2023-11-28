@@ -76,11 +76,8 @@ describe("HubPool Utilization", function () {
     ({ spokePool, erc20: l2Token } = await deploySpokePoolWithToken(originChainId, repaymentChainId));
     ({ hubPool, timer, dai: l1Token, weth } = await hubPoolFixture());
     await hubPool.setCrossChainContracts(1, randomAddress(), randomAddress());
-    await hubPool.enableL1TokenForLiquidityProvision(l1Token.address);
-
     await enableRoutesOnHubPool(hubPool, [
       { destinationChainId: originChainId, l1Token, destinationToken: l2Token },
-      { destinationChainId: destinationChainId, l1Token: l2Token, destinationToken: l1Token },
     ]);
 
     let fromBlock: number;
@@ -168,7 +165,6 @@ describe("HubPool Utilization", function () {
             // This is because the rate model uses the quote time to fetch the liquidity utilization at that quote time.
             quoteTimestamp: (await ethers.provider.getBlock("latest")).timestamp,
           },
-          l1Token.address
         )
       ).realizedLpFeePct
     ).to.equal(toBNWei("0.001371068779697899"));
@@ -185,7 +181,6 @@ describe("HubPool Utilization", function () {
             // the current pool utilization at 10%.
             quoteTimestamp: (await ethers.provider.getBlock("latest")).timestamp,
           },
-          l1Token.address
         )
       ).realizedLpFeePct
     ).to.equal(toBNWei("0.002081296752280018"));
