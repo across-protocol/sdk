@@ -264,48 +264,6 @@ export class HubPoolClient extends BaseAbstractClient {
     return { current, post };
   }
 
-  protected async getUtilization(
-    l1Token: string,
-    blockNumber: number,
-    amount: BigNumber,
-    timestamp: number,
-    timeToCache: number
-  ): Promise<{ current: BigNumber; post: BigNumber }> {
-    // Resolve this function call as an async anonymous function
-    // This way, since we have to use this call several times, we
-    // only need to invoke the shorter function name.
-    const resolver = () => this.getPostRelayPoolUtilization(l1Token, blockNumber, amount);
-    // Resolve the cache locally so that we can appease typescript
-    const cache = this.cachingMechanism;
-    // If there is no cache, just resolve the function
-    if (!cache) {
-      return resolver();
-    }
-    // Otherwise, let's resolve the key
-    const key = `utilization_${l1Token}_${blockNumber}_${amount.toString()}`;
-    // Resolve the key from the cache
-    const result = await cache.get<string>(key);
-    // We were able to find a valid result, so let's return it
-    if (isDefined(result)) {
-      const [current, post] = result.split(",").map(BigNumber.from);
-      return { current, post };
-    }
-    // We were not able to find a valid result, so let's resolve the function
-    // and store the result in the cache
-    else {
-      const { current, post } = await resolver();
-      // First determine if we should cache the result. We should cache the
-      // response if the is outside of 24 hours from the current time.
-      if (shouldCache(getCurrentTime(), timestamp, timeToCache)) {
-        // If we should cache the result, then let's store it
-        // We can store it as with the default 14 day TTL
-        await cache.set(key, `${current.toString()},${post.toString()}`, DEFAULT_CACHING_TTL);
-      }
-      // Return the result
-      return { current, post };
-    }
-  }
-
   /**
    * For a HubPool token at a specific block number, compute the relevant utilization.
    * @param hubPoolToken HubPool token to query utilization for.
@@ -315,7 +273,7 @@ export class HubPoolClient extends BaseAbstractClient {
    * @param timeToCache Age at which the response is able to be cached.
    * @returns HubPool utilization at `blockNumber` after optional `amount` increase in utilization.
    */
-  protected async _getUtilization(
+  protected async getUtilization(
     hubPoolToken: string,
     blockNumber: number,
     depositAmount: BigNumber,
@@ -342,9 +300,11 @@ export class HubPoolClient extends BaseAbstractClient {
     }
 
     // Otherwise, let's resolve the key
+    // @note Avoid collisions with pre-existing cache keys by appending an underscore (_) for post-relay utilization.
+    // This can be removed once the existing keys have been ejected from the cache (i.e. 7 days).
     const key = depositAmount.eq(0)
       ? `utilization_${hubPoolToken}_${blockNumber}`
-      : `utilization_${hubPoolToken}_${blockNumber}_${depositAmount.toString()}`;
+      : `utilization_${hubPoolToken}_${blockNumber}_${depositAmount.toString()}_`;
     const result = await cache.get<string>(key);
     if (isDefined(result)) {
       return BigNumber.from(result);
@@ -427,7 +387,7 @@ export class HubPoolClient extends BaseAbstractClient {
       return Object.fromEntries(
         await mapAsync(utilizationTimestamps[hubPoolToken], async (quoteTimestamp) => {
           const blockNumber = quoteBlocks[quoteTimestamp];
-          const utilization = await this._getUtilization(
+          const utilization = await this.getUtilization(
             hubPoolToken,
             blockNumber,
             bnZero, // amount
@@ -460,7 +420,7 @@ export class HubPoolClient extends BaseAbstractClient {
       );
 
       const preUtilization = utilization[hubPoolToken][quoteBlock];
-      const postUtilization = await this._getUtilization(hubPoolToken, quoteBlock, amount, quoteTimestamp, timeToCache);
+      const postUtilization = await this.getUtilization(hubPoolToken, quoteBlock, amount, quoteTimestamp, timeToCache);
       const realizedLpFeePct = lpFeeCalculator.calculateRealizedLpFeePct(rateModel, preUtilization, postUtilization);
 
       return { quoteBlock, realizedLpFeePct };
