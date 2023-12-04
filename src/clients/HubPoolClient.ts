@@ -301,7 +301,7 @@ export class HubPoolClient extends BaseAbstractClient {
 
     // Otherwise, let's resolve the key
     // @note Avoid collisions with pre-existing cache keys by appending an underscore (_) for post-relay utilization.
-    // This can be removed once the existing keys have been ejected from the cache (i.e. 7 days).
+    // @fixme This can be removed once the existing keys have been ejected from the cache (i.e. 7 days).
     const key = depositAmount.eq(0)
       ? `utilization_${hubPoolToken}_${blockNumber}`
       : `utilization_${hubPoolToken}_${blockNumber}_${depositAmount.toString()}_`;
