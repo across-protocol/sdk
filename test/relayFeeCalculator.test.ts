@@ -1,7 +1,25 @@
 import dotenv from "dotenv";
+import hre from "hardhat";
 import { RelayFeeCalculator, QueryInterface } from "../src/relayFeeCalculator/relayFeeCalculator";
-import { toBNWei, toBN, toGWei, TransactionCostEstimate } from "../src/utils";
-import { assert, buildDepositForRelayerFeeTest, expect, randomAddress } from "./utils";
+import { toBNWei, toBN, toGWei, TransactionCostEstimate, bnOne, bnZero } from "../src/utils";
+import {
+  BigNumber,
+  Contract,
+  SignerWithAddress,
+  assert,
+  assertPromiseError,
+  assertPromisePasses,
+  buildDepositForRelayerFeeTest,
+  deploySpokePoolWithToken,
+  ethers,
+  expect,
+  getContractFactory,
+  randomAddress,
+  setupTokensForWallet,
+} from "./utils";
+import { TOKEN_SYMBOLS_MAP } from "@across-protocol/constants-v2";
+import { EthereumQueries } from "../src/relayFeeCalculator";
+import { EMPTY_MESSAGE } from "../src/constants";
 
 dotenv.config({ path: ".env" });
 
@@ -270,5 +288,75 @@ describe("RelayFeeCalculator", () => {
     assert.equal(client.capitalFeePercent("0", "DAI").toString(), Number.MAX_SAFE_INTEGER.toString());
     assert.equal(client.capitalFeePercent("0", "ZERO_CUTOFF_WBTC").toString(), Number.MAX_SAFE_INTEGER.toString());
     assert.equal(client.capitalFeePercent("0", "WBTC").toString(), Number.MAX_SAFE_INTEGER.toString());
+  });
+});
+
+describe("RelayFeeCalculator: Composable Bridging", function () {
+  let spokePool: Contract, erc20: Contract, destErc20: Contract, weth: Contract;
+  let client: RelayFeeCalculator;
+  let queries: EthereumQueries;
+  let testContract: Contract;
+  let owner: SignerWithAddress, relayer: SignerWithAddress;
+  let tokenMap: typeof TOKEN_SYMBOLS_MAP;
+  let testGasFeePct: (message?: string) => Promise<BigNumber>;
+
+  beforeEach(async function () {
+    [owner, relayer] = await ethers.getSigners();
+
+    ({ spokePool, erc20, weth, destErc20 } = await deploySpokePoolWithToken(1, 10));
+
+    (tokenMap = {
+      USDC: {
+        name: "USDC",
+        symbol: "USDC",
+        decimals: 6,
+        addresses: {
+          1: erc20.address,
+          10: erc20.address,
+        },
+      },
+    } as unknown as typeof TOKEN_SYMBOLS_MAP),
+      await spokePool.setChainId(10); // The spoke pool for a fill should be at the destinationChainId.
+    await setupTokensForWallet(spokePool, relayer, [erc20, destErc20], weth, 100);
+
+    testContract = await hre["upgrades"].deployProxy(await getContractFactory("MockAcrossMessageContract", owner), []);
+    queries = new EthereumQueries(spokePool.provider, tokenMap, spokePool.address, relayer.address);
+    client = new RelayFeeCalculator({ queries, capitalCostsConfig: testCapitalCostsConfig });
+
+    testGasFeePct = (message?: string) =>
+      client.gasFeePercent(
+        {
+          amount: bnOne,
+          quoteTimestamp: 1,
+          recipient: testContract.address,
+          relayerFeePct: bnZero,
+          depositId: 1000000,
+          depositor: randomAddress(),
+          originChainId: 1,
+          destinationChainId: 10,
+          originToken: erc20.address,
+          destinationToken: erc20.address,
+          message: message || EMPTY_MESSAGE,
+          realizedLpFeePct: bnZero,
+        },
+        1,
+        false,
+        relayer.address,
+        1,
+        tokenMap
+      );
+  });
+  it("should not revert if no message is passed", async () => {
+    await assertPromisePasses(testGasFeePct());
+  });
+  it("should revert if the contract message fails", async () => {
+    // Per our test contract, a single byte message of 0x02 will revert.
+    const message = "0x02";
+    await assertPromiseError(testGasFeePct(message), "MockAcrossMessageContract: revert");
+  });
+  it("should be more gas to call a contract with a message", async () => {
+    const noMessage = await testGasFeePct();
+    const message = await testGasFeePct("0x04");
+    expect(message.gt(noMessage)).to.be.true;
   });
 });
