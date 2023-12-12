@@ -411,6 +411,10 @@ describe("SpokePoolClient: Fill Validation", function () {
     spokePoolClient1.eventSearchConfig.toBlock = depositBlock - 1;
     await spokePoolClient1.update();
 
+    // Make sure that the client's latestBlockNumber encompasses the event so it can see it on the subsequent
+    // queryHistoricalDepositForFill call.
+    spokePoolClient1.latestBlockNumber = depositBlock;
+
     // Client has 0 deposits in memory so querying historical deposit sends fresh RPC requests.
     expect(spokePoolClient1.getDeposits().length).to.equal(0);
     const historicalDeposit = await queryHistoricalDepositForFill(spokePoolClient1, fill);

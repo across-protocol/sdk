@@ -56,7 +56,6 @@ type _SpokePoolUpdate = {
   success: boolean;
   currentTime: number;
   firstDepositId: number;
-  latestBlockNumber: number;
   latestDepositId: number;
   events: Event[][];
   // Blocks are only used if the UBA is active and events need to be ordered by blockTimestamp
@@ -85,7 +84,6 @@ export class SpokePoolClient extends BaseAbstractClient {
   public firstDepositIdForSpokePool = Number.MAX_SAFE_INTEGER;
   public lastDepositIdForSpokePool = Number.MAX_SAFE_INTEGER;
   public firstBlockToSearch: number;
-  public latestBlockSearched: number;
   public latestBlockNumber = 0;
   public fills: { [OriginChainId: number]: FillWithBlock[] } = {};
   public refundRequests: RefundRequestWithBlock[] = [];
@@ -110,7 +108,6 @@ export class SpokePoolClient extends BaseAbstractClient {
   ) {
     super();
     this.firstBlockToSearch = eventSearchConfig.fromBlock;
-    this.latestBlockSearched = eventSearchConfig.fromBlock;
     this.queryableEventNames = Object.keys(this._queryableEventNames());
   }
 
@@ -523,14 +520,9 @@ export class SpokePoolClient extends BaseAbstractClient {
       }
     }
 
-    const latestBlockNumber = await this.spokePool.provider.getBlockNumber();
-    if (isNaN(latestBlockNumber) || latestBlockNumber < this.latestBlockNumber) {
-      throw new Error(`SpokePoolClient::update: latestBlockNumber ${latestBlockNumber} < ${this.latestBlockNumber}`);
-    }
-
     const searchConfig = {
       fromBlock: this.firstBlockToSearch,
-      toBlock: this.eventSearchConfig.toBlock || latestBlockNumber,
+      toBlock: this.eventSearchConfig.toBlock || (await this.spokePool.provider.getBlockNumber()),
       maxBlockLookBack: this.eventSearchConfig.maxBlockLookBack,
     };
     if (searchConfig.fromBlock > searchConfig.toBlock) {
@@ -612,7 +604,6 @@ export class SpokePoolClient extends BaseAbstractClient {
       success: true,
       currentTime: currentTime.toNumber(), // uint32
       firstDepositId,
-      latestBlockNumber,
       latestDepositId: Math.max(numberOfDeposits - 1, 0),
       searchEndBlock: searchConfig.toBlock,
       events,
@@ -644,7 +635,7 @@ export class SpokePoolClient extends BaseAbstractClient {
       // understand why we see this in test. @todo: Resolve.
       return;
     }
-    const { events: queryResults, blocks, currentTime } = update;
+    const { events: queryResults, blocks, currentTime, searchEndBlock } = update;
 
     if (eventsToQuery.includes("TokensBridged")) {
       for (const event of queryResults[eventsToQuery.indexOf("TokensBridged")]) {
@@ -829,10 +820,9 @@ export class SpokePoolClient extends BaseAbstractClient {
     // Next iteration should start off from where this one ended.
     this.currentTime = currentTime;
     this.firstDepositIdForSpokePool = update.firstDepositId;
-    this.latestBlockNumber = update.latestBlockNumber;
+    this.latestBlockNumber = searchEndBlock;
     this.lastDepositIdForSpokePool = update.latestDepositId;
-    this.firstBlockToSearch = update.searchEndBlock + 1;
-    this.latestBlockSearched = update.searchEndBlock;
+    this.firstBlockToSearch = searchEndBlock + 1;
     this.isUpdated = true;
     this.log("debug", `SpokePool client for chain ${this.chainId} updated!`, {
       nextFirstBlockToSearch: this.firstBlockToSearch,
@@ -1096,7 +1086,6 @@ export class SpokePoolClient extends BaseAbstractClient {
     this.earliestDepositIdQueried = spokePoolClientState.earliestDepositIdQueried || this.earliestDepositIdQueried;
     this.latestDepositIdQueried = spokePoolClientState.latestDepositIdQueried || this.latestDepositIdQueried;
     this.firstBlockToSearch = spokePoolClientState.firstBlockToSearch || this.firstBlockToSearch;
-    this.latestBlockSearched = spokePoolClientState.latestBlockSearched || this.latestBlockSearched;
     this.fills = Object.entries(spokePoolClientState.fills || []).reduce(
       (acc, [chainId, fills]) => ({
         ...acc,
@@ -1160,7 +1149,6 @@ export class SpokePoolClient extends BaseAbstractClient {
       latestDepositIdQueried: this.latestDepositIdQueried,
       latestDepositIdForSpokePool: this.lastDepositIdForSpokePool,
       firstBlockToSearch: this.firstBlockToSearch,
-      latestBlockSearched: this.latestBlockSearched,
       isUpdated: this.isUpdated,
       fills: JSON.parse(stringifyJSONWithNumericString(this.fills)) as Record<string, FillWithBlockStringified[]>,
       refundRequests: JSON.parse(

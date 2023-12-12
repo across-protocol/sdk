@@ -63,10 +63,6 @@ export class MockSpokePoolClient extends SpokePoolClient {
     return this.destinationTokenForChainOverride[deposit.originChainId] ?? super.getDestinationTokenForDeposit(deposit);
   }
 
-  setLatestBlockSearched(blockNumber: number): void {
-    this.latestBlockSearched = blockNumber;
-  }
-
   setLatestBlockNumber(blockNumber: number): void {
     this.latestBlockNumber = blockNumber;
   }
