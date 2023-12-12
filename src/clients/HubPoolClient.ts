@@ -24,7 +24,6 @@ import {
 } from "../interfaces";
 import * as lpFeeCalculator from "../lpFeeCalculator";
 import {
-  BigNumberish,
   BlockFinder,
   bnZero,
   dedupArray,
@@ -244,24 +243,9 @@ export class HubPoolClient extends BaseAbstractClient {
     return getCachedBlockForTimestamp(this.chainId, timestamp, this.blockFinder, this.cachingMechanism, hints);
   }
 
-  async getCurrentPoolUtilization(l1Token: string): Promise<BigNumberish> {
-    return await this.hubPool.callStatic.liquidityUtilizationCurrent(l1Token);
-  }
-
-  async getPostRelayPoolUtilization(
-    l1Token: string,
-    quoteBlockNumber: number,
-    relaySize: BigNumber
-  ): Promise<{
-    current: BigNumber;
-    post: BigNumber;
-  }> {
-    const overrides = { blockTag: quoteBlockNumber };
-    const [current, post] = await Promise.all([
-      this.hubPool.callStatic.liquidityUtilizationCurrent(l1Token, overrides),
-      this.hubPool.callStatic.liquidityUtilizationPostRelay(l1Token, relaySize, overrides),
-    ]);
-    return { current, post };
+  async getCurrentPoolUtilization(l1Token: string): Promise<BigNumber> {
+    const blockNumber = this.latestBlockNumber ?? await this.hubPool.provider.getBlockNumber();
+    return await this.getUtilization(l1Token, blockNumber, bnZero, getCurrentTime(), 0);
   }
 
   /**
