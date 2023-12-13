@@ -908,6 +908,7 @@ export class HubPoolClient extends BaseAbstractClient {
     this.currentTime = currentTime;
     this.latestBlockNumber = latestBlockNumber;
     this.firstBlockToSearch = update.searchEndBlock + 1; // Next iteration should start off from where this one ended.
+    this.eventSearchConfig.toBlock = undefined; // Caller can re-set on subsequent updates if necessary.
 
     this.isUpdated = true;
     this.logger.debug({ at: "HubPoolClient::update", message: "HubPool client updated!", endBlock: latestBlockNumber });
