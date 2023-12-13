@@ -63,8 +63,8 @@ describe("UBAClientUtilities", function () {
     hubPoolClient.setDestinationTokenForL1Token(l2Token);
 
     await hubPoolClient.update();
-    const latestBlockNumber = await hubPool.provider.getBlockNumber();
-    hubPoolClient.setLatestBlockNumber(latestBlockNumber);
+    const latestBlockSearched = await hubPool.provider.getBlockNumber();
+    hubPoolClient.setLatestBlockNumber(latestBlockSearched);
 
     spokePoolClients = {};
     for (const originChainId of chainIds) {
@@ -76,7 +76,7 @@ describe("UBAClientUtilities", function () {
       const spokePoolClient = new MockSpokePoolClient(logger, spokePool, originChainId, deploymentBlock);
       spokePoolClients[originChainId] = spokePoolClient;
       hubPoolClient.setCrossChainContracts(originChainId, spokePool.address, deploymentBlock);
-      spokePoolClient.latestBlockNumber = deploymentBlock + 1000;
+      spokePoolClient.latestBlockSearched = deploymentBlock + 1000;
       spokePoolClient.setDestinationTokenForChain(originChainId, l2Token);
     }
   });
@@ -150,7 +150,7 @@ describe("UBAClientUtilities", function () {
       deepEqualsWithBigNumber(result, [
         {
           start: getUbaActivationBundleStartBlocks(hubPoolClient)[0],
-          end: spokePoolClients[chainIds[0]].latestBlockNumber,
+          end: spokePoolClients[chainIds[0]].latestBlockSearched,
         },
       ]);
     });
@@ -162,7 +162,7 @@ describe("UBAClientUtilities", function () {
       deepEqualsWithBigNumber(defaultResult, [
         {
           start: getUbaActivationBundleStartBlocks(hubPoolClient)[0],
-          end: spokePoolClients[chainIds[0]].latestBlockNumber,
+          end: spokePoolClients[chainIds[0]].latestBlockSearched,
         },
       ]);
     });
@@ -186,13 +186,13 @@ describe("UBAClientUtilities", function () {
 
       // Get 2 most recent bundles. Should return single range with start equal to UBA activation block
       // and end equal to latest block searched for spoke pool client. Override the spoke pool clients
-      // mapping to make sure that the new chain's "latestBlockNumber" is > 0.
+      // mapping to make sure that the new chain's "latestBlockSearched" is > 0.
       const spokePoolClientForNewChain = spokePoolClients[chainIds[0]];
       const result = getMostRecentBundleBlockRanges(99, 2, hubPoolClient, {
         ...spokePoolClients,
         [99]: spokePoolClientForNewChain,
       });
-      deepEqualsWithBigNumber(result, [{ start: 0, end: spokePoolClientForNewChain.latestBlockNumber }]);
+      deepEqualsWithBigNumber(result, [{ start: 0, end: spokePoolClientForNewChain.latestBlockSearched }]);
     });
   });
   describe("getOpeningRunningBalances", function () {

@@ -84,7 +84,7 @@ export class SpokePoolClient extends BaseAbstractClient {
   public firstDepositIdForSpokePool = Number.MAX_SAFE_INTEGER;
   public lastDepositIdForSpokePool = Number.MAX_SAFE_INTEGER;
   public firstBlockToSearch: number;
-  public latestBlockNumber = 0;
+  public latestBlockSearched = 0;
   public fills: { [OriginChainId: number]: FillWithBlock[] } = {};
   public refundRequests: RefundRequestWithBlock[] = [];
 
@@ -820,7 +820,7 @@ export class SpokePoolClient extends BaseAbstractClient {
     // Next iteration should start off from where this one ended.
     this.currentTime = currentTime;
     this.firstDepositIdForSpokePool = update.firstDepositId;
-    this.latestBlockNumber = searchEndBlock;
+    this.latestBlockSearched = searchEndBlock;
     this.lastDepositIdForSpokePool = update.latestDepositId;
     this.firstBlockToSearch = searchEndBlock + 1;
     this.isUpdated = true;
@@ -948,7 +948,7 @@ export class SpokePoolClient extends BaseAbstractClient {
     const searchBounds = await this._getBlockRangeForDepositId(
       depositId,
       this.deploymentBlock,
-      this.latestBlockNumber,
+      this.latestBlockSearched,
       7
     );
 

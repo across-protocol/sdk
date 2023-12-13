@@ -162,7 +162,7 @@ describe("HubPoolClient: RootBundle Events", function () {
       logIndex: 0,
       transactionHash: "",
     };
-    expect(hubPoolClient.isRootBundleValid(rootBundle, hubPoolClient.latestBlockNumber!)).to.equal(false);
+    expect(hubPoolClient.isRootBundleValid(rootBundle, hubPoolClient.latestBlockSearched!)).to.equal(false);
 
     // Execute leaves.
     await timer.connect(dataworker).setCurrentTime(proposeTime + liveness + 1);
@@ -170,12 +170,12 @@ describe("HubPoolClient: RootBundle Events", function () {
 
     // Not valid until all leaves are executed.
     await hubPoolClient.update();
-    expect(hubPoolClient.isRootBundleValid(rootBundle, hubPoolClient.latestBlockNumber!)).to.equal(false);
-    const blockNumberBeforeAllLeavesExecuted = hubPoolClient.latestBlockNumber;
+    expect(hubPoolClient.isRootBundleValid(rootBundle, hubPoolClient.latestBlockSearched!)).to.equal(false);
+    const blockNumberBeforeAllLeavesExecuted = hubPoolClient.latestBlockSearched;
 
     await hubPool.connect(dataworker).executeRootBundle(...Object.values(leaves[1]), tree.getHexProof(leaves[1]));
     await hubPoolClient.update();
-    expect(hubPoolClient.isRootBundleValid(rootBundle, hubPoolClient.latestBlockNumber!)).to.equal(true);
+    expect(hubPoolClient.isRootBundleValid(rootBundle, hubPoolClient.latestBlockSearched!)).to.equal(true);
 
     // Only searches for executed leaves up to input latest mainnet block to search
     expect(hubPoolClient.isRootBundleValid(rootBundle, blockNumberBeforeAllLeavesExecuted!)).to.equal(false);
@@ -497,7 +497,7 @@ describe("HubPoolClient: RootBundle Events", function () {
 
         const executedLeaves = hubPoolClient.getExecutedLeavesForRootBundle(
           proposedRootBundle,
-          hubPoolClient.latestBlockNumber as number
+          hubPoolClient.latestBlockSearched as number
         );
         expect(executedLeaves.length).to.equal(leafEvents.length);
 
@@ -556,7 +556,7 @@ describe("HubPoolClient: RootBundle Events", function () {
 
         const executedLeaves = hubPoolClient.getExecutedLeavesForRootBundle(
           proposedRootBundle,
-          hubPoolClient.latestBlockNumber as number
+          hubPoolClient.latestBlockSearched as number
         );
         expect(executedLeaves.length).to.equal(leafEvents.length);
 

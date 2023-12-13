@@ -56,7 +56,7 @@ export class MockHubPoolClient extends HubPoolClient {
   }
 
   setLatestBlockNumber(blockNumber: number) {
-    this.latestBlockNumber = blockNumber;
+    this.latestBlockSearched = blockNumber;
   }
 
   addEvent(event: Event): void {
@@ -121,7 +121,7 @@ export class MockHubPoolClient extends HubPoolClient {
 
   _update(eventNames: string[]): Promise<HubPoolUpdate> {
     // Generate new "on chain" responses.
-    const latestBlockNumber = this.eventManager.blockNumber;
+    const latestBlockSearched = this.eventManager.blockNumber;
     const currentTime = Math.floor(Date.now() / 1000);
 
     // Ensure an array for every requested event exists, in the requested order.
@@ -141,10 +141,10 @@ export class MockHubPoolClient extends HubPoolClient {
     return Promise.resolve({
       success: true,
       currentTime,
-      latestBlockNumber,
+      latestBlockSearched,
       pendingRootBundleProposal: this.rootBundleProposal,
       events,
-      searchEndBlock: this.eventSearchConfig.toBlock || latestBlockNumber,
+      searchEndBlock: this.eventSearchConfig.toBlock || latestBlockSearched,
     });
   }
 

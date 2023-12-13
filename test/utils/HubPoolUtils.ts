@@ -95,7 +95,7 @@ export async function publishValidatedBundles(
   // client was provided for the chain. In this case we assume that chain is disabled.
   chainIds.forEach((chainId) => {
     expectedBlockRanges[chainId][expectedBlockRanges[chainId].length - 1].end =
-      spokePoolClients[chainId].latestBlockNumber;
+      spokePoolClients[chainId].latestBlockSearched;
   });
   return expectedBlockRanges;
 }

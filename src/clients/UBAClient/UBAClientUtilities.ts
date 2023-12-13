@@ -160,9 +160,9 @@ export function getMostRecentBundleBlockRanges(
   hubPoolClient: HubPoolClient,
   spokePoolClients: SpokePoolClients
 ): { start: number; end: number }[] {
-  let toBlock = hubPoolClient.latestBlockNumber;
+  let toBlock = hubPoolClient.latestBlockSearched;
   if (!isDefined(toBlock)) {
-    throw new Error("HubPoolClient has undefined latestBlockNumber");
+    throw new Error("HubPoolClient has undefined latestBlockSearched");
   }
 
   // Reconstruct bundle ranges based on published end blocks.
@@ -237,7 +237,7 @@ export function getMostRecentBundleBlockRanges(
   if (isDefined(spokePoolClients[chainId])) {
     // Make the last bundle to cover until the last spoke client searched block, unless a spoke pool
     // client was provided for the chain. In this case we assume that chain is disabled.
-    bundleData[bundleData.length - 1].end = spokePoolClients[chainId].latestBlockNumber;
+    bundleData[bundleData.length - 1].end = spokePoolClients[chainId].latestBlockSearched;
   }
 
   return bundleData;
@@ -424,9 +424,9 @@ export function isUBAActivatedAtBlock(hubPoolClient: HubPoolClient, block: numbe
  * @param chainIds Chains to return start blocks for.
  * */
 export function getUbaActivationBundleStartBlocks(hubPoolClient: HubPoolClient): number[] {
-  const latestHubPoolBlock = hubPoolClient.latestBlockNumber;
+  const latestHubPoolBlock = hubPoolClient.latestBlockSearched;
   if (!isDefined(latestHubPoolBlock)) {
-    throw new Error("HubPoolClient has undefined latestBlockNumber");
+    throw new Error("HubPoolClient has undefined latestBlockSearched");
   }
   const chainIdIndices = hubPoolClient.configStoreClient.getChainIdIndicesForBlock();
   const ubaActivationBlock = hubPoolClient.configStoreClient.getUBAActivationBlock();
@@ -656,11 +656,11 @@ export async function refundRequestIsValid(
   }
   const destSpoke = spokePoolClients[destinationChainId];
 
-  if (fillBlock.lt(destSpoke.deploymentBlock) || fillBlock.gt(destSpoke.latestBlockNumber)) {
-    const { deploymentBlock, latestBlockNumber } = destSpoke;
+  if (fillBlock.lt(destSpoke.deploymentBlock) || fillBlock.gt(destSpoke.latestBlockSearched)) {
+    const { deploymentBlock, latestBlockSearched } = destSpoke;
     return {
       valid: false,
-      reason: `FillBlock (${fillBlock} out of SpokePool range [${deploymentBlock}, ${latestBlockNumber}]`,
+      reason: `FillBlock (${fillBlock} out of SpokePool range [${deploymentBlock}, ${latestBlockSearched}]`,
     };
   }
 

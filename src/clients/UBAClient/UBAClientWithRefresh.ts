@@ -447,7 +447,7 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
    * @returns Validated flow or undefined if flow cannot be validated.
    */
   protected async validateFlow(flow: UbaFlow): Promise<ModifiedUBAFlow | undefined> {
-    const latestHubPoolBlock = this.hubPoolClient.latestBlockNumber;
+    const latestHubPoolBlock = this.hubPoolClient.latestBlockSearched;
     if (!isDefined(latestHubPoolBlock)) throw new Error("HubPoolClient not updated");
 
     // Load common information that depends on what type of flow we're validating:
@@ -839,7 +839,7 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
           // Check 2: end block of last block range should be equal to latest spoke pool client block searched
           (isDefined(this.spokePoolClients[chainId]) &&
             // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-            _blockRangesForChain.at(-1)![1] !== this.spokePoolClients[chainId].latestBlockNumber)
+            _blockRangesForChain.at(-1)![1] !== this.spokePoolClients[chainId].latestBlockSearched)
         ) {
           this.logger.error({
             at: "UBAClientWithRefresh#getMostRecentBundleBlockRangesPerChain",
@@ -847,7 +847,7 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
             startBlockForChain: _blockRangesForChain[0][0],
             ubaActivationBundleStartBlockForChain,
             endBlockForChain: _blockRangesForChain.at(-1)?.[1],
-            latestSpokePoolClientBlockSearched: this.spokePoolClients[chainId]?.latestBlockNumber,
+            latestSpokePoolClientBlockSearched: this.spokePoolClients[chainId]?.latestBlockSearched,
           });
           throw new Error(
             `Block ranges for chain ${chainId} do not cover from UBA activation bundle start block to latest spoke pool client block searched`
@@ -895,7 +895,7 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
    * Updates the bundle state.
    */
   public async update(): Promise<void> {
-    const latestHubPoolBlock = this.hubPoolClient.latestBlockNumber;
+    const latestHubPoolBlock = this.hubPoolClient.latestBlockSearched;
     if (!isDefined(latestHubPoolBlock)) throw new Error("HubPoolClient not updated");
 
     this.logger.debug({
