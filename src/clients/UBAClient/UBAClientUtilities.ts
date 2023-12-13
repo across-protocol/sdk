@@ -237,7 +237,7 @@ export function getMostRecentBundleBlockRanges(
   if (isDefined(spokePoolClients[chainId])) {
     // Make the last bundle to cover until the last spoke client searched block, unless a spoke pool
     // client was provided for the chain. In this case we assume that chain is disabled.
-    bundleData[bundleData.length - 1].end = spokePoolClients[chainId].latestBlockNumber;
+    bundleData[bundleData.length - 1].end = spokePoolClients[chainId].latestBlockSearched;
   }
 
   return bundleData;
