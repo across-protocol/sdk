@@ -99,7 +99,7 @@ describe("UBAClient: Flow validation", function () {
       const spokePoolClient = new MockSpokePoolClient(logger, spokePool, originChainId, deploymentBlock);
       spokePoolClients[originChainId] = spokePoolClient;
       hubPoolClient.setCrossChainContracts(originChainId, spokePool.address, deploymentBlock);
-      spokePoolClient.setLatestBlockSearched(deploymentBlock + 1000);
+      spokePoolClient.latestBlockNumber = deploymentBlock + 1000;
       await spokePoolClient.update();
     }
 

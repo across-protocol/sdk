@@ -51,7 +51,6 @@ import { isUBAActivatedAtBlock } from "./UBAClient/UBAClientUtilities";
 type _HubPoolUpdate = {
   success: true;
   currentTime: number;
-  latestBlockNumber: number;
   pendingRootBundleProposal: PendingRootBundle;
   events: Record<string, Event[]>;
   searchEndBlock: number;
@@ -710,12 +709,11 @@ export class HubPoolClient extends BaseAbstractClient {
   }
 
   async _update(eventNames: HubPoolEvent[]): Promise<HubPoolUpdate> {
-    const latestBlockNumber = await this.hubPool.provider.getBlockNumber();
     const hubPoolEvents = this.hubPoolEventFilters();
 
     const searchConfig = {
       fromBlock: this.firstBlockToSearch,
-      toBlock: this.eventSearchConfig.toBlock || latestBlockNumber,
+      toBlock: this.eventSearchConfig.toBlock || (await this.hubPool.provider.getBlockNumber()),
       maxBlockLookBack: this.eventSearchConfig.maxBlockLookBack,
     };
     if (searchConfig.fromBlock > searchConfig.toBlock) {
@@ -745,7 +743,6 @@ export class HubPoolClient extends BaseAbstractClient {
     return {
       success: true,
       currentTime,
-      latestBlockNumber,
       pendingRootBundleProposal,
       searchEndBlock: searchConfig.toBlock,
       events: _events,
@@ -766,7 +763,7 @@ export class HubPoolClient extends BaseAbstractClient {
       // understand why we see this in test. @todo: Resolve.
       return;
     }
-    const { events, currentTime, latestBlockNumber, pendingRootBundleProposal } = update;
+    const { events, currentTime, pendingRootBundleProposal, searchEndBlock } = update;
 
     for (const event of events["CrossChainContractsSet"]) {
       const args = spreadEventWithBlockNumber(event) as CrossChainContractsSet;
@@ -906,12 +903,12 @@ export class HubPoolClient extends BaseAbstractClient {
     }
 
     this.currentTime = currentTime;
-    this.latestBlockNumber = latestBlockNumber;
+    this.latestBlockNumber = searchEndBlock;
     this.firstBlockToSearch = update.searchEndBlock + 1; // Next iteration should start off from where this one ended.
     this.eventSearchConfig.toBlock = undefined; // Caller can re-set on subsequent updates if necessary.
 
     this.isUpdated = true;
-    this.logger.debug({ at: "HubPoolClient::update", message: "HubPool client updated!", endBlock: latestBlockNumber });
+    this.logger.debug({ at: "HubPoolClient::update", message: "HubPool client updated!", searchEndBlock });
   }
 
   // Returns end block for `chainId` in ProposedRootBundle.bundleBlockEvalNumbers. Looks up chainId
