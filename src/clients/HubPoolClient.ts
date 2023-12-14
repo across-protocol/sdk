@@ -107,7 +107,7 @@ export class HubPoolClient extends BaseAbstractClient {
     cachingMechanism?: CachingMechanismInterface
   ) {
     super(cachingMechanism);
-    this.latestBlockSearched = deploymentBlock === 0 ? deploymentBlock : deploymentBlock - 1;
+    this.latestBlockSearched = Math.min(deploymentBlock - 1, 0);
     this.firstBlockToSearch = eventSearchConfig.fromBlock;
 
     const provider = this.hubPool.provider;
