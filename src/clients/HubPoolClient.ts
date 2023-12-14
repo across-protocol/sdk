@@ -196,13 +196,13 @@ export class HubPoolClient extends BaseAbstractClient {
     latestHubBlock = Number.MAX_SAFE_INTEGER
   ): string {
     const l2Tokens = Object.keys(this.l1TokensToDestinationTokensWithBlock)
-      .filter((l1Token) => this.l2TokenEnabledForL1Token(l1Token, destinationChainId)
+      .filter((l1Token) => this.l2TokenEnabledForL1Token(l1Token, destinationChainId))
       .map((l1Token) => {
         // Return all matching L2 token mappings that are equal to or earlier than the target block.
         return this.l1TokensToDestinationTokensWithBlock[l1Token][destinationChainId].filter(
           (mapping) => mapping.l2Token === l2Token && mapping.blockNumber <= latestHubBlock
         );
-      });
+      })
       .flat();
     if (l2Tokens.length === 0) {
       throw new Error(
@@ -256,7 +256,7 @@ export class HubPoolClient extends BaseAbstractClient {
   }
 
   async getCurrentPoolUtilization(l1Token: string): Promise<BigNumber> {
-    const blockNumber = this.latestBlockNumber ?? await this.hubPool.provider.getBlockNumber();
+    const blockNumber = this.latestBlockNumber ?? (await this.hubPool.provider.getBlockNumber());
     return await this.getUtilization(l1Token, blockNumber, bnZero, getCurrentTime(), 0);
   }
 
