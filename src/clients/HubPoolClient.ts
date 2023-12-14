@@ -196,17 +196,13 @@ export class HubPoolClient extends BaseAbstractClient {
     latestHubBlock = Number.MAX_SAFE_INTEGER
   ): string {
     const l2Tokens = Object.keys(this.l1TokensToDestinationTokensWithBlock)
+      .filter((l1Token) => this.l2TokenEnabledForL1Token(l1Token, destinationChainId)
       .map((l1Token) => {
-        // If this token doesn't exist on this L2, skip it
-        if (this.l1TokensToDestinationTokensWithBlock[l1Token][destinationChainId] === undefined) {
-          return undefined;
-        }
         // Return all matching L2 token mappings that are equal to or earlier than the target block.
         return this.l1TokensToDestinationTokensWithBlock[l1Token][destinationChainId].filter(
           (mapping) => mapping.l2Token === l2Token && mapping.blockNumber <= latestHubBlock
         );
-      })
-      .filter(isDefined)
+      });
       .flat();
     if (l2Tokens.length === 0) {
       throw new Error(
