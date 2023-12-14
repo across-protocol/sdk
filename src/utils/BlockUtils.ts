@@ -9,7 +9,7 @@ import { shouldCache } from "./CachingUtils";
 import { DEFAULT_CACHING_SAFE_LAG } from "../constants";
 
 type Opts = {
-  latestBlockSearched?: number;
+  highBlock?: number;
   latestBlockOffset?: number;
   blockRange?: number;
 };
@@ -46,7 +46,7 @@ const blockTimes: { [chainId: number]: BlockTimeAverage } = {
  */
 export async function averageBlockTime(
   provider: Provider,
-  { latestBlockSearched, latestBlockOffset, blockRange }: Opts = {}
+  { highBlock, latestBlockOffset, blockRange }: Opts = {}
 ): Promise<Pick<BlockTimeAverage, "average" | "blockRange">> {
   // Does not block for StaticJsonRpcProvider.
   const chainId = (await provider.getNetwork()).chainId;
@@ -57,24 +57,24 @@ export async function averageBlockTime(
     return { average: cache.average, blockRange: cache.blockRange };
   }
 
-  // If the caller was not specific about latestBlockSearched, resolve it via the
+  // If the caller was not specific about highBlock, resolve it via the
   // RPC provider. Subtract an offset to account for various RPC provider sync
   // issues that might occur when querying the latest block.
-  if (!isDefined(latestBlockSearched)) {
-    latestBlockSearched = await provider.getBlockNumber();
-    latestBlockSearched -= latestBlockOffset ?? defaultLatestBlockOffset;
+  if (!isDefined(highBlock)) {
+    highBlock = await provider.getBlockNumber();
+    highBlock -= latestBlockOffset ?? defaultLatestBlockOffset;
   }
   blockRange ??= defaultBlockRange;
 
-  const earliestBlockNumber = latestBlockSearched - blockRange;
+  const earliestBlockNumber = highBlock - blockRange;
   const [firstBlock, lastBlock] = await Promise.all([
     provider.getBlock(earliestBlockNumber),
-    provider.getBlock(latestBlockSearched),
+    provider.getBlock(highBlock),
   ]);
   [firstBlock, lastBlock].forEach((block: Block | undefined) => {
     if (!isDefined(block?.timestamp)) {
       const network = getNetworkName(chainId);
-      const blockNumber = block === firstBlock ? earliestBlockNumber : latestBlockSearched;
+      const blockNumber = block === firstBlock ? earliestBlockNumber : highBlock;
       throw new Error(`BlockFinder: Failed to fetch block ${blockNumber} on ${network}`);
     }
   });
