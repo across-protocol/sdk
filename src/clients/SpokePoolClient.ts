@@ -823,6 +823,7 @@ export class SpokePoolClient extends BaseAbstractClient {
     this.latestBlockNumber = searchEndBlock;
     this.lastDepositIdForSpokePool = update.latestDepositId;
     this.firstBlockToSearch = searchEndBlock + 1;
+    this.eventSearchConfig.toBlock = undefined; // Caller can re-set on subsequent updates if necessary
     this.isUpdated = true;
     this.log("debug", `SpokePool client for chain ${this.chainId} updated!`, {
       nextFirstBlockToSearch: this.firstBlockToSearch,
