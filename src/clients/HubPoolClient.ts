@@ -84,8 +84,6 @@ export class HubPoolClient extends BaseAbstractClient {
   } = {};
   protected pendingRootBundle: PendingRootBundle | undefined;
 
-  public firstBlockToSearch: number;
-  public latestBlockSearched: number | undefined;
   public currentTime: number | undefined;
   public readonly blockFinder: BlockFinder;
 

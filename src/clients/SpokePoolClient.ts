@@ -83,8 +83,6 @@ export class SpokePoolClient extends BaseAbstractClient {
   public latestDepositIdQueried = 0;
   public firstDepositIdForSpokePool = Number.MAX_SAFE_INTEGER;
   public lastDepositIdForSpokePool = Number.MAX_SAFE_INTEGER;
-  public firstBlockToSearch: number;
-  public latestBlockSearched = 0;
   public fills: { [OriginChainId: number]: FillWithBlock[] } = {};
   public refundRequests: RefundRequestWithBlock[] = [];
 
@@ -108,6 +106,7 @@ export class SpokePoolClient extends BaseAbstractClient {
   ) {
     super();
     this.firstBlockToSearch = eventSearchConfig.fromBlock;
+    this.latestBlockSearched = 0;
     this.queryableEventNames = Object.keys(this._queryableEventNames());
   }
 

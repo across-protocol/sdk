@@ -75,8 +75,6 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
   public cumulativeDisabledChainUpdates: DisabledChainsUpdate[] = [];
 
   protected rateModelDictionary: across.rateModel.RateModelDictionary;
-  public firstBlockToSearch: number;
-  public latestBlockSearched = 0;
 
   public hasLatestConfigStoreVersion = false;
   public chainId: number | undefined;
@@ -89,6 +87,7 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
   ) {
     super();
     this.firstBlockToSearch = eventSearchConfig.fromBlock;
+    this.latestBlockSearched = 0;
     this.rateModelDictionary = new across.rateModel.RateModelDictionary();
   }
 
