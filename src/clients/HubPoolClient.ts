@@ -169,7 +169,7 @@ export class HubPoolClient extends BaseAbstractClient {
   }
 
   // Returns the latest L2 token to use for an L1 token as of the input hub block.
-  protected getL2TokenForL1TokenAtBlock(
+  getL2TokenForL1TokenAtBlock(
     l1Token: string,
     destinationChainId: number,
     latestHubBlock = Number.MAX_SAFE_INTEGER
@@ -190,7 +190,7 @@ export class HubPoolClient extends BaseAbstractClient {
   }
 
   // Returns the latest L1 token to use for an L2 token as of the input hub block.
-  protected getL1TokenForL2TokenAtBlock(
+  getL1TokenForL2TokenAtBlock(
     l2Token: string,
     destinationChainId: number,
     latestHubBlock = Number.MAX_SAFE_INTEGER
