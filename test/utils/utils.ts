@@ -283,9 +283,13 @@ export async function buildDepositStruct(
   deposit: Omit<Deposit, "destinationToken" | "realizedLpFeePct">,
   hubPoolClient: HubPoolClient
 ): Promise<Deposit & { quoteBlockNumber: number; blockNumber: number }> {
+  const blockNumber = await hubPoolClient.getBlockNumber(deposit.quoteTimestamp);
+  if (!blockNumber) {
+    throw new Error("Timestamp is undefined");
+  }
   const { quoteBlock, realizedLpFeePct } = await hubPoolClient.computeRealizedLpFeePct({
     ...deposit,
-    blockNumber: (await hubPoolClient.blockFinder.getBlockForTimestamp(deposit.quoteTimestamp)).number,
+    blockNumber,
   });
   return {
     ...deposit,
@@ -303,7 +307,6 @@ export async function buildDeposit(
   hubPoolClient: HubPoolClient,
   spokePool: Contract,
   tokenToDeposit: Contract,
-  l1TokenForDepositedToken: Contract,
   recipientAndDepositor: SignerWithAddress,
   _destinationChainId: number,
   _amountToDeposit: BigNumber = amountToDeposit,

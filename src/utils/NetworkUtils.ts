@@ -1,5 +1,5 @@
 import { PublicNetworks } from "@uma/common/dist/PublicNetworks";
-
+import { PRODUCTION_CHAIN_IDS, TESTNET_CHAIN_IDS } from "../constants";
 /**
  * Resolves a network name from a network id.
  * @param networkId The network id to resolve the name for
@@ -45,6 +45,24 @@ export function getNativeTokenSymbol(chainId: number | string): string {
     return "MATIC";
   }
   return "ETH";
+}
+
+/**
+ * Determines whether a chain ID is part of the production network.
+ * @param chainId Chain ID to query.
+ * @returns true if the chain ID is part of the production network, otherwise false.
+ */
+export function chainIsProd(chainId: number): boolean {
+  return PRODUCTION_CHAIN_IDS.includes(chainId);
+}
+
+/**
+ * Determines whether a chain ID is part of the production network.
+ * @param chainId Chain ID to query.
+ * @returns true if the chain ID is part of the production network, otherwise false.
+ */
+export function chainIsTestnet(chainId: number): boolean {
+  return TESTNET_CHAIN_IDS.includes(chainId);
 }
 
 /**

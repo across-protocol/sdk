@@ -3,6 +3,7 @@ import { BigNumber, Contract, providers, Signer } from "ethers";
 import * as constants from "../constants";
 import { L1Token } from "../interfaces";
 import { ERC20__factory } from "../typechain";
+import { getNetworkName } from "./NetworkUtils";
 import { isDefined } from "./TypeGuards";
 const { TOKEN_SYMBOLS_MAP, CHAIN_IDs } = constants;
 
@@ -19,6 +20,27 @@ export const getL2TokenAddresses = (l1TokenAddress: string): { [chainId: number]
     return details.addresses[CHAIN_IDs.MAINNET] === l1TokenAddress;
   })?.addresses;
 };
+
+/**
+ * Resolve a token symbol to an L1Token description on a particular chain ID.
+ * @notice Not to be confused with the HubPool's internal view on the supported origin/destination token for a chain.
+ * @param symbol Symbol to query.
+ * @param chainId Chain ID to query on.
+ * @returns Symbol, decimals and contract address on the requested chain.
+ */
+export function resolveSymbolOnChain(chainId: number, symbol: string): L1Token {
+  // @dev Suppress tsc complaints by casting symbol to the expected type.
+  const token = TOKEN_SYMBOLS_MAP[symbol as keyof typeof TOKEN_SYMBOLS_MAP];
+  if (!isDefined(token) || !isDefined(token.addresses[chainId])) {
+    const network = getNetworkName(chainId);
+    throw new Error(`Unable to find token ${symbol} on ${network} (chain ID ${chainId}`);
+  }
+
+  const { decimals, addresses } = token;
+  const address = addresses[chainId];
+
+  return { symbol, decimals, address };
+}
 
 /**
  * Returns the contract address for a given token symbol and chainId.
