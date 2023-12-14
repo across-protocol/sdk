@@ -7,7 +7,7 @@ import { isDefined } from "../utils";
 export abstract class BaseAbstractClient {
   protected _isUpdated: boolean;
   public firstBlockToSearch = 0;
-  public latestBlockSearched: number | undefined;
+  public latestBlockSearched = 0;
 
   /**
    * Creates a new client.

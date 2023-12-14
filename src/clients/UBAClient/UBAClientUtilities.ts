@@ -161,9 +161,6 @@ export function getMostRecentBundleBlockRanges(
   spokePoolClients: SpokePoolClients
 ): { start: number; end: number }[] {
   let toBlock = hubPoolClient.latestBlockSearched;
-  if (!isDefined(toBlock)) {
-    throw new Error("HubPoolClient has undefined latestBlockSearched");
-  }
 
   // Reconstruct bundle ranges based on published end blocks.
   const ubaActivationStartBlocks = getUbaActivationBundleStartBlocks(hubPoolClient);
@@ -425,9 +422,6 @@ export function isUBAActivatedAtBlock(hubPoolClient: HubPoolClient, block: numbe
  * */
 export function getUbaActivationBundleStartBlocks(hubPoolClient: HubPoolClient): number[] {
   const latestHubPoolBlock = hubPoolClient.latestBlockSearched;
-  if (!isDefined(latestHubPoolBlock)) {
-    throw new Error("HubPoolClient has undefined latestBlockSearched");
-  }
   const chainIdIndices = hubPoolClient.configStoreClient.getChainIdIndicesForBlock();
   const ubaActivationBlock = hubPoolClient.configStoreClient.getUBAActivationBlock();
   if (isDefined(ubaActivationBlock)) {
