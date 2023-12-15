@@ -358,7 +358,8 @@ export class HubPoolClient extends BaseAbstractClient {
       );
 
       // Resolve the HubPool token address, if it isn't already known.
-      const hubPoolToken = hubPoolTokens[originToken] ?? this.getL1TokenForDeposit(deposit);
+      const quoteBlockNumber = quoteBlocks[deposit.quoteTimestamp];
+      const hubPoolToken = hubPoolTokens[originToken] ?? this.getL1TokenForDeposit({ ...deposit, quoteBlockNumber });
       hubPoolTokens[originToken] ??= hubPoolToken;
 
       // Append the quoteTimestamp for this HubPool token, if it isn't already enqueued.

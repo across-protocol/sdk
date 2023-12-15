@@ -123,7 +123,6 @@ export class MockSpokePoolClient extends SpokePoolClient {
     return {
       success: true,
       firstDepositId: 0,
-      latestBlockNumber,
       latestDepositId,
       currentTime,
       events,
