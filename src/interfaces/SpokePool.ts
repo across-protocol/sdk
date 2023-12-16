@@ -165,7 +165,6 @@ export interface RelayerRefundExecution {
   leafId: number;
   l2TokenAddress: string;
   refundAddresses: string[];
-  caller: string;
 }
 
 export interface RelayerRefundExecutionWithBlock extends RelayerRefundExecution, SortableEvent {}
@@ -228,7 +227,6 @@ export interface TokensBridged extends SortableEvent {
   chainId: number;
   leafId: number;
   l2TokenAddress: string;
-  caller: string;
 }
 
 export type TokensBridgedStringified = Omit<TokensBridged, "amountToReturn"> & {
