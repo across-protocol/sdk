@@ -75,9 +75,8 @@ describe("SpokePoolClient: Fill Validation", function () {
     await configStoreClient.update();
 
     hubPoolClient = new MockHubPoolClient(spyLogger, hubPool, configStoreClient);
-    hubPoolClient.setReturnedL2TokenForDeposit(originChainId, erc20_1.address);
-    hubPoolClient.setReturnedL2TokenForDeposit(destinationChainId, erc20_2.address);
-    hubPoolClient.setReturnedL1TokenForDeposit(l1Token.address);
+    hubPoolClient.setTokenRoute(l1Token.address, originChainId, erc20_1.address);
+    hubPoolClient.setTokenRoute(l1Token.address, destinationChainId, erc20_2.address);
 
     await hubPoolClient.update();
     spokePoolClient1 = new SpokePoolClient(
