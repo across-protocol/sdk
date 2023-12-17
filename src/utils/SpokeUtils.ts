@@ -1,5 +1,5 @@
 import { Contract } from "ethers";
-import { SpokePoolClient } from "../clients";
+import { getDeployedBlockNumber } from "@across-protocol/contracts-v2";
 
 /**
  * Find the block range that contains the deposit ID. This is a binary search that searches for the block range
@@ -21,35 +21,26 @@ export async function getBlockRangeForDepositId(
   initLow: number,
   initHigh: number,
   maxSearches: number,
-  spokePool: SpokePoolClient
+  spokePool: Contract,
+  deploymentBlock?: number
 ): Promise<{
   low: number;
   high: number;
 }> {
-  // Resolve the deployment block number.
-  const deploymentBlock = spokePool.deploymentBlock;
+  const { chainId } = await spokePool.provider.getNetwork();
+  deploymentBlock ??= getDeployedBlockNumber("SpokePool", chainId);
+  initHigh = Math.min(initHigh, await spokePool.provider.getBlockNumber());
 
-  // Set the initial high block to the most recent block number or the initial high block, whichever is smaller.
-  initHigh = Math.min(initHigh, spokePool.latestBlockNumber);
-
-  // We will now set a list of sanity checks to ensure that the binary search will not fail
-  // due to invalid input parameters.
-  // If any of these sanity checks fail, then we will throw an error.
+  // We will now set a list of sanity checks to ensure that the binary search will not fail due
+  // to invalid input parameters. If any of these sanity checks fail, then we will throw an error.
   (
     [
-      // Sanity check to ensure that the spoke pool client is updated
-      [spokePool.isUpdated, "Spoke pool client is not updated"],
-      // Sanity check to ensure that initHigh is greater than or equal to initLow.
       [initLow <= initHigh, "Binary search failed because low > high"],
-      // Sanity check to ensure that init Low is greater than or equal to zero.
       [initLow >= deploymentBlock, "Binary search failed because low must be >= deploymentBlock"],
-      // Sanity check to ensure that maxSearches is greater than zero.
       [maxSearches > 0, "maxSearches must be > 0"],
-      // Sanity check to ensure that deploymentBlock is greater than or equal to zero.
       [deploymentBlock >= 0, "deploymentBlock must be >= 0"],
     ] as [boolean, string][]
   ).forEach(([condition, errorMessage]) => {
-    // If the condition is false, then we will throw an error.
     if (!condition) {
       throw new Error(errorMessage);
     }
@@ -62,15 +53,14 @@ export async function getBlockRangeForDepositId(
   // queriedIds cache to see if the deposit ID at the block number has already been queried. If not, it will
   // make an eth_call request to get the deposit ID at the block number. It will then cache the deposit ID
   // in the queriedIds cache.
-  const _getDepositIdAtBlock = async (blockNumber: number): Promise<number> => {
-    queriedIds[blockNumber] ??= await spokePool._getDepositIdAtBlock(blockNumber);
-    return queriedIds[blockNumber];
+  const getDepositIdAtBlock = async (blockTag: number): Promise<number> => {
+    return queriedIds[blockTag] ??= await spokePool.numberOfDeposits({ blockTag });
   };
 
   // Get the the deposit ID at the low block, and the deposit ID at the high block in parallel.
   const [highestDepositIdInRange, lowestDepositIdInRange] = await Promise.all([
-    _getDepositIdAtBlock(initHigh),
-    _getDepositIdAtBlock(Math.max(deploymentBlock, initLow - 1)),
+    getDepositIdAtBlock(initHigh),
+    getDepositIdAtBlock(Math.max(deploymentBlock, initLow - 1)),
   ]);
 
   // If the deposit ID at the initial high block is less than the target deposit ID, then we know that
@@ -110,7 +100,7 @@ export async function getBlockRangeForDepositId(
     const mid = Math.floor((low + high) / 2);
 
     // Get the deposit ID at the mid point.
-    const midDepositId = await _getDepositIdAtBlock(mid);
+    const midDepositId = await getDepositIdAtBlock(mid);
 
     // Let's define the latest ID of the current midpoint block.
     const accountedIdByMidBlock = midDepositId - 1;

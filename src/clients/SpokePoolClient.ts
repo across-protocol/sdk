@@ -437,7 +437,7 @@ export class SpokePoolClient extends BaseAbstractClient {
    *        // where the deposit with deposit ID = targetDepositId was created.
    */
   public _getBlockRangeForDepositId(
-    targetDepositId: number,
+    depositId: number,
     initLow: number,
     initHigh: number,
     maxSearches: number
@@ -445,7 +445,7 @@ export class SpokePoolClient extends BaseAbstractClient {
     low: number;
     high: number;
   }> {
-    return getBlockRangeForDepositId(targetDepositId, initLow, initHigh, maxSearches, this);
+    return getBlockRangeForDepositId(depositId, initLow, initHigh, maxSearches, this.spokePool, this.deploymentBlock);
   }
 
   /**
