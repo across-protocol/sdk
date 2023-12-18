@@ -176,17 +176,19 @@ export class HubPoolClient extends BaseAbstractClient {
     latestHubBlock = Number.MAX_SAFE_INTEGER
   ): string {
     if (!this.l1TokensToDestinationTokensWithBlock?.[l1Token]?.[destinationChainId]) {
-      throw new Error(`Could not find L2 token mapping for chain ${destinationChainId} and L1 token ${l1Token}`);
+      const chain = getNetworkName(destinationChainId);
+      const { symbol } = this.l1Tokens.find(({ address }) => address === l1Token) ?? { symbol: l1Token };
+      throw new Error(`Could not find SpokePool mapping for ${symbol} on ${chain} and L1 token ${l1Token}`);
     }
     // Find the last mapping published before the target block.
     const l2Token: DestinationTokenWithBlock | undefined = sortEventsDescending(
       this.l1TokensToDestinationTokensWithBlock[l1Token][destinationChainId]
     ).find((mapping: DestinationTokenWithBlock) => mapping.blockNumber <= latestHubBlock);
     if (!l2Token) {
-      const { symbol } = this.l1Tokens.find(({ address }) => address === l1Token) ?? { symbol: l1Token };
       const chain = getNetworkName(destinationChainId);
+      const { symbol } = this.l1Tokens.find(({ address }) => address === l1Token) ?? { symbol: l1Token };
       throw new Error(
-        `Could not find ${chain} mapping for HubPool token ${symbol} at or before HubPool block ${latestHubBlock}!`
+        `Could not find SpokePool mapping for ${symbol} on ${chain} at or before HubPool block ${latestHubBlock}!`
       );
     }
     return l2Token.l2Token;
