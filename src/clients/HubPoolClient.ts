@@ -33,6 +33,7 @@ import {
   fetchTokenInfo,
   getCachedBlockForTimestamp,
   getCurrentTime,
+  getNetworkName,
   isDefined,
   mapAsync,
   paginatedEventQuery,
@@ -182,8 +183,10 @@ export class HubPoolClient extends BaseAbstractClient {
       this.l1TokensToDestinationTokensWithBlock[l1Token][destinationChainId]
     ).find((mapping: DestinationTokenWithBlock) => mapping.blockNumber <= latestHubBlock);
     if (!l2Token) {
+      const { symbol } = this.l1Tokens.find(({ address }) => address === l1Token) ?? { symbol: l1Token };
+      const chain = getNetworkName(destinationChainId);
       throw new Error(
-        `Could not find L2 token mapping for chain ${destinationChainId} and L1 token ${l1Token} equal to or earlier than block ${latestHubBlock}!`
+        `Could not find ${chain} mapping for HubPool token ${symbol} at or before HubPool block ${latestHubBlock}!`
       );
     }
     return l2Token.l2Token;
@@ -205,8 +208,9 @@ export class HubPoolClient extends BaseAbstractClient {
       })
       .flat();
     if (l2Tokens.length === 0) {
+      const chain = getNetworkName(destinationChainId);
       throw new Error(
-        `Could not find L1 token mapping for chain ${destinationChainId} and L2 token ${l2Token} equal to or earlier than block ${latestHubBlock}!`
+        `Could not find HubPool mapping for ${l2Token} on ${chain} at or before HubPool block ${latestHubBlock}!`
       );
     }
     // Find the last mapping published before the target block.
