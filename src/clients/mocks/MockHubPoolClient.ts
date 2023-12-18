@@ -74,7 +74,7 @@ export class MockHubPoolClient extends HubPoolClient {
     return this.tokenInfoToReturn;
   }
 
-  setTokenRoute(l1Token: string, chainId: number, l2Token: string) {
+  setTokenMapping(l1Token: string, chainId: number, l2Token: string) {
     this.spokePoolTokens[l1Token] ??= {}
     this.spokePoolTokens[l1Token][chainId] = l2Token;
   }

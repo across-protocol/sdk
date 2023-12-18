@@ -102,7 +102,7 @@ describe("UBAClient: Flow validation", function () {
       spokePoolClient.latestBlockNumber = deploymentBlock + 1000;
       await spokePoolClient.update();
 
-      hubPoolClient.setTokenRoute(l1Tokens[0], originChainId, l1Tokens[0]);
+      hubPoolClient.setTokenMapping(l1Tokens[0], originChainId, l1Tokens[0]);
     }
 
     // We'll inject block ranges directly into the UBA client for each test

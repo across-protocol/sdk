@@ -98,7 +98,7 @@ describe("HubPool Utilization", function () {
     await configStoreClient.update();
 
     hubPoolClient = new MockHubPoolClient(createSpyLogger().spyLogger, hubPool, configStoreClient);
-    hubPoolClient.setTokenRoute(l1Token.address, originChainId, l2Token.address);
+    hubPoolClient.setTokenMapping(l1Token.address, originChainId, l2Token.address);
     await configStoreClient.update();
     // Mine some blocks to get the rate model to update.
     for (let i = 0; i < 10; i++) {

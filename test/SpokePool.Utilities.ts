@@ -116,7 +116,7 @@ describe("SpokePoolClient: Event Filtering", function () {
     hubPoolClient = new MockHubPoolClient(logger, hubPool, configStoreClient, deploymentBlock, originChainId);
     // hubPoolClient.setReturnedL1TokenForDeposit(ZERO_ADDRESS);
     [originChainId, destinationChainId, repaymentChainId, hubPoolClient.chainId].forEach((chainId) =>
-      hubPoolClient.setTokenRoute(ZERO_ADDRESS, chainId, ZERO_ADDRESS)
+      hubPoolClient.setTokenMapping(ZERO_ADDRESS, chainId, ZERO_ADDRESS)
     );
     await hubPoolClient.update();
 

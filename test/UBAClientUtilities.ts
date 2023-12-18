@@ -65,7 +65,7 @@ describe("UBAClientUtilities", function () {
     spokePoolClients = {};
     for (const originChainId of chainIds) {
       // Make all destination tokens link wth l1 token.
-      hubPoolClient.setTokenRoute(l1Token, originChainId, l2Token);
+      hubPoolClient.setTokenMapping(l1Token, originChainId, l2Token);
 
       const { spokePool } = await deploySpokePool(ethers);
       const deploymentBlock = await spokePool.provider.getBlockNumber();
