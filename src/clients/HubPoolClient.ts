@@ -260,7 +260,7 @@ export class HubPoolClient extends BaseAbstractClient {
   }
 
   async getCurrentPoolUtilization(l1Token: string): Promise<BigNumber> {
-    const blockNumber = this.latestBlockNumber ?? (await this.hubPool.provider.getBlockNumber());
+    const blockNumber = this.latestBlockNumber ?? await this.hubPool.provider.getBlockNumber();
     return await this.getUtilization(l1Token, blockNumber, bnZero, getCurrentTime(), 0);
   }
 
