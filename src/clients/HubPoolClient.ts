@@ -242,8 +242,8 @@ export class HubPoolClient extends BaseAbstractClient {
    * @returns string L2 token counterpart on l2ChainId
    */
   getL2TokenForDeposit(
-    l2ChainId: number,
-    deposit: Pick<DepositWithBlock, "quoteBlockNumber" | "originToken" | "originChainId">
+    deposit: Pick<DepositWithBlock, "quoteBlockNumber" | "originToken" | "originChainId" | "destinationChainId">,
+    l2ChainId = deposit.destinationChainId
   ): string {
     // First get L1 token associated with deposit.
     const l1Token = this.getL1TokenForDeposit(deposit);

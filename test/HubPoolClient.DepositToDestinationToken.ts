@@ -155,23 +155,24 @@ describe("HubPoolClient: Deposit to Destination Token", function () {
     hubPoolClient.addEvent(e1);
     await hubPoolClient.update();
     expect(
-      hubPoolClient.getL2TokenForDeposit(destinationChainId, { ...depositData, quoteBlockNumber: e1.blockNumber })
+      hubPoolClient.getL2TokenForDeposit({ ...depositData, destinationChainId, quoteBlockNumber: e1.blockNumber })
     ).to.equal(randomDestinationToken);
 
     // origin chain token is set but none for destination chain yet, as of e0.
     expect(() =>
-      hubPoolClient.getL2TokenForDeposit(destinationChainId, { ...depositData, quoteBlockNumber: e0.blockNumber })
+      hubPoolClient.getL2TokenForDeposit({ ...depositData, destinationChainId, quoteBlockNumber: e0.blockNumber })
     ).to.throw(/Could not find SpokePool mapping/);
 
     // quote block too early
     expect(() =>
-      hubPoolClient.getL2TokenForDeposit(destinationChainId, { ...depositData, quoteBlockNumber: 0 })
+      hubPoolClient.getL2TokenForDeposit({ ...depositData, destinationChainId, quoteBlockNumber: 0 })
     ).to.throw(/Could not find HubPool mapping/);
 
     // No deposit with matching token.
     expect(() =>
-      hubPoolClient.getL2TokenForDeposit(destinationChainId, {
+      hubPoolClient.getL2TokenForDeposit({
         ...depositData,
+        destinationChainId,
         originToken: randomL1Token,
         quoteBlockNumber: e0.blockNumber,
       })
@@ -181,7 +182,7 @@ describe("HubPoolClient: Deposit to Destination Token", function () {
     hubPoolClient.addEvent(e2);
     await hubPoolClient.update();
     expect(
-      hubPoolClient.getL2TokenForDeposit(destinationChainId, { ...depositData, quoteBlockNumber: e2.blockNumber })
+      hubPoolClient.getL2TokenForDeposit({ ...depositData, destinationChainId, quoteBlockNumber: e2.blockNumber })
     ).to.equal(randomL1Token);
   });
 });
