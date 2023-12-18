@@ -144,12 +144,12 @@ export class MockSpokePoolClient extends SpokePoolClient {
 
     const { blockNumber, transactionIndex } = deposit;
     let { depositId, depositor, destinationChainId } = deposit;
-    depositId ??= this.numberOfDeposits;
+    depositId = depositId ?? this.numberOfDeposits;
     assert(depositId >= this.numberOfDeposits, `${depositId} < ${this.numberOfDeposits}`);
     this.numberOfDeposits = depositId + 1;
 
-    destinationChainId ??= random(1, 42161, false);
-    depositor ??= randomAddress();
+    destinationChainId = destinationChainId ?? random(1, 42161, false);
+    depositor = depositor ?? randomAddress();
 
     const message = deposit["message"] ?? `${event} event at block ${blockNumber}, index ${transactionIndex}.`;
     const topics = [destinationChainId, depositId, depositor];
@@ -181,9 +181,9 @@ export class MockSpokePoolClient extends SpokePoolClient {
 
     const { blockNumber, transactionIndex } = fill;
     let { depositor, originChainId, depositId } = fill;
-    originChainId ??= random(1, 42161, false);
-    depositId ??= random(1, 100_000, false);
-    depositor ??= randomAddress();
+    originChainId = originChainId ?? random(1, 42161, false);
+    depositId = depositId ?? random(1, 100_000, false);
+    depositor = depositor ?? randomAddress();
 
     const topics = [originChainId, depositId, depositor];
     const recipient = fill.recipient ?? randomAddress();
