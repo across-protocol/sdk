@@ -184,10 +184,10 @@ export class MockHubPoolClient extends HubPoolClient {
   ): Event {
     const event = "ProposeRootBundle";
 
-    poolRebalanceRoot = poolRebalanceRoot ?? "XX";
-    relayerRefundRoot = relayerRefundRoot ?? "XX";
-    slowRelayRoot = slowRelayRoot ?? "XX";
-    proposer = proposer ?? randomAddress();
+    poolRebalanceRoot ??= "XX";
+    relayerRefundRoot ??= "XX";
+    slowRelayRoot ??= "XX";
+    proposer ??= randomAddress();
 
     const topics = [poolRebalanceRoot, relayerRefundRoot, proposer];
     const args = {
@@ -220,7 +220,7 @@ export class MockHubPoolClient extends HubPoolClient {
   ): Event {
     const event = "RootBundleExecuted";
 
-    caller = caller ?? randomAddress();
+    caller ??= randomAddress();
 
     const topics = [leafId, chainId, caller];
     const args = {
