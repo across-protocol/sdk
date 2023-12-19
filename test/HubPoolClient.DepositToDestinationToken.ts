@@ -189,7 +189,12 @@ describe("HubPoolClient: Deposit to Destination Token", function () {
 
   it("Correctly implements token equivalency", async function () {
     let equivalent: boolean;
-    equivalent = hubPoolClient.areTokensEquivalent(randomOriginToken, originChainId, randomDestinationToken, destinationChainId);
+    equivalent = hubPoolClient.areTokensEquivalent(
+      randomOriginToken,
+      originChainId,
+      randomDestinationToken,
+      destinationChainId
+    );
     expect(equivalent).to.be.false;
 
     const events: Event[] = [];
@@ -241,11 +246,7 @@ describe("HubPoolClient: Deposit to Destination Token", function () {
     expect(equivalent).to.be.true;
 
     // Update the token mapping and read it into the HubPoolClient.
-    const update = hubPoolClient.setPoolRebalanceRoute(
-      destinationChainId,
-      randomL1Token,
-      randomDestinationToken2,
-    );
+    const update = hubPoolClient.setPoolRebalanceRoute(destinationChainId, randomL1Token, randomDestinationToken2);
     hubPoolClient.addEvent(update);
     await hubPoolClient.update();
 
