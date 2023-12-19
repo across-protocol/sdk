@@ -83,7 +83,7 @@ export class MockConfigStoreClient extends AcrossConfigStoreClient {
     }
 
     const eventNames = ["UpdatedGlobalConfig", "UpdatedTokenConfig"];
-    const latestBlockNumber = this.eventManager.blockNumber;
+    const latestBlockSearched = this.eventManager.blockNumber;
 
     // Ensure an array for every requested event exists, in the requested order.
     // All requested event types must be populated in the array (even if empty).
@@ -108,7 +108,7 @@ export class MockConfigStoreClient extends AcrossConfigStoreClient {
     return {
       success: true,
       chainId: this.chainId as number,
-      searchEndBlock: this.eventSearchConfig.toBlock || latestBlockNumber,
+      searchEndBlock: this.eventSearchConfig.toBlock || latestBlockSearched,
       events: {
         updatedGlobalConfigEvents: events["UpdatedGlobalConfig"],
         globalConfigUpdateTimes,

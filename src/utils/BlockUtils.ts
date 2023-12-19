@@ -9,8 +9,8 @@ import { shouldCache } from "./CachingUtils";
 import { DEFAULT_CACHING_SAFE_LAG } from "../constants";
 
 type Opts = {
-  latestBlockNumber?: number;
-  latestBlockOffset?: number;
+  highBlock?: number;
+  highBlockOffset?: number;
   blockRange?: number;
 };
 
@@ -24,12 +24,11 @@ type BlockTimeAverage = {
 // Round down to 120 blocks to avoid slipping into archive territory.
 const defaultBlockRange = 120;
 
-// Default offset to the latest block number. This is subtracted from the block number
-// of the latest block when it is queried from the network, rather than having been
-// specified by the caller. This is useful since the supplied Provider instance may be
-// backed by multiple RPC rovider backends, which can lead to some providers running
-// slower than others and taking time to sychonise on the latest block.
-const defaultLatestBlockOffset = 10;
+// Default offset to the high block number. This is subtracted from the block number of the high block
+// when it is queried from the network, rather than having been specified by the caller. This is useful
+// since the supplied Provider instance may be backed by multiple RPC providers, which can lead to some
+// providers running slower than others and taking time to synchronise on the latest block.
+const defaultHighBlockOffset = 10;
 
 // Retain computations for 15 minutes.
 const cacheTTL = 60 * 15;
@@ -46,7 +45,7 @@ const blockTimes: { [chainId: number]: BlockTimeAverage } = {
  */
 export async function averageBlockTime(
   provider: Provider,
-  { latestBlockNumber, latestBlockOffset, blockRange }: Opts = {}
+  { highBlock, highBlockOffset, blockRange }: Opts = {}
 ): Promise<Pick<BlockTimeAverage, "average" | "blockRange">> {
   // Does not block for StaticJsonRpcProvider.
   const chainId = (await provider.getNetwork()).chainId;
@@ -57,24 +56,23 @@ export async function averageBlockTime(
     return { average: cache.average, blockRange: cache.blockRange };
   }
 
-  // If the caller was not specific about latestBlockNumber, resolve it via the
-  // RPC provider. Subtract an offset to account for various RPC provider sync
-  // issues that might occur when querying the latest block.
-  if (!isDefined(latestBlockNumber)) {
-    latestBlockNumber = await provider.getBlockNumber();
-    latestBlockNumber -= latestBlockOffset ?? defaultLatestBlockOffset;
+  // If the caller was not specific about highBlock, resolve it via the RPC provider. Subtract an offset
+  // to account for various RPC provider sync issues that might occur when querting the latest block.
+  if (!isDefined(highBlock)) {
+    highBlock = await provider.getBlockNumber();
+    highBlock -= highBlockOffset ?? defaultHighBlockOffset;
   }
   blockRange ??= defaultBlockRange;
 
-  const earliestBlockNumber = latestBlockNumber - blockRange;
+  const earliestBlockNumber = highBlock - blockRange;
   const [firstBlock, lastBlock] = await Promise.all([
     provider.getBlock(earliestBlockNumber),
-    provider.getBlock(latestBlockNumber),
+    provider.getBlock(highBlock),
   ]);
   [firstBlock, lastBlock].forEach((block: Block | undefined) => {
     if (!isDefined(block?.timestamp)) {
       const network = getNetworkName(chainId);
-      const blockNumber = block === firstBlock ? earliestBlockNumber : latestBlockNumber;
+      const blockNumber = block === firstBlock ? earliestBlockNumber : highBlock;
       throw new Error(`BlockFinder: Failed to fetch block ${blockNumber} on ${network}`);
     }
   });

@@ -30,7 +30,7 @@ export async function getBlockRangeForDepositId(
   const deploymentBlock = spokePool.deploymentBlock;
 
   // Set the initial high block to the most recent block number or the initial high block, whichever is smaller.
-  initHigh = Math.min(initHigh, spokePool.latestBlockNumber);
+  initHigh = Math.min(initHigh, spokePool.latestBlockSearched);
 
   // We will now set a list of sanity checks to ensure that the binary search will not fail
   // due to invalid input parameters.
