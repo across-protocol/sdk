@@ -15,14 +15,13 @@ interface AcrossMessageHandler {
 }
 
 contract MockAcrossMessageContract is AcrossMessageHandler {
-  function handleAcrossMessage(address, uint256, bool, address, bytes memory message) external view override {
+  function handleAcrossMessage(address, uint256, bool, address, bytes memory message) external virtual override {
     // For the case that we want to test a revert.
     require(keccak256(message) != keccak256(bytes("REVERT")), "MockAcrossMessageContract: revert");
 
     // Iterate from 0 to 1000 to simulate a long-running operation.
     for (uint256 i = 0; i < 1000; i++) {
       // Do a bit of work.
-      address(this).balance;
     }
   }
 }
