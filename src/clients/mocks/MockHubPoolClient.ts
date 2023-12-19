@@ -75,13 +75,14 @@ export class MockHubPoolClient extends HubPoolClient {
   }
 
   setTokenMapping(l1Token: string, chainId: number, l2Token: string) {
-    this.spokePoolTokens[l1Token] ??= {}
+    this.spokePoolTokens[l1Token] ??= {};
     this.spokePoolTokens[l1Token][chainId] = l2Token;
   }
 
   getL1TokenForL2TokenAtBlock(l2Token: string, chainId: number, blockNumber: number): string {
-    const l1Token = Object.keys(this.spokePoolTokens)
-      .find((l1Token) => this.spokePoolTokens[l1Token]?.[chainId] === l2Token)
+    const l1Token = Object.keys(this.spokePoolTokens).find(
+      (l1Token) => this.spokePoolTokens[l1Token]?.[chainId] === l2Token
+    );
     return l1Token ?? super.getL1TokenForL2TokenAtBlock(l2Token, chainId, blockNumber);
   }
 
