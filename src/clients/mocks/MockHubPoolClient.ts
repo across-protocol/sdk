@@ -134,7 +134,12 @@ export class MockHubPoolClient extends HubPoolClient {
     RootBundleExecuted: "uint256,uint256,uint256,address[],uint256[],int256[],int256[],address",
   };
 
-  setPoolRebalanceRoute(destinationChainId: number, l1Token: string, destinationToken: string): Event {
+  setPoolRebalanceRoute(
+    destinationChainId: number,
+    l1Token: string,
+    destinationToken: string,
+    blockNumber?: number
+  ): Event {
     const event = "SetPoolRebalanceRoute";
 
     const topics = [destinationChainId, l1Token, destinationToken];
@@ -149,6 +154,7 @@ export class MockHubPoolClient extends HubPoolClient {
       address: this.hubPool.address,
       topics: topics.map((topic) => topic.toString()),
       args,
+      blockNumber,
     });
   }
 
