@@ -138,7 +138,7 @@ export class SpokePoolClient extends BaseAbstractClient {
    * @returns A list of deposits.
    * @note This method returns all deposits, regardless of destination chain ID in sorted order.
    */
-  public getDeposits(filter?: { fromBlock: number, toBlock: number }): DepositWithBlock[] {
+  public getDeposits(filter?: { fromBlock: number; toBlock: number }): DepositWithBlock[] {
     let deposits = Object.values(this.depositHashes);
     if (isDefined(filter)) {
       const { fromBlock, toBlock } = filter;
