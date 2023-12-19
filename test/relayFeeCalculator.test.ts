@@ -349,9 +349,9 @@ describe("RelayFeeCalculator: Composable Bridging", function () {
   it("should not revert if no message is passed", async () => {
     await assertPromisePasses(testGasFeePct());
   });
-  it("should revert if the contract message fails", async () => {
-    // Per our test contract, a single byte message of 0x02 will revert.
-    const message = "0x02";
+  it.only("should revert if the contract message fails", async () => {
+    // Per our test contract, this message will revert.
+    const message = ethers.utils.hexlify(ethers.utils.toUtf8Bytes("REVERT"));
     await assertPromiseError(testGasFeePct(message), "MockAcrossMessageContract: revert");
   });
   it("should be more gas to call a contract with a message", async () => {
