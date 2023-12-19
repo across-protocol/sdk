@@ -1,7 +1,7 @@
 import dotenv from "dotenv";
 import hre from "hardhat";
 import { RelayFeeCalculator, QueryInterface } from "../src/relayFeeCalculator/relayFeeCalculator";
-import { toBNWei, toBN, toGWei, TransactionCostEstimate, bnOne, bnZero } from "../src/utils";
+import { toBNWei, toBN, toGWei, TransactionCostEstimate, bnOne, bnZero, bnUint256Max } from "../src/utils";
 import {
   BigNumber,
   Contract,
@@ -20,6 +20,7 @@ import {
 import { TOKEN_SYMBOLS_MAP } from "@across-protocol/constants-v2";
 import { EthereumQueries } from "../src/relayFeeCalculator";
 import { EMPTY_MESSAGE } from "../src/constants";
+import { SpokePool } from "@across-protocol/contracts-v2";
 
 dotenv.config({ path: ".env" });
 
@@ -292,20 +293,30 @@ describe("RelayFeeCalculator", () => {
 });
 
 describe("RelayFeeCalculator: Composable Bridging", function () {
-  let spokePool: Contract, erc20: Contract, destErc20: Contract, weth: Contract;
+  let spokePool: SpokePool, erc20: Contract, destErc20: Contract, weth: Contract;
   let client: RelayFeeCalculator;
   let queries: EthereumQueries;
   let testContract: Contract;
-  let owner: SignerWithAddress, relayer: SignerWithAddress;
+  let owner: SignerWithAddress, relayer: SignerWithAddress, depositor: SignerWithAddress;
   let tokenMap: typeof TOKEN_SYMBOLS_MAP;
   let testGasFeePct: (message?: string) => Promise<BigNumber>;
 
   beforeEach(async function () {
-    [owner, relayer] = await ethers.getSigners();
+    [owner, relayer, depositor] = await ethers.getSigners();
 
-    ({ spokePool, erc20, weth, destErc20 } = await deploySpokePoolWithToken(1, 10));
+    const {
+      spokePool: _spokePool,
+      erc20: _erc20,
+      weth: _weth,
+      destErc20: _destErc20,
+    } = await deploySpokePoolWithToken(1, 10);
 
-    (tokenMap = {
+    spokePool = _spokePool as SpokePool;
+    erc20 = _erc20;
+    weth = _weth;
+    destErc20 = _destErc20;
+
+    tokenMap = {
       USDC: {
         name: "USDC",
         symbol: "USDC",
@@ -315,8 +326,8 @@ describe("RelayFeeCalculator: Composable Bridging", function () {
           10: erc20.address,
         },
       },
-    } as unknown as typeof TOKEN_SYMBOLS_MAP),
-      await spokePool.setChainId(10); // The spoke pool for a fill should be at the destinationChainId.
+    } as unknown as typeof TOKEN_SYMBOLS_MAP;
+    await (spokePool as Contract).setChainId(10); // The spoke pool for a fill should be at the destinationChainId.
     await setupTokensForWallet(spokePool, relayer, [erc20, destErc20], weth, 100);
 
     testContract = await hre["upgrades"].deployProxy(await getContractFactory("MockAcrossMessageContract", owner), []);
@@ -331,7 +342,7 @@ describe("RelayFeeCalculator: Composable Bridging", function () {
           recipient: testContract.address,
           relayerFeePct: bnZero,
           depositId: 1000000,
-          depositor: randomAddress(),
+          depositor: depositor.address,
           originChainId: 1,
           destinationChainId: 10,
           originToken: erc20.address,
@@ -349,14 +360,57 @@ describe("RelayFeeCalculator: Composable Bridging", function () {
   it("should not revert if no message is passed", async () => {
     await assertPromisePasses(testGasFeePct());
   });
-  it.only("should revert if the contract message fails", async () => {
+  it("should revert if the contract message fails", async () => {
     // Per our test contract, this message will revert.
     const message = ethers.utils.hexlify(ethers.utils.toUtf8Bytes("REVERT"));
     await assertPromiseError(testGasFeePct(message), "MockAcrossMessageContract: revert");
   });
-  it("should be more gas to call a contract with a message", async () => {
-    const noMessage = await testGasFeePct();
-    const message = await testGasFeePct("0x04");
-    expect(message.gt(noMessage)).to.be.true;
+  it.only("should be more gas to call a contract with a message", async () => {
+    const gasFeeFromTestContract = await testContract.estimateGas.handleAcrossMessage(
+      erc20.address,
+      bnOne,
+      true,
+      relayer.address,
+      "0x04"
+    );
+    const gasFeeFromFillRelayWithoutMessage = await spokePool.estimateGas.fillRelay(
+      depositor.address,
+      testContract.address,
+      erc20.address,
+      1,
+      1,
+      10,
+      1,
+      bnOne,
+      bnOne,
+      3_000_000,
+      EMPTY_MESSAGE,
+      bnUint256Max
+    );
+    const gasFeeFromFillRelayWithMessage = await spokePool.estimateGas.fillRelay(
+      depositor.address,
+      testContract.address,
+      erc20.address,
+      1,
+      1,
+      10,
+      1,
+      bnOne,
+      bnOne,
+      3_000_000,
+      "0x04",
+      bnUint256Max
+    );
+    const intrinsicGasCost = toBN(21_000);
+
+    // We expect the gas fee to be higher when calling a contract with a message
+    // Specifically, we expect that our gas should be larger than a call to the test contract
+    // and a call to the fillRelay function without a message.
+    // We should account for the second intrinsic gas cost when adding the gas estimation from *both* calls.
+    const gasFeeEstimatedByCallingContract = gasFeeFromFillRelayWithoutMessage
+      .add(gasFeeFromTestContract)
+      .sub(intrinsicGasCost);
+
+    expect(gasFeeFromFillRelayWithMessage.gt(gasFeeEstimatedByCallingContract)).to.be.true;
   });
 });
