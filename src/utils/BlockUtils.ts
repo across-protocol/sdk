@@ -10,7 +10,7 @@ import { DEFAULT_CACHING_SAFE_LAG } from "../constants";
 
 type Opts = {
   highBlock?: number;
-  latestBlockOffset?: number;
+  highBlockOffset?: number;
   blockRange?: number;
 };
 
@@ -24,12 +24,11 @@ type BlockTimeAverage = {
 // Round down to 120 blocks to avoid slipping into archive territory.
 const defaultBlockRange = 120;
 
-// Default offset to the latest block number. This is subtracted from the block number
-// of the latest block when it is queried from the network, rather than having been
-// specified by the caller. This is useful since the supplied Provider instance may be
-// backed by multiple RPC rovider backends, which can lead to some providers running
-// slower than others and taking time to sychonise on the latest block.
-const defaultLatestBlockOffset = 10;
+// Default offset to the high block number. This is subtracted from the block number of the high block
+// when it is queried from the network, rather than having been specified by the caller. This is useful
+// since the supplied Provider instance may be backed by multiple RPC providers, which can lead to some
+// providers running slower than others and taking time to synchronise on the latest block.
+const defaultHighBlockOffset = 10;
 
 // Retain computations for 15 minutes.
 const cacheTTL = 60 * 15;
@@ -46,7 +45,7 @@ const blockTimes: { [chainId: number]: BlockTimeAverage } = {
  */
 export async function averageBlockTime(
   provider: Provider,
-  { highBlock, latestBlockOffset, blockRange }: Opts = {}
+  { highBlock, highBlockOffset, blockRange }: Opts = {}
 ): Promise<Pick<BlockTimeAverage, "average" | "blockRange">> {
   // Does not block for StaticJsonRpcProvider.
   const chainId = (await provider.getNetwork()).chainId;
@@ -57,12 +56,11 @@ export async function averageBlockTime(
     return { average: cache.average, blockRange: cache.blockRange };
   }
 
-  // If the caller was not specific about highBlock, resolve it via the
-  // RPC provider. Subtract an offset to account for various RPC provider sync
-  // issues that might occur when querying the latest block.
+  // If the caller was not specific about highBlock, resolve it via the RPC provider. Subtract an offset
+  // to account for various RPC provider sync issues that might occur when querting the latest block.
   if (!isDefined(highBlock)) {
     highBlock = await provider.getBlockNumber();
-    highBlock -= latestBlockOffset ?? defaultLatestBlockOffset;
+    highBlock -= highBlockOffset ?? defaultHighBlockOffset;
   }
   blockRange ??= defaultBlockRange;
 
