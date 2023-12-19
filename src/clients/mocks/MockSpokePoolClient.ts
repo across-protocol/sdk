@@ -25,7 +25,7 @@ export class MockSpokePoolClient extends SpokePoolClient {
 
   constructor(logger: winston.Logger, spokePool: Contract, chainId: number, deploymentBlock: number) {
     super(logger, spokePool, null, chainId, deploymentBlock);
-    this.latestBlockNumber = deploymentBlock;
+    this.latestBlockSearched = deploymentBlock;
     this.eventManager = getEventManager(chainId, this.eventSignatures, deploymentBlock);
   }
 
@@ -64,7 +64,7 @@ export class MockSpokePoolClient extends SpokePoolClient {
   }
 
   setLatestBlockNumber(blockNumber: number): void {
-    this.latestBlockNumber = blockNumber;
+    this.latestBlockSearched = blockNumber;
   }
 
   addEvent(event: Event): void {
@@ -95,7 +95,7 @@ export class MockSpokePoolClient extends SpokePoolClient {
     eventsToQuery.push("RefundRequested");
 
     // Generate new "on chain" responses.
-    const latestBlockNumber = this.eventManager.blockNumber;
+    const latestBlockSearched = this.eventManager.blockNumber;
     const currentTime = Math.floor(Date.now() / 1000);
 
     const blocks: { [blockNumber: number]: Block } = {};
@@ -127,7 +127,7 @@ export class MockSpokePoolClient extends SpokePoolClient {
       currentTime,
       events,
       blocks,
-      searchEndBlock: this.eventSearchConfig.toBlock || latestBlockNumber,
+      searchEndBlock: this.eventSearchConfig.toBlock || latestBlockSearched,
     };
   }
 

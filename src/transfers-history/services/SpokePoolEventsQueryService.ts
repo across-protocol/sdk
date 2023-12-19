@@ -6,7 +6,7 @@ import { ChainId } from "../adapters/web3/model";
 import { clientConfig } from "../config";
 
 export class SpokePoolEventsQueryService {
-  private latestBlockNumber: number | undefined;
+  private latestBlockSearched: number | undefined;
 
   constructor(
     private chainId: ChainId,
@@ -23,8 +23,8 @@ export class SpokePoolEventsQueryService {
     let speedUpDepositEvents: RequestedSpeedUpDepositEvent[] = [];
     let blockTimestampMap: { [blockNumber: number]: number } = {};
 
-    if (this.latestBlockNumber) {
-      from = this.latestBlockNumber + 1;
+    if (this.latestBlockSearched) {
+      from = this.latestBlockSearched + 1;
     } else {
       from = clientConfig.spokePools[this.chainId].lowerBoundBlockNumber ?? -1;
     }
@@ -66,7 +66,7 @@ export class SpokePoolEventsQueryService {
       "[SpokePoolEventsQueryService::getEvents]",
       `🟢 chain ${this.chainId}: fetched block numbers in ${(end.valueOf() - start.valueOf()) / 1000} seconds`
     );
-    this.latestBlockNumber = to;
+    this.latestBlockSearched = to;
 
     return {
       emittedFromChainId: this.chainId,

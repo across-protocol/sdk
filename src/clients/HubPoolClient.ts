@@ -83,8 +83,6 @@ export class HubPoolClient extends BaseAbstractClient {
   } = {};
   protected pendingRootBundle: PendingRootBundle | undefined;
 
-  public firstBlockToSearch: number;
-  public latestBlockNumber: number | undefined;
   public currentTime: number | undefined;
   public readonly blockFinder: BlockFinder;
 
@@ -106,7 +104,7 @@ export class HubPoolClient extends BaseAbstractClient {
     cachingMechanism?: CachingMechanismInterface
   ) {
     super(cachingMechanism);
-    this.latestBlockNumber = deploymentBlock === 0 ? deploymentBlock : deploymentBlock - 1;
+    this.latestBlockSearched = Math.min(deploymentBlock - 1, 0);
     this.firstBlockToSearch = eventSearchConfig.fromBlock;
 
     const provider = this.hubPool.provider;
@@ -243,7 +241,7 @@ export class HubPoolClient extends BaseAbstractClient {
   }
 
   async getCurrentPoolUtilization(l1Token: string): Promise<BigNumber> {
-    const blockNumber = this.latestBlockNumber ?? await this.hubPool.provider.getBlockNumber();
+    const blockNumber = this.latestBlockSearched ?? await this.hubPool.provider.getBlockNumber();
     return await this.getUtilization(l1Token, blockNumber, bnZero, getCurrentTime(), 0);
   }
 
@@ -450,7 +448,7 @@ export class HubPoolClient extends BaseAbstractClient {
   }
 
   getL1TokenInfoForL2Token(l2Token: string, chainId: number): L1Token | undefined {
-    const l1TokenCounterpart = this.getL1TokenCounterpartAtBlock(chainId, l2Token, this.latestBlockNumber || 0);
+    const l1TokenCounterpart = this.getL1TokenCounterpartAtBlock(chainId, l2Token, this.latestBlockSearched || 0);
     return this.getTokenInfoForL1Token(l1TokenCounterpart);
   }
 
@@ -607,7 +605,7 @@ export class HubPoolClient extends BaseAbstractClient {
     if (n === 0) {
       throw new Error("n cannot be 0");
     }
-    if (!this.latestBlockNumber) {
+    if (!this.latestBlockSearched) {
       throw new Error("HubPoolClient::getNthFullyExecutedRootBundle client not updated");
     }
 
@@ -616,7 +614,7 @@ export class HubPoolClient extends BaseAbstractClient {
     // If n is negative, then return the Nth latest executed bundle, otherwise return the Nth earliest
     // executed bundle.
     if (n < 0) {
-      let nextLatestMainnetBlock = startBlock ?? this.latestBlockNumber;
+      let nextLatestMainnetBlock = startBlock ?? this.latestBlockSearched;
       for (let i = 0; i < Math.abs(n); i++) {
         bundleToReturn = this.getLatestFullyExecutedRootBundle(nextLatestMainnetBlock);
         const bundleBlockNumber = bundleToReturn ? bundleToReturn.blockNumber : 0;
@@ -628,12 +626,12 @@ export class HubPoolClient extends BaseAbstractClient {
     } else {
       let nextStartBlock = startBlock ?? 0;
       for (let i = 0; i < n; i++) {
-        bundleToReturn = this.getEarliestFullyExecutedRootBundle(this.latestBlockNumber, nextStartBlock);
+        bundleToReturn = this.getEarliestFullyExecutedRootBundle(this.latestBlockSearched, nextStartBlock);
         const bundleBlockNumber = bundleToReturn ? bundleToReturn.blockNumber : 0;
 
         // Add 1 so that next `getEarliestFullyExecutedRootBundle` call filters out the root bundle we just found
         // because its block number is < nextStartBlock.
-        nextStartBlock = Math.min(bundleBlockNumber + 1, this.latestBlockNumber);
+        nextStartBlock = Math.min(bundleBlockNumber + 1, this.latestBlockSearched);
       }
     }
 
@@ -887,7 +885,7 @@ export class HubPoolClient extends BaseAbstractClient {
     }
 
     this.currentTime = currentTime;
-    this.latestBlockNumber = searchEndBlock;
+    this.latestBlockSearched = searchEndBlock;
     this.firstBlockToSearch = update.searchEndBlock + 1; // Next iteration should start off from where this one ended.
     this.eventSearchConfig.toBlock = undefined; // Caller can re-set on subsequent updates if necessary.
 
@@ -945,7 +943,7 @@ export class HubPoolClient extends BaseAbstractClient {
       crossChainContracts = this.crossChainContracts,
       l1TokensToDestinationTokensWithBlock = this.l1TokensToDestinationTokensWithBlock,
       firstBlockToSearch = this.firstBlockToSearch,
-      latestBlockNumber = this.latestBlockNumber,
+      latestBlockSearched = this.latestBlockSearched,
       currentTime = this.currentTime,
       proposedRootBundles,
       executedRootBundles,
@@ -975,7 +973,7 @@ export class HubPoolClient extends BaseAbstractClient {
     this.crossChainContracts = crossChainContracts;
     this.l1TokensToDestinationTokensWithBlock = l1TokensToDestinationTokensWithBlock;
     this.firstBlockToSearch = firstBlockToSearch;
-    this.latestBlockNumber = latestBlockNumber;
+    this.latestBlockSearched = latestBlockSearched;
     this.currentTime = currentTime;
     this.isUpdated = true;
   }
@@ -988,7 +986,7 @@ export class HubPoolClient extends BaseAbstractClient {
       configOverride: this.configOverride,
 
       firstBlockToSearch: this.firstBlockToSearch,
-      latestBlockNumber: this.latestBlockNumber,
+      latestBlockSearched: this.latestBlockSearched,
       currentTime: this.currentTime,
 
       l1TokensToDestinationTokens: this.l1TokensToDestinationTokens,

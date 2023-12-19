@@ -85,8 +85,8 @@ describe("UBAClient: Flow validation", function () {
       symbol: tokenSymbols[0],
     });
     await hubPoolClient.update();
-    const latestBlockNumber = await hubPool.provider.getBlockNumber();
-    hubPoolClient.setLatestBlockNumber(latestBlockNumber);
+    const latestBlockSearched = await hubPool.provider.getBlockNumber();
+    hubPoolClient.setLatestBlockNumber(latestBlockSearched);
 
     await hubPoolClient.update();
 
@@ -99,7 +99,7 @@ describe("UBAClient: Flow validation", function () {
       const spokePoolClient = new MockSpokePoolClient(logger, spokePool, originChainId, deploymentBlock);
       spokePoolClients[originChainId] = spokePoolClient;
       hubPoolClient.setCrossChainContracts(originChainId, spokePool.address, deploymentBlock);
-      spokePoolClient.latestBlockNumber = deploymentBlock + 1000;
+      spokePoolClient.latestBlockSearched = deploymentBlock + 1000;
       await spokePoolClient.update();
     }
 
