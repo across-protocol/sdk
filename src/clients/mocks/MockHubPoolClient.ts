@@ -1,7 +1,7 @@
-import { BigNumber, Contract, Event } from "ethers";
 import winston from "winston";
+import { BigNumber, Contract, Event } from "ethers";
 import { randomAddress, assign } from "../../utils";
-import { Deposit, L1Token, PendingRootBundle } from "../../interfaces";
+import { L1Token, PendingRootBundle } from "../../interfaces";
 import { AcrossConfigStoreClient as ConfigStoreClient } from "../AcrossConfigStoreClient";
 import { HubPoolClient, HubPoolUpdate } from "../HubPoolClient";
 import { EventManager, getEventManager } from "./MockEvents";
@@ -21,12 +21,11 @@ export class MockHubPoolClient extends HubPoolClient {
   public rootBundleProposal = emptyRootBundle;
 
   private events: Event[] = [];
-
   private l1TokensMock: L1Token[] = []; // L1Tokens and their associated info.
   private tokenInfoToReturn: L1Token = { address: "", decimals: 0, symbol: "" };
-  private l1TokensToDestinationTokensMock: { [l1Token: string]: { [destinationChainId: number]: string } } = {};
-  private returnedL1TokenForDeposit = "";
-  private returnedDestinationTokenForL1Token = "";
+
+  private spokePoolTokens: { [l1Token: string]: { [chainId: number]: string } } = {};
+
   private eventManager: EventManager;
 
   constructor(
@@ -75,48 +74,29 @@ export class MockHubPoolClient extends HubPoolClient {
     return this.tokenInfoToReturn;
   }
 
+  setTokenMapping(l1Token: string, chainId: number, l2Token: string) {
+    this.spokePoolTokens[l1Token] ??= {};
+    this.spokePoolTokens[l1Token][chainId] = l2Token;
+  }
+
+  getL1TokenForL2TokenAtBlock(l2Token: string, chainId: number, blockNumber: number): string {
+    const l1Token = Object.keys(this.spokePoolTokens).find(
+      (l1Token) => this.spokePoolTokens[l1Token]?.[chainId] === l2Token
+    );
+    return l1Token ?? super.getL1TokenForL2TokenAtBlock(l2Token, chainId, blockNumber);
+  }
+
+  getL2TokenForL1TokenAtBlock(l1Token: string, chainId: number, blockNumber: number): string {
+    const l2Token = this.spokePoolTokens[l1Token]?.[chainId];
+    return l2Token ?? super.getL2TokenForL1TokenAtBlock(l1Token, chainId, blockNumber);
+  }
+
   getTokenInfoForL1Token(l1Token: string): L1Token | undefined {
     return this.l1TokensMock.find((token) => token.address === l1Token);
   }
 
   setTokenInfoToReturn(tokenInfo: L1Token) {
     this.tokenInfoToReturn = tokenInfo;
-  }
-
-  setL1TokensToDestinationTokens(l1TokensToDestinationTokens: {
-    [l1Token: string]: { [destinationChainId: number]: string };
-  }) {
-    this.l1TokensToDestinationTokensMock = l1TokensToDestinationTokens;
-  }
-
-  getDestinationTokenForL1Token(l1Token: string, destinationChainId: number): string {
-    return (
-      this.l1TokensToDestinationTokensMock[l1Token]?.[destinationChainId] ??
-      this.returnedDestinationTokenForL1Token ??
-      super.getDestinationTokenForL1Token(l1Token, destinationChainId)
-    );
-  }
-
-  setReturnedL1TokenForDeposit(l1Token: string) {
-    this.returnedL1TokenForDeposit = l1Token;
-  }
-
-  setDestinationTokenForL1Token(destinationToken: string) {
-    this.returnedDestinationTokenForL1Token = destinationToken;
-  }
-
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  getL1TokenForDeposit(_deposit: Deposit) {
-    return this.returnedL1TokenForDeposit ?? super.getL1TokenForDeposit(_deposit);
-  }
-
-  getL1TokenCounterpartAtBlock(l2ChainId: number, l2Token: string, hubPoolBlock: number): string {
-    return this.returnedL1TokenForDeposit ?? super.getL1TokenCounterpartAtBlock(l2ChainId, l2Token, hubPoolBlock);
-  }
-
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
-  getL1TokenInfoForL2Token(l2Token: string, _chain: number): L1Token {
-    return this.getTokenInfoForL1Token(l2Token) ?? this.tokenInfoToReturn;
   }
 
   _update(eventNames: string[]): Promise<HubPoolUpdate> {

@@ -26,8 +26,8 @@ import {
   lastSpyLogIncludes,
 } from "./utils";
 
-import { AcrossConfigStoreClient as ConfigStoreClient, HubPoolClient, SpokePoolClient } from "../src/clients";
-import { MockConfigStoreClient, MockSpokePoolClient } from "./mocks";
+import { SpokePoolClient } from "../src/clients";
+import { MockConfigStoreClient, MockHubPoolClient, MockSpokePoolClient } from "./mocks";
 import { validateFillForDeposit, queryHistoricalDepositForFill } from "../src/utils";
 import { CHAIN_ID_TEST_LIST, repaymentChainId } from "./constants";
 
@@ -39,8 +39,8 @@ let spyLogger: winston.Logger;
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 let spy: sinon.SinonSpy;
 
-let spokePoolClient2: SpokePoolClient, hubPoolClient: HubPoolClient;
-let spokePoolClient1: SpokePoolClient, configStoreClient: ConfigStoreClient;
+let spokePoolClient2: SpokePoolClient, hubPoolClient: MockHubPoolClient;
+let spokePoolClient1: SpokePoolClient, configStoreClient: MockConfigStoreClient;
 
 describe("SpokePoolClient: Fill Validation", function () {
   beforeEach(async function () {
@@ -71,16 +71,12 @@ describe("SpokePoolClient: Fill Validation", function () {
     ({ spy, spyLogger } = createSpyLogger());
     ({ configStore } = await deployConfigStore(owner, [l1Token]));
 
-    configStoreClient = new MockConfigStoreClient(
-      spyLogger,
-      configStore,
-      undefined,
-      undefined,
-      CHAIN_ID_TEST_LIST
-    ) as unknown as ConfigStoreClient;
+    configStoreClient = new MockConfigStoreClient(spyLogger, configStore, undefined, undefined, CHAIN_ID_TEST_LIST);
     await configStoreClient.update();
 
-    hubPoolClient = new HubPoolClient(spyLogger, hubPool, configStoreClient);
+    hubPoolClient = new MockHubPoolClient(spyLogger, hubPool, configStoreClient);
+    hubPoolClient.setTokenMapping(l1Token.address, originChainId, erc20_1.address);
+    hubPoolClient.setTokenMapping(l1Token.address, destinationChainId, erc20_2.address);
 
     await hubPoolClient.update();
     spokePoolClient1 = new SpokePoolClient(

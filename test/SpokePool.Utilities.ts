@@ -39,6 +39,7 @@ const generateValidRefundRequest = async (
 ): Promise<{ deposit: DepositWithBlock; fill: FillWithBlock; refundRequest?: RefundRequestWithBlock }> => {
   let event = origin.generateDeposit({
     originChainId: origin.chainId,
+    originToken: ZERO_ADDRESS,
     destinationChainId: destination.chainId,
     destinationToken: ZERO_ADDRESS,
   } as DepositWithBlock);
@@ -113,8 +114,11 @@ describe("SpokePoolClient: Event Filtering", function () {
     const { hubPool } = await hubPoolFixture();
     const deploymentBlock = await hubPool.provider.getBlockNumber();
     hubPoolClient = new MockHubPoolClient(logger, hubPool, configStoreClient, deploymentBlock, originChainId);
-    hubPoolClient.setReturnedL1TokenForDeposit(ZERO_ADDRESS);
-    hubPoolClient.setDestinationTokenForL1Token(ZERO_ADDRESS);
+    // hubPoolClient.setReturnedL1TokenForDeposit(ZERO_ADDRESS);
+    [originChainId, destinationChainId, repaymentChainId, hubPoolClient.chainId].forEach((chainId) =>
+      hubPoolClient.setTokenMapping(ZERO_ADDRESS, chainId, ZERO_ADDRESS)
+    );
+    await hubPoolClient.update();
 
     for (const chainId of chainIds) {
       // @dev the underlying chainId will be the same for all three SpokePools.

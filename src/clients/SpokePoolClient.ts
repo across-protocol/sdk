@@ -910,7 +910,8 @@ export class SpokePoolClient extends BaseAbstractClient {
     if (!this.hubPoolClient) {
       return ZERO_ADDRESS;
     }
-    return this.hubPoolClient.getDestinationTokenForDeposit(deposit);
+
+    return this.hubPoolClient.getL2TokenForDeposit(deposit);
   }
 
   /**

@@ -1,4 +1,3 @@
-import { HubPoolClient } from "../src/clients";
 import {
   amountToLp,
   destinationChainId,
@@ -7,7 +6,7 @@ import {
   refundProposalLiveness,
   totalBond,
 } from "./constants";
-import { DEFAULT_CONFIG_STORE_VERSION, MockConfigStoreClient } from "./mocks";
+import { DEFAULT_CONFIG_STORE_VERSION, MockConfigStoreClient, MockHubPoolClient } from "./mocks";
 import {
   Contract,
   SignerWithAddress,
@@ -31,7 +30,7 @@ import {
 
 let configStore: Contract, hubPool: Contract;
 let l1Token: Contract, l2Token: Contract, timer: Contract, weth: Contract;
-let configStoreClient: MockConfigStoreClient, hubPoolClient: HubPoolClient;
+let configStoreClient: MockConfigStoreClient, hubPoolClient: MockHubPoolClient;
 let owner: SignerWithAddress;
 
 // Same rate model used for across-v1 tests:
@@ -98,7 +97,8 @@ describe("HubPool Utilization", function () {
 
     await configStoreClient.update();
 
-    hubPoolClient = new HubPoolClient(createSpyLogger().spyLogger, hubPool, configStoreClient);
+    hubPoolClient = new MockHubPoolClient(createSpyLogger().spyLogger, hubPool, configStoreClient);
+    hubPoolClient.setTokenMapping(l1Token.address, originChainId, l2Token.address);
     await configStoreClient.update();
     // Mine some blocks to get the rate model to update.
     for (let i = 0; i < 10; i++) {

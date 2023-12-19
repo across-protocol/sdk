@@ -96,6 +96,7 @@ export interface CrossChainContractsSet extends SortableEvent {
 
 export interface DestinationTokenWithBlock extends SortableEvent {
   l2Token: string;
+  l1Token: string;
 }
 
 export interface SetPoolRebalanceRoot extends SortableEvent {
