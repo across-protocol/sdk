@@ -6,7 +6,7 @@ import { ZERO_ADDRESS } from "../../constants";
 import { DepositWithBlock, FillWithBlock, FundsDepositedEvent, RefundRequestWithBlock } from "../../interfaces";
 import { bnZero, toBN, toBNWei, forEachAsync, randomAddress } from "../../utils";
 import { SpokePoolClient, SpokePoolUpdate } from "../SpokePoolClient";
-import { EventManager, getEventManager } from "./MockEvents";
+import { EventManager, EventOverrides, getEventManager } from "./MockEvents";
 
 type Block = providers.Block;
 
@@ -14,7 +14,6 @@ type Block = providers.Block;
 // user to bypass on-chain queries and inject ethers Event objects directly.
 export class MockSpokePoolClient extends SpokePoolClient {
   public eventManager: EventManager;
-  private events: Event[] = [];
   private realizedLpFeePct: BigNumber | undefined = bnZero;
   private realizedLpFeePctOverride = false;
   private destinationTokenForChainOverride: Record<number, string> = {};
@@ -67,10 +66,6 @@ export class MockSpokePoolClient extends SpokePoolClient {
     this.latestBlockSearched = blockNumber;
   }
 
-  addEvent(event: Event): void {
-    this.events.push(event);
-  }
-
   setDepositIds(_depositIds: number[]): void {
     this.depositIdAtBlock = [];
     if (_depositIds.length === 0) {
@@ -103,14 +98,13 @@ export class MockSpokePoolClient extends SpokePoolClient {
     // Ensure an array for every requested event exists, in the requested order.
     // All requested event types must be populated in the array (even if empty).
     const events: Event[][] = eventsToQuery.map(() => []);
-    await forEachAsync(this.events.flat(), async (event) => {
+    await forEachAsync(this.eventManager.getEvents().flat(), async (event) => {
       const idx = eventsToQuery.indexOf(event.event as string);
       if (idx !== -1) {
         events[idx].push(event);
         blocks[event.blockNumber] = await event.getBlock();
       }
     });
-    this.events = [];
     this.blocks = blocks;
 
     // Update latestDepositIdQueried.
@@ -258,7 +252,12 @@ export class MockSpokePoolClient extends SpokePoolClient {
     });
   }
 
-  generateDepositRoute(originToken: string, destinationChainId: number, enabled: boolean): Event {
+  generateDepositRoute(
+    originToken: string,
+    destinationChainId: number,
+    enabled: boolean,
+    overrides: EventOverrides = {}
+  ): Event {
     const event = "EnabledDepositRoute";
 
     const topics = [originToken, destinationChainId];
@@ -269,6 +268,7 @@ export class MockSpokePoolClient extends SpokePoolClient {
       address: this.spokePool.address,
       topics: topics.map((topic) => topic.toString()),
       args,
+      blockNumber: overrides.blockNumber,
     });
   }
 }

@@ -41,7 +41,6 @@ describe("SpokePoolClient: Refund Requests", function () {
     for (let _idx = 0; _idx < 5; ++_idx) {
       const refundRequest = { relayer, originChainId } as RefundRequestWithBlock;
       const testEvent = spokePoolClient.generateRefundRequest(refundRequest);
-      spokePoolClient.addEvent(testEvent);
       refundRequestEvents.push(spreadEventWithBlockNumber(testEvent) as RefundRequestWithBlock);
     }
     await spokePoolClient.update();
@@ -67,7 +66,6 @@ describe("SpokePoolClient: Refund Requests", function () {
       const blockNumber = latestBlockSearched + 1 + txn;
       const refundRequest = { relayer, originChainId, blockNumber } as RefundRequestWithBlock;
       const testEvent = spokePoolClient.generateRefundRequest(refundRequest);
-      spokePoolClient.addEvent(testEvent);
       refundRequestEvents.push({
         ...spreadEventWithBlockNumber(testEvent),
         repaymentChainId,

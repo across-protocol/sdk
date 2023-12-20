@@ -4,7 +4,7 @@ import { randomAddress, assign } from "../../utils";
 import { L1Token, PendingRootBundle } from "../../interfaces";
 import { AcrossConfigStoreClient as ConfigStoreClient } from "../AcrossConfigStoreClient";
 import { HubPoolClient, HubPoolUpdate } from "../HubPoolClient";
-import { EventManager, getEventManager } from "./MockEvents";
+import { EventManager, EventOverrides, getEventManager } from "./MockEvents";
 
 const emptyRootBundle: PendingRootBundle = {
   poolRebalanceRoot: "",
@@ -20,7 +20,6 @@ const emptyRootBundle: PendingRootBundle = {
 export class MockHubPoolClient extends HubPoolClient {
   public rootBundleProposal = emptyRootBundle;
 
-  private events: Event[] = [];
   private l1TokensMock: L1Token[] = []; // L1Tokens and their associated info.
   private tokenInfoToReturn: L1Token = { address: "", decimals: 0, symbol: "" };
 
@@ -56,10 +55,6 @@ export class MockHubPoolClient extends HubPoolClient {
 
   setLatestBlockNumber(blockNumber: number) {
     this.latestBlockSearched = blockNumber;
-  }
-
-  addEvent(event: Event): void {
-    this.events.push(event);
   }
 
   addL1Token(l1Token: L1Token) {
@@ -107,13 +102,12 @@ export class MockHubPoolClient extends HubPoolClient {
     // Ensure an array for every requested event exists, in the requested order.
     // All requested event types must be populated in the array (even if empty).
     const _events: Event[][] = eventNames.map(() => []);
-    this.events.flat().forEach((event) => {
+    this.eventManager.getEvents().flat().forEach((event) => {
       const idx = eventNames.indexOf(event.event as string);
       if (idx !== -1) {
         _events[idx].push(event);
       }
     });
-    this.events = [];
 
     // Transform 2d-events array into a record.
     const events = Object.fromEntries(eventNames.map((eventName, idx) => [eventName, _events[idx]]));
@@ -139,7 +133,7 @@ export class MockHubPoolClient extends HubPoolClient {
     destinationChainId: number,
     l1Token: string,
     destinationToken: string,
-    blockNumber?: number
+    overrides: EventOverrides = {},
   ): Event {
     const event = "SetPoolRebalanceRoute";
 
@@ -155,7 +149,7 @@ export class MockHubPoolClient extends HubPoolClient {
       address: this.hubPool.address,
       topics: topics.map((topic) => topic.toString()),
       args,
-      blockNumber,
+      blockNumber: overrides.blockNumber,
     });
   }
 
@@ -166,7 +160,8 @@ export class MockHubPoolClient extends HubPoolClient {
     poolRebalanceRoot?: string,
     relayerRefundRoot?: string,
     slowRelayRoot?: string,
-    proposer?: string
+    proposer?: string,
+    overrides: EventOverrides = {},
   ): Event {
     const event = "ProposeRootBundle";
 
@@ -191,6 +186,7 @@ export class MockHubPoolClient extends HubPoolClient {
       address: this.hubPool.address,
       topics: topics.map((topic) => topic.toString()),
       args,
+      blockNumber: overrides.blockNumber,
     });
   }
 
@@ -202,7 +198,8 @@ export class MockHubPoolClient extends HubPoolClient {
     bundleLpFees: BigNumber[],
     netSendAmounts: BigNumber[],
     runningBalances: BigNumber[],
-    caller?: string
+    caller?: string,
+    overrides: EventOverrides = {},
   ): Event {
     const event = "RootBundleExecuted";
 
@@ -225,6 +222,7 @@ export class MockHubPoolClient extends HubPoolClient {
       address: this.hubPool.address,
       topics: topics.map((topic) => topic.toString()),
       args,
+      blockNumber: overrides.blockNumber,
     });
   }
 }

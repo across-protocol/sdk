@@ -43,7 +43,6 @@ const generateValidRefundRequest = async (
     destinationChainId: destination.chainId,
     destinationToken: ZERO_ADDRESS,
   } as DepositWithBlock);
-  origin.addEvent(event);
   await origin.update();
 
   // Pull the DepositWithBlock event out of the origin SpokePoolClient to use as a Fill template.
@@ -54,7 +53,6 @@ const generateValidRefundRequest = async (
   const fillTemplate = fillFromDeposit(deposit, randomAddress());
   fillTemplate.repaymentChainId = (repayment ?? destination).chainId;
   event = destination.generateFill(fillTemplate as FillWithBlock);
-  destination.addEvent(event);
   await destination.update();
 
   // Pull the FillWithBlock event out of the destination SpokePoolClient.
@@ -67,7 +65,6 @@ const generateValidRefundRequest = async (
   if (repayment !== destination) {
     const refundRequestTemplate = refundRequestFromFill(fill, fill.destinationToken);
     event = repayment.generateRefundRequest(refundRequestTemplate as RefundRequestWithBlock);
-    repayment.addEvent(event);
     await repayment.update();
 
     // Pull the DepositWithBlock event out of the origin SpokePoolClient to use as a Fill template.
@@ -136,10 +133,8 @@ describe("SpokePoolClient: Event Filtering", function () {
 
         // @todo: destinationToken
         [ZERO_ADDRESS].forEach((originToken) => {
-          let event = spokePoolClient.generateDepositRoute(originToken, destinationChainId, true);
-          spokePoolClient.addEvent(event);
-          event = hubPoolClient.setPoolRebalanceRoute(destinationChainId, originToken, originToken);
-          hubPoolClient.addEvent(event);
+          spokePoolClient.generateDepositRoute(originToken, destinationChainId, true);
+          hubPoolClient.setPoolRebalanceRoute(destinationChainId, originToken, originToken);
         });
       }
     }
