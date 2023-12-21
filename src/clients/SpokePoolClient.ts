@@ -318,6 +318,11 @@ export class SpokePoolClient extends BaseAbstractClient {
     };
   }
 
+  public getDeposit(depositId: number): DepositWithBlock | undefined {
+    const depositHash = this.getDepositHash({ depositId, originChainId: this.chainId });
+    return this.depositHashes[depositHash];
+  }
+
   /**
    * Find a corresponding deposit for a given fill.
    * @param fill The fill to find a corresponding deposit for.
