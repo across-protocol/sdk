@@ -102,12 +102,15 @@ export class MockHubPoolClient extends HubPoolClient {
     // Ensure an array for every requested event exists, in the requested order.
     // All requested event types must be populated in the array (even if empty).
     const _events: Event[][] = eventNames.map(() => []);
-    this.eventManager.getEvents().flat().forEach((event) => {
-      const idx = eventNames.indexOf(event.event as string);
-      if (idx !== -1) {
-        _events[idx].push(event);
-      }
-    });
+    this.eventManager
+      .getEvents()
+      .flat()
+      .forEach((event) => {
+        const idx = eventNames.indexOf(event.event as string);
+        if (idx !== -1) {
+          _events[idx].push(event);
+        }
+      });
 
     // Transform 2d-events array into a record.
     const events = Object.fromEntries(eventNames.map((eventName, idx) => [eventName, _events[idx]]));
@@ -133,7 +136,7 @@ export class MockHubPoolClient extends HubPoolClient {
     destinationChainId: number,
     l1Token: string,
     destinationToken: string,
-    overrides: EventOverrides = {},
+    overrides: EventOverrides = {}
   ): Event {
     const event = "SetPoolRebalanceRoute";
 
@@ -161,7 +164,7 @@ export class MockHubPoolClient extends HubPoolClient {
     relayerRefundRoot?: string,
     slowRelayRoot?: string,
     proposer?: string,
-    overrides: EventOverrides = {},
+    overrides: EventOverrides = {}
   ): Event {
     const event = "ProposeRootBundle";
 
@@ -199,7 +202,7 @@ export class MockHubPoolClient extends HubPoolClient {
     netSendAmounts: BigNumber[],
     runningBalances: BigNumber[],
     caller?: string,
-    overrides: EventOverrides = {},
+    overrides: EventOverrides = {}
   ): Event {
     const event = "RootBundleExecuted";
 
