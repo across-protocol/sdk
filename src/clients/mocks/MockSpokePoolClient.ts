@@ -4,7 +4,7 @@ import { random } from "lodash";
 import winston from "winston";
 import { ZERO_ADDRESS } from "../../constants";
 import { DepositWithBlock, FillWithBlock, FundsDepositedEvent, RefundRequestWithBlock } from "../../interfaces";
-import { bnZero, toBN, toBNWei, forEachAsync, randomAddress } from "../../utils";
+import { bnZero, toBNWei, forEachAsync, randomAddress } from "../../utils";
 import { SpokePoolClient, SpokePoolUpdate } from "../SpokePoolClient";
 import { EventManager, EventOverrides, getEventManager } from "./MockEvents";
 
@@ -138,12 +138,12 @@ export class MockSpokePoolClient extends SpokePoolClient {
 
     const { blockNumber, transactionIndex } = deposit;
     let { depositId, depositor, destinationChainId } = deposit;
-    depositId = depositId ?? this.numberOfDeposits;
+    depositId ??= this.numberOfDeposits;
     assert(depositId >= this.numberOfDeposits, `${depositId} < ${this.numberOfDeposits}`);
     this.numberOfDeposits = depositId + 1;
 
-    destinationChainId = destinationChainId ?? random(1, 42161, false);
-    depositor = depositor ?? randomAddress();
+    destinationChainId ??= random(1, 42161, false);
+    depositor ??= randomAddress();
 
     const message = deposit["message"] ?? `${event} event at block ${blockNumber}, index ${transactionIndex}.`;
     const topics = [destinationChainId, depositId, depositor];
@@ -175,9 +175,9 @@ export class MockSpokePoolClient extends SpokePoolClient {
 
     const { blockNumber, transactionIndex } = fill;
     let { depositor, originChainId, depositId } = fill;
-    originChainId = originChainId ?? random(1, 42161, false);
-    depositId = depositId ?? random(1, 100_000, false);
-    depositor = depositor ?? randomAddress();
+    originChainId ??= random(1, 42161, false);
+    depositId ??= random(1, 100_000, false);
+    depositor ??= randomAddress();
 
     const topics = [originChainId, depositId, depositor];
     const recipient = fill.recipient ?? randomAddress();
@@ -205,7 +205,7 @@ export class MockSpokePoolClient extends SpokePoolClient {
         message: fill.updatableRelayData?.message ?? message,
         relayerFeePct: fill.updatableRelayData?.relayerFeePct ?? relayerFeePct,
         isSlowRelay: fill.updatableRelayData?.isSlowRelay ?? false,
-        payoutAdjustmentPct: fill.updatableRelayData?.payoutAdjustmentPct ?? toBN(0),
+        payoutAdjustmentPct: fill.updatableRelayData?.payoutAdjustmentPct ?? bnZero,
       },
     };
 
@@ -225,9 +225,9 @@ export class MockSpokePoolClient extends SpokePoolClient {
     const { blockNumber, transactionIndex } = request;
     let { relayer, originChainId, depositId } = request;
 
-    relayer = relayer ?? randomAddress();
-    originChainId = originChainId ?? random(1, 42161, false);
-    depositId = depositId ?? random(1, 100_000, false);
+    relayer ??= randomAddress();
+    originChainId ??= random(1, 42161, false);
+    depositId ??= random(1, 100_000, false);
 
     const topics = [relayer, originChainId, depositId];
     const args = {

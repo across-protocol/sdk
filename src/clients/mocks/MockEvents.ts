@@ -74,15 +74,15 @@ export class EventManager {
 
     // Increment the block number by at least 1, by default. The caller may override
     // to force the same block number to be used, but never a previous block number.
-    blockNumber = blockNumber ?? random(this.blockNumber + 1, this.blockNumber + this.minBlockRange, false);
+    blockNumber ??= random(this.blockNumber + 1, this.blockNumber + this.minBlockRange, false);
     assert(blockNumber >= this.blockNumber, `${blockNumber} < ${this.blockNumber}`);
     this.blockNumber = blockNumber;
 
-    transactionIndex = transactionIndex ?? random(1, 32, false);
+    transactionIndex ??= random(1, 32, false);
     const transactionHash = id(`Across-v2-${event}-${blockNumber}-${transactionIndex}-${random(1, 100_000)}`);
 
     const _logIndex = `${blockNumber}-${transactionIndex}`;
-    this.logIndexes[_logIndex] = this.logIndexes[_logIndex] ?? 0;
+    this.logIndexes[_logIndex] ??= 0;
     const logIndex = this.logIndexes[_logIndex]++;
 
     const decodeError = new Error(`${event} decoding error`);
