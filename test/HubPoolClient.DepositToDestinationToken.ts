@@ -1,3 +1,4 @@
+import { Event } from "ethers";
 import {
   CONFIG_STORE_VERSION,
   randomDestinationToken,
@@ -184,5 +185,109 @@ describe("HubPoolClient: Deposit to Destination Token", function () {
     expect(
       hubPoolClient.getL2TokenForDeposit({ ...depositData, destinationChainId, quoteBlockNumber: e2.blockNumber })
     ).to.equal(randomL1Token);
+  });
+
+  it("Correctly implements token equivalency", async function () {
+    let equivalent: boolean;
+    equivalent = hubPoolClient.areTokensEquivalent(
+      randomOriginToken,
+      originChainId,
+      randomDestinationToken,
+      destinationChainId
+    );
+    expect(equivalent).to.be.false;
+
+    const events: Event[] = [];
+    [
+      [originChainId.toString(), randomL1Token, randomOriginToken],
+      [destinationChainId.toString(), randomL1Token, randomDestinationToken],
+    ].forEach(([chainId, hubPoolToken, spokePoolToken]) => {
+      const event = hubPoolClient.setPoolRebalanceRoute(
+        Number(chainId),
+        hubPoolToken,
+        spokePoolToken,
+        events[0]?.blockNumber // Force all updates to be parsed in the same block.
+      );
+      hubPoolClient.addEvent(event);
+      events.push(event);
+    });
+
+    // The HubPoolClient should not know about the new token mappings until after its next update.
+    equivalent = hubPoolClient.areTokensEquivalent(
+      randomOriginToken,
+      originChainId,
+      randomDestinationToken,
+      destinationChainId,
+      Number.MAX_SAFE_INTEGER
+    );
+    expect(equivalent).to.be.false;
+
+    // Update the HubPoolClient to parse the new token mappings.
+    await hubPoolClient.update();
+
+    // The block before the new routes were added should still be non-equivalent.
+    equivalent = hubPoolClient.areTokensEquivalent(
+      randomOriginToken,
+      originChainId,
+      randomDestinationToken,
+      destinationChainId,
+      events[0].blockNumber - 1
+    );
+    expect(equivalent).to.be.false;
+
+    // As at the update, the mappings should be known.
+    equivalent = hubPoolClient.areTokensEquivalent(
+      randomOriginToken,
+      originChainId,
+      randomDestinationToken,
+      destinationChainId,
+      events[0].blockNumber
+    );
+    expect(equivalent).to.be.true;
+
+    // Update the token mapping and read it into the HubPoolClient.
+    const update = hubPoolClient.setPoolRebalanceRoute(destinationChainId, randomL1Token, randomDestinationToken2);
+    hubPoolClient.addEvent(update);
+    await hubPoolClient.update();
+
+    // Mapping should still be valid until the latest update.
+    equivalent = hubPoolClient.areTokensEquivalent(
+      randomOriginToken,
+      originChainId,
+      randomDestinationToken,
+      destinationChainId,
+      update.blockNumber - 1
+    );
+    expect(equivalent).to.be.true;
+
+    // The original mapping is no longer valid as at the update block.
+    equivalent = hubPoolClient.areTokensEquivalent(
+      randomOriginToken,
+      originChainId,
+      randomDestinationToken,
+      destinationChainId,
+      update.blockNumber
+    );
+    expect(equivalent).to.be.false;
+
+    // The new mapping was not valid before the update block.
+    equivalent = hubPoolClient.areTokensEquivalent(
+      randomOriginToken,
+      originChainId,
+      randomDestinationToken2,
+      destinationChainId,
+      update.blockNumber - 1
+    );
+    expect(equivalent).to.be.false;
+
+    // The new mapping is valid as at the update block.
+    equivalent = hubPoolClient.areTokensEquivalent(
+      randomOriginToken,
+      originChainId,
+      randomDestinationToken2,
+      destinationChainId,
+      update.blockNumber
+    );
+    expect(equivalent).to.be.true;
   });
 });

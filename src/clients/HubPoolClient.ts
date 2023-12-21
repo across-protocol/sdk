@@ -483,6 +483,30 @@ export class HubPoolClient extends BaseAbstractClient {
     return this.getTokenInfoForDeposit(deposit);
   }
 
+  areTokensEquivalent(
+    tokenA: string,
+    chainIdA: number,
+    tokenB: string,
+    chainIdB: number,
+    hubPoolBlock = this.latestBlockSearched
+  ): boolean {
+    try {
+      // Resolve both SpokePool tokens back to their respective HubPool tokens and verify that they match.
+      const l1TokenA = this.getL1TokenForL2TokenAtBlock(tokenA, chainIdA, hubPoolBlock);
+      const l1TokenB = this.getL1TokenForL2TokenAtBlock(tokenB, chainIdB, hubPoolBlock);
+      if (l1TokenA !== l1TokenB) {
+        return false;
+      }
+
+      // Resolve both HubPool tokens back to a current SpokePool token and verify that they match.
+      const _tokenA = this.getL2TokenForL1TokenAtBlock(l1TokenA, chainIdA, hubPoolBlock);
+      const _tokenB = this.getL2TokenForL1TokenAtBlock(l1TokenB, chainIdB, hubPoolBlock);
+      return tokenA === _tokenA && tokenB === _tokenB;
+    } catch {
+      return false; // One or both input tokens were not recognised.
+    }
+  }
+
   getSpokeActivationBlockForChain(chainId: number): number {
     return this.getSpokePoolActivationBlock(chainId, this.getSpokePoolForBlock(chainId)) ?? 0;
   }
