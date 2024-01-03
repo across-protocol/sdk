@@ -7,7 +7,7 @@ import {
   InvalidFill,
   relayFilledAmount,
   validateFillForDeposit,
-  queryHistoricalDepositForFill
+  queryHistoricalDepositForFill,
 } from "../src/utils";
 import {
   expect,

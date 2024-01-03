@@ -17,11 +17,11 @@ export enum InvalidFill {
   DepositIdInvalid = 0, // Deposit ID seems invalid for origin SpokePool
   DepositIdNotFound, // Deposit ID not found (bad RPC data?)
   FillMismatch, // Fill does not match deposit parameters for deposit ID.
-};
+}
 
 export type DepositSearchResult =
-  | { found: true; deposit: DepositWithBlock; }
-  | { found: false; code: InvalidFill; reason: string; };
+  | { found: true; deposit: DepositWithBlock }
+  | { found: false; code: InvalidFill; reason: string };
 
 /**
  * Attempts to resolve a deposit for a fill. If the fill's deposit Id is within the spoke pool client's search range,
@@ -52,7 +52,7 @@ export async function queryHistoricalDepositForFill(
 
   const { depositId } = fill;
   let { firstDepositIdForSpokePool: lowId, lastDepositIdForSpokePool: highId } = spokePoolClient;
-  if (depositId < lowId || depositId > highId)  {
+  if (depositId < lowId || depositId > highId) {
     return {
       found: false,
       code: InvalidFill.DepositIdInvalid,
@@ -70,7 +70,7 @@ export async function queryHistoricalDepositForFill(
     return {
       found: false,
       code: isDefined(deposit) ? InvalidFill.FillMismatch : InvalidFill.DepositIdNotFound,
-      reason: `Deposit ID ${depositId} not found in SpokePoolClient event buffer.`
+      reason: `Deposit ID ${depositId} not found in SpokePoolClient event buffer.`,
     };
   }
 
