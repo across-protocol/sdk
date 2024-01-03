@@ -1,3 +1,4 @@
+import { RelayData } from "../src/interfaces";
 import {
   expect,
   toBNWei,
@@ -28,7 +29,7 @@ import {
 
 import { SpokePoolClient } from "../src/clients";
 import { MockConfigStoreClient, MockHubPoolClient, MockSpokePoolClient } from "./mocks";
-import { validateFillForDeposit, queryHistoricalDepositForFill } from "../src/utils";
+import { relayFilledAmount, validateFillForDeposit, queryHistoricalDepositForFill } from "../src/utils";
 import { CHAIN_ID_TEST_LIST, repaymentChainId } from "./constants";
 
 let spokePool_1: Contract, erc20_1: Contract, spokePool_2: Contract, erc20_2: Contract, hubPool: Contract;
@@ -101,6 +102,17 @@ describe("SpokePoolClient: Fill Validation", function () {
     // "reasonable" block number based off the block time when looking at quote timestamps. We only need to do
     // this on the deposit chain because that chain's spoke pool client will have to fill in its realized lp fee %.
     await spokePool_1.setCurrentTime(await getLastBlockTime(spokePool_1.provider));
+  });
+
+  it("Tracks fill status", async function () {
+    const deposit = await buildDeposit(hubPoolClient, spokePool_1, erc20_1, depositor, destinationChainId);
+
+    let filled = await relayFilledAmount(spokePool_2, deposit as RelayData);
+    expect(filled.eq(0)).is.true;
+
+    await buildFill(spokePool_2, erc20_2, depositor, relayer, deposit, 1);
+    filled = await relayFilledAmount(spokePool_2, deposit as RelayData);
+    expect(filled.eq(deposit.amount)).is.true;
   });
 
   it("Accepts valid fills", async function () {
