@@ -1,3 +1,4 @@
+import assert from "assert";
 import { RelayData } from "../src/interfaces";
 import {
   expect,
@@ -419,11 +420,10 @@ describe("SpokePoolClient: Fill Validation", function () {
 
     // Client has 0 deposits in memory so querying historical deposit sends fresh RPC requests.
     expect(spokePoolClient1.getDeposits().length).to.equal(0);
+
     const historicalDeposit = await queryHistoricalDepositForFill(spokePoolClient1, fill);
-    expect(historicalDeposit.found).is.true;
-    if (historicalDeposit.found) {
-      expect(historicalDeposit.deposit.depositId).to.deep.equal(deposit.depositId);
-    }
+    assert(historicalDeposit.found === true, "Test is broken"); // Help tsc to narrow the discriminated union.
+    expect(historicalDeposit.deposit.depositId).to.deep.equal(deposit.depositId);
   });
 
   it("Can fetch younger deposit matching fill", async function () {
@@ -445,11 +445,10 @@ describe("SpokePoolClient: Fill Validation", function () {
 
     // Client has 0 deposits in memory so querying historical deposit sends fresh RPC requests.
     expect(spokePoolClient1.getDeposits().length).to.equal(0);
+
     const historicalDeposit = await queryHistoricalDepositForFill(spokePoolClient1, fill);
-    expect(historicalDeposit.found).is.true;
-    if (historicalDeposit.found) {
-      expect(historicalDeposit.deposit.depositId).to.deep.equal(deposit.depositId);
-    }
+    assert(historicalDeposit.found === true, "Test is broken"); // Help tsc to narrow the discriminated union.
+    expect(historicalDeposit.deposit.depositId).to.deep.equal(deposit.depositId);
   });
 
   it("Loads fills from memory with deposit ID > spoke pool client's earliest deposit ID queried", async function () {
@@ -497,10 +496,9 @@ describe("SpokePoolClient: Fill Validation", function () {
     spokePoolClient1.firstDepositIdForSpokePool = deposit.depositId + 1;
     expect(fill.depositId < spokePoolClient1.firstDepositIdForSpokePool).is.true;
     const search = await queryHistoricalDepositForFill(spokePoolClient1, fill);
-    expect(search.found).is.false;
-    if (search.found === false) {
-      expect(search.code).to.equal(InvalidFill.DepositIdInvalid);
-    }
+
+    assert(search.found === false, "Test is broken"); // Help tsc to narrow the discriminated union.
+    expect(search.code).to.equal(InvalidFill.DepositIdInvalid);
     expect(lastSpyLogIncludes(spy, "Queried RPC for deposit")).is.not.true;
   });
 
@@ -524,10 +522,9 @@ describe("SpokePoolClient: Fill Validation", function () {
     await spokePoolClient1.update();
     expect(fill.depositId > spokePoolClient1.lastDepositIdForSpokePool).is.true;
     const search = await queryHistoricalDepositForFill(spokePoolClient1, fill);
-    expect(search.found).is.false;
-    if (search.found === false) {
-      expect(search.code).to.equal(InvalidFill.DepositIdInvalid);
-    }
+
+    assert(search.found === false, "Test is broken"); // Help tsc to narrow the discriminated union.
+    expect(search.code).to.equal(InvalidFill.DepositIdInvalid);
     expect(lastSpyLogIncludes(spy, "Queried RPC for deposit")).is.not.true;
   });
 
@@ -540,11 +537,7 @@ describe("SpokePoolClient: Fill Validation", function () {
     await Promise.all([spokePoolClient1.update(), spokePoolClient2.update()]);
 
     const search = await queryHistoricalDepositForFill(spokePoolClient1, fill);
-    expect(search.found).is.false;
-    if (search.found) {
-      // Helping tsc to narrow the type.
-      throw new Error("xxx test is broken; this should never happen");
-    }
+    assert(search.found === false, "Test is broken"); // Help tsc to narrow the discriminated union.
     expect(search.code).to.equal(InvalidFill.FillMismatch);
   });
 
