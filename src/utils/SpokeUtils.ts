@@ -1,4 +1,6 @@
-import { Contract } from "ethers";
+import { getRelayHash } from "@across-protocol/contracts-v2/dist/test-utils";
+import { BigNumber, Contract } from "ethers";
+import { RelayData } from "../interfaces";
 import { SpokePoolClient } from "../clients";
 
 /**
@@ -154,4 +156,24 @@ export async function getDepositIdAtBlock(contract: Contract, blockTag: number):
     throw new Error("Invalid deposit count");
   }
   return depositIdAtBlock;
+}
+
+export function relayFilledAmount(
+  spokePool: Contract,
+  relayData: RelayData,
+  blockTag?: number | "latest"
+): Promise<BigNumber> {
+  const hash = getRelayHash(
+    relayData.depositor,
+    relayData.recipient,
+    relayData.depositId,
+    relayData.originChainId,
+    relayData.destinationChainId,
+    relayData.destinationToken,
+    relayData.amount,
+    relayData.realizedLpFeePct,
+    relayData.relayerFeePct
+  ).relayHash;
+
+  return spokePool.relayFills(hash, { blockTag });
 }

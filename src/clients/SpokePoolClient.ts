@@ -677,20 +677,13 @@ export class SpokePoolClient extends BaseAbstractClient {
         }
       });
       this.earlyDeposits = earlyDeposits;
-
-      const dataForQuoteTime = await this.batchComputeRealizedLpFeePct(depositEvents);
-      this.logger.debug({
-        at: "SpokePoolClient",
-        message: `Computed ${dataForQuoteTime.length} realizedLpFees on ${this.chainId}!`,
-      });
-
-      // Now add any newly fetched events from RPC.
       if (depositEvents.length > 0) {
         this.log("debug", `Using ${depositEvents.length} newly queried deposit events for chain ${this.chainId}`, {
           earliestEvent: depositEvents[0].blockNumber,
         });
       }
 
+      const dataForQuoteTime = await this.batchComputeRealizedLpFeePct(depositEvents);
       for (const [index, event] of Array.from(depositEvents.entries())) {
         const rawDeposit = spreadEventWithBlockNumber(event) as DepositWithBlock;
 
