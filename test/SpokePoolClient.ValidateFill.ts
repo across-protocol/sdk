@@ -1,5 +1,14 @@
 import assert from "assert";
 import { RelayData } from "../src/interfaces";
+import { SpokePoolClient } from "../src/clients";
+import {
+  bnZero,
+  bnOne,
+  InvalidFill,
+  relayFilledAmount,
+  validateFillForDeposit,
+  queryHistoricalDepositForFill
+} from "../src/utils";
 import {
   expect,
   toBNWei,
@@ -27,18 +36,8 @@ import {
   winston,
   lastSpyLogIncludes,
 } from "./utils";
-
-import { SpokePoolClient } from "../src/clients";
-import { MockConfigStoreClient, MockHubPoolClient, MockSpokePoolClient } from "./mocks";
-import {
-  bnZero,
-  bnOne,
-  InvalidFill,
-  relayFilledAmount,
-  validateFillForDeposit,
-  queryHistoricalDepositForFill
-} from "../src/utils";
 import { CHAIN_ID_TEST_LIST, repaymentChainId } from "./constants";
+import { MockConfigStoreClient, MockHubPoolClient, MockSpokePoolClient } from "./mocks";
 
 let spokePool_1: Contract, erc20_1: Contract, spokePool_2: Contract, erc20_2: Contract, hubPool: Contract;
 let owner: SignerWithAddress, depositor: SignerWithAddress, relayer: SignerWithAddress;
