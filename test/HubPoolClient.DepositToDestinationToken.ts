@@ -51,7 +51,6 @@ describe("HubPoolClient: Deposit to Destination Token", function () {
       /Could not find SpokePool mapping/
     );
     const e1 = hubPoolClient.setPoolRebalanceRoute(destinationChainId, randomL1Token, randomDestinationToken);
-    hubPoolClient.addEvent(e1);
     await hubPoolClient.update();
 
     // If input hub pool block is before all events, should throw.
@@ -64,7 +63,6 @@ describe("HubPoolClient: Deposit to Destination Token", function () {
 
     // Now try changing the destination token. Client should correctly handle this.
     const e2 = hubPoolClient.setPoolRebalanceRoute(destinationChainId, randomL1Token, randomDestinationToken2);
-    hubPoolClient.addEvent(e2);
     await hubPoolClient.update();
 
     expect(hubPoolClient.getL2TokenForL1TokenAtBlock(randomL1Token, destinationChainId, e2.blockNumber)).to.equal(
@@ -79,7 +77,6 @@ describe("HubPoolClient: Deposit to Destination Token", function () {
       /Could not find HubPool mapping/
     );
     const e1 = hubPoolClient.setPoolRebalanceRoute(destinationChainId, randomL1Token, randomDestinationToken);
-    hubPoolClient.addEvent(e1);
     await hubPoolClient.update();
 
     // If input hub pool block is before all events, should throw.
@@ -92,7 +89,6 @@ describe("HubPoolClient: Deposit to Destination Token", function () {
 
     // Now try changing the L1 token while keeping destination chain and L2 token the same.
     const e2 = hubPoolClient.setPoolRebalanceRoute(destinationChainId, randomOriginToken, randomDestinationToken);
-    hubPoolClient.addEvent(e2);
     await hubPoolClient.update();
 
     expect(
@@ -117,7 +113,6 @@ describe("HubPoolClient: Deposit to Destination Token", function () {
     };
 
     const e0 = hubPoolClient.setPoolRebalanceRoute(originChainId, randomL1Token, randomOriginToken);
-    hubPoolClient.addEvent(e0);
     await hubPoolClient.update();
     expect(hubPoolClient.getL1TokenForDeposit({ ...depositData, quoteBlockNumber: e0.blockNumber })).to.equal(
       randomL1Token
@@ -138,7 +133,6 @@ describe("HubPoolClient: Deposit to Destination Token", function () {
     ).to.throw(/Could not find HubPool mapping/);
 
     const e1 = hubPoolClient.setPoolRebalanceRoute(originChainId, randomOriginToken, randomOriginToken);
-    hubPoolClient.addEvent(e1);
     await hubPoolClient.update();
     expect(hubPoolClient.getL1TokenForDeposit({ ...depositData, quoteBlockNumber: e1.blockNumber })).to.equal(
       randomOriginToken
@@ -152,8 +146,6 @@ describe("HubPoolClient: Deposit to Destination Token", function () {
 
     const e0 = hubPoolClient.setPoolRebalanceRoute(originChainId, randomL1Token, randomOriginToken);
     const e1 = hubPoolClient.setPoolRebalanceRoute(destinationChainId, randomL1Token, randomDestinationToken);
-    hubPoolClient.addEvent(e0);
-    hubPoolClient.addEvent(e1);
     await hubPoolClient.update();
     expect(
       hubPoolClient.getL2TokenForDeposit({ ...depositData, destinationChainId, quoteBlockNumber: e1.blockNumber })
@@ -180,7 +172,6 @@ describe("HubPoolClient: Deposit to Destination Token", function () {
     ).to.throw(/Could not find HubPool mapping/);
 
     const e2 = hubPoolClient.setPoolRebalanceRoute(destinationChainId, randomL1Token, randomL1Token);
-    hubPoolClient.addEvent(e2);
     await hubPoolClient.update();
     expect(
       hubPoolClient.getL2TokenForDeposit({ ...depositData, destinationChainId, quoteBlockNumber: e2.blockNumber })
@@ -206,9 +197,8 @@ describe("HubPoolClient: Deposit to Destination Token", function () {
         Number(chainId),
         hubPoolToken,
         spokePoolToken,
-        events[0]?.blockNumber // Force all updates to be parsed in the same block.
+        { blockNumber: events[0]?.blockNumber } // Force all updates to be parsed in the same block.
       );
-      hubPoolClient.addEvent(event);
       events.push(event);
     });
 
@@ -247,7 +237,6 @@ describe("HubPoolClient: Deposit to Destination Token", function () {
 
     // Update the token mapping and read it into the HubPoolClient.
     const update = hubPoolClient.setPoolRebalanceRoute(destinationChainId, randomL1Token, randomDestinationToken2);
-    hubPoolClient.addEvent(update);
     await hubPoolClient.update();
 
     // Mapping should still be valid until the latest update.
