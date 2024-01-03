@@ -318,6 +318,12 @@ export class SpokePoolClient extends BaseAbstractClient {
     };
   }
 
+  /**
+   * Find a deposit based on its deposit ID.
+   * @notice If evaluating a fill, be sure to verify it against the resulting deposit.
+   * @param depositId The unique ID of the deposit being queried.
+   * @returns The corresponding deposit if found, undefined otherwise.
+   */
   public getDeposit(depositId: number): DepositWithBlock | undefined {
     const depositHash = this.getDepositHash({ depositId, originChainId: this.chainId });
     return this.depositHashes[depositHash];
