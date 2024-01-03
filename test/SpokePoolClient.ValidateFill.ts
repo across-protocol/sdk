@@ -29,7 +29,14 @@ import {
 
 import { SpokePoolClient } from "../src/clients";
 import { MockConfigStoreClient, MockHubPoolClient, MockSpokePoolClient } from "./mocks";
-import { InvalidFill, relayFilledAmount, validateFillForDeposit, queryHistoricalDepositForFill } from "../src/utils";
+import {
+  bnZero,
+  bnOne,
+  InvalidFill,
+  relayFilledAmount,
+  validateFillForDeposit,
+  queryHistoricalDepositForFill
+} from "../src/utils";
 import { CHAIN_ID_TEST_LIST, repaymentChainId } from "./constants";
 
 let spokePool_1: Contract, erc20_1: Contract, spokePool_2: Contract, erc20_2: Contract, hubPool: Contract;
@@ -522,6 +529,23 @@ describe("SpokePoolClient: Fill Validation", function () {
       expect(search.code).to.equal(InvalidFill.DepositIdInvalid);
     }
     expect(lastSpyLogIncludes(spy, "Queried RPC for deposit")).is.not.true;
+  });
+
+  it("Ignores matching fills that mis-specify a deposit attribute", async function () {
+    const deposit = await buildDeposit(hubPoolClient, spokePool_1, erc20_1, depositor, destinationChainId);
+
+    deposit.realizedLpFeePct = (deposit.realizedLpFeePct ?? bnZero).add(bnOne);
+    const fill = await buildFill(spokePool_2, erc20_2, depositor, relayer, deposit, 1);
+
+    await Promise.all([spokePoolClient1.update(), spokePoolClient2.update()]);
+
+    const search = await queryHistoricalDepositForFill(spokePoolClient1, fill);
+    expect(search.found).is.false;
+    if (search.found) {
+      // Helping tsc to narrow the type.
+      throw new Error("xxx test is broken; this should never happen");
+    }
+    expect(search.code).to.equal(InvalidFill.FillMismatch);
   });
 
   it("Returns sped up deposit matched with fill", async function () {

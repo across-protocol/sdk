@@ -69,7 +69,7 @@ export async function queryHistoricalDepositForFill(
 
     return {
       found: false,
-      code: InvalidFill.DepositIdNotFound,
+      code: isDefined(deposit) ? InvalidFill.FillMismatch : InvalidFill.DepositIdNotFound,
       reason: `Deposit ID ${depositId} not found in SpokePoolClient event buffer.`
     };
   }
@@ -104,10 +104,7 @@ export async function queryHistoricalDepositForFill(
   }
 
   if (validateFillForDeposit(fill, deposit)) {
-    return {
-      found: true,
-      deposit,
-    };
+    return { found: true, deposit };
   }
 
   return {
