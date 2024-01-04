@@ -2,6 +2,7 @@ import { getRelayHash } from "@across-protocol/contracts-v2/dist/test-utils";
 import { BigNumber, Contract } from "ethers";
 import { RelayData } from "../interfaces";
 import { SpokePoolClient } from "../clients";
+import { getNetworkName } from "./NetworkUtils";
 
 /**
  * Find the block range that contains the deposit ID. This is a binary search that searches for the block range
@@ -176,4 +177,46 @@ export function relayFilledAmount(
   ).relayHash;
 
   return spokePool.relayFills(hash, { blockTag });
+}
+
+export async function findFillBlock(
+  spokePool: Contract,
+  relayData: RelayData,
+  lowBlockNumber: number,
+  highBlockNumber?: number
+): Promise<number | undefined> {
+  const { provider } = spokePool;
+  highBlockNumber ??= await provider.getBlockNumber();
+
+  // Make sure the relay is 100% completed within the block range supplied by the caller.
+  const [initialFillAmount, finalFillAmount] = await Promise.all([
+    relayFilledAmount(spokePool, relayData, lowBlockNumber),
+    relayFilledAmount(spokePool, relayData, highBlockNumber),
+  ]);
+
+  // Wasn't filled within the specified block range.
+  if (finalFillAmount.lt(relayData.amount)) {
+    return undefined;
+  }
+
+  // Was filled earlier than the specified lowBlock.. This is an error by the caller.
+  if (initialFillAmount.eq(relayData.amount)) {
+    const { depositId, originChainId, destinationChainId } = relayData;
+    const [srcChain, dstChain] = [getNetworkName(originChainId), getNetworkName(destinationChainId)];
+    throw new Error(`${srcChain} deposit ${depositId} filled on ${dstChain} before block ${lowBlockNumber}`);
+  }
+
+  // Find the leftmost block where filledAmount equals the deposit amount.
+  do {
+    const midBlockNumber = Math.floor((highBlockNumber + lowBlockNumber) / 2);
+    const filledAmount = await relayFilledAmount(spokePool, relayData, midBlockNumber);
+
+    if (filledAmount.eq(relayData.amount)) {
+      highBlockNumber = midBlockNumber;
+    } else {
+      lowBlockNumber = midBlockNumber + 1;
+    }
+  } while (lowBlockNumber < highBlockNumber);
+
+  return lowBlockNumber;
 }
