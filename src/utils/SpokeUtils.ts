@@ -160,6 +160,13 @@ export async function getDepositIdAtBlock(contract: Contract, blockTag: number):
   return depositIdAtBlock;
 }
 
+/**
+ * Find the amount filled for a deposit at a particular block.
+ * @param spokePool SpokePool contract instance.
+ * @param relayData Deposit information that is used to complete a fill.
+ * @param blockTag Block tag (numeric or "latest") to query at.
+ * @returns The amount filled for the specified deposit at the requested block (or latest).
+ */
 export function relayFilledAmount(
   spokePool: Contract,
   relayData: RelayData,
@@ -180,6 +187,14 @@ export function relayFilledAmount(
   return spokePool.relayFills(hash, { blockTag });
 }
 
+/**
+ * Find the block at which a fill was completed.
+ * @param spokePool SpokePool contract instance.
+ * @param relayData Deposit information that is used to complete a fill.
+ * @param lowBlockNumber The lower bound of the search. Must be bounded by SpokePool deployment.
+ * @param highBlocknumber Optional upper bound for the search.
+ * @returns The block number at which the relay was completed, or undefined.
+ */
 export async function findFillBlock(
   spokePool: Contract,
   relayData: RelayData,
