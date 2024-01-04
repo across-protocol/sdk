@@ -1,3 +1,4 @@
+import assert from "assert";
 import { getRelayHash } from "@across-protocol/contracts-v2/dist/test-utils";
 import { BigNumber, Contract } from "ethers";
 import { RelayData } from "../interfaces";
@@ -187,6 +188,7 @@ export async function findFillBlock(
 ): Promise<number | undefined> {
   const { provider } = spokePool;
   highBlockNumber ??= await provider.getBlockNumber();
+  assert(highBlockNumber > lowBlockNumber, `Block numbers out of range (${lowBlockNumber} > ${highBlockNumber})`);
 
   // Make sure the relay is 100% completed within the block range supplied by the caller.
   const [initialFillAmount, finalFillAmount] = await Promise.all([
