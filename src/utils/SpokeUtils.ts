@@ -1,7 +1,9 @@
+import assert from "assert";
 import { getRelayHash } from "@across-protocol/contracts-v2/dist/test-utils";
 import { BigNumber, Contract } from "ethers";
 import { RelayData } from "../interfaces";
 import { SpokePoolClient } from "../clients";
+import { getNetworkName } from "./NetworkUtils";
 
 /**
  * Find the block range that contains the deposit ID. This is a binary search that searches for the block range
@@ -158,6 +160,13 @@ export async function getDepositIdAtBlock(contract: Contract, blockTag: number):
   return depositIdAtBlock;
 }
 
+/**
+ * Find the amount filled for a deposit at a particular block.
+ * @param spokePool SpokePool contract instance.
+ * @param relayData Deposit information that is used to complete a fill.
+ * @param blockTag Block tag (numeric or "latest") to query at.
+ * @returns The amount filled for the specified deposit at the requested block (or latest).
+ */
 export function relayFilledAmount(
   spokePool: Contract,
   relayData: RelayData,
@@ -177,4 +186,55 @@ export function relayFilledAmount(
   ).relayHash;
 
   return spokePool.relayFills(hash, { blockTag });
+}
+
+/**
+ * Find the block at which a fill was completed.
+ * @param spokePool SpokePool contract instance.
+ * @param relayData Deposit information that is used to complete a fill.
+ * @param lowBlockNumber The lower bound of the search. Must be bounded by SpokePool deployment.
+ * @param highBlocknumber Optional upper bound for the search.
+ * @returns The block number at which the relay was completed, or undefined.
+ */
+export async function findFillBlock(
+  spokePool: Contract,
+  relayData: RelayData,
+  lowBlockNumber: number,
+  highBlockNumber?: number
+): Promise<number | undefined> {
+  const { provider } = spokePool;
+  highBlockNumber ??= await provider.getBlockNumber();
+  assert(highBlockNumber > lowBlockNumber, `Block numbers out of range (${lowBlockNumber} > ${highBlockNumber})`);
+
+  // Make sure the relay is 100% completed within the block range supplied by the caller.
+  const [initialFillAmount, finalFillAmount] = await Promise.all([
+    relayFilledAmount(spokePool, relayData, lowBlockNumber),
+    relayFilledAmount(spokePool, relayData, highBlockNumber),
+  ]);
+
+  // Wasn't filled within the specified block range.
+  if (finalFillAmount.lt(relayData.amount)) {
+    return undefined;
+  }
+
+  // Was filled earlier than the specified lowBlock.. This is an error by the caller.
+  if (initialFillAmount.eq(relayData.amount)) {
+    const { depositId, originChainId, destinationChainId } = relayData;
+    const [srcChain, dstChain] = [getNetworkName(originChainId), getNetworkName(destinationChainId)];
+    throw new Error(`${srcChain} deposit ${depositId} filled on ${dstChain} before block ${lowBlockNumber}`);
+  }
+
+  // Find the leftmost block where filledAmount equals the deposit amount.
+  do {
+    const midBlockNumber = Math.floor((highBlockNumber + lowBlockNumber) / 2);
+    const filledAmount = await relayFilledAmount(spokePool, relayData, midBlockNumber);
+
+    if (filledAmount.eq(relayData.amount)) {
+      highBlockNumber = midBlockNumber;
+    } else {
+      lowBlockNumber = midBlockNumber + 1;
+    }
+  } while (lowBlockNumber < highBlockNumber);
+
+  return lowBlockNumber;
 }
