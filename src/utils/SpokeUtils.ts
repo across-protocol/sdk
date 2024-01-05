@@ -181,7 +181,8 @@ export function relayFilledAmount(
     relayData.destinationToken,
     relayData.amount,
     relayData.realizedLpFeePct,
-    relayData.relayerFeePct
+    relayData.relayerFeePct,
+    relayData.message
   ).relayHash;
 
   return spokePool.relayFills(hash, { blockTag });

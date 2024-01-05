@@ -461,12 +461,11 @@ describe("HubPoolClient: RootBundle Events", function () {
         await configStoreClient.update();
 
         const bundleEvaluationBlockNumbers = chainIds.map(() => toBN(random(100, 1000, false)));
-        const proposalEvent = hubPoolClient.proposeRootBundle(
+        hubPoolClient.proposeRootBundle(
           Math.floor(Date.now() / 1000) - 1, // challengePeriodEndTimestamp
           chainIds.length, // poolRebalanceLeafCount
           bundleEvaluationBlockNumbers
         );
-        hubPoolClient.addEvent(proposalEvent);
         await hubPoolClient.update();
 
         // Propose a root bundle and execute the associated leaves.
@@ -490,7 +489,6 @@ describe("HubPoolClient: RootBundle Events", function () {
             l1Tokens.map(() => toBN(0)), // netSendAmounts
             runningBalances
           );
-          hubPoolClient.addEvent(leafEvent);
           return leafEvent;
         });
         await hubPoolClient.update();
@@ -536,12 +534,11 @@ describe("HubPoolClient: RootBundle Events", function () {
         await configStoreClient.update();
 
         const bundleEvaluationBlockNumbers = chainIds.map(() => toBN(random(100, 1000, false)));
-        const proposalEvent = hubPoolClient.proposeRootBundle(
+        hubPoolClient.proposeRootBundle(
           Math.floor(Date.now() / 1000) - 1, // challengePeriodEndTimestamp
           chainIds.length, // poolRebalanceLeafCount
           bundleEvaluationBlockNumbers
         );
-        hubPoolClient.addEvent(proposalEvent);
         await hubPoolClient.update();
 
         // Propose a root bundle and execute the associated leaves.
@@ -549,7 +546,6 @@ describe("HubPoolClient: RootBundle Events", function () {
         const leafEvents = chainIds.map((chainId, idx) => {
           const groupIndex = toBN(chainId === hubPoolClient.chainId ? 0 : 1);
           const leafEvent = hubPoolClient.executeRootBundle(groupIndex, idx, toBN(chainId), [], [], [], []);
-          hubPoolClient.addEvent(leafEvent);
           return leafEvent;
         });
         await hubPoolClient.update();

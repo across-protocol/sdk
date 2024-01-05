@@ -4,6 +4,9 @@ import { random } from "lodash";
 import { isDefined, randomAddress, toBN } from "../../utils";
 
 const { id, keccak256, toUtf8Bytes } = ethersUtils;
+export type EventOverrides = {
+  blockNumber?: number;
+};
 
 type Block = providers.Block;
 type TransactionResponse = providers.TransactionResponse;
@@ -37,6 +40,7 @@ const removeListener = (): void => {
 
 export class EventManager {
   private logIndexes: Record<string, number> = {};
+  public events: Event[] = [];
   public readonly minBlockRange = 10;
   public readonly eventSignatures: Record<string, string> = {};
 
@@ -49,6 +53,16 @@ export class EventManager {
       }
       this.eventSignatures[event] = signature;
     });
+  }
+
+  addEvent(event: Event): void {
+    this.events.push(event);
+  }
+
+  getEvents(): Event[] {
+    const events = this.events;
+    this.events = [];
+    return events;
   }
 
   generateEvent(inputs: EthersEventTemplate): Event {
@@ -94,7 +108,7 @@ export class EventManager {
       });
     };
 
-    return {
+    const generatedEvent = {
       blockNumber,
       transactionIndex,
       logIndex,
@@ -113,6 +127,9 @@ export class EventManager {
       getTransactionReceipt,
       removeListener,
     } as Event;
+
+    this.addEvent(generatedEvent);
+    return generatedEvent;
   }
 }
 

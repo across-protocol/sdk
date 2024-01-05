@@ -1,4 +1,14 @@
+import assert from "assert";
 import { RelayData } from "../src/interfaces";
+import { SpokePoolClient } from "../src/clients";
+import {
+  bnZero,
+  bnOne,
+  InvalidFill,
+  relayFilledAmount,
+  validateFillForDeposit,
+  queryHistoricalDepositForFill,
+} from "../src/utils";
 import {
   expect,
   toBNWei,
@@ -26,11 +36,8 @@ import {
   winston,
   lastSpyLogIncludes,
 } from "./utils";
-
-import { SpokePoolClient } from "../src/clients";
-import { MockConfigStoreClient, MockHubPoolClient, MockSpokePoolClient } from "./mocks";
-import { relayFilledAmount, validateFillForDeposit, queryHistoricalDepositForFill } from "../src/utils";
 import { CHAIN_ID_TEST_LIST, repaymentChainId } from "./constants";
+import { MockConfigStoreClient, MockHubPoolClient, MockSpokePoolClient } from "./mocks";
 
 let spokePool_1: Contract, erc20_1: Contract, spokePool_2: Contract, erc20_2: Contract, hubPool: Contract;
 let owner: SignerWithAddress, depositor: SignerWithAddress, relayer: SignerWithAddress;
@@ -412,8 +419,10 @@ describe("SpokePoolClient: Fill Validation", function () {
 
     // Client has 0 deposits in memory so querying historical deposit sends fresh RPC requests.
     expect(spokePoolClient1.getDeposits().length).to.equal(0);
+
     const historicalDeposit = await queryHistoricalDepositForFill(spokePoolClient1, fill);
-    expect(historicalDeposit?.depositId).to.deep.equal(deposit.depositId);
+    assert(historicalDeposit.found === true, "Test is broken"); // Help tsc to narrow the discriminated union.
+    expect(historicalDeposit.deposit.depositId).to.deep.equal(deposit.depositId);
   });
 
   it("Can fetch younger deposit matching fill", async function () {
@@ -435,8 +444,10 @@ describe("SpokePoolClient: Fill Validation", function () {
 
     // Client has 0 deposits in memory so querying historical deposit sends fresh RPC requests.
     expect(spokePoolClient1.getDeposits().length).to.equal(0);
+
     const historicalDeposit = await queryHistoricalDepositForFill(spokePoolClient1, fill);
-    expect(historicalDeposit?.depositId).to.deep.equal(deposit.depositId);
+    assert(historicalDeposit.found === true, "Test is broken"); // Help tsc to narrow the discriminated union.
+    expect(historicalDeposit.deposit.depositId).to.deep.equal(deposit.depositId);
   });
 
   it("Loads fills from memory with deposit ID > spoke pool client's earliest deposit ID queried", async function () {
@@ -446,12 +457,12 @@ describe("SpokePoolClient: Fill Validation", function () {
     expect(spokePoolClient1.earliestDepositIdQueried == 0).is.true;
 
     // Client should NOT send RPC requests to fetch this deposit, instead it should load from memory.
-    expect((await queryHistoricalDepositForFill(spokePoolClient1, fill)) !== undefined).is.true;
+    expect((await queryHistoricalDepositForFill(spokePoolClient1, fill)).found).is.true;
     expect(lastSpyLogIncludes(spy, "updated!")).is.true;
 
     // Now override earliest deposit ID queried so that its > deposit ID and check that client sends RPC requests.
     spokePoolClient1.earliestDepositIdQueried = 1;
-    expect((await queryHistoricalDepositForFill(spokePoolClient1, fill)) !== undefined).is.true;
+    expect((await queryHistoricalDepositForFill(spokePoolClient1, fill)).found).is.true;
     expect(lastSpyLogIncludes(spy, "Located deposit outside of SpokePoolClient's search range")).is.true;
   });
 
@@ -464,12 +475,12 @@ describe("SpokePoolClient: Fill Validation", function () {
     spokePoolClient1.latestDepositIdQueried = 1;
 
     // Client should NOT send RPC requests to fetch this deposit, instead it should load from memory.
-    expect((await queryHistoricalDepositForFill(spokePoolClient1, fill)) !== undefined).is.true;
+    expect((await queryHistoricalDepositForFill(spokePoolClient1, fill)).found).is.true;
     expect(lastSpyLogIncludes(spy, "updated!")).is.true;
 
     // Now override latest deposit ID queried so that its < deposit ID and check that client sends RPC requests.
     spokePoolClient1.latestDepositIdQueried = -1;
-    expect((await queryHistoricalDepositForFill(spokePoolClient1, fill)) !== undefined).is.true;
+    expect((await queryHistoricalDepositForFill(spokePoolClient1, fill)).found).is.true;
     expect(lastSpyLogIncludes(spy, "Located deposit outside of SpokePoolClient's search range")).is.true;
   });
 
@@ -481,9 +492,12 @@ describe("SpokePoolClient: Fill Validation", function () {
 
     // Override the first spoke pool deposit ID that the client thinks is available in the contract.
     await spokePoolClient1.update();
-    spokePoolClient1.firstDepositIdForSpokePool = 1;
+    spokePoolClient1.firstDepositIdForSpokePool = deposit.depositId + 1;
     expect(fill.depositId < spokePoolClient1.firstDepositIdForSpokePool).is.true;
-    await queryHistoricalDepositForFill(spokePoolClient1, fill);
+    const search = await queryHistoricalDepositForFill(spokePoolClient1, fill);
+
+    assert(search.found === false, "Test is broken"); // Help tsc to narrow the discriminated union.
+    expect(search.code).to.equal(InvalidFill.DepositIdInvalid);
     expect(lastSpyLogIncludes(spy, "Queried RPC for deposit")).is.not.true;
   });
 
@@ -506,8 +520,24 @@ describe("SpokePoolClient: Fill Validation", function () {
 
     await spokePoolClient1.update();
     expect(fill.depositId > spokePoolClient1.lastDepositIdForSpokePool).is.true;
-    await queryHistoricalDepositForFill(spokePoolClient1, fill);
+    const search = await queryHistoricalDepositForFill(spokePoolClient1, fill);
+
+    assert(search.found === false, "Test is broken"); // Help tsc to narrow the discriminated union.
+    expect(search.code).to.equal(InvalidFill.DepositIdInvalid);
     expect(lastSpyLogIncludes(spy, "Queried RPC for deposit")).is.not.true;
+  });
+
+  it("Ignores matching fills that mis-specify a deposit attribute", async function () {
+    const deposit = await buildDeposit(hubPoolClient, spokePool_1, erc20_1, depositor, destinationChainId);
+
+    deposit.realizedLpFeePct = (deposit.realizedLpFeePct ?? bnZero).add(bnOne);
+    const fill = await buildFill(spokePool_2, erc20_2, depositor, relayer, deposit, 1);
+
+    await Promise.all([spokePoolClient1.update(), spokePoolClient2.update()]);
+
+    const search = await queryHistoricalDepositForFill(spokePoolClient1, fill);
+    assert(search.found === false, "Test is broken"); // Help tsc to narrow the discriminated union.
+    expect(search.code).to.equal(InvalidFill.FillMismatch);
   });
 
   it("Returns sped up deposit matched with fill", async function () {
