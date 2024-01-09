@@ -1,5 +1,4 @@
 import { ethers } from "ethers";
-import { ChainId } from "../transfers-history/adapters/web3/model";
 import {
   CoingeckoDataReturnType,
   SuggestedFeeReturnType,
@@ -67,8 +66,8 @@ export default abstract class AbstractApiClient {
   public abstract getSuggestedFees(
     amount: ethers.BigNumber,
     originToken: string,
-    toChainid: ChainId,
-    fromChainid: ChainId
+    toChainid: number,
+    fromChainid: number
   ): Promise<SuggestedFeeReturnType>;
 
   /**
@@ -83,8 +82,8 @@ export default abstract class AbstractApiClient {
    */
   public abstract getBridgeLimits(
     token: string,
-    fromChainId: string | ChainId,
-    toChainId: string | ChainId
+    fromnumber: string | number,
+    tonumber: string | number
   ): Promise<BridgeLimitsReturnType>;
 
   /**
