@@ -221,8 +221,8 @@ export class RelayFeeCalculator {
     relayerAddress = DEFAULT_SIMULATED_RELAYER_ADDRESS,
     _tokenPrice?: number
   ): Promise<BigNumber> {
-    const tokenInformation = getTokenInformationFromAddress(deposit.originToken);
-    if (!isDefined(tokenInformation)) {
+    const token = getTokenInformationFromAddress(deposit.originToken);
+    if (!isDefined(token)) {
       throw new Error(`Could not find token information for ${deposit.originToken}`);
     }
 
@@ -247,7 +247,7 @@ export class RelayFeeCalculator {
         });
         throw error;
       });
-    const getTokenPrice = this.queries.getTokenPrice(tokenInformation.symbol).catch((error) => {
+    const getTokenPrice = this.queries.getTokenPrice(token.symbol).catch((error) => {
       this.logger.error({
         at: "sdk-v2/gasFeePercent",
         message: "Error while fetching token price",
@@ -261,8 +261,7 @@ export class RelayFeeCalculator {
       getGasCosts,
       _tokenPrice !== undefined ? _tokenPrice : getTokenPrice,
     ]);
-    const decimals = this.queries.getTokenDecimals(tokenInformation.symbol);
-    const gasFeesInToken = nativeToToken(tokenGasCost, tokenPrice, decimals, this.nativeTokenDecimals);
+    const gasFeesInToken = nativeToToken(tokenGasCost, tokenPrice, token.decimals, this.nativeTokenDecimals);
     return percent(gasFeesInToken, amountToRelay.toString());
   }
 
