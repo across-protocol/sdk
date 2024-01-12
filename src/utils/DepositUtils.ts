@@ -113,7 +113,7 @@ export async function queryHistoricalDepositForFill(
     }
   }
 
-  const match = validateFillForDeposit(fill, deposit)
+  const match = validateFillForDeposit(fill, deposit);
   if (match.valid) {
     return { found: true, deposit };
   }
