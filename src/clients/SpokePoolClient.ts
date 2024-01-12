@@ -335,10 +335,21 @@ export class SpokePoolClient extends BaseAbstractClient {
    * @returns The corresponding deposit if found, undefined otherwise.
    */
   public getDepositForFill(fill: Fill, fillFieldsToIgnore: string[] = []): DepositWithBlock | undefined {
-    const depositWithMatchingDepositId = this.depositHashes[this.getDepositHash(fill)];
-    return validateFillForDeposit(fill, depositWithMatchingDepositId, fillFieldsToIgnore)
-      ? depositWithMatchingDepositId
-      : undefined;
+    const deposit = this.depositHashes[this.getDepositHash(fill)];
+    const match = validateFillForDeposit(fill, deposit, fillFieldsToIgnore);
+    if (match.valid) {
+      return deposit;
+    }
+
+    const originChain = getNetworkName(fill.originChainId);
+    this.logger.debug({
+      at: "SpokePoolClient::getDepositForFill",
+      message: `Rejected fill for ${originChain} deposit ${fill.depositId}.`,
+      reason: match.reason,
+      deposit,
+      fill
+    });
+    return undefined;
   }
 
   /**
@@ -376,7 +387,7 @@ export class SpokePoolClient extends BaseAbstractClient {
 
     const { validFills, invalidFills } = fillsForDeposit.reduce(
       (groupedFills: { validFills: Fill[]; invalidFills: Fill[] }, fill: Fill) => {
-        if (validateFillForDeposit(fill, deposit)) {
+        if (validateFillForDeposit(fill, deposit).valid) {
           groupedFills.validFills.push(fill);
         } else {
           groupedFills.invalidFills.push(fill);
@@ -481,7 +492,7 @@ export class SpokePoolClient extends BaseAbstractClient {
       maxBlockLookBack: this.eventSearchConfig.maxBlockLookBack,
     };
     return (await this.queryFillsInBlockRange(fill, searchConfig)).filter((_fill) =>
-      validateFillForDeposit(_fill, deposit)
+      validateFillForDeposit(_fill, deposit).valid
     );
   }
 

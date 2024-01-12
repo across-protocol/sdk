@@ -134,13 +134,12 @@ describe("SpokePoolClient: Fill Validation", function () {
 
     // Some fields are expected to be dynamically populated by the client, but aren't in this environment.
     // Fill them in manually from the fill struct to get a valid comparison.
-    expect(
-      validateFillForDeposit(fill_1, {
-        ...deposit_1,
-        realizedLpFeePct: fill_1.realizedLpFeePct,
-        destinationToken: fill_1.destinationToken,
-      })
-    ).to.equal(true);
+    const fill_2 = {
+      ...deposit_1,
+      realizedLpFeePct: fill_1.realizedLpFeePct,
+      destinationToken: fill_1.destinationToken,
+    };
+    expect(validateFillForDeposit(fill_1, fill_2).valid).to.equal(true);
   });
 
   it("Returns deposit matched with fill", async function () {
@@ -608,19 +607,19 @@ describe("SpokePoolClient: Fill Validation", function () {
     };
 
     // Invalid Amount.
-    expect(validateFillForDeposit({ ...validFill, amount: toBNWei(1337) }, validDeposit)).to.be.false;
+    expect(validateFillForDeposit({ ...validFill, amount: toBNWei(1337) }, validDeposit).valid).to.be.false;
 
     // Invalid depositId.
-    expect(validateFillForDeposit({ ...validFill, depositId: 1337 }, validDeposit)).to.be.false;
+    expect(validateFillForDeposit({ ...validFill, depositId: 1337 }, validDeposit).valid).to.be.false;
 
     // Changed the depositor.
-    expect(validateFillForDeposit({ ...validFill, depositor: relayer.address }, validDeposit)).to.be.false;
+    expect(validateFillForDeposit({ ...validFill, depositor: relayer.address }, validDeposit).valid).to.be.false;
 
     // Changed the recipient.
-    expect(validateFillForDeposit({ ...validFill, recipient: relayer.address }, validDeposit)).to.be.false;
+    expect(validateFillForDeposit({ ...validFill, recipient: relayer.address }, validDeposit).valid).to.be.false;
 
     // Changed the relayerFeePct.
-    expect(validateFillForDeposit({ ...validFill, relayerFeePct: toBNWei(1337) }, validDeposit)).to.be.false;
+    expect(validateFillForDeposit({ ...validFill, relayerFeePct: toBNWei(1337) }, validDeposit).valid).to.be.false;
 
     // Validate the realizedLPFeePct and destinationToken matches. These values are optional in the deposit object and
     // are assigned during the update method, which is not polled in this set of tests.
@@ -631,19 +630,19 @@ describe("SpokePoolClient: Fill Validation", function () {
       validateFillForDeposit(validFill, {
         ...validDeposit,
         realizedLpFeePct: validFill.realizedLpFeePct,
-      })
+      }).valid
     ).to.be.true;
 
     expect(
       validateFillForDeposit(validFill, {
         ...validDeposit,
         realizedLpFeePct: validFill.realizedLpFeePct.add(toBNWei("0.1")),
-      })
+      }).valid
     ).to.be.false;
 
     // Assign a destinationToken to the deposit and ensure it is validated correctly. erc20_2 from the fillRelay method
     // above is the destination token. After, try changing this to something that is clearly wrong.
-    expect(validateFillForDeposit(validFill, { ...validDeposit, destinationToken: erc20_2.address })).to.be.true;
-    expect(validateFillForDeposit(validFill, { ...validDeposit, destinationToken: owner.address })).to.be.false;
+    expect(validateFillForDeposit(validFill, { ...validDeposit, destinationToken: erc20_2.address }).valid).to.be.true;
+    expect(validateFillForDeposit(validFill, { ...validDeposit, destinationToken: owner.address }).valid).to.be.false;
   });
 });
