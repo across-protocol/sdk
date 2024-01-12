@@ -133,7 +133,7 @@ describe("SpokePoolClient: Fill Validation", function () {
     const [fill_1] = spokePoolClient2.getFills();
 
     // Some fields are expected to be dynamically populated by the client, but aren't in this environment.
-    // Fill them in manually from the fill struct to get a valid comparison.
+    // Populate them manually from the fill struct to get a valid comparison.
     const fill_2 = {
       ...deposit_1,
       realizedLpFeePct: fill_1.realizedLpFeePct,
