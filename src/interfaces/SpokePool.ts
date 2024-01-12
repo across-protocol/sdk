@@ -1,9 +1,9 @@
 import { BigNumber } from "ethers";
 import { SortableEvent } from "./Common";
-import { FilledRelayEvent, FilledV3RelayEvent, FundsDepositedEvent, V3FundsDepositedEvent } from "../typechain";
+import { FundsDepositedEvent, V3FundsDepositedEvent } from "../typechain";
 import { SpokePoolClient } from "../clients";
 
-export type { FilledRelayEvent, FilledV3RelayEvent, FundsDepositedEvent, V3FundsDepositedEvent };
+export type { FundsDepositedEvent, V3FundsDepositedEvent };
 
 export interface RelayDataCommon {
   originChainId: number;
