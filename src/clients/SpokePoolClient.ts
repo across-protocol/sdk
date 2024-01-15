@@ -1,5 +1,5 @@
 import assert from "assert";
-import { BigNumber, Contract, Event, EventFilter, ethers } from "ethers";
+import { BigNumber, Contract, Event, EventFilter, ethers, providers } from "ethers";
 import { groupBy } from "lodash";
 import winston from "winston";
 import {
@@ -10,11 +10,13 @@ import {
   MAX_BIG_INT,
   MakeOptional,
   assign,
-  getFillOutputAmount,
+  getFillAmount,
   getTotalFilledAmount,
   isDefined,
   isV2Deposit,
   isV2SpeedUp,
+  mapAsync,
+  stringifyJSONWithNumericString,
   toBN,
 } from "../utils";
 import {
@@ -30,16 +32,23 @@ import { ZERO_ADDRESS } from "../constants";
 import {
   Deposit,
   DepositWithBlock,
+  DepositWithBlockStringified,
   Fill,
   FillWithBlock,
+  FillWithBlockStringified,
   FundsDepositedEvent,
+  FundsDepositedEventStringified,
   RealizedLpFee,
+  RefundRequestWithBlock,
+  RefundRequestWithBlockStringified,
   RelayerRefundExecutionWithBlock,
+  RelayerRefundExecutionWithBlockStringified,
   RootBundleRelayWithBlock,
   SpeedUp,
+  SpeedUpStringified,
   TokensBridged,
-  V2DepositWithBlock,
-  V2SpeedUp,
+  TokensBridgedStringified,
+  v2SpeedUp,
 } from "../interfaces";
 import { SpokePool } from "../typechain";
 import { getNetworkName } from "../utils/NetworkUtils";
@@ -47,13 +56,16 @@ import { getBlockRangeForDepositId, getDepositIdAtBlock } from "../utils/SpokeUt
 import { BaseAbstractClient } from "./BaseAbstractClient";
 import { HubPoolClient } from "./HubPoolClient";
 
+type Block = providers.Block;
+
 type _SpokePoolUpdate = {
   success: boolean;
   currentTime: number;
-  oldestTime: number;
   firstDepositId: number;
   latestDepositId: number;
   events: Event[][];
+  // Blocks are only used if the UBA is active and events need to be ordered by blockTimestamp
+  blocks?: { [blockNumber: number]: Block };
   searchEndBlock: number;
 };
 export type SpokePoolUpdate = { success: false } | _SpokePoolUpdate;
@@ -64,7 +76,6 @@ export type SpokePoolUpdate = { success: false } | _SpokePoolUpdate;
  */
 export class SpokePoolClient extends BaseAbstractClient {
   protected currentTime = 0;
-  protected oldestTime = 0;
   protected depositHashes: { [depositHash: string]: DepositWithBlock } = {};
   protected depositHashesToFills: { [depositHash: string]: FillWithBlock[] } = {};
   protected speedUps: { [depositorAddress: string]: { [depositId: number]: SpeedUp[] } } = {};
@@ -79,6 +90,7 @@ export class SpokePoolClient extends BaseAbstractClient {
   public firstDepositIdForSpokePool = Number.MAX_SAFE_INTEGER;
   public lastDepositIdForSpokePool = Number.MAX_SAFE_INTEGER;
   public fills: { [OriginChainId: number]: FillWithBlock[] } = {};
+  public refundRequests: RefundRequestWithBlock[] = [];
 
   /**
    * Creates a new SpokePoolClient.
@@ -109,6 +121,7 @@ export class SpokePoolClient extends BaseAbstractClient {
       FundsDeposited: this.spokePool.filters.FundsDeposited(),
       RequestedSpeedUpDeposit: this.spokePool.filters.RequestedSpeedUpDeposit(),
       FilledRelay: this.spokePool.filters.FilledRelay(),
+      RefundRequested: this.spokePool.filters.RefundRequested(),
       EnabledDepositRoute: this.spokePool.filters.EnabledDepositRoute(),
       TokensBridged: this.spokePool.filters.TokensBridged(),
       RelayedRootBundle: this.spokePool.filters.RelayedRootBundle(),
@@ -211,6 +224,18 @@ export class SpokePoolClient extends BaseAbstractClient {
   }
 
   /**
+   * Retrieves a list of refund requests from the SpokePool contract that are within an optional block range.
+   * @param fromBlock The starting block number. If not provided, requests will not be filtered by any bounds.
+   * @param toBlock The ending block number. If not provided, requests will not be filtered by any bounds.
+   * @returns A list of refund requests.
+   */
+  public getRefundRequests(fromBlock?: number, toBlock?: number): RefundRequestWithBlock[] {
+    return fromBlock === undefined || toBlock === undefined || isNaN(fromBlock) || isNaN(toBlock)
+      ? this.refundRequests
+      : this.refundRequests.filter((request) => request.blockNumber >= fromBlock && request.blockNumber <= toBlock);
+  }
+
+  /**
    * Retrieves a list of root bundle relays from the SpokePool contract.
    * @returns A list of root bundle relays.
    */
@@ -279,13 +304,11 @@ export class SpokePoolClient extends BaseAbstractClient {
    * @returns A new deposit instance with the speed up signature appended to the deposit.
    */
   public appendMaxSpeedUpSignatureToDeposit(deposit: DepositWithBlock): DepositWithBlock {
-    const { depositId, depositor } = deposit;
-
     if (isV2Deposit(deposit)) {
-      const v2SpeedUps = this.speedUps[depositor]?.[depositId]?.filter(isV2SpeedUp);
-      const maxSpeedUp = v2SpeedUps?.reduce(
+      const v2SpeedUps = this.speedUps[deposit.depositor]?.[deposit.depositId]?.filter(() => isV2SpeedUp);
+      const maxSpeedUp = (v2SpeedUps ?? []).reduce(
         (prev, current) => (prev.newRelayerFeePct.gt(current.newRelayerFeePct) ? prev : current),
-        { newRelayerFeePct: deposit.relayerFeePct } as V2SpeedUp
+        { newRelayerFeePct: deposit.relayerFeePct } as v2SpeedUp
       );
 
       // We assume that the depositor authorises SpeedUps in isolation of each other, which keeps the relayer
@@ -295,15 +318,13 @@ export class SpokePoolClient extends BaseAbstractClient {
       }
 
       // Return deposit with updated params from the speedup with the highest updated relayer fee pct.
-      const updatedDeposit: V2DepositWithBlock = {
+      return {
         ...deposit,
         speedUpSignature: maxSpeedUp.depositorSignature,
         newRelayerFeePct: maxSpeedUp.newRelayerFeePct,
         updatedRecipient: maxSpeedUp.updatedRecipient,
         updatedMessage: maxSpeedUp.updatedMessage,
       };
-
-      return updatedDeposit;
     }
     assert(false); // v3 is coming.
   }
@@ -385,7 +406,6 @@ export class SpokePoolClient extends BaseAbstractClient {
         message: "Invalid fills found matching deposit ID",
         deposit,
         invalidFills: Object.fromEntries(invalidFillsForDeposit.map((x) => [x.relayer, x])),
-        notificationPath: "across-invalid-fills",
       });
     }
 
@@ -404,7 +424,7 @@ export class SpokePoolClient extends BaseAbstractClient {
 
     const lastFill = fillsOrderedByTotalFilledAmount[0];
     return {
-      unfilledAmount: getFillOutputAmount(lastFill).sub(getTotalFilledAmount(lastFill)),
+      unfilledAmount: getFillAmount(lastFill).sub(getTotalFilledAmount(lastFill)),
       fillCount: validFills.length,
       invalidFills,
     };
@@ -511,27 +531,6 @@ export class SpokePoolClient extends BaseAbstractClient {
   }
 
   /**
-   * @notice Return maximum of fill deadline buffer at start and end of block range. This is a contract
-   * immutable state variable so we can't query other events to find its updates.
-   * @dev V3 deposits have a fill deadline which can be set to a maximum of fillDeadlineBuffer + deposit.block.timestamp.
-   * Therefore, we cannot evaluate a block range for expired deposits if the spoke pool client doesn't return us
-   * deposits whose block.timestamp is within fillDeadlineBuffer of the end block time. As a conservative check,
-   * we verify that the time between the end block timestamp and the first timestamp queried by the
-   * spoke pool client is greater than the maximum of the fill deadline buffers at the start and end of the block
-   * range. We assume the fill deadline buffer wasn't changed more than once within a bundle.
-   * @param startBlock start block
-   * @param endBlock end block
-   * @returns maximum of fill deadline buffer at start and end block
-   */
-  public async getMaxFillDeadlineInRange(startBlock: number, endBlock: number): Promise<number> {
-    const fillDeadlineBuffers: number[] = await Promise.all([
-      this.spokePool.fillDeadlineBuffer({ blockTag: startBlock }),
-      this.spokePool.fillDeadlineBuffer({ blockTag: endBlock }),
-    ]);
-    return Math.max(fillDeadlineBuffers[0], fillDeadlineBuffers[1]);
-  }
-
-  /**
    * Performs an update to refresh the state of this client. This will query the SpokePool contract for new events
    * and store them in memory. This method is the primary method for updating the state of this client.
    * @param eventsToQuery An optional list of events to query. If not provided, all events will be queried.
@@ -584,10 +583,9 @@ export class SpokePoolClient extends BaseAbstractClient {
     });
 
     const timerStart = Date.now();
-    const [numberOfDeposits, currentTime, oldestTime, ...events] = await Promise.all([
+    const [numberOfDeposits, currentTime, ...events] = await Promise.all([
       this.spokePool.numberOfDeposits({ blockTag: searchConfig.toBlock }),
       this.spokePool.getCurrentTime({ blockTag: searchConfig.toBlock }),
-      this.spokePool.getCurrentTime({ blockTag: Math.max(searchConfig.fromBlock, this.deploymentBlock) }),
       ...eventSearchConfigs.map((config) => paginatedEventQuery(this.spokePool, config.filter, config.searchConfig)),
     ]);
     this.log("debug", `Time to query new events from RPC for ${this.chainId}: ${Date.now() - timerStart} ms`);
@@ -602,14 +600,40 @@ export class SpokePoolClient extends BaseAbstractClient {
     // Sort all events to ensure they are stored in a consistent order.
     events.forEach((events: Event[]) => sortEventsAscendingInPlace(events));
 
+    // Load block timestamps if the UBA is active so that the UBAClient can order events using blockTimestamp.
+    // Otherwise skip these extra RPC calls.
+    let blocks: { [blockNumber: number]: Block } | undefined = undefined;
+    const isUBAActivated = isDefined(this.hubPoolClient?.configStoreClient.getUBAActivationBlock());
+    if (isUBAActivated) {
+      // Collate the relevant set of block numbers and filter for uniqueness, then query each corresponding block.
+      const blockNumbers = Array.from(
+        new Set(
+          ["FundsDeposited", "FilledRelay", "RefundRequested"]
+            .filter((eventName) => eventsToQuery.includes(eventName))
+            .map((eventName) => {
+              const idx = eventsToQuery.indexOf(eventName);
+              // tsc needs type hints on this map...
+              return (events[idx] as Event[]).map(({ blockNumber }) => blockNumber);
+            })
+            .flat()
+        )
+      );
+      blocks = Object.fromEntries(
+        await mapAsync(blockNumbers, async (blockNumber) => {
+          const block = await this.spokePool.provider.getBlock(blockNumber);
+          return [blockNumber, block];
+        })
+      );
+    }
+
     return {
       success: true,
       currentTime: currentTime.toNumber(), // uint32
-      oldestTime: oldestTime.toNumber(),
       firstDepositId,
       latestDepositId: Math.max(numberOfDeposits - 1, 0),
       searchEndBlock: searchConfig.toBlock,
       events,
+      blocks,
     };
   }
 
@@ -637,7 +661,7 @@ export class SpokePoolClient extends BaseAbstractClient {
       // understand why we see this in test. @todo: Resolve.
       return;
     }
-    const { events: queryResults, currentTime, oldestTime, searchEndBlock } = update;
+    const { events: queryResults, blocks, currentTime, searchEndBlock } = update;
 
     if (eventsToQuery.includes("TokensBridged")) {
       for (const event of queryResults[eventsToQuery.indexOf("TokensBridged")]) {
@@ -690,7 +714,13 @@ export class SpokePoolClient extends BaseAbstractClient {
           realizedLpFeePct: dataForQuoteTime[index].realizedLpFeePct,
           destinationToken: this.getDestinationTokenForDeposit(rawDeposit),
           quoteBlockNumber: dataForQuoteTime[index].quoteBlock,
+          blockTimestamp: 0,
         };
+        // Override the default blockTimestamp of 0 only if the UBA is active and we have pre-queried block times
+        // for each event.
+        if (isDefined(blocks)) {
+          deposit.blockTimestamp = blocks[event.blockNumber]?.timestamp ?? (await event.getBlock()).timestamp;
+        }
 
         assign(this.depositHashes, [this.getDepositHash(deposit)], deposit);
 
@@ -739,10 +769,42 @@ export class SpokePoolClient extends BaseAbstractClient {
         const rawFill = spreadEventWithBlockNumber(event) as FillWithBlock;
         const fill: FillWithBlock = {
           ...rawFill,
+          blockTimestamp: 0,
         };
-
+        // Override the default blockTimestamp of 0 only if the UBA is active and we have pre-queried block times
+        // for each event.
+        if (isDefined(blocks)) {
+          fill.blockTimestamp = blocks[event.blockNumber].timestamp;
+        }
         assign(this.fills, [fill.originChainId], [fill]);
         assign(this.depositHashesToFills, [this.getDepositHash(fill)], [fill]);
+      }
+    }
+
+    // @note: In Across 2.5, callers will simultaneously request [FundsDeposited, FilledRelay, RefundsRequested].
+    // The list of events is always pre-sorted, so rather than splitting them out individually, it might make sense to
+    // evaluate them as a single group, to avoid having to re-merge and sequence again afterwards.
+    if (eventsToQuery.includes("RefundRequested")) {
+      const refundRequests = queryResults[eventsToQuery.indexOf("RefundRequested")];
+
+      if (refundRequests.length > 0) {
+        this.log("debug", `Found ${refundRequests.length} new relayer refund requests on chain ${this.chainId}`, {
+          earliestEvent: refundRequests[0].blockNumber,
+        });
+      }
+      for (const event of refundRequests) {
+        const rawRefundRequest = spreadEventWithBlockNumber(event) as RefundRequestWithBlock;
+        const refundRequest: RefundRequestWithBlock = {
+          ...rawRefundRequest,
+          repaymentChainId: this.chainId, // repaymentChainId is not part of the on-chain event, so add it here.
+          blockTimestamp: 0,
+        };
+        // Override the default blockTimestamp of 0 only if the UBA is active and we have pre-queried block times
+        // for each event.
+        if (isDefined(blocks)) {
+          refundRequest.blockTimestamp = blocks[event.blockNumber].timestamp;
+        }
+        this.refundRequests.push(refundRequest);
       }
     }
 
@@ -780,7 +842,6 @@ export class SpokePoolClient extends BaseAbstractClient {
 
     // Next iteration should start off from where this one ended.
     this.currentTime = currentTime;
-    if (this.oldestTime === 0) this.oldestTime = oldestTime; // Set oldest time only after the first update.
     this.firstDepositIdForSpokePool = update.firstDepositId;
     this.latestBlockSearched = searchEndBlock;
     this.lastDepositIdForSpokePool = update.latestDepositId;
@@ -883,18 +944,10 @@ export class SpokePoolClient extends BaseAbstractClient {
 
   /**
    * Retrieves the current time from the SpokePool contract.
-   * @returns The current time, which will be 0 if there has been no update() yet.
+   * @returns The current time.
    */
   public getCurrentTime(): number {
     return this.currentTime;
-  }
-
-  /**
-   * Retrieves the oldest time searched on the SpokePool contract.
-   * @returns The oldest time searched, which will be 0 if there has been no update() yet.
-   */
-  public getOldestTime(): number {
-    return this.oldestTime;
   }
 
   /**
@@ -975,5 +1028,157 @@ export class SpokePoolClient extends BaseAbstractClient {
     });
 
     return deposit;
+  }
+
+  public updateFromJSON(spokePoolClientState: Partial<ReturnType<SpokePoolClient["toJSON"]>>) {
+    const keysToUpdate = Object.keys(spokePoolClientState);
+
+    this.logger.debug({
+      at: "SpokePoolClient",
+      message: "Updating SpokePool client from JSON",
+      keys: keysToUpdate,
+    });
+
+    if (keysToUpdate.length === 0) {
+      return;
+    }
+
+    this.currentTime = spokePoolClientState.currentTime || this.currentTime;
+    this.depositHashes = Object.entries(spokePoolClientState.depositHashes || {}).reduce(
+      (acc, [hash, deposit]) => ({
+        ...acc,
+        [hash]: {
+          ...deposit,
+          amount: BigNumber.from(deposit.amount),
+          relayerFeePct: BigNumber.from(deposit.relayerFeePct),
+          realizedLpFeePct: deposit.relayerFeePct ? BigNumber.from(deposit.realizedLpFeePct) : undefined,
+          newRelayerFeePct: deposit.newRelayerFeePct ? BigNumber.from(deposit.newRelayerFeePct) : undefined,
+        },
+      }),
+      {} as Record<string, DepositWithBlock>
+    );
+    this.depositHashesToFills = Object.entries(spokePoolClientState.depositHashesToFills || {}).reduce(
+      (acc, [hash, fills]) => ({
+        ...acc,
+        [hash]: fills.map((fill) => ({
+          ...fill,
+          amount: BigNumber.from(fill.amount),
+          totalFilledAmount: BigNumber.from(fill.totalFilledAmount),
+          fillAmount: BigNumber.from(fill.fillAmount),
+          relayerFeePct: BigNumber.from(fill.relayerFeePct),
+          realizedLpFeePct: BigNumber.from(fill.realizedLpFeePct),
+          updatableRelayData: {
+            ...fill.updatableRelayData,
+            relayerFeePct: BigNumber.from(fill.updatableRelayData.relayerFeePct),
+            payoutAdjustmentPct: BigNumber.from(fill.updatableRelayData.payoutAdjustmentPct),
+          },
+        })),
+      }),
+      {} as Record<string, FillWithBlock[]>
+    );
+    this.speedUps = Object.entries(spokePoolClientState.speedUps || {}).reduce((acc, [depositor, speedUpsMap]) => {
+      const speedUps = Object.entries(speedUpsMap).reduce(
+        (acc, [depositId, speedUps]) => ({
+          ...acc,
+          [depositId]: speedUps.map((speedUp) => ({
+            ...speedUp,
+            newRelayerFeePct: BigNumber.from(speedUp.newRelayerFeePct),
+          })),
+        }),
+        {} as Record<string, SpeedUp[]>
+      );
+      return { ...acc, [depositor]: speedUps };
+    }, {});
+    this.depositRoutes = spokePoolClientState.depositRoutes || {};
+    this.tokensBridged = (spokePoolClientState.tokensBridged || []).map((tokenBridged) => ({
+      ...tokenBridged,
+      amountToReturn: BigNumber.from(tokenBridged.amountToReturn),
+    }));
+    this.rootBundleRelays = spokePoolClientState.rootBundleRelays || [];
+    this.relayerRefundExecutions = (spokePoolClientState.relayerRefundExecutions || []).map((refundExecution) => ({
+      ...refundExecution,
+      amountToReturn: BigNumber.from(refundExecution.amountToReturn),
+      refundAmounts: refundExecution.refundAmounts.map((refundAmount) => BigNumber.from(refundAmount)),
+    }));
+    this.earlyDeposits = (spokePoolClientState.earlyDeposits || []).map((deposit) => ({
+      ...deposit,
+      amount: BigNumber.from(deposit.amount),
+      originChainId: BigNumber.from(deposit.originChainId),
+      destinationChainId: BigNumber.from(deposit.destinationChainId),
+      relayerFeePct: BigNumber.from(deposit.relayerFeePct),
+    }));
+    this.queryableEventNames = spokePoolClientState.queryableEventNames || this.queryableEventNames;
+    this.earliestDepositIdQueried = spokePoolClientState.earliestDepositIdQueried || this.earliestDepositIdQueried;
+    this.latestDepositIdQueried = spokePoolClientState.latestDepositIdQueried || this.latestDepositIdQueried;
+    this.firstBlockToSearch = spokePoolClientState.firstBlockToSearch || this.firstBlockToSearch;
+    this.fills = Object.entries(spokePoolClientState.fills || []).reduce(
+      (acc, [chainId, fills]) => ({
+        ...acc,
+        [chainId]: fills.map((fill) => ({
+          ...fill,
+          amount: BigNumber.from(fill.amount),
+          totalFilledAmount: BigNumber.from(fill.totalFilledAmount),
+          fillAmount: BigNumber.from(fill.fillAmount),
+          relayerFeePct: BigNumber.from(fill.relayerFeePct),
+          realizedLpFeePct: BigNumber.from(fill.realizedLpFeePct),
+          updatableRelayData: {
+            ...fill.updatableRelayData,
+            relayerFeePct: BigNumber.from(fill.updatableRelayData.relayerFeePct),
+            payoutAdjustmentPct: BigNumber.from(fill.updatableRelayData.payoutAdjustmentPct),
+          },
+        })),
+      }),
+      {}
+    );
+    this.refundRequests = (spokePoolClientState.refundRequests || []).map((refundRequest) => ({
+      ...refundRequest,
+      amount: BigNumber.from(refundRequest.amount),
+      realizedLpFeePct: BigNumber.from(refundRequest.realizedLpFeePct),
+      previousIdenticalRequests: BigNumber.from(refundRequest.previousIdenticalRequests),
+      fillBlock: BigNumber.from(refundRequest.fillBlock),
+    }));
+    this.isUpdated = true;
+  }
+
+  public toJSON() {
+    return {
+      chainId: this.chainId,
+      deploymentBlock: this.deploymentBlock,
+      eventSearchConfig: this.eventSearchConfig,
+
+      currentTime: this.currentTime,
+      depositHashes: JSON.parse(stringifyJSONWithNumericString(this.depositHashes)) as Record<
+        string,
+        DepositWithBlockStringified
+      >,
+      depositHashesToFills: JSON.parse(stringifyJSONWithNumericString(this.depositHashesToFills)) as Record<
+        string,
+        FillWithBlockStringified[]
+      >,
+      speedUps: JSON.parse(stringifyJSONWithNumericString(this.speedUps)) as {
+        [depositorAddress: string]: {
+          [depositId: number]: SpeedUpStringified[];
+        };
+      },
+      depositRoutes: this.depositRoutes,
+      tokensBridged: JSON.parse(stringifyJSONWithNumericString(this.tokensBridged)) as TokensBridgedStringified[],
+      rootBundleRelays: this.rootBundleRelays,
+      relayerRefundExecutions: JSON.parse(
+        stringifyJSONWithNumericString(this.relayerRefundExecutions)
+      ) as RelayerRefundExecutionWithBlockStringified[],
+      earlyDeposits: JSON.parse(stringifyJSONWithNumericString(this.earlyDeposits)) as FundsDepositedEventStringified[],
+      queryableEventNames: this.queryableEventNames,
+
+      earliestDepositIdQueried: this.earliestDepositIdQueried,
+      earliestDepositIdForSpokePool: this.firstDepositIdForSpokePool,
+      latestDepositIdQueried: this.latestDepositIdQueried,
+      latestDepositIdForSpokePool: this.lastDepositIdForSpokePool,
+      firstBlockToSearch: this.firstBlockToSearch,
+      isUpdated: this.isUpdated,
+      fills: JSON.parse(stringifyJSONWithNumericString(this.fills)) as Record<string, FillWithBlockStringified[]>,
+      refundRequests: JSON.parse(
+        stringifyJSONWithNumericString(this.refundRequests)
+      ) as RefundRequestWithBlockStringified[],
+    };
   }
 }
