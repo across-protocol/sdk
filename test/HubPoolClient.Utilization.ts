@@ -115,15 +115,13 @@ describe("HubPool Utilization", function () {
     // so the fee should reflect a 10% post deposit utilization.
     const depositData = {
       depositId: 0,
-      depositor: owner.address,
-      recipient: owner.address,
-      originToken: l2Token.address,
-      destinationToken: l1Token.address,
-      realizedLpFeePct: toBN(0),
-      amount: amountToLp.div(10),
       originChainId,
       destinationChainId: repaymentChainId,
-      relayerFeePct: toBN(0),
+      depositor: owner.address,
+      recipient: owner.address,
+      inputToken: l2Token.address,
+      inputAmount: amountToLp.div(10),
+      outputToken: l1Token.address,
       quoteTimestamp: initialRateModelUpdateTime,
       blockNumber: initialRateModelUpdate.blockNumber,
       // Quote time needs to be >= first rate model event time
@@ -157,7 +155,7 @@ describe("HubPool Utilization", function () {
       (
         await hubPoolClient.computeRealizedLpFeePct({
           ...depositData,
-          amount: toBNWei("0.0000001"),
+          inputAmount: toBNWei("0.0000001"),
           // Note: we need to set the deposit quote timestamp to one after the utilisation % jumped from 0% to 10%.
           // This is because the rate model uses the quote time to fetch the liquidity utilization at that quote time.
           quoteTimestamp: (await ethers.provider.getBlock("latest")).timestamp,
