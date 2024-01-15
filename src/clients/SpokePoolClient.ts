@@ -1,3 +1,4 @@
+import assert from "assert";
 import { BigNumber, Contract, Event, EventFilter, ethers, providers } from "ethers";
 import { groupBy } from "lodash";
 import winston from "winston";
@@ -9,7 +10,11 @@ import {
   MAX_BIG_INT,
   MakeOptional,
   assign,
+  getFillAmount,
+  getTotalFilledAmount,
   isDefined,
+  isV2Deposit,
+  isV2SpeedUp,
   mapAsync,
   stringifyJSONWithNumericString,
   toBN,
@@ -43,6 +48,7 @@ import {
   SpeedUpStringified,
   TokensBridged,
   TokensBridgedStringified,
+  v2SpeedUp,
 } from "../interfaces";
 import { SpokePool } from "../typechain";
 import { getNetworkName } from "../utils/NetworkUtils";
@@ -298,24 +304,29 @@ export class SpokePoolClient extends BaseAbstractClient {
    * @returns A new deposit instance with the speed up signature appended to the deposit.
    */
   public appendMaxSpeedUpSignatureToDeposit(deposit: DepositWithBlock): DepositWithBlock {
-    const maxSpeedUp = this.speedUps[deposit.depositor]?.[deposit.depositId]?.reduce((prev, current) =>
-      prev.newRelayerFeePct.gt(current.newRelayerFeePct) ? prev : current
-    );
+    if (isV2Deposit(deposit)) {
+      const v2SpeedUps = this.speedUps[deposit.depositor]?.[deposit.depositId]?.filter(() => isV2SpeedUp);
+      const maxSpeedUp = (v2SpeedUps ?? []).reduce(
+        (prev, current) => (prev.newRelayerFeePct.gt(current.newRelayerFeePct) ? prev : current),
+        { newRelayerFeePct: deposit.relayerFeePct } as v2SpeedUp
+      );
 
-    // We assume that the depositor authorises SpeedUps in isolation of each other, which keeps the relayer
-    // logic simple: find the SpeedUp with the highest relayerFeePct, and use all of its fields
-    if (!maxSpeedUp || maxSpeedUp.newRelayerFeePct.lte(deposit.relayerFeePct)) {
-      return deposit;
+      // We assume that the depositor authorises SpeedUps in isolation of each other, which keeps the relayer
+      // logic simple: find the SpeedUp with the highest relayerFeePct, and use all of its fields
+      if (!maxSpeedUp || maxSpeedUp.newRelayerFeePct.lte(deposit.relayerFeePct)) {
+        return deposit;
+      }
+
+      // Return deposit with updated params from the speedup with the highest updated relayer fee pct.
+      return {
+        ...deposit,
+        speedUpSignature: maxSpeedUp.depositorSignature,
+        newRelayerFeePct: maxSpeedUp.newRelayerFeePct,
+        updatedRecipient: maxSpeedUp.updatedRecipient,
+        updatedMessage: maxSpeedUp.updatedMessage,
+      };
     }
-
-    // Return deposit with updated params from the speedup with the highest updated relayer fee pct.
-    return {
-      ...deposit,
-      speedUpSignature: maxSpeedUp.depositorSignature,
-      newRelayerFeePct: maxSpeedUp.newRelayerFeePct,
-      updatedRecipient: maxSpeedUp.updatedRecipient,
-      updatedMessage: maxSpeedUp.updatedMessage,
-    };
+    assert(false); // v3 is coming.
   }
 
   /**
@@ -404,17 +415,16 @@ export class SpokePoolClient extends BaseAbstractClient {
     }
 
     // Order fills by totalFilledAmount and then return the first fill's full deposit amount minus total filled amount.
-    const fillsOrderedByTotalFilledAmount = validFills.sort((fillA, fillB) =>
-      fillB.totalFilledAmount.gt(fillA.totalFilledAmount)
-        ? 1
-        : fillB.totalFilledAmount.lt(fillA.totalFilledAmount)
-        ? -1
-        : 0
-    );
+    const fillsOrderedByTotalFilledAmount = validFills.sort((fillA, fillB) => {
+      const totalFilledA = getTotalFilledAmount(fillA);
+      const totalFilledB = getTotalFilledAmount(fillB);
+
+      return totalFilledB.gt(totalFilledA) ? 1 : totalFilledB.lt(totalFilledA) ? -1 : 0;
+    });
 
     const lastFill = fillsOrderedByTotalFilledAmount[0];
     return {
-      unfilledAmount: toBN(lastFill.amount.sub(lastFill.totalFilledAmount)),
+      unfilledAmount: getFillAmount(lastFill).sub(getTotalFilledAmount(lastFill)),
       fillCount: validFills.length,
       invalidFills,
     };
@@ -664,25 +674,29 @@ export class SpokePoolClient extends BaseAbstractClient {
     // is heavy as there is a fair bit of block number lookups that need to happen. Note this call REQUIRES that the
     // hubPoolClient is updated on the first before this call as this needed the the L1 token mapping to each L2 token.
     if (eventsToQuery.includes("FundsDeposited")) {
-      const allDeposits = [
-        ...(queryResults[eventsToQuery.indexOf("FundsDeposited")] as FundsDepositedEvent[]),
-        ...this.earlyDeposits,
-      ];
-      const { earlyDeposits = [], depositEvents = [] } = groupBy(allDeposits, (depositEvent) => {
-        if (this._isEarlyDeposit(depositEvent, currentTime)) {
-          const { args, transactionHash } = depositEvent;
-          this.logger.debug({
-            at: "SpokePoolClient#update",
-            message: "Deferring early deposit event.",
-            currentTime,
-            deposit: { args, transactionHash },
-          });
-          return "earlyDeposits";
-        } else {
-          return "depositEvents";
-        }
-      });
+      // Filter out any early v2 deposits (quoteTimestamp > HubPoolClient.currentTime). Early deposits are no longer a
+      // critical risk in v3, so don't worry about filtering those. This will reduce complexity in several places.
+      const { earlyDeposits = [], v2DepositEvents = [] } = groupBy(
+        [
+          ...this.earlyDeposits,
+          ...((queryResults[eventsToQuery.indexOf("FundsDeposited")] ?? []) as FundsDepositedEvent[]),
+        ],
+        (depositEvent) => (this._isEarlyDeposit(depositEvent, currentTime) ? "earlyDeposits" : "v2DepositEvents")
+      );
+      if (earlyDeposits.length > 0) {
+        this.logger.debug({
+          at: "SpokePoolClient#update",
+          message: `Deferring ${earlyDeposits.length} early v2 deposit events.`,
+          currentTime,
+          deposits: earlyDeposits.map(({ args, transactionHash }) => ({ depositId: args.depositId, transactionHash })),
+        });
+      }
       this.earlyDeposits = earlyDeposits;
+
+      const depositEvents = [
+        ...v2DepositEvents,
+        // ...v3DepositEvents, @todo
+      ];
       if (depositEvents.length > 0) {
         this.log("debug", `Using ${depositEvents.length} newly queried deposit events for chain ${this.chainId}`, {
           earliestEvent: depositEvents[0].blockNumber,
