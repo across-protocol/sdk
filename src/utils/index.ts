@@ -26,3 +26,4 @@ export * from "./DepositUtils";
 export * from "./ValidatorUtils";
 export * from "./AddressUtils";
 export * from "./SpokeUtils";
+export * from "./MigrationUtils";
