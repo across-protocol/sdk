@@ -4,6 +4,6 @@ export {
   AcrossConfigStoreClient,
   ConfigStoreUpdate,
 } from "./AcrossConfigStoreClient";
-export { HubPoolClient } from "./HubPoolClient";
+export { HubPoolClient, v2PartialDepositWithBlock, v3PartialDepositWithBlock } from "./HubPoolClient";
 export { SpokePoolClient } from "./SpokePoolClient";
 export * as mocks from "./mocks";

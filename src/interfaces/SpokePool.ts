@@ -50,31 +50,8 @@ export interface v3DepositWithBlock extends v3Deposit, SortableEvent {
   quoteBlockNumber: number;
 }
 
-export type Deposit = v2Deposit; // @todo: Extend with v2Deposit | v3Deposit.
-export type DepositWithBlock = v2DepositWithBlock; // @todo Extend with v2DepositWithBlock | v3DepositWithBlock.
-
-export type v2DepositWithBlockStringified = Omit<
-  v2DepositWithBlock,
-  "amount" | "relayerFeePct" | "realizedLpFeePct" | "newRelayerFeePct"
-> & {
-  amount: string;
-  relayerFeePct: string;
-  realizedLpFeePct?: string;
-  newRelayerFeePct?: string;
-};
-
-export type v3DepositWithBlockStringified = Omit<
-  v3DepositWithBlock,
-  "inputAmount" | "outputAmount" | "realizedLpFeePct" | "newRelayerFeePct"
-> & {
-  amount: string;
-  relayerFeePct: string;
-  realizedLpFeePct?: string;
-  newRelayerFeePct?: string;
-};
-
-// @todo Extend with v3DepositWithBlockStringified.
-export type DepositWithBlockStringified = v2DepositWithBlockStringified;
+export type Deposit = v2Deposit | v3Deposit;
+export type DepositWithBlock = v2DepositWithBlock | v3DepositWithBlock;
 
 export interface RelayExecutionInfoCommon {
   recipient: string;
@@ -103,14 +80,6 @@ export interface v3RelayExecutionEventInfo extends RelayExecutionInfoCommon {
   outputAmount: BigNumber;
   fillType: FillType;
 }
-
-export type RelayerRefundExecutionInfoStringified = Omit<
-  RelayExecutionInfo,
-  "relayerFeePct" | "payoutAdjustmentPct"
-> & {
-  relayerFeePct: string;
-  payoutAdjustmentPct: string;
-};
 
 interface FillCommon {
   depositId: number;
@@ -152,32 +121,8 @@ export interface v3FillWithBlock extends v3Fill, SortableEvent {
   blockTimestamp: number;
 }
 
-export type Fill = v2Fill; // @todo: Extend with v2Fill | v3Fill.
-export type FillWithBlock = v2FillWithBlock; // @todo Extend with v2FillWithBlock | v3FillWithBlock.
-
-export type v2FillWithBlockStringified = Omit<
-  v2FillWithBlock,
-  "amount" | "relayerFeePct" | "totalFilledAmount" | "fillAmount" | "realizedLpFeePct" | "updatableRelayData"
-> & {
-  amount: string;
-  totalFilledAmount: string;
-  fillAmount: string;
-  relayerFeePct: string;
-  realizedLpFeePct: string;
-  updatableRelayData: RelayerRefundExecutionInfoStringified;
-};
-
-export type v3FillWithBlockStringified = Omit<
-  v3FillWithBlock,
-  "inputAmount" | "outputAmount" | "updatableRelayData"
-> & {
-  inputAmount: string;
-  outputAmount: string;
-  updatableRelayData: RelayerRefundExecutionInfoStringified;
-};
-
-// @todo: Extend with v2FillWithBlockStringified | v3FillWithBlockStringified.
-export type FillWithBlockStringified = v2FillWithBlockStringified;
+export type Fill = v2Fill | v3Fill;
+export type FillWithBlock = v2FillWithBlock | v3FillWithBlock;
 
 export interface SpeedUpCommon {
   depositor: string;
@@ -196,18 +141,7 @@ export interface v3SpeedUp extends SpeedUpCommon {
   updatedOutputAmount: BigNumber;
 }
 
-export type SpeedUp = v2SpeedUp; // @todo Extend with v2SpeedUp | v3SpeedUp.
-
-export type v2SpeedUpStringified = Omit<v2SpeedUp, "newRelayerFeePct"> & {
-  newRelayerFeePct: string;
-};
-
-export type v3SpeedUpStringified = Omit<v3SpeedUp, "updatedOutputAmount"> & {
-  updatedOutputAmount: string;
-};
-
-// @todo: Extend with v2SpeedUpStringified | v3SpeedUpStringified.
-export type SpeedUpStringified = v2SpeedUpStringified;
+export type SpeedUp = v2SpeedUp | v3SpeedUp;
 
 export interface SlowFillRequest {
   depositId: number;
@@ -243,37 +177,19 @@ export interface SlowFill {
   message: string;
 }
 
-export interface SlowFillLeaf {
+export interface v2SlowFillLeaf {
   relayData: RelayData;
+  realizedLpFeePct: BigNumber;
   payoutAdjustmentPct: string;
 }
 
-export interface RefundRequest {
-  relayer: string;
-  refundToken: string;
-  amount: BigNumber;
-  originChainId: number;
-  destinationChainId: number;
-  repaymentChainId: number;
-  realizedLpFeePct: BigNumber;
-  depositId: number;
-  fillBlock: BigNumber;
-  previousIdenticalRequests: BigNumber;
+export interface v3SlowFillLeaf {
+  relayData: v3RelayData;
+  chainId: number;
+  updatedOutputAmount: BigNumber;
 }
 
-export interface RefundRequestWithBlock extends RefundRequest, SortableEvent {
-  blockTimestamp: number;
-}
-
-export type RefundRequestWithBlockStringified = Omit<
-  RefundRequestWithBlock,
-  "amount" | "realizedLpFeePct" | "previousIdenticalRequests" | "fillBlock" | "previousIdenticalRequests"
-> & {
-  amount: string;
-  realizedLpFeePct: string;
-  previousIdenticalRequests: string;
-  fillBlock: string;
-};
+export type SlowFillLeaf = v2SlowFillLeaf | v3SlowFillLeaf;
 
 export interface RootBundleRelay {
   rootBundleId: number;
@@ -295,16 +211,9 @@ export interface RelayerRefundExecution {
 
 export interface RelayerRefundExecutionWithBlock extends RelayerRefundExecution, SortableEvent {}
 
-export type RelayerRefundExecutionWithBlockStringified = Omit<
-  RelayerRefundExecutionWithBlock,
-  "amountToReturn" | "refundAmounts"
-> & {
-  amountToReturn: string;
-  refundAmounts: string[];
-};
-
 export interface RelayDataCommon {
   originChainId: number;
+  destinationChainId: number;
   depositor: string;
   recipient: string;
   depositId: number;
@@ -313,7 +222,6 @@ export interface RelayDataCommon {
 
 // Used in pool by spokePool to execute a slow relay.
 export interface v2RelayData extends RelayDataCommon {
-  destinationChainId: number;
   destinationToken: string;
   amount: BigNumber;
   relayerFeePct: BigNumber;
@@ -330,8 +238,7 @@ export interface v3RelayData extends RelayDataCommon {
   exclusivityDeadline: number;
 }
 
-// @todo: Extend with v2RelayData | v3RelayData.
-export type RelayData = v2RelayData;
+export type RelayData = v2RelayData | v3RelayData;
 
 export interface UnfilledDeposit {
   deposit: Deposit;
@@ -370,20 +277,6 @@ export interface TokensBridged extends SortableEvent {
   leafId: number;
   l2TokenAddress: string;
 }
-
-export type TokensBridgedStringified = Omit<TokensBridged, "amountToReturn"> & {
-  amountToReturn: string;
-};
-
-export type FundsDepositedEventStringified = Omit<
-  FundsDepositedEvent,
-  "amount" | "originChainId" | "destinationChainId" | "relayerFeePct"
-> & {
-  amount: string;
-  originChainId: string;
-  destinationChainId: string;
-  relayerFeePct: string;
-};
 
 export interface SpokePoolClientsByChain {
   [chainId: number]: SpokePoolClient;

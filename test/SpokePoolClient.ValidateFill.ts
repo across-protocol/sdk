@@ -111,7 +111,7 @@ describe("SpokePoolClient: Fill Validation", function () {
     await spokePool_1.setCurrentTime(await getLastBlockTime(spokePool_1.provider));
   });
 
-  it("Tracks fill status", async function () {
+  it("Tracks v2 fill status", async function () {
     const deposit = await buildDeposit(hubPoolClient, spokePool_1, erc20_1, depositor, destinationChainId);
 
     let filled = await relayFilledAmount(spokePool_2, deposit as RelayData);
@@ -120,6 +120,16 @@ describe("SpokePoolClient: Fill Validation", function () {
     await buildFill(spokePool_2, erc20_2, depositor, relayer, deposit, 1);
     filled = await relayFilledAmount(spokePool_2, deposit as RelayData);
     expect(filled.eq(deposit.amount)).is.true;
+  });
+
+  it.skip("Tracks v3 fill status", async function () {
+    const deposit = await buildDeposit(hubPoolClient, spokePool_1, erc20_1, depositor, destinationChainId);
+
+    const filled = await relayFilledAmount(spokePool_2, deposit as RelayData);
+    expect(filled.eq(0)).is.true;
+
+    await buildFill(spokePool_2, erc20_2, depositor, relayer, deposit, 1);
+    // @todo: Verify fill
   });
 
   it("Accepts valid fills", async function () {

@@ -1,32 +1,45 @@
 import {
+  Deposit,
+  Fill,
   FillType,
+  RelayData,
+  SlowFillLeaf,
+  SpeedUp,
   v2Deposit,
-  v3Deposit,
   v2Fill,
   v2RelayData,
+  v2SlowFillLeaf,
   v2SpeedUp,
+  v3Deposit,
   v3Fill,
   v3RelayData,
+  v3SlowFillLeaf,
   v3SpeedUp,
 } from "../interfaces";
 import { BN } from "./BigNumberUtils";
 import { isDefined } from "./TypeGuards";
 
-type Deposit = v2Deposit | v3Deposit;
-type Fill = v2Fill | v3Fill;
-type SpeedUp = v2SpeedUp | v3SpeedUp;
-type RelayData = v2RelayData | v3RelayData;
+// Lowest ConfigStore version where the V3 model is in effect. The version update to the following value should
+// take place atomically with the SpokePool upgrade to V3 so that the dataworker knows what kind of MerkleLeaves
+// to propose in root bundles (i.e. RelayerRefundLeaf and SlowFillLeaf have different shapes). We assume that
+// V3 will be deployed in between bundles (after a bundle execution and before a proposal). The dataworker/relayer
+// code can use the following isV3() function to separate logic for calling V3 vs. legacy methods.
+export const V3_MIN_CONFIG_STORE_VERSION = 3;
+
+export function isV3(version: number): boolean {
+  return version >= 3;
+}
 
 export function isV2Deposit(deposit: Deposit): deposit is v2Deposit {
   return isDefined((deposit as v2Deposit).originToken);
 }
 
-export function isV2SpeedUp(speedUp: SpeedUp): speedUp is v2SpeedUp {
-  return isDefined((speedUp as v2SpeedUp).newRelayerFeePct);
-}
-
 export function isV3Deposit(deposit: Deposit): deposit is v3Deposit {
   return isDefined((deposit as v3Deposit).inputToken);
+}
+
+export function isV2SpeedUp(speedUp: SpeedUp): speedUp is v2SpeedUp {
+  return isDefined((speedUp as v2SpeedUp).newRelayerFeePct);
 }
 
 export function isV3SpeedUp(speedUp: SpeedUp): speedUp is v3SpeedUp {
@@ -45,8 +58,20 @@ export function isV2RelayData(relayData: RelayData): relayData is v2RelayData {
   return isDefined((relayData as v2RelayData).destinationToken);
 }
 
+export function isV3RelayData(relayData: RelayData): relayData is v3RelayData {
+  return isDefined((relayData as v3RelayData).outputToken);
+}
+
 export function isSlowFill(fill: Fill): boolean {
   return isV2Fill(fill) ? fill.updatableRelayData.isSlowRelay : fill.updatableRelayData.fillType === FillType.SlowFill;
+}
+
+export function isV2SlowFillLeaf(slowFillLeaf: SlowFillLeaf): slowFillLeaf is v2SlowFillLeaf {
+  return isDefined((slowFillLeaf as v2SlowFillLeaf).payoutAdjustmentPct) && isV2RelayData(slowFillLeaf.relayData);
+}
+
+export function isV3SlowFillLeaf(slowFillLeaf: SlowFillLeaf): slowFillLeaf is v3SlowFillLeaf {
+  return isDefined((slowFillLeaf as v3SlowFillLeaf).updatedOutputAmount) && isV3RelayData(slowFillLeaf.relayData);
 }
 
 export function getDepositInputToken(deposit: Deposit): string {
@@ -69,14 +94,17 @@ export function getDepositOutputAmount(deposit: Deposit): BN {
   return isV2Deposit(deposit) ? deposit.amount : deposit.outputAmount;
 }
 
+// Returns the total output amount for a unique fill hash.
 export function getFillOutputAmount(fill: Fill): BN {
   return isV2Fill(fill) ? fill.amount : fill.outputAmount;
 }
 
+// Returns the amount filled by a particular fill event.
 export function getFillAmount(fill: Fill): BN {
   return isV2Fill(fill) ? fill.fillAmount : fill.outputAmount;
 }
 
+// Returns the cumulative amount filled for a unique fill hash.
 export function getTotalFilledAmount(fill: Fill): BN {
   return isV2Fill(fill) ? fill.totalFilledAmount : fill.outputAmount;
 }
@@ -84,6 +112,11 @@ export function getTotalFilledAmount(fill: Fill): BN {
 export function getRelayDataOutputToken(relayData: RelayData): string {
   return isV2RelayData(relayData) ? relayData.destinationToken : relayData.outputToken;
 }
+
 export function getRelayDataOutputAmount(relayData: RelayData): BN {
   return isV2RelayData(relayData) ? relayData.amount : relayData.outputAmount;
+}
+
+export function getSlowFillLeafChainId(leaf: SlowFillLeaf): number {
+  return isV2SlowFillLeaf(leaf) ? leaf.relayData.destinationChainId : leaf.chainId;
 }
