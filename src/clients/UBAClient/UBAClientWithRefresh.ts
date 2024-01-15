@@ -28,6 +28,8 @@ import {
   forEachAsync,
   getBlockForChain,
   getBlockRangeForChain,
+  getFlowAmount,
+  getFlowToken,
   isDefined,
   mapAsync,
   toBNWei,
@@ -113,16 +115,15 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
    */
   public computeFeesForDeposit(deposit: UbaInflow): SystemFeeResult {
     this.assertUpdated();
+    const { originChainId, blockNumber } = deposit;
 
-    const tokenSymbol = this.hubPoolClient.getL1TokenInfoForL2Token(deposit.originToken, deposit.originChainId)?.symbol;
+    const inputToken = getFlowToken(deposit);
+    const tokenSymbol = this.hubPoolClient.getL1TokenInfoForL2Token(inputToken, originChainId)?.symbol;
     if (!tokenSymbol) throw new Error("No token symbol found");
 
     // Grab bundle state containing deposit using the bundle state's block ranges.
-    const blockRangeContainingDeposit = this.getUbaBundleBlockRangeContainingFlow(
-      deposit.blockNumber,
-      deposit.originChainId
-    );
-    const specificBundleState = this.getBundleState(blockRangeContainingDeposit, tokenSymbol, deposit.originChainId);
+    const blockRangeContainingDeposit = this.getUbaBundleBlockRangeContainingFlow(blockNumber, originChainId);
+    const specificBundleState = this.getBundleState(blockRangeContainingDeposit, tokenSymbol, originChainId);
 
     // Find matching flow in bundle state.
     const matchingFlow = getMatchingFlow(specificBundleState.flows, deposit);
@@ -130,7 +131,8 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
       throw new Error("Found bundle state containing flow but no matching flow found for deposit");
     }
 
-    const lpFee = matchingFlow.lpFee.mul(deposit.amount).div(fixedPointAdjustment);
+    const amount = getFlowAmount(deposit);
+    const lpFee = matchingFlow.lpFee.mul(amount).div(fixedPointAdjustment);
     const depositBalancingFee = matchingFlow.balancingFee;
     return {
       lpFee,
@@ -448,14 +450,15 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
   protected async validateFlow(flow: UbaFlow): Promise<ModifiedUBAFlow | undefined> {
     // Load common information that depends on what type of flow we're validating:
     let flowChain: number, tokenSymbol: string | undefined;
+    const flowToken = getFlowToken(flow);
     if (isUbaInflow(flow)) {
       flowChain = flow.originChainId;
-      tokenSymbol = this.hubPoolClient.getL1TokenInfoForL2Token(flow.originToken, flowChain)?.symbol;
+      tokenSymbol = this.hubPoolClient.getL1TokenInfoForL2Token(flowToken, flowChain)?.symbol;
     } else {
       // The outflow is a fill; it must be validated against its matched deposit.
       assert(outflowIsFill(flow));
       flowChain = flow.destinationChainId;
-      tokenSymbol = this.hubPoolClient.getL1TokenInfoForL2Token(flow.destinationToken, flowChain)?.symbol;
+      tokenSymbol = this.hubPoolClient.getL1TokenInfoForL2Token(flowToken, flowChain)?.symbol;
     }
     if (!isDefined(tokenSymbol)) throw new Error("No token symbol found");
     const l1TokenAddress = this.hubPoolClient.getL1Tokens().find((token) => token.symbol === tokenSymbol)?.address;
@@ -494,7 +497,7 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
     let potentialBalancingFee: BigNumber;
     if (isUbaInflow(flow)) {
       ({ balancingFee: potentialBalancingFee } = getDepositFee(
-        flow.amount,
+        getFlowAmount(flow),
         latestRunningBalance,
         latestIncentiveBalance,
         flowChain,
@@ -502,7 +505,7 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
       ));
     } else {
       ({ balancingFee: potentialBalancingFee } = getRefundFee(
-        flow.amount,
+        getFlowAmount(flow),
         latestRunningBalance,
         latestIncentiveBalance,
         flowChain,
@@ -530,7 +533,7 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
 
     // Figure out the LP fee which is based only on the flow's origin and destination chain.
     const lpFeePct = this.computeLpFee(ubaConfigForChain.getBaselineFee(flow.destinationChainId, flow.originChainId));
-    const lpFee = lpFeePct.mul(flow.amount).div(fixedPointAdjustment);
+    const lpFee = lpFeePct.mul(getFlowAmount(flow)).div(fixedPointAdjustment);
 
     const newModifiedFlow: ModifiedUBAFlow = {
       flow,
@@ -566,6 +569,7 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
         if (flow.matchedDeposit.realizedLpFeePct.eq(flow.realizedLpFeePct)) {
           // If flow matched with a pre UBA deposit then the flow should accrue no balancing fees and not impact
           // running balances so we should use the running balances from before the flow.
+          const flowAmount = getFlowAmount(flow);
           return {
             flow,
             runningBalance: latestRunningBalance,
@@ -574,7 +578,7 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
             // Balancing fee for a pre UBA refund is 0
             balancingFee: ethers.constants.Zero,
             // Set realized LP fee for fill equal to the realized LP fee for the matched deposit.
-            lpFee: flow.realizedLpFeePct.mul(flow.amount).div(fixedPointAdjustment),
+            lpFee: flow.realizedLpFeePct.mul(flowAmount).div(fixedPointAdjustment),
           };
         } else {
           this.logger.debug({
@@ -605,8 +609,9 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
       const ubaConfigForDeposit = depositBundleState.ubaConfig;
       if (ubaConfigForDeposit.isBalancingFeeCurveFlatAtZero(flow.matchedDeposit.originChainId)) {
         // console.log("- Flow matched a deposit on a chain with a flat balancing fee curve at 0");
-        const lpFeePct = newModifiedFlow.lpFee.mul(fixedPointAdjustment).div(flow.amount);
-        if (!lpFeePct.eq(flow.realizedLpFeePct as BigNumber)) {
+        const flowAmount = getFlowAmount(flow);
+        const lpFeePct = newModifiedFlow.lpFee.mul(fixedPointAdjustment).div(flowAmount);
+        if (!lpFeePct.eq(flow.realizedLpFeePct)) {
           // this.logger.debug({
           //   at: "UBAClientWithRefresh#validateFlow",
           //   message: `Flow matched a deposit on a chain with a flat balancing fee curve at 0, but it was invalid because it set the wrong LP fee`,
@@ -745,7 +750,7 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
         const expectedRealizedLpFeeForMatchedDeposit = matchedDepositFlow.lpFee.add(matchedDepositFlow.balancingFee);
         const expectedRealizedLpFeePctForMatchedDeposit = expectedRealizedLpFeeForMatchedDeposit
           .mul(fixedPointAdjustment)
-          .div(matchedDepositFlow.flow.amount);
+          .div(getFlowAmount(matchedDepositFlow.flow));
         // console.log(
         //   `- Expected realized lp fee pct for matched deposit: ${expectedRealizedLpFeePctForMatchedDeposit.toString()}, actual: ${flow.realizedLpFeePct?.toString()}`
         // );
@@ -1156,13 +1161,12 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
               );
               const deposits = flows.filter(({ flow }) => isUbaInflow(flow));
               const refunds = []; // Previously removed as part of RefundRequest cleanup.
-
               const inflows = deposits.reduce((sum, { flow }) => {
-                sum = sum.add(flow.amount);
+                sum = sum.add(getFlowAmount(flow));
                 return sum;
               }, ethers.constants.Zero);
               const fillOutflows = fills.reduce((sum, { flow }) => {
-                sum = sum.add(flow.amount);
+                sum = sum.add(getFlowAmount(flow));
                 return sum;
               }, ethers.constants.Zero);
               const refundOutflows = flows.reduce((sum, { balancingFee }) => {

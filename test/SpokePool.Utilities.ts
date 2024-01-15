@@ -46,9 +46,9 @@ const generateValidFlows = async (
   await origin.update();
 
   // Pull the DepositWithBlock event out of the origin SpokePoolClient to use as a Fill template.
-  const _deposit = origin.getDeposits().find(({ transactionHash }) => transactionHash === event.transactionHash);
-  expect(_deposit).to.not.be.undefined;
-  const deposit = _deposit as DepositWithBlock;
+  let deposit = origin.getDeposits().find(({ transactionHash }) => transactionHash === event.transactionHash);
+  expect(deposit).to.not.be.undefined;
+  deposit = deposit!;
 
   const fillTemplate = fillFromDeposit(deposit, randomAddress());
   fillTemplate.repaymentChainId = (repayment ?? destination).chainId;
@@ -56,9 +56,9 @@ const generateValidFlows = async (
   await destination.update();
 
   // Pull the FillWithBlock event out of the destination SpokePoolClient.
-  const _fill = destination.getFills().find(({ transactionHash }) => transactionHash === event.transactionHash);
-  expect(_fill).to.not.be.undefined;
-  const fill = _fill as FillWithBlock;
+  let fill = destination.getFills().find(({ transactionHash }) => transactionHash === event.transactionHash);
+  expect(fill).to.not.be.undefined;
+  fill = fill!;
 
   return { deposit: deposit as DepositWithBlock, fill: fill as FillWithBlock };
 };

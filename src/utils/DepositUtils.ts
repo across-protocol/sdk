@@ -2,12 +2,13 @@ import assert from "assert";
 import { SpokePoolClient } from "../clients";
 import { DEFAULT_CACHING_TTL, EMPTY_MESSAGE } from "../constants";
 import { CachingMechanismInterface, Deposit, DepositWithBlock, Fill } from "../interfaces";
-import { getNetworkName } from "../utils";
+import { getNetworkName } from "./NetworkUtils";
 import { getDepositInCache, getDepositKey, setDepositInCache } from "./CachingUtils";
 import { validateFillForDeposit } from "./FlowUtils";
 import { getCurrentTime } from "./TimeUtils";
 import { isDefined } from "./TypeGuards";
 import { isDepositFormedCorrectly } from "./ValidatorUtils";
+import { isV2Deposit, isV3Deposit } from "./V3Utils";
 
 // Load a deposit for a fill if the fill's deposit ID is outside this client's search range.
 // This can be used by the Dataworker to determine whether to give a relayer a refund for a fill
@@ -129,7 +130,14 @@ export function isMessageEmpty(message = EMPTY_MESSAGE): boolean {
  * @returns True if the deposit was updated, otherwise false.
  */
 export function isDepositSpedUp(deposit: Deposit): boolean {
-  return isDefined(deposit.speedUpSignature) && isDefined(deposit.newRelayerFeePct);
+  if (!isDefined(deposit.speedUpSignature)) {
+    return false;
+  }
+
+  return (
+    (isV2Deposit(deposit) && isDefined(deposit.newRelayerFeePct)) ||
+    (isV3Deposit(deposit) && isDefined(deposit.updatedOutputAmount))
+  );
 }
 
 /**

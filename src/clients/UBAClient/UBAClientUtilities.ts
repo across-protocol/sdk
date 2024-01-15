@@ -20,7 +20,14 @@ import {
 } from "../../interfaces";
 import { getBlockForChain, getBlockRangeForChain, getImpliedBundleBlockRanges } from "../../utils/BundleUtils";
 import { stringifyJSONWithNumericString } from "../../utils/JSONUtils";
-import { toBN } from "../../utils";
+import {
+  getFillOutputAmount,
+  getFillOutputToken,
+  getFlowToken,
+  getTotalFilledAmount,
+  isSlowFill,
+  toBN,
+} from "../../utils";
 
 /**
  * Omit the default key from a dictionary
@@ -506,7 +513,8 @@ export async function getUBAFlows(
     if (deposit.blockNumber < (fromBlock as number) || deposit.blockNumber > (toBlock as number)) {
       return false;
     }
-    const _tokenSymbol = hubPoolClient.getL1TokenInfoForL2Token(deposit.originToken, deposit.originChainId)?.symbol;
+    const inputToken = getFlowToken(deposit);
+    const _tokenSymbol = hubPoolClient.getL1TokenInfoForL2Token(inputToken, deposit.originChainId)?.symbol;
     return _tokenSymbol === tokenSymbol;
   });
   const preUBADeposit = deposits.find((deposit) => isDefined(deposit.realizedLpFeePct));
@@ -536,10 +544,13 @@ export async function getUBAFlows(
       ["realizedLpFeePct"]
     )
   ).filter((fill: FillWithBlock) => {
-    const _tokenSymbol = hubPoolClient.getL1TokenInfoForL2Token(fill.destinationToken, fill.destinationChainId)?.symbol;
+    const fillToken = getFillOutputToken(fill);
+    const _tokenSymbol = hubPoolClient.getL1TokenInfoForL2Token(fillToken, fill.destinationChainId)?.symbol;
     // We only want to include full fills as flows. Partial fills need to request refunds and those refunds
     // will be included as flows.
-    return fill.fillAmount.eq(fill.totalFilledAmount) && _tokenSymbol === tokenSymbol;
+    const outputAmount = getFillOutputAmount(fill);
+    const totalFilledAmount = getTotalFilledAmount(fill);
+    return outputAmount.eq(totalFilledAmount) && _tokenSymbol === tokenSymbol;
   }) as UbaFlow[];
 
   // TODO: For each fill, add a matchedFill, or expected realizedLpFeePct value to the matched deposit.
@@ -645,12 +656,14 @@ export async function getValidFillCandidates(
       if (
         (isDefined(repaymentChainId) && fill.repaymentChainId !== repaymentChainId) ||
         (isDefined(relayer) && fill.relayer !== relayer) ||
-        (isDefined(isSlowRelay) && fill.updatableRelayData.isSlowRelay !== isSlowRelay)
+        (isDefined(isSlowRelay) && isSlowFill(fill) !== isSlowRelay)
       ) {
         return undefined;
       }
 
-      if (isDefined(isCompleteFill) && isCompleteFill !== fill.fillAmount.eq(fill.totalFilledAmount)) {
+      const fillAmount = getFillOutputAmount(fill);
+      const totalFilledAmount = getTotalFilledAmount(fill);
+      if (isDefined(isCompleteFill) && isCompleteFill !== fillAmount.eq(totalFilledAmount)) {
         return undefined;
       }
 

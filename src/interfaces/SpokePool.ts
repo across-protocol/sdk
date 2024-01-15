@@ -50,8 +50,8 @@ export interface v3DepositWithBlock extends v3Deposit, SortableEvent {
   quoteBlockNumber: number;
 }
 
-export type Deposit = v2Deposit; // @todo: Extend with v2Deposit | v3Deposit.
-export type DepositWithBlock = v2DepositWithBlock; // @todo Extend with v2DepositWithBlock | v3DepositWithBlock.
+export type Deposit = v2Deposit | v3Deposit;
+export type DepositWithBlock = v2DepositWithBlock | v3DepositWithBlock;
 
 export interface RelayExecutionInfoCommon {
   recipient: string;
@@ -121,8 +121,8 @@ export interface v3FillWithBlock extends v3Fill, SortableEvent {
   blockTimestamp: number;
 }
 
-export type Fill = v2Fill; // @todo: Extend with v2Fill | v3Fill.
-export type FillWithBlock = v2FillWithBlock; // @todo Extend with v2FillWithBlock | v3FillWithBlock.
+export type Fill = v2Fill | v3Fill;
+export type FillWithBlock = v2FillWithBlock | v3FillWithBlock;
 
 export interface SpeedUpCommon {
   depositor: string;
@@ -141,7 +141,7 @@ export interface v3SpeedUp extends SpeedUpCommon {
   updatedOutputAmount: BigNumber;
 }
 
-export type SpeedUp = v2SpeedUp; // @todo Extend with v2SpeedUp | v3SpeedUp.
+export type SpeedUp = v2SpeedUp | v3SpeedUp;
 
 export interface SlowFillRequest {
   depositId: number;
@@ -179,6 +179,7 @@ export interface SlowFill {
 
 export interface v2SlowFillLeaf {
   relayData: RelayData;
+  realizedLpFeePct: BigNumber;
   payoutAdjustmentPct: string;
 }
 
@@ -188,8 +189,7 @@ export interface v3SlowFillLeaf {
   updatedOutputAmount: BigNumber;
 }
 
-// @todo: Extend with v2SlowFillLeaf | v3SlowFillLeaf.
-export type SlowFillLeaf = v2SlowFillLeaf;
+export type SlowFillLeaf = v2SlowFillLeaf | v3SlowFillLeaf;
 
 export interface RootBundleRelay {
   rootBundleId: number;
@@ -213,6 +213,7 @@ export interface RelayerRefundExecutionWithBlock extends RelayerRefundExecution,
 
 export interface RelayDataCommon {
   originChainId: number;
+  destinationChainId: number;
   depositor: string;
   recipient: string;
   depositId: number;
@@ -221,7 +222,6 @@ export interface RelayDataCommon {
 
 // Used in pool by spokePool to execute a slow relay.
 export interface v2RelayData extends RelayDataCommon {
-  destinationChainId: number;
   destinationToken: string;
   amount: BigNumber;
   relayerFeePct: BigNumber;
@@ -238,8 +238,7 @@ export interface v3RelayData extends RelayDataCommon {
   exclusivityDeadline: number;
 }
 
-// @todo: Extend with v2RelayData | v3RelayData.
-export type RelayData = v2RelayData;
+export type RelayData = v2RelayData | v3RelayData;
 
 export interface UnfilledDeposit {
   deposit: Deposit;

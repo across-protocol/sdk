@@ -1,11 +1,16 @@
 import {
+  Deposit,
+  Fill,
   FillType,
+  RelayData,
+  SlowFillLeaf,
+  SpeedUp,
   v2Deposit,
-  v3Deposit,
   v2Fill,
   v2RelayData,
   v2SlowFillLeaf,
   v2SpeedUp,
+  v3Deposit,
   v3Fill,
   v3RelayData,
   v3SlowFillLeaf,
@@ -13,12 +18,6 @@ import {
 } from "../interfaces";
 import { BN } from "./BigNumberUtils";
 import { isDefined } from "./TypeGuards";
-
-type Deposit = v2Deposit | v3Deposit;
-type Fill = v2Fill | v3Fill;
-type SpeedUp = v2SpeedUp | v3SpeedUp;
-type RelayData = v2RelayData | v3RelayData;
-type SlowFillLeaf = v2SlowFillLeaf | v3SlowFillLeaf;
 
 // Lowest ConfigStore version where the V3 model is in effect. The version update to the following value should
 // take place atomically with the SpokePool upgrade to V3 so that the dataworker knows what kind of MerkleLeaves
@@ -95,14 +94,17 @@ export function getDepositOutputAmount(deposit: Deposit): BN {
   return isV2Deposit(deposit) ? deposit.amount : deposit.outputAmount;
 }
 
+// Returns the total output amount for a unique fill hash.
 export function getFillOutputAmount(fill: Fill): BN {
   return isV2Fill(fill) ? fill.amount : fill.outputAmount;
 }
 
+// Returns the amount filled by a particular fill event.
 export function getFillAmount(fill: Fill): BN {
   return isV2Fill(fill) ? fill.fillAmount : fill.outputAmount;
 }
 
+// Returns the cumulative amount filled for a unique fill hash.
 export function getTotalFilledAmount(fill: Fill): BN {
   return isV2Fill(fill) ? fill.totalFilledAmount : fill.outputAmount;
 }

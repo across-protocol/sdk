@@ -5,7 +5,7 @@ export {
   parseUBAConfigFromOnChain,
   ConfigStoreUpdate,
 } from "./AcrossConfigStoreClient";
-export { HubPoolClient } from "./HubPoolClient";
+export { HubPoolClient, v2PartialDepositWithBlock, v3PartialDepositWithBlock } from "./HubPoolClient";
 export { SpokePoolClient } from "./SpokePoolClient";
 export * from "./UBAClient";
 export * as mocks from "./mocks";

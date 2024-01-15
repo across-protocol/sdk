@@ -1,10 +1,9 @@
 /** Provides the static, procedural versions of the functions provided in the UBAFeeSpokeCalculator */
-
 import { BigNumber, ethers } from "ethers";
 import { UbaFlow, isUbaInflow } from "../interfaces";
 import { TokenRunningBalanceWithNetSend, UBAActionType, UBAFlowFee } from "./UBAFeeTypes";
 import UBAConfig from "./UBAFeeConfig";
-import { fixedPointAdjustment, max, toBN } from "../utils";
+import { fixedPointAdjustment, getFlowAmount, max, toBN } from "../utils";
 import { computePiecewiseLinearFunction } from "./UBAFeeUtility";
 
 /**
@@ -49,9 +48,11 @@ export function calculateHistoricalRunningBalance(
           `Incentive balance will go negative after subtracting flow's incentive reward of ${incentiveFee.toString()} from incentive balance of ${acc.incentiveBalance.toString()}`
         );
       }
+
+      const amount = getFlowAmount(flow);
       const resultant: TokenRunningBalanceWithNetSend = {
         netRunningBalanceAdjustment: toBN(acc.netRunningBalanceAdjustment.toString()), // Deep copy via string conversion
-        runningBalance: acc.runningBalance[isUbaInflow(flow) ? "add" : "sub"](flow.amount).sub(incentiveFee),
+        runningBalance: acc.runningBalance[isUbaInflow(flow) ? "add" : "sub"](amount).sub(incentiveFee),
         incentiveBalance: max(ethers.constants.Zero, acc.incentiveBalance.add(incentiveFee)),
       };
       // console.log(
