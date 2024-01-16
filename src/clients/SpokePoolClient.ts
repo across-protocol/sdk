@@ -48,6 +48,7 @@ import {
   SpeedUpStringified,
   TokensBridged,
   TokensBridgedStringified,
+  v2DepositWithBlock,
   v2SpeedUp,
 } from "../interfaces";
 import { SpokePool } from "../typechain";
@@ -305,8 +306,10 @@ export class SpokePoolClient extends BaseAbstractClient {
    */
   public appendMaxSpeedUpSignatureToDeposit(deposit: DepositWithBlock): DepositWithBlock {
     if (isV2Deposit(deposit)) {
-      const v2SpeedUps = this.speedUps[deposit.depositor]?.[deposit.depositId]?.filter(() => isV2SpeedUp);
-      const maxSpeedUp = (v2SpeedUps ?? []).reduce(
+      const v2SpeedUps = (
+        this.speedUps[deposit.depositor]?.[deposit.depositId]?.filter(() => isV2SpeedUp) ?? []
+      ) as v2SpeedUp[];
+      const maxSpeedUp = v2SpeedUps.reduce(
         (prev, current) => (prev.newRelayerFeePct.gt(current.newRelayerFeePct) ? prev : current),
         { newRelayerFeePct: deposit.relayerFeePct } as v2SpeedUp
       );
@@ -318,13 +321,15 @@ export class SpokePoolClient extends BaseAbstractClient {
       }
 
       // Return deposit with updated params from the speedup with the highest updated relayer fee pct.
-      return {
+      const updatedDeposit: v2DepositWithBlock = {
         ...deposit,
         speedUpSignature: maxSpeedUp.depositorSignature,
         newRelayerFeePct: maxSpeedUp.newRelayerFeePct,
         updatedRecipient: maxSpeedUp.updatedRecipient,
         updatedMessage: maxSpeedUp.updatedMessage,
       };
+
+      return updatedDeposit;
     }
     assert(false); // v3 is coming.
   }
