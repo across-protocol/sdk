@@ -57,17 +57,16 @@ describe("UBAClientUtilities", function () {
       decimals: 18,
       symbol: tokenSymbol,
     });
-    // Make all deposits return the same L1 token.
-    hubPoolClient.setReturnedL1TokenForDeposit(l1Token);
-    // Make all destination tokens link wth l1 token.
-    hubPoolClient.setDestinationTokenForL1Token(l2Token);
 
     await hubPoolClient.update();
-    const latestBlockNumber = await hubPool.provider.getBlockNumber();
-    hubPoolClient.setLatestBlockNumber(latestBlockNumber);
+    const latestBlockSearched = await hubPool.provider.getBlockNumber();
+    hubPoolClient.setLatestBlockNumber(latestBlockSearched);
 
     spokePoolClients = {};
     for (const originChainId of chainIds) {
+      // Make all destination tokens link wth l1 token.
+      hubPoolClient.setTokenMapping(l1Token, originChainId, l2Token);
+
       const { spokePool } = await deploySpokePool(ethers);
       const deploymentBlock = await spokePool.provider.getBlockNumber();
 
@@ -76,7 +75,7 @@ describe("UBAClientUtilities", function () {
       const spokePoolClient = new MockSpokePoolClient(logger, spokePool, originChainId, deploymentBlock);
       spokePoolClients[originChainId] = spokePoolClient;
       hubPoolClient.setCrossChainContracts(originChainId, spokePool.address, deploymentBlock);
-      spokePoolClient.setLatestBlockSearched(deploymentBlock + 1000);
+      spokePoolClient.latestBlockSearched = deploymentBlock + 1000;
       spokePoolClient.setDestinationTokenForChain(originChainId, l2Token);
     }
   });
@@ -366,8 +365,7 @@ describe("UBAClientUtilities", function () {
     });
     // Generate mock events, very simple tests to start
     it("Returns UBA deposits", async function () {
-      const event = spokePoolClient.generateDeposit(deposit);
-      spokePoolClient.addEvent(event);
+      spokePoolClient.generateDeposit(deposit);
       await spokePoolClient.update();
 
       const flows = await clients.getUBAFlows(tokenSymbol, chainId, spokePoolClients, hubPoolClient);
@@ -378,8 +376,7 @@ describe("UBAClientUtilities", function () {
       // We expect the getUBAFlows() call to throw because realizedLpFeePct will be set for these deposits
       spokePoolClient.setDefaultRealizedLpFeePct(toBNWei("0.1"));
 
-      const event = spokePoolClient.generateDeposit(deposit);
-      spokePoolClient.addEvent(event);
+      spokePoolClient.generateDeposit(deposit);
       await spokePoolClient.update();
 
       void assertPromiseError(
@@ -388,19 +385,16 @@ describe("UBAClientUtilities", function () {
       );
     });
     it("Returns fills matched with deposits", async function () {
-      const depositEvent = spokePoolClient.generateDeposit(deposit);
-      spokePoolClient.addEvent(depositEvent);
+      spokePoolClient.generateDeposit(deposit);
       await spokePoolClient.update();
 
-      const event = destinationSpokePoolClient.generateFill(fill);
-      destinationSpokePoolClient.addEvent(event);
+      destinationSpokePoolClient.generateFill(fill);
 
       // Add an invalid fill:
-      const invalidFillEvent = destinationSpokePoolClient.generateFill({
+      destinationSpokePoolClient.generateFill({
         ...fill,
         depositId: deposit.depositId + 1,
       });
-      destinationSpokePoolClient.addEvent(invalidFillEvent);
       await destinationSpokePoolClient.update();
 
       // Look up flows on destination chain
@@ -410,8 +404,7 @@ describe("UBAClientUtilities", function () {
       expect(interfaces.isUbaOutflow(flows[0])).to.be.true;
     });
     it("Returns refunds matched with fills matched with deposits", async function () {
-      const depositEvent = spokePoolClient.generateDeposit(deposit);
-      spokePoolClient.addEvent(depositEvent);
+      spokePoolClient.generateDeposit(deposit);
       await spokePoolClient.update();
 
       // Generate fill with repaymentChain != destinationChain
@@ -419,23 +412,20 @@ describe("UBAClientUtilities", function () {
         ...fill,
         repaymentChainId,
       });
-      destinationSpokePoolClient.addEvent(fillEvent);
       await destinationSpokePoolClient.update();
 
-      const event = repaymentSpokePoolClient.generateRefundRequest({
+      repaymentSpokePoolClient.generateRefundRequest({
         ...refund,
         fillBlock: toBN(fillEvent.blockNumber),
       });
-      repaymentSpokePoolClient.addEvent(event);
       await repaymentSpokePoolClient.update();
 
       // Add an invalid refund:
-      const invalidRefundEvent = repaymentSpokePoolClient.generateRefundRequest({
+      repaymentSpokePoolClient.generateRefundRequest({
         ...refund,
         fillBlock: toBN(fillEvent.blockNumber),
         previousIdenticalRequests: toBN(2),
       });
-      repaymentSpokePoolClient.addEvent(invalidRefundEvent);
       await repaymentSpokePoolClient.update();
 
       // Look up flows on destination chain

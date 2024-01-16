@@ -37,13 +37,12 @@ export async function publishValidatedBundles(
       return toBN(nextBlockRangesForChain[chainId].end);
     });
 
-    const rootBundleProposal = hubPoolClient.proposeRootBundle(
+    hubPoolClient.proposeRootBundle(
       Date.now(), // challengePeriodEndTimestamp
       chainIds.length, // poolRebalanceLeafCount
       bundleEvaluationBlockNumbers,
       createRandomBytes32() // Random pool rebalance root we can check.
     );
-    hubPoolClient.addEvent(rootBundleProposal);
     await hubPoolClient.update();
     chainIds.forEach((chainId) => {
       expectedBlockRanges[chainId].push({
@@ -51,7 +50,7 @@ export async function publishValidatedBundles(
       });
     });
     chainIds.forEach((chainId, leafIndex) => {
-      const leafEvent = hubPoolClient.executeRootBundle(
+      hubPoolClient.executeRootBundle(
         toBN(0),
         leafIndex,
         toBN(chainId),
@@ -60,7 +59,6 @@ export async function publishValidatedBundles(
         runningBalances, // netSendAmounts
         runningBalances.concat(incentiveBalances) // runningBalances
       );
-      hubPoolClient.addEvent(leafEvent);
     });
 
     await hubPoolClient.update();

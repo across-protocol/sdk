@@ -39,10 +39,10 @@ const generateValidRefundRequest = async (
 ): Promise<{ deposit: DepositWithBlock; fill: FillWithBlock; refundRequest?: RefundRequestWithBlock }> => {
   let event = origin.generateDeposit({
     originChainId: origin.chainId,
+    originToken: ZERO_ADDRESS,
     destinationChainId: destination.chainId,
     destinationToken: ZERO_ADDRESS,
   } as DepositWithBlock);
-  origin.addEvent(event);
   await origin.update();
 
   // Pull the DepositWithBlock event out of the origin SpokePoolClient to use as a Fill template.
@@ -53,7 +53,6 @@ const generateValidRefundRequest = async (
   const fillTemplate = fillFromDeposit(deposit, randomAddress());
   fillTemplate.repaymentChainId = (repayment ?? destination).chainId;
   event = destination.generateFill(fillTemplate as FillWithBlock);
-  destination.addEvent(event);
   await destination.update();
 
   // Pull the FillWithBlock event out of the destination SpokePoolClient.
@@ -66,7 +65,6 @@ const generateValidRefundRequest = async (
   if (repayment !== destination) {
     const refundRequestTemplate = refundRequestFromFill(fill, fill.destinationToken);
     event = repayment.generateRefundRequest(refundRequestTemplate as RefundRequestWithBlock);
-    repayment.addEvent(event);
     await repayment.update();
 
     // Pull the DepositWithBlock event out of the origin SpokePoolClient to use as a Fill template.
@@ -113,8 +111,11 @@ describe("SpokePoolClient: Event Filtering", function () {
     const { hubPool } = await hubPoolFixture();
     const deploymentBlock = await hubPool.provider.getBlockNumber();
     hubPoolClient = new MockHubPoolClient(logger, hubPool, configStoreClient, deploymentBlock, originChainId);
-    hubPoolClient.setReturnedL1TokenForDeposit(ZERO_ADDRESS);
-    hubPoolClient.setDestinationTokenForL1Token(ZERO_ADDRESS);
+    // hubPoolClient.setReturnedL1TokenForDeposit(ZERO_ADDRESS);
+    [originChainId, destinationChainId, repaymentChainId, hubPoolClient.chainId].forEach((chainId) =>
+      hubPoolClient.setTokenMapping(ZERO_ADDRESS, chainId, ZERO_ADDRESS)
+    );
+    await hubPoolClient.update();
 
     for (const chainId of chainIds) {
       // @dev the underlying chainId will be the same for all three SpokePools.
@@ -132,10 +133,8 @@ describe("SpokePoolClient: Event Filtering", function () {
 
         // @todo: destinationToken
         [ZERO_ADDRESS].forEach((originToken) => {
-          let event = spokePoolClient.generateDepositRoute(originToken, destinationChainId, true);
-          spokePoolClient.addEvent(event);
-          event = hubPoolClient.setPoolRebalanceRoute(destinationChainId, originToken, originToken);
-          hubPoolClient.addEvent(event);
+          spokePoolClient.generateDepositRoute(originToken, destinationChainId, true);
+          hubPoolClient.setPoolRebalanceRoute(destinationChainId, originToken, originToken);
         });
       }
     }

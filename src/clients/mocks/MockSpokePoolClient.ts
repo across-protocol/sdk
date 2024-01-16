@@ -4,9 +4,9 @@ import { random } from "lodash";
 import winston from "winston";
 import { ZERO_ADDRESS } from "../../constants";
 import { DepositWithBlock, FillWithBlock, FundsDepositedEvent, RefundRequestWithBlock } from "../../interfaces";
-import { bnZero, toBN, toBNWei, forEachAsync, randomAddress } from "../../utils";
+import { bnZero, toBNWei, forEachAsync, randomAddress } from "../../utils";
 import { SpokePoolClient, SpokePoolUpdate } from "../SpokePoolClient";
-import { EventManager, getEventManager } from "./MockEvents";
+import { EventManager, EventOverrides, getEventManager } from "./MockEvents";
 
 type Block = providers.Block;
 
@@ -14,7 +14,6 @@ type Block = providers.Block;
 // user to bypass on-chain queries and inject ethers Event objects directly.
 export class MockSpokePoolClient extends SpokePoolClient {
   public eventManager: EventManager;
-  private events: Event[] = [];
   private realizedLpFeePct: BigNumber | undefined = bnZero;
   private realizedLpFeePctOverride = false;
   private destinationTokenForChainOverride: Record<number, string> = {};
@@ -25,7 +24,7 @@ export class MockSpokePoolClient extends SpokePoolClient {
 
   constructor(logger: winston.Logger, spokePool: Contract, chainId: number, deploymentBlock: number) {
     super(logger, spokePool, null, chainId, deploymentBlock);
-    this.latestBlockNumber = deploymentBlock;
+    this.latestBlockSearched = deploymentBlock;
     this.eventManager = getEventManager(chainId, this.eventSignatures, deploymentBlock);
   }
 
@@ -63,16 +62,8 @@ export class MockSpokePoolClient extends SpokePoolClient {
     return this.destinationTokenForChainOverride[deposit.originChainId] ?? super.getDestinationTokenForDeposit(deposit);
   }
 
-  setLatestBlockSearched(blockNumber: number): void {
-    this.latestBlockSearched = blockNumber;
-  }
-
   setLatestBlockNumber(blockNumber: number): void {
-    this.latestBlockNumber = blockNumber;
-  }
-
-  addEvent(event: Event): void {
-    this.events.push(event);
+    this.latestBlockSearched = blockNumber;
   }
 
   setDepositIds(_depositIds: number[]): void {
@@ -99,7 +90,7 @@ export class MockSpokePoolClient extends SpokePoolClient {
     eventsToQuery.push("RefundRequested");
 
     // Generate new "on chain" responses.
-    const latestBlockNumber = this.eventManager.blockNumber;
+    const latestBlockSearched = this.eventManager.blockNumber;
     const currentTime = Math.floor(Date.now() / 1000);
 
     const blocks: { [blockNumber: number]: Block } = {};
@@ -107,14 +98,13 @@ export class MockSpokePoolClient extends SpokePoolClient {
     // Ensure an array for every requested event exists, in the requested order.
     // All requested event types must be populated in the array (even if empty).
     const events: Event[][] = eventsToQuery.map(() => []);
-    await forEachAsync(this.events.flat(), async (event) => {
+    await forEachAsync(this.eventManager.getEvents().flat(), async (event) => {
       const idx = eventsToQuery.indexOf(event.event as string);
       if (idx !== -1) {
         events[idx].push(event);
         blocks[event.blockNumber] = await event.getBlock();
       }
     });
-    this.events = [];
     this.blocks = blocks;
 
     // Update latestDepositIdQueried.
@@ -127,12 +117,11 @@ export class MockSpokePoolClient extends SpokePoolClient {
     return {
       success: true,
       firstDepositId: 0,
-      latestBlockNumber,
       latestDepositId,
       currentTime,
       events,
       blocks,
-      searchEndBlock: this.eventSearchConfig.toBlock || latestBlockNumber,
+      searchEndBlock: this.eventSearchConfig.toBlock || latestBlockSearched,
     };
   }
 
@@ -149,12 +138,12 @@ export class MockSpokePoolClient extends SpokePoolClient {
 
     const { blockNumber, transactionIndex } = deposit;
     let { depositId, depositor, destinationChainId } = deposit;
-    depositId = depositId ?? this.numberOfDeposits;
+    depositId ??= this.numberOfDeposits;
     assert(depositId >= this.numberOfDeposits, `${depositId} < ${this.numberOfDeposits}`);
     this.numberOfDeposits = depositId + 1;
 
-    destinationChainId = destinationChainId ?? random(1, 42161, false);
-    depositor = depositor ?? randomAddress();
+    destinationChainId ??= random(1, 42161, false);
+    depositor ??= randomAddress();
 
     const message = deposit["message"] ?? `${event} event at block ${blockNumber}, index ${transactionIndex}.`;
     const topics = [destinationChainId, depositId, depositor];
@@ -186,9 +175,9 @@ export class MockSpokePoolClient extends SpokePoolClient {
 
     const { blockNumber, transactionIndex } = fill;
     let { depositor, originChainId, depositId } = fill;
-    originChainId = originChainId ?? random(1, 42161, false);
-    depositId = depositId ?? random(1, 100_000, false);
-    depositor = depositor ?? randomAddress();
+    originChainId ??= random(1, 42161, false);
+    depositId ??= random(1, 100_000, false);
+    depositor ??= randomAddress();
 
     const topics = [originChainId, depositId, depositor];
     const recipient = fill.recipient ?? randomAddress();
@@ -216,7 +205,7 @@ export class MockSpokePoolClient extends SpokePoolClient {
         message: fill.updatableRelayData?.message ?? message,
         relayerFeePct: fill.updatableRelayData?.relayerFeePct ?? relayerFeePct,
         isSlowRelay: fill.updatableRelayData?.isSlowRelay ?? false,
-        payoutAdjustmentPct: fill.updatableRelayData?.payoutAdjustmentPct ?? toBN(0),
+        payoutAdjustmentPct: fill.updatableRelayData?.payoutAdjustmentPct ?? bnZero,
       },
     };
 
@@ -236,9 +225,9 @@ export class MockSpokePoolClient extends SpokePoolClient {
     const { blockNumber, transactionIndex } = request;
     let { relayer, originChainId, depositId } = request;
 
-    relayer = relayer ?? randomAddress();
-    originChainId = originChainId ?? random(1, 42161, false);
-    depositId = depositId ?? random(1, 100_000, false);
+    relayer ??= randomAddress();
+    originChainId ??= random(1, 42161, false);
+    depositId ??= random(1, 100_000, false);
 
     const topics = [relayer, originChainId, depositId];
     const args = {
@@ -263,7 +252,12 @@ export class MockSpokePoolClient extends SpokePoolClient {
     });
   }
 
-  generateDepositRoute(originToken: string, destinationChainId: number, enabled: boolean): Event {
+  generateDepositRoute(
+    originToken: string,
+    destinationChainId: number,
+    enabled: boolean,
+    overrides: EventOverrides = {}
+  ): Event {
     const event = "EnabledDepositRoute";
 
     const topics = [originToken, destinationChainId];
@@ -274,6 +268,7 @@ export class MockSpokePoolClient extends SpokePoolClient {
       address: this.spokePool.address,
       topics: topics.map((topic) => topic.toString()),
       args,
+      blockNumber: overrides.blockNumber,
     });
   }
 }

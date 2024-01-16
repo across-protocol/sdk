@@ -75,8 +75,6 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
   public cumulativeDisabledChainUpdates: DisabledChainsUpdate[] = [];
 
   protected rateModelDictionary: across.rateModel.RateModelDictionary;
-  public firstBlockToSearch: number;
-  public latestBlockNumber = 0;
 
   public hasLatestConfigStoreVersion = false;
   public chainId: number | undefined;
@@ -89,6 +87,7 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
   ) {
     super();
     this.firstBlockToSearch = eventSearchConfig.fromBlock;
+    this.latestBlockSearched = 0;
     this.rateModelDictionary = new across.rateModel.RateModelDictionary();
   }
 
@@ -519,7 +518,7 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
     this.rateModelDictionary.updateWithEvents(this.cumulativeRateModelUpdates);
 
     this.hasLatestConfigStoreVersion = this.hasValidConfigStoreVersionForTimestamp();
-    this.latestBlockNumber = result.searchEndBlock;
+    this.latestBlockSearched = result.searchEndBlock;
     this.firstBlockToSearch = result.searchEndBlock + 1; // Next iteration should start off from where this one ended.
     this.chainId = this.chainId ?? chainId; // Update on the first run only.
     this.isUpdated = true;
@@ -576,7 +575,7 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
       cumulativeDisabledChainUpdates = this.cumulativeDisabledChainUpdates,
       firstBlockToSearch = this.firstBlockToSearch,
       hasLatestConfigStoreVersion = this.hasLatestConfigStoreVersion,
-      latestBlockNumber = this.latestBlockNumber,
+      latestBlockSearched = this.latestBlockSearched,
       ubaConfigUpdates,
       cumulativeSpokeTargetBalanceUpdates,
     } = configStoreClientState;
@@ -611,7 +610,7 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
     this.cumulativeDisabledChainUpdates = cumulativeDisabledChainUpdates;
     this.firstBlockToSearch = firstBlockToSearch;
     this.hasLatestConfigStoreVersion = hasLatestConfigStoreVersion;
-    this.latestBlockNumber = latestBlockNumber;
+    this.latestBlockSearched = latestBlockSearched;
     this.rateModelDictionary.updateWithEvents(cumulativeRateModelUpdates);
     this.isUpdated = true;
   }
@@ -634,7 +633,7 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
       cumulativeConfigStoreVersionUpdates: this.cumulativeConfigStoreVersionUpdates,
       cumulativeDisabledChainUpdates: this.cumulativeDisabledChainUpdates,
       firstBlockToSearch: this.firstBlockToSearch,
-      latestBlockNumber: this.latestBlockNumber,
+      latestBlockSearched: this.latestBlockSearched,
       hasLatestConfigStoreVersion: this.hasLatestConfigStoreVersion,
     };
   }

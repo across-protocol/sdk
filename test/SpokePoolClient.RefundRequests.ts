@@ -41,7 +41,6 @@ describe("SpokePoolClient: Refund Requests", function () {
     for (let _idx = 0; _idx < 5; ++_idx) {
       const refundRequest = { relayer, originChainId } as RefundRequestWithBlock;
       const testEvent = spokePoolClient.generateRefundRequest(refundRequest);
-      spokePoolClient.addEvent(testEvent);
       refundRequestEvents.push(spreadEventWithBlockNumber(testEvent) as RefundRequestWithBlock);
     }
     await spokePoolClient.update();
@@ -56,18 +55,17 @@ describe("SpokePoolClient: Refund Requests", function () {
   });
 
   it("Correctly filters out refund requests based on blockNumber", async function () {
-    // New events must come _after_ the current latestBlockNumber.
-    const { chainId: repaymentChainId, latestBlockNumber } = spokePoolClient;
+    // New events must come _after_ the current latestBlockSearched.
+    const { chainId: repaymentChainId, latestBlockSearched } = spokePoolClient;
     const nEvents = 5;
-    const minExpectedBlockNumber = latestBlockNumber + nEvents;
+    const minExpectedBlockNumber = latestBlockSearched + nEvents;
 
     let refundRequestEvents: RefundRequestWithBlock[] = [];
     for (let txn = 0; txn < nEvents; ++txn) {
       // Barebones Event - only absolutely necessary fields are populated.
-      const blockNumber = latestBlockNumber + 1 + txn;
+      const blockNumber = latestBlockSearched + 1 + txn;
       const refundRequest = { relayer, originChainId, blockNumber } as RefundRequestWithBlock;
       const testEvent = spokePoolClient.generateRefundRequest(refundRequest);
-      spokePoolClient.addEvent(testEvent);
       refundRequestEvents.push({
         ...spreadEventWithBlockNumber(testEvent),
         repaymentChainId,
@@ -82,10 +80,10 @@ describe("SpokePoolClient: Refund Requests", function () {
         blockTimestamp: block.timestamp,
       };
     }) as RefundRequestWithBlock[];
-    expect(spokePoolClient.latestBlockNumber - latestBlockNumber).to.be.at.least(nEvents);
+    expect(spokePoolClient.latestBlockSearched - latestBlockSearched).to.be.at.least(nEvents);
 
     // Filter out the RefundRequests at the fringes.
-    const fromBlock = latestBlockNumber + 2;
+    const fromBlock = latestBlockSearched + 2;
     const toBlock = minExpectedBlockNumber - 2;
     const { filteredRequests = [], excludedRequests = [] } = groupBy(refundRequestEvents, (refundRequest) => {
       return refundRequest.blockNumber >= fromBlock && refundRequest.blockNumber <= toBlock

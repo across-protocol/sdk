@@ -162,7 +162,7 @@ describe("HubPoolClient: RootBundle Events", function () {
       logIndex: 0,
       transactionHash: "",
     };
-    expect(hubPoolClient.isRootBundleValid(rootBundle, hubPoolClient.latestBlockNumber!)).to.equal(false);
+    expect(hubPoolClient.isRootBundleValid(rootBundle, hubPoolClient.latestBlockSearched!)).to.equal(false);
 
     // Execute leaves.
     await timer.connect(dataworker).setCurrentTime(proposeTime + liveness + 1);
@@ -170,12 +170,12 @@ describe("HubPoolClient: RootBundle Events", function () {
 
     // Not valid until all leaves are executed.
     await hubPoolClient.update();
-    expect(hubPoolClient.isRootBundleValid(rootBundle, hubPoolClient.latestBlockNumber!)).to.equal(false);
-    const blockNumberBeforeAllLeavesExecuted = hubPoolClient.latestBlockNumber;
+    expect(hubPoolClient.isRootBundleValid(rootBundle, hubPoolClient.latestBlockSearched!)).to.equal(false);
+    const blockNumberBeforeAllLeavesExecuted = hubPoolClient.latestBlockSearched;
 
     await hubPool.connect(dataworker).executeRootBundle(...Object.values(leaves[1]), tree.getHexProof(leaves[1]));
     await hubPoolClient.update();
-    expect(hubPoolClient.isRootBundleValid(rootBundle, hubPoolClient.latestBlockNumber!)).to.equal(true);
+    expect(hubPoolClient.isRootBundleValid(rootBundle, hubPoolClient.latestBlockSearched!)).to.equal(true);
 
     // Only searches for executed leaves up to input latest mainnet block to search
     expect(hubPoolClient.isRootBundleValid(rootBundle, blockNumberBeforeAllLeavesExecuted!)).to.equal(false);
@@ -461,12 +461,11 @@ describe("HubPoolClient: RootBundle Events", function () {
         await configStoreClient.update();
 
         const bundleEvaluationBlockNumbers = chainIds.map(() => toBN(random(100, 1000, false)));
-        const proposalEvent = hubPoolClient.proposeRootBundle(
+        hubPoolClient.proposeRootBundle(
           Math.floor(Date.now() / 1000) - 1, // challengePeriodEndTimestamp
           chainIds.length, // poolRebalanceLeafCount
           bundleEvaluationBlockNumbers
         );
-        hubPoolClient.addEvent(proposalEvent);
         await hubPoolClient.update();
 
         // Propose a root bundle and execute the associated leaves.
@@ -490,14 +489,13 @@ describe("HubPoolClient: RootBundle Events", function () {
             l1Tokens.map(() => toBN(0)), // netSendAmounts
             runningBalances
           );
-          hubPoolClient.addEvent(leafEvent);
           return leafEvent;
         });
         await hubPoolClient.update();
 
         const executedLeaves = hubPoolClient.getExecutedLeavesForRootBundle(
           proposedRootBundle,
-          hubPoolClient.latestBlockNumber as number
+          hubPoolClient.latestBlockSearched as number
         );
         expect(executedLeaves.length).to.equal(leafEvents.length);
 
@@ -536,12 +534,11 @@ describe("HubPoolClient: RootBundle Events", function () {
         await configStoreClient.update();
 
         const bundleEvaluationBlockNumbers = chainIds.map(() => toBN(random(100, 1000, false)));
-        const proposalEvent = hubPoolClient.proposeRootBundle(
+        hubPoolClient.proposeRootBundle(
           Math.floor(Date.now() / 1000) - 1, // challengePeriodEndTimestamp
           chainIds.length, // poolRebalanceLeafCount
           bundleEvaluationBlockNumbers
         );
-        hubPoolClient.addEvent(proposalEvent);
         await hubPoolClient.update();
 
         // Propose a root bundle and execute the associated leaves.
@@ -549,14 +546,13 @@ describe("HubPoolClient: RootBundle Events", function () {
         const leafEvents = chainIds.map((chainId, idx) => {
           const groupIndex = toBN(chainId === hubPoolClient.chainId ? 0 : 1);
           const leafEvent = hubPoolClient.executeRootBundle(groupIndex, idx, toBN(chainId), [], [], [], []);
-          hubPoolClient.addEvent(leafEvent);
           return leafEvent;
         });
         await hubPoolClient.update();
 
         const executedLeaves = hubPoolClient.getExecutedLeavesForRootBundle(
           proposedRootBundle,
-          hubPoolClient.latestBlockNumber as number
+          hubPoolClient.latestBlockSearched as number
         );
         expect(executedLeaves.length).to.equal(leafEvents.length);
 

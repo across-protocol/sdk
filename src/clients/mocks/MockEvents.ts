@@ -4,6 +4,9 @@ import { random } from "lodash";
 import { isDefined, randomAddress, toBN } from "../../utils";
 
 const { id, keccak256, toUtf8Bytes } = ethersUtils;
+export type EventOverrides = {
+  blockNumber?: number;
+};
 
 type Block = providers.Block;
 type TransactionResponse = providers.TransactionResponse;
@@ -37,6 +40,7 @@ const removeListener = (): void => {
 
 export class EventManager {
   private logIndexes: Record<string, number> = {};
+  public events: Event[] = [];
   public readonly minBlockRange = 10;
   public readonly eventSignatures: Record<string, string> = {};
 
@@ -51,6 +55,16 @@ export class EventManager {
     });
   }
 
+  addEvent(event: Event): void {
+    this.events.push(event);
+  }
+
+  getEvents(): Event[] {
+    const events = this.events;
+    this.events = [];
+    return events;
+  }
+
   generateEvent(inputs: EthersEventTemplate): Event {
     const { address, event, topics: _topics, data, args } = inputs;
     const eventSignature = `${event}(${this.eventSignatures[event]})`;
@@ -60,15 +74,15 @@ export class EventManager {
 
     // Increment the block number by at least 1, by default. The caller may override
     // to force the same block number to be used, but never a previous block number.
-    blockNumber = blockNumber ?? random(this.blockNumber + 1, this.blockNumber + this.minBlockRange, false);
+    blockNumber ??= random(this.blockNumber + 1, this.blockNumber + this.minBlockRange, false);
     assert(blockNumber >= this.blockNumber, `${blockNumber} < ${this.blockNumber}`);
     this.blockNumber = blockNumber;
 
-    transactionIndex = transactionIndex ?? random(1, 32, false);
+    transactionIndex ??= random(1, 32, false);
     const transactionHash = id(`Across-v2-${event}-${blockNumber}-${transactionIndex}-${random(1, 100_000)}`);
 
     const _logIndex = `${blockNumber}-${transactionIndex}`;
-    this.logIndexes[_logIndex] = this.logIndexes[_logIndex] ?? 0;
+    this.logIndexes[_logIndex] ??= 0;
     const logIndex = this.logIndexes[_logIndex]++;
 
     const decodeError = new Error(`${event} decoding error`);
@@ -94,7 +108,7 @@ export class EventManager {
       });
     };
 
-    return {
+    const generatedEvent = {
       blockNumber,
       transactionIndex,
       logIndex,
@@ -113,6 +127,9 @@ export class EventManager {
       getTransactionReceipt,
       removeListener,
     } as Event;
+
+    this.addEvent(generatedEvent);
+    return generatedEvent;
   }
 }
 
