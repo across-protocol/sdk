@@ -203,10 +203,8 @@ export class MockSpokePoolClient extends SpokePoolClient {
 
     destinationChainId ??= random(1, 42161, false);
     depositor ??= randomAddress();
-
     inputToken ??= randomAddress();
     outputToken ??= inputToken;
-
     inputAmount ??= toBNWei(random(1, 1000, false));
     outputAmount ??= inputAmount.mul(0.95);
 
@@ -290,7 +288,7 @@ export class MockSpokePoolClient extends SpokePoolClient {
     });
   }
 
-  fillV3Relay(fill: v3FillWithBlock) {
+  fillV3Relay(fill: v3FillWithBlock): Event {
     assert(isV3Fill(fill));
     const event = "FilledV3Relay";
 
