@@ -3,7 +3,13 @@ import { clients, utils as sdkUtils } from "../src";
 import { expect } from "chai";
 import { DEFAULT_CONFIG_STORE_VERSION } from "../src/clients";
 import { MockHubPoolClient, MockSpokePoolClient, MockConfigStoreClient } from "../src/clients/mocks";
-import { DepositWithBlock, FillWithBlock, RefundRequestWithBlock } from "../src/interfaces";
+import {
+  DepositWithBlock,
+  FillWithBlock,
+  RefundRequestWithBlock,
+  v2DepositWithBlock,
+  v2FillWithBlock,
+} from "../src/interfaces";
 import { ZERO_ADDRESS } from "../src/constants";
 import {
   createSpyLogger,
@@ -37,12 +43,12 @@ const generateValidRefundRequest = async (
   destination: MockSpokePoolClient,
   repayment: MockSpokePoolClient = destination
 ): Promise<{ deposit: DepositWithBlock; fill: FillWithBlock; refundRequest?: RefundRequestWithBlock }> => {
-  let event = origin.generateDeposit({
+  let event = origin.deposit({
     originChainId: origin.chainId,
     originToken: ZERO_ADDRESS,
     destinationChainId: destination.chainId,
     destinationToken: ZERO_ADDRESS,
-  } as DepositWithBlock);
+  } as v2DepositWithBlock);
   await origin.update();
 
   // Pull the DepositWithBlock event out of the origin SpokePoolClient to use as a Fill template.
@@ -52,7 +58,7 @@ const generateValidRefundRequest = async (
 
   const fillTemplate = fillFromDeposit(deposit, randomAddress());
   fillTemplate.repaymentChainId = (repayment ?? destination).chainId;
-  event = destination.generateFill(fillTemplate as FillWithBlock);
+  event = destination.fillRelay(fillTemplate as v2FillWithBlock);
   await destination.update();
 
   // Pull the FillWithBlock event out of the destination SpokePoolClient.
@@ -64,7 +70,7 @@ const generateValidRefundRequest = async (
   let refundRequest: RefundRequestWithBlock | undefined = undefined;
   if (repayment !== destination) {
     const refundRequestTemplate = refundRequestFromFill(fill, fill.destinationToken);
-    event = repayment.generateRefundRequest(refundRequestTemplate as RefundRequestWithBlock);
+    event = repayment.requestRefund(refundRequestTemplate as RefundRequestWithBlock);
     await repayment.update();
 
     // Pull the DepositWithBlock event out of the origin SpokePoolClient to use as a Fill template.
@@ -133,7 +139,7 @@ describe("SpokePoolClient: Event Filtering", function () {
 
         // @todo: destinationToken
         [ZERO_ADDRESS].forEach((originToken) => {
-          spokePoolClient.generateDepositRoute(originToken, destinationChainId, true);
+          spokePoolClient.setEnableRoute(originToken, destinationChainId, true);
           hubPoolClient.setPoolRebalanceRoute(destinationChainId, originToken, originToken);
         });
       }
