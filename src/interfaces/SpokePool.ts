@@ -77,7 +77,7 @@ export type v3DepositWithBlockStringified = Omit<
 // @todo Extend with v3DepositWithBlockStringified.
 export type DepositWithBlockStringified = v2DepositWithBlockStringified;
 
-export interface RelayExecutionInfo {
+export interface RelayExecutionInfoCommon {
   recipient: string;
   message: string;
 }
@@ -87,6 +87,24 @@ export interface RelayExecutionInfo extends RelayExecutionInfoCommon {
   isSlowRelay: boolean;
   payoutAdjustmentPct: BigNumber;
 }
+
+export enum FillStatus {
+  Unfilled = 0,
+  RequestedSlowFil,
+  Filled
+}
+
+export enum FillType {
+  FastFill = 0,
+  ReplacedSlowFill,
+  SlowFill
+}
+
+export interface v3RelayExecutionEventInfo extends RelayExecutionInfoCommon {
+  outputAmount: BigNumber;
+  fillType: FillType;
+}
+
 export type RelayerRefundExecutionInfoStringified = Omit<
   RelayExecutionInfo,
   "relayerFeePct" | "payoutAdjustmentPct"
@@ -104,6 +122,7 @@ interface FillCommon {
   message: string;
   relayer: string;
   repaymentChainId: number;
+  realizedLpFeePct: BigNumber; // appended after initialization (not part of Fill event).
 }
 
 export interface v2Fill extends FillCommon {
@@ -112,7 +131,6 @@ export interface v2Fill extends FillCommon {
   totalFilledAmount: BigNumber;
   fillAmount: BigNumber;
   relayerFeePct: BigNumber;
-  realizedLpFeePct: BigNumber;
   updatableRelayData: RelayExecutionInfo;
 }
 
@@ -124,13 +142,14 @@ export interface v3Fill extends FillCommon {
   fillDeadline: number;
   exclusivityDeadline: number;
   exclusiveRelayer: string;
+  updatableRelayData: v3RelayExecutionEventInfo;
 }
 
 export interface v2FillWithBlock extends v2Fill, SortableEvent {
   blockTimestamp: number;
 }
 
-export interface v3FillWithBlock extends v2Fill, SortableEvent {
+export interface v3FillWithBlock extends v3Fill, SortableEvent {
   blockTimestamp: number;
 }
 
