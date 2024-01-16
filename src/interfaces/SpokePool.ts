@@ -90,7 +90,7 @@ export interface RelayExecutionInfo extends RelayExecutionInfoCommon {
 
 export enum FillStatus {
   Unfilled = 0,
-  RequestedSlowFil,
+  RequestedSlowFill,
   Filled,
 }
 
