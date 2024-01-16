@@ -44,6 +44,14 @@ export type {
   MerkleDistributorInterface,
 } from "@across-protocol/across-token/dist/typechain/MerkleDistributor";
 
+
+/**
+ * Temporarily provide local definitions for the upcoming v3 data types.
+ * This defers the need to bump contracts-v2, which would otherwise be
+ * incompatible with the production code in relayer-v2. These defintions
+ * must be removed when contracts-v2 is finally bumped.
+ */
+
 export interface V3FundsDepositedEventObject {
   inputToken: string;
   outputToken: string;
@@ -59,8 +67,22 @@ export interface V3FundsDepositedEventObject {
   relayer: string;
   message: string;
 }
-export declare type V3FundsDepositedEvent = TypedEvent<
-  [string, string, BigNumber, BigNumber, BigNumber, number, number, number, number, string, string, string, string],
+export type V3FundsDepositedEvent = TypedEvent<
+  [
+    string,
+    string,
+    BigNumber,
+    BigNumber,
+    BigNumber,
+    number,
+    number,
+    number,
+    number,
+    string,
+    string,
+    string,
+    string
+  ],
   V3FundsDepositedEventObject
 >;
 
@@ -81,8 +103,7 @@ export interface FilledV3RelayEventObject {
   message: string;
   relayExecutionInfo: V3SpokePoolInterface.V3RelayExecutionEventInfoStructOutput;
 }
-
-export declare type FilledV3RelayEvent = TypedEvent<
+export type FilledV3RelayEvent = TypedEvent<
   [
     string,
     string,
@@ -98,17 +119,59 @@ export declare type FilledV3RelayEvent = TypedEvent<
     string,
     string,
     string,
-    V3SpokePoolInterface.V3RelayExecutionEventInfoStructOutput,
+    V3SpokePoolInterface.V3RelayExecutionEventInfoStructOutput
   ],
   FilledV3RelayEventObject
 >;
 
-/**
- * Temporarily provide local definitions for the upcoming v3 data types.
- * This defers the need to bump contracts-v2, which would otherwise be
- * incompatible with the production code in relayer-v2. These defintions
- * must be removed when contracts-v2 is finally bumped.
- */
+export interface RequestedSpeedUpV3DepositEventObject {
+  updatedOutputAmount: BigNumber;
+  depositId: number;
+  depositor: string;
+  updatedRecipient: string;
+  updatedMessage: string;
+  depositorSignature: string;
+}
+export type RequestedSpeedUpV3DepositEvent = TypedEvent<
+  [BigNumber, number, string, string, string, string],
+  RequestedSpeedUpV3DepositEventObject
+>;
+
+export type RequestedSpeedUpV3DepositEventFilter =
+  TypedEventFilter<RequestedSpeedUpV3DepositEvent>;
+
+export interface RequestedV3SlowFillEventObject {
+  inputToken: string;
+  outputToken: string;
+  inputAmount: BigNumber;
+  outputAmount: BigNumber;
+  originChainId: BigNumber;
+  depositId: number;
+  fillDeadline: number;
+  exclusivityDeadline: number;
+  exclusiveRelayer: string;
+  depositor: string;
+  recipient: string;
+  message: string;
+}
+export type RequestedV3SlowFillEvent = TypedEvent<
+  [
+    string,
+    string,
+    BigNumber,
+    BigNumber,
+    BigNumber,
+    number,
+    number,
+    number,
+    string,
+    string,
+    string,
+    string
+  ],
+  RequestedV3SlowFillEventObject
+>;
+
 // eslint-disable-next-line @typescript-eslint/no-namespace
 export declare namespace V3SpokePoolInterface {
   type V3RelayExecutionEventInfoStruct = {
