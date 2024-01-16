@@ -3,8 +3,28 @@ import { BigNumber, Contract, Event, providers } from "ethers";
 import { random } from "lodash";
 import winston from "winston";
 import { ZERO_ADDRESS } from "../../constants";
-import { DepositWithBlock, FillWithBlock, FundsDepositedEvent, RefundRequestWithBlock } from "../../interfaces";
-import { bnZero, toBNWei, forEachAsync, randomAddress } from "../../utils";
+import {
+  DepositWithBlock,
+  FillType,
+  FundsDepositedEvent,
+  RefundRequestWithBlock,
+  SlowFillRequestWithBlock,
+  v2DepositWithBlock,
+  v3DepositWithBlock,
+  v2FillWithBlock,
+  v3FillWithBlock,
+} from "../../interfaces";
+import {
+  bnZero,
+  toBNWei,
+  forEachAsync,
+  getCurrentTime,
+  isV2Deposit,
+  isV2Fill,
+  isV3Deposit,
+  isV3Fill,
+  randomAddress,
+} from "../../utils";
 import { SpokePoolClient, SpokePoolUpdate } from "../SpokePoolClient";
 import { EventManager, EventOverrides, getEventManager } from "./MockEvents";
 
@@ -133,7 +153,8 @@ export class MockSpokePoolClient extends SpokePoolClient {
     RefundRequested: "address,address,uint256,uint256,uint256,int64,uint32,uint256,uint256",
   };
 
-  generateDeposit(deposit: DepositWithBlock): Event {
+  deposit(deposit: v2DepositWithBlock): Event {
+    assert(isV2Deposit(deposit));
     const event = "FundsDeposited";
 
     const { blockNumber, transactionIndex } = deposit;
@@ -170,7 +191,57 @@ export class MockSpokePoolClient extends SpokePoolClient {
     });
   }
 
-  generateFill(fill: FillWithBlock): Event {
+  depositV3(deposit: v3DepositWithBlock): Event {
+    assert(isV3Deposit(deposit));
+    const event = "V3FundsDeposited";
+
+    const { blockNumber, transactionIndex } = deposit;
+    let { depositId, depositor, destinationChainId, inputToken, inputAmount, outputToken, outputAmount } = deposit;
+    depositId ??= this.numberOfDeposits;
+    assert(depositId >= this.numberOfDeposits, `${depositId} < ${this.numberOfDeposits}`);
+    this.numberOfDeposits = depositId + 1;
+
+    destinationChainId ??= random(1, 42161, false);
+    depositor ??= randomAddress();
+
+    inputToken ??= randomAddress();
+    outputToken ??= inputToken;
+
+    inputAmount ??= toBNWei(random(1, 1000, false));
+    outputAmount ??= inputAmount.mul(0.95);
+
+    const message = deposit["message"] ?? `${event} event at block ${blockNumber}, index ${transactionIndex}.`;
+    const topics = [destinationChainId, depositId, depositor];
+    const quoteTimestamp = deposit.quoteTimestamp ?? getCurrentTime();
+    const args = {
+      depositId,
+      originChainId: deposit.originChainId ?? this.chainId,
+      destinationChainId,
+      depositor,
+      recipient: deposit.recipient ?? depositor,
+      inputToken,
+      inputAmount,
+      outputToken,
+      outputAmount,
+      quoteTimestamp,
+      fillDeadline: deposit.fillDeadline ?? quoteTimestamp + 3600,
+      relayer: deposit.relayer ?? ZERO_ADDRESS,
+      exclusivityDeadline: deposit.exclusivityDeadline ?? quoteTimestamp + 600,
+      message,
+    };
+
+    return this.eventManager.generateEvent({
+      event,
+      address: this.spokePool.address,
+      topics: topics.map((topic) => topic.toString()),
+      args,
+      blockNumber,
+      transactionIndex,
+    });
+  }
+
+  fillRelay(fill: v2FillWithBlock): Event {
+    assert(isV2Fill(fill));
     const event = "FilledRelay";
 
     const { blockNumber, transactionIndex } = fill;
@@ -219,7 +290,89 @@ export class MockSpokePoolClient extends SpokePoolClient {
     });
   }
 
-  generateRefundRequest(request: RefundRequestWithBlock): Event {
+  fillV3Relay(fill: v3FillWithBlock) {
+    assert(isV3Fill(fill));
+    const event = "FilledV3Relay";
+
+    const { blockNumber, transactionIndex } = fill;
+    let { originChainId, depositId, inputToken, inputAmount, outputAmount, fillDeadline, relayer } = fill;
+    originChainId ??= random(1, 42161, false);
+    depositId ??= random(1, 100_000, false);
+    inputToken ??= randomAddress();
+    inputAmount ??= toBNWei(random(1, 1000, false));
+    outputAmount ??= inputAmount;
+    fillDeadline ??= getCurrentTime() + 60;
+    relayer ??= randomAddress();
+
+    const topics = [originChainId, depositId, relayer];
+    const recipient = fill.recipient ?? randomAddress();
+    const message = fill["message"] ?? `${event} event at block ${blockNumber}, index ${transactionIndex}.`;
+
+    const args = {
+      inputToken,
+      outputToken: fill.outputToken ?? ZERO_ADDRESS, // resolved via HubPoolClient.
+      inputAmount: fill.inputAmount,
+      outputAmount: fill.outputAmount,
+      repaymentChainId: fill.repaymentChainId ?? this.chainId,
+      originChainId,
+      depositId,
+      fillDeadline,
+      exclusivityDeadline: fill.exclusivityDeadline ?? fillDeadline,
+      exclusiveRelayer: fill.exclusiveRelayer ?? ZERO_ADDRESS,
+      relayer,
+      depositor: fill.depositor ?? randomAddress(),
+      recipient,
+      message,
+      updatableRelayData: {
+        updatedRecipient: fill.updatableRelayData?.recipient ?? recipient,
+        updatedMessage: fill.updatableRelayData?.message ?? message,
+        updatedOutputAmount: fill.updatableRelayData?.outputAmount ?? outputAmount,
+        fillType: fill.updatableRelayData?.fillType ?? FillType.FastFill,
+      },
+    };
+
+    return this.eventManager.generateEvent({
+      event,
+      address: this.spokePool.address,
+      topics: topics.map((topic) => topic.toString()),
+      args,
+      blockNumber,
+      transactionIndex,
+    });
+  }
+
+  requestV3SlowFill(request: SlowFillRequestWithBlock): Event {
+    const event = "RequestedV3SlowFill";
+
+    const { originChainId, depositId } = request;
+    const topics = [originChainId, depositId];
+
+    const args = {
+      inputToken: request.inputToken,
+      outputToken: request.outputToken,
+      inputAmount: request.inputAmount,
+      outputAmount: request.outputAmount,
+      originChainId: request.originChainId,
+      depositId,
+      fillDeadline: request.fillDeadline,
+      exclusivityDeadline: request.exclusivityDeadline,
+      exclusiveRelayer: request.exclusiveRelayer,
+      depositor: request.depositor,
+      recipient: request.recipient,
+      message: request.message,
+    };
+
+    return this.eventManager.generateEvent({
+      event,
+      address: this.spokePool.address,
+      topics: topics.map((topic) => topic.toString()),
+      args,
+      blockNumber: request.blockNumber,
+      transactionIndex: request.transactionIndex,
+    });
+  }
+
+  requestRefund(request: RefundRequestWithBlock): Event {
     const event = "RefundRequested";
 
     const { blockNumber, transactionIndex } = request;
@@ -252,7 +405,7 @@ export class MockSpokePoolClient extends SpokePoolClient {
     });
   }
 
-  generateDepositRoute(
+  setEnableRoute(
     originToken: string,
     destinationChainId: number,
     enabled: boolean,
