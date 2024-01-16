@@ -31,9 +31,7 @@ export function isV3Fill(fill: Fill): fill is v3Fill {
 }
 
 export function isSlowFill(fill: Fill): boolean {
-  return isV2Fill(fill)
-    ? fill.updatableRelayData.isSlowRelay
-    : fill.updatableRelayData.fillType === FillType.SlowFill;
+  return isV2Fill(fill) ? fill.updatableRelayData.isSlowRelay : fill.updatableRelayData.fillType === FillType.SlowFill;
 }
 
 export function getDepositInputToken(deposit: Deposit): string {

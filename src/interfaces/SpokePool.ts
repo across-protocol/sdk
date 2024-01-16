@@ -90,13 +90,13 @@ export interface RelayExecutionInfo extends RelayExecutionInfoCommon {
 export enum FillStatus {
   Unfilled = 0,
   RequestedSlowFil,
-  Filled
+  Filled,
 }
 
 export enum FillType {
   FastFill = 0,
   ReplacedSlowFill,
-  SlowFill
+  SlowFill,
 }
 
 export interface v3RelayExecutionEventInfo extends RelayExecutionInfoCommon {
