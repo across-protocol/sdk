@@ -44,7 +44,6 @@ export type {
   MerkleDistributorInterface,
 } from "@across-protocol/across-token/dist/typechain/MerkleDistributor";
 
-
 /**
  * Temporarily provide local definitions for the upcoming v3 data types.
  * This defers the need to bump contracts-v2, which would otherwise be
@@ -68,21 +67,7 @@ export interface V3FundsDepositedEventObject {
   message: string;
 }
 export type V3FundsDepositedEvent = TypedEvent<
-  [
-    string,
-    string,
-    BigNumber,
-    BigNumber,
-    BigNumber,
-    number,
-    number,
-    number,
-    number,
-    string,
-    string,
-    string,
-    string
-  ],
+  [string, string, BigNumber, BigNumber, BigNumber, number, number, number, number, string, string, string, string],
   V3FundsDepositedEventObject
 >;
 
@@ -119,7 +104,7 @@ export type FilledV3RelayEvent = TypedEvent<
     string,
     string,
     string,
-    V3SpokePoolInterface.V3RelayExecutionEventInfoStructOutput
+    V3SpokePoolInterface.V3RelayExecutionEventInfoStructOutput,
   ],
   FilledV3RelayEventObject
 >;
@@ -137,8 +122,7 @@ export type RequestedSpeedUpV3DepositEvent = TypedEvent<
   RequestedSpeedUpV3DepositEventObject
 >;
 
-export type RequestedSpeedUpV3DepositEventFilter =
-  TypedEventFilter<RequestedSpeedUpV3DepositEvent>;
+export type RequestedSpeedUpV3DepositEventFilter = TypedEventFilter<RequestedSpeedUpV3DepositEvent>;
 
 export interface RequestedV3SlowFillEventObject {
   inputToken: string;
@@ -155,20 +139,7 @@ export interface RequestedV3SlowFillEventObject {
   message: string;
 }
 export type RequestedV3SlowFillEvent = TypedEvent<
-  [
-    string,
-    string,
-    BigNumber,
-    BigNumber,
-    BigNumber,
-    number,
-    number,
-    number,
-    string,
-    string,
-    string,
-    string
-  ],
+  [string, string, BigNumber, BigNumber, BigNumber, number, number, number, string, string, string, string],
   RequestedV3SlowFillEventObject
 >;
 
