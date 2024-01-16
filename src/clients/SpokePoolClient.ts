@@ -308,7 +308,7 @@ export class SpokePoolClient extends BaseAbstractClient {
     const { depositId, depositor } = deposit;
 
     if (isV2Deposit(deposit)) {
-      const v2SpeedUps = (this.speedUps[depositor]?.[depositId]?.filter(() => isV2SpeedUp) ?? []) as v2SpeedUp[];
+      const v2SpeedUps = (this.speedUps[depositor]?.[depositId]?.filter(isV2SpeedUp) ?? []) as v2SpeedUp[];
       const maxSpeedUp = v2SpeedUps.reduce(
         (prev, current) => (prev.newRelayerFeePct.gt(current.newRelayerFeePct) ? prev : current),
         { newRelayerFeePct: deposit.relayerFeePct } as v2SpeedUp
