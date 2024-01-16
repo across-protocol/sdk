@@ -344,21 +344,7 @@ export class MockSpokePoolClient extends SpokePoolClient {
 
     const { originChainId, depositId } = request;
     const topics = [originChainId, depositId];
-
-    const args = {
-      inputToken: request.inputToken,
-      outputToken: request.outputToken,
-      inputAmount: request.inputAmount,
-      outputAmount: request.outputAmount,
-      originChainId: request.originChainId,
-      depositId,
-      fillDeadline: request.fillDeadline,
-      exclusivityDeadline: request.exclusivityDeadline,
-      exclusiveRelayer: request.exclusiveRelayer,
-      depositor: request.depositor,
-      recipient: request.recipient,
-      message: request.message,
-    };
+    const args = { ...request };
 
     return this.eventManager.generateEvent({
       event,
