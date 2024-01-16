@@ -1,9 +1,9 @@
 import { BigNumber } from "ethers";
 import { SortableEvent } from "./Common";
-import { FundsDepositedEvent, V3FundsDepositedEvent } from "../typechain";
+import { FilledRelayEvent, FilledV3RelayEvent, FundsDepositedEvent, V3FundsDepositedEvent } from "../typechain";
 import { SpokePoolClient } from "../clients";
 
-export type { FundsDepositedEvent, V3FundsDepositedEvent };
+export type { FilledRelayEvent, FilledV3RelayEvent, FundsDepositedEvent, V3FundsDepositedEvent };
 
 export interface DepositCommon {
   depositId: number;
@@ -208,6 +208,23 @@ export type v3SpeedUpStringified = Omit<v3SpeedUp, "updatedOutputAmount"> & {
 
 // @todo: Extend with v2SpeedUpStringified | v3SpeedUpStringified.
 export type SpeedUpStringified = v2SpeedUpStringified;
+
+export interface SlowFillRequest {
+  depositId: number;
+  originChainId: number;
+  depositor: string;
+  recipient: string;
+  inputToken: string;
+  outputToken: string;
+  inputAmount: string;
+  outputAmount: string;
+  message: string;
+  fillDeadline: number;
+  exclusivityDeadline: number;
+  exclusiveRelayer: string;
+}
+
+export interface SlowFillRequestWithBlock extends SlowFillRequest, SortableEvent {}
 
 export interface SlowFill {
   relayHash: string;
