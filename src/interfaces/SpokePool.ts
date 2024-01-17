@@ -215,9 +215,9 @@ export interface SlowFillRequest {
   depositor: string;
   recipient: string;
   inputToken: string;
+  inputAmount: BigNumber;
   outputToken: string;
-  inputAmount: string;
-  outputAmount: string;
+  outputAmount: BigNumber;
   message: string;
   fillDeadline: number;
   exclusivityDeadline: number;
@@ -320,7 +320,6 @@ export interface v2RelayData extends RelayDataCommon {
 }
 
 export interface v3RelayData extends RelayDataCommon {
-  destinationChainId: number;
   inputToken: string;
   inputAmount: BigNumber;
   outputToken: string;
