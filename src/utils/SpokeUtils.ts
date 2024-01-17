@@ -205,6 +205,7 @@ export async function findFillBlock(
   const { provider } = spokePool;
   highBlockNumber ??= await provider.getBlockNumber();
   assert(highBlockNumber > lowBlockNumber, `Block numbers out of range (${lowBlockNumber} > ${highBlockNumber})`);
+  const { chainId: destinationChainId } = await spokePool.provider.getNetwork();
 
   // Make sure the relay is 100% completed within the block range supplied by the caller.
   const [initialFillAmount, finalFillAmount] = await Promise.all([
@@ -219,7 +220,7 @@ export async function findFillBlock(
 
   // Was filled earlier than the specified lowBlock.. This is an error by the caller.
   if (initialFillAmount.eq(relayData.amount)) {
-    const { depositId, originChainId, destinationChainId } = relayData;
+    const { depositId, originChainId } = relayData;
     const [srcChain, dstChain] = [getNetworkName(originChainId), getNetworkName(destinationChainId)];
     throw new Error(`${srcChain} deposit ${depositId} filled on ${dstChain} before block ${lowBlockNumber}`);
   }
