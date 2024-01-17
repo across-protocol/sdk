@@ -76,3 +76,7 @@ export function getFillAmount(fill: Fill): BN {
 export function getTotalFilledAmount(fill: Fill): BN {
   return isV2Fill(fill) ? fill.totalFilledAmount : fill.outputAmount;
 }
+
+export function getRelayDataOutputAmount(relayData: RelayData): BN {
+  return isV2RelayData(relayData) ? relayData.amount : relayData.outputAmount;
+}
