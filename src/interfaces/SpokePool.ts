@@ -170,7 +170,7 @@ export type v2FillWithBlockStringified = Omit<
 
 export type v3FillWithBlockStringified = Omit<
   v3FillWithBlock,
-  "inoutAmount" | "outputAmount" | "updatableRelayData"
+  "inputAmount" | "outputAmount" | "updatableRelayData"
 > & {
   inputAmount: string;
   outputAmount: string;
