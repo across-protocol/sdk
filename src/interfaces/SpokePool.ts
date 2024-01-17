@@ -302,19 +302,35 @@ export type RelayerRefundExecutionWithBlockStringified = Omit<
   refundAmounts: string[];
 };
 
-// Used in pool by spokePool to execute a slow relay.
-export interface RelayData {
+export interface RelayDataCommon {
+  originChainId: number;
   depositor: string;
   recipient: string;
-  destinationToken: string;
-  amount: BigNumber;
-  realizedLpFeePct: BigNumber;
-  relayerFeePct: BigNumber;
   depositId: number;
-  originChainId: number;
-  destinationChainId: number;
   message: string;
 }
+
+// Used in pool by spokePool to execute a slow relay.
+export interface v2RelayData extends RelayDataCommon {
+  destinationChainId: number;
+  destinationToken: string;
+  amount: BigNumber;
+  relayerFeePct: BigNumber;
+  realizedLpFeePct: BigNumber;
+}
+
+export interface v3RelayData extends RelayDataCommon {
+  destinationChainId: number;
+  inputToken: string;
+  inputAmount: BigNumber;
+  outputToken: string;
+  outputAmount: BigNumber;
+  fillDeadline: number;
+  exclusiveRelayer: string;
+  exclusivityDeadline: number;
+}
+
+export type RelayData = v2RelayData;
 
 export interface UnfilledDeposit {
   deposit: Deposit;
