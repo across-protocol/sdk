@@ -1,10 +1,21 @@
-import { FillType, v2Deposit, v3Deposit, v2Fill, v3Fill, v2SpeedUp, v3SpeedUp } from "../interfaces";
+import {
+  FillType,
+  v2Deposit,
+  v3Deposit,
+  v2Fill,
+  v2RelayData,
+  v2SpeedUp,
+  v3Fill,
+  v3RelayData,
+  v3SpeedUp,
+} from "../interfaces";
 import { BN } from "./BigNumberUtils";
 import { isDefined } from "./TypeGuards";
 
 type Deposit = v2Deposit | v3Deposit;
 type Fill = v2Fill | v3Fill;
 type SpeedUp = v2SpeedUp | v3SpeedUp;
+type RelayData = v2RelayData | v3RelayData;
 
 export function isV2Deposit(deposit: Deposit): deposit is v2Deposit {
   return isDefined((deposit as v2Deposit).originToken);
@@ -28,6 +39,10 @@ export function isV2Fill(fill: Fill): fill is v2Fill {
 
 export function isV3Fill(fill: Fill): fill is v3Fill {
   return isDefined((fill as v3Fill).inputToken);
+}
+
+export function isV2RelayData(relayData: RelayData): relayData is v2RelayData {
+  return isDefined((relayData as v2RelayData).destinationToken);
 }
 
 export function isSlowFill(fill: Fill): boolean {
