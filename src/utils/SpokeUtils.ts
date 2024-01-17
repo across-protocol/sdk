@@ -5,7 +5,7 @@ import { FillStatus, RelayData, v2RelayData, v3RelayData } from "../interfaces";
 import { SpokePoolClient } from "../clients";
 import { bnZero } from "./BigNumberUtils";
 import { isDefined } from "./TypeGuards";
-import { isV2RelayData } from "./MigrationUtils";
+import { getRelayDataOutputAmount, isV2RelayData } from "./MigrationUtils";
 import { getNetworkName } from "./NetworkUtils";
 
 /**
@@ -169,7 +169,7 @@ export async function getDepositIdAtBlock(contract: Contract, blockTag: number):
  * @param destinationChainId Supplementary destination chain ID required by V3 hashes.
  * @returns The corresponding RelayData hash.
  */
-export function getRelayHash(relayData: RelayData, destinationChainId?: number): string {
+export function getRelayDataHash(relayData: RelayData, destinationChainId?: number): string {
   if (isV2RelayData(relayData)) {
     // If destinationChainId was supplied, ensure it matches relayData.
     assert(!isDefined(destinationChainId) || destinationChainId === relayData.destinationChainId);
@@ -233,7 +233,7 @@ export async function relayFilledAmount(
   relayData: RelayData,
   blockTag?: number | "latest"
 ): Promise<BigNumber> {
-  const hash = getRelayHash(relayData);
+  const hash = getRelayDataHash(relayData);
 
   if (isV2RelayData(relayData)) {
     return spokePool.relayFills(hash, { blockTag });
@@ -248,6 +248,7 @@ export async function relayFilledAmount(
 
 /**
  * Find the block at which a fill was completed.
+ * @todo After SpokePool upgrade, this function can be simplified to use the FillStatus enum.
  * @param spokePool SpokePool contract instance.
  * @param relayData Deposit information that is used to complete a fill.
  * @param lowBlockNumber The lower bound of the search. Must be bounded by SpokePool deployment.
@@ -263,6 +264,7 @@ export async function findFillBlock(
   const { provider } = spokePool;
   highBlockNumber ??= await provider.getBlockNumber();
   assert(highBlockNumber > lowBlockNumber, `Block numbers out of range (${lowBlockNumber} > ${highBlockNumber})`);
+  const { chainId: destinationChainId } = await provider.getNetwork();
 
   // Make sure the relay is 100% completed within the block range supplied by the caller.
   const [initialFillAmount, finalFillAmount] = await Promise.all([
@@ -271,13 +273,14 @@ export async function findFillBlock(
   ]);
 
   // Wasn't filled within the specified block range.
-  if (finalFillAmount.lt(relayData.amount)) {
+  const relayAmount = getRelayDataOutputAmount(relayData);
+  if (finalFillAmount.lt(relayAmount)) {
     return undefined;
   }
 
   // Was filled earlier than the specified lowBlock.. This is an error by the caller.
-  if (initialFillAmount.eq(relayData.amount)) {
-    const { depositId, originChainId, destinationChainId } = relayData;
+  if (initialFillAmount.eq(relayAmount)) {
+    const { depositId, originChainId } = relayData;
     const [srcChain, dstChain] = [getNetworkName(originChainId), getNetworkName(destinationChainId)];
     throw new Error(`${srcChain} deposit ${depositId} filled on ${dstChain} before block ${lowBlockNumber}`);
   }
@@ -287,7 +290,7 @@ export async function findFillBlock(
     const midBlockNumber = Math.floor((highBlockNumber + lowBlockNumber) / 2);
     const filledAmount = await relayFilledAmount(spokePool, relayData, midBlockNumber);
 
-    if (filledAmount.eq(relayData.amount)) {
+    if (filledAmount.eq(relayAmount)) {
       highBlockNumber = midBlockNumber;
     } else {
       lowBlockNumber = midBlockNumber + 1;
