@@ -330,6 +330,7 @@ export interface v3RelayData extends RelayDataCommon {
   exclusivityDeadline: number;
 }
 
+// @todo: Extend with v2RelayData | v3RelayData.
 export type RelayData = v2RelayData;
 
 export interface UnfilledDeposit {
