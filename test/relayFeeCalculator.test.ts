@@ -365,7 +365,7 @@ describe("RelayFeeCalculator: Composable Bridging", function () {
     const message = ethers.utils.hexlify(ethers.utils.toUtf8Bytes("REVERT"));
     await assertPromiseError(testGasFeePct(message), "MockAcrossMessageContract: revert");
   });
-  it.only("should be more gas to call a contract with a message", async () => {
+  it("should be more gas to call a contract with a message", async () => {
     const gasFeeFromTestContract = await testContract.estimateGas.handleAcrossMessage(
       erc20.address,
       bnOne,
