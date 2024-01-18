@@ -14,7 +14,7 @@ import {
   getTokenInformationFromAddress,
   TransactionCostEstimate,
 } from "../utils";
-import { DEFAULT_SIMULATED_RELAYER_ADDRESS } from "../constants";
+import { DEFAULT_SIMULATED_RELAYER_ADDRESS, TOKEN_SYMBOLS_MAP } from "../constants";
 import { Deposit } from "../interfaces";
 
 // This needs to be implemented for every chain and passed into RelayFeeCalculator
@@ -219,9 +219,10 @@ export class RelayFeeCalculator {
     amountToRelay: BigNumberish,
     simulateZeroFill = false,
     relayerAddress = DEFAULT_SIMULATED_RELAYER_ADDRESS,
-    _tokenPrice?: number
+    _tokenPrice?: number,
+    tokenMapping = TOKEN_SYMBOLS_MAP
   ): Promise<BigNumber> {
-    const token = getTokenInformationFromAddress(deposit.originToken);
+    const token = getTokenInformationFromAddress(deposit.originToken, tokenMapping);
     if (!isDefined(token)) {
       throw new Error(`Could not find token information for ${deposit.originToken}`);
     }
