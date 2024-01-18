@@ -205,7 +205,7 @@ export async function findFillBlock(
   const { provider } = spokePool;
   highBlockNumber ??= await provider.getBlockNumber();
   assert(highBlockNumber > lowBlockNumber, `Block numbers out of range (${lowBlockNumber} > ${highBlockNumber})`);
-  const { chainId: destinationChainId } = await spokePool.provider.getNetwork();
+  const { chainId: destinationChainId } = await provider.getNetwork();
 
   // Make sure the relay is 100% completed within the block range supplied by the caller.
   const [initialFillAmount, finalFillAmount] = await Promise.all([
