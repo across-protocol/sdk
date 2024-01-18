@@ -46,16 +46,21 @@ export function resolveSymbolOnChain(chainId: number, symbol: string): L1Token {
  * Returns the contract address for a given token symbol and chainId.
  * @param symbol A case-insensitive token symbol.
  * @param chainId The chainId to resolve the contract address for.
+ * @param tokenMapping A parameter to determine where to source token information. Defaults to the constants-v2 variant.
  * @returns The contract address for the given token symbol and chainId, or undefined if the token symbol is not supported.
  */
-export const resolveContractFromSymbol = (symbol: string, chainId: string): string | undefined => {
-  return Object.values(TOKEN_SYMBOLS_MAP).find((details) => {
+export const resolveContractFromSymbol = (
+  symbol: string,
+  chainId: string,
+  tokenMapping = TOKEN_SYMBOLS_MAP
+): string | undefined => {
+  return Object.values(tokenMapping).find((details) => {
     return details.symbol.toLowerCase() === symbol.toLowerCase();
   })?.addresses[Number(chainId)];
 };
 
-export function getTokenInformationFromAddress(address: string): L1Token | undefined {
-  const details = Object.values(TOKEN_SYMBOLS_MAP).find((details) => {
+export function getTokenInformationFromAddress(address: string, tokenMapping = TOKEN_SYMBOLS_MAP): L1Token | undefined {
+  const details = Object.values(tokenMapping).find((details) => {
     return Object.values(details.addresses).some((t) => t.toLowerCase() === address.toLowerCase());
   });
   return isDefined(details)
