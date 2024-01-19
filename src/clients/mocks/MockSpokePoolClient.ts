@@ -10,9 +10,11 @@ import {
   RefundRequestWithBlock,
   SlowFillRequestWithBlock,
   v2DepositWithBlock,
-  v3DepositWithBlock,
   v2FillWithBlock,
+  v2SpeedUp,
+  v3DepositWithBlock,
   v3FillWithBlock,
+  v3SpeedUp,
 } from "../../interfaces";
 import {
   bnZero,
@@ -336,6 +338,32 @@ export class MockSpokePoolClient extends SpokePoolClient {
       args,
       blockNumber,
       transactionIndex,
+    });
+  }
+
+  speedUpDeposit(speedUp: v2SpeedUp): Event {
+    const event = "RequestedSpeedUpDeposit";
+    const topics = [speedUp.depositId, speedUp.depositor];
+    const args = { ...speedUp };
+
+    return this.eventManager.generateEvent({
+      event,
+      address: this.spokePool.address,
+      topics: topics.map((topic) => topic.toString()),
+      args,
+    });
+  }
+
+  speedUpV3Deposit(speedUp: v3SpeedUp): Event {
+    const event = "RequestedSpeedUpV3Deposit";
+    const topics = [speedUp.depositId, speedUp.depositor];
+    const args = { ...speedUp };
+
+    return this.eventManager.generateEvent({
+      event,
+      address: this.spokePool.address,
+      topics: topics.map((topic) => topic.toString()),
+      args,
     });
   }
 
