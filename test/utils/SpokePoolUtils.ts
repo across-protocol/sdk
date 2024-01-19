@@ -12,9 +12,7 @@ import {
 import { bnZero, isV2Deposit, isV2Fill, toBN } from "../../src/utils";
 
 export function fillFromDeposit(deposit: DepositWithBlock, relayer: string): Fill {
-  return isV2Deposit(deposit)
-    ? v2FillFromDeposit(deposit, relayer)
-    : v3FillFromDeposit(deposit, relayer);
+  return isV2Deposit(deposit) ? v2FillFromDeposit(deposit, relayer) : v3FillFromDeposit(deposit, relayer);
 }
 
 export function v2FillFromDeposit(deposit: v2DepositWithBlock, relayer: string): v2Fill {
@@ -72,7 +70,6 @@ export function v3FillFromDeposit(deposit: v3DepositWithBlock, relayer: string):
 
   return fill;
 }
-
 
 export function refundRequestFromFill(fill: FillWithBlock, refundToken: string): RefundRequest {
   const amount = isV2Fill(fill) ? fill.amount : fill.inputAmount;
