@@ -2,15 +2,19 @@ import {
   DepositWithBlock,
   Fill,
   FillType,
+  FillWithBlock,
+  RefundRequest,
   v2DepositWithBlock,
   v2Fill,
   v3DepositWithBlock,
   v3Fill,
 } from "../../src/interfaces";
-import { bnZero, isV2Deposit } from "../../src/utils";
+import { bnZero, isV2Deposit, isV2Fill, toBN } from "../../src/utils";
 
 export function fillFromDeposit(deposit: DepositWithBlock, relayer: string): Fill {
-  return isV2Deposit(deposit) ? v2FillFromDeposit(deposit, relayer) : v3FillFromDeposit(deposit, relayer);
+  return isV2Deposit(deposit)
+    ? v2FillFromDeposit(deposit, relayer)
+    : v3FillFromDeposit(deposit, relayer);
 }
 
 export function v2FillFromDeposit(deposit: v2DepositWithBlock, relayer: string): v2Fill {
@@ -67,4 +71,23 @@ export function v3FillFromDeposit(deposit: v3DepositWithBlock, relayer: string):
   };
 
   return fill;
+}
+
+
+export function refundRequestFromFill(fill: FillWithBlock, refundToken: string): RefundRequest {
+  const amount = isV2Fill(fill) ? fill.amount : fill.inputAmount;
+  const refundRequest: RefundRequest = {
+    amount,
+    depositId: fill.depositId,
+    originChainId: fill.originChainId,
+    destinationChainId: fill.destinationChainId,
+    repaymentChainId: fill.repaymentChainId,
+    realizedLpFeePct: fill.realizedLpFeePct,
+    fillBlock: toBN(fill.blockNumber),
+    relayer: fill.relayer,
+    refundToken,
+    previousIdenticalRequests: bnZero,
+  };
+
+  return refundRequest;
 }
