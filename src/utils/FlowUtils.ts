@@ -9,6 +9,7 @@ import {
   isUbaInflow,
   outflowIsFill,
 } from "../interfaces";
+import { isDefined } from "../utils";
 
 export const FILL_DEPOSIT_COMPARISON_KEYS = [
   "amount",
@@ -81,13 +82,11 @@ export function validateFillForDeposit(
   // Note: this short circuits when a key is found where the comparison doesn't match.
   // TODO: if we turn on "strict" in the tsconfig, the elements of FILL_DEPOSIT_COMPARISON_KEYS will be automatically
   // validated against the fields in Fill and Deposit, generating an error if there is a discrepency.
-  for (const key of FILL_DEPOSIT_COMPARISON_KEYS) {
-    if (fill[key]?.toString() === deposit[key]?.toString() || fillFieldsToIgnore.includes(key)) {
-      continue;
-    }
+  const invalidKey = FILL_DEPOSIT_COMPARISON_KEYS.find((key) =>
+    fill[key]?.toString() !== deposit[key]?.toString() && !fillFieldsToIgnore.includes(key)
+  );
 
-    return { valid: false, reason: `${key} mismatch (${fill[key]} != ${deposit[key]}` };
-  }
-
-  return { valid: true };
+  return isDefined(invalidKey)
+  ? { valid: false, reason: `${invalidKey} mismatch (${fill[invalidKey]} != ${deposit[invalidKey]})` }
+  : { valid: true };
 }
