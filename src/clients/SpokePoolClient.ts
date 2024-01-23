@@ -628,7 +628,9 @@ export class SpokePoolClient extends BaseAbstractClient {
   }
 
   _isEarlyDeposit(depositEvent: FundsDepositedEvent, currentTime: number): boolean {
-    return depositEvent.args.quoteTimestamp > currentTime;
+    const hubPoolTime = this.hubPoolClient?.currentTime ?? currentTime;
+    const { quoteTimestamp } = depositEvent.args;
+    return quoteTimestamp > Math.min(hubPoolTime, currentTime);
   }
 
   /**
