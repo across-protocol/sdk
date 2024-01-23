@@ -965,14 +965,6 @@ export class SpokePoolClient extends BaseAbstractClient {
     return this.fillDeadlineBuffer;
   }
 
-  // public getExpiredDeposits(fromTimestamp: number, toTimestamp: number): v3Deposit[] {
-  //   return Object.values(this.depositHashes).filter((deposit) => {
-  //     if (isV3Deposit(deposit) && deposit.fillDeadline >= fromTimestamp && deposit.fillDeadline <= toTimestamp) {
-  //       return true;
-  //     } else return false;
-  //   })
-  // }
-
   /**
    * Finds a deposit for a given deposit ID, destination chain ID and depositor address. This method will search for
    * the deposit in the SpokePool contract and return it if found. If the deposit is not found, this method will
