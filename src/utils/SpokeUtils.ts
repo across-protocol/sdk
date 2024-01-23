@@ -1,11 +1,10 @@
 import assert from "assert";
-import { getRelayHash as _getV2RelayHash } from "@across-protocol/contracts-v2/dist/test-utils";
 import { BigNumber, Contract, utils as ethersUtils } from "ethers";
 import { FillStatus, RelayData, v2RelayData, v3RelayData } from "../interfaces";
 import { SpokePoolClient } from "../clients";
 import { bnZero } from "./BigNumberUtils";
 import { isDefined } from "./TypeGuards";
-import { getRelayDataOutputAmount, isV2RelayData } from "./MigrationUtils";
+import { getRelayDataOutputAmount, isV2RelayData } from "./V3Utils";
 import { getNetworkName } from "./NetworkUtils";
 
 /**
@@ -188,18 +187,25 @@ export function getRelayDataHash(relayData: RelayData, destinationChainId?: numb
  * @returns The corresponding RelayData hash.
  */
 function getV2RelayHash(relayData: v2RelayData): string {
-  return _getV2RelayHash(
-    relayData.depositor,
-    relayData.recipient,
-    relayData.depositId,
-    relayData.originChainId,
-    relayData.destinationChainId,
-    relayData.destinationToken,
-    relayData.amount,
-    relayData.realizedLpFeePct,
-    relayData.relayerFeePct,
-    relayData.message
-  ).relayHash;
+  return ethersUtils.keccak256(
+    ethersUtils.defaultAbiCoder.encode(
+      [
+        "tuple(" +
+          "address depositor," +
+          "address recipient," +
+          "address destinationToken," +
+          "uint256 amount," +
+          "uint256 originChainId," +
+          "uint256 destinationChainId," +
+          "int64 realizedLpFeePct," +
+          "int64 relayerFeePct," +
+          "uint32 depositId," +
+          "bytes message" +
+          ")",
+      ],
+      [relayData]
+    )
+  );
 }
 
 /**
@@ -213,7 +219,20 @@ function getV3RelayHash(relayData: v3RelayData, destinationChainId: number): str
   return ethersUtils.keccak256(
     ethersUtils.defaultAbiCoder.encode(
       [
-        "tuple(address, address, address, address, address, uint256, uint256, uint256, uint32, uint32, uint32, bytes)",
+        "tuple(" +
+          "address depositor," +
+          "address recipient," +
+          "address exclusiveRelayer," +
+          "address inputToken," +
+          "address outputToken," +
+          "uint256 inputAmount," +
+          "uint256 outputAmount," +
+          "uint256 originChainDI," +
+          "uint32 depositId," +
+          "uint32 fillDeadline," +
+          "uint32 exclusivityDeadline," +
+          "bytes message" +
+          ")",
         "uint256 destinationChainId",
       ],
       [relayData, destinationChainId]
