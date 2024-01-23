@@ -1,11 +1,7 @@
 import assert from "assert";
-import { getRelayHash as _getV2RelayHash } from "@across-protocol/contracts-v2/dist/test-utils";
 import { BigNumber, Contract, utils as ethersUtils } from "ethers";
-import { FillStatus, RelayData, v2RelayData, v3RelayData } from "../interfaces";
+import { RelayData } from "../interfaces";
 import { SpokePoolClient } from "../clients";
-import { bnZero } from "./BigNumberUtils";
-import { isDefined } from "./TypeGuards";
-import { getRelayDataOutputAmount, isV2RelayData } from "./MigrationUtils";
 import { getNetworkName } from "./NetworkUtils";
 
 /**
@@ -164,91 +160,42 @@ export async function getDepositIdAtBlock(contract: Contract, blockTag: number):
 }
 
 /**
- * Compute the RelayData hash for a fill. This can be used to determine the fill status.
- * @param relayData RelayData information that is used to complete a fill.
- * @param destinationChainId Supplementary destination chain ID required by V3 hashes.
- * @returns The corresponding RelayData hash.
- */
-export function getRelayDataHash(relayData: RelayData, destinationChainId?: number): string {
-  if (isV2RelayData(relayData)) {
-    // If destinationChainId was supplied, ensure it matches relayData.
-    assert(!isDefined(destinationChainId) || destinationChainId === relayData.destinationChainId);
-    return getV2RelayHash(relayData);
-  }
-
-  // v3RelayData does not include destinationChainId, so it must be supplied separately for v3 types.
-  assert(isDefined(destinationChainId));
-  return getV3RelayHash(relayData, destinationChainId);
-}
-
-/**
- * Compute the RelayData hash for a fill. This can be used to determine the fill amount.
- * @note Only compatible with Across v2 data types.
- * @param relayData v2RelayData information that is used to complete a fill.
- * @returns The corresponding RelayData hash.
- */
-function getV2RelayHash(relayData: v2RelayData): string {
-  return _getV2RelayHash(
-    relayData.depositor,
-    relayData.recipient,
-    relayData.depositId,
-    relayData.originChainId,
-    relayData.destinationChainId,
-    relayData.destinationToken,
-    relayData.amount,
-    relayData.realizedLpFeePct,
-    relayData.relayerFeePct,
-    relayData.message
-  ).relayHash;
-}
-
-/**
- * Compute the RelayData hash for a fill. This can be used to determine the fill status.
- * @note Only compatible with Across v3 data types.
- * @param relayData v3RelayData information that is used to complete a fill.
- * @param destinationChainId Supplementary destination chain ID required by V3 hashes.
- * @returns The corresponding RelayData hash.
- */
-function getV3RelayHash(relayData: v3RelayData, destinationChainId: number): string {
-  return ethersUtils.keccak256(
-    ethersUtils.defaultAbiCoder.encode(
-      [
-        "tuple(address, address, address, address, address, uint256, uint256, uint256, uint32, uint32, uint32, bytes)",
-        "uint256 destinationChainId",
-      ],
-      [relayData, destinationChainId]
-    )
-  );
-}
-
-/**
  * Find the amount filled for a deposit at a particular block.
  * @param spokePool SpokePool contract instance.
  * @param relayData Deposit information that is used to complete a fill.
  * @param blockTag Block tag (numeric or "latest") to query at.
  * @returns The amount filled for the specified deposit at the requested block (or latest).
  */
-export async function relayFilledAmount(
+export function relayFilledAmount(
   spokePool: Contract,
   relayData: RelayData,
   blockTag?: number | "latest"
 ): Promise<BigNumber> {
-  const hash = getRelayDataHash(relayData);
+  const hash = ethersUtils.keccak256(
+    ethersUtils.defaultAbiCoder.encode(
+      [
+        "tuple(" +
+          "address depositor," +
+          "address recipient," +
+          "address destinationToken," +
+          "uint256 amount," +
+          "uint256 originChainId," +
+          "uint256 destinationChainId," +
+          "int64 realizedLpFeePct," +
+          "int64 relayerFeePct," +
+          "uint32 depositId," +
+          "bytes message" +
+          ")",
+      ],
+      [relayData]
+    )
+  );
 
-  if (isV2RelayData(relayData)) {
-    return spokePool.relayFills(hash, { blockTag });
-  }
-
-  const fillStatus = await spokePool.fillStatuses(hash, { blockTag });
-
-  // @note: If the deposit was updated then the fill amount may be _less_ than outputAmount.
-  // @todo: Remove v3RelayData type assertion once RelayData type is unionised.
-  return fillStatus === FillStatus.Filled ? (relayData as v3RelayData).outputAmount : bnZero;
+  return spokePool.relayFills(hash, { blockTag });
 }
 
 /**
  * Find the block at which a fill was completed.
- * @todo After SpokePool upgrade, this function can be simplified to use the FillStatus enum.
  * @param spokePool SpokePool contract instance.
  * @param relayData Deposit information that is used to complete a fill.
  * @param lowBlockNumber The lower bound of the search. Must be bounded by SpokePool deployment.
@@ -273,13 +220,12 @@ export async function findFillBlock(
   ]);
 
   // Wasn't filled within the specified block range.
-  const relayAmount = getRelayDataOutputAmount(relayData);
-  if (finalFillAmount.lt(relayAmount)) {
+  if (finalFillAmount.lt(relayData.amount)) {
     return undefined;
   }
 
   // Was filled earlier than the specified lowBlock.. This is an error by the caller.
-  if (initialFillAmount.eq(relayAmount)) {
+  if (initialFillAmount.eq(relayData.amount)) {
     const { depositId, originChainId } = relayData;
     const [srcChain, dstChain] = [getNetworkName(originChainId), getNetworkName(destinationChainId)];
     throw new Error(`${srcChain} deposit ${depositId} filled on ${dstChain} before block ${lowBlockNumber}`);
@@ -290,7 +236,7 @@ export async function findFillBlock(
     const midBlockNumber = Math.floor((highBlockNumber + lowBlockNumber) / 2);
     const filledAmount = await relayFilledAmount(spokePool, relayData, midBlockNumber);
 
-    if (filledAmount.eq(relayAmount)) {
+    if (filledAmount.eq(relayData.amount)) {
       highBlockNumber = midBlockNumber;
     } else {
       lowBlockNumber = midBlockNumber + 1;
