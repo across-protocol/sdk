@@ -212,6 +212,7 @@ export type SpeedUpStringified = v2SpeedUpStringified;
 export interface SlowFillRequest {
   depositId: number;
   originChainId: number;
+  destinationChainId: number;
   depositor: string;
   recipient: string;
   inputToken: string;
