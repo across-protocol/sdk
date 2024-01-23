@@ -405,6 +405,16 @@ export class HubPoolClient extends BaseAbstractClient {
       const { amount, originToken, originChainId, destinationChainId, quoteTimestamp } = deposit;
       const quoteBlock = quoteBlocks[quoteTimestamp];
 
+      if (quoteTimestamp > this.currentTime!) {
+        this.logger.warn({
+          at: "HubPoolClient::batchComputeRealizedLpFeePct",
+          message: "Tried to compute realizedLpFeePct on future quoteTimestamp.",
+          deposit,
+          currentTime: this.currentTime,
+        });
+        throw new Error(`Deposit quoteTimestamp is in the future (${quoteTimestamp} > ${this.currentTime})`);
+      }
+
       // Compare deposit block against UBA bundle start blocks. If the deposit is post-UBA
       // then realizedLpFeePct computation is deferred until after UBA Client update.
       if (isUBAActivatedAtBlock(this, deposit.blockNumber, deposit.originChainId)) {
