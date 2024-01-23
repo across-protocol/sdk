@@ -1,6 +1,5 @@
 import assert from "assert";
-import { getRelayHash } from "@across-protocol/contracts-v2/dist/test-utils";
-import { BigNumber, Contract } from "ethers";
+import { BigNumber, Contract, utils as ethersUtils } from "ethers";
 import { RelayData } from "../interfaces";
 import { SpokePoolClient } from "../clients";
 import { getNetworkName } from "./NetworkUtils";
@@ -172,18 +171,25 @@ export function relayFilledAmount(
   relayData: RelayData,
   blockTag?: number | "latest"
 ): Promise<BigNumber> {
-  const hash = getRelayHash(
-    relayData.depositor,
-    relayData.recipient,
-    relayData.depositId,
-    relayData.originChainId,
-    relayData.destinationChainId,
-    relayData.destinationToken,
-    relayData.amount,
-    relayData.realizedLpFeePct,
-    relayData.relayerFeePct,
-    relayData.message
-  ).relayHash;
+  const hash = ethersUtils.keccak256(
+    ethersUtils.defaultAbiCoder.encode(
+      [
+        "tuple(" +
+          "address depositor," +
+          "address recipient," +
+          "address destinationToken," +
+          "uint256 amount," +
+          "uint256 originChainId," +
+          "uint256 destinationChainId," +
+          "int64 realizedLpFeePct," +
+          "int64 relayerFeePct," +
+          "uint32 depositId," +
+          "bytes message" +
+          ")",
+      ],
+      [relayData]
+    )
+  );
 
   return spokePool.relayFills(hash, { blockTag });
 }
