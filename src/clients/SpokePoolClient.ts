@@ -583,7 +583,7 @@ export class SpokePoolClient extends BaseAbstractClient {
     const [numberOfDeposits, currentTime, oldestTime, ...events] = await Promise.all([
       this.spokePool.numberOfDeposits({ blockTag: searchConfig.toBlock }),
       this.spokePool.getCurrentTime({ blockTag: searchConfig.toBlock }),
-      this.spokePool.getCurrentTime({ blockTag: searchConfig.fromBlock }),
+      this.spokePool.getCurrentTime({ blockTag: Math.max(searchConfig.fromBlock, this.deploymentBlock) }),
       ...eventSearchConfigs.map((config) => paginatedEventQuery(this.spokePool, config.filter, config.searchConfig)),
     ]);
     this.log("debug", `Time to query new events from RPC for ${this.chainId}: ${Date.now() - timerStart} ms`);
@@ -964,6 +964,14 @@ export class SpokePoolClient extends BaseAbstractClient {
   public getFillDeadlineBuffer(): number {
     return this.fillDeadlineBuffer;
   }
+
+  // public getExpiredDeposits(fromTimestamp: number, toTimestamp: number): v3Deposit[] {
+  //   return Object.values(this.depositHashes).filter((deposit) => {
+  //     if (isV3Deposit(deposit) && deposit.fillDeadline >= fromTimestamp && deposit.fillDeadline <= toTimestamp) {
+  //       return true;
+  //     } else return false;
+  //   })
+  // }
 
   /**
    * Finds a deposit for a given deposit ID, destination chain ID and depositor address. This method will search for
