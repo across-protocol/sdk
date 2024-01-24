@@ -69,14 +69,21 @@ export function getDepositOutputAmount(deposit: Deposit): BN {
   return isV2Deposit(deposit) ? deposit.amount : deposit.outputAmount;
 }
 
-export function getFillAmount(fill: Fill): BN {
+export function getFillOutputAmount(fill: Fill): BN {
   return isV2Fill(fill) ? fill.amount : fill.outputAmount;
+}
+
+export function getFillAmount(fill: Fill): BN {
+  return isV2Fill(fill) ? fill.fillAmount : fill.outputAmount;
 }
 
 export function getTotalFilledAmount(fill: Fill): BN {
   return isV2Fill(fill) ? fill.totalFilledAmount : fill.outputAmount;
 }
 
+export function getRelayDataOutputToken(relayData: RelayData): string {
+  return isV2RelayData(relayData) ? relayData.destinationToken : relayData.outputToken;
+}
 export function getRelayDataOutputAmount(relayData: RelayData): BN {
   return isV2RelayData(relayData) ? relayData.amount : relayData.outputAmount;
 }
