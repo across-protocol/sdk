@@ -18,6 +18,7 @@ import {
 } from "../../interfaces";
 import {
   bnZero,
+  toBN,
   toBNWei,
   forEachAsync,
   getCurrentTime,
@@ -176,7 +177,7 @@ export class MockSpokePoolClient extends SpokePoolClient {
       destinationChainId,
       relayerFeePct: deposit.relayerFeePct ?? toBNWei(0.0001),
       depositId,
-      quoteTimestamp: deposit.quoteTimestamp ?? Math.floor(Date.now() / 1000),
+      quoteTimestamp: deposit.quoteTimestamp ?? getCurrentTime(),
       originToken: deposit.originToken ?? randomAddress(),
       recipient: deposit.recipient ?? depositor,
       depositor,
@@ -208,7 +209,7 @@ export class MockSpokePoolClient extends SpokePoolClient {
     inputToken ??= randomAddress();
     outputToken ??= inputToken;
     inputAmount ??= toBNWei(random(1, 1000, false));
-    outputAmount ??= inputAmount.mul(0.95);
+    outputAmount ??= inputAmount.mul(toBN("0.95"));
 
     const message = deposit["message"] ?? `${event} event at block ${blockNumber}, index ${transactionIndex}.`;
     const topics = [destinationChainId, depositId, depositor];
