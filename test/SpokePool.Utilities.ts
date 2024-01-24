@@ -48,6 +48,7 @@ const generateValidRefundRequest = async (
     originToken: ZERO_ADDRESS,
     destinationChainId: destination.chainId,
     destinationToken: ZERO_ADDRESS,
+    quoteTimestamp: hubPoolClient.currentTime - 10,
   } as v2DepositWithBlock);
   await origin.update();
 
