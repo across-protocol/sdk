@@ -577,9 +577,11 @@ export class SpokePoolClient extends BaseAbstractClient {
     });
 
     const timerStart = Date.now();
-    // TODO: Once the SpokePools are updated and have the `fillDeadlineBuffer()` method, load it dynamically here.
-    const fillDeadlineBuffer = 2 * 60 * 60; // 2 hours. We're assuming this is hardcoded to the same value that the
-    // V3 spoke pools will be instantiated with.
+    // fillDeadlineBuffer is a constant/immutable in the contract so we don't have an easy to track its updates.
+    // Therefore, dynamically reading it from the SpokePool will not always be accurate if the value changes
+    // drastically mid-bundle. A conservative way to deal with it is to hardcode the following value to a value
+    // that is conservatively greater than the fillDeadlineBuffer would ever be set to in the contracts.
+    const fillDeadlineBuffer = 10 * 60 * 60;
     const [numberOfDeposits, currentTime, oldestTime, ...events] = await Promise.all([
       this.spokePool.numberOfDeposits({ blockTag: searchConfig.toBlock }),
       this.spokePool.getCurrentTime({ blockTag: searchConfig.toBlock }),
