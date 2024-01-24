@@ -9,12 +9,12 @@ import {
   hubPoolFixture,
 } from "./utils";
 import { CHAIN_ID_TEST_LIST, expect, randomAddress, toBNWei } from "./constants";
-import { DepositWithBlock, FillWithBlock, RefundRequestWithBlock, SpokePoolClientsByChain } from "../src/interfaces";
+import { DepositWithBlock, FillWithBlock, SpokePoolClientsByChain } from "../src/interfaces";
 import { clients, interfaces } from "../src";
 import { MockConfigStoreClient, MockHubPoolClient, MockSpokePoolClient } from "./mocks";
 const { getMostRecentBundleBlockRanges, getUbaActivationBundleStartBlocks, getOpeningRunningBalanceForEvent } = clients;
 import { publishValidatedBundles } from "./utils/HubPoolUtils";
-import { UBA_MIN_CONFIG_STORE_VERSION, toBN } from "../src/utils";
+import { UBA_MIN_CONFIG_STORE_VERSION } from "../src/utils";
 
 let hubPoolClient: MockHubPoolClient;
 let hubPool: Contract;
@@ -277,11 +277,9 @@ describe("UBAClientUtilities", function () {
     });
   });
   describe("getUBAFlows", function () {
-    let deposit: DepositWithBlock, fill: FillWithBlock, refund: RefundRequestWithBlock;
-    let chainId: number, destinationChainId: number, repaymentChainId: number;
-    let spokePoolClient: MockSpokePoolClient,
-      destinationSpokePoolClient: MockSpokePoolClient,
-      repaymentSpokePoolClient: MockSpokePoolClient;
+    let deposit: DepositWithBlock, fill: FillWithBlock;
+    let chainId: number, destinationChainId: number;
+    let spokePoolClient: MockSpokePoolClient, destinationSpokePoolClient: MockSpokePoolClient;
 
     beforeEach(function () {
       // Deposit spoke pool client:
@@ -294,10 +292,6 @@ describe("UBAClientUtilities", function () {
       // Fill spoke pool client:
       destinationChainId = chainIds[1];
       destinationSpokePoolClient = spokePoolClients[destinationChainId] as MockSpokePoolClient;
-
-      // Refund spoke pool client:
-      repaymentChainId = chainIds[2];
-      repaymentSpokePoolClient = spokePoolClients[repaymentChainId] as MockSpokePoolClient;
 
       deposit = {
         depositId: 0,
@@ -346,22 +340,6 @@ describe("UBAClientUtilities", function () {
         message: "0x",
         blockTimestamp: 11,
       } as FillWithBlock;
-
-      // We need to match this with the refund.
-      refund = {
-        relayer: fill.relayer,
-        refundToken: l2Token,
-        amount: fill.amount,
-        originChainId: fill.originChainId,
-        destinationChainId: fill.destinationChainId,
-        // This will be different from fill's, as we'll mutate the fill's
-        // repayment chain when testing the refund.
-        repaymentChainId,
-        realizedLpFeePct: fill.realizedLpFeePct,
-        depositId: fill.depositId,
-        previousIdenticalRequests: toBN(0),
-        blockTimestamp: 10,
-      } as RefundRequestWithBlock;
     });
     // Generate mock events, very simple tests to start
     it("Returns UBA deposits", async function () {
@@ -401,37 +379,6 @@ describe("UBAClientUtilities", function () {
       const flows = await clients.getUBAFlows(tokenSymbol, destinationChainId, spokePoolClients, hubPoolClient);
       expect(flows.length).to.equal(1);
       expect(destinationSpokePoolClient.getFills().length).to.equal(2);
-      expect(interfaces.isUbaOutflow(flows[0])).to.be.true;
-    });
-    it("Returns refunds matched with fills matched with deposits", async function () {
-      spokePoolClient.generateDeposit(deposit);
-      await spokePoolClient.update();
-
-      // Generate fill with repaymentChain != destinationChain
-      const fillEvent = destinationSpokePoolClient.generateFill({
-        ...fill,
-        repaymentChainId,
-      });
-      await destinationSpokePoolClient.update();
-
-      repaymentSpokePoolClient.generateRefundRequest({
-        ...refund,
-        fillBlock: toBN(fillEvent.blockNumber),
-      });
-      await repaymentSpokePoolClient.update();
-
-      // Add an invalid refund:
-      repaymentSpokePoolClient.generateRefundRequest({
-        ...refund,
-        fillBlock: toBN(fillEvent.blockNumber),
-        previousIdenticalRequests: toBN(2),
-      });
-      await repaymentSpokePoolClient.update();
-
-      // Look up flows on destination chain
-      const flows = await clients.getUBAFlows(tokenSymbol, repaymentChainId, spokePoolClients, hubPoolClient);
-      expect(flows.length).to.equal(1);
-      expect(repaymentSpokePoolClient.getRefundRequests().length).to.equal(2);
       expect(interfaces.isUbaOutflow(flows[0])).to.be.true;
     });
   });
