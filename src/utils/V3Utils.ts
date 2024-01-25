@@ -4,9 +4,11 @@ import {
   v3Deposit,
   v2Fill,
   v2RelayData,
+  v2SlowFillLeaf,
   v2SpeedUp,
   v3Fill,
   v3RelayData,
+  v3SlowFillLeaf,
   v3SpeedUp,
 } from "../interfaces";
 import { BN } from "./BigNumberUtils";
@@ -16,6 +18,7 @@ type Deposit = v2Deposit | v3Deposit;
 type Fill = v2Fill | v3Fill;
 type SpeedUp = v2SpeedUp | v3SpeedUp;
 type RelayData = v2RelayData | v3RelayData;
+type SlowFillLeaf = v2SlowFillLeaf | v3SlowFillLeaf;
 
 // Lowest ConfigStore version where the V3 model is in effect. The version update to the following value should
 // take place atomically with the SpokePool upgrade to V3 so that the dataworker knows what kind of MerkleLeaves
@@ -56,8 +59,20 @@ export function isV2RelayData(relayData: RelayData): relayData is v2RelayData {
   return isDefined((relayData as v2RelayData).destinationToken);
 }
 
+export function isV3RelayData(relayData: RelayData): relayData is v3RelayData {
+  return isDefined((relayData as v3RelayData).outputToken);
+}
+
 export function isSlowFill(fill: Fill): boolean {
   return isV2Fill(fill) ? fill.updatableRelayData.isSlowRelay : fill.updatableRelayData.fillType === FillType.SlowFill;
+}
+
+export function isV2SlowFillLeaf(slowFillLeaf: SlowFillLeaf): slowFillLeaf is v2SlowFillLeaf {
+  return isDefined((slowFillLeaf as v2SlowFillLeaf).payoutAdjustmentPct) && isV2RelayData(slowFillLeaf.relayData);
+}
+
+export function isV3SlowFillLeaf(slowFillLeaf: SlowFillLeaf): slowFillLeaf is v3SlowFillLeaf {
+  return isDefined((slowFillLeaf as v3SlowFillLeaf).updatedOutputAmount) && isV3RelayData(slowFillLeaf.relayData);
 }
 
 export function getDepositInputToken(deposit: Deposit): string {
@@ -95,6 +110,11 @@ export function getTotalFilledAmount(fill: Fill): BN {
 export function getRelayDataOutputToken(relayData: RelayData): string {
   return isV2RelayData(relayData) ? relayData.destinationToken : relayData.outputToken;
 }
+
 export function getRelayDataOutputAmount(relayData: RelayData): BN {
   return isV2RelayData(relayData) ? relayData.amount : relayData.outputAmount;
+}
+
+export function getSlowFillLeafChainId(leaf: SlowFillLeaf): number {
+  return isV2SlowFillLeaf(leaf) ? leaf.relayData.destinationChainId : leaf.chainId;
 }

@@ -177,10 +177,19 @@ export interface SlowFill {
   message: string;
 }
 
-export interface SlowFillLeaf {
+export interface v2SlowFillLeaf {
   relayData: RelayData;
   payoutAdjustmentPct: string;
 }
+
+export interface v3SlowFillLeaf {
+  relayData: v3RelayData;
+  chainId: number;
+  updatedOutputAmount: BigNumber;
+}
+
+// @todo: Extend with v2SlowFillLeaf | v3SlowFillLeaf.
+export type SlowFillLeaf = v2SlowFillLeaf;
 
 export interface RootBundleRelay {
   rootBundleId: number;
