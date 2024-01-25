@@ -1,15 +1,13 @@
 import { random } from "lodash";
-import { getCurrentTime, toBN, toBNWei } from "../src/utils";
+import { getCurrentTime, toBNWei } from "../src/utils";
 import {
   DepositWithBlock,
   FillWithBlock,
-  RefundRequestWithBlock,
   UbaFlow,
   UbaOutflow,
   isUbaInflow,
   isUbaOutflow,
   outflowIsFill,
-  outflowIsRefund,
 } from "../src/interfaces";
 import { expect } from "./utils";
 
@@ -61,20 +59,10 @@ const sampleFill = {
   },
 };
 
-const sampleRefundRequest = {
-  relayer: "",
-  refundToken: "",
-  realizedLpFeePct: toBNWei(0.0001),
-  fillBlock: toBN(random(1, 1000, false)),
-  previousIdenticalRequests: toBN(0),
-  repaymentChainId: 137,
-};
-
 describe("UBA Interface", function () {
   it("Predicates", function () {
     const deposit: DepositWithBlock = { ...common, ...sampleDeposit };
     const fill: FillWithBlock = { ...common, ...sampleFill };
-    const refundRequest: RefundRequestWithBlock = { ...common, ...sampleRefundRequest };
 
     // FundsDeposited event. All UbaInflows are Deposits.
     expect(isUbaInflow(deposit as UbaFlow)).to.be.true;
@@ -86,13 +74,6 @@ describe("UBA Interface", function () {
       expect(isUbaInflow(fill as UbaFlow)).to.be.false;
       expect(isUbaOutflow(fill as UbaFlow)).to.be.true;
       expect(outflowIsFill(fill as UbaOutflow)).to.be.true;
-      expect(outflowIsRefund(fill as UbaOutflow)).to.be.false;
     }
-
-    // RefundRequested event
-    expect(isUbaInflow(refundRequest as UbaFlow)).to.be.false;
-    expect(isUbaOutflow(refundRequest as UbaFlow)).to.be.true;
-    expect(outflowIsFill(refundRequest as UbaOutflow)).to.be.false;
-    expect(outflowIsRefund(refundRequest as UbaOutflow)).to.be.true;
   });
 });
