@@ -1,8 +1,8 @@
 import { BigNumber } from "ethers";
-import { DepositWithBlock, FillWithBlock, RefundRequestWithBlock } from "./";
+import { DepositWithBlock, FillWithBlock } from "./";
 
 export type UbaInflow = DepositWithBlock;
-export type UbaOutflow = (FillWithBlock | RefundRequestWithBlock) & { matchedDeposit: DepositWithBlock };
+export type UbaOutflow = FillWithBlock & { matchedDeposit: DepositWithBlock };
 export type UbaFlow = UbaInflow | UbaOutflow;
 
 export const isUbaInflow = (flow: UbaFlow): flow is UbaInflow => {
@@ -10,17 +10,11 @@ export const isUbaInflow = (flow: UbaFlow): flow is UbaInflow => {
 };
 
 export const isUbaOutflow = (flow: UbaFlow): flow is UbaOutflow => {
-  return !isUbaInflow(flow) && (outflowIsFill(flow) || outflowIsRefund(flow));
+  return !isUbaInflow(flow) && outflowIsFill(flow);
 };
 
 export const outflowIsFill = (outflow: UbaOutflow): outflow is FillWithBlock & { matchedDeposit: DepositWithBlock } => {
   return (outflow as FillWithBlock)?.updatableRelayData !== undefined;
-};
-
-export const outflowIsRefund = (
-  outflow: UbaOutflow
-): outflow is RefundRequestWithBlock & { matchedDeposit: DepositWithBlock } => {
-  return (outflow as RefundRequestWithBlock)?.fillBlock !== undefined;
 };
 
 export type UBASpokeBalanceType = {
