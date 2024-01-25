@@ -56,7 +56,6 @@ type _SpokePoolUpdate = {
   success: boolean;
   currentTime: number;
   oldestTime: number;
-  fillDeadlineBuffer: number;
   firstDepositId: number;
   latestDepositId: number;
   events: Event[][];
@@ -73,7 +72,6 @@ export type SpokePoolUpdate = { success: false } | _SpokePoolUpdate;
 export class SpokePoolClient extends BaseAbstractClient {
   protected currentTime = 0;
   protected oldestTime = 0;
-  protected fillDeadlineBuffer = Number.MAX_SAFE_INTEGER;
   protected depositHashes: { [depositHash: string]: DepositWithBlock } = {};
   protected depositHashesToFills: { [depositHash: string]: FillWithBlock[] } = {};
   protected speedUps: { [depositorAddress: string]: { [depositId: number]: SpeedUp[] } } = {};
@@ -577,12 +575,7 @@ export class SpokePoolClient extends BaseAbstractClient {
     });
 
     const timerStart = Date.now();
-    // fillDeadlineBuffer is a constant/immutable in the contract so we don't have an easy to track its updates.
-    // Therefore, dynamically reading it from the SpokePool will not always be accurate if the value changes
-    // drastically mid-bundle. A conservative way to deal with it is to hardcode the following value to a value
-    // that is conservatively greater than the fillDeadlineBuffer would ever be set to in the contracts.
-    const fillDeadlineBuffer = 10 * 60 * 60;
-    const [numberOfDeposits, currentTime, oldestTime, ...events] = await Promise.all([
+    const [numberOfDeposits, currentTime, oldestTime ...events] = await Promise.all([
       this.spokePool.numberOfDeposits({ blockTag: searchConfig.toBlock }),
       this.spokePool.getCurrentTime({ blockTag: searchConfig.toBlock }),
       this.spokePool.getCurrentTime({ blockTag: Math.max(searchConfig.fromBlock, this.deploymentBlock) }),
@@ -630,7 +623,6 @@ export class SpokePoolClient extends BaseAbstractClient {
       success: true,
       currentTime: currentTime.toNumber(), // uint32
       oldestTime: oldestTime.toNumber(),
-      fillDeadlineBuffer,
       firstDepositId,
       latestDepositId: Math.max(numberOfDeposits - 1, 0),
       searchEndBlock: searchConfig.toBlock,
@@ -663,7 +655,7 @@ export class SpokePoolClient extends BaseAbstractClient {
       // understand why we see this in test. @todo: Resolve.
       return;
     }
-    const { events: queryResults, blocks, currentTime, oldestTime, searchEndBlock, fillDeadlineBuffer } = update;
+    const { events: queryResults, blocks, currentTime, oldestTime, searchEndBlock } = update;
 
     if (eventsToQuery.includes("TokensBridged")) {
       for (const event of queryResults[eventsToQuery.indexOf("TokensBridged")]) {
@@ -841,7 +833,6 @@ export class SpokePoolClient extends BaseAbstractClient {
     // Next iteration should start off from where this one ended.
     this.currentTime = currentTime;
     if (this.oldestTime === 0) this.oldestTime = oldestTime; // Set oldest time only after the first update.
-    this.fillDeadlineBuffer = fillDeadlineBuffer;
     this.firstDepositIdForSpokePool = update.firstDepositId;
     this.latestBlockSearched = searchEndBlock;
     this.lastDepositIdForSpokePool = update.latestDepositId;
@@ -956,15 +947,6 @@ export class SpokePoolClient extends BaseAbstractClient {
    */
   public getOldestTime(): number {
     return this.oldestTime;
-  }
-
-  /**
-   * Returns the latest fill deadline buffer for this SpokePool.
-   * @returns The latest fill deadline buffer for this SpokePool contract, which will be the max integer value
-   * if there has been no update() yet.
-   */
-  public getFillDeadlineBuffer(): number {
-    return this.fillDeadlineBuffer;
   }
 
   /**
