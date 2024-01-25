@@ -29,16 +29,6 @@ export interface DepositWithBlock extends Deposit, SortableEvent {
   quoteBlockNumber: number;
 }
 
-export type DepositWithBlockStringified = Omit<
-  DepositWithBlock,
-  "amount" | "relayerFeePct" | "realizedLpFeePct" | "newRelayerFeePct"
-> & {
-  amount: string;
-  relayerFeePct: string;
-  realizedLpFeePct?: string;
-  newRelayerFeePct?: string;
-};
-
 export interface RelayExecutionInfo {
   recipient: string;
   message: string;
@@ -46,13 +36,7 @@ export interface RelayExecutionInfo {
   isSlowRelay: boolean;
   payoutAdjustmentPct: BigNumber;
 }
-export type RelayerRefundExecutionInfoStringified = Omit<
-  RelayExecutionInfo,
-  "relayerFeePct" | "payoutAdjustmentPct"
-> & {
-  relayerFeePct: string;
-  payoutAdjustmentPct: string;
-};
+
 export interface Fill {
   amount: BigNumber;
   totalFilledAmount: BigNumber;
@@ -75,18 +59,6 @@ export interface FillWithBlock extends Fill, SortableEvent {
   blockTimestamp: number;
 }
 
-export type FillWithBlockStringified = Omit<
-  FillWithBlock,
-  "amount" | "relayerFeePct" | "totalFilledAmount" | "fillAmount" | "realizedLpFeePct" | "updatableRelayData"
-> & {
-  amount: string;
-  totalFilledAmount: string;
-  fillAmount: string;
-  relayerFeePct: string;
-  realizedLpFeePct: string;
-  updatableRelayData: RelayerRefundExecutionInfoStringified;
-};
-
 export interface SpeedUp {
   depositor: string;
   depositorSignature: string;
@@ -96,10 +68,6 @@ export interface SpeedUp {
   updatedRecipient: string;
   updatedMessage: string;
 }
-
-export type SpeedUpStringified = Omit<SpeedUp, "newRelayerFeePct"> & {
-  newRelayerFeePct: string;
-};
 
 export interface SlowFill {
   relayHash: string;
@@ -141,14 +109,6 @@ export interface RelayerRefundExecution {
 }
 
 export interface RelayerRefundExecutionWithBlock extends RelayerRefundExecution, SortableEvent {}
-
-export type RelayerRefundExecutionWithBlockStringified = Omit<
-  RelayerRefundExecutionWithBlock,
-  "amountToReturn" | "refundAmounts"
-> & {
-  amountToReturn: string;
-  refundAmounts: string[];
-};
 
 // Used in pool by spokePool to execute a slow relay.
 export interface RelayData {
@@ -201,20 +161,6 @@ export interface TokensBridged extends SortableEvent {
   leafId: number;
   l2TokenAddress: string;
 }
-
-export type TokensBridgedStringified = Omit<TokensBridged, "amountToReturn"> & {
-  amountToReturn: string;
-};
-
-export type FundsDepositedEventStringified = Omit<
-  FundsDepositedEvent,
-  "amount" | "originChainId" | "destinationChainId" | "relayerFeePct"
-> & {
-  amount: string;
-  originChainId: string;
-  destinationChainId: string;
-  relayerFeePct: string;
-};
 
 export interface SpokePoolClientsByChain {
   [chainId: number]: SpokePoolClient;
