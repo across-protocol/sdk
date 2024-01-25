@@ -7,7 +7,6 @@ import {
   DepositWithBlock,
   FillType,
   FundsDepositedEvent,
-  RefundRequestWithBlock,
   SlowFillRequestWithBlock,
   v2DepositWithBlock,
   v2FillWithBlock,
@@ -108,13 +107,9 @@ export class MockSpokePoolClient extends SpokePoolClient {
   }
 
   async _update(eventsToQuery: string[]): Promise<SpokePoolUpdate> {
-    // Temporarily append "RefundRequested" to the eventsToQuery array.
-    // @todo: Remove when the SpokePoolClient supports querying this directly.
-    eventsToQuery.push("RefundRequested");
-
     // Generate new "on chain" responses.
     const latestBlockSearched = this.eventManager.blockNumber;
-    const currentTime = Math.floor(Date.now() / 1000);
+    const currentTime = getCurrentTime();
 
     const blocks: { [blockNumber: number]: Block } = {};
 
@@ -153,7 +148,6 @@ export class MockSpokePoolClient extends SpokePoolClient {
     EnabledDepositRoute: "address,uint256,bool",
     FilledRelay: "uint256,uint256,uint256,int64,uint32,uint32,address,address,address,bytes",
     FundsDeposited: "uint256,uint256,uint256,int64,uint32,uint32,address,address,address,bytes",
-    RefundRequested: "address,address,uint256,uint256,uint256,int64,uint32,uint256,uint256",
   };
 
   deposit(deposit: v2DepositWithBlock): Event {
@@ -382,39 +376,6 @@ export class MockSpokePoolClient extends SpokePoolClient {
       args,
       blockNumber: request.blockNumber,
       transactionIndex: request.transactionIndex,
-    });
-  }
-
-  requestRefund(request: RefundRequestWithBlock): Event {
-    const event = "RefundRequested";
-
-    const { blockNumber, transactionIndex } = request;
-    let { relayer, originChainId, depositId } = request;
-
-    relayer ??= randomAddress();
-    originChainId ??= random(1, 42161, false);
-    depositId ??= random(1, 100_000, false);
-
-    const topics = [relayer, originChainId, depositId];
-    const args = {
-      relayer,
-      refundToken: request.refundToken ?? randomAddress(),
-      amount: request.amount ?? toBNWei(random(1, 1000, false)),
-      originChainId,
-      destinationChainId: request.destinationChainId ?? random(1, 42161, false),
-      realizedLpFeePct: request.realizedLpFeePct ?? toBNWei(random(0.00001, 0.0001).toPrecision(6)),
-      depositId,
-      fillBlock: request.fillBlock ?? random(1, 1000, false),
-      previousIdenticalRequests: request.previousIdenticalRequests ?? "0",
-    };
-
-    return this.eventManager.generateEvent({
-      event,
-      address: this.spokePool.address,
-      topics: topics.map((topic) => topic.toString()),
-      args,
-      blockNumber,
-      transactionIndex,
     });
   }
 
