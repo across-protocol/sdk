@@ -16,7 +16,6 @@ import {
   isV2Deposit,
   isV2SpeedUp,
   mapAsync,
-  stringifyJSONWithNumericString,
   toBN,
 } from "../utils";
 import {
@@ -32,20 +31,14 @@ import { ZERO_ADDRESS } from "../constants";
 import {
   Deposit,
   DepositWithBlock,
-  DepositWithBlockStringified,
   Fill,
   FillWithBlock,
-  FillWithBlockStringified,
   FundsDepositedEvent,
-  FundsDepositedEventStringified,
   RealizedLpFee,
   RelayerRefundExecutionWithBlock,
-  RelayerRefundExecutionWithBlockStringified,
   RootBundleRelayWithBlock,
   SpeedUp,
-  SpeedUpStringified,
   TokensBridged,
-  TokensBridgedStringified,
   v2DepositWithBlock,
   v2SpeedUp,
 } from "../interfaces";
@@ -990,147 +983,5 @@ export class SpokePoolClient extends BaseAbstractClient {
     });
 
     return deposit;
-  }
-
-  public updateFromJSON(spokePoolClientState: Partial<ReturnType<SpokePoolClient["toJSON"]>>) {
-    const keysToUpdate = Object.keys(spokePoolClientState);
-
-    this.logger.debug({
-      at: "SpokePoolClient",
-      message: "Updating SpokePool client from JSON",
-      keys: keysToUpdate,
-    });
-
-    if (keysToUpdate.length === 0) {
-      return;
-    }
-
-    this.currentTime = spokePoolClientState.currentTime || this.currentTime;
-    this.depositHashes = Object.entries(spokePoolClientState.depositHashes || {}).reduce(
-      (acc, [hash, deposit]) => ({
-        ...acc,
-        [hash]: {
-          ...deposit,
-          amount: BigNumber.from(deposit.amount),
-          relayerFeePct: BigNumber.from(deposit.relayerFeePct),
-          realizedLpFeePct: deposit.relayerFeePct ? BigNumber.from(deposit.realizedLpFeePct) : undefined,
-          newRelayerFeePct: deposit.newRelayerFeePct ? BigNumber.from(deposit.newRelayerFeePct) : undefined,
-        },
-      }),
-      {} as Record<string, DepositWithBlock>
-    );
-    this.depositHashesToFills = Object.entries(spokePoolClientState.depositHashesToFills || {}).reduce(
-      (acc, [hash, fills]) => ({
-        ...acc,
-        [hash]: fills.map((fill) => ({
-          ...fill,
-          amount: BigNumber.from(fill.amount),
-          totalFilledAmount: BigNumber.from(fill.totalFilledAmount),
-          fillAmount: BigNumber.from(fill.fillAmount),
-          relayerFeePct: BigNumber.from(fill.relayerFeePct),
-          realizedLpFeePct: BigNumber.from(fill.realizedLpFeePct),
-          updatableRelayData: {
-            ...fill.updatableRelayData,
-            relayerFeePct: BigNumber.from(fill.updatableRelayData.relayerFeePct),
-            payoutAdjustmentPct: BigNumber.from(fill.updatableRelayData.payoutAdjustmentPct),
-          },
-        })),
-      }),
-      {} as Record<string, FillWithBlock[]>
-    );
-    this.speedUps = Object.entries(spokePoolClientState.speedUps || {}).reduce((acc, [depositor, speedUpsMap]) => {
-      const speedUps = Object.entries(speedUpsMap).reduce(
-        (acc, [depositId, speedUps]) => ({
-          ...acc,
-          [depositId]: speedUps.map((speedUp) => ({
-            ...speedUp,
-            newRelayerFeePct: BigNumber.from(speedUp.newRelayerFeePct),
-          })),
-        }),
-        {} as Record<string, SpeedUp[]>
-      );
-      return { ...acc, [depositor]: speedUps };
-    }, {});
-    this.depositRoutes = spokePoolClientState.depositRoutes || {};
-    this.tokensBridged = (spokePoolClientState.tokensBridged || []).map((tokenBridged) => ({
-      ...tokenBridged,
-      amountToReturn: BigNumber.from(tokenBridged.amountToReturn),
-    }));
-    this.rootBundleRelays = spokePoolClientState.rootBundleRelays || [];
-    this.relayerRefundExecutions = (spokePoolClientState.relayerRefundExecutions || []).map((refundExecution) => ({
-      ...refundExecution,
-      amountToReturn: BigNumber.from(refundExecution.amountToReturn),
-      refundAmounts: refundExecution.refundAmounts.map((refundAmount) => BigNumber.from(refundAmount)),
-    }));
-    this.earlyDeposits = (spokePoolClientState.earlyDeposits || []).map((deposit) => ({
-      ...deposit,
-      amount: BigNumber.from(deposit.amount),
-      originChainId: BigNumber.from(deposit.originChainId),
-      destinationChainId: BigNumber.from(deposit.destinationChainId),
-      relayerFeePct: BigNumber.from(deposit.relayerFeePct),
-    }));
-    this.queryableEventNames = spokePoolClientState.queryableEventNames || this.queryableEventNames;
-    this.earliestDepositIdQueried = spokePoolClientState.earliestDepositIdQueried || this.earliestDepositIdQueried;
-    this.latestDepositIdQueried = spokePoolClientState.latestDepositIdQueried || this.latestDepositIdQueried;
-    this.firstBlockToSearch = spokePoolClientState.firstBlockToSearch || this.firstBlockToSearch;
-    this.fills = Object.entries(spokePoolClientState.fills || []).reduce(
-      (acc, [chainId, fills]) => ({
-        ...acc,
-        [chainId]: fills.map((fill) => ({
-          ...fill,
-          amount: BigNumber.from(fill.amount),
-          totalFilledAmount: BigNumber.from(fill.totalFilledAmount),
-          fillAmount: BigNumber.from(fill.fillAmount),
-          relayerFeePct: BigNumber.from(fill.relayerFeePct),
-          realizedLpFeePct: BigNumber.from(fill.realizedLpFeePct),
-          updatableRelayData: {
-            ...fill.updatableRelayData,
-            relayerFeePct: BigNumber.from(fill.updatableRelayData.relayerFeePct),
-            payoutAdjustmentPct: BigNumber.from(fill.updatableRelayData.payoutAdjustmentPct),
-          },
-        })),
-      }),
-      {}
-    );
-    this.isUpdated = true;
-  }
-
-  public toJSON() {
-    return {
-      chainId: this.chainId,
-      deploymentBlock: this.deploymentBlock,
-      eventSearchConfig: this.eventSearchConfig,
-
-      currentTime: this.currentTime,
-      depositHashes: JSON.parse(stringifyJSONWithNumericString(this.depositHashes)) as Record<
-        string,
-        DepositWithBlockStringified
-      >,
-      depositHashesToFills: JSON.parse(stringifyJSONWithNumericString(this.depositHashesToFills)) as Record<
-        string,
-        FillWithBlockStringified[]
-      >,
-      speedUps: JSON.parse(stringifyJSONWithNumericString(this.speedUps)) as {
-        [depositorAddress: string]: {
-          [depositId: number]: SpeedUpStringified[];
-        };
-      },
-      depositRoutes: this.depositRoutes,
-      tokensBridged: JSON.parse(stringifyJSONWithNumericString(this.tokensBridged)) as TokensBridgedStringified[],
-      rootBundleRelays: this.rootBundleRelays,
-      relayerRefundExecutions: JSON.parse(
-        stringifyJSONWithNumericString(this.relayerRefundExecutions)
-      ) as RelayerRefundExecutionWithBlockStringified[],
-      earlyDeposits: JSON.parse(stringifyJSONWithNumericString(this.earlyDeposits)) as FundsDepositedEventStringified[],
-      queryableEventNames: this.queryableEventNames,
-
-      earliestDepositIdQueried: this.earliestDepositIdQueried,
-      earliestDepositIdForSpokePool: this.firstDepositIdForSpokePool,
-      latestDepositIdQueried: this.latestDepositIdQueried,
-      latestDepositIdForSpokePool: this.lastDepositIdForSpokePool,
-      firstBlockToSearch: this.firstBlockToSearch,
-      isUpdated: this.isUpdated,
-      fills: JSON.parse(stringifyJSONWithNumericString(this.fills)) as Record<string, FillWithBlockStringified[]>,
-    };
   }
 }
