@@ -227,7 +227,7 @@ function getV3RelayHash(relayData: v3RelayData, destinationChainId: number): str
           "address outputToken," +
           "uint256 inputAmount," +
           "uint256 outputAmount," +
-          "uint256 originChainDI," +
+          "uint256 originChainId," +
           "uint32 depositId," +
           "uint32 fillDeadline," +
           "uint32 exclusivityDeadline," +
