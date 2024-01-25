@@ -575,7 +575,7 @@ export class SpokePoolClient extends BaseAbstractClient {
     });
 
     const timerStart = Date.now();
-    const [numberOfDeposits, currentTime, oldestTime ...events] = await Promise.all([
+    const [numberOfDeposits, currentTime, oldestTime, ...events] = await Promise.all([
       this.spokePool.numberOfDeposits({ blockTag: searchConfig.toBlock }),
       this.spokePool.getCurrentTime({ blockTag: searchConfig.toBlock }),
       this.spokePool.getCurrentTime({ blockTag: Math.max(searchConfig.fromBlock, this.deploymentBlock) }),
