@@ -1,6 +1,5 @@
 import { BigNumber, ethers } from "ethers";
 import { ThresholdBoundType, FlowTupleParameters } from "./UBAFeeTypes";
-import { stringifyJSONWithNumericString } from "../utils/JSONUtils";
 import { fixedPointAdjustment } from "../utils";
 import { assertValidityOfFeeCurve } from "./UBAFeeUtility";
 
@@ -192,17 +191,6 @@ class UBAConfig {
    */
   public getUbaRewardMultiplier(chainId: string): BigNumber {
     return this.ubaRewardMultiplier?.[chainId] ?? fixedPointAdjustment; // Default to 1 if not set
-  }
-
-  public toJSON() {
-    return {
-      baselineFee: JSON.parse(stringifyJSONWithNumericString(this.baselineFee)),
-      balancingFee: JSON.parse(stringifyJSONWithNumericString(this.balancingFee)),
-      balanceTriggerThreshold: JSON.parse(stringifyJSONWithNumericString(this.balanceTriggerThreshold)),
-      lpGammaFunction: JSON.parse(stringifyJSONWithNumericString(this.lpGammaFunction)),
-      incentivePoolAdjustment: JSON.parse(stringifyJSONWithNumericString(this.incentivePoolAdjustment)),
-      ubaRewardMultiplier: JSON.parse(stringifyJSONWithNumericString(this.ubaRewardMultiplier)),
-    };
   }
 }
 
