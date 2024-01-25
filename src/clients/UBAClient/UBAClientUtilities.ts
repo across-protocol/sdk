@@ -6,12 +6,11 @@ import { mapAsync } from "../../utils/ArrayUtils";
 import { SpokePoolClients } from "../../utils/TypeUtils";
 import { isDefined } from "../../utils/TypeGuards";
 import { validateFillForDeposit } from "../../utils/FlowUtils";
-import { ModifiedUBAFlow, RequestValidReturnType, SpokePoolFillFilter, UBAClientState } from "./UBAClientTypes";
+import { ModifiedUBAFlow, SpokePoolFillFilter, UBAClientState } from "./UBAClientTypes";
 import {
   DepositWithBlock,
   Fill,
   FillWithBlock,
-  RefundRequestWithBlock,
   TokenRunningBalance,
   UBAParsedConfigType,
   UbaFlow,
@@ -471,11 +470,8 @@ export function getFlowChain(flow: UbaFlow): number {
   if (isUbaInflow(flow)) {
     flowChain = flow.originChainId;
   } else {
-    if (outflowIsFill(flow)) {
-      flowChain = flow.destinationChainId;
-    } else {
-      flowChain = flow.repaymentChainId;
-    }
+    assert(outflowIsFill(flow));
+    flowChain = flow.destinationChainId;
   }
   return flowChain;
 }
@@ -484,7 +480,7 @@ export function getFlowChain(flow: UbaFlow): number {
  * Retrieves the flows for a given chainId. This is designed only to work with UBA start and end blocks as
  * the realizedLpFeePct for deposits is not compared against fills. Retrieving any "Pre UBA" deposits with
  * defined realizedLpFeePct will cause this function to throw.
- * * @param tokenSymbol Symbol of token to retrieve flows for.
+ * @param tokenSymbol Symbol of token to retrieve flows for.
  * @param chainId The chainId to retrieve flows for
  * @param spokePoolClients A mapping of chainIds to spoke pool clients
  * @param hubPoolClient A hub pool client instance to query the hub pool
@@ -548,27 +544,8 @@ export async function getUBAFlows(
 
   // TODO: For each fill, add a matchedFill, or expected realizedLpFeePct value to the matched deposit.
 
-  const refundRequests: UbaFlow[] = (
-    await getValidRefundCandidates(
-      chainId,
-      hubPoolClient,
-      spokePoolClients,
-      {
-        fromBlock,
-        toBlock,
-      },
-      ["realizedLpFeePct"]
-    )
-  ).filter((refundRequest: RefundRequestWithBlock) => {
-    const _tokenSymbol = hubPoolClient.getL1TokenInfoForL2Token(
-      refundRequest.refundToken,
-      refundRequest.repaymentChainId
-    )?.symbol;
-    return _tokenSymbol === tokenSymbol;
-  });
-
   // This is probably more expensive than we'd like... @todo: optimise.
-  const flows = sortFlowsAscending(deposits.concat(fills).concat(refundRequests));
+  const flows = sortFlowsAscending(deposits.concat(fills));
 
   return flows;
 }
@@ -615,108 +592,6 @@ export function sortFlowsAscendingInPlace(flows: UbaFlow[]): UbaFlow[] {
 
 export function sortFlowsAscending(flows: UbaFlow[]): UbaFlow[] {
   return sortFlowsAscendingInPlace([...flows]);
-}
-
-/**
- * Validate a refund request.
- * @param chainId The chainId of the spoke pool
- * @param chainIdIndices The chainIds of the spoke pools that align with the spoke pool clients
- * @param spokePoolClients A mapping of chainIds to spoke pool clients
- * @param hubPoolClient The hub pool client
- * @param refundRequest The refund request to validate
- * @returns Whether or not the refund request is valid
- */
-export async function refundRequestIsValid(
-  spokePoolClients: SpokePoolClients,
-  hubPoolClient: HubPoolClient,
-  refundRequest: RefundRequestWithBlock,
-  ignoredDepositValidationParams: string[] = []
-): Promise<RequestValidReturnType> {
-  const {
-    relayer,
-    amount,
-    refundToken,
-    depositId,
-    originChainId,
-    destinationChainId,
-    repaymentChainId,
-    realizedLpFeePct,
-    fillBlock,
-    previousIdenticalRequests,
-  } = refundRequest;
-
-  if (destinationChainId === repaymentChainId) {
-    return { valid: false, reason: "Invalid destinationChainId" };
-  }
-  const destSpoke = spokePoolClients[destinationChainId];
-
-  if (fillBlock.lt(destSpoke.deploymentBlock) || fillBlock.gt(destSpoke.latestBlockSearched)) {
-    const { deploymentBlock, latestBlockSearched } = destSpoke;
-    return {
-      valid: false,
-      reason: `FillBlock (${fillBlock} out of SpokePool range [${deploymentBlock}, ${latestBlockSearched}]`,
-    };
-  }
-
-  // @dev: In almost all cases we should only count refunds where this value is 0. However, sometimes its possible
-  // that an initial refund request is thrown out due to some odd timing bug so this might be overly restrictive.
-  if (previousIdenticalRequests.gt(0)) {
-    return { valid: false, reason: "Previous identical request exists" };
-  }
-
-  // Validate relayer and depositId. Also check that fill requested refund on same chain that
-  // refund was sent.
-  const fill = destSpoke.getFillsForRelayer(relayer).find((fill) => {
-    // prettier-ignore
-    return (
-        fill.depositId === depositId
-        && fill.originChainId === originChainId
-        && fill.destinationChainId === destinationChainId
-        // Must have requested refund on chain that refund was sent on.
-        && fill.repaymentChainId === repaymentChainId
-        // Must be a full fill to qualify for a refund.
-        && fill.amount.eq(amount)
-        && fill.fillAmount.eq(amount)
-        && fill.realizedLpFeePct.eq(realizedLpFeePct)
-        && fill.blockNumber === fillBlock.toNumber()
-      );
-  });
-  if (!isDefined(fill)) {
-    if (fillBlock.lt(destSpoke.eventSearchConfig.fromBlock)) {
-      // TODO: We need to do a look back for a fill if we can't find it. We can't assume it doesn't exist, similar to
-      // why we try to do a longer lookback below for a deposit. The problem with looking up the fill is that there is no
-      // deterministic way to eliminate the possibility that a fill exists.
-      // However, its OK to assume this refund is invalid for now since we assume that refunds are sent very close
-      // to the time of the fill.
-      // Can try to use `getModifiedFlow` in combination with some new findFill method in the SpokePoolClient.
-      throw new Error(
-        `Unimplemented: refund request fillBlock ${fillBlock} is older than spoke pool client from block, set a wider lookback`
-      );
-    } else {
-      return { valid: false, reason: "Unable to find matching fill" };
-    }
-  }
-
-  // Now, match the deposit against a fill but don't check the realizedLpFeePct parameter because it will be
-  // undefined in the spoke pool client until we validate it later.
-  const deposit = await getMatchedDeposit(spokePoolClients, fill, ignoredDepositValidationParams);
-  if (!isDefined(deposit)) {
-    return { valid: false, reason: "Unable to find matching deposit" };
-  }
-
-  // Verify that the refundToken maps to a known HubPool token and is the correct
-  // token for the chain where the refund was sent from.
-  // Note: the refundToken must be valid at the time the deposit was sent.
-  try {
-    const expectedRefundToken = hubPoolClient.getL2TokenForDeposit(deposit, repaymentChainId);
-    if (expectedRefundToken !== refundToken) {
-      return { valid: false, reason: `Refund token does not map to expected refund token ${refundToken}` };
-    }
-  } catch {
-    return { valid: false, reason: `Refund token unknown at HubPool block ${deposit.quoteBlockNumber}` };
-  }
-
-  return { valid: true, matchingFill: fill, matchingDeposit: deposit };
 }
 
 /**
@@ -792,60 +667,6 @@ export async function getValidFillCandidates(
   ).filter(isDefined);
 
   return fills;
-}
-
-/**
- * Search for refund requests recorded by a specific SpokePool.
- * @param chainId Chain ID of the relevant SpokePoolClient instance.
- * @param chainIdIndices Complete set of ordered chain IDs.
- * @param hubPoolClient HubPoolClient instance.
- * @param spokePoolClients Set of SpokePoolClient instances, mapped by chain ID.
- * @param filter  Optional filtering criteria.
- * @returns Array of RefundRequestWithBlock events matching the chain ID and optional filtering criteria.
- */
-export async function getValidRefundCandidates(
-  chainId: number,
-  hubPoolClient: HubPoolClient,
-  spokePoolClients: SpokePoolClients,
-  filter: Pick<SpokePoolFillFilter, "fromBlock" | "toBlock"> = {},
-  ignoredDepositValidationParams: string[] = []
-): Promise<(RefundRequestWithBlock & { matchedDeposit: DepositWithBlock })[]> {
-  const spokePoolClient = spokePoolClients[chainId];
-  assert(isDefined(spokePoolClient));
-
-  const { fromBlock, toBlock } = filter;
-
-  return (
-    await mapAsync(spokePoolClient.getRefundRequests(), async (refundRequest) => {
-      if (isDefined(fromBlock) && fromBlock > refundRequest.blockNumber) {
-        return undefined;
-      }
-      if (isDefined(toBlock) && toBlock < refundRequest.blockNumber) {
-        return undefined;
-      }
-
-      const result = await refundRequestIsValid(
-        spokePoolClients,
-        hubPoolClient,
-        refundRequest,
-        ignoredDepositValidationParams
-      );
-      if (result.valid) {
-        const matchedDeposit = result.matchingDeposit;
-        if (matchedDeposit === undefined) {
-          throw new Error("refundRequestIsValid returned true but matchingDeposit is undefined");
-        }
-        return {
-          ...refundRequest,
-          matchedDeposit,
-        };
-      } else {
-        return undefined;
-      }
-    })
-  ).filter((refundRequest) => refundRequest !== undefined) as (RefundRequestWithBlock & {
-    matchedDeposit: DepositWithBlock;
-  })[];
 }
 
 /**

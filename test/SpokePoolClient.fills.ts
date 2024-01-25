@@ -174,10 +174,10 @@ describe("SpokePoolClient: Fills", function () {
     await hre.network.provider.send("evm_mine");
 
     // Now search for the fill _after_ it was filled and expect an exception.
-    const [srcChain, dstChain] = [getNetworkName(deposit.originChainId), getNetworkName(deposit.destinationChainId)];
+    const srcChain = getNetworkName(deposit.originChainId);
     await assertPromiseError(
       findFillBlock(spokePool, deposit as RelayData, lateBlockNumber),
-      `${srcChain} deposit ${deposit.depositId} filled on ${dstChain} before block`
+      `${srcChain} deposit ${deposit.depositId} filled on `
     );
 
     // Should assert if highBlock <= lowBlock.

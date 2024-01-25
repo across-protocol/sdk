@@ -34,8 +34,6 @@ import {
   FundsDepositedEvent,
   FundsDepositedEventStringified,
   RealizedLpFee,
-  RefundRequestWithBlock,
-  RefundRequestWithBlockStringified,
   RelayerRefundExecutionWithBlock,
   RelayerRefundExecutionWithBlockStringified,
   RootBundleRelayWithBlock,
@@ -84,7 +82,6 @@ export class SpokePoolClient extends BaseAbstractClient {
   public firstDepositIdForSpokePool = Number.MAX_SAFE_INTEGER;
   public lastDepositIdForSpokePool = Number.MAX_SAFE_INTEGER;
   public fills: { [OriginChainId: number]: FillWithBlock[] } = {};
-  public refundRequests: RefundRequestWithBlock[] = [];
 
   /**
    * Creates a new SpokePoolClient.
@@ -115,7 +112,6 @@ export class SpokePoolClient extends BaseAbstractClient {
       FundsDeposited: this.spokePool.filters.FundsDeposited(),
       RequestedSpeedUpDeposit: this.spokePool.filters.RequestedSpeedUpDeposit(),
       FilledRelay: this.spokePool.filters.FilledRelay(),
-      RefundRequested: this.spokePool.filters.RefundRequested(),
       EnabledDepositRoute: this.spokePool.filters.EnabledDepositRoute(),
       TokensBridged: this.spokePool.filters.TokensBridged(),
       RelayedRootBundle: this.spokePool.filters.RelayedRootBundle(),
@@ -215,18 +211,6 @@ export class SpokePoolClient extends BaseAbstractClient {
    */
   public getFillsWithBlockInRange(startingBlock: number, endingBlock: number): FillWithBlock[] {
     return this.getFills().filter((fill) => fill.blockNumber >= startingBlock && fill.blockNumber <= endingBlock);
-  }
-
-  /**
-   * Retrieves a list of refund requests from the SpokePool contract that are within an optional block range.
-   * @param fromBlock The starting block number. If not provided, requests will not be filtered by any bounds.
-   * @param toBlock The ending block number. If not provided, requests will not be filtered by any bounds.
-   * @returns A list of refund requests.
-   */
-  public getRefundRequests(fromBlock?: number, toBlock?: number): RefundRequestWithBlock[] {
-    return fromBlock === undefined || toBlock === undefined || isNaN(fromBlock) || isNaN(toBlock)
-      ? this.refundRequests
-      : this.refundRequests.filter((request) => request.blockNumber >= fromBlock && request.blockNumber <= toBlock);
   }
 
   /**
@@ -609,7 +593,7 @@ export class SpokePoolClient extends BaseAbstractClient {
       // Collate the relevant set of block numbers and filter for uniqueness, then query each corresponding block.
       const blockNumbers = Array.from(
         new Set(
-          ["FundsDeposited", "FilledRelay", "RefundRequested"]
+          ["FundsDeposited", "FilledRelay"]
             .filter((eventName) => eventsToQuery.includes(eventName))
             .map((eventName) => {
               const idx = eventsToQuery.indexOf(eventName);
@@ -775,33 +759,6 @@ export class SpokePoolClient extends BaseAbstractClient {
         }
         assign(this.fills, [fill.originChainId], [fill]);
         assign(this.depositHashesToFills, [this.getDepositHash(fill)], [fill]);
-      }
-    }
-
-    // @note: In Across 2.5, callers will simultaneously request [FundsDeposited, FilledRelay, RefundsRequested].
-    // The list of events is always pre-sorted, so rather than splitting them out individually, it might make sense to
-    // evaluate them as a single group, to avoid having to re-merge and sequence again afterwards.
-    if (eventsToQuery.includes("RefundRequested")) {
-      const refundRequests = queryResults[eventsToQuery.indexOf("RefundRequested")];
-
-      if (refundRequests.length > 0) {
-        this.log("debug", `Found ${refundRequests.length} new relayer refund requests on chain ${this.chainId}`, {
-          earliestEvent: refundRequests[0].blockNumber,
-        });
-      }
-      for (const event of refundRequests) {
-        const rawRefundRequest = spreadEventWithBlockNumber(event) as RefundRequestWithBlock;
-        const refundRequest: RefundRequestWithBlock = {
-          ...rawRefundRequest,
-          repaymentChainId: this.chainId, // repaymentChainId is not part of the on-chain event, so add it here.
-          blockTimestamp: 0,
-        };
-        // Override the default blockTimestamp of 0 only if the UBA is active and we have pre-queried block times
-        // for each event.
-        if (isDefined(blocks)) {
-          refundRequest.blockTimestamp = blocks[event.blockNumber].timestamp;
-        }
-        this.refundRequests.push(refundRequest);
       }
     }
 
@@ -1127,13 +1084,6 @@ export class SpokePoolClient extends BaseAbstractClient {
       }),
       {}
     );
-    this.refundRequests = (spokePoolClientState.refundRequests || []).map((refundRequest) => ({
-      ...refundRequest,
-      amount: BigNumber.from(refundRequest.amount),
-      realizedLpFeePct: BigNumber.from(refundRequest.realizedLpFeePct),
-      previousIdenticalRequests: BigNumber.from(refundRequest.previousIdenticalRequests),
-      fillBlock: BigNumber.from(refundRequest.fillBlock),
-    }));
     this.isUpdated = true;
   }
 
@@ -1173,9 +1123,6 @@ export class SpokePoolClient extends BaseAbstractClient {
       firstBlockToSearch: this.firstBlockToSearch,
       isUpdated: this.isUpdated,
       fills: JSON.parse(stringifyJSONWithNumericString(this.fills)) as Record<string, FillWithBlockStringified[]>,
-      refundRequests: JSON.parse(
-        stringifyJSONWithNumericString(this.refundRequests)
-      ) as RefundRequestWithBlockStringified[],
     };
   }
 }

@@ -144,6 +144,10 @@ export class HubPoolClient extends BaseAbstractClient {
     return this.disputedRootBundles;
   }
 
+  getExecutedRootBundles(): ExecutedRootBundle[] {
+    return this.executedRootBundles;
+  }
+
   getSpokePoolForBlock(chain: number, block: number = Number.MAX_SAFE_INTEGER): string {
     if (!this.crossChainContracts[chain]) {
       throw new Error(`No cross chain contracts set for ${chain}`);

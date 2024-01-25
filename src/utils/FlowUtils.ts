@@ -1,14 +1,6 @@
+import assert from "assert";
 import { HubPoolClient } from "../clients/HubPoolClient";
-import {
-  Deposit,
-  Fill,
-  FillWithBlock,
-  RefundRequestWithBlock,
-  UbaFlow,
-  UbaOutflow,
-  isUbaInflow,
-  outflowIsFill,
-} from "../interfaces";
+import { Deposit, Fill, FillWithBlock, UbaFlow, isUbaInflow, outflowIsFill } from "../interfaces";
 import { isDefined } from "../utils";
 
 export const FILL_DEPOSIT_COMPARISON_KEYS = [
@@ -37,22 +29,16 @@ export function getTokenSymbolForFlow(
       );
     }
     tokenSymbol = hubPoolClient.getTokenInfo(flow.originChainId, flow.originToken)?.symbol;
-  } else if (outflowIsFill(flow as UbaOutflow)) {
+  } else {
+    assert(outflowIsFill(flow));
     if (chainId !== flow.destinationChainId) {
       throw new Error(
         `ChainId mismatch on chain ${flow.destinationChainId} fill for chain ${flow.originChainId} deposit ${flow.depositId} (${chainId} != ${flow.destinationChainId})`
       );
     }
     tokenSymbol = hubPoolClient.getTokenInfo(flow.destinationChainId, (flow as FillWithBlock).destinationToken)?.symbol;
-  } else if (chainId !== (flow as RefundRequestWithBlock).repaymentChainId) {
-    if (chainId !== flow.repaymentChainId) {
-      throw new Error(
-        `ChainId mismatch on chain ${flow.repaymentChainId} for chain ${flow.originChainId} deposit ${flow.depositId} (${chainId} != ${flow.repaymentChainId})`
-      );
-    }
-    tokenSymbol = hubPoolClient.getTokenInfo(flow.repaymentChainId, (flow as RefundRequestWithBlock).refundToken)
-      ?.symbol;
   }
+
   return tokenSymbol;
 }
 

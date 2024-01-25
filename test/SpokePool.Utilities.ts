@@ -3,12 +3,11 @@ import { clients, utils as sdkUtils } from "../src";
 import { expect } from "chai";
 import { DEFAULT_CONFIG_STORE_VERSION } from "../src/clients";
 import { MockHubPoolClient, MockSpokePoolClient, MockConfigStoreClient } from "../src/clients/mocks";
-import { DepositWithBlock, FillWithBlock, RefundRequestWithBlock } from "../src/interfaces";
+import { DepositWithBlock, FillWithBlock } from "../src/interfaces";
 import { ZERO_ADDRESS } from "../src/constants";
 import {
   createSpyLogger,
   fillFromDeposit,
-  refundRequestFromFill,
   deployConfigStore,
   hubPoolFixture,
   deploySpokePool,
@@ -19,7 +18,7 @@ import { randomAddress } from "../src/utils";
 
 type EventSearchConfig = sdkUtils.EventSearchConfig;
 
-const { getValidFillCandidates, getValidRefundCandidates } = clients;
+const { getValidFillCandidates } = clients;
 
 let owner: contractsV2Utils.SignerWithAddress;
 let chainIds: number[];
@@ -32,11 +31,11 @@ let repaymentSpokePoolClient: MockSpokePoolClient;
 
 const logger = createSpyLogger().spyLogger;
 
-const generateValidRefundRequest = async (
+const generateValidFlows = async (
   origin: MockSpokePoolClient,
   destination: MockSpokePoolClient,
   repayment: MockSpokePoolClient = destination
-): Promise<{ deposit: DepositWithBlock; fill: FillWithBlock; refundRequest?: RefundRequestWithBlock }> => {
+): Promise<{ deposit: DepositWithBlock; fill: FillWithBlock }> => {
   let event = origin.generateDeposit({
     originChainId: origin.chainId,
     originToken: ZERO_ADDRESS,
@@ -60,21 +59,7 @@ const generateValidRefundRequest = async (
   expect(_fill).to.not.be.undefined;
   const fill = _fill as FillWithBlock;
 
-  // If a repayment SpokePoolClient was supplied, generate the RefundRequest event from the previous fill.
-  let refundRequest: RefundRequestWithBlock | undefined = undefined;
-  if (repayment !== destination) {
-    const refundRequestTemplate = refundRequestFromFill(fill, fill.destinationToken);
-    event = repayment.generateRefundRequest(refundRequestTemplate as RefundRequestWithBlock);
-    await repayment.update();
-
-    // Pull the DepositWithBlock event out of the origin SpokePoolClient to use as a Fill template.
-    refundRequest = repayment
-      .getRefundRequests()
-      .find(({ transactionHash }) => transactionHash === event.transactionHash);
-    expect(refundRequest).to.not.be.undefined;
-  }
-
-  return { deposit: deposit as DepositWithBlock, fill: fill as FillWithBlock, refundRequest: refundRequest };
+  return { deposit: deposit as DepositWithBlock, fill: fill as FillWithBlock };
 };
 
 describe("SpokePoolClient: Event Filtering", function () {
@@ -151,7 +136,7 @@ describe("SpokePoolClient: Event Filtering", function () {
     const fillEvents: FillWithBlock[] = [];
 
     for (let idx = 0; idx < 10; ++idx) {
-      const { fill } = await generateValidRefundRequest(
+      const { fill } = await generateValidFlows(
         originSpokePoolClient,
         destinationSpokePoolClient,
         idx === 0 ? repaymentSpokePoolClient : destinationSpokePoolClient // Add one random repaymentChainId for filtering.
@@ -184,46 +169,6 @@ describe("SpokePoolClient: Event Filtering", function () {
         expect(fills[0].blockNumber).to.equal(sampleEvent.blockNumber);
       } else {
         expect(fills[0][field]).to.equal(sampleEvent[field]);
-      }
-    }
-  });
-
-  it("Correctly filters SpokePool RefundRequested events", async function () {
-    // Inject a series of paired RefundRequested, FillWithBlock and FundsDeposited events. Query the
-    // refund requests with various filters applied and ensure the expected results are returned.
-    // @dev Lots of boilerplate required for calling getRefundRequests().
-
-    const refundRequestEvents: RefundRequestWithBlock[] = [];
-    for (let idx = 0; idx < 10; ++idx) {
-      const { refundRequest } = await generateValidRefundRequest(
-        originSpokePoolClient,
-        destinationSpokePoolClient,
-        idx === 0 ? originSpokePoolClient : repaymentSpokePoolClient // Add one random originChainId for filtering.
-      );
-      refundRequestEvents.push(refundRequest as RefundRequestWithBlock);
-    }
-
-    // Should receive _all_ refunds sent on repayment chain.
-    let refundRequests = await getValidRefundCandidates(repaymentChainId, hubPoolClient, spokePoolClients, undefined, [
-      "realizedLpFeePct",
-    ]);
-    expect(refundRequests.length).to.equal(refundRequestEvents.length - 1);
-
-    // Take the field from the last event and filter on it.
-    // Should only get one event in response.
-    for (const field of ["fromBlock"]) {
-      const sampleEvent = refundRequestEvents.slice(-1)[0];
-      const filter = { [field]: sampleEvent.blockNumber };
-
-      refundRequests = await getValidRefundCandidates(repaymentChainId, hubPoolClient, spokePoolClients, filter, [
-        "realizedLpFeePct",
-      ]);
-      expect(refundRequests.length).to.equal(1);
-
-      if (field === "fromBlock") {
-        expect(refundRequests[0].blockNumber).to.equal(sampleEvent.blockNumber);
-      } else {
-        expect(refundRequests[0][field]).to.equal(sampleEvent[field]);
       }
     }
   });

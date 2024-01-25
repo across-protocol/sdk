@@ -21,7 +21,6 @@ import {
   isUbaInflow,
   isUbaOutflow,
   outflowIsFill,
-  outflowIsRefund,
 } from "../../interfaces";
 import {
   blockRangesAreInvalidForSpokeClients,
@@ -453,14 +452,10 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
       flowChain = flow.originChainId;
       tokenSymbol = this.hubPoolClient.getL1TokenInfoForL2Token(flow.originToken, flowChain)?.symbol;
     } else {
-      // If the flow is a fill, then we need to validate its matched deposit.
-      if (outflowIsFill(flow)) {
-        flowChain = flow.destinationChainId;
-        tokenSymbol = this.hubPoolClient.getL1TokenInfoForL2Token(flow.destinationToken, flowChain)?.symbol;
-      } else {
-        flowChain = flow.repaymentChainId;
-        tokenSymbol = this.hubPoolClient.getL1TokenInfoForL2Token(flow.refundToken, flowChain)?.symbol;
-      }
+      // The outflow is a fill; it must be validated against its matched deposit.
+      assert(outflowIsFill(flow));
+      flowChain = flow.destinationChainId;
+      tokenSymbol = this.hubPoolClient.getL1TokenInfoForL2Token(flow.destinationToken, flowChain)?.symbol;
     }
     if (!isDefined(tokenSymbol)) throw new Error("No token symbol found");
     const l1TokenAddress = this.hubPoolClient.getL1Tokens().find((token) => token.symbol === tokenSymbol)?.address;
@@ -1160,10 +1155,7 @@ export class UBAClientWithRefresh extends BaseAbstractClient {
                   isUbaOutflow(flow) && outflowIsFill(flow) && flow.matchedDeposit.realizedLpFeePct === undefined
               );
               const deposits = flows.filter(({ flow }) => isUbaInflow(flow));
-              const refunds = flows.filter(
-                ({ flow }) =>
-                  isUbaOutflow(flow) && outflowIsRefund(flow) && flow.matchedDeposit.realizedLpFeePct === undefined
-              );
+              const refunds = []; // Previously removed as part of RefundRequest cleanup.
 
               const inflows = deposits.reduce((sum, { flow }) => {
                 sum = sum.add(flow.amount);

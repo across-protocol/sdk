@@ -1,9 +1,9 @@
 import { BigNumber } from "ethers";
 import { SortableEvent } from "./Common";
-import { FundsDepositedEvent } from "../typechain";
+import { FundsDepositedEvent, V3FundsDepositedEvent } from "../typechain";
 import { SpokePoolClient } from "../clients";
 
-export type { FundsDepositedEvent } from "../typechain";
+export type { FundsDepositedEvent, V3FundsDepositedEvent };
 
 export interface Deposit {
   depositId: number;
@@ -121,33 +121,6 @@ export interface SlowFillLeaf {
   relayData: RelayData;
   payoutAdjustmentPct: string;
 }
-
-export interface RefundRequest {
-  relayer: string;
-  refundToken: string;
-  amount: BigNumber;
-  originChainId: number;
-  destinationChainId: number;
-  repaymentChainId: number;
-  realizedLpFeePct: BigNumber;
-  depositId: number;
-  fillBlock: BigNumber;
-  previousIdenticalRequests: BigNumber;
-}
-
-export interface RefundRequestWithBlock extends RefundRequest, SortableEvent {
-  blockTimestamp: number;
-}
-
-export type RefundRequestWithBlockStringified = Omit<
-  RefundRequestWithBlock,
-  "amount" | "realizedLpFeePct" | "previousIdenticalRequests" | "fillBlock" | "previousIdenticalRequests"
-> & {
-  amount: string;
-  realizedLpFeePct: string;
-  previousIdenticalRequests: string;
-  fillBlock: string;
-};
 
 export interface RootBundleRelay {
   rootBundleId: number;
