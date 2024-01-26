@@ -1,6 +1,6 @@
 import { utils, across } from "@uma/sdk";
 import assert from "assert";
-import { BigNumber, Contract, Event } from "ethers";
+import { Contract, Event } from "ethers";
 import winston from "winston";
 import { isError } from "../../typeguards";
 import {
@@ -29,13 +29,11 @@ import {
   RouteRateModelUpdate,
   SpokePoolTargetBalance,
   SpokeTargetBalanceUpdate,
-  SpokeTargetBalanceUpdateStringified,
   TokenConfig,
   UBAConfigUpdates,
   UBAParsedConfigType,
-  UBASerializedConfigUpdates,
 } from "../../interfaces";
-import { parseJSONWithNumericString, stringifyJSONWithNumericString } from "../../utils/JSONUtils";
+import { parseJSONWithNumericString } from "../../utils/JSONUtils";
 import { BaseAbstractClient } from "../BaseAbstractClient";
 import { parseUBAConfigFromOnChain } from "./ConfigStoreParsingUtilities";
 
@@ -551,90 +549,5 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
       (config) => config.l1Token === l1TokenAddress && config.blockNumber <= blockNumber
     );
     return config?.config;
-  }
-
-  public updateFromJSON(configStoreClientState: Partial<ReturnType<AcrossConfigStoreClient["toJSON"]>>) {
-    const keysToUpdate = Object.keys(configStoreClientState);
-
-    this.logger.debug({
-      at: "ConfigStoreClient",
-      message: "Updating ConfigStoreClient from JSON",
-      keys: keysToUpdate,
-    });
-
-    if (keysToUpdate.length === 0) {
-      return;
-    }
-
-    const {
-      cumulativeRateModelUpdates = this.cumulativeRateModelUpdates,
-      cumulativeRouteRateModelUpdates = this.cumulativeRouteRateModelUpdates,
-      cumulativeMaxRefundCountUpdates = this.cumulativeMaxRefundCountUpdates,
-      cumulativeMaxL1TokenCountUpdates = this.cumulativeMaxL1TokenCountUpdates,
-      cumulativeConfigStoreVersionUpdates = this.cumulativeConfigStoreVersionUpdates,
-      cumulativeDisabledChainUpdates = this.cumulativeDisabledChainUpdates,
-      firstBlockToSearch = this.firstBlockToSearch,
-      hasLatestConfigStoreVersion = this.hasLatestConfigStoreVersion,
-      latestBlockSearched = this.latestBlockSearched,
-      ubaConfigUpdates,
-      cumulativeSpokeTargetBalanceUpdates,
-    } = configStoreClientState;
-
-    this.cumulativeRateModelUpdates = cumulativeRateModelUpdates;
-    this.ubaConfigUpdates = ubaConfigUpdates
-      ? ubaConfigUpdates.map((update) => {
-          return {
-            ...update,
-            config: parseUBAConfigFromOnChain(update.config),
-          };
-        })
-      : this.ubaConfigUpdates;
-    this.cumulativeRouteRateModelUpdates = cumulativeRouteRateModelUpdates;
-    this.cumulativeMaxRefundCountUpdates = cumulativeMaxRefundCountUpdates;
-    this.cumulativeMaxL1TokenCountUpdates = cumulativeMaxL1TokenCountUpdates;
-    this.cumulativeSpokeTargetBalanceUpdates = cumulativeSpokeTargetBalanceUpdates
-      ? cumulativeSpokeTargetBalanceUpdates.map((update) => {
-          return {
-            ...update,
-            spokeTargetBalances: Object.entries(update.spokeTargetBalances || {}).reduce(
-              (acc, [chainId, { target, threshold }]) => ({
-                ...acc,
-                [chainId]: { target: BigNumber.from(target), threshold: BigNumber.from(threshold) },
-              }),
-              {}
-            ),
-          };
-        })
-      : [];
-    this.cumulativeConfigStoreVersionUpdates = cumulativeConfigStoreVersionUpdates;
-    this.cumulativeDisabledChainUpdates = cumulativeDisabledChainUpdates;
-    this.firstBlockToSearch = firstBlockToSearch;
-    this.hasLatestConfigStoreVersion = hasLatestConfigStoreVersion;
-    this.latestBlockSearched = latestBlockSearched;
-    this.rateModelDictionary.updateWithEvents(cumulativeRateModelUpdates);
-    this.isUpdated = true;
-  }
-
-  public toJSON() {
-    return {
-      eventSearchConfig: this.eventSearchConfig,
-      configStoreVersion: this.configStoreVersion,
-      chainIdIndicesUpdates: this.chainIdIndicesUpdates,
-      cumulativeRateModelUpdates: this.cumulativeRateModelUpdates,
-      ubaConfigUpdates: JSON.parse(
-        stringifyJSONWithNumericString(this.ubaConfigUpdates)
-      ) as UBASerializedConfigUpdates[],
-      cumulativeRouteRateModelUpdates: this.cumulativeRouteRateModelUpdates,
-      cumulativeMaxRefundCountUpdates: this.cumulativeMaxRefundCountUpdates,
-      cumulativeMaxL1TokenCountUpdates: this.cumulativeMaxL1TokenCountUpdates,
-      cumulativeSpokeTargetBalanceUpdates: JSON.parse(
-        stringifyJSONWithNumericString(this.cumulativeSpokeTargetBalanceUpdates)
-      ) as SpokeTargetBalanceUpdateStringified[],
-      cumulativeConfigStoreVersionUpdates: this.cumulativeConfigStoreVersionUpdates,
-      cumulativeDisabledChainUpdates: this.cumulativeDisabledChainUpdates,
-      firstBlockToSearch: this.firstBlockToSearch,
-      latestBlockSearched: this.latestBlockSearched,
-      hasLatestConfigStoreVersion: this.hasLatestConfigStoreVersion,
-    };
   }
 }
