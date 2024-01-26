@@ -1,5 +1,21 @@
 import { PublicNetworks } from "@uma/common/dist/PublicNetworks";
 import { PRODUCTION_CHAIN_IDS, TESTNET_CHAIN_IDS } from "../constants";
+
+/**
+ * A list of networks that provide more resolution about a chainid -> network name
+ */
+const networkIdMap = {
+  666: "Hardhat1",
+  1337: "Hardhat2",
+  421613: "ArbitrumGoerli",
+  324: "ZkSync",
+  280: "ZkSync-Goerli",
+  8453: "Base",
+  84531: "BaseGoerli",
+  84532: "BaseSepolia",
+  11155111: "EthSepolia",
+};
+
 /**
  * Resolves a network name from a network id.
  * @param networkId The network id to resolve the name for
@@ -10,28 +26,9 @@ export function getNetworkName(networkId: number | string): string {
     const networkName = PublicNetworks[Number(networkId)].name;
     return networkName.charAt(0).toUpperCase() + networkName.slice(1);
   } catch (error) {
-    if (Number(networkId) == 666) {
-      return "Hardhat1";
-    }
-    if (Number(networkId) == 1337) {
-      return "Hardhat2";
-    }
-    if (Number(networkId) == 421613) {
-      return "ArbitrumGoerli";
-    }
-    if (Number(networkId) == 324) {
-      return "ZkSync";
-    }
-    if (Number(networkId) == 280) {
-      return "ZkSync-Goerli";
-    }
-    if (Number(networkId) == 8453) {
-      return "Base";
-    }
-    if (Number(networkId) == 84531) {
-      return "BaseGoerli";
-    }
-    return "unknown";
+    // Convert networkId to a number in case it's a string, then lookup in the map
+    // Return "unknown" if the networkId does not exist in the map
+    return networkIdMap[Number(networkId)] || "unknown";
   }
 }
 
