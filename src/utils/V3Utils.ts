@@ -55,16 +55,16 @@ export function isV3Fill(fill: Fill): fill is v3Fill {
   return isDefined((fill as v3Fill).inputToken);
 }
 
-export function isSlowFill(fill: Fill): boolean {
-  return isV2Fill(fill) ? fill.updatableRelayData.isSlowRelay : fill.updatableRelayData.fillType === FillType.SlowFill;
-}
-
 export function isV2RelayData(relayData: RelayData): relayData is v2RelayData {
   return isDefined((relayData as v2RelayData).destinationToken);
 }
 
 export function isV3RelayData(relayData: RelayData): relayData is v3RelayData {
   return isDefined((relayData as v3RelayData).outputToken);
+}
+
+export function isSlowFill(fill: Fill): boolean {
+  return isV2Fill(fill) ? fill.updatableRelayData.isSlowRelay : fill.updatableRelayData.fillType === FillType.SlowFill;
 }
 
 export function isV2SlowFillLeaf(slowFillLeaf: SlowFillLeaf): slowFillLeaf is v2SlowFillLeaf {
