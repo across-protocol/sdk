@@ -35,12 +35,12 @@ export function isV2Deposit(deposit: Deposit): deposit is v2Deposit {
   return isDefined((deposit as v2Deposit).originToken);
 }
 
-export function isV2SpeedUp(speedUp: SpeedUp): speedUp is v2SpeedUp {
-  return isDefined((speedUp as v2SpeedUp).newRelayerFeePct);
-}
-
 export function isV3Deposit(deposit: Deposit): deposit is v3Deposit {
   return isDefined((deposit as v3Deposit).inputToken);
+}
+
+export function isV2SpeedUp(speedUp: SpeedUp): speedUp is v2SpeedUp {
+  return isDefined((speedUp as v2SpeedUp).newRelayerFeePct);
 }
 
 export function isV3SpeedUp(speedUp: SpeedUp): speedUp is v3SpeedUp {
