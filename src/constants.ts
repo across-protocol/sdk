@@ -47,6 +47,10 @@ export const PUBLIC_NETWORKS: { [chainId: number]: { name: string; etherscan: st
   43114: { name: "avalanche", etherscan: "https://snowtrace.io" },
   84531: { name: "base-goerli", etherscan: "https://basescan.org" },
   421613: { name: "arbitrum-goerli", etherscan: "https://goerli.arbiscan.io" },
+  11155111: { name: "sepolia", etherscan: "https://sepolia.etherscan.io" },
+  84532: { name: "base-sepolia", etherscan: "https://sepolia.basescan.org" },
+  534352: { name: "scroll", etherscan: "https://scrollscan.com" },
+  534351: { name: "scroll-sepolia", etherscan: "https://sepolia.scrollscan.com" },
 };
 
 export const DEFAULT_BLOCKCHAIN_EXPLORER_DOMAIN = "https://etherscan.io";
