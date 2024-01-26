@@ -10,7 +10,7 @@ import {
   MAX_BIG_INT,
   MakeOptional,
   assign,
-  getFillAmount,
+  getFillOutputAmount,
   getTotalFilledAmount,
   isDefined,
   isV2Deposit,
@@ -406,7 +406,7 @@ export class SpokePoolClient extends BaseAbstractClient {
 
     const lastFill = fillsOrderedByTotalFilledAmount[0];
     return {
-      unfilledAmount: getFillAmount(lastFill).sub(getTotalFilledAmount(lastFill)),
+      unfilledAmount: getFillOutputAmount(lastFill).sub(getTotalFilledAmount(lastFill)),
       fillCount: validFills.length,
       invalidFills,
     };
