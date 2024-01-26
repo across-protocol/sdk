@@ -343,7 +343,7 @@ describe("UBAClientUtilities", function () {
     });
     // Generate mock events, very simple tests to start
     it("Returns UBA deposits", async function () {
-      spokePoolClient.generateDeposit(deposit);
+      spokePoolClient.deposit(deposit);
       await spokePoolClient.update();
 
       const flows = await clients.getUBAFlows(tokenSymbol, chainId, spokePoolClients, hubPoolClient);
@@ -354,7 +354,7 @@ describe("UBAClientUtilities", function () {
       // We expect the getUBAFlows() call to throw because realizedLpFeePct will be set for these deposits
       spokePoolClient.setDefaultRealizedLpFeePct(toBNWei("0.1"));
 
-      spokePoolClient.generateDeposit(deposit);
+      spokePoolClient.deposit(deposit);
       await spokePoolClient.update();
 
       void assertPromiseError(
@@ -363,13 +363,13 @@ describe("UBAClientUtilities", function () {
       );
     });
     it("Returns fills matched with deposits", async function () {
-      spokePoolClient.generateDeposit(deposit);
+      spokePoolClient.deposit(deposit);
       await spokePoolClient.update();
 
-      destinationSpokePoolClient.generateFill(fill);
+      destinationSpokePoolClient.fillRelay(fill);
 
       // Add an invalid fill:
-      destinationSpokePoolClient.generateFill({
+      destinationSpokePoolClient.fillRelay({
         ...fill,
         depositId: deposit.depositId + 1,
       });

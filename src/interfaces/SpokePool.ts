@@ -1,73 +1,165 @@
 import { BigNumber } from "ethers";
 import { SortableEvent } from "./Common";
-import { FundsDepositedEvent, V3FundsDepositedEvent } from "../typechain";
+import { FilledRelayEvent, FilledV3RelayEvent, FundsDepositedEvent, V3FundsDepositedEvent } from "../typechain";
 import { SpokePoolClient } from "../clients";
 
-export type { FundsDepositedEvent, V3FundsDepositedEvent };
+export type { FilledRelayEvent, FilledV3RelayEvent, FundsDepositedEvent, V3FundsDepositedEvent };
 
-export interface Deposit {
+export interface DepositCommon {
   depositId: number;
-  depositor: string;
-  recipient: string;
-  originToken: string;
-  amount: BigNumber;
   originChainId: number; // appended from chainID in the client.
   destinationChainId: number;
-  relayerFeePct: BigNumber;
+  depositor: string;
+  recipient: string;
   quoteTimestamp: number;
-  realizedLpFeePct?: BigNumber; // appended after initialization (not part of Deposit event).
-  destinationToken: string; // appended after initialization (not part of Deposit event).
   message: string;
-  speedUpSignature?: string | undefined; // appended after initialization, if deposit was speedup (not part of Deposit event).
-  newRelayerFeePct?: BigNumber; // appended after initialization, if deposit was speedup (not part of Deposit event).
+  speedUpSignature?: string; // appended after initialization, if deposit was speedup (not part of Deposit event).
   updatedRecipient?: string;
   updatedMessage?: string;
+  realizedLpFeePct?: BigNumber; // appended after initialization (not part of Deposit event).
 }
 
-export interface DepositWithBlock extends Deposit, SortableEvent {
+export interface v2Deposit extends DepositCommon {
+  originToken: string;
+  amount: BigNumber;
+  relayerFeePct: BigNumber;
+  realizedLpFeePct?: BigNumber; // appended after initialization (not part of Deposit event).
+  destinationToken: string; // appended after initialization (not part of Deposit event).
+  newRelayerFeePct?: BigNumber; // appended after initialization, if deposit was speedup (not part of Deposit event).
+}
+
+export interface v2DepositWithBlock extends v2Deposit, SortableEvent {
   blockTimestamp: number;
   quoteBlockNumber: number;
 }
 
-export interface RelayExecutionInfo {
+export interface v3Deposit extends DepositCommon {
+  inputToken: string;
+  inputAmount: BigNumber;
+  outputToken: string;
+  outputAmount: BigNumber;
+  fillDeadline: number;
+  relayer: string;
+  exclusivityDeadline: number;
+  updatedOutputAmount?: BigNumber; // appended after initialization if deposit was updated.
+  relayerFeePct?: BigNumber;
+}
+
+export interface v3DepositWithBlock extends v3Deposit, SortableEvent {
+  blockTimestamp: number;
+  quoteBlockNumber: number;
+}
+
+export type Deposit = v2Deposit; // @todo: Extend with v2Deposit | v3Deposit.
+export type DepositWithBlock = v2DepositWithBlock; // @todo Extend with v2DepositWithBlock | v3DepositWithBlock.
+
+export interface RelayExecutionInfoCommon {
   recipient: string;
   message: string;
+}
+
+export interface RelayExecutionInfo extends RelayExecutionInfoCommon {
   relayerFeePct: BigNumber;
   isSlowRelay: boolean;
   payoutAdjustmentPct: BigNumber;
 }
 
-export interface Fill {
-  amount: BigNumber;
-  totalFilledAmount: BigNumber;
-  fillAmount: BigNumber;
-  repaymentChainId: number;
-  originChainId: number;
-  relayerFeePct: BigNumber;
-  realizedLpFeePct: BigNumber;
+export enum FillStatus {
+  Unfilled = 0,
+  RequestedSlowFill,
+  Filled,
+}
+
+export enum FillType {
+  FastFill = 0,
+  ReplacedSlowFill,
+  SlowFill,
+}
+
+export interface v3RelayExecutionEventInfo extends RelayExecutionInfoCommon {
+  outputAmount: BigNumber;
+  fillType: FillType;
+}
+
+interface FillCommon {
   depositId: number;
-  destinationToken: string;
-  relayer: string;
+  originChainId: number;
+  destinationChainId: number;
   depositor: string;
   recipient: string;
   message: string;
-  destinationChainId: number;
+  relayer: string;
+  repaymentChainId: number;
+  realizedLpFeePct: BigNumber; // appended after initialization (not part of Fill event).
+}
+
+export interface v2Fill extends FillCommon {
+  destinationToken: string;
+  amount: BigNumber;
+  totalFilledAmount: BigNumber;
+  fillAmount: BigNumber;
+  relayerFeePct: BigNumber;
   updatableRelayData: RelayExecutionInfo;
 }
 
-export interface FillWithBlock extends Fill, SortableEvent {
+export interface v3Fill extends FillCommon {
+  inputToken: string;
+  inputAmount: BigNumber;
+  outputToken: string;
+  outputAmount: BigNumber;
+  fillDeadline: number;
+  exclusivityDeadline: number;
+  exclusiveRelayer: string;
+  updatableRelayData: v3RelayExecutionEventInfo;
+}
+
+export interface v2FillWithBlock extends v2Fill, SortableEvent {
   blockTimestamp: number;
 }
 
-export interface SpeedUp {
+export interface v3FillWithBlock extends v3Fill, SortableEvent {
+  blockTimestamp: number;
+}
+
+export type Fill = v2Fill; // @todo: Extend with v2Fill | v3Fill.
+export type FillWithBlock = v2FillWithBlock; // @todo Extend with v2FillWithBlock | v3FillWithBlock.
+
+export interface SpeedUpCommon {
   depositor: string;
   depositorSignature: string;
-  newRelayerFeePct: BigNumber;
   depositId: number;
   originChainId: number;
   updatedRecipient: string;
   updatedMessage: string;
 }
+
+export interface v2SpeedUp extends SpeedUpCommon {
+  newRelayerFeePct: BigNumber;
+}
+
+export interface v3SpeedUp extends SpeedUpCommon {
+  updatedOutputAmount: BigNumber;
+}
+
+export type SpeedUp = v2SpeedUp; // @todo Extend with v2SpeedUp | v3SpeedUp.
+
+export interface SlowFillRequest {
+  depositId: number;
+  originChainId: number;
+  destinationChainId: number;
+  depositor: string;
+  recipient: string;
+  inputToken: string;
+  inputAmount: BigNumber;
+  outputToken: string;
+  outputAmount: BigNumber;
+  message: string;
+  fillDeadline: number;
+  exclusivityDeadline: number;
+  exclusiveRelayer: string;
+}
+
+export interface SlowFillRequestWithBlock extends SlowFillRequest, SortableEvent {}
 
 export interface SlowFill {
   relayHash: string;
@@ -85,10 +177,19 @@ export interface SlowFill {
   message: string;
 }
 
-export interface SlowFillLeaf {
+export interface v2SlowFillLeaf {
   relayData: RelayData;
   payoutAdjustmentPct: string;
 }
+
+export interface v3SlowFillLeaf {
+  relayData: v3RelayData;
+  chainId: number;
+  updatedOutputAmount: BigNumber;
+}
+
+// @todo: Extend with v2SlowFillLeaf | v3SlowFillLeaf.
+export type SlowFillLeaf = v2SlowFillLeaf;
 
 export interface RootBundleRelay {
   rootBundleId: number;
@@ -110,19 +211,35 @@ export interface RelayerRefundExecution {
 
 export interface RelayerRefundExecutionWithBlock extends RelayerRefundExecution, SortableEvent {}
 
-// Used in pool by spokePool to execute a slow relay.
-export interface RelayData {
+export interface RelayDataCommon {
+  originChainId: number;
   depositor: string;
   recipient: string;
-  destinationToken: string;
-  amount: BigNumber;
-  realizedLpFeePct: BigNumber;
-  relayerFeePct: BigNumber;
   depositId: number;
-  originChainId: number;
-  destinationChainId: number;
   message: string;
 }
+
+// Used in pool by spokePool to execute a slow relay.
+export interface v2RelayData extends RelayDataCommon {
+  destinationChainId: number;
+  destinationToken: string;
+  amount: BigNumber;
+  relayerFeePct: BigNumber;
+  realizedLpFeePct: BigNumber;
+}
+
+export interface v3RelayData extends RelayDataCommon {
+  inputToken: string;
+  inputAmount: BigNumber;
+  outputToken: string;
+  outputAmount: BigNumber;
+  fillDeadline: number;
+  exclusiveRelayer: string;
+  exclusivityDeadline: number;
+}
+
+// @todo: Extend with v2RelayData | v3RelayData.
+export type RelayData = v2RelayData;
 
 export interface UnfilledDeposit {
   deposit: Deposit;

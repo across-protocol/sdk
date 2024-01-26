@@ -371,6 +371,16 @@ export type UpdateDepositDetailsMessageType = {
   ];
 };
 
+export type UpdateV3DepositDetailsMessageType = {
+  UpdateDepositDetails: [
+    { name: "depositId"; type: "uint32" },
+    { name: "originChainId"; type: "uint256" },
+    { name: "updatedOutputAmount"; type: "uint256" },
+    { name: "updatedRecipient"; type: "address" },
+    { name: "updatedMessage"; type: "bytes" },
+  ];
+};
+
 /**
  * Utility function to get EIP-712 compliant typed data that can be signed with the JSON-RPC method
  * `eth_signedTypedDataV4` in MetaMask (https://docs.metamask.io/guide/signing-data.html). The resulting signature
@@ -409,6 +419,39 @@ export function getUpdateDepositTypedData(
       depositId,
       originChainId,
       updatedRelayerFeePct,
+      updatedRecipient,
+      updatedMessage,
+    },
+  };
+}
+
+export function getUpdateV3DepositTypedData(
+  depositId: number,
+  originChainId: number,
+  updatedOutputAmount: BigNumber,
+  updatedRecipient: string,
+  updatedMessage: string
+): TypedMessage<UpdateV3DepositDetailsMessageType> {
+  return {
+    types: {
+      UpdateDepositDetails: [
+        { name: "depositId", type: "uint32" },
+        { name: "originChainId", type: "uint256" },
+        { name: "updatedOutputAmount", type: "uint256" },
+        { name: "updatedRecipient", type: "address" },
+        { name: "updatedMessage", type: "bytes" },
+      ],
+    },
+    primaryType: "UpdateDepositDetails",
+    domain: {
+      name: "ACROSS-V2",
+      version: "1.0.0",
+      chainId: originChainId,
+    },
+    message: {
+      depositId,
+      originChainId,
+      updatedOutputAmount,
       updatedRecipient,
       updatedMessage,
     },
