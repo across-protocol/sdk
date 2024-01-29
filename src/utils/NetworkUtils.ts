@@ -1,4 +1,4 @@
-import { PublicNetworks } from "@uma/common/dist/PublicNetworks";
+import { PublicNetworks } from "@uma/common";
 import { PRODUCTION_CHAIN_IDS, TESTNET_CHAIN_IDS } from "../constants";
 /**
  * Resolves a network name from a network id.
