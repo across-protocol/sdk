@@ -300,7 +300,7 @@ export async function buildV2DepositStruct(
   });
   return {
     ...deposit,
-    destinationToken: hubPoolClient.getL2TokenForV2Deposit({
+    destinationToken: hubPoolClient.getL2TokenForDeposit({
       ...deposit,
       quoteBlockNumber: quoteBlock,
     }),
