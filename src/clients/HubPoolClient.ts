@@ -261,13 +261,15 @@ export class HubPoolClient extends BaseAbstractClient {
    * @param event Deposit event
    * @returns string L2 token counterpart on l2ChainId
    */
-  getL2TokenForDeposit(deposit: DepositWithBlock, l2ChainId = deposit.destinationChainId): string {
-    const { originChainId, quoteBlockNumber } = deposit;
-    const inputToken = getDepositInputToken(deposit);
-    const l1Token = this.getL1TokenForDeposit({ originChainId, inputToken, quoteBlockNumber });
-
+  getL2TokenForDeposit(
+    deposit:
+      | Pick<v2DepositWithBlock, "originChainId" | "destinationChainId" | "originToken" | "quoteBlockNumber">
+      | Pick<v3DepositWithBlock, "originChainId" | "destinationChainId" | "inputToken" | "quoteBlockNumber">,
+    l2ChainId = deposit.destinationChainId
+  ): string {
+    const l1Token = this.getL1TokenForDeposit(deposit);
     // Use the latest hub block number to find the L2 token counterpart.
-    return this.getL2TokenForL1TokenAtBlock(l1Token, l2ChainId, quoteBlockNumber);
+    return this.getL2TokenForL1TokenAtBlock(l1Token, l2ChainId, deposit.quoteBlockNumber);
   }
 
   l2TokenEnabledForL1Token(l1Token: string, destinationChainId: number): boolean {
