@@ -16,14 +16,13 @@ export interface DepositCommon {
   speedUpSignature?: string; // appended after initialization, if deposit was speedup (not part of Deposit event).
   updatedRecipient?: string;
   updatedMessage?: string;
-  realizedLpFeePct?: BigNumber; // appended after initialization (not part of Deposit event).
+  realizedLpFeePct: BigNumber; // appended after initialization (not part of Deposit event).
 }
 
 export interface v2Deposit extends DepositCommon {
   originToken: string;
   amount: BigNumber;
   relayerFeePct: BigNumber;
-  realizedLpFeePct?: BigNumber; // appended after initialization (not part of Deposit event).
   destinationToken: string; // appended after initialization (not part of Deposit event).
   newRelayerFeePct?: BigNumber; // appended after initialization, if deposit was speedup (not part of Deposit event).
 }
