@@ -13,7 +13,6 @@ import { EventManager, EventOverrides, getEventManager } from "./MockEvents";
 export class MockConfigStoreClient extends AcrossConfigStoreClient {
   public configStoreVersion = DEFAULT_CONFIG_STORE_VERSION;
   private eventManager: EventManager | null;
-  private ubaActivationBlockOverride: number | undefined;
   private availableChainIdsOverride: number[] | undefined;
 
   // Event signatures. Not strictly required, but they make generated events more recognisable.
@@ -48,14 +47,6 @@ export class MockConfigStoreClient extends AcrossConfigStoreClient {
 
   getChainIdIndicesForBlock(block?: number): number[] {
     return this.availableChainIdsOverride ?? super.getChainIdIndicesForBlock(block);
-  }
-
-  setUBAActivationBlock(blockNumber: number | undefined): void {
-    this.ubaActivationBlockOverride = blockNumber;
-  }
-
-  getUBAActivationBlock(): number | undefined {
-    return this.ubaActivationBlockOverride ?? super.getUBAActivationBlock();
   }
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars

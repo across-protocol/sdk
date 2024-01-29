@@ -138,7 +138,6 @@ export class MockSpokePoolClient extends SpokePoolClient {
       latestDepositId,
       currentTime,
       events,
-      blocks,
       searchEndBlock: this.eventSearchConfig.toBlock || latestBlockSearched,
     };
   }
