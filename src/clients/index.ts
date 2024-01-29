@@ -7,5 +7,4 @@ export {
 } from "./AcrossConfigStoreClient";
 export { HubPoolClient } from "./HubPoolClient";
 export { SpokePoolClient } from "./SpokePoolClient";
-export * from "./UBAClient";
 export * as mocks from "./mocks";
