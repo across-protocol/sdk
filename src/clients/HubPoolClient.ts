@@ -36,7 +36,6 @@ import {
   getDepositInputToken,
   getNetworkName,
   isDefined,
-  isV2Deposit,
   isV3Deposit,
   mapAsync,
   paginatedEventQuery,
@@ -243,12 +242,16 @@ export class HubPoolClient extends BaseAbstractClient {
    * @param deposit Deposit event
    * @param returns string L1 token counterpart for Deposit
    */
-  getL1TokenForDeposit(deposit: Pick<v3DepositWithBlock, "originChainId" | "inputToken" | "quoteBlockNumber">): string {
+  getL1TokenForDeposit(
+    deposit:
+      | Pick<v2DepositWithBlock, "originChainId" | "originToken" | "quoteBlockNumber">
+      | Pick<v3DepositWithBlock, "originChainId" | "inputToken" | "quoteBlockNumber">
+  ): string {
     // L1-->L2 token mappings are set via PoolRebalanceRoutes which occur on mainnet,
     // so we use the latest token mapping. This way if a very old deposit is filled, the relayer can use the
     // latest L2 token mapping to find the L1 token counterpart.
-
-    return this.getL1TokenForL2TokenAtBlock(deposit.inputToken, deposit.originChainId, deposit.quoteBlockNumber);
+    const inputToken = getDepositInputToken(deposit as DepositWithBlock);
+    return this.getL1TokenForL2TokenAtBlock(inputToken, deposit.originChainId, deposit.quoteBlockNumber);
   }
 
   /**
@@ -259,46 +262,12 @@ export class HubPoolClient extends BaseAbstractClient {
    * @returns string L2 token counterpart on l2ChainId
    */
   getL2TokenForDeposit(deposit: DepositWithBlock, l2ChainId = deposit.destinationChainId): string {
-    return isV2Deposit(deposit)
-      ? this.getL2TokenForV2Deposit(deposit, l2ChainId)
-      : this.getL2TokenForV3Deposit(deposit, l2ChainId);
-  }
-
-  /**
-   * Returns the L2 token that should be used as a counterpart to a deposit event. For example, the caller
-   * might want to know what the refund token will be on l2ChainId for the deposit event.
-   * @param l2ChainId Chain where caller wants to get L2 token counterpart for
-   * @param event Deposit event
-   * @returns string L2 token counterpart on l2ChainId
-   */
-  getL2TokenForV2Deposit(
-    deposit: Pick<v2DepositWithBlock, "quoteBlockNumber" | "originToken" | "originChainId" | "destinationChainId">,
-    l2ChainId = deposit.destinationChainId
-  ): string {
-    // First get L1 token associated with deposit.
-    const { originChainId, originToken: inputToken, quoteBlockNumber } = deposit;
+    const { originChainId, quoteBlockNumber } = deposit;
+    const inputToken = getDepositInputToken(deposit);
     const l1Token = this.getL1TokenForDeposit({ originChainId, inputToken, quoteBlockNumber });
 
     // Use the latest hub block number to find the L2 token counterpart.
     return this.getL2TokenForL1TokenAtBlock(l1Token, l2ChainId, quoteBlockNumber);
-  }
-
-  /**
-   * Returns the L2 token that should be used as a counterpart to a deposit event. For example, the caller
-   * might want to know what the refund token will be on l2ChainId for the deposit event.
-   * @param l2ChainId Chain where caller wants to get L2 token counterpart for
-   * @param event Deposit event
-   * @returns string L2 token counterpart on l2ChainId
-   */
-  getL2TokenForV3Deposit(
-    deposit: Pick<v3DepositWithBlock, "originChainId" | "destinationChainId" | "inputToken" | "quoteBlockNumber">,
-    l2ChainId = deposit.destinationChainId
-  ): string {
-    // First get L1 token associated with deposit.
-    const l1Token = this.getL1TokenForDeposit(deposit);
-
-    // Use the latest hub block number to find the L2 token counterpart.
-    return this.getL2TokenForL1TokenAtBlock(l1Token, l2ChainId, deposit.quoteBlockNumber);
   }
 
   l2TokenEnabledForL1Token(l1Token: string, destinationChainId: number): boolean {
