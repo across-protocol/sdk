@@ -1,5 +1,5 @@
 import assert from "assert";
-import { BigNumber, Contract, Event, EventFilter, ethers, providers } from "ethers";
+import { BigNumber, Contract, Event, EventFilter, ethers } from "ethers";
 import { groupBy } from "lodash";
 import winston from "winston";
 import {
@@ -15,7 +15,6 @@ import {
   isDefined,
   isV2Deposit,
   isV2SpeedUp,
-  mapAsync,
   toBN,
 } from "../utils";
 import {
@@ -48,8 +47,6 @@ import { getBlockRangeForDepositId, getDepositIdAtBlock } from "../utils/SpokeUt
 import { BaseAbstractClient } from "./BaseAbstractClient";
 import { HubPoolClient } from "./HubPoolClient";
 
-type Block = providers.Block;
-
 type _SpokePoolUpdate = {
   success: boolean;
   currentTime: number;
@@ -57,8 +54,6 @@ type _SpokePoolUpdate = {
   firstDepositId: number;
   latestDepositId: number;
   events: Event[][];
-  // Blocks are only used if the UBA is active and events need to be ordered by blockTimestamp
-  blocks?: { [blockNumber: number]: Block };
   searchEndBlock: number;
 };
 export type SpokePoolUpdate = { success: false } | _SpokePoolUpdate;
@@ -586,32 +581,6 @@ export class SpokePoolClient extends BaseAbstractClient {
     // Sort all events to ensure they are stored in a consistent order.
     events.forEach((events: Event[]) => sortEventsAscendingInPlace(events));
 
-    // Load block timestamps if the UBA is active so that the UBAClient can order events using blockTimestamp.
-    // Otherwise skip these extra RPC calls.
-    let blocks: { [blockNumber: number]: Block } | undefined = undefined;
-    const isUBAActivated = isDefined(this.hubPoolClient?.configStoreClient.getUBAActivationBlock());
-    if (isUBAActivated) {
-      // Collate the relevant set of block numbers and filter for uniqueness, then query each corresponding block.
-      const blockNumbers = Array.from(
-        new Set(
-          ["FundsDeposited", "FilledRelay"]
-            .filter((eventName) => eventsToQuery.includes(eventName))
-            .map((eventName) => {
-              const idx = eventsToQuery.indexOf(eventName);
-              // tsc needs type hints on this map...
-              return (events[idx] as Event[]).map(({ blockNumber }) => blockNumber);
-            })
-            .flat()
-        )
-      );
-      blocks = Object.fromEntries(
-        await mapAsync(blockNumbers, async (blockNumber) => {
-          const block = await this.spokePool.provider.getBlock(blockNumber);
-          return [blockNumber, block];
-        })
-      );
-    }
-
     return {
       success: true,
       currentTime: currentTime.toNumber(), // uint32
@@ -620,7 +589,6 @@ export class SpokePoolClient extends BaseAbstractClient {
       latestDepositId: Math.max(numberOfDeposits - 1, 0),
       searchEndBlock: searchConfig.toBlock,
       events,
-      blocks,
     };
   }
 
@@ -648,7 +616,7 @@ export class SpokePoolClient extends BaseAbstractClient {
       // understand why we see this in test. @todo: Resolve.
       return;
     }
-    const { events: queryResults, blocks, currentTime, oldestTime, searchEndBlock } = update;
+    const { events: queryResults, currentTime, oldestTime, searchEndBlock } = update;
 
     if (eventsToQuery.includes("TokensBridged")) {
       for (const event of queryResults[eventsToQuery.indexOf("TokensBridged")]) {
@@ -701,13 +669,7 @@ export class SpokePoolClient extends BaseAbstractClient {
           realizedLpFeePct: dataForQuoteTime[index].realizedLpFeePct,
           destinationToken: this.getDestinationTokenForDeposit(rawDeposit),
           quoteBlockNumber: dataForQuoteTime[index].quoteBlock,
-          blockTimestamp: 0,
         };
-        // Override the default blockTimestamp of 0 only if the UBA is active and we have pre-queried block times
-        // for each event.
-        if (isDefined(blocks)) {
-          deposit.blockTimestamp = blocks[event.blockNumber]?.timestamp ?? (await event.getBlock()).timestamp;
-        }
 
         assign(this.depositHashes, [this.getDepositHash(deposit)], deposit);
 
@@ -756,13 +718,8 @@ export class SpokePoolClient extends BaseAbstractClient {
         const rawFill = spreadEventWithBlockNumber(event) as FillWithBlock;
         const fill: FillWithBlock = {
           ...rawFill,
-          blockTimestamp: 0,
         };
-        // Override the default blockTimestamp of 0 only if the UBA is active and we have pre-queried block times
-        // for each event.
-        if (isDefined(blocks)) {
-          fill.blockTimestamp = blocks[event.blockNumber].timestamp;
-        }
+
         assign(this.fills, [fill.originChainId], [fill]);
         assign(this.depositHashesToFills, [this.getDepositHash(fill)], [fill]);
       }

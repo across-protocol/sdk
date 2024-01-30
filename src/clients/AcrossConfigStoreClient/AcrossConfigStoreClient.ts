@@ -6,7 +6,6 @@ import { isError } from "../../typeguards";
 import {
   EventSearchConfig,
   MakeOptional,
-  UBA_MIN_CONFIG_STORE_VERSION,
   findLast,
   isArrayOf,
   isDefined,
@@ -35,7 +34,6 @@ import {
 } from "../../interfaces";
 import { parseJSONWithNumericString } from "../../utils/JSONUtils";
 import { BaseAbstractClient } from "../BaseAbstractClient";
-import { parseUBAConfigFromOnChain } from "./ConfigStoreParsingUtilities";
 
 type _ConfigStoreUpdate = {
   success: true;
@@ -249,12 +247,6 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
     return isDefined(config) ? Number(config.value) : DEFAULT_CONFIG_STORE_VERSION;
   }
 
-  getUBAActivationBlock(): number | undefined {
-    return this.cumulativeConfigStoreVersionUpdates.find((config) => {
-      return Number(config.value) >= UBA_MIN_CONFIG_STORE_VERSION;
-    })?.blockNumber;
-  }
-
   getConfigStoreVersionForBlock(blockNumber: number = Number.MAX_SAFE_INTEGER): number {
     const config = this.cumulativeConfigStoreVersionUpdates.find((config) => config.blockNumber <= blockNumber);
     return isDefined(config) ? Number(config.value) : DEFAULT_CONFIG_STORE_VERSION;
@@ -334,28 +326,7 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
 
       try {
         const parsedValue = parseJSONWithNumericString(args.value) as ParsedTokenConfig;
-
         const l1Token = args.key;
-
-        // For now use the presence of `uba` or `rateModel` to decide which configs to parse.
-        if (parsedValue?.uba !== undefined) {
-          try {
-            // Parse and store UBA config
-            const ubaConfig = parseUBAConfigFromOnChain(parsedValue.uba);
-            // eslint-disable-next-line @typescript-eslint/no-unused-vars
-            const { value: _value, key: _key, ...passedArgs } = args;
-            this.ubaConfigUpdates.push({ ...passedArgs, config: ubaConfig, l1Token });
-          } catch (e) {
-            this.logger.warn({
-              at: "ConfigStore::update",
-              message: `Failed to parse UBA config for ${l1Token}`,
-              error: {
-                message: (e as Error)?.message,
-                stack: (e as Error)?.stack,
-              },
-            });
-          }
-        }
 
         // TODO: Temporarily reformat the shape of the event that we pass into the sdk.rateModel class to make it fit
         // the expected shape. This is a fix for now that we should eventually replace when we change the sdk.rateModel

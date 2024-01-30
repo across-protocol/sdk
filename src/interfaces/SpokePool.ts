@@ -29,7 +29,6 @@ export interface v2Deposit extends DepositCommon {
 }
 
 export interface v2DepositWithBlock extends v2Deposit, SortableEvent {
-  blockTimestamp: number;
   quoteBlockNumber: number;
 }
 
@@ -46,7 +45,6 @@ export interface v3Deposit extends DepositCommon {
 }
 
 export interface v3DepositWithBlock extends v3Deposit, SortableEvent {
-  blockTimestamp: number;
   quoteBlockNumber: number;
 }
 
@@ -113,13 +111,8 @@ export interface v3Fill extends FillCommon {
   updatableRelayData: v3RelayExecutionEventInfo;
 }
 
-export interface v2FillWithBlock extends v2Fill, SortableEvent {
-  blockTimestamp: number;
-}
-
-export interface v3FillWithBlock extends v3Fill, SortableEvent {
-  blockTimestamp: number;
-}
+export interface v2FillWithBlock extends v2Fill, SortableEvent {}
+export interface v3FillWithBlock extends v3Fill, SortableEvent {}
 
 export type Fill = v2Fill; // @todo: Extend with v2Fill | v3Fill.
 export type FillWithBlock = v2FillWithBlock; // @todo Extend with v2FillWithBlock | v3FillWithBlock.
