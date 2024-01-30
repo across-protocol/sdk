@@ -390,6 +390,7 @@ export class SpokePoolClient extends BaseAbstractClient {
         message: "Invalid fills found matching deposit ID",
         deposit,
         invalidFills: Object.fromEntries(invalidFillsForDeposit.map((x) => [x.relayer, x])),
+        notificationPath: "across-invalid-fills",
       });
     }
 
