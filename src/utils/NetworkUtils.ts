@@ -4,7 +4,7 @@ import { PRODUCTION_CHAIN_IDS, TESTNET_CHAIN_IDS } from "../constants";
 /**
  * A list of networks that provide more resolution about a chainid -> network name
  */
-const networkIdMap = {
+const networkIdMap: Record<number, string> = {
   666: "Hardhat1",
   1337: "Hardhat2",
   421613: "ArbitrumGoerli",
