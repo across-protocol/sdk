@@ -32,7 +32,7 @@ export interface ProposedRootBundle extends SortableEvent {
 
 export type RealizedLpFee = {
   quoteBlock: number;
-  realizedLpFeePct?: BigNumber;
+  realizedLpFeePct: BigNumber;
 };
 
 export type ProposedRootBundleStringified = Omit<ProposedRootBundle, "bundleEvaluationBlockNumbers"> & {

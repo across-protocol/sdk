@@ -47,7 +47,6 @@ import {
 } from "../utils";
 import { AcrossConfigStoreClient as ConfigStoreClient } from "./AcrossConfigStoreClient/AcrossConfigStoreClient";
 import { BaseAbstractClient } from "./BaseAbstractClient";
-import { isUBAActivatedAtBlock } from "./UBAClient/UBAClientUtilities";
 
 type _HubPoolUpdate = {
   success: true;
@@ -439,13 +438,6 @@ export class HubPoolClient extends BaseAbstractClient {
       const { originChainId, destinationChainId, inputToken, inputAmount, quoteTimestamp } = deposit;
       const quoteBlock = quoteBlocks[quoteTimestamp];
 
-      // Compare deposit block against UBA bundle start blocks. If the deposit is post-UBA
-      // then realizedLpFeePct computation is deferred until after UBA Client update.
-      if (isUBAActivatedAtBlock(this, deposit.blockNumber, deposit.originChainId)) {
-        return { quoteBlock, realizedLpFeePct: undefined };
-      }
-
-      // Otherwise, use the legacy fee model which is based ont he deposit quote block.
       const hubPoolToken = hubPoolTokens[inputToken];
       const rateModel = this.configStoreClient.getRateModelForBlockNumber(
         hubPoolToken,
@@ -918,8 +910,6 @@ export class HubPoolClient extends BaseAbstractClient {
       }
 
       // Set running balances and incentive balances for this bundle.
-      // Pre-UBA: runningBalances length is 1:1 with l1Tokens length. Pad incentiveBalances with zeroes.
-      // Post-UBA: runningBalances array is a concatenation of pre-UBA runningBalances and incentiveBalances.
       const executedRootBundle = spreadEventWithBlockNumber(event) as ExecutedRootBundle;
       const { l1Tokens, runningBalances } = executedRootBundle;
       const nTokens = l1Tokens.length;
