@@ -2,7 +2,6 @@ import assert from "assert";
 import { BigNumber } from "ethers";
 import {
   BigNumberish,
-  bnZero,
   fixedPointAdjustment,
   toBNWei,
   nativeToToken,
@@ -12,9 +11,6 @@ import {
   percent,
   MAX_BIG_INT,
   isDefined,
-  isV2Deposit,
-  getDepositInputToken,
-  getDepositOutputAmount,
   getTokenInformationFromAddress,
   TransactionCostEstimate,
 } from "../utils";
@@ -226,20 +222,18 @@ export class RelayFeeCalculator {
     _tokenPrice?: number,
     tokenMapping = TOKEN_SYMBOLS_MAP
   ): Promise<BigNumber> {
-    if (toBN(amountToRelay).eq(bnZero)) return MAX_BIG_INT;
-
-    const inputToken = getDepositInputToken(deposit);
-    const token = getTokenInformationFromAddress(inputToken, tokenMapping);
+    const token = getTokenInformationFromAddress(deposit.originToken, tokenMapping);
     if (!isDefined(token)) {
-      throw new Error(`Could not find token information for ${inputToken}`);
+      throw new Error(`Could not find token information for ${deposit.originToken}`);
     }
 
-    const outputAmount = getDepositOutputAmount(deposit);
+    if (toBN(amountToRelay).eq(0)) return MAX_BIG_INT;
+
     const getGasCosts = this.queries
       .getGasCosts(
         {
           ...deposit,
-          amount: simulateZeroFill && isV2Deposit(deposit) ? toBN(100) : outputAmount,
+          amount: simulateZeroFill ? toBN(100) : deposit.amount,
         },
         simulateZeroFill ? toBN(100) : amountToRelay,
         relayerAddress
@@ -260,7 +254,7 @@ export class RelayFeeCalculator {
         message: "Error while fetching token price",
         error,
         destinationChainId: deposit.destinationChainId,
-        inputToken,
+        destinationToken: deposit.destinationToken,
       });
       throw error;
     });
@@ -352,11 +346,11 @@ export class RelayFeeCalculator {
   ): Promise<RelayerFeeDetails> {
     // If the amount to relay is not provided, then we
     // should use the full deposit amount.
-    amountToRelay ??= getDepositOutputAmount(deposit);
-    const inputToken = getDepositInputToken(deposit);
-    const token = getTokenInformationFromAddress(inputToken);
-    if (!isDefined(token)) {
-      throw new Error(`Could not find token information for ${inputToken}`);
+    amountToRelay ??= deposit.amount;
+
+    const tokenInformation = getTokenInformationFromAddress(deposit.originToken);
+    if (!isDefined(tokenInformation)) {
+      throw new Error(`Could not find token information for ${deposit.originToken}`);
     }
 
     const gasFeePercent = await this.gasFeePercent(
@@ -369,7 +363,7 @@ export class RelayFeeCalculator {
     const gasFeeTotal = gasFeePercent.mul(amountToRelay).div(fixedPointAdjustment);
     const capitalFeePercent = this.capitalFeePercent(
       amountToRelay,
-      token.symbol,
+      tokenInformation.symbol,
       deposit.originChainId.toString(),
       deposit.destinationChainId.toString()
     );
@@ -397,7 +391,7 @@ export class RelayFeeCalculator {
 
     return {
       amountToRelay: amountToRelay.toString(),
-      tokenSymbol: token.symbol,
+      tokenSymbol: tokenInformation.symbol,
       gasFeePercent: gasFeePercent.toString(),
       gasFeeTotal: gasFeeTotal.toString(),
       gasDiscountPercent: this.gasDiscountPercent,
