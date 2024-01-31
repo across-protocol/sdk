@@ -250,7 +250,7 @@ export interface Refund {
 export type FillsToRefund = {
   [repaymentChainId: number]: {
     [l2TokenAddress: string]: {
-      fills: Fill[];
+      fills: Fill[] | v3Fill[];
       refunds?: Refund;
       totalRefundAmount: BigNumber;
       realizedLpFees: BigNumber;
