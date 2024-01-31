@@ -905,9 +905,11 @@ export class SpokePoolClient extends BaseAbstractClient {
 
     const deposits = depositEvents.map((event) => {
       let inputToken: string, inputAmount: BigNumber;
+
       if (this.isV3DepositEvent(event)) {
         ({ inputToken, inputAmount } = event.args);
       } else {
+        // Coerce v2 deposit objects into v3 format.
         ({ originToken: inputToken, amount: inputAmount } = event.args);
       }
       return {
