@@ -1,5 +1,4 @@
-import { HubPoolClient } from "../clients/HubPoolClient";
-import { Deposit, Fill, FillWithBlock, UbaFlow, isUbaInflow, outflowIsFill } from "../interfaces";
+import { Deposit, Fill } from "../interfaces";
 
 export const FILL_DEPOSIT_COMPARISON_KEYS = [
   "amount",
