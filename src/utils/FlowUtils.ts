@@ -1,8 +1,5 @@
-import assert from "assert";
-import { HubPoolClient } from "../clients/HubPoolClient";
-import { Deposit, Fill, UbaFlow, isUbaInflow, outflowIsFill } from "../interfaces";
-import { BN } from "../utils";
-import { getDepositInputAmount, getFillOutputAmount, isV2Deposit, isV3Deposit, isV2Fill, isV3Fill } from "./V3Utils";
+import { Deposit, Fill } from "../interfaces";
+import { isV2Deposit, isV3Deposit, isV2Fill, isV3Fill } from "./V3Utils";
 
 export const FILL_DEPOSIT_COMPARISON_KEYS = [
   "depositId",
