@@ -178,7 +178,7 @@ export interface SlowFill {
 }
 
 export interface v2SlowFillLeaf {
-  relayData: RelayData;
+  relayData: v2RelayData;
   realizedLpFeePct: BigNumber;
   payoutAdjustmentPct: string;
 }
@@ -213,7 +213,6 @@ export interface RelayerRefundExecutionWithBlock extends RelayerRefundExecution,
 
 export interface RelayDataCommon {
   originChainId: number;
-  destinationChainId: number;
   depositor: string;
   recipient: string;
   depositId: number;
@@ -222,6 +221,7 @@ export interface RelayDataCommon {
 
 // Used in pool by spokePool to execute a slow relay.
 export interface v2RelayData extends RelayDataCommon {
+  destinationChainId: number;
   destinationToken: string;
   amount: BigNumber;
   relayerFeePct: BigNumber;
