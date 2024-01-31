@@ -10,7 +10,6 @@ export * as merkleDistributor from "./merkleDistributor";
 export * as constants from "./constants";
 export * as interfaces from "./interfaces";
 export * as typeguards from "./typeguards";
-export * as ubaFeeCalculator from "./UBAFeeCalculator";
 export * as clients from "./clients";
 export * as typechain from "./typechain";
 export * as caching from "./caching";
