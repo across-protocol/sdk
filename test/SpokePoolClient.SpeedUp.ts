@@ -15,7 +15,7 @@ import {
 } from "./utils";
 
 import { SpokePoolClient } from "../src/clients";
-import { DepositWithBlock, v2DepositWithBlock } from "../src/interfaces";
+import { DepositWithBlock } from "../src/interfaces";
 
 let spokePool: Contract, erc20: Contract, destErc20: Contract, weth: Contract;
 let depositor: SignerWithAddress, deploymentBlock: number;
@@ -48,7 +48,7 @@ describe("SpokePoolClient: SpeedUp", function () {
     await spokePoolClient.update();
 
     // Before speedup should return the normal deposit object.
-    expect(spokePoolClient.appendMaxSpeedUpSignatureToDeposit(deposit as v2DepositWithBlock)).to.deep.equal(deposit);
+    expect(spokePoolClient.appendMaxSpeedUpSignatureToDeposit(deposit as DepositWithBlock)).to.deep.equal(deposit);
 
     const newRelayFeePct = toBNWei(0.1337);
     const speedUpSignature = await modifyRelayHelper(
@@ -79,7 +79,7 @@ describe("SpokePoolClient: SpeedUp", function () {
     };
     expect(
       deepEqualsWithBigNumber(
-        spokePoolClient.appendMaxSpeedUpSignatureToDeposit(deposit as v2DepositWithBlock),
+        spokePoolClient.appendMaxSpeedUpSignatureToDeposit(deposit as DepositWithBlock),
         expectedDepositData
       )
     ).to.be.true;
