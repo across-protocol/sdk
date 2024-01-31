@@ -8,7 +8,6 @@ import { Deposit } from "../interfaces";
 import { TypedMessage } from "../interfaces/TypedData";
 import { SpokePool } from "../typechain";
 import { BigNumberish, BN, bnUint256Max, toBN } from "./BigNumberUtils";
-import { isV2Deposit } from "./V3Utils";
 import { ConvertDecimals } from "./FormattingUtils";
 import { isDefined } from "./TypeGuards";
 import { chainIsOPStack } from "./NetworkUtils";
@@ -303,8 +302,6 @@ export function createUnsignedFillRelayTransactionFromDeposit(
   amountToFill: BN,
   relayerAddress: string
 ): Promise<PopulatedTransaction> {
-  assert(isV2Deposit(deposit));
-
   // We need to assume certain fields exist
   const realizedLpFeePct = deposit.realizedLpFeePct;
   assert(isDefined(realizedLpFeePct));
