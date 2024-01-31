@@ -29,55 +29,6 @@ export const V3_DEPOSIT_COMPARISON_KEYS = [
   "outputAmount",
 ] as const;
 
-export function getFlowAmount(flow: UbaFlow): BN {
-  if (isUbaInflow(flow)) {
-    return getDepositInputAmount(flow);
-  }
-
-  assert(outflowIsFill(flow));
-  // We currently assume UBA fills have undefined realizedLpFeePct, but this is
-  // also true of v3 fills. Defer support until v2 deposits are deprecated.
-  assert(isV2Fill(flow));
-  return getFillOutputAmount(flow);
-}
-
-export function getFlowToken(flow: UbaFlow): string {
-  if (isUbaInflow(flow)) {
-    return isV2Deposit(flow) ? flow.originToken : flow.inputToken;
-  }
-
-  assert(outflowIsFill(flow));
-  assert(isV2Fill(flow));
-  return flow.destinationToken;
-}
-
-export function getTokenSymbolForFlow(
-  flow: UbaFlow,
-  chainId: number,
-  hubPoolClient: HubPoolClient
-): string | undefined {
-  let tokenSymbol: string | undefined;
-  const flowToken = getFlowToken(flow);
-  if (isUbaInflow(flow)) {
-    if (chainId !== flow.originChainId) {
-      throw new Error(
-        `ChainId mismatch on chain ${flow.originChainId} deposit ${flow.depositId} (${chainId} != ${flow.originChainId})`
-      );
-    }
-    tokenSymbol = hubPoolClient.getTokenInfo(flow.originChainId, flowToken)?.symbol;
-  } else {
-    assert(outflowIsFill(flow));
-    if (chainId !== flow.destinationChainId) {
-      throw new Error(
-        `ChainId mismatch on chain ${flow.destinationChainId} fill for chain ${flow.originChainId} deposit ${flow.depositId} (${chainId} != ${flow.destinationChainId})`
-      );
-    }
-    tokenSymbol = hubPoolClient.getTokenInfo(flow.destinationChainId, flowToken)?.symbol;
-  }
-
-  return tokenSymbol;
-}
-
 export function filledSameDeposit(fillA: Fill, fillB: Fill): boolean {
   if (isV2Fill(fillA) && isV2Fill(fillB)) {
     return (
