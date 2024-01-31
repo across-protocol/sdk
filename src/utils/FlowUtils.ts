@@ -1,6 +1,4 @@
-import assert from "assert";
-import { HubPoolClient } from "../clients/HubPoolClient";
-import { Deposit, Fill, FillWithBlock, UbaFlow, isUbaInflow, outflowIsFill } from "../interfaces";
+import { Deposit, Fill } from "../interfaces";
 
 export const FILL_DEPOSIT_COMPARISON_KEYS = [
   "amount",
@@ -14,32 +12,6 @@ export const FILL_DEPOSIT_COMPARISON_KEYS = [
   "destinationToken",
   "message",
 ] as const;
-
-export function getTokenSymbolForFlow(
-  flow: UbaFlow,
-  chainId: number,
-  hubPoolClient: HubPoolClient
-): string | undefined {
-  let tokenSymbol: string | undefined;
-  if (isUbaInflow(flow)) {
-    if (chainId !== flow.originChainId) {
-      throw new Error(
-        `ChainId mismatch on chain ${flow.originChainId} deposit ${flow.depositId} (${chainId} != ${flow.originChainId})`
-      );
-    }
-    tokenSymbol = hubPoolClient.getTokenInfo(flow.originChainId, flow.originToken)?.symbol;
-  } else {
-    assert(outflowIsFill(flow));
-    if (chainId !== flow.destinationChainId) {
-      throw new Error(
-        `ChainId mismatch on chain ${flow.destinationChainId} fill for chain ${flow.originChainId} deposit ${flow.depositId} (${chainId} != ${flow.destinationChainId})`
-      );
-    }
-    tokenSymbol = hubPoolClient.getTokenInfo(flow.destinationChainId, (flow as FillWithBlock).destinationToken)?.symbol;
-  }
-
-  return tokenSymbol;
-}
 
 export function filledSameDeposit(fillA: Fill, fillB: Fill): boolean {
   return (
