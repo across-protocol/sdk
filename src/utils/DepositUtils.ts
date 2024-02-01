@@ -130,13 +130,13 @@ export function isMessageEmpty(message = EMPTY_MESSAGE): boolean {
  * @returns True if the deposit was updated, otherwise false.
  */
 export function isDepositSpedUp(deposit: Deposit): boolean {
-  if (!isDefined(deposit.speedUpSignature)) {
-    return false;
-  }
-
+  // prettier-ignore
   return (
-    (isV2Deposit(deposit) && isDefined(deposit.newRelayerFeePct)) ||
-    (isV3Deposit(deposit) && isDefined(deposit.updatedOutputAmount))
+    isDefined(deposit.speedUpSignature) &&
+    (
+      (isV2Deposit(deposit) && isDefined(deposit.newRelayerFeePct)) ||
+      (isV3Deposit(deposit) && isDefined(deposit.updatedOutputAmount))
+    )
   );
 }
 
