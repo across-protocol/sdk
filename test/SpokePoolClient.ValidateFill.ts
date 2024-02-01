@@ -1,9 +1,10 @@
-import { FillStatus } from "../src/interfaces";
+import { FillStatus, V3DepositWithBlock } from "../src/interfaces";
 import { SpokePoolClient } from "../src/clients";
 import {
   bnZero,
   bnOne,
   InvalidFill,
+  fillStatusArray,
   relayFillStatus,
   validateFillForDeposit,
   queryHistoricalDepositForFill,
@@ -18,6 +19,7 @@ import {
   depositV2,
   depositV3,
   fillV3Relay,
+  requestV3SlowFill,
   setupTokensForWallet,
   toBN,
   buildFill,
@@ -132,6 +134,53 @@ describe("SpokePoolClient: Fill Validation", function () {
     await fillV3Relay(spokePool_2, deposit, relayer);
     filled = await relayFillStatus(spokePool_2, deposit);
     expect(filled).to.equal(FillStatus.Filled);
+  });
+
+  it("Tracks bulk v3 fill status", async function () {
+    const deposits: V3DepositWithBlock[] = [];
+    const inputToken = erc20_1.address;
+    const inputAmount = toBNWei(1);
+    const outputToken = erc20_2.address;
+    const outputAmount = inputAmount.sub(bnOne);
+
+    for (let i = 0; i < 5; ++i) {
+      const deposit = await depositV3(
+        spokePool_1,
+        destinationChainId,
+        depositor,
+        inputToken,
+        inputAmount,
+        outputToken,
+        outputAmount
+      );
+      deposits.push(deposit);
+    }
+    expect(deposits.length).to.be.greaterThan(0);
+
+    let fills = await fillStatusArray(spokePool_2, deposits);
+    expect(fills.length).to.equal(deposits.length);
+    fills.forEach((fillStatus) => expect(fillStatus).to.equal(FillStatus.Unfilled));
+
+    // Fill the first deposit and verify that the status updates correctly.
+    await fillV3Relay(spokePool_2, deposits[0], relayer);
+    fills = await fillStatusArray(spokePool_2, deposits);
+    expect(fills.length).to.equal(deposits.length);
+    expect(fills[0]).to.equal(FillStatus.Filled);
+    fills.slice(1).forEach((fillStatus) => expect(fillStatus).to.equal(FillStatus.Unfilled));
+
+    // Request a slow fill on the second deposit and verify that the status updates correctly.
+    await requestV3SlowFill(spokePool_2, deposits[1], relayer);
+    fills = await fillStatusArray(spokePool_2, deposits);
+    expect(fills.length).to.equal(deposits.length);
+    expect(fills[0]).to.equal(FillStatus.Filled);
+    expect(fills[1]).to.equal(FillStatus.RequestedSlowFill);
+    fills.slice(2).forEach((fillStatus) => expect(fillStatus).to.equal(FillStatus.Unfilled));
+
+    // Fill all outstanding deposits and verify that the status updates correctly.
+    await Promise.all(deposits.slice(1).map((deposit) => fillV3Relay(spokePool_2, deposit, relayer)));
+    fills = await fillStatusArray(spokePool_2, deposits);
+    expect(fills.length).to.equal(deposits.length);
+    fills.forEach((fillStatus) => expect(fillStatus).to.equal(FillStatus.Filled));
   });
 
   it("Accepts valid fills", async function () {

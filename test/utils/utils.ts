@@ -5,7 +5,15 @@ import {
   GLOBAL_CONFIG_STORE_KEYS,
   HubPoolClient,
 } from "../../src/clients";
-import { V2Deposit, V2Fill, V3Deposit, V3DepositWithBlock, V3FillWithBlock } from "../../src/interfaces";
+import {
+  SlowFillRequestWithBlock,
+  V3RelayData,
+  V2Deposit,
+  V2Fill,
+  V3Deposit,
+  V3DepositWithBlock,
+  V3FillWithBlock,
+} from "../../src/interfaces";
 import {
   bnUint32Max,
   bnZero,
@@ -403,6 +411,45 @@ export async function depositV3(
     exclusivityDeadline: args!.exclusivityDeadline,
     exclusiveRelayer: args!.exclusiveRelayer,
     quoteBlockNumber: 0, // @todo
+    blockNumber,
+    transactionHash,
+    transactionIndex,
+    logIndex,
+  };
+}
+
+export async function requestV3SlowFill(
+  spokePool: Contract,
+  relayData: V3RelayData,
+  signer: SignerWithAddress
+): Promise<SlowFillRequestWithBlock> {
+  const destinationChainId = Number(await spokePool.chainId());
+  assert.notEqual(relayData.originChainId, destinationChainId);
+
+  await spokePool.connect(signer).requestV3SlowFill(relayData);
+
+  const events = await spokePool.queryFilter(spokePool.filters.RequestedV3SlowFill());
+  const lastEvent = events.at(-1);
+  let args = lastEvent!.args;
+  assert.exists(args);
+  args = args!;
+
+  const { blockNumber, transactionHash, transactionIndex, logIndex } = lastEvent!;
+
+  return {
+    depositId: args.depositId,
+    originChainId: Number(args.originChainId),
+    destinationChainId,
+    depositor: args.depositor,
+    recipient: args.recipient,
+    inputToken: args.inputToken,
+    inputAmount: args.inputAmount,
+    outputToken: args.outputToken,
+    outputAmount: args.outputAmount,
+    message: args.message,
+    fillDeadline: args.fillDeadline,
+    exclusivityDeadline: args.exclusivityDeadline,
+    exclusiveRelayer: args.exclusiveRelayer,
     blockNumber,
     transactionHash,
     transactionIndex,
