@@ -1,4 +1,4 @@
-import { AcrossConfigStoreClient, HubPoolClient, SpokePoolClient } from "../clients";
+import { AcrossConfigStoreClient, HubPoolClient } from "../clients";
 import { ProposedRootBundle } from "../interfaces";
 
 /**
