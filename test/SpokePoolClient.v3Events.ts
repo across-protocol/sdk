@@ -1,15 +1,25 @@
+import assert from "assert";
 import { Event } from "ethers";
 import { random } from "lodash";
 import { utils as sdkUtils } from "../src";
 import { expect } from "chai";
 import { DEFAULT_CONFIG_STORE_VERSION } from "../src/clients";
 import { MockHubPoolClient, MockSpokePoolClient, MockConfigStoreClient } from "../src/clients/mocks";
-import { v2DepositWithBlock, v2FillWithBlock, v3DepositWithBlock, v3FillWithBlock } from "../src/interfaces";
+import {
+  SlowFillRequest,
+  SlowFillRequestWithBlock,
+  v2DepositWithBlock,
+  v2FillWithBlock,
+  v3DepositWithBlock,
+  v3FillWithBlock,
+  v3RelayData,
+} from "../src/interfaces";
 import { EMPTY_MESSAGE, ZERO_ADDRESS } from "../src/constants";
 import {
   getCurrentTime,
   getDepositInputToken,
   getFillOutputToken,
+  isDefined,
   isV2Deposit,
   isV2Fill,
   isV3Deposit,
@@ -32,6 +42,7 @@ type EventSearchConfig = sdkUtils.EventSearchConfig;
 describe("SpokePoolClient: Event Filtering", function () {
   const fundsDepositedEvents = ["FundsDeposited", "V3FundsDeposited"];
   const requestedSpeedUpEvents = ["RequestedSpeedUpDeposit", "RequestedSpeedUpV3Deposit"];
+  const slowFillRequestedEvents = ["RequestedV3SlowFill"];
   const filledRelayEvents = ["FilledRelay", "FilledV3Relay"];
 
   let owner: contractsV2Utils.SignerWithAddress, depositor: contractsV2Utils.SignerWithAddress;
@@ -252,6 +263,62 @@ describe("SpokePoolClient: Event Filtering", function () {
         expect(deposit.updatedOutputAmount).to.not.be.undefined;
         expect(deposit.updatedOutputAmount!.eq(expectedSpeedUp.args!.updatedOutputAmount)).to.be.true;
       }
+    });
+  });
+
+  it.only("Correctly retrieves SlowFillRequested events", async function () {
+    // Inject a series of v2DepositWithBlock and v3DepositWithBlock events.
+    const requests: Event[] = [];
+
+    const slowFillRequestFromDeposit = (deposit: v3DepositWithBlock): SlowFillRequest => {
+      const { relayer: exclusiveRelayer, realizedLpFeePct, blockNumber, ...partialDeposit } = deposit;
+      return { ...partialDeposit, exclusiveRelayer };
+    };
+
+    for (let idx = 0; idx < 10; ++idx) {
+      const depositEvent = generateV3Deposit(originSpokePoolClient);
+
+      await originSpokePoolClient.update(fundsDepositedEvents);
+      const deposits = originSpokePoolClient.getDeposits();
+
+      let deposit = deposits.filter(isV3Deposit).at(-1);
+      expect(deposit).to.not.be.undefined;
+      deposit = deposit!;
+      expect(deposit.depositId).to.equal(depositEvent.args!.depositId);
+      assert(isV3Deposit(deposit));
+
+      const slowFillRequest = slowFillRequestFromDeposit(deposit);
+      requests.push(destinationSpokePoolClient.requestV3SlowFill(slowFillRequest as SlowFillRequestWithBlock));
+    }
+    await destinationSpokePoolClient.update(slowFillRequestedEvents);
+
+    // Should receive _all_ fills submitted on the destination chain.
+    requests.forEach((event) => {
+      let { args } = event;
+      expect(args).to.not.be.undefined;
+      args = args!;
+
+      const relayData: v3RelayData = {
+        depositId: args.depositId,
+        originChainId: args.originChainId,
+        depositor: args.depositor,
+        recipient: args.recipient,
+        inputToken: args.inputToken,
+        inputAmount: args.inputAmount,
+        outputToken: args.outputToken,
+        outputAmount: args.outputAmount,
+        message: args.message,
+        fillDeadline: args.fillDeadline,
+        exclusiveRelayer: args.exclusiveRelayer,
+        exclusivityDeadline: args.exclusivityDeadline,
+      };
+
+      const slowFillRequest = destinationSpokePoolClient.getSlowFillRequest(relayData);
+      expect(slowFillRequest).to.not.be.undefined;
+
+      Object.entries(relayData).forEach(
+        ([k, v]) => expect(isDefined(v)).to.equal(true) && expect(slowFillRequest?.[k]).to.equal(v)
+      );
     });
   });
 
