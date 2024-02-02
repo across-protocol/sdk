@@ -353,14 +353,13 @@ export class SpokePoolClient extends BaseAbstractClient {
     return this.depositHashes[depositHash];
   }
 
-  public getSlowFillRequest(depositId: number): SlowFillRequestWithBlock | undefined {
-    const deposit = this.getDeposit(depositId);
-    if (!isDefined(deposit) || isV2Deposit(deposit)) {
-      return undefined;
-    }
-
-    const relayData: v3RelayData = { ...deposit, exclusiveRelayer: deposit.relayer };
-    const hash = getRelayDataHash(relayData);
+  /**
+   * Find a SlowFillRequested event based on its deposit RelayData.
+   * @param relayData RelayData field for the SlowFill request.
+   * @returns The corresponding SlowFIllRequest event if found, otherwise undefined.
+   */
+  public getSlowFillRequest(relayData: v3RelayData): SlowFillRequestWithBlock | undefined {
+    const hash = getRelayDataHash(relayData, this.chainId);
     return this.slowFillRequests[hash];
   }
 

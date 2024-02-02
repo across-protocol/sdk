@@ -13,7 +13,9 @@ import {
   v2FillWithBlock,
   v2SpeedUp,
   v3DepositWithBlock,
+  v3Fill,
   v3FillWithBlock,
+  v3SlowFillLeaf,
   v3SpeedUp,
 } from "../../interfaces";
 import {
@@ -378,6 +380,26 @@ export class MockSpokePoolClient extends SpokePoolClient {
       blockNumber: request.blockNumber,
       transactionIndex: request.transactionIndex,
     });
+  }
+
+  // This is a simple wrapper around fillV3Relay().
+  // rootBundleId and proof are discarded here - we have no interest in verifying that.
+  executeV3SlowRelayLeaf(leaf: v3SlowFillLeaf): Event {
+    const fill: v3Fill = {
+      ...leaf.relayData,
+      destinationChainId: this.chainId,
+      relayer: ZERO_ADDRESS,
+      repaymentChainId: 0,
+      realizedLpFeePct: bnZero, // @todo
+      updatableRelayData: {
+        recipient: leaf.relayData.recipient,
+        outputAmount: leaf.updatedOutputAmount,
+        message: leaf.relayData.message,
+        fillType: FillType.SlowFill,
+      },
+    };
+
+    return this.fillV3Relay(fill as v3FillWithBlock);
   }
 
   setEnableRoute(
