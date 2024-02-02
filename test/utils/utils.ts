@@ -5,7 +5,7 @@ import {
   GLOBAL_CONFIG_STORE_KEYS,
   HubPoolClient,
 } from "../../src/clients";
-import { Deposit, Fill, v2Deposit } from "../../src/interfaces";
+import { v2Deposit, v2Fill } from "../../src/interfaces";
 import {
   bnUint32Max,
   bnZero,
@@ -366,10 +366,10 @@ export async function buildFill(
   destinationToken: Contract,
   recipientAndDepositor: SignerWithAddress,
   relayer: SignerWithAddress,
-  deposit: Deposit,
+  deposit: v2Deposit,
   pctOfDepositToFill: number,
   repaymentChainId?: number
-): Promise<Fill> {
+): Promise<v2Fill> {
   // Sanity Check: ensure realizedLpFeePct is defined
   expect(deposit.realizedLpFeePct).to.not.be.undefined;
   if (!deposit.realizedLpFeePct) {
@@ -434,12 +434,12 @@ export async function buildModifiedFill(
   spokePool: Contract,
   depositor: SignerWithAddress,
   relayer: SignerWithAddress,
-  fillToBuildFrom: Fill,
+  fillToBuildFrom: v2Fill,
   multipleOfOriginalRelayerFeePct: number,
   pctOfDepositToFill: number,
   newRecipient?: string,
   newMessage?: string
-): Promise<Fill | null> {
+): Promise<v2Fill | null> {
   const relayDataFromFill = {
     depositor: fillToBuildFrom.depositor,
     recipient: fillToBuildFrom.recipient,
@@ -562,7 +562,7 @@ export function buildDepositForRelayerFeeTest(
   tokenSymbol: string,
   originChainId: string | number,
   toChainId: string | number
-): Deposit {
+): v2Deposit {
   const originToken = resolveContractFromSymbol(tokenSymbol, String(originChainId));
   const destinationToken = resolveContractFromSymbol(tokenSymbol, String(toChainId));
   expect(originToken).to.not.be.undefined;
