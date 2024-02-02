@@ -510,6 +510,14 @@ export class SpokePoolClient extends BaseAbstractClient {
     return sortEventsAscending(fills.filter((_fill) => filledSameDeposit(_fill, matchingFill)));
   }
 
+  public async getMaxFillDeadlineInRange(startBlock: number, endBlock: number): Promise<number> {
+    const fillDeadlineBuffers = await Promise.all([
+      this.spokePool.fillDeadlineBuffer({ blockTag: startBlock }),
+      this.spokePool.fillDeadlineBuffer({ blockTag: endBlock }),
+    ]);
+    return Math.max(fillDeadlineBuffers[0].toNumber(), fillDeadlineBuffers[1].toNumber());
+  }
+
   /**
    * Performs an update to refresh the state of this client. This will query the SpokePool contract for new events
    * and store them in memory. This method is the primary method for updating the state of this client.
