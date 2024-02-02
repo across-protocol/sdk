@@ -266,7 +266,7 @@ describe("SpokePoolClient: Event Filtering", function () {
     });
   });
 
-  it.only("Correctly retrieves SlowFillRequested events", async function () {
+  it("Correctly retrieves SlowFillRequested events", async function () {
     // Inject a series of v2DepositWithBlock and v3DepositWithBlock events.
     const requests: Event[] = [];
 
