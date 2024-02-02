@@ -1,6 +1,6 @@
 import assert from "assert";
 import { BigNumber, Contract, utils as ethersUtils } from "ethers";
-import { FillStatus, RelayData, v2RelayData, v3RelayData } from "../interfaces";
+import { FillStatus, RelayData, V2RelayData, V3RelayData } from "../interfaces";
 import { SpokePoolClient } from "../clients";
 import { bnZero } from "./BigNumberUtils";
 import { isDefined } from "./TypeGuards";
@@ -175,7 +175,7 @@ export function getRelayDataHash(relayData: RelayData, destinationChainId?: numb
     return getV2RelayHash(relayData);
   }
 
-  // v3RelayData does not include destinationChainId, so it must be supplied separately for v3 types.
+  // V3RelayData does not include destinationChainId, so it must be supplied separately for v3 types.
   assert(isDefined(destinationChainId));
   return getV3RelayHash(relayData, destinationChainId);
 }
@@ -183,10 +183,10 @@ export function getRelayDataHash(relayData: RelayData, destinationChainId?: numb
 /**
  * Compute the RelayData hash for a fill. This can be used to determine the fill amount.
  * @note Only compatible with Across v2 data types.
- * @param relayData v2RelayData information that is used to complete a fill.
+ * @param relayData V2RelayData information that is used to complete a fill.
  * @returns The corresponding RelayData hash.
  */
-function getV2RelayHash(relayData: v2RelayData): string {
+function getV2RelayHash(relayData: V2RelayData): string {
   return ethersUtils.keccak256(
     ethersUtils.defaultAbiCoder.encode(
       [
@@ -211,11 +211,11 @@ function getV2RelayHash(relayData: v2RelayData): string {
 /**
  * Compute the RelayData hash for a fill. This can be used to determine the fill status.
  * @note Only compatible with Across v3 data types.
- * @param relayData v3RelayData information that is used to complete a fill.
+ * @param relayData V3RelayData information that is used to complete a fill.
  * @param destinationChainId Supplementary destination chain ID required by V3 hashes.
  * @returns The corresponding RelayData hash.
  */
-function getV3RelayHash(relayData: v3RelayData, destinationChainId: number): string {
+function getV3RelayHash(relayData: V3RelayData, destinationChainId: number): string {
   return ethersUtils.keccak256(
     ethersUtils.defaultAbiCoder.encode(
       [
@@ -261,8 +261,8 @@ export async function relayFilledAmount(
   const fillStatus = await spokePool.fillStatuses(hash, { blockTag });
 
   // @note: If the deposit was updated then the fill amount may be _less_ than outputAmount.
-  // @todo: Remove v3RelayData type assertion once RelayData type is unionised.
-  return fillStatus === FillStatus.Filled ? (relayData as v3RelayData).outputAmount : bnZero;
+  // @todo: Remove V3RelayData type assertion once RelayData type is unionised.
+  return fillStatus === FillStatus.Filled ? (relayData as V3RelayData).outputAmount : bnZero;
 }
 
 /**
