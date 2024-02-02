@@ -11,6 +11,7 @@ import QueryBase from "./baseQuery";
 
 const baseChainId = 8453;
 const baseGoerliChainId = 84531;
+const baseSepoliaChainId = 84532;
 
 export class BaseQueries extends QueryBase {
   constructor(
@@ -34,11 +35,36 @@ export class BaseQueries extends QueryBase {
   }
 }
 
+/**
+ * @deprecated
+ */
 export class BaseGoerliQueries extends QueryBase {
   constructor(
     provider: providers.Provider,
     symbolMapping = TOKEN_SYMBOLS_MAP,
     spokePoolAddress = getDeployedAddress("SpokePool", baseGoerliChainId),
+    simulatedRelayerAddress = DEFAULT_SIMULATED_RELAYER_ADDRESS_TEST,
+    coingeckoProApiKey?: string,
+    logger: Logger = DEFAULT_LOGGER,
+    gasMarkup = 0
+  ) {
+    super(
+      asL2Provider(provider),
+      symbolMapping,
+      spokePoolAddress,
+      simulatedRelayerAddress,
+      gasMarkup,
+      logger,
+      coingeckoProApiKey
+    );
+  }
+}
+
+export class BaseSepoliaQueries extends QueryBase {
+  constructor(
+    provider: providers.Provider,
+    symbolMapping = TOKEN_SYMBOLS_MAP,
+    spokePoolAddress = getDeployedAddress("SpokePool", baseSepoliaChainId),
     simulatedRelayerAddress = DEFAULT_SIMULATED_RELAYER_ADDRESS_TEST,
     coingeckoProApiKey?: string,
     logger: Logger = DEFAULT_LOGGER,
