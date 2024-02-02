@@ -153,22 +153,6 @@ export interface SlowFillRequest {
 
 export interface SlowFillRequestWithBlock extends SlowFillRequest, SortableEvent {}
 
-export interface SlowFill {
-  relayHash: string;
-  amount: BigNumber;
-  fillAmount: BigNumber;
-  totalFilledAmount: BigNumber;
-  originChainId: number;
-  relayerFeePct: BigNumber;
-  realizedLpFeePct: BigNumber;
-  payoutAdjustmentPct: BigNumber;
-  depositId: number;
-  destinationToken: string;
-  depositor: string;
-  recipient: string;
-  message: string;
-}
-
 export interface v2SlowFillLeaf {
   relayData: RelayData;
   payoutAdjustmentPct: string;
