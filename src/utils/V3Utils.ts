@@ -28,7 +28,7 @@ type SlowFillLeaf = v2SlowFillLeaf | v3SlowFillLeaf;
 export const V3_MIN_CONFIG_STORE_VERSION = 3;
 
 export function isV3(version: number): boolean {
-  return version >= 3;
+  return version >= V3_MIN_CONFIG_STORE_VERSION;
 }
 
 export function isV2Deposit(deposit: Deposit): deposit is v2Deposit {
