@@ -511,11 +511,11 @@ export class SpokePoolClient extends BaseAbstractClient {
   }
 
   public async getMaxFillDeadlineInRange(startBlock: number, endBlock: number): Promise<number> {
-    const fillDeadlineBuffers = await Promise.all([
+    const fillDeadlineBuffers: number[] = await Promise.all([
       this.spokePool.fillDeadlineBuffer({ blockTag: startBlock }),
       this.spokePool.fillDeadlineBuffer({ blockTag: endBlock }),
     ]);
-    return Math.max(fillDeadlineBuffers[0].toNumber(), fillDeadlineBuffers[1].toNumber());
+    return Math.max(fillDeadlineBuffers[0], fillDeadlineBuffers[1]);
   }
 
   /**
