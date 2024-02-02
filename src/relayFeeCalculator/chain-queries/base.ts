@@ -35,6 +35,9 @@ export class BaseQueries extends QueryBase {
   }
 }
 
+/**
+ * @deprecated
+ */
 export class BaseGoerliQueries extends QueryBase {
   constructor(
     provider: providers.Provider,
