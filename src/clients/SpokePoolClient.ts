@@ -43,14 +43,14 @@ import {
   SlowFillRequestWithBlock,
   SpeedUp,
   TokensBridged,
-  v2DepositWithBlock,
-  v2FillWithBlock,
-  v2SpeedUp,
-  v3DepositWithBlock,
-  v3FillWithBlock,
+  V2DepositWithBlock,
+  V2FillWithBlock,
+  V2SpeedUp,
+  V3DepositWithBlock,
+  V3FillWithBlock,
   V3FundsDepositedEvent,
-  v3RelayData,
-  v3SpeedUp,
+  V3RelayData,
+  V3SpeedUp,
 } from "../interfaces";
 import { SpokePool } from "../typechain";
 import { getNetworkName } from "../utils/NetworkUtils";
@@ -297,7 +297,7 @@ export class SpokePoolClient extends BaseAbstractClient {
       const v2SpeedUps = this.speedUps[depositor]?.[depositId]?.filter(isV2SpeedUp);
       const maxSpeedUp = v2SpeedUps?.reduce(
         (prev, current) => (prev.newRelayerFeePct.gt(current.newRelayerFeePct) ? prev : current),
-        { newRelayerFeePct: deposit.relayerFeePct } as v2SpeedUp
+        { newRelayerFeePct: deposit.relayerFeePct } as V2SpeedUp
       );
 
       // We assume that the depositor authorises SpeedUps in isolation of each other, which keeps the relayer
@@ -307,7 +307,7 @@ export class SpokePoolClient extends BaseAbstractClient {
       }
 
       // Return deposit with updated params from the speedup with the highest updated relayer fee pct.
-      const updatedDeposit: v2DepositWithBlock = {
+      const updatedDeposit: V2DepositWithBlock = {
         ...deposit,
         speedUpSignature: maxSpeedUp.depositorSignature,
         newRelayerFeePct: maxSpeedUp.newRelayerFeePct,
@@ -318,10 +318,10 @@ export class SpokePoolClient extends BaseAbstractClient {
       return updatedDeposit;
     }
 
-    const v3SpeedUps = (this.speedUps[depositor]?.[depositId]?.filter(() => isV3SpeedUp) ?? []) as v3SpeedUp[];
-    const maxSpeedUp = v3SpeedUps.reduce(
+    const V3SpeedUps = (this.speedUps[depositor]?.[depositId]?.filter(() => isV3SpeedUp) ?? []) as V3SpeedUp[];
+    const maxSpeedUp = V3SpeedUps.reduce(
       (prev, current) => (prev.updatedOutputAmount.lt(current.updatedOutputAmount) ? prev : current),
-      { updatedOutputAmount: deposit.outputAmount } as v3SpeedUp
+      { updatedOutputAmount: deposit.outputAmount } as V3SpeedUp
     );
 
     // We assume that the depositor authorises SpeedUps in isolation of each other, which keeps the relayer
@@ -331,7 +331,7 @@ export class SpokePoolClient extends BaseAbstractClient {
     }
 
     // Return deposit with updated params from the speedup with the lowest updated output amount.
-    const updatedDeposit: v3DepositWithBlock = {
+    const updatedDeposit: V3DepositWithBlock = {
       ...deposit,
       speedUpSignature: maxSpeedUp.depositorSignature,
       updatedOutputAmount: maxSpeedUp.updatedOutputAmount,
@@ -358,7 +358,7 @@ export class SpokePoolClient extends BaseAbstractClient {
    * @param relayData RelayData field for the SlowFill request.
    * @returns The corresponding SlowFIllRequest event if found, otherwise undefined.
    */
-  public getSlowFillRequest(relayData: v3RelayData): SlowFillRequestWithBlock | undefined {
+  public getSlowFillRequest(relayData: V3RelayData): SlowFillRequestWithBlock | undefined {
     const hash = getRelayDataHash(relayData, this.chainId);
     return this.slowFillRequests[hash];
   }
@@ -556,6 +556,27 @@ export class SpokePoolClient extends BaseAbstractClient {
   }
 
   /**
+   * @notice Return maximum of fill deadline buffer at start and end of block range. This is a contract
+   * immutable state variable so we can't query other events to find its updates.
+   * @dev V3 deposits have a fill deadline which can be set to a maximum of fillDeadlineBuffer + deposit.block.timestamp.
+   * Therefore, we cannot evaluate a block range for expired deposits if the spoke pool client doesn't return us
+   * deposits whose block.timestamp is within fillDeadlineBuffer of the end block time. As a conservative check,
+   * we verify that the time between the end block timestamp and the first timestamp queried by the
+   * spoke pool client is greater than the maximum of the fill deadline buffers at the start and end of the block
+   * range. We assume the fill deadline buffer wasn't changed more than once within a bundle.
+   * @param startBlock start block
+   * @param endBlock end block
+   * @returns maximum of fill deadline buffer at start and end block
+   */
+  public async getMaxFillDeadlineInRange(startBlock: number, endBlock: number): Promise<number> {
+    const fillDeadlineBuffers: number[] = await Promise.all([
+      this.spokePool.fillDeadlineBuffer({ blockTag: startBlock }),
+      this.spokePool.fillDeadlineBuffer({ blockTag: endBlock }),
+    ]);
+    return Math.max(fillDeadlineBuffers[0], fillDeadlineBuffers[1]);
+  }
+
+  /**
    * Performs an update to refresh the state of this client. This will query the SpokePool contract for new events
    * and store them in memory. This method is the primary method for updating the state of this client.
    * @param eventsToQuery An optional list of events to query. If not provided, all events will be queried.
@@ -683,13 +704,13 @@ export class SpokePoolClient extends BaseAbstractClient {
     // hubPoolClient is updated on the first before this call as this needed the the L1 token mapping to each L2 token.
     if (eventsToQuery.includes("FundsDeposited") || eventsToQuery.includes("V3FundsDeposited")) {
       // Filter out any early v2 deposits (quoteTimestamp > HubPoolClient.currentTime). Early deposits are no longer a
-      // critical risk in v3, so don't worry about filtering those. This will reduce complexity in several places.
-      const { earlyDeposits = [], v2DepositEvents = [] } = groupBy(
+      // critical risk in V3, so don't worry about filtering those. This will reduce complexity in several places.
+      const { earlyDeposits = [], V2DepositEvents = [] } = groupBy(
         [
           ...this.earlyDeposits,
           ...((queryResults[eventsToQuery.indexOf("FundsDeposited")] ?? []) as FundsDepositedEvent[]),
         ],
-        (depositEvent) => (this._isEarlyDeposit(depositEvent, currentTime) ? "earlyDeposits" : "v2DepositEvents")
+        (depositEvent) => (this._isEarlyDeposit(depositEvent, currentTime) ? "earlyDeposits" : "V2DepositEvents")
       );
       if (earlyDeposits.length > 0) {
         this.logger.debug({
@@ -702,7 +723,7 @@ export class SpokePoolClient extends BaseAbstractClient {
       this.earlyDeposits = earlyDeposits;
 
       const depositEvents = [
-        ...v2DepositEvents,
+        ...V2DepositEvents,
         ...((queryResults[eventsToQuery.indexOf("V3FundsDeposited")] ?? []) as V3FundsDepositedEvent[]),
       ];
       if (depositEvents.length > 0) {
@@ -717,12 +738,12 @@ export class SpokePoolClient extends BaseAbstractClient {
         let deposit: DepositWithBlock;
 
         if (this.isV3DepositEvent(event)) {
-          deposit = { ...(rawDeposit as v3DepositWithBlock) };
+          deposit = { ...(rawDeposit as V3DepositWithBlock) };
           if (deposit.outputToken === ZERO_ADDRESS) {
             deposit.outputToken = this.getDestinationTokenForDeposit(deposit);
           }
         } else {
-          deposit = { ...(rawDeposit as v2DepositWithBlock) };
+          deposit = { ...(rawDeposit as V2DepositWithBlock) };
           deposit.destinationToken = this.getDestinationTokenForDeposit(deposit);
         }
 
@@ -795,8 +816,8 @@ export class SpokePoolClient extends BaseAbstractClient {
 
       for (const event of fillEvents) {
         const fill = this.isV3FillEvent(event)
-          ? { ...(spreadEventWithBlockNumber(event) as v3FillWithBlock) }
-          : { ...(spreadEventWithBlockNumber(event) as v2FillWithBlock) };
+          ? { ...(spreadEventWithBlockNumber(event) as V3FillWithBlock) }
+          : { ...(spreadEventWithBlockNumber(event) as V2FillWithBlock) };
 
         assign(this.fills, [fill.originChainId], [fill]);
         assign(this.depositHashesToFills, [this.getDepositHash(fill)], [fill]);
@@ -908,7 +929,7 @@ export class SpokePoolClient extends BaseAbstractClient {
       if (this.isV3DepositEvent(event)) {
         ({ inputToken, inputAmount } = event.args);
       } else {
-        // Coerce v2 deposit objects into v3 format.
+        // Coerce v2 deposit objects into V3 format.
         ({ originToken: inputToken, amount: inputAmount } = event.args);
       }
       return {

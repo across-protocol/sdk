@@ -1,4 +1,4 @@
-import { AcrossConfigStoreClient, HubPoolClient, SpokePoolClient } from "../clients";
+import { AcrossConfigStoreClient, HubPoolClient } from "../clients";
 import { ProposedRootBundle } from "../interfaces";
 
 /**
@@ -106,37 +106,4 @@ export function getImpliedBundleBlockRanges(
   });
 
   return result;
-}
-
-// Return true if we won't be able to construct a root bundle for the bundle block ranges ("blockRanges") because
-// the bundle wants to look up data for events that weren't in the spoke pool client's search range.
-export function blockRangesAreInvalidForSpokeClients(
-  spokePoolClients: Record<number, SpokePoolClient>,
-  blockRanges: number[][],
-  chainIdListForBundleEvaluationBlockNumbers: number[]
-): boolean {
-  return blockRanges.some(([start, end], index) => {
-    const chainId = chainIdListForBundleEvaluationBlockNumbers[index];
-    if (isNaN(end) || isNaN(start)) {
-      return true;
-    }
-    // If block range is 0 then chain is disabled, we don't need to query events for this chain.
-    if (end === start) {
-      return false;
-    }
-
-    // If spoke pool client doesn't exist for enabled chain then we clearly cannot query events for this chain.
-    if (spokePoolClients[chainId] === undefined) {
-      return true;
-    }
-
-    const clientLastBlockQueried =
-      spokePoolClients[chainId].eventSearchConfig.toBlock ?? spokePoolClients[chainId].latestBlockSearched;
-
-    // Note: Math.max the from block with the deployment block of the spoke pool to handle the edge case for the first
-    // bundle that set its start blocks equal 0.
-    const bundleRangeFromBlock = Math.max(spokePoolClients[chainId].deploymentBlock, start);
-    const earliestSpokePoolClientBlockSearched = spokePoolClients[chainId].eventSearchConfig.fromBlock;
-    return bundleRangeFromBlock < earliestSpokePoolClientBlockSearched || end > clientLastBlockQueried;
-  });
 }
