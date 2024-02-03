@@ -9,14 +9,14 @@ import {
   FundsDepositedEvent,
   RealizedLpFee,
   SlowFillRequestWithBlock,
-  v2DepositWithBlock,
-  v2FillWithBlock,
-  v2SpeedUp,
-  v3DepositWithBlock,
-  v3Fill,
-  v3FillWithBlock,
-  v3SlowFillLeaf,
-  v3SpeedUp,
+  V2DepositWithBlock,
+  V2FillWithBlock,
+  V2SpeedUp,
+  V3DepositWithBlock,
+  V3Fill,
+  V3FillWithBlock,
+  V3SlowFillLeaf,
+  V3SpeedUp,
 } from "../../interfaces";
 import {
   bnZero,
@@ -153,7 +153,7 @@ export class MockSpokePoolClient extends SpokePoolClient {
     FundsDeposited: "uint256,uint256,uint256,int64,uint32,uint32,address,address,address,bytes",
   };
 
-  deposit(deposit: v2DepositWithBlock): Event {
+  deposit(deposit: V2DepositWithBlock): Event {
     assert(isV2Deposit(deposit));
     const event = "FundsDeposited";
 
@@ -191,7 +191,7 @@ export class MockSpokePoolClient extends SpokePoolClient {
     });
   }
 
-  depositV3(deposit: v3DepositWithBlock): Event {
+  depositV3(deposit: V3DepositWithBlock): Event {
     assert(isV3Deposit(deposit));
     const event = "V3FundsDeposited";
 
@@ -223,7 +223,7 @@ export class MockSpokePoolClient extends SpokePoolClient {
       outputAmount,
       quoteTimestamp,
       fillDeadline: deposit.fillDeadline ?? quoteTimestamp + 3600,
-      relayer: deposit.relayer ?? ZERO_ADDRESS,
+      exclusiveRelayer: deposit.exclusiveRelayer ?? ZERO_ADDRESS,
       exclusivityDeadline: deposit.exclusivityDeadline ?? quoteTimestamp + 600,
       message,
     };
@@ -238,7 +238,7 @@ export class MockSpokePoolClient extends SpokePoolClient {
     });
   }
 
-  fillRelay(fill: v2FillWithBlock): Event {
+  fillRelay(fill: V2FillWithBlock): Event {
     assert(isV2Fill(fill));
     const event = "FilledRelay";
 
@@ -288,7 +288,7 @@ export class MockSpokePoolClient extends SpokePoolClient {
     });
   }
 
-  fillV3Relay(fill: v3FillWithBlock): Event {
+  fillV3Relay(fill: V3FillWithBlock): Event {
     assert(isV3Fill(fill));
     const event = "FilledV3Relay";
 
@@ -339,7 +339,7 @@ export class MockSpokePoolClient extends SpokePoolClient {
     });
   }
 
-  speedUpDeposit(speedUp: v2SpeedUp): Event {
+  speedUpDeposit(speedUp: V2SpeedUp): Event {
     const event = "RequestedSpeedUpDeposit";
     const topics = [speedUp.depositId, speedUp.depositor];
     const args = { ...speedUp };
@@ -352,7 +352,7 @@ export class MockSpokePoolClient extends SpokePoolClient {
     });
   }
 
-  speedUpV3Deposit(speedUp: v3SpeedUp): Event {
+  speedUpV3Deposit(speedUp: V3SpeedUp): Event {
     const event = "RequestedSpeedUpV3Deposit";
     const topics = [speedUp.depositId, speedUp.depositor];
     const args = { ...speedUp };
@@ -384,8 +384,8 @@ export class MockSpokePoolClient extends SpokePoolClient {
 
   // This is a simple wrapper around fillV3Relay().
   // rootBundleId and proof are discarded here - we have no interest in verifying that.
-  executeV3SlowRelayLeaf(leaf: v3SlowFillLeaf): Event {
-    const fill: v3Fill = {
+  executeV3SlowRelayLeaf(leaf: V3SlowFillLeaf): Event {
+    const fill: V3Fill = {
       ...leaf.relayData,
       destinationChainId: this.chainId,
       relayer: ZERO_ADDRESS,
@@ -399,7 +399,7 @@ export class MockSpokePoolClient extends SpokePoolClient {
       },
     };
 
-    return this.fillV3Relay(fill as v3FillWithBlock);
+    return this.fillV3Relay(fill as V3FillWithBlock);
   }
 
   setEnableRoute(
