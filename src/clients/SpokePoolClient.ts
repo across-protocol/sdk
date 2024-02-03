@@ -293,8 +293,8 @@ export class SpokePoolClient extends BaseAbstractClient {
 
     if (isV2Deposit(deposit)) {
       const v2SpeedUps = this.speedUps[depositor]?.[depositId]?.filter(isV2SpeedUp);
-      const maxSpeedUp = v2SpeedUps?.reduce(
-        (prev, current) => (prev.newRelayerFeePct.gt(current.newRelayerFeePct) ? prev : current),
+      const maxSpeedUp = v2SpeedUps?.reduce((prev, current) =>
+        prev.newRelayerFeePct.gt(current.newRelayerFeePct) ? prev : current
       );
 
       // We assume that the depositor authorises SpeedUps in isolation of each other, which keeps the relayer
@@ -316,8 +316,8 @@ export class SpokePoolClient extends BaseAbstractClient {
     }
 
     const V3SpeedUps = this.speedUps[depositor]?.[depositId]?.filter(isV3SpeedUp);
-    const maxSpeedUp = V3SpeedUps?.reduce(
-      (prev, current) => (prev.updatedOutputAmount.lt(current.updatedOutputAmount) ? prev : current)
+    const maxSpeedUp = V3SpeedUps?.reduce((prev, current) =>
+      prev.updatedOutputAmount.lt(current.updatedOutputAmount) ? prev : current
     );
 
     // We assume that the depositor authorises SpeedUps in isolation of each other, which keeps the relayer
