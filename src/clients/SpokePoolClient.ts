@@ -45,12 +45,10 @@ import {
   TokensBridged,
   V2DepositWithBlock,
   V2FillWithBlock,
-  V2SpeedUp,
   V3DepositWithBlock,
   V3FillWithBlock,
   V3FundsDepositedEvent,
   V3RelayData,
-  V3SpeedUp,
 } from "../interfaces";
 import { SpokePool } from "../typechain";
 import { getNetworkName } from "../utils/NetworkUtils";
@@ -297,7 +295,6 @@ export class SpokePoolClient extends BaseAbstractClient {
       const v2SpeedUps = this.speedUps[depositor]?.[depositId]?.filter(isV2SpeedUp);
       const maxSpeedUp = v2SpeedUps?.reduce(
         (prev, current) => (prev.newRelayerFeePct.gt(current.newRelayerFeePct) ? prev : current),
-        { newRelayerFeePct: deposit.relayerFeePct } as V2SpeedUp
       );
 
       // We assume that the depositor authorises SpeedUps in isolation of each other, which keeps the relayer
@@ -318,10 +315,9 @@ export class SpokePoolClient extends BaseAbstractClient {
       return updatedDeposit;
     }
 
-    const V3SpeedUps = (this.speedUps[depositor]?.[depositId]?.filter(() => isV3SpeedUp) ?? []) as V3SpeedUp[];
-    const maxSpeedUp = V3SpeedUps.reduce(
-      (prev, current) => (prev.updatedOutputAmount.lt(current.updatedOutputAmount) ? prev : current),
-      { updatedOutputAmount: deposit.outputAmount } as V3SpeedUp
+    const V3SpeedUps = this.speedUps[depositor]?.[depositId]?.filter(isV3SpeedUp);
+    const maxSpeedUp = V3SpeedUps?.reduce(
+      (prev, current) => (prev.updatedOutputAmount.lt(current.updatedOutputAmount) ? prev : current)
     );
 
     // We assume that the depositor authorises SpeedUps in isolation of each other, which keeps the relayer
