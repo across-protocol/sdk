@@ -223,7 +223,7 @@ export class MockSpokePoolClient extends SpokePoolClient {
       outputAmount,
       quoteTimestamp,
       fillDeadline: deposit.fillDeadline ?? quoteTimestamp + 3600,
-      relayer: deposit.exclusiveRelayer ?? ZERO_ADDRESS,
+      exclusiveRelayer: deposit.exclusiveRelayer ?? ZERO_ADDRESS,
       exclusivityDeadline: deposit.exclusivityDeadline ?? quoteTimestamp + 600,
       message,
     };

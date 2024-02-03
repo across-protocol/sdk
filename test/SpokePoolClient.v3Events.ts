@@ -8,11 +8,11 @@ import { MockHubPoolClient, MockSpokePoolClient, MockConfigStoreClient } from ".
 import {
   SlowFillRequest,
   SlowFillRequestWithBlock,
-  v2DepositWithBlock,
-  v2FillWithBlock,
-  v3DepositWithBlock,
-  v3FillWithBlock,
-  v3RelayData,
+  V2DepositWithBlock,
+  V2FillWithBlock,
+  V3DepositWithBlock,
+  V3FillWithBlock,
+  V3RelayData,
 } from "../src/interfaces";
 import { EMPTY_MESSAGE, ZERO_ADDRESS } from "../src/constants";
 import {
@@ -59,7 +59,7 @@ describe("SpokePoolClient: Event Filtering", function () {
     const originToken = randomAddress();
     const message = EMPTY_MESSAGE;
     const quoteTimestamp = getCurrentTime() - 10;
-    return spokePoolClient.deposit({ originToken, message, quoteTimestamp } as v2DepositWithBlock);
+    return spokePoolClient.deposit({ originToken, message, quoteTimestamp } as V2DepositWithBlock);
   };
 
   const generateV3Deposit = (spokePoolClient: MockSpokePoolClient): Event => {
@@ -136,7 +136,7 @@ describe("SpokePoolClient: Event Filtering", function () {
   });
 
   it("Correctly retrieves FundsDepositedV3 events", async function () {
-    // Inject a series of v2DepositWithBlock and v3DepositWithBlock events.
+    // Inject a series of V2DepositWithBlock and v3DepositWithBlock events.
     const depositEvents: Event[] = [];
 
     for (let idx = 0; idx < 10; ++idx) {
@@ -165,7 +165,7 @@ describe("SpokePoolClient: Event Filtering", function () {
   });
 
   it("Correctly retrieves SpeedUp events", async function () {
-    // Inject a series of v2SpeedUp and v3SpeedUp events.
+    // Inject a series of V2SpeedUp and v3SpeedUp events.
     const speedUpEvents: Event[] = [];
     const updateEvents = [...fundsDepositedEvents, ...requestedSpeedUpEvents];
 
@@ -183,7 +183,7 @@ describe("SpokePoolClient: Event Filtering", function () {
 
       let v3Deposit = deposits.filter(isV3Deposit).at(-1);
       expect(v3Deposit).to.not.be.undefined;
-      v3Deposit = v3Deposit! as v3DepositWithBlock;
+      v3Deposit = v3Deposit as V3DepositWithBlock;
       expect(v3Deposit.depositId).to.equal(v3DepositEvent.args!.depositId);
 
       // The deposit objects should not have new* fields populated.
@@ -192,7 +192,7 @@ describe("SpokePoolClient: Event Filtering", function () {
         expect(deposit.updatedRecipient).to.be.undefined;
         expect(deposit.updatedMessage).to.be.undefined;
       });
-      expect((v2Deposit as v2DepositWithBlock).newRelayerFeePct).to.be.undefined;
+      expect((v2Deposit as V2DepositWithBlock).newRelayerFeePct).to.be.undefined;
       expect(v3Deposit.updatedOutputAmount).to.be.undefined;
 
       const newRelayerFeePct = v2Deposit.relayerFeePct!.add(1);
@@ -271,8 +271,8 @@ describe("SpokePoolClient: Event Filtering", function () {
     const requests: Event[] = [];
 
     const slowFillRequestFromDeposit = (deposit: v3DepositWithBlock): SlowFillRequest => {
-      const { relayer: exclusiveRelayer, realizedLpFeePct, blockNumber, ...partialDeposit } = deposit;
-      return { ...partialDeposit, exclusiveRelayer };
+      const { realizedLpFeePct, blockNumber, ...partialDeposit } = deposit;
+      return { ...partialDeposit };
     };
 
     for (let idx = 0; idx < 10; ++idx) {
@@ -298,7 +298,7 @@ describe("SpokePoolClient: Event Filtering", function () {
       expect(args).to.not.be.undefined;
       args = args!;
 
-      const relayData: v3RelayData = {
+      const relayData: V3RelayData = {
         depositId: args.depositId,
         originChainId: args.originChainId,
         depositor: args.depositor,
@@ -345,8 +345,8 @@ describe("SpokePoolClient: Event Filtering", function () {
       expect(v3Deposit.depositId).to.equal(v3DepositEvent.args!.depositId);
 
       const [v2Fill, v3Fill] = [fillFromDeposit(v2Deposit, relayer), fillFromDeposit(v3Deposit, relayer)];
-      fillEvents.push(destinationSpokePoolClient.fillRelay(v2Fill as v2FillWithBlock));
-      fillEvents.push(destinationSpokePoolClient.fillV3Relay(v3Fill as v3FillWithBlock));
+      fillEvents.push(destinationSpokePoolClient.fillRelay(v2Fill as V2FillWithBlock));
+      fillEvents.push(destinationSpokePoolClient.fillV3Relay(v3Fill as V3FillWithBlock));
     }
     await destinationSpokePoolClient.update(filledRelayEvents);
 
