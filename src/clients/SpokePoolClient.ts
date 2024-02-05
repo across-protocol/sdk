@@ -360,17 +360,6 @@ export class SpokePoolClient extends BaseAbstractClient {
   }
 
   /**
-   * Retrieves a list of slow fill requests for deposits from a specific origin chain ID.
-   * @param originChainId The origin chain ID.
-   * @returns A list of slow fill requests.
-   */
-  public getSlowFillRequestsForOriginChain(originChainId: number): SlowFillRequestWithBlock[] {
-    return Object.values(this.getSlowFillRequest).filter(
-      (e: SlowFillRequestWithBlock) => e.originChainId === originChainId
-    );
-  }
-
-  /**
    * Find a corresponding deposit for a given fill.
    * @param fill The fill to find a corresponding deposit for.
    * @returns The corresponding deposit if found, undefined otherwise.

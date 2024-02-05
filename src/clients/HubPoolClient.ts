@@ -19,8 +19,8 @@ import {
   RealizedLpFee,
   SetPoolRebalanceRoot,
   TokenRunningBalance,
-  v2DepositWithBlock,
-  v3DepositWithBlock,
+  V2DepositWithBlock,
+  V3DepositWithBlock,
 } from "../interfaces";
 import * as lpFeeCalculator from "../lpFeeCalculator";
 import {
@@ -47,7 +47,6 @@ import {
 } from "../utils";
 import { AcrossConfigStoreClient as ConfigStoreClient } from "./AcrossConfigStoreClient/AcrossConfigStoreClient";
 import { BaseAbstractClient } from "./BaseAbstractClient";
-import { isUBAActivatedAtBlock } from "./UBAClient/UBAClientUtilities";
 
 type _HubPoolUpdate = {
   success: true;
@@ -72,14 +71,14 @@ type L1TokensToDestinationTokens = {
 };
 
 // Temporary type for v2 -> v3 transition. @todo: Remove.
-export type v2PartialDepositWithBlock = Pick<
-  v2DepositWithBlock,
+export type V2PartialDepositWithBlock = Pick<
+  V2DepositWithBlock,
   "originChainId" | "destinationChainId" | "originToken" | "amount" | "quoteTimestamp" | "blockNumber"
 >;
 
 // Temporary type for v2 -> v3 transition. @todo: Remove.
-export type v3PartialDepositWithBlock = Pick<
-  v3DepositWithBlock,
+export type V3PartialDepositWithBlock = Pick<
+  V3DepositWithBlock,
   "originChainId" | "destinationChainId" | "inputToken" | "inputAmount" | "quoteTimestamp" | "blockNumber"
 >;
 
@@ -244,8 +243,8 @@ export class HubPoolClient extends BaseAbstractClient {
    */
   getL1TokenForDeposit(
     deposit:
-      | Pick<v2DepositWithBlock, "originChainId" | "originToken" | "quoteBlockNumber">
-      | Pick<v3DepositWithBlock, "originChainId" | "inputToken" | "quoteBlockNumber">
+      | Pick<V2DepositWithBlock, "originChainId" | "originToken" | "quoteBlockNumber">
+      | Pick<V3DepositWithBlock, "originChainId" | "inputToken" | "quoteBlockNumber">
   ): string {
     // L1-->L2 token mappings are set via PoolRebalanceRoutes which occur on mainnet,
     // so we use the latest token mapping. This way if a very old deposit is filled, the relayer can use the
@@ -263,8 +262,8 @@ export class HubPoolClient extends BaseAbstractClient {
    */
   getL2TokenForDeposit(
     deposit:
-      | Pick<v2DepositWithBlock, "originChainId" | "destinationChainId" | "originToken" | "quoteBlockNumber">
-      | Pick<v3DepositWithBlock, "originChainId" | "destinationChainId" | "inputToken" | "quoteBlockNumber">,
+      | Pick<V2DepositWithBlock, "originChainId" | "destinationChainId" | "originToken" | "quoteBlockNumber">
+      | Pick<V3DepositWithBlock, "originChainId" | "destinationChainId" | "inputToken" | "quoteBlockNumber">,
     l2ChainId = deposit.destinationChainId
   ): string {
     const l1Token = this.getL1TokenForDeposit(deposit);
@@ -343,27 +342,27 @@ export class HubPoolClient extends BaseAbstractClient {
   }
 
   async computeRealizedLpFeePct(
-    deposit: v2PartialDepositWithBlock | v3PartialDepositWithBlock
+    deposit: V2PartialDepositWithBlock | V3PartialDepositWithBlock
   ): Promise<RealizedLpFee> {
     const [lpFee] = await this.batchComputeRealizedLpFeePct([deposit]);
     return lpFee;
   }
 
   async batchComputeRealizedLpFeePct(
-    _deposits: (v2PartialDepositWithBlock | v3PartialDepositWithBlock)[]
+    _deposits: (V2PartialDepositWithBlock | V3PartialDepositWithBlock)[]
   ): Promise<RealizedLpFee[]> {
     assert(_deposits.length > 0, "No deposits supplied to batchComputeRealizedLpFeePct");
     if (!isDefined(this.currentTime)) {
       throw new Error("HubPoolClient has not set a currentTime");
     }
 
-    const deposits: v3PartialDepositWithBlock[] = _deposits.map((deposit) => {
+    const deposits: V3PartialDepositWithBlock[] = _deposits.map((deposit) => {
       if (isV3Deposit(deposit as DepositWithBlock)) {
-        return deposit as v3DepositWithBlock;
+        return deposit as V3DepositWithBlock;
       }
 
-      const { originToken: inputToken, amount: inputAmount, ...partialDeposit } = deposit as v2DepositWithBlock;
-      const v3Deposit: v3PartialDepositWithBlock = {
+      const { originToken: inputToken, amount: inputAmount, ...partialDeposit } = deposit as V2DepositWithBlock;
+      const v3Deposit: V3PartialDepositWithBlock = {
         ...partialDeposit,
         inputToken,
         inputAmount,
@@ -439,13 +438,6 @@ export class HubPoolClient extends BaseAbstractClient {
       const { originChainId, destinationChainId, inputToken, inputAmount, quoteTimestamp } = deposit;
       const quoteBlock = quoteBlocks[quoteTimestamp];
 
-      // Compare deposit block against UBA bundle start blocks. If the deposit is post-UBA
-      // then realizedLpFeePct computation is deferred until after UBA Client update.
-      if (isUBAActivatedAtBlock(this, deposit.blockNumber, deposit.originChainId)) {
-        return { quoteBlock, realizedLpFeePct: undefined };
-      }
-
-      // Otherwise, use the legacy fee model which is based ont he deposit quote block.
       const hubPoolToken = hubPoolTokens[inputToken];
       const rateModel = this.configStoreClient.getRateModelForBlockNumber(
         hubPoolToken,
@@ -918,8 +910,6 @@ export class HubPoolClient extends BaseAbstractClient {
       }
 
       // Set running balances and incentive balances for this bundle.
-      // Pre-UBA: runningBalances length is 1:1 with l1Tokens length. Pad incentiveBalances with zeroes.
-      // Post-UBA: runningBalances array is a concatenation of pre-UBA runningBalances and incentiveBalances.
       const executedRootBundle = spreadEventWithBlockNumber(event) as ExecutedRootBundle;
       const { l1Tokens, runningBalances } = executedRootBundle;
       const nTokens = l1Tokens.length;
