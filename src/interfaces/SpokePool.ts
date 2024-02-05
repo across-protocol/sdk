@@ -2,7 +2,7 @@ import { BigNumber } from "ethers";
 import { SortableEvent } from "./Common";
 import { FilledRelayEvent, FilledV3RelayEvent, FundsDepositedEvent, V3FundsDepositedEvent } from "../typechain";
 import { SpokePoolClient } from "../clients";
-import { RelayerRefundLeaf } from "./HubPool";
+import { V2RelayerRefundLeaf, V3RelayerRefundLeaf } from "./HubPool";
 
 export type { FilledRelayEvent, FilledV3RelayEvent, FundsDepositedEvent, V3FundsDepositedEvent };
 
@@ -154,13 +154,12 @@ export interface RootBundleRelay {
 
 export interface RootBundleRelayWithBlock extends RootBundleRelay, SortableEvent {}
 
-export interface V2RelayerRefundExecution extends RelayerRefundLeaf {
+export interface V2RelayerRefundExecution extends V2RelayerRefundLeaf {
   rootBundleId: number;
 }
 
-export interface V3RelayerRefundExecution extends V2RelayerRefundExecution {
-  fillsRefundedRoot: string;
-  fillsRefundedIpfsHash: string;
+export interface V3RelayerRefundExecution extends V3RelayerRefundLeaf {
+  rootBundleId: number;
 }
 
 export interface V2RelayerRefundExecutionWithBlock extends V2RelayerRefundExecution, SortableEvent {}
