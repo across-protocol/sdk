@@ -128,7 +128,9 @@ export interface V3SpeedUp extends SpeedUpCommon {
 
 export type SpeedUp = V2SpeedUp; // @todo Extend with V2SpeedUp | V3SpeedUp.
 
-export interface SlowFillRequest extends V3RelayData {}
+export interface SlowFillRequest extends V3RelayData {
+  destinationChainId: number;
+}
 export interface SlowFillRequestWithBlock extends SlowFillRequest, SortableEvent {}
 
 export interface V2SlowFillLeaf {
