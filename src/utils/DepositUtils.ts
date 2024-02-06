@@ -9,7 +9,6 @@ import { getCurrentTime } from "./TimeUtils";
 import { isDefined } from "./TypeGuards";
 import { isDepositFormedCorrectly } from "./ValidatorUtils";
 import { isV2Deposit, isV3Deposit } from "./V3Utils";
-import { utils as sdkUtils } from "@across-protocol/sdk-v2";
 
 // Load a deposit for a fill if the fill's deposit ID is outside this client's search range.
 // This can be used by the Dataworker to determine whether to give a relayer a refund for a fill
