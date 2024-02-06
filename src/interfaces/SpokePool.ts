@@ -2,6 +2,7 @@ import { BigNumber } from "ethers";
 import { SortableEvent } from "./Common";
 import { FilledRelayEvent, FilledV3RelayEvent, FundsDepositedEvent, V3FundsDepositedEvent } from "../typechain";
 import { SpokePoolClient } from "../clients";
+import { V2RelayerRefundLeaf, V3RelayerRefundLeaf } from "./HubPool";
 
 export type { FilledRelayEvent, FilledV3RelayEvent, FundsDepositedEvent, V3FundsDepositedEvent };
 
@@ -155,17 +156,21 @@ export interface RootBundleRelay {
 
 export interface RootBundleRelayWithBlock extends RootBundleRelay, SortableEvent {}
 
-export interface RelayerRefundExecution {
-  amountToReturn: BigNumber;
-  chainId: number;
-  refundAmounts: BigNumber[];
+export interface V2RelayerRefundExecution extends V2RelayerRefundLeaf {
   rootBundleId: number;
-  leafId: number;
-  l2TokenAddress: string;
-  refundAddresses: string[];
 }
 
-export interface RelayerRefundExecutionWithBlock extends RelayerRefundExecution, SortableEvent {}
+export interface V3RelayerRefundExecution extends V3RelayerRefundLeaf {
+  rootBundleId: number;
+}
+
+export interface V2RelayerRefundExecutionWithBlock extends V2RelayerRefundExecution, SortableEvent {}
+export interface V3RelayerRefundExecutionWithBlock extends V3RelayerRefundExecution, SortableEvent {}
+
+// @todo: Extend with V2RelayerRefundExecution | V3RelayerRefundExecution.
+export type RelayerRefundExecution = V2RelayerRefundExecution;
+// @todo Extend with V2RelayerRefundLeafWithBlock | V3RelayerRefundLeafWithBlock.
+export type RelayerRefundExecutionWithBlock = V2RelayerRefundExecutionWithBlock;
 
 export interface UnfilledDeposit {
   deposit: Deposit;

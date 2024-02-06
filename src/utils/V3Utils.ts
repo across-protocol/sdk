@@ -4,10 +4,14 @@ import {
   V3Deposit,
   V2Fill,
   V2RelayData,
+  V2RelayerRefundExecution,
+  V2RelayerRefundLeaf,
   V2SlowFillLeaf,
   V2SpeedUp,
   V3Fill,
   V3RelayData,
+  V3RelayerRefundExecution,
+  V3RelayerRefundLeaf,
   V3SlowFillLeaf,
   V3SpeedUp,
 } from "../interfaces";
@@ -19,6 +23,8 @@ type Fill = V2Fill | V3Fill;
 type SpeedUp = V2SpeedUp | V3SpeedUp;
 type RelayData = V2RelayData | V3RelayData;
 type SlowFillLeaf = V2SlowFillLeaf | V3SlowFillLeaf;
+type RelayerRefundExecution = V2RelayerRefundExecution | V3RelayerRefundExecution;
+type RelayerRefundLeaf = V2RelayerRefundLeaf | V3RelayerRefundLeaf;
 
 // Lowest ConfigStore version where the V3 model is in effect. The version update to the following value should
 // take place atomically with the SpokePool upgrade to V3 so that the dataworker knows what kind of MerkleLeaves
@@ -73,6 +79,14 @@ export function isV2SlowFillLeaf(slowFillLeaf: SlowFillLeaf): slowFillLeaf is V2
 
 export function isV3SlowFillLeaf(slowFillLeaf: SlowFillLeaf): slowFillLeaf is V3SlowFillLeaf {
   return isDefined((slowFillLeaf as V3SlowFillLeaf).updatedOutputAmount) && isV3RelayData(slowFillLeaf.relayData);
+}
+
+export function isV3RelayerRefundLeaf(leaf: RelayerRefundLeaf): leaf is V3RelayerRefundLeaf {
+  return isDefined((leaf as V3RelayerRefundLeaf).fillsRefundedRoot);
+}
+
+export function isV3RelayerRefundExecution(refund: RelayerRefundExecution): refund is V3RelayerRefundExecution {
+  return isDefined((refund as V3RelayerRefundExecution).fillsRefundedRoot);
 }
 
 export function getDepositInputToken(deposit: Deposit): string {
