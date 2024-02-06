@@ -119,15 +119,17 @@ export function isV3RelayerRefundLeaf<T extends MinV3RelayerRefundLeaf, U extend
 
 type MinV2RelayerRefundExecution = Pick<V2RelayerRefundExecution, "amountToReturn">;
 type MinV3RelayerRefundExecution = Pick<V3RelayerRefundExecution, "fillsRefundedRoot" | "fillsRefundedHash">;
-export function isV2RelayerRefundExecution<T extends MinV2RelayerRefundExecution, U extends MinV3RelayerRefundExecution>(
-  leaf: T | U
-): leaf is T {
+export function isV2RelayerRefundExecution<
+  T extends MinV2RelayerRefundExecution,
+  U extends MinV3RelayerRefundExecution,
+>(leaf: T | U): leaf is T {
   return unsafeIsType<T, U>(leaf, "amountToReturn") && !isV3RelayerRefundExecution(leaf);
 }
 
-export function isV3RelayerRefundExecution<T extends MinV3RelayerRefundExecution, U extends MinV2RelayerRefundExecution>(
-  leaf: T | U
-): leaf is T {
+export function isV3RelayerRefundExecution<
+  T extends MinV3RelayerRefundExecution,
+  U extends MinV2RelayerRefundExecution,
+>(leaf: T | U): leaf is T {
   return unsafeIsType<T, U>(leaf, "fillsRefundedRoot");
 }
 
