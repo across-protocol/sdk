@@ -827,7 +827,7 @@ export class SpokePoolClient extends BaseAbstractClient {
 
       for (const event of fillEvents) {
         const fill = this.isV3FillEvent(event)
-          ? { ...(spreadEventWithBlockNumber(event) as V3FillWithBlock) }
+          ? { ...(spreadEventWithBlockNumber(event) as V3FillWithBlock), destinationChainId: this.chainId }
           : { ...(spreadEventWithBlockNumber(event) as V2FillWithBlock) };
 
         assign(this.fills, [fill.originChainId], [fill]);
