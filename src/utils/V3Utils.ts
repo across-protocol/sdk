@@ -4,10 +4,14 @@ import {
   V3Deposit,
   V2Fill,
   V2RelayData,
+  V2RelayerRefundExecution,
+  V2RelayerRefundLeaf,
   V2SlowFillLeaf,
   V2SpeedUp,
   V3Fill,
   V3RelayData,
+  V3RelayerRefundExecution,
+  V3RelayerRefundLeaf,
   V3SlowFillLeaf,
   V3SpeedUp,
 } from "../interfaces";
@@ -97,6 +101,34 @@ export function isV3SlowFillLeaf<T extends MinV3SlowFillLeaf, U extends MinV2Slo
   slowFillLeaf: T | U
 ): slowFillLeaf is T {
   return unsafeIsType<T, U>(slowFillLeaf, "updatedOutputAmount") && isV3RelayData(slowFillLeaf.relayData);
+}
+
+type MinV2RelayerRefundLeaf = Pick<V2RelayerRefundLeaf, "amountToReturn">;
+type MinV3RelayerRefundLeaf = Pick<V3RelayerRefundLeaf, "fillsRefundedRoot" | "fillsRefundedHash">;
+export function isV2RelayerRefundLeaf<T extends MinV2RelayerRefundLeaf, U extends MinV3RelayerRefundLeaf>(
+  leaf: T | U
+): leaf is T {
+  return unsafeIsType<T, U>(leaf, "amountToReturn") && !isV3RelayerRefundLeaf(leaf);
+}
+
+export function isV3RelayerRefundLeaf<T extends MinV3RelayerRefundLeaf, U extends MinV2RelayerRefundLeaf>(
+  leaf: T | U
+): leaf is T {
+  return unsafeIsType<T, U>(leaf, "fillsRefundedRoot");
+}
+
+type MinV2RelayerRefundExecution = Pick<V2RelayerRefundExecution, "amountToReturn">;
+type MinV3RelayerRefundExecution = Pick<V3RelayerRefundExecution, "fillsRefundedRoot" | "fillsRefundedHash">;
+export function isV2RelayerRefundExecution<T extends MinV2RelayerRefundExecution, U extends MinV3RelayerRefundExecution>(
+  leaf: T | U
+): leaf is T {
+  return unsafeIsType<T, U>(leaf, "amountToReturn") && !isV3RelayerRefundExecution(leaf);
+}
+
+export function isV3RelayerRefundExecution<T extends MinV3RelayerRefundExecution, U extends MinV2RelayerRefundExecution>(
+  leaf: T | U
+): leaf is T {
+  return unsafeIsType<T, U>(leaf, "fillsRefundedRoot");
 }
 
 export function getDepositInputToken<T extends MinV2Deposit, U extends MinV3Deposit>(deposit: T | U): string {
