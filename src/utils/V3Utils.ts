@@ -3,6 +3,8 @@ import {
   Fill,
   FillType,
   RelayData,
+  RelayerRefundExecution,
+  RelayerRefundLeaf,
   SlowFillLeaf,
   SpeedUp,
   V2Deposit,
@@ -13,6 +15,8 @@ import {
   V3Deposit,
   V3Fill,
   V3RelayData,
+  V3RelayerRefundExecution,
+  V3RelayerRefundLeaf,
   V3SlowFillLeaf,
   V3SpeedUp,
 } from "../interfaces";
@@ -72,6 +76,14 @@ export function isV2SlowFillLeaf(slowFillLeaf: SlowFillLeaf): slowFillLeaf is V2
 
 export function isV3SlowFillLeaf(slowFillLeaf: SlowFillLeaf): slowFillLeaf is V3SlowFillLeaf {
   return isDefined((slowFillLeaf as V3SlowFillLeaf).updatedOutputAmount) && isV3RelayData(slowFillLeaf.relayData);
+}
+
+export function isV3RelayerRefundLeaf(leaf: RelayerRefundLeaf): leaf is V3RelayerRefundLeaf {
+  return isDefined((leaf as V3RelayerRefundLeaf).fillsRefundedRoot);
+}
+
+export function isV3RelayerRefundExecution(refund: RelayerRefundExecution): refund is V3RelayerRefundExecution {
+  return isDefined((refund as V3RelayerRefundExecution).fillsRefundedRoot);
 }
 
 export function getDepositInputToken(deposit: Deposit): string {
