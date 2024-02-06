@@ -38,8 +38,8 @@ import {
   RootBundleRelayWithBlock,
   SpeedUp,
   TokensBridged,
-  v2DepositWithBlock,
-  v2SpeedUp,
+  V2DepositWithBlock,
+  V2SpeedUp,
 } from "../interfaces";
 import { SpokePool } from "../typechain";
 import { getNetworkName } from "../utils/NetworkUtils";
@@ -285,7 +285,7 @@ export class SpokePoolClient extends BaseAbstractClient {
       const v2SpeedUps = this.speedUps[depositor]?.[depositId]?.filter(isV2SpeedUp);
       const maxSpeedUp = v2SpeedUps?.reduce(
         (prev, current) => (prev.newRelayerFeePct.gt(current.newRelayerFeePct) ? prev : current),
-        { newRelayerFeePct: deposit.relayerFeePct } as v2SpeedUp
+        { newRelayerFeePct: deposit.relayerFeePct } as V2SpeedUp
       );
 
       // We assume that the depositor authorises SpeedUps in isolation of each other, which keeps the relayer
@@ -295,7 +295,7 @@ export class SpokePoolClient extends BaseAbstractClient {
       }
 
       // Return deposit with updated params from the speedup with the highest updated relayer fee pct.
-      const updatedDeposit: v2DepositWithBlock = {
+      const updatedDeposit: V2DepositWithBlock = {
         ...deposit,
         speedUpSignature: maxSpeedUp.depositorSignature,
         newRelayerFeePct: maxSpeedUp.newRelayerFeePct,

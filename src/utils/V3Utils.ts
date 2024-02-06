@@ -1,22 +1,22 @@
 import {
   FillType,
-  v2Deposit,
-  v3Deposit,
-  v2Fill,
-  v2RelayData,
-  v2SlowFillLeaf,
-  v2SpeedUp,
-  v3Fill,
-  v3RelayData,
-  v3SlowFillLeaf,
-  v3SpeedUp,
+  V2Deposit,
+  V3Deposit,
+  V2Fill,
+  V2RelayData,
+  V2SlowFillLeaf,
+  V2SpeedUp,
+  V3Fill,
+  V3RelayData,
+  V3SlowFillLeaf,
+  V3SpeedUp,
 } from "../interfaces";
 import { BN } from "./BigNumberUtils";
 
 // Can be used with specific types, and will fully verify that the descriminating key is exclusive to the former.
 // Example usage:
 // let a: Fill = ...;
-// if (isType<v2Fill, v3Fill>(a, "destinationToken")) {
+// if (isType<V2Fill, V3Fill>(a, "destinationToken")) {
 //   
 // }
 export function isType<T, U>(input: T | U, key: Exclude<keyof T, keyof U>): input is T {
@@ -39,9 +39,8 @@ export function isV3(version: number): boolean {
   return version >= V3_MIN_CONFIG_STORE_VERSION;
 }
 
-
-type MinV2Deposit = Pick<v2Deposit, "originToken">;
-type MinV3Deposit = Pick<v3Deposit, "inputToken">;
+type MinV2Deposit = Pick<V2Deposit, "originToken">;
+type MinV3Deposit = Pick<V3Deposit, "inputToken">;
 export function isV2Deposit<T extends MinV2Deposit, U extends MinV3Deposit>(deposit: T | U): deposit is T {
   return unsafeIsType<T, U>(deposit, "originToken");
 }
@@ -50,8 +49,8 @@ export function isV3Deposit<T extends MinV3Deposit, U extends MinV2Deposit>(depo
   return unsafeIsType<T, U>(deposit, "inputToken");
 }
 
-type MinV2SpeedUp = Pick<v2SpeedUp, "newRelayerFeePct">;
-type MinV3SpeedUp = Pick<v3SpeedUp, "updatedOutputAmount">;
+type MinV2SpeedUp = Pick<V2SpeedUp, "newRelayerFeePct">;
+type MinV3SpeedUp = Pick<V3SpeedUp, "updatedOutputAmount">;
 export function isV2SpeedUp<T extends MinV2SpeedUp, U extends MinV3SpeedUp>(speedUp: T | U): speedUp is T {
   return unsafeIsType<T, U>(speedUp, "newRelayerFeePct");
 }
@@ -60,8 +59,8 @@ export function isV3SpeedUp<T extends MinV3SpeedUp, U extends MinV2SpeedUp>(spee
   return unsafeIsType<T, U>(speedUp, "updatedOutputAmount");
 }
 
-type MinV2Fill = Pick<v2Fill, "destinationToken">;
-type MinV3Fill = Pick<v3Fill, "inputToken">;
+type MinV2Fill = Pick<V2Fill, "destinationToken">;
+type MinV3Fill = Pick<V3Fill, "inputToken">;
 export function isV2Fill<T extends MinV2Fill, U extends MinV3Fill>(fill: T | U): fill is T {
   return unsafeIsType<T, U>(fill, "destinationToken");
 }
@@ -70,8 +69,8 @@ export function isV3Fill<T extends MinV3Fill, U extends MinV2Fill>(fill: T | U):
   return unsafeIsType<T, U>(fill, "inputToken");
 }
 
-type MinV2RelayData = Pick<v2RelayData, "destinationToken">;
-type MinV3RelayData = Pick<v3RelayData, "outputToken">;
+type MinV2RelayData = Pick<V2RelayData, "destinationToken">;
+type MinV3RelayData = Pick<V3RelayData, "outputToken">;
 export function isV2RelayData<T extends MinV2RelayData, U extends MinV3RelayData>(relayData: T | U): relayData is T {
   return unsafeIsType<T, U>(relayData, "destinationToken");
 }
@@ -84,8 +83,8 @@ export function isSlowFill(fill: Fill): boolean {
   return isV2Fill(fill) ? fill.updatableRelayData.isSlowRelay : fill.updatableRelayData.fillType === FillType.SlowFill;
 }
 
-type MinV2SlowFillLeaf = Pick<v2SlowFillLeaf, "payoutAdjustmentPct" | "relayData">;
-type MinV3SlowFillLeaf = Pick<v3SlowFillLeaf, "updatedOutputAmount" | "relayData">;
+type MinV2SlowFillLeaf = Pick<V2SlowFillLeaf, "payoutAdjustmentPct" | "relayData">;
+type MinV3SlowFillLeaf = Pick<V3SlowFillLeaf, "updatedOutputAmount" | "relayData">;
 export function isV2SlowFillLeaf<T extends MinV2SlowFillLeaf, U extends MinV3SlowFillLeaf>(slowFillLeaf: T | U): slowFillLeaf is T {
   return unsafeIsType<T, U>(slowFillLeaf, "payoutAdjustmentPct") && isV2RelayData(slowFillLeaf.relayData);
 }
@@ -98,42 +97,42 @@ export function getDepositInputToken<T extends MinV2Deposit, U extends MinV3Depo
   return isV2Deposit(deposit) ? deposit.originToken : deposit.inputToken;
 }
 
-export function getDepositOutputToken<T extends Pick<v2Deposit, "destinationToken">, U extends Pick<v3Deposit, "outputToken">>(deposit: T | U): string {
+export function getDepositOutputToken<T extends Pick<V2Deposit, "destinationToken">, U extends Pick<V3Deposit, "outputToken">>(deposit: T | U): string {
   return unsafeIsType<T, U>(deposit, "destinationToken") ? deposit.destinationToken : deposit.outputToken;
 }
 
-export function getFillOutputToken<T extends Pick<v2Fill, "destinationToken">, U extends Pick<v3Fill, "outputToken">>(fill: T | U): string {
+export function getFillOutputToken<T extends Pick<V2Fill, "destinationToken">, U extends Pick<V3Fill, "outputToken">>(fill: T | U): string {
   return unsafeIsType<T, U>(fill, "destinationToken") ? fill.destinationToken : fill.outputToken;
 }
 
-export function getDepositInputAmount<T extends Pick<v2Deposit, "amount">, U extends Pick<v3Deposit, "inputAmount">>(deposit: T | U): BN {
+export function getDepositInputAmount<T extends Pick<V2Deposit, "amount">, U extends Pick<V3Deposit, "inputAmount">>(deposit: T | U): BN {
   return unsafeIsType<T, U>(deposit, "amount") ? deposit.amount : deposit.inputAmount;
 }
 
-export function getDepositOutputAmount<T extends Pick<v2Deposit, "amount">, U extends Pick<v3Deposit, "outputAmount">>(deposit: T | U): BN {
+export function getDepositOutputAmount<T extends Pick<V2Deposit, "amount">, U extends Pick<V3Deposit, "outputAmount">>(deposit: T | U): BN {
   return unsafeIsType<T, U>(deposit, "amount") ? deposit.amount : deposit.outputAmount;
 }
 
-export function getFillOutputAmount<T extends Pick<v2Fill, "amount">, U extends Pick<v3Fill, "outputAmount">>(fill: T | U): BN {
+export function getFillOutputAmount<T extends Pick<V2Fill, "amount">, U extends Pick<V3Fill, "outputAmount">>(fill: T | U): BN {
   return unsafeIsType<T, U>(fill, "amount") ? fill.amount : fill.outputAmount;
 }
 
-export function getFillAmount<T extends Pick<v2Fill, "fillAmount">, U extends Pick<v3Fill, "outputAmount">>(fill: T | U): BN {
+export function getFillAmount<T extends Pick<V2Fill, "fillAmount">, U extends Pick<V3Fill, "outputAmount">>(fill: T | U): BN {
   return unsafeIsType<T, U>(fill, "fillAmount") ? fill.fillAmount : fill.outputAmount;
 }
 
-export function getTotalFilledAmount<T extends Pick<v2Fill, "totalFilledAmount">, U extends Pick<v3Fill, "outputAmount">>(fill: T | U): BN {
+export function getTotalFilledAmount<T extends Pick<V2Fill, "totalFilledAmount">, U extends Pick<V3Fill, "outputAmount">>(fill: T | U): BN {
   return unsafeIsType<T, U>(fill, "totalFilledAmount") ? fill.totalFilledAmount : fill.outputAmount;
 }
 
-export function getRelayDataOutputToken<T extends Pick<v2RelayData, "destinationToken">, U extends Pick<v3RelayData, "outputToken">>(relayData: T | U): string {
+export function getRelayDataOutputToken<T extends Pick<V2RelayData, "destinationToken">, U extends Pick<V3RelayData, "outputToken">>(relayData: T | U): string {
   return isV2RelayData(relayData) ? relayData.destinationToken : relayData.outputToken;
 }
 
-export function getRelayDataOutputAmount<T extends Pick<v2RelayData, "amount">, U extends Pick<v3RelayData, "outputAmount">>(relayData: T | U): BN {
+export function getRelayDataOutputAmount<T extends Pick<V2RelayData, "amount">, U extends Pick<V3RelayData, "outputAmount">>(relayData: T | U): BN {
   return unsafeIsType<T, U>(relayData, "amount") ? relayData.amount : relayData.outputAmount;
 }
 
-export function getSlowFillLeafChainId<T extends { relayData: { destinationChainId: v2SlowFillLeaf["relayData"]["destinationChainId"] } }, U extends Pick<v3SlowFillLeaf, "chainId">>(leaf: T | U): number {
+export function getSlowFillLeafChainId<T extends { relayData: { destinationChainId: V2SlowFillLeaf["relayData"]["destinationChainId"] } }, U extends Pick<V3SlowFillLeaf, "chainId">>(leaf: T | U): number {
   return unsafeIsType<U, T>(leaf, "chainId") ? leaf.chainId : leaf.relayData.destinationChainId;
 }
