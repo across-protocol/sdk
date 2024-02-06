@@ -133,23 +133,9 @@ export interface V3SpeedUp extends SpeedUpCommon {
 
 export type SpeedUp = V2SpeedUp | V3SpeedUp;
 
-export interface SlowFillRequest {
-  depositId: number;
-  originChainId: number;
+export interface SlowFillRequest extends V3RelayData {
   destinationChainId: number;
-  depositor: string;
-  recipient: string;
-  inputToken: string;
-  inputAmount: BigNumber;
-  outputToken: string;
-  outputAmount: BigNumber;
-  message: string;
-  fillDeadline: number;
-  exclusivityDeadline: number;
-  exclusiveRelayer: string;
 }
-
-export interface SlowFillRequest extends V3RelayData {}
 export interface SlowFillRequestWithBlock extends SlowFillRequest, SortableEvent {}
 
 export interface V2SlowFillLeaf {
