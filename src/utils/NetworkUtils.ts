@@ -1,5 +1,5 @@
 import { PublicNetworks } from "@uma/common";
-import { PRODUCTION_CHAIN_IDS, TESTNET_CHAIN_IDS } from "../constants";
+import { CHAIN_IDs, PRODUCTION_CHAIN_IDS, TESTNET_CHAIN_IDS } from "../constants";
 
 /**
  * A list of networks that provide more resolution about a chainid -> network name
@@ -68,5 +68,14 @@ export function chainIsTestnet(chainId: number): boolean {
  * @returns True if chainId is an OP stack, otherwise false.
  */
 export function chainIsOPStack(chainId: number): boolean {
-  return [10, 8453, 69, 420, 84531].includes(chainId);
+  return [CHAIN_IDs.OPTIMISM, CHAIN_IDs.BASE, CHAIN_IDs.OPTIMISM_GOERLI, CHAIN_IDs.BASE_GOERLI].includes(chainId);
+}
+
+/**
+ * Determines whether a chain ID is an Arbitrum implementation.
+ * @param chainId Chain ID to evaluate.
+ * @returns True if chainId is an Arbitrum chain, otherwise false.
+ */
+export function chainIsArbitrum(chainId: number): boolean {
+  return [CHAIN_IDs.ARBITRUM, CHAIN_IDs.ARBITRUM_GOERLI].includes(chainId);
 }
