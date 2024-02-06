@@ -240,7 +240,7 @@ function getV3RelayHash(relayData: V3RelayData, destinationChainId: number): str
   );
 }
 
-export function getV3RelayHashFromEvent(e: V3Deposit | V3Fill | SlowFillRequest, destinationChainId: number): string {
+export function getV3RelayHashFromEvent(e: V3Deposit | V3Fill | SlowFillRequest): string {
   const relayData: V3RelayData = {
     depositor: e.depositor,
     recipient: e.recipient,
@@ -255,7 +255,7 @@ export function getV3RelayHashFromEvent(e: V3Deposit | V3Fill | SlowFillRequest,
     exclusivityDeadline: e.exclusivityDeadline,
     message: e.message,
   };
-  return getV3RelayHash(relayData, destinationChainId);
+  return getV3RelayHash(relayData, e.destinationChainId);
 }
 
 /**

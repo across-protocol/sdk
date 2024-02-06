@@ -9,6 +9,7 @@ import { getCurrentTime } from "./TimeUtils";
 import { isDefined } from "./TypeGuards";
 import { isDepositFormedCorrectly } from "./ValidatorUtils";
 import { isV2Deposit, isV3Deposit } from "./V3Utils";
+import { utils as sdkUtils } from "@across-protocol/sdk-v2";
 
 // Load a deposit for a fill if the fill's deposit ID is outside this client's search range.
 // This can be used by the Dataworker to determine whether to give a relayer a refund for a fill
@@ -98,7 +99,11 @@ export async function queryHistoricalDepositForFill(
   if (isDefined(cachedDeposit)) {
     deposit = cachedDeposit as DepositWithBlock;
   } else {
-    deposit = await spokePoolClient.findDeposit(fill.depositId, fill.destinationChainId, fill.depositor);
+    if (sdkUtils.isV2Fill(fill)) {
+      deposit = await spokePoolClient.findDeposit(fill.depositId, fill.destinationChainId, fill.depositor);
+    } else {
+      deposit = await spokePoolClient.findDepositV3(fill.depositId, fill.destinationChainId, fill.depositor);
+    }
     if (cache) {
       await setDepositInCache(deposit, getCurrentTime(), cache, DEFAULT_CACHING_TTL);
     }

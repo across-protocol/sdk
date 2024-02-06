@@ -996,7 +996,7 @@ export class SpokePoolClient extends BaseAbstractClient {
    * @returns The deposit if found.
    * @note This method is used to find deposits that are outside of the search range of this client.
    */
-  async findDeposit(depositId: number, destinationChainId: number, depositor: string): Promise<DepositWithBlock> {
+  async findDeposit(depositId: number, destinationChainId: number, depositor: string): Promise<V2DepositWithBlock> {
     // Binary search for block. This way we can get the blocks before and after the deposit with
     // deposit ID = fill.depositId and use those blocks to optimize the search for that deposit.
     // Stop searches after a maximum # of searches to limit number of eth_call requests. Make an
@@ -1044,11 +1044,11 @@ export class SpokePoolClient extends BaseAbstractClient {
           ` between ${srcChain} blocks [${searchBounds.low}, ${searchBounds.high}]`
       );
     }
-    const partialDeposit = spreadEventWithBlockNumber(event) as DepositWithBlock;
+    const partialDeposit = spreadEventWithBlockNumber(event) as V2DepositWithBlock;
     const { realizedLpFeePct, quoteBlock: quoteBlockNumber } = (await this.batchComputeRealizedLpFeePct([event]))[0]; // Append the realizedLpFeePct.
 
     // Append destination token and realized lp fee to deposit.
-    const deposit: DepositWithBlock = {
+    const deposit: V2DepositWithBlock = {
       ...partialDeposit,
       realizedLpFeePct,
       destinationToken: this.getDestinationTokenForDeposit(partialDeposit),
@@ -1058,6 +1058,81 @@ export class SpokePoolClient extends BaseAbstractClient {
     this.logger.debug({
       at: "SpokePoolClient#findDeposit",
       message: "Located deposit outside of SpokePoolClient's search range",
+      deposit,
+      elapsedMs: tStop - tStart,
+    });
+
+    return deposit;
+  }
+
+  async findDepositV3(depositId: number, destinationChainId: number, depositor: string): Promise<V3DepositWithBlock> {
+    // Binary search for block. This way we can get the blocks before and after the deposit with
+    // deposit ID = fill.depositId and use those blocks to optimize the search for that deposit.
+    // Stop searches after a maximum # of searches to limit number of eth_call requests. Make an
+    // eth_getLogs call on the remaining block range (i.e. the [low, high] remaining from the binary
+    // search) to find the target deposit ID.
+    //
+    // @dev Limiting between 5-10 searches empirically performs best when there are ~300,000 deposits
+    // for a spoke pool and we're looking for a deposit <5 days older than HEAD.
+    const searchBounds = await this._getBlockRangeForDepositId(
+      depositId,
+      this.deploymentBlock,
+      this.latestBlockSearched,
+      7
+    );
+
+    const tStart = Date.now();
+    const query = await paginatedEventQuery(
+      this.spokePool,
+      this.spokePool.filters.V3FundsDeposited(
+        null,
+        null,
+        null,
+        null,
+        destinationChainId,
+        depositId,
+        null,
+        null,
+        null,
+        depositor,
+        null,
+        null,
+        null
+      ),
+      {
+        fromBlock: searchBounds.low,
+        toBlock: searchBounds.high,
+        maxBlockLookBack: this.eventSearchConfig.maxBlockLookBack,
+      }
+    );
+    const tStop = Date.now();
+
+    const event = (query as V3FundsDepositedEvent[]).find((deposit) => deposit.args.depositId === depositId);
+    if (event === undefined) {
+      const srcChain = getNetworkName(this.chainId);
+      const dstChain = getNetworkName(destinationChainId);
+      throw new Error(
+        `Could not find deposit ${depositId} for ${dstChain} fill` +
+          ` between ${srcChain} blocks [${searchBounds.low}, ${searchBounds.high}]`
+      );
+    }
+    const partialDeposit = spreadEventWithBlockNumber(event) as V3DepositWithBlock;
+    const { realizedLpFeePct, quoteBlock: quoteBlockNumber } = (await this.batchComputeRealizedLpFeePct([event]))[0]; // Append the realizedLpFeePct.
+
+    // Append destination token and realized lp fee to deposit.
+    const deposit: V3DepositWithBlock = {
+      ...partialDeposit,
+      realizedLpFeePct,
+      quoteBlockNumber,
+      outputToken:
+        partialDeposit.outputToken === ZERO_ADDRESS
+          ? this.getDestinationTokenForDeposit(partialDeposit)
+          : partialDeposit.outputToken,
+    };
+
+    this.logger.debug({
+      at: "SpokePoolClient#findDepositV3",
+      message: "Located V3 deposit outside of SpokePoolClient's search range",
       deposit,
       elapsedMs: tStop - tStart,
     });
