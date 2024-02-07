@@ -807,13 +807,9 @@ export class SpokePoolClient extends BaseAbstractClient {
     if (eventsToQuery.includes("RequestedV3SlowFill")) {
       const slowFillRequests = queryResults[eventsToQuery.indexOf("RequestedV3SlowFill")];
       for (const event of slowFillRequests) {
-        const { blockNumber, transactionHash, transactionIndex } = event;
         const slowFillRequest: SlowFillRequestWithBlock = {
-          ...spreadEvent(event.args),
+          ...(spreadEventWithBlockNumber(event) as SlowFillRequestWithBlock),
           destinationChainId: this.chainId,
-          blockNumber,
-          transactionHash,
-          transactionIndex,
         };
         const relayDataHash = getRelayDataHash(slowFillRequest, this.chainId);
         this.slowFillRequests[relayDataHash] = slowFillRequest;
