@@ -11,10 +11,12 @@ import {
   SlowFillRequestWithBlock,
   V2DepositWithBlock,
   V2FillWithBlock,
+  V2RelayerRefundExecutionWithBlock,
   V2SpeedUp,
   V3DepositWithBlock,
   V3Fill,
   V3FillWithBlock,
+  V3RelayerRefundExecutionWithBlock,
   V3SlowFillLeaf,
   V3SpeedUp,
 } from "../../interfaces";
@@ -400,6 +402,62 @@ export class MockSpokePoolClient extends SpokePoolClient {
     };
 
     return this.fillV3Relay(fill as V3FillWithBlock);
+  }
+
+  executeRelayerRefundLeaf(refund: V2RelayerRefundExecutionWithBlock): Event {
+    const event = "ExecutedRelayerRefundRoot";
+
+    const chainId = refund.chainId ?? this.chainId;
+    assert(chainId === this.chainId);
+
+    const { rootBundleId, leafId } = refund;
+    const topics = [chainId, rootBundleId, leafId];
+    const args = {
+      chainId,
+      rootBundleId,
+      leafId,
+      amountToReturn: refund.amountToReturn,
+      l2TokenAddress: refund.l2TokenAddress,
+      refundAddresses: refund.refundAddresses,
+      refundAmounts: refund.refundAmounts,
+    };
+
+    return this.eventManager.generateEvent({
+      event,
+      address: this.spokePool.address,
+      topics: topics.map((topic) => topic.toString()),
+      args,
+      blockNumber: refund.blockNumber,
+    });
+  }
+
+  executeV3RelayerRefundLeaf(refund: V3RelayerRefundExecutionWithBlock): Event {
+    const event = "ExecutedV3RelayerRefundRoot";
+
+    const chainId = refund.chainId ?? this.chainId;
+    assert(chainId === this.chainId);
+
+    const { rootBundleId, leafId } = refund;
+    const topics = [chainId, rootBundleId, leafId];
+    const args = {
+      chainId,
+      rootBundleId,
+      leafId,
+      amountToReturn: refund.amountToReturn,
+      l2TokenAddress: refund.l2TokenAddress,
+      refundAddresses: refund.refundAddresses,
+      refundAmounts: refund.refundAmounts,
+      fillsRefundedRoot: refund.fillsRefundedRoot,
+      fillsRefundedHash: refund.fillsRefundedHash,
+    };
+
+    return this.eventManager.generateEvent({
+      event,
+      address: this.spokePool.address,
+      topics: topics.map((topic) => topic.toString()),
+      args,
+      blockNumber: refund.blockNumber,
+    });
   }
 
   setEnableRoute(
