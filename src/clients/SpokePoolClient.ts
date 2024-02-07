@@ -1,3 +1,4 @@
+import assert from "assert";
 import { BigNumber, Contract, Event, EventFilter, ethers } from "ethers";
 import { groupBy } from "lodash";
 import winston from "winston";
@@ -300,9 +301,11 @@ export class SpokePoolClient extends BaseAbstractClient {
 
     if (isV2Deposit(deposit)) {
       const v2SpeedUps = this.speedUps[depositor]?.[depositId]?.filter(isV2SpeedUp);
-      const maxSpeedUp = v2SpeedUps?.reduce((prev, current) =>
-        prev.newRelayerFeePct.gt(current.newRelayerFeePct) ? prev : current
-      );
+      const maxSpeedUp = v2SpeedUps?.reduce((prev, current) => {
+        assert(isV2SpeedUp(prev) && isV2SpeedUp(current)); // tsc hinting.
+        return prev.newRelayerFeePct.gt(current.newRelayerFeePct) ? prev : current
+      });
+      assert(!isDefined(maxSpeedUp) || isV2SpeedUp(maxSpeedUp)); // tsc hinting.
 
       // We assume that the depositor authorises SpeedUps in isolation of each other, which keeps the relayer
       // logic simple: find the SpeedUp with the highest relayerFeePct, and use all of its fields
@@ -323,9 +326,11 @@ export class SpokePoolClient extends BaseAbstractClient {
     }
 
     const V3SpeedUps = this.speedUps[depositor]?.[depositId]?.filter(isV3SpeedUp);
-    const maxSpeedUp = V3SpeedUps?.reduce((prev, current) =>
-      prev.updatedOutputAmount.lt(current.updatedOutputAmount) ? prev : current
-    );
+    const maxSpeedUp = V3SpeedUps?.reduce((prev, current) => {
+      assert(isV3SpeedUp(prev) && isV3SpeedUp(current)); // tsc hinting.
+      return prev.updatedOutputAmount.lt(current.updatedOutputAmount) ? prev : current
+    });
+    assert(!isDefined(maxSpeedUp) || isV3SpeedUp(maxSpeedUp)); // tsc hinting.
 
     // We assume that the depositor authorises SpeedUps in isolation of each other, which keeps the relayer
     // logic simple: find the SpeedUp with the lowest updatedOutputAmount, and use all of its fields.

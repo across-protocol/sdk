@@ -8,7 +8,6 @@ import {
   CancelledRootBundle,
   CrossChainContractsSet,
   Deposit,
-  DepositWithBlock,
   DestinationTokenWithBlock,
   DisputedRootBundle,
   ExecutedRootBundle,
@@ -249,8 +248,7 @@ export class HubPoolClient extends BaseAbstractClient {
     // L1-->L2 token mappings are set via PoolRebalanceRoutes which occur on mainnet,
     // so we use the latest token mapping. This way if a very old deposit is filled, the relayer can use the
     // latest L2 token mapping to find the L1 token counterpart.
-    // @todo Remove type assertion once new generics PR is merged.
-    const inputToken = getDepositInputToken(deposit as DepositWithBlock);
+    const inputToken = getDepositInputToken(deposit);
     return this.getL1TokenForL2TokenAtBlock(inputToken, deposit.originChainId, deposit.quoteBlockNumber);
   }
 
@@ -358,12 +356,11 @@ export class HubPoolClient extends BaseAbstractClient {
     }
 
     const deposits: V3PartialDepositWithBlock[] = _deposits.map((deposit) => {
-      // @todo Remove type assertion once new generics PR is merged.
-      if (isV3Deposit(deposit as DepositWithBlock)) {
-        return deposit as V3DepositWithBlock;
+      if (isV3Deposit(deposit)) {
+        return deposit;
       }
 
-      const { originToken: inputToken, amount: inputAmount, ...partialDeposit } = deposit as V2DepositWithBlock;
+      const { originToken: inputToken, amount: inputAmount, ...partialDeposit } = deposit;
       const v3Deposit: V3PartialDepositWithBlock = {
         ...partialDeposit,
         inputToken,
