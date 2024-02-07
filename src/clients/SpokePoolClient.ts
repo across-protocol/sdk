@@ -721,12 +721,12 @@ export class SpokePoolClient extends BaseAbstractClient {
     if (eventsToQuery.includes("FundsDeposited") || eventsToQuery.includes("V3FundsDeposited")) {
       // Filter out any early v2 deposits (quoteTimestamp > HubPoolClient.currentTime). Early deposits are no longer a
       // critical risk in V3, so don't worry about filtering those. This will reduce complexity in several places.
-      const { earlyDeposits = [], V2DepositEvents = [] } = groupBy(
+      const { earlyDeposits = [], v2DepositEvents = [] } = groupBy(
         [
           ...this.earlyDeposits,
           ...((queryResults[eventsToQuery.indexOf("FundsDeposited")] ?? []) as FundsDepositedEvent[]),
         ],
-        (depositEvent) => (this._isEarlyDeposit(depositEvent, currentTime) ? "earlyDeposits" : "V2DepositEvents")
+        (depositEvent) => (this._isEarlyDeposit(depositEvent, currentTime) ? "earlyDeposits" : "v2DepositEvents")
       );
       if (earlyDeposits.length > 0) {
         this.logger.debug({
@@ -739,7 +739,7 @@ export class SpokePoolClient extends BaseAbstractClient {
       this.earlyDeposits = earlyDeposits;
 
       const depositEvents = [
-        ...V2DepositEvents,
+        ...v2DepositEvents,
         ...((queryResults[eventsToQuery.indexOf("V3FundsDeposited")] ?? []) as V3FundsDepositedEvent[]),
       ];
       if (depositEvents.length > 0) {
