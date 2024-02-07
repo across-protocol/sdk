@@ -71,18 +71,16 @@ export function validateFillForDeposit(
   }
 
   // If fill is a slow fill request, then deposit must be a v3 deposit or return false.
-  if (isSlowFillRequest(fill)) {
-    if (isV3Deposit(deposit)) {
+  if (isSlowFillRequest(fill) && !isV2Fill(fill) && isV3Deposit(deposit)) {
       return V3_DEPOSIT_COMPARISON_KEYS.every((key) => {
         if (fillFieldsToIgnore.includes(key)) {
           return true;
         }
         return fill[key] !== undefined && fill[key].toString() === deposit[key]?.toString();
       });
-    }
   } else {
     // If fill is a fill, then compare the fill to the correct V2 or V3 type of deposit.
-    if (isV2Deposit(deposit) && isV2Fill(fill as Fill)) {
+    if (isV2Deposit(deposit) && isV2Fill(fill)) {
       return V2_DEPOSIT_COMPARISON_KEYS.every((key) => {
         if (fillFieldsToIgnore.includes(key)) {
           return true;

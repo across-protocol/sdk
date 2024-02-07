@@ -1,6 +1,7 @@
 import {
   Fill,
   FillType,
+  SlowFillRequest,
   V2Deposit,
   V2Fill,
   V2RelayData,
