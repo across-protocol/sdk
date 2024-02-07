@@ -8,7 +8,7 @@ import { validateFillForDeposit } from "./FlowUtils";
 import { getCurrentTime } from "./TimeUtils";
 import { isDefined } from "./TypeGuards";
 import { isDepositFormedCorrectly } from "./ValidatorUtils";
-import { isSlowFillRequest, isV2Deposit, isV2Fill, isV3Deposit, isV3Fill } from "./V3Utils";
+import { isSlowFillRequest, isV2Deposit, isV3Deposit, isV3Fill } from "./V3Utils";
 
 // Load a deposit for a fill if the fill's deposit ID is outside this client's search range.
 // This can be used by the Dataworker to determine whether to give a relayer a refund for a fill
