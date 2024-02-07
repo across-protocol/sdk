@@ -303,7 +303,7 @@ export class SpokePoolClient extends BaseAbstractClient {
       const v2SpeedUps = this.speedUps[depositor]?.[depositId]?.filter(isV2SpeedUp);
       const maxSpeedUp = v2SpeedUps?.reduce((prev, current) => {
         assert(isV2SpeedUp(prev) && isV2SpeedUp(current)); // tsc hinting.
-        return prev.newRelayerFeePct.gt(current.newRelayerFeePct) ? prev : current
+        return prev.newRelayerFeePct.gt(current.newRelayerFeePct) ? prev : current;
       });
       assert(!isDefined(maxSpeedUp) || isV2SpeedUp(maxSpeedUp)); // tsc hinting.
 
@@ -328,7 +328,7 @@ export class SpokePoolClient extends BaseAbstractClient {
     const V3SpeedUps = this.speedUps[depositor]?.[depositId]?.filter(isV3SpeedUp);
     const maxSpeedUp = V3SpeedUps?.reduce((prev, current) => {
       assert(isV3SpeedUp(prev) && isV3SpeedUp(current)); // tsc hinting.
-      return prev.updatedOutputAmount.lt(current.updatedOutputAmount) ? prev : current
+      return prev.updatedOutputAmount.lt(current.updatedOutputAmount) ? prev : current;
     });
     assert(!isDefined(maxSpeedUp) || isV3SpeedUp(maxSpeedUp)); // tsc hinting.
 
