@@ -324,6 +324,9 @@ describe("SpokePoolClient: Event Filtering", function () {
       const slowFillRequest = destinationSpokePoolClient.getSlowFillRequest(relayData);
       expect(slowFillRequest).to.not.be.undefined;
 
+      // The SpokePoolClient appends destinationChainId, so check for it specifically.
+      expect(slowFillRequest?.destinationChainId).to.not.be.undefined;
+      expect(slowFillRequest?.destinationChainId).to.equal(destinationChainId);
       Object.entries(relayData).forEach(
         ([k, v]) => expect(isDefined(v)).to.equal(true) && expect(slowFillRequest?.[k]).to.equal(v)
       );
