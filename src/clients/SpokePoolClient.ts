@@ -664,10 +664,12 @@ export class SpokePoolClient extends BaseAbstractClient {
   }
 
   isV3DepositEvent(event: FundsDepositedEvent | V3FundsDepositedEvent): event is V3FundsDepositedEvent {
+    // @todo Remove type assertion once new generics PR is merged.
     return isDefined((event as V3FundsDepositedEvent).args.inputToken);
   }
 
   isV3FillEvent(event: FilledRelayEvent | FilledV3RelayEvent): event is FilledV3RelayEvent {
+    // @todo Remove type assertion once new generics PR is merged.
     return isDefined((event as FilledV3RelayEvent).args.inputToken);
   }
 
