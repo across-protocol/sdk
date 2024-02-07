@@ -68,7 +68,14 @@ export function chainIsTestnet(chainId: number): boolean {
  * @returns True if chainId is an OP stack, otherwise false.
  */
 export function chainIsOPStack(chainId: number): boolean {
-  return [CHAIN_IDs.OPTIMISM, CHAIN_IDs.BASE, CHAIN_IDs.OPTIMISM_GOERLI, CHAIN_IDs.BASE_GOERLI].includes(chainId);
+  return [
+    CHAIN_IDs.OPTIMISM,
+    CHAIN_IDs.BASE,
+    CHAIN_IDs.OPTIMISM_GOERLI,
+    CHAIN_IDs.BASE_GOERLI,
+    CHAIN_IDs.OPTIMISM_SEPOLIA,
+    CHAIN_IDs.BASE_SEPOLIA,
+  ].includes(chainId);
 }
 
 /**
