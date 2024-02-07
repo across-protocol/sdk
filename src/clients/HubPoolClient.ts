@@ -278,7 +278,10 @@ export class HubPoolClient extends BaseAbstractClient {
     chainIdB: number,
     latestHubBlock = Number.MAX_SAFE_INTEGER
   ): boolean {
-    return this.getL1TokenForL2TokenAtBlock(tokenA, chainIdA, latestHubBlock) === this.getL1TokenForL2TokenAtBlock(tokenB, chainIdB, latestHubBlock);
+    return (
+      this.getL1TokenForL2TokenAtBlock(tokenA, chainIdA, latestHubBlock) ===
+      this.getL1TokenForL2TokenAtBlock(tokenB, chainIdB, latestHubBlock)
+    );
   }
 
   l2TokenEnabledForL1Token(l1Token: string, destinationChainId: number): boolean {
