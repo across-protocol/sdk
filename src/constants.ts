@@ -28,7 +28,7 @@ export const PROTOCOL_DEFAULT_CHAIN_ID_INDICES = [1, 10, 137, 288, 42161];
 
 // See src/utils/NetworkUtils for helpers.
 export const PRODUCTION_CHAIN_IDS = [1, 10, 137, 324, 8453, 42161];
-export const TESTNET_CHAIN_IDS = [5, 11155111, 280, 420, 80001, 84531, 84532, 421613];
+export const TESTNET_CHAIN_IDS = [5, 280, 300, 420, 80001, 80002, 84531, 84532, 421613, 421614, 11155111, 11155420];
 
 export const PUBLIC_NETWORKS: { [chainId: number]: { name: string; etherscan: string } } = {
   1: {
