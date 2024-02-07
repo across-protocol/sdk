@@ -249,7 +249,7 @@ export class HubPoolClient extends BaseAbstractClient {
     // so we use the latest token mapping. This way if a very old deposit is filled, the relayer can use the
     // latest L2 token mapping to find the L1 token counterpart.
     // @todo Remove type assertion once new generics PR is merged.
-    const inputToken = getDepositInputToken(deposit as DepositWithBlock);
+    const inputToken = getDepositInputToken(deposit);
     return this.getL1TokenForL2TokenAtBlock(inputToken, deposit.originChainId, deposit.quoteBlockNumber);
   }
 
