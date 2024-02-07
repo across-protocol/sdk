@@ -77,5 +77,5 @@ export function chainIsOPStack(chainId: number): boolean {
  * @returns True if chainId is an Arbitrum chain, otherwise false.
  */
 export function chainIsArbitrum(chainId: number): boolean {
-  return [CHAIN_IDs.ARBITRUM, CHAIN_IDs.ARBITRUM_GOERLI].includes(chainId);
+  return [CHAIN_IDs.ARBITRUM, CHAIN_IDs.ARBITRUM_GOERLI, CHAIN_IDs.ARBITRUM_SEPOLIA].includes(chainId);
 }
