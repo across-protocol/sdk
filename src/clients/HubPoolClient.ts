@@ -374,10 +374,9 @@ export class HubPoolClient extends BaseAbstractClient {
       throw new Error("HubPoolClient has not set a currentTime");
     }
 
-    const deposits: V3PartialDepositWithBlock[] = _deposits.map((deposit) => {
-      // @todo Remove type assertion once new generics PR is merged.
-      if (isV3Deposit(deposit as DepositWithBlock)) {
-        return deposit as V3DepositWithBlock;
+    const deposits = _deposits.map((deposit) => {
+      if (isV3Deposit(deposit)) {
+        return deposit;
       }
 
       const { originToken: inputToken, amount: inputAmount, ...partialDeposit } = deposit;
