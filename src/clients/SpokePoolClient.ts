@@ -324,8 +324,8 @@ export class SpokePoolClient extends BaseAbstractClient {
       return updatedDeposit;
     }
 
-    const V3SpeedUps = this.speedUps[depositor]?.[depositId]?.filter(isV3SpeedUp);
-    const maxSpeedUp = V3SpeedUps?.reduce((prev, current) => {
+    const v3SpeedUps = this.speedUps[depositor]?.[depositId]?.filter(isV3SpeedUp);
+    const maxSpeedUp = v3SpeedUps?.reduce((prev, current) => {
       assert(isV3SpeedUp(prev) && isV3SpeedUp(current)); // tsc hinting.
       return prev.updatedOutputAmount.lt(current.updatedOutputAmount) ? prev : current;
     });
