@@ -47,11 +47,13 @@ import {
   V2DepositWithBlock,
   V2FillWithBlock,
   V2RelayerRefundExecutionWithBlock,
+  V2SpeedUp,
   V3DepositWithBlock,
   V3FillWithBlock,
   V3FundsDepositedEvent,
   V3RelayData,
   V3RelayerRefundExecutionWithBlock,
+  V3SpeedUp,
 } from "../interfaces";
 import { SpokePool } from "../typechain";
 import { getNetworkName } from "../utils/NetworkUtils";
@@ -298,14 +300,16 @@ export class SpokePoolClient extends BaseAbstractClient {
    */
   public appendMaxSpeedUpSignatureToDeposit(deposit: DepositWithBlock): DepositWithBlock {
     const { depositId, depositor } = deposit;
+    const depositorSpeedUps = this.speedUps[depositor]?.[depositId];
+    if (!isDefined(depositorSpeedUps)) {
+      return deposit;
+    }
 
     if (isV2Deposit(deposit)) {
-      const v2SpeedUps = this.speedUps[depositor]?.[depositId]?.filter(isV2SpeedUp);
-      const maxSpeedUp = v2SpeedUps?.reduce((prev, current) => {
-        assert(isV2SpeedUp(prev) && isV2SpeedUp(current)); // tsc hinting.
-        return prev.newRelayerFeePct.gt(current.newRelayerFeePct) ? prev : current;
-      });
-      assert(!isDefined(maxSpeedUp) || isV2SpeedUp(maxSpeedUp)); // tsc hinting.
+      const v2SpeedUps = depositorSpeedUps.filter((speedUp): speedUp is V2SpeedUp => isV2SpeedUp(speedUp));
+      const maxSpeedUp = v2SpeedUps?.reduce((prev, current) =>
+        prev.newRelayerFeePct.gt(current.newRelayerFeePct) ? prev : current
+      );
 
       // We assume that the depositor authorises SpeedUps in isolation of each other, which keeps the relayer
       // logic simple: find the SpeedUp with the highest relayerFeePct, and use all of its fields
@@ -325,12 +329,10 @@ export class SpokePoolClient extends BaseAbstractClient {
       return updatedDeposit;
     }
 
-    const v3SpeedUps = this.speedUps[depositor]?.[depositId]?.filter(isV3SpeedUp);
-    const maxSpeedUp = v3SpeedUps?.reduce((prev, current) => {
-      assert(isV3SpeedUp(prev) && isV3SpeedUp(current)); // tsc hinting.
-      return prev.updatedOutputAmount.lt(current.updatedOutputAmount) ? prev : current;
-    });
-    assert(!isDefined(maxSpeedUp) || isV3SpeedUp(maxSpeedUp)); // tsc hinting.
+    const v3SpeedUps = depositorSpeedUps.filter((speedUp): speedUp is V3SpeedUp => isV3SpeedUp(speedUp));
+    const maxSpeedUp = v3SpeedUps?.reduce((prev, current) =>
+      prev.updatedOutputAmount.lt(current.updatedOutputAmount) ? prev : current
+    );
 
     // We assume that the depositor authorises SpeedUps in isolation of each other, which keeps the relayer
     // logic simple: find the SpeedUp with the lowest updatedOutputAmount, and use all of its fields.
