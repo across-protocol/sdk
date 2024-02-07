@@ -718,7 +718,7 @@ export class SpokePoolClient extends BaseAbstractClient {
     // hubPoolClient is updated on the first before this call as this needed the the L1 token mapping to each L2 token.
     if (eventsToQuery.includes("FundsDeposited") || eventsToQuery.includes("V3FundsDeposited")) {
       // Filter out any early v2 deposits (quoteTimestamp > HubPoolClient.currentTime). Early deposits are no longer a
-      // critical risk in V3, so don't worry about filtering those. This will reduce complexity in several places.
+      // critical risk in v3, so don't worry about filtering those. This will reduce complexity in several places.
       const { earlyDeposits = [], v2DepositEvents = [] } = groupBy(
         [
           ...this.earlyDeposits,
