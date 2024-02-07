@@ -271,6 +271,16 @@ export class HubPoolClient extends BaseAbstractClient {
     return this.getL2TokenForL1TokenAtBlock(l1Token, l2ChainId, deposit.quoteBlockNumber);
   }
 
+  l2TokensAreEquivalent(
+    tokenA: string,
+    chainIdA: number,
+    tokenB: string,
+    chainIdB: number,
+    latestHubBlock = Number.MAX_SAFE_INTEGER
+  ): boolean {
+    return this.getL1TokenForL2TokenAtBlock(tokenA, chainIdA, latestHubBlock) === this.getL1TokenForL2TokenAtBlock(tokenB, chainIdB, latestHubBlock);
+  }
+
   l2TokenEnabledForL1Token(l1Token: string, destinationChainId: number): boolean {
     return this.l1TokensToDestinationTokens[l1Token][destinationChainId] != undefined;
   }
