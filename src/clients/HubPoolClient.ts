@@ -355,7 +355,7 @@ export class HubPoolClient extends BaseAbstractClient {
       throw new Error("HubPoolClient has not set a currentTime");
     }
 
-    const deposits: V3PartialDepositWithBlock[] = _deposits.map((deposit) => {
+    const deposits = _deposits.map((deposit) => {
       if (isV3Deposit(deposit)) {
         return deposit;
       }
