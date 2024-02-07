@@ -760,7 +760,7 @@ export class SpokePoolClient extends BaseAbstractClient {
         deposit.quoteBlockNumber = quoteBlockNumber;
 
         if (this.depositHashes[this.getDepositHash(deposit)] !== undefined) {
-          throw new Error(`SpokePoolClient: Duplicate deposit for relayDataHash: ${this.getDepositHash(deposit)}`)
+          throw new Error(`SpokePoolClient: Duplicate deposit for relayDataHash: ${this.getDepositHash(deposit)}`);
         }
         assign(this.depositHashes, [this.getDepositHash(deposit)], deposit);
 
@@ -813,7 +813,7 @@ export class SpokePoolClient extends BaseAbstractClient {
         };
         const relayDataHash = getRelayDataHash(slowFillRequest, this.chainId);
         if (this.slowFillRequests[relayDataHash] !== undefined) {
-          throw new Error(`SpokePoolClient: Duplicate slow fill request for relayDataHash: ${relayDataHash}`)
+          throw new Error(`SpokePoolClient: Duplicate slow fill request for relayDataHash: ${relayDataHash}`);
         }
         this.slowFillRequests[relayDataHash] = slowFillRequest;
       }

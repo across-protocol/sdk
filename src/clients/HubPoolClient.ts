@@ -282,7 +282,7 @@ export class HubPoolClient extends BaseAbstractClient {
       return (
         this.getL1TokenForL2TokenAtBlock(tokenA, chainIdA, latestHubBlock) ===
         this.getL1TokenForL2TokenAtBlock(tokenB, chainIdB, latestHubBlock)
-      );  
+      );
     } catch (err) {
       return false;
     }
