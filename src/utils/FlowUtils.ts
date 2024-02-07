@@ -49,7 +49,10 @@ export function filledSameDeposit(fillA: Fill, fillB: Fill): boolean {
       fillA.outputToken === fillB.outputToken &&
       fillA.message === fillB.message &&
       fillA.inputAmount.eq(fillB.inputAmount) &&
-      fillA.outputAmount.eq(fillB.outputAmount)
+      fillA.outputAmount.eq(fillB.outputAmount) &&
+      fillA.fillDeadline === fillB.fillDeadline &&
+      fillA.exclusivityDeadline === fillB.exclusivityDeadline &&
+      fillA.exclusiveRelayer === fillB.exclusiveRelayer
     );
   }
 
