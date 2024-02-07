@@ -878,7 +878,7 @@ export class SpokePoolClient extends BaseAbstractClient {
 
     // Exact sequencing of relayer refund executions doesn't seem to be important. There are very few consumers of
     // these objects, and they are typically used to search for a specific rootBundleId & leafId pair. Therefore,
-    // there's relayerRefundExecutions don't need exact sequencing and parsing of v2/v3 events can occur separately.
+    // relayerRefundExecutions don't need exact sequencing and parsing of v2/v3 events can occur without sorting.
     if (eventsToQuery.includes("ExecutedRelayerRefundRoot") || eventsToQuery.includes("ExecutedV3RelayerRefundRoot")) {
       const v2RefundEvents = queryResults[eventsToQuery.indexOf("ExecutedRelayerRefundRoot")] ?? [];
       for (const event of v2RefundEvents) {
