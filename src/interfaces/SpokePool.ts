@@ -103,7 +103,6 @@ export interface V2Fill extends V2RelayData {
 
 export interface V3Fill extends V3RelayData {
   destinationChainId: number;
-  realizedLpFeePct: BigNumber;
   relayer: string;
   repaymentChainId: number;
   updatableRelayData: V3RelayExecutionEventInfo;

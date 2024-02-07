@@ -392,7 +392,6 @@ export class MockSpokePoolClient extends SpokePoolClient {
       destinationChainId: this.chainId,
       relayer: ZERO_ADDRESS,
       repaymentChainId: 0,
-      realizedLpFeePct: bnZero, // @todo
       updatableRelayData: {
         recipient: leaf.relayData.recipient,
         outputAmount: leaf.updatedOutputAmount,
