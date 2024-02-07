@@ -8,7 +8,6 @@ import {
   CancelledRootBundle,
   CrossChainContractsSet,
   Deposit,
-  DepositWithBlock,
   DestinationTokenWithBlock,
   DisputedRootBundle,
   ExecutedRootBundle,
