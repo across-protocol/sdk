@@ -90,7 +90,6 @@ export function validateFillForDeposit(
         return fill[key] !== undefined && fill[key].toString() === deposit[key]?.toString();
       });
     }
-
     if (isV3Deposit(deposit) && isV3Fill(fill)) {
       return V3_DEPOSIT_COMPARISON_KEYS.every((key) => {
         if (fillFieldsToIgnore.includes(key)) {
