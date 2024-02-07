@@ -88,18 +88,18 @@ export function isSlowFill(fill: Fill): boolean {
   return isV2Fill(fill) ? fill.updatableRelayData.isSlowRelay : fill.updatableRelayData.fillType === FillType.SlowFill;
 }
 
-type MinV2SlowFillLeaf = Pick<V2SlowFillLeaf, "payoutAdjustmentPct" | "relayData">;
-type MinV3SlowFillLeaf = Pick<V3SlowFillLeaf, "updatedOutputAmount" | "relayData">;
+type MinV2SlowFillLeaf = Pick<V2SlowFillLeaf, "payoutAdjustmentPct">;
+type MinV3SlowFillLeaf = Pick<V3SlowFillLeaf, "updatedOutputAmount">;
 export function isV2SlowFillLeaf<T extends MinV2SlowFillLeaf, U extends MinV3SlowFillLeaf>(
   slowFillLeaf: T | U
 ): slowFillLeaf is T {
-  return unsafeIsType<T, U>(slowFillLeaf, "payoutAdjustmentPct") && isV2RelayData(slowFillLeaf.relayData);
+  return unsafeIsType<T, U>(slowFillLeaf, "payoutAdjustmentPct");
 }
 
 export function isV3SlowFillLeaf<T extends MinV3SlowFillLeaf, U extends MinV2SlowFillLeaf>(
   slowFillLeaf: T | U
 ): slowFillLeaf is T {
-  return unsafeIsType<T, U>(slowFillLeaf, "updatedOutputAmount") && isV3RelayData(slowFillLeaf.relayData);
+  return unsafeIsType<T, U>(slowFillLeaf, "updatedOutputAmount");
 }
 
 type MinV2RelayerRefundLeaf = Pick<V2RelayerRefundLeaf, "amountToReturn">;
