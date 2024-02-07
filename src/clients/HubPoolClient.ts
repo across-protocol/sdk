@@ -361,13 +361,7 @@ export class HubPoolClient extends BaseAbstractClient {
       }
 
       const { originToken: inputToken, amount: inputAmount, ...partialDeposit } = deposit;
-      const v3Deposit: V3PartialDepositWithBlock = {
-        ...partialDeposit,
-        inputToken,
-        inputAmount,
-      };
-
-      return v3Deposit;
+      return { ...partialDeposit, inputToken, inputAmount };
     });
 
     // Map SpokePool token addresses to HubPool token addresses.
