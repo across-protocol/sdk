@@ -831,6 +831,8 @@ export class SpokePoolClient extends BaseAbstractClient {
         });
       }
 
+      // @note The type assertions here suppress errors that might arise due to incomplete types. For now, verify via
+      // test that the types are complete. A broader change in strategy for safely unpacking events will be introduced.
       for (const event of fillEvents) {
         const fill = this.isV3FillEvent(event)
           ? { ...(spreadEventWithBlockNumber(event) as V3FillWithBlock), destinationChainId: this.chainId }
