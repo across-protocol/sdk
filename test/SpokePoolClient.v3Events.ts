@@ -59,14 +59,14 @@ describe("SpokePoolClient: Event Filtering", function () {
     const originToken = randomAddress();
     const message = EMPTY_MESSAGE;
     const quoteTimestamp = getCurrentTime() - 10;
-    return spokePoolClient.deposit({ originToken, message, quoteTimestamp } as V2DepositWithBlock);
+    return spokePoolClient.deposit({ destinationChainId, originToken, message, quoteTimestamp } as V2DepositWithBlock);
   };
 
   const generateV3Deposit = (spokePoolClient: MockSpokePoolClient): Event => {
     const inputToken = randomAddress();
     const message = EMPTY_MESSAGE;
     const quoteTimestamp = getCurrentTime() - 10;
-    return spokePoolClient.depositV3({ inputToken, message, quoteTimestamp } as v3DepositWithBlock);
+    return spokePoolClient.depositV3({ destinationChainId, inputToken, message, quoteTimestamp } as V3DepositWithBlock);
   };
 
   beforeEach(async function () {
@@ -136,7 +136,7 @@ describe("SpokePoolClient: Event Filtering", function () {
   });
 
   it("Correctly retrieves FundsDepositedV3 events", async function () {
-    // Inject a series of V2DepositWithBlock and v3DepositWithBlock events.
+    // Inject a series of V2DepositWithBlock and V3DepositWithBlock events.
     const depositEvents: Event[] = [];
 
     for (let idx = 0; idx < 10; ++idx) {
@@ -165,7 +165,7 @@ describe("SpokePoolClient: Event Filtering", function () {
   });
 
   it("Correctly retrieves SpeedUp events", async function () {
-    // Inject a series of V2SpeedUp and v3SpeedUp events.
+    // Inject a series of V2SpeedUp and V3SpeedUp events.
     const speedUpEvents: Event[] = [];
     const updateEvents = [...fundsDepositedEvents, ...requestedSpeedUpEvents];
 
@@ -270,7 +270,7 @@ describe("SpokePoolClient: Event Filtering", function () {
     // Inject a series of v2DepositWithBlock and v3DepositWithBlock events.
     const requests: Event[] = [];
 
-    const slowFillRequestFromDeposit = (deposit: v3DepositWithBlock): SlowFillRequest => {
+    const slowFillRequestFromDeposit = (deposit: V3DepositWithBlock): SlowFillRequest => {
       const { realizedLpFeePct, blockNumber, ...partialDeposit } = deposit;
       return { ...partialDeposit };
     };
@@ -360,6 +360,9 @@ describe("SpokePoolClient: Event Filtering", function () {
       const expectedFill = fillEvents[idx];
 
       expect(fillEvent.blockNumber).to.equal(expectedFill.blockNumber);
+
+      // destinationChainId is appended by the SpokePoolClient for V3FundsDeposited events, so verify its correctness.
+      expect(fillEvent.destinationChainId).to.equal(destinationChainId);
 
       const expectedOutputToken = isV2Fill(fillEvent)
         ? expectedFill.args!.destinationToken
