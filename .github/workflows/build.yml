@@ -1,0 +1,18 @@
+name: CI
+on: [push]
+env:
+  NODE_OPTIONS: "--max_old_space_size=4096"
+jobs:
+  build:
+    name: Builds
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-node@v3
+        with:
+          node-version: 16
+      - run: yarn install
+      - run: yarn build
+        env:
+          NODE_URL_1: ${{ secrets.NODE_URL_1 }}
+

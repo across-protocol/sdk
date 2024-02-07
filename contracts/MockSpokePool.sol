@@ -8,6 +8,6 @@ import "@across-protocol/contracts-v2/contracts/test/MockSpokePool.sol";
  * @dev For some reason, the @openzeppelin/hardhat-upgrades plugin fails to find the MockSpokePool ABI unless
  * this contract is explicitly defined here.
  */
-contract _MockSpokePool is MockSpokePool {
+abstract contract _MockSpokePool is MockSpokePool {
 
 }
