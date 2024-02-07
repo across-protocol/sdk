@@ -365,7 +365,7 @@ export class SpokePoolClient extends BaseAbstractClient {
    * @returns A list of slow fill requests.
    */
   public getSlowFillRequestsForOriginChain(originChainId: number): SlowFillRequestWithBlock[] {
-    return Object.values(this.getSlowFillRequest).filter(
+    return Object.values(this.slowFillRequests).filter(
       (e: SlowFillRequestWithBlock) => e.originChainId === originChainId
     );
   }
