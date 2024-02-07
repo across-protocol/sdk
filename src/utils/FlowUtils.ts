@@ -1,5 +1,5 @@
-import { Deposit, Fill } from "../interfaces";
-import { isV2Deposit, isV3Deposit, isV2Fill, isV3Fill } from "./V3Utils";
+import { Deposit, Fill, SlowFillRequest } from "../interfaces";
+import { isV2Deposit, isV3Deposit, isV2Fill, isV3Fill, isSlowFillRequest } from "./V3Utils";
 
 export const FILL_DEPOSIT_COMPARISON_KEYS = [
   "depositId",
@@ -58,27 +58,40 @@ export function filledSameDeposit(fillA: Fill, fillB: Fill): boolean {
 
 // Ensure that each deposit element is included with the same value in the fill. This includes all elements defined
 // by the depositor as well as the realizedLpFeePct and the destinationToken, which are pulled from other clients.
-export function validateFillForDeposit(fill: Fill, deposit?: Deposit, fillFieldsToIgnore: string[] = []): boolean {
+export function validateFillForDeposit(fill: Fill | SlowFillRequest, deposit?: Deposit, fillFieldsToIgnore: string[] = []): boolean {
   if (deposit === undefined) {
     return false;
   }
 
-  if (isV2Deposit(deposit) && isV2Fill(fill)) {
-    return V2_DEPOSIT_COMPARISON_KEYS.every((key) => {
-      if (fillFieldsToIgnore.includes(key)) {
-        return true;
-      }
-      return fill[key] !== undefined && fill[key].toString() === deposit[key]?.toString();
-    });
-  }
-
-  if (isV3Deposit(deposit) && isV3Fill(fill)) {
-    return V3_DEPOSIT_COMPARISON_KEYS.every((key) => {
-      if (fillFieldsToIgnore.includes(key)) {
-        return true;
-      }
-      return fill[key] !== undefined && fill[key].toString() === deposit[key]?.toString();
-    });
+  // If fill is a slow fill request, then deposit must be a v3 deposit or return false.
+  if (isSlowFillRequest(fill)) {
+    if (isV3Deposit(deposit)) {
+      return V3_DEPOSIT_COMPARISON_KEYS.every((key) => {
+        if (fillFieldsToIgnore.includes(key)) {
+          return true;
+        }
+        return fill[key] !== undefined && fill[key].toString() === deposit[key]?.toString();
+      });
+    }
+  } else {
+    // If fill is a fill, then compare the fill to the correct V2 or V3 type of deposit.
+    if (isV2Deposit(deposit) && isV2Fill(fill as Fill)) {
+      return V2_DEPOSIT_COMPARISON_KEYS.every((key) => {
+        if (fillFieldsToIgnore.includes(key)) {
+          return true;
+        }
+        return fill[key] !== undefined && fill[key].toString() === deposit[key]?.toString();
+      });
+    }
+  
+    if (isV3Deposit(deposit) && isV3Fill(fill)) {
+      return V3_DEPOSIT_COMPARISON_KEYS.every((key) => {
+        if (fillFieldsToIgnore.includes(key)) {
+          return true;
+        }
+        return fill[key] !== undefined && fill[key].toString() === deposit[key]?.toString();
+      });
+    }  
   }
 
   return false;

@@ -6,6 +6,7 @@ import {
   RelayerRefundExecution,
   RelayerRefundLeaf,
   SlowFillLeaf,
+  SlowFillRequest,
   SpeedUp,
   V2Deposit,
   V2Fill,
@@ -56,6 +57,10 @@ export function isV2Fill(fill: Fill): fill is V2Fill {
 
 export function isV3Fill(fill: Fill): fill is V3Fill {
   return isDefined((fill as V3Fill).inputToken);
+}
+
+export function isSlowFillRequest(fill: Fill | SlowFillRequest): fill is SlowFillRequest {
+  return !isV2Fill(fill as Fill) && !isV3Fill(fill as Fill);
 }
 
 export function isV2RelayData(relayData: RelayData): relayData is V2RelayData {
