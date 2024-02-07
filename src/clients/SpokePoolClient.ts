@@ -123,6 +123,11 @@ export class SpokePoolClient extends BaseAbstractClient {
       TokensBridged: this.spokePool.filters.TokensBridged(),
       RelayedRootBundle: this.spokePool.filters.RelayedRootBundle(),
       ExecutedRelayerRefundRoot: this.spokePool.filters.ExecutedRelayerRefundRoot(),
+      // These events will only work after bumping to the new contracts-v2 package.
+      V3FundsDeposited: this.spokePool.filters.V3FundsDeposited(),
+      RequestedSpeedUpV3Deposit: this.spokePool.filters.RequestedSpeedUpV3Deposit(),
+      FilledV3Relay: this.spokePool.filters.FilledV3Relay(),
+      ExecutedV3RelayerRefundRoot: this.spokePool.filters.ExecutedV3RelayerRefundRoot(),
     };
   }
 
