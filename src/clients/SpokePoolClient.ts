@@ -45,10 +45,12 @@ import {
   TokensBridged,
   V2DepositWithBlock,
   V2FillWithBlock,
+  V2RelayerRefundExecutionWithBlock,
   V3DepositWithBlock,
   V3FillWithBlock,
   V3FundsDepositedEvent,
   V3RelayData,
+  V3RelayerRefundExecutionWithBlock,
 } from "../interfaces";
 import { SpokePool } from "../typechain";
 import { getNetworkName } from "../utils/NetworkUtils";
@@ -870,10 +872,23 @@ export class SpokePoolClient extends BaseAbstractClient {
       }
     }
 
-    if (eventsToQuery.includes("ExecutedRelayerRefundRoot")) {
-      const executedRelayerRefundRootEvents = queryResults[eventsToQuery.indexOf("ExecutedRelayerRefundRoot")];
-      for (const event of executedRelayerRefundRootEvents) {
-        const executedRefund = spreadEventWithBlockNumber(event) as RelayerRefundExecutionWithBlock;
+    // Exact sequencing of relayer refund executions doesn't seem to be important. There are very few consumers of
+    // these objects, and they are typically used to search for a specific rootBundleId & leafId pair. Therefore,
+    // there's relayerRefundExecutions don't need exact sequencing and parsing of v2/v3 events can occur separately.
+    if (eventsToQuery.includes("ExecutedRelayerRefundRoot") || eventsToQuery.includes("ExecutedV3RelayerRefundRoot")) {
+      const v2RefundEvents = queryResults[eventsToQuery.indexOf("ExecutedRelayerRefundRoot")] ?? [];
+      for (const event of v2RefundEvents) {
+        const executedRefund = spreadEventWithBlockNumber(event) as V2RelayerRefundExecutionWithBlock;
+        executedRefund.l2TokenAddress = SpokePoolClient.getExecutedRefundLeafL2Token(
+          executedRefund.chainId,
+          executedRefund.l2TokenAddress
+        );
+        this.relayerRefundExecutions.push(executedRefund);
+      }
+
+      const v3RefundEvents = queryResults[eventsToQuery.indexOf("ExecutedV3RelayerRefundRoot")] ?? [];
+      for (const event of v3RefundEvents) {
+        const executedRefund = spreadEventWithBlockNumber(event) as V3RelayerRefundExecutionWithBlock;
         executedRefund.l2TokenAddress = SpokePoolClient.getExecutedRefundLeafL2Token(
           executedRefund.chainId,
           executedRefund.l2TokenAddress

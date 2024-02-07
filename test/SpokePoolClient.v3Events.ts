@@ -10,9 +10,13 @@ import {
   SlowFillRequestWithBlock,
   V2DepositWithBlock,
   V2FillWithBlock,
+  V2RelayerRefundExecution,
+  V2RelayerRefundExecutionWithBlock,
   V3DepositWithBlock,
   V3FillWithBlock,
   V3RelayData,
+  V3RelayerRefundExecution,
+  V3RelayerRefundExecutionWithBlock,
 } from "../src/interfaces";
 import { EMPTY_MESSAGE, ZERO_ADDRESS } from "../src/constants";
 import {
@@ -24,9 +28,11 @@ import {
   isV2Fill,
   isV3Deposit,
   isV3Fill,
+  isV3RelayerRefundExecution,
   randomAddress,
 } from "../src/utils";
 import {
+  BigNumber,
   createSpyLogger,
   fillFromDeposit,
   deployConfigStore,
@@ -34,6 +40,7 @@ import {
   deploySpokePool,
   ethers,
   contractsV2Utils,
+  toBNWei,
 } from "./utils";
 import { modifyRelayHelper } from "./constants";
 
@@ -44,6 +51,7 @@ describe("SpokePoolClient: Event Filtering", function () {
   const requestedSpeedUpEvents = ["RequestedSpeedUpDeposit", "RequestedSpeedUpV3Deposit"];
   const slowFillRequestedEvents = ["RequestedV3SlowFill"];
   const filledRelayEvents = ["FilledRelay", "FilledV3Relay"];
+  const executedRelayerRefundEvents = ["ExecutedRelayerRefundRoot", "ExecutedV3RelayerRefundRoot"];
 
   let owner: contractsV2Utils.SignerWithAddress, depositor: contractsV2Utils.SignerWithAddress;
   let chainIds: number[];
@@ -369,6 +377,97 @@ describe("SpokePoolClient: Event Filtering", function () {
         : expectedFill.args!.inputToken;
       const outputToken = getFillOutputToken(fillEvent);
       expect(outputToken).to.equal(expectedOutputToken);
+    });
+  });
+
+  it("Correctly retrieves ExecutedV3RelayerRefundRoot events", async function () {
+    const randomNumber = (max = 1_000_000): number => Math.round(Math.random() * max);
+    const randomAmount = (max = 1_000_000): BigNumber => toBNWei(randomNumber(max).toPrecision(6));
+
+    const _generateRelayerRefund = (
+      chainId: number,
+      rootBundleId: number,
+      leafId: number,
+      nRefunds: number
+    ): V2RelayerRefundExecution => {
+      const refundAmounts: BigNumber[] = [];
+      const refundAddresses: string[] = [];
+      for (let i = 0; i < nRefunds; ++i) {
+        refundAmounts.push(randomAmount());
+        refundAddresses.push(randomAddress());
+      }
+
+      return {
+        chainId,
+        rootBundleId,
+        leafId,
+        amountToReturn: randomAmount(),
+        l2TokenAddress: randomAddress(),
+        refundAmounts,
+        refundAddresses,
+      };
+    };
+
+    const generateV2RelayerRefund = (
+      spokePoolClient: MockSpokePoolClient,
+      rootBundleId: number,
+      leafId: number,
+      nRefunds: number
+    ): Event => {
+      const refund = _generateRelayerRefund(spokePoolClient.chainId, rootBundleId, leafId, nRefunds);
+      return spokePoolClient.executeRelayerRefundLeaf(refund as V2RelayerRefundExecutionWithBlock);
+    };
+
+    const generateV3RelayerRefund = (
+      spokePoolClient: MockSpokePoolClient,
+      rootBundleId: number,
+      leafId: number,
+      nRefunds: number
+    ): Event => {
+      const refund: V3RelayerRefundExecution = {
+        ..._generateRelayerRefund(spokePoolClient.chainId, rootBundleId, leafId, nRefunds),
+        // The following fields are not representative of onchain events, but should be unique for test.
+        fillsRefundedRoot: randomAmount().toString(),
+        fillsRefundedHash: randomAmount().toString(),
+      };
+      return spokePoolClient.executeV3RelayerRefundLeaf(refund as V3RelayerRefundExecutionWithBlock);
+    };
+
+    const refundEvents: Event[] = [];
+    const nLoops = 10;
+
+    // Enqueue a range of refund events.
+    for (let idx = 0; idx < nLoops; ++idx) {
+      refundEvents.push(generateV2RelayerRefund(destinationSpokePoolClient, idx, 0, idx));
+      refundEvents.push(generateV3RelayerRefund(destinationSpokePoolClient, idx, 1, idx));
+    }
+    expect(refundEvents.length).to.equal(nLoops * 2);
+
+    await destinationSpokePoolClient.update(executedRelayerRefundEvents);
+    const refunds = destinationSpokePoolClient.getRelayerRefundExecutions();
+
+    expect(refunds.length).to.equal(refundEvents.length);
+    expect(refunds.filter(isV3RelayerRefundExecution).length).to.equal(refundEvents.length / 2);
+
+    refundEvents.forEach((expectedEvent) => {
+      let refund = refunds.find(({ rootBundleId, leafId }) =>
+        rootBundleId === expectedEvent.args?.rootBundleId && leafId === expectedEvent.args?.leafId
+      );
+      expect(refund).to.not.be.undefined;
+      refund = refund!;
+
+      expect(refund.blockNumber).to.equal(expectedEvent.blockNumber);
+      expect(refund.transactionHash).to.equal(expectedEvent.transactionHash);
+
+      expect(refund.rootBundleId).to.equal(expectedEvent.args!.rootBundleId);
+      expect(refund.leafId).to.equal(expectedEvent.args!.leafId);
+      expect(refund.l2TokenAddress).to.equal(expectedEvent.args!.l2TokenAddress);
+      expect(refund.amountToReturn.eq(expectedEvent.args!.amountToReturn)).to.be.true;
+
+      if (isV3RelayerRefundExecution(refund)) {
+        expect(refund.fillsRefundedRoot).to.equal(expectedEvent.args!.fillsRefundedRoot);
+        expect(refund.fillsRefundedHash).to.equal(expectedEvent.args!.fillsRefundedHash);
+      }
     });
   });
 });
