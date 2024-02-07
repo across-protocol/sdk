@@ -670,14 +670,18 @@ export class SpokePoolClient extends BaseAbstractClient {
     return depositEvent.args.quoteTimestamp > currentTime;
   }
 
-  isV3DepositEvent(event: FundsDepositedEvent | V3FundsDepositedEvent): event is V3FundsDepositedEvent {
-    // @todo Remove type assertion once new generics PR is merged.
-    return isDefined((event as V3FundsDepositedEvent).args.inputToken);
+  // Temporary type discriminator for v2 -> v3 transition.
+  protected isV3DepositEvent(event: FundsDepositedEvent | V3FundsDepositedEvent): event is V3FundsDepositedEvent {
+    const { event: eventName } = event;
+    assert(isDefined(eventName) && ["FundsDeposited", "V3FundsDeposited"].includes(eventName));
+    return event.event === "V3FundsDeposited";
   }
 
-  isV3FillEvent(event: FilledRelayEvent | FilledV3RelayEvent): event is FilledV3RelayEvent {
-    // @todo Remove type assertion once new generics PR is merged.
-    return isDefined((event as FilledV3RelayEvent).args.inputToken);
+  // Temporary type discriminator for v2 -> v3 transition.
+  protected isV3FillEvent(event: FilledRelayEvent | FilledV3RelayEvent): event is FilledV3RelayEvent {
+    const { event: eventName } = event;
+    assert(isDefined(eventName) && ["FilledRelay", "FilledV3Relay"].includes(eventName));
+    return event.event === "FilledV3Relay";
   }
 
   /**
