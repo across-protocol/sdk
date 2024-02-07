@@ -450,8 +450,9 @@ describe("SpokePoolClient: Event Filtering", function () {
     expect(refunds.filter(isV3RelayerRefundExecution).length).to.equal(refundEvents.length / 2);
 
     refundEvents.forEach((expectedEvent) => {
-      let refund = refunds.find(({ rootBundleId, leafId }) =>
-        rootBundleId === expectedEvent.args?.rootBundleId && leafId === expectedEvent.args?.leafId
+      let refund = refunds.find(
+        ({ rootBundleId, leafId }) =>
+          rootBundleId === expectedEvent.args?.rootBundleId && leafId === expectedEvent.args?.leafId
       );
       expect(refund).to.not.be.undefined;
       refund = refund!;
