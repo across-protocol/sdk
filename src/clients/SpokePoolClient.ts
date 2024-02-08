@@ -1,4 +1,3 @@
-import assert from "assert";
 import { BigNumber, Contract, Event, EventFilter, ethers } from "ethers";
 import { groupBy } from "lodash";
 import winston from "winston";
@@ -672,18 +671,12 @@ export class SpokePoolClient extends BaseAbstractClient {
     return depositEvent.args.quoteTimestamp > currentTime;
   }
 
-  // Temporary type discriminator for v2 -> v3 transition.
   protected isV3DepositEvent(event: FundsDepositedEvent | V3FundsDepositedEvent): event is V3FundsDepositedEvent {
-    const { event: eventName } = event;
-    assert(isDefined(eventName) && ["FundsDeposited", "V3FundsDeposited"].includes(eventName));
-    return event.event === "V3FundsDeposited";
+    return isDefined((event as V3FundsDepositedEvent).args.inputToken);
   }
 
-  // Temporary type discriminator for v2 -> v3 transition.
   protected isV3FillEvent(event: FilledRelayEvent | FilledV3RelayEvent): event is FilledV3RelayEvent {
-    const { event: eventName } = event;
-    assert(isDefined(eventName) && ["FilledRelay", "FilledV3Relay"].includes(eventName));
-    return event.event === "FilledV3Relay";
+    return isDefined((event as FilledV3RelayEvent).args.inputToken);
   }
 
   /**
