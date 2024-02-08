@@ -89,10 +89,11 @@ export function isSlowFill(fill: Fill): boolean {
   return isV2Fill(fill) ? fill.updatableRelayData.isSlowRelay : fill.updatableRelayData.fillType === FillType.SlowFill;
 }
 
+// If needed, this can be made generic in the future.
 export function isSlowFillRequest(fill: Fill | SlowFillRequest): fill is SlowFillRequest {
-  return !isV2Fill(fill as Fill) && !isV3Fill(fill as Fill);
+  // Relayer field exists in V2Fill, V3Fill, but not SlowFillRequest.
+  return (fill as Fill).relayer === undefined;
 }
-
 type MinV2SlowFillLeaf = Pick<V2SlowFillLeaf, "payoutAdjustmentPct">;
 type MinV3SlowFillLeaf = Pick<V3SlowFillLeaf, "updatedOutputAmount">;
 export function isV2SlowFillLeaf<T extends MinV2SlowFillLeaf, U extends MinV3SlowFillLeaf>(
