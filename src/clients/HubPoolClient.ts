@@ -8,7 +8,6 @@ import {
   CancelledRootBundle,
   CrossChainContractsSet,
   Deposit,
-  DepositWithBlock,
   DestinationTokenWithBlock,
   DisputedRootBundle,
   ExecutedRootBundle,
@@ -19,6 +18,8 @@ import {
   RealizedLpFee,
   SetPoolRebalanceRoot,
   TokenRunningBalance,
+  V2DepositWithBlock,
+  V3DepositWithBlock,
 } from "../interfaces";
 import * as lpFeeCalculator from "../lpFeeCalculator";
 import {
@@ -31,8 +32,10 @@ import {
   fetchTokenInfo,
   getCachedBlockForTimestamp,
   getCurrentTime,
+  getDepositInputToken,
   getNetworkName,
   isDefined,
+  isV3Deposit,
   mapAsync,
   paginatedEventQuery,
   shouldCache,
@@ -65,6 +68,19 @@ type HubPoolEvent =
 type L1TokensToDestinationTokens = {
   [l1Token: string]: { [destinationChainId: number]: string };
 };
+
+// Temporary type for v2 -> v3 transition. @todo: Remove.
+export type V2PartialDepositWithBlock = Pick<
+  V2DepositWithBlock,
+  "originChainId" | "destinationChainId" | "originToken" | "amount" | "quoteTimestamp" | "blockNumber"
+>;
+
+// Temporary type for v2 -> v3 transition. @todo: Remove.
+export type V3PartialDepositWithBlock = Pick<
+  V3DepositWithBlock,
+  "originChainId" | "destinationChainId" | "inputToken" | "inputAmount" | "quoteTimestamp" | "blockNumber"
+>;
+
 export class HubPoolClient extends BaseAbstractClient {
   // L1Token -> destinationChainId -> destinationToken
   protected l1TokensToDestinationTokens: L1TokensToDestinationTokens = {};
@@ -224,12 +240,16 @@ export class HubPoolClient extends BaseAbstractClient {
    * @param deposit Deposit event
    * @param returns string L1 token counterpart for Deposit
    */
-  getL1TokenForDeposit(deposit: Pick<DepositWithBlock, "quoteBlockNumber" | "originToken" | "originChainId">): string {
+  getL1TokenForDeposit(
+    deposit:
+      | Pick<V2DepositWithBlock, "originChainId" | "originToken" | "quoteBlockNumber">
+      | Pick<V3DepositWithBlock, "originChainId" | "inputToken" | "quoteBlockNumber">
+  ): string {
     // L1-->L2 token mappings are set via PoolRebalanceRoutes which occur on mainnet,
     // so we use the latest token mapping. This way if a very old deposit is filled, the relayer can use the
     // latest L2 token mapping to find the L1 token counterpart.
-
-    return this.getL1TokenForL2TokenAtBlock(deposit.originToken, deposit.originChainId, deposit.quoteBlockNumber);
+    const inputToken = getDepositInputToken(deposit);
+    return this.getL1TokenForL2TokenAtBlock(inputToken, deposit.originChainId, deposit.quoteBlockNumber);
   }
 
   /**
@@ -240,12 +260,12 @@ export class HubPoolClient extends BaseAbstractClient {
    * @returns string L2 token counterpart on l2ChainId
    */
   getL2TokenForDeposit(
-    deposit: Pick<DepositWithBlock, "quoteBlockNumber" | "originToken" | "originChainId" | "destinationChainId">,
+    deposit:
+      | Pick<V2DepositWithBlock, "originChainId" | "destinationChainId" | "originToken" | "quoteBlockNumber">
+      | Pick<V3DepositWithBlock, "originChainId" | "destinationChainId" | "inputToken" | "quoteBlockNumber">,
     l2ChainId = deposit.destinationChainId
   ): string {
-    // First get L1 token associated with deposit.
     const l1Token = this.getL1TokenForDeposit(deposit);
-
     // Use the latest hub block number to find the L2 token counterpart.
     return this.getL2TokenForL1TokenAtBlock(l1Token, l2ChainId, deposit.quoteBlockNumber);
   }
@@ -321,25 +341,28 @@ export class HubPoolClient extends BaseAbstractClient {
   }
 
   async computeRealizedLpFeePct(
-    deposit: Pick<
-      DepositWithBlock,
-      "quoteTimestamp" | "amount" | "originChainId" | "originToken" | "destinationChainId" | "blockNumber"
-    >
+    deposit: V2PartialDepositWithBlock | V3PartialDepositWithBlock
   ): Promise<RealizedLpFee> {
     const [lpFee] = await this.batchComputeRealizedLpFeePct([deposit]);
     return lpFee;
   }
 
   async batchComputeRealizedLpFeePct(
-    deposits: Pick<
-      DepositWithBlock,
-      "quoteTimestamp" | "amount" | "originChainId" | "originToken" | "destinationChainId" | "blockNumber"
-    >[]
+    _deposits: (V2PartialDepositWithBlock | V3PartialDepositWithBlock)[]
   ): Promise<RealizedLpFee[]> {
-    assert(deposits.length > 0, "No deposits supplied to batchComputeRealizedLpFeePct");
+    assert(_deposits.length > 0, "No deposits supplied to batchComputeRealizedLpFeePct");
     if (!isDefined(this.currentTime)) {
       throw new Error("HubPoolClient has not set a currentTime");
     }
+
+    const deposits = _deposits.map((deposit) => {
+      if (isV3Deposit(deposit)) {
+        return deposit;
+      }
+
+      const { originToken: inputToken, amount: inputAmount, ...partialDeposit } = deposit;
+      return { ...partialDeposit, inputToken, inputAmount };
+    });
 
     // Map SpokePool token addresses to HubPool token addresses.
     const hubPoolTokens: { [originToken: string]: string } = {};
@@ -355,7 +378,7 @@ export class HubPoolClient extends BaseAbstractClient {
     // Helper to resolve the unqiue hubPoolToken & quoteTimestamp mappings.
     const resolveUniqueQuoteTimestamps = (deposit: (typeof deposits)[0]): void => {
       const { originChainId } = deposits[0];
-      const { originChainId: chainId, originToken, quoteTimestamp } = deposit;
+      const { originChainId: chainId, inputToken, quoteTimestamp } = deposit;
       assert(
         chainId === originChainId,
         `Cannot compute bulk realizedLpFeePct for different origin chains (${chainId} != ${originChainId})`
@@ -363,8 +386,11 @@ export class HubPoolClient extends BaseAbstractClient {
 
       // Resolve the HubPool token address, if it isn't already known.
       const quoteBlockNumber = quoteBlocks[deposit.quoteTimestamp];
-      const hubPoolToken = hubPoolTokens[originToken] ?? this.getL1TokenForDeposit({ ...deposit, quoteBlockNumber });
-      hubPoolTokens[originToken] ??= hubPoolToken;
+      const hubPoolToken = (hubPoolTokens[inputToken] ??= this.getL1TokenForDeposit({
+        ...deposit,
+        inputToken,
+        quoteBlockNumber,
+      }));
 
       // Append the quoteTimestamp for this HubPool token, if it isn't already enqueued.
       utilizationTimestamps[hubPoolToken] ??= [];
@@ -402,10 +428,10 @@ export class HubPoolClient extends BaseAbstractClient {
 
     // Helper compute the realizedLpFeePct of an individual deposit based on pre-retrieved batch data.
     const computeRealizedLpFeePct = async (deposit: (typeof deposits)[0]) => {
-      const { amount, originToken, originChainId, destinationChainId, quoteTimestamp } = deposit;
+      const { originChainId, destinationChainId, inputToken, inputAmount, quoteTimestamp } = deposit;
       const quoteBlock = quoteBlocks[quoteTimestamp];
 
-      const hubPoolToken = hubPoolTokens[originToken];
+      const hubPoolToken = hubPoolTokens[inputToken];
       const rateModel = this.configStoreClient.getRateModelForBlockNumber(
         hubPoolToken,
         originChainId,
@@ -414,7 +440,13 @@ export class HubPoolClient extends BaseAbstractClient {
       );
 
       const preUtilization = utilization[hubPoolToken][quoteBlock];
-      const postUtilization = await this.getUtilization(hubPoolToken, quoteBlock, amount, quoteTimestamp, timeToCache);
+      const postUtilization = await this.getUtilization(
+        hubPoolToken,
+        quoteBlock,
+        inputAmount,
+        quoteTimestamp,
+        timeToCache
+      );
       const realizedLpFeePct = lpFeeCalculator.calculateRealizedLpFeePct(rateModel, preUtilization, postUtilization);
 
       return { quoteBlock, realizedLpFeePct };
@@ -466,8 +498,9 @@ export class HubPoolClient extends BaseAbstractClient {
   }
 
   getTokenInfoForDeposit(deposit: Deposit): L1Token | undefined {
+    const inputToken = getDepositInputToken(deposit);
     return this.getTokenInfoForL1Token(
-      this.getL1TokenForL2TokenAtBlock(deposit.originToken, deposit.originChainId, this.latestBlockSearched)
+      this.getL1TokenForL2TokenAtBlock(inputToken, deposit.originChainId, this.latestBlockSearched)
     );
   }
 

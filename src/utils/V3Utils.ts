@@ -1,13 +1,14 @@
 import {
+  Fill,
   FillType,
   V2Deposit,
-  V3Deposit,
   V2Fill,
   V2RelayData,
   V2RelayerRefundExecution,
   V2RelayerRefundLeaf,
   V2SlowFillLeaf,
   V2SpeedUp,
+  V3Deposit,
   V3Fill,
   V3RelayData,
   V3RelayerRefundExecution,
@@ -17,7 +18,16 @@ import {
 } from "../interfaces";
 import { BN } from "./BigNumberUtils";
 
-type Fill = V2Fill | V3Fill;
+// Lowest ConfigStore version where the V3 model is in effect. The version update to the following value should
+// take place atomically with the SpokePool upgrade to V3 so that the dataworker knows what kind of MerkleLeaves
+// to propose in root bundles (i.e. RelayerRefundLeaf and SlowFillLeaf have different shapes). We assume that
+// V3 will be deployed in between bundles (after a bundle execution and before a proposal). The dataworker/relayer
+// code can use the following isV3() function to separate logic for calling V3 vs. legacy methods.
+export const V3_MIN_CONFIG_STORE_VERSION = 3;
+
+export function isV3(version: number): boolean {
+  return version >= V3_MIN_CONFIG_STORE_VERSION;
+}
 
 // Can be used with specific types, and will fully verify that the descriminating key is exclusive to the former.
 // Example usage:
@@ -32,17 +42,6 @@ export function isType<T, U>(input: T | U, key: Exclude<keyof T, keyof U>): inpu
 // Slightly less safe than isType. Used in wrapper functions due to limitations of typescript.
 function unsafeIsType<T, U>(input: T | U, key: keyof T): input is T {
   return (input as T)[key] !== undefined;
-}
-
-// Lowest ConfigStore version where the V3 model is in effect. The version update to the following value should
-// take place atomically with the SpokePool upgrade to V3 so that the dataworker knows what kind of MerkleLeaves
-// to propose in root bundles (i.e. RelayerRefundLeaf and SlowFillLeaf have different shapes). We assume that
-// V3 will be deployed in between bundles (after a bundle execution and before a proposal). The dataworker/relayer
-// code can use the following isV3() function to separate logic for calling V3 vs. legacy methods.
-export const V3_MIN_CONFIG_STORE_VERSION = 3;
-
-export function isV3(version: number): boolean {
-  return version >= V3_MIN_CONFIG_STORE_VERSION;
 }
 
 type MinV2Deposit = Pick<V2Deposit, "originToken">;
@@ -89,18 +88,18 @@ export function isSlowFill(fill: Fill): boolean {
   return isV2Fill(fill) ? fill.updatableRelayData.isSlowRelay : fill.updatableRelayData.fillType === FillType.SlowFill;
 }
 
-type MinV2SlowFillLeaf = Pick<V2SlowFillLeaf, "payoutAdjustmentPct" | "relayData">;
-type MinV3SlowFillLeaf = Pick<V3SlowFillLeaf, "updatedOutputAmount" | "relayData">;
+type MinV2SlowFillLeaf = Pick<V2SlowFillLeaf, "payoutAdjustmentPct">;
+type MinV3SlowFillLeaf = Pick<V3SlowFillLeaf, "updatedOutputAmount">;
 export function isV2SlowFillLeaf<T extends MinV2SlowFillLeaf, U extends MinV3SlowFillLeaf>(
   slowFillLeaf: T | U
 ): slowFillLeaf is T {
-  return unsafeIsType<T, U>(slowFillLeaf, "payoutAdjustmentPct") && isV2RelayData(slowFillLeaf.relayData);
+  return unsafeIsType<T, U>(slowFillLeaf, "payoutAdjustmentPct");
 }
 
 export function isV3SlowFillLeaf<T extends MinV3SlowFillLeaf, U extends MinV2SlowFillLeaf>(
   slowFillLeaf: T | U
 ): slowFillLeaf is T {
-  return unsafeIsType<T, U>(slowFillLeaf, "updatedOutputAmount") && isV3RelayData(slowFillLeaf.relayData);
+  return unsafeIsType<T, U>(slowFillLeaf, "updatedOutputAmount");
 }
 
 type MinV2RelayerRefundLeaf = Pick<V2RelayerRefundLeaf, "amountToReturn">;
@@ -144,12 +143,6 @@ export function getDepositOutputToken<
   return unsafeIsType<T, U>(deposit, "destinationToken") ? deposit.destinationToken : deposit.outputToken;
 }
 
-export function getFillOutputToken<T extends Pick<V2Fill, "destinationToken">, U extends Pick<V3Fill, "outputToken">>(
-  fill: T | U
-): string {
-  return unsafeIsType<T, U>(fill, "destinationToken") ? fill.destinationToken : fill.outputToken;
-}
-
 export function getDepositInputAmount<T extends Pick<V2Deposit, "amount">, U extends Pick<V3Deposit, "inputAmount">>(
   deposit: T | U
 ): BN {
@@ -162,18 +155,27 @@ export function getDepositOutputAmount<T extends Pick<V2Deposit, "amount">, U ex
   return unsafeIsType<T, U>(deposit, "amount") ? deposit.amount : deposit.outputAmount;
 }
 
+export function getFillOutputToken<T extends Pick<V2Fill, "destinationToken">, U extends Pick<V3Fill, "outputToken">>(
+  fill: T | U
+): string {
+  return unsafeIsType<T, U>(fill, "destinationToken") ? fill.destinationToken : fill.outputToken;
+}
+
+// Returns the total output amount for a unique fill hash.
 export function getFillOutputAmount<T extends Pick<V2Fill, "amount">, U extends Pick<V3Fill, "outputAmount">>(
   fill: T | U
 ): BN {
   return unsafeIsType<T, U>(fill, "amount") ? fill.amount : fill.outputAmount;
 }
 
+// Returns the amount filled by a particular fill event.
 export function getFillAmount<T extends Pick<V2Fill, "fillAmount">, U extends Pick<V3Fill, "outputAmount">>(
   fill: T | U
 ): BN {
   return unsafeIsType<T, U>(fill, "fillAmount") ? fill.fillAmount : fill.outputAmount;
 }
 
+// Returns the cumulative amount filled for a unique fill hash.
 export function getTotalFilledAmount<
   T extends Pick<V2Fill, "totalFilledAmount">,
   U extends Pick<V3Fill, "outputAmount">,

@@ -5,11 +5,13 @@ import {
   GLOBAL_CONFIG_STORE_KEYS,
   HubPoolClient,
 } from "../../src/clients";
-import { Deposit, Fill } from "../../src/interfaces";
+import { v2Deposit, v2Fill } from "../../src/interfaces";
 import {
   bnUint32Max,
   bnZero,
   getCurrentTime,
+  getDepositInputToken,
+  getDepositInputAmount,
   resolveContractFromSymbol,
   toBN,
   toBNWei,
@@ -23,7 +25,7 @@ import {
   sampleRateModel,
   zeroAddress,
 } from "../constants";
-import { BigNumber, Contract, SignerWithAddress, deposit } from "./index";
+import { BigNumber, Contract, SignerWithAddress } from "./index";
 export { sinon, winston };
 
 import { AcrossConfigStore } from "@across-protocol/contracts-v2";
@@ -229,7 +231,7 @@ export async function simpleDeposit(
   destinationChainId: number = utils.destinationChainId,
   amountToDeposit: utils.BigNumber = utils.amountToDeposit,
   depositRelayerFeePct: utils.BigNumber = utils.depositRelayerFeePct
-): Promise<Deposit> {
+): Promise<v2Deposit> {
   const depositObject = await utils.deposit(
     spokePool,
     token,
@@ -279,21 +281,25 @@ export async function addLiquidity(
 }
 
 // Submits a deposit transaction and returns the Deposit struct that that clients interact with.
-export async function buildDepositStruct(
-  deposit: Omit<Deposit, "destinationToken" | "realizedLpFeePct">,
+export async function buildV2DepositStruct(
+  deposit: Omit<v2Deposit, "destinationToken" | "realizedLpFeePct">,
   hubPoolClient: HubPoolClient
-): Promise<Deposit & { quoteBlockNumber: number; blockNumber: number }> {
+): Promise<v2Deposit & { quoteBlockNumber: number; blockNumber: number }> {
   const blockNumber = await hubPoolClient.getBlockNumber(deposit.quoteTimestamp);
   if (!blockNumber) {
     throw new Error("Timestamp is undefined");
   }
+
+  const inputToken = getDepositInputToken(deposit as v2Deposit);
+  const inputAmount = getDepositInputAmount(deposit as v2Deposit);
   const { quoteBlock, realizedLpFeePct } = await hubPoolClient.computeRealizedLpFeePct({
     ...deposit,
+    inputToken,
+    inputAmount,
     blockNumber,
   });
   return {
     ...deposit,
-    message: "0x",
     destinationToken: hubPoolClient.getL2TokenForDeposit({
       ...deposit,
       quoteBlockNumber: quoteBlock,
@@ -303,27 +309,55 @@ export async function buildDepositStruct(
     blockNumber: await getLastBlockNumber(),
   };
 }
+
+// export function buildV3Deposit(
+//   _hubPoolClient: HubPoolClient,
+//   _spokePool: Contract,
+//   _destinationChainId: number,
+//   _recipientAndDepositor: SignerWithAddress,
+//   _inputToken: Contract,
+//   _inputAmount: BigNumber,
+//   _outputToken: Contract,
+//   _outputAmount: BigNumber
+// ): Promise<Deposit> {
+//   throw new Error("not supported");
+// }
+
+// @note To be deprecated post-v3.
 export async function buildDeposit(
   hubPoolClient: HubPoolClient,
   spokePool: Contract,
   tokenToDeposit: Contract,
   recipientAndDepositor: SignerWithAddress,
-  _destinationChainId: number,
+  destinationChainId: number,
   _amountToDeposit: BigNumber = amountToDeposit,
-  _relayerFeePct: BigNumber = depositRelayerFeePct
-): Promise<Deposit> {
-  const _deposit = await deposit(
+  relayerFeePct: BigNumber = depositRelayerFeePct
+): Promise<v2Deposit> {
+  const _deposit = await utils.deposit(
     spokePool,
     tokenToDeposit,
     recipientAndDepositor,
     recipientAndDepositor,
-    _destinationChainId,
+    destinationChainId,
     _amountToDeposit,
-    _relayerFeePct
+    relayerFeePct
   );
   // Sanity Check: Ensure that the deposit was successful.
   expect(_deposit).to.not.be.null;
-  return await buildDepositStruct(appendMessageToResult(_deposit), hubPoolClient);
+  const deposit: Omit<v2Deposit, "destinationToken"> = {
+    depositId: Number(_deposit!.depositId),
+    originChainId: Number(_deposit!.originChainId),
+    destinationChainId: Number(_deposit!.destinationChainId),
+    depositor: String(_deposit!.depositor),
+    recipient: String(_deposit!.recipient),
+    originToken: String(_deposit!.originToken),
+    amount: toBN(_deposit!.amount),
+    message: EMPTY_MESSAGE,
+    relayerFeePct: toBN(_deposit!.relayerFeePct),
+    quoteTimestamp: Number(_deposit!.quoteTimestamp),
+  };
+
+  return await buildV2DepositStruct(deposit, hubPoolClient);
 }
 
 // Submits a fillRelay transaction and returns the Fill struct that that clients will interact with.
@@ -332,10 +366,10 @@ export async function buildFill(
   destinationToken: Contract,
   recipientAndDepositor: SignerWithAddress,
   relayer: SignerWithAddress,
-  deposit: Deposit,
+  deposit: v2Deposit,
   pctOfDepositToFill: number,
   repaymentChainId?: number
-): Promise<Fill> {
+): Promise<v2Fill> {
   // Sanity Check: ensure realizedLpFeePct is defined
   expect(deposit.realizedLpFeePct).to.not.be.undefined;
   if (!deposit.realizedLpFeePct) {
@@ -400,12 +434,12 @@ export async function buildModifiedFill(
   spokePool: Contract,
   depositor: SignerWithAddress,
   relayer: SignerWithAddress,
-  fillToBuildFrom: Fill,
+  fillToBuildFrom: v2Fill,
   multipleOfOriginalRelayerFeePct: number,
   pctOfDepositToFill: number,
   newRecipient?: string,
   newMessage?: string
-): Promise<Fill | null> {
+): Promise<v2Fill | null> {
   const relayDataFromFill = {
     depositor: fillToBuildFrom.depositor,
     recipient: fillToBuildFrom.recipient,
@@ -528,7 +562,7 @@ export function buildDepositForRelayerFeeTest(
   tokenSymbol: string,
   originChainId: string | number,
   toChainId: string | number
-): Deposit {
+): v2Deposit {
   const originToken = resolveContractFromSymbol(tokenSymbol, String(originChainId));
   const destinationToken = resolveContractFromSymbol(tokenSymbol, String(toChainId));
   expect(originToken).to.not.be.undefined;
