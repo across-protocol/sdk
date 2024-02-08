@@ -1,7 +1,7 @@
 import { BigNumber, ethers } from "ethers";
 import { object, min as Min, define, optional, string, integer } from "superstruct";
 import { DepositWithBlock } from "../interfaces";
-import { isV2Deposit } from "./V3Utils";
+import { isV2Deposit, isV3Deposit } from "./V3Utils";
 
 const AddressValidator = define<string>("AddressValidator", (v) => ethers.utils.isAddress(String(v)));
 const HexValidator = define<string>("HexValidator", (v) => ethers.utils.isHexString(String(v)));
@@ -42,6 +42,7 @@ const V3DepositSchema = object({
   quoteTimestamp: Min(integer(), 0),
   fillDeadline: Min(integer(), 0),
   exclusivityDeadline: Min(integer(), 0),
+  exclusiveRelayer: AddressValidator,
   realizedLpFeePct: optional(BigNumberValidator),
   outputToken: AddressValidator,
   outputAmount: BigNumberValidator,
@@ -58,6 +59,8 @@ const V3DepositSchema = object({
 });
 
 export function isDepositFormedCorrectly(deposit: unknown): deposit is DepositWithBlock {
-  if (isV2Deposit(deposit as DepositWithBlock)) return V2DepositSchema.is(deposit)
-  else return V3DepositSchema.is(deposit)
+  return (
+    (V2DepositSchema.is(deposit) && isV2Deposit(deposit as DepositWithBlock)) ||
+    (V3DepositSchema.is(deposit) && isV3Deposit(deposit as DepositWithBlock))
+  );
 }
