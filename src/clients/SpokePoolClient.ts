@@ -18,8 +18,8 @@ import {
   isV2SpeedUp,
   isV3SpeedUp,
   toBN,
-  isValidType,
-  assert,
+  isPartialDepositFormedCorrectly,
+  isV3Deposit,
 } from "../utils";
 import {
   paginatedEventQuery,
@@ -51,7 +51,6 @@ import {
   V2SpeedUp,
   V3DepositWithBlock,
   V3FillWithBlock,
-  V3FundsDepositEventProps,
   V3FundsDepositedEvent,
   V3RelayData,
   V3RelayerRefundExecutionWithBlock,
@@ -757,34 +756,33 @@ export class SpokePoolClient extends BaseAbstractClient {
 
       const dataForQuoteTime = await this.batchComputeRealizedLpFeePct(depositEvents);
       for (const [index, event] of Array.from(depositEvents.entries())) {
-        const rawDeposit = spreadEventWithBlockNumber(event);
-        let deposit: DepositWithBlock;
-
-        if (this.isV3DepositEvent(event)) {
-          deposit = { ...(rawDeposit as V3DepositWithBlock) };
-          if (deposit.outputToken === ZERO_ADDRESS) {
-            deposit.outputToken = this.getDestinationTokenForDeposit(deposit);
-          }
-        } else {
-          deposit = { ...(rawDeposit as V2DepositWithBlock) };
-          deposit.destinationToken = this.getDestinationTokenForDeposit(deposit);
-        }
-
-        // Derive and append the common properties that are not part of the onchain event.
+        const partialDeposit = spreadEventWithBlockNumber(event);
         const { quoteBlock: quoteBlockNumber, realizedLpFeePct } = dataForQuoteTime[index];
-        deposit.realizedLpFeePct = realizedLpFeePct;
-        deposit.quoteBlockNumber = quoteBlockNumber;
+        if (isPartialDepositFormedCorrectly(partialDeposit)) {
+          let deposit: DepositWithBlock;
 
-        if (this.depositHashes[this.getDepositHash(deposit)] !== undefined) {
-          throw new Error(`SpokePoolClient: Duplicate deposit for relayDataHash: ${this.getDepositHash(deposit)}`);
-        }
-        assign(this.depositHashes, [this.getDepositHash(deposit)], deposit);
+          if (isV3Deposit(partialDeposit)) {
+            let modifiedOutputToken = partialDeposit.outputToken;
+            if (partialDeposit.outputToken === ZERO_ADDRESS) {
+              modifiedOutputToken = this.getDestinationTokenForDeposit({ ...partialDeposit, quoteBlockNumber });
+            }
+            deposit = { ...partialDeposit, quoteBlockNumber, realizedLpFeePct, outputToken: modifiedOutputToken };
+          } else {
+            const destinationToken = this.getDestinationTokenForDeposit({ ...partialDeposit, quoteBlockNumber });
+            deposit = { ...partialDeposit, quoteBlockNumber, realizedLpFeePct, destinationToken };
+          }
 
-        if (deposit.depositId < this.earliestDepositIdQueried) {
-          this.earliestDepositIdQueried = deposit.depositId;
-        }
-        if (deposit.depositId > this.latestDepositIdQueried) {
-          this.latestDepositIdQueried = deposit.depositId;
+          if (this.depositHashes[this.getDepositHash(deposit)] !== undefined) {
+            throw new Error(`SpokePoolClient: Duplicate deposit for relayDataHash: ${this.getDepositHash(deposit)}`);
+          }
+          assign(this.depositHashes, [this.getDepositHash(deposit)], deposit);
+
+          if (deposit.depositId < this.earliestDepositIdQueried) {
+            this.earliestDepositIdQueried = deposit.depositId;
+          }
+          if (deposit.depositId > this.latestDepositIdQueried) {
+            this.latestDepositIdQueried = deposit.depositId;
+          }
         }
       }
     }
@@ -994,7 +992,11 @@ export class SpokePoolClient extends BaseAbstractClient {
    * @param deposit The deposit to retrieve the destination token for.
    * @returns The destination token.
    */
-  protected getDestinationTokenForDeposit(deposit: DepositWithBlock): string {
+  protected getDestinationTokenForDeposit(
+    deposit:
+      | Pick<V2DepositWithBlock, "originChainId" | "destinationChainId" | "originToken" | "quoteBlockNumber">
+      | Pick<V3DepositWithBlock, "originChainId" | "destinationChainId" | "inputToken" | "quoteBlockNumber">
+  ): string {
     // If there is no rate model client return address(0).
     if (!this.hubPoolClient) {
       return ZERO_ADDRESS;
@@ -1088,25 +1090,29 @@ export class SpokePoolClient extends BaseAbstractClient {
           ` between ${srcChain} blocks [${searchBounds.low}, ${searchBounds.high}]`
       );
     }
-    const partialDeposit = spreadEventWithBlockNumber(event) as V2DepositWithBlock;
-    const { realizedLpFeePct, quoteBlock: quoteBlockNumber } = (await this.batchComputeRealizedLpFeePct([event]))[0]; // Append the realizedLpFeePct.
+    const partialDeposit = spreadEventWithBlockNumber(event);
+    if (isPartialDepositFormedCorrectly(partialDeposit) && isV2Deposit(partialDeposit)) {
+      const { realizedLpFeePct, quoteBlock: quoteBlockNumber } = (await this.batchComputeRealizedLpFeePct([event]))[0]; // Append the realizedLpFeePct.
 
-    // Append destination token and realized lp fee to deposit.
-    const deposit: V2DepositWithBlock = {
-      ...partialDeposit,
-      realizedLpFeePct,
-      destinationToken: this.getDestinationTokenForDeposit(partialDeposit),
-      quoteBlockNumber,
-    };
+      // Append destination token and realized lp fee to deposit.
+      const deposit: V2DepositWithBlock = {
+        ...partialDeposit,
+        realizedLpFeePct,
+        destinationToken: this.getDestinationTokenForDeposit({ ...partialDeposit, quoteBlockNumber }),
+        quoteBlockNumber,
+      };
 
-    this.logger.debug({
-      at: "SpokePoolClient#findDeposit",
-      message: "Located deposit outside of SpokePoolClient's search range",
-      deposit,
-      elapsedMs: tStop - tStart,
-    });
+      this.logger.debug({
+        at: "SpokePoolClient#findDeposit",
+        message: "Located deposit outside of SpokePoolClient's search range",
+        deposit,
+        elapsedMs: tStop - tStart,
+      });
 
-    return deposit;
+      return deposit;
+    } else {
+      throw new Error("event format is unexpected");
+    }
   }
 
   async findDepositV3(depositId: number, destinationChainId: number, depositor: string): Promise<V3DepositWithBlock> {
@@ -1160,28 +1166,31 @@ export class SpokePoolClient extends BaseAbstractClient {
           ` between ${srcChain} blocks [${searchBounds.low}, ${searchBounds.high}]`
       );
     }
-    const partialDeposit = spreadEventWithBlockNumber(event) as V3DepositWithBlock;
-    assert(isValidType(partialDeposit, V3FundsDepositEventProps), "Invalid FundsDeposited event");
-    const { realizedLpFeePct, quoteBlock: quoteBlockNumber } = (await this.batchComputeRealizedLpFeePct([event]))[0]; // Append the realizedLpFeePct.
+    const partialDeposit = spreadEventWithBlockNumber(event);
+    if (isPartialDepositFormedCorrectly(partialDeposit) && isV3Deposit(partialDeposit)) {
+      const { realizedLpFeePct, quoteBlock: quoteBlockNumber } = (await this.batchComputeRealizedLpFeePct([event]))[0]; // Append the realizedLpFeePct.
 
-    // Append destination token and realized lp fee to deposit.
-    const deposit: V3DepositWithBlock = {
-      ...partialDeposit,
-      realizedLpFeePct,
-      quoteBlockNumber,
-      outputToken:
-        partialDeposit.outputToken === ZERO_ADDRESS
-          ? this.getDestinationTokenForDeposit(partialDeposit)
-          : partialDeposit.outputToken,
-    };
+      // Append destination token and realized lp fee to deposit.
+      const deposit: V3DepositWithBlock = {
+        ...partialDeposit,
+        realizedLpFeePct,
+        quoteBlockNumber,
+        outputToken:
+          partialDeposit.outputToken === ZERO_ADDRESS
+            ? this.getDestinationTokenForDeposit({ ...partialDeposit, quoteBlockNumber })
+            : partialDeposit.outputToken,
+      };
 
-    this.logger.debug({
-      at: "SpokePoolClient#findDepositV3",
-      message: "Located V3 deposit outside of SpokePoolClient's search range",
-      deposit,
-      elapsedMs: tStop - tStart,
-    });
+      this.logger.debug({
+        at: "SpokePoolClient#findDepositV3",
+        message: "Located V3 deposit outside of SpokePoolClient's search range",
+        deposit,
+        elapsedMs: tStop - tStart,
+      });
 
-    return deposit;
+      return deposit;
+    } else {
+      throw new Error("event format is unexpected");
+    }
   }
 }

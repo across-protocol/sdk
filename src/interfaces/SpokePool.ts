@@ -43,51 +43,36 @@ export interface V2Deposit extends V2RelayData {
   updatedMessage?: string;
 }
 
+export interface V2PartialDepositWithBlock extends V2RelayData, SortableEvent {
+  originToken: string;
+  quoteTimestamp: number;
+}
+
 export interface V2DepositWithBlock extends V2Deposit, SortableEvent {
   quoteBlockNumber: number;
+}
+
+export interface V3PartialDepositWithBlock extends V3RelayData, SortableEvent {
+  destinationChainId: number;
+  quoteTimestamp: number;
 }
 
 export interface V3Deposit extends V3RelayData {
   destinationChainId: number;
   quoteTimestamp: number;
   realizedLpFeePct?: BigNumber;
-  relayerFeePct?: BigNumber;
   speedUpSignature?: string;
   updatedRecipient?: string;
   updatedOutputAmount?: BigNumber;
   updatedMessage?: string;
 }
 
-export const SortableEventProps = [
-  "blockNumber",
-  "transactionIndex",
-  "logIndex",
-  "transactionHash"
-]
-export const V3RelayDataProps = [
-  "originChainId",
-  "depositor",
-  "recipient",
-  "depositId",
-  "message",
-  "inputToken",
-  "inputAmount",
-  "outputToken",
-  "outputAmount",
-  "fillDeadline",
-  "exclusiveRelayer",
-  "exclusivityDeadline",
-]
-export const V3FundsDepositEventProps = [
-  ...SortableEventProps,
-  ...V3RelayDataProps
-]
-
 export interface V3DepositWithBlock extends V3Deposit, SortableEvent {
   quoteBlockNumber: number;
 }
 
 export type Deposit = V2Deposit | V3Deposit;
+export type PartialDepositWithBlock = V2PartialDepositWithBlock | V3PartialDepositWithBlock;
 export type DepositWithBlock = V2DepositWithBlock | V3DepositWithBlock;
 
 export interface RelayExecutionInfoCommon {
