@@ -306,8 +306,8 @@ export class SpokePoolClient extends BaseAbstractClient {
     }
 
     if (isV2Deposit(deposit)) {
-      const v2SpeedUps = depositorSpeedUps.filter((speedUp): speedUp is V2SpeedUp => isV2SpeedUp(speedUp));
-      const maxSpeedUp = v2SpeedUps?.reduce((prev, current) =>
+      const v2SpeedUps = depositorSpeedUps.filter(isV2SpeedUp<V2SpeedUp, V3SpeedUp>);
+      const maxSpeedUp = v2SpeedUps.reduce((prev, current) =>
         prev.newRelayerFeePct.gt(current.newRelayerFeePct) ? prev : current
       );
 
@@ -329,8 +329,8 @@ export class SpokePoolClient extends BaseAbstractClient {
       return updatedDeposit;
     }
 
-    const v3SpeedUps = depositorSpeedUps.filter((speedUp): speedUp is V3SpeedUp => isV3SpeedUp(speedUp));
-    const maxSpeedUp = v3SpeedUps?.reduce((prev, current) =>
+    const v3SpeedUps = depositorSpeedUps.filter(isV3SpeedUp<V3SpeedUp, V2SpeedUp>);
+    const maxSpeedUp = v3SpeedUps.reduce((prev, current) =>
       prev.updatedOutputAmount.lt(current.updatedOutputAmount) ? prev : current
     );
 
