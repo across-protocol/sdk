@@ -1158,6 +1158,7 @@ export class SpokePoolClient extends BaseAbstractClient {
       );
     }
     const partialDeposit = spreadEventWithBlockNumber(event) as V3DepositWithBlock;
+    // @TODO Validate partialDeposit here.
     const { realizedLpFeePct, quoteBlock: quoteBlockNumber } = (await this.batchComputeRealizedLpFeePct([event]))[0]; // Append the realizedLpFeePct.
 
     // Append destination token and realized lp fee to deposit.
