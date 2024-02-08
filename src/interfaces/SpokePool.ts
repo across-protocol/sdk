@@ -58,31 +58,6 @@ export interface V3Deposit extends V3RelayData {
   updatedMessage?: string;
 }
 
-export const SortableEventProps = [
-  "blockNumber",
-  "transactionIndex",
-  "logIndex",
-  "transactionHash"
-]
-export const V3RelayDataProps = [
-  "originChainId",
-  "depositor",
-  "recipient",
-  "depositId",
-  "message",
-  "inputToken",
-  "inputAmount",
-  "outputToken",
-  "outputAmount",
-  "fillDeadline",
-  "exclusiveRelayer",
-  "exclusivityDeadline",
-]
-export const V3FundsDepositEventProps = [
-  ...SortableEventProps,
-  ...V3RelayDataProps
-]
-
 export interface V3DepositWithBlock extends V3Deposit, SortableEvent {
   quoteBlockNumber: number;
 }

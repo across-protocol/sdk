@@ -18,8 +18,6 @@ import {
   isV2SpeedUp,
   isV3SpeedUp,
   toBN,
-  isValidType,
-  assert,
 } from "../utils";
 import {
   paginatedEventQuery,
@@ -45,13 +43,14 @@ import {
   SlowFillRequestWithBlock,
   SpeedUp,
   TokensBridged,
+  V2Deposit,
   V2DepositWithBlock,
+  V2Fill,
   V2FillWithBlock,
   V2RelayerRefundExecutionWithBlock,
   V2SpeedUp,
   V3DepositWithBlock,
   V3FillWithBlock,
-  V3FundsDepositEventProps,
   V3FundsDepositedEvent,
   V3RelayData,
   V3RelayerRefundExecutionWithBlock,
@@ -532,7 +531,11 @@ export class SpokePoolClient extends BaseAbstractClient {
    * @param toBlock The block number to search up to.
    * @returns A list of fills that match the given fill and deposit.
    */
-  public async queryHistoricalMatchingFills(fill: Fill, deposit: Deposit, toBlock: number): Promise<FillWithBlock[]> {
+  public async queryHistoricalMatchingFills(
+    fill: V2Fill,
+    deposit: V2Deposit,
+    toBlock: number
+  ): Promise<V2FillWithBlock[]> {
     const searchConfig = {
       fromBlock: this.deploymentBlock,
       toBlock,
@@ -549,7 +552,10 @@ export class SpokePoolClient extends BaseAbstractClient {
    * @param searchConfig The search configuration.
    * @returns A Promise that resolves to a list of fills that match the given fill.
    */
-  public async queryFillsInBlockRange(matchingFill: Fill, searchConfig: EventSearchConfig): Promise<FillWithBlock[]> {
+  public async queryFillsInBlockRange(
+    matchingFill: V2Fill,
+    searchConfig: EventSearchConfig
+  ): Promise<V2FillWithBlock[]> {
     // Filtering on the fill's depositor address, the only indexed deposit field in the FilledRelay event,
     // should speed up this search a bit.
     // TODO: Once depositId is indexed in FilledRelay event, filter on that as well.
@@ -574,7 +580,7 @@ export class SpokePoolClient extends BaseAbstractClient {
       ),
       searchConfig
     );
-    const fills = query.map((event) => spreadEventWithBlockNumber(event) as FillWithBlock);
+    const fills = query.map((event) => spreadEventWithBlockNumber(event) as V2FillWithBlock);
     return sortEventsAscending(fills.filter((_fill) => filledSameDeposit(_fill, matchingFill)));
   }
 
@@ -1161,7 +1167,6 @@ export class SpokePoolClient extends BaseAbstractClient {
       );
     }
     const partialDeposit = spreadEventWithBlockNumber(event) as V3DepositWithBlock;
-    assert(isValidType(partialDeposit, V3FundsDepositEventProps), "Invalid FundsDeposited event");
     const { realizedLpFeePct, quoteBlock: quoteBlockNumber } = (await this.batchComputeRealizedLpFeePct([event]))[0]; // Append the realizedLpFeePct.
 
     // Append destination token and realized lp fee to deposit.
