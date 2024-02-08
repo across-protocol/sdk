@@ -13,3 +13,12 @@ export function isPromiseRejected<T>(
 export function isDefined<T>(input: T | null | undefined): input is T {
   return input !== null && input !== undefined;
 }
+
+export function isValidType(input: object, expectedTypeProps: string[]): boolean {
+  for (const prop of expectedTypeProps) {
+    if (!(prop in input)) {
+      return false;
+    }
+  }
+  return true;
+}

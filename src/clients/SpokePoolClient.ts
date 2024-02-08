@@ -18,6 +18,8 @@ import {
   isV2SpeedUp,
   isV3SpeedUp,
   toBN,
+  isValidType,
+  assert,
 } from "../utils";
 import {
   paginatedEventQuery,
@@ -49,6 +51,7 @@ import {
   V2SpeedUp,
   V3DepositWithBlock,
   V3FillWithBlock,
+  V3FundsDepositEventProps,
   V3FundsDepositedEvent,
   V3RelayData,
   V3RelayerRefundExecutionWithBlock,
@@ -1158,7 +1161,7 @@ export class SpokePoolClient extends BaseAbstractClient {
       );
     }
     const partialDeposit = spreadEventWithBlockNumber(event) as V3DepositWithBlock;
-    // @TODO Validate partialDeposit here.
+    assert(isValidType(partialDeposit, V3FundsDepositEventProps), "Invalid FundsDeposited event");
     const { realizedLpFeePct, quoteBlock: quoteBlockNumber } = (await this.batchComputeRealizedLpFeePct([event]))[0]; // Append the realizedLpFeePct.
 
     // Append destination token and realized lp fee to deposit.
