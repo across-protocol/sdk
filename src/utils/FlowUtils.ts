@@ -24,6 +24,9 @@ export const V3_DEPOSIT_COMPARISON_KEYS = [
   "inputAmount",
   "outputToken",
   "outputAmount",
+  "fillDeadline",
+  "exclusivityDeadline",
+  "exclusiveRelayer",
 ] as const;
 
 export function filledSameDeposit(fillA: Fill, fillB: Fill): boolean {
