@@ -1,4 +1,3 @@
-import assert from "assert";
 import { BigNumber, Contract, Event, EventFilter, ethers } from "ethers";
 import { groupBy } from "lodash";
 import winston from "winston";
@@ -306,8 +305,8 @@ export class SpokePoolClient extends BaseAbstractClient {
     }
 
     if (isV2Deposit(deposit)) {
-      const v2SpeedUps = depositorSpeedUps.filter((speedUp): speedUp is V2SpeedUp => isV2SpeedUp(speedUp));
-      const maxSpeedUp = v2SpeedUps?.reduce((prev, current) =>
+      const v2SpeedUps = depositorSpeedUps.filter(isV2SpeedUp<V2SpeedUp, V3SpeedUp>);
+      const maxSpeedUp = v2SpeedUps.reduce((prev, current) =>
         prev.newRelayerFeePct.gt(current.newRelayerFeePct) ? prev : current
       );
 
@@ -329,8 +328,8 @@ export class SpokePoolClient extends BaseAbstractClient {
       return updatedDeposit;
     }
 
-    const v3SpeedUps = depositorSpeedUps.filter((speedUp): speedUp is V3SpeedUp => isV3SpeedUp(speedUp));
-    const maxSpeedUp = v3SpeedUps?.reduce((prev, current) =>
+    const v3SpeedUps = depositorSpeedUps.filter(isV3SpeedUp<V3SpeedUp, V2SpeedUp>);
+    const maxSpeedUp = v3SpeedUps.reduce((prev, current) =>
       prev.updatedOutputAmount.lt(current.updatedOutputAmount) ? prev : current
     );
 
@@ -683,18 +682,12 @@ export class SpokePoolClient extends BaseAbstractClient {
     return depositEvent.args.quoteTimestamp > currentTime;
   }
 
-  // Temporary type discriminator for v2 -> v3 transition.
   protected isV3DepositEvent(event: FundsDepositedEvent | V3FundsDepositedEvent): event is V3FundsDepositedEvent {
-    const { event: eventName } = event;
-    assert(isDefined(eventName) && ["FundsDeposited", "V3FundsDeposited"].includes(eventName));
-    return event.event === "V3FundsDeposited";
+    return isDefined((event as V3FundsDepositedEvent).args.inputToken);
   }
 
-  // Temporary type discriminator for v2 -> v3 transition.
   protected isV3FillEvent(event: FilledRelayEvent | FilledV3RelayEvent): event is FilledV3RelayEvent {
-    const { event: eventName } = event;
-    assert(isDefined(eventName) && ["FilledRelay", "FilledV3Relay"].includes(eventName));
-    return event.event === "FilledV3Relay";
+    return isDefined((event as FilledV3RelayEvent).args.inputToken);
   }
 
   /**
