@@ -232,7 +232,7 @@ export async function simpleDeposit(
   amountToDeposit: utils.BigNumber = utils.amountToDeposit,
   depositRelayerFeePct: utils.BigNumber = utils.depositRelayerFeePct
 ): Promise<V2Deposit> {
-  const depositObject = await utils.deposit(
+  const depositObject = await utils.depositV2(
     spokePool,
     token,
     recipient,
@@ -333,7 +333,7 @@ export async function buildDeposit(
   _amountToDeposit: BigNumber = amountToDeposit,
   relayerFeePct: BigNumber = depositRelayerFeePct
 ): Promise<V2Deposit> {
-  const _deposit = await utils.deposit(
+  const _deposit = await utils.depositV2(
     spokePool,
     tokenToDeposit,
     recipientAndDepositor,
