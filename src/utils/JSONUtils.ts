@@ -1,4 +1,5 @@
 import { BigNumber } from "ethers";
+import { isDefined } from "./TypeGuards";
 
 /**
  * This function converts a JSON string into a JSON object. The caveat is that if
@@ -50,6 +51,13 @@ export function jsonReplacerWithBigNumbers(_key: string, value: unknown): unknow
   if (BigNumber.isBigNumber(value)) {
     return value.toString();
   }
+  // There's a legacy issues that returns BigNumbers as { type: "BigNumber", hex: "0x..." }
+  // so we need to check for that as well.
+  const recordValue = value as { type: string; hex: string };
+  if (recordValue.type === "BigNumber" && isDefined(recordValue.hex)) {
+    return BigNumber.from(recordValue.hex).toString();
+  }
+  // Return the value as is
   return value;
 }
 

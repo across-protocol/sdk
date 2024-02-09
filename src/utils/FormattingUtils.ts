@@ -166,3 +166,21 @@ export const ConvertDecimals = (fromDecimals: number, toDecimals: number): ((amo
     return amount.mul(toBN("10").pow(toBN((-1 * diff).toString())));
   };
 };
+
+/**
+ * Converts a numeric decimal-inclusive string to winston, the base unit of Arweave
+ * @param numericString The numeric string to convert
+ * @returns The winston representation of the numeric string as a BigNumber
+ */
+export function parseWinston(numericString: string): ethers.BigNumber {
+  return ethers.utils.parseUnits(numericString, 12);
+}
+
+/**
+ * Converts a winston value to a numeric string
+ * @param winstonValue The winston value to convert
+ * @returns The numeric string representation of the winston value
+ */
+export function formatWinston(winstonValue: ethers.BigNumber): string {
+  return ethers.utils.formatUnits(winstonValue, 12);
+}
