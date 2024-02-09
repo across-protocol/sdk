@@ -695,6 +695,8 @@ export async function relayFilledAmount(
         null
       )
     );
+    // TODO: For this to be safe in production, you'd need to get the hash of the events
+    // to match against `hash`, but since this is used in tests only we can just match on originChainId and depositId.
     if (fills.length === 0) return bnZero;
     if (blockTag === "latest") return fills[fills.length - 1].args?.totalFilledAmount;
     else {
