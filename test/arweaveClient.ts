@@ -17,7 +17,7 @@ const LOCAL_ARWEAVE_URL = `${LOCAL_ARWEAVE_NODE.protocol}://${LOCAL_ARWEAVE_NODE
 
 const mineBlock = () => axios.get(`${LOCAL_ARWEAVE_URL}/mine`);
 
-describe("", () => {
+describe("ArweaveClient", () => {
   let jwk: JWKInterface;
   let client: ArweaveClient;
   // Before running any of the tests, we need to fund the address with some AR
