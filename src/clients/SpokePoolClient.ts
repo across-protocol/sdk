@@ -757,7 +757,7 @@ export class SpokePoolClient extends BaseAbstractClient {
         let deposit: DepositWithBlock;
 
         if (this.isV3DepositEvent(event)) {
-          deposit = { ...(rawDeposit as V3DepositWithBlock) };
+          deposit = { ...(rawDeposit as V3DepositWithBlock), originChainId: this.chainId };
           if (deposit.outputToken === ZERO_ADDRESS) {
             deposit.outputToken = this.getDestinationTokenForDeposit(deposit);
           }
@@ -768,7 +768,6 @@ export class SpokePoolClient extends BaseAbstractClient {
 
         // Derive and append the common properties that are not part of the onchain event.
         const { quoteBlock: quoteBlockNumber, realizedLpFeePct } = dataForQuoteTime[index];
-        deposit.originChainId = this.chainId;
         deposit.realizedLpFeePct = realizedLpFeePct;
         deposit.quoteBlockNumber = quoteBlockNumber;
 
