@@ -11,8 +11,15 @@ import {
   V3Fill,
   V3RelayData,
 } from "../../src/interfaces";
-import { assert } from "chai"
-import { bnZero, getNetworkName, getRelayDataHash, getRelayDataOutputAmount, isV2Deposit, isV2RelayData } from "../../src/utils";
+import { assert } from "chai";
+import {
+  bnZero,
+  getNetworkName,
+  getRelayDataHash,
+  getRelayDataOutputAmount,
+  isV2Deposit,
+  isV2RelayData,
+} from "../../src/utils";
 
 export function fillFromDeposit(deposit: DepositWithBlock, relayer: string): Fill {
   return isV2Deposit(deposit) ? v2FillFromDeposit(deposit, relayer) : v3FillFromDeposit(deposit, relayer);

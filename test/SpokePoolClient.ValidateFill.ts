@@ -1,13 +1,7 @@
 import assert from "assert";
 import { RelayData } from "../src/interfaces";
 import { SpokePoolClient } from "../src/clients";
-import {
-  bnZero,
-  bnOne,
-  InvalidFill,
-  validateFillForDeposit,
-  queryHistoricalDepositForFill,
-} from "../src/utils";
+import { bnZero, bnOne, InvalidFill, validateFillForDeposit, queryHistoricalDepositForFill } from "../src/utils";
 import {
   expect,
   toBNWei,
