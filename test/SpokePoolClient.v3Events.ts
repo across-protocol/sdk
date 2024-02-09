@@ -118,7 +118,7 @@ describe("SpokePoolClient: Event Filtering", function () {
 
     for (const chainId of chainIds) {
       // @dev the underlying chainId will be the same for all three SpokePools.
-      const { spokePool } = await deploySpokePool(ethers);
+      const { spokePool } = await deploySpokePool(ethers, "_MockSpokePool");
       const receipt = await spokePool.deployTransaction.wait();
       await spokePool.setChainId(chainId);
       const spokePoolClient = new MockSpokePoolClient(logger, spokePool, chainId, receipt.blockNumber);

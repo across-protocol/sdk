@@ -1,5 +1,6 @@
-import * as utils from "@across-protocol/contracts-v2/dist/test-utils";
-import { BigNumberish, providers } from "ethers";
+import * as v2Utils from "@across-protocol/contracts-v2/dist/test-utils";
+import * as v3Utils from "contracts-v2-beta/dist/test-utils";
+import { BigNumber, BigNumberish, Contract, providers } from "ethers";
 import {
   AcrossConfigStoreClient as ConfigStoreClient,
   GLOBAL_CONFIG_STORE_KEYS,
@@ -12,6 +13,7 @@ import {
   getCurrentTime,
   getDepositInputToken,
   getDepositInputAmount,
+  mapAsync,
   resolveContractFromSymbol,
   toBN,
   toBNWei,
@@ -25,8 +27,9 @@ import {
   sampleRateModel,
   zeroAddress,
 } from "../constants";
-import { BigNumber, Contract, SignerWithAddress } from "./index";
 export { sinon, winston };
+
+export { v2Utils, v3Utils };
 
 import { AcrossConfigStore } from "@across-protocol/contracts-v2";
 import chai, { expect } from "chai";
@@ -38,10 +41,14 @@ import { SpokePoolDeploymentResult, SpyLoggerResult } from "../types";
 import { EMPTY_MESSAGE, PROTOCOL_DEFAULT_CHAIN_ID_INDICES } from "../../src/constants";
 import { SpyTransport } from "./SpyTransport";
 
+type SignerWithAddress = v2Utils.SignerWithAddress;
+
 chai.use(chaiExclude);
 
 const assert = chai.assert;
 export { assert, chai };
+
+const { randomAddress } = v2Utils;
 
 const TokenRolesEnum = {
   OWNER: "0",
@@ -92,20 +99,21 @@ export async function assertPromisePasses<T>(promise: Promise<T>): Promise<void>
 }
 
 export async function setupTokensForWallet(
-  contractToApprove: utils.Contract,
-  wallet: utils.SignerWithAddress,
-  tokens: utils.Contract[],
-  weth?: utils.Contract,
+  contractToApprove: Contract,
+  wallet: v2Utils.SignerWithAddress,
+  tokens: Contract[],
+  weth?: Contract,
   seedMultiplier = 1
 ): Promise<void> {
-  await utils.seedWallet(wallet, tokens, weth, utils.amountToSeedWallets.mul(seedMultiplier));
-  await Promise.all(
-    tokens.map((token) =>
-      token.connect(wallet).approve(contractToApprove.address, utils.amountToDeposit.mul(seedMultiplier))
-    )
-  );
+  await v2Utils.seedWallet(wallet, tokens, weth, v2Utils.amountToSeedWallets.mul(seedMultiplier));
+  await mapAsync(tokens, async (token) => {
+    const balance = await token.balanceOf(wallet.address);
+    await token.connect(wallet).approve(contractToApprove.address, balance);
+  });
+
   if (weth) {
-    await weth.connect(wallet).approve(contractToApprove.address, utils.amountToDeposit);
+    const balance = await weth.balanceOf(wallet.address);
+    await weth.connect(wallet).approve(contractToApprove.address, balance);
   }
 }
 
@@ -124,34 +132,58 @@ export function createSpyLogger(): SpyLoggerResult {
 }
 
 export async function deploySpokePoolWithToken(
-  fromChainId = 0,
-  toChainId = 0,
+  originChainId = v2Utils.originChainId,
+  destinationChainId = v2Utils.destinationChainId,
   enableRoute = true
 ): Promise<SpokePoolDeploymentResult> {
-  const { weth, erc20, spokePool, unwhitelistedErc20, destErc20 } = await utils.deploySpokePool(utils.ethers);
+  const { weth, erc20, spokePool, unwhitelistedErc20, destErc20 } = await v2Utils.deploySpokePool(
+    v2Utils.ethers,
+    "_MockSpokePool"
+  );
   const receipt = await spokePool.deployTransaction.wait();
-
-  await spokePool.setChainId(fromChainId == 0 ? utils.originChainId : fromChainId);
+  await spokePool.setChainId(originChainId);
 
   if (enableRoute) {
-    await utils.enableRoutes(spokePool, [
-      { originToken: erc20.address, destinationChainId: toChainId == 0 ? utils.destinationChainId : toChainId },
-      { originToken: weth.address, destinationChainId: toChainId == 0 ? utils.destinationChainId : toChainId },
+    await v2Utils.enableRoutes(spokePool, [
+      { originToken: erc20.address, destinationChainId },
+      { originToken: weth.address, destinationChainId },
+    ]);
+  }
+  return { weth, erc20, spokePool, unwhitelistedErc20, destErc20, deploymentBlock: receipt.blockNumber };
+}
+
+export async function deployV3SpokePoolWithToken(
+  originChainId = v3Utils.originChainId,
+  destinationChainId = v3Utils.destinationChainId,
+  enableRoute = true
+): Promise<SpokePoolDeploymentResult> {
+  const { weth, erc20, spokePool, unwhitelistedErc20, destErc20 } = await v3Utils.deploySpokePool(
+    v2Utils.ethers,
+    "_MockV3SpokePool"
+  );
+  const receipt = await spokePool.deployTransaction.wait();
+
+  await spokePool.setChainId(originChainId);
+
+  if (enableRoute) {
+    await v2Utils.enableRoutes(spokePool, [
+      { originToken: erc20.address, destinationChainId },
+      { originToken: weth.address, destinationChainId },
     ]);
   }
   return { weth, erc20, spokePool, unwhitelistedErc20, destErc20, deploymentBlock: receipt.blockNumber };
 }
 
 export async function deployConfigStore(
-  signer: utils.SignerWithAddress,
-  tokensToAdd: utils.Contract[],
+  signer: v2Utils.SignerWithAddress,
+  tokensToAdd: Contract[],
   maxL1TokensPerPoolRebalanceLeaf: number = MAX_L1_TOKENS_PER_POOL_REBALANCE_LEAF,
   maxRefundPerRelayerRefundLeaf: number = MAX_REFUNDS_PER_RELAYER_REFUND_LEAF,
   rateModel: unknown = sampleRateModel,
   additionalChainIdIndices?: number[]
 ): Promise<{ configStore: AcrossConfigStore; deploymentBlock: number }> {
   const configStore = (await (
-    await utils.getContractFactory("AcrossConfigStore", signer)
+    await v2Utils.getContractFactory("AcrossConfigStore", signer)
   ).deploy()) as AcrossConfigStore;
   const { blockNumber: deploymentBlock } = await configStore.deployTransaction.wait();
 
@@ -182,40 +214,44 @@ export async function deployConfigStore(
 }
 
 export async function deployAndConfigureHubPool(
-  signer: utils.SignerWithAddress,
-  spokePools: { l2ChainId: number; spokePool: utils.Contract }[],
+  signer: v2Utils.SignerWithAddress,
+  spokePools: { l2ChainId: number; spokePool: Contract }[],
   finderAddress: string = zeroAddress,
   timerAddress: string = zeroAddress
 ): Promise<{
-  hubPool: utils.Contract;
-  mockAdapter: utils.Contract;
-  l1Token_1: utils.Contract;
-  l1Token_2: utils.Contract;
+  hubPool: Contract;
+  mockAdapter: Contract;
+  l1Token_1: Contract;
+  l1Token_2: Contract;
   hubPoolDeploymentBlock: number;
 }> {
-  const lpTokenFactory = await (await utils.getContractFactory("LpTokenFactory", signer)).deploy();
+  const lpTokenFactory = await (await v2Utils.getContractFactory("LpTokenFactory", signer)).deploy();
   const hubPool = await (
-    await utils.getContractFactory("HubPool", signer)
+    await v2Utils.getContractFactory("HubPool", signer)
   ).deploy(lpTokenFactory.address, finderAddress, zeroAddress, timerAddress);
   const receipt = await hubPool.deployTransaction.wait();
 
-  const mockAdapter = await (await utils.getContractFactory("Mock_Adapter", signer)).deploy();
+  const mockAdapter = await (await v2Utils.getContractFactory("Mock_Adapter", signer)).deploy();
 
   for (const spokePool of spokePools) {
     await hubPool.setCrossChainContracts(spokePool.l2ChainId, mockAdapter.address, spokePool.spokePool.address);
   }
 
-  const l1Token_1 = await (await utils.getContractFactory("ExpandedERC20", signer)).deploy("L1Token1", "L1Token1", 18);
+  const l1Token_1 = await (
+    await v2Utils.getContractFactory("ExpandedERC20", signer)
+  ).deploy("L1Token1", "L1Token1", 18);
   await l1Token_1.addMember(TokenRolesEnum.MINTER, signer.address);
-  const l1Token_2 = await (await utils.getContractFactory("ExpandedERC20", signer)).deploy("L1Token2", "L1Token2", 18);
+  const l1Token_2 = await (
+    await v2Utils.getContractFactory("ExpandedERC20", signer)
+  ).deploy("L1Token2", "L1Token2", 18);
   await l1Token_2.addMember(TokenRolesEnum.MINTER, signer.address);
 
   return { hubPool, mockAdapter, l1Token_1, l1Token_2, hubPoolDeploymentBlock: receipt.blockNumber };
 }
 
 export async function enableRoutesOnHubPool(
-  hubPool: utils.Contract,
-  rebalanceRouteTokens: { destinationChainId: number; l1Token: utils.Contract; destinationToken: utils.Contract }[]
+  hubPool: Contract,
+  rebalanceRouteTokens: { destinationChainId: number; l1Token: Contract; destinationToken: Contract }[]
 ): Promise<void> {
   for (const tkn of rebalanceRouteTokens) {
     await hubPool.setPoolRebalanceRoute(tkn.destinationChainId, tkn.l1Token.address, tkn.destinationToken.address);
@@ -224,15 +260,15 @@ export async function enableRoutesOnHubPool(
 }
 
 export async function simpleDeposit(
-  spokePool: utils.Contract,
-  token: utils.Contract,
-  recipient: utils.SignerWithAddress,
-  depositor: utils.SignerWithAddress,
-  destinationChainId: number = utils.destinationChainId,
-  amountToDeposit: utils.BigNumber = utils.amountToDeposit,
-  depositRelayerFeePct: utils.BigNumber = utils.depositRelayerFeePct
+  spokePool: Contract,
+  token: Contract,
+  recipient: v2Utils.SignerWithAddress,
+  depositor: v2Utils.SignerWithAddress,
+  destinationChainId: number = v2Utils.destinationChainId,
+  amountToDeposit: v2Utils.BigNumber = v2Utils.amountToDeposit,
+  depositRelayerFeePct: v2Utils.BigNumber = v2Utils.depositRelayerFeePct
 ): Promise<V2Deposit> {
-  const depositObject = await utils.deposit(
+  const depositObject = await v2Utils.deposit(
     spokePool,
     token,
     recipient,
@@ -269,12 +305,12 @@ export async function getLastBlockTime(provider: providers.Provider): Promise<nu
 }
 
 export async function addLiquidity(
-  signer: utils.SignerWithAddress,
-  hubPool: utils.Contract,
-  l1Token: utils.Contract,
-  amount: utils.BigNumber
+  signer: v2Utils.SignerWithAddress,
+  hubPool: Contract,
+  l1Token: Contract,
+  amount: v2Utils.BigNumber
 ): Promise<void> {
-  await utils.seedWallet(signer, [l1Token], undefined, amount);
+  await v2Utils.seedWallet(signer, [l1Token], undefined, amount);
   await l1Token.connect(signer).approve(hubPool.address, amount);
   await hubPool.enableL1TokenForLiquidityProvision(l1Token.address);
   await hubPool.connect(signer).addLiquidity(l1Token.address, amount);
@@ -333,7 +369,7 @@ export async function buildDeposit(
   _amountToDeposit: BigNumber = amountToDeposit,
   relayerFeePct: BigNumber = depositRelayerFeePct
 ): Promise<V2Deposit> {
-  const _deposit = await utils.deposit(
+  const _deposit = await v2Utils.deposit(
     spokePool,
     tokenToDeposit,
     recipientAndDepositor,
@@ -377,8 +413,8 @@ export async function buildFill(
   }
 
   await spokePool.connect(relayer).fillRelay(
-    ...utils.getFillRelayParams(
-      utils.getRelayHash(
+    ...v2Utils.getFillRelayParams(
+      v2Utils.getRelayHash(
         recipientAndDepositor.address,
         recipientAndDepositor.address,
         deposit.depositId,
@@ -453,7 +489,7 @@ export async function buildModifiedFill(
     message: fillToBuildFrom.message,
   };
 
-  const { signature } = await utils.modifyRelayHelper(
+  const { signature } = await v2Utils.modifyRelayHelper(
     fillToBuildFrom.relayerFeePct.mul(multipleOfOriginalRelayerFeePct),
     fillToBuildFrom.depositId.toString(),
     fillToBuildFrom.originChainId.toString(),
@@ -463,7 +499,7 @@ export async function buildModifiedFill(
   );
   const updatedRelayerFeePct = fillToBuildFrom.relayerFeePct.mul(multipleOfOriginalRelayerFeePct);
   await spokePool.connect(relayer).fillRelayWithUpdatedDeposit(
-    ...utils.getFillRelayUpdatedFeeParams(
+    ...v2Utils.getFillRelayUpdatedFeeParams(
       relayDataFromFill,
       fillToBuildFrom.amount
         .mul(toBNWei(1).sub(fillToBuildFrom.realizedLpFeePct.add(updatedRelayerFeePct)))
@@ -510,7 +546,7 @@ export async function buildModifiedFill(
  * @returns The latest block number.
  */
 export function getLastBlockNumber(): Promise<number> {
-  return (utils.ethers.provider as unknown as providers.Provider).getBlockNumber();
+  return (v2Utils.ethers.provider as unknown as providers.Provider).getBlockNumber();
 }
 
 export function convertMockedConfigClient(client: unknown): client is ConfigStoreClient {
@@ -573,8 +609,8 @@ export function buildDepositForRelayerFeeTest(
   return {
     amount: toBN(amount),
     depositId: bnUint32Max.toNumber(),
-    depositor: utils.randomAddress(),
-    recipient: utils.randomAddress(),
+    depositor: randomAddress(),
+    recipient: randomAddress(),
     relayerFeePct: bnZero,
     message: EMPTY_MESSAGE,
     originChainId: 1,
