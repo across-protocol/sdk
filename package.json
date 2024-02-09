@@ -22,6 +22,7 @@
     "copy-abi": "abi=utils/abi/contracts; dstdir=\"./dist/${DIR}/${abi}\"; mkdir -p \"${dstdir}\"; cp ./src/${abi}/*.json \"${dstdir}\"",
     "test": "hardhat test",
     "test:watch": "hardhat watch test",
+    "test:run:arweave": "npx -y arlocal",
     "lint": "eslint --fix src test e2e && yarn prettier --write \"src/**/*.ts\" \"test/**/*.ts\" \"e2e/**/*.ts\"",
     "lint-check": "eslint src test e2e && yarn prettier --check \"src/**/*.ts\" \"test/**/*.ts\" \"e2e/**/*.ts\"",
     "prepare": "yarn build && husky install",
