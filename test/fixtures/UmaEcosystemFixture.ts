@@ -1,7 +1,7 @@
 import { Contract } from "ethers";
 import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { getContractFactory, utf8ToHex } from "@across-protocol/contracts-v2";
-import { constants } from "../utils/index";
+import { constants } from "../utils";
 
 export async function setupUmaEcosystem(owner: SignerWithAddress): Promise<{
   timer: Contract;
