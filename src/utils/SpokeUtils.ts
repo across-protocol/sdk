@@ -1,11 +1,9 @@
 import assert from "assert";
-import { BigNumber, Contract, utils as ethersUtils } from "ethers";
-import { FillStatus, RelayData, V2RelayData, V3RelayData } from "../interfaces";
+import { Contract, utils as ethersUtils } from "ethers";
+import { RelayData, V2RelayData, V3RelayData } from "../interfaces";
 import { SpokePoolClient } from "../clients";
-import { bnZero } from "./BigNumberUtils";
 import { isDefined } from "./TypeGuards";
-import { getRelayDataOutputAmount, isV2RelayData } from "./V3Utils";
-import { getNetworkName } from "./NetworkUtils";
+import { isV2RelayData } from "./V3Utils";
 
 /**
  * Find the block range that contains the deposit ID. This is a binary search that searches for the block range

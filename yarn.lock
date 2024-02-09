@@ -26,10 +26,10 @@
   resolved "https://registry.yarnpkg.com/@across-protocol/constants-v2/-/constants-v2-1.0.9.tgz#bf1b8daa9fc57de29f7561bee288fa3406324787"
   integrity sha512-Zc+EzT6Cbbxp1tL1lJTl9QCy8RoOySAmetQeMSfMdm6yE7HpLw05wvxUEx0qGNImwGg2ioaceefnm+Gg1MLgIQ==
 
-"@across-protocol/contracts-v2@^2.5.0-beta.3":
-  version "2.5.0-beta.3"
-  resolved "https://registry.yarnpkg.com/@across-protocol/contracts-v2/-/contracts-v2-2.5.0-beta.3.tgz#15daf2650d2730999ce26753fe51387f000dff98"
-  integrity sha512-5GmuuJ7QhCInlbeTYkHML8Zx+tp2zwsLsP8TMZYIi1Ay6tyuyp2LAqrI0OTUgMtsgtb3JJKVKAzNoMpTiXPUQg==
+"@across-protocol/contracts-v2@2.5.0-beta.4.1":
+  version "2.5.0-beta.4.1"
+  resolved "https://registry.yarnpkg.com/@across-protocol/contracts-v2/-/contracts-v2-2.5.0-beta.4.1.tgz#5bf4225dffeda9e98f89fa01580b2ee59b336538"
+  integrity sha512-/2Xp49OwWVsJ50oF6DSOKjoUUEutcWS0nSwlKFKw1EJuVi6SiAVbgAj2ixY4MENSdl28TMai6Apk1Dp6JGMS/w==
   dependencies:
     "@across-protocol/constants-v2" "^1.0.4"
     "@defi-wonderland/smock" "^2.3.4"

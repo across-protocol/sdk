@@ -1,7 +1,7 @@
 import hre from "hardhat";
 import { SpokePoolClient } from "../src/clients";
 import { Deposit, RelayData } from "../src/interfaces";
-import { findFillBlock, getNetworkName } from "../src/utils";
+import { getNetworkName } from "../src/utils";
 import {
   assertPromiseError,
   Contract,
@@ -14,6 +14,7 @@ import {
   expect,
   originChainId,
   setupTokensForWallet,
+  findFillBlock,
   toBNWei,
 } from "./utils";
 
