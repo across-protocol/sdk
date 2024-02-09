@@ -1,7 +1,6 @@
 import { clients } from "../../src";
 import { EventSearchConfig, MakeOptional } from "../../src/utils";
-import { Contract, winston } from "../utils";
-import { CHAIN_ID_TEST_LIST } from "../constants";
+import { Contract, winston, CHAIN_ID_TEST_LIST } from "../utils";
 
 export const DEFAULT_CONFIG_STORE_VERSION = clients.DEFAULT_CONFIG_STORE_VERSION;
 

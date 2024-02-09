@@ -1,4 +1,3 @@
-import { depositRelayerFeePct, destinationChainId, modifyRelayHelper } from "./constants";
 import {
   Contract,
   SignerWithAddress,
@@ -8,11 +7,13 @@ import {
   enableRoutes,
   ethers,
   expect,
-  originChainId,
+  modifyV2RelayHelper,
+  constants,
   setupTokensForWallet,
   simpleDeposit,
   toBNWei,
 } from "./utils";
+const { depositRelayerFeePct, destinationChainId, originChainId } = constants;
 
 import { SpokePoolClient } from "../src/clients";
 import { DepositWithBlock } from "../src/interfaces";
@@ -51,7 +52,7 @@ describe("SpokePoolClient: SpeedUp", function () {
     expect(spokePoolClient.appendMaxSpeedUpSignatureToDeposit(deposit as DepositWithBlock)).to.deep.equal(deposit);
 
     const newRelayFeePct = toBNWei(0.1337);
-    const speedUpSignature = await modifyRelayHelper(
+    const speedUpSignature = await modifyV2RelayHelper(
       newRelayFeePct,
       deposit.depositId.toString(),
       deposit.originChainId.toString(),
@@ -109,7 +110,7 @@ describe("SpokePoolClient: SpeedUp", function () {
     expect(spokePoolClient.appendMaxSpeedUpSignatureToDeposit(deposit as DepositWithBlock)).to.deep.equal(deposit);
 
     const newRelayFeePct = toBNWei(0.1337);
-    const speedUpSignature = await modifyRelayHelper(
+    const speedUpSignature = await modifyV2RelayHelper(
       newRelayFeePct,
       deposit.depositId.toString(),
       deposit.originChainId.toString(),
@@ -165,7 +166,7 @@ describe("SpokePoolClient: SpeedUp", function () {
 
     // Speedup below the original fee should not update to use the new fee.
     const newLowerRelayFeePct = depositRelayerFeePct.sub(toBNWei(0.01));
-    const speedUpSignature = await modifyRelayHelper(
+    const speedUpSignature = await modifyV2RelayHelper(
       newLowerRelayFeePct,
       deposit.depositId.toString(),
       deposit.originChainId.toString(),
@@ -199,7 +200,7 @@ describe("SpokePoolClient: SpeedUp", function () {
     // SpeedUp the deposit twice. Ensure the highest fee (and signature) is used.
 
     const speedupFast = toBNWei(0.1337);
-    const speedUpFastSignature = await modifyRelayHelper(
+    const speedUpFastSignature = await modifyV2RelayHelper(
       speedupFast,
       deposit.depositId.toString(),
       deposit.originChainId.toString(),
@@ -216,7 +217,7 @@ describe("SpokePoolClient: SpeedUp", function () {
       speedUpFastSignature.signature
     );
     const speedupFaster = toBNWei(0.1338);
-    const speedUpFasterSignature = await modifyRelayHelper(
+    const speedUpFasterSignature = await modifyV2RelayHelper(
       speedupFaster,
       deposit.depositId.toString(),
       deposit.originChainId.toString(),
@@ -266,7 +267,7 @@ describe("SpokePoolClient: SpeedUp", function () {
     deposit.depositId = 1337;
 
     const newRelayFeePct = toBNWei(0.1337);
-    const speedUpSignature = await modifyRelayHelper(
+    const speedUpSignature = await modifyV2RelayHelper(
       newRelayFeePct,
       deposit.depositId.toString(),
       deposit.originChainId.toString(),

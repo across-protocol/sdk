@@ -1,11 +1,3 @@
-import {
-  amountToLp,
-  destinationChainId,
-  mockTreeRoot,
-  randomAddress,
-  refundProposalLiveness,
-  totalBond,
-} from "./constants";
 import { DEFAULT_CONFIG_STORE_VERSION, MockConfigStoreClient, MockHubPoolClient } from "./mocks";
 import {
   Contract,
@@ -20,13 +12,22 @@ import {
   expect,
   hubPoolFixture,
   mineRandomBlocks,
-  originChainId,
-  repaymentChainId,
+  constants,
   setupTokensForWallet,
   toBN,
   toBNWei,
   toWei,
+  randomAddress,
 } from "./utils";
+const {
+  repaymentChainId,
+  originChainId,
+  amountToLp,
+  destinationChainId,
+  mockTreeRoot,
+  refundProposalLiveness,
+  totalBond,
+} = constants;
 
 let configStore: Contract, hubPool: Contract;
 let l1Token: Contract, l2Token: Contract, timer: Contract, weth: Contract;

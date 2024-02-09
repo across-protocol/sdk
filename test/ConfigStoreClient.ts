@@ -5,8 +5,8 @@ import { SpokePoolTargetBalance } from "../src/interfaces";
 import {
   MAX_L1_TOKENS_PER_POOL_REBALANCE_LEAF,
   MAX_REFUNDS_PER_RELAYER_REFUND_LEAF,
-  destinationChainId,
-} from "./constants";
+  constants as contractsV2Constants,
+} from "./utils/index";
 import { DEFAULT_CONFIG_STORE_VERSION, MockConfigStoreClient } from "./mocks";
 import {
   Contract,
@@ -17,11 +17,11 @@ import {
   getContractFactory,
   hubPoolFixture,
   mineRandomBlocks,
-  originChainId,
   toBN,
   toWei,
   utf8ToHex,
 } from "./utils";
+const { originChainId, destinationChainId } = contractsV2Constants;
 
 let l1Token: Contract, l2Token: Contract, configStore: AcrossConfigStore;
 let owner: SignerWithAddress;

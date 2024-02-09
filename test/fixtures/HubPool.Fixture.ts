@@ -2,12 +2,6 @@
 
 import { EthersTestLibrary } from "../types";
 import {
-  amountToLp,
-  destinationChainId as defaultDestinationChainId,
-  originChainId as defaultOriginChainId,
-  repaymentChainId,
-} from "../constants";
-import {
   deploySpokePoolWithToken,
   enableRoutesOnHubPool,
   Contract,
@@ -20,10 +14,17 @@ import {
   setupTokensForWallet,
   getLastBlockTime,
   sinon,
+  constants,
 } from "../utils";
 import * as clients from "../../src/clients";
 import { MockConfigStoreClient } from "../mocks";
 import { setupUmaEcosystem } from "./UmaEcosystemFixture";
+const {
+  amountToLp,
+  destinationChainId: defaultDestinationChainId,
+  originChainId: defaultOriginChainId,
+  repaymentChainId,
+} = constants;
 
 export async function setupHubPool(
   ethers: EthersTestLibrary,

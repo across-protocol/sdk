@@ -1,7 +1,7 @@
 import hre from "hardhat";
 import { SpokePoolClient } from "../src/clients";
 import { Deposit, RelayData } from "../src/interfaces";
-import { findFillBlock, getNetworkName } from "../src/utils";
+import { getNetworkName } from "../src/utils";
 import {
   assertPromiseError,
   Contract,
@@ -9,13 +9,14 @@ import {
   buildFill,
   createSpyLogger,
   deploySpokePoolWithToken,
-  destinationChainId,
   ethers,
   expect,
-  originChainId,
+  constants,
   setupTokensForWallet,
   toBNWei,
+  findFillBlock,
 } from "./utils";
+const { destinationChainId, originChainId } = constants;
 
 let spokePool: Contract, erc20: Contract, destErc20: Contract, weth: Contract;
 let depositor: SignerWithAddress, relayer1: SignerWithAddress, relayer2: SignerWithAddress;

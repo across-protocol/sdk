@@ -10,7 +10,7 @@ import {
   toBNWei,
 } from "../src/utils/common";
 import { toBN, toGWei } from "../src/utils/BigNumberUtils";
-import { buildDepositForRelayerFeeTest, expect } from "./utils";
+import { buildV2DepositForRelayerFeeTest, expect } from "./utils";
 
 dotenv.config();
 
@@ -46,7 +46,7 @@ describe("Utils test", () => {
     const provider = new providers.JsonRpcProvider(rpcUrl, 1);
     const spokePool: SpokePool = SpokePool__factory.connect(spokePoolAddress, provider);
 
-    const deposit = buildDepositForRelayerFeeTest("1", "usdc", 1, 10);
+    const deposit = buildV2DepositForRelayerFeeTest("1", "usdc", 1, 10);
     const unsignedTxn = await createUnsignedFillRelayTransactionFromDeposit(
       spokePool,
       deposit,

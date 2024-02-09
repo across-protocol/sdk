@@ -6,13 +6,13 @@ import {
   buildFill,
   createSpyLogger,
   deploySpokePoolWithToken,
-  destinationChainId,
   ethers,
   expect,
-  originChainId,
+  constants,
   setupTokensForWallet,
   toBNWei,
 } from "./utils";
+const { destinationChainId, originChainId } = constants;
 
 let spokePool: Contract, erc20: Contract, destErc20: Contract, weth: Contract;
 let depositor: SignerWithAddress, relayer1: SignerWithAddress, relayer2: SignerWithAddress;

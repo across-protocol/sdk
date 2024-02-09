@@ -1,28 +1,27 @@
 import { Event } from "ethers";
-import {
-  CONFIG_STORE_VERSION,
-  randomDestinationToken,
-  randomDestinationToken2,
-  randomL1Token,
-  randomOriginToken,
-} from "./constants";
 import { MockConfigStoreClient, MockHubPoolClient } from "./mocks";
 import {
+  CONFIG_STORE_VERSION,
   Contract,
   SignerWithAddress,
   createSpyLogger,
   deployConfigStore,
-  destinationChainId,
   ethers,
   expect,
   getContractFactory,
-  originChainId,
-  zeroAddress,
+  randomAddress,
+  constants,
 } from "./utils";
+const { destinationChainId, originChainId, zeroAddress } = constants;
 
 let hubPool: Contract, lpTokenFactory: Contract, mockAdapter: Contract;
 let owner: SignerWithAddress;
 let hubPoolClient: MockHubPoolClient;
+
+const randomDestinationToken = randomAddress();
+const randomDestinationToken2 = randomAddress();
+const randomL1Token = randomAddress();
+const randomOriginToken = randomAddress();
 
 describe("HubPoolClient: Deposit to Destination Token", function () {
   beforeEach(async function () {

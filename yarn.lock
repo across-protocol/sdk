@@ -26,10 +26,10 @@
   resolved "https://registry.yarnpkg.com/@across-protocol/constants-v2/-/constants-v2-1.0.9.tgz#bf1b8daa9fc57de29f7561bee288fa3406324787"
   integrity sha512-Zc+EzT6Cbbxp1tL1lJTl9QCy8RoOySAmetQeMSfMdm6yE7HpLw05wvxUEx0qGNImwGg2ioaceefnm+Gg1MLgIQ==
 
-"@across-protocol/contracts-v2@^2.4.7":
-  version "2.4.7"
-  resolved "https://registry.yarnpkg.com/@across-protocol/contracts-v2/-/contracts-v2-2.4.7.tgz#1f3be7410cd77a11c17d6f86758ad3290d886740"
-  integrity sha512-Ao7B2Sp9MUCVB77bJLLemZThpHU+0/BLbQdI0/vn2AQWtwTQfFqlF3q+qfbEvFI4arNsivHcM5rsfwyWrz4onw==
+"@across-protocol/contracts-v2@^2.5.0-beta.2":
+  version "2.5.0-beta.2"
+  resolved "https://registry.yarnpkg.com/@across-protocol/contracts-v2/-/contracts-v2-2.5.0-beta.2.tgz#0ddfaad43a0044d29c037ff82eb73ab1c96b4948"
+  integrity sha512-0I179Yurp6p9pKhmeoKn7oUBcYXYI55ReiimaM+byiEnJrxc6a23GJeA1108cmPRgrZaDZq64T8rL346RNEGVw==
   dependencies:
     "@across-protocol/constants-v2" "^1.0.4"
     "@defi-wonderland/smock" "^2.3.4"
@@ -39,9 +39,11 @@
     "@ethersproject/bignumber" "5.7.0"
     "@openzeppelin/contracts" "4.9.3"
     "@openzeppelin/contracts-upgradeable" "4.9.3"
+    "@scroll-tech/contracts" "^0.1.0"
     "@uma/common" "^2.34.0"
     "@uma/contracts-node" "^0.4.17"
     "@uma/core" "^2.56.0"
+    axios "^1.6.2"
     zksync-web3 "^0.14.3"
 
 "@across-protocol/contracts@^0.1.4":
@@ -1921,6 +1923,11 @@
     path-browserify "^1.0.0"
     url "^0.11.0"
 
+"@scroll-tech/contracts@^0.1.0":
+  version "0.1.0"
+  resolved "https://registry.yarnpkg.com/@scroll-tech/contracts/-/contracts-0.1.0.tgz#ccea8db1b3df7d740e4b7843ac01b5bd25b4438b"
+  integrity sha512-aBbDOc3WB/WveZdpJYcrfvMYMz7ZTEiW8M9XMJLba8p9FAR5KGYB/cV+8+EUsq3MKt7C1BfR+WnXoTVdvwIY6w==
+
 "@scure/base@~1.1.0":
   version "1.1.1"
   resolved "https://registry.yarnpkg.com/@scure/base/-/base-1.1.1.tgz#ebb651ee52ff84f420097055f4bf46cfba403938"
@@ -3507,6 +3514,15 @@ axios@^1.4.0:
   integrity sha512-D4DdjDo5CY50Qms0qGQTTw6Q44jl7zRwY7bthds06pUGfChBCTcQs+N743eFWGEd6pRTMd6A+I87aWyFV5wiZQ==
   dependencies:
     follow-redirects "^1.15.0"
+    form-data "^4.0.0"
+    proxy-from-env "^1.1.0"
+
+axios@^1.6.2:
+  version "1.6.7"
+  resolved "https://registry.yarnpkg.com/axios/-/axios-1.6.7.tgz#7b48c2e27c96f9c68a2f8f31e2ab19f59b06b0a7"
+  integrity sha512-/hDJGff6/c7u0hDkvkGxR/oy6CbCs8ziCsC7SqmhjfozqiJGc8Z11wrv9z9lYfY4K8l+H9TpjcMDX0xOZmx+RA==
+  dependencies:
+    follow-redirects "^1.15.4"
     form-data "^4.0.0"
     proxy-from-env "^1.1.0"
 
@@ -6566,6 +6582,11 @@ follow-redirects@^1.12.1, follow-redirects@^1.14.0, follow-redirects@^1.14.4, fo
   version "1.15.3"
   resolved "https://registry.yarnpkg.com/follow-redirects/-/follow-redirects-1.15.3.tgz#fe2f3ef2690afce7e82ed0b44db08165b207123a"
   integrity sha512-1VzOtuEM8pC9SFU1E+8KfTjZyMztRsgEfwQl44z8A25uy13jSzTj6dyK2Df52iV0vgHCfBwLhDWevLn95w5v6Q==
+
+follow-redirects@^1.15.4:
+  version "1.15.5"
+  resolved "https://registry.yarnpkg.com/follow-redirects/-/follow-redirects-1.15.5.tgz#54d4d6d062c0fa7d9d17feb008461550e3ba8020"
+  integrity sha512-vSFWUON1B+yAw1VN4xMfxgn5fTUiaOzAJCKBwIIgT/+7CuGy9+r+5gITvP62j3RmaD5Ph65UaERdOSRGUzZtgw==
 
 for-each@^0.3.3:
   version "0.3.3"

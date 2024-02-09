@@ -9,7 +9,7 @@ import {
   assert,
   assertPromiseError,
   assertPromisePasses,
-  buildDepositForRelayerFeeTest,
+  buildV2DepositForRelayerFeeTest,
   deploySpokePoolWithToken,
   ethers,
   expect,
@@ -104,18 +104,18 @@ describe("RelayFeeCalculator", () => {
     ];
     for (const [input, truth] of gasFeePercents) {
       const result = (
-        await client.gasFeePercent(buildDepositForRelayerFeeTest(input, "usdc", 1, 10), input, false)
+        await client.gasFeePercent(buildV2DepositForRelayerFeeTest(input, "usdc", 1, 10), input, false)
       ).toString();
       expect(result).to.be.eq(truth);
     }
   });
   it("relayerFeeDetails", async () => {
     client = new RelayFeeCalculator({ queries, capitalCostsConfig: testCapitalCostsConfig });
-    const result = await client.relayerFeeDetails(buildDepositForRelayerFeeTest(100e6, "usdc", "10", "1"), 100e6);
+    const result = await client.relayerFeeDetails(buildV2DepositForRelayerFeeTest(100e6, "usdc", "10", "1"), 100e6);
     assert.ok(result);
     // overriding token price also succeeds
     const resultWithPrice = await client.relayerFeeDetails(
-      buildDepositForRelayerFeeTest(100e6, "usdc", "10", "1"),
+      buildV2DepositForRelayerFeeTest(100e6, "usdc", "10", "1"),
       100e6,
       false,
       randomAddress(),
@@ -129,7 +129,7 @@ describe("RelayFeeCalculator", () => {
       toBN(resultWithPrice.gasFeePercent).lt(
         (
           await client.relayerFeeDetails(
-            buildDepositForRelayerFeeTest(100e6, "usdc", "1", "10"),
+            buildV2DepositForRelayerFeeTest(100e6, "usdc", "1", "10"),
             100e6,
             false,
             undefined,
@@ -148,7 +148,7 @@ describe("RelayFeeCalculator", () => {
     // Compute relay fee details for an $1000 transfer. Capital fee % is 0 so maxGasFeePercent should be equal to fee
     // limit percent.
     const relayerFeeDetails = await client.relayerFeeDetails(
-      buildDepositForRelayerFeeTest(1000e6, "usdc", "10", "1"),
+      buildV2DepositForRelayerFeeTest(1000e6, "usdc", "10", "1"),
       1000e6
     );
     assert.equal(relayerFeeDetails.maxGasFeePercent, toBNWei("0.1").toString());
@@ -156,11 +156,11 @@ describe("RelayFeeCalculator", () => {
     assert.equal(relayerFeeDetails.minDeposit, toBNWei("3.05572", 6).toString()); // 305,572 / 0.1 = 3055720 then divide by 1e6
     assert.equal(relayerFeeDetails.isAmountTooLow, false);
     assert.equal(
-      (await client.relayerFeeDetails(buildDepositForRelayerFeeTest(10e6, "usdc", "10", "1"), 10e6)).isAmountTooLow,
+      (await client.relayerFeeDetails(buildV2DepositForRelayerFeeTest(10e6, "usdc", "10", "1"), 10e6)).isAmountTooLow,
       false
     );
     assert.equal(
-      (await client.relayerFeeDetails(buildDepositForRelayerFeeTest(1e6, "usdc", "10", "1"), 1e6)).isAmountTooLow,
+      (await client.relayerFeeDetails(buildV2DepositForRelayerFeeTest(1e6, "usdc", "10", "1"), 1e6)).isAmountTooLow,
       true
     );
   });

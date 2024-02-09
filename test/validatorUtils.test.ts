@@ -22,13 +22,13 @@ describe("validatorUtils", () => {
         updatedRecipient: ZERO_ADDRESS,
         originToken: ZERO_ADDRESS,
         relayerFeePct: toBN(0),
+        realizedLpFeePct: toBN(0),
         destinationToken: ZERO_ADDRESS,
         transactionHash: "0xa",
         blockNumber: 0,
         transactionIndex: 0,
         logIndex: 0,
         quoteBlockNumber: 0,
-        blockTimestamp: 0,
       };
     });
 

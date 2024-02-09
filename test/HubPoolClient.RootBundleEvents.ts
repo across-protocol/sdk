@@ -2,7 +2,6 @@
 import hre from "hardhat";
 import { AcrossConfigStoreClient as ConfigStoreClient, HubPoolClient } from "../src/clients";
 import { ProposedRootBundle } from "../src/interfaces";
-import * as constants from "./constants";
 import {
   BigNumber,
   Contract,
@@ -14,11 +13,16 @@ import {
   ethers,
   expect,
   randomAddress,
+  constants as contractsV2Constants,
   toBN,
   toBNWei,
   winston,
+  MAX_REFUNDS_PER_RELAYER_REFUND_LEAF,
+  MAX_L1_TOKENS_PER_POOL_REBALANCE_LEAF,
+  CONFIG_STORE_VERSION,
 } from "./utils";
 import { setupHubPool } from "./fixtures/HubPool.Fixture";
+const { refundProposalLiveness, mockTreeRoot, originChainId, destinationChainId } = contractsV2Constants;
 
 let hubPool: Contract, timer: Contract;
 let l1Token_1: Contract, l1Token_2: Contract;
@@ -32,7 +36,7 @@ async function constructSimpleTree(runningBalance: BigNumber) {
   const netSendAmount = runningBalance.mul(toBN(-1));
   const bundleLpFees = toBNWei(1);
   const leaves = buildPoolRebalanceLeaves(
-    [constants.originChainId, constants.destinationChainId], // Where funds are getting sent.
+    [originChainId, destinationChainId], // Where funds are getting sent.
     [[l1Token_1.address, l1Token_2.address], [l1Token_2.address]], // l1Token.
     [[bundleLpFees, bundleLpFees.mul(toBN(2))], [bundleLpFees.mul(toBN(2))]], // bundleLpFees.
     [[netSendAmount, netSendAmount.mul(toBN(2))], [netSendAmount.mul(toBN(2))]], // netSendAmounts.
@@ -48,13 +52,13 @@ describe("HubPoolClient: RootBundle Events", function () {
   beforeEach(async function () {
     ({ hubPool, l1Token_1, l1Token_2, timer, owner, dataworker } = await setupHubPool(
       ethers,
-      constants.MAX_REFUNDS_PER_RELAYER_REFUND_LEAF,
-      constants.MAX_L1_TOKENS_PER_POOL_REBALANCE_LEAF
+      MAX_REFUNDS_PER_RELAYER_REFUND_LEAF,
+      MAX_L1_TOKENS_PER_POOL_REBALANCE_LEAF
     ));
 
     logger = createSpyLogger().spyLogger;
     const { configStore, deploymentBlock: fromBlock } = await deployConfigStore(owner, [l1Token_1, l1Token_2]);
-    configStoreClient = new ConfigStoreClient(logger, configStore, { fromBlock }, constants.CONFIG_STORE_VERSION);
+    configStoreClient = new ConfigStoreClient(logger, configStore, { fromBlock }, CONFIG_STORE_VERSION);
     await configStoreClient.update();
 
     hubPoolClient = new HubPoolClient(logger, hubPool, configStoreClient);
@@ -71,7 +75,7 @@ describe("HubPoolClient: RootBundle Events", function () {
     const proposeTime = Number(await hubPool.getCurrentTime());
     const txn = await hubPool
       .connect(dataworker)
-      .proposeRootBundle([11, 22], 2, tree.getHexRoot(), constants.mockTreeRoot, constants.mockTreeRoot);
+      .proposeRootBundle([11, 22], 2, tree.getHexRoot(), mockTreeRoot, mockTreeRoot);
     const proposalBlockNumber = (await txn.wait()).blockNumber;
 
     // Pre update returns undefined.
@@ -82,8 +86,8 @@ describe("HubPoolClient: RootBundle Events", function () {
 
     expect(hubPoolClient.getPendingRootBundle()).to.deep.equal({
       poolRebalanceRoot: tree.getHexRoot(),
-      relayerRefundRoot: constants.mockTreeRoot,
-      slowRelayRoot: constants.mockTreeRoot,
+      relayerRefundRoot: mockTreeRoot,
+      slowRelayRoot: mockTreeRoot,
       proposer: dataworker.address,
       unclaimedPoolRebalanceLeafCount: 2,
       challengePeriodEndTimestamp: proposeTime + liveness,
@@ -126,9 +130,7 @@ describe("HubPoolClient: RootBundle Events", function () {
 
     // If we propose a new root bundle, then `getRootBundleEvalBlockNumberContainingBlock` throws away the
     // `latestMainnetBlock` param and just searches for executed leaves until the next bundle.
-    await hubPool
-      .connect(dataworker)
-      .proposeRootBundle([12, 23], 2, tree.getHexRoot(), constants.mockTreeRoot, constants.mockTreeRoot);
+    await hubPool.connect(dataworker).proposeRootBundle([12, 23], 2, tree.getHexRoot(), mockTreeRoot, mockTreeRoot);
     await hubPoolClient.update();
     expect(hubPoolClient.getRootBundleEvalBlockNumberContainingBlock(1, 22, 2, [1, 2])).to.equal(22);
   });
@@ -144,13 +146,13 @@ describe("HubPoolClient: RootBundle Events", function () {
     const proposeTime = Number(await hubPool.getCurrentTime());
     const txn = await hubPool
       .connect(dataworker)
-      .proposeRootBundle([11, 22], 2, tree.getHexRoot(), constants.mockTreeRoot, constants.mockTreeRoot);
+      .proposeRootBundle([11, 22], 2, tree.getHexRoot(), mockTreeRoot, mockTreeRoot);
 
     // Not valid because not executed.
     const rootBundle: ProposedRootBundle = {
       poolRebalanceRoot: tree.getHexRoot(),
-      relayerRefundRoot: constants.mockTreeRoot,
-      slowRelayRoot: constants.mockTreeRoot,
+      relayerRefundRoot: mockTreeRoot,
+      slowRelayRoot: mockTreeRoot,
       proposer: dataworker.address,
       poolRebalanceLeafCount: 2,
       challengePeriodEndTimestamp: proposeTime + liveness,
@@ -188,17 +190,15 @@ describe("HubPoolClient: RootBundle Events", function () {
     await hubPoolClient.update();
 
     // Propose one root bundle with two leaves for two different L2 chains.
-    await hubPool
-      .connect(dataworker)
-      .proposeRootBundle([11, 22], 2, tree1.getHexRoot(), constants.mockTreeRoot, constants.mockTreeRoot);
-    await timer.setCurrentTime(Number(await timer.getCurrentTime()) + constants.refundProposalLiveness + 1);
+    await hubPool.connect(dataworker).proposeRootBundle([11, 22], 2, tree1.getHexRoot(), mockTreeRoot, mockTreeRoot);
+    await timer.setCurrentTime(Number(await timer.getCurrentTime()) + refundProposalLiveness + 1);
     await hubPool.connect(dataworker).executeRootBundle(...Object.values(leaves1[0]), tree1.getHexProof(leaves1[0]));
     await hubPool.connect(dataworker).executeRootBundle(...Object.values(leaves1[1]), tree1.getHexProof(leaves1[1]));
     const firstRootBundleBlockNumber = await hubPool.provider.getBlockNumber();
 
     ({ runningBalance, incentiveBalance } = hubPoolClient.getRunningBalanceBeforeBlockForChain(
       firstRootBundleBlockNumber,
-      constants.originChainId,
+      originChainId,
       l1Token_1.address
     ));
     expect(runningBalance.eq(0)).to.be.true;
@@ -208,7 +208,7 @@ describe("HubPoolClient: RootBundle Events", function () {
     // Happy case where client returns most recent running balance for chain ID and l1 token.
     ({ runningBalance, incentiveBalance } = hubPoolClient.getRunningBalanceBeforeBlockForChain(
       firstRootBundleBlockNumber,
-      constants.originChainId,
+      originChainId,
       l1Token_1.address
     ));
     expect(runningBalance.eq(toBNWei(100))).to.be.true;
@@ -217,7 +217,7 @@ describe("HubPoolClient: RootBundle Events", function () {
     // Target block is before event.
     ({ runningBalance, incentiveBalance } = hubPoolClient.getRunningBalanceBeforeBlockForChain(
       0,
-      constants.originChainId,
+      originChainId,
       l1Token_1.address
     ));
     expect(runningBalance.eq(0)).to.be.true;
@@ -226,7 +226,7 @@ describe("HubPoolClient: RootBundle Events", function () {
     // chain ID and L1 token combination not found.
     ({ runningBalance, incentiveBalance } = hubPoolClient.getRunningBalanceBeforeBlockForChain(
       firstRootBundleBlockNumber,
-      constants.destinationChainId,
+      destinationChainId,
       l1Token_1.address
     ));
     expect(runningBalance.eq(0)).to.be.true;
@@ -234,7 +234,7 @@ describe("HubPoolClient: RootBundle Events", function () {
 
     ({ runningBalance, incentiveBalance } = hubPoolClient.getRunningBalanceBeforeBlockForChain(
       firstRootBundleBlockNumber,
-      constants.originChainId,
+      originChainId,
       timer.address
     ));
     expect(runningBalance.eq(0)).to.be.true;
@@ -243,17 +243,15 @@ describe("HubPoolClient: RootBundle Events", function () {
     // Running balance at index of L1 token returned:
     ({ runningBalance, incentiveBalance } = hubPoolClient.getRunningBalanceBeforeBlockForChain(
       firstRootBundleBlockNumber,
-      constants.originChainId,
+      originChainId,
       l1Token_2.address
     ));
     expect(runningBalance.eq(toBNWei(200))).to.be.true;
     expect(incentiveBalance.eq(0)).to.be.true;
 
     // Propose and execute another root bundle:
-    await hubPool
-      .connect(dataworker)
-      .proposeRootBundle([11, 22], 2, tree2.getHexRoot(), constants.mockTreeRoot, constants.mockTreeRoot);
-    await timer.setCurrentTime(Number(await timer.getCurrentTime()) + constants.refundProposalLiveness + 1);
+    await hubPool.connect(dataworker).proposeRootBundle([11, 22], 2, tree2.getHexRoot(), mockTreeRoot, mockTreeRoot);
+    await timer.setCurrentTime(Number(await timer.getCurrentTime()) + refundProposalLiveness + 1);
     await hubPool.connect(dataworker).executeRootBundle(...Object.values(leaves2[0]), tree2.getHexProof(leaves2[0]));
     await hubPool.connect(dataworker).executeRootBundle(...Object.values(leaves2[1]), tree2.getHexProof(leaves2[1]));
     const secondRootBundleBlockNumber = await hubPool.provider.getBlockNumber();
@@ -262,7 +260,7 @@ describe("HubPoolClient: RootBundle Events", function () {
     // Grabs most up to date running balance for block:
     ({ runningBalance, incentiveBalance } = hubPoolClient.getRunningBalanceBeforeBlockForChain(
       secondRootBundleBlockNumber,
-      constants.originChainId,
+      originChainId,
       l1Token_1.address
     ));
     expect(runningBalance.eq(toBNWei(200))).to.be.true; // Grabs second running balance
@@ -270,7 +268,7 @@ describe("HubPoolClient: RootBundle Events", function () {
 
     ({ runningBalance, incentiveBalance } = hubPoolClient.getRunningBalanceBeforeBlockForChain(
       firstRootBundleBlockNumber,
-      constants.originChainId,
+      originChainId,
       l1Token_1.address
     ));
     expect(runningBalance.eq(toBNWei(100))).to.be.true; // Grabs first running balance
@@ -287,7 +285,7 @@ describe("HubPoolClient: RootBundle Events", function () {
     const bundleBlockEvalNumbers = [11];
     await hubPool
       .connect(dataworker)
-      .proposeRootBundle(bundleBlockEvalNumbers, 1, tree1.getHexRoot(), constants.mockTreeRoot, constants.mockTreeRoot);
+      .proposeRootBundle(bundleBlockEvalNumbers, 1, tree1.getHexRoot(), mockTreeRoot, mockTreeRoot);
 
     await hubPoolClient.update();
     expect(hubPoolClient.getProposedRootBundles()[0].proposer).to.equal(dataworker.address);
@@ -310,7 +308,7 @@ describe("HubPoolClient: RootBundle Events", function () {
     const firstChainIdList = [leaves1[0].chainId.toNumber()];
     await hubPool
       .connect(dataworker)
-      .proposeRootBundle(bundleBlockEvalNumbers, 1, tree1.getHexRoot(), constants.mockTreeRoot, constants.mockTreeRoot);
+      .proposeRootBundle(bundleBlockEvalNumbers, 1, tree1.getHexRoot(), mockTreeRoot, mockTreeRoot);
     const proposalBlockNumber = await hubPool.provider.getBlockNumber();
 
     // Mine blocks so proposal and execution are at different blocks, so we can test what happens if either is not
@@ -321,7 +319,7 @@ describe("HubPoolClient: RootBundle Events", function () {
 
     // Don't execute the leaves yet. This should make the function return 0 as the start block since it
     // ignores proposed root bundles that are not fully executed.
-    await timer.setCurrentTime(Number(await timer.getCurrentTime()) + constants.refundProposalLiveness + 1);
+    await timer.setCurrentTime(Number(await timer.getCurrentTime()) + refundProposalLiveness + 1);
     const partialExecutionBlockNumber = await hubPool.provider.getBlockNumber();
 
     // No fully executed pool rebalance roots.
@@ -357,10 +355,8 @@ describe("HubPoolClient: RootBundle Events", function () {
     // This time, create a bundle with a chain ID list length of 2.
     const secondBundleBlockEvalNumbers = [66, 77];
     const secondChainIdList = [leaves1[0].chainId.toNumber(), leaves1[1].chainId.toNumber()];
-    await hubPool
-      .connect(dataworker)
-      .proposeRootBundle([66, 77], 2, tree2.getHexRoot(), constants.mockTreeRoot, constants.mockTreeRoot);
-    await timer.setCurrentTime(Number(await timer.getCurrentTime()) + constants.refundProposalLiveness + 1);
+    await hubPool.connect(dataworker).proposeRootBundle([66, 77], 2, tree2.getHexRoot(), mockTreeRoot, mockTreeRoot);
+    await timer.setCurrentTime(Number(await timer.getCurrentTime()) + refundProposalLiveness + 1);
     await hubPool.connect(dataworker).executeRootBundle(...Object.values(leaves2[0]), tree2.getHexProof(leaves2[0]));
     await hubPool.connect(dataworker).executeRootBundle(...Object.values(leaves2[1]), tree2.getHexProof(leaves2[1]));
     const secondExecutionBlockNumber = await hubPool.provider.getBlockNumber();

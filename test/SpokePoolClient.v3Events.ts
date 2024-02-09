@@ -39,10 +39,10 @@ import {
   hubPoolFixture,
   deploySpokePool,
   ethers,
-  contractsV2Utils,
+  SignerWithAddress,
   toBNWei,
+  modifyV2RelayHelper,
 } from "./utils";
-import { modifyRelayHelper } from "./constants";
 
 type EventSearchConfig = sdkUtils.EventSearchConfig;
 
@@ -53,7 +53,7 @@ describe("SpokePoolClient: Event Filtering", function () {
   const filledRelayEvents = ["FilledRelay", "FilledV3Relay"];
   const executedRelayerRefundEvents = ["ExecutedRelayerRefundRoot", "ExecutedV3RelayerRefundRoot"];
 
-  let owner: contractsV2Utils.SignerWithAddress, depositor: contractsV2Utils.SignerWithAddress;
+  let owner: SignerWithAddress, depositor: SignerWithAddress;
   let chainIds: number[];
   let originChainId: number, destinationChainId: number, repaymentChainId: number;
   let hubPoolClient: MockHubPoolClient;
@@ -118,7 +118,7 @@ describe("SpokePoolClient: Event Filtering", function () {
 
     for (const chainId of chainIds) {
       // @dev the underlying chainId will be the same for all three SpokePools.
-      const { spokePool } = await deploySpokePool(ethers);
+      const { spokePool } = await deploySpokePool();
       const receipt = await spokePool.deployTransaction.wait();
       await spokePool.setChainId(chainId);
       const spokePoolClient = new MockSpokePoolClient(logger, spokePool, chainId, receipt.blockNumber);
@@ -204,7 +204,7 @@ describe("SpokePoolClient: Event Filtering", function () {
       expect(v3Deposit.updatedOutputAmount).to.be.undefined;
 
       const newRelayerFeePct = v2Deposit.relayerFeePct!.add(1);
-      const { signature: v2SpeedUpSignature } = await modifyRelayHelper(
+      const { signature: v2SpeedUpSignature } = await modifyV2RelayHelper(
         newRelayerFeePct,
         v2Deposit.depositId.toString(),
         v2Deposit.originChainId.toString(),
@@ -216,7 +216,7 @@ describe("SpokePoolClient: Event Filtering", function () {
       // Note: getUpdatedV3DepositSignature() is not yet available, so just fudge the event. This is
       // possible because the event is injected. The SpokePool contract would normally handle verification.
       const updatedOutputAmount = v3Deposit.outputAmount!.sub(1);
-      const { signature: v3SpeedUpSignature } = await modifyRelayHelper(
+      const { signature: v3SpeedUpSignature } = await modifyV2RelayHelper(
         updatedOutputAmount,
         v3Deposit.depositId.toString(),
         v3Deposit.originChainId.toString(),

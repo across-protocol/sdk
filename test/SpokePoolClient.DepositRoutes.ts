@@ -3,15 +3,14 @@ import {
   Contract,
   SignerWithAddress,
   createSpyLogger,
-  destinationChainId,
   enableRoutes,
   ethers,
   expect,
   getContractFactory,
-  originChainId,
+  constants,
   randomAddress,
-  zeroAddress,
 } from "./utils";
+const { destinationChainId, originChainId } = constants;
 
 import { SpokePoolClient } from "../src/clients"; // tested
 
@@ -24,12 +23,11 @@ describe("SpokePoolClient: Deposit Routes", function () {
   beforeEach(async function () {
     [owner] = await ethers.getSigners();
     // Deploy a minimal spokePool, without using the fixture as this does some route enabling within it.
-    spokePool = await hre["upgrades"].deployProxy(await getContractFactory("_MockSpokePool", owner), [
-      0,
-      owner.address,
-      owner.address,
-      zeroAddress,
-    ]);
+    spokePool = await hre.upgrades.deployProxy(
+      await getContractFactory("_MockSpokePool", owner),
+      [1, owner.address, owner.address],
+      { kind: "uups", unsafeAllow: ["delegatecall"], constructorArgs: [owner.address] }
+    );
     const deploymentBlock = await spokePool.provider.getBlockNumber();
     spokePoolClient = new SpokePoolClient(createSpyLogger().spyLogger, spokePool, null, originChainId, deploymentBlock);
   });

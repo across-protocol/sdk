@@ -5,11 +5,12 @@ import {
   ethers,
   Contract,
   SignerWithAddress,
-  zeroAddress,
+  constants,
   createSpyLogger,
+  CONFIG_STORE_VERSION,
 } from "./utils";
 import { AcrossConfigStoreClient as ConfigStoreClient, HubPoolClient } from "../src/clients";
-import { CONFIG_STORE_VERSION } from "./constants";
+const { zeroAddress } = constants;
 
 let hubPool: Contract, lpTokenFactory: Contract;
 let owner: SignerWithAddress;

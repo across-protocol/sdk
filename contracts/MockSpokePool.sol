@@ -9,5 +9,32 @@ import "@across-protocol/contracts-v2/contracts/test/MockSpokePool.sol";
  * this contract is explicitly defined here.
  */
 contract _MockSpokePool is MockSpokePool {
-
+    /// @custom:oz-upgrades-unsafe-allow constructor
+     constructor(address _wrappedNativeTokenAddress) MockSpokePool(_wrappedNativeTokenAddress) {} // solhint-disable-line no-empty-blocks 
+     
+    // Use this function to unit test that the SpokePoolClient can handle FundsDeposited, which was deprecated in 
+    // the latest contracts-v2 SpokePool code. We need to support this for backwards compatibility.
+    function depositV2(
+        address recipient,
+        address originToken,
+        uint256 amount,
+        uint256 destinationChainId,
+        int64 relayerFeePct,
+        uint32 quoteTimestamp,
+        bytes memory message,
+        uint256 maxCount
+    ) external payable {
+        emit FundsDeposited(
+            amount,
+            chainId(),
+            destinationChainId,
+            relayerFeePct,
+            numberOfDeposits++,
+            quoteTimestamp,
+            originToken,
+            recipient,
+            msg.sender,
+            message
+        );
+    }
 }
