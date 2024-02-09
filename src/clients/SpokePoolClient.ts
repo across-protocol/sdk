@@ -119,20 +119,24 @@ export class SpokePoolClient extends BaseAbstractClient {
   }
 
   public _queryableEventNames(): { [eventName: string]: EventFilter } {
-    return {
-      FundsDeposited: this.spokePool.filters.FundsDeposited(),
-      RequestedSpeedUpDeposit: this.spokePool.filters.RequestedSpeedUpDeposit(),
-      FilledRelay: this.spokePool.filters.FilledRelay(),
-      EnabledDepositRoute: this.spokePool.filters.EnabledDepositRoute(),
-      TokensBridged: this.spokePool.filters.TokensBridged(),
-      RelayedRootBundle: this.spokePool.filters.RelayedRootBundle(),
-      ExecutedRelayerRefundRoot: this.spokePool.filters.ExecutedRelayerRefundRoot(),
-      // These events will only work after bumping to the new contracts-v2 package.
-      // V3FundsDeposited: this.spokePool.filters.V3FundsDeposited(),
-      // RequestedSpeedUpV3Deposit: this.spokePool.filters.RequestedSpeedUpV3Deposit(),
-      // FilledV3Relay: this.spokePool.filters.FilledV3Relay(),
-      // ExecutedV3RelayerRefundRoot: this.spokePool.filters.ExecutedV3RelayerRefundRoot(),
-    };
+    const knownEventNames = [
+      "FundsDeposited",
+      "RequestedSpeedUpDeposit",
+      "FilledRelay",
+      "EnabledDepositRoute",
+      "TokensBridged",
+      "RelayedRootBundle",
+      "ExecutedRelayerRefundRoot",
+      "V3FundsDeposited",
+      "RequestedSpeedUpV3Deposit",
+      "FilledV3Relay",
+      "ExecutedV3RelayerRefundRoot",
+    ];
+    return Object.fromEntries(
+      this.spokePool.interface.fragments
+        .filter(({ name, type }) => type === "event" && knownEventNames.includes(name))
+        .map(({ name }) => [name, this.spokePool.filters[name]()])
+    );
   }
 
   /**
@@ -306,6 +310,9 @@ export class SpokePoolClient extends BaseAbstractClient {
 
     if (isV2Deposit(deposit)) {
       const v2SpeedUps = depositorSpeedUps.filter(isV2SpeedUp<V2SpeedUp, V3SpeedUp>);
+      if (v2SpeedUps.length === 0) {
+        return deposit;
+      }
       const maxSpeedUp = v2SpeedUps.reduce((prev, current) =>
         prev.newRelayerFeePct.gt(current.newRelayerFeePct) ? prev : current
       );
@@ -329,6 +336,9 @@ export class SpokePoolClient extends BaseAbstractClient {
     }
 
     const v3SpeedUps = depositorSpeedUps.filter(isV3SpeedUp<V3SpeedUp, V2SpeedUp>);
+    if (v3SpeedUps.length === 0) {
+      return deposit;
+    }
     const maxSpeedUp = v3SpeedUps.reduce((prev, current) =>
       prev.updatedOutputAmount.lt(current.updatedOutputAmount) ? prev : current
     );
@@ -747,7 +757,7 @@ export class SpokePoolClient extends BaseAbstractClient {
         let deposit: DepositWithBlock;
 
         if (this.isV3DepositEvent(event)) {
-          deposit = { ...(rawDeposit as V3DepositWithBlock) };
+          deposit = { ...(rawDeposit as V3DepositWithBlock), originChainId: this.chainId };
           if (deposit.outputToken === ZERO_ADDRESS) {
             deposit.outputToken = this.getDestinationTokenForDeposit(deposit);
           }
