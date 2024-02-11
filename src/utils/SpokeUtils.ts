@@ -1,6 +1,6 @@
 import assert from "assert";
 import { Contract, utils as ethersUtils } from "ethers";
-import { RelayData, V2RelayData, V3RelayData } from "../interfaces";
+import { RelayData, SlowFillRequest, V2RelayData, V3Deposit, V3Fill, V3RelayData } from "../interfaces";
 import { SpokePoolClient } from "../clients";
 import { isDefined } from "./TypeGuards";
 import { isV2RelayData } from "./V3Utils";
@@ -236,4 +236,22 @@ function getV3RelayHash(relayData: V3RelayData, destinationChainId: number): str
       [relayData, destinationChainId]
     )
   );
+}
+
+export function getV3RelayHashFromEvent(e: V3Deposit | V3Fill | SlowFillRequest): string {
+  const relayData: V3RelayData = {
+    depositor: e.depositor,
+    recipient: e.recipient,
+    exclusiveRelayer: e.exclusiveRelayer,
+    inputToken: e.inputToken,
+    outputToken: e.outputToken,
+    inputAmount: e.inputAmount,
+    outputAmount: e.outputAmount,
+    originChainId: e.originChainId,
+    depositId: e.depositId,
+    fillDeadline: e.fillDeadline,
+    exclusivityDeadline: e.exclusivityDeadline,
+    message: e.message,
+  };
+  return getV3RelayHash(relayData, e.destinationChainId);
 }
