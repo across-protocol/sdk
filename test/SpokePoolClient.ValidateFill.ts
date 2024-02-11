@@ -1,20 +1,13 @@
 import assert from "assert";
 import { RelayData } from "../src/interfaces";
 import { SpokePoolClient } from "../src/clients";
-import {
-  bnZero,
-  bnOne,
-  InvalidFill,
-  relayFilledAmount,
-  validateFillForDeposit,
-  queryHistoricalDepositForFill,
-} from "../src/utils";
+import { bnZero, bnOne, InvalidFill, validateFillForDeposit, queryHistoricalDepositForFill } from "../src/utils";
 import {
   expect,
   toBNWei,
   ethers,
   SignerWithAddress,
-  deposit,
+  depositV2,
   setupTokensForWallet,
   toBN,
   buildFill,
@@ -35,6 +28,7 @@ import {
   mineRandomBlocks,
   winston,
   lastSpyLogIncludes,
+  relayFilledAmount,
 } from "./utils";
 import { CHAIN_ID_TEST_LIST, repaymentChainId } from "./constants";
 import { MockConfigStoreClient, MockHubPoolClient, MockSpokePoolClient } from "./mocks";
@@ -231,9 +225,9 @@ describe("SpokePoolClient: Fill Validation", function () {
     spokePoolClient1.isUpdated = true;
 
     // Send 2 deposits and mine blocks between them to ensure deposits are in different blocks.
-    await deposit(spokePool_1, erc20_1, depositor, depositor, destinationChainId);
+    await depositV2(spokePool_1, erc20_1, depositor, depositor, destinationChainId);
     await mineRandomBlocks();
-    await deposit(spokePool_1, erc20_1, depositor, depositor, destinationChainId);
+    await depositV2(spokePool_1, erc20_1, depositor, depositor, destinationChainId);
     await mineRandomBlocks();
     const [, deposit1Event] = await spokePool_1.queryFilter("FundsDeposited");
     const deposit1Block = deposit1Event.blockNumber;
@@ -306,7 +300,7 @@ describe("SpokePoolClient: Fill Validation", function () {
       relayerFeePct: toBNWei("0.01"),
       quoteTimestamp: await spokePool_1.getCurrentTime(),
     });
-    const depositData = await spokePool_1.populateTransaction.deposit(...depositParams);
+    const depositData = await spokePool_1.populateTransaction.depositV2(...depositParams);
     await spokePool_1.connect(depositor).multicall(Array(3).fill(depositData.data));
     expect(await spokePool_1.numberOfDeposits()).to.equal(5);
     const depositEvents = await spokePool_1.queryFilter("FundsDeposited");
