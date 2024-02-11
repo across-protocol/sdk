@@ -133,6 +133,7 @@ export class SpokePoolClient extends BaseAbstractClient {
       "RequestedSpeedUpV3Deposit",
       "FilledV3Relay",
       "ExecutedV3RelayerRefundRoot",
+      "RequestedV3SlowFill"
     ];
     return Object.fromEntries(
       this.spokePool.interface.fragments
@@ -792,7 +793,7 @@ export class SpokePoolClient extends BaseAbstractClient {
         deposit.quoteBlockNumber = quoteBlockNumber;
 
         if (this.depositHashes[this.getDepositHash(deposit)] !== undefined) {
-          throw new Error(`SpokePoolClient: Duplicate deposit for relayDataHash: ${this.getDepositHash(deposit)}`);
+          continue;
         }
         assign(this.depositHashes, [this.getDepositHash(deposit)], deposit);
 
@@ -841,7 +842,7 @@ export class SpokePoolClient extends BaseAbstractClient {
         };
         const relayDataHash = getRelayDataHash(slowFillRequest, this.chainId);
         if (this.slowFillRequests[relayDataHash] !== undefined) {
-          throw new Error(`SpokePoolClient: Duplicate slow fill request for relayDataHash: ${relayDataHash}`);
+          continue;
         }
         this.slowFillRequests[relayDataHash] = slowFillRequest;
       }
@@ -1182,6 +1183,7 @@ export class SpokePoolClient extends BaseAbstractClient {
     // Append destination token and realized lp fee to deposit.
     const deposit: V3DepositWithBlock = {
       ...partialDeposit,
+      originChainId: this.chainId,
       realizedLpFeePct,
       quoteBlockNumber,
       outputToken:

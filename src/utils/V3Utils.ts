@@ -86,7 +86,7 @@ export function isV3RelayData<T extends MinV3RelayData, U extends MinV2RelayData
 }
 
 export function isSlowFill(fill: Fill): boolean {
-  return isV2Fill(fill) ? fill.updatableRelayData.isSlowRelay : fill.updatableRelayData.fillType === FillType.SlowFill;
+  return isV2Fill(fill) ? fill.updatableRelayData.isSlowRelay : fill.relayExecutionInfo.fillType === FillType.SlowFill;
 }
 
 // If needed, this can be made generic in the future.
