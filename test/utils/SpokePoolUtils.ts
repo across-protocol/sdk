@@ -52,7 +52,6 @@ export function v3FillFromDeposit(deposit: V3DepositWithBlock, relayer: string):
 
   const fill: V3Fill = {
     ...partialDeposit,
-    realizedLpFeePct: deposit.realizedLpFeePct ?? bnZero,
     relayer,
 
     // Caller can modify these later.
