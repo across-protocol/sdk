@@ -585,3 +585,51 @@ export function buildDepositForRelayerFeeTest(
     realizedLpFeePct: bnZero,
   };
 }
+
+export async function fillV3Relay(
+  spokePool: Contract,
+  deposit: Omit<V3Deposit, "destinationChainId">,
+  signer: SignerWithAddress,
+  repaymentChainId?: number
+): Promise<V3FillWithBlock> {
+  const destinationChainId = Number(await spokePool.chainId());
+  assert.notEqual(deposit.originChainId, destinationChainId);
+
+  await spokePool.connect(signer).fillV3Relay(deposit, repaymentChainId ?? destinationChainId);
+
+  const events = await spokePool.queryFilter(spokePool.filters.FilledV3Relay());
+  const lastEvent = events.at(-1);
+  let args = lastEvent!.args;
+  assert.exists(args);
+  args = args!;
+
+  const { blockNumber, transactionHash, transactionIndex, logIndex } = lastEvent!;
+
+  return {
+    depositId: args.depositId,
+    originChainId: Number(args.originChainId),
+    destinationChainId,
+    depositor: args.depositor,
+    recipient: args.recipient,
+    inputToken: args.inputToken,
+    inputAmount: args.inputAmount,
+    outputToken: args.outputToken,
+    outputAmount: args.outputAmount,
+    message: args.message,
+    fillDeadline: args.fillDeadline,
+    exclusivityDeadline: args.exclusivityDeadline,
+    exclusiveRelayer: args.exclusiveRelayer,
+    relayer: args.relayer,
+    repaymentChainId: Number(args.repaymentChainId),
+    updatableRelayData: {
+      recipient: args.relayExecutionInfo.recipient,
+      message: args.relayExecutionInfo.message,
+      outputAmount: args.relayExecutionInfo.outputAmount,
+      fillType: args.relayExecutionInfo.fillType,
+    },
+    blockNumber,
+    transactionHash,
+    transactionIndex,
+    logIndex,
+  };
+}
