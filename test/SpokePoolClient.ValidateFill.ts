@@ -1,13 +1,22 @@
-import assert from "assert";
-import { RelayData } from "../src/interfaces";
+import { FillStatus } from "../src/interfaces";
 import { SpokePoolClient } from "../src/clients";
-import { bnZero, bnOne, InvalidFill, validateFillForDeposit, queryHistoricalDepositForFill } from "../src/utils";
 import {
+  bnZero,
+  bnOne,
+  InvalidFill,
+  relayFillStatus,
+  validateFillForDeposit,
+  queryHistoricalDepositForFill,
+} from "../src/utils";
+import {
+  assert,
   expect,
   toBNWei,
   ethers,
   SignerWithAddress,
   depositV2,
+  depositV3,
+  fillV3Relay,
   setupTokensForWallet,
   toBN,
   buildFill,
@@ -28,7 +37,6 @@ import {
   mineRandomBlocks,
   winston,
   lastSpyLogIncludes,
-  relayFilledAmount,
 } from "./utils";
 import { CHAIN_ID_TEST_LIST, repaymentChainId } from "./constants";
 import { MockConfigStoreClient, MockHubPoolClient, MockSpokePoolClient } from "./mocks";
@@ -105,25 +113,27 @@ describe("SpokePoolClient: Fill Validation", function () {
     await spokePool_1.setCurrentTime(await getLastBlockTime(spokePool_1.provider));
   });
 
-  it("Tracks v2 fill status", async function () {
-    const deposit = await buildDeposit(hubPoolClient, spokePool_1, erc20_1, depositor, destinationChainId);
+  it("Tracks v3 fill status", async function () {
+    const inputToken = erc20_1.address;
+    const inputAmount = toBNWei(1);
+    const outputToken = erc20_2.address;
+    const outputAmount = inputAmount.sub(bnOne);
+    const deposit = await depositV3(
+      spokePool_1,
+      destinationChainId,
+      depositor,
+      inputToken,
+      inputAmount,
+      outputToken,
+      outputAmount
+    );
 
-    let filled = await relayFilledAmount(spokePool_2, deposit as RelayData);
-    expect(filled.eq(0)).is.true;
+    let filled = await relayFillStatus(spokePool_2, deposit);
+    expect(filled).to.equal(FillStatus.Unfilled);
 
-    await buildFill(spokePool_2, erc20_2, depositor, relayer, deposit, 1);
-    filled = await relayFilledAmount(spokePool_2, deposit as RelayData);
-    expect(filled.eq(deposit.amount)).is.true;
-  });
-
-  it.skip("Tracks v3 fill status", async function () {
-    const deposit = await buildDeposit(hubPoolClient, spokePool_1, erc20_1, depositor, destinationChainId);
-
-    const filled = await relayFilledAmount(spokePool_2, deposit as RelayData);
-    expect(filled.eq(0)).is.true;
-
-    await buildFill(spokePool_2, erc20_2, depositor, relayer, deposit, 1);
-    // @todo: Verify fill
+    await fillV3Relay(spokePool_2, deposit, relayer);
+    filled = await relayFillStatus(spokePool_2, deposit);
+    expect(filled).to.equal(FillStatus.Filled);
   });
 
   it("Accepts valid fills", async function () {
@@ -425,7 +435,7 @@ describe("SpokePoolClient: Fill Validation", function () {
     expect(spokePoolClient1.getDeposits().length).to.equal(0);
 
     const historicalDeposit = await queryHistoricalDepositForFill(spokePoolClient1, fill);
-    assert(historicalDeposit.found === true, "Test is broken"); // Help tsc to narrow the discriminated union.
+    assert.equal(historicalDeposit.found, true, "Test is broken"); // Help tsc to narrow the discriminated union.
     expect(historicalDeposit.deposit.depositId).to.deep.equal(deposit.depositId);
   });
 
@@ -450,7 +460,7 @@ describe("SpokePoolClient: Fill Validation", function () {
     expect(spokePoolClient1.getDeposits().length).to.equal(0);
 
     const historicalDeposit = await queryHistoricalDepositForFill(spokePoolClient1, fill);
-    assert(historicalDeposit.found === true, "Test is broken"); // Help tsc to narrow the discriminated union.
+    assert.equal(historicalDeposit.found, true, "Test is broken"); // Help tsc to narrow the discriminated union.
     expect(historicalDeposit.deposit.depositId).to.deep.equal(deposit.depositId);
   });
 
@@ -500,7 +510,7 @@ describe("SpokePoolClient: Fill Validation", function () {
     expect(fill.depositId < spokePoolClient1.firstDepositIdForSpokePool).is.true;
     const search = await queryHistoricalDepositForFill(spokePoolClient1, fill);
 
-    assert(search.found === false, "Test is broken"); // Help tsc to narrow the discriminated union.
+    assert.equal(search.found, false, "Test is broken"); // Help tsc to narrow the discriminated union.
     expect(search.code).to.equal(InvalidFill.DepositIdInvalid);
     expect(lastSpyLogIncludes(spy, "Queried RPC for deposit")).is.not.true;
   });
@@ -526,7 +536,7 @@ describe("SpokePoolClient: Fill Validation", function () {
     expect(fill.depositId > spokePoolClient1.lastDepositIdForSpokePool).is.true;
     const search = await queryHistoricalDepositForFill(spokePoolClient1, fill);
 
-    assert(search.found === false, "Test is broken"); // Help tsc to narrow the discriminated union.
+    assert.equal(search.found, false, "Test is broken"); // Help tsc to narrow the discriminated union.
     expect(search.code).to.equal(InvalidFill.DepositIdInvalid);
     expect(lastSpyLogIncludes(spy, "Queried RPC for deposit")).is.not.true;
   });
@@ -540,7 +550,7 @@ describe("SpokePoolClient: Fill Validation", function () {
     await Promise.all([spokePoolClient1.update(), spokePoolClient2.update()]);
 
     const search = await queryHistoricalDepositForFill(spokePoolClient1, fill);
-    assert(search.found === false, "Test is broken"); // Help tsc to narrow the discriminated union.
+    assert.equal(search.found, false, "Test is broken"); // Help tsc to narrow the discriminated union.
     expect(search.code).to.equal(InvalidFill.FillMismatch);
   });
 

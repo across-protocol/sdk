@@ -5,7 +5,7 @@ import {
   GLOBAL_CONFIG_STORE_KEYS,
   HubPoolClient,
 } from "../../src/clients";
-import { V2Deposit, V2Fill } from "../../src/interfaces";
+import { V2Deposit, V2Fill, V3Deposit, V3DepositWithBlock, V3FillWithBlock } from "../../src/interfaces";
 import {
   bnUint32Max,
   bnZero,
@@ -310,18 +310,135 @@ export async function buildV2DepositStruct(
   };
 }
 
-// export function buildV3Deposit(
-//   _hubPoolClient: HubPoolClient,
-//   _spokePool: Contract,
-//   _destinationChainId: number,
-//   _recipientAndDepositor: SignerWithAddress,
-//   _inputToken: Contract,
-//   _inputAmount: BigNumber,
-//   _outputToken: Contract,
-//   _outputAmount: BigNumber
-// ): Promise<Deposit> {
-//   throw new Error("not supported");
-// }
+export async function depositV3(
+  spokePool: Contract,
+  destinationChainId: number,
+  signer: SignerWithAddress,
+  inputToken: string,
+  inputAmount: BigNumber,
+  outputToken: string,
+  outputAmount: BigNumber,
+  opts: {
+    destinationChainId?: number;
+    recipient?: string;
+    quoteTimestamp?: number;
+    message?: string;
+    fillDeadline?: number;
+    exclusivityDeadline?: number;
+    exclusiveRelayer?: string;
+  } = {}
+): Promise<V3DepositWithBlock> {
+  const depositor = signer.address;
+  const recipient = opts.recipient ?? depositor;
+
+  const [spokePoolTime, fillDeadlineBuffer] = (
+    await Promise.all([spokePool.getCurrentTime(), spokePool.fillDeadlineBuffer()])
+  ).map((n) => Number(n));
+
+  const quoteTimestamp = opts.quoteTimestamp ?? spokePoolTime;
+  const message = opts.message ?? EMPTY_MESSAGE;
+  const fillDeadline = opts.fillDeadline ?? spokePoolTime + fillDeadlineBuffer;
+  const exclusivityDeadline = opts.exclusivityDeadline ?? 0;
+  const exclusiveRelayer = opts.exclusiveRelayer ?? zeroAddress;
+
+  await spokePool
+    .connect(signer)
+    .depositV3(
+      depositor,
+      recipient,
+      inputToken,
+      outputToken,
+      inputAmount,
+      outputAmount,
+      destinationChainId,
+      exclusiveRelayer,
+      quoteTimestamp,
+      fillDeadline,
+      exclusivityDeadline,
+      message
+    );
+
+  const [events, originChainId] = await Promise.all([
+    spokePool.queryFilter(spokePool.filters.V3FundsDeposited()),
+    spokePool.chainId(),
+  ]);
+
+  const lastEvent = events.at(-1);
+  const args = lastEvent?.args;
+  assert.exists(args);
+
+  const { blockNumber, transactionHash, transactionIndex, logIndex } = lastEvent!;
+
+  return {
+    depositId: args!.depositId,
+    originChainId: Number(originChainId),
+    destinationChainId: Number(args!.destinationChainId),
+    depositor: args!.depositor,
+    recipient: args!.recipient,
+    inputToken: args!.inputToken,
+    inputAmount: args!.inputAmount,
+    outputToken: args!.outputToken,
+    outputAmount: args!.outputAmount,
+    quoteTimestamp: args!.quoteTimestamp,
+    message: args!.message,
+    fillDeadline: args!.fillDeadline,
+    exclusivityDeadline: args!.exclusivityDeadline,
+    exclusiveRelayer: args!.exclusiveRelayer,
+    quoteBlockNumber: 0, // @todo
+    blockNumber,
+    transactionHash,
+    transactionIndex,
+    logIndex,
+  };
+}
+
+export async function fillV3Relay(
+  spokePool: Contract,
+  deposit: Omit<V3Deposit, "destinationChainId">,
+  signer: SignerWithAddress,
+  repaymentChainId?: number
+): Promise<V3FillWithBlock> {
+  const destinationChainId = Number(await spokePool.chainId());
+  assert.notEqual(deposit.originChainId, destinationChainId);
+
+  await spokePool.connect(signer).fillV3Relay(deposit, repaymentChainId ?? destinationChainId);
+
+  const events = await spokePool.queryFilter(spokePool.filters.FilledV3Relay());
+  const lastEvent = events.at(-1);
+  let args = lastEvent!.args;
+  assert.exists(args);
+  args = args!;
+
+  const { blockNumber, transactionHash, transactionIndex, logIndex } = lastEvent!;
+
+  return {
+    depositId: args.depositId,
+    originChainId: Number(args.originChainId),
+    destinationChainId,
+    depositor: args.depositor,
+    recipient: args.recipient,
+    inputToken: args.inputToken,
+    inputAmount: args.inputAmount,
+    outputToken: args.outputToken,
+    outputAmount: args.outputAmount,
+    message: args.message,
+    fillDeadline: args.fillDeadline,
+    exclusivityDeadline: args.exclusivityDeadline,
+    exclusiveRelayer: args.exclusiveRelayer,
+    relayer: args.relayer,
+    repaymentChainId: Number(args.repaymentChainId),
+    updatableRelayData: {
+      recipient: args.relayExecutionInfo.recipient,
+      message: args.relayExecutionInfo.message,
+      outputAmount: args.relayExecutionInfo.outputAmount,
+      fillType: args.relayExecutionInfo.fillType,
+    },
+    blockNumber,
+    transactionHash,
+    transactionIndex,
+    logIndex,
+  };
+}
 
 // @note To be deprecated post-v3.
 export async function buildDeposit(
@@ -583,53 +700,5 @@ export function buildDepositForRelayerFeeTest(
     originToken,
     destinationToken,
     realizedLpFeePct: bnZero,
-  };
-}
-
-export async function fillV3Relay(
-  spokePool: Contract,
-  deposit: Omit<V3Deposit, "destinationChainId">,
-  signer: SignerWithAddress,
-  repaymentChainId?: number
-): Promise<V3FillWithBlock> {
-  const destinationChainId = Number(await spokePool.chainId());
-  assert.notEqual(deposit.originChainId, destinationChainId);
-
-  await spokePool.connect(signer).fillV3Relay(deposit, repaymentChainId ?? destinationChainId);
-
-  const events = await spokePool.queryFilter(spokePool.filters.FilledV3Relay());
-  const lastEvent = events.at(-1);
-  let args = lastEvent!.args;
-  assert.exists(args);
-  args = args!;
-
-  const { blockNumber, transactionHash, transactionIndex, logIndex } = lastEvent!;
-
-  return {
-    depositId: args.depositId,
-    originChainId: Number(args.originChainId),
-    destinationChainId,
-    depositor: args.depositor,
-    recipient: args.recipient,
-    inputToken: args.inputToken,
-    inputAmount: args.inputAmount,
-    outputToken: args.outputToken,
-    outputAmount: args.outputAmount,
-    message: args.message,
-    fillDeadline: args.fillDeadline,
-    exclusivityDeadline: args.exclusivityDeadline,
-    exclusiveRelayer: args.exclusiveRelayer,
-    relayer: args.relayer,
-    repaymentChainId: Number(args.repaymentChainId),
-    updatableRelayData: {
-      recipient: args.relayExecutionInfo.recipient,
-      message: args.relayExecutionInfo.message,
-      outputAmount: args.relayExecutionInfo.outputAmount,
-      fillType: args.relayExecutionInfo.fillType,
-    },
-    blockNumber,
-    transactionHash,
-    transactionIndex,
-    logIndex,
   };
 }
