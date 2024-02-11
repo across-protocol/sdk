@@ -297,7 +297,7 @@ export async function findFillBlock(
     `Origin & destination chain IDs must not be equal (${destinationChainId})`
   );
 
-  // Make sure the relay is 100% completed within the block range supplied by the caller.
+  // Make sure the relay war completed within the block range supplied by the caller.
   const [initialFillStatus, finalFillStatus] = (
     await Promise.all([
       relayFillStatus(spokePool, relayData, lowBlockNumber, destinationChainId),
@@ -309,7 +309,7 @@ export async function findFillBlock(
     return undefined; // Wasn't filled within the specified block range.
   }
 
-  // Was filled earlier than the specified lowBlock.. This is an error by the caller.
+  // Was filled earlier than the specified lowBlock. This is an error by the caller.
   if (initialFillStatus === FillStatus.Filled) {
     const { depositId, originChainId } = relayData;
     const [srcChain, dstChain] = [getNetworkName(originChainId), getNetworkName(destinationChainId)];
