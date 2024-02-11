@@ -98,14 +98,16 @@ export async function setupTokensForWallet(
   weth?: utils.Contract,
   seedMultiplier = 1
 ): Promise<void> {
+  const approveToken = async (token: Contract) => {
+    const balance = await token.balanceOf(wallet.address);
+    await token.connect(wallet).approve(contractToApprove.address, balance);
+  };
+
   await utils.seedWallet(wallet, tokens, weth, utils.amountToSeedWallets.mul(seedMultiplier));
-  await Promise.all(
-    tokens.map((token) =>
-      token.connect(wallet).approve(contractToApprove.address, utils.amountToDeposit.mul(seedMultiplier))
-    )
-  );
+  await Promise.all(tokens.map(approveToken));
+
   if (weth) {
-    await weth.connect(wallet).approve(contractToApprove.address, utils.amountToDeposit);
+    await approveToken(weth);
   }
 }
 
