@@ -133,7 +133,7 @@ export class SpokePoolClient extends BaseAbstractClient {
       "RequestedSpeedUpV3Deposit",
       "FilledV3Relay",
       "ExecutedV3RelayerRefundRoot",
-      "RequestedV3SlowFill"
+      "RequestedV3SlowFill",
     ];
     return Object.fromEntries(
       this.spokePool.interface.fragments
