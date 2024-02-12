@@ -1,15 +1,14 @@
 import { SpokePoolClient } from "../src/clients";
 import { Deposit } from "../src/interfaces";
+import { originChainId, destinationChainId } from "./constants";
 import {
   Contract,
   SignerWithAddress,
   buildFill,
   createSpyLogger,
   deploySpokePoolWithToken,
-  destinationChainId,
   ethers,
   expect,
-  originChainId,
   setupTokensForWallet,
   toBNWei,
 } from "./utils";

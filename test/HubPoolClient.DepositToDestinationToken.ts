@@ -1,6 +1,8 @@
 import { Event } from "ethers";
 import {
   CONFIG_STORE_VERSION,
+  destinationChainId,
+  originChainId,
   randomDestinationToken,
   randomDestinationToken2,
   randomL1Token,
@@ -12,11 +14,9 @@ import {
   SignerWithAddress,
   createSpyLogger,
   deployConfigStore,
-  destinationChainId,
   ethers,
   expect,
   getContractFactory,
-  originChainId,
   zeroAddress,
 } from "./utils";
 

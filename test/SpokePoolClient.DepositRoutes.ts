@@ -1,35 +1,15 @@
-import hre from "hardhat";
-import {
-  Contract,
-  SignerWithAddress,
-  createSpyLogger,
-  destinationChainId,
-  enableRoutes,
-  ethers,
-  expect,
-  getContractFactory,
-  originChainId,
-  randomAddress,
-  zeroAddress,
-} from "./utils";
-
 import { SpokePoolClient } from "../src/clients"; // tested
+import { originChainId, destinationChainId } from "./constants";
+import { Contract, createSpyLogger, deploySpokePool, enableRoutes, ethers, expect, randomAddress } from "./utils";
 
 let spokePool: Contract;
-let owner: SignerWithAddress;
 
 let spokePoolClient: SpokePoolClient;
 
 describe("SpokePoolClient: Deposit Routes", function () {
   beforeEach(async function () {
-    [owner] = await ethers.getSigners();
     // Deploy a minimal spokePool, without using the fixture as this does some route enabling within it.
-    spokePool = await hre["upgrades"].deployProxy(await getContractFactory("_MockSpokePool", owner), [
-      0,
-      owner.address,
-      owner.address,
-      zeroAddress,
-    ]);
+    ({ spokePool } = await deploySpokePool(ethers));
     const deploymentBlock = await spokePool.provider.getBlockNumber();
     spokePoolClient = new SpokePoolClient(createSpyLogger().spyLogger, spokePool, null, originChainId, deploymentBlock);
   });

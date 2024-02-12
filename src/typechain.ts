@@ -63,7 +63,7 @@ export interface V3FundsDepositedEventObject {
   exclusivityDeadline: number;
   depositor: string;
   recipient: string;
-  relayer: string;
+  exclusiveRelayer: string;
   message: string;
 }
 export type V3FundsDepositedEvent = TypedEvent<

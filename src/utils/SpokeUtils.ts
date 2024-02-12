@@ -1,10 +1,10 @@
 import assert from "assert";
-import { BigNumber, Contract, utils as ethersUtils } from "ethers";
+import { Contract, utils as ethersUtils } from "ethers";
+import { CHAIN_IDs } from "../constants";
 import { FillStatus, RelayData, V2RelayData, V3RelayData } from "../interfaces";
 import { SpokePoolClient } from "../clients";
-import { bnZero } from "./BigNumberUtils";
 import { isDefined } from "./TypeGuards";
-import { getRelayDataOutputAmount, isV2RelayData } from "./V3Utils";
+import { isV2RelayData } from "./V3Utils";
 import { getNetworkName } from "./NetworkUtils";
 
 /**
@@ -186,7 +186,7 @@ export function getRelayDataHash(relayData: RelayData, destinationChainId?: numb
  * @param relayData V2RelayData information that is used to complete a fill.
  * @returns The corresponding RelayData hash.
  */
-function getV2RelayHash(relayData: V2RelayData): string {
+export function getV2RelayHash(relayData: V2RelayData): string {
   return ethersUtils.keccak256(
     ethersUtils.defaultAbiCoder.encode(
       [
@@ -215,7 +215,7 @@ function getV2RelayHash(relayData: V2RelayData): string {
  * @param destinationChainId Supplementary destination chain ID required by V3 hashes.
  * @returns The corresponding RelayData hash.
  */
-function getV3RelayHash(relayData: V3RelayData, destinationChainId: number): string {
+export function getV3RelayHash(relayData: V3RelayData, destinationChainId: number): string {
   return ethersUtils.keccak256(
     ethersUtils.defaultAbiCoder.encode(
       [
@@ -247,22 +247,23 @@ function getV3RelayHash(relayData: V3RelayData, destinationChainId: number): str
  * @param blockTag Block tag (numeric or "latest") to query at.
  * @returns The amount filled for the specified deposit at the requested block (or latest).
  */
-export async function relayFilledAmount(
+export async function relayFillStatus(
   spokePool: Contract,
-  relayData: RelayData,
-  blockTag?: number | "latest"
-): Promise<BigNumber> {
-  const hash = getRelayDataHash(relayData);
+  relayData: V3RelayData,
+  blockTag?: number | "latest",
+  destinationChainId?: number
+): Promise<FillStatus> {
+  destinationChainId ??= await spokePool.chainId();
+  const hash = getRelayDataHash(relayData, destinationChainId);
+  const _fillStatus = await spokePool.fillStatuses(hash, { blockTag });
+  const fillStatus = Number(_fillStatus);
 
-  if (isV2RelayData(relayData)) {
-    return spokePool.relayFills(hash, { blockTag });
+  if (![FillStatus.Unfilled, FillStatus.RequestedSlowFill, FillStatus.Filled].includes(fillStatus)) {
+    const { originChainId, depositId } = relayData;
+    throw new Error(`relayFillStatus: Unexpected fillStatus for ${originChainId} deposit ${depositId}`);
   }
 
-  const fillStatus = await spokePool.fillStatuses(hash, { blockTag });
-
-  // @note: If the deposit was updated then the fill amount may be _less_ than outputAmount.
-  // @todo: Remove V3RelayData type assertion once RelayData type is unionised.
-  return fillStatus === FillStatus.Filled ? (relayData as V3RelayData).outputAmount : bnZero;
+  return fillStatus;
 }
 
 /**
@@ -276,29 +277,40 @@ export async function relayFilledAmount(
  */
 export async function findFillBlock(
   spokePool: Contract,
-  relayData: RelayData,
+  relayData: V3RelayData,
   lowBlockNumber: number,
   highBlockNumber?: number
 ): Promise<number | undefined> {
   const { provider } = spokePool;
   highBlockNumber ??= await provider.getBlockNumber();
   assert(highBlockNumber > lowBlockNumber, `Block numbers out of range (${lowBlockNumber} > ${highBlockNumber})`);
-  const { chainId: destinationChainId } = await provider.getNetwork();
 
-  // Make sure the relay is 100% completed within the block range supplied by the caller.
-  const [initialFillAmount, finalFillAmount] = await Promise.all([
-    relayFilledAmount(spokePool, relayData, lowBlockNumber),
-    relayFilledAmount(spokePool, relayData, highBlockNumber),
-  ]);
+  // In production the chainId returned from the provider matches 1:1 with the actual chainId. Querying the provider
+  // object saves an RPC query becasue the chainId is cached by StaticJsonRpcProvider instances. In hre, the SpokePool
+  // may be configured with a different chainId than what is returned by the provider.
+  // @todo Sub out actual chain IDs w/ CHAIN_IDs constants
+  const destinationChainId = Object.values(CHAIN_IDs).includes(relayData.originChainId)
+    ? (await provider.getNetwork()).chainId
+    : Number(await spokePool.chainId());
+  assert(
+    relayData.originChainId !== destinationChainId,
+    `Origin & destination chain IDs must not be equal (${destinationChainId})`
+  );
 
-  // Wasn't filled within the specified block range.
-  const relayAmount = getRelayDataOutputAmount(relayData);
-  if (finalFillAmount.lt(relayAmount)) {
-    return undefined;
+  // Make sure the relay war completed within the block range supplied by the caller.
+  const [initialFillStatus, finalFillStatus] = (
+    await Promise.all([
+      relayFillStatus(spokePool, relayData, lowBlockNumber, destinationChainId),
+      relayFillStatus(spokePool, relayData, highBlockNumber, destinationChainId),
+    ])
+  ).map(Number);
+
+  if (finalFillStatus !== FillStatus.Filled) {
+    return undefined; // Wasn't filled within the specified block range.
   }
 
-  // Was filled earlier than the specified lowBlock.. This is an error by the caller.
-  if (initialFillAmount.eq(relayAmount)) {
+  // Was filled earlier than the specified lowBlock. This is an error by the caller.
+  if (initialFillStatus === FillStatus.Filled) {
     const { depositId, originChainId } = relayData;
     const [srcChain, dstChain] = [getNetworkName(originChainId), getNetworkName(destinationChainId)];
     throw new Error(`${srcChain} deposit ${depositId} filled on ${dstChain} before block ${lowBlockNumber}`);
@@ -307,9 +319,9 @@ export async function findFillBlock(
   // Find the leftmost block where filledAmount equals the deposit amount.
   do {
     const midBlockNumber = Math.floor((highBlockNumber + lowBlockNumber) / 2);
-    const filledAmount = await relayFilledAmount(spokePool, relayData, midBlockNumber);
+    const fillStatus = await relayFillStatus(spokePool, relayData, midBlockNumber, destinationChainId);
 
-    if (filledAmount.eq(relayAmount)) {
+    if (fillStatus === FillStatus.Filled) {
       highBlockNumber = midBlockNumber;
     } else {
       lowBlockNumber = midBlockNumber + 1;

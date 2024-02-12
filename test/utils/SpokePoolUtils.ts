@@ -2,10 +2,10 @@ import {
   DepositWithBlock,
   Fill,
   FillType,
-  v2DepositWithBlock,
-  v2Fill,
-  v3DepositWithBlock,
-  v3Fill,
+  V2DepositWithBlock,
+  V2Fill,
+  V3DepositWithBlock,
+  V3Fill,
 } from "../../src/interfaces";
 import { bnZero, isV2Deposit } from "../../src/utils";
 
@@ -13,7 +13,7 @@ export function fillFromDeposit(deposit: DepositWithBlock, relayer: string): Fil
   return isV2Deposit(deposit) ? v2FillFromDeposit(deposit, relayer) : v3FillFromDeposit(deposit, relayer);
 }
 
-export function v2FillFromDeposit(deposit: v2DepositWithBlock, relayer: string): v2Fill {
+export function v2FillFromDeposit(deposit: V2DepositWithBlock, relayer: string): V2Fill {
   const { recipient, message, relayerFeePct } = deposit;
 
   const fill: Fill = {
@@ -46,19 +46,18 @@ export function v2FillFromDeposit(deposit: v2DepositWithBlock, relayer: string):
   return fill;
 }
 
-export function v3FillFromDeposit(deposit: v3DepositWithBlock, relayer: string): v3Fill {
+export function v3FillFromDeposit(deposit: V3DepositWithBlock, relayer: string): V3Fill {
   const { blockNumber, transactionHash, transactionIndex, ...partialDeposit } = deposit;
   const { recipient, message } = partialDeposit;
 
-  const fill: v3Fill = {
+  const fill: V3Fill = {
     ...partialDeposit,
-    realizedLpFeePct: deposit.realizedLpFeePct ?? bnZero,
     relayer,
 
     // Caller can modify these later.
     exclusiveRelayer: relayer,
     repaymentChainId: deposit.destinationChainId,
-    updatableRelayData: {
+    relayExecutionInfo: {
       recipient: deposit.updatedRecipient ?? recipient,
       message: deposit.updatedMessage ?? message,
       outputAmount: deposit.updatedOutputAmount ?? deposit.outputAmount,

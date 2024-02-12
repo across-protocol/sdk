@@ -11,9 +11,13 @@ import {
   SlowFillRequestWithBlock,
   V2DepositWithBlock,
   V2FillWithBlock,
+  V2RelayerRefundExecutionWithBlock,
   V2SpeedUp,
   V3DepositWithBlock,
+  V3Fill,
   V3FillWithBlock,
+  V3RelayerRefundExecutionWithBlock,
+  V3SlowFillLeaf,
   V3SpeedUp,
 } from "../../interfaces";
 import {
@@ -221,7 +225,7 @@ export class MockSpokePoolClient extends SpokePoolClient {
       outputAmount,
       quoteTimestamp,
       fillDeadline: deposit.fillDeadline ?? quoteTimestamp + 3600,
-      relayer: deposit.exclusiveRelayer ?? ZERO_ADDRESS,
+      exclusiveRelayer: deposit.exclusiveRelayer ?? ZERO_ADDRESS,
       exclusivityDeadline: deposit.exclusivityDeadline ?? quoteTimestamp + 600,
       message,
     };
@@ -319,11 +323,11 @@ export class MockSpokePoolClient extends SpokePoolClient {
       depositor: fill.depositor ?? randomAddress(),
       recipient,
       message,
-      updatableRelayData: {
-        updatedRecipient: fill.updatableRelayData?.recipient ?? recipient,
-        updatedMessage: fill.updatableRelayData?.message ?? message,
-        updatedOutputAmount: fill.updatableRelayData?.outputAmount ?? outputAmount,
-        fillType: fill.updatableRelayData?.fillType ?? FillType.FastFill,
+      relayExecutionInfo: {
+        updatedRecipient: fill.relayExecutionInfo?.recipient ?? recipient,
+        updatedMessage: fill.relayExecutionInfo?.message ?? message,
+        updatedOutputAmount: fill.relayExecutionInfo?.outputAmount ?? outputAmount,
+        fillType: fill.relayExecutionInfo?.fillType ?? FillType.FastFill,
       },
     };
 
@@ -377,6 +381,81 @@ export class MockSpokePoolClient extends SpokePoolClient {
       args,
       blockNumber: request.blockNumber,
       transactionIndex: request.transactionIndex,
+    });
+  }
+
+  // This is a simple wrapper around fillV3Relay().
+  // rootBundleId and proof are discarded here - we have no interest in verifying that.
+  executeV3SlowRelayLeaf(leaf: V3SlowFillLeaf): Event {
+    const fill: V3Fill = {
+      ...leaf.relayData,
+      destinationChainId: this.chainId,
+      relayer: ZERO_ADDRESS,
+      repaymentChainId: 0,
+      relayExecutionInfo: {
+        recipient: leaf.relayData.recipient,
+        outputAmount: leaf.updatedOutputAmount,
+        message: leaf.relayData.message,
+        fillType: FillType.SlowFill,
+      },
+    };
+
+    return this.fillV3Relay(fill as V3FillWithBlock);
+  }
+
+  executeRelayerRefundLeaf(refund: V2RelayerRefundExecutionWithBlock): Event {
+    const event = "ExecutedRelayerRefundRoot";
+
+    const chainId = refund.chainId ?? this.chainId;
+    assert(chainId === this.chainId);
+
+    const { rootBundleId, leafId } = refund;
+    const topics = [chainId, rootBundleId, leafId];
+    const args = {
+      chainId,
+      rootBundleId,
+      leafId,
+      amountToReturn: refund.amountToReturn,
+      l2TokenAddress: refund.l2TokenAddress,
+      refundAddresses: refund.refundAddresses,
+      refundAmounts: refund.refundAmounts,
+    };
+
+    return this.eventManager.generateEvent({
+      event,
+      address: this.spokePool.address,
+      topics: topics.map((topic) => topic.toString()),
+      args,
+      blockNumber: refund.blockNumber,
+    });
+  }
+
+  executeV3RelayerRefundLeaf(refund: V3RelayerRefundExecutionWithBlock): Event {
+    const event = "ExecutedV3RelayerRefundRoot";
+
+    const chainId = refund.chainId ?? this.chainId;
+    assert(chainId === this.chainId);
+
+    const { rootBundleId, leafId } = refund;
+    const topics = [chainId, rootBundleId, leafId];
+    const args = {
+      chainId,
+      rootBundleId,
+      leafId,
+      amountToReturn: refund.amountToReturn,
+      l2TokenAddress: refund.l2TokenAddress,
+      refundAddresses: refund.refundAddresses,
+      refundAmounts: refund.refundAmounts,
+      fillsRefundedRoot: refund.fillsRefundedRoot,
+      fillsRefundedHash: refund.fillsRefundedHash,
+    };
+
+    return this.eventManager.generateEvent({
+      event,
+      address: this.spokePool.address,
+      topics: topics.map((topic) => topic.toString()),
+      args,
+      blockNumber: refund.blockNumber,
     });
   }
 
