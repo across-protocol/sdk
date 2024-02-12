@@ -1,5 +1,6 @@
-import { Deposit, Fill, SlowFillRequest } from "../interfaces";
-import { isV2Deposit, isV3Deposit, isV2Fill, isV3Fill, isSlowFillRequest } from "./V3Utils";
+import { Deposit, Fill, RelayData, SlowFillRequest, V2RelayData, V3Fill } from "../interfaces";
+import { getV2RelayHash, getV3RelayHash } from "./SpokeUtils";
+import { isV2Deposit, isV2RelayData, isV3Deposit, isV2Fill, isV3Fill } from "./V3Utils";
 
 export const FILL_DEPOSIT_COMPARISON_KEYS = [
   "depositId",
@@ -31,41 +32,18 @@ export const V3_DEPOSIT_COMPARISON_KEYS = [
 
 export function filledSameDeposit(fillA: Fill, fillB: Fill): boolean {
   if (isV2Fill(fillA) && isV2Fill(fillB)) {
-    return (
-      fillA.depositId === fillB.depositId &&
-      fillA.originChainId === fillB.originChainId &&
-      fillA.amount.eq(fillB.amount) &&
-      fillA.destinationChainId === fillB.destinationChainId &&
-      fillA.relayerFeePct.eq(fillB.relayerFeePct) &&
-      fillA.recipient === fillB.recipient &&
-      fillA.depositor === fillB.depositor &&
-      fillA.message === fillB.message
-    );
+    return getV2RelayHash(fillA) === getV2RelayHash(fillB);
   } else if (isV3Fill(fillA) && isV3Fill(fillB)) {
-    return (
-      fillA.depositId === fillB.depositId &&
-      fillA.originChainId === fillB.originChainId &&
-      fillA.destinationChainId === fillB.destinationChainId &&
-      fillA.recipient === fillB.recipient &&
-      fillA.depositor === fillB.depositor &&
-      fillA.inputToken === fillB.inputToken &&
-      fillA.outputToken === fillB.outputToken &&
-      fillA.message === fillB.message &&
-      fillA.inputAmount.eq(fillB.inputAmount) &&
-      fillA.outputAmount.eq(fillB.outputAmount) &&
-      fillA.fillDeadline === fillB.fillDeadline &&
-      fillA.exclusivityDeadline === fillB.exclusivityDeadline &&
-      fillA.exclusiveRelayer === fillB.exclusiveRelayer
-    );
+    const { destinationChainId: chainA } = fillA;
+    const { destinationChainId: chainB } = fillB;
+    return getV3RelayHash(fillA, chainA) === getV3RelayHash(fillB, chainB);
   }
 
   return false;
 }
 
-// Ensure that each deposit element is included with the same value in the fill. This includes all elements defined
-// by the depositor as well as the realizedLpFeePct and the destinationToken, which are pulled from other clients.
 export function validateFillForDeposit(
-  fill: Fill | SlowFillRequest,
+  relayData: RelayData & { destinationChainId: number }, // V2Deposit, V3Fill, SlowFillRequest...
   deposit?: Deposit,
   fillFieldsToIgnore: string[] = []
 ): boolean {
@@ -73,33 +51,28 @@ export function validateFillForDeposit(
     return false;
   }
 
-  // If fill is a slow fill request, then deposit must be a v3 deposit or return false.
-  if (isSlowFillRequest(fill) && isV3Deposit(deposit)) {
-    return V3_DEPOSIT_COMPARISON_KEYS.every((key) => {
-      if (fillFieldsToIgnore.includes(key)) {
-        return true;
-      }
-      return fill[key] !== undefined && fill[key].toString() === deposit[key]?.toString();
-    });
-  } else {
-    // If fill is a fill, then compare the fill to the correct V2 or V3 type of deposit.
-    if (isV2Deposit(deposit) && isV2Fill(fill)) {
-      return V2_DEPOSIT_COMPARISON_KEYS.every((key) => {
-        if (fillFieldsToIgnore.includes(key)) {
-          return true;
-        }
-        return fill[key] !== undefined && fill[key].toString() === deposit[key]?.toString();
-      });
-    }
-    if (isV3Deposit(deposit) && isV3Fill(fill)) {
-      return V3_DEPOSIT_COMPARISON_KEYS.every((key) => {
-        if (fillFieldsToIgnore.includes(key)) {
-          return true;
-        }
-        return fill[key] !== undefined && fill[key].toString() === deposit[key]?.toString();
-      });
-    }
+  return isV2RelayData(relayData)
+    ? validateV2FillForDeposit(relayData, deposit, fillFieldsToIgnore)
+    : validateV3FillForDeposit(relayData, deposit);
+}
+
+function validateV2FillForDeposit(fill: V2RelayData, deposit: Deposit, fillFieldsToIgnore: string[] = []): boolean {
+  if (!isV2Deposit(deposit)) {
+    return false;
   }
 
-  return false;
+  return V2_DEPOSIT_COMPARISON_KEYS.every((key) => {
+    if (fillFieldsToIgnore.includes(key)) {
+      return true;
+    }
+    return fill[key] !== undefined && fill[key].toString() === deposit[key]?.toString();
+  });
+}
+
+function validateV3FillForDeposit(fill: V3Fill | SlowFillRequest, deposit: Deposit): boolean {
+  if (!isV3Deposit(deposit)) {
+    return false;
+  }
+
+  return getV3RelayHash(fill, fill.destinationChainId) === getV3RelayHash(deposit, deposit.destinationChainId);
 }

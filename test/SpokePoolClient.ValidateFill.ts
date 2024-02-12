@@ -8,6 +8,7 @@ import {
   validateFillForDeposit,
   queryHistoricalDepositForFill,
 } from "../src/utils";
+import { CHAIN_ID_TEST_LIST, originChainId, destinationChainId, repaymentChainId } from "./constants";
 import {
   assert,
   expect,
@@ -23,8 +24,6 @@ import {
   buildModifiedFill,
   deploySpokePoolWithToken,
   Contract,
-  originChainId,
-  destinationChainId,
   createSpyLogger,
   zeroAddress,
   deployAndConfigureHubPool,
@@ -38,7 +37,6 @@ import {
   winston,
   lastSpyLogIncludes,
 } from "./utils";
-import { CHAIN_ID_TEST_LIST, repaymentChainId } from "./constants";
 import { MockConfigStoreClient, MockHubPoolClient, MockSpokePoolClient } from "./mocks";
 
 let spokePool_1: Contract, erc20_1: Contract, spokePool_2: Contract, erc20_2: Contract, hubPool: Contract;

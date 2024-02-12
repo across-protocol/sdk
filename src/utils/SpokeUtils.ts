@@ -186,7 +186,7 @@ export function getRelayDataHash(relayData: RelayData, destinationChainId?: numb
  * @param relayData V2RelayData information that is used to complete a fill.
  * @returns The corresponding RelayData hash.
  */
-function getV2RelayHash(relayData: V2RelayData): string {
+export function getV2RelayHash(relayData: V2RelayData): string {
   return ethersUtils.keccak256(
     ethersUtils.defaultAbiCoder.encode(
       [
@@ -215,7 +215,7 @@ function getV2RelayHash(relayData: V2RelayData): string {
  * @param destinationChainId Supplementary destination chain ID required by V3 hashes.
  * @returns The corresponding RelayData hash.
  */
-function getV3RelayHash(relayData: V3RelayData, destinationChainId: number): string {
+export function getV3RelayHash(relayData: V3RelayData, destinationChainId: number): string {
   return ethersUtils.keccak256(
     ethersUtils.defaultAbiCoder.encode(
       [

@@ -1,7 +1,7 @@
 import { expect } from "chai";
 import { utils, interfaces } from "../src";
 import { ZERO_ADDRESS } from "../src/constants";
-import { toBN } from "@across-protocol/contracts-v2";
+import { randomAddress, toBN } from "./utils";
 import { cloneDeep } from "lodash";
 import { objectWithBigNumberReviver } from "../src/utils";
 import { Deposit } from "../src/interfaces";
@@ -63,7 +63,7 @@ describe("validatorUtils", () => {
       expect(utils.isDepositFormedCorrectly(deposit)).to.be.true;
       expect(utils.isDepositFormedCorrectly(depositV3)).to.be.true;
       // Let's change the recipient to a valid address
-      deposit.recipient = utils.randomAddress();
+      deposit.recipient = randomAddress();
       expect(utils.isDepositFormedCorrectly(deposit)).to.be.true;
     });
     it("should return false if deposit is not close to being formed correctly", () => {
