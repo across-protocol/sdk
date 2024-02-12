@@ -39,10 +39,10 @@ import {
   hubPoolFixture,
   deploySpokePool,
   ethers,
-  contractsV2Utils,
+  modifyRelayHelper,
+  SignerWithAddress,
   toBNWei,
 } from "./utils";
-import { modifyRelayHelper } from "./constants";
 
 type EventSearchConfig = sdkUtils.EventSearchConfig;
 
@@ -53,7 +53,7 @@ describe("SpokePoolClient: Event Filtering", function () {
   const filledRelayEvents = ["FilledRelay", "FilledV3Relay"];
   const executedRelayerRefundEvents = ["ExecutedRelayerRefundRoot", "ExecutedV3RelayerRefundRoot"];
 
-  let owner: contractsV2Utils.SignerWithAddress, depositor: contractsV2Utils.SignerWithAddress;
+  let owner: SignerWithAddress, depositor: SignerWithAddress;
   let chainIds: number[];
   let originChainId: number, destinationChainId: number, repaymentChainId: number;
   let hubPoolClient: MockHubPoolClient;

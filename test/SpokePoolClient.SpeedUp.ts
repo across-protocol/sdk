@@ -1,4 +1,4 @@
-import { depositRelayerFeePct, destinationChainId, modifyRelayHelper } from "./constants";
+import { depositRelayerFeePct, destinationChainId, originChainId } from "./constants";
 import {
   Contract,
   SignerWithAddress,
@@ -8,7 +8,7 @@ import {
   enableRoutes,
   ethers,
   expect,
-  originChainId,
+  modifyRelayHelper,
   setupTokensForWallet,
   simpleDeposit,
   toBNWei,
