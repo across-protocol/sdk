@@ -3,6 +3,7 @@ import { ZERO_ADDRESS, EMPTY_MESSAGE } from "../src/constants";
 import { SpokePoolClient } from "../src/clients";
 import { Deposit, V3Deposit } from "../src/interfaces";
 import { bnOne, findFillBlock, getCurrentTime, getNetworkName } from "../src/utils";
+import { originChainId, destinationChainId } from "./constants";
 import {
   assertPromiseError,
   Contract,
@@ -11,10 +12,8 @@ import {
   fillV3Relay,
   createSpyLogger,
   deploySpokePoolWithToken,
-  destinationChainId,
   ethers,
   expect,
-  originChainId,
   setupTokensForWallet,
   toBNWei,
 } from "./utils";

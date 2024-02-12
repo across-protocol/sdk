@@ -1,5 +1,5 @@
 import * as utils from "@across-protocol/contracts-v2/dist/test-utils";
-import { BigNumberish, providers } from "ethers";
+import { BigNumber, BigNumberish, Contract, providers } from "ethers";
 import {
   AcrossConfigStoreClient as ConfigStoreClient,
   GLOBAL_CONFIG_STORE_KEYS,
@@ -15,19 +15,17 @@ import {
   resolveContractFromSymbol,
   toBN,
   toBNWei,
+  toWei,
   utf8ToHex,
 } from "../../src/utils";
 import {
-  MAX_L1_TOKENS_PER_POOL_REBALANCE_LEAF,
-  MAX_REFUNDS_PER_RELAYER_REFUND_LEAF,
   amountToDeposit,
   depositRelayerFeePct,
+  destinationChainId as defaultDestinationChainId,
+  MAX_L1_TOKENS_PER_POOL_REBALANCE_LEAF,
+  MAX_REFUNDS_PER_RELAYER_REFUND_LEAF,
   sampleRateModel,
-  zeroAddress,
 } from "../constants";
-import { BigNumber, Contract, SignerWithAddress } from "./index";
-export { sinon, winston };
-
 import { AcrossConfigStore } from "@across-protocol/contracts-v2";
 import chai, { expect } from "chai";
 import chaiExclude from "chai-exclude";
@@ -39,9 +37,25 @@ import { EMPTY_MESSAGE, PROTOCOL_DEFAULT_CHAIN_ID_INDICES } from "../../src/cons
 import { SpyTransport } from "./SpyTransport";
 
 chai.use(chaiExclude);
-
 const assert = chai.assert;
-export { assert, chai };
+
+export type SignerWithAddress = utils.SignerWithAddress;
+
+export const {
+  buildPoolRebalanceLeafTree,
+  buildPoolRebalanceLeaves,
+  deploySpokePool,
+  depositV2,
+  enableRoutes,
+  getContractFactory,
+  getDepositParams,
+  hubPoolFixture,
+  modifyRelayHelper,
+  randomAddress,
+  zeroAddress,
+} = utils;
+
+export { assert, BigNumber, expect, chai, Contract, sinon, toBN, toBNWei, toWei, utf8ToHex, winston };
 
 const TokenRolesEnum = {
   OWNER: "0",
@@ -100,12 +114,10 @@ export async function setupTokensForWallet(
 ): Promise<void> {
   await utils.seedWallet(wallet, tokens, weth, utils.amountToSeedWallets.mul(seedMultiplier));
   await Promise.all(
-    tokens.map((token) =>
-      token.connect(wallet).approve(contractToApprove.address, utils.amountToDeposit.mul(seedMultiplier))
-    )
+    tokens.map((token) => token.connect(wallet).approve(contractToApprove.address, amountToDeposit.mul(seedMultiplier)))
   );
   if (weth) {
-    await weth.connect(wallet).approve(contractToApprove.address, utils.amountToDeposit);
+    await weth.connect(wallet).approve(contractToApprove.address, amountToDeposit);
   }
 }
 
@@ -228,9 +240,9 @@ export async function simpleDeposit(
   token: utils.Contract,
   recipient: utils.SignerWithAddress,
   depositor: utils.SignerWithAddress,
-  destinationChainId: number = utils.destinationChainId,
-  amountToDeposit: utils.BigNumber = utils.amountToDeposit,
-  depositRelayerFeePct: utils.BigNumber = utils.depositRelayerFeePct
+  destinationChainId = defaultDestinationChainId,
+  amount = amountToDeposit,
+  relayerFeePct = depositRelayerFeePct
 ): Promise<V2Deposit> {
   const depositObject = await utils.depositV2(
     spokePool,
@@ -238,8 +250,8 @@ export async function simpleDeposit(
     recipient,
     depositor,
     destinationChainId,
-    amountToDeposit,
-    depositRelayerFeePct
+    amount,
+    relayerFeePct
   );
   // Sanity Check: Ensure that the deposit was successful.
   expect(depositObject).to.not.be.null;
@@ -447,8 +459,8 @@ export async function buildDeposit(
   tokenToDeposit: Contract,
   recipientAndDepositor: SignerWithAddress,
   destinationChainId: number,
-  _amountToDeposit: BigNumber = amountToDeposit,
-  relayerFeePct: BigNumber = depositRelayerFeePct
+  _amountToDeposit = amountToDeposit,
+  relayerFeePct = depositRelayerFeePct
 ): Promise<V2Deposit> {
   const _deposit = await utils.depositV2(
     spokePool,
@@ -690,8 +702,8 @@ export function buildDepositForRelayerFeeTest(
   return {
     amount: toBN(amount),
     depositId: bnUint32Max.toNumber(),
-    depositor: utils.randomAddress(),
-    recipient: utils.randomAddress(),
+    depositor: randomAddress(),
+    recipient: randomAddress(),
     relayerFeePct: bnZero,
     message: EMPTY_MESSAGE,
     originChainId: 1,
