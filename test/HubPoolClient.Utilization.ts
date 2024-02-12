@@ -1,8 +1,9 @@
 import {
   amountToLp,
+  originChainId,
+  repaymentChainId,
   destinationChainId,
   mockTreeRoot,
-  randomAddress,
   refundProposalLiveness,
   totalBond,
 } from "./constants";
@@ -20,8 +21,7 @@ import {
   expect,
   hubPoolFixture,
   mineRandomBlocks,
-  originChainId,
-  repaymentChainId,
+  randomAddress,
   setupTokensForWallet,
   toBN,
   toBNWei,

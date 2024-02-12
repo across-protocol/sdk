@@ -2,7 +2,7 @@ import { EMPTY_MESSAGE } from "../src/constants";
 import { SpokePoolClient } from "../src/clients";
 import { DepositWithBlock, V2DepositWithBlock, V3Deposit, V3DepositWithBlock, V3SpeedUp } from "../src/interfaces";
 import { bnOne, isV3Deposit } from "../src/utils";
-import { depositRelayerFeePct, destinationChainId, getUpdatedV3DepositSignature, modifyRelayHelper } from "./constants";
+import { depositRelayerFeePct, destinationChainId, originChainId } from "./constants";
 import {
   assert,
   assertPromisePasses,
@@ -17,7 +17,7 @@ import {
   enableRoutes,
   ethers,
   expect,
-  originChainId,
+  modifyRelayHelper,
   setupTokensForWallet,
   simpleDeposit,
   toBNWei,
