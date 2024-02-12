@@ -47,7 +47,7 @@ const V3DepositSchema = object({
   outputToken: AddressValidator,
   outputAmount: BigNumberValidator,
   message: string(),
-  speedUpSignature: optional(string()),
+  speedUpSignature: optional(HexValidator),
   updatedOutputAmount: optional(BigNumberValidator),
   updatedRecipient: optional(string()),
   updatedMessage: optional(string()),
