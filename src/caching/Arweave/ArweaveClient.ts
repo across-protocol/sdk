@@ -1,5 +1,3 @@
-// import { Struct } from "superstruct";
-// import { CachingMechanismInterface } from "../../interfaces";
 import Arweave from "arweave";
 import { JWKInterface } from "arweave/node/lib/wallet";
 import { ethers } from "ethers";
