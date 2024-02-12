@@ -69,7 +69,7 @@ export class ArweaveClient {
    * @param structValidator An optional struct validator to validate the retrieved value. If the value does not match the struct, null is returned.
    * @returns The record if it exists, otherwise null
    */
-  async get<T>(transactionID: string, validator?: Struct<T>): Promise<T | null> {
+  async get<T>(transactionID: string, validator: Struct<T>): Promise<T | null> {
     const rawData = await this.client.transactions.getData(transactionID, { decode: true, string: true });
     if (!rawData) {
       return null;
@@ -81,11 +81,12 @@ export class ArweaveClient {
     if (data.status === 400) {
       return null;
     }
-    if (validator && !is(data, validator)) {
+    // If the validator does not match the retrieved value, return null and log a warning
+    if (!is(data, validator)) {
       this.logger.warn("Retrieved value from Arweave does not match the expected type");
       return null;
     }
-    return data as T;
+    return data;
   }
 
   /**
