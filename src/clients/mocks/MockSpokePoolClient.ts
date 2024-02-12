@@ -323,11 +323,11 @@ export class MockSpokePoolClient extends SpokePoolClient {
       depositor: fill.depositor ?? randomAddress(),
       recipient,
       message,
-      updatableRelayData: {
-        updatedRecipient: fill.updatableRelayData?.recipient ?? recipient,
-        updatedMessage: fill.updatableRelayData?.message ?? message,
-        updatedOutputAmount: fill.updatableRelayData?.outputAmount ?? outputAmount,
-        fillType: fill.updatableRelayData?.fillType ?? FillType.FastFill,
+      relayExecutionInfo: {
+        updatedRecipient: fill.relayExecutionInfo?.recipient ?? recipient,
+        updatedMessage: fill.relayExecutionInfo?.message ?? message,
+        updatedOutputAmount: fill.relayExecutionInfo?.outputAmount ?? outputAmount,
+        fillType: fill.relayExecutionInfo?.fillType ?? FillType.FastFill,
       },
     };
 
@@ -392,7 +392,7 @@ export class MockSpokePoolClient extends SpokePoolClient {
       destinationChainId: this.chainId,
       relayer: ZERO_ADDRESS,
       repaymentChainId: 0,
-      updatableRelayData: {
+      relayExecutionInfo: {
         recipient: leaf.relayData.recipient,
         outputAmount: leaf.updatedOutputAmount,
         message: leaf.relayData.message,
