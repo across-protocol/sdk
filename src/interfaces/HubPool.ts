@@ -11,7 +11,7 @@ export interface PoolRebalanceLeaf {
   l1Tokens: string[];
 }
 
-export interface RelayerRefundLeafCommon {
+export interface RelayerRefundLeaf {
   amountToReturn: BigNumber;
   chainId: number;
   refundAmounts: BigNumber[];
@@ -19,15 +19,6 @@ export interface RelayerRefundLeafCommon {
   l2TokenAddress: string;
   refundAddresses: string[];
 }
-
-export interface V2RelayerRefundLeaf extends RelayerRefundLeafCommon {}
-export interface V3RelayerRefundLeaf extends RelayerRefundLeafCommon {
-  fillsRefundedRoot: string;
-  fillsRefundedHash: string;
-}
-
-export type RelayerRefundLeaf = V2RelayerRefundLeaf;
-
 export interface ProposedRootBundle extends SortableEvent {
   challengePeriodEndTimestamp: number;
   poolRebalanceLeafCount: number;
