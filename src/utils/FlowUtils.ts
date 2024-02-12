@@ -36,7 +36,7 @@ export function filledSameDeposit(fillA: Fill, fillB: Fill): boolean {
   } else if (isV3Fill(fillA) && isV3Fill(fillB)) {
     const { destinationChainId: chainA } = fillA;
     const { destinationChainId: chainB } = fillB;
-    return chainA === chainB && getV3RelayHash(fillA, chainA) === getV3RelayHash(fillB, chainB);
+    return getV3RelayHash(fillA, chainA) === getV3RelayHash(fillB, chainB);
   }
 
   return false;
