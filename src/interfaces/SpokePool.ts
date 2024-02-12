@@ -173,12 +173,18 @@ export interface V3RelayerRefundExecutionWithBlock extends V3RelayerRefundExecut
 export type RelayerRefundExecution = V2RelayerRefundExecution | V3RelayerRefundExecution;
 export type RelayerRefundExecutionWithBlock = V2RelayerRefundExecutionWithBlock | V3RelayerRefundExecutionWithBlock;
 
-export interface UnfilledDeposit {
-  deposit: Deposit;
+export interface V2UnfilledDeposit {
+  deposit: V2Deposit;
   unfilledAmount: BigNumber;
   hasFirstPartialFill?: boolean;
   relayerBalancingFee?: BigNumber;
 }
+
+export interface V3UnfilledDeposit extends V3Deposit {
+  realizedLpFeePct: BigNumber; // Assumes repayment on the destination chain.
+}
+
+export type UnfilledDeposit = V2UnfilledDeposit | V3UnfilledDeposit;
 
 export interface UnfilledDepositsForOriginChain {
   [originChainIdPlusDepositId: string]: UnfilledDeposit[];
