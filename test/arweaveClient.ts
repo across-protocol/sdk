@@ -2,10 +2,34 @@ import Arweave from "arweave";
 import { JWKInterface } from "arweave/node/lib/wallet";
 import axios from "axios";
 import { expect } from "chai";
+import { BigNumber, ethers } from "ethers";
+import { array, object, string } from "superstruct";
 import winston from "winston";
-import { ArweaveClient } from "../src/caching";
+import { ArweaveClient, FillsRefundedLeafSS, FillsRefundedLeaf } from "../src/caching";
+import { FillStatus } from "../src/interfaces";
 import { parseWinston, toBN } from "../src/utils";
-import { object, string } from "superstruct";
+import { CHAIN_IDs } from "@across-protocol/constants-v2";
+
+/**
+ * Generates a random FillsRefundedLeaf for testing purposes.
+ * This will use PRNG to generate a random leaf. All statuses are random.
+ */
+function generateRandomFillsRefundedLeaf(): FillsRefundedLeaf {
+  const randHex = (len: number) => ethers.utils.hexlify(ethers.utils.randomBytes(len));
+  const randChainId = () => Object.values(CHAIN_IDs)[Math.floor(Math.random() * Object.values(CHAIN_IDs).length)];
+  const randBN = () =>
+    BigNumber.from(Math.floor(Math.random() * 100)).mul(BigNumber.from(10).pow(Math.floor(Math.random() * 10)));
+  return {
+    status: [FillStatus.Filled, FillStatus.RequestedSlowFill, FillStatus.Unfilled][Math.floor(Math.random() * 3)],
+    relayDataHash: randHex(64),
+    lpFeePct: randBN(),
+    relayer: randHex(32),
+    repaymentChainId: randChainId(),
+    paymentAmount: randBN(),
+    paymentRecipient: randHex(32),
+    paymentMessage: randHex(64),
+  };
+}
 
 const INITIAL_FUNDING_AMNT = "5000000000";
 const LOCAL_ARWEAVE_NODE = {
@@ -117,5 +141,26 @@ describe("ArweaveClient", () => {
 
     const retrievedValue = await client.get(txID!, validatorStruct);
     expect(retrievedValue).to.eq(null);
+  });
+
+  it.only("should be able to set and retrieve a complex record", async () => {
+    const length = 25;
+    // Generate {length} random FillRefundedLeafs
+    const fills: FillsRefundedLeaf[] = Array.from({ length }, () => generateRandomFillsRefundedLeaf());
+
+    const txID = await client.set({ fills });
+    expect(txID).to.not.be.undefined;
+
+    // Wait for the transaction to be mined
+    await mineBlock();
+    await mineBlock();
+    await mineBlock();
+
+    const retrievedFills = await client.get(txID!, object({ fills: array(FillsRefundedLeafSS) }));
+
+    expect(retrievedFills).to.not.be.null;
+    expect(retrievedFills?.fills).to.not.be.null;
+    expect(retrievedFills?.fills).to.have.lengthOf(length);
+    expect(retrievedFills).to.deep.equal({ fills });
   });
 });

@@ -3,7 +3,7 @@ import { JWKInterface } from "arweave/node/lib/wallet";
 import { ethers } from "ethers";
 import winston from "winston";
 import { jsonReplacerWithBigNumbers, parseWinston } from "../../utils";
-import { Struct, is } from "superstruct";
+import { Struct, create } from "superstruct";
 
 export class ArweaveClient {
   private client: Arweave;
@@ -81,12 +81,15 @@ export class ArweaveClient {
     if (data.status === 400) {
       return null;
     }
-    // If the validator does not match the retrieved value, return null and log a warning
-    if (!is(data, validator)) {
-      this.logger.warn("Retrieved value from Arweave does not match the expected type");
+    try {
+      return create(data, validator);
+    } catch (_e) {
+      this.logger.warn({
+        at: "ArweaveClient#get",
+        message: "Retrieved value from Arweave does not match the expected type",
+      });
       return null;
     }
-    return data;
   }
 
   /**
