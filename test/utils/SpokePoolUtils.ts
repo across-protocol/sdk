@@ -57,7 +57,7 @@ export function v3FillFromDeposit(deposit: V3DepositWithBlock, relayer: string):
     // Caller can modify these later.
     exclusiveRelayer: relayer,
     repaymentChainId: deposit.destinationChainId,
-    updatableRelayData: {
+    relayExecutionInfo: {
       recipient: deposit.updatedRecipient ?? recipient,
       message: deposit.updatedMessage ?? message,
       outputAmount: deposit.updatedOutputAmount ?? deposit.outputAmount,
