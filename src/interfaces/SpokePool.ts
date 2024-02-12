@@ -105,7 +105,7 @@ export interface V3Fill extends V3RelayData {
   destinationChainId: number;
   relayer: string;
   repaymentChainId: number;
-  updatableRelayData: V3RelayExecutionEventInfo;
+  relayExecutionInfo: V3RelayExecutionEventInfo;
 }
 
 export interface V2FillWithBlock extends V2Fill, SortableEvent {}
