@@ -49,11 +49,29 @@ export class PolygonQueries extends QueryBase {
   }
 }
 
+/**
+ * Queries for the Polygon Mumbai chain (based against Goerli)
+ * @deprecated Use PolygonAmoyQueries instead
+ */
 export class PolygonMumbaiQueries extends PolygonQueries {
   constructor(
     provider: providers.Provider,
     symbolMapping = TOKEN_SYMBOLS_MAP,
     spokePoolAddress = getDeployedAddress("SpokePool", CHAIN_IDs.MUMBAI),
+    simulatedRelayerAddress = DEFAULT_SIMULATED_RELAYER_ADDRESS_TEST,
+    coingeckoProApiKey?: string,
+    logger: Logger = DEFAULT_LOGGER,
+    gasMarkup = 0
+  ) {
+    super(provider, symbolMapping, spokePoolAddress, simulatedRelayerAddress, coingeckoProApiKey, logger, gasMarkup);
+  }
+}
+
+export class PolygonAmoyQueries extends PolygonQueries {
+  constructor(
+    provider: providers.Provider,
+    symbolMapping = TOKEN_SYMBOLS_MAP,
+    spokePoolAddress = getDeployedAddress("SpokePool", CHAIN_IDs.POLYGON_AMOY),
     simulatedRelayerAddress = DEFAULT_SIMULATED_RELAYER_ADDRESS_TEST,
     coingeckoProApiKey?: string,
     logger: Logger = DEFAULT_LOGGER,

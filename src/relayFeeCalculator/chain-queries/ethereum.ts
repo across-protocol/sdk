@@ -25,12 +25,30 @@ export class EthereumQueries extends QueryBase {
 
 /**
  * Query class for Ethereum Görli.
+ * @deprecated Use EthereumSepoliaQueries instead.
  */
 export class EthereumGoerliQueries extends QueryBase {
   constructor(
     provider: providers.Provider,
     symbolMapping = TOKEN_SYMBOLS_MAP,
     spokePoolAddress = getDeployedAddress("SpokePool", CHAIN_IDs.GOERLI),
+    simulatedRelayerAddress = DEFAULT_SIMULATED_RELAYER_ADDRESS_TEST,
+    coingeckoProApiKey?: string,
+    logger: Logger = DEFAULT_LOGGER,
+    gasMarkup = 0
+  ) {
+    super(provider, symbolMapping, spokePoolAddress, simulatedRelayerAddress, gasMarkup, logger, coingeckoProApiKey);
+  }
+}
+
+/**
+ * Query class for Ethereum Sepolia.
+ */
+export class EthereumSepoliaQueries extends QueryBase {
+  constructor(
+    provider: providers.Provider,
+    symbolMapping = TOKEN_SYMBOLS_MAP,
+    spokePoolAddress = getDeployedAddress("SpokePool", CHAIN_IDs.SEPOLIA),
     simulatedRelayerAddress = DEFAULT_SIMULATED_RELAYER_ADDRESS_TEST,
     coingeckoProApiKey?: string,
     logger: Logger = DEFAULT_LOGGER,

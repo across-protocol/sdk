@@ -32,11 +32,37 @@ export class OptimismQueries extends QueryBase {
   }
 }
 
+/**
+ * Queries for the Optimism Goerli chain
+ * @deprecated Use OptimismSepoliaQueries instead
+ */
 export class OptimismGoerliQueries extends QueryBase {
   constructor(
     provider: providers.Provider,
     symbolMapping = TOKEN_SYMBOLS_MAP,
     spokePoolAddress = getDeployedAddress("SpokePool", CHAIN_IDs.OPTIMISM_GOERLI),
+    simulatedRelayerAddress = DEFAULT_SIMULATED_RELAYER_ADDRESS_TEST,
+    coingeckoProApiKey?: string,
+    logger: Logger = DEFAULT_LOGGER,
+    gasMarkup = 0
+  ) {
+    super(
+      asL2Provider(provider),
+      symbolMapping,
+      spokePoolAddress,
+      simulatedRelayerAddress,
+      gasMarkup,
+      logger,
+      coingeckoProApiKey
+    );
+  }
+}
+
+export class OptimismSepoliaQueries extends QueryBase {
+  constructor(
+    provider: providers.Provider,
+    symbolMapping = TOKEN_SYMBOLS_MAP,
+    spokePoolAddress = getDeployedAddress("SpokePool", CHAIN_IDs.OPTIMISM_SEPOLIA),
     simulatedRelayerAddress = DEFAULT_SIMULATED_RELAYER_ADDRESS_TEST,
     coingeckoProApiKey?: string,
     logger: Logger = DEFAULT_LOGGER,
