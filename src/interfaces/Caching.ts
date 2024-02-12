@@ -1,6 +1,6 @@
 import { BigNumber } from "ethers";
-import { object, number, coerce, string, define } from "superstruct";
-import { FillStatus } from "../../interfaces";
+import { coerce, define, number, object, string } from "superstruct";
+import { FillStatus } from "./SpokePool";
 
 export type FillsRefundedLeaf = {
   // If fill was sent in this bundle, then no slow fill was

@@ -1,3 +1,4 @@
+import { CHAIN_IDs } from "@across-protocol/constants-v2";
 import Arweave from "arweave";
 import { JWKInterface } from "arweave/node/lib/wallet";
 import axios from "axios";
@@ -5,10 +6,9 @@ import { expect } from "chai";
 import { BigNumber, ethers } from "ethers";
 import { array, object, string } from "superstruct";
 import winston from "winston";
-import { ArweaveClient, FillsRefundedLeafSS, FillsRefundedLeaf } from "../src/caching";
-import { FillStatus } from "../src/interfaces";
+import { ArweaveClient } from "../src/caching";
+import { FillStatus, FillsRefundedLeaf, FillsRefundedLeafSS } from "../src/interfaces";
 import { parseWinston, toBN } from "../src/utils";
-import { CHAIN_IDs } from "@across-protocol/constants-v2";
 
 /**
  * Generates a random FillsRefundedLeaf for testing purposes.
