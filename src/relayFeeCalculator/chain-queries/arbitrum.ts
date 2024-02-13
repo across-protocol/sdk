@@ -23,11 +23,28 @@ export class ArbitrumQueries extends QueryBase {
   }
 }
 
+/**
+ * @deprecated Use ArbitrumSepoliaQueries instead
+ */
 export class ArbitrumGoerliQueries extends QueryBase {
   constructor(
     provider: providers.Provider,
     symbolMapping = TOKEN_SYMBOLS_MAP,
     spokePoolAddress = getDeployedAddress("SpokePool", CHAIN_IDs.ARBITRUM_GOERLI),
+    simulatedRelayerAddress = DEFAULT_SIMULATED_RELAYER_ADDRESS_TEST,
+    coingeckoProApiKey?: string,
+    logger: Logger = DEFAULT_LOGGER,
+    gasMarkup = 0
+  ) {
+    super(provider, symbolMapping, spokePoolAddress, simulatedRelayerAddress, gasMarkup, logger, coingeckoProApiKey);
+  }
+}
+
+export class ArbitrumSepoliaQueries extends QueryBase {
+  constructor(
+    provider: providers.Provider,
+    symbolMapping = TOKEN_SYMBOLS_MAP,
+    spokePoolAddress = getDeployedAddress("SpokePool", CHAIN_IDs.ARBITRUM_SEPOLIA),
     simulatedRelayerAddress = DEFAULT_SIMULATED_RELAYER_ADDRESS_TEST,
     coingeckoProApiKey?: string,
     logger: Logger = DEFAULT_LOGGER,

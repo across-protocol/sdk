@@ -129,9 +129,8 @@ export class SpokePoolClient extends BaseAbstractClient {
       "ExecutedRelayerRefundRoot",
       "V3FundsDeposited",
       "RequestedSpeedUpV3Deposit",
-      "FilledV3Relay",
-      "ExecutedV3RelayerRefundRoot",
       "RequestedV3SlowFill",
+      "FilledV3Relay",
     ];
     return Object.fromEntries(
       this.spokePool.interface.fragments
@@ -891,7 +890,7 @@ export class SpokePoolClient extends BaseAbstractClient {
     }
 
     if (eventsToQuery.includes("ExecutedRelayerRefundRoot")) {
-      const refundEvents = queryResults[eventsToQuery.indexOf("ExecutedRelayerRefundRoot")] ?? [];
+      const refundEvents = queryResults[eventsToQuery.indexOf("ExecutedRelayerRefundRoot")];
       for (const event of refundEvents) {
         const executedRefund = spreadEventWithBlockNumber(event) as RelayerRefundExecutionWithBlock;
         executedRefund.l2TokenAddress = SpokePoolClient.getExecutedRefundLeafL2Token(
