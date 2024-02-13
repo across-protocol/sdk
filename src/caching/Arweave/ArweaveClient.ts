@@ -98,6 +98,29 @@ export class ArweaveClient {
   }
 
   /**
+   * Retrieves the metadata of a transaction
+   * @param transactionID The transaction ID of the record to retrieve
+   * @returns The metadata of the transaction if it exists, otherwise null
+   */
+  async getMetadata(transactionID: string): Promise<Record<string, string> | null> {
+    const transaction = await this.client.transactions.get(transactionID);
+    if (!isDefined(transaction)) {
+      return null;
+    }
+    const tags = Object.fromEntries(
+      transaction.tags.map((tag) => [
+        tag.get("name", { decode: true, string: true }),
+        tag.get("value", { decode: true, string: true }),
+      ])
+    );
+    return {
+      contentType: tags["Content-Type"],
+      appName: tags["App-Name"],
+      topic: tags.Topic,
+    };
+  }
+
+  /**
    * Returns the address of the signer of the JWT
    * @returns The address of the signer in this client
    */

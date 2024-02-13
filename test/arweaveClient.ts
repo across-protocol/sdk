@@ -6,6 +6,7 @@ import winston from "winston";
 import { ArweaveClient } from "../src/caching";
 import { parseWinston, toBN } from "../src/utils";
 import { object, string } from "superstruct";
+import { ARWEAVE_TAG_APP_NAME } from "../src/constants";
 
 const INITIAL_FUNDING_AMNT = "5000000000";
 const LOCAL_ARWEAVE_NODE = {
@@ -117,5 +118,40 @@ describe("ArweaveClient", () => {
 
     const retrievedValue = await client.get(txID!, validatorStruct);
     expect(retrievedValue).to.eq(null);
+  });
+
+  it("should retrieve the metadata of a transaction", async () => {
+    const value = { test: "value" };
+    const txID = await client.set(value);
+    expect(txID).to.not.be.undefined;
+
+    // Wait for the transaction to be mined
+    await mineBlock();
+    await mineBlock();
+
+    const metadata = await client.getMetadata(txID!);
+    expect(metadata).to.deep.equal({
+      contentType: "application/json",
+      appName: ARWEAVE_TAG_APP_NAME,
+      topic: undefined,
+    });
+  });
+
+  it("should retrieve the metadata of a transaction with a topic tag", async () => {
+    const value = { test: "value" };
+    const topicTag = "test-topic";
+    const txID = await client.set(value, topicTag);
+    expect(txID).to.not.be.undefined;
+
+    // Wait for the transaction to be mined
+    await mineBlock();
+    await mineBlock();
+
+    const metadata = await client.getMetadata(txID!);
+    expect(metadata).to.deep.equal({
+      contentType: "application/json",
+      appName: ARWEAVE_TAG_APP_NAME,
+      topic: topicTag,
+    });
   });
 });
