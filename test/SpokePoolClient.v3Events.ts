@@ -27,7 +27,6 @@ import {
   randomAddress,
 } from "../src/utils";
 import {
-  BigNumber,
   createSpyLogger,
   fillFromDeposit,
   deployConfigStore,
@@ -36,7 +35,6 @@ import {
   ethers,
   modifyRelayHelper,
   SignerWithAddress,
-  toBNWei,
 } from "./utils";
 
 type EventSearchConfig = sdkUtils.EventSearchConfig;
