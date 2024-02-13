@@ -1111,7 +1111,7 @@ export class SpokePoolClient extends BaseAbstractClient {
   }
 
   async findDepositV3(depositId: number, destinationChainId: number, depositor: string): Promise<V3DepositWithBlock> {
-    // Binary search for block. This way we can get the blocks before and after the deposit with
+    // Binary search for event search bounds. This way we can get the blocks before and after the deposit with
     // deposit ID = fill.depositId and use those blocks to optimize the search for that deposit.
     // Stop searches after a maximum # of searches to limit number of eth_call requests. Make an
     // eth_getLogs call on the remaining block range (i.e. the [low, high] remaining from the binary
