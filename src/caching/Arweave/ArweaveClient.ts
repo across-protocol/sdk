@@ -2,8 +2,9 @@ import Arweave from "arweave";
 import { JWKInterface } from "arweave/node/lib/wallet";
 import { ethers } from "ethers";
 import winston from "winston";
-import { jsonReplacerWithBigNumbers, parseWinston } from "../../utils";
+import { isDefined, jsonReplacerWithBigNumbers, parseWinston } from "../../utils";
 import { Struct, is } from "superstruct";
+import { ARWEAVE_TAG_APP_NAME } from "../../constants";
 
 export class ArweaveClient {
   private client: Arweave;
@@ -30,16 +31,23 @@ export class ArweaveClient {
    * JSON.stringify to convert the record to a string. The record has all of its big numbers converted
    * to strings for convenience.
    * @param value The value to store
+   * @param topicTag An optional topic tag to add to the transaction
    * @returns The transaction ID of the stored value
    * @
    */
-  async set(value: Record<string, unknown>): Promise<string | undefined> {
+  async set(value: Record<string, unknown>, topicTag?: string | undefined): Promise<string | undefined> {
     const transaction = await this.client.createTransaction(
       { data: JSON.stringify(value, jsonReplacerWithBigNumbers) },
       this.arweaveJWT
     );
+
     // Add tags to the transaction
     transaction.addTag("Content-Type", "application/json");
+    transaction.addTag("App-Name", ARWEAVE_TAG_APP_NAME);
+    if (isDefined(topicTag)) {
+      transaction.addTag("Topic", topicTag);
+    }
+
     // Sign the transaction
     await this.client.transactions.sign(transaction, this.arweaveJWT);
     // Send the transaction
