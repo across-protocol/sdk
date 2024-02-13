@@ -1,16 +1,6 @@
-import {
-  Contract,
-  createSpyLogger,
-  deploySpokePool,
-  destinationChainId,
-  enableRoutes,
-  ethers,
-  expect,
-  originChainId,
-  randomAddress,
-} from "./utils";
-
 import { SpokePoolClient } from "../src/clients"; // tested
+import { originChainId, destinationChainId } from "./constants";
+import { Contract, createSpyLogger, deploySpokePool, enableRoutes, ethers, expect, randomAddress } from "./utils";
 
 let spokePool: Contract;
 

@@ -4,25 +4,20 @@ import {
   V2Deposit,
   V2Fill,
   V2RelayData,
-  V2RelayerRefundExecution,
-  V2RelayerRefundLeaf,
   V2SlowFillLeaf,
   V2SpeedUp,
   V3Deposit,
   V3Fill,
   V3RelayData,
-  V3RelayerRefundExecution,
-  V3RelayerRefundLeaf,
   V3SlowFillLeaf,
   V3SpeedUp,
 } from "../interfaces";
 import { BN } from "./BigNumberUtils";
 
-// Lowest ConfigStore version where the V3 model is in effect. The version update to the following value should
-// take place atomically with the SpokePool upgrade to V3 so that the dataworker knows what kind of MerkleLeaves
-// to propose in root bundles (i.e. RelayerRefundLeaf and SlowFillLeaf have different shapes). We assume that
-// V3 will be deployed in between bundles (after a bundle execution and before a proposal). The dataworker/relayer
-// code can use the following isV3() function to separate logic for calling V3 vs. legacy methods.
+// Lowest ConfigStore version where the V3 model is in effect. The version update to the following value should take
+// place atomically with the SpokePool upgrade to V3 so that the dataworker knows what kind of MerkleLeaves to propose
+// in root bundles (i.e. SlowFillLeaf has different shapes). The dataworker/relayer code can use the following isV3()
+// function to separate logic for calling V3 vs. legacy methods.
 export const V3_MIN_CONFIG_STORE_VERSION = 3;
 
 export function isV3(version: number): boolean {
@@ -85,7 +80,7 @@ export function isV3RelayData<T extends MinV3RelayData, U extends MinV2RelayData
 }
 
 export function isSlowFill(fill: Fill): boolean {
-  return isV2Fill(fill) ? fill.updatableRelayData.isSlowRelay : fill.updatableRelayData.fillType === FillType.SlowFill;
+  return isV2Fill(fill) ? fill.updatableRelayData.isSlowRelay : fill.relayExecutionInfo.fillType === FillType.SlowFill;
 }
 
 type MinV2SlowFillLeaf = Pick<V2SlowFillLeaf, "payoutAdjustmentPct">;
@@ -100,36 +95,6 @@ export function isV3SlowFillLeaf<T extends MinV3SlowFillLeaf, U extends MinV2Slo
   slowFillLeaf: T | U
 ): slowFillLeaf is T {
   return unsafeIsType<T, U>(slowFillLeaf, "updatedOutputAmount");
-}
-
-type MinV2RelayerRefundLeaf = Pick<V2RelayerRefundLeaf, "amountToReturn">;
-type MinV3RelayerRefundLeaf = Pick<V3RelayerRefundLeaf, "fillsRefundedRoot" | "fillsRefundedHash">;
-export function isV2RelayerRefundLeaf<T extends MinV2RelayerRefundLeaf, U extends MinV3RelayerRefundLeaf>(
-  leaf: T | U
-): leaf is T {
-  return unsafeIsType<T, U>(leaf, "amountToReturn") && !isV3RelayerRefundLeaf(leaf);
-}
-
-export function isV3RelayerRefundLeaf<T extends MinV3RelayerRefundLeaf, U extends MinV2RelayerRefundLeaf>(
-  leaf: T | U
-): leaf is T {
-  return unsafeIsType<T, U>(leaf, "fillsRefundedRoot");
-}
-
-type MinV2RelayerRefundExecution = Pick<V2RelayerRefundExecution, "amountToReturn">;
-type MinV3RelayerRefundExecution = Pick<V3RelayerRefundExecution, "fillsRefundedRoot" | "fillsRefundedHash">;
-export function isV2RelayerRefundExecution<
-  T extends MinV2RelayerRefundExecution,
-  U extends MinV3RelayerRefundExecution,
->(leaf: T | U): leaf is T {
-  return unsafeIsType<T, U>(leaf, "amountToReturn") && !isV3RelayerRefundExecution(leaf);
-}
-
-export function isV3RelayerRefundExecution<
-  T extends MinV3RelayerRefundExecution,
-  U extends MinV2RelayerRefundExecution,
->(leaf: T | U): leaf is T {
-  return unsafeIsType<T, U>(leaf, "fillsRefundedRoot");
 }
 
 export function getDepositInputToken<T extends MinV2Deposit, U extends MinV3Deposit>(deposit: T | U): string {

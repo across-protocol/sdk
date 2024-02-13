@@ -1,3 +1,4 @@
+import * as acxConstants from "@across-protocol/constants-v2";
 import { constants as ethersConstants, BigNumber, utils } from "ethers";
 export { CHAIN_IDs, TOKEN_SYMBOLS_MAP } from "@across-protocol/constants-v2";
 
@@ -27,8 +28,29 @@ export const TRANSFER_THRESHOLD_MAX_CONFIG_STORE_VERSION = 1;
 export const PROTOCOL_DEFAULT_CHAIN_ID_INDICES = [1, 10, 137, 288, 42161];
 
 // See src/utils/NetworkUtils for helpers.
-export const PRODUCTION_CHAIN_IDS = [1, 10, 137, 324, 8453, 42161];
-export const TESTNET_CHAIN_IDS = [5, 280, 420, 80001, 84531, 421613];
+export const PRODUCTION_CHAIN_IDS = [
+  acxConstants.MAINNET_CHAIN_IDs.MAINNET,
+  acxConstants.MAINNET_CHAIN_IDs.OPTIMISM,
+  acxConstants.MAINNET_CHAIN_IDs.POLYGON,
+  acxConstants.MAINNET_CHAIN_IDs.ZK_SYNC,
+  acxConstants.MAINNET_CHAIN_IDs.BASE,
+  acxConstants.MAINNET_CHAIN_IDs.ARBITRUM,
+];
+
+export const TESTNET_CHAIN_IDS = [
+  acxConstants.TESTNET_CHAIN_IDs.GOERLI,
+  acxConstants.TESTNET_CHAIN_IDs.ZK_SYNC_GOERLI,
+  acxConstants.TESTNET_CHAIN_IDs.ZK_SYNC_SEPOLIA,
+  acxConstants.TESTNET_CHAIN_IDs.OPTIMISM_GOERLI,
+  acxConstants.TESTNET_CHAIN_IDs.MUMBAI,
+  acxConstants.TESTNET_CHAIN_IDs.POLYGON_AMOY,
+  acxConstants.TESTNET_CHAIN_IDs.BASE_GOERLI,
+  acxConstants.TESTNET_CHAIN_IDs.BASE_SEPOLIA,
+  acxConstants.TESTNET_CHAIN_IDs.ARBITRUM_GOERLI,
+  acxConstants.TESTNET_CHAIN_IDs.ARBITRUM_SEPOLIA,
+  acxConstants.TESTNET_CHAIN_IDs.SEPOLIA,
+  acxConstants.TESTNET_CHAIN_IDs.OPTIMISM_SEPOLIA,
+];
 
 export const PUBLIC_NETWORKS: { [chainId: number]: { name: string; etherscan: string } } = {
   1: {

@@ -8,12 +8,15 @@ const networkIdMap: Record<number, string> = {
   666: "Hardhat1",
   1337: "Hardhat2",
   421613: "ArbitrumGoerli",
+  421614: "ArbitrumSepolia",
   324: "ZkSync",
   280: "ZkSync-Goerli",
+  300: "ZKSync-Sepolia",
   8453: "Base",
   84531: "BaseGoerli",
   84532: "BaseSepolia",
   11155111: "EthSepolia",
+  11155420: "OptimismSepolia",
 };
 
 /**
