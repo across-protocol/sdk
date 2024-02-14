@@ -364,9 +364,6 @@ export class HubPoolClient extends BaseAbstractClient {
       return { ...partialDeposit, inputToken, inputAmount };
     });
 
-    // Map SpokePool token addresses to HubPool token addresses.
-    const hubPoolTokens: { [originToken: string]: string } = {};
-
     // Map each HubPool token to an array of unqiue quoteTimestamps.
     const utilizationTimestamps: { [hubPoolToken: string]: number[] } = {};
 
@@ -375,22 +372,22 @@ export class HubPoolClient extends BaseAbstractClient {
 
     let quoteBlocks: { [quoteTimestamp: number]: number } = {};
 
-    // Helper to resolve the unqiue hubPoolToken & quoteTimestamp mappings.
-    const resolveUniqueQuoteTimestamps = (deposit: (typeof deposits)[0]): void => {
-      const { originChainId } = deposits[0];
-      const { originChainId: chainId, inputToken, quoteTimestamp } = deposit;
-      assert(
-        chainId === originChainId,
-        `Cannot compute bulk realizedLpFeePct for different origin chains (${chainId} != ${originChainId})`
-      );
+    // Map SpokePool token addresses to HubPool token addresses.
+    // Note: Should only be accessed via `getHubPoolToken()` or `getHubPoolTokens()`.
+    const hubPoolTokens: { [k: string]: string } = {};
+    const getHubPoolToken = (deposit: V3PartialDepositWithBlock, quoteBlockNumber: number): string => {
+      const tokenKey = `${deposit.originChainId}-${deposit.inputToken}`;
+      return (hubPoolTokens[tokenKey] ??= this.getL1TokenForDeposit({ ...deposit, quoteBlockNumber }));
+    };
+    const getHubPoolTokens = (): string[] => dedupArray(Object.values(hubPoolTokens));
 
-      // Resolve the HubPool token address, if it isn't already known.
-      const quoteBlockNumber = quoteBlocks[deposit.quoteTimestamp];
-      const hubPoolToken = (hubPoolTokens[inputToken] ??= this.getL1TokenForDeposit({
-        ...deposit,
-        inputToken,
-        quoteBlockNumber,
-      }));
+    // Helper to resolve the unqiue hubPoolToken & quoteTimestamp mappings.
+    const resolveUniqueQuoteTimestamps = (deposit: V3PartialDepositWithBlock): void => {
+      const { quoteTimestamp } = deposit;
+
+      // Resolve the HubPool token address for this origin chainId/token pair, if it isn't already known.
+      const quoteBlockNumber = quoteBlocks[quoteTimestamp];
+      const hubPoolToken = getHubPoolToken(deposit, quoteBlockNumber);
 
       // Append the quoteTimestamp for this HubPool token, if it isn't already enqueued.
       utilizationTimestamps[hubPoolToken] ??= [];
@@ -427,11 +424,11 @@ export class HubPoolClient extends BaseAbstractClient {
     };
 
     // Helper compute the realizedLpFeePct of an individual deposit based on pre-retrieved batch data.
-    const computeRealizedLpFeePct = async (deposit: (typeof deposits)[0]) => {
-      const { originChainId, destinationChainId, inputToken, inputAmount, quoteTimestamp } = deposit;
+    const computeRealizedLpFeePct = async (deposit: V3PartialDepositWithBlock) => {
+      const { originChainId, destinationChainId, inputAmount, quoteTimestamp } = deposit;
       const quoteBlock = quoteBlocks[quoteTimestamp];
 
-      const hubPoolToken = hubPoolTokens[inputToken];
+      const hubPoolToken = getHubPoolToken(deposit, quoteBlock);
       const rateModel = this.configStoreClient.getRateModelForBlockNumber(
         hubPoolToken,
         originChainId,
@@ -469,10 +466,7 @@ export class HubPoolClient extends BaseAbstractClient {
     // For each token / quoteBlock pair, resolve the utilisation for each quoted block.
     // This can be reused for each deposit with the same HubPool token and quoteTimestamp pair.
     utilization = Object.fromEntries(
-      await mapAsync(Object.values(hubPoolTokens), async (hubPoolToken) => [
-        hubPoolToken,
-        await resolveUtilization(hubPoolToken),
-      ])
+      await mapAsync(getHubPoolTokens(), async (hubPoolToken) => [hubPoolToken, await resolveUtilization(hubPoolToken)])
     );
 
     // For each deposit, compute the post-relay HubPool utilisation independently.
