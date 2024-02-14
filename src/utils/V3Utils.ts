@@ -14,6 +14,7 @@ import {
   V3SpeedUp,
 } from "../interfaces";
 import { BN } from "./BigNumberUtils";
+import { fixedPointAdjustment } from "./common";
 
 // Lowest ConfigStore version where the V3 model is in effect. The version update to the following value should take
 // place atomically with the SpokePool upgrade to V3 so that the dataworker knows what kind of MerkleLeaves to propose
@@ -174,3 +175,13 @@ export function getSlowFillLeafChainId<
 >(leaf: T | U): number {
   return unsafeIsType<U, T>(leaf, "chainId") ? leaf.chainId : leaf.relayData.destinationChainId;
 }
+
+
+export function getSlowFillLeafLpFeePct<
+  T extends { relayData: { realizedLpFeePct: V2SlowFillLeaf["relayData"]["realizedLpFeePct"] } },
+  U extends Pick<V3SlowFillLeaf, "updatedOutputAmount" | "relayData">,
+  >(leaf: T | U): BN {
+  return unsafeIsType<U, T>(leaf, "updatedOutputAmount")
+    ? leaf.relayData.inputAmount.sub(leaf.updatedOutputAmount).mul(fixedPointAdjustment).div(leaf.relayData.inputAmount)
+    : leaf.relayData.realizedLpFeePct;
+  }
