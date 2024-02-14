@@ -176,12 +176,11 @@ export function getSlowFillLeafChainId<
   return unsafeIsType<U, T>(leaf, "chainId") ? leaf.chainId : leaf.relayData.destinationChainId;
 }
 
-
 export function getSlowFillLeafLpFeePct<
   T extends { relayData: { realizedLpFeePct: V2SlowFillLeaf["relayData"]["realizedLpFeePct"] } },
   U extends Pick<V3SlowFillLeaf, "updatedOutputAmount" | "relayData">,
-  >(leaf: T | U): BN {
+>(leaf: T | U): BN {
   return unsafeIsType<U, T>(leaf, "updatedOutputAmount")
     ? leaf.relayData.inputAmount.sub(leaf.updatedOutputAmount).mul(fixedPointAdjustment).div(leaf.relayData.inputAmount)
     : leaf.relayData.realizedLpFeePct;
-  }
+}
