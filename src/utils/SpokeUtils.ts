@@ -241,21 +241,7 @@ export function getV3RelayHash(relayData: V3RelayData, destinationChainId: numbe
 }
 
 export function getV3RelayHashFromEvent(e: V3Deposit | V3Fill | SlowFillRequest): string {
-  const relayData = {
-    depositor: e.depositor,
-    recipient: e.recipient,
-    exclusiveRelayer: e.exclusiveRelayer,
-    inputToken: e.inputToken,
-    outputToken: e.outputToken,
-    inputAmount: e.inputAmount,
-    outputAmount: e.outputAmount,
-    originChainId: e.originChainId,
-    depositId: e.depositId,
-    fillDeadline: e.fillDeadline,
-    exclusivityDeadline: e.exclusivityDeadline,
-    message: e.message,
-  };
-  return getV3RelayHash(relayData, e.destinationChainId);
+  return getV3RelayHash(e, e.destinationChainId);
 }
 /**
  * Find the amount filled for a deposit at a particular block.
