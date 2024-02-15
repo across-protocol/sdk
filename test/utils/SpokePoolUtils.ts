@@ -1,4 +1,12 @@
-import { DepositWithBlock, Fill, V2DepositWithBlock, V2Fill } from "../../src/interfaces";
+import {
+  DepositWithBlock,
+  Fill,
+  FillType,
+  V2DepositWithBlock,
+  V2Fill,
+  V3DepositWithBlock,
+  V3Fill,
+} from "../../src/interfaces";
 import { bnZero, isV2Deposit } from "../../src/utils";
 
 export function fillFromDeposit(deposit: DepositWithBlock, relayer: string): Fill {
@@ -32,6 +40,28 @@ export function v2FillFromDeposit(deposit: V2DepositWithBlock, relayer: string):
       relayerFeePct: deposit.newRelayerFeePct ?? relayerFeePct,
       isSlowRelay: false,
       payoutAdjustmentPct: bnZero,
+    },
+  };
+
+  return fill;
+}
+
+export function v3FillFromDeposit(deposit: V3DepositWithBlock, relayer: string): V3Fill {
+  const { blockNumber, transactionHash, transactionIndex, ...partialDeposit } = deposit;
+  const { recipient, message } = partialDeposit;
+
+  const fill: V3Fill = {
+    ...partialDeposit,
+    relayer,
+
+    // Caller can modify these later.
+    exclusiveRelayer: relayer,
+    repaymentChainId: deposit.destinationChainId,
+    relayExecutionInfo: {
+      updatedRecipient: deposit.updatedRecipient ?? recipient,
+      updatedMessage: deposit.updatedMessage ?? message,
+      updatedOutputAmount: deposit.updatedOutputAmount ?? deposit.outputAmount,
+      fillType: FillType.FastFill,
     },
   };
 
