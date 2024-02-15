@@ -45,9 +45,9 @@ export async function setDepositInCache(
 
 /**
  * Resolves the key for caching a bridge event.
- * @param bridgeEvent The depositId and originChainId are used to generate the key.
+ * @param bridgeEvent The depositId, depositor, and originChainId are used to generate the key.
  * @returns The key for caching the event.
  */
 export function getDepositKey(bridgeEvent: Deposit | Fill | SlowFillRequest): string {
-  return `deposit_${bridgeEvent.originChainId}_${bridgeEvent.depositId}`;
+  return `deposit_${bridgeEvent.originChainId}_${bridgeEvent.depositId}_${bridgeEvent.depositor}`;
 }
