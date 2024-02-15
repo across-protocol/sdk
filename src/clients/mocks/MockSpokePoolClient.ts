@@ -271,9 +271,9 @@ export class MockSpokePoolClient extends SpokePoolClient {
       recipient,
       message,
       updatableRelayData: {
-        recipient: fill.updatableRelayData?.recipient ?? recipient,
-        message: fill.updatableRelayData?.message ?? message,
-        relayerFeePct: fill.updatableRelayData?.relayerFeePct ?? relayerFeePct,
+        updatableRecipient: fill.updatableRelayData?.updatedRecipient ?? recipient,
+        updatableMessage: fill.updatableRelayData?.updatedMessage ?? message,
+        updatedRelayerFeePct: fill.updatableRelayData?.relayerFeePct ?? relayerFeePct,
         isSlowRelay: fill.updatableRelayData?.isSlowRelay ?? false,
         payoutAdjustmentPct: fill.updatableRelayData?.payoutAdjustmentPct ?? bnZero,
       },
@@ -323,9 +323,9 @@ export class MockSpokePoolClient extends SpokePoolClient {
       recipient,
       message,
       relayExecutionInfo: {
-        updatedRecipient: fill.relayExecutionInfo?.recipient ?? recipient,
-        updatedMessage: fill.relayExecutionInfo?.message ?? message,
-        updatedOutputAmount: fill.relayExecutionInfo?.outputAmount ?? outputAmount,
+        updatedRecipient: fill.relayExecutionInfo?.updatedRecipient ?? recipient,
+        updatedMessage: fill.relayExecutionInfo?.updatedMessage ?? message,
+        updatedOutputAmount: fill.relayExecutionInfo?.updatedOutputAmount ?? outputAmount,
         fillType: fill.relayExecutionInfo?.fillType ?? FillType.FastFill,
       },
     };
@@ -392,9 +392,9 @@ export class MockSpokePoolClient extends SpokePoolClient {
       relayer: ZERO_ADDRESS,
       repaymentChainId: 0,
       relayExecutionInfo: {
-        recipient: leaf.relayData.recipient,
-        outputAmount: leaf.updatedOutputAmount,
-        message: leaf.relayData.message,
+        updatedRecipient: leaf.relayData.recipient,
+        updatedOutputAmount: leaf.updatedOutputAmount,
+        updatedMessage: leaf.relayData.message,
         fillType: FillType.SlowFill,
       },
     };
