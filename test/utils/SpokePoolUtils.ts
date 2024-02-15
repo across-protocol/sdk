@@ -45,25 +45,3 @@ export function v2FillFromDeposit(deposit: V2DepositWithBlock, relayer: string):
 
   return fill;
 }
-
-export function v3FillFromDeposit(deposit: V3DepositWithBlock, relayer: string): V3Fill {
-  const { blockNumber, transactionHash, transactionIndex, ...partialDeposit } = deposit;
-  const { recipient, message } = partialDeposit;
-
-  const fill: V3Fill = {
-    ...partialDeposit,
-    relayer,
-
-    // Caller can modify these later.
-    exclusiveRelayer: relayer,
-    repaymentChainId: deposit.destinationChainId,
-    relayExecutionInfo: {
-      recipient: deposit.updatedRecipient ?? recipient,
-      message: deposit.updatedMessage ?? message,
-      outputAmount: deposit.updatedOutputAmount ?? deposit.outputAmount,
-      fillType: FillType.FastFill,
-    },
-  };
-
-  return fill;
-}
