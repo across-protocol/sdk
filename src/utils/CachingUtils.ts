@@ -47,7 +47,7 @@ export async function setDepositInCache(
 
 /**
  * Resolves the key for caching a bridge event.
- * @param bridgeEvent The depositId, and originChainId are used to generate the key for v2, and the 
+ * @param bridgeEvent The depositId, and originChainId are used to generate the key for v2, and the
  * full V3 relay hash is used for v3 events..
  * @returns The key for caching the event.
  */
