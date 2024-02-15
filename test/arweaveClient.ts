@@ -156,7 +156,7 @@ describe("ArweaveClient", () => {
     });
   });
 
-  it.only("should gracefully handle out of funds errors", async () => {
+  it("should gracefully handle out of funds errors", async () => {
     const jwk = await Arweave.init({}).wallets.generate();
     // Create a new Arweave client
     const client = new ArweaveClient(
