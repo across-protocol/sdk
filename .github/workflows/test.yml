@@ -10,8 +10,10 @@ jobs:
       - uses: actions/checkout@v3
       - uses: actions/setup-node@v3
         with:
-          node-version: 16
+          node-version: 18
       - run: yarn install
+      - name: Run local arweave node
+        run: yarn test:run:arweave &
       - run: yarn test
         env:
           NODE_URL_1: ${{ secrets.NODE_URL_1 }}
