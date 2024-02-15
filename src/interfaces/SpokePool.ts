@@ -166,7 +166,7 @@ export interface RelayerRefundExecution extends RelayerRefundLeaf {
 export interface RelayerRefundExecutionWithBlock extends RelayerRefundExecution, SortableEvent {}
 
 export interface UnfilledDeposit {
-  deposit: Deposit;
+  deposit: V2Deposit;
   unfilledAmount: BigNumber;
   hasFirstPartialFill?: boolean;
   relayerBalancingFee?: BigNumber;
@@ -182,7 +182,7 @@ export interface Refund {
 export type FillsToRefund = {
   [repaymentChainId: number]: {
     [l2TokenAddress: string]: {
-      fills: Fill[];
+      fills: V2Fill[];
       refunds?: Refund;
       totalRefundAmount: BigNumber;
       realizedLpFees: BigNumber;

@@ -1,7 +1,7 @@
 import assert from "assert";
 import { Contract, utils as ethersUtils } from "ethers";
 import { CHAIN_IDs } from "../constants";
-import { FillStatus, RelayData, V2RelayData, V3RelayData } from "../interfaces";
+import { FillStatus, RelayData, SlowFillRequest, V2RelayData, V3Deposit, V3Fill, V3RelayData } from "../interfaces";
 import { SpokePoolClient } from "../clients";
 import { isDefined } from "./TypeGuards";
 import { isV2RelayData } from "./V3Utils";
@@ -240,6 +240,9 @@ export function getV3RelayHash(relayData: V3RelayData, destinationChainId: numbe
   );
 }
 
+export function getV3RelayHashFromEvent(e: V3Deposit | V3Fill | SlowFillRequest): string {
+  return getV3RelayHash(e, e.destinationChainId);
+}
 /**
  * Find the amount filled for a deposit at a particular block.
  * @param spokePool SpokePool contract instance.

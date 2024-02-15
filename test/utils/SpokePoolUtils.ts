@@ -58,9 +58,9 @@ export function v3FillFromDeposit(deposit: V3DepositWithBlock, relayer: string):
     exclusiveRelayer: relayer,
     repaymentChainId: deposit.destinationChainId,
     relayExecutionInfo: {
-      recipient: deposit.updatedRecipient ?? recipient,
-      message: deposit.updatedMessage ?? message,
-      outputAmount: deposit.updatedOutputAmount ?? deposit.outputAmount,
+      updatedRecipient: deposit.updatedRecipient ?? recipient,
+      updatedMessage: deposit.updatedMessage ?? message,
+      updatedOutputAmount: deposit.updatedOutputAmount ?? deposit.outputAmount,
       fillType: FillType.FastFill,
     },
   };

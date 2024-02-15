@@ -444,10 +444,10 @@ export async function fillV3Relay(
     exclusiveRelayer: args.exclusiveRelayer,
     relayer: args.relayer,
     repaymentChainId: Number(args.repaymentChainId),
-    updatableRelayData: {
-      recipient: args.relayExecutionInfo.recipient,
-      message: args.relayExecutionInfo.message,
-      outputAmount: args.relayExecutionInfo.outputAmount,
+    relayExecutionInfo: {
+      updatedRecipient: args.relayExecutionInfo.recipient,
+      updatedMessage: args.relayExecutionInfo.message,
+      updatedOutputAmount: args.relayExecutionInfo.outputAmount,
       fillType: args.relayExecutionInfo.fillType,
     },
     blockNumber,
