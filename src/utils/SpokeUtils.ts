@@ -241,7 +241,7 @@ export function getV3RelayHash(relayData: V3RelayData, destinationChainId: numbe
 }
 
 export function getV3RelayHashFromEvent(e: V3Deposit | V3Fill | SlowFillRequest): string {
-  const relayData: V3RelayData = {
+  const relayData = {
     depositor: e.depositor,
     recipient: e.recipient,
     exclusiveRelayer: e.exclusiveRelayer,
