@@ -1,5 +1,5 @@
 import { DEFAULT_CACHING_SAFE_LAG, DEFAULT_CACHING_TTL } from "../constants";
-import { CachingMechanismInterface, Deposit, Fill } from "../interfaces";
+import { CachingMechanismInterface, Deposit, Fill, SlowFillRequest } from "../interfaces";
 import { assert } from "./LogUtils";
 import { composeRevivers, objectWithBigNumberReviver } from "./ReviverUtils";
 import { getCurrentTime } from "./TimeUtils";
@@ -44,10 +44,10 @@ export async function setDepositInCache(
 }
 
 /**
- * Resolves the key for caching either a deposit or a fill.
- * @param depositOrFill Either a deposit or a fill. In either case, the depositId and originChainId are used to generate the key.
- * @returns The key for caching the deposit or fill.
+ * Resolves the key for caching a bridge event.
+ * @param bridgeEvent The depositId and originChainId are used to generate the key.
+ * @returns The key for caching the event.
  */
-export function getDepositKey(depositOrFill: Deposit | Fill): string {
-  return `deposit_${depositOrFill.originChainId}_${depositOrFill.depositId}`;
+export function getDepositKey(bridgeEvent: Deposit | Fill | SlowFillRequest): string {
+  return `deposit_${bridgeEvent.originChainId}_${bridgeEvent.depositId}`;
 }
