@@ -66,8 +66,8 @@ export type Deposit = V2Deposit | V3Deposit;
 export type DepositWithBlock = V2DepositWithBlock | V3DepositWithBlock;
 
 export interface RelayExecutionInfoCommon {
-  recipient: string;
-  message: string;
+  updatedRecipient: string;
+  updatedMessage: string;
 }
 
 export interface RelayExecutionInfo extends RelayExecutionInfoCommon {
@@ -89,7 +89,7 @@ export enum FillType {
 }
 
 export interface V3RelayExecutionEventInfo extends RelayExecutionInfoCommon {
-  outputAmount: BigNumber;
+  updatedOutputAmount: BigNumber;
   fillType: FillType;
 }
 
