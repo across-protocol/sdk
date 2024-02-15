@@ -1,12 +1,4 @@
-import {
-  DepositWithBlock,
-  Fill,
-  FillType,
-  V2DepositWithBlock,
-  V2Fill,
-  V3DepositWithBlock,
-  V3Fill,
-} from "../../src/interfaces";
+import { DepositWithBlock, Fill, V2DepositWithBlock, V2Fill } from "../../src/interfaces";
 import { bnZero, isV2Deposit } from "../../src/utils";
 
 export function fillFromDeposit(deposit: DepositWithBlock, relayer: string): Fill {
