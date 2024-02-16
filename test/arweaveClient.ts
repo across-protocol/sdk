@@ -7,6 +7,7 @@ import { ArweaveClient } from "../src/caching";
 import { parseWinston, toBN } from "../src/utils";
 import { object, string } from "superstruct";
 import { ARWEAVE_TAG_APP_NAME } from "../src/constants";
+import { assertPromiseError } from "./utils";
 
 const INITIAL_FUNDING_AMNT = "5000000000";
 const LOCAL_ARWEAVE_NODE = {
@@ -153,5 +154,24 @@ describe("ArweaveClient", () => {
       appName: ARWEAVE_TAG_APP_NAME,
       topic: topicTag,
     });
+  });
+
+  it("should gracefully handle out of funds errors", async () => {
+    const jwk = await Arweave.init({}).wallets.generate();
+    // Create a new Arweave client
+    const client = new ArweaveClient(
+      jwk,
+      // Define default winston logger
+      winston.createLogger({
+        level: "info",
+        format: winston.format.json(),
+        defaultMeta: { service: "arweave-client" },
+        transports: [new winston.transports.Console()],
+      }),
+      LOCAL_ARWEAVE_NODE.host,
+      LOCAL_ARWEAVE_NODE.protocol,
+      LOCAL_ARWEAVE_NODE.port
+    );
+    await assertPromiseError(client.set({ test: "value" }), "You don't have enough tokens");
   });
 });

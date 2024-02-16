@@ -52,20 +52,24 @@ export class ArweaveClient {
     await this.client.transactions.sign(transaction, this.arweaveJWT);
     // Send the transaction
     const result = await this.client.transactions.post(transaction);
-    this.logger.debug({
-      at: "ArweaveClient:set",
-      message: `Arweave transaction posted with ${transaction.id}`,
-    });
+
     // Ensure that the result is successful
     if (result.status !== 200) {
+      const message = result?.data?.error?.msg ?? "Unknown error";
       this.logger.error({
         at: "ArweaveClient:set",
-        message: `Arweave transaction failed with ${transaction.id}`,
+        message,
         result,
+        txn: transaction.id,
         address: await this.getAddress(),
         balance: (await this.getBalance()).toString(),
       });
-      throw new Error("Server failed to receive arweave transaction");
+      throw new Error(message);
+    } else {
+      this.logger.debug({
+        at: "ArweaveClient:set",
+        message: `Arweave transaction posted with ${transaction.id}`,
+      });
     }
     return transaction.id;
   }
