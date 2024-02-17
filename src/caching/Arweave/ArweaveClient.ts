@@ -2,7 +2,7 @@ import Arweave from "arweave";
 import { JWKInterface } from "arweave/node/lib/wallet";
 import { ethers } from "ethers";
 import winston from "winston";
-import { isDefined, jsonReplacerWithBigNumbers, parseWinston } from "../../utils";
+import { isDefined, jsonReplacerWithBigNumbers, parseWinston, toBN } from "../../utils";
 import { Struct, is } from "superstruct";
 import { ARWEAVE_TAG_APP_NAME } from "../../constants";
 
@@ -139,6 +139,14 @@ export class ArweaveClient {
   async getBalance(): Promise<ethers.BigNumber> {
     const address = await this.getAddress();
     const balanceInFloat = await this.client.wallets.getBalance(address);
-    return parseWinston(balanceInFloat);
+    // Sometimes the balance is returned in scientific notation, so we need to
+    // convert it to a BigNumber
+    if (balanceInFloat.includes("e")) {
+      const [balance, exponent] = balanceInFloat.split("e");
+      const resultingBN = ethers.BigNumber.from(balance).mul(toBN(10).pow(exponent.replace("+", "")));
+      return parseWinston(resultingBN.toString());
+    } else {
+      return parseWinston(balanceInFloat);
+    }
   }
 }
