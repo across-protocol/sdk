@@ -2,11 +2,11 @@ import Arweave from "arweave";
 import { JWKInterface } from "arweave/node/lib/wallet";
 import axios from "axios";
 import { expect } from "chai";
+import { object, string } from "superstruct";
 import winston from "winston";
 import { ArweaveClient } from "../src/caching";
-import { parseWinston, toBN } from "../src/utils";
-import { object, string } from "superstruct";
 import { ARWEAVE_TAG_APP_NAME } from "../src/constants";
+import { parseWinston, toBN } from "../src/utils";
 import { assertPromiseError } from "./utils";
 
 const INITIAL_FUNDING_AMNT = "5000000000";
@@ -44,7 +44,11 @@ describe("ArweaveClient", () => {
         level: "info",
         format: winston.format.json(),
         defaultMeta: { service: "arweave-client" },
-        transports: [new winston.transports.Console()],
+        transports: [
+          new winston.transports.Console({
+            level: "debug",
+          }),
+        ],
       }),
       LOCAL_ARWEAVE_NODE.host,
       LOCAL_ARWEAVE_NODE.protocol,
@@ -60,7 +64,6 @@ describe("ArweaveClient", () => {
   it("should be able to set a basic record and view it on the network", async () => {
     const value = { test: "value" };
     const txID = await client.set(value);
-    console.log(txID);
     expect(txID).to.not.be.undefined;
 
     // Wait for the transaction to be mined
@@ -154,6 +157,21 @@ describe("ArweaveClient", () => {
       appName: ARWEAVE_TAG_APP_NAME,
       topic: topicTag,
     });
+  });
+
+  it.only("should retrieve the data by the topic tag", async () => {
+    const value = { test: "value" };
+    const topicTag = "test-topic-for-get-by-topic";
+    const txID = await client.set(value, topicTag);
+    expect(txID).to.not.be.undefined;
+
+    // Wait for the transaction to be mined
+    await mineBlock();
+    await mineBlock();
+
+    const data = await client.getByTopic(topicTag, object({ test: string() }));
+
+    expect(data).to.deep.equal([value]);
   });
 
   it("should gracefully handle out of funds errors", async () => {
