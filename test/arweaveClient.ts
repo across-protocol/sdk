@@ -159,7 +159,7 @@ describe("ArweaveClient", () => {
     });
   });
 
-  it.only("should retrieve the data by the topic tag", async () => {
+  it("should retrieve the data by the topic tag", async () => {
     const value = { test: "value" };
     const topicTag = "test-topic-for-get-by-topic";
     const txID = await client.set(value, topicTag);
@@ -171,7 +171,12 @@ describe("ArweaveClient", () => {
 
     const data = await client.getByTopic(topicTag, object({ test: string() }));
 
-    expect(data).to.deep.equal([value]);
+    expect(data).to.deep.equal([
+      {
+        data: value,
+        hash: txID,
+      },
+    ]);
   });
 
   it("should gracefully handle out of funds errors", async () => {
