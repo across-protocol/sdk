@@ -111,7 +111,7 @@ export class ArweaveClient {
    * @param validator The validator to validate the retrieved values
    * @returns The records if they exist, otherwise an empty array
    */
-  async getByTopic<T>(tag: string, validator: Struct<T>): Promise<T[]> {
+  async getByTopic<T>(tag: string, validator: Struct<T>): Promise<{ data: T; hash: string }[]> {
     const transactions = await this.client.api.post<{
       data: {
         transactions: {
@@ -135,11 +135,18 @@ export class ArweaveClient {
           ) { edges { node { id } } } 
         }`,
     });
-    return (
-      await Promise.all(
-        transactions.data.data.transactions.edges.map((edge) => edge.node.id).map((txnId) => this.get(txnId, validator))
-      )
-    ).filter(isDefined);
+    const results = await Promise.all(
+      transactions.data.data.transactions.edges.map(async (edge) => {
+        const data = await this.get<T>(edge.node.id, validator);
+        return isDefined(data)
+          ? {
+              data,
+              hash: edge.node.id,
+            }
+          : null;
+      })
+    );
+    return results.filter(isDefined);
   }
 
   /**
