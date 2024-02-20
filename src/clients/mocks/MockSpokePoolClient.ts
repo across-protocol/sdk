@@ -16,7 +16,6 @@ import {
   V3DepositWithBlock,
   V3Fill,
   V3FillWithBlock,
-  V3FundsDepositedEvent,
   V3SlowFillLeaf,
   V3SpeedUp,
 } from "../../interfaces";
@@ -34,7 +33,6 @@ import {
 } from "../../utils";
 import { SpokePoolClient, SpokePoolUpdate } from "../SpokePoolClient";
 import { EventManager, EventOverrides, getEventManager } from "./MockEvents";
-import { HubPoolClient } from "../HubPoolClient";
 
 type Block = providers.Block;
 
@@ -50,14 +48,8 @@ export class MockSpokePoolClient extends SpokePoolClient {
   public numberOfDeposits = 0;
   public blocks: Record<number, Block> = {};
 
-  constructor(
-    logger: winston.Logger,
-    spokePool: Contract,
-    chainId: number,
-    deploymentBlock: number,
-    hubPoolClient: HubPoolClient | null = null
-  ) {
-    super(logger, spokePool, hubPoolClient, chainId, deploymentBlock);
+  constructor(logger: winston.Logger, spokePool: Contract, chainId: number, deploymentBlock: number) {
+    super(logger, spokePool, null, chainId, deploymentBlock);
     this.latestBlockSearched = deploymentBlock;
     this.eventManager = getEventManager(chainId, this.eventSignatures, deploymentBlock);
   }
@@ -79,9 +71,7 @@ export class MockSpokePoolClient extends SpokePoolClient {
       : await super.computeRealizedLpFeePct(depositEvent);
   }
 
-  async batchComputeRealizedLpFeePct(
-    depositEvents: (FundsDepositedEvent | V3FundsDepositedEvent)[]
-  ): Promise<RealizedLpFee[]> {
+  async batchComputeRealizedLpFeePct(depositEvents: FundsDepositedEvent[]): Promise<RealizedLpFee[]> {
     const { realizedLpFeePct, realizedLpFeePctOverride } = this;
     return realizedLpFeePctOverride
       ? depositEvents.map(({ blockNumber: quoteBlock }) => {
