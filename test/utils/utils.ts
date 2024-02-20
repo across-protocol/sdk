@@ -313,6 +313,7 @@ export async function buildV2DepositStruct(
     ...deposit,
     inputToken,
     inputAmount,
+    paymentChainId: deposit.destinationChainId,
     blockNumber,
   });
   return {
