@@ -59,7 +59,7 @@ export interface V3Deposit extends V3RelayData {
 }
 
 export interface V3DepositWithBlock extends V3Deposit, SortableEvent {
-  quoteBlockNumber?: number;
+  quoteBlockNumber: number;
 }
 
 export type Deposit = V2Deposit | V3Deposit;
