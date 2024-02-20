@@ -1,5 +1,5 @@
 import { BigNumber, Contract, Event, EventFilter, ethers } from "ethers";
-import { groupBy } from "lodash";
+import _, { groupBy } from "lodash";
 import winston from "winston";
 import {
   AnyObject,
@@ -18,6 +18,7 @@ import {
   isV2SpeedUp,
   isV3SpeedUp,
   toBN,
+  assert,
 } from "../utils";
 import {
   paginatedEventQuery,
@@ -774,7 +775,9 @@ export class SpokePoolClient extends BaseAbstractClient {
         const rawDeposit = spreadEventWithBlockNumber(event);
         let deposit: DepositWithBlock;
 
+        const { quoteBlock: quoteBlockNumber, realizedLpFeePct } = dataForQuoteTime[index];
         if (this.isV3DepositEvent(event)) {
+          assert(realizedLpFeePct.eq(bnZero), "V3 deposits should not have realized LP fees");
           deposit = { ...(rawDeposit as V3DepositWithBlock), originChainId: this.chainId };
           if (deposit.outputToken === ZERO_ADDRESS) {
             deposit.outputToken = this.getDestinationTokenForDeposit(deposit);
@@ -785,7 +788,6 @@ export class SpokePoolClient extends BaseAbstractClient {
         }
 
         // Derive and append the common properties that are not part of the onchain event.
-        const { quoteBlock: quoteBlockNumber, realizedLpFeePct } = dataForQuoteTime[index];
         deposit.realizedLpFeePct = realizedLpFeePct;
         deposit.quoteBlockNumber = quoteBlockNumber;
 
@@ -1166,6 +1168,7 @@ export class SpokePoolClient extends BaseAbstractClient {
     }
     const partialDeposit = spreadEventWithBlockNumber(event) as V3DepositWithBlock;
     const { realizedLpFeePct, quoteBlock: quoteBlockNumber } = (await this.batchComputeRealizedLpFeePct([event]))[0]; // Append the realizedLpFeePct.
+    assert(realizedLpFeePct.eq(bnZero), "V3 deposits should not have realized LP fees");
 
     // Append destination token and realized lp fee to deposit.
     const deposit: V3DepositWithBlock = {

@@ -123,6 +123,7 @@ describe("HubPool Utilization", function () {
       amount: amountToLp.div(10),
       originChainId,
       destinationChainId: repaymentChainId,
+      paymentChainId: repaymentChainId,
       relayerFeePct: toBN(0),
       quoteTimestamp: initialRateModelUpdateTime,
       blockNumber: initialRateModelUpdate.blockNumber,
