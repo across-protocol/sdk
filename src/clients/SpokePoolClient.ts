@@ -775,21 +775,21 @@ export class SpokePoolClient extends BaseAbstractClient {
         const rawDeposit = spreadEventWithBlockNumber(event);
         let deposit: DepositWithBlock;
 
+        // Derive and append the common properties that are not part of the onchain event.
         const { quoteBlock: quoteBlockNumber, realizedLpFeePct } = dataForQuoteTime[index];
         if (this.isV3DepositEvent(event)) {
-          assert(realizedLpFeePct.eq(bnZero), "V3 deposits should not have realized LP fees");
           deposit = { ...(rawDeposit as V3DepositWithBlock), originChainId: this.chainId };
+          deposit.realizedLpFeePct = undefined;
+          deposit.quoteBlockNumber = quoteBlockNumber;
           if (deposit.outputToken === ZERO_ADDRESS) {
             deposit.outputToken = this.getDestinationTokenForDeposit(deposit);
           }
         } else {
           deposit = { ...(rawDeposit as V2DepositWithBlock) };
+          deposit.realizedLpFeePct = realizedLpFeePct;
+          deposit.quoteBlockNumber = quoteBlockNumber;
           deposit.destinationToken = this.getDestinationTokenForDeposit(deposit);
         }
-
-        // Derive and append the common properties that are not part of the onchain event.
-        deposit.realizedLpFeePct = realizedLpFeePct;
-        deposit.quoteBlockNumber = quoteBlockNumber;
 
         if (this.depositHashes[this.getDepositHash(deposit)] !== undefined) {
           continue;

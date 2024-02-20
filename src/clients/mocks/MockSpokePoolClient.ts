@@ -16,6 +16,7 @@ import {
   V3DepositWithBlock,
   V3Fill,
   V3FillWithBlock,
+  V3FundsDepositedEvent,
   V3SlowFillLeaf,
   V3SpeedUp,
 } from "../../interfaces";
@@ -71,7 +72,9 @@ export class MockSpokePoolClient extends SpokePoolClient {
       : await super.computeRealizedLpFeePct(depositEvent);
   }
 
-  async batchComputeRealizedLpFeePct(depositEvents: FundsDepositedEvent[]): Promise<RealizedLpFee[]> {
+  async batchComputeRealizedLpFeePct(
+    depositEvents: (FundsDepositedEvent | V3FundsDepositedEvent)[]
+  ): Promise<RealizedLpFee[]> {
     const { realizedLpFeePct, realizedLpFeePctOverride } = this;
     return realizedLpFeePctOverride
       ? depositEvents.map(({ blockNumber: quoteBlock }) => {
