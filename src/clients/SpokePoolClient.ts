@@ -971,17 +971,21 @@ export class SpokePoolClient extends BaseAbstractClient {
     const deposits = depositEvents.map((event) => {
       let inputToken: string, inputAmount: BigNumber;
 
+      // For v3 deposits, leave payment chain ID undefined so we don't compute lp fee since we don't have the
+      // payment chain ID until we match this deposit with a fill.
+      let _paymentChainId: number | undefined;
       if (this.isV3DepositEvent(event)) {
         ({ inputToken, inputAmount } = event.args);
       } else {
         // Coerce v2 deposit objects into V3 format.
         ({ originToken: inputToken, amount: inputAmount } = event.args);
+        _paymentChainId = Number(event.args.destinationChainId);
       }
       return {
         inputToken,
         inputAmount,
         originChainId: this.chainId,
-        paymentChainId: Number(event.args.destinationChainId),
+        paymentChainId: _paymentChainId,
         quoteTimestamp: event.args.quoteTimestamp,
       };
     });
