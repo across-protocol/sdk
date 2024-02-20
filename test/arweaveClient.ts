@@ -1,12 +1,13 @@
+import ArLocal from "arlocal";
 import Arweave from "arweave";
 import { JWKInterface } from "arweave/node/lib/wallet";
 import axios from "axios";
 import { expect } from "chai";
+import { object, string } from "superstruct";
 import winston from "winston";
 import { ArweaveClient } from "../src/caching";
-import { parseWinston, toBN } from "../src/utils";
-import { object, string } from "superstruct";
 import { ARWEAVE_TAG_APP_NAME } from "../src/constants";
+import { parseWinston, toBN } from "../src/utils";
 import { assertPromiseError } from "./utils";
 
 const INITIAL_FUNDING_AMNT = "5000000000";
@@ -20,11 +21,15 @@ const LOCAL_ARWEAVE_URL = `${LOCAL_ARWEAVE_NODE.protocol}://${LOCAL_ARWEAVE_NODE
 const mineBlock = () => axios.get(`${LOCAL_ARWEAVE_URL}/mine`);
 
 describe("ArweaveClient", () => {
+  const arLocal = new ArLocal(LOCAL_ARWEAVE_NODE.port, true);
+
   let jwk: JWKInterface;
   let client: ArweaveClient;
   // Before running any of the tests, we need to fund the address with some AR
   // so that we can post to our testnet node
   before(async () => {
+    // Start the local arweave node
+    await arLocal.start();
     // Generate a new JWK for our tests
     jwk = await Arweave.init({}).wallets.generate();
     // Resolve the address of the JWK
@@ -173,5 +178,9 @@ describe("ArweaveClient", () => {
       LOCAL_ARWEAVE_NODE.port
     );
     await assertPromiseError(client.set({ test: "value" }), "You don't have enough tokens");
+  });
+
+  after(async () => {
+    await arLocal.stop();
   });
 });
