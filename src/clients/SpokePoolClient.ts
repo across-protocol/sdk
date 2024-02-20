@@ -1,5 +1,5 @@
 import { BigNumber, Contract, Event, EventFilter, ethers } from "ethers";
-import _, { groupBy } from "lodash";
+import { groupBy } from "lodash";
 import winston from "winston";
 import {
   AnyObject,
