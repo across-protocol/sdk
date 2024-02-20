@@ -51,14 +51,15 @@ export class MockHubPoolClient extends HubPoolClient {
 
   async computeRealizedLpFeePct(deposit: LpFeeRequest): Promise<RealizedLpFee> {
     const { realizedLpFeePct, realizedLpFeePctOverride } = this;
-    const { blockNumber: quoteBlock } = deposit;
-    return realizedLpFeePctOverride ? { realizedLpFeePct, quoteBlock } : await super.computeRealizedLpFeePct(deposit);
+    return realizedLpFeePctOverride
+      ? { realizedLpFeePct, quoteBlock: 0 }
+      : await super.computeRealizedLpFeePct(deposit);
   }
   async batchComputeRealizedLpFeePct(_deposits: LpFeeRequest[]): Promise<RealizedLpFee[]> {
     const { realizedLpFeePct, realizedLpFeePctOverride } = this;
     return realizedLpFeePctOverride
-      ? _deposits.map(({ blockNumber: quoteBlock }) => {
-          return { realizedLpFeePct, quoteBlock };
+      ? _deposits.map(() => {
+          return { realizedLpFeePct, quoteBlock: 0 };
         })
       : await super.batchComputeRealizedLpFeePct(_deposits);
   }

@@ -18,7 +18,6 @@ import {
   isV2SpeedUp,
   isV3SpeedUp,
   toBN,
-  assert,
 } from "../utils";
 import {
   paginatedEventQuery,
@@ -989,7 +988,6 @@ export class SpokePoolClient extends BaseAbstractClient {
         originChainId: this.chainId,
         paymentChainId: _paymentChainId,
         quoteTimestamp: event.args.quoteTimestamp,
-        blockNumber: event.blockNumber,
       };
     });
 
