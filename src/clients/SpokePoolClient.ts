@@ -989,6 +989,7 @@ export class SpokePoolClient extends BaseAbstractClient {
         originChainId: this.chainId,
         paymentChainId: _paymentChainId,
         quoteTimestamp: event.args.quoteTimestamp,
+        blockNumber: event.blockNumber,
       };
     });
 

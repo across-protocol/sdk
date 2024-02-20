@@ -1,9 +1,9 @@
 import winston from "winston";
 import { BigNumber, Contract, Event } from "ethers";
-import { randomAddress, assign } from "../../utils";
-import { L1Token, PendingRootBundle } from "../../interfaces";
+import { randomAddress, assign, bnZero } from "../../utils";
+import { L1Token, PendingRootBundle, RealizedLpFee } from "../../interfaces";
 import { AcrossConfigStoreClient as ConfigStoreClient } from "../AcrossConfigStoreClient";
-import { HubPoolClient, HubPoolUpdate } from "../HubPoolClient";
+import { HubPoolClient, HubPoolUpdate, LpFeeRequest } from "../HubPoolClient";
 import { EventManager, EventOverrides, getEventManager } from "./MockEvents";
 
 const emptyRootBundle: PendingRootBundle = {
@@ -19,6 +19,8 @@ const emptyRootBundle: PendingRootBundle = {
 
 export class MockHubPoolClient extends HubPoolClient {
   public rootBundleProposal = emptyRootBundle;
+  private realizedLpFeePct: BigNumber = bnZero;
+  private realizedLpFeePctOverride = false;
 
   private l1TokensMock: L1Token[] = []; // L1Tokens and their associated info.
   private tokenInfoToReturn: L1Token = { address: "", decimals: 0, symbol: "" };
@@ -36,6 +38,29 @@ export class MockHubPoolClient extends HubPoolClient {
   ) {
     super(logger, hubPool, configStoreClient, deploymentBlock, chainId);
     this.eventManager = getEventManager(chainId, this.eventSignatures, deploymentBlock);
+  }
+
+  setDefaultRealizedLpFeePct(fee: BigNumber): void {
+    this.realizedLpFeePct = fee;
+    this.realizedLpFeePctOverride = true;
+  }
+
+  clearDefaultRealizedLpFeePct(): void {
+    this.realizedLpFeePctOverride = false;
+  }
+
+  async computeRealizedLpFeePct(deposit: LpFeeRequest): Promise<RealizedLpFee> {
+    const { realizedLpFeePct, realizedLpFeePctOverride } = this;
+    const { blockNumber: quoteBlock } = deposit;
+    return realizedLpFeePctOverride ? { realizedLpFeePct, quoteBlock } : await super.computeRealizedLpFeePct(deposit);
+  }
+  async batchComputeRealizedLpFeePct(_deposits: LpFeeRequest[]): Promise<RealizedLpFee[]> {
+    const { realizedLpFeePct, realizedLpFeePctOverride } = this;
+    return realizedLpFeePctOverride
+      ? _deposits.map(({ blockNumber: quoteBlock }) => {
+          return { realizedLpFeePct, quoteBlock };
+        })
+      : await super.batchComputeRealizedLpFeePct(_deposits);
   }
 
   setCrossChainContracts(chainId: number, contract: string, blockNumber = 0): void {

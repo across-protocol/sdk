@@ -72,13 +72,13 @@ type L1TokensToDestinationTokens = {
 // Temporary type for v2 -> v3 transition. @todo: Remove.
 type V2PartialDepositWithBlock = Pick<
   V2DepositWithBlock,
-  "originChainId" | "originToken" | "amount" | "quoteTimestamp"
+  "originChainId" | "originToken" | "amount" | "quoteTimestamp" | "blockNumber"
 >;
 
 // Temporary type for v2 -> v3 transition. @todo: Remove.
 type V3PartialDepositWithBlock = Pick<
   V3DepositWithBlock,
-  "originChainId" | "inputToken" | "inputAmount" | "quoteTimestamp"
+  "originChainId" | "inputToken" | "inputAmount" | "quoteTimestamp" | "blockNumber"
 >;
 
 export type LpFeeRequest = (V2PartialDepositWithBlock | V3PartialDepositWithBlock) & { paymentChainId?: number };
