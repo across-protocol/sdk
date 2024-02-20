@@ -430,7 +430,7 @@ export class HubPoolClient extends BaseAbstractClient {
       const quoteBlock = quoteBlocks[quoteTimestamp];
 
       if (paymentChainId === undefined) {
-        return { quoteBlock, realizedLpFeePct: bnZero }
+        return { quoteBlock, realizedLpFeePct: bnZero };
       }
 
       const hubPoolToken = hubPoolTokens[inputToken];
