@@ -102,6 +102,54 @@ export class ArweaveClient {
   }
 
   /**
+   * Retrieves a list of records from the Arweave network that have a specific tag.
+   * The records are expected to be a JSON string and are pre-filtered by the Across
+   * protocol tag, the content-type tag, and this client's address. Furthermore, the
+   * records are expected to be an array of the given type and will be discarded if
+   * they do not match the given validator.
+   * @param tag The tag to filter all the transactions by
+   * @param validator The validator to validate the retrieved values
+   * @returns The records if they exist, otherwise an empty array
+   */
+  async getByTopic<T>(tag: string, validator: Struct<T>): Promise<{ data: T; hash: string }[]> {
+    const transactions = await this.client.api.post<{
+      data: {
+        transactions: {
+          edges: {
+            node: {
+              id: string;
+            };
+          }[];
+        };
+      };
+    }>("/graphql", {
+      query: `
+        { 
+          transactions (
+            owners: ["${await this.getAddress()}"]
+            tags: [
+              { name: "App-Name", values: ["${ARWEAVE_TAG_APP_NAME}"] },
+              { name: "Content-Type", values: ["application/json"] },
+              ${tag ? `{ name: "Topic", values: ["${tag}"] } ` : ""}
+            ]
+          ) { edges { node { id } } } 
+        }`,
+    });
+    const results = await Promise.all(
+      transactions.data.data.transactions.edges.map(async (edge) => {
+        const data = await this.get<T>(edge.node.id, validator);
+        return isDefined(data)
+          ? {
+              data,
+              hash: edge.node.id,
+            }
+          : null;
+      })
+    );
+    return results.filter(isDefined);
+  }
+
+  /**
    * Retrieves the metadata of a transaction
    * @param transactionID The transaction ID of the record to retrieve
    * @returns The metadata of the transaction if it exists, otherwise null
