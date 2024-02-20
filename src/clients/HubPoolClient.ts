@@ -70,16 +70,18 @@ type L1TokensToDestinationTokens = {
 };
 
 // Temporary type for v2 -> v3 transition. @todo: Remove.
-export type V2PartialDepositWithBlock = Pick<
+type V2PartialDepositWithBlock = Pick<
   V2DepositWithBlock,
-  "originChainId" | "destinationChainId" | "originToken" | "amount" | "quoteTimestamp" | "blockNumber"
+  "originChainId" | "originToken" | "amount" | "quoteTimestamp"
 >;
 
 // Temporary type for v2 -> v3 transition. @todo: Remove.
-export type V3PartialDepositWithBlock = Pick<
+type V3PartialDepositWithBlock = Pick<
   V3DepositWithBlock,
-  "originChainId" | "destinationChainId" | "inputToken" | "inputAmount" | "quoteTimestamp" | "blockNumber"
+  "originChainId" | "inputToken" | "inputAmount" | "quoteTimestamp"
 >;
+
+export type LpFeeRequest = (V2PartialDepositWithBlock | V3PartialDepositWithBlock) & { paymentChainId: number };
 
 export class HubPoolClient extends BaseAbstractClient {
   // L1Token -> destinationChainId -> destinationToken
@@ -340,16 +342,12 @@ export class HubPoolClient extends BaseAbstractClient {
     return utilization;
   }
 
-  async computeRealizedLpFeePct(
-    deposit: V2PartialDepositWithBlock | V3PartialDepositWithBlock
-  ): Promise<RealizedLpFee> {
+  async computeRealizedLpFeePct(deposit: LpFeeRequest): Promise<RealizedLpFee> {
     const [lpFee] = await this.batchComputeRealizedLpFeePct([deposit]);
     return lpFee;
   }
 
-  async batchComputeRealizedLpFeePct(
-    _deposits: (V2PartialDepositWithBlock | V3PartialDepositWithBlock)[]
-  ): Promise<RealizedLpFee[]> {
+  async batchComputeRealizedLpFeePct(_deposits: LpFeeRequest[]): Promise<RealizedLpFee[]> {
     assert(_deposits.length > 0, "No deposits supplied to batchComputeRealizedLpFeePct");
     if (!isDefined(this.currentTime)) {
       throw new Error("HubPoolClient has not set a currentTime");
@@ -428,14 +426,14 @@ export class HubPoolClient extends BaseAbstractClient {
 
     // Helper compute the realizedLpFeePct of an individual deposit based on pre-retrieved batch data.
     const computeRealizedLpFeePct = async (deposit: (typeof deposits)[0]) => {
-      const { originChainId, destinationChainId, inputToken, inputAmount, quoteTimestamp } = deposit;
+      const { originChainId, paymentChainId, inputToken, inputAmount, quoteTimestamp } = deposit;
       const quoteBlock = quoteBlocks[quoteTimestamp];
 
       const hubPoolToken = hubPoolTokens[inputToken];
       const rateModel = this.configStoreClient.getRateModelForBlockNumber(
         hubPoolToken,
         originChainId,
-        destinationChainId,
+        paymentChainId,
         quoteBlock
       );
 
