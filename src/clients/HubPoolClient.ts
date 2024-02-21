@@ -422,7 +422,7 @@ export class HubPoolClient extends BaseAbstractClient {
     };
 
     // Helper compute the realizedLpFeePct of an individual deposit based on pre-retrieved batch data.
-    const computeRealizedLpFeePct = async (deposit: V3PartialDepositWithBlock & { paymentChainId: number }) => {
+    const computeRealizedLpFeePct = async (deposit: V3PartialDepositWithBlock & { paymentChainId?: number }) => {
       const { originChainId, paymentChainId, inputAmount, quoteTimestamp } = deposit;
       const quoteBlock = quoteBlocks[quoteTimestamp];
 
