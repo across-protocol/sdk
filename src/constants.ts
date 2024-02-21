@@ -17,6 +17,9 @@ export const HUBPOOL_CHAIN_ID = 1;
 // List of versions where certain UMIP features were deprecated
 export const TRANSFER_THRESHOLD_MAX_CONFIG_STORE_VERSION = 1;
 
+// A hardcoded identifier used, by default, to tag all Arweave records.
+export const ARWEAVE_TAG_APP_NAME = "across-protocol";
+
 /**
  * A default list of chain Ids that the protocol supports. This is outlined
  * in the UMIP (https://github.com/UMAprotocol/UMIPs/pull/590) and is used

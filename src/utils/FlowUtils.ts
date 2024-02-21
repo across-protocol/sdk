@@ -31,6 +31,11 @@ export const V3_DEPOSIT_COMPARISON_KEYS = [
 ] as const;
 
 export function filledSameDeposit(fillA: Fill, fillB: Fill): boolean {
+  // Don't bother hashing obvious mismatches.
+  if (fillA.depositId !== fillB.depositId) {
+    return false;
+  }
+
   if (isV2Fill(fillA) && isV2Fill(fillB)) {
     return getV2RelayHash(fillA) === getV2RelayHash(fillB);
   } else if (isV3Fill(fillA) && isV3Fill(fillB)) {

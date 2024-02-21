@@ -66,8 +66,8 @@ export type Deposit = V2Deposit | V3Deposit;
 export type DepositWithBlock = V2DepositWithBlock | V3DepositWithBlock;
 
 export interface RelayExecutionInfoCommon {
-  recipient: string;
-  message: string;
+  updatedRecipient: string;
+  updatedMessage: string;
 }
 
 export interface RelayExecutionInfo extends RelayExecutionInfoCommon {
@@ -89,7 +89,7 @@ export enum FillType {
 }
 
 export interface V3RelayExecutionEventInfo extends RelayExecutionInfoCommon {
-  outputAmount: BigNumber;
+  updatedOutputAmount: BigNumber;
   fillType: FillType;
 }
 
@@ -166,7 +166,7 @@ export interface RelayerRefundExecution extends RelayerRefundLeaf {
 export interface RelayerRefundExecutionWithBlock extends RelayerRefundExecution, SortableEvent {}
 
 export interface UnfilledDeposit {
-  deposit: Deposit;
+  deposit: V2Deposit;
   unfilledAmount: BigNumber;
   hasFirstPartialFill?: boolean;
   relayerBalancingFee?: BigNumber;
@@ -182,7 +182,7 @@ export interface Refund {
 export type FillsToRefund = {
   [repaymentChainId: number]: {
     [l2TokenAddress: string]: {
-      fills: Fill[];
+      fills: V2Fill[];
       refunds?: Refund;
       totalRefundAmount: BigNumber;
       realizedLpFees: BigNumber;
