@@ -81,7 +81,7 @@ type V3PartialDepositWithBlock = Pick<
   "originChainId" | "inputToken" | "inputAmount" | "quoteTimestamp"
 >;
 
-export type LpFeeRequest = (V2PartialDepositWithBlock | V3PartialDepositWithBlock) & { paymentChainId: number };
+export type LpFeeRequest = (V2PartialDepositWithBlock | V3PartialDepositWithBlock) & { paymentChainId?: number };
 
 export class HubPoolClient extends BaseAbstractClient {
   // L1Token -> destinationChainId -> destinationToken
