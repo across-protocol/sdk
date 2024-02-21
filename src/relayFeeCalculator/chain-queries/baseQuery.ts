@@ -110,7 +110,7 @@ export default abstract class QueryBase implements QueryInterface {
    * @returns The gas estimate for this function call (multplied with the optional buffer).
    */
   async getV3GasCosts(deposit: V3Deposit, relayer: string): Promise<TransactionCostEstimate> {
-    const tx = await populateV3Relay(this.spokePool, deposit);
+    const tx = await populateV3Relay(this.spokePool, deposit, relayer);
     return estimateTotalGasRequiredByUnsignedTransaction(
       tx,
       relayer,
