@@ -1,4 +1,4 @@
-import { PublicNetworks } from "@uma/common";
+import { PublicNetworks } from "@uma/common/dist/PublicNetworks";
 import { CHAIN_IDs, PRODUCTION_CHAIN_IDS, TESTNET_CHAIN_IDS } from "../constants";
 
 /**
