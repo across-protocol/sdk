@@ -32,7 +32,7 @@ export type {
   FilledRelayEvent,
   RequestedSpeedUpDepositEvent,
   V3FundsDepositedEvent,
-  FilledV3RelayEvent
+  FilledV3RelayEvent,
 } from "@across-protocol/contracts-v2/dist/typechain/contracts/SpokePool.sol/SpokePool";
 
 export type {
