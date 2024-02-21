@@ -1,11 +1,39 @@
 import assert from "assert";
-import { Contract, utils as ethersUtils } from "ethers";
-import { CHAIN_IDs } from "../constants";
+import { Contract, PopulatedTransaction, utils as ethersUtils } from "ethers";
+import { CHAIN_IDs, ZERO_ADDRESS } from "../constants";
 import { FillStatus, RelayData, SlowFillRequest, V2RelayData, V3Deposit, V3Fill, V3RelayData } from "../interfaces";
 import { SpokePoolClient } from "../clients";
 import { isDefined } from "./TypeGuards";
 import { isV2RelayData } from "./V3Utils";
 import { getNetworkName } from "./NetworkUtils";
+
+/**
+ * @param spokePool SpokePool Contract instance.
+ * @param deposit V3Deopsit instance.
+ * @param repaymentChainId Optional repaymentChainId (defaults to destinationChainId).
+ * @returns An Ethers UnsignedTransaction instance.
+ */
+export async function populateV3Relay(
+  spokePool: Contract,
+  deposit: V3Deposit,
+  repaymentChainId = deposit.destinationChainId
+): Promise<PopulatedTransaction> {
+  if (isDefined(deposit.speedUpSignature)) {
+    assert(isDefined(deposit.updatedRecipient) && deposit.updatedRecipient !== ZERO_ADDRESS);
+    assert(isDefined(deposit.updatedOutputAmount));
+    assert(isDefined(deposit.updatedMessage));
+    return spokePool.populateTransaction.fillV3RelayWithUpdatedDeposit([
+      deposit,
+      repaymentChainId,
+      deposit.updatedOutputAmount,
+      deposit.updatedRecipient,
+      deposit.updatedMessage,
+      deposit.speedUpSignature,
+    ]);
+  }
+
+  return spokePool.populateTransaction.fillV3Relay([deposit, repaymentChainId]);
+}
 
 /**
  * Find the block range that contains the deposit ID. This is a binary search that searches for the block range
