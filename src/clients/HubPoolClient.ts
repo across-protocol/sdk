@@ -426,6 +426,10 @@ export class HubPoolClient extends BaseAbstractClient {
       const { originChainId, paymentChainId, inputAmount, quoteTimestamp } = deposit;
       const quoteBlock = quoteBlocks[quoteTimestamp];
 
+      if (paymentChainId === undefined) {
+        return { quoteBlock, realizedLpFeePct: bnZero };
+      }
+
       const hubPoolToken = getHubPoolToken(deposit, quoteBlock);
       const rateModel = this.configStoreClient.getRateModelForBlockNumber(
         hubPoolToken,
