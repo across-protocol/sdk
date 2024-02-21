@@ -65,7 +65,7 @@ export default abstract class QueryBase implements QueryInterface {
    * @param relayerAddress Relayer address to simulate with.
    * @returns The gas estimate for this function call (multplied with the optional buffer).
    */
-  async getGasCosts(
+  getGasCosts(
     deposit: Deposit,
     fillAmount: BigNumberish,
     relayAddress = DEFAULT_SIMULATED_RELAYER_ADDRESS
