@@ -93,6 +93,9 @@ export const DEFAULT_LOGGER: Logger = {
   error: (...args) => console.error(args),
 };
 
+// Small amount to simulate filling with. Should be low enough to guarantee a successful fill.
+const safeOutputAmount = toBN(100);
+
 export class RelayFeeCalculator {
   private queries: QueryInterface;
   private gasDiscountPercent: Required<RelayFeeCalculatorConfig>["gasDiscountPercent"];
@@ -234,26 +237,24 @@ export class RelayFeeCalculator {
       throw new Error(`Could not find token information for ${inputToken}`);
     }
 
-    const outputAmount = getDepositOutputAmount(deposit);
-    const getGasCosts = this.queries
-      .getGasCosts(
-        {
-          ...deposit,
-          amount: simulateZeroFill && isV2Deposit(deposit) ? toBN(100) : outputAmount,
-        },
-        simulateZeroFill ? toBN(100) : amountToRelay,
-        relayerAddress
-      )
-      .catch((error) => {
-        this.logger.error({
-          at: "sdk-v2/gasFeePercent",
-          message: "Error while fetching gas costs",
-          error,
-          simulateZeroFill,
-          deposit,
-        });
-        throw error;
+    if (simulateZeroFill) {
+      amountToRelay = safeOutputAmount;
+      // Reduce the output amount to simulate a full fill with a lower value to estimate
+      // the fill cost accurately without risking a failure due to insufficient balance.
+      deposit = isV2Deposit(deposit)
+        ? { ...deposit, amount: amountToRelay }
+        : { ...deposit, outputAmount: amountToRelay };
+    }
+    const getGasCosts = this.queries.getGasCosts(deposit, amountToRelay, relayerAddress).catch((error) => {
+      this.logger.error({
+        at: "sdk-v2/gasFeePercent",
+        message: "Error while fetching gas costs",
+        error,
+        simulateZeroFill,
+        deposit,
       });
+      throw error;
+    });
     const getTokenPrice = this.queries.getTokenPrice(token.symbol).catch((error) => {
       this.logger.error({
         at: "sdk-v2/gasFeePercent",
