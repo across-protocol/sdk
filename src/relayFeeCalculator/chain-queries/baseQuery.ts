@@ -68,9 +68,9 @@ export default abstract class QueryBase implements QueryInterface {
   getGasCosts(
     deposit: Deposit,
     fillAmount: BigNumberish,
-    relayAddress = DEFAULT_SIMULATED_RELAYER_ADDRESS
+    relayer = DEFAULT_SIMULATED_RELAYER_ADDRESS
   ): Promise<TransactionCostEstimate> {
-    const relayer = relayAddress ?? this.simulatedRelayerAddress;
+    relayer ??= this.simulatedRelayerAddress;
     return isV2Deposit(deposit)
       ? this.getV2GasCosts(deposit, fillAmount, relayer)
       : this.getV3GasCosts(deposit, relayer);
