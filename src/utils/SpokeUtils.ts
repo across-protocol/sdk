@@ -42,7 +42,7 @@ export function populateV3Relay(
       deposit.updatedOutputAmount,
       deposit.updatedRecipient,
       deposit.updatedMessage,
-      deposit.speedUpSignature,
+      deposit.speedUpSignature
     );
   }
 
