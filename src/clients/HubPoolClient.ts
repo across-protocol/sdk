@@ -81,7 +81,7 @@ type V3PartialDepositWithBlock = Pick<
   "originChainId" | "inputToken" | "inputAmount" | "quoteTimestamp"
 >;
 
-export type LpFeeRequest = (V2PartialDepositWithBlock | V3PartialDepositWithBlock) & { paymentChainId?: number };
+export type LpFeeRequest = (V2PartialDepositWithBlock | V3PartialDepositWithBlock) & { paymentChainId: number };
 
 export class HubPoolClient extends BaseAbstractClient {
   // L1Token -> destinationChainId -> destinationToken
@@ -422,7 +422,7 @@ export class HubPoolClient extends BaseAbstractClient {
     };
 
     // Helper compute the realizedLpFeePct of an individual deposit based on pre-retrieved batch data.
-    const computeRealizedLpFeePct = async (deposit: (typeof deposits)[0]) => {
+    const computeRealizedLpFeePct = async (deposit: V3PartialDepositWithBlock & { paymentChainId: number }) => {
       const { originChainId, paymentChainId, inputAmount, quoteTimestamp } = deposit;
       const quoteBlock = quoteBlocks[quoteTimestamp];
 
