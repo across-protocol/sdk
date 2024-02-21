@@ -13,7 +13,7 @@ import { getNetworkName } from "./NetworkUtils";
  * @param repaymentChainId Optional repaymentChainId (defaults to destinationChainId).
  * @returns An Ethers UnsignedTransaction instance.
  */
-export async function populateV3Relay(
+export function populateV3Relay(
   spokePool: Contract,
   deposit: V3Deposit,
   repaymentChainId = deposit.destinationChainId
