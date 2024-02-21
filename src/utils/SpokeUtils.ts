@@ -16,6 +16,7 @@ import { getNetworkName } from "./NetworkUtils";
 export function populateV3Relay(
   spokePool: Contract,
   deposit: V3Deposit,
+  relayer: string,
   repaymentChainId = deposit.destinationChainId
 ): Promise<PopulatedTransaction> {
   const v3RelayData: V3RelayData = {
@@ -42,11 +43,12 @@ export function populateV3Relay(
       deposit.updatedOutputAmount,
       deposit.updatedRecipient,
       deposit.updatedMessage,
-      deposit.speedUpSignature
+      deposit.speedUpSignature,
+      { from: relayer }
     );
   }
 
-  return spokePool.populateTransaction.fillV3Relay(v3RelayData, repaymentChainId);
+  return spokePool.populateTransaction.fillV3Relay(v3RelayData, repaymentChainId, { from: relayer });
 }
 
 /**
