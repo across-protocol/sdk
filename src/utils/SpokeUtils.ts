@@ -18,21 +18,35 @@ export function populateV3Relay(
   deposit: V3Deposit,
   repaymentChainId = deposit.destinationChainId
 ): Promise<PopulatedTransaction> {
+  const v3RelayData: V3RelayData = {
+    depositor: deposit.depositor,
+    recipient: deposit.recipient,
+    exclusiveRelayer: deposit.exclusiveRelayer,
+    inputToken: deposit.inputToken,
+    outputToken: deposit.outputToken,
+    inputAmount: deposit.inputAmount,
+    outputAmount: deposit.outputAmount,
+    originChainId: deposit.originChainId,
+    depositId: deposit.depositId,
+    fillDeadline: deposit.fillDeadline,
+    exclusivityDeadline: deposit.exclusivityDeadline,
+    message: deposit.message,
+  };
   if (isDefined(deposit.speedUpSignature)) {
     assert(isDefined(deposit.updatedRecipient) && deposit.updatedRecipient !== ZERO_ADDRESS);
     assert(isDefined(deposit.updatedOutputAmount));
     assert(isDefined(deposit.updatedMessage));
-    return spokePool.populateTransaction.fillV3RelayWithUpdatedDeposit([
-      deposit,
+    return spokePool.populateTransaction.fillV3RelayWithUpdatedDeposit(
+      v3RelayData,
       repaymentChainId,
       deposit.updatedOutputAmount,
       deposit.updatedRecipient,
       deposit.updatedMessage,
       deposit.speedUpSignature,
-    ]);
+    );
   }
 
-  return spokePool.populateTransaction.fillV3Relay([deposit, repaymentChainId]);
+  return spokePool.populateTransaction.fillV3Relay(v3RelayData, repaymentChainId);
 }
 
 /**
