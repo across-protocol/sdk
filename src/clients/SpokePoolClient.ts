@@ -1175,7 +1175,7 @@ export class SpokePoolClient extends BaseAbstractClient {
       quoteBlockNumber,
       outputToken:
         partialDeposit.outputToken === ZERO_ADDRESS
-          ? this.getDestinationTokenForDeposit(partialDeposit)
+          ? this.getDestinationTokenForDeposit({ ...partialDeposit, originChainId: this.chainId })
           : partialDeposit.outputToken,
     };
 
