@@ -237,15 +237,14 @@ export class RelayFeeCalculator {
       throw new Error(`Could not find token information for ${inputToken}`);
     }
 
-    if (simulateZeroFill) {
-      amountToRelay = safeOutputAmount;
-      // Reduce the output amount to simulate a full fill with a lower value to estimate
-      // the fill cost accurately without risking a failure due to insufficient balance.
-      deposit = isV2Deposit(deposit)
-        ? { ...deposit, amount: amountToRelay }
-        : { ...deposit, outputAmount: amountToRelay };
-    }
-    const getGasCosts = this.queries.getGasCosts(deposit, amountToRelay, relayerAddress).catch((error) => {
+    // Reduce the output amount to simulate a full fill with a lower value to estimate
+    // the fill cost accurately without risking a failure due to insufficient balance.
+    const simulatedAmount = simulateZeroFill ? safeOutputAmount : toBN(amountToRelay);
+    deposit = isV2Deposit(deposit)
+      ? { ...deposit, amount: simulatedAmount }
+      : { ...deposit, outputAmount: simulatedAmount };
+
+    const getGasCosts = this.queries.getGasCosts(deposit, simulatedAmount, relayerAddress).catch((error) => {
       this.logger.error({
         at: "sdk-v2/gasFeePercent",
         message: "Error while fetching gas costs",
