@@ -446,9 +446,9 @@ export async function fillV3Relay(
     relayer: args.relayer,
     repaymentChainId: Number(args.repaymentChainId),
     relayExecutionInfo: {
-      updatedRecipient: args.relayExecutionInfo.recipient,
-      updatedMessage: args.relayExecutionInfo.message,
-      updatedOutputAmount: args.relayExecutionInfo.outputAmount,
+      updatedRecipient: args.relayExecutionInfo.updatedRecipient,
+      updatedMessage: args.relayExecutionInfo.updatedMessage,
+      updatedOutputAmount: args.relayExecutionInfo.updatedOutputAmount,
       fillType: args.relayExecutionInfo.fillType,
     },
     blockNumber,
