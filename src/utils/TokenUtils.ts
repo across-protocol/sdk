@@ -15,9 +15,12 @@ export async function fetchTokenInfo(address: string, signerOrProvider: SignerOr
   return { address, symbol, decimals };
 }
 
-export const getL2TokenAddresses = (l1TokenAddress: string): { [chainId: number]: string } | undefined => {
+export const getL2TokenAddresses = (
+  l1TokenAddress: string,
+  l1ChainId = CHAIN_IDs.MAINNET
+): { [chainId: number]: string } | undefined => {
   return Object.values(TOKEN_SYMBOLS_MAP).find((details) => {
-    return details.addresses[CHAIN_IDs.MAINNET] === l1TokenAddress;
+    return details.addresses[l1ChainId] === l1TokenAddress;
   })?.addresses;
 };
 
