@@ -99,8 +99,8 @@
   },
   "dependencies": {
     "@across-protocol/across-token": "^1.0.0",
-    "@across-protocol/constants-v2": "^1.0.11",
-    "@across-protocol/contracts-v2": "2.5.0-beta.7",
+    "@across-protocol/constants-v2": "1.0.11-beta.espresso.1",
+    "@across-protocol/contracts-v2": "2.5.0-beta.espresso.5",
     "@eth-optimism/sdk": "^3.1.8",
     "@pinata/sdk": "^2.1.0",
     "@types/mocha": "^10.0.1",
