@@ -620,6 +620,9 @@ export class SpokePoolClient extends BaseAbstractClient {
    * @returns A Promise that resolves to a SpokePoolUpdate object.
    */
   protected async _update(eventsToQuery: string[]): Promise<SpokePoolUpdate> {
+    console.log("#####################################################################################");
+    console.log("DEPLOYMENT_BLOCK", this.deploymentBlock);
+
     // Find the earliest known depositId. This assumes no deposits were placed in the deployment block.
     let firstDepositId: number = this.firstDepositIdForSpokePool;
     if (firstDepositId === Number.MAX_SAFE_INTEGER) {
@@ -634,6 +637,10 @@ export class SpokePoolClient extends BaseAbstractClient {
       toBlock: this.eventSearchConfig.toBlock || (await this.spokePool.provider.getBlockNumber()),
       maxBlockLookBack: this.eventSearchConfig.maxBlockLookBack,
     };
+
+    console.log("#####################################################################################");
+    console.log("searchConfig", searchConfig);
+    console.log("#####################################################################################");
     if (searchConfig.fromBlock > searchConfig.toBlock) {
       this.log("warn", "Invalid update() searchConfig.", { searchConfig });
       return { success: false };

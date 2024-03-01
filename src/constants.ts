@@ -53,6 +53,8 @@ export const TESTNET_CHAIN_IDS = [
   acxConstants.TESTNET_CHAIN_IDs.ARBITRUM_SEPOLIA,
   acxConstants.TESTNET_CHAIN_IDs.SEPOLIA,
   acxConstants.TESTNET_CHAIN_IDs.OPTIMISM_SEPOLIA,
+  acxConstants.TESTNET_CHAIN_IDs.ESPRESSO_DEMO_1,
+  acxConstants.TESTNET_CHAIN_IDs.ESPRESSO_DEMO_2,
 ];
 
 export const PUBLIC_NETWORKS: { [chainId: number]: { name: string; etherscan: string } } = {
