@@ -319,10 +319,12 @@ export async function relayFillStatus(
 export async function fillStatusArray(
   spokePool: Contract,
   relayData: V3RelayData[],
-  blockTag: BlockTag = "latest"
+  blockTag: BlockTag = "latest",
+  destinationChainId = -1
 ): Promise<(FillStatus | undefined)[]> {
   const fillStatuses = "fillStatuses";
-  const destinationChainId = await spokePool.chainId();
+  destinationChainId = destinationChainId === -1 ? await spokePool.chainId() : destinationChainId;
+
   const queries = relayData.map((relayData) => {
     const hash = getV3RelayHash(relayData, destinationChainId);
     return spokePool.interface.encodeFunctionData(fillStatuses, [hash]);

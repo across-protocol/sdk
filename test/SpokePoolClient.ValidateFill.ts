@@ -181,6 +181,11 @@ describe("SpokePoolClient: Fill Validation", function () {
     fills = await fillStatusArray(spokePool_2, deposits);
     expect(fills.length).to.equal(deposits.length);
     fills.forEach((fillStatus) => expect(fillStatus).to.equal(FillStatus.Filled));
+
+    // Querying against the wrong SpokePool => all unfilled.
+    fills = await fillStatusArray(spokePool_1, deposits);
+    expect(fills.length).to.equal(deposits.length);
+    fills.forEach((fillStatus) => expect(fillStatus).to.equal(FillStatus.Unfilled));
   });
 
   it("Accepts valid fills", async function () {
