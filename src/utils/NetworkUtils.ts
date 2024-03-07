@@ -89,3 +89,12 @@ export function chainIsOPStack(chainId: number): boolean {
 export function chainIsArbitrum(chainId: number): boolean {
   return [CHAIN_IDs.ARBITRUM, CHAIN_IDs.ARBITRUM_GOERLI, CHAIN_IDs.ARBITRUM_SEPOLIA].includes(chainId);
 }
+
+/**
+ * Determines whether a chain ID is a Linea implementation.
+ * @param chainId Chain ID to evaluate.
+ * @returns True if chainId is a Linea chain, otherwise false.
+ */
+export function chainIsLinea(chainId: number): boolean {
+  return [CHAIN_IDs.LINEA, CHAIN_IDs.LINEA_GOERLI].includes(chainId);
+}
