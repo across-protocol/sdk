@@ -890,7 +890,10 @@ export class HubPoolClient extends BaseAbstractClient {
         ...events["ProposeRootBundle"]
           .filter((event) => !this.configOverride.ignoredHubProposedBundles.includes(event.blockNumber))
           .map((event) => {
-            return { ...spreadEventWithBlockNumber(event), transactionHash: event.transactionHash } as ProposedRootBundle;
+            return {
+              ...spreadEventWithBlockNumber(event),
+              transactionHash: event.transactionHash,
+            } as ProposedRootBundle;
           })
       );
     }
@@ -921,9 +924,8 @@ export class HubPoolClient extends BaseAbstractClient {
         // Safeguard
         if (![nTokens, nTokens * 2].includes(runningBalances.length)) {
           throw new Error(
-            `Invalid runningBalances length: ${runningBalances.length}. Expected ${nTokens} or ${nTokens * 2} for chain ${
-              this.chainId
-            } transaction ${event.transactionHash}`
+            `Invalid runningBalances length: ${runningBalances.length}.` +
+              ` Expected ${nTokens} or ${nTokens * 2} for chain ${this.chainId} transaction ${event.transactionHash}`
           );
         }
         executedRootBundle.runningBalances = runningBalances.slice(0, nTokens);
