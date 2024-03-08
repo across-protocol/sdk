@@ -1,11 +1,14 @@
 import assert from "assert";
-import { Contract, PopulatedTransaction, utils as ethersUtils } from "ethers";
+import { BigNumber, BytesLike, Contract, PopulatedTransaction, providers, utils as ethersUtils } from "ethers";
 import { CHAIN_IDs, ZERO_ADDRESS } from "../constants";
 import { FillStatus, RelayData, SlowFillRequest, V2RelayData, V3Deposit, V3Fill, V3RelayData } from "../interfaces";
 import { SpokePoolClient } from "../clients";
+import { toBN } from "./BigNumberUtils";
 import { isDefined } from "./TypeGuards";
 import { isV2RelayData } from "./V3Utils";
 import { getNetworkName } from "./NetworkUtils";
+
+type BlockTag = providers.BlockTag;
 
 /**
  * @param spokePool SpokePool Contract instance.
@@ -307,10 +310,36 @@ export async function relayFillStatus(
 
   if (![FillStatus.Unfilled, FillStatus.RequestedSlowFill, FillStatus.Filled].includes(fillStatus)) {
     const { originChainId, depositId } = relayData;
-    throw new Error(`relayFillStatus: Unexpected fillStatus for ${originChainId} deposit ${depositId}`);
+    throw new Error(`relayFillStatus: Unexpected fillStatus for ${originChainId} deposit ${depositId} (${fillStatus})`);
   }
 
   return fillStatus;
+}
+
+export async function fillStatusArray(
+  spokePool: Contract,
+  relayData: V3RelayData[],
+  blockTag: BlockTag = "latest"
+): Promise<(FillStatus | undefined)[]> {
+  const fillStatuses = "fillStatuses";
+  const destinationChainId = await spokePool.chainId();
+  const queries = relayData.map((relayData) => {
+    const hash = getV3RelayHash(relayData, destinationChainId);
+    return spokePool.interface.encodeFunctionData(fillStatuses, [hash]);
+  });
+  const multicall = await spokePool.callStatic.multicall(queries, { blockTag });
+  const status = multicall.map(
+    (result: BytesLike) => spokePool.interface.decodeFunctionResult(fillStatuses, result)[0]
+  );
+
+  const bnUnfilled = toBN(FillStatus.Unfilled);
+  const bnFilled = toBN(FillStatus.Filled);
+
+  return status.map((status: unknown) => {
+    return BigNumber.isBigNumber(status) && status.gte(bnUnfilled) && status.lte(bnFilled)
+      ? status.toNumber()
+      : undefined;
+  });
 }
 
 /**
