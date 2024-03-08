@@ -815,106 +815,124 @@ export class HubPoolClient extends BaseAbstractClient {
     }
     const { events, currentTime, pendingRootBundleProposal, searchEndBlock } = update;
 
-    for (const event of events["CrossChainContractsSet"]) {
-      const args = spreadEventWithBlockNumber(event) as CrossChainContractsSet;
-      assign(
-        this.crossChainContracts,
-        [args.l2ChainId],
-        [
-          {
-            spokePool: args.spokePool,
-            blockNumber: args.blockNumber,
-            transactionIndex: args.transactionIndex,
-            logIndex: args.logIndex,
-          },
-        ]
-      );
+    if (eventsToQuery.includes("CrossChainContractsSet")) {
+      for (const event of events["CrossChainContractsSet"]) {
+        const args = spreadEventWithBlockNumber(event) as CrossChainContractsSet;
+        assign(
+          this.crossChainContracts,
+          [args.l2ChainId],
+          [
+            {
+              spokePool: args.spokePool,
+              blockNumber: args.blockNumber,
+              transactionIndex: args.transactionIndex,
+              logIndex: args.logIndex,
+            },
+          ]
+        );
+      }
     }
 
-    for (const event of events["SetPoolRebalanceRoute"]) {
-      const args = spreadEventWithBlockNumber(event) as SetPoolRebalanceRoot;
-      assign(this.l1TokensToDestinationTokens, [args.l1Token, args.destinationChainId], args.destinationToken);
-      assign(
-        this.l1TokensToDestinationTokensWithBlock,
-        [args.l1Token, args.destinationChainId],
-        [
-          {
-            l1Token: args.l1Token,
-            l2Token: args.destinationToken,
-            blockNumber: args.blockNumber,
-            transactionIndex: args.transactionIndex,
-            logIndex: args.logIndex,
-          },
-        ]
-      );
+    if (eventsToQuery.includes("SetPoolRebalanceRoute")) {
+      for (const event of events["SetPoolRebalanceRoute"]) {
+        const args = spreadEventWithBlockNumber(event) as SetPoolRebalanceRoot;
+        assign(this.l1TokensToDestinationTokens, [args.l1Token, args.destinationChainId], args.destinationToken);
+        assign(
+          this.l1TokensToDestinationTokensWithBlock,
+          [args.l1Token, args.destinationChainId],
+          [
+            {
+              l1Token: args.l1Token,
+              l2Token: args.destinationToken,
+              blockNumber: args.blockNumber,
+              transactionIndex: args.transactionIndex,
+              logIndex: args.logIndex,
+            },
+          ]
+        );
+      }
     }
 
     // For each enabled Lp token fetch the token symbol and decimals from the token contract. Note this logic will
     // only run iff a new token has been enabled. Will only append iff the info is not there already.
     // Filter out any duplicate addresses. This might happen due to enabling, disabling and re-enabling a token.
-    const uniqueL1Tokens = [
-      ...Array.from(
-        new Set(events["L1TokenEnabledForLiquidityProvision"].map((event) => spreadEvent(event.args).l1Token))
-      ),
-    ];
-    const [tokenInfo, lpTokenInfo] = await Promise.all([
-      Promise.all(uniqueL1Tokens.map((l1Token: string) => fetchTokenInfo(l1Token, this.hubPool.provider))),
-      Promise.all(
-        uniqueL1Tokens.map(
-          async (l1Token: string) => await this.hubPool.pooledTokens(l1Token, { blockTag: update.searchEndBlock })
-        )
-      ),
-    ]);
-    for (const info of tokenInfo) {
-      if (!this.l1Tokens.find((token) => token.symbol === info.symbol)) {
-        if (info.decimals > 0 && info.decimals <= 18) {
-          this.l1Tokens.push(info);
-        } else {
-          throw new Error(`Unsupported HubPool token: ${JSON.stringify(info)}`);
+    if (eventsToQuery.includes("L1TokenEnabledForLiquidityProvision")) {
+      const uniqueL1Tokens = [
+        ...Array.from(
+          new Set(events["L1TokenEnabledForLiquidityProvision"].map((event) => spreadEvent(event.args).l1Token))
+        ),
+      ];
+      const [tokenInfo, lpTokenInfo] = await Promise.all([
+        Promise.all(uniqueL1Tokens.map((l1Token: string) => fetchTokenInfo(l1Token, this.hubPool.provider))),
+        Promise.all(
+          uniqueL1Tokens.map(
+            async (l1Token: string) => await this.hubPool.pooledTokens(l1Token, { blockTag: update.searchEndBlock })
+          )
+        ),
+      ]);
+      for (const info of tokenInfo) {
+        if (!this.l1Tokens.find((token) => token.symbol === info.symbol)) {
+          if (info.decimals > 0 && info.decimals <= 18) {
+            this.l1Tokens.push(info);
+          } else {
+            throw new Error(`Unsupported HubPool token: ${JSON.stringify(info)}`);
+          }
         }
       }
+
+      uniqueL1Tokens.forEach((token: string, i) => {
+        this.lpTokens[token] = { lastLpFeeUpdate: lpTokenInfo[i].lastLpFeeUpdate };
+      });
     }
 
-    uniqueL1Tokens.forEach((token: string, i) => {
-      this.lpTokens[token] = { lastLpFeeUpdate: lpTokenInfo[i].lastLpFeeUpdate };
-    });
+    if (eventsToQuery.includes("ProposeRootBundle")) {
+      this.proposedRootBundles.push(
+        ...events["ProposeRootBundle"]
+          .filter((event) => !this.configOverride.ignoredHubProposedBundles.includes(event.blockNumber))
+          .map((event) => {
+            return {
+              ...spreadEventWithBlockNumber(event),
+              transactionHash: event.transactionHash,
+            } as ProposedRootBundle;
+          })
+      );
+    }
 
-    this.proposedRootBundles.push(
-      ...events["ProposeRootBundle"]
-        .filter((event) => !this.configOverride.ignoredHubProposedBundles.includes(event.blockNumber))
-        .map((event) => {
-          return { ...spreadEventWithBlockNumber(event), transactionHash: event.transactionHash } as ProposedRootBundle;
-        })
-    );
-    this.canceledRootBundles.push(
-      ...events["RootBundleCanceled"].map((event) => spreadEventWithBlockNumber(event) as CancelledRootBundle)
-    );
-    this.disputedRootBundles.push(
-      ...events["RootBundleDisputed"].map((event) => spreadEventWithBlockNumber(event) as DisputedRootBundle)
-    );
+    if (eventsToQuery.includes("RootBundleCanceled")) {
+      this.canceledRootBundles.push(
+        ...events["RootBundleCanceled"].map((event) => spreadEventWithBlockNumber(event) as CancelledRootBundle)
+      );
+    }
 
-    for (const event of events["RootBundleExecuted"]) {
-      if (this.configOverride.ignoredHubExecutedBundles.includes(event.blockNumber)) {
-        continue;
+    if (eventsToQuery.includes("RootBundleDisputed")) {
+      this.disputedRootBundles.push(
+        ...events["RootBundleDisputed"].map((event) => spreadEventWithBlockNumber(event) as DisputedRootBundle)
+      );
+    }
+
+    if (eventsToQuery.includes("RootBundleExecuted")) {
+      for (const event of events["RootBundleExecuted"]) {
+        if (this.configOverride.ignoredHubExecutedBundles.includes(event.blockNumber)) {
+          continue;
+        }
+
+        // Set running balances and incentive balances for this bundle.
+        const executedRootBundle = spreadEventWithBlockNumber(event) as ExecutedRootBundle;
+        const { l1Tokens, runningBalances } = executedRootBundle;
+        const nTokens = l1Tokens.length;
+
+        // Safeguard
+        if (![nTokens, nTokens * 2].includes(runningBalances.length)) {
+          throw new Error(
+            `Invalid runningBalances length: ${runningBalances.length}.` +
+              ` Expected ${nTokens} or ${nTokens * 2} for chain ${this.chainId} transaction ${event.transactionHash}`
+          );
+        }
+        executedRootBundle.runningBalances = runningBalances.slice(0, nTokens);
+        executedRootBundle.incentiveBalances =
+          runningBalances.length > nTokens ? runningBalances.slice(nTokens) : runningBalances.map(() => toBN(0));
+        this.executedRootBundles.push(executedRootBundle);
       }
-
-      // Set running balances and incentive balances for this bundle.
-      const executedRootBundle = spreadEventWithBlockNumber(event) as ExecutedRootBundle;
-      const { l1Tokens, runningBalances } = executedRootBundle;
-      const nTokens = l1Tokens.length;
-
-      // Safeguard
-      if (![nTokens, nTokens * 2].includes(runningBalances.length)) {
-        throw new Error(
-          `Invalid runningBalances length: ${runningBalances.length}. Expected ${nTokens} or ${nTokens * 2} for chain ${
-            this.chainId
-          } transaction ${event.transactionHash}`
-        );
-      }
-      executedRootBundle.runningBalances = runningBalances.slice(0, nTokens);
-      executedRootBundle.incentiveBalances =
-        runningBalances.length > nTokens ? runningBalances.slice(nTokens) : runningBalances.map(() => toBN(0));
-      this.executedRootBundles.push(executedRootBundle);
     }
 
     // If the contract's current rootBundleProposal() value has an unclaimedPoolRebalanceLeafCount > 0, then
@@ -922,33 +940,35 @@ export class HubPoolClient extends BaseAbstractClient {
     // passed the challenge period and pool rebalance leaves can be executed. Once all leaves are executed, the
     // unclaimed count will drop to 0 and at that point there is nothing more that we can do with this root bundle
     // besides proposing another one.
-    if (pendingRootBundleProposal.unclaimedPoolRebalanceLeafCount > 0) {
-      const mostRecentProposedRootBundle = this.proposedRootBundles[this.proposedRootBundles.length - 1];
-      this.pendingRootBundle = {
-        poolRebalanceRoot: pendingRootBundleProposal.poolRebalanceRoot,
-        relayerRefundRoot: pendingRootBundleProposal.relayerRefundRoot,
-        slowRelayRoot: pendingRootBundleProposal.slowRelayRoot,
-        proposer: pendingRootBundleProposal.proposer,
-        unclaimedPoolRebalanceLeafCount: pendingRootBundleProposal.unclaimedPoolRebalanceLeafCount,
-        challengePeriodEndTimestamp: pendingRootBundleProposal.challengePeriodEndTimestamp,
-        bundleEvaluationBlockNumbers: mostRecentProposedRootBundle.bundleEvaluationBlockNumbers.map(
-          (block: BigNumber) => {
-            // Ideally, the HubPool.sol contract should limit the size of the elements within the
-            // bundleEvaluationBlockNumbers array. But because it doesn't, we wrap the cast of BN --> Number
-            // in a try/catch statement and return some value that would always be disputable.
-            // This catches the denial of service attack vector where a malicious proposer proposes with bundle block
-            // evaluation block numbers larger than what BigNumber::toNumber() can handle.
-            try {
-              return block.toNumber();
-            } catch {
-              return 0;
+    if (eventsToQuery.includes("ProposeRootBundle")) {
+      if (pendingRootBundleProposal.unclaimedPoolRebalanceLeafCount > 0) {
+        const mostRecentProposedRootBundle = this.proposedRootBundles[this.proposedRootBundles.length - 1];
+        this.pendingRootBundle = {
+          poolRebalanceRoot: pendingRootBundleProposal.poolRebalanceRoot,
+          relayerRefundRoot: pendingRootBundleProposal.relayerRefundRoot,
+          slowRelayRoot: pendingRootBundleProposal.slowRelayRoot,
+          proposer: pendingRootBundleProposal.proposer,
+          unclaimedPoolRebalanceLeafCount: pendingRootBundleProposal.unclaimedPoolRebalanceLeafCount,
+          challengePeriodEndTimestamp: pendingRootBundleProposal.challengePeriodEndTimestamp,
+          bundleEvaluationBlockNumbers: mostRecentProposedRootBundle.bundleEvaluationBlockNumbers.map(
+            (block: BigNumber) => {
+              // Ideally, the HubPool.sol contract should limit the size of the elements within the
+              // bundleEvaluationBlockNumbers array. But because it doesn't, we wrap the cast of BN --> Number
+              // in a try/catch statement and return some value that would always be disputable.
+              // This catches the denial of service attack vector where a malicious proposer proposes with bundle block
+              // evaluation block numbers larger than what BigNumber::toNumber() can handle.
+              try {
+                return block.toNumber();
+              } catch {
+                return 0;
+              }
             }
-          }
-        ),
-        proposalBlockNumber: mostRecentProposedRootBundle.blockNumber,
-      };
-    } else {
-      this.pendingRootBundle = undefined;
+          ),
+          proposalBlockNumber: mostRecentProposedRootBundle.blockNumber,
+        };
+      } else {
+        this.pendingRootBundle = undefined;
+      }
     }
 
     this.currentTime = currentTime;
