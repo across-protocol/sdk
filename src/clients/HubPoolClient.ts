@@ -771,17 +771,37 @@ export class HubPoolClient extends BaseAbstractClient {
       return { success: false };
     }
 
+    const eventSearchConfigs = eventNames.map((eventName) => {
+      if (!Object.keys(hubPoolEvents).includes(eventName)) {
+        throw new Error(`HubPoolClient: Cannot query unrecognised HubPool event name: ${eventName}`);
+      }
+
+      const _searchConfig = { ...searchConfig }; // shallow copy
+
+      // By default, an event's query range is controlled by the `searchConfig` passed in during
+      // instantiation. However, certain events generally must be queried back to HubPool genesis.
+      const overrideEvents = ["CrossChainContractsSet", "L1TokenEnabledForLiquidityProvision", "SetPoolRebalanceRoute"];
+      if (overrideEvents.includes(eventName) && !this.isUpdated) {
+        _searchConfig.fromBlock = this.deploymentBlock;
+      }
+
+      return {
+        eventName,
+        filter: hubPoolEvents[eventName],
+        searchConfig: _searchConfig,
+      };
+    });
+
     this.logger.debug({
       at: "HubPoolClient",
       message: "Updating HubPool client",
-      searchConfig,
-      eventNames,
+      searchConfig: eventSearchConfigs.map(({ eventName, searchConfig }) => ({ eventName, searchConfig })),
     });
     const timerStart = Date.now();
     const [currentTime, pendingRootBundleProposal, ...events] = await Promise.all([
       this.hubPool.getCurrentTime({ blockTag: searchConfig.toBlock }),
       this.hubPool.rootBundleProposal({ blockTag: searchConfig.toBlock }),
-      ...eventNames.map((eventName) => paginatedEventQuery(this.hubPool, hubPoolEvents[eventName], searchConfig)),
+      ...eventSearchConfigs.map((config) => paginatedEventQuery(this.hubPool, config.filter, config.searchConfig)),
     ]);
     this.logger.debug({
       at: "HubPoolClient#_update",
