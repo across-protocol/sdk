@@ -796,7 +796,6 @@ export class HubPoolClient extends BaseAbstractClient {
       at: "HubPoolClient",
       message: "Updating HubPool client",
       searchConfig: eventSearchConfigs.map(({ eventName, searchConfig }) => ({ eventName, searchConfig })),
-      eventNames,
     });
     const timerStart = Date.now();
     const [currentTime, pendingRootBundleProposal, ...events] = await Promise.all([
