@@ -799,13 +799,12 @@ export class HubPoolClient extends BaseAbstractClient {
     };
   }
 
-  async update(eventsToQuery?: HubPoolEvent[]): Promise<void> {
+  async update(
+    eventsToQuery: HubPoolEvent[] = Object.keys(this.hubPoolEventFilters()) as HubPoolEvent[]
+  ): Promise<void> {
     if (!this.configStoreClient.isUpdated) {
       throw new Error("ConfigStoreClient not updated");
     }
-
-    eventsToQuery = eventsToQuery ?? (Object.keys(this.hubPoolEventFilters()) as HubPoolEvent[]); // Query all events by default.
-
     const update = await this._update(eventsToQuery);
     if (!update.success) {
       // This failure only occurs if the RPC searchConfig is miscomputed, and has only been seen in the hardhat test
