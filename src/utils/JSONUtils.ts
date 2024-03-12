@@ -45,6 +45,11 @@ export function stringifyJSONWithNumericString(obj: unknown): string {
  * @returns The converted value
  */
 export function jsonReplacerWithBigNumbers(_key: string, value: unknown): unknown {
+  // If the value is not defined (null or undefined), return it as is
+  if (!isDefined(value)) {
+    return value;
+  }
+
   // We need to check if this is a big number, because the JSON parser
   // is not aware of BigNumbers and will convert them to the string representation
   // of the object itself which is not what we want.
