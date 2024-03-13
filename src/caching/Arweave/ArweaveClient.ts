@@ -23,7 +23,11 @@ export class ArweaveClient {
       timeout: 20000,
       logging: false,
     });
-    this.logger.info("Arweave client initialized");
+    this.logger.debug({
+      at: "ArweaveClient:constructor",
+      message: "Arweave client initialized",
+      gateway: `${protocol}://${gatewayURL}:${port}`,
+    });
   }
 
   /**
@@ -95,7 +99,10 @@ export class ArweaveClient {
     }
     // If the validator does not match the retrieved value, return null and log a warning
     if (!is(data, validator)) {
-      this.logger.warn("Retrieved value from Arweave does not match the expected type");
+      this.logger.warn({
+        at: "ArweaveClient:get",
+        message: "Retrieved value from Arweave does not match the expected type",
+      });
       return null;
     }
     return data;
