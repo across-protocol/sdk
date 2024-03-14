@@ -26,10 +26,10 @@
   resolved "https://registry.yarnpkg.com/@across-protocol/constants-v2/-/constants-v2-1.0.12.tgz#a85e8d39efa9c5294a368e229eab65357f00645e"
   integrity sha512-UrrPOxV/+FjCHmlMnezviAMXDiGDzUNCwKC2ifQ0U8PGa+lNulb7KCGNIEIFAFLHNn+/CMFST5Vwf+aAqbumvQ==
 
-"@across-protocol/contracts-v2@2.5.1":
-  version "2.5.1"
-  resolved "https://registry.yarnpkg.com/@across-protocol/contracts-v2/-/contracts-v2-2.5.1.tgz#81a85f735fe5060ce33b7f7f502b559052cdad1d"
-  integrity sha512-/c/2De7JKaR5g95ZC94XFgUTQgfB/1Iu0IOfz6m5ixkR40i58yFJLQoN2NbeFRBmSFRJaTGvz/5lIZ0hOraOQA==
+"@across-protocol/contracts-v2@2.5.2":
+  version "2.5.2"
+  resolved "https://registry.yarnpkg.com/@across-protocol/contracts-v2/-/contracts-v2-2.5.2.tgz#33d1d1c1e6682759f4668c0e56a916f30763c393"
+  integrity sha512-BiHJD088Pe610A1dSuXJzMXsRmwnexW8GEZA9sUdm/4sXB/z17kV3ALrONg7y3oavh6W6ii/egWM7XBVvtr7sw==
   dependencies:
     "@across-protocol/constants-v2" "^1.0.11"
     "@defi-wonderland/smock" "^2.3.4"
@@ -37,7 +37,7 @@
     "@ethersproject/abstract-provider" "5.7.0"
     "@ethersproject/abstract-signer" "5.7.0"
     "@ethersproject/bignumber" "5.7.0"
-    "@openzeppelin/contracts" "4.9.3"
+    "@openzeppelin/contracts" "4.9.6"
     "@openzeppelin/contracts-upgradeable" "4.9.6"
     "@scroll-tech/contracts" "^0.1.0"
     "@uma/common" "^2.34.0"
@@ -1976,7 +1976,12 @@
   resolved "https://registry.yarnpkg.com/@openzeppelin/contracts/-/contracts-4.4.2.tgz#4e889c9c66e736f7de189a53f8ba5b8d789425c2"
   integrity sha512-NyJV7sJgoGYqbtNUWgzzOGW4T6rR19FmX1IJgXGdapGPWsuMelGJn9h03nos0iqfforCbCB0iYIR0MtIuIFLLw==
 
-"@openzeppelin/contracts@4.9.3", "@openzeppelin/contracts@^4.2.0", "@openzeppelin/contracts@^4.7.3", "@openzeppelin/contracts@^4.8.1":
+"@openzeppelin/contracts@4.9.6":
+  version "4.9.6"
+  resolved "https://registry.yarnpkg.com/@openzeppelin/contracts/-/contracts-4.9.6.tgz#2a880a24eb19b4f8b25adc2a5095f2aa27f39677"
+  integrity sha512-xSmezSupL+y9VkHZJGDoCBpmnB2ogM13ccaYDWqJTfS3dbuHkgjuwDFUmaFauBCboQMGB/S5UqUl2y54X99BmA==
+
+"@openzeppelin/contracts@^4.2.0", "@openzeppelin/contracts@^4.7.3", "@openzeppelin/contracts@^4.8.1":
   version "4.9.3"
   resolved "https://registry.yarnpkg.com/@openzeppelin/contracts/-/contracts-4.9.3.tgz#00d7a8cf35a475b160b3f0293a6403c511099364"
   integrity sha512-He3LieZ1pP2TNt5JbkPA4PNT9WC3gOTOlDcFGJW4Le4QKqwmiNJCRt44APfxMxvq7OugU/cqYuPcSBzOw38DAg==
