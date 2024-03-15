@@ -1,29 +1,28 @@
 import assert from "assert";
 import { BigNumber } from "ethers";
+import { DEFAULT_SIMULATED_RELAYER_ADDRESS, TOKEN_SYMBOLS_MAP } from "../constants";
+import { V3Deposit } from "../interfaces";
 import {
   BigNumberish,
+  MAX_BIG_INT,
+  TransactionCostEstimate,
   bnZero,
   fixedPointAdjustment,
-  toBNWei,
-  nativeToToken,
-  toBN,
-  min,
-  max,
-  percent,
-  MAX_BIG_INT,
-  isDefined,
-  isV2Deposit,
   getDepositInputToken,
   getDepositOutputAmount,
   getTokenInformationFromAddress,
-  TransactionCostEstimate,
+  isDefined,
+  max,
+  min,
+  nativeToToken,
+  percent,
+  toBN,
+  toBNWei,
 } from "../utils";
-import { DEFAULT_SIMULATED_RELAYER_ADDRESS, TOKEN_SYMBOLS_MAP } from "../constants";
-import { Deposit } from "../interfaces";
 
 // This needs to be implemented for every chain and passed into RelayFeeCalculator
 export interface QueryInterface {
-  getGasCosts: (deposit: Deposit, fillAmount: BigNumberish, relayer: string) => Promise<TransactionCostEstimate>;
+  getGasCosts: (deposit: V3Deposit, relayer: string) => Promise<TransactionCostEstimate>;
   getTokenPrice: (tokenSymbol: string) => Promise<number>;
   getTokenDecimals: (tokenSymbol: string) => number;
 }
@@ -222,7 +221,7 @@ export class RelayFeeCalculator {
    *       the correct parameters to see a full fill.
    */
   async gasFeePercent(
-    deposit: Deposit,
+    deposit: V3Deposit,
     amountToRelay: BigNumberish,
     simulateZeroFill = false,
     relayerAddress = DEFAULT_SIMULATED_RELAYER_ADDRESS,
@@ -240,11 +239,9 @@ export class RelayFeeCalculator {
     // Reduce the output amount to simulate a full fill with a lower value to estimate
     // the fill cost accurately without risking a failure due to insufficient balance.
     const simulatedAmount = simulateZeroFill ? safeOutputAmount : toBN(amountToRelay);
-    deposit = isV2Deposit(deposit)
-      ? { ...deposit, amount: simulatedAmount }
-      : { ...deposit, outputAmount: simulatedAmount };
+    deposit = { ...deposit, outputAmount: simulatedAmount };
 
-    const getGasCosts = this.queries.getGasCosts(deposit, simulatedAmount, relayerAddress).catch((error) => {
+    const getGasCosts = this.queries.getGasCosts(deposit, relayerAddress).catch((error) => {
       this.logger.error({
         at: "sdk-v2/gasFeePercent",
         message: "Error while fetching gas costs",
@@ -344,7 +341,7 @@ export class RelayFeeCalculator {
    * @returns A resulting `RelayerFeeDetails` object
    */
   async relayerFeeDetails(
-    deposit: Deposit,
+    deposit: V3Deposit,
     amountToRelay?: BigNumberish,
     simulateZeroFill = false,
     relayerAddress = DEFAULT_SIMULATED_RELAYER_ADDRESS,

@@ -4,13 +4,9 @@ import assert from "assert";
 import Decimal from "decimal.js";
 import { BigNumber, ethers, PopulatedTransaction, providers, VoidSigner } from "ethers";
 import { getGasPriceEstimate } from "../gasPriceOracle";
-import { Deposit } from "../interfaces";
 import { TypedMessage } from "../interfaces/TypedData";
-import { SpokePool } from "../typechain";
-import { BigNumberish, BN, bnUint256Max, toBN } from "./BigNumberUtils";
-import { isV2Deposit } from "./V3Utils";
+import { BigNumberish, BN, toBN } from "./BigNumberUtils";
 import { ConvertDecimals } from "./FormattingUtils";
-import { isDefined } from "./TypeGuards";
 import { chainIsOPStack } from "./NetworkUtils";
 
 export type Decimalish = string | number | Decimal;
@@ -289,76 +285,6 @@ export async function estimateTotalGasRequiredByUnsignedTransaction(
     nativeGasCost, // Units: gas
     tokenGasCost, // Units: wei (nativeGasCost * wei/gas)
   };
-}
-
-/**
- * Create an unsigned transaction to fill a relay. This function is used to simulate the gas cost of filling a relay.
- * @param spokePool A valid SpokePool contract instance
- * @param fillToSimulate The fill that this function will use to populate the unsigned transaction
- * @returns An unsigned transaction that can be used to simulate the gas cost of filling a relay
- */
-export function createUnsignedFillRelayTransactionFromDeposit(
-  spokePool: SpokePool,
-  deposit: Deposit,
-  amountToFill: BN,
-  relayerAddress: string
-): Promise<PopulatedTransaction> {
-  assert(isV2Deposit(deposit));
-
-  // We need to assume certain fields exist
-  const realizedLpFeePct = deposit.realizedLpFeePct;
-  assert(isDefined(realizedLpFeePct));
-
-  // If we have made it this far, then we can populate the transaction.
-  if (isDefined(deposit.speedUpSignature)) {
-    // If the deposit has a speed up signature, then we need to verify that certain
-    // fields are present.
-
-    const updatedRecipient = deposit.updatedRecipient;
-    const updatedMessage = deposit.updatedMessage;
-    const updatedRelayerFeePct = deposit.newRelayerFeePct;
-    assert(isDefined(updatedRecipient) && isDefined(updatedMessage) && isDefined(updatedRelayerFeePct));
-
-    return spokePool.populateTransaction.fillRelayWithUpdatedDeposit(
-      deposit.depositor,
-      deposit.recipient,
-      updatedRecipient,
-      deposit.destinationToken,
-      deposit.amount,
-      amountToFill,
-      deposit.destinationChainId,
-      deposit.originChainId,
-      realizedLpFeePct,
-      deposit.relayerFeePct,
-      updatedRelayerFeePct,
-      deposit.depositId,
-      deposit.message,
-      updatedMessage,
-      deposit.speedUpSignature,
-      bnUint256Max,
-      {
-        from: relayerAddress,
-      }
-    );
-  } else {
-    return spokePool.populateTransaction.fillRelay(
-      deposit.depositor,
-      deposit.recipient,
-      deposit.destinationToken,
-      deposit.amount,
-      amountToFill,
-      deposit.destinationChainId, // Assume we're refunding to destination
-      deposit.originChainId,
-      realizedLpFeePct,
-      deposit.relayerFeePct,
-      deposit.depositId,
-      deposit.message,
-      bnUint256Max,
-      {
-        from: relayerAddress,
-      }
-    );
-  }
 }
 
 export type UpdateDepositDetailsMessageType = {

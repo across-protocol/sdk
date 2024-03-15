@@ -38,6 +38,7 @@ export const PRODUCTION_CHAIN_IDS = [
   acxConstants.MAINNET_CHAIN_IDs.ZK_SYNC,
   acxConstants.MAINNET_CHAIN_IDs.BASE,
   acxConstants.MAINNET_CHAIN_IDs.ARBITRUM,
+  acxConstants.MAINNET_CHAIN_IDs.LINEA,
 ];
 
 export const TESTNET_CHAIN_IDS = [
@@ -53,6 +54,7 @@ export const TESTNET_CHAIN_IDS = [
   acxConstants.TESTNET_CHAIN_IDs.ARBITRUM_SEPOLIA,
   acxConstants.TESTNET_CHAIN_IDs.SEPOLIA,
   acxConstants.TESTNET_CHAIN_IDs.OPTIMISM_SEPOLIA,
+  acxConstants.TESTNET_CHAIN_IDs.LINEA_GOERLI,
 ];
 
 export const PUBLIC_NETWORKS: { [chainId: number]: { name: string; etherscan: string } } = {
@@ -70,6 +72,8 @@ export const PUBLIC_NETWORKS: { [chainId: number]: { name: string; etherscan: st
   8453: { name: "base", etherscan: "https://basescan.org" },
   42161: { name: "arbitrum", etherscan: "https://arbiscan.io" },
   43114: { name: "avalanche", etherscan: "https://snowtrace.io" },
+  59140: { name: "linea-goerli", etherscan: "https://goerli.lineascan.build" },
+  59144: { name: "linea", etherscan: "https://lineascan.build" },
   80002: { name: "polygon-amoy", etherscan: "https://www.oklink.com/amoy" },
   84531: { name: "base-goerli", etherscan: "https://basescan.org" },
   84532: { name: "base-sepolia", etherscan: "https://sepolia.basescan.org" },

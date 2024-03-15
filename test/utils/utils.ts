@@ -9,17 +9,17 @@ import {
   SlowFillRequestWithBlock,
   V3RelayData,
   V2Deposit,
-  V2Fill,
   V3Deposit,
   V3DepositWithBlock,
   V3FillWithBlock,
+  V2Fill,
 } from "../../src/interfaces";
 import {
   bnUint32Max,
-  bnZero,
+  bnOne,
   getCurrentTime,
-  getDepositInputToken,
   getDepositInputAmount,
+  getDepositInputToken,
   resolveContractFromSymbol,
   toBN,
   toBNWei,
@@ -41,7 +41,7 @@ import _ from "lodash";
 import sinon from "sinon";
 import winston, { LogEntry } from "winston";
 import { SpokePoolDeploymentResult, SpyLoggerResult } from "../types";
-import { EMPTY_MESSAGE, PROTOCOL_DEFAULT_CHAIN_ID_INDICES } from "../../src/constants";
+import { EMPTY_MESSAGE, PROTOCOL_DEFAULT_CHAIN_ID_INDICES, ZERO_ADDRESS } from "../../src/constants";
 import { SpyTransport } from "./SpyTransport";
 
 chai.use(chaiExclude);
@@ -744,26 +744,30 @@ export function buildDepositForRelayerFeeTest(
   tokenSymbol: string,
   originChainId: string | number,
   toChainId: string | number
-): V2Deposit {
-  const originToken = resolveContractFromSymbol(tokenSymbol, String(originChainId));
-  const destinationToken = resolveContractFromSymbol(tokenSymbol, String(toChainId));
-  expect(originToken).to.not.be.undefined;
-  expect(destinationToken).to.not.undefined;
-  if (!originToken || !destinationToken) {
+): V3Deposit {
+  const inputToken = resolveContractFromSymbol(tokenSymbol, String(originChainId));
+  const outputToken = resolveContractFromSymbol(tokenSymbol, String(toChainId));
+  expect(inputToken).to.not.be.undefined;
+  expect(outputToken).to.not.undefined;
+  if (!inputToken || !outputToken) {
     throw new Error("Token not found");
   }
+
+  const currentTime = getCurrentTime();
   return {
-    amount: toBN(amount),
     depositId: bnUint32Max.toNumber(),
-    depositor: randomAddress(),
-    recipient: randomAddress(),
-    relayerFeePct: bnZero,
-    message: EMPTY_MESSAGE,
     originChainId: 1,
     destinationChainId: 10,
-    quoteTimestamp: getCurrentTime(),
-    originToken,
-    destinationToken,
-    realizedLpFeePct: bnZero,
+    depositor: randomAddress(),
+    recipient: randomAddress(),
+    inputToken,
+    inputAmount: toBN(amount),
+    outputToken,
+    outputAmount: toBN(amount).sub(bnOne),
+    message: EMPTY_MESSAGE,
+    quoteTimestamp: currentTime,
+    fillDeadline: currentTime + 7200,
+    exclusivityDeadline: 0,
+    exclusiveRelayer: ZERO_ADDRESS,
   };
 }

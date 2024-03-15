@@ -5,15 +5,12 @@ import { Coingecko } from "../../coingecko";
 import { CHAIN_IDs, DEFAULT_SIMULATED_RELAYER_ADDRESS } from "../../constants";
 import {
   BigNumberish,
-  createUnsignedFillRelayTransactionFromDeposit,
   estimateTotalGasRequiredByUnsignedTransaction,
-  isV2Deposit,
   populateV3Relay,
-  toBN,
   TransactionCostEstimate,
 } from "../../utils";
 import { Logger, QueryInterface } from "../relayFeeCalculator";
-import { Deposit, V2Deposit, V3Deposit } from "../../interfaces";
+import { V3Deposit } from "../../interfaces";
 
 type Provider = providers.Provider;
 type OptimismProvider = L2Provider<Provider>;
@@ -60,56 +57,11 @@ export default abstract class QueryBase implements QueryInterface {
 
   /**
    * Retrieves the current gas costs of performing a fillRelay contract at the referenced SpokePool.
-   * @param deposit Deposit instance (v2 or v3).
-   * @param amountToRelay Amount of the deposit to fill.
+   * @param deposit V3 deposit instance.
    * @param relayerAddress Relayer address to simulate with.
    * @returns The gas estimate for this function call (multplied with the optional buffer).
    */
-  getGasCosts(
-    deposit: Deposit,
-    fillAmount: BigNumberish,
-    relayer = DEFAULT_SIMULATED_RELAYER_ADDRESS
-  ): Promise<TransactionCostEstimate> {
-    relayer ??= this.simulatedRelayerAddress;
-    return isV2Deposit(deposit)
-      ? this.getV2GasCosts(deposit, fillAmount, relayer)
-      : this.getV3GasCosts(deposit, relayer);
-  }
-
-  /**
-   * Retrieves the current gas costs of performing a fillRelay contract at the referenced SpokePool
-   * @param deposit V2Deposit instance.
-   * @param amountToRelay Amount of the deposit to fill.
-   * @param relayer Relayer address to simulate with.
-   * @returns The gas estimate for this function call (multplied with the optional buffer).
-   */
-  async getV2GasCosts(
-    deposit: V2Deposit,
-    amountToRelay: BigNumberish,
-    relayer: string
-  ): Promise<TransactionCostEstimate> {
-    const tx = await createUnsignedFillRelayTransactionFromDeposit(
-      this.spokePool,
-      deposit,
-      toBN(amountToRelay),
-      relayer
-    );
-    return estimateTotalGasRequiredByUnsignedTransaction(
-      tx,
-      relayer,
-      this.provider,
-      this.gasMarkup,
-      this.fixedGasPrice
-    );
-  }
-
-  /**
-   * Retrieves the current gas costs of performing a fillV3Relay contract at the referenced SpokePool.
-   * @param deposit V3Deposit instance.
-   * @param relayer Relayer address to simulate with.
-   * @returns The gas estimate for this function call (multplied with the optional buffer).
-   */
-  async getV3GasCosts(deposit: V3Deposit, relayer: string): Promise<TransactionCostEstimate> {
+  async getGasCosts(deposit: V3Deposit, relayer = DEFAULT_SIMULATED_RELAYER_ADDRESS): Promise<TransactionCostEstimate> {
     const tx = await populateV3Relay(this.spokePool, deposit, relayer);
     return estimateTotalGasRequiredByUnsignedTransaction(
       tx,
