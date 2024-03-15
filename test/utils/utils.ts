@@ -9,17 +9,17 @@ import {
   SlowFillRequestWithBlock,
   V3RelayData,
   V2Deposit,
-  V2Fill,
   V3Deposit,
   V3DepositWithBlock,
   V3FillWithBlock,
+  V2Fill,
 } from "../../src/interfaces";
 import {
   bnUint32Max,
   bnZero,
   getCurrentTime,
-  getDepositInputToken,
   getDepositInputAmount,
+  getDepositInputToken,
   resolveContractFromSymbol,
   toBN,
   toBNWei,
@@ -744,7 +744,7 @@ export function buildDepositForRelayerFeeTest(
   tokenSymbol: string,
   originChainId: string | number,
   toChainId: string | number
-): V2Deposit {
+): V3Deposit {
   const originToken = resolveContractFromSymbol(tokenSymbol, String(originChainId));
   const destinationToken = resolveContractFromSymbol(tokenSymbol, String(toChainId));
   expect(originToken).to.not.be.undefined;
@@ -753,17 +753,21 @@ export function buildDepositForRelayerFeeTest(
     throw new Error("Token not found");
   }
   return {
-    amount: toBN(amount),
+    inputAmount: toBN(amount),
+    outputAmount: toBN(amount),
+    inputToken: originToken,
+    outputToken: destinationToken,
     depositId: bnUint32Max.toNumber(),
-    depositor: randomAddress(),
     recipient: randomAddress(),
+    depositor: randomAddress(),
     relayerFeePct: bnZero,
     message: EMPTY_MESSAGE,
     originChainId: 1,
+    realizedLpFeePct: bnZero,
     destinationChainId: 10,
     quoteTimestamp: getCurrentTime(),
-    originToken,
-    destinationToken,
-    realizedLpFeePct: bnZero,
+    exclusiveRelayer: zeroAddress,
+    exclusivityDeadline: 0,
+    fillDeadline: getCurrentTime() + 6000,
   };
 }
