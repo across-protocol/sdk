@@ -16,7 +16,7 @@ import {
 } from "../../src/interfaces";
 import {
   bnUint32Max,
-  bnZero,
+  bnOne,
   getCurrentTime,
   getDepositInputAmount,
   getDepositInputToken,
@@ -41,7 +41,7 @@ import _ from "lodash";
 import sinon from "sinon";
 import winston, { LogEntry } from "winston";
 import { SpokePoolDeploymentResult, SpyLoggerResult } from "../types";
-import { EMPTY_MESSAGE, PROTOCOL_DEFAULT_CHAIN_ID_INDICES } from "../../src/constants";
+import { EMPTY_MESSAGE, PROTOCOL_DEFAULT_CHAIN_ID_INDICES, ZERO_ADDRESS } from "../../src/constants";
 import { SpyTransport } from "./SpyTransport";
 
 chai.use(chaiExclude);
@@ -745,29 +745,29 @@ export function buildDepositForRelayerFeeTest(
   originChainId: string | number,
   toChainId: string | number
 ): V3Deposit {
-  const originToken = resolveContractFromSymbol(tokenSymbol, String(originChainId));
-  const destinationToken = resolveContractFromSymbol(tokenSymbol, String(toChainId));
-  expect(originToken).to.not.be.undefined;
-  expect(destinationToken).to.not.undefined;
-  if (!originToken || !destinationToken) {
+  const inputToken = resolveContractFromSymbol(tokenSymbol, String(originChainId));
+  const outputToken = resolveContractFromSymbol(tokenSymbol, String(toChainId));
+  expect(inputToken).to.not.be.undefined;
+  expect(outputToken).to.not.undefined;
+  if (!inputToken || !outputToken) {
     throw new Error("Token not found");
   }
+
+  const currentTime = getCurrentTime();
   return {
-    inputAmount: toBN(amount),
-    outputAmount: toBN(amount),
-    inputToken: originToken,
-    outputToken: destinationToken,
     depositId: bnUint32Max.toNumber(),
-    recipient: randomAddress(),
-    depositor: randomAddress(),
-    relayerFeePct: bnZero,
-    message: EMPTY_MESSAGE,
     originChainId: 1,
-    realizedLpFeePct: bnZero,
     destinationChainId: 10,
-    quoteTimestamp: getCurrentTime(),
-    exclusiveRelayer: zeroAddress,
+    depositor: randomAddress(),
+    recipient: randomAddress(),
+    inputToken,
+    inputAmount: toBN(amount),
+    outputToken,
+    outputAmount: toBN(amount).sub(bnOne),
+    message: EMPTY_MESSAGE,
+    quoteTimestamp: currentTime,
+    fillDeadline: currentTime + 7200,
     exclusivityDeadline: 0,
-    fillDeadline: getCurrentTime() + 6000,
+    exclusiveRelayer: ZERO_ADDRESS,
   };
 }

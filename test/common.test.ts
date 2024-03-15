@@ -3,12 +3,12 @@ import { SpokePool, SpokePool__factory } from "@across-protocol/contracts-v2";
 import dotenv from "dotenv";
 import { providers } from "ethers";
 import {
-  createUnsignedFillRelayTransactionFromDeposit,
   estimateTotalGasRequiredByUnsignedTransaction,
   fixedPointAdjustment,
+  populateV3Relay,
   retry,
   toBNWei,
-} from "../src/utils/common";
+} from "../src/utils";
 import { toBN, toGWei } from "../src/utils/BigNumberUtils";
 import { buildDepositForRelayerFeeTest, expect } from "./utils";
 
@@ -36,8 +36,8 @@ describe("Utils test", () => {
   });
 
   it("apply gas multiplier", async () => {
-    const spokePoolAddress = "0xB88690461dDbaB6f04Dfad7df66B7725942FEb9C"; // mainnet
-    const relayerAddress = "0x893d0d70ad97717052e3aa8903d9615804167759";
+    const spokePoolAddress = "0x5c7BCd6E7De5423a257D81B442095A1a6ced35C5"; // mainnet
+    const relayerAddress = "0x428AB2BA90Eba0a4Be7aF34C9Ac451ab061AC010";
 
     const gasPrice = toGWei(1);
 
@@ -46,20 +46,15 @@ describe("Utils test", () => {
     const provider = new providers.JsonRpcProvider(rpcUrl, 1);
     const spokePool: SpokePool = SpokePool__factory.connect(spokePoolAddress, provider);
 
-    const deposit = buildDepositForRelayerFeeTest("1", "usdc", 1, 10);
-    const unsignedTxn = await createUnsignedFillRelayTransactionFromDeposit(
-      spokePool,
-      deposit,
-      toBN(1),
-      relayerAddress
-    );
+    const deposit = buildDepositForRelayerFeeTest("1", "usdc", 10, 1);
+    const fill = await populateV3Relay(spokePool, deposit, relayerAddress);
     const { nativeGasCost: refGasCost, tokenGasCost: refGasEstimate } =
-      await estimateTotalGasRequiredByUnsignedTransaction(unsignedTxn, relayerAddress, provider, 0.0, gasPrice);
+      await estimateTotalGasRequiredByUnsignedTransaction(fill, relayerAddress, provider, 0.0, gasPrice);
     expect(toBN(refGasEstimate).eq(toBN(refGasCost).mul(gasPrice))).to.be.true;
 
     for (let gasMarkup = -0.99; gasMarkup <= 4.0; gasMarkup += 0.33) {
       const { nativeGasCost, tokenGasCost } = await estimateTotalGasRequiredByUnsignedTransaction(
-        unsignedTxn,
+        fill,
         relayerAddress,
         provider,
         gasMarkup,
