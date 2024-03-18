@@ -8,8 +8,6 @@ import { MockHubPoolClient, MockSpokePoolClient, MockConfigStoreClient } from ".
 import {
   SlowFillRequest,
   SlowFillRequestWithBlock,
-  V2DepositWithBlock,
-  V2FillWithBlock,
   V3DepositWithBlock,
   V3FillWithBlock,
   V3RelayData,
@@ -20,10 +18,7 @@ import {
   getDepositInputToken,
   getFillOutputToken,
   isDefined,
-  isV2Deposit,
-  isV2Fill,
   isV3Deposit,
-  isV3Fill,
   randomAddress,
 } from "../src/utils";
 import {
@@ -52,13 +47,6 @@ describe("SpokePoolClient: Event Filtering", function () {
   let destinationSpokePoolClient: MockSpokePoolClient;
 
   const logger = createSpyLogger().spyLogger;
-
-  const generateV2Deposit = (spokePoolClient: MockSpokePoolClient): Event => {
-    const originToken = randomAddress();
-    const message = EMPTY_MESSAGE;
-    const quoteTimestamp = getCurrentTime() - 10;
-    return spokePoolClient.deposit({ destinationChainId, originToken, message, quoteTimestamp } as V2DepositWithBlock);
-  };
 
   const generateV3Deposit = (spokePoolClient: MockSpokePoolClient): Event => {
     const inputToken = randomAddress();

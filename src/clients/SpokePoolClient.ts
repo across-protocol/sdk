@@ -718,11 +718,10 @@ export class SpokePoolClient extends BaseAbstractClient {
       const dataForQuoteTime = await this.batchComputeRealizedLpFeePct(depositEvents);
       for (const [index, event] of Array.from(depositEvents.entries())) {
         const rawDeposit = spreadEventWithBlockNumber(event);
-        let deposit: DepositWithBlock;
 
         // Derive and append the common properties that are not part of the onchain event.
         const { quoteBlock: quoteBlockNumber } = dataForQuoteTime[index];
-        deposit = { ...(rawDeposit as V3DepositWithBlock), originChainId: this.chainId };
+        const deposit = { ...(rawDeposit as V3DepositWithBlock), originChainId: this.chainId };
         deposit.realizedLpFeePct = undefined;
         deposit.quoteBlockNumber = quoteBlockNumber;
         if (deposit.outputToken === ZERO_ADDRESS) {

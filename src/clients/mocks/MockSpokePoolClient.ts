@@ -6,6 +6,7 @@ import { ZERO_ADDRESS } from "../../constants";
 import {
   DepositWithBlock,
   FillType,
+  FundsDepositedEvent,
   V3FundsDepositedEvent,
   RealizedLpFee,
   RelayerRefundExecutionWithBlock,
