@@ -311,9 +311,7 @@ export class SpokePoolClient extends BaseAbstractClient {
 
     const maxSpeedUp = speedups
       .filter(isV3SpeedUp<V3SpeedUp, V2SpeedUp>)
-      .reduce((prev, current) =>
-        prev.updatedOutputAmount.lt(current.updatedOutputAmount) ? prev : current
-      );
+      .reduce((prev, current) => (prev.updatedOutputAmount.lt(current.updatedOutputAmount) ? prev : current));
 
     // We assume that the depositor authorises SpeedUps in isolation of each other, which keeps the relayer
     // logic simple: find the SpeedUp with the lowest updatedOutputAmount, and use all of its fields.

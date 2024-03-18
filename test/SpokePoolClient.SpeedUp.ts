@@ -1,11 +1,9 @@
-import { EMPTY_MESSAGE } from "../src/constants";
 import { SpokePoolClient } from "../src/clients";
-import { DepositWithBlock, V2DepositWithBlock, V3Deposit, V3DepositWithBlock, V3SpeedUp } from "../src/interfaces";
+import { V2DepositWithBlock, V3Deposit, V3DepositWithBlock, V3SpeedUp } from "../src/interfaces";
 import { bnOne, isV3Deposit } from "../src/utils";
-import { depositRelayerFeePct, destinationChainId, originChainId } from "./constants";
+import { destinationChainId, originChainId } from "./constants";
 import {
   assert,
-  assertPromisePasses,
   assertPromiseError,
   Contract,
   BigNumber,
@@ -18,10 +16,7 @@ import {
   ethers,
   expect,
   getUpdatedV3DepositSignature,
-  modifyRelayHelper,
   setupTokensForWallet,
-  simpleDeposit,
-  toBNWei,
 } from "./utils";
 
 describe("SpokePoolClient: SpeedUp", function () {
@@ -35,7 +30,6 @@ describe("SpokePoolClient: SpeedUp", function () {
   ];
 
   const destinationChainId2 = destinationChainId + 1;
-  const message = EMPTY_MESSAGE;
 
   let spokePool: Contract, erc20: Contract, destErc20: Contract, weth: Contract;
   let depositor: SignerWithAddress, deploymentBlock: number;
