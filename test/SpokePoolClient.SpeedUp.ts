@@ -1,11 +1,9 @@
-import { EMPTY_MESSAGE } from "../src/constants";
 import { SpokePoolClient } from "../src/clients";
-import { DepositWithBlock, V2DepositWithBlock, V3Deposit, V3DepositWithBlock, V3SpeedUp } from "../src/interfaces";
+import { V2DepositWithBlock, V3Deposit, V3DepositWithBlock, V3SpeedUp } from "../src/interfaces";
 import { bnOne, isV3Deposit } from "../src/utils";
-import { depositRelayerFeePct, destinationChainId, originChainId } from "./constants";
+import { destinationChainId, originChainId } from "./constants";
 import {
   assert,
-  assertPromisePasses,
   assertPromiseError,
   Contract,
   BigNumber,
@@ -18,10 +16,7 @@ import {
   ethers,
   expect,
   getUpdatedV3DepositSignature,
-  modifyRelayHelper,
   setupTokensForWallet,
-  simpleDeposit,
-  toBNWei,
 } from "./utils";
 
 describe("SpokePoolClient: SpeedUp", function () {
@@ -35,7 +30,6 @@ describe("SpokePoolClient: SpeedUp", function () {
   ];
 
   const destinationChainId2 = destinationChainId + 1;
-  const message = EMPTY_MESSAGE;
 
   let spokePool: Contract, erc20: Contract, destErc20: Contract, weth: Contract;
   let depositor: SignerWithAddress, deploymentBlock: number;
@@ -61,60 +55,7 @@ describe("SpokePoolClient: SpeedUp", function () {
     outputAmount = inputAmount.sub(bnOne);
   });
 
-  it("v2: Fetches speedup data associated with a deposit", async function () {
-    const deposit = await simpleDeposit(spokePool, erc20, depositor, depositor, destinationChainId);
-
-    await spokePoolClient.update();
-
-    // Before speedup should return the normal deposit object.
-    expect(spokePoolClient.appendMaxSpeedUpSignatureToDeposit(deposit as DepositWithBlock)).to.deep.equal(deposit);
-
-    const newRelayFeePct = toBNWei(0.1337);
-    const speedUpSignature = await modifyRelayHelper(
-      newRelayFeePct,
-      deposit.depositId.toString(),
-      deposit.originChainId.toString(),
-      depositor,
-      deposit.recipient,
-      message
-    );
-    await spokePool.speedUpDeposit(
-      depositor.address,
-      newRelayFeePct,
-      deposit.depositId,
-      deposit.recipient,
-      message,
-      speedUpSignature.signature
-    );
-    await spokePoolClient.update();
-
-    // After speedup should return the appended object with the new fee information and signature.
-    const expectedDepositData = {
-      ...deposit,
-      speedUpSignature: speedUpSignature.signature,
-      newRelayerFeePct: newRelayFeePct,
-      updatedMessage: deposit.message,
-      updatedRecipient: deposit.recipient,
-    };
-    expect(
-      deepEqualsWithBigNumber(
-        spokePoolClient.appendMaxSpeedUpSignatureToDeposit(deposit as DepositWithBlock),
-        expectedDepositData
-      )
-    ).to.be.true;
-
-    // Fetching deposits for the depositor should contain the correct fees.
-    expect(
-      deepEqualsWithBigNumber(
-        spokePoolClient.getDepositsForDestinationChain(destinationChainId)[0],
-        expectedDepositData,
-        ignoredFields
-      )
-    ).to.be.true;
-    expect(spokePoolClient.getDepositsForDestinationChain(destinationChainId).length).to.equal(1);
-  });
-
-  it("v3: Fetches speedup data associated with a deposit", async function () {
+  it("Fetches speedup data associated with a deposit", async function () {
     const deposit = await depositV3(
       spokePool,
       destinationChainId,
@@ -176,170 +117,7 @@ describe("SpokePoolClient: SpeedUp", function () {
     expect(spokePoolClient.getDepositsForDestinationChain(destinationChainId).length).to.equal(1);
   });
 
-  it("v2: Fetches speedup data associated with an early deposit", async function () {
-    const delta = await spokePool.depositQuoteTimeBuffer();
-    const now = Number(await spokePool.getCurrentTime());
-
-    await spokePool.setCurrentTime(now + delta);
-    const deposit = await simpleDeposit(spokePool, erc20, depositor, depositor, destinationChainId);
-
-    await spokePool.setCurrentTime(now);
-    await spokePoolClient.update();
-
-    // Before speedup should return the normal deposit object.
-    expect(spokePoolClient.appendMaxSpeedUpSignatureToDeposit(deposit as DepositWithBlock)).to.deep.equal(deposit);
-
-    const newRelayFeePct = toBNWei(0.1337);
-    const speedUpSignature = await modifyRelayHelper(
-      newRelayFeePct,
-      deposit.depositId.toString(),
-      deposit.originChainId.toString(),
-      depositor,
-      deposit.recipient,
-      deposit.message
-    );
-    await spokePool.speedUpDeposit(
-      depositor.address,
-      newRelayFeePct,
-      deposit.depositId,
-      deposit.recipient,
-      deposit.message,
-      speedUpSignature.signature
-    );
-    await spokePoolClient.update();
-
-    // Deposit is not returned until we reach deposit.quoteTimestamp.
-    expect(spokePoolClient.getDepositsForDestinationChain(destinationChainId).length).to.equal(0);
-    await spokePool.setCurrentTime(deposit.quoteTimestamp);
-
-    // Clear out spoke pool client data and re-update so that it should now see the formerly "early" deposit.
-    spokePoolClient = new SpokePoolClient(createSpyLogger().spyLogger, spokePool, null, originChainId, deploymentBlock);
-    await spokePoolClient.update();
-
-    // After speedup should return the appended object with the new fee information and signature.
-    const expectedDepositData = {
-      ...deposit,
-      speedUpSignature: speedUpSignature.signature,
-      newRelayerFeePct: newRelayFeePct,
-      updatedMessage: deposit.message,
-      updatedRecipient: deposit.recipient,
-    };
-    expect(
-      deepEqualsWithBigNumber(
-        spokePoolClient.appendMaxSpeedUpSignatureToDeposit(deposit as DepositWithBlock),
-        expectedDepositData
-      )
-    ).to.be.true;
-    // Fetching deposits for the depositor should contain the correct fees.
-    expect(spokePoolClient.getDepositsForDestinationChain(destinationChainId).length).to.equal(1);
-    expect(
-      deepEqualsWithBigNumber(
-        spokePoolClient.getDepositsForDestinationChain(destinationChainId)[0],
-        expectedDepositData,
-        ignoredFields
-      )
-    ).to.be.true;
-  });
-
-  it("v2: Selects the highest speedup option when multiple are presented", async function () {
-    const deposit = await simpleDeposit(spokePool, erc20, depositor, depositor, destinationChainId);
-
-    // Speedup below the original fee should not update to use the new fee.
-    const newLowerRelayFeePct = depositRelayerFeePct.sub(toBNWei(0.01));
-    const speedUpSignature = await modifyRelayHelper(
-      newLowerRelayFeePct,
-      deposit.depositId.toString(),
-      deposit.originChainId.toString(),
-      depositor,
-      deposit.recipient,
-      deposit.message
-    );
-    await spokePool.speedUpDeposit(
-      depositor.address,
-      newLowerRelayFeePct,
-      deposit.depositId,
-      deposit.recipient,
-      deposit.message,
-      speedUpSignature.signature
-    );
-    await spokePoolClient.update();
-    // below the original fee should equal the original deposit with no signature.
-    expect(
-      deepEqualsWithBigNumber(spokePoolClient.appendMaxSpeedUpSignatureToDeposit(deposit as DepositWithBlock), deposit)
-    ).to.be.true;
-    expect(
-      deepEqualsWithBigNumber(
-        spokePoolClient.getDepositsForDestinationChain(destinationChainId)[0],
-        deposit,
-        ignoredFields
-      )
-    ).to.be.true;
-    expect(spokePoolClient.getDepositsForDestinationChain(destinationChainId).length).to.equal(1);
-    expect(spokePoolClient.getDeposits()[0].speedUpSignature).to.deep.equal(undefined);
-
-    // SpeedUp the deposit twice. Ensure the highest fee (and signature) is used.
-
-    const speedupFast = toBNWei(0.1337);
-    const speedUpFastSignature = await modifyRelayHelper(
-      speedupFast,
-      deposit.depositId.toString(),
-      deposit.originChainId.toString(),
-      depositor,
-      deposit.recipient,
-      deposit.message
-    );
-    await spokePool.speedUpDeposit(
-      depositor.address,
-      speedupFast,
-      deposit.depositId,
-      deposit.recipient,
-      deposit.message,
-      speedUpFastSignature.signature
-    );
-    const speedupFaster = toBNWei(0.1338);
-    const speedUpFasterSignature = await modifyRelayHelper(
-      speedupFaster,
-      deposit.depositId.toString(),
-      deposit.originChainId.toString(),
-      depositor,
-      deposit.recipient,
-      deposit.message
-    );
-    await spokePool.speedUpDeposit(
-      depositor.address,
-      speedupFaster,
-      deposit.depositId,
-      deposit.recipient,
-      deposit.message,
-      speedUpFasterSignature.signature
-    );
-    await spokePoolClient.update();
-
-    // Should use the faster data between the two speedups.
-    const expectedDepositData = {
-      ...deposit,
-      speedUpSignature: speedUpFasterSignature.signature,
-      newRelayerFeePct: speedupFaster,
-      updatedMessage: deposit.message,
-      updatedRecipient: deposit.recipient,
-    };
-    expect(
-      deepEqualsWithBigNumber(
-        spokePoolClient.appendMaxSpeedUpSignatureToDeposit(deposit as DepositWithBlock),
-        expectedDepositData
-      )
-    ).to.be.true;
-    expect(
-      deepEqualsWithBigNumber(
-        spokePoolClient.getDepositsForDestinationChain(destinationChainId)[0],
-        expectedDepositData,
-        ignoredFields
-      )
-    ).to.be.true;
-    expect(spokePoolClient.getDepositsForDestinationChain(destinationChainId).length).to.equal(1);
-  });
-
-  it("v3: Selects the lowest outputAtmount when multiple are presented", async function () {
+  it("Selects the lowest outputAmount when multiple are presented", async function () {
     const deposit = await depositV3(
       spokePool,
       destinationChainId,
@@ -419,36 +197,7 @@ describe("SpokePoolClient: SpeedUp", function () {
     }
   });
 
-  it("v2: Receives a speed up for a correct depositor but invalid deposit Id", async function () {
-    const deposit = await simpleDeposit(spokePool, erc20, depositor, depositor, destinationChainId);
-
-    await spokePoolClient.update();
-
-    // change deposit ID to some invalid value
-    deposit.depositId = ++deposit.depositId;
-
-    const newRelayFeePct = toBNWei(0.1337);
-    const speedUpSignature = await modifyRelayHelper(
-      newRelayFeePct,
-      deposit.depositId.toString(),
-      deposit.originChainId.toString(),
-      depositor,
-      deposit.recipient,
-      deposit.message
-    );
-    await spokePool.speedUpDeposit(
-      depositor.address,
-      newRelayFeePct,
-      deposit.depositId,
-      deposit.recipient,
-      deposit.message,
-      speedUpSignature.signature
-    );
-
-    await assertPromisePasses(spokePoolClient.update());
-  });
-
-  it("v3: Ignores invalid updates", async function () {
+  it("Ignores invalid updates", async function () {
     const deposit = await depositV3(
       spokePool,
       destinationChainId,

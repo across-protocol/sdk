@@ -33,7 +33,6 @@ import {
   hubPoolFixture,
   deploySpokePool,
   ethers,
-  modifyRelayHelper,
   SignerWithAddress,
 } from "./utils";
 
@@ -41,11 +40,10 @@ type EventSearchConfig = sdkUtils.EventSearchConfig;
 
 describe("SpokePoolClient: Event Filtering", function () {
   const fundsDepositedEvents = ["FundsDeposited", "V3FundsDeposited"];
-  const requestedSpeedUpEvents = ["RequestedSpeedUpDeposit", "RequestedSpeedUpV3Deposit"];
   const slowFillRequestedEvents = ["RequestedV3SlowFill"];
   const filledRelayEvents = ["FilledRelay", "FilledV3Relay"];
 
-  let owner: SignerWithAddress, depositor: SignerWithAddress;
+  let owner: SignerWithAddress;
   let chainIds: number[];
   let originChainId: number, destinationChainId: number, repaymentChainId: number;
   let hubPoolClient: MockHubPoolClient;
@@ -70,7 +68,7 @@ describe("SpokePoolClient: Event Filtering", function () {
   };
 
   beforeEach(async function () {
-    [owner, depositor] = await ethers.getSigners();
+    [owner] = await ethers.getSigners();
 
     // Sanity Check: Ensure that owner.provider is defined
     expect(owner.provider).to.not.be.undefined;
@@ -161,108 +159,6 @@ describe("SpokePoolClient: Event Filtering", function () {
         : expectedDeposit.args!.inputToken;
       const inputToken = getDepositInputToken(depositEvent);
       expect(inputToken).to.equal(expectedInputToken);
-    });
-  });
-
-  it("Correctly retrieves SpeedUp events", async function () {
-    // Inject a series of V2SpeedUp and V3SpeedUp events.
-    const speedUpEvents: Event[] = [];
-    const updateEvents = [...fundsDepositedEvents, ...requestedSpeedUpEvents];
-
-    for (let idx = 0; idx < 10; ++idx) {
-      const v2DepositEvent = generateV2Deposit(originSpokePoolClient);
-      const v3DepositEvent = generateV3Deposit(originSpokePoolClient);
-
-      await originSpokePoolClient.update(updateEvents);
-      const deposits = originSpokePoolClient.getDeposits();
-
-      let v2Deposit = deposits.filter(isV2Deposit).at(-1);
-      expect(v2Deposit).to.not.be.undefined;
-      v2Deposit = v2Deposit!;
-      expect(v2Deposit.depositId).to.equal(v2DepositEvent.args!.depositId);
-
-      let v3Deposit = deposits.filter(isV3Deposit).at(-1);
-      expect(v3Deposit).to.not.be.undefined;
-      v3Deposit = v3Deposit as V3DepositWithBlock;
-      expect(v3Deposit.depositId).to.equal(v3DepositEvent.args!.depositId);
-
-      // The deposit objects should not have new* fields populated.
-      [v2Deposit, v3Deposit].forEach((deposit) => {
-        expect(deposit.recipient).to.not.be.undefined;
-        expect(deposit.updatedRecipient).to.be.undefined;
-        expect(deposit.updatedMessage).to.be.undefined;
-      });
-      expect((v2Deposit as V2DepositWithBlock).newRelayerFeePct).to.be.undefined;
-      expect(v3Deposit.updatedOutputAmount).to.be.undefined;
-
-      const newRelayerFeePct = v2Deposit.relayerFeePct!.add(1);
-      const { signature: v2SpeedUpSignature } = await modifyRelayHelper(
-        newRelayerFeePct,
-        v2Deposit.depositId.toString(),
-        v2Deposit.originChainId.toString(),
-        depositor,
-        v2Deposit.recipient,
-        v2Deposit.message
-      );
-
-      // Note: getUpdatedV3DepositSignature() is not yet available, so just fudge the event. This is
-      // possible because the event is injected. The SpokePool contract would normally handle verification.
-      const updatedOutputAmount = v3Deposit.outputAmount!.sub(1);
-      const { signature: v3SpeedUpSignature } = await modifyRelayHelper(
-        updatedOutputAmount,
-        v3Deposit.depositId.toString(),
-        v3Deposit.originChainId.toString(),
-        depositor,
-        v3Deposit.recipient,
-        v3Deposit.message
-      );
-
-      speedUpEvents.push(
-        originSpokePoolClient.speedUpDeposit({
-          depositId: v2Deposit.depositId,
-          originChainId: v2Deposit.originChainId,
-          depositor: v2Deposit.depositor,
-          newRelayerFeePct,
-          updatedRecipient: v2Deposit.recipient,
-          updatedMessage: v2Deposit.message,
-          depositorSignature: v2SpeedUpSignature,
-        })
-      );
-
-      speedUpEvents.push(
-        originSpokePoolClient.speedUpV3Deposit({
-          depositId: v3Deposit.depositId,
-          originChainId: v3Deposit.originChainId,
-          depositor: v3Deposit.depositor,
-          updatedRecipient: v3Deposit.recipient,
-          updatedOutputAmount,
-          updatedMessage: v3Deposit.message,
-          depositorSignature: v3SpeedUpSignature,
-        })
-      );
-    }
-    await originSpokePoolClient.update(updateEvents);
-
-    // Should receive _all_ deposits submitted on the origin chain.
-    const deposits = originSpokePoolClient.getDeposits();
-    expect(deposits.length).to.equal(speedUpEvents.length);
-    expect(deposits.filter(isV2Deposit).length).to.equal(speedUpEvents.length / 2);
-    expect(deposits.filter(isV3Deposit).length).to.equal(speedUpEvents.length / 2);
-
-    // Verify that each update was appended correctly.
-    deposits.forEach((deposit, idx) => {
-      const expectedSpeedUp = speedUpEvents[idx];
-
-      expect(deposit.depositId).to.equal(expectedSpeedUp.args!.depositId);
-      expect(deposit.depositor).to.equal(expectedSpeedUp.args!.depositor);
-      expect(deposit.updatedRecipient).to.equal(expectedSpeedUp.args!.updatedRecipient);
-      expect(deposit.updatedMessage).to.equal(expectedSpeedUp.args!.updatedMessage);
-      if (isV2Deposit(deposit)) {
-        expect(deposit.newRelayerFeePct).to.equal(expectedSpeedUp.args!.newRelayerFeePct);
-      } else {
-        expect(deposit.updatedOutputAmount).to.not.be.undefined;
-        expect(deposit.updatedOutputAmount!.eq(expectedSpeedUp.args!.updatedOutputAmount)).to.be.true;
-      }
     });
   });
 
