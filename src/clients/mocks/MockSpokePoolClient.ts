@@ -6,7 +6,7 @@ import { ZERO_ADDRESS } from "../../constants";
 import {
   DepositWithBlock,
   FillType,
-  FundsDepositedEvent,
+  V3FundsDepositedEvent,
   RealizedLpFee,
   RelayerRefundExecutionWithBlock,
   SlowFillRequestWithBlock,
@@ -63,7 +63,7 @@ export class MockSpokePoolClient extends SpokePoolClient {
     this.realizedLpFeePctOverride = false;
   }
 
-  async computeRealizedLpFeePct(depositEvent: FundsDepositedEvent) {
+  async computeRealizedLpFeePct(depositEvent: FundsDepositedEvent | V3FundsDepositedEvent) {
     const { realizedLpFeePct, realizedLpFeePctOverride } = this;
     const { blockNumber: quoteBlock } = depositEvent;
     return realizedLpFeePctOverride
@@ -71,7 +71,7 @@ export class MockSpokePoolClient extends SpokePoolClient {
       : await super.computeRealizedLpFeePct(depositEvent);
   }
 
-  async batchComputeRealizedLpFeePct(depositEvents: FundsDepositedEvent[]): Promise<RealizedLpFee[]> {
+  async batchComputeRealizedLpFeePct(depositEvents: V3FundsDepositedEvent[]): Promise<RealizedLpFee[]> {
     const { realizedLpFeePct, realizedLpFeePctOverride } = this;
     return realizedLpFeePctOverride
       ? depositEvents.map(({ blockNumber: quoteBlock }) => {

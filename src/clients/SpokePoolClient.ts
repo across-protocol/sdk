@@ -1,6 +1,5 @@
 import assert from "assert";
 import { BigNumber, Contract, Event, EventFilter, ethers } from "ethers";
-import { groupBy } from "lodash";
 import winston from "winston";
 import {
   AnyObject,
@@ -86,7 +85,6 @@ export class SpokePoolClient extends BaseAbstractClient {
   protected tokensBridged: TokensBridged[] = [];
   protected rootBundleRelays: RootBundleRelayWithBlock[] = [];
   protected relayerRefundExecutions: RelayerRefundExecutionWithBlock[] = [];
-  protected earlyDeposits: FundsDepositedEvent[] = [];
   protected queryableEventNames: string[] = [];
   public earliestDepositIdQueried = Number.MAX_SAFE_INTEGER;
   public latestDepositIdQueried = 0;
@@ -665,10 +663,6 @@ export class SpokePoolClient extends BaseAbstractClient {
     };
   }
 
-  _isEarlyDeposit(depositEvent: FundsDepositedEvent, currentTime: number): boolean {
-    return depositEvent.args.quoteTimestamp > currentTime;
-  }
-
   protected isV3DepositEvent(event: FundsDepositedEvent | V3FundsDepositedEvent): event is V3FundsDepositedEvent {
     return isDefined((event as V3FundsDepositedEvent).args.inputToken);
   }
@@ -712,25 +706,7 @@ export class SpokePoolClient extends BaseAbstractClient {
     if (eventsToQuery.includes("FundsDeposited") || eventsToQuery.includes("V3FundsDeposited")) {
       // Filter out any early v2 deposits (quoteTimestamp > HubPoolClient.currentTime). Early deposits are no longer a
       // critical risk in v3, so don't worry about filtering those. This will reduce complexity in several places.
-      const { earlyDeposits = [], v2DepositEvents = [] } = groupBy(
-        [
-          ...this.earlyDeposits,
-          ...((queryResults[eventsToQuery.indexOf("FundsDeposited")] ?? []) as FundsDepositedEvent[]),
-        ],
-        (depositEvent) => (this._isEarlyDeposit(depositEvent, currentTime) ? "earlyDeposits" : "v2DepositEvents")
-      );
-      if (earlyDeposits.length > 0) {
-        this.logger.debug({
-          at: "SpokePoolClient#update",
-          message: `Deferring ${earlyDeposits.length} early v2 deposit events.`,
-          currentTime,
-          deposits: earlyDeposits.map(({ args, transactionHash }) => ({ depositId: args.depositId, transactionHash })),
-        });
-      }
-      this.earlyDeposits = earlyDeposits;
-
       const depositEvents = [
-        ...v2DepositEvents,
         ...((queryResults[eventsToQuery.indexOf("V3FundsDeposited")] ?? []) as V3FundsDepositedEvent[]),
       ];
       if (depositEvents.length > 0) {
@@ -745,19 +721,12 @@ export class SpokePoolClient extends BaseAbstractClient {
         let deposit: DepositWithBlock;
 
         // Derive and append the common properties that are not part of the onchain event.
-        const { quoteBlock: quoteBlockNumber, realizedLpFeePct } = dataForQuoteTime[index];
-        if (this.isV3DepositEvent(event)) {
-          deposit = { ...(rawDeposit as V3DepositWithBlock), originChainId: this.chainId };
-          deposit.realizedLpFeePct = undefined;
-          deposit.quoteBlockNumber = quoteBlockNumber;
-          if (deposit.outputToken === ZERO_ADDRESS) {
-            deposit.outputToken = this.getDestinationTokenForDeposit(deposit);
-          }
-        } else {
-          deposit = { ...(rawDeposit as V2DepositWithBlock) };
-          deposit.realizedLpFeePct = realizedLpFeePct;
-          deposit.quoteBlockNumber = quoteBlockNumber;
-          deposit.destinationToken = this.getDestinationTokenForDeposit(deposit);
+        const { quoteBlock: quoteBlockNumber } = dataForQuoteTime[index];
+        deposit = { ...(rawDeposit as V3DepositWithBlock), originChainId: this.chainId };
+        deposit.realizedLpFeePct = undefined;
+        deposit.quoteBlockNumber = quoteBlockNumber;
+        if (deposit.outputToken === ZERO_ADDRESS) {
+          deposit.outputToken = this.getDestinationTokenForDeposit(deposit);
         }
 
         if (this.depositHashes[this.getDepositHash(deposit)] !== undefined) {
@@ -915,7 +884,9 @@ export class SpokePoolClient extends BaseAbstractClient {
    * @param depositEvent The deposit event to compute the realized LP fee percentage for.
    * @returns The realized LP fee percentage.
    */
-  protected async computeRealizedLpFeePct(depositEvent: FundsDepositedEvent): Promise<RealizedLpFee> {
+  protected async computeRealizedLpFeePct(
+    depositEvent: FundsDepositedEvent | V3FundsDepositedEvent
+  ): Promise<RealizedLpFee> {
     const [lpFee] = await this.batchComputeRealizedLpFeePct([depositEvent]);
     return lpFee;
   }
@@ -1136,7 +1107,7 @@ export class SpokePoolClient extends BaseAbstractClient {
       );
     }
     const partialDeposit = spreadEventWithBlockNumber(event) as V3DepositWithBlock;
-    const { quoteBlock: quoteBlockNumber } = (await this.batchComputeRealizedLpFeePct([event]))[0]; // Append the realizedLpFeePct.
+    const { quoteBlock: quoteBlockNumber } = await this.computeRealizedLpFeePct(event);
 
     // Append destination token and realized lp fee to deposit.
     const deposit: V3DepositWithBlock = {
