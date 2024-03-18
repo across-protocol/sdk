@@ -68,7 +68,7 @@ describe("SpokePoolClient: Event Filtering", function () {
   };
 
   beforeEach(async function () {
-    [owner, depositor] = await ethers.getSigners();
+    [owner] = await ethers.getSigners();
 
     // Sanity Check: Ensure that owner.provider is defined
     expect(owner.provider).to.not.be.undefined;
