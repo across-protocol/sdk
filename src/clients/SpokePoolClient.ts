@@ -1,3 +1,4 @@
+import assert from "assert";
 import { BigNumber, Contract, Event, EventFilter, ethers } from "ethers";
 import { groupBy } from "lodash";
 import winston from "winston";
@@ -14,8 +15,7 @@ import {
   getRelayDataHash,
   getTotalFilledAmount,
   isDefined,
-  isV2Deposit,
-  isV2SpeedUp,
+  isV3Deposit,
   isV3SpeedUp,
   toBN,
 } from "../utils";
@@ -302,46 +302,18 @@ export class SpokePoolClient extends BaseAbstractClient {
    * @returns A new deposit instance with the speed up signature appended to the deposit.
    */
   public appendMaxSpeedUpSignatureToDeposit(deposit: DepositWithBlock): DepositWithBlock {
+    assert(isV3Deposit(deposit));
     const { depositId, depositor } = deposit;
-    const depositorSpeedUps = this.speedUps[depositor]?.[depositId];
-    if (!isDefined(depositorSpeedUps)) {
+    const speedups = this.speedUps[depositor]?.[depositId];
+    if (!isDefined(speedups) || speedups.length === 0) {
       return deposit;
     }
 
-    if (isV2Deposit(deposit)) {
-      const v2SpeedUps = depositorSpeedUps.filter(isV2SpeedUp<V2SpeedUp, V3SpeedUp>);
-      if (v2SpeedUps.length === 0) {
-        return deposit;
-      }
-      const maxSpeedUp = v2SpeedUps.reduce((prev, current) =>
-        prev.newRelayerFeePct.gt(current.newRelayerFeePct) ? prev : current
+    const maxSpeedUp = speedups
+      .filter(isV3SpeedUp<V3SpeedUp, V2SpeedUp>)
+      .reduce((prev, current) =>
+        prev.updatedOutputAmount.lt(current.updatedOutputAmount) ? prev : current
       );
-
-      // We assume that the depositor authorises SpeedUps in isolation of each other, which keeps the relayer
-      // logic simple: find the SpeedUp with the highest relayerFeePct, and use all of its fields
-      if (!maxSpeedUp || maxSpeedUp.newRelayerFeePct.lte(deposit.relayerFeePct)) {
-        return deposit;
-      }
-
-      // Return deposit with updated params from the speedup with the highest updated relayer fee pct.
-      const updatedDeposit: V2DepositWithBlock = {
-        ...deposit,
-        speedUpSignature: maxSpeedUp.depositorSignature,
-        newRelayerFeePct: maxSpeedUp.newRelayerFeePct,
-        updatedRecipient: maxSpeedUp.updatedRecipient,
-        updatedMessage: maxSpeedUp.updatedMessage,
-      };
-
-      return updatedDeposit;
-    }
-
-    const v3SpeedUps = depositorSpeedUps.filter(isV3SpeedUp<V3SpeedUp, V2SpeedUp>);
-    if (v3SpeedUps.length === 0) {
-      return deposit;
-    }
-    const maxSpeedUp = v3SpeedUps.reduce((prev, current) =>
-      prev.updatedOutputAmount.lt(current.updatedOutputAmount) ? prev : current
-    );
 
     // We assume that the depositor authorises SpeedUps in isolation of each other, which keeps the relayer
     // logic simple: find the SpeedUp with the lowest updatedOutputAmount, and use all of its fields.
