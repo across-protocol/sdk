@@ -785,9 +785,7 @@ export class SpokePoolClient extends BaseAbstractClient {
     }
 
     if (eventsToQuery.includes("FilledV3Relay")) {
-      const fillEvents = [
-        ...((queryResults[eventsToQuery.indexOf("FilledV3Relay")] ?? []) as FilledV3RelayEvent[]),
-      ];
+      const fillEvents = [...((queryResults[eventsToQuery.indexOf("FilledV3Relay")] ?? []) as FilledV3RelayEvent[])];
 
       if (fillEvents.length > 0) {
         this.log("debug", `Using ${fillEvents.length} newly queried fill events for chain ${this.chainId}`, {
@@ -798,9 +796,9 @@ export class SpokePoolClient extends BaseAbstractClient {
       // @note The type assertions here suppress errors that might arise due to incomplete types. For now, verify via
       // test that the types are complete. A broader change in strategy for safely unpacking events will be introduced.
       for (const event of fillEvents) {
-        const fill =  {
+        const fill = {
           ...(spreadEventWithBlockNumber(event) as V3FillWithBlock),
-          destinationChainId: this.chainId
+          destinationChainId: this.chainId,
         };
         assign(this.fills, [fill.originChainId], [fill]);
         assign(this.depositHashesToFills, [this.getDepositHash(fill)], [fill]);
