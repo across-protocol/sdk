@@ -416,8 +416,16 @@ describe("SpokePoolClient: Fill Validation", function () {
   });
 
   it("Can fetch older deposit matching fill", async function () {
-    const deposit = await buildDeposit(hubPoolClient, spokePool_1, erc20_1, depositor, destinationChainId);
-    await buildFill(spokePool_2, erc20_2, depositor, relayer, deposit, 1);
+    const deposit = await depositV3(
+      spokePool_1,
+      destinationChainId,
+      depositor,
+      inputToken,
+      inputAmount,
+      outputToken,
+      outputAmount
+    );
+    await fillV3Relay(spokePool_2, deposit, relayer);
     await spokePoolClient2.update();
     const [fill] = spokePoolClient2.getFills();
 

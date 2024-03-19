@@ -1,14 +1,13 @@
 import hre from "hardhat";
-import { ZERO_ADDRESS, EMPTY_MESSAGE } from "../src/constants";
 import { SpokePoolClient } from "../src/clients";
-import { Deposit, V3Deposit } from "../src/interfaces";
-import { bnOne, findFillBlock, getCurrentTime, getNetworkName } from "../src/utils";
+import { V3Deposit } from "../src/interfaces";
+import { bnOne, findFillBlock, getNetworkName } from "../src/utils";
+import { EMPTY_MESSAGE, ZERO_ADDRESS } from "../src/constants";
 import { originChainId, destinationChainId } from "./constants";
 import {
   assertPromiseError,
   Contract,
   SignerWithAddress,
-  buildFill,
   fillV3Relay,
   createSpyLogger,
   deploySpokePoolWithToken,
@@ -18,21 +17,14 @@ import {
   toBNWei,
 } from "./utils";
 
-let spokePool: Contract, erc20: Contract, destErc20: Contract, weth: Contract;
-let depositor: SignerWithAddress, relayer1: SignerWithAddress, relayer2: SignerWithAddress;
-let deploymentBlock: number;
-
-const originChainId2 = originChainId + 1;
-
-let spokePoolClient: SpokePoolClient;
-
 describe("SpokePoolClient: Fills", function () {
-  const message = EMPTY_MESSAGE;
-  const exclusivityDeadline = 0;
-  const exclusiveRelayer = ZERO_ADDRESS;
+  const originChainId2 = originChainId + 1;
 
-  let quoteTimestamp: number;
-  let fillDeadline: number;
+  let spokePool: Contract, erc20: Contract, destErc20: Contract, weth: Contract;
+  let depositor: SignerWithAddress, relayer1: SignerWithAddress, relayer2: SignerWithAddress;
+  let spokePoolClient: SpokePoolClient;
+  let deploymentBlock: number;
+  let deposit: V3Deposit;
 
   beforeEach(async function () {
     [, depositor, relayer1, relayer2] = await ethers.getSigners();
@@ -53,91 +45,54 @@ describe("SpokePoolClient: Fills", function () {
     await setupTokensForWallet(spokePool, relayer1, [erc20, destErc20], weth, 10);
     await setupTokensForWallet(spokePool, relayer2, [erc20, destErc20], weth, 10);
 
-    quoteTimestamp = Number(await spokePool.getCurrentTime());
-    fillDeadline = quoteTimestamp + 600;
-  });
-
-  it("Correctly fetches fill data single fill, single chain", async function () {
-    const deposit: Deposit = {
-      depositId: 0,
-      depositor: depositor.address,
-      recipient: depositor.address,
-      originToken: erc20.address,
-      amount: toBNWei("1"),
-      originChainId,
-      destinationChainId,
-      relayerFeePct: toBNWei("0.01"),
-      quoteTimestamp,
-      realizedLpFeePct: toBNWei("0.01"),
-      destinationToken: destErc20.address,
-      message,
-    };
-    await buildFill(spokePool, destErc20, depositor, relayer1, deposit, 1);
-    await buildFill(spokePool, destErc20, depositor, relayer1, { ...deposit, depositId: 1 }, 1);
-    await spokePoolClient.update();
-    expect(spokePoolClient.getFills().length).to.equal(2);
-  });
-  it("Correctly fetches deposit data multiple fills, multiple chains", async function () {
-    const deposit: Deposit = {
-      depositId: 0,
-      depositor: depositor.address,
-      recipient: depositor.address,
-      originToken: erc20.address,
-      amount: toBNWei("1"),
-      originChainId,
-      destinationChainId,
-      relayerFeePct: toBNWei("0.01"),
-      quoteTimestamp,
-      realizedLpFeePct: toBNWei("0.01"),
-      destinationToken: destErc20.address,
-      message,
-    };
-
-    // Do 6 deposits. 2 for the first depositor on chain1, 1 for the first depositor on chain2, 1 for the second
-    // depositor on chain1, and 2 for the second depositor on chain2.
-    await buildFill(spokePool, destErc20, depositor, relayer1, deposit, 0.1);
-    await buildFill(spokePool, destErc20, depositor, relayer1, deposit, 0.1);
-    await buildFill(spokePool, destErc20, depositor, relayer1, { ...deposit, originChainId: originChainId2 }, 0.1);
-
-    await buildFill(spokePool, destErc20, depositor, relayer2, deposit, 0.1);
-    await buildFill(spokePool, destErc20, depositor, relayer2, { ...deposit, originChainId: originChainId2 }, 0.1);
-    await buildFill(spokePool, destErc20, depositor, relayer2, { ...deposit, originChainId: originChainId2 }, 0.1);
-
-    await spokePoolClient.update();
-
-    // Validate associated ChainId Events are correctly returned.
-    expect(spokePoolClient.getFills().length).to.equal(6);
-
-    // TODO: Add `getFillsForRepaymentChainId` tests once we update the `fillRelay` method from contracts-v2 to allow
-    // an overridable `repaymentChainId`
-
-    expect(spokePoolClient.getFillsForOriginChain(originChainId).length).to.equal(3);
-    expect(spokePoolClient.getFillsForOriginChain(originChainId2).length).to.equal(3);
-    expect(spokePoolClient.getFillsForRelayer(relayer1.address).length).to.equal(3);
-    expect(spokePoolClient.getFillsForRelayer(relayer2.address).length).to.equal(3);
-  });
-
-  it("Correctly locates the block number for a FilledV3Relay event", async function () {
-    const nBlocks = 1_000;
-    const inputAmount = toBNWei(1);
-
-    const quoteTimestamp = getCurrentTime();
-    const deposit: V3Deposit = {
+    const spokePoolTime = Number(await spokePool.getCurrentTime());
+    const outputAmount = toBNWei(1);
+    deposit = {
       depositId: 0,
       originChainId,
       destinationChainId,
       depositor: depositor.address,
       recipient: depositor.address,
       inputToken: erc20.address,
-      inputAmount,
+      inputAmount: outputAmount.add(bnOne),
       outputToken: destErc20.address,
-      outputAmount: inputAmount.sub(1),
-      quoteTimestamp,
-      message,
-      fillDeadline,
-      exclusivityDeadline,
-      exclusiveRelayer,
+      outputAmount: toBNWei("1"),
+      relayerFeePct: toBNWei("0.01"),
+      quoteTimestamp: spokePoolTime - 60,
+      message: EMPTY_MESSAGE,
+      fillDeadline: spokePoolTime + 600,
+      exclusivityDeadline: 0,
+      exclusiveRelayer: ZERO_ADDRESS,
     };
+  });
+
+  it("Correctly fetches fill data single fill, single chain", async function () {
+    await fillV3Relay(spokePool, deposit, relayer1);
+    await fillV3Relay(spokePool, { ...deposit, depositId: deposit.depositId + 1 }, relayer1);
+    await spokePoolClient.update();
+    expect(spokePoolClient.getFills().length).to.equal(2);
+  });
+
+  it("Correctly fetches deposit data multiple fills, multiple chains", async function () {
+    // Mix and match various fields to produce unique fills and verify they are all recorded by the SpokePoolClient.
+    await fillV3Relay(spokePool, deposit, relayer1);
+    await fillV3Relay(spokePool, { ...deposit, originChainId: originChainId2 }, relayer1);
+    await fillV3Relay(spokePool, { ...deposit, inputAmount: deposit.inputAmount.add(bnOne) }, relayer1);
+    await fillV3Relay(spokePool, { ...deposit, inputAmount: deposit.outputAmount.sub(bnOne) }, relayer2);
+
+    await spokePoolClient.update();
+
+    // Validate associated ChainId Events are correctly returned.
+    expect(spokePoolClient.getFills().length).to.equal(4);
+
+    expect(spokePoolClient.getFillsForOriginChain(originChainId).length).to.equal(3);
+    expect(spokePoolClient.getFillsForOriginChain(originChainId2).length).to.equal(1);
+    expect(spokePoolClient.getFillsForRelayer(relayer1.address).length).to.equal(3);
+    expect(spokePoolClient.getFillsForRelayer(relayer2.address).length).to.equal(1);
+  });
+
+  it("Correctly locates the block number for a FilledV3Relay event", async function () {
+    const nBlocks = 1_000;
 
     // Submit the fill randomly within the next `nBlocks` blocks.
     const startBlock = await spokePool.provider.getBlockNumber();
@@ -160,25 +115,6 @@ describe("SpokePoolClient: Fills", function () {
 
   it("FilledRelay block search: bounds checking", async function () {
     const nBlocks = 100;
-    const inputAmount = toBNWei(1);
-
-    const deposit: V3Deposit = {
-      depositId: 0,
-      originChainId,
-      destinationChainId,
-      depositor: depositor.address,
-      recipient: depositor.address,
-      inputToken: erc20.address,
-      inputAmount,
-      outputToken: destErc20.address,
-      outputAmount: inputAmount.sub(bnOne),
-      quoteTimestamp,
-      message,
-      fillDeadline,
-      exclusivityDeadline,
-      exclusiveRelayer,
-    };
-
     const startBlock = await spokePool.provider.getBlockNumber();
     for (let i = 0; i < nBlocks; ++i) {
       await hre.network.provider.send("evm_mine");
