@@ -337,9 +337,11 @@ export async function fillStatusArray(
   const multicalls = await Promise.all(
     chunkedQueries.map((queries) => spokePool.callStatic.multicall(queries, { blockTag }))
   );
-  const status = multicalls.map((multicall: BytesLike[]) =>
-    multicall.map((result) => spokePool.interface.decodeFunctionResult(fillStatuses, result)[0])
-  ).flat();
+  const status = multicalls
+    .map((multicall: BytesLike[]) =>
+      multicall.map((result) => spokePool.interface.decodeFunctionResult(fillStatuses, result)[0])
+    )
+    .flat();
 
   const bnUnfilled = toBN(FillStatus.Unfilled);
   const bnFilled = toBN(FillStatus.Filled);

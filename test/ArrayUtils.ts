@@ -12,5 +12,4 @@ describe("ArrayUtils", () => {
       expect(chunkedArray.at(-1)?.length).to.equal(9);
     });
   });
-
 });
