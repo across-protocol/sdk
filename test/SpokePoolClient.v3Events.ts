@@ -34,6 +34,7 @@ import {
   deploySpokePool,
   ethers,
   SignerWithAddress,
+  toBNWei,
 } from "./utils";
 
 type EventSearchConfig = sdkUtils.EventSearchConfig;
@@ -134,7 +135,7 @@ describe("SpokePoolClient: Event Filtering", function () {
   });
 
   it("Correctly retrieves FundsDepositedV3 events", async function () {
-    // Inject a series of V2DepositWithBlock and V3DepositWithBlock events.
+    // Inject a series of V3DepositWithBlock events.
     const depositEvents: Event[] = [];
 
     for (let idx = 0; idx < 10; ++idx) {
@@ -160,6 +161,36 @@ describe("SpokePoolClient: Event Filtering", function () {
       const inputToken = getDepositInputToken(depositEvent);
       expect(inputToken).to.equal(expectedInputToken);
     });
+  });
+
+  it("Correctly substitutes outputToken when set to 0x0", async function () {
+    const { spokePool, chainId, deploymentBlock } = originSpokePoolClient;
+    const spokePoolClient = new MockSpokePoolClient(logger, spokePool, chainId, deploymentBlock, { hubPoolClient });
+
+    const hubPoolToken = randomAddress();
+    const inputToken = randomAddress();
+    const outputToken = randomAddress();
+    hubPoolClient.setTokenMapping(hubPoolToken, originChainId, inputToken);
+    hubPoolClient.setTokenMapping(hubPoolToken, destinationChainId, outputToken);
+    hubPoolClient.setDefaultRealizedLpFeePct(toBNWei("0.0001"));
+
+    const _deposit = spokePoolClient.depositV3({
+      originChainId,
+      destinationChainId,
+      inputToken,
+      outputToken: ZERO_ADDRESS,
+    } as V3DepositWithBlock);
+    expect(_deposit?.args?.outputToken).to.equal(ZERO_ADDRESS);
+
+    await spokePoolClient.update(fundsDepositedEvents);
+
+    const [deposit] = spokePoolClient.getDeposits();
+    expect(deposit).to.exist;
+    assert(isV3Deposit(deposit));
+
+    expect(deposit.inputToken).to.equal(inputToken);
+    expect(deposit.outputToken).to.not.equal(ZERO_ADDRESS);
+    expect(deposit.outputToken).to.equal(outputToken);
   });
 
   it("Correctly retrieves SlowFillRequested events", async function () {
