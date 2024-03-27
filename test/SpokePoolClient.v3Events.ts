@@ -4,12 +4,7 @@ import { utils as sdkUtils } from "../src";
 import { expect } from "chai";
 import { DEFAULT_CONFIG_STORE_VERSION } from "../src/clients";
 import { MockHubPoolClient, MockSpokePoolClient, MockConfigStoreClient } from "../src/clients/mocks";
-import {
-  DepositWithBlock,
-  FillWithBlock,
-  SlowFillRequest,
-  SlowFillRequestWithBlock,
-} from "../src/interfaces";
+import { DepositWithBlock, FillWithBlock, SlowFillRequest, SlowFillRequestWithBlock } from "../src/interfaces";
 import { EMPTY_MESSAGE, ZERO_ADDRESS } from "../src/constants";
 import { getCurrentTime, isDefined, randomAddress } from "../src/utils";
 import {
