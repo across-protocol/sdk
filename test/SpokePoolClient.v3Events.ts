@@ -18,7 +18,6 @@ import { EMPTY_MESSAGE, ZERO_ADDRESS } from "../src/constants";
 import {
   getCurrentTime,
   getDepositInputToken,
-  getFillOutputToken,
   isDefined,
   isV2Deposit,
   isV2Fill,
