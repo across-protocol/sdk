@@ -251,8 +251,6 @@ describe("SpokePoolClient: Event Filtering", function () {
     // Should receive _all_ fills submitted on the destination chain.
     const fills = destinationSpokePoolClient.getFills().filter(isV3Fill<V3FillWithBlock, V2FillWithBlock>);
     expect(fills.length).to.equal(fillEvents.length);
-    expect(fills.filter(isV2Fill).length).to.equal(fillEvents.length / 2);
-    expect(fills.filter(isV3Fill).length).to.equal(fillEvents.length / 2);
 
     fills.forEach((fillEvent, idx) => {
       const expectedFill = fillEvents[idx];
@@ -261,9 +259,7 @@ describe("SpokePoolClient: Event Filtering", function () {
 
       // destinationChainId is appended by the SpokePoolClient for V3FundsDeposited events, so verify its correctness.
       expect(fillEvent.destinationChainId).to.equal(destinationChainId);
-
-      const expectedOutputToken = expectedFill.args.outputToken;
-      expect(fillEvent.outputToken).to.equal(expectedOutputToken);
+      expect(fillEvent.outputToken).to.equal(expectedFill.args!.outputToken);
     });
   });
 });
