@@ -18,6 +18,7 @@ import {
   isV3Deposit,
   isV3SpeedUp,
   toBN,
+  isV3Fill,
 } from "../utils";
 import {
   paginatedEventQuery,
@@ -835,6 +836,15 @@ export class SpokePoolClient extends BaseAbstractClient {
           ? { ...(spreadEventWithBlockNumber(event) as V3FillWithBlock), destinationChainId: this.chainId }
           : { ...(spreadEventWithBlockNumber(event) as V2FillWithBlock) };
 
+        if (isV3Fill(fill) && Array.isArray(fill.relayExecutionInfo)) {
+          const correctedRelayExecutionInfo = {
+            updatedRecipient: fill.relayExecutionInfo[0],
+            updatedMessage: fill.relayExecutionInfo[1],
+            updatedOutputAmount: fill.relayExecutionInfo[2],
+            fillType: fill.relayExecutionInfo[3],
+          };
+          fill.relayExecutionInfo = correctedRelayExecutionInfo;
+        }
         assign(this.fills, [fill.originChainId], [fill]);
         assign(this.depositHashesToFills, [this.getDepositHash(fill)], [fill]);
       }
