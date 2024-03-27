@@ -8,6 +8,7 @@ import {
   CancelledRootBundle,
   CrossChainContractsSet,
   Deposit,
+  DepositWithBlock,
   DestinationTokenWithBlock,
   DisputedRootBundle,
   ExecutedRootBundle,
@@ -18,7 +19,6 @@ import {
   RealizedLpFee,
   SetPoolRebalanceRoot,
   TokenRunningBalance,
-  V3DepositWithBlock,
 } from "../interfaces";
 import * as lpFeeCalculator from "../lpFeeCalculator";
 import {
@@ -229,7 +229,7 @@ export class HubPoolClient extends BaseAbstractClient {
    * @param deposit Deposit event
    * @param returns string L1 token counterpart for Deposit
    */
-  getL1TokenForDeposit(deposit: Pick<V3DepositWithBlock, "originChainId" | "inputToken" | "quoteBlockNumber">): string {
+  getL1TokenForDeposit(deposit: Pick<DepositWithBlock, "originChainId" | "inputToken" | "quoteBlockNumber">): string {
     // L1-->L2 token mappings are set via PoolRebalanceRoutes which occur on mainnet,
     // so we use the latest token mapping. This way if a very old deposit is filled, the relayer can use the
     // latest L2 token mapping to find the L1 token counterpart.
@@ -244,7 +244,7 @@ export class HubPoolClient extends BaseAbstractClient {
    * @returns string L2 token counterpart on l2ChainId
    */
   getL2TokenForDeposit(
-    deposit: Pick<V3DepositWithBlock, "originChainId" | "destinationChainId" | "inputToken" | "quoteBlockNumber">,
+    deposit: Pick<DepositWithBlock, "originChainId" | "destinationChainId" | "inputToken" | "quoteBlockNumber">,
     l2ChainId = deposit.destinationChainId
   ): string {
     const l1Token = this.getL1TokenForDeposit(deposit);

@@ -1,7 +1,7 @@
 import assert from "assert";
 import { BigNumber, BytesLike, Contract, PopulatedTransaction, providers, utils as ethersUtils } from "ethers";
 import { CHAIN_IDs, ZERO_ADDRESS } from "../constants";
-import { FillStatus, RelayData, SlowFillRequest, V3Deposit, V3Fill, V3RelayData } from "../interfaces";
+import { Deposit, Fill, FillStatus, RelayData, SlowFillRequest } from "../interfaces";
 import { SpokePoolClient } from "../clients";
 import { chunk } from "./ArrayUtils";
 import { toBN } from "./BigNumberUtils";
@@ -18,11 +18,11 @@ type BlockTag = providers.BlockTag;
  */
 export function populateV3Relay(
   spokePool: Contract,
-  deposit: V3Deposit,
+  deposit: Deposit,
   relayer: string,
   repaymentChainId = deposit.destinationChainId
 ): Promise<PopulatedTransaction> {
-  const v3RelayData: V3RelayData = {
+  const v3RelayData: RelayData = {
     depositor: deposit.depositor,
     recipient: deposit.recipient,
     exclusiveRelayer: deposit.exclusiveRelayer,
@@ -240,7 +240,7 @@ export function getRelayDataHash(relayData: RelayData, destinationChainId: numbe
   );
 }
 
-export function getV3RelayHashFromEvent(e: V3Deposit | V3Fill | SlowFillRequest): string {
+export function getRelayHashFromEvent(e: Deposit | Fill | SlowFillRequest): string {
   return getRelayDataHash(e, e.destinationChainId);
 }
 
@@ -253,7 +253,7 @@ export function getV3RelayHashFromEvent(e: V3Deposit | V3Fill | SlowFillRequest)
  */
 export async function relayFillStatus(
   spokePool: Contract,
-  relayData: V3RelayData,
+  relayData: RelayData,
   blockTag?: number | "latest",
   destinationChainId?: number
 ): Promise<FillStatus> {
@@ -272,7 +272,7 @@ export async function relayFillStatus(
 
 export async function fillStatusArray(
   spokePool: Contract,
-  relayData: V3RelayData[],
+  relayData: RelayData[],
   blockTag: BlockTag = "latest"
 ): Promise<(FillStatus | undefined)[]> {
   const fillStatuses = "fillStatuses";
@@ -317,7 +317,7 @@ export async function fillStatusArray(
  */
 export async function findFillBlock(
   spokePool: Contract,
-  relayData: V3RelayData,
+  relayData: RelayData,
   lowBlockNumber: number,
   highBlockNumber?: number
 ): Promise<number | undefined> {

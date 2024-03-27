@@ -10,7 +10,7 @@ import {
   TransactionCostEstimate,
 } from "../../utils";
 import { Logger, QueryInterface } from "../relayFeeCalculator";
-import { V3Deposit } from "../../interfaces";
+import { Deposit } from "../../interfaces";
 
 type Provider = providers.Provider;
 type OptimismProvider = L2Provider<Provider>;
@@ -61,7 +61,7 @@ export default abstract class QueryBase implements QueryInterface {
    * @param relayerAddress Relayer address to simulate with.
    * @returns The gas estimate for this function call (multplied with the optional buffer).
    */
-  async getGasCosts(deposit: V3Deposit, relayer = DEFAULT_SIMULATED_RELAYER_ADDRESS): Promise<TransactionCostEstimate> {
+  async getGasCosts(deposit: Deposit, relayer = DEFAULT_SIMULATED_RELAYER_ADDRESS): Promise<TransactionCostEstimate> {
     const tx = await populateV3Relay(this.spokePool, deposit, relayer);
     return estimateTotalGasRequiredByUnsignedTransaction(
       tx,

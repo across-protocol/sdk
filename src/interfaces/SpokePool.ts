@@ -6,7 +6,7 @@ import { RelayerRefundLeaf } from "./HubPool";
 
 export type { FilledRelayEvent, FilledV3RelayEvent, FundsDepositedEvent, V3FundsDepositedEvent };
 
-export interface V3RelayData {
+export interface RelayData {
   originChainId: number;
   depositor: string;
   recipient: string;
@@ -21,9 +21,7 @@ export interface V3RelayData {
   exclusivityDeadline: number;
 }
 
-export type RelayData = V3RelayData;
-
-export interface V3Deposit extends V3RelayData {
+export interface Deposit extends RelayData {
   destinationChainId: number;
   quoteTimestamp: number;
   realizedLpFeePct?: BigNumber;
@@ -34,12 +32,9 @@ export interface V3Deposit extends V3RelayData {
   updatedMessage?: string;
 }
 
-export interface V3DepositWithBlock extends V3Deposit, SortableEvent {
+export interface DepositWithBlock extends Deposit, SortableEvent {
   quoteBlockNumber: number;
 }
-
-export type Deposit = V3Deposit;
-export type DepositWithBlock = V3DepositWithBlock;
 
 export enum FillStatus {
   Unfilled = 0,
@@ -53,26 +48,23 @@ export enum FillType {
   SlowFill,
 }
 
-export interface V3RelayExecutionEventInfo {
+export interface RelayExecutionEventInfo {
   updatedRecipient: string;
   updatedOutputAmount: BigNumber;
   updatedMessage: string;
   fillType: FillType;
 }
 
-export interface V3Fill extends V3RelayData {
+export interface Fill extends RelayData {
   destinationChainId: number;
   relayer: string;
   repaymentChainId: number;
-  relayExecutionInfo: V3RelayExecutionEventInfo;
+  relayExecutionInfo: RelayExecutionEventInfo;
 }
 
-export interface V3FillWithBlock extends V3Fill, SortableEvent {}
+export interface FillWithBlock extends Fill, SortableEvent {}
 
-export type Fill = V3Fill;
-export type FillWithBlock = V3FillWithBlock;
-
-export interface V3SpeedUp {
+export interface SpeedUp {
   depositor: string;
   depositorSignature: string;
   depositId: number;
@@ -82,20 +74,16 @@ export interface V3SpeedUp {
   updatedMessage: string;
 }
 
-export type SpeedUp = V3SpeedUp;
-
-export interface SlowFillRequest extends V3RelayData {
+export interface SlowFillRequest extends RelayData {
   destinationChainId: number;
 }
 export interface SlowFillRequestWithBlock extends SlowFillRequest, SortableEvent {}
 
-export interface V3SlowFillLeaf {
-  relayData: V3RelayData;
+export interface SlowFillLeaf {
+  relayData: RelayData;
   chainId: number;
   updatedOutputAmount: BigNumber;
 }
-
-export type SlowFillLeaf = V3SlowFillLeaf;
 
 export interface RootBundleRelay {
   rootBundleId: number;

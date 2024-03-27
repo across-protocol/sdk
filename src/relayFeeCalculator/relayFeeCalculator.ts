@@ -1,7 +1,7 @@
 import assert from "assert";
 import { BigNumber } from "ethers";
 import { DEFAULT_SIMULATED_RELAYER_ADDRESS, TOKEN_SYMBOLS_MAP } from "../constants";
-import { V3Deposit } from "../interfaces";
+import { Deposit } from "../interfaces";
 import {
   BigNumberish,
   MAX_BIG_INT,
@@ -20,7 +20,7 @@ import {
 
 // This needs to be implemented for every chain and passed into RelayFeeCalculator
 export interface QueryInterface {
-  getGasCosts: (deposit: V3Deposit, relayer: string) => Promise<TransactionCostEstimate>;
+  getGasCosts: (deposit: Deposit, relayer: string) => Promise<TransactionCostEstimate>;
   getTokenPrice: (tokenSymbol: string) => Promise<number>;
   getTokenDecimals: (tokenSymbol: string) => number;
 }
@@ -219,7 +219,7 @@ export class RelayFeeCalculator {
    *       the correct parameters to see a full fill.
    */
   async gasFeePercent(
-    deposit: V3Deposit,
+    deposit: Deposit,
     amountToRelay: BigNumberish,
     simulateZeroFill = false,
     relayerAddress = DEFAULT_SIMULATED_RELAYER_ADDRESS,
@@ -339,7 +339,7 @@ export class RelayFeeCalculator {
    * @returns A resulting `RelayerFeeDetails` object
    */
   async relayerFeeDetails(
-    deposit: V3Deposit,
+    deposit: Deposit,
     amountToRelay?: BigNumberish,
     simulateZeroFill = false,
     relayerAddress = DEFAULT_SIMULATED_RELAYER_ADDRESS,
