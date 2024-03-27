@@ -6,12 +6,10 @@ import { ZERO_ADDRESS } from "../../constants";
 import {
   DepositWithBlock,
   FillType,
-  FundsDepositedEvent,
   V3FundsDepositedEvent,
   RealizedLpFee,
   RelayerRefundExecutionWithBlock,
   SlowFillRequestWithBlock,
-  V2DepositWithBlock,
   V2FillWithBlock,
   V2SpeedUp,
   V3DepositWithBlock,
@@ -26,7 +24,6 @@ import {
   toBNWei,
   forEachAsync,
   getCurrentTime,
-  isV2Deposit,
   isV2Fill,
   isV3Deposit,
   isV3Fill,
@@ -64,7 +61,7 @@ export class MockSpokePoolClient extends SpokePoolClient {
     this.realizedLpFeePctOverride = false;
   }
 
-  async computeRealizedLpFeePct(depositEvent: FundsDepositedEvent | V3FundsDepositedEvent) {
+  async computeRealizedLpFeePct(depositEvent: V3FundsDepositedEvent) {
     const { realizedLpFeePct, realizedLpFeePctOverride } = this;
     const { blockNumber: quoteBlock } = depositEvent;
     return realizedLpFeePctOverride
@@ -131,7 +128,7 @@ export class MockSpokePoolClient extends SpokePoolClient {
     this.blocks = blocks;
 
     // Update latestDepositIdQueried.
-    const idx = eventsToQuery.indexOf("FundsDeposited");
+    const idx = eventsToQuery.indexOf("V3FundsDeposited");
     const latestDepositId = (events[idx] ?? []).reduce(
       (depositId, event) => Math.max(depositId, event.args?.["depositId"] ?? 0),
       this.latestDepositIdQueried
@@ -154,44 +151,6 @@ export class MockSpokePoolClient extends SpokePoolClient {
     FilledRelay: "uint256,uint256,uint256,int64,uint32,uint32,address,address,address,bytes",
     FundsDeposited: "uint256,uint256,uint256,int64,uint32,uint32,address,address,address,bytes",
   };
-
-  deposit(deposit: V2DepositWithBlock): Event {
-    assert(isV2Deposit(deposit));
-    const event = "FundsDeposited";
-
-    const { blockNumber, transactionIndex } = deposit;
-    let { depositId, depositor, destinationChainId } = deposit;
-    depositId ??= this.numberOfDeposits;
-    assert(depositId >= this.numberOfDeposits, `${depositId} < ${this.numberOfDeposits}`);
-    this.numberOfDeposits = depositId + 1;
-
-    destinationChainId ??= random(1, 42161, false);
-    depositor ??= randomAddress();
-
-    const message = deposit["message"] ?? `${event} event at block ${blockNumber}, index ${transactionIndex}.`;
-    const topics = [destinationChainId, depositId, depositor];
-    const args = {
-      amount: deposit.amount ?? toBNWei(random(1, 1000, false)),
-      originChainId: deposit.originChainId ?? this.chainId,
-      destinationChainId,
-      relayerFeePct: deposit.relayerFeePct ?? toBNWei(0.0001),
-      depositId,
-      quoteTimestamp: deposit.quoteTimestamp ?? getCurrentTime(),
-      originToken: deposit.originToken ?? randomAddress(),
-      recipient: deposit.recipient ?? depositor,
-      depositor,
-      message,
-    };
-
-    return this.eventManager.generateEvent({
-      event,
-      address: this.spokePool.address,
-      topics: topics.map((topic) => topic.toString()),
-      args,
-      blockNumber,
-      transactionIndex,
-    });
-  }
 
   depositV3(deposit: V3DepositWithBlock): Event {
     assert(isV3Deposit(deposit));

@@ -87,6 +87,7 @@ export interface L1Token {
 
 export interface LpToken {
   lastLpFeeUpdate: number;
+  liquidReserves: BigNumber;
 }
 
 export interface CrossChainContractsSet extends SortableEvent {
