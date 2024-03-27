@@ -109,7 +109,7 @@ describe("HubPoolClient: Deposit to Destination Token", function () {
   it("Gets L1 token for deposit", async function () {
     const depositData = {
       originChainId,
-      originToken: randomOriginToken,
+      inputToken: randomOriginToken,
     };
 
     const e0 = hubPoolClient.setPoolRebalanceRoute(originChainId, randomL1Token, randomOriginToken);
@@ -141,7 +141,7 @@ describe("HubPoolClient: Deposit to Destination Token", function () {
   it("Gets L2 token for deposit", async function () {
     const depositData = {
       originChainId,
-      originToken: randomOriginToken,
+      inputToken: randomOriginToken,
     };
 
     const e0 = hubPoolClient.setPoolRebalanceRoute(originChainId, randomL1Token, randomOriginToken);
@@ -166,7 +166,7 @@ describe("HubPoolClient: Deposit to Destination Token", function () {
       hubPoolClient.getL2TokenForDeposit({
         ...depositData,
         destinationChainId,
-        originToken: randomL1Token,
+        inputToken: randomL1Token,
         quoteBlockNumber: e0.blockNumber,
       })
     ).to.throw(/Could not find HubPool mapping/);
