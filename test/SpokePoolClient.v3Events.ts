@@ -16,7 +16,6 @@ import { EMPTY_MESSAGE, ZERO_ADDRESS } from "../src/constants";
 import {
   getCurrentTime,
   getDepositInputToken,
-  getFillOutputToken,
   isDefined,
   isV3Deposit,
   randomAddress,
@@ -225,7 +224,7 @@ describe("SpokePoolClient: Event Filtering", function () {
     await destinationSpokePoolClient.update(filledRelayEvents);
 
     // Should receive _all_ fills submitted on the destination chain.
-    const fills = destinationSpokePoolClient.getFills();
+    const fills = destinationSpokePoolClient.getFills().filter(isV3Fill<V3FillWithBlock, V2FillWithBlock>);
     expect(fills.length).to.equal(fillEvents.length);
 
     fills.forEach((fillEvent, idx) => {
@@ -235,10 +234,7 @@ describe("SpokePoolClient: Event Filtering", function () {
 
       // destinationChainId is appended by the SpokePoolClient for V3FundsDeposited events, so verify its correctness.
       expect(fillEvent.destinationChainId).to.equal(destinationChainId);
-
-      const expectedOutputToken = expectedFill.args!.inputToken;
-      const outputToken = getFillOutputToken(fillEvent);
-      expect(outputToken).to.equal(expectedOutputToken);
+      expect(fillEvent.outputToken).to.equal(expectedFill.args!.outputToken);
     });
   });
 });
