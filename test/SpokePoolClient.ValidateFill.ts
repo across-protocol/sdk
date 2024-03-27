@@ -1,4 +1,4 @@
-import { FillStatus, FillType, V3DepositWithBlock } from "../src/interfaces";
+import { DepositWithBlock, FillStatus, FillType } from "../src/interfaces";
 import { SpokePoolClient } from "../src/clients";
 import {
   bnOne,
@@ -135,7 +135,7 @@ describe("SpokePoolClient: Fill Validation", function () {
   });
 
   it("Tracks bulk v3 fill status", async function () {
-    const deposits: V3DepositWithBlock[] = [];
+    const deposits: DepositWithBlock[] = [];
 
     for (let i = 0; i < 5; ++i) {
       const deposit = await depositV3(
