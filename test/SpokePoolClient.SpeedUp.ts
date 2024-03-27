@@ -1,6 +1,6 @@
 import { SpokePoolClient } from "../src/clients";
-import { V2DepositWithBlock, V3Deposit, V3DepositWithBlock, V3SpeedUp } from "../src/interfaces";
-import { bnOne, isV3Deposit } from "../src/utils";
+import { Deposit, SpeedUp } from "../src/interfaces";
+import { bnOne } from "../src/utils";
 import { destinationChainId, originChainId } from "./constants";
 import {
   assert,
@@ -95,7 +95,7 @@ describe("SpokePoolClient: SpeedUp", function () {
     await spokePoolClient.update();
 
     // After speedup should return the appended object with the new fee information and signature.
-    const expectedDepositData: V3Deposit = {
+    const expectedDepositData: Deposit = {
       ...deposit,
       speedUpSignature: signature,
       updatedOutputAmount,
@@ -132,7 +132,7 @@ describe("SpokePoolClient: SpeedUp", function () {
     // Should return the normal deposit object before any update is applied.
     expect(spokePoolClient.appendMaxSpeedUpSignatureToDeposit(deposit)).to.deep.equal(deposit);
 
-    const depositUpdates: V3SpeedUp[] = [];
+    const depositUpdates: SpeedUp[] = [];
     const { depositId, recipient: updatedRecipient, message: updatedMessage } = deposit;
     for (const updatedOutputAmount of [outputAmount.add(1), outputAmount, outputAmount.sub(1), outputAmount.sub(2)]) {
       const depositorSignature = await getUpdatedV3DepositSignature(
@@ -175,12 +175,10 @@ describe("SpokePoolClient: SpeedUp", function () {
       await spokePoolClient.update();
       let updatedDeposit = spokePoolClient
         .getDepositsForDestinationChain(deposit.destinationChainId)
-        .filter(isV3Deposit<V3DepositWithBlock, V2DepositWithBlock>)
         .at(-1);
 
       // Convoluted checks to help tsc narrow types.
       assert.exists(updatedDeposit);
-      assert.equal(isV3Deposit(updatedDeposit!), true);
       updatedDeposit = updatedDeposit!;
 
       if (lowestOutputAmount.eq(deposit.outputAmount)) {
