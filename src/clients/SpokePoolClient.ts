@@ -118,7 +118,6 @@ export class SpokePoolClient extends BaseAbstractClient {
 
   public _queryableEventNames(): { [eventName: string]: EventFilter } {
     const knownEventNames = [
-      "FundsDeposited",
       "RequestedSpeedUpDeposit",
       "FilledRelay",
       "EnabledDepositRoute",
@@ -703,9 +702,7 @@ export class SpokePoolClient extends BaseAbstractClient {
     // new deposits that were found in the searchConfig (new from the previous run). This is important as this operation
     // is heavy as there is a fair bit of block number lookups that need to happen. Note this call REQUIRES that the
     // hubPoolClient is updated on the first before this call as this needed the the L1 token mapping to each L2 token.
-    if (eventsToQuery.includes("FundsDeposited") || eventsToQuery.includes("V3FundsDeposited")) {
-      // Filter out any early v2 deposits (quoteTimestamp > HubPoolClient.currentTime). Early deposits are no longer a
-      // critical risk in v3, so don't worry about filtering those. This will reduce complexity in several places.
+    if (eventsToQuery.includes("V3FundsDeposited")) {
       const depositEvents = [
         ...((queryResults[eventsToQuery.indexOf("V3FundsDeposited")] ?? []) as V3FundsDepositedEvent[]),
       ];
