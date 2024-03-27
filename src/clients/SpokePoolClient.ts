@@ -366,6 +366,62 @@ export class SpokePoolClient extends BaseAbstractClient {
   }
 
   /**
+   * Find the unfilled amount for a given deposit. This is the full deposit amount minus the total filled amount.
+   * @param deposit The deposit to find the unfilled amount for.
+   * @param fillCount The number of fills that have been applied to this deposit.
+   * @param invalidFills The invalid fills that have been applied to this deposit.
+   * @returns The unfilled amount.
+   */
+  public getValidUnfilledAmountForDeposit(deposit: Deposit): {
+    unfilledAmount: BigNumber;
+    fillCount: number;
+    invalidFills: Fill[];
+  } {
+    const { outputAmount } = deposit;
+    const fillsForDeposit = this.depositHashesToFills[this.getDepositHash(deposit)];
+    // If no fills then the full amount is remaining.
+    if (fillsForDeposit === undefined || fillsForDeposit.length === 0) {
+      return { unfilledAmount: toBN(outputAmount), fillCount: 0, invalidFills: [] };
+    }
+
+    const { validFills, invalidFills } = fillsForDeposit.reduce(
+      (groupedFills: { validFills: Fill[]; invalidFills: Fill[] }, fill: Fill) => {
+        if (validateFillForDeposit(fill, deposit)) {
+          groupedFills.validFills.push(fill);
+        } else {
+          groupedFills.invalidFills.push(fill);
+        }
+        return groupedFills;
+      },
+      { validFills: [], invalidFills: [] }
+    );
+
+    // Log any invalid deposits with same deposit id but different params.
+    const invalidFillsForDeposit = invalidFills.filter((x) => x.depositId === deposit.depositId);
+    if (invalidFillsForDeposit.length > 0) {
+      this.logger.warn({
+        at: "SpokePoolClient",
+        chainId: this.chainId,
+        message: "Invalid fills found matching deposit ID",
+        deposit,
+        invalidFills: Object.fromEntries(invalidFillsForDeposit.map((x) => [x.relayer, x])),
+        notificationPath: "across-invalid-fills",
+      });
+    }
+
+    // If all fills are invalid we can consider this unfilled.
+    if (validFills.length === 0) {
+      return { unfilledAmount: toBN(outputAmount), fillCount: 0, invalidFills };
+    }
+
+    return {
+      unfilledAmount: bnZero,
+      fillCount: validFills.length,
+      invalidFills,
+    };
+  }
+
+  /**
    * Formulate a hash for a given deposit or fill
    * @param event The deposit or fill to formulate a hash for.
    * @returns The hash.
