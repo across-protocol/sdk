@@ -13,13 +13,7 @@ import {
   V3RelayData,
 } from "../src/interfaces";
 import { EMPTY_MESSAGE, ZERO_ADDRESS } from "../src/constants";
-import {
-  getCurrentTime,
-  getDepositInputToken,
-  isDefined,
-  isV3Deposit,
-  randomAddress,
-} from "../src/utils";
+import { getCurrentTime, getDepositInputToken, isDefined, isV3Deposit, randomAddress } from "../src/utils";
 import {
   createSpyLogger,
   fillFromDeposit,
