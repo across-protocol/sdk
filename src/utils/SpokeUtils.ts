@@ -3,6 +3,7 @@ import { BigNumber, BytesLike, Contract, PopulatedTransaction, providers, utils 
 import { CHAIN_IDs, ZERO_ADDRESS } from "../constants";
 import { FillStatus, RelayData, SlowFillRequest, V2RelayData, V3Deposit, V3Fill, V3RelayData } from "../interfaces";
 import { SpokePoolClient } from "../clients";
+import { chunk } from "./ArrayUtils";
 import { toBN } from "./BigNumberUtils";
 import { isDefined } from "./TypeGuards";
 import { isV2RelayData } from "./V3Utils";
@@ -323,14 +324,24 @@ export async function fillStatusArray(
 ): Promise<(FillStatus | undefined)[]> {
   const fillStatuses = "fillStatuses";
   const destinationChainId = await spokePool.chainId();
+
   const queries = relayData.map((relayData) => {
     const hash = getV3RelayHash(relayData, destinationChainId);
     return spokePool.interface.encodeFunctionData(fillStatuses, [hash]);
   });
-  const multicall = await spokePool.callStatic.multicall(queries, { blockTag });
-  const status = multicall.map(
-    (result: BytesLike) => spokePool.interface.decodeFunctionResult(fillStatuses, result)[0]
+
+  // Chunk the hashes into appropriate sizes to avoid death by rpc.
+  const chunkSize = 250;
+  const chunkedQueries = chunk(queries, chunkSize);
+
+  const multicalls = await Promise.all(
+    chunkedQueries.map((queries) => spokePool.callStatic.multicall(queries, { blockTag }))
   );
+  const status = multicalls
+    .map((multicall: BytesLike[]) =>
+      multicall.map((result) => spokePool.interface.decodeFunctionResult(fillStatuses, result)[0])
+    )
+    .flat();
 
   const bnUnfilled = toBN(FillStatus.Unfilled);
   const bnFilled = toBN(FillStatus.Filled);

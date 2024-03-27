@@ -900,7 +900,10 @@ export class HubPoolClient extends BaseAbstractClient {
       }
 
       uniqueL1Tokens.forEach((token: string, i) => {
-        this.lpTokens[token] = { lastLpFeeUpdate: lpTokenInfo[i].lastLpFeeUpdate };
+        this.lpTokens[token] = {
+          lastLpFeeUpdate: lpTokenInfo[i].lastLpFeeUpdate,
+          liquidReserves: lpTokenInfo[i].liquidReserves,
+        };
       });
     }
 
