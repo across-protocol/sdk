@@ -5,7 +5,6 @@ import { composeRevivers, objectWithBigNumberReviver } from "./ReviverUtils";
 import { getV3RelayHashFromEvent } from "./SpokeUtils";
 import { getCurrentTime } from "./TimeUtils";
 import { isDefined } from "./TypeGuards";
-import { isV2Deposit, isV2Fill } from "./V3Utils";
 
 export function shouldCache(eventTimestamp: number, latestTime: number, cachingMaxAge: number): boolean {
   assert(eventTimestamp.toString().length === 10, "eventTimestamp must be in seconds");
@@ -52,10 +51,6 @@ export async function setDepositInCache(
  * @returns The key for caching the event.
  */
 export function getDepositKey(bridgeEvent: Deposit | Fill | SlowFillRequest): string {
-  if (isV2Deposit(bridgeEvent as Deposit) || isV2Fill(bridgeEvent)) {
-    return `deposit_${bridgeEvent.originChainId}_${bridgeEvent.depositId}`;
-  } else {
-    const relayHash = getV3RelayHashFromEvent(bridgeEvent);
-    return `deposit_${bridgeEvent.originChainId}_${bridgeEvent.depositId}_${relayHash}`;
-  }
+  const relayHash = getV3RelayHashFromEvent(bridgeEvent);
+  return `deposit_${bridgeEvent.originChainId}_${bridgeEvent.depositId}_${relayHash}`;
 }

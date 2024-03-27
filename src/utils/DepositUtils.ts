@@ -8,7 +8,6 @@ import { validateFillForDeposit } from "./FlowUtils";
 import { getCurrentTime } from "./TimeUtils";
 import { isDefined } from "./TypeGuards";
 import { isDepositFormedCorrectly } from "./ValidatorUtils";
-import { isV2Deposit, isV3Deposit } from "./V3Utils";
 
 // Load a deposit for a fill if the fill's deposit ID is outside this client's search range.
 // This can be used by the Dataworker to determine whether to give a relayer a refund for a fill
@@ -98,7 +97,7 @@ export async function queryHistoricalDepositForFill(
   if (isDefined(cachedDeposit)) {
     deposit = cachedDeposit as DepositWithBlock;
   } else {
-    deposit = await spokePoolClient.findDepositV3(fill.depositId, fill.destinationChainId, fill.depositor);
+    deposit = await spokePoolClient.findDeposit(fill.depositId, fill.destinationChainId, fill.depositor);
     if (cache) {
       await setDepositInCache(deposit, getCurrentTime(), cache, DEFAULT_CACHING_TTL);
     }
@@ -130,14 +129,7 @@ export function isMessageEmpty(message = EMPTY_MESSAGE): boolean {
  * @returns True if the deposit was updated, otherwise false.
  */
 export function isDepositSpedUp(deposit: Deposit): boolean {
-  // prettier-ignore
-  return (
-    isDefined(deposit.speedUpSignature) &&
-    (
-      (isV2Deposit(deposit) && isDefined(deposit.newRelayerFeePct)) ||
-      (isV3Deposit(deposit) && isDefined(deposit.updatedOutputAmount))
-    )
-  );
+  return isDefined(deposit.speedUpSignature) && isDefined(deposit.updatedOutputAmount);
 }
 
 /**
