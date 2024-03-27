@@ -18,6 +18,7 @@ import { EMPTY_MESSAGE, ZERO_ADDRESS } from "../src/constants";
 import {
   getCurrentTime,
   getDepositInputToken,
+  getFillOutputToken,
   isDefined,
   isV2Deposit,
   isV2Fill,
@@ -249,7 +250,7 @@ describe("SpokePoolClient: Event Filtering", function () {
     await destinationSpokePoolClient.update(filledRelayEvents);
 
     // Should receive _all_ fills submitted on the destination chain.
-    const fills = destinationSpokePoolClient.getFills().filter(isV3Fill<V3FillWithBlock, V2FillWithBlock>);
+    const fills = destinationSpokePoolClient.getFills();
     expect(fills.length).to.equal(fillEvents.length);
     expect(fills.filter(isV2Fill).length).to.equal(fillEvents.length / 2);
     expect(fills.filter(isV3Fill).length).to.equal(fillEvents.length / 2);
@@ -262,8 +263,11 @@ describe("SpokePoolClient: Event Filtering", function () {
       // destinationChainId is appended by the SpokePoolClient for V3FundsDeposited events, so verify its correctness.
       expect(fillEvent.destinationChainId).to.equal(destinationChainId);
 
-      const expectedOutputToken = expectedFill.args.outputToken;
-      expect(fillEvent.outputToken).to.equal(expectedOutputToken);
+      const expectedOutputToken = isV2Fill(fillEvent)
+        ? expectedFill.args!.destinationToken
+        : expectedFill.args!.inputToken;
+      const outputToken = getFillOutputToken(fillEvent);
+      expect(outputToken).to.equal(expectedOutputToken);
     });
   });
 });
