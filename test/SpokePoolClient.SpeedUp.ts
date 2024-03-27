@@ -173,9 +173,7 @@ describe("SpokePoolClient: SpeedUp", function () {
         : outputAmount;
 
       await spokePoolClient.update();
-      let updatedDeposit = spokePoolClient
-        .getDepositsForDestinationChain(deposit.destinationChainId)
-        .at(-1);
+      let updatedDeposit = spokePoolClient.getDepositsForDestinationChain(deposit.destinationChainId).at(-1);
 
       // Convoluted checks to help tsc narrow types.
       assert.exists(updatedDeposit);

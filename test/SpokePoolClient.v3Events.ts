@@ -7,7 +7,6 @@ import { MockHubPoolClient, MockSpokePoolClient, MockConfigStoreClient } from ".
 import {
   DepositWithBlock,
   FillWithBlock,
-  RelayData,
   SlowFillRequest,
   SlowFillRequestWithBlock,
 } from "../src/interfaces";
