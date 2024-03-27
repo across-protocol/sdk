@@ -20,7 +20,6 @@ import {
   fillV3Relay,
   requestV3SlowFill,
   setupTokensForWallet,
-  buildFill,
   deploySpokePoolWithToken,
   Contract,
   createSpyLogger,
@@ -28,7 +27,6 @@ import {
   enableRoutesOnHubPool,
   deployConfigStore,
   getLastBlockTime,
-  buildDeposit,
   assertPromiseError,
   getDepositParams,
   mineRandomBlocks,
@@ -220,43 +218,6 @@ describe("SpokePoolClient: Fill Validation", function () {
     expect(spokePoolClient1.getDepositForFill(fill))
       .excludingEvery(["realizedLpFeePct", "quoteBlockNumber"])
       .to.deep.equal(deposit);
-  });
-
-  it("Returns all fills that match deposit and fill", async function () {
-    const deposit = await buildDeposit(hubPoolClient, spokePool_1, erc20_1, depositor, destinationChainId);
-    const fill1 = await buildFill(spokePool_2, erc20_2, depositor, relayer, deposit, 0.5);
-    let matchingFills = await spokePoolClient2.queryHistoricalMatchingFills(
-      fill1,
-      deposit,
-      await spokePool_2.provider.getBlockNumber()
-    );
-    expect(matchingFills.length).to.equal(1);
-
-    // Doesn't return any if fill isn't valid for deposit:
-    matchingFills = await spokePoolClient2.queryHistoricalMatchingFills(
-      fill1,
-      { ...deposit, depositId: deposit.depositId + 1 },
-      await spokePool_2.provider.getBlockNumber()
-    );
-    expect(matchingFills.length).to.equal(0);
-
-    // Ignores fills for same depositor in block range that aren't valid for deposit:
-    await buildFill(spokePool_2, erc20_2, depositor, relayer, { ...deposit, depositId: deposit.depositId + 1 }, 0.5);
-    matchingFills = await spokePoolClient2.queryHistoricalMatchingFills(
-      fill1,
-      deposit,
-      await spokePool_2.provider.getBlockNumber()
-    );
-    expect(matchingFills.length).to.equal(1);
-
-    // Matches with second valid fill
-    await buildFill(spokePool_2, erc20_2, depositor, relayer, deposit, 0.5);
-    matchingFills = await spokePoolClient2.queryHistoricalMatchingFills(
-      fill1,
-      deposit,
-      await spokePool_2.provider.getBlockNumber()
-    );
-    expect(matchingFills.length).to.equal(2);
   });
 
   it("Get search bounds for deposit ID", async function () {
@@ -453,8 +414,16 @@ describe("SpokePoolClient: Fill Validation", function () {
   });
 
   it("Can fetch older deposit matching fill", async function () {
-    const deposit = await buildDeposit(hubPoolClient, spokePool_1, erc20_1, depositor, destinationChainId);
-    await buildFill(spokePool_2, erc20_2, depositor, relayer, deposit, 1);
+    const deposit = await depositV3(
+      spokePool_1,
+      destinationChainId,
+      depositor,
+      inputToken,
+      inputAmount,
+      outputToken,
+      outputAmount
+    );
+    await fillV3Relay(spokePool_2, deposit, relayer);
     await spokePoolClient2.update();
     const [fill] = spokePoolClient2.getFills();
 
