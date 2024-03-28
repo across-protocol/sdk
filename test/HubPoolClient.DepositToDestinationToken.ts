@@ -127,7 +127,7 @@ describe("HubPoolClient: Deposit to Destination Token", function () {
     expect(() =>
       hubPoolClient.getL1TokenForDeposit({
         ...depositData,
-        originToken: randomL1Token,
+        inputToken: randomL1Token,
         quoteBlockNumber: e0.blockNumber,
       })
     ).to.throw(/Could not find HubPool mapping/);

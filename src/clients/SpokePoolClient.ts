@@ -1,4 +1,3 @@
-import assert from "assert";
 import { BigNumber, Contract, Event, EventFilter, ethers } from "ethers";
 import winston from "winston";
 import {
@@ -9,23 +8,17 @@ import {
   MAX_BIG_INT,
   MakeOptional,
   assign,
-  getDepositOutputAmount,
-  getFillOutputAmount,
   getRelayDataHash,
-  getTotalFilledAmount,
   isDefined,
-  isV3Deposit,
-  isV3SpeedUp,
   toBN,
 } from "../utils";
 import {
   paginatedEventQuery,
-  sortEventsAscending,
   sortEventsAscendingInPlace,
   spreadEvent,
   spreadEventWithBlockNumber,
 } from "../utils/EventUtils";
-import { filledSameDeposit, validateFillForDeposit } from "../utils/FlowUtils";
+import { validateFillForDeposit } from "../utils/FlowUtils";
 
 import { ZERO_ADDRESS } from "../constants";
 import {
@@ -33,24 +26,15 @@ import {
   DepositWithBlock,
   Fill,
   FillWithBlock,
-  FilledRelayEvent,
   FilledV3RelayEvent,
-  FundsDepositedEvent,
   RealizedLpFee,
+  RelayData,
   RelayerRefundExecutionWithBlock,
   RootBundleRelayWithBlock,
   SlowFillRequestWithBlock,
   SpeedUp,
   TokensBridged,
-  V2Deposit,
-  V2Fill,
-  V2FillWithBlock,
-  V2SpeedUp,
-  V3DepositWithBlock,
-  V3FillWithBlock,
   V3FundsDepositedEvent,
-  V3RelayData,
-  V3SpeedUp,
 } from "../interfaces";
 import { SpokePool } from "../typechain";
 import { getNetworkName } from "../utils/NetworkUtils";
@@ -117,8 +101,6 @@ export class SpokePoolClient extends BaseAbstractClient {
 
   public _queryableEventNames(): { [eventName: string]: EventFilter } {
     const knownEventNames = [
-      "RequestedSpeedUpDeposit",
-      "FilledRelay",
       "EnabledDepositRoute",
       "TokensBridged",
       "RelayedRootBundle",
@@ -298,16 +280,15 @@ export class SpokePoolClient extends BaseAbstractClient {
    * @returns A new deposit instance with the speed up signature appended to the deposit.
    */
   public appendMaxSpeedUpSignatureToDeposit(deposit: DepositWithBlock): DepositWithBlock {
-    assert(isV3Deposit(deposit));
     const { depositId, depositor } = deposit;
     const speedups = this.speedUps[depositor]?.[depositId];
     if (!isDefined(speedups) || speedups.length === 0) {
       return deposit;
     }
 
-    const maxSpeedUp = speedups
-      .filter(isV3SpeedUp<V3SpeedUp, V2SpeedUp>)
-      .reduce((prev, current) => (prev.updatedOutputAmount.lt(current.updatedOutputAmount) ? prev : current));
+    const maxSpeedUp = speedups.reduce((prev, current) =>
+      prev.updatedOutputAmount.lt(current.updatedOutputAmount) ? prev : current
+    );
 
     // We assume that the depositor authorises SpeedUps in isolation of each other, which keeps the relayer
     // logic simple: find the SpeedUp with the lowest updatedOutputAmount, and use all of its fields.
@@ -316,7 +297,7 @@ export class SpokePoolClient extends BaseAbstractClient {
     }
 
     // Return deposit with updated params from the speedup with the lowest updated output amount.
-    const updatedDeposit: V3DepositWithBlock = {
+    const updatedDeposit = {
       ...deposit,
       speedUpSignature: maxSpeedUp.depositorSignature,
       updatedOutputAmount: maxSpeedUp.updatedOutputAmount,
@@ -343,7 +324,7 @@ export class SpokePoolClient extends BaseAbstractClient {
    * @param relayData RelayData field for the SlowFill request.
    * @returns The corresponding SlowFIllRequest event if found, otherwise undefined.
    */
-  public getSlowFillRequest(relayData: V3RelayData): SlowFillRequestWithBlock | undefined {
+  public getSlowFillRequest(relayData: RelayData): SlowFillRequestWithBlock | undefined {
     const hash = getRelayDataHash(relayData, this.chainId);
     return this.slowFillRequests[hash];
   }
@@ -364,11 +345,9 @@ export class SpokePoolClient extends BaseAbstractClient {
    * @param fill The fill to find a corresponding deposit for.
    * @returns The corresponding deposit if found, undefined otherwise.
    */
-  public getDepositForFill(fill: Fill, fillFieldsToIgnore: string[] = []): DepositWithBlock | undefined {
+  public getDepositForFill(fill: Fill): DepositWithBlock | undefined {
     const depositWithMatchingDepositId = this.depositHashes[this.getDepositHash(fill)];
-    return validateFillForDeposit(fill, depositWithMatchingDepositId, fillFieldsToIgnore)
-      ? depositWithMatchingDepositId
-      : undefined;
+    return validateFillForDeposit(fill, depositWithMatchingDepositId) ? depositWithMatchingDepositId : undefined;
   }
 
   /**
@@ -398,7 +377,7 @@ export class SpokePoolClient extends BaseAbstractClient {
     fillCount: number;
     invalidFills: Fill[];
   } {
-    const outputAmount = getDepositOutputAmount(deposit);
+    const { outputAmount } = deposit;
     const fillsForDeposit = this.depositHashesToFills[this.getDepositHash(deposit)];
     // If no fills then the full amount is remaining.
     if (fillsForDeposit === undefined || fillsForDeposit.length === 0) {
@@ -435,17 +414,8 @@ export class SpokePoolClient extends BaseAbstractClient {
       return { unfilledAmount: toBN(outputAmount), fillCount: 0, invalidFills };
     }
 
-    // Order fills by totalFilledAmount and then return the first fill's full deposit amount minus total filled amount.
-    const fillsOrderedByTotalFilledAmount = validFills.sort((fillA, fillB) => {
-      const totalFilledA = getTotalFilledAmount(fillA);
-      const totalFilledB = getTotalFilledAmount(fillB);
-
-      return totalFilledB.gt(totalFilledA) ? 1 : totalFilledB.lt(totalFilledA) ? -1 : 0;
-    });
-
-    const lastFill = fillsOrderedByTotalFilledAmount[0];
     return {
-      unfilledAmount: getFillOutputAmount(lastFill).sub(getTotalFilledAmount(lastFill)),
+      unfilledAmount: bnZero,
       fillCount: validFills.length,
       invalidFills,
     };
@@ -496,66 +466,6 @@ export class SpokePoolClient extends BaseAbstractClient {
    */
   public _getDepositIdAtBlock(blockTag: number): Promise<number> {
     return getDepositIdAtBlock(this.spokePool as SpokePool, blockTag);
-  }
-
-  /**
-   * Queries the SpokePool contract for a list of historical fills that match the given fill and deposit.
-   * @param fill The fill to match.
-   * @param deposit The deposit to match.
-   * @param toBlock The block number to search up to.
-   * @returns A list of fills that match the given fill and deposit.
-   */
-  public async queryHistoricalMatchingFills(
-    fill: V2Fill,
-    deposit: V2Deposit,
-    toBlock: number
-  ): Promise<V2FillWithBlock[]> {
-    const searchConfig = {
-      fromBlock: this.deploymentBlock,
-      toBlock,
-      maxBlockLookBack: this.eventSearchConfig.maxBlockLookBack,
-    };
-    return (await this.queryFillsInBlockRange(fill, searchConfig)).filter((_fill) =>
-      validateFillForDeposit(_fill, deposit)
-    );
-  }
-
-  /**
-   * Queries the SpokePool contract for a list of fills that match the given fill.
-   * @param fill The fill to match.
-   * @param searchConfig The search configuration.
-   * @returns A Promise that resolves to a list of fills that match the given fill.
-   */
-  public async queryFillsInBlockRange(
-    matchingFill: V2Fill,
-    searchConfig: EventSearchConfig
-  ): Promise<V2FillWithBlock[]> {
-    // Filtering on the fill's depositor address, the only indexed deposit field in the FilledRelay event,
-    // should speed up this search a bit.
-    // TODO: Once depositId is indexed in FilledRelay event, filter on that as well.
-    const query = await paginatedEventQuery(
-      this.spokePool,
-      this.spokePool.filters.FilledRelay(
-        undefined, // amount
-        undefined, // totalFilledAmount
-        undefined, // fillAmount
-        undefined, // repaymentChainId
-        matchingFill.originChainId, // originChainId
-        undefined, // destinationChainId
-        undefined, // relayerFeePct
-        undefined, // realizedLpFeePct
-        matchingFill.depositId, // depositId
-        undefined, // destinationToken
-        undefined, // relayer
-        matchingFill.depositor, // depositor
-        undefined, // recipient
-        undefined, // message
-        undefined // updatableRelayData
-      ),
-      searchConfig
-    );
-    const fills = query.map((event) => spreadEventWithBlockNumber(event) as V2FillWithBlock);
-    return sortEventsAscending(fills.filter((_fill) => filledSameDeposit(_fill, matchingFill)));
   }
 
   /**
@@ -661,14 +571,6 @@ export class SpokePoolClient extends BaseAbstractClient {
     };
   }
 
-  protected isV3DepositEvent(event: FundsDepositedEvent | V3FundsDepositedEvent): event is V3FundsDepositedEvent {
-    return isDefined((event as V3FundsDepositedEvent).args.inputToken);
-  }
-
-  protected isV3FillEvent(event: FilledRelayEvent | FilledV3RelayEvent): event is FilledV3RelayEvent {
-    return isDefined((event as FilledV3RelayEvent).args.inputToken);
-  }
-
   /**
    * A wrapper over the `_update` method that handles errors and logs. This method additionally calls into the
    * HubPoolClient to update the state of this client with data from the HubPool contract.
@@ -717,7 +619,7 @@ export class SpokePoolClient extends BaseAbstractClient {
 
         // Derive and append the common properties that are not part of the onchain event.
         const { quoteBlock: quoteBlockNumber } = dataForQuoteTime[index];
-        const deposit = { ...(rawDeposit as V3DepositWithBlock), originChainId: this.chainId };
+        const deposit = { ...(rawDeposit as DepositWithBlock), originChainId: this.chainId };
         deposit.realizedLpFeePct = undefined;
         deposit.quoteBlockNumber = quoteBlockNumber;
         if (deposit.outputToken === ZERO_ADDRESS) {
@@ -742,11 +644,8 @@ export class SpokePoolClient extends BaseAbstractClient {
     // speed ups as well? For example, do we need to also consider that the speed up is before the fill
     // timestamp to be applied for the fill? My brain hurts.
     // Update deposits with speed up requests from depositor.
-    if (eventsToQuery.includes("RequestedSpeedUpDeposit") || eventsToQuery.includes("RequestedSpeedUpV3Deposit")) {
-      const speedUpEvents = [
-        ...(queryResults[eventsToQuery.indexOf("RequestedSpeedUpDeposit")] ?? []),
-        ...(queryResults[eventsToQuery.indexOf("RequestedSpeedUpV3Deposit")] ?? []),
-      ];
+    if (eventsToQuery.includes("RequestedSpeedUpV3Deposit")) {
+      const speedUpEvents = [...(queryResults[eventsToQuery.indexOf("RequestedSpeedUpV3Deposit")] ?? [])];
 
       for (const event of speedUpEvents) {
         const speedUp: SpeedUp = { ...spreadEvent(event.args), originChainId: this.chainId };
@@ -793,7 +692,7 @@ export class SpokePoolClient extends BaseAbstractClient {
       // test that the types are complete. A broader change in strategy for safely unpacking events will be introduced.
       for (const event of fillEvents) {
         const fill = {
-          ...(spreadEventWithBlockNumber(event) as V3FillWithBlock),
+          ...(spreadEventWithBlockNumber(event) as FillWithBlock),
           destinationChainId: this.chainId,
         };
         assign(this.fills, [fill.originChainId], [fill]);
@@ -954,7 +853,7 @@ export class SpokePoolClient extends BaseAbstractClient {
     return this.oldestTime;
   }
 
-  async findDepositV3(depositId: number, destinationChainId: number, depositor: string): Promise<V3DepositWithBlock> {
+  async findDeposit(depositId: number, destinationChainId: number, depositor: string): Promise<DepositWithBlock> {
     // Binary search for event search bounds. This way we can get the blocks before and after the deposit with
     // deposit ID = fill.depositId and use those blocks to optimize the search for that deposit.
     // Stop searches after a maximum # of searches to limit number of eth_call requests. Make an
@@ -1005,11 +904,11 @@ export class SpokePoolClient extends BaseAbstractClient {
           ` between ${srcChain} blocks [${searchBounds.low}, ${searchBounds.high}]`
       );
     }
-    const partialDeposit = spreadEventWithBlockNumber(event) as V3DepositWithBlock;
+    const partialDeposit = spreadEventWithBlockNumber(event) as DepositWithBlock;
     const { quoteBlock: quoteBlockNumber } = await this.computeRealizedLpFeePct(event);
 
     // Append destination token and realized lp fee to deposit.
-    const deposit: V3DepositWithBlock = {
+    const deposit: DepositWithBlock = {
       ...partialDeposit,
       originChainId: this.chainId,
       quoteBlockNumber,
@@ -1020,7 +919,7 @@ export class SpokePoolClient extends BaseAbstractClient {
     };
 
     this.logger.debug({
-      at: "SpokePoolClient#findDepositV3",
+      at: "SpokePoolClient#findDeposit",
       message: "Located V3 deposit outside of SpokePoolClient's search range",
       deposit,
       elapsedMs: tStop - tStart,
