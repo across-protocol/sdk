@@ -4,6 +4,7 @@ import winston from "winston";
 import {
   AnyObject,
   bnZero,
+  delay,
   DefaultLogLevels,
   EventSearchConfig,
   MAX_BIG_INT,
@@ -58,8 +59,13 @@ import { getBlockRangeForDepositId, getDepositIdAtBlock } from "../utils/SpokeUt
 import { BaseAbstractClient } from "./BaseAbstractClient";
 import { HubPoolClient } from "./HubPoolClient";
 
-type _SpokePoolUpdate = {
-  success: boolean;
+type UpdateFailed = {
+  success: false;
+  reason: string;
+};
+
+type UpdateSucceeded = {
+  success: true;
   currentTime: number;
   oldestTime: number;
   firstDepositId: number;
@@ -67,7 +73,7 @@ type _SpokePoolUpdate = {
   events: Event[][];
   searchEndBlock: number;
 };
-export type SpokePoolUpdate = { success: false } | _SpokePoolUpdate;
+export type SpokePoolUpdate = UpdateSucceeded | UpdateFailed;
 
 /**
  * SpokePoolClient is a client for the SpokePool contract. It is responsible for querying the SpokePool contract
@@ -582,6 +588,9 @@ export class SpokePoolClient extends BaseAbstractClient {
   /**
    * Performs an update to refresh the state of this client. This will query the SpokePool contract for new events
    * and store them in memory. This method is the primary method for updating the state of this client.
+   *
+   * Invariant: This method must never change SpokePoolClient state and must return all updates via the return type.
+   *
    * @param eventsToQuery An optional list of events to query. If not provided, all events will be queried.
    * @returns A Promise that resolves to a SpokePoolUpdate object.
    */
@@ -602,7 +611,7 @@ export class SpokePoolClient extends BaseAbstractClient {
     };
     if (searchConfig.fromBlock > searchConfig.toBlock) {
       this.log("warn", "Invalid update() searchConfig.", { searchConfig });
-      return { success: false };
+      return { success: false, reason: "Invalid update search config" };
     }
 
     const eventSearchConfigs = eventsToQuery.map((eventName) => {
@@ -677,16 +686,30 @@ export class SpokePoolClient extends BaseAbstractClient {
    * @note This method is the primary method for updating the state of this client externally.
    * @see _update
    */
-  public async update(eventsToQuery = this.queryableEventNames): Promise<void> {
+  public async update(eventsToQuery = this.queryableEventNames, timeout = Number.POSITIVE_INFINITY): Promise<void> {
     if (this.hubPoolClient !== null && !this.hubPoolClient.isUpdated) {
       throw new Error("HubPoolClient not updated");
     }
 
-    const update = await this._update(eventsToQuery);
+    const updates = [this._update(eventsToQuery)];
+
+    // If a timeout has been specified and it occurs first, _update() will continue in the background. It
+    // will ultimately resolve but it does not touch SpokePoolClient state so its result will never be used.
+    if (timeout !== Number.POSITIVE_INFINITY) {
+      assert(timeout > 0);
+      const updateTimeout = async (timeout: number): Promise<SpokePoolUpdate> => {
+        await delay(timeout);
+        return { success: false, reason: `Timed out after ${timeout} seconds` };
+      };
+      updates.push(updateTimeout(timeout));
+    }
+
+    const update: SpokePoolUpdate = await Promise.race(updates);
     if (!update.success) {
-      // This failure only occurs if the RPC searchConfig is miscomputed, and has only been seen in the hardhat test
-      // environment. Normal failures will throw instead. This is therefore an unfortunate workaround until we can
-      // understand why we see this in test. @todo: Resolve.
+      const { reason } = update;
+      const chain = getNetworkName(this.chainId);
+      this.logger.warn({ at: "SpokePoolClient#update", message: `Failed to update ${chain} SpokePoolClient.`, reason });
+      this.isUpdated = false;
       return;
     }
     const { events: queryResults, currentTime, oldestTime, searchEndBlock } = update;
