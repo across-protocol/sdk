@@ -1,7 +1,17 @@
 import dotenv from "dotenv";
 import hre from "hardhat";
 import { RelayFeeCalculator, QueryInterface } from "../src/relayFeeCalculator/relayFeeCalculator";
-import { toBNWei, toBN, toGWei, TransactionCostEstimate, bnOne, bnZero, getCurrentTime } from "../src/utils";
+import {
+  toBNWei,
+  toBN,
+  toGWei,
+  TransactionCostEstimate,
+  bnOne,
+  bnZero,
+  getCurrentTime,
+  spreadEvent,
+  isMessageEmpty,
+} from "../src/utils";
 import {
   BigNumber,
   Contract,
@@ -422,5 +432,42 @@ describe("RelayFeeCalculator: Composable Bridging", function () {
       .sub(intrinsicGasCost);
 
     expect(gasFeeFromFillRelayWithMessage.gt(gasFeeEstimatedByCallingContract)).to.be.true;
+  });
+
+  it("should pull all relayExecutionInfo when a message exists", async () => {
+    // Fill a relay with a message
+    await spokePool.fillV3Relay(
+      {
+        depositor: depositor.address,
+        inputToken: erc20.address,
+        outputToken: erc20.address,
+        inputAmount: 1,
+        outputAmount: 1,
+        recipient: testContract.address,
+        depositId: 3_000_000,
+        originChainId: 1,
+        message: "0xabcdef",
+        exclusiveRelayer: ZERO_ADDRESS,
+        fillDeadline: getCurrentTime() + 60,
+        exclusivityDeadline: 0,
+      },
+      10
+    );
+    const fillData = await spokePool.queryFilter(spokePool.filters.FilledV3Relay());
+    expect(fillData.length).to.eq(1);
+    const onlyMessages = fillData.filter((fill) => !isMessageEmpty(fill.args.message));
+    expect(onlyMessages.length).to.eq(1);
+    const relevantFill = onlyMessages[0];
+    const spreadFill = spreadEvent(relevantFill.args);
+
+    expect({
+      ...spreadFill.relayExecutionInfo,
+      updatedOutputAmount: spreadFill.relayExecutionInfo.updatedOutputAmount.toString(),
+    }).to.deep.eq({
+      updatedRecipient: "0x3Aa5ebB10DC797CAC828524e59A333d0A371443c",
+      updatedMessage: "0xabcdef",
+      updatedOutputAmount: "1",
+      fillType: 0,
+    });
   });
 });
