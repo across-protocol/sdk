@@ -90,18 +90,19 @@ export class ArweaveClient {
    * @returns The record if it exists, otherwise null
    */
   async get<T>(transactionID: string, validator: Struct<T>): Promise<T | null> {
+    // Resolve the URL of the transaction
+    const transactionUrl = `${this.gatewayUrl}/${transactionID}`;
     // We should query in via Axios directly to the gateway URL. The reasoning behind this is
     // that the Arweave SDK's `getData` method is too slow and does not provide a way to set a timeout.
     // Therefore, something that could take milliesconds to complete could take tens of minutes.
-    const { data, status: responseStatus } = await axios.get<string>(`${this.gatewayUrl}/${transactionID}`);
+    const { data, status: responseStatus } = await axios.get<Record<string, unknown>>(transactionUrl);
     // Ensure that the result is successful. If it is not, the retrieved value is not our expected type
     // but rather a {status: string, statusText: string} object. We can detect that and return null.
-    if (responseStatus !== 200) {
+    if (responseStatus !== 200 || ("status" in data && data["status"] !== 200)) {
       return null;
     }
-
-    // We should validate the data and perform any logical coercion here.
     try {
+      // We should validate the data and perform any logical coercion here.
       return create(data, validator);
     } catch (e) {
       // If the data does not match the validator, log a warning and return null.
@@ -121,9 +122,17 @@ export class ArweaveClient {
    * they do not match the given validator.
    * @param tag The tag to filter all the transactions by
    * @param validator The validator to validate the retrieved values
+   * @param useProvidedJWTAddressForQueries If true, the client's address will be used for queries. Otherwise, the default address is used.
    * @returns The records if they exist, otherwise an empty array
    */
-  async getByTopic<T>(tag: string, validator: Struct<T>): Promise<{ data: T; hash: string }[]> {
+  async getByTopic<T>(
+    tag: string,
+    validator: Struct<T>,
+    useProvidedJWTAddressForQueries = false
+  ): Promise<{ data: T; hash: string }[]> {
+    const originatingAddressForQuery = useProvidedJWTAddressForQueries
+      ? await this.getAddress()
+      : DEFAULT_ARWEAVE_STORAGE_ADDRESS;
     const transactions = await this.client.api.post<{
       data: {
         transactions: {
@@ -138,7 +147,7 @@ export class ArweaveClient {
       query: `
         { 
           transactions (
-            owners: ["${DEFAULT_ARWEAVE_STORAGE_ADDRESS}"]
+            owners: ["${originatingAddressForQuery}"]
             tags: [
               { name: "App-Name", values: ["${ARWEAVE_TAG_APP_NAME}"] },
               { name: "Content-Type", values: ["application/json"] },

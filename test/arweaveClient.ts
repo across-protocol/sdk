@@ -174,7 +174,7 @@ describe("ArweaveClient", () => {
     await mineBlock();
     await mineBlock();
 
-    const data = await client.getByTopic(topicTag, object({ test: string() }));
+    const data = await client.getByTopic(topicTag, object({ test: string() }), true);
 
     expect(data).to.deep.equal([
       {
