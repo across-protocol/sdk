@@ -146,14 +146,13 @@ describe("SpokePoolClient: Event Filtering", function () {
       destinationChainId,
       inputToken,
       outputToken: ZERO_ADDRESS,
-    } as V3DepositWithBlock);
+    } as DepositWithBlock);
     expect(_deposit?.args?.outputToken).to.equal(ZERO_ADDRESS);
 
     await spokePoolClient.update(fundsDepositedEvents);
 
     const [deposit] = spokePoolClient.getDeposits();
     expect(deposit).to.exist;
-    assert(isV3Deposit(deposit));
 
     expect(deposit.inputToken).to.equal(inputToken);
     expect(deposit.outputToken).to.not.equal(ZERO_ADDRESS);
