@@ -1,7 +1,6 @@
-import { FillStatus, V3DepositWithBlock } from "../src/interfaces";
+import { DepositWithBlock, FillStatus, FillType } from "../src/interfaces";
 import { SpokePoolClient } from "../src/clients";
 import {
-  bnZero,
   bnOne,
   InvalidFill,
   fillStatusArray,
@@ -13,26 +12,21 @@ import { CHAIN_ID_TEST_LIST, originChainId, destinationChainId, repaymentChainId
 import {
   assert,
   expect,
+  BigNumber,
   toBNWei,
   ethers,
   SignerWithAddress,
-  depositV2,
   depositV3,
   fillV3Relay,
   requestV3SlowFill,
   setupTokensForWallet,
-  toBN,
-  buildFill,
-  buildModifiedFill,
   deploySpokePoolWithToken,
   Contract,
   createSpyLogger,
-  zeroAddress,
   deployAndConfigureHubPool,
   enableRoutesOnHubPool,
   deployConfigStore,
   getLastBlockTime,
-  buildDeposit,
   assertPromiseError,
   getDepositParams,
   mineRandomBlocks,
@@ -53,6 +47,9 @@ let spokePoolClient2: SpokePoolClient, hubPoolClient: MockHubPoolClient;
 let spokePoolClient1: SpokePoolClient, configStoreClient: MockConfigStoreClient;
 
 describe("SpokePoolClient: Fill Validation", function () {
+  let inputToken: string, outputToken: string;
+  let inputAmount: BigNumber, outputAmount: BigNumber;
+
   beforeEach(async function () {
     [owner, depositor, relayer] = await ethers.getSigners();
     // Creat two spoke pools: one to act as the source and the other to act as the destination.
@@ -111,13 +108,14 @@ describe("SpokePoolClient: Fill Validation", function () {
     // "reasonable" block number based off the block time when looking at quote timestamps. We only need to do
     // this on the deposit chain because that chain's spoke pool client will have to fill in its realized lp fee %.
     await spokePool_1.setCurrentTime(await getLastBlockTime(spokePool_1.provider));
+
+    inputToken = erc20_1.address;
+    inputAmount = toBNWei(1);
+    outputToken = erc20_2.address;
+    outputAmount = inputAmount.sub(bnOne);
   });
 
   it("Tracks v3 fill status", async function () {
-    const inputToken = erc20_1.address;
-    const inputAmount = toBNWei(1);
-    const outputToken = erc20_2.address;
-    const outputAmount = inputAmount.sub(bnOne);
     const deposit = await depositV3(
       spokePool_1,
       destinationChainId,
@@ -137,11 +135,7 @@ describe("SpokePoolClient: Fill Validation", function () {
   });
 
   it("Tracks bulk v3 fill status", async function () {
-    const deposits: V3DepositWithBlock[] = [];
-    const inputToken = erc20_1.address;
-    const inputAmount = toBNWei(1);
-    const outputToken = erc20_2.address;
-    const outputAmount = inputAmount.sub(bnOne);
+    const deposits: DepositWithBlock[] = [];
 
     for (let i = 0; i < 5; ++i) {
       const deposit = await depositV3(
@@ -184,8 +178,16 @@ describe("SpokePoolClient: Fill Validation", function () {
   });
 
   it("Accepts valid fills", async function () {
-    const deposit = await buildDeposit(hubPoolClient, spokePool_1, erc20_1, depositor, destinationChainId);
-    await buildFill(spokePool_2, erc20_2, depositor, relayer, deposit, 1);
+    const deposit = await depositV3(
+      spokePool_1,
+      destinationChainId,
+      depositor,
+      inputToken,
+      inputAmount,
+      outputToken,
+      outputAmount
+    );
+    await fillV3Relay(spokePool_2, deposit, relayer);
 
     await spokePoolClient2.update();
     await spokePoolClient1.update();
@@ -195,83 +197,27 @@ describe("SpokePoolClient: Fill Validation", function () {
 
     // Some fields are expected to be dynamically populated by the client, but aren't in this environment.
     // Fill them in manually from the fill struct to get a valid comparison.
-    expect(
-      validateFillForDeposit(fill_1, {
-        ...deposit_1,
-        realizedLpFeePct: fill_1.realizedLpFeePct,
-        destinationToken: fill_1.destinationToken,
-      })
-    ).to.equal(true);
+    expect(validateFillForDeposit(fill_1, { ...deposit_1 })).to.equal(true);
   });
 
   it("Returns deposit matched with fill", async function () {
-    const deposit_1 = await buildDeposit(hubPoolClient, spokePool_1, erc20_1, depositor, destinationChainId);
-    const fill_1 = await buildFill(spokePool_2, erc20_2, depositor, relayer, deposit_1, 0.5);
-    const spokePoolClientForDestinationChain = new SpokePoolClient(
-      createSpyLogger().spyLogger,
+    const deposit = await depositV3(
       spokePool_1,
-      null,
       destinationChainId,
-      spokePool1DeploymentBlock
-    ); // create spoke pool client on the "target" chain.
+      depositor,
+      inputToken,
+      inputAmount,
+      outputToken,
+      outputAmount
+    );
+
+    const fill = await fillV3Relay(spokePool_2, deposit, relayer);
     // expect(spokePoolClientForDestinationChain.getDepositForFill(fill_1)).to.equal(undefined);
-    await spokePoolClientForDestinationChain.update();
+    await spokePoolClient1.update();
 
-    // Override the fill's realized LP fee % and destination token so that it matches the deposit's default zero'd
-    // out values. The destination token and realized LP fee % are set by the spoke pool client by querying the hub pool
-    // contract state, however this test ignores the rate model contract and therefore there is no hub pool contract
-    // to query from, so they will be set to 0x0 and 0% respectively.
-    const expectedDeposit = {
-      ...deposit_1,
-      destinationToken: zeroAddress,
-      realizedLpFeePct: toBN(0),
-    };
-    expect(
-      spokePoolClientForDestinationChain.getDepositForFill({
-        ...fill_1,
-        destinationToken: zeroAddress,
-        realizedLpFeePct: toBN(0),
-      })
-    )
-      .excludingEvery(["blockTimestamp", "logIndex", "transactionIndex", "transactionHash", "quoteBlockNumber"])
-      .to.deep.equal(expectedDeposit);
-  });
-
-  it("Returns all fills that match deposit and fill", async function () {
-    const deposit = await buildDeposit(hubPoolClient, spokePool_1, erc20_1, depositor, destinationChainId);
-    const fill1 = await buildFill(spokePool_2, erc20_2, depositor, relayer, deposit, 0.5);
-    let matchingFills = await spokePoolClient2.queryHistoricalMatchingFills(
-      fill1,
-      deposit,
-      await spokePool_2.provider.getBlockNumber()
-    );
-    expect(matchingFills.length).to.equal(1);
-
-    // Doesn't return any if fill isn't valid for deposit:
-    matchingFills = await spokePoolClient2.queryHistoricalMatchingFills(
-      fill1,
-      { ...deposit, depositId: deposit.depositId + 1 },
-      await spokePool_2.provider.getBlockNumber()
-    );
-    expect(matchingFills.length).to.equal(0);
-
-    // Ignores fills for same depositor in block range that aren't valid for deposit:
-    await buildFill(spokePool_2, erc20_2, depositor, relayer, { ...deposit, depositId: deposit.depositId + 1 }, 0.5);
-    matchingFills = await spokePoolClient2.queryHistoricalMatchingFills(
-      fill1,
-      deposit,
-      await spokePool_2.provider.getBlockNumber()
-    );
-    expect(matchingFills.length).to.equal(1);
-
-    // Matches with second valid fill
-    await buildFill(spokePool_2, erc20_2, depositor, relayer, deposit, 0.5);
-    matchingFills = await spokePoolClient2.queryHistoricalMatchingFills(
-      fill1,
-      deposit,
-      await spokePool_2.provider.getBlockNumber()
-    );
-    expect(matchingFills.length).to.equal(2);
+    expect(spokePoolClient1.getDepositForFill(fill))
+      .excludingEvery(["realizedLpFeePct", "quoteBlockNumber"])
+      .to.deep.equal(deposit);
   });
 
   it("Get search bounds for deposit ID", async function () {
@@ -282,11 +228,13 @@ describe("SpokePoolClient: Fill Validation", function () {
     spokePoolClient1.isUpdated = true;
 
     // Send 2 deposits and mine blocks between them to ensure deposits are in different blocks.
-    await depositV2(spokePool_1, erc20_1, depositor, depositor, destinationChainId);
+    await depositV3(spokePool_1, destinationChainId, depositor, inputToken, inputAmount, outputToken, outputAmount);
     await mineRandomBlocks();
-    await depositV2(spokePool_1, erc20_1, depositor, depositor, destinationChainId);
+
+    await depositV3(spokePool_1, destinationChainId, depositor, inputToken, inputAmount, outputToken, outputAmount);
     await mineRandomBlocks();
-    const [, deposit1Event] = await spokePool_1.queryFilter("FundsDeposited");
+
+    const [, deposit1Event] = await spokePool_1.queryFilter("V3FundsDeposited");
     const deposit1Block = deposit1Event.blockNumber;
 
     // Throws when low < high
@@ -357,10 +305,10 @@ describe("SpokePoolClient: Fill Validation", function () {
       relayerFeePct: toBNWei("0.01"),
       quoteTimestamp: await spokePool_1.getCurrentTime(),
     });
-    const depositData = await spokePool_1.populateTransaction.depositV2(...depositParams);
+    const depositData = await spokePool_1.populateTransaction.deposit(...depositParams);
     await spokePool_1.connect(depositor).multicall(Array(3).fill(depositData.data));
     expect(await spokePool_1.numberOfDeposits()).to.equal(5);
-    const depositEvents = await spokePool_1.queryFilter("FundsDeposited");
+    const depositEvents = await spokePool_1.queryFilter("V3FundsDeposited");
 
     // Set fromBlock to block later than deposits.
     spokePoolClient1.latestBlockSearched = await spokePool_1.provider.getBlockNumber();
@@ -466,8 +414,16 @@ describe("SpokePoolClient: Fill Validation", function () {
   });
 
   it("Can fetch older deposit matching fill", async function () {
-    const deposit = await buildDeposit(hubPoolClient, spokePool_1, erc20_1, depositor, destinationChainId);
-    await buildFill(spokePool_2, erc20_2, depositor, relayer, deposit, 1);
+    const deposit = await depositV3(
+      spokePool_1,
+      destinationChainId,
+      depositor,
+      inputToken,
+      inputAmount,
+      outputToken,
+      outputAmount
+    );
+    await fillV3Relay(spokePool_2, deposit, relayer);
     await spokePoolClient2.update();
     const [fill] = spokePoolClient2.getFills();
 
@@ -487,9 +443,18 @@ describe("SpokePoolClient: Fill Validation", function () {
   });
 
   it("Can fetch younger deposit matching fill", async function () {
-    const deposit = await buildDeposit(hubPoolClient, spokePool_1, erc20_1, depositor, destinationChainId);
-    const depositBlock = await spokePool_1.provider.getBlockNumber();
-    await buildFill(spokePool_2, erc20_2, depositor, relayer, deposit, 1);
+    const deposit = await depositV3(
+      spokePool_1,
+      destinationChainId,
+      depositor,
+      inputToken,
+      inputAmount,
+      outputToken,
+      outputAmount
+    );
+    const { blockNumber: depositBlock } = deposit;
+
+    await fillV3Relay(spokePool_2, deposit, relayer);
     await spokePoolClient2.update();
     const [fill] = spokePoolClient2.getFills();
 
@@ -512,8 +477,16 @@ describe("SpokePoolClient: Fill Validation", function () {
   });
 
   it("Loads fills from memory with deposit ID > spoke pool client's earliest deposit ID queried", async function () {
-    const deposit = await buildDeposit(hubPoolClient, spokePool_1, erc20_1, depositor, destinationChainId);
-    const fill = await buildFill(spokePool_2, erc20_2, depositor, relayer, deposit, 1);
+    const deposit = await depositV3(
+      spokePool_1,
+      destinationChainId,
+      depositor,
+      inputToken,
+      inputAmount,
+      outputToken,
+      outputAmount
+    );
+    const fill = await fillV3Relay(spokePool_2, deposit, relayer);
     await spokePoolClient1.update();
     expect(spokePoolClient1.earliestDepositIdQueried == 0).is.true;
 
@@ -524,13 +497,21 @@ describe("SpokePoolClient: Fill Validation", function () {
     // Now override earliest deposit ID queried so that its > deposit ID and check that client sends RPC requests.
     spokePoolClient1.earliestDepositIdQueried = 1;
     expect((await queryHistoricalDepositForFill(spokePoolClient1, fill)).found).is.true;
-    expect(lastSpyLogIncludes(spy, "Located deposit outside of SpokePoolClient's search range")).is.true;
+    expect(lastSpyLogIncludes(spy, "Located V3 deposit outside of SpokePoolClient's search range")).is.true;
   });
 
   it("Loads fills from memory with deposit ID < spoke pool client's latest deposit ID queried", async function () {
     // Send fill for deposit ID 0.
-    const deposit = await buildDeposit(hubPoolClient, spokePool_1, erc20_1, depositor, destinationChainId);
-    const fill = await buildFill(spokePool_2, erc20_2, depositor, relayer, deposit, 1);
+    const deposit = await depositV3(
+      spokePool_1,
+      destinationChainId,
+      depositor,
+      inputToken,
+      inputAmount,
+      outputToken,
+      outputAmount
+    );
+    const fill = await fillV3Relay(spokePool_2, deposit, relayer);
     await spokePoolClient1.update();
     // Manually override latest deposit ID queried so that its > deposit ID.
     spokePoolClient1.latestDepositIdQueried = 1;
@@ -542,12 +523,20 @@ describe("SpokePoolClient: Fill Validation", function () {
     // Now override latest deposit ID queried so that its < deposit ID and check that client sends RPC requests.
     spokePoolClient1.latestDepositIdQueried = -1;
     expect((await queryHistoricalDepositForFill(spokePoolClient1, fill)).found).is.true;
-    expect(lastSpyLogIncludes(spy, "Located deposit outside of SpokePoolClient's search range")).is.true;
+    expect(lastSpyLogIncludes(spy, "Located V3 deposit outside of SpokePoolClient's search range")).is.true;
   });
 
   it("Ignores fills with deposit ID < first deposit ID in spoke pool", async function () {
-    const deposit = await buildDeposit(hubPoolClient, spokePool_1, erc20_1, depositor, destinationChainId);
-    await buildFill(spokePool_2, erc20_2, depositor, relayer, deposit, 1);
+    const deposit = await depositV3(
+      spokePool_1,
+      destinationChainId,
+      depositor,
+      inputToken,
+      inputAmount,
+      outputToken,
+      outputAmount
+    );
+    await fillV3Relay(spokePool_2, deposit, relayer);
     await spokePoolClient2.update();
     const [fill] = spokePoolClient2.getFills();
 
@@ -563,19 +552,18 @@ describe("SpokePoolClient: Fill Validation", function () {
   });
 
   it("Ignores fills with deposit ID > latest deposit ID in spoke pool", async function () {
-    const sampleDeposit = await buildDeposit(hubPoolClient, spokePool_1, erc20_1, depositor, destinationChainId);
-    // Override the deposit ID that we are "filling" to be > 1, the latest deposit ID in spoke pool 1.
-    await buildFill(
-      spokePool_2,
-      erc20_2,
+    const deposit = await depositV3(
+      spokePool_1,
+      destinationChainId,
       depositor,
-      relayer,
-      {
-        ...sampleDeposit,
-        depositId: 2,
-      },
-      1
+      inputToken,
+      inputAmount,
+      outputToken,
+      outputAmount
     );
+
+    // Override the deposit ID that we are "filling" to be > 1, the latest deposit ID in spoke pool 1.
+    await fillV3Relay(spokePool_2, { ...deposit, depositId: deposit.depositId + 1 }, relayer);
     await spokePoolClient2.update();
     const [fill] = spokePoolClient2.getFills();
 
@@ -589,10 +577,18 @@ describe("SpokePoolClient: Fill Validation", function () {
   });
 
   it("Ignores matching fills that mis-specify a deposit attribute", async function () {
-    const deposit = await buildDeposit(hubPoolClient, spokePool_1, erc20_1, depositor, destinationChainId);
+    const deposit = await depositV3(
+      spokePool_1,
+      destinationChainId,
+      depositor,
+      inputToken,
+      inputAmount,
+      outputToken,
+      outputAmount
+    );
 
-    deposit.realizedLpFeePct = (deposit.realizedLpFeePct ?? bnZero).add(bnOne);
-    const fill = await buildFill(spokePool_2, erc20_2, depositor, relayer, deposit, 1);
+    deposit.outputAmount = deposit.outputAmount.sub(bnOne);
+    const fill = await fillV3Relay(spokePool_2, deposit, relayer);
 
     await Promise.all([spokePoolClient1.update(), spokePoolClient2.update()]);
 
@@ -602,27 +598,23 @@ describe("SpokePoolClient: Fill Validation", function () {
   });
 
   it("Returns sped up deposit matched with fill", async function () {
-    const deposit_1 = await buildDeposit(hubPoolClient, spokePool_1, erc20_1, depositor, destinationChainId);
-    // Override the fill's realized LP fee % and destination token so that it matches the deposit's default zero'd
-    // out values. The destination token and realized LP fee % are set by the spoke pool client by querying the hub pool
-    // contract state, however this test ignores the rate model contract and therefore there is no hub pool contract
-    // to query from, so they will be set to 0x0 and 0% respectively.
-    const expectedDeposit = {
-      ...deposit_1,
-      destinationToken: zeroAddress,
-      realizedLpFeePct: toBN(0),
-    };
-    const fill_1 = await buildFill(spokePool_2, erc20_2, depositor, relayer, expectedDeposit, 0.2);
-    const fill_2 = await buildModifiedFill(spokePool_2, depositor, relayer, fill_1, 2, 0.2, relayer.address, "0x12"); // Fill same % of deposit with 2x larger relayer fee pct.
-
-    const spokePoolClientForDestinationChain = new SpokePoolClient(
-      createSpyLogger().spyLogger,
+    const deposit_1 = await depositV3(
       spokePool_1,
-      null,
       destinationChainId,
-      spokePool2DeploymentBlock
-    ); // create spoke pool client on the "target" chain.
-    await spokePoolClientForDestinationChain.update();
+      depositor,
+      inputToken,
+      inputAmount,
+      outputToken,
+      outputAmount
+    );
+    await spokePoolClient1.update();
+
+    const fill_1 = await fillV3Relay(spokePool_2, deposit_1, relayer);
+    const fill_2 = await fillV3Relay(
+      spokePool_2,
+      { ...deposit_1, recipient: relayer.address, outputAmount: deposit_1.outputAmount.div(2), message: "0x12" },
+      relayer
+    );
 
     // Sanity Check: Ensure that fill2 is defined
     expect(fill_2).to.not.be.undefined;
@@ -630,81 +622,52 @@ describe("SpokePoolClient: Fill Validation", function () {
       throw new Error("fill_2 is undefined");
     }
 
-    expect(fill_2.updatableRelayData.recipient === relayer.address).to.be.true;
-    expect(fill_1.updatableRelayData.recipient === depositor.address).to.be.true;
-    expect(fill_2.updatableRelayData.message === "0x12").to.be.true;
-    expect(fill_1.updatableRelayData.message === "0x").to.be.true;
-    expect(fill_1.updatableRelayData.relayerFeePct.eq(fill_2.updatableRelayData.relayerFeePct)).to.be.false;
-    expect(fill_1.updatableRelayData.isSlowRelay === fill_2.updatableRelayData.isSlowRelay).to.be.true;
-    expect(fill_1.updatableRelayData.payoutAdjustmentPct.eq(fill_2.updatableRelayData.payoutAdjustmentPct)).to.be.true;
+    expect(fill_1.relayExecutionInfo.updatedRecipient === depositor.address).to.be.true;
+    expect(fill_2.relayExecutionInfo.updatedRecipient === relayer.address).to.be.true;
+    expect(fill_2.relayExecutionInfo.updatedMessage === "0x12").to.be.true;
+    expect(fill_1.relayExecutionInfo.updatedMessage === "0x").to.be.true;
+    expect(fill_1.relayExecutionInfo.updatedOutputAmount.eq(fill_2.relayExecutionInfo.updatedOutputAmount)).to.be.false;
+    expect(fill_1.relayExecutionInfo.fillType === FillType.FastFill).to.be.true;
+    expect(fill_2.relayExecutionInfo.fillType === FillType.FastFill).to.be.true;
 
-    expect(
-      spokePoolClientForDestinationChain.getDepositForFill({
-        ...fill_1,
-        destinationToken: zeroAddress,
-        realizedLpFeePct: toBN(0),
-      })
-    )
-      .excludingEvery(["blockTimestamp", "logIndex", "transactionIndex", "transactionHash", "quoteBlockNumber"])
-      .to.deep.equal(expectedDeposit);
-    expect(
-      spokePoolClientForDestinationChain.getDepositForFill({
-        ...fill_2,
-        destinationToken: zeroAddress,
-        realizedLpFeePct: toBN(0),
-      })
-    ).excludingEvery(["blockTimestamp", "logIndex", "transactionIndex", "transactionHash", "quoteBlockNumber"]);
-    const deposit = await buildDeposit(hubPoolClient, spokePool_1, erc20_1, depositor, destinationChainId);
-    await buildFill(spokePool_2, erc20_2, depositor, relayer, deposit, 1);
+    expect(spokePoolClient1.getDepositForFill(fill_1))
+      .excludingEvery(["quoteBlockNumber", "realizedLpFeePct"])
+      .to.deep.equal(deposit_1);
+    expect(spokePoolClient1.getDepositForFill(fill_2)).to.equal(undefined);
 
+    const deposit_2 = await depositV3(
+      spokePool_1,
+      destinationChainId,
+      depositor,
+      inputToken,
+      inputAmount,
+      outputToken,
+      outputAmount
+    );
+    await fillV3Relay(spokePool_2, deposit_2, relayer);
     await spokePoolClient2.update();
-    await spokePoolClient1.update();
 
-    const [incompleteDeposit] = spokePoolClient1.getDeposits();
-    const [validFill] = spokePoolClient2.getFills();
-    const validDeposit = {
-      ...incompleteDeposit,
-      realizedLpFeePct: validFill.realizedLpFeePct,
-      destinationToken: validFill.destinationToken,
-    };
+    const validFill = spokePoolClient2.getFills().at(-1)!;
+    expect(validFill).to.exist;
 
-    // Invalid Amount.
-    expect(validateFillForDeposit({ ...validFill, amount: toBNWei(1337) }, validDeposit)).to.be.false;
+    expect(validateFillForDeposit(validFill, deposit_2)).to.be.true;
+
+    // Invalid input amount.
+    expect(validateFillForDeposit({ ...validFill, inputAmount: toBNWei(1337) }, deposit_2)).to.be.false;
+
+    // Changed the output token.
+    expect(validateFillForDeposit(validFill, { ...deposit_2, outputToken: owner.address })).to.be.false;
+
+    // Changed the output amount.
+    expect(validateFillForDeposit({ ...validFill, outputAmount: toBNWei(1337) }, deposit_2)).to.be.false;
 
     // Invalid depositId.
-    expect(validateFillForDeposit({ ...validFill, depositId: 1337 }, validDeposit)).to.be.false;
+    expect(validateFillForDeposit({ ...validFill, depositId: 1337 }, deposit_2)).to.be.false;
 
     // Changed the depositor.
-    expect(validateFillForDeposit({ ...validFill, depositor: relayer.address }, validDeposit)).to.be.false;
+    expect(validateFillForDeposit({ ...validFill, depositor: relayer.address }, deposit_2)).to.be.false;
 
     // Changed the recipient.
-    expect(validateFillForDeposit({ ...validFill, recipient: relayer.address }, validDeposit)).to.be.false;
-
-    // Changed the relayerFeePct.
-    expect(validateFillForDeposit({ ...validFill, relayerFeePct: toBNWei(1337) }, validDeposit)).to.be.false;
-
-    // Validate the realizedLPFeePct and destinationToken matches. These values are optional in the deposit object and
-    // are assigned during the update method, which is not polled in this set of tests.
-
-    // Assign a realizedLPFeePct to the deposit and check it matches with the fill. After, try changing this to a
-    // separate value and ensure this is rejected.
-    expect(
-      validateFillForDeposit(validFill, {
-        ...validDeposit,
-        realizedLpFeePct: validFill.realizedLpFeePct,
-      })
-    ).to.be.true;
-
-    expect(
-      validateFillForDeposit(validFill, {
-        ...validDeposit,
-        realizedLpFeePct: validFill.realizedLpFeePct.add(toBNWei("0.1")),
-      })
-    ).to.be.false;
-
-    // Assign a destinationToken to the deposit and ensure it is validated correctly. erc20_2 from the fillRelay method
-    // above is the destination token. After, try changing this to something that is clearly wrong.
-    expect(validateFillForDeposit(validFill, { ...validDeposit, destinationToken: erc20_2.address })).to.be.true;
-    expect(validateFillForDeposit(validFill, { ...validDeposit, destinationToken: owner.address })).to.be.false;
+    expect(validateFillForDeposit({ ...validFill, recipient: relayer.address }, deposit_2)).to.be.false;
   });
 });

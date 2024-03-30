@@ -6,31 +6,16 @@ import { ZERO_ADDRESS } from "../../constants";
 import {
   DepositWithBlock,
   FillType,
-  FundsDepositedEvent,
+  V3FundsDepositedEvent,
   RealizedLpFee,
   RelayerRefundExecutionWithBlock,
   SlowFillRequestWithBlock,
-  V2DepositWithBlock,
-  V2FillWithBlock,
-  V2SpeedUp,
-  V3DepositWithBlock,
-  V3Fill,
-  V3FillWithBlock,
-  V3SlowFillLeaf,
-  V3SpeedUp,
+  Fill,
+  FillWithBlock,
+  SlowFillLeaf,
+  SpeedUp,
 } from "../../interfaces";
-import {
-  bnZero,
-  toBN,
-  toBNWei,
-  forEachAsync,
-  getCurrentTime,
-  isV2Deposit,
-  isV2Fill,
-  isV3Deposit,
-  isV3Fill,
-  randomAddress,
-} from "../../utils";
+import { bnZero, toBN, toBNWei, forEachAsync, getCurrentTime, randomAddress } from "../../utils";
 import { SpokePoolClient, SpokePoolUpdate } from "../SpokePoolClient";
 import { HubPoolClient } from "../HubPoolClient";
 import { EventManager, EventOverrides, getEventManager } from "./MockEvents";
@@ -70,7 +55,7 @@ export class MockSpokePoolClient extends SpokePoolClient {
     this.realizedLpFeePctOverride = false;
   }
 
-  async computeRealizedLpFeePct(depositEvent: FundsDepositedEvent) {
+  async computeRealizedLpFeePct(depositEvent: V3FundsDepositedEvent) {
     const { realizedLpFeePct, realizedLpFeePctOverride } = this;
     const { blockNumber: quoteBlock } = depositEvent;
     return realizedLpFeePctOverride
@@ -78,7 +63,7 @@ export class MockSpokePoolClient extends SpokePoolClient {
       : await super.computeRealizedLpFeePct(depositEvent);
   }
 
-  async batchComputeRealizedLpFeePct(depositEvents: FundsDepositedEvent[]): Promise<RealizedLpFee[]> {
+  async batchComputeRealizedLpFeePct(depositEvents: V3FundsDepositedEvent[]): Promise<RealizedLpFee[]> {
     const { realizedLpFeePct, realizedLpFeePctOverride } = this;
     return realizedLpFeePctOverride
       ? depositEvents.map(({ blockNumber: quoteBlock }) => {
@@ -137,7 +122,7 @@ export class MockSpokePoolClient extends SpokePoolClient {
     this.blocks = blocks;
 
     // Update latestDepositIdQueried.
-    const idx = eventsToQuery.indexOf("FundsDeposited");
+    const idx = eventsToQuery.indexOf("V3FundsDeposited");
     const latestDepositId = (events[idx] ?? []).reduce(
       (depositId, event) => Math.max(depositId, event.args?.["depositId"] ?? 0),
       this.latestDepositIdQueried
@@ -161,46 +146,7 @@ export class MockSpokePoolClient extends SpokePoolClient {
     FundsDeposited: "uint256,uint256,uint256,int64,uint32,uint32,address,address,address,bytes",
   };
 
-  deposit(deposit: V2DepositWithBlock): Event {
-    assert(isV2Deposit(deposit));
-    const event = "FundsDeposited";
-
-    const { blockNumber, transactionIndex } = deposit;
-    let { depositId, depositor, destinationChainId } = deposit;
-    depositId ??= this.numberOfDeposits;
-    assert(depositId >= this.numberOfDeposits, `${depositId} < ${this.numberOfDeposits}`);
-    this.numberOfDeposits = depositId + 1;
-
-    destinationChainId ??= random(1, 42161, false);
-    depositor ??= randomAddress();
-
-    const message = deposit["message"] ?? `${event} event at block ${blockNumber}, index ${transactionIndex}.`;
-    const topics = [destinationChainId, depositId, depositor];
-    const args = {
-      amount: deposit.amount ?? toBNWei(random(1, 1000, false)),
-      originChainId: deposit.originChainId ?? this.chainId,
-      destinationChainId,
-      relayerFeePct: deposit.relayerFeePct ?? toBNWei(0.0001),
-      depositId,
-      quoteTimestamp: deposit.quoteTimestamp ?? getCurrentTime(),
-      originToken: deposit.originToken ?? randomAddress(),
-      recipient: deposit.recipient ?? depositor,
-      depositor,
-      message,
-    };
-
-    return this.eventManager.generateEvent({
-      event,
-      address: this.spokePool.address,
-      topics: topics.map((topic) => topic.toString()),
-      args,
-      blockNumber,
-      transactionIndex,
-    });
-  }
-
-  depositV3(deposit: V3DepositWithBlock): Event {
-    assert(isV3Deposit(deposit));
+  depositV3(deposit: DepositWithBlock): Event {
     const event = "V3FundsDeposited";
 
     const { blockNumber, transactionIndex } = deposit;
@@ -246,58 +192,7 @@ export class MockSpokePoolClient extends SpokePoolClient {
     });
   }
 
-  fillRelay(fill: V2FillWithBlock): Event {
-    assert(isV2Fill(fill));
-    const event = "FilledRelay";
-
-    const { blockNumber, transactionIndex } = fill;
-    let { depositor, originChainId, depositId } = fill;
-    originChainId ??= random(1, 42161, false);
-    depositId ??= random(1, 100_000, false);
-    depositor ??= randomAddress();
-
-    const topics = [originChainId, depositId, depositor];
-    const recipient = fill.recipient ?? randomAddress();
-    const amount = fill.amount ?? toBNWei(random(1, 1000, false));
-    const relayerFeePct = fill.relayerFeePct ?? toBNWei(0.0001);
-    const message = fill["message"] ?? `${event} event at block ${blockNumber}, index ${transactionIndex}.`;
-
-    const args = {
-      amount,
-      totalFilledAmount: fill.totalFilledAmount ?? amount,
-      fillAmount: fill.fillAmount ?? amount,
-      repaymentChainId: fill.repaymentChainId ?? this.chainId,
-      originChainId,
-      destinationChainId: fill.destinationChainId,
-      realizedLpFeePct: fill.realizedLpFeePct ?? toBNWei(random(0.00001, 0.0001).toPrecision(6)),
-      relayerFeePct,
-      depositId,
-      destinationToken: fill.destinationToken ?? ZERO_ADDRESS, // resolved via HubPoolClient.
-      relayer: fill.relayer ?? randomAddress(),
-      depositor,
-      recipient,
-      message,
-      updatableRelayData: {
-        updatableRecipient: fill.updatableRelayData?.updatedRecipient ?? recipient,
-        updatableMessage: fill.updatableRelayData?.updatedMessage ?? message,
-        updatedRelayerFeePct: fill.updatableRelayData?.relayerFeePct ?? relayerFeePct,
-        isSlowRelay: fill.updatableRelayData?.isSlowRelay ?? false,
-        payoutAdjustmentPct: fill.updatableRelayData?.payoutAdjustmentPct ?? bnZero,
-      },
-    };
-
-    return this.eventManager.generateEvent({
-      event,
-      address: this.spokePool.address,
-      topics: topics.map((topic) => topic.toString()),
-      args,
-      blockNumber,
-      transactionIndex,
-    });
-  }
-
-  fillV3Relay(fill: V3FillWithBlock): Event {
-    assert(isV3Fill(fill));
+  fillV3Relay(fill: FillWithBlock): Event {
     const event = "FilledV3Relay";
 
     const { blockNumber, transactionIndex } = fill;
@@ -347,20 +242,7 @@ export class MockSpokePoolClient extends SpokePoolClient {
     });
   }
 
-  speedUpDeposit(speedUp: V2SpeedUp): Event {
-    const event = "RequestedSpeedUpDeposit";
-    const topics = [speedUp.depositId, speedUp.depositor];
-    const args = { ...speedUp };
-
-    return this.eventManager.generateEvent({
-      event,
-      address: this.spokePool.address,
-      topics: topics.map((topic) => topic.toString()),
-      args,
-    });
-  }
-
-  speedUpV3Deposit(speedUp: V3SpeedUp): Event {
+  speedUpV3Deposit(speedUp: SpeedUp): Event {
     const event = "RequestedSpeedUpV3Deposit";
     const topics = [speedUp.depositId, speedUp.depositor];
     const args = { ...speedUp };
@@ -392,8 +274,8 @@ export class MockSpokePoolClient extends SpokePoolClient {
 
   // This is a simple wrapper around fillV3Relay().
   // rootBundleId and proof are discarded here - we have no interest in verifying that.
-  executeV3SlowRelayLeaf(leaf: V3SlowFillLeaf): Event {
-    const fill: V3Fill = {
+  executeV3SlowRelayLeaf(leaf: SlowFillLeaf): Event {
+    const fill: Fill = {
       ...leaf.relayData,
       destinationChainId: this.chainId,
       relayer: ZERO_ADDRESS,
@@ -406,7 +288,7 @@ export class MockSpokePoolClient extends SpokePoolClient {
       },
     };
 
-    return this.fillV3Relay(fill as V3FillWithBlock);
+    return this.fillV3Relay(fill as FillWithBlock);
   }
 
   executeRelayerRefundLeaf(refund: RelayerRefundExecutionWithBlock): Event {

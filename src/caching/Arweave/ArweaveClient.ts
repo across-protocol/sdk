@@ -4,7 +4,7 @@ import { ethers } from "ethers";
 import winston from "winston";
 import { isDefined, jsonReplacerWithBigNumbers, parseWinston, toBN } from "../../utils";
 import { Struct, is } from "superstruct";
-import { ARWEAVE_TAG_APP_NAME } from "../../constants";
+import { ARWEAVE_TAG_APP_NAME, ARWEAVE_TAG_APP_VERSION } from "../../constants";
 
 export class ArweaveClient {
   private client: Arweave;
@@ -48,6 +48,7 @@ export class ArweaveClient {
     // Add tags to the transaction
     transaction.addTag("Content-Type", "application/json");
     transaction.addTag("App-Name", ARWEAVE_TAG_APP_NAME);
+    transaction.addTag("App-Version", ARWEAVE_TAG_APP_VERSION.toString());
     if (isDefined(topicTag)) {
       transaction.addTag("Topic", topicTag);
     }
@@ -137,6 +138,7 @@ export class ArweaveClient {
             tags: [
               { name: "App-Name", values: ["${ARWEAVE_TAG_APP_NAME}"] },
               { name: "Content-Type", values: ["application/json"] },
+              { name: "App-Version", values: ["${ARWEAVE_TAG_APP_VERSION}"] },
               ${tag ? `{ name: "Topic", values: ["${tag}"] } ` : ""}
             ]
           ) { edges { node { id } } } 
