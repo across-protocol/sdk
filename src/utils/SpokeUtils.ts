@@ -1,12 +1,11 @@
 import assert from "assert";
 import { BigNumber, BytesLike, Contract, PopulatedTransaction, providers, utils as ethersUtils } from "ethers";
 import { CHAIN_IDs, ZERO_ADDRESS } from "../constants";
-import { FillStatus, RelayData, SlowFillRequest, V2RelayData, V3Deposit, V3Fill, V3RelayData } from "../interfaces";
+import { Deposit, Fill, FillStatus, RelayData, SlowFillRequest } from "../interfaces";
 import { SpokePoolClient } from "../clients";
 import { chunk } from "./ArrayUtils";
 import { toBN } from "./BigNumberUtils";
 import { isDefined } from "./TypeGuards";
-import { isV2RelayData } from "./V3Utils";
 import { getNetworkName } from "./NetworkUtils";
 
 type BlockTag = providers.BlockTag;
@@ -19,11 +18,11 @@ type BlockTag = providers.BlockTag;
  */
 export function populateV3Relay(
   spokePool: Contract,
-  deposit: V3Deposit,
+  deposit: Deposit,
   relayer: string,
   repaymentChainId = deposit.destinationChainId
 ): Promise<PopulatedTransaction> {
-  const v3RelayData: V3RelayData = {
+  const v3RelayData: RelayData = {
     depositor: deposit.depositor,
     recipient: deposit.recipient,
     exclusiveRelayer: deposit.exclusiveRelayer,
@@ -216,54 +215,7 @@ export async function getDepositIdAtBlock(contract: Contract, blockTag: number):
  * @param destinationChainId Supplementary destination chain ID required by V3 hashes.
  * @returns The corresponding RelayData hash.
  */
-export function getRelayDataHash(relayData: RelayData, destinationChainId?: number): string {
-  if (isV2RelayData(relayData)) {
-    // If destinationChainId was supplied, ensure it matches relayData.
-    assert(!isDefined(destinationChainId) || destinationChainId === relayData.destinationChainId);
-    return getV2RelayHash(relayData);
-  }
-
-  // V3RelayData does not include destinationChainId, so it must be supplied separately for v3 types.
-  assert(isDefined(destinationChainId));
-  return getV3RelayHash(relayData, destinationChainId);
-}
-
-/**
- * Compute the RelayData hash for a fill. This can be used to determine the fill amount.
- * @note Only compatible with Across v2 data types.
- * @param relayData V2RelayData information that is used to complete a fill.
- * @returns The corresponding RelayData hash.
- */
-export function getV2RelayHash(relayData: V2RelayData): string {
-  return ethersUtils.keccak256(
-    ethersUtils.defaultAbiCoder.encode(
-      [
-        "tuple(" +
-          "address depositor," +
-          "address recipient," +
-          "address destinationToken," +
-          "uint256 amount," +
-          "uint256 originChainId," +
-          "uint256 destinationChainId," +
-          "int64 realizedLpFeePct," +
-          "int64 relayerFeePct," +
-          "uint32 depositId," +
-          "bytes message" +
-          ")",
-      ],
-      [relayData]
-    )
-  );
-}
-
-/**
- * Compute the RelayData hash for a fill. This can be used to determine the fill status.
- * @note Only compatible with Across v3 data types.
- * @param relayData V3RelayData information that is used to complete a fill.
- * @param destinationChainId Supplementary destination chain ID required by V3 hashes.
- * @returns The corresponding RelayData hash.
- */
-export function getV3RelayHash(relayData: V3RelayData, destinationChainId: number): string {
+export function getRelayDataHash(relayData: RelayData, destinationChainId: number): string {
   return ethersUtils.keccak256(
     ethersUtils.defaultAbiCoder.encode(
       [
@@ -288,9 +240,10 @@ export function getV3RelayHash(relayData: V3RelayData, destinationChainId: numbe
   );
 }
 
-export function getV3RelayHashFromEvent(e: V3Deposit | V3Fill | SlowFillRequest): string {
-  return getV3RelayHash(e, e.destinationChainId);
+export function getRelayHashFromEvent(e: Deposit | Fill | SlowFillRequest): string {
+  return getRelayDataHash(e, e.destinationChainId);
 }
+
 /**
  * Find the amount filled for a deposit at a particular block.
  * @param spokePool SpokePool contract instance.
@@ -300,12 +253,12 @@ export function getV3RelayHashFromEvent(e: V3Deposit | V3Fill | SlowFillRequest)
  */
 export async function relayFillStatus(
   spokePool: Contract,
-  relayData: V3RelayData,
+  relayData: RelayData,
   blockTag?: number | "latest",
   destinationChainId?: number
 ): Promise<FillStatus> {
   destinationChainId ??= await spokePool.chainId();
-  const hash = getRelayDataHash(relayData, destinationChainId);
+  const hash = getRelayDataHash(relayData, destinationChainId!);
   const _fillStatus = await spokePool.fillStatuses(hash, { blockTag });
   const fillStatus = Number(_fillStatus);
 
@@ -319,14 +272,14 @@ export async function relayFillStatus(
 
 export async function fillStatusArray(
   spokePool: Contract,
-  relayData: V3RelayData[],
+  relayData: RelayData[],
   blockTag: BlockTag = "latest"
 ): Promise<(FillStatus | undefined)[]> {
   const fillStatuses = "fillStatuses";
   const destinationChainId = await spokePool.chainId();
 
   const queries = relayData.map((relayData) => {
-    const hash = getV3RelayHash(relayData, destinationChainId);
+    const hash = getRelayDataHash(relayData, destinationChainId);
     return spokePool.interface.encodeFunctionData(fillStatuses, [hash]);
   });
 
@@ -364,7 +317,7 @@ export async function fillStatusArray(
  */
 export async function findFillBlock(
   spokePool: Contract,
-  relayData: V3RelayData,
+  relayData: RelayData,
   lowBlockNumber: number,
   highBlockNumber?: number
 ): Promise<number | undefined> {

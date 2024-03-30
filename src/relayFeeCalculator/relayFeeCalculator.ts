@@ -1,15 +1,13 @@
 import assert from "assert";
 import { BigNumber } from "ethers";
 import { DEFAULT_SIMULATED_RELAYER_ADDRESS, TOKEN_SYMBOLS_MAP } from "../constants";
-import { V3Deposit } from "../interfaces";
+import { Deposit } from "../interfaces";
 import {
   BigNumberish,
   MAX_BIG_INT,
   TransactionCostEstimate,
   bnZero,
   fixedPointAdjustment,
-  getDepositInputToken,
-  getDepositOutputAmount,
   getTokenInformationFromAddress,
   isDefined,
   max,
@@ -22,7 +20,7 @@ import {
 
 // This needs to be implemented for every chain and passed into RelayFeeCalculator
 export interface QueryInterface {
-  getGasCosts: (deposit: V3Deposit, relayer: string) => Promise<TransactionCostEstimate>;
+  getGasCosts: (deposit: Deposit, relayer: string) => Promise<TransactionCostEstimate>;
   getTokenPrice: (tokenSymbol: string) => Promise<number>;
   getTokenDecimals: (tokenSymbol: string) => number;
 }
@@ -221,7 +219,7 @@ export class RelayFeeCalculator {
    *       the correct parameters to see a full fill.
    */
   async gasFeePercent(
-    deposit: V3Deposit,
+    deposit: Deposit,
     amountToRelay: BigNumberish,
     simulateZeroFill = false,
     relayerAddress = DEFAULT_SIMULATED_RELAYER_ADDRESS,
@@ -230,7 +228,7 @@ export class RelayFeeCalculator {
   ): Promise<BigNumber> {
     if (toBN(amountToRelay).eq(bnZero)) return MAX_BIG_INT;
 
-    const inputToken = getDepositInputToken(deposit);
+    const { inputToken } = deposit;
     const token = getTokenInformationFromAddress(inputToken, tokenMapping);
     if (!isDefined(token)) {
       throw new Error(`Could not find token information for ${inputToken}`);
@@ -341,7 +339,7 @@ export class RelayFeeCalculator {
    * @returns A resulting `RelayerFeeDetails` object
    */
   async relayerFeeDetails(
-    deposit: V3Deposit,
+    deposit: Deposit,
     amountToRelay?: BigNumberish,
     simulateZeroFill = false,
     relayerAddress = DEFAULT_SIMULATED_RELAYER_ADDRESS,
@@ -349,8 +347,8 @@ export class RelayFeeCalculator {
   ): Promise<RelayerFeeDetails> {
     // If the amount to relay is not provided, then we
     // should use the full deposit amount.
-    amountToRelay ??= getDepositOutputAmount(deposit);
-    const inputToken = getDepositInputToken(deposit);
+    amountToRelay ??= deposit.outputAmount;
+    const { inputToken } = deposit;
     const token = getTokenInformationFromAddress(inputToken);
     if (!isDefined(token)) {
       throw new Error(`Could not find token information for ${inputToken}`);

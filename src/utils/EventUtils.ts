@@ -22,7 +22,7 @@ export function spreadEvent(args: Result = {} as Result): any {
       case "object":
         if (Array.isArray(args[key])) {
           returnedObject[key] =
-            Object.keys(args[key].filter((key: string) => isNaN(+key))).length > 0
+            Object.keys(args[key]).filter((key: string) => isNaN(+key)).length > 0
               ? spreadEvent(args[key]) // Record/array hybrid...
               : args[key]; // Just an array
         } else {
