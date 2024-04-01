@@ -122,17 +122,15 @@ export class ArweaveClient {
    * they do not match the given validator.
    * @param tag The tag to filter all the transactions by
    * @param validator The validator to validate the retrieved values
-   * @param useProvidedJWTAddressForQueries If true, the client's address will be used for queries. Otherwise, the default address is used.
+   * @param originQueryAddress An optional flag to override the originating address for the query. By default,
+   *                           the address of the RL Arweave storage wallet is used.
    * @returns The records if they exist, otherwise an empty array
    */
   async getByTopic<T>(
     tag: string,
     validator: Struct<T>,
-    useProvidedJWTAddressForQueries = false
+    originQueryAddress = DEFAULT_ARWEAVE_STORAGE_ADDRESS
   ): Promise<{ data: T; hash: string }[]> {
-    const originatingAddressForQuery = useProvidedJWTAddressForQueries
-      ? await this.getAddress()
-      : DEFAULT_ARWEAVE_STORAGE_ADDRESS;
     const transactions = await this.client.api.post<{
       data: {
         transactions: {
@@ -147,7 +145,7 @@ export class ArweaveClient {
       query: `
         { 
           transactions (
-            owners: ["${originatingAddressForQuery}"]
+            owners: ["${originQueryAddress}"]
             tags: [
               { name: "App-Name", values: ["${ARWEAVE_TAG_APP_NAME}"] },
               { name: "Content-Type", values: ["application/json"] },
