@@ -1,5 +1,10 @@
 import { CHAIN_IDs, PRODUCTION_CHAIN_IDS, PUBLIC_NETWORKS, TESTNET_CHAIN_IDS } from "../constants";
 
+const hreNetworks: Record<number, string> = {
+  666: "Hardhat1",
+  1337: "Hardhat2",
+};
+
 /**
  * Resolves a network name from a network id.
  * @param networkId The network id to resolve the name for
@@ -7,17 +12,7 @@ import { CHAIN_IDs, PRODUCTION_CHAIN_IDS, PUBLIC_NETWORKS, TESTNET_CHAIN_IDS } f
  */
 export function getNetworkName(networkId: number | string): string {
   networkId = Number(networkId);
-  try {
-    const networkName = PUBLIC_NETWORKS[networkId].name;
-    return networkName.charAt(0).toUpperCase() + networkName.slice(1);
-  } catch (error) {
-    // Fallback network ID names.
-    const networkIdMap: Record<number, string> = {
-      666: "Hardhat1",
-      1337: "Hardhat2",
-    };
-    return networkIdMap[networkId] ?? "unknown";
-  }
+  return PUBLIC_NETWORKS[networkId]?.name ?? hreNetworks[networkId] ?? "unknown";
 }
 
 /**
