@@ -1,6 +1,13 @@
 import * as acxConstants from "@across-protocol/constants-v2";
 import { constants as ethersConstants, BigNumber, utils } from "ethers";
-export { CHAIN_IDs, TOKEN_SYMBOLS_MAP } from "@across-protocol/constants-v2";
+
+export {
+  CHAIN_IDs,
+  MAINNET_CHAIN_IDs,
+  PUBLIC_NETWORKS,
+  TESTNET_CHAIN_IDs,
+  TOKEN_SYMBOLS_MAP,
+} from "@across-protocol/constants-v2";
 
 export const { AddressZero: ZERO_ADDRESS } = ethersConstants;
 
@@ -59,36 +66,6 @@ export const TESTNET_CHAIN_IDS = [
   acxConstants.TESTNET_CHAIN_IDs.OPTIMISM_SEPOLIA,
   acxConstants.TESTNET_CHAIN_IDs.LINEA_GOERLI,
 ];
-
-export const PUBLIC_NETWORKS: { [chainId: number]: { name: string; etherscan: string } } = {
-  1: {
-    name: "mainnet",
-    etherscan: "https://etherscan.io",
-  },
-  5: { name: "goerli", etherscan: "https://goerli.etherscan.io" },
-  10: { name: "optimism", etherscan: "https://optimistic.etherscan.io" },
-  137: {
-    name: "polygon-matic",
-    etherscan: "https://polygonscan.com",
-  },
-  324: { name: "zksync", etherscan: "https://explorer.zksync.io" },
-  8453: { name: "base", etherscan: "https://basescan.org" },
-  42161: { name: "arbitrum", etherscan: "https://arbiscan.io" },
-  43114: { name: "avalanche", etherscan: "https://snowtrace.io" },
-  59140: { name: "linea-goerli", etherscan: "https://goerli.lineascan.build" },
-  59144: { name: "linea", etherscan: "https://lineascan.build" },
-  80002: { name: "polygon-amoy", etherscan: "https://www.oklink.com/amoy" },
-  84531: { name: "base-goerli", etherscan: "https://basescan.org" },
-  84532: { name: "base-sepolia", etherscan: "https://sepolia.basescan.org" },
-  421613: { name: "arbitrum-goerli", etherscan: "https://goerli.arbiscan.io" },
-  421614: { name: "arbitrum-sepolia", etherscan: "https://sepolia.arbiscan.io" },
-  534351: { name: "scroll-sepolia", etherscan: "https://sepolia.scrollscan.com" },
-  534352: { name: "scroll", etherscan: "https://scrollscan.com" },
-  11155111: { name: "sepolia", etherscan: "https://sepolia.etherscan.io" },
-  11155420: { name: "optimism-sepolia", etherscan: "https://sepolia-optimistic.etherscan.io" },
-};
-
-export const DEFAULT_BLOCKCHAIN_EXPLORER_DOMAIN = "https://etherscan.io";
 
 export const DEFAULT_CACHING_TTL = 60 * 60 * 24 * 7 * 2; // 2 Weeks
 export const DEFAULT_CACHING_SAFE_LAG = 60 * 60; // 1 hour
