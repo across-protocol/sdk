@@ -145,7 +145,7 @@ describe("SpokePoolClient: Event Filtering", function () {
       originChainId,
       destinationChainId,
       inputToken,
-      outputToken: ZERO_ADDRESS,
+      outputToken: ZERO_ADDRESS, // outputToken must _not_ be ZERO_ADDRESS after SpokePoolClient ingestion.
     } as DepositWithBlock);
     expect(_deposit?.args?.outputToken).to.equal(ZERO_ADDRESS);
 
