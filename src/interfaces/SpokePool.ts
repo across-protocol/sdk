@@ -24,8 +24,6 @@ export interface RelayData {
 export interface Deposit extends RelayData {
   destinationChainId: number;
   quoteTimestamp: number;
-  realizedLpFeePct?: BigNumber;
-  relayerFeePct?: BigNumber;
   speedUpSignature?: string;
   updatedRecipient?: string;
   updatedOutputAmount?: BigNumber;
