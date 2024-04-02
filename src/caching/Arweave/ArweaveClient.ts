@@ -1,13 +1,15 @@
 import Arweave from "arweave";
 import { JWKInterface } from "arweave/node/lib/wallet";
+import axios from "axios";
 import { ethers } from "ethers";
+import { Struct, create } from "superstruct";
 import winston from "winston";
+import { ARWEAVE_TAG_APP_NAME, ARWEAVE_TAG_APP_VERSION, DEFAULT_ARWEAVE_STORAGE_ADDRESS } from "../../constants";
 import { isDefined, jsonReplacerWithBigNumbers, parseWinston, toBN } from "../../utils";
-import { Struct, is } from "superstruct";
-import { ARWEAVE_TAG_APP_NAME, ARWEAVE_TAG_APP_VERSION } from "../../constants";
 
 export class ArweaveClient {
   private client: Arweave;
+  private gatewayUrl: string;
 
   public constructor(
     private arweaveJWT: JWKInterface,
@@ -16,6 +18,7 @@ export class ArweaveClient {
     protocol = "https",
     port = 443
   ) {
+    this.gatewayUrl = `${protocol}://${gatewayURL}:${port}`;
     this.client = new Arweave({
       host: gatewayURL,
       port,
@@ -26,7 +29,7 @@ export class ArweaveClient {
     this.logger.debug({
       at: "ArweaveClient:constructor",
       message: "Arweave client initialized",
-      gateway: `${protocol}://${gatewayURL}:${port}`,
+      gateway: this.gatewayUrl,
     });
   }
 
@@ -87,26 +90,28 @@ export class ArweaveClient {
    * @returns The record if it exists, otherwise null
    */
   async get<T>(transactionID: string, validator: Struct<T>): Promise<T | null> {
-    const rawData = await this.client.transactions.getData(transactionID, { decode: true, string: true });
-    if (!rawData) {
-      return null;
-    }
-    // Parse the retrieved data - if it is an Uint8Array, it is a buffer and needs to be converted to a string
-    const data = JSON.parse(typeof rawData === "string" ? rawData : Buffer.from(rawData).toString("utf-8"));
+    // Resolve the URL of the transaction
+    const transactionUrl = `${this.gatewayUrl}/${transactionID}`;
+    // We should query in via Axios directly to the gateway URL. The reasoning behind this is
+    // that the Arweave SDK's `getData` method is too slow and does not provide a way to set a timeout.
+    // Therefore, something that could take milliesconds to complete could take tens of minutes.
+    const { data, status: responseStatus } = await axios.get<Record<string, unknown>>(transactionUrl);
     // Ensure that the result is successful. If it is not, the retrieved value is not our expected type
     // but rather a {status: string, statusText: string} object. We can detect that and return null.
-    if (data.status === 400) {
+    if (responseStatus !== 200 || ("status" in data && data["status"] !== 200)) {
       return null;
     }
-    // If the validator does not match the retrieved value, return null and log a warning
-    if (!is(data, validator)) {
+    try {
+      // We should validate the data and perform any logical coercion here.
+      return create(data, validator);
+    } catch (e) {
+      // If the data does not match the validator, log a warning and return null.
       this.logger.warn({
         at: "ArweaveClient:get",
         message: "Retrieved value from Arweave does not match the expected type",
       });
       return null;
     }
-    return data;
   }
 
   /**
@@ -117,9 +122,15 @@ export class ArweaveClient {
    * they do not match the given validator.
    * @param tag The tag to filter all the transactions by
    * @param validator The validator to validate the retrieved values
+   * @param originQueryAddress An optional flag to override the originating address for the query. By default,
+   *                           the address of the RL Arweave storage wallet is used.
    * @returns The records if they exist, otherwise an empty array
    */
-  async getByTopic<T>(tag: string, validator: Struct<T>): Promise<{ data: T; hash: string }[]> {
+  async getByTopic<T>(
+    tag: string,
+    validator: Struct<T>,
+    originQueryAddress = DEFAULT_ARWEAVE_STORAGE_ADDRESS
+  ): Promise<{ data: T; hash: string }[]> {
     const transactions = await this.client.api.post<{
       data: {
         transactions: {
@@ -134,7 +145,7 @@ export class ArweaveClient {
       query: `
         { 
           transactions (
-            owners: ["${await this.getAddress()}"]
+            owners: ["${originQueryAddress}"]
             tags: [
               { name: "App-Name", values: ["${ARWEAVE_TAG_APP_NAME}"] },
               { name: "Content-Type", values: ["application/json"] },
