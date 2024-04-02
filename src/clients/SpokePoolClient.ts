@@ -1,6 +1,7 @@
 import assert from "assert";
 import { BigNumber, Contract, Event, EventFilter, ethers } from "ethers";
 import winston from "winston";
+import { isError, isEthersError } from "../typeguards";
 import {
   AnyObject,
   bnZero,
@@ -704,7 +705,14 @@ export class SpokePoolClient extends BaseAbstractClient {
       updates.push(updateTimeout(timeout));
     }
 
-    const update: SpokePoolUpdate = await Promise.race(updates);
+    let update: SpokePoolUpdate;
+    try {
+      update = await Promise.race(updates);
+    } catch (err) {
+      const reason = isEthersError(err) ? err.reason : isError(err) ? err.message : "unknown error";
+      update = { success: false, reason };
+    }
+
     if (!update.success) {
       const { reason } = update;
       const chain = getNetworkName(this.chainId);
