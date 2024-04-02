@@ -15,6 +15,7 @@ import {
   deploySpokePool,
   ethers,
   SignerWithAddress,
+  toBNWei,
 } from "./utils";
 
 type EventSearchConfig = sdkUtils.EventSearchConfig;
@@ -127,6 +128,35 @@ describe("SpokePoolClient: Event Filtering", function () {
       const expectedInputToken = expectedDeposit.args!.inputToken;
       expect(depositEvent.inputToken).to.equal(expectedInputToken);
     });
+  });
+
+  it("Correctly substitutes outputToken when set to 0x0", async function () {
+    const { spokePool, chainId, deploymentBlock } = originSpokePoolClient;
+    const spokePoolClient = new MockSpokePoolClient(logger, spokePool, chainId, deploymentBlock, { hubPoolClient });
+
+    const hubPoolToken = randomAddress();
+    const inputToken = randomAddress();
+    const outputToken = randomAddress();
+    hubPoolClient.setTokenMapping(hubPoolToken, originChainId, inputToken);
+    hubPoolClient.setTokenMapping(hubPoolToken, destinationChainId, outputToken);
+    hubPoolClient.setDefaultRealizedLpFeePct(toBNWei("0.0001"));
+
+    const _deposit = spokePoolClient.depositV3({
+      originChainId,
+      destinationChainId,
+      inputToken,
+      outputToken: ZERO_ADDRESS, // outputToken must _not_ be ZERO_ADDRESS after SpokePoolClient ingestion.
+    } as DepositWithBlock);
+    expect(_deposit?.args?.outputToken).to.equal(ZERO_ADDRESS);
+
+    await spokePoolClient.update(fundsDepositedEvents);
+
+    const [deposit] = spokePoolClient.getDeposits();
+    expect(deposit).to.exist;
+
+    expect(deposit.inputToken).to.equal(inputToken);
+    expect(deposit.outputToken).to.not.equal(ZERO_ADDRESS);
+    expect(deposit.outputToken).to.equal(outputToken);
   });
 
   it("Correctly retrieves SlowFillRequested events", async function () {
