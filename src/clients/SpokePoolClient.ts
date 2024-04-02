@@ -600,8 +600,7 @@ export class SpokePoolClient extends BaseAbstractClient {
 
         // Derive and append the common properties that are not part of the onchain event.
         const { quoteBlock: quoteBlockNumber } = dataForQuoteTime[index];
-        const deposit = { ...(rawDeposit as DepositWithBlock), originChainId: this.chainId };
-        deposit.quoteBlockNumber = quoteBlockNumber;
+        const deposit = { ...(rawDeposit as DepositWithBlock), originChainId: this.chainId, quoteBlockNumber };
         if (deposit.outputToken === ZERO_ADDRESS) {
           deposit.outputToken = this.getDestinationTokenForDeposit(deposit);
         }
