@@ -1,24 +1,8 @@
-import { PublicNetworks } from "@uma/common/dist/PublicNetworks";
-import { CHAIN_IDs, PRODUCTION_CHAIN_IDS, TESTNET_CHAIN_IDS } from "../constants";
+import { CHAIN_IDs, PRODUCTION_CHAIN_IDS, PUBLIC_NETWORKS, TESTNET_CHAIN_IDS } from "../constants";
 
-/**
- * A list of networks that provide more resolution about a chainid -> network name
- */
-const networkIdMap: Record<number, string> = {
+const hreNetworks: Record<number, string> = {
   666: "Hardhat1",
   1337: "Hardhat2",
-  421613: "ArbitrumGoerli",
-  421614: "ArbitrumSepolia",
-  324: "ZkSync",
-  280: "ZkSync-Goerli",
-  300: "ZKSync-Sepolia",
-  8453: "Base",
-  84531: "BaseGoerli",
-  84532: "BaseSepolia",
-  59144: "Linea",
-  59140: "LineaGoerli",
-  11155111: "EthSepolia",
-  11155420: "OptimismSepolia",
 };
 
 /**
@@ -27,14 +11,8 @@ const networkIdMap: Record<number, string> = {
  * @returns The network name for the network id. If the network id is not found, returns "unknown"
  */
 export function getNetworkName(networkId: number | string): string {
-  try {
-    const networkName = PublicNetworks[Number(networkId)].name;
-    return networkName.charAt(0).toUpperCase() + networkName.slice(1);
-  } catch (error) {
-    // Convert networkId to a number in case it's a string, then lookup in the map
-    // Return "unknown" if the networkId does not exist in the map
-    return networkIdMap[Number(networkId)] || "unknown";
-  }
+  networkId = Number(networkId);
+  return PUBLIC_NETWORKS[networkId]?.name ?? hreNetworks[networkId] ?? "unknown";
 }
 
 /**
@@ -43,10 +21,7 @@ export function getNetworkName(networkId: number | string): string {
  * @returns The native token symbol for the chain id. If the chain id is not found, returns "ETH"
  */
 export function getNativeTokenSymbol(chainId: number | string): string {
-  if (chainId.toString() === "137" || chainId.toString() === "80001") {
-    return "MATIC";
-  }
-  return "ETH";
+  return PUBLIC_NETWORKS[Number(chainId)]?.nativeToken ?? "ETH";
 }
 
 /**
