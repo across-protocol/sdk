@@ -351,21 +351,6 @@ export class SpokePoolClient extends BaseAbstractClient {
   }
 
   /**
-   * @dev TODO This function is a bit of a hack for now and its dangerous to leave public because it allows the caller to
-   * manipulate internal data that was set at update() time. This is a workaround the current structure where UBAClient
-   * is dependent on SpokePoolClient, but one of the SpokePoolClient's internal data structures, `deposits` is dependent
-   * on the UBA client state being updated in order to have set correct realizedLpFeePcts. This function is currently
-   * designed to be called by the UBA client for each deposit that is loaded and have it reset the realizedLpFeePct
-   * equal to the depositBalancingFee plus the LP fee.
-   */
-  public updateDepositRealizedLpFeePct(event: Deposit, realizedLpFeePct: BigNumber): void {
-    this.depositHashes[this.getDepositHash(event)] = {
-      ...this.depositHashes[this.getDepositHash(event)],
-      realizedLpFeePct,
-    };
-  }
-
-  /**
    * Find the unfilled amount for a given deposit. This is the full deposit amount minus the total filled amount.
    * @param deposit The deposit to find the unfilled amount for.
    * @param fillCount The number of fills that have been applied to this deposit.
@@ -599,10 +584,6 @@ export class SpokePoolClient extends BaseAbstractClient {
       }
     }
 
-    // For each depositEvent, compute the realizedLpFeePct. Note this means that we are only finding this value on the
-    // new deposits that were found in the searchConfig (new from the previous run). This is important as this operation
-    // is heavy as there is a fair bit of block number lookups that need to happen. Note this call REQUIRES that the
-    // hubPoolClient is updated on the first before this call as this needed the the L1 token mapping to each L2 token.
     if (eventsToQuery.includes("V3FundsDeposited")) {
       const depositEvents = [
         ...((queryResults[eventsToQuery.indexOf("V3FundsDeposited")] ?? []) as V3FundsDepositedEvent[]),
@@ -619,9 +600,7 @@ export class SpokePoolClient extends BaseAbstractClient {
 
         // Derive and append the common properties that are not part of the onchain event.
         const { quoteBlock: quoteBlockNumber } = dataForQuoteTime[index];
-        const deposit = { ...(rawDeposit as DepositWithBlock), originChainId: this.chainId };
-        deposit.realizedLpFeePct = undefined;
-        deposit.quoteBlockNumber = quoteBlockNumber;
+        const deposit = { ...(rawDeposit as DepositWithBlock), originChainId: this.chainId, quoteBlockNumber };
         if (deposit.outputToken === ZERO_ADDRESS) {
           deposit.outputToken = this.getDestinationTokenForDeposit(deposit);
         }
