@@ -1,4 +1,4 @@
-import { BigNumber, Contract, Event, EventFilter, ethers } from "ethers";
+import { BigNumber, Contract, Event, EventFilter } from "ethers";
 import winston from "winston";
 import {
   AnyObject,
@@ -235,43 +235,6 @@ export class SpokePoolClient extends BaseAbstractClient {
    */
   public getRelayerRefundExecutions(): RelayerRefundExecutionWithBlock[] {
     return this.relayerRefundExecutions;
-  }
-
-  /**
-   * Retrieves a mapping of token addresses to relayer addresses to the amount of refunds that have been executed.
-   * @returns A mapping of token addresses to relayer addresses to the amount of refunds that have been executed.
-   */
-  public getExecutedRefunds(relayerRefundRoot: string): {
-    [tokenAddress: string]: {
-      [relayer: string]: BigNumber;
-    };
-  } {
-    const bundle = this.getRootBundleRelays().find((bundle) => bundle.relayerRefundRoot === relayerRefundRoot);
-    if (bundle === undefined) {
-      return {};
-    }
-
-    const executedRefundLeaves = this.getRelayerRefundExecutions().filter(
-      (leaf) => leaf.rootBundleId === bundle.rootBundleId
-    );
-    const executedRefunds: { [tokenAddress: string]: { [relayer: string]: BigNumber } } = {};
-    for (const refundLeaf of executedRefundLeaves) {
-      const tokenAddress = refundLeaf.l2TokenAddress;
-      if (executedRefunds[tokenAddress] === undefined) {
-        executedRefunds[tokenAddress] = {};
-      }
-      const executedTokenRefunds = executedRefunds[tokenAddress];
-
-      for (let i = 0; i < refundLeaf.refundAddresses.length; i++) {
-        const relayer = refundLeaf.refundAddresses[i];
-        const refundAmount = refundLeaf.refundAmounts[i];
-        if (executedTokenRefunds[relayer] === undefined) {
-          executedTokenRefunds[relayer] = ethers.constants.Zero;
-        }
-        executedTokenRefunds[relayer] = executedTokenRefunds[relayer].add(refundAmount);
-      }
-    }
-    return executedRefunds;
   }
 
   /**
