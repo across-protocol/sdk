@@ -1,3 +1,4 @@
+import assert from "assert";
 import { BigNumber, Contract, Event, EventFilter } from "ethers";
 import winston from "winston";
 import { isError, isEthersError } from "../typeguards";
