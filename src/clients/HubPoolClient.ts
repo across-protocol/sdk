@@ -253,7 +253,7 @@ export class HubPoolClient extends BaseAbstractClient {
   }
 
   l2TokenEnabledForL1Token(l1Token: string, destinationChainId: number): boolean {
-    return this.l1TokensToDestinationTokens[l1Token][destinationChainId] != undefined;
+    return this.l1TokensToDestinationTokens?.[l1Token]?.[destinationChainId] != undefined;
   }
 
   getBlockNumber(timestamp: number): Promise<number | undefined> {
