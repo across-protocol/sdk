@@ -99,6 +99,13 @@ export class ArweaveClient {
     // Ensure that the result is successful. If it is not, the retrieved value is not our expected type
     // but rather a {status: string, statusText: string} object. We can detect that and return null.
     if (responseStatus !== 200 || ("status" in data && data["status"] !== 200)) {
+      this.logger.debug({
+        at: "ArweaveClient:get",
+        message: "Failed to retrieve value from Arweave - network error or invalid response status",
+        transactionID,
+        responseStatus,
+        data,
+      });
       return null;
     }
     try {
@@ -155,8 +162,19 @@ export class ArweaveClient {
           ) { edges { node { id } } } 
         }`,
     });
+    const entries = transactions?.data?.data?.transactions?.edges ?? [];
+    this.logger.debug({
+      at: "ArweaveClient:getByTopic",
+      message: `Retrieved ${entries.length} matching transactions from Arweave`,
+      transactions: entries.map((edge) => edge.node.id),
+      metaInformation: {
+        tag,
+        originQueryAddress,
+        appVersion: ARWEAVE_TAG_APP_VERSION,
+      },
+    });
     const results = await Promise.all(
-      transactions.data.data.transactions.edges.map(async (edge) => {
+      entries.map(async (edge) => {
         const data = await this.get<T>(edge.node.id, validator);
         return isDefined(data)
           ? {
