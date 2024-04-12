@@ -75,3 +75,32 @@ export function chainIsArbitrum(chainId: number): boolean {
 export function chainIsLinea(chainId: number): boolean {
   return [CHAIN_IDs.LINEA, CHAIN_IDs.LINEA_GOERLI].includes(chainId);
 }
+
+/**
+ * Determines whether a chain ID has the capacity for having its USDC bridged via CCTP.
+ * @param chainId Chain ID to evaluate.
+ * @returns True if chainId is a CCTP-bridging enabled chain, otherwise false.
+ */
+export function chainIsCCTPEnabled(chainId: number): boolean {
+  return [
+    // Mainnets
+    CHAIN_IDs.BASE,
+    CHAIN_IDs.OPTIMISM,
+    CHAIN_IDs.ARBITRUM,
+    CHAIN_IDs.POLYGON,
+    // Testnets
+    CHAIN_IDs.BASE_SEPOLIA,
+    CHAIN_IDs.OPTIMISM_SEPOLIA,
+    CHAIN_IDs.ARBITRUM_SEPOLIA,
+    CHAIN_IDs.POLYGON_AMOY,
+  ].includes(chainId);
+}
+
+/**
+ * Determines if a chain ID requires a manual L1 -> L2 finalization step.
+ * @param chainId Chain ID to evaluate.
+ * @returns True if chainId requires manual L1 -> L2 finalization, otherwise false.
+ */
+export function chainRequiresL1ToL2Finalization(chainId: number): boolean {
+  return chainIsCCTPEnabled(chainId) || chainIsLinea(chainId);
+}
