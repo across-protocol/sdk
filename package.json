@@ -99,7 +99,7 @@
   },
   "dependencies": {
     "@across-protocol/across-token": "^1.0.0",
-    "@across-protocol/constants-v2": "^1.0.17",
+    "@across-protocol/constants-v2": "^1.0.18",
     "@across-protocol/contracts-v2": "2.5.4",
     "@eth-optimism/sdk": "^3.2.2",
     "@pinata/sdk": "^2.1.0",
