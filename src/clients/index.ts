@@ -5,5 +5,5 @@ export {
   ConfigStoreUpdate,
 } from "./AcrossConfigStoreClient";
 export { HubPoolClient, LpFeeRequest } from "./HubPoolClient";
-export { SpokePoolClient } from "./SpokePoolClient";
+export { SpokePoolClient, SpokePoolUpdate } from "./SpokePoolClient";
 export * as mocks from "./mocks";
