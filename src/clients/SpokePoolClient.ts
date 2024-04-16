@@ -464,17 +464,23 @@ export class SpokePoolClient extends BaseAbstractClient {
       }
     }
 
+    const toBlock = this.eventSearchConfig.toBlock || (await this.spokePool.provider.getBlockNumber());
+
     // Determine if this spoke pool has the capability to bridge UDSC via the CCTP token bridge.
     // The CCTP bridge is canonically disabled if the `cctpTokenMessenger` is the ZERO address.
     let hasCCTPBridgingEnabled = false;
     if (chainIsCCTPEnabled(this.chainId)) {
-      const cctpBridgeAddress = String(await this.spokePool.cctpTokenMessenger());
+      const cctpBridgeAddress = String(
+        await this.spokePool.cctpTokenMessenger({
+          blockTag: toBlock,
+        })
+      );
       hasCCTPBridgingEnabled = cctpBridgeAddress.toLowerCase() !== ZERO_ADDRESS.toLowerCase();
     }
 
     const searchConfig = {
       fromBlock: this.firstBlockToSearch,
-      toBlock: this.eventSearchConfig.toBlock || (await this.spokePool.provider.getBlockNumber()),
+      toBlock,
       maxBlockLookBack: this.eventSearchConfig.maxBlockLookBack,
     };
     if (searchConfig.fromBlock > searchConfig.toBlock) {
