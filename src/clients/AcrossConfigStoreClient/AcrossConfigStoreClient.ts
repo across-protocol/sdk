@@ -489,6 +489,7 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
     this.hasLatestConfigStoreVersion = this.hasValidConfigStoreVersionForTimestamp();
     this.latestBlockSearched = result.searchEndBlock;
     this.firstBlockToSearch = result.searchEndBlock + 1; // Next iteration should start off from where this one ended.
+    this.eventSearchConfig.toBlock = undefined; // Caller can re-set on subsequent updates if necessary
     this.chainId = this.chainId ?? chainId; // Update on the first run only.
     this.isUpdated = true;
 
