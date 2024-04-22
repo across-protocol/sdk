@@ -37,7 +37,7 @@ import {
   V3FundsDepositedEvent,
 } from "../interfaces";
 import { SpokePool } from "../typechain";
-import { getNetworkName } from "../utils/NetworkUtils";
+import { chainIsCCTPEnabled, getNetworkName } from "../utils/NetworkUtils";
 import { getBlockRangeForDepositId, getDepositIdAtBlock } from "../utils/SpokeUtils";
 import { BaseAbstractClient } from "./BaseAbstractClient";
 import { HubPoolClient } from "./HubPoolClient";
@@ -50,6 +50,7 @@ type _SpokePoolUpdate = {
   latestDepositId: number;
   events: Event[][];
   searchEndBlock: number;
+  hasCCTPBridgingEnabled: boolean;
 };
 export type SpokePoolUpdate = { success: false } | _SpokePoolUpdate;
 
@@ -69,6 +70,7 @@ export class SpokePoolClient extends BaseAbstractClient {
   protected rootBundleRelays: RootBundleRelayWithBlock[] = [];
   protected relayerRefundExecutions: RelayerRefundExecutionWithBlock[] = [];
   protected queryableEventNames: string[] = [];
+  protected hasCCTPBridgingEnabled: boolean = false;
   public earliestDepositIdQueried = Number.MAX_SAFE_INTEGER;
   public latestDepositIdQueried = 0;
   public firstDepositIdForSpokePool = Number.MAX_SAFE_INTEGER;
@@ -147,6 +149,15 @@ export class SpokePoolClient extends BaseAbstractClient {
    */
   public getTokensBridged(): TokensBridged[] {
     return this.tokensBridged;
+  }
+
+  /**
+   * Certain spoke pools can bridge USDC back to the hub via CCTP. Of these spokes, not all
+   * have this feature enabled.
+   * @returns Whether or not this spoke pool is capable of bridging USDC via CCTP back to the hub
+   */
+  public isCCTPBridgingEnabled(): boolean {
+    return this.hasCCTPBridgingEnabled;
   }
 
   /**
@@ -453,9 +464,23 @@ export class SpokePoolClient extends BaseAbstractClient {
       }
     }
 
+    const toBlock = this.eventSearchConfig.toBlock || (await this.spokePool.provider.getBlockNumber());
+
+    // Determine if this spoke pool has the capability to bridge UDSC via the CCTP token bridge.
+    // The CCTP bridge is canonically disabled if the `cctpTokenMessenger` is the ZERO address.
+    let hasCCTPBridgingEnabled = false;
+    if (chainIsCCTPEnabled(this.chainId)) {
+      const cctpBridgeAddress = String(
+        await this.spokePool.cctpTokenMessenger({
+          blockTag: toBlock,
+        })
+      );
+      hasCCTPBridgingEnabled = cctpBridgeAddress.toLowerCase() !== ZERO_ADDRESS.toLowerCase();
+    }
+
     const searchConfig = {
       fromBlock: this.firstBlockToSearch,
-      toBlock: this.eventSearchConfig.toBlock || (await this.spokePool.provider.getBlockNumber()),
+      toBlock,
       maxBlockLookBack: this.eventSearchConfig.maxBlockLookBack,
     };
     if (searchConfig.fromBlock > searchConfig.toBlock) {
@@ -516,6 +541,7 @@ export class SpokePoolClient extends BaseAbstractClient {
       latestDepositId: Math.max(numberOfDeposits - 1, 0),
       searchEndBlock: searchConfig.toBlock,
       events,
+      hasCCTPBridgingEnabled,
     };
   }
 
@@ -678,6 +704,7 @@ export class SpokePoolClient extends BaseAbstractClient {
     this.currentTime = currentTime;
     if (this.oldestTime === 0) this.oldestTime = oldestTime; // Set oldest time only after the first update.
     this.firstDepositIdForSpokePool = update.firstDepositId;
+    this.hasCCTPBridgingEnabled = update.hasCCTPBridgingEnabled;
     this.latestBlockSearched = searchEndBlock;
     this.lastDepositIdForSpokePool = update.latestDepositId;
     this.firstBlockToSearch = searchEndBlock + 1;
