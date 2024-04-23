@@ -33,9 +33,9 @@ import {
   UBAParsedConfigType,
 } from "../../interfaces";
 import { parseJSONWithNumericString } from "../../utils/JSONUtils";
-import { BaseAbstractClient } from "../BaseAbstractClient";
+import { BaseAbstractClient, isUpdateFailureReason, UpdateFailureReason } from "../BaseAbstractClient";
 
-type _ConfigStoreUpdate = {
+type ConfigStoreUpdateSuccess = {
   success: true;
   chainId: number;
   searchEndBlock: number;
@@ -45,7 +45,8 @@ type _ConfigStoreUpdate = {
     globalConfigUpdateTimes: number[];
   };
 };
-export type ConfigStoreUpdate = { success: false } | _ConfigStoreUpdate;
+type ConfigStoreUpdateFailure = { success: false; reason: UpdateFailureReason };
+export type ConfigStoreUpdate = ConfigStoreUpdateSuccess | ConfigStoreUpdateFailure;
 
 // Version 0 is the implicit ConfigStore version from before the version attribute was introduced.
 // @dev Do not change this value.
@@ -78,10 +79,10 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
   constructor(
     readonly logger: winston.Logger,
     readonly configStore: Contract,
-    readonly eventSearchConfig: MakeOptional<EventSearchConfig, "toBlock"> = { fromBlock: 0, maxBlockLookBack: 0 },
+    eventSearchConfig: MakeOptional<EventSearchConfig, "toBlock"> = { fromBlock: 0, maxBlockLookBack: 0 },
     readonly configStoreVersion: number
   ) {
-    super();
+    super(eventSearchConfig);
     this.firstBlockToSearch = eventSearchConfig.fromBlock;
     this.latestBlockSearched = 0;
     this.rateModelDictionary = new across.rateModel.RateModelDictionary();
@@ -269,18 +270,16 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
   protected async _update(): Promise<ConfigStoreUpdate> {
     const chainId = await this.resolveChainId();
 
-    const searchConfig = {
-      fromBlock: this.firstBlockToSearch,
-      toBlock: this.eventSearchConfig.toBlock || (await this.configStore.provider.getBlockNumber()),
-      maxBlockLookBack: this.eventSearchConfig.maxBlockLookBack,
-    };
+    const searchConfig = await this.updateSearchConfig(this.configStore.provider);
+    if (isUpdateFailureReason(searchConfig)) {
+      const reason = searchConfig;
+      if (reason === UpdateFailureReason.BadRequest) {
+        this.logger.warn({ at: "AcrossConfigStore", message: "Invalid update() searchConfig." });
+      }
+      return { success: false, reason };
+    }
 
     this.logger.debug({ at: "AcrossConfigStore", message: "Updating ConfigStore client", searchConfig });
-
-    if (searchConfig.fromBlock > searchConfig.toBlock) {
-      this.logger.warn({ at: "AcrossConfigStore", message: "Invalid search config.", searchConfig });
-      return { success: false };
-    }
 
     const [updatedTokenConfigEvents, updatedGlobalConfigEvents] = await Promise.all([
       paginatedEventQuery(this.configStore, this.configStore.filters.UpdatedTokenConfig(), searchConfig),

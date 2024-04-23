@@ -29,6 +29,7 @@ import {
   MakeOptional,
   assign,
   fetchTokenInfo,
+  isPromiseFulfilled,
   getCachedBlockForTimestamp,
   getCurrentTime,
   getNetworkName,
@@ -42,16 +43,20 @@ import {
   toBN,
 } from "../utils";
 import { AcrossConfigStoreClient as ConfigStoreClient } from "./AcrossConfigStoreClient/AcrossConfigStoreClient";
-import { BaseAbstractClient } from "./BaseAbstractClient";
+import { BaseAbstractClient, isUpdateFailureReason, UpdateFailureReason } from "./BaseAbstractClient";
 
-type _HubPoolUpdate = {
+type HubPoolUpdateSuccess = {
   success: true;
   currentTime: number;
   pendingRootBundleProposal: PendingRootBundle;
   events: Record<string, Event[]>;
   searchEndBlock: number;
 };
-export type HubPoolUpdate = { success: false } | _HubPoolUpdate;
+type HubPoolUpdateFailure = {
+  success: false;
+  reason: UpdateFailureReason;
+};
+export type HubPoolUpdate = HubPoolUpdateSuccess | HubPoolUpdateFailure;
 
 type HubPoolEvent =
   | "SetPoolRebalanceRoute"
@@ -94,7 +99,7 @@ export class HubPoolClient extends BaseAbstractClient {
     public configStoreClient: ConfigStoreClient,
     public deploymentBlock = 0,
     readonly chainId: number = 1,
-    readonly eventSearchConfig: MakeOptional<EventSearchConfig, "toBlock"> = { fromBlock: 0, maxBlockLookBack: 0 },
+    eventSearchConfig: MakeOptional<EventSearchConfig, "toBlock"> = { fromBlock: 0, maxBlockLookBack: 0 },
     protected readonly configOverride: {
       ignoredHubExecutedBundles: number[];
       ignoredHubProposedBundles: number[];
@@ -105,7 +110,7 @@ export class HubPoolClient extends BaseAbstractClient {
     },
     cachingMechanism?: CachingMechanismInterface
   ) {
-    super(cachingMechanism);
+    super(eventSearchConfig, cachingMechanism);
     this.latestBlockSearched = Math.min(deploymentBlock - 1, 0);
     this.firstBlockToSearch = eventSearchConfig.fromBlock;
 
@@ -730,20 +735,19 @@ export class HubPoolClient extends BaseAbstractClient {
 
   async _update(eventNames: HubPoolEvent[]): Promise<HubPoolUpdate> {
     const hubPoolEvents = this.hubPoolEventFilters();
+    const searchConfig = await this.updateSearchConfig(this.hubPool.provider);
 
-    const searchConfig = {
-      fromBlock: this.firstBlockToSearch,
-      toBlock: this.eventSearchConfig.toBlock || (await this.hubPool.provider.getBlockNumber()),
-      maxBlockLookBack: this.eventSearchConfig.maxBlockLookBack,
-    };
-    if (searchConfig.fromBlock > searchConfig.toBlock) {
-      this.logger.warn({ at: "HubPoolClient#_update", message: "Invalid update() searchConfig.", searchConfig });
-      return { success: false };
+    if (isUpdateFailureReason(searchConfig)) {
+      const reason = searchConfig;
+      if (reason === UpdateFailureReason.BadRequest) {
+        this.logger.warn({ at: "HubPoolClient#_update", message: "Invalid update() searchConfig." });
+      }
+      return { success: false, reason };
     }
 
     const eventSearchConfigs = eventNames.map((eventName) => {
       if (!Object.keys(hubPoolEvents).includes(eventName)) {
-        throw new Error(`HubPoolClient: Cannot query unrecognised HubPool event name: ${eventName}`);
+        return { success: false, reason: UpdateFailureReason.BadRequest };
       }
 
       const _searchConfig = { ...searchConfig }; // shallow copy
@@ -771,20 +775,22 @@ export class HubPoolClient extends BaseAbstractClient {
 
     const { hubPool } = this;
     const multicallFunctions = ["getCurrentTime", "rootBundleProposal"];
-    const [multicallOutput, ...events] = await Promise.all([
+    const promises = await Promise.allSettled([
       hubPool.callStatic.multicall(
         multicallFunctions.map((f) => hubPool.interface.encodeFunctionData(f)),
         { blockTag: searchConfig.toBlock }
       ),
-      ...eventSearchConfigs.map((config) => paginatedEventQuery(this.hubPool, config.filter, config.searchConfig)),
+      ...eventSearchConfigs.map((config) => paginatedEventQuery(this.hubPool, config.filter!, config.searchConfig!)),
     ]);
-    const [currentTime, pendingRootBundleProposal] = multicallFunctions
-      .map((fn, idx) => {
-        const output = hubPool.interface.decodeFunctionResult(fn, multicallOutput[idx])
-        return BigNumber.isBigNumber(output)
-          ? output.toNumber()
-          : spreadEvent(output);
-      });
+
+    if (!promises.every(isPromiseFulfilled)) {
+      return { success: false, reason: UpdateFailureReason.RPCError };
+    }
+    const [multicallOutput, ...events] = promises.filter(isPromiseFulfilled).map(({ value }) => value);
+    const [currentTime, pendingRootBundleProposal] = multicallFunctions.map((fn, idx) => {
+      const output = hubPool.interface.decodeFunctionResult(fn, multicallOutput[idx]);
+      return BigNumber.isBigNumber(output) ? output.toNumber() : spreadEvent(output);
+    });
 
     this.logger.debug({
       at: "HubPoolClient#_update",
@@ -810,9 +816,7 @@ export class HubPoolClient extends BaseAbstractClient {
     }
     const update = await this._update(eventsToQuery);
     if (!update.success) {
-      // This failure only occurs if the RPC searchConfig is miscomputed, and has only been seen in the hardhat test
-      // environment. Normal failures will throw instead. This is therefore an unfortunate workaround until we can
-      // understand why we see this in test. @todo: Resolve.
+      this.isUpdated = update.reason === UpdateFailureReason.AlreadyUpdated;
       return;
     }
     const { events, currentTime, pendingRootBundleProposal, searchEndBlock } = update;
