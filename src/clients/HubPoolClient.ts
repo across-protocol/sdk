@@ -780,7 +780,7 @@ export class HubPoolClient extends BaseAbstractClient {
         multicallFunctions.map((f) => hubPool.interface.encodeFunctionData(f)),
         { blockTag: searchConfig.toBlock }
       ),
-      ...eventSearchConfigs.map((config) => paginatedEventQuery(this.hubPool, config.filter!, config.searchConfig!)),
+      ...eventSearchConfigs.map((config) => paginatedEventQuery(hubPool, config.filter, config.searchConfig)),
     ]);
     if (!promises.every(isPromiseFulfilled)) {
       return { success: false, reason: UpdateFailureReason.RPCError };
