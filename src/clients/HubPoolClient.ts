@@ -782,10 +782,10 @@ export class HubPoolClient extends BaseAbstractClient {
       ),
       ...eventSearchConfigs.map((config) => paginatedEventQuery(this.hubPool, config.filter!, config.searchConfig!)),
     ]);
-
     if (!promises.every(isPromiseFulfilled)) {
       return { success: false, reason: UpdateFailureReason.RPCError };
     }
+
     const [multicallOutput, ...events] = promises.filter(isPromiseFulfilled).map(({ value }) => value);
     const [currentTime, pendingRootBundleProposal] = multicallFunctions.map((fn, idx) => {
       const output = hubPool.interface.decodeFunctionResult(fn, multicallOutput[idx]);
