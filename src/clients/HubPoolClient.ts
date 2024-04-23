@@ -778,13 +778,10 @@ export class HubPoolClient extends BaseAbstractClient {
       ),
       ...eventSearchConfigs.map((config) => paginatedEventQuery(this.hubPool, config.filter, config.searchConfig)),
     ]);
-    const [currentTime, pendingRootBundleProposal] = multicallFunctions
-      .map((fn, idx) => {
-        const output = hubPool.interface.decodeFunctionResult(fn, multicallOutput[idx])
-        return BigNumber.isBigNumber(output)
-          ? output.toNumber()
-          : spreadEvent(output);
-      });
+    const [currentTime, pendingRootBundleProposal] = multicallFunctions.map((fn, idx) => {
+      const output = hubPool.interface.decodeFunctionResult(fn, multicallOutput[idx]);
+      return BigNumber.isBigNumber(output) ? output.toNumber() : spreadEvent(output);
+    });
 
     this.logger.debug({
       at: "HubPoolClient#_update",
