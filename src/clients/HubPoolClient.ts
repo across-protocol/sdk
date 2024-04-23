@@ -776,7 +776,7 @@ export class HubPoolClient extends BaseAbstractClient {
         multicallFunctions.map((f) => hubPool.interface.encodeFunctionData(f)),
         { blockTag: searchConfig.toBlock }
       ),
-      ...eventSearchConfigs.map((config) => paginatedEventQuery(this.hubPool, config.filter, config.searchConfig)),
+      ...eventSearchConfigs.map((config) => paginatedEventQuery(hubPool, config.filter, config.searchConfig)),
     ]);
     const [currentTime, pendingRootBundleProposal] = multicallFunctions.map((fn, idx) => {
       const output = hubPool.interface.decodeFunctionResult(fn, multicallOutput[idx]);
