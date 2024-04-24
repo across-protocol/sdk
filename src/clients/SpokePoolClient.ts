@@ -168,6 +168,13 @@ export class SpokePoolClient extends BaseAbstractClient {
     return this.depositRoutes;
   }
 
+  /**
+   * Updates deposit route mapping.
+   * @param inputToken Input token to be bridged.
+   * @param destinationChainId Destination chain to bridge to.
+   * @param enabled Boolean determining whether the route is enabled.
+   * @returns void
+   */
   protected setDepositRoute(inputToken: string, destinationChainId: number, enabled: boolean): void {
     assign(this.depositRoutes, [inputToken, destinationChainId], enabled);
   }
