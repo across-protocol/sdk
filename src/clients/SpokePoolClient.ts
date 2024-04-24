@@ -168,6 +168,10 @@ export class SpokePoolClient extends BaseAbstractClient {
     return this.depositRoutes;
   }
 
+  protected setDepositRoute(inputToken: string, destinationChainId: number, enabled: boolean): void {
+    assign(this.depositRoutes, [inputToken, destinationChainId], enabled);
+  }
+
   /**
    * Determines whether a deposit route is enabled for the given origin token and destination chain ID.
    * @param originToken The origin token address.
@@ -673,11 +677,7 @@ export class SpokePoolClient extends BaseAbstractClient {
 
       for (const event of enableDepositsEvents) {
         const enableDeposit = spreadEvent(event.args);
-        assign(
-          this.depositRoutes,
-          [enableDeposit.originToken, enableDeposit.destinationChainId],
-          enableDeposit.enabled
-        );
+        this.setDepositRoute(enableDeposit.originToken, enableDeposit.destinationChainId, enableDeposit.enabled);
       }
     }
 
