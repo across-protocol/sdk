@@ -169,24 +169,6 @@ export class SpokePoolClient extends BaseAbstractClient {
   }
 
   /**
-   * Determines whether a deposit route is enabled for the given origin token and destination chain ID.
-   * @param originToken The origin token address.
-   * @param destinationChainId The destination chain ID.
-   * @returns True if the deposit route is enabled, false otherwise.
-   */
-  public isDepositRouteEnabled(originToken: string, destinationChainId: number): boolean {
-    return this.depositRoutes[originToken]?.[destinationChainId] ?? false;
-  }
-
-  /**
-   * Retrieves a list of all the available origin tokens that can be bridged.
-   * @returns A list of origin tokens.
-   */
-  public getAllOriginTokens(): string[] {
-    return Object.keys(this.depositRoutes);
-  }
-
-  /**
    * Retrieves a list of fills from the SpokePool contract.
    * @returns A list of fills.
    */
