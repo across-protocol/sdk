@@ -29,7 +29,6 @@ import {
   MakeOptional,
   assign,
   fetchTokenInfo,
-  isPromiseFulfilled,
   getCachedBlockForTimestamp,
   getCurrentTime,
   getNetworkName,
@@ -775,21 +774,17 @@ export class HubPoolClient extends BaseAbstractClient {
 
     const { hubPool } = this;
     const multicallFunctions = ["getCurrentTime", "rootBundleProposal"];
-    const promises = await Promise.allSettled([
+    const [multicallOutput, ...events] = await Promise.all([
       hubPool.callStatic.multicall(
         multicallFunctions.map((f) => hubPool.interface.encodeFunctionData(f)),
         { blockTag: searchConfig.toBlock }
       ),
       ...eventSearchConfigs.map((config) => paginatedEventQuery(hubPool, config.filter, config.searchConfig)),
     ]);
-    if (!promises.every(isPromiseFulfilled)) {
-      return { success: false, reason: UpdateFailureReason.RPCError };
-    }
 
-    const [multicallOutput, ...events] = promises.filter(isPromiseFulfilled).map(({ value }) => value);
     const [currentTime, pendingRootBundleProposal] = multicallFunctions.map((fn, idx) => {
       const output = hubPool.interface.decodeFunctionResult(fn, multicallOutput[idx]);
-      return BigNumber.isBigNumber(output) ? output.toNumber() : spreadEvent(output);
+      return output.length > 1 ? output : output[0];
     });
 
     this.logger.debug({

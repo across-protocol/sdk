@@ -136,6 +136,7 @@ export class MockSpokePoolClient extends SpokePoolClient {
       oldestTime: 0,
       events,
       searchEndBlock: this.eventSearchConfig.toBlock || latestBlockSearched,
+      hasCCTPBridgingEnabled: false,
     };
   }
 
