@@ -768,11 +768,21 @@ export class HubPoolClient extends BaseAbstractClient {
       searchConfig: eventSearchConfigs.map(({ eventName, searchConfig }) => ({ eventName, searchConfig })),
     });
     const timerStart = Date.now();
-    const [currentTime, pendingRootBundleProposal, ...events] = await Promise.all([
-      this.hubPool.getCurrentTime({ blockTag: searchConfig.toBlock }),
-      this.hubPool.rootBundleProposal({ blockTag: searchConfig.toBlock }),
-      ...eventSearchConfigs.map((config) => paginatedEventQuery(this.hubPool, config.filter, config.searchConfig)),
+
+    const { hubPool } = this;
+    const multicallFunctions = ["getCurrentTime", "rootBundleProposal"];
+    const [multicallOutput, ...events] = await Promise.all([
+      hubPool.callStatic.multicall(
+        multicallFunctions.map((f) => hubPool.interface.encodeFunctionData(f)),
+        { blockTag: searchConfig.toBlock }
+      ),
+      ...eventSearchConfigs.map((config) => paginatedEventQuery(hubPool, config.filter, config.searchConfig)),
     ]);
+    const [currentTime, pendingRootBundleProposal] = multicallFunctions.map((fn, idx) => {
+      const output = hubPool.interface.decodeFunctionResult(fn, multicallOutput[idx]);
+      return output.length > 1 ? output : output[0];
+    });
+
     this.logger.debug({
       at: "HubPoolClient#_update",
       message: `Time to query new events from RPC for ${this.chainId}: ${Date.now() - timerStart} ms`,
