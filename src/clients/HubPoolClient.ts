@@ -744,11 +744,12 @@ export class HubPoolClient extends BaseAbstractClient {
       return { success: false, reason };
     }
 
-    const eventSearchConfigs = eventNames.map((eventName) => {
-      if (!Object.keys(hubPoolEvents).includes(eventName)) {
-        return { success: false, reason: UpdateFailureReason.BadRequest };
-      }
+    const supportedEvents = Object.keys(hubPoolEvents);
+    if (eventNames.some((eventName) => !supportedEvents.includes(eventName))) {
+      return { success: false, reason: UpdateFailureReason.BadRequest };
+    }
 
+    const eventSearchConfigs = eventNames.map((eventName) => {
       const _searchConfig = { ...searchConfig }; // shallow copy
 
       // By default, an event's query range is controlled by the `searchConfig` passed in during
