@@ -780,7 +780,7 @@ export class HubPoolClient extends BaseAbstractClient {
     ]);
     const [currentTime, pendingRootBundleProposal] = multicallFunctions.map((fn, idx) => {
       const output = hubPool.interface.decodeFunctionResult(fn, multicallOutput[idx]);
-      return output.length > 0 ? output : output[0];
+      return output.length > 1 ? output : output[0];
     });
 
     this.logger.debug({
