@@ -273,9 +273,6 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
     const searchConfig = await this.updateSearchConfig(this.configStore.provider);
     if (isUpdateFailureReason(searchConfig)) {
       const reason = searchConfig;
-      if (reason === UpdateFailureReason.BadRequest) {
-        this.logger.warn({ at: "AcrossConfigStore", message: "Invalid update() searchConfig." });
-      }
       return { success: false, reason };
     }
 
@@ -308,6 +305,11 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
   async update(): Promise<void> {
     const result = await this._update();
     if (!result.success) {
+      if (result.reason !== UpdateFailureReason.AlreadyUpdated) {
+        throw new Error(`Unable to update ConfigStoreClient: ${result.reason}`);
+      }
+
+      // No need to touch `this.isUpdated` because it should already be set from a previous update.
       return;
     }
     const { chainId } = result;

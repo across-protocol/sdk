@@ -737,11 +737,7 @@ export class HubPoolClient extends BaseAbstractClient {
     const searchConfig = await this.updateSearchConfig(this.hubPool.provider);
 
     if (isUpdateFailureReason(searchConfig)) {
-      const reason = searchConfig;
-      if (reason === UpdateFailureReason.BadRequest) {
-        this.logger.warn({ at: "HubPoolClient#_update", message: "Invalid update() searchConfig." });
-      }
-      return { success: false, reason };
+      return { success: false, reason: searchConfig };
     }
 
     const supportedEvents = Object.keys(hubPoolEvents);
@@ -812,7 +808,11 @@ export class HubPoolClient extends BaseAbstractClient {
     }
     const update = await this._update(eventsToQuery);
     if (!update.success) {
-      this.isUpdated = update.reason === UpdateFailureReason.AlreadyUpdated;
+      if (update.reason !== UpdateFailureReason.AlreadyUpdated) {
+        throw new Error(`Unable to update HubPoolClient: ${update.reason}`);
+      }
+
+      // No need to touch `this.isUpdated` because it should already be set from a previous update.
       return;
     }
     const { events, currentTime, pendingRootBundleProposal, searchEndBlock } = update;

@@ -471,9 +471,6 @@ export class SpokePoolClient extends BaseAbstractClient {
     const searchConfig = await this.updateSearchConfig(this.spokePool.provider);
     if (isUpdateFailureReason(searchConfig)) {
       const reason = searchConfig;
-      if (reason === UpdateFailureReason.BadRequest) {
-        this.log("warn", "Invalid update() searchConfig.");
-      }
       return { success: false, reason };
     }
 
@@ -561,9 +558,6 @@ export class SpokePoolClient extends BaseAbstractClient {
 
     const update = await this._update(eventsToQuery);
     if (!update.success) {
-      // This failure only occurs if the RPC searchConfig is miscomputed, and has only been seen in the hardhat test
-      // environment. Normal failures will throw instead. This is therefore an unfortunate workaround until we can
-      // understand why we see this in test. @todo: Resolve.
       return;
     }
     const { events: queryResults, currentTime, oldestTime, searchEndBlock } = update;

@@ -62,14 +62,10 @@ export abstract class BaseAbstractClient {
     let { toBlock } = this.eventSearchConfig;
     if (isDefined(toBlock)) {
       if (fromBlock > toBlock) {
-        return UpdateFailureReason.BadRequest;
+        throw new Error(`Invalid event search config fromBlock (${fromBlock}) > toBlock (${toBlock})`);
       }
     } else {
-      try {
-        toBlock = await provider.getBlockNumber();
-      } catch (err) {
-        return UpdateFailureReason.RPCError;
-      }
+      toBlock = await provider.getBlockNumber();
       if (toBlock < fromBlock) {
         return UpdateFailureReason.AlreadyUpdated;
       }
