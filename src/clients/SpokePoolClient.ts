@@ -477,7 +477,7 @@ export class SpokePoolClient extends BaseAbstractClient {
     // Determine if this spoke pool has the capability to bridge UDSC via the CCTP token bridge.
     // The CCTP bridge is canonically disabled if the `cctpTokenMessenger` is the ZERO address.
     let hasCCTPBridgingEnabled = false;
-    if (chainIsCCTPEnabled(this.chainId)) {
+    if (chainIsCCTPEnabled(this.chainId) && isDefined(this.spokePool.cctpTokenMessenger)) {
       const cctpBridgeAddress = String(
         await this.spokePool.cctpTokenMessenger({
           blockTag: searchConfig.toBlock,
