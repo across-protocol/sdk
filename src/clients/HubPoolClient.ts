@@ -31,7 +31,6 @@ import {
   fetchTokenInfo,
   getCachedBlockForTimestamp,
   getCurrentTime,
-  getNetworkName,
   isDefined,
   mapAsync,
   paginatedEventQuery,
