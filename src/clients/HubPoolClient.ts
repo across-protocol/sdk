@@ -181,24 +181,15 @@ export class HubPoolClient extends BaseAbstractClient {
     l1Token: string,
     destinationChainId: number,
     latestHubBlock = Number.MAX_SAFE_INTEGER
-  ): string {
+  ): string | undefined {
     if (!this.l1TokensToDestinationTokensWithBlock?.[l1Token]?.[destinationChainId]) {
-      const chain = getNetworkName(destinationChainId);
-      const { symbol } = this.l1Tokens.find(({ address }) => address === l1Token) ?? { symbol: l1Token };
-      throw new Error(`Could not find SpokePool mapping for ${symbol} on ${chain} and L1 token ${l1Token}`);
+      return undefined;
     }
     // Find the last mapping published before the target block.
     const l2Token: DestinationTokenWithBlock | undefined = sortEventsDescending(
       this.l1TokensToDestinationTokensWithBlock[l1Token][destinationChainId]
     ).find((mapping: DestinationTokenWithBlock) => mapping.blockNumber <= latestHubBlock);
-    if (!l2Token) {
-      const chain = getNetworkName(destinationChainId);
-      const { symbol } = this.l1Tokens.find(({ address }) => address === l1Token) ?? { symbol: l1Token };
-      throw new Error(
-        `Could not find SpokePool mapping for ${symbol} on ${chain} at or before HubPool block ${latestHubBlock}!`
-      );
-    }
-    return l2Token.l2Token;
+    return l2Token?.l2Token;
   }
 
   // Returns the latest L1 token to use for an L2 token as of the input hub block.
@@ -206,7 +197,7 @@ export class HubPoolClient extends BaseAbstractClient {
     l2Token: string,
     destinationChainId: number,
     latestHubBlock = Number.MAX_SAFE_INTEGER
-  ): string {
+  ): string | undefined {
     const l2Tokens = Object.keys(this.l1TokensToDestinationTokensWithBlock)
       .filter((l1Token) => this.l2TokenEnabledForL1Token(l1Token, destinationChainId))
       .map((l1Token) => {
@@ -216,14 +207,9 @@ export class HubPoolClient extends BaseAbstractClient {
         );
       })
       .flat();
-    if (l2Tokens.length === 0) {
-      const chain = getNetworkName(destinationChainId);
-      throw new Error(
-        `Could not find HubPool mapping for ${l2Token} on ${chain} at or before HubPool block ${latestHubBlock}!`
-      );
-    }
+
     // Find the last mapping published before the target block.
-    return sortEventsDescending(l2Tokens)[0].l1Token;
+    return sortEventsDescending(l2Tokens)[0]?.l1Token;
   }
 
   /**
