@@ -51,10 +51,12 @@ export function chainIsOPStack(chainId: number): boolean {
   return [
     CHAIN_IDs.OPTIMISM,
     CHAIN_IDs.BASE,
+    CHAIN_IDs.MODE,
     CHAIN_IDs.OPTIMISM_GOERLI,
     CHAIN_IDs.BASE_GOERLI,
     CHAIN_IDs.OPTIMISM_SEPOLIA,
     CHAIN_IDs.BASE_SEPOLIA,
+    CHAIN_IDs.MODE_SEPOLIA,
   ].includes(chainId);
 }
 

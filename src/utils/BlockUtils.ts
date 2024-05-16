@@ -37,6 +37,7 @@ const blockTimes: { [chainId: number]: BlockTimeAverage } = {
   1: { average: 12.5, timestamp: now, blockRange: 1 },
   10: { average: 2, timestamp: now, blockRange: 1 },
   8453: { average: 2, timestamp: now, blockRange: 1 },
+  34443: { average: 2, timestamp: now, blockRange: 1 },
   59144: { average: 3, timestamp: now, blockRange: 1 },
 };
 
