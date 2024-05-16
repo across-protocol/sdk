@@ -20,6 +20,7 @@ export * from "./BlockExplorerUtils";
 export * from "./BigNumberUtils";
 export * from "./CachingUtils";
 export * from "./NetworkUtils";
+export * from "./Multicall";
 export * from "./ReviverUtils";
 export * from "./DepositUtils";
 export * from "./ValidatorUtils";

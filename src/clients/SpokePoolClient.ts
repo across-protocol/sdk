@@ -39,11 +39,11 @@ import {
 import { SpokePool } from "../typechain";
 import { chainIsCCTPEnabled, getNetworkName } from "../utils/NetworkUtils";
 import { getBlockRangeForDepositId, getDepositIdAtBlock } from "../utils/SpokeUtils";
-import { BaseAbstractClient } from "./BaseAbstractClient";
+import { BaseAbstractClient, isUpdateFailureReason, UpdateFailureReason } from "./BaseAbstractClient";
 import { HubPoolClient } from "./HubPoolClient";
 
-type _SpokePoolUpdate = {
-  success: boolean;
+type SpokePoolUpdateSuccess = {
+  success: true;
   currentTime: number;
   oldestTime: number;
   firstDepositId: number;
@@ -52,7 +52,11 @@ type _SpokePoolUpdate = {
   searchEndBlock: number;
   hasCCTPBridgingEnabled: boolean;
 };
-export type SpokePoolUpdate = { success: false } | _SpokePoolUpdate;
+type SpokePoolUpdateFailure = {
+  success: false;
+  reason: UpdateFailureReason;
+};
+export type SpokePoolUpdate = SpokePoolUpdateSuccess | SpokePoolUpdateFailure;
 
 /**
  * SpokePoolClient is a client for the SpokePool contract. It is responsible for querying the SpokePool contract
@@ -93,9 +97,9 @@ export class SpokePoolClient extends BaseAbstractClient {
     readonly hubPoolClient: HubPoolClient | null,
     readonly chainId: number,
     public deploymentBlock: number,
-    readonly eventSearchConfig: MakeOptional<EventSearchConfig, "toBlock"> = { fromBlock: 0, maxBlockLookBack: 0 }
+    eventSearchConfig: MakeOptional<EventSearchConfig, "toBlock"> = { fromBlock: 0, maxBlockLookBack: 0 }
   ) {
-    super();
+    super(eventSearchConfig);
     this.firstBlockToSearch = eventSearchConfig.fromBlock;
     this.latestBlockSearched = 0;
     this.queryableEventNames = Object.keys(this._queryableEventNames());
@@ -464,7 +468,11 @@ export class SpokePoolClient extends BaseAbstractClient {
       }
     }
 
-    const toBlock = this.eventSearchConfig.toBlock || (await this.spokePool.provider.getBlockNumber());
+    const searchConfig = await this.updateSearchConfig(this.spokePool.provider);
+    if (isUpdateFailureReason(searchConfig)) {
+      const reason = searchConfig;
+      return { success: false, reason };
+    }
 
     // Determine if this spoke pool has the capability to bridge UDSC via the CCTP token bridge.
     // The CCTP bridge is canonically disabled if the `cctpTokenMessenger` is the ZERO address.
@@ -472,20 +480,10 @@ export class SpokePoolClient extends BaseAbstractClient {
     if (chainIsCCTPEnabled(this.chainId) && isDefined(this.spokePool.cctpTokenMessenger)) {
       const cctpBridgeAddress = String(
         await this.spokePool.cctpTokenMessenger({
-          blockTag: toBlock,
+          blockTag: searchConfig.toBlock,
         })
       );
       hasCCTPBridgingEnabled = cctpBridgeAddress.toLowerCase() !== ZERO_ADDRESS.toLowerCase();
-    }
-
-    const searchConfig = {
-      fromBlock: this.firstBlockToSearch,
-      toBlock,
-      maxBlockLookBack: this.eventSearchConfig.maxBlockLookBack,
-    };
-    if (searchConfig.fromBlock > searchConfig.toBlock) {
-      this.log("warn", "Invalid update() searchConfig.", { searchConfig });
-      return { success: false };
     }
 
     const eventSearchConfigs = eventsToQuery.map((eventName) => {
@@ -560,9 +558,6 @@ export class SpokePoolClient extends BaseAbstractClient {
 
     const update = await this._update(eventsToQuery);
     if (!update.success) {
-      // This failure only occurs if the RPC searchConfig is miscomputed, and has only been seen in the hardhat test
-      // environment. Normal failures will throw instead. This is therefore an unfortunate workaround until we can
-      // understand why we see this in test. @todo: Resolve.
       return;
     }
     const { events: queryResults, currentTime, oldestTime, searchEndBlock } = update;
