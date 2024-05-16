@@ -1,21 +1,16 @@
-import { SpokePool, SpokePool__factory } from "../../typechain";
 import { L2Provider } from "@eth-optimism/sdk/dist/interfaces/l2-provider";
 import { providers } from "ethers";
 import { Coingecko } from "../../coingecko";
-import { CHAIN_IDs, DEFAULT_SIMULATED_RELAYER_ADDRESS, TOKEN_SYMBOLS_MAP } from "../../constants";
+import { CHAIN_IDs, DEFAULT_SIMULATED_RELAYER_ADDRESS } from "../../constants";
+import { Deposit } from "../../interfaces";
+import { SpokePool, SpokePool__factory } from "../../typechain";
 import {
   BigNumberish,
-  chainIsMatic,
-  chainIsOPStack,
-  estimateTotalGasRequiredByUnsignedTransaction,
-  getDeployedAddress,
-  populateV3Relay,
   TransactionCostEstimate,
+  estimateTotalGasRequiredByUnsignedTransaction,
+  populateV3Relay,
 } from "../../utils";
-import { DEFAULT_LOGGER, Logger, QueryInterface } from "../relayFeeCalculator";
-import { Deposit } from "../../interfaces";
-import { asL2Provider } from "@eth-optimism/sdk";
-import { PolygonQueries } from "./polygon";
+import { Logger, QueryInterface } from "../relayFeeCalculator";
 
 type Provider = providers.Provider;
 type OptimismProvider = L2Provider<Provider>;
@@ -31,7 +26,7 @@ type SymbolMappingType = Record<
  * A unified QueryBase for querying gas costs, token prices, and decimals of various tokens
  * on a blockchain.
  */
-export default class QueryBase implements QueryInterface {
+export class QueryBase implements QueryInterface {
   readonly spokePool: SpokePool;
   /**
    * Instantiates a QueryBase instance
@@ -99,54 +94,5 @@ export default class QueryBase implements QueryInterface {
   getTokenDecimals(tokenSymbol: string): number {
     if (!this.symbolMapping[tokenSymbol]) throw new Error(`${tokenSymbol} does not exist in mapping`);
     return this.symbolMapping[tokenSymbol].decimals;
-  }
-}
-
-/**
- * Some chains have a fixed gas price that is applied to the gas estimates. We should override
- * the gas markup for these chains.
- */
-const fixedGasPrice = {
-  [CHAIN_IDs.BOBA]: 1e9,
-};
-
-export class QueryBase__factory {
-  static create(
-    chainId: number,
-    provider: providers.Provider,
-    symbolMapping = TOKEN_SYMBOLS_MAP,
-    spokePoolAddress = getDeployedAddress("SpokePool", chainId),
-    simulatedRelayerAddress = DEFAULT_SIMULATED_RELAYER_ADDRESS,
-    coingeckoProApiKey?: string,
-    logger: Logger = DEFAULT_LOGGER,
-    gasMarkup = 0,
-    coingeckoBaseCurrency = "eth"
-  ): QueryBase {
-    // Currently the only chain that has a custom query class is Polygon
-    if (chainIsMatic(chainId)) {
-      return new PolygonQueries(
-        provider,
-        symbolMapping,
-        spokePoolAddress,
-        simulatedRelayerAddress,
-        coingeckoProApiKey,
-        logger,
-        gasMarkup
-      );
-    }
-    // For OPStack chains, we need to wrap the provider in an L2Provider
-    provider = chainIsOPStack(chainId) ? asL2Provider(provider) : provider;
-
-    return new QueryBase(
-      provider,
-      symbolMapping,
-      spokePoolAddress,
-      simulatedRelayerAddress,
-      gasMarkup,
-      logger,
-      coingeckoProApiKey,
-      fixedGasPrice[chainId],
-      coingeckoBaseCurrency
-    );
   }
 }
