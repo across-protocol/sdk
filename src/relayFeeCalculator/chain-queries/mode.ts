@@ -36,7 +36,7 @@ export class ModeSepoliaQueries extends QueryBase {
   constructor(
     provider: providers.Provider,
     symbolMapping = TOKEN_SYMBOLS_MAP,
-    spokePoolAddress = "0xf582712a2d605435b901066aaae05f99E0ef31b9",
+    spokePoolAddress = getDeployedAddress("SpokePool", CHAIN_IDs.MODE_SEPOLIA),
     simulatedRelayerAddress = DEFAULT_SIMULATED_RELAYER_ADDRESS_TEST,
     coingeckoProApiKey?: string,
     logger: Logger = DEFAULT_LOGGER,
