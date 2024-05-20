@@ -1,16 +1,16 @@
-import { SpokePool, SpokePool__factory } from "../../typechain";
 import { L2Provider } from "@eth-optimism/sdk/dist/interfaces/l2-provider";
 import { providers } from "ethers";
 import { Coingecko } from "../../coingecko";
 import { CHAIN_IDs, DEFAULT_SIMULATED_RELAYER_ADDRESS } from "../../constants";
+import { Deposit } from "../../interfaces";
+import { SpokePool, SpokePool__factory } from "../../typechain";
 import {
   BigNumberish,
+  TransactionCostEstimate,
   estimateTotalGasRequiredByUnsignedTransaction,
   populateV3Relay,
-  TransactionCostEstimate,
 } from "../../utils";
 import { Logger, QueryInterface } from "../relayFeeCalculator";
-import { Deposit } from "../../interfaces";
 
 type Provider = providers.Provider;
 type OptimismProvider = L2Provider<Provider>;
@@ -26,14 +26,13 @@ type SymbolMappingType = Record<
  * A unified QueryBase for querying gas costs, token prices, and decimals of various tokens
  * on a blockchain.
  */
-export default abstract class QueryBase implements QueryInterface {
+export class QueryBase implements QueryInterface {
   readonly spokePool: SpokePool;
   /**
    * Instantiates a QueryBase instance
    * @param provider A valid Ethers.js provider
    * @param symbolMapping A mapping to valid ERC20 tokens and their respective characteristics
    * @param spokePoolAddress The valid address of the Spoke Pool deployment
-   * @param usdcAddress The valid token address of the USDC ERC-20 token
    * @param simulatedRelayerAddress The address that these queries will reference as the sender. Note: This address must be approved for USDC
    * @param gasMarkup A multiplier that is applied to the total gas estimate
    * @param logger A logging utility to report logs
@@ -41,7 +40,7 @@ export default abstract class QueryBase implements QueryInterface {
    * @param fixedGasPrice Overrides the gas price with a fixed value. Note: primarily used for the Boba blockchain
    * @param coingeckoBaseCurrency The basis currency that CoinGecko will use to resolve pricing
    */
-  protected constructor(
+  constructor(
     readonly provider: Provider | OptimismProvider,
     readonly symbolMapping: SymbolMappingType,
     readonly spokePoolAddress: string,

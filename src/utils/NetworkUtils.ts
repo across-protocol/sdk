@@ -43,6 +43,15 @@ export function chainIsTestnet(chainId: number): boolean {
 }
 
 /**
+ * Determines whether a chain ID is a Polygon implementation.
+ * @param chainId Chain ID to evaluate.
+ * @returns True if chainId is a Polygon chain (mainnet or testnet), otherwise false.
+ */
+export function chainIsMatic(chainId: number): boolean {
+  return [CHAIN_IDs.POLYGON, CHAIN_IDs.POLYGON_AMOY].includes(chainId);
+}
+
+/**
  * Determines whether a chain ID is an Optimism OP Stack implementation.
  * @param chainId Chain ID to evaluate.
  * @returns True if chainId is an OP stack, otherwise false.
