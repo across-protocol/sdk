@@ -98,7 +98,7 @@ export class LPFeeCalculator {
   ): BN {
     const apy = this.calculateApyFromUtilization(toBN(utilizationBeforeDeposit), toBN(utilizationAfterDeposit));
 
-    // ACROSS-V2 UMIP requires that the realized fee percent is floor rounded as decimal to 6 decimals.
+    // ACROSS UMIP requires that the realized fee percent is floor rounded as decimal to 6 decimals.
     return truncateDecimals ? truncate18DecimalBN(convertApyToWeeklyFee(apy), 6) : convertApyToWeeklyFee(apy);
   }
   /**

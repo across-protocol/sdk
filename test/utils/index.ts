@@ -1,4 +1,4 @@
-export * as contractsV2Utils from "@across-protocol/contracts-v2/dist/test-utils";
+export * as contractsV2Utils from "@across-protocol/contracts/dist/test-utils";
 export { ethers } from "hardhat";
 export { smock } from "@defi-wonderland/smock";
 

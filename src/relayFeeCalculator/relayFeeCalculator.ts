@@ -241,7 +241,7 @@ export class RelayFeeCalculator {
 
     const getGasCosts = this.queries.getGasCosts(deposit, relayerAddress).catch((error) => {
       this.logger.error({
-        at: "sdk-v2/gasFeePercent",
+        at: "sdk/gasFeePercent",
         message: "Error while fetching gas costs",
         error,
         simulateZeroFill,
@@ -251,7 +251,7 @@ export class RelayFeeCalculator {
     });
     const getTokenPrice = this.queries.getTokenPrice(token.symbol).catch((error) => {
       this.logger.error({
-        at: "sdk-v2/gasFeePercent",
+        at: "sdk/gasFeePercent",
         message: "Error while fetching token price",
         error,
         destinationChainId: deposit.destinationChainId,
@@ -284,7 +284,7 @@ export class RelayFeeCalculator {
     const tokenCostConfig = this.capitalCostsConfig[_tokenSymbol.toUpperCase()];
     if (!isDefined(tokenCostConfig)) {
       this.logger.error({
-        at: "sdk-v2/capitalFeePercent",
+        at: "sdk/capitalFeePercent",
         message: `No capital fee available for token ${_tokenSymbol}`,
       });
       throw new Error(`No capital cost config available for token ${_tokenSymbol}`);

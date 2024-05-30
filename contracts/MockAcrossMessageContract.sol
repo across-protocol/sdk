@@ -3,7 +3,7 @@ pragma solidity ^0.8.0;
 
 // This interface is expected to be implemented by any contract
 // that expects to receive messages from the SpokePool.
-// Retrieved from https://github.com/across-protocol/contracts-v2/blob/master/contracts/SpokePool.sol
+// Retrieved from https://github.com/across-protocol/contracts/blob/master/contracts/SpokePool.sol
 interface AcrossMessageHandler {
   function handleV3AcrossMessage(address, uint256, address, bytes memory message) external;
 }

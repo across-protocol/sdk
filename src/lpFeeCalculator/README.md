@@ -7,7 +7,7 @@ Calculates LP fee percentages when doing a transfer.
 See tests for more documentation: [LP Fee Calculator Test]("./lpFeeCalculator.test.ts")
 
 ```ts
-import * as across from "@across/sdk-v2"
+import * as across from "@across/sdk"
 
 const { calculateApyFromUtilization, calculateRealizedLpFeePct } = across.lpFeeCalculator
 

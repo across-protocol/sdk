@@ -49,7 +49,7 @@ export function resolveSymbolOnChain(chainId: number, symbol: string): L1Token {
  * Returns the contract address for a given token symbol and chainId.
  * @param symbol A case-insensitive token symbol.
  * @param chainId The chainId to resolve the contract address for.
- * @param tokenMapping A parameter to determine where to source token information. Defaults to the constants-v2 variant.
+ * @param tokenMapping A parameter to determine where to source token information. Defaults to the constants variant.
  * @returns The contract address for the given token symbol and chainId, or undefined if the token symbol is not supported.
  */
 export const resolveContractFromSymbol = (

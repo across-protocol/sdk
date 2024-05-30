@@ -721,7 +721,7 @@ export class SpokePoolClient extends BaseAbstractClient {
     // token address to the wrapped token address. This is because the OVM_SpokePool modifies the l2TokenAddress prop
     // in _bridgeTokensToHubPool before emitting the ExecutedRelayerRefundLeaf event.
     // Here is the contract code referenced:
-    // - https://github.com/across-protocol/contracts-v2/blob/954528a4620863d1c868e54a370fd8556d5ed05c/contracts/Ovm_SpokePool.sol#L142
+    // - https://github.com/across-protocol/contracts/blob/954528a4620863d1c868e54a370fd8556d5ed05c/contracts/Ovm_SpokePool.sol#L142
     if (
       (chainId === 10 || chainId === 8453) &&
       eventL2Token.toLowerCase() === "0xdeaddeaddeaddeaddeaddeaddeaddeaddead0000"
