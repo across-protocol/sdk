@@ -28,9 +28,9 @@ import {
   setupTokensForWallet,
 } from "./utils";
 import { TOKEN_SYMBOLS_MAP } from "@across-protocol/constants-v2";
-import { EthereumQueries } from "../src/relayFeeCalculator";
 import { EMPTY_MESSAGE, ZERO_ADDRESS } from "../src/constants";
 import { SpokePool } from "@across-protocol/contracts-v2";
+import { QueryBase, QueryBase__factory } from "../src/relayFeeCalculator";
 
 dotenv.config({ path: ".env" });
 
@@ -305,7 +305,7 @@ describe("RelayFeeCalculator", () => {
 describe("RelayFeeCalculator: Composable Bridging", function () {
   let spokePool: SpokePool, erc20: Contract, destErc20: Contract, weth: Contract;
   let client: RelayFeeCalculator;
-  let queries: EthereumQueries;
+  let queries: QueryBase;
   let testContract: Contract;
   let owner: SignerWithAddress, relayer: SignerWithAddress, depositor: SignerWithAddress;
   let tokenMap: typeof TOKEN_SYMBOLS_MAP;
@@ -342,7 +342,7 @@ describe("RelayFeeCalculator: Composable Bridging", function () {
     spokePool = spokePool.connect(relayer);
 
     testContract = await hre["upgrades"].deployProxy(await getContractFactory("MockAcrossMessageContract", owner), []);
-    queries = new EthereumQueries(spokePool.provider, tokenMap, spokePool.address, relayer.address);
+    queries = QueryBase__factory.create(1, spokePool.provider, tokenMap, spokePool.address, relayer.address);
     client = new RelayFeeCalculator({ queries, capitalCostsConfig: testCapitalCostsConfig });
 
     testGasFeePct = (message?: string) =>

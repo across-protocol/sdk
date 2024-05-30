@@ -44,11 +44,12 @@ function reduceEvents(state: EventState, event: SerializableEvent): EventState {
     case "LiquidityAdded":
     case "LiquidityRemoved": {
       const { amount, liquidityProvider } = args;
-      tokens.add(liquidityProvider, amount.toString());
       if (event.event === "LiquidityAdded") {
         lpTokens.add(liquidityProvider, args.lpTokensMinted.toString());
+        tokens.add(liquidityProvider, amount.toString());
       } else {
         lpTokens.sub(liquidityProvider, args.lpTokensBurnt.toString());
+        tokens.sub(liquidityProvider, amount.toString());
       }
 
       return {
