@@ -16,17 +16,22 @@
     "@uma/common" "^2.17.0"
     hardhat "^2.9.3"
 
-"@across-protocol/constants@^1.0.26":
+"@across-protocol/constants-v2@^1.0.26":
   version "1.0.26"
-  resolved "https://registry.yarnpkg.com/@across-protocol/constants/-/constants-1.0.26.tgz#04fff84574af9fe4128318a19d7b7990ee10f32e"
+  resolved "https://registry.yarnpkg.com/@across-protocol/constants-v2/-/constants-v2-1.0.26.tgz#04fff84574af9fe4128318a19d7b7990ee10f32e"
   integrity sha512-XuxBGNvhevdTT+GQGreg1YP+RsRWzuqOEHNA9m/p7l3qjFkXuWUM9nj77ttccbIi0tCZQDiMR8VxwHBCAXB4LQ==
 
-"@across-protocol/contracts@2.5.9":
+"@across-protocol/constants-v2@^1.1.0":
+  version "1.1.0"
+  resolved "https://registry.yarnpkg.com/@across-protocol/constants-v2/-/constants-v2-1.1.0.tgz#c9885fa8f465ce76d26a3e3d332558fbb6ad60f1"
+  integrity sha512-UpEvF26NrzcaKTlfZsCBG5qpnVz9TJw82OflamuA4T99tiXjegTJVk7Kc/vocGNKh0wr4yPGFyDbzB2h9O50Xw==
+
+"@across-protocol/contracts-v2@2.5.9":
   version "2.5.9"
-  resolved "https://registry.yarnpkg.com/@across-protocol/contracts/-/contracts-2.5.9.tgz#75d9795fae7a9724e192a20afb72ad32d525577f"
+  resolved "https://registry.yarnpkg.com/@across-protocol/contracts-v2/-/contracts-v2-2.5.9.tgz#75d9795fae7a9724e192a20afb72ad32d525577f"
   integrity sha512-j/6HAyASerFJpxRBErvXLT3PeQnLOLwRufc7+0LuNvNkJ4Q0vO/SFVsSwvSbX6FD+F3+w0DILVj0R/HleN1reg==
   dependencies:
-    "@across-protocol/constants" "^1.0.26"
+    "@across-protocol/constants-v2" "^1.0.26"
     "@defi-wonderland/smock" "^2.3.4"
     "@eth-optimism/contracts" "^0.5.40"
     "@ethersproject/abstract-provider" "5.7.0"

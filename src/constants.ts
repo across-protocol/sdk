@@ -1,4 +1,3 @@
-import * as acxConstants from "@across-protocol/constants";
 import { constants as ethersConstants, BigNumber, utils } from "ethers";
 
 export {
@@ -39,33 +38,6 @@ export const ARWEAVE_TAG_APP_VERSION = 2;
  * before the dynamic config store was introduced.
  */
 export const PROTOCOL_DEFAULT_CHAIN_ID_INDICES = [1, 10, 137, 288, 42161];
-
-// See src/utils/NetworkUtils for helpers.
-export const PRODUCTION_CHAIN_IDS = [
-  acxConstants.MAINNET_CHAIN_IDs.MAINNET,
-  acxConstants.MAINNET_CHAIN_IDs.OPTIMISM,
-  acxConstants.MAINNET_CHAIN_IDs.POLYGON,
-  acxConstants.MAINNET_CHAIN_IDs.ZK_SYNC,
-  acxConstants.MAINNET_CHAIN_IDs.BASE,
-  acxConstants.MAINNET_CHAIN_IDs.ARBITRUM,
-  acxConstants.MAINNET_CHAIN_IDs.LINEA,
-];
-
-export const TESTNET_CHAIN_IDS = [
-  acxConstants.TESTNET_CHAIN_IDs.GOERLI,
-  acxConstants.TESTNET_CHAIN_IDs.ZK_SYNC_GOERLI,
-  acxConstants.TESTNET_CHAIN_IDs.ZK_SYNC_SEPOLIA,
-  acxConstants.TESTNET_CHAIN_IDs.OPTIMISM_GOERLI,
-  acxConstants.TESTNET_CHAIN_IDs.MUMBAI,
-  acxConstants.TESTNET_CHAIN_IDs.POLYGON_AMOY,
-  acxConstants.TESTNET_CHAIN_IDs.BASE_GOERLI,
-  acxConstants.TESTNET_CHAIN_IDs.BASE_SEPOLIA,
-  acxConstants.TESTNET_CHAIN_IDs.ARBITRUM_GOERLI,
-  acxConstants.TESTNET_CHAIN_IDs.ARBITRUM_SEPOLIA,
-  acxConstants.TESTNET_CHAIN_IDs.SEPOLIA,
-  acxConstants.TESTNET_CHAIN_IDs.OPTIMISM_SEPOLIA,
-  acxConstants.TESTNET_CHAIN_IDs.LINEA_GOERLI,
-];
 
 export const DEFAULT_CACHING_TTL = 60 * 60 * 24 * 7 * 2; // 2 Weeks
 export const DEFAULT_CACHING_SAFE_LAG = 60 * 60; // 1 hour
