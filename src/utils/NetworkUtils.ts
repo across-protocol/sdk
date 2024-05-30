@@ -1,4 +1,4 @@
-import { CHAIN_IDs, PRODUCTION_CHAIN_IDS, PUBLIC_NETWORKS, TESTNET_CHAIN_IDS } from "../constants";
+import { CHAIN_IDs, MAINNET_CHAIN_IDs, PUBLIC_NETWORKS, TESTNET_CHAIN_IDs } from "../constants";
 
 const hreNetworks: Record<number, string> = {
   666: "Hardhat1",
@@ -30,7 +30,7 @@ export function getNativeTokenSymbol(chainId: number | string): string {
  * @returns true if the chain ID is part of the production network, otherwise false.
  */
 export function chainIsProd(chainId: number): boolean {
-  return PRODUCTION_CHAIN_IDS.includes(chainId);
+  return Object.values(MAINNET_CHAIN_IDs).includes(chainId);
 }
 
 /**
@@ -39,7 +39,7 @@ export function chainIsProd(chainId: number): boolean {
  * @returns true if the chain ID is part of the production network, otherwise false.
  */
 export function chainIsTestnet(chainId: number): boolean {
-  return TESTNET_CHAIN_IDS.includes(chainId);
+  return Object.values(TESTNET_CHAIN_IDs).includes(chainId);
 }
 
 /**

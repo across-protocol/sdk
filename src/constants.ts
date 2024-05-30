@@ -1,4 +1,3 @@
-import * as acxConstants from "@across-protocol/constants-v2";
 import { constants as ethersConstants, BigNumber, utils } from "ethers";
 
 export {
@@ -39,10 +38,6 @@ export const ARWEAVE_TAG_APP_VERSION = 2;
  * before the dynamic config store was introduced.
  */
 export const PROTOCOL_DEFAULT_CHAIN_ID_INDICES = [1, 10, 137, 288, 42161];
-
-// See src/utils/NetworkUtils for helpers.
-export const PRODUCTION_CHAIN_IDS = Object.values(acxConstants.MAINNET_CHAIN_IDs);
-export const TESTNET_CHAIN_IDS = Object.values(acxConstants.TESTNET_CHAIN_IDs);
 
 export const DEFAULT_CACHING_TTL = 60 * 60 * 24 * 7 * 2; // 2 Weeks
 export const DEFAULT_CACHING_SAFE_LAG = 60 * 60; // 1 hour
