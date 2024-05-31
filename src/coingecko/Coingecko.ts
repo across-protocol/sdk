@@ -231,7 +231,7 @@ export class Coingecko {
         return await this._callBasic(path, this.basicApiTimeout);
       } catch (err) {
         this.logger.debug({
-          at: "sdk-v2/coingecko",
+          at: "sdk/coingecko",
           message: `Basic CG url request failed, falling back to CG PRO host ${proHost}`,
           errMessage: (err as AxiosError).message,
         });

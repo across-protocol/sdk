@@ -37,7 +37,7 @@ export function toGWei(num: BigNumberish): BN {
  * @param num The number to parse.
  * @param rounding The rounding method to use if the number has a decimal point. Defaults to "floor" or rounding down. Valid values are "floor", "round", and "ceil".
  * @returns The parsed BigNumber.
- * @note This is a temporary function until we can backport support for decimal points to @across-protocol/sdk-v2.
+ * @note This is a temporary function until we can backport support for decimal points to @across-protocol/sdk.
  */
 export const toBN = (num: BigNumberish, rounding: "floor" | "round" | "ceil" = "floor"): BN => {
   // If the string version of the num contains a `.` then it is a number which needs to be parsed to a string int.

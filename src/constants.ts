@@ -6,7 +6,7 @@ export {
   PUBLIC_NETWORKS,
   TESTNET_CHAIN_IDs,
   TOKEN_SYMBOLS_MAP,
-} from "@across-protocol/constants-v2";
+} from "@across-protocol/constants";
 
 export const { AddressZero: ZERO_ADDRESS } = ethersConstants;
 

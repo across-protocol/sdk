@@ -1,5 +1,5 @@
 import assert from "assert";
-import { SpokePool, SpokePool__factory } from "@across-protocol/contracts-v2";
+import { SpokePool, SpokePool__factory } from "@across-protocol/contracts";
 import dotenv from "dotenv";
 import { providers } from "ethers";
 import {

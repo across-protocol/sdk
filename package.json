@@ -1,7 +1,7 @@
 {
-  "name": "@across-protocol/sdk-v2",
+  "name": "@across-protocol/sdk",
   "author": "UMA Team",
-  "version": "0.24.4",
+  "version": "3.0.0",
   "license": "AGPL-3.0",
   "homepage": "https://docs.across.to/reference/sdk",
   "files": [
@@ -40,11 +40,11 @@
   "sideEffects": false,
   "size-limit": [
     {
-      "path": "dist/sdk-v2.cjs.production.min.js",
+      "path": "dist/sdk.cjs.production.min.js",
       "limit": "10 KB"
     },
     {
-      "path": "dist/sdk-v2.esm.js",
+      "path": "dist/sdk.esm.js",
       "limit": "10 KB"
     }
   ],
@@ -99,8 +99,8 @@
   },
   "dependencies": {
     "@across-protocol/across-token": "^1.0.0",
-    "@across-protocol/constants-v2": "^1.1.0",
-    "@across-protocol/contracts-v2": "2.5.9",
+    "@across-protocol/constants": "^3.0.0",
+    "@across-protocol/contracts": "^3.0.0",
     "@eth-optimism/sdk": "^3.3.1",
     "@pinata/sdk": "^2.1.0",
     "@types/mocha": "^10.0.1",

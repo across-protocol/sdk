@@ -27,9 +27,9 @@ import {
   randomAddress,
   setupTokensForWallet,
 } from "./utils";
-import { TOKEN_SYMBOLS_MAP } from "@across-protocol/constants-v2";
+import { TOKEN_SYMBOLS_MAP } from "@across-protocol/constants";
 import { EMPTY_MESSAGE, ZERO_ADDRESS } from "../src/constants";
-import { SpokePool } from "@across-protocol/contracts-v2";
+import { SpokePool } from "@across-protocol/contracts";
 import { QueryBase, QueryBase__factory } from "../src/relayFeeCalculator";
 
 dotenv.config({ path: ".env" });

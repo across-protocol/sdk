@@ -1,4 +1,4 @@
-import { AcrossConfigStore } from "@across-protocol/contracts-v2";
+import { AcrossConfigStore } from "@across-protocol/contracts";
 import { constants } from "../src";
 import { GLOBAL_CONFIG_STORE_KEYS } from "../src/clients";
 import { SpokePoolTargetBalance } from "../src/interfaces";
