@@ -19,6 +19,7 @@ export interface RelayData {
   fillDeadline: number;
   exclusiveRelayer: string;
   exclusivityDeadline: number;
+  _hash?: Record<number, string>;
 }
 
 export interface Deposit extends RelayData {
