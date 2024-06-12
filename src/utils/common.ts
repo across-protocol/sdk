@@ -242,7 +242,6 @@ export type TransactionCostEstimate = {
  * @param provider A valid ethers provider - will be used to reason the gas price.
  * @param gasMarkup Markup on the estimated gas cost. For example, 0.2 will increase this resulting value 1.2x.
  * @param gasPrice A manually provided gas price - if set, this function will not resolve the current gas price.
- * @param chainId The chain ID of the network that the transaction will be submitted to.
  * @returns Estimated cost in units of gas and the underlying gas token (gasPrice * estimatedGasUnits).
  */
 export async function estimateTotalGasRequiredByUnsignedTransaction(
@@ -250,15 +249,14 @@ export async function estimateTotalGasRequiredByUnsignedTransaction(
   senderAddress: string,
   provider: providers.Provider | L2Provider<providers.Provider>,
   gasMarkup: number,
-  gasPrice?: BigNumberish,
-  chainId?: number
+  gasPrice?: BigNumberish
 ): Promise<TransactionCostEstimate> {
   assert(
     gasMarkup > -1 && gasMarkup <= 4,
     `Require -1.0 < Gas Markup (${gasMarkup}) <= 4.0 for a total gas multiplier within (0, +5.0]`
   );
   const gasTotalMultiplier = toBNWei(1.0 + gasMarkup);
-  chainId ??= (await provider.getNetwork()).chainId;
+  const { chainId } = await provider.getNetwork();
   const voidSigner = new VoidSigner(senderAddress, provider);
 
   // Estimate the Gas units required to submit this transaction.

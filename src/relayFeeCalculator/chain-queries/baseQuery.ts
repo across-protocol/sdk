@@ -67,14 +67,7 @@ export class QueryBase implements QueryInterface {
     gasPrice = this.fixedGasPrice
   ): Promise<TransactionCostEstimate> {
     const tx = await populateV3Relay(this.spokePool, deposit, relayer);
-    return estimateTotalGasRequiredByUnsignedTransaction(
-      tx,
-      relayer,
-      this.provider,
-      this.gasMarkup,
-      gasPrice,
-      deposit.destinationChainId
-    );
+    return estimateTotalGasRequiredByUnsignedTransaction(tx, relayer, this.provider, this.gasMarkup, gasPrice);
   }
 
   /**
