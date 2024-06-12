@@ -216,7 +216,9 @@ export async function getDepositIdAtBlock(contract: Contract, blockTag: number):
  * @returns The corresponding RelayData hash.
  */
 export function getRelayDataHash(relayData: RelayData, destinationChainId: number): string {
-  return ethersUtils.keccak256(
+  relayData._hash ??= {};
+
+  return (relayData._hash[destinationChainId] ??= ethersUtils.keccak256(
     ethersUtils.defaultAbiCoder.encode(
       [
         "tuple(" +
@@ -237,7 +239,7 @@ export function getRelayDataHash(relayData: RelayData, destinationChainId: numbe
       ],
       [relayData, destinationChainId]
     )
-  );
+  ));
 }
 
 export function getRelayHashFromEvent(e: Deposit | Fill | SlowFillRequest): string {

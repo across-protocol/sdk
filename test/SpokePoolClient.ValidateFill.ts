@@ -216,7 +216,7 @@ describe("SpokePoolClient: Fill Validation", function () {
     await spokePoolClient1.update();
 
     expect(spokePoolClient1.getDepositForFill(fill))
-      .excludingEvery(["realizedLpFeePct", "quoteBlockNumber"])
+      .excludingEvery(["realizedLpFeePct", "quoteBlockNumber", "_hash"])
       .to.deep.equal(deposit);
   });
 
@@ -631,7 +631,7 @@ describe("SpokePoolClient: Fill Validation", function () {
     expect(fill_2.relayExecutionInfo.fillType === FillType.FastFill).to.be.true;
 
     expect(spokePoolClient1.getDepositForFill(fill_1))
-      .excludingEvery(["quoteBlockNumber", "realizedLpFeePct"])
+      .excludingEvery(["quoteBlockNumber", "realizedLpFeePct", "_hash"])
       .to.deep.equal(deposit_1);
     expect(spokePoolClient1.getDepositForFill(fill_2)).to.equal(undefined);
 
@@ -652,22 +652,24 @@ describe("SpokePoolClient: Fill Validation", function () {
 
     expect(validateFillForDeposit(validFill, deposit_2)).to.be.true;
 
+    const _hash = undefined;
+
     // Invalid input amount.
-    expect(validateFillForDeposit({ ...validFill, inputAmount: toBNWei(1337) }, deposit_2)).to.be.false;
+    expect(validateFillForDeposit({ ...validFill, inputAmount: toBNWei(1337), _hash }, deposit_2)).to.be.false;
 
     // Changed the output token.
-    expect(validateFillForDeposit(validFill, { ...deposit_2, outputToken: owner.address })).to.be.false;
+    expect(validateFillForDeposit(validFill, { ...deposit_2, outputToken: owner.address, _hash })).to.be.false;
 
     // Changed the output amount.
-    expect(validateFillForDeposit({ ...validFill, outputAmount: toBNWei(1337) }, deposit_2)).to.be.false;
+    expect(validateFillForDeposit({ ...validFill, outputAmount: toBNWei(1337), _hash }, deposit_2)).to.be.false;
 
     // Invalid depositId.
-    expect(validateFillForDeposit({ ...validFill, depositId: 1337 }, deposit_2)).to.be.false;
+    expect(validateFillForDeposit({ ...validFill, depositId: 1337, _hash }, deposit_2)).to.be.false;
 
     // Changed the depositor.
-    expect(validateFillForDeposit({ ...validFill, depositor: relayer.address }, deposit_2)).to.be.false;
+    expect(validateFillForDeposit({ ...validFill, depositor: relayer.address, _hash }, deposit_2)).to.be.false;
 
     // Changed the recipient.
-    expect(validateFillForDeposit({ ...validFill, recipient: relayer.address }, deposit_2)).to.be.false;
+    expect(validateFillForDeposit({ ...validFill, recipient: relayer.address, _hash }, deposit_2)).to.be.false;
   });
 });
