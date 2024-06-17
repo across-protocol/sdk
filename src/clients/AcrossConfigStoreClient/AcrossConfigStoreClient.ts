@@ -58,6 +58,7 @@ export enum GLOBAL_CONFIG_STORE_KEYS {
   VERSION = "VERSION",
   DISABLED_CHAINS = "DISABLED_CHAINS",
   CHAIN_ID_INDICES = "CHAIN_ID_INDICES",
+  LITE_CHAIN_ID_INDICES = "LITE_CHAIN_ID_INDICES",
 }
 
 export class AcrossConfigStoreClient extends BaseAbstractClient {
@@ -67,6 +68,7 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
   public cumulativeMaxRefundCountUpdates: GlobalConfigUpdate[] = [];
   public cumulativeMaxL1TokenCountUpdates: GlobalConfigUpdate[] = [];
   public chainIdIndicesUpdates: GlobalConfigUpdate<number[]>[] = [];
+  public liteChainIndicesUpdates: GlobalConfigUpdate<number[]>[] = [];
   public cumulativeSpokeTargetBalanceUpdates: SpokeTargetBalanceUpdate[] = [];
   public cumulativeConfigStoreVersionUpdates: ConfigStoreVersionUpdate[] = [];
   public cumulativeDisabledChainUpdates: DisabledChainsUpdate[] = [];
@@ -151,6 +153,17 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
 
     // Return either the found value or the protocol default.
     return chainIdIndices ?? this.implicitChainIdIndices(this.chainId);
+  }
+
+  /**
+   * Resolves the lite chain ids that were available to the protocol at a given block range.
+   * @param blockNumber Block number to search for. Defaults to latest block.
+   * @returns List of lite chain IDs that were available to the protocol at the given block number.
+   * @note This dynamic functionality has been added after the launch of Across.
+   */
+  getLiteChainIdIndicesForBlock(blockNumber: number = Number.MAX_SAFE_INTEGER): number[] {
+    const liteChainIdList = sortEventsDescending(this.liteChainIndicesUpdates);
+    return liteChainIdList.find((update) => update.blockNumber <= blockNumber)?.value ?? [];
   }
 
   getSpokeTargetBalancesForBlock(
@@ -407,6 +420,29 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
         if (!isNaN(args.value)) {
           this.cumulativeMaxRefundCountUpdates.push(args);
         }
+      } else if (args.key === utf8ToHex(GLOBAL_CONFIG_STORE_KEYS.LITE_CHAIN_ID_INDICES)) {
+        // We need to parse the chain ID indices array from the stringified JSON. However,
+        // the on-chain string has quotes around the array, which will parse our JSON as a
+        // string instead of an array. We need to remove these quotes before parsing.
+        // To be sure, we can check for single quotes, double quotes, and spaces.
+        const chainIndices = JSON.parse(args.value.replace(/['"\s]/g, ""));
+        // Check that the array is valid and that every element is a number.
+        if (!isArrayOf<number>(chainIndices, isPositiveInteger)) {
+          this.logger.warn({ at: "ConfigStore", message: `The array ${chainIndices} is invalid.` });
+          // If not a valid array, skip.
+          continue;
+        }
+        // Let's also check that the array doesn't contain any duplicates.
+        if (new Set(chainIndices).size !== chainIndices.length) {
+          this.logger.warn({
+            at: "ConfigStore",
+            message: `The array ${chainIndices} contains duplicates making it invalid.`,
+          });
+          // If not a valid array, skip.
+          continue;
+        }
+        // If all else passes, we can add this update.
+        this.liteChainIndicesUpdates.push({ ...args, value: chainIndices });
       } else if (args.key === utf8ToHex(GLOBAL_CONFIG_STORE_KEYS.CHAIN_ID_INDICES)) {
         try {
           // We need to parse the chain ID indices array from the stringified JSON. However,
