@@ -166,6 +166,16 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
     return liteChainIdList.find((update) => update.blockNumber <= blockNumber)?.value ?? [];
   }
 
+  /**
+   * Checks if a chain ID was a lite chain at a given block.
+   * @param chainId The chain ID to check.
+   * @param blockNumber The block number to check. Defaults to latest block.
+   * @returns True if the chain ID was a lite chain at the given block. False otherwise.
+   */
+  isChainLiteChainAtBlock(chainId: number, blockNumber: number = Number.MAX_SAFE_INTEGER): boolean {
+    return this.getLiteChainIdIndicesForBlock(blockNumber).includes(chainId);
+  }
+
   getSpokeTargetBalancesForBlock(
     l1Token: string,
     chainId: number,

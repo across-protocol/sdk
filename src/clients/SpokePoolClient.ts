@@ -634,6 +634,12 @@ export class SpokePoolClient extends BaseAbstractClient {
           ...(spreadEventWithBlockNumber(event) as FillWithBlock),
           destinationChainId: this.chainId,
         };
+
+        // If the fill originates on a lite chain, then the repayment chain ID must be set to the origin chain ID.
+        if (this.hubPoolClient?.configStoreClient?.isChainLiteChainAtBlock(fill.originChainId, fill.blockNumber)) {
+          fill.repaymentChainId = fill.originChainId;
+        }
+
         assign(this.fills, [fill.originChainId], [fill]);
         assign(this.depositHashesToFills, [this.getDepositHash(fill)], [fill]);
       }
