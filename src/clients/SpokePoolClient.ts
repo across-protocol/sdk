@@ -561,6 +561,7 @@ export class SpokePoolClient extends BaseAbstractClient {
         // Derive and append the common properties that are not part of the onchain event.
         const { quoteBlock: quoteBlockNumber } = dataForQuoteTime[index];
         const deposit = { ...(rawDeposit as DepositWithBlock), originChainId: this.chainId, quoteBlockNumber };
+        deposit.originatesFromLiteChain = this.doesDepositOriginateFromLiteChain(deposit);
         if (deposit.outputToken === ZERO_ADDRESS) {
           deposit.outputToken = this.getDestinationTokenForDeposit(deposit);
         }
@@ -634,11 +635,6 @@ export class SpokePoolClient extends BaseAbstractClient {
           ...(spreadEventWithBlockNumber(event) as FillWithBlock),
           destinationChainId: this.chainId,
         };
-
-        // If the fill originates on a lite chain, then the repayment chain ID must be set to the origin chain ID.
-        if (this.hubPoolClient?.configStoreClient?.isChainLiteChainAtBlock(fill.originChainId, fill.blockNumber)) {
-          fill.repaymentChainId = fill.originChainId;
-        }
 
         assign(this.fills, [fill.originChainId], [fill]);
         assign(this.depositHashesToFills, [this.getDepositHash(fill)], [fill]);
@@ -862,6 +858,7 @@ export class SpokePoolClient extends BaseAbstractClient {
           ? this.getDestinationTokenForDeposit({ ...partialDeposit, originChainId: this.chainId })
           : partialDeposit.outputToken,
     };
+    deposit.originatesFromLiteChain = this.doesDepositOriginateFromLiteChain(deposit);
 
     this.logger.debug({
       at: "SpokePoolClient#findDeposit",
@@ -871,5 +868,20 @@ export class SpokePoolClient extends BaseAbstractClient {
     });
 
     return deposit;
+  }
+
+  /**
+   * Determines whether a deposit originates from a lite chain.
+   * @param deposit The deposit to evaluate.
+   * @returns True if the deposit originates from a lite chain, false otherwise. If the hub pool client is not defined,
+   *          this method will return false.
+   */
+  protected doesDepositOriginateFromLiteChain(deposit: DepositWithBlock): boolean {
+    return (
+      this.hubPoolClient?.configStoreClient.isChainLiteChainAtTimestamp(
+        deposit.originChainId,
+        deposit.quoteTimestamp
+      ) ?? false
+    );
   }
 }
