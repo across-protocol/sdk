@@ -6,6 +6,7 @@ import {
   MAX_L1_TOKENS_PER_POOL_REBALANCE_LEAF,
   MAX_REFUNDS_PER_RELAYER_REFUND_LEAF,
   destinationChainId,
+  originChainId,
 } from "./constants";
 import { DEFAULT_CONFIG_STORE_VERSION, MockConfigStoreClient } from "./mocks";
 import {
@@ -17,7 +18,6 @@ import {
   getContractFactory,
   hubPoolFixture,
   mineRandomBlocks,
-  originChainId,
   toBN,
   toWei,
   utf8ToHex,
@@ -366,6 +366,43 @@ describe("AcrossConfigStoreClient", function () {
       expect(() =>
         configStoreClient.getMaxL1TokenCountForPoolRebalanceLeafForBlock(initialUpdate.blockNumber - 1)
       ).to.throw(/Could not find MaxL1TokenCount/);
+    });
+    it("Should test lite chain ID updates", async function () {
+      const update1 = await configStore.updateGlobalConfig(
+        utf8ToHex(GLOBAL_CONFIG_STORE_KEYS.LITE_CHAIN_ID_INDICES),
+        JSON.stringify([1])
+      );
+      let timestamp = (await configStore.provider.getBlock(update1.blockNumber!)).timestamp;
+      expect(timestamp).to.not.be.undefined;
+
+      // Set the bounds for the new lite chain
+      const timestampBeforeNewLiteChains = timestamp - 5;
+      const timestampAfterNewLiteChains = timestamp + 5;
+
+      const blockBeforeNewLiteChains = update1.blockNumber! - 1;
+      const blockAfterNewLiteChains = update1.blockNumber! + 1;
+
+      await configStoreClient.update();
+      // Test the getliteChainIdIndicesForTimestamp function
+      expect(configStoreClient.getliteChainIdIndicesForTimestamp(timestampBeforeNewLiteChains)).to.deep.equal([]);
+      expect(configStoreClient.getliteChainIdIndicesForTimestamp(timestampAfterNewLiteChains)).to.deep.equal([1]);
+      // Test the getliteChainIdIndicesForBlock function
+      expect(configStoreClient.getLiteChainIdIndicesForBlock(blockBeforeNewLiteChains)).to.deep.equal([]);
+      expect(configStoreClient.getLiteChainIdIndicesForBlock(blockAfterNewLiteChains)).to.deep.equal([1]);
+
+      const update2 = await configStore.updateGlobalConfig(
+        utf8ToHex(GLOBAL_CONFIG_STORE_KEYS.LITE_CHAIN_ID_INDICES),
+        JSON.stringify([1, 15])
+      );
+      timestamp = (await configStore.provider.getBlock(update2.blockNumber!)).timestamp;
+      expect(timestamp).to.not.be.undefined;
+      const timestampAfterLiteChainUpdate = timestamp + 5;
+      const blockAfterLiteChainUpdate = update2.blockNumber! + 1;
+
+      await configStoreClient.update();
+
+      expect(configStoreClient.getliteChainIdIndicesForTimestamp(timestampAfterLiteChainUpdate)).to.deep.equal([1, 15]);
+      expect(configStoreClient.getLiteChainIdIndicesForBlock(blockAfterLiteChainUpdate)).to.deep.equal([1, 15]);
     });
     it("Get disabled chain IDs for block range", async function () {
       // set all possible chains for the next several tests
