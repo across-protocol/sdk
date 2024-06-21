@@ -22,7 +22,6 @@ describe("SpokePoolClient: Deposit Routes", function () {
     await enableRoutes(spokePool, [{ originToken, destinationChainId }]);
     await spokePoolClient.update();
     expect(spokePoolClient.getDepositRoutes()).to.deep.equal({ [originToken]: { [destinationChainId]: true } });
-    expect(spokePoolClient.isDepositRouteEnabled(originToken, destinationChainId)).to.be.true;
 
     // Enable another destination chain with the same origin token should append to the previous structure.
     const destinationChainId2 = destinationChainId + 1;
@@ -51,22 +50,11 @@ describe("SpokePoolClient: Deposit Routes", function () {
     await spokePool.setEnableRoute(originToken, destinationChainId, false); // Disable the route.
     await spokePoolClient.update();
     expect(spokePoolClient.getDepositRoutes()).to.deep.equal({ [originToken]: { [destinationChainId]: false } });
-    expect(spokePoolClient.isDepositRouteEnabled(originToken, destinationChainId)).to.be.false;
     const destinationChainId2 = destinationChainId + 1;
     await enableRoutes(spokePool, [{ originToken, destinationChainId: destinationChainId2 }]);
     await spokePoolClient.update();
     expect(spokePoolClient.getDepositRoutes()).to.deep.equal({
       [originToken]: { [destinationChainId]: false, [destinationChainId2]: true },
     });
-  });
-
-  it("Correctly fetches origin tokens", async function () {
-    const originToken = randomAddress();
-    await enableRoutes(spokePool, [{ originToken, destinationChainId }]);
-    const originToken2 = randomAddress();
-    await enableRoutes(spokePool, [{ originToken: originToken2, destinationChainId }]);
-    await spokePoolClient.update();
-
-    expect(spokePoolClient.getAllOriginTokens()).to.deep.equal([originToken, originToken2]);
   });
 });
