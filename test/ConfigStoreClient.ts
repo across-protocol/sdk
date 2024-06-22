@@ -367,7 +367,7 @@ describe("AcrossConfigStoreClient", function () {
         configStoreClient.getMaxL1TokenCountForPoolRebalanceLeafForBlock(initialUpdate.blockNumber - 1)
       ).to.throw(/Could not find MaxL1TokenCount/);
     });
-    it.only("Should fail if lite chain ID updates are invalid", async function () {
+    it("Should fail if lite chain ID updates are invalid", async function () {
       // Push invalid update
       await configStore.updateGlobalConfig(
         utf8ToHex(GLOBAL_CONFIG_STORE_KEYS.LITE_CHAIN_ID_INDICES),
