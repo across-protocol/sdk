@@ -41,6 +41,7 @@ import { getNetworkName } from "../utils/NetworkUtils";
 import { getBlockRangeForDepositId, getDepositIdAtBlock } from "../utils/SpokeUtils";
 import { BaseAbstractClient, isUpdateFailureReason, UpdateFailureReason } from "./BaseAbstractClient";
 import { HubPoolClient } from "./HubPoolClient";
+import { AcrossConfigStoreClient } from "./AcrossConfigStoreClient";
 
 type SpokePoolUpdateSuccess = {
   success: true;
@@ -73,6 +74,7 @@ export class SpokePoolClient extends BaseAbstractClient {
   protected rootBundleRelays: RootBundleRelayWithBlock[] = [];
   protected relayerRefundExecutions: RelayerRefundExecutionWithBlock[] = [];
   protected queryableEventNames: string[] = [];
+  protected configStoreClient: AcrossConfigStoreClient | undefined;
   public earliestDepositIdQueried = Number.MAX_SAFE_INTEGER;
   public latestDepositIdQueried = 0;
   public firstDepositIdForSpokePool = Number.MAX_SAFE_INTEGER;
@@ -101,6 +103,7 @@ export class SpokePoolClient extends BaseAbstractClient {
     this.firstBlockToSearch = eventSearchConfig.fromBlock;
     this.latestBlockSearched = 0;
     this.queryableEventNames = Object.keys(this._queryableEventNames());
+    this.configStoreClient = hubPoolClient?.configStoreClient;
   }
 
   public _queryableEventNames(): { [eventName: string]: EventFilter } {
@@ -877,11 +880,6 @@ export class SpokePoolClient extends BaseAbstractClient {
    *          this method will return false.
    */
   protected doesDepositOriginateFromLiteChain(deposit: DepositWithBlock): boolean {
-    return (
-      this.hubPoolClient?.configStoreClient.isChainLiteChainAtTimestamp(
-        deposit.originChainId,
-        deposit.quoteTimestamp
-      ) ?? false
-    );
+    return this.configStoreClient?.isChainLiteChainAtTimestamp(deposit.originChainId, deposit.quoteTimestamp) ?? false;
   }
 }

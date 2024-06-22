@@ -450,8 +450,8 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
 
         // Use a regular expression to check if the string is a valid array. We need to check for
         // leading and trailing quotes, as well as leading and trailing whitespace. We also need to
-        // check for commas between the numbers.
-        if (!/^\s*["']?\[\d+(,\d+)*\]["']?\s*$/.test(args.value)) {
+        // check for commas between the numbers. Alternatively, this can be an empty array.
+        if (!/^\s*["']?\[(\d+(,\d+)*)?\]["']?\s*$/.test(args.value)) {
           this.logger.warn({ at: "ConfigStore", message: `The array ${args.value} is invalid.` });
           // If not a valid array, skip.
           continue;

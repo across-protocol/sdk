@@ -1,20 +1,20 @@
+import { expect } from "chai";
 import { Event } from "ethers";
 import { random } from "lodash";
 import { utils as sdkUtils } from "../src";
-import { expect } from "chai";
-import { DEFAULT_CONFIG_STORE_VERSION } from "../src/clients";
-import { MockHubPoolClient, MockSpokePoolClient, MockConfigStoreClient } from "../src/clients/mocks";
-import { DepositWithBlock, FillWithBlock, SlowFillRequest, SlowFillRequestWithBlock } from "../src/interfaces";
+import { DEFAULT_CONFIG_STORE_VERSION, GLOBAL_CONFIG_STORE_KEYS } from "../src/clients";
+import { MockConfigStoreClient, MockHubPoolClient, MockSpokePoolClient } from "../src/clients/mocks";
 import { EMPTY_MESSAGE, ZERO_ADDRESS } from "../src/constants";
+import { DepositWithBlock, FillWithBlock, SlowFillRequest, SlowFillRequestWithBlock } from "../src/interfaces";
 import { getCurrentTime, isDefined, randomAddress } from "../src/utils";
 import {
+  SignerWithAddress,
   createSpyLogger,
-  fillFromDeposit,
   deployConfigStore,
-  hubPoolFixture,
   deploySpokePool,
   ethers,
-  SignerWithAddress,
+  fillFromDeposit,
+  hubPoolFixture,
   toBNWei,
 } from "./utils";
 
@@ -32,13 +32,18 @@ describe("SpokePoolClient: Event Filtering", function () {
   let spokePoolClients: { [chainId: number]: MockSpokePoolClient };
   let originSpokePoolClient: MockSpokePoolClient;
   let destinationSpokePoolClient: MockSpokePoolClient;
+  let configStoreClient: MockConfigStoreClient;
 
   const logger = createSpyLogger().spyLogger;
 
-  const generateV3Deposit = (spokePoolClient: MockSpokePoolClient): Event => {
-    const inputToken = randomAddress();
+  const generateV3Deposit = (
+    spokePoolClient: MockSpokePoolClient,
+    quoteTimestamp?: number,
+    inputToken?: string
+  ): Event => {
+    inputToken ??= randomAddress();
     const message = EMPTY_MESSAGE;
-    const quoteTimestamp = getCurrentTime() - 10;
+    quoteTimestamp ??= getCurrentTime() - 10;
     return spokePoolClient.depositV3({ destinationChainId, inputToken, message, quoteTimestamp } as DepositWithBlock);
   };
 
@@ -61,7 +66,7 @@ describe("SpokePoolClient: Event Filtering", function () {
 
     const mockUpdate = true;
     const { configStore } = await deployConfigStore(owner, []);
-    const configStoreClient = new MockConfigStoreClient(
+    configStoreClient = new MockConfigStoreClient(
       logger,
       configStore,
       {} as EventSearchConfig,
@@ -130,6 +135,50 @@ describe("SpokePoolClient: Event Filtering", function () {
     });
   });
 
+  it("Correctly sets the `originatesFromLiteChain` flag by using `doesDepositOriginateFromLiteChain`", async function () {
+    // There's a nuanced issue with the mock config store's event manager so we need to mock a 2 second delay
+    // so that the block timestamps are different.
+
+    // Update the config store to set the originChainId as a lite chain.
+    configStoreClient.updateGlobalConfig(
+      GLOBAL_CONFIG_STORE_KEYS.LITE_CHAIN_ID_INDICES,
+      JSON.stringify([originChainId])
+    );
+    await configStoreClient.update();
+    // Sleep for 2 seconds to ensure that the block timestamp is different.
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+    // Update the config store to set the originChainId as a non-lite chain.
+    configStoreClient.updateGlobalConfig(GLOBAL_CONFIG_STORE_KEYS.LITE_CHAIN_ID_INDICES, JSON.stringify([]));
+    await configStoreClient.update();
+
+    // Confirm that the config store client has two updates.
+    expect(configStoreClient.liteChainIndicesUpdates.length).to.equal(2);
+    const [liteChainIndicesUpdate1, liteChainIndicesUpdate2] = configStoreClient.liteChainIndicesUpdates;
+    // Confirm that the two updates have different timestamps.
+    expect(liteChainIndicesUpdate1.timestamp).to.not.equal(liteChainIndicesUpdate2.timestamp);
+
+    // Inject a V3DepositWithBlock event that should have the `originatesFromLiteChain` flag set to false.
+    // This is done by setting the quote timestamp to before the first lite chain update.
+    generateV3Deposit(originSpokePoolClient, liteChainIndicesUpdate1.timestamp - 1);
+    // Inject a V3DepositWithBlock event that should have the `originatesFromLiteChain` flag set to true.
+    // This is done by setting the quote timestamp to after the first lite chain update.
+    generateV3Deposit(originSpokePoolClient, liteChainIndicesUpdate1.timestamp + 1);
+    // Inject a V3DepositWithBlock event that should have the `originatesFromLiteChain` flag set to false.
+    // This is done by setting the quote timestamp to after the second lite chain update.
+    generateV3Deposit(originSpokePoolClient, liteChainIndicesUpdate2.timestamp + 1);
+
+    // Set the config store client on the originSpokePoolClient so that it can access the lite chain indices updates.
+    originSpokePoolClient.setConfigStoreClient(configStoreClient);
+    await originSpokePoolClient.update(["V3FundsDeposited"]);
+
+    // Of the three deposits, the first and third should have the `originatesFromLiteChain` flag set to false.
+    const deposits = originSpokePoolClient.getDeposits();
+    expect(deposits.length).to.equal(3);
+    expect(deposits[0].originatesFromLiteChain).to.equal(false);
+    expect(deposits[1].originatesFromLiteChain).to.equal(true);
+    expect(deposits[2].originatesFromLiteChain).to.equal(false);
+  });
+
   it("Correctly substitutes outputToken when set to 0x0", async function () {
     const { spokePool, chainId, deploymentBlock } = originSpokePoolClient;
     const spokePoolClient = new MockSpokePoolClient(logger, spokePool, chainId, deploymentBlock, { hubPoolClient });
@@ -163,7 +212,7 @@ describe("SpokePoolClient: Event Filtering", function () {
     const requests: Event[] = [];
 
     const slowFillRequestFromDeposit = (deposit: DepositWithBlock): SlowFillRequest => {
-      const { realizedLpFeePct, blockNumber, ...partialDeposit } = deposit;
+      const { blockNumber, ...partialDeposit } = deposit;
       return { ...partialDeposit };
     };
 
