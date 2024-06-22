@@ -447,6 +447,15 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
         // the on-chain string has quotes around the array, which will parse our JSON as a
         // string instead of an array. We need to remove these quotes before parsing.
         // To be sure, we can check for single quotes, double quotes, and spaces.
+
+        // Use a regular expression to check if the string is a valid array. We need to check for
+        // leading and trailing quotes, as well as leading and trailing whitespace. We also need to
+        // check for commas between the numbers.
+        if (!/^\s*["']?\[\d+(,\d+)*\]["']?\s*$/.test(args.value)) {
+          this.logger.warn({ at: "ConfigStore", message: `The array ${args.value} is invalid.` });
+          // If not a valid array, skip.
+          continue;
+        }
         const chainIndices = JSON.parse(args.value.replace(/['"\s]/g, ""));
         // Check that the array is valid and that every element is a number.
         if (!isArrayOf<number>(chainIndices, isPositiveInteger)) {

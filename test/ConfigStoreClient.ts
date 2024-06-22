@@ -367,6 +367,25 @@ describe("AcrossConfigStoreClient", function () {
         configStoreClient.getMaxL1TokenCountForPoolRebalanceLeafForBlock(initialUpdate.blockNumber - 1)
       ).to.throw(/Could not find MaxL1TokenCount/);
     });
+    it.only("Should fail if lite chain ID updates are invalid", async function () {
+      // Push invalid update
+      await configStore.updateGlobalConfig(
+        utf8ToHex(GLOBAL_CONFIG_STORE_KEYS.LITE_CHAIN_ID_INDICES),
+        JSON.stringify(["4a"])
+      );
+      // Push invalid update
+      await configStore.updateGlobalConfig(
+        utf8ToHex(GLOBAL_CONFIG_STORE_KEYS.LITE_CHAIN_ID_INDICES),
+        JSON.stringify([1, 1])
+      );
+      // Push valid update
+      await configStore.updateGlobalConfig(
+        utf8ToHex(GLOBAL_CONFIG_STORE_KEYS.LITE_CHAIN_ID_INDICES),
+        JSON.stringify([1])
+      );
+      await configStoreClient.update();
+      expect(configStoreClient.liteChainIndicesUpdates.length).to.equal(1);
+    });
     it("Should test lite chain ID updates", async function () {
       const update1 = await configStore.updateGlobalConfig(
         utf8ToHex(GLOBAL_CONFIG_STORE_KEYS.LITE_CHAIN_ID_INDICES),
