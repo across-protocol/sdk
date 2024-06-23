@@ -173,7 +173,7 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
    * @returns List of lite chain IDs that were available to the protocol at the given timestamp.
    * @note This dynamic functionality has been added after the launch of Across.
    */
-  getliteChainIdIndicesForTimestamp(timestamp: number = Number.MAX_SAFE_INTEGER): number[] {
+  getLiteChainIdIndicesForTimestamp(timestamp: number = Number.MAX_SAFE_INTEGER): number[] {
     const liteChainIdList = sortEventsDescending(this.liteChainIndicesUpdates);
     return liteChainIdList.find((update) => update.timestamp <= timestamp)?.value ?? [];
   }
@@ -185,7 +185,7 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
    * @returns True if the chain ID was a lite chain at the given timestamp. False otherwise.
    */
   isChainLiteChainAtTimestamp(chainId: number, timestamp: number = Number.MAX_SAFE_INTEGER): boolean {
-    return this.getliteChainIdIndicesForTimestamp(timestamp).includes(chainId);
+    return this.getLiteChainIdIndicesForTimestamp(timestamp).includes(chainId);
   }
 
   getSpokeTargetBalancesForBlock(

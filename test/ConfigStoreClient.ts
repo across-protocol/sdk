@@ -403,8 +403,8 @@ describe("AcrossConfigStoreClient", function () {
 
       await configStoreClient.update();
       // Test the getliteChainIdIndicesForTimestamp function
-      expect(configStoreClient.getliteChainIdIndicesForTimestamp(timestampBeforeNewLiteChains)).to.deep.equal([]);
-      expect(configStoreClient.getliteChainIdIndicesForTimestamp(timestampAfterNewLiteChains)).to.deep.equal([1]);
+      expect(configStoreClient.getLiteChainIdIndicesForTimestamp(timestampBeforeNewLiteChains)).to.deep.equal([]);
+      expect(configStoreClient.getLiteChainIdIndicesForTimestamp(timestampAfterNewLiteChains)).to.deep.equal([1]);
       // Test the getliteChainIdIndicesForBlock function
       expect(configStoreClient.getLiteChainIdIndicesForBlock(blockBeforeNewLiteChains)).to.deep.equal([]);
       expect(configStoreClient.getLiteChainIdIndicesForBlock(blockAfterNewLiteChains)).to.deep.equal([1]);
@@ -420,7 +420,7 @@ describe("AcrossConfigStoreClient", function () {
 
       await configStoreClient.update();
 
-      expect(configStoreClient.getliteChainIdIndicesForTimestamp(timestampAfterLiteChainUpdate)).to.deep.equal([1, 15]);
+      expect(configStoreClient.getLiteChainIdIndicesForTimestamp(timestampAfterLiteChainUpdate)).to.deep.equal([1, 15]);
       expect(configStoreClient.getLiteChainIdIndicesForBlock(blockAfterLiteChainUpdate)).to.deep.equal([1, 15]);
     });
     it("Get disabled chain IDs for block range", async function () {
