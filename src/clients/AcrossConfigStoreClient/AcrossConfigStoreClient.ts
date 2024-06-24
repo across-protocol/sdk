@@ -24,6 +24,7 @@ import {
   ConfigStoreVersionUpdate,
   DisabledChainsUpdate,
   GlobalConfigUpdate,
+  LiteChainsIdListUpdate,
   ParsedTokenConfig,
   RouteRateModelUpdate,
   SpokePoolTargetBalance,
@@ -68,7 +69,7 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
   public cumulativeMaxRefundCountUpdates: GlobalConfigUpdate[] = [];
   public cumulativeMaxL1TokenCountUpdates: GlobalConfigUpdate[] = [];
   public chainIdIndicesUpdates: GlobalConfigUpdate<number[]>[] = [];
-  public liteChainIndicesUpdates: GlobalConfigUpdate<number[]>[] = [];
+  public liteChainIndicesUpdates: LiteChainsIdListUpdate[] = [];
   public cumulativeSpokeTargetBalanceUpdates: SpokeTargetBalanceUpdate[] = [];
   public cumulativeConfigStoreVersionUpdates: ConfigStoreVersionUpdate[] = [];
   public cumulativeDisabledChainUpdates: DisabledChainsUpdate[] = [];
@@ -164,6 +165,27 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
   getLiteChainIdIndicesForBlock(blockNumber: number = Number.MAX_SAFE_INTEGER): number[] {
     const liteChainIdList = sortEventsDescending(this.liteChainIndicesUpdates);
     return liteChainIdList.find((update) => update.blockNumber <= blockNumber)?.value ?? [];
+  }
+
+  /**
+   * Resolves the lite chain ids that were available to the protocol at a given timestamp.
+   * @param timestamp Timestamp to search for. Defaults to latest time - in seconds.
+   * @returns List of lite chain IDs that were available to the protocol at the given timestamp.
+   * @note This dynamic functionality has been added after the launch of Across.
+   */
+  getLiteChainIdIndicesForTimestamp(timestamp: number = Number.MAX_SAFE_INTEGER): number[] {
+    const liteChainIdList = sortEventsDescending(this.liteChainIndicesUpdates);
+    return liteChainIdList.find((update) => update.timestamp <= timestamp)?.value ?? [];
+  }
+
+  /**
+   * Checks if a chain ID was a lite chain at a given timestamp.
+   * @param chainId The chain ID to check.
+   * @param timestamp The timestamp to check. Defaults to latest time - in seconds.
+   * @returns True if the chain ID was a lite chain at the given timestamp. False otherwise.
+   */
+  isChainLiteChainAtTimestamp(chainId: number, timestamp: number = Number.MAX_SAFE_INTEGER): boolean {
+    return this.getLiteChainIdIndicesForTimestamp(timestamp).includes(chainId);
   }
 
   getSpokeTargetBalancesForBlock(
@@ -425,6 +447,15 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
         // the on-chain string has quotes around the array, which will parse our JSON as a
         // string instead of an array. We need to remove these quotes before parsing.
         // To be sure, we can check for single quotes, double quotes, and spaces.
+
+        // Use a regular expression to check if the string is a valid array. We need to check for
+        // leading and trailing quotes, as well as leading and trailing whitespace. We also need to
+        // check for commas between the numbers. Alternatively, this can be an empty array.
+        if (!/^\s*["']?\[(\d+(,\d+)*)?\]["']?\s*$/.test(args.value)) {
+          this.logger.warn({ at: "ConfigStore", message: `The array ${args.value} is invalid.` });
+          // If not a valid array, skip.
+          continue;
+        }
         const chainIndices = JSON.parse(args.value.replace(/['"\s]/g, ""));
         // Check that the array is valid and that every element is a number.
         if (!isArrayOf<number>(chainIndices, isPositiveInteger)) {
@@ -442,7 +473,7 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
           continue;
         }
         // If all else passes, we can add this update.
-        this.liteChainIndicesUpdates.push({ ...args, value: chainIndices });
+        this.liteChainIndicesUpdates.push({ ...args, value: chainIndices, timestamp: globalConfigUpdateTimes[i] });
       } else if (args.key === utf8ToHex(GLOBAL_CONFIG_STORE_KEYS.CHAIN_ID_INDICES)) {
         try {
           // We need to parse the chain ID indices array from the stringified JSON. However,

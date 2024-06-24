@@ -19,6 +19,7 @@ import { bnZero, toBN, toBNWei, forEachAsync, getCurrentTime, randomAddress } fr
 import { SpokePoolClient, SpokePoolUpdate } from "../SpokePoolClient";
 import { HubPoolClient } from "../HubPoolClient";
 import { EventManager, EventOverrides, getEventManager } from "./MockEvents";
+import { AcrossConfigStoreClient } from "../AcrossConfigStoreClient";
 
 type Block = providers.Block;
 
@@ -49,6 +50,10 @@ export class MockSpokePoolClient extends SpokePoolClient {
   setDefaultRealizedLpFeePct(fee: BigNumber): void {
     this.realizedLpFeePct = fee;
     this.realizedLpFeePctOverride = true;
+  }
+
+  setConfigStoreClient(configStore?: AcrossConfigStoreClient): void {
+    this.configStoreClient = configStore;
   }
 
   clearDefaultRealizedLpFeePct(): void {

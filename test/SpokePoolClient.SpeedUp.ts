@@ -111,7 +111,7 @@ describe("SpokePoolClient: SpeedUp", function () {
       deepEqualsWithBigNumber(
         spokePoolClient.getDepositsForDestinationChain(destinationChainId)[0],
         expectedDepositData,
-        [...ignoredFields, "realizedLpFeePct"]
+        [...ignoredFields, "realizedLpFeePct", "originatesFromLiteChain"]
       )
     ).to.be.true;
     expect(spokePoolClient.getDepositsForDestinationChain(destinationChainId).length).to.equal(1);

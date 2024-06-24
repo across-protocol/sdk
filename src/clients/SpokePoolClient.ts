@@ -41,6 +41,7 @@ import { getNetworkName } from "../utils/NetworkUtils";
 import { getBlockRangeForDepositId, getDepositIdAtBlock } from "../utils/SpokeUtils";
 import { BaseAbstractClient, isUpdateFailureReason, UpdateFailureReason } from "./BaseAbstractClient";
 import { HubPoolClient } from "./HubPoolClient";
+import { AcrossConfigStoreClient } from "./AcrossConfigStoreClient";
 
 type SpokePoolUpdateSuccess = {
   success: true;
@@ -73,6 +74,7 @@ export class SpokePoolClient extends BaseAbstractClient {
   protected rootBundleRelays: RootBundleRelayWithBlock[] = [];
   protected relayerRefundExecutions: RelayerRefundExecutionWithBlock[] = [];
   protected queryableEventNames: string[] = [];
+  protected configStoreClient: AcrossConfigStoreClient | undefined;
   public earliestDepositIdQueried = Number.MAX_SAFE_INTEGER;
   public latestDepositIdQueried = 0;
   public firstDepositIdForSpokePool = Number.MAX_SAFE_INTEGER;
@@ -101,6 +103,7 @@ export class SpokePoolClient extends BaseAbstractClient {
     this.firstBlockToSearch = eventSearchConfig.fromBlock;
     this.latestBlockSearched = 0;
     this.queryableEventNames = Object.keys(this._queryableEventNames());
+    this.configStoreClient = hubPoolClient?.configStoreClient;
   }
 
   public _queryableEventNames(): { [eventName: string]: EventFilter } {
@@ -543,6 +546,7 @@ export class SpokePoolClient extends BaseAbstractClient {
         // Derive and append the common properties that are not part of the onchain event.
         const { quoteBlock: quoteBlockNumber } = dataForQuoteTime[index];
         const deposit = { ...(rawDeposit as DepositWithBlock), originChainId: this.chainId, quoteBlockNumber };
+        deposit.originatesFromLiteChain = this.doesDepositOriginateFromLiteChain(deposit);
         if (deposit.outputToken === ZERO_ADDRESS) {
           deposit.outputToken = this.getDestinationTokenForDeposit(deposit);
         }
@@ -616,6 +620,7 @@ export class SpokePoolClient extends BaseAbstractClient {
           ...(spreadEventWithBlockNumber(event) as FillWithBlock),
           destinationChainId: this.chainId,
         };
+
         assign(this.fills, [fill.originChainId], [fill]);
         assign(this.depositHashesToFills, [this.getDepositHash(fill)], [fill]);
       }
@@ -838,6 +843,7 @@ export class SpokePoolClient extends BaseAbstractClient {
           ? this.getDestinationTokenForDeposit({ ...partialDeposit, originChainId: this.chainId })
           : partialDeposit.outputToken,
     };
+    deposit.originatesFromLiteChain = this.doesDepositOriginateFromLiteChain(deposit);
 
     this.logger.debug({
       at: "SpokePoolClient#findDeposit",
@@ -847,5 +853,15 @@ export class SpokePoolClient extends BaseAbstractClient {
     });
 
     return deposit;
+  }
+
+  /**
+   * Determines whether a deposit originates from a lite chain.
+   * @param deposit The deposit to evaluate.
+   * @returns True if the deposit originates from a lite chain, false otherwise. If the hub pool client is not defined,
+   *          this method will return false.
+   */
+  protected doesDepositOriginateFromLiteChain(deposit: DepositWithBlock): boolean {
+    return this.configStoreClient?.isChainLiteChainAtTimestamp(deposit.originChainId, deposit.quoteTimestamp) ?? false;
   }
 }
