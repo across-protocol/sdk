@@ -546,8 +546,8 @@ export class SpokePoolClient extends BaseAbstractClient {
         // Derive and append the common properties that are not part of the onchain event.
         const { quoteBlock: quoteBlockNumber } = dataForQuoteTime[index];
         const deposit = { ...(rawDeposit as DepositWithBlock), originChainId: this.chainId, quoteBlockNumber };
-        deposit.originatesFromLiteChain = this.doesDepositOriginateFromLiteChain(deposit);
-        deposit.destinedToLiteChain = this.doesDepositDestinateToLiteChain(deposit);
+        deposit.fromLiteChain = this.doesDepositOriginateFromLiteChain(deposit);
+        deposit.toLiteChain = this.doesDepositDestinateToLiteChain(deposit);
         if (deposit.outputToken === ZERO_ADDRESS) {
           deposit.outputToken = this.getDestinationTokenForDeposit(deposit);
         }
@@ -844,8 +844,8 @@ export class SpokePoolClient extends BaseAbstractClient {
           ? this.getDestinationTokenForDeposit({ ...partialDeposit, originChainId: this.chainId })
           : partialDeposit.outputToken,
     };
-    deposit.originatesFromLiteChain = this.doesDepositOriginateFromLiteChain(deposit);
-    deposit.destinedToLiteChain = this.doesDepositDestinateToLiteChain(deposit);
+    deposit.fromLiteChain = this.isOriginFromLiteChain(deposit);
+    deposit.toLiteChain = this.doesDepositDestinateToLiteChain(deposit);
 
     this.logger.debug({
       at: "SpokePoolClient#findDeposit",
@@ -863,7 +863,7 @@ export class SpokePoolClient extends BaseAbstractClient {
    * @returns True if the deposit originates from a lite chain, false otherwise. If the hub pool client is not defined,
    *          this method will return false.
    */
-  protected doesDepositOriginateFromLiteChain(deposit: DepositWithBlock): boolean {
+  protected isOriginLiteChain(deposit: DepositWithBlock): boolean {
     return this.configStoreClient?.isChainLiteChainAtTimestamp(deposit.originChainId, deposit.quoteTimestamp) ?? false;
   }
 
@@ -873,7 +873,7 @@ export class SpokePoolClient extends BaseAbstractClient {
    * @returns True if the deposit is destined to a lite chain, false otherwise. If the hub pool client is not defined,
    *          this method will return false.
    */
-  protected doesDepositDestinateToLiteChain(deposit: DepositWithBlock): boolean {
+  protected isDestinationLiteChain(deposit: DepositWithBlock): boolean {
     return this.configStoreClient?.isChainLiteChainAtTimestamp(deposit.destinationChainId, deposit.quoteTimestamp) ?? false;
   }
 }

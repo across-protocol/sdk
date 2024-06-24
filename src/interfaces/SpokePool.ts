@@ -28,8 +28,8 @@ export interface Deposit extends RelayData {
   updatedRecipient?: string;
   updatedOutputAmount?: BigNumber;
   updatedMessage?: string;
-  originatesFromLiteChain: boolean;
-  destinedToLiteChain: boolean;
+  fromLiteChain: boolean;
+  toLiteChain: boolean;
 }
 
 export interface DepositWithBlock extends Deposit, SortableEvent {
