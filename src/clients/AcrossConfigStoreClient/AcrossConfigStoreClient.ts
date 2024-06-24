@@ -452,7 +452,7 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
         // leading and trailing quotes, as well as leading and trailing whitespace. We also need to
         // check for commas between the numbers. Alternatively, this can be an empty array.
         if (!/^\s*["']?\[(\d+(,\d+)*)?\]["']?\s*$/.test(args.value)) {
-          this.logger.warn({ at: "ConfigStore", message: `The array ${args.value} is invalid.` });
+          this.logger.warn({ at: "ConfigStore", message: `The lite chain indices array ${args.value} is invalid.` });
           // If not a valid array, skip.
           continue;
         }
