@@ -547,6 +547,7 @@ export class SpokePoolClient extends BaseAbstractClient {
         const { quoteBlock: quoteBlockNumber } = dataForQuoteTime[index];
         const deposit = { ...(rawDeposit as DepositWithBlock), originChainId: this.chainId, quoteBlockNumber };
         deposit.originatesFromLiteChain = this.doesDepositOriginateFromLiteChain(deposit);
+        deposit.destinedToLiteChain = this.doesDepositDestinateToLiteChain(deposit);
         if (deposit.outputToken === ZERO_ADDRESS) {
           deposit.outputToken = this.getDestinationTokenForDeposit(deposit);
         }
@@ -844,6 +845,7 @@ export class SpokePoolClient extends BaseAbstractClient {
           : partialDeposit.outputToken,
     };
     deposit.originatesFromLiteChain = this.doesDepositOriginateFromLiteChain(deposit);
+    deposit.destinedToLiteChain = this.doesDepositDestinateToLiteChain(deposit);
 
     this.logger.debug({
       at: "SpokePoolClient#findDeposit",
@@ -863,5 +865,15 @@ export class SpokePoolClient extends BaseAbstractClient {
    */
   protected doesDepositOriginateFromLiteChain(deposit: DepositWithBlock): boolean {
     return this.configStoreClient?.isChainLiteChainAtTimestamp(deposit.originChainId, deposit.quoteTimestamp) ?? false;
+  }
+
+  /**
+   * Determines whether a deposit is destined to a lite chain.
+   * @param deposit The deposit to evaluate.
+   * @returns True if the deposit is destined to a lite chain, false otherwise. If the hub pool client is not defined,
+   *          this method will return false.
+   */
+  protected doesDepositDestinateToLiteChain(deposit: DepositWithBlock): boolean {
+    return this.configStoreClient?.isChainLiteChainAtTimestamp(deposit.destinationChainId, deposit.quoteTimestamp) ?? false;
   }
 }
