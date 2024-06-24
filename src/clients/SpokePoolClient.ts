@@ -844,8 +844,8 @@ export class SpokePoolClient extends BaseAbstractClient {
           ? this.getDestinationTokenForDeposit({ ...partialDeposit, originChainId: this.chainId })
           : partialDeposit.outputToken,
     };
-    deposit.fromLiteChain = this.isOriginFromLiteChain(deposit);
-    deposit.toLiteChain = this.doesDepositDestinateToLiteChain(deposit);
+    deposit.fromLiteChain = this.isOriginLiteChain(deposit);
+    deposit.toLiteChain = this.isDestinationLiteChain(deposit);
 
     this.logger.debug({
       at: "SpokePoolClient#findDeposit",
