@@ -874,6 +874,8 @@ export class SpokePoolClient extends BaseAbstractClient {
    *          this method will return false.
    */
   protected isDestinationLiteChain(deposit: DepositWithBlock): boolean {
-    return this.configStoreClient?.isChainLiteChainAtTimestamp(deposit.destinationChainId, deposit.quoteTimestamp) ?? false;
+    return (
+      this.configStoreClient?.isChainLiteChainAtTimestamp(deposit.destinationChainId, deposit.quoteTimestamp) ?? false
+    );
   }
 }
