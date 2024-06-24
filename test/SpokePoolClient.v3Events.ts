@@ -136,17 +136,12 @@ describe("SpokePoolClient: Event Filtering", function () {
   });
 
   it("Correctly sets the `originatesFromLiteChain` flag by using `doesDepositOriginateFromLiteChain`", async function () {
-    // There's a nuanced issue with the mock config store's event manager so we need to mock a 2 second delay
-    // so that the block timestamps are different.
-
     // Update the config store to set the originChainId as a lite chain.
     configStoreClient.updateGlobalConfig(
       GLOBAL_CONFIG_STORE_KEYS.LITE_CHAIN_ID_INDICES,
       JSON.stringify([originChainId])
     );
     await configStoreClient.update();
-    // Sleep for 2 seconds to ensure that the block timestamp is different.
-    await new Promise((resolve) => setTimeout(resolve, 2000));
     // Update the config store to set the originChainId as a non-lite chain.
     configStoreClient.updateGlobalConfig(GLOBAL_CONFIG_STORE_KEYS.LITE_CHAIN_ID_INDICES, JSON.stringify([]));
     await configStoreClient.update();
@@ -154,6 +149,12 @@ describe("SpokePoolClient: Event Filtering", function () {
     // Confirm that the config store client has two updates.
     expect(configStoreClient.liteChainIndicesUpdates.length).to.equal(2);
     const [liteChainIndicesUpdate1, liteChainIndicesUpdate2] = configStoreClient.liteChainIndicesUpdates;
+
+    // There's a nuanced issue with the mock config store's event manager so we need to mock a 2 second delay
+    // so that the block timestamps are different. If this issue is resolved, this shouldn't impact this test
+    // because the second event's timestamp should be greater than the first event's timestamp anyway.
+    configStoreClient.liteChainIndicesUpdates[1].timestamp += 2;
+
     // Confirm that the two updates have different timestamps.
     expect(liteChainIndicesUpdate1.timestamp).to.not.equal(liteChainIndicesUpdate2.timestamp);
 
