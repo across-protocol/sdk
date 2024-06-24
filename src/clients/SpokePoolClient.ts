@@ -546,8 +546,8 @@ export class SpokePoolClient extends BaseAbstractClient {
         // Derive and append the common properties that are not part of the onchain event.
         const { quoteBlock: quoteBlockNumber } = dataForQuoteTime[index];
         const deposit = { ...(rawDeposit as DepositWithBlock), originChainId: this.chainId, quoteBlockNumber };
-        deposit.fromLiteChain = this.doesDepositOriginateFromLiteChain(deposit);
-        deposit.toLiteChain = this.doesDepositDestinateToLiteChain(deposit);
+        deposit.fromLiteChain = this.isOriginLiteChain(deposit);
+        deposit.toLiteChain = this.isDestinationLiteChain(deposit);
         if (deposit.outputToken === ZERO_ADDRESS) {
           deposit.outputToken = this.getDestinationTokenForDeposit(deposit);
         }
@@ -868,7 +868,7 @@ export class SpokePoolClient extends BaseAbstractClient {
   }
 
   /**
-   * Determines whether a deposit is destined to a lite chain.
+   * Determines whether the deposit destination chain is a lite chain.
    * @param deposit The deposit to evaluate.
    * @returns True if the deposit is destined to a lite chain, false otherwise. If the hub pool client is not defined,
    *          this method will return false.
