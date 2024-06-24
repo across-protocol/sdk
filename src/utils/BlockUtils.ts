@@ -6,7 +6,7 @@ import { isDefined } from "./TypeGuards";
 import { getCurrentTime } from "./TimeUtils";
 import { CachingMechanismInterface } from "../interfaces";
 import { shouldCache } from "./CachingUtils";
-import { DEFAULT_CACHING_SAFE_LAG } from "../constants";
+import { CHAIN_IDs, DEFAULT_CACHING_SAFE_LAG } from "../constants";
 
 type Opts = {
   highBlock?: number;
@@ -34,11 +34,11 @@ const defaultHighBlockOffset = 10;
 const cacheTTL = 60 * 15;
 const now = getCurrentTime(); // Seed the cache with initial values.
 const blockTimes: { [chainId: number]: BlockTimeAverage } = {
-  1: { average: 12.5, timestamp: now, blockRange: 1 },
-  10: { average: 2, timestamp: now, blockRange: 1 },
-  8453: { average: 2, timestamp: now, blockRange: 1 },
-  34443: { average: 2, timestamp: now, blockRange: 1 },
-  59144: { average: 3, timestamp: now, blockRange: 1 },
+  [CHAIN_IDs.BASE]: { average: 2, timestamp: now, blockRange: 1 },
+  [CHAIN_IDs.LINEA]: { average: 3, timestamp: now, blockRange: 1 },
+  [CHAIN_IDs.MAINNET]: { average: 12.5, timestamp: now, blockRange: 1 },
+  [CHAIN_IDs.MODE]: { average: 2, timestamp: now, blockRange: 1 },
+  [CHAIN_IDs.OPTIMISM]: { average: 2, timestamp: now, blockRange: 1 },
 };
 
 /**
