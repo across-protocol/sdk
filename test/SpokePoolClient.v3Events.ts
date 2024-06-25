@@ -135,7 +135,7 @@ describe("SpokePoolClient: Event Filtering", function () {
     });
   });
 
-  it("Correctly sets the `originatesFromLiteChain` flag by using `doesDepositOriginateFromLiteChain`", async function () {
+  it("Correctly sets the `fromLiteChain` flag by using `isOriginLiteChain`", async function () {
     // Update the config store to set the originChainId as a lite chain.
     configStoreClient.updateGlobalConfig(
       GLOBAL_CONFIG_STORE_KEYS.LITE_CHAIN_ID_INDICES,
@@ -158,13 +158,13 @@ describe("SpokePoolClient: Event Filtering", function () {
     // Confirm that the two updates have different timestamps.
     expect(liteChainIndicesUpdate1.timestamp).to.not.equal(liteChainIndicesUpdate2.timestamp);
 
-    // Inject a V3DepositWithBlock event that should have the `originatesFromLiteChain` flag set to false.
+    // Inject a V3DepositWithBlock event that should have the `fromLiteChain` flag set to false.
     // This is done by setting the quote timestamp to before the first lite chain update.
     generateV3Deposit(originSpokePoolClient, liteChainIndicesUpdate1.timestamp - 1);
-    // Inject a V3DepositWithBlock event that should have the `originatesFromLiteChain` flag set to true.
+    // Inject a V3DepositWithBlock event that should have the `fromLiteChain` flag set to true.
     // This is done by setting the quote timestamp to after the first lite chain update.
     generateV3Deposit(originSpokePoolClient, liteChainIndicesUpdate1.timestamp + 1);
-    // Inject a V3DepositWithBlock event that should have the `originatesFromLiteChain` flag set to false.
+    // Inject a V3DepositWithBlock event that should have the `fromLiteChain` flag set to false.
     // This is done by setting the quote timestamp to after the second lite chain update.
     generateV3Deposit(originSpokePoolClient, liteChainIndicesUpdate2.timestamp + 1);
 
@@ -172,12 +172,57 @@ describe("SpokePoolClient: Event Filtering", function () {
     originSpokePoolClient.setConfigStoreClient(configStoreClient);
     await originSpokePoolClient.update(["V3FundsDeposited"]);
 
-    // Of the three deposits, the first and third should have the `originatesFromLiteChain` flag set to false.
+    // Of the three deposits, the first and third should have the `fromLiteChain` flag set to false.
     const deposits = originSpokePoolClient.getDeposits();
     expect(deposits.length).to.equal(3);
-    expect(deposits[0].originatesFromLiteChain).to.equal(false);
-    expect(deposits[1].originatesFromLiteChain).to.equal(true);
-    expect(deposits[2].originatesFromLiteChain).to.equal(false);
+    expect(deposits[0].fromLiteChain).to.equal(false);
+    expect(deposits[1].fromLiteChain).to.equal(true);
+    expect(deposits[2].fromLiteChain).to.equal(false);
+  });
+
+  it("Correctly sets the `toLiteChain` flag by using `isDestinationLiteChain`", async function () {
+    // Update the config store to set the originChainId as a lite chain.
+    configStoreClient.updateGlobalConfig(
+      GLOBAL_CONFIG_STORE_KEYS.LITE_CHAIN_ID_INDICES,
+      JSON.stringify([destinationChainId])
+    );
+    await configStoreClient.update();
+    // Update the config store to set the originChainId as a non-lite chain.
+    configStoreClient.updateGlobalConfig(GLOBAL_CONFIG_STORE_KEYS.LITE_CHAIN_ID_INDICES, JSON.stringify([]));
+    await configStoreClient.update();
+
+    // Confirm that the config store client has two updates.
+    expect(configStoreClient.liteChainIndicesUpdates.length).to.equal(2);
+    const [liteChainIndicesUpdate1, liteChainIndicesUpdate2] = configStoreClient.liteChainIndicesUpdates;
+
+    // There's a nuanced issue with the mock config store's event manager so we need to mock a 2 second delay
+    // so that the block timestamps are different. If this issue is resolved, this shouldn't impact this test
+    // because the second event's timestamp should be greater than the first event's timestamp anyway.
+    configStoreClient.liteChainIndicesUpdates[1].timestamp += 2;
+
+    // Confirm that the two updates have different timestamps.
+    expect(liteChainIndicesUpdate1.timestamp).to.not.equal(liteChainIndicesUpdate2.timestamp);
+
+    // Inject a V3DepositWithBlock event that should have the `toLiteChain` flag set to false.
+    // This is done by setting the quote timestamp to before the first lite chain update.
+    generateV3Deposit(originSpokePoolClient, liteChainIndicesUpdate1.timestamp - 1);
+    // Inject a V3DepositWithBlock event that should have the `toLiteChain` flag set to true.
+    // This is done by setting the quote timestamp to after the first lite chain update.
+    generateV3Deposit(originSpokePoolClient, liteChainIndicesUpdate1.timestamp + 1);
+    // Inject a V3DepositWithBlock event that should have the `toLiteChain` flag set to false.
+    // This is done by setting the quote timestamp to after the second lite chain update.
+    generateV3Deposit(originSpokePoolClient, liteChainIndicesUpdate2.timestamp + 1);
+
+    // Set the config store client on the originSpokePoolClient so that it can access the lite chain indices updates.
+    originSpokePoolClient.setConfigStoreClient(configStoreClient);
+    await originSpokePoolClient.update(["V3FundsDeposited"]);
+
+    // Of the three deposits, the first and third should have the `toLiteChain` flag set to false.
+    const deposits = originSpokePoolClient.getDeposits();
+    expect(deposits.length).to.equal(3);
+    expect(deposits[0].toLiteChain).to.equal(false);
+    expect(deposits[1].toLiteChain).to.equal(true);
+    expect(deposits[2].toLiteChain).to.equal(false);
   });
 
   it("Correctly substitutes outputToken when set to 0x0", async function () {

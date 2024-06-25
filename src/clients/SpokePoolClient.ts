@@ -546,7 +546,8 @@ export class SpokePoolClient extends BaseAbstractClient {
         // Derive and append the common properties that are not part of the onchain event.
         const { quoteBlock: quoteBlockNumber } = dataForQuoteTime[index];
         const deposit = { ...(rawDeposit as DepositWithBlock), originChainId: this.chainId, quoteBlockNumber };
-        deposit.originatesFromLiteChain = this.doesDepositOriginateFromLiteChain(deposit);
+        deposit.fromLiteChain = this.isOriginLiteChain(deposit);
+        deposit.toLiteChain = this.isDestinationLiteChain(deposit);
         if (deposit.outputToken === ZERO_ADDRESS) {
           deposit.outputToken = this.getDestinationTokenForDeposit(deposit);
         }
@@ -843,7 +844,8 @@ export class SpokePoolClient extends BaseAbstractClient {
           ? this.getDestinationTokenForDeposit({ ...partialDeposit, originChainId: this.chainId })
           : partialDeposit.outputToken,
     };
-    deposit.originatesFromLiteChain = this.doesDepositOriginateFromLiteChain(deposit);
+    deposit.fromLiteChain = this.isOriginLiteChain(deposit);
+    deposit.toLiteChain = this.isDestinationLiteChain(deposit);
 
     this.logger.debug({
       at: "SpokePoolClient#findDeposit",
@@ -861,7 +863,19 @@ export class SpokePoolClient extends BaseAbstractClient {
    * @returns True if the deposit originates from a lite chain, false otherwise. If the hub pool client is not defined,
    *          this method will return false.
    */
-  protected doesDepositOriginateFromLiteChain(deposit: DepositWithBlock): boolean {
+  protected isOriginLiteChain(deposit: DepositWithBlock): boolean {
     return this.configStoreClient?.isChainLiteChainAtTimestamp(deposit.originChainId, deposit.quoteTimestamp) ?? false;
+  }
+
+  /**
+   * Determines whether the deposit destination chain is a lite chain.
+   * @param deposit The deposit to evaluate.
+   * @returns True if the deposit is destined to a lite chain, false otherwise. If the hub pool client is not defined,
+   *          this method will return false.
+   */
+  protected isDestinationLiteChain(deposit: DepositWithBlock): boolean {
+    return (
+      this.configStoreClient?.isChainLiteChainAtTimestamp(deposit.destinationChainId, deposit.quoteTimestamp) ?? false
+    );
   }
 }
