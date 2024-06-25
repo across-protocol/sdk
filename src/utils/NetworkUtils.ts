@@ -60,11 +60,11 @@ export function chainIsOPStack(chainId: number): boolean {
   return [
     CHAIN_IDs.OPTIMISM,
     CHAIN_IDs.BASE,
+    CHAIN_IDs.LISK,
     CHAIN_IDs.MODE,
-    CHAIN_IDs.OPTIMISM_GOERLI,
-    CHAIN_IDs.BASE_GOERLI,
     CHAIN_IDs.OPTIMISM_SEPOLIA,
     CHAIN_IDs.BASE_SEPOLIA,
+    CHAIN_IDs.LISK_SEPOLIA,
     CHAIN_IDs.MODE_SEPOLIA,
   ].includes(chainId);
 }
@@ -75,7 +75,7 @@ export function chainIsOPStack(chainId: number): boolean {
  * @returns True if chainId is an Arbitrum chain, otherwise false.
  */
 export function chainIsArbitrum(chainId: number): boolean {
-  return [CHAIN_IDs.ARBITRUM, CHAIN_IDs.ARBITRUM_GOERLI, CHAIN_IDs.ARBITRUM_SEPOLIA].includes(chainId);
+  return [CHAIN_IDs.ARBITRUM, CHAIN_IDs.ARBITRUM_SEPOLIA].includes(chainId);
 }
 
 /**
@@ -84,7 +84,7 @@ export function chainIsArbitrum(chainId: number): boolean {
  * @returns True if chainId is a Linea chain, otherwise false.
  */
 export function chainIsLinea(chainId: number): boolean {
-  return [CHAIN_IDs.LINEA, CHAIN_IDs.LINEA_GOERLI].includes(chainId);
+  return [CHAIN_IDs.LINEA].includes(chainId);
 }
 
 /**
