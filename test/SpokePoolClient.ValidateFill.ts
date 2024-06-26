@@ -216,7 +216,7 @@ describe("SpokePoolClient: Fill Validation", function () {
     await spokePoolClient1.update();
 
     expect(spokePoolClient1.getDepositForFill(fill))
-      .excludingEvery(["realizedLpFeePct", "quoteBlockNumber"])
+      .excludingEvery(["realizedLpFeePct", "quoteBlockNumber", "fromLiteChain", "toLiteChain"])
       .to.deep.equal(deposit);
   });
 
@@ -631,7 +631,7 @@ describe("SpokePoolClient: Fill Validation", function () {
     expect(fill_2.relayExecutionInfo.fillType === FillType.FastFill).to.be.true;
 
     expect(spokePoolClient1.getDepositForFill(fill_1))
-      .excludingEvery(["quoteBlockNumber", "realizedLpFeePct"])
+      .excludingEvery(["quoteBlockNumber", "realizedLpFeePct", "fromLiteChain", "toLiteChain"])
       .to.deep.equal(deposit_1);
     expect(spokePoolClient1.getDepositForFill(fill_2)).to.equal(undefined);
 
