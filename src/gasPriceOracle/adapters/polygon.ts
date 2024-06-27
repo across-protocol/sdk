@@ -1,6 +1,7 @@
 import { providers, utils as ethersUtils } from "ethers";
 import { BaseHTTPAdapter, BaseHTTPAdapterArgs } from "../../priceClient/adapters/baseAdapter";
-import { isDefined } from "../../utils/TypeGuards";
+import { bnZero, isDefined } from "../../utils";
+import { CHAIN_IDs } from "../../constants";
 import { GasPriceEstimate } from "../types";
 import { gasPriceError } from "../util";
 import { eip1559 } from "./ethereum";
@@ -24,13 +25,15 @@ type GasStationArgs = BaseHTTPAdapterArgs & {
   host?: string;
 };
 
+const { POLYGON } = CHAIN_IDs;
+
 // @dev toBNWei() is not imported from ../utils because of a circular dependency loop.
 //      The fix is probably to relocate the function estimateTotalGasRequiredByUnsignedTransaction().
 class PolygonGasStation extends BaseHTTPAdapter {
   readonly chainId: number;
 
-  constructor({ chainId = 137, host, timeout = 1500, retries = 1 }: GasStationArgs = {}) {
-    host = host ?? chainId === 137 ? "gasstation.polygon.technology" : "gasstation-testnet.polygon.technology";
+  constructor({ chainId = POLYGON, host, timeout = 1500, retries = 1 }: GasStationArgs = {}) {
+    host = host ?? chainId === POLYGON ? "gasstation.polygon.technology" : "gasstation-testnet.polygon.technology";
 
     super("Polygon Gas Station", host, { timeout, retries });
     this.chainId = chainId;
@@ -42,7 +45,7 @@ class PolygonGasStation extends BaseHTTPAdapter {
     const gasPrice: Polygon1559GasPrice = (gas as GasStationV2Response)?.[strategy];
     if (!this.isPolygon1559GasPrice(gasPrice)) {
       // @todo: generalise gasPriceError() to accept a reason/cause?
-      gasPriceError("getFeeData()", this.chainId, ethersUtils.parseUnits("0"));
+      gasPriceError("getFeeData()", this.chainId, bnZero);
     }
 
     [gasPrice.maxFee, gasPrice.maxPriorityFee].forEach((gasPrice) => {
@@ -66,12 +69,12 @@ class PolygonGasStation extends BaseHTTPAdapter {
   }
 }
 
-export async function polygonGasStation(provider: providers.Provider, chainId: number): Promise<GasPriceEstimate> {
+export function gasStation(provider: providers.Provider, chainId: number): Promise<GasPriceEstimate> {
   const gasStation = new PolygonGasStation({ chainId: chainId });
   try {
-    return await gasStation.getFeeData();
+    return gasStation.getFeeData();
   } catch (err) {
     // Fall back to the RPC provider. May be less accurate.
-    return await eip1559(provider, chainId);
+    return eip1559(provider, chainId);
   }
 }
