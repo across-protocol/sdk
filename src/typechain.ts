@@ -9,7 +9,7 @@ export type { TypedEvent, TypedEventFilter };
 export { AcrossMerkleDistributor__factory } from "@across-protocol/contracts/dist/typechain/factories/contracts/merkle-distributor/AcrossMerkleDistributor__factory";
 export { AcrossConfigStore__factory } from "@across-protocol/contracts/dist/typechain/factories/contracts/AcrossConfigStore__factory";
 export { HubPool__factory } from "@across-protocol/contracts/dist/typechain/factories/contracts/HubPool__factory";
-export { SpokePool__factory } from "@across-protocol/contracts/dist/typechain/factories/contracts/SpokePool.sol/SpokePool__factory";
+export { SpokePool__factory } from "@across-protocol/contracts/dist/typechain/factories/contracts/SpokePool__factory";
 export { ERC20__factory } from "@across-protocol/contracts/dist/typechain/factories/@openzeppelin/contracts/token/ERC20/ERC20__factory";
 
 export { AcceleratingDistributor__factory } from "@across-protocol/across-token/dist/typechain/factories/AcceleratingDistributor__factory";
@@ -33,7 +33,7 @@ export type {
   RequestedSpeedUpDepositEvent,
   V3FundsDepositedEvent,
   FilledV3RelayEvent,
-} from "@across-protocol/contracts/dist/typechain/contracts/SpokePool.sol/SpokePool";
+} from "@across-protocol/contracts/dist/typechain/contracts/SpokePool";
 
 export type {
   AcceleratingDistributor,
