@@ -31,8 +31,8 @@ const V3DepositSchema = object({
   logIndex: Min(integer(), 0),
   quoteBlockNumber: Min(integer(), 0),
   transactionHash: HexValidator,
-  fromLiteChain: boolean(),
-  toLiteChain: boolean(),
+  fromLiteChain: optional(boolean()),
+  toLiteChain: optional(boolean()),
 });
 
 export function isDepositFormedCorrectly(deposit: unknown): deposit is DepositWithBlock {
