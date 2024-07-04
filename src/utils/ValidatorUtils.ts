@@ -1,5 +1,5 @@
 import { BigNumber, ethers } from "ethers";
-import { object, min as Min, define, optional, string, integer } from "superstruct";
+import { object, min as Min, define, optional, string, integer, boolean } from "superstruct";
 import { DepositWithBlock } from "../interfaces";
 
 const AddressValidator = define<string>("AddressValidator", (v) => ethers.utils.isAddress(String(v)));
@@ -31,6 +31,8 @@ const V3DepositSchema = object({
   logIndex: Min(integer(), 0),
   quoteBlockNumber: Min(integer(), 0),
   transactionHash: HexValidator,
+  fromLiteChain: boolean(),
+  toLiteChain: boolean(),
 });
 
 export function isDepositFormedCorrectly(deposit: unknown): deposit is DepositWithBlock {
