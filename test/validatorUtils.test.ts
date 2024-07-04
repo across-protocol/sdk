@@ -31,6 +31,8 @@ describe("validatorUtils", () => {
         transactionIndex: 0,
         logIndex: 0,
         quoteBlockNumber: 0,
+        fromLiteChain: false,
+        toLiteChain: false,
       };
     });
 
