@@ -9,7 +9,7 @@ import {
   retry,
   toBNWei,
 } from "../src/utils";
-import { toBN, toGWei } from "../src/utils/BigNumberUtils";
+import { toBN } from "../src/utils/BigNumberUtils";
 import { buildDepositForRelayerFeeTest, expect } from "./utils";
 
 dotenv.config();
