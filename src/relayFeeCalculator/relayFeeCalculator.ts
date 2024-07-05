@@ -20,7 +20,12 @@ import {
 
 // This needs to be implemented for every chain and passed into RelayFeeCalculator
 export interface QueryInterface {
-  getGasCosts: (deposit: Deposit, relayer: string, gasPrice?: BigNumberish) => Promise<TransactionCostEstimate>;
+  getGasCosts: (
+    deposit: Deposit,
+    relayer: string,
+    gasPrice?: BigNumberish,
+    gasLimit?: BigNumberish
+  ) => Promise<TransactionCostEstimate>;
   getTokenPrice: (tokenSymbol: string) => Promise<number>;
   getTokenDecimals: (tokenSymbol: string) => number;
 }
@@ -225,7 +230,8 @@ export class RelayFeeCalculator {
     relayerAddress = DEFAULT_SIMULATED_RELAYER_ADDRESS,
     _tokenPrice?: number,
     tokenMapping = TOKEN_SYMBOLS_MAP,
-    gasPrice?: BigNumberish
+    gasPrice?: BigNumberish,
+    gasLimit?: BigNumberish
   ): Promise<BigNumber> {
     if (toBN(amountToRelay).eq(bnZero)) return MAX_BIG_INT;
 
@@ -240,7 +246,7 @@ export class RelayFeeCalculator {
     const simulatedAmount = simulateZeroFill ? safeOutputAmount : toBN(amountToRelay);
     deposit = { ...deposit, outputAmount: simulatedAmount };
 
-    const getGasCosts = this.queries.getGasCosts(deposit, relayerAddress, gasPrice).catch((error) => {
+    const getGasCosts = this.queries.getGasCosts(deposit, relayerAddress, gasPrice, gasLimit).catch((error) => {
       this.logger.error({
         at: "sdk/gasFeePercent",
         message: "Error while fetching gas costs",
@@ -345,7 +351,8 @@ export class RelayFeeCalculator {
     simulateZeroFill = false,
     relayerAddress = DEFAULT_SIMULATED_RELAYER_ADDRESS,
     _tokenPrice?: number,
-    gasPrice?: BigNumberish
+    gasPrice?: BigNumberish,
+    gasLimit?: BigNumberish
   ): Promise<RelayerFeeDetails> {
     // If the amount to relay is not provided, then we
     // should use the full deposit amount.
@@ -363,7 +370,8 @@ export class RelayFeeCalculator {
       relayerAddress,
       _tokenPrice,
       undefined,
-      gasPrice
+      gasPrice,
+      gasLimit
     );
     const gasFeeTotal = gasFeePercent.mul(amountToRelay).div(fixedPointAdjustment);
     const capitalFeePercent = this.capitalFeePercent(

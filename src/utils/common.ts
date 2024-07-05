@@ -242,6 +242,7 @@ export type TransactionCostEstimate = {
  * @param provider A valid ethers provider - will be used to reason the gas price.
  * @param gasMarkup Markup on the estimated gas cost. For example, 0.2 will increase this resulting value 1.2x.
  * @param gasPrice A manually provided gas price - if set, this function will not resolve the current gas price.
+ * @param gasLimit A manually provided gas limit - if set, this function will not estimate the gas limit.
  * @returns Estimated cost in units of gas and the underlying gas token (gasPrice * estimatedGasUnits).
  */
 export async function estimateTotalGasRequiredByUnsignedTransaction(
@@ -249,7 +250,8 @@ export async function estimateTotalGasRequiredByUnsignedTransaction(
   senderAddress: string,
   provider: providers.Provider | L2Provider<providers.Provider>,
   gasMarkup: number,
-  gasPrice?: BigNumberish
+  gasPrice?: BigNumberish,
+  gasLimit?: BigNumberish
 ): Promise<TransactionCostEstimate> {
   assert(
     gasMarkup > -1 && gasMarkup <= 4,
@@ -262,8 +264,8 @@ export async function estimateTotalGasRequiredByUnsignedTransaction(
   // Estimate the Gas units required to submit this transaction.
   let nativeGasCost = await voidSigner.estimateGas({
     ...unsignedTx,
-    gasPrice: gasPrice ?? undefined,
-    gasLimit: 8_000_000, // This prevents out of gas errors.
+    gasPrice,
+    gasLimit,
   });
   let tokenGasCost: BigNumber;
 
