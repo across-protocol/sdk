@@ -303,6 +303,16 @@ export class SpokePoolClient extends BaseAbstractClient {
   }
 
   /**
+   * Find a valid fill for a given deposit.
+   * @param deposit A deposit event.
+   * @returns A valid fill for the deposit, or undefined.
+   */
+  public getFillForDeposit(deposit: Deposit): FillWithBlock | undefined {
+    const fills = this.depositHashesToFills[this.getDepositHash(deposit)];
+    return fills?.find((fill) => validateFillForDeposit(fill, deposit));
+  }
+
+  /**
    * Find the unfilled amount for a given deposit. This is the full deposit amount minus the total filled amount.
    * @param deposit The deposit to find the unfilled amount for.
    * @param fillCount The number of fills that have been applied to this deposit.
