@@ -39,12 +39,12 @@ describe("Utils test", () => {
     const spokePoolAddress = "0x5c7BCd6E7De5423a257D81B442095A1a6ced35C5"; // mainnet
     const relayerAddress = "0x428AB2BA90Eba0a4Be7aF34C9Ac451ab061AC010";
 
-    const gasPrice = toGWei(1);
-
     // @todo: Ensure that NODE_URL_1 is always defined in test CI?
     const rpcUrl = process.env.NODE_URL_1 ?? "https://cloudflare-eth.com";
     const provider = new providers.JsonRpcProvider(rpcUrl, 1);
     const spokePool: SpokePool = SpokePool__factory.connect(spokePoolAddress, provider);
+
+    const gasPrice = await provider.getGasPrice();
 
     const deposit = buildDepositForRelayerFeeTest("1", "usdc", 10, 1);
     const fill = await populateV3Relay(spokePool, deposit, relayerAddress);
