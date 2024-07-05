@@ -59,7 +59,7 @@ export class QueryBase implements QueryInterface {
    * @param deposit V3 deposit instance.
    * @param relayerAddress Relayer address to simulate with.
    * @param gasPrice Optional gas price to use for the simulation.
-   * @returns The gas estimate for this function call (multplied with the optional buffer).
+   * @returns The gas estimate for this function call (multiplied with the optional buffer).
    */
   async getGasCosts(
     deposit: Deposit,

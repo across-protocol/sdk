@@ -260,13 +260,16 @@ export async function estimateTotalGasRequiredByUnsignedTransaction(
   const voidSigner = new VoidSigner(senderAddress, provider);
 
   // Estimate the Gas units required to submit this transaction.
-  let nativeGasCost = await voidSigner.estimateGas(unsignedTx);
+  let nativeGasCost = await voidSigner.estimateGas({
+    ...unsignedTx,
+    gasPrice: gasPrice ?? undefined,
+    gasLimit: 8_000_000, // This prevents out of gas errors.
+  });
   let tokenGasCost: BigNumber;
 
   // OP stack is a special case; gas cost is computed by the SDK, without having to query price.
   if (chainIsOPStack(chainId)) {
     assert(isOptimismL2Provider(provider), `Unexpected provider for chain ID ${chainId}.`);
-    assert(gasPrice === undefined, `Gas price (${gasPrice}) supplied for Optimism gas estimation (unused).`);
     const populatedTransaction = await voidSigner.populateTransaction({
       ...unsignedTx,
       gasLimit: nativeGasCost, // prevents additional gas estimation call
