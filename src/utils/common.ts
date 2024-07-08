@@ -278,10 +278,11 @@ export async function estimateTotalGasRequiredByUnsignedTransaction(
     });
     // Concurrently estimate the gas cost on L1 and L2 instead of calling
     // `provider.estimateTotalGasCost` to improve performance.
-    const [l1GasCost, l2GasCost] = await Promise.all([
+    const [l1GasCost, l2GasPrice] = await Promise.all([
       provider.estimateL1GasCost(populatedTransaction),
-      provider.estimateL2GasCost(populatedTransaction),
+      gasPrice || provider.getGasPrice(),
     ]);
+    const l2GasCost = nativeGasCost.mul(l2GasPrice);
     tokenGasCost = l1GasCost.add(l2GasCost);
   } else {
     if (!gasPrice) {
