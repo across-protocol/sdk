@@ -100,7 +100,7 @@
   "dependencies": {
     "@across-protocol/across-token": "^1.0.0",
     "@across-protocol/constants": "^3.1.5",
-    "@across-protocol/contracts": "^3.0.4",
+    "@across-protocol/contracts": "^3.0.5",
     "@eth-optimism/sdk": "^3.3.1",
     "@pinata/sdk": "^2.1.0",
     "@types/mocha": "^10.0.1",
