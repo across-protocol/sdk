@@ -35,6 +35,7 @@ const cacheTTL = 60 * 15;
 const now = getCurrentTime(); // Seed the cache with initial values.
 const blockTimes: { [chainId: number]: BlockTimeAverage } = {
   [CHAIN_IDs.BASE]: { average: 2, timestamp: now, blockRange: 1 },
+  [CHAIN_IDs.BLAST]: { average: 2, timestamp: now, blockRange: 1 },
   [CHAIN_IDs.LINEA]: { average: 3, timestamp: now, blockRange: 1 },
   [CHAIN_IDs.LISK]: { average: 2, timestamp: now, blockRange: 1 },
   [CHAIN_IDs.MAINNET]: { average: 12.5, timestamp: now, blockRange: 1 },
