@@ -49,10 +49,8 @@ export async function averageBlockTime(
 ): Promise<Pick<BlockTimeAverage, "average" | "blockRange">> {
   // Does not block for StaticJsonRpcProvider.
   const chainId = (await provider.getNetwork()).chainId;
+  const cache = chainIsOPStack(chainId) ? blockTimes[CHAIN_IDs.OPTIMISM] : blockTimes[chainId];
 
-  const cache = chainIsOPStack(chainId)
-    ? blockTimes[CHAIN_IDs.OPTIMISM]
-    : blockTimes[chainId];
   const now = getCurrentTime();
   if (isDefined(cache) && now < cache.timestamp + cacheTTL) {
     return { average: cache.average, blockRange: cache.blockRange };
