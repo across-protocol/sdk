@@ -57,18 +57,7 @@ export function chainIsMatic(chainId: number): boolean {
  * @returns True if chainId is an OP stack, otherwise false.
  */
 export function chainIsOPStack(chainId: number): boolean {
-  return [
-    CHAIN_IDs.OPTIMISM,
-    CHAIN_IDs.BASE,
-    CHAIN_IDs.BLAST,
-    CHAIN_IDs.LISK,
-    CHAIN_IDs.MODE,
-    CHAIN_IDs.OPTIMISM_SEPOLIA,
-    CHAIN_IDs.BASE_SEPOLIA,
-    CHAIN_IDs.BLAST_SEPOLIA,
-    CHAIN_IDs.LISK_SEPOLIA,
-    CHAIN_IDs.MODE_SEPOLIA,
-  ].includes(chainId);
+  return PUBLIC_NETWORKS[chainId]?.family === ChainFamily.OP_STACK ?? false;
 }
 
 /**

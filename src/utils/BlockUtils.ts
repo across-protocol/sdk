@@ -1,7 +1,7 @@
 import assert from "assert";
 import type { Block, Provider } from "@ethersproject/abstract-provider";
 import { clamp, sortedIndexBy } from "lodash";
-import { getNetworkName } from "./NetworkUtils";
+import { chainIsOPStack, getNetworkName } from "./NetworkUtils";
 import { isDefined } from "./TypeGuards";
 import { getCurrentTime } from "./TimeUtils";
 import { CachingMechanismInterface } from "../interfaces";
@@ -33,14 +33,10 @@ const defaultHighBlockOffset = 10;
 // Retain computations for 15 minutes.
 const cacheTTL = 60 * 15;
 const now = getCurrentTime(); // Seed the cache with initial values.
-const blockTimes: { [chainId: number]: BlockTimeAverage } = {
-  [CHAIN_IDs.BASE]: { average: 2, timestamp: now, blockRange: 1 },
-  [CHAIN_IDs.BLAST]: { average: 2, timestamp: now, blockRange: 1 },
+const BLOCK_TIMES: { [chainId: number]: BlockTimeAverage } = {
   [CHAIN_IDs.LINEA]: { average: 3, timestamp: now, blockRange: 1 },
-  [CHAIN_IDs.LISK]: { average: 2, timestamp: now, blockRange: 1 },
-  [CHAIN_IDs.MAINNET]: { average: 12.5, timestamp: now, blockRange: 1 },
-  [CHAIN_IDs.MODE]: { average: 2, timestamp: now, blockRange: 1 },
   [CHAIN_IDs.OPTIMISM]: { average: 2, timestamp: now, blockRange: 1 },
+  [CHAIN_IDs.MAINNET]: { average: 12.5, timestamp: now, blockRange: 1 },
 };
 
 /**
@@ -54,7 +50,9 @@ export async function averageBlockTime(
   // Does not block for StaticJsonRpcProvider.
   const chainId = (await provider.getNetwork()).chainId;
 
-  const cache = blockTimes[chainId];
+  const cache = chainIsOPStack(chainId)
+    ? BLOCK_TIMES[CHAIN_IDs.OPTIMISM]
+    : BLOCK_TIMES[chainId];
   const now = getCurrentTime();
   if (isDefined(cache) && now < cache.timestamp + cacheTTL) {
     return { average: cache.average, blockRange: cache.blockRange };
