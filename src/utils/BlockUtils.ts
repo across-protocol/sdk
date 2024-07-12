@@ -49,7 +49,13 @@ export async function averageBlockTime(
 ): Promise<Pick<BlockTimeAverage, "average" | "blockRange">> {
   // Does not block for StaticJsonRpcProvider.
   const chainId = (await provider.getNetwork()).chainId;
-  const cache = chainIsOPStack(chainId) ? blockTimes[CHAIN_IDs.OPTIMISM] : blockTimes[chainId];
+
+  // OP stack chains inherit Optimism block times, but can be overridden.
+  // prettier-ignore
+  const cache = blockTimes[chainId]
+    ?? chainIsOPStack(chainId)
+      ? blockTimes[CHAIN_IDs.OPTIMISM]
+      : undefined;
 
   const now = getCurrentTime();
   if (isDefined(cache) && now < cache.timestamp + cacheTTL) {
