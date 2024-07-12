@@ -48,7 +48,7 @@ export async function averageBlockTime(
   { highBlock, highBlockOffset, blockRange }: Opts = {}
 ): Promise<Pick<BlockTimeAverage, "average" | "blockRange">> {
   // Does not block for StaticJsonRpcProvider.
-  const chainId = (await provider.getNetwork()).chainId;
+  const { chainId } = await provider.getNetwork();
 
   // OP stack chains inherit Optimism block times, but can be overridden.
   // prettier-ignore
