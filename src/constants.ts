@@ -1,6 +1,6 @@
 import { constants as ethersConstants, BigNumber, utils } from "ethers";
-
 export {
+  ChainFamily,
   CHAIN_IDs,
   MAINNET_CHAIN_IDs,
   PUBLIC_NETWORKS,

@@ -33,7 +33,7 @@ const defaultHighBlockOffset = 10;
 // Retain computations for 15 minutes.
 const cacheTTL = 60 * 15;
 const now = getCurrentTime(); // Seed the cache with initial values.
-const BLOCK_TIMES: { [chainId: number]: BlockTimeAverage } = {
+const blockTimes: { [chainId: number]: BlockTimeAverage } = {
   [CHAIN_IDs.LINEA]: { average: 3, timestamp: now, blockRange: 1 },
   [CHAIN_IDs.OPTIMISM]: { average: 2, timestamp: now, blockRange: 1 },
   [CHAIN_IDs.MAINNET]: { average: 12.5, timestamp: now, blockRange: 1 },
@@ -51,8 +51,8 @@ export async function averageBlockTime(
   const chainId = (await provider.getNetwork()).chainId;
 
   const cache = chainIsOPStack(chainId)
-    ? BLOCK_TIMES[CHAIN_IDs.OPTIMISM]
-    : BLOCK_TIMES[chainId];
+    ? blockTimes[CHAIN_IDs.OPTIMISM]
+    : blockTimes[chainId];
   const now = getCurrentTime();
   if (isDefined(cache) && now < cache.timestamp + cacheTTL) {
     return { average: cache.average, blockRange: cache.blockRange };
