@@ -75,6 +75,14 @@ export function getTokenInformationFromAddress(address: string, tokenMapping = T
     : undefined;
 }
 
+export function getCoingeckoTokenIdByAddress(contractAddress: string): string {
+  const token = getTokenInformationFromAddress(contractAddress);
+  if (!token) {
+    throw new Error(`Token with address ${contractAddress} not found in token mapping`);
+  }
+  return TOKEN_SYMBOLS_MAP[token.symbol as keyof typeof TOKEN_SYMBOLS_MAP].coingeckoId;
+}
+
 /**
  * Retrieves the ERC20 balance for a given address and token address.
  * @param address The address to retrieve the balance for.
