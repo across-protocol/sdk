@@ -106,10 +106,7 @@ export class Coingecko {
     const endDate = new Date(year, month - 1, day, 23, 59, 59, 999); // Use 999 ms for end of the day
     const startTimestamp = Math.floor(startDate.getTime() / 1000);
     const endTimestamp = Math.floor(endDate.getTime() / 1000);
-    // Verify the date is not in the future or malformed.
-    if (isNaN(startTimestamp) || isNaN(endTimestamp) || startDate > new Date()) {
-      throw new Error("Invalid date provided");
-    }
+    assert(isNaN(startTimestamp) || isNaN(endTimestamp) || startDate > new Date(), "Invalid date provided");
     // Build the path for the Coingecko API request
     const url = `coins/${platform_id}/contract/${contractAddress.toLowerCase()}/market_chart/range`;
     // Build the query parameters for the Coingecko API request
