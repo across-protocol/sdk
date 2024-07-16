@@ -1,7 +1,7 @@
 import axios, { AxiosError } from "axios";
 import assert from "assert";
 import get from "lodash.get";
-import { retry } from "../utils";
+import { getCoingeckoTokenIdByAddress, retry } from "../utils";
 import { Logger } from "../relayFeeCalculator";
 
 export function msToS(ms: number) {
@@ -94,30 +94,26 @@ export class Coingecko {
    * Get the current price of a token denominated in `currency`.
    * @param contractAddress The L1 token address to fetch the price for.
    * @param date A datestring in the format "dd-mm-yyyy" to fetch the price for.
-   * @param platform_id The platform id to fetch the price from. Defaults to "ethereum".
    * @param currency The currency to fetch the price in. Defaults to "usd".
    * @returns The price of the token at the given date.
-   * @throws An error if the date is invalid (malformed or in the future).
+   * @throws If today is selected and it is before 3am UTC or if the price is not found.
    */
-  getContractHistoricDayPrice(contractAddress: string, date: string, platform_id = "ethereum", currency = "usd") {
-    // Resolve the date into starting/ending timestamps for the day and validate the date.
-    const [day, month, year] = date.split("-").map(Number);
-    const startDate = new Date(year, month - 1, day);
-    const endDate = new Date(year, month - 1, day, 23, 59, 59, 999); // Use 999 ms for end of the day
-    const startTimestamp = Math.floor(startDate.getTime() / 1000);
-    const endTimestamp = Math.floor(endDate.getTime() / 1000);
-    assert(isNaN(startTimestamp) || isNaN(endTimestamp) || startDate > new Date(), "Invalid date provided");
+  async getContractHistoricDayPrice(contractAddress: string, date: string, currency = "usd"): Promise<number> {
+    const coingeckoTokenIdentifier = getCoingeckoTokenIdByAddress(contractAddress);
+    assert(date, "Requires date string");
     // Build the path for the Coingecko API request
-    const url = `coins/${platform_id}/contract/${contractAddress.toLowerCase()}/market_chart/range`;
+    const url = `coins/${coingeckoTokenIdentifier}/history`;
     // Build the query parameters for the Coingecko API request
     const queryParams = {
-      vs_currency: currency,
-      from: startTimestamp.toString(),
-      to: endTimestamp.toString(),
-      interval: "daily",
+      date,
+      localization: "false",
     };
-    // Send the request to the Coingecko API and flatten the query into a string
-    return this.call(`${url}?${new URLSearchParams(queryParams).toString()}`);
+    console.log(`${url}?${new URLSearchParams(queryParams).toString()}`);
+    // Grab the result - parse out price, market cap, total volume, and timestamp
+    const result = await this.call(`${url}?${new URLSearchParams(queryParams).toString()}`);
+    const price = result?.market_data?.current_price?.[currency];
+    assert(price, `No price found for ${contractAddress} on ${date}`);
+    return price;
   }
 
   getContractDetails(contract_address: string, platform_id = "ethereum") {
