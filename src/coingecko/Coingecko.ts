@@ -89,6 +89,40 @@ export class Coingecko {
     if (result.prices) return result.prices;
     throw new Error("Something went wrong fetching coingecko prices!");
   }
+
+  /**
+   * Get the current price of a token denominated in `currency`.
+   * @param contractAddress The L1 token address to fetch the price for.
+   * @param date A datestring in the format "dd-mm-yyyy" to fetch the price for.
+   * @param platform_id The platform id to fetch the price from. Defaults to "ethereum".
+   * @param currency The currency to fetch the price in. Defaults to "usd".
+   * @returns The price of the token at the given date.
+   * @throws An error if the date is invalid (malformed or in the future).
+   */
+  getContractHistoricDayPrice(contractAddress: string, date: string, platform_id = "ethereum", currency = "usd") {
+    // Resolve the date into starting/ending timestamps for the day and validate the date.
+    const [day, month, year] = date.split("-").map(Number);
+    const startDate = new Date(year, month - 1, day);
+    const endDate = new Date(year, month - 1, day, 23, 59, 59, 999); // Use 999 ms for end of the day
+    const startTimestamp = Math.floor(startDate.getTime() / 1000);
+    const endTimestamp = Math.floor(endDate.getTime() / 1000);
+    // Verify the date is not in the future or malformed.
+    if (isNaN(startTimestamp) || isNaN(endTimestamp) || startDate > new Date()) {
+      throw new Error("Invalid date provided");
+    }
+    // Build the path for the Coingecko API request
+    const url = `coins/${platform_id}/contract/${contractAddress.toLowerCase()}/market_chart/range`;
+    // Build the query parameters for the Coingecko API request
+    const queryParams = {
+      vs_currency: currency,
+      from: startTimestamp.toString(),
+      to: endTimestamp.toString(),
+      interval: "daily",
+    };
+    // Send the request to the Coingecko API and flatten the query into a string
+    return this.call(`${url}?${new URLSearchParams(queryParams).toString()}`);
+  }
+
   getContractDetails(contract_address: string, platform_id = "ethereum") {
     return this.call(`coins/${platform_id}/contract/${contract_address.toLowerCase()}`);
   }
