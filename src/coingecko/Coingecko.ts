@@ -108,7 +108,6 @@ export class Coingecko {
       date,
       localization: "false",
     };
-    console.log(`${url}?${new URLSearchParams(queryParams).toString()}`);
     // Grab the result - parse out price, market cap, total volume, and timestamp
     const result = await this.call(`${url}?${new URLSearchParams(queryParams).toString()}`);
     const price = result?.market_data?.current_price?.[currency];
