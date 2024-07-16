@@ -1,6 +1,6 @@
 import { constants as ethersConstants, BigNumber, utils } from "ethers";
-
 export {
+  ChainFamily,
   CHAIN_IDs,
   MAINNET_CHAIN_IDs,
   PUBLIC_NETWORKS,
@@ -51,3 +51,5 @@ export const DEFAULT_SIMULATED_RELAYER_ADDRESS_TEST = "0x9A8f92a830A5cB89a3816e3
 export const DEFAULT_ARWEAVE_STORAGE_ADDRESS = "Z6hjBM8FHu90lYWB8o5jR1dfX92FlV2WBaND9xgp8Lg";
 
 export const EMPTY_MESSAGE = "0x";
+
+export const BRIDGED_USDC_SYMBOLS = ["USDC.e", "USDbC"];

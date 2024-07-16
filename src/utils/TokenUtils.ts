@@ -92,3 +92,9 @@ export function getTokenBalance(
   const token = ERC20__factory.connect(tokenAddress, signerOrProvider);
   return token.balanceOf(address, { blockTag });
 }
+
+export function isBridgedUsdc(tokenSymbol: string): boolean {
+  return !!constants.BRIDGED_USDC_SYMBOLS.find(
+    (bridgedUsdcSymbol) => bridgedUsdcSymbol.toLowerCase() === tokenSymbol.toLowerCase()
+  );
+}

@@ -1,4 +1,4 @@
-import { CHAIN_IDs, MAINNET_CHAIN_IDs, PUBLIC_NETWORKS, TESTNET_CHAIN_IDs } from "../constants";
+import { ChainFamily, CHAIN_IDs, MAINNET_CHAIN_IDs, PUBLIC_NETWORKS, TESTNET_CHAIN_IDs } from "../constants";
 
 const hreNetworks: Record<number, string> = {
   666: "Hardhat1",
@@ -57,16 +57,7 @@ export function chainIsMatic(chainId: number): boolean {
  * @returns True if chainId is an OP stack, otherwise false.
  */
 export function chainIsOPStack(chainId: number): boolean {
-  return [
-    CHAIN_IDs.OPTIMISM,
-    CHAIN_IDs.BASE,
-    CHAIN_IDs.LISK,
-    CHAIN_IDs.MODE,
-    CHAIN_IDs.OPTIMISM_SEPOLIA,
-    CHAIN_IDs.BASE_SEPOLIA,
-    CHAIN_IDs.LISK_SEPOLIA,
-    CHAIN_IDs.MODE_SEPOLIA,
-  ].includes(chainId);
+  return PUBLIC_NETWORKS[chainId]?.family === ChainFamily.OP_STACK ?? false;
 }
 
 /**
@@ -85,6 +76,15 @@ export function chainIsArbitrum(chainId: number): boolean {
  */
 export function chainIsLinea(chainId: number): boolean {
   return [CHAIN_IDs.LINEA].includes(chainId);
+}
+
+/**
+ * Determines whether a chain ID has a corresponding hub pool contract.
+ * @param chainId Chain ID to evaluate.
+ * @returns True if chain corresponding to chainId has a hub pool implementation.
+ */
+export function chainIsL1(chainId: number): boolean {
+  return [CHAIN_IDs.MAINNET, CHAIN_IDs.SEPOLIA].includes(chainId);
 }
 
 /**
