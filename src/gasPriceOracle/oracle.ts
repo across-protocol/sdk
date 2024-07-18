@@ -33,6 +33,7 @@ export async function getGasPriceEstimate(
     [CHAIN_IDs.OPTIMISM]: ethereum.eip1559,
     [CHAIN_IDs.POLYGON]: polygon.gasStation,
     [CHAIN_IDs.ZK_SYNC]: ethereum.legacy,
+    [CHAIN_IDs.SCROLL]: ethereum.legacy,
   };
 
   let gasPriceFeed = gasPriceFeeds[chainId];
