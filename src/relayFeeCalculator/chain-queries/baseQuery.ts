@@ -59,15 +59,24 @@ export class QueryBase implements QueryInterface {
    * @param deposit V3 deposit instance.
    * @param relayerAddress Relayer address to simulate with.
    * @param gasPrice Optional gas price to use for the simulation.
-   * @returns The gas estimate for this function call (multplied with the optional buffer).
+   * @param gasLimit Optional gas limit to use for the simulation.
+   * @returns The gas estimate for this function call (multiplied with the optional buffer).
    */
   async getGasCosts(
     deposit: Deposit,
     relayer = DEFAULT_SIMULATED_RELAYER_ADDRESS,
-    gasPrice = this.fixedGasPrice
+    gasPrice = this.fixedGasPrice,
+    gasLimit?: BigNumberish
   ): Promise<TransactionCostEstimate> {
     const tx = await populateV3Relay(this.spokePool, deposit, relayer);
-    return estimateTotalGasRequiredByUnsignedTransaction(tx, relayer, this.provider, this.gasMarkup, gasPrice);
+    return estimateTotalGasRequiredByUnsignedTransaction(
+      tx,
+      relayer,
+      this.provider,
+      this.gasMarkup,
+      gasPrice,
+      gasLimit
+    );
   }
 
   /**
