@@ -256,19 +256,20 @@ export class RelayFeeCalculator {
       });
       throw error;
     });
-    const getTokenPrice = this.queries.getTokenPrice(token.symbol).catch((error) => {
-      this.logger.error({
-        at: "sdk/gasFeePercent",
-        message: "Error while fetching token price",
-        error,
-        destinationChainId: deposit.destinationChainId,
-        inputToken,
-      });
-      throw error;
-    });
     const [{ tokenGasCost }, tokenPrice] = await Promise.all([
       getGasCosts,
-      _tokenPrice !== undefined ? _tokenPrice : getTokenPrice,
+      _tokenPrice !== undefined
+        ? _tokenPrice
+        : this.queries.getTokenPrice(token.symbol).catch((error) => {
+            this.logger.error({
+              at: "sdk/gasFeePercent",
+              message: "Error while fetching token price",
+              error,
+              destinationChainId: deposit.destinationChainId,
+              inputToken,
+            });
+            throw error;
+          }),
     ]);
     const gasFeesInToken = nativeToToken(tokenGasCost, tokenPrice, token.decimals, this.nativeTokenDecimals);
     return percent(gasFeesInToken, amountToRelay.toString());
