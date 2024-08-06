@@ -1,4 +1,6 @@
 import { constants as ethersConstants, BigNumber, utils } from "ethers";
+import { TOKEN_SYMBOLS_MAP } from "@across-protocol/constants";
+
 export {
   ChainFamily,
   CHAIN_IDs,
@@ -52,4 +54,8 @@ export const DEFAULT_ARWEAVE_STORAGE_ADDRESS = "Z6hjBM8FHu90lYWB8o5jR1dfX92FlV2W
 
 export const EMPTY_MESSAGE = "0x";
 
-export const BRIDGED_USDC_SYMBOLS = ["USDC.e", "USDbC"];
+export const BRIDGED_USDC_SYMBOLS = [
+  TOKEN_SYMBOLS_MAP["USDC.e"].symbol,
+  TOKEN_SYMBOLS_MAP.USDbC.symbol,
+  TOKEN_SYMBOLS_MAP.USDzC.symbol,
+];
