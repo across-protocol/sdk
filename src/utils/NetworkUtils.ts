@@ -115,3 +115,16 @@ export function chainIsCCTPEnabled(chainId: number): boolean {
 export function chainRequiresL1ToL2Finalization(chainId: number): boolean {
   return chainIsCCTPEnabled(chainId) || chainIsLinea(chainId);
 }
+
+/**
+ * Returns the origin of a URL.
+ * @param url A URL.
+ * @returns The origin of the URL, or "UNKNOWN" if the URL is invalid.
+ */
+export function getOriginFromURL(url: string): string {
+  try {
+    return new URL(url).origin;
+  } catch (e) {
+    return "UNKNOWN";
+  }
+}
