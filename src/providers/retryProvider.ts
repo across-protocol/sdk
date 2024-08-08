@@ -3,8 +3,9 @@ import { CachingMechanismInterface } from "../interfaces";
 import { delay, isDefined, isPromiseFulfilled, isPromiseRejected } from "../utils";
 import { getOriginFromURL } from "../utils/NetworkUtils";
 import { CacheProvider } from "./cachedProvider";
-import { compareRpcResults, createSendErrorWithMessage, formatProviderError, PROVIDER_CACHE_TTL } from "./utils";
+import { compareRpcResults, createSendErrorWithMessage, formatProviderError } from "./utils";
 import { AugmentedLogger } from "@uma/logger";
+import { PROVIDER_CACHE_TTL } from "./constants";
 
 export class RetryProvider extends ethers.providers.StaticJsonRpcProvider {
   readonly providers: ethers.providers.StaticJsonRpcProvider[];

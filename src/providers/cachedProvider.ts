@@ -1,12 +1,7 @@
 import { CachingMechanismInterface } from "../interfaces";
+import { BLOCK_NUMBER_TTL, PROVIDER_CACHE_TTL, PROVIDER_CACHE_TTL_MODIFIER as ttl_modifier } from "./constants";
 import { RateLimitedProvider } from "./rateLimitedProvider";
-import {
-  BLOCK_NUMBER_TTL,
-  CacheType,
-  lodash,
-  PROVIDER_CACHE_TTL,
-  PROVIDER_CACHE_TTL_MODIFIER as ttl_modifier,
-} from "./utils";
+import { CacheType, lodash } from "./utils";
 
 export class CacheProvider extends RateLimitedProvider {
   public readonly getBlockByNumberPrefix: string;
