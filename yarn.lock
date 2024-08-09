@@ -30,10 +30,10 @@
     "@openzeppelin/contracts" "4.1.0"
     "@uma/core" "^2.18.0"
 
-"@across-protocol/contracts@^3.0.8":
-  version "3.0.8"
-  resolved "https://registry.yarnpkg.com/@across-protocol/contracts/-/contracts-3.0.8.tgz#ec9f72584048e5db3ee3a4dc5e214561101a5ffb"
-  integrity sha512-JG3Jt+itG+f9ZcUK1K/SFy6xlmCjCxsf99+Ffp11rPN6FUvDNgscRCoizLlBmibzRbXkR6r6r5F2iPbIPX/gxw==
+"@across-protocol/contracts@^3.0.9":
+  version "3.0.9"
+  resolved "https://registry.yarnpkg.com/@across-protocol/contracts/-/contracts-3.0.9.tgz#26a738e95ddcc433bc1beeb7367f379886d0f037"
+  integrity sha512-8eoq2/+2GTVSg4t8mEjFtX7OqG92v5JMGKbwGp47/ucQZt1Hat5OocdqcGbpz3QUOPXmF7RU+1RP5TIei28ohA==
   dependencies:
     "@across-protocol/constants" "^3.1.13"
     "@defi-wonderland/smock" "^2.3.4"

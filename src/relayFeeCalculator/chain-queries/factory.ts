@@ -1,9 +1,10 @@
+import assert from "assert";
 import { CHAIN_IDs, TOKEN_SYMBOLS_MAP } from "@across-protocol/constants";
 import { getDeployedAddress } from "@across-protocol/contracts";
 import { asL2Provider } from "@eth-optimism/sdk";
 import { providers } from "ethers";
 import { DEFAULT_SIMULATED_RELAYER_ADDRESS } from "../../constants";
-import { chainIsMatic, chainIsOPStack } from "../../utils";
+import { chainIsMatic, chainIsOPStack, isDefined } from "../../utils";
 import { QueryBase } from "./baseQuery";
 import { PolygonQueries } from "./polygon";
 import { DEFAULT_LOGGER, Logger } from "../relayFeeCalculator";
@@ -28,6 +29,8 @@ export class QueryBase__factory {
     gasMarkup = 0,
     coingeckoBaseCurrency = "eth"
   ): QueryBase {
+    assert(isDefined(spokePoolAddress));
+
     // Currently the only chain that has a custom query class is Polygon
     if (chainIsMatic(chainId)) {
       return new PolygonQueries(
