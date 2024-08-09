@@ -2,11 +2,7 @@
 // request. This is safe to use when the back-end provider is guaranteed not to change.
 // See https://docs.ethers.io/v5/api/providers/jsonrpc-provider/#StaticJsonRpcProvider
 
-// We ignore this errored import because TypeScript doesn't play nice with the async/queue library.
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment
-// @ts-ignore
-import createQueue, { QueueObject } from "async/queue";
-
+import { QueueObject, queue } from "async";
 import { ethers } from "ethers";
 import { RateLimitTask } from "./utils";
 import { getOriginFromURL } from "../utils/NetworkUtils";
@@ -17,7 +13,7 @@ import { Logger as umaLogger } from "@uma/logger";
 // requests are ever in flight. It uses the async/queue library to manage this.
 export class RateLimitedProvider extends ethers.providers.StaticJsonRpcProvider {
   // The queue object that manages the tasks.
-  private queue: QueueObject;
+  private queue: QueueObject<RateLimitTask>;
 
   // Takes the same arguments as the JsonRpcProvider, but it has an additional maxConcurrency value at the beginning
   // of the list.
@@ -32,10 +28,11 @@ export class RateLimitedProvider extends ethers.providers.StaticJsonRpcProvider 
     // This sets up the queue. Each task is executed by calling the superclass's send method, which fires off the
     // request. This queue sends out requests concurrently, but stops once the concurrency limit is reached. The
     // maxConcurrency is configured here.
-    this.queue = createQueue(async ({ sendArgs, resolve, reject }: RateLimitTask) => {
+    this.queue = queue(async ({ sendArgs, resolve, reject }: RateLimitTask, callback) => {
       await this.wrapSendWithLog(...sendArgs)
         .then(resolve)
         .catch(reject);
+      callback(); // we need this for the queue to know that the task is done (12hrs of debugging to find this)
     }, maxConcurrency);
   }
 
@@ -87,7 +84,7 @@ export class RateLimitedProvider extends ethers.providers.StaticJsonRpcProvider 
         resolve,
         reject,
       };
-      this.queue.push(task);
+      void this.queue.push(task);
     });
   }
 }
