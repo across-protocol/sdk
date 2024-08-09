@@ -1,8 +1,10 @@
+import assert from "assert";
 import { getDeployedAddress } from "../../utils/DeploymentUtils";
 import { DEFAULT_LOGGER, Logger } from "../relayFeeCalculator";
 import { providers } from "ethers";
 import { CHAIN_IDs, DEFAULT_SIMULATED_RELAYER_ADDRESS, TOKEN_SYMBOLS_MAP } from "../../constants";
 import { Coingecko } from "../../coingecko/Coingecko";
+import { isDefined } from "../../utils";
 import { QueryBase } from "./baseQuery";
 
 export class PolygonQueries extends QueryBase {
@@ -15,6 +17,7 @@ export class PolygonQueries extends QueryBase {
     logger: Logger = DEFAULT_LOGGER,
     gasMarkup = 0
   ) {
+    assert(isDefined(spokePoolAddress));
     super(
       provider,
       symbolMapping,
