@@ -28,7 +28,7 @@ export class RateLimitedProvider extends ethers.providers.StaticJsonRpcProvider 
     // This sets up the queue. Each task is executed by calling the superclass's send method, which fires off the
     // request. This queue sends out requests concurrently, but stops once the concurrency limit is reached. The
     // maxConcurrency is configured here.
-    this.queue = queue(async ({ sendArgs, resolve, reject }: RateLimitTask, callback) => {
+    this.queue = queue(async ({ sendArgs, resolve, reject }: RateLimitTask, callback: () => void) => {
       await this.wrapSendWithLog(...sendArgs)
         .then(resolve)
         .catch(reject);
