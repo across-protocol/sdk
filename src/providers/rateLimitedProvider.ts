@@ -32,7 +32,9 @@ export class RateLimitedProvider extends ethers.providers.StaticJsonRpcProvider 
       await this.wrapSendWithLog(...sendArgs)
         .then(resolve)
         .catch(reject);
-      callback(); // we need this for the queue to know that the task is done
+      // we need this for the queue to know that the task is done
+      // @see: https://caolan.github.io/async/v3/global.html
+      callback();
     }, maxConcurrency);
   }
 
