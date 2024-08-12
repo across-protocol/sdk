@@ -32,7 +32,7 @@ export class RateLimitedProvider extends ethers.providers.StaticJsonRpcProvider 
       await this.wrapSendWithLog(...sendArgs)
         .then(resolve)
         .catch(reject);
-      callback(); // we need this for the queue to know that the task is done (12hrs of debugging to find this)
+      callback(); // we need this for the queue to know that the task is done
     }, maxConcurrency);
   }
 
