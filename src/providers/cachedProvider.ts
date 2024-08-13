@@ -1,7 +1,8 @@
+import { random } from "lodash";
 import { CachingMechanismInterface } from "../interfaces";
 import { BLOCK_NUMBER_TTL, PROVIDER_CACHE_TTL, PROVIDER_CACHE_TTL_MODIFIER as ttl_modifier } from "./constants";
 import { RateLimitedProvider } from "./rateLimitedProvider";
-import { CacheType, lodash } from "./utils";
+import { CacheType } from "./utils";
 
 export class CacheProvider extends RateLimitedProvider {
   public readonly getBlockByNumberPrefix: string;
@@ -58,7 +59,7 @@ export class CacheProvider extends RateLimitedProvider {
         case CacheType.WITH_TTL:
           {
             // Apply a random margin to spread expiry over a larger time window.
-            const ttl = this.baseTTL + Math.ceil(lodash.random(-ttl_modifier, ttl_modifier, true) * this.baseTTL);
+            const ttl = this.baseTTL + Math.ceil(random(-ttl_modifier, ttl_modifier, true) * this.baseTTL);
             await this.redisClient?.set(redisKey, JSON.stringify(result), ttl);
           }
           break;

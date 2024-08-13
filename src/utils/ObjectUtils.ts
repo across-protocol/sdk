@@ -3,9 +3,6 @@
 // Append value along the keyPath to object. For example assign(deposits, ['1337', '31337'], [{depositId:1}]) will create
 // deposits = {1337:{31337:[{depositId:1}]}}. Note that if the path into the object exists then this will append. This
 
-import lodash from "lodash";
-import { isDefined } from "./TypeGuards";
-
 // function respects the destination type; if it is an object then deep merge and if an array effectively will push.
 export function assign(obj: any, keyPath: any[], value: any): void {
   const lastKeyIndex = keyPath.length - 1;
@@ -78,43 +75,4 @@ export function groupObjectCountsByProp(objects: any[], getProp: (obj: any) => s
  */
 export function filterFalsyKeys(obj: Record<string | number, unknown>): Record<string | number, unknown> {
   return Object.fromEntries(Object.entries(obj).filter(([, v]) => v));
-}
-
-/**
- * Deletes keys from an object and returns new copy of object without ignored keys
- * @param ignoredKeys
- * @param obj
- * @returns Objects with ignored keys removed
- */
-function deleteIgnoredKeys(ignoredKeys: string[], obj: Record<string, unknown>) {
-  if (!isDefined(obj)) {
-    return;
-  }
-  const newObj = { ...obj };
-  for (const key of ignoredKeys) {
-    delete newObj[key];
-  }
-  return newObj;
-}
-
-export function compareResultsAndFilterIgnoredKeys(
-  ignoredKeys: string[],
-  _objA: Record<string, unknown>,
-  _objB: Record<string, unknown>
-): boolean {
-  // Remove ignored keys from copied objects.
-  const filteredA = deleteIgnoredKeys(ignoredKeys, _objA);
-  const filteredB = deleteIgnoredKeys(ignoredKeys, _objB);
-
-  // Compare objects without the ignored keys.
-  return lodash.isEqual(filteredA, filteredB);
-}
-
-export function compareArrayResultsWithIgnoredKeys(ignoredKeys: string[], objA: unknown[], objB: unknown[]): boolean {
-  // Remove ignored keys from each element of copied arrays.
-  const filteredA = objA?.map((obj) => deleteIgnoredKeys(ignoredKeys, obj as Record<string, unknown>));
-  const filteredB = objB?.map((obj) => deleteIgnoredKeys(ignoredKeys, obj as Record<string, unknown>));
-
-  // Compare objects without the ignored keys.
-  return isDefined(filteredA) && isDefined(filteredB) && lodash.isEqual(filteredA, filteredB);
 }

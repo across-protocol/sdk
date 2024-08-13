@@ -1,10 +1,47 @@
 // The async/queue library has a task-based interface for building a concurrent queue.
 
 import { providers } from "ethers";
-import lodash from "lodash";
-import { compareArrayResultsWithIgnoredKeys, compareResultsAndFilterIgnoredKeys } from "../utils/ObjectUtils";
+import { isDefined } from "../utils";
+import { isEqual } from "lodash";
 
-export { lodash };
+/**
+ * Deletes keys from an object and returns new copy of object without ignored keys
+ * @param ignoredKeys
+ * @param obj
+ * @returns Objects with ignored keys removed
+ */
+function deleteIgnoredKeys(ignoredKeys: string[], obj: Record<string, unknown>) {
+  if (!isDefined(obj)) {
+    return;
+  }
+  const newObj = { ...obj };
+  for (const key of ignoredKeys) {
+    delete newObj[key];
+  }
+  return newObj;
+}
+
+export function compareResultsAndFilterIgnoredKeys(
+  ignoredKeys: string[],
+  _objA: Record<string, unknown>,
+  _objB: Record<string, unknown>
+): boolean {
+  // Remove ignored keys from copied objects.
+  const filteredA = deleteIgnoredKeys(ignoredKeys, _objA);
+  const filteredB = deleteIgnoredKeys(ignoredKeys, _objB);
+
+  // Compare objects without the ignored keys.
+  return isEqual(filteredA, filteredB);
+}
+
+export function compareArrayResultsWithIgnoredKeys(ignoredKeys: string[], objA: unknown[], objB: unknown[]): boolean {
+  // Remove ignored keys from each element of copied arrays.
+  const filteredA = objA?.map((obj) => deleteIgnoredKeys(ignoredKeys, obj as Record<string, unknown>));
+  const filteredB = objB?.map((obj) => deleteIgnoredKeys(ignoredKeys, obj as Record<string, unknown>));
+
+  // Compare objects without the ignored keys.
+  return isDefined(filteredA) && isDefined(filteredB) && isEqual(filteredA, filteredB);
+}
 
 /**
  * This is the type we pass to define a request "task".
@@ -71,7 +108,7 @@ export function compareRpcResults(method: string, rpcResultA: unknown, rpcResult
       rpcResultB as unknown[]
     );
   } else {
-    return lodash.isEqual(rpcResultA, rpcResultB);
+    return isEqual(rpcResultA, rpcResultB);
   }
 }
 
