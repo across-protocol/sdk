@@ -86,6 +86,8 @@ export class RateLimitedProvider extends ethers.providers.StaticJsonRpcProvider 
         resolve,
         reject,
       };
+      // We didn't previously wait for this push so we can emulate
+      // the same behavior with the `void` keyword.
       void this.queue.push(task);
     });
   }
