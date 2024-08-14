@@ -7,7 +7,7 @@ import { object, string } from "superstruct";
 import winston from "winston";
 import { ArweaveClient } from "../src/caching";
 import { ARWEAVE_TAG_APP_NAME } from "../src/constants";
-import { parseWinston, toBN } from "../src/utils";
+import { toBN } from "../src/utils";
 import { assertPromiseError } from "./utils";
 
 const INITIAL_FUNDING_AMNT = "5000000000";
@@ -63,7 +63,7 @@ describe("ArweaveClient", () => {
 
   it(`should have ${INITIAL_FUNDING_AMNT} initial AR in the address`, async () => {
     const balance = (await client.getBalance()).toString();
-    expect(balance.toString()).to.equal(parseWinston(INITIAL_FUNDING_AMNT).toString());
+    expect(balance.toString()).to.equal(INITIAL_FUNDING_AMNT.toString());
   });
 
   it("should be able to set a basic record and view it on the network", async () => {
