@@ -7,7 +7,7 @@ import { object, string } from "superstruct";
 import winston from "winston";
 import { ArweaveClient } from "../src/caching";
 import { ARWEAVE_TAG_APP_NAME } from "../src/constants";
-import { parseWinston, toBN } from "../src/utils";
+import { toBN } from "../src/utils";
 import { assertPromiseError } from "./utils";
 
 const INITIAL_FUNDING_AMNT = "5000000000";
