@@ -2,6 +2,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // Append value along the keyPath to object. For example assign(deposits, ['1337', '31337'], [{depositId:1}]) will create
 // deposits = {1337:{31337:[{depositId:1}]}}. Note that if the path into the object exists then this will append. This
+
 // function respects the destination type; if it is an object then deep merge and if an array effectively will push.
 export function assign(obj: any, keyPath: any[], value: any): void {
   const lastKeyIndex = keyPath.length - 1;
