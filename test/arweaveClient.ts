@@ -63,7 +63,7 @@ describe("ArweaveClient", () => {
 
   it(`should have ${INITIAL_FUNDING_AMNT} initial AR in the address`, async () => {
     const balance = (await client.getBalance()).toString();
-    expect(balance.toString()).to.equal(parseWinston(INITIAL_FUNDING_AMNT).toString());
+    expect(balance.toString()).to.equal(INITIAL_FUNDING_AMNT.toString());
   });
 
   it("should be able to set a basic record and view it on the network", async () => {
