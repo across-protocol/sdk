@@ -19,7 +19,9 @@ export class RateLimitedProvider extends ethers.providers.StaticJsonRpcProvider 
   constructor(
     maxConcurrency: number,
     readonly pctRpcCallsLogged: number,
-    readonly logger: Logger = winston.createLogger(),
+    readonly logger: Logger = winston.createLogger({
+      transports: [new winston.transports.Console()],
+    }),
     ...cacheConstructorParams: ConstructorParameters<typeof ethers.providers.StaticJsonRpcProvider>
   ) {
     super(...cacheConstructorParams);
