@@ -814,15 +814,8 @@ export class SpokePoolClient extends BaseAbstractClient {
         null,
         null,
         null,
-        destinationChainId,
+        null,
         depositId,
-        null,
-        null,
-        null,
-        depositor,
-        null,
-        null,
-        null
       ),
       {
         fromBlock: searchBounds.low,
