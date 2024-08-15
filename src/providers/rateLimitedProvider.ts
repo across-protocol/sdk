@@ -6,8 +6,7 @@ import { QueueObject, queue } from "async";
 import { ethers } from "ethers";
 import { RateLimitTask } from "./utils";
 import { getOriginFromURL } from "../utils/NetworkUtils";
-import { Logger } from "winston";
-import { Logger as umaLogger } from "@uma/logger";
+import winston, { Logger } from "winston";
 
 // This provider is a very small addition to the StaticJsonRpcProvider that ensures that no more than `maxConcurrency`
 // requests are ever in flight. It uses the async/queue library to manage this.
@@ -20,7 +19,9 @@ export class RateLimitedProvider extends ethers.providers.StaticJsonRpcProvider 
   constructor(
     maxConcurrency: number,
     readonly pctRpcCallsLogged: number,
-    readonly logger: Logger = umaLogger,
+    readonly logger: Logger = winston.createLogger({
+      transports: [new winston.transports.Console()],
+    }),
     ...cacheConstructorParams: ConstructorParameters<typeof ethers.providers.StaticJsonRpcProvider>
   ) {
     super(...cacheConstructorParams);

@@ -4,8 +4,8 @@ import { delay, isDefined, isPromiseFulfilled, isPromiseRejected } from "../util
 import { getOriginFromURL } from "../utils/NetworkUtils";
 import { CacheProvider } from "./cachedProvider";
 import { compareRpcResults, createSendErrorWithMessage, formatProviderError } from "./utils";
-import { AugmentedLogger } from "@uma/logger";
 import { PROVIDER_CACHE_TTL } from "./constants";
+import { Logger } from "winston";
 
 export class RetryProvider extends ethers.providers.StaticJsonRpcProvider {
   readonly providers: ethers.providers.StaticJsonRpcProvider[];
@@ -22,7 +22,7 @@ export class RetryProvider extends ethers.providers.StaticJsonRpcProvider {
     standardTtlBlockDistance?: number,
     noTtlBlockDistance?: number,
     providerCacheTtl = PROVIDER_CACHE_TTL,
-    logger?: AugmentedLogger
+    logger?: Logger
   ) {
     // Initialize the super just with the chainId, which stops it from trying to immediately send out a .send before
     // this derived class is initialized.
