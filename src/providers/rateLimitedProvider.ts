@@ -7,7 +7,6 @@ import { ethers } from "ethers";
 import { RateLimitTask } from "./utils";
 import { getOriginFromURL } from "../utils/NetworkUtils";
 import { Logger } from "winston";
-import { Logger as umaLogger } from "@uma/logger";
 
 // This provider is a very small addition to the StaticJsonRpcProvider that ensures that no more than `maxConcurrency`
 // requests are ever in flight. It uses the async/queue library to manage this.
@@ -20,7 +19,7 @@ export class RateLimitedProvider extends ethers.providers.StaticJsonRpcProvider 
   constructor(
     maxConcurrency: number,
     readonly pctRpcCallsLogged: number,
-    readonly logger: Logger = umaLogger,
+    readonly logger?: Logger,
     ...cacheConstructorParams: ConstructorParameters<typeof ethers.providers.StaticJsonRpcProvider>
   ) {
     super(...cacheConstructorParams);
@@ -58,7 +57,7 @@ export class RateLimitedProvider extends ethers.providers.StaticJsonRpcProvider 
       try {
         const result = await super.send(method, params);
         const elapsedTimeS = (performance.now() - startTime) / 1000;
-        this.logger.debug({
+        this.logger?.debug({
           ...loggerArgs,
           success: true,
           timeElapsed: elapsedTimeS,
@@ -68,7 +67,7 @@ export class RateLimitedProvider extends ethers.providers.StaticJsonRpcProvider 
         // Log errors as well.
         // For now, to keep logs light, don't log the error itself, just propogate and let it be handled higher up.
         const elapsedTimeS = (performance.now() - startTime) / 1000;
-        this.logger.debug({
+        this.logger?.debug({
           ...loggerArgs,
           success: false,
           timeElapsed: elapsedTimeS,
