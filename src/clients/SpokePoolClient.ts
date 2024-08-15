@@ -790,7 +790,7 @@ export class SpokePoolClient extends BaseAbstractClient {
     return this.oldestTime;
   }
 
-  async findDeposit(depositId: number, destinationChainId: number, depositor: string): Promise<DepositWithBlock> {
+  async findDeposit(depositId: number, destinationChainId: number): Promise<DepositWithBlock> {
     // Binary search for event search bounds. This way we can get the blocks before and after the deposit with
     // deposit ID = fill.depositId and use those blocks to optimize the search for that deposit.
     // Stop searches after a maximum # of searches to limit number of eth_call requests. Make an
@@ -809,21 +809,7 @@ export class SpokePoolClient extends BaseAbstractClient {
     const tStart = Date.now();
     const query = await paginatedEventQuery(
       this.spokePool,
-      this.spokePool.filters.V3FundsDeposited(
-        null,
-        null,
-        null,
-        null,
-        destinationChainId,
-        depositId,
-        null,
-        null,
-        null,
-        depositor,
-        null,
-        null,
-        null
-      ),
+      this.spokePool.filters.V3FundsDeposited(null, null, null, null, null, depositId),
       {
         fromBlock: searchBounds.low,
         toBlock: searchBounds.high,
