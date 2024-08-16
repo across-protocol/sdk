@@ -13,5 +13,5 @@ export function getURL(chainId: number, apiKey: string): string {
     throw new Error(`No known Alchemy provider for chainId ${chainId}`);
   }
 
-  return `https://${host.replace(" ", "-")}.g.alchemy.com/v2/${apiKey}`;
+  return `https://${host.toLowerCase().replace(" ", "-")}.g.alchemy.com/v2/${apiKey}`;
 }

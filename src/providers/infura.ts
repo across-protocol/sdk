@@ -9,6 +9,5 @@ export function getURL(chainId: number, apiKey: string): string {
     throw new Error(`No known Infura provider for chainId ${chainId}`);
   }
 
-  host = host.replace(" ", "-");
-  return `https://${host}.infura.io/v3/${apiKey}`;
+  return `https://${host.toLowerCase().replace(" ", "-")}.infura.io/v3/${apiKey}`;
 }
