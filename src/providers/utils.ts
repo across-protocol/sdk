@@ -13,11 +13,11 @@ const PROVIDERS = {
   INFURA: infura.getURL,
 };
 
-export function supportedRPCProvider(provider: string): provider is RPCProvider {
+export function isSupportedProvider(provider: string): provider is RPCProvider {
   return ["ALCHEMY", "INFURA"].includes(provider);
 }
 
-export function getProviderURL(provider: RPCProvider, chainId: number, apiKey?: string): string {
+export function getURL(provider: RPCProvider, chainId: number, apiKey?: string): string {
   assert(apiKey, `API key for ${provider} chain ${chainId} not supplied`);
 
   const getURL = PROVIDERS[provider];
