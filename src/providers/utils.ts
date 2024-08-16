@@ -1,8 +1,27 @@
 // The async/queue library has a task-based interface for building a concurrent queue.
-
+import assert from "assert";
 import { providers } from "ethers";
-import { isDefined } from "../utils";
 import { isEqual } from "lodash";
+import { isDefined } from "../utils";
+import * as alchemy from "./alchemy";
+import * as infura from "./infura";
+
+export type RPCProvider = "INFURA" | "ALCHEMY";
+
+const PROVIDERS = {
+  ALCHEMY: alchemy.getURL,
+  INFURA: infura.getURL,
+};
+
+export function getProviderURL(provider: RPCProvider, chainId: number, apiKey?: string): string {
+  if (!apiKey) {
+    throw new Error(`API key for ${provider} chain ${chainId} not supplied`);
+  }
+
+  const getURL = PROVIDERS[provider];
+  assert(getURL, `Unsupported RPC provider (${provider})`);
+  return getURL(chainId, apiKey);
+}
 
 /**
  * Deletes keys from an object and returns new copy of object without ignored keys
