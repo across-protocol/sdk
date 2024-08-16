@@ -44,6 +44,27 @@ export function compareArrayResultsWithIgnoredKeys(ignoredKeys: string[], objA: 
 }
 
 /**
+ * A record of error codes that correspond to fields that should be ignored when comparing RPC results.
+ * This is used to compare results from different providers that may have different, but still valid, results.
+ */
+const IGNORED_FIELDS = {
+  // We've seen some RPC's like QuickNode add in transactionLogIndex which isn't in the
+  // JSON RPC spec: https://ethereum.org/en/developers/docs/apis/json-rpc/#eth_getfilterchanges
+  // Additional reference: https://github.com/ethers-io/ethers.js/issues/1721
+  // 2023-08-31 Added blockHash because of upstream zkSync provider disagreements. Consider removing later.
+  // 2024-05-07 Added l1BatchNumber and logType due to Alchemy. Consider removing later.
+  // 2024-07-11 Added blockTimestamp after zkSync rolled out a new node release.
+  eth_getBlockByNumber: [
+    "miner", // polygon (sometimes)
+    "l1BatchNumber", // zkSync
+    "l1BatchTimestamp", // zkSync
+    "size", // Alchemy/Arbitrum (temporary)
+    "totalDifficulty", // Quicknode/Alchemy (sometimes)
+  ],
+  eth_getLogs: ["blockTimestamp", "transactionLogIndex", "l1BatchNumber", "logType"],
+};
+
+/**
  * This is the type we pass to define a request "task".
  */
 export interface RateLimitTask {
@@ -85,25 +106,13 @@ export function compareRpcResults(method: string, rpcResultA: unknown, rpcResult
     // We've seen RPC's disagree on the miner field, for example when Polygon nodes updated software that
     // led alchemy and quicknode to disagree on the miner field's value.
     return compareResultsAndFilterIgnoredKeys(
-      [
-        "miner", // polygon (sometimes)
-        "l1BatchNumber", // zkSync
-        "l1BatchTimestamp", // zkSync
-        "size", // Alchemy/Arbitrum (temporary)
-        "totalDifficulty", // Quicknode/Alchemy (sometimes)
-      ],
+      IGNORED_FIELDS.eth_getBlockByNumber,
       rpcResultA as Record<string, unknown>,
       rpcResultB as Record<string, unknown>
     );
   } else if (method === "eth_getLogs") {
-    // We've seen some RPC's like QuickNode add in transactionLogIndex which isn't in the
-    // JSON RPC spec: https://ethereum.org/en/developers/docs/apis/json-rpc/#eth_getfilterchanges
-    // Additional reference: https://github.com/ethers-io/ethers.js/issues/1721
-    // 2023-08-31 Added blockHash because of upstream zkSync provider disagreements. Consider removing later.
-    // 2024-05-07 Added l1BatchNumber and logType due to Alchemy. Consider removing later.
-    // 2024-07-11 Added blockTimestamp after zkSync rolled out a new node release.
     return compareArrayResultsWithIgnoredKeys(
-      ["blockTimestamp", "transactionLogIndex", "l1BatchNumber", "logType"],
+      IGNORED_FIELDS.eth_getLogs,
       rpcResultA as unknown[],
       rpcResultB as unknown[]
     );
