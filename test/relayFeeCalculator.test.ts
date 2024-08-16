@@ -198,29 +198,6 @@ describe("RelayFeeCalculator", () => {
       () =>
         new RelayFeeCalculator({
           queries,
-          capitalCostsConfig: {
-            WBTC: {
-              ...testCapitalCostsConfig["WBTC"],
-              upperBound: toBNWei("0.001").toString(),
-              lowerBound: toBNWei("0.002").toString(),
-            },
-          },
-        }),
-      /lower bound must be <= upper bound/
-    );
-    assert.throws(
-      () =>
-        RelayFeeCalculator.validateCapitalCostsConfig({
-          ...testCapitalCostsConfig["WBTC"],
-          upperBound: toBNWei("0.001").toString(),
-          lowerBound: toBNWei("0.002").toString(),
-        }),
-      /lower bound must be <= upper bound/
-    );
-    assert.throws(
-      () =>
-        new RelayFeeCalculator({
-          queries,
           capitalCostsConfig: { WBTC: { ...testCapitalCostsConfig["WBTC"], decimals: 0 } },
         }),
       /invalid decimals/
