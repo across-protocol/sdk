@@ -4,7 +4,7 @@ import { PUBLIC_NETWORKS } from "../constants";
 const endpoints: { [chainId: string]: string } = {};
 
 export function getURL(chainId: number, apiKey: string): string {
-  let host = endpoints[chainId] ?? PUBLIC_NETWORKS[chainId]?.name;
+  const host = endpoints[chainId] ?? PUBLIC_NETWORKS[chainId]?.name;
   if (!host) {
     throw new Error(`No known Infura provider for chainId ${chainId}`);
   }
