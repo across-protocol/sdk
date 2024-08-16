@@ -7,7 +7,6 @@ import {
   toGWei,
   TransactionCostEstimate,
   bnOne,
-  bnZero,
   getCurrentTime,
   spreadEvent,
   isMessageEmpty,
@@ -198,29 +197,6 @@ describe("RelayFeeCalculator", () => {
       () =>
         new RelayFeeCalculator({
           queries,
-          capitalCostsConfig: {
-            WBTC: {
-              ...testCapitalCostsConfig["WBTC"],
-              upperBound: toBNWei("0.001").toString(),
-              lowerBound: toBNWei("0.002").toString(),
-            },
-          },
-        }),
-      /lower bound must be <= upper bound/
-    );
-    assert.throws(
-      () =>
-        RelayFeeCalculator.validateCapitalCostsConfig({
-          ...testCapitalCostsConfig["WBTC"],
-          upperBound: toBNWei("0.001").toString(),
-          lowerBound: toBNWei("0.002").toString(),
-        }),
-      /lower bound must be <= upper bound/
-    );
-    assert.throws(
-      () =>
-        new RelayFeeCalculator({
-          queries,
           capitalCostsConfig: { WBTC: { ...testCapitalCostsConfig["WBTC"], decimals: 0 } },
         }),
       /invalid decimals/
@@ -359,11 +335,11 @@ describe("RelayFeeCalculator: Composable Bridging", function () {
           originChainId: 10,
           destinationChainId: 1,
           message: message || EMPTY_MESSAGE,
-          relayerFeePct: bnZero,
-          realizedLpFeePct: bnZero,
           exclusiveRelayer: ZERO_ADDRESS,
           fillDeadline: getCurrentTime() + 60000,
           exclusivityDeadline: 0,
+          fromLiteChain: false,
+          toLiteChain: false,
         },
         1,
         false,
@@ -448,7 +424,7 @@ describe("RelayFeeCalculator: Composable Bridging", function () {
         originChainId: 1,
         message: "0xabcdef",
         exclusiveRelayer: ZERO_ADDRESS,
-        fillDeadline: getCurrentTime() + 60,
+        fillDeadline: getCurrentTime() + 600,
         exclusivityDeadline: 0,
       },
       10

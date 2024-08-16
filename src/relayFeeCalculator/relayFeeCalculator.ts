@@ -196,7 +196,6 @@ export class RelayFeeCalculator {
    */
   static validateCapitalCostsConfig(capitalCosts: CapitalCostConfig): void {
     assert(toBN(capitalCosts.upperBound).lt(toBNWei("0.01")), "upper bound must be < 1%");
-    assert(toBN(capitalCosts.lowerBound).lte(capitalCosts.upperBound), "lower bound must be <= upper bound");
     assert(capitalCosts.decimals > 0 && capitalCosts.decimals <= 18, "invalid decimals");
   }
 
