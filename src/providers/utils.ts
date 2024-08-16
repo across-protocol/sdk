@@ -14,9 +14,7 @@ const PROVIDERS = {
 };
 
 export function getProviderURL(provider: RPCProvider, chainId: number, apiKey?: string): string {
-  if (!apiKey) {
-    throw new Error(`API key for ${provider} chain ${chainId} not supplied`);
-  }
+  assert(apiKey, `API key for ${provider} chain ${chainId} not supplied`);
 
   const getURL = PROVIDERS[provider];
   assert(getURL, `Unsupported RPC provider (${provider})`);
