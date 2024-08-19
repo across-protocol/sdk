@@ -17,5 +17,5 @@ export function getURL(chainId: number, apiKey: string, transport: RPCTransport)
   }
   host = host.toLowerCase().replace(" ", "-");
 
-  return transport === "HTTPS" ? `https://${host}.infura.io/v3/${apiKey}` : `wss://${host}.infura.is/ws/v3/${apiKey}`;
+  return transport === "https" ? `https://${host}.infura.io/v3/${apiKey}` : `wss://${host}.infura.is/ws/v3/${apiKey}`;
 }

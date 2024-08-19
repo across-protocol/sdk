@@ -37,7 +37,7 @@ export function getURL(
   provider: RPCProvider,
   chainId: number,
   apiKey: string,
-  transport: RPCTransport = "HTTPS"
+  transport: RPCTransport = "https"
 ): string {
   const getURL = PROVIDERS[provider];
   assert(getURL, `Unsupported RPC provider (${provider})`);

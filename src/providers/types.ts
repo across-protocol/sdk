@@ -1,2 +1,2 @@
 export type RPCProvider = "INFURA" | "ALCHEMY";
-export type RPCTransport = "HTTPS" | "WSS";
+export type RPCTransport = "https" | "wss";
