@@ -3,10 +3,10 @@ import assert from "assert";
 import { providers } from "ethers";
 import { isEqual } from "lodash";
 import { isDefined } from "../utils";
+import { RPCProvider, RPCTransport } from "./types";
 import * as alchemy from "./alchemy";
 import * as infura from "./infura";
 
-export type RPCProvider = "INFURA" | "ALCHEMY";
 
 const PROVIDERS = {
   ALCHEMY: alchemy.getURL,
@@ -17,12 +17,15 @@ export function isSupportedProvider(provider: string): provider is RPCProvider {
   return ["ALCHEMY", "INFURA"].includes(provider);
 }
 
-export function getURL(provider: RPCProvider, chainId: number, apiKey?: string): string {
-  assert(apiKey, `API key for ${provider} chain ${chainId} not supplied`);
-
+export function getURL(
+  provider: RPCProvider,
+  chainId: number,
+  apiKey: string,
+  transport: RPCTransport = "HTTPS"
+): string {
   const getURL = PROVIDERS[provider];
   assert(getURL, `Unsupported RPC provider (${provider})`);
-  return getURL(chainId, apiKey);
+  return getURL(chainId, apiKey, transport);
 }
 
 /**
