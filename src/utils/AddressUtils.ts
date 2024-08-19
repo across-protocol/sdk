@@ -16,3 +16,10 @@ export async function isContractDeployedToAddress(address: string, provider: pro
   // If the code is not empty, then there is a contract at this address
   return code !== "0x";
 }
+
+export function compareAddressesSimple(addressA?: string, addressB?: string): boolean {
+  if (addressA === undefined || addressB === undefined) {
+    return false;
+  }
+  return addressA.toLowerCase() === addressB.toLowerCase();
+}
