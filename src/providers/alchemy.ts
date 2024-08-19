@@ -6,8 +6,11 @@ const MAINNET_CHAIN_IDs = Object.values(_MAINNET_CHAIN_IDs);
 // Chain-specific overrides for when the Alchemy endpoint does not match the canonical chain name.
 const endpoints: { [chainId: string]: string } = {
   [CHAIN_IDs.ARBITRUM]: "arb",
+  [CHAIN_IDs.ARBITRUM_SEPOLIA]: "arb",
   [CHAIN_IDs.MAINNET]: "eth",
+  [CHAIN_IDs.SEPOLIA]: "eth-sepolia",
   [CHAIN_IDs.OPTIMISM]: "opt",
+  [CHAIN_IDs.OPTIMISM_SEPOLIA]: "opt-sepolia",
 };
 
 export function getURL(chainId: number, apiKey: string, transport: RPCTransport): string {
@@ -21,5 +24,5 @@ export function getURL(chainId: number, apiKey: string, transport: RPCTransport)
   }
   host = host.toLowerCase().replace(" ", "-");
 
-  return `${transport.toLowerCase()}://${host.toLowerCase().replace(" ", "-")}.g.alchemy.com/v2/${apiKey}`;
+  return `${transport}://${host}.g.alchemy.com/v2/${apiKey}`;
 }
