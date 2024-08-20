@@ -6,7 +6,7 @@ const MAINNET_CHAIN_IDs = Object.values(_MAINNET_CHAIN_IDs);
 // Chain-specific overrides for when the Alchemy endpoint does not match the canonical chain name.
 const endpoints: { [chainId: string]: string } = {
   [CHAIN_IDs.ARBITRUM]: "arb",
-  [CHAIN_IDs.ARBITRUM_SEPOLIA]: "arb",
+  [CHAIN_IDs.ARBITRUM_SEPOLIA]: "arb-sepolia",
   [CHAIN_IDs.MAINNET]: "eth",
   [CHAIN_IDs.SEPOLIA]: "eth-sepolia",
   [CHAIN_IDs.OPTIMISM]: "opt",
