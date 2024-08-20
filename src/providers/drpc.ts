@@ -1,7 +1,5 @@
-import { CHAIN_IDs, MAINNET_CHAIN_IDs as _MAINNET_CHAIN_IDs, PUBLIC_NETWORKS } from "../constants";
+import { CHAIN_IDs, PUBLIC_NETWORKS } from "../constants";
 import { RPCTransport } from "./types";
-
-const MAINNET_CHAIN_IDs = Object.values(_MAINNET_CHAIN_IDs);
 
 // Chain-specific overrides for when the Alchemy endpoint does not match the canonical chain name.
 const endpoints: { [chainId: string]: string } = {
