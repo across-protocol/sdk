@@ -2,6 +2,7 @@ import assert from "assert";
 import { SpokePool, SpokePool__factory } from "@across-protocol/contracts";
 import dotenv from "dotenv";
 import { providers } from "ethers";
+import { DEFAULT_SIMULATED_RELAYER_ADDRESS } from "../src/constants";
 import {
   estimateTotalGasRequiredByUnsignedTransaction,
   fixedPointAdjustment,
@@ -37,7 +38,7 @@ describe("Utils test", () => {
 
   it("apply gas multiplier", async () => {
     const spokePoolAddress = "0x5c7BCd6E7De5423a257D81B442095A1a6ced35C5"; // mainnet
-    const relayerAddress = "0x428AB2BA90Eba0a4Be7aF34C9Ac451ab061AC010";
+    const relayerAddress = DEFAULT_SIMULATED_RELAYER_ADDRESS;
 
     // @todo: Ensure that NODE_URL_1 is always defined in test CI?
     const rpcUrl = process.env.NODE_URL_1 ?? "https://cloudflare-eth.com";
