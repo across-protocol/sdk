@@ -1,12 +1,44 @@
 // Create a combined `refunds` object containing refunds for V2 + V3 fills
+
+import {
+  BundleDepositsV3,
+  BundleExcessSlowFills,
+  BundleFillsV3,
+  BundleSlowFills,
+  CombinedRefunds,
+  ExpiredDepositsToRefundV3,
+  PoolRebalanceLeaf,
+  Refund,
+  RunningBalances,
+} from "../../../interfaces";
+import {
+  bnZero,
+  AnyObject,
+  groupObjectCountsByTwoProps,
+  fixedPointAdjustment,
+  count2DDictionaryValues,
+  count3DDictionaryValues,
+} from "../../../utils";
+import {
+  addLastRunningBalance,
+  constructPoolRebalanceLeaves,
+  PoolRebalanceRoot,
+  updateRunningBalance,
+  updateRunningBalanceForDeposit,
+} from "./PoolRebalanceUtils";
+import { V3FillWithBlock } from "./shims";
+import { AcrossConfigStoreClient } from "../../AcrossConfigStoreClient";
+import { HubPoolClient } from "../../HubPoolClient";
+import { buildPoolRebalanceLeafTree } from "./MerkleTreeUtils";
+
 // and expired deposits.
 export function getRefundsFromBundle(
   bundleFillsV3: BundleFillsV3,
   expiredDepositsToRefundV3: ExpiredDepositsToRefundV3
 ): CombinedRefunds {
   const combinedRefunds: {
-    [repaymentChainId: number]: {
-      [repaymentToken: string]: interfaces.Refund;
+    [repaymentChainId: string]: {
+      [repaymentToken: string]: Refund;
     };
   } = {};
   Object.entries(bundleFillsV3).forEach(([repaymentChainId, fillsForChain]) => {
@@ -89,7 +121,7 @@ export function getEndBlockBuffers(
   return chainIdListForBundleEvaluationBlockNumbers.map((chainId: number) => blockRangeEndBlockBuffer[chainId] ?? 0);
 }
 
-export async function _buildPoolRebalanceRoot(
+export function _buildPoolRebalanceRoot(
   latestMainnetBlock: number,
   mainnetBundleEndBlock: number,
   bundleV3Deposits: BundleDepositsV3,
@@ -97,9 +129,9 @@ export async function _buildPoolRebalanceRoot(
   bundleSlowFillsV3: BundleSlowFills,
   unexecutableSlowFills: BundleExcessSlowFills,
   expiredDepositsToRefundV3: ExpiredDepositsToRefundV3,
-  clients: Pick<DataworkerClients, "hubPoolClient" | "configStoreClient">,
+  clients: { hubPoolClient: HubPoolClient; configStoreClient: AcrossConfigStoreClient },
   maxL1TokenCountOverride?: number
-): Promise<PoolRebalanceRoot> {
+): PoolRebalanceRoot {
   // Running balances are the amount of tokens that we need to send to each SpokePool to pay for all instant and
   // slow relay refunds. They are decreased by the amount of funds already held by the SpokePool. Balances are keyed
   // by the SpokePool's network and L1 token equivalent of the L2 token to refund.

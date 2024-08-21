@@ -1,3 +1,7 @@
+import { MerkleTree } from "@across-protocol/contracts/dist/utils/MerkleTree";
+import { RunningBalances, PoolRebalanceLeaf, Clients } from "../../../interfaces";
+import { SpokePoolClient } from "../../SpokePoolClient";
+
 export type PoolRebalanceRoot = {
   runningBalances: RunningBalances;
   realizedLpFees: RunningBalances;
@@ -61,4 +65,137 @@ export function getWidestPossibleExpectedBlockRange(
 
 export function isChainDisabled(blockRangeForChain: number[]): boolean {
   return blockRangeForChain[0] === blockRangeForChain[1];
+}
+
+// If the running balance is greater than the token transfer threshold, then set the net send amount
+// equal to the running balance and reset the running balance to 0. Otherwise, the net send amount should be
+// 0, indicating that we do not want the data worker to trigger a token transfer between hub pool and spoke
+// pool when executing this leaf.
+export function getNetSendAmountForL1Token(
+  spokePoolTargetBalance: SpokePoolTargetBalance,
+  runningBalance: BigNumber
+): BigNumber {
+  return computeDesiredTransferAmountToSpoke(runningBalance, spokePoolTargetBalance);
+}
+
+export function getRunningBalanceForL1Token(
+  spokePoolTargetBalance: SpokePoolTargetBalance,
+  runningBalance: BigNumber
+): BigNumber {
+  const desiredTransferAmount = computeDesiredTransferAmountToSpoke(runningBalance, spokePoolTargetBalance);
+  return runningBalance.sub(desiredTransferAmount);
+}
+
+export function updateRunningBalance(
+  runningBalances: interfaces.RunningBalances,
+  l2ChainId: number,
+  l1Token: string,
+  updateAmount: BigNumber
+): void {
+  // Initialize dictionary if empty.
+  if (!runningBalances[l2ChainId]) {
+    runningBalances[l2ChainId] = {};
+  }
+  const runningBalance = runningBalances[l2ChainId][l1Token];
+  if (runningBalance) {
+    runningBalances[l2ChainId][l1Token] = runningBalance.add(updateAmount);
+  } else {
+    runningBalances[l2ChainId][l1Token] = updateAmount;
+  }
+}
+
+export function addLastRunningBalance(
+  latestMainnetBlock: number,
+  runningBalances: interfaces.RunningBalances,
+  hubPoolClient: HubPoolClient
+): void {
+  Object.keys(runningBalances).forEach((repaymentChainId) => {
+    Object.keys(runningBalances[repaymentChainId]).forEach((l1TokenAddress) => {
+      const { runningBalance } = hubPoolClient.getRunningBalanceBeforeBlockForChain(
+        latestMainnetBlock,
+        Number(repaymentChainId),
+        l1TokenAddress
+      );
+      if (!runningBalance.eq(bnZero)) {
+        updateRunningBalance(runningBalances, Number(repaymentChainId), l1TokenAddress, runningBalance);
+      }
+    });
+  });
+}
+
+export function updateRunningBalanceForDeposit(
+  runningBalances: interfaces.RunningBalances,
+  hubPoolClient: HubPoolClient,
+  deposit: interfaces.V3DepositWithBlock,
+  updateAmount: BigNumber
+): void {
+  const l1TokenCounterpart = hubPoolClient.getL1TokenForL2TokenAtBlock(
+    deposit.inputToken,
+    deposit.originChainId,
+    deposit.quoteBlockNumber
+  );
+  updateRunningBalance(runningBalances, deposit.originChainId, l1TokenCounterpart, updateAmount);
+}
+
+export function constructPoolRebalanceLeaves(
+  latestMainnetBlock: number,
+  runningBalances: interfaces.RunningBalances,
+  realizedLpFees: interfaces.RunningBalances,
+  configStoreClient: ConfigStoreClient,
+  maxL1TokenCount?: number
+): interfaces.PoolRebalanceLeaf[] {
+  // Create one leaf per L2 chain ID. First we'll create a leaf with all L1 tokens for each chain ID, and then
+  // we'll split up any leaves with too many L1 tokens.
+  const leaves: interfaces.PoolRebalanceLeaf[] = [];
+  Object.keys(runningBalances)
+    .map((chainId) => Number(chainId))
+    // Leaves should be sorted by ascending chain ID
+    .sort((chainIdA, chainIdB) => chainIdA - chainIdB)
+    .map((chainId) => {
+      // Sort addresses.
+      const sortedL1Tokens = Object.keys(runningBalances[chainId]).sort((addressA, addressB) => {
+        return compareAddresses(addressA, addressB);
+      });
+
+      // This begins at 0 and increments for each leaf for this { chainId, L1Token } combination.
+      let groupIndexForChainId = 0;
+
+      // Split addresses into multiple leaves if there are more L1 tokens than allowed per leaf.
+      const maxL1TokensPerLeaf =
+        maxL1TokenCount || configStoreClient.getMaxRefundCountForRelayerRefundLeafForBlock(latestMainnetBlock);
+      for (let i = 0; i < sortedL1Tokens.length; i += maxL1TokensPerLeaf) {
+        const l1TokensToIncludeInThisLeaf = sortedL1Tokens.slice(i, i + maxL1TokensPerLeaf);
+
+        const spokeTargetBalances = l1TokensToIncludeInThisLeaf.map((l1Token) =>
+          configStoreClient.getSpokeTargetBalancesForBlock(l1Token, chainId, latestMainnetBlock)
+        );
+
+        // Build leaves using running balances and realized lp fees data for l1Token + chain, or default to
+        // zero if undefined.
+        const leafBundleLpFees = l1TokensToIncludeInThisLeaf.map(
+          (l1Token) => realizedLpFees[chainId]?.[l1Token] ?? bnZero
+        );
+        const leafNetSendAmounts = l1TokensToIncludeInThisLeaf.map((l1Token, index) =>
+          runningBalances[chainId] && runningBalances[chainId][l1Token]
+            ? getNetSendAmountForL1Token(spokeTargetBalances[index], runningBalances[chainId][l1Token])
+            : bnZero
+        );
+        const leafRunningBalances = l1TokensToIncludeInThisLeaf.map((l1Token, index) =>
+          runningBalances[chainId]?.[l1Token]
+            ? getRunningBalanceForL1Token(spokeTargetBalances[index], runningBalances[chainId][l1Token])
+            : bnZero
+        );
+
+        leaves.push({
+          chainId: chainId,
+          bundleLpFees: leafBundleLpFees,
+          netSendAmounts: leafNetSendAmounts,
+          runningBalances: leafRunningBalances,
+          groupIndex: groupIndexForChainId++,
+          leafId: leaves.length,
+          l1Tokens: l1TokensToIncludeInThisLeaf,
+        });
+      }
+    });
+  return leaves;
 }

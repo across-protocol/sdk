@@ -1,6 +1,5 @@
 import {
   object,
-  min,
   number,
   optional,
   string,
@@ -8,9 +7,9 @@ import {
   record,
   coerce,
   instance,
-  integer,
   pattern,
   boolean,
+  defaulted,
 } from "superstruct";
 import { BigNumber } from "ethers";
 
@@ -53,8 +52,8 @@ const SortableEventSS = {
 };
 
 const V3DepositSS = {
-  fromLiteChain: optional(boolean()),
-  toLiteChain: optional(boolean()),
+  fromLiteChain: defaulted(boolean(), false),
+  toLiteChain: defaulted(boolean(), false),
   destinationChainId: number(),
   quoteTimestamp: number(),
   relayerFeePct: optional(BigNumberType),

@@ -1,3 +1,7 @@
+import { Fill } from "../../../interfaces";
+import { getBlockRangeForChain, isSlowFill } from "../../../utils";
+import { HubPoolClient } from "../../HubPoolClient";
+
 export function getRefundInformationFromFill(
   fill: Fill,
   hubPoolClient: HubPoolClient,
@@ -10,7 +14,7 @@ export function getRefundInformationFromFill(
 } {
   // Handle slow relay where repaymentChainId = 0. Slow relays always pay recipient on destination chain.
   // So, save the slow fill under the destination chain, and save the fast fill under its repayment chain.
-  let chainToSendRefundTo = sdkUtils.isSlowFill(fill) ? fill.destinationChainId : fill.repaymentChainId;
+  let chainToSendRefundTo = isSlowFill(fill) ? fill.destinationChainId : fill.repaymentChainId;
   // If the fill is for a deposit originating from the lite chain, the repayment chain is the origin chain
   // regardless of whether it is a slow or fast fill (we ignore slow fills but this is for posterity).
   if (fromLiteChain) {

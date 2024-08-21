@@ -12,13 +12,6 @@ import {
   BundleFillV3,
   BundleSlowFills,
   ExpiredDepositsToRefundV3,
-  Deposit,
-  DepositWithBlock,
-  Fill,
-  FillWithBlock,
-  RelayData,
-  SlowFillLeaf,
-  SpeedUp,
   Clients,
   CombinedRefunds,
 } from "../../interfaces";
@@ -50,16 +43,9 @@ import {
   isChainDisabled,
   PoolRebalanceRoot,
   prettyPrintV3SpokePoolEvents,
+  V3DepositWithBlock,
+  V3FillWithBlock,
 } from "./utils";
-
-// V3 shims (to be removed later)
-export type V3RelayData = RelayData;
-export type V3Deposit = Deposit;
-export type V3DepositWithBlock = DepositWithBlock;
-export type V3SpeedUp = SpeedUp;
-export type V3Fill = Fill;
-export type V3FillWithBlock = FillWithBlock;
-export type V3SlowFillLeaf = SlowFillLeaf;
 
 type DataCache = Record<string, Promise<LoadDataReturnValue>>;
 
