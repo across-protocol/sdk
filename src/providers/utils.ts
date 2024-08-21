@@ -1,8 +1,48 @@
 // The async/queue library has a task-based interface for building a concurrent queue.
-
+import assert from "assert";
 import { providers } from "ethers";
-import { isDefined } from "../utils";
 import { isEqual } from "lodash";
+import { isDefined } from "../utils";
+import { RPCProvider, RPCTransport } from "./types";
+import * as alchemy from "./alchemy";
+import * as infura from "./infura";
+
+/**
+ * Infura DIN is identified separately to allow it to be configured explicitly.
+ */
+const PROVIDERS = {
+  ALCHEMY: alchemy.getURL,
+  INFURA: infura.getURL,
+  INFURA_DIN: infura.getURL,
+};
+
+/**
+ * Type predicate for RPCProvider type.
+ * @param provider Provider string (ALCHEMY, INFURA, ...).
+ * @returns True if the provider string is a supported provider.
+ */
+export function isSupportedProvider(provider: string): provider is RPCProvider {
+  return ["ALCHEMY", "INFURA", "INFURA_DIN"].includes(provider);
+}
+
+/**
+ * Produce an RPC for a given RPC provider, chainId API key and transport.
+ * @param provider RPC provider identifier (ALCHEMY, INFURA, ...)
+ * @param chainId Chain ID to obtain a URL for.
+ * @param apiKey API key for provider.
+ * @param transport Optional transport specifier (HTTPS or WSS).
+ * @returns An RPC URL confirming to the specified inputs.
+ */
+export function getURL(
+  provider: RPCProvider,
+  chainId: number,
+  apiKey: string,
+  transport: RPCTransport = "https"
+): string {
+  const getURL = PROVIDERS[provider];
+  assert(getURL, `Unsupported RPC provider (${provider})`);
+  return getURL(chainId, apiKey, transport);
+}
 
 /**
  * Deletes keys from an object and returns new copy of object without ignored keys

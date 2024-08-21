@@ -5,6 +5,7 @@ import { L1Token } from "../interfaces";
 import { ERC20__factory } from "../typechain";
 import { getNetworkName } from "./NetworkUtils";
 import { isDefined } from "./TypeGuards";
+import { compareAddressesSimple } from "./AddressUtils";
 const { TOKEN_SYMBOLS_MAP, CHAIN_IDs } = constants;
 
 type SignerOrProvider = providers.Provider | Signer;
@@ -105,4 +106,50 @@ export function isBridgedUsdc(tokenSymbol: string): boolean {
   return !!constants.BRIDGED_USDC_SYMBOLS.find(
     (bridgedUsdcSymbol) => bridgedUsdcSymbol.toLowerCase() === tokenSymbol.toLowerCase()
   );
+}
+
+export function getTokenInfo(l2TokenAddress: string, chainId: number): L1Token {
+  // @dev This might give false positives if tokens on different networks have the same address. I'm not sure how
+  // to get around this...
+  const tokenObject = Object.values(TOKEN_SYMBOLS_MAP).find(({ addresses }) => addresses[chainId] === l2TokenAddress);
+  if (!tokenObject) {
+    throw new Error(
+      `TokenUtils#getTokenInfo: Unable to resolve token in TOKEN_SYMBOLS_MAP for ${l2TokenAddress} on chain ${chainId}`
+    );
+  }
+  return {
+    address: l2TokenAddress,
+    symbol: tokenObject.symbol,
+    decimals: tokenObject.decimals,
+  };
+}
+
+/**
+ * Get the USDC symbol for the given token address and chain ID.
+ * @param l2Token A Web3 token address (not case sensitive)
+ * @param chainId A chain Id to reference
+ * @returns Either USDC (if native) or USDbC/USDC.e (if bridged) or undefined if the token address is not recognized.
+ */
+export function getUsdcSymbol(l2Token: string, chainId: number): string | undefined {
+  const compareToken = (token?: string) => isDefined(token) && compareAddressesSimple(l2Token, token);
+  return ["USDC", "USDbC", "USDC.e"].find((token) =>
+    compareToken(
+      (TOKEN_SYMBOLS_MAP as Record<string, { addresses?: Record<number, string> }>)[token]?.addresses?.[chainId]
+    )
+  );
+}
+
+export function getL1TokenInfo(l2TokenAddress: string, chainId: number): L1Token {
+  const tokenObject = Object.values(TOKEN_SYMBOLS_MAP).find(({ addresses }) => addresses[chainId] === l2TokenAddress);
+  const l1TokenAddress = tokenObject?.addresses[CHAIN_IDs.MAINNET];
+  if (!l1TokenAddress) {
+    throw new Error(
+      `TokenUtils#getL1TokenInfo: Unable to resolve l1 token address in TOKEN_SYMBOLS_MAP for L2 token ${l2TokenAddress} on chain ${chainId}`
+    );
+  }
+  return {
+    address: l1TokenAddress,
+    symbol: tokenObject.symbol,
+    decimals: tokenObject.decimals,
+  };
 }
