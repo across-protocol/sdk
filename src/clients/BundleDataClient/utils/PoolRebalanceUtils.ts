@@ -1,6 +1,11 @@
 import { MerkleTree } from "@across-protocol/contracts/dist/utils/MerkleTree";
-import { RunningBalances, PoolRebalanceLeaf, Clients } from "../../../interfaces";
+import { RunningBalances, PoolRebalanceLeaf, Clients, SpokePoolTargetBalance } from "../../../interfaces";
 import { SpokePoolClient } from "../../SpokePoolClient";
+import { BigNumber } from "ethers";
+import { bnZero, compareAddresses } from "../../../utils";
+import { HubPoolClient } from "../../HubPoolClient";
+import { V3DepositWithBlock } from "./shims";
+import { AcrossConfigStoreClient } from "../../AcrossConfigStoreClient";
 
 export type PoolRebalanceRoot = {
   runningBalances: RunningBalances;
@@ -67,6 +72,38 @@ export function isChainDisabled(blockRangeForChain: number[]): boolean {
   return blockRangeForChain[0] === blockRangeForChain[1];
 }
 
+// Note: this function computes the intended transfer amount before considering the transfer threshold.
+// A positive number indicates a transfer from hub to spoke.
+export function computeDesiredTransferAmountToSpoke(
+  runningBalance: BigNumber,
+  spokePoolTargetBalance: SpokePoolTargetBalance
+): BigNumber {
+  // Transfer is always desired if hub owes spoke.
+  if (runningBalance.gte(0)) {
+    return runningBalance;
+  }
+
+  // Running balance is negative, but its absolute value is less than the spoke pool target balance threshold.
+  // In this case, we transfer nothing.
+  if (runningBalance.abs().lt(spokePoolTargetBalance.threshold)) {
+    return bnZero;
+  }
+
+  // We are left with the case where the spoke pool is beyond the threshold.
+  // A transfer needs to be initiated to bring it down to the target.
+  const transferSize = runningBalance.abs().sub(spokePoolTargetBalance.target);
+
+  // If the transferSize is < 0, this indicates that the target is still above the running balance.
+  // This can only happen if the threshold is less than the target. This is likely due to a misconfiguration.
+  // In this case, we transfer nothing until the target is exceeded.
+  if (transferSize.lt(0)) {
+    return bnZero;
+  }
+
+  // Negate the transfer size because a transfer from spoke to hub is indicated by a negative number.
+  return transferSize.mul(-1);
+}
+
 // If the running balance is greater than the token transfer threshold, then set the net send amount
 // equal to the running balance and reset the running balance to 0. Otherwise, the net send amount should be
 // 0, indicating that we do not want the data worker to trigger a token transfer between hub pool and spoke
@@ -87,7 +124,7 @@ export function getRunningBalanceForL1Token(
 }
 
 export function updateRunningBalance(
-  runningBalances: interfaces.RunningBalances,
+  runningBalances: RunningBalances,
   l2ChainId: number,
   l1Token: string,
   updateAmount: BigNumber
@@ -106,11 +143,11 @@ export function updateRunningBalance(
 
 export function addLastRunningBalance(
   latestMainnetBlock: number,
-  runningBalances: interfaces.RunningBalances,
+  runningBalances: RunningBalances,
   hubPoolClient: HubPoolClient
 ): void {
   Object.keys(runningBalances).forEach((repaymentChainId) => {
-    Object.keys(runningBalances[repaymentChainId]).forEach((l1TokenAddress) => {
+    Object.keys(runningBalances[Number(repaymentChainId)]).forEach((l1TokenAddress) => {
       const { runningBalance } = hubPoolClient.getRunningBalanceBeforeBlockForChain(
         latestMainnetBlock,
         Number(repaymentChainId),
@@ -124,9 +161,9 @@ export function addLastRunningBalance(
 }
 
 export function updateRunningBalanceForDeposit(
-  runningBalances: interfaces.RunningBalances,
+  runningBalances: RunningBalances,
   hubPoolClient: HubPoolClient,
-  deposit: interfaces.V3DepositWithBlock,
+  deposit: V3DepositWithBlock,
   updateAmount: BigNumber
 ): void {
   const l1TokenCounterpart = hubPoolClient.getL1TokenForL2TokenAtBlock(
@@ -139,14 +176,14 @@ export function updateRunningBalanceForDeposit(
 
 export function constructPoolRebalanceLeaves(
   latestMainnetBlock: number,
-  runningBalances: interfaces.RunningBalances,
-  realizedLpFees: interfaces.RunningBalances,
-  configStoreClient: ConfigStoreClient,
+  runningBalances: RunningBalances,
+  realizedLpFees: RunningBalances,
+  configStoreClient: AcrossConfigStoreClient,
   maxL1TokenCount?: number
-): interfaces.PoolRebalanceLeaf[] {
+): PoolRebalanceLeaf[] {
   // Create one leaf per L2 chain ID. First we'll create a leaf with all L1 tokens for each chain ID, and then
   // we'll split up any leaves with too many L1 tokens.
-  const leaves: interfaces.PoolRebalanceLeaf[] = [];
+  const leaves: PoolRebalanceLeaf[] = [];
   Object.keys(runningBalances)
     .map((chainId) => Number(chainId))
     // Leaves should be sorted by ascending chain ID
