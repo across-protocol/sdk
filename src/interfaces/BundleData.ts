@@ -60,3 +60,9 @@ export interface Clients {
   hubSigner?: Signer;
   arweaveClient: ArweaveClient;
 }
+
+export type CombinedRefunds = {
+  [repaymentChainId: number]: {
+    [repaymentToken: string]: Refund;
+  };
+};
