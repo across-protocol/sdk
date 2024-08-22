@@ -6,6 +6,7 @@ import { isDefined } from "../utils";
 import { RPCProvider, RPCTransport } from "./types";
 import * as alchemy from "./alchemy";
 import * as infura from "./infura";
+import * as drpc from "./drpc";
 
 /**
  * Infura DIN is identified separately to allow it to be configured explicitly.
@@ -14,6 +15,7 @@ const PROVIDERS = {
   ALCHEMY: alchemy.getURL,
   INFURA: infura.getURL,
   INFURA_DIN: infura.getURL,
+  DRPC: drpc.getURL,
 };
 
 /**
@@ -22,7 +24,7 @@ const PROVIDERS = {
  * @returns True if the provider string is a supported provider.
  */
 export function isSupportedProvider(provider: string): provider is RPCProvider {
-  return ["ALCHEMY", "INFURA", "INFURA_DIN"].includes(provider);
+  return ["ALCHEMY", "INFURA", "INFURA_DIN", "DRPC"].includes(provider);
 }
 
 /**
