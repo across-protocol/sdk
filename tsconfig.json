@@ -5,6 +5,8 @@
     "module": "CommonJS",
     "target": "ES5",
     "lib": ["dom", "esnext"],
+    // allow bundling of json files
+    "resolveJsonModule": true,
     "importHelpers": true,
     // output .d.ts declaration files for consumers
     "declaration": true,
