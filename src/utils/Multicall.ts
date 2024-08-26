@@ -1,5 +1,6 @@
 import { BigNumber, Contract, providers, Signer, utils as ethersUtils } from "ethers";
-import { getABI } from "./abi";
+import { CHAIN_IDs } from "@across-protocol/constants";
+import { Multicall3, Multicall3__factory } from "./abi/typechain";
 
 type Provider = providers.Provider;
 type BlockTag = providers.BlockTag;
@@ -12,41 +13,48 @@ export type Call3 = {
   args?: any[];
 };
 
-// Multicall3 Constants:
-export const multicall3Addresses: Record<number, string> = {
-  1: "0xcA11bde05977b3631167028862bE2a173976CA11",
-  10: "0xcA11bde05977b3631167028862bE2a173976CA11",
-  137: "0xcA11bde05977b3631167028862bE2a173976CA11",
-  324: "0xF9cda624FBC7e059355ce98a31693d299FACd963",
-  8453: "0xcA11bde05977b3631167028862bE2a173976CA11",
-  34443: "0xcA11bde05977b3631167028862bE2a173976CA11",
-  42161: "0xcA11bde05977b3631167028862bE2a173976CA11",
-  59144: "0xcA11bde05977b3631167028862bE2a173976CA11",
-  534352: "0xcA11bde05977b3631167028862bE2a173976CA11",
-  // Testnets
-  5: "0xcA11bde05977b3631167028862bE2a173976CA11",
-  300: "0xF9cda624FBC7e059355ce98a31693d299FACd963",
-  59140: "0xcA11bde05977b3631167028862bE2a173976CA11",
-  59141: "0xcA11bde05977b3631167028862bE2a173976CA11",
-  80002: "0xcA11bde05977b3631167028862bE2a173976CA11",
-  84531: "0xcA11bde05977b3631167028862bE2a173976CA11",
-  84532: "0xcA11bde05977b3631167028862bE2a173976CA11",
-  421613: "0xcA11bde05977b3631167028862bE2a173976CA11",
-  534351: "0xcA11bde05977b3631167028862bE2a173976CA11",
-  11155111: "0xcA11bde05977b3631167028862bE2a173976CA11",
-  11155420: "0xcA11bde05977b3631167028862bE2a173976CA11",
+const DETERMINISTIC_MULTICALL_ADDRESS = "0xcA11bde05977b3631167028862bE2a173976CA11";
+
+const NON_DETERMINISTIC_MULTICALL_ADDRESSES = {
+  [CHAIN_IDs.ZK_SYNC]: "0xF9cda624FBC7e059355ce98a31693d299FACd963",
 };
 
-export async function getMulticall3(
-  chainId: number,
-  signerOrProvider?: Signer | Provider
-): Promise<Contract | undefined> {
-  const address = multicall3Addresses[chainId];
+const DETERMINISTIC_MULTICALL_CHAINS = [
+  CHAIN_IDs.ARBITRUM,
+  CHAIN_IDs.BASE,
+  CHAIN_IDs.BLAST,
+  CHAIN_IDs.BOBA,
+  CHAIN_IDs.LINEA,
+  CHAIN_IDs.LISK,
+  CHAIN_IDs.MAINNET,
+  CHAIN_IDs.MODE,
+  CHAIN_IDs.OPTIMISM,
+  CHAIN_IDs.POLYGON,
+  CHAIN_IDs.REDSTONE,
+  CHAIN_IDs.SCROLL,
+  CHAIN_IDs.ZORA,
+  // Testnet:
+  CHAIN_IDs.BASE_SEPOLIA,
+  CHAIN_IDs.BLAST_SEPOLIA,
+  CHAIN_IDs.POLYGON_AMOY,
+  CHAIN_IDs.SCROLL_SEPOLIA,
+  CHAIN_IDs.SEPOLIA,
+];
+
+export function getMulticallAddress(chainId: number): string | undefined {
+  if (DETERMINISTIC_MULTICALL_CHAINS.includes(chainId)) {
+    return DETERMINISTIC_MULTICALL_ADDRESS;
+  }
+  return NON_DETERMINISTIC_MULTICALL_ADDRESSES[chainId];
+}
+
+export function getMulticall3(chainId: number, signerOrProvider: Signer | Provider): Multicall3 | undefined {
+  const address = getMulticallAddress(chainId);
   if (!address) {
     return undefined;
   }
 
-  return new Contract(address, await getABI("Multicall3"), signerOrProvider);
+  return Multicall3__factory.connect(address, signerOrProvider);
 }
 
 export async function aggregate(multicall3: Contract, calls: Call3[], blockTag?: BlockTag): Promise<Result[]> {

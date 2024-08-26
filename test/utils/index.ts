@@ -1,5 +1,5 @@
 export * as contractsV2Utils from "@across-protocol/contracts/dist/test-utils";
-export { ethers } from "hardhat";
+export { ethers, waffle } from "hardhat";
 export { smock } from "@defi-wonderland/smock";
 
 export * from "./utils";
