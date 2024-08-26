@@ -293,6 +293,14 @@ export class SpokePoolClient extends BaseAbstractClient {
   }
 
   /**
+   * Retrieves speed up requests grouped by depositor and depositId.
+   * @returns A mapping of depositor addresses to deposit ids with their corresponding speed up requests.
+   */
+  public getSpeedUps(): { [depositorAddress: string]: { [depositId: number]: SpeedUp[] } } {
+    return this.speedUps;
+  }
+
+  /**
    * Find a corresponding deposit for a given fill.
    * @param fill The fill to find a corresponding deposit for.
    * @returns The corresponding deposit if found, undefined otherwise.
