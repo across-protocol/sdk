@@ -94,6 +94,7 @@ export interface RootBundleRelay {
 export interface RootBundleRelayWithBlock extends RootBundleRelay, SortableEvent {}
 
 export interface RelayerRefundExecution extends RelayerRefundLeaf {
+  caller: string;
   rootBundleId: number;
 }
 
@@ -111,6 +112,7 @@ export interface RunningBalances {
 
 export interface TokensBridged extends SortableEvent {
   amountToReturn: BigNumber;
+  caller: string;
   chainId: number;
   leafId: number;
   l2TokenAddress: string;
