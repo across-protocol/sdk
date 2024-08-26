@@ -29,7 +29,7 @@
     "bump-version:major": "yarn version --major --no-git-tag-version --no-commit-hooks && git commit -m 'chore: bump version' ./package.json --no-verify",
     "bump-version:minor": "yarn version --minor --no-git-tag-version --no-commit-hooks && git commit -m 'chore: bump version' ./package.json --no-verify",
     "bump-version:patch": "yarn version --patch --no-git-tag-version --no-commit-hooks && git commit -m 'chore: bump version' ./package.json --no-verify",
-    "typechain": "typechain --target ethers-v5 --out-dir src/utils/abi/typechain 'src/utils/abi/contracts/*.json'"
+    "typechain": "typechain --target ethers-v5 --out-dir src/utils/abi/typechain 'src/utils/abi/contracts/*.json' && eslint --fix src/utils/abi/typechain && yarn prettier --write \"src/utils/abi/typechain/**/*.ts\""
   },
   "lint-staged": {
     "*.ts": "yarn lint"
