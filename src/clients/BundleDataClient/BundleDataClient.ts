@@ -30,6 +30,7 @@ import {
   isSlowFill,
   mapAsync,
   relayFillStatus,
+  bnUint32Max,
 } from "../../utils";
 import { BigNumber } from "ethers";
 import winston from "winston";
@@ -46,6 +47,9 @@ import {
   V3DepositWithBlock,
   V3FillWithBlock,
 } from "./utils";
+
+// max(uint256) - 1
+export const INFINITE_FILL_DEADLINE = bnUint32Max;
 
 type DataCache = Record<string, Promise<LoadDataReturnValue>>;
 
@@ -877,7 +881,16 @@ export class BundleDataClient {
 
             // Since there was no deposit matching the relay hash, we need to do a historical query for an
             // older deposit in case the spoke pool client's lookback isn't old enough to find the matching deposit.
+            // We can skip this step if the fill's fill deadline is not infinite, because we can assume that the
+            // spoke pool clients have loaded deposits old enough to cover all fills with a non-infinite fill deadline.
             if (fill.blockNumber >= destinationChainBlockRange[0]) {
+              // Fill has a non-infinite expiry, and we can assume our spoke pool clients have old enough deposits
+              // to conclude that this fill is invalid if we haven't found a matching deposit in memory, so
+              // skip the historical query.
+              if (!INFINITE_FILL_DEADLINE.eq(fill.fillDeadline)) {
+                bundleInvalidFillsV3.push(fill);
+                return;
+              }
               const historicalDeposit = await queryHistoricalDepositForFill(originClient, fill);
               if (!historicalDeposit.found) {
                 bundleInvalidFillsV3.push(fill);
@@ -975,7 +988,12 @@ export class BundleDataClient {
 
             // Since there was no deposit matching the relay hash, we need to do a historical query for an
             // older deposit in case the spoke pool client's lookback isn't old enough to find the matching deposit.
-            if (slowFillRequest.blockNumber >= destinationChainBlockRange[0]) {
+            // We can skip this step if the deposit's fill deadline is not infinite, because we can assume that the
+            // spoke pool clients have loaded deposits old enough to cover all fills with a non-infinite fill deadline.
+            if (
+              INFINITE_FILL_DEADLINE.eq(slowFillRequest.fillDeadline) &&
+              slowFillRequest.blockNumber >= destinationChainBlockRange[0]
+            ) {
               const historicalDeposit = await queryHistoricalDepositForFill(originClient, slowFillRequest);
               if (!historicalDeposit.found) {
                 // TODO: Invalid slow fill request. Maybe worth logging.
@@ -1103,7 +1121,7 @@ export class BundleDataClient {
           // the block ranges passed into this function would never contain blocks where the spoke pool client
           // hasn't queried. This is because this function will usually be called
           // in production with block ranges that were validated by
-          // DataworkerblockRangesAreInvalidForSpokeClients
+          // DataworkerUtils.blockRangesAreInvalidForSpokeClients
           Math.min(destinationBlockRange[1], spokePoolClients[destinationChainId].latestBlockSearched),
           destinationChainId
         );
@@ -1279,7 +1297,7 @@ export class BundleDataClient {
           // We can assume that in production the block ranges passed into this function would never
           // contain blocks where the spoke pool client hasn't queried. This is because this function
           // will usually be called in production with block ranges that were validated by
-          // DataworkerblockRangesAreInvalidForSpokeClients.
+          // DataworkerUtils.blockRangesAreInvalidForSpokeClients.
           const startBlockForChain = Math.min(_startBlockForChain, spokePoolClient.latestBlockSearched);
           const endBlockForChain = Math.min(_endBlockForChain, spokePoolClient.latestBlockSearched);
           const [startTime, endTime] = [
