@@ -34,7 +34,6 @@ const DETERMINISTIC_MULTICALL_CHAINS = [
   CHAIN_IDs.SCROLL,
   CHAIN_IDs.ZORA,
   // Testnet:
-  CHAIN_IDs.POLYGON_AMOY,
   CHAIN_IDs.BASE_SEPOLIA,
   CHAIN_IDs.BLAST_SEPOLIA,
   CHAIN_IDs.POLYGON_AMOY,
@@ -43,7 +42,7 @@ const DETERMINISTIC_MULTICALL_CHAINS = [
 ];
 
 export function getMulticallAddress(chainId: number): string | undefined {
-  if (chainId in DETERMINISTIC_MULTICALL_CHAINS) {
+  if (DETERMINISTIC_MULTICALL_CHAINS.includes(chainId)) {
     return DETERMINISTIC_MULTICALL_ADDRESS;
   }
   return NON_DETERMINISTIC_MULTICALL_ADDRESSES[chainId];
