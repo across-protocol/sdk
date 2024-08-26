@@ -1,7 +1,6 @@
 import { CHAIN_IDs } from "@across-protocol/constants";
 import { getMulticall3, getMulticallAddress } from "../src/utils/Multicall";
-import { expect } from "./utils";
-import { waffle } from "hardhat";
+import { expect, waffle } from "./utils";
 
 describe("getMulticallAddress", () => {
   it("should return the deterministic multicall address for a chain in DETERMINISTIC_MULTICALL_CHAINS", () => {
