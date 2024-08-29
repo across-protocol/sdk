@@ -858,8 +858,8 @@ export class BundleDataClient {
                   // slow fill requests for deposits from or to lite chains are considered invalid
                   if (
                     fill.relayExecutionInfo.fillType === FillType.ReplacedSlowFill &&
-                    !v3RelayHashes[relayDataHash].deposit?.fromLiteChain &&
-                    !v3RelayHashes[relayDataHash].deposit?.toLiteChain
+                    !v3RelayHashes[relayDataHash].deposit!.fromLiteChain &&
+                    !v3RelayHashes[relayDataHash].deposit!.toLiteChain
                   ) {
                     fastFillsReplacingSlowFills.push(relayDataHash);
                   }
