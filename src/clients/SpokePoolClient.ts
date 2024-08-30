@@ -32,7 +32,7 @@ import {
   RelayerRefundExecutionWithBlock,
   RootBundleRelayWithBlock,
   SlowFillRequestWithBlock,
-  SpeedUp,
+  SpeedUpWithBlock,
   TokensBridged,
   V3FundsDepositedEvent,
 } from "../interfaces";
@@ -67,7 +67,7 @@ export class SpokePoolClient extends BaseAbstractClient {
   protected oldestTime = 0;
   protected depositHashes: { [depositHash: string]: DepositWithBlock } = {};
   protected depositHashesToFills: { [depositHash: string]: FillWithBlock[] } = {};
-  protected speedUps: { [depositorAddress: string]: { [depositId: number]: SpeedUp[] } } = {};
+  protected speedUps: { [depositorAddress: string]: { [depositId: number]: SpeedUpWithBlock[] } } = {};
   protected slowFillRequests: { [relayDataHash: string]: SlowFillRequestWithBlock } = {};
   protected depositRoutes: { [originToken: string]: { [DestinationChainId: number]: boolean } } = {};
   protected tokensBridged: TokensBridged[] = [];
@@ -296,7 +296,7 @@ export class SpokePoolClient extends BaseAbstractClient {
    * Retrieves speed up requests grouped by depositor and depositId.
    * @returns A mapping of depositor addresses to deposit ids with their corresponding speed up requests.
    */
-  public getSpeedUps(): { [depositorAddress: string]: { [depositId: number]: SpeedUp[] } } {
+  public getSpeedUps(): { [depositorAddress: string]: { [depositId: number]: SpeedUpWithBlock[] } } {
     return this.speedUps;
   }
 
@@ -592,7 +592,8 @@ export class SpokePoolClient extends BaseAbstractClient {
       const speedUpEvents = [...(queryResults[eventsToQuery.indexOf("RequestedSpeedUpV3Deposit")] ?? [])];
 
       for (const event of speedUpEvents) {
-        const speedUp: SpeedUp = { ...spreadEvent(event.args), originChainId: this.chainId };
+        const rawEvent = spreadEventWithBlockNumber(event);
+        const speedUp = { ...rawEvent, originChainId: this.chainId } as SpeedUpWithBlock;
         assign(this.speedUps, [speedUp.depositor, speedUp.depositId], [speedUp]);
 
         // Find deposit hash matching this speed up event and update the deposit data associated with the hash,
