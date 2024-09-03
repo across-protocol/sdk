@@ -43,7 +43,6 @@ export class RetryProvider extends ethers.providers.StaticJsonRpcProvider {
     );
 
     // This is added for interim testing to see whether relayer fill performance improves.
-    // @todo: Upstream this to the SDK where the relayer's implementation will be relocated.
     this.providers.forEach((provider) => {
       const url = getOriginFromURL(provider.connection.url);
       const { pollingInterval } = provider;
