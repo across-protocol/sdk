@@ -1,4 +1,4 @@
-import { MerkleTree } from "@across-protocol/contracts-v2";
+import { MerkleTree } from "@across-protocol/contracts";
 import { MerkleDistributor, DistributionRecipient, DistributionRecipientWithProof } from "../src/merkleDistributor";
 import { expect } from "./utils";
 

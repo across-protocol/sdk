@@ -1,4 +1,4 @@
-import * as utils from "@across-protocol/contracts-v2/dist/test-utils";
+import * as utils from "@across-protocol/contracts/dist/test-utils";
 import { BigNumber, BigNumberish, Contract, providers } from "ethers";
 import {
   AcrossConfigStoreClient as ConfigStoreClient,
@@ -34,7 +34,7 @@ import {
   MAX_REFUNDS_PER_RELAYER_REFUND_LEAF,
   sampleRateModel,
 } from "../constants";
-import { AcrossConfigStore } from "@across-protocol/contracts-v2";
+import { AcrossConfigStore } from "@across-protocol/contracts";
 import chai, { expect } from "chai";
 import chaiExclude from "chai-exclude";
 import _ from "lodash";

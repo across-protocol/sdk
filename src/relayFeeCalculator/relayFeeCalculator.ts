@@ -20,7 +20,12 @@ import {
 
 // This needs to be implemented for every chain and passed into RelayFeeCalculator
 export interface QueryInterface {
-  getGasCosts: (deposit: Deposit, relayer: string) => Promise<TransactionCostEstimate>;
+  getGasCosts: (
+    deposit: Deposit,
+    relayer: string,
+    gasPrice?: BigNumberish,
+    gasLimit?: BigNumberish
+  ) => Promise<TransactionCostEstimate>;
   getTokenPrice: (tokenSymbol: string) => Promise<number>;
   getTokenDecimals: (tokenSymbol: string) => number;
 }
@@ -191,7 +196,6 @@ export class RelayFeeCalculator {
    */
   static validateCapitalCostsConfig(capitalCosts: CapitalCostConfig): void {
     assert(toBN(capitalCosts.upperBound).lt(toBNWei("0.01")), "upper bound must be < 1%");
-    assert(toBN(capitalCosts.lowerBound).lte(capitalCosts.upperBound), "lower bound must be <= upper bound");
     assert(capitalCosts.decimals > 0 && capitalCosts.decimals <= 18, "invalid decimals");
   }
 
@@ -224,7 +228,9 @@ export class RelayFeeCalculator {
     simulateZeroFill = false,
     relayerAddress = DEFAULT_SIMULATED_RELAYER_ADDRESS,
     _tokenPrice?: number,
-    tokenMapping = TOKEN_SYMBOLS_MAP
+    tokenMapping = TOKEN_SYMBOLS_MAP,
+    gasPrice?: BigNumberish,
+    gasLimit?: BigNumberish
   ): Promise<BigNumber> {
     if (toBN(amountToRelay).eq(bnZero)) return MAX_BIG_INT;
 
@@ -239,9 +245,9 @@ export class RelayFeeCalculator {
     const simulatedAmount = simulateZeroFill ? safeOutputAmount : toBN(amountToRelay);
     deposit = { ...deposit, outputAmount: simulatedAmount };
 
-    const getGasCosts = this.queries.getGasCosts(deposit, relayerAddress).catch((error) => {
+    const getGasCosts = this.queries.getGasCosts(deposit, relayerAddress, gasPrice, gasLimit).catch((error) => {
       this.logger.error({
-        at: "sdk-v2/gasFeePercent",
+        at: "sdk/gasFeePercent",
         message: "Error while fetching gas costs",
         error,
         simulateZeroFill,
@@ -249,19 +255,19 @@ export class RelayFeeCalculator {
       });
       throw error;
     });
-    const getTokenPrice = this.queries.getTokenPrice(token.symbol).catch((error) => {
-      this.logger.error({
-        at: "sdk-v2/gasFeePercent",
-        message: "Error while fetching token price",
-        error,
-        destinationChainId: deposit.destinationChainId,
-        inputToken,
-      });
-      throw error;
-    });
     const [{ tokenGasCost }, tokenPrice] = await Promise.all([
       getGasCosts,
-      _tokenPrice !== undefined ? _tokenPrice : getTokenPrice,
+      _tokenPrice ??
+        this.queries.getTokenPrice(token.symbol).catch((error) => {
+          this.logger.error({
+            at: "sdk/gasFeePercent",
+            message: "Error while fetching token price",
+            error,
+            destinationChainId: deposit.destinationChainId,
+            inputToken,
+          });
+          throw error;
+        }),
     ]);
     const gasFeesInToken = nativeToToken(tokenGasCost, tokenPrice, token.decimals, this.nativeTokenDecimals);
     return percent(gasFeesInToken, amountToRelay.toString());
@@ -284,7 +290,7 @@ export class RelayFeeCalculator {
     const tokenCostConfig = this.capitalCostsConfig[_tokenSymbol.toUpperCase()];
     if (!isDefined(tokenCostConfig)) {
       this.logger.error({
-        at: "sdk-v2/capitalFeePercent",
+        at: "sdk/capitalFeePercent",
         message: `No capital fee available for token ${_tokenSymbol}`,
       });
       throw new Error(`No capital cost config available for token ${_tokenSymbol}`);
@@ -343,7 +349,9 @@ export class RelayFeeCalculator {
     amountToRelay?: BigNumberish,
     simulateZeroFill = false,
     relayerAddress = DEFAULT_SIMULATED_RELAYER_ADDRESS,
-    _tokenPrice?: number
+    _tokenPrice?: number,
+    gasPrice?: BigNumberish,
+    gasLimit?: BigNumberish
   ): Promise<RelayerFeeDetails> {
     // If the amount to relay is not provided, then we
     // should use the full deposit amount.
@@ -359,7 +367,10 @@ export class RelayFeeCalculator {
       amountToRelay,
       simulateZeroFill,
       relayerAddress,
-      _tokenPrice
+      _tokenPrice,
+      undefined,
+      gasPrice,
+      gasLimit
     );
     const gasFeeTotal = gasFeePercent.mul(amountToRelay).div(fixedPointAdjustment);
     const capitalFeePercent = this.capitalFeePercent(

@@ -1,4 +1,4 @@
-import * as contracts from "@across-protocol/contracts-v2/dist/test-utils"; // Contains all the Across contract constants.
+import * as contracts from "@across-protocol/contracts/dist/test-utils"; // Contains all the Across contract constants.
 import { DEFAULT_CONFIG_STORE_VERSION } from "./mocks";
 
 export const {

@@ -1,4 +1,4 @@
-import { CHAIN_IDs, PRODUCTION_CHAIN_IDS, PUBLIC_NETWORKS, TESTNET_CHAIN_IDS } from "../constants";
+import { ChainFamily, CHAIN_IDs, MAINNET_CHAIN_IDs, PUBLIC_NETWORKS, TESTNET_CHAIN_IDs } from "../constants";
 
 const hreNetworks: Record<number, string> = {
   666: "Hardhat1",
@@ -30,7 +30,7 @@ export function getNativeTokenSymbol(chainId: number | string): string {
  * @returns true if the chain ID is part of the production network, otherwise false.
  */
 export function chainIsProd(chainId: number): boolean {
-  return PRODUCTION_CHAIN_IDS.includes(chainId);
+  return Object.values(MAINNET_CHAIN_IDs).includes(chainId);
 }
 
 /**
@@ -39,7 +39,16 @@ export function chainIsProd(chainId: number): boolean {
  * @returns true if the chain ID is part of the production network, otherwise false.
  */
 export function chainIsTestnet(chainId: number): boolean {
-  return TESTNET_CHAIN_IDS.includes(chainId);
+  return Object.values(TESTNET_CHAIN_IDs).includes(chainId);
+}
+
+/**
+ * Determines whether a chain ID is a Polygon implementation.
+ * @param chainId Chain ID to evaluate.
+ * @returns True if chainId is a Polygon chain (mainnet or testnet), otherwise false.
+ */
+export function chainIsMatic(chainId: number): boolean {
+  return [CHAIN_IDs.POLYGON, CHAIN_IDs.POLYGON_AMOY].includes(chainId);
 }
 
 /**
@@ -48,14 +57,7 @@ export function chainIsTestnet(chainId: number): boolean {
  * @returns True if chainId is an OP stack, otherwise false.
  */
 export function chainIsOPStack(chainId: number): boolean {
-  return [
-    CHAIN_IDs.OPTIMISM,
-    CHAIN_IDs.BASE,
-    CHAIN_IDs.OPTIMISM_GOERLI,
-    CHAIN_IDs.BASE_GOERLI,
-    CHAIN_IDs.OPTIMISM_SEPOLIA,
-    CHAIN_IDs.BASE_SEPOLIA,
-  ].includes(chainId);
+  return PUBLIC_NETWORKS[chainId]?.family === ChainFamily.OP_STACK ?? false;
 }
 
 /**
@@ -64,7 +66,7 @@ export function chainIsOPStack(chainId: number): boolean {
  * @returns True if chainId is an Arbitrum chain, otherwise false.
  */
 export function chainIsArbitrum(chainId: number): boolean {
-  return [CHAIN_IDs.ARBITRUM, CHAIN_IDs.ARBITRUM_GOERLI, CHAIN_IDs.ARBITRUM_SEPOLIA].includes(chainId);
+  return [CHAIN_IDs.ARBITRUM, CHAIN_IDs.ARBITRUM_SEPOLIA].includes(chainId);
 }
 
 /**
@@ -73,7 +75,16 @@ export function chainIsArbitrum(chainId: number): boolean {
  * @returns True if chainId is a Linea chain, otherwise false.
  */
 export function chainIsLinea(chainId: number): boolean {
-  return [CHAIN_IDs.LINEA, CHAIN_IDs.LINEA_GOERLI].includes(chainId);
+  return [CHAIN_IDs.LINEA].includes(chainId);
+}
+
+/**
+ * Determines whether a chain ID has a corresponding hub pool contract.
+ * @param chainId Chain ID to evaluate.
+ * @returns True if chain corresponding to chainId has a hub pool implementation.
+ */
+export function chainIsL1(chainId: number): boolean {
+  return [CHAIN_IDs.MAINNET, CHAIN_IDs.SEPOLIA].includes(chainId);
 }
 
 /**
@@ -103,4 +114,17 @@ export function chainIsCCTPEnabled(chainId: number): boolean {
  */
 export function chainRequiresL1ToL2Finalization(chainId: number): boolean {
   return chainIsCCTPEnabled(chainId) || chainIsLinea(chainId);
+}
+
+/**
+ * Returns the origin of a URL.
+ * @param url A URL.
+ * @returns The origin of the URL, or "UNKNOWN" if the URL is invalid.
+ */
+export function getOriginFromURL(url: string): string {
+  try {
+    return new URL(url).origin;
+  } catch (e) {
+    return "UNKNOWN";
+  }
 }

@@ -11,6 +11,8 @@ describe("ABI Utils", () => {
       // trailing '.json', since readdir() returns the full filename, but callers should only supply the ABI name.
       abiFiles = abiFiles
         .filter((fileName) => !fileName.startsWith("."))
+        // filter out barrel file
+        .filter((fileName) => !(fileName === "index.ts"))
         .map((fileName) => fileName.slice(0, fileName.lastIndexOf(".json")));
 
       for (const abiFile of abiFiles) {

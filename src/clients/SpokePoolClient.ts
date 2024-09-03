@@ -37,10 +37,11 @@ import {
   V3FundsDepositedEvent,
 } from "../interfaces";
 import { SpokePool } from "../typechain";
-import { chainIsCCTPEnabled, getNetworkName } from "../utils/NetworkUtils";
+import { getNetworkName } from "../utils/NetworkUtils";
 import { getBlockRangeForDepositId, getDepositIdAtBlock } from "../utils/SpokeUtils";
 import { BaseAbstractClient, isUpdateFailureReason, UpdateFailureReason } from "./BaseAbstractClient";
 import { HubPoolClient } from "./HubPoolClient";
+import { AcrossConfigStoreClient } from "./AcrossConfigStoreClient";
 
 type SpokePoolUpdateSuccess = {
   success: true;
@@ -50,7 +51,6 @@ type SpokePoolUpdateSuccess = {
   latestDepositId: number;
   events: Event[][];
   searchEndBlock: number;
-  hasCCTPBridgingEnabled: boolean;
 };
 type SpokePoolUpdateFailure = {
   success: false;
@@ -74,7 +74,7 @@ export class SpokePoolClient extends BaseAbstractClient {
   protected rootBundleRelays: RootBundleRelayWithBlock[] = [];
   protected relayerRefundExecutions: RelayerRefundExecutionWithBlock[] = [];
   protected queryableEventNames: string[] = [];
-  protected hasCCTPBridgingEnabled: boolean = false;
+  protected configStoreClient: AcrossConfigStoreClient | undefined;
   public earliestDepositIdQueried = Number.MAX_SAFE_INTEGER;
   public latestDepositIdQueried = 0;
   public firstDepositIdForSpokePool = Number.MAX_SAFE_INTEGER;
@@ -103,6 +103,7 @@ export class SpokePoolClient extends BaseAbstractClient {
     this.firstBlockToSearch = eventSearchConfig.fromBlock;
     this.latestBlockSearched = 0;
     this.queryableEventNames = Object.keys(this._queryableEventNames());
+    this.configStoreClient = hubPoolClient?.configStoreClient;
   }
 
   public _queryableEventNames(): { [eventName: string]: EventFilter } {
@@ -156,38 +157,11 @@ export class SpokePoolClient extends BaseAbstractClient {
   }
 
   /**
-   * Certain spoke pools can bridge USDC back to the hub via CCTP. Of these spokes, not all
-   * have this feature enabled.
-   * @returns Whether or not this spoke pool is capable of bridging USDC via CCTP back to the hub
-   */
-  public isCCTPBridgingEnabled(): boolean {
-    return this.hasCCTPBridgingEnabled;
-  }
-
-  /**
    * Retrieves a mapping of tokens and their associated destination chain IDs that can be bridged.
    * @returns A mapping of tokens and their associated destination chain IDs in a nested mapping.
    */
   public getDepositRoutes(): { [originToken: string]: { [DestinationChainId: number]: boolean } } {
     return this.depositRoutes;
-  }
-
-  /**
-   * Determines whether a deposit route is enabled for the given origin token and destination chain ID.
-   * @param originToken The origin token address.
-   * @param destinationChainId The destination chain ID.
-   * @returns True if the deposit route is enabled, false otherwise.
-   */
-  public isDepositRouteEnabled(originToken: string, destinationChainId: number): boolean {
-    return this.depositRoutes[originToken]?.[destinationChainId] ?? false;
-  }
-
-  /**
-   * Retrieves a list of all the available origin tokens that can be bridged.
-   * @returns A list of origin tokens.
-   */
-  public getAllOriginTokens(): string[] {
-    return Object.keys(this.depositRoutes);
   }
 
   /**
@@ -319,6 +293,14 @@ export class SpokePoolClient extends BaseAbstractClient {
   }
 
   /**
+   * Retrieves speed up requests grouped by depositor and depositId.
+   * @returns A mapping of depositor addresses to deposit ids with their corresponding speed up requests.
+   */
+  public getSpeedUps(): { [depositorAddress: string]: { [depositId: number]: SpeedUp[] } } {
+    return this.speedUps;
+  }
+
+  /**
    * Find a corresponding deposit for a given fill.
    * @param fill The fill to find a corresponding deposit for.
    * @returns The corresponding deposit if found, undefined otherwise.
@@ -326,6 +308,16 @@ export class SpokePoolClient extends BaseAbstractClient {
   public getDepositForFill(fill: Fill): DepositWithBlock | undefined {
     const depositWithMatchingDepositId = this.depositHashes[this.getDepositHash(fill)];
     return validateFillForDeposit(fill, depositWithMatchingDepositId) ? depositWithMatchingDepositId : undefined;
+  }
+
+  /**
+   * Find a valid fill for a given deposit.
+   * @param deposit A deposit event.
+   * @returns A valid fill for the deposit, or undefined.
+   */
+  public getFillForDeposit(deposit: Deposit): FillWithBlock | undefined {
+    const fills = this.depositHashesToFills[this.getDepositHash(deposit)];
+    return fills?.find((fill) => validateFillForDeposit(fill, deposit));
   }
 
   /**
@@ -474,18 +466,6 @@ export class SpokePoolClient extends BaseAbstractClient {
       return { success: false, reason };
     }
 
-    // Determine if this spoke pool has the capability to bridge UDSC via the CCTP token bridge.
-    // The CCTP bridge is canonically disabled if the `cctpTokenMessenger` is the ZERO address.
-    let hasCCTPBridgingEnabled = false;
-    if (chainIsCCTPEnabled(this.chainId) && isDefined(this.spokePool.cctpTokenMessenger)) {
-      const cctpBridgeAddress = String(
-        await this.spokePool.cctpTokenMessenger({
-          blockTag: searchConfig.toBlock,
-        })
-      );
-      hasCCTPBridgingEnabled = cctpBridgeAddress.toLowerCase() !== ZERO_ADDRESS.toLowerCase();
-    }
-
     const eventSearchConfigs = eventsToQuery.map((eventName) => {
       if (!this.queryableEventNames.includes(eventName)) {
         throw new Error(`SpokePoolClient: Cannot query unrecognised SpokePool event name: ${eventName}`);
@@ -539,7 +519,6 @@ export class SpokePoolClient extends BaseAbstractClient {
       latestDepositId: Math.max(numberOfDeposits - 1, 0),
       searchEndBlock: searchConfig.toBlock,
       events,
-      hasCCTPBridgingEnabled,
     };
   }
 
@@ -585,6 +564,8 @@ export class SpokePoolClient extends BaseAbstractClient {
         // Derive and append the common properties that are not part of the onchain event.
         const { quoteBlock: quoteBlockNumber } = dataForQuoteTime[index];
         const deposit = { ...(rawDeposit as DepositWithBlock), originChainId: this.chainId, quoteBlockNumber };
+        deposit.fromLiteChain = this.isOriginLiteChain(deposit);
+        deposit.toLiteChain = this.isDestinationLiteChain(deposit);
         if (deposit.outputToken === ZERO_ADDRESS) {
           deposit.outputToken = this.getDestinationTokenForDeposit(deposit);
         }
@@ -658,6 +639,7 @@ export class SpokePoolClient extends BaseAbstractClient {
           ...(spreadEventWithBlockNumber(event) as FillWithBlock),
           destinationChainId: this.chainId,
         };
+
         assign(this.fills, [fill.originChainId], [fill]);
         assign(this.depositHashesToFills, [this.getDepositHash(fill)], [fill]);
       }
@@ -699,7 +681,6 @@ export class SpokePoolClient extends BaseAbstractClient {
     this.currentTime = currentTime;
     if (this.oldestTime === 0) this.oldestTime = oldestTime; // Set oldest time only after the first update.
     this.firstDepositIdForSpokePool = update.firstDepositId;
-    this.hasCCTPBridgingEnabled = update.hasCCTPBridgingEnabled;
     this.latestBlockSearched = searchEndBlock;
     this.lastDepositIdForSpokePool = update.latestDepositId;
     this.firstBlockToSearch = searchEndBlock + 1;
@@ -721,7 +702,7 @@ export class SpokePoolClient extends BaseAbstractClient {
     // token address to the wrapped token address. This is because the OVM_SpokePool modifies the l2TokenAddress prop
     // in _bridgeTokensToHubPool before emitting the ExecutedRelayerRefundLeaf event.
     // Here is the contract code referenced:
-    // - https://github.com/across-protocol/contracts-v2/blob/954528a4620863d1c868e54a370fd8556d5ed05c/contracts/Ovm_SpokePool.sol#L142
+    // - https://github.com/across-protocol/contracts/blob/954528a4620863d1c868e54a370fd8556d5ed05c/contracts/Ovm_SpokePool.sol#L142
     if (
       (chainId === 10 || chainId === 8453) &&
       eventL2Token.toLowerCase() === "0xdeaddeaddeaddeaddeaddeaddeaddeaddead0000"
@@ -817,7 +798,7 @@ export class SpokePoolClient extends BaseAbstractClient {
     return this.oldestTime;
   }
 
-  async findDeposit(depositId: number, destinationChainId: number, depositor: string): Promise<DepositWithBlock> {
+  async findDeposit(depositId: number, destinationChainId: number): Promise<DepositWithBlock> {
     // Binary search for event search bounds. This way we can get the blocks before and after the deposit with
     // deposit ID = fill.depositId and use those blocks to optimize the search for that deposit.
     // Stop searches after a maximum # of searches to limit number of eth_call requests. Make an
@@ -836,21 +817,7 @@ export class SpokePoolClient extends BaseAbstractClient {
     const tStart = Date.now();
     const query = await paginatedEventQuery(
       this.spokePool,
-      this.spokePool.filters.V3FundsDeposited(
-        null,
-        null,
-        null,
-        null,
-        destinationChainId,
-        depositId,
-        null,
-        null,
-        null,
-        depositor,
-        null,
-        null,
-        null
-      ),
+      this.spokePool.filters.V3FundsDeposited(null, null, null, null, null, depositId),
       {
         fromBlock: searchBounds.low,
         toBlock: searchBounds.high,
@@ -881,6 +848,8 @@ export class SpokePoolClient extends BaseAbstractClient {
           ? this.getDestinationTokenForDeposit({ ...partialDeposit, originChainId: this.chainId })
           : partialDeposit.outputToken,
     };
+    deposit.fromLiteChain = this.isOriginLiteChain(deposit);
+    deposit.toLiteChain = this.isDestinationLiteChain(deposit);
 
     this.logger.debug({
       at: "SpokePoolClient#findDeposit",
@@ -890,5 +859,27 @@ export class SpokePoolClient extends BaseAbstractClient {
     });
 
     return deposit;
+  }
+
+  /**
+   * Determines whether a deposit originates from a lite chain.
+   * @param deposit The deposit to evaluate.
+   * @returns True if the deposit originates from a lite chain, false otherwise. If the hub pool client is not defined,
+   *          this method will return false.
+   */
+  protected isOriginLiteChain(deposit: DepositWithBlock): boolean {
+    return this.configStoreClient?.isChainLiteChainAtTimestamp(deposit.originChainId, deposit.quoteTimestamp) ?? false;
+  }
+
+  /**
+   * Determines whether the deposit destination chain is a lite chain.
+   * @param deposit The deposit to evaluate.
+   * @returns True if the deposit is destined to a lite chain, false otherwise. If the hub pool client is not defined,
+   *          this method will return false.
+   */
+  protected isDestinationLiteChain(deposit: DepositWithBlock): boolean {
+    return (
+      this.configStoreClient?.isChainLiteChainAtTimestamp(deposit.destinationChainId, deposit.quoteTimestamp) ?? false
+    );
   }
 }

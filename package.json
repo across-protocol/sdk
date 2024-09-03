@@ -1,7 +1,7 @@
 {
-  "name": "@across-protocol/sdk-v2",
+  "name": "@across-protocol/sdk",
   "author": "UMA Team",
-  "version": "0.23.10",
+  "version": "3.1.29",
   "license": "AGPL-3.0",
   "homepage": "https://docs.across.to/reference/sdk",
   "files": [
@@ -13,13 +13,10 @@
   },
   "scripts": {
     "start": "nodemon -e ts,tsx,json,js,jsx --watch ./src --ignore ./dist --exec 'yarn build'",
-    "build": "yarn run clean && yarn run build:cjs & yarn run build:esm & yarn run build:types; wait",
-    "build:cjs": "tsc --project tsconfig.build.json --module commonjs --outDir ./dist/cjs --removeComments --verbatimModuleSyntax false && echo > ./dist/cjs/package.json '{\"type\":\"commonjs\"}' && yarn copy-abi:cjs",
-    "build:esm": "tsc --project tsconfig.build.json --module es2015 --outDir ./dist/esm && echo > ./dist/esm/package.json '{\"type\":\"module\",\"sideEffects\":false}' && yarn copy-abi:esm",
+    "build": "yarn run clean && yarn typechain && yarn run build:cjs & yarn run build:esm & yarn run build:types; wait",
+    "build:cjs": "tsc --project tsconfig.build.json --module commonjs --outDir ./dist/cjs --removeComments --verbatimModuleSyntax false && echo > ./dist/cjs/package.json '{\"type\":\"commonjs\"}'",
+    "build:esm": "tsc --project tsconfig.build.json --module es2015 --outDir ./dist/esm && echo > ./dist/esm/package.json '{\"type\":\"module\",\"sideEffects\":false}'",
     "build:types": "tsc --project tsconfig.build.json --module esnext --declarationDir ./dist/types --emitDeclarationOnly --declaration --declarationMap",
-    "copy-abi:cjs": "DIR=cjs yarn copy-abi",
-    "copy-abi:esm": "DIR=esm yarn copy-abi",
-    "copy-abi": "abi=utils/abi/contracts; dstdir=\"./dist/${DIR}/${abi}\"; mkdir -p \"${dstdir}\"; cp ./src/${abi}/*.json \"${dstdir}\"",
     "test": "hardhat test",
     "test:watch": "hardhat watch test",
     "test:run:arweave": "npx -y arlocal",
@@ -31,7 +28,8 @@
     "clean": "rm -rf ./dist",
     "bump-version:major": "yarn version --major --no-git-tag-version --no-commit-hooks && git commit -m 'chore: bump version' ./package.json --no-verify",
     "bump-version:minor": "yarn version --minor --no-git-tag-version --no-commit-hooks && git commit -m 'chore: bump version' ./package.json --no-verify",
-    "bump-version:patch": "yarn version --patch --no-git-tag-version --no-commit-hooks && git commit -m 'chore: bump version' ./package.json --no-verify"
+    "bump-version:patch": "yarn version --patch --no-git-tag-version --no-commit-hooks && git commit -m 'chore: bump version' ./package.json --no-verify",
+    "typechain": "typechain --target ethers-v5 --out-dir src/utils/abi/typechain 'src/utils/abi/contracts/*.json' && eslint --fix src/utils/abi/typechain && yarn prettier --write \"src/utils/abi/typechain/**/*.ts\""
   },
   "lint-staged": {
     "*.ts": "yarn lint"
@@ -40,11 +38,11 @@
   "sideEffects": false,
   "size-limit": [
     {
-      "path": "dist/sdk-v2.cjs.production.min.js",
+      "path": "dist/sdk.cjs.production.min.js",
       "limit": "10 KB"
     },
     {
-      "path": "dist/sdk-v2.esm.js",
+      "path": "dist/sdk.esm.js",
       "limit": "10 KB"
     }
   ],
@@ -58,6 +56,7 @@
     "@size-limit/preset-small-lib": "^7.0.8",
     "@typechain/ethers-v5": "^11.1.1",
     "@typechain/hardhat": "^6.1.6",
+    "@types/async": "^3.2.24",
     "@types/chai": "^4.3.6",
     "@types/dotenv": "^8.2.0",
     "@types/lodash": "^4.14.199",
@@ -99,17 +98,19 @@
   },
   "dependencies": {
     "@across-protocol/across-token": "^1.0.0",
-    "@across-protocol/constants-v2": "^1.0.20",
-    "@across-protocol/contracts-v2": "2.5.6",
-    "@eth-optimism/sdk": "^3.2.2",
+    "@across-protocol/constants": "^3.1.14",
+    "@across-protocol/contracts": "^3.0.10",
+    "@eth-optimism/sdk": "^3.3.1",
     "@pinata/sdk": "^2.1.0",
     "@types/mocha": "^10.0.1",
     "@uma/sdk": "^0.34.1",
     "arweave": "^1.14.4",
+    "async": "^3.2.5",
     "axios": "^0.27.2",
     "big-number": "^2.0.0",
     "decimal.js": "^10.3.1",
     "ethers": "^5.7.2",
+    "lodash": "^4.17.21",
     "lodash.get": "^4.4.2",
     "superstruct": "^0.15.4",
     "tslib": "^2.6.2"

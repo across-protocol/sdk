@@ -79,15 +79,15 @@ export class EventManager {
     this.blockNumber = blockNumber;
 
     transactionIndex ??= random(1, 32, false);
-    const transactionHash = id(`Across-v2-${event}-${blockNumber}-${transactionIndex}-${random(1, 100_000)}`);
+    const transactionHash = id(`Across-${event}-${blockNumber}-${transactionIndex}-${random(1, 100_000)}`);
 
     const _logIndex = `${blockNumber}-${transactionIndex}`;
     this.logIndexes[_logIndex] ??= 0;
     const logIndex = this.logIndexes[_logIndex]++;
 
     const decodeError = new Error(`${event} decoding error`);
-    const parentHash = id(`Across-v2-blockHash-${random(1, 100_000)}`);
-    const blockHash = id(`Across-v2-blockHash-${parentHash}-${random(1, 100_000)}`);
+    const parentHash = id(`Across-blockHash-${random(1, 100_000)}`);
+    const blockHash = id(`Across-blockHash-${parentHash}-${random(1, 100_000)}`);
 
     // getBlock() may later be used to retrieve (for example) the block timestamp.
     // @todo: If multiple events coincide on the same block number, this callback should return the same Block object.
@@ -115,7 +115,7 @@ export class EventManager {
       transactionHash,
       removed: false,
       address,
-      data: data ?? id(`Across-v2-random-txndata-${random(1, 100_000)}`),
+      data: data ?? id(`Across-random-txndata-${random(1, 100_000)}`),
       topics,
       args,
       blockHash,

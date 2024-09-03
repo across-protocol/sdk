@@ -1,4 +1,4 @@
-import { identifier } from "@across-protocol/contracts-v2/dist/test-utils";
+import { identifier } from "@across-protocol/contracts/dist/test-utils";
 import { refundProposalLiveness } from "../constants";
 import { Contract, getContractFactory, SignerWithAddress, utf8ToHex } from "../utils";
 

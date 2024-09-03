@@ -7,7 +7,6 @@ import {
   toGWei,
   TransactionCostEstimate,
   bnOne,
-  bnZero,
   getCurrentTime,
   spreadEvent,
   isMessageEmpty,
@@ -27,10 +26,10 @@ import {
   randomAddress,
   setupTokensForWallet,
 } from "./utils";
-import { TOKEN_SYMBOLS_MAP } from "@across-protocol/constants-v2";
-import { EthereumQueries } from "../src/relayFeeCalculator";
+import { TOKEN_SYMBOLS_MAP } from "@across-protocol/constants";
 import { EMPTY_MESSAGE, ZERO_ADDRESS } from "../src/constants";
-import { SpokePool } from "@across-protocol/contracts-v2";
+import { SpokePool } from "@across-protocol/contracts";
+import { QueryBase, QueryBase__factory } from "../src/relayFeeCalculator";
 
 dotenv.config({ path: ".env" });
 
@@ -198,29 +197,6 @@ describe("RelayFeeCalculator", () => {
       () =>
         new RelayFeeCalculator({
           queries,
-          capitalCostsConfig: {
-            WBTC: {
-              ...testCapitalCostsConfig["WBTC"],
-              upperBound: toBNWei("0.001").toString(),
-              lowerBound: toBNWei("0.002").toString(),
-            },
-          },
-        }),
-      /lower bound must be <= upper bound/
-    );
-    assert.throws(
-      () =>
-        RelayFeeCalculator.validateCapitalCostsConfig({
-          ...testCapitalCostsConfig["WBTC"],
-          upperBound: toBNWei("0.001").toString(),
-          lowerBound: toBNWei("0.002").toString(),
-        }),
-      /lower bound must be <= upper bound/
-    );
-    assert.throws(
-      () =>
-        new RelayFeeCalculator({
-          queries,
           capitalCostsConfig: { WBTC: { ...testCapitalCostsConfig["WBTC"], decimals: 0 } },
         }),
       /invalid decimals/
@@ -305,7 +281,7 @@ describe("RelayFeeCalculator", () => {
 describe("RelayFeeCalculator: Composable Bridging", function () {
   let spokePool: SpokePool, erc20: Contract, destErc20: Contract, weth: Contract;
   let client: RelayFeeCalculator;
-  let queries: EthereumQueries;
+  let queries: QueryBase;
   let testContract: Contract;
   let owner: SignerWithAddress, relayer: SignerWithAddress, depositor: SignerWithAddress;
   let tokenMap: typeof TOKEN_SYMBOLS_MAP;
@@ -342,7 +318,7 @@ describe("RelayFeeCalculator: Composable Bridging", function () {
     spokePool = spokePool.connect(relayer);
 
     testContract = await hre["upgrades"].deployProxy(await getContractFactory("MockAcrossMessageContract", owner), []);
-    queries = new EthereumQueries(spokePool.provider, tokenMap, spokePool.address, relayer.address);
+    queries = QueryBase__factory.create(1, spokePool.provider, tokenMap, spokePool.address, relayer.address);
     client = new RelayFeeCalculator({ queries, capitalCostsConfig: testCapitalCostsConfig });
 
     testGasFeePct = (message?: string) =>
@@ -359,11 +335,11 @@ describe("RelayFeeCalculator: Composable Bridging", function () {
           originChainId: 10,
           destinationChainId: 1,
           message: message || EMPTY_MESSAGE,
-          relayerFeePct: bnZero,
-          realizedLpFeePct: bnZero,
           exclusiveRelayer: ZERO_ADDRESS,
           fillDeadline: getCurrentTime() + 60000,
           exclusivityDeadline: 0,
+          fromLiteChain: false,
+          toLiteChain: false,
         },
         1,
         false,
@@ -448,7 +424,7 @@ describe("RelayFeeCalculator: Composable Bridging", function () {
         originChainId: 1,
         message: "0xabcdef",
         exclusiveRelayer: ZERO_ADDRESS,
-        fillDeadline: getCurrentTime() + 60,
+        fillDeadline: getCurrentTime() + 600,
         exclusivityDeadline: 0,
       },
       10

@@ -1,13 +1,14 @@
-import * as acxConstants from "@across-protocol/constants-v2";
 import { constants as ethersConstants, BigNumber, utils } from "ethers";
+import { TOKEN_SYMBOLS_MAP } from "@across-protocol/constants";
 
 export {
+  ChainFamily,
   CHAIN_IDs,
   MAINNET_CHAIN_IDs,
   PUBLIC_NETWORKS,
   TESTNET_CHAIN_IDs,
   TOKEN_SYMBOLS_MAP,
-} from "@across-protocol/constants-v2";
+} from "@across-protocol/constants";
 
 export const { AddressZero: ZERO_ADDRESS } = ethersConstants;
 
@@ -40,42 +41,21 @@ export const ARWEAVE_TAG_APP_VERSION = 2;
  */
 export const PROTOCOL_DEFAULT_CHAIN_ID_INDICES = [1, 10, 137, 288, 42161];
 
-// See src/utils/NetworkUtils for helpers.
-export const PRODUCTION_CHAIN_IDS = [
-  acxConstants.MAINNET_CHAIN_IDs.MAINNET,
-  acxConstants.MAINNET_CHAIN_IDs.OPTIMISM,
-  acxConstants.MAINNET_CHAIN_IDs.POLYGON,
-  acxConstants.MAINNET_CHAIN_IDs.ZK_SYNC,
-  acxConstants.MAINNET_CHAIN_IDs.BASE,
-  acxConstants.MAINNET_CHAIN_IDs.ARBITRUM,
-  acxConstants.MAINNET_CHAIN_IDs.LINEA,
-];
-
-export const TESTNET_CHAIN_IDS = [
-  acxConstants.TESTNET_CHAIN_IDs.GOERLI,
-  acxConstants.TESTNET_CHAIN_IDs.ZK_SYNC_GOERLI,
-  acxConstants.TESTNET_CHAIN_IDs.ZK_SYNC_SEPOLIA,
-  acxConstants.TESTNET_CHAIN_IDs.OPTIMISM_GOERLI,
-  acxConstants.TESTNET_CHAIN_IDs.MUMBAI,
-  acxConstants.TESTNET_CHAIN_IDs.POLYGON_AMOY,
-  acxConstants.TESTNET_CHAIN_IDs.BASE_GOERLI,
-  acxConstants.TESTNET_CHAIN_IDs.BASE_SEPOLIA,
-  acxConstants.TESTNET_CHAIN_IDs.ARBITRUM_GOERLI,
-  acxConstants.TESTNET_CHAIN_IDs.ARBITRUM_SEPOLIA,
-  acxConstants.TESTNET_CHAIN_IDs.SEPOLIA,
-  acxConstants.TESTNET_CHAIN_IDs.OPTIMISM_SEPOLIA,
-  acxConstants.TESTNET_CHAIN_IDs.LINEA_GOERLI,
-];
-
 export const DEFAULT_CACHING_TTL = 60 * 60 * 24 * 7 * 2; // 2 Weeks
 export const DEFAULT_CACHING_SAFE_LAG = 60 * 60; // 1 hour
 
 export const UBA_BOUNDS_RANGE_MAX = BigNumber.from(String(Number.MAX_SAFE_INTEGER)).mul(utils.parseEther("1.0"));
 export const UBA_BOUNDS_RANGE_MIN = UBA_BOUNDS_RANGE_MAX.mul(-1);
 
-export const DEFAULT_SIMULATED_RELAYER_ADDRESS = "0x428AB2BA90Eba0a4Be7aF34C9Ac451ab061AC010";
+export const DEFAULT_SIMULATED_RELAYER_ADDRESS = "0x07aE8551Be970cB1cCa11Dd7a11F47Ae82e70E67";
 export const DEFAULT_SIMULATED_RELAYER_ADDRESS_TEST = "0x9A8f92a830A5cB89a3816e3D267CB7791c16b04D"; // Görli, ...
 
 export const DEFAULT_ARWEAVE_STORAGE_ADDRESS = "Z6hjBM8FHu90lYWB8o5jR1dfX92FlV2WBaND9xgp8Lg";
 
 export const EMPTY_MESSAGE = "0x";
+
+export const BRIDGED_USDC_SYMBOLS = [
+  TOKEN_SYMBOLS_MAP["USDC.e"].symbol,
+  TOKEN_SYMBOLS_MAP.USDbC.symbol,
+  TOKEN_SYMBOLS_MAP.USDzC.symbol,
+];

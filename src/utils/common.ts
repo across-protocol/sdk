@@ -242,6 +242,7 @@ export type TransactionCostEstimate = {
  * @param provider A valid ethers provider - will be used to reason the gas price.
  * @param gasMarkup Markup on the estimated gas cost. For example, 0.2 will increase this resulting value 1.2x.
  * @param gasPrice A manually provided gas price - if set, this function will not resolve the current gas price.
+ * @param gasLimit A manually provided gas limit - if set, this function will not estimate the gas limit.
  * @returns Estimated cost in units of gas and the underlying gas token (gasPrice * estimatedGasUnits).
  */
 export async function estimateTotalGasRequiredByUnsignedTransaction(
@@ -249,7 +250,8 @@ export async function estimateTotalGasRequiredByUnsignedTransaction(
   senderAddress: string,
   provider: providers.Provider | L2Provider<providers.Provider>,
   gasMarkup: number,
-  gasPrice?: BigNumberish
+  gasPrice?: BigNumberish,
+  gasLimit?: BigNumberish
 ): Promise<TransactionCostEstimate> {
   assert(
     gasMarkup > -1 && gasMarkup <= 4,
@@ -260,18 +262,31 @@ export async function estimateTotalGasRequiredByUnsignedTransaction(
   const voidSigner = new VoidSigner(senderAddress, provider);
 
   // Estimate the Gas units required to submit this transaction.
-  let nativeGasCost = await voidSigner.estimateGas(unsignedTx);
+  let nativeGasCost = await voidSigner.estimateGas({
+    ...unsignedTx,
+    gasPrice,
+    gasLimit,
+  });
   let tokenGasCost: BigNumber;
 
   // OP stack is a special case; gas cost is computed by the SDK, without having to query price.
   if (chainIsOPStack(chainId)) {
     assert(isOptimismL2Provider(provider), `Unexpected provider for chain ID ${chainId}.`);
-    assert(gasPrice === undefined, `Gas price (${gasPrice}) supplied for Optimism gas estimation (unused).`);
-    const populatedTransaction = await voidSigner.populateTransaction(unsignedTx);
-    tokenGasCost = await provider.estimateTotalGasCost(populatedTransaction);
+    const populatedTransaction = await voidSigner.populateTransaction({
+      ...unsignedTx,
+      gasLimit: nativeGasCost, // prevents additional gas estimation call
+    });
+    // Concurrently estimate the gas cost on L1 and L2 instead of calling
+    // `provider.estimateTotalGasCost` to improve performance.
+    const [l1GasCost, l2GasPrice] = await Promise.all([
+      provider.estimateL1GasCost(populatedTransaction),
+      gasPrice || provider.getGasPrice(),
+    ]);
+    const l2GasCost = nativeGasCost.mul(l2GasPrice);
+    tokenGasCost = l1GasCost.add(l2GasCost);
   } else {
     if (!gasPrice) {
-      const gasPriceEstimate = await getGasPriceEstimate(provider);
+      const gasPriceEstimate = await getGasPriceEstimate(provider, chainId);
       gasPrice = gasPriceEstimate.maxFeePerGas;
     }
     tokenGasCost = nativeGasCost.mul(gasPrice);

@@ -64,6 +64,10 @@ export interface DisabledChainsUpdate extends SortableEvent {
   chainIds: number[];
 }
 
+export interface LiteChainsIdListUpdate<ValueStore = number[]> extends GlobalConfigUpdate<ValueStore> {
+  timestamp: number;
+}
+
 /**
  * A generic type of a dictionary that has string keys and values of type T. This
  * record is enforced to have a default entry within the "default" key.
