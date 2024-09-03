@@ -1,8 +1,8 @@
 import hre from "hardhat";
 import { SpokePoolClient } from "../src/clients";
-import { V3Deposit } from "../src/interfaces";
-import { bnOne, findFillBlock, getNetworkName } from "../src/utils";
-import { EMPTY_MESSAGE, ZERO_ADDRESS } from "../src/constants";
+import { Deposit, FillStatus, RelayData } from "../src/interfaces";
+import { assert, bnOne, getNetworkName, relayFillStatus } from "../src/utils";
+import { CHAIN_IDs, EMPTY_MESSAGE, ZERO_ADDRESS } from "../src/constants";
 import { originChainId, destinationChainId } from "./constants";
 import {
   assertPromiseError,
@@ -17,6 +17,72 @@ import {
   toBNWei,
 } from "./utils";
 
+/**
+ * Find the block at which a fill was completed.
+ * @todo After SpokePool upgrade, this function can be simplified to use the FillStatus enum.
+ * @param spokePool SpokePool contract instance.
+ * @param relayData Deposit information that is used to complete a fill.
+ * @param lowBlockNumber The lower bound of the search. Must be bounded by SpokePool deployment.
+ * @param highBlocknumber Optional upper bound for the search.
+ * @returns The block number at which the relay was completed, or undefined.
+ */
+export async function findFillBlock(
+  spokePool: Contract,
+  relayData: RelayData,
+  lowBlockNumber: number,
+  highBlockNumber?: number
+): Promise<number | undefined> {
+  const { provider } = spokePool;
+  highBlockNumber ??= await provider.getBlockNumber();
+  assert(highBlockNumber > lowBlockNumber, `Block numbers out of range (${lowBlockNumber} > ${highBlockNumber})`);
+
+  // In production the chainId returned from the provider matches 1:1 with the actual chainId. Querying the provider
+  // object saves an RPC query becasue the chainId is cached by StaticJsonRpcProvider instances. In hre, the SpokePool
+  // may be configured with a different chainId than what is returned by the provider.
+  // @todo Sub out actual chain IDs w/ CHAIN_IDs constants
+  const destinationChainId = Object.values(CHAIN_IDs).includes(relayData.originChainId)
+    ? (await provider.getNetwork()).chainId
+    : Number(await spokePool.chainId());
+
+  assert(
+    relayData.originChainId !== destinationChainId,
+    `Origin & destination chain IDs must not be equal (${destinationChainId})`
+  );
+
+  // Make sure the relay war completed within the block range supplied by the caller.
+  const [initialFillStatus, finalFillStatus] = (
+    await Promise.all([
+      relayFillStatus(spokePool, relayData, lowBlockNumber, destinationChainId),
+      relayFillStatus(spokePool, relayData, highBlockNumber, destinationChainId),
+    ])
+  ).map(Number);
+
+  if (finalFillStatus !== FillStatus.Filled) {
+    return undefined; // Wasn't filled within the specified block range.
+  }
+
+  // Was filled earlier than the specified lowBlock. This is an error by the caller.
+  if (initialFillStatus === FillStatus.Filled) {
+    const { depositId, originChainId } = relayData;
+    const [srcChain, dstChain] = [getNetworkName(originChainId), getNetworkName(destinationChainId)];
+    throw new Error(`${srcChain} deposit ${depositId} filled on ${dstChain} before block ${lowBlockNumber}`);
+  }
+
+  // Find the leftmost block where filledAmount equals the deposit amount.
+  do {
+    const midBlockNumber = Math.floor((highBlockNumber + lowBlockNumber) / 2);
+    const fillStatus = await relayFillStatus(spokePool, relayData, midBlockNumber, destinationChainId);
+
+    if (fillStatus === FillStatus.Filled) {
+      highBlockNumber = midBlockNumber;
+    } else {
+      lowBlockNumber = midBlockNumber + 1;
+    }
+  } while (lowBlockNumber < highBlockNumber);
+
+  return lowBlockNumber;
+}
+
 describe("SpokePoolClient: Fills", function () {
   const originChainId2 = originChainId + 1;
 
@@ -24,7 +90,7 @@ describe("SpokePoolClient: Fills", function () {
   let depositor: SignerWithAddress, relayer1: SignerWithAddress, relayer2: SignerWithAddress;
   let spokePoolClient: SpokePoolClient;
   let deploymentBlock: number;
-  let deposit: V3Deposit;
+  let deposit: Deposit;
 
   beforeEach(async function () {
     [, depositor, relayer1, relayer2] = await ethers.getSigners();
@@ -57,12 +123,13 @@ describe("SpokePoolClient: Fills", function () {
       inputAmount: outputAmount.add(bnOne),
       outputToken: destErc20.address,
       outputAmount: toBNWei("1"),
-      relayerFeePct: toBNWei("0.01"),
       quoteTimestamp: spokePoolTime - 60,
       message: EMPTY_MESSAGE,
       fillDeadline: spokePoolTime + 600,
       exclusivityDeadline: 0,
       exclusiveRelayer: ZERO_ADDRESS,
+      fromLiteChain: false,
+      toLiteChain: false,
     };
   });
 
