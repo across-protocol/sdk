@@ -769,7 +769,8 @@ export class SpokePoolClient extends BaseAbstractClient {
       return ZERO_ADDRESS;
     }
 
-    return this.hubPoolClient.getL2TokenForDeposit(deposit);
+    // If there is no l2 token for the deposit also return the zero address.
+    return this.hubPoolClient.getL2TokenForDeposit(deposit) ?? ZERO_ADDRESS;
   }
 
   /**

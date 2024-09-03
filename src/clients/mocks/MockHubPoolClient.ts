@@ -100,7 +100,7 @@ export class MockHubPoolClient extends HubPoolClient {
     this.spokePoolTokens[l1Token][chainId] = l2Token;
   }
 
-  getL1TokenForL2TokenAtBlock(l2Token: string, chainId: number, blockNumber: number): string {
+  getL1TokenForL2TokenAtBlock(l2Token: string, chainId: number, blockNumber: number): string | undefined {
     const l1Token = Object.keys(this.spokePoolTokens).find(
       (l1Token) => this.spokePoolTokens[l1Token]?.[chainId] === l2Token
     );
