@@ -45,15 +45,20 @@ describe("Utils test", () => {
     const provider = new providers.JsonRpcProvider(rpcUrl, 1);
     const spokePool: SpokePool = SpokePool__factory.connect(spokePoolAddress, provider);
 
+    let i = 0;
+    console.log(`xxx ${++i}.`);
     const gasPrice = await provider.getGasPrice();
 
     const deposit = buildDepositForRelayerFeeTest("1", "usdc", 10, 1);
+    console.log(`xxx ${++i}.`);
     const fill = await populateV3Relay(spokePool, deposit, relayerAddress);
+    console.log(`xxx ${++i}.`);
     const { nativeGasCost: refGasCost, tokenGasCost: refGasEstimate } =
       await estimateTotalGasRequiredByUnsignedTransaction(fill, relayerAddress, provider, 0.0, gasPrice);
     expect(toBN(refGasEstimate).eq(toBN(refGasCost).mul(gasPrice))).to.be.true;
 
     for (let gasMarkup = -0.99; gasMarkup <= 4.0; gasMarkup += 0.33) {
+      console.log(`xxx ${++i}.`);
       const { nativeGasCost, tokenGasCost } = await estimateTotalGasRequiredByUnsignedTransaction(
         fill,
         relayerAddress,
