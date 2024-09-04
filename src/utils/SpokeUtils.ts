@@ -244,32 +244,6 @@ export function getRelayHashFromEvent(e: Deposit | Fill | SlowFillRequest): stri
   return getRelayDataHash(e, e.destinationChainId);
 }
 
-/**
- * Find the amount filled for a deposit at a particular block.
- * @param spokePool SpokePool contract instance.
- * @param relayData Deposit information that is used to complete a fill.
- * @param blockTag Block tag (numeric or "latest") to query at.
- * @returns The amount filled for the specified deposit at the requested block (or latest).
- */
-export async function relayFillStatus(
-  spokePool: Contract,
-  relayData: RelayData,
-  blockTag?: number | "latest",
-  destinationChainId?: number
-): Promise<FillStatus> {
-  destinationChainId ??= await spokePool.chainId();
-  const hash = getRelayDataHash(relayData, destinationChainId!);
-  const _fillStatus = await spokePool.fillStatuses(hash, { blockTag });
-  const fillStatus = Number(_fillStatus);
-
-  if (![FillStatus.Unfilled, FillStatus.RequestedSlowFill, FillStatus.Filled].includes(fillStatus)) {
-    const { originChainId, depositId } = relayData;
-    throw new Error(`relayFillStatus: Unexpected fillStatus for ${originChainId} deposit ${depositId} (${fillStatus})`);
-  }
-
-  return fillStatus;
-}
-
 export async function fillStatusArray(
   spokePool: Contract,
   relayData: RelayData[],
@@ -316,11 +290,12 @@ export async function fillStatusArray(
  * @returns The block number at which the relay was completed, or undefined.
  */
 export async function findFillBlock(
-  spokePool: Contract,
+  spokePoolClient: SpokePoolClient,
   relayData: RelayData,
   lowBlockNumber: number,
   highBlockNumber?: number
 ): Promise<number | undefined> {
+  const { spokePool } = spokePoolClient;
   const { provider } = spokePool;
   highBlockNumber ??= await provider.getBlockNumber();
   assert(highBlockNumber > lowBlockNumber, `Block numbers out of range (${lowBlockNumber} > ${highBlockNumber})`);
@@ -340,8 +315,8 @@ export async function findFillBlock(
   // Make sure the relay war completed within the block range supplied by the caller.
   const [initialFillStatus, finalFillStatus] = (
     await Promise.all([
-      relayFillStatus(spokePool, relayData, lowBlockNumber, destinationChainId),
-      relayFillStatus(spokePool, relayData, highBlockNumber, destinationChainId),
+      spokePoolClient.relayFillStatus(relayData, lowBlockNumber, destinationChainId),
+      spokePoolClient.relayFillStatus(relayData, highBlockNumber, destinationChainId),
     ])
   ).map(Number);
 
@@ -359,7 +334,7 @@ export async function findFillBlock(
   // Find the leftmost block where filledAmount equals the deposit amount.
   do {
     const midBlockNumber = Math.floor((highBlockNumber + lowBlockNumber) / 2);
-    const fillStatus = await relayFillStatus(spokePool, relayData, midBlockNumber, destinationChainId);
+    const fillStatus = await spokePoolClient.relayFillStatus(relayData, midBlockNumber, destinationChainId);
 
     if (fillStatus === FillStatus.Filled) {
       highBlockNumber = midBlockNumber;

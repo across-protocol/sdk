@@ -25,6 +25,7 @@ import {
   Deposit,
   DepositWithBlock,
   Fill,
+  FillStatus,
   FillWithBlock,
   FilledV3RelayEvent,
   RealizedLpFee,
@@ -882,5 +883,34 @@ export class SpokePoolClient extends BaseAbstractClient {
     return (
       this.configStoreClient?.isChainLiteChainAtTimestamp(deposit.destinationChainId, deposit.quoteTimestamp) ?? false
     );
+  }
+
+  public async getTimestampForBlock(blockTag: number): Promise<number> {
+    const block = await this.spokePool.provider.getBlock(blockTag);
+    return Number(block.timestamp);
+  }
+
+  /**
+   * Find the amount filled for a deposit at a particular block.
+   * @param relayData Deposit information that is used to complete a fill.
+   * @param blockTag Block tag (numeric or "latest") to query at.
+   * @returns The amount filled for the specified deposit at the requested block (or latest).
+   */
+  public async relayFillStatus(
+    relayData: RelayData,
+    blockTag?: number | "latest",
+    destinationChainId?: number
+  ): Promise<FillStatus> {
+    destinationChainId ??= this.chainId;
+    const hash = getRelayDataHash(relayData, destinationChainId!);
+    const _fillStatus = await this.spokePool.fillStatuses(hash, { blockTag });
+    const fillStatus = Number(_fillStatus);
+    if (![FillStatus.Unfilled, FillStatus.RequestedSlowFill, FillStatus.Filled].includes(fillStatus)) {
+      const { originChainId, depositId } = relayData;
+      throw new Error(
+        `relayFillStatus: Unexpected fillStatus for ${originChainId} deposit ${depositId} (${fillStatus})`
+      );
+    }
+    return fillStatus;
   }
 }

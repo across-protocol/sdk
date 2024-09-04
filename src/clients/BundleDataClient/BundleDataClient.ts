@@ -29,7 +29,6 @@ import {
   getImpliedBundleBlockRanges,
   isSlowFill,
   mapAsync,
-  relayFillStatus,
   bnUint32Max,
 } from "../../utils";
 import { BigNumber } from "ethers";
@@ -1125,8 +1124,7 @@ export class BundleDataClient {
       ) {
         // If we haven't seen a fill matching this deposit, then we need to rule out that it was filled a long time ago
         // by checkings its on-chain fill status.
-        const fillStatus = await relayFillStatus(
-          spokePoolClients[destinationChainId].spokePool,
+        const fillStatus = await spokePoolClients[destinationChainId].relayFillStatus(
           deposit,
           // We can assume that in production
           // the block ranges passed into this function would never contain blocks where the spoke pool client
@@ -1313,8 +1311,8 @@ export class BundleDataClient {
           const startBlockForChain = Math.min(_startBlockForChain, spokePoolClient.latestBlockSearched);
           const endBlockForChain = Math.min(_endBlockForChain, spokePoolClient.latestBlockSearched);
           const [startTime, endTime] = [
-            Number((await spokePoolClient.spokePool.provider.getBlock(startBlockForChain)).timestamp),
-            Number((await spokePoolClient.spokePool.provider.getBlock(endBlockForChain)).timestamp),
+            await spokePoolClient.getTimestampForBlock(startBlockForChain),
+            await spokePoolClient.getTimestampForBlock(endBlockForChain),
           ];
           // Sanity checks:
           assert(endTime >= startTime, "End time should be greater than start time.");
