@@ -5,10 +5,12 @@
  */
 
 import { utils as ethersUtils } from "ethers";
-import { BigNumber, BigNumberish } from "@ethersproject/bignumber";
+import * as ethersBigNumber from "@ethersproject/bignumber";
 
-export { BigNumber, BigNumberish } from "@ethersproject/bignumber";
-export type BN = BigNumber;
+export const { BigNumber } = ethersBigNumber;
+export type BigNumberish = ethersBigNumber.BigNumberish;
+export type BigNumber = ethersBigNumber.BigNumber;
+export type BN = ethersBigNumber.BigNumber;
 
 export const { formatEther, formatUnits, parseEther, parseUnits } = ethersUtils;
 export const bnZero = BigNumber.from("0");

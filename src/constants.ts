@@ -1,6 +1,5 @@
-import { constants as ethersConstants, utils } from "ethers";
+import { constants as ethersConstants } from "ethers";
 import { TOKEN_SYMBOLS_MAP } from "@across-protocol/constants";
-import { BigNumber } from "./utils";
 
 export {
   ChainFamily,
@@ -44,9 +43,6 @@ export const PROTOCOL_DEFAULT_CHAIN_ID_INDICES = [1, 10, 137, 288, 42161];
 
 export const DEFAULT_CACHING_TTL = 60 * 60 * 24 * 7 * 2; // 2 Weeks
 export const DEFAULT_CACHING_SAFE_LAG = 60 * 60; // 1 hour
-
-export const UBA_BOUNDS_RANGE_MAX = BigNumber.from(String(Number.MAX_SAFE_INTEGER)).mul(utils.parseEther("1.0"));
-export const UBA_BOUNDS_RANGE_MIN = UBA_BOUNDS_RANGE_MAX.mul(-1);
 
 export const DEFAULT_SIMULATED_RELAYER_ADDRESS = "0x07aE8551Be970cB1cCa11Dd7a11F47Ae82e70E67";
 export const DEFAULT_SIMULATED_RELAYER_ADDRESS_TEST = "0x9A8f92a830A5cB89a3816e3D267CB7791c16b04D"; // Görli, ...
