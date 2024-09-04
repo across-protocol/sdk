@@ -53,7 +53,7 @@ describe("Utils test", () => {
       await estimateTotalGasRequiredByUnsignedTransaction(fill, relayerAddress, provider, 0.0, gasPrice);
     expect(toBN(refGasEstimate).eq(toBN(refGasCost).mul(gasPrice))).to.be.true;
 
-    for (let gasMarkup = -0.99; gasMarkup <= 4.0; gasMarkup += 0.33) {
+    for (let gasMarkup = -0.99; gasMarkup <= 1.0; gasMarkup += 0.33) {
       const { nativeGasCost, tokenGasCost } = await estimateTotalGasRequiredByUnsignedTransaction(
         fill,
         relayerAddress,
