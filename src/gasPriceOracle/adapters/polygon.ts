@@ -1,6 +1,6 @@
-import { providers, utils as ethersUtils } from "ethers";
+import { providers } from "ethers";
 import { BaseHTTPAdapter, BaseHTTPAdapterArgs } from "../../priceClient/adapters/baseAdapter";
-import { bnZero, isDefined } from "../../utils";
+import { bnZero, isDefined, parseUnits } from "../../utils";
 import { CHAIN_IDs } from "../../constants";
 import { GasPriceEstimate } from "../types";
 import { gasPriceError } from "../util";
@@ -50,12 +50,12 @@ class PolygonGasStation extends BaseHTTPAdapter {
 
     [gasPrice.maxFee, gasPrice.maxPriorityFee].forEach((gasPrice) => {
       if (Number(gasPrice) < 0) {
-        gasPriceError("getFeeData()", this.chainId, ethersUtils.parseUnits(gasPrice.toString(), 9));
+        gasPriceError("getFeeData()", this.chainId, parseUnits(gasPrice.toString(), 9));
       }
     });
 
-    const maxPriorityFeePerGas = ethersUtils.parseUnits(gasPrice.maxPriorityFee.toString(), 9);
-    const maxFeePerGas = ethersUtils.parseUnits(gasPrice.maxFee.toString(), 9);
+    const maxPriorityFeePerGas = parseUnits(gasPrice.maxPriorityFee.toString(), 9);
+    const maxFeePerGas = parseUnits(gasPrice.maxFee.toString(), 9);
 
     return { maxPriorityFeePerGas, maxFeePerGas };
   }

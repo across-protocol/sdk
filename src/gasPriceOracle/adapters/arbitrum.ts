@@ -1,9 +1,9 @@
-import { providers, utils as ethersUtils } from "ethers";
-import { bnOne } from "../../utils";
+import { providers } from "ethers";
+import { bnOne, parseUnits } from "../../utils";
 import { GasPriceEstimate } from "../types";
 import * as ethereum from "./ethereum";
 
-const DEFAULT_PRIORITY_FEE = ethersUtils.parseUnits("1.5", 9);
+const DEFAULT_PRIORITY_FEE = parseUnits("1.5", 9);
 
 // Arbitrum Nitro implements EIP-1559 pricing, but the priority fee is always refunded to the caller. Further,
 // ethers typically hardcodes the priority fee to 1.5 Gwei. So, confirm that the priority fee supplied was 1.5
