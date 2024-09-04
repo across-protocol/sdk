@@ -1,8 +1,8 @@
 import assert from "assert";
-import { BigNumber } from "ethers";
 import { DEFAULT_SIMULATED_RELAYER_ADDRESS, TOKEN_SYMBOLS_MAP } from "../constants";
 import { Deposit } from "../interfaces";
 import {
+  BigNumber,
   BigNumberish,
   MAX_BIG_INT,
   TransactionCostEstimate,

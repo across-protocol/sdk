@@ -1,5 +1,6 @@
-import { constants as ethersConstants, BigNumber, utils } from "ethers";
+import { constants as ethersConstants, utils } from "ethers";
 import { TOKEN_SYMBOLS_MAP } from "@across-protocol/constants";
+import { BigNumber } from "./utils";
 
 export {
   ChainFamily,

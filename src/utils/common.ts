@@ -2,10 +2,10 @@ import { L2Provider } from "@eth-optimism/sdk/dist/interfaces/l2-provider";
 import { isL2Provider as isOptimismL2Provider } from "@eth-optimism/sdk/dist/l2-provider";
 import assert from "assert";
 import Decimal from "decimal.js";
-import { BigNumber, ethers, PopulatedTransaction, providers, VoidSigner } from "ethers";
+import { ethers, PopulatedTransaction, providers, VoidSigner } from "ethers";
 import { getGasPriceEstimate } from "../gasPriceOracle";
 import { TypedMessage } from "../interfaces/TypedData";
-import { BigNumberish, BN, toBN } from "./BigNumberUtils";
+import { BigNumber, BigNumberish, BN, formatUnits, parseUnits, toBN } from "./BigNumberUtils";
 import { ConvertDecimals } from "./FormattingUtils";
 import { chainIsOPStack } from "./NetworkUtils";
 
@@ -20,7 +20,7 @@ export const MAX_BIG_INT = BigNumber.from(Number.MAX_SAFE_INTEGER.toString());
  * @param {number} decimals
  * @returns {BN}
  */
-export const toBNWei = (num: BigNumberish, decimals?: number): BN => ethers.utils.parseUnits(num.toString(), decimals);
+export const toBNWei = (num: BigNumberish, decimals?: number): BN => parseUnits(num.toString(), decimals);
 
 /**
  * fromWei.
@@ -29,8 +29,7 @@ export const toBNWei = (num: BigNumberish, decimals?: number): BN => ethers.util
  * @param {number} decimals
  * @returns {string}
  */
-export const fromWei = (num: BigNumberish, decimals?: number): string =>
-  ethers.utils.formatUnits(num.toString(), decimals);
+export const fromWei = (num: BigNumberish, decimals?: number): string => formatUnits(num.toString(), decimals);
 
 /**
  * min.

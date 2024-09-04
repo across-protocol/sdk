@@ -17,6 +17,7 @@ import {
 } from "../../interfaces";
 import { AcrossConfigStoreClient, SpokePoolClient } from "..";
 import {
+  BigNumber,
   bnZero,
   queryHistoricalDepositForFill,
   assign,
@@ -32,7 +33,6 @@ import {
   relayFillStatus,
   bnUint32Max,
 } from "../../utils";
-import { BigNumber } from "ethers";
 import winston from "winston";
 import {
   _buildPoolRebalanceRoot,

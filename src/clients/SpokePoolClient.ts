@@ -1,7 +1,8 @@
-import { BigNumber, Contract, Event, EventFilter } from "ethers";
+import { Contract, Event, EventFilter } from "ethers";
 import winston from "winston";
 import {
   AnyObject,
+  BigNumber,
   bnZero,
   DefaultLogLevels,
   EventSearchConfig,
