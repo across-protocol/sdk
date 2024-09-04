@@ -175,13 +175,21 @@ export class ArweaveClient {
     });
     const results = await Promise.all(
       entries.map(async (edge) => {
-        const data = await this.get<T>(edge.node.id, validator);
-        return isDefined(data)
-          ? {
-              data,
-              hash: edge.node.id,
-            }
-          : null;
+        try {
+          const data = await this.get<T>(edge.node.id, validator);
+          return isDefined(data)
+            ? {
+                data,
+                hash: edge.node.id,
+              }
+            : null;
+        } catch (e) {
+          this.logger.warn({
+            at: "ArweaveClient:getByTopic",
+            message: `Bad request for Arweave topic ${edge.node.id}: ${e}`,
+          });
+          return null;
+        }
       })
     );
     return results.filter(isDefined);
