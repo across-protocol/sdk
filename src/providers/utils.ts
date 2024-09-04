@@ -102,6 +102,8 @@ const IGNORED_FIELDS = {
     "l1BatchTimestamp", // zkSync
     "size", // Alchemy/Arbitrum (temporary)
     "totalDifficulty", // Quicknode/Alchemy (sometimes)
+    "logsBloom", // zkSync (third-party providers return 0x0..0)
+    "transactions", // Polygon yParity field in transactions[]
   ],
   eth_getLogs: ["blockTimestamp", "transactionLogIndex", "l1BatchNumber", "logType"],
 };
