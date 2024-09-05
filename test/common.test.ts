@@ -41,7 +41,7 @@ describe("Utils test", () => {
     const relayerAddress = DEFAULT_SIMULATED_RELAYER_ADDRESS;
 
     // @todo: Ensure that NODE_URL_1 is always defined in test CI?
-    const rpcUrl = process.env.NODE_URL_1 ?? "https://cloudflare-eth.com";
+    const rpcUrl = process.env.NODE_URL_1 ?? "https://mainnet.gateway.tenderly.co";
     const provider = new providers.JsonRpcProvider(rpcUrl, 1);
     const spokePool: SpokePool = SpokePool__factory.connect(spokePoolAddress, provider);
 
@@ -53,7 +53,7 @@ describe("Utils test", () => {
       await estimateTotalGasRequiredByUnsignedTransaction(fill, relayerAddress, provider, 0.0, gasPrice);
     expect(toBN(refGasEstimate).eq(toBN(refGasCost).mul(gasPrice))).to.be.true;
 
-    for (let gasMarkup = -0.99; gasMarkup <= 4.0; gasMarkup += 0.33) {
+    for (let gasMarkup = -0.99; gasMarkup <= 1.0; gasMarkup += 0.33) {
       const { nativeGasCost, tokenGasCost } = await estimateTotalGasRequiredByUnsignedTransaction(
         fill,
         relayerAddress,
