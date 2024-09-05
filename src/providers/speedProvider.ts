@@ -14,7 +14,8 @@ export class SpeedProvider extends ethers.providers.StaticJsonRpcProvider {
   constructor(
     params: ConstructorParameters<typeof ethers.providers.StaticJsonRpcProvider>[],
     chainId: number,
-    readonly maxConcurrency: number,
+    readonly maxConcurrencySpeed: number,
+    readonly maxConcurrencyRateLimit: number,
     providerCacheNamespace: string,
     pctRpcCallsLogged: number,
     redisClient?: CachingMechanismInterface,
@@ -34,7 +35,7 @@ export class SpeedProvider extends ethers.providers.StaticJsonRpcProvider {
           standardTtlBlockDistance,
           noTtlBlockDistance,
           providerCacheTtl,
-          maxConcurrency,
+          maxConcurrencyRateLimit,
           pctRpcCallsLogged,
           logger,
           ...inputs
@@ -44,7 +45,8 @@ export class SpeedProvider extends ethers.providers.StaticJsonRpcProvider {
 
   override async send(method: string, params: Array<unknown>): Promise<unknown> {
     try {
-      const result = await Promise.any(this.providers.map((provider) => provider.send(method, params)));
+      const providersToUse = this.providers.slice(0, this.maxConcurrencySpeed);
+      const result = await Promise.any(providersToUse.map((provider) => provider.send(method, params)));
       return result;
     } catch (error) {
       // Only thrown if all providers failed to respond
