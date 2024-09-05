@@ -39,7 +39,7 @@ import {
 } from "../interfaces";
 import { SpokePool } from "../typechain";
 import { getNetworkName } from "../utils/NetworkUtils";
-import { getBlockRangeForDepositId, getDepositIdAtBlock } from "../utils/SpokeUtils";
+import { getBlockRangeForDepositId, getDepositIdAtBlock, relayFillStatus } from "../utils/SpokeUtils";
 import { BaseAbstractClient, isUpdateFailureReason, UpdateFailureReason } from "./BaseAbstractClient";
 import { HubPoolClient } from "./HubPoolClient";
 import { AcrossConfigStoreClient } from "./AcrossConfigStoreClient";
@@ -896,21 +896,11 @@ export class SpokePoolClient extends BaseAbstractClient {
    * @param blockTag Block tag (numeric or "latest") to query at.
    * @returns The amount filled for the specified deposit at the requested block (or latest).
    */
-  public async relayFillStatus(
+  public relayFillStatus(
     relayData: RelayData,
     blockTag?: number | "latest",
     destinationChainId?: number
   ): Promise<FillStatus> {
-    destinationChainId ??= this.chainId;
-    const hash = getRelayDataHash(relayData, destinationChainId!);
-    const _fillStatus = await this.spokePool.fillStatuses(hash, { blockTag });
-    const fillStatus = Number(_fillStatus);
-    if (![FillStatus.Unfilled, FillStatus.RequestedSlowFill, FillStatus.Filled].includes(fillStatus)) {
-      const { originChainId, depositId } = relayData;
-      throw new Error(
-        `relayFillStatus: Unexpected fillStatus for ${originChainId} deposit ${depositId} (${fillStatus})`
-      );
-    }
-    return fillStatus;
+    return relayFillStatus(this.spokePool, relayData, blockTag, destinationChainId);
   }
 }

@@ -4,6 +4,7 @@ import {
   bnOne,
   InvalidFill,
   fillStatusArray,
+  relayFillStatus,
   validateFillForDeposit,
   queryHistoricalDepositForFill,
   DepositSearchResult,
@@ -126,10 +127,18 @@ describe("SpokePoolClient: Fill Validation", function () {
       outputAmount
     );
 
-    let filled = await spokePoolClient2.relayFillStatus(deposit);
+    let filled = await relayFillStatus(spokePool_2, deposit);
+    expect(filled).to.equal(FillStatus.Unfilled);
+
+    // Also test spoke client variant
+    filled = await spokePoolClient2.relayFillStatus(deposit);
     expect(filled).to.equal(FillStatus.Unfilled);
 
     await fillV3Relay(spokePool_2, deposit, relayer);
+    filled = await relayFillStatus(spokePool_2, deposit);
+    expect(filled).to.equal(FillStatus.Filled);
+
+    // Also test spoke client variant
     filled = await spokePoolClient2.relayFillStatus(deposit);
     expect(filled).to.equal(FillStatus.Filled);
   });

@@ -110,7 +110,7 @@ describe("SpokePoolClient: Fills", function () {
       await hre.network.provider.send("evm_mine");
     }
 
-    const fillBlock = await findFillBlock(spokePoolClient, deposit, startBlock);
+    const fillBlock = await findFillBlock(spokePool, deposit, startBlock);
     expect(fillBlock).to.equal(targetFillBlock);
   });
 
@@ -122,7 +122,7 @@ describe("SpokePoolClient: Fills", function () {
     }
 
     // No fill has been made, so expect an undefined fillBlock.
-    const fillBlock = await findFillBlock(spokePoolClient, deposit, startBlock);
+    const fillBlock = await findFillBlock(spokePool, deposit, startBlock);
     expect(fillBlock).to.be.undefined;
 
     const { blockNumber: lateBlockNumber } = await fillV3Relay(spokePool, deposit, relayer1);
@@ -131,13 +131,13 @@ describe("SpokePoolClient: Fills", function () {
     // Now search for the fill _after_ it was filled and expect an exception.
     const srcChain = getNetworkName(deposit.originChainId);
     await assertPromiseError(
-      findFillBlock(spokePoolClient, deposit, lateBlockNumber),
+      findFillBlock(spokePool, deposit, lateBlockNumber),
       `${srcChain} deposit ${deposit.depositId} filled on `
     );
 
     // Should assert if highBlock <= lowBlock.
     await assertPromiseError(
-      findFillBlock(spokePoolClient, deposit, await spokePool.provider.getBlockNumber()),
+      findFillBlock(spokePool, deposit, await spokePool.provider.getBlockNumber()),
       "Block numbers out of range"
     );
   });
