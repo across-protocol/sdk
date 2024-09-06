@@ -7,6 +7,7 @@ import {
   relayFillStatus,
   validateFillForDeposit,
   queryHistoricalDepositForFill,
+  DepositSearchResult,
 } from "../src/utils";
 import { CHAIN_ID_TEST_LIST, originChainId, destinationChainId, repaymentChainId } from "./constants";
 import {
@@ -129,8 +130,16 @@ describe("SpokePoolClient: Fill Validation", function () {
     let filled = await relayFillStatus(spokePool_2, deposit);
     expect(filled).to.equal(FillStatus.Unfilled);
 
+    // Also test spoke client variant
+    filled = await spokePoolClient2.relayFillStatus(deposit);
+    expect(filled).to.equal(FillStatus.Unfilled);
+
     await fillV3Relay(spokePool_2, deposit, relayer);
     filled = await relayFillStatus(spokePool_2, deposit);
+    expect(filled).to.equal(FillStatus.Filled);
+
+    // Also test spoke client variant
+    filled = await spokePoolClient2.relayFillStatus(deposit);
     expect(filled).to.equal(FillStatus.Filled);
   });
 
@@ -439,7 +448,9 @@ describe("SpokePoolClient: Fill Validation", function () {
 
     const historicalDeposit = await queryHistoricalDepositForFill(spokePoolClient1, fill);
     assert.equal(historicalDeposit.found, true, "Test is broken"); // Help tsc to narrow the discriminated union.
-    expect(historicalDeposit.deposit.depositId).to.deep.equal(deposit.depositId);
+    expect((historicalDeposit as Extract<DepositSearchResult, { found: true }>).deposit.depositId).to.deep.equal(
+      deposit.depositId
+    );
   });
 
   it("Can fetch younger deposit matching fill", async function () {
@@ -473,7 +484,9 @@ describe("SpokePoolClient: Fill Validation", function () {
 
     const historicalDeposit = await queryHistoricalDepositForFill(spokePoolClient1, fill);
     assert.equal(historicalDeposit.found, true, "Test is broken"); // Help tsc to narrow the discriminated union.
-    expect(historicalDeposit.deposit.depositId).to.deep.equal(deposit.depositId);
+    expect((historicalDeposit as Extract<DepositSearchResult, { found: true }>).deposit.depositId).to.deep.equal(
+      deposit.depositId
+    );
   });
 
   it("Loads fills from memory with deposit ID > spoke pool client's earliest deposit ID queried", async function () {
@@ -547,7 +560,7 @@ describe("SpokePoolClient: Fill Validation", function () {
     const search = await queryHistoricalDepositForFill(spokePoolClient1, fill);
 
     assert.equal(search.found, false, "Test is broken"); // Help tsc to narrow the discriminated union.
-    expect(search.code).to.equal(InvalidFill.DepositIdInvalid);
+    expect((search as Extract<DepositSearchResult, { found: false }>).code).to.equal(InvalidFill.DepositIdInvalid);
     expect(lastSpyLogIncludes(spy, "Queried RPC for deposit")).is.not.true;
   });
 
@@ -572,7 +585,7 @@ describe("SpokePoolClient: Fill Validation", function () {
     const search = await queryHistoricalDepositForFill(spokePoolClient1, fill);
 
     assert.equal(search.found, false, "Test is broken"); // Help tsc to narrow the discriminated union.
-    expect(search.code).to.equal(InvalidFill.DepositIdInvalid);
+    expect((search as Extract<DepositSearchResult, { found: false }>).code).to.equal(InvalidFill.DepositIdInvalid);
     expect(lastSpyLogIncludes(spy, "Queried RPC for deposit")).is.not.true;
   });
 
@@ -594,7 +607,7 @@ describe("SpokePoolClient: Fill Validation", function () {
 
     const search = await queryHistoricalDepositForFill(spokePoolClient1, fill);
     assert.equal(search.found, false, "Test is broken"); // Help tsc to narrow the discriminated union.
-    expect(search.code).to.equal(InvalidFill.FillMismatch);
+    expect((search as Extract<DepositSearchResult, { found: false }>).code).to.equal(InvalidFill.FillMismatch);
   });
 
   it("Returns sped up deposit matched with fill", async function () {

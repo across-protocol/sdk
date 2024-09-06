@@ -25,6 +25,7 @@ import {
   Deposit,
   DepositWithBlock,
   Fill,
+  FillStatus,
   FillWithBlock,
   FilledV3RelayEvent,
   RealizedLpFee,
@@ -38,7 +39,7 @@ import {
 } from "../interfaces";
 import { SpokePool } from "../typechain";
 import { getNetworkName } from "../utils/NetworkUtils";
-import { getBlockRangeForDepositId, getDepositIdAtBlock } from "../utils/SpokeUtils";
+import { getBlockRangeForDepositId, getDepositIdAtBlock, relayFillStatus } from "../utils/SpokeUtils";
 import { BaseAbstractClient, isUpdateFailureReason, UpdateFailureReason } from "./BaseAbstractClient";
 import { HubPoolClient } from "./HubPoolClient";
 import { AcrossConfigStoreClient } from "./AcrossConfigStoreClient";
@@ -882,5 +883,24 @@ export class SpokePoolClient extends BaseAbstractClient {
     return (
       this.configStoreClient?.isChainLiteChainAtTimestamp(deposit.destinationChainId, deposit.quoteTimestamp) ?? false
     );
+  }
+
+  public async getTimestampForBlock(blockTag: number): Promise<number> {
+    const block = await this.spokePool.provider.getBlock(blockTag);
+    return Number(block.timestamp);
+  }
+
+  /**
+   * Find the amount filled for a deposit at a particular block.
+   * @param relayData Deposit information that is used to complete a fill.
+   * @param blockTag Block tag (numeric or "latest") to query at.
+   * @returns The amount filled for the specified deposit at the requested block (or latest).
+   */
+  public relayFillStatus(
+    relayData: RelayData,
+    blockTag?: number | "latest",
+    destinationChainId?: number
+  ): Promise<FillStatus> {
+    return relayFillStatus(this.spokePool, relayData, blockTag, destinationChainId);
   }
 }
