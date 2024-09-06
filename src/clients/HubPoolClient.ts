@@ -31,7 +31,6 @@ import {
   fetchTokenInfo,
   getCachedBlockForTimestamp,
   getCurrentTime,
-  getNetworkName,
   isDefined,
   mapAsync,
   paginatedEventQuery,
@@ -184,24 +183,15 @@ export class HubPoolClient extends BaseAbstractClient {
     l1Token: string,
     destinationChainId: number,
     latestHubBlock = Number.MAX_SAFE_INTEGER
-  ): string {
+  ): string | undefined {
     if (!this.l1TokensToDestinationTokensWithBlock?.[l1Token]?.[destinationChainId]) {
-      const chain = getNetworkName(destinationChainId);
-      const { symbol } = this.l1Tokens.find(({ address }) => address === l1Token) ?? { symbol: l1Token };
-      throw new Error(`Could not find SpokePool mapping for ${symbol} on ${chain} and L1 token ${l1Token}`);
+      return undefined;
     }
     // Find the last mapping published before the target block.
     const l2Token: DestinationTokenWithBlock | undefined = sortEventsDescending(
       this.l1TokensToDestinationTokensWithBlock[l1Token][destinationChainId]
     ).find((mapping: DestinationTokenWithBlock) => mapping.blockNumber <= latestHubBlock);
-    if (!l2Token) {
-      const chain = getNetworkName(destinationChainId);
-      const { symbol } = this.l1Tokens.find(({ address }) => address === l1Token) ?? { symbol: l1Token };
-      throw new Error(
-        `Could not find SpokePool mapping for ${symbol} on ${chain} at or before HubPool block ${latestHubBlock}!`
-      );
-    }
-    return l2Token.l2Token;
+    return l2Token?.l2Token;
   }
 
   // Returns the latest L1 token to use for an L2 token as of the input hub block.
@@ -209,7 +199,7 @@ export class HubPoolClient extends BaseAbstractClient {
     l2Token: string,
     destinationChainId: number,
     latestHubBlock = Number.MAX_SAFE_INTEGER
-  ): string {
+  ): string | undefined {
     const l2Tokens = Object.keys(this.l1TokensToDestinationTokensWithBlock)
       .filter((l1Token) => this.l2TokenEnabledForL1Token(l1Token, destinationChainId))
       .map((l1Token) => {
@@ -219,14 +209,9 @@ export class HubPoolClient extends BaseAbstractClient {
         );
       })
       .flat();
-    if (l2Tokens.length === 0) {
-      const chain = getNetworkName(destinationChainId);
-      throw new Error(
-        `Could not find HubPool mapping for ${l2Token} on ${chain} at or before HubPool block ${latestHubBlock}!`
-      );
-    }
+
     // Find the last mapping published before the target block.
-    return sortEventsDescending(l2Tokens)[0].l1Token;
+    return sortEventsDescending(l2Tokens)[0]?.l1Token;
   }
 
   /**
@@ -236,7 +221,9 @@ export class HubPoolClient extends BaseAbstractClient {
    * @param deposit Deposit event
    * @param returns string L1 token counterpart for Deposit
    */
-  getL1TokenForDeposit(deposit: Pick<DepositWithBlock, "originChainId" | "inputToken" | "quoteBlockNumber">): string {
+  getL1TokenForDeposit(
+    deposit: Pick<DepositWithBlock, "originChainId" | "inputToken" | "quoteBlockNumber">
+  ): string | undefined {
     // L1-->L2 token mappings are set via PoolRebalanceRoutes which occur on mainnet,
     // so we use the latest token mapping. This way if a very old deposit is filled, the relayer can use the
     // latest L2 token mapping to find the L1 token counterpart.
@@ -247,16 +234,18 @@ export class HubPoolClient extends BaseAbstractClient {
    * Returns the L2 token that should be used as a counterpart to a deposit event. For example, the caller
    * might want to know what the refund token will be on l2ChainId for the deposit event.
    * @param l2ChainId Chain where caller wants to get L2 token counterpart for
-   * @param event Deposit event
+   * @param event Deposit eventn
    * @returns string L2 token counterpart on l2ChainId
    */
   getL2TokenForDeposit(
     deposit: Pick<DepositWithBlock, "originChainId" | "destinationChainId" | "inputToken" | "quoteBlockNumber">,
     l2ChainId = deposit.destinationChainId
-  ): string {
+  ): string | undefined {
     const l1Token = this.getL1TokenForDeposit(deposit);
     // Use the latest hub block number to find the L2 token counterpart.
-    return this.getL2TokenForL1TokenAtBlock(l1Token, l2ChainId, deposit.quoteBlockNumber);
+    return isDefined(l1Token)
+      ? this.getL2TokenForL1TokenAtBlock(l1Token, l2ChainId, deposit.quoteBlockNumber)
+      : undefined;
   }
 
   l2TokenEnabledForL1Token(l1Token: string, destinationChainId: number): boolean {
@@ -378,11 +367,23 @@ export class HubPoolClient extends BaseAbstractClient {
     // Map SpokePool token addresses to HubPool token addresses.
     // Note: Should only be accessed via `getHubPoolToken()` or `getHubPoolTokens()`.
     const hubPoolTokens: { [k: string]: string } = {};
-    const getHubPoolToken = (deposit: LpFeeRequest, quoteBlockNumber: number): string => {
+    const getHubPoolToken = (deposit: LpFeeRequest, quoteBlockNumber: number): string | undefined => {
       const tokenKey = `${deposit.originChainId}-${deposit.inputToken}`;
-      return (hubPoolTokens[tokenKey] ??= this.getL1TokenForDeposit({ ...deposit, quoteBlockNumber }));
+      if (isDefined(hubPoolTokens[tokenKey])) {
+        return hubPoolTokens[tokenKey];
+      }
+      const l1Token = this.getL1TokenForDeposit({ ...deposit, quoteBlockNumber });
+      if (!isDefined(l1Token)) {
+        this.logger.warn({
+          at: "HubPoolClient",
+          message: `Unable to determine an appropriate L1 Token for deposit ${deposit}`,
+        });
+      }
+      hubPoolTokens[tokenKey] = l1Token;
+      return l1Token;
     };
-    const getHubPoolTokens = (): string[] => dedupArray(Object.values(hubPoolTokens));
+    const getHubPoolTokens = (): string[] =>
+      dedupArray(Object.values(hubPoolTokens)).filter((token) => isDefined(token));
 
     // Helper to resolve the unqiue hubPoolToken & quoteTimestamp mappings.
     const resolveUniqueQuoteTimestamps = (deposit: LpFeeRequest): void => {
@@ -391,6 +392,9 @@ export class HubPoolClient extends BaseAbstractClient {
       // Resolve the HubPool token address for this origin chainId/token pair, if it isn't already known.
       const quoteBlockNumber = quoteBlocks[quoteTimestamp];
       const hubPoolToken = getHubPoolToken(deposit, quoteBlockNumber);
+      if (!isDefined(hubPoolToken)) {
+        return;
+      }
 
       // Append the quoteTimestamp for this HubPool token, if it isn't already enqueued.
       utilizationTimestamps[hubPoolToken] ??= [];
@@ -431,11 +435,11 @@ export class HubPoolClient extends BaseAbstractClient {
       const { originChainId, paymentChainId, inputAmount, quoteTimestamp } = deposit;
       const quoteBlock = quoteBlocks[quoteTimestamp];
 
-      if (paymentChainId === undefined) {
+      const hubPoolToken = getHubPoolToken(deposit, quoteBlock);
+      if (!isDefined(paymentChainId) || !isDefined(hubPoolToken)) {
         return { quoteBlock, realizedLpFeePct: bnZero };
       }
 
-      const hubPoolToken = getHubPoolToken(deposit, quoteBlock);
       const rateModel = this.configStoreClient.getRateModelForBlockNumber(
         hubPoolToken,
         originChainId,
@@ -495,13 +499,16 @@ export class HubPoolClient extends BaseAbstractClient {
 
   getL1TokenInfoForL2Token(l2Token: string, chainId: number): L1Token | undefined {
     const l1TokenCounterpart = this.getL1TokenForL2TokenAtBlock(l2Token, chainId, this.latestBlockSearched);
-    return this.getTokenInfoForL1Token(l1TokenCounterpart);
+    return isDefined(l1TokenCounterpart) ? this.getTokenInfoForL1Token(l1TokenCounterpart) : undefined;
   }
 
   getTokenInfoForDeposit(deposit: Deposit): L1Token | undefined {
-    return this.getTokenInfoForL1Token(
-      this.getL1TokenForL2TokenAtBlock(deposit.inputToken, deposit.originChainId, this.latestBlockSearched)
+    const l1Token = this.getL1TokenForL2TokenAtBlock(
+      deposit.inputToken,
+      deposit.originChainId,
+      this.latestBlockSearched
     );
+    return isDefined(l1Token) ? this.getTokenInfoForL1Token(l1Token) : undefined;
   }
 
   getTokenInfo(chainId: number | string, tokenAddress: string): L1Token | undefined {
@@ -524,10 +531,14 @@ export class HubPoolClient extends BaseAbstractClient {
         return false;
       }
 
-      // Resolve both HubPool tokens back to a current SpokePool token and verify that they match.
-      const _tokenA = this.getL2TokenForL1TokenAtBlock(l1TokenA, chainIdA, hubPoolBlock);
-      const _tokenB = this.getL2TokenForL1TokenAtBlock(l1TokenB, chainIdB, hubPoolBlock);
-      return tokenA === _tokenA && tokenB === _tokenB;
+      if (isDefined(l1TokenA) && isDefined(l1TokenB)) {
+        // Resolve both HubPool tokens back to a current SpokePool token and verify that they match.
+        const _tokenA = this.getL2TokenForL1TokenAtBlock(l1TokenA, chainIdA, hubPoolBlock);
+        const _tokenB = this.getL2TokenForL1TokenAtBlock(l1TokenB, chainIdB, hubPoolBlock);
+        return tokenA === _tokenA && tokenB === _tokenB;
+      } else {
+        return false;
+      }
     } catch {
       return false; // One or both input tokens were not recognised.
     }

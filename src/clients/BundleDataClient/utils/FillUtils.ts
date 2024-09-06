@@ -1,5 +1,5 @@
 import { Fill } from "../../../interfaces";
-import { getBlockRangeForChain, isSlowFill } from "../../../utils";
+import { getBlockRangeForChain, isSlowFill, assert, isDefined } from "../../../utils";
 import { HubPoolClient } from "../../HubPoolClient";
 
 export function getRefundInformationFromFill(
@@ -32,13 +32,15 @@ export function getRefundInformationFromFill(
     fill.inputToken,
     fill.originChainId,
     endBlockForMainnet
-  );
+  )!;
 
+  assert(isDefined(l1TokenCounterpart), "There must be an l1 token counterpart for a filled deposit");
   const repaymentToken = hubPoolClient.getL2TokenForL1TokenAtBlock(
     l1TokenCounterpart,
     chainToSendRefundTo,
     endBlockForMainnet
-  );
+  )!;
+  assert(isDefined(repaymentToken), "There must be defined repayment token for a filled deposit");
   return {
     chainToSendRefundTo,
     repaymentToken,

@@ -2,7 +2,7 @@ import { MerkleTree } from "@across-protocol/contracts/dist/utils/MerkleTree";
 import { RunningBalances, PoolRebalanceLeaf, Clients, SpokePoolTargetBalance } from "../../../interfaces";
 import { SpokePoolClient } from "../../SpokePoolClient";
 import { BigNumber } from "ethers";
-import { bnZero, compareAddresses } from "../../../utils";
+import { bnZero, compareAddresses, isDefined } from "../../../utils";
 import { HubPoolClient } from "../../HubPoolClient";
 import { V3DepositWithBlock } from "./shims";
 import { AcrossConfigStoreClient } from "../../AcrossConfigStoreClient";
@@ -171,7 +171,9 @@ export function updateRunningBalanceForDeposit(
     deposit.originChainId,
     deposit.quoteBlockNumber
   );
-  updateRunningBalance(runningBalances, deposit.originChainId, l1TokenCounterpart, updateAmount);
+  if (isDefined(l1TokenCounterpart)) {
+    updateRunningBalance(runningBalances, deposit.originChainId, l1TokenCounterpart, updateAmount);
+  }
 }
 
 export function constructPoolRebalanceLeaves(
