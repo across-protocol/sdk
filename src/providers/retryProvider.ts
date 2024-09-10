@@ -125,15 +125,38 @@ export class RetryProvider extends ethers.providers.StaticJsonRpcProvider {
       return values[0][1];
     }
 
-    const throwQuorumError = (fallbackValues?: [ethers.providers.StaticJsonRpcProvider, unknown][]) => {
-      const errorTexts = errors.map(([provider, errorText]) => formatProviderError(provider, errorText));
-      const successfulProviderUrls = values.map(([provider]) => provider.connection.url);
-      const mismatchedProviders = Object.fromEntries(
-        [...values, ...(fallbackValues || [])]
+    const getMismatchedProviders = (values: [ethers.providers.StaticJsonRpcProvider, unknown][]) => {
+      return Object.fromEntries(
+        values
           .filter(([, result]) => !compareRpcResults(method, result, quorumResult))
           .map(([provider, result]) => [provider.connection.url, result])
       );
-      this._logQuorumMismatchOrFailureDetails(method, params, successfulProviderUrls, mismatchedProviders, errors);
+    };
+
+    const logQuorumMismatchOrFailureDetails = (
+      method: string,
+      params: Array<unknown>,
+      quorumProviders: string[],
+      mismatchedProviders: { [k: string]: unknown },
+      errors: [ethers.providers.StaticJsonRpcProvider, string][]
+    ) => {
+      logger.warn({
+        at: "ProviderUtils",
+        message: "Some providers mismatched with the quorum result or failed 🚸",
+        notificationPath: "across-warn",
+        method,
+        params: JSON.stringify(params),
+        quorumProviders,
+        mismatchedProviders: JSON.stringify(mismatchedProviders),
+        erroringProviders: errors.map(([provider, errorText]) => formatProviderError(provider, errorText)),
+      });
+    };
+
+    const throwQuorumError = (fallbackValues?: [ethers.providers.StaticJsonRpcProvider, unknown][]) => {
+      const errorTexts = errors.map(([provider, errorText]) => formatProviderError(provider, errorText));
+      const successfulProviderUrls = values.map(([provider]) => provider.connection.url);
+      const mismatchedProviders = getMismatchedProviders([...values, ...(fallbackValues || [])]);
+      logQuorumMismatchOrFailureDetails(method, params, successfulProviderUrls, mismatchedProviders, errors);
       throw new Error(
         "Not enough providers agreed to meet quorum.\n" +
           "Providers that errored:\n" +
@@ -196,38 +219,15 @@ export class RetryProvider extends ethers.providers.StaticJsonRpcProvider {
     }
 
     // If we've achieved quorum, then we should still log the providers that mismatched with the quorum result.
-    const mismatchedProviders = Object.fromEntries(
-      [...values, ...fallbackValues]
-        .filter(([, result]) => !compareRpcResults(method, result, quorumResult))
-        .map(([provider, result]) => [provider.connection.url, result])
-    );
+    const mismatchedProviders = getMismatchedProviders([...values, ...fallbackValues]);
     const quorumProviders = [...values, ...fallbackValues]
       .filter(([, result]) => compareRpcResults(method, result, quorumResult))
       .map(([provider]) => provider.connection.url);
     if (Object.keys(mismatchedProviders).length > 0 || errors.length > 0) {
-      this._logQuorumMismatchOrFailureDetails(method, params, quorumProviders, mismatchedProviders, errors);
+      logQuorumMismatchOrFailureDetails(method, params, quorumProviders, mismatchedProviders, errors);
     }
 
     return quorumResult;
-  }
-
-  _logQuorumMismatchOrFailureDetails(
-    method: string,
-    params: Array<unknown>,
-    quorumProviders: string[],
-    mismatchedProviders: { [k: string]: unknown },
-    errors: [ethers.providers.StaticJsonRpcProvider, string][]
-  ) {
-    logger.warn({
-      at: "ProviderUtils",
-      message: "Some providers mismatched with the quorum result or failed 🚸",
-      notificationPath: "across-warn",
-      method,
-      params: JSON.stringify(params),
-      quorumProviders,
-      mismatchedProviders: JSON.stringify(mismatchedProviders),
-      erroringProviders: errors.map(([provider, errorText]) => formatProviderError(provider, errorText)),
-    });
   }
 
   _validateResponse(method: string, _: Array<unknown>, response: unknown): boolean {
