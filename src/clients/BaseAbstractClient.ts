@@ -3,6 +3,7 @@ import { CachingMechanismInterface } from "../interfaces";
 import { EventSearchConfig, isDefined, MakeOptional } from "../utils";
 
 export enum UpdateFailureReason {
+  NotReady,
   AlreadyUpdated,
   BadRequest,
   RPCError,
