@@ -4,7 +4,7 @@ export {
   AcrossConfigStoreClient,
   ConfigStoreUpdate,
 } from "./AcrossConfigStoreClient";
-export { UpdateFailureReason } from "./BaseAbstractClient"
+export { UpdateFailureReason } from "./BaseAbstractClient";
 export { HubPoolClient, LpFeeRequest } from "./HubPoolClient";
 export { SpokePoolClient, SpokePoolUpdate } from "./SpokePoolClient";
 export * as BundleDataClient from "./BundleDataClient";
