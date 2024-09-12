@@ -1,6 +1,6 @@
 import hre from "hardhat";
 import { SpokePoolClient } from "../src/clients";
-import { V3Deposit } from "../src/interfaces";
+import { Deposit } from "../src/interfaces";
 import { bnOne, findFillBlock, getNetworkName } from "../src/utils";
 import { EMPTY_MESSAGE, ZERO_ADDRESS } from "../src/constants";
 import { originChainId, destinationChainId } from "./constants";
@@ -24,7 +24,7 @@ describe("SpokePoolClient: Fills", function () {
   let depositor: SignerWithAddress, relayer1: SignerWithAddress, relayer2: SignerWithAddress;
   let spokePoolClient: SpokePoolClient;
   let deploymentBlock: number;
-  let deposit: V3Deposit;
+  let deposit: Deposit;
 
   beforeEach(async function () {
     [, depositor, relayer1, relayer2] = await ethers.getSigners();
@@ -57,12 +57,13 @@ describe("SpokePoolClient: Fills", function () {
       inputAmount: outputAmount.add(bnOne),
       outputToken: destErc20.address,
       outputAmount: toBNWei("1"),
-      relayerFeePct: toBNWei("0.01"),
       quoteTimestamp: spokePoolTime - 60,
       message: EMPTY_MESSAGE,
       fillDeadline: spokePoolTime + 600,
       exclusivityDeadline: 0,
       exclusiveRelayer: ZERO_ADDRESS,
+      fromLiteChain: false,
+      toLiteChain: false,
     };
   });
 

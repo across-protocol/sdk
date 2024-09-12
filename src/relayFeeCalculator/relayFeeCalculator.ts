@@ -342,6 +342,8 @@ export class RelayFeeCalculator {
    *       the relayer.
    * @param relayerAddress The relayer that will be used for the gas cost simulation
    * @param _tokenPrice The token price for normalizing fees
+   * @param gasPrice Optional gas price to use for the simulation
+   * @param gasUnits Optional gas units to use for the simulation
    * @returns A resulting `RelayerFeeDetails` object
    */
   async relayerFeeDetails(
@@ -351,7 +353,7 @@ export class RelayFeeCalculator {
     relayerAddress = DEFAULT_SIMULATED_RELAYER_ADDRESS,
     _tokenPrice?: number,
     gasPrice?: BigNumberish,
-    gasLimit?: BigNumberish
+    gasUnits?: BigNumberish
   ): Promise<RelayerFeeDetails> {
     // If the amount to relay is not provided, then we
     // should use the full deposit amount.
@@ -370,7 +372,7 @@ export class RelayFeeCalculator {
       _tokenPrice,
       undefined,
       gasPrice,
-      gasLimit
+      gasUnits
     );
     const gasFeeTotal = gasFeePercent.mul(amountToRelay).div(fixedPointAdjustment);
     const capitalFeePercent = this.capitalFeePercent(
