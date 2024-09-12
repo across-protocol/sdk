@@ -1,4 +1,4 @@
-import { ethers } from "ethers";
+import { BigNumber } from "../utils";
 import {
   CoingeckoDataReturnType,
   SuggestedFeeReturnType,
@@ -64,7 +64,7 @@ export default abstract class AbstractApiClient {
    * @throws Throws an error if the API call fails.
    */
   public abstract getSuggestedFees(
-    amount: ethers.BigNumber,
+    amount: BigNumber,
     originToken: string,
     toChainid: number,
     fromChainid: number

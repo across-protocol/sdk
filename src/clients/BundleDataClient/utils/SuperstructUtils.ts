@@ -11,7 +11,7 @@ import {
   boolean,
   defaulted,
 } from "superstruct";
-import { BigNumber } from "ethers";
+import { BigNumber } from "../../../utils";
 
 const PositiveIntegerStringSS = pattern(string(), /\d+/);
 const Web3AddressSS = pattern(string(), /^0x[a-fA-F0-9]{40}$/);

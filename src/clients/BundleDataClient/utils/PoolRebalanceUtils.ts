@@ -1,8 +1,7 @@
 import { MerkleTree } from "@across-protocol/contracts/dist/utils/MerkleTree";
 import { RunningBalances, PoolRebalanceLeaf, Clients, SpokePoolTargetBalance } from "../../../interfaces";
 import { SpokePoolClient } from "../../SpokePoolClient";
-import { BigNumber } from "ethers";
-import { bnZero, compareAddresses } from "../../../utils";
+import { BigNumber, bnZero, compareAddresses } from "../../../utils";
 import { HubPoolClient } from "../../HubPoolClient";
 import { V3DepositWithBlock } from "./shims";
 import { AcrossConfigStoreClient } from "../../AcrossConfigStoreClient";

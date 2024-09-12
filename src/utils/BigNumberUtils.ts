@@ -4,14 +4,20 @@
  * @author Across Protocol
  */
 
-import { ethers, BigNumber } from "ethers";
+import { utils as ethersUtils } from "ethers";
 
-export type BigNumberish = ethers.BigNumberish;
-export type BN = ethers.BigNumber;
+// eslint-disable-next-line no-restricted-imports
+import { BigNumber, BigNumberish } from "@ethersproject/bignumber";
 
-export const { Zero: bnZero, One: bnOne, MaxUint256: bnUint256Max } = ethers.constants;
+// eslint-disable-next-line no-restricted-imports
+export * from "@ethersproject/bignumber";
+export type BN = BigNumber;
 
+export const { formatEther, formatUnits, parseEther, parseUnits } = ethersUtils;
+export const bnZero = BigNumber.from("0");
+export const bnOne = BigNumber.from("1");
 export const bnUint32Max = BigNumber.from("0xffffffff");
+export const bnUint256Max = BigNumber.from("0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
 
 /**
  * Converts a stringified number into a BigNumber with 18 decimal places.
@@ -19,7 +25,7 @@ export const bnUint32Max = BigNumber.from("0xffffffff");
  * @returns The parsed BigNumber.
  */
 export function toWei(num: BigNumberish): BN {
-  return ethers.utils.parseEther(num.toString());
+  return ethersUtils.parseEther(num.toString());
 }
 
 /**
@@ -28,7 +34,7 @@ export function toWei(num: BigNumberish): BN {
  * @returns The parsed BigNumber.
  */
 export function toGWei(num: BigNumberish): BN {
-  return ethers.utils.parseUnits(num.toString(), 9);
+  return ethersUtils.parseUnits(num.toString(), 9);
 }
 
 /**

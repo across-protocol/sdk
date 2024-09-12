@@ -1,5 +1,6 @@
-import { BigNumber, Contract, providers, Signer, utils as ethersUtils } from "ethers";
+import { Contract, providers, Signer, utils as ethersUtils } from "ethers";
 import { CHAIN_IDs } from "@across-protocol/constants";
+import { BigNumber } from "./BigNumberUtils";
 import { Multicall3, Multicall3__factory } from "./abi/typechain";
 
 type Provider = providers.Provider;

@@ -1,10 +1,10 @@
 import assert from "assert";
-import { BigNumber, BytesLike, Contract, PopulatedTransaction, providers, utils as ethersUtils } from "ethers";
+import { BytesLike, Contract, PopulatedTransaction, providers, utils as ethersUtils } from "ethers";
 import { CHAIN_IDs, ZERO_ADDRESS } from "../constants";
 import { Deposit, Fill, FillStatus, RelayData, SlowFillRequest } from "../interfaces";
 import { SpokePoolClient } from "../clients";
 import { chunk } from "./ArrayUtils";
-import { toBN } from "./BigNumberUtils";
+import { BigNumber, toBN } from "./BigNumberUtils";
 import { isDefined } from "./TypeGuards";
 import { getNetworkName } from "./NetworkUtils";
 

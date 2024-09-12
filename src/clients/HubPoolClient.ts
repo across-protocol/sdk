@@ -1,5 +1,5 @@
 import assert from "assert";
-import { BigNumber, Contract, Event, EventFilter } from "ethers";
+import { Contract, Event, EventFilter } from "ethers";
 import _ from "lodash";
 import winston from "winston";
 import { DEFAULT_CACHING_SAFE_LAG, DEFAULT_CACHING_TTL } from "../constants";
@@ -22,6 +22,7 @@ import {
 } from "../interfaces";
 import * as lpFeeCalculator from "../lpFeeCalculator";
 import {
+  BigNumber,
   BlockFinder,
   bnZero,
   dedupArray,

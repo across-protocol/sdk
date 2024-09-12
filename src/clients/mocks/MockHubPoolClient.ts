@@ -1,6 +1,6 @@
 import winston from "winston";
-import { BigNumber, Contract, Event } from "ethers";
-import { randomAddress, assign, bnZero } from "../../utils";
+import { Contract, Event } from "ethers";
+import { BigNumber, randomAddress, assign, bnZero } from "../../utils";
 import { L1Token, PendingRootBundle, RealizedLpFee } from "../../interfaces";
 import { AcrossConfigStoreClient as ConfigStoreClient } from "../AcrossConfigStoreClient";
 import { HubPoolClient, HubPoolUpdate, LpFeeRequest } from "../HubPoolClient";

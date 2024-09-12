@@ -1,6 +1,6 @@
 import axios from "axios";
-import { ethers } from "ethers";
 import AbstractApiClient from "./abstractClient";
+import { BigNumber, parseEther } from "../utils";
 import {
   CoingeckoDataReturnType,
   SuggestedFeeReturnType,
@@ -27,14 +27,13 @@ export default class ProductionApiClient extends AbstractApiClient {
       },
     });
     const result = response.data;
-    const price =
-      baseCurrency === "usd" ? ethers.utils.parseEther(String(result.price)) : ethers.BigNumber.from(result.price);
+    const price = baseCurrency === "usd" ? parseEther(String(result.price)) : BigNumber.from(result.price);
     return {
       price,
     };
   }
   public async getSuggestedFees(
-    amount: ethers.BigNumber,
+    amount: BigNumber,
     originToken: string,
     toChainid: number,
     fromChainid: number
@@ -49,19 +48,19 @@ export default class ProductionApiClient extends AbstractApiClient {
       },
     });
     const result = response.data;
-    const relayFeePct = ethers.BigNumber.from(result["relayFeePct"]);
-    const relayFeeTotal = ethers.BigNumber.from(result["relayFeeTotal"]);
+    const relayFeePct = BigNumber.from(result["relayFeePct"]);
+    const relayFeeTotal = BigNumber.from(result["relayFeeTotal"]);
 
-    const capitalFeePct = ethers.BigNumber.from(result["capitalFeePct"]);
-    const capitalFeeTotal = ethers.BigNumber.from(result["capitalFeeTotal"]);
+    const capitalFeePct = BigNumber.from(result["capitalFeePct"]);
+    const capitalFeeTotal = BigNumber.from(result["capitalFeeTotal"]);
 
-    const relayGasFeePct = ethers.BigNumber.from(result["relayGasFeePct"]);
-    const relayGasFeeTotal = ethers.BigNumber.from(result["relayGasFeeTotal"]);
+    const relayGasFeePct = BigNumber.from(result["relayGasFeePct"]);
+    const relayGasFeeTotal = BigNumber.from(result["relayGasFeeTotal"]);
 
     const isAmountTooLow = result["isAmountTooLow"];
 
-    const quoteTimestamp = ethers.BigNumber.from(result["timestamp"]);
-    const quoteBlock = ethers.BigNumber.from(result["quoteBlock"]);
+    const quoteTimestamp = BigNumber.from(result["timestamp"]);
+    const quoteBlock = BigNumber.from(result["quoteBlock"]);
 
     return {
       relayerFee: {

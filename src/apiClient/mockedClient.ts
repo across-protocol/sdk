@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import { ethers } from "ethers";
 import { deepCopy } from "ethers/lib/utils";
+import { BigNumber, bnOne } from "../utils";
 import AbstractApiClient from "./abstractClient";
 import {
   AcrossBridgeStatisticsType,
@@ -39,7 +40,7 @@ export default class MockedApiClient extends AbstractApiClient {
     );
   }
   public getSuggestedFees(
-    _amount: ethers.BigNumber,
+    _amount: BigNumber,
     _originToken: string,
     _toChainid: number,
     _fromChainid: number
@@ -47,20 +48,20 @@ export default class MockedApiClient extends AbstractApiClient {
     return Promise.resolve(
       this.mockedData.SuggestedFees ?? {
         relayerFee: {
-          pct: ethers.constants.One,
-          total: ethers.constants.One,
+          pct: bnOne,
+          total: bnOne,
         },
         relayerCapitalFee: {
-          pct: ethers.constants.One,
-          total: ethers.constants.One,
+          pct: bnOne,
+          total: bnOne,
         },
         relayerGasFee: {
-          pct: ethers.constants.One,
-          total: ethers.constants.One,
+          pct: bnOne,
+          total: bnOne,
         },
         isAmountTooLow: false,
-        quoteBlock: ethers.constants.One,
-        quoteTimestamp: ethers.constants.One,
+        quoteBlock: bnOne,
+        quoteTimestamp: bnOne,
       }
     );
   }
@@ -71,10 +72,10 @@ export default class MockedApiClient extends AbstractApiClient {
   ): Promise<BridgeLimitsReturnType> {
     return Promise.resolve(
       this.mockedData.BridgeLimits ?? {
-        minDeposit: ethers.BigNumber.from("317845960607070"),
-        maxDeposit: ethers.BigNumber.from("1625976243310274613043"),
-        maxDepositInstant: ethers.BigNumber.from("148518401181482545509"),
-        maxDepositShortDelay: ethers.BigNumber.from("1625976243310274613043"),
+        minDeposit: BigNumber.from("317845960607070"),
+        maxDeposit: BigNumber.from("1625976243310274613043"),
+        maxDepositInstant: BigNumber.from("148518401181482545509"),
+        maxDepositShortDelay: BigNumber.from("1625976243310274613043"),
       }
     );
   }

@@ -1,5 +1,5 @@
 import * as utils from "@across-protocol/contracts/dist/test-utils";
-import { BigNumber, BigNumberish, Contract, providers } from "ethers";
+import { Contract, providers } from "ethers";
 import {
   AcrossConfigStoreClient as ConfigStoreClient,
   GLOBAL_CONFIG_STORE_KEYS,
@@ -15,6 +15,8 @@ import {
   V2Fill,
 } from "../../src/interfaces";
 import {
+  BigNumber,
+  BigNumberish,
   bnUint32Max,
   bnOne,
   getCurrentTime,

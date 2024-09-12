@@ -1,4 +1,4 @@
-import { BigNumber } from "ethers";
+import { BigNumber } from "./BigNumberUtils";
 import { isDefined } from "./TypeGuards";
 
 /**

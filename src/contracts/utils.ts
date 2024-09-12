@@ -1,6 +1,6 @@
 import assert from "assert";
-import { BigNumber, BigNumberish, Event } from "ethers";
-import { isDefined } from "../utils";
+import { Event } from "ethers";
+import { BigNumber, BigNumberish, isDefined } from "../utils";
 
 /**
  * @dev Originally imported from @uma/sdk.

@@ -1,4 +1,5 @@
-import { BigNumber, providers, utils } from "ethers";
+import { providers, utils } from "ethers";
+import { BigNumber } from "./BigNumberUtils";
 
 /**
  * Checks if a contract is deployed at the given address

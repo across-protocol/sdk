@@ -1,5 +1,5 @@
 import * as poolClient from "../src/pool/poolClient";
-import { BigNumber } from "ethers";
+import { BigNumber } from "../src/utils";
 import { expect } from "./utils";
 
 describe("poolClient", function () {

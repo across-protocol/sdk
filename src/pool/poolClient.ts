@@ -1,7 +1,16 @@
 import assert from "assert";
 import * as uma from "@uma/sdk";
-import { toBNWei, fixedPointAdjustment, calcPeriodicCompoundInterest, calcApr, BigNumberish, fromWei } from "../utils";
-import { ethers, Signer, BigNumber } from "ethers";
+import {
+  bnZero,
+  toBNWei,
+  fixedPointAdjustment,
+  calcPeriodicCompoundInterest,
+  calcApr,
+  BigNumber,
+  BigNumberish,
+  fromWei,
+} from "../utils";
+import { ethers, Signer } from "ethers";
 import type { Overrides } from "@ethersproject/contracts";
 import { TransactionRequest, TransactionReceipt, Log } from "@ethersproject/abstract-provider";
 import { Provider, Block } from "@ethersproject/providers";
@@ -256,10 +265,10 @@ class UserState {
     if (endBlock <= this.startBlock) return [];
     const { userAddress } = this;
     const events: TypedEvent<
-      [string, string, uma.oracle.types.ethers.BigNumber] & {
+      [string, string, BigNumber] & {
         from: string;
         to: string;
-        value: uma.oracle.types.ethers.BigNumber;
+        value: BigNumber;
       }
     >[] = (
       await Promise.all([
@@ -352,9 +361,9 @@ function joinUserState(
   poolState: Pool,
   tokenEventState: hubPool.TokenEventState,
   userState: Awaited<ReturnType<UserState["read"]>>,
-  transferValue: BigNumber = ethers.constants.Zero,
-  cumulativeStakeBalance: BigNumber = ethers.constants.Zero,
-  cumulativeStakeClaimBalance: BigNumber = ethers.constants.Zero
+  transferValue = bnZero,
+  cumulativeStakeBalance = bnZero,
+  cumulativeStakeClaimBalance = bnZero
 ): User {
   const positionValue = BigNumber.from(poolState.exchangeRateCurrent)
     .mul(userState.balanceOf.add(cumulativeStakeBalance))
@@ -534,7 +543,7 @@ export class Client {
           )
         )
       )
-    ).reduce((prev, acc) => acc.add(prev), ethers.constants.Zero);
+    ).reduce((prev, acc) => acc.add(prev), bnZero);
 
     // Get the cumulative balance of the user from the accelerating distributor contract.
     const { cumulativeBalance } = await acceleratingDistributorContract.getUserStake(lpToken, userState.address);
@@ -578,7 +587,7 @@ export class Client {
       }
       // we make sure to filter out any transfers where to/from is the same user
       return result;
-    }, ethers.constants.Zero);
+    }, bnZero);
   }
   private getOrCreateTransactionManager(signer: Signer, address: string) {
     if (this.transactionManagers[address]) return this.transactionManagers[address];
@@ -744,7 +753,7 @@ export class Client {
     const { address: userAddress } = userState;
     const transferValue = this.config.hasArchive
       ? await this.calculateLpTransferValue(l1TokenAddress, userState)
-      : ethers.constants.Zero;
+      : bnZero;
     const stakeData = await this.resolveStakingData(lpToken, l1TokenAddress, userState);
     const tokenEventState = poolEventState[l1TokenAddress];
     const newUserState = this.setUserState(

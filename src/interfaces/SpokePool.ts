@@ -1,7 +1,7 @@
-import { BigNumber } from "ethers";
 import { SortableEvent } from "./Common";
 import { FilledRelayEvent, FilledV3RelayEvent, FundsDepositedEvent, V3FundsDepositedEvent } from "../typechain";
 import { SpokePoolClient } from "../clients";
+import { BigNumber } from "../utils";
 import { RelayerRefundLeaf } from "./HubPool";
 
 export type { FilledRelayEvent, FilledV3RelayEvent, FundsDepositedEvent, V3FundsDepositedEvent };

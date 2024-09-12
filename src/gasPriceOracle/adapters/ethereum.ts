@@ -1,5 +1,5 @@
-import { BigNumber, providers } from "ethers";
-import { bnZero } from "../../utils";
+import { providers } from "ethers";
+import { BigNumber, bnZero } from "../../utils";
 import { GasPriceEstimate } from "../types";
 import { gasPriceError } from "../util";
 

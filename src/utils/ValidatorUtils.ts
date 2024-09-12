@@ -1,10 +1,11 @@
-import { BigNumber, ethers } from "ethers";
+import { utils as ethersUtils } from "ethers";
 import { object, min as Min, define, optional, string, integer, boolean } from "superstruct";
 import { DepositWithBlock } from "../interfaces";
+import { BigNumber } from "../utils";
 
-const AddressValidator = define<string>("AddressValidator", (v) => ethers.utils.isAddress(String(v)));
-const HexValidator = define<string>("HexValidator", (v) => ethers.utils.isHexString(String(v)));
-const BigNumberValidator = define<BigNumber>("BigNumberValidator", (v) => ethers.BigNumber.isBigNumber(v));
+const AddressValidator = define<string>("AddressValidator", (v) => ethersUtils.isAddress(String(v)));
+const HexValidator = define<string>("HexValidator", (v) => ethersUtils.isHexString(String(v)));
+const BigNumberValidator = define<BigNumber>("BigNumberValidator", (v) => BigNumber.isBigNumber(v));
 
 const V3DepositSchema = object({
   depositId: Min(integer(), 0),

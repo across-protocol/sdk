@@ -26,6 +26,17 @@ module.exports = {
     semi: ["error", "always"],
     "spaced-comment": ["error", "always", { exceptions: ["-", "+"] }],
     "no-console": 0,
+    "no-restricted-imports": [
+      "error",
+      {
+        "patterns": [
+          { group: ["@ethersproject/bignumber"], message: "Use 'src/utils/BigNumberUtils' instead" },
+        ],
+        "paths": [
+          { name: "ethers", importNames: ["BigNumber"], message: "Use 'src/utils/BigNumberUtils' instead" }
+        ]
+      }
+    ],
     "@typescript-eslint/no-unused-vars": ["error", { ignoreRestSiblings: true }],
     "chai-expect/missing-assertion": 2,
     "no-duplicate-imports": "error",

@@ -1,5 +1,5 @@
 import assert from "assert";
-import { BigNumber, Contract, Event, providers } from "ethers";
+import { Contract, Event, providers } from "ethers";
 import { random } from "lodash";
 import winston from "winston";
 import { ZERO_ADDRESS } from "../../constants";
@@ -15,7 +15,7 @@ import {
   SlowFillLeaf,
   SpeedUp,
 } from "../../interfaces";
-import { bnZero, toBN, toBNWei, forEachAsync, getCurrentTime, randomAddress } from "../../utils";
+import { BigNumber, bnZero, toBN, toBNWei, forEachAsync, getCurrentTime, randomAddress } from "../../utils";
 import { SpokePoolClient, SpokePoolUpdate } from "../SpokePoolClient";
 import { HubPoolClient } from "../HubPoolClient";
 import { EventManager, EventOverrides, getEventManager } from "./MockEvents";
