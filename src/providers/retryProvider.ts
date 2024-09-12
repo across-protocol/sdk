@@ -53,6 +53,8 @@ export class RetryProvider extends ethers.providers.StaticJsonRpcProvider {
       });
     });
 
+    this.pollingInterval = 1000;
+
     if (this.nodeQuorumThreshold < 1 || !Number.isInteger(this.nodeQuorumThreshold)) {
       throw new Error(
         `nodeQuorum,Threshold cannot be < 1 and must be an integer. Currently set to ${this.nodeQuorumThreshold}`
