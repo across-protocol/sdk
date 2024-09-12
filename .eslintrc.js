@@ -30,7 +30,7 @@ module.exports = {
       "error",
       {
         "patterns": [
-          { group: ["@ethersproject/bignumber"] },
+          { group: ["@ethersproject/bignumber"], message: "Use 'src/utils/BigNumberUtils' instead" },
         ],
         "paths": [
           { name: "ethers", importNames: ["BigNumber"], message: "Use 'src/utils/BigNumberUtils' instead" }

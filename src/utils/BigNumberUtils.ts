@@ -5,8 +5,11 @@
  */
 
 import { utils as ethersUtils } from "ethers";
+
+// eslint-disable-next-line no-restricted-imports
 import { BigNumber, BigNumberish } from "@ethersproject/bignumber";
 
+// eslint-disable-next-line no-restricted-imports
 export * from "@ethersproject/bignumber";
 export type BN = BigNumber;
 
