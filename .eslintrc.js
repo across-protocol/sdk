@@ -29,8 +29,11 @@ module.exports = {
     "no-restricted-imports": [
       "error",
       {
+        "patterns": [
+          { group: ["@ethersproject/bignumber"] },
+        ],
         "paths": [
-          { name: "ethers", importNames: ["BigNumber"], message: "Use 'src/utils/BigNumberUtils' instead" },
+          { name: "ethers", importNames: ["BigNumber"], message: "Use 'src/utils/BigNumberUtils' instead" }
         ]
       }
     ],
