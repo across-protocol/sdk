@@ -27,8 +27,6 @@ type GasStationArgs = BaseHTTPAdapterArgs & {
 
 const { POLYGON } = CHAIN_IDs;
 
-// @dev toBNWei() is not imported from ../utils because of a circular dependency loop.
-//      The fix is probably to relocate the function estimateTotalGasRequiredByUnsignedTransaction().
 class PolygonGasStation extends BaseHTTPAdapter {
   readonly chainId: number;
 
@@ -42,7 +40,7 @@ class PolygonGasStation extends BaseHTTPAdapter {
   async getFeeData(strategy: "safeLow" | "standard" | "fast" = "fast"): Promise<GasPriceEstimate> {
     const gas = await this.query("v2", {});
 
-    const gasPrice: Polygon1559GasPrice = (gas as GasStationV2Response)?.[strategy];
+    const gasPrice = (gas as GasStationV2Response)?.[strategy];
     if (!this.isPolygon1559GasPrice(gasPrice)) {
       // @todo: generalise gasPriceError() to accept a reason/cause?
       gasPriceError("getFeeData()", this.chainId, bnZero);
@@ -70,7 +68,7 @@ class PolygonGasStation extends BaseHTTPAdapter {
 }
 
 export function gasStation(provider: providers.Provider, chainId: number): Promise<GasPriceEstimate> {
-  const gasStation = new PolygonGasStation({ chainId: chainId });
+  const gasStation = new PolygonGasStation({ chainId: chainId, timeout: 2000, retries: 0 });
   try {
     return gasStation.getFeeData();
   } catch (err) {
