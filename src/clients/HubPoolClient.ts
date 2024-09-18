@@ -291,9 +291,31 @@ export class HubPoolClient extends BaseAbstractClient {
     return getL1TokenInfo(tokenAddress, chain);
   }
 
-  getBlockNumber(timestamp: number): Promise<number | undefined> {
+  /**
+   * Resolve a given timestamp to a block number on the HubPool chain.
+   * @param timestamp A single timestamp to be resolved to a block number on the HubPool chain.
+   * @returns The block number corresponding to the supplied timestamp.
+   */
+  getBlockNumber(timestamp: number): Promise<number> {
     const hints = { lowBlock: this.deploymentBlock };
     return getCachedBlockForTimestamp(this.chainId, timestamp, this.blockFinder, this.cachingMechanism, hints);
+  }
+
+  /**
+   * For an array of timestamps, resolve each unique timestamp to a block number on the HubPool chain.
+   * @dev Inputs are filtered for uniqueness and sorted to improve BlockFinder efficiency.
+   * @dev Querying block numbers sequentially also improves BlockFinder efficiency.
+   * @param timestamps Array of timestamps to be resolved to a block number on the HubPool chain.
+   * @returns A mapping of quoteTimestamp -> HubPool block number.
+   */
+  async getBlockNumbers(timestamps: number[]): Promise<{ [quoteTimestamp: number]: number }> {
+    const sortedTimestamps = dedupArray(timestamps).sort((x, y) => x - y);
+    const blockNumbers: { [quoteTimestamp: number]: number } = {};
+    for (const timestamp of sortedTimestamps) {
+      blockNumbers[timestamp] = await this.getBlockNumber(timestamp);
+    }
+
+    return blockNumbers;
   }
 
   async getCurrentPoolUtilization(l1Token: string): Promise<BigNumber> {
