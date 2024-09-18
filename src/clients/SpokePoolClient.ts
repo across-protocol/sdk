@@ -29,7 +29,6 @@ import {
   FillStatus,
   FillWithBlock,
   FilledV3RelayEvent,
-  RealizedLpFee,
   RelayData,
   RelayerRefundExecutionWithBlock,
   RootBundleRelayWithBlock,
@@ -559,12 +558,14 @@ export class SpokePoolClient extends BaseAbstractClient {
         });
       }
 
-      const dataForQuoteTime = await this.batchComputeRealizedLpFeePct(depositEvents);
-      for (const [index, event] of Array.from(depositEvents.entries())) {
+      // For each deposit, resolve its quoteTimestamp to a block number on the HubPool.
+      // Don't bother filtering for uniqueness; the HubPoolClient handles this efficienctly.
+      const quoteBlockNumbers = await this.getBlockNumbers(depositEvents.map(({ args }) => args.quoteTimestamp));
+      for (const event of depositEvents) {
         const rawDeposit = spreadEventWithBlockNumber(event);
 
         // Derive and append the common properties that are not part of the onchain event.
-        const { quoteBlock: quoteBlockNumber } = dataForQuoteTime[index];
+        const quoteBlockNumber = quoteBlockNumbers[event.args.quoteTimestamp];
         const deposit = { ...(rawDeposit as DepositWithBlock), originChainId: this.chainId, quoteBlockNumber };
         deposit.fromLiteChain = this.isOriginLiteChain(deposit);
         deposit.toLiteChain = this.isDestinationLiteChain(deposit);
@@ -719,46 +720,24 @@ export class SpokePoolClient extends BaseAbstractClient {
   }
 
   /**
-   * Computes the realized LP fee percentage for a given deposit.
-   * @param depositEvent The deposit event to compute the realized LP fee percentage for.
-   * @returns The realized LP fee percentage.
+   * Resolve a given timestamp to a block number on the HubPool chain via the HubPoolClient.
+   * @param timestamp A single timestamp to be resolved via the HubPoolClient.
+   * @returns The block number on the HubPool chain corresponding to the supplied timestamp.
    */
-  protected async computeRealizedLpFeePct(depositEvent: V3FundsDepositedEvent): Promise<RealizedLpFee> {
-    const [lpFee] = await this.batchComputeRealizedLpFeePct([depositEvent]);
-    return lpFee;
+  protected getBlockNumber(timestamp: number): Promise<number> {
+    return this.hubPoolClient?.getBlockNumber(timestamp) ?? Promise.resolve(MAX_BIG_INT.toNumber());
   }
 
   /**
-   * Computes the realized LP fee percentage for a batch of deposits.
-   * @dev Computing in batch opens up for efficiencies, e.g. in quoteTimestamp -> blockNumber resolution.
-   * @param depositEvents The array of deposit events to compute the realized LP fee percentage for.
-   * @returns The array of realized LP fee percentages and associated HubPool block numbers.
+   * For an array of timestamps, resolve each timestamp to a block number on the HubPool chain via the HubPoolClient.
+   * @param timestamps Array of timestamps to be resolved to a block number via the HubPoolClient.
+   * @returns A mapping of quoteTimestamp -> HubPool block number.
    */
-  protected async batchComputeRealizedLpFeePct(depositEvents: V3FundsDepositedEvent[]): Promise<RealizedLpFee[]> {
-    // If no hub pool client, we're using this for testing. Set quote block very high so that if it's ever
-    // used to look up a configuration for a block, it will always match with the latest configuration.
-    if (this.hubPoolClient === null) {
-      const realizedLpFeePct = bnZero;
-      const quoteBlock = MAX_BIG_INT.toNumber();
-      return depositEvents.map(() => {
-        return { realizedLpFeePct, quoteBlock };
-      });
-    }
-
-    const deposits = depositEvents.map(({ args }) => {
-      // For v3 deposits, leave payment chain ID undefined so we don't compute lp fee since we don't have the
-      // payment chain ID until we match this deposit with a fill.
-      const { inputToken, inputAmount, quoteTimestamp } = args;
-      return {
-        inputToken,
-        inputAmount,
-        originChainId: this.chainId,
-        paymentChainId: undefined,
-        quoteTimestamp,
-      };
-    });
-
-    return deposits.length > 0 ? await this.hubPoolClient.batchComputeRealizedLpFeePct(deposits) : [];
+  protected getBlockNumbers(timestamps: number[]): Promise<{ [quoteTimestamp: number]: number }> {
+    return (
+      this.hubPoolClient?.getBlockNumbers(timestamps) ??
+      Promise.resolve(Object.fromEntries(timestamps.map((timestamp) => [timestamp, MAX_BIG_INT.toNumber()])))
+    );
   }
 
   /**
@@ -839,7 +818,7 @@ export class SpokePoolClient extends BaseAbstractClient {
       );
     }
     const partialDeposit = spreadEventWithBlockNumber(event) as DepositWithBlock;
-    const { quoteBlock: quoteBlockNumber } = await this.computeRealizedLpFeePct(event);
+    const quoteBlockNumber = await this.getBlockNumber(partialDeposit.quoteTimestamp);
 
     // Append destination token and realized lp fee to deposit.
     const deposit: DepositWithBlock = {

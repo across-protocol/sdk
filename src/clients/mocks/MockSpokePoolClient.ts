@@ -6,8 +6,6 @@ import { ZERO_ADDRESS } from "../../constants";
 import {
   DepositWithBlock,
   FillType,
-  V3FundsDepositedEvent,
-  RealizedLpFee,
   RelayerRefundExecutionWithBlock,
   SlowFillRequestWithBlock,
   Fill,
@@ -15,7 +13,7 @@ import {
   SlowFillLeaf,
   SpeedUp,
 } from "../../interfaces";
-import { BigNumber, bnZero, toBN, toBNWei, forEachAsync, getCurrentTime, randomAddress } from "../../utils";
+import { toBN, toBNWei, forEachAsync, getCurrentTime, randomAddress } from "../../utils";
 import { SpokePoolClient, SpokePoolUpdate } from "../SpokePoolClient";
 import { HubPoolClient } from "../HubPoolClient";
 import { EventManager, EventOverrides, getEventManager } from "./MockEvents";
@@ -27,8 +25,6 @@ type Block = providers.Block;
 // user to bypass on-chain queries and inject ethers Event objects directly.
 export class MockSpokePoolClient extends SpokePoolClient {
   public eventManager: EventManager;
-  private realizedLpFeePct: BigNumber = bnZero;
-  private realizedLpFeePctOverride = false;
   private destinationTokenForChainOverride: Record<number, string> = {};
   // Allow tester to set the numberOfDeposits() returned by SpokePool at a block height.
   public depositIdAtBlock: number[] = [];
@@ -47,34 +43,8 @@ export class MockSpokePoolClient extends SpokePoolClient {
     this.eventManager = getEventManager(chainId, this.eventSignatures, deploymentBlock);
   }
 
-  setDefaultRealizedLpFeePct(fee: BigNumber): void {
-    this.realizedLpFeePct = fee;
-    this.realizedLpFeePctOverride = true;
-  }
-
   setConfigStoreClient(configStore?: AcrossConfigStoreClient): void {
     this.configStoreClient = configStore;
-  }
-
-  clearDefaultRealizedLpFeePct(): void {
-    this.realizedLpFeePctOverride = false;
-  }
-
-  async computeRealizedLpFeePct(depositEvent: V3FundsDepositedEvent) {
-    const { realizedLpFeePct, realizedLpFeePctOverride } = this;
-    const { blockNumber: quoteBlock } = depositEvent;
-    return realizedLpFeePctOverride
-      ? { realizedLpFeePct, quoteBlock }
-      : await super.computeRealizedLpFeePct(depositEvent);
-  }
-
-  async batchComputeRealizedLpFeePct(depositEvents: V3FundsDepositedEvent[]): Promise<RealizedLpFee[]> {
-    const { realizedLpFeePct, realizedLpFeePctOverride } = this;
-    return realizedLpFeePctOverride
-      ? depositEvents.map(({ blockNumber: quoteBlock }) => {
-          return { realizedLpFeePct, quoteBlock };
-        })
-      : await super.batchComputeRealizedLpFeePct(depositEvents);
   }
 
   setDestinationTokenForChain(chainId: number, token: string): void {
