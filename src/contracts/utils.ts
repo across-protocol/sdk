@@ -1,5 +1,6 @@
 import assert from "assert";
-import { Event } from "ethers";
+// eslint-disable-next-line no-restricted-imports
+import { Event } from "@ethersproject/contracts";
 import { BigNumber, BigNumberish, isDefined } from "../utils";
 
 /**

@@ -31,9 +31,11 @@ module.exports = {
       {
         "patterns": [
           { group: ["@ethersproject/bignumber"], message: "Use 'src/utils/BigNumberUtils' instead" },
+          { group: ["@ethersproject/contracts"], importNames: ["Event"], message: "Use Log from 'src/interfaces/Common' instead" },
         ],
         "paths": [
-          { name: "ethers", importNames: ["BigNumber"], message: "Use 'src/utils/BigNumberUtils' instead" }
+          { name: "ethers", importNames: ["BigNumber"], message: "Use 'src/utils/BigNumberUtils' instead" },
+          { name: "ethers", importNames: ["Event"], message: "Use Log from 'src/interfaces/Common' instead" }
         ]
       }
     ],

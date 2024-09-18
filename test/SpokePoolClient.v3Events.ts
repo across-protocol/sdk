@@ -1,11 +1,10 @@
 import { expect } from "chai";
-import { Event } from "ethers";
 import { random } from "lodash";
 import { utils as sdkUtils } from "../src";
 import { DEFAULT_CONFIG_STORE_VERSION, GLOBAL_CONFIG_STORE_KEYS } from "../src/clients";
 import { MockConfigStoreClient, MockHubPoolClient, MockSpokePoolClient } from "../src/clients/mocks";
 import { EMPTY_MESSAGE, ZERO_ADDRESS } from "../src/constants";
-import { DepositWithBlock, FillWithBlock, SlowFillRequest, SlowFillRequestWithBlock } from "../src/interfaces";
+import { DepositWithBlock, FillWithBlock, Log, SlowFillRequest, SlowFillRequestWithBlock } from "../src/interfaces";
 import { getCurrentTime, isDefined, randomAddress } from "../src/utils";
 import {
   SignerWithAddress,
@@ -40,7 +39,7 @@ describe("SpokePoolClient: Event Filtering", function () {
     spokePoolClient: MockSpokePoolClient,
     quoteTimestamp?: number,
     inputToken?: string
-  ): Event => {
+  ): Log => {
     inputToken ??= randomAddress();
     const message = EMPTY_MESSAGE;
     quoteTimestamp ??= getCurrentTime() - 10;
@@ -115,7 +114,7 @@ describe("SpokePoolClient: Event Filtering", function () {
 
   it("Correctly retrieves V3FundsDeposited events", async function () {
     // Inject a series of V3DepositWithBlock events.
-    const depositEvents: Event[] = [];
+    const depositEvents: Log[] = [];
 
     for (let idx = 0; idx < 10; ++idx) {
       depositEvents.push(generateV3Deposit(originSpokePoolClient));
@@ -255,7 +254,7 @@ describe("SpokePoolClient: Event Filtering", function () {
   });
 
   it("Correctly retrieves SlowFillRequested events", async function () {
-    const requests: Event[] = [];
+    const requests: Log[] = [];
 
     const slowFillRequestFromDeposit = (deposit: DepositWithBlock): SlowFillRequest => {
       const { blockNumber, ...partialDeposit } = deposit;
@@ -312,7 +311,7 @@ describe("SpokePoolClient: Event Filtering", function () {
 
   it("Correctly retrieves FilledV3Relay events", async function () {
     // Inject a series of v2DepositWithBlock and v3DepositWithBlock events.
-    const fillEvents: Event[] = [];
+    const fillEvents: Log[] = [];
     const relayer = randomAddress();
 
     for (let idx = 0; idx < 10; ++idx) {
