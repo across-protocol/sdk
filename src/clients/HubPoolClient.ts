@@ -291,9 +291,31 @@ export class HubPoolClient extends BaseAbstractClient {
     return getL1TokenInfo(tokenAddress, chain);
   }
 
-  getBlockNumber(timestamp: number): Promise<number | undefined> {
+  /**
+   * Resolve a given timestamp to a block number on the HubPool chain.
+   * @param timestamp A single timestamp to be resolved to a block number on the HubPool chain.
+   * @returns The block number corresponding to the supplied timestamp.
+   */
+  getBlockNumber(timestamp: number): Promise<number> {
     const hints = { lowBlock: this.deploymentBlock };
     return getCachedBlockForTimestamp(this.chainId, timestamp, this.blockFinder, this.cachingMechanism, hints);
+  }
+
+  /**
+   * For an array of timestamps, resolve each unique timestamp to a block number on the HubPool chain.
+   * @dev Inputs are filtered for uniqueness and sorted to improve BlockFinder efficiency.
+   * @dev Querying block numbers sequentially also improves BlockFinder efficiency.
+   * @param timestamps Array of timestamps to be resolved to a block number on the HubPool chain.
+   * @returns A mapping of quoteTimestamp -> HubPool block number.
+   */
+  async getBlockNumbers(timestamps: number[]): Promise<{ [quoteTimestamp: number]: number }> {
+    const sortedTimestamps = dedupArray(timestamps).sort((x, y) => x - y);
+    const blockNumbers: { [quoteTimestamp: number]: number } = {};
+    for (const timestamp of sortedTimestamps) {
+      blockNumbers[timestamp] = await this.getBlockNumber(timestamp);
+    }
+
+    return blockNumbers;
   }
 
   async getCurrentPoolUtilization(l1Token: string): Promise<BigNumber> {
@@ -400,15 +422,6 @@ export class HubPoolClient extends BaseAbstractClient {
       }
     };
 
-    // Helper to resolve a quoteTimestamp to a HubPool block number.
-    const resolveTimestampsToBlocks = async (quoteTimestamp: number): Promise<[number, number]> => {
-      const quoteBlock = await this.getBlockNumber(quoteTimestamp);
-      if (!isDefined(quoteBlock)) {
-        throw new Error(`Could not find block for timestamp ${quoteTimestamp}`);
-      }
-      return [quoteTimestamp, quoteBlock];
-    };
-
     // Helper to resolve existing HubPool token utilisation for an array of unique block numbers.
     // Produces a mapping of blockNumber -> utilization for a specific token.
     const resolveUtilization = async (hubPoolToken: string): Promise<Record<number, BigNumber>> => {
@@ -462,14 +475,12 @@ export class HubPoolClient extends BaseAbstractClient {
      */
     const timeToCache = this.configOverride.timeToCache ?? DEFAULT_CACHING_SAFE_LAG;
 
-    // Identify the unique hubPoolToken & quoteTimestamp mappings. This is used to optimise subsequent HubPool queries.
-    deposits.forEach((deposit) => resolveUniqueQuoteTimestamps(deposit));
-
     // Filter all deposits for unique quoteTimestamps, to be resolved to a blockNumber in parallel.
     const quoteTimestamps = dedupArray(deposits.map(({ quoteTimestamp }) => quoteTimestamp));
-    quoteBlocks = Object.fromEntries(
-      await mapAsync(quoteTimestamps, (quoteTimestamp) => resolveTimestampsToBlocks(quoteTimestamp))
-    );
+    quoteBlocks = await this.getBlockNumbers(quoteTimestamps);
+
+    // Identify the unique hubPoolToken & quoteTimestamp mappings. This is used to optimise subsequent HubPool queries.
+    deposits.forEach((deposit) => resolveUniqueQuoteTimestamps(deposit));
 
     // For each token / quoteBlock pair, resolve the utilisation for each quoted block.
     // This can be reused for each deposit with the same HubPool token and quoteTimestamp pair.
