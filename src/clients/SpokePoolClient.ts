@@ -1,4 +1,4 @@
-import { Contract, Event, EventFilter } from "ethers";
+import { Contract, EventFilter } from "ethers";
 import winston from "winston";
 import {
   AnyObject,
@@ -20,7 +20,6 @@ import {
   spreadEventWithBlockNumber,
 } from "../utils/EventUtils";
 import { validateFillForDeposit } from "../utils/FlowUtils";
-
 import { ZERO_ADDRESS } from "../constants";
 import {
   Deposit,
@@ -28,14 +27,13 @@ import {
   Fill,
   FillStatus,
   FillWithBlock,
-  FilledV3RelayEvent,
+  Log,
   RelayData,
   RelayerRefundExecutionWithBlock,
   RootBundleRelayWithBlock,
   SlowFillRequestWithBlock,
   SpeedUpWithBlock,
   TokensBridged,
-  V3FundsDepositedEvent,
 } from "../interfaces";
 import { SpokePool } from "../typechain";
 import { getNetworkName } from "../utils/NetworkUtils";
@@ -50,7 +48,7 @@ type SpokePoolUpdateSuccess = {
   oldestTime: number;
   firstDepositId: number;
   latestDepositId: number;
-  events: Event[][];
+  events: Log[][];
   searchEndBlock: number;
 };
 type SpokePoolUpdateFailure = {
@@ -510,7 +508,7 @@ export class SpokePoolClient extends BaseAbstractClient {
     }
 
     // Sort all events to ensure they are stored in a consistent order.
-    events.forEach((events: Event[]) => sortEventsAscendingInPlace(events));
+    events.forEach((events: Log[]) => sortEventsAscendingInPlace(events));
 
     return {
       success: true,
@@ -549,9 +547,7 @@ export class SpokePoolClient extends BaseAbstractClient {
     }
 
     if (eventsToQuery.includes("V3FundsDeposited")) {
-      const depositEvents = [
-        ...((queryResults[eventsToQuery.indexOf("V3FundsDeposited")] ?? []) as V3FundsDepositedEvent[]),
-      ];
+      const depositEvents = queryResults[eventsToQuery.indexOf("V3FundsDeposited")] ?? [];
       if (depositEvents.length > 0) {
         this.log("debug", `Using ${depositEvents.length} newly queried deposit events for chain ${this.chainId}`, {
           earliestEvent: depositEvents[0].blockNumber,
@@ -560,15 +556,25 @@ export class SpokePoolClient extends BaseAbstractClient {
 
       // For each deposit, resolve its quoteTimestamp to a block number on the HubPool.
       // Don't bother filtering for uniqueness; the HubPoolClient handles this efficienctly.
-      const quoteBlockNumbers = await this.getBlockNumbers(depositEvents.map(({ args }) => args.quoteTimestamp));
+      const quoteBlockNumbers = await this.getBlockNumbers(
+        depositEvents.map(({ args }) => Number(args["quoteTimestamp"]))
+      );
       for (const event of depositEvents) {
-        const rawDeposit = spreadEventWithBlockNumber(event);
+        const quoteBlockNumber = quoteBlockNumbers[Number(event.args["quoteTimestamp"])];
 
         // Derive and append the common properties that are not part of the onchain event.
-        const quoteBlockNumber = quoteBlockNumbers[event.args.quoteTimestamp];
-        const deposit = { ...(rawDeposit as DepositWithBlock), originChainId: this.chainId, quoteBlockNumber };
+        const deposit = {
+          ...spreadEventWithBlockNumber(event),
+          quoteBlockNumber,
+          originChainId: this.chainId,
+          // The following properties are placeholders to be updated immediately.
+          fromLiteChain: true,
+          toLiteChain: true,
+        } as DepositWithBlock;
+
         deposit.fromLiteChain = this.isOriginLiteChain(deposit);
         deposit.toLiteChain = this.isDestinationLiteChain(deposit);
+
         if (deposit.outputToken === ZERO_ADDRESS) {
           deposit.outputToken = this.getDestinationTokenForDeposit(deposit);
         }
@@ -587,16 +593,12 @@ export class SpokePoolClient extends BaseAbstractClient {
       }
     }
 
-    // TODO: When validating fills with deposits for the purposes of UBA flows, do we need to consider
-    // speed ups as well? For example, do we need to also consider that the speed up is before the fill
-    // timestamp to be applied for the fill? My brain hurts.
     // Update deposits with speed up requests from depositor.
     if (eventsToQuery.includes("RequestedSpeedUpV3Deposit")) {
-      const speedUpEvents = [...(queryResults[eventsToQuery.indexOf("RequestedSpeedUpV3Deposit")] ?? [])];
+      const speedUpEvents = queryResults[eventsToQuery.indexOf("RequestedSpeedUpV3Deposit")] ?? [];
 
       for (const event of speedUpEvents) {
-        const rawEvent = spreadEventWithBlockNumber(event);
-        const speedUp = { ...rawEvent, originChainId: this.chainId } as SpeedUpWithBlock;
+        const speedUp = { ...spreadEventWithBlockNumber(event), originChainId: this.chainId } as SpeedUpWithBlock;
         assign(this.speedUps, [speedUp.depositor, speedUp.depositId], [speedUp]);
 
         // Find deposit hash matching this speed up event and update the deposit data associated with the hash,
@@ -615,10 +617,11 @@ export class SpokePoolClient extends BaseAbstractClient {
     if (eventsToQuery.includes("RequestedV3SlowFill")) {
       const slowFillRequests = queryResults[eventsToQuery.indexOf("RequestedV3SlowFill")];
       for (const event of slowFillRequests) {
-        const slowFillRequest: SlowFillRequestWithBlock = {
-          ...(spreadEventWithBlockNumber(event) as SlowFillRequestWithBlock),
+        const slowFillRequest = {
+          ...spreadEventWithBlockNumber(event),
           destinationChainId: this.chainId,
-        };
+        } as SlowFillRequestWithBlock;
+
         const relayDataHash = getRelayDataHash(slowFillRequest, this.chainId);
         if (this.slowFillRequests[relayDataHash] !== undefined) {
           continue;
@@ -628,7 +631,7 @@ export class SpokePoolClient extends BaseAbstractClient {
     }
 
     if (eventsToQuery.includes("FilledV3Relay")) {
-      const fillEvents = [...((queryResults[eventsToQuery.indexOf("FilledV3Relay")] ?? []) as FilledV3RelayEvent[])];
+      const fillEvents = queryResults[eventsToQuery.indexOf("FilledV3Relay")] ?? [];
 
       if (fillEvents.length > 0) {
         this.log("debug", `Using ${fillEvents.length} newly queried fill events for chain ${this.chainId}`, {
@@ -640,9 +643,9 @@ export class SpokePoolClient extends BaseAbstractClient {
       // test that the types are complete. A broader change in strategy for safely unpacking events will be introduced.
       for (const event of fillEvents) {
         const fill = {
-          ...(spreadEventWithBlockNumber(event) as FillWithBlock),
+          ...spreadEventWithBlockNumber(event),
           destinationChainId: this.chainId,
-        };
+        } as FillWithBlock;
 
         assign(this.fills, [fill.originChainId], [fill]);
         assign(this.depositHashesToFills, [this.getDepositHash(fill)], [fill]);
@@ -808,7 +811,7 @@ export class SpokePoolClient extends BaseAbstractClient {
     );
     const tStop = Date.now();
 
-    const event = (query as V3FundsDepositedEvent[]).find((deposit) => deposit.args.depositId === depositId);
+    const event = query.find(({ args }) => args["depositId"] === depositId);
     if (event === undefined) {
       const srcChain = getNetworkName(this.chainId);
       const dstChain = getNetworkName(destinationChainId);
@@ -817,19 +820,18 @@ export class SpokePoolClient extends BaseAbstractClient {
           ` between ${srcChain} blocks [${searchBounds.low}, ${searchBounds.high}]`
       );
     }
-    const partialDeposit = spreadEventWithBlockNumber(event) as DepositWithBlock;
-    const quoteBlockNumber = await this.getBlockNumber(partialDeposit.quoteTimestamp);
 
-    // Append destination token and realized lp fee to deposit.
-    const deposit: DepositWithBlock = {
-      ...partialDeposit,
+    const deposit = {
+      ...spreadEventWithBlockNumber(event),
       originChainId: this.chainId,
-      quoteBlockNumber,
-      outputToken:
-        partialDeposit.outputToken === ZERO_ADDRESS
-          ? this.getDestinationTokenForDeposit({ ...partialDeposit, originChainId: this.chainId })
-          : partialDeposit.outputToken,
-    };
+      quoteBlockNumber: await this.getBlockNumber(Number(event.args["quoteTimestamp"])),
+      fromLiteChain: true, // To be updated immediately afterwards.
+      toLiteChain: true, // To be updated immediately afterwards.
+    } as DepositWithBlock;
+
+    if (deposit.outputToken === ZERO_ADDRESS) {
+      deposit.outputToken = this.getDestinationTokenForDeposit(deposit);
+    }
     deposit.fromLiteChain = this.isOriginLiteChain(deposit);
     deposit.toLiteChain = this.isDestinationLiteChain(deposit);
 

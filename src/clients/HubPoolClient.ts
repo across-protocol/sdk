@@ -1,5 +1,5 @@
 import assert from "assert";
-import { Contract, Event, EventFilter } from "ethers";
+import { Contract, EventFilter } from "ethers";
 import _ from "lodash";
 import winston from "winston";
 import { DEFAULT_CACHING_SAFE_LAG, DEFAULT_CACHING_TTL } from "../constants";
@@ -13,6 +13,7 @@ import {
   DisputedRootBundle,
   ExecutedRootBundle,
   L1Token,
+  Log,
   LpToken,
   PendingRootBundle,
   ProposedRootBundle,
@@ -38,7 +39,6 @@ import {
   paginatedEventQuery,
   shouldCache,
   sortEventsDescending,
-  spreadEvent,
   spreadEventWithBlockNumber,
   toBN,
   getTokenInfo,
@@ -52,7 +52,7 @@ type HubPoolUpdateSuccess = {
   success: true;
   currentTime: number;
   pendingRootBundleProposal: PendingRootBundle;
-  events: Record<string, Event[]>;
+  events: Record<string, Log[]>;
   searchEndBlock: number;
 };
 type HubPoolUpdateFailure = {
@@ -901,11 +901,10 @@ export class HubPoolClient extends BaseAbstractClient {
     // only run iff a new token has been enabled. Will only append iff the info is not there already.
     // Filter out any duplicate addresses. This might happen due to enabling, disabling and re-enabling a token.
     if (eventsToQuery.includes("L1TokenEnabledForLiquidityProvision")) {
-      const uniqueL1Tokens = [
-        ...Array.from(
-          new Set(events["L1TokenEnabledForLiquidityProvision"].map((event) => spreadEvent(event.args).l1Token))
-        ),
-      ];
+      const uniqueL1Tokens = dedupArray(
+        events["L1TokenEnabledForLiquidityProvision"].map((event) => String(event.args["l1Token"]))
+      );
+
       const [tokenInfo, lpTokenInfo] = await Promise.all([
         Promise.all(uniqueL1Tokens.map((l1Token: string) => fetchTokenInfo(l1Token, this.hubPool.provider))),
         Promise.all(

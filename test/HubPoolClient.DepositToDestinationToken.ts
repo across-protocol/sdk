@@ -1,4 +1,4 @@
-import { Event } from "ethers";
+import { Log } from "../src/interfaces";
 import {
   CONFIG_STORE_VERSION,
   destinationChainId,
@@ -188,7 +188,7 @@ describe("HubPoolClient: Deposit to Destination Token", function () {
     );
     expect(equivalent).to.be.false;
 
-    const events: Event[] = [];
+    const events: Log[] = [];
     [
       [originChainId.toString(), randomL1Token, randomOriginToken],
       [destinationChainId.toString(), randomL1Token, randomDestinationToken],

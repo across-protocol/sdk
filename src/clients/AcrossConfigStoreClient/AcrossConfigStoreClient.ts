@@ -1,6 +1,6 @@
 import { utils, across } from "@uma/sdk";
 import assert from "assert";
-import { Contract, Event } from "ethers";
+import { Contract } from "ethers";
 import winston from "winston";
 import { isError } from "../../typeguards";
 import {
@@ -14,7 +14,6 @@ import {
   paginatedEventQuery,
   sortEventsAscendingInPlace,
   sortEventsDescending,
-  spreadEvent,
   spreadEventWithBlockNumber,
   toBN,
   utf8ToHex,
@@ -25,8 +24,10 @@ import {
   DisabledChainsUpdate,
   GlobalConfigUpdate,
   LiteChainsIdListUpdate,
+  Log,
   ParsedTokenConfig,
   RouteRateModelUpdate,
+  SortableEvent,
   SpokePoolTargetBalance,
   SpokeTargetBalanceUpdate,
   TokenConfig,
@@ -41,8 +42,8 @@ type ConfigStoreUpdateSuccess = {
   chainId: number;
   searchEndBlock: number;
   events: {
-    updatedTokenConfigEvents: Event[];
-    updatedGlobalConfigEvents: Event[];
+    updatedTokenConfigEvents: Log[];
+    updatedGlobalConfigEvents: Log[];
     globalConfigUpdateTimes: number[];
   };
 };
@@ -430,12 +431,10 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
 
     // Save new Global config updates.
     for (let i = 0; i < updatedGlobalConfigEvents.length; i++) {
-      const event = updatedGlobalConfigEvents[i];
-      const args = {
-        blockNumber: event.blockNumber,
-        transactionIndex: event.transactionIndex,
-        logIndex: event.logIndex,
-        ...spreadEvent(event.args),
+      const args = spreadEventWithBlockNumber(updatedGlobalConfigEvents[i]) as SortableEvent & {
+        key: string;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        value: any;
       };
 
       if (args.key === utf8ToHex(GLOBAL_CONFIG_STORE_KEYS.MAX_RELAYER_REPAYMENT_LEAF_SIZE)) {

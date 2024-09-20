@@ -1,7 +1,7 @@
 import winston from "winston";
-import { Contract, Event } from "ethers";
+import { Contract } from "ethers";
 import { BigNumber, randomAddress, assign, bnZero } from "../../utils";
-import { L1Token, PendingRootBundle, RealizedLpFee } from "../../interfaces";
+import { L1Token, Log, PendingRootBundle, RealizedLpFee } from "../../interfaces";
 import { AcrossConfigStoreClient as ConfigStoreClient } from "../AcrossConfigStoreClient";
 import { HubPoolClient, HubPoolUpdate, LpFeeRequest } from "../HubPoolClient";
 import { EventManager, EventOverrides, getEventManager } from "./MockEvents";
@@ -127,7 +127,7 @@ export class MockHubPoolClient extends HubPoolClient {
 
     // Ensure an array for every requested event exists, in the requested order.
     // All requested event types must be populated in the array (even if empty).
-    const _events: Event[][] = eventNames.map(() => []);
+    const _events: Log[][] = eventNames.map(() => []);
     this.eventManager
       .getEvents()
       .flat()
@@ -163,7 +163,7 @@ export class MockHubPoolClient extends HubPoolClient {
     l1Token: string,
     destinationToken: string,
     overrides: EventOverrides = {}
-  ): Event {
+  ): Log {
     const event = "SetPoolRebalanceRoute";
 
     const topics = [destinationChainId, l1Token, destinationToken];
@@ -191,7 +191,7 @@ export class MockHubPoolClient extends HubPoolClient {
     slowRelayRoot?: string,
     proposer?: string,
     overrides: EventOverrides = {}
-  ): Event {
+  ): Log {
     const event = "ProposeRootBundle";
 
     poolRebalanceRoot ??= "XX";
@@ -229,7 +229,7 @@ export class MockHubPoolClient extends HubPoolClient {
     runningBalances: BigNumber[],
     caller?: string,
     overrides: EventOverrides = {}
-  ): Event {
+  ): Log {
     const event = "RootBundleExecuted";
 
     caller ??= randomAddress();

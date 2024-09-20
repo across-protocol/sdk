@@ -1,9 +1,10 @@
 import assert from "assert";
-import { Contract, Event, providers } from "ethers";
+import { Contract } from "ethers";
 import { random } from "lodash";
 import winston from "winston";
 import { ZERO_ADDRESS } from "../../constants";
 import {
+  Log,
   DepositWithBlock,
   FillType,
   RelayerRefundExecutionWithBlock,
@@ -13,23 +14,20 @@ import {
   SlowFillLeaf,
   SpeedUp,
 } from "../../interfaces";
-import { toBN, toBNWei, forEachAsync, getCurrentTime, randomAddress } from "../../utils";
+import { toBN, toBNWei, getCurrentTime, randomAddress } from "../../utils";
 import { SpokePoolClient, SpokePoolUpdate } from "../SpokePoolClient";
 import { HubPoolClient } from "../HubPoolClient";
 import { EventManager, EventOverrides, getEventManager } from "./MockEvents";
 import { AcrossConfigStoreClient } from "../AcrossConfigStoreClient";
 
-type Block = providers.Block;
-
-// This class replaces internal SpokePoolClient functionality, enabling the
-// user to bypass on-chain queries and inject ethers Event objects directly.
+// This class replaces internal SpokePoolClient functionality, enabling
+// the user to bypass on-chain queries and inject Log objects directly.
 export class MockSpokePoolClient extends SpokePoolClient {
   public eventManager: EventManager;
   private destinationTokenForChainOverride: Record<number, string> = {};
   // Allow tester to set the numberOfDeposits() returned by SpokePool at a block height.
   public depositIdAtBlock: number[] = [];
   public numberOfDeposits = 0;
-  public blocks: Record<number, Block> = {};
 
   constructor(
     logger: winston.Logger,
@@ -77,33 +75,32 @@ export class MockSpokePoolClient extends SpokePoolClient {
     return Promise.resolve(this.depositIdAtBlock[blockTag]);
   }
 
-  async _update(eventsToQuery: string[]): Promise<SpokePoolUpdate> {
+  _update(eventsToQuery: string[]): Promise<SpokePoolUpdate> {
     // Generate new "on chain" responses.
     const latestBlockSearched = this.eventManager.blockNumber;
     const currentTime = getCurrentTime();
 
-    const blocks: { [blockNumber: number]: Block } = {};
-
     // Ensure an array for every requested event exists, in the requested order.
     // All requested event types must be populated in the array (even if empty).
-    const events: Event[][] = eventsToQuery.map(() => []);
-    await forEachAsync(this.eventManager.getEvents().flat(), async (event) => {
-      const idx = eventsToQuery.indexOf(event.event as string);
-      if (idx !== -1) {
-        events[idx].push(event);
-        blocks[event.blockNumber] = await event.getBlock();
-      }
-    });
-    this.blocks = blocks;
+    const events: Log[][] = eventsToQuery.map(() => []);
+    this.eventManager
+      .getEvents()
+      .flat()
+      .forEach((event) => {
+        const idx = eventsToQuery.indexOf(event.event);
+        if (idx !== -1) {
+          events[idx].push(event);
+        }
+      });
 
     // Update latestDepositIdQueried.
     const idx = eventsToQuery.indexOf("V3FundsDeposited");
     const latestDepositId = (events[idx] ?? []).reduce(
-      (depositId, event) => Math.max(depositId, event.args?.["depositId"] ?? 0),
+      (depositId, event) => Math.max(depositId, (event.args["depositId"] ?? 0) as number),
       this.latestDepositIdQueried
     );
 
-    return {
+    return Promise.resolve({
       success: true,
       firstDepositId: 0,
       latestDepositId,
@@ -111,7 +108,7 @@ export class MockSpokePoolClient extends SpokePoolClient {
       oldestTime: 0,
       events,
       searchEndBlock: this.eventSearchConfig.toBlock || latestBlockSearched,
-    };
+    });
   }
 
   // Event signatures. Not strictly required, but they make generated events more recognisable.
@@ -121,7 +118,7 @@ export class MockSpokePoolClient extends SpokePoolClient {
     FundsDeposited: "uint256,uint256,uint256,int64,uint32,uint32,address,address,address,bytes",
   };
 
-  depositV3(deposit: DepositWithBlock): Event {
+  depositV3(deposit: DepositWithBlock): Log {
     const event = "V3FundsDeposited";
 
     const { blockNumber, transactionIndex } = deposit;
@@ -167,7 +164,7 @@ export class MockSpokePoolClient extends SpokePoolClient {
     });
   }
 
-  fillV3Relay(fill: FillWithBlock): Event {
+  fillV3Relay(fill: FillWithBlock): Log {
     const event = "FilledV3Relay";
 
     const { blockNumber, transactionIndex } = fill;
@@ -217,7 +214,7 @@ export class MockSpokePoolClient extends SpokePoolClient {
     });
   }
 
-  speedUpV3Deposit(speedUp: SpeedUp): Event {
+  speedUpV3Deposit(speedUp: SpeedUp): Log {
     const event = "RequestedSpeedUpV3Deposit";
     const topics = [speedUp.depositId, speedUp.depositor];
     const args = { ...speedUp };
@@ -230,7 +227,7 @@ export class MockSpokePoolClient extends SpokePoolClient {
     });
   }
 
-  requestV3SlowFill(request: SlowFillRequestWithBlock): Event {
+  requestV3SlowFill(request: SlowFillRequestWithBlock): Log {
     const event = "RequestedV3SlowFill";
 
     const { originChainId, depositId } = request;
@@ -249,7 +246,7 @@ export class MockSpokePoolClient extends SpokePoolClient {
 
   // This is a simple wrapper around fillV3Relay().
   // rootBundleId and proof are discarded here - we have no interest in verifying that.
-  executeV3SlowRelayLeaf(leaf: SlowFillLeaf): Event {
+  executeV3SlowRelayLeaf(leaf: SlowFillLeaf): Log {
     const fill: Fill = {
       ...leaf.relayData,
       destinationChainId: this.chainId,
@@ -266,7 +263,7 @@ export class MockSpokePoolClient extends SpokePoolClient {
     return this.fillV3Relay(fill as FillWithBlock);
   }
 
-  executeRelayerRefundLeaf(refund: RelayerRefundExecutionWithBlock): Event {
+  executeRelayerRefundLeaf(refund: RelayerRefundExecutionWithBlock): Log {
     const event = "ExecutedRelayerRefundRoot";
 
     const chainId = refund.chainId ?? this.chainId;
@@ -298,7 +295,7 @@ export class MockSpokePoolClient extends SpokePoolClient {
     destinationChainId: number,
     enabled: boolean,
     overrides: EventOverrides = {}
-  ): Event {
+  ): Log {
     const event = "EnabledDepositRoute";
 
     const topics = [originToken, destinationChainId];
