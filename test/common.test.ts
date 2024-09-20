@@ -36,6 +36,7 @@ describe("Utils test", () => {
     ]);
   });
 
+  // Disabled because it relies on external RPC providers and has proven to be periodically flaky.
   it.skip("apply gas multiplier", async () => {
     const spokePoolAddress = "0x5c7BCd6E7De5423a257D81B442095A1a6ced35C5"; // mainnet
     const relayerAddress = DEFAULT_SIMULATED_RELAYER_ADDRESS;
