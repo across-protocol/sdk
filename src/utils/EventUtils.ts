@@ -68,7 +68,7 @@ export interface EventSearchConfig {
   maxBlockLookBack?: number;
 }
 
-const eventToLog = (event: Event): Log => ({ ...event, event: event.event!, args: spreadEvent(event.args!) });
+export const eventToLog = (event: Event): Log => ({ ...event, event: event.event!, args: spreadEvent(event.args!) });
 
 export async function paginatedEventQuery(
   contract: Contract,
