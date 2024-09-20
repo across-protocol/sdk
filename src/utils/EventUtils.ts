@@ -8,11 +8,11 @@ const maxRetries = 3;
 const retrySleepTime = 10;
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function spreadEvent(args: Result | Record<string, any>): { [key: string]: any } {
+export function spreadEvent(args: Result | Record<string, unknown>): { [key: string]: any } {
   const keys = Object.keys(args).filter((key: string) => isNaN(+key)); // Extract non-numeric keys.
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const returnedObject: { [key: string]: any } = {};
+  const returnedObject: { [key: string]: unknown } = {};
   keys.forEach((key: string) => {
     switch (typeof args[key]) {
       case "boolean": // fallthrough
