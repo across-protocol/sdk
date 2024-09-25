@@ -261,12 +261,7 @@ export async function estimateTotalGasRequiredByUnsignedTransaction(
   const voidSigner = new VoidSigner(senderAddress, provider);
 
   // Estimate the Gas units required to submit this transaction.
-  let nativeGasCost = gasUnits
-    ? BigNumber.from(gasUnits)
-    : await voidSigner.estimateGas({
-        ...unsignedTx,
-        gasPrice,
-      });
+  let nativeGasCost = gasUnits ? BigNumber.from(gasUnits) : await voidSigner.estimateGas(unsignedTx);
   let tokenGasCost: BigNumber;
 
   // OP stack is a special case; gas cost is computed by the SDK, without having to query price.
