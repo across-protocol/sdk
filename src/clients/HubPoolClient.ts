@@ -618,6 +618,37 @@ export class HubPoolClient extends BaseAbstractClient {
     );
   }
 
+  /**
+   * Retrieves token mappings that were modified within a specified block range.
+   * @param startingBlock - The starting block of the range (inclusive).
+   * @param endingBlock - The ending block of the range (inclusive).
+   * @returns An array of destination tokens, each containing the `l2ChainId`, that
+   *          were modified within the given block range.
+   */
+  getTokenMappingsModifiedInBlockRange(
+    startingBlock: number,
+    endingBlock: number
+  ): (DestinationTokenWithBlock & { l2ChainId: number })[] {
+    // This function iterates over `l1TokensToDestinationTokensWithBlock`, a nested
+    // structure of L1 tokens mapped to destination chain IDs, each containing lists
+    // of destination tokens with associated block numbers.
+    return (
+      Object.values(this.l1TokensToDestinationTokensWithBlock)
+        .flatMap((destinationTokens) =>
+          // Map through destination chain IDs and their associated tokens
+          Object.entries(destinationTokens).flatMap(([destinationChainId, tokensWithBlock]) =>
+            // Map the tokens to add the l2ChainId field for each token
+            tokensWithBlock.map((token) => ({
+              ...token,
+              l2ChainId: Number(destinationChainId),
+            }))
+          )
+        )
+        // Filter out tokens whose blockNumber is outside the block range
+        .filter((token) => token.blockNumber >= startingBlock && token.blockNumber <= endingBlock)
+    );
+  }
+
   getLatestProposedRootBundle(): ProposedRootBundle {
     return this.proposedRootBundles[this.proposedRootBundles.length - 1] as ProposedRootBundle;
   }
