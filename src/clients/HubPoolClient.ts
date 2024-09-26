@@ -922,6 +922,7 @@ export class HubPoolClient extends BaseAbstractClient {
               blockNumber: args.blockNumber,
               transactionIndex: args.transactionIndex,
               logIndex: args.logIndex,
+              transactionHash: args.transactionHash,
             },
           ]
         );
