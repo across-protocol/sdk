@@ -1,8 +1,8 @@
-import { providers } from "ethers";
+import { PublicClient } from "viem";
 import { BaseHTTPAdapter, BaseHTTPAdapterArgs } from "../../priceClient/adapters/baseAdapter";
-import { BigNumber, bnZero, isDefined, parseUnits } from "../../utils";
+import { isDefined } from "../../utils";
 import { CHAIN_IDs } from "../../constants";
-import { GasPriceEstimate } from "../types";
+import { InternalGasPriceEstimate } from "../types";
 import { gasPriceError } from "../util";
 import { eip1559 } from "./ethereum";
 
@@ -27,6 +27,7 @@ type GasStationArgs = BaseHTTPAdapterArgs & {
 
 const { POLYGON } = CHAIN_IDs;
 
+const GWEI = BigInt(1_000_000_000);
 class PolygonGasStation extends BaseHTTPAdapter {
   readonly chainId: number;
 
@@ -37,23 +38,17 @@ class PolygonGasStation extends BaseHTTPAdapter {
     this.chainId = chainId;
   }
 
-  async getFeeData(strategy: "safeLow" | "standard" | "fast" = "fast"): Promise<GasPriceEstimate> {
+  async getFeeData(strategy: "safeLow" | "standard" | "fast" = "fast"): Promise<InternalGasPriceEstimate> {
     const gas = await this.query("v2", {});
 
     const gasPrice = (gas as GasStationV2Response)?.[strategy];
     if (!this.isPolygon1559GasPrice(gasPrice)) {
       // @todo: generalise gasPriceError() to accept a reason/cause?
-      gasPriceError("getFeeData()", this.chainId, bnZero);
+      gasPriceError("getFeeData()", this.chainId, gasPrice);
     }
 
-    [gasPrice.maxFee, gasPrice.maxPriorityFee].forEach((gasPrice) => {
-      if (Number(gasPrice) < 0) {
-        gasPriceError("getFeeData()", this.chainId, parseUnits(gasPrice.toString(), 9));
-      }
-    });
-
-    const maxPriorityFeePerGas = parseUnits(gasPrice.maxPriorityFee.toString(), 9);
-    const maxFeePerGas = parseUnits(gasPrice.maxFee.toString(), 9);
+    const maxPriorityFeePerGas = BigInt(gasPrice.maxPriorityFee) * GWEI;
+    const maxFeePerGas = BigInt(gasPrice.maxFee) * GWEI;
 
     return { maxPriorityFeePerGas, maxFeePerGas };
   }
@@ -67,10 +62,10 @@ class PolygonGasStation extends BaseHTTPAdapter {
   }
 }
 
-export async function gasStation(provider: providers.Provider, chainId: number): Promise<GasPriceEstimate> {
-  const gasStation = new PolygonGasStation({ chainId: chainId, timeout: 2000, retries: 0 });
-  let maxPriorityFeePerGas: BigNumber;
-  let maxFeePerGas: BigNumber;
+export async function gasStation(provider: PublicClient, chainId: number): Promise<InternalGasPriceEstimate> {
+  const gasStation = new PolygonGasStation({ chainId, timeout: 2000, retries: 0 });
+  let maxPriorityFeePerGas: bigint;
+  let maxFeePerGas: bigint;
   try {
     ({ maxPriorityFeePerGas, maxFeePerGas } = await gasStation.getFeeData());
   } catch (err) {
@@ -79,11 +74,11 @@ export async function gasStation(provider: providers.Provider, chainId: number):
 
     // Per the GasStation docs, the minimum priority fee on Polygon is 30 Gwei.
     // https://docs.polygon.technology/tools/gas/polygon-gas-station/#interpretation
-    const minPriorityFee = parseUnits("30", 9);
-    if (maxPriorityFeePerGas.lt(minPriorityFee)) {
-      const priorityDelta = minPriorityFee.sub(maxPriorityFeePerGas);
+    const minPriorityFee = BigInt(30) * GWEI;
+    if (minPriorityFee > maxPriorityFeePerGas) {
+      const priorityDelta = minPriorityFee -maxPriorityFeePerGas;
       maxPriorityFeePerGas = minPriorityFee;
-      maxFeePerGas = maxFeePerGas.add(priorityDelta);
+      maxFeePerGas = maxFeePerGas + priorityDelta;
     }
   }
 

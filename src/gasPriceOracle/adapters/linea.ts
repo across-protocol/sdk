@@ -2,10 +2,10 @@
 // This query is currently only available on Linea Sepolia, ETA mainnet 30 July.
 // Until then, just parrot the existing Ethereum EIP-1559 pricing strategy.
 // See also: https://docs.linea.build/developers/reference/api/linea-estimategas
-import { providers } from "ethers";
-import { GasPriceEstimate } from "../types";
+import { PublicClient } from "viem";
+import { InternalGasPriceEstimate } from "../types";
 import * as ethereum from "./ethereum";
 
-export function eip1559(provider: providers.Provider, chainId: number): Promise<GasPriceEstimate> {
+export function eip1559(provider: PublicClient, chainId: number): Promise<InternalGasPriceEstimate> {
   return ethereum.legacy(provider, chainId);
 }

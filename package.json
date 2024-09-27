@@ -115,7 +115,8 @@
     "lodash": "^4.17.21",
     "lodash.get": "^4.4.2",
     "superstruct": "^0.15.4",
-    "tslib": "^2.6.2"
+    "tslib": "^2.6.2",
+    "viem": "^2.21.15"
   },
   "publishConfig": {
     "registry": "https://registry.npmjs.com/",
