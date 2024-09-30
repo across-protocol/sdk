@@ -14,7 +14,10 @@ import * as polygon from "./adapters/polygon";
  * @param legacyFallback In the case of an unrecognised chain, fall back to type 0 gas estimation.
  * @returns Am object of type GasPriceEstimate.
  */
-export async function getGasPriceEstimate(provider: providers.Provider, transport?: Transport): Promise<GasPriceEstimate> {
+export async function getGasPriceEstimate(
+  provider: providers.Provider,
+  transport?: Transport
+): Promise<GasPriceEstimate> {
   const { chainId } = await provider.getNetwork();
   const viemProvider = getPublicClient(chainId, transport);
 
@@ -40,7 +43,7 @@ export async function getGasPriceEstimate(provider: providers.Provider, transpor
   }
 
   return {
-    maxFeePerGas: BigNumber.from((maxFeePerGas).toString()),
-    maxPriorityFeePerGas: BigNumber.from((maxPriorityFeePerGas).toString())
+    maxFeePerGas: BigNumber.from(maxFeePerGas.toString()),
+    maxPriorityFeePerGas: BigNumber.from(maxPriorityFeePerGas.toString()),
   };
 }

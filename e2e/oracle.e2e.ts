@@ -19,23 +19,23 @@ const stdMaxFeePerGas = stdLastBaseFeePerGas.add(stdMaxPriorityFeePerGas);
 const stdGasPrice = stdMaxFeePerGas;
 
 const customTransport = custom({
-  async request({ method, params}: { method: string; params: unknown }) {
+  async request({ method, params }: { method: string; params: unknown }) {
     params; // lint
     switch (method) {
       case "eth_gasPrice":
         return BigInt(stdGasPrice.toString());
       case "eth_getBlockByNumber":
-        return { baseFeePerGas: BigInt((stdLastBaseFeePerGas.mul(100).div(120)).toString()) };
+        return { baseFeePerGas: BigInt(stdLastBaseFeePerGas.mul(100).div(120).toString()) };
       case "eth_maxPriorityFeePerGas":
         return BigInt(stdMaxPriorityFeePerGas.toString());
       default:
         console.log(`Unsupported method: ${method}.`);
     }
-  }
+  },
 });
 
 const eip1559Chains = [1, 10, 137, 324, 8453, 42161, 534352];
-const chainIds = [ ...eip1559Chains, 1337 ];
+const chainIds = [...eip1559Chains, 1337];
 let providerInstances: { [chainId: number]: providers.StaticJsonRpcProvider } = {};
 
 describe("Gas Price Oracle", function () {

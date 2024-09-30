@@ -76,7 +76,7 @@ export async function gasStation(provider: PublicClient, chainId: number): Promi
     // https://docs.polygon.technology/tools/gas/polygon-gas-station/#interpretation
     const minPriorityFee = BigInt(30) * GWEI;
     if (minPriorityFee > maxPriorityFeePerGas) {
-      const priorityDelta = minPriorityFee -maxPriorityFeePerGas;
+      const priorityDelta = minPriorityFee - maxPriorityFeePerGas;
       maxPriorityFeePerGas = minPriorityFee;
       maxFeePerGas = maxFeePerGas + priorityDelta;
     }
