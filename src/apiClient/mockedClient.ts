@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unused-vars */
 import { ethers } from "ethers";
 import { deepCopy } from "ethers/lib/utils";
 import { BigNumber, bnOne } from "../utils";
