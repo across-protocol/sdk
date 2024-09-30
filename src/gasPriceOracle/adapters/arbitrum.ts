@@ -7,8 +7,7 @@ const MAX_PRIORITY_FEE_PER_GAS = BigInt(1);
 // Swap it for 1 Wei to avoid inaccurate transaction cost estimates.
 // Reference: https://developer.arbitrum.io/faqs/gas-faqs#q-priority
 export async function eip1559(provider: PublicClient, _chainId: number): Promise<InternalGasPriceEstimate> {
-  let { maxFeePerGas, maxPriorityFeePerGas } = await provider.estimateFeesPerGas();
-  console.log(`arbitrum: got maxFeePerGas ${maxFeePerGas}, maxPriorityFeePerGas: ${maxPriorityFeePerGas}.`);
-  maxFeePerGas = BigInt(maxFeePerGas) - maxPriorityFeePerGas + MAX_PRIORITY_FEE_PER_GAS;
+  const { maxFeePerGas: _maxFeePerGas, maxPriorityFeePerGas } = await provider.estimateFeesPerGas();
+  const maxFeePerGas = BigInt(_maxFeePerGas) - maxPriorityFeePerGas + MAX_PRIORITY_FEE_PER_GAS;
   return { maxFeePerGas, maxPriorityFeePerGas: MAX_PRIORITY_FEE_PER_GAS };
 }
