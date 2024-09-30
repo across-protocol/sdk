@@ -1,4 +1,5 @@
 import { PublicClient, FeeValuesEIP1559 } from "viem";
+import type { Chain, Transport } from "viem";
 import { BigNumber } from "../utils";
 
 export type InternalGasPriceEstimate = FeeValuesEIP1559;
@@ -9,5 +10,5 @@ export type GasPriceEstimate = {
 };
 
 export interface GasPriceFeed {
-  (provider: PublicClient, chainId: number): Promise<InternalGasPriceEstimate>;
+  (provider: PublicClient<Transport, Chain>, chainId: number): Promise<InternalGasPriceEstimate>;
 }
