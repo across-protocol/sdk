@@ -5,7 +5,11 @@ export function eip1559(provider: PublicClient, _chainId: number): Promise<Inter
   return provider.estimateFeesPerGas();
 }
 
-export async function legacy(provider: PublicClient, _chainId: number): Promise<InternalGasPriceEstimate> {
+export async function legacy(
+  provider: PublicClient,
+  _chainId: number,
+  test?: number
+): Promise<InternalGasPriceEstimate> {
   const gasPrice = await provider.getGasPrice();
 
   return {
