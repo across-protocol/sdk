@@ -274,7 +274,6 @@ export class RelayFeeCalculator {
   }
 
   // Note: these variables are unused now, but may be needed in future versions of this function that are more complex.
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   capitalFeePercent(
     _amountToRelay: BigNumberish,
     _tokenSymbol: string,

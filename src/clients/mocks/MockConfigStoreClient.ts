@@ -50,7 +50,6 @@ export class MockConfigStoreClient extends AcrossConfigStoreClient {
     return this.availableChainIdsOverride ?? super.getChainIdIndicesForBlock(block);
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   getConfigStoreVersionForBlock(_blockNumber: number): number {
     return this.configStoreVersion === DEFAULT_CONFIG_STORE_VERSION
       ? super.getConfigStoreVersionForBlock(_blockNumber)

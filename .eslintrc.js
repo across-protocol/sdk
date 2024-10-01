@@ -39,7 +39,12 @@ module.exports = {
         ]
       }
     ],
-    "@typescript-eslint/no-unused-vars": ["error", { ignoreRestSiblings: true }],
+    "@typescript-eslint/no-unused-vars": [
+      "error", {
+        argsIgnorePattern: "^_",
+        ignoreRestSiblings: true
+      }
+    ],
     "chai-expect/missing-assertion": 2,
     "no-duplicate-imports": "error",
     "require-await": "error",
