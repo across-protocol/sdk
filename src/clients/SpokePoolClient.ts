@@ -333,9 +333,10 @@ export class SpokePoolClient extends BaseAbstractClient {
   } {
     const { outputAmount } = deposit;
     const fillsForDeposit = this.depositHashesToFills[this.getDepositHash(deposit)];
+
     // If no fills then the full amount is remaining.
     if (fillsForDeposit === undefined || fillsForDeposit.length === 0) {
-      return { unfilledAmount: toBN(outputAmount), fillCount: 0, invalidFills: [] };
+      return { unfilledAmount: outputAmount, fillCount: 0, invalidFills: [] };
     }
 
     const { validFills, invalidFills } = fillsForDeposit.reduce(
@@ -365,7 +366,7 @@ export class SpokePoolClient extends BaseAbstractClient {
 
     // If all fills are invalid we can consider this unfilled.
     if (validFills.length === 0) {
-      return { unfilledAmount: toBN(outputAmount), fillCount: 0, invalidFills };
+      return { unfilledAmount: outputAmount, fillCount: 0, invalidFills };
     }
 
     return {
