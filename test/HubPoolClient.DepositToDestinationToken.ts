@@ -1,6 +1,8 @@
-import { Event } from "ethers";
+import { Log } from "../src/interfaces";
 import {
   CONFIG_STORE_VERSION,
+  destinationChainId,
+  originChainId,
   randomDestinationToken,
   randomDestinationToken2,
   randomL1Token,
@@ -12,11 +14,9 @@ import {
   SignerWithAddress,
   createSpyLogger,
   deployConfigStore,
-  destinationChainId,
   ethers,
   expect,
   getContractFactory,
-  originChainId,
   zeroAddress,
 } from "./utils";
 
@@ -109,7 +109,7 @@ describe("HubPoolClient: Deposit to Destination Token", function () {
   it("Gets L1 token for deposit", async function () {
     const depositData = {
       originChainId,
-      originToken: randomOriginToken,
+      inputToken: randomOriginToken,
     };
 
     const e0 = hubPoolClient.setPoolRebalanceRoute(originChainId, randomL1Token, randomOriginToken);
@@ -127,7 +127,7 @@ describe("HubPoolClient: Deposit to Destination Token", function () {
     expect(() =>
       hubPoolClient.getL1TokenForDeposit({
         ...depositData,
-        originToken: randomL1Token,
+        inputToken: randomL1Token,
         quoteBlockNumber: e0.blockNumber,
       })
     ).to.throw(/Could not find HubPool mapping/);
@@ -141,7 +141,7 @@ describe("HubPoolClient: Deposit to Destination Token", function () {
   it("Gets L2 token for deposit", async function () {
     const depositData = {
       originChainId,
-      originToken: randomOriginToken,
+      inputToken: randomOriginToken,
     };
 
     const e0 = hubPoolClient.setPoolRebalanceRoute(originChainId, randomL1Token, randomOriginToken);
@@ -166,7 +166,7 @@ describe("HubPoolClient: Deposit to Destination Token", function () {
       hubPoolClient.getL2TokenForDeposit({
         ...depositData,
         destinationChainId,
-        originToken: randomL1Token,
+        inputToken: randomL1Token,
         quoteBlockNumber: e0.blockNumber,
       })
     ).to.throw(/Could not find HubPool mapping/);
@@ -188,7 +188,7 @@ describe("HubPoolClient: Deposit to Destination Token", function () {
     );
     expect(equivalent).to.be.false;
 
-    const events: Event[] = [];
+    const events: Log[] = [];
     [
       [originChainId.toString(), randomL1Token, randomOriginToken],
       [destinationChainId.toString(), randomL1Token, randomDestinationToken],

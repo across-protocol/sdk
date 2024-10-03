@@ -1,6 +1,7 @@
-import { providers, utils as ethersUtils } from "ethers";
+import { providers } from "ethers";
 import { BaseHTTPAdapter, BaseHTTPAdapterArgs } from "../../priceClient/adapters/baseAdapter";
-import { isDefined } from "../../utils/TypeGuards";
+import { BigNumber, bnZero, isDefined, parseUnits } from "../../utils";
+import { CHAIN_IDs } from "../../constants";
 import { GasPriceEstimate } from "../types";
 import { gasPriceError } from "../util";
 import { eip1559 } from "./ethereum";
@@ -24,13 +25,13 @@ type GasStationArgs = BaseHTTPAdapterArgs & {
   host?: string;
 };
 
-// @dev toBNWei() is not imported from ../utils because of a circular dependency loop.
-//      The fix is probably to relocate the function estimateTotalGasRequiredByUnsignedTransaction().
+const { POLYGON } = CHAIN_IDs;
+
 class PolygonGasStation extends BaseHTTPAdapter {
   readonly chainId: number;
 
-  constructor({ chainId = 137, host, timeout = 1500, retries = 1 }: GasStationArgs = {}) {
-    host = host ?? chainId === 137 ? "gasstation.polygon.technology" : "gasstation-testnet.polygon.technology";
+  constructor({ chainId = POLYGON, host, timeout = 1500, retries = 1 }: GasStationArgs = {}) {
+    host = host ?? chainId === POLYGON ? "gasstation.polygon.technology" : "gasstation-testnet.polygon.technology";
 
     super("Polygon Gas Station", host, { timeout, retries });
     this.chainId = chainId;
@@ -39,20 +40,20 @@ class PolygonGasStation extends BaseHTTPAdapter {
   async getFeeData(strategy: "safeLow" | "standard" | "fast" = "fast"): Promise<GasPriceEstimate> {
     const gas = await this.query("v2", {});
 
-    const gasPrice: Polygon1559GasPrice = (gas as GasStationV2Response)?.[strategy];
+    const gasPrice = (gas as GasStationV2Response)?.[strategy];
     if (!this.isPolygon1559GasPrice(gasPrice)) {
       // @todo: generalise gasPriceError() to accept a reason/cause?
-      gasPriceError("getFeeData()", this.chainId, ethersUtils.parseUnits("0"));
+      gasPriceError("getFeeData()", this.chainId, bnZero);
     }
 
     [gasPrice.maxFee, gasPrice.maxPriorityFee].forEach((gasPrice) => {
       if (Number(gasPrice) < 0) {
-        gasPriceError("getFeeData()", this.chainId, ethersUtils.parseUnits(gasPrice.toString(), 9));
+        gasPriceError("getFeeData()", this.chainId, parseUnits(gasPrice.toString(), 9));
       }
     });
 
-    const maxPriorityFeePerGas = ethersUtils.parseUnits(gasPrice.maxPriorityFee.toString(), 9);
-    const maxFeePerGas = ethersUtils.parseUnits(gasPrice.maxFee.toString(), 9);
+    const maxPriorityFeePerGas = parseUnits(gasPrice.maxPriorityFee.toString(), 9);
+    const maxFeePerGas = parseUnits(gasPrice.maxFee.toString(), 9);
 
     return { maxPriorityFeePerGas, maxFeePerGas };
   }
@@ -66,12 +67,25 @@ class PolygonGasStation extends BaseHTTPAdapter {
   }
 }
 
-export async function polygonGasStation(provider: providers.Provider, chainId: number): Promise<GasPriceEstimate> {
-  const gasStation = new PolygonGasStation({ chainId: chainId });
+export async function gasStation(provider: providers.Provider, chainId: number): Promise<GasPriceEstimate> {
+  const gasStation = new PolygonGasStation({ chainId: chainId, timeout: 2000, retries: 0 });
+  let maxPriorityFeePerGas: BigNumber;
+  let maxFeePerGas: BigNumber;
   try {
-    return await gasStation.getFeeData();
+    ({ maxPriorityFeePerGas, maxFeePerGas } = await gasStation.getFeeData());
   } catch (err) {
     // Fall back to the RPC provider. May be less accurate.
-    return await eip1559(provider, chainId);
+    ({ maxPriorityFeePerGas, maxFeePerGas } = await eip1559(provider, chainId));
+
+    // Per the GasStation docs, the minimum priority fee on Polygon is 30 Gwei.
+    // https://docs.polygon.technology/tools/gas/polygon-gas-station/#interpretation
+    const minPriorityFee = parseUnits("30", 9);
+    if (maxPriorityFeePerGas.lt(minPriorityFee)) {
+      const priorityDelta = minPriorityFee.sub(maxPriorityFeePerGas);
+      maxPriorityFeePerGas = minPriorityFee;
+      maxFeePerGas = maxFeePerGas.add(priorityDelta);
+    }
   }
+
+  return { maxPriorityFeePerGas, maxFeePerGas };
 }

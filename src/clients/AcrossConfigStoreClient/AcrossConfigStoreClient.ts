@@ -1,12 +1,11 @@
 import { utils, across } from "@uma/sdk";
 import assert from "assert";
-import { BigNumber, Contract, Event } from "ethers";
+import { Contract } from "ethers";
 import winston from "winston";
 import { isError } from "../../typeguards";
 import {
   EventSearchConfig,
   MakeOptional,
-  UBA_MIN_CONFIG_STORE_VERSION,
   findLast,
   isArrayOf,
   isDefined,
@@ -15,7 +14,6 @@ import {
   paginatedEventQuery,
   sortEventsAscendingInPlace,
   sortEventsDescending,
-  spreadEvent,
   spreadEventWithBlockNumber,
   toBN,
   utf8ToHex,
@@ -25,31 +23,32 @@ import {
   ConfigStoreVersionUpdate,
   DisabledChainsUpdate,
   GlobalConfigUpdate,
+  LiteChainsIdListUpdate,
+  Log,
   ParsedTokenConfig,
   RouteRateModelUpdate,
+  SortableEvent,
   SpokePoolTargetBalance,
   SpokeTargetBalanceUpdate,
-  SpokeTargetBalanceUpdateStringified,
   TokenConfig,
   UBAConfigUpdates,
   UBAParsedConfigType,
-  UBASerializedConfigUpdates,
 } from "../../interfaces";
-import { parseJSONWithNumericString, stringifyJSONWithNumericString } from "../../utils/JSONUtils";
-import { BaseAbstractClient } from "../BaseAbstractClient";
-import { parseUBAConfigFromOnChain } from "./ConfigStoreParsingUtilities";
+import { parseJSONWithNumericString } from "../../utils/JSONUtils";
+import { BaseAbstractClient, isUpdateFailureReason, UpdateFailureReason } from "../BaseAbstractClient";
 
-type _ConfigStoreUpdate = {
+type ConfigStoreUpdateSuccess = {
   success: true;
   chainId: number;
   searchEndBlock: number;
   events: {
-    updatedTokenConfigEvents: Event[];
-    updatedGlobalConfigEvents: Event[];
+    updatedTokenConfigEvents: Log[];
+    updatedGlobalConfigEvents: Log[];
     globalConfigUpdateTimes: number[];
   };
 };
-export type ConfigStoreUpdate = { success: false } | _ConfigStoreUpdate;
+type ConfigStoreUpdateFailure = { success: false; reason: UpdateFailureReason };
+export type ConfigStoreUpdate = ConfigStoreUpdateSuccess | ConfigStoreUpdateFailure;
 
 // Version 0 is the implicit ConfigStore version from before the version attribute was introduced.
 // @dev Do not change this value.
@@ -61,6 +60,7 @@ export enum GLOBAL_CONFIG_STORE_KEYS {
   VERSION = "VERSION",
   DISABLED_CHAINS = "DISABLED_CHAINS",
   CHAIN_ID_INDICES = "CHAIN_ID_INDICES",
+  LITE_CHAIN_ID_INDICES = "LITE_CHAIN_ID_INDICES",
 }
 
 export class AcrossConfigStoreClient extends BaseAbstractClient {
@@ -70,6 +70,7 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
   public cumulativeMaxRefundCountUpdates: GlobalConfigUpdate[] = [];
   public cumulativeMaxL1TokenCountUpdates: GlobalConfigUpdate[] = [];
   public chainIdIndicesUpdates: GlobalConfigUpdate<number[]>[] = [];
+  public liteChainIndicesUpdates: LiteChainsIdListUpdate[] = [];
   public cumulativeSpokeTargetBalanceUpdates: SpokeTargetBalanceUpdate[] = [];
   public cumulativeConfigStoreVersionUpdates: ConfigStoreVersionUpdate[] = [];
   public cumulativeDisabledChainUpdates: DisabledChainsUpdate[] = [];
@@ -82,10 +83,10 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
   constructor(
     readonly logger: winston.Logger,
     readonly configStore: Contract,
-    readonly eventSearchConfig: MakeOptional<EventSearchConfig, "toBlock"> = { fromBlock: 0, maxBlockLookBack: 0 },
+    eventSearchConfig: MakeOptional<EventSearchConfig, "toBlock"> = { fromBlock: 0, maxBlockLookBack: 0 },
     readonly configStoreVersion: number
   ) {
-    super();
+    super(eventSearchConfig);
     this.firstBlockToSearch = eventSearchConfig.fromBlock;
     this.latestBlockSearched = 0;
     this.rateModelDictionary = new across.rateModel.RateModelDictionary();
@@ -154,6 +155,38 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
 
     // Return either the found value or the protocol default.
     return chainIdIndices ?? this.implicitChainIdIndices(this.chainId);
+  }
+
+  /**
+   * Resolves the lite chain ids that were available to the protocol at a given block range.
+   * @param blockNumber Block number to search for. Defaults to latest block.
+   * @returns List of lite chain IDs that were available to the protocol at the given block number.
+   * @note This dynamic functionality has been added after the launch of Across.
+   */
+  getLiteChainIdIndicesForBlock(blockNumber: number = Number.MAX_SAFE_INTEGER): number[] {
+    const liteChainIdList = sortEventsDescending(this.liteChainIndicesUpdates);
+    return liteChainIdList.find((update) => update.blockNumber <= blockNumber)?.value ?? [];
+  }
+
+  /**
+   * Resolves the lite chain ids that were available to the protocol at a given timestamp.
+   * @param timestamp Timestamp to search for. Defaults to latest time - in seconds.
+   * @returns List of lite chain IDs that were available to the protocol at the given timestamp.
+   * @note This dynamic functionality has been added after the launch of Across.
+   */
+  getLiteChainIdIndicesForTimestamp(timestamp: number = Number.MAX_SAFE_INTEGER): number[] {
+    const liteChainIdList = sortEventsDescending(this.liteChainIndicesUpdates);
+    return liteChainIdList.find((update) => update.timestamp <= timestamp)?.value ?? [];
+  }
+
+  /**
+   * Checks if a chain ID was a lite chain at a given timestamp.
+   * @param chainId The chain ID to check.
+   * @param timestamp The timestamp to check. Defaults to latest time - in seconds.
+   * @returns True if the chain ID was a lite chain at the given timestamp. False otherwise.
+   */
+  isChainLiteChainAtTimestamp(chainId: number, timestamp: number = Number.MAX_SAFE_INTEGER): boolean {
+    return this.getLiteChainIdIndicesForTimestamp(timestamp).includes(chainId);
   }
 
   getSpokeTargetBalancesForBlock(
@@ -251,12 +284,6 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
     return isDefined(config) ? Number(config.value) : DEFAULT_CONFIG_STORE_VERSION;
   }
 
-  getUBAActivationBlock(): number | undefined {
-    return this.cumulativeConfigStoreVersionUpdates.find((config) => {
-      return Number(config.value) >= UBA_MIN_CONFIG_STORE_VERSION;
-    })?.blockNumber;
-  }
-
   getConfigStoreVersionForBlock(blockNumber: number = Number.MAX_SAFE_INTEGER): number {
     const config = this.cumulativeConfigStoreVersionUpdates.find((config) => config.blockNumber <= blockNumber);
     return isDefined(config) ? Number(config.value) : DEFAULT_CONFIG_STORE_VERSION;
@@ -279,18 +306,13 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
   protected async _update(): Promise<ConfigStoreUpdate> {
     const chainId = await this.resolveChainId();
 
-    const searchConfig = {
-      fromBlock: this.firstBlockToSearch,
-      toBlock: this.eventSearchConfig.toBlock || (await this.configStore.provider.getBlockNumber()),
-      maxBlockLookBack: this.eventSearchConfig.maxBlockLookBack,
-    };
+    const searchConfig = await this.updateSearchConfig(this.configStore.provider);
+    if (isUpdateFailureReason(searchConfig)) {
+      const reason = searchConfig;
+      return { success: false, reason };
+    }
 
     this.logger.debug({ at: "AcrossConfigStore", message: "Updating ConfigStore client", searchConfig });
-
-    if (searchConfig.fromBlock > searchConfig.toBlock) {
-      this.logger.warn({ at: "AcrossConfigStore", message: "Invalid search config.", searchConfig });
-      return { success: false };
-    }
 
     const [updatedTokenConfigEvents, updatedGlobalConfigEvents] = await Promise.all([
       paginatedEventQuery(this.configStore, this.configStore.filters.UpdatedTokenConfig(), searchConfig),
@@ -319,6 +341,11 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
   async update(): Promise<void> {
     const result = await this._update();
     if (!result.success) {
+      if (result.reason !== UpdateFailureReason.AlreadyUpdated) {
+        throw new Error(`Unable to update ConfigStoreClient: ${result.reason}`);
+      }
+
+      // No need to touch `this.isUpdated` because it should already be set from a previous update.
       return;
     }
     const { chainId } = result;
@@ -336,28 +363,7 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
 
       try {
         const parsedValue = parseJSONWithNumericString(args.value) as ParsedTokenConfig;
-
         const l1Token = args.key;
-
-        // For now use the presence of `uba` or `rateModel` to decide which configs to parse.
-        if (parsedValue?.uba !== undefined) {
-          try {
-            // Parse and store UBA config
-            const ubaConfig = parseUBAConfigFromOnChain(parsedValue.uba);
-            // eslint-disable-next-line @typescript-eslint/no-unused-vars
-            const { value: _value, key: _key, ...passedArgs } = args;
-            this.ubaConfigUpdates.push({ ...passedArgs, config: ubaConfig, l1Token });
-          } catch (e) {
-            this.logger.warn({
-              at: "ConfigStore::update",
-              message: `Failed to parse UBA config for ${l1Token}`,
-              error: {
-                message: (e as Error)?.message,
-                stack: (e as Error)?.stack,
-              },
-            });
-          }
-        }
 
         // TODO: Temporarily reformat the shape of the event that we pass into the sdk.rateModel class to make it fit
         // the expected shape. This is a fix for now that we should eventually replace when we change the sdk.rateModel
@@ -425,18 +431,48 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
 
     // Save new Global config updates.
     for (let i = 0; i < updatedGlobalConfigEvents.length; i++) {
-      const event = updatedGlobalConfigEvents[i];
-      const args = {
-        blockNumber: event.blockNumber,
-        transactionIndex: event.transactionIndex,
-        logIndex: event.logIndex,
-        ...spreadEvent(event.args),
+      const args = spreadEventWithBlockNumber(updatedGlobalConfigEvents[i]) as SortableEvent & {
+        key: string;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        value: any;
       };
 
       if (args.key === utf8ToHex(GLOBAL_CONFIG_STORE_KEYS.MAX_RELAYER_REPAYMENT_LEAF_SIZE)) {
         if (!isNaN(args.value)) {
           this.cumulativeMaxRefundCountUpdates.push(args);
         }
+      } else if (args.key === utf8ToHex(GLOBAL_CONFIG_STORE_KEYS.LITE_CHAIN_ID_INDICES)) {
+        // We need to parse the chain ID indices array from the stringified JSON. However,
+        // the on-chain string has quotes around the array, which will parse our JSON as a
+        // string instead of an array. We need to remove these quotes before parsing.
+        // To be sure, we can check for single quotes, double quotes, and spaces.
+
+        // Use a regular expression to check if the string is a valid array. We need to check for
+        // leading and trailing quotes, as well as leading and trailing whitespace. We also need to
+        // check for commas between the numbers. Alternatively, this can be an empty array.
+        if (!/^\s*["']?\[(\d+(,\d+)*)?\]["']?\s*$/.test(args.value)) {
+          this.logger.warn({ at: "ConfigStore", message: `The lite chain indices array ${args.value} is invalid.` });
+          // If not a valid array, skip.
+          continue;
+        }
+        const chainIndices = JSON.parse(args.value.replace(/['"\s]/g, ""));
+        // Check that the array is valid and that every element is a number.
+        if (!isArrayOf<number>(chainIndices, isPositiveInteger)) {
+          this.logger.warn({ at: "ConfigStore", message: `The array ${chainIndices} is invalid.` });
+          // If not a valid array, skip.
+          continue;
+        }
+        // Let's also check that the array doesn't contain any duplicates.
+        if (new Set(chainIndices).size !== chainIndices.length) {
+          this.logger.warn({
+            at: "ConfigStore",
+            message: `The array ${chainIndices} contains duplicates making it invalid.`,
+          });
+          // If not a valid array, skip.
+          continue;
+        }
+        // If all else passes, we can add this update.
+        this.liteChainIndicesUpdates.push({ ...args, value: chainIndices, timestamp: globalConfigUpdateTimes[i] });
       } else if (args.key === utf8ToHex(GLOBAL_CONFIG_STORE_KEYS.CHAIN_ID_INDICES)) {
         try {
           // We need to parse the chain ID indices array from the stringified JSON. However,
@@ -520,6 +556,7 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
     this.hasLatestConfigStoreVersion = this.hasValidConfigStoreVersionForTimestamp();
     this.latestBlockSearched = result.searchEndBlock;
     this.firstBlockToSearch = result.searchEndBlock + 1; // Next iteration should start off from where this one ended.
+    this.eventSearchConfig.toBlock = undefined; // Caller can re-set on subsequent updates if necessary
     this.chainId = this.chainId ?? chainId; // Update on the first run only.
     this.isUpdated = true;
 
@@ -551,90 +588,5 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
       (config) => config.l1Token === l1TokenAddress && config.blockNumber <= blockNumber
     );
     return config?.config;
-  }
-
-  public updateFromJSON(configStoreClientState: Partial<ReturnType<AcrossConfigStoreClient["toJSON"]>>) {
-    const keysToUpdate = Object.keys(configStoreClientState);
-
-    this.logger.debug({
-      at: "ConfigStoreClient",
-      message: "Updating ConfigStoreClient from JSON",
-      keys: keysToUpdate,
-    });
-
-    if (keysToUpdate.length === 0) {
-      return;
-    }
-
-    const {
-      cumulativeRateModelUpdates = this.cumulativeRateModelUpdates,
-      cumulativeRouteRateModelUpdates = this.cumulativeRouteRateModelUpdates,
-      cumulativeMaxRefundCountUpdates = this.cumulativeMaxRefundCountUpdates,
-      cumulativeMaxL1TokenCountUpdates = this.cumulativeMaxL1TokenCountUpdates,
-      cumulativeConfigStoreVersionUpdates = this.cumulativeConfigStoreVersionUpdates,
-      cumulativeDisabledChainUpdates = this.cumulativeDisabledChainUpdates,
-      firstBlockToSearch = this.firstBlockToSearch,
-      hasLatestConfigStoreVersion = this.hasLatestConfigStoreVersion,
-      latestBlockSearched = this.latestBlockSearched,
-      ubaConfigUpdates,
-      cumulativeSpokeTargetBalanceUpdates,
-    } = configStoreClientState;
-
-    this.cumulativeRateModelUpdates = cumulativeRateModelUpdates;
-    this.ubaConfigUpdates = ubaConfigUpdates
-      ? ubaConfigUpdates.map((update) => {
-          return {
-            ...update,
-            config: parseUBAConfigFromOnChain(update.config),
-          };
-        })
-      : this.ubaConfigUpdates;
-    this.cumulativeRouteRateModelUpdates = cumulativeRouteRateModelUpdates;
-    this.cumulativeMaxRefundCountUpdates = cumulativeMaxRefundCountUpdates;
-    this.cumulativeMaxL1TokenCountUpdates = cumulativeMaxL1TokenCountUpdates;
-    this.cumulativeSpokeTargetBalanceUpdates = cumulativeSpokeTargetBalanceUpdates
-      ? cumulativeSpokeTargetBalanceUpdates.map((update) => {
-          return {
-            ...update,
-            spokeTargetBalances: Object.entries(update.spokeTargetBalances || {}).reduce(
-              (acc, [chainId, { target, threshold }]) => ({
-                ...acc,
-                [chainId]: { target: BigNumber.from(target), threshold: BigNumber.from(threshold) },
-              }),
-              {}
-            ),
-          };
-        })
-      : [];
-    this.cumulativeConfigStoreVersionUpdates = cumulativeConfigStoreVersionUpdates;
-    this.cumulativeDisabledChainUpdates = cumulativeDisabledChainUpdates;
-    this.firstBlockToSearch = firstBlockToSearch;
-    this.hasLatestConfigStoreVersion = hasLatestConfigStoreVersion;
-    this.latestBlockSearched = latestBlockSearched;
-    this.rateModelDictionary.updateWithEvents(cumulativeRateModelUpdates);
-    this.isUpdated = true;
-  }
-
-  public toJSON() {
-    return {
-      eventSearchConfig: this.eventSearchConfig,
-      configStoreVersion: this.configStoreVersion,
-      chainIdIndicesUpdates: this.chainIdIndicesUpdates,
-      cumulativeRateModelUpdates: this.cumulativeRateModelUpdates,
-      ubaConfigUpdates: JSON.parse(
-        stringifyJSONWithNumericString(this.ubaConfigUpdates)
-      ) as UBASerializedConfigUpdates[],
-      cumulativeRouteRateModelUpdates: this.cumulativeRouteRateModelUpdates,
-      cumulativeMaxRefundCountUpdates: this.cumulativeMaxRefundCountUpdates,
-      cumulativeMaxL1TokenCountUpdates: this.cumulativeMaxL1TokenCountUpdates,
-      cumulativeSpokeTargetBalanceUpdates: JSON.parse(
-        stringifyJSONWithNumericString(this.cumulativeSpokeTargetBalanceUpdates)
-      ) as SpokeTargetBalanceUpdateStringified[],
-      cumulativeConfigStoreVersionUpdates: this.cumulativeConfigStoreVersionUpdates,
-      cumulativeDisabledChainUpdates: this.cumulativeDisabledChainUpdates,
-      firstBlockToSearch: this.firstBlockToSearch,
-      latestBlockSearched: this.latestBlockSearched,
-      hasLatestConfigStoreVersion: this.hasLatestConfigStoreVersion,
-    };
   }
 }

@@ -1,4 +1,4 @@
-import { BigNumber } from "ethers";
+import { BigNumber } from "../utils";
 import { SortableEvent } from "./Common";
 
 export interface PoolRebalanceLeaf {
@@ -32,7 +32,7 @@ export interface ProposedRootBundle extends SortableEvent {
 
 export type RealizedLpFee = {
   quoteBlock: number;
-  realizedLpFeePct?: BigNumber;
+  realizedLpFeePct: BigNumber;
 };
 
 export type ProposedRootBundleStringified = Omit<ProposedRootBundle, "bundleEvaluationBlockNumbers"> & {
@@ -87,6 +87,7 @@ export interface L1Token {
 
 export interface LpToken {
   lastLpFeeUpdate: number;
+  liquidReserves: BigNumber;
 }
 
 export interface CrossChainContractsSet extends SortableEvent {

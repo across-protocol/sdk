@@ -2,14 +2,11 @@ import { L2Provider } from "@eth-optimism/sdk/dist/interfaces/l2-provider";
 import { isL2Provider as isOptimismL2Provider } from "@eth-optimism/sdk/dist/l2-provider";
 import assert from "assert";
 import Decimal from "decimal.js";
-import { BigNumber, ethers, PopulatedTransaction, providers, VoidSigner } from "ethers";
+import { ethers, PopulatedTransaction, providers, VoidSigner } from "ethers";
 import { getGasPriceEstimate } from "../gasPriceOracle";
-import { Deposit } from "../interfaces";
 import { TypedMessage } from "../interfaces/TypedData";
-import { SpokePool } from "../typechain";
-import { BigNumberish, BN, bnUint256Max, toBN } from "./BigNumberUtils";
+import { BigNumber, BigNumberish, BN, formatUnits, parseUnits, toBN } from "./BigNumberUtils";
 import { ConvertDecimals } from "./FormattingUtils";
-import { isDefined } from "./TypeGuards";
 import { chainIsOPStack } from "./NetworkUtils";
 
 export type Decimalish = string | number | Decimal;
@@ -23,7 +20,7 @@ export const MAX_BIG_INT = BigNumber.from(Number.MAX_SAFE_INTEGER.toString());
  * @param {number} decimals
  * @returns {BN}
  */
-export const toBNWei = (num: BigNumberish, decimals?: number): BN => ethers.utils.parseUnits(num.toString(), decimals);
+export const toBNWei = (num: BigNumberish, decimals?: number): BN => parseUnits(num.toString(), decimals);
 
 /**
  * fromWei.
@@ -32,8 +29,7 @@ export const toBNWei = (num: BigNumberish, decimals?: number): BN => ethers.util
  * @param {number} decimals
  * @returns {string}
  */
-export const fromWei = (num: BigNumberish, decimals?: number): string =>
-  ethers.utils.formatUnits(num.toString(), decimals);
+export const fromWei = (num: BigNumberish, decimals?: number): string => formatUnits(num.toString(), decimals);
 
 /**
  * min.
@@ -245,6 +241,7 @@ export type TransactionCostEstimate = {
  * @param provider A valid ethers provider - will be used to reason the gas price.
  * @param gasMarkup Markup on the estimated gas cost. For example, 0.2 will increase this resulting value 1.2x.
  * @param gasPrice A manually provided gas price - if set, this function will not resolve the current gas price.
+ * @param gasUnits A manually provided gas units - if set, this function will not estimate the gas units.
  * @returns Estimated cost in units of gas and the underlying gas token (gasPrice * estimatedGasUnits).
  */
 export async function estimateTotalGasRequiredByUnsignedTransaction(
@@ -252,7 +249,8 @@ export async function estimateTotalGasRequiredByUnsignedTransaction(
   senderAddress: string,
   provider: providers.Provider | L2Provider<providers.Provider>,
   gasMarkup: number,
-  gasPrice?: BigNumberish
+  gasPrice?: BigNumberish,
+  gasUnits?: BigNumberish
 ): Promise<TransactionCostEstimate> {
   assert(
     gasMarkup > -1 && gasMarkup <= 4,
@@ -263,18 +261,27 @@ export async function estimateTotalGasRequiredByUnsignedTransaction(
   const voidSigner = new VoidSigner(senderAddress, provider);
 
   // Estimate the Gas units required to submit this transaction.
-  let nativeGasCost = await voidSigner.estimateGas(unsignedTx);
+  let nativeGasCost = gasUnits ? BigNumber.from(gasUnits) : await voidSigner.estimateGas(unsignedTx);
   let tokenGasCost: BigNumber;
 
   // OP stack is a special case; gas cost is computed by the SDK, without having to query price.
   if (chainIsOPStack(chainId)) {
     assert(isOptimismL2Provider(provider), `Unexpected provider for chain ID ${chainId}.`);
-    assert(gasPrice === undefined, `Gas price (${gasPrice}) supplied for Optimism gas estimation (unused).`);
-    const populatedTransaction = await voidSigner.populateTransaction(unsignedTx);
-    tokenGasCost = await provider.estimateTotalGasCost(populatedTransaction);
+    const populatedTransaction = await voidSigner.populateTransaction({
+      ...unsignedTx,
+      gasLimit: nativeGasCost, // prevents additional gas estimation call
+    });
+    // Concurrently estimate the gas cost on L1 and L2 instead of calling
+    // `provider.estimateTotalGasCost` to improve performance.
+    const [l1GasCost, l2GasPrice] = await Promise.all([
+      provider.estimateL1GasCost(populatedTransaction),
+      gasPrice || provider.getGasPrice(),
+    ]);
+    const l2GasCost = nativeGasCost.mul(l2GasPrice);
+    tokenGasCost = l1GasCost.add(l2GasCost);
   } else {
     if (!gasPrice) {
-      const gasPriceEstimate = await getGasPriceEstimate(provider);
+      const gasPriceEstimate = await getGasPriceEstimate(provider, chainId);
       gasPrice = gasPriceEstimate.maxFeePerGas;
     }
     tokenGasCost = nativeGasCost.mul(gasPrice);
@@ -290,74 +297,6 @@ export async function estimateTotalGasRequiredByUnsignedTransaction(
   };
 }
 
-/**
- * Create an unsigned transaction to fill a relay. This function is used to simulate the gas cost of filling a relay.
- * @param spokePool A valid SpokePool contract instance
- * @param fillToSimulate The fill that this function will use to populate the unsigned transaction
- * @returns An unsigned transaction that can be used to simulate the gas cost of filling a relay
- */
-export function createUnsignedFillRelayTransactionFromDeposit(
-  spokePool: SpokePool,
-  deposit: Deposit,
-  amountToFill: BN,
-  relayerAddress: string
-): Promise<PopulatedTransaction> {
-  // We need to assume certain fields exist
-  const realizedLpFeePct = deposit.realizedLpFeePct;
-  assert(isDefined(realizedLpFeePct));
-
-  // If we have made it this far, then we can populate the transaction.
-  if (isDefined(deposit.speedUpSignature)) {
-    // If the deposit has a speed up signature, then we need to verify that certain
-    // fields are present.
-
-    const updatedRecipient = deposit.updatedRecipient;
-    const updatedMessage = deposit.updatedMessage;
-    const updatedRelayerFeePct = deposit.newRelayerFeePct;
-    assert(isDefined(updatedRecipient) && isDefined(updatedMessage) && isDefined(updatedRelayerFeePct));
-
-    return spokePool.populateTransaction.fillRelayWithUpdatedDeposit(
-      deposit.depositor,
-      deposit.recipient,
-      updatedRecipient,
-      deposit.destinationToken,
-      deposit.amount,
-      amountToFill,
-      deposit.destinationChainId,
-      deposit.originChainId,
-      realizedLpFeePct,
-      deposit.relayerFeePct,
-      updatedRelayerFeePct,
-      deposit.depositId,
-      deposit.message,
-      updatedMessage,
-      deposit.speedUpSignature,
-      bnUint256Max,
-      {
-        from: relayerAddress,
-      }
-    );
-  } else {
-    return spokePool.populateTransaction.fillRelay(
-      deposit.depositor,
-      deposit.recipient,
-      deposit.destinationToken,
-      deposit.amount,
-      amountToFill,
-      deposit.destinationChainId, // Assume we're refunding to destination
-      deposit.originChainId,
-      realizedLpFeePct,
-      deposit.relayerFeePct,
-      deposit.depositId,
-      deposit.message,
-      bnUint256Max,
-      {
-        from: relayerAddress,
-      }
-    );
-  }
-}
-
 export type UpdateDepositDetailsMessageType = {
   UpdateDepositDetails: [
     {
@@ -366,6 +305,16 @@ export type UpdateDepositDetailsMessageType = {
     },
     { name: "originChainId"; type: "uint256" },
     { name: "updatedRelayerFeePct"; type: "int64" },
+    { name: "updatedRecipient"; type: "address" },
+    { name: "updatedMessage"; type: "bytes" },
+  ];
+};
+
+export type UpdateV3DepositDetailsMessageType = {
+  UpdateDepositDetails: [
+    { name: "depositId"; type: "uint32" },
+    { name: "originChainId"; type: "uint256" },
+    { name: "updatedOutputAmount"; type: "uint256" },
     { name: "updatedRecipient"; type: "address" },
     { name: "updatedMessage"; type: "bytes" },
   ];
@@ -409,6 +358,39 @@ export function getUpdateDepositTypedData(
       depositId,
       originChainId,
       updatedRelayerFeePct,
+      updatedRecipient,
+      updatedMessage,
+    },
+  };
+}
+
+export function getUpdateV3DepositTypedData(
+  depositId: number,
+  originChainId: number,
+  updatedOutputAmount: BigNumber,
+  updatedRecipient: string,
+  updatedMessage: string
+): TypedMessage<UpdateV3DepositDetailsMessageType> {
+  return {
+    types: {
+      UpdateDepositDetails: [
+        { name: "depositId", type: "uint32" },
+        { name: "originChainId", type: "uint256" },
+        { name: "updatedOutputAmount", type: "uint256" },
+        { name: "updatedRecipient", type: "address" },
+        { name: "updatedMessage", type: "bytes" },
+      ],
+    },
+    primaryType: "UpdateDepositDetails",
+    domain: {
+      name: "ACROSS-V2",
+      version: "1.0.0",
+      chainId: originChainId,
+    },
+    message: {
+      depositId,
+      originChainId,
+      updatedOutputAmount,
       updatedRecipient,
       updatedMessage,
     },

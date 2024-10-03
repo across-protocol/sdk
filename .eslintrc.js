@@ -26,7 +26,25 @@ module.exports = {
     semi: ["error", "always"],
     "spaced-comment": ["error", "always", { exceptions: ["-", "+"] }],
     "no-console": 0,
-    "@typescript-eslint/no-unused-vars": ["error", { ignoreRestSiblings: true }],
+    "no-restricted-imports": [
+      "error",
+      {
+        "patterns": [
+          { group: ["@ethersproject/bignumber"], message: "Use 'src/utils/BigNumberUtils' instead" },
+          { group: ["@ethersproject/contracts"], importNames: ["Event"], message: "Use Log from 'src/interfaces/Common' instead" },
+        ],
+        "paths": [
+          { name: "ethers", importNames: ["BigNumber"], message: "Use 'src/utils/BigNumberUtils' instead" },
+          { name: "ethers", importNames: ["Event"], message: "Use Log from 'src/interfaces/Common' instead" }
+        ]
+      }
+    ],
+    "@typescript-eslint/no-unused-vars": [
+      "error", {
+        argsIgnorePattern: "^_",
+        ignoreRestSiblings: true
+      }
+    ],
     "chai-expect/missing-assertion": 2,
     "no-duplicate-imports": "error",
     "require-await": "error",

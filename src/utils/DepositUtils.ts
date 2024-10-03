@@ -1,8 +1,8 @@
 import assert from "assert";
 import { SpokePoolClient } from "../clients";
 import { DEFAULT_CACHING_TTL, EMPTY_MESSAGE } from "../constants";
-import { CachingMechanismInterface, Deposit, DepositWithBlock, Fill } from "../interfaces";
-import { getNetworkName } from "../utils";
+import { CachingMechanismInterface, Deposit, DepositWithBlock, Fill, SlowFillRequest } from "../interfaces";
+import { getNetworkName } from "./NetworkUtils";
 import { getDepositInCache, getDepositKey, setDepositInCache } from "./CachingUtils";
 import { validateFillForDeposit } from "./FlowUtils";
 import { getCurrentTime } from "./TimeUtils";
@@ -37,7 +37,7 @@ export type DepositSearchResult =
  */
 export async function queryHistoricalDepositForFill(
   spokePoolClient: SpokePoolClient,
-  fill: Fill,
+  fill: Fill | SlowFillRequest,
   cache?: CachingMechanismInterface
 ): Promise<DepositSearchResult> {
   if (fill.originChainId !== spokePoolClient.chainId) {
@@ -107,7 +107,7 @@ export async function queryHistoricalDepositForFill(
   if (isDefined(cachedDeposit)) {
     deposit = cachedDeposit as DepositWithBlock;
   } else {
-    deposit = await spokePoolClient.findDeposit(fill.depositId, fill.destinationChainId, fill.depositor);
+    deposit = await spokePoolClient.findDeposit(fill.depositId, fill.destinationChainId);
     if (cache) {
       await setDepositInCache(deposit, getCurrentTime(), cache, DEFAULT_CACHING_TTL);
     }
@@ -140,7 +140,7 @@ export function isMessageEmpty(message = EMPTY_MESSAGE): boolean {
  * @returns True if the deposit was updated, otherwise false.
  */
 export function isDepositSpedUp(deposit: Deposit): boolean {
-  return isDefined(deposit.speedUpSignature) && isDefined(deposit.newRelayerFeePct);
+  return isDefined(deposit.speedUpSignature) && isDefined(deposit.updatedOutputAmount);
 }
 
 /**

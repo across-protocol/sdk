@@ -7,7 +7,7 @@ Calculates relay fee percentages for a relay deposit.
 See tests for more documentation: [Relay Fee Calculator Test]("./relayFeeDetails.test.ts")
 
 ```ts
-import * as across from "@across/sdk-v2"
+import * as across from "@across/sdk"
 import {ethers} from 'ethers'
 
 const {RelayFeeCalculator, DefaultQueries} = across.relayFeeCalculator

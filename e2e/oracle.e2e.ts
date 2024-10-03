@@ -1,8 +1,9 @@
 // @note: This test is _not_ run automatically as part of git hooks or CI.
 import dotenv from "dotenv";
 import winston from "winston";
-import { BigNumber, providers, utils as ethersUtils } from "ethers";
+import { providers, utils as ethersUtils } from "ethers";
 import { getGasPriceEstimate } from "../src/gasPriceOracle";
+import { BigNumber } from "../src/utils";
 import { assertPromiseError, expect } from "../test/utils";
 dotenv.config({ path: ".env" });
 
@@ -51,6 +52,7 @@ const networks: { [chainId: number]: string } = {
   324: "https://mainnet.era.zksync.io",
   8453: "https://mainnet.base.org",
   42161: "https://rpc.ankr.com/arbitrum",
+  534352: "https://rpc.scroll.io",
 };
 
 const stdGasPrice = ethersUtils.parseUnits("10", 9);
@@ -58,7 +60,7 @@ const stdMaxPriorityFeePerGas = ethersUtils.parseUnits("1.5", 9); // EIP-1559 ch
 const stdLastBaseFeePerGas = stdGasPrice.sub(stdMaxPriorityFeePerGas);
 const stdMaxFeePerGas = stdGasPrice;
 const eip1559Chains = [1, 10, 137, 8453, 42161];
-const legacyChains = [288, 324];
+const legacyChains = [288, 324, 534352];
 
 let providerInstances: { [chainId: number]: MockedProvider } = {};
 

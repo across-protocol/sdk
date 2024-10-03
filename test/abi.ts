@@ -5,11 +5,17 @@ import { assertPromiseError, assertPromisePasses } from "./utils";
 describe("ABI Utils", () => {
   describe("getABI", () => {
     it("All files are valid JSON", async () => {
-      const abiFiles = await fs.readdir(getABIDir(), { encoding: "utf8" });
+      let abiFiles = await fs.readdir(getABIDir(), { encoding: "utf8" });
 
-      // Strip any trailing '.json', since readdir() returns the
-      // full filename but callers should only supply the ABI name.
-      for (const abiFile of abiFiles.map((abi) => abi.slice(0, abi.lastIndexOf(".json")))) {
+      // Filter out any dotfiles, because editors sometimes save them in the local working directory. Also, strip any
+      // trailing '.json', since readdir() returns the full filename, but callers should only supply the ABI name.
+      abiFiles = abiFiles
+        .filter((fileName) => !fileName.startsWith("."))
+        // filter out barrel file
+        .filter((fileName) => !(fileName === "index.ts"))
+        .map((fileName) => fileName.slice(0, fileName.lastIndexOf(".json")));
+
+      for (const abiFile of abiFiles) {
         await assertPromisePasses(getABI(abiFile));
       }
     });

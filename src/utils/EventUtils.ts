@@ -1,17 +1,18 @@
 import { Result } from "@ethersproject/abi";
-import { delay } from "./common";
-import { SortableEvent } from "../interfaces";
+// eslint-disable-next-line no-restricted-imports
 import { Contract, Event, EventFilter } from "ethers";
+import { Log, SortableEvent } from "../interfaces";
+import { delay } from "./common";
 
 const maxRetries = 3;
 const retrySleepTime = 10;
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function spreadEvent(args: Result = {} as Result): any {
+export function spreadEvent(args: Result | Record<string, unknown>): { [key: string]: any } {
   const keys = Object.keys(args).filter((key: string) => isNaN(+key)); // Extract non-numeric keys.
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const returnedObject: any = {};
+  const returnedObject: { [key: string]: unknown } = {};
   keys.forEach((key: string) => {
     switch (typeof args[key]) {
       case "boolean": // fallthrough
@@ -22,7 +23,7 @@ export function spreadEvent(args: Result = {} as Result): any {
       case "object":
         if (Array.isArray(args[key])) {
           returnedObject[key] =
-            Object.keys(args[key].filter((key: string) => isNaN(+key))).length > 0
+            Object.keys(args[key]).filter((key: string) => isNaN(+key)).length > 0
               ? spreadEvent(args[key]) // Record/array hybrid...
               : args[key]; // Just an array
         } else {
@@ -67,15 +68,18 @@ export interface EventSearchConfig {
   maxBlockLookBack?: number;
 }
 
+export const eventToLog = (event: Event): Log => ({ ...event, event: event.event!, args: spreadEvent(event.args!) });
+
 export async function paginatedEventQuery(
   contract: Contract,
   filter: EventFilter,
   searchConfig: EventSearchConfig,
   retryCount = 0
-): Promise<Event[]> {
+): Promise<Log[]> {
   // If the max block look back is set to 0 then we dont need to do any pagination and can query over the whole range.
   if (searchConfig.maxBlockLookBack === 0) {
-    return await contract.queryFilter(filter, searchConfig.fromBlock, searchConfig.toBlock);
+    const events = await contract.queryFilter(filter, searchConfig.fromBlock, searchConfig.toBlock);
+    return events.map(eventToLog);
   }
 
   // Compute the number of queries needed. If there is no maxBlockLookBack set then we can execute the whole query in
@@ -93,6 +97,7 @@ export async function paginatedEventQuery(
         .flat()
         // Filter events by block number because ranges can include blocks that are outside the range specified for caching reasons.
         .filter((event) => event.blockNumber >= searchConfig.fromBlock && event.blockNumber <= searchConfig.toBlock)
+        .map(eventToLog)
     );
   } catch (error) {
     if (retryCount < maxRetries) {
@@ -163,7 +168,7 @@ export function getPaginatedBlockRanges({
   return ranges;
 }
 
-export function spreadEventWithBlockNumber(event: Event): SortableEvent {
+export function spreadEventWithBlockNumber(event: Log): SortableEvent {
   return {
     ...spreadEvent(event.args),
     blockNumber: event.blockNumber,

@@ -1,12 +1,12 @@
 import assert from "assert";
 import type { Block, Provider } from "@ethersproject/abstract-provider";
 import { clamp, sortedIndexBy } from "lodash";
-import { getNetworkName } from "./NetworkUtils";
+import { chainIsOPStack, getNetworkName } from "./NetworkUtils";
 import { isDefined } from "./TypeGuards";
 import { getCurrentTime } from "./TimeUtils";
 import { CachingMechanismInterface } from "../interfaces";
 import { shouldCache } from "./CachingUtils";
-import { DEFAULT_CACHING_SAFE_LAG } from "../constants";
+import { CHAIN_IDs, DEFAULT_CACHING_SAFE_LAG } from "../constants";
 
 type Opts = {
   highBlock?: number;
@@ -34,9 +34,9 @@ const defaultHighBlockOffset = 10;
 const cacheTTL = 60 * 15;
 const now = getCurrentTime(); // Seed the cache with initial values.
 const blockTimes: { [chainId: number]: BlockTimeAverage } = {
-  1: { average: 12.5, timestamp: now, blockRange: 1 },
-  10: { average: 2, timestamp: now, blockRange: 1 },
-  8453: { average: 2, timestamp: now, blockRange: 1 },
+  [CHAIN_IDs.LINEA]: { average: 3, timestamp: now, blockRange: 1 },
+  [CHAIN_IDs.MAINNET]: { average: 12.5, timestamp: now, blockRange: 1 },
+  [CHAIN_IDs.OPTIMISM]: { average: 2, timestamp: now, blockRange: 1 },
 };
 
 /**
@@ -48,9 +48,15 @@ export async function averageBlockTime(
   { highBlock, highBlockOffset, blockRange }: Opts = {}
 ): Promise<Pick<BlockTimeAverage, "average" | "blockRange">> {
   // Does not block for StaticJsonRpcProvider.
-  const chainId = (await provider.getNetwork()).chainId;
+  const { chainId } = await provider.getNetwork();
 
-  const cache = blockTimes[chainId];
+  // OP stack chains inherit Optimism block times, but can be overridden.
+  // prettier-ignore
+  const cache = blockTimes[chainId]
+    ?? chainIsOPStack(chainId)
+      ? blockTimes[CHAIN_IDs.OPTIMISM]
+      : undefined;
+
   const now = getCurrentTime();
   if (isDefined(cache) && now < cache.timestamp + cacheTTL) {
     return { average: cache.average, blockRange: cache.blockRange };

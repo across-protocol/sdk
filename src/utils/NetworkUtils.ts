@@ -1,38 +1,18 @@
-import { PublicNetworks } from "@uma/common/dist/PublicNetworks";
-import { PRODUCTION_CHAIN_IDS, TESTNET_CHAIN_IDS } from "../constants";
+import { ChainFamily, CHAIN_IDs, MAINNET_CHAIN_IDs, PUBLIC_NETWORKS, TESTNET_CHAIN_IDs } from "../constants";
+
+const hreNetworks: Record<number, string> = {
+  666: "Hardhat1",
+  1337: "Hardhat2",
+};
+
 /**
  * Resolves a network name from a network id.
  * @param networkId The network id to resolve the name for
  * @returns The network name for the network id. If the network id is not found, returns "unknown"
  */
 export function getNetworkName(networkId: number | string): string {
-  try {
-    const networkName = PublicNetworks[Number(networkId)].name;
-    return networkName.charAt(0).toUpperCase() + networkName.slice(1);
-  } catch (error) {
-    if (Number(networkId) == 666) {
-      return "Hardhat1";
-    }
-    if (Number(networkId) == 1337) {
-      return "Hardhat2";
-    }
-    if (Number(networkId) == 421613) {
-      return "ArbitrumGoerli";
-    }
-    if (Number(networkId) == 324) {
-      return "ZkSync";
-    }
-    if (Number(networkId) == 280) {
-      return "ZkSync-Goerli";
-    }
-    if (Number(networkId) == 8453) {
-      return "Base";
-    }
-    if (Number(networkId) == 84531) {
-      return "BaseGoerli";
-    }
-    return "unknown";
-  }
+  networkId = Number(networkId);
+  return PUBLIC_NETWORKS[networkId]?.name ?? hreNetworks[networkId] ?? "unknown";
 }
 
 /**
@@ -41,10 +21,7 @@ export function getNetworkName(networkId: number | string): string {
  * @returns The native token symbol for the chain id. If the chain id is not found, returns "ETH"
  */
 export function getNativeTokenSymbol(chainId: number | string): string {
-  if (chainId.toString() === "137" || chainId.toString() === "80001") {
-    return "MATIC";
-  }
-  return "ETH";
+  return PUBLIC_NETWORKS[Number(chainId)]?.nativeToken ?? "ETH";
 }
 
 /**
@@ -53,7 +30,7 @@ export function getNativeTokenSymbol(chainId: number | string): string {
  * @returns true if the chain ID is part of the production network, otherwise false.
  */
 export function chainIsProd(chainId: number): boolean {
-  return PRODUCTION_CHAIN_IDS.includes(chainId);
+  return Object.values(MAINNET_CHAIN_IDs).includes(chainId);
 }
 
 /**
@@ -62,7 +39,16 @@ export function chainIsProd(chainId: number): boolean {
  * @returns true if the chain ID is part of the production network, otherwise false.
  */
 export function chainIsTestnet(chainId: number): boolean {
-  return TESTNET_CHAIN_IDS.includes(chainId);
+  return Object.values(TESTNET_CHAIN_IDs).includes(chainId);
+}
+
+/**
+ * Determines whether a chain ID is a Polygon implementation.
+ * @param chainId Chain ID to evaluate.
+ * @returns True if chainId is a Polygon chain (mainnet or testnet), otherwise false.
+ */
+export function chainIsMatic(chainId: number): boolean {
+  return [CHAIN_IDs.POLYGON, CHAIN_IDs.POLYGON_AMOY].includes(chainId);
 }
 
 /**
@@ -71,5 +57,74 @@ export function chainIsTestnet(chainId: number): boolean {
  * @returns True if chainId is an OP stack, otherwise false.
  */
 export function chainIsOPStack(chainId: number): boolean {
-  return [10, 8453, 69, 420, 84531].includes(chainId);
+  return PUBLIC_NETWORKS[chainId]?.family === ChainFamily.OP_STACK ?? false;
+}
+
+/**
+ * Determines whether a chain ID is an Arbitrum implementation.
+ * @param chainId Chain ID to evaluate.
+ * @returns True if chainId is an Arbitrum chain, otherwise false.
+ */
+export function chainIsArbitrum(chainId: number): boolean {
+  return [CHAIN_IDs.ARBITRUM, CHAIN_IDs.ARBITRUM_SEPOLIA].includes(chainId);
+}
+
+/**
+ * Determines whether a chain ID is a Linea implementation.
+ * @param chainId Chain ID to evaluate.
+ * @returns True if chainId is a Linea chain, otherwise false.
+ */
+export function chainIsLinea(chainId: number): boolean {
+  return [CHAIN_IDs.LINEA].includes(chainId);
+}
+
+/**
+ * Determines whether a chain ID has a corresponding hub pool contract.
+ * @param chainId Chain ID to evaluate.
+ * @returns True if chain corresponding to chainId has a hub pool implementation.
+ */
+export function chainIsL1(chainId: number): boolean {
+  return [CHAIN_IDs.MAINNET, CHAIN_IDs.SEPOLIA].includes(chainId);
+}
+
+/**
+ * Determines whether a chain ID has the capacity for having its USDC bridged via CCTP.
+ * @param chainId Chain ID to evaluate.
+ * @returns True if chainId is a CCTP-bridging enabled chain, otherwise false.
+ */
+export function chainIsCCTPEnabled(chainId: number): boolean {
+  return [
+    // Mainnets
+    CHAIN_IDs.BASE,
+    CHAIN_IDs.OPTIMISM,
+    CHAIN_IDs.ARBITRUM,
+    CHAIN_IDs.POLYGON,
+    // Testnets
+    CHAIN_IDs.BASE_SEPOLIA,
+    CHAIN_IDs.OPTIMISM_SEPOLIA,
+    CHAIN_IDs.ARBITRUM_SEPOLIA,
+    CHAIN_IDs.POLYGON_AMOY,
+  ].includes(chainId);
+}
+
+/**
+ * Determines if a chain ID requires a manual L1 -> L2 finalization step.
+ * @param chainId Chain ID to evaluate.
+ * @returns True if chainId requires manual L1 -> L2 finalization, otherwise false.
+ */
+export function chainRequiresL1ToL2Finalization(chainId: number): boolean {
+  return chainIsCCTPEnabled(chainId) || chainIsLinea(chainId);
+}
+
+/**
+ * Returns the origin of a URL.
+ * @param url A URL.
+ * @returns The origin of the URL, or "UNKNOWN" if the URL is invalid.
+ */
+export function getOriginFromURL(url: string): string {
+  try {
+    return new URL(url).origin;
+  } catch (e) {
+    return "UNKNOWN";
+  }
 }

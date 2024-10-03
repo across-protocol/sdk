@@ -1,7 +1,16 @@
 import dotenv from "dotenv";
 import hre from "hardhat";
 import { RelayFeeCalculator, QueryInterface } from "../src/relayFeeCalculator/relayFeeCalculator";
-import { toBNWei, toBN, toGWei, TransactionCostEstimate, bnOne, bnZero, bnUint256Max } from "../src/utils";
+import {
+  toBNWei,
+  toBN,
+  toGWei,
+  TransactionCostEstimate,
+  bnOne,
+  getCurrentTime,
+  spreadEvent,
+  isMessageEmpty,
+} from "../src/utils";
 import {
   BigNumber,
   Contract,
@@ -17,10 +26,10 @@ import {
   randomAddress,
   setupTokensForWallet,
 } from "./utils";
-import { TOKEN_SYMBOLS_MAP } from "@across-protocol/constants-v2";
-import { EthereumQueries } from "../src/relayFeeCalculator";
-import { EMPTY_MESSAGE } from "../src/constants";
-import { SpokePool } from "@across-protocol/contracts-v2";
+import { TOKEN_SYMBOLS_MAP } from "@across-protocol/constants";
+import { EMPTY_MESSAGE, ZERO_ADDRESS } from "../src/constants";
+import { SpokePool } from "@across-protocol/contracts";
+import { QueryBase, QueryBase__factory } from "../src/relayFeeCalculator";
 
 dotenv.config({ path: ".env" });
 
@@ -188,29 +197,6 @@ describe("RelayFeeCalculator", () => {
       () =>
         new RelayFeeCalculator({
           queries,
-          capitalCostsConfig: {
-            WBTC: {
-              ...testCapitalCostsConfig["WBTC"],
-              upperBound: toBNWei("0.001").toString(),
-              lowerBound: toBNWei("0.002").toString(),
-            },
-          },
-        }),
-      /lower bound must be <= upper bound/
-    );
-    assert.throws(
-      () =>
-        RelayFeeCalculator.validateCapitalCostsConfig({
-          ...testCapitalCostsConfig["WBTC"],
-          upperBound: toBNWei("0.001").toString(),
-          lowerBound: toBNWei("0.002").toString(),
-        }),
-      /lower bound must be <= upper bound/
-    );
-    assert.throws(
-      () =>
-        new RelayFeeCalculator({
-          queries,
           capitalCostsConfig: { WBTC: { ...testCapitalCostsConfig["WBTC"], decimals: 0 } },
         }),
       /invalid decimals/
@@ -295,7 +281,7 @@ describe("RelayFeeCalculator", () => {
 describe("RelayFeeCalculator: Composable Bridging", function () {
   let spokePool: SpokePool, erc20: Contract, destErc20: Contract, weth: Contract;
   let client: RelayFeeCalculator;
-  let queries: EthereumQueries;
+  let queries: QueryBase;
   let testContract: Contract;
   let owner: SignerWithAddress, relayer: SignerWithAddress, depositor: SignerWithAddress;
   let tokenMap: typeof TOKEN_SYMBOLS_MAP;
@@ -329,26 +315,31 @@ describe("RelayFeeCalculator: Composable Bridging", function () {
     } as unknown as typeof TOKEN_SYMBOLS_MAP;
     await (spokePool as Contract).setChainId(10); // The spoke pool for a fill should be at the destinationChainId.
     await setupTokensForWallet(spokePool, relayer, [erc20, destErc20], weth, 100);
+    spokePool = spokePool.connect(relayer);
 
     testContract = await hre["upgrades"].deployProxy(await getContractFactory("MockAcrossMessageContract", owner), []);
-    queries = new EthereumQueries(spokePool.provider, tokenMap, spokePool.address, relayer.address);
+    queries = QueryBase__factory.create(1, spokePool.provider, tokenMap, spokePool.address, relayer.address);
     client = new RelayFeeCalculator({ queries, capitalCostsConfig: testCapitalCostsConfig });
 
     testGasFeePct = (message?: string) =>
       client.gasFeePercent(
         {
-          amount: bnOne,
-          quoteTimestamp: 1,
+          inputAmount: bnOne,
+          outputAmount: bnOne,
+          inputToken: erc20.address,
+          outputToken: destErc20.address,
           recipient: testContract.address,
-          relayerFeePct: bnZero,
+          quoteTimestamp: 1,
           depositId: 1000000,
           depositor: depositor.address,
-          originChainId: 1,
-          destinationChainId: 10,
-          originToken: erc20.address,
-          destinationToken: erc20.address,
+          originChainId: 10,
+          destinationChainId: 1,
           message: message || EMPTY_MESSAGE,
-          realizedLpFeePct: bnZero,
+          exclusiveRelayer: ZERO_ADDRESS,
+          fillDeadline: getCurrentTime() + 60000,
+          exclusivityDeadline: 0,
+          fromLiteChain: false,
+          toLiteChain: false,
         },
         1,
         false,
@@ -366,40 +357,45 @@ describe("RelayFeeCalculator: Composable Bridging", function () {
     await assertPromiseError(testGasFeePct(message), "MockAcrossMessageContract: revert");
   });
   it("should be more gas to call a contract with a message", async () => {
-    const gasFeeFromTestContract = await testContract.estimateGas.handleAcrossMessage(
+    const gasFeeFromTestContract = await testContract.estimateGas.handleV3AcrossMessage(
       erc20.address,
       bnOne,
-      true,
       relayer.address,
       "0x04"
     );
-    const gasFeeFromFillRelayWithoutMessage = await spokePool.estimateGas.fillRelay(
-      depositor.address,
-      testContract.address,
-      erc20.address,
-      1,
-      1,
-      10,
-      1,
-      bnOne,
-      bnOne,
-      3_000_000,
-      EMPTY_MESSAGE,
-      bnUint256Max
+    const gasFeeFromFillRelayWithoutMessage = await spokePool.estimateGas.fillV3Relay(
+      {
+        depositor: depositor.address,
+        inputToken: erc20.address,
+        outputToken: erc20.address,
+        inputAmount: 1,
+        outputAmount: 1,
+        recipient: testContract.address,
+        depositId: 3_000_000,
+        originChainId: 1,
+        message: EMPTY_MESSAGE,
+        exclusiveRelayer: ZERO_ADDRESS,
+        fillDeadline: getCurrentTime() + 60,
+        exclusivityDeadline: 0,
+      },
+      10
     );
-    const gasFeeFromFillRelayWithMessage = await spokePool.estimateGas.fillRelay(
-      depositor.address,
-      testContract.address,
-      erc20.address,
-      1,
-      1,
-      10,
-      1,
-      bnOne,
-      bnOne,
-      3_000_000,
-      "0x04",
-      bnUint256Max
+    const gasFeeFromFillRelayWithMessage = await spokePool.estimateGas.fillV3Relay(
+      {
+        depositor: depositor.address,
+        inputToken: erc20.address,
+        outputToken: erc20.address,
+        inputAmount: 1,
+        outputAmount: 1,
+        recipient: testContract.address,
+        depositId: 1000000,
+        originChainId: 1,
+        message: "0x04",
+        exclusiveRelayer: ZERO_ADDRESS,
+        fillDeadline: getCurrentTime() + 60,
+        exclusivityDeadline: 0,
+      },
+      10
     );
     const intrinsicGasCost = toBN(21_000);
 
@@ -412,5 +408,42 @@ describe("RelayFeeCalculator: Composable Bridging", function () {
       .sub(intrinsicGasCost);
 
     expect(gasFeeFromFillRelayWithMessage.gt(gasFeeEstimatedByCallingContract)).to.be.true;
+  });
+
+  it("should pull all relayExecutionInfo when a message exists", async () => {
+    // Fill a relay with a message
+    await spokePool.fillV3Relay(
+      {
+        depositor: depositor.address,
+        inputToken: erc20.address,
+        outputToken: erc20.address,
+        inputAmount: 1,
+        outputAmount: 1,
+        recipient: testContract.address,
+        depositId: 3_000_000,
+        originChainId: 1,
+        message: "0xabcdef",
+        exclusiveRelayer: ZERO_ADDRESS,
+        fillDeadline: getCurrentTime() + 600,
+        exclusivityDeadline: 0,
+      },
+      10
+    );
+    const fillData = await spokePool.queryFilter(spokePool.filters.FilledV3Relay());
+    expect(fillData.length).to.eq(1);
+    const onlyMessages = fillData.filter((fill) => !isMessageEmpty(fill.args.message));
+    expect(onlyMessages.length).to.eq(1);
+    const relevantFill = onlyMessages[0];
+    const spreadFill = spreadEvent(relevantFill.args);
+
+    expect({
+      ...spreadFill.relayExecutionInfo,
+      updatedOutputAmount: spreadFill.relayExecutionInfo.updatedOutputAmount.toString(),
+    }).to.deep.eq({
+      updatedRecipient: testContract.address,
+      updatedMessage: "0xabcdef",
+      updatedOutputAmount: "1",
+      fillType: 0,
+    });
   });
 });

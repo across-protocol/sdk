@@ -1,5 +1,5 @@
-import { BigNumber } from "ethers";
 import { RateModelDictionary } from "../lpFeeCalculator/rateModel";
+import { BigNumber } from "../utils";
 import { SortableEvent } from "./Common";
 
 export interface ParsedTokenConfig {
@@ -62,6 +62,10 @@ export interface ConfigStoreVersionUpdate<ValueStore = number> extends GlobalCon
 
 export interface DisabledChainsUpdate extends SortableEvent {
   chainIds: number[];
+}
+
+export interface LiteChainsIdListUpdate<ValueStore = number[]> extends GlobalConfigUpdate<ValueStore> {
+  timestamp: number;
 }
 
 /**

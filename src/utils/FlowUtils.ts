@@ -1,65 +1,27 @@
-import assert from "assert";
-import { HubPoolClient } from "../clients/HubPoolClient";
-import { Deposit, Fill, FillWithBlock, UbaFlow, isUbaInflow, outflowIsFill } from "../interfaces";
 import { isDefined } from "../utils";
+import { Deposit, Fill, RelayData } from "../interfaces";
 
-export const FILL_DEPOSIT_COMPARISON_KEYS = [
-  "amount",
-  "originChainId",
-  "relayerFeePct",
-  "realizedLpFeePct",
+export const RELAYDATA_KEYS = [
   "depositId",
+  "originChainId",
+  "destinationChainId",
   "depositor",
   "recipient",
-  "destinationChainId",
-  "destinationToken",
+  "inputToken",
+  "inputAmount",
+  "outputToken",
+  "outputAmount",
+  "fillDeadline",
+  "exclusivityDeadline",
+  "exclusiveRelayer",
   "message",
 ] as const;
 
-export function getTokenSymbolForFlow(
-  flow: UbaFlow,
-  chainId: number,
-  hubPoolClient: HubPoolClient
-): string | undefined {
-  let tokenSymbol: string | undefined;
-  if (isUbaInflow(flow)) {
-    if (chainId !== flow.originChainId) {
-      throw new Error(
-        `ChainId mismatch on chain ${flow.originChainId} deposit ${flow.depositId} (${chainId} != ${flow.originChainId})`
-      );
-    }
-    tokenSymbol = hubPoolClient.getTokenInfo(flow.originChainId, flow.originToken)?.symbol;
-  } else {
-    assert(outflowIsFill(flow));
-    if (chainId !== flow.destinationChainId) {
-      throw new Error(
-        `ChainId mismatch on chain ${flow.destinationChainId} fill for chain ${flow.originChainId} deposit ${flow.depositId} (${chainId} != ${flow.destinationChainId})`
-      );
-    }
-    tokenSymbol = hubPoolClient.getTokenInfo(flow.destinationChainId, (flow as FillWithBlock).destinationToken)?.symbol;
-  }
-
-  return tokenSymbol;
-}
-
-export function filledSameDeposit(fillA: Fill, fillB: Fill): boolean {
-  return (
-    fillA.depositId === fillB.depositId &&
-    fillA.originChainId === fillB.originChainId &&
-    fillA.amount.eq(fillB.amount) &&
-    fillA.destinationChainId === fillB.destinationChainId &&
-    fillA.relayerFeePct.eq(fillB.relayerFeePct) &&
-    fillA.recipient === fillB.recipient &&
-    fillA.depositor === fillB.depositor
-  );
-}
-
 // Ensure that each deposit element is included with the same value in the fill. This includes all elements defined
-// by the depositor as well as the realizedLpFeePct and the destinationToken, which are pulled from other clients.
+// by the depositor as well as destinationToken, which are pulled from other clients.
 export function validateFillForDeposit(
-  fill: Fill,
-  deposit?: Deposit,
-  fillFieldsToIgnore: string[] = []
+  relayData: RelayData & { destinationChainId: number },
+  deposit?: Deposit
 ): { valid: true } | { valid: false; reason: string } {
   if (deposit === undefined) {
     return { valid: false, reason: "Deposit is undefined" };
@@ -68,11 +30,9 @@ export function validateFillForDeposit(
   // Note: this short circuits when a key is found where the comparison doesn't match.
   // TODO: if we turn on "strict" in the tsconfig, the elements of FILL_DEPOSIT_COMPARISON_KEYS will be automatically
   // validated against the fields in Fill and Deposit, generating an error if there is a discrepency.
-  const invalidKey = FILL_DEPOSIT_COMPARISON_KEYS.find((key) =>
-    fill[key]?.toString() !== deposit[key]?.toString() && !fillFieldsToIgnore.includes(key)
-  );
+  const invalidKey = RELAYDATA_KEYS.find((key) => relayData[key].toString() !== deposit[key].toString());
 
   return isDefined(invalidKey)
-  ? { valid: false, reason: `${invalidKey} mismatch (${fill[invalidKey]} != ${deposit[invalidKey]})` }
+  ? { valid: false, reason: `${invalidKey} mismatch (${relayData[invalidKey]} != ${deposit[invalidKey]})` }
   : { valid: true };
 }

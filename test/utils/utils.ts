@@ -1,45 +1,72 @@
-import * as utils from "@across-protocol/contracts-v2/dist/test-utils";
-import { BigNumberish, providers } from "ethers";
+import * as utils from "@across-protocol/contracts/dist/test-utils";
+import { Contract, providers } from "ethers";
 import {
   AcrossConfigStoreClient as ConfigStoreClient,
   GLOBAL_CONFIG_STORE_KEYS,
   HubPoolClient,
 } from "../../src/clients";
-import { Deposit, Fill } from "../../src/interfaces";
 import {
+  SlowFillRequestWithBlock,
+  V3RelayData,
+  V2Deposit,
+  V3Deposit,
+  V3DepositWithBlock,
+  V3FillWithBlock,
+  V2Fill,
+} from "../../src/interfaces";
+import {
+  BigNumber,
+  BigNumberish,
   bnUint32Max,
-  bnZero,
+  bnOne,
   getCurrentTime,
+  getDepositInputAmount,
+  getDepositInputToken,
   resolveContractFromSymbol,
   toBN,
   toBNWei,
+  toWei,
   utf8ToHex,
 } from "../../src/utils";
 import {
-  MAX_L1_TOKENS_PER_POOL_REBALANCE_LEAF,
-  MAX_REFUNDS_PER_RELAYER_REFUND_LEAF,
   amountToDeposit,
   depositRelayerFeePct,
+  destinationChainId as defaultDestinationChainId,
+  MAX_L1_TOKENS_PER_POOL_REBALANCE_LEAF,
+  MAX_REFUNDS_PER_RELAYER_REFUND_LEAF,
   sampleRateModel,
-  zeroAddress,
 } from "../constants";
-import { BigNumber, Contract, SignerWithAddress, deposit } from "./index";
-export { sinon, winston };
-
-import { AcrossConfigStore } from "@across-protocol/contracts-v2";
+import { AcrossConfigStore } from "@across-protocol/contracts";
 import chai, { expect } from "chai";
 import chaiExclude from "chai-exclude";
 import _ from "lodash";
 import sinon from "sinon";
 import winston, { LogEntry } from "winston";
 import { SpokePoolDeploymentResult, SpyLoggerResult } from "../types";
-import { EMPTY_MESSAGE, PROTOCOL_DEFAULT_CHAIN_ID_INDICES } from "../../src/constants";
+import { EMPTY_MESSAGE, PROTOCOL_DEFAULT_CHAIN_ID_INDICES, ZERO_ADDRESS } from "../../src/constants";
 import { SpyTransport } from "./SpyTransport";
 
 chai.use(chaiExclude);
-
 const assert = chai.assert;
-export { assert, chai };
+
+export type SignerWithAddress = utils.SignerWithAddress;
+
+export const {
+  buildPoolRebalanceLeafTree,
+  buildPoolRebalanceLeaves,
+  deploySpokePool,
+  depositV2,
+  enableRoutes,
+  getContractFactory,
+  getDepositParams,
+  getUpdatedV3DepositSignature,
+  hubPoolFixture,
+  modifyRelayHelper,
+  randomAddress,
+  zeroAddress,
+} = utils;
+
+export { assert, BigNumber, expect, chai, Contract, sinon, toBN, toBNWei, toWei, utf8ToHex, winston };
 
 const TokenRolesEnum = {
   OWNER: "0",
@@ -96,14 +123,16 @@ export async function setupTokensForWallet(
   weth?: utils.Contract,
   seedMultiplier = 1
 ): Promise<void> {
+  const approveToken = async (token: Contract) => {
+    const balance = await token.balanceOf(wallet.address);
+    await token.connect(wallet).approve(contractToApprove.address, balance);
+  };
+
   await utils.seedWallet(wallet, tokens, weth, utils.amountToSeedWallets.mul(seedMultiplier));
-  await Promise.all(
-    tokens.map((token) =>
-      token.connect(wallet).approve(contractToApprove.address, utils.amountToDeposit.mul(seedMultiplier))
-    )
-  );
+  await Promise.all(tokens.map(approveToken));
+
   if (weth) {
-    await weth.connect(wallet).approve(contractToApprove.address, utils.amountToDeposit);
+    await approveToken(weth);
   }
 }
 
@@ -226,18 +255,18 @@ export async function simpleDeposit(
   token: utils.Contract,
   recipient: utils.SignerWithAddress,
   depositor: utils.SignerWithAddress,
-  destinationChainId: number = utils.destinationChainId,
-  amountToDeposit: utils.BigNumber = utils.amountToDeposit,
-  depositRelayerFeePct: utils.BigNumber = utils.depositRelayerFeePct
-): Promise<Deposit> {
-  const depositObject = await utils.deposit(
+  destinationChainId = defaultDestinationChainId,
+  amount = amountToDeposit,
+  relayerFeePct = depositRelayerFeePct
+): Promise<V2Deposit> {
+  const depositObject = await utils.depositV2(
     spokePool,
     token,
     recipient,
     depositor,
     destinationChainId,
-    amountToDeposit,
-    depositRelayerFeePct
+    amount,
+    relayerFeePct
   );
   // Sanity Check: Ensure that the deposit was successful.
   expect(depositObject).to.not.be.null;
@@ -279,21 +308,26 @@ export async function addLiquidity(
 }
 
 // Submits a deposit transaction and returns the Deposit struct that that clients interact with.
-export async function buildDepositStruct(
-  deposit: Omit<Deposit, "destinationToken" | "realizedLpFeePct">,
+export async function buildV2DepositStruct(
+  deposit: Omit<V2Deposit, "destinationToken" | "realizedLpFeePct">,
   hubPoolClient: HubPoolClient
-): Promise<Deposit & { quoteBlockNumber: number; blockNumber: number }> {
+): Promise<V2Deposit & { quoteBlockNumber: number; blockNumber: number }> {
   const blockNumber = await hubPoolClient.getBlockNumber(deposit.quoteTimestamp);
   if (!blockNumber) {
     throw new Error("Timestamp is undefined");
   }
+
+  const inputToken = getDepositInputToken(deposit);
+  const inputAmount = getDepositInputAmount(deposit);
   const { quoteBlock, realizedLpFeePct } = await hubPoolClient.computeRealizedLpFeePct({
     ...deposit,
+    inputToken,
+    inputAmount,
+    paymentChainId: deposit.destinationChainId,
     blockNumber,
   });
   return {
     ...deposit,
-    message: "0x",
     destinationToken: hubPoolClient.getL2TokenForDeposit({
       ...deposit,
       quoteBlockNumber: quoteBlock,
@@ -303,27 +337,211 @@ export async function buildDepositStruct(
     blockNumber: await getLastBlockNumber(),
   };
 }
+
+export async function depositV3(
+  spokePool: Contract,
+  destinationChainId: number,
+  signer: SignerWithAddress,
+  inputToken: string,
+  inputAmount: BigNumber,
+  outputToken: string,
+  outputAmount: BigNumber,
+  opts: {
+    destinationChainId?: number;
+    recipient?: string;
+    quoteTimestamp?: number;
+    message?: string;
+    fillDeadline?: number;
+    exclusivityDeadline?: number;
+    exclusiveRelayer?: string;
+  } = {}
+): Promise<V3DepositWithBlock> {
+  const depositor = signer.address;
+  const recipient = opts.recipient ?? depositor;
+
+  const [spokePoolTime, fillDeadlineBuffer] = (
+    await Promise.all([spokePool.getCurrentTime(), spokePool.fillDeadlineBuffer()])
+  ).map((n) => Number(n));
+
+  const quoteTimestamp = opts.quoteTimestamp ?? spokePoolTime;
+  const message = opts.message ?? EMPTY_MESSAGE;
+  const fillDeadline = opts.fillDeadline ?? spokePoolTime + fillDeadlineBuffer;
+  const exclusivityDeadline = opts.exclusivityDeadline ?? 0;
+  const exclusiveRelayer = opts.exclusiveRelayer ?? zeroAddress;
+
+  await spokePool
+    .connect(signer)
+    .depositV3(
+      depositor,
+      recipient,
+      inputToken,
+      outputToken,
+      inputAmount,
+      outputAmount,
+      destinationChainId,
+      exclusiveRelayer,
+      quoteTimestamp,
+      fillDeadline,
+      exclusivityDeadline,
+      message
+    );
+
+  const [events, originChainId] = await Promise.all([
+    spokePool.queryFilter(spokePool.filters.V3FundsDeposited()),
+    spokePool.chainId(),
+  ]);
+
+  const lastEvent = events.at(-1);
+  const args = lastEvent?.args;
+  assert.exists(args);
+
+  const { blockNumber, transactionHash, transactionIndex, logIndex } = lastEvent!;
+
+  return {
+    depositId: args!.depositId,
+    originChainId: Number(originChainId),
+    destinationChainId: Number(args!.destinationChainId),
+    depositor: args!.depositor,
+    recipient: args!.recipient,
+    inputToken: args!.inputToken,
+    inputAmount: args!.inputAmount,
+    outputToken: args!.outputToken,
+    outputAmount: args!.outputAmount,
+    quoteTimestamp: args!.quoteTimestamp,
+    message: args!.message,
+    fillDeadline: args!.fillDeadline,
+    exclusivityDeadline: args!.exclusivityDeadline,
+    exclusiveRelayer: args!.exclusiveRelayer,
+    quoteBlockNumber: 0, // @todo
+    blockNumber,
+    transactionHash,
+    transactionIndex,
+    logIndex,
+  };
+}
+
+export async function requestV3SlowFill(
+  spokePool: Contract,
+  relayData: V3RelayData,
+  signer: SignerWithAddress
+): Promise<SlowFillRequestWithBlock> {
+  const destinationChainId = Number(await spokePool.chainId());
+  assert.notEqual(relayData.originChainId, destinationChainId);
+
+  await spokePool.connect(signer).requestV3SlowFill(relayData);
+
+  const events = await spokePool.queryFilter(spokePool.filters.RequestedV3SlowFill());
+  const lastEvent = events.at(-1);
+  let args = lastEvent!.args;
+  assert.exists(args);
+  args = args!;
+
+  const { blockNumber, transactionHash, transactionIndex, logIndex } = lastEvent!;
+
+  return {
+    depositId: args.depositId,
+    originChainId: Number(args.originChainId),
+    destinationChainId,
+    depositor: args.depositor,
+    recipient: args.recipient,
+    inputToken: args.inputToken,
+    inputAmount: args.inputAmount,
+    outputToken: args.outputToken,
+    outputAmount: args.outputAmount,
+    message: args.message,
+    fillDeadline: args.fillDeadline,
+    exclusivityDeadline: args.exclusivityDeadline,
+    exclusiveRelayer: args.exclusiveRelayer,
+    blockNumber,
+    transactionHash,
+    transactionIndex,
+    logIndex,
+  };
+}
+
+export async function fillV3Relay(
+  spokePool: Contract,
+  deposit: Omit<V3Deposit, "destinationChainId">,
+  signer: SignerWithAddress,
+  repaymentChainId?: number
+): Promise<V3FillWithBlock> {
+  const destinationChainId = Number(await spokePool.chainId());
+  assert.notEqual(deposit.originChainId, destinationChainId);
+
+  await spokePool.connect(signer).fillV3Relay(deposit, repaymentChainId ?? destinationChainId);
+
+  const events = await spokePool.queryFilter(spokePool.filters.FilledV3Relay());
+  const lastEvent = events.at(-1);
+  let args = lastEvent!.args;
+  assert.exists(args);
+  args = args!;
+
+  const { blockNumber, transactionHash, transactionIndex, logIndex } = lastEvent!;
+
+  return {
+    depositId: args.depositId,
+    originChainId: Number(args.originChainId),
+    destinationChainId,
+    depositor: args.depositor,
+    recipient: args.recipient,
+    inputToken: args.inputToken,
+    inputAmount: args.inputAmount,
+    outputToken: args.outputToken,
+    outputAmount: args.outputAmount,
+    message: args.message,
+    fillDeadline: args.fillDeadline,
+    exclusivityDeadline: args.exclusivityDeadline,
+    exclusiveRelayer: args.exclusiveRelayer,
+    relayer: args.relayer,
+    repaymentChainId: Number(args.repaymentChainId),
+    relayExecutionInfo: {
+      updatedRecipient: args.relayExecutionInfo.updatedRecipient,
+      updatedMessage: args.relayExecutionInfo.updatedMessage,
+      updatedOutputAmount: args.relayExecutionInfo.updatedOutputAmount,
+      fillType: args.relayExecutionInfo.fillType,
+    },
+    blockNumber,
+    transactionHash,
+    transactionIndex,
+    logIndex,
+  };
+}
+
+// @note To be deprecated post-v3.
 export async function buildDeposit(
   hubPoolClient: HubPoolClient,
   spokePool: Contract,
   tokenToDeposit: Contract,
   recipientAndDepositor: SignerWithAddress,
-  _destinationChainId: number,
-  _amountToDeposit: BigNumber = amountToDeposit,
-  _relayerFeePct: BigNumber = depositRelayerFeePct
-): Promise<Deposit> {
-  const _deposit = await deposit(
+  destinationChainId: number,
+  _amountToDeposit = amountToDeposit,
+  relayerFeePct = depositRelayerFeePct
+): Promise<V2Deposit> {
+  const _deposit = await utils.depositV2(
     spokePool,
     tokenToDeposit,
     recipientAndDepositor,
     recipientAndDepositor,
-    _destinationChainId,
+    destinationChainId,
     _amountToDeposit,
-    _relayerFeePct
+    relayerFeePct
   );
   // Sanity Check: Ensure that the deposit was successful.
   expect(_deposit).to.not.be.null;
-  return await buildDepositStruct(appendMessageToResult(_deposit), hubPoolClient);
+  const deposit: Omit<V2Deposit, "destinationToken" | "realizedLpFeePct"> = {
+    depositId: Number(_deposit!.depositId),
+    originChainId: Number(_deposit!.originChainId),
+    destinationChainId: Number(_deposit!.destinationChainId),
+    depositor: String(_deposit!.depositor),
+    recipient: String(_deposit!.recipient),
+    originToken: String(_deposit!.originToken),
+    amount: toBN(_deposit!.amount),
+    message: EMPTY_MESSAGE,
+    relayerFeePct: toBN(_deposit!.relayerFeePct),
+    quoteTimestamp: Number(_deposit!.quoteTimestamp),
+  };
+
+  return await buildV2DepositStruct(deposit, hubPoolClient);
 }
 
 // Submits a fillRelay transaction and returns the Fill struct that that clients will interact with.
@@ -332,10 +550,10 @@ export async function buildFill(
   destinationToken: Contract,
   recipientAndDepositor: SignerWithAddress,
   relayer: SignerWithAddress,
-  deposit: Deposit,
+  deposit: V2Deposit,
   pctOfDepositToFill: number,
   repaymentChainId?: number
-): Promise<Fill> {
+): Promise<V2Fill> {
   // Sanity Check: ensure realizedLpFeePct is defined
   expect(deposit.realizedLpFeePct).to.not.be.undefined;
   if (!deposit.realizedLpFeePct) {
@@ -400,12 +618,12 @@ export async function buildModifiedFill(
   spokePool: Contract,
   depositor: SignerWithAddress,
   relayer: SignerWithAddress,
-  fillToBuildFrom: Fill,
+  fillToBuildFrom: V2Fill,
   multipleOfOriginalRelayerFeePct: number,
   pctOfDepositToFill: number,
   newRecipient?: string,
   newMessage?: string
-): Promise<Fill | null> {
+): Promise<V2Fill | null> {
   const relayDataFromFill = {
     depositor: fillToBuildFrom.depositor,
     recipient: fillToBuildFrom.recipient,
@@ -528,26 +746,30 @@ export function buildDepositForRelayerFeeTest(
   tokenSymbol: string,
   originChainId: string | number,
   toChainId: string | number
-): Deposit {
-  const originToken = resolveContractFromSymbol(tokenSymbol, String(originChainId));
-  const destinationToken = resolveContractFromSymbol(tokenSymbol, String(toChainId));
-  expect(originToken).to.not.be.undefined;
-  expect(destinationToken).to.not.undefined;
-  if (!originToken || !destinationToken) {
+): V3Deposit {
+  const inputToken = resolveContractFromSymbol(tokenSymbol, String(originChainId));
+  const outputToken = resolveContractFromSymbol(tokenSymbol, String(toChainId));
+  expect(inputToken).to.not.be.undefined;
+  expect(outputToken).to.not.undefined;
+  if (!inputToken || !outputToken) {
     throw new Error("Token not found");
   }
+
+  const currentTime = getCurrentTime();
   return {
-    amount: toBN(amount),
     depositId: bnUint32Max.toNumber(),
-    depositor: utils.randomAddress(),
-    recipient: utils.randomAddress(),
-    relayerFeePct: bnZero,
-    message: EMPTY_MESSAGE,
     originChainId: 1,
     destinationChainId: 10,
-    quoteTimestamp: getCurrentTime(),
-    originToken,
-    destinationToken,
-    realizedLpFeePct: bnZero,
+    depositor: randomAddress(),
+    recipient: randomAddress(),
+    inputToken,
+    inputAmount: toBN(amount),
+    outputToken,
+    outputAmount: toBN(amount).sub(bnOne),
+    message: EMPTY_MESSAGE,
+    quoteTimestamp: currentTime,
+    fillDeadline: currentTime + 7200,
+    exclusivityDeadline: 0,
+    exclusiveRelayer: ZERO_ADDRESS,
   };
 }

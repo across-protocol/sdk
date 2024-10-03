@@ -1,5 +1,5 @@
 import assert from "assert";
-import { BigNumber, Contract, Event, EventFilter } from "ethers";
+import { Contract, EventFilter } from "ethers";
 import _ from "lodash";
 import winston from "winston";
 import { DEFAULT_CACHING_SAFE_LAG, DEFAULT_CACHING_TTL } from "../constants";
@@ -12,18 +12,18 @@ import {
   DestinationTokenWithBlock,
   DisputedRootBundle,
   ExecutedRootBundle,
-  ExecutedRootBundleStringified,
   L1Token,
+  Log,
   LpToken,
   PendingRootBundle,
   ProposedRootBundle,
-  ProposedRootBundleStringified,
   RealizedLpFee,
   SetPoolRebalanceRoot,
   TokenRunningBalance,
 } from "../interfaces";
 import * as lpFeeCalculator from "../lpFeeCalculator";
 import {
+  BigNumber,
   BlockFinder,
   bnZero,
   dedupArray,
@@ -39,23 +39,27 @@ import {
   paginatedEventQuery,
   shouldCache,
   sortEventsDescending,
-  spreadEvent,
   spreadEventWithBlockNumber,
-  stringifyJSONWithNumericString,
   toBN,
+  getTokenInfo,
+  getUsdcSymbol,
+  getL1TokenInfo,
 } from "../utils";
 import { AcrossConfigStoreClient as ConfigStoreClient } from "./AcrossConfigStoreClient/AcrossConfigStoreClient";
-import { BaseAbstractClient } from "./BaseAbstractClient";
-import { isUBAActivatedAtBlock } from "./UBAClient/UBAClientUtilities";
+import { BaseAbstractClient, isUpdateFailureReason, UpdateFailureReason } from "./BaseAbstractClient";
 
-type _HubPoolUpdate = {
+type HubPoolUpdateSuccess = {
   success: true;
   currentTime: number;
   pendingRootBundleProposal: PendingRootBundle;
-  events: Record<string, Event[]>;
+  events: Record<string, Log[]>;
   searchEndBlock: number;
 };
-export type HubPoolUpdate = { success: false } | _HubPoolUpdate;
+type HubPoolUpdateFailure = {
+  success: false;
+  reason: UpdateFailureReason;
+};
+export type HubPoolUpdate = HubPoolUpdateSuccess | HubPoolUpdateFailure;
 
 type HubPoolEvent =
   | "SetPoolRebalanceRoute"
@@ -69,6 +73,11 @@ type HubPoolEvent =
 type L1TokensToDestinationTokens = {
   [l1Token: string]: { [destinationChainId: number]: string };
 };
+
+export type LpFeeRequest = Pick<Deposit, "originChainId" | "inputToken" | "inputAmount" | "quoteTimestamp"> & {
+  paymentChainId?: number;
+};
+
 export class HubPoolClient extends BaseAbstractClient {
   // L1Token -> destinationChainId -> destinationToken
   protected l1TokensToDestinationTokens: L1TokensToDestinationTokens = {};
@@ -93,7 +102,7 @@ export class HubPoolClient extends BaseAbstractClient {
     public configStoreClient: ConfigStoreClient,
     public deploymentBlock = 0,
     readonly chainId: number = 1,
-    readonly eventSearchConfig: MakeOptional<EventSearchConfig, "toBlock"> = { fromBlock: 0, maxBlockLookBack: 0 },
+    eventSearchConfig: MakeOptional<EventSearchConfig, "toBlock"> = { fromBlock: 0, maxBlockLookBack: 0 },
     protected readonly configOverride: {
       ignoredHubExecutedBundles: number[];
       ignoredHubProposedBundles: number[];
@@ -104,7 +113,7 @@ export class HubPoolClient extends BaseAbstractClient {
     },
     cachingMechanism?: CachingMechanismInterface
   ) {
-    super(cachingMechanism);
+    super(eventSearchConfig, cachingMechanism);
     this.latestBlockSearched = Math.min(deploymentBlock - 1, 0);
     this.firstBlockToSearch = eventSearchConfig.fromBlock;
 
@@ -228,12 +237,11 @@ export class HubPoolClient extends BaseAbstractClient {
    * @param deposit Deposit event
    * @param returns string L1 token counterpart for Deposit
    */
-  getL1TokenForDeposit(deposit: Pick<DepositWithBlock, "quoteBlockNumber" | "originToken" | "originChainId">): string {
+  getL1TokenForDeposit(deposit: Pick<DepositWithBlock, "originChainId" | "inputToken" | "quoteBlockNumber">): string {
     // L1-->L2 token mappings are set via PoolRebalanceRoutes which occur on mainnet,
     // so we use the latest token mapping. This way if a very old deposit is filled, the relayer can use the
     // latest L2 token mapping to find the L1 token counterpart.
-
-    return this.getL1TokenForL2TokenAtBlock(deposit.originToken, deposit.originChainId, deposit.quoteBlockNumber);
+    return this.getL1TokenForL2TokenAtBlock(deposit.inputToken, deposit.originChainId, deposit.quoteBlockNumber);
   }
 
   /**
@@ -244,23 +252,70 @@ export class HubPoolClient extends BaseAbstractClient {
    * @returns string L2 token counterpart on l2ChainId
    */
   getL2TokenForDeposit(
-    deposit: Pick<DepositWithBlock, "quoteBlockNumber" | "originToken" | "originChainId" | "destinationChainId">,
+    deposit: Pick<DepositWithBlock, "originChainId" | "destinationChainId" | "inputToken" | "quoteBlockNumber">,
     l2ChainId = deposit.destinationChainId
   ): string {
-    // First get L1 token associated with deposit.
     const l1Token = this.getL1TokenForDeposit(deposit);
-
     // Use the latest hub block number to find the L2 token counterpart.
     return this.getL2TokenForL1TokenAtBlock(l1Token, l2ChainId, deposit.quoteBlockNumber);
   }
 
   l2TokenEnabledForL1Token(l1Token: string, destinationChainId: number): boolean {
-    return this.l1TokensToDestinationTokens[l1Token][destinationChainId] != undefined;
+    return this.l1TokensToDestinationTokens?.[l1Token]?.[destinationChainId] != undefined;
   }
 
-  getBlockNumber(timestamp: number): Promise<number | undefined> {
+  /**
+   * @dev If tokenAddress + chain do not exist in TOKEN_SYMBOLS_MAP then this will throw.
+   * @param tokenAddress Token address on `chain`
+   * @param chain Chain where the `tokenAddress` exists in TOKEN_SYMBOLS_MAP.
+   * @returns Token info for the given token address on the L2 chain including symbol and decimal.
+   */
+  getTokenInfoForAddress(tokenAddress: string, chain: number): L1Token {
+    const tokenInfo = getTokenInfo(tokenAddress, chain);
+    // @dev Temporarily handle case where an L2 token for chain ID can map to more than one TOKEN_SYMBOLS_MAP
+    // entry. For example, L2 Bridged USDC maps to both the USDC and USDC.e/USDbC entries in TOKEN_SYMBOLS_MAP.
+    if (tokenInfo.symbol.toLowerCase() === "usdc" && chain !== this.chainId) {
+      tokenInfo.symbol = getUsdcSymbol(tokenAddress, chain) ?? "UNKNOWN";
+    }
+    return tokenInfo;
+  }
+
+  /**
+   * @dev If tokenAddress + chain do not exist in TOKEN_SYMBOLS_MAP then this will throw.
+   * @dev if the token matched in TOKEN_SYMBOLS_MAP does not have an L1 token address then this will throw.
+   * @param tokenAddress Token address on `chain`
+   * @param chain Chain where the `tokenAddress` exists in TOKEN_SYMBOLS_MAP.
+   * @returns Token info for the given token address on the Hub chain including symbol and decimal and L1 address.
+   */
+  getL1TokenInfoForAddress(tokenAddress: string, chain: number): L1Token {
+    return getL1TokenInfo(tokenAddress, chain);
+  }
+
+  /**
+   * Resolve a given timestamp to a block number on the HubPool chain.
+   * @param timestamp A single timestamp to be resolved to a block number on the HubPool chain.
+   * @returns The block number corresponding to the supplied timestamp.
+   */
+  getBlockNumber(timestamp: number): Promise<number> {
     const hints = { lowBlock: this.deploymentBlock };
     return getCachedBlockForTimestamp(this.chainId, timestamp, this.blockFinder, this.cachingMechanism, hints);
+  }
+
+  /**
+   * For an array of timestamps, resolve each unique timestamp to a block number on the HubPool chain.
+   * @dev Inputs are filtered for uniqueness and sorted to improve BlockFinder efficiency.
+   * @dev Querying block numbers sequentially also improves BlockFinder efficiency.
+   * @param timestamps Array of timestamps to be resolved to a block number on the HubPool chain.
+   * @returns A mapping of quoteTimestamp -> HubPool block number.
+   */
+  async getBlockNumbers(timestamps: number[]): Promise<{ [quoteTimestamp: number]: number }> {
+    const sortedTimestamps = dedupArray(timestamps).sort((x, y) => x - y);
+    const blockNumbers: { [quoteTimestamp: number]: number } = {};
+    for (const timestamp of sortedTimestamps) {
+      blockNumbers[timestamp] = await this.getBlockNumber(timestamp);
+    }
+
+    return blockNumbers;
   }
 
   async getCurrentPoolUtilization(l1Token: string): Promise<BigNumber> {
@@ -324,29 +379,16 @@ export class HubPoolClient extends BaseAbstractClient {
     return utilization;
   }
 
-  async computeRealizedLpFeePct(
-    deposit: Pick<
-      DepositWithBlock,
-      "quoteTimestamp" | "amount" | "originChainId" | "originToken" | "destinationChainId" | "blockNumber"
-    >
-  ): Promise<RealizedLpFee> {
+  async computeRealizedLpFeePct(deposit: LpFeeRequest): Promise<RealizedLpFee> {
     const [lpFee] = await this.batchComputeRealizedLpFeePct([deposit]);
     return lpFee;
   }
 
-  async batchComputeRealizedLpFeePct(
-    deposits: Pick<
-      DepositWithBlock,
-      "quoteTimestamp" | "amount" | "originChainId" | "originToken" | "destinationChainId" | "blockNumber"
-    >[]
-  ): Promise<RealizedLpFee[]> {
+  async batchComputeRealizedLpFeePct(deposits: LpFeeRequest[]): Promise<RealizedLpFee[]> {
     assert(deposits.length > 0, "No deposits supplied to batchComputeRealizedLpFeePct");
     if (!isDefined(this.currentTime)) {
       throw new Error("HubPoolClient has not set a currentTime");
     }
-
-    // Map SpokePool token addresses to HubPool token addresses.
-    const hubPoolTokens: { [originToken: string]: string } = {};
 
     // Map each HubPool token to an array of unqiue quoteTimestamps.
     const utilizationTimestamps: { [hubPoolToken: string]: number[] } = {};
@@ -356,34 +398,28 @@ export class HubPoolClient extends BaseAbstractClient {
 
     let quoteBlocks: { [quoteTimestamp: number]: number } = {};
 
-    // Helper to resolve the unqiue hubPoolToken & quoteTimestamp mappings.
-    const resolveUniqueQuoteTimestamps = (deposit: (typeof deposits)[0]): void => {
-      const { originChainId } = deposits[0];
-      const { originChainId: chainId, originToken, quoteTimestamp } = deposit;
-      assert(
-        chainId === originChainId,
-        `Cannot compute bulk realizedLpFeePct for different origin chains (${chainId} != ${originChainId})`
-      );
+    // Map SpokePool token addresses to HubPool token addresses.
+    // Note: Should only be accessed via `getHubPoolToken()` or `getHubPoolTokens()`.
+    const hubPoolTokens: { [k: string]: string } = {};
+    const getHubPoolToken = (deposit: LpFeeRequest, quoteBlockNumber: number): string => {
+      const tokenKey = `${deposit.originChainId}-${deposit.inputToken}`;
+      return (hubPoolTokens[tokenKey] ??= this.getL1TokenForDeposit({ ...deposit, quoteBlockNumber }));
+    };
+    const getHubPoolTokens = (): string[] => dedupArray(Object.values(hubPoolTokens));
 
-      // Resolve the HubPool token address, if it isn't already known.
-      const quoteBlockNumber = quoteBlocks[deposit.quoteTimestamp];
-      const hubPoolToken = hubPoolTokens[originToken] ?? this.getL1TokenForDeposit({ ...deposit, quoteBlockNumber });
-      hubPoolTokens[originToken] ??= hubPoolToken;
+    // Helper to resolve the unqiue hubPoolToken & quoteTimestamp mappings.
+    const resolveUniqueQuoteTimestamps = (deposit: LpFeeRequest): void => {
+      const { quoteTimestamp } = deposit;
+
+      // Resolve the HubPool token address for this origin chainId/token pair, if it isn't already known.
+      const quoteBlockNumber = quoteBlocks[quoteTimestamp];
+      const hubPoolToken = getHubPoolToken(deposit, quoteBlockNumber);
 
       // Append the quoteTimestamp for this HubPool token, if it isn't already enqueued.
       utilizationTimestamps[hubPoolToken] ??= [];
       if (!utilizationTimestamps[hubPoolToken].includes(quoteTimestamp)) {
         utilizationTimestamps[hubPoolToken].push(quoteTimestamp);
       }
-    };
-
-    // Helper to resolve a quoteTimestamp to a HubPool block number.
-    const resolveTimestampsToBlocks = async (quoteTimestamp: number): Promise<[number, number]> => {
-      const quoteBlock = await this.getBlockNumber(quoteTimestamp);
-      if (!isDefined(quoteBlock)) {
-        throw new Error(`Could not find block for timestamp ${quoteTimestamp}`);
-      }
-      return [quoteTimestamp, quoteBlock];
     };
 
     // Helper to resolve existing HubPool token utilisation for an array of unique block numbers.
@@ -405,27 +441,30 @@ export class HubPoolClient extends BaseAbstractClient {
     };
 
     // Helper compute the realizedLpFeePct of an individual deposit based on pre-retrieved batch data.
-    const computeRealizedLpFeePct = async (deposit: (typeof deposits)[0]) => {
-      const { amount, originToken, originChainId, destinationChainId, quoteTimestamp } = deposit;
+    const computeRealizedLpFeePct = async (deposit: LpFeeRequest) => {
+      const { originChainId, paymentChainId, inputAmount, quoteTimestamp } = deposit;
       const quoteBlock = quoteBlocks[quoteTimestamp];
 
-      // Compare deposit block against UBA bundle start blocks. If the deposit is post-UBA
-      // then realizedLpFeePct computation is deferred until after UBA Client update.
-      if (isUBAActivatedAtBlock(this, deposit.blockNumber, deposit.originChainId)) {
-        return { quoteBlock, realizedLpFeePct: undefined };
+      if (paymentChainId === undefined) {
+        return { quoteBlock, realizedLpFeePct: bnZero };
       }
 
-      // Otherwise, use the legacy fee model which is based ont he deposit quote block.
-      const hubPoolToken = hubPoolTokens[originToken];
+      const hubPoolToken = getHubPoolToken(deposit, quoteBlock);
       const rateModel = this.configStoreClient.getRateModelForBlockNumber(
         hubPoolToken,
         originChainId,
-        destinationChainId,
+        paymentChainId,
         quoteBlock
       );
 
       const preUtilization = utilization[hubPoolToken][quoteBlock];
-      const postUtilization = await this.getUtilization(hubPoolToken, quoteBlock, amount, quoteTimestamp, timeToCache);
+      const postUtilization = await this.getUtilization(
+        hubPoolToken,
+        quoteBlock,
+        inputAmount,
+        quoteTimestamp,
+        timeToCache
+      );
       const realizedLpFeePct = lpFeeCalculator.calculateRealizedLpFeePct(rateModel, preUtilization, postUtilization);
 
       return { quoteBlock, realizedLpFeePct };
@@ -436,22 +475,17 @@ export class HubPoolClient extends BaseAbstractClient {
      */
     const timeToCache = this.configOverride.timeToCache ?? DEFAULT_CACHING_SAFE_LAG;
 
-    // Identify the unique hubPoolToken & quoteTimestamp mappings. This is used to optimise subsequent HubPool queries.
-    deposits.forEach((deposit) => resolveUniqueQuoteTimestamps(deposit));
-
     // Filter all deposits for unique quoteTimestamps, to be resolved to a blockNumber in parallel.
     const quoteTimestamps = dedupArray(deposits.map(({ quoteTimestamp }) => quoteTimestamp));
-    quoteBlocks = Object.fromEntries(
-      await mapAsync(quoteTimestamps, (quoteTimestamp) => resolveTimestampsToBlocks(quoteTimestamp))
-    );
+    quoteBlocks = await this.getBlockNumbers(quoteTimestamps);
+
+    // Identify the unique hubPoolToken & quoteTimestamp mappings. This is used to optimise subsequent HubPool queries.
+    deposits.forEach((deposit) => resolveUniqueQuoteTimestamps(deposit));
 
     // For each token / quoteBlock pair, resolve the utilisation for each quoted block.
     // This can be reused for each deposit with the same HubPool token and quoteTimestamp pair.
     utilization = Object.fromEntries(
-      await mapAsync(Object.values(hubPoolTokens), async (hubPoolToken) => [
-        hubPoolToken,
-        await resolveUtilization(hubPoolToken),
-      ])
+      await mapAsync(getHubPoolTokens(), async (hubPoolToken) => [hubPoolToken, await resolveUtilization(hubPoolToken)])
     );
 
     // For each deposit, compute the post-relay HubPool utilisation independently.
@@ -478,12 +512,12 @@ export class HubPoolClient extends BaseAbstractClient {
 
   getTokenInfoForDeposit(deposit: Deposit): L1Token | undefined {
     return this.getTokenInfoForL1Token(
-      this.getL1TokenForL2TokenAtBlock(deposit.originToken, deposit.originChainId, this.latestBlockSearched)
+      this.getL1TokenForL2TokenAtBlock(deposit.inputToken, deposit.originChainId, this.latestBlockSearched)
     );
   }
 
   getTokenInfo(chainId: number | string, tokenAddress: string): L1Token | undefined {
-    const deposit = { originChainId: parseInt(chainId.toString()), originToken: tokenAddress } as Deposit;
+    const deposit = { originChainId: parseInt(chainId.toString()), inputToken: tokenAddress } as Deposit;
     return this.getTokenInfoForDeposit(deposit);
   }
 
@@ -581,6 +615,37 @@ export class HubPoolClient extends BaseAbstractClient {
   getDisputedRootBundlesInBlockRange(startingBlock: number, endingBlock: number): DisputedRootBundle[] {
     return sortEventsDescending(this.disputedRootBundles).filter(
       (bundle: DisputedRootBundle) => bundle.blockNumber >= startingBlock && bundle.blockNumber <= endingBlock
+    );
+  }
+
+  /**
+   * Retrieves token mappings that were modified within a specified block range.
+   * @param startingBlock - The starting block of the range (inclusive).
+   * @param endingBlock - The ending block of the range (inclusive).
+   * @returns An array of destination tokens, each containing the `l2ChainId`, that
+   *          were modified within the given block range.
+   */
+  getTokenMappingsModifiedInBlockRange(
+    startingBlock: number,
+    endingBlock: number
+  ): (DestinationTokenWithBlock & { l2ChainId: number })[] {
+    // This function iterates over `l1TokensToDestinationTokensWithBlock`, a nested
+    // structure of L1 tokens mapped to destination chain IDs, each containing lists
+    // of destination tokens with associated block numbers.
+    return (
+      Object.values(this.l1TokensToDestinationTokensWithBlock)
+        .flatMap((destinationTokens) =>
+          // Map through destination chain IDs and their associated tokens
+          Object.entries(destinationTokens).flatMap(([destinationChainId, tokensWithBlock]) =>
+            // Map the tokens to add the l2ChainId field for each token
+            tokensWithBlock.map((token) => ({
+              ...token,
+              l2ChainId: Number(destinationChainId),
+            }))
+          )
+        )
+        // Filter out tokens whose blockNumber is outside the block range
+        .filter((token) => token.blockNumber >= startingBlock && token.blockNumber <= endingBlock)
     );
   }
 
@@ -742,29 +807,56 @@ export class HubPoolClient extends BaseAbstractClient {
 
   async _update(eventNames: HubPoolEvent[]): Promise<HubPoolUpdate> {
     const hubPoolEvents = this.hubPoolEventFilters();
+    const searchConfig = await this.updateSearchConfig(this.hubPool.provider);
 
-    const searchConfig = {
-      fromBlock: this.firstBlockToSearch,
-      toBlock: this.eventSearchConfig.toBlock || (await this.hubPool.provider.getBlockNumber()),
-      maxBlockLookBack: this.eventSearchConfig.maxBlockLookBack,
-    };
-    if (searchConfig.fromBlock > searchConfig.toBlock) {
-      this.logger.warn({ at: "HubPoolClient#_update", message: "Invalid update() searchConfig.", searchConfig });
-      return { success: false };
+    if (isUpdateFailureReason(searchConfig)) {
+      return { success: false, reason: searchConfig };
     }
+
+    const supportedEvents = Object.keys(hubPoolEvents);
+    if (eventNames.some((eventName) => !supportedEvents.includes(eventName))) {
+      return { success: false, reason: UpdateFailureReason.BadRequest };
+    }
+
+    const eventSearchConfigs = eventNames.map((eventName) => {
+      const _searchConfig = { ...searchConfig }; // shallow copy
+
+      // By default, an event's query range is controlled by the `searchConfig` passed in during
+      // instantiation. However, certain events generally must be queried back to HubPool genesis.
+      const overrideEvents = ["CrossChainContractsSet", "L1TokenEnabledForLiquidityProvision", "SetPoolRebalanceRoute"];
+      if (overrideEvents.includes(eventName) && !this.isUpdated) {
+        _searchConfig.fromBlock = this.deploymentBlock;
+      }
+
+      return {
+        eventName,
+        filter: hubPoolEvents[eventName],
+        searchConfig: _searchConfig,
+      };
+    });
 
     this.logger.debug({
       at: "HubPoolClient",
       message: "Updating HubPool client",
-      searchConfig,
-      eventNames,
+      searchConfig: eventSearchConfigs.map(({ eventName, searchConfig }) => ({ eventName, searchConfig })),
     });
     const timerStart = Date.now();
-    const [currentTime, pendingRootBundleProposal, ...events] = await Promise.all([
-      this.hubPool.getCurrentTime({ blockTag: searchConfig.toBlock }),
-      this.hubPool.rootBundleProposal({ blockTag: searchConfig.toBlock }),
-      ...eventNames.map((eventName) => paginatedEventQuery(this.hubPool, hubPoolEvents[eventName], searchConfig)),
+
+    const { hubPool } = this;
+    const multicallFunctions = ["getCurrentTime", "rootBundleProposal"];
+    const [multicallOutput, ...events] = await Promise.all([
+      hubPool.callStatic.multicall(
+        multicallFunctions.map((f) => hubPool.interface.encodeFunctionData(f)),
+        { blockTag: searchConfig.toBlock }
+      ),
+      ...eventSearchConfigs.map((config) => paginatedEventQuery(hubPool, config.filter, config.searchConfig)),
     ]);
+
+    const [currentTime, pendingRootBundleProposal] = multicallFunctions.map((fn, idx) => {
+      const output = hubPool.interface.decodeFunctionResult(fn, multicallOutput[idx]);
+      return output.length > 1 ? output : output[0];
+    });
+
     this.logger.debug({
       at: "HubPoolClient#_update",
       message: `Time to query new events from RPC for ${this.chainId}: ${Date.now() - timerStart} ms`,
@@ -781,124 +873,144 @@ export class HubPoolClient extends BaseAbstractClient {
     };
   }
 
-  async update(eventsToQuery?: HubPoolEvent[]): Promise<void> {
+  async update(
+    eventsToQuery: HubPoolEvent[] = Object.keys(this.hubPoolEventFilters()) as HubPoolEvent[]
+  ): Promise<void> {
     if (!this.configStoreClient.isUpdated) {
       throw new Error("ConfigStoreClient not updated");
     }
-
-    eventsToQuery = eventsToQuery ?? (Object.keys(this.hubPoolEventFilters()) as HubPoolEvent[]); // Query all events by default.
-
     const update = await this._update(eventsToQuery);
     if (!update.success) {
-      // This failure only occurs if the RPC searchConfig is miscomputed, and has only been seen in the hardhat test
-      // environment. Normal failures will throw instead. This is therefore an unfortunate workaround until we can
-      // understand why we see this in test. @todo: Resolve.
+      if (update.reason !== UpdateFailureReason.AlreadyUpdated) {
+        throw new Error(`Unable to update HubPoolClient: ${update.reason}`);
+      }
+
+      // No need to touch `this.isUpdated` because it should already be set from a previous update.
       return;
     }
     const { events, currentTime, pendingRootBundleProposal, searchEndBlock } = update;
 
-    for (const event of events["CrossChainContractsSet"]) {
-      const args = spreadEventWithBlockNumber(event) as CrossChainContractsSet;
-      assign(
-        this.crossChainContracts,
-        [args.l2ChainId],
-        [
-          {
-            spokePool: args.spokePool,
-            blockNumber: args.blockNumber,
-            transactionIndex: args.transactionIndex,
-            logIndex: args.logIndex,
-          },
-        ]
-      );
+    if (eventsToQuery.includes("CrossChainContractsSet")) {
+      for (const event of events["CrossChainContractsSet"]) {
+        const args = spreadEventWithBlockNumber(event) as CrossChainContractsSet;
+        assign(
+          this.crossChainContracts,
+          [args.l2ChainId],
+          [
+            {
+              spokePool: args.spokePool,
+              blockNumber: args.blockNumber,
+              transactionIndex: args.transactionIndex,
+              logIndex: args.logIndex,
+            },
+          ]
+        );
+      }
     }
 
-    for (const event of events["SetPoolRebalanceRoute"]) {
-      const args = spreadEventWithBlockNumber(event) as SetPoolRebalanceRoot;
-      assign(this.l1TokensToDestinationTokens, [args.l1Token, args.destinationChainId], args.destinationToken);
-      assign(
-        this.l1TokensToDestinationTokensWithBlock,
-        [args.l1Token, args.destinationChainId],
-        [
-          {
-            l1Token: args.l1Token,
-            l2Token: args.destinationToken,
-            blockNumber: args.blockNumber,
-            transactionIndex: args.transactionIndex,
-            logIndex: args.logIndex,
-          },
-        ]
-      );
+    if (eventsToQuery.includes("SetPoolRebalanceRoute")) {
+      for (const event of events["SetPoolRebalanceRoute"]) {
+        const args = spreadEventWithBlockNumber(event) as SetPoolRebalanceRoot;
+        assign(this.l1TokensToDestinationTokens, [args.l1Token, args.destinationChainId], args.destinationToken);
+        assign(
+          this.l1TokensToDestinationTokensWithBlock,
+          [args.l1Token, args.destinationChainId],
+          [
+            {
+              l1Token: args.l1Token,
+              l2Token: args.destinationToken,
+              blockNumber: args.blockNumber,
+              transactionIndex: args.transactionIndex,
+              logIndex: args.logIndex,
+              transactionHash: args.transactionHash,
+            },
+          ]
+        );
+      }
     }
 
     // For each enabled Lp token fetch the token symbol and decimals from the token contract. Note this logic will
     // only run iff a new token has been enabled. Will only append iff the info is not there already.
     // Filter out any duplicate addresses. This might happen due to enabling, disabling and re-enabling a token.
-    const uniqueL1Tokens = [
-      ...Array.from(
-        new Set(events["L1TokenEnabledForLiquidityProvision"].map((event) => spreadEvent(event.args).l1Token))
-      ),
-    ];
-    const [tokenInfo, lpTokenInfo] = await Promise.all([
-      Promise.all(uniqueL1Tokens.map((l1Token: string) => fetchTokenInfo(l1Token, this.hubPool.provider))),
-      Promise.all(
-        uniqueL1Tokens.map(
-          async (l1Token: string) => await this.hubPool.pooledTokens(l1Token, { blockTag: update.searchEndBlock })
-        )
-      ),
-    ]);
-    for (const info of tokenInfo) {
-      if (!this.l1Tokens.find((token) => token.symbol === info.symbol)) {
-        if (info.decimals > 0 && info.decimals <= 18) {
-          this.l1Tokens.push(info);
-        } else {
-          throw new Error(`Unsupported HubPool token: ${JSON.stringify(info)}`);
+    if (eventsToQuery.includes("L1TokenEnabledForLiquidityProvision")) {
+      const uniqueL1Tokens = dedupArray(
+        events["L1TokenEnabledForLiquidityProvision"].map((event) => String(event.args["l1Token"]))
+      );
+
+      const [tokenInfo, lpTokenInfo] = await Promise.all([
+        Promise.all(uniqueL1Tokens.map((l1Token: string) => fetchTokenInfo(l1Token, this.hubPool.provider))),
+        Promise.all(
+          uniqueL1Tokens.map(
+            async (l1Token: string) => await this.hubPool.pooledTokens(l1Token, { blockTag: update.searchEndBlock })
+          )
+        ),
+      ]);
+      for (const info of tokenInfo) {
+        if (!this.l1Tokens.find((token) => token.symbol === info.symbol)) {
+          if (info.decimals > 0 && info.decimals <= 18) {
+            this.l1Tokens.push(info);
+          } else {
+            throw new Error(`Unsupported HubPool token: ${JSON.stringify(info)}`);
+          }
         }
       }
+
+      uniqueL1Tokens.forEach((token: string, i) => {
+        this.lpTokens[token] = {
+          lastLpFeeUpdate: lpTokenInfo[i].lastLpFeeUpdate,
+          liquidReserves: lpTokenInfo[i].liquidReserves,
+        };
+      });
     }
 
-    uniqueL1Tokens.forEach((token: string, i) => {
-      this.lpTokens[token] = { lastLpFeeUpdate: lpTokenInfo[i].lastLpFeeUpdate };
-    });
+    if (eventsToQuery.includes("ProposeRootBundle")) {
+      this.proposedRootBundles.push(
+        ...events["ProposeRootBundle"]
+          .filter((event) => !this.configOverride.ignoredHubProposedBundles.includes(event.blockNumber))
+          .map((event) => {
+            return {
+              ...spreadEventWithBlockNumber(event),
+              transactionHash: event.transactionHash,
+            } as ProposedRootBundle;
+          })
+      );
+    }
 
-    this.proposedRootBundles.push(
-      ...events["ProposeRootBundle"]
-        .filter((event) => !this.configOverride.ignoredHubProposedBundles.includes(event.blockNumber))
-        .map((event) => {
-          return { ...spreadEventWithBlockNumber(event), transactionHash: event.transactionHash } as ProposedRootBundle;
-        })
-    );
-    this.canceledRootBundles.push(
-      ...events["RootBundleCanceled"].map((event) => spreadEventWithBlockNumber(event) as CancelledRootBundle)
-    );
-    this.disputedRootBundles.push(
-      ...events["RootBundleDisputed"].map((event) => spreadEventWithBlockNumber(event) as DisputedRootBundle)
-    );
+    if (eventsToQuery.includes("RootBundleCanceled")) {
+      this.canceledRootBundles.push(
+        ...events["RootBundleCanceled"].map((event) => spreadEventWithBlockNumber(event) as CancelledRootBundle)
+      );
+    }
 
-    for (const event of events["RootBundleExecuted"]) {
-      if (this.configOverride.ignoredHubExecutedBundles.includes(event.blockNumber)) {
-        continue;
+    if (eventsToQuery.includes("RootBundleDisputed")) {
+      this.disputedRootBundles.push(
+        ...events["RootBundleDisputed"].map((event) => spreadEventWithBlockNumber(event) as DisputedRootBundle)
+      );
+    }
+
+    if (eventsToQuery.includes("RootBundleExecuted")) {
+      for (const event of events["RootBundleExecuted"]) {
+        if (this.configOverride.ignoredHubExecutedBundles.includes(event.blockNumber)) {
+          continue;
+        }
+
+        // Set running balances and incentive balances for this bundle.
+        const executedRootBundle = spreadEventWithBlockNumber(event) as ExecutedRootBundle;
+        const { l1Tokens, runningBalances } = executedRootBundle;
+        const nTokens = l1Tokens.length;
+
+        // Safeguard
+        if (![nTokens, nTokens * 2].includes(runningBalances.length)) {
+          throw new Error(
+            `Invalid runningBalances length: ${runningBalances.length}.` +
+              ` Expected ${nTokens} or ${nTokens * 2} for chain ${this.chainId} transaction ${event.transactionHash}`
+          );
+        }
+        executedRootBundle.runningBalances = runningBalances.slice(0, nTokens);
+        executedRootBundle.incentiveBalances =
+          runningBalances.length > nTokens ? runningBalances.slice(nTokens) : runningBalances.map(() => toBN(0));
+        this.executedRootBundles.push(executedRootBundle);
       }
-
-      // Set running balances and incentive balances for this bundle.
-      // Pre-UBA: runningBalances length is 1:1 with l1Tokens length. Pad incentiveBalances with zeroes.
-      // Post-UBA: runningBalances array is a concatenation of pre-UBA runningBalances and incentiveBalances.
-      const executedRootBundle = spreadEventWithBlockNumber(event) as ExecutedRootBundle;
-      const { l1Tokens, runningBalances } = executedRootBundle;
-      const nTokens = l1Tokens.length;
-
-      // Safeguard
-      if (![nTokens, nTokens * 2].includes(runningBalances.length)) {
-        throw new Error(
-          `Invalid runningBalances length: ${runningBalances.length}. Expected ${nTokens} or ${nTokens * 2} for chain ${
-            this.chainId
-          } transaction ${event.transactionHash}`
-        );
-      }
-      executedRootBundle.runningBalances = runningBalances.slice(0, nTokens);
-      executedRootBundle.incentiveBalances =
-        runningBalances.length > nTokens ? runningBalances.slice(nTokens) : runningBalances.map(() => toBN(0));
-      this.executedRootBundles.push(executedRootBundle);
     }
 
     // If the contract's current rootBundleProposal() value has an unclaimedPoolRebalanceLeafCount > 0, then
@@ -906,33 +1018,35 @@ export class HubPoolClient extends BaseAbstractClient {
     // passed the challenge period and pool rebalance leaves can be executed. Once all leaves are executed, the
     // unclaimed count will drop to 0 and at that point there is nothing more that we can do with this root bundle
     // besides proposing another one.
-    if (pendingRootBundleProposal.unclaimedPoolRebalanceLeafCount > 0) {
-      const mostRecentProposedRootBundle = this.proposedRootBundles[this.proposedRootBundles.length - 1];
-      this.pendingRootBundle = {
-        poolRebalanceRoot: pendingRootBundleProposal.poolRebalanceRoot,
-        relayerRefundRoot: pendingRootBundleProposal.relayerRefundRoot,
-        slowRelayRoot: pendingRootBundleProposal.slowRelayRoot,
-        proposer: pendingRootBundleProposal.proposer,
-        unclaimedPoolRebalanceLeafCount: pendingRootBundleProposal.unclaimedPoolRebalanceLeafCount,
-        challengePeriodEndTimestamp: pendingRootBundleProposal.challengePeriodEndTimestamp,
-        bundleEvaluationBlockNumbers: mostRecentProposedRootBundle.bundleEvaluationBlockNumbers.map(
-          (block: BigNumber) => {
-            // Ideally, the HubPool.sol contract should limit the size of the elements within the
-            // bundleEvaluationBlockNumbers array. But because it doesn't, we wrap the cast of BN --> Number
-            // in a try/catch statement and return some value that would always be disputable.
-            // This catches the denial of service attack vector where a malicious proposer proposes with bundle block
-            // evaluation block numbers larger than what BigNumber::toNumber() can handle.
-            try {
-              return block.toNumber();
-            } catch {
-              return 0;
+    if (eventsToQuery.includes("ProposeRootBundle")) {
+      if (pendingRootBundleProposal.unclaimedPoolRebalanceLeafCount > 0) {
+        const mostRecentProposedRootBundle = this.proposedRootBundles[this.proposedRootBundles.length - 1];
+        this.pendingRootBundle = {
+          poolRebalanceRoot: pendingRootBundleProposal.poolRebalanceRoot,
+          relayerRefundRoot: pendingRootBundleProposal.relayerRefundRoot,
+          slowRelayRoot: pendingRootBundleProposal.slowRelayRoot,
+          proposer: pendingRootBundleProposal.proposer,
+          unclaimedPoolRebalanceLeafCount: pendingRootBundleProposal.unclaimedPoolRebalanceLeafCount,
+          challengePeriodEndTimestamp: pendingRootBundleProposal.challengePeriodEndTimestamp,
+          bundleEvaluationBlockNumbers: mostRecentProposedRootBundle.bundleEvaluationBlockNumbers.map(
+            (block: BigNumber) => {
+              // Ideally, the HubPool.sol contract should limit the size of the elements within the
+              // bundleEvaluationBlockNumbers array. But because it doesn't, we wrap the cast of BN --> Number
+              // in a try/catch statement and return some value that would always be disputable.
+              // This catches the denial of service attack vector where a malicious proposer proposes with bundle block
+              // evaluation block numbers larger than what BigNumber::toNumber() can handle.
+              try {
+                return block.toNumber();
+              } catch {
+                return 0;
+              }
             }
-          }
-        ),
-        proposalBlockNumber: mostRecentProposedRootBundle.blockNumber,
-      };
-    } else {
-      this.pendingRootBundle = undefined;
+          ),
+          proposalBlockNumber: mostRecentProposedRootBundle.blockNumber,
+        };
+      } else {
+        this.pendingRootBundle = undefined;
+      }
     }
 
     this.currentTime = currentTime;
@@ -965,96 +1079,5 @@ export class HubPoolClient extends BaseAbstractClient {
       return 0;
     }
     return bundleEvaluationBlockNumbers[chainIdIndex].toNumber();
-  }
-
-  public updateFromJSON(hubPoolClientState: Partial<ReturnType<HubPoolClient["toJSON"]>>): void {
-    const keysToUpdate = Object.keys(hubPoolClientState);
-
-    this.logger.debug({
-      at: "HubPoolClient",
-      message: "Updating HubPool client from JSON",
-      keys: keysToUpdate,
-    });
-
-    if (keysToUpdate.length === 0) {
-      return;
-    }
-
-    if (!this.configStoreClient.isUpdated) {
-      throw new Error("ConfigStoreClient not updated");
-    }
-
-    const {
-      l1TokensToDestinationTokens = this.l1TokensToDestinationTokens,
-      l1Tokens = this.l1Tokens,
-      lpTokens = this.lpTokens,
-      canceledRootBundles = this.canceledRootBundles,
-      disputedRootBundles = this.disputedRootBundles,
-      pendingRootBundle = this.pendingRootBundle,
-      crossChainContracts = this.crossChainContracts,
-      l1TokensToDestinationTokensWithBlock = this.l1TokensToDestinationTokensWithBlock,
-      firstBlockToSearch = this.firstBlockToSearch,
-      latestBlockSearched = this.latestBlockSearched,
-      currentTime = this.currentTime,
-      proposedRootBundles,
-      executedRootBundles,
-    } = hubPoolClientState;
-
-    this.l1TokensToDestinationTokens = l1TokensToDestinationTokens;
-    this.l1Tokens = l1Tokens;
-    this.lpTokens = lpTokens;
-    this.proposedRootBundles = proposedRootBundles
-      ? proposedRootBundles.map((bundle) => ({
-          ...bundle,
-          bundleEvaluationBlockNumbers: bundle.bundleEvaluationBlockNumbers.map((block) => BigNumber.from(block)),
-        }))
-      : this.proposedRootBundles;
-    this.canceledRootBundles = canceledRootBundles;
-    this.disputedRootBundles = disputedRootBundles;
-    this.executedRootBundles = executedRootBundles
-      ? executedRootBundles.map((bundle) => ({
-          ...bundle,
-          bundleLpFees: bundle.bundleLpFees.map((fee) => BigNumber.from(fee)),
-          netSendAmounts: bundle.netSendAmounts.map((amount) => BigNumber.from(amount)),
-          runningBalances: bundle.runningBalances.map((balance) => BigNumber.from(balance)),
-          incentiveBalances: bundle.incentiveBalances.map((balance) => BigNumber.from(balance)),
-        }))
-      : this.executedRootBundles;
-    this.pendingRootBundle = pendingRootBundle;
-    this.crossChainContracts = crossChainContracts;
-    this.l1TokensToDestinationTokensWithBlock = l1TokensToDestinationTokensWithBlock;
-    this.firstBlockToSearch = firstBlockToSearch;
-    this.latestBlockSearched = latestBlockSearched;
-    this.currentTime = currentTime;
-    this.isUpdated = true;
-  }
-
-  public toJSON() {
-    return {
-      deploymentBlock: this.deploymentBlock,
-      chainId: this.chainId,
-      eventSearchConfig: this.eventSearchConfig,
-      configOverride: this.configOverride,
-
-      firstBlockToSearch: this.firstBlockToSearch,
-      latestBlockSearched: this.latestBlockSearched,
-      currentTime: this.currentTime,
-
-      l1TokensToDestinationTokens: this.l1TokensToDestinationTokens,
-      l1Tokens: this.l1Tokens,
-      lpTokens: this.lpTokens,
-
-      proposedRootBundles: this.proposedRootBundles.map((bundle) =>
-        JSON.parse(stringifyJSONWithNumericString(bundle))
-      ) as ProposedRootBundleStringified[],
-      canceledRootBundles: this.canceledRootBundles,
-      disputedRootBundles: this.disputedRootBundles,
-      executedRootBundles: this.executedRootBundles.map((bundle) =>
-        JSON.parse(stringifyJSONWithNumericString(bundle))
-      ) as ExecutedRootBundleStringified[],
-      pendingRootBundle: this.pendingRootBundle,
-      crossChainContracts: this.crossChainContracts,
-      l1TokensToDestinationTokensWithBlock: this.l1TokensToDestinationTokensWithBlock,
-    };
   }
 }

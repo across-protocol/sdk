@@ -16,10 +16,10 @@ export function blockExplorerLink(txHashOrAddress: string, chainId: number | str
 /**
  * Resolves a domain to an block explorer link for a given network.
  * @param networkId The network to link to.
- * @returns The block explorer link. If the networkId is not supported, the default block explorer mainnet link will be returned.
+ * @returns The block explorer link. If the networkId is not supported, undefined will be returned.
  */
 export function resolveBlockExplorerDomain(networkId: number): string | undefined {
-  return PUBLIC_NETWORKS[networkId]?.etherscan;
+  return PUBLIC_NETWORKS[networkId]?.blockExplorer;
 }
 
 /**

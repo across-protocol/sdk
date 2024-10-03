@@ -1,33 +1,21 @@
-import { DepositWithBlock, Fill } from "../../src/interfaces";
-import { toBN } from "../../src/utils";
+import { DepositWithBlock, Fill, FillType, V3Fill } from "../../src/interfaces";
 
 export function fillFromDeposit(deposit: DepositWithBlock, relayer: string): Fill {
-  const { recipient, message, relayerFeePct } = deposit;
+  const { blockNumber, transactionHash, transactionIndex, ...partialDeposit } = deposit;
+  const { recipient, message } = partialDeposit;
 
-  const fill: Fill = {
-    amount: deposit.amount,
-    depositId: deposit.depositId,
-    originChainId: deposit.originChainId,
-    destinationChainId: deposit.destinationChainId,
-    depositor: deposit.depositor,
-    destinationToken: deposit.destinationToken,
-    relayerFeePct: deposit.relayerFeePct,
-    realizedLpFeePct: deposit.realizedLpFeePct ?? toBN(0),
-    recipient,
+  const fill: V3Fill = {
+    ...partialDeposit,
     relayer,
-    message,
 
     // Caller can modify these later.
-    fillAmount: deposit.amount,
-    totalFilledAmount: deposit.amount,
+    exclusiveRelayer: relayer,
     repaymentChainId: deposit.destinationChainId,
-
-    updatableRelayData: {
-      recipient: deposit.updatedRecipient ?? recipient,
-      message: deposit.updatedMessage ?? message,
-      relayerFeePct: deposit.newRelayerFeePct ?? relayerFeePct,
-      isSlowRelay: false,
-      payoutAdjustmentPct: toBN(0),
+    relayExecutionInfo: {
+      updatedRecipient: deposit.updatedRecipient ?? recipient,
+      updatedMessage: deposit.updatedMessage ?? message,
+      updatedOutputAmount: deposit.updatedOutputAmount ?? deposit.outputAmount,
+      fillType: FillType.FastFill,
     },
   };
 

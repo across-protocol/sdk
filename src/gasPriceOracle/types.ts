@@ -1,4 +1,5 @@
-import { BigNumber, providers } from "ethers";
+import { providers } from "ethers";
+import { BigNumber } from "../utils";
 
 export type GasPriceEstimate = {
   maxFeePerGas: BigNumber;

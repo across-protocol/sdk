@@ -1,7 +1,7 @@
 import { expect } from "chai";
 import { utils, interfaces } from "../src";
 import { ZERO_ADDRESS } from "../src/constants";
-import { toBN } from "@across-protocol/contracts-v2";
+import { randomAddress, toBN } from "./utils";
 import { cloneDeep } from "lodash";
 import { objectWithBigNumberReviver } from "../src/utils";
 import { Deposit } from "../src/interfaces";
@@ -15,20 +15,24 @@ describe("validatorUtils", () => {
         depositor: ZERO_ADDRESS,
         destinationChainId: 1,
         originChainId: 1,
-        amount: toBN(100),
+        inputAmount: toBN(100),
+        inputToken: ZERO_ADDRESS,
+        outputAmount: toBN(100),
+        outputToken: ZERO_ADDRESS,
         message: "",
         quoteTimestamp: 0,
         recipient: ZERO_ADDRESS,
         updatedRecipient: ZERO_ADDRESS,
-        originToken: ZERO_ADDRESS,
-        relayerFeePct: toBN(0),
-        destinationToken: ZERO_ADDRESS,
+        fillDeadline: 100,
+        exclusiveRelayer: ZERO_ADDRESS,
+        exclusivityDeadline: 100,
         transactionHash: "0xa",
         blockNumber: 0,
         transactionIndex: 0,
         logIndex: 0,
         quoteBlockNumber: 0,
-        blockTimestamp: 0,
+        fromLiteChain: false,
+        toLiteChain: false,
       };
     });
 
@@ -39,7 +43,7 @@ describe("validatorUtils", () => {
       // We should be able to return true for the default deposit
       expect(utils.isDepositFormedCorrectly(deposit)).to.be.true;
       // Let's change the recipient to a valid address
-      deposit.recipient = utils.randomAddress();
+      deposit.recipient = randomAddress();
       expect(utils.isDepositFormedCorrectly(deposit)).to.be.true;
     });
     it("should return false if deposit is not close to being formed correctly", () => {
@@ -86,7 +90,7 @@ describe("validatorUtils", () => {
     });
     it("should successfully rehydrate real deposits", () => {
       const deposits: string[] = [
-        '{"amount":{"type":"BigNumber","hex":"0x038d7ea4c68000"},"originChainId":42161,"destinationChainId":10,"relayerFeePct":{"type":"BigNumber","hex":"0xee042a4c72e9a8"},"depositId":1160366,"quoteTimestamp":1697088000,"originToken":"0x82aF49447D8a07e3bd95BD0d56f35241523fBab1","recipient":"0x525D59654479cFaED622C1Ca06f237ce1072c2AB","depositor":"0x269727F088F16E1Aea52Cf5a97B1CD41DAA3f02D","message":"0x","blockNumber":139874261,"transactionIndex":1,"logIndex":1,"transactionHash":"0x4c4273f4cceb288a76aa7d6c057a8e3ab571a19711a59a965726e06b04e6b821","realizedLpFeePct":{"type":"BigNumber","hex":"0x016b90ac8ef5b9"},"destinationToken":"0x4200000000000000000000000000000000000006","quoteBlockNumber":18332204}',
+        '{"inputAmount":{"type":"BigNumber","hex":"0x038d7ea4c68000"},"outputAmount":{"type":"BigNumber","hex":"0x038d7ea4c68000"},"originChainId":42161,"destinationChainId":10,"exclusivityDeadline":1697088000,"fillDeadline":1697088000,"depositId":1160366,"quoteTimestamp":1697088000,"inputToken":"0x82aF49447D8a07e3bd95BD0d56f35241523fBab1","recipient":"0x525D59654479cFaED622C1Ca06f237ce1072c2AB","depositor":"0x269727F088F16E1Aea52Cf5a97B1CD41DAA3f02D","exclusiveRelayer":"0x269727F088F16E1Aea52Cf5a97B1CD41DAA3f02D","message":"0x","blockNumber":139874261,"transactionIndex":1,"logIndex":1,"transactionHash":"0x4c4273f4cceb288a76aa7d6c057a8e3ab571a19711a59a965726e06b04e6b821","realizedLpFeePct":{"type":"BigNumber","hex":"0x016b90ac8ef5b9"},"outputToken":"0x4200000000000000000000000000000000000006","quoteBlockNumber":18332204}',
       ];
       const rehydratedDeposits = deposits.map((d) => JSON.parse(d, objectWithBigNumberReviver) as Deposit);
       expect(rehydratedDeposits.every(utils.isDepositFormedCorrectly)).to.be.true;

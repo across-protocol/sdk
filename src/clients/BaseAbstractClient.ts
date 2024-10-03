@@ -1,5 +1,17 @@
+import { providers } from "ethers";
 import { CachingMechanismInterface } from "../interfaces";
-import { isDefined } from "../utils";
+import { EventSearchConfig, isDefined, MakeOptional } from "../utils";
+
+export enum UpdateFailureReason {
+  NotReady,
+  AlreadyUpdated,
+  BadRequest,
+  RPCError,
+}
+
+export function isUpdateFailureReason(x: EventSearchConfig | UpdateFailureReason): x is UpdateFailureReason {
+  return Number.isInteger(x);
+}
 
 /**
  * Base class for all clients to extend.
@@ -13,7 +25,10 @@ export abstract class BaseAbstractClient {
    * Creates a new client.
    * @param cachingMechanism The caching mechanism to use for this client. If not provided, the client will not rely on an external cache.
    */
-  constructor(protected cachingMechanism?: CachingMechanismInterface) {
+  constructor(
+    readonly eventSearchConfig: MakeOptional<EventSearchConfig, "toBlock"> = { fromBlock: 0, maxBlockLookBack: 0 },
+    protected cachingMechanism?: CachingMechanismInterface
+  ) {
     this._isUpdated = false;
   }
 
@@ -35,6 +50,30 @@ export abstract class BaseAbstractClient {
       throw new Error("Cannot set isUpdated to false once it is true");
     }
     this._isUpdated = value;
+  }
+
+  /**
+   * Validates and updates the stored EventSearchConfig in advance of an update() call.
+   * Use isEventSearchConfig() to discriminate the result.
+   * @provider Ethers RPC provider instance.
+   * @returns An EventSearchConfig instance if valid, otherwise an UpdateFailureReason.
+   */
+  public async updateSearchConfig(provider: providers.Provider): Promise<EventSearchConfig | UpdateFailureReason> {
+    const fromBlock = this.firstBlockToSearch;
+    let { toBlock } = this.eventSearchConfig;
+    if (isDefined(toBlock)) {
+      if (fromBlock > toBlock) {
+        throw new Error(`Invalid event search config fromBlock (${fromBlock}) > toBlock (${toBlock})`);
+      }
+    } else {
+      toBlock = await provider.getBlockNumber();
+      if (toBlock < fromBlock) {
+        return UpdateFailureReason.AlreadyUpdated;
+      }
+    }
+
+    const { maxBlockLookBack } = this.eventSearchConfig;
+    return { fromBlock, toBlock, maxBlockLookBack };
   }
 
   /**

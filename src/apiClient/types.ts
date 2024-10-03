@@ -1,25 +1,25 @@
-import { ethers } from "ethers";
+import { BigNumber } from "../utils";
 
-export type CoingeckoDataReturnType = { price: ethers.BigNumber };
+export type CoingeckoDataReturnType = { price: BigNumber };
 
 export type Fee = {
-  total: ethers.BigNumber;
-  pct: ethers.BigNumber;
+  total: BigNumber;
+  pct: BigNumber;
 };
 export type SuggestedFeeReturnType = {
   relayerFee: Fee;
   relayerGasFee: Fee;
   relayerCapitalFee: Fee;
   isAmountTooLow: boolean;
-  quoteTimestamp: ethers.BigNumber;
-  quoteBlock: ethers.BigNumber;
+  quoteTimestamp: BigNumber;
+  quoteBlock: BigNumber;
 };
 
 export type BridgeLimitsReturnType = {
-  minDeposit: ethers.BigNumber;
-  maxDeposit: ethers.BigNumber;
-  maxDepositInstant: ethers.BigNumber;
-  maxDepositShortDelay: ethers.BigNumber;
+  minDeposit: BigNumber;
+  maxDeposit: BigNumber;
+  maxDepositInstant: BigNumber;
+  maxDepositShortDelay: BigNumber;
 };
 
 export type SpecificRewardType = {

@@ -1,8 +1,58 @@
 import assert from "assert";
-import { BigNumber, Contract, utils as ethersUtils } from "ethers";
-import { RelayData } from "../interfaces";
+import { BytesLike, Contract, PopulatedTransaction, providers, utils as ethersUtils } from "ethers";
+import { CHAIN_IDs, ZERO_ADDRESS } from "../constants";
+import { Deposit, Fill, FillStatus, RelayData, SlowFillRequest } from "../interfaces";
 import { SpokePoolClient } from "../clients";
+import { chunk } from "./ArrayUtils";
+import { BigNumber, toBN } from "./BigNumberUtils";
+import { isDefined } from "./TypeGuards";
 import { getNetworkName } from "./NetworkUtils";
+
+type BlockTag = providers.BlockTag;
+
+/**
+ * @param spokePool SpokePool Contract instance.
+ * @param deposit V3Deopsit instance.
+ * @param repaymentChainId Optional repaymentChainId (defaults to destinationChainId).
+ * @returns An Ethers UnsignedTransaction instance.
+ */
+export function populateV3Relay(
+  spokePool: Contract,
+  deposit: Deposit,
+  relayer: string,
+  repaymentChainId = deposit.destinationChainId
+): Promise<PopulatedTransaction> {
+  const v3RelayData: RelayData = {
+    depositor: deposit.depositor,
+    recipient: deposit.recipient,
+    exclusiveRelayer: deposit.exclusiveRelayer,
+    inputToken: deposit.inputToken,
+    outputToken: deposit.outputToken,
+    inputAmount: deposit.inputAmount,
+    outputAmount: deposit.outputAmount,
+    originChainId: deposit.originChainId,
+    depositId: deposit.depositId,
+    fillDeadline: deposit.fillDeadline,
+    exclusivityDeadline: deposit.exclusivityDeadline,
+    message: deposit.message,
+  };
+  if (isDefined(deposit.speedUpSignature)) {
+    assert(isDefined(deposit.updatedRecipient) && deposit.updatedRecipient !== ZERO_ADDRESS);
+    assert(isDefined(deposit.updatedOutputAmount));
+    assert(isDefined(deposit.updatedMessage));
+    return spokePool.populateTransaction.fillV3RelayWithUpdatedDeposit(
+      v3RelayData,
+      repaymentChainId,
+      deposit.updatedOutputAmount,
+      deposit.updatedRecipient,
+      deposit.updatedMessage,
+      deposit.speedUpSignature,
+      { from: relayer }
+    );
+  }
+
+  return spokePool.populateTransaction.fillV3Relay(v3RelayData, repaymentChainId, { from: relayer });
+}
 
 /**
  * Find the block range that contains the deposit ID. This is a binary search that searches for the block range
@@ -160,42 +210,105 @@ export async function getDepositIdAtBlock(contract: Contract, blockTag: number):
 }
 
 /**
+ * Compute the RelayData hash for a fill. This can be used to determine the fill status.
+ * @param relayData RelayData information that is used to complete a fill.
+ * @param destinationChainId Supplementary destination chain ID required by V3 hashes.
+ * @returns The corresponding RelayData hash.
+ */
+export function getRelayDataHash(relayData: RelayData, destinationChainId: number): string {
+  return ethersUtils.keccak256(
+    ethersUtils.defaultAbiCoder.encode(
+      [
+        "tuple(" +
+          "address depositor," +
+          "address recipient," +
+          "address exclusiveRelayer," +
+          "address inputToken," +
+          "address outputToken," +
+          "uint256 inputAmount," +
+          "uint256 outputAmount," +
+          "uint256 originChainId," +
+          "uint32 depositId," +
+          "uint32 fillDeadline," +
+          "uint32 exclusivityDeadline," +
+          "bytes message" +
+          ")",
+        "uint256 destinationChainId",
+      ],
+      [relayData, destinationChainId]
+    )
+  );
+}
+
+export function getRelayHashFromEvent(e: Deposit | Fill | SlowFillRequest): string {
+  return getRelayDataHash(e, e.destinationChainId);
+}
+
+/**
  * Find the amount filled for a deposit at a particular block.
  * @param spokePool SpokePool contract instance.
  * @param relayData Deposit information that is used to complete a fill.
  * @param blockTag Block tag (numeric or "latest") to query at.
  * @returns The amount filled for the specified deposit at the requested block (or latest).
  */
-export function relayFilledAmount(
+export async function relayFillStatus(
   spokePool: Contract,
   relayData: RelayData,
-  blockTag?: number | "latest"
-): Promise<BigNumber> {
-  const hash = ethersUtils.keccak256(
-    ethersUtils.defaultAbiCoder.encode(
-      [
-        "tuple(" +
-          "address depositor," +
-          "address recipient," +
-          "address destinationToken," +
-          "uint256 amount," +
-          "uint256 originChainId," +
-          "uint256 destinationChainId," +
-          "int64 realizedLpFeePct," +
-          "int64 relayerFeePct," +
-          "uint32 depositId," +
-          "bytes message" +
-          ")",
-      ],
-      [relayData]
-    )
-  );
+  blockTag?: number | "latest",
+  destinationChainId?: number
+): Promise<FillStatus> {
+  destinationChainId ??= await spokePool.chainId();
+  const hash = getRelayDataHash(relayData, destinationChainId!);
+  const _fillStatus = await spokePool.fillStatuses(hash, { blockTag });
+  const fillStatus = Number(_fillStatus);
 
-  return spokePool.relayFills(hash, { blockTag });
+  if (![FillStatus.Unfilled, FillStatus.RequestedSlowFill, FillStatus.Filled].includes(fillStatus)) {
+    const { originChainId, depositId } = relayData;
+    throw new Error(`relayFillStatus: Unexpected fillStatus for ${originChainId} deposit ${depositId} (${fillStatus})`);
+  }
+
+  return fillStatus;
+}
+
+export async function fillStatusArray(
+  spokePool: Contract,
+  relayData: RelayData[],
+  blockTag: BlockTag = "latest"
+): Promise<(FillStatus | undefined)[]> {
+  const fillStatuses = "fillStatuses";
+  const destinationChainId = await spokePool.chainId();
+
+  const queries = relayData.map((relayData) => {
+    const hash = getRelayDataHash(relayData, destinationChainId);
+    return spokePool.interface.encodeFunctionData(fillStatuses, [hash]);
+  });
+
+  // Chunk the hashes into appropriate sizes to avoid death by rpc.
+  const chunkSize = 250;
+  const chunkedQueries = chunk(queries, chunkSize);
+
+  const multicalls = await Promise.all(
+    chunkedQueries.map((queries) => spokePool.callStatic.multicall(queries, { blockTag }))
+  );
+  const status = multicalls
+    .map((multicall: BytesLike[]) =>
+      multicall.map((result) => spokePool.interface.decodeFunctionResult(fillStatuses, result)[0])
+    )
+    .flat();
+
+  const bnUnfilled = toBN(FillStatus.Unfilled);
+  const bnFilled = toBN(FillStatus.Filled);
+
+  return status.map((status: unknown) => {
+    return BigNumber.isBigNumber(status) && status.gte(bnUnfilled) && status.lte(bnFilled)
+      ? status.toNumber()
+      : undefined;
+  });
 }
 
 /**
  * Find the block at which a fill was completed.
+ * @todo After SpokePool upgrade, this function can be simplified to use the FillStatus enum.
  * @param spokePool SpokePool contract instance.
  * @param relayData Deposit information that is used to complete a fill.
  * @param lowBlockNumber The lower bound of the search. Must be bounded by SpokePool deployment.
@@ -211,21 +324,33 @@ export async function findFillBlock(
   const { provider } = spokePool;
   highBlockNumber ??= await provider.getBlockNumber();
   assert(highBlockNumber > lowBlockNumber, `Block numbers out of range (${lowBlockNumber} > ${highBlockNumber})`);
-  const { chainId: destinationChainId } = await provider.getNetwork();
 
-  // Make sure the relay is 100% completed within the block range supplied by the caller.
-  const [initialFillAmount, finalFillAmount] = await Promise.all([
-    relayFilledAmount(spokePool, relayData, lowBlockNumber),
-    relayFilledAmount(spokePool, relayData, highBlockNumber),
-  ]);
+  // In production the chainId returned from the provider matches 1:1 with the actual chainId. Querying the provider
+  // object saves an RPC query becasue the chainId is cached by StaticJsonRpcProvider instances. In hre, the SpokePool
+  // may be configured with a different chainId than what is returned by the provider.
+  // @todo Sub out actual chain IDs w/ CHAIN_IDs constants
+  const destinationChainId = Object.values(CHAIN_IDs).includes(relayData.originChainId)
+    ? (await provider.getNetwork()).chainId
+    : Number(await spokePool.chainId());
+  assert(
+    relayData.originChainId !== destinationChainId,
+    `Origin & destination chain IDs must not be equal (${destinationChainId})`
+  );
 
-  // Wasn't filled within the specified block range.
-  if (finalFillAmount.lt(relayData.amount)) {
-    return undefined;
+  // Make sure the relay war completed within the block range supplied by the caller.
+  const [initialFillStatus, finalFillStatus] = (
+    await Promise.all([
+      relayFillStatus(spokePool, relayData, lowBlockNumber, destinationChainId),
+      relayFillStatus(spokePool, relayData, highBlockNumber, destinationChainId),
+    ])
+  ).map(Number);
+
+  if (finalFillStatus !== FillStatus.Filled) {
+    return undefined; // Wasn't filled within the specified block range.
   }
 
-  // Was filled earlier than the specified lowBlock.. This is an error by the caller.
-  if (initialFillAmount.eq(relayData.amount)) {
+  // Was filled earlier than the specified lowBlock. This is an error by the caller.
+  if (initialFillStatus === FillStatus.Filled) {
     const { depositId, originChainId } = relayData;
     const [srcChain, dstChain] = [getNetworkName(originChainId), getNetworkName(destinationChainId)];
     throw new Error(`${srcChain} deposit ${depositId} filled on ${dstChain} before block ${lowBlockNumber}`);
@@ -234,9 +359,9 @@ export async function findFillBlock(
   // Find the leftmost block where filledAmount equals the deposit amount.
   do {
     const midBlockNumber = Math.floor((highBlockNumber + lowBlockNumber) / 2);
-    const filledAmount = await relayFilledAmount(spokePool, relayData, midBlockNumber);
+    const fillStatus = await relayFillStatus(spokePool, relayData, midBlockNumber, destinationChainId);
 
-    if (filledAmount.eq(relayData.amount)) {
+    if (fillStatus === FillStatus.Filled) {
       highBlockNumber = midBlockNumber;
     } else {
       lowBlockNumber = midBlockNumber + 1;

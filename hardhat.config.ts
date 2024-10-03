@@ -8,11 +8,11 @@ import "hardhat-gas-reporter";
 import { HardhatUserConfig } from "hardhat/config";
 import "solidity-coverage";
 
-const solcVersion = "0.8.18";
+const solcVersion = "0.8.23";
 
 const config: HardhatUserConfig = {
   solidity: {
-    compilers: [{ version: solcVersion, settings: { optimizer: { enabled: true, runs: 1000000 }, viaIR: true } }],
+    compilers: [{ version: solcVersion, settings: { optimizer: { enabled: true, runs: 1 }, viaIR: true } }],
   },
   networks: {
     hardhat: { accounts: { accountsBalance: "1000000000000000000000000" } },

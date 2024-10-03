@@ -1,4 +1,4 @@
-import { AcrossConfigStore } from "@across-protocol/contracts-v2";
+import { AcrossConfigStore } from "@across-protocol/contracts";
 import { constants } from "../src";
 import { GLOBAL_CONFIG_STORE_KEYS } from "../src/clients";
 import { SpokePoolTargetBalance } from "../src/interfaces";
@@ -6,6 +6,7 @@ import {
   MAX_L1_TOKENS_PER_POOL_REBALANCE_LEAF,
   MAX_REFUNDS_PER_RELAYER_REFUND_LEAF,
   destinationChainId,
+  originChainId,
 } from "./constants";
 import { DEFAULT_CONFIG_STORE_VERSION, MockConfigStoreClient } from "./mocks";
 import {
@@ -17,7 +18,6 @@ import {
   getContractFactory,
   hubPoolFixture,
   mineRandomBlocks,
-  originChainId,
   toBN,
   toWei,
   utf8ToHex,
@@ -278,57 +278,8 @@ describe("AcrossConfigStoreClient", function () {
         expect(v).to.deep.equal(expectedTargetBalance[k]);
       });
     });
-
-    it("Get UBA fee config", async function () {
-      // Can have a mix of strings and numbers in config JSON.
-      const realisticConfig = {
-        alpha: {
-          default: "400000000000000",
-          "1-10": 100000000000000,
-          "1-137": 100000000000000,
-          "1-42161": 100000000000000,
-        },
-        gamma: {
-          default: [
-            [500000000000000000, 0],
-            [650000000000000000, "500000000000000"],
-            [750000000000000000, 1000000000000000],
-            ["850000000000000000", 2500000000000000],
-            [900000000000000000, 5000000000000000],
-            [950000000000000000, 50000000000000000],
-          ],
-        },
-        omega: { "10": [[0, 0]], "137": [[0, 0]], "42161": [[0, 0]], default: [[0, 0]] },
-        rebalance: {
-          "10": { threshold_upper: 200000000, target_upper: "100000000" },
-          "137": { threshold_upper: 100000000, target_upper: 0 },
-          "42161": { threshold_upper: "200000000", target_upper: 100000000 },
-        },
-      };
-      const update = JSON.stringify({
-        uba: realisticConfig,
-      });
-      await configStore.updateTokenConfig(l1Token.address, update);
-      await configStoreClient.update();
-      const initialUpdate = (await configStore.queryFilter(configStore.filters.UpdatedTokenConfig()))[0];
-      const parsedConfig = configStoreClient.getUBAConfig(l1Token.address, initialUpdate.blockNumber);
-
-      // Test a few objects
-      expect(parsedConfig).to.not.be.undefined;
-
-      // This is guaranteed to be defined as the expect above would have thrown if it was undefined.
-      if (parsedConfig) {
-        expect(parsedConfig.rebalance["137"].threshold_upper).to.equal("100000000");
-        expect(parsedConfig.gamma.default.length).to.equal(6);
-      }
-
-      // If block number is set too low, returns undefined.
-      expect(configStoreClient.getUBAConfig(l1Token.address, 0)).to.be.undefined;
-
-      // Default returns latest.
-      expect(configStoreClient.getUBAConfig(l1Token.address)).to.not.be.undefined;
-    });
   });
+
   describe("GlobalConfig", function () {
     it("Gets config store version for time", async function () {
       // Default false.
@@ -415,6 +366,62 @@ describe("AcrossConfigStoreClient", function () {
       expect(() =>
         configStoreClient.getMaxL1TokenCountForPoolRebalanceLeafForBlock(initialUpdate.blockNumber - 1)
       ).to.throw(/Could not find MaxL1TokenCount/);
+    });
+    it("Should fail if lite chain ID updates are invalid", async function () {
+      // Push invalid update
+      await configStore.updateGlobalConfig(
+        utf8ToHex(GLOBAL_CONFIG_STORE_KEYS.LITE_CHAIN_ID_INDICES),
+        JSON.stringify(["4a"])
+      );
+      // Push invalid update
+      await configStore.updateGlobalConfig(
+        utf8ToHex(GLOBAL_CONFIG_STORE_KEYS.LITE_CHAIN_ID_INDICES),
+        JSON.stringify([1, 1])
+      );
+      // Push valid update
+      await configStore.updateGlobalConfig(
+        utf8ToHex(GLOBAL_CONFIG_STORE_KEYS.LITE_CHAIN_ID_INDICES),
+        JSON.stringify([1])
+      );
+      await configStoreClient.update();
+      expect(configStoreClient.liteChainIndicesUpdates.length).to.equal(1);
+    });
+    it("Should test lite chain ID updates", async function () {
+      const update1 = await configStore.updateGlobalConfig(
+        utf8ToHex(GLOBAL_CONFIG_STORE_KEYS.LITE_CHAIN_ID_INDICES),
+        JSON.stringify([1])
+      );
+      let timestamp = (await configStore.provider.getBlock(update1.blockNumber!)).timestamp;
+      expect(timestamp).to.not.be.undefined;
+
+      // Set the bounds for the new lite chain
+      const timestampBeforeNewLiteChains = timestamp - 5;
+      const timestampAfterNewLiteChains = timestamp + 5;
+
+      const blockBeforeNewLiteChains = update1.blockNumber! - 1;
+      const blockAfterNewLiteChains = update1.blockNumber! + 1;
+
+      await configStoreClient.update();
+      // Test the getliteChainIdIndicesForTimestamp function
+      expect(configStoreClient.getLiteChainIdIndicesForTimestamp(timestampBeforeNewLiteChains)).to.deep.equal([]);
+      expect(configStoreClient.getLiteChainIdIndicesForTimestamp(timestampAfterNewLiteChains)).to.deep.equal([1]);
+      // Test the getliteChainIdIndicesForBlock function
+      expect(configStoreClient.getLiteChainIdIndicesForBlock(blockBeforeNewLiteChains)).to.deep.equal([]);
+      expect(configStoreClient.getLiteChainIdIndicesForBlock(blockAfterNewLiteChains)).to.deep.equal([1]);
+
+      const update2 = await configStore.updateGlobalConfig(
+        utf8ToHex(GLOBAL_CONFIG_STORE_KEYS.LITE_CHAIN_ID_INDICES),
+        JSON.stringify([1, 15])
+      );
+      timestamp = (await configStore.provider.getBlock(update2.blockNumber!)).timestamp;
+      expect(timestamp).to.not.be.undefined;
+      const timestampAfterLiteChainUpdate = timestamp + 5;
+      const blockAfterLiteChainUpdate = update2.blockNumber! + 1;
+
+      await configStoreClient.update();
+
+      expect(configStoreClient.getLiteChainIdIndicesForTimestamp(timestampAfterLiteChainUpdate)).to.deep.equal([1, 15]);
+      expect(configStoreClient.getLiteChainIdIndicesForBlock(blockAfterLiteChainUpdate)).to.deep.equal([1, 15]);
     });
     it("Get disabled chain IDs for block range", async function () {
       // set all possible chains for the next several tests

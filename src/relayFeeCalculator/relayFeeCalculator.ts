@@ -1,25 +1,31 @@
 import assert from "assert";
-import { BigNumber } from "ethers";
-import {
-  BigNumberish,
-  fixedPointAdjustment,
-  toBNWei,
-  nativeToToken,
-  toBN,
-  min,
-  max,
-  percent,
-  MAX_BIG_INT,
-  isDefined,
-  getTokenInformationFromAddress,
-  TransactionCostEstimate,
-} from "../utils";
 import { DEFAULT_SIMULATED_RELAYER_ADDRESS, TOKEN_SYMBOLS_MAP } from "../constants";
 import { Deposit } from "../interfaces";
+import {
+  BigNumber,
+  BigNumberish,
+  MAX_BIG_INT,
+  TransactionCostEstimate,
+  bnZero,
+  fixedPointAdjustment,
+  getTokenInformationFromAddress,
+  isDefined,
+  max,
+  min,
+  nativeToToken,
+  percent,
+  toBN,
+  toBNWei,
+} from "../utils";
 
 // This needs to be implemented for every chain and passed into RelayFeeCalculator
 export interface QueryInterface {
-  getGasCosts: (deposit: Deposit, fillAmount: BigNumberish, relayer: string) => Promise<TransactionCostEstimate>;
+  getGasCosts: (
+    deposit: Deposit,
+    relayer: string,
+    gasPrice?: BigNumberish,
+    gasLimit?: BigNumberish
+  ) => Promise<TransactionCostEstimate>;
   getTokenPrice: (tokenSymbol: string) => Promise<number>;
   getTokenDecimals: (tokenSymbol: string) => number;
 }
@@ -88,6 +94,9 @@ export const DEFAULT_LOGGER: Logger = {
   warn: (...args) => console.warn(args),
   error: (...args) => console.error(args),
 };
+
+// Small amount to simulate filling with. Should be low enough to guarantee a successful fill.
+const safeOutputAmount = toBN(100);
 
 export class RelayFeeCalculator {
   private queries: QueryInterface;
@@ -187,7 +196,6 @@ export class RelayFeeCalculator {
    */
   static validateCapitalCostsConfig(capitalCosts: CapitalCostConfig): void {
     assert(toBN(capitalCosts.upperBound).lt(toBNWei("0.01")), "upper bound must be < 1%");
-    assert(toBN(capitalCosts.lowerBound).lte(capitalCosts.upperBound), "lower bound must be <= upper bound");
     assert(capitalCosts.decimals > 0 && capitalCosts.decimals <= 18, "invalid decimals");
   }
 
@@ -220,54 +228,52 @@ export class RelayFeeCalculator {
     simulateZeroFill = false,
     relayerAddress = DEFAULT_SIMULATED_RELAYER_ADDRESS,
     _tokenPrice?: number,
-    tokenMapping = TOKEN_SYMBOLS_MAP
+    tokenMapping = TOKEN_SYMBOLS_MAP,
+    gasPrice?: BigNumberish,
+    gasLimit?: BigNumberish
   ): Promise<BigNumber> {
-    const token = getTokenInformationFromAddress(deposit.originToken, tokenMapping);
+    if (toBN(amountToRelay).eq(bnZero)) return MAX_BIG_INT;
+
+    const { inputToken } = deposit;
+    const token = getTokenInformationFromAddress(inputToken, tokenMapping);
     if (!isDefined(token)) {
-      throw new Error(`Could not find token information for ${deposit.originToken}`);
+      throw new Error(`Could not find token information for ${inputToken}`);
     }
 
-    if (toBN(amountToRelay).eq(0)) return MAX_BIG_INT;
+    // Reduce the output amount to simulate a full fill with a lower value to estimate
+    // the fill cost accurately without risking a failure due to insufficient balance.
+    const simulatedAmount = simulateZeroFill ? safeOutputAmount : toBN(amountToRelay);
+    deposit = { ...deposit, outputAmount: simulatedAmount };
 
-    const getGasCosts = this.queries
-      .getGasCosts(
-        {
-          ...deposit,
-          amount: simulateZeroFill ? toBN(100) : deposit.amount,
-        },
-        simulateZeroFill ? toBN(100) : amountToRelay,
-        relayerAddress
-      )
-      .catch((error) => {
-        this.logger.error({
-          at: "sdk-v2/gasFeePercent",
-          message: "Error while fetching gas costs",
-          error,
-          simulateZeroFill,
-          deposit,
-        });
-        throw error;
-      });
-    const getTokenPrice = this.queries.getTokenPrice(token.symbol).catch((error) => {
+    const getGasCosts = this.queries.getGasCosts(deposit, relayerAddress, gasPrice, gasLimit).catch((error) => {
       this.logger.error({
-        at: "sdk-v2/gasFeePercent",
-        message: "Error while fetching token price",
+        at: "sdk/gasFeePercent",
+        message: "Error while fetching gas costs",
         error,
-        destinationChainId: deposit.destinationChainId,
-        destinationToken: deposit.destinationToken,
+        simulateZeroFill,
+        deposit,
       });
       throw error;
     });
     const [{ tokenGasCost }, tokenPrice] = await Promise.all([
       getGasCosts,
-      _tokenPrice !== undefined ? _tokenPrice : getTokenPrice,
+      _tokenPrice ??
+        this.queries.getTokenPrice(token.symbol).catch((error) => {
+          this.logger.error({
+            at: "sdk/gasFeePercent",
+            message: "Error while fetching token price",
+            error,
+            destinationChainId: deposit.destinationChainId,
+            inputToken,
+          });
+          throw error;
+        }),
     ]);
     const gasFeesInToken = nativeToToken(tokenGasCost, tokenPrice, token.decimals, this.nativeTokenDecimals);
     return percent(gasFeesInToken, amountToRelay.toString());
   }
 
   // Note: these variables are unused now, but may be needed in future versions of this function that are more complex.
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   capitalFeePercent(
     _amountToRelay: BigNumberish,
     _tokenSymbol: string,
@@ -283,7 +289,7 @@ export class RelayFeeCalculator {
     const tokenCostConfig = this.capitalCostsConfig[_tokenSymbol.toUpperCase()];
     if (!isDefined(tokenCostConfig)) {
       this.logger.error({
-        at: "sdk-v2/capitalFeePercent",
+        at: "sdk/capitalFeePercent",
         message: `No capital fee available for token ${_tokenSymbol}`,
       });
       throw new Error(`No capital cost config available for token ${_tokenSymbol}`);
@@ -335,6 +341,8 @@ export class RelayFeeCalculator {
    *       the relayer.
    * @param relayerAddress The relayer that will be used for the gas cost simulation
    * @param _tokenPrice The token price for normalizing fees
+   * @param gasPrice Optional gas price to use for the simulation
+   * @param gasUnits Optional gas units to use for the simulation
    * @returns A resulting `RelayerFeeDetails` object
    */
   async relayerFeeDetails(
@@ -342,15 +350,17 @@ export class RelayFeeCalculator {
     amountToRelay?: BigNumberish,
     simulateZeroFill = false,
     relayerAddress = DEFAULT_SIMULATED_RELAYER_ADDRESS,
-    _tokenPrice?: number
+    _tokenPrice?: number,
+    gasPrice?: BigNumberish,
+    gasUnits?: BigNumberish
   ): Promise<RelayerFeeDetails> {
     // If the amount to relay is not provided, then we
     // should use the full deposit amount.
-    amountToRelay ??= deposit.amount;
-
-    const tokenInformation = getTokenInformationFromAddress(deposit.originToken);
-    if (!isDefined(tokenInformation)) {
-      throw new Error(`Could not find token information for ${deposit.originToken}`);
+    amountToRelay ??= deposit.outputAmount;
+    const { inputToken } = deposit;
+    const token = getTokenInformationFromAddress(inputToken);
+    if (!isDefined(token)) {
+      throw new Error(`Could not find token information for ${inputToken}`);
     }
 
     const gasFeePercent = await this.gasFeePercent(
@@ -358,12 +368,15 @@ export class RelayFeeCalculator {
       amountToRelay,
       simulateZeroFill,
       relayerAddress,
-      _tokenPrice
+      _tokenPrice,
+      undefined,
+      gasPrice,
+      gasUnits
     );
     const gasFeeTotal = gasFeePercent.mul(amountToRelay).div(fixedPointAdjustment);
     const capitalFeePercent = this.capitalFeePercent(
       amountToRelay,
-      tokenInformation.symbol,
+      token.symbol,
       deposit.originChainId.toString(),
       deposit.destinationChainId.toString()
     );
@@ -391,7 +404,7 @@ export class RelayFeeCalculator {
 
     return {
       amountToRelay: amountToRelay.toString(),
-      tokenSymbol: tokenInformation.symbol,
+      tokenSymbol: token.symbol,
       gasFeePercent: gasFeePercent.toString(),
       gasFeeTotal: gasFeeTotal.toString(),
       gasDiscountPercent: this.gasDiscountPercent,

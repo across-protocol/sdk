@@ -40,6 +40,7 @@ export class BaseHTTPAdapter {
   protected async query(path: string, urlArgs?: object): Promise<unknown> {
     const url = `https://${this.host}/${path ?? ""}`;
     const args = {
+      headers: { "User-Agent": process.env.ACROSS_USER_AGENT ?? "across-protocol" },
       timeout: this.timeout,
       params: urlArgs ?? {},
     };

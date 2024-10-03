@@ -15,7 +15,7 @@ export interface RateModel {
 }
 
 // converts an APY rate to a one week rate. Uses the Decimal library to take a fractional exponent
-function convertApyToWeeklyFee(apy: BN) {
+function convertApyToWeeklyFee(apy: BN): BN {
   // R_week = (1 + apy)^(1/52) - 1
   const weeklyFeePct = Decimal.pow(
     new Decimal("1").plus(fromWei(apy)),
@@ -26,7 +26,7 @@ function convertApyToWeeklyFee(apy: BN) {
   return toBN(weeklyFeePct.times(fixedPointAdjustment.toString()).floor().toString());
 }
 
-export function truncate18DecimalBN(input: BN, digits: number) {
+export function truncate18DecimalBN(input: BN, digits: number): BN {
   const digitsToDrop = 18 - digits;
   const multiplier = toBN(10).pow(digitsToDrop);
   return input.div(multiplier).mul(multiplier);
@@ -41,7 +41,7 @@ export class LPFeeCalculator {
    * @param utilization The current utilization of the pool.
    * @returns The area under the curve of the piece-wise linear rate model.
    */
-  public calculateAreaUnderRateCurve(utilization: BN) {
+  public calculateAreaUnderRateCurve(utilization: BN): BN {
     // Area under first piecewise component
     const utilizationBeforeKink = min(utilization, this.rateModel.UBar);
     const rectangle1Area = utilizationBeforeKink.mul(this.rateModel.R0).div(fixedPointAdjustment);
@@ -70,7 +70,7 @@ export class LPFeeCalculator {
    * @param utilization The current utilization of the pool.
    * @returns The instantaneous rate for a 0 sized deposit.
    */
-  public calculateInstantaneousRate(utilization: BigNumberish) {
+  public calculateInstantaneousRate(utilization: BigNumberish): BN {
     // Assuming utilization >= 0, if UBar = 0 then the value beforeKink is 0 since min(>=0, 0) = 0.
     const beforeKink =
       this.rateModel.UBar.toString() === "0"
@@ -95,10 +95,10 @@ export class LPFeeCalculator {
     utilizationBeforeDeposit: BigNumberish,
     utilizationAfterDeposit: BigNumberish,
     truncateDecimals = false
-  ) {
+  ): BN {
     const apy = this.calculateApyFromUtilization(toBN(utilizationBeforeDeposit), toBN(utilizationAfterDeposit));
 
-    // ACROSS-V2 UMIP requires that the realized fee percent is floor rounded as decimal to 6 decimals.
+    // ACROSS UMIP requires that the realized fee percent is floor rounded as decimal to 6 decimals.
     return truncateDecimals ? truncate18DecimalBN(convertApyToWeeklyFee(apy), 6) : convertApyToWeeklyFee(apy);
   }
   /**
@@ -108,7 +108,7 @@ export class LPFeeCalculator {
    * @param utilizationAfterDeposit The utilization of the pool after the deposit.
    * @returns The realized LP fee APY percent.
    */
-  public calculateApyFromUtilization(utilizationBeforeDeposit: BN, utilizationAfterDeposit: BN) {
+  public calculateApyFromUtilization(utilizationBeforeDeposit: BN, utilizationAfterDeposit: BN): BN {
     if (utilizationBeforeDeposit.eq(utilizationAfterDeposit))
       return this.calculateInstantaneousRate(utilizationBeforeDeposit);
 
@@ -128,7 +128,7 @@ export class LPFeeCalculator {
  * @param utilization The current utilization of the pool.
  * @returns The instantaneous rate for a 0 sized deposit.
  */
-export function calculateInstantaneousRate(rateModel: RateModel, utilization: BigNumberish) {
+export function calculateInstantaneousRate(rateModel: RateModel, utilization: BigNumberish): BN {
   return new LPFeeCalculator(rateModel).calculateInstantaneousRate(utilization);
 }
 
@@ -143,7 +143,7 @@ export function calculateApyFromUtilization(
   rateModel: RateModel,
   utilizationBeforeDeposit: BN,
   utilizationAfterDeposit: BN
-) {
+): BN {
   return new LPFeeCalculator(rateModel).calculateApyFromUtilization(utilizationBeforeDeposit, utilizationAfterDeposit);
 }
 
@@ -160,7 +160,7 @@ export function calculateRealizedLpFeePct(
   utilizationBeforeDeposit: BigNumberish,
   utilizationAfterDeposit: BigNumberish,
   truncateDecimals = false
-) {
+): BN {
   return new LPFeeCalculator(rateModel).calculateRealizedLpFeePct(
     utilizationBeforeDeposit,
     utilizationAfterDeposit,

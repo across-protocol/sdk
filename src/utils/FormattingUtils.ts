@@ -1,5 +1,5 @@
-import { ethers } from "ethers";
-import { BN, toBN } from "./BigNumberUtils";
+import { utils as ethersUtils } from "ethers";
+import { formatUnits, BigNumber as ethersBigNumber, BN, parseUnits, toBN } from "./BigNumberUtils";
 import { fromWei } from "./common";
 import assert from "assert";
 import { BigNumber } from "bignumber.js";
@@ -93,7 +93,7 @@ export function createShortHexString(hex: string, maxLength = 8, delimiter = "..
  * @returns The hex string.
  */
 export function utf8ToHex(input: string): string {
-  return ethers.utils.formatBytes32String(input);
+  return ethersUtils.formatBytes32String(input);
 }
 
 /**
@@ -102,7 +102,7 @@ export function utf8ToHex(input: string): string {
  * @returns The utf8 string.
  */
 export function hexToUtf8(input: string): string {
-  return ethers.utils.toUtf8String(input);
+  return ethersUtils.toUtf8String(input);
 }
 
 /**
@@ -112,7 +112,7 @@ export function hexToUtf8(input: string): string {
  * @returns The 32-byte hexadecimal string representation of the input.
  */
 export function bnToHex(input: BN): string {
-  return ethers.utils.hexZeroPad(ethers.utils.hexlify(toBN(input)), 32);
+  return ethersUtils.hexZeroPad(ethersUtils.hexlify(toBN(input)), 32);
 }
 
 /**
@@ -166,3 +166,21 @@ export const ConvertDecimals = (fromDecimals: number, toDecimals: number): ((amo
     return amount.mul(toBN("10").pow(toBN((-1 * diff).toString())));
   };
 };
+
+/**
+ * Converts a numeric decimal-inclusive string to winston, the base unit of Arweave
+ * @param numericString The numeric string to convert
+ * @returns The winston representation of the numeric string as a BigNumber
+ */
+export function parseWinston(numericString: string): ethersBigNumber {
+  return parseUnits(numericString, 12);
+}
+
+/**
+ * Converts a winston value to a numeric string
+ * @param winstonValue The winston value to convert
+ * @returns The numeric string representation of the winston value
+ */
+export function formatWinston(winstonValue: ethersBigNumber): string {
+  return formatUnits(winstonValue, 12);
+}

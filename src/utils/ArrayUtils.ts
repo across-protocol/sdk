@@ -9,6 +9,22 @@ export function dedupArray<T>(array: T[]): T[] {
 }
 
 /**
+ * Splits an arbitrary array into a series of chunks.
+ * @param array The array to chunk.
+ * @param chunkSize The maximum size of any chunk within the array.
+ * @returns A new array of chunked members.
+ */
+export function chunk<T>(array: T[], chunkSize: number): T[][] {
+  const chunks: T[][] = [];
+
+  for (let i = 0; i < array.length; i += chunkSize) {
+    chunks.push(array.slice(i, i + chunkSize));
+  }
+
+  return chunks;
+}
+
+/**
  * Returns the last index of an array that matches the given predicate.
  * @note Emulates Array.prototype.findLastIndex
  * @param array The array to search.

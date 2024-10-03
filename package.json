@@ -1,9 +1,9 @@
 {
-  "name": "@across-protocol/sdk-v2",
+  "name": "@across-protocol/sdk",
   "author": "UMA Team",
-  "version": "0.20.2",
+  "version": "3.2.3",
   "license": "AGPL-3.0",
-  "homepage": "https://docs.across.to/v/developer-docs/developers/across-sdk",
+  "homepage": "https://docs.across.to/reference/sdk",
   "files": [
     "dist",
     "src"
@@ -12,25 +12,25 @@
     "node": ">=16.18.0"
   },
   "scripts": {
-    "start": "nodemon -e ts,tsx,json,js,jsx --watch ./src --ignore ./dist --exec 'yarn build'",
-    "build": "yarn run clean && yarn run build:cjs & yarn run build:esm & yarn run build:types; wait",
-    "build:cjs": "tsc --project tsconfig.build.json --module commonjs --outDir ./dist/cjs --removeComments --verbatimModuleSyntax false && echo > ./dist/cjs/package.json '{\"type\":\"commonjs\"}' && yarn copy-abi:cjs",
-    "build:esm": "tsc --project tsconfig.build.json --module es2015 --outDir ./dist/esm && echo > ./dist/esm/package.json '{\"type\":\"module\",\"sideEffects\":false}' && yarn copy-abi:esm",
+    "start": "yarn typechain && nodemon -e ts,tsx,json,js,jsx --watch ./src --ignore ./dist --exec 'yarn dev'",
+    "build": "yarn run clean && yarn typechain && yarn run build:cjs & yarn run build:esm & yarn run build:types; wait",
+    "dev": "yarn run build:cjs & yarn run build:esm & yarn run build:types; wait",
+    "build:cjs": "tsc --project tsconfig.build.json --module commonjs --outDir ./dist/cjs --removeComments --verbatimModuleSyntax false && echo > ./dist/cjs/package.json '{\"type\":\"commonjs\"}'",
+    "build:esm": "tsc --project tsconfig.build.json --module es2015 --outDir ./dist/esm && echo > ./dist/esm/package.json '{\"type\":\"module\",\"sideEffects\":false}'",
     "build:types": "tsc --project tsconfig.build.json --module esnext --declarationDir ./dist/types --emitDeclarationOnly --declaration --declarationMap",
-    "copy-abi:cjs": "DIR=cjs yarn copy-abi",
-    "copy-abi:esm": "DIR=esm yarn copy-abi",
-    "copy-abi": "abi=utils/abi/contracts; dstdir=\"./dist/${DIR}/${abi}\"; mkdir -p \"${dstdir}\"; cp ./src/${abi}/*.json \"${dstdir}\"",
     "test": "hardhat test",
     "test:watch": "hardhat watch test",
-    "lint": "eslint --fix src test e2e",
-    "lint-check": "eslint src test e2e",
+    "test:run:arweave": "npx -y arlocal",
+    "lint": "eslint --fix src test e2e && yarn prettier --write \"src/**/*.ts\" \"test/**/*.ts\" \"e2e/**/*.ts\"",
+    "lint-check": "eslint src test e2e && yarn prettier --check \"src/**/*.ts\" \"test/**/*.ts\" \"e2e/**/*.ts\"",
     "prepare": "yarn build && husky install",
     "size": "size-limit",
     "analyze": "size-limit --why",
     "clean": "rm -rf ./dist",
     "bump-version:major": "yarn version --major --no-git-tag-version --no-commit-hooks && git commit -m 'chore: bump version' ./package.json --no-verify",
     "bump-version:minor": "yarn version --minor --no-git-tag-version --no-commit-hooks && git commit -m 'chore: bump version' ./package.json --no-verify",
-    "bump-version:patch": "yarn version --patch --no-git-tag-version --no-commit-hooks && git commit -m 'chore: bump version' ./package.json --no-verify"
+    "bump-version:patch": "yarn version --patch --no-git-tag-version --no-commit-hooks && git commit -m 'chore: bump version' ./package.json --no-verify",
+    "typechain": "typechain --target ethers-v5 --out-dir src/utils/abi/typechain 'src/utils/abi/contracts/*.json' && eslint --fix src/utils/abi/typechain && yarn prettier --write \"src/utils/abi/typechain/**/*.ts\""
   },
   "lint-staged": {
     "*.ts": "yarn lint"
@@ -39,11 +39,11 @@
   "sideEffects": false,
   "size-limit": [
     {
-      "path": "dist/sdk-v2.cjs.production.min.js",
+      "path": "dist/sdk.cjs.production.min.js",
       "limit": "10 KB"
     },
     {
-      "path": "dist/sdk-v2.esm.js",
+      "path": "dist/sdk.esm.js",
       "limit": "10 KB"
     }
   ],
@@ -57,12 +57,14 @@
     "@size-limit/preset-small-lib": "^7.0.8",
     "@typechain/ethers-v5": "^11.1.1",
     "@typechain/hardhat": "^6.1.6",
+    "@types/async": "^3.2.24",
     "@types/chai": "^4.3.6",
     "@types/dotenv": "^8.2.0",
     "@types/lodash": "^4.14.199",
     "@types/lodash.get": "^4.4.7",
     "@typescript-eslint/eslint-plugin": "^6.6.0",
     "@typescript-eslint/parser": "^6.6.0",
+    "arlocal": "^1.1.65",
     "chai": "^4.3.8",
     "chai-exclude": "^2.1.0",
     "dotenv": "^16.0.0",
@@ -97,16 +99,20 @@
   },
   "dependencies": {
     "@across-protocol/across-token": "^1.0.0",
-    "@across-protocol/constants-v2": "^1.0.8",
-    "@across-protocol/contracts-v2": "^2.4.7",
-    "@eth-optimism/sdk": "^3.1.8",
+    "@across-protocol/constants": "^3.1.14",
+    "@across-protocol/contracts": "^3.0.10",
+    "@eth-optimism/sdk": "^3.3.1",
+    "@ethersproject/bignumber": "^5.7.0",
     "@pinata/sdk": "^2.1.0",
     "@types/mocha": "^10.0.1",
     "@uma/sdk": "^0.34.1",
+    "arweave": "^1.14.4",
+    "async": "^3.2.5",
     "axios": "^0.27.2",
     "big-number": "^2.0.0",
     "decimal.js": "^10.3.1",
     "ethers": "^5.7.2",
+    "lodash": "^4.17.21",
     "lodash.get": "^4.4.2",
     "superstruct": "^0.15.4",
     "tslib": "^2.6.2"
