@@ -33,6 +33,6 @@ export function validateFillForDeposit(
   const invalidKey = RELAYDATA_KEYS.find((key) => relayData[key].toString() !== deposit[key].toString());
 
   return isDefined(invalidKey)
-  ? { valid: false, reason: `${invalidKey} mismatch (${relayData[invalidKey]} != ${deposit[invalidKey]})` }
-  : { valid: true };
+    ? { valid: false, reason: `${invalidKey} mismatch (${relayData[invalidKey]} != ${deposit[invalidKey]})` }
+    : { valid: true };
 }
