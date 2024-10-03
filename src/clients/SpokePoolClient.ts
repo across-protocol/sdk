@@ -319,7 +319,8 @@ export class SpokePoolClient extends BaseAbstractClient {
       deposit,
       fill
     });
-    return undefined;
+
+    return;
   }
 
   /**
