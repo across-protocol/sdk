@@ -1,5 +1,5 @@
 import { isDefined } from "../utils";
-import { Deposit, Fill, RelayData } from "../interfaces";
+import { Deposit, RelayData } from "../interfaces";
 
 export const RELAYDATA_KEYS = [
   "depositId",
