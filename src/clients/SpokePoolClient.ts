@@ -311,13 +311,12 @@ export class SpokePoolClient extends BaseAbstractClient {
       return deposit;
     }
 
-    const originChain = getNetworkName(fill.originChainId);
     this.logger.debug({
       at: "SpokePoolClient::getDepositForFill",
-      message: `Rejected fill for ${originChain} deposit ${fill.depositId}.`,
+      message: `Rejected fill for ${getNetworkName(fill.originChainId)} deposit ${fill.depositId}.`,
       reason: match.reason,
       deposit,
-      fill,
+      fill
     });
 
     return;
