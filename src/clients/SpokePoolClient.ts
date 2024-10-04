@@ -316,7 +316,7 @@ export class SpokePoolClient extends BaseAbstractClient {
       message: `Rejected fill for ${getNetworkName(fill.originChainId)} deposit ${fill.depositId}.`,
       reason: match.reason,
       deposit,
-      fill
+      fill,
     });
 
     return;

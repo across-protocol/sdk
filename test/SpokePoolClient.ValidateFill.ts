@@ -141,7 +141,7 @@ describe("SpokePoolClient: Fill Validation", function () {
       "relayer",
       "destinationChainId",
       "repaymentChainId",
-      "relayExecutionInfo"
+      "relayExecutionInfo",
     ];
 
     // For each RelayData field, toggle the value to produce an invalid fill. Verify that it's rejected.
@@ -157,7 +157,7 @@ describe("SpokePoolClient: Fill Validation", function () {
         val = fill[field] + 1;
       }
 
-      let result = validateFillForDeposit(fill, { ...deposit_2, [field]: val });
+      const result = validateFillForDeposit(fill, { ...deposit_2, [field]: val });
       expect(result.valid).to.be.false;
       expect((result as { reason: string }).reason.startsWith(`${field} mismatch`)).to.be.true;
     }
