@@ -305,8 +305,21 @@ export class SpokePoolClient extends BaseAbstractClient {
    * @returns The corresponding deposit if found, undefined otherwise.
    */
   public getDepositForFill(fill: Fill): DepositWithBlock | undefined {
-    const depositWithMatchingDepositId = this.depositHashes[this.getDepositHash(fill)];
-    return validateFillForDeposit(fill, depositWithMatchingDepositId) ? depositWithMatchingDepositId : undefined;
+    const deposit = this.depositHashes[this.getDepositHash(fill)];
+    const match = validateFillForDeposit(fill, deposit);
+    if (match.valid) {
+      return deposit;
+    }
+
+    this.logger.debug({
+      at: "SpokePoolClient::getDepositForFill",
+      message: `Rejected fill for ${getNetworkName(fill.originChainId)} deposit ${fill.depositId}.`,
+      reason: match.reason,
+      deposit,
+      fill,
+    });
+
+    return;
   }
 
   /**
@@ -341,7 +354,7 @@ export class SpokePoolClient extends BaseAbstractClient {
 
     const { validFills, invalidFills } = fillsForDeposit.reduce(
       (groupedFills: { validFills: Fill[]; invalidFills: Fill[] }, fill: Fill) => {
-        if (validateFillForDeposit(fill, deposit)) {
+        if (validateFillForDeposit(fill, deposit).valid) {
           groupedFills.validFills.push(fill);
         } else {
           groupedFills.invalidFills.push(fill);
