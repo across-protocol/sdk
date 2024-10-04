@@ -139,7 +139,6 @@ describe("SpokePoolClient: Fill Validation", function () {
       "transactionIndex",
       "logIndex",
       "relayer",
-      "destinationChainId",
       "repaymentChainId",
       "relayExecutionInfo",
     ];
