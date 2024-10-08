@@ -221,6 +221,7 @@ describe("SpokePoolClient: Fill Validation", function () {
     fills.slice(1).forEach((fillStatus) => expect(fillStatus).to.equal(FillStatus.Unfilled));
 
     // Request a slow fill on the second deposit and verify that the status updates correctly.
+    await spokePool_2.setCurrentTime(deposits[1].exclusivityDeadline + 1);
     await requestV3SlowFill(spokePool_2, deposits[1], relayer);
     fills = await fillStatusArray(spokePool_2, deposits);
     expect(fills.length).to.equal(deposits.length);
