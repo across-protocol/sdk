@@ -499,20 +499,28 @@ export class SpokePoolClient extends BaseAbstractClient {
       };
     });
 
+    const { spokePool } = this;
     this.log("debug", `Updating SpokePool client for chain ${this.chainId}`, {
       eventsToQuery,
       searchConfig,
-      spokePool: this.spokePool.address,
+      spokePool: spokePool.address,
     });
 
     const timerStart = Date.now();
-    const [numberOfDeposits, currentTime, oldestTime, ...events] = await Promise.all([
-      this.spokePool.numberOfDeposits({ blockTag: searchConfig.toBlock }),
-      this.spokePool.getCurrentTime({ blockTag: searchConfig.toBlock }),
+    const multicallFunctions = ["getCurrentTime", "numberOfDeposits"];
+    const [multicallOutput, oldestTime, ...events] = await Promise.all([
+      spokePool.callStatic.multicall(
+        multicallFunctions.map((f) => spokePool.interface.encodeFunctionData(f)),
+        { blockTag: searchConfig.toBlock }
+      ),
       this.spokePool.getCurrentTime({ blockTag: Math.max(searchConfig.fromBlock, this.deploymentBlock) }),
       ...eventSearchConfigs.map((config) => paginatedEventQuery(this.spokePool, config.filter, config.searchConfig)),
     ]);
     this.log("debug", `Time to query new events from RPC for ${this.chainId}: ${Date.now() - timerStart} ms`);
+
+    const [currentTime, numberOfDeposits] = multicallFunctions.map(
+      (fn, idx) => spokePool.interface.decodeFunctionResult(fn, multicallOutput[idx])[0]
+    );
 
     if (!BigNumber.isBigNumber(currentTime) || currentTime.lt(this.currentTime)) {
       const errMsg = BigNumber.isBigNumber(currentTime)
