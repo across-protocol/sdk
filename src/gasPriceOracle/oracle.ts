@@ -1,10 +1,10 @@
+import { Transport } from "viem";
 import { providers } from "ethers";
 import { CHAIN_IDs } from "../constants";
-import { chainIsOPStack } from "../utils";
-import { GasPriceEstimate, GasPriceFeed } from "./types";
+import { BigNumber } from "../utils";
+import { GasPriceEstimate } from "./types";
+import { getPublicClient } from "./util";
 import * as arbitrum from "./adapters/arbitrum";
-import * as ethereum from "./adapters/ethereum";
-import * as linea from "./adapters/linea";
 import * as polygon from "./adapters/polygon";
 
 /**
@@ -16,33 +16,34 @@ import * as polygon from "./adapters/polygon";
  */
 export async function getGasPriceEstimate(
   provider: providers.Provider,
-  chainId?: number,
-  legacyFallback = true
+  transport?: Transport
 ): Promise<GasPriceEstimate> {
-  if (chainId === undefined) {
-    ({ chainId } = await provider.getNetwork());
-  }
+  const { chainId } = await provider.getNetwork();
+  const viemProvider = getPublicClient(chainId, transport);
 
-  const gasPriceFeeds: { [chainId: number]: GasPriceFeed } = {
+  const gasPriceFeeds = {
     [CHAIN_IDs.ARBITRUM]: arbitrum.eip1559,
-    [CHAIN_IDs.BASE]: ethereum.eip1559,
-    [CHAIN_IDs.BOBA]: ethereum.legacy,
-    [CHAIN_IDs.LINEA]: linea.eip1559, // @todo: Support linea_estimateGas in adapter.
-    [CHAIN_IDs.MAINNET]: ethereum.eip1559,
-    [CHAIN_IDs.MODE]: ethereum.eip1559,
-    [CHAIN_IDs.OPTIMISM]: ethereum.eip1559,
     [CHAIN_IDs.POLYGON]: polygon.gasStation,
-    [CHAIN_IDs.ZK_SYNC]: ethereum.legacy,
-    [CHAIN_IDs.SCROLL]: ethereum.legacy,
-  };
+  } as const;
 
-  let gasPriceFeed = gasPriceFeeds[chainId];
-  if (gasPriceFeed === undefined) {
-    if (!legacyFallback) {
-      throw new Error(`No suitable gas price oracle for Chain ID ${chainId}`);
-    }
-    gasPriceFeed = chainIsOPStack(chainId) ? ethereum.eip1559 : ethereum.legacy;
+  let maxFeePerGas: bigint;
+  let maxPriorityFeePerGas: bigint;
+  if (gasPriceFeeds[chainId]) {
+    // declare function action<chain extends Chain | undefined>(client: Client<Transport, chain>): void
+    // action(viemProvider);
+    // https://github.com/wevm/viem/issues/2763
+    ({ maxFeePerGas, maxPriorityFeePerGas } = await gasPriceFeeds[chainId](viemProvider, chainId));
+  } else {
+    let gasPrice: bigint | undefined;
+    ({ maxFeePerGas, maxPriorityFeePerGas, gasPrice } = await viemProvider.estimateFeesPerGas());
+    // console.log(`Got maxFeePerGas: ${maxFeePerGas}, maxPriorityFeePerGas: ${maxPriorityFeePerGas}, gasPrice: ${gasPrice}.`);
+
+    maxFeePerGas ??= gasPrice!;
+    maxPriorityFeePerGas ??= BigInt(0);
   }
 
-  return gasPriceFeed(provider, chainId);
+  return {
+    maxFeePerGas: BigNumber.from(maxFeePerGas.toString()),
+    maxPriorityFeePerGas: BigNumber.from(maxPriorityFeePerGas.toString()),
+  };
 }

@@ -281,7 +281,7 @@ export async function estimateTotalGasRequiredByUnsignedTransaction(
     tokenGasCost = l1GasCost.add(l2GasCost);
   } else {
     if (!gasPrice) {
-      const gasPriceEstimate = await getGasPriceEstimate(provider, chainId);
+      const gasPriceEstimate = await getGasPriceEstimate(provider);
       gasPrice = gasPriceEstimate.maxFeePerGas;
     }
     tokenGasCost = nativeGasCost.mul(gasPrice);
