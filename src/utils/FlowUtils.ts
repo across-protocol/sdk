@@ -1,17 +1,12 @@
-import { Deposit, Fill, RelayData, SlowFillRequest } from "../interfaces";
-import { getRelayDataHash } from "./SpokeUtils";
+import { isDefined } from "../utils";
+import { Deposit, RelayData } from "../interfaces";
 
-export const FILL_DEPOSIT_COMPARISON_KEYS = [
+export const RELAYDATA_KEYS = [
   "depositId",
   "originChainId",
   "destinationChainId",
   "depositor",
   "recipient",
-  "message",
-] as const;
-
-export const V3_DEPOSIT_COMPARISON_KEYS = [
-  ...FILL_DEPOSIT_COMPARISON_KEYS,
   "inputToken",
   "inputAmount",
   "outputToken",
@@ -19,30 +14,25 @@ export const V3_DEPOSIT_COMPARISON_KEYS = [
   "fillDeadline",
   "exclusivityDeadline",
   "exclusiveRelayer",
+  "message",
 ] as const;
 
-export function filledSameDeposit(fillA: Fill, fillB: Fill): boolean {
-  // Don't bother hashing obvious mismatches.
-  if (fillA.depositId !== fillB.depositId) {
-    return false;
-  }
-
-  const { destinationChainId: chainA } = fillA;
-  const { destinationChainId: chainB } = fillB;
-  return getRelayDataHash(fillA, chainA) === getRelayDataHash(fillB, chainB);
-}
-
+// Ensure that each deposit element is included with the same value in the fill. This includes all elements defined
+// by the depositor as well as destinationToken, which are pulled from other clients.
 export function validateFillForDeposit(
-  relayData: RelayData & { destinationChainId: number }, // V3Fill, SlowFillRequest...
+  relayData: RelayData & { destinationChainId: number },
   deposit?: Deposit
-): boolean {
+): { valid: true } | { valid: false; reason: string } {
   if (deposit === undefined) {
-    return false;
+    return { valid: false, reason: "Deposit is undefined" };
   }
 
-  return validateV3FillForDeposit(relayData, deposit);
-}
+  // Note: this short circuits when a key is found where the comparison doesn't match.
+  // TODO: if we turn on "strict" in the tsconfig, the elements of FILL_DEPOSIT_COMPARISON_KEYS will be automatically
+  // validated against the fields in Fill and Deposit, generating an error if there is a discrepency.
+  const invalidKey = RELAYDATA_KEYS.find((key) => relayData[key].toString() !== deposit[key].toString());
 
-function validateV3FillForDeposit(fill: Fill | SlowFillRequest, deposit: Deposit): boolean {
-  return getRelayDataHash(fill, fill.destinationChainId) === getRelayDataHash(deposit, deposit.destinationChainId);
+  return isDefined(invalidKey)
+    ? { valid: false, reason: `${invalidKey} mismatch (${relayData[invalidKey]} != ${deposit[invalidKey]})` }
+    : { valid: true };
 }

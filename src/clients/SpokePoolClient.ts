@@ -305,8 +305,21 @@ export class SpokePoolClient extends BaseAbstractClient {
    * @returns The corresponding deposit if found, undefined otherwise.
    */
   public getDepositForFill(fill: Fill): DepositWithBlock | undefined {
-    const depositWithMatchingDepositId = this.depositHashes[this.getDepositHash(fill)];
-    return validateFillForDeposit(fill, depositWithMatchingDepositId) ? depositWithMatchingDepositId : undefined;
+    const deposit = this.depositHashes[this.getDepositHash(fill)];
+    const match = validateFillForDeposit(fill, deposit);
+    if (match.valid) {
+      return deposit;
+    }
+
+    this.logger.debug({
+      at: "SpokePoolClient::getDepositForFill",
+      message: `Rejected fill for ${getNetworkName(fill.originChainId)} deposit ${fill.depositId}.`,
+      reason: match.reason,
+      deposit,
+      fill,
+    });
+
+    return;
   }
 
   /**
@@ -333,14 +346,15 @@ export class SpokePoolClient extends BaseAbstractClient {
   } {
     const { outputAmount } = deposit;
     const fillsForDeposit = this.depositHashesToFills[this.getDepositHash(deposit)];
+
     // If no fills then the full amount is remaining.
     if (fillsForDeposit === undefined || fillsForDeposit.length === 0) {
-      return { unfilledAmount: toBN(outputAmount), fillCount: 0, invalidFills: [] };
+      return { unfilledAmount: outputAmount, fillCount: 0, invalidFills: [] };
     }
 
     const { validFills, invalidFills } = fillsForDeposit.reduce(
       (groupedFills: { validFills: Fill[]; invalidFills: Fill[] }, fill: Fill) => {
-        if (validateFillForDeposit(fill, deposit)) {
+        if (validateFillForDeposit(fill, deposit).valid) {
           groupedFills.validFills.push(fill);
         } else {
           groupedFills.invalidFills.push(fill);
@@ -365,7 +379,7 @@ export class SpokePoolClient extends BaseAbstractClient {
 
     // If all fills are invalid we can consider this unfilled.
     if (validFills.length === 0) {
-      return { unfilledAmount: toBN(outputAmount), fillCount: 0, invalidFills };
+      return { unfilledAmount: outputAmount, fillCount: 0, invalidFills };
     }
 
     return {
@@ -485,20 +499,28 @@ export class SpokePoolClient extends BaseAbstractClient {
       };
     });
 
+    const { spokePool } = this;
     this.log("debug", `Updating SpokePool client for chain ${this.chainId}`, {
       eventsToQuery,
       searchConfig,
-      spokePool: this.spokePool.address,
+      spokePool: spokePool.address,
     });
 
     const timerStart = Date.now();
-    const [numberOfDeposits, currentTime, oldestTime, ...events] = await Promise.all([
-      this.spokePool.numberOfDeposits({ blockTag: searchConfig.toBlock }),
-      this.spokePool.getCurrentTime({ blockTag: searchConfig.toBlock }),
+    const multicallFunctions = ["getCurrentTime", "numberOfDeposits"];
+    const [multicallOutput, oldestTime, ...events] = await Promise.all([
+      spokePool.callStatic.multicall(
+        multicallFunctions.map((f) => spokePool.interface.encodeFunctionData(f)),
+        { blockTag: searchConfig.toBlock }
+      ),
       this.spokePool.getCurrentTime({ blockTag: Math.max(searchConfig.fromBlock, this.deploymentBlock) }),
       ...eventSearchConfigs.map((config) => paginatedEventQuery(this.spokePool, config.filter, config.searchConfig)),
     ]);
     this.log("debug", `Time to query new events from RPC for ${this.chainId}: ${Date.now() - timerStart} ms`);
+
+    const [currentTime, numberOfDeposits] = multicallFunctions.map(
+      (fn, idx) => spokePool.interface.decodeFunctionResult(fn, multicallOutput[idx])[0]
+    );
 
     if (!BigNumber.isBigNumber(currentTime) || currentTime.lt(this.currentTime)) {
       const errMsg = BigNumber.isBigNumber(currentTime)
