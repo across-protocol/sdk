@@ -810,7 +810,7 @@ export class SpokePoolClient extends BaseAbstractClient {
       return currentTime.toNumber();
     };
 
-    return this.timestamps[blockNumber] ??= await resolve();
+    return (this.timestamps[blockNumber] ??= await resolve());
   }
 
   async findDeposit(depositId: number, destinationChainId: number): Promise<DepositWithBlock> {
