@@ -69,13 +69,15 @@ export class QueryBase implements QueryInterface {
     deposit: Deposit,
     relayer = DEFAULT_SIMULATED_RELAYER_ADDRESS,
     gasPrice = this.fixedGasPrice,
-    gasUnits?: BigNumberish
+    gasUnits?: BigNumberish,
+    omitMarkup?: boolean
   ): Promise<TransactionCostEstimate> {
+    const gasMarkup = omitMarkup ? 0 : this.gasMarkup;
     assert(
-      this.gasMarkup > -1 && this.gasMarkup <= 4,
-      `Require -1.0 < Gas Markup (${this.gasMarkup}) <= 4.0 for a total gas multiplier within (0, +5.0]`
+      gasMarkup > -1 && gasMarkup <= 4,
+      `Require -1.0 < Gas Markup (${gasMarkup}) <= 4.0 for a total gas multiplier within (0, +5.0]`
     );
-    const gasTotalMultiplier = toBNWei(1.0 + this.gasMarkup);
+    const gasTotalMultiplier = toBNWei(1.0 + gasMarkup);
 
     const tx = await populateV3Relay(this.spokePool, deposit, relayer);
     const { nativeGasCost, tokenGasCost } = await estimateTotalGasRequiredByUnsignedTransaction(
