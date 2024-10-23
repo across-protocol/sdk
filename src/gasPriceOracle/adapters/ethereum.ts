@@ -8,7 +8,7 @@ export function eip1559(provider: PublicClient, _chainId: number): Promise<Inter
 export async function legacy(
   provider: PublicClient,
   _chainId: number,
-  test?: number
+  _test?: number
 ): Promise<InternalGasPriceEstimate> {
   const gasPrice = await provider.getGasPrice();
 

@@ -29,14 +29,10 @@ export async function getGasPriceEstimate(
   let maxFeePerGas: bigint;
   let maxPriorityFeePerGas: bigint;
   if (gasPriceFeeds[chainId]) {
-    // declare function action<chain extends Chain | undefined>(client: Client<Transport, chain>): void
-    // action(viemProvider);
-    // https://github.com/wevm/viem/issues/2763
     ({ maxFeePerGas, maxPriorityFeePerGas } = await gasPriceFeeds[chainId](viemProvider, chainId));
   } else {
     let gasPrice: bigint | undefined;
     ({ maxFeePerGas, maxPriorityFeePerGas, gasPrice } = await viemProvider.estimateFeesPerGas());
-    // console.log(`Got maxFeePerGas: ${maxFeePerGas}, maxPriorityFeePerGas: ${maxPriorityFeePerGas}, gasPrice: ${gasPrice}.`);
 
     maxFeePerGas ??= gasPrice!;
     maxPriorityFeePerGas ??= BigInt(0);
