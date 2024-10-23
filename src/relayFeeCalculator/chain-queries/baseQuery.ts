@@ -1,5 +1,6 @@
 import { L2Provider } from "@eth-optimism/sdk/dist/interfaces/l2-provider";
 import { providers } from "ethers";
+import assert from "assert";
 import { Coingecko } from "../../coingecko";
 import { CHAIN_IDs, DEFAULT_SIMULATED_RELAYER_ADDRESS } from "../../constants";
 import { Deposit } from "../../interfaces";
@@ -8,7 +9,9 @@ import {
   BigNumberish,
   TransactionCostEstimate,
   estimateTotalGasRequiredByUnsignedTransaction,
+  fixedPointAdjustment,
   populateV3Relay,
+  toBNWei,
 } from "../../utils";
 import { Logger, QueryInterface } from "../relayFeeCalculator";
 
@@ -68,15 +71,25 @@ export class QueryBase implements QueryInterface {
     gasPrice = this.fixedGasPrice,
     gasUnits?: BigNumberish
   ): Promise<TransactionCostEstimate> {
+    assert(
+      this.gasMarkup > -1 && this.gasMarkup <= 4,
+      `Require -1.0 < Gas Markup (${this.gasMarkup}) <= 4.0 for a total gas multiplier within (0, +5.0]`
+    );
+    const gasTotalMultiplier = toBNWei(1.0 + this.gasMarkup);
+
     const tx = await populateV3Relay(this.spokePool, deposit, relayer);
-    return estimateTotalGasRequiredByUnsignedTransaction(
+    const { nativeGasCost, tokenGasCost } = await estimateTotalGasRequiredByUnsignedTransaction(
       tx,
       relayer,
       this.provider,
-      this.gasMarkup,
       gasPrice,
       gasUnits
     );
+
+    return {
+      nativeGasCost: nativeGasCost.mul(gasTotalMultiplier).div(fixedPointAdjustment),
+      tokenGasCost: tokenGasCost.mul(gasTotalMultiplier).div(fixedPointAdjustment),
+    };
   }
 
   /**
