@@ -66,6 +66,7 @@ export type SpokePoolUpdate = SpokePoolUpdateSuccess | SpokePoolUpdateFailure;
  */
 export class SpokePoolClient extends BaseAbstractClient {
   protected currentTime = 0;
+  protected timestamps: { [blockNumber: number]: number } = {};
   protected depositHashes: { [depositHash: string]: DepositWithBlock } = {};
   protected depositHashesToFills: { [depositHash: string]: FillWithBlock[] } = {};
   protected speedUps: { [depositorAddress: string]: { [depositId: number]: SpeedUpWithBlock[] } } = {};
@@ -801,9 +802,15 @@ export class SpokePoolClient extends BaseAbstractClient {
    * @returns The time at the specified block tag.
    */
   public async getTimeAt(blockNumber: number): Promise<number> {
-    const currentTime = await this.spokePool.getCurrentTime({ blockTag: blockNumber });
-    assert(BigNumber.isBigNumber(currentTime) && currentTime.lt(bnUint32Max));
-    return currentTime.toNumber();
+    assert(blockNumber < this.latestBlockSearched);
+
+    const resolve = async () => {
+      const currentTime = await this.spokePool.getCurrentTime({ blockTag: blockNumber });
+      assert(BigNumber.isBigNumber(currentTime) && currentTime.lt(bnUint32Max));
+      return currentTime.toNumber();
+    };
+
+    return this.timestamps[blockNumber] ??= await resolve();
   }
 
   async findDeposit(depositId: number, destinationChainId: number): Promise<DepositWithBlock> {
