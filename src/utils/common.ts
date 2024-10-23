@@ -230,6 +230,7 @@ export function retry<T>(call: () => Promise<T>, times: number, delayS: number):
 }
 
 export type TransactionCostEstimate = {
+  gasUnits: BigNumber; // Units: gas
   nativeGasCost: BigNumber; // Units: gas
   tokenGasCost: BigNumber; // Units: wei (nativeGasCost * wei/gas)
 };
@@ -261,7 +262,7 @@ export async function estimateTotalGasRequiredByUnsignedTransaction(
   const voidSigner = new VoidSigner(senderAddress, provider);
 
   // Estimate the Gas units required to submit this transaction.
-  let nativeGasCost = gasUnits ? BigNumber.from(gasUnits) : await voidSigner.estimateGas(unsignedTx);
+  gasUnits = gasUnits ? BigNumber.from(gasUnits) : await voidSigner.estimateGas(unsignedTx);
   let tokenGasCost: BigNumber;
 
   // OP stack is a special case; gas cost is computed by the SDK, without having to query price.
@@ -269,7 +270,7 @@ export async function estimateTotalGasRequiredByUnsignedTransaction(
     assert(isOptimismL2Provider(provider), `Unexpected provider for chain ID ${chainId}.`);
     const populatedTransaction = await voidSigner.populateTransaction({
       ...unsignedTx,
-      gasLimit: nativeGasCost, // prevents additional gas estimation call
+      gasLimit: gasUnits, // prevents additional gas estimation call
     });
     // Concurrently estimate the gas cost on L1 and L2 instead of calling
     // `provider.estimateTotalGasCost` to improve performance.
@@ -277,21 +278,22 @@ export async function estimateTotalGasRequiredByUnsignedTransaction(
       provider.estimateL1GasCost(populatedTransaction),
       gasPrice || provider.getGasPrice(),
     ]);
-    const l2GasCost = nativeGasCost.mul(l2GasPrice);
+    const l2GasCost = gasUnits.mul(l2GasPrice);
     tokenGasCost = l1GasCost.add(l2GasCost);
   } else {
     if (!gasPrice) {
       const gasPriceEstimate = await getGasPriceEstimate(provider, chainId);
       gasPrice = gasPriceEstimate.maxFeePerGas;
     }
-    tokenGasCost = nativeGasCost.mul(gasPrice);
+    tokenGasCost = gasUnits.mul(gasPrice);
   }
 
   // Scale the results by the computed multiplier.
-  nativeGasCost = nativeGasCost.mul(gasTotalMultiplier).div(fixedPointAdjustment);
+  const nativeGasCost = gasUnits.mul(gasTotalMultiplier).div(fixedPointAdjustment);
   tokenGasCost = tokenGasCost.mul(gasTotalMultiplier).div(fixedPointAdjustment);
 
   return {
+    gasUnits, // unpadded gas units in gas
     nativeGasCost, // Units: gas
     tokenGasCost, // Units: wei (nativeGasCost * wei/gas)
   };
