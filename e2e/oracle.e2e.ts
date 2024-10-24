@@ -1,11 +1,10 @@
 // @note: This test is _not_ run automatically as part of git hooks or CI.
 import dotenv from "dotenv";
 import winston from "winston";
-import { custom } from "viem";
 import { providers } from "ethers";
 import { getGasPriceEstimate } from "../src/gasPriceOracle";
 import { BigNumber, bnZero, parseUnits } from "../src/utils";
-import { expect } from "../test/utils";
+import { expect, makeCustomTransport } from "../test/utils";
 dotenv.config({ path: ".env" });
 
 const dummyLogger = winston.createLogger({
@@ -16,23 +15,8 @@ const dummyLogger = winston.createLogger({
 const stdLastBaseFeePerGas = parseUnits("12", 9);
 const stdMaxPriorityFeePerGas = parseUnits("1", 9); // EIP-1559 chains only
 const stdMaxFeePerGas = stdLastBaseFeePerGas.add(stdMaxPriorityFeePerGas);
-const stdGasPrice = stdMaxFeePerGas;
 
-const customTransport = custom({
-  // eslint-disable-next-line require-await
-  async request({ method }: { method: string; params: unknown }) {
-    switch (method) {
-      case "eth_gasPrice":
-        return BigInt(stdGasPrice.toString());
-      case "eth_getBlockByNumber":
-        return { baseFeePerGas: BigInt(stdLastBaseFeePerGas.mul(100).div(120).toString()) };
-      case "eth_maxPriorityFeePerGas":
-        return BigInt(stdMaxPriorityFeePerGas.toString());
-      default:
-        console.log(`Unsupported method: ${method}.`);
-    }
-  },
-});
+const customTransport = makeCustomTransport({ stdLastBaseFeePerGas, stdMaxPriorityFeePerGas });
 
 const eip1559Chains = [1, 10, 137, 324, 8453, 42161, 534352];
 const chainIds = [...eip1559Chains, 1337];

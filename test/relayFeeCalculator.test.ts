@@ -25,6 +25,7 @@ import {
   getContractFactory,
   randomAddress,
   setupTokensForWallet,
+  makeCustomTransport,
 } from "./utils";
 import { TOKEN_SYMBOLS_MAP } from "@across-protocol/constants";
 import { EMPTY_MESSAGE, ZERO_ADDRESS } from "../src/constants";
@@ -74,6 +75,7 @@ class ExampleQueries implements QueryInterface {
   constructor(private defaultGas = "305572") {}
 
   getGasCosts(): Promise<TransactionCostEstimate> {
+    console.log("#####");
     const getGasCost = () => {
       const { defaultGas: gasCost } = this;
       return {
@@ -286,6 +288,7 @@ describe("RelayFeeCalculator: Composable Bridging", function () {
   let owner: SignerWithAddress, relayer: SignerWithAddress, depositor: SignerWithAddress;
   let tokenMap: typeof TOKEN_SYMBOLS_MAP;
   let testGasFeePct: (message?: string) => Promise<BigNumber>;
+  const customTransport = makeCustomTransport();
 
   beforeEach(async function () {
     [owner, relayer, depositor] = await ethers.getSigners();
@@ -345,7 +348,10 @@ describe("RelayFeeCalculator: Composable Bridging", function () {
         false,
         relayer.address,
         1,
-        tokenMap
+        tokenMap,
+        undefined,
+        undefined,
+        customTransport
       );
   });
   it("should not revert if no message is passed", async () => {

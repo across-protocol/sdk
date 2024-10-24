@@ -17,14 +17,14 @@ import {
   toBN,
   toBNWei,
 } from "../utils";
+import { Transport } from "viem";
 
 // This needs to be implemented for every chain and passed into RelayFeeCalculator
 export interface QueryInterface {
   getGasCosts: (
     deposit: Deposit,
     relayer: string,
-    gasPrice?: BigNumberish,
-    gasLimit?: BigNumberish
+    options?: Partial<{ gasPrice: BigNumberish; gasUnits: BigNumberish; omitMarkup: boolean; transport: Transport }>
   ) => Promise<TransactionCostEstimate>;
   getTokenPrice: (tokenSymbol: string) => Promise<number>;
   getTokenDecimals: (tokenSymbol: string) => number;
@@ -230,7 +230,8 @@ export class RelayFeeCalculator {
     _tokenPrice?: number,
     tokenMapping = TOKEN_SYMBOLS_MAP,
     gasPrice?: BigNumberish,
-    gasLimit?: BigNumberish
+    gasLimit?: BigNumberish,
+    transport?: Transport
   ): Promise<BigNumber> {
     if (toBN(amountToRelay).eq(bnZero)) return MAX_BIG_INT;
 
@@ -245,16 +246,18 @@ export class RelayFeeCalculator {
     const simulatedAmount = simulateZeroFill ? safeOutputAmount : toBN(amountToRelay);
     deposit = { ...deposit, outputAmount: simulatedAmount };
 
-    const getGasCosts = this.queries.getGasCosts(deposit, relayerAddress, gasPrice, gasLimit).catch((error) => {
-      this.logger.error({
-        at: "sdk/gasFeePercent",
-        message: "Error while fetching gas costs",
-        error,
-        simulateZeroFill,
-        deposit,
+    const getGasCosts = this.queries
+      .getGasCosts(deposit, relayerAddress, { gasPrice, gasUnits: gasLimit, transport })
+      .catch((error) => {
+        this.logger.error({
+          at: "sdk/gasFeePercent",
+          message: "Error while fetching gas costs",
+          error,
+          simulateZeroFill,
+          deposit,
+        });
+        throw error;
       });
-      throw error;
-    });
     const [{ tokenGasCost }, tokenPrice] = await Promise.all([
       getGasCosts,
       _tokenPrice ??
