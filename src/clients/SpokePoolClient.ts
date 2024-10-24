@@ -1,15 +1,21 @@
+import assert from "assert";
 import { Contract, EventFilter } from "ethers";
 import winston from "winston";
 import {
   AnyObject,
   BigNumber,
   bnZero,
+  bnUint32Max,
   DefaultLogLevels,
   EventSearchConfig,
+  getBlockRangeForDepositId,
+  getDepositIdAtBlock,
+  getNetworkName,
+  getRelayDataHash,
   MAX_BIG_INT,
   MakeOptional,
+  relayFillStatus,
   assign,
-  getRelayDataHash,
   isDefined,
   toBN,
 } from "../utils";
@@ -36,8 +42,6 @@ import {
   TokensBridged,
 } from "../interfaces";
 import { SpokePool } from "../typechain";
-import { getNetworkName } from "../utils/NetworkUtils";
-import { getBlockRangeForDepositId, getDepositIdAtBlock, relayFillStatus } from "../utils/SpokeUtils";
 import { BaseAbstractClient, isUpdateFailureReason, UpdateFailureReason } from "./BaseAbstractClient";
 import { HubPoolClient } from "./HubPoolClient";
 import { AcrossConfigStoreClient } from "./AcrossConfigStoreClient";
@@ -45,7 +49,6 @@ import { AcrossConfigStoreClient } from "./AcrossConfigStoreClient";
 type SpokePoolUpdateSuccess = {
   success: true;
   currentTime: number;
-  oldestTime: number;
   firstDepositId: number;
   latestDepositId: number;
   events: Log[][];
@@ -63,7 +66,7 @@ export type SpokePoolUpdate = SpokePoolUpdateSuccess | SpokePoolUpdateFailure;
  */
 export class SpokePoolClient extends BaseAbstractClient {
   protected currentTime = 0;
-  protected oldestTime = 0;
+  protected timestamps: { [blockNumber: number]: number } = {};
   protected depositHashes: { [depositHash: string]: DepositWithBlock } = {};
   protected depositHashesToFills: { [depositHash: string]: FillWithBlock[] } = {};
   protected speedUps: { [depositorAddress: string]: { [depositId: number]: SpeedUpWithBlock[] } } = {};
@@ -508,12 +511,11 @@ export class SpokePoolClient extends BaseAbstractClient {
 
     const timerStart = Date.now();
     const multicallFunctions = ["getCurrentTime", "numberOfDeposits"];
-    const [multicallOutput, oldestTime, ...events] = await Promise.all([
+    const [multicallOutput, ...events] = await Promise.all([
       spokePool.callStatic.multicall(
         multicallFunctions.map((f) => spokePool.interface.encodeFunctionData(f)),
         { blockTag: searchConfig.toBlock }
       ),
-      this.spokePool.getCurrentTime({ blockTag: Math.max(searchConfig.fromBlock, this.deploymentBlock) }),
       ...eventSearchConfigs.map((config) => paginatedEventQuery(this.spokePool, config.filter, config.searchConfig)),
     ]);
     this.log("debug", `Time to query new events from RPC for ${this.chainId}: ${Date.now() - timerStart} ms`);
@@ -535,7 +537,6 @@ export class SpokePoolClient extends BaseAbstractClient {
     return {
       success: true,
       currentTime: currentTime.toNumber(), // uint32
-      oldestTime: oldestTime.toNumber(),
       firstDepositId,
       latestDepositId: Math.max(numberOfDeposits - 1, 0),
       searchEndBlock: searchConfig.toBlock,
@@ -560,7 +561,7 @@ export class SpokePoolClient extends BaseAbstractClient {
     if (!update.success) {
       return;
     }
-    const { events: queryResults, currentTime, oldestTime, searchEndBlock } = update;
+    const { events: queryResults, currentTime, searchEndBlock } = update;
 
     if (eventsToQuery.includes("TokensBridged")) {
       for (const event of queryResults[eventsToQuery.indexOf("TokensBridged")]) {
@@ -708,7 +709,6 @@ export class SpokePoolClient extends BaseAbstractClient {
 
     // Next iteration should start off from where this one ended.
     this.currentTime = currentTime;
-    if (this.oldestTime === 0) this.oldestTime = oldestTime; // Set oldest time only after the first update.
     this.firstDepositIdForSpokePool = update.firstDepositId;
     this.latestBlockSearched = searchEndBlock;
     this.lastDepositIdForSpokePool = update.latestDepositId;
@@ -798,11 +798,19 @@ export class SpokePoolClient extends BaseAbstractClient {
   }
 
   /**
-   * Retrieves the oldest time searched on the SpokePool contract.
-   * @returns The oldest time searched, which will be 0 if there has been no update() yet.
+   * Retrieves the time from the SpokePool contract at a particular block.
+   * @returns The time at the specified block tag.
    */
-  public getOldestTime(): number {
-    return this.oldestTime;
+  public async getTimeAt(blockNumber: number): Promise<number> {
+    assert(blockNumber < this.latestBlockSearched);
+
+    const resolve = async () => {
+      const currentTime = await this.spokePool.getCurrentTime({ blockTag: blockNumber });
+      assert(BigNumber.isBigNumber(currentTime) && currentTime.lt(bnUint32Max));
+      return currentTime.toNumber();
+    };
+
+    return (this.timestamps[blockNumber] ??= await resolve());
   }
 
   async findDeposit(depositId: number, destinationChainId: number): Promise<DepositWithBlock> {
