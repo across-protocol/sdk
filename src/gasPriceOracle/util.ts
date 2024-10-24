@@ -1,6 +1,15 @@
-import { providers } from "ethers";
-import { BigNumber } from "../utils";
+import assert from "assert";
+import { type Chain, type PublicClient, createPublicClient, http, Transport } from "viem";
+import * as chains from "viem/chains";
 
-export function gasPriceError(method: string, chainId: number, data: providers.FeeData | BigNumber): void {
+export function gasPriceError(method: string, chainId: number, data: unknown): void {
   throw new Error(`Malformed ${method} response on chain ID ${chainId} (${JSON.stringify(data)})`);
+}
+
+export function getPublicClient(chainId: number, transport?: Transport): PublicClient<Transport, Chain> {
+  transport ??= http(); // @todo: Inherit URL from provider.
+  const chain: Chain | undefined = Object.values(chains).find((chain) => chain.id === chainId);
+  assert(chain);
+
+  return createPublicClient({ chain, transport });
 }
