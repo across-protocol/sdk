@@ -19,8 +19,8 @@ const stdMaxFeePerGas = stdLastBaseFeePerGas.add(stdMaxPriorityFeePerGas);
 const stdGasPrice = stdMaxFeePerGas;
 
 const customTransport = custom({
-  async request({ method, params }: { method: string; params: unknown }) {
-    params; // lint
+  // eslint-disable-next-line require-await
+  async request({ method }: { method: string; params: unknown }) {
     switch (method) {
       case "eth_gasPrice":
         return BigInt(stdGasPrice.toString());
