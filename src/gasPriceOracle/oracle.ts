@@ -9,16 +9,16 @@ import * as polygon from "./adapters/polygon";
 
 /**
  * Provide an estimate for the current gas price for a particular chain.
- * @param chainId The chain ID to query for gas prices.
- * @param provider A valid ethers provider.
- * @param legacyFallback In the case of an unrecognised chain, fall back to type 0 gas estimation.
+ * @param providerOrChainId A valid ethers provider or a chain ID.
+ * @param transport An optional transport object for custom gas price retrieval.
  * @returns Am object of type GasPriceEstimate.
  */
 export async function getGasPriceEstimate(
-  provider: providers.Provider,
+  providerOrChainId: providers.Provider | number,
   transport?: Transport
 ): Promise<GasPriceEstimate> {
-  const { chainId } = await provider.getNetwork();
+  const chainId =
+    typeof providerOrChainId === "number" ? providerOrChainId : (await providerOrChainId.getNetwork()).chainId;
   const viemProvider = getPublicClient(chainId, transport);
 
   const gasPriceFeeds = {
