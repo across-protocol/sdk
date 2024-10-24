@@ -239,7 +239,6 @@ export type TransactionCostEstimate = {
  * @param unsignedTx The unsigned transaction that this function will estimate.
  * @param senderAddress The address that the transaction will be submitted from.
  * @param provider A valid ethers provider - will be used to reason the gas price.
- * @param gasMarkup Markup on the estimated gas cost. For example, 0.2 will increase this resulting value 1.2x.
  * @param gasPrice A manually provided gas price - if set, this function will not resolve the current gas price.
  * @param gasUnits A manually provided gas units - if set, this function will not estimate the gas units.
  * @returns Estimated cost in units of gas and the underlying gas token (gasPrice * estimatedGasUnits).
@@ -248,20 +247,14 @@ export async function estimateTotalGasRequiredByUnsignedTransaction(
   unsignedTx: PopulatedTransaction,
   senderAddress: string,
   provider: providers.Provider | L2Provider<providers.Provider>,
-  gasMarkup: number,
   gasPrice?: BigNumberish,
   gasUnits?: BigNumberish
 ): Promise<TransactionCostEstimate> {
-  assert(
-    gasMarkup > -1 && gasMarkup <= 4,
-    `Require -1.0 < Gas Markup (${gasMarkup}) <= 4.0 for a total gas multiplier within (0, +5.0]`
-  );
-  const gasTotalMultiplier = toBNWei(1.0 + gasMarkup);
   const { chainId } = await provider.getNetwork();
   const voidSigner = new VoidSigner(senderAddress, provider);
 
   // Estimate the Gas units required to submit this transaction.
-  let nativeGasCost = gasUnits ? BigNumber.from(gasUnits) : await voidSigner.estimateGas(unsignedTx);
+  const nativeGasCost = gasUnits ? BigNumber.from(gasUnits) : await voidSigner.estimateGas(unsignedTx);
   let tokenGasCost: BigNumber;
 
   // OP stack is a special case; gas cost is computed by the SDK, without having to query price.
@@ -286,10 +279,6 @@ export async function estimateTotalGasRequiredByUnsignedTransaction(
     }
     tokenGasCost = nativeGasCost.mul(gasPrice);
   }
-
-  // Scale the results by the computed multiplier.
-  nativeGasCost = nativeGasCost.mul(gasTotalMultiplier).div(fixedPointAdjustment);
-  tokenGasCost = tokenGasCost.mul(gasTotalMultiplier).div(fixedPointAdjustment);
 
   return {
     nativeGasCost, // Units: gas
