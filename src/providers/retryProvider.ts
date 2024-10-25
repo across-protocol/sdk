@@ -5,6 +5,7 @@ import { getOriginFromURL } from "../utils/NetworkUtils";
 import { CacheProvider } from "./cachedProvider";
 import { compareRpcResults, createSendErrorWithMessage, formatProviderError } from "./utils";
 import { PROVIDER_CACHE_TTL } from "./constants";
+import { JsonRpcError } from "./types";
 import { Logger } from "winston";
 
 export class RetryProvider extends ethers.providers.StaticJsonRpcProvider {
@@ -88,9 +89,27 @@ export class RetryProvider extends ethers.providers.StaticJsonRpcProvider {
     ): Promise<[ethers.providers.StaticJsonRpcProvider, unknown]> => {
       return this._trySend(provider, method, params)
         .then((result): [ethers.providers.StaticJsonRpcProvider, unknown] => [provider, result])
-        .catch((err) => {
+        .catch((err: unknown) => {
+          if (JsonRpcError.is(err)) {
+            const {
+              error: { code, message },
+            } = err;
+            // [-32768, -32100] is reserved by the JSON-RPC spec.
+            // [-32099, -32000] is allocated for implementation-defined responses.
+            // Everything else is available for use by the application space.
+            // Most node implementations return 3 for an eth_call revert, but some return -32000.
+            // See also https://www.jsonrpc.org/specification
+            if (code < -32768 || code > -32100) {
+              if (method === "eth_call" && message.toLowerCase().includes("revert")) {
+                // Reverts will probably be the same across all providers, so don't waste time rotating.
+                throw err;
+              }
+            }
+          }
+
           // Append the provider and error to the error array.
-          errors.push([provider, err?.stack || err?.toString()]);
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          errors.push([provider, (err as any)?.stack || err?.toString()]);
 
           // If there are no new fallback providers to use, terminate the recursion by throwing an error.
           // Otherwise, we can try to call another provider.
