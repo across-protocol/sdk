@@ -75,7 +75,6 @@ class ExampleQueries implements QueryInterface {
   constructor(private defaultGas = "305572") {}
 
   getGasCosts(): Promise<TransactionCostEstimate> {
-    console.log("#####");
     const getGasCost = () => {
       const { defaultGas: gasCost } = this;
       return {
