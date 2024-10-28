@@ -14,6 +14,7 @@ import {
   toBNWei,
 } from "../../utils";
 import { Logger, QueryInterface } from "../relayFeeCalculator";
+import { Transport } from "viem";
 
 type Provider = providers.Provider;
 type OptimismProvider = L2Provider<Provider>;
@@ -61,17 +62,25 @@ export class QueryBase implements QueryInterface {
    * Retrieves the current gas costs of performing a fillRelay contract at the referenced SpokePool.
    * @param deposit V3 deposit instance.
    * @param relayerAddress Relayer address to simulate with.
-   * @param gasPrice Optional gas price to use for the simulation.
-   * @param gasUnits Optional gas units to use for the simulation.
+   * @param options
+   * @param options.gasPrice Optional gas price to use for the simulation.
+   * @param options.gasUnits Optional gas units to use for the simulation.
+   * @param options.omitMarkup Optional flag to omit the gas markup.
+   * @param options.transport Optional transport object for custom gas price retrieval.
    * @returns The gas estimate for this function call (multiplied with the optional buffer).
    */
   async getGasCosts(
     deposit: Deposit,
     relayer = DEFAULT_SIMULATED_RELAYER_ADDRESS,
-    gasPrice = this.fixedGasPrice,
-    gasUnits?: BigNumberish,
-    omitMarkup?: boolean
+    options: Partial<{
+      gasPrice: BigNumberish;
+      gasUnits: BigNumberish;
+      omitMarkup: boolean;
+      transport: Transport;
+    }> = {}
   ): Promise<TransactionCostEstimate> {
+    const { gasPrice = this.fixedGasPrice, gasUnits, omitMarkup, transport } = options;
+
     const gasMarkup = omitMarkup ? 0 : this.gasMarkup;
     assert(
       gasMarkup > -1 && gasMarkup <= 4,
@@ -84,8 +93,11 @@ export class QueryBase implements QueryInterface {
       tx,
       relayer,
       this.provider,
-      gasPrice,
-      gasUnits
+      {
+        gasPrice,
+        gasUnits,
+        transport,
+      }
     );
 
     return {
