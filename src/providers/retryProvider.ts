@@ -1,3 +1,4 @@
+import assert from "assert";
 import { ethers, logger } from "ethers";
 import { CachingMechanismInterface } from "../interfaces";
 import { delay, isDefined, isPromiseFulfilled, isPromiseRejected } from "../utils";
@@ -5,7 +6,7 @@ import { getOriginFromURL } from "../utils/NetworkUtils";
 import { CacheProvider } from "./cachedProvider";
 import { compareRpcResults, createSendErrorWithMessage, formatProviderError } from "./utils";
 import { PROVIDER_CACHE_TTL } from "./constants";
-import { JsonRpcError } from "./types";
+import { JsonRpcError, RpcError } from "./types";
 import { Logger } from "winston";
 
 export class RetryProvider extends ethers.providers.StaticJsonRpcProvider {
@@ -99,8 +100,9 @@ export class RetryProvider extends ethers.providers.StaticJsonRpcProvider {
             // Everything else is available for use by the application space.
             // Most node implementations return 3 for an eth_call revert, but some return -32000.
             // See also https://www.jsonrpc.org/specification
+            console.log(`xxx caught rpc error: ${JSON.stringify(err, null, 2)}.`);
             if (code < -32768 || code > -32100) {
-              if (method === "eth_call" && message.toLowerCase().includes("revert")) {
+              if (method === "eth_call" && message.toLowerCase().includes("revert") && false) {
                 // Reverts will probably be the same across all providers, so don't waste time rotating.
                 throw err;
               }
@@ -282,7 +284,19 @@ export class RetryProvider extends ethers.providers.StaticJsonRpcProvider {
   _trySend(provider: ethers.providers.StaticJsonRpcProvider, method: string, params: Array<unknown>): Promise<unknown> {
     let promise = this._sendAndValidate(provider, method, params);
     for (let i = 0; i < this.retries; i++) {
-      promise = promise.catch(() => delay(this.delay).then(() => this._sendAndValidate(provider, method, params)));
+      promise = promise
+        .catch((err: unknown) => {
+          console.log(`xxx _trySend() caught error: ${JSON.stringify(err, null, 2)}.`);
+          assert(RpcError.is(err));
+          if (RpcError.is(err)) {
+            console.log(`xxx matched on error!!`);
+            throw err;
+          } else {
+            console.log(`body is ${typeof (err as any).body}.`);
+          }
+          delay(this.delay)
+            .then(() => this._sendAndValidate(provider, method, params))
+        });
     }
     return promise;
   }

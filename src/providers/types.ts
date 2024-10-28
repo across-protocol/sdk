@@ -7,6 +7,9 @@ export const JsonRpcError = object({
   error: object({
     code: number(),
     message: string(),
-    // data is optional and has no reliable type, so skip it.
   }),
+});
+
+export const RpcError = object({
+  reason: string()
 });
