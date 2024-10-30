@@ -269,7 +269,7 @@ export class RetryProvider extends ethers.providers.StaticJsonRpcProvider {
   }
 
   // For an error emitted in response to an eth_call request, determine whether the response body indicates that the
-  // call reverted during execution. The exact RPC responses returned can vary, but `error.body` has consistently
+  // call reverted during execution. The exact RPC responses returned can vary, but `error.body` has reliably
   // included both the code (typically 3 on revert) and the error message indicating "execution reverted". This is
   // consistent with section 5.1 of the JSON-RPC spec (https://www.jsonrpc.org/specification).
   protected callReverted(method: string, error: unknown): boolean {
