@@ -1,3 +1,4 @@
+import assert from "assert";
 import { ethers, logger } from "ethers";
 import { CachingMechanismInterface } from "../interfaces";
 import { delay, isDefined, isPromiseFulfilled, isPromiseRejected } from "../utils";
@@ -101,7 +102,7 @@ export class RetryProvider extends ethers.providers.StaticJsonRpcProvider {
           }
 
           // If one RPC provider reverted on eth_call, others likely will too. Skip them.
-          if (method === "eth_call" && this.callReverted(err)) {
+          if (method === "eth_call" && this.callReverted(method, err)) {
             throw err;
           }
 
@@ -267,10 +268,13 @@ export class RetryProvider extends ethers.providers.StaticJsonRpcProvider {
     return response;
   }
 
-  // If eth_call errors and the response body indicates a revert, bail immediately because retries are unlikely
-  // to produce a different result. The exact RPC responses returned can vary, but `err.body` has consistently
-  // shown to include both the code (typically 3 on revert) and the error message indicating "execution reverted".
-  protected callReverted(error: unknown): boolean {
+  // For an error emitted in response to an eth_call request, determine whether the response body indicates that the
+  // call reverted during execution. The exact RPC responses returned can vary, but `error.body` has consistently
+  // included both the code (typically 3 on revert) and the error message indicating "execution reverted". This is
+  // consistent with section 5.1 of the JSON-RPC spec (https://www.jsonrpc.org/specification).
+  protected callReverted(method: string, error: unknown): boolean {
+    assert(method === "eth_call");
+
     if (!RpcError.is(error)) {
       return false;
     }
@@ -299,7 +303,7 @@ export class RetryProvider extends ethers.providers.StaticJsonRpcProvider {
         await promise;
         break;
       } catch (err: unknown) {
-        if (++i >= this.retries || (method === "eth_call" && this.callReverted(err))) {
+        if (++i >= this.retries || (method === "eth_call" && this.callReverted(method, err))) {
           throw err;
         }
 
