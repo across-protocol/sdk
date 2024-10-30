@@ -260,11 +260,30 @@ export class RetryProvider extends ethers.providers.StaticJsonRpcProvider {
     return response;
   }
 
-  _trySend(provider: ethers.providers.StaticJsonRpcProvider, method: string, params: Array<unknown>): Promise<unknown> {
+  async _trySend(
+    provider: ethers.providers.StaticJsonRpcProvider,
+    method: string,
+    params: Array<unknown>
+  ): Promise<unknown> {
+    const loop = true;
+
     let promise = this._sendAndValidate(provider, method, params);
-    for (let i = 0; i < this.retries; i++) {
-      promise = promise.catch(() => delay(this.delay).then(() => this._sendAndValidate(provider, method, params)));
-    }
+    let i = 0;
+
+    do {
+      try {
+        await promise;
+        break;
+      } catch (err: unknown) {
+        if (++i >= this.retries) {
+          throw err;
+        }
+
+        await delay(this.delay);
+        promise = this._sendAndValidate(provider, method, params);
+      }
+    } while (loop);
+
     return promise;
   }
 
