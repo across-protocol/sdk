@@ -66,7 +66,7 @@ export function chainIsOPStack(chainId: number): boolean {
  * @returns True if chainId is an Orbit chain, otherwise false.
  */
 export function chainIsOrbit(chainId: number): boolean {
-  return PUBLIC_NETWORKS[chainId]?.family === ChainFamily.ORBIT ?? false;
+  return PUBLIC_NETWORKS[chainId]?.family === ChainFamily.ORBIT;
 }
 
 /**
@@ -76,6 +76,15 @@ export function chainIsOrbit(chainId: number): boolean {
  */
 export function chainIsArbitrum(chainId: number): boolean {
   return [CHAIN_IDs.ARBITRUM, CHAIN_IDs.ARBITRUM_SEPOLIA].includes(chainId);
+}
+
+/**
+ * Determines whether a chain ID is an Aleph0 implementation
+ * @param chainId Chain ID to evaluate
+ * @returns True if chainId is an Aleph0 chain, otherwise false.
+ */
+export function chainIsAlephZero(chainId: number): boolean {
+  return [CHAIN_IDs.ALEPH_ZERO].includes(chainId);
 }
 
 /**
