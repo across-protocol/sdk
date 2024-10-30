@@ -1,17 +1,18 @@
-import { literal, nullable, number, string, type, union } from "superstruct";
+import { any, literal, nullable, number, string, type, union } from "superstruct";
 
 export type RPCProvider = "ALCHEMY" | "DRPC" | "INFURA" | "INFURA_DIN";
 export type RPCTransport = "https" | "wss";
 
 // JSON-RPC 2.0 Error object
-// See 5.1 Error Object https://www.jsonrpc.org/specification
+// See JSON-RPC 2.0 Specification section 5 Reponse object
+// https://www.jsonrpc.org/specification
 export const JsonRpcError = type({
   jsonrpc: literal("2.0"),
   id: union([number(), string()]),
   error: type({
     code: number(),
     message: string(),
-    data: nullable(string()),
+    data: nullable(any()),
   }),
 });
 
