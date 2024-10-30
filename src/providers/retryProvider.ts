@@ -266,7 +266,6 @@ export class RetryProvider extends ethers.providers.StaticJsonRpcProvider {
     params: Array<unknown>
   ): Promise<unknown> {
     const loop = true;
-
     let promise = this._sendAndValidate(provider, method, params);
     let i = 0;
 
