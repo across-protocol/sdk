@@ -61,6 +61,15 @@ export function chainIsOPStack(chainId: number): boolean {
 }
 
 /**
+ * Determines whether a chain ID is an Arbitrum Orbit implementation.
+ * @param chainId Chain ID to evaluate.
+ * @returns True if chainId is an Orbit chain, otherwise false.
+ */
+export function chainIsOrbit(chainId: number): boolean {
+  return PUBLIC_NETWORKS[chainId]?.family === ChainFamily.ORBIT ?? false;
+}
+
+/**
  * Determines whether a chain ID is an Arbitrum implementation.
  * @param chainId Chain ID to evaluate.
  * @returns True if chainId is an Arbitrum chain, otherwise false.
