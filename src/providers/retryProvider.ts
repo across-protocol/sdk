@@ -102,7 +102,7 @@ export class RetryProvider extends ethers.providers.StaticJsonRpcProvider {
           }
 
           // If one RPC provider reverted on eth_call, others likely will too. Skip them.
-          if (method === "eth_call" && this.callReverted(method, err)) {
+          if (quorumThreshold === 1 && method === "eth_call" && this.callReverted(method, err)) {
             throw err;
           }
 
