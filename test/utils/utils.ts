@@ -28,9 +28,6 @@ import {
   utf8ToHex,
 } from "../../src/utils";
 import {
-  amountToDeposit,
-  depositRelayerFeePct,
-  destinationChainId as defaultDestinationChainId,
   MAX_L1_TOKENS_PER_POOL_REBALANCE_LEAF,
   MAX_REFUNDS_PER_RELAYER_REFUND_LEAF,
   sampleRateModel,
