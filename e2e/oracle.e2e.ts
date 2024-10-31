@@ -14,29 +14,14 @@ const dummyLogger = winston.createLogger({
 
 const stdLastBaseFeePerGas = parseUnits("12", 9);
 const stdMaxPriorityFeePerGas = parseUnits("1", 9); // EIP-1559 chains only
-const stdMaxFeePerGas = stdLastBaseFeePerGas.add(stdMaxPriorityFeePerGas);
+const chainIds = [1, 10, 137, 324, 8453, 42161, 534352];
 
 const customTransport = makeCustomTransport({ stdLastBaseFeePerGas, stdMaxPriorityFeePerGas });
 
-const eip1559Chains = [1, 10, 137, 324, 8453, 42161, 534352];
-const chainIds = [...eip1559Chains, 1337];
-let providerInstances: { [chainId: number]: providers.StaticJsonRpcProvider } = {};
-
 describe("Gas Price Oracle", function () {
-  before(() => {
-    providerInstances = Object.fromEntries(
-      chainIds.map((chainId) => {
-        const provider = new providers.StaticJsonRpcProvider("https://eth.llamarpc.com");
-        return [chainId, provider];
-      })
-    );
-  });
-
   it("Gas Price Retrieval", async function () {
-    for (const [_chainId, provider] of Object.entries(providerInstances)) {
-      const chainId = Number(_chainId);
-
-      const { maxFeePerGas, maxPriorityFeePerGas } = await getGasPriceEstimate(provider, customTransport);
+    for (const chainId of chainIds) {
+      const { maxFeePerGas, maxPriorityFeePerGas } = await getGasPriceEstimate(chainId, customTransport);
       dummyLogger.debug({
         at: "Gas Price Oracle#Gas Price Retrieval",
         message: `Retrieved gas price estimate for chain ID ${chainId}`,
@@ -47,7 +32,7 @@ describe("Gas Price Oracle", function () {
       expect(BigNumber.isBigNumber(maxFeePerGas)).to.be.true;
       expect(BigNumber.isBigNumber(maxPriorityFeePerGas)).to.be.true;
 
-      if (eip1559Chains.includes(chainId)) {
+      if (chainIds.includes(chainId)) {
         if (chainId === 137) {
           // The Polygon gas station isn't mocked, so just ensure that the fees have a valid relationship.
           expect(maxFeePerGas.gt(0)).to.be.true;
@@ -55,16 +40,13 @@ describe("Gas Price Oracle", function () {
           expect(maxPriorityFeePerGas.lt(maxFeePerGas)).to.be.true;
         } else if (chainId === 42161) {
           // Arbitrum priority fees are refunded, so drop the priority fee from estimates.
-          expect(maxFeePerGas.eq(stdLastBaseFeePerGas.add(1))).to.be.true;
+          // Expect a 1.2x multiplier on the last base fee.
+          expect(maxFeePerGas.eq(stdLastBaseFeePerGas.mul("120").div("100").add(1))).to.be.true;
           expect(maxPriorityFeePerGas.eq(1)).to.be.true;
         } else {
           expect(maxFeePerGas.gt(bnZero)).to.be.true;
           expect(maxPriorityFeePerGas.gt(bnZero)).to.be.true;
         }
-      } else {
-        // Defaults to Legacy (Type 0)
-        expect(maxFeePerGas.eq(stdMaxFeePerGas)).to.be.true;
-        expect(maxPriorityFeePerGas.eq(bnZero)).to.be.true;
       }
     }
   });
