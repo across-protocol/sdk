@@ -1,7 +1,6 @@
 // @note: This test is _not_ run automatically as part of git hooks or CI.
 import dotenv from "dotenv";
 import winston from "winston";
-import { providers } from "ethers";
 import { getGasPriceEstimate } from "../src/gasPriceOracle";
 import { BigNumber, bnZero, parseUnits } from "../src/utils";
 import { expect, makeCustomTransport } from "../test/utils";
