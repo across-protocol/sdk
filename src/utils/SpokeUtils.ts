@@ -65,7 +65,7 @@ export function populateV3Relay(
  * @note  // We want to find the block range that satisfies these conditions:
  *        // - the low block has deposit count <= targetDepositId
  *        // - the high block has a deposit count > targetDepositId.
- *        // This way the caller can search for a FundsDeposited event between [low, high] that will always
+ *        // This way the caller can search for a V3FundsDeposited event between [low, high] that will always
  *        // contain the event emitted when deposit ID was incremented to targetDepositId + 1. This is the same transaction
  *        // where the deposit with deposit ID = targetDepositId was created.
  */

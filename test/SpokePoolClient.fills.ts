@@ -114,7 +114,7 @@ describe("SpokePoolClient: Fills", function () {
     expect(fillBlock).to.equal(targetFillBlock);
   });
 
-  it("FilledRelay block search: bounds checking", async function () {
+  it("FilledV3Relay block search: bounds checking", async function () {
     const nBlocks = 100;
     const startBlock = await spokePool.provider.getBlockNumber();
     for (let i = 0; i < nBlocks; ++i) {
