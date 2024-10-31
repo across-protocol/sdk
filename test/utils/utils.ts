@@ -54,7 +54,6 @@ export const {
   buildPoolRebalanceLeafTree,
   buildPoolRebalanceLeaves,
   deploySpokePool,
-  depositV2,
   enableRoutes,
   getContractFactory,
   getDepositParams,
@@ -247,37 +246,6 @@ export async function enableRoutesOnHubPool(
     await hubPool.setPoolRebalanceRoute(tkn.destinationChainId, tkn.l1Token.address, tkn.destinationToken.address);
     await hubPool.enableL1TokenForLiquidityProvision(tkn.l1Token.address);
   }
-}
-
-export async function simpleDeposit(
-  spokePool: utils.Contract,
-  token: utils.Contract,
-  recipient: utils.SignerWithAddress,
-  depositor: utils.SignerWithAddress,
-  destinationChainId = defaultDestinationChainId,
-  amount = amountToDeposit,
-  relayerFeePct = depositRelayerFeePct
-): Promise<V2Deposit> {
-  const depositObject = await utils.depositV2(
-    spokePool,
-    token,
-    recipient,
-    depositor,
-    destinationChainId,
-    amount,
-    relayerFeePct
-  );
-  // Sanity Check: Ensure that the deposit was successful.
-  expect(depositObject).to.not.be.null;
-  if (!depositObject) {
-    throw new Error("Deposit object is null");
-  }
-  return {
-    ...depositObject,
-    realizedLpFeePct: toBNWei("0"),
-    destinationToken: zeroAddress,
-    message: "0x",
-  };
 }
 
 /**
