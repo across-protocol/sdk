@@ -266,10 +266,11 @@ export class RetryProvider extends ethers.providers.StaticJsonRpcProvider {
     params: Array<unknown>
   ): Promise<unknown> {
     const loop = true;
-    let promise = this._sendAndValidate(provider, method, params);
+    let promise: Promise<unknown>;
     let i = 0;
 
     do {
+      promise = this._sendAndValidate(provider, method, params);
       try {
         await promise;
         break;
@@ -279,7 +280,6 @@ export class RetryProvider extends ethers.providers.StaticJsonRpcProvider {
         }
 
         await delay(this.delay);
-        promise = this._sendAndValidate(provider, method, params);
       }
     } while (loop);
 
