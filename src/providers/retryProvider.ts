@@ -272,7 +272,7 @@ export class RetryProvider extends ethers.providers.StaticJsonRpcProvider {
   // reliably included both the code (typically 3 on revert) and the error message indicating "execution reverted".
   // This is consistent with section 5.1 of the JSON-RPC spec (https://www.jsonrpc.org/specification).
   protected callReverted(method: string, error: unknown): boolean {
-    if (!(method === "eth_call" || method === "eth_estimateGas") || !RpcError.is(error)) { 
+    if (!(method === "eth_call" || method === "eth_estimateGas") || !RpcError.is(error)) {
       return false;
     }
 
@@ -291,15 +291,17 @@ export class RetryProvider extends ethers.providers.StaticJsonRpcProvider {
     method: string,
     params: Array<unknown>
   ): Promise<unknown> {
-
     let { retries } = this;
-    while(true) {
-      try {
-        return this._sendAndValidate(provider, method, params);
-      } catch (err: unknown) {
-        if (retries-- <= 0 || this.callReverted(method, err)) {
-          throw err;
-        }
+
+    // eslint-disable-next-line no-constant-condition
+    while (true) {
+      const [settled] = await Promise.allSettled([this._sendAndValidate(provider, method, params)]);
+      if (settled.status === "fulfilled") {
+        return settled.value;
+      }
+
+      if (retries-- <= 0 || this.callReverted(method, settled.reason)) {
+        throw settled.reason;
       }
 
       await delay(this.delay);
