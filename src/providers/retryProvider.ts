@@ -294,25 +294,20 @@ export class RetryProvider extends ethers.providers.StaticJsonRpcProvider {
     method: string,
     params: Array<unknown>
   ): Promise<unknown> {
-    const loop = true;
-    let promise = this._sendAndValidate(provider, method, params);
-    let i = 0;
-
-    do {
+    let error: unknown;
+    for (let i = 0; i < this.retries; ++i) {
       try {
-        await promise;
-        break;
-      } catch (err: unknown) {
-        if (++i >= this.retries || (method === "eth_call" && this.callReverted(method, err))) {
-          throw err;
+        return await this._sendAndValidate(provider, method, params);
+      } catch (_err: unknown) {
+        error = _err;
+        if (method === "eth_call" && this.callReverted(method, error)) {
+          break;
         }
-
         await delay(this.delay);
-        promise = this._sendAndValidate(provider, method, params);
       }
-    } while (loop);
+    }
 
-    return promise;
+    throw error;
   }
 
   _getQuorum(method: string, params: Array<unknown>): number {
