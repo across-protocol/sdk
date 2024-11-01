@@ -1,4 +1,3 @@
-import { L2Provider } from "@eth-optimism/sdk/dist/interfaces/l2-provider";
 import { providers } from "ethers";
 import assert from "assert";
 import { Coingecko } from "../../coingecko";
@@ -17,7 +16,6 @@ import { Logger, QueryInterface } from "../relayFeeCalculator";
 import { Transport } from "viem";
 
 type Provider = providers.Provider;
-type OptimismProvider = L2Provider<Provider>;
 type SymbolMappingType = Record<
   string,
   {
@@ -45,7 +43,7 @@ export class QueryBase implements QueryInterface {
    * @param coingeckoBaseCurrency The basis currency that CoinGecko will use to resolve pricing
    */
   constructor(
-    readonly provider: Provider | OptimismProvider,
+    readonly provider: Provider,
     readonly symbolMapping: SymbolMappingType,
     readonly spokePoolAddress: string,
     readonly simulatedRelayerAddress: string,

@@ -1,5 +1,3 @@
-import { L2Provider } from "@eth-optimism/sdk/dist/interfaces/l2-provider";
-import { isL2Provider as isOptimismL2Provider } from "@eth-optimism/sdk/dist/l2-provider";
 import assert from "assert";
 import Decimal from "decimal.js";
 import { ethers, PopulatedTransaction, providers, VoidSigner } from "ethers";
@@ -8,7 +6,9 @@ import { TypedMessage } from "../interfaces/TypedData";
 import { BigNumber, BigNumberish, BN, formatUnits, parseUnits, toBN } from "./BigNumberUtils";
 import { ConvertDecimals } from "./FormattingUtils";
 import { chainIsOPStack } from "./NetworkUtils";
-import { Transport } from "viem";
+import { Address, createPublicClient, Hex, http, Transport } from "viem";
+import * as chains from "viem/chains";
+import { publicActionsL2 } from "viem/op-stack";
 
 export type Decimalish = string | number | Decimal;
 export const AddressZero = ethers.constants.AddressZero;
@@ -249,7 +249,7 @@ export type TransactionCostEstimate = {
 export async function estimateTotalGasRequiredByUnsignedTransaction(
   unsignedTx: PopulatedTransaction,
   senderAddress: string,
-  provider: providers.Provider | L2Provider<providers.Provider>,
+  provider: providers.Provider,
   options: Partial<{
     gasPrice: BigNumberish;
     gasUnits: BigNumberish;
@@ -267,19 +267,28 @@ export async function estimateTotalGasRequiredByUnsignedTransaction(
 
   // OP stack is a special case; gas cost is computed by the SDK, without having to query price.
   if (chainIsOPStack(chainId)) {
-    assert(isOptimismL2Provider(provider), `Unexpected provider for chain ID ${chainId}.`);
+    const chain = Object.values(chains).find((chain) => chain.id === chainId);
+    assert(chain, `Chain ID ${chainId} not supported`);
+    const opStackClient = createPublicClient({
+      chain,
+      transport: transport ?? http(),
+    }).extend(publicActionsL2());
     const populatedTransaction = await voidSigner.populateTransaction({
       ...unsignedTx,
       gasLimit: nativeGasCost, // prevents additional gas estimation call
     });
-    // Concurrently estimate the gas cost on L1 and L2 instead of calling
-    // `provider.estimateTotalGasCost` to improve performance.
     const [l1GasCost, l2GasPrice] = await Promise.all([
-      provider.estimateL1GasCost(populatedTransaction),
-      _gasPrice || provider.getGasPrice(),
+      opStackClient.estimateL1Fee({
+        account: senderAddress as Address,
+        to: populatedTransaction.to as Address,
+        value: BigInt(populatedTransaction.value?.toString() ?? 0),
+        data: populatedTransaction.data as Hex,
+        gas: populatedTransaction.gasLimit ? BigInt(populatedTransaction.gasLimit.toString()) : undefined,
+      }),
+      _gasPrice ? BigInt(_gasPrice.toString()) : opStackClient.getGasPrice(),
     ]);
-    const l2GasCost = nativeGasCost.mul(l2GasPrice);
-    tokenGasCost = l1GasCost.add(l2GasCost);
+    const l2GasCost = nativeGasCost.mul(l2GasPrice.toString());
+    tokenGasCost = BigNumber.from(l1GasCost.toString()).add(l2GasCost);
   } else {
     let gasPrice = _gasPrice;
     if (!gasPrice) {
