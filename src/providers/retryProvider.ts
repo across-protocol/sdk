@@ -260,12 +260,24 @@ export class RetryProvider extends ethers.providers.StaticJsonRpcProvider {
     return response;
   }
 
-  _trySend(provider: ethers.providers.StaticJsonRpcProvider, method: string, params: Array<unknown>): Promise<unknown> {
-    let promise = this._sendAndValidate(provider, method, params);
-    for (let i = 0; i < this.retries; i++) {
-      promise = promise.catch(() => delay(this.delay).then(() => this._sendAndValidate(provider, method, params)));
+  async _trySend(
+    provider: ethers.providers.StaticJsonRpcProvider,
+    method: string,
+    params: Array<unknown>
+  ): Promise<unknown> {
+    let { retries } = this;
+
+    // eslint-disable-next-line no-constant-condition
+    while (true) {
+      const [settled] = await Promise.allSettled([this._sendAndValidate(provider, method, params)]);
+      if (settled.status === "fulfilled") {
+        return settled.value;
+      }
+      if (retries-- <= 0) {
+        throw settled.reason;
+      }
+      await delay(this.delay);
     }
-    return promise;
   }
 
   _getQuorum(method: string, params: Array<unknown>): number {
