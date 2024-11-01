@@ -266,7 +266,9 @@ export class RetryProvider extends ethers.providers.StaticJsonRpcProvider {
     params: Array<unknown>
   ): Promise<unknown> {
     let { retries } = this;
-    while(true) {
+
+    // eslint-disable-next-line no-constant-condition
+    while (true) {
       const [settled] = await Promise.allSettled([this._sendAndValidate(provider, method, params)]);
       if (settled.status === "fulfilled") {
         return settled.value;
