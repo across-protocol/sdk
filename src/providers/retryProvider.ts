@@ -1,4 +1,3 @@
-import assert from "assert";
 import { ethers, logger } from "ethers";
 import { CachingMechanismInterface } from "../interfaces";
 import { delay, isDefined, isPromiseFulfilled, isPromiseRejected } from "../utils";
@@ -101,8 +100,8 @@ export class RetryProvider extends ethers.providers.StaticJsonRpcProvider {
             throw err;
           }
 
-          // If one RPC provider reverted on eth_call, others likely will too. Skip them.
-          if (quorumThreshold === 1 && method === "eth_call" && this.callReverted(method, err)) {
+          // If one RPC provider reverted, others likely will too. Skip them.
+          if (quorumThreshold === 1 && this.callReverted(method, err)) {
             throw err;
           }
 
@@ -268,14 +267,12 @@ export class RetryProvider extends ethers.providers.StaticJsonRpcProvider {
     return response;
   }
 
-  // For an error emitted in response to an eth_call request, determine whether the response body indicates that the
-  // call reverted during execution. The exact RPC responses returned can vary, but `error.body` has reliably
-  // included both the code (typically 3 on revert) and the error message indicating "execution reverted". This is
-  // consistent with section 5.1 of the JSON-RPC spec (https://www.jsonrpc.org/specification).
+  // For an error emitted in response to an eth_call or eth_estimateGas request, determine whether the response body
+  // indicates that the call reverted during execution. The exact RPC responses returned can vary, but `error.body` has
+  // reliably included both the code (typically 3 on revert) and the error message indicating "execution reverted".
+  // This is consistent with section 5.1 of the JSON-RPC spec (https://www.jsonrpc.org/specification).
   protected callReverted(method: string, error: unknown): boolean {
-    assert(method === "eth_call");
-
-    if (!RpcError.is(error)) {
+    if (!(method === "eth_call" || method === "eth_estimateGas") || !RpcError.is(error)) { 
       return false;
     }
 
@@ -294,20 +291,19 @@ export class RetryProvider extends ethers.providers.StaticJsonRpcProvider {
     method: string,
     params: Array<unknown>
   ): Promise<unknown> {
-    let error: unknown;
-    for (let i = 0; i < this.retries; ++i) {
-      try {
-        return await this._sendAndValidate(provider, method, params);
-      } catch (_err: unknown) {
-        error = _err;
-        if (method === "eth_call" && this.callReverted(method, error)) {
-          break;
-        }
-        await delay(this.delay);
-      }
-    }
 
-    throw error;
+    let { retries } = this;
+    while(true) {
+      try {
+        return this._sendAndValidate(provider, method, params);
+      } catch (err: unknown) {
+        if (retries-- <= 0 || this.callReverted(method, err)) {
+          throw err;
+        }
+      }
+
+      await delay(this.delay);
+    }
   }
 
   _getQuorum(method: string, params: Array<unknown>): number {
