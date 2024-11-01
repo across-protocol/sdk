@@ -303,7 +303,6 @@ export class RetryProvider extends ethers.providers.StaticJsonRpcProvider {
       if (retries-- <= 0 || this.callReverted(method, settled.reason)) {
         throw settled.reason;
       }
-
       await delay(this.delay);
     }
   }

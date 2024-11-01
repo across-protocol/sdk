@@ -20,9 +20,9 @@ import {
 type EventSearchConfig = sdkUtils.EventSearchConfig;
 
 describe("SpokePoolClient: Event Filtering", function () {
-  const fundsDepositedEvents = ["FundsDeposited", "V3FundsDeposited"];
+  const fundsDepositedEvents = ["V3FundsDeposited"];
   const slowFillRequestedEvents = ["RequestedV3SlowFill"];
-  const filledRelayEvents = ["FilledRelay", "FilledV3Relay"];
+  const filledRelayEvents = ["FilledV3Relay"];
 
   let owner: SignerWithAddress;
   let chainIds: number[];
