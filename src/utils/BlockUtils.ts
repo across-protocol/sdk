@@ -53,9 +53,9 @@ export async function averageBlockTime(
   // OP stack chains inherit Optimism block times, but can be overridden.
   // prettier-ignore
   const cache = blockTimes[chainId]
-    ?? chainIsOPStack(chainId)
+    ?? (chainIsOPStack(chainId)
       ? blockTimes[CHAIN_IDs.OPTIMISM]
-      : undefined;
+      : undefined);
 
   const now = getCurrentTime();
   if (isDefined(cache) && now < cache.timestamp + cacheTTL) {
