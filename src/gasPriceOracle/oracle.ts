@@ -24,6 +24,7 @@ export async function getGasPriceEstimate(
   }
 
   const gasPriceFeeds: { [chainId: number]: GasPriceFeed } = {
+    [CHAIN_IDs.ALEPH_ZERO]: arbitrum.eip1559,
     [CHAIN_IDs.ARBITRUM]: arbitrum.eip1559,
     [CHAIN_IDs.BASE]: ethereum.eip1559,
     [CHAIN_IDs.BOBA]: ethereum.legacy,
