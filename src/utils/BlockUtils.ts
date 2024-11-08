@@ -51,11 +51,7 @@ export async function averageBlockTime(
   const { chainId } = await provider.getNetwork();
 
   // OP stack chains inherit Optimism block times, but can be overridden.
-  // prettier-ignore
-  const cache = blockTimes[chainId]
-    ?? (chainIsOPStack(chainId)
-      ? blockTimes[CHAIN_IDs.OPTIMISM]
-      : undefined);
+  const cache = blockTimes[chainId] ?? (chainIsOPStack(chainId) ? blockTimes[CHAIN_IDs.OPTIMISM] : undefined);
 
   const now = getCurrentTime();
   if (isDefined(cache) && now < cache.timestamp + cacheTTL) {
