@@ -267,10 +267,8 @@ export class RetryProvider extends ethers.providers.StaticJsonRpcProvider {
     return response;
   }
 
-  // For an error emitted in response to an eth_call or eth_estimateGas request, determine whether the response body
-  // indicates that the call reverted during execution. The exact RPC responses returned can vary, but `error.body` has
-  // reliably included both the code (typically 3 on revert) and the error message indicating "execution reverted".
-  // This is consistent with section 5.1 of the JSON-RPC spec (https://www.jsonrpc.org/specification).
+  // For an error emitted in response to an eth_call or eth_estimateGas request, determine
+  // whether the response body indicates that the call reverted during execution.
   protected callReverted(method: string, error: unknown): boolean {
     if (!(method === "eth_call" || method === "eth_estimateGas") || !RpcError.is(error)) {
       return false;
@@ -278,12 +276,27 @@ export class RetryProvider extends ethers.providers.StaticJsonRpcProvider {
 
     let response: unknown;
     try {
+      // The exact RPC responses returned can vary, but `error.body` has reliably included both
+      // the code (typically 3 on revert) and the error message indicating "execution reverted".
       response = JSON.parse(error.body);
     } catch {
       return false;
     }
 
-    return JsonRpcError.is(response) && response.error.message.toLowerCase().includes("revert");
+    if (!JsonRpcError.is(response)) {
+      return false;
+    }
+
+    // [-32768, -32100] is reserved by the JSON-RPC spec.
+    // [-32099, -32000] is allocated for implementation-defined responses.
+    // Everything else is available for use by the application space.
+    // Most node implementations return 3 for an eth_call revert, but some return -32000.
+    // See also https://www.jsonrpc.org/specification
+    if (response.error.code >= -32768 && response.error.code <= -32100) {
+      return false;
+    }
+
+    return response.error.message.toLowerCase().includes("revert");
   }
 
   async _trySend(
