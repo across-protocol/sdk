@@ -21,34 +21,10 @@ const NON_DETERMINISTIC_MULTICALL_ADDRESSES = {
   [CHAIN_IDs.ZK_SYNC]: "0xF9cda624FBC7e059355ce98a31693d299FACd963",
 };
 
-const DETERMINISTIC_MULTICALL_CHAINS = [
-  CHAIN_IDs.ARBITRUM,
-  CHAIN_IDs.BASE,
-  CHAIN_IDs.BLAST,
-  CHAIN_IDs.BOBA,
-  CHAIN_IDs.LINEA,
-  CHAIN_IDs.LISK,
-  CHAIN_IDs.MAINNET,
-  CHAIN_IDs.MODE,
-  CHAIN_IDs.OPTIMISM,
-  CHAIN_IDs.POLYGON,
-  CHAIN_IDs.REDSTONE,
-  CHAIN_IDs.SCROLL,
-  CHAIN_IDs.ZORA,
-  CHAIN_IDs.WORLD_CHAIN,
-  // Testnet:
-  CHAIN_IDs.BASE_SEPOLIA,
-  CHAIN_IDs.BLAST_SEPOLIA,
-  CHAIN_IDs.POLYGON_AMOY,
-  CHAIN_IDs.SCROLL_SEPOLIA,
-  CHAIN_IDs.SEPOLIA,
-];
-
 export function getMulticallAddress(chainId: number): string | undefined {
-  if (DETERMINISTIC_MULTICALL_CHAINS.includes(chainId)) {
-    return DETERMINISTIC_MULTICALL_ADDRESS;
-  }
-  return NON_DETERMINISTIC_MULTICALL_ADDRESSES[chainId];
+  if (Object.keys(NON_DETERMINISTIC_MULTICALL_ADDRESSES).includes(chainId.toString())) {
+    return NON_DETERMINISTIC_MULTICALL_ADDRESSES[chainId];
+  } else return DETERMINISTIC_MULTICALL_ADDRESS;
 }
 
 export function getMulticall3(chainId: number, signerOrProvider: Signer | Provider): Multicall3 | undefined {
