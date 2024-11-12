@@ -146,7 +146,7 @@ export class BundleDataClient {
     readonly spokePoolClients: { [chainId: number]: SpokePoolClient },
     readonly chainIdListForBundleEvaluationBlockNumbers: number[],
     readonly blockRangeEndBlockBuffer: { [chainId: number]: number } = {}
-  ) {}
+  ) { }
 
   // This should be called whenever it's possible that the loadData information for a block range could have changed.
   // For instance, if the spoke or hub clients have been updated, it probably makes sense to clear this to be safe.
@@ -607,8 +607,8 @@ export class BundleDataClient {
       }
       const data = isDefined(arweaveData)
         ? // We can return the data to a Promise to keep the return type consistent.
-          // Note: this is now a fast operation since we've already loaded the data from Arweave.
-          Promise.resolve(arweaveData)
+        // Note: this is now a fast operation since we've already loaded the data from Arweave.
+        Promise.resolve(arweaveData)
         : this.loadDataFromScratch(blockRangesForChains, spokePoolClients);
       this.loadDataCache[key] = data;
     }
@@ -1178,42 +1178,42 @@ export class BundleDataClient {
     const promises = [
       validatedBundleV3Fills.length > 0
         ? this.clients.hubPoolClient.batchComputeRealizedLpFeePct(
-            validatedBundleV3Fills.map((fill) => {
-              const matchedDeposit = v3RelayHashes[this.getRelayHashFromEvent(fill)].deposit;
-              assert(isDefined(matchedDeposit), "Deposit should exist in relay hash dictionary.");
-              const { chainToSendRefundTo: paymentChainId } = getRefundInformationFromFill(
-                fill,
-                this.clients.hubPoolClient,
-                blockRangesForChains,
-                chainIds,
-                matchedDeposit!.fromLiteChain
-              );
-              return {
-                ...fill,
-                paymentChainId,
-              };
-            })
-          )
+          validatedBundleV3Fills.map((fill) => {
+            const matchedDeposit = v3RelayHashes[this.getRelayHashFromEvent(fill)].deposit;
+            assert(isDefined(matchedDeposit), "Deposit should exist in relay hash dictionary.");
+            const { chainToSendRefundTo: paymentChainId } = getRefundInformationFromFill(
+              fill,
+              this.clients.hubPoolClient,
+              blockRangesForChains,
+              chainIds,
+              matchedDeposit!.fromLiteChain
+            );
+            return {
+              ...fill,
+              paymentChainId,
+            };
+          })
+        )
         : [],
       validatedBundleSlowFills.length > 0
         ? this.clients.hubPoolClient.batchComputeRealizedLpFeePct(
-            validatedBundleSlowFills.map((deposit) => {
-              return {
-                ...deposit,
-                paymentChainId: deposit.destinationChainId,
-              };
-            })
-          )
+          validatedBundleSlowFills.map((deposit) => {
+            return {
+              ...deposit,
+              paymentChainId: deposit.destinationChainId,
+            };
+          })
+        )
         : [],
       validatedBundleUnexecutableSlowFills.length > 0
         ? this.clients.hubPoolClient.batchComputeRealizedLpFeePct(
-            validatedBundleUnexecutableSlowFills.map((deposit) => {
-              return {
-                ...deposit,
-                paymentChainId: deposit.destinationChainId,
-              };
-            })
-          )
+          validatedBundleUnexecutableSlowFills.map((deposit) => {
+            return {
+              ...deposit,
+              paymentChainId: deposit.destinationChainId,
+            };
+          })
+        )
         : [],
     ];
     const [v3FillLpFees, v3SlowFillLpFees, v3UnexecutableSlowFillLpFees] = await Promise.all(promises);
@@ -1316,7 +1316,7 @@ export class BundleDataClient {
           ];
           // Sanity checks:
           assert(endTime >= startTime, "End time should be greater than start time.");
-          assert(startTime > 0, "Start time should be greater than 0.");
+          assert(startBlockForChain === 0 || startTime > 0, "Start timestamp must be greater than 0 if the start block is greater than 0.");
           return [chainId, [startTime, endTime]];
         })
       ).filter(isDefined)
