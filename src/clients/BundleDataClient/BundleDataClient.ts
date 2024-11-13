@@ -1316,7 +1316,10 @@ export class BundleDataClient {
           ];
           // Sanity checks:
           assert(endTime >= startTime, "End time should be greater than start time.");
-          assert(startTime > 0, "Start time should be greater than 0.");
+          assert(
+            startBlockForChain === 0 || startTime > 0,
+            "Start timestamp must be greater than 0 if the start block is greater than 0."
+          );
           return [chainId, [startTime, endTime]];
         })
       ).filter(isDefined)

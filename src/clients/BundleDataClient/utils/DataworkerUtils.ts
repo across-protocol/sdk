@@ -138,7 +138,7 @@ export function _buildPoolRebalanceRoot(
   // Realized LP fees are keyed the same as running balances and represent the amount of LP fees that should be paid
   // to LP's for each running balance.
 
-  // For each FilledRelay group, identified by { repaymentChainId, L1TokenAddress }, initialize a "running balance"
+  // For each FilledV3Relay group, identified by { repaymentChainId, L1TokenAddress }, initialize a "running balance"
   // to the total refund amount for that group.
   const runningBalances: RunningBalances = {};
   const realizedLpFees: RunningBalances = {};

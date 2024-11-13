@@ -28,9 +28,6 @@ export type { HubPool, HubPoolInterface } from "@across-protocol/contracts/dist/
 export type {
   SpokePool,
   SpokePoolInterface,
-  FundsDepositedEvent,
-  FilledRelayEvent,
-  RequestedSpeedUpDepositEvent,
   V3FundsDepositedEvent,
   FilledV3RelayEvent,
 } from "@across-protocol/contracts/dist/typechain/contracts/SpokePool";

@@ -5,6 +5,7 @@ import { getOriginFromURL } from "../utils/NetworkUtils";
 import { CacheProvider } from "./cachedProvider";
 import { compareRpcResults, createSendErrorWithMessage, formatProviderError } from "./utils";
 import { PROVIDER_CACHE_TTL } from "./constants";
+import { JsonRpcError, RpcError } from "./types";
 import { Logger } from "winston";
 
 export class RetryProvider extends ethers.providers.StaticJsonRpcProvider {
@@ -88,13 +89,19 @@ export class RetryProvider extends ethers.providers.StaticJsonRpcProvider {
     ): Promise<[ethers.providers.StaticJsonRpcProvider, unknown]> => {
       return this._trySend(provider, method, params)
         .then((result): [ethers.providers.StaticJsonRpcProvider, unknown] => [provider, result])
-        .catch((err) => {
+        .catch((err: unknown) => {
           // Append the provider and error to the error array.
-          errors.push([provider, err?.stack || err?.toString()]);
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          errors.push([provider, (err as any)?.stack || err?.toString()]);
 
           // If there are no new fallback providers to use, terminate the recursion by throwing an error.
           // Otherwise, we can try to call another provider.
           if (fallbackProviders.length === 0) {
+            throw err;
+          }
+
+          // If one RPC provider reverted, others likely will too. Skip them.
+          if (quorumThreshold === 1 && this.callReverted(method, err)) {
             throw err;
           }
 
@@ -260,12 +267,44 @@ export class RetryProvider extends ethers.providers.StaticJsonRpcProvider {
     return response;
   }
 
-  _trySend(provider: ethers.providers.StaticJsonRpcProvider, method: string, params: Array<unknown>): Promise<unknown> {
-    let promise = this._sendAndValidate(provider, method, params);
-    for (let i = 0; i < this.retries; i++) {
-      promise = promise.catch(() => delay(this.delay).then(() => this._sendAndValidate(provider, method, params)));
+  // For an error emitted in response to an eth_call or eth_estimateGas request, determine whether the response body
+  // indicates that the call reverted during execution. The exact RPC responses returned can vary, but `error.body` has
+  // reliably included both the code (typically 3 on revert) and the error message indicating "execution reverted".
+  // This is consistent with section 5.1 of the JSON-RPC spec (https://www.jsonrpc.org/specification).
+  protected callReverted(method: string, error: unknown): boolean {
+    if (!(method === "eth_call" || method === "eth_estimateGas") || !RpcError.is(error)) {
+      return false;
     }
-    return promise;
+
+    let response: unknown;
+    try {
+      response = JSON.parse(error.body);
+    } catch {
+      return false;
+    }
+
+    return JsonRpcError.is(response) && response.error.message.toLowerCase().includes("revert");
+  }
+
+  async _trySend(
+    provider: ethers.providers.StaticJsonRpcProvider,
+    method: string,
+    params: Array<unknown>
+  ): Promise<unknown> {
+    let { retries } = this;
+
+    // eslint-disable-next-line no-constant-condition
+    while (true) {
+      const [settled] = await Promise.allSettled([this._sendAndValidate(provider, method, params)]);
+      if (settled.status === "fulfilled") {
+        return settled.value;
+      }
+
+      if (retries-- <= 0 || this.callReverted(method, settled.reason)) {
+        throw settled.reason;
+      }
+      await delay(this.delay);
+    }
   }
 
   _getQuorum(method: string, params: Array<unknown>): number {
