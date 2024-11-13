@@ -8,6 +8,7 @@ import { TypedMessage } from "../interfaces/TypedData";
 import { BigNumber, BigNumberish, BN, formatUnits, parseUnits, toBN } from "./BigNumberUtils";
 import { ConvertDecimals } from "./FormattingUtils";
 import { chainIsOPStack } from "./NetworkUtils";
+import { Transport } from "viem";
 
 export type Decimalish = string | number | Decimal;
 export const AddressZero = ethers.constants.AddressZero;
@@ -239,17 +240,24 @@ export type TransactionCostEstimate = {
  * @param unsignedTx The unsigned transaction that this function will estimate.
  * @param senderAddress The address that the transaction will be submitted from.
  * @param provider A valid ethers provider - will be used to reason the gas price.
- * @param gasPrice A manually provided gas price - if set, this function will not resolve the current gas price.
- * @param gasUnits A manually provided gas units - if set, this function will not estimate the gas units.
+ * @param options
+ * @param options.gasPrice A manually provided gas price - if set, this function will not resolve the current gas price.
+ * @param options.gasUnits A manually provided gas units - if set, this function will not estimate the gas units.
+ * @param options.transport A custom transport object for custom gas price retrieval.
  * @returns Estimated cost in units of gas and the underlying gas token (gasPrice * estimatedGasUnits).
  */
 export async function estimateTotalGasRequiredByUnsignedTransaction(
   unsignedTx: PopulatedTransaction,
   senderAddress: string,
   provider: providers.Provider | L2Provider<providers.Provider>,
-  gasPrice?: BigNumberish,
-  gasUnits?: BigNumberish
+  options: Partial<{
+    gasPrice: BigNumberish;
+    gasUnits: BigNumberish;
+    transport: Transport;
+  }> = {}
 ): Promise<TransactionCostEstimate> {
+  const { gasPrice: _gasPrice, gasUnits, transport } = options || {};
+
   const { chainId } = await provider.getNetwork();
   const voidSigner = new VoidSigner(senderAddress, provider);
 
@@ -268,13 +276,14 @@ export async function estimateTotalGasRequiredByUnsignedTransaction(
     // `provider.estimateTotalGasCost` to improve performance.
     const [l1GasCost, l2GasPrice] = await Promise.all([
       provider.estimateL1GasCost(populatedTransaction),
-      gasPrice || provider.getGasPrice(),
+      _gasPrice || provider.getGasPrice(),
     ]);
     const l2GasCost = nativeGasCost.mul(l2GasPrice);
     tokenGasCost = l1GasCost.add(l2GasCost);
   } else {
+    let gasPrice = _gasPrice;
     if (!gasPrice) {
-      const gasPriceEstimate = await getGasPriceEstimate(provider, chainId);
+      const gasPriceEstimate = await getGasPriceEstimate(provider, chainId, transport);
       gasPrice = gasPriceEstimate.maxFeePerGas;
     }
     tokenGasCost = nativeGasCost.mul(gasPrice);
