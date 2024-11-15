@@ -211,7 +211,7 @@ export class Coingecko {
     } catch (err) {
       const errMsg = `Failed to retrieve ${platform_id}/${currency} prices (${err})`;
       this.logger.debug({
-        at: "Coingecko#getCurrentPriceByContract",
+        at: "Coingecko#getContractPrices",
         message: errMsg,
         tokens: contract_addresses,
       });
@@ -281,7 +281,7 @@ export class Coingecko {
     if (tokenPrice === undefined || tokenPrice.timestamp + this.maxPriceAge <= now) {
       if (this.maxPriceAge > 0) {
         this.logger.debug({
-          at: "Coingecko#getCurrentPriceByContract",
+          at: "Coingecko#getCachedAddressPrice",
           message: `Cache miss on ${platform_id}/${currency} for ${contractAddress}`,
           maxPriceAge: this.maxPriceAge,
           tokenPrice: tokenPrice,
@@ -290,7 +290,7 @@ export class Coingecko {
       return undefined;
     } else {
       this.logger.debug({
-        at: "Coingecko#getCurrentPriceByContract",
+        at: "Coingecko#getCachedAddressPrice",
         message: `Cache hit on token ${contractAddress} (age ${now - tokenPrice.timestamp} S).`,
         price: tokenPrice,
       });
@@ -315,7 +315,7 @@ export class Coingecko {
       });
     } else if (cgPrice.last_updated_at === priceCache[contractAddress].timestamp) {
       this.logger.debug({
-        at: "Coingecko#getContractPrices",
+        at: "Coingecko#updatePriceCache",
         message: `No new price available for token ${contractAddress}.`,
         token: cgPrice,
       });
