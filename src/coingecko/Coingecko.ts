@@ -313,7 +313,7 @@ export class Coingecko {
         at: "Coingecko#updatePriceCache",
         message: `Updated ${platform_id}/${currency}/${contractAddress} token price cache.`,
       });
-    } else if (cgPrice.last_updated_at === priceCache[contractAddress].timestamp) {
+    } else {
       this.logger.debug({
         at: "Coingecko#updatePriceCache",
         message: `No new price available for token ${contractAddress}.`,
