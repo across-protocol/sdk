@@ -118,6 +118,7 @@ export class Coingecko {
   getContractDetails(contract_address: string, platform_id = "ethereum") {
     return this.call(`coins/${platform_id}/contract/${contract_address.toLowerCase()}`);
   }
+
   async getCurrentPriceByContract(
     contract_address: string,
     currency = "usd",
@@ -150,6 +151,18 @@ export class Coingecko {
     assert(tokenPrice !== undefined);
     return [tokenPrice.timestamp.toString(), tokenPrice.price];
   }
+
+  async getCurrentPriceById(contractAddress: string, currency = "usd"): Promise<number> {
+    const coingeckoId = getCoingeckoTokenIdByAddress(contractAddress);
+    // Build the path for the Coingecko API request
+    const result = await this.call(
+      `simple/price?ids=${coingeckoId}&vs_currencies=${currency}&include_last_updated_at=true`
+    );
+    const price = result?.[coingeckoId]?.[currency];
+    assert(price, `No price found for ${contractAddress}`);
+    return price;
+  }
+
   // Return an array of spot prices for an array of collateral addresses in one async call. Note we might in future
   // This was adapted from packages/merkle-distributor/kpi-options-helpers/calculate-uma-tvl.ts
   async getContractPrices(
