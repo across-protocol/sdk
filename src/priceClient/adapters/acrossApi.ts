@@ -39,6 +39,8 @@ export class PriceFeed extends BaseHTTPAdapter implements PriceFeedAdapter {
 
   private validateResponse(response: unknown): response is AcrossPrice {
     if (typeof response !== "object") return false;
-    return response !== null && typeof (response as { [key: string]: unknown }).price === "number";
+    const responseMapped = response as { price: number } | null;
+    const priceMapped = Number(responseMapped?.price);
+    return response !== null && !isNaN(priceMapped) && priceMapped > 0;
   }
 }

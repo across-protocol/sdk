@@ -1,5 +1,6 @@
 import { PriceFeedAdapter, TokenPrice } from "../priceClient";
 import { BaseHTTPAdapter, BaseHTTPAdapterArgs } from "./baseAdapter";
+import { getCoingeckoTokenIdByAddress } from "../../utils";
 
 type CoinGeckoTokenPrice = {
   [currency: string]: number;
@@ -33,20 +34,19 @@ export class PriceFeed extends BaseHTTPAdapter implements PriceFeedAdapter {
 
   async getPricesByAddress(addresses: string[], currency = "usd"): Promise<TokenPrice[]> {
     const queryArgs: { [key: string]: boolean | string } = {
-      contract_addresses: addresses.map((address) => address.toLowerCase()).join(","),
+      ids: addresses.map(getCoingeckoTokenIdByAddress).join(","),
       vs_currencies: currency,
       include_last_updated_at: true,
     };
     if (this.apiKey) queryArgs["x_cg_pro_api_key"] = this.apiKey;
-
-    const prices: unknown = await this.query("api/v3/simple/token_price/ethereum", queryArgs);
+    const prices = (await this.query("/api/v3/simple/price", queryArgs)) as { [id: string]: CoinGeckoTokenPrice };
     if (!this.validateResponse(prices, currency))
       throw new Error(`Unexpected ${this.name} response: ${JSON.stringify(prices)}`);
 
     return addresses
-      .filter((address) => prices[address.toLowerCase()] !== undefined)
+      .filter((address) => prices[getCoingeckoTokenIdByAddress(address)] !== undefined)
       .map((address) => {
-        const price: CoinGeckoTokenPrice = prices[address.toLowerCase()];
+        const price: CoinGeckoTokenPrice = prices[getCoingeckoTokenIdByAddress(address)];
         return { address, price: price[currency], timestamp: price.last_updated_at };
       });
   }
