@@ -8,6 +8,29 @@ export function msToS(ms: number) {
   return Math.floor(ms / 1000);
 }
 
+export type CoinGeckoTokenList = {
+  id: string;
+  symbol: string;
+  name: string;
+  platforms: {
+    [platform: string]: string;
+  };
+};
+
+export type PriceHistory = {
+  market_data: {
+    current_price: {
+      [currency: string]: number;
+    };
+  };
+};
+
+export type HistoricPriceChartData = {
+  prices: Array<[number, number]>;
+  market_caps: Array<[number, number]>;
+  total_volumes: Array<[number, number]>;
+};
+
 export type CoinGeckoAssetPlatform = {
   id: string;
   chain_identifier: number;
@@ -39,6 +62,8 @@ export class Coingecko {
   private retryDelay = 1;
   private numRetries = 0; // Most failures are due to 429 rate-limiting, so there is no point in retrying.
   private basicApiTimeout = 500; // ms
+  private platformIdMap = new Map<number, string>(); // chainId => platform_id (137 => "polygon-pos")
+  private tokenIdMap: Record<string, Record<string, string>> = {}; // coinGeckoId => { platform_id : "tokenAddress":}
 
   public static get(logger: Logger, apiKey?: string) {
     if (!this.instance)
@@ -73,6 +98,30 @@ export class Coingecko {
     this.prices = {};
   }
 
+  private async getPlatformId(chainId: number): Promise<string> {
+    let id = this.platformIdMap.get(chainId);
+
+    if (id) {
+      return id;
+    }
+
+    const platforms = await this.getPlatforms();
+    this.platformIdMap = new Map(
+      platforms.filter((chain) => Boolean(chain.chain_identifier)).map((chain) => [chain.chain_identifier, chain.id])
+    );
+
+    id = this.platformIdMap.get(chainId);
+    if (!id) {
+      this.logger.error({
+        message: `Coingecko does not support chain with id ${chainId}`,
+        at: "Coingecko#getPlatformId",
+      });
+      throw new Error(`Coingecko does not support chain with id ${chainId}`);
+    }
+
+    return id;
+  }
+
   // Fetch historic prices for a `contract` denominated in `currency` between timestamp `from` and `to`. Note timestamps
   // are assumed to be js timestamps and are converted to unixtimestamps by dividing by 1000.
   async getHistoricContractPrices(contract: string, from: number, to: number, currency = "usd") {
@@ -82,12 +131,63 @@ export class Coingecko {
     assert(to, "requires to timestamp");
     const _from = msToS(from);
     const _to = msToS(to);
-    const result = await this.call(
+    const result = await this.call<HistoricPriceChartData>(
       `coins/ethereum/contract/${contract.toLowerCase()}/market_chart/range/?vs_currency=${currency}&from=${_from}&to=${_to}`
     );
     // fyi timestamps are returned in ms in contrast to the current price endpoint
     if (result.prices) return result.prices;
     throw new Error("Something went wrong fetching coingecko prices!");
+  }
+
+  private getTokenIdFromAddress(address: string, platformId: string): string | undefined {
+    return Object.entries(this.tokenIdMap).find(([_, value]) =>
+      Boolean(value?.[platformId]?.toLowerCase() === address.toLowerCase())
+    )?.[0];
+  }
+
+  private async updateTokenMap(): Promise<typeof this.tokenIdMap> {
+    const rawTokenList = await this.call<Array<CoinGeckoTokenList>>("coins/list?include_platform=true");
+    this.tokenIdMap = Object.fromEntries(
+      rawTokenList
+        .filter((token) => Boolean(Object.values(token?.platforms)?.length > 0))
+        .map((token) => [token.id, token.platforms])
+    );
+    return this.tokenIdMap;
+  }
+
+  // for tokens not found in our constants, we can attempt to fetch the id from coingecko itself
+  async getCoingeckoTokenId(address: string, chainId: number): Promise<string> {
+    let id: string | undefined;
+    try {
+      id = getCoingeckoTokenIdByAddress(address);
+      return id;
+    } catch (error) {
+      this.logger.warn({
+        at: "Coingecko#getCoingeckoTokenIdByAddress",
+        message: `Token with address ${address} not found in constants. Attempting to fetch ID from coingecko API...`,
+      });
+    }
+
+    const platformId = await this.getPlatformId(chainId);
+    id = this.getTokenIdFromAddress(address, platformId);
+
+    if (id) {
+      return id;
+    }
+    await this.updateTokenMap();
+
+    id = this.getTokenIdFromAddress(address, platformId);
+
+    if (!id) {
+      const message = `Coin with address ${address} does not exist on chain with id ${chainId}`;
+      this.logger.error({
+        at: "Coingecko#getCoingeckoTokenIdByAddress",
+        message,
+      });
+      throw new Error(message);
+    }
+
+    return id;
   }
 
   /**
@@ -98,8 +198,13 @@ export class Coingecko {
    * @returns The price of the token at the given date.
    * @throws If today is selected and it is before 3am UTC or if the price is not found.
    */
-  async getContractHistoricDayPrice(contractAddress: string, date: string, currency = "usd"): Promise<number> {
-    const coingeckoTokenIdentifier = getCoingeckoTokenIdByAddress(contractAddress);
+  async getContractHistoricDayPrice(
+    contractAddress: string,
+    date: string,
+    currency = "usd",
+    chainId: number
+  ): Promise<number> {
+    const coingeckoTokenIdentifier = await this.getCoingeckoTokenId(contractAddress, chainId);
     assert(date, "Requires date string");
     // Build the path for the Coingecko API request
     const url = `coins/${coingeckoTokenIdentifier}/history`;
@@ -109,7 +214,7 @@ export class Coingecko {
       localization: "false",
     };
     // Grab the result - parse out price, market cap, total volume, and timestamp
-    const result = await this.call(`${url}?${new URLSearchParams(queryParams).toString()}`);
+    const result = await this.call<PriceHistory>(`${url}?${new URLSearchParams(queryParams).toString()}`);
     const price = result?.market_data?.current_price?.[currency];
     assert(price, `No price found for ${contractAddress} on ${date}`);
     return price;
@@ -118,11 +223,14 @@ export class Coingecko {
   getContractDetails(contract_address: string, platform_id = "ethereum") {
     return this.call(`coins/${platform_id}/contract/${contract_address.toLowerCase()}`);
   }
+
   async getCurrentPriceByContract(
     contract_address: string,
     currency = "usd",
-    platform_id = "ethereum"
+    _platform_id = "ethereum",
+    chainId?: number
   ): Promise<[string, number]> {
+    const platform_id = chainId ? await this.getPlatformId(chainId) : _platform_id;
     const priceCache: { [addr: string]: CoinGeckoPrice } = this.getPriceCache(currency, platform_id);
     const now: number = msToS(Date.now());
     let tokenPrice: CoinGeckoPrice | undefined = priceCache[contract_address];
@@ -148,6 +256,7 @@ export class Coingecko {
     }
 
     assert(tokenPrice !== undefined);
+    console.log("Got price from coingecko!", tokenPrice.price);
     return [tokenPrice.timestamp.toString(), tokenPrice.price];
   }
   // Return an array of spot prices for an array of collateral addresses in one async call. Note we might in future
@@ -243,7 +352,7 @@ export class Coingecko {
     return this.call("asset_platforms");
   }
 
-  call(path: string) {
+  call<T>(path: string): Promise<T> {
     const sendRequest = async () => {
       const { proHost } = this;
 
@@ -254,7 +363,7 @@ export class Coingecko {
 
       // If pro api key, try basic and use pro as fallback.
       try {
-        return await this._callBasic(path, this.basicApiTimeout);
+        return (await this._callBasic(path, this.basicApiTimeout)) as T;
       } catch (err) {
         this.logger.debug({
           at: "sdk/coingecko",
