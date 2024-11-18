@@ -152,6 +152,7 @@ export class Coingecko {
         .filter((token) => Boolean(Object.values(token?.platforms)?.length > 0))
         .map((token) => [token.id, token.platforms])
     );
+
     return this.tokenIdMap;
   }
 
@@ -160,6 +161,7 @@ export class Coingecko {
     let id: string | undefined;
     try {
       id = getCoingeckoTokenIdByAddress(address);
+
       return id;
     } catch (error) {
       this.logger.warn({
@@ -169,6 +171,7 @@ export class Coingecko {
     }
 
     const platformId = await this.getPlatformId(chainId);
+
     id = this.getTokenIdFromAddress(address, platformId);
 
     if (id) {
@@ -202,7 +205,7 @@ export class Coingecko {
     contractAddress: string,
     date: string,
     currency = "usd",
-    chainId: number
+    chainId = 1
   ): Promise<number> {
     const coingeckoTokenIdentifier = await this.getCoingeckoTokenId(contractAddress, chainId);
     assert(date, "Requires date string");
@@ -224,13 +227,8 @@ export class Coingecko {
     return this.call(`coins/${platform_id}/contract/${contract_address.toLowerCase()}`);
   }
 
-  async getCurrentPriceByContract(
-    contract_address: string,
-    currency = "usd",
-    _platform_id = "ethereum",
-    chainId?: number
-  ): Promise<[string, number]> {
-    const platform_id = chainId ? await this.getPlatformId(chainId) : _platform_id;
+  async getCurrentPriceByContract(contract_address: string, currency = "usd", chainId = 1): Promise<[string, number]> {
+    const platform_id = await this.getPlatformId(chainId);
     const priceCache: { [addr: string]: CoinGeckoPrice } = this.getPriceCache(currency, platform_id);
     const now: number = msToS(Date.now());
     let tokenPrice: CoinGeckoPrice | undefined = priceCache[contract_address];
@@ -256,7 +254,6 @@ export class Coingecko {
     }
 
     assert(tokenPrice !== undefined);
-    console.log("Got price from coingecko!", tokenPrice.price);
     return [tokenPrice.timestamp.toString(), tokenPrice.price];
   }
   // Return an array of spot prices for an array of collateral addresses in one async call. Note we might in future
