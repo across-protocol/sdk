@@ -20,7 +20,7 @@ export class PriceFeed extends BaseHTTPAdapter implements PriceFeedAdapter {
     return price[0];
   }
 
-  async getPricesByAddress(addresses: string[], _currency: string): Promise<TokenPrice[]> {
-    return addresses.map((address) => ({ address, price: 0, timestamp: 0 }));
+  getPricesByAddress(addresses: string[], _currency: string): Promise<TokenPrice[]> {
+    return Promise.resolve(addresses.map((address) => ({ address, price: 0, timestamp: 0 })));
   }
 }

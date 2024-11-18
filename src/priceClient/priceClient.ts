@@ -50,7 +50,7 @@ export class PriceClient implements PriceFeedAdapter {
     assert(priceFeeds.length > 0, "No price feeds supplied.");
 
     if (!throwOnFailure) {
-      priceFeeds.push(new defaultAdapter.PriceFeed);
+      priceFeeds.push(new defaultAdapter.PriceFeed());
     }
   }
 
