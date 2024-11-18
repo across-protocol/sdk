@@ -45,14 +45,15 @@ export class Profiler {
     this.detail = detail;
   }
 
-  protected log(logLevel: DefaultLogLevels, data: Parameters<Logger["log"]>[1]): void {
+  log(logLevel: DefaultLogLevels, data: Parameters<Logger["log"]>[1]): void {
     this.logger.log(logLevel, {
+      at: this.at,
       ...defaultMeta,
       ...data,
     });
   }
 
-  protected logMeasure(data: PerformanceData, logLevel: DefaultLogLevels = this.logLevel): void {
+  logMeasure(data: Omit<PerformanceData, "at">, logLevel: DefaultLogLevels = this.logLevel): void {
     this.log(logLevel, {
       ...data,
     });
@@ -112,7 +113,6 @@ export class Profiler {
 
     if (!startMark) {
       this.log("warn", {
-        at: this.at,
         message: `Cannot find start mark for label "${from}".`,
         ...this.detail,
       });
@@ -127,7 +127,6 @@ export class Profiler {
     const defaultMessage = `Profiler Log: ${task}`;
 
     this.logMeasure({
-      at: this.at,
       task,
       duration,
       message: message ?? defaultMessage,
@@ -157,7 +156,6 @@ export class Profiler {
       const defaultMessage = `Profiler Log: ${task}`;
 
       this.logMeasure({
-        at: this.at,
         task,
         duration,
         message: message ?? defaultMessage,
@@ -186,7 +184,6 @@ export class Profiler {
       const defaultMessage = `Profiler Log: ${task}`;
 
       this.logMeasure({
-        at: this.at,
         task,
         duration,
         message: message ?? defaultMessage,
