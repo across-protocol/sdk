@@ -1,6 +1,7 @@
 import assert from "assert";
 import { CoinGeckoPrice } from "../coingecko";
 import { Logger } from "../relayFeeCalculator"; // @todo: Relocate Logger to utils?
+import { defaultAdapter } from "./adapters";
 
 export { Logger }; // Permit adapters to import a common definition.
 export type TokenPrice = CoinGeckoPrice; // Temporary inversion; CoinGecko should source from here.
@@ -42,10 +43,15 @@ export class PriceClient implements PriceFeedAdapter {
 
   constructor(
     protected logger: Logger,
-    readonly priceFeeds: PriceFeedAdapter[]
+    readonly priceFeeds: PriceFeedAdapter[],
+    readonly throwOnFailure = false
   ) {
     assert(logger, "No logging instance supplied.");
     assert(priceFeeds.length > 0, "No price feeds supplied.");
+
+    if (!throwOnFailure) {
+      priceFeeds.push(new defaultAdapter.PriceFeed);
+    }
   }
 
   get maxPriceAge(): number {
@@ -80,7 +86,7 @@ export class PriceClient implements PriceFeedAdapter {
     // Determine whether each *requested* price is current.
     const now = msToS(Date.now());
     const missed: { [address: string]: number } = {};
-    addresses.forEach((address: string) => {
+    addresses.forEach((address) => {
       const addr = address.toLowerCase();
       const tokenPrice = priceCache[addr] ?? ({ price: 0, timestamp: 0 } as TokenPrice);
       priceCache[addr] = tokenPrice; // Update priceCache if necessary;
@@ -100,7 +106,7 @@ export class PriceClient implements PriceFeedAdapter {
       await this.updatePrices(currency);
     }
 
-    return addresses.map((address: string) => {
+    return addresses.map((address) => {
       const { price, timestamp } = priceCache[address.toLowerCase()];
       return { address, price, timestamp };
     });
@@ -129,7 +135,7 @@ export class PriceClient implements PriceFeedAdapter {
       });
       try {
         const prices = await priceFeed.getPricesByAddress(addresses, currency);
-        addresses = await this.updateCache(priceCache, prices, addresses);
+        addresses = this.updateCache(priceCache, prices, addresses);
         if (addresses.length === 0) break; // All done
       } catch (err) {
         this.logger.debug({
