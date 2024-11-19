@@ -12,7 +12,7 @@ import { BaseHTTPAdapter } from "./baseAdapter";
  */
 export class PriceFeed extends BaseHTTPAdapter implements PriceFeedAdapter {
   constructor() {
-    super("Zero Adapter", "127.0.0.1", {});
+    super("Default Adapter", "127.0.0.1", {});
   }
 
   async getPriceByAddress(address: string, currency: string): Promise<TokenPrice> {
