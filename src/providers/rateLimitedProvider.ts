@@ -51,6 +51,7 @@ export class RateLimitedProvider extends ethers.providers.StaticJsonRpcProvider 
         method,
         params,
         chainId: this.network.chainId,
+        datadog: true,
       };
 
       // In this path we log an rpc response sample.
