@@ -10,6 +10,7 @@ import {
   pattern,
   boolean,
   defaulted,
+  unknown,
 } from "superstruct";
 import { BigNumber } from "../../../utils";
 
@@ -123,7 +124,7 @@ const nestedV3BundleFillsSS = record(
 );
 
 export const BundleDataSS = object({
-  bundleBlockRanges: record(PositiveIntegerStringSS, array(number())),
+  bundleBlockRanges: unknown(),
   bundleDepositsV3: nestedV3DepositRecordSS,
   expiredDepositsToRefundV3: nestedV3DepositRecordSS,
   unexecutableSlowFills: nestedV3DepositRecordWithLpFeePctSS,
