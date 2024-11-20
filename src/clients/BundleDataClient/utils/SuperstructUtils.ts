@@ -123,7 +123,7 @@ const nestedV3BundleFillsSS = record(
 );
 
 export const BundleDataSS = object({
-  bundleBlockRanges: array(array(number())),
+  bundleBlockRanges: record(PositiveIntegerStringSS, array(number())),
   bundleDepositsV3: nestedV3DepositRecordSS,
   expiredDepositsToRefundV3: nestedV3DepositRecordSS,
   unexecutableSlowFills: nestedV3DepositRecordWithLpFeePctSS,
