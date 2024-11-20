@@ -250,7 +250,7 @@ export class Coingecko {
     const priceCache = this.getPriceCache(currency, platform_id);
     let tokenPrice = this.getCachedAddressPrice(contractAddress, currency, platform_id);
     if (tokenPrice === undefined) {
-      const coingeckoId = getCoingeckoTokenIdByAddress(contractAddress);
+      const coingeckoId = await this.getCoingeckoTokenId(contractAddress, chainId);
       // Build the path for the Coingecko API request
       const result = await this.call<Record<string, CGTokenPrice>>(
         `simple/price?ids=${coingeckoId}&vs_currencies=${currency}&include_last_updated_at=true`
