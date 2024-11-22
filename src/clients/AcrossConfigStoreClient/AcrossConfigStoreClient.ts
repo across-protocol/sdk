@@ -373,7 +373,10 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
 
         // Known transaction hash with bad config update.
         // TODO: turn this into a rule that detects invalid UBAR values.
-        if (passedArgs.transactionHash === "0x422abc617c6598e4b91859f99c392939d2034c1a839a342a963a34a2f0390195") {
+        if (
+          passedArgs.transactionHash.toLowerCase() ===
+          "0x422abc617c6598e4b91859f99c392939d2034c1a839a342a963a34a2f0390195".toLowerCase()
+        ) {
           throw new Error("Known bad config update found");
         }
 
