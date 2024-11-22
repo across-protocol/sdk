@@ -35,8 +35,8 @@ import {
 } from "../../interfaces";
 import { parseJSONWithNumericString } from "../../utils/JSONUtils";
 import { BaseAbstractClient, isUpdateFailureReason, UpdateFailureReason } from "../BaseAbstractClient";
-import { RateModel } from "../../contracts/acrossConfigStore";
 import { parseAndReturnRateModelFromString } from "../../lpFeeCalculator/rateModel";
+import { RateModel } from "../../lpFeeCalculator";
 
 type ConfigStoreUpdateSuccess = {
   success: true;
@@ -399,7 +399,7 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
             spokeTargetBalances,
             l1Token,
           });
-          this.cumulativeRouteRateModelUpdates.push({ ...eventData, routeRateModel, l1Token });  
+          this.cumulativeRouteRateModelUpdates.push({ ...eventData, routeRateModel, l1Token });
         }
       } catch (err) {
         // @dev averageBlockTimeSeconds does not actually block.
@@ -577,7 +577,7 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
     if (parsedValue?.rateModel !== undefined) {
       const rateModel = parsedValue.rateModel;
       assert(
-        toBN(rateModel.UBar).gt(0) && toBN(rateModel.UBar).lt(toWei("1")),
+        this.isValidRateModel(rateModel),
         `Invalid rateModel UBar for ${l1Token} at transaction ${transactionHash}, ${JSON.stringify(rateModel)}`
       );
       rateModelForToken = JSON.stringify(rateModel);
@@ -600,10 +600,10 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
         routeRateModel = Object.fromEntries(
           Object.entries(parsedValue.routeRateModel).map(([path, routeRateModel]) => {
             assert(
-              toBN(routeRateModel.UBar).gt(0) && toBN(routeRateModel.UBar).lt(toWei("1")),
-              `Invalid routeRateModel UBar for ${path} for ${l1Token} at transaction ${transactionHash}, ${JSON.stringify(
-                routeRateModel
-              )}`
+              this.isValidRateModel(routeRateModel) &&
+                `Invalid routeRateModel UBar for ${path} for ${l1Token} at transaction ${transactionHash}, ${JSON.stringify(
+                  routeRateModel
+                )}`
             );
             return [path, JSON.stringify(routeRateModel)];
           })
@@ -616,6 +616,11 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
       rateModel: rateModelForToken,
       routeRateModel,
     };
+  }
+
+  isValidRateModel(rateModel: RateModel): boolean {
+    // UBar should be between 0% and 100%.
+    return toBN(rateModel.UBar).gt(0) && toBN(rateModel.UBar).lt(toWei("1"));
   }
 
   filterDisabledChains(disabledChains: number[]): number[] {

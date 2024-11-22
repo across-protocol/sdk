@@ -14,8 +14,8 @@ const L1TokenConfigSs = object({
   rateModel: RateModelSs,
   routeRateModel: optional(record(string(), RateModelSs)),
 });
-export type RateModel = Infer<typeof RateModelSs>;
-export type L1TokenConfig = Infer<typeof L1TokenConfigSs>;
+type RateModel = Infer<typeof RateModelSs>;
+type L1TokenConfig = Infer<typeof L1TokenConfigSs>;
 
 export class Client {
   public readonly contract: AcrossConfigStore;
