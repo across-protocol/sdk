@@ -41,6 +41,18 @@ const sampleRateModel2 = {
   R1: toWei("0.1").toString(),
   R2: toWei("0.2").toString(),
 };
+const invalidRateModel = {
+  UBar: "0",
+  R0: "0",
+  R1: "0",
+  R2: "0",
+};
+const invalidRateModel2 = {
+  UBar: toWei("1").toString(),
+  R0: "0",
+  R1: "0",
+  R2: "0",
+};
 
 const sampleSpokeTargetBalances = {
   [originChainId]: {
@@ -206,6 +218,41 @@ describe("AcrossConfigStoreClient", function () {
     await configStoreClient.update();
     expect(configStoreClient.cumulativeMaxRefundCountUpdates.length).to.equal(1);
     expect(configStoreClient.cumulativeMaxL1TokenCountUpdates.length).to.equal(1);
+  });
+
+  it("update should ignore invalid TokenConfigs", async function () {
+    [owner] = await ethers.getSigners();
+    ({ dai: l1Token, weth: l2Token } = await hubPoolFixture());
+
+    configStore = (await (await getContractFactory("AcrossConfigStore", owner)).deploy()) as AcrossConfigStore;
+    const { blockNumber: fromBlock } = await configStore.deployTransaction.wait();
+    configStoreClient = new MockConfigStoreClient(
+      createSpyLogger().spyLogger,
+      configStore,
+      { fromBlock },
+      undefined,
+      undefined,
+      undefined,
+      false
+    );
+    configStoreClient.setConfigStoreVersion(0);
+
+    // Add new TokenConfig events and check that updating again pulls in new events.
+    await configStore.updateTokenConfig(l1Token.address, { ...tokenConfigToUpdate, rateModel: invalidRateModel });
+    await configStore.updateTokenConfig(l1Token.address, { tokenConfigToUpdate, rateModel: invalidRateModel2 });
+    await configStore.updateTokenConfig(l1Token.address, {
+      tokenConfigToUpdate,
+      routeRateModel: { "999-888": invalidRateModel },
+    });
+    await configStore.updateTokenConfig(l1Token.address, {
+      tokenConfigToUpdate,
+      routeRateModel: { "999-888": invalidRateModel2 },
+    });
+    await configStoreClient.update();
+
+    expect(configStoreClient.cumulativeRateModelUpdates.length).to.equal(0);
+    expect(configStoreClient.cumulativeRouteRateModelUpdates.length).to.equal(0);
+    expect(configStoreClient.cumulativeSpokeTargetBalanceUpdates.length).to.equal(0);
   });
 
   describe("TokenConfig", function () {

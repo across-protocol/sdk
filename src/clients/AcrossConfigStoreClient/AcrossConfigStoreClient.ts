@@ -16,6 +16,7 @@ import {
   sortEventsDescending,
   spreadEventWithBlockNumber,
   toBN,
+  toWei,
   utf8ToHex,
 } from "../../utils";
 import { PROTOCOL_DEFAULT_CHAIN_ID_INDICES } from "../../constants";
@@ -36,6 +37,7 @@ import {
 } from "../../interfaces";
 import { parseJSONWithNumericString } from "../../utils/JSONUtils";
 import { BaseAbstractClient, isUpdateFailureReason, UpdateFailureReason } from "../BaseAbstractClient";
+import { RateModel } from "../../lpFeeCalculator";
 
 type ConfigStoreUpdateSuccess = {
   success: true;
@@ -62,6 +64,23 @@ export enum GLOBAL_CONFIG_STORE_KEYS {
   CHAIN_ID_INDICES = "CHAIN_ID_INDICES",
   LITE_CHAIN_ID_INDICES = "LITE_CHAIN_ID_INDICES",
 }
+
+const KNOWN_INVALID_TOKEN_CONFIG_UPDATE_HASHES = [
+  "0x422abc617c6598e4b91859f99c392939d2034c1a839a342a963a34a2f0390195",
+  "0x36c85e388279714b2c98d46e3377dc37a1575665b2cac5e52fe97d8d77efcd2b",
+  "0x6f0a93119e538dd84e02adfce821fb4e6dd9baddcceb041977e8ba3c39185ab8",
+  "0xc28d8bb445e0b747201e6f98ee62aa03009f4c04b8d6f9fad8f214ec1166463d",
+  "0x3b0719ef1e3cae2dc1a854a1012332a288e50ad24adc52861d42bcc30fd3deaf",
+  "0xbae5c792f74d9f0b6554acf793df0d6b3610868bd6f6a377371b9dec10038003",
+  "0xd983142980ac2451e913b152413e769f7a7007fe7305c2e8a03db432e892f84c",
+  "0xf64610347950488503428fd720132f8188aa26dcc48e3fc9a89b7bc24aa7fda2",
+  "0x1970fcd1e5d5d6cf3bbb640d30d5e471ce5161d65580cedb388526a32b2f7638",
+  "0xf098c547d726be8fda419faaee1850280ded1ea75a1b10f4a1614805fa4207d3",
+  "0xbfa181663761a78c66dd2c7012604eb910c4c39bad17089e2cc4a011ccc0e981",
+  "0x89830f5e81b9e8b44ac2f8966b2fa4bf8e71d7f546e2bc0e773d8ee8df4bdb36",
+  "0xb0ad6270124c925a234d9c4f87b60396f2b52fdc250cd2fc9cac792d0d62e467",
+  "0x779bc3bf2dba1128d5dda6be8ae99b503cae23343a7265a86bca3d5572ed4268",
+].map((hash) => hash.toLowerCase());
 
 export class AcrossConfigStoreClient extends BaseAbstractClient {
   public cumulativeRateModelUpdates: across.rateModel.RateModelEvent[] = [];
@@ -357,6 +376,11 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
 
     // Save new TokenConfig updates.
     for (const event of updatedTokenConfigEvents) {
+      // If transaction hash is known to be invalid, skip it immediately to avoid creating extra logs.
+      if (KNOWN_INVALID_TOKEN_CONFIG_UPDATE_HASHES.includes(event.transactionHash.toLowerCase())) {
+        continue;
+      }
+
       const args = {
         ...(spreadEventWithBlockNumber(event) as TokenConfig),
       };
@@ -371,58 +395,73 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
         // eslint-disable-next-line @typescript-eslint/no-unused-vars
         const { value, key, ...passedArgs } = args;
 
-        // Known transaction hash with bad config update.
-        // TODO: turn this into a rule that detects invalid UBAR values.
-        if (
-          passedArgs.transactionHash.toLowerCase() ===
-          "0x422abc617c6598e4b91859f99c392939d2034c1a839a342a963a34a2f0390195".toLowerCase()
-        ) {
-          throw new Error("Known bad config update found");
-        }
+        // Remove any config updates with invalid rate models by throwing an error if any part of the TokenConfig
+        // is wrong before we push any events into this client's state.
+        let rateModelForToken: string | undefined;
+        let spokeTargetBalances: SpokeTargetBalanceUpdate["spokeTargetBalances"] = {};
+        let routeRateModel: { [path: string]: string } = {};
 
         // Drop value and key before passing args.
         if (parsedValue?.rateModel !== undefined) {
-          const rateModelForToken = JSON.stringify(parsedValue.rateModel);
-          this.cumulativeRateModelUpdates.push({ ...passedArgs, rateModel: rateModelForToken, l1Token });
+          const rateModelString = parsedValue.rateModel as unknown as RateModel;
+          assert(
+            toBN(rateModelString.UBar).gt(0) && toBN(rateModelString.UBar).lt(toWei("1")),
+            `Invalid rateModel UBar for ${l1Token} at transaction ${event.transactionHash}`
+          );
+          rateModelForToken = JSON.stringify(parsedValue.rateModel);
 
           // Store spokeTargetBalances
           if (parsedValue?.spokeTargetBalances) {
             // Note: cast is required because fromEntries always produces string keys, despite the function returning a
             // numerical key.
-            const targetBalances = Object.fromEntries(
+            spokeTargetBalances = Object.fromEntries(
               Object.entries(parsedValue.spokeTargetBalances).map(([chainId, targetBalance]) => {
                 const target = max(toBN(targetBalance.target), toBN(0));
                 const threshold = max(toBN(targetBalance.threshold), toBN(0));
                 return [chainId, { target, threshold }];
               })
             ) as SpokeTargetBalanceUpdate["spokeTargetBalances"];
-            this.cumulativeSpokeTargetBalanceUpdates.push({
-              ...passedArgs,
-              spokeTargetBalances: targetBalances,
-              l1Token,
-            });
-          } else {
-            this.cumulativeSpokeTargetBalanceUpdates.push({ ...passedArgs, spokeTargetBalances: {}, l1Token });
           }
 
           // Store route-specific rate models
           if (parsedValue?.routeRateModel) {
-            const routeRateModel = Object.fromEntries(
+            routeRateModel = Object.fromEntries(
               Object.entries(parsedValue.routeRateModel).map(([path, routeRateModel]) => {
+                const routeRateModelString = routeRateModel as unknown as RateModel;
+                assert(
+                  toBN(routeRateModelString.UBar).gt(0) && toBN(routeRateModelString.UBar).lt(toWei("1")),
+                  `Invalid routeRateModel UBar for ${path} for ${l1Token} at transaction ${
+                    event.transactionHash
+                  }, ${JSON.stringify(routeRateModelString)}`
+                );
                 return [path, JSON.stringify(routeRateModel)];
               })
             );
-            this.cumulativeRouteRateModelUpdates.push({ ...passedArgs, routeRateModel, l1Token });
-          } else {
-            this.cumulativeRouteRateModelUpdates.push({ ...passedArgs, routeRateModel: {}, l1Token });
           }
+        }
+
+        if (rateModelForToken !== undefined) {
+          this.cumulativeRateModelUpdates.push({ ...passedArgs, rateModel: rateModelForToken, l1Token });
+        }
+        if (parsedValue?.spokeTargetBalances) {
+          this.cumulativeSpokeTargetBalanceUpdates.push({
+            ...passedArgs,
+            spokeTargetBalances,
+            l1Token,
+          });
+        }
+        if (parsedValue?.routeRateModel) {
+          this.cumulativeRouteRateModelUpdates.push({ ...passedArgs, routeRateModel, l1Token });
         }
       } catch (err) {
         // @dev averageBlockTimeSeconds does not actually block.
         const maxWarnAge = (24 * 60 * 60) / (await utils.averageBlockTimeSeconds());
         if (result.searchEndBlock - event.blockNumber < maxWarnAge) {
           const errMsg = isError(err) ? err.message : "unknown error";
-          this.logger.debug({
+          // This will emit warning logs for any invalid historical updates and it will be very noisy, so
+          // developer should move over known invalid hashes to KNOWN_INVALID_TOKEN_CONFIG_UPDATE_HASHES to
+          // suppress these warnings.
+          this.logger.warn({
             at: "ConfigStore::update",
             message: `Caught error during ConfigStore update: ${errMsg}`,
             update: args,
@@ -431,6 +470,7 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
           this.logger.debug({
             at: "ConfigStoreClient::update",
             message: `Skipping invalid historical update at block ${event.blockNumber}`,
+            transactionHash: event.transactionHash,
           });
         }
         continue;
