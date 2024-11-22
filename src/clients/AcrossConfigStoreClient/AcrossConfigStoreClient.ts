@@ -371,6 +371,12 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
         // eslint-disable-next-line @typescript-eslint/no-unused-vars
         const { value, key, ...passedArgs } = args;
 
+        // Known transaction hash with bad config update.
+        // TODO: turn this into a rule that detects invalid UBAR values.
+        if (passedArgs.transactionHash === "0x422abc617c6598e4b91859f99c392939d2034c1a839a342a963a34a2f0390195") {
+          throw new Error("Known bad config update found");
+        }
+
         // Drop value and key before passing args.
         if (parsedValue?.rateModel !== undefined) {
           const rateModelForToken = JSON.stringify(parsedValue.rateModel);
