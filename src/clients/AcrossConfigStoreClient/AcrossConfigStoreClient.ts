@@ -422,7 +422,7 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
         const maxWarnAge = (24 * 60 * 60) / (await utils.averageBlockTimeSeconds());
         if (result.searchEndBlock - event.blockNumber < maxWarnAge) {
           const errMsg = isError(err) ? err.message : "unknown error";
-          this.logger.warn({
+          this.logger.debug({
             at: "ConfigStore::update",
             message: `Caught error during ConfigStore update: ${errMsg}`,
             update: args,
