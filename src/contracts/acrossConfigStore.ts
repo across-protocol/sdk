@@ -14,21 +14,21 @@ const L1TokenConfigSs = object({
   rateModel: RateModelSs,
   routeRateModel: optional(record(string(), RateModelSs)),
 });
-type RateModel = Infer<typeof RateModelSs>;
-type L1TokenConfig = Infer<typeof L1TokenConfigSs>;
+type RateModelSS = Infer<typeof RateModelSs>;
+type L1TokenConfigSS = Infer<typeof L1TokenConfigSs>;
 
 export class Client {
   public readonly contract: AcrossConfigStore;
   constructor(address: string, provider: Provider) {
     this.contract = AcrossConfigStore__factory.connect(address, provider);
   }
-  static parseL1TokenConfig(data: string): L1TokenConfig {
+  static parseL1TokenConfig(data: string): L1TokenConfigSS {
     const l1TokenConfig = JSON.parse(data);
     const l1TokenConfigMask = filterFalsyKeys(mask(l1TokenConfig, L1TokenConfigSs));
     assert(l1TokenConfigMask, L1TokenConfigSs);
     return l1TokenConfigMask;
   }
-  async getL1TokenConfig(l1TokenAddress: string, overrides: CallOverrides = {}): Promise<L1TokenConfig> {
+  async getL1TokenConfig(l1TokenAddress: string, overrides: CallOverrides = {}): Promise<L1TokenConfigSS> {
     const data = await this.contract.l1TokenConfig(l1TokenAddress, overrides);
     return Client.parseL1TokenConfig(data);
   }
@@ -37,7 +37,7 @@ export class Client {
     overrides: CallOverrides = {},
     originChainId?: number,
     destinationChainId?: number
-  ): Promise<RateModel> {
+  ): Promise<RateModelSS> {
     const l1TokenConfig = await this.getL1TokenConfig(l1TokenAddress, overrides);
     if (originChainId === undefined || destinationChainId === undefined) return l1TokenConfig.rateModel;
     const routeRateModelKey = `${originChainId}-${destinationChainId}`;
