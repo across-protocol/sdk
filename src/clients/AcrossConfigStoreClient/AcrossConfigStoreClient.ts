@@ -1,4 +1,4 @@
-import { utils, across } from "@uma/sdk";
+import { utils } from "@uma/sdk";
 import assert from "assert";
 import { Contract } from "ethers";
 import winston from "winston";
@@ -6,7 +6,6 @@ import { isError } from "../../typeguards";
 import {
   EventSearchConfig,
   MakeOptional,
-  findLast,
   isArrayOf,
   isDefined,
   isPositiveInteger,
@@ -27,17 +26,17 @@ import {
   LiteChainsIdListUpdate,
   Log,
   ParsedTokenConfig,
+  RateModelUpdate,
   RouteRateModelUpdate,
   SortableEvent,
   SpokePoolTargetBalance,
   SpokeTargetBalanceUpdate,
   TokenConfig,
-  UBAConfigUpdates,
-  UBAParsedConfigType,
 } from "../../interfaces";
 import { parseJSONWithNumericString } from "../../utils/JSONUtils";
 import { BaseAbstractClient, isUpdateFailureReason, UpdateFailureReason } from "../BaseAbstractClient";
-import { RateModel } from "../../lpFeeCalculator";
+import { RateModel } from "../../contracts/acrossConfigStore";
+import { parseAndReturnRateModelFromString } from "../../lpFeeCalculator/rateModel";
 
 type ConfigStoreUpdateSuccess = {
   success: true;
@@ -65,6 +64,7 @@ export enum GLOBAL_CONFIG_STORE_KEYS {
   LITE_CHAIN_ID_INDICES = "LITE_CHAIN_ID_INDICES",
 }
 
+// Conveniently store known invalid token config update hashes to avoid spamming debug logs.
 const KNOWN_INVALID_TOKEN_CONFIG_UPDATE_HASHES = [
   "0x422abc617c6598e4b91859f99c392939d2034c1a839a342a963a34a2f0390195",
   "0x36c85e388279714b2c98d46e3377dc37a1575665b2cac5e52fe97d8d77efcd2b",
@@ -83,8 +83,7 @@ const KNOWN_INVALID_TOKEN_CONFIG_UPDATE_HASHES = [
 ].map((hash) => hash.toLowerCase());
 
 export class AcrossConfigStoreClient extends BaseAbstractClient {
-  public cumulativeRateModelUpdates: across.rateModel.RateModelEvent[] = [];
-  public ubaConfigUpdates: UBAConfigUpdates[] = [];
+  public cumulativeRateModelUpdates: RateModelUpdate[] = [];
   public cumulativeRouteRateModelUpdates: RouteRateModelUpdate[] = [];
   public cumulativeMaxRefundCountUpdates: GlobalConfigUpdate[] = [];
   public cumulativeMaxL1TokenCountUpdates: GlobalConfigUpdate[] = [];
@@ -93,8 +92,6 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
   public cumulativeSpokeTargetBalanceUpdates: SpokeTargetBalanceUpdate[] = [];
   public cumulativeConfigStoreVersionUpdates: ConfigStoreVersionUpdate[] = [];
   public cumulativeDisabledChainUpdates: DisabledChainsUpdate[] = [];
-
-  protected rateModelDictionary: across.rateModel.RateModelDictionary;
 
   public hasLatestConfigStoreVersion = false;
   public chainId: number | undefined;
@@ -108,37 +105,43 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
     super(eventSearchConfig);
     this.firstBlockToSearch = eventSearchConfig.fromBlock;
     this.latestBlockSearched = 0;
-    this.rateModelDictionary = new across.rateModel.RateModelDictionary();
   }
-
-  // <-- START LEGACY CONFIGURATION OBJECTS -->
-  // @dev The following configuration objects are pre-UBA fee model configurations and are deprecated as of version
-  // 2 of the ConfigStore. They are kept here for backwards compatibility.
 
   getRateModelForBlockNumber(
     l1Token: string,
     originChainId: number | string,
     destinationChainId: number | string,
     blockNumber: number | undefined = undefined
-  ): across.constants.RateModel {
+  ): RateModel {
     // Use route-rate model if available, otherwise use default rate model for l1Token.
     const route = `${originChainId}-${destinationChainId}`;
     const routeRateModel = this.getRouteRateModelForBlockNumber(l1Token, route, blockNumber);
-    return routeRateModel ?? this.rateModelDictionary.getRateModelForBlockNumber(l1Token, blockNumber);
+    if (routeRateModel) {
+      return routeRateModel;
+    }
+
+    const defaultRateModelUpdate = sortEventsDescending(this.cumulativeRateModelUpdates).find(
+      (config) =>
+        config.blockNumber <= (blockNumber ?? 0) && config.l1Token === l1Token && config.rateModel !== undefined
+    );
+    if (!defaultRateModelUpdate) {
+      throw new Error(`Could not find TokenConfig update for ${l1Token} at block ${blockNumber}`);
+    }
+    return parseAndReturnRateModelFromString(defaultRateModelUpdate.rateModel);
   }
 
   getRouteRateModelForBlockNumber(
     l1Token: string,
     route: string,
     blockNumber: number | undefined = undefined
-  ): across.constants.RateModel | undefined {
+  ): RateModel | undefined {
     const config = (sortEventsDescending(this.cumulativeRouteRateModelUpdates) as RouteRateModelUpdate[]).find(
       (config) => config.blockNumber <= (blockNumber ?? 0) && config.l1Token === l1Token
     );
     if (config?.routeRateModel[route] === undefined) {
       return undefined;
     }
-    return across.rateModel.parseAndReturnRateModelFromString(config.routeRateModel[route]);
+    return parseAndReturnRateModelFromString(config.routeRateModel[route]);
   }
 
   /**
@@ -386,72 +389,17 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
       };
 
       try {
-        const parsedValue = parseJSONWithNumericString(args.value) as ParsedTokenConfig;
-        const l1Token = args.key;
+        const { rateModel, routeRateModel, spokeTargetBalances } = this.validateTokenConfigUpdate(args);
+        const { value, key: l1Token, ...eventData } = args;
 
-        // TODO: Temporarily reformat the shape of the event that we pass into the sdk.rateModel class to make it fit
-        // the expected shape. This is a fix for now that we should eventually replace when we change the sdk.rateModel
-        // class itself to work with the generalized ConfigStore.
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        const { value, key, ...passedArgs } = args;
-
-        // Remove any config updates with invalid rate models by throwing an error if any part of the TokenConfig
-        // is wrong before we push any events into this client's state.
-        let rateModelForToken: string | undefined;
-        let spokeTargetBalances: SpokeTargetBalanceUpdate["spokeTargetBalances"] = {};
-        let routeRateModel: { [path: string]: string } = {};
-
-        // Drop value and key before passing args.
-        if (parsedValue?.rateModel !== undefined) {
-          const rateModelString = parsedValue.rateModel as unknown as RateModel;
-          assert(
-            toBN(rateModelString.UBar).gt(0) && toBN(rateModelString.UBar).lt(toWei("1")),
-            `Invalid rateModel UBar for ${l1Token} at transaction ${event.transactionHash}`
-          );
-          rateModelForToken = JSON.stringify(parsedValue.rateModel);
-
-          // Store spokeTargetBalances
-          if (parsedValue?.spokeTargetBalances) {
-            // Note: cast is required because fromEntries always produces string keys, despite the function returning a
-            // numerical key.
-            spokeTargetBalances = Object.fromEntries(
-              Object.entries(parsedValue.spokeTargetBalances).map(([chainId, targetBalance]) => {
-                const target = max(toBN(targetBalance.target), toBN(0));
-                const threshold = max(toBN(targetBalance.threshold), toBN(0));
-                return [chainId, { target, threshold }];
-              })
-            ) as SpokeTargetBalanceUpdate["spokeTargetBalances"];
-          }
-
-          // Store route-specific rate models
-          if (parsedValue?.routeRateModel) {
-            routeRateModel = Object.fromEntries(
-              Object.entries(parsedValue.routeRateModel).map(([path, routeRateModel]) => {
-                const routeRateModelString = routeRateModel as unknown as RateModel;
-                assert(
-                  toBN(routeRateModelString.UBar).gt(0) && toBN(routeRateModelString.UBar).lt(toWei("1")),
-                  `Invalid routeRateModel UBar for ${path} for ${l1Token} at transaction ${
-                    event.transactionHash
-                  }, ${JSON.stringify(routeRateModelString)}`
-                );
-                return [path, JSON.stringify(routeRateModel)];
-              })
-            );
-          }
-        }
-
-        if (rateModelForToken !== undefined) {
-          this.cumulativeRateModelUpdates.push({ ...passedArgs, rateModel: rateModelForToken, l1Token });
-        }
-        if (parsedValue?.spokeTargetBalances) {
+        if (rateModel !== undefined) {
+          this.cumulativeRateModelUpdates.push({ ...eventData, rateModel, l1Token });
           this.cumulativeSpokeTargetBalanceUpdates.push({
-            ...passedArgs,
+            ...eventData,
             spokeTargetBalances,
             l1Token,
           });
-        }
-        if (parsedValue?.routeRateModel) {
-          this.cumulativeRouteRateModelUpdates.push({ ...passedArgs, routeRateModel, l1Token });
+          this.cumulativeRouteRateModelUpdates.push({ ...eventData, routeRateModel, l1Token });  
         }
       } catch (err) {
         // @dev averageBlockTimeSeconds does not actually block.
@@ -476,7 +424,6 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
         continue;
       }
     }
-    sortEventsAscendingInPlace(this.ubaConfigUpdates);
 
     // Save new Global config updates.
     for (let i = 0; i < updatedGlobalConfigEvents.length; i++) {
@@ -600,8 +547,6 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
       }
     }
 
-    this.rateModelDictionary.updateWithEvents(this.cumulativeRateModelUpdates);
-
     this.hasLatestConfigStoreVersion = this.hasValidConfigStoreVersionForTimestamp();
     this.latestBlockSearched = result.searchEndBlock;
     this.firstBlockToSearch = result.searchEndBlock + 1; // Next iteration should start off from where this one ended.
@@ -612,30 +557,70 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
     this.logger.debug({ at: "ConfigStore", message: "ConfigStore client updated!" });
   }
 
+  validateTokenConfigUpdate(args: TokenConfig): {
+    spokeTargetBalances: SpokeTargetBalanceUpdate["spokeTargetBalances"];
+    rateModel: string | undefined;
+    routeRateModel: RouteRateModelUpdate["routeRateModel"];
+  } {
+    const { value, key, transactionHash } = args;
+    const parsedValue = parseJSONWithNumericString(value) as ParsedTokenConfig;
+    const l1Token = key;
+
+    // Return the following parameters if the TokenConfig update is valid, otherwise throw an error.
+    // Remove any config updates with invalid rate models by throwing an error if any part of the TokenConfig
+    // is wrong before we push any events into this client's state.
+    let rateModelForToken: string | undefined = undefined;
+    let spokeTargetBalances: SpokeTargetBalanceUpdate["spokeTargetBalances"] = {};
+    let routeRateModel: RouteRateModelUpdate["routeRateModel"] = {};
+
+    // Drop value and key before passing args.
+    if (parsedValue?.rateModel !== undefined) {
+      const rateModel = parsedValue.rateModel;
+      assert(
+        toBN(rateModel.UBar).gt(0) && toBN(rateModel.UBar).lt(toWei("1")),
+        `Invalid rateModel UBar for ${l1Token} at transaction ${transactionHash}, ${JSON.stringify(rateModel)}`
+      );
+      rateModelForToken = JSON.stringify(rateModel);
+
+      // Store spokeTargetBalances
+      if (parsedValue?.spokeTargetBalances) {
+        // Note: cast is required because fromEntries always produces string keys, despite the function returning a
+        // numerical key.
+        spokeTargetBalances = Object.fromEntries(
+          Object.entries(parsedValue.spokeTargetBalances).map(([chainId, targetBalance]) => {
+            const target = max(toBN(targetBalance.target), toBN(0));
+            const threshold = max(toBN(targetBalance.threshold), toBN(0));
+            return [chainId, { target, threshold }];
+          })
+        ) as SpokeTargetBalanceUpdate["spokeTargetBalances"];
+      }
+
+      // Store route-specific rate models
+      if (parsedValue?.routeRateModel) {
+        routeRateModel = Object.fromEntries(
+          Object.entries(parsedValue.routeRateModel).map(([path, routeRateModel]) => {
+            assert(
+              toBN(routeRateModel.UBar).gt(0) && toBN(routeRateModel.UBar).lt(toWei("1")),
+              `Invalid routeRateModel UBar for ${path} for ${l1Token} at transaction ${transactionHash}, ${JSON.stringify(
+                routeRateModel
+              )}`
+            );
+            return [path, JSON.stringify(routeRateModel)];
+          })
+        );
+      }
+    }
+
+    return {
+      spokeTargetBalances,
+      rateModel: rateModelForToken,
+      routeRateModel,
+    };
+  }
+
   filterDisabledChains(disabledChains: number[]): number[] {
     // If any chain ID's are not integers then ignore. UMIP-157 requires that this key cannot include
     // the chain ID 1.
     return disabledChains.filter((chainId: number) => !isNaN(chainId) && Number.isInteger(chainId) && chainId !== 1);
-  }
-
-  /**
-   * Retrieves the most recently set UBA config for a given L1 token address before a block number.
-   * @param l1TokenAddress The L1 token address to retrieve the config for
-   * @param blockNumber The block number to retrieve the config for. If not specified, sets block to max integer
-   * meaning that this function will return the latest config.
-   * @returns The UBA config for the given L1 token address and block number, or undefined if no config exists
-   * before blockNumber.
-   */
-  public getUBAConfig(l1TokenAddress: string, blockNumber = Number.MAX_SAFE_INTEGER): UBAParsedConfigType | undefined {
-    // We only care about searching on the block number and not any events that occurred in the same block
-    // but with a lower transaction index. In other words, if the UBA config was updated as the absolute
-    // last transaction in a block, the update still applies to all preceding UBA events in the same block.
-    // This is a simplifying assumption that we can make because the ConfigStore admin role is whitelisted and assumed
-    // to be acting in the best interest of the protocol.
-    const config = findLast(
-      this.ubaConfigUpdates,
-      (config) => config.l1Token === l1TokenAddress && config.blockNumber <= blockNumber
-    );
-    return config?.config;
   }
 }

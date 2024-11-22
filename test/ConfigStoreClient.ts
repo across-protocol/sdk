@@ -273,12 +273,12 @@ describe("AcrossConfigStoreClient", function () {
       // Block number when there is no rate model
       expect(() =>
         configStoreClient.getRateModelForBlockNumber(l1Token.address, 1, 2, initialRateModelUpdate.blockNumber - 1)
-      ).to.throw(/before first UpdatedRateModel event/);
+      ).to.throw(/Could not find TokenConfig update/);
 
       // L1 token where there is no rate model
       expect(() =>
         configStoreClient.getRateModelForBlockNumber(l2Token.address, 1, 2, initialRateModelUpdate.blockNumber)
-      ).to.throw(/No updated rate model events for L1 token/);
+      ).to.throw(/Could not find TokenConfig update/);
     });
 
     // @note: expect(...)to.deep.equals() coerces BigNumbers incorrectly and fails. Why?
