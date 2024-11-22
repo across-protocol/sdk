@@ -17,7 +17,7 @@ import { Provider, Block } from "@ethersproject/providers";
 import set from "lodash/set";
 import get from "lodash/get";
 import has from "lodash/has";
-import { calculateInstantaneousRate } from "../lpFeeCalculator";
+import { calculateInstantaneousRate, RateModel } from "../lpFeeCalculator";
 import { hubPool, acrossConfigStore } from "../contracts";
 import {
   AcceleratingDistributor,
@@ -385,7 +385,7 @@ function joinPoolState(
   poolState: Awaited<ReturnType<PoolState["read"]>>,
   latestBlock: Block,
   previousBlock: Block,
-  rateModel?: acrossConfigStore.RateModel
+  rateModel?: RateModel
 ): Pool {
   const totalPoolSize = poolState.liquidReserves.add(poolState.utilizedReserves);
   const secondsElapsed = latestBlock.timestamp - previousBlock.timestamp;
@@ -807,7 +807,7 @@ export class Client {
     const previousBlock = await this.deps.provider.getBlock(latestBlock.number - blockDelta);
     const state = await pool.read(l1TokenAddress, latestBlock.number, previousBlock.number);
 
-    let rateModel: acrossConfigStore.RateModel | undefined = undefined;
+    let rateModel: RateModel | undefined = undefined;
     try {
       // Use the default rate model (i.e. not any of the routeRateModels to project the Pool's APR). This assumes
       // that the default rate model is the most often used, but this may change in future if many different
