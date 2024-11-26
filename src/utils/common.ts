@@ -283,15 +283,12 @@ export async function estimateTotalGasRequiredByUnsignedTransaction(
     ]);
     const l2GasCost = nativeGasCost.mul(l2GasPrice);
     tokenGasCost = l1GasCost.add(l2GasCost);
-  } else if (chainId === CHAIN_IDs.LINEA && process.env.NEW_GAS_PRICE_ORACLE_59144) {
+
+  // Permit linea_estimateGas via NEW_GAS_PRICE_ORACLE_59144=true
+  } else if (chainId === CHAIN_IDs.LINEA && process.env[`NEW_GAS_PRICE_ORACLE_${chainId}`] === "true") {
     const { gasLimit, baseFeePerGas, priorityFeePerGas } = await getLineaGasFees(chainId, transport, unsignedTx);
     nativeGasCost = gasLimit;
     tokenGasCost = baseFeePerGas.add(priorityFeePerGas).mul(nativeGasCost);
-    console.log("Estimated Linea gas cost", {
-      gasLimit,
-      baseFeePerGas,
-      priorityFeePerGas,
-    });
   } else {
     let gasPrice = _gasPrice;
     if (!gasPrice) {
