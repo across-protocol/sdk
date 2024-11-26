@@ -8,7 +8,10 @@ import { TypedMessage } from "../interfaces/TypedData";
 import { BigNumber, BigNumberish, BN, formatUnits, parseUnits, toBN } from "./BigNumberUtils";
 import { ConvertDecimals } from "./FormattingUtils";
 import { chainIsOPStack } from "./NetworkUtils";
-import { Transport } from "viem";
+import { Address, Transport } from "viem";
+import { CHAIN_IDs } from "@across-protocol/constants";
+import { estimateGas } from "viem/linea";
+import { getPublicClient } from "../gasPriceOracle/util";
 
 export type Decimalish = string | number | Decimal;
 export const AddressZero = ethers.constants.AddressZero;
@@ -262,7 +265,7 @@ export async function estimateTotalGasRequiredByUnsignedTransaction(
   const voidSigner = new VoidSigner(senderAddress, provider);
 
   // Estimate the Gas units required to submit this transaction.
-  const nativeGasCost = gasUnits ? BigNumber.from(gasUnits) : await voidSigner.estimateGas(unsignedTx);
+  let nativeGasCost = gasUnits ? BigNumber.from(gasUnits) : await voidSigner.estimateGas(unsignedTx);
   let tokenGasCost: BigNumber;
 
   // OP stack is a special case; gas cost is computed by the SDK, without having to query price.
@@ -280,6 +283,15 @@ export async function estimateTotalGasRequiredByUnsignedTransaction(
     ]);
     const l2GasCost = nativeGasCost.mul(l2GasPrice);
     tokenGasCost = l1GasCost.add(l2GasCost);
+  } else if (chainId === CHAIN_IDs.LINEA && process.env.NEW_GAS_PRICE_ORACLE_59144) {
+    const { gasLimit, baseFeePerGas, priorityFeePerGas } = await getLineaGasFees(chainId, transport, unsignedTx);
+    nativeGasCost = gasLimit;
+    tokenGasCost = baseFeePerGas.add(priorityFeePerGas).mul(nativeGasCost);
+    console.log("Estimated Linea gas cost", {
+      gasLimit,
+      baseFeePerGas,
+      priorityFeePerGas,
+    });
   } else {
     let gasPrice = _gasPrice;
     if (!gasPrice) {
@@ -292,6 +304,20 @@ export async function estimateTotalGasRequiredByUnsignedTransaction(
   return {
     nativeGasCost, // Units: gas
     tokenGasCost, // Units: wei (nativeGasCost * wei/gas)
+  };
+}
+
+async function getLineaGasFees(chainId: number, transport: Transport | undefined, unsignedTx: PopulatedTransaction) {
+  const { gasLimit, baseFeePerGas, priorityFeePerGas } = await estimateGas(getPublicClient(chainId, transport), {
+    account: unsignedTx.from as Address,
+    to: unsignedTx.to as Address,
+    value: BigInt(unsignedTx.value?.toString() || "1"),
+  });
+
+  return {
+    gasLimit: BigNumber.from(gasLimit.toString()),
+    baseFeePerGas: BigNumber.from(baseFeePerGas.toString()),
+    priorityFeePerGas: BigNumber.from(priorityFeePerGas.toString()),
   };
 }
 
