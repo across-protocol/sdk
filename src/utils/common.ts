@@ -283,7 +283,6 @@ export async function estimateTotalGasRequiredByUnsignedTransaction(
     ]);
     const l2GasCost = nativeGasCost.mul(l2GasPrice);
     tokenGasCost = l1GasCost.add(l2GasCost);
-
   } else if (chainId === CHAIN_IDs.LINEA && process.env[`NEW_GAS_PRICE_ORACLE_${chainId}`] === "true") {
     // Permit linea_estimateGas via NEW_GAS_PRICE_ORACLE_59144=true
     const {
