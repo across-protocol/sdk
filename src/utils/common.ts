@@ -265,7 +265,7 @@ export async function estimateTotalGasRequiredByUnsignedTransaction(
   const voidSigner = new VoidSigner(senderAddress, provider);
 
   // Estimate the Gas units required to submit this transaction.
-  let nativeGasCost = gasUnits ? BigNumber.from(gasUnits) : await voidSigner.estimateGas(unsignedTx);
+  const nativeGasCost = gasUnits ? BigNumber.from(gasUnits) : await voidSigner.estimateGas(unsignedTx);
   let tokenGasCost: BigNumber;
 
   // OP stack is a special case; gas cost is computed by the SDK, without having to query price.
@@ -284,12 +284,12 @@ export async function estimateTotalGasRequiredByUnsignedTransaction(
     const l2GasCost = nativeGasCost.mul(l2GasPrice);
     tokenGasCost = l1GasCost.add(l2GasCost);
 
-  // Permit linea_estimateGas via NEW_GAS_PRICE_ORACLE_59144=true
   } else if (chainId === CHAIN_IDs.LINEA && process.env[`NEW_GAS_PRICE_ORACLE_${chainId}`] === "true") {
+    // Permit linea_estimateGas via NEW_GAS_PRICE_ORACLE_59144=true
     const {
       gasLimit: nativeGasCost,
       baseFeePerGas,
-      priorityFeePerGas
+      priorityFeePerGas,
     } = await getLineaGasFees(chainId, transport, unsignedTx);
     tokenGasCost = baseFeePerGas.add(priorityFeePerGas).mul(nativeGasCost);
   } else {
