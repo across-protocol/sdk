@@ -1,7 +1,7 @@
 {
   "name": "@across-protocol/sdk",
   "author": "UMA Team",
-  "version": "3.3.20",
+  "version": "3.3.21",
   "license": "AGPL-3.0",
   "homepage": "https://docs.across.to/reference/sdk",
   "files": [
