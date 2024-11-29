@@ -4,7 +4,9 @@ import { DefaultLogLevels } from "./LogUtils";
 
 type Logger = {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  log: (level: string, ...meta: any[]) => void;
+  debug: (...args: any[]) => void;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  warn: (...args: any[]) => void;
 };
 
 type Detail = {
@@ -33,7 +35,6 @@ export class Profiler {
   private at: string;
   private detail: Detail;
   private logger: Logger;
-  private logLevel: DefaultLogLevels;
 
   /**
    * Initializes a new instance of the Profiler class.
@@ -45,20 +46,20 @@ export class Profiler {
     this.marks = new Map();
     this.logger = logger;
     this.at = at;
-    this.logLevel = logLevel ?? "debug";
     this.detail = detail;
   }
 
-  log(logLevel: DefaultLogLevels, data: Parameters<Logger["log"]>[1]): void {
-    this.logger.log(logLevel, {
+  warn(data: Parameters<Logger["warn"]>[0]) {
+    this.logger.warn({
       at: this.at,
-      ...defaultMeta,
       ...data,
     });
   }
 
-  logMeasure(data: Omit<PerformanceData, "at">, logLevel: DefaultLogLevels = this.logLevel): void {
-    this.log(logLevel, {
+  logMeasure(data: Omit<PerformanceData, "at">): void {
+    this.logger.debug({
+      at: this.at,
+      ...defaultMeta,
       ...data,
     });
   }
@@ -116,7 +117,7 @@ export class Profiler {
     const endMark = to ? this.marks.get(to) : undefined;
 
     if (!startMark) {
-      this.log("warn", {
+      this.warn({
         message: `Cannot find start mark for label "${from}".`,
         ...this.detail,
       });
