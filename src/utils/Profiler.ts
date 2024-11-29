@@ -1,7 +1,11 @@
 import { performance } from "node:perf_hooks";
-import { Logger } from "winston";
 import crypto from "crypto";
 import { DefaultLogLevels } from "./LogUtils";
+
+type Logger = {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  log: (level: string, ...meta: any[]) => void;
+};
 
 type Detail = {
   message?: string;
