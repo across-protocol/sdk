@@ -138,7 +138,7 @@ export class RetryProvider extends ethers.providers.StaticJsonRpcProvider {
       return Object.fromEntries(
         values
           .filter(([, result]) => !compareRpcResults(method, result, quorumResult))
-          .map(([provider, result]) => [provider.connection.url, result])
+          .map(([provider]) => [provider.connection.url])
       );
     };
 
@@ -156,7 +156,7 @@ export class RetryProvider extends ethers.providers.StaticJsonRpcProvider {
         method,
         params: JSON.stringify(params),
         quorumProviders,
-        mismatchedProviders: JSON.stringify(mismatchedProviders),
+        mismatchedProviders,
         erroringProviders: errors.map(([provider, errorText]) => formatProviderError(provider, errorText)),
       });
     };
