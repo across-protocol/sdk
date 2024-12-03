@@ -46,7 +46,7 @@ export class RetryProvider extends ethers.providers.StaticJsonRpcProvider {
 
     if (chainId !== CHAIN_IDs.MAINNET) {
       this.pollingInterval = 1000;
-      this.providers.forEach((provider) => provider.pollingInterval = this.pollingInterval);
+      this.providers.forEach((provider) => (provider.pollingInterval = this.pollingInterval));
     }
 
     if (this.nodeQuorumThreshold < 1 || !Number.isInteger(this.nodeQuorumThreshold)) {
