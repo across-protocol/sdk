@@ -135,18 +135,16 @@ export class RetryProvider extends ethers.providers.StaticJsonRpcProvider {
     }
 
     const getMismatchedProviders = (values: [ethers.providers.StaticJsonRpcProvider, unknown][]) => {
-      return Object.fromEntries(
-        values
-          .filter(([, result]) => !compareRpcResults(method, result, quorumResult))
-          .map(([provider]) => [provider.connection.url])
-      );
+      return values
+        .filter(([, result]) => !compareRpcResults(method, result, quorumResult))
+        .map(([provider]) => provider.connection.url);
     };
 
     const logQuorumMismatchOrFailureDetails = (
       method: string,
       params: Array<unknown>,
       quorumProviders: string[],
-      mismatchedProviders: { [k: string]: unknown },
+      mismatchedProviders: string[],
       errors: [ethers.providers.StaticJsonRpcProvider, string][]
     ) => {
       logger.warn({
@@ -232,7 +230,7 @@ export class RetryProvider extends ethers.providers.StaticJsonRpcProvider {
     const quorumProviders = [...values, ...fallbackValues]
       .filter(([, result]) => compareRpcResults(method, result, quorumResult))
       .map(([provider]) => provider.connection.url);
-    if (Object.keys(mismatchedProviders).length > 0 || errors.length > 0) {
+    if (mismatchedProviders.length > 0 || errors.length > 0) {
       logQuorumMismatchOrFailureDetails(method, params, quorumProviders, mismatchedProviders, errors);
     }
 
