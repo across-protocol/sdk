@@ -9,6 +9,8 @@ import { chainIsOPStack } from "./NetworkUtils";
 import { Address, createPublicClient, Hex, http, Transport } from "viem";
 import * as chains from "viem/chains";
 import { publicActionsL2 } from "viem/op-stack";
+import { estimateGas } from "viem/linea";
+import { getPublicClient } from "../gasPriceOracle/util";
 
 export type Decimalish = string | number | Decimal;
 export const AddressZero = ethers.constants.AddressZero;
@@ -289,6 +291,14 @@ export async function estimateTotalGasRequiredByUnsignedTransaction(
     ]);
     const l2GasCost = nativeGasCost.mul(l2GasPrice.toString());
     tokenGasCost = BigNumber.from(l1GasCost.toString()).add(l2GasCost);
+  } else if (chainId === CHAIN_IDs.LINEA && process.env[`NEW_GAS_PRICE_ORACLE_${chainId}`] === "true") {
+    // Permit linea_estimateGas via NEW_GAS_PRICE_ORACLE_59144=true
+    const {
+      gasLimit: nativeGasCost,
+      baseFeePerGas,
+      priorityFeePerGas,
+    } = await getLineaGasFees(chainId, transport, unsignedTx);
+    tokenGasCost = baseFeePerGas.add(priorityFeePerGas).mul(nativeGasCost);
   } else {
     let gasPrice = _gasPrice;
     if (!gasPrice) {
@@ -301,6 +311,20 @@ export async function estimateTotalGasRequiredByUnsignedTransaction(
   return {
     nativeGasCost, // Units: gas
     tokenGasCost, // Units: wei (nativeGasCost * wei/gas)
+  };
+}
+
+async function getLineaGasFees(chainId: number, transport: Transport | undefined, unsignedTx: PopulatedTransaction) {
+  const { gasLimit, baseFeePerGas, priorityFeePerGas } = await estimateGas(getPublicClient(chainId, transport), {
+    account: unsignedTx.from as Address,
+    to: unsignedTx.to as Address,
+    value: BigInt(unsignedTx.value?.toString() || "1"),
+  });
+
+  return {
+    gasLimit: BigNumber.from(gasLimit.toString()),
+    baseFeePerGas: BigNumber.from(baseFeePerGas.toString()),
+    priorityFeePerGas: BigNumber.from(priorityFeePerGas.toString()),
   };
 }
 

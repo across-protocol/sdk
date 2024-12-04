@@ -114,8 +114,6 @@ export class MockSpokePoolClient extends SpokePoolClient {
   // Event signatures. Not strictly required, but they make generated events more recognisable.
   public readonly eventSignatures: Record<string, string> = {
     EnabledDepositRoute: "address,uint256,bool",
-    FilledRelay: "uint256,uint256,uint256,int64,uint32,uint32,address,address,address,bytes",
-    FundsDeposited: "uint256,uint256,uint256,int64,uint32,uint32,address,address,address,bytes",
   };
 
   depositV3(deposit: DepositWithBlock): Log {

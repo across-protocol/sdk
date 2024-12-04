@@ -171,8 +171,16 @@ export class BundleDataClient {
     this.bundleTimestampCache[key] = timestamps;
   }
 
-  private getArweaveClientKey(blockRangesForChains: number[][]): string {
-    return `bundles-${blockRangesForChains}`;
+  static getArweaveClientKey(blockRangesForChains: number[][]): string {
+    // As a unique key for this bundle, use the bundle mainnet end block, which should
+    // never be duplicated between bundles as long as thebundle block range
+    // always progresses forwards, which I think is a safe assumption. Other chains might pause
+    // but mainnet should never pause.
+    return blockRangesForChains[0][1].toString();
+  }
+
+  private getArweaveBundleDataClientKey(blockRangesForChains: number[][]): string {
+    return `bundles-${BundleDataClient.getArweaveClientKey(blockRangesForChains)}`;
   }
 
   private async loadPersistedDataFromArweave(
@@ -183,7 +191,7 @@ export class BundleDataClient {
     }
     const start = performance.now();
     const persistedData = await this.clients.arweaveClient.getByTopic(
-      this.getArweaveClientKey(blockRangesForChains),
+      this.getArweaveBundleDataClientKey(blockRangesForChains),
       BundleDataSS
     );
     // If there is no data or the data is empty, return undefined because we couldn't
@@ -579,7 +587,7 @@ export class BundleDataClient {
   }
 
   private async loadArweaveData(blockRangesForChains: number[][]): Promise<LoadDataReturnValue> {
-    const arweaveKey = this.getArweaveClientKey(blockRangesForChains);
+    const arweaveKey = this.getArweaveBundleDataClientKey(blockRangesForChains);
     // eslint-disable-next-line @typescript-eslint/no-misused-promises
     if (!this.arweaveDataCache[arweaveKey]) {
       this.arweaveDataCache[arweaveKey] = this.loadPersistedDataFromArweave(blockRangesForChains);
@@ -1316,7 +1324,10 @@ export class BundleDataClient {
           ];
           // Sanity checks:
           assert(endTime >= startTime, "End time should be greater than start time.");
-          assert(startTime > 0, "Start time should be greater than 0.");
+          assert(
+            startBlockForChain === 0 || startTime > 0,
+            "Start timestamp must be greater than 0 if the start block is greater than 0."
+          );
           return [chainId, [startTime, endTime]];
         })
       ).filter(isDefined)

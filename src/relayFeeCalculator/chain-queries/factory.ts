@@ -3,10 +3,11 @@ import { CHAIN_IDs, TOKEN_SYMBOLS_MAP } from "@across-protocol/constants";
 import { getDeployedAddress } from "@across-protocol/contracts";
 import { providers } from "ethers";
 import { DEFAULT_SIMULATED_RELAYER_ADDRESS } from "../../constants";
-import { chainIsMatic, isDefined } from "../../utils";
+import { chainIsAlephZero, chainIsMatic, isDefined } from "../../utils";
 import { QueryBase } from "./baseQuery";
 import { PolygonQueries } from "./polygon";
 import { DEFAULT_LOGGER, Logger } from "../relayFeeCalculator";
+import { AlephZeroQueries } from "./alephZero";
 
 /**
  * Some chains have a fixed gas price that is applied to the gas estimates. We should override
@@ -30,9 +31,20 @@ export class QueryBase__factory {
   ): QueryBase {
     assert(isDefined(spokePoolAddress));
 
-    // Currently the only chain that has a custom query class is Polygon
     if (chainIsMatic(chainId)) {
       return new PolygonQueries(
+        provider,
+        symbolMapping,
+        spokePoolAddress,
+        simulatedRelayerAddress,
+        coingeckoProApiKey,
+        logger,
+        gasMarkup
+      );
+    }
+
+    if (chainIsAlephZero(chainId)) {
+      return new AlephZeroQueries(
         provider,
         symbolMapping,
         spokePoolAddress,

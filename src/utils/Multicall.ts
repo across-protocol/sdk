@@ -1,5 +1,6 @@
 import { Contract, providers, Signer, utils as ethersUtils } from "ethers";
 import { CHAIN_IDs } from "@across-protocol/constants";
+import { chainIsOPStack } from "./NetworkUtils";
 import { BigNumber } from "./BigNumberUtils";
 import { Multicall3, Multicall3__factory } from "./abi/typechain";
 
@@ -17,24 +18,17 @@ export type Call3 = {
 const DETERMINISTIC_MULTICALL_ADDRESS = "0xcA11bde05977b3631167028862bE2a173976CA11";
 
 const NON_DETERMINISTIC_MULTICALL_ADDRESSES = {
+  [CHAIN_IDs.ALEPH_ZERO]: "0x3CA11702f7c0F28e0b4e03C31F7492969862C569",
   [CHAIN_IDs.ZK_SYNC]: "0xF9cda624FBC7e059355ce98a31693d299FACd963",
 };
 
+// Multicall3 is an OP stack predeploy, so don't specify it here.
 const DETERMINISTIC_MULTICALL_CHAINS = [
   CHAIN_IDs.ARBITRUM,
-  CHAIN_IDs.BASE,
-  CHAIN_IDs.BLAST,
-  CHAIN_IDs.BOBA,
   CHAIN_IDs.LINEA,
-  CHAIN_IDs.LISK,
   CHAIN_IDs.MAINNET,
-  CHAIN_IDs.MODE,
-  CHAIN_IDs.OPTIMISM,
   CHAIN_IDs.POLYGON,
-  CHAIN_IDs.REDSTONE,
   CHAIN_IDs.SCROLL,
-  CHAIN_IDs.ZORA,
-  CHAIN_IDs.WORLD_CHAIN,
   // Testnet:
   CHAIN_IDs.BASE_SEPOLIA,
   CHAIN_IDs.BLAST_SEPOLIA,
@@ -44,7 +38,7 @@ const DETERMINISTIC_MULTICALL_CHAINS = [
 ];
 
 export function getMulticallAddress(chainId: number): string | undefined {
-  if (DETERMINISTIC_MULTICALL_CHAINS.includes(chainId)) {
+  if (chainIsOPStack(chainId) || DETERMINISTIC_MULTICALL_CHAINS.includes(chainId)) {
     return DETERMINISTIC_MULTICALL_ADDRESS;
   }
   return NON_DETERMINISTIC_MULTICALL_ADDRESSES[chainId];

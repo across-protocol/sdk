@@ -9,6 +9,7 @@ import * as ethereum from "./adapters/ethereum";
 import * as linea from "./adapters/linea";
 import * as polygon from "./adapters/polygon";
 import * as arbitrumViem from "./adapters/arbitrum-viem";
+import * as lineaViem from "./adapters/linea-viem";
 import * as polygonViem from "./adapters/polygon-viem";
 
 /**
@@ -51,6 +52,7 @@ async function getEthersGasPriceEstimate(
   }
 
   const gasPriceFeeds = {
+    [CHAIN_IDs.ALEPH_ZERO]: arbitrum.eip1559,
     [CHAIN_IDs.ARBITRUM]: arbitrum.eip1559,
     [CHAIN_IDs.BASE]: ethereum.eip1559,
     [CHAIN_IDs.LINEA]: linea.eip1559, // @todo: Support linea_estimateGas in adapter.
@@ -88,7 +90,9 @@ export async function getViemGasPriceEstimate(
   const viemProvider = getPublicClient(chainId, transport);
 
   const gasPriceFeeds = {
+    [CHAIN_IDs.ALEPH_ZERO]: arbitrumViem.eip1559,
     [CHAIN_IDs.ARBITRUM]: arbitrumViem.eip1559,
+    [CHAIN_IDs.LINEA]: lineaViem.eip1559,
     [CHAIN_IDs.POLYGON]: polygonViem.gasStation,
   } as const;
 
