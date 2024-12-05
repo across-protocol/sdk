@@ -1,5 +1,6 @@
-import { ethers, logger } from "ethers";
+import { ethers } from "ethers";
 import { CachingMechanismInterface } from "../interfaces";
+import { CHAIN_IDs } from "../constants";
 import { delay, isDefined, isPromiseFulfilled, isPromiseRejected } from "../utils";
 import { getOriginFromURL } from "../utils/NetworkUtils";
 import { CacheProvider } from "./cachedProvider";
@@ -23,7 +24,7 @@ export class RetryProvider extends ethers.providers.StaticJsonRpcProvider {
     standardTtlBlockDistance?: number,
     noTtlBlockDistance?: number,
     providerCacheTtl = PROVIDER_CACHE_TTL,
-    logger?: Logger
+    readonly logger?: Logger
   ) {
     // Initialize the super just with the chainId, which stops it from trying to immediately send out a .send before
     // this derived class is initialized.
@@ -43,18 +44,10 @@ export class RetryProvider extends ethers.providers.StaticJsonRpcProvider {
         )
     );
 
-    // This is added for interim testing to see whether relayer fill performance improves.
-    this.providers.forEach((provider) => {
-      const url = getOriginFromURL(provider.connection.url);
-      const { pollingInterval } = provider;
-      provider.pollingInterval = 1000;
-      logger?.debug({
-        at: "RetryProvider",
-        message: `Dropped ${url} pollingInterval ${pollingInterval} -> ${provider.pollingInterval}.`,
-      });
-    });
-
-    this.pollingInterval = 1000;
+    if (chainId !== CHAIN_IDs.MAINNET) {
+      this.pollingInterval = 1000;
+      this.providers.forEach((provider) => (provider.pollingInterval = this.pollingInterval));
+    }
 
     if (this.nodeQuorumThreshold < 1 || !Number.isInteger(this.nodeQuorumThreshold)) {
       throw new Error(
@@ -147,7 +140,7 @@ export class RetryProvider extends ethers.providers.StaticJsonRpcProvider {
       mismatchedProviders: string[],
       errors: [ethers.providers.StaticJsonRpcProvider, string][]
     ) => {
-      logger.warn({
+      this.logger?.warn({
         at: "ProviderUtils",
         message: "Some providers mismatched with the quorum result or failed 🚸",
         notificationPath: "across-warn",
@@ -252,7 +245,7 @@ export class RetryProvider extends ethers.providers.StaticJsonRpcProvider {
     const response = await provider.send(method, params);
     if (!this._validateResponse(method, params, response)) {
       // Not a warning to avoid spam since this could trigger a lot.
-      logger.debug({
+      this.logger?.debug({
         at: "ProviderUtils",
         message: "Provider returned invalid response",
         provider: getOriginFromURL(provider.connection.url),
