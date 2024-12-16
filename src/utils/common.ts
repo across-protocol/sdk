@@ -236,6 +236,7 @@ export function retry<T>(call: () => Promise<T>, times: number, delayS: number):
 export type TransactionCostEstimate = {
   nativeGasCost: BigNumber; // Units: gas
   tokenGasCost: BigNumber; // Units: wei (nativeGasCost * wei/gas)
+  gasPrice: BigNumber; // Units: wei/gas
 };
 
 /**
@@ -266,6 +267,7 @@ export async function estimateTotalGasRequiredByUnsignedTransaction(
 
   // Estimate the Gas units required to submit this transaction.
   const nativeGasCost = gasUnits ? BigNumber.from(gasUnits) : await voidSigner.estimateGas(unsignedTx);
+  assert(nativeGasCost.gt(0), "Gas cost should not be 0");
   let tokenGasCost: BigNumber;
 
   // OP stack is a special case; gas cost is computed by the SDK, without having to query price.
@@ -303,6 +305,7 @@ export async function estimateTotalGasRequiredByUnsignedTransaction(
   return {
     nativeGasCost, // Units: gas
     tokenGasCost, // Units: wei (nativeGasCost * wei/gas)
+    gasPrice: tokenGasCost.div(nativeGasCost), // Units: wei/gas
   };
 }
 

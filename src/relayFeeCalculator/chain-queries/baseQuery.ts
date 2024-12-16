@@ -89,20 +89,20 @@ export class QueryBase implements QueryInterface {
     const gasTotalMultiplier = toBNWei(1.0 + gasMarkup);
 
     const tx = await populateV3Relay(this.spokePool, deposit, relayer);
-    const { nativeGasCost, tokenGasCost } = await estimateTotalGasRequiredByUnsignedTransaction(
-      tx,
-      relayer,
-      this.provider,
-      {
-        gasPrice,
-        gasUnits,
-        transport,
-      }
-    );
+    const {
+      nativeGasCost,
+      tokenGasCost,
+      gasPrice: impliedGasPrice,
+    } = await estimateTotalGasRequiredByUnsignedTransaction(tx, relayer, this.provider, {
+      gasPrice,
+      gasUnits,
+      transport,
+    });
 
     return {
       nativeGasCost: nativeGasCost.mul(gasTotalMultiplier).div(fixedPointAdjustment),
       tokenGasCost: tokenGasCost.mul(gasTotalMultiplier).div(fixedPointAdjustment),
+      gasPrice: impliedGasPrice,
     };
   }
 
