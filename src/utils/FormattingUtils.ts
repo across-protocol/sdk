@@ -126,6 +126,10 @@ export function convertFromWei(weiVal: string, decimals: number): string {
   return formatFunction(weiVal);
 }
 
+export function formatGwei(weiVal: string): string {
+  return convertFromWei(weiVal, 9);
+}
+
 /**
  * Shortens a list of addresses to a shorter version with only the first 10 characters.
  * @param addresses A list of addresses to shorten.

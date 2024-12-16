@@ -77,9 +77,11 @@ class ExampleQueries implements QueryInterface {
   getGasCosts(): Promise<TransactionCostEstimate> {
     const getGasCost = () => {
       const { defaultGas: gasCost } = this;
+      const gasPrice = toGWei("1");
       return {
         nativeGasCost: toBN(gasCost),
-        tokenGasCost: toBN(gasCost).mul(toGWei("1")),
+        tokenGasCost: toBN(gasCost).mul(gasPrice),
+        gasPrice,
       };
     };
 
