@@ -1,6 +1,6 @@
 import assert from "assert";
 import { SpokePoolClient } from "../clients";
-import { DEFAULT_CACHING_TTL, EMPTY_MESSAGE } from "../constants";
+import { DEFAULT_CACHING_TTL, EMPTY_MESSAGE, ZERO_ADDRESS } from "../constants";
 import { CachingMechanismInterface, Deposit, DepositWithBlock, Fill, SlowFillRequest } from "../interfaces";
 import { getNetworkName } from "./NetworkUtils";
 import { getDepositInCache, getDepositKey, setDepositInCache } from "./CachingUtils";
@@ -8,6 +8,8 @@ import { validateFillForDeposit } from "./FlowUtils";
 import { getCurrentTime } from "./TimeUtils";
 import { isDefined } from "./TypeGuards";
 import { isDepositFormedCorrectly } from "./ValidatorUtils";
+import { getBlockRangeForDepositId } from "./SpokeUtils";
+import { paginatedEventQuery, spreadEventWithBlockNumber } from "./EventUtils";
 
 // Load a deposit for a fill if the fill's deposit ID is outside this client's search range.
 // This can be used by the Dataworker to determine whether to give a relayer a refund for a fill
@@ -107,7 +109,7 @@ export async function queryHistoricalDepositForFill(
   if (isDefined(cachedDeposit)) {
     deposit = cachedDeposit as DepositWithBlock;
   } else {
-    deposit = await spokePoolClient.findDeposit(fill.depositId, fill.destinationChainId);
+    deposit = await findDeposit(spokePoolClient, fill.depositId, fill.destinationChainId);
     if (cache) {
       await setDepositInCache(deposit, getCurrentTime(), cache, DEFAULT_CACHING_TTL);
     }
@@ -123,6 +125,73 @@ export async function queryHistoricalDepositForFill(
     code: InvalidFill.FillMismatch,
     reason: match.reason,
   };
+}
+
+export async function findDeposit(
+  spokePoolClient: SpokePoolClient,
+  depositId: number,
+  destinationChainId: number
+): Promise<DepositWithBlock> {
+  // Binary search for event search bounds. This way we can get the blocks before and after the deposit with
+  // deposit ID = fill.depositId and use those blocks to optimize the search for that deposit.
+  // Stop searches after a maximum # of searches to limit number of eth_call requests. Make an
+  // eth_getLogs call on the remaining block range (i.e. the [low, high] remaining from the binary
+  // search) to find the target deposit ID.
+  //
+  // @dev Limiting between 5-10 searches empirically performs best when there are ~300,000 deposits
+  // for a spoke pool and we're looking for a deposit <5 days older than HEAD.
+  const searchBounds = await getBlockRangeForDepositId(
+    depositId,
+    spokePoolClient.deploymentBlock,
+    spokePoolClient.latestBlockSearched,
+    7,
+    spokePoolClient
+  );
+
+  const tStart = Date.now();
+  const query = await paginatedEventQuery(
+    spokePoolClient.spokePool,
+    spokePoolClient.spokePool.filters.V3FundsDeposited(null, null, null, null, null, depositId),
+    {
+      fromBlock: searchBounds.low,
+      toBlock: searchBounds.high,
+      maxBlockLookBack: spokePoolClient.eventSearchConfig.maxBlockLookBack,
+    }
+  );
+  const tStop = Date.now();
+
+  const event = query.find(({ args }) => args["depositId"] === depositId);
+  if (event === undefined) {
+    const srcChain = getNetworkName(spokePoolClient.chainId);
+    const dstChain = getNetworkName(destinationChainId);
+    throw new Error(
+      `Could not find deposit ${depositId} for ${dstChain} fill` +
+        ` between ${srcChain} blocks [${searchBounds.low}, ${searchBounds.high}]`
+    );
+  }
+
+  const deposit = {
+    ...spreadEventWithBlockNumber(event),
+    originChainId: spokePoolClient.chainId,
+    quoteBlockNumber: await spokePoolClient.getBlockNumber(Number(event.args["quoteTimestamp"])),
+    fromLiteChain: true, // To be updated immediately afterwards.
+    toLiteChain: true, // To be updated immediately afterwards.
+  } as DepositWithBlock;
+
+  if (deposit.outputToken === ZERO_ADDRESS) {
+    deposit.outputToken = spokePoolClient.getDestinationTokenForDeposit(deposit);
+  }
+  deposit.fromLiteChain = spokePoolClient.isOriginLiteChain(deposit);
+  deposit.toLiteChain = spokePoolClient.isDestinationLiteChain(deposit);
+
+  spokePoolClient.logger.debug({
+    at: "[SDK]:DepositUtils#findDeposit",
+    message: "Located V3 deposit outside of SpokePoolClient's search range",
+    deposit,
+    elapsedMs: tStop - tStart,
+  });
+
+  return deposit;
 }
 
 /**

@@ -749,7 +749,7 @@ export class SpokePoolClient extends BaseAbstractClient {
    * @param timestamp A single timestamp to be resolved via the HubPoolClient.
    * @returns The block number on the HubPool chain corresponding to the supplied timestamp.
    */
-  protected getBlockNumber(timestamp: number): Promise<number> {
+  getBlockNumber(timestamp: number): Promise<number> {
     return this.hubPoolClient?.getBlockNumber(timestamp) ?? Promise.resolve(MAX_BIG_INT.toNumber());
   }
 
@@ -770,7 +770,7 @@ export class SpokePoolClient extends BaseAbstractClient {
    * @param deposit The deposit to retrieve the destination token for.
    * @returns The destination token.
    */
-  protected getDestinationTokenForDeposit(deposit: DepositWithBlock): string {
+  getDestinationTokenForDeposit(deposit: DepositWithBlock): string {
     // If there is no rate model client return address(0).
     if (!this.hubPoolClient) {
       return ZERO_ADDRESS;
@@ -805,75 +805,13 @@ export class SpokePoolClient extends BaseAbstractClient {
     return this.oldestTime;
   }
 
-  async findDeposit(depositId: number, destinationChainId: number): Promise<DepositWithBlock> {
-    // Binary search for event search bounds. This way we can get the blocks before and after the deposit with
-    // deposit ID = fill.depositId and use those blocks to optimize the search for that deposit.
-    // Stop searches after a maximum # of searches to limit number of eth_call requests. Make an
-    // eth_getLogs call on the remaining block range (i.e. the [low, high] remaining from the binary
-    // search) to find the target deposit ID.
-    //
-    // @dev Limiting between 5-10 searches empirically performs best when there are ~300,000 deposits
-    // for a spoke pool and we're looking for a deposit <5 days older than HEAD.
-    const searchBounds = await this._getBlockRangeForDepositId(
-      depositId,
-      this.deploymentBlock,
-      this.latestBlockSearched,
-      7
-    );
-
-    const tStart = Date.now();
-    const query = await paginatedEventQuery(
-      this.spokePool,
-      this.spokePool.filters.V3FundsDeposited(null, null, null, null, null, depositId),
-      {
-        fromBlock: searchBounds.low,
-        toBlock: searchBounds.high,
-        maxBlockLookBack: this.eventSearchConfig.maxBlockLookBack,
-      }
-    );
-    const tStop = Date.now();
-
-    const event = query.find(({ args }) => args["depositId"] === depositId);
-    if (event === undefined) {
-      const srcChain = getNetworkName(this.chainId);
-      const dstChain = getNetworkName(destinationChainId);
-      throw new Error(
-        `Could not find deposit ${depositId} for ${dstChain} fill` +
-          ` between ${srcChain} blocks [${searchBounds.low}, ${searchBounds.high}]`
-      );
-    }
-
-    const deposit = {
-      ...spreadEventWithBlockNumber(event),
-      originChainId: this.chainId,
-      quoteBlockNumber: await this.getBlockNumber(Number(event.args["quoteTimestamp"])),
-      fromLiteChain: true, // To be updated immediately afterwards.
-      toLiteChain: true, // To be updated immediately afterwards.
-    } as DepositWithBlock;
-
-    if (deposit.outputToken === ZERO_ADDRESS) {
-      deposit.outputToken = this.getDestinationTokenForDeposit(deposit);
-    }
-    deposit.fromLiteChain = this.isOriginLiteChain(deposit);
-    deposit.toLiteChain = this.isDestinationLiteChain(deposit);
-
-    this.logger.debug({
-      at: "SpokePoolClient#findDeposit",
-      message: "Located V3 deposit outside of SpokePoolClient's search range",
-      deposit,
-      elapsedMs: tStop - tStart,
-    });
-
-    return deposit;
-  }
-
   /**
    * Determines whether a deposit originates from a lite chain.
    * @param deposit The deposit to evaluate.
    * @returns True if the deposit originates from a lite chain, false otherwise. If the hub pool client is not defined,
    *          this method will return false.
    */
-  protected isOriginLiteChain(deposit: DepositWithBlock): boolean {
+  isOriginLiteChain(deposit: DepositWithBlock): boolean {
     return this.configStoreClient?.isChainLiteChainAtTimestamp(deposit.originChainId, deposit.quoteTimestamp) ?? false;
   }
 
@@ -883,7 +821,7 @@ export class SpokePoolClient extends BaseAbstractClient {
    * @returns True if the deposit is destined to a lite chain, false otherwise. If the hub pool client is not defined,
    *          this method will return false.
    */
-  protected isDestinationLiteChain(deposit: DepositWithBlock): boolean {
+  isDestinationLiteChain(deposit: DepositWithBlock): boolean {
     return (
       this.configStoreClient?.isChainLiteChainAtTimestamp(deposit.destinationChainId, deposit.quoteTimestamp) ?? false
     );
