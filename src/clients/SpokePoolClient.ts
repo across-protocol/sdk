@@ -401,33 +401,6 @@ export class SpokePoolClient extends BaseAbstractClient {
   }
 
   /**
-   * Find the block range that contains the deposit ID. This is a binary search that searches for the block range
-   * that contains the deposit ID.
-   * @param targetDepositId The target deposit ID to search for.
-   * @param initLow The initial lower bound of the block range to search.
-   * @param initHigh The initial upper bound of the block range to search.
-   * @param maxSearches The maximum number of searches to perform. This is used to prevent infinite loops.
-   * @returns The block range that contains the deposit ID.
-   * @note  // We want to find the block range that satisfies these conditions:
-   *        // - the low block has deposit count <= targetDepositId
-   *        // - the high block has a deposit count > targetDepositId.
-   *        // This way the caller can search for a V3FundsDeposited event between [low, high] that will always
-   *        // contain the event emitted when deposit ID was incremented to targetDepositId + 1. This is the same transaction
-   *        // where the deposit with deposit ID = targetDepositId was created.
-   */
-  public _getBlockRangeForDepositId(
-    targetDepositId: number,
-    initLow: number,
-    initHigh: number,
-    maxSearches: number
-  ): Promise<{
-    low: number;
-    high: number;
-  }> {
-    return getBlockRangeForDepositId(targetDepositId, initLow, initHigh, maxSearches, this);
-  }
-
-  /**
    * Finds the deposit id at a specific block number.
    * @param blockTag The block number to search for the deposit ID at.
    * @returns The deposit ID.
@@ -814,11 +787,12 @@ export class SpokePoolClient extends BaseAbstractClient {
     //
     // @dev Limiting between 5-10 searches empirically performs best when there are ~300,000 deposits
     // for a spoke pool and we're looking for a deposit <5 days older than HEAD.
-    const searchBounds = await this._getBlockRangeForDepositId(
+    const searchBounds = await getBlockRangeForDepositId(
       depositId,
       this.deploymentBlock,
       this.latestBlockSearched,
-      7
+      7,
+      this
     );
 
     const tStart = Date.now();
