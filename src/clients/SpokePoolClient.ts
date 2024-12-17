@@ -35,9 +35,8 @@ import {
   SpeedUpWithBlock,
   TokensBridged,
 } from "../interfaces";
-import { SpokePool } from "../typechain";
 import { getNetworkName } from "../utils/NetworkUtils";
-import { getBlockRangeForDepositId, getDepositIdAtBlock, relayFillStatus } from "../utils/SpokeUtils";
+import { getBlockRangeForDepositId, relayFillStatus } from "../utils/SpokeUtils";
 import { BaseAbstractClient, isUpdateFailureReason, UpdateFailureReason } from "./BaseAbstractClient";
 import { HubPoolClient } from "./HubPoolClient";
 import { AcrossConfigStoreClient } from "./AcrossConfigStoreClient";
