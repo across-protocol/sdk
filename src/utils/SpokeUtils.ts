@@ -1,6 +1,6 @@
 import assert from "assert";
 import { BytesLike, Contract, PopulatedTransaction, providers, utils as ethersUtils } from "ethers";
-import { CHAIN_IDs, ZERO_ADDRESS } from "../constants";
+import { CHAIN_IDs, MAX_SAFE_DEPOSIT_ID, ZERO_ADDRESS } from "../constants";
 import { Deposit, Fill, FillStatus, RelayData, SlowFillRequest } from "../interfaces";
 import { SpokePoolClient } from "../clients";
 import { chunk } from "./ArrayUtils";
@@ -242,6 +242,16 @@ export function getRelayDataHash(relayData: RelayData, destinationChainId: numbe
 
 export function getRelayHashFromEvent(e: Deposit | Fill | SlowFillRequest): string {
   return getRelayDataHash(e, e.destinationChainId);
+}
+
+export function isUnsafeDepositId(depositId: number): boolean {
+  // SpokePool.unsafeDepositV3() produces a uint256 depositId by hashing the msg.sender, depositor and input
+  // uint256 depositNonce. There is a possibility that this resultant uint256 is less than the maxSafeDepositId (i.e.
+  // the maximum uint32 value) which makes it possible that an unsafeDepositV3's depositId can collide with a safe
+  // depositV3's depositId, but the chances of a collision are 1 in 2^(256 - 32), so we'll ignore this
+  // possibility.
+  const maxSafeDepositId = BigNumber.from(MAX_SAFE_DEPOSIT_ID);
+  return maxSafeDepositId.lt(depositId);
 }
 
 /**
