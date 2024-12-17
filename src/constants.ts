@@ -15,6 +15,10 @@ export const { AddressZero: ZERO_ADDRESS } = ethersConstants;
 // 2^96 - 1 is a conservative erc20 max allowance.
 export const MAX_SAFE_ALLOWANCE = "79228162514264337593543950335";
 
+// The maximum depositId that can be emitted in a depositV3 method is the maximum uint32 value, so
+// 2^32 - 1.
+export const MAX_SAFE_DEPOSIT_ID = "4294967295";
+
 export const SECONDS_PER_YEAR = 31557600; // 365.25 days per year.
 
 /**
