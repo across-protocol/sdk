@@ -8,6 +8,7 @@ import {
   validateFillForDeposit,
   queryHistoricalDepositForFill,
   DepositSearchResult,
+  getBlockRangeForDepositId,
 } from "../src/utils";
 import { CHAIN_ID_TEST_LIST, originChainId, destinationChainId, repaymentChainId } from "./constants";
 import {
@@ -298,7 +299,7 @@ describe("SpokePoolClient: Fill Validation", function () {
 
     // Throws when low < high
     await assertPromiseError(
-      spokePoolClient1._getBlockRangeForDepositId(0, 1, 0, 10),
+      getBlockRangeForDepositId(0, 1, 0, 10, spokePoolClient1),
       "Binary search failed because low > high"
     );
 
@@ -307,11 +308,12 @@ describe("SpokePoolClient: Fill Validation", function () {
     spokePoolClient1.latestBlockSearched = await spokePool_1.provider.getBlockNumber();
     // Searching for deposit ID 0 with 10 max searches should return the block range that deposit ID 0 was mined in.
     // Note: the search range is inclusive, so the range should include the block that deposit ID 0 was mined in.
-    const searchRange0 = await spokePoolClient1._getBlockRangeForDepositId(
+    const searchRange0 = await getBlockRangeForDepositId(
       0,
       spokePool1DeploymentBlock,
       spokePoolClient1.latestBlockSearched,
-      10
+      10,
+      spokePoolClient1
     );
     // The range should be within the spoke pool's deployment block and the latest block.
     // We can assume this because the binary search will always return a range that is within the search bounds.
@@ -323,11 +325,12 @@ describe("SpokePoolClient: Fill Validation", function () {
     // - correct block <= range high
     // Where correct block is the block that the deposit ID incremented to the target.
     // So the correct block for deposit ID 1 is the block that deposit ID 0 was mined in.
-    const searchRange1 = await spokePoolClient1._getBlockRangeForDepositId(
+    const searchRange1 = await getBlockRangeForDepositId(
       1,
       spokePool1DeploymentBlock,
       spokePoolClient1.latestBlockSearched,
-      10
+      10,
+      spokePoolClient1
     );
 
     expect(searchRange1.high).to.be.greaterThanOrEqual(deposit1Block);
@@ -335,22 +338,24 @@ describe("SpokePoolClient: Fill Validation", function () {
 
     // Searching for deposit ID 2 that doesn't exist yet should throw.
     await assertPromiseError(
-      spokePoolClient1._getBlockRangeForDepositId(
+      getBlockRangeForDepositId(
         2,
         spokePool1DeploymentBlock,
         spokePoolClient1.latestBlockSearched,
-        10
+        10,
+        spokePoolClient1
       ),
       "Target depositId is greater than the initial high block"
     );
 
     // Searching for deposit ID -1 that doesn't exist should throw.
     await assertPromiseError(
-      spokePoolClient1._getBlockRangeForDepositId(
+      getBlockRangeForDepositId(
         -1,
         spokePool1DeploymentBlock,
         spokePoolClient1.latestBlockSearched,
-        10
+        10,
+        spokePoolClient1
       ),
       "Target depositId is less than the initial low block"
     );
@@ -375,25 +380,28 @@ describe("SpokePoolClient: Fill Validation", function () {
     // Check that ranges maintain invariants. These tests are interesting because SpokePool.numberOfDeposits()
     // will never equal any of the target IDs (e.g. 3,4,5) because multiple deposits were mined in the same block,
     // incrementing numberOfDeposits() atomically from 2 to 6.
-    const searchRange3 = await spokePoolClient1._getBlockRangeForDepositId(
+    const searchRange3 = await getBlockRangeForDepositId(
       3,
       spokePool1DeploymentBlock,
       spokePoolClient1.latestBlockSearched,
-      10
+      10,
+      spokePoolClient1
     );
-    const searchRange4 = await spokePoolClient1._getBlockRangeForDepositId(
+    const searchRange4 = await getBlockRangeForDepositId(
       4,
       spokePool1DeploymentBlock,
       spokePoolClient1.latestBlockSearched,
-      10
+      10,
+      spokePoolClient1
     );
 
     await assertPromiseError(
-      spokePoolClient1._getBlockRangeForDepositId(
+      getBlockRangeForDepositId(
         5,
         spokePool1DeploymentBlock,
         spokePoolClient1.latestBlockSearched,
-        10
+        10,
+        spokePoolClient1
       ),
       "Target depositId is greater than the initial high block"
     );
@@ -437,7 +445,7 @@ describe("SpokePoolClient: Fill Validation", function () {
 
       // Randomize max # of searches.
       const maxSearches = Math.floor(Math.random() * 19) + 1;
-      const results = await fuzzClient._getBlockRangeForDepositId(target, initLow, initHigh, maxSearches);
+      const results = await getBlockRangeForDepositId(target, initLow, initHigh, maxSearches, fuzzClient);
 
       // The "correct" block is the first block whose previous block's deposit ID is greater than
       // or equal to the target and whose deposit ID count is greater than the target.
