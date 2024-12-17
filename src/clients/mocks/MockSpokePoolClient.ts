@@ -71,9 +71,6 @@ export class MockSpokePoolClient extends SpokePoolClient {
       lastDepositId = _depositIds[i];
     }
   }
-  _getDepositIdAtBlock(blockTag: number): Promise<number> {
-    return Promise.resolve(this.depositIdAtBlock[blockTag]);
-  }
 
   _update(eventsToQuery: string[]): Promise<SpokePoolUpdate> {
     // Generate new "on chain" responses.

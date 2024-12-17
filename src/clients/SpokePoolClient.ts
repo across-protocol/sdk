@@ -401,15 +401,6 @@ export class SpokePoolClient extends BaseAbstractClient {
   }
 
   /**
-   * Finds the deposit id at a specific block number.
-   * @param blockTag The block number to search for the deposit ID at.
-   * @returns The deposit ID.
-   */
-  public _getDepositIdAtBlock(blockTag: number): Promise<number> {
-    return getDepositIdAtBlock(this.spokePool as SpokePool, blockTag);
-  }
-
-  /**
    * @notice Return maximum of fill deadline buffer at start and end of block range. This is a contract
    * immutable state variable so we can't query other events to find its updates.
    * @dev V3 deposits have a fill deadline which can be set to a maximum of fillDeadlineBuffer + deposit.block.timestamp.

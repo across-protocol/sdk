@@ -116,7 +116,7 @@ export async function getBlockRangeForDepositId(
   // make an eth_call request to get the deposit ID at the block number. It will then cache the deposit ID
   // in the queriedIds cache.
   const _getDepositIdAtBlock = async (blockNumber: number): Promise<number> => {
-    queriedIds[blockNumber] ??= await spokePool._getDepositIdAtBlock(blockNumber);
+    queriedIds[blockNumber] ??= await getDepositIdAtBlock(spokePool.spokePool, blockNumber);
     return queriedIds[blockNumber];
   };
 
