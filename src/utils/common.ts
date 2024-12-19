@@ -296,7 +296,7 @@ export async function estimateTotalGasRequiredByUnsignedTransaction(
   } else {
     let gasPrice = _gasPrice;
     if (!gasPrice) {
-      // Don't apply any multiplier to the gas price. 
+      // Don't apply any multiplier to the gas price.
       const gasPriceEstimate = await getGasPriceEstimate(provider, chainId, 1.0, transport);
       gasPrice = gasPriceEstimate.maxFeePerGas;
     }
