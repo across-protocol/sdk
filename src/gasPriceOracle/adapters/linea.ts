@@ -6,6 +6,6 @@ import { providers } from "ethers";
 import { GasPriceEstimate } from "../types";
 import * as ethereum from "./ethereum";
 
-export function eip1559(provider: providers.Provider, chainId: number): Promise<GasPriceEstimate> {
-  return ethereum.legacy(provider, chainId);
+export function eip1559(provider: providers.Provider, chainId: number, markup: number): Promise<GasPriceEstimate> {
+  return ethereum.legacy(provider, chainId, markup);
 }

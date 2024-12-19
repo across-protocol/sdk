@@ -3,7 +3,7 @@ import { BigNumber, bnZero } from "../../utils";
 import { GasPriceEstimate } from "../types";
 import { gasPriceError } from "../util";
 
-export async function eip1559(provider: providers.Provider, chainId: number): Promise<GasPriceEstimate> {
+export async function eip1559(provider: providers.Provider, chainId: number, markup: number): Promise<GasPriceEstimate> {
   const feeData = await provider.getFeeData();
 
   [feeData.lastBaseFeePerGas, feeData.maxPriorityFeePerGas].forEach((field: BigNumber | null) => {
@@ -11,18 +11,18 @@ export async function eip1559(provider: providers.Provider, chainId: number): Pr
   });
 
   const maxPriorityFeePerGas = feeData.maxPriorityFeePerGas as BigNumber;
-  const maxFeePerGas = maxPriorityFeePerGas.add(feeData.lastBaseFeePerGas as BigNumber);
+  const maxFeePerGas = maxPriorityFeePerGas.mul(markup).add(feeData.lastBaseFeePerGas as BigNumber);
 
   return { maxPriorityFeePerGas, maxFeePerGas };
 }
 
-export async function legacy(provider: providers.Provider, chainId: number): Promise<GasPriceEstimate> {
+export async function legacy(provider: providers.Provider, chainId: number, markup: number): Promise<GasPriceEstimate> {
   const gasPrice = await provider.getGasPrice();
 
   if (!BigNumber.isBigNumber(gasPrice) || gasPrice.lt(bnZero)) gasPriceError("getGasPrice()", chainId, gasPrice);
 
   return {
-    maxFeePerGas: gasPrice,
+    maxFeePerGas: gasPrice.mul(markup),
     maxPriorityFeePerGas: bnZero,
   };
 }
