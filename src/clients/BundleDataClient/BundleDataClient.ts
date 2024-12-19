@@ -799,7 +799,8 @@ export class BundleDataClient {
 
           // Once we've saved the deposit hash into v3RelayHashes, then we can exit early here if the inputAmount
           // is 0 because there can be no expired amount to refund and no unexecutable slow fill amount to return
-          // if this deposit did expire.
+          // if this deposit did expire. Input amount can only be zero at this point if the message is non-empty,
+          // but the message doesn't matter for expired deposits and unexecutable slow fills.
           if (deposit.inputAmount.eq(0)) {
             return;
           }
