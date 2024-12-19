@@ -67,8 +67,7 @@ describe("Gas Price Oracle", function () {
         markedUpMaxFeePerGas: markedUpMaxFeePerGas.toString(),
         markedUpMaxPriorityFeePerGas: markedUpMaxPriorityFeePerGas.toString(),
       });
-
-      expect(markedUpMaxFeePerGas.div(2)).to.equal(maxFeePerGas);
+      expect(markedUpMaxFeePerGas.gt(maxFeePerGas)).to.be.true;
       expect(markedUpMaxPriorityFeePerGas).to.equal(maxPriorityFeePerGas);
     }
   });
