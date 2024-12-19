@@ -1,3 +1,4 @@
+import assert from "assert";
 import { Transport } from "viem";
 import { providers } from "ethers";
 import { CHAIN_IDs } from "../constants";
@@ -7,6 +8,7 @@ import { getPublicClient } from "./util";
 import * as arbitrum from "./adapters/arbitrum";
 import * as ethereum from "./adapters/ethereum";
 import * as linea from "./adapters/linea";
+import * as op from "./adapters/op";
 import * as polygon from "./adapters/polygon";
 import * as arbitrumViem from "./adapters/arbitrum-viem";
 import * as lineaViem from "./adapters/linea-viem";
@@ -47,30 +49,21 @@ async function getEthersGasPriceEstimate(
   chainId?: number,
   legacyFallback = true
 ): Promise<GasPriceEstimate> {
-  if (chainId === undefined) {
-    ({ chainId } = await provider.getNetwork());
-  }
+  chainId ?? ({ chainId } = await provider.getNetwork());
 
   const gasPriceFeeds = {
     [CHAIN_IDs.ALEPH_ZERO]: arbitrum.eip1559,
     [CHAIN_IDs.ARBITRUM]: arbitrum.eip1559,
-    [CHAIN_IDs.BASE]: ethereum.eip1559,
     [CHAIN_IDs.LINEA]: linea.eip1559, // @todo: Support linea_estimateGas in adapter.
     [CHAIN_IDs.MAINNET]: ethereum.eip1559,
-    [CHAIN_IDs.MODE]: ethereum.eip1559,
-    [CHAIN_IDs.OPTIMISM]: ethereum.eip1559,
     [CHAIN_IDs.POLYGON]: polygon.gasStation,
-    [CHAIN_IDs.ZK_SYNC]: ethereum.legacy,
     [CHAIN_IDs.SCROLL]: ethereum.legacy,
+    [CHAIN_IDs.ZK_SYNC]: ethereum.legacy,
   } as const;
 
   let gasPriceFeed = gasPriceFeeds[chainId];
-  if (gasPriceFeed === undefined) {
-    if (!legacyFallback) {
-      throw new Error(`No suitable gas price oracle for Chain ID ${chainId}`);
-    }
-    gasPriceFeed = chainIsOPStack(chainId) ? ethereum.eip1559 : ethereum.legacy;
-  }
+  assert(gasPriceFeed || legacyFallback, `No suitable gas price oracle for Chain ID ${chainId}`);
+  gasPriceFeed ??= chainIsOPStack(chainId) ? op.legacy : ethereum.legacy;
 
   return gasPriceFeed(provider, chainId);
 }
