@@ -1,7 +1,7 @@
 import { Transport } from "viem";
 import { providers } from "ethers";
 import { CHAIN_IDs } from "../constants";
-import { BigNumber, chainIsOPStack } from "../utils";
+import { assert, BigNumber, chainIsOPStack } from "../utils";
 import { GasPriceEstimate } from "./types";
 import { getPublicClient } from "./util";
 import * as arbitrum from "./adapters/arbitrum";
@@ -27,6 +27,10 @@ export async function getGasPriceEstimate(
   transport?: Transport,
   legacyFallback = true
 ): Promise<GasPriceEstimate> {
+  assert(
+    baseFeeMarkup > 0 && baseFeeMarkup <= 5,
+    `Require 0 < base fee markup (${baseFeeMarkup}) <= 5.0 for a total gas multiplier within (0, +5.0]`
+  );
   if (chainId === undefined) {
     ({ chainId } = await provider.getNetwork());
   }

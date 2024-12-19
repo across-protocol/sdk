@@ -1,6 +1,5 @@
 import { L2Provider } from "@eth-optimism/sdk/dist/interfaces/l2-provider";
 import { providers } from "ethers";
-import assert from "assert";
 import { Coingecko } from "../../coingecko";
 import { CHAIN_IDs, DEFAULT_SIMULATED_RELAYER_ADDRESS } from "../../constants";
 import { Deposit } from "../../interfaces";
@@ -9,9 +8,7 @@ import {
   BigNumberish,
   TransactionCostEstimate,
   estimateTotalGasRequiredByUnsignedTransaction,
-  fixedPointAdjustment,
   populateV3Relay,
-  toBNWei,
 } from "../../utils";
 import { Logger, QueryInterface } from "../relayFeeCalculator";
 import { Transport } from "viem";
@@ -38,7 +35,6 @@ export class QueryBase implements QueryInterface {
    * @param symbolMapping A mapping to valid ERC20 tokens and their respective characteristics
    * @param spokePoolAddress The valid address of the Spoke Pool deployment
    * @param simulatedRelayerAddress The address that these queries will reference as the sender. Note: This address must be approved for USDC
-   * @param gasMarkup A multiplier that is applied to the total gas estimate
    * @param logger A logging utility to report logs
    * @param coingeckoProApiKey An optional CoinGecko API key that links to a PRO account
    * @param fixedGasPrice Overrides the gas price with a fixed value. Note: primarily used for the Boba blockchain
@@ -49,7 +45,6 @@ export class QueryBase implements QueryInterface {
     readonly symbolMapping: SymbolMappingType,
     readonly spokePoolAddress: string,
     readonly simulatedRelayerAddress: string,
-    readonly gasMarkup: number,
     readonly logger: Logger,
     readonly coingeckoProApiKey?: string,
     readonly fixedGasPrice?: BigNumberish,
@@ -75,18 +70,10 @@ export class QueryBase implements QueryInterface {
     options: Partial<{
       gasPrice: BigNumberish;
       gasUnits: BigNumberish;
-      omitMarkup: boolean;
       transport: Transport;
     }> = {}
   ): Promise<TransactionCostEstimate> {
-    const { gasPrice = this.fixedGasPrice, gasUnits, omitMarkup, transport } = options;
-
-    const gasMarkup = omitMarkup ? 0 : this.gasMarkup;
-    assert(
-      gasMarkup > -1 && gasMarkup <= 4,
-      `Require -1.0 < Gas Markup (${gasMarkup}) <= 4.0 for a total gas multiplier within (0, +5.0]`
-    );
-    const gasTotalMultiplier = toBNWei(1.0 + gasMarkup);
+    const { gasPrice = this.fixedGasPrice, gasUnits, transport } = options;
 
     const tx = await populateV3Relay(this.spokePool, deposit, relayer);
     const {
@@ -100,8 +87,8 @@ export class QueryBase implements QueryInterface {
     });
 
     return {
-      nativeGasCost: nativeGasCost.mul(gasTotalMultiplier).div(fixedPointAdjustment),
-      tokenGasCost: tokenGasCost.mul(gasTotalMultiplier).div(fixedPointAdjustment),
+      nativeGasCost,
+      tokenGasCost,
       gasPrice: impliedGasPrice,
     };
   }
