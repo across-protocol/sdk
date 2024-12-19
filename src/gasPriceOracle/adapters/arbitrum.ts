@@ -11,7 +11,7 @@ let DEFAULT_PRIORITY_FEE: BigNumber | undefined = undefined;
 export async function eip1559(
   provider: providers.Provider,
   chainId: number,
-  markup: number
+  baseFeeMultiplier: number
 ): Promise<GasPriceEstimate> {
   DEFAULT_PRIORITY_FEE ??= parseUnits("1.5", 9);
   const { maxFeePerGas: _maxFeePerGas, maxPriorityFeePerGas } = await ethereum.eip1559(provider, chainId, markup);
@@ -23,7 +23,7 @@ export async function eip1559(
 
   // eip1559() sets maxFeePerGas = lastBaseFeePerGas + maxPriorityFeePerGas, so revert that.
   // The caller may apply scaling as they wish afterwards.
-  const maxFeePerGas = _maxFeePerGas.mul(markup).sub(maxPriorityFeePerGas).add(bnOne);
+  const maxFeePerGas = _maxFeePerGas.mul(baseFeeMultiplier).sub(maxPriorityFeePerGas).add(bnOne);
 
   return { maxPriorityFeePerGas: bnOne, maxFeePerGas };
 }

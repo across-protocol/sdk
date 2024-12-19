@@ -70,7 +70,7 @@ class PolygonGasStation extends BaseHTTPAdapter {
 export async function gasStation(
   provider: providers.Provider,
   chainId: number,
-  markup: number
+  baseFeeMultiplier: number
 ): Promise<GasPriceEstimate> {
   const gasStation = new PolygonGasStation({ chainId: chainId, timeout: 2000, retries: 0 });
   let maxPriorityFeePerGas: BigNumber;
@@ -79,7 +79,8 @@ export async function gasStation(
     ({ maxPriorityFeePerGas, maxFeePerGas } = await gasStation.getFeeData());
   } catch (err) {
     // Fall back to the RPC provider. May be less accurate.
-    ({ maxPriorityFeePerGas, maxFeePerGas } = await eip1559(provider, chainId, markup));
+    // @dev Don't incorporate multiplier until after catch statement
+    ({ maxPriorityFeePerGas, maxFeePerGas } = await eip1559(provider, chainId, 1.0));
 
     // Per the GasStation docs, the minimum priority fee on Polygon is 30 Gwei.
     // https://docs.polygon.technology/tools/gas/polygon-gas-station/#interpretation
@@ -91,5 +92,5 @@ export async function gasStation(
     }
   }
 
-  return { maxPriorityFeePerGas, maxFeePerGas: maxFeePerGas.mul(markup) };
+  return { maxPriorityFeePerGas, maxFeePerGas: maxFeePerGas.mul(baseFeeMultiplier) };
 }

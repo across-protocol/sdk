@@ -23,13 +23,13 @@ import * as polygonViem from "./adapters/polygon-viem";
 export async function getGasPriceEstimate(
   provider: providers.Provider,
   chainId?: number,
-  baseFeeMarkup = 1.0,
+  baseFeeMultiplier = 1.0,
   transport?: Transport,
   legacyFallback = true
 ): Promise<GasPriceEstimate> {
   assert(
-    baseFeeMarkup > 0 && baseFeeMarkup <= 5,
-    `Require 0 < base fee markup (${baseFeeMarkup}) <= 5.0 for a total gas multiplier within (0, +5.0]`
+    baseFeeMultiplier >= 1.0 && baseFeeMultiplier <= 5,
+    `Require 1.0 < base fee multiplier (${baseFeeMultiplier}) <= 5.0 for a total gas multiplier within [+1.0, +5.0]`
   );
   if (chainId === undefined) {
     ({ chainId } = await provider.getNetwork());
@@ -37,8 +37,8 @@ export async function getGasPriceEstimate(
 
   const useViem = process.env[`NEW_GAS_PRICE_ORACLE_${chainId}`] === "true";
   return useViem
-    ? getViemGasPriceEstimate(chainId, transport, baseFeeMarkup)
-    : getEthersGasPriceEstimate(provider, chainId, legacyFallback, baseFeeMarkup);
+    ? getViemGasPriceEstimate(chainId, transport, baseFeeMultiplier)
+    : getEthersGasPriceEstimate(provider, chainId, legacyFallback, baseFeeMultiplier);
 }
 
 /**
@@ -52,7 +52,7 @@ async function getEthersGasPriceEstimate(
   provider: providers.Provider,
   chainId?: number,
   legacyFallback = true,
-  markup = 1.0
+  baseFeeMultiplier = 1.0
 ): Promise<GasPriceEstimate> {
   if (chainId === undefined) {
     ({ chainId } = await provider.getNetwork());
@@ -79,7 +79,7 @@ async function getEthersGasPriceEstimate(
     gasPriceFeed = chainIsOPStack(chainId) ? ethereum.eip1559 : ethereum.legacy;
   }
 
-  return gasPriceFeed(provider, chainId, markup);
+  return gasPriceFeed(provider, chainId, baseFeeMultiplier);
 }
 
 /**
@@ -91,7 +91,7 @@ async function getEthersGasPriceEstimate(
 export async function getViemGasPriceEstimate(
   providerOrChainId: providers.Provider | number,
   transport?: Transport,
-  markup = 1.0
+  baseFeeMultiplier = 1.0
 ): Promise<GasPriceEstimate> {
   const chainId =
     typeof providerOrChainId === "number" ? providerOrChainId : (await providerOrChainId.getNetwork()).chainId;
@@ -118,7 +118,7 @@ export async function getViemGasPriceEstimate(
 
   // Apply markup to base fee which will be  more volatile than priority fee.
   return {
-    maxFeePerGas: BigNumber.from(maxFeePerGas.toString()).mul(markup),
+    maxFeePerGas: BigNumber.from(maxFeePerGas.toString()).mul(baseFeeMultiplier),
     maxPriorityFeePerGas: BigNumber.from(maxPriorityFeePerGas.toString()),
   };
 }

@@ -6,7 +6,7 @@ import { gasPriceError } from "../util";
 export async function eip1559(
   provider: providers.Provider,
   chainId: number,
-  markup: number
+  baseFeeMultiplier: number
 ): Promise<GasPriceEstimate> {
   const feeData = await provider.getFeeData();
 
@@ -15,7 +15,7 @@ export async function eip1559(
   });
 
   const maxPriorityFeePerGas = feeData.maxPriorityFeePerGas as BigNumber;
-  const scaledLastBaseFeePerGas = (feeData.lastBaseFeePerGas as BigNumber).mul(markup);
+  const scaledLastBaseFeePerGas = (feeData.lastBaseFeePerGas as BigNumber).mul(baseFeeMultiplier);
   const maxFeePerGas = maxPriorityFeePerGas.add(scaledLastBaseFeePerGas);
 
   return { maxPriorityFeePerGas, maxFeePerGas };
