@@ -1,7 +1,7 @@
 import { Transport } from "viem";
 import { providers } from "ethers";
 import { CHAIN_IDs } from "../constants";
-import { BigNumber, chainIsOPStack } from "../utils";
+import { assert, BigNumber, chainIsOPStack } from "../utils";
 import { GasPriceEstimate } from "./types";
 import { getPublicClient } from "./util";
 import * as arbitrum from "./adapters/arbitrum";
@@ -17,22 +17,28 @@ import * as polygonViem from "./adapters/polygon-viem";
  * @param chainId The chain ID to query for gas prices.
  * @param provider A valid ethers provider.
  * @param legacyFallback In the case of an unrecognised chain, fall back to type 0 gas estimation.
+ * @parm baseFeeMarkup Multiplier applied to base fee for EIP1559 gas prices (or total fee for legacy).
  * @returns Am object of type GasPriceEstimate.
  */
 export async function getGasPriceEstimate(
   provider: providers.Provider,
   chainId?: number,
+  baseFeeMarkup = 1.0,
   transport?: Transport,
   legacyFallback = true
 ): Promise<GasPriceEstimate> {
+  assert(
+    baseFeeMarkup > 0 && baseFeeMarkup <= 5,
+    `Require 0 < base fee markup (${baseFeeMarkup}) <= 5.0 for a total gas multiplier within (0, +5.0]`
+  );
   if (chainId === undefined) {
     ({ chainId } = await provider.getNetwork());
   }
 
   const useViem = process.env[`NEW_GAS_PRICE_ORACLE_${chainId}`] === "true";
   return useViem
-    ? getViemGasPriceEstimate(chainId, transport)
-    : getEthersGasPriceEstimate(provider, chainId, legacyFallback);
+    ? getViemGasPriceEstimate(chainId, transport, baseFeeMarkup)
+    : getEthersGasPriceEstimate(provider, chainId, legacyFallback, baseFeeMarkup);
 }
 
 /**
@@ -45,7 +51,8 @@ export async function getGasPriceEstimate(
 async function getEthersGasPriceEstimate(
   provider: providers.Provider,
   chainId?: number,
-  legacyFallback = true
+  legacyFallback = true,
+  markup = 1.0
 ): Promise<GasPriceEstimate> {
   if (chainId === undefined) {
     ({ chainId } = await provider.getNetwork());
@@ -72,7 +79,7 @@ async function getEthersGasPriceEstimate(
     gasPriceFeed = chainIsOPStack(chainId) ? ethereum.eip1559 : ethereum.legacy;
   }
 
-  return gasPriceFeed(provider, chainId);
+  return gasPriceFeed(provider, chainId, markup);
 }
 
 /**
@@ -83,7 +90,8 @@ async function getEthersGasPriceEstimate(
  */
 export async function getViemGasPriceEstimate(
   providerOrChainId: providers.Provider | number,
-  transport?: Transport
+  transport?: Transport,
+  markup = 1.0
 ): Promise<GasPriceEstimate> {
   const chainId =
     typeof providerOrChainId === "number" ? providerOrChainId : (await providerOrChainId.getNetwork()).chainId;
@@ -108,8 +116,9 @@ export async function getViemGasPriceEstimate(
     maxPriorityFeePerGas ??= BigInt(0);
   }
 
+  // Apply markup to base fee which will be  more volatile than priority fee.
   return {
-    maxFeePerGas: BigNumber.from(maxFeePerGas.toString()),
+    maxFeePerGas: BigNumber.from(maxFeePerGas.toString()).mul(markup),
     maxPriorityFeePerGas: BigNumber.from(maxPriorityFeePerGas.toString()),
   };
 }
