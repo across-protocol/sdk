@@ -869,7 +869,6 @@ export class BundleDataClient {
                 // At this point, the v3RelayHashes entry already existed meaning that there is a matching deposit,
                 // so this fill is validated.
                 v3RelayHashes[relayDataHash].fill = fill;
-
                 if (fill.blockNumber >= destinationChainBlockRange[0]) {
                   validatedBundleV3Fills.push({
                     ...fill,
@@ -964,7 +963,6 @@ export class BundleDataClient {
                   isDefined(v3RelayHashes[relayDataHash].deposit),
                   "Deposit should exist in relay hash dictionary."
                 );
-
                 // The ! is safe here because we've already checked that the deposit exists in the relay hash dictionary.
                 const matchedDeposit = v3RelayHashes[relayDataHash].deposit!;
 
@@ -1123,7 +1121,6 @@ export class BundleDataClient {
         !fill &&
         isDefined(deposit) // Needed for TSC - we check this above.
       ) {
-        // These should all be >0 value deposits
         updateExpiredDepositsV3(expiredDepositsToRefundV3, deposit);
       }
     });
@@ -1132,8 +1129,6 @@ export class BundleDataClient {
     // whether there was a slow fill created for it in a previous bundle that is now unexecutable and replaced
     // by a new expired deposit refund.
     await forEachAsync(Array.from(olderDepositHashes), async (relayDataHash) => {
-      // These should all be >0 value deposits
-
       const { deposit, slowFillRequest, fill } = v3RelayHashes[relayDataHash];
       assert(isDefined(deposit), "Deposit should exist in relay hash dictionary.");
       const { destinationChainId } = deposit!;
