@@ -54,9 +54,10 @@ describe("Gas Price Oracle", function () {
       delete process.env[chainKey];
     }
   });
-  it("Ethers: applies markup to maxFeePerGas", async function() {
+  it("Ethers: applies markup to maxFeePerGas", async function () {
     for (const chainId of chainIds) {
-      const { maxFeePerGas: markedUpMaxFeePerGas, maxPriorityFeePerGas: markedUpMaxPriorityFeePerGas } = await getGasPriceEstimate(provider, chainId, 2, customTransport);
+      const { maxFeePerGas: markedUpMaxFeePerGas, maxPriorityFeePerGas: markedUpMaxPriorityFeePerGas } =
+        await getGasPriceEstimate(provider, chainId, 2, customTransport);
       const { maxFeePerGas, maxPriorityFeePerGas } = await getGasPriceEstimate(provider, chainId, 1, customTransport);
       dummyLogger.debug({
         at: "Gas Price Oracle#Gas Price Retrieval",
@@ -64,11 +65,11 @@ describe("Gas Price Oracle", function () {
         maxFeePerGas: maxFeePerGas.toString(),
         maxPriorityFeePerGas: maxPriorityFeePerGas.toString(),
         markedUpMaxFeePerGas: markedUpMaxFeePerGas.toString(),
-        markedUpMaxPriorityFeePerGas: markedUpMaxPriorityFeePerGas.toString()
+        markedUpMaxPriorityFeePerGas: markedUpMaxPriorityFeePerGas.toString(),
       });
 
       expect(markedUpMaxFeePerGas.div(2)).to.equal(maxFeePerGas);
       expect(markedUpMaxPriorityFeePerGas).to.equal(maxPriorityFeePerGas);
     }
-  })
+  });
 });
