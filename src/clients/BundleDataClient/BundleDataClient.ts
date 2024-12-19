@@ -793,6 +793,12 @@ export class BundleDataClient {
             slowFillRequest: undefined,
           };
 
+          // Once we've saved the deposit hash into v3RelayHashes, then we can exit early here if the inputAmount
+          // is 0 because there can be no expired deposit to refund.
+          if (deposit.inputAmount.eq(0)) {
+            return;
+          }
+
           // If deposit block is within origin chain bundle block range, then save as bundle deposit.
           // If deposit is in bundle and it has expired, additionally save it as an expired deposit.
           // If deposit is not in the bundle block range, then save it as an older deposit that
@@ -854,6 +860,9 @@ export class BundleDataClient {
                 // At this point, the v3RelayHashes entry already existed meaning that there is a matching deposit,
                 // so this fill is validated.
                 v3RelayHashes[relayDataHash].fill = fill;
+
+                // Exit here if input amount is 0-value.
+
                 if (fill.blockNumber >= destinationChainBlockRange[0]) {
                   validatedBundleV3Fills.push({
                     ...fill,
@@ -909,11 +918,14 @@ export class BundleDataClient {
                 // sanity check it here by comparing the full relay hashes. If there's an error here then the
                 // historical deposit query is not working as expected.
                 assert(this.getRelayHashFromEvent(matchedDeposit) === relayDataHash, "Relay hashes should match.");
+                v3RelayHashes[relayDataHash].deposit = matchedDeposit;
+
+                // Exit here if fill is 0-value?
+
                 validatedBundleV3Fills.push({
                   ...fill,
                   quoteTimestamp: matchedDeposit.quoteTimestamp,
                 });
-                v3RelayHashes[relayDataHash].deposit = matchedDeposit;
                 // slow fill requests for deposits from or to lite chains are considered invalid
                 if (
                   fill.relayExecutionInfo.fillType === FillType.ReplacedSlowFill &&
@@ -948,6 +960,9 @@ export class BundleDataClient {
                   isDefined(v3RelayHashes[relayDataHash].deposit),
                   "Deposit should exist in relay hash dictionary."
                 );
+
+                // Exit here if input amount is 0-value and message is empty?
+
                 // The ! is safe here because we've already checked that the deposit exists in the relay hash dictionary.
                 const matchedDeposit = v3RelayHashes[relayDataHash].deposit!;
 
@@ -1029,6 +1044,8 @@ export class BundleDataClient {
 
               v3RelayHashes[relayDataHash].deposit = matchedDeposit;
 
+              // Exit here if input amount is 0-value and message is empty?
+
               // Note: we don't need to query for a historical fill at this point because a fill
               // cannot precede a slow fill request and if the fill came after the slow fill request,
               // we would have seen it already because we would have processed it in the loop above.
@@ -1106,6 +1123,7 @@ export class BundleDataClient {
         !fill &&
         isDefined(deposit) // Needed for TSC - we check this above.
       ) {
+        // These should all be >0 value deposits
         updateExpiredDepositsV3(expiredDepositsToRefundV3, deposit);
       }
     });
@@ -1114,6 +1132,8 @@ export class BundleDataClient {
     // whether there was a slow fill created for it in a previous bundle that is now unexecutable and replaced
     // by a new expired deposit refund.
     await forEachAsync(Array.from(olderDepositHashes), async (relayDataHash) => {
+      // These should all be >0 value deposits
+
       const { deposit, slowFillRequest, fill } = v3RelayHashes[relayDataHash];
       assert(isDefined(deposit), "Deposit should exist in relay hash dictionary.");
       const { destinationChainId } = deposit!;
