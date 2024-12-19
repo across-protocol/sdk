@@ -15,7 +15,8 @@ export async function eip1559(
   });
 
   const maxPriorityFeePerGas = feeData.maxPriorityFeePerGas as BigNumber;
-  const maxFeePerGas = maxPriorityFeePerGas.mul(markup).add(feeData.lastBaseFeePerGas as BigNumber);
+  const scaledLastBaseFeePerGas = (feeData.lastBaseFeePerGas as BigNumber).mul(markup);
+  const maxFeePerGas = maxPriorityFeePerGas.add(scaledLastBaseFeePerGas);
 
   return { maxPriorityFeePerGas, maxFeePerGas };
 }

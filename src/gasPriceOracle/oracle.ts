@@ -23,9 +23,9 @@ import * as polygonViem from "./adapters/polygon-viem";
 export async function getGasPriceEstimate(
   provider: providers.Provider,
   chainId?: number,
+  baseFeeMarkup = 1.0,
   transport?: Transport,
-  legacyFallback = true,
-  baseFeeMarkup = 1.0
+  legacyFallback = true
 ): Promise<GasPriceEstimate> {
   if (chainId === undefined) {
     ({ chainId } = await provider.getNetwork());

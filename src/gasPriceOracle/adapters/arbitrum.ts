@@ -14,7 +14,7 @@ export async function eip1559(
   markup: number
 ): Promise<GasPriceEstimate> {
   DEFAULT_PRIORITY_FEE ??= parseUnits("1.5", 9);
-  const { maxFeePerGas: _maxFeePerGas, maxPriorityFeePerGas } = await ethereum.eip1559(provider, chainId);
+  const { maxFeePerGas: _maxFeePerGas, maxPriorityFeePerGas } = await ethereum.eip1559(provider, chainId, markup);
 
   // If this throws, ethers default behaviour has changed, or Arbitrum RPCs are returning something more sensible.
   if (!maxPriorityFeePerGas.eq(DEFAULT_PRIORITY_FEE)) {
