@@ -27,7 +27,7 @@ export async function eip1559(
 
   // eip1559() sets maxFeePerGas = lastBaseFeePerGas + maxPriorityFeePerGas, so revert that.
   // The caller may apply scaling as they wish afterwards.
-  const maxFeePerGas = _maxFeePerGas.mul(baseFeeMultiplier).sub(maxPriorityFeePerGas).add(bnOne);
+  const maxFeePerGas = _maxFeePerGas.sub(maxPriorityFeePerGas).add(bnOne);
 
   return { maxPriorityFeePerGas: bnOne, maxFeePerGas };
 }

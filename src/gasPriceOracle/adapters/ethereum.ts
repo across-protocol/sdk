@@ -21,13 +21,17 @@ export async function eip1559(
   return { maxPriorityFeePerGas, maxFeePerGas };
 }
 
-export async function legacy(provider: providers.Provider, chainId: number, markup: number): Promise<GasPriceEstimate> {
+export async function legacy(
+  provider: providers.Provider,
+  chainId: number,
+  baseFeeMultiplier: number
+): Promise<GasPriceEstimate> {
   const gasPrice = await provider.getGasPrice();
 
   if (!BigNumber.isBigNumber(gasPrice) || gasPrice.lt(bnZero)) gasPriceError("getGasPrice()", chainId, gasPrice);
 
   return {
-    maxFeePerGas: gasPrice.mul(markup),
+    maxFeePerGas: gasPrice.mul(baseFeeMultiplier),
     maxPriorityFeePerGas: bnZero,
   };
 }
