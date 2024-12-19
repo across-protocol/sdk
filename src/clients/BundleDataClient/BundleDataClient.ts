@@ -778,10 +778,10 @@ export class BundleDataClient {
         if (originChainId === destinationChainId) {
           continue;
         }
-        originClient
-          .getDepositsForDestinationChain(destinationChainId)
-          .filter((deposit) => !isZeroValueDeposit(deposit))
-          .forEach((deposit) => {
+        originClient.getDepositsForDestinationChain(destinationChainId).forEach((deposit) => {
+          if (isZeroValueDeposit(deposit)) {
+            return;
+          }
             depositCounter++;
             const relayDataHash = this.getRelayHashFromEvent(deposit);
             if (v3RelayHashes[relayDataHash]) {
