@@ -3,7 +3,11 @@ import { BigNumber, bnZero } from "../../utils";
 import { GasPriceEstimate } from "../types";
 import { gasPriceError } from "../util";
 
-export async function eip1559(provider: providers.Provider, chainId: number, markup: number): Promise<GasPriceEstimate> {
+export async function eip1559(
+  provider: providers.Provider,
+  chainId: number,
+  markup: number
+): Promise<GasPriceEstimate> {
   const feeData = await provider.getFeeData();
 
   [feeData.lastBaseFeePerGas, feeData.maxPriorityFeePerGas].forEach((field: BigNumber | null) => {

@@ -67,7 +67,11 @@ class PolygonGasStation extends BaseHTTPAdapter {
   }
 }
 
-export async function gasStation(provider: providers.Provider, chainId: number, markup: number): Promise<GasPriceEstimate> {
+export async function gasStation(
+  provider: providers.Provider,
+  chainId: number,
+  markup: number
+): Promise<GasPriceEstimate> {
   const gasStation = new PolygonGasStation({ chainId: chainId, timeout: 2000, retries: 0 });
   let maxPriorityFeePerGas: BigNumber;
   let maxFeePerGas: BigNumber;
