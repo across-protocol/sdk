@@ -77,7 +77,6 @@ export async function gasStation(
   let maxFeePerGas: BigNumber;
   try {
     ({ maxPriorityFeePerGas, maxFeePerGas } = await gasStation.getFeeData());
-    maxFeePerGas = maxFeePerGas.mul(markup);
   } catch (err) {
     // Fall back to the RPC provider. May be less accurate.
     ({ maxPriorityFeePerGas, maxFeePerGas } = await eip1559(provider, chainId, markup));
@@ -88,9 +87,9 @@ export async function gasStation(
     if (maxPriorityFeePerGas.lt(minPriorityFee)) {
       const priorityDelta = minPriorityFee.sub(maxPriorityFeePerGas);
       maxPriorityFeePerGas = minPriorityFee;
-      maxFeePerGas = maxFeePerGas.mul(markup).add(priorityDelta);
+      maxFeePerGas = maxFeePerGas.add(priorityDelta);
     }
   }
 
-  return { maxPriorityFeePerGas, maxFeePerGas };
+  return { maxPriorityFeePerGas, maxFeePerGas: maxFeePerGas.mul(markup) };
 }
