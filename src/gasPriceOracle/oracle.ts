@@ -26,9 +26,7 @@ export async function getGasPriceEstimate(
   transport?: Transport,
   legacyFallback = true
 ): Promise<GasPriceEstimate> {
-  if (chainId === undefined) {
-    ({ chainId } = await provider.getNetwork());
-  }
+  chainId ?? ({ chainId } = await provider.getNetwork());
 
   const useViem = process.env[`NEW_GAS_PRICE_ORACLE_${chainId}`] === "true";
   return useViem
@@ -45,11 +43,9 @@ export async function getGasPriceEstimate(
  */
 async function getEthersGasPriceEstimate(
   provider: providers.Provider,
-  chainId?: number,
+  chainId: number,
   legacyFallback = true
 ): Promise<GasPriceEstimate> {
-  chainId ?? ({ chainId } = await provider.getNetwork());
-
   const gasPriceFeeds = {
     [CHAIN_IDs.ALEPH_ZERO]: arbitrum.eip1559,
     [CHAIN_IDs.ARBITRUM]: arbitrum.eip1559,
