@@ -8,7 +8,6 @@ import { getPublicClient } from "./util";
 import * as arbitrum from "./adapters/arbitrum";
 import * as ethereum from "./adapters/ethereum";
 import * as linea from "./adapters/linea";
-import * as op from "./adapters/op";
 import * as polygon from "./adapters/polygon";
 import * as arbitrumViem from "./adapters/arbitrum-viem";
 import * as lineaViem from "./adapters/linea-viem";
