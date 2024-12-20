@@ -5,7 +5,7 @@ import { gasPriceError } from "../util";
 
 export async function eip1559(provider: providers.Provider, _chainId: number): Promise<GasPriceEstimate> {
   const [{ baseFeePerGas }, _maxPriorityFeePerGas] = await Promise.all([
-    provider.getBlock("latest"),
+    provider.getBlock("pending"),
     (provider as providers.JsonRpcProvider).send("eth_maxPriorityFeePerGas", []),
   ]);
   const maxPriorityFeePerGas = BigNumber.from(_maxPriorityFeePerGas);
