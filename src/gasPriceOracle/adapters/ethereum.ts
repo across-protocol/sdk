@@ -4,16 +4,16 @@ import { GasPriceEstimate } from "../types";
 import { gasPriceError } from "../util";
 
 export async function eip1559(provider: providers.Provider, chainId: number): Promise<GasPriceEstimate> {
-  const feeData = await provider.getFeeData();
+  const [{ baseFeePerGas }, _maxPriorityFeePerGas] = await Promise.all([
+    provider.getBlock("latest"),
+    (provider as providers.JsonRpcProvider).send("eth_maxPriorityFeePerGas", []),
+  ]);
+  const maxPriorityFeePerGas = BigNumber.from(_maxPriorityFeePerGas);
 
-  [feeData.lastBaseFeePerGas, feeData.maxPriorityFeePerGas].forEach((field: BigNumber | null) => {
-    if (!BigNumber.isBigNumber(field) || field.lt(bnZero)) gasPriceError("getFeeData()", chainId, feeData);
-  });
-
-  const maxPriorityFeePerGas = feeData.maxPriorityFeePerGas as BigNumber;
-  const maxFeePerGas = maxPriorityFeePerGas.add(feeData.lastBaseFeePerGas as BigNumber);
-
-  return { maxPriorityFeePerGas, maxFeePerGas };
+  return {
+    maxFeePerGas: maxPriorityFeePerGas.add(baseFeePerGas ?? 0),
+    maxPriorityFeePerGas,
+  };
 }
 
 export async function legacy(provider: providers.Provider, chainId: number): Promise<GasPriceEstimate> {

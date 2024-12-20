@@ -63,7 +63,7 @@ async function getEthersGasPriceEstimate(
 
   let gasPriceFeed = gasPriceFeeds[chainId];
   assert(gasPriceFeed || legacyFallback, `No suitable gas price oracle for Chain ID ${chainId}`);
-  gasPriceFeed ??= chainIsOPStack(chainId) ? op.legacy : ethereum.legacy;
+  gasPriceFeed ??= chainIsOPStack(chainId) ? op.eip1559 : ethereum.legacy;
 
   return gasPriceFeed(provider, chainId);
 }
