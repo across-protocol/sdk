@@ -3,7 +3,7 @@ import { BigNumber, bnZero } from "../../utils";
 import { GasPriceEstimate } from "../types";
 import { gasPriceError } from "../util";
 
-export async function eip1559(provider: providers.Provider, chainId: number): Promise<GasPriceEstimate> {
+export async function eip1559(provider: providers.Provider, _chainId: number): Promise<GasPriceEstimate> {
   const [{ baseFeePerGas }, _maxPriorityFeePerGas] = await Promise.all([
     provider.getBlock("latest"),
     (provider as providers.JsonRpcProvider).send("eth_maxPriorityFeePerGas", []),
