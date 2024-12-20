@@ -41,7 +41,7 @@ export async function getGasPriceEstimate(
  * @param legacyFallback In the case of an unrecognised chain, fall back to type 0 gas estimation.
  * @returns Am object of type GasPriceEstimate.
  */
-async function getEthersGasPriceEstimate(
+function getEthersGasPriceEstimate(
   provider: providers.Provider,
   chainId: number,
   legacyFallback = true

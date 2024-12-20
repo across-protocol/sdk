@@ -3,7 +3,6 @@ import { bnOne } from "../../utils";
 import { GasPriceEstimate } from "../types";
 import * as ethereum from "./ethereum";
 
-
 // Arbitrum Nitro implements EIP-1559 pricing, but the priority fee is always refunded to the caller.
 // Reference: https://developer.arbitrum.io/faqs/gas-faqs#q-priority
 export async function eip1559(provider: providers.Provider, chainId: number): Promise<GasPriceEstimate> {

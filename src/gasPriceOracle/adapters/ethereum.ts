@@ -11,9 +11,7 @@ import { gasPriceError } from "../util";
  */
 export function eip1559(provider: providers.Provider, chainId: number): Promise<GasPriceEstimate> {
   const useRaw = process.env[`GAS_PRICE_EIP1559_RAW_${chainId}`] === "true";
-  return useRaw
-    ? eip1559Raw(provider, chainId)
-    : eip1559Bad(provider, chainId);
+  return useRaw ? eip1559Raw(provider, chainId) : eip1559Bad(provider, chainId);
 }
 
 /**
@@ -43,7 +41,7 @@ export async function eip1559Raw(provider: providers.Provider, chainId: number):
  * @returns Promise of gas price estimate object.
  */
 export async function eip1559Bad(provider: providers.Provider, chainId: number): Promise<GasPriceEstimate> {
-	const feeData = await provider.getFeeData();
+  const feeData = await provider.getFeeData();
 
   [feeData.lastBaseFeePerGas, feeData.maxPriorityFeePerGas].forEach((field: BigNumber | null) => {
     if (!BigNumber.isBigNumber(field) || field.lt(bnZero)) gasPriceError("getFeeData()", chainId, feeData);
