@@ -17,7 +17,7 @@ export function eip1559(provider: providers.Provider, chainId: number): Promise<
 /**
  * @note Performs direct RPC calls to retrieve the RPC-suggested priority fee for the next block.
  * @param provider ethers RPC provider instance.
- * @param _chainId unused.
+ * @param chainId Chain ID of the provider instance.
  * @returns Promise of gas price estimate object.
  */
 export async function eip1559Raw(provider: providers.Provider, chainId: number): Promise<GasPriceEstimate> {
@@ -37,7 +37,7 @@ export async function eip1559Raw(provider: providers.Provider, chainId: number):
 /**
  * @note Resolves priority gas pricing poorly, because the priority fee is hardcoded to 1.5 Gwei in ethers v5.
  * @param provider ethers RPC provider instance.
- * @param _chainId unused.
+ * @param chainId Chain ID of the provider instance.
  * @returns Promise of gas price estimate object.
  */
 export async function eip1559Bad(provider: providers.Provider, chainId: number): Promise<GasPriceEstimate> {
