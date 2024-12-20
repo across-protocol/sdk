@@ -88,6 +88,15 @@ export function chainIsAlephZero(chainId: number): boolean {
 }
 
 /**
+ * Determines whether a chain ID is an Ink implementation
+ * @param chainId Chain ID to evaluate
+ * @returns True if chainId is an Ink chain, otherwise false
+ */
+export function chainIsInk(chainId: number): boolean {
+  return [CHAIN_IDs.INK, CHAIN_IDs.INK_SEPOLIA].includes(chainId);
+}
+
+/**
  * Determines whether a chain ID is a Linea implementation.
  * @param chainId Chain ID to evaluate.
  * @returns True if chainId is a Linea chain, otherwise false.
