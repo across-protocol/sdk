@@ -267,7 +267,7 @@ export async function estimateTotalGasRequiredByUnsignedTransaction(
   // Estimate the Gas units required to submit this transaction.
   const queries = [
     gasUnits ? Promise.resolve(BigNumber.from(gasUnits)) : voidSigner.estimateGas(unsignedTx),
-    _gasPrice ? Promise.resolve({ maxFeePerGas: _gasPrice }) : getGasPriceEstimate(provider, chainId, transport)
+    _gasPrice ? Promise.resolve({ maxFeePerGas: _gasPrice }) : getGasPriceEstimate(provider, chainId, transport),
   ] as const;
   let [nativeGasCost, { maxFeePerGas: gasPrice }] = await Promise.all(queries);
   assert(nativeGasCost.gt(bnZero), "Gas cost should not be 0");
@@ -286,7 +286,9 @@ export async function estimateTotalGasRequiredByUnsignedTransaction(
   } else {
     if (chainId === CHAIN_IDs.LINEA && process.env[`NEW_GAS_PRICE_ORACLE_${chainId}`] === "true") {
       // Permit linea_estimateGas via NEW_GAS_PRICE_ORACLE_59144=true
-      ({ maxFeePerGas: gasPrice, gasLimit: nativeGasCost } = await getLineaGasFees(chainId, transport, unsignedTx));
+      let baseFeePerGas: BigNumber, priorityFeePerGas: BigNumber;
+      ({ baseFeePerGas, priorityFeePerGas, gasLimit: nativeGasCost } = await getLineaGasFees(chainId, transport, unsignedTx));
+      gasPrice = baseFeePerGas.add(priorityFeePerGas);
     }
 
     tokenGasCost = nativeGasCost.mul(gasPrice);
