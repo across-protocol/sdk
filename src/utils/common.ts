@@ -288,9 +288,9 @@ export async function estimateTotalGasRequiredByUnsignedTransaction(
       // Permit linea_estimateGas via NEW_GAS_PRICE_ORACLE_59144=true
       let baseFeePerGas: BigNumber, priorityFeePerGas: BigNumber;
       ({
+        gasLimit: nativeGasCost,
         baseFeePerGas,
         priorityFeePerGas,
-        gasLimit: nativeGasCost,
       } = await getLineaGasFees(chainId, transport, unsignedTx));
       gasPrice = baseFeePerGas.add(priorityFeePerGas);
     }
