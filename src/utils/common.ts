@@ -4,7 +4,7 @@ import assert from "assert";
 import Decimal from "decimal.js";
 import { ethers, PopulatedTransaction, providers, VoidSigner } from "ethers";
 import { getGasPriceEstimate } from "../gasPriceOracle";
-import { BigNumber, BigNumberish, BN, formatUnits, parseUnits, toBN } from "./BigNumberUtils";
+import { BigNumber, BigNumberish, BN, bnZero, formatUnits, parseUnits, toBN } from "./BigNumberUtils";
 import { ConvertDecimals } from "./FormattingUtils";
 import { chainIsOPStack } from "./NetworkUtils";
 import { Address, Transport } from "viem";
@@ -265,8 +265,12 @@ export async function estimateTotalGasRequiredByUnsignedTransaction(
   const voidSigner = new VoidSigner(senderAddress, provider);
 
   // Estimate the Gas units required to submit this transaction.
-  const nativeGasCost = gasUnits ? BigNumber.from(gasUnits) : await voidSigner.estimateGas(unsignedTx);
-  assert(nativeGasCost.gt(0), "Gas cost should not be 0");
+  const queries = [
+    gasUnits ? Promise.resolve(BigNumber.from(gasUnits)) : voidSigner.estimateGas(unsignedTx),
+    _gasPrice ? Promise.resolve({ maxFeePerGas: _gasPrice }) : getGasPriceEstimate(provider, chainId, transport),
+  ] as const;
+  let [nativeGasCost, { maxFeePerGas: gasPrice }] = await Promise.all(queries);
+  assert(nativeGasCost.gt(bnZero), "Gas cost should not be 0");
   let tokenGasCost: BigNumber;
 
   // OP stack is a special case; gas cost is computed by the SDK, without having to query price.
@@ -276,28 +280,21 @@ export async function estimateTotalGasRequiredByUnsignedTransaction(
       ...unsignedTx,
       gasLimit: nativeGasCost, // prevents additional gas estimation call
     });
-    // Concurrently estimate the gas cost on L1 and L2 instead of calling
-    // `provider.estimateTotalGasCost` to improve performance.
-    const [l1GasCost, l2GasPrice] = await Promise.all([
-      provider.estimateL1GasCost(populatedTransaction),
-      _gasPrice || provider.getGasPrice(),
-    ]);
-    const l2GasCost = nativeGasCost.mul(l2GasPrice);
+    const l1GasCost = await provider.estimateL1GasCost(populatedTransaction);
+    const l2GasCost = nativeGasCost.mul(gasPrice);
     tokenGasCost = l1GasCost.add(l2GasCost);
-  } else if (chainId === CHAIN_IDs.LINEA && process.env[`NEW_GAS_PRICE_ORACLE_${chainId}`] === "true") {
-    // Permit linea_estimateGas via NEW_GAS_PRICE_ORACLE_59144=true
-    const {
-      gasLimit: nativeGasCost,
-      baseFeePerGas,
-      priorityFeePerGas,
-    } = await getLineaGasFees(chainId, transport, unsignedTx);
-    tokenGasCost = baseFeePerGas.add(priorityFeePerGas).mul(nativeGasCost);
   } else {
-    let gasPrice = _gasPrice;
-    if (!gasPrice) {
-      const gasPriceEstimate = await getGasPriceEstimate(provider, chainId, transport);
-      gasPrice = gasPriceEstimate.maxFeePerGas;
+    if (chainId === CHAIN_IDs.LINEA && process.env[`NEW_GAS_PRICE_ORACLE_${chainId}`] === "true") {
+      // Permit linea_estimateGas via NEW_GAS_PRICE_ORACLE_59144=true
+      let baseFeePerGas: BigNumber, priorityFeePerGas: BigNumber;
+      ({
+        gasLimit: nativeGasCost,
+        baseFeePerGas,
+        priorityFeePerGas,
+      } = await getLineaGasFees(chainId, transport, unsignedTx));
+      gasPrice = baseFeePerGas.add(priorityFeePerGas);
     }
+
     tokenGasCost = nativeGasCost.mul(gasPrice);
   }
 
