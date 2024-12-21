@@ -1,3 +1,4 @@
+import assert from "assert";
 import { Transport } from "viem";
 import { providers } from "ethers";
 import { CHAIN_IDs } from "../constants";
@@ -25,9 +26,7 @@ export async function getGasPriceEstimate(
   transport?: Transport,
   legacyFallback = true
 ): Promise<GasPriceEstimate> {
-  if (chainId === undefined) {
-    ({ chainId } = await provider.getNetwork());
-  }
+  chainId ?? ({ chainId } = await provider.getNetwork());
 
   const useViem = process.env[`NEW_GAS_PRICE_ORACLE_${chainId}`] === "true";
   return useViem
@@ -42,35 +41,24 @@ export async function getGasPriceEstimate(
  * @param legacyFallback In the case of an unrecognised chain, fall back to type 0 gas estimation.
  * @returns Am object of type GasPriceEstimate.
  */
-async function getEthersGasPriceEstimate(
+function getEthersGasPriceEstimate(
   provider: providers.Provider,
-  chainId?: number,
+  chainId: number,
   legacyFallback = true
 ): Promise<GasPriceEstimate> {
-  if (chainId === undefined) {
-    ({ chainId } = await provider.getNetwork());
-  }
-
   const gasPriceFeeds = {
     [CHAIN_IDs.ALEPH_ZERO]: arbitrum.eip1559,
     [CHAIN_IDs.ARBITRUM]: arbitrum.eip1559,
-    [CHAIN_IDs.BASE]: ethereum.eip1559,
     [CHAIN_IDs.LINEA]: linea.eip1559, // @todo: Support linea_estimateGas in adapter.
     [CHAIN_IDs.MAINNET]: ethereum.eip1559,
-    [CHAIN_IDs.MODE]: ethereum.eip1559,
-    [CHAIN_IDs.OPTIMISM]: ethereum.eip1559,
     [CHAIN_IDs.POLYGON]: polygon.gasStation,
-    [CHAIN_IDs.ZK_SYNC]: ethereum.legacy,
     [CHAIN_IDs.SCROLL]: ethereum.legacy,
+    [CHAIN_IDs.ZK_SYNC]: ethereum.legacy,
   } as const;
 
   let gasPriceFeed = gasPriceFeeds[chainId];
-  if (gasPriceFeed === undefined) {
-    if (!legacyFallback) {
-      throw new Error(`No suitable gas price oracle for Chain ID ${chainId}`);
-    }
-    gasPriceFeed = chainIsOPStack(chainId) ? ethereum.eip1559 : ethereum.legacy;
-  }
+  assert(gasPriceFeed || legacyFallback, `No suitable gas price oracle for Chain ID ${chainId}`);
+  gasPriceFeed ??= chainIsOPStack(chainId) ? ethereum.eip1559 : ethereum.legacy;
 
   return gasPriceFeed(provider, chainId);
 }
