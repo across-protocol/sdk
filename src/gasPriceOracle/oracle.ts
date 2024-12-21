@@ -52,7 +52,7 @@ function getEthersGasPriceEstimate(
   provider: providers.Provider,
   chainId: number,
   legacyFallback = true,
-  baseFeeMultiplier = 1.0
+  baseFeeMultiplier: number,
 ): Promise<GasPriceEstimate> {
   const gasPriceFeeds = {
     [CHAIN_IDs.ALEPH_ZERO]: arbitrum.eip1559,
@@ -80,7 +80,7 @@ function getEthersGasPriceEstimate(
 export async function getViemGasPriceEstimate(
   providerOrChainId: providers.Provider | number,
   transport?: Transport,
-  baseFeeMultiplier = 1.0
+  baseFeeMultiplier: number
 ): Promise<GasPriceEstimate> {
   const chainId =
     typeof providerOrChainId === "number" ? providerOrChainId : (await providerOrChainId.getNetwork()).chainId;
