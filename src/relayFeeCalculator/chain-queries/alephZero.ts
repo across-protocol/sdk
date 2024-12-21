@@ -14,8 +14,8 @@ export class AlephZeroQueries extends QueryBase {
     spokePoolAddress = getDeployedAddress("SpokePool", CHAIN_IDs.ALEPH_ZERO),
     simulatedRelayerAddress = DEFAULT_SIMULATED_RELAYER_ADDRESS,
     coingeckoProApiKey?: string,
-    logger: Logger = DEFAULT_LOGGER,
-    gasMarkup = 0
+    logger: Logger = DEFAULT_LOGGER
+    // gasMarkup = 0
   ) {
     assert(isDefined(spokePoolAddress));
     super(
@@ -23,7 +23,7 @@ export class AlephZeroQueries extends QueryBase {
       symbolMapping,
       spokePoolAddress,
       simulatedRelayerAddress,
-      gasMarkup,
+      // gasMarkup,
       logger,
       coingeckoProApiKey,
       undefined,

@@ -25,12 +25,12 @@ describe("Gas Price Oracle", function () {
     for (const chainId of chainIds) {
       const chainKey = `NEW_GAS_PRICE_ORACLE_${chainId}`;
       process.env[chainKey] = "true";
-      const { maxFeePerGas, maxPriorityFeePerGas } = await getGasPriceEstimate(provider, chainId, customTransport);
+      const { maxFeePerGas, maxPriorityFeePerGas } = await getGasPriceEstimate(provider, chainId, 1, customTransport);
       dummyLogger.debug({
         at: "Gas Price Oracle#Gas Price Retrieval",
         message: `Retrieved gas price estimate for chain ID ${chainId}`,
-        maxFeePerGas,
-        maxPriorityFeePerGas,
+        maxFeePerGas: maxFeePerGas.toString(),
+        maxPriorityFeePerGas: maxPriorityFeePerGas.toString(),
       });
 
       expect(BigNumber.isBigNumber(maxFeePerGas)).to.be.true;
@@ -52,6 +52,23 @@ describe("Gas Price Oracle", function () {
       }
 
       delete process.env[chainKey];
+    }
+  });
+  it("Ethers: applies markup to maxFeePerGas", async function () {
+    for (const chainId of chainIds) {
+      const { maxFeePerGas: markedUpMaxFeePerGas, maxPriorityFeePerGas: markedUpMaxPriorityFeePerGas } =
+        await getGasPriceEstimate(provider, chainId, 2, customTransport);
+      const { maxFeePerGas, maxPriorityFeePerGas } = await getGasPriceEstimate(provider, chainId, 1, customTransport);
+      dummyLogger.debug({
+        at: "Gas Price Oracle#Gas Price Retrieval",
+        message: `Retrieved gas price estimate for chain ID ${chainId}`,
+        maxFeePerGas: maxFeePerGas.toString(),
+        maxPriorityFeePerGas: maxPriorityFeePerGas.toString(),
+        markedUpMaxFeePerGas: markedUpMaxFeePerGas.toString(),
+        markedUpMaxPriorityFeePerGas: markedUpMaxPriorityFeePerGas.toString(),
+      });
+      expect(markedUpMaxFeePerGas.gt(maxFeePerGas)).to.be.true;
+      expect(markedUpMaxPriorityFeePerGas).to.equal(maxPriorityFeePerGas);
     }
   });
 });

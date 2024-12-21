@@ -18,20 +18,27 @@ import * as polygonViem from "./adapters/polygon-viem";
  * @param chainId The chain ID to query for gas prices.
  * @param provider A valid ethers provider.
  * @param legacyFallback In the case of an unrecognised chain, fall back to type 0 gas estimation.
+ * @parm baseFeeMarkup Multiplier applied to base fee for EIP1559 gas prices (or total fee for legacy).
  * @returns Am object of type GasPriceEstimate.
  */
 export async function getGasPriceEstimate(
   provider: providers.Provider,
   chainId?: number,
+  baseFeeMultiplier = 1.0,
   transport?: Transport,
   legacyFallback = true
 ): Promise<GasPriceEstimate> {
+  assert(
+    baseFeeMultiplier >= 1.0 && baseFeeMultiplier <= 5,
+    `Require 1.0 < base fee multiplier (${baseFeeMultiplier}) <= 5.0 for a total gas multiplier within [+1.0, +5.0]`
+  );
+
   chainId ?? ({ chainId } = await provider.getNetwork());
 
   const useViem = process.env[`NEW_GAS_PRICE_ORACLE_${chainId}`] === "true";
   return useViem
-    ? getViemGasPriceEstimate(chainId, transport)
-    : getEthersGasPriceEstimate(provider, chainId, legacyFallback);
+    ? getViemGasPriceEstimate(chainId, baseFeeMultiplier, transport)
+    : getEthersGasPriceEstimate(provider, chainId, baseFeeMultiplier, legacyFallback);
 }
 
 /**
@@ -44,6 +51,7 @@ export async function getGasPriceEstimate(
 function getEthersGasPriceEstimate(
   provider: providers.Provider,
   chainId: number,
+  baseFeeMultiplier: number,
   legacyFallback = true
 ): Promise<GasPriceEstimate> {
   const gasPriceFeeds = {
@@ -60,7 +68,7 @@ function getEthersGasPriceEstimate(
   assert(gasPriceFeed || legacyFallback, `No suitable gas price oracle for Chain ID ${chainId}`);
   gasPriceFeed ??= chainIsOPStack(chainId) ? ethereum.eip1559 : ethereum.legacy;
 
-  return gasPriceFeed(provider, chainId);
+  return gasPriceFeed(provider, chainId, baseFeeMultiplier);
 }
 
 /**
@@ -71,6 +79,7 @@ function getEthersGasPriceEstimate(
  */
 export async function getViemGasPriceEstimate(
   providerOrChainId: providers.Provider | number,
+  baseFeeMultiplier: number,
   transport?: Transport
 ): Promise<GasPriceEstimate> {
   const chainId =
@@ -96,8 +105,9 @@ export async function getViemGasPriceEstimate(
     maxPriorityFeePerGas ??= BigInt(0);
   }
 
+  // Apply markup to base fee which will be  more volatile than priority fee.
   return {
-    maxFeePerGas: BigNumber.from(maxFeePerGas.toString()),
+    maxFeePerGas: BigNumber.from(maxFeePerGas.toString()).mul(baseFeeMultiplier),
     maxPriorityFeePerGas: BigNumber.from(maxPriorityFeePerGas.toString()),
   };
 }
