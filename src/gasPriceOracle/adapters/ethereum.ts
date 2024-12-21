@@ -9,13 +9,13 @@ import { gasPriceError } from "../util";
  * @param chainId Chain ID of provider instance.
  * @returns Promise of gas price estimate object.
  */
-export async function eip1559(
+export function eip1559(
   provider: providers.Provider,
   chainId: number,
   baseFeeMultiplier: number
 ): Promise<GasPriceEstimate> {
   const useRaw = process.env[`GAS_PRICE_EIP1559_RAW_${chainId}`] === "true";
-  return useRaw ? eip1559Raw(provider, chainId) : eip1559Bad(provider, chainId);
+  return useRaw ? eip1559Raw(provider, chainId, baseFeeMultiplier) : eip1559Bad(provider, chainId, baseFeeMultiplier);
 }
 
 /**
@@ -24,7 +24,11 @@ export async function eip1559(
  * @param chainId Chain ID of the provider instance.
  * @returns Promise of gas price estimate object.
  */
-export async function eip1559Raw(provider: providers.Provider, chainId: number): Promise<GasPriceEstimate> {
+export async function eip1559Raw(
+  provider: providers.Provider,
+  chainId: number,
+  baseFeeMultiplier: number
+): Promise<GasPriceEstimate> {
   const [{ baseFeePerGas }, _maxPriorityFeePerGas] = await Promise.all([
     provider.getBlock("pending"),
     (provider as providers.JsonRpcProvider).send("eth_maxPriorityFeePerGas", []),
@@ -33,7 +37,7 @@ export async function eip1559Raw(provider: providers.Provider, chainId: number):
   assert(BigNumber.isBigNumber(baseFeePerGas), `No baseFeePerGas received on ${getNetworkName(chainId)}`);
 
   return {
-    maxFeePerGas: maxPriorityFeePerGas.add(baseFeePerGas),
+    maxFeePerGas: maxPriorityFeePerGas.mul(baseFeeMultiplier).add(baseFeePerGas),
     maxPriorityFeePerGas,
   };
 }
@@ -44,7 +48,11 @@ export async function eip1559Raw(provider: providers.Provider, chainId: number):
  * @param chainId Chain ID of the provider instance.
  * @returns Promise of gas price estimate object.
  */
-export async function eip1559Bad(provider: providers.Provider, chainId: number): Promise<GasPriceEstimate> {
+export async function eip1559Bad(
+  provider: providers.Provider,
+  chainId: number,
+  baseFeeMultiplier: number
+): Promise<GasPriceEstimate> {
   const feeData = await provider.getFeeData();
 
   [feeData.lastBaseFeePerGas, feeData.maxPriorityFeePerGas].forEach((field: BigNumber | null) => {

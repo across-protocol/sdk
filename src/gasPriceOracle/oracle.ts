@@ -2,7 +2,7 @@ import assert from "assert";
 import { Transport } from "viem";
 import { providers } from "ethers";
 import { CHAIN_IDs } from "../constants";
-import { assert, BigNumber, chainIsOPStack } from "../utils";
+import { BigNumber, chainIsOPStack } from "../utils";
 import { GasPriceEstimate } from "./types";
 import { getPublicClient } from "./util";
 import * as arbitrum from "./adapters/arbitrum";
@@ -37,8 +37,8 @@ export async function getGasPriceEstimate(
 
   const useViem = process.env[`NEW_GAS_PRICE_ORACLE_${chainId}`] === "true";
   return useViem
-    ? getViemGasPriceEstimate(chainId, transport, baseFeeMultiplier)
-    : getEthersGasPriceEstimate(provider, chainId, legacyFallback, baseFeeMultiplier);
+    ? getViemGasPriceEstimate(chainId, baseFeeMultiplier, transport)
+    : getEthersGasPriceEstimate(provider, chainId, baseFeeMultiplier, legacyFallback);
 }
 
 /**
@@ -51,8 +51,8 @@ export async function getGasPriceEstimate(
 function getEthersGasPriceEstimate(
   provider: providers.Provider,
   chainId: number,
-  legacyFallback = true,
   baseFeeMultiplier: number,
+  legacyFallback = true
 ): Promise<GasPriceEstimate> {
   const gasPriceFeeds = {
     [CHAIN_IDs.ALEPH_ZERO]: arbitrum.eip1559,
@@ -79,8 +79,8 @@ function getEthersGasPriceEstimate(
  */
 export async function getViemGasPriceEstimate(
   providerOrChainId: providers.Provider | number,
-  transport?: Transport,
-  baseFeeMultiplier: number
+  baseFeeMultiplier: number,
+  transport?: Transport
 ): Promise<GasPriceEstimate> {
   const chainId =
     typeof providerOrChainId === "number" ? providerOrChainId : (await providerOrChainId.getNetwork()).chainId;
