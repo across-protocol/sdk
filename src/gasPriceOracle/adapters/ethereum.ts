@@ -37,7 +37,7 @@ export async function eip1559Raw(
   assert(BigNumber.isBigNumber(baseFeePerGas), `No baseFeePerGas received on ${getNetworkName(chainId)}`);
 
   return {
-    maxFeePerGas: maxPriorityFeePerGas.mul(baseFeeMultiplier).add(baseFeePerGas),
+    maxFeePerGas: maxPriorityFeePerGas.add(baseFeePerGas).mul(baseFeeMultiplier),
     maxPriorityFeePerGas,
   };
 }
