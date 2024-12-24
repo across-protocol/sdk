@@ -17,6 +17,8 @@ export async function eip1559(
     _chainId,
     baseFeeMultiplier
   );
-  const maxFeePerGas = _maxFeePerGas - maxPriorityFeePerGas + MAX_PRIORITY_FEE_PER_GAS;
+  // @dev We need to back out the maxPriorityFee twice since its already added in `ethereumEip1559` to the
+  // maxFeePerGas.
+  const maxFeePerGas = _maxFeePerGas - maxPriorityFeePerGas * BigInt(2) + MAX_PRIORITY_FEE_PER_GAS;
   return { maxFeePerGas, maxPriorityFeePerGas: MAX_PRIORITY_FEE_PER_GAS };
 }

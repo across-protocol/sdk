@@ -123,7 +123,6 @@ export async function _getViemGasPriceEstimate(
   const chainId =
     typeof providerOrChainId === "number" ? providerOrChainId : (await providerOrChainId.getNetwork()).chainId;
   const viemProvider = getPublicClient(chainId, transport);
-  console.log(viemProvider.transport)
 
   const gasPriceFeeds: Record<
     number,

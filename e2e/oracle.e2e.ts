@@ -14,7 +14,7 @@ const dummyLogger = winston.createLogger({
 
 const stdLastBaseFeePerGas = parseUnits("12", 9);
 const stdMaxPriorityFeePerGas = parseUnits("1", 9); // EIP-1559 chains only
-const chainIds = [42161];
+const chainIds = [1, 10, 137, 324, 8453, 42161, 534352];
 
 const customTransport = makeCustomTransport({ stdLastBaseFeePerGas, stdMaxPriorityFeePerGas });
 
