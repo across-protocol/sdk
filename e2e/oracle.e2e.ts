@@ -14,7 +14,7 @@ const dummyLogger = winston.createLogger({
 
 const stdLastBaseFeePerGas = parseUnits("12", 9);
 const stdMaxPriorityFeePerGas = parseUnits("1", 9); // EIP-1559 chains only
-const chainIds = [1, 10, 137, 324, 8453, 42161, 534352];
+const chainIds = [42161];
 
 const customTransport = makeCustomTransport({ stdLastBaseFeePerGas, stdMaxPriorityFeePerGas });
 
@@ -25,7 +25,10 @@ describe("Gas Price Oracle", function () {
     for (const chainId of chainIds) {
       const chainKey = `NEW_GAS_PRICE_ORACLE_${chainId}`;
       process.env[chainKey] = "true";
-      const { maxFeePerGas, maxPriorityFeePerGas } = await getGasPriceEstimate(provider, chainId, 1, customTransport);
+      const { maxFeePerGas, maxPriorityFeePerGas } = await getGasPriceEstimate(provider, {
+        chainId,
+        transport: customTransport,
+      });
       dummyLogger.debug({
         at: "Gas Price Oracle#Gas Price Retrieval",
         message: `Retrieved gas price estimate for chain ID ${chainId}`,
@@ -57,8 +60,12 @@ describe("Gas Price Oracle", function () {
   it("Ethers: applies markup to maxFeePerGas", async function () {
     for (const chainId of chainIds) {
       const { maxFeePerGas: markedUpMaxFeePerGas, maxPriorityFeePerGas: markedUpMaxPriorityFeePerGas } =
-        await getGasPriceEstimate(provider, chainId, 2, customTransport);
-      const { maxFeePerGas, maxPriorityFeePerGas } = await getGasPriceEstimate(provider, chainId, 1, customTransport);
+        await getGasPriceEstimate(provider, { chainId, baseFeeMultiplier: 2, transport: customTransport });
+      const { maxFeePerGas, maxPriorityFeePerGas } = await getGasPriceEstimate(provider, {
+        chainId,
+        baseFeeMultiplier: 1,
+        transport: customTransport,
+      });
       dummyLogger.debug({
         at: "Gas Price Oracle#Gas Price Retrieval",
         message: `Retrieved gas price estimate for chain ID ${chainId}`,

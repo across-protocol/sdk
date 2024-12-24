@@ -7,10 +7,6 @@ import { getGasPriceEstimate } from "../gasPriceOracle";
 import { BigNumber, BigNumberish, BN, bnZero, formatUnits, parseUnits, toBN } from "./BigNumberUtils";
 import { ConvertDecimals } from "./FormattingUtils";
 import { chainIsOPStack } from "./NetworkUtils";
-import { Address, Transport } from "viem";
-import { CHAIN_IDs } from "@across-protocol/constants";
-import { estimateGas } from "viem/linea";
-import { getPublicClient } from "../gasPriceOracle/util";
 
 export type Decimalish = string | number | Decimal;
 export const AddressZero = ethers.constants.AddressZero;
@@ -271,9 +267,9 @@ export async function estimateTotalGasRequiredByUnsignedTransaction(
     gasUnits ? Promise.resolve(BigNumber.from(gasUnits)) : voidSigner.estimateGas(unsignedTx),
     _gasPrice
       ? Promise.resolve({ maxFeePerGas: _gasPrice })
-      : getGasPriceEstimate(provider, chainId, baseFeeMultiplier, transport),
+      : getGasPriceEstimate(provider, { chainId, baseFeeMultiplier, transport }),
   ] as const;
-  let [nativeGasCost, { maxFeePerGas: gasPrice }] = await Promise.all(queries);
+  const [nativeGasCost, { maxFeePerGas: gasPrice }] = await Promise.all(queries);
   assert(nativeGasCost.gt(bnZero), "Gas cost should not be 0");
   let tokenGasCost: BigNumber;
 
@@ -288,17 +284,6 @@ export async function estimateTotalGasRequiredByUnsignedTransaction(
     const l2GasCost = nativeGasCost.mul(gasPrice);
     tokenGasCost = l1GasCost.add(l2GasCost);
   } else {
-    if (chainId === CHAIN_IDs.LINEA && process.env[`NEW_GAS_PRICE_ORACLE_${chainId}`] === "true") {
-      // Permit linea_estimateGas via NEW_GAS_PRICE_ORACLE_59144=true
-      let baseFeePerGas: BigNumber, priorityFeePerGas: BigNumber;
-      ({
-        gasLimit: nativeGasCost,
-        baseFeePerGas,
-        priorityFeePerGas,
-      } = await getLineaGasFees(chainId, transport, unsignedTx));
-      gasPrice = baseFeePerGas.mul(baseFeeMultiplier).add(priorityFeePerGas);
-    }
-
     tokenGasCost = nativeGasCost.mul(gasPrice);
   }
 
@@ -306,20 +291,6 @@ export async function estimateTotalGasRequiredByUnsignedTransaction(
     nativeGasCost, // Units: gas
     tokenGasCost, // Units: wei (nativeGasCost * wei/gas)
     gasPrice: tokenGasCost.div(nativeGasCost), // Units: wei/gas
-  };
-}
-
-async function getLineaGasFees(chainId: number, transport: Transport | undefined, unsignedTx: PopulatedTransaction) {
-  const { gasLimit, baseFeePerGas, priorityFeePerGas } = await estimateGas(getPublicClient(chainId, transport), {
-    account: unsignedTx.from as Address,
-    to: unsignedTx.to as Address,
-    value: BigInt(unsignedTx.value?.toString() || "1"),
-  });
-
-  return {
-    gasLimit: BigNumber.from(gasLimit.toString()),
-    baseFeePerGas: BigNumber.from(baseFeePerGas.toString()),
-    priorityFeePerGas: BigNumber.from(priorityFeePerGas.toString()),
   };
 }
 
