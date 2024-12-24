@@ -22,7 +22,6 @@ export class AlephZeroQueries extends QueryBase {
       symbolMapping,
       spokePoolAddress,
       simulatedRelayerAddress,
-      // gasMarkup,
       logger,
       coingeckoProApiKey,
       undefined,
