@@ -256,21 +256,21 @@ export async function estimateTotalGasRequiredByUnsignedTransaction(
   options: Partial<{
     gasPrice: BigNumberish;
     gasUnits: BigNumberish;
+    baseFeeMultiplier: number;
     transport: Transport;
   }> = {}
 ): Promise<TransactionCostEstimate> {
-  const { gasPrice: _gasPrice, gasUnits, transport } = options || {};
+  const { gasPrice: _gasPrice, gasUnits, baseFeeMultiplier, transport } = options || {};
 
   const { chainId } = await provider.getNetwork();
   const voidSigner = new VoidSigner(senderAddress, provider);
 
   // Estimate the Gas units required to submit this transaction.
-  const gasMultiplier = 1.0; // Don't apply any multiplier to the gas price.
   const queries = [
     gasUnits ? Promise.resolve(BigNumber.from(gasUnits)) : voidSigner.estimateGas(unsignedTx),
     _gasPrice
-      ? Promise.resolve({ maxFeePerGas: BigNumber.from(_gasPrice).mul(gasMultiplier) })
-      : getGasPriceEstimate(provider, chainId, gasMultiplier, transport),
+      ? Promise.resolve({ maxFeePerGas: _gasPrice })
+      : getGasPriceEstimate(provider, chainId, baseFeeMultiplier ?? 1.0, transport),
   ] as const;
   let [nativeGasCost, { maxFeePerGas: gasPrice }] = await Promise.all(queries);
   assert(nativeGasCost.gt(bnZero), "Gas cost should not be 0");
