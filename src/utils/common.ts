@@ -260,7 +260,8 @@ export async function estimateTotalGasRequiredByUnsignedTransaction(
     transport: Transport;
   }> = {}
 ): Promise<TransactionCostEstimate> {
-  const { gasPrice: _gasPrice, gasUnits, baseFeeMultiplier, transport } = options || {};
+  const { gasPrice: _gasPrice, gasUnits, baseFeeMultiplier: _baseFeeMultiplier, transport } = options || {};
+  const baseFeeMultiplier = _baseFeeMultiplier ?? 1.0; // A default 1.0x multiplier means no multiplier by default.
 
   const { chainId } = await provider.getNetwork();
   const voidSigner = new VoidSigner(senderAddress, provider);
@@ -270,7 +271,7 @@ export async function estimateTotalGasRequiredByUnsignedTransaction(
     gasUnits ? Promise.resolve(BigNumber.from(gasUnits)) : voidSigner.estimateGas(unsignedTx),
     _gasPrice
       ? Promise.resolve({ maxFeePerGas: _gasPrice })
-      : getGasPriceEstimate(provider, chainId, baseFeeMultiplier ?? 1.0, transport),
+      : getGasPriceEstimate(provider, chainId, baseFeeMultiplier, transport),
   ] as const;
   let [nativeGasCost, { maxFeePerGas: gasPrice }] = await Promise.all(queries);
   assert(nativeGasCost.gt(bnZero), "Gas cost should not be 0");
@@ -295,7 +296,7 @@ export async function estimateTotalGasRequiredByUnsignedTransaction(
         baseFeePerGas,
         priorityFeePerGas,
       } = await getLineaGasFees(chainId, transport, unsignedTx));
-      gasPrice = baseFeePerGas.add(priorityFeePerGas);
+      gasPrice = baseFeePerGas.mul(baseFeeMultiplier).add(priorityFeePerGas);
     }
 
     tokenGasCost = nativeGasCost.mul(gasPrice);
