@@ -15,7 +15,6 @@ export class PolygonQueries extends QueryBase {
     simulatedRelayerAddress = DEFAULT_SIMULATED_RELAYER_ADDRESS,
     coingeckoProApiKey?: string,
     logger: Logger = DEFAULT_LOGGER
-    // gasMarkup = 0
   ) {
     assert(isDefined(spokePoolAddress));
     super(
