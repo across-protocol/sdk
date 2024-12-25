@@ -23,7 +23,7 @@ export const makeCustomTransport = (
             // Linea base fee is always 7 gwei
             baseFeePerGas: BigInt(parseUnits("7", 9).toString()),
             priorityFeePerGas: BigInt(stdMaxPriorityFeePerGas.toString()),
-            gasLimit: BigInt("0")
+            gasLimit: BigInt("0"),
           };
         default:
           throw new Error(`Unsupported method: ${method}.`);

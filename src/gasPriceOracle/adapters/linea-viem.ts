@@ -9,14 +9,14 @@ import { PopulatedTransaction } from "ethers";
  * in that the recommended fee per gas is hardcoded to 7 gwei while the priority fee is dynamic based on the
  * compressed transaction size, layer 1 verification costs and capacity, gas price ratio between layer 1 and layer 2,
  * the transaction's gas usage, the minimum gas price on layer 2,
- * and a minimum margin (for error) for gas price estimation. 
+ * and a minimum margin (for error) for gas price estimation.
  * @dev Because the Linea priority fee is more volatile than the base fee, the base fee multiplier will be applied
  * to the priority fee.
- * @param provider 
- * @param _chainId 
- * @param baseFeeMultiplier 
- * @param _unsignedTx 
- * @returns 
+ * @param provider
+ * @param _chainId
+ * @param baseFeeMultiplier
+ * @param _unsignedTx
+ * @returns
  */
 export async function eip1559(
   provider: PublicClient,
