@@ -267,7 +267,7 @@ export async function estimateTotalGasRequiredByUnsignedTransaction(
     gasUnits ? Promise.resolve(BigNumber.from(gasUnits)) : voidSigner.estimateGas(unsignedTx),
     _gasPrice
       ? Promise.resolve({ maxFeePerGas: _gasPrice })
-      : getGasPriceEstimate(provider, { chainId, baseFeeMultiplier, transport }),
+      : getGasPriceEstimate(provider, { chainId, baseFeeMultiplier, transport, unsignedTx }),
   ] as const;
   const [nativeGasCost, { maxFeePerGas: gasPrice }] = await Promise.all(queries);
   assert(nativeGasCost.gt(bnZero), "Gas cost should not be 0");

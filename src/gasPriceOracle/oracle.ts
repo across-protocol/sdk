@@ -9,9 +9,7 @@ import * as arbitrum from "./adapters/arbitrum";
 import * as ethereum from "./adapters/ethereum";
 import * as linea from "./adapters/linea";
 import * as polygon from "./adapters/polygon";
-import * as arbitrumViem from "./adapters/arbitrum-viem";
 import * as lineaViem from "./adapters/linea-viem";
-import * as polygonViem from "./adapters/polygon-viem";
 
 interface GasPriceEstimateOptions {
   // baseFeeMultiplier Multiplier applied to base fee for EIP1559 gas prices (or total fee for legacy).
@@ -133,10 +131,7 @@ export async function _getViemGasPriceEstimate(
       unsignedTx?: PopulatedTransaction
     ) => Promise<InternalGasPriceEstimate>
   > = {
-    [CHAIN_IDs.ALEPH_ZERO]: arbitrumViem.eip1559,
-    [CHAIN_IDs.ARBITRUM]: arbitrumViem.eip1559,
     [CHAIN_IDs.LINEA]: lineaViem.eip1559,
-    [CHAIN_IDs.POLYGON]: polygonViem.gasStation,
   } as const;
 
   let maxFeePerGas: bigint;
