@@ -18,6 +18,13 @@ export const makeCustomTransport = (
           return { baseFeePerGas: BigInt(stdLastBaseFeePerGas.toString()) };
         case "eth_maxPriorityFeePerGas":
           return BigInt(stdMaxPriorityFeePerGas.toString());
+        case "linea_estimateGas":
+          return {
+            // Linea base fee is always 7 gwei
+            baseFeePerGas: BigInt(parseUnits("7", 9).toString()),
+            priorityFeePerGas: BigInt(stdMaxPriorityFeePerGas.toString()),
+            gasLimit: BigInt("0"),
+          };
         default:
           throw new Error(`Unsupported method: ${method}.`);
       }

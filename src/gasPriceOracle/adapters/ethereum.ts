@@ -36,8 +36,9 @@ export async function eip1559Raw(
   const maxPriorityFeePerGas = BigNumber.from(_maxPriorityFeePerGas);
   assert(BigNumber.isBigNumber(baseFeePerGas), `No baseFeePerGas received on ${getNetworkName(chainId)}`);
 
+  const scaledBaseFee = baseFeePerGas.mul(baseFeeMultiplier);
   return {
-    maxFeePerGas: maxPriorityFeePerGas.add(baseFeePerGas).mul(baseFeeMultiplier),
+    maxFeePerGas: maxPriorityFeePerGas.add(scaledBaseFee),
     maxPriorityFeePerGas,
   };
 }
