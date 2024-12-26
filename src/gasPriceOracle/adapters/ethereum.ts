@@ -3,19 +3,18 @@ import { providers } from "ethers";
 import { BigNumber, bnZero, getNetworkName } from "../../utils";
 import { GasPriceEstimate } from "../types";
 import { gasPriceError } from "../util";
+import { GasPriceEstimateOptions } from "../oracle";
 
 /**
  * @param provider ethers RPC provider instance.
  * @param chainId Chain ID of provider instance.
  * @returns Promise of gas price estimate object.
  */
-export function eip1559(
-  provider: providers.Provider,
-  chainId: number,
-  baseFeeMultiplier: number
-): Promise<GasPriceEstimate> {
-  const useRaw = process.env[`GAS_PRICE_EIP1559_RAW_${chainId}`] === "true";
-  return useRaw ? eip1559Raw(provider, chainId, baseFeeMultiplier) : eip1559Bad(provider, chainId, baseFeeMultiplier);
+export function eip1559(provider: providers.Provider, opts: GasPriceEstimateOptions): Promise<GasPriceEstimate> {
+  const useRaw = process.env[`GAS_PRICE_EIP1559_RAW_${opts.chainId}`] === "true";
+  return useRaw
+    ? eip1559Raw(provider, opts.chainId, opts.baseFeeMultiplier)
+    : eip1559Bad(provider, opts.chainId, opts.baseFeeMultiplier);
 }
 
 /**
@@ -67,11 +66,8 @@ export async function eip1559Bad(
   return { maxPriorityFeePerGas, maxFeePerGas };
 }
 
-export async function legacy(
-  provider: providers.Provider,
-  chainId: number,
-  baseFeeMultiplier: number
-): Promise<GasPriceEstimate> {
+export async function legacy(provider: providers.Provider, opts: GasPriceEstimateOptions): Promise<GasPriceEstimate> {
+  const { chainId, baseFeeMultiplier } = opts;
   const gasPrice = await provider.getGasPrice();
 
   if (!BigNumber.isBigNumber(gasPrice) || gasPrice.lt(bnZero)) gasPriceError("getGasPrice()", chainId, gasPrice);

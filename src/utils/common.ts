@@ -7,6 +7,7 @@ import { getGasPriceEstimate } from "../gasPriceOracle";
 import { BigNumber, BigNumberish, BN, bnZero, formatUnits, parseUnits, toBN } from "./BigNumberUtils";
 import { ConvertDecimals } from "./FormattingUtils";
 import { chainIsOPStack } from "./NetworkUtils";
+import { Transport } from "viem";
 
 export type Decimalish = string | number | Decimal;
 export const AddressZero = ethers.constants.AddressZero;

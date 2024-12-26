@@ -2,7 +2,7 @@ import { Address, Hex, PublicClient } from "viem";
 import { estimateGas } from "viem/linea";
 import { DEFAULT_SIMULATED_RELAYER_ADDRESS as account } from "../../constants";
 import { InternalGasPriceEstimate } from "../types";
-import { PopulatedTransaction } from "ethers";
+import { GasPriceEstimateOptions } from "../oracle";
 
 /**
  * @notice The Linea viem provider calls the linea_estimateGas RPC endpoint to estimate gas. Linea is unique
@@ -21,15 +21,14 @@ import { PopulatedTransaction } from "ethers";
  */
 export async function eip1559(
   provider: PublicClient,
-  _chainId: number,
-  baseFeeMultiplier: number,
-  _unsignedTx?: PopulatedTransaction
+  opts: GasPriceEstimateOptions
 ): Promise<InternalGasPriceEstimate> {
+  const { unsignedTx, baseFeeMultiplier } = opts;
   const { baseFeePerGas, priorityFeePerGas: _priorityFeePerGas } = await estimateGas(provider, {
-    account: (_unsignedTx?.from as Address) ?? account,
-    to: (_unsignedTx?.to as Address) ?? account,
-    value: BigInt(_unsignedTx?.value?.toString() ?? "1"),
-    data: (_unsignedTx?.data as Hex) ?? "0x",
+    account: (unsignedTx?.from as Address) ?? account,
+    to: (unsignedTx?.to as Address) ?? account,
+    value: BigInt(unsignedTx?.value?.toString() ?? "1"),
+    data: (unsignedTx?.data as Hex) ?? "0x",
   });
   const priorityFeePerGas = _priorityFeePerGas * BigInt(baseFeeMultiplier);
 

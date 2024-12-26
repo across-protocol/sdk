@@ -10,29 +10,24 @@ import * as ethereum from "./adapters/ethereum";
 import * as linea from "./adapters/linea";
 import * as polygon from "./adapters/polygon";
 import * as lineaViem from "./adapters/linea-viem";
+import { PolygonGasStation } from "./adapters/polygon";
 
-interface GasPriceEstimateOptions {
+export interface GasPriceEstimateOptions {
   // baseFeeMultiplier Multiplier applied to base fee for EIP1559 gas prices (or total fee for legacy).
   baseFeeMultiplier: number;
   // legacyFallback In the case of an unrecognized chain, fall back to type 0 gas estimation.
   legacyFallback: boolean;
   // chainId The chain ID to query for gas prices. If omitted can be inferred by provider.
-  chainId?: number;
-  // unsignedTx The unsigned transaction used for simulation by Viem provider to produce the priority gas fee.
-  unsignedTx?: PopulatedTransaction;
-  // transport Viem Transport object to use for querying gas fees.
-  transport?: Transport;
-}
-
-interface EthersGasPriceEstimateOptions extends GasPriceEstimateOptions {
   chainId: number;
+  // unsignedTx The unsigned transaction used for simulation by Linea's Viem provider to produce the priority gas fee.
+  unsignedTx?: PopulatedTransaction;
+  // transport Viem Transport object to use for querying gas fees used for testing.
+  transport?: Transport;
+  // polygonGasStation Custom Polygon GasStation class used for testing.
+  polygonGasStation?: PolygonGasStation;
 }
 
-interface ViemGasPriceEstimateOptions extends Partial<GasPriceEstimateOptions> {
-  baseFeeMultiplier: number;
-}
-
-const GAS_PRICE_ESTIMATE_DEFAULTS: GasPriceEstimateOptions = {
+const GAS_PRICE_ESTIMATE_DEFAULTS = {
   baseFeeMultiplier: 1,
   legacyFallback: true,
 };
@@ -47,32 +42,23 @@ export async function getGasPriceEstimate(
   provider: providers.Provider,
   opts: Partial<GasPriceEstimateOptions>
 ): Promise<GasPriceEstimate> {
-  const {
-    baseFeeMultiplier,
-    chainId: _chainId,
-    unsignedTx,
-    transport,
-    legacyFallback,
-  }: GasPriceEstimateOptions = {
-    ...GAS_PRICE_ESTIMATE_DEFAULTS,
-    ...opts,
-  };
+  const baseFeeMultiplier = opts.baseFeeMultiplier ?? GAS_PRICE_ESTIMATE_DEFAULTS.baseFeeMultiplier;
   assert(
     baseFeeMultiplier >= 1.0 && baseFeeMultiplier <= 5,
     `Require 1.0 < base fee multiplier (${baseFeeMultiplier}) <= 5.0 for a total gas multiplier within [+1.0, +5.0]`
   );
-
-  const chainId = _chainId ?? (await provider.getNetwork()).chainId;
+  const chainId = opts.chainId ?? (await provider.getNetwork()).chainId;
+  const optsWithDefaults: GasPriceEstimateOptions = {
+    ...GAS_PRICE_ESTIMATE_DEFAULTS,
+    ...opts,
+    chainId,
+  };
 
   // We only use the unsignedTx in the viem flow.
   const useViem = process.env[`NEW_GAS_PRICE_ORACLE_${chainId}`] === "true";
   return useViem
-    ? _getViemGasPriceEstimate(chainId, { baseFeeMultiplier, unsignedTx, transport })
-    : _getEthersGasPriceEstimate(provider, {
-        baseFeeMultiplier,
-        chainId,
-        legacyFallback,
-      });
+    ? _getViemGasPriceEstimate(chainId, optsWithDefaults)
+    : _getEthersGasPriceEstimate(provider, optsWithDefaults);
 }
 
 /**
@@ -84,9 +70,9 @@ export async function getGasPriceEstimate(
  */
 function _getEthersGasPriceEstimate(
   provider: providers.Provider,
-  opts: EthersGasPriceEstimateOptions
+  opts: GasPriceEstimateOptions
 ): Promise<GasPriceEstimate> {
-  const { baseFeeMultiplier, chainId, legacyFallback } = opts;
+  const { chainId, legacyFallback } = opts;
 
   const gasPriceFeeds = {
     [CHAIN_IDs.ALEPH_ZERO]: arbitrum.eip1559,
@@ -102,7 +88,7 @@ function _getEthersGasPriceEstimate(
   assert(gasPriceFeed || legacyFallback, `No suitable gas price oracle for Chain ID ${chainId}`);
   gasPriceFeed ??= chainIsOPStack(chainId) ? ethereum.eip1559 : ethereum.legacy;
 
-  return gasPriceFeed(provider, chainId, baseFeeMultiplier);
+  return gasPriceFeed(provider, opts);
 }
 
 /**
@@ -114,9 +100,9 @@ function _getEthersGasPriceEstimate(
  */
 export async function _getViemGasPriceEstimate(
   providerOrChainId: providers.Provider | number,
-  opts: ViemGasPriceEstimateOptions
+  opts: GasPriceEstimateOptions
 ): Promise<GasPriceEstimate> {
-  const { baseFeeMultiplier, unsignedTx, transport } = opts;
+  const { baseFeeMultiplier, transport } = opts;
 
   const chainId =
     typeof providerOrChainId === "number" ? providerOrChainId : (await providerOrChainId.getNetwork()).chainId;
@@ -124,12 +110,7 @@ export async function _getViemGasPriceEstimate(
 
   const gasPriceFeeds: Record<
     number,
-    (
-      provider: PublicClient,
-      chainId: number,
-      baseFeeMultiplier: number,
-      unsignedTx?: PopulatedTransaction
-    ) => Promise<InternalGasPriceEstimate>
+    (provider: PublicClient, opts: GasPriceEstimateOptions) => Promise<InternalGasPriceEstimate>
   > = {
     [CHAIN_IDs.LINEA]: lineaViem.eip1559,
   } as const;
@@ -137,12 +118,7 @@ export async function _getViemGasPriceEstimate(
   let maxFeePerGas: bigint;
   let maxPriorityFeePerGas: bigint;
   if (gasPriceFeeds[chainId]) {
-    ({ maxFeePerGas, maxPriorityFeePerGas } = await gasPriceFeeds[chainId](
-      viemProvider,
-      chainId,
-      baseFeeMultiplier,
-      unsignedTx
-    ));
+    ({ maxFeePerGas, maxPriorityFeePerGas } = await gasPriceFeeds[chainId](viemProvider, opts));
   } else {
     let gasPrice: bigint | undefined;
     ({ maxFeePerGas, maxPriorityFeePerGas, gasPrice } = await viemProvider.estimateFeesPerGas());
