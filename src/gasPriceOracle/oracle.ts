@@ -65,7 +65,7 @@ export async function getGasPriceEstimate(
   const chainId = _chainId ?? (await provider.getNetwork()).chainId;
 
   // We only use the unsignedTx in the viem flow.
-  const useViem = process.env[`NEW_GAS_PRICE_ORACLE_${chainId}`] === "true";
+  const useViem = chainId === CHAIN_IDs.LINEA && process.env[`NEW_GAS_PRICE_ORACLE_${chainId}`] === "true";
   return useViem
     ? _getViemGasPriceEstimate(chainId, { baseFeeMultiplier, unsignedTx, transport })
     : _getEthersGasPriceEstimate(provider, {
