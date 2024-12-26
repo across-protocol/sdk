@@ -18,7 +18,7 @@ const dummyLogger = winston.createLogger({
 
 const stdLastBaseFeePerGas = parseUnits("12", 9);
 const stdMaxPriorityFeePerGas = parseUnits("1", 9); // EIP-1559 chains only
-const expectedLineaMaxFeePerGas = parseUnits("7", 9);
+const expectedLineaMaxFeePerGas = BigNumber.from("7");
 const ethersProviderChainIds = [1, 10, 137, 324, 8453, 42161, 534352, 59144];
 const viemProviderChainIds = [59144];
 
@@ -141,6 +141,10 @@ describe("Gas Price Oracle", function () {
         // Arbitrum priority fee should be 1 wei.
         expect(markedUpMaxPriorityFeePerGas).to.equal(1);
         expect(maxPriorityFeePerGas).to.equal(1);
+      }
+      if (chainId === 324 || chainId === 534352) {
+        // Scroll and ZkSync use legacy pricing so priority fee should be 0.
+        expect(maxPriorityFeePerGas).to.equal(0);
       }
       if (eip1559RawGasPriceFeedChainIds.includes(chainId)) {
         const chainKey = `GAS_PRICE_EIP1559_RAW_${chainId}`;

@@ -10,6 +10,7 @@ import { PopulatedTransaction } from "ethers";
  * compressed transaction size, layer 1 verification costs and capacity, gas price ratio between layer 1 and layer 2,
  * the transaction's gas usage, the minimum gas price on layer 2,
  * and a minimum margin (for error) for gas price estimation.
+ * Source: https://docs.linea.build/get-started/how-to/gas-fees#how-gas-works-on-linea
  * @dev Because the Linea priority fee is more volatile than the base fee, the base fee multiplier will be applied
  * to the priority fee.
  * @param provider

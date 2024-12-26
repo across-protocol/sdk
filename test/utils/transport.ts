@@ -20,8 +20,8 @@ export const makeCustomTransport = (
           return BigInt(stdMaxPriorityFeePerGas.toString());
         case "linea_estimateGas":
           return {
-            // Linea base fee is always 7 gwei
-            baseFeePerGas: BigInt(parseUnits("7", 9).toString()),
+            // Linea base fee is always 7 wei
+            baseFeePerGas: BigInt(7),
             priorityFeePerGas: BigInt(stdMaxPriorityFeePerGas.toString()),
             gasLimit: BigInt("0"),
           };
