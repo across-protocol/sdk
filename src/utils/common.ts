@@ -257,8 +257,7 @@ export async function estimateTotalGasRequiredByUnsignedTransaction(
     transport: Transport;
   }> = {}
 ): Promise<TransactionCostEstimate> {
-  const { gasPrice: _gasPrice, gasUnits, baseFeeMultiplier: _baseFeeMultiplier, transport } = options || {};
-  const baseFeeMultiplier = _baseFeeMultiplier ?? 1.0; // A default 1.0x multiplier means no multiplier by default.
+  const { gasPrice: _gasPrice, gasUnits, baseFeeMultiplier = 1.0, transport } = options || {};
 
   const { chainId } = await provider.getNetwork();
   const voidSigner = new VoidSigner(senderAddress, provider);

@@ -14,7 +14,6 @@ dotenv.config({ path: ".env" });
 const stdLastBaseFeePerGas = parseUnits("12", 9);
 const stdMaxPriorityFeePerGas = parseUnits("1", 9); // EIP-1559 chains only
 const expectedLineaMaxFeePerGas = BigNumber.from("7");
-// TODO: Mock Polygon gas station
 const legacyChainIds = [324, 59144, 534352];
 const arbOrbitChainIds = [42161, 41455];
 const ethersProviderChainIds = [10, 8453, ...legacyChainIds, ...arbOrbitChainIds];
