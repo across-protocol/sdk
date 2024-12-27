@@ -105,8 +105,6 @@ describe("Gas Price Oracle", function () {
   });
   it("Ethers gas price retrieval", async function () {
     const baseFeeMultiplier = 2.0;
-    const legacyChainIds = [324, 59144, 534352];
-    const arbOrbitChainIds = [42161, 41455];
     for (const chainId of ethersProviderChainIds) {
       const { maxFeePerGas: markedUpMaxFeePerGas, maxPriorityFeePerGas: markedUpMaxPriorityFeePerGas } =
         await getGasPriceEstimate(provider, { chainId, baseFeeMultiplier });
