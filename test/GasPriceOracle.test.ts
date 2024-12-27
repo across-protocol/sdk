@@ -8,7 +8,7 @@ import { providers } from "ethers";
 import { encodeFunctionData } from "viem";
 import { getGasPriceEstimate } from "../src/gasPriceOracle";
 import { BigNumber, bnZero, parseUnits } from "../src/utils";
-import { expect, makeCustomTransport, randomAddress } from "../test/utils";
+import { assertPromiseError, expect, makeCustomTransport, randomAddress } from "../test/utils";
 dotenv.config({ path: ".env" });
 
 const dummyLogger = winston.createLogger({
@@ -45,6 +45,24 @@ const erc20TransferTransactionObject = encodeFunctionData({
 });
 
 describe("Gas Price Oracle", function () {
+  it("baseFeeMultiplier is validated", async function () {
+    // Too low:
+    await assertPromiseError(
+      getGasPriceEstimate(provider, {
+        chainId: 1,
+        baseFeeMultiplier: 0.5,
+      }),
+      "base fee multiplier"
+    );
+    // Too high:
+    await assertPromiseError(
+      getGasPriceEstimate(provider, {
+        chainId: 1,
+        baseFeeMultiplier: 5.5,
+      }),
+      "base fee multiplier"
+    );
+  });
   it("Viem gas price retrieval", async function () {
     for (const chainId of viemProviderChainIds) {
       const chainKey = `NEW_GAS_PRICE_ORACLE_${chainId}`;

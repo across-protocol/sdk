@@ -11,5 +11,9 @@ export function eip1559(
   chainId: number,
   baseFeeMultiplier: number
 ): Promise<GasPriceEstimate> {
+  // We use the legacy method to call `eth_gasPrice` which empirically returns a more accurate
+  // gas price estimate than `eth_maxPriorityFeePerGas` or ethersProvider.getFeeData in the EIP1559 "raw" or "bad"
+  // cases. Based on testing `eth_gasPrice` returns the closest price to the Linea-specific `linea_estimateGas`
+  // endpoint which the Viem Linea adapter queries.
   return ethereum.legacy(provider, chainId, baseFeeMultiplier);
 }
