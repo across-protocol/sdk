@@ -6,7 +6,7 @@ import dotenv from "dotenv";
 import { encodeFunctionData } from "viem";
 import { getGasPriceEstimate } from "../src/gasPriceOracle";
 import { BigNumber, bnZero, parseUnits } from "../src/utils";
-import { expect, makeCustomTransport, randomAddress } from "../test/utils";
+import { assertPromiseError, expect, makeCustomTransport, randomAddress } from "../test/utils";
 import { MockedProvider } from "./utils/provider";
 import { MockPolygonGasStation } from "../src/gasPriceOracle/adapters/polygon";
 dotenv.config({ path: ".env" });
@@ -42,6 +42,24 @@ const erc20TransferTransactionObject = encodeFunctionData({
 });
 
 describe("Gas Price Oracle", function () {
+  it("baseFeeMultiplier is validated", async function () {
+    // Too low:
+    await assertPromiseError(
+      getGasPriceEstimate(provider, {
+        chainId: 1,
+        baseFeeMultiplier: 0.5,
+      }),
+      "base fee multiplier"
+    );
+    // Too high:
+    await assertPromiseError(
+      getGasPriceEstimate(provider, {
+        chainId: 1,
+        baseFeeMultiplier: 5.5,
+      }),
+      "base fee multiplier"
+    );
+  });
   it("Linea Viem gas price retrieval with unsignedTx", async function () {
     const chainId = 59144;
     const chainKey = `NEW_GAS_PRICE_ORACLE_${chainId}`;
