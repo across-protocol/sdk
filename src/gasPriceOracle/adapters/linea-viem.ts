@@ -6,7 +6,7 @@ import { GasPriceEstimateOptions } from "../oracle";
 
 /**
  * @notice The Linea viem provider calls the linea_estimateGas RPC endpoint to estimate gas. Linea is unique
- * in that the recommended fee per gas is hardcoded to 7 gwei while the priority fee is dynamic based on the
+ * in that the recommended fee per gas is hardcoded to 7 wei while the priority fee is dynamic based on the
  * compressed transaction size, layer 1 verification costs and capacity, gas price ratio between layer 1 and layer 2,
  * the transaction's gas usage, the minimum gas price on layer 2,
  * and a minimum margin (for error) for gas price estimation.
