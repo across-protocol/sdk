@@ -7,6 +7,8 @@ import { Coingecko } from "../../coingecko/Coingecko";
 import { isDefined } from "../../utils";
 import { QueryBase } from "./baseQuery";
 
+// @dev This class only exists because querying the native token price for this network is not the standard
+// CoinGecko query because the native token symbol is not ETH.
 export class PolygonQueries extends QueryBase {
   constructor(
     provider: providers.Provider,
