@@ -5,15 +5,12 @@
 import { providers } from "ethers";
 import { GasPriceEstimate } from "../types";
 import * as ethereum from "./ethereum";
+import { GasPriceEstimateOptions } from "../oracle";
 
-export function eip1559(
-  provider: providers.Provider,
-  chainId: number,
-  baseFeeMultiplier: number
-): Promise<GasPriceEstimate> {
+export function eip1559(provider: providers.Provider, opts: GasPriceEstimateOptions): Promise<GasPriceEstimate> {
   // We use the legacy method to call `eth_gasPrice` which empirically returns a more accurate
   // gas price estimate than `eth_maxPriorityFeePerGas` or ethersProvider.getFeeData in the EIP1559 "raw" or "bad"
   // cases. Based on testing `eth_gasPrice` returns the closest price to the Linea-specific `linea_estimateGas`
   // endpoint which the Viem Linea adapter queries.
-  return ethereum.legacy(provider, chainId, baseFeeMultiplier);
+  return ethereum.legacy(provider, opts);
 }

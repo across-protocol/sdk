@@ -5,6 +5,7 @@ import { CHAIN_IDs } from "../../constants";
 import { GasPriceEstimate } from "../types";
 import { gasPriceError } from "../util";
 import { eip1559 } from "./ethereum";
+import { GasPriceEstimateOptions } from "../oracle";
 
 type Polygon1559GasPrice = {
   maxPriorityFee: number | string;
@@ -27,7 +28,7 @@ type GasStationArgs = BaseHTTPAdapterArgs & {
 
 const { POLYGON } = CHAIN_IDs;
 
-class PolygonGasStation extends BaseHTTPAdapter {
+export class PolygonGasStation extends BaseHTTPAdapter {
   readonly chainId: number;
 
   constructor({ chainId = POLYGON, host, timeout = 1500, retries = 1 }: GasStationArgs = {}) {
@@ -67,12 +68,30 @@ class PolygonGasStation extends BaseHTTPAdapter {
   }
 }
 
+export class MockPolygonGasStation extends PolygonGasStation {
+  constructor(
+    readonly baseFee: BigNumber,
+    readonly priorityFee: BigNumber,
+    readonly getFeeDataThrows = false
+  ) {
+    super();
+  }
+
+  getFeeData(): Promise<GasPriceEstimate> {
+    if (this.getFeeDataThrows) throw new Error();
+    return Promise.resolve({
+      maxPriorityFeePerGas: this.priorityFee,
+      maxFeePerGas: this.baseFee.add(this.priorityFee),
+    });
+  }
+}
+
 export async function gasStation(
   provider: providers.Provider,
-  chainId: number,
-  baseFeeMultiplier: number
+  opts: GasPriceEstimateOptions
 ): Promise<GasPriceEstimate> {
-  const gasStation = new PolygonGasStation({ chainId: chainId, timeout: 2000, retries: 0 });
+  const { chainId, baseFeeMultiplier, polygonGasStation } = opts;
+  const gasStation = polygonGasStation ?? new PolygonGasStation({ chainId: chainId, timeout: 2000, retries: 0 });
   let maxPriorityFeePerGas: BigNumber;
   let maxFeePerGas: BigNumber;
   try {
@@ -82,7 +101,7 @@ export async function gasStation(
     maxFeePerGas = scaledBaseFee.add(maxPriorityFeePerGas);
   } catch (err) {
     // Fall back to the RPC provider. May be less accurate.
-    ({ maxPriorityFeePerGas, maxFeePerGas } = await eip1559(provider, chainId, baseFeeMultiplier));
+    ({ maxPriorityFeePerGas, maxFeePerGas } = await eip1559(provider, opts));
 
     // Per the GasStation docs, the minimum priority fee on Polygon is 30 Gwei.
     // https://docs.polygon.technology/tools/gas/polygon-gas-station/#interpretation
