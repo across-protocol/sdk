@@ -86,6 +86,12 @@ export class MockPolygonGasStation extends PolygonGasStation {
   }
 }
 
+/**
+ * @notice Returns the gas price suggested by the Polygon GasStation API or reconstructs it using
+ * the eip1559() method as a fallback.
+ * @param provider Ethers Provider.
+ * @returns GasPriceEstimate
+ */
 export async function gasStation(
   provider: providers.Provider,
   opts: GasPriceEstimateOptions
@@ -96,6 +102,8 @@ export async function gasStation(
   let maxFeePerGas: BigNumber;
   try {
     ({ maxPriorityFeePerGas, maxFeePerGas } = await gasStation.getFeeData());
+    // Assume that the maxFeePerGas already includes the priority fee, so back out the priority fee before applying
+    // the baseFeeMultiplier.
     const baseFeeMinusPriorityFee = maxFeePerGas.sub(maxPriorityFeePerGas);
     const scaledBaseFee = baseFeeMinusPriorityFee.mul(baseFeeMultiplier);
     maxFeePerGas = scaledBaseFee.add(maxPriorityFeePerGas);

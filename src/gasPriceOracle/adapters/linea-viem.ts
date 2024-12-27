@@ -13,10 +13,12 @@ import { GasPriceEstimateOptions } from "../oracle";
  * Source: https://docs.linea.build/get-started/how-to/gas-fees#how-gas-works-on-linea
  * @dev Because the Linea priority fee is more volatile than the base fee, the base fee multiplier will be applied
  * to the priority fee.
- * @param provider
- * @param _chainId
- * @param baseFeeMultiplier
- * @param _unsignedTx
+ * @param provider Viem PublicClient
+ * @param _chainId Unused in this adapter
+ * @param baseFeeMultiplier Amount to multiply priority fee, since Linea's base fee is hardcoded while its priority
+ * fee is dynamic
+ * @param _unsignedTx Should contain any params passed to linea_estimateGas, which are listed
+ * here: https://docs.linea.build/api/reference/linea-estimategas#parameters
  * @returns
  */
 export async function eip1559(

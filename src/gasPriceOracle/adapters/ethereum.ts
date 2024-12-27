@@ -6,8 +6,10 @@ import { gasPriceError } from "../util";
 import { GasPriceEstimateOptions } from "../oracle";
 
 /**
+ * @dev If GAS_PRICE_EIP1559_RAW_${chainId}=true, then constructs total fee by adding
+ * eth_getBlock("pending").baseFee to eth_maxPriorityFeePerGas, otherwise calls the ethers provider's
+ * getFeeData() method which adds eth_getBlock("latest").baseFee to a hardcoded priority fee of 1.5 gwei.
  * @param provider ethers RPC provider instance.
- * @param chainId Chain ID of provider instance.
  * @returns Promise of gas price estimate object.
  */
 export function eip1559(provider: providers.Provider, opts: GasPriceEstimateOptions): Promise<GasPriceEstimate> {
@@ -19,6 +21,7 @@ export function eip1559(provider: providers.Provider, opts: GasPriceEstimateOpti
 
 /**
  * @note Performs direct RPC calls to retrieve the RPC-suggested priority fee for the next block.
+ * @dev Constructs total fee by adding eth_getBlock("pending").baseFee to eth_maxPriorityFeePerGas
  * @param provider ethers RPC provider instance.
  * @param chainId Chain ID of the provider instance.
  * @returns Promise of gas price estimate object.
@@ -43,7 +46,9 @@ export async function eip1559Raw(
 }
 
 /**
- * @note Resolves priority gas pricing poorly, because the priority fee is hardcoded to 1.5 Gwei in ethers v5.
+ * @notice Returns fee data using provider's getFeeData() method.
+ * @note Resolves priority gas pricing poorly, because the priority fee is hardcoded to 1.5 Gwei in ethers v5's
+ * getFeeData() method
  * @param provider ethers RPC provider instance.
  * @param chainId Chain ID of the provider instance.
  * @returns Promise of gas price estimate object.
@@ -66,6 +71,11 @@ export async function eip1559Bad(
   return { maxPriorityFeePerGas, maxFeePerGas };
 }
 
+/**
+ * @notice Returns result of eth_gasPrice RPC call
+ * @dev Its recommended to use the eip1559Raw method over this one where possible as it will be more accurate.
+ * @returns GasPriceEstimate
+ */
 export async function legacy(provider: providers.Provider, opts: GasPriceEstimateOptions): Promise<GasPriceEstimate> {
   const { chainId, baseFeeMultiplier } = opts;
   const gasPrice = await provider.getGasPrice();
