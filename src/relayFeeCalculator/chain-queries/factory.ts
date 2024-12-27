@@ -37,8 +37,10 @@ export class QueryBase__factory {
         symbolMapping,
         spokePoolAddress,
         simulatedRelayerAddress,
+        logger,
         coingeckoProApiKey,
-        logger
+        fixedGasPrice[chainId],
+        "usd"
       );
     }
 
@@ -48,8 +50,10 @@ export class QueryBase__factory {
         symbolMapping,
         spokePoolAddress,
         simulatedRelayerAddress,
+        logger,
         coingeckoProApiKey,
-        logger
+        fixedGasPrice[chainId],
+        "usd"
       );
     }
 
