@@ -5,6 +5,10 @@ import { GasPriceEstimate } from "../types";
 import { gasPriceError } from "../util";
 import { GasPriceEstimateOptions } from "../oracle";
 
+// TODO: We intend to remove `eip1559Bad()` as an option and make eip1559Raw the only option eventually. The reason
+// they both exist currently is because eip1559Raw is new and untested on production so we will slowly roll it out
+// by using the convenient environment variable safety guard.
+
 /**
  * @dev If GAS_PRICE_EIP1559_RAW_${chainId}=true, then constructs total fee by adding
  * eth_getBlock("pending").baseFee to eth_maxPriorityFeePerGas, otherwise calls the ethers provider's
@@ -49,6 +53,7 @@ export async function eip1559Raw(
  * @notice Returns fee data using provider's getFeeData() method.
  * @note Resolves priority gas pricing poorly, because the priority fee is hardcoded to 1.5 Gwei in ethers v5's
  * getFeeData() method
+ * @dev TODO: Remove this function soon. See note above about slowly rolling out eip1559Raw.
  * @param provider ethers RPC provider instance.
  * @param chainId Chain ID of the provider instance.
  * @returns Promise of gas price estimate object.
