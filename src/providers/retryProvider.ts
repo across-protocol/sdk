@@ -320,7 +320,7 @@ export class RetryProvider extends ethers.providers.StaticJsonRpcProvider {
     }
 
     // getBlockByNumber should only use the quorum if it's not asking for the latest block.
-    if (method === "eth_getBlockByNumber" && params[0] !== "latest") {
+    if (method === "eth_getBlockByNumber" && params[0] !== "latest" && params[0] !== "pending") {
       return this.nodeQuorumThreshold;
     }
 
