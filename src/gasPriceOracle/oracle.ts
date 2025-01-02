@@ -105,10 +105,7 @@ export async function _getViemGasPriceEstimate(
     typeof providerOrChainId === "number" ? providerOrChainId : (await providerOrChainId.getNetwork()).chainId;
   const viemProvider = getPublicClient(chainId, transport);
 
-  const gasPriceFeeds: Record<
-    number,
-    (provider: PublicClient, opts: GasPriceEstimateOptions) => Promise<InternalGasPriceEstimate>
-  > = {
+  const gasPriceFeeds = {
     [CHAIN_IDs.LINEA]: lineaViem.eip1559,
   };
 
