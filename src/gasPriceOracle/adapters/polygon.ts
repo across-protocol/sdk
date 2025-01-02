@@ -75,12 +75,16 @@ export class MockRevertingPolygonGasStation extends PolygonGasStation {
 }
 
 export class MockPolygonGasStation extends PolygonGasStation {
-  public static BASE_FEE = parseUnits("12", 9);
-  public static PRIORITY_FEE = parseUnits("1", 9);
+  static BASE_FEE(): BigNumber {
+    return parseUnits("12", 9);
+  }
+  static PRIORITY_FEE(): BigNumber {
+    return parseUnits("1", 9);
+  }
   getFeeData(): Promise<GasPriceEstimate> {
     return Promise.resolve({
-      maxPriorityFeePerGas: MockPolygonGasStation.PRIORITY_FEE,
-      maxFeePerGas: MockPolygonGasStation.BASE_FEE.add(MockPolygonGasStation.PRIORITY_FEE),
+      maxPriorityFeePerGas: MockPolygonGasStation.PRIORITY_FEE(),
+      maxFeePerGas: MockPolygonGasStation.BASE_FEE().add(MockPolygonGasStation.PRIORITY_FEE()),
     });
   }
 }

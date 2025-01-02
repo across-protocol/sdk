@@ -1,9 +1,9 @@
 import assert from "assert";
-import { PublicClient, Transport } from "viem";
+import { Transport } from "viem";
 import { PopulatedTransaction, providers } from "ethers";
 import { CHAIN_IDs } from "../constants";
 import { BigNumber, chainIsOPStack } from "../utils";
-import { GasPriceEstimate, InternalGasPriceEstimate } from "./types";
+import { GasPriceEstimate } from "./types";
 import { getPublicClient } from "./util";
 import * as arbitrum from "./adapters/arbitrum";
 import * as ethereum from "./adapters/ethereum";
