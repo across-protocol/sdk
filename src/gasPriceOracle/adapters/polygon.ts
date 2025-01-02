@@ -68,20 +68,19 @@ export class PolygonGasStation extends BaseHTTPAdapter {
   }
 }
 
-export class MockPolygonGasStation extends PolygonGasStation {
-  constructor(
-    readonly baseFee: BigNumber,
-    readonly priorityFee: BigNumber,
-    readonly getFeeDataThrows = false
-  ) {
-    super();
-  }
-
+export class MockRevertingPolygonGasStation extends PolygonGasStation {
   getFeeData(): Promise<GasPriceEstimate> {
-    if (this.getFeeDataThrows) throw new Error();
+    throw new Error();
+  }
+}
+
+export class MockPolygonGasStation extends PolygonGasStation {
+  public static BASE_FEE = parseUnits("12", 9);
+  public static PRIORITY_FEE = parseUnits("1", 9);
+  getFeeData(): Promise<GasPriceEstimate> {
     return Promise.resolve({
-      maxPriorityFeePerGas: this.priorityFee,
-      maxFeePerGas: this.baseFee.add(this.priorityFee),
+      maxPriorityFeePerGas: MockPolygonGasStation.PRIORITY_FEE,
+      maxFeePerGas: MockPolygonGasStation.BASE_FEE.add(MockPolygonGasStation.PRIORITY_FEE),
     });
   }
 }
@@ -96,8 +95,15 @@ export async function gasStation(
   provider: providers.Provider,
   opts: GasPriceEstimateOptions
 ): Promise<GasPriceEstimate> {
-  const { chainId, baseFeeMultiplier, polygonGasStation } = opts;
-  const gasStation = polygonGasStation ?? new PolygonGasStation({ chainId: chainId, timeout: 2000, retries: 0 });
+  const { chainId, baseFeeMultiplier } = opts;
+  let gasStation: PolygonGasStation;
+  if (process.env.TEST_POLYGON_GAS_STATION === "true") {
+    gasStation = new MockPolygonGasStation();
+  } else if (process.env.TEST_REVERTING_POLYGON_GAS_STATION === "true") {
+    gasStation = new MockRevertingPolygonGasStation();
+  } else {
+    gasStation = new PolygonGasStation({ chainId: chainId, timeout: 2000, retries: 0 });
+  }
   let maxPriorityFeePerGas: BigNumber;
   let maxFeePerGas: BigNumber;
   try {

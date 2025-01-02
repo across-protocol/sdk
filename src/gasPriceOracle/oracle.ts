@@ -10,7 +10,6 @@ import * as ethereum from "./adapters/ethereum";
 import * as linea from "./adapters/linea";
 import * as polygon from "./adapters/polygon";
 import * as lineaViem from "./adapters/linea-viem";
-import { PolygonGasStation } from "./adapters/polygon";
 
 export interface GasPriceEstimateOptions {
   // baseFeeMultiplier Multiplier applied to base fee for EIP1559 gas prices (or total fee for legacy).
@@ -23,8 +22,6 @@ export interface GasPriceEstimateOptions {
   unsignedTx?: PopulatedTransaction;
   // transport Viem Transport object to use for querying gas fees used for testing.
   transport?: Transport;
-  // polygonGasStation Custom Polygon GasStation class used for testing.
-  polygonGasStation?: PolygonGasStation;
 }
 
 const GAS_PRICE_ESTIMATE_DEFAULTS = {

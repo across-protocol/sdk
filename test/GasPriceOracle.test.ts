@@ -181,27 +181,23 @@ describe("Gas Price Oracle", function () {
     expect(markedUpMaxPriorityFeePerGas).to.equal(0);
   });
   it("Ethers Polygon GasStation", async function () {
-    const mockPolygonGasStation = new MockPolygonGasStation(stdLastBaseFeePerGas, stdMaxPriorityFeePerGas);
     const baseFeeMultiplier = 2.0;
+    process.env["TEST_POLYGON_GAS_STATION"] = "true";
     const chainId = 137;
-
     const { maxFeePerGas, maxPriorityFeePerGas } = await getGasPriceEstimate(provider, {
       chainId,
       baseFeeMultiplier,
-      polygonGasStation: mockPolygonGasStation,
     });
 
-    expect(maxFeePerGas).to.equal(stdLastBaseFeePerGas.mul(baseFeeMultiplier).add(stdMaxPriorityFeePerGas));
-    expect(maxPriorityFeePerGas).to.equal(stdMaxPriorityFeePerGas);
+    expect(maxFeePerGas).to.equal(
+      MockPolygonGasStation.BASE_FEE.mul(baseFeeMultiplier).add(MockPolygonGasStation.PRIORITY_FEE)
+    );
+    expect(maxPriorityFeePerGas).to.equal(MockPolygonGasStation.PRIORITY_FEE);
+    delete process.env["TEST_POLYGON_GAS_STATION"];
   });
   it("Ethers Polygon GasStation: Fallback", async function () {
-    const getFeeDataThrows = true;
-    const mockPolygonGasStation = new MockPolygonGasStation(
-      stdLastBaseFeePerGas,
-      stdMaxPriorityFeePerGas,
-      getFeeDataThrows
-    );
     const baseFeeMultiplier = 2.0;
+    process.env["TEST_REVERTING_POLYGON_GAS_STATION"] = "true";
     const chainId = 137;
 
     // If GasStation getFeeData throws, then the Polygon gas price oracle adapter should fallback to the
@@ -209,7 +205,6 @@ describe("Gas Price Oracle", function () {
     const { maxFeePerGas, maxPriorityFeePerGas } = await getGasPriceEstimate(provider, {
       chainId,
       baseFeeMultiplier,
-      polygonGasStation: mockPolygonGasStation,
     });
 
     const minPolygonPriorityFee = parseUnits("30", 9);
@@ -218,5 +213,6 @@ describe("Gas Price Oracle", function () {
       : minPolygonPriorityFee;
     expect(maxFeePerGas).to.equal(stdLastBaseFeePerGas.mul(baseFeeMultiplier).add(expectedPriorityFee));
     expect(maxPriorityFeePerGas).to.equal(expectedPriorityFee);
+    delete process.env["TEST_REVERTING_POLYGON_GAS_STATION"];
   });
 });
