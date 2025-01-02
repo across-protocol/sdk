@@ -31,6 +31,7 @@ import {
   isSlowFill,
   mapAsync,
   bnUint32Max,
+  isZeroValueDeposit,
 } from "../../utils";
 import winston from "winston";
 import {
@@ -778,6 +779,9 @@ export class BundleDataClient {
           continue;
         }
         originClient.getDepositsForDestinationChain(destinationChainId).forEach((deposit) => {
+          if (isZeroValueDeposit(deposit)) {
+            return;
+          }
           depositCounter++;
           const relayDataHash = this.getRelayHashFromEvent(deposit);
           if (v3RelayHashes[relayDataHash]) {
@@ -792,6 +796,14 @@ export class BundleDataClient {
             fill: undefined,
             slowFillRequest: undefined,
           };
+
+          // Once we've saved the deposit hash into v3RelayHashes, then we can exit early here if the inputAmount
+          // is 0 because there can be no expired amount to refund and no unexecutable slow fill amount to return
+          // if this deposit did expire. Input amount can only be zero at this point if the message is non-empty,
+          // but the message doesn't matter for expired deposits and unexecutable slow fills.
+          if (deposit.inputAmount.eq(0)) {
+            return;
+          }
 
           // If deposit block is within origin chain bundle block range, then save as bundle deposit.
           // If deposit is in bundle and it has expired, additionally save it as an expired deposit.
@@ -840,7 +852,10 @@ export class BundleDataClient {
         await forEachAsync(
           destinationClient
             .getFillsForOriginChain(originChainId)
-            .filter((fill) => fill.blockNumber <= destinationChainBlockRange[1]),
+            // We can remove fills for deposits with input amount equal to zero because these will result in 0 refunded
+            // tokens to the filler. We can't remove non-empty message deposit here in case there is a slow fill
+            // request for the deposit, we'd want to see the fill took place.
+            .filter((fill) => fill.blockNumber <= destinationChainBlockRange[1] && !isZeroValueDeposit(fill)),
           async (fill) => {
             const relayDataHash = this.getRelayHashFromEvent(fill);
             fillCounter++;
@@ -933,7 +948,7 @@ export class BundleDataClient {
         await forEachAsync(
           destinationClient
             .getSlowFillRequestsForOriginChain(originChainId)
-            .filter((request) => request.blockNumber <= destinationChainBlockRange[1]),
+            .filter((request) => request.blockNumber <= destinationChainBlockRange[1] && !isZeroValueDeposit(request)),
           async (slowFillRequest: SlowFillRequestWithBlock) => {
             const relayDataHash = this.getRelayHashFromEvent(slowFillRequest);
 

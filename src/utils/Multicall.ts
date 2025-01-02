@@ -21,19 +21,15 @@ const NON_DETERMINISTIC_MULTICALL_ADDRESSES = {
   [CHAIN_IDs.ZK_SYNC]: "0xF9cda624FBC7e059355ce98a31693d299FACd963",
 };
 
-// Multicall3 is an OP stack predeploy, so don't specify it here.
+// @notice Multicall3 is an OP stack preinstall, so don't specify it here.
 const DETERMINISTIC_MULTICALL_CHAINS = [
   CHAIN_IDs.ALEPH_ZERO,
   CHAIN_IDs.ARBITRUM,
-  CHAIN_IDs.INK,
   CHAIN_IDs.LINEA,
   CHAIN_IDs.MAINNET,
   CHAIN_IDs.POLYGON,
   CHAIN_IDs.SCROLL,
   // Testnet:
-  CHAIN_IDs.BASE_SEPOLIA,
-  CHAIN_IDs.BLAST_SEPOLIA,
-  CHAIN_IDs.INK_SEPOLIA,
   CHAIN_IDs.POLYGON_AMOY,
   CHAIN_IDs.SCROLL_SEPOLIA,
   CHAIN_IDs.SEPOLIA,

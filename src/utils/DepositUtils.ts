@@ -126,6 +126,18 @@ export async function queryHistoricalDepositForFill(
 }
 
 /**
+ * Returns true if filling this deposit (as a slow or fast fill) or refunding it would not change any state
+ * on-chain. The dataworker functions can use this to conveniently filter out useless deposits.
+ * @dev The reason we allow a 0-input deposit to have a non-empty message is that the message might be used
+ * to pay the filler in an indirect way so it might have economic value as a fast or slow fill.
+ * @param deposit Deposit to check.
+ * @returns True if deposit's input amount is 0 and message is empty.
+ */
+export function isZeroValueDeposit(deposit: Pick<Deposit, "inputAmount" | "message">): boolean {
+  return deposit.inputAmount.eq(0) && isMessageEmpty(deposit.message);
+}
+
+/**
  * Determines if a message is empty or not.
  * @param message The message to check.
  * @returns True if the message is empty, false otherwise.
