@@ -69,10 +69,11 @@ export class QueryBase implements QueryInterface {
     options: Partial<{
       gasPrice: BigNumberish;
       gasUnits: BigNumberish;
+      baseFeeMultiplier: number;
       transport: Transport;
     }> = {}
   ): Promise<TransactionCostEstimate> {
-    const { gasPrice = this.fixedGasPrice, gasUnits, transport } = options;
+    const { gasPrice = this.fixedGasPrice, gasUnits, baseFeeMultiplier, transport } = options;
 
     const tx = await populateV3Relay(this.spokePool, deposit, relayer);
     const {
@@ -82,6 +83,7 @@ export class QueryBase implements QueryInterface {
     } = await estimateTotalGasRequiredByUnsignedTransaction(tx, relayer, this.provider, {
       gasPrice,
       gasUnits,
+      baseFeeMultiplier,
       transport,
     });
 
