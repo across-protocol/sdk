@@ -8,7 +8,7 @@ import { getGasPriceEstimate } from "../src/gasPriceOracle";
 import { BigNumber, bnZero, parseUnits } from "../src/utils";
 import { assertPromiseError, expect, makeCustomTransport, randomAddress } from "../test/utils";
 import { MockedProvider } from "./utils/provider";
-import { MockPolygonGasStation } from "../src/gasPriceOracle/adapters/polygon";
+import { MockPolygonGasStationBaseFee, MockPolygonGasStationPriorityFee } from "../src/gasPriceOracle/adapters/polygon";
 dotenv.config({ path: ".env" });
 
 const stdLastBaseFeePerGas = parseUnits("12", 9);
@@ -190,9 +190,9 @@ describe("Gas Price Oracle", function () {
     });
 
     expect(maxFeePerGas).to.equal(
-      MockPolygonGasStation.BASE_FEE().mul(baseFeeMultiplier).add(MockPolygonGasStation.PRIORITY_FEE())
+      MockPolygonGasStationBaseFee.mul(baseFeeMultiplier).add(MockPolygonGasStationPriorityFee)
     );
-    expect(maxPriorityFeePerGas).to.equal(MockPolygonGasStation.PRIORITY_FEE());
+    expect(maxPriorityFeePerGas).to.equal(MockPolygonGasStationPriorityFee);
     delete process.env["TEST_POLYGON_GAS_STATION"];
   });
   it("Ethers Polygon GasStation: Fallback", async function () {
