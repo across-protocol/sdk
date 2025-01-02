@@ -113,7 +113,7 @@ export async function _getViemGasPriceEstimate(
     (provider: PublicClient, opts: GasPriceEstimateOptions) => Promise<InternalGasPriceEstimate>
   > = {
     [CHAIN_IDs.LINEA]: lineaViem.eip1559,
-  } as const;
+  };
 
   let maxFeePerGas: bigint;
   let maxPriorityFeePerGas: bigint;
