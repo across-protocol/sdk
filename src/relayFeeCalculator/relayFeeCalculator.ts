@@ -24,7 +24,7 @@ export interface QueryInterface {
   getGasCosts: (
     deposit: Deposit,
     relayer: string,
-    options?: Partial<{ gasPrice: BigNumberish; gasUnits: BigNumberish; omitMarkup: boolean; transport: Transport }>
+    options?: Partial<{ gasPrice: BigNumberish; gasUnits: BigNumberish; transport: Transport }>
   ) => Promise<TransactionCostEstimate>;
   getTokenPrice: (tokenSymbol: string) => Promise<number>;
   getTokenDecimals: (tokenSymbol: string) => number;

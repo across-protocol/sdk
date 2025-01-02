@@ -60,7 +60,6 @@ export class QueryBase implements QueryInterface {
    * @param options
    * @param options.gasPrice Optional gas price to use for the simulation.
    * @param options.gasUnits Optional gas units to use for the simulation.
-   * @param options.omitMarkup Optional flag to omit the gas markup.
    * @param options.transport Optional transport object for custom gas price retrieval.
    * @returns The gas estimate for this function call (multiplied with the optional buffer).
    */
