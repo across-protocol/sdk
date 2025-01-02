@@ -914,6 +914,9 @@ export class BundleDataClient {
                 bundleInvalidFillsV3.push(fill);
                 return;
               }
+              // If deposit is using the deterministic relay hash feature, then the following binary search-based
+              // algorithm will not work. However, it is impossible to emit an infinite fill deadline using
+              // the unsafeDepositV3 function so there is no need to catch the special case.
               const historicalDeposit = await queryHistoricalDepositForFill(originClient, fill);
               if (!historicalDeposit.found) {
                 bundleInvalidFillsV3.push(fill);
@@ -1018,6 +1021,10 @@ export class BundleDataClient {
             // older deposit in case the spoke pool client's lookback isn't old enough to find the matching deposit.
             // We can skip this step if the deposit's fill deadline is not infinite, because we can assume that the
             // spoke pool clients have loaded deposits old enough to cover all fills with a non-infinite fill deadline.
+            // We do not need to handle the case where the deposit ID is > uint32 (in which case we wouldn't
+            // want to perform a binary search lookup for it because the deposit ID is "unsafe" and cannot be
+            // found using such a method) because infinite fill deadlines cannot be produced from the unsafeDepositV3()
+            // function.
             if (
               INFINITE_FILL_DEADLINE.eq(slowFillRequest.fillDeadline) &&
               slowFillRequest.blockNumber >= destinationChainBlockRange[0]
