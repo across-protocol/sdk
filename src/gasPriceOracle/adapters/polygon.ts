@@ -74,14 +74,14 @@ class MockRevertingPolygonGasStation extends PolygonGasStation {
   }
 }
 
-export const MockPolygonGasStationBaseFee = parseUnits("12", 9);
-export const MockPolygonGasStationPriorityFee = parseUnits("1", 9);
+export const MockPolygonGasStationBaseFee = () => parseUnits("12", 9);
+export const MockPolygonGasStationPriorityFee = () => parseUnits("1", 9);
 
 class MockPolygonGasStation extends PolygonGasStation {
   getFeeData(): Promise<GasPriceEstimate> {
     return Promise.resolve({
-      maxPriorityFeePerGas: MockPolygonGasStationPriorityFee,
-      maxFeePerGas: MockPolygonGasStationBaseFee.add(MockPolygonGasStationPriorityFee),
+      maxPriorityFeePerGas: MockPolygonGasStationPriorityFee(),
+      maxFeePerGas: MockPolygonGasStationBaseFee().add(MockPolygonGasStationPriorityFee()),
     });
   }
 }

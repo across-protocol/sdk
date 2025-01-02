@@ -190,9 +190,9 @@ describe("Gas Price Oracle", function () {
     });
 
     expect(maxFeePerGas).to.equal(
-      MockPolygonGasStationBaseFee.mul(baseFeeMultiplier).add(MockPolygonGasStationPriorityFee)
+      MockPolygonGasStationBaseFee().mul(baseFeeMultiplier).add(MockPolygonGasStationPriorityFee())
     );
-    expect(maxPriorityFeePerGas).to.equal(MockPolygonGasStationPriorityFee);
+    expect(maxPriorityFeePerGas).to.equal(MockPolygonGasStationPriorityFee());
     delete process.env["TEST_POLYGON_GAS_STATION"];
   });
   it("Ethers Polygon GasStation: Fallback", async function () {
