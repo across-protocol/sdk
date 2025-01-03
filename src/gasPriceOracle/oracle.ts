@@ -25,7 +25,6 @@ export interface GasPriceEstimateOptions {
 }
 
 const GAS_PRICE_ESTIMATE_DEFAULTS = {
-  baseFeeMultiplier: toBNWei("1"),
   legacyFallback: true,
 };
 
@@ -39,7 +38,7 @@ export async function getGasPriceEstimate(
   provider: providers.Provider,
   opts: Partial<GasPriceEstimateOptions> = {}
 ): Promise<GasPriceEstimate> {
-  const baseFeeMultiplier = opts.baseFeeMultiplier ?? GAS_PRICE_ESTIMATE_DEFAULTS.baseFeeMultiplier;
+  const baseFeeMultiplier = opts.baseFeeMultiplier ?? toBNWei("1");
   assert(
     baseFeeMultiplier.gte(toBNWei("1.0")) && baseFeeMultiplier.lte(toBNWei("5")),
     `Require 1.0 < base fee multiplier (${baseFeeMultiplier}) <= 5.0 for a total gas multiplier within [+1.0, +5.0]`
@@ -47,6 +46,7 @@ export async function getGasPriceEstimate(
   const chainId = opts.chainId ?? (await provider.getNetwork()).chainId;
   const optsWithDefaults: GasPriceEstimateOptions = {
     ...GAS_PRICE_ESTIMATE_DEFAULTS,
+    baseFeeMultiplier,
     ...opts,
     chainId,
   };
