@@ -86,7 +86,7 @@ export class QueryBase implements QueryInterface {
       nativeGasCost,
       tokenGasCost,
       gasPrice: impliedGasPrice,
-    } = await this.estimateTotalGasRequiredByUnsignedTransaction(tx, relayer, this.provider, {
+    } = await this.estimateGas(tx, relayer, this.provider, {
       gasPrice,
       gasUnits,
       baseFeeMultiplier,
@@ -111,7 +111,7 @@ export class QueryBase implements QueryInterface {
    * @param options.transport A custom transport object for custom gas price retrieval.
    * @returns Estimated cost in units of gas and the underlying gas token (gasPrice * estimatedGasUnits).
    */
-  async estimateTotalGasRequiredByUnsignedTransaction(
+  async estimateGas(
     unsignedTx: PopulatedTransaction,
     senderAddress: string,
     provider: providers.Provider | L2Provider<providers.Provider>,

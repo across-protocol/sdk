@@ -459,7 +459,7 @@ describe("RelayFeeCalculator: Composable Bridging", function () {
 });
 
 describe("QueryBase", function () {
-  describe("estimateTotalGasRequiredByUnsignedTransaction", function () {
+  describe("estimateGas", function () {
     let queryBase: QueryBase;
     beforeEach(function () {
       queryBase = QueryBase__factory.create(
@@ -477,7 +477,7 @@ describe("QueryBase", function () {
         gasUnits: BigNumber.from(300_000),
         gasPrice: toGWei("1.5"),
       };
-      const result = await queryBase.estimateTotalGasRequiredByUnsignedTransaction(
+      const result = await queryBase.estimateGas(
         {}, // populatedTransaction
         randomAddress(),
         getDefaultProvider(),
@@ -499,7 +499,7 @@ describe("QueryBase", function () {
       const chainId = 1; // get gas price from GasPriceOracle.ethereum.eip1559()
       const mockedProvider = new MockedProvider(stdLastBaseFeePerGas, stdMaxPriorityFeePerGas, chainId);
 
-      const result = await queryBase.estimateTotalGasRequiredByUnsignedTransaction(
+      const result = await queryBase.estimateGas(
         {}, // populatedTransaction
         randomAddress(),
         mockedProvider,
