@@ -1,16 +1,7 @@
-import { L2Provider } from "@eth-optimism/sdk/dist/interfaces/l2-provider";
-import { isL2Provider as isOptimismL2Provider } from "@eth-optimism/sdk/dist/l2-provider";
-import assert from "assert";
 import Decimal from "decimal.js";
-import { ethers, PopulatedTransaction, providers, VoidSigner } from "ethers";
-import { getGasPriceEstimate } from "../gasPriceOracle";
-import { BigNumber, BigNumberish, BN, bnZero, formatUnits, parseUnits, toBN } from "./BigNumberUtils";
+import { ethers } from "ethers";
+import { BigNumber, BigNumberish, BN, formatUnits, parseUnits, toBN } from "./BigNumberUtils";
 import { ConvertDecimals } from "./FormattingUtils";
-import { chainIsOPStack } from "./NetworkUtils";
-import { Address, Transport } from "viem";
-import { CHAIN_IDs } from "@across-protocol/constants";
-import { estimateGas } from "viem/linea";
-import { getPublicClient } from "../gasPriceOracle/util";
 
 export type Decimalish = string | number | Decimal;
 export const AddressZero = ethers.constants.AddressZero;
@@ -237,87 +228,6 @@ export type TransactionCostEstimate = {
   tokenGasCost: BigNumber; // Units: wei (nativeGasCost * wei/gas)
   gasPrice: BigNumber; // Units: wei/gas
 };
-
-/**
- * Estimates the total gas cost required to submit an unsigned (populated) transaction on-chain.
- * @param unsignedTx The unsigned transaction that this function will estimate.
- * @param senderAddress The address that the transaction will be submitted from.
- * @param provider A valid ethers provider - will be used to reason the gas price.
- * @param options
- * @param options.gasPrice A manually provided gas price - if set, this function will not resolve the current gas price.
- * @param options.gasUnits A manually provided gas units - if set, this function will not estimate the gas units.
- * @param options.transport A custom transport object for custom gas price retrieval.
- * @returns Estimated cost in units of gas and the underlying gas token (gasPrice * estimatedGasUnits).
- */
-export async function estimateTotalGasRequiredByUnsignedTransaction(
-  unsignedTx: PopulatedTransaction,
-  senderAddress: string,
-  provider: providers.Provider | L2Provider<providers.Provider>,
-  options: Partial<{
-    gasPrice: BigNumberish;
-    gasUnits: BigNumberish;
-    transport: Transport;
-  }> = {}
-): Promise<TransactionCostEstimate> {
-  const { gasPrice: _gasPrice, gasUnits, transport } = options || {};
-
-  const { chainId } = await provider.getNetwork();
-  const voidSigner = new VoidSigner(senderAddress, provider);
-
-  // Estimate the Gas units required to submit this transaction.
-  const queries = [
-    gasUnits ? Promise.resolve(BigNumber.from(gasUnits)) : voidSigner.estimateGas(unsignedTx),
-    _gasPrice ? Promise.resolve({ maxFeePerGas: _gasPrice }) : getGasPriceEstimate(provider, chainId, transport),
-  ] as const;
-  let [nativeGasCost, { maxFeePerGas: gasPrice }] = await Promise.all(queries);
-  assert(nativeGasCost.gt(bnZero), "Gas cost should not be 0");
-  let tokenGasCost: BigNumber;
-
-  // OP stack is a special case; gas cost is computed by the SDK, without having to query price.
-  if (chainIsOPStack(chainId)) {
-    assert(isOptimismL2Provider(provider), `Unexpected provider for chain ID ${chainId}.`);
-    const populatedTransaction = await voidSigner.populateTransaction({
-      ...unsignedTx,
-      gasLimit: nativeGasCost, // prevents additional gas estimation call
-    });
-    const l1GasCost = await provider.estimateL1GasCost(populatedTransaction);
-    const l2GasCost = nativeGasCost.mul(gasPrice);
-    tokenGasCost = l1GasCost.add(l2GasCost);
-  } else {
-    if (chainId === CHAIN_IDs.LINEA && process.env[`NEW_GAS_PRICE_ORACLE_${chainId}`] === "true") {
-      // Permit linea_estimateGas via NEW_GAS_PRICE_ORACLE_59144=true
-      let baseFeePerGas: BigNumber, priorityFeePerGas: BigNumber;
-      ({
-        gasLimit: nativeGasCost,
-        baseFeePerGas,
-        priorityFeePerGas,
-      } = await getLineaGasFees(chainId, transport, unsignedTx));
-      gasPrice = baseFeePerGas.add(priorityFeePerGas);
-    }
-
-    tokenGasCost = nativeGasCost.mul(gasPrice);
-  }
-
-  return {
-    nativeGasCost, // Units: gas
-    tokenGasCost, // Units: wei (nativeGasCost * wei/gas)
-    gasPrice: tokenGasCost.div(nativeGasCost), // Units: wei/gas
-  };
-}
-
-async function getLineaGasFees(chainId: number, transport: Transport | undefined, unsignedTx: PopulatedTransaction) {
-  const { gasLimit, baseFeePerGas, priorityFeePerGas } = await estimateGas(getPublicClient(chainId, transport), {
-    account: unsignedTx.from as Address,
-    to: unsignedTx.to as Address,
-    value: BigInt(unsignedTx.value?.toString() || "1"),
-  });
-
-  return {
-    gasLimit: BigNumber.from(gasLimit.toString()),
-    baseFeePerGas: BigNumber.from(baseFeePerGas.toString()),
-    priorityFeePerGas: BigNumber.from(priorityFeePerGas.toString()),
-  };
-}
 
 export function randomAddress() {
   return ethers.utils.getAddress(ethers.utils.hexlify(ethers.utils.randomBytes(20)));

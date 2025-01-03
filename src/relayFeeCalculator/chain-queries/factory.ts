@@ -27,7 +27,6 @@ export class QueryBase__factory {
     simulatedRelayerAddress = DEFAULT_SIMULATED_RELAYER_ADDRESS,
     coingeckoProApiKey?: string,
     logger: Logger = DEFAULT_LOGGER,
-    gasMarkup = 0,
     coingeckoBaseCurrency = "eth"
   ): QueryBase {
     assert(isDefined(spokePoolAddress));
@@ -38,9 +37,10 @@ export class QueryBase__factory {
         symbolMapping,
         spokePoolAddress,
         simulatedRelayerAddress,
-        coingeckoProApiKey,
         logger,
-        gasMarkup
+        coingeckoProApiKey,
+        fixedGasPrice[chainId],
+        "usd"
       );
     }
 
@@ -50,9 +50,10 @@ export class QueryBase__factory {
         symbolMapping,
         spokePoolAddress,
         simulatedRelayerAddress,
-        coingeckoProApiKey,
         logger,
-        gasMarkup
+        coingeckoProApiKey,
+        fixedGasPrice[chainId],
+        "usd"
       );
     }
 
@@ -64,7 +65,6 @@ export class QueryBase__factory {
       symbolMapping,
       spokePoolAddress,
       simulatedRelayerAddress,
-      gasMarkup,
       logger,
       coingeckoProApiKey,
       fixedGasPrice[chainId],

@@ -1,10 +1,11 @@
 import { providers } from "ethers";
 import { BaseHTTPAdapter, BaseHTTPAdapterArgs } from "../../priceClient/adapters/baseAdapter";
-import { BigNumber, bnZero, isDefined, parseUnits } from "../../utils";
+import { BigNumber, bnZero, fixedPointAdjustment, isDefined, parseUnits } from "../../utils";
 import { CHAIN_IDs } from "../../constants";
 import { GasPriceEstimate } from "../types";
 import { gasPriceError } from "../util";
 import { eip1559 } from "./ethereum";
+import { GasPriceEstimateOptions } from "../oracle";
 
 type Polygon1559GasPrice = {
   maxPriorityFee: number | string;
@@ -27,7 +28,7 @@ type GasStationArgs = BaseHTTPAdapterArgs & {
 
 const { POLYGON } = CHAIN_IDs;
 
-class PolygonGasStation extends BaseHTTPAdapter {
+export class PolygonGasStation extends BaseHTTPAdapter {
   readonly chainId: number;
 
   constructor({ chainId = POLYGON, host, timeout = 1500, retries = 1 }: GasStationArgs = {}) {
@@ -67,15 +68,55 @@ class PolygonGasStation extends BaseHTTPAdapter {
   }
 }
 
-export async function gasStation(provider: providers.Provider, chainId: number): Promise<GasPriceEstimate> {
-  const gasStation = new PolygonGasStation({ chainId: chainId, timeout: 2000, retries: 0 });
+class MockRevertingPolygonGasStation extends PolygonGasStation {
+  getFeeData(): Promise<GasPriceEstimate> {
+    throw new Error();
+  }
+}
+
+export const MockPolygonGasStationBaseFee = () => parseUnits("12", 9);
+export const MockPolygonGasStationPriorityFee = () => parseUnits("1", 9);
+
+class MockPolygonGasStation extends PolygonGasStation {
+  getFeeData(): Promise<GasPriceEstimate> {
+    return Promise.resolve({
+      maxPriorityFeePerGas: MockPolygonGasStationPriorityFee(),
+      maxFeePerGas: MockPolygonGasStationBaseFee().add(MockPolygonGasStationPriorityFee()),
+    });
+  }
+}
+
+/**
+ * @notice Returns the gas price suggested by the Polygon GasStation API or reconstructs it using
+ * the eip1559() method as a fallback.
+ * @param provider Ethers Provider.
+ * @returns GasPriceEstimate
+ */
+export async function gasStation(
+  provider: providers.Provider,
+  opts: GasPriceEstimateOptions
+): Promise<GasPriceEstimate> {
+  const { chainId, baseFeeMultiplier } = opts;
+  let gasStation: PolygonGasStation;
+  if (process.env.TEST_POLYGON_GAS_STATION === "true") {
+    gasStation = new MockPolygonGasStation();
+  } else if (process.env.TEST_REVERTING_POLYGON_GAS_STATION === "true") {
+    gasStation = new MockRevertingPolygonGasStation();
+  } else {
+    gasStation = new PolygonGasStation({ chainId: chainId, timeout: 2000, retries: 0 });
+  }
   let maxPriorityFeePerGas: BigNumber;
   let maxFeePerGas: BigNumber;
   try {
     ({ maxPriorityFeePerGas, maxFeePerGas } = await gasStation.getFeeData());
+    // Assume that the maxFeePerGas already includes the priority fee, so back out the priority fee before applying
+    // the baseFeeMultiplier.
+    const baseFeeMinusPriorityFee = maxFeePerGas.sub(maxPriorityFeePerGas);
+    const scaledBaseFee = baseFeeMinusPriorityFee.mul(baseFeeMultiplier).div(fixedPointAdjustment);
+    maxFeePerGas = scaledBaseFee.add(maxPriorityFeePerGas);
   } catch (err) {
     // Fall back to the RPC provider. May be less accurate.
-    ({ maxPriorityFeePerGas, maxFeePerGas } = await eip1559(provider, chainId));
+    ({ maxPriorityFeePerGas, maxFeePerGas } = await eip1559(provider, opts));
 
     // Per the GasStation docs, the minimum priority fee on Polygon is 30 Gwei.
     // https://docs.polygon.technology/tools/gas/polygon-gas-station/#interpretation
