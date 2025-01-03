@@ -3,6 +3,7 @@ import { estimateGas } from "viem/linea";
 import { DEFAULT_SIMULATED_RELAYER_ADDRESS as account } from "../../constants";
 import { InternalGasPriceEstimate } from "../types";
 import { GasPriceEstimateOptions } from "../oracle";
+import { fixedPointAdjustment } from "../../utils";
 
 /**
  * @notice The Linea viem provider calls the linea_estimateGas RPC endpoint to estimate gas. Linea is unique
@@ -32,7 +33,8 @@ export async function eip1559(
     value: BigInt(unsignedTx?.value?.toString() ?? "1"),
     data: (unsignedTx?.data as Hex) ?? "0x",
   });
-  const priorityFeePerGas = _priorityFeePerGas * BigInt(baseFeeMultiplier);
+  const priorityFeePerGas =
+    (_priorityFeePerGas * BigInt(baseFeeMultiplier.toString())) / BigInt(fixedPointAdjustment.toString());
 
   return {
     maxFeePerGas: baseFeePerGas + priorityFeePerGas,

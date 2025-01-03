@@ -253,11 +253,11 @@ export async function estimateTotalGasRequiredByUnsignedTransaction(
   options: Partial<{
     gasPrice: BigNumberish;
     gasUnits: BigNumberish;
-    baseFeeMultiplier: number;
+    baseFeeMultiplier: BigNumber;
     transport: Transport;
   }> = {}
 ): Promise<TransactionCostEstimate> {
-  const { gasPrice: _gasPrice, gasUnits, baseFeeMultiplier = 1.0, transport } = options || {};
+  const { gasPrice: _gasPrice, gasUnits, baseFeeMultiplier = toBNWei("1"), transport } = options || {};
 
   const { chainId } = await provider.getNetwork();
   const voidSigner = new VoidSigner(senderAddress, provider);

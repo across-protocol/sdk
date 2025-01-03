@@ -9,6 +9,7 @@ import {
   TransactionCostEstimate,
   estimateTotalGasRequiredByUnsignedTransaction,
   populateV3Relay,
+  BigNumber,
 } from "../../utils";
 import { Logger, QueryInterface } from "../relayFeeCalculator";
 import { Transport } from "viem";
@@ -69,7 +70,7 @@ export class QueryBase implements QueryInterface {
     options: Partial<{
       gasPrice: BigNumberish;
       gasUnits: BigNumberish;
-      baseFeeMultiplier: number;
+      baseFeeMultiplier: BigNumber;
       transport: Transport;
     }> = {}
   ): Promise<TransactionCostEstimate> {

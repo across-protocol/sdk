@@ -27,7 +27,7 @@ export interface QueryInterface {
     options?: Partial<{
       gasPrice: BigNumberish;
       gasUnits: BigNumberish;
-      baseFeeMultiplier: number;
+      baseFeeMultiplier: BigNumber;
       transport: Transport;
     }>
   ) => Promise<TransactionCostEstimate>;

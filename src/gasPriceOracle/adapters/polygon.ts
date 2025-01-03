@@ -1,6 +1,6 @@
 import { providers } from "ethers";
 import { BaseHTTPAdapter, BaseHTTPAdapterArgs } from "../../priceClient/adapters/baseAdapter";
-import { BigNumber, bnZero, isDefined, parseUnits } from "../../utils";
+import { BigNumber, bnZero, fixedPointAdjustment, isDefined, parseUnits } from "../../utils";
 import { CHAIN_IDs } from "../../constants";
 import { GasPriceEstimate } from "../types";
 import { gasPriceError } from "../util";
@@ -112,7 +112,7 @@ export async function gasStation(
     // Assume that the maxFeePerGas already includes the priority fee, so back out the priority fee before applying
     // the baseFeeMultiplier.
     const baseFeeMinusPriorityFee = maxFeePerGas.sub(maxPriorityFeePerGas);
-    const scaledBaseFee = baseFeeMinusPriorityFee.mul(baseFeeMultiplier);
+    const scaledBaseFee = baseFeeMinusPriorityFee.mul(baseFeeMultiplier).div(fixedPointAdjustment);
     maxFeePerGas = scaledBaseFee.add(maxPriorityFeePerGas);
   } catch (err) {
     // Fall back to the RPC provider. May be less accurate.

@@ -1,6 +1,6 @@
 import assert from "assert";
 import { providers } from "ethers";
-import { BigNumber, bnZero, getNetworkName } from "../../utils";
+import { BigNumber, bnZero, fixedPointAdjustment, getNetworkName } from "../../utils";
 import { GasPriceEstimate } from "../types";
 import { gasPriceError } from "../util";
 import { GasPriceEstimateOptions } from "../oracle";
@@ -33,7 +33,7 @@ export function eip1559(provider: providers.Provider, opts: GasPriceEstimateOpti
 export async function eip1559Raw(
   provider: providers.Provider,
   chainId: number,
-  baseFeeMultiplier: number
+  baseFeeMultiplier: BigNumber
 ): Promise<GasPriceEstimate> {
   const [{ baseFeePerGas }, _maxPriorityFeePerGas] = await Promise.all([
     provider.getBlock("pending"),
@@ -42,7 +42,7 @@ export async function eip1559Raw(
   const maxPriorityFeePerGas = BigNumber.from(_maxPriorityFeePerGas);
   assert(BigNumber.isBigNumber(baseFeePerGas), `No baseFeePerGas received on ${getNetworkName(chainId)}`);
 
-  const scaledBaseFee = baseFeePerGas.mul(baseFeeMultiplier);
+  const scaledBaseFee = baseFeePerGas.mul(baseFeeMultiplier).div(fixedPointAdjustment);
   return {
     maxFeePerGas: maxPriorityFeePerGas.add(scaledBaseFee),
     maxPriorityFeePerGas,
@@ -61,7 +61,7 @@ export async function eip1559Raw(
 export async function eip1559Bad(
   provider: providers.Provider,
   chainId: number,
-  baseFeeMultiplier: number
+  baseFeeMultiplier: BigNumber
 ): Promise<GasPriceEstimate> {
   const feeData = await provider.getFeeData();
 
@@ -70,7 +70,9 @@ export async function eip1559Bad(
   });
 
   const maxPriorityFeePerGas = feeData.maxPriorityFeePerGas as BigNumber;
-  const scaledLastBaseFeePerGas = (feeData.lastBaseFeePerGas as BigNumber).mul(baseFeeMultiplier);
+  const scaledLastBaseFeePerGas = (feeData.lastBaseFeePerGas as BigNumber)
+    .mul(baseFeeMultiplier)
+    .div(fixedPointAdjustment);
   const maxFeePerGas = maxPriorityFeePerGas.add(scaledLastBaseFeePerGas);
 
   return { maxPriorityFeePerGas, maxFeePerGas };
@@ -88,7 +90,7 @@ export async function legacy(provider: providers.Provider, opts: GasPriceEstimat
   if (!BigNumber.isBigNumber(gasPrice) || gasPrice.lt(bnZero)) gasPriceError("getGasPrice()", chainId, gasPrice);
 
   return {
-    maxFeePerGas: gasPrice.mul(baseFeeMultiplier),
+    maxFeePerGas: gasPrice.mul(baseFeeMultiplier).div(fixedPointAdjustment),
     maxPriorityFeePerGas: bnZero,
   };
 }

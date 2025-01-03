@@ -2,7 +2,7 @@ import assert from "assert";
 import { Transport } from "viem";
 import { PopulatedTransaction, providers } from "ethers";
 import { CHAIN_IDs } from "../constants";
-import { BigNumber, chainIsOPStack } from "../utils";
+import { BigNumber, chainIsOPStack, fixedPointAdjustment, toBNWei } from "../utils";
 import { GasPriceEstimate } from "./types";
 import { getPublicClient } from "./util";
 import * as arbitrum from "./adapters/arbitrum";
@@ -13,7 +13,7 @@ import * as lineaViem from "./adapters/linea-viem";
 
 export interface GasPriceEstimateOptions {
   // baseFeeMultiplier Multiplier applied to base fee for EIP1559 gas prices (or total fee for legacy).
-  baseFeeMultiplier: number;
+  baseFeeMultiplier: BigNumber;
   // legacyFallback In the case of an unrecognized chain, fall back to type 0 gas estimation.
   legacyFallback: boolean;
   // chainId The chain ID to query for gas prices. If omitted can be inferred by provider.
@@ -25,7 +25,7 @@ export interface GasPriceEstimateOptions {
 }
 
 const GAS_PRICE_ESTIMATE_DEFAULTS = {
-  baseFeeMultiplier: 1,
+  baseFeeMultiplier: toBNWei("1"),
   legacyFallback: true,
 };
 
@@ -41,7 +41,7 @@ export async function getGasPriceEstimate(
 ): Promise<GasPriceEstimate> {
   const baseFeeMultiplier = opts.baseFeeMultiplier ?? GAS_PRICE_ESTIMATE_DEFAULTS.baseFeeMultiplier;
   assert(
-    baseFeeMultiplier >= 1.0 && baseFeeMultiplier <= 5,
+    baseFeeMultiplier.gte(toBNWei("1.0")) && baseFeeMultiplier.lte(toBNWei("5")),
     `Require 1.0 < base fee multiplier (${baseFeeMultiplier}) <= 5.0 for a total gas multiplier within [+1.0, +5.0]`
   );
   const chainId = opts.chainId ?? (await provider.getNetwork()).chainId;
@@ -117,7 +117,7 @@ export async function _getViemGasPriceEstimate(
     let gasPrice: bigint | undefined;
     ({ maxFeePerGas, maxPriorityFeePerGas, gasPrice } = await viemProvider.estimateFeesPerGas());
 
-    maxFeePerGas ??= gasPrice! * BigInt(baseFeeMultiplier);
+    maxFeePerGas ??= (gasPrice! * BigInt(baseFeeMultiplier.toString())) / BigInt(fixedPointAdjustment.toString());
     maxPriorityFeePerGas ??= BigInt(0);
   }
 
