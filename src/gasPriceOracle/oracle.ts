@@ -37,7 +37,7 @@ const GAS_PRICE_ESTIMATE_DEFAULTS = {
  */
 export async function getGasPriceEstimate(
   provider: providers.Provider,
-  opts: Partial<GasPriceEstimateOptions>
+  opts: Partial<GasPriceEstimateOptions> = {}
 ): Promise<GasPriceEstimate> {
   const baseFeeMultiplier = opts.baseFeeMultiplier ?? GAS_PRICE_ESTIMATE_DEFAULTS.baseFeeMultiplier;
   assert(
