@@ -30,7 +30,7 @@ export async function eip1559(
   const { baseFeePerGas, priorityFeePerGas: _priorityFeePerGas } = await estimateGas(provider, {
     account: (unsignedTx?.from as Address) ?? account,
     to: (unsignedTx?.to as Address) ?? account,
-    value: BigInt(unsignedTx?.value?.toString() ?? "1"),
+    value: BigInt(unsignedTx?.value?.toString() ?? "0"),
     data: (unsignedTx?.data as Hex) ?? "0x",
   });
   const priorityFeePerGas =
