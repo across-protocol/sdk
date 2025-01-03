@@ -155,7 +155,7 @@ export class QueryBase implements QueryInterface {
     return {
       nativeGasCost, // Units: gas
       tokenGasCost, // Units: wei (nativeGasCost * wei/gas)
-      gasPrice: tokenGasCost.div(nativeGasCost), // Units: wei/gas
+      gasPrice: BigNumber.from(gasPrice.toString()), // Units: wei/gas, does not include l1GasCost for OP stack chains
     };
   }
 
