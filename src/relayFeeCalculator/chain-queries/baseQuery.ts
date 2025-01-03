@@ -145,7 +145,7 @@ export class QueryBase implements QueryInterface {
         ...unsignedTx,
         gasLimit: nativeGasCost, // prevents additional gas estimation call
       });
-      const l1GasCost = await provider.estimateL1GasCost(populatedTransaction);
+      const l1GasCost = await (provider as L2Provider<providers.Provider>).estimateL1GasCost(populatedTransaction);
       const l2GasCost = nativeGasCost.mul(gasPrice);
       tokenGasCost = l1GasCost.add(l2GasCost);
     } else {
