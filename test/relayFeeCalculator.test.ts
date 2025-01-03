@@ -10,6 +10,7 @@ import {
   getCurrentTime,
   spreadEvent,
   isMessageEmpty,
+  fixedPointAdjustment,
 } from "../src/utils";
 import {
   BigNumber,
@@ -31,6 +32,8 @@ import { TOKEN_SYMBOLS_MAP } from "@across-protocol/constants";
 import { EMPTY_MESSAGE, ZERO_ADDRESS } from "../src/constants";
 import { SpokePool } from "@across-protocol/contracts";
 import { QueryBase, QueryBase__factory } from "../src/relayFeeCalculator";
+import { getDefaultProvider } from "ethers";
+import { MockedProvider } from "./utils/provider";
 
 dotenv.config({ path: ".env" });
 
@@ -451,6 +454,66 @@ describe("RelayFeeCalculator: Composable Bridging", function () {
       updatedMessage: "0xabcdef",
       updatedOutputAmount: "1",
       fillType: 0,
+    });
+  });
+});
+
+describe("QueryBase", function () {
+  describe("estimateTotalGasRequiredByUnsignedTransaction", function () {
+    let queryBase: QueryBase;
+    beforeEach(function () {
+      queryBase = QueryBase__factory.create(
+        1, // chainId
+        getDefaultProvider(),
+        undefined, // symbolMapping
+        undefined, // spokePoolAddress
+        undefined, // simulatedRelayerAddress
+        undefined,
+        this.logger
+      );
+    });
+    it("Uses passed in options", async function () {
+      const options = {
+        gasUnits: BigNumber.from(300_000),
+        gasPrice: toGWei("1.5"),
+      };
+      const result = await queryBase.estimateTotalGasRequiredByUnsignedTransaction(
+        {}, // populatedTransaction
+        randomAddress(),
+        getDefaultProvider(),
+        options
+      );
+      expect(result.gasPrice).to.equal(options.gasPrice);
+      expect(result.nativeGasCost).to.equal(options.gasUnits);
+      expect(result.tokenGasCost).to.equal(options.gasPrice.mul(options.gasUnits));
+    });
+    it("Queries GasPriceOracle for gasPrice if not supplied", async function () {
+      const options = {
+        gasUnits: BigNumber.from(300_000),
+        gasPrice: undefined,
+        baseFeeMultiplier: toBNWei("2"),
+      };
+      // Mocked provider gets queried to compute gas price.
+      const stdLastBaseFeePerGas = toGWei("12");
+      const stdMaxPriorityFeePerGas = toGWei("1");
+      const chainId = 1; // get gas price from GasPriceOracle.ethereum.eip1559()
+      const mockedProvider = new MockedProvider(stdLastBaseFeePerGas, stdMaxPriorityFeePerGas, chainId);
+
+      const result = await queryBase.estimateTotalGasRequiredByUnsignedTransaction(
+        {}, // populatedTransaction
+        randomAddress(),
+        mockedProvider,
+        options
+      );
+      // In this test, verify that the baseFeeMultiplier is passed correctly to the
+      // GasPriceOracle.
+      const expectedGasPrice = stdLastBaseFeePerGas
+        .mul(options.baseFeeMultiplier)
+        .div(fixedPointAdjustment)
+        .add(stdMaxPriorityFeePerGas);
+      expect(result.gasPrice).to.equal(expectedGasPrice);
+      expect(result.nativeGasCost).to.equal(options.gasUnits);
+      expect(result.tokenGasCost).to.equal(expectedGasPrice.mul(options.gasUnits));
     });
   });
 });

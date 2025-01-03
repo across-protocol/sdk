@@ -9,7 +9,8 @@ import { bnZero } from "../../src/utils/BigNumberUtils";
 export class MockedProvider extends providers.StaticJsonRpcProvider {
   constructor(
     readonly stdLastBaseFeePerGas: BigNumber,
-    readonly stdMaxPriorityFeePerGas: BigNumber
+    readonly stdMaxPriorityFeePerGas: BigNumber,
+    readonly defaultChainId = 1
   ) {
     super();
   }
@@ -55,5 +56,12 @@ export class MockedProvider extends providers.StaticJsonRpcProvider {
 
   getGasPrice(): Promise<BigNumber> {
     return Promise.resolve(this.stdLastBaseFeePerGas.add(this.stdMaxPriorityFeePerGas));
+  }
+
+  getNetwork(): Promise<{ chainId: number; name: string }> {
+    return Promise.resolve({
+      name: "mocknetwork",
+      chainId: this.defaultChainId,
+    });
   }
 }
