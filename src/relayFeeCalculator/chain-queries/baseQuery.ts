@@ -1,5 +1,7 @@
 import { L2Provider } from "@eth-optimism/sdk/dist/interfaces/l2-provider";
-import { providers } from "ethers";
+import { isL2Provider as isOptimismL2Provider } from "@eth-optimism/sdk/dist/l2-provider";
+
+import { PopulatedTransaction, providers, VoidSigner } from "ethers";
 import { Coingecko } from "../../coingecko";
 import { CHAIN_IDs, DEFAULT_SIMULATED_RELAYER_ADDRESS } from "../../constants";
 import { Deposit } from "../../interfaces";
@@ -7,13 +9,16 @@ import { SpokePool, SpokePool__factory } from "../../typechain";
 import {
   BigNumberish,
   TransactionCostEstimate,
-  estimateTotalGasRequiredByUnsignedTransaction,
   populateV3Relay,
   BigNumber,
+  toBNWei,
+  bnZero,
+  assert,
+  chainIsOPStack,
 } from "../../utils";
 import { Logger, QueryInterface } from "../relayFeeCalculator";
 import { Transport } from "viem";
-
+import { getGasPriceEstimate } from "../../gasPriceOracle/oracle";
 type Provider = providers.Provider;
 type OptimismProvider = L2Provider<Provider>;
 type SymbolMappingType = Record<
@@ -81,7 +86,7 @@ export class QueryBase implements QueryInterface {
       nativeGasCost,
       tokenGasCost,
       gasPrice: impliedGasPrice,
-    } = await estimateTotalGasRequiredByUnsignedTransaction(tx, relayer, this.provider, {
+    } = await this.estimateTotalGasRequiredByUnsignedTransaction(tx, relayer, this.provider, {
       gasPrice,
       gasUnits,
       baseFeeMultiplier,
@@ -92,6 +97,65 @@ export class QueryBase implements QueryInterface {
       nativeGasCost,
       tokenGasCost,
       gasPrice: impliedGasPrice,
+    };
+  }
+
+  /**
+   * Estimates the total gas cost required to submit an unsigned (populated) transaction on-chain.
+   * @param unsignedTx The unsigned transaction that this function will estimate.
+   * @param senderAddress The address that the transaction will be submitted from.
+   * @param provider A valid ethers provider - will be used to reason the gas price.
+   * @param options
+   * @param options.gasPrice A manually provided gas price - if set, this function will not resolve the current gas price.
+   * @param options.gasUnits A manually provided gas units - if set, this function will not estimate the gas units.
+   * @param options.transport A custom transport object for custom gas price retrieval.
+   * @returns Estimated cost in units of gas and the underlying gas token (gasPrice * estimatedGasUnits).
+   */
+  async estimateTotalGasRequiredByUnsignedTransaction(
+    unsignedTx: PopulatedTransaction,
+    senderAddress: string,
+    provider: providers.Provider | L2Provider<providers.Provider>,
+    options: Partial<{
+      gasPrice: BigNumberish;
+      gasUnits: BigNumberish;
+      baseFeeMultiplier: BigNumber;
+      transport: Transport;
+    }> = {}
+  ): Promise<TransactionCostEstimate> {
+    const { gasPrice: _gasPrice, gasUnits, baseFeeMultiplier = toBNWei("1"), transport } = options || {};
+
+    const { chainId } = await provider.getNetwork();
+    const voidSigner = new VoidSigner(senderAddress, provider);
+
+    // Estimate the Gas units required to submit this transaction.
+    const queries = [
+      gasUnits ? Promise.resolve(BigNumber.from(gasUnits)) : voidSigner.estimateGas(unsignedTx),
+      _gasPrice
+        ? Promise.resolve({ maxFeePerGas: _gasPrice })
+        : getGasPriceEstimate(provider, { chainId, baseFeeMultiplier, transport, unsignedTx }),
+    ] as const;
+    const [nativeGasCost, { maxFeePerGas: gasPrice }] = await Promise.all(queries);
+    assert(nativeGasCost.gt(bnZero), "Gas cost should not be 0");
+    let tokenGasCost: BigNumber;
+
+    // OP stack is a special case; gas cost is computed by the SDK, without having to query price.
+    if (chainIsOPStack(chainId)) {
+      assert(isOptimismL2Provider(provider), `Unexpected provider for chain ID ${chainId}.`);
+      const populatedTransaction = await voidSigner.populateTransaction({
+        ...unsignedTx,
+        gasLimit: nativeGasCost, // prevents additional gas estimation call
+      });
+      const l1GasCost = await provider.estimateL1GasCost(populatedTransaction);
+      const l2GasCost = nativeGasCost.mul(gasPrice);
+      tokenGasCost = l1GasCost.add(l2GasCost);
+    } else {
+      tokenGasCost = nativeGasCost.mul(gasPrice);
+    }
+
+    return {
+      nativeGasCost, // Units: gas
+      tokenGasCost, // Units: wei (nativeGasCost * wei/gas)
+      gasPrice: tokenGasCost.div(nativeGasCost), // Units: wei/gas
     };
   }
 
