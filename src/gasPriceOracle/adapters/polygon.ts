@@ -96,7 +96,7 @@ export async function gasStation(
   provider: providers.Provider,
   opts: GasPriceEstimateOptions
 ): Promise<GasPriceEstimate> {
-  const { chainId, baseFeeMultiplier } = opts;
+  const { chainId, baseFeeMultiplier, priorityFeeMultiplier } = opts;
   let gasStation: PolygonGasStation;
   if (process.env.TEST_POLYGON_GAS_STATION === "true") {
     gasStation = new MockPolygonGasStation();
@@ -113,14 +113,16 @@ export async function gasStation(
     // the baseFeeMultiplier.
     const baseFeeMinusPriorityFee = maxFeePerGas.sub(maxPriorityFeePerGas);
     const scaledBaseFee = baseFeeMinusPriorityFee.mul(baseFeeMultiplier).div(fixedPointAdjustment);
-    maxFeePerGas = scaledBaseFee.add(maxPriorityFeePerGas);
+    const scaledPriorityFee = maxPriorityFeePerGas.mul(priorityFeeMultiplier).div(fixedPointAdjustment);
+    maxFeePerGas = scaledBaseFee.add(scaledPriorityFee);
+    maxPriorityFeePerGas = scaledPriorityFee;
   } catch (err) {
     // Fall back to the RPC provider. May be less accurate.
     ({ maxPriorityFeePerGas, maxFeePerGas } = await eip1559(provider, opts));
 
     // Per the GasStation docs, the minimum priority fee on Polygon is 30 Gwei.
     // https://docs.polygon.technology/tools/gas/polygon-gas-station/#interpretation
-    const minPriorityFee = parseUnits("30", 9);
+    const minPriorityFee = parseUnits("30", 9).mul(priorityFeeMultiplier).div(fixedPointAdjustment);
     if (maxPriorityFeePerGas.lt(minPriorityFee)) {
       const priorityDelta = minPriorityFee.sub(maxPriorityFeePerGas);
       maxPriorityFeePerGas = minPriorityFee;

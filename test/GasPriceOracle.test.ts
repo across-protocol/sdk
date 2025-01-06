@@ -59,6 +59,24 @@ describe("Gas Price Oracle", function () {
       "base fee multiplier"
     );
   });
+  it("priorityFeeMultiplier is validated", async function () {
+    // Too low:
+    await assertPromiseError(
+      getGasPriceEstimate(provider, {
+        chainId: 1,
+        priorityFeeMultiplier: toBNWei("0.5"),
+      }),
+      "priority fee multiplier"
+    );
+    // Too high:
+    await assertPromiseError(
+      getGasPriceEstimate(provider, {
+        chainId: 1,
+        priorityFeeMultiplier: toBNWei("5.5"),
+      }),
+      "priority fee multiplier"
+    );
+  });
   it("Linea Viem gas price retrieval with unsignedTx", async function () {
     const chainId = 59144;
     const chainKey = `NEW_GAS_PRICE_ORACLE_${chainId}`;
@@ -74,6 +92,7 @@ describe("Gas Price Oracle", function () {
       transport: customTransport,
       unsignedTx,
       baseFeeMultiplier: toBNWei("2.0"),
+      priorityFeeMultiplier: toBNWei("2.0"), // Priority fee multiplier should be unused in Linea.
     });
 
     // For Linea, base fee is expected to be hardcoded and unaffected by the base fee multiplier while
@@ -94,6 +113,7 @@ describe("Gas Price Oracle", function () {
       chainId,
       transport: customTransport,
       baseFeeMultiplier: toBNWei("2.0"),
+      priorityFeeMultiplier: toBNWei("2.0"), // Priority fee multiplier should be unused in Linea.
     });
 
     // For Linea, base fee is expected to be hardcoded and unaffected by the base fee multiplier while
@@ -105,13 +125,15 @@ describe("Gas Price Oracle", function () {
   });
   it("Ethers gas price retrieval", async function () {
     const baseFeeMultiplier = toBNWei("2.0");
+    const priorityFeeMultiplier = toBNWei("1.5");
     for (const chainId of ethersProviderChainIds) {
       const { maxFeePerGas: markedUpMaxFeePerGas, maxPriorityFeePerGas: markedUpMaxPriorityFeePerGas } =
-        await getGasPriceEstimate(provider, { chainId, baseFeeMultiplier });
+        await getGasPriceEstimate(provider, { chainId, baseFeeMultiplier, priorityFeeMultiplier });
 
       // Base fee for EIP1559 gas price feeds should be multiplied by multiplier.
-      // Returned max fee includes priority fee  so back it out.
-      const expectedMarkedUpMaxFeePerGas = stdLastBaseFeePerGas.mul(2);
+      // Returned max fee includes priority fee so back it out.
+      const expectedMarkedUpMaxFeePerGas = stdLastBaseFeePerGas.mul(baseFeeMultiplier).div(fixedPointAdjustment);
+      const expectedMarkedUpPriorityFee = stdMaxPriorityFeePerGas.mul(priorityFeeMultiplier).div(fixedPointAdjustment);
 
       if (arbOrbitChainIds.includes(chainId)) {
         expect(markedUpMaxFeePerGas.sub(markedUpMaxPriorityFeePerGas)).to.equal(expectedMarkedUpMaxFeePerGas);
@@ -120,65 +142,73 @@ describe("Gas Price Oracle", function () {
       } else if (legacyChainIds.includes(chainId)) {
         // Scroll and ZkSync use legacy pricing so priority fee should be 0.
         expect(markedUpMaxPriorityFeePerGas).to.equal(0);
-        // Legacy gas price = base fee + priority fee and full value is scaled
-        expect(markedUpMaxFeePerGas).to.equal(stdLastBaseFeePerGas.add(stdMaxPriorityFeePerGas).mul(2));
+        // Legacy gas price = base fee + priority fee and full value is scaled by the base fee multiplier.
+        expect(markedUpMaxFeePerGas).to.equal(
+          stdLastBaseFeePerGas.add(stdMaxPriorityFeePerGas).mul(baseFeeMultiplier).div(fixedPointAdjustment)
+        );
       } else {
         expect(markedUpMaxFeePerGas.sub(markedUpMaxPriorityFeePerGas)).to.equal(expectedMarkedUpMaxFeePerGas);
-        // Priority fees should be unscaled
-        expect(markedUpMaxPriorityFeePerGas).to.equal(stdMaxPriorityFeePerGas);
+        // Priority fees should be scaled by priority fee multiplier.
+        expect(markedUpMaxPriorityFeePerGas).to.equal(expectedMarkedUpPriorityFee);
       }
     }
   });
   it("Ethers EIP1559 Raw", async function () {
     const baseFeeMultiplier = toBNWei("2.0");
+    const priorityFeeMultiplier = toBNWei("1.5");
     const chainId = 1;
     const chainKey = `GAS_PRICE_EIP1559_RAW_${chainId}`;
     process.env[chainKey] = "true";
 
     const { maxFeePerGas: markedUpMaxFeePerGas, maxPriorityFeePerGas: markedUpMaxPriorityFeePerGas } =
-      await getGasPriceEstimate(provider, { chainId, baseFeeMultiplier });
+      await getGasPriceEstimate(provider, { chainId, baseFeeMultiplier, priorityFeeMultiplier });
 
     // Base fee should be multiplied by multiplier. Returned max fee includes priority fee
     // so back it out before scaling.
+    const expectedMarkedUpPriorityFee = stdMaxPriorityFeePerGas.mul(priorityFeeMultiplier).div(fixedPointAdjustment);
     const expectedMarkedUpMaxFeePerGas = stdLastBaseFeePerGas
       .mul(baseFeeMultiplier)
       .div(fixedPointAdjustment)
-      .add(stdMaxPriorityFeePerGas);
+      .add(expectedMarkedUpPriorityFee);
     expect(markedUpMaxFeePerGas).to.equal(expectedMarkedUpMaxFeePerGas);
 
-    // Priority fees should be the same
-    expect(markedUpMaxPriorityFeePerGas).to.equal(stdMaxPriorityFeePerGas);
+    // Priority fees should be scaled.
+    expect(markedUpMaxPriorityFeePerGas).to.equal(expectedMarkedUpPriorityFee);
     delete process.env[chainKey];
   });
   it("Ethers EIP1559 Bad", async function () {
     // This test should return identical results to the Raw test but it makes different
     // provider calls, so we're really testing that the expected provider functions are called.
     const baseFeeMultiplier = toBNWei("2.0");
+    const priorityFeeMultiplier = toBNWei("1.5");
     const chainId = 1;
 
     const { maxFeePerGas: markedUpMaxFeePerGas, maxPriorityFeePerGas: markedUpMaxPriorityFeePerGas } =
-      await getGasPriceEstimate(provider, { chainId, baseFeeMultiplier });
+      await getGasPriceEstimate(provider, { chainId, baseFeeMultiplier, priorityFeeMultiplier });
 
     // Base fee should be multiplied by multiplier. Returned max fee includes priority fee
     // so back it out before scaling.
+    const expectedMarkedUpPriorityFee = stdMaxPriorityFeePerGas.mul(priorityFeeMultiplier).div(fixedPointAdjustment);
     const expectedMarkedUpMaxFeePerGas = stdLastBaseFeePerGas
       .mul(baseFeeMultiplier)
       .div(fixedPointAdjustment)
-      .add(stdMaxPriorityFeePerGas);
+      .add(expectedMarkedUpPriorityFee);
     expect(markedUpMaxFeePerGas).to.equal(expectedMarkedUpMaxFeePerGas);
 
-    // Priority fees should be the same
-    expect(markedUpMaxPriorityFeePerGas).to.equal(stdMaxPriorityFeePerGas);
+    // Priority fees should be scaled.
+    expect(markedUpMaxPriorityFeePerGas).to.equal(expectedMarkedUpPriorityFee);
   });
   it("Ethers Legacy", async function () {
     const baseFeeMultiplier = toBNWei("2.0");
+    const priorityFeeMultiplier = toBNWei("1.5");
     const chainId = 324;
 
     const { maxFeePerGas: markedUpMaxFeePerGas, maxPriorityFeePerGas: markedUpMaxPriorityFeePerGas } =
-      await getGasPriceEstimate(provider, { chainId, baseFeeMultiplier });
+      await getGasPriceEstimate(provider, { chainId, baseFeeMultiplier, priorityFeeMultiplier });
 
     // Legacy gas price is equal to base fee + priority fee and the full amount
-    // should be multiplied since the RPC won't return the broken down fee.
+    // should be multiplied by the base fee multiplier since the RPC won't return the broken down fee.
+    // The priority fee multiplier should be unused.
     const expectedGasPrice = stdLastBaseFeePerGas.add(stdMaxPriorityFeePerGas);
     const expectedMarkedUpMaxFeePerGas = expectedGasPrice.mul(baseFeeMultiplier).div(fixedPointAdjustment);
     expect(expectedMarkedUpMaxFeePerGas).to.equal(markedUpMaxFeePerGas);
@@ -188,24 +218,25 @@ describe("Gas Price Oracle", function () {
   });
   it("Ethers Polygon GasStation", async function () {
     const baseFeeMultiplier = toBNWei("2.0");
+    const priorityFeeMultiplier = toBNWei("1.5");
     process.env["TEST_POLYGON_GAS_STATION"] = "true";
     const chainId = 137;
     const { maxFeePerGas, maxPriorityFeePerGas } = await getGasPriceEstimate(provider, {
       chainId,
       baseFeeMultiplier,
+      priorityFeeMultiplier,
     });
 
+    const expectedPriorityFee = MockPolygonGasStationPriorityFee().mul(priorityFeeMultiplier).div(fixedPointAdjustment);
     expect(maxFeePerGas).to.equal(
-      MockPolygonGasStationBaseFee()
-        .mul(baseFeeMultiplier)
-        .div(fixedPointAdjustment)
-        .add(MockPolygonGasStationPriorityFee())
+      MockPolygonGasStationBaseFee().mul(baseFeeMultiplier).div(fixedPointAdjustment).add(expectedPriorityFee)
     );
-    expect(maxPriorityFeePerGas).to.equal(MockPolygonGasStationPriorityFee());
+    expect(maxPriorityFeePerGas).to.equal(expectedPriorityFee);
     delete process.env["TEST_POLYGON_GAS_STATION"];
   });
   it("Ethers Polygon GasStation: Fallback", async function () {
     const baseFeeMultiplier = toBNWei("2.0");
+    const priorityFeeMultiplier = toBNWei("1.5");
     process.env["TEST_REVERTING_POLYGON_GAS_STATION"] = "true";
     const chainId = 137;
 
@@ -214,11 +245,13 @@ describe("Gas Price Oracle", function () {
     const { maxFeePerGas, maxPriorityFeePerGas } = await getGasPriceEstimate(provider, {
       chainId,
       baseFeeMultiplier,
+      priorityFeeMultiplier,
     });
 
-    const minPolygonPriorityFee = parseUnits("30", 9);
-    const expectedPriorityFee = stdMaxPriorityFeePerGas.gt(minPolygonPriorityFee)
-      ? stdMaxPriorityFeePerGas
+    const minPolygonPriorityFee = parseUnits("30", 9).mul(priorityFeeMultiplier).div(fixedPointAdjustment);
+    const markedUpPriorityFee = stdMaxPriorityFeePerGas.mul(priorityFeeMultiplier).div(fixedPointAdjustment);
+    const expectedPriorityFee = markedUpPriorityFee.gt(minPolygonPriorityFee)
+      ? markedUpPriorityFee
       : minPolygonPriorityFee;
     expect(maxFeePerGas).to.equal(
       stdLastBaseFeePerGas.mul(baseFeeMultiplier).div(fixedPointAdjustment).add(expectedPriorityFee)

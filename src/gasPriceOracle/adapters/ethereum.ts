@@ -14,13 +14,16 @@ import { GasPriceEstimateOptions } from "../oracle";
  * eth_getBlock("pending").baseFee to eth_maxPriorityFeePerGas, otherwise calls the ethers provider's
  * getFeeData() method which adds eth_getBlock("latest").baseFee to a hardcoded priority fee of 1.5 gwei.
  * @param provider ethers RPC provider instance.
+ * @param {GasPriceEstimateOptions} opts See notes below on specific parameters.
+ * @param baseFeeMultiplier Amount to multiply base fee or total fee for legacy gas pricing.
+ * @param priorityFeeMultiplier Amount to multiply priority fee or unused for legacy gas pricing.
  * @returns Promise of gas price estimate object.
  */
 export function eip1559(provider: providers.Provider, opts: GasPriceEstimateOptions): Promise<GasPriceEstimate> {
   const useRaw = process.env[`GAS_PRICE_EIP1559_RAW_${opts.chainId}`] === "true";
   return useRaw
-    ? eip1559Raw(provider, opts.chainId, opts.baseFeeMultiplier)
-    : eip1559Bad(provider, opts.chainId, opts.baseFeeMultiplier);
+    ? eip1559Raw(provider, opts.chainId, opts.baseFeeMultiplier, opts.priorityFeeMultiplier)
+    : eip1559Bad(provider, opts.chainId, opts.baseFeeMultiplier, opts.priorityFeeMultiplier);
 }
 
 /**
@@ -33,7 +36,8 @@ export function eip1559(provider: providers.Provider, opts: GasPriceEstimateOpti
 export async function eip1559Raw(
   provider: providers.Provider,
   chainId: number,
-  baseFeeMultiplier: BigNumber
+  baseFeeMultiplier: BigNumber,
+  priorityFeeMultiplier: BigNumber
 ): Promise<GasPriceEstimate> {
   const [{ baseFeePerGas }, _maxPriorityFeePerGas] = await Promise.all([
     provider.getBlock("pending"),
@@ -42,10 +46,11 @@ export async function eip1559Raw(
   const maxPriorityFeePerGas = BigNumber.from(_maxPriorityFeePerGas);
   assert(BigNumber.isBigNumber(baseFeePerGas), `No baseFeePerGas received on ${getNetworkName(chainId)}`);
 
+  const scaledPriorityFee = maxPriorityFeePerGas.mul(priorityFeeMultiplier).div(fixedPointAdjustment);
   const scaledBaseFee = baseFeePerGas.mul(baseFeeMultiplier).div(fixedPointAdjustment);
   return {
-    maxFeePerGas: maxPriorityFeePerGas.add(scaledBaseFee),
-    maxPriorityFeePerGas,
+    maxFeePerGas: scaledPriorityFee.add(scaledBaseFee),
+    maxPriorityFeePerGas: scaledPriorityFee,
   };
 }
 
@@ -61,7 +66,8 @@ export async function eip1559Raw(
 export async function eip1559Bad(
   provider: providers.Provider,
   chainId: number,
-  baseFeeMultiplier: BigNumber
+  baseFeeMultiplier: BigNumber,
+  priorityFeeMultiplier: BigNumber
 ): Promise<GasPriceEstimate> {
   const feeData = await provider.getFeeData();
 
@@ -70,12 +76,13 @@ export async function eip1559Bad(
   });
 
   const maxPriorityFeePerGas = feeData.maxPriorityFeePerGas as BigNumber;
+  const scaledPriorityFee = maxPriorityFeePerGas.mul(priorityFeeMultiplier).div(fixedPointAdjustment);
   const scaledLastBaseFeePerGas = (feeData.lastBaseFeePerGas as BigNumber)
     .mul(baseFeeMultiplier)
     .div(fixedPointAdjustment);
-  const maxFeePerGas = maxPriorityFeePerGas.add(scaledLastBaseFeePerGas);
+  const maxFeePerGas = scaledPriorityFee.add(scaledLastBaseFeePerGas);
 
-  return { maxPriorityFeePerGas, maxFeePerGas };
+  return { maxPriorityFeePerGas: scaledPriorityFee, maxFeePerGas };
 }
 
 /**
