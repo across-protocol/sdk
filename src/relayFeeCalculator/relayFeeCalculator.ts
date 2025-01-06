@@ -238,6 +238,7 @@ export class RelayFeeCalculator {
     tokenMapping = TOKEN_SYMBOLS_MAP,
     gasPrice?: BigNumberish,
     gasLimit?: BigNumberish,
+    _tokenGasCost?: BigNumberish,
     transport?: Transport
   ): Promise<BigNumber> {
     if (toBN(amountToRelay).eq(bnZero)) return MAX_BIG_INT;
@@ -255,6 +256,7 @@ export class RelayFeeCalculator {
 
     const getGasCosts = this.queries
       .getGasCosts(deposit, relayerAddress, { gasPrice, gasUnits: gasLimit, transport })
+      .then(({ tokenGasCost }) => tokenGasCost)
       .catch((error) => {
         this.logger.error({
           at: "sdk/gasFeePercent",
@@ -265,8 +267,8 @@ export class RelayFeeCalculator {
         });
         throw error;
       });
-    const [{ tokenGasCost }, tokenPrice] = await Promise.all([
-      getGasCosts,
+    const [tokenGasCost, tokenPrice] = await Promise.all([
+      _tokenGasCost ? Promise.resolve(_tokenGasCost) : getGasCosts,
       _tokenPrice ??
         this.queries.getTokenPrice(token.symbol).catch((error) => {
           this.logger.error({
@@ -362,7 +364,8 @@ export class RelayFeeCalculator {
     relayerAddress = DEFAULT_SIMULATED_RELAYER_ADDRESS,
     _tokenPrice?: number,
     gasPrice?: BigNumberish,
-    gasUnits?: BigNumberish
+    gasUnits?: BigNumberish,
+    tokenGasCost?: BigNumberish
   ): Promise<RelayerFeeDetails> {
     // If the amount to relay is not provided, then we
     // should use the full deposit amount.
@@ -381,7 +384,8 @@ export class RelayFeeCalculator {
       _tokenPrice,
       undefined,
       gasPrice,
-      gasUnits
+      gasUnits,
+      tokenGasCost
     );
     const gasFeeTotal = gasFeePercent.mul(amountToRelay).div(fixedPointAdjustment);
     const capitalFeePercent = this.capitalFeePercent(
