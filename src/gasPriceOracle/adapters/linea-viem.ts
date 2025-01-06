@@ -15,10 +15,12 @@ import { fixedPointAdjustment } from "../../utils";
  * @dev Because the Linea priority fee is more volatile than the base fee, the base fee multiplier will be applied
  * to the priority fee.
  * @param provider Viem PublicClient
- * @param _chainId Unused in this adapter
+ * @param opts Relevant options for Linea are baseFeeMultiplier and unsignedTx.
  * @param baseFeeMultiplier Amount to multiply priority fee, since Linea's base fee is hardcoded while its priority
- * fee is dynamic
- * @param _unsignedTx Should contain any params passed to linea_estimateGas, which are listed
+ * fee is dynamic.
+ * @param priorityFeeMultiplier Unused in this function because the baseFeeMultiplier is applied to the dynamic
+ * Linea priority fee while the base fee is hardcoded.
+ * @param unsignedTx Should contain any params passed to linea_estimateGas, which are listed
  * here: https://docs.linea.build/api/reference/linea-estimategas#parameters
  * @returns
  */

@@ -14,6 +14,8 @@ import * as lineaViem from "./adapters/linea-viem";
 export interface GasPriceEstimateOptions {
   // baseFeeMultiplier Multiplier applied to base fee for EIP1559 gas prices (or total fee for legacy).
   baseFeeMultiplier: BigNumber;
+  // priorityFeeMultiplier Multiplier applied to priority fee for EIP1559 gas prices (ignored for legacy).
+  priorityFeeMultiplier: BigNumber;
   // legacyFallback In the case of an unrecognized chain, fall back to type 0 gas estimation.
   legacyFallback: boolean;
   // chainId The chain ID to query for gas prices. If omitted can be inferred by provider.
@@ -43,10 +45,17 @@ export async function getGasPriceEstimate(
     baseFeeMultiplier.gte(toBNWei("1.0")) && baseFeeMultiplier.lte(toBNWei("5")),
     `Require 1.0 < base fee multiplier (${baseFeeMultiplier}) <= 5.0 for a total gas multiplier within [+1.0, +5.0]`
   );
+  const priorityFeeMultiplier = opts.priorityFeeMultiplier ?? toBNWei("1");
+  assert(
+    priorityFeeMultiplier.gte(toBNWei("1.0")) && priorityFeeMultiplier.lte(toBNWei("5")),
+    `Require 1.0 < priority fee multiplier (${priorityFeeMultiplier}) <= 5.0 for a total gas multiplier within [+1.0, +5.0]`
+  );
+
   const chainId = opts.chainId ?? (await provider.getNetwork()).chainId;
   const optsWithDefaults: GasPriceEstimateOptions = {
     ...GAS_PRICE_ESTIMATE_DEFAULTS,
     baseFeeMultiplier,
+    priorityFeeMultiplier,
     ...opts,
     chainId,
   };
