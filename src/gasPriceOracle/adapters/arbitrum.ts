@@ -10,7 +10,7 @@ import { GasPriceEstimateOptions } from "../oracle";
  * Reference: https://docs.arbitrum.io/how-arbitrum-works/gas-fees so we hardcode the priority fee
  * to 1 wei.
  * @param provider Ethers Provider
- * @param {GasPriceEstimateOptions} opts See notes below on specific parameters.
+ * @param opts See notes below on specific parameters.
  * @param baseFeeMultiplier Amount to multiply base fee.
  * @param priorityFeeMultiplier Unused in this function because arbitrum priority fee is hardcoded to 1 wei by this
  * function.
