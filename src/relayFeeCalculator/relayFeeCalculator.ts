@@ -28,6 +28,8 @@ export interface QueryInterface {
       gasPrice: BigNumberish;
       gasUnits: BigNumberish;
       baseFeeMultiplier: BigNumber;
+      priorityFeeMultiplier: BigNumber;
+      opStackL1GasCostMultiplier: BigNumber;
       transport: Transport;
     }>
   ) => Promise<TransactionCostEstimate>;

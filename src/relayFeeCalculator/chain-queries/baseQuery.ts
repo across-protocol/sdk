@@ -15,6 +15,7 @@ import {
   bnZero,
   assert,
   chainIsOPStack,
+  fixedPointAdjustment,
 } from "../../utils";
 import { Logger, QueryInterface } from "../relayFeeCalculator";
 import { Transport } from "viem";
@@ -76,10 +77,19 @@ export class QueryBase implements QueryInterface {
       gasPrice: BigNumberish;
       gasUnits: BigNumberish;
       baseFeeMultiplier: BigNumber;
+      priorityFeeMultiplier: BigNumber;
+      opStackL1GasCostMultiplier: BigNumber;
       transport: Transport;
     }> = {}
   ): Promise<TransactionCostEstimate> {
-    const { gasPrice = this.fixedGasPrice, gasUnits, baseFeeMultiplier, transport } = options;
+    const {
+      gasPrice = this.fixedGasPrice,
+      gasUnits,
+      baseFeeMultiplier,
+      priorityFeeMultiplier,
+      opStackL1GasCostMultiplier,
+      transport,
+    } = options;
 
     const tx = await populateV3Relay(this.spokePool, deposit, relayer);
     const {
@@ -90,6 +100,8 @@ export class QueryBase implements QueryInterface {
       gasPrice,
       gasUnits,
       baseFeeMultiplier,
+      priorityFeeMultiplier,
+      opStackL1GasCostMultiplier,
       transport,
     });
 
@@ -119,10 +131,19 @@ export class QueryBase implements QueryInterface {
       gasPrice: BigNumberish;
       gasUnits: BigNumberish;
       baseFeeMultiplier: BigNumber;
+      priorityFeeMultiplier: BigNumber;
+      opStackL1GasCostMultiplier: BigNumber;
       transport: Transport;
     }> = {}
   ): Promise<TransactionCostEstimate> {
-    const { gasPrice: _gasPrice, gasUnits, baseFeeMultiplier = toBNWei("1"), transport } = options || {};
+    const {
+      gasPrice: _gasPrice,
+      gasUnits,
+      baseFeeMultiplier = toBNWei("1"),
+      priorityFeeMultiplier = toBNWei("1"),
+      opStackL1GasCostMultiplier = toBNWei("1"),
+      transport,
+    } = options || {};
 
     const { chainId } = await provider.getNetwork();
     const voidSigner = new VoidSigner(senderAddress, provider);
@@ -132,7 +153,7 @@ export class QueryBase implements QueryInterface {
       gasUnits ? Promise.resolve(BigNumber.from(gasUnits)) : voidSigner.estimateGas(unsignedTx),
       _gasPrice
         ? Promise.resolve({ maxFeePerGas: _gasPrice })
-        : getGasPriceEstimate(provider, { chainId, baseFeeMultiplier, transport, unsignedTx }),
+        : getGasPriceEstimate(provider, { chainId, baseFeeMultiplier, priorityFeeMultiplier, transport, unsignedTx }),
     ] as const;
     const [nativeGasCost, { maxFeePerGas: gasPrice }] = await Promise.all(queries);
     assert(nativeGasCost.gt(bnZero), "Gas cost should not be 0");
@@ -146,8 +167,9 @@ export class QueryBase implements QueryInterface {
         gasLimit: nativeGasCost, // prevents additional gas estimation call
       });
       const l1GasCost = await (provider as L2Provider<providers.Provider>).estimateL1GasCost(populatedTransaction);
+      const scaledL1GasCost = l1GasCost.mul(opStackL1GasCostMultiplier).div(fixedPointAdjustment);
       const l2GasCost = nativeGasCost.mul(gasPrice);
-      tokenGasCost = l1GasCost.add(l2GasCost);
+      tokenGasCost = scaledL1GasCost.add(l2GasCost);
     } else {
       tokenGasCost = nativeGasCost.mul(gasPrice);
     }
