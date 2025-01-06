@@ -10,7 +10,7 @@ import { GasPriceEstimateOptions } from "../oracle";
 /**
  * Returns Linea gas price using the legacy eth_gasPrice RPC call.
  * @param provider
- * @param {GasPriceEstimateOptions} opts See notes below on specific parameters.
+ * @param opts See notes below on specific parameters.
  * @param baseFeeMultiplier Amount to multiply total fee because this function defaults to legacy gas pricing.
  * @param priorityFeeMultiplier Unused in this function because this defaults to legacy gas computation.
  * @returns
