@@ -355,6 +355,7 @@ describe("RelayFeeCalculator: Composable Bridging", function () {
         tokenMap,
         undefined,
         undefined,
+        undefined,
         customTransport
       );
   });
