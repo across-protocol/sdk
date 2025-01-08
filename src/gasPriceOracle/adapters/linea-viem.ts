@@ -16,10 +16,8 @@ import { fixedPointAdjustment } from "../../utils";
  * to the priority fee.
  * @param provider Viem PublicClient
  * @param opts Relevant options for Linea are baseFeeMultiplier and unsignedTx.
- * @param baseFeeMultiplier Amount to multiply priority fee, since Linea's base fee is hardcoded while its priority
- * fee is dynamic.
- * @param priorityFeeMultiplier Unused in this function because the baseFeeMultiplier is applied to the dynamic
- * Linea priority fee while the base fee is hardcoded.
+ * @param baseFeeMultiplier Unused since Linea's base fee is hardcoded while its priority fee is dynamic.
+ * @param priorityFeeMultiplier Amount to multiply priority fee.
  * @param unsignedTx Should contain any params passed to linea_estimateGas, which are listed
  * here: https://docs.linea.build/api/reference/linea-estimategas#parameters
  * @returns
@@ -28,7 +26,7 @@ export async function eip1559(
   provider: PublicClient,
   opts: GasPriceEstimateOptions
 ): Promise<InternalGasPriceEstimate> {
-  const { unsignedTx, baseFeeMultiplier } = opts;
+  const { unsignedTx, priorityFeeMultiplier } = opts;
   const { baseFeePerGas, priorityFeePerGas: _priorityFeePerGas } = await estimateGas(provider, {
     account: (unsignedTx?.from as Address) ?? account,
     to: (unsignedTx?.to as Address) ?? account,
@@ -36,7 +34,7 @@ export async function eip1559(
     data: (unsignedTx?.data as Hex) ?? "0x",
   });
   const priorityFeePerGas =
-    (_priorityFeePerGas * BigInt(baseFeeMultiplier.toString())) / BigInt(fixedPointAdjustment.toString());
+    (_priorityFeePerGas * BigInt(priorityFeeMultiplier.toString())) / BigInt(fixedPointAdjustment.toString());
 
   return {
     maxFeePerGas: baseFeePerGas + priorityFeePerGas,
