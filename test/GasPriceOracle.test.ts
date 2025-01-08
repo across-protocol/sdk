@@ -17,6 +17,8 @@ const expectedLineaMaxFeePerGas = BigNumber.from("7");
 const legacyChainIds = [324, 59144, 534352];
 const arbOrbitChainIds = [42161, 41455];
 const ethersProviderChainIds = [10, 8453, ...legacyChainIds, ...arbOrbitChainIds];
+const lineaEstimateGasUnsignedTxMultiplier = 2; // Amount that priority fee scales by if unsignedTx has data. Applied
+// by the custom transport in makeCustomTransport
 
 const customTransport = makeCustomTransport({ stdLastBaseFeePerGas, stdMaxPriorityFeePerGas });
 
@@ -81,6 +83,7 @@ describe("Gas Price Oracle", function () {
     const chainId = 59144;
     const chainKey = `NEW_GAS_PRICE_ORACLE_${chainId}`;
     process.env[chainKey] = "true";
+    const priorityFeeMultiplier = toBNWei("2.0");
     const unsignedTx = {
       to: randomAddress(),
       from: randomAddress(),
@@ -91,8 +94,8 @@ describe("Gas Price Oracle", function () {
       chainId,
       transport: customTransport,
       unsignedTx,
-      baseFeeMultiplier: toBNWei("2.0"),
-      priorityFeeMultiplier: toBNWei("2.0"), // Priority fee multiplier should be unused in Linea.
+      baseFeeMultiplier: toBNWei("3.0"), // Base fee multiplier should be unused in Linea.
+      priorityFeeMultiplier,
     });
 
     // For Linea, base fee is expected to be hardcoded and unaffected by the base fee multiplier while
@@ -100,7 +103,9 @@ describe("Gas Price Oracle", function () {
     // Additionally, test that the unsignedTx with a non-empty data field gets passed into the
     // Linea viem provider. We've mocked the customTransport to double the priority fee if
     // the unsigned tx object has non-empty data
-    const expectedPriorityFee = stdMaxPriorityFeePerGas.mul(4.0);
+    const expectedPriorityFee = stdMaxPriorityFeePerGas.mul(
+      priorityFeeMultiplier.mul(lineaEstimateGasUnsignedTxMultiplier).div(fixedPointAdjustment)
+    );
     expect(maxFeePerGas).to.equal(expectedLineaMaxFeePerGas.add(expectedPriorityFee));
     expect(maxPriorityFeePerGas).to.equal(expectedPriorityFee);
     delete process.env[chainKey];
@@ -109,16 +114,17 @@ describe("Gas Price Oracle", function () {
     const chainId = 59144;
     const chainKey = `NEW_GAS_PRICE_ORACLE_${chainId}`;
     process.env[chainKey] = "true";
+    const priorityFeeMultiplier = toBNWei("2.0");
     const { maxFeePerGas, maxPriorityFeePerGas } = await getGasPriceEstimate(provider, {
       chainId,
       transport: customTransport,
-      baseFeeMultiplier: toBNWei("2.0"),
-      priorityFeeMultiplier: toBNWei("2.0"), // Priority fee multiplier should be unused in Linea.
+      baseFeeMultiplier: toBNWei("3.0"), // Base fee multiplier should be unused in Linea.
+      priorityFeeMultiplier,
     });
 
     // For Linea, base fee is expected to be hardcoded and unaffected by the base fee multiplier while
     // the priority fee gets scaled.
-    const expectedPriorityFee = stdMaxPriorityFeePerGas.mul(2.0);
+    const expectedPriorityFee = stdMaxPriorityFeePerGas.mul(priorityFeeMultiplier).div(fixedPointAdjustment);
     expect(maxFeePerGas).to.equal(expectedLineaMaxFeePerGas.add(expectedPriorityFee));
     expect(maxPriorityFeePerGas).to.equal(expectedPriorityFee);
     delete process.env[chainKey];
