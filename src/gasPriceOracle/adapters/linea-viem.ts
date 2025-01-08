@@ -27,8 +27,6 @@ export async function eip1559(
   opts: GasPriceEstimateOptions
 ): Promise<InternalGasPriceEstimate> {
   const { unsignedTx, priorityFeeMultiplier } = opts;
-  // TODO: unsignedTx is unused currently because we think there is an issue with the linea_estimateGas endpoint
-  // and passing in this unsignedTx.
   const { baseFeePerGas, priorityFeePerGas: _priorityFeePerGas } = await estimateGas(provider, {
     account: (unsignedTx?.from as Address) ?? account,
     to: (unsignedTx?.to as Address) ?? account,
