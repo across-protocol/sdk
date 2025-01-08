@@ -5,6 +5,10 @@ import { GasPriceEstimate } from "../types";
 import { gasPriceError } from "../util";
 import { GasPriceEstimateOptions } from "../oracle";
 
+const DEFAULT_MIN_PRIORITY_FEE: { [chainId: number]: string } = {
+  1: "0.5",
+};
+
 // TODO: We intend to remove `eip1559Bad()` as an option and make eip1559Raw the only option eventually. The reason
 // they both exist currently is because eip1559Raw is new and untested on production so we will slowly roll it out
 // by using the convenient environment variable safety guard.
@@ -44,7 +48,10 @@ export async function eip1559Raw(
     (provider as providers.JsonRpcProvider).send("eth_maxPriorityFeePerGas", []),
   ]);
   let maxPriorityFeePerGas = BigNumber.from(_maxPriorityFeePerGas);
-  const flooredPriorityFeePerGas = parseUnits(process.env[`MIN_PRIORITY_FEE_PER_GAS_${chainId}`] || "0", 9);
+  const flooredPriorityFeePerGas = parseUnits(
+    process.env[`MIN_PRIORITY_FEE_PER_GAS_${chainId}`] || DEFAULT_MIN_PRIORITY_FEE[chainId] || "0",
+    9
+  );
   if (maxPriorityFeePerGas.lt(flooredPriorityFeePerGas)) {
     maxPriorityFeePerGas = BigNumber.from(flooredPriorityFeePerGas);
   }
