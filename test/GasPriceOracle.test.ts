@@ -77,7 +77,7 @@ describe("Gas Price Oracle", function () {
       "priority fee multiplier"
     );
   });
-  it("Linea Viem gas price retrieval with unsignedTx", async function () {
+  it.skip("Linea Viem gas price retrieval with unsignedTx", async function () {
     const chainId = 59144;
     const chainKey = `NEW_GAS_PRICE_ORACLE_${chainId}`;
     process.env[chainKey] = "true";
