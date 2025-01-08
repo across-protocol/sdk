@@ -1,4 +1,4 @@
-import { PublicClient } from "viem";
+import { Address, Hex, PublicClient } from "viem";
 import { estimateGas } from "viem/linea";
 import { DEFAULT_SIMULATED_RELAYER_ADDRESS as account } from "../../constants";
 import { InternalGasPriceEstimate } from "../types";
@@ -16,10 +16,8 @@ import { fixedPointAdjustment } from "../../utils";
  * to the priority fee.
  * @param provider Viem PublicClient
  * @param opts Relevant options for Linea are baseFeeMultiplier and unsignedTx.
- * @param baseFeeMultiplier Amount to multiply priority fee, since Linea's base fee is hardcoded while its priority
- * fee is dynamic.
- * @param priorityFeeMultiplier Unused in this function because the baseFeeMultiplier is applied to the dynamic
- * Linea priority fee while the base fee is hardcoded.
+ * @param baseFeeMultiplier Unused since Linea's base fee is hardcoded while its priority fee is dynamic.
+ * @param priorityFeeMultiplier Amount to multiply priority fee.
  * @param unsignedTx Should contain any params passed to linea_estimateGas, which are listed
  * here: https://docs.linea.build/api/reference/linea-estimategas#parameters
  * @returns
@@ -28,20 +26,17 @@ export async function eip1559(
   provider: PublicClient,
   opts: GasPriceEstimateOptions
 ): Promise<InternalGasPriceEstimate> {
-  const { baseFeeMultiplier } = opts;
+  const { unsignedTx, priorityFeeMultiplier } = opts;
   // TODO: unsignedTx is unused currently because we think there is an issue with the linea_estimateGas endpoint
   // and passing in this unsignedTx.
   const { baseFeePerGas, priorityFeePerGas: _priorityFeePerGas } = await estimateGas(provider, {
-    account,
-    // account: (unsignedTx?.from as Address) ?? account,
-    to: account,
-    // to: (unsignedTx?.to as Address) ?? account,
-    value: BigInt(1),
-    // value: BigInt(unsignedTx?.value?.toString() ?? "0"),
-    // data: (unsignedTx?.data as Hex) ?? "0x",
+    account: (unsignedTx?.from as Address) ?? account,
+    to: (unsignedTx?.to as Address) ?? account,
+    value: BigInt(unsignedTx?.value?.toString() ?? "0"),
+    data: (unsignedTx?.data as Hex) ?? "0x",
   });
   const priorityFeePerGas =
-    (_priorityFeePerGas * BigInt(baseFeeMultiplier.toString())) / BigInt(fixedPointAdjustment.toString());
+    (_priorityFeePerGas * BigInt(priorityFeeMultiplier.toString())) / BigInt(fixedPointAdjustment.toString());
 
   return {
     maxFeePerGas: baseFeePerGas + priorityFeePerGas,
