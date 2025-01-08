@@ -1,4 +1,4 @@
-import { Address, Hex, PublicClient } from "viem";
+import { PublicClient } from "viem";
 import { estimateGas } from "viem/linea";
 import { DEFAULT_SIMULATED_RELAYER_ADDRESS as account } from "../../constants";
 import { InternalGasPriceEstimate } from "../types";
