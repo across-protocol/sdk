@@ -1,6 +1,6 @@
 import assert from "assert";
 import { providers } from "ethers";
-import { BigNumber, bnZero, fixedPointAdjustment, getNetworkName } from "../../utils";
+import { BigNumber, bnZero, fixedPointAdjustment, getNetworkName, parseUnits } from "../../utils";
 import { GasPriceEstimate } from "../types";
 import { gasPriceError } from "../util";
 import { GasPriceEstimateOptions } from "../oracle";
@@ -43,7 +43,11 @@ export async function eip1559Raw(
     provider.getBlock("pending"),
     (provider as providers.JsonRpcProvider).send("eth_maxPriorityFeePerGas", []),
   ]);
-  const maxPriorityFeePerGas = BigNumber.from(_maxPriorityFeePerGas);
+  let maxPriorityFeePerGas = BigNumber.from(_maxPriorityFeePerGas);
+  const flooredPriorityFeePerGas = parseUnits(process.env[`MIN_PRIORITY_FEE_PER_GAS_${chainId}`] || "0", 9);
+  if (maxPriorityFeePerGas.lt(flooredPriorityFeePerGas)) {
+    maxPriorityFeePerGas = BigNumber.from(flooredPriorityFeePerGas);
+  }
   assert(BigNumber.isBigNumber(baseFeePerGas), `No baseFeePerGas received on ${getNetworkName(chainId)}`);
 
   const scaledPriorityFee = maxPriorityFeePerGas.mul(priorityFeeMultiplier).div(fixedPointAdjustment);
