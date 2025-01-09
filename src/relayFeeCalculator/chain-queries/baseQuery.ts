@@ -96,7 +96,7 @@ export class QueryBase implements QueryInterface {
       nativeGasCost,
       tokenGasCost,
       gasPrice: impliedGasPrice,
-      opStackL1GasCost
+      opStackL1GasCost,
     } = await this.estimateGas(tx, relayer, this.provider, {
       gasPrice,
       gasUnits,
@@ -110,7 +110,7 @@ export class QueryBase implements QueryInterface {
       nativeGasCost,
       tokenGasCost,
       gasPrice: impliedGasPrice,
-      opStackL1GasCost
+      opStackL1GasCost,
     };
   }
 
