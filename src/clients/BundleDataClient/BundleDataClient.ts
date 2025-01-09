@@ -869,6 +869,13 @@ export class BundleDataClient {
                 // At this point, the v3RelayHashes entry already existed meaning that there is a matching deposit,
                 // so this fill is validated.
                 v3RelayHashes[relayDataHash].fill = fill;
+                // TODO: Add a buffer here to check for fills that preceded deposits. Need to somehow check that
+                // fill is not getting double-refunded. We might need to recompute previous bundle or load it
+                // from arweave to check on fill refund status...
+                // Another way to handle this is to only consider fills when they are X number of blocks behind HEAD,
+                // so you can add a buffer to all fill blocks here before considering whether they are in "this" bundle
+                // block range
+                
                 if (fill.blockNumber >= destinationChainBlockRange[0]) {
                   validatedBundleV3Fills.push({
                     ...fill,
