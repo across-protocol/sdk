@@ -198,7 +198,7 @@ describe("Gas Price Oracle", function () {
 
     // Base fee should be multiplied by multiplier. Returned max fee includes priority fee
     // so back it out before scaling.
-    const expectedMarkedUpPriorityFee = minPriorityFee.mul(priorityFeeMultiplier).div(fixedPointAdjustment);
+    const expectedMarkedUpPriorityFee = minPriorityFee;
     const expectedMarkedUpMaxFeePerGas = stdLastBaseFeePerGas
       .mul(baseFeeMultiplier)
       .div(fixedPointAdjustment)

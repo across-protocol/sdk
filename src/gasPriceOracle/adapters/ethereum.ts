@@ -43,14 +43,14 @@ export async function eip1559Raw(
     provider.getBlock("pending"),
     (provider as providers.JsonRpcProvider).send("eth_maxPriorityFeePerGas", []),
   ]);
-  let maxPriorityFeePerGas = BigNumber.from(_maxPriorityFeePerGas);
-  const flooredPriorityFeePerGas = parseUnits(process.env[`MIN_PRIORITY_FEE_PER_GAS_${chainId}`] || "0", 9);
-  if (maxPriorityFeePerGas.lt(flooredPriorityFeePerGas)) {
-    maxPriorityFeePerGas = BigNumber.from(flooredPriorityFeePerGas);
-  }
+  const maxPriorityFeePerGas = BigNumber.from(_maxPriorityFeePerGas);
   assert(BigNumber.isBigNumber(baseFeePerGas), `No baseFeePerGas received on ${getNetworkName(chainId)}`);
 
-  const scaledPriorityFee = maxPriorityFeePerGas.mul(priorityFeeMultiplier).div(fixedPointAdjustment);
+  let scaledPriorityFee = maxPriorityFeePerGas.mul(priorityFeeMultiplier).div(fixedPointAdjustment);
+  const flooredPriorityFeePerGas = parseUnits(process.env[`MIN_PRIORITY_FEE_PER_GAS_${chainId}`] || "0", 9);
+  if (scaledPriorityFee.lt(flooredPriorityFeePerGas)) {
+    scaledPriorityFee = BigNumber.from(flooredPriorityFeePerGas);
+  }
   const scaledBaseFee = baseFeePerGas.mul(baseFeeMultiplier).div(fixedPointAdjustment);
   return {
     maxFeePerGas: scaledPriorityFee.add(scaledBaseFee),
