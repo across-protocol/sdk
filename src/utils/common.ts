@@ -227,6 +227,7 @@ export type TransactionCostEstimate = {
   nativeGasCost: BigNumber; // Units: gas
   tokenGasCost: BigNumber; // Units: wei (nativeGasCost * wei/gas)
   gasPrice: BigNumber; // Units: wei/gas
+  opStackL1GasCost?: BigNumber; // Units: wei (L1 gas cost * wei/gas)
 };
 
 export function randomAddress() {

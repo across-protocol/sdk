@@ -96,6 +96,7 @@ export class QueryBase implements QueryInterface {
       nativeGasCost,
       tokenGasCost,
       gasPrice: impliedGasPrice,
+      opStackL1GasCost
     } = await this.estimateGas(tx, relayer, this.provider, {
       gasPrice,
       gasUnits,
@@ -109,6 +110,7 @@ export class QueryBase implements QueryInterface {
       nativeGasCost,
       tokenGasCost,
       gasPrice: impliedGasPrice,
+      opStackL1GasCost
     };
   }
 
@@ -160,6 +162,7 @@ export class QueryBase implements QueryInterface {
     let tokenGasCost: BigNumber;
 
     // OP stack is a special case; gas cost is computed by the SDK, without having to query price.
+    let opStackL1GasCost: BigNumber | undefined;
     if (chainIsOPStack(chainId)) {
       assert(isOptimismL2Provider(provider), `Unexpected provider for chain ID ${chainId}.`);
       const populatedTransaction = await voidSigner.populateTransaction({
@@ -167,9 +170,9 @@ export class QueryBase implements QueryInterface {
         gasLimit: nativeGasCost, // prevents additional gas estimation call
       });
       const l1GasCost = await (provider as L2Provider<providers.Provider>).estimateL1GasCost(populatedTransaction);
-      const scaledL1GasCost = l1GasCost.mul(opStackL1GasCostMultiplier).div(fixedPointAdjustment);
+      opStackL1GasCost = l1GasCost.mul(opStackL1GasCostMultiplier).div(fixedPointAdjustment);
       const l2GasCost = nativeGasCost.mul(gasPrice);
-      tokenGasCost = scaledL1GasCost.add(l2GasCost);
+      tokenGasCost = opStackL1GasCost.add(l2GasCost);
     } else {
       tokenGasCost = nativeGasCost.mul(gasPrice);
     }
@@ -178,6 +181,7 @@ export class QueryBase implements QueryInterface {
       nativeGasCost, // Units: gas
       tokenGasCost, // Units: wei (nativeGasCost * wei/gas)
       gasPrice: BigNumber.from(gasPrice.toString()), // Units: wei/gas, does not include l1GasCost for OP stack chains
+      opStackL1GasCost,
     };
   }
 
