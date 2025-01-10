@@ -849,13 +849,22 @@ export class BundleDataClient {
         // Keep track of fast fills that replaced slow fills, which we'll use to create "unexecutable" slow fills
         // if the slow fill request was sent in a prior bundle.
         const fastFillsReplacingSlowFills: string[] = [];
+
+        // Returns block number when we should start evaluating this fill for a refund. The lag builds in space for
+        // a filler to send a fill before a deposit in cases where the depositor is delegating transaction submission
+        // to the filler and giving them a signed transaction object.
+        const getFillBlockWithLag = (fill: V3FillWithBlock): number => {
+          const fillBuffer = /* FILL_BUFFER[fill.destinationChainId] ?? */ 0;
+          return fill.blockNumber - fillBuffer;
+        };
+
         await forEachAsync(
           destinationClient
             .getFillsForOriginChain(originChainId)
             // We can remove fills for deposits with input amount equal to zero because these will result in 0 refunded
             // tokens to the filler. We can't remove non-empty message deposit here in case there is a slow fill
             // request for the deposit, we'd want to see the fill took place.
-            .filter((fill) => fill.blockNumber <= destinationChainBlockRange[1] && !isZeroValueDeposit(fill)),
+            .filter((fill) => getFillBlockWithLag(fill) <= destinationChainBlockRange[1] && !isZeroValueDeposit(fill)),
           async (fill) => {
             const relayDataHash = this.getRelayHashFromEvent(fill);
             fillCounter++;
@@ -874,9 +883,8 @@ export class BundleDataClient {
                 // from arweave to check on fill refund status...
                 // Another way to handle this is to only consider fills when they are X number of blocks behind HEAD,
                 // so you can add a buffer to all fill blocks here before considering whether they are in "this" bundle
-                // block range
-
-                if (fill.blockNumber >= destinationChainBlockRange[0]) {
+                // block range:
+                if (getFillBlockWithLag(fill) >= destinationChainBlockRange[0]) {
                   validatedBundleV3Fills.push({
                     ...fill,
                     quoteTimestamp: v3RelayHashes[relayDataHash].deposit!.quoteTimestamp, // ! due to assert above
@@ -913,7 +921,7 @@ export class BundleDataClient {
             // older deposit in case the spoke pool client's lookback isn't old enough to find the matching deposit.
             // We can skip this step if the fill's fill deadline is not infinite, because we can assume that the
             // spoke pool clients have loaded deposits old enough to cover all fills with a non-infinite fill deadline.
-            if (fill.blockNumber >= destinationChainBlockRange[0]) {
+            if (getFillBlockWithLag(fill) >= destinationChainBlockRange[0]) {
               // Fill has a non-infinite expiry, and we can assume our spoke pool clients have old enough deposits
               // to conclude that this fill is invalid if we haven't found a matching deposit in memory, so
               // skip the historical query.
@@ -952,6 +960,8 @@ export class BundleDataClient {
           }
         );
 
+        // TODO: Do we need to handle slow fill requests sent before fills? I assume no, as I can't think of
+        // a good reason to ever do this.
         await forEachAsync(
           destinationClient
             .getSlowFillRequestsForOriginChain(originChainId)
