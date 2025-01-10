@@ -4,11 +4,10 @@ import { getDeployedAddress } from "@across-protocol/contracts";
 import { asL2Provider } from "@eth-optimism/sdk";
 import { providers } from "ethers";
 import { DEFAULT_SIMULATED_RELAYER_ADDRESS } from "../../constants";
-import { chainIsAlephZero, chainIsMatic, chainIsOPStack, isDefined } from "../../utils";
+import { chainIsOPStack, isDefined } from "../../utils";
 import { QueryBase } from "./baseQuery";
-import { PolygonQueries } from "./polygon";
 import { DEFAULT_LOGGER, Logger } from "../relayFeeCalculator";
-import { AlephZeroQueries } from "./alephZero";
+import { CustomGasTokenQueries } from "./customGasToken";
 
 /**
  * Some chains have a fixed gas price that is applied to the gas estimates. We should override
@@ -16,6 +15,18 @@ import { AlephZeroQueries } from "./alephZero";
  */
 const fixedGasPrice = {
   [CHAIN_IDs.BOBA]: 1e9,
+};
+
+/**
+ * Some chains have a custom gas token that we need to use for normalizing token prices.
+ */
+const customGasTokens = {
+  [CHAIN_IDs.POLYGON]: "MATIC",
+  [CHAIN_IDs.POLYGON_AMOY]: "MATIC",
+  [CHAIN_IDs.ALEPH_ZERO]: "AZERO",
+  // FIXME: Replace with GRASS price once listed on Coingecko.
+  // For testing purposes, we use ETH price instead.
+  [CHAIN_IDs.LENS_SEPOLIA]: "ETH",
 };
 
 export class QueryBase__factory {
@@ -31,30 +42,21 @@ export class QueryBase__factory {
   ): QueryBase {
     assert(isDefined(spokePoolAddress));
 
-    if (chainIsMatic(chainId)) {
-      return new PolygonQueries(
-        provider,
-        symbolMapping,
-        spokePoolAddress,
-        simulatedRelayerAddress,
-        logger,
-        coingeckoProApiKey,
-        fixedGasPrice[chainId],
-        "usd"
-      );
-    }
-
-    if (chainIsAlephZero(chainId)) {
-      return new AlephZeroQueries(
-        provider,
-        symbolMapping,
-        spokePoolAddress,
-        simulatedRelayerAddress,
-        logger,
-        coingeckoProApiKey,
-        fixedGasPrice[chainId],
-        "usd"
-      );
+    const customGasTokenSymbol = customGasTokens[chainId];
+    if (customGasTokenSymbol) {
+      return new CustomGasTokenQueries({
+        queryBaseArgs: [
+          provider,
+          symbolMapping,
+          spokePoolAddress,
+          simulatedRelayerAddress,
+          logger,
+          coingeckoProApiKey,
+          fixedGasPrice[chainId],
+          "usd",
+        ],
+        customGasTokenSymbol,
+      });
     }
 
     // For OPStack chains, we need to wrap the provider in an L2Provider

@@ -1,5 +1,5 @@
 import { constants as ethersConstants } from "ethers";
-import { TOKEN_SYMBOLS_MAP } from "@across-protocol/constants";
+import { CHAIN_IDs, TOKEN_SYMBOLS_MAP } from "@across-protocol/constants";
 
 export {
   ChainFamily,
@@ -59,4 +59,11 @@ export const BRIDGED_USDC_SYMBOLS = [
   TOKEN_SYMBOLS_MAP["USDC.e"].symbol,
   TOKEN_SYMBOLS_MAP.USDbC.symbol,
   TOKEN_SYMBOLS_MAP.USDzC.symbol,
+];
+
+export const CUSTOM_GAS_TOKEN_CHAINS = [
+  CHAIN_IDs.POLYGON,
+  CHAIN_IDs.POLYGON_AMOY,
+  CHAIN_IDs.ALEPH_ZERO,
+  CHAIN_IDs.LENS_SEPOLIA,
 ];
