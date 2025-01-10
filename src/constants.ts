@@ -61,9 +61,11 @@ export const BRIDGED_USDC_SYMBOLS = [
   TOKEN_SYMBOLS_MAP.USDzC.symbol,
 ];
 
-export const CUSTOM_GAS_TOKEN_CHAINS = [
-  CHAIN_IDs.POLYGON,
-  CHAIN_IDs.POLYGON_AMOY,
-  CHAIN_IDs.ALEPH_ZERO,
-  CHAIN_IDs.LENS_SEPOLIA,
-];
+export const CUSTOM_GAS_TOKENS = {
+  [CHAIN_IDs.POLYGON]: "MATIC",
+  [CHAIN_IDs.POLYGON_AMOY]: "MATIC",
+  [CHAIN_IDs.ALEPH_ZERO]: "AZERO",
+  // FIXME: Replace with GRASS price once listed on Coingecko.
+  // For testing purposes, we use ETH price instead.
+  [CHAIN_IDs.LENS_SEPOLIA]: "ETH",
+};
