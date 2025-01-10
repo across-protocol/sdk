@@ -61,6 +61,15 @@ export function chainIsOPStack(chainId: number): boolean {
 }
 
 /**
+ * Determines whether a chain ID is a ZkStack implementation.
+ * @param chainId Chain ID to evaluate.
+ * @returns True if chainId is a ZkStack chain, otherwise false.
+ */
+export function chainIsZkStack(chainId: number): boolean {
+  return PUBLIC_NETWORKS[chainId]?.family === ChainFamily.ZK_STACK;
+}
+
+/**
  * Determines whether a chain ID is an Arbitrum Orbit implementation.
  * @param chainId Chain ID to evaluate.
  * @returns True if chainId is an Orbit chain, otherwise false.
@@ -85,6 +94,15 @@ export function chainIsArbitrum(chainId: number): boolean {
  */
 export function chainIsAlephZero(chainId: number): boolean {
   return [CHAIN_IDs.ALEPH_ZERO].includes(chainId);
+}
+
+/**
+ * Determines whether a chain ID is a Lens implementation
+ * @param chainId Chain ID to evaluate
+ * @returns True if chainId is a Lens chain, otherwise false.
+ */
+export function chainIsLens(chainId: number): boolean {
+  return [CHAIN_IDs.LENS_SEPOLIA].includes(chainId);
 }
 
 /**

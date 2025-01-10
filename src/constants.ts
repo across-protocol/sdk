@@ -1,5 +1,5 @@
 import { constants as ethersConstants } from "ethers";
-import { TOKEN_SYMBOLS_MAP } from "@across-protocol/constants";
+import { CHAIN_IDs, TOKEN_SYMBOLS_MAP } from "@across-protocol/constants";
 
 export {
   ChainFamily,
@@ -60,3 +60,12 @@ export const BRIDGED_USDC_SYMBOLS = [
   TOKEN_SYMBOLS_MAP.USDbC.symbol,
   TOKEN_SYMBOLS_MAP.USDzC.symbol,
 ];
+
+export const CUSTOM_GAS_TOKENS = {
+  [CHAIN_IDs.POLYGON]: "MATIC",
+  [CHAIN_IDs.POLYGON_AMOY]: "MATIC",
+  [CHAIN_IDs.ALEPH_ZERO]: "AZERO",
+  // FIXME: Replace with GRASS price once listed on Coingecko.
+  // For testing purposes, we use ETH price instead.
+  [CHAIN_IDs.LENS_SEPOLIA]: "ETH",
+};
