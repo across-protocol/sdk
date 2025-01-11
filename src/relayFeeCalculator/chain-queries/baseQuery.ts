@@ -116,20 +116,20 @@ export class QueryBase implements QueryInterface {
 
   /**
    * @notice Return ethers.PopulatedTransaction for a fill based on input deposit args
-   * @param deposit 
+   * @param deposit
    * @param relayer Sender of PopulatedTransaction
    * @returns PopulatedTransaction
    */
   getUnsignedTxFromDeposit(
     deposit: Deposit,
-    relayer = DEFAULT_SIMULATED_RELAYER_ADDRESS,
+    relayer = DEFAULT_SIMULATED_RELAYER_ADDRESS
   ): Promise<PopulatedTransaction> {
     return populateV3Relay(this.spokePool, deposit, relayer);
   }
 
   /**
    * @notice Return the gas cost of a simulated transaction
-   * @param deposit 
+   * @param deposit
    * @param relayer Sender of PopulatedTransaction
    * @returns Estimated gas cost based on ethers.VoidSigner's gas estimation
    */
