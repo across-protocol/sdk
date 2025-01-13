@@ -91,7 +91,7 @@ export class QueryBase implements QueryInterface {
       transport,
     } = options;
 
-    const tx = await populateV3Relay(this.spokePool, deposit, relayer);
+    const tx = await this.getUnsignedTxFromDeposit(deposit, relayer);
     const {
       nativeGasCost,
       tokenGasCost,
@@ -112,6 +112,59 @@ export class QueryBase implements QueryInterface {
       gasPrice: impliedGasPrice,
       opStackL1GasCost,
     };
+  }
+
+  /**
+   * @notice Return ethers.PopulatedTransaction for a fill based on input deposit args
+   * @param deposit
+   * @param relayer Sender of PopulatedTransaction
+   * @returns PopulatedTransaction
+   */
+  getUnsignedTxFromDeposit(
+    deposit: Deposit,
+    relayer = DEFAULT_SIMULATED_RELAYER_ADDRESS
+  ): Promise<PopulatedTransaction> {
+    return populateV3Relay(this.spokePool, deposit, relayer);
+  }
+
+  /**
+   * @notice Return the gas cost of a simulated transaction
+   * @param deposit
+   * @param relayer Sender of PopulatedTransaction
+   * @returns Estimated gas cost based on ethers.VoidSigner's gas estimation
+   */
+  async getNativeGasCost(deposit: Deposit, relayer = DEFAULT_SIMULATED_RELAYER_ADDRESS): Promise<BigNumber> {
+    const unsignedTx = await this.getUnsignedTxFromDeposit(deposit, relayer);
+    const voidSigner = new VoidSigner(relayer, this.provider);
+    return voidSigner.estimateGas(unsignedTx);
+  }
+
+  /**
+   * @notice Return L1 data fee for OP stack L2 transaction, which is based on L2 calldata.
+   * @dev https://docs.optimism.io/stack/transactions/fees#l1-data-fee
+   * @param unsignedTx L2 transaction that you want L1 data fee for
+   * @param relayer Sender of unsignedTx
+   * @param options Specify gas units to avoid additional gas estimation call and multiplier for L1 data fee
+   * @returns BigNumber L1 data fee in gas units
+   */
+  async getOpStackL1DataFee(
+    unsignedTx: PopulatedTransaction,
+    relayer = DEFAULT_SIMULATED_RELAYER_ADDRESS,
+    options: Partial<{
+      opStackL2GasUnits: BigNumberish;
+      opStackL1DataFeeMultiplier: BigNumber;
+    }>
+  ): Promise<BigNumber> {
+    const { opStackL2GasUnits, opStackL1DataFeeMultiplier = toBNWei("1") } = options || {};
+    const { chainId } = await this.provider.getNetwork();
+    assert(isOptimismL2Provider(this.provider), `Unexpected provider for chain ID ${chainId}.`);
+    const voidSigner = new VoidSigner(relayer, this.provider);
+    const populatedTransaction = await voidSigner.populateTransaction({
+      ...unsignedTx,
+      gasLimit: opStackL2GasUnits, // prevents additional gas estimation call
+    });
+    const l1DataFee = await (this.provider as L2Provider<providers.Provider>).estimateL1GasCost(populatedTransaction);
+    return l1DataFee.mul(opStackL1DataFeeMultiplier).div(fixedPointAdjustment);
   }
 
   /**
@@ -164,13 +217,10 @@ export class QueryBase implements QueryInterface {
     // OP stack is a special case; gas cost is computed by the SDK, without having to query price.
     let opStackL1GasCost: BigNumber | undefined;
     if (chainIsOPStack(chainId)) {
-      assert(isOptimismL2Provider(provider), `Unexpected provider for chain ID ${chainId}.`);
-      const populatedTransaction = await voidSigner.populateTransaction({
-        ...unsignedTx,
-        gasLimit: nativeGasCost, // prevents additional gas estimation call
+      opStackL1GasCost = await this.getOpStackL1DataFee(unsignedTx, senderAddress, {
+        opStackL2GasUnits: nativeGasCost,
+        opStackL1DataFeeMultiplier: opStackL1GasCostMultiplier,
       });
-      const l1GasCost = await (provider as L2Provider<providers.Provider>).estimateL1GasCost(populatedTransaction);
-      opStackL1GasCost = l1GasCost.mul(opStackL1GasCostMultiplier).div(fixedPointAdjustment);
       const l2GasCost = nativeGasCost.mul(gasPrice);
       tokenGasCost = opStackL1GasCost.add(l2GasCost);
     } else {
