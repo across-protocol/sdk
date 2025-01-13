@@ -30,10 +30,10 @@
     "@openzeppelin/contracts" "4.1.0"
     "@uma/core" "^2.18.0"
 
-"@across-protocol/contracts@^3.0.21":
-  version "3.0.21"
-  resolved "https://registry.yarnpkg.com/@across-protocol/contracts/-/contracts-3.0.21.tgz#1f3c14e89a299714a10e3e2455794f3a741e0100"
-  integrity sha512-qO/8V7iZ4Os7fMPzMqVaHIVA7Ri00k3QamzVfDSAIolydlbI7YuRstGPscO6ILBSofPlClxw2sYvmYozJMTFXQ==
+"@across-protocol/contracts@^3.0.23":
+  version "3.0.23"
+  resolved "https://registry.yarnpkg.com/@across-protocol/contracts/-/contracts-3.0.23.tgz#42decf1db2c0ac1c3da82ae2fc63c8ae59f426c1"
+  integrity sha512-212dLJj9LCiqAruoFIQUyEFyTFvpacPeQLZLU+h6skkf+K67lUjHYjVykWg3u22k/4fuBs3UMHDA6kqUUvldNQ==
   dependencies:
     "@across-protocol/constants" "^3.1.28"
     "@coral-xyz/anchor" "^0.30.1"
