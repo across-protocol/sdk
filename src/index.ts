@@ -14,3 +14,4 @@ export * as clients from "./clients";
 export * as typechain from "./typechain";
 export * as caching from "./caching";
 export * as providers from "./providers";
+export * as svm from "./svm";
