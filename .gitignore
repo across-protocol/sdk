@@ -33,5 +33,5 @@ yarn-debug.log*
 gasReporterOutput.json
 logs
 
-# generated clients
-clients/js/src/generated/
+# generated svm clients
+src/svm/clients/

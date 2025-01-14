@@ -1,12 +1,27 @@
 import { createFromRoot } from 'codama';
 import { rootNodeFromAnchor, AnchorIdl } from '@codama/nodes-from-anchor';
 import { renderVisitor as renderJavaScriptVisitor } from "@codama/renderers-js";
-import { SvmSpokeIdl } from "@across-protocol/contracts"
+import { SvmSpokeIdl, MulticallHandlerIdl } from "@across-protocol/contracts"
 import path from 'path';
 
-const codama = createFromRoot(rootNodeFromAnchor(SvmSpokeIdl as AnchorIdl));
+let codama = createFromRoot(rootNodeFromAnchor(SvmSpokeIdl as AnchorIdl));
+const clientsPath = path.join(__dirname, "..", "src", "svm", "clients");
 
-const jsClient = path.join(__dirname, "..", "clients", "js");
 codama.accept(
-    renderJavaScriptVisitor(path.join(jsClient, "src", "generated"))
+    renderJavaScriptVisitor(path.join(clientsPath, "SvmSpoke"))
 );
+
+codama = createFromRoot(rootNodeFromAnchor(MulticallHandlerIdl as AnchorIdl));
+codama.accept(
+    renderJavaScriptVisitor(path.join(clientsPath, "MulticallHandler"))
+);
+
+// codama = createFromRoot(rootNodeFromAnchor(MessageTransmitterIdl as AnchorIdl));
+// codama.accept(
+//     renderJavaScriptVisitor(path.join(clientsPath, "MessageTransmitter"))
+// );
+
+// codama = createFromRoot(rootNodeFromAnchor(TokenMessengerMinterIdl as AnchorIdl));
+// codama.accept(
+//     renderJavaScriptVisitor(path.join(clientsPath, "TokenMessengerMinter"))
+// );  
