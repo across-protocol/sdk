@@ -81,6 +81,7 @@ describe("Gas Price Oracle", function () {
   });
   it("Linea Viem gas price retrieval with unsignedTx", async function () {
     const chainId = 59144;
+    const priorityFeeMultiplier = toBNWei("2.0");
     const unsignedTx = {
       to: randomAddress(),
       from: randomAddress(),
@@ -108,6 +109,7 @@ describe("Gas Price Oracle", function () {
   });
   it("Linea Viem gas price retrieval", async function () {
     const chainId = 59144;
+    const priorityFeeMultiplier = toBNWei("2.0");
     const { maxFeePerGas, maxPriorityFeePerGas } = await getGasPriceEstimate(provider, {
       chainId,
       transport: customTransport,
