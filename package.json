@@ -12,7 +12,7 @@
     "node": ">=16.18.0"
   },
   "scripts": {
-    "postinstall": "yarn generate-clients",
+    "postinstall": "node_modules/.bin/ts-node ./scripts/generate-clients.ts",
     "start": "yarn typechain && nodemon -e ts,tsx,json,js,jsx --watch ./src --ignore ./dist --exec 'yarn dev'",
     "build": "yarn run clean && yarn typechain && yarn run build:cjs & yarn run build:esm & yarn run build:types; wait",
     "dev": "yarn run build:cjs & yarn run build:esm & yarn run build:types; wait",
