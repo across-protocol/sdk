@@ -12,14 +12,14 @@
     "node": ">=16.18.0"
   },
   "scripts": {
-    "postinstall": "node_modules/.bin/ts-node ./scripts/generate-clients.ts",
+    "postinstall": "yarn generate-svm-clients",
     "start": "yarn typechain && nodemon -e ts,tsx,json,js,jsx --watch ./src --ignore ./dist --exec 'yarn dev'",
     "build": "yarn run clean && yarn typechain && yarn run build:cjs & yarn run build:esm & yarn run build:types; wait",
     "dev": "yarn run build:cjs & yarn run build:esm & yarn run build:types; wait",
     "build:cjs": "tsc --project tsconfig.build.json --module commonjs --outDir ./dist/cjs --removeComments --verbatimModuleSyntax false && echo > ./dist/cjs/package.json '{\"type\":\"commonjs\"}'",
     "build:esm": "tsc --project tsconfig.build.json --module es2015 --outDir ./dist/esm && echo > ./dist/esm/package.json '{\"type\":\"module\",\"sideEffects\":false}'",
     "build:types": "tsc --project tsconfig.build.json --module esnext --declarationDir ./dist/types --emitDeclarationOnly --declaration --declarationMap",
-    "generate-clients": "yarn ts-node ./scripts/generate-clients.ts",
+    "generate-svm-clients": "yarn ts-node ./scripts/generate-svm-clients.ts",
     "test": "hardhat test",
     "test:watch": "hardhat watch test",
     "test:run:arweave": "npx -y arlocal",
