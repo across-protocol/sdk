@@ -10,7 +10,7 @@ export {
   TOKEN_SYMBOLS_MAP,
 } from "@across-protocol/constants";
 
-export const { AddressZero: ZERO_ADDRESS } = ethersConstants;
+export const { AddressZero: ZERO_ADDRESS, HashZero: ZERO_BYTES } = ethersConstants;
 
 // 2^96 - 1 is a conservative erc20 max allowance.
 export const MAX_SAFE_ALLOWANCE = "79228162514264337593543950335";
