@@ -314,7 +314,7 @@ export class SpokePoolClient extends BaseAbstractClient {
 
     this.logger.debug({
       at: "SpokePoolClient::getDepositForFill",
-      message: `Rejected fill for ${getNetworkName(fill.originChainId)} deposit ${fill.depositId.toString()}.`,
+      message: `Rejected fill for ${getNetworkName(fill.originChainId)} deposit ${fill.depositId}.`,
       reason: match.reason,
       deposit,
       fill,
@@ -815,7 +815,7 @@ export class SpokePoolClient extends BaseAbstractClient {
       const srcChain = getNetworkName(this.chainId);
       const dstChain = getNetworkName(destinationChainId);
       throw new Error(
-        `Could not find deposit ${depositId.toString()} for ${dstChain} fill` +
+        `Could not find deposit ${depositId} for ${dstChain} fill` +
           ` between ${srcChain} blocks [${searchBounds.low}, ${searchBounds.high}]`
       );
     }

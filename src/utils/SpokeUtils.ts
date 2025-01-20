@@ -136,7 +136,7 @@ export async function getBlockRangeForDepositId(
     //                                     // targetId = 10  <- fail (triggers this error)          // 10 <= 10
     //                                     // targetId = 09  <- pass (does not trigger this error)  // 10 <= 09
     throw new Error(
-      `Target depositId is greater than the initial high block (${targetDepositId.toString()} > ${highestDepositIdInRange.toString()})`
+      `Target depositId is greater than the initial high block (${targetDepositId} > ${highestDepositIdInRange})`
     );
   }
 
@@ -149,7 +149,7 @@ export async function getBlockRangeForDepositId(
     //                                     // targetId = 2 <- pass (does not trigger this error)
     //                                     // targetId = 3 <- pass (does not trigger this error)
     throw new Error(
-      `Target depositId is less than the initial low block (${targetDepositId.toString()} > ${lowestDepositIdInRange.toString()})`
+      `Target depositId is less than the initial low block (${targetDepositId} > ${lowestDepositIdInRange})`
     );
   }
 
@@ -246,7 +246,7 @@ export function getRelayHashFromEvent(e: Deposit | Fill | SlowFillRequest): stri
   return getRelayDataHash(e, e.destinationChainId);
 }
 
-export function isUnsafeDepositId(depositId: BigNumber): boolean {
+export function isUnsafeDepositId(depositId: number): boolean {
   // SpokePool.unsafeDepositV3() produces a uint256 depositId by hashing the msg.sender, depositor and input
   // uint256 depositNonce. There is a possibility that this resultant uint256 is less than the maxSafeDepositId (i.e.
   // the maximum uint32 value) which makes it possible that an unsafeDepositV3's depositId can collide with a safe
@@ -276,9 +276,7 @@ export async function relayFillStatus(
 
   if (![FillStatus.Unfilled, FillStatus.RequestedSlowFill, FillStatus.Filled].includes(fillStatus)) {
     const { originChainId, depositId } = relayData;
-    throw new Error(
-      `relayFillStatus: Unexpected fillStatus for ${originChainId} deposit ${depositId.toString()} (${fillStatus})`
-    );
+    throw new Error(`relayFillStatus: Unexpected fillStatus for ${originChainId} deposit ${depositId} (${fillStatus})`);
   }
 
   return fillStatus;
@@ -367,7 +365,7 @@ export async function findFillBlock(
   if (initialFillStatus === FillStatus.Filled) {
     const { depositId, originChainId } = relayData;
     const [srcChain, dstChain] = [getNetworkName(originChainId), getNetworkName(destinationChainId)];
-    throw new Error(`${srcChain} deposit ${depositId.toString()} filled on ${dstChain} before block ${lowBlockNumber}`);
+    throw new Error(`${srcChain} deposit ${depositId} filled on ${dstChain} before block ${lowBlockNumber}`);
   }
 
   // Find the leftmost block where filledAmount equals the deposit amount.
