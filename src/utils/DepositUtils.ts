@@ -52,7 +52,7 @@ export async function queryHistoricalDepositForFill(
 
   const { depositId } = fill;
   let { firstDepositIdForSpokePool: lowId, lastDepositIdForSpokePool: highId } = spokePoolClient;
-  if (depositId < lowId || depositId > highId) {
+  if (depositId.lt(lowId) || depositId.gt(highId)) {
     return {
       found: false,
       code: InvalidFill.DepositIdInvalid,
@@ -61,7 +61,7 @@ export async function queryHistoricalDepositForFill(
   }
 
   ({ earliestDepositIdQueried: lowId, latestDepositIdQueried: highId } = spokePoolClient);
-  if (depositId >= lowId && depositId <= highId) {
+  if (depositId.gte(lowId) && depositId.lte(highId)) {
     const originChain = getNetworkName(fill.originChainId);
     const deposit = spokePoolClient.getDeposit(depositId);
     if (isDefined(deposit)) {

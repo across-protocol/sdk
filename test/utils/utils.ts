@@ -362,7 +362,7 @@ export async function depositV3(
   const { blockNumber, transactionHash, transactionIndex, logIndex } = lastEvent!;
 
   return {
-    depositId: args!.depositId,
+    depositId: toBN(args!.depositId),
     originChainId: Number(originChainId),
     destinationChainId: Number(args!.destinationChainId),
     depositor: args!.depositor,
@@ -403,7 +403,7 @@ export async function requestV3SlowFill(
   const { blockNumber, transactionHash, transactionIndex, logIndex } = lastEvent!;
 
   return {
-    depositId: args.depositId,
+    depositId: toBN(args.depositId),
     originChainId: Number(args.originChainId),
     destinationChainId,
     depositor: args.depositor,
@@ -451,7 +451,7 @@ export async function fillV3Relay(
   const { blockNumber, transactionHash, transactionIndex, logIndex } = lastEvent!;
 
   return {
-    depositId: args.depositId,
+    depositId: toBN(args.depositId),
     originChainId: Number(args.originChainId),
     destinationChainId,
     depositor: args.depositor,
@@ -547,7 +547,7 @@ export function buildDepositForRelayerFeeTest(
 
   const currentTime = getCurrentTime();
   return {
-    depositId: bnUint32Max.toNumber(),
+    depositId: bnUint32Max,
     originChainId: 1,
     destinationChainId: 10,
     depositor: randomAddress(),
