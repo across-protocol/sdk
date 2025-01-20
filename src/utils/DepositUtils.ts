@@ -1,6 +1,6 @@
 import assert from "assert";
 import { SpokePoolClient } from "../clients";
-import { DEFAULT_CACHING_TTL, EMPTY_MESSAGE } from "../constants";
+import { DEFAULT_CACHING_TTL, EMPTY_MESSAGE, ZERO_BYTES } from "../constants";
 import { CachingMechanismInterface, Deposit, DepositWithBlock, Fill, SlowFillRequest } from "../interfaces";
 import { getNetworkName } from "./NetworkUtils";
 import { getDepositInCache, getDepositKey, setDepositInCache } from "./CachingUtils";
@@ -52,7 +52,7 @@ export async function queryHistoricalDepositForFill(
 
   const { depositId } = fill;
   let { firstDepositIdForSpokePool: lowId, lastDepositIdForSpokePool: highId } = spokePoolClient;
-  if (depositId < lowId || depositId > highId) {
+  if (depositId.lt(lowId) || depositId.gt(highId)) {
     return {
       found: false,
       code: InvalidFill.DepositIdInvalid,
@@ -61,7 +61,7 @@ export async function queryHistoricalDepositForFill(
   }
 
   ({ earliestDepositIdQueried: lowId, latestDepositIdQueried: highId } = spokePoolClient);
-  if (depositId >= lowId && depositId <= highId) {
+  if (depositId.gte(lowId) && depositId.lte(highId)) {
     const originChain = getNetworkName(fill.originChainId);
     const deposit = spokePoolClient.getDeposit(depositId);
     if (isDefined(deposit)) {
@@ -143,7 +143,7 @@ export function isZeroValueDeposit(deposit: Pick<Deposit, "inputAmount" | "messa
  * @returns True if the message is empty, false otherwise.
  */
 export function isMessageEmpty(message = EMPTY_MESSAGE): boolean {
-  return message === "" || message === "0x";
+  return message === "" || message === "0x" || message === ZERO_BYTES;
 }
 
 /**
