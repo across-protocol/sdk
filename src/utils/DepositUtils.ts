@@ -143,7 +143,7 @@ export function isZeroValueDeposit(deposit: Pick<Deposit, "inputAmount" | "messa
  * @returns True if the message is empty, false otherwise.
  */
 export function isMessageEmpty(message = EMPTY_MESSAGE): boolean {
-  return message === "" || message === "0x" || message === ZERO_BYTES;
+  return message === "" || message === "0x";
 }
 
 /**
