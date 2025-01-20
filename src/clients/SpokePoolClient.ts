@@ -13,6 +13,7 @@ import {
   isDefined,
   toBN,
   bnOne,
+  isUnsafeDepositId,
 } from "../utils";
 import {
   paginatedEventQuery,
@@ -582,10 +583,10 @@ export class SpokePoolClient extends BaseAbstractClient {
         }
         assign(this.depositHashes, [this.getDepositHash(deposit)], deposit);
 
-        if (deposit.depositId.lt(this.earliestDepositIdQueried)) {
+        if (deposit.depositId.lt(this.earliestDepositIdQueried) && !isUnsafeDepositId(deposit.depositId)) {
           this.earliestDepositIdQueried = deposit.depositId;
         }
-        if (deposit.depositId.gt(this.latestDepositIdQueried)) {
+        if (deposit.depositId.gt(this.latestDepositIdQueried) && !isUnsafeDepositId(deposit.depositId)) {
           this.latestDepositIdQueried = deposit.depositId;
         }
       }

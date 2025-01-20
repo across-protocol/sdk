@@ -81,6 +81,12 @@ export async function getBlockRangeForDepositId(
   low: number;
   high: number;
 }> {
+  // We can only perform this search when we have a safe deposit ID.
+  if (isUnsafeDepositId(targetDepositId))
+    throw new Error(
+      `Target deposit ID ${targetDepositId} is deterministic and therefore unresolvable via a binary search.`
+    );
+
   // Resolve the deployment block number.
   const deploymentBlock = spokePool.deploymentBlock;
 

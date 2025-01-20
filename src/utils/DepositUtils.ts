@@ -1,6 +1,6 @@
 import assert from "assert";
 import { SpokePoolClient } from "../clients";
-import { DEFAULT_CACHING_TTL, EMPTY_MESSAGE, ZERO_BYTES } from "../constants";
+import { DEFAULT_CACHING_TTL, EMPTY_MESSAGE } from "../constants";
 import { CachingMechanismInterface, Deposit, DepositWithBlock, Fill, SlowFillRequest } from "../interfaces";
 import { getNetworkName } from "./NetworkUtils";
 import { getDepositInCache, getDepositKey, setDepositInCache } from "./CachingUtils";
