@@ -513,7 +513,7 @@ export class SpokePoolClient extends BaseAbstractClient {
       currentTime: currentTime.toNumber(), // uint32
       oldestTime: oldestTime.toNumber(),
       firstDepositId,
-      latestDepositId: _latestDepositId > bnZero ? _latestDepositId : bnZero,
+      latestDepositId: _latestDepositId.gt(bnZero) ? _latestDepositId : bnZero,
       searchEndBlock: searchConfig.toBlock,
       events,
     };
