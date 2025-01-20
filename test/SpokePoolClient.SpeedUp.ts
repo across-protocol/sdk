@@ -1,6 +1,6 @@
 import { SpokePoolClient } from "../src/clients";
 import { Deposit, SpeedUp } from "../src/interfaces";
-import { bnOne } from "../src/utils";
+import { bnOne, toBytes32 } from "../src/utils";
 import { destinationChainId, originChainId } from "./constants";
 import {
   assert,
@@ -84,8 +84,8 @@ describe("SpokePoolClient: SpeedUp", function () {
 
     await spokePool
       .connect(depositor)
-      .speedUpV3Deposit(
-        depositor.address,
+      .speedUpDeposit(
+        toBytes32(depositor.address),
         deposit.depositId,
         updatedOutputAmount,
         updatedRecipient,
@@ -146,8 +146,8 @@ describe("SpokePoolClient: SpeedUp", function () {
 
       await spokePool
         .connect(depositor)
-        .speedUpV3Deposit(
-          depositor.address,
+        .speedUpDeposit(
+          toBytes32(depositor.address),
           depositId,
           updatedOutputAmount,
           updatedRecipient,

@@ -11,6 +11,7 @@ import {
   spreadEvent,
   isMessageEmpty,
   fixedPointAdjustment,
+  toBytes32,
 } from "../src/utils";
 import {
   BigNumber,
@@ -440,9 +441,9 @@ describe("RelayFeeCalculator: Composable Bridging", function () {
       },
       10
     );
-    const fillData = await spokePool.queryFilter(spokePool.filters.FilledV3Relay());
+    const fillData = await spokePool.queryFilter(spokePool.filters.FilledRelay());
     expect(fillData.length).to.eq(1);
-    const onlyMessages = fillData.filter((fill) => !isMessageEmpty(fill.args.message));
+    const onlyMessages = fillData.filter((fill) => !isMessageEmpty(fill.args.messageHash));
     expect(onlyMessages.length).to.eq(1);
     const relevantFill = onlyMessages[0];
     const spreadFill = spreadEvent(relevantFill.args);
@@ -451,8 +452,8 @@ describe("RelayFeeCalculator: Composable Bridging", function () {
       ...spreadFill.relayExecutionInfo,
       updatedOutputAmount: spreadFill.relayExecutionInfo.updatedOutputAmount.toString(),
     }).to.deep.eq({
-      updatedRecipient: testContract.address,
-      updatedMessage: "0xabcdef",
+      updatedRecipient: toBytes32(testContract.address).toLowerCase(),
+      updatedMessageHash: ethers.utils.keccak256("0xabcdef"),
       updatedOutputAmount: "1",
       fillType: 0,
     });
