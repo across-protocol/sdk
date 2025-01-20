@@ -843,18 +843,33 @@ export class SpokePoolClient extends BaseAbstractClient {
     );
 
     const tStart = Date.now();
-    const query = await paginatedEventQuery(
-      this.spokePool,
-      this.spokePool.filters.V3FundsDeposited(null, null, null, null, null, depositId),
-      {
-        fromBlock: searchBounds.low,
-        toBlock: searchBounds.high,
-        maxBlockLookBack: this.eventSearchConfig.maxBlockLookBack,
-      }
-    );
+    // Check both V3FundsDeposited and FundsDeposited events to look for a specified depositId.
+    const query = (
+      await Promise.all([
+        paginatedEventQuery(
+          this.spokePool,
+          this.spokePool.filters.V3FundsDeposited(null, null, null, null, null, depositId),
+          {
+            fromBlock: searchBounds.low,
+            toBlock: searchBounds.high,
+            maxBlockLookBack: this.eventSearchConfig.maxBlockLookBack,
+          }
+        ),
+
+        paginatedEventQuery(
+          this.spokePool,
+          this.spokePool.filters.FundsDeposited(null, null, null, null, null, depositId),
+          {
+            fromBlock: searchBounds.low,
+            toBlock: searchBounds.high,
+            maxBlockLookBack: this.eventSearchConfig.maxBlockLookBack,
+          }
+        ),
+      ])
+    ).flat();
     const tStop = Date.now();
 
-    const event = query.find(({ args }) => args["depositId"] === depositId);
+    const event = query.find(({ args }) => args["depositId"].eq(depositId));
     if (event === undefined) {
       const srcChain = getNetworkName(this.chainId);
       const dstChain = getNetworkName(destinationChainId);

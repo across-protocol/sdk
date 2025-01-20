@@ -9,7 +9,9 @@ import {
   queryHistoricalDepositForFill,
   DepositSearchResult,
   getBlockRangeForDepositId,
+  toBytes32,
 } from "../src/utils";
+import { ZERO_BYTES } from "../src/constants";
 import { CHAIN_ID_TEST_LIST, originChainId, destinationChainId, repaymentChainId } from "./constants";
 import {
   assert,
@@ -146,16 +148,18 @@ describe("SpokePoolClient: Fill Validation", function () {
 
     // For each RelayData field, toggle the value to produce an invalid fill. Verify that it's rejected.
     const fields = Object.keys(fill).filter((field) => !ignoredFields.includes(field));
-    for (const field of fields) {
+    for (let field of fields) {
       let val: BigNumber | string | number;
       if (BigNumber.isBigNumber(fill[field])) {
         val = fill[field].add(bnOne);
       } else if (typeof fill[field] === "string") {
-        val = fill[field] + "xxx";
+        val = fill[field] + "1234";
       } else {
         expect(typeof fill[field]).to.equal("number");
         val = fill[field] + 1;
       }
+      // Remap the messageHash field to message for the deposit.
+      field = field === "messageHash" ? "message" : field;
 
       const result = validateFillForDeposit(fill, { ...deposit_2, [field]: val });
       expect(result.valid).to.be.false;
@@ -294,7 +298,7 @@ describe("SpokePoolClient: Fill Validation", function () {
     await depositV3(spokePool_1, destinationChainId, depositor, inputToken, inputAmount, outputToken, outputAmount);
     await mineRandomBlocks();
 
-    const [, deposit1Event] = await spokePool_1.queryFilter("V3FundsDeposited");
+    const [, deposit1Event] = await spokePool_1.queryFilter("FundsDeposited");
     const deposit1Block = deposit1Event.blockNumber;
 
     // Throws when low < high
@@ -369,10 +373,10 @@ describe("SpokePoolClient: Fill Validation", function () {
       relayerFeePct: toBNWei("0.01"),
       quoteTimestamp: await spokePool_1.getCurrentTime(),
     });
-    const depositData = await spokePool_1.populateTransaction.deposit(...depositParams);
+    const depositData = await spokePool_1.populateTransaction.depositDeprecated_5947912356(...depositParams);
     await spokePool_1.connect(depositor).multicall(Array(3).fill(depositData.data));
     expect(await spokePool_1.numberOfDeposits()).to.equal(5);
-    const depositEvents = await spokePool_1.queryFilter("V3FundsDeposited");
+    const depositEvents = await spokePool_1.queryFilter("FundsDeposited");
 
     // Set fromBlock to block later than deposits.
     spokePoolClient1.latestBlockSearched = await spokePool_1.provider.getBlockNumber();
@@ -683,7 +687,12 @@ describe("SpokePoolClient: Fill Validation", function () {
     const fill_1 = await fillV3Relay(spokePool_2, deposit_1, relayer);
     const fill_2 = await fillV3Relay(
       spokePool_2,
-      { ...deposit_1, recipient: relayer.address, outputAmount: deposit_1.outputAmount.div(2), message: "0x12" },
+      {
+        ...deposit_1,
+        recipient: toBytes32(relayer.address),
+        outputAmount: deposit_1.outputAmount.div(2),
+        message: "0x12",
+      },
       relayer
     );
 
@@ -693,10 +702,10 @@ describe("SpokePoolClient: Fill Validation", function () {
       throw new Error("fill_2 is undefined");
     }
 
-    expect(fill_1.relayExecutionInfo.updatedRecipient === depositor.address).to.be.true;
-    expect(fill_2.relayExecutionInfo.updatedRecipient === relayer.address).to.be.true;
-    expect(fill_2.relayExecutionInfo.updatedMessage === "0x12").to.be.true;
-    expect(fill_1.relayExecutionInfo.updatedMessage === "0x").to.be.true;
+    expect(fill_1.relayExecutionInfo.updatedRecipient === toBytes32(depositor.address)).to.be.true;
+    expect(fill_2.relayExecutionInfo.updatedRecipient === toBytes32(relayer.address)).to.be.true;
+    expect(fill_2.relayExecutionInfo.updatedMessageHash === ethers.utils.keccak256("0x12")).to.be.true;
+    expect(fill_1.relayExecutionInfo.updatedMessageHash === ZERO_BYTES).to.be.true;
     expect(fill_1.relayExecutionInfo.updatedOutputAmount.eq(fill_2.relayExecutionInfo.updatedOutputAmount)).to.be.false;
     expect(fill_1.relayExecutionInfo.fillType === FillType.FastFill).to.be.true;
     expect(fill_2.relayExecutionInfo.fillType === FillType.FastFill).to.be.true;

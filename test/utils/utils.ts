@@ -26,6 +26,7 @@ import {
   toBNWei,
   toWei,
   utf8ToHex,
+  toBytes32,
 } from "../../src/utils";
 import {
   MAX_L1_TOKENS_PER_POOL_REBALANCE_LEAF,
@@ -349,9 +350,8 @@ export async function depositV3(
       exclusivityDeadline,
       message
     );
-
   const [events, originChainId] = await Promise.all([
-    spokePool.queryFilter(spokePool.filters.V3FundsDeposited()),
+    spokePool.queryFilter(spokePool.filters.FundsDeposited()),
     spokePool.chainId(),
   ]);
 
@@ -392,9 +392,9 @@ export async function requestV3SlowFill(
   const destinationChainId = Number(await spokePool.chainId());
   assert.notEqual(relayData.originChainId, destinationChainId);
 
-  await spokePool.connect(signer).requestV3SlowFill(relayData);
+  await spokePool.connect(signer).requestSlowFill(relayData);
 
-  const events = await spokePool.queryFilter(spokePool.filters.RequestedV3SlowFill());
+  const events = await spokePool.queryFilter(spokePool.filters.RequestedSlowFill());
   const lastEvent = events.at(-1);
   let args = lastEvent!.args;
   assert.exists(args);
@@ -432,9 +432,17 @@ export async function fillV3Relay(
   const destinationChainId = Number(await spokePool.chainId());
   assert.notEqual(deposit.originChainId, destinationChainId);
 
-  await spokePool.connect(signer).fillV3Relay(deposit, repaymentChainId ?? destinationChainId);
+  // If the input deposit token has a bytes32 on any field, assume it is going to the new fillRelay
+  // spoke pool method.
+  // Should be 0x + 32 bytes, so a 2 + 64 = 66 length string.
+  const useFillRelayMethod = deposit.depositor.length === 66;
+  if (useFillRelayMethod)
+    await spokePool
+      .connect(signer)
+      .fillRelay(deposit, repaymentChainId ?? destinationChainId, toBytes32(signer.address));
+  else await spokePool.connect(signer).fillV3Relay(deposit, repaymentChainId ?? destinationChainId);
 
-  const events = await spokePool.queryFilter(spokePool.filters.FilledV3Relay());
+  const events = await spokePool.queryFilter(spokePool.filters.FilledRelay());
   const lastEvent = events.at(-1);
   let args = lastEvent!.args;
   assert.exists(args);
@@ -452,7 +460,7 @@ export async function fillV3Relay(
     inputAmount: args.inputAmount,
     outputToken: args.outputToken,
     outputAmount: args.outputAmount,
-    message: args.message,
+    messageHash: args.messageHash,
     fillDeadline: args.fillDeadline,
     exclusivityDeadline: args.exclusivityDeadline,
     exclusiveRelayer: args.exclusiveRelayer,
@@ -460,7 +468,7 @@ export async function fillV3Relay(
     repaymentChainId: Number(args.repaymentChainId),
     relayExecutionInfo: {
       updatedRecipient: args.relayExecutionInfo.updatedRecipient,
-      updatedMessage: args.relayExecutionInfo.updatedMessage,
+      updatedMessageHash: args.relayExecutionInfo.updatedMessageHash,
       updatedOutputAmount: args.relayExecutionInfo.updatedOutputAmount,
       fillType: args.relayExecutionInfo.fillType,
     },

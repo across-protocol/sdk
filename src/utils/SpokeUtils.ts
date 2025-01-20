@@ -1,12 +1,14 @@
 import assert from "assert";
 import { BytesLike, Contract, PopulatedTransaction, providers, utils as ethersUtils } from "ethers";
-import { CHAIN_IDs, MAX_SAFE_DEPOSIT_ID, ZERO_ADDRESS } from "../constants";
+import { CHAIN_IDs, MAX_SAFE_DEPOSIT_ID, ZERO_ADDRESS, ZERO_BYTES } from "../constants";
 import { Deposit, Fill, FillStatus, RelayData, SlowFillRequest } from "../interfaces";
 import { SpokePoolClient } from "../clients";
 import { chunk } from "./ArrayUtils";
 import { BigNumber, toBN } from "./BigNumberUtils";
 import { isDefined } from "./TypeGuards";
 import { getNetworkName } from "./NetworkUtils";
+import { toBytes32 } from "./AddressUtils";
+import { isMessageEmpty } from "./DepositUtils";
 
 type BlockTag = providers.BlockTag;
 
@@ -215,6 +217,7 @@ export async function getDepositIdAtBlock(contract: Contract, blockTag: number):
  * @param destinationChainId Supplementary destination chain ID required by V3 hashes.
  * @returns The corresponding RelayData hash.
  */
+/*
 export function getRelayDataHash(relayData: RelayData, destinationChainId: number): string {
   return ethersUtils.keccak256(
     ethersUtils.defaultAbiCoder.encode(
@@ -236,6 +239,40 @@ export function getRelayDataHash(relayData: RelayData, destinationChainId: numbe
         "uint256 destinationChainId",
       ],
       [relayData, destinationChainId]
+    )
+  );
+}
+*/
+
+/**
+ * Compute the RelayData hash for a fill assuming with new bytes32 spoke pool events.
+ * This can be used to determine the fill status.
+ * @param relayData RelayData information that is used to complete a fill.
+ * @param destinationChainId Supplementary destination chain ID required by V3 hashes.
+ * @returns The corresponding RelayData hash.
+ */
+export function getRelayDataHash(relayData: RelayData, destinationChainId: number): string {
+  const updatedRelayData = translateToUpdatedRelayData(relayData);
+  return ethersUtils.keccak256(
+    ethersUtils.defaultAbiCoder.encode(
+      [
+        "tuple(" +
+          "bytes32 depositor," +
+          "bytes32 recipient," +
+          "bytes32 exclusiveRelayer," +
+          "bytes32 inputToken," +
+          "bytes32 outputToken," +
+          "uint256 inputAmount," +
+          "uint256 outputAmount," +
+          "uint256 originChainId," +
+          "uint256 depositId," +
+          "uint32 fillDeadline," +
+          "uint32 exclusivityDeadline," +
+          "bytes32 message" +
+          ")",
+        "uint256 destinationChainId",
+      ],
+      [updatedRelayData, destinationChainId]
     )
   );
 }
@@ -268,7 +305,9 @@ export async function relayFillStatus(
   destinationChainId?: number
 ): Promise<FillStatus> {
   destinationChainId ??= await spokePool.chainId();
-  const hash = getRelayDataHash(relayData, destinationChainId!);
+  assert(isDefined(destinationChainId));
+
+  const hash = getRelayDataHash(relayData, destinationChainId);
   const _fillStatus = await spokePool.fillStatuses(hash, { blockTag });
   const fillStatus = Number(_fillStatus);
 
@@ -314,6 +353,35 @@ export async function fillStatusArray(
       ? status.toNumber()
       : undefined;
   });
+}
+
+/*
+ * Determines if the relay data provided contains bytes32 for addresses or standard evm 20-byte addresses.
+ * Returns true if the relay data has bytes32 address representations.
+ */
+export function isUpdatedRelayData(relayData: RelayData) {
+  const isValidBytes32 = (maybeBytes32: string) => {
+    return ethersUtils.isBytes(maybeBytes32) && maybeBytes32.length === 66;
+  };
+  // Return false if the depositor is not a bytes32. Assume that if any field is a bytes32 in relayData, then all fields will be bytes32 representations.
+  return isValidBytes32(relayData.depositor);
+}
+
+/*
+ * Converts an input relay data to to the version with 32-byte address representations.
+ */
+export function translateToUpdatedRelayData(relayData: RelayData): RelayData {
+  return isUpdatedRelayData(relayData)
+    ? relayData
+    : {
+        ...relayData,
+        depositor: toBytes32(relayData.depositor),
+        recipient: toBytes32(relayData.recipient),
+        exclusiveRelayer: toBytes32(relayData.exclusiveRelayer),
+        inputToken: toBytes32(relayData.inputToken),
+        outputToken: toBytes32(relayData.outputToken),
+        message: isMessageEmpty(relayData.message) ? ZERO_BYTES : ethersUtils.keccak256(relayData.message),
+      };
 }
 
 /**

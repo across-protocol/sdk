@@ -1,7 +1,7 @@
 import hre from "hardhat";
 import { SpokePoolClient } from "../src/clients";
 import { Deposit } from "../src/interfaces";
-import { bnOne, findFillBlock, getNetworkName } from "../src/utils";
+import { bnOne, findFillBlock, getNetworkName, toBytes32 } from "../src/utils";
 import { EMPTY_MESSAGE, ZERO_ADDRESS } from "../src/constants";
 import { originChainId, destinationChainId } from "./constants";
 import {
@@ -88,8 +88,8 @@ describe("SpokePoolClient: Fills", function () {
 
     expect(spokePoolClient.getFillsForOriginChain(originChainId).length).to.equal(3);
     expect(spokePoolClient.getFillsForOriginChain(originChainId2).length).to.equal(1);
-    expect(spokePoolClient.getFillsForRelayer(relayer1.address).length).to.equal(3);
-    expect(spokePoolClient.getFillsForRelayer(relayer2.address).length).to.equal(1);
+    expect(spokePoolClient.getFillsForRelayer(toBytes32(relayer1.address)).length).to.equal(3);
+    expect(spokePoolClient.getFillsForRelayer(toBytes32(relayer2.address)).length).to.equal(1);
   });
 
   it("Correctly locates the block number for a FilledV3Relay event", async function () {
