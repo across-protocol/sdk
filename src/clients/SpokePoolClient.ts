@@ -14,6 +14,7 @@ import {
   toBN,
   bnOne,
   isUnsafeDepositId,
+  isZeroAddress,
 } from "../utils";
 import {
   paginatedEventQuery,
@@ -22,7 +23,7 @@ import {
   spreadEventWithBlockNumber,
 } from "../utils/EventUtils";
 import { validateFillForDeposit } from "../utils/FlowUtils";
-import { ZERO_ADDRESS, ZERO_BYTES } from "../constants";
+import { ZERO_ADDRESS } from "../constants";
 import {
   Deposit,
   DepositWithBlock,
@@ -585,7 +586,7 @@ export class SpokePoolClient extends BaseAbstractClient {
         deposit.fromLiteChain = this.isOriginLiteChain(deposit);
         deposit.toLiteChain = this.isDestinationLiteChain(deposit);
 
-        if (deposit.outputToken === ZERO_ADDRESS || deposit.outputToken === ZERO_BYTES) {
+        if (isZeroAddress(deposit.outputToken)) {
           deposit.outputToken = this.getDestinationTokenForDeposit(deposit);
         }
 
@@ -891,7 +892,7 @@ export class SpokePoolClient extends BaseAbstractClient {
       toLiteChain: true, // To be updated immediately afterwards.
     } as DepositWithBlock;
 
-    if (deposit.outputToken === ZERO_ADDRESS) {
+    if (isZeroAddress(deposit.outputToken)) {
       deposit.outputToken = this.getDestinationTokenForDeposit(deposit);
     }
     deposit.fromLiteChain = this.isOriginLiteChain(deposit);

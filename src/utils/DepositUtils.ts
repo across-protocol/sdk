@@ -1,6 +1,6 @@
 import assert from "assert";
 import { SpokePoolClient } from "../clients";
-import { DEFAULT_CACHING_TTL, EMPTY_MESSAGE, ZERO_BYTES } from "../constants";
+import { DEFAULT_CACHING_TTL, EMPTY_MESSAGE } from "../constants";
 import { CachingMechanismInterface, Deposit, DepositWithBlock, Fill, SlowFillRequest } from "../interfaces";
 import { getNetworkName } from "./NetworkUtils";
 import { getDepositInCache, getDepositKey, setDepositInCache } from "./CachingUtils";
@@ -143,7 +143,7 @@ export function isZeroValueDeposit(deposit: Pick<Deposit, "inputAmount" | "messa
  * @returns True if the message is empty, false otherwise.
  */
 export function isMessageEmpty(message = EMPTY_MESSAGE): boolean {
-  return message === "" || message === "0x" || message === ZERO_BYTES;
+  return message === "" || message === "0x";
 }
 
 /**
