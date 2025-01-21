@@ -55,3 +55,12 @@ export function toAddress(bytes32: string): string {
   const rawAddress = utils.hexZeroPad(utils.hexStripZeros(bytes32), 20);
   return utils.getAddress(rawAddress);
 }
+
+// Checks if an input address is a 32-byte address or not.
+export function isAddressBytes32(address: string): boolean {
+  // If the address is not 32 bytes, then don't check.
+  if (utils.hexDataLength(address) !== 32) return false;
+
+  const strippedAddress = utils.hexStripZeros(address);
+  return utils.isBytes(strippedAddress) && utils.hexDataLength(strippedAddress) > 20;
+}

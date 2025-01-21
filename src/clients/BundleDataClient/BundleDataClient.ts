@@ -14,6 +14,7 @@ import {
   ExpiredDepositsToRefundV3,
   Clients,
   CombinedRefunds,
+  DepositWithBlock,
 } from "../../interfaces";
 import { AcrossConfigStoreClient, SpokePoolClient } from "..";
 import {
@@ -32,6 +33,8 @@ import {
   mapAsync,
   bnUint32Max,
   isZeroValueDeposit,
+  chainIsEvm,
+  isAddressBytes32,
 } from "../../utils";
 import winston from "winston";
 import {
@@ -805,8 +808,17 @@ export class BundleDataClient {
             return;
           }
 
+          // A refund for a deposit is invalid if the depositor has a bytes32 address input for an EVM chain. It is valid otherwise.
+          const refundIsValid = (deposit: DepositWithBlock) => {
+            return !(isAddressBytes32(deposit.depositor) && chainIsEvm(deposit.originChainId));
+          };
+
           // If deposit block is within origin chain bundle block range, then save as bundle deposit.
+          //
           // If deposit is in bundle and it has expired, additionally save it as an expired deposit.
+          // Note: If the depositor has an invalid address on the origin chain, then it cannot be refunded, so it is instead
+          // ignored.
+          //
           // If deposit is not in the bundle block range, then save it as an older deposit that
           // may have expired.
           if (deposit.blockNumber >= originChainBlockRange[0] && deposit.blockNumber <= originChainBlockRange[1]) {
@@ -816,7 +828,7 @@ export class BundleDataClient {
             // that would eliminate any deposits in this bundle with a very low fillDeadline like equal to 0
             // for example. Those should be impossible to create but technically should be included in this
             // bundle of refunded deposits.
-            if (deposit.fillDeadline < bundleBlockTimestamps[destinationChainId][1]) {
+            if (deposit.fillDeadline < bundleBlockTimestamps[destinationChainId][1] && refundIsValid(deposit)) {
               expiredBundleDepositHashes.add(relayDataHash);
             }
           } else if (deposit.blockNumber < originChainBlockRange[0]) {
@@ -914,11 +926,37 @@ export class BundleDataClient {
                 bundleInvalidFillsV3.push(fill);
                 return;
               }
+              // If the fill's repayment address is not a valid EVM address and the repayment chain is an EVM chain, the fill is invalid.
+              if (chainIsEvm(fill.repaymentChainId) && isAddressBytes32(fill.relayer)) {
+                const transactionReceipt = await originClient.spokePool.provider.getTransaction(fill.transactionHash);
+                const originRelayer = transactionReceipt.from;
+                this.logger.debug({
+                  at: "BundleDataClient#loadData",
+                  message: `${fill.relayer} is not a valid address on chain ${fill.repaymentChainId}. Falling back to ${originRelayer}.`,
+                });
+                // Repayment chain is still an EVM chain, but the msg.sender is a bytes32 address, so the fill is invalid.
+                if (isAddressBytes32(originRelayer)) {
+                  bundleInvalidFillsV3.push(fill);
+                  return;
+                }
+                // Otherwise, assume the relayer to be repaid is the msg.sender.
+                fill.relayer = originRelayer;
+              }
               // If deposit is using the deterministic relay hash feature, then the following binary search-based
-              // algorithm will not work. However, it is impossible to emit an infinite fill deadline using
-              // the unsafeDepositV3 function so there is no need to catch the special case.
-              const historicalDeposit = await queryHistoricalDepositForFill(originClient, fill);
-              if (!historicalDeposit.found) {
+              // algorithm will not work.
+              let historicalDeposit;
+              try {
+                historicalDeposit = await queryHistoricalDepositForFill(originClient, fill);
+              } catch (e) {
+                // We will likely enter the exception block if we tried to query a historical deposit for a deterministic deposit ID.
+                this.logger.debug({
+                  at: "BundleDataClient#loadData",
+                  message: "Could not binary search a historical deposit for fill.",
+                  fill,
+                  error: e,
+                });
+              }
+              if (!isDefined(historicalDeposit) || !historicalDeposit.found) {
                 bundleInvalidFillsV3.push(fill);
               } else {
                 const matchedDeposit = historicalDeposit.deposit;

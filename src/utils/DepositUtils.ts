@@ -5,6 +5,7 @@ import { CachingMechanismInterface, Deposit, DepositWithBlock, Fill, SlowFillReq
 import { getNetworkName } from "./NetworkUtils";
 import { getDepositInCache, getDepositKey, setDepositInCache } from "./CachingUtils";
 import { validateFillForDeposit } from "./FlowUtils";
+import { isUnsafeDepositId } from "./SpokeUtils";
 import { getCurrentTime } from "./TimeUtils";
 import { isDefined } from "./TypeGuards";
 import { isDepositFormedCorrectly } from "./ValidatorUtils";
@@ -40,6 +41,9 @@ export async function queryHistoricalDepositForFill(
   fill: Fill | SlowFillRequest,
   cache?: CachingMechanismInterface
 ): Promise<DepositSearchResult> {
+  if (isUnsafeDepositId(fill.depositId)) {
+    throw new Error(`Cannot find historical deposit for fill with unsafe deposit ID ${fill.depositId}`);
+  }
   if (fill.originChainId !== spokePoolClient.chainId) {
     throw new Error(`OriginChainId mismatch (${fill.originChainId} != ${spokePoolClient.chainId})`);
   }
