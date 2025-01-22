@@ -14,8 +14,8 @@ export class RateLimitedSolanaRpcFactory extends SolanaClusterRpcFactory {
   // Holds the underlying transport that the rate limiter wraps.
   private readonly baseTransport: RpcTransport;
 
-  // Takes the same arguments as the createDefaultRpcTransport, but it has an additional maxConcurrency value at the
-  // beginning of the list.
+  // Takes the same arguments as the createDefaultRpcTransport, but it has an additional parameters to control
+  // concurrency and logging at the beginning of the list.
   constructor(
     maxConcurrency: number,
     readonly pctRpcCallsLogged: number,
@@ -25,8 +25,7 @@ export class RateLimitedSolanaRpcFactory extends SolanaClusterRpcFactory {
     chainId: number,
     ...rpcTransportParams: Parameters<typeof createDefaultRpcTransport>
   ) {
-    const clusterUrl = rpcTransportParams[0].url;
-    super(chainId, clusterUrl);
+    super(chainId, rpcTransportParams[0].url);
     this.baseTransport = createDefaultRpcTransport(...rpcTransportParams);
 
     // This sets up the queue. Each task is executed by forwarding the RPC request to the underlying base transport.
