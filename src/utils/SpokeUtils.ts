@@ -401,23 +401,6 @@ export function isUpdatedRelayData(relayData: RelayData) {
   return isValidBytes32(relayData.depositor);
 }
 
-/*
- * Converts an input relay data to to the version with 32-byte address representations.
- */
-export function convertToUpdatedRelayData(relayData: RelayData): RelayData {
-  return isUpdatedRelayData(relayData)
-    ? relayData
-    : {
-        ...relayData,
-        depositor: toBytes32(relayData.depositor),
-        recipient: toBytes32(relayData.recipient),
-        exclusiveRelayer: toBytes32(relayData.exclusiveRelayer),
-        inputToken: toBytes32(relayData.inputToken),
-        outputToken: toBytes32(relayData.outputToken),
-        message: isMessageEmpty(relayData.message) ? ZERO_BYTES : ethersUtils.keccak256(relayData.message),
-      };
-}
-
 // Determines if the input address (either a bytes32 or bytes20) is the zero address.
 export function isZeroAddress(address: string): boolean {
   return address === ZERO_ADDRESS || address === ZERO_BYTES;
