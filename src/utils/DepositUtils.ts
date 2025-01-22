@@ -18,6 +18,7 @@ export enum InvalidFill {
   DepositIdInvalid = 0, // Deposit ID seems invalid for origin SpokePool
   DepositIdNotFound, // Deposit ID not found (bad RPC data?)
   FillMismatch, // Fill does not match deposit parameters for deposit ID.
+  DepositIdOutOfRange, // Fill is for a deterministic deposit.
 }
 
 export type DepositSearchResult =
@@ -42,7 +43,11 @@ export async function queryHistoricalDepositForFill(
   cache?: CachingMechanismInterface
 ): Promise<DepositSearchResult> {
   if (isUnsafeDepositId(fill.depositId)) {
-    throw new Error(`Cannot find historical deposit for fill with unsafe deposit ID ${fill.depositId}`);
+    return {
+      found: false,
+      code: InvalidFill.DepositIdOutOfRange,
+      reason: `Cannot find historical deposit for fill with unsafe deposit ID ${fill.depositId}.`,
+    };
   }
   if (fill.originChainId !== spokePoolClient.chainId) {
     throw new Error(`OriginChainId mismatch (${fill.originChainId} != ${spokePoolClient.chainId})`);
