@@ -137,7 +137,7 @@ export class SpokePoolClient extends BaseAbstractClient {
    * Returns a list of all deposits including any duplicate ones. Designed only to be used in use cases where
    * all deposits are required, regardless of duplicates. For example, the Dataworker can use this to refund
    * expired deposits including for duplicates.
-   * @param destinationChainId 
+   * @param destinationChainId
    * @returns A list of deposits
    */
   public getDepositsForDestinationChainWithDuplicates(destinationChainId: number): DepositWithBlock[] {
