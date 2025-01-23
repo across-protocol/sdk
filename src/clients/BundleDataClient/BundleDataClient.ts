@@ -1,4 +1,5 @@
 import _ from "lodash";
+import { utils } from "ethers";
 import {
   ProposedRootBundle,
   SlowFillRequestWithBlock,
@@ -14,7 +15,6 @@ import {
   ExpiredDepositsToRefundV3,
   Clients,
   CombinedRefunds,
-  DepositWithBlock,
 } from "../../interfaces";
 import { AcrossConfigStoreClient, SpokePoolClient } from "..";
 import {
@@ -58,6 +58,16 @@ type DataCache = Record<string, Promise<LoadDataReturnValue>>;
 
 // V3 dictionary helper functions
 function updateExpiredDepositsV3(dict: ExpiredDepositsToRefundV3, deposit: V3DepositWithBlock): void {
+  // A deposit refund for a deposit is invalid if the depositor has a bytes32 address input for an EVM chain. It is valid otherwise.
+  const refundIsValid = (deposit: V3DepositWithBlock) => {
+    return (
+      (utils.isAddress(deposit.depositor) && chainIsEvm(deposit.originChainId)) || !chainIsEvm(deposit.originChainId)
+    );
+  };
+
+  if (!refundIsValid(deposit)) {
+    return;
+  }
   const { originChainId, inputToken } = deposit;
   if (!dict?.[originChainId]?.[inputToken]) {
     assign(dict, [originChainId, inputToken], []);
@@ -808,11 +818,6 @@ export class BundleDataClient {
             return;
           }
 
-          // A deposit refund for a deposit is invalid if the depositor has a bytes32 address input for an EVM chain. It is valid otherwise.
-          const refundIsValid = (deposit: DepositWithBlock) => {
-            return !(isAddressBytes32(deposit.depositor) && chainIsEvm(deposit.originChainId));
-          };
-
           // If deposit block is within origin chain bundle block range, then save as bundle deposit.
           // If deposit is in bundle and it has expired, additionally save it as an expired deposit.
           // Note: if the `depositor` field in the expired deposit is an invalid address, e.g. a bytes32 address on an EVM
@@ -826,7 +831,7 @@ export class BundleDataClient {
             // that would eliminate any deposits in this bundle with a very low fillDeadline like equal to 0
             // for example. Those should be impossible to create but technically should be included in this
             // bundle of refunded deposits.
-            if (deposit.fillDeadline < bundleBlockTimestamps[destinationChainId][1] && refundIsValid(deposit)) {
+            if (deposit.fillDeadline < bundleBlockTimestamps[destinationChainId][1]) {
               expiredBundleDepositHashes.add(relayDataHash);
             }
           } else if (deposit.blockNumber < originChainBlockRange[0]) {
