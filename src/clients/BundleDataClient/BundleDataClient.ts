@@ -1117,9 +1117,10 @@ export class BundleDataClient {
             // If fill does not exist in memory but there is a slow fill request in memory, then we need to issue a
             // slow fill leaf for the deposit. We can assume there was no fill preceding the slow fill request because
             // slow fill requests cannot follow fills. If there were a fill following this request, we would have
-            // entered the above case.
+            // entered the above case. Again as with pre-fills, we should only consider slow fill requests that were
+            // in previous bundles.
             if (slowFillRequest) {
-              if (_canCreateSlowFillLeaf(deposit)) {
+              if (_canCreateSlowFillLeaf(deposit) && slowFillRequest.blockNumber < destinationChainBlockRange[0]) {
                 validatedBundleSlowFills.push(deposit);
               }
               return;
