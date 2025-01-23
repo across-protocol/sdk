@@ -14,6 +14,9 @@ import {
   ExpiredDepositsToRefundV3,
   Clients,
   CombinedRefunds,
+  FillWithBlock,
+  Deposit,
+  DepositWithBlock,
 } from "../../interfaces";
 import { AcrossConfigStoreClient, SpokePoolClient } from "..";
 import {
@@ -32,6 +35,7 @@ import {
   mapAsync,
   bnUint32Max,
   isZeroValueDeposit,
+  findFillEvent,
 } from "../../utils";
 import winston from "winston";
 import {
@@ -665,6 +669,37 @@ export class BundleDataClient {
       return isChainDisabled(blockRangeForChain);
     };
 
+    const _canCreateSlowFillLeaf = (deposit: DepositWithBlock): boolean => {
+      return (
+        // Cannot slow fill when input and output tokens are not equivalent.
+        this.clients.hubPoolClient.areTokensEquivalent(
+          deposit.inputToken,
+          deposit.originChainId,
+          deposit.outputToken,
+          deposit.destinationChainId,
+          deposit.quoteBlockNumber
+        ) &&
+        // Cannot slow fill from or to a lite chain.
+        !deposit.fromLiteChain &&
+        !deposit.toLiteChain &&
+        // Deposit must not expire during this bundle.
+        deposit.fillDeadline >= bundleBlockTimestamps[deposit.destinationChainId][1]
+      );
+    };
+
+    const _getFillStatusForDeposit = (deposit: Deposit, queryBlock: number): Promise<FillStatus> => {
+      return spokePoolClients[deposit.destinationChainId].relayFillStatus(
+        deposit,
+        // We can assume that in production
+        // the block to query is not one that the spoke pool client
+        // hasn't queried. This is because this function will usually be called
+        // in production with block ranges that were validated by
+        // DataworkerUtils.blockRangesAreInvalidForSpokeClients.
+        Math.min(queryBlock, spokePoolClients[deposit.destinationChainId].latestBlockSearched),
+        deposit.destinationChainId
+      );
+    };
+
     // Infer chain ID's to load from number of block ranges passed in.
     const allChainIds = blockRangesForChains
       .map((_blockRange, index) => chainIds[index])
@@ -779,7 +814,10 @@ export class BundleDataClient {
           continue;
         }
         originClient.getDepositsForDestinationChainWithDuplicates(destinationChainId).forEach((deposit) => {
-          if (isZeroValueDeposit(deposit)) {
+          // Only evaluate deposits that are in this bundle or in previous bundles. This means we cannot issue fill
+          // refunds or slow fills here for deposits that are in future bundles (i.e. "pre-fills"). Instead, we'll
+          // evaluate these pre-fills once the deposit is inside the "current" bundle block range.
+          if (isZeroValueDeposit(deposit) || deposit.blockNumber > originChainBlockRange[1]) {
             return;
           }
           depositCounter++;
@@ -806,7 +844,7 @@ export class BundleDataClient {
           // If deposit is in bundle and it has expired, additionally save it as an expired deposit.
           // If deposit is not in the bundle block range, then save it as an older deposit that
           // may have expired.
-          if (deposit.blockNumber >= originChainBlockRange[0] && deposit.blockNumber <= originChainBlockRange[1]) {
+          if (deposit.blockNumber >= originChainBlockRange[0]) {
             // Deposit is a V3 deposit in this origin chain's bundle block range and is not a duplicate.
             updateBundleDepositsV3(bundleDepositsV3, deposit);
             // We don't check that fillDeadline >= bundleBlockTimestamps[destinationChainId][0] because
@@ -965,36 +1003,14 @@ export class BundleDataClient {
                 );
                 // The ! is safe here because we've already checked that the deposit exists in the relay hash dictionary.
                 const matchedDeposit = v3RelayHashes[relayDataHash].deposit!;
-
-                // Input and Output tokens must be equivalent on the deposit for this to be slow filled.
-                if (
-                  !this.clients.hubPoolClient.areTokensEquivalent(
-                    matchedDeposit.inputToken,
-                    matchedDeposit.originChainId,
-                    matchedDeposit.outputToken,
-                    matchedDeposit.destinationChainId,
-                    matchedDeposit.quoteBlockNumber
-                  )
-                ) {
-                  return;
-                }
-
-                // slow fill requests for deposits from or to lite chains are considered invalid
-                if (
-                  v3RelayHashes[relayDataHash].deposit?.fromLiteChain ||
-                  v3RelayHashes[relayDataHash].deposit?.toLiteChain
-                ) {
+                if (!_canCreateSlowFillLeaf(matchedDeposit)) {
                   return;
                 }
 
                 // If there is no fill matching the relay hash, then this might be a valid slow fill request
                 // that we should produce a slow fill leaf for. Check if the slow fill request is in the
-                // destination chain block range and that the underlying deposit has not expired yet.
-                if (
-                  slowFillRequest.blockNumber >= destinationChainBlockRange[0] &&
-                  // Deposit must not have expired in this bundle.
-                  slowFillRequest.fillDeadline >= bundleBlockTimestamps[destinationChainId][1]
-                ) {
+                // destination chain block range.
+                if (slowFillRequest.blockNumber >= destinationChainBlockRange[0]) {
                   // At this point, the v3RelayHashes entry already existed meaning that there is a matching deposit,
                   // so this slow fill request relay data is correct.
                   validatedBundleSlowFills.push(matchedDeposit);
@@ -1040,33 +1056,102 @@ export class BundleDataClient {
                 this.getRelayHashFromEvent(matchedDeposit) === relayDataHash,
                 "Deposit relay hashes should match."
               );
+              v3RelayHashes[relayDataHash].deposit = matchedDeposit;
 
-              // slow fill requests for deposits from or to lite chains are considered invalid
-              if (matchedDeposit.fromLiteChain || matchedDeposit.toLiteChain) {
+              if (!_canCreateSlowFillLeaf(matchedDeposit)) {
                 return;
               }
-
-              v3RelayHashes[relayDataHash].deposit = matchedDeposit;
 
               // Note: we don't need to query for a historical fill at this point because a fill
               // cannot precede a slow fill request and if the fill came after the slow fill request,
               // we would have seen it already because we would have processed it in the loop above.
-              if (
-                // Input and Output tokens must be equivalent on the deposit for this to be slow filled.
-                !this.clients.hubPoolClient.areTokensEquivalent(
-                  matchedDeposit.inputToken,
-                  matchedDeposit.originChainId,
-                  matchedDeposit.outputToken,
-                  matchedDeposit.destinationChainId,
-                  matchedDeposit.quoteBlockNumber
-                ) ||
-                // Deposit must not have expired in this bundle.
-                slowFillRequest.fillDeadline < bundleBlockTimestamps[destinationChainId][1]
-              ) {
-                // TODO: Invalid slow fill request. Maybe worth logging.
-                return;
-              }
               validatedBundleSlowFills.push(matchedDeposit);
+            }
+          }
+        );
+
+        // The above loops for adding deposits, fills, and then slow fill requests to the relay hash dictionary
+        // ignore any events that are after the bundle block range. Because of that, we should consider that there
+        // are deposits in this bundle that correspond to fills that were sent in a prior bundle that have not
+        // yet been refunded. These fills are also known as "pre-fills" from here on.
+        const originBlockRange = getBlockRangeForChain(blockRangesForChains, originChainId, chainIds);
+
+        await mapAsync(
+          Object.values(v3RelayHashes).filter(
+            ({ deposit }) =>
+              deposit &&
+              deposit.originChainId === originChainId &&
+              deposit.destinationChainId === destinationChainId &&
+              deposit.blockNumber >= originBlockRange[0] &&
+              deposit.blockNumber <= originBlockRange[1] &&
+              !isZeroValueDeposit(deposit)
+          ),
+          async ({ deposit, fill, slowFillRequest }) => {
+            if (!deposit) throw new Error("Deposit should exist in relay hash dictionary.");
+            // We don't check the deposit's fillDeadline here because we are ok if the deposit expires in this bundle
+            // and we issue an expiry refund for it. This expired deposit could also have been pre-filled and we just
+            // want to make sure in this code block that all valid pre-fills get refunded once the deposit appears.
+            // If a pre-fill gets refunded and its deposit expired and gets refunded as well, then there is no net loss
+            // to the protocol.
+
+            // If fill exists in memory, then the only case in which we need to create a refund is if the
+            // the fill occurred in a previous bundle.
+            if (fill) {
+              if (!isSlowFill(fill) && fill.blockNumber < destinationChainBlockRange[0]) {
+                // If fill is in the current bundle then we can assume there is already a refund for it, so only
+                // include this pre fill if the fill is in an older bundle. If fill is after this current bundle, then
+                // we won't consider it, following the previous treatment of fills after the bundle block range.
+                validatedBundleV3Fills.push({
+                  ...fill,
+                  quoteTimestamp: deposit.quoteTimestamp,
+                });
+              }
+              return;
+            }
+
+            // If fill does not exist in memory but there is a slow fill request in memory, then we need to issue a
+            // slow fill leaf for the deposit. We can assume there was no fill preceding the slow fill request because
+            // slow fill requests cannot follow fills. If there were a fill following this request, we would have
+            // entered the above case. Again as with pre-fills, we should only consider slow fill requests that were
+            // in previous bundles.
+            if (slowFillRequest) {
+              if (_canCreateSlowFillLeaf(deposit) && slowFillRequest.blockNumber < destinationChainBlockRange[0]) {
+                validatedBundleSlowFills.push(deposit);
+              }
+              return;
+            }
+
+            // So at this point in the code, there is no fill or slow fill request in memory for this deposit.
+            // We need to check its fill status on-chain to figure out whether to issue a refund or a slow fill leaf.
+            // We can assume at this point that all fills or slow fill requests, if found, were in previous bundles
+            // because the spoke pool client lookback would have returned this entire bundle of events and stored
+            // them into the relay hash dictionary.
+            const fillStatus = await _getFillStatusForDeposit(deposit, destinationChainBlockRange[1]);
+
+            // If deposit was filled, then we need to issue a refund for it.
+            if (fillStatus === FillStatus.Filled) {
+              // We need to find the fill event to issue a refund to the right relayer and repayment chain,
+              // or msg.sender if relayer address is invalid for the repayment chain.
+              const prefill = (await findFillEvent(
+                destinationClient.spokePool,
+                deposit,
+                destinationClient.deploymentBlock,
+                destinationClient.latestBlockSearched
+              )) as unknown as FillWithBlock;
+              if (!isSlowFill(prefill)) {
+                validatedBundleV3Fills.push({
+                  ...prefill,
+                  quoteTimestamp: deposit.quoteTimestamp,
+                });
+              }
+            }
+            // If slow fill requested, then issue a slow fill leaf for the deposit.
+            else if (fillStatus === FillStatus.RequestedSlowFill) {
+              // Input and Output tokens must be equivalent on the deposit for this to be slow filled.
+              // Slow fill requests for deposits from or to lite chains are considered invalid
+              if (_canCreateSlowFillLeaf(deposit)) {
+                validatedBundleSlowFills.push(deposit);
+              }
             }
           }
         );
@@ -1152,16 +1237,7 @@ export class BundleDataClient {
       ) {
         // If we haven't seen a fill matching this deposit, then we need to rule out that it was filled a long time ago
         // by checkings its on-chain fill status.
-        const fillStatus = await spokePoolClients[destinationChainId].relayFillStatus(
-          deposit,
-          // We can assume that in production
-          // the block ranges passed into this function would never contain blocks where the spoke pool client
-          // hasn't queried. This is because this function will usually be called
-          // in production with block ranges that were validated by
-          // DataworkerUtils.blockRangesAreInvalidForSpokeClients
-          Math.min(destinationBlockRange[1], spokePoolClients[destinationChainId].latestBlockSearched),
-          destinationChainId
-        );
+        const fillStatus = await _getFillStatusForDeposit(deposit, destinationBlockRange[1]);
 
         // If there is no matching fill and the deposit expired in this bundle and the fill status on-chain is not
         // Filled, then we can to refund it as an expired deposit.

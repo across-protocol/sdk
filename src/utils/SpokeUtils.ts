@@ -1,12 +1,13 @@
 import assert from "assert";
 import { BytesLike, Contract, PopulatedTransaction, providers, utils as ethersUtils } from "ethers";
 import { CHAIN_IDs, MAX_SAFE_DEPOSIT_ID, ZERO_ADDRESS } from "../constants";
-import { Deposit, Fill, FillStatus, RelayData, SlowFillRequest } from "../interfaces";
+import { Deposit, Fill, FillStatus, FillWithBlock, RelayData, SlowFillRequest } from "../interfaces";
 import { SpokePoolClient } from "../clients";
 import { chunk } from "./ArrayUtils";
 import { BigNumber, toBN } from "./BigNumberUtils";
 import { isDefined } from "./TypeGuards";
 import { getNetworkName } from "./NetworkUtils";
+import { paginatedEventQuery, spreadEventWithBlockNumber } from "./EventUtils";
 
 type BlockTag = providers.BlockTag;
 
@@ -379,4 +380,38 @@ export async function findFillBlock(
   } while (lowBlockNumber < highBlockNumber);
 
   return lowBlockNumber;
+}
+
+export async function findFillEvent(
+  spokePool: Contract,
+  relayData: RelayData,
+  lowBlockNumber: number,
+  highBlockNumber?: number
+): Promise<FillWithBlock | undefined> {
+  const blockNumber = await findFillBlock(spokePool, relayData, lowBlockNumber, highBlockNumber);
+  if (!blockNumber) return undefined;
+  const query = await paginatedEventQuery(
+    spokePool,
+    spokePool.filters.FilledV3Relay(null, null, null, null, null, relayData.originChainId, relayData.depositId),
+    {
+      fromBlock: blockNumber,
+      toBlock: blockNumber,
+      maxBlockLookBack: 0, // We can hardcode this to 0 to instruct paginatedEventQuery to make a single request
+      // for the same block number.
+    }
+  );
+  if (query.length === 0) throw new Error(`Failed to find fill event at block ${blockNumber}`);
+  const event = query[0];
+  // In production the chainId returned from the provider matches 1:1 with the actual chainId. Querying the provider
+  // object saves an RPC query becasue the chainId is cached by StaticJsonRpcProvider instances. In hre, the SpokePool
+  // may be configured with a different chainId than what is returned by the provider.
+  // @todo Sub out actual chain IDs w/ CHAIN_IDs constants
+  const destinationChainId = Object.values(CHAIN_IDs).includes(relayData.originChainId)
+    ? (await spokePool.provider.getNetwork()).chainId
+    : Number(await spokePool.chainId());
+  const fill = {
+    ...spreadEventWithBlockNumber(event),
+    destinationChainId,
+  } as FillWithBlock;
+  return fill;
 }
