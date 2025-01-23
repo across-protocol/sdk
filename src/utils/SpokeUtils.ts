@@ -3,10 +3,8 @@ import { BytesLike, Contract, PopulatedTransaction, providers, utils as ethersUt
 import { CHAIN_IDs, MAX_SAFE_DEPOSIT_ID, ZERO_ADDRESS, ZERO_BYTES } from "../constants";
 import { Deposit, Fill, FillStatus, RelayData, SlowFillRequest } from "../interfaces";
 import { SpokePoolClient } from "../clients";
-import { toBytes32 } from "./AddressUtils";
 import { chunk } from "./ArrayUtils";
 import { BigNumber, toBN, bnOne, bnZero } from "./BigNumberUtils";
-import { isMessageEmpty } from "./DepositUtils";
 import { isDefined } from "./TypeGuards";
 import { getNetworkName } from "./NetworkUtils";
 
@@ -387,35 +385,6 @@ export async function findFillBlock(
   } while (lowBlockNumber < highBlockNumber);
 
   return lowBlockNumber;
-}
-
-/*
- * Determines if the relay data provided contains bytes32 for addresses or standard evm 20-byte addresses.
- * Returns true if the relay data has bytes32 address representations.
- */
-export function isUpdatedRelayData(relayData: RelayData) {
-  const isValidBytes32 = (maybeBytes32: string) => {
-    return ethersUtils.isBytes(maybeBytes32) && maybeBytes32.length === 66;
-  };
-  // Return false if the depositor is not a bytes32. Assume that if any field is a bytes32 in relayData, then all fields will be bytes32 representations.
-  return isValidBytes32(relayData.depositor);
-}
-
-/*
- * Converts an input relay data to to the version with 32-byte address representations.
- */
-export function convertToUpdatedRelayData(relayData: RelayData): RelayData {
-  return isUpdatedRelayData(relayData)
-    ? relayData
-    : {
-        ...relayData,
-        depositor: toBytes32(relayData.depositor),
-        recipient: toBytes32(relayData.recipient),
-        exclusiveRelayer: toBytes32(relayData.exclusiveRelayer),
-        inputToken: toBytes32(relayData.inputToken),
-        outputToken: toBytes32(relayData.outputToken),
-        message: isMessageEmpty(relayData.message) ? ZERO_BYTES : ethersUtils.keccak256(relayData.message),
-      };
 }
 
 // Determines if the input address (either a bytes32 or bytes20) is the zero address.
