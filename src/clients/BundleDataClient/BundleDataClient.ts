@@ -765,9 +765,9 @@ export class BundleDataClient {
 
     // Process all deposits first and keep track of deposits that may be refunded as an expired deposit:
     // - expiredBundleDepositHashes: Deposits sent in this bundle that expired.
-    const expiredBundleDepositHashes: Set<string> = new Set<string>();
+    const expiredBundleDepositHashes: string[] = [];
     // - olderDepositHashes: Deposits sent in a prior bundle that newly expired in this bundle
-    const olderDepositHashes: Set<string> = new Set<string>();
+    const olderDepositHashes: string[] = [];
 
     let depositCounter = 0;
     for (const originChainId of allChainIds) {
@@ -784,18 +784,15 @@ export class BundleDataClient {
           }
           depositCounter++;
           const relayDataHash = this.getRelayHashFromEvent(deposit);
-          if (v3RelayHashes[relayDataHash]) {
-            // If we've seen this deposit before, then skip this deposit. This can happen if our RPC provider
-            // gives us bad data.
-            return;
+          if (!v3RelayHashes[relayDataHash]) {
+            // Even if deposit is not in bundle block range, store all deposits we can see in memory in this
+            // convenient dictionary.
+            v3RelayHashes[relayDataHash] = {
+              deposit: deposit,
+              fill: undefined,
+              slowFillRequest: undefined,
+            };
           }
-          // Even if deposit is not in bundle block range, store all deposits we can see in memory in this
-          // convenient dictionary.
-          v3RelayHashes[relayDataHash] = {
-            deposit: deposit,
-            fill: undefined,
-            slowFillRequest: undefined,
-          };
 
           // Once we've saved the deposit hash into v3RelayHashes, then we can exit early here if the inputAmount
           // is 0 because there can be no expired amount to refund and no unexecutable slow fill amount to return
@@ -817,10 +814,10 @@ export class BundleDataClient {
             // for example. Those should be impossible to create but technically should be included in this
             // bundle of refunded deposits.
             if (deposit.fillDeadline < bundleBlockTimestamps[destinationChainId][1]) {
-              expiredBundleDepositHashes.add(relayDataHash);
+              expiredBundleDepositHashes.push(relayDataHash);
             }
           } else if (deposit.blockNumber < originChainBlockRange[0]) {
-            olderDepositHashes.add(relayDataHash);
+            olderDepositHashes.push(relayDataHash);
           }
         });
       }
@@ -1120,7 +1117,8 @@ export class BundleDataClient {
     start = performance.now();
 
     // Go through expired deposits in this bundle and now prune those that we have seen a fill for to construct
-    // the list of expired deposits we need to refund in this bundle.
+    // the list of expired deposits we need to refund in this bundle. This handles the case where a deposit is
+    // duplicated and one refund will be sent for each duplicated deposit.
     expiredBundleDepositHashes.forEach((relayDataHash) => {
       const { deposit, fill } = v3RelayHashes[relayDataHash];
       assert(isDefined(deposit), "Deposit should exist in relay hash dictionary.");
