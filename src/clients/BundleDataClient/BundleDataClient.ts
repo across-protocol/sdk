@@ -1119,7 +1119,7 @@ export class BundleDataClient {
             // slow fill requests cannot follow fills. If there were a fill following this request, we would have
             // entered the above case.
             if (slowFillRequest) {
-              if (!_canCreateSlowFillLeaf(deposit)) {
+              if (_canCreateSlowFillLeaf(deposit)) {
                 validatedBundleSlowFills.push(deposit);
               }
               return;
