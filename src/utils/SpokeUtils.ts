@@ -387,18 +387,6 @@ export async function findFillBlock(
   return lowBlockNumber;
 }
 
-/*
- * Determines if the relay data provided contains bytes32 for addresses or standard evm 20-byte addresses.
- * Returns true if the relay data has bytes32 address representations.
- */
-export function isUpdatedRelayData(relayData: RelayData) {
-  const isValidBytes32 = (maybeBytes32: string) => {
-    return ethersUtils.isBytes(maybeBytes32) && maybeBytes32.length === 66;
-  };
-  // Return false if the depositor is not a bytes32. Assume that if any field is a bytes32 in relayData, then all fields will be bytes32 representations.
-  return isValidBytes32(relayData.depositor);
-}
-
 // Determines if the input address (either a bytes32 or bytes20) is the zero address.
 export function isZeroAddress(address: string): boolean {
   return address === ZERO_ADDRESS || address === ZERO_BYTES;
