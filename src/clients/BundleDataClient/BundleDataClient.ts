@@ -1079,9 +1079,6 @@ export class BundleDataClient {
         // yet been refunded. These fills are also known as "pre-fills" from here on.
         const originBlockRange = getBlockRangeForChain(blockRangesForChains, originChainId, chainIds);
 
-        // We don't need to check if the deposit is after the bundle block range because it wouldn't have been
-        // added to v3RelayHashes if it was. Ignore zero value deposits since there is no value to refund.
-
         await mapAsync(
           Object.values(v3RelayHashes).filter(
             ({ deposit }) =>
@@ -1089,6 +1086,7 @@ export class BundleDataClient {
               deposit.originChainId === originChainId &&
               deposit.destinationChainId === destinationChainId &&
               deposit.blockNumber >= originBlockRange[0] &&
+              deposit.blockNumber <= originBlockRange[1] &&
               !isZeroValueDeposit(deposit)
           ),
           async ({ deposit, fill, slowFillRequest }) => {
