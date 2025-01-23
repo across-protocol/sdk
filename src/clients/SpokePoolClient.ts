@@ -399,7 +399,7 @@ export class SpokePoolClient extends BaseAbstractClient {
    * @note This hash takes the form of: `${depositId}-${originChainId}`.
    */
   public getDepositHash(event: { depositId: BigNumber; originChainId: number }): string {
-    return `${event.depositId.toString()}-${event.originChainId}`;
+    return `${event.depositId}-${event.originChainId}`;
   }
 
   /**

@@ -209,7 +209,7 @@ export async function getDepositIdAtBlock(contract: Contract, blockTag: number):
   const _depositIdAtBlock = await contract.numberOfDeposits({ blockTag });
   const depositIdAtBlock = toBN(_depositIdAtBlock);
   // Sanity check to ensure that the deposit ID is an integer and is greater than or equal to zero.
-  if (!BigNumber.isBigNumber(depositIdAtBlock) || depositIdAtBlock.lt(bnZero)) {
+  if (depositIdAtBlock.lt(bnZero)) {
     throw new Error("Invalid deposit count");
   }
   return depositIdAtBlock;
