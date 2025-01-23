@@ -130,7 +130,40 @@ export function chainIsL1(chainId: number): boolean {
  */
 export function chainIsEvm(chainId: number): boolean {
   const chainFamily = PUBLIC_NETWORKS[chainId].family;
-  return chainFamily === ChainFamily.NONE || chainFamily === ChainFamily.OP_STACK || chainFamily === ChainFamily.ORBIT || chainFamily === ChainFamily.ZK_STACK;
+  const checkEvmExceptionChains = (_chainId: number) => {
+    const {
+      MAINNET,
+      SEPOLIA,
+      ARBITRUM,
+      ARBITRUM_SEPOLIA,
+      LINEA,
+      POLYGON,
+      POLYGON_AMOY,
+      SCROLL,
+      SCROLL_SEPOLIA,
+      ZK_SYNC,
+      ZK_SYNC_SEPOLIA,
+    } = CHAIN_IDs;
+    return [
+      MAINNET,
+      SEPOLIA,
+      ARBITRUM,
+      ARBITRUM_SEPOLIA,
+      LINEA,
+      POLYGON,
+      POLYGON_AMOY,
+      SCROLL,
+      SCROLL_SEPOLIA,
+      ZK_SYNC,
+      ZK_SYNC_SEPOLIA,
+    ].includes(_chainId);
+  };
+  return (
+    chainFamily === ChainFamily.OP_STACK ||
+    chainFamily === ChainFamily.ORBIT ||
+    chainFamily === ChainFamily.ZK_STACK ||
+    checkEvmExceptionChains(chainId)
+  );
 }
 
 /**
