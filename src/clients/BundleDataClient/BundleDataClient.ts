@@ -1078,26 +1078,26 @@ export class BundleDataClient {
         // are deposits in this bundle that correspond to fills that were sent in a prior bundle that have not
         // yet been refunded. These fills are also known as "pre-fills" from here on.
         const originBlockRange = getBlockRangeForChain(blockRangesForChains, originChainId, chainIds);
+
+        // We don't need to check if the deposit is after the bundle block range because it wouldn't have been
+        // added to v3RelayHashes if it was. Ignore zero value deposits since there is no value to refund.
+
         await mapAsync(
-          originClient
-            .getDepositsForDestinationChain(destinationChainId)
-            // We don't need to check if the deposit is after the bundle block range because it wouldn't have been
-            // added to v3RelayHashes if it was. Ignore zero value deposits since there is no value to refund.
-            .filter(
-              (deposit) =>
-                deposit.blockNumber <= originBlockRange[0] &&
-                deposit.blockNumber >= originBlockRange[1] &&
-                !isZeroValueDeposit(deposit)
-            ),
-          async (deposit) => {
+          Object.values(v3RelayHashes).filter(
+            ({ deposit }) =>
+              deposit &&
+              deposit.originChainId === originChainId &&
+              deposit.destinationChainId === destinationChainId &&
+              deposit.blockNumber <= originBlockRange[0] &&
+              !isZeroValueDeposit(deposit)
+          ),
+          async ({ deposit, fill, slowFillRequest }) => {
+            if (!deposit) throw new Error("Deposit should exist in relay hash dictionary.");
             // We don't check the deposit's fillDeadline here because we are ok if the deposit expires in this bundle
             // and we issue an expiry refund for it. This expired deposit could also have been pre-filled and we just
             // want to make sure in this code block that all valid pre-fills get refunded once the deposit appears.
             // If a pre-fill gets refunded and its deposit expired and gets refunded as well, then there is no net loss
             // to the protocol.
-
-            const relayDataHash = this.getRelayHashFromEvent(deposit);
-            const fill = v3RelayHashes[relayDataHash].fill;
 
             // If fill exists in memory, then the only case in which we need to create a refund is if the
             // the fill occurred in a previous bundle.
@@ -1118,7 +1118,6 @@ export class BundleDataClient {
             // slow fill leaf for the deposit. We can assume there was no fill preceding the slow fill request because
             // slow fill requests cannot follow fills. If there were a fill following this request, we would have
             // entered the above case.
-            const slowFillRequest = v3RelayHashes[relayDataHash].slowFillRequest;
             if (slowFillRequest) {
               if (!_canCreateSlowFillLeaf(deposit)) {
                 validatedBundleSlowFills.push(deposit);
