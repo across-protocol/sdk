@@ -35,7 +35,7 @@ import {
   mapAsync,
   bnUint32Max,
   isZeroValueDeposit,
-  findFillBlock,
+  findFillEvent,
 } from "../../utils";
 import winston from "winston";
 import {
@@ -1135,12 +1135,11 @@ export class BundleDataClient {
             if (fillStatus === FillStatus.Filled) {
               // We need to find the fill event to issue a refund to the right relayer and repayment chain,
               // or msg.sender if relayer address is invalid for the repayment chain.
-              // TODO: Update findFillBlock to return the full fill event.
-              const prefill = (await findFillBlock(
+              const prefill = (await findFillEvent(
                 destinationClient.spokePool,
                 deposit,
                 destinationClient.deploymentBlock,
-                destinationClient.firstBlockToSearch
+                destinationClient.latestBlockSearched
               )) as unknown as FillWithBlock;
               if (!isSlowFill(prefill)) {
                 validatedBundleV3Fills.push({
