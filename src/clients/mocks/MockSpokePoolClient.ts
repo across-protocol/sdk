@@ -122,7 +122,6 @@ export class MockSpokePoolClient extends SpokePoolClient {
     const { blockNumber, transactionIndex } = deposit;
     let { depositId, depositor, destinationChainId, inputToken, inputAmount, outputToken, outputAmount } = deposit;
     depositId ??= this.numberOfDeposits;
-    assert(depositId >= this.numberOfDeposits, `${depositId} < ${this.numberOfDeposits}`);
     this.numberOfDeposits = depositId + 1;
 
     destinationChainId ??= random(1, 42161, false);

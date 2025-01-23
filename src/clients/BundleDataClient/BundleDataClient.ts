@@ -778,7 +778,7 @@ export class BundleDataClient {
         if (originChainId === destinationChainId) {
           continue;
         }
-        originClient.getDepositsForDestinationChain(destinationChainId).forEach((deposit) => {
+        originClient.getDepositsForDestinationChainWithDuplicates(destinationChainId).forEach((deposit) => {
           if (isZeroValueDeposit(deposit)) {
             return;
           }
