@@ -88,6 +88,7 @@ export class SpokePoolClient extends BaseAbstractClient {
    * @param chainId The chain ID of the chain that this client is querying.
    * @param deploymentBlock The block number that the SpokePool contract was deployed at.
    * @param eventSearchConfig An optional EventSearchConfig object that controls how far back in history the client will search for events. If not provided, the client will only search for events from the deployment block.
+   * @param disableQuoteBlockLookup If true, the client will not use the HubPool contract to fetch quote block numbers and instead use a fixed MAX_INT value. Defaults to false.
    */
   constructor(
     readonly logger: winston.Logger,
@@ -96,7 +97,8 @@ export class SpokePoolClient extends BaseAbstractClient {
     readonly hubPoolClient: HubPoolClient | null,
     readonly chainId: number,
     public deploymentBlock: number,
-    eventSearchConfig: MakeOptional<EventSearchConfig, "toBlock"> = { fromBlock: 0, maxBlockLookBack: 0 }
+    eventSearchConfig: MakeOptional<EventSearchConfig, "toBlock"> = { fromBlock: 0, maxBlockLookBack: 0 },
+    readonly disableQuoteBlockLookup: boolean = false
   ) {
     super(eventSearchConfig);
     this.firstBlockToSearch = eventSearchConfig.fromBlock;
@@ -730,12 +732,13 @@ export class SpokePoolClient extends BaseAbstractClient {
    * For an array of timestamps, resolve each timestamp to a block number on the HubPool chain via the HubPoolClient.
    * @param timestamps Array of timestamps to be resolved to a block number via the HubPoolClient.
    * @returns A mapping of quoteTimestamp -> HubPool block number.
+   * @note If the {@link disableQuoteBlockLookup} is true or the {@link hubPoolClient} is not defined, the client
+   *       will return a fixed MAX_INT value for all timestamps.
    */
   protected getBlockNumbers(timestamps: number[]): Promise<{ [quoteTimestamp: number]: number }> {
-    return (
-      this.hubPoolClient?.getBlockNumbers(timestamps) ??
-      Promise.resolve(Object.fromEntries(timestamps.map((timestamp) => [timestamp, MAX_BIG_INT.toNumber()])))
-    );
+    return this.hubPoolClient && !this.disableQuoteBlockLookup
+      ? this.hubPoolClient.getBlockNumbers(timestamps)
+      : Promise.resolve(Object.fromEntries(timestamps.map((timestamp) => [timestamp, MAX_BIG_INT.toNumber()])));
   }
 
   /**
