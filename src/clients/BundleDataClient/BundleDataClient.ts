@@ -1088,7 +1088,7 @@ export class BundleDataClient {
               deposit &&
               deposit.originChainId === originChainId &&
               deposit.destinationChainId === destinationChainId &&
-              deposit.blockNumber <= originBlockRange[0] &&
+              deposit.blockNumber >= originBlockRange[0] &&
               !isZeroValueDeposit(deposit)
           ),
           async ({ deposit, fill, slowFillRequest }) => {
