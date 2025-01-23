@@ -129,48 +129,8 @@ export function chainIsL1(chainId: number): boolean {
  * @returns True if chain corresponding to chainId has an EVM-like execution layer.
  */
 export function chainIsEvm(chainId: number): boolean {
-  const {
-    ALEPH_ZERO,
-    ARBITRUM,
-    BASE,
-    BLAST,
-    BOBA,
-    INK,
-    LINEA,
-    LISK,
-    MAINNET,
-    MODE,
-    OPTIMISM,
-    POLYGON,
-    REDSTONE,
-    SCROLL,
-    SONEIUM,
-    SUPERSEED,
-    WORLD_CHAIN,
-    ZK_SYNC,
-    ZORA,
-  } = CHAIN_IDs;
-  return [
-    ALEPH_ZERO,
-    ARBITRUM,
-    BASE,
-    BLAST,
-    BOBA,
-    INK,
-    LINEA,
-    LISK,
-    MAINNET,
-    MODE,
-    OPTIMISM,
-    POLYGON,
-    REDSTONE,
-    SCROLL,
-    SONEIUM,
-    SUPERSEED,
-    WORLD_CHAIN,
-    ZK_SYNC,
-    ZORA,
-  ].includes(chainId);
+  const chainFamily = PUBLIC_NETWORKS[chainId].family;
+  return chainFamily === ChainFamily.NONE || chainFamily === ChainFamily.OP_STACK || chainFamily === ChainFamily.ORBIT || chainFamily === ChainFamily.ZK_STACK;
 }
 
 /**
