@@ -1,7 +1,7 @@
 import hre from "hardhat";
 import { SpokePoolClient } from "../src/clients";
 import { Deposit } from "../src/interfaces";
-import { bnOne, findFillBlock, getNetworkName } from "../src/utils";
+import { bnOne, findFillBlock, findFillEvent, getNetworkName } from "../src/utils";
 import { EMPTY_MESSAGE, ZERO_ADDRESS } from "../src/constants";
 import { originChainId, destinationChainId } from "./constants";
 import {
@@ -112,6 +112,24 @@ describe("SpokePoolClient: Fills", function () {
 
     const fillBlock = await findFillBlock(spokePool, deposit, startBlock);
     expect(fillBlock).to.equal(targetFillBlock);
+  });
+
+  it("Correctly returns the FilledV3Relay event using the relay data", async function () {
+    const targetDeposit = { ...deposit, depositId: deposit.depositId + 1 };
+    // Submit multiple fills at the same block:
+    const startBlock = await spokePool.provider.getBlockNumber();
+    await fillV3Relay(spokePool, deposit, relayer1);
+    await fillV3Relay(spokePool, targetDeposit, relayer1);
+    await fillV3Relay(spokePool, { ...deposit, depositId: deposit.depositId + 2 }, relayer1);
+    await hre.network.provider.send("evm_mine");
+
+    const fill = await findFillEvent(spokePool, targetDeposit, startBlock);
+    expect(fill).to.not.be.undefined;
+    expect(fill!.depositId).to.equal(targetDeposit.depositId);
+
+    // Looking for a fill can return undefined:
+    const missingFill = await findFillEvent(spokePool, { ...deposit, depositId: deposit.depositId + 3 }, startBlock);
+    expect(missingFill).to.be.undefined;
   });
 
   it("FilledV3Relay block search: bounds checking", async function () {
