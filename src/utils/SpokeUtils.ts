@@ -396,7 +396,8 @@ export async function findFillEvent(
     {
       fromBlock: blockNumber,
       toBlock: blockNumber,
-      maxBlockLookBack: 1, // We should be able to hardcode this since we're only looking on a single block.
+      maxBlockLookBack: 0, // We can hardcode this to 0 to instruct paginatedEventQuery to make a single request
+      // for the same block number.
     }
   );
   if (query.length === 0) throw new Error(`Failed to find fill event at block ${blockNumber}`);
