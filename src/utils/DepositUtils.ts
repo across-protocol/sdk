@@ -151,7 +151,7 @@ export function isMessageEmpty(message = EMPTY_MESSAGE): boolean {
 }
 
 export function isFillOrSlowFillRequestMessageEmpty(message: string): boolean {
-  return message === EMPTY_MESSAGE_HASH;
+  return isMessageEmpty(message) || message === EMPTY_MESSAGE_HASH;
 }
 
 /**
