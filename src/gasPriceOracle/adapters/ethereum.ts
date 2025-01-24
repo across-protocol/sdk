@@ -5,14 +5,8 @@ import { GasPriceEstimate } from "../types";
 import { gasPriceError } from "../util";
 import { GasPriceEstimateOptions } from "../oracle";
 
-// TODO: We intend to remove `eip1559Bad()` as an option and make eip1559Raw the only option eventually. The reason
-// they both exist currently is because eip1559Raw is new and untested on production so we will slowly roll it out
-// by using the convenient environment variable safety guard.
-
 /**
- * @dev If GAS_PRICE_EIP1559_RAW_${chainId}=true, then constructs total fee by adding
- * eth_getBlock("pending").baseFee to eth_maxPriorityFeePerGas, otherwise calls the ethers provider's
- * getFeeData() method which adds eth_getBlock("latest").baseFee to a hardcoded priority fee of 1.5 gwei.
+ * @dev Constructs total fee by adding eth_getBlock("pending").baseFee to eth_maxPriorityFeePerGas
  * @param provider ethers RPC provider instance.
  * @param {GasPriceEstimateOptions} opts See notes below on specific parameters.
  * @param baseFeeMultiplier Amount to multiply base fee or total fee for legacy gas pricing.
@@ -20,10 +14,7 @@ import { GasPriceEstimateOptions } from "../oracle";
  * @returns Promise of gas price estimate object.
  */
 export function eip1559(provider: providers.Provider, opts: GasPriceEstimateOptions): Promise<GasPriceEstimate> {
-  const useRaw = process.env[`GAS_PRICE_EIP1559_RAW_${opts.chainId}`] === "true";
-  return useRaw
-    ? eip1559Raw(provider, opts.chainId, opts.baseFeeMultiplier, opts.priorityFeeMultiplier)
-    : eip1559Bad(provider, opts.chainId, opts.baseFeeMultiplier, opts.priorityFeeMultiplier);
+  return eip1559Raw(provider, opts.chainId, opts.baseFeeMultiplier, opts.priorityFeeMultiplier);
 }
 
 /**
@@ -56,37 +47,6 @@ export async function eip1559Raw(
     maxFeePerGas: scaledPriorityFee.add(scaledBaseFee),
     maxPriorityFeePerGas: scaledPriorityFee,
   };
-}
-
-/**
- * @notice Returns fee data using provider's getFeeData() method.
- * @note Resolves priority gas pricing poorly, because the priority fee is hardcoded to 1.5 Gwei in ethers v5's
- * getFeeData() method
- * @dev TODO: Remove this function soon. See note above about slowly rolling out eip1559Raw.
- * @param provider ethers RPC provider instance.
- * @param chainId Chain ID of the provider instance.
- * @returns Promise of gas price estimate object.
- */
-export async function eip1559Bad(
-  provider: providers.Provider,
-  chainId: number,
-  baseFeeMultiplier: BigNumber,
-  priorityFeeMultiplier: BigNumber
-): Promise<GasPriceEstimate> {
-  const feeData = await provider.getFeeData();
-
-  [feeData.lastBaseFeePerGas, feeData.maxPriorityFeePerGas].forEach((field: BigNumber | null) => {
-    if (!BigNumber.isBigNumber(field) || field.lt(bnZero)) gasPriceError("getFeeData()", chainId, feeData);
-  });
-
-  const maxPriorityFeePerGas = feeData.maxPriorityFeePerGas as BigNumber;
-  const scaledPriorityFee = maxPriorityFeePerGas.mul(priorityFeeMultiplier).div(fixedPointAdjustment);
-  const scaledLastBaseFeePerGas = (feeData.lastBaseFeePerGas as BigNumber)
-    .mul(baseFeeMultiplier)
-    .div(fixedPointAdjustment);
-  const maxFeePerGas = scaledPriorityFee.add(scaledLastBaseFeePerGas);
-
-  return { maxPriorityFeePerGas: scaledPriorityFee, maxFeePerGas };
 }
 
 /**
