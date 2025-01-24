@@ -142,7 +142,10 @@ export class SpokePoolClient extends BaseAbstractClient {
    */
   public getDepositsForDestinationChainWithDuplicates(destinationChainId: number): DepositWithBlock[] {
     const deposits = this.getDepositsForDestinationChain(destinationChainId);
-    return sortEventsAscendingInPlace(deposits.concat(Object.values(this.duplicateDepositHashes).flat()));
+    const duplicateDeposits = Object.values(this.duplicateDepositHashes).filter(
+      (deposits) => deposits.length > 0 && deposits[0].destinationChainId === destinationChainId
+    );
+    return sortEventsAscendingInPlace(deposits.concat(duplicateDeposits.flat()));
   }
 
   /**
@@ -588,7 +591,7 @@ export class SpokePoolClient extends BaseAbstractClient {
         }
 
         if (this.depositHashes[this.getDepositHash(deposit)] !== undefined) {
-          assign(this.duplicateDepositHashes, [this.getDepositHash(deposit)], deposit);
+          assign(this.duplicateDepositHashes, [this.getDepositHash(deposit)], [deposit]);
           continue;
         }
         assign(this.depositHashes, [this.getDepositHash(deposit)], deposit);

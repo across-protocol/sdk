@@ -1076,6 +1076,8 @@ export class BundleDataClient {
         // yet been refunded. These fills are also known as "pre-fills" from here on.
         const originBlockRange = getBlockRangeForChain(blockRangesForChains, originChainId, chainIds);
 
+        // We don't iterate through deposits again here because we only need to consider unique deposit hashes
+        // to look for pre-fills. Duplicate deposits could only have been pre-filled once.
         await mapAsync(
           Object.values(v3RelayHashes).filter(
             ({ deposit }) =>
