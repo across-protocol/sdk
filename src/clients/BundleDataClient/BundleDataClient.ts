@@ -1081,6 +1081,13 @@ export class BundleDataClient {
                 });
               }
             }
+            // If deposit is not filled and its newly expired, we can create a deposit refund for it.
+            // We don't check that fillDeadline >= bundleBlockTimestamps[destinationChainId][0] because
+            // that would eliminate any deposits in this bundle with a very low fillDeadline like equal to 0
+            // for example. Those should be included in this bundle of refunded deposits.
+            else if (deposit.fillDeadline < bundleBlockTimestamps[destinationChainId][1]) {
+              updateExpiredDepositsV3(expiredDepositsToRefundV3, deposit);
+            }
             // If slow fill requested, then issue a slow fill leaf for the deposit.
             else if (fillStatus === FillStatus.RequestedSlowFill) {
               // Input and Output tokens must be equivalent on the deposit for this to be slow filled.
@@ -1088,22 +1095,11 @@ export class BundleDataClient {
               if (_canCreateSlowFillLeaf(deposit)) {
                 // If deposit newly expired, then we can't create a slow fill leaf for it but we can
                 // create a deposit refund for it.
-                if (deposit.fillDeadline < bundleBlockTimestamps[destinationChainId][1]) {
-                  updateExpiredDepositsV3(expiredDepositsToRefundV3, deposit);
-                }
                 // If slow fill request exists in memory then make sure it wasn't in this bundle otherwise we
                 // would have already created a slow fill leaf for it.
-                else if (!slowFillRequest || slowFillRequest.blockNumber < destinationChainBlockRange[0]) {
+                if (!slowFillRequest || slowFillRequest.blockNumber < destinationChainBlockRange[0]) {
                   validatedBundleSlowFills.push(deposit);
                 }
-              }
-            } else {
-              // If deposit is Unfilled and its newly expired, we can create a deposit refund for it.
-              // We don't check that fillDeadline >= bundleBlockTimestamps[destinationChainId][0] because
-              // that would eliminate any deposits in this bundle with a very low fillDeadline like equal to 0
-              // for example. Those should be included in this bundle of refunded deposits.
-              if (deposit.fillDeadline < bundleBlockTimestamps[destinationChainId][1]) {
-                updateExpiredDepositsV3(expiredDepositsToRefundV3, deposit);
               }
             }
           }
