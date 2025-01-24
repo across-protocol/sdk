@@ -1095,6 +1095,12 @@ export class BundleDataClient {
             // If a pre-fill gets refunded and its deposit expired and gets refunded as well, then there is no net loss
             // to the protocol.
 
+            // We don't check here that this deposit is a duplicate because we are willing to refund a pre-fill
+            // even if this deposit is a duplicate. This is because a duplicate deposit for a pre-fill cannot get
+            // refunded to the depositor anymore because its fill status on-chain has changed to Filled. Therefore
+            // any duplicate deposits result in a net loss of funds for the depositor and effectively payout
+            // the pre-filler.
+
             // If fill exists in memory, then the only case in which we need to create a refund is if the
             // the fill occurred in a previous bundle.
             if (fill) {
