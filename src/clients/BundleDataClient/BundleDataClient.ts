@@ -1001,10 +1001,6 @@ export class BundleDataClient {
               ) {
                 return;
               }
-
-              // Note: we don't need to query for a historical fill at this point because a fill
-              // cannot precede a slow fill request and if the fill came after the slow fill request,
-              // we would have seen it already because we would have processed it in the loop above.
               validatedBundleSlowFills.push(matchedDeposit);
             }
           }
