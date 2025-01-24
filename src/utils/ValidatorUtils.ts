@@ -8,7 +8,7 @@ const HexValidator = define<string>("HexValidator", (v) => ethersUtils.isHexStri
 const BigNumberValidator = define<BigNumber>("BigNumberValidator", (v) => BigNumber.isBigNumber(v));
 
 const V3DepositSchema = object({
-  depositId: Min(integer(), 0),
+  depositId: BigNumberValidator,
   depositor: AddressValidator,
   recipient: AddressValidator,
   inputToken: AddressValidator,

@@ -62,3 +62,14 @@ export const toBN = (num: BigNumberish, rounding: "floor" | "round" | "ceil" = "
   // Otherwise, it is a string int and we can parse it directly.
   return BigNumber.from(num.toString());
 };
+
+/**
+ * Compares two BigNumbers and returns the maximum. Order does not matter.
+ *
+ * @param val The first BigNumber to compare.
+ * @param cmp The second BigNumber to compare.
+ * @returns The greater of the two BigNumbers.
+ */
+export const bnMax = (val: BigNumber, cmp: BigNumber) => {
+  return val.gt(cmp) ? val : cmp;
+};

@@ -1,10 +1,10 @@
 import assert from "assert";
 import { BytesLike, Contract, PopulatedTransaction, providers, utils as ethersUtils } from "ethers";
-import { CHAIN_IDs, MAX_SAFE_DEPOSIT_ID, ZERO_ADDRESS } from "../constants";
+import { CHAIN_IDs, MAX_SAFE_DEPOSIT_ID, ZERO_ADDRESS, ZERO_BYTES } from "../constants";
 import { Deposit, Fill, FillStatus, FillWithBlock, RelayData, SlowFillRequest } from "../interfaces";
 import { SpokePoolClient } from "../clients";
 import { chunk } from "./ArrayUtils";
-import { BigNumber, toBN } from "./BigNumberUtils";
+import { BigNumber, toBN, bnOne, bnZero } from "./BigNumberUtils";
 import { isDefined } from "./TypeGuards";
 import { getNetworkName } from "./NetworkUtils";
 import { paginatedEventQuery, spreadEventWithBlockNumber } from "./EventUtils";
@@ -71,7 +71,7 @@ export function populateV3Relay(
  *        // where the deposit with deposit ID = targetDepositId was created.
  */
 export async function getBlockRangeForDepositId(
-  targetDepositId: number,
+  targetDepositId: BigNumber,
   initLow: number,
   initHigh: number,
   maxSearches: number,
@@ -80,6 +80,12 @@ export async function getBlockRangeForDepositId(
   low: number;
   high: number;
 }> {
+  // We can only perform this search when we have a safe deposit ID.
+  if (isUnsafeDepositId(targetDepositId))
+    throw new Error(
+      `Target deposit ID ${targetDepositId} is deterministic and therefore unresolvable via a binary search.`
+    );
+
   // Resolve the deployment block number.
   const deploymentBlock = spokePool.deploymentBlock;
 
@@ -110,13 +116,13 @@ export async function getBlockRangeForDepositId(
   });
 
   // Define a mapping of block numbers to number of deposits at that block. This saves repeated lookups.
-  const queriedIds: Record<number, number> = {};
+  const queriedIds: Record<number, BigNumber> = {};
 
   // Define a llambda function to get the deposit ID at a block number. This function will first check the
   // queriedIds cache to see if the deposit ID at the block number has already been queried. If not, it will
   // make an eth_call request to get the deposit ID at the block number. It will then cache the deposit ID
   // in the queriedIds cache.
-  const _getDepositIdAtBlock = async (blockNumber: number): Promise<number> => {
+  const _getDepositIdAtBlock = async (blockNumber: number): Promise<BigNumber> => {
     queriedIds[blockNumber] ??= await spokePool._getDepositIdAtBlock(blockNumber);
     return queriedIds[blockNumber];
   };
@@ -129,7 +135,7 @@ export async function getBlockRangeForDepositId(
 
   // If the deposit ID at the initial high block is less than the target deposit ID, then we know that
   // the target deposit ID must be greater than the initial high block, so we can throw an error.
-  if (highestDepositIdInRange <= targetDepositId) {
+  if (highestDepositIdInRange.lte(targetDepositId)) {
     // initLow   = 5: Deposits Num: 10
     //                                     // targetId = 11  <- fail (triggers this error)          // 10 <= 11
     //                                     // targetId = 10  <- fail (triggers this error)          // 10 <= 10
@@ -141,7 +147,7 @@ export async function getBlockRangeForDepositId(
 
   // If the deposit ID at the initial low block is greater than the target deposit ID, then we know that
   // the target deposit ID must be less than the initial low block, so we can throw an error.
-  if (lowestDepositIdInRange > targetDepositId) {
+  if (lowestDepositIdInRange.gt(targetDepositId)) {
     // initLow   = 5: Deposits Num: 10
     // initLow-1 = 4: Deposits Num:  2
     //                                     // targetId = 1 <- fail (triggers this error)
@@ -155,7 +161,6 @@ export async function getBlockRangeForDepositId(
   // Define the low and high block numbers for the binary search.
   let low = initLow;
   let high = initHigh;
-
   // Define the number of searches performed so far.
   let searches = 0;
 
@@ -167,12 +172,12 @@ export async function getBlockRangeForDepositId(
     const midDepositId = await _getDepositIdAtBlock(mid);
 
     // Let's define the latest ID of the current midpoint block.
-    const accountedIdByMidBlock = midDepositId - 1;
+    const accountedIdByMidBlock = midDepositId.sub(bnOne);
 
     // If our target deposit ID is less than the smallest range of our
     // midpoint deposit ID range, then we know that the target deposit ID
     // must be in the lower half of the block range.
-    if (targetDepositId <= accountedIdByMidBlock) {
+    if (targetDepositId.lte(accountedIdByMidBlock)) {
       high = mid;
     }
     // If our target deposit ID is greater than the largest range of our
@@ -201,10 +206,11 @@ export async function getBlockRangeForDepositId(
  * @param blockTag The block number to search for the deposit ID at.
  * @returns The deposit ID.
  */
-export async function getDepositIdAtBlock(contract: Contract, blockTag: number): Promise<number> {
-  const depositIdAtBlock = await contract.numberOfDeposits({ blockTag });
+export async function getDepositIdAtBlock(contract: Contract, blockTag: number): Promise<BigNumber> {
+  const _depositIdAtBlock = await contract.numberOfDeposits({ blockTag });
+  const depositIdAtBlock = toBN(_depositIdAtBlock);
   // Sanity check to ensure that the deposit ID is an integer and is greater than or equal to zero.
-  if (!Number.isInteger(depositIdAtBlock) || depositIdAtBlock < 0) {
+  if (depositIdAtBlock.lt(bnZero)) {
     throw new Error("Invalid deposit count");
   }
   return depositIdAtBlock;
@@ -245,7 +251,7 @@ export function getRelayHashFromEvent(e: Deposit | Fill | SlowFillRequest): stri
   return getRelayDataHash(e, e.destinationChainId);
 }
 
-export function isUnsafeDepositId(depositId: number): boolean {
+export function isUnsafeDepositId(depositId: BigNumber): boolean {
   // SpokePool.unsafeDepositV3() produces a uint256 depositId by hashing the msg.sender, depositor and input
   // uint256 depositNonce. There is a possibility that this resultant uint256 is less than the maxSafeDepositId (i.e.
   // the maximum uint32 value) which makes it possible that an unsafeDepositV3's depositId can collide with a safe
@@ -414,4 +420,9 @@ export async function findFillEvent(
     destinationChainId,
   } as FillWithBlock;
   return fill;
+}
+
+// Determines if the input address (either a bytes32 or bytes20) is the zero address.
+export function isZeroAddress(address: string): boolean {
+  return address === ZERO_ADDRESS || address === ZERO_BYTES;
 }
