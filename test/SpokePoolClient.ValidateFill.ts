@@ -636,7 +636,7 @@ describe("SpokePoolClient: Fill Validation", function () {
     );
 
     // Override the deposit ID that we are "filling" to be > 1, the latest deposit ID in spoke pool 1.
-    await fillV3Relay(spokePool_2, { ...deposit, depositId: deposit.depositId + 1 }, relayer);
+    await fillV3Relay(spokePool_2, { ...deposit, depositId: deposit.depositId.add(1) }, relayer);
     await spokePoolClient2.update();
     const [fill] = spokePoolClient2.getFills();
 
