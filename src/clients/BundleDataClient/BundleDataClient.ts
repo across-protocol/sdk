@@ -734,8 +734,7 @@ export class BundleDataClient {
     const v3RelayHashes: {
       [relayHash: string]: {
         // Note: Since there are no partial fills in v3, there should only be one fill per relay hash.
-        // There should also only be one deposit per relay hash since deposit ID's can't be re-used on the
-        // same spoke pool. Moreover, the SpokePool blocks multiple slow fill requests, so
+        // Moreover, the SpokePool blocks multiple slow fill requests, so
         // there should also only be one slow fill request per relay hash.
         deposit?: V3DepositWithBlock;
         fill?: V3FillWithBlock;
@@ -1023,22 +1022,22 @@ export class BundleDataClient {
         //       unexecutable slow fill refund becuase that slow fill is no longer executable.
         const originBlockRange = getBlockRangeForChain(blockRangesForChains, originChainId, chainIds);
 
-        // We don't iterate through deposits again here because we only need to consider unique deposit hashes
-        // to look for pre-fills. Duplicate deposits could only have been pre-filled once.
         await mapAsync(
-          Object.values(v3RelayHashes).filter(
-            ({ deposit }) =>
-              deposit &&
-              deposit.originChainId === originChainId &&
-              deposit.destinationChainId === destinationChainId &&
-              deposit.blockNumber >= originBlockRange[0] &&
-              deposit.blockNumber <= originBlockRange[1] &&
-              !isZeroValueDeposit(deposit)
-          ),
-          async ({ deposit, fill, slowFillRequest }) => {
-            if (!deposit) throw new Error("Deposit should exist in relay hash dictionary.");
-            // We don't check here that this deposit is a duplicate because we are willing to refund a pre-fill
-            // even if this deposit is a duplicate. This is because a duplicate deposit for a pre-fill cannot get
+          originClient
+            .getDepositsForDestinationChainWithDuplicates(destinationChainId)
+            .filter(
+              (deposit) =>
+                deposit.blockNumber >= originBlockRange[0] &&
+                deposit.blockNumber <= originBlockRange[1] &&
+                !isZeroValueDeposit(deposit)
+            ),
+          async (deposit) => {
+            const relayDataHash = this.getRelayHashFromEvent(deposit);
+            if (!v3RelayHashes[relayDataHash]) throw new Error("Deposit should exist in relay hash dictionary.");
+            const { fill, slowFillRequest } = v3RelayHashes[relayDataHash];
+
+            // We are willing to refund a pre-fill multiple times for each duplicate deposit.
+            // This is because a duplicate deposit for a pre-fill cannot get
             // refunded to the depositor anymore because its fill status on-chain has changed to Filled. Therefore
             // any duplicate deposits result in a net loss of funds for the depositor and effectively pay out
             // the pre-filler.
@@ -1054,24 +1053,6 @@ export class BundleDataClient {
                   ...fill,
                   quoteTimestamp: deposit.quoteTimestamp,
                 });
-              }
-              return;
-            }
-
-            // If fill does not exist in memory but there is a slow fill request in memory, then we need to issue a
-            // slow fill leaf for the deposit. We can assume there was no fill preceding the slow fill request because
-            // slow fill requests cannot follow fills. If there were a fill following this request, we would have
-            // entered the above case. Again as with pre-fills, we should only consider slow fill requests that were
-            // in previous bundles.
-            if (slowFillRequest) {
-              if (_canCreateSlowFillLeaf(deposit) && slowFillRequest.blockNumber < destinationChainBlockRange[0]) {
-                // If deposit newly expired, then we can't create a slow fill leaf for it but we can
-                // create a deposit refund for it.
-                if (deposit.fillDeadline < bundleBlockTimestamps[destinationChainId][1]) {
-                  updateExpiredDepositsV3(expiredDepositsToRefundV3, deposit);
-                } else {
-                  validatedBundleSlowFills.push(deposit);
-                }
               }
               return;
             }
@@ -1109,7 +1090,10 @@ export class BundleDataClient {
                 // create a deposit refund for it.
                 if (deposit.fillDeadline < bundleBlockTimestamps[destinationChainId][1]) {
                   updateExpiredDepositsV3(expiredDepositsToRefundV3, deposit);
-                } else {
+                }
+                // If slow fill request exists in memory then make sure it wasn't in this bundle otherwise we
+                // would have already created a slow fill leaf for it.
+                else if (!slowFillRequest || slowFillRequest.blockNumber < destinationChainBlockRange[0]) {
                   validatedBundleSlowFills.push(deposit);
                 }
               }
