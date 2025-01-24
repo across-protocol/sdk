@@ -9,7 +9,7 @@
     "src"
   ],
   "engines": {
-    "node": ">=16.18.0"
+    "node": ">=20.18.0"
   },
   "scripts": {
     "start": "yarn typechain && nodemon -e ts,tsx,json,js,jsx --watch ./src --ignore ./dist --exec 'yarn dev'",
