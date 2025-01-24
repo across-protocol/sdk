@@ -34,7 +34,6 @@ import {
   bnUint32Max,
   isZeroValueDeposit,
   chainIsEvm,
-  isAddressBytes32,
 } from "../../utils";
 import winston from "winston";
 import {
@@ -90,6 +89,10 @@ function updateBundleFillsV3(
   repaymentChainId: number,
   repaymentToken: string
 ): void {
+  // It is impossible to refund a deposit if the repayment chain is EVM and the relayer is a non-evm address.
+  if (chainIsEvm(fill.repaymentChainId) && !utils.isAddress(fill.relayer)) {
+    return;
+  }
   if (!dict?.[repaymentChainId]?.[repaymentToken]) {
     assign(dict, [repaymentChainId, repaymentToken], {
       fills: [],
@@ -930,15 +933,11 @@ export class BundleDataClient {
                 return;
               }
               // If the fill's repayment address is not a valid EVM address and the repayment chain is an EVM chain, the fill is invalid.
-              if (chainIsEvm(fill.repaymentChainId) && isAddressBytes32(fill.relayer)) {
+              if (chainIsEvm(fill.repaymentChainId) && !utils.isAddress(fill.relayer)) {
                 const fillTransaction = await originClient.spokePool.provider.getTransaction(fill.transactionHash);
                 const originRelayer = fillTransaction.from;
-                this.logger.debug({
-                  at: "BundleDataClient#loadData",
-                  message: `${fill.relayer} is not a valid address on chain ${fill.repaymentChainId}. Falling back to ${originRelayer}.`,
-                });
                 // Repayment chain is still an EVM chain, but the msg.sender is a bytes32 address, so the fill is invalid.
-                if (isAddressBytes32(originRelayer)) {
+                if (!utils.isAddress(originRelayer)) {
                   bundleInvalidFillsV3.push(fill);
                   return;
                 }
@@ -949,12 +948,6 @@ export class BundleDataClient {
               // algorithm will not work.
               const historicalDeposit = await queryHistoricalDepositForFill(originClient, fill);
               if (!historicalDeposit.found) {
-                this.logger.debug({
-                  at: "BundleDataClient#loadData",
-                  message: "Could not binary search a historical deposit for fill.",
-                  fill,
-                  reason: historicalDeposit.reason,
-                });
                 bundleInvalidFillsV3.push(fill);
               } else {
                 const matchedDeposit = historicalDeposit.deposit;
