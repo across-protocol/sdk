@@ -1214,7 +1214,6 @@ export class BundleDataClient {
       const { destinationChainId } = deposit!;
       const destinationBlockRange = getBlockRangeForChain(blockRangesForChains, destinationChainId, chainIds);
 
-      // Only look for deposits that were mined before this bundle and that are newly expired.
       // If the fill deadline is lower than the bundle start block on the destination chain, then
       // we should assume it was marked "newly expired" and refunded in a previous bundle.
       if (
