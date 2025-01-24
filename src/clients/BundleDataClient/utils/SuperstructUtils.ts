@@ -92,6 +92,7 @@ const V3FillSS = {
   repaymentChainId: number(),
   relayExecutionInfo: V3RelayExecutionEventInfoSS,
   quoteTimestamp: number(),
+  messageHash: optional(string()),
 };
 
 const V3FillWithBlockSS = {
