@@ -14,7 +14,7 @@ import {
   SlowFillLeaf,
   SpeedUp,
 } from "../../interfaces";
-import { toBN, toBNWei, getCurrentTime, randomAddress, BigNumber, bnZero, bnOne } from "../../utils";
+import { toBN, toBNWei, getCurrentTime, randomAddress, BigNumber, bnZero, bnOne, bnMax } from "../../utils";
 import { SpokePoolClient, SpokePoolUpdate } from "../SpokePoolClient";
 import { HubPoolClient } from "../HubPoolClient";
 import { EventManager, EventOverrides, getEventManager } from "./MockEvents";
@@ -92,9 +92,6 @@ export class MockSpokePoolClient extends SpokePoolClient {
           events[idx].push(event);
         }
       });
-    const bnMax = (val: BigNumber, cmp: BigNumber) => {
-      return val.gt(cmp) ? val : cmp;
-    };
 
     // Update latestDepositIdQueried.
     const idx = eventsToQuery.indexOf("V3FundsDeposited");

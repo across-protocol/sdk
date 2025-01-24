@@ -208,8 +208,8 @@ export async function getBlockRangeForDepositId(
 export async function getDepositIdAtBlock(contract: Contract, blockTag: number): Promise<BigNumber> {
   const _depositIdAtBlock = await contract.numberOfDeposits({ blockTag });
   const depositIdAtBlock = toBN(_depositIdAtBlock);
-  // Sanity check to ensure that the deposit ID is an integer and is greater than or equal to zero.
-  if (!BigNumber.isBigNumber(depositIdAtBlock) || depositIdAtBlock.lt(bnZero)) {
+  // Sanity check to ensure that the deposit ID is greater than or equal to zero.
+  if (depositIdAtBlock.lt(bnZero)) {
     throw new Error("Invalid deposit count");
   }
   return depositIdAtBlock;
