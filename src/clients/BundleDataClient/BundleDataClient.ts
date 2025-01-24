@@ -849,8 +849,7 @@ export class BundleDataClient {
             updateBundleDepositsV3(bundleDepositsV3, deposit);
             // We don't check that fillDeadline >= bundleBlockTimestamps[destinationChainId][0] because
             // that would eliminate any deposits in this bundle with a very low fillDeadline like equal to 0
-            // for example. Those should be impossible to create but technically should be included in this
-            // bundle of refunded deposits.
+            // for example. Those should be included in this bundle of refunded deposits.
             if (deposit.fillDeadline < bundleBlockTimestamps[destinationChainId][1]) {
               expiredBundleDepositHashes.push(relayDataHash);
             }
