@@ -36,6 +36,7 @@ import {
   bnUint32Max,
   isZeroValueDeposit,
   findFillEvent,
+  isZeroValueFillOrSlowFillRequest,
 } from "../../utils";
 import winston from "winston";
 import {
@@ -820,7 +821,9 @@ export class BundleDataClient {
             // We can remove fills for deposits with input amount equal to zero because these will result in 0 refunded
             // tokens to the filler. We can't remove non-empty message deposit here in case there is a slow fill
             // request for the deposit, we'd want to see the fill took place.
-            .filter((fill) => fill.blockNumber <= destinationChainBlockRange[1] && !isZeroValueDeposit(fill)),
+            .filter(
+              (fill) => fill.blockNumber <= destinationChainBlockRange[1] && !isZeroValueFillOrSlowFillRequest(fill)
+            ),
           async (fill) => {
             const relayDataHash = this.getRelayHashFromEvent(fill);
             fillCounter++;
@@ -915,7 +918,10 @@ export class BundleDataClient {
         await forEachAsync(
           destinationClient
             .getSlowFillRequestsForOriginChain(originChainId)
-            .filter((request) => request.blockNumber <= destinationChainBlockRange[1] && !isZeroValueDeposit(request)),
+            .filter(
+              (request) =>
+                request.blockNumber <= destinationChainBlockRange[1] && !isZeroValueFillOrSlowFillRequest(request)
+            ),
           async (slowFillRequest: SlowFillRequestWithBlock) => {
             const relayDataHash = this.getRelayHashFromEvent(slowFillRequest);
 

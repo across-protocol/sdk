@@ -137,15 +137,21 @@ export function isZeroValueDeposit(deposit: Pick<Deposit, "inputAmount" | "messa
   return deposit.inputAmount.eq(0) && isMessageEmpty(deposit.message);
 }
 
+export function isZeroValueFillOrSlowFillRequest(e: Pick<Fill | SlowFillRequest, "inputAmount" | "message">): boolean {
+  return e.inputAmount.eq(0) && isFillOrSlowFillRequestMessageEmpty(e.message);
+}
+
 /**
  * Determines if a message is empty or not.
  * @param message The message to check.
  * @returns True if the message is empty, false otherwise.
  */
 export function isMessageEmpty(message = EMPTY_MESSAGE): boolean {
-  // An empty message on a deposit should be "" or "0x" while message hashes are emitted in Fills and SlowFillRequests
-  // so an empty message hash will be 32 bytes of 0.
-  return message === "" || message === "0x" || message === EMPTY_MESSAGE_HASH;
+  return message === "" || message === "0x";
+}
+
+export function isFillOrSlowFillRequestMessageEmpty(message: string): boolean {
+  return message === EMPTY_MESSAGE_HASH;
 }
 
 /**
