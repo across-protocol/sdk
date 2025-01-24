@@ -334,7 +334,7 @@ export async function findFillBlock(
 ): Promise<number | undefined> {
   const { provider } = spokePool;
   highBlockNumber ??= await provider.getBlockNumber();
-  assert(highBlockNumber > lowBlockNumber, `Block numbers out of range (${lowBlockNumber} > ${highBlockNumber})`);
+  assert(highBlockNumber > lowBlockNumber, `Block numbers out of range (${lowBlockNumber} >= ${highBlockNumber})`);
 
   // In production the chainId returned from the provider matches 1:1 with the actual chainId. Querying the provider
   // object saves an RPC query becasue the chainId is cached by StaticJsonRpcProvider instances. In hre, the SpokePool
