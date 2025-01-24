@@ -3,6 +3,7 @@ import { Result } from "@ethersproject/abi";
 import { Contract, Event, EventFilter } from "ethers";
 import { Log, SortableEvent } from "../interfaces";
 import { delay } from "./common";
+import { isDefined, toBN, BigNumberish } from "./";
 
 const maxRetries = 3;
 const retrySleepTime = 10;
@@ -57,6 +58,13 @@ export function spreadEvent(args: Result | Record<string, unknown>): { [key: str
   }
   if (returnedObject.rootBundleId) {
     returnedObject.rootBundleId = Number(returnedObject.rootBundleId);
+  }
+  // If depositId is included in the event, cast it to a BigNumber. Need to check if it is defined since the deposit ID can
+  // be 0, which would still make this evaluate as false.
+  if (isDefined(returnedObject.depositId)) {
+    // Assuming a numeric output, we can safely cast the unknown to BigNumberish since the depositId will either be a uint32 (and therefore a TypeScript `number`),
+    // or a uint256 (and therefore an ethers BigNumber).
+    returnedObject.depositId = toBN(returnedObject.depositId as BigNumberish);
   }
 
   return returnedObject;
