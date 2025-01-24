@@ -1158,9 +1158,9 @@ export class BundleDataClient {
     });
     start = performance.now();
 
-    // Add any newly expired deposits to the list of expired deposits to refund.
-    // For these refunds, we need to check whether there was a slow fill created for it in a previous bundle
-    // that is now unexecutable and replaced by a new expired deposit refund.
+    // For all deposits older than this bundle, we need to check if they expired in this bundle and if they did,
+    // whether there was a slow fill created for it in a previous bundle that is now unexecutable and replaced
+    // by a new expired deposit refund.
     await forEachAsync(olderDepositHashes, async (relayDataHash) => {
       const { deposit, slowFillRequest, fill } = v3RelayHashes[relayDataHash];
       assert(isDefined(deposit), "Deposit should exist in relay hash dictionary.");
