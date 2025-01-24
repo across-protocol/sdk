@@ -1099,6 +1099,12 @@ export class BundleDataClient {
             // the fill occurred in a previous bundle.
             if (fill) {
               if (!isSlowFill(fill) && fill.blockNumber < destinationChainBlockRange[0]) {
+                // TODO: Make sure this is the first time we have seen this deposit and that this is not a
+                // duplicate deposit. Otherwise duplicate deposits can be used to refund fillers multiple times.
+                // This check wouldn't be necessary if pre-fills cannot precede deposits by more than the 
+                // fillDeadlineBuffer. In this case, we'd always have duplicate deposits and the original deposit
+                // in-memory and therefore we can check if this is the first deposit.
+
                 // If fill is in the current bundle then we can assume there is already a refund for it, so only
                 // include this pre fill if the fill is in an older bundle. If fill is after this current bundle, then
                 // we won't consider it, following the previous treatment of fills after the bundle block range.
@@ -1117,6 +1123,10 @@ export class BundleDataClient {
             // in previous bundles.
             if (slowFillRequest) {
               if (_canCreateSlowFillLeaf(deposit) && slowFillRequest.blockNumber < destinationChainBlockRange[0]) {
+                // TODO: Make sure this is the first time we have seen this deposit and that this is not a
+                // duplicate deposit. This isn't as critical as with pre-fills because a slow fill leaf can only be
+                // executed once for a unique relay data hash.
+
                 validatedBundleSlowFills.push(deposit);
               }
               return;
