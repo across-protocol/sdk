@@ -58,13 +58,7 @@ type DataCache = Record<string, Promise<LoadDataReturnValue>>;
 // V3 dictionary helper functions
 function updateExpiredDepositsV3(dict: ExpiredDepositsToRefundV3, deposit: V3DepositWithBlock): void {
   // A deposit refund for a deposit is invalid if the depositor has a bytes32 address input for an EVM chain. It is valid otherwise.
-  const refundIsValid = (deposit: V3DepositWithBlock) => {
-    return (
-      (utils.isAddress(deposit.depositor) && chainIsEvm(deposit.originChainId)) || !chainIsEvm(deposit.originChainId)
-    );
-  };
-
-  if (!refundIsValid(deposit)) {
+  if (chainIsEvm(deposit.originChainId) && !utils.isAddress(deposit.depositor)) {
     return;
   }
   const { originChainId, inputToken } = deposit;
