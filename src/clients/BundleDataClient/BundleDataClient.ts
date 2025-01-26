@@ -770,6 +770,8 @@ export class BundleDataClient {
           }
           depositCounter++;
           const relayDataHash = this.getRelayHashFromEvent(deposit);
+
+          // Duplicate deposits are treated like normal deposits.
           if (!v3RelayHashes[relayDataHash]) {
             v3RelayHashes[relayDataHash] = {
               deposit: deposit,
@@ -786,6 +788,8 @@ export class BundleDataClient {
             return;
           }
 
+          // Evaluate all expired deposits after fetching fill statuses,
+          // since we can't know for certain whether an expired deposit was filled a long time ago.
           if (deposit.blockNumber >= originChainBlockRange[0]) {
             bundleDepositHashes.push(relayDataHash);
             updateBundleDepositsV3(bundleDepositsV3, deposit);
