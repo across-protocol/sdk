@@ -1,7 +1,7 @@
 import hre from "hardhat";
 import { SpokePoolClient } from "../src/clients";
 import { Deposit } from "../src/interfaces";
-import { bnOne, findFillBlock, getNetworkName } from "../src/utils";
+import { bnOne, bnZero, findFillBlock, getNetworkName } from "../src/utils";
 import { EMPTY_MESSAGE, ZERO_ADDRESS } from "../src/constants";
 import { originChainId, destinationChainId } from "./constants";
 import {
@@ -48,7 +48,7 @@ describe("SpokePoolClient: Fills", function () {
     const spokePoolTime = Number(await spokePool.getCurrentTime());
     const outputAmount = toBNWei(1);
     deposit = {
-      depositId: 0,
+      depositId: bnZero,
       originChainId,
       destinationChainId,
       depositor: depositor.address,
@@ -69,7 +69,7 @@ describe("SpokePoolClient: Fills", function () {
 
   it("Correctly fetches fill data single fill, single chain", async function () {
     await fillV3Relay(spokePool, deposit, relayer1);
-    await fillV3Relay(spokePool, { ...deposit, depositId: deposit.depositId + 1 }, relayer1);
+    await fillV3Relay(spokePool, { ...deposit, depositId: deposit.depositId.add(1) }, relayer1);
     await spokePoolClient.update();
     expect(spokePoolClient.getFills().length).to.equal(2);
   });
@@ -132,7 +132,7 @@ describe("SpokePoolClient: Fills", function () {
     const srcChain = getNetworkName(deposit.originChainId);
     await assertPromiseError(
       findFillBlock(spokePool, deposit, lateBlockNumber),
-      `${srcChain} deposit ${deposit.depositId} filled on `
+      `${srcChain} deposit ${deposit.depositId.toString()} filled on `
     );
 
     // Should assert if highBlock <= lowBlock.

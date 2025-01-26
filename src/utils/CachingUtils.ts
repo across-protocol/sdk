@@ -52,5 +52,5 @@ export async function setDepositInCache(
  */
 export function getDepositKey(bridgeEvent: Deposit | Fill | SlowFillRequest): string {
   const relayHash = getRelayHashFromEvent(bridgeEvent);
-  return `deposit_${bridgeEvent.originChainId}_${bridgeEvent.depositId}_${relayHash}`;
+  return `deposit_${bridgeEvent.originChainId}_${bridgeEvent.depositId.toString()}_${relayHash}`;
 }
