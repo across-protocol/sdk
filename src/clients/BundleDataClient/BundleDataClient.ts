@@ -878,6 +878,18 @@ export class BundleDataClient {
                   isDefined(v3RelayHashes[relayDataHash].deposit),
                   "Deposit should exist in relay hash dictionary."
                 );
+                // If the fill's repayment address is not a valid EVM address and the repayment chain is an EVM chain, the fill is invalid.
+                if (chainIsEvm(fill.repaymentChainId) && !isValidEvmAddress(fill.relayer)) {
+                  const fillTransaction = await originClient.spokePool.provider.getTransaction(fill.transactionHash);
+                  const originRelayer = fillTransaction.from;
+                  // Repayment chain is still an EVM chain, but the msg.sender is a bytes32 address, so the fill is invalid.
+                  if (!isValidEvmAddress(originRelayer)) {
+                    bundleInvalidFillsV3.push(fill);
+                    return;
+                  }
+                  // Otherwise, assume the relayer to be repaid is the msg.sender.
+                  fill.relayer = originRelayer;
+                }
                 // At this point, the v3RelayHashes entry already existed meaning that there is a matching deposit,
                 // so this fill is validated.
                 v3RelayHashes[relayDataHash].fill = fill;
