@@ -10,6 +10,7 @@ import {
   pattern,
   boolean,
   defaulted,
+  union,
   type,
 } from "superstruct";
 import { BigNumber } from "../../../utils";
@@ -17,7 +18,7 @@ import { BigNumber } from "../../../utils";
 const PositiveIntegerStringSS = pattern(string(), /\d+/);
 const Web3AddressSS = pattern(string(), /^0x[a-fA-F0-9]{40}$/);
 
-const BigNumberType = coerce(instance(BigNumber), string(), (value) => {
+const BigNumberType = coerce(instance(BigNumber), union([string(), number()]), (value) => {
   try {
     // Attempt to convert the string to a BigNumber
     return BigNumber.from(value);
@@ -91,6 +92,7 @@ const V3FillSS = {
   repaymentChainId: number(),
   relayExecutionInfo: V3RelayExecutionEventInfoSS,
   quoteTimestamp: number(),
+  messageHash: optional(string()),
 };
 
 const V3FillWithBlockSS = {

@@ -338,7 +338,7 @@ describe("RelayFeeCalculator: Composable Bridging", function () {
           outputToken: destErc20.address,
           recipient: testContract.address,
           quoteTimestamp: 1,
-          depositId: 1000000,
+          depositId: BigNumber.from(1000000),
           depositor: depositor.address,
           originChainId: 10,
           destinationChainId: 1,

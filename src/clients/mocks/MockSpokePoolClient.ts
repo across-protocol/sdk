@@ -14,7 +14,7 @@ import {
   SlowFillLeaf,
   SpeedUp,
 } from "../../interfaces";
-import { toBN, toBNWei, getCurrentTime, randomAddress, BigNumber, bnZero, bnOne } from "../../utils";
+import { toBN, toBNWei, getCurrentTime, randomAddress, BigNumber, bnZero, bnMax } from "../../utils";
 import { SpokePoolClient, SpokePoolUpdate } from "../SpokePoolClient";
 import { HubPoolClient } from "../HubPoolClient";
 import { EventManager, EventOverrides, getEventManager } from "./MockEvents";
@@ -92,9 +92,6 @@ export class MockSpokePoolClient extends SpokePoolClient {
           events[idx].push(event);
         }
       });
-    const bnMax = (val: BigNumber, cmp: BigNumber) => {
-      return val.gt(cmp) ? val : cmp;
-    };
 
     // Update latestDepositIdQueried.
     const idx = eventsToQuery.indexOf("V3FundsDeposited");
@@ -125,8 +122,7 @@ export class MockSpokePoolClient extends SpokePoolClient {
     const { blockNumber, transactionIndex } = deposit;
     let { depositId, depositor, destinationChainId, inputToken, inputAmount, outputToken, outputAmount } = deposit;
     depositId ??= this.numberOfDeposits;
-    assert(depositId.gte(this.numberOfDeposits), `${depositId} < ${this.numberOfDeposits}`);
-    this.numberOfDeposits = depositId.add(bnOne);
+    assert(depositId.gte(this.numberOfDeposits), `${depositId.toString()} < ${this.numberOfDeposits}`);
 
     destinationChainId ??= random(1, 42161, false);
     depositor ??= randomAddress();

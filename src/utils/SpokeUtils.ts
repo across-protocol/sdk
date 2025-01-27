@@ -3,10 +3,8 @@ import { BytesLike, Contract, PopulatedTransaction, providers, utils as ethersUt
 import { CHAIN_IDs, MAX_SAFE_DEPOSIT_ID, ZERO_ADDRESS, ZERO_BYTES } from "../constants";
 import { Deposit, Fill, FillStatus, RelayData, SlowFillRequest } from "../interfaces";
 import { SpokePoolClient } from "../clients";
-import { toBytes32 } from "./AddressUtils";
 import { chunk } from "./ArrayUtils";
 import { BigNumber, toBN, bnOne, bnZero } from "./BigNumberUtils";
-import { isMessageEmpty } from "./DepositUtils";
 import { isDefined } from "./TypeGuards";
 import { getNetworkName } from "./NetworkUtils";
 
@@ -155,7 +153,7 @@ export async function getBlockRangeForDepositId(
     //                                     // targetId = 2 <- pass (does not trigger this error)
     //                                     // targetId = 3 <- pass (does not trigger this error)
     throw new Error(
-      `Target depositId is less than the initial low block (${targetDepositId} > ${lowestDepositIdInRange})`
+      `Target depositId is less than the initial low block (${targetDepositId.toString()} > ${lowestDepositIdInRange})`
     );
   }
 
@@ -211,7 +209,7 @@ export async function getDepositIdAtBlock(contract: Contract, blockTag: number):
   const _depositIdAtBlock = await contract.numberOfDeposits({ blockTag });
   const depositIdAtBlock = toBN(_depositIdAtBlock);
   // Sanity check to ensure that the deposit ID is an integer and is greater than or equal to zero.
-  if (!BigNumber.isBigNumber(depositIdAtBlock) || depositIdAtBlock.lt(bnZero)) {
+  if (depositIdAtBlock.lt(bnZero)) {
     throw new Error("Invalid deposit count");
   }
   return depositIdAtBlock;
@@ -223,7 +221,6 @@ export async function getDepositIdAtBlock(contract: Contract, blockTag: number):
  * @param destinationChainId Supplementary destination chain ID required by V3 hashes.
  * @returns The corresponding RelayData hash.
  */
-/*
 export function getRelayDataHash(relayData: RelayData, destinationChainId: number): string {
   return ethersUtils.keccak256(
     ethersUtils.defaultAbiCoder.encode(
@@ -245,40 +242,6 @@ export function getRelayDataHash(relayData: RelayData, destinationChainId: numbe
         "uint256 destinationChainId",
       ],
       [relayData, destinationChainId]
-    )
-  );
-}
-*/
-
-/**
- * Compute the RelayData hash for a fill assuming with new bytes32 spoke pool events.
- * This can be used to determine the fill status.
- * @param relayData RelayData information that is used to complete a fill.
- * @param destinationChainId Supplementary destination chain ID required by V3 hashes.
- * @returns The corresponding RelayData hash.
- */
-export function getRelayDataHash(relayData: RelayData, destinationChainId: number): string {
-  const updatedRelayData = convertToUpdatedRelayData(relayData);
-  return ethersUtils.keccak256(
-    ethersUtils.defaultAbiCoder.encode(
-      [
-        "tuple(" +
-          "bytes32 depositor," +
-          "bytes32 recipient," +
-          "bytes32 exclusiveRelayer," +
-          "bytes32 inputToken," +
-          "bytes32 outputToken," +
-          "uint256 inputAmount," +
-          "uint256 outputAmount," +
-          "uint256 originChainId," +
-          "uint256 depositId," +
-          "uint32 fillDeadline," +
-          "uint32 exclusivityDeadline," +
-          "bytes32 message" +
-          ")",
-        "uint256 destinationChainId",
-      ],
-      [updatedRelayData, destinationChainId]
     )
   );
 }
@@ -319,7 +282,9 @@ export async function relayFillStatus(
 
   if (![FillStatus.Unfilled, FillStatus.RequestedSlowFill, FillStatus.Filled].includes(fillStatus)) {
     const { originChainId, depositId } = relayData;
-    throw new Error(`relayFillStatus: Unexpected fillStatus for ${originChainId} deposit ${depositId} (${fillStatus})`);
+    throw new Error(
+      `relayFillStatus: Unexpected fillStatus for ${originChainId} deposit ${depositId.toString()} (${fillStatus})`
+    );
   }
 
   return fillStatus;
@@ -408,7 +373,7 @@ export async function findFillBlock(
   if (initialFillStatus === FillStatus.Filled) {
     const { depositId, originChainId } = relayData;
     const [srcChain, dstChain] = [getNetworkName(originChainId), getNetworkName(destinationChainId)];
-    throw new Error(`${srcChain} deposit ${depositId} filled on ${dstChain} before block ${lowBlockNumber}`);
+    throw new Error(`${srcChain} deposit ${depositId.toString()} filled on ${dstChain} before block ${lowBlockNumber}`);
   }
 
   // Find the leftmost block where filledAmount equals the deposit amount.
@@ -424,35 +389,6 @@ export async function findFillBlock(
   } while (lowBlockNumber < highBlockNumber);
 
   return lowBlockNumber;
-}
-
-/*
- * Determines if the relay data provided contains bytes32 for addresses or standard evm 20-byte addresses.
- * Returns true if the relay data has bytes32 address representations.
- */
-export function isUpdatedRelayData(relayData: RelayData) {
-  const isValidBytes32 = (maybeBytes32: string) => {
-    return ethersUtils.isBytes(maybeBytes32) && maybeBytes32.length === 66;
-  };
-  // Return false if the depositor is not a bytes32. Assume that if any field is a bytes32 in relayData, then all fields will be bytes32 representations.
-  return isValidBytes32(relayData.depositor);
-}
-
-/*
- * Converts an input relay data to to the version with 32-byte address representations.
- */
-export function convertToUpdatedRelayData(relayData: RelayData): RelayData {
-  return isUpdatedRelayData(relayData)
-    ? relayData
-    : {
-        ...relayData,
-        depositor: toBytes32(relayData.depositor),
-        recipient: toBytes32(relayData.recipient),
-        exclusiveRelayer: toBytes32(relayData.exclusiveRelayer),
-        inputToken: toBytes32(relayData.inputToken),
-        outputToken: toBytes32(relayData.outputToken),
-        message: isMessageEmpty(relayData.message) ? ZERO_BYTES : ethersUtils.keccak256(relayData.message),
-      };
 }
 
 // Determines if the input address (either a bytes32 or bytes20) is the zero address.
