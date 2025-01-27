@@ -2,7 +2,6 @@ import hre from "hardhat";
 import { SpokePoolClient } from "../src/clients";
 import { Deposit } from "../src/interfaces";
 import { bnOne, bnZero, findFillBlock, findFillEvent, getNetworkName } from "../src/utils";
-import { bnOne, bnZero, findFillBlock, getNetworkName } from "../src/utils";
 import { EMPTY_MESSAGE, ZERO_ADDRESS } from "../src/constants";
 import { originChainId, destinationChainId } from "./constants";
 import {
