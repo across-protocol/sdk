@@ -140,7 +140,7 @@ export async function getBlockRangeForDepositId(
     //                                     // targetId = 10  <- fail (triggers this error)          // 10 <= 10
     //                                     // targetId = 09  <- pass (does not trigger this error)  // 10 <= 09
     throw new Error(
-      `Target depositId is greater than the initial high block (${targetDepositId} > ${highestDepositIdInRange})`
+      `Target depositId is greater than the initial high block (${targetDepositId.toString()} > ${highestDepositIdInRange.toString()})`
     );
   }
 
@@ -153,7 +153,7 @@ export async function getBlockRangeForDepositId(
     //                                     // targetId = 2 <- pass (does not trigger this error)
     //                                     // targetId = 3 <- pass (does not trigger this error)
     throw new Error(
-      `Target depositId is less than the initial low block (${targetDepositId.toString()} > ${lowestDepositIdInRange})`
+      `Target depositId is less than the initial low block (${targetDepositId.toString()} > ${lowestDepositIdInRange.toString()})`
     );
   }
 
