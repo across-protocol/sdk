@@ -14,6 +14,7 @@ import {
   ExpiredDepositsToRefundV3,
   Clients,
   CombinedRefunds,
+  FillWithBlock,
 } from "../../interfaces";
 import { AcrossConfigStoreClient, SpokePoolClient } from "..";
 import {
@@ -686,6 +687,23 @@ export class BundleDataClient {
       }
     });
 
+    // Verify that a fill sent to an EVM chain has a 20 byte address. If the fill does not, then attempt
+    // to repay the `msg.sender` of the relay transaction. Otherwise, add it to invalid fills.
+    const verifyFill = async (fill: FillWithBlock, spokePoolClient: SpokePoolClient) => {
+      if (chainIsEvm(fill.repaymentChainId) && !isValidEvmAddress(fill.relayer)) {
+        const fillTransaction = await spokePoolClient.spokePool.provider.getTransaction(fill.transactionHash);
+        const originRelayer = fillTransaction.from;
+        // Repayment chain is still an EVM chain, but the msg.sender is a bytes32 address, so the fill is invalid.
+        if (!isValidEvmAddress(originRelayer)) {
+          bundleInvalidFillsV3.push(fill);
+          return false;
+        }
+        // Otherwise, assume the relayer to be repaid is the msg.sender.
+        fill.relayer = originRelayer;
+      }
+      return true;
+    };
+
     // If spoke pools are V3 contracts, then we need to compute start and end timestamps for block ranges to
     // determine whether fillDeadlines have expired.
     // @dev Going to leave this in so we can see impact on run-time in prod. This makes (allChainIds.length * 2) RPC
@@ -878,17 +896,9 @@ export class BundleDataClient {
                   isDefined(v3RelayHashes[relayDataHash].deposit),
                   "Deposit should exist in relay hash dictionary."
                 );
-                // If the fill's repayment address is not a valid EVM address and the repayment chain is an EVM chain, the fill is invalid.
-                if (chainIsEvm(fill.repaymentChainId) && !isValidEvmAddress(fill.relayer)) {
-                  const fillTransaction = await originClient.spokePool.provider.getTransaction(fill.transactionHash);
-                  const originRelayer = fillTransaction.from;
-                  // Repayment chain is still an EVM chain, but the msg.sender is a bytes32 address, so the fill is invalid.
-                  if (!isValidEvmAddress(originRelayer)) {
-                    bundleInvalidFillsV3.push(fill);
-                    return;
-                  }
-                  // Otherwise, assume the relayer to be repaid is the msg.sender.
-                  fill.relayer = originRelayer;
+                // If the fill is invalid due to relayer repayment addresses, return early.
+                if (!verifyFill(fill, originClient)) {
+                  return;
                 }
                 // At this point, the v3RelayHashes entry already existed meaning that there is a matching deposit,
                 // so this fill is validated.
@@ -939,16 +949,8 @@ export class BundleDataClient {
                 return;
               }
               // If the fill's repayment address is not a valid EVM address and the repayment chain is an EVM chain, the fill is invalid.
-              if (chainIsEvm(fill.repaymentChainId) && !isValidEvmAddress(fill.relayer)) {
-                const fillTransaction = await originClient.spokePool.provider.getTransaction(fill.transactionHash);
-                const originRelayer = fillTransaction.from;
-                // Repayment chain is still an EVM chain, but the msg.sender is a bytes32 address, so the fill is invalid.
-                if (!isValidEvmAddress(originRelayer)) {
-                  bundleInvalidFillsV3.push(fill);
-                  return;
-                }
-                // Otherwise, assume the relayer to be repaid is the msg.sender.
-                fill.relayer = originRelayer;
+              if (!verifyFill(fill, originClient)) {
+                return;
               }
               // If deposit is using the deterministic relay hash feature, then the following binary search-based
               // algorithm will not work. However, it is impossible to emit an infinite fill deadline using
