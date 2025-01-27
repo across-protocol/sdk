@@ -14,6 +14,7 @@ import {
   toBN,
   bnOne,
   isUnsafeDepositId,
+  isZeroAddress,
 } from "../utils";
 import {
   paginatedEventQuery,
@@ -117,6 +118,12 @@ export class SpokePoolClient extends BaseAbstractClient {
       "RequestedSpeedUpV3Deposit",
       "RequestedV3SlowFill",
       "FilledV3Relay",
+
+      // Upgrade-only events
+      "FundsDeposited",
+      "RequestedSpeedUpDeposit",
+      "RequestedSlowFill",
+      "FilledRelay",
     ];
     return Object.fromEntries(
       this.spokePool.interface.fragments
@@ -545,12 +552,17 @@ export class SpokePoolClient extends BaseAbstractClient {
       }
     }
 
-    if (eventsToQuery.includes("V3FundsDeposited")) {
-      const depositEvents = queryResults[eventsToQuery.indexOf("V3FundsDeposited")] ?? [];
+    // Performs the indexing of a deposit-like spoke pool event.
+    const queryDepositEvents = async (eventName: string) => {
+      const depositEvents = queryResults[eventsToQuery.indexOf(eventName)] ?? [];
       if (depositEvents.length > 0) {
-        this.log("debug", `Using ${depositEvents.length} newly queried deposit events for chain ${this.chainId}`, {
-          earliestEvent: depositEvents[0].blockNumber,
-        });
+        this.log(
+          "debug",
+          `Using ${depositEvents.length} newly queried ${eventName} deposit events for chain ${this.chainId}`,
+          {
+            earliestEvent: depositEvents[0].blockNumber,
+          }
+        );
       }
 
       // For each deposit, resolve its quoteTimestamp to a block number on the HubPool.
@@ -574,7 +586,7 @@ export class SpokePoolClient extends BaseAbstractClient {
         deposit.fromLiteChain = this.isOriginLiteChain(deposit);
         deposit.toLiteChain = this.isDestinationLiteChain(deposit);
 
-        if (deposit.outputToken === ZERO_ADDRESS) {
+        if (isZeroAddress(deposit.outputToken)) {
           deposit.outputToken = this.getDestinationTokenForDeposit(deposit);
         }
 
@@ -590,11 +602,21 @@ export class SpokePoolClient extends BaseAbstractClient {
           this.latestDepositIdQueried = deposit.depositId;
         }
       }
+    };
+
+    // Query "legacy" V3FundsDeposited events.
+    if (eventsToQuery.includes("V3FundsDeposited")) {
+      await queryDepositEvents("V3FundsDeposited");
     }
 
-    // Update deposits with speed up requests from depositor.
-    if (eventsToQuery.includes("RequestedSpeedUpV3Deposit")) {
-      const speedUpEvents = queryResults[eventsToQuery.indexOf("RequestedSpeedUpV3Deposit")] ?? [];
+    // Additionally query the newer FundsDeposited spoke pool events.
+    if (eventsToQuery.includes("FundsDeposited")) {
+      await queryDepositEvents("FundsDeposited");
+    }
+
+    // Performs indexing of a "speed up deposit"-like event.
+    const querySpeedUpDepositEvents = (eventName: string) => {
+      const speedUpEvents = queryResults[eventsToQuery.indexOf(eventName)] ?? [];
 
       for (const event of speedUpEvents) {
         const speedUp = { ...spreadEventWithBlockNumber(event), originChainId: this.chainId } as SpeedUpWithBlock;
@@ -611,10 +633,19 @@ export class SpokePoolClient extends BaseAbstractClient {
           this.depositHashes[depositHash] = this.appendMaxSpeedUpSignatureToDeposit(depositDataAssociatedWithSpeedUp);
         }
       }
+    };
+
+    // Update deposits with speed up requests from depositor.
+    if (eventsToQuery.includes("RequestedSpeedUpV3Deposit")) {
+      querySpeedUpDepositEvents("RequestedSpeedUpV3Deposit");
+    }
+    if (eventsToQuery.includes("RequestedSpeedUpDeposit")) {
+      querySpeedUpDepositEvents("RequestedSpeedUpDeposit");
     }
 
-    if (eventsToQuery.includes("RequestedV3SlowFill")) {
-      const slowFillRequests = queryResults[eventsToQuery.indexOf("RequestedV3SlowFill")];
+    // Performs indexing of "requested slow fill"-like events.
+    const queryRequestedSlowFillEvents = (eventName: string) => {
+      const slowFillRequests = queryResults[eventsToQuery.indexOf(eventName)];
       for (const event of slowFillRequests) {
         const slowFillRequest = {
           ...spreadEventWithBlockNumber(event),
@@ -627,13 +658,22 @@ export class SpokePoolClient extends BaseAbstractClient {
         }
         this.slowFillRequests[relayDataHash] = slowFillRequest;
       }
+    };
+
+    // Update slow fill requests with ingested event data.
+    if (eventsToQuery.includes("RequestedV3SlowFill")) {
+      queryRequestedSlowFillEvents("RequestedV3SlowFill");
+    }
+    if (eventsToQuery.includes("RequestedSlowFill")) {
+      queryRequestedSlowFillEvents("RequestedSlowFill");
     }
 
-    if (eventsToQuery.includes("FilledV3Relay")) {
-      const fillEvents = queryResults[eventsToQuery.indexOf("FilledV3Relay")] ?? [];
+    // Performs indexing of filled relay-like events.
+    const queryFilledRelayEvents = (eventName: string) => {
+      const fillEvents = queryResults[eventsToQuery.indexOf(eventName)] ?? [];
 
       if (fillEvents.length > 0) {
-        this.log("debug", `Using ${fillEvents.length} newly queried fill events for chain ${this.chainId}`, {
+        this.log("debug", `Using ${fillEvents.length} newly queried ${eventName} events for chain ${this.chainId}`, {
           earliestEvent: fillEvents[0].blockNumber,
         });
       }
@@ -649,6 +689,14 @@ export class SpokePoolClient extends BaseAbstractClient {
         assign(this.fills, [fill.originChainId], [fill]);
         assign(this.depositHashesToFills, [this.getDepositHash(fill)], [fill]);
       }
+    };
+
+    // Update observed fills with ingested event data.
+    if (eventsToQuery.includes("FilledV3Relay")) {
+      queryFilledRelayEvents("FilledV3Relay");
+    }
+    if (eventsToQuery.includes("FilledRelay")) {
+      queryFilledRelayEvents("FilledRelay");
     }
 
     if (eventsToQuery.includes("EnabledDepositRoute")) {
@@ -800,15 +848,30 @@ export class SpokePoolClient extends BaseAbstractClient {
     );
 
     const tStart = Date.now();
-    const query = await paginatedEventQuery(
-      this.spokePool,
-      this.spokePool.filters.V3FundsDeposited(null, null, null, null, null, depositId),
-      {
-        fromBlock: searchBounds.low,
-        toBlock: searchBounds.high,
-        maxBlockLookBack: this.eventSearchConfig.maxBlockLookBack,
-      }
-    );
+    // Check both V3FundsDeposited and FundsDeposited events to look for a specified depositId.
+    const query = (
+      await Promise.all([
+        paginatedEventQuery(
+          this.spokePool,
+          this.spokePool.filters.V3FundsDeposited(null, null, null, null, null, depositId),
+          {
+            fromBlock: searchBounds.low,
+            toBlock: searchBounds.high,
+            maxBlockLookBack: this.eventSearchConfig.maxBlockLookBack,
+          }
+        ),
+
+        paginatedEventQuery(
+          this.spokePool,
+          this.spokePool.filters.FundsDeposited(null, null, null, null, null, depositId),
+          {
+            fromBlock: searchBounds.low,
+            toBlock: searchBounds.high,
+            maxBlockLookBack: this.eventSearchConfig.maxBlockLookBack,
+          }
+        ),
+      ])
+    ).flat();
     const tStop = Date.now();
 
     const event = query.find(({ args }) => args["depositId"].eq(depositId));
@@ -829,7 +892,7 @@ export class SpokePoolClient extends BaseAbstractClient {
       toLiteChain: true, // To be updated immediately afterwards.
     } as DepositWithBlock;
 
-    if (deposit.outputToken === ZERO_ADDRESS) {
+    if (isZeroAddress(deposit.outputToken)) {
       deposit.outputToken = this.getDestinationTokenForDeposit(deposit);
     }
     deposit.fromLiteChain = this.isOriginLiteChain(deposit);

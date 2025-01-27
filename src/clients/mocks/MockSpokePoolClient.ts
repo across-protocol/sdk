@@ -14,7 +14,7 @@ import {
   SlowFillLeaf,
   SpeedUp,
 } from "../../interfaces";
-import { toBN, toBNWei, getCurrentTime, randomAddress, BigNumber, bnZero, bnOne, bnMax } from "../../utils";
+import { toBN, toBNWei, getCurrentTime, randomAddress, BigNumber, bnZero, bnMax } from "../../utils";
 import { SpokePoolClient, SpokePoolUpdate } from "../SpokePoolClient";
 import { HubPoolClient } from "../HubPoolClient";
 import { EventManager, EventOverrides, getEventManager } from "./MockEvents";
@@ -123,7 +123,6 @@ export class MockSpokePoolClient extends SpokePoolClient {
     let { depositId, depositor, destinationChainId, inputToken, inputAmount, outputToken, outputAmount } = deposit;
     depositId ??= this.numberOfDeposits;
     assert(depositId.gte(this.numberOfDeposits), `${depositId.toString()} < ${this.numberOfDeposits}`);
-    this.numberOfDeposits = depositId.add(bnOne);
 
     destinationChainId ??= random(1, 42161, false);
     depositor ??= randomAddress();

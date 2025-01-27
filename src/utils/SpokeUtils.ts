@@ -274,7 +274,9 @@ export async function relayFillStatus(
   destinationChainId?: number
 ): Promise<FillStatus> {
   destinationChainId ??= await spokePool.chainId();
-  const hash = getRelayDataHash(relayData, destinationChainId!);
+  assert(isDefined(destinationChainId));
+
+  const hash = getRelayDataHash(relayData, destinationChainId);
   const _fillStatus = await spokePool.fillStatuses(hash, { blockTag });
   const fillStatus = Number(_fillStatus);
 
