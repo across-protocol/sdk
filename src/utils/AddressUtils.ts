@@ -38,3 +38,18 @@ export function compareAddressesSimple(addressA?: string, addressB?: string): bo
   }
   return addressA.toLowerCase() === addressB.toLowerCase();
 }
+
+export function isValidEvmAddress(address: string): boolean {
+  if (utils.isAddress(address)) {
+    return true;
+  }
+  // We may throw an error here if zero pad fails. This will happen if the address is not a bytes20 address.
+  // We may also throw at getAddress if the input address is not possibly an evm address (i.e. incorrect hex characters).
+  // For both cases, return false.
+  try {
+    const evmAddress = utils.hexZeroPad(utils.hexStripZeros(address), 20);
+    return utils.isAddress(utils.getAddress(evmAddress));
+  } catch (_e) {
+    return false;
+  }
+}
