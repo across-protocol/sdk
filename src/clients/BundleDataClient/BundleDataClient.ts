@@ -1023,18 +1023,11 @@ export class BundleDataClient {
         // - Or, has the deposit expired in this bundle? If so, then we need to issue an expiry refund.
         // - And finally, has the deposit been slow filled? If so, then we need to issue a slow fill leaf
         //   for this "pre-slow-fill-request" if this request took place in a previous bundle.
-        const originBlockRange = getBlockRangeForChain(blockRangesForChains, originChainId, chainIds);
-
         await mapAsync(
           bundleDepositHashes.filter((depositHash) => {
             const { deposit } = v3RelayHashes[depositHash];
             return (
-              deposit &&
-              deposit.originChainId === originChainId &&
-              deposit.destinationChainId === destinationChainId &&
-              deposit.blockNumber >= originBlockRange[0] &&
-              deposit.blockNumber <= originBlockRange[1] &&
-              !isZeroValueDeposit(deposit)
+              deposit && deposit.originChainId === originChainId && deposit.destinationChainId === destinationChainId
             );
           }),
           async (depositHash) => {

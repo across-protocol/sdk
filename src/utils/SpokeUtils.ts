@@ -347,7 +347,6 @@ export async function findFillBlock(
   // In production the chainId returned from the provider matches 1:1 with the actual chainId. Querying the provider
   // object saves an RPC query becasue the chainId is cached by StaticJsonRpcProvider instances. In hre, the SpokePool
   // may be configured with a different chainId than what is returned by the provider.
-  // @todo Sub out actual chain IDs w/ CHAIN_IDs constants
   const destinationChainId = Object.values(CHAIN_IDs).includes(relayData.originChainId)
     ? (await provider.getNetwork()).chainId
     : Number(await spokePool.chainId());
