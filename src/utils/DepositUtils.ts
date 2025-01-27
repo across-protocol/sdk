@@ -65,7 +65,7 @@ export async function queryHistoricalDepositForFill(
     return {
       found: false,
       code: InvalidFill.DepositIdInvalid,
-      reason: `Deposit ID ${depositId} is outside of SpokePool bounds [${lowId},${highId}].`,
+      reason: `Deposit ID ${depositId.toString()} is outside of SpokePool bounds [${lowId},${highId}].`,
     };
   }
 
@@ -82,14 +82,14 @@ export async function queryHistoricalDepositForFill(
       return {
         found: false,
         code: InvalidFill.FillMismatch,
-        reason: `Fill for ${originChain} deposit ID ${depositId} is invalid (${match.reason}).`,
+        reason: `Fill for ${originChain} deposit ID ${depositId.toString()} is invalid (${match.reason}).`,
       };
     }
 
     return {
       found: false,
       code: InvalidFill.DepositIdNotFound,
-      reason: `${originChain} deposit ID ${depositId} not found in SpokePoolClient event buffer.`,
+      reason: `${originChain} deposit ID ${depositId.toString()} not found in SpokePoolClient event buffer.`,
     };
   }
 

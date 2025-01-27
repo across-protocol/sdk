@@ -1335,7 +1335,11 @@ export class BundleDataClient {
   // spoke pool contract. However, this internal function is used to uniquely identify a bridging event
   // for speed since its easier to build a string from the event data than to hash it.
   private getRelayHashFromEvent(event: V3DepositWithBlock | V3FillWithBlock | SlowFillRequestWithBlock): string {
-    return `${event.depositor}-${event.recipient}-${event.exclusiveRelayer}-${event.inputToken}-${event.outputToken}-${event.inputAmount}-${event.outputAmount}-${event.originChainId}-${event.depositId}-${event.fillDeadline}-${event.exclusivityDeadline}-${event.message}-${event.destinationChainId}`;
+    return `${event.depositor}-${event.recipient}-${event.exclusiveRelayer}-${event.inputToken}-${event.outputToken}-${
+      event.inputAmount
+    }-${event.outputAmount}-${event.originChainId}-${event.depositId.toString()}-${event.fillDeadline}-${
+      event.exclusivityDeadline
+    }-${event.message}-${event.destinationChainId}`;
   }
 
   async getBundleBlockTimestamps(
