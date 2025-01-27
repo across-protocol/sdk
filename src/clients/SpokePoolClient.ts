@@ -67,6 +67,7 @@ export class SpokePoolClient extends BaseAbstractClient {
   protected currentTime = 0;
   protected oldestTime = 0;
   protected depositHashes: { [depositHash: string]: DepositWithBlock } = {};
+  protected duplicateDepositHashes: { [depositHash: string]: DepositWithBlock[] } = {};
   protected depositHashesToFills: { [depositHash: string]: FillWithBlock[] } = {};
   protected speedUps: { [depositorAddress: string]: { [depositId: string]: SpeedUpWithBlock[] } } = {};
   protected slowFillRequests: { [relayDataHash: string]: SlowFillRequestWithBlock } = {};
@@ -126,12 +127,27 @@ export class SpokePoolClient extends BaseAbstractClient {
   }
 
   /**
-   * Retrieves a list of deposits from the SpokePool contract destined for the given destination chain ID.
+   * Retrieves a list of unique deposits from the SpokePool contract destined for the given destination chain ID.
    * @param destinationChainId The destination chain ID.
    * @returns A list of deposits.
    */
   public getDepositsForDestinationChain(destinationChainId: number): DepositWithBlock[] {
     return Object.values(this.depositHashes).filter((deposit) => deposit.destinationChainId === destinationChainId);
+  }
+
+  /**
+   * Returns a list of all deposits including any duplicate ones. Designed only to be used in use cases where
+   * all deposits are required, regardless of duplicates. For example, the Dataworker can use this to refund
+   * expired deposits including for duplicates.
+   * @param destinationChainId
+   * @returns A list of deposits
+   */
+  public getDepositsForDestinationChainWithDuplicates(destinationChainId: number): DepositWithBlock[] {
+    const deposits = this.getDepositsForDestinationChain(destinationChainId);
+    const duplicateDeposits = Object.values(this.duplicateDepositHashes).filter(
+      (deposits) => deposits.length > 0 && deposits[0].destinationChainId === destinationChainId
+    );
+    return sortEventsAscendingInPlace(deposits.concat(duplicateDeposits.flat()));
   }
 
   /**
@@ -579,6 +595,7 @@ export class SpokePoolClient extends BaseAbstractClient {
         }
 
         if (this.depositHashes[this.getDepositHash(deposit)] !== undefined) {
+          assign(this.duplicateDepositHashes, [this.getDepositHash(deposit)], [deposit]);
           continue;
         }
         assign(this.depositHashes, [this.getDepositHash(deposit)], deposit);
