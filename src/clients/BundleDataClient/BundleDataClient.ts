@@ -785,10 +785,10 @@ export class BundleDataClient {
           depositCounter++;
           const relayDataHash = this.getRelayHashFromEvent(deposit);
           if (v3RelayHashes[relayDataHash]) {
-            // If we've seen this deposit before, then skip this deposit. This can happen if our RPC provider
-            // gives us bad data.
+            // Skip this deposit if we've seen it before. This may happen if our RPC provider gives us bad data.
             return;
           }
+
           // Even if deposit is not in bundle block range, store all deposits we can see in memory in this
           // convenient dictionary.
           v3RelayHashes[relayDataHash] = {
@@ -814,8 +814,8 @@ export class BundleDataClient {
             updateBundleDepositsV3(bundleDepositsV3, deposit);
             // We don't check that fillDeadline >= bundleBlockTimestamps[destinationChainId][0] because
             // that would eliminate any deposits in this bundle with a very low fillDeadline like equal to 0
-            // for example. Those should be impossible to create but technically should be included in this
-            // bundle of refunded deposits.
+            // for example.
+            // @todo: Verify that this only happens if no fill was sourced.
             if (deposit.fillDeadline < bundleBlockTimestamps[destinationChainId][1]) {
               expiredBundleDepositHashes.add(relayDataHash);
             }
@@ -914,9 +914,14 @@ export class BundleDataClient {
                 bundleInvalidFillsV3.push(fill);
                 return;
               }
+
               // If deposit is using the deterministic relay hash feature, then the following binary search-based
               // algorithm will not work. However, it is impossible to emit an infinite fill deadline using
               // the unsafeDepositV3 function so there is no need to catch the special case.
+
+              // @todo: Verify that we only search for sequential deposits here.
+              // To support non-sequential deposits it might be necessary to narrow the block range by a fill `fillDeadline`
+              // heuristic.
               const historicalDeposit = await queryHistoricalDepositForFill(originClient, fill);
               if (!historicalDeposit.found) {
                 bundleInvalidFillsV3.push(fill);
@@ -993,6 +998,7 @@ export class BundleDataClient {
                 // If there is no fill matching the relay hash, then this might be a valid slow fill request
                 // that we should produce a slow fill leaf for. Check if the slow fill request is in the
                 // destination chain block range and that the underlying deposit has not expired yet.
+                // @todo: Must ensure to protect against issuing a slow fill for a pre-fill.
                 if (
                   slowFillRequest.blockNumber >= destinationChainBlockRange[0] &&
                   // Deposit must not have expired in this bundle.
@@ -1010,7 +1016,7 @@ export class BundleDataClient {
             v3RelayHashes[relayDataHash] = {
               deposit: undefined,
               fill: undefined,
-              slowFillRequest: slowFillRequest,
+              slowFillRequest,
             };
 
             // TODO: We might be able to remove the following historical query once we deprecate the deposit()
@@ -1054,6 +1060,7 @@ export class BundleDataClient {
               // Note: we don't need to query for a historical fill at this point because a fill
               // cannot precede a slow fill request and if the fill came after the slow fill request,
               // we would have seen it already because we would have processed it in the loop above.
+              // @todo: Verify this, because a slow fill request _can_ now preceed a pre-fill.
               if (
                 // Input and Output tokens must be equivalent on the deposit for this to be slow filled.
                 !this.clients.hubPoolClient.areTokensEquivalent(
