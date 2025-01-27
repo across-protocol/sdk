@@ -32,6 +32,8 @@ import {
   mapAsync,
   bnUint32Max,
   isZeroValueDeposit,
+  chainIsEvm,
+  isValidEvmAddress,
 } from "../../utils";
 import winston from "winston";
 import {
@@ -55,6 +57,10 @@ type DataCache = Record<string, Promise<LoadDataReturnValue>>;
 
 // V3 dictionary helper functions
 function updateExpiredDepositsV3(dict: ExpiredDepositsToRefundV3, deposit: V3DepositWithBlock): void {
+  // A deposit refund for a deposit is invalid if the depositor has a bytes32 address input for an EVM chain. It is valid otherwise.
+  if (chainIsEvm(deposit.originChainId) && !isValidEvmAddress(deposit.depositor)) {
+    return;
+  }
   const { originChainId, inputToken } = deposit;
   if (!dict?.[originChainId]?.[inputToken]) {
     assign(dict, [originChainId, inputToken], []);
@@ -77,6 +83,10 @@ function updateBundleFillsV3(
   repaymentChainId: number,
   repaymentToken: string
 ): void {
+  // It is impossible to refund a deposit if the repayment chain is EVM and the relayer is a non-evm address.
+  if (chainIsEvm(fill.repaymentChainId) && !isValidEvmAddress(fill.relayer)) {
+    return;
+  }
   if (!dict?.[repaymentChainId]?.[repaymentToken]) {
     assign(dict, [repaymentChainId, repaymentToken], {
       fills: [],
@@ -807,6 +817,8 @@ export class BundleDataClient {
 
           // If deposit block is within origin chain bundle block range, then save as bundle deposit.
           // If deposit is in bundle and it has expired, additionally save it as an expired deposit.
+          // Note: if the `depositor` field in the expired deposit is an invalid address, e.g. a bytes32 address on an EVM
+          // chain, then the deposit refund is invalid and ignored.
           // If deposit is not in the bundle block range, then save it as an older deposit that
           // may have expired.
           if (deposit.blockNumber >= originChainBlockRange[0] && deposit.blockNumber <= originChainBlockRange[1]) {
@@ -913,6 +925,18 @@ export class BundleDataClient {
               if (!INFINITE_FILL_DEADLINE.eq(fill.fillDeadline)) {
                 bundleInvalidFillsV3.push(fill);
                 return;
+              }
+              // If the fill's repayment address is not a valid EVM address and the repayment chain is an EVM chain, the fill is invalid.
+              if (chainIsEvm(fill.repaymentChainId) && !isValidEvmAddress(fill.relayer)) {
+                const fillTransaction = await originClient.spokePool.provider.getTransaction(fill.transactionHash);
+                const originRelayer = fillTransaction.from;
+                // Repayment chain is still an EVM chain, but the msg.sender is a bytes32 address, so the fill is invalid.
+                if (!isValidEvmAddress(originRelayer)) {
+                  bundleInvalidFillsV3.push(fill);
+                  return;
+                }
+                // Otherwise, assume the relayer to be repaid is the msg.sender.
+                fill.relayer = originRelayer;
               }
               // If deposit is using the deterministic relay hash feature, then the following binary search-based
               // algorithm will not work. However, it is impossible to emit an infinite fill deadline using
