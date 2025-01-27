@@ -153,7 +153,7 @@ export async function getBlockRangeForDepositId(
     //                                     // targetId = 2 <- pass (does not trigger this error)
     //                                     // targetId = 3 <- pass (does not trigger this error)
     throw new Error(
-      `Target depositId is less than the initial low block (${targetDepositId} > ${lowestDepositIdInRange})`
+      `Target depositId is less than the initial low block (${targetDepositId.toString()} > ${lowestDepositIdInRange})`
     );
   }
 
@@ -280,7 +280,9 @@ export async function relayFillStatus(
 
   if (![FillStatus.Unfilled, FillStatus.RequestedSlowFill, FillStatus.Filled].includes(fillStatus)) {
     const { originChainId, depositId } = relayData;
-    throw new Error(`relayFillStatus: Unexpected fillStatus for ${originChainId} deposit ${depositId} (${fillStatus})`);
+    throw new Error(
+      `relayFillStatus: Unexpected fillStatus for ${originChainId} deposit ${depositId.toString()} (${fillStatus})`
+    );
   }
 
   return fillStatus;
@@ -369,7 +371,7 @@ export async function findFillBlock(
   if (initialFillStatus === FillStatus.Filled) {
     const { depositId, originChainId } = relayData;
     const [srcChain, dstChain] = [getNetworkName(originChainId), getNetworkName(destinationChainId)];
-    throw new Error(`${srcChain} deposit ${depositId} filled on ${dstChain} before block ${lowBlockNumber}`);
+    throw new Error(`${srcChain} deposit ${depositId.toString()} filled on ${dstChain} before block ${lowBlockNumber}`);
   }
 
   // Find the leftmost block where filledAmount equals the deposit amount.
