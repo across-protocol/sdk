@@ -2,6 +2,7 @@ import hre from "hardhat";
 import { SpokePoolClient } from "../src/clients";
 import { Deposit } from "../src/interfaces";
 import { bnOne, bnZero, findFillBlock, findFillEvent, getNetworkName } from "../src/utils";
+import { bnOne, bnZero, findFillBlock, getNetworkName } from "../src/utils";
 import { EMPTY_MESSAGE, ZERO_ADDRESS } from "../src/constants";
 import { originChainId, destinationChainId } from "./constants";
 import {
@@ -150,7 +151,7 @@ describe("SpokePoolClient: Fills", function () {
     const srcChain = getNetworkName(deposit.originChainId);
     await assertPromiseError(
       findFillBlock(spokePool, deposit, lateBlockNumber),
-      `${srcChain} deposit ${deposit.depositId} filled on `
+      `${srcChain} deposit ${deposit.depositId.toString()} filled on `
     );
 
     // Should assert if highBlock <= lowBlock.
