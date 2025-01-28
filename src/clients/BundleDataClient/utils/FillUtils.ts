@@ -65,8 +65,17 @@ export async function verifyFillRepayment(
     hubPoolClient.chainId,
     chainIdListForBundleEvaluationBlockNumbers
   )[1];
+  const fromLiteChain = hubPoolClient.configStoreClient
+    .getLiteChainIdIndicesForBlock(endBlockForMainnet)
+    .includes(fill.originChainId);
+  const repaymentChainId = fromLiteChain ? fill.originChainId : fill.repaymentChainId;
   // Return undefined if the requested repayment chain ID is not recognized by the hub pool.
-  if (!hubPoolClient.isValidChainId(fill.repaymentChainId, endBlockForMainnet)) {
+  if (!hubPoolClient.isValidChainId(repaymentChainId, endBlockForMainnet)) {
+    return undefined;
+  }
+  // If the fill was from a lite chain, the origin chain is an EVM chain, and the relayer address is invalid
+  // for EVM chains, then we cannot refund the relayer, so mark the fill as invalid.
+  if (fromLiteChain && chainIsEvm(fill.originChainId) && !isValidEvmAddress(fill.relayer)) {
     return undefined;
   }
   const updatedFill = _.cloneDeep(fill);
