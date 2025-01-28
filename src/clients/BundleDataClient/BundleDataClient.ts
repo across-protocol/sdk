@@ -897,7 +897,8 @@ export class BundleDataClient {
                   "Deposit should exist in relay hash dictionary."
                 );
                 // If the fill is invalid due to relayer repayment addresses, return early.
-                if (!(await verifyFill(fill, destinationClient))) {
+                const fillHasValidRepaymentAddress = await verifyFill(fill, destinationClient);
+                if (!fillHasValidRepaymentAddress) {
                   return;
                 }
                 // At this point, the v3RelayHashes entry already existed meaning that there is a matching deposit,
@@ -949,7 +950,8 @@ export class BundleDataClient {
                 return;
               }
               // If the fill's repayment address is not a valid EVM address and the repayment chain is an EVM chain, the fill is invalid.
-              if (!(await verifyFill(fill, destinationClient))) {
+              const fillHasValidRepaymentAddress = await verifyFill(fill, destinationClient);
+              if (!fillHasValidRepaymentAddress) {
                 return;
               }
               // If deposit is using the deterministic relay hash feature, then the following binary search-based
