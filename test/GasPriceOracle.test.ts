@@ -7,7 +7,7 @@ import { encodeFunctionData } from "viem";
 import { getGasPriceEstimate } from "../src/gasPriceOracle";
 import { BigNumber, bnZero, fixedPointAdjustment, parseUnits, toBNWei } from "../src/utils";
 import { assertPromiseError, expect, makeCustomTransport, randomAddress } from "../test/utils";
-import { MockedProvider } from "./utils/provider";
+import { MockedProvider } from "../src/providers/mockProvider";
 import { MockPolygonGasStationBaseFee, MockPolygonGasStationPriorityFee } from "../src/gasPriceOracle/adapters/polygon";
 dotenv.config({ path: ".env" });
 
