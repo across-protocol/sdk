@@ -320,6 +320,12 @@ export class BundleDataClient {
         continue;
       }
       const chainIndex = chainIds.indexOf(chainId);
+
+      // @todo This function does not account for pre-fill refunds as it is optimized for speed. The way to detect
+      // pre-fill refunds is to load all deposits that are unmatched by fills in the spoke pool client's memory
+      // and then query the FillStatus on-chain, but that might slow this function down too much. For now, we
+      // will live with this expected inaccuracy as it should be small. The pre-fill would have to precede the deposit
+      // by more than the caller's event lookback window which is expected to be unlikely.
       this.spokePoolClients[chainId]
         .getFills()
         .filter((fill) => {
