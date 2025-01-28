@@ -54,6 +54,7 @@ import {
   V3DepositWithBlock,
   V3FillWithBlock,
 } from "./utils";
+import { PRE_FILL_MIN_CONFIG_STORE_VERSION } from "../../constants";
 
 // max(uint256) - 1
 export const INFINITE_FILL_DEADLINE = bnUint32Max;
@@ -1051,98 +1052,113 @@ export class BundleDataClient {
         // - Or, has the deposit expired in this bundle? If so, then we need to issue an expiry refund.
         // - And finally, has the deposit been slow filled? If so, then we need to issue a slow fill leaf
         //   for this "pre-slow-fill-request" if this request took place in a previous bundle.
-        await mapAsync(
-          bundleDepositHashes.filter((depositHash) => {
-            const { deposit } = v3RelayHashes[depositHash];
-            return (
-              deposit && deposit.originChainId === originChainId && deposit.destinationChainId === destinationChainId
-            );
-          }),
-          async (depositHash) => {
-            const { deposit, fill, slowFillRequest } = v3RelayHashes[depositHash];
-            if (!deposit) throw new Error("Deposit should exist in relay hash dictionary.");
+        const startBlockForMainnet = getBlockRangeForChain(
+          blockRangesForChains,
+          this.clients.hubPoolClient.chainId,
+          this.chainIdListForBundleEvaluationBlockNumbers
+        )[0];
+        const versionAtProposalBlock =
+          this.clients.configStoreClient.getConfigStoreVersionForBlock(startBlockForMainnet);
 
-            // We are willing to refund a pre-fill multiple times for each duplicate deposit.
-            // This is because a duplicate deposit for a pre-fill cannot get
-            // refunded to the depositor anymore because its fill status on-chain has changed to Filled. Therefore
-            // any duplicate deposits result in a net loss of funds for the depositor and effectively pay out
-            // the pre-filler.
+        // @todo Only start refunding pre-fills and slow fill requests after a config store version is activated. We
+        // should remove this check once we've advanced far beyond the version bump block.
+        if (
+          versionAtProposalBlock >= PRE_FILL_MIN_CONFIG_STORE_VERSION ||
+          process.env.FORCE_PRE_FILL_REFUNDS === "true"
+        ) {
+          await mapAsync(
+            bundleDepositHashes.filter((depositHash) => {
+              const { deposit } = v3RelayHashes[depositHash];
+              return (
+                deposit && deposit.originChainId === originChainId && deposit.destinationChainId === destinationChainId
+              );
+            }),
+            async (depositHash) => {
+              const { deposit, fill, slowFillRequest } = v3RelayHashes[depositHash];
+              if (!deposit) throw new Error("Deposit should exist in relay hash dictionary.");
 
-            // If fill exists in memory, then the only case in which we need to create a refund is if the
-            // the fill occurred in a previous bundle. There are no expiry refunds for filled deposits.
-            if (fill) {
-              if (fill.blockNumber < destinationChainBlockRange[0] && !isSlowFill(fill)) {
-                // If fill is in the current bundle then we can assume there is already a refund for it, so only
-                // include this pre fill if the fill is in an older bundle. If fill is after this current bundle, then
-                // we won't consider it, following the previous treatment of fills after the bundle block range.
-                validatedBundleV3Fills.push({
-                  ...fill,
-                  quoteTimestamp: deposit.quoteTimestamp,
-                });
+              // We are willing to refund a pre-fill multiple times for each duplicate deposit.
+              // This is because a duplicate deposit for a pre-fill cannot get
+              // refunded to the depositor anymore because its fill status on-chain has changed to Filled. Therefore
+              // any duplicate deposits result in a net loss of funds for the depositor and effectively pay out
+              // the pre-filler.
+
+              // If fill exists in memory, then the only case in which we need to create a refund is if the
+              // the fill occurred in a previous bundle. There are no expiry refunds for filled deposits.
+              if (fill) {
+                if (fill.blockNumber < destinationChainBlockRange[0] && !isSlowFill(fill)) {
+                  // If fill is in the current bundle then we can assume there is already a refund for it, so only
+                  // include this pre fill if the fill is in an older bundle. If fill is after this current bundle, then
+                  // we won't consider it, following the previous treatment of fills after the bundle block range.
+                  validatedBundleV3Fills.push({
+                    ...fill,
+                    quoteTimestamp: deposit.quoteTimestamp,
+                  });
+                }
+                return;
               }
-              return;
-            }
 
-            // If a slow fill request exists in memory, then we know the deposit has not been filled because fills
-            // must follow slow fill requests and we would have seen the fill already if it existed. Therefore,
-            // we can conclude that either the deposit has expired and we need to create a deposit expiry refund, or
-            // we need to create a slow fill leaf for the deposit. The latter should only happen if the slow fill request
-            // took place in a prior bundle otherwise we would have already created a slow fill leaf for it.
-            if (slowFillRequest) {
-              if (_depositIsExpired(deposit)) {
+              // If a slow fill request exists in memory, then we know the deposit has not been filled because fills
+              // must follow slow fill requests and we would have seen the fill already if it existed. Therefore,
+              // we can conclude that either the deposit has expired and we need to create a deposit expiry refund, or
+              // we need to create a slow fill leaf for the deposit. The latter should only happen if the slow fill request
+              // took place in a prior bundle otherwise we would have already created a slow fill leaf for it.
+              if (slowFillRequest) {
+                if (_depositIsExpired(deposit)) {
+                  updateExpiredDepositsV3(expiredDepositsToRefundV3, deposit);
+                } else if (
+                  slowFillRequest.blockNumber < destinationChainBlockRange[0] &&
+                  _canCreateSlowFillLeaf(deposit)
+                ) {
+                  validatedBundleSlowFills.push(deposit);
+                }
+                return;
+              }
+
+              // So at this point in the code, there is no fill or slow fill request in memory for this deposit.
+              // We need to check its fill status on-chain to figure out whether to issue a refund or a slow fill leaf.
+              // We can assume at this point that all fills or slow fill requests, if found, were in previous bundles
+              // because the spoke pool client lookback would have returned this entire bundle of events and stored
+              // them into the relay hash dictionary.
+              const fillStatus = await _getFillStatusForDeposit(deposit, destinationChainBlockRange[1]);
+
+              // If deposit was filled, then we need to issue a refund for it.
+              if (fillStatus === FillStatus.Filled) {
+                // We need to find the fill event to issue a refund to the right relayer and repayment chain,
+                // or msg.sender if relayer address is invalid for the repayment chain.
+                const prefill = (await findFillEvent(
+                  destinationClient.spokePool,
+                  deposit,
+                  destinationClient.deploymentBlock,
+                  destinationClient.latestBlockSearched
+                )) as unknown as FillWithBlock;
+                if (!isSlowFill(prefill)) {
+                  validatedBundleV3Fills.push({
+                    ...prefill,
+                    quoteTimestamp: deposit.quoteTimestamp,
+                  });
+                }
+              }
+              // If deposit is not filled and its newly expired, we can create a deposit refund for it.
+              // We don't check that fillDeadline >= bundleBlockTimestamps[destinationChainId][0] because
+              // that would eliminate any deposits in this bundle with a very low fillDeadline like equal to 0
+              // for example. Those should be included in this bundle of refunded deposits.
+              else if (_depositIsExpired(deposit)) {
                 updateExpiredDepositsV3(expiredDepositsToRefundV3, deposit);
-              } else if (
-                slowFillRequest.blockNumber < destinationChainBlockRange[0] &&
-                _canCreateSlowFillLeaf(deposit)
-              ) {
-                validatedBundleSlowFills.push(deposit);
               }
-              return;
-            }
-
-            // So at this point in the code, there is no fill or slow fill request in memory for this deposit.
-            // We need to check its fill status on-chain to figure out whether to issue a refund or a slow fill leaf.
-            // We can assume at this point that all fills or slow fill requests, if found, were in previous bundles
-            // because the spoke pool client lookback would have returned this entire bundle of events and stored
-            // them into the relay hash dictionary.
-            const fillStatus = await _getFillStatusForDeposit(deposit, destinationChainBlockRange[1]);
-
-            // If deposit was filled, then we need to issue a refund for it.
-            if (fillStatus === FillStatus.Filled) {
-              // We need to find the fill event to issue a refund to the right relayer and repayment chain,
-              // or msg.sender if relayer address is invalid for the repayment chain.
-              const prefill = (await findFillEvent(
-                destinationClient.spokePool,
-                deposit,
-                destinationClient.deploymentBlock,
-                destinationClient.latestBlockSearched
-              )) as unknown as FillWithBlock;
-              if (!isSlowFill(prefill)) {
-                validatedBundleV3Fills.push({
-                  ...prefill,
-                  quoteTimestamp: deposit.quoteTimestamp,
-                });
+              // If slow fill requested, then issue a slow fill leaf for the deposit.
+              else if (fillStatus === FillStatus.RequestedSlowFill) {
+                // Input and Output tokens must be equivalent on the deposit for this to be slow filled.
+                // Slow fill requests for deposits from or to lite chains are considered invalid
+                if (_canCreateSlowFillLeaf(deposit)) {
+                  // If deposit newly expired, then we can't create a slow fill leaf for it but we can
+                  // create a deposit refund for it.
+                  validatedBundleSlowFills.push(deposit);
+                }
               }
             }
-            // If deposit is not filled and its newly expired, we can create a deposit refund for it.
-            // We don't check that fillDeadline >= bundleBlockTimestamps[destinationChainId][0] because
-            // that would eliminate any deposits in this bundle with a very low fillDeadline like equal to 0
-            // for example. Those should be included in this bundle of refunded deposits.
-            else if (_depositIsExpired(deposit)) {
-              updateExpiredDepositsV3(expiredDepositsToRefundV3, deposit);
-            }
-            // If slow fill requested, then issue a slow fill leaf for the deposit.
-            else if (fillStatus === FillStatus.RequestedSlowFill) {
-              // Input and Output tokens must be equivalent on the deposit for this to be slow filled.
-              // Slow fill requests for deposits from or to lite chains are considered invalid
-              if (_canCreateSlowFillLeaf(deposit)) {
-                // If deposit newly expired, then we can't create a slow fill leaf for it but we can
-                // create a deposit refund for it.
-                validatedBundleSlowFills.push(deposit);
-              }
-            }
-          }
-        );
+          );
+        }
 
         // For all fills that came after a slow fill request, we can now check if the slow fill request
         // was a valid one and whether it was created in a previous bundle. If so, then it created a slow fill

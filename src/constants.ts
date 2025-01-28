@@ -26,8 +26,10 @@ export const SECONDS_PER_YEAR = 31557600; // 365.25 days per year.
  */
 export const HUBPOOL_CHAIN_ID = 1;
 
-// List of versions where certain UMIP features were deprecated
+// List of versions where certain UMIP features were deprecated or activated
 export const TRANSFER_THRESHOLD_MAX_CONFIG_STORE_VERSION = 1;
+
+export const PRE_FILL_MIN_CONFIG_STORE_VERSION = 5;
 
 // A hardcoded identifier used, by default, to tag all Arweave records.
 export const ARWEAVE_TAG_APP_NAME = "across-protocol";
