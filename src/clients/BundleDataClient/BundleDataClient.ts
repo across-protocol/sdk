@@ -692,14 +692,14 @@ export class BundleDataClient {
     const verifyFill = async (fill: FillWithBlock, spokePoolClient: SpokePoolClient) => {
       if (chainIsEvm(fill.repaymentChainId) && !isValidEvmAddress(fill.relayer)) {
         const fillTransaction = await spokePoolClient.spokePool.provider.getTransaction(fill.transactionHash);
-        const originRelayer = fillTransaction.from;
+        const destinationRelayer = fillTransaction.from;
         // Repayment chain is still an EVM chain, but the msg.sender is a bytes32 address, so the fill is invalid.
-        if (!isValidEvmAddress(originRelayer)) {
+        if (!isValidEvmAddress(destinationRelayer)) {
           bundleInvalidFillsV3.push(fill);
           return false;
         }
         // Otherwise, assume the relayer to be repaid is the msg.sender.
-        fill.relayer = originRelayer;
+        fill.relayer = destinationRelayer;
       }
       return true;
     };
