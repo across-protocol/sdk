@@ -56,6 +56,9 @@ export async function verifyFillRepayment(
   blockRangesForChains: number[][],
   chainIdListForBundleEvaluationBlockNumbers: number[]
 ): Promise<FillWithBlock | undefined> {
+  if (isSlowFill(fill)) {
+    return fill;
+  }
   // Save fill data and associate with repayment chain and L2 token refund should be denominated in.
   const endBlockForMainnet = getBlockRangeForChain(
     blockRangesForChains,
