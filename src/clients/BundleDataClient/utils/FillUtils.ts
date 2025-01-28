@@ -1,5 +1,7 @@
-import { Fill } from "../../../interfaces";
-import { getBlockRangeForChain, isSlowFill } from "../../../utils";
+import _ from "lodash";
+import { providers } from "ethers";
+import { Fill, FillWithBlock } from "../../../interfaces";
+import { getBlockRangeForChain, isSlowFill, chainIsEvm, isValidEvmAddress, isDefined } from "../../../utils";
 import { HubPoolClient } from "../../HubPoolClient";
 
 export function getRefundInformationFromFill(
@@ -43,4 +45,39 @@ export function getRefundInformationFromFill(
     chainToSendRefundTo,
     repaymentToken,
   };
+}
+
+// Verify that a fill sent to an EVM chain has a 20 byte address. If the fill does not, then attempt
+// to repay the `msg.sender` of the relay transaction. Otherwise, return undefined.
+export async function verifyFillRepayment(
+  fill: FillWithBlock,
+  destinationChainProvider: providers.Provider,
+  hubPoolClient: HubPoolClient,
+  blockRangesForChains: number[][],
+  chainIdListForBundleEvaluationBlockNumbers: number[]
+): Promise<FillWithBlock | undefined> {
+  // Save fill data and associate with repayment chain and L2 token refund should be denominated in.
+  const endBlockForMainnet = getBlockRangeForChain(
+    blockRangesForChains,
+    hubPoolClient.chainId,
+    chainIdListForBundleEvaluationBlockNumbers
+  )[1];
+  // Return undefined if the requested repayment chain ID is not recognized by the hub pool.
+  if (!hubPoolClient.isValidChainId(fill.repaymentChainId, endBlockForMainnet)) {
+    return undefined;
+  }
+  const updatedFill = _.cloneDeep(fill);
+  // If the fill requests repayment on an unsupported chain, return false. Lite chain validation happens in
+  // `getRefundInformationFromFill`.
+  if (chainIsEvm(updatedFill.repaymentChainId) && !isValidEvmAddress(updatedFill.relayer)) {
+    const fillTransaction = await destinationChainProvider.getTransaction(updatedFill.transactionHash);
+    const destinationRelayer = fillTransaction?.from;
+    // Repayment chain is still an EVM chain, but the msg.sender is a bytes32 address, so the fill is invalid.
+    if (!isDefined(destinationRelayer) || !isValidEvmAddress(destinationRelayer)) {
+      return undefined;
+    }
+    // Otherwise, assume the relayer to be repaid is the msg.sender.
+    updatedFill.relayer = destinationRelayer;
+  }
+  return updatedFill;
 }

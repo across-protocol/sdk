@@ -120,6 +120,12 @@ export class MockHubPoolClient extends HubPoolClient {
     this.tokenInfoToReturn = tokenInfo;
   }
 
+  isValidChainId(chainId: number, mainnetBlockToCheck: number): boolean {
+    chainId;
+    mainnetBlockToCheck;
+    return true;
+  }
+
   _update(eventNames: string[]): Promise<HubPoolUpdate> {
     // Generate new "on chain" responses.
     const latestBlockSearched = this.eventManager.blockNumber;

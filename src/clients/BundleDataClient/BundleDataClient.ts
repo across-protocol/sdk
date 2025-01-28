@@ -14,7 +14,6 @@ import {
   ExpiredDepositsToRefundV3,
   Clients,
   CombinedRefunds,
-  FillWithBlock,
 } from "../../interfaces";
 import { AcrossConfigStoreClient, SpokePoolClient } from "..";
 import {
@@ -49,6 +48,7 @@ import {
   prettyPrintV3SpokePoolEvents,
   V3DepositWithBlock,
   V3FillWithBlock,
+  verifyFillRepayment,
 } from "./utils";
 
 // max(uint256) - 1
@@ -688,23 +688,6 @@ export class BundleDataClient {
       }
     });
 
-    // Verify that a fill sent to an EVM chain has a 20 byte address. If the fill does not, then attempt
-    // to repay the `msg.sender` of the relay transaction. Otherwise, add it to invalid fills.
-    const verifyFill = async (fill: FillWithBlock, spokePoolClient: SpokePoolClient) => {
-      if (chainIsEvm(fill.repaymentChainId) && !isValidEvmAddress(fill.relayer)) {
-        const fillTransaction = await spokePoolClient.spokePool.provider.getTransaction(fill.transactionHash);
-        const destinationRelayer = fillTransaction.from;
-        // Repayment chain is still an EVM chain, but the msg.sender is a bytes32 address, so the fill is invalid.
-        if (!isValidEvmAddress(destinationRelayer)) {
-          bundleInvalidFillsV3.push(fill);
-          return false;
-        }
-        // Otherwise, assume the relayer to be repaid is the msg.sender.
-        fill.relayer = destinationRelayer;
-      }
-      return true;
-    };
-
     // If spoke pools are V3 contracts, then we need to compute start and end timestamps for block ranges to
     // determine whether fillDeadlines have expired.
     // @dev Going to leave this in so we can see impact on run-time in prod. This makes (allChainIds.length * 2) RPC
@@ -891,6 +874,18 @@ export class BundleDataClient {
             const relayDataHash = this.getRelayHashFromEvent(fill);
             fillCounter++;
 
+            // If the fill is invalid due to relayer repayment addresses, return early.
+            const updatedFill = await verifyFillRepayment(
+              fill,
+              destinationClient.spokePool.provider,
+              this.clients.hubPoolClient,
+              blockRangesForChains,
+              this.chainIdListForBundleEvaluationBlockNumbers
+            );
+            if (!isDefined(updatedFill)) {
+              bundleInvalidFillsV3.push(fill);
+              return;
+            }
             if (v3RelayHashes[relayDataHash]) {
               if (!v3RelayHashes[relayDataHash].fill) {
                 assert(
@@ -899,16 +894,10 @@ export class BundleDataClient {
                 );
                 // At this point, the v3RelayHashes entry already existed meaning that there is a matching deposit,
                 // so this fill is validated.
-                v3RelayHashes[relayDataHash].fill = fill;
-
-                // If the fill is invalid due to relayer repayment addresses, return early.
-                const fillHasValidRepaymentAddress = await verifyFill(fill, destinationClient);
-                if (!fillHasValidRepaymentAddress) {
-                  return;
-                }
-                if (fill.blockNumber >= destinationChainBlockRange[0]) {
+                v3RelayHashes[relayDataHash].fill = updatedFill;
+                if (updatedFill.blockNumber >= destinationChainBlockRange[0]) {
                   validatedBundleV3Fills.push({
-                    ...fill,
+                    ...updatedFill,
                     quoteTimestamp: v3RelayHashes[relayDataHash].deposit!.quoteTimestamp, // ! due to assert above
                   });
                   // If fill replaced a slow fill request, then mark it as one that might have created an
@@ -916,7 +905,7 @@ export class BundleDataClient {
                   // events.
                   // slow fill requests for deposits from or to lite chains are considered invalid
                   if (
-                    fill.relayExecutionInfo.fillType === FillType.ReplacedSlowFill &&
+                    updatedFill.relayExecutionInfo.fillType === FillType.ReplacedSlowFill &&
                     !v3RelayHashes[relayDataHash].deposit!.fromLiteChain &&
                     !v3RelayHashes[relayDataHash].deposit!.toLiteChain
                   ) {
@@ -931,7 +920,7 @@ export class BundleDataClient {
             // instantiate the entry.
             v3RelayHashes[relayDataHash] = {
               deposit: undefined,
-              fill: fill,
+              fill: updatedFill,
               slowFillRequest: undefined,
             };
 
@@ -943,25 +932,20 @@ export class BundleDataClient {
             // older deposit in case the spoke pool client's lookback isn't old enough to find the matching deposit.
             // We can skip this step if the fill's fill deadline is not infinite, because we can assume that the
             // spoke pool clients have loaded deposits old enough to cover all fills with a non-infinite fill deadline.
-            if (fill.blockNumber >= destinationChainBlockRange[0]) {
+            if (updatedFill.blockNumber >= destinationChainBlockRange[0]) {
               // Fill has a non-infinite expiry, and we can assume our spoke pool clients have old enough deposits
               // to conclude that this fill is invalid if we haven't found a matching deposit in memory, so
               // skip the historical query.
-              if (!INFINITE_FILL_DEADLINE.eq(fill.fillDeadline)) {
-                bundleInvalidFillsV3.push(fill);
-                return;
-              }
-              // If the fill's repayment address is not a valid EVM address and the repayment chain is an EVM chain, the fill is invalid.
-              const fillHasValidRepaymentAddress = await verifyFill(fill, destinationClient);
-              if (!fillHasValidRepaymentAddress) {
+              if (!INFINITE_FILL_DEADLINE.eq(updatedFill.fillDeadline)) {
+                bundleInvalidFillsV3.push(updatedFill);
                 return;
               }
               // If deposit is using the deterministic relay hash feature, then the following binary search-based
               // algorithm will not work. However, it is impossible to emit an infinite fill deadline using
               // the unsafeDepositV3 function so there is no need to catch the special case.
-              const historicalDeposit = await queryHistoricalDepositForFill(originClient, fill);
+              const historicalDeposit = await queryHistoricalDepositForFill(originClient, updatedFill);
               if (!historicalDeposit.found) {
-                bundleInvalidFillsV3.push(fill);
+                bundleInvalidFillsV3.push(updatedFill);
               } else {
                 const matchedDeposit = historicalDeposit.deposit;
                 // @dev Since queryHistoricalDepositForFill validates the fill by checking individual
@@ -970,13 +954,13 @@ export class BundleDataClient {
                 // historical deposit query is not working as expected.
                 assert(this.getRelayHashFromEvent(matchedDeposit) === relayDataHash, "Relay hashes should match.");
                 validatedBundleV3Fills.push({
-                  ...fill,
+                  ...updatedFill,
                   quoteTimestamp: matchedDeposit.quoteTimestamp,
                 });
                 v3RelayHashes[relayDataHash].deposit = matchedDeposit;
                 // slow fill requests for deposits from or to lite chains are considered invalid
                 if (
-                  fill.relayExecutionInfo.fillType === FillType.ReplacedSlowFill &&
+                  updatedFill.relayExecutionInfo.fillType === FillType.ReplacedSlowFill &&
                   !matchedDeposit.fromLiteChain &&
                   !matchedDeposit.toLiteChain
                 ) {
