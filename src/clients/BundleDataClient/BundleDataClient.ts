@@ -896,14 +896,15 @@ export class BundleDataClient {
                   isDefined(v3RelayHashes[relayDataHash].deposit),
                   "Deposit should exist in relay hash dictionary."
                 );
+                // At this point, the v3RelayHashes entry already existed meaning that there is a matching deposit,
+                // so this fill is validated.
+                v3RelayHashes[relayDataHash].fill = fill;
+
                 // If the fill is invalid due to relayer repayment addresses, return early.
                 const fillHasValidRepaymentAddress = await verifyFill(fill, destinationClient);
                 if (!fillHasValidRepaymentAddress) {
                   return;
                 }
-                // At this point, the v3RelayHashes entry already existed meaning that there is a matching deposit,
-                // so this fill is validated.
-                v3RelayHashes[relayDataHash].fill = fill;
                 if (fill.blockNumber >= destinationChainBlockRange[0]) {
                   validatedBundleV3Fills.push({
                     ...fill,
