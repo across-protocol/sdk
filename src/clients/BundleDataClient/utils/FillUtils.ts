@@ -74,15 +74,15 @@ export async function verifyFillRepayment(
   if (!hubPoolClient.isValidChainId(repaymentChainId, endBlockForMainnet)) {
     return undefined;
   }
-  // If the fill was from a lite chain, the origin chain is an EVM chain, and the relayer address is invalid
-  // for EVM chains, then we cannot refund the relayer, so mark the fill as invalid.
-  if (fromLiteChain && chainIsEvm(fill.originChainId) && !isValidEvmAddress(fill.relayer)) {
-    return undefined;
-  }
   const updatedFill = _.cloneDeep(fill);
   // If the fill requests repayment on an unsupported chain, return false. Lite chain validation happens in
   // `getRefundInformationFromFill`.
   if (chainIsEvm(repaymentChainId) && !isValidEvmAddress(updatedFill.relayer)) {
+    // If the fill was from a lite chain, the origin chain is an EVM chain, and the relayer address is invalid
+    // for EVM chains, then we cannot refund the relayer, so mark the fill as invalid.
+    if (fromLiteChain) {
+      return undefined;
+    }
     const fillTransaction = await destinationChainProvider.getTransaction(updatedFill.transactionHash);
     const destinationRelayer = fillTransaction?.from;
     // Repayment chain is still an EVM chain, but the msg.sender is a bytes32 address, so the fill is invalid.
