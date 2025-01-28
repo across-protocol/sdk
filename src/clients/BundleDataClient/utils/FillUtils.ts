@@ -81,7 +81,7 @@ export async function verifyFillRepayment(
   const updatedFill = _.cloneDeep(fill);
   // If the fill requests repayment on an unsupported chain, return false. Lite chain validation happens in
   // `getRefundInformationFromFill`.
-  if (chainIsEvm(updatedFill.repaymentChainId) && !isValidEvmAddress(updatedFill.relayer)) {
+  if (chainIsEvm(repaymentChainId) && !isValidEvmAddress(updatedFill.relayer)) {
     const fillTransaction = await destinationChainProvider.getTransaction(updatedFill.transactionHash);
     const destinationRelayer = fillTransaction?.from;
     // Repayment chain is still an EVM chain, but the msg.sender is a bytes32 address, so the fill is invalid.
