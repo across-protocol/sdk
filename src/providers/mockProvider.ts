@@ -14,7 +14,7 @@ export class MockedProvider extends providers.StaticJsonRpcProvider {
     readonly stdMaxPriorityFeePerGas: BigNumber,
     readonly defaultChainId = 1
   ) {
-    super();
+    super(undefined, defaultChainId);
   }
 
   getBlock(_blockHashOrBlockTag: BlockTag | string | Promise<BlockTag | string>): Promise<Block> {
