@@ -1062,10 +1062,7 @@ export class BundleDataClient {
 
         // @todo Only start refunding pre-fills and slow fill requests after a config store version is activated. We
         // should remove this check once we've advanced far beyond the version bump block.
-        if (
-          versionAtProposalBlock >= PRE_FILL_MIN_CONFIG_STORE_VERSION ||
-          process.env.FORCE_PRE_FILL_REFUNDS === "true"
-        ) {
+        if (versionAtProposalBlock >= PRE_FILL_MIN_CONFIG_STORE_VERSION) {
           await mapAsync(
             bundleDepositHashes.filter((depositHash) => {
               const { deposit } = v3RelayHashes[depositHash];
