@@ -82,10 +82,11 @@ function updateBundleFillsV3(
   fill: V3FillWithBlock,
   lpFeePct: BigNumber,
   repaymentChainId: number,
-  repaymentToken: string
+  repaymentToken: string,
+  repaymentAddress: string
 ): void {
   // It is impossible to refund a deposit if the repayment chain is EVM and the relayer is a non-evm address.
-  if (chainIsEvm(fill.repaymentChainId) && !isValidEvmAddress(fill.relayer)) {
+  if (chainIsEvm(repaymentChainId) && !isValidEvmAddress(repaymentAddress)) {
     return;
   }
   if (!dict?.[repaymentChainId]?.[repaymentToken]) {
@@ -97,19 +98,19 @@ function updateBundleFillsV3(
     });
   }
 
-  const bundleFill: BundleFillV3 = { ...fill, lpFeePct };
+  const bundleFill: BundleFillV3 = { ...fill, lpFeePct, relayer: repaymentAddress };
 
   // Add all fills, slow and fast, to dictionary.
   assign(dict, [repaymentChainId, repaymentToken, "fills"], [bundleFill]);
 
   // All fills update the bundle LP fees.
   const refundObj = dict[repaymentChainId][repaymentToken];
-  const realizedLpFee = fill.inputAmount.mul(bundleFill.lpFeePct).div(fixedPointAdjustment);
+  const realizedLpFee = bundleFill.inputAmount.mul(bundleFill.lpFeePct).div(fixedPointAdjustment);
   refundObj.realizedLpFees = refundObj.realizedLpFees ? refundObj.realizedLpFees.add(realizedLpFee) : realizedLpFee;
 
   // Only fast fills get refunded.
-  if (!isSlowFill(fill)) {
-    const refundAmount = fill.inputAmount.mul(fixedPointAdjustment.sub(lpFeePct)).div(fixedPointAdjustment);
+  if (!isSlowFill(bundleFill)) {
+    const refundAmount = bundleFill.inputAmount.mul(fixedPointAdjustment.sub(lpFeePct)).div(fixedPointAdjustment);
     refundObj.totalRefundAmount = refundObj.totalRefundAmount
       ? refundObj.totalRefundAmount.add(refundAmount)
       : refundAmount;
@@ -117,10 +118,10 @@ function updateBundleFillsV3(
     // Instantiate dictionary if it doesn't exist.
     refundObj.refunds ??= {};
 
-    if (refundObj.refunds[fill.relayer]) {
-      refundObj.refunds[fill.relayer] = refundObj.refunds[fill.relayer].add(refundAmount);
+    if (refundObj.refunds[bundleFill.relayer]) {
+      refundObj.refunds[bundleFill.relayer] = refundObj.refunds[bundleFill.relayer].add(refundAmount);
     } else {
-      refundObj.refunds[fill.relayer] = refundAmount;
+      refundObj.refunds[bundleFill.relayer] = refundAmount;
     }
   }
 }
@@ -1303,7 +1304,7 @@ export class BundleDataClient {
         chainIds,
         associatedDeposit!.fromLiteChain
       );
-      updateBundleFillsV3(bundleFillsV3, fill, realizedLpFeePct, chainToSendRefundTo, repaymentToken);
+      updateBundleFillsV3(bundleFillsV3, fill, realizedLpFeePct, chainToSendRefundTo, repaymentToken, fill.relayer);
     });
     v3SlowFillLpFees.forEach(({ realizedLpFeePct: lpFeePct }, idx) => {
       const deposit = validatedBundleSlowFills[idx];
