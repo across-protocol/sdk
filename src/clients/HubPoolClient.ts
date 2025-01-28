@@ -807,13 +807,10 @@ export class HubPoolClient extends BaseAbstractClient {
 
   public isValidChainId(_chainId: number, mainnetBlockToCheck: number): boolean {
     // Get the earliest cross chain contract set event.
-    const earliestCrossChainContractEvent = this.crossChainContracts[_chainId]?.reduce((prev, curr) => {
-      return prev.blockNumber < curr.blockNumber ? prev : curr;
-    });
-    if (!isDefined(earliestCrossChainContractEvent)) {
-      return false;
-    }
-    return earliestCrossChainContractEvent.blockNumber < mainnetBlockToCheck;
+    const validCrossChainContractEvent = this.crossChainContracts[_chainId]?.find(
+      (crossChainContract) => crossChainContract.blockNumber <= mainnetBlockToCheck
+    );
+    return isDefined(validCrossChainContractEvent);
   }
 
   async _update(eventNames: HubPoolEvent[]): Promise<HubPoolUpdate> {
