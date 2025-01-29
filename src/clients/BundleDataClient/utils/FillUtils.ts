@@ -1,6 +1,6 @@
 import _ from "lodash";
 import { providers } from "ethers";
-import { Fill, FillWithBlock } from "../../../interfaces";
+import { DepositWithBlock, Fill, FillWithBlock } from "../../../interfaces";
 import { getBlockRangeForChain, isSlowFill, chainIsEvm, isValidEvmAddress, isDefined } from "../../../utils";
 import { HubPoolClient } from "../../HubPoolClient";
 
@@ -52,25 +52,17 @@ export function getRefundInformationFromFill(
 export async function verifyFillRepayment(
   fill: FillWithBlock,
   destinationChainProvider: providers.Provider,
-  hubPoolClient: HubPoolClient,
-  blockRangesForChains: number[][],
-  chainIdListForBundleEvaluationBlockNumbers: number[]
+  matchedDeposit: DepositWithBlock,
+  validChainIds: number[]
 ): Promise<FillWithBlock | undefined> {
+  // Slow fills don't result in repayments so they're always valid.
   if (isSlowFill(fill)) {
     return fill;
   }
-  // Save fill data and associate with repayment chain and L2 token refund should be denominated in.
-  const endBlockForMainnet = getBlockRangeForChain(
-    blockRangesForChains,
-    hubPoolClient.chainId,
-    chainIdListForBundleEvaluationBlockNumbers
-  )[1];
-  const fromLiteChain = hubPoolClient.configStoreClient
-    .getLiteChainIdIndicesForBlock(endBlockForMainnet)
-    .includes(fill.originChainId);
-  const repaymentChainId = fromLiteChain ? fill.originChainId : fill.repaymentChainId;
+  // Lite chain deposits force repayment on origin chain.
+  const repaymentChainId = matchedDeposit.fromLiteChain ? fill.originChainId : fill.repaymentChainId;
   // Return undefined if the requested repayment chain ID is not recognized by the hub pool.
-  if (!hubPoolClient.isValidChainId(repaymentChainId, endBlockForMainnet)) {
+  if (!validChainIds.includes(repaymentChainId)) {
     return undefined;
   }
   const updatedFill = _.cloneDeep(fill);
@@ -79,7 +71,7 @@ export async function verifyFillRepayment(
   if (chainIsEvm(repaymentChainId) && !isValidEvmAddress(updatedFill.relayer)) {
     // If the fill was from a lite chain, the origin chain is an EVM chain, and the relayer address is invalid
     // for EVM chains, then we cannot refund the relayer, so mark the fill as invalid.
-    if (fromLiteChain) {
+    if (matchedDeposit.fromLiteChain) {
       return undefined;
     }
     const fillTransaction = await destinationChainProvider.getTransaction(updatedFill.transactionHash);
