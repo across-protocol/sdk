@@ -330,7 +330,11 @@ export class BundleDataClient {
       // will live with this expected inaccuracy as it should be small. The pre-fill would have to precede the deposit
       // by more than the caller's event lookback window which is expected to be unlikely.
       const fillsToCount = await filterAsync(this.spokePoolClients[chainId].getFills(), async (fill) => {
-        if (fill.blockNumber < blockRanges[chainIndex][0] || fill.blockNumber > blockRanges[chainIndex][1]) {
+        if (
+          fill.blockNumber < blockRanges[chainIndex][0] ||
+          fill.blockNumber > blockRanges[chainIndex][1] ||
+          isZeroValueFillOrSlowFillRequest(fill)
+        ) {
           return false;
         }
 
@@ -877,7 +881,9 @@ export class BundleDataClient {
             // We can remove fills for deposits with input amount equal to zero because these will result in 0 refunded
             // tokens to the filler. We can't remove non-empty message deposit here in case there is a slow fill
             // request for the deposit, we'd want to see the fill took place.
-            .filter((fill) => fill.blockNumber <= destinationChainBlockRange[1] && !isZeroValueDeposit(fill)),
+            .filter(
+              (fill) => fill.blockNumber <= destinationChainBlockRange[1] && !isZeroValueFillOrSlowFillRequest(fill)
+            ),
           async (_fill) => {
             fillCounter++;
             const relayDataHash = this.getRelayHashFromEvent(_fill);
@@ -1159,21 +1165,18 @@ export class BundleDataClient {
             if (fillStatus === FillStatus.Filled) {
               // We need to find the fill event to issue a refund to the right relayer and repayment chain,
               // or msg.sender if relayer address is invalid for the repayment chain.
-              const prefill = (await findFillEvent(
-                destinationClient.spokePool,
-                deposit,
-                destinationClient.deploymentBlock,
-                destinationClient.latestBlockSearched
-              )) as unknown as FillWithBlock;
+              const prefill = await this.findMatchingFillEvent(deposit, destinationClient);
+              assert(isDefined(prefill), `findFillEvent# Cannot find prefill: ${depositHash}`);
+              assert(this.getRelayHashFromEvent(prefill!) === depositHash, "Relay hashes should match.");
               const verifiedFill = await verifyFillRepayment(
-                prefill,
+                prefill!,
                 destinationClient.spokePool.provider,
                 deposit,
                 allChainIds
               );
-              if (canRefundPrefills && isDefined(verifiedFill) && !isSlowFill(prefill)) {
+              if (canRefundPrefills && isDefined(verifiedFill) && !isSlowFill(verifiedFill)) {
                 validatedBundleV3Fills.push({
-                  ...prefill,
+                  ...verifiedFill!,
                   quoteTimestamp: deposit.quoteTimestamp,
                 });
               }
@@ -1390,12 +1393,24 @@ export class BundleDataClient {
   // keccak256 hash of the relay data, which can be used as input into the on-chain `fillStatuses()` function in the
   // spoke pool contract. However, this internal function is used to uniquely identify a bridging event
   // for speed since its easier to build a string from the event data than to hash it.
-  private getRelayHashFromEvent(event: V3DepositWithBlock | V3FillWithBlock | SlowFillRequestWithBlock): string {
+  protected getRelayHashFromEvent(event: V3DepositWithBlock | V3FillWithBlock | SlowFillRequestWithBlock): string {
     return `${event.depositor}-${event.recipient}-${event.exclusiveRelayer}-${event.inputToken}-${event.outputToken}-${
       event.inputAmount
     }-${event.outputAmount}-${event.originChainId}-${event.depositId.toString()}-${event.fillDeadline}-${
       event.exclusivityDeadline
     }-${event.message}-${event.destinationChainId}`;
+  }
+
+  protected async findMatchingFillEvent(
+    deposit: DepositWithBlock,
+    spokePoolClient: SpokePoolClient
+  ): Promise<FillWithBlock | undefined> {
+    return await findFillEvent(
+      spokePoolClient.spokePool,
+      deposit,
+      spokePoolClient.deploymentBlock,
+      spokePoolClient.latestBlockSearched
+    );
   }
 
   async getBundleBlockTimestamps(
