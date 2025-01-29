@@ -1403,7 +1403,9 @@ export class BundleDataClient {
           const endBlockForChain = Math.min(_endBlockForChain + 1, spokePoolClient.latestBlockSearched);
           const [startTime, endTime] = [
             await spokePoolClient.getTimestampForBlock(startBlockForChain),
-            await spokePoolClient.getTimestampForBlock(endBlockForChain),
+            // @dev similar to reasoning above to ensure no gaps between bundle block range timestamps and also
+            // no overlap, subtract 1 from the end time.
+            (await spokePoolClient.getTimestampForBlock(endBlockForChain)) - 1,
           ];
           // Sanity checks:
           assert(endTime >= startTime, "End time should be greater than start time.");
