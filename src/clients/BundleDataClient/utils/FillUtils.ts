@@ -53,7 +53,7 @@ export async function verifyFillRepayment(
   fill: FillWithBlock,
   destinationChainProvider: providers.Provider,
   matchedDeposit: DepositWithBlock,
-  validChainIds: number[]
+  possibleRepaymentChainIds: number[]
 ): Promise<FillWithBlock | undefined> {
   // Slow fills don't result in repayments so they're always valid.
   if (isSlowFill(fill)) {
@@ -62,26 +62,35 @@ export async function verifyFillRepayment(
   // Lite chain deposits force repayment on origin chain.
   const repaymentChainId = matchedDeposit.fromLiteChain ? fill.originChainId : fill.repaymentChainId;
   // Return undefined if the requested repayment chain ID is not recognized by the hub pool.
-  if (!validChainIds.includes(repaymentChainId)) {
+  if (!possibleRepaymentChainIds.includes(repaymentChainId)) {
     return undefined;
   }
   const updatedFill = _.cloneDeep(fill);
-  // If the fill requests repayment on an unsupported chain, return false. Lite chain validation happens in
-  // `getRefundInformationFromFill`.
+
+  // If the fill requests repayment on a chain where the repayment address is not valid, attempt to find a valid
+  // repayment address, otherwise return undefined.
+
+  // Case 1: repayment chain is an EVM chain but repayment address is not a valid EVM address.
   if (chainIsEvm(repaymentChainId) && !isValidEvmAddress(updatedFill.relayer)) {
     // If the fill was from a lite chain, the origin chain is an EVM chain, and the relayer address is invalid
     // for EVM chains, then we cannot refund the relayer, so mark the fill as invalid.
     if (matchedDeposit.fromLiteChain) {
       return undefined;
     }
+    // TODO: Handle casae where fill was sent on non-EVM chain, in which case the following call would fail
+    // or return something unexpected. We'd want to return undefined here.
     const fillTransaction = await destinationChainProvider.getTransaction(updatedFill.transactionHash);
     const destinationRelayer = fillTransaction?.from;
     // Repayment chain is still an EVM chain, but the msg.sender is a bytes32 address, so the fill is invalid.
     if (!isDefined(destinationRelayer) || !isValidEvmAddress(destinationRelayer)) {
       return undefined;
     }
-    // Otherwise, assume the relayer to be repaid is the msg.sender.
+    // Otherwise, assume the relayer to be repaid is the msg.sender. We don't need to modify the repayment chain since
+    // the getTransaction() call would only succeed if the fill was sent on an EVM chain and therefore the msg.sender
+    // is a valid EVM address and the repayment chain is an EVM chain.
     updatedFill.relayer = destinationRelayer;
   }
+
+  // Case 2: TODO repayment chain is an SVM chain and repayment address is not a valid SVM address.
   return updatedFill;
 }
