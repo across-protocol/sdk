@@ -1055,8 +1055,8 @@ export class BundleDataClient {
             // found using such a method) because infinite fill deadlines cannot be produced from the unsafeDepositV3()
             // function.
             if (
-              slowFillRequest.blockNumber >= destinationChainBlockRange[0] &&
-              INFINITE_FILL_DEADLINE.eq(slowFillRequest.fillDeadline)
+              INFINITE_FILL_DEADLINE.eq(slowFillRequest.fillDeadline) &&
+              slowFillRequest.blockNumber >= destinationChainBlockRange[0]
             ) {
               const historicalDeposit = await queryHistoricalDepositForFill(originClient, slowFillRequest);
               if (!historicalDeposit.found) {
