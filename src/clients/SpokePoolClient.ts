@@ -9,11 +9,10 @@ import {
   MAX_BIG_INT,
   MakeOptional,
   assign,
-  keccak256,
   isDefined,
   toBN,
   bnOne,
-  isMessageEmpty,
+  getMessageHash,
   isUnsafeDepositId,
 } from "../utils";
 import {
@@ -23,7 +22,7 @@ import {
   spreadEventWithBlockNumber,
 } from "../utils/EventUtils";
 import { validateFillForDeposit } from "../utils/FlowUtils";
-import { ZERO_ADDRESS, ZERO_BYTES } from "../constants";
+import { ZERO_ADDRESS } from "../constants";
 import {
   Deposit,
   DepositWithBlock,
@@ -617,14 +616,9 @@ export class SpokePoolClient extends BaseAbstractClient {
     if (eventsToQuery.includes("RequestedV3SlowFill")) {
       const slowFillRequests = queryResults[eventsToQuery.indexOf("RequestedV3SlowFill")];
       for (const event of slowFillRequests) {
-        const message = event.args["message"];
-        const messageHash = isMessageEmpty(message)
-          ? ZERO_BYTES
-          : keccak256(message);
-
         const slowFillRequest = {
           ...spreadEventWithBlockNumber(event),
-          messageHash,
+          messageHash: getMessageHash(event.args["message"]),
           destinationChainId: this.chainId,
         } as SlowFillRequestWithBlock;
 
