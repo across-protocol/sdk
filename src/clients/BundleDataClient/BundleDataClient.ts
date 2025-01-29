@@ -769,6 +769,22 @@ export class BundleDataClient {
     const bundleDepositHashes: string[] = [];
     const olderDepositHashes: string[] = [];
 
+    // We use the following toggle to aid with the migration to pre-fills. The first bundle proposed using this
+    // pre-fill logic can double refund pre-fills that have already been filled in the last bundle, because the
+    // last bundle did not recognize a fill as a pre-fill. Therefore the developer should ensure that the version
+    // is bumped to the PRE_FILL_MIN_CONFIG_STORE_VERSION version before the first pre-fill bundle is proposed.
+    // To test the following bundle after this, the developer can set the FORCE_REFUND_PREFILLS environment variable
+    // to "true" simulate the bundle with pre-fill refunds.
+    // @todo Remove this logic once we have advanced sufficiently past the pre-fill migration.
+    const startBlockForMainnet = getBlockRangeForChain(
+      blockRangesForChains,
+      this.clients.hubPoolClient.chainId,
+      this.chainIdListForBundleEvaluationBlockNumbers
+    )[0];
+    const versionAtProposalBlock = this.clients.configStoreClient.getConfigStoreVersionForBlock(startBlockForMainnet);
+    const canRefundPrefills =
+      versionAtProposalBlock >= PRE_FILL_MIN_CONFIG_STORE_VERSION || process.env.FORCE_REFUND_PREFILLS === "true";
+
     let depositCounter = 0;
     for (const originChainId of allChainIds) {
       const originClient = spokePoolClients[originChainId];
@@ -1052,13 +1068,6 @@ export class BundleDataClient {
         // - Or, has the deposit expired in this bundle? If so, then we need to issue an expiry refund.
         // - And finally, has the deposit been slow filled? If so, then we need to issue a slow fill leaf
         //   for this "pre-slow-fill-request" if this request took place in a previous bundle.
-        const startBlockForMainnet = getBlockRangeForChain(
-          blockRangesForChains,
-          this.clients.hubPoolClient.chainId,
-          this.chainIdListForBundleEvaluationBlockNumbers
-        )[0];
-        const versionAtProposalBlock =
-          this.clients.configStoreClient.getConfigStoreVersionForBlock(startBlockForMainnet);
 
         // @todo Only start refunding pre-fills and slow fill requests after a config store version is activated. We
         // should remove this check once we've advanced far beyond the version bump block.
@@ -1082,11 +1091,7 @@ export class BundleDataClient {
             // If fill exists in memory, then the only case in which we need to create a refund is if the
             // the fill occurred in a previous bundle. There are no expiry refunds for filled deposits.
             if (fill) {
-              if (
-                versionAtProposalBlock >= PRE_FILL_MIN_CONFIG_STORE_VERSION &&
-                fill.blockNumber < destinationChainBlockRange[0] &&
-                !isSlowFill(fill)
-              ) {
+              if (canRefundPrefills && fill.blockNumber < destinationChainBlockRange[0] && !isSlowFill(fill)) {
                 // If fill is in the current bundle then we can assume there is already a refund for it, so only
                 // include this pre fill if the fill is in an older bundle. If fill is after this current bundle, then
                 // we won't consider it, following the previous treatment of fills after the bundle block range.
@@ -1107,7 +1112,7 @@ export class BundleDataClient {
               if (_depositIsExpired(deposit)) {
                 updateExpiredDepositsV3(expiredDepositsToRefundV3, deposit);
               } else if (
-                versionAtProposalBlock >= PRE_FILL_MIN_CONFIG_STORE_VERSION &&
+                canRefundPrefills &&
                 slowFillRequest.blockNumber < destinationChainBlockRange[0] &&
                 _canCreateSlowFillLeaf(deposit)
               ) {
@@ -1124,7 +1129,7 @@ export class BundleDataClient {
             const fillStatus = await _getFillStatusForDeposit(deposit, destinationChainBlockRange[1]);
 
             // If deposit was filled, then we need to issue a refund for it.
-            if (fillStatus === FillStatus.Filled && versionAtProposalBlock >= PRE_FILL_MIN_CONFIG_STORE_VERSION) {
+            if (fillStatus === FillStatus.Filled) {
               // We need to find the fill event to issue a refund to the right relayer and repayment chain,
               // or msg.sender if relayer address is invalid for the repayment chain.
               const prefill = (await findFillEvent(
@@ -1133,7 +1138,7 @@ export class BundleDataClient {
                 destinationClient.deploymentBlock,
                 destinationClient.latestBlockSearched
               )) as unknown as FillWithBlock;
-              if (!isSlowFill(prefill)) {
+              if (canRefundPrefills && !isSlowFill(prefill)) {
                 validatedBundleV3Fills.push({
                   ...prefill,
                   quoteTimestamp: deposit.quoteTimestamp,
@@ -1148,13 +1153,10 @@ export class BundleDataClient {
               updateExpiredDepositsV3(expiredDepositsToRefundV3, deposit);
             }
             // If slow fill requested, then issue a slow fill leaf for the deposit.
-            else if (
-              fillStatus === FillStatus.RequestedSlowFill &&
-              versionAtProposalBlock >= PRE_FILL_MIN_CONFIG_STORE_VERSION
-            ) {
+            else if (fillStatus === FillStatus.RequestedSlowFill) {
               // Input and Output tokens must be equivalent on the deposit for this to be slow filled.
               // Slow fill requests for deposits from or to lite chains are considered invalid
-              if (_canCreateSlowFillLeaf(deposit)) {
+              if (canRefundPrefills && _canCreateSlowFillLeaf(deposit)) {
                 // If deposit newly expired, then we can't create a slow fill leaf for it but we can
                 // create a deposit refund for it.
                 validatedBundleSlowFills.push(deposit);
