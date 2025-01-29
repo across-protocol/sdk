@@ -57,7 +57,6 @@ describe("FillUtils", function () {
       relayer,
       repaymentChainId,
     };
-    const f;
   });
 
   describe("verifyFillRepayment", function () {
