@@ -33,6 +33,7 @@ import {
   getImpliedBundleBlockRanges,
   isSlowFill,
   mapAsync,
+  filterAsync,
   bnUint32Max,
   isZeroValueDeposit,
   findFillEvent,
@@ -53,6 +54,7 @@ import {
   prettyPrintV3SpokePoolEvents,
   V3DepositWithBlock,
   V3FillWithBlock,
+  verifyFillRepayment,
 } from "./utils";
 import { PRE_FILL_MIN_CONFIG_STORE_VERSION } from "../../constants";
 
@@ -87,10 +89,11 @@ function updateBundleFillsV3(
   fill: V3FillWithBlock,
   lpFeePct: BigNumber,
   repaymentChainId: number,
-  repaymentToken: string
+  repaymentToken: string,
+  repaymentAddress: string
 ): void {
   // It is impossible to refund a deposit if the repayment chain is EVM and the relayer is a non-evm address.
-  if (chainIsEvm(fill.repaymentChainId) && !isValidEvmAddress(fill.relayer)) {
+  if (chainIsEvm(repaymentChainId) && !isValidEvmAddress(repaymentAddress)) {
     return;
   }
   if (!dict?.[repaymentChainId]?.[repaymentToken]) {
@@ -102,19 +105,19 @@ function updateBundleFillsV3(
     });
   }
 
-  const bundleFill: BundleFillV3 = { ...fill, lpFeePct };
+  const bundleFill: BundleFillV3 = { ...fill, lpFeePct, relayer: repaymentAddress };
 
   // Add all fills, slow and fast, to dictionary.
   assign(dict, [repaymentChainId, repaymentToken, "fills"], [bundleFill]);
 
   // All fills update the bundle LP fees.
   const refundObj = dict[repaymentChainId][repaymentToken];
-  const realizedLpFee = fill.inputAmount.mul(bundleFill.lpFeePct).div(fixedPointAdjustment);
+  const realizedLpFee = bundleFill.inputAmount.mul(bundleFill.lpFeePct).div(fixedPointAdjustment);
   refundObj.realizedLpFees = refundObj.realizedLpFees ? refundObj.realizedLpFees.add(realizedLpFee) : realizedLpFee;
 
   // Only fast fills get refunded.
-  if (!isSlowFill(fill)) {
-    const refundAmount = fill.inputAmount.mul(fixedPointAdjustment.sub(lpFeePct)).div(fixedPointAdjustment);
+  if (!isSlowFill(bundleFill)) {
+    const refundAmount = bundleFill.inputAmount.mul(fixedPointAdjustment.sub(lpFeePct)).div(fixedPointAdjustment);
     refundObj.totalRefundAmount = refundObj.totalRefundAmount
       ? refundObj.totalRefundAmount.add(refundAmount)
       : refundAmount;
@@ -122,10 +125,10 @@ function updateBundleFillsV3(
     // Instantiate dictionary if it doesn't exist.
     refundObj.refunds ??= {};
 
-    if (refundObj.refunds[fill.relayer]) {
-      refundObj.refunds[fill.relayer] = refundObj.refunds[fill.relayer].add(refundAmount);
+    if (refundObj.refunds[bundleFill.relayer]) {
+      refundObj.refunds[bundleFill.relayer] = refundObj.refunds[bundleFill.relayer].add(refundAmount);
     } else {
-      refundObj.refunds[fill.relayer] = refundAmount;
+      refundObj.refunds[bundleFill.relayer] = refundAmount;
     }
   }
 }
@@ -293,7 +296,7 @@ export class BundleDataClient {
     // so as not to affect this approximate refund count.
     const arweaveData = await this.loadArweaveData(bundleEvaluationBlockRanges);
     if (arweaveData === undefined) {
-      combinedRefunds = this.getApproximateRefundsForBlockRange(chainIds, bundleEvaluationBlockRanges);
+      combinedRefunds = await this.getApproximateRefundsForBlockRange(chainIds, bundleEvaluationBlockRanges);
     } else {
       const { bundleFillsV3, expiredDepositsToRefundV3 } = arweaveData;
       combinedRefunds = getRefundsFromBundle(bundleFillsV3, expiredDepositsToRefundV3);
@@ -314,56 +317,68 @@ export class BundleDataClient {
   }
 
   // @dev This helper function should probably be moved to the InventoryClient
-  getApproximateRefundsForBlockRange(chainIds: number[], blockRanges: number[][]): CombinedRefunds {
+  async getApproximateRefundsForBlockRange(chainIds: number[], blockRanges: number[][]): Promise<CombinedRefunds> {
     const refundsForChain: CombinedRefunds = {};
     for (const chainId of chainIds) {
       if (this.spokePoolClients[chainId] === undefined) {
         continue;
       }
       const chainIndex = chainIds.indexOf(chainId);
-
       // @todo This function does not account for pre-fill refunds as it is optimized for speed. The way to detect
       // pre-fill refunds is to load all deposits that are unmatched by fills in the spoke pool client's memory
       // and then query the FillStatus on-chain, but that might slow this function down too much. For now, we
       // will live with this expected inaccuracy as it should be small. The pre-fill would have to precede the deposit
       // by more than the caller's event lookback window which is expected to be unlikely.
-      this.spokePoolClients[chainId]
-        .getFills()
-        .filter((fill) => {
-          if (fill.blockNumber < blockRanges[chainIndex][0] || fill.blockNumber > blockRanges[chainIndex][1]) {
-            return false;
-          }
+      const fillsToCount = await filterAsync(this.spokePoolClients[chainId].getFills(), async (fill) => {
+        if (fill.blockNumber < blockRanges[chainIndex][0] || fill.blockNumber > blockRanges[chainIndex][1]) {
+          return false;
+        }
 
-          // If origin spoke pool client isn't defined, we can't validate it.
-          if (this.spokePoolClients[fill.originChainId] === undefined) {
+        // If origin spoke pool client isn't defined, we can't validate it.
+        if (this.spokePoolClients[fill.originChainId] === undefined) {
+          return false;
+        }
+        const matchingDeposit = this.spokePoolClients[fill.originChainId].getDeposit(fill.depositId);
+        const hasMatchingDeposit =
+          matchingDeposit !== undefined &&
+          this.getRelayHashFromEvent(fill) === this.getRelayHashFromEvent(matchingDeposit);
+        if (hasMatchingDeposit) {
+          const validRepayment = await verifyFillRepayment(
+            fill,
+            this.spokePoolClients[fill.destinationChainId].spokePool.provider,
+            matchingDeposit,
+            // @dev: to get valid repayment chain ID's, get all chain IDs for the bundle block range and remove
+            // disabled block ranges.
+            this.clients.configStoreClient
+              .getChainIdIndicesForBlock(blockRanges[0][1])
+              .filter((_chainId, i) => !isChainDisabled(blockRanges[i]))
+          );
+          if (!isDefined(validRepayment)) {
             return false;
           }
-          const matchingDeposit = this.spokePoolClients[fill.originChainId].getDeposit(fill.depositId);
-          const hasMatchingDeposit =
-            matchingDeposit !== undefined &&
-            this.getRelayHashFromEvent(fill) === this.getRelayHashFromEvent(matchingDeposit);
-          return hasMatchingDeposit;
-        })
-        .forEach((fill) => {
-          const matchingDeposit = this.spokePoolClients[fill.originChainId].getDeposit(fill.depositId);
-          assert(isDefined(matchingDeposit), "Deposit not found for fill.");
-          const { chainToSendRefundTo, repaymentToken } = getRefundInformationFromFill(
-            fill,
-            this.clients.hubPoolClient,
-            blockRanges,
-            this.chainIdListForBundleEvaluationBlockNumbers,
-            matchingDeposit!.fromLiteChain // Use ! because we've already asserted that matchingDeposit is defined.
-          );
-          // Assume that lp fees are 0 for the sake of speed. In the future we could batch compute
-          // these or make hardcoded assumptions based on the origin-repayment chain direction. This might result
-          // in slight over estimations of refunds, but its not clear whether underestimating or overestimating is
-          // worst from the relayer's perspective.
-          const { relayer, inputAmount: refundAmount } = fill;
-          refundsForChain[chainToSendRefundTo] ??= {};
-          refundsForChain[chainToSendRefundTo][repaymentToken] ??= {};
-          const existingRefundAmount = refundsForChain[chainToSendRefundTo][repaymentToken][relayer] ?? bnZero;
-          refundsForChain[chainToSendRefundTo][repaymentToken][relayer] = existingRefundAmount.add(refundAmount);
-        });
+        }
+        return hasMatchingDeposit;
+      });
+      fillsToCount.forEach((fill) => {
+        const matchingDeposit = this.spokePoolClients[fill.originChainId].getDeposit(fill.depositId);
+        assert(isDefined(matchingDeposit), "Deposit not found for fill.");
+        const { chainToSendRefundTo, repaymentToken } = getRefundInformationFromFill(
+          fill,
+          this.clients.hubPoolClient,
+          blockRanges,
+          this.chainIdListForBundleEvaluationBlockNumbers,
+          matchingDeposit!.fromLiteChain // Use ! because we've already asserted that matchingDeposit is defined.
+        );
+        // Assume that lp fees are 0 for the sake of speed. In the future we could batch compute
+        // these or make hardcoded assumptions based on the origin-repayment chain direction. This might result
+        // in slight over estimations of refunds, but its not clear whether underestimating or overestimating is
+        // worst from the relayer's perspective.
+        const { relayer, inputAmount: refundAmount } = fill;
+        refundsForChain[chainToSendRefundTo] ??= {};
+        refundsForChain[chainToSendRefundTo][repaymentToken] ??= {};
+        const existingRefundAmount = refundsForChain[chainToSendRefundTo][repaymentToken][relayer] ?? bnZero;
+        refundsForChain[chainToSendRefundTo][repaymentToken][relayer] = existingRefundAmount.add(refundAmount);
+      });
     }
     return refundsForChain;
   }
@@ -490,7 +505,7 @@ export class BundleDataClient {
       // ok for this use case.
       const arweaveData = await this.loadArweaveData(pendingBundleBlockRanges);
       if (arweaveData === undefined) {
-        combinedRefunds.push(this.getApproximateRefundsForBlockRange(chainIds, pendingBundleBlockRanges));
+        combinedRefunds.push(await this.getApproximateRefundsForBlockRange(chainIds, pendingBundleBlockRanges));
       } else {
         const { bundleFillsV3, expiredDepositsToRefundV3 } = arweaveData;
         combinedRefunds.push(getRefundsFromBundle(bundleFillsV3, expiredDepositsToRefundV3));
@@ -505,7 +520,7 @@ export class BundleDataClient {
     // - Only look up fills sent after the pending bundle's end blocks
     // - Skip LP fee computations and just assume the relayer is being refunded the full deposit.inputAmount
     const start = performance.now();
-    combinedRefunds.push(this.getApproximateRefundsForBlockRange(chainIds, widestBundleBlockRanges));
+    combinedRefunds.push(await this.getApproximateRefundsForBlockRange(chainIds, widestBundleBlockRanges));
     this.logger.debug({
       at: "BundleDataClient#getNextBundleRefunds",
       message: `Loading approximate refunds for next bundle in ${Math.round(performance.now() - start) / 1000}s.`,
@@ -862,19 +877,29 @@ export class BundleDataClient {
             // We can remove fills for deposits with input amount equal to zero because these will result in 0 refunded
             // tokens to the filler. We can't remove non-empty message deposit here in case there is a slow fill
             // request for the deposit, we'd want to see the fill took place.
-            .filter(
-              (fill) => fill.blockNumber <= destinationChainBlockRange[1] && !isZeroValueFillOrSlowFillRequest(fill)
-            ),
-          async (fill) => {
-            const relayDataHash = this.getRelayHashFromEvent(fill);
+            .filter((fill) => fill.blockNumber <= destinationChainBlockRange[1] && !isZeroValueDeposit(fill)),
+          async (_fill) => {
             fillCounter++;
-
+            const relayDataHash = this.getRelayHashFromEvent(_fill);
             if (v3RelayHashes[relayDataHash]) {
               if (!v3RelayHashes[relayDataHash].fill) {
                 assert(
                   isDefined(v3RelayHashes[relayDataHash].deposit),
                   "Deposit should exist in relay hash dictionary."
                 );
+                // `fill` will only possibly differ from `_fill` in the `relayer` field, which does not affect the
+                // relay hash, so it is safe to modify.
+                const fill = await verifyFillRepayment(
+                  _fill,
+                  destinationClient.spokePool.provider,
+                  v3RelayHashes[relayDataHash].deposit!,
+                  allChainIds
+                );
+                if (!isDefined(fill)) {
+                  bundleInvalidFillsV3.push(_fill);
+                  return;
+                }
+
                 // At this point, the v3RelayHashes entry already existed meaning that there is a matching deposit,
                 // so this fill is validated.
                 v3RelayHashes[relayDataHash].fill = fill;
@@ -899,10 +924,10 @@ export class BundleDataClient {
             }
 
             // At this point, there is no relay hash dictionary entry for this fill, so we need to
-            // instantiate the entry.
+            // instantiate the entry. We won't modify the fill.relayer until we match it with a deposit.
             v3RelayHashes[relayDataHash] = {
               deposit: undefined,
-              fill: fill,
+              fill: _fill,
               slowFillRequest: undefined,
             };
 
@@ -914,34 +939,34 @@ export class BundleDataClient {
             // older deposit in case the spoke pool client's lookback isn't old enough to find the matching deposit.
             // We can skip this step if the fill's fill deadline is not infinite, because we can assume that the
             // spoke pool clients have loaded deposits old enough to cover all fills with a non-infinite fill deadline.
-            if (fill.blockNumber >= destinationChainBlockRange[0]) {
+            if (_fill.blockNumber >= destinationChainBlockRange[0]) {
               // Fill has a non-infinite expiry, and we can assume our spoke pool clients have old enough deposits
               // to conclude that this fill is invalid if we haven't found a matching deposit in memory, so
               // skip the historical query.
-              if (!INFINITE_FILL_DEADLINE.eq(fill.fillDeadline)) {
-                bundleInvalidFillsV3.push(fill);
+              if (!INFINITE_FILL_DEADLINE.eq(_fill.fillDeadline)) {
+                bundleInvalidFillsV3.push(_fill);
                 return;
-              }
-              // If the fill's repayment address is not a valid EVM address and the repayment chain is an EVM chain, the fill is invalid.
-              if (chainIsEvm(fill.repaymentChainId) && !isValidEvmAddress(fill.relayer)) {
-                const fillTransaction = await originClient.spokePool.provider.getTransaction(fill.transactionHash);
-                const originRelayer = fillTransaction.from;
-                // Repayment chain is still an EVM chain, but the msg.sender is a bytes32 address, so the fill is invalid.
-                if (!isValidEvmAddress(originRelayer)) {
-                  bundleInvalidFillsV3.push(fill);
-                  return;
-                }
-                // Otherwise, assume the relayer to be repaid is the msg.sender.
-                fill.relayer = originRelayer;
               }
               // If deposit is using the deterministic relay hash feature, then the following binary search-based
               // algorithm will not work. However, it is impossible to emit an infinite fill deadline using
               // the unsafeDepositV3 function so there is no need to catch the special case.
-              const historicalDeposit = await queryHistoricalDepositForFill(originClient, fill);
+              const historicalDeposit = await queryHistoricalDepositForFill(originClient, _fill);
               if (!historicalDeposit.found) {
-                bundleInvalidFillsV3.push(fill);
+                bundleInvalidFillsV3.push(_fill);
               } else {
                 const matchedDeposit = historicalDeposit.deposit;
+                const fill = await verifyFillRepayment(
+                  _fill,
+                  destinationClient.spokePool.provider,
+                  matchedDeposit,
+                  allChainIds
+                );
+                if (!isDefined(fill)) {
+                  bundleInvalidFillsV3.push(_fill);
+                  return;
+                }
+                v3RelayHashes[relayDataHash].fill = fill;
+
                 // @dev Since queryHistoricalDepositForFill validates the fill by checking individual
                 // object property values against the deposit's, we
                 // sanity check it here by comparing the full relay hashes. If there's an error here then the
@@ -1309,7 +1334,7 @@ export class BundleDataClient {
         chainIds,
         associatedDeposit!.fromLiteChain
       );
-      updateBundleFillsV3(bundleFillsV3, fill, realizedLpFeePct, chainToSendRefundTo, repaymentToken);
+      updateBundleFillsV3(bundleFillsV3, fill, realizedLpFeePct, chainToSendRefundTo, repaymentToken, fill.relayer);
     });
     v3SlowFillLpFees.forEach(({ realizedLpFeePct: lpFeePct }, idx) => {
       const deposit = validatedBundleSlowFills[idx];
