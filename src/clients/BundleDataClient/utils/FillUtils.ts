@@ -65,10 +65,9 @@ export async function verifyFillRepayment(
     hubPoolClient.chainId,
     chainIdListForBundleEvaluationBlockNumbers
   )[1];
-  const fromLiteChain = hubPoolClient.configStoreClient.isChainLiteChainAtTimestamp(
-    fill.originChainId,
-    endBlockForMainnet
-  );
+  const fromLiteChain = hubPoolClient.configStoreClient
+    .getLiteChainIdIndicesForBlock(endBlockForMainnet)
+    .includes(fill.originChainId);
   const repaymentChainId = fromLiteChain ? fill.originChainId : fill.repaymentChainId;
   // Return undefined if the requested repayment chain ID is not recognized by the hub pool.
   if (!hubPoolClient.isValidChainId(repaymentChainId, endBlockForMainnet)) {
