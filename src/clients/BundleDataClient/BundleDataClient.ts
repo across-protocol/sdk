@@ -1395,7 +1395,12 @@ export class BundleDataClient {
           // will usually be called in production with block ranges that were validated by
           // DataworkerUtils.blockRangesAreInvalidForSpokeClients.
           const startBlockForChain = Math.min(_startBlockForChain, spokePoolClient.latestBlockSearched);
-          const endBlockForChain = Math.min(_endBlockForChain, spokePoolClient.latestBlockSearched);
+          // @dev Add 1 to the bundle end block. The thinking here is that there can be a gap between
+          // block timestamps in subsequent blocks. The bundle data client assumes that fill deadlines expire
+          // in exactly one bundle, therefore we must make sure that the bundle block timestamp for one bundle's
+          // end block is exactly equal to the bundle block timestamp for the next bundle's start block. This way
+          // there are no gaps in block timestamps between bundles.
+          const endBlockForChain = Math.min(_endBlockForChain + 1, spokePoolClient.latestBlockSearched);
           const [startTime, endTime] = [
             await spokePoolClient.getTimestampForBlock(startBlockForChain),
             await spokePoolClient.getTimestampForBlock(endBlockForChain),
