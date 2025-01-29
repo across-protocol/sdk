@@ -1104,6 +1104,8 @@ export class BundleDataClient {
             );
           }),
           async (depositHash) => {
+            // We don't need to call verifyFillRepayment() here to replace the fill.relayer because this value should already
+            // be overwritten because the deposit and fill both exist.
             const { deposit, fill, slowFillRequest } = v3RelayHashes[depositHash];
             if (!deposit) throw new Error("Deposit should exist in relay hash dictionary.");
 
