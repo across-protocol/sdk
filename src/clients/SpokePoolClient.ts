@@ -9,10 +9,11 @@ import {
   MAX_BIG_INT,
   MakeOptional,
   assign,
-  getRelayDataHash,
+  keccak256,
   isDefined,
   toBN,
   bnOne,
+  isMessageEmpty,
   isUnsafeDepositId,
 } from "../utils";
 import {
@@ -22,7 +23,7 @@ import {
   spreadEventWithBlockNumber,
 } from "../utils/EventUtils";
 import { validateFillForDeposit } from "../utils/FlowUtils";
-import { ZERO_ADDRESS } from "../constants";
+import { ZERO_ADDRESS, ZERO_BYTES } from "../constants";
 import {
   Deposit,
   DepositWithBlock,
@@ -278,7 +279,7 @@ export class SpokePoolClient extends BaseAbstractClient {
    * @returns The corresponding SlowFIllRequest event if found, otherwise undefined.
    */
   public getSlowFillRequest(relayData: RelayData): SlowFillRequestWithBlock | undefined {
-    const hash = getRelayDataHash(relayData, this.chainId);
+    const hash = this.getDepositHash(relayData);
     return this.slowFillRequests[hash];
   }
 
@@ -617,16 +618,19 @@ export class SpokePoolClient extends BaseAbstractClient {
     if (eventsToQuery.includes("RequestedV3SlowFill")) {
       const slowFillRequests = queryResults[eventsToQuery.indexOf("RequestedV3SlowFill")];
       for (const event of slowFillRequests) {
+        const message = event.args["message"];
+        const messageHash = isMessageEmpty(message)
+          ? ZERO_BYTES
+          : keccak256(message);
+
         const slowFillRequest = {
           ...spreadEventWithBlockNumber(event),
+          messageHash,
           destinationChainId: this.chainId,
         } as SlowFillRequestWithBlock;
 
-        const relayDataHash = getRelayDataHash(slowFillRequest, this.chainId);
-        if (this.slowFillRequests[relayDataHash] !== undefined) {
-          continue;
-        }
-        this.slowFillRequests[relayDataHash] = slowFillRequest;
+        const depositHash = this.getDepositHash(slowFillRequest);
+        this.slowFillRequests[depositHash] ??= slowFillRequest;
       }
     }
 

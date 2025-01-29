@@ -78,6 +78,7 @@ export interface SpeedUp {
 export interface SpeedUpWithBlock extends SpeedUp, SortableEvent {}
 
 export interface SlowFillRequest extends RelayData {
+  messageHash: string;
   destinationChainId: number;
 }
 export interface SlowFillRequestWithBlock extends SlowFillRequest, SortableEvent {}
