@@ -103,6 +103,24 @@ describe("FillUtils", function () {
       const result = await verifyFillRepayment(invalidRepaymentFill, spokeProvider, deposit, [repaymentChainId]);
       expect(result).to.be.undefined;
     });
+    it("Lite chain deposit and relayer is not valid EVM address; relayer gets overwritten to msg.sender", async function () {
+      const liteChainDeposit = {
+        ...deposit,
+        fromLiteChain: true,
+      };
+      const invalidRepaymentFill = {
+        ...fill,
+        relayer: INVALID_EVM_ADDRESS,
+      };
+      spokeProvider._setTransaction(fill.transactionHash, {
+        from: relayer,
+      } as unknown as TransactionResponse);
+      const result = await verifyFillRepayment(invalidRepaymentFill, spokeProvider, liteChainDeposit, [originChainId]);
+      expect(result).to.not.be.undefined;
+      expect(result!.relayer).to.equal(relayer);
+      // Repayment chain is untouched.
+      expect(result!.repaymentChainId).to.equal(repaymentChainId);
+    });
     it("Relayer is not valid EVM address, relayer gets overwritten to msg.sender", async function () {
       // valid chain ID's doesn't contain repayment chain.
       const invalidRepaymentFill = {
@@ -117,6 +135,21 @@ describe("FillUtils", function () {
       expect(result!.relayer).to.equal(relayer);
       // Repayment chain is untouched.
       expect(result!.repaymentChainId).to.equal(repaymentChainId);
+    });
+    it("Lite chain deposit and relayer is not valid EVM address; msg.sender is invalid", async function () {
+      const liteChainDeposit = {
+        ...deposit,
+        fromLiteChain: true,
+      };
+      const invalidRepaymentFill = {
+        ...fill,
+        relayer: INVALID_EVM_ADDRESS,
+      };
+      spokeProvider._setTransaction(fill.transactionHash, {
+        from: INVALID_EVM_ADDRESS,
+      } as unknown as TransactionResponse);
+      const result = await verifyFillRepayment(invalidRepaymentFill, spokeProvider, liteChainDeposit, [originChainId]);
+      expect(result).to.be.undefined;
     });
     it("Relayer is not valid EVM address, and msg.sender is invalid", async function () {
       // Simulate what happens if the repayment chain is an EVM chain, the repayment address is not a vaid EVM address,

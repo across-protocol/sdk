@@ -72,12 +72,7 @@ export async function verifyFillRepayment(
 
   // Case 1: repayment chain is an EVM chain but repayment address is not a valid EVM address.
   if (chainIsEvm(repaymentChainId) && !isValidEvmAddress(updatedFill.relayer)) {
-    // If the fill was from a lite chain, the origin chain is an EVM chain, and the relayer address is invalid
-    // for EVM chains, then we cannot refund the relayer, so mark the fill as invalid.
-    if (matchedDeposit.fromLiteChain) {
-      return undefined;
-    }
-    // TODO: Handle casae where fill was sent on non-EVM chain, in which case the following call would fail
+    // TODO: Handle case where fill was sent on non-EVM chain, in which case the following call would fail
     // or return something unexpected. We'd want to return undefined here.
     const fillTransaction = await destinationChainProvider.getTransaction(updatedFill.transactionHash);
     const destinationRelayer = fillTransaction?.from;
