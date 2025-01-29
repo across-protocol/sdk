@@ -1163,7 +1163,13 @@ export class BundleDataClient {
                 destinationClient.deploymentBlock,
                 destinationClient.latestBlockSearched
               )) as unknown as FillWithBlock;
-              if (canRefundPrefills && !isSlowFill(prefill)) {
+              const verifiedFill = await verifyFillRepayment(
+                prefill,
+                destinationClient.spokePool.provider,
+                deposit,
+                allChainIds
+              );
+              if (canRefundPrefills && isDefined(verifiedFill) && !isSlowFill(prefill)) {
                 validatedBundleV3Fills.push({
                   ...prefill,
                   quoteTimestamp: deposit.quoteTimestamp,
