@@ -277,8 +277,9 @@ describe("SpokePoolClient: Fill Validation", function () {
     expect(spokePoolClient2.getDepositForFill(fill)).to.equal(undefined);
     await spokePoolClient1.update();
 
+    // @todo: Drop `messageHash` exclusion once messageHash is reliably part of fills.
     expect(spokePoolClient1.getDepositForFill(fill))
-      .excludingEvery(["quoteBlockNumber", "fromLiteChain", "toLiteChain"])
+      .excludingEvery(["quoteBlockNumber", "fromLiteChain", "toLiteChain", "messageHash"])
       .to.deep.equal(deposit);
   });
 
@@ -293,11 +294,16 @@ describe("SpokePoolClient: Fill Validation", function () {
     await depositV3(spokePool_1, destinationChainId, depositor, inputToken, inputAmount, outputToken, outputAmount);
     await mineRandomBlocks();
 
-    await depositV3(spokePool_1, destinationChainId, depositor, inputToken, inputAmount, outputToken, outputAmount);
+    const { blockNumber: deposit1Block } = await depositV3(
+      spokePool_1,
+      destinationChainId,
+      depositor,
+      inputToken,
+      inputAmount,
+      outputToken,
+      outputAmount
+    );
     await mineRandomBlocks();
-
-    const [, deposit1Event] = await spokePool_1.queryFilter("V3FundsDeposited");
-    const deposit1Block = deposit1Event.blockNumber;
 
     // Throws when low < high
     await assertPromiseError(
@@ -353,7 +359,7 @@ describe("SpokePoolClient: Fill Validation", function () {
     // Searching for deposit ID -1 that doesn't exist should throw.
     await assertPromiseError(
       getBlockRangeForDepositId(
-        -1,
+        toBN(-1),
         spokePool1DeploymentBlock,
         spokePoolClient1.latestBlockSearched,
         10,
@@ -703,8 +709,9 @@ describe("SpokePoolClient: Fill Validation", function () {
     expect(fill_1.relayExecutionInfo.fillType === FillType.FastFill).to.be.true;
     expect(fill_2.relayExecutionInfo.fillType === FillType.FastFill).to.be.true;
 
+    // @todo: Drop `messageHash` exclusion once messageHash is reliably part of fills.
     expect(spokePoolClient1.getDepositForFill(fill_1))
-      .excludingEvery(["quoteBlockNumber", "fromLiteChain", "toLiteChain"])
+      .excludingEvery(["quoteBlockNumber", "fromLiteChain", "toLiteChain", "messageHash"])
       .to.deep.equal(deposit_1);
     expect(spokePoolClient1.getDepositForFill(fill_2)).to.equal(undefined);
 
