@@ -5,6 +5,8 @@ import { Deposit, Fill, FillStatus, RelayData, SlowFillRequest } from "../interf
 import { SpokePoolClient } from "../clients";
 import { chunk } from "./ArrayUtils";
 import { BigNumber, toBN, bnOne, bnZero } from "./BigNumberUtils";
+import { keccak256 } from "./common";
+import { isMessageEmpty } from "./DepositUtils";
 import { isDefined } from "./TypeGuards";
 import { getNetworkName } from "./NetworkUtils";
 
@@ -392,4 +394,8 @@ export async function findFillBlock(
 // Determines if the input address (either a bytes32 or bytes20) is the zero address.
 export function isZeroAddress(address: string): boolean {
   return address === ZERO_ADDRESS || address === ZERO_BYTES;
+}
+
+export function getMessageHash(message: string): string {
+  return isMessageEmpty(message) ? ZERO_BYTES : keccak256(message);
 }
