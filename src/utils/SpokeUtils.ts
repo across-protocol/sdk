@@ -226,11 +226,11 @@ export function getRelayDataHash(relayData: RelayData, destinationChainId: numbe
     ethersUtils.defaultAbiCoder.encode(
       [
         "tuple(" +
-          "address depositor," +
-          "address recipient," +
-          "address exclusiveRelayer," +
-          "address inputToken," +
-          "address outputToken," +
+          "bytes32 depositor," +
+          "bytes32 recipient," +
+          "bytes32 exclusiveRelayer," +
+          "bytes32 inputToken," +
+          "bytes32 outputToken," +
           "uint256 inputAmount," +
           "uint256 outputAmount," +
           "uint256 originChainId," +
