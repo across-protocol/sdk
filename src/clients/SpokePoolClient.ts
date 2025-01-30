@@ -136,6 +136,18 @@ export class SpokePoolClient extends BaseAbstractClient {
   }
 
   /**
+   * Retrieves a list of duplicate deposits matching the given deposit's deposit hash.
+   * @notice A duplicate is considered any deposit sent after the original deposit with the same deposit hash.
+   * @param deposit The deposit to find duplicates for.
+   * @returns A list of duplicate deposits. Does NOT include the original deposit
+   * unless the original deposit is a duplicate.
+   */
+  public getDuplicateDeposits(deposit: DepositWithBlock): DepositWithBlock[] {
+    const depositHash = this.getDepositHash(deposit);
+    return this.duplicateDepositHashes[depositHash] ?? [];
+  }
+
+  /**
    * Returns a list of all deposits including any duplicate ones. Designed only to be used in use cases where
    * all deposits are required, regardless of duplicates. For example, the Dataworker can use this to refund
    * expired deposits including for duplicates.
@@ -144,9 +156,10 @@ export class SpokePoolClient extends BaseAbstractClient {
    */
   public getDepositsForDestinationChainWithDuplicates(destinationChainId: number): DepositWithBlock[] {
     const deposits = this.getDepositsForDestinationChain(destinationChainId);
-    const duplicateDeposits = Object.values(this.duplicateDepositHashes).filter(
-      (deposits) => deposits.length > 0 && deposits[0].destinationChainId === destinationChainId
-    );
+    const duplicateDeposits = deposits.reduce((acc, deposit) => {
+      const duplicates = this.getDuplicateDeposits(deposit);
+      return acc.concat(duplicates);
+    }, [] as DepositWithBlock[]);
     return sortEventsAscendingInPlace(deposits.concat(duplicateDeposits.flat()));
   }
 
