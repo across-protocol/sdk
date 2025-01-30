@@ -243,6 +243,7 @@ export class BundleDataClient {
         bundleData.bundleDepositsV3,
         bundleData.bundleFillsV3,
         [], // Invalid fills are not persisted to Arweave.
+        [], // Unrepayable fills are not persisted to Arweave.
         bundleData.bundleSlowFillsV3,
         bundleData.expiredDepositsToRefundV3,
         bundleData.unexecutableSlowFills
