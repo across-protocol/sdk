@@ -234,7 +234,7 @@ export function getRelayDataHash(relayData: RelayData, destinationChainId: numbe
           "uint256 inputAmount," +
           "uint256 outputAmount," +
           "uint256 originChainId," +
-          "uint32 depositId," +
+          "uint256 depositId," +
           "uint32 fillDeadline," +
           "uint32 exclusivityDeadline," +
           "bytes message" +
