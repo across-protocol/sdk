@@ -994,7 +994,7 @@ export class BundleDataClient {
                   // historical deposit query is not working as expected.
                   assert(this.getRelayHashFromEvent(matchedDeposit) === relayDataHash, "Relay hashes should match.");
                   validatedBundleV3Fills.push({
-                    ...fill,
+                    ...fillToRefund,
                     quoteTimestamp: matchedDeposit.quoteTimestamp,
                   });
                   v3RelayHashes[relayDataHash].fill = fillToRefund;
