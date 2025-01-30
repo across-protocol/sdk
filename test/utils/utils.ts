@@ -3,15 +3,13 @@ import { Contract, providers } from "ethers";
 import {
   AcrossConfigStoreClient as ConfigStoreClient,
   GLOBAL_CONFIG_STORE_KEYS,
-  HubPoolClient,
 } from "../../src/clients";
 import {
   SlowFillRequestWithBlock,
-  V3RelayData,
-  V2Deposit,
-  V3Deposit,
-  V3DepositWithBlock,
-  V3FillWithBlock,
+  RelayData,
+  Deposit,
+  DepositWithBlock,
+  FillWithBlock,
 } from "../../src/interfaces";
 import {
   BigNumber,
@@ -19,8 +17,6 @@ import {
   bnUint32Max,
   bnOne,
   getCurrentTime,
-  getDepositInputAmount,
-  getDepositInputToken,
   resolveContractFromSymbol,
   toBN,
   toBNWei,
@@ -271,37 +267,6 @@ export async function addLiquidity(
   await hubPool.connect(signer).addLiquidity(l1Token.address, amount);
 }
 
-// Submits a deposit transaction and returns the Deposit struct that that clients interact with.
-export async function buildV2DepositStruct(
-  deposit: Omit<V2Deposit, "destinationToken" | "realizedLpFeePct">,
-  hubPoolClient: HubPoolClient
-): Promise<V2Deposit & { quoteBlockNumber: number; blockNumber: number }> {
-  const blockNumber = await hubPoolClient.getBlockNumber(deposit.quoteTimestamp);
-  if (!blockNumber) {
-    throw new Error("Timestamp is undefined");
-  }
-
-  const inputToken = getDepositInputToken(deposit);
-  const inputAmount = getDepositInputAmount(deposit);
-  const { quoteBlock, realizedLpFeePct } = await hubPoolClient.computeRealizedLpFeePct({
-    ...deposit,
-    inputToken,
-    inputAmount,
-    paymentChainId: deposit.destinationChainId,
-    blockNumber,
-  });
-  return {
-    ...deposit,
-    destinationToken: hubPoolClient.getL2TokenForDeposit({
-      ...deposit,
-      quoteBlockNumber: quoteBlock,
-    }),
-    quoteBlockNumber: quoteBlock,
-    realizedLpFeePct,
-    blockNumber: await getLastBlockNumber(),
-  };
-}
-
 export async function depositV3(
   spokePool: Contract,
   destinationChainId: number,
@@ -319,7 +284,7 @@ export async function depositV3(
     exclusivityDeadline?: number;
     exclusiveRelayer?: string;
   } = {}
-): Promise<V3DepositWithBlock> {
+): Promise<DepositWithBlock> {
   const depositor = signer.address;
   const recipient = opts.recipient ?? depositor;
 
@@ -376,6 +341,8 @@ export async function depositV3(
     fillDeadline: args!.fillDeadline,
     exclusivityDeadline: args!.exclusivityDeadline,
     exclusiveRelayer: args!.exclusiveRelayer,
+    fromLiteChain: false,
+    toLiteChain: false,
     quoteBlockNumber: 0, // @todo
     blockNumber,
     transactionHash,
@@ -386,7 +353,7 @@ export async function depositV3(
 
 export async function requestV3SlowFill(
   spokePool: Contract,
-  relayData: V3RelayData,
+  relayData: RelayData,
   signer: SignerWithAddress
 ): Promise<SlowFillRequestWithBlock> {
   const destinationChainId = Number(await spokePool.chainId());
@@ -425,10 +392,10 @@ export async function requestV3SlowFill(
 
 export async function fillV3Relay(
   spokePool: Contract,
-  deposit: Omit<V3Deposit, "destinationChainId">,
+  deposit: Omit<Deposit, "destinationChainId">,
   signer: SignerWithAddress,
   repaymentChainId?: number
-): Promise<V3FillWithBlock> {
+): Promise<FillWithBlock> {
   const destinationChainId = Number(await spokePool.chainId());
   assert.notEqual(deposit.originChainId, destinationChainId);
 
@@ -479,7 +446,7 @@ export function getLastBlockNumber(): Promise<number> {
   return (utils.ethers.provider as unknown as providers.Provider).getBlockNumber();
 }
 
-export function convertMockedConfigClient(client: unknown): client is ConfigStoreClient {
+export function convertMockedConfigClient(_client: unknown): _client is ConfigStoreClient {
   return true;
 }
 
@@ -528,7 +495,7 @@ export function buildDepositForRelayerFeeTest(
   tokenSymbol: string,
   originChainId: string | number,
   toChainId: string | number
-): V3Deposit {
+): Deposit {
   const inputToken = resolveContractFromSymbol(tokenSymbol, String(originChainId));
   const outputToken = resolveContractFromSymbol(tokenSymbol, String(toChainId));
   expect(inputToken).to.not.be.undefined;
@@ -553,5 +520,7 @@ export function buildDepositForRelayerFeeTest(
     fillDeadline: currentTime + 7200,
     exclusivityDeadline: 0,
     exclusiveRelayer: ZERO_ADDRESS,
+    fromLiteChain: false,
+    toLiteChain:false,
   };
 }
