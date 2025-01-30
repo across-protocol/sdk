@@ -33,7 +33,7 @@ import { EMPTY_MESSAGE, ZERO_ADDRESS } from "../src/constants";
 import { SpokePool } from "@across-protocol/contracts";
 import { QueryBase, QueryBase__factory } from "../src/relayFeeCalculator";
 import { getDefaultProvider } from "ethers";
-import { MockedProvider } from "./utils/provider";
+import { MockedProvider } from "../src/providers/mockProvider";
 
 dotenv.config({ path: ".env" });
 
@@ -337,7 +337,7 @@ describe("RelayFeeCalculator: Composable Bridging", function () {
           outputToken: destErc20.address,
           recipient: testContract.address,
           quoteTimestamp: 1,
-          depositId: 1000000,
+          depositId: BigNumber.from(1000000),
           depositor: depositor.address,
           originChainId: 10,
           destinationChainId: 1,

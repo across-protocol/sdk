@@ -5,6 +5,7 @@ import { CachingMechanismInterface, Deposit, DepositWithBlock, Fill, SlowFillReq
 import { getNetworkName } from "./NetworkUtils";
 import { getDepositInCache, getDepositKey, setDepositInCache } from "./CachingUtils";
 import { validateFillForDeposit } from "./FlowUtils";
+import { isUnsafeDepositId } from "./SpokeUtils";
 import { getCurrentTime } from "./TimeUtils";
 import { isDefined } from "./TypeGuards";
 import { isDepositFormedCorrectly } from "./ValidatorUtils";
@@ -17,6 +18,7 @@ export enum InvalidFill {
   DepositIdInvalid = 0, // Deposit ID seems invalid for origin SpokePool
   DepositIdNotFound, // Deposit ID not found (bad RPC data?)
   FillMismatch, // Fill does not match deposit parameters for deposit ID.
+  DepositIdOutOfRange, // Fill is for a deterministic deposit.
 }
 
 export type DepositSearchResult =
@@ -40,6 +42,13 @@ export async function queryHistoricalDepositForFill(
   fill: Fill | SlowFillRequest,
   cache?: CachingMechanismInterface
 ): Promise<DepositSearchResult> {
+  if (isUnsafeDepositId(fill.depositId)) {
+    return {
+      found: false,
+      code: InvalidFill.DepositIdOutOfRange,
+      reason: `Cannot find historical deposit for fill with unsafe deposit ID ${fill.depositId}.`,
+    };
+  }
   if (fill.originChainId !== spokePoolClient.chainId) {
     throw new Error(`OriginChainId mismatch (${fill.originChainId} != ${spokePoolClient.chainId})`);
   }
@@ -52,16 +61,16 @@ export async function queryHistoricalDepositForFill(
 
   const { depositId } = fill;
   let { firstDepositIdForSpokePool: lowId, lastDepositIdForSpokePool: highId } = spokePoolClient;
-  if (depositId < lowId || depositId > highId) {
+  if (depositId.lt(lowId) || depositId.gt(highId)) {
     return {
       found: false,
       code: InvalidFill.DepositIdInvalid,
-      reason: `Deposit ID ${depositId} is outside of SpokePool bounds [${lowId},${highId}].`,
+      reason: `Deposit ID ${depositId.toString()} is outside of SpokePool bounds [${lowId},${highId}].`,
     };
   }
 
   ({ earliestDepositIdQueried: lowId, latestDepositIdQueried: highId } = spokePoolClient);
-  if (depositId >= lowId && depositId <= highId) {
+  if (depositId.gte(lowId) && depositId.lte(highId)) {
     const originChain = getNetworkName(fill.originChainId);
     const deposit = spokePoolClient.getDeposit(depositId);
     if (isDefined(deposit)) {
@@ -73,14 +82,14 @@ export async function queryHistoricalDepositForFill(
       return {
         found: false,
         code: InvalidFill.FillMismatch,
-        reason: `Fill for ${originChain} deposit ID ${depositId} is invalid (${match.reason}).`,
+        reason: `Fill for ${originChain} deposit ID ${depositId.toString()} is invalid (${match.reason}).`,
       };
     }
 
     return {
       found: false,
       code: InvalidFill.DepositIdNotFound,
-      reason: `${originChain} deposit ID ${depositId} not found in SpokePoolClient event buffer.`,
+      reason: `${originChain} deposit ID ${depositId.toString()} not found in SpokePoolClient event buffer.`,
     };
   }
 
