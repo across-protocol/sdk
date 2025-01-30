@@ -5,7 +5,7 @@ import { CachingMechanismInterface, Deposit, DepositWithBlock, Fill, SlowFillReq
 import { getNetworkName } from "./NetworkUtils";
 import { getDepositInCache, getDepositKey, setDepositInCache } from "./CachingUtils";
 import { validateFillForDeposit } from "./FlowUtils";
-import { isUnsafeDepositId } from "./SpokeUtils";
+import { getMessageHash, isUnsafeDepositId } from "./SpokeUtils";
 import { getCurrentTime } from "./TimeUtils";
 import { isDefined } from "./TypeGuards";
 import { isDepositFormedCorrectly } from "./ValidatorUtils";
@@ -121,6 +121,8 @@ export async function queryHistoricalDepositForFill(
       await setDepositInCache(deposit, getCurrentTime(), cache, DEFAULT_CACHING_TTL);
     }
   }
+
+  deposit.messageHash ??= getMessageHash(deposit.message);
 
   const match = validateFillForDeposit(fill, deposit);
   if (match.valid) {

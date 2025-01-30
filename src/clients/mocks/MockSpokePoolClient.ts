@@ -247,6 +247,7 @@ export class MockSpokePoolClient extends SpokePoolClient {
   executeV3SlowRelayLeaf(leaf: SlowFillLeaf): Log {
     const fill: Fill = {
       ...leaf.relayData,
+      messageHash: "", // Not used.
       destinationChainId: this.chainId,
       relayer: ZERO_ADDRESS,
       repaymentChainId: 0,

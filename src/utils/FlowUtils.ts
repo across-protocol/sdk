@@ -14,13 +14,13 @@ export const RELAYDATA_KEYS = [
   "fillDeadline",
   "exclusivityDeadline",
   "exclusiveRelayer",
-  "message",
+  "messageHash",
 ] as const;
 
 // Ensure that each deposit element is included with the same value in the fill. This includes all elements defined
 // by the depositor as well as destinationToken, which are pulled from other clients.
 export function validateFillForDeposit(
-  relayData: RelayData & { destinationChainId: number },
+  relayData: Omit<RelayData, "message"> & { messageHash: string, destinationChainId: number },
   deposit?: Deposit
 ): { valid: true } | { valid: false; reason: string } {
   if (deposit === undefined) {

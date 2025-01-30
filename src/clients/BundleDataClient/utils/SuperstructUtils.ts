@@ -90,12 +90,12 @@ const V3RelayExecutionEventInfoSS = object({
 
 const V3FillSS = {
   ...V3RelayDataSS,
+  messageHash: defaulted(string(), UNDEFINED_MESSAGE_HASH),
   destinationChainId: number(),
   relayer: string(),
   repaymentChainId: number(),
   relayExecutionInfo: V3RelayExecutionEventInfoSS,
   quoteTimestamp: number(),
-  messageHash: optional(string()),
 };
 
 const V3FillWithBlockSS = {

@@ -642,6 +642,7 @@ export class SpokePoolClient extends BaseAbstractClient {
       for (const event of fillEvents) {
         const fill = {
           ...spreadEventWithBlockNumber(event),
+          messageHash: getMessageHash(event.args["message"]),
           destinationChainId: this.chainId,
         } as FillWithBlock;
 

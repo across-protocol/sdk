@@ -57,6 +57,7 @@ export interface RelayExecutionEventInfo {
 }
 
 export interface Fill extends RelayData {
+  messageHash: string;
   destinationChainId: number;
   relayer: string;
   repaymentChainId: number;
