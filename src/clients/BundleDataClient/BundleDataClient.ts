@@ -1444,10 +1444,10 @@ export class BundleDataClient {
           // end block is exactly equal to the bundle block timestamp for the next bundle's start block. This way
           // there are no gaps in block timestamps between bundles.
           const endBlockForChain = Math.min(_endBlockForChain + 1, spokePoolClient.latestBlockSearched);
-          const [startTime, _endTime] = await Promise.all([
-            spokePoolClient.getTimestampForBlock(startBlockForChain),
-            spokePoolClient.getTimestampForBlock(endBlockForChain),
-          ]);
+          const [startTime, _endTime] = [
+            await spokePoolClient.getTimestampForBlock(startBlockForChain),
+            await spokePoolClient.getTimestampForBlock(endBlockForChain),
+          ];
           // @dev similar to reasoning above to ensure no gaps between bundle block range timestamps and also
           // no overlap, subtract 1 from the end time.
           const endBlockDelta = endBlockForChain > startBlockForChain ? 1 : 0;
