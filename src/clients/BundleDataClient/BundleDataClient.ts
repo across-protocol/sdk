@@ -242,7 +242,6 @@ export class BundleDataClient {
       bundleData: prettyPrintV3SpokePoolEvents(
         bundleData.bundleDepositsV3,
         bundleData.bundleFillsV3,
-        [], // Invalid fills are not persisted to Arweave.
         bundleData.bundleSlowFillsV3,
         bundleData.expiredDepositsToRefundV3,
         bundleData.unexecutableSlowFills
@@ -676,6 +675,7 @@ export class BundleDataClient {
     const bundleDepositsV3: BundleDepositsV3 = {}; // Deposits in bundle block range.
     const bundleFillsV3: BundleFillsV3 = {}; // Fills to refund in bundle block range.
     const bundleInvalidFillsV3: V3FillWithBlock[] = []; // Fills that are not valid in this bundle.
+    const bundleUnrepayableFillsV3: V3FillWithBlock[] = []; // Fills that are not repayable in this bundle.
     const bundleSlowFillsV3: BundleSlowFills = {}; // Deposits that we need to send slow fills
     // for in this bundle.
     const expiredDepositsToRefundV3: ExpiredDepositsToRefundV3 = {};
@@ -884,36 +884,37 @@ export class BundleDataClient {
             // tokens to the filler. We can't remove non-empty message deposit here in case there is a slow fill
             // request for the deposit, we'd want to see the fill took place.
             .filter((fill) => fill.blockNumber <= destinationChainBlockRange[1] && !isZeroValueDeposit(fill)),
-          async (_fill) => {
+          async (fill) => {
             fillCounter++;
-            const relayDataHash = this.getRelayHashFromEvent(_fill);
+            const relayDataHash = this.getRelayHashFromEvent(fill);
             if (v3RelayHashes[relayDataHash]) {
               if (!v3RelayHashes[relayDataHash].fill) {
                 assert(
                   isDefined(v3RelayHashes[relayDataHash].deposit),
                   "Deposit should exist in relay hash dictionary."
                 );
-                // `fill` will only possibly differ from `_fill` in the `relayer` field, which does not affect the
-                // relay hash, so it is safe to modify.
-                const fill = await verifyFillRepayment(
-                  _fill,
-                  destinationClient.spokePool.provider,
-                  v3RelayHashes[relayDataHash].deposit!,
-                  allChainIds
-                );
-                if (!isDefined(fill)) {
-                  bundleInvalidFillsV3.push(_fill);
-                  return;
-                }
-
                 // At this point, the v3RelayHashes entry already existed meaning that there is a matching deposit,
                 // so this fill is validated.
                 v3RelayHashes[relayDataHash].fill = fill;
                 if (fill.blockNumber >= destinationChainBlockRange[0]) {
-                  validatedBundleV3Fills.push({
-                    ...fill,
-                    quoteTimestamp: v3RelayHashes[relayDataHash].deposit!.quoteTimestamp, // ! due to assert above
-                  });
+                  const fillToRefund = await verifyFillRepayment(
+                    fill,
+                    destinationClient.spokePool.provider,
+                    v3RelayHashes[relayDataHash].deposit!,
+                    allChainIds
+                  );
+                  if (!isDefined(fillToRefund)) {
+                    bundleUnrepayableFillsV3.push(fill);
+                    // We don't return here yet because we still need to mark unexecutable slow fill leaves
+                    // or duplicate deposits. However, we won't issue a fast fill refund.
+                  } else {
+                    v3RelayHashes[relayDataHash].fill = fillToRefund;
+                    validatedBundleV3Fills.push({
+                      ...fillToRefund,
+                      quoteTimestamp: v3RelayHashes[relayDataHash].deposit!.quoteTimestamp, // ! due to assert above
+                    });
+                  }
+
                   // If fill replaced a slow fill request, then mark it as one that might have created an
                   // unexecutable slow fill. We can't know for sure until we check the slow fill request
                   // events.
@@ -926,6 +927,8 @@ export class BundleDataClient {
                     fastFillsReplacingSlowFills.push(relayDataHash);
                   }
                 }
+              } else {
+                throw new Error("Duplicate fill detected");
               }
               return;
             }
@@ -934,7 +937,7 @@ export class BundleDataClient {
             // instantiate the entry. We won't modify the fill.relayer until we match it with a deposit.
             v3RelayHashes[relayDataHash] = {
               deposit: undefined,
-              fill: _fill,
+              fill,
               slowFillRequest: undefined,
             };
 
@@ -946,44 +949,47 @@ export class BundleDataClient {
             // older deposit in case the spoke pool client's lookback isn't old enough to find the matching deposit.
             // We can skip this step if the fill's fill deadline is not infinite, because we can assume that the
             // spoke pool clients have loaded deposits old enough to cover all fills with a non-infinite fill deadline.
-            if (_fill.blockNumber >= destinationChainBlockRange[0]) {
+            if (fill.blockNumber >= destinationChainBlockRange[0]) {
               // Fill has a non-infinite expiry, and we can assume our spoke pool clients have old enough deposits
               // to conclude that this fill is invalid if we haven't found a matching deposit in memory, so
               // skip the historical query.
-              if (!INFINITE_FILL_DEADLINE.eq(_fill.fillDeadline)) {
-                bundleInvalidFillsV3.push(_fill);
+              if (!INFINITE_FILL_DEADLINE.eq(fill.fillDeadline)) {
+                bundleInvalidFillsV3.push(fill);
                 return;
               }
               // If deposit is using the deterministic relay hash feature, then the following binary search-based
               // algorithm will not work. However, it is impossible to emit an infinite fill deadline using
               // the unsafeDepositV3 function so there is no need to catch the special case.
-              const historicalDeposit = await queryHistoricalDepositForFill(originClient, _fill);
+              const historicalDeposit = await queryHistoricalDepositForFill(originClient, fill);
               if (!historicalDeposit.found) {
-                bundleInvalidFillsV3.push(_fill);
+                bundleInvalidFillsV3.push(fill);
               } else {
                 const matchedDeposit = historicalDeposit.deposit;
-                const fill = await verifyFillRepayment(
-                  _fill,
+                v3RelayHashes[relayDataHash].deposit = matchedDeposit;
+
+                const fillToRefund = await verifyFillRepayment(
+                  fill,
                   destinationClient.spokePool.provider,
                   matchedDeposit,
                   allChainIds
                 );
-                if (!isDefined(fill)) {
-                  bundleInvalidFillsV3.push(_fill);
-                  return;
+                if (!isDefined(fillToRefund)) {
+                  bundleUnrepayableFillsV3.push(fill);
+                  // Don't return yet as we still need to mark down any unexecutable slow fill leaves
+                  // in case this fast fill replaced a slow fill request.
+                } else {
+                  // @dev Since queryHistoricalDepositForFill validates the fill by checking individual
+                  // object property values against the deposit's, we
+                  // sanity check it here by comparing the full relay hashes. If there's an error here then the
+                  // historical deposit query is not working as expected.
+                  assert(this.getRelayHashFromEvent(matchedDeposit) === relayDataHash, "Relay hashes should match.");
+                  validatedBundleV3Fills.push({
+                    ...fillToRefund,
+                    quoteTimestamp: matchedDeposit.quoteTimestamp,
+                  });
+                  v3RelayHashes[relayDataHash].fill = fillToRefund;
                 }
-                v3RelayHashes[relayDataHash].fill = fill;
 
-                // @dev Since queryHistoricalDepositForFill validates the fill by checking individual
-                // object property values against the deposit's, we
-                // sanity check it here by comparing the full relay hashes. If there's an error here then the
-                // historical deposit query is not working as expected.
-                assert(this.getRelayHashFromEvent(matchedDeposit) === relayDataHash, "Relay hashes should match.");
-                validatedBundleV3Fills.push({
-                  ...fill,
-                  quoteTimestamp: matchedDeposit.quoteTimestamp,
-                });
-                v3RelayHashes[relayDataHash].deposit = matchedDeposit;
                 // slow fill requests for deposits from or to lite chains are considered invalid
                 if (
                   fill.relayExecutionInfo.fillType === FillType.ReplacedSlowFill &&
@@ -1011,7 +1017,10 @@ export class BundleDataClient {
                 v3RelayHashes[relayDataHash].slowFillRequest = slowFillRequest;
                 if (v3RelayHashes[relayDataHash].fill) {
                   // If there is a fill matching the relay hash, then this slow fill request can't be used
-                  // to create a slow fill for a filled deposit.
+                  // to create a slow fill for a filled deposit. This takes advantage of the fact that
+                  // slow fill requests must precede fills, so if there is a matching fill for this request's
+                  // relay data, then this slow fill will be unexecutable. We therefore must have seen the fill
+                  // already if it exists
                   return;
                 }
                 assert(
@@ -1054,6 +1063,8 @@ export class BundleDataClient {
                   // so this slow fill request relay data is correct.
                   validatedBundleSlowFills.push(matchedDeposit);
                 }
+              } else {
+                throw new Error("Duplicate slow fill request detected.");
               }
               return;
             }
@@ -1328,7 +1339,6 @@ export class BundleDataClient {
     const v3SpokeEventsReadable = prettyPrintV3SpokePoolEvents(
       bundleDepositsV3,
       bundleFillsV3,
-      bundleInvalidFillsV3,
       bundleSlowFillsV3,
       expiredDepositsToRefundV3,
       unexecutableSlowFills
@@ -1340,6 +1350,15 @@ export class BundleDataClient {
         message: "Finished loading V3 spoke pool data and found some invalid V3 fills in range",
         blockRangesForChains,
         bundleInvalidFillsV3,
+      });
+    }
+
+    if (bundleUnrepayableFillsV3.length > 0) {
+      this.logger.debug({
+        at: "BundleDataClient#loadData",
+        message: "Finished loading V3 spoke pool data and found some unrepayable V3 fills in range",
+        blockRangesForChains,
+        bundleUnrepayableFillsV3,
       });
     }
 

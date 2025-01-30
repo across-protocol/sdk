@@ -14,7 +14,6 @@ import {
 import {
   bnZero,
   AnyObject,
-  groupObjectCountsByTwoProps,
   fixedPointAdjustment,
   count2DDictionaryValues,
   count3DDictionaryValues,
@@ -26,7 +25,6 @@ import {
   updateRunningBalance,
   updateRunningBalanceForDeposit,
 } from "./PoolRebalanceUtils";
-import { V3FillWithBlock } from "./shims";
 import { AcrossConfigStoreClient } from "../../AcrossConfigStoreClient";
 import { HubPoolClient } from "../../HubPoolClient";
 import { buildPoolRebalanceLeafTree } from "./MerkleTreeUtils";
@@ -83,7 +81,6 @@ export function getRefundsFromBundle(
 export function prettyPrintV3SpokePoolEvents(
   bundleDepositsV3: BundleDepositsV3,
   bundleFillsV3: BundleFillsV3,
-  bundleInvalidFillsV3: V3FillWithBlock[],
   bundleSlowFillsV3: BundleSlowFills,
   expiredDepositsToRefundV3: ExpiredDepositsToRefundV3,
   unexecutableSlowFills: BundleExcessSlowFills
@@ -94,11 +91,6 @@ export function prettyPrintV3SpokePoolEvents(
     bundleSlowFillsV3: count2DDictionaryValues(bundleSlowFillsV3),
     expiredDepositsToRefundV3: count2DDictionaryValues(expiredDepositsToRefundV3),
     unexecutableSlowFills: count2DDictionaryValues(unexecutableSlowFills),
-    allInvalidFillsInRangeByDestinationChainAndRelayer: groupObjectCountsByTwoProps(
-      bundleInvalidFillsV3,
-      "destinationChainId",
-      (fill) => `${fill.relayer}`
-    ),
   };
 }
 
