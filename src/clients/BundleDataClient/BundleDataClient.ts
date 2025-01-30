@@ -28,6 +28,7 @@ import {
   forEachAsync,
   getBlockRangeForChain,
   getImpliedBundleBlockRanges,
+  getMessageHash,
   isSlowFill,
   mapAsync,
   filterAsync,
@@ -47,6 +48,7 @@ import {
   isChainDisabled,
   PoolRebalanceRoot,
   prettyPrintV3SpokePoolEvents,
+  UNDEFINED_MESSAGE_HASH,
   V3DepositWithBlock,
   V3FillWithBlock,
   verifyFillRepayment,
@@ -228,6 +230,19 @@ export class BundleDataClient {
       );
 
     const data = persistedData[0].data;
+
+    // Post-populate any missing message hashes.
+    // @todo This can be removed once the legacy types hurdle is cleared (earliest 7 days post migration).
+    Object.values(data.bundleDepositsV3).forEach((x) =>
+      Object.values(x).forEach((deposits) =>
+        deposits.forEach((deposit) => {
+          if (deposit.messageHash === UNDEFINED_MESSAGE_HASH) {
+            deposit.messageHash = getMessageHash(deposit.message);
+          }
+        })
+      )
+    );
+
     const bundleData = {
       bundleFillsV3: convertTypedStringRecordIntoNumericRecord(data.bundleFillsV3),
       expiredDepositsToRefundV3: convertTypedStringRecordIntoNumericRecord(data.expiredDepositsToRefundV3),

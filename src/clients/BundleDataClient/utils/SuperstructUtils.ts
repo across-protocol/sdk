@@ -15,6 +15,8 @@ import {
 } from "superstruct";
 import { BigNumber } from "../../../utils";
 
+export const UNDEFINED_MESSAGE_HASH = "";
+
 const PositiveIntegerStringSS = pattern(string(), /\d+/);
 const Web3AddressSS = pattern(string(), /^0x[a-fA-F0-9]{40}$/);
 
@@ -54,6 +56,7 @@ const SortableEventSS = {
 };
 
 const V3DepositSS = {
+  messageHash: defaulted(string(), UNDEFINED_MESSAGE_HASH),
   fromLiteChain: defaulted(boolean(), false),
   toLiteChain: defaulted(boolean(), false),
   destinationChainId: number(),
