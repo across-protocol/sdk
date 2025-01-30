@@ -84,6 +84,7 @@ export function prettyPrintV3SpokePoolEvents(
   bundleDepositsV3: BundleDepositsV3,
   bundleFillsV3: BundleFillsV3,
   bundleInvalidFillsV3: V3FillWithBlock[],
+  bundleUnrepayableFillsV3: V3FillWithBlock[],
   bundleSlowFillsV3: BundleSlowFills,
   expiredDepositsToRefundV3: ExpiredDepositsToRefundV3,
   unexecutableSlowFills: BundleExcessSlowFills
@@ -97,6 +98,11 @@ export function prettyPrintV3SpokePoolEvents(
     allInvalidFillsInRangeByDestinationChainAndRelayer: groupObjectCountsByTwoProps(
       bundleInvalidFillsV3,
       "destinationChainId",
+      (fill) => `${fill.relayer}`
+    ),
+    allUnrepayableFillsInRangeByDestinationChainAndRelayer: groupObjectCountsByTwoProps(
+      bundleUnrepayableFillsV3,
+      "repaymentChainId",
       (fill) => `${fill.relayer}`
     ),
   };

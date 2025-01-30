@@ -676,6 +676,7 @@ export class BundleDataClient {
     const bundleDepositsV3: BundleDepositsV3 = {}; // Deposits in bundle block range.
     const bundleFillsV3: BundleFillsV3 = {}; // Fills to refund in bundle block range.
     const bundleInvalidFillsV3: V3FillWithBlock[] = []; // Fills that are not valid in this bundle.
+    const bundleUnrepayableFillsV3: V3FillWithBlock[] = []; // Fills that are not repayable in this bundle.
     const bundleSlowFillsV3: BundleSlowFills = {}; // Deposits that we need to send slow fills
     // for in this bundle.
     const expiredDepositsToRefundV3: ExpiredDepositsToRefundV3 = {};
@@ -904,7 +905,7 @@ export class BundleDataClient {
                     allChainIds
                   );
                   if (!isDefined(fillToRefund)) {
-                    bundleInvalidFillsV3.push(fill);
+                    bundleUnrepayableFillsV3.push(fill);
                     // We don't return here yet because we still need to mark unexecutable slow fill leaves
                     // or duplicate deposits. However, we won't issue a fast fill refund.
                   } else {
@@ -974,7 +975,7 @@ export class BundleDataClient {
                   allChainIds
                 );
                 if (!isDefined(fillToRefund)) {
-                  bundleInvalidFillsV3.push(fill);
+                  bundleUnrepayableFillsV3.push(fill);
                   // Don't return yet as we still need to mark down any unexecutable slow fill leaves
                   // in case this fast fill replaced a slow fill request.
                 } else {
@@ -1340,6 +1341,7 @@ export class BundleDataClient {
       bundleDepositsV3,
       bundleFillsV3,
       bundleInvalidFillsV3,
+      bundleUnrepayableFillsV3,
       bundleSlowFillsV3,
       expiredDepositsToRefundV3,
       unexecutableSlowFills
@@ -1351,6 +1353,15 @@ export class BundleDataClient {
         message: "Finished loading V3 spoke pool data and found some invalid V3 fills in range",
         blockRangesForChains,
         bundleInvalidFillsV3,
+      });
+    }
+
+    if (bundleUnrepayableFillsV3.length > 0) {
+      this.logger.debug({
+        at: "BundleDataClient#loadData",
+        message: "Finished loading V3 spoke pool data and found some unrepayable V3 fills in range",
+        blockRangesForChains,
+        bundleUnrepayableFillsV3,
       });
     }
 
