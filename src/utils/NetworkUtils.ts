@@ -124,6 +124,17 @@ export function chainIsL1(chainId: number): boolean {
 }
 
 /**
+ * Determines whether a chain ID runs on an EVM-like execution layer.
+ * @param chainId Chain ID to evaluate.
+ * @returns True if chain corresponding to chainId has an EVM-like execution layer.
+ */
+export function chainIsEvm(chainId: number): boolean {
+  chainId;
+  // TODO: Fix when we support non-EVM chains.
+  return true;
+}
+
+/**
  * Determines whether a chain ID has the capacity for having its USDC bridged via CCTP.
  * @param chainId Chain ID to evaluate.
  * @returns True if chainId is a CCTP-bridging enabled chain, otherwise false.

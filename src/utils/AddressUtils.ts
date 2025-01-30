@@ -55,3 +55,20 @@ export function toAddress(bytes32: string): string {
   const rawAddress = utils.hexZeroPad(utils.hexStripZeros(bytes32), 20);
   return utils.getAddress(rawAddress);
 }
+
+// Checks if the input string can be coerced into a bytes20 evm address. Returns true if it is possible, and false otherwise.
+export function isValidEvmAddress(address: string): boolean {
+  if (utils.isAddress(address)) {
+    return true;
+  }
+  // We may throw an error here if hexZeroPadFails. This will happen if the address to pad is greater than 20 bytes long, indicating
+  // that the address had less than 12 leading zero bytes.
+  // We may also throw at getAddress if the input cannot be converted into a checksummed EVM address for some reason.
+  // For both cases, this indicates that the address cannot be casted as a bytes20 EVM address, so we should return false.
+  try {
+    const evmAddress = utils.hexZeroPad(utils.hexStripZeros(address), 20);
+    return utils.isAddress(utils.getAddress(evmAddress));
+  } catch (_e) {
+    return false;
+  }
+}

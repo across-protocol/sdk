@@ -1,18 +1,20 @@
 import { BigNumber, providers } from "ethers";
-import { Block, BlockTag, FeeData } from "@ethersproject/abstract-provider";
-import { bnZero } from "../../src/utils/BigNumberUtils";
+import { Block, BlockTag, FeeData, TransactionResponse } from "@ethersproject/abstract-provider";
+import { bnZero } from "../utils/BigNumberUtils";
 
 /**
  * @notice Class used to test GasPriceOracle which makes ethers provider calls to the following implemented
  * methods.
  */
 export class MockedProvider extends providers.StaticJsonRpcProvider {
+  private transactions: { [hash: string]: TransactionResponse } = {};
+
   constructor(
     readonly stdLastBaseFeePerGas: BigNumber,
     readonly stdMaxPriorityFeePerGas: BigNumber,
     readonly defaultChainId = 1
   ) {
-    super();
+    super(undefined, defaultChainId);
   }
 
   getBlock(_blockHashOrBlockTag: BlockTag | string | Promise<BlockTag | string>): Promise<Block> {
@@ -54,6 +56,10 @@ export class MockedProvider extends providers.StaticJsonRpcProvider {
     });
   }
 
+  getTransaction(hash: string): Promise<TransactionResponse> {
+    return Promise.resolve(this.transactions[hash]);
+  }
+
   getGasPrice(): Promise<BigNumber> {
     return Promise.resolve(this.stdLastBaseFeePerGas.add(this.stdMaxPriorityFeePerGas));
   }
@@ -63,5 +69,9 @@ export class MockedProvider extends providers.StaticJsonRpcProvider {
       name: "mocknetwork",
       chainId: this.defaultChainId,
     });
+  }
+
+  _setTransaction(hash: string, transaction: TransactionResponse) {
+    this.transactions[hash] = transaction;
   }
 }
