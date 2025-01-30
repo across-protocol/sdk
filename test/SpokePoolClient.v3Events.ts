@@ -311,13 +311,13 @@ describe("SpokePoolClient: Event Filtering", function () {
     const relayer = randomAddress();
 
     for (let idx = 0; idx < 10; ++idx) {
-      const deposit = generateDeposit(originSpokePoolClient);
+      const depositEvent = generateDeposit(originSpokePoolClient);
 
       await originSpokePoolClient.update(fundsDepositedEvents);
       let deposit = originSpokePoolClient.getDeposits().at(-1);
-      expect(deposit).to.not.be.undefined;
+      expect(deposit).to.exist;
       deposit = deposit!;
-      expect(deposit.depositId).to.equal(v3DepositEvent.args!.depositId);
+      expect(deposit.depositId).to.equal(depositEvent.args!.depositId);
 
       const v3Fill = fillFromDeposit(deposit, relayer);
       fillEvents.push(destinationSpokePoolClient.fillV3Relay(v3Fill as FillWithBlock));
