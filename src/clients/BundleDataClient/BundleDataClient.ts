@@ -1391,7 +1391,7 @@ export class BundleDataClient {
       event.inputAmount
     }-${event.outputAmount}-${event.originChainId}-${event.depositId.toString()}-${event.fillDeadline}-${
       event.exclusivityDeadline
-    }-${event.message}-${event.destinationChainId}`;
+    }-${event.messageHash}-${event.destinationChainId}`;
   }
 
   async getBundleBlockTimestamps(
