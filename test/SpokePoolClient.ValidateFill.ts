@@ -144,7 +144,7 @@ describe("SpokePoolClient: Fill Validation", function () {
       "relayer",
       "repaymentChainId",
       "relayExecutionInfo",
-      "message"
+      "message",
     ];
 
     // For each RelayData field, toggle the value to produce an invalid fill. Verify that it's rejected.
