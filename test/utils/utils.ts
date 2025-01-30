@@ -1,16 +1,7 @@
 import * as utils from "@across-protocol/contracts/dist/test-utils";
 import { Contract, providers } from "ethers";
-import {
-  AcrossConfigStoreClient as ConfigStoreClient,
-  GLOBAL_CONFIG_STORE_KEYS,
-} from "../../src/clients";
-import {
-  SlowFillRequestWithBlock,
-  RelayData,
-  Deposit,
-  DepositWithBlock,
-  FillWithBlock,
-} from "../../src/interfaces";
+import { AcrossConfigStoreClient as ConfigStoreClient, GLOBAL_CONFIG_STORE_KEYS } from "../../src/clients";
+import { SlowFillRequestWithBlock, RelayData, Deposit, DepositWithBlock, FillWithBlock } from "../../src/interfaces";
 import {
   BigNumber,
   BigNumberish,
@@ -521,6 +512,6 @@ export function buildDepositForRelayerFeeTest(
     exclusivityDeadline: 0,
     exclusiveRelayer: ZERO_ADDRESS,
     fromLiteChain: false,
-    toLiteChain:false,
+    toLiteChain: false,
   };
 }

@@ -35,11 +35,7 @@ describe("SpokePoolClient: Event Filtering", function () {
 
   const logger = createSpyLogger().spyLogger;
 
-  const generateDeposit = (
-    spokePoolClient: MockSpokePoolClient,
-    quoteTimestamp?: number,
-    inputToken?: string
-  ): Log => {
+  const generateDeposit = (spokePoolClient: MockSpokePoolClient, quoteTimestamp?: number, inputToken?: string): Log => {
     inputToken ??= randomAddress();
     const message = EMPTY_MESSAGE;
     quoteTimestamp ??= getCurrentTime() - 10;
