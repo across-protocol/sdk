@@ -1395,13 +1395,26 @@ export class BundleDataClient {
           // will usually be called in production with block ranges that were validated by
           // DataworkerUtils.blockRangesAreInvalidForSpokeClients.
           const startBlockForChain = Math.min(_startBlockForChain, spokePoolClient.latestBlockSearched);
-          const endBlockForChain = Math.min(_endBlockForChain, spokePoolClient.latestBlockSearched);
-          const [startTime, endTime] = [
+          // @dev Add 1 to the bundle end block. The thinking here is that there can be a gap between
+          // block timestamps in subsequent blocks. The bundle data client assumes that fill deadlines expire
+          // in exactly one bundle, therefore we must make sure that the bundle block timestamp for one bundle's
+          // end block is exactly equal to the bundle block timestamp for the next bundle's start block. This way
+          // there are no gaps in block timestamps between bundles.
+          const endBlockForChain = Math.min(_endBlockForChain + 1, spokePoolClient.latestBlockSearched);
+          const [startTime, _endTime] = [
             await spokePoolClient.getTimestampForBlock(startBlockForChain),
             await spokePoolClient.getTimestampForBlock(endBlockForChain),
           ];
+          // @dev similar to reasoning above to ensure no gaps between bundle block range timestamps and also
+          // no overlap, subtract 1 from the end time.
+          const endBlockDelta = endBlockForChain > startBlockForChain ? 1 : 0;
+          const endTime = Math.max(0, _endTime - endBlockDelta);
+
           // Sanity checks:
-          assert(endTime >= startTime, "End time should be greater than start time.");
+          assert(
+            endTime >= startTime,
+            `End time for block ${endBlockForChain} should be greater than start time for block ${startBlockForChain}: ${endTime} >= ${startTime}.`
+          );
           assert(
             startBlockForChain === 0 || startTime > 0,
             "Start timestamp must be greater than 0 if the start block is greater than 0."
