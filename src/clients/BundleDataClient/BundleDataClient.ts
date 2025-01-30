@@ -242,8 +242,6 @@ export class BundleDataClient {
       bundleData: prettyPrintV3SpokePoolEvents(
         bundleData.bundleDepositsV3,
         bundleData.bundleFillsV3,
-        [], // Invalid fills are not persisted to Arweave.
-        [], // Unrepayable fills are not persisted to Arweave.
         bundleData.bundleSlowFillsV3,
         bundleData.expiredDepositsToRefundV3,
         bundleData.unexecutableSlowFills
@@ -1341,8 +1339,6 @@ export class BundleDataClient {
     const v3SpokeEventsReadable = prettyPrintV3SpokePoolEvents(
       bundleDepositsV3,
       bundleFillsV3,
-      bundleInvalidFillsV3,
-      bundleUnrepayableFillsV3,
       bundleSlowFillsV3,
       expiredDepositsToRefundV3,
       unexecutableSlowFills
