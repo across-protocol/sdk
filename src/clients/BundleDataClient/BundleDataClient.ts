@@ -927,6 +927,27 @@ export class BundleDataClient {
                       ...fillToRefund,
                       quoteTimestamp: v3RelayHashes[relayDataHash].deposits![0].quoteTimestamp, // ! due to assert above
                     });
+
+                    // Now that we know this deposit has been filled on-chain, identify any duplicate deposits
+                    // sent for this fill and refund them to the filler, because this value would not be paid out
+                    // otherwise. These deposits can no longer expire and get refunded as an expired deposit,
+                    // and they won't trigger a pre-fill refund because the fill is in this bundle.
+                    // Pre-fill refunds only happen when deposits are sent in this bundle and the
+                    // fill is from a prior bundle. Paying out the filler keeps the behavior consistent for how
+                    // we deal with duplicate deposits regardless if the deposit is matched with a pre-fill or
+                    // a current bundle fill. If the fill is a slow fill,
+                    const duplicateDeposits = v3RelayHashes[relayDataHash].deposits!.slice(1);
+                    duplicateDeposits.forEach((duplicateDeposit) => {
+                      // If fill is a slow fill, refund deposit to depositor, otherwise refund to filler.
+                      if (isSlowFill(fill)) {
+                        updateExpiredDepositsV3(expiredDepositsToRefundV3, duplicateDeposit);
+                      } else {
+                        validatedBundleV3Fills.push({
+                          ...fillToRefund,
+                          quoteTimestamp: duplicateDeposit.quoteTimestamp,
+                        });
+                      }
+                    });
                   }
 
                   // If fill replaced a slow fill request, then mark it as one that might have created an
@@ -939,16 +960,6 @@ export class BundleDataClient {
                   ) {
                     fastFillsReplacingSlowFills.push(relayDataHash);
                   }
-
-                  // Now that know this deposit has been filled on-chain, identify any duplicate deposits sent for this fill and refund
-                  // them, because they would not be refunded otherwise. These deposits can no longer expire and get
-                  // refunded as an expired deposit, and they won't trigger a pre-fill refund because the fill is
-                  // in this bundle. Pre-fill refunds only happen when deposits are sent in this bundle and the
-                  // fill is from a prior bundle.
-                  const duplicateDeposits = v3RelayHashes[relayDataHash].deposits!.slice(1);
-                  duplicateDeposits.forEach((duplicateDeposit) => {
-                    updateExpiredDepositsV3(expiredDepositsToRefundV3, duplicateDeposit);
-                  });
                 }
               } else {
                 throw new Error("Duplicate fill detected");
@@ -1017,6 +1028,10 @@ export class BundleDataClient {
                     quoteTimestamp: matchedDeposit.quoteTimestamp,
                   });
                   v3RelayHashes[relayDataHash].fill = fillToRefund;
+
+                  // No need to check for duplicate deposits here since we would have seen them in memory if they
+                  // had a non-infinite fill deadline, and duplicate deposits with infinite deadlines are impossible
+                  // to send.
                 }
 
                 // slow fill requests for deposits from or to lite chains are considered invalid
@@ -1026,10 +1041,6 @@ export class BundleDataClient {
                 ) {
                   fastFillsReplacingSlowFills.push(relayDataHash);
                 }
-
-                // No need to check for duplicate deposits here since we would have seen them in memory if they
-                // had a non-infinite fill deadline, and duplicate deposits with infinite deadlines are impossible
-                // to send.
               }
             }
           }
@@ -1218,7 +1229,10 @@ export class BundleDataClient {
           // in the same bundle.
           if (fillStatus === FillStatus.Filled) {
             // We need to find the fill event to issue a refund to the right relayer and repayment chain,
-            // or msg.sender if relayer address is invalid for the repayment chain.
+            // or msg.sender if relayer address is invalid for the repayment chain. We don't need to
+            // verify the fill block is before the bundle end block on the destination chain because
+            // we queried the fillStatus at the end block. Therefore, if the fill took place after the end block,
+            // then we wouldn't be in this branch of the code.
             const prefill = await this.findMatchingFillEvent(deposit, destinationClient);
             assert(isDefined(prefill), `findFillEvent# Cannot find prefill: ${relayDataHash}`);
             assert(this.getRelayHashFromEvent(prefill!) === relayDataHash, "Relay hashes should match.");
