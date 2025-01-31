@@ -348,7 +348,10 @@ export class SpokePoolClient extends BaseAbstractClient {
     if (isDefined(possibleRepaymentChainIds) && !possibleRepaymentChainIds.includes(repaymentChainId)) {
       return false;
     }
-    return !chainIsEvm(repaymentChainId) || (chainIsEvm(repaymentChainId) && isValidEvmAddress(fill.relayer));
+    if (!chainIsEvm(repaymentChainId)) {
+      return false;
+    }
+    return isValidEvmAddress(fill.relayer);
   }
 
   /**
