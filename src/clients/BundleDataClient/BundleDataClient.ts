@@ -1239,7 +1239,9 @@ export class BundleDataClient {
                 deposit,
                 allChainIds
               );
-              if (canRefundPrefills && isDefined(verifiedFill) && !isSlowFill(verifiedFill)) {
+              if (!isDefined(verifiedFill)) {
+                bundleUnrepayableFillsV3.push(prefill!);
+              } else if (canRefundPrefills && !isSlowFill(verifiedFill)) {
                 validatedBundleV3Fills.push({
                   ...verifiedFill!,
                   quoteTimestamp: deposit.quoteTimestamp,
