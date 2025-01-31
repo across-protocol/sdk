@@ -55,17 +55,18 @@ export async function verifyFillRepayment(
   matchedDeposit: DepositWithBlock,
   possibleRepaymentChainIds: number[]
 ): Promise<FillWithBlock | undefined> {
+  const updatedFill = _.cloneDeep(fill);
+
   // Slow fills don't result in repayments so they're always valid.
-  if (isSlowFill(fill)) {
-    return fill;
+  if (isSlowFill(updatedFill)) {
+    return updatedFill;
   }
   // Lite chain deposits force repayment on origin chain.
-  const repaymentChainId = matchedDeposit.fromLiteChain ? fill.originChainId : fill.repaymentChainId;
+  const repaymentChainId = matchedDeposit.fromLiteChain ? updatedFill.originChainId : updatedFill.repaymentChainId;
   // Return undefined if the requested repayment chain ID is not recognized by the hub pool.
   if (!possibleRepaymentChainIds.includes(repaymentChainId)) {
     return undefined;
   }
-  const updatedFill = _.cloneDeep(fill);
 
   // If the fill requests repayment on a chain where the repayment address is not valid, attempt to find a valid
   // repayment address, otherwise return undefined.

@@ -14,6 +14,8 @@ import {
   toBN,
   bnOne,
   isUnsafeDepositId,
+  isSlowFill,
+  isValidEvmAddress,
 } from "../utils";
 import {
   paginatedEventQuery,
@@ -38,7 +40,7 @@ import {
   TokensBridged,
 } from "../interfaces";
 import { SpokePool } from "../typechain";
-import { getNetworkName } from "../utils/NetworkUtils";
+import { chainIsEvm, getNetworkName } from "../utils/NetworkUtils";
 import { getBlockRangeForDepositId, getDepositIdAtBlock, relayFillStatus } from "../utils/SpokeUtils";
 import { BaseAbstractClient, isUpdateFailureReason, UpdateFailureReason } from "./BaseAbstractClient";
 import { HubPoolClient } from "./HubPoolClient";
@@ -334,6 +336,21 @@ export class SpokePoolClient extends BaseAbstractClient {
     return fills?.find((fill) => validateFillForDeposit(fill, deposit));
   }
 
+  private isEvmRepaymentValid(fill: Fill, matchedDeposit: Deposit): boolean {
+    // Slow fills don't result in repayments so they're always valid.
+    if (isSlowFill(fill)) {
+      return true;
+    }
+    // Lite chain deposits force repayment on origin chain.
+    const repaymentChainId = matchedDeposit.fromLiteChain ? fill.originChainId : fill.repaymentChainId;
+    // Return undefined if the requested repayment chain ID is not recognized by the hub pool.
+    const possibleRepaymentChainIds = this.configStoreClient?.getEnabledChains();
+    if (isDefined(possibleRepaymentChainIds) && !possibleRepaymentChainIds.includes(repaymentChainId)) {
+      return false;
+    }
+    return chainIsEvm(repaymentChainId) && !isValidEvmAddress(fill.relayer);
+  }
+
   /**
    * Find the unfilled amount for a given deposit. This is the full deposit amount minus the total filled amount.
    * @param deposit The deposit to find the unfilled amount for.
@@ -354,16 +371,21 @@ export class SpokePoolClient extends BaseAbstractClient {
       return { unfilledAmount: outputAmount, fillCount: 0, invalidFills: [] };
     }
 
-    const { validFills, invalidFills } = fillsForDeposit.reduce(
-      (groupedFills: { validFills: Fill[]; invalidFills: Fill[] }, fill: Fill) => {
+    const { validFills, invalidFills, unrepayableFills } = fillsForDeposit.reduce(
+      (groupedFills: { validFills: Fill[]; invalidFills: Fill[]; unrepayableFills: Fill[] }, fill: Fill) => {
         if (validateFillForDeposit(fill, deposit).valid) {
+          if (this.isEvmRepaymentValid(fill, deposit)) {
+            groupedFills.unrepayableFills.push(fill);
+          }
+          // This fill is still valid and means that the deposit cannot be filled on-chain anymore, but it
+          // also can be unrepayable which we should want to log.
           groupedFills.validFills.push(fill);
         } else {
           groupedFills.invalidFills.push(fill);
         }
         return groupedFills;
       },
-      { validFills: [], invalidFills: [] }
+      { validFills: [], invalidFills: [], unrepayableFills: [] }
     );
 
     // Log any invalid deposits with same deposit id but different params.
@@ -375,6 +397,17 @@ export class SpokePoolClient extends BaseAbstractClient {
         message: "Invalid fills found matching deposit ID",
         deposit,
         invalidFills: Object.fromEntries(invalidFillsForDeposit.map((x) => [x.relayer, x])),
+        notificationPath: "across-invalid-fills",
+      });
+    }
+    const unrepayableFillsForDeposit = unrepayableFills.filter((x) => x.depositId.eq(deposit.depositId));
+    if (unrepayableFillsForDeposit.length > 0) {
+      this.logger.warn({
+        at: "SpokePoolClient",
+        chainId: this.chainId,
+        message: "Unrepayable fills found matching deposit ID",
+        deposit,
+        unrepayableFills: Object.fromEntries(unrepayableFillsForDeposit.map((x) => [x.relayer, x])),
         notificationPath: "across-invalid-fills",
       });
     }
