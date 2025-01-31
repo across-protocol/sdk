@@ -90,6 +90,7 @@ export function spreadEvent(args: Result | Record<string, unknown>): { [key: str
       try {
         address = toAddress(address);
       } catch (_e) {
+        // Lint appeasement
         _e;
       }
       returnedObject[field] = address;
