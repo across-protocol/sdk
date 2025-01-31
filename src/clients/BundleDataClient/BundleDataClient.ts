@@ -937,7 +937,7 @@ export class BundleDataClient {
                     // Pre-fill refunds only happen when deposits are sent in this bundle and the
                     // fill is from a prior bundle. Paying out the filler keeps the behavior consistent for how
                     // we deal with duplicate deposits regardless if the deposit is matched with a pre-fill or
-                    // a current bundle fill. If the fill is a slow fill,
+                    // a current bundle fill.
                     const duplicateDeposits = v3RelayHashes[relayDataHash].deposits!.slice(1);
                     duplicateDeposits.forEach((duplicateDeposit) => {
                       // If fill is a slow fill, refund deposit to depositor, otherwise refund to filler.
@@ -1001,7 +1001,7 @@ export class BundleDataClient {
                 bundleInvalidFillsV3.push(fill);
               } else {
                 const matchedDeposit = historicalDeposit.deposit;
-                // If deposit is in a following bundle, then this fill will have to refunded once that deposit
+                // If deposit is in a following bundle, then this fill will have to be refunded once that deposit
                 // is in the current bundle.
                 if (matchedDeposit.blockNumber > originChainBlockRange[1]) {
                   bundleInvalidFillsV3.push(fill);
@@ -1031,9 +1031,8 @@ export class BundleDataClient {
                   });
                   v3RelayHashes[relayDataHash].fill = fillToRefund;
 
-                  // No need to check for duplicate deposits here since we would have seen them in memory if they
-                  // had a non-infinite fill deadline, and duplicate deposits with infinite deadlines are impossible
-                  // to send.
+                  // No need to check for duplicate deposits here since duplicate deposits with
+                  // infinite deadlines are impossible to send via unsafeDeposit().
                 }
 
                 // slow fill requests for deposits from or to lite chains are considered invalid
