@@ -1176,20 +1176,22 @@ export class BundleDataClient {
           // If fill exists in memory, then the only case in which we need to create a refund is if the
           // the fill occurred in a previous bundle. There are no expiry refunds for filled deposits.
           if (fill) {
-            if (!isDuplicateDepositInBundle && fill.blockNumber < destinationChainBlockRange[0]) {
+            if (canRefundPrefills && !isDuplicateDepositInBundle && fill.blockNumber < destinationChainBlockRange[0]) {
               duplicateDepositsInBundle.forEach((duplicateDeposit) => {
                 updateExpiredDepositsV3(expiredDepositsToRefundV3, duplicateDeposit);
               });
-              if (canRefundPrefills) {
                 // If fill is in the current bundle then we can assume there is already a refund for it, so only
                 // include this pre fill if the fill is in an older bundle. If fill is after this current bundle, then
                 // we won't consider it, following the previous treatment of fills after the bundle block range.
-                if (!isSlowFill(fill)) {
-                  validatedBundleV3Fills.push({
-                    ...fill,
-                    quoteTimestamp: deposit.quoteTimestamp,
-                  });
-                }
+              if (!isSlowFill(fill)) {
+                validatedBundleV3Fills.push({
+                  ...fill,
+                  quoteTimestamp: deposit.quoteTimestamp,
+                });
+              } else {
+                // Slow fills cannot result in refunds to a relayer to refund the deposit. Slow fills also
+                // were created after the deposit was sent, so we can assume this deposit is a duplicate.
+                updateExpiredDepositsV3(expiredDepositsToRefundV3, deposit);
               }
             }
             return;
@@ -1229,7 +1231,7 @@ export class BundleDataClient {
             const prefill = await this.findMatchingFillEvent(deposit, destinationClient);
             assert(isDefined(prefill), `findFillEvent# Cannot find prefill: ${relayDataHash}`);
             assert(this.getRelayHashFromEvent(prefill!) === relayDataHash, "Relay hashes should match.");
-            if (!isDuplicateDepositInBundle) {
+            if (canRefundPrefills && !isDuplicateDepositInBundle) {
               duplicateDepositsInBundle.forEach((duplicateDeposit) => {
                 updateExpiredDepositsV3(expiredDepositsToRefundV3, duplicateDeposit);
               });
@@ -1241,11 +1243,15 @@ export class BundleDataClient {
               );
               if (!isDefined(verifiedFill)) {
                 bundleUnrepayableFillsV3.push(prefill!);
-              } else if (canRefundPrefills && !isSlowFill(verifiedFill)) {
+              } else if (!isSlowFill(verifiedFill)) {
                 validatedBundleV3Fills.push({
                   ...verifiedFill!,
                   quoteTimestamp: deposit.quoteTimestamp,
                 });
+              } else {
+                // Slow fills cannot result in refunds to a relayer to refund the deposit. Slow fills also
+                // were created after the deposit was sent, so we can assume this deposit is a duplicate.
+                updateExpiredDepositsV3(expiredDepositsToRefundV3, deposit);
               }
             }
           }
