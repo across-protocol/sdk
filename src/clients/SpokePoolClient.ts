@@ -142,7 +142,7 @@ export class SpokePoolClient extends BaseAbstractClient {
    * @returns A list of duplicate deposits. Does NOT include the original deposit
    * unless the original deposit is a duplicate.
    */
-  public getDuplicateDeposits(deposit: DepositWithBlock): DepositWithBlock[] {
+  private _getDuplicateDeposits(deposit: DepositWithBlock): DepositWithBlock[] {
     const depositHash = this.getDepositHash(deposit);
     return this.duplicateDepositHashes[depositHash] ?? [];
   }
@@ -157,7 +157,7 @@ export class SpokePoolClient extends BaseAbstractClient {
   public getDepositsForDestinationChainWithDuplicates(destinationChainId: number): DepositWithBlock[] {
     const deposits = this.getDepositsForDestinationChain(destinationChainId);
     const duplicateDeposits = deposits.reduce((acc, deposit) => {
-      const duplicates = this.getDuplicateDeposits(deposit);
+      const duplicates = this._getDuplicateDeposits(deposit);
       return acc.concat(duplicates);
     }, [] as DepositWithBlock[]);
     return sortEventsAscendingInPlace(deposits.concat(duplicateDeposits.flat()));

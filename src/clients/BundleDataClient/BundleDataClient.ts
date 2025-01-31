@@ -323,7 +323,7 @@ export class BundleDataClient {
         continue;
       }
       const chainIndex = chainIds.indexOf(chainId);
-      // @todo This function does not account for pre-fill refunds as it is optimized for speed. The way to detect
+      // @dev This function does not account for pre-fill refunds as it is optimized for speed. The way to detect
       // pre-fill refunds is to load all deposits that are unmatched by fills in the spoke pool client's memory
       // and then query the FillStatus on-chain, but that might slow this function down too much. For now, we
       // will live with this expected inaccuracy as it should be small. The pre-fill would have to precede the deposit
@@ -1122,9 +1122,6 @@ export class BundleDataClient {
         // - Or, has the deposit expired in this bundle? If so, then we need to issue an expiry refund.
         // - And finally, has the deposit been slow filled? If so, then we need to issue a slow fill leaf
         //   for this "pre-slow-fill-request" if this request took place in a previous bundle.
-
-        // @todo Only start refunding pre-fills and slow fill requests after a config store version is activated. We
-        // should remove this check once we've advanced far beyond the version bump block.
         await mapAsync(bundleDepositHashes, async (depositHash) => {
           // We don't need to call verifyFillRepayment() here to replace the fill.relayer because this value should already
           // be overwritten because the deposit and fill both exist.
