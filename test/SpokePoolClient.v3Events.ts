@@ -5,7 +5,7 @@ import { DEFAULT_CONFIG_STORE_VERSION, GLOBAL_CONFIG_STORE_KEYS } from "../src/c
 import { MockConfigStoreClient, MockHubPoolClient, MockSpokePoolClient } from "../src/clients/mocks";
 import { EMPTY_MESSAGE, ZERO_ADDRESS } from "../src/constants";
 import { DepositWithBlock, FillWithBlock, Log, SlowFillRequest, SlowFillRequestWithBlock } from "../src/interfaces";
-import { getCurrentTime, isDefined, randomAddress } from "../src/utils";
+import { getCurrentTime, isDefined, randomAddress, toAddress, toBN } from "../src/utils";
 import {
   SignerWithAddress,
   createSpyLogger,
@@ -337,5 +337,101 @@ describe("SpokePoolClient: Event Filtering", function () {
       expect(fillEvent.destinationChainId).to.equal(destinationChainId);
       expect(fillEvent.outputToken).to.equal(expectedFill.args!.outputToken);
     });
+  });
+
+  it("Correctly truncates events with bytes32 address fields: TokensBridged", async function () {
+    for (let i = 0; i < 10; ++i) {
+      const l2TokenAddress = ethers.utils.hexZeroPad(randomAddress(), 32);
+      originSpokePoolClient.setTokensBridged({ l2TokenAddress, chainId: i, leafId: i + 1 } as TokensBridged);
+      await originSpokePoolClient.update(["TokensBridged"]);
+      const tokensBridged = originSpokePoolClient.getTokensBridged().at(-1);
+      expect(tokensBridged.l2TokenAddress).to.equal(toAddress(l2TokenAddress));
+    }
+  });
+
+  it("Correctly truncates events with bytes32 address fields: FundsDeposited", async function () {
+    for (let _i = 0; _i < 10; ++_i) {
+      const [depositor, recipient, inputToken, outputToken, exclusiveRelayer] = Array(5)
+        .fill(0)
+        .map((_) => ethers.utils.hexZeroPad(randomAddress(), 32));
+      originSpokePoolClient.depositV3({
+        depositor,
+        recipient,
+        inputToken,
+        outputToken,
+        exclusiveRelayer,
+      } as DepositWithBlock);
+      await originSpokePoolClient.update(["V3FundsDeposited"]);
+      const deposit = originSpokePoolClient.getDeposits().at(-1);
+      expect(deposit.depositor).to.equal(toAddress(depositor));
+      expect(deposit.recipient).to.equal(toAddress(recipient));
+      expect(deposit.inputToken).to.equal(toAddress(inputToken));
+      expect(deposit.outputToken).to.equal(toAddress(outputToken));
+      expect(deposit.exclusiveRelayer).to.equal(toAddress(exclusiveRelayer));
+    }
+  });
+  it("Correctly truncates events with bytes32 address fields: RequestedSpeedUpDeposit", async function () {
+    for (let i = 0; i < 10; ++i) {
+      const [depositor, updatedRecipient] = Array(2)
+        .fill(0)
+        .map((_) => ethers.utils.hexZeroPad(randomAddress(), 32));
+      originSpokePoolClient.speedUpV3Deposit({ depositor, updatedRecipient, depositId: toBN(i) } as SpeedUp);
+      await originSpokePoolClient.update(["RequestedSpeedUpV3Deposit"]);
+      const speedUp = originSpokePoolClient.getSpeedUps()[toAddress(depositor)][toBN(i)].at(-1);
+      expect(speedUp.depositor).to.equal(toAddress(depositor));
+      expect(speedUp.updatedRecipient).to.equal(toAddress(updatedRecipient));
+    }
+  });
+  it("Correctly truncates events with bytes32 address fields: FilledRelay", async function () {
+    for (let i = 0; i < 10; ++i) {
+      const [depositor, recipient, inputToken, outputToken, exclusiveRelayer, relayer] = Array(6)
+        .fill(0)
+        .map((_) => ethers.utils.hexZeroPad(randomAddress(), 32));
+      originSpokePoolClient.fillV3Relay({
+        depositor,
+        recipient,
+        inputToken,
+        outputToken,
+        exclusiveRelayer,
+        relayer,
+        depositId: toBN(i),
+      } as FillWithBlock);
+      await originSpokePoolClient.update(["FilledV3Relay"]);
+      const relay = originSpokePoolClient.getFills().at(-1);
+      expect(relay.depositor).to.equal(toAddress(depositor));
+      expect(relay.recipient).to.equal(toAddress(recipient));
+      expect(relay.inputToken).to.equal(toAddress(inputToken));
+      expect(relay.outputToken).to.equal(toAddress(outputToken));
+      expect(relay.exclusiveRelayer).to.equal(toAddress(exclusiveRelayer));
+      expect(relay.relayer).to.equal(toAddress(relayer));
+    }
+  });
+  it("Correctly truncates events with bytes32 address fields: RequestedSlowFill", async function () {
+    for (let i = 0; i < 10; ++i) {
+      const [depositor, recipient, inputToken, outputToken, exclusiveRelayer] = Array(5)
+        .fill(0)
+        .map((_) => ethers.utils.hexZeroPad(randomAddress(), 32));
+      originSpokePoolClient.requestV3SlowFill({
+        depositor,
+        recipient,
+        inputToken,
+        outputToken,
+        exclusiveRelayer,
+        depositId: toBN(i),
+        originChainId: 1,
+        inputAmount: toBN(i),
+        outputAmount: toBN(i),
+        message: "0x",
+        fillDeadline: 0,
+        exclusivityDeadline: 0,
+      } as SlowFillRequestWithBlock);
+      await originSpokePoolClient.update(["RequestedV3SlowFill"]);
+      const slowFill = originSpokePoolClient.getSlowFillRequestsForOriginChain(1).at(-1);
+      expect(slowFill.depositor).to.equal(toAddress(depositor));
+      expect(slowFill.recipient).to.equal(toAddress(recipient));
+      expect(slowFill.inputToken).to.equal(toAddress(inputToken));
+      expect(slowFill.outputToken).to.equal(toAddress(outputToken));
+      expect(slowFill.exclusiveRelayer).to.equal(toAddress(exclusiveRelayer));
+    }
   });
 });
