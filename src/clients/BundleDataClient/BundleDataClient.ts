@@ -1180,9 +1180,9 @@ export class BundleDataClient {
               duplicateDepositsInBundle.forEach((duplicateDeposit) => {
                 updateExpiredDepositsV3(expiredDepositsToRefundV3, duplicateDeposit);
               });
-                // If fill is in the current bundle then we can assume there is already a refund for it, so only
-                // include this pre fill if the fill is in an older bundle. If fill is after this current bundle, then
-                // we won't consider it, following the previous treatment of fills after the bundle block range.
+              // If fill is in the current bundle then we can assume there is already a refund for it, so only
+              // include this pre fill if the fill is in an older bundle. If fill is after this current bundle, then
+              // we won't consider it, following the previous treatment of fills after the bundle block range.
               if (!isSlowFill(fill)) {
                 validatedBundleV3Fills.push({
                   ...fill,
