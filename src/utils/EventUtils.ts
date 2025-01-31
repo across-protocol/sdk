@@ -3,10 +3,26 @@ import { Result } from "@ethersproject/abi";
 import { Contract, Event, EventFilter } from "ethers";
 import { Log, SortableEvent } from "../interfaces";
 import { delay } from "./common";
-import { isDefined, toBN, BigNumberish } from "./";
+import { isDefined, toBN, BigNumberish, toAddress } from "./";
 
 const maxRetries = 3;
 const retrySleepTime = 10;
+
+// Event fields which changed from an `address` to `bytes32` after the SVM contract upgrade.
+const knownExtendedAddressFields = [
+  // TokensBridged
+  "l2TokenAddress",
+  // FundsDeposited/FilledRelay/RequestedSlowFill
+  "inputToken",
+  "outputToken",
+  "depositor",
+  "recipient",
+  "exclusiveRelayer",
+  // FilledRelay
+  "relayer",
+  // RequestedSpeedUpDeposit
+  "updatedRecipient",
+];
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function spreadEvent(args: Result | Record<string, unknown>): { [key: string]: any } {
@@ -65,6 +81,18 @@ export function spreadEvent(args: Result | Record<string, unknown>): { [key: str
     // Assuming a numeric output, we can safely cast the unknown to BigNumberish since the depositId will either be a uint32 (and therefore a TypeScript `number`),
     // or a uint256 (and therefore an ethers BigNumber).
     returnedObject.depositId = toBN(returnedObject.depositId as BigNumberish);
+  }
+
+  // Truncate all fields which may be bytes32 into a bytes20 string.
+  for (const field of knownExtendedAddressFields) {
+    if (isDefined(returnedObject[field])) {
+      let address = String(returnedObject[field]);
+      try {
+        address = toAddress(address);
+        // eslint-disable-next-line no-empty
+      } catch (_) {}
+      returnedObject[field] = address;
+    }
   }
 
   return returnedObject;

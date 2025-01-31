@@ -428,7 +428,7 @@ export class BundleDataClient {
   async getLatestPoolRebalanceRoot(): Promise<{ root: PoolRebalanceRoot; blockRanges: number[][] }> {
     const { bundleData, blockRanges } = await this.getLatestProposedBundleData();
     const hubPoolClient = this.clients.hubPoolClient;
-    const root = await _buildPoolRebalanceRoot(
+    const root = _buildPoolRebalanceRoot(
       hubPoolClient.latestBlockSearched,
       blockRanges[0][1],
       bundleData.bundleDepositsV3,

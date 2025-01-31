@@ -5,6 +5,8 @@ import { Deposit, Fill, FillStatus, FillWithBlock, RelayData, SlowFillRequest } 
 import { SpokePoolClient } from "../clients";
 import { chunk } from "./ArrayUtils";
 import { BigNumber, toBN, bnOne, bnZero } from "./BigNumberUtils";
+import { keccak256 } from "./common";
+import { isMessageEmpty } from "./DepositUtils";
 import { isDefined } from "./TypeGuards";
 import { getNetworkName } from "./NetworkUtils";
 import { paginatedEventQuery, spreadEventWithBlockNumber } from "./EventUtils";
@@ -223,26 +225,34 @@ export async function getDepositIdAtBlock(contract: Contract, blockTag: number):
  * @returns The corresponding RelayData hash.
  */
 export function getRelayDataHash(relayData: RelayData, destinationChainId: number): string {
+  const _relayData = {
+    ...relayData,
+    depositor: ethersUtils.hexZeroPad(relayData.depositor, 32),
+    recipient: ethersUtils.hexZeroPad(relayData.recipient, 32),
+    inputToken: ethersUtils.hexZeroPad(relayData.inputToken, 32),
+    outputToken: ethersUtils.hexZeroPad(relayData.outputToken, 32),
+    exclusiveRelayer: ethersUtils.hexZeroPad(relayData.exclusiveRelayer, 32),
+  };
   return ethersUtils.keccak256(
     ethersUtils.defaultAbiCoder.encode(
       [
         "tuple(" +
-          "address depositor," +
-          "address recipient," +
-          "address exclusiveRelayer," +
-          "address inputToken," +
-          "address outputToken," +
+          "bytes32 depositor," +
+          "bytes32 recipient," +
+          "bytes32 exclusiveRelayer," +
+          "bytes32 inputToken," +
+          "bytes32 outputToken," +
           "uint256 inputAmount," +
           "uint256 outputAmount," +
           "uint256 originChainId," +
-          "uint32 depositId," +
+          "uint256 depositId," +
           "uint32 fillDeadline," +
           "uint32 exclusivityDeadline," +
           "bytes message" +
           ")",
         "uint256 destinationChainId",
       ],
-      [relayData, destinationChainId]
+      [_relayData, destinationChainId]
     )
   );
 }
@@ -425,4 +435,8 @@ export async function findFillEvent(
 // Determines if the input address (either a bytes32 or bytes20) is the zero address.
 export function isZeroAddress(address: string): boolean {
   return address === ZERO_ADDRESS || address === ZERO_BYTES;
+}
+
+export function getMessageHash(message: string): string {
+  return isMessageEmpty(message) ? ZERO_BYTES : keccak256(message);
 }
