@@ -89,10 +89,8 @@ export function spreadEvent(args: Result | Record<string, unknown>): { [key: str
       let address = String(returnedObject[field]);
       try {
         address = toAddress(address);
-      } catch (_e) {
-        // Lint appeasement
-        _e;
-      }
+        // eslint-disable-next-line no-empty
+      } catch (_) {}
       returnedObject[field] = address;
     }
   }
