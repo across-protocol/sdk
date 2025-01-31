@@ -615,7 +615,7 @@ describe("SpokePoolClient: Fill Validation", function () {
 
     // Override the first spoke pool deposit ID that the client thinks is available in the contract.
     await spokePoolClient1.update();
-    spokePoolClient1.firstDepositIdForSpokePool = deposit.depositId + 1;
+    spokePoolClient1.firstDepositIdForSpokePool = deposit.depositId.add(1);
     expect(fill.depositId < spokePoolClient1.firstDepositIdForSpokePool).is.true;
     const search = await queryHistoricalDepositForFill(spokePoolClient1, fill);
 
