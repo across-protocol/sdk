@@ -884,6 +884,7 @@ export class BundleDataClient {
 
         const destinationClient = spokePoolClients[destinationChainId];
         const destinationChainBlockRange = getBlockRangeForChain(blockRangesForChains, destinationChainId, chainIds);
+        const originChainBlockRange = getBlockRangeForChain(blockRangesForChains, originChainId, chainIds);
 
         // Keep track of fast fills that replaced slow fills, which we'll use to create "unexecutable" slow fills
         // if the slow fill request was sent in a prior bundle.
@@ -977,6 +978,12 @@ export class BundleDataClient {
                 bundleInvalidFillsV3.push(fill);
               } else {
                 const matchedDeposit = historicalDeposit.deposit;
+                // If deposit is in a following bundle, then this fill will have to refunded once that deposit
+                // is in the current bundle.
+                if (matchedDeposit.blockNumber > originChainBlockRange[1]) {
+                  bundleInvalidFillsV3.push(fill);
+                  return;
+                }
                 v3RelayHashes[relayDataHash].deposits = [matchedDeposit];
 
                 const fillToRefund = await verifyFillRepayment(
@@ -1093,6 +1100,11 @@ export class BundleDataClient {
                 return;
               }
               const matchedDeposit: V3DepositWithBlock = historicalDeposit.deposit;
+              // If deposit is in a following bundle, then this slow fill request will have to be created
+              // once that deposit is in the current bundle.
+              if (matchedDeposit.blockNumber > originChainBlockRange[1]) {
+                return;
+              }
               // @dev Since queryHistoricalDepositForFill validates the slow fill request by checking individual
               // object property values against the deposit's, we
               // sanity check it here by comparing the full relay hashes. If there's an error here then the
