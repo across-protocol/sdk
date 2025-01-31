@@ -939,6 +939,16 @@ export class BundleDataClient {
                   ) {
                     fastFillsReplacingSlowFills.push(relayDataHash);
                   }
+
+                  // Now that know this deposit has been filled on-chain, identify any duplicate deposits sent for this fill and refund
+                  // them, because they would not be refunded otherwise. These deposits can no longer expire and get
+                  // refunded as an expired deposit, and they won't trigger a pre-fill refund because the fill is
+                  // in this bundle. Pre-fill refunds only happen when deposits are sent in this bundle and the
+                  // fill is from a prior bundle.
+                  const duplicateDeposits = v3RelayHashes[relayDataHash].deposits!.slice(1);
+                  duplicateDeposits.forEach((duplicateDeposit) => {
+                    updateExpiredDepositsV3(expiredDepositsToRefundV3, duplicateDeposit);
+                  });
                 }
               } else {
                 throw new Error("Duplicate fill detected");
@@ -1016,6 +1026,10 @@ export class BundleDataClient {
                 ) {
                   fastFillsReplacingSlowFills.push(relayDataHash);
                 }
+
+                // No need to check for duplicate deposits here since we would have seen them in memory if they
+                // had a non-infinite fill deadline, and duplicate deposits with infinite deadlines are impossible
+                // to send.
               }
             }
           }
