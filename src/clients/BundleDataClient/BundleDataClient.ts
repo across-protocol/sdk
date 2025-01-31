@@ -1184,10 +1184,12 @@ export class BundleDataClient {
                 // If fill is in the current bundle then we can assume there is already a refund for it, so only
                 // include this pre fill if the fill is in an older bundle. If fill is after this current bundle, then
                 // we won't consider it, following the previous treatment of fills after the bundle block range.
-                validatedBundleV3Fills.push({
-                  ...fill,
-                  quoteTimestamp: deposit.quoteTimestamp,
-                });
+                if (!isSlowFill(fill)) {
+                  validatedBundleV3Fills.push({
+                    ...fill,
+                    quoteTimestamp: deposit.quoteTimestamp,
+                  });
+                }
               }
             }
             return;
@@ -1239,7 +1241,7 @@ export class BundleDataClient {
               );
               if (!isDefined(verifiedFill)) {
                 bundleUnrepayableFillsV3.push(prefill!);
-              } else if (canRefundPrefills) {
+              } else if (canRefundPrefills && !isSlowFill(verifiedFill)) {
                 validatedBundleV3Fills.push({
                   ...verifiedFill!,
                   quoteTimestamp: deposit.quoteTimestamp,
