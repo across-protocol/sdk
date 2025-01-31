@@ -434,4 +434,104 @@ describe("SpokePoolClient: Event Filtering", function () {
       expect(slowFill.exclusiveRelayer).to.equal(toAddress(exclusiveRelayer));
     }
   });
+  it("Does not throw when processing a bytes32 address", async function () {
+    for (let i = 0; i < 10; ++i) {
+      const [
+        depositor,
+        recipient,
+        inputToken,
+        outputToken,
+        exclusiveRelayer,
+        relayer,
+        updatedRecipient,
+        l2TokenAddress,
+      ] = Array(8)
+        .fill(0)
+        .map((_) => ethers.utils.hexlify(ethers.utils.randomBytes(32)));
+      // Deposit
+      originSpokePoolClient.depositV3({
+        depositor,
+        recipient,
+        inputToken,
+        outputToken,
+        exclusiveRelayer,
+        depositId: toBN(i),
+      } as DepositWithBlock);
+      // SpeedUpDeposit
+      originSpokePoolClient.speedUpV3Deposit({
+        depositor,
+        updatedRecipient,
+        depositId: toBN(i),
+        updatedOutputAmount: toBN(i),
+      } as SpeedUp);
+      // FillV3Relay
+      originSpokePoolClient.fillV3Relay({
+        depositor,
+        recipient,
+        inputToken,
+        outputToken,
+        exclusiveRelayer,
+        relayer,
+        depositId: toBN(i),
+      } as FillWithBlock);
+      // TokensBridged
+      originSpokePoolClient.setTokensBridged({ l2TokenAddress, chainId: i, leafId: i + 1 } as TokensBridged);
+      // RequestV3SlowFill
+      originSpokePoolClient.requestV3SlowFill({
+        depositor,
+        recipient,
+        inputToken,
+        outputToken,
+        exclusiveRelayer,
+        depositId: toBN(i),
+        originChainId: 1,
+        inputAmount: toBN(i),
+        outputAmount: toBN(i),
+        message: "0x",
+        fillDeadline: 0,
+        exclusivityDeadline: 0,
+      } as SlowFillRequestWithBlock);
+      await originSpokePoolClient.update([
+        "V3FundsDeposited",
+        "FilledV3Relay",
+        "TokensBridged",
+        "RequestedSpeedUpV3Deposit",
+        "RequestedV3SlowFill",
+      ]);
+      const slowFill = originSpokePoolClient.getSlowFillRequestsForOriginChain(1).at(-1);
+      const tokensBridged = originSpokePoolClient.getTokensBridged().at(-1);
+      const speedUp = originSpokePoolClient.getSpeedUps()[depositor][toBN(i)].at(-1);
+      const relay = originSpokePoolClient.getFills().at(-1);
+      const deposit = originSpokePoolClient.getDeposits().at(-1);
+
+      // SlowFill
+      expect(slowFill.depositor).to.equal(depositor);
+      expect(slowFill.recipient).to.equal(recipient);
+      expect(slowFill.inputToken).to.equal(inputToken);
+      expect(slowFill.outputToken).to.equal(outputToken);
+      expect(slowFill.exclusiveRelayer).to.equal(exclusiveRelayer);
+
+      // Relay
+      expect(relay.depositor).to.equal(depositor);
+      expect(relay.recipient).to.equal(recipient);
+      expect(relay.inputToken).to.equal(inputToken);
+      expect(relay.outputToken).to.equal(outputToken);
+      expect(relay.exclusiveRelayer).to.equal(exclusiveRelayer);
+      expect(relay.relayer).to.equal(relayer);
+
+      // SpeedUp
+      expect(speedUp.depositor).to.equal(depositor);
+      expect(speedUp.updatedRecipient).to.equal(updatedRecipient);
+
+      // Deposit
+      expect(deposit.depositor).to.equal(depositor);
+      expect(deposit.recipient).to.equal(recipient);
+      expect(deposit.inputToken).to.equal(inputToken);
+      expect(deposit.outputToken).to.equal(outputToken);
+      expect(deposit.exclusiveRelayer).to.equal(exclusiveRelayer);
+
+      // TokensBridged
+      expect(tokensBridged.l2TokenAddress).to.equal(l2TokenAddress);
+    }
+  });
 });
