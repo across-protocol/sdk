@@ -812,6 +812,8 @@ export class BundleDataClient {
     const canRefundPrefills =
       versionAtProposalBlock >= PRE_FILL_MIN_CONFIG_STORE_VERSION || process.env.FORCE_REFUND_PREFILLS === "true";
 
+    // Prerequisite step: Load all deposit events from the current or older bundles into the v3RelayHashes dictionary
+    // for convenient matching with fills.
     let depositCounter = 0;
     for (const originChainId of allChainIds) {
       const originClient = spokePoolClients[originChainId];
@@ -1432,7 +1434,10 @@ export class BundleDataClient {
     });
     v3SlowFillLpFees.forEach(({ realizedLpFeePct: lpFeePct }, idx) => {
       const deposit = validatedBundleSlowFills[idx];
-      // We should not create slow fill leaves for duplicate deposit hashes:
+      // We should not create slow fill leaves for duplicate deposit hashes and we should only create a slow
+      // fill leaf for the first deposit (the quote timestamp of the deposit determines the LP fee, so its
+      // important we pick out the correct deposit). Deposits are pushed into validatedBundleSlowFills in ascending
+      // order so the following slice will only match the first deposit.
       const relayDataHash = this.getRelayHashFromEvent(deposit);
       if (validatedBundleSlowFills.slice(0, idx).some((d) => this.getRelayHashFromEvent(d) === relayDataHash)) {
         return;
