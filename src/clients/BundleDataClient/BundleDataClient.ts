@@ -918,6 +918,8 @@ export class BundleDataClient {
                     allChainIds
                   );
                   if (!isDefined(fillToRefund)) {
+                    // We won't repay the fill but the depositor has received funds so we don't need to make a
+                    // payment.
                     bundleUnrepayableFillsV3.push(fill);
                     // We don't return here yet because we still need to mark unexecutable slow fill leaves
                     // or duplicate deposits. However, we won't issue a fast fill refund.
