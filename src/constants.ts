@@ -57,8 +57,6 @@ export const DEFAULT_ARWEAVE_STORAGE_ADDRESS = "Z6hjBM8FHu90lYWB8o5jR1dfX92FlV2W
 
 export const EMPTY_MESSAGE = "0x";
 
-export const EMPTY_MESSAGE_HASH = ethersConstants.HashZero;
-
 export const BRIDGED_USDC_SYMBOLS = [
   TOKEN_SYMBOLS_MAP["USDC.e"].symbol,
   TOKEN_SYMBOLS_MAP.USDbC.symbol,
