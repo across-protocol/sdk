@@ -1,10 +1,10 @@
-import { DepositWithBlock, Fill, FillType, V3Fill } from "../../src/interfaces";
+import { DepositWithBlock, Fill, FillType } from "../../src/interfaces";
 
 export function fillFromDeposit(deposit: DepositWithBlock, relayer: string): Fill {
   const { blockNumber, transactionHash, transactionIndex, ...partialDeposit } = deposit;
   const { recipient, message } = partialDeposit;
 
-  const fill: V3Fill = {
+  const fill = {
     ...partialDeposit,
     relayer,
 
