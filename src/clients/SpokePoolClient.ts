@@ -348,7 +348,7 @@ export class SpokePoolClient extends BaseAbstractClient {
     if (isDefined(possibleRepaymentChainIds) && !possibleRepaymentChainIds.includes(repaymentChainId)) {
       return false;
     }
-    return chainIsEvm(repaymentChainId) && !isValidEvmAddress(fill.relayer);
+    return !chainIsEvm(repaymentChainId) || (chainIsEvm(repaymentChainId) && isValidEvmAddress(fill.relayer));
   }
 
   /**
@@ -374,7 +374,7 @@ export class SpokePoolClient extends BaseAbstractClient {
     const { validFills, invalidFills, unrepayableFills } = fillsForDeposit.reduce(
       (groupedFills: { validFills: Fill[]; invalidFills: Fill[]; unrepayableFills: Fill[] }, fill: Fill) => {
         if (validateFillForDeposit(fill, deposit).valid) {
-          if (this.isEvmRepaymentValid(fill, deposit)) {
+          if (!this.isEvmRepaymentValid(fill, deposit)) {
             groupedFills.unrepayableFills.push(fill);
           }
           // This fill is still valid and means that the deposit cannot be filled on-chain anymore, but it
