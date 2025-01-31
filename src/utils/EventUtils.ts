@@ -86,7 +86,12 @@ export function spreadEvent(args: Result | Record<string, unknown>): { [key: str
   // Truncate all fields which may be bytes32 into a bytes20 string.
   for (const field of knownExtendedAddressFields) {
     if (isDefined(returnedObject[field])) {
-      returnedObject[field] = toAddress(String(returnedObject[field]));
+      let address = String(returnedObject[field]);
+      try {
+        address = toAddress(address);
+        // eslint-disable-next-line no-empty
+      } catch (_) {}
+      returnedObject[field] = address;
     }
   }
 
