@@ -1217,7 +1217,8 @@ export class BundleDataClient {
             } else if (
               canRefundPrefills &&
               slowFillRequest.blockNumber < destinationChainBlockRange[0] &&
-              _canCreateSlowFillLeaf(deposit)
+              _canCreateSlowFillLeaf(deposit) &&
+              validatedBundleSlowFills.every((d) => this.getRelayHashFromEvent(d) !== relayDataHash)
             ) {
               validatedBundleSlowFills.push(deposit);
             }
@@ -1271,7 +1272,10 @@ export class BundleDataClient {
             updateExpiredDepositsV3(expiredDepositsToRefundV3, deposit);
           }
           // If slow fill requested, then issue a slow fill leaf for the deposit.
-          else if (fillStatus === FillStatus.RequestedSlowFill) {
+          else if (
+            fillStatus === FillStatus.RequestedSlowFill &&
+            validatedBundleSlowFills.every((d) => this.getRelayHashFromEvent(d) !== relayDataHash)
+          ) {
             // Input and Output tokens must be equivalent on the deposit for this to be slow filled.
             // Slow fill requests for deposits from or to lite chains are considered invalid
             if (canRefundPrefills && _canCreateSlowFillLeaf(deposit)) {
