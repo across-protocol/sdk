@@ -50,6 +50,7 @@ import {
   getRefundsFromBundle,
   getWidestPossibleExpectedBlockRange,
   isChainDisabled,
+  isEvmRepaymentValid,
   PoolRebalanceRoot,
   prettyPrintV3SpokePoolEvents,
   V3DepositWithBlock,
@@ -92,10 +93,11 @@ function updateBundleFillsV3(
   repaymentToken: string,
   repaymentAddress: string
 ): void {
-  // It is impossible to refund a deposit if the repayment chain is EVM and the relayer is a non-evm address.
-  if (chainIsEvm(repaymentChainId) && !isValidEvmAddress(repaymentAddress)) {
-    return;
-  }
+  // We shouldn't pass any unrepayable fills into this function, so we perform an extra safety check.
+  assert(
+    chainIsEvm(repaymentChainId) && isEvmRepaymentValid(fill, repaymentChainId),
+    "validatedBundleV3Fills dictionary should only contain fills with valid repayment information"
+  );
   if (!dict?.[repaymentChainId]?.[repaymentToken]) {
     assign(dict, [repaymentChainId, repaymentToken], {
       fills: [],
