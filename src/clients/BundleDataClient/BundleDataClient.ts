@@ -1166,8 +1166,6 @@ export class BundleDataClient {
         // - And finally, has the deposit been slow filled? If so, then we need to issue a slow fill leaf
         //   for this "pre-slow-fill-request" if this request took place in a previous bundle.
         await mapAsync(bundleDepositHashes, async (depositHash) => {
-          // We don't need to call verifyFillRepayment() here to replace the fill.relayer because this value should already
-          // be overwritten because the deposit and fill both exist.
           const { relayDataHash, index } = decodeBundleDepositHash(depositHash);
           const { deposits, fill, slowFillRequest } = v3RelayHashes[relayDataHash];
           if (!deposits || deposits.length === 0) {
@@ -1193,10 +1191,23 @@ export class BundleDataClient {
               // include this pre fill if the fill is in an older bundle. If fill is after this current bundle, then
               // we won't consider it, following the previous treatment of fills after the bundle block range.
               if (!isSlowFill(fill)) {
-                validatedBundleV3Fills.push({
-                  ...fill,
-                  quoteTimestamp: deposit.quoteTimestamp,
-                });
+                const fillToRefund = await verifyFillRepayment(
+                  fill,
+                  destinationClient.spokePool.provider,
+                  v3RelayHashes[relayDataHash].deposits![0],
+                  allChainIds
+                );
+                if (!isDefined(fillToRefund)) {
+                  // We won't repay the fill but the depositor has received funds so we don't need to make a
+                  // payment.
+                  bundleUnrepayableFillsV3.push(fill);
+                } else {
+                  v3RelayHashes[relayDataHash].fill = fillToRefund;
+                  validatedBundleV3Fills.push({
+                    ...fillToRefund,
+                    quoteTimestamp: deposit.quoteTimestamp,
+                  });
+                }
               } else {
                 // Slow fills cannot result in refunds to a relayer to refund the deposit. Slow fills also
                 // were created after the deposit was sent, so we can assume this deposit is a duplicate.
