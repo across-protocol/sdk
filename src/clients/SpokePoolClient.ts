@@ -344,8 +344,8 @@ export class SpokePoolClient extends BaseAbstractClient {
     // Lite chain deposits force repayment on origin chain.
     const repaymentChainId = matchedDeposit.fromLiteChain ? fill.originChainId : fill.repaymentChainId;
     // Return undefined if the requested repayment chain ID is not recognized by the hub pool.
-    const possibleRepaymentChainIds = this.configStoreClient?.getEnabledChains();
-    if (isDefined(possibleRepaymentChainIds) && !possibleRepaymentChainIds.includes(repaymentChainId)) {
+    const possibleRepaymentChainIds = this.configStoreClient?.getEnabledChains() ?? [];
+    if (!possibleRepaymentChainIds.includes(repaymentChainId)) {
       return false;
     }
     return chainIsEvm(repaymentChainId)) && isValidEvmAddress(fill.relayer);
