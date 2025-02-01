@@ -405,7 +405,7 @@ export class SpokePoolClient extends BaseAbstractClient {
       this.logger.warn({
         at: "SpokePoolClient",
         chainId: this.chainId,
-        message: "Unrepayable fills found matching deposit ID",
+        message: "Unrepayable fills found.",
         deposit,
         unrepayableFills: Object.fromEntries(unrepayableFillsForDeposit.map((x) => [x.relayer, x])),
         notificationPath: "across-invalid-fills",
