@@ -1,4 +1,4 @@
-import _, { get } from "lodash";
+import _ from "lodash";
 import { providers } from "ethers";
 import { Deposit, DepositWithBlock, Fill, FillWithBlock } from "../../../interfaces";
 import { getBlockRangeForChain, isSlowFill, chainIsEvm, isValidEvmAddress, isDefined } from "../../../utils";
