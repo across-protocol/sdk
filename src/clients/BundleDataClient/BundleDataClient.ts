@@ -66,10 +66,10 @@ type DataCache = Record<string, Promise<LoadDataReturnValue>>;
 
 // V3 dictionary helper functions
 function updateExpiredDepositsV3(dict: ExpiredDepositsToRefundV3, deposit: V3DepositWithBlock): void {
-  // A deposit refund for a deposit is invalid if the depositor has a bytes32 address input for an EVM chain. It is valid otherwise.
-  if (chainIsEvm(deposit.originChainId) && !isValidEvmAddress(deposit.depositor)) {
-    return;
-  }
+  assert(
+    chainIsEvm(deposit.originChainId) && isValidEvmAddress(deposit.depositor),
+    "expired depositor cannot be refunded"
+  );
   const { originChainId, inputToken } = deposit;
   if (!dict?.[originChainId]?.[inputToken]) {
     assign(dict, [originChainId, inputToken], []);
@@ -147,9 +147,10 @@ function updateBundleExcessSlowFills(
 }
 
 function updateBundleSlowFills(dict: BundleSlowFills, deposit: V3DepositWithBlock & { lpFeePct: BigNumber }): void {
-  if (chainIsEvm(deposit.destinationChainId) && !isValidEvmAddress(deposit.recipient)) {
-    return;
-  }
+  assert(
+    chainIsEvm(deposit.destinationChainId) && isValidEvmAddress(deposit.recipient),
+    "slow fill recipient cannot be paid"
+  );
   const { destinationChainId, outputToken } = deposit;
   if (!dict?.[destinationChainId]?.[outputToken]) {
     assign(dict, [destinationChainId, outputToken], []);
