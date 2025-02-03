@@ -45,6 +45,7 @@ import { getBlockRangeForDepositId, getDepositIdAtBlock, relayFillStatus } from 
 import { BaseAbstractClient, isUpdateFailureReason, UpdateFailureReason } from "./BaseAbstractClient";
 import { HubPoolClient } from "./HubPoolClient";
 import { AcrossConfigStoreClient } from "./AcrossConfigStoreClient";
+import { getRepaymentChainId, isEvmRepaymentValid } from "./BundleDataClient/utils/FillUtils";
 
 type SpokePoolUpdateSuccess = {
   success: true;
@@ -365,21 +366,6 @@ export class SpokePoolClient extends BaseAbstractClient {
     return fills?.find((fill) => validateFillForDeposit(fill, deposit));
   }
 
-  private isEvmRepaymentValid(fill: Fill, matchedDeposit: Deposit): boolean {
-    // Slow fills don't result in repayments so they're always valid.
-    if (isSlowFill(fill)) {
-      return true;
-    }
-    // Lite chain deposits force repayment on origin chain.
-    const repaymentChainId = matchedDeposit.fromLiteChain ? fill.originChainId : fill.repaymentChainId;
-    // Return undefined if the requested repayment chain ID is not recognized by the hub pool.
-    const possibleRepaymentChainIds = this.configStoreClient?.getEnabledChains() ?? [];
-    if (!possibleRepaymentChainIds.includes(repaymentChainId)) {
-      return false;
-    }
-    return chainIsEvm(repaymentChainId) && isValidEvmAddress(fill.relayer);
-  }
-
   /**
    * Find the unfilled amount for a given deposit. This is the full deposit amount minus the total filled amount.
    * @param deposit The deposit to find the unfilled amount for.
@@ -403,7 +389,15 @@ export class SpokePoolClient extends BaseAbstractClient {
     const { validFills, invalidFills, unrepayableFills } = fillsForDeposit.reduce(
       (groupedFills: { validFills: Fill[]; invalidFills: Fill[]; unrepayableFills: Fill[] }, fill: Fill) => {
         if (validateFillForDeposit(fill, deposit).valid) {
-          if (!this.isEvmRepaymentValid(fill, deposit)) {
+          const repaymentChainId = getRepaymentChainId(fill, deposit);
+          // The list of possible repayment chains should be the enabled chains in the config store (minus any
+          // disabled chains) as of the bundle end block containing this fill. Since we don't know which bundle
+          // this fill belongs to, and we don't want to convert the deposit quote timestamp into a block number
+          // to query the chain list at a mainnet block height (for latency purposes), we will just use the
+          // list of all chains that Across supports, which also can include some disabled chains. Worst case
+          // we don't a mark a fill as unrepayable because its chosen a disabled chain as repayment, and we miss
+          // a log.
+          if (!isEvmRepaymentValid(fill, repaymentChainId, this.configStoreClient?.getEnabledChains() ?? [])) {
             groupedFills.unrepayableFills.push(fill);
           }
           // This fill is still valid and means that the deposit cannot be filled on-chain anymore, but it
