@@ -115,6 +115,15 @@ export function chainIsLinea(chainId: number): boolean {
 }
 
 /**
+ * Determines whether a chain ID is a DoctorWho implementation.
+ * @param chainId Chain ID to evaluate.
+ * @returns True if chainId is a DoctorWho chain, otherwise false.
+ */
+export function chainIsDoctorWho(chainId: number): boolean {
+  return CHAIN_IDs.DOCTOR_WHO === chainId;
+}
+
+/**
  * Determines whether a chain ID has a corresponding hub pool contract.
  * @param chainId Chain ID to evaluate.
  * @returns True if chain corresponding to chainId has a hub pool implementation.
@@ -151,6 +160,7 @@ export function chainIsCCTPEnabled(chainId: number): boolean {
     CHAIN_IDs.OPTIMISM_SEPOLIA,
     CHAIN_IDs.ARBITRUM_SEPOLIA,
     CHAIN_IDs.POLYGON_AMOY,
+    CHAIN_IDs.DOCTOR_WHO,
   ].includes(chainId);
 }
 
