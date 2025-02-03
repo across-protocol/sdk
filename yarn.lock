@@ -30,6 +30,35 @@
     "@openzeppelin/contracts" "4.1.0"
     "@uma/core" "^2.18.0"
 
+"@across-protocol/contracts@npm:@md0x/contracts@3.0.26":
+  version "3.0.26"
+  resolved "https://registry.npmjs.org/@md0x/contracts/-/contracts-3.0.26.tgz#204ce0a9d075ae2568025a784d5c2e7d19c95e4a"
+  integrity sha512-K0DmaoJoXwU0cpbvN68GbhxkETuzxXbBi+QcRKFkdBnW/F0tGaAmDQ4GceWHfHQ1avx9XXyt6/oatYzKXdxdjA==
+  dependencies:
+    "@across-protocol/constants" "^3.1.30"
+    "@coral-xyz/anchor" "^0.30.1"
+    "@defi-wonderland/smock" "^2.3.4"
+    "@eth-optimism/contracts" "^0.5.40"
+    "@ethersproject/abstract-provider" "5.7.0"
+    "@ethersproject/abstract-signer" "5.7.0"
+    "@ethersproject/bignumber" "5.7.0"
+    "@openzeppelin/contracts" "4.9.6"
+    "@openzeppelin/contracts-upgradeable" "4.9.6"
+    "@scroll-tech/contracts" "^0.1.0"
+    "@solana-developers/helpers" "^2.4.0"
+    "@solana/spl-token" "^0.4.6"
+    "@solana/web3-v2.js" "npm:@solana/web3.js@2"
+    "@solana/web3.js" "^1.31.0"
+    "@types/yargs" "^17.0.33"
+    "@uma/common" "^2.37.3"
+    "@uma/contracts-node" "^0.4.17"
+    "@uma/core" "^2.61.0"
+    axios "^1.7.4"
+    bs58 "^6.0.0"
+    prettier-plugin-rust "^0.1.9"
+    yargs "^17.7.2"
+    zksync-web3 "^0.14.3"
+
 "@adraffy/ens-normalize@1.10.0":
   version "1.10.0"
   resolved "https://registry.yarnpkg.com/@adraffy/ens-normalize/-/ens-normalize-1.10.0.tgz#d2a39395c587e092d77cbbc80acf956a54f38bf7"
@@ -1497,35 +1526,6 @@
   integrity sha512-kDob22IkLLrh+OmjpgM0r2jNboW+8cTwGL7sSEvmMcqujlun3Dw7+o741qWeubLovCEw0n2nxhYWLwt8iNVecQ==
   dependencies:
     "@openzeppelin/contracts" "^4.2.0"
-
-"@md0x/contracts@3.0.26":
-  version "3.0.26"
-  resolved "https://registry.npmjs.org/@md0x/contracts/-/contracts-3.0.26.tgz#204ce0a9d075ae2568025a784d5c2e7d19c95e4a"
-  integrity sha512-K0DmaoJoXwU0cpbvN68GbhxkETuzxXbBi+QcRKFkdBnW/F0tGaAmDQ4GceWHfHQ1avx9XXyt6/oatYzKXdxdjA==
-  dependencies:
-    "@across-protocol/constants" "^3.1.30"
-    "@coral-xyz/anchor" "^0.30.1"
-    "@defi-wonderland/smock" "^2.3.4"
-    "@eth-optimism/contracts" "^0.5.40"
-    "@ethersproject/abstract-provider" "5.7.0"
-    "@ethersproject/abstract-signer" "5.7.0"
-    "@ethersproject/bignumber" "5.7.0"
-    "@openzeppelin/contracts" "4.9.6"
-    "@openzeppelin/contracts-upgradeable" "4.9.6"
-    "@scroll-tech/contracts" "^0.1.0"
-    "@solana-developers/helpers" "^2.4.0"
-    "@solana/spl-token" "^0.4.6"
-    "@solana/web3-v2.js" "npm:@solana/web3.js@2"
-    "@solana/web3.js" "^1.31.0"
-    "@types/yargs" "^17.0.33"
-    "@uma/common" "^2.37.3"
-    "@uma/contracts-node" "^0.4.17"
-    "@uma/core" "^2.61.0"
-    axios "^1.7.4"
-    bs58 "^6.0.0"
-    prettier-plugin-rust "^0.1.9"
-    yargs "^17.7.2"
-    zksync-web3 "^0.14.3"
 
 "@metamask/eth-sig-util@^4.0.0":
   version "4.0.0"
