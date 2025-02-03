@@ -10,7 +10,7 @@ export {
   TOKEN_SYMBOLS_MAP,
 } from "@across-protocol/constants";
 
-export const { AddressZero: ZERO_ADDRESS } = ethersConstants;
+export const { AddressZero: ZERO_ADDRESS, HashZero: ZERO_BYTES } = ethersConstants;
 
 // 2^96 - 1 is a conservative erc20 max allowance.
 export const MAX_SAFE_ALLOWANCE = "79228162514264337593543950335";
@@ -26,14 +26,16 @@ export const SECONDS_PER_YEAR = 31557600; // 365.25 days per year.
  */
 export const HUBPOOL_CHAIN_ID = 1;
 
-// List of versions where certain UMIP features were deprecated
+// List of versions where certain UMIP features were deprecated or activated
 export const TRANSFER_THRESHOLD_MAX_CONFIG_STORE_VERSION = 1;
+
+export const PRE_FILL_MIN_CONFIG_STORE_VERSION = 5;
 
 // A hardcoded identifier used, by default, to tag all Arweave records.
 export const ARWEAVE_TAG_APP_NAME = "across-protocol";
 
 // A hardcoded version number used, by default, to tag all Arweave records.
-export const ARWEAVE_TAG_APP_VERSION = 2;
+export const ARWEAVE_TAG_APP_VERSION = 3;
 
 /**
  * A default list of chain Ids that the protocol supports. This is outlined

@@ -5,7 +5,7 @@ import { DEFAULT_CONFIG_STORE_VERSION, GLOBAL_CONFIG_STORE_KEYS } from "../src/c
 import { MockConfigStoreClient, MockHubPoolClient, MockSpokePoolClient } from "../src/clients/mocks";
 import { EMPTY_MESSAGE, ZERO_ADDRESS } from "../src/constants";
 import { DepositWithBlock, FillWithBlock, Log, SlowFillRequest, SlowFillRequestWithBlock } from "../src/interfaces";
-import { getCurrentTime, isDefined, randomAddress } from "../src/utils";
+import { getCurrentTime, isDefined, randomAddress, toAddress, toBN } from "../src/utils";
 import {
   SignerWithAddress,
   createSpyLogger,
@@ -35,11 +35,7 @@ describe("SpokePoolClient: Event Filtering", function () {
 
   const logger = createSpyLogger().spyLogger;
 
-  const generateV3Deposit = (
-    spokePoolClient: MockSpokePoolClient,
-    quoteTimestamp?: number,
-    inputToken?: string
-  ): Log => {
+  const generateDeposit = (spokePoolClient: MockSpokePoolClient, quoteTimestamp?: number, inputToken?: string): Log => {
     inputToken ??= randomAddress();
     const message = EMPTY_MESSAGE;
     quoteTimestamp ??= getCurrentTime() - 10;
@@ -113,11 +109,11 @@ describe("SpokePoolClient: Event Filtering", function () {
   });
 
   it("Correctly retrieves V3FundsDeposited events", async function () {
-    // Inject a series of V3DepositWithBlock events.
+    // Inject a series of DepositWithBlock events.
     const depositEvents: Log[] = [];
 
     for (let idx = 0; idx < 10; ++idx) {
-      depositEvents.push(generateV3Deposit(originSpokePoolClient));
+      depositEvents.push(generateDeposit(originSpokePoolClient));
     }
     await originSpokePoolClient.update(fundsDepositedEvents);
 
@@ -157,15 +153,15 @@ describe("SpokePoolClient: Event Filtering", function () {
     // Confirm that the two updates have different timestamps.
     expect(liteChainIndicesUpdate1.timestamp).to.not.equal(liteChainIndicesUpdate2.timestamp);
 
-    // Inject a V3DepositWithBlock event that should have the `fromLiteChain` flag set to false.
+    // Inject a DepositWithBlock event that should have the `fromLiteChain` flag set to false.
     // This is done by setting the quote timestamp to before the first lite chain update.
-    generateV3Deposit(originSpokePoolClient, liteChainIndicesUpdate1.timestamp - 1);
-    // Inject a V3DepositWithBlock event that should have the `fromLiteChain` flag set to true.
+    generateDeposit(originSpokePoolClient, liteChainIndicesUpdate1.timestamp - 1);
+    // Inject a DepositWithBlock event that should have the `fromLiteChain` flag set to true.
     // This is done by setting the quote timestamp to after the first lite chain update.
-    generateV3Deposit(originSpokePoolClient, liteChainIndicesUpdate1.timestamp + 1);
-    // Inject a V3DepositWithBlock event that should have the `fromLiteChain` flag set to false.
+    generateDeposit(originSpokePoolClient, liteChainIndicesUpdate1.timestamp + 1);
+    // Inject a DepositWithBlock event that should have the `fromLiteChain` flag set to false.
     // This is done by setting the quote timestamp to after the second lite chain update.
-    generateV3Deposit(originSpokePoolClient, liteChainIndicesUpdate2.timestamp + 1);
+    generateDeposit(originSpokePoolClient, liteChainIndicesUpdate2.timestamp + 1);
 
     // Set the config store client on the originSpokePoolClient so that it can access the lite chain indices updates.
     originSpokePoolClient.setConfigStoreClient(configStoreClient);
@@ -202,15 +198,15 @@ describe("SpokePoolClient: Event Filtering", function () {
     // Confirm that the two updates have different timestamps.
     expect(liteChainIndicesUpdate1.timestamp).to.not.equal(liteChainIndicesUpdate2.timestamp);
 
-    // Inject a V3DepositWithBlock event that should have the `toLiteChain` flag set to false.
+    // Inject a DepositWithBlock event that should have the `toLiteChain` flag set to false.
     // This is done by setting the quote timestamp to before the first lite chain update.
-    generateV3Deposit(originSpokePoolClient, liteChainIndicesUpdate1.timestamp - 1);
-    // Inject a V3DepositWithBlock event that should have the `toLiteChain` flag set to true.
+    generateDeposit(originSpokePoolClient, liteChainIndicesUpdate1.timestamp - 1);
+    // Inject a DepositWithBlock event that should have the `toLiteChain` flag set to true.
     // This is done by setting the quote timestamp to after the first lite chain update.
-    generateV3Deposit(originSpokePoolClient, liteChainIndicesUpdate1.timestamp + 1);
-    // Inject a V3DepositWithBlock event that should have the `toLiteChain` flag set to false.
+    generateDeposit(originSpokePoolClient, liteChainIndicesUpdate1.timestamp + 1);
+    // Inject a DepositWithBlock event that should have the `toLiteChain` flag set to false.
     // This is done by setting the quote timestamp to after the second lite chain update.
-    generateV3Deposit(originSpokePoolClient, liteChainIndicesUpdate2.timestamp + 1);
+    generateDeposit(originSpokePoolClient, liteChainIndicesUpdate2.timestamp + 1);
 
     // Set the config store client on the originSpokePoolClient so that it can access the lite chain indices updates.
     originSpokePoolClient.setConfigStoreClient(configStoreClient);
@@ -262,7 +258,7 @@ describe("SpokePoolClient: Event Filtering", function () {
     };
 
     for (let idx = 0; idx < 10; ++idx) {
-      const depositEvent = generateV3Deposit(originSpokePoolClient);
+      const depositEvent = generateDeposit(originSpokePoolClient);
 
       await originSpokePoolClient.update(fundsDepositedEvents);
       let deposit = originSpokePoolClient.getDeposits().at(-1);
@@ -315,13 +311,13 @@ describe("SpokePoolClient: Event Filtering", function () {
     const relayer = randomAddress();
 
     for (let idx = 0; idx < 10; ++idx) {
-      const v3DepositEvent = generateV3Deposit(originSpokePoolClient);
+      const depositEvent = generateDeposit(originSpokePoolClient);
 
       await originSpokePoolClient.update(fundsDepositedEvents);
       let deposit = originSpokePoolClient.getDeposits().at(-1);
-      expect(deposit).to.not.be.undefined;
+      expect(deposit).to.exist;
       deposit = deposit!;
-      expect(deposit.depositId).to.equal(v3DepositEvent.args!.depositId);
+      expect(deposit.depositId).to.equal(depositEvent.args!.depositId);
 
       const v3Fill = fillFromDeposit(deposit, relayer);
       fillEvents.push(destinationSpokePoolClient.fillV3Relay(v3Fill as FillWithBlock));
@@ -341,5 +337,201 @@ describe("SpokePoolClient: Event Filtering", function () {
       expect(fillEvent.destinationChainId).to.equal(destinationChainId);
       expect(fillEvent.outputToken).to.equal(expectedFill.args!.outputToken);
     });
+  });
+
+  it("Correctly truncates events with bytes32 address fields: TokensBridged", async function () {
+    for (let i = 0; i < 10; ++i) {
+      const l2TokenAddress = ethers.utils.hexZeroPad(randomAddress(), 32);
+      originSpokePoolClient.setTokensBridged({ l2TokenAddress, chainId: i, leafId: i + 1 } as TokensBridged);
+      await originSpokePoolClient.update(["TokensBridged"]);
+      const tokensBridged = originSpokePoolClient.getTokensBridged().at(-1);
+      expect(tokensBridged.l2TokenAddress).to.equal(toAddress(l2TokenAddress));
+    }
+  });
+
+  it("Correctly truncates events with bytes32 address fields: FundsDeposited", async function () {
+    for (let _i = 0; _i < 10; ++_i) {
+      const [depositor, recipient, inputToken, outputToken, exclusiveRelayer] = Array(5)
+        .fill(0)
+        .map((_) => ethers.utils.hexZeroPad(randomAddress(), 32));
+      originSpokePoolClient.depositV3({
+        depositor,
+        recipient,
+        inputToken,
+        outputToken,
+        exclusiveRelayer,
+      } as DepositWithBlock);
+      await originSpokePoolClient.update(["V3FundsDeposited"]);
+      const deposit = originSpokePoolClient.getDeposits().at(-1);
+      expect(deposit.depositor).to.equal(toAddress(depositor));
+      expect(deposit.recipient).to.equal(toAddress(recipient));
+      expect(deposit.inputToken).to.equal(toAddress(inputToken));
+      expect(deposit.outputToken).to.equal(toAddress(outputToken));
+      expect(deposit.exclusiveRelayer).to.equal(toAddress(exclusiveRelayer));
+    }
+  });
+  it("Correctly truncates events with bytes32 address fields: RequestedSpeedUpDeposit", async function () {
+    for (let i = 0; i < 10; ++i) {
+      const [depositor, updatedRecipient] = Array(2)
+        .fill(0)
+        .map((_) => ethers.utils.hexZeroPad(randomAddress(), 32));
+      originSpokePoolClient.speedUpV3Deposit({ depositor, updatedRecipient, depositId: toBN(i) } as SpeedUp);
+      await originSpokePoolClient.update(["RequestedSpeedUpV3Deposit"]);
+      const speedUp = originSpokePoolClient.getSpeedUps()[toAddress(depositor)][toBN(i)].at(-1);
+      expect(speedUp.depositor).to.equal(toAddress(depositor));
+      expect(speedUp.updatedRecipient).to.equal(toAddress(updatedRecipient));
+    }
+  });
+  it("Correctly truncates events with bytes32 address fields: FilledRelay", async function () {
+    for (let i = 0; i < 10; ++i) {
+      const [depositor, recipient, inputToken, outputToken, exclusiveRelayer, relayer] = Array(6)
+        .fill(0)
+        .map((_) => ethers.utils.hexZeroPad(randomAddress(), 32));
+      originSpokePoolClient.fillV3Relay({
+        depositor,
+        recipient,
+        inputToken,
+        outputToken,
+        exclusiveRelayer,
+        relayer,
+        depositId: toBN(i),
+      } as FillWithBlock);
+      await originSpokePoolClient.update(["FilledV3Relay"]);
+      const relay = originSpokePoolClient.getFills().at(-1);
+      expect(relay.depositor).to.equal(toAddress(depositor));
+      expect(relay.recipient).to.equal(toAddress(recipient));
+      expect(relay.inputToken).to.equal(toAddress(inputToken));
+      expect(relay.outputToken).to.equal(toAddress(outputToken));
+      expect(relay.exclusiveRelayer).to.equal(toAddress(exclusiveRelayer));
+      expect(relay.relayer).to.equal(toAddress(relayer));
+    }
+  });
+  it("Correctly truncates events with bytes32 address fields: RequestedSlowFill", async function () {
+    for (let i = 0; i < 10; ++i) {
+      const [depositor, recipient, inputToken, outputToken, exclusiveRelayer] = Array(5)
+        .fill(0)
+        .map((_) => ethers.utils.hexZeroPad(randomAddress(), 32));
+      originSpokePoolClient.requestV3SlowFill({
+        depositor,
+        recipient,
+        inputToken,
+        outputToken,
+        exclusiveRelayer,
+        depositId: toBN(i),
+        originChainId: 1,
+        inputAmount: toBN(i),
+        outputAmount: toBN(i),
+        message: "0x",
+        fillDeadline: 0,
+        exclusivityDeadline: 0,
+      } as SlowFillRequestWithBlock);
+      await originSpokePoolClient.update(["RequestedV3SlowFill"]);
+      const slowFill = originSpokePoolClient.getSlowFillRequestsForOriginChain(1).at(-1);
+      expect(slowFill.depositor).to.equal(toAddress(depositor));
+      expect(slowFill.recipient).to.equal(toAddress(recipient));
+      expect(slowFill.inputToken).to.equal(toAddress(inputToken));
+      expect(slowFill.outputToken).to.equal(toAddress(outputToken));
+      expect(slowFill.exclusiveRelayer).to.equal(toAddress(exclusiveRelayer));
+    }
+  });
+  it("Does not throw when processing a bytes32 address", async function () {
+    for (let i = 0; i < 10; ++i) {
+      const [
+        depositor,
+        recipient,
+        inputToken,
+        outputToken,
+        exclusiveRelayer,
+        relayer,
+        updatedRecipient,
+        l2TokenAddress,
+      ] = Array(8)
+        .fill(0)
+        .map((_) => ethers.utils.hexlify(ethers.utils.randomBytes(32)));
+      // Deposit
+      originSpokePoolClient.depositV3({
+        depositor,
+        recipient,
+        inputToken,
+        outputToken,
+        exclusiveRelayer,
+        depositId: toBN(i),
+      } as DepositWithBlock);
+      // SpeedUpDeposit
+      originSpokePoolClient.speedUpV3Deposit({
+        depositor,
+        updatedRecipient,
+        depositId: toBN(i),
+        updatedOutputAmount: toBN(i),
+      } as SpeedUp);
+      // FillV3Relay
+      originSpokePoolClient.fillV3Relay({
+        depositor,
+        recipient,
+        inputToken,
+        outputToken,
+        exclusiveRelayer,
+        relayer,
+        depositId: toBN(i),
+      } as FillWithBlock);
+      // TokensBridged
+      originSpokePoolClient.setTokensBridged({ l2TokenAddress, chainId: i, leafId: i + 1 } as TokensBridged);
+      // RequestV3SlowFill
+      originSpokePoolClient.requestV3SlowFill({
+        depositor,
+        recipient,
+        inputToken,
+        outputToken,
+        exclusiveRelayer,
+        depositId: toBN(i),
+        originChainId: 1,
+        inputAmount: toBN(i),
+        outputAmount: toBN(i),
+        message: "0x",
+        fillDeadline: 0,
+        exclusivityDeadline: 0,
+      } as SlowFillRequestWithBlock);
+      await originSpokePoolClient.update([
+        "V3FundsDeposited",
+        "FilledV3Relay",
+        "TokensBridged",
+        "RequestedSpeedUpV3Deposit",
+        "RequestedV3SlowFill",
+      ]);
+      const slowFill = originSpokePoolClient.getSlowFillRequestsForOriginChain(1).at(-1);
+      const tokensBridged = originSpokePoolClient.getTokensBridged().at(-1);
+      const speedUp = originSpokePoolClient.getSpeedUps()[depositor][toBN(i)].at(-1);
+      const relay = originSpokePoolClient.getFills().at(-1);
+      const deposit = originSpokePoolClient.getDeposits().at(-1);
+
+      // SlowFill
+      expect(slowFill.depositor).to.equal(depositor);
+      expect(slowFill.recipient).to.equal(recipient);
+      expect(slowFill.inputToken).to.equal(inputToken);
+      expect(slowFill.outputToken).to.equal(outputToken);
+      expect(slowFill.exclusiveRelayer).to.equal(exclusiveRelayer);
+
+      // Relay
+      expect(relay.depositor).to.equal(depositor);
+      expect(relay.recipient).to.equal(recipient);
+      expect(relay.inputToken).to.equal(inputToken);
+      expect(relay.outputToken).to.equal(outputToken);
+      expect(relay.exclusiveRelayer).to.equal(exclusiveRelayer);
+      expect(relay.relayer).to.equal(relayer);
+
+      // SpeedUp
+      expect(speedUp.depositor).to.equal(depositor);
+      expect(speedUp.updatedRecipient).to.equal(updatedRecipient);
+
+      // Deposit
+      expect(deposit.depositor).to.equal(depositor);
+      expect(deposit.recipient).to.equal(recipient);
+      expect(deposit.inputToken).to.equal(inputToken);
+      expect(deposit.outputToken).to.equal(outputToken);
+      expect(deposit.exclusiveRelayer).to.equal(exclusiveRelayer);
+
+      // TokensBridged
+      expect(tokensBridged.l2TokenAddress).to.equal(l2TokenAddress);
+    }
   });
 });

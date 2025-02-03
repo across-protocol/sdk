@@ -38,3 +38,29 @@ export function compareAddressesSimple(addressA?: string, addressB?: string): bo
   }
   return addressA.toLowerCase() === addressB.toLowerCase();
 }
+
+// Converts an input (assumed to be) bytes32 string into a bytes20 string.
+// If the input is not a bytes32 but is less than type(uint160).max, then this function
+// will still succeed.
+// Throws an error if the string as an unsigned integer is greater than type(uint160).max.
+export function toAddress(hexString: string): string {
+  // rawAddress is the address which is not properly checksummed.
+  const rawAddress = utils.hexZeroPad(utils.hexStripZeros(hexString), 20);
+  return utils.getAddress(rawAddress);
+}
+
+export function isValidEvmAddress(address: string): boolean {
+  if (utils.isAddress(address)) {
+    return true;
+  }
+  // We may throw an error here if hexZeroPadFails. This will happen if the address to pad is greater than 20 bytes long, indicating
+  // that the address had less than 12 leading zero bytes.
+  // We may also throw at getAddress if the input cannot be converted into a checksummed EVM address for some reason.
+  // For both cases, this indicates that the address cannot be casted as a bytes20 EVM address, so we should return false.
+  try {
+    const evmAddress = utils.hexZeroPad(utils.hexStripZeros(address), 20);
+    return utils.isAddress(utils.getAddress(evmAddress));
+  } catch (_e) {
+    return false;
+  }
+}

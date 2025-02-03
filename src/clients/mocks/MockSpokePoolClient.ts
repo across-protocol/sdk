@@ -13,8 +13,9 @@ import {
   FillWithBlock,
   SlowFillLeaf,
   SpeedUp,
+  TokensBridged,
 } from "../../interfaces";
-import { toBN, toBNWei, getCurrentTime, randomAddress } from "../../utils";
+import { toBN, toBNWei, getCurrentTime, randomAddress, BigNumber, bnZero, bnOne, bnMax } from "../../utils";
 import { SpokePoolClient, SpokePoolUpdate } from "../SpokePoolClient";
 import { HubPoolClient } from "../HubPoolClient";
 import { EventManager, EventOverrides, getEventManager } from "./MockEvents";
@@ -26,8 +27,8 @@ export class MockSpokePoolClient extends SpokePoolClient {
   public eventManager: EventManager;
   private destinationTokenForChainOverride: Record<number, string> = {};
   // Allow tester to set the numberOfDeposits() returned by SpokePool at a block height.
-  public depositIdAtBlock: number[] = [];
-  public numberOfDeposits = 0;
+  public depositIdAtBlock: BigNumber[] = [];
+  public numberOfDeposits = bnZero;
 
   constructor(
     logger: winston.Logger,
@@ -57,21 +58,21 @@ export class MockSpokePoolClient extends SpokePoolClient {
     this.latestBlockSearched = blockNumber;
   }
 
-  setDepositIds(_depositIds: number[]): void {
+  setDepositIds(_depositIds: BigNumber[]): void {
     this.depositIdAtBlock = [];
     if (_depositIds.length === 0) {
       return;
     }
     let lastDepositId = _depositIds[0];
     for (let i = 0; i < _depositIds.length; i++) {
-      if (_depositIds[i] < lastDepositId) {
+      if (_depositIds[i].lt(lastDepositId)) {
         throw new Error("deposit ID must be equal to or greater than previous");
       }
       this.depositIdAtBlock[i] = _depositIds[i];
       lastDepositId = _depositIds[i];
     }
   }
-  _getDepositIdAtBlock(blockTag: number): Promise<number> {
+  _getDepositIdAtBlock(blockTag: number): Promise<BigNumber> {
     return Promise.resolve(this.depositIdAtBlock[blockTag]);
   }
 
@@ -96,13 +97,13 @@ export class MockSpokePoolClient extends SpokePoolClient {
     // Update latestDepositIdQueried.
     const idx = eventsToQuery.indexOf("V3FundsDeposited");
     const latestDepositId = (events[idx] ?? []).reduce(
-      (depositId, event) => Math.max(depositId, (event.args["depositId"] ?? 0) as number),
+      (depositId, event) => bnMax(depositId, event.args["depositId"] ?? bnZero),
       this.latestDepositIdQueried
     );
 
     return Promise.resolve({
       success: true,
-      firstDepositId: 0,
+      firstDepositId: bnZero,
       latestDepositId,
       currentTime,
       oldestTime: 0,
@@ -122,8 +123,7 @@ export class MockSpokePoolClient extends SpokePoolClient {
     const { blockNumber, transactionIndex } = deposit;
     let { depositId, depositor, destinationChainId, inputToken, inputAmount, outputToken, outputAmount } = deposit;
     depositId ??= this.numberOfDeposits;
-    assert(depositId >= this.numberOfDeposits, `${depositId} < ${this.numberOfDeposits}`);
-    this.numberOfDeposits = depositId + 1;
+    this.numberOfDeposits = depositId.add(bnOne);
 
     destinationChainId ??= random(1, 42161, false);
     depositor ??= randomAddress();
@@ -168,7 +168,7 @@ export class MockSpokePoolClient extends SpokePoolClient {
     const { blockNumber, transactionIndex } = fill;
     let { originChainId, depositId, inputToken, inputAmount, outputAmount, fillDeadline, relayer } = fill;
     originChainId ??= random(1, 42161, false);
-    depositId ??= random(1, 100_000, false);
+    depositId ??= BigNumber.from(random(1, 100_000, false));
     inputToken ??= randomAddress();
     inputAmount ??= toBNWei(random(1, 1000, false));
     outputAmount ??= inputAmount;
@@ -216,6 +216,19 @@ export class MockSpokePoolClient extends SpokePoolClient {
     const event = "RequestedSpeedUpV3Deposit";
     const topics = [speedUp.depositId, speedUp.depositor];
     const args = { ...speedUp };
+
+    return this.eventManager.generateEvent({
+      event,
+      address: this.spokePool.address,
+      topics: topics.map((topic) => topic.toString()),
+      args,
+    });
+  }
+
+  setTokensBridged(tokensBridged: TokensBridged): Log {
+    const event = "TokensBridged";
+    const topics = [tokensBridged.chainId, tokensBridged.leafId, tokensBridged.l2TokenAddress];
+    const args = { ...tokensBridged };
 
     return this.eventManager.generateEvent({
       event,

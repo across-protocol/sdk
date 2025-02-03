@@ -1,7 +1,7 @@
 {
   "name": "@across-protocol/sdk",
   "author": "UMA Team",
-  "version": "3.5.0",
+  "version": "4.0.0",
   "license": "AGPL-3.0",
   "homepage": "https://docs.across.to/reference/sdk",
   "files": [
@@ -9,7 +9,7 @@
     "src"
   ],
   "engines": {
-    "node": ">=16.18.0"
+    "node": ">=20.18.0"
   },
   "scripts": {
     "start": "yarn typechain && nodemon -e ts,tsx,json,js,jsx --watch ./src --ignore ./dist --exec 'yarn dev'",

@@ -12,6 +12,8 @@ import {
   getRelayDataHash,
   isDefined,
   toBN,
+  bnOne,
+  isUnsafeDepositId,
 } from "../utils";
 import {
   paginatedEventQuery,
@@ -46,8 +48,8 @@ type SpokePoolUpdateSuccess = {
   success: true;
   currentTime: number;
   oldestTime: number;
-  firstDepositId: number;
-  latestDepositId: number;
+  firstDepositId: BigNumber;
+  latestDepositId: BigNumber;
   events: Log[][];
   searchEndBlock: number;
 };
@@ -65,8 +67,9 @@ export class SpokePoolClient extends BaseAbstractClient {
   protected currentTime = 0;
   protected oldestTime = 0;
   protected depositHashes: { [depositHash: string]: DepositWithBlock } = {};
+  protected duplicateDepositHashes: { [depositHash: string]: DepositWithBlock[] } = {};
   protected depositHashesToFills: { [depositHash: string]: FillWithBlock[] } = {};
-  protected speedUps: { [depositorAddress: string]: { [depositId: number]: SpeedUpWithBlock[] } } = {};
+  protected speedUps: { [depositorAddress: string]: { [depositId: string]: SpeedUpWithBlock[] } } = {};
   protected slowFillRequests: { [relayDataHash: string]: SlowFillRequestWithBlock } = {};
   protected depositRoutes: { [originToken: string]: { [DestinationChainId: number]: boolean } } = {};
   protected tokensBridged: TokensBridged[] = [];
@@ -74,10 +77,10 @@ export class SpokePoolClient extends BaseAbstractClient {
   protected relayerRefundExecutions: RelayerRefundExecutionWithBlock[] = [];
   protected queryableEventNames: string[] = [];
   protected configStoreClient: AcrossConfigStoreClient | undefined;
-  public earliestDepositIdQueried = Number.MAX_SAFE_INTEGER;
-  public latestDepositIdQueried = 0;
-  public firstDepositIdForSpokePool = Number.MAX_SAFE_INTEGER;
-  public lastDepositIdForSpokePool = Number.MAX_SAFE_INTEGER;
+  public earliestDepositIdQueried = MAX_BIG_INT;
+  public latestDepositIdQueried = bnZero;
+  public firstDepositIdForSpokePool = MAX_BIG_INT;
+  public lastDepositIdForSpokePool = MAX_BIG_INT;
   public fills: { [OriginChainId: number]: FillWithBlock[] } = {};
 
   /**
@@ -124,12 +127,40 @@ export class SpokePoolClient extends BaseAbstractClient {
   }
 
   /**
-   * Retrieves a list of deposits from the SpokePool contract destined for the given destination chain ID.
+   * Retrieves a list of unique deposits from the SpokePool contract destined for the given destination chain ID.
    * @param destinationChainId The destination chain ID.
    * @returns A list of deposits.
    */
   public getDepositsForDestinationChain(destinationChainId: number): DepositWithBlock[] {
     return Object.values(this.depositHashes).filter((deposit) => deposit.destinationChainId === destinationChainId);
+  }
+
+  /**
+   * Retrieves a list of duplicate deposits matching the given deposit's deposit hash.
+   * @notice A duplicate is considered any deposit sent after the original deposit with the same deposit hash.
+   * @param deposit The deposit to find duplicates for.
+   * @returns A list of duplicate deposits. Does NOT include the original deposit
+   * unless the original deposit is a duplicate.
+   */
+  private _getDuplicateDeposits(deposit: DepositWithBlock): DepositWithBlock[] {
+    const depositHash = this.getDepositHash(deposit);
+    return this.duplicateDepositHashes[depositHash] ?? [];
+  }
+
+  /**
+   * Returns a list of all deposits including any duplicate ones. Designed only to be used in use cases where
+   * all deposits are required, regardless of duplicates. For example, the Dataworker can use this to refund
+   * expired deposits including for duplicates.
+   * @param destinationChainId
+   * @returns A list of deposits
+   */
+  public getDepositsForDestinationChainWithDuplicates(destinationChainId: number): DepositWithBlock[] {
+    const deposits = this.getDepositsForDestinationChain(destinationChainId);
+    const duplicateDeposits = deposits.reduce((acc, deposit) => {
+      const duplicates = this._getDuplicateDeposits(deposit);
+      return acc.concat(duplicates);
+    }, [] as DepositWithBlock[]);
+    return sortEventsAscendingInPlace(deposits.concat(duplicateDeposits.flat()));
   }
 
   /**
@@ -232,7 +263,7 @@ export class SpokePoolClient extends BaseAbstractClient {
    */
   public appendMaxSpeedUpSignatureToDeposit(deposit: DepositWithBlock): DepositWithBlock {
     const { depositId, depositor } = deposit;
-    const speedups = this.speedUps[depositor]?.[depositId];
+    const speedups = this.speedUps[depositor]?.[depositId.toString()];
     if (!isDefined(speedups) || speedups.length === 0) {
       return deposit;
     }
@@ -265,7 +296,7 @@ export class SpokePoolClient extends BaseAbstractClient {
    * @param depositId The unique ID of the deposit being queried.
    * @returns The corresponding deposit if found, undefined otherwise.
    */
-  public getDeposit(depositId: number): DepositWithBlock | undefined {
+  public getDeposit(depositId: BigNumber): DepositWithBlock | undefined {
     const depositHash = this.getDepositHash({ depositId, originChainId: this.chainId });
     return this.depositHashes[depositHash];
   }
@@ -295,7 +326,7 @@ export class SpokePoolClient extends BaseAbstractClient {
    * Retrieves speed up requests grouped by depositor and depositId.
    * @returns A mapping of depositor addresses to deposit ids with their corresponding speed up requests.
    */
-  public getSpeedUps(): { [depositorAddress: string]: { [depositId: number]: SpeedUpWithBlock[] } } {
+  public getSpeedUps(): { [depositorAddress: string]: { [depositId: string]: SpeedUpWithBlock[] } } {
     return this.speedUps;
   }
 
@@ -313,7 +344,7 @@ export class SpokePoolClient extends BaseAbstractClient {
 
     this.logger.debug({
       at: "SpokePoolClient::getDepositForFill",
-      message: `Rejected fill for ${getNetworkName(fill.originChainId)} deposit ${fill.depositId}.`,
+      message: `Rejected fill for ${getNetworkName(fill.originChainId)} deposit ${fill.depositId.toString()}.`,
       reason: match.reason,
       deposit,
       fill,
@@ -365,7 +396,7 @@ export class SpokePoolClient extends BaseAbstractClient {
     );
 
     // Log any invalid deposits with same deposit id but different params.
-    const invalidFillsForDeposit = invalidFills.filter((x) => x.depositId === deposit.depositId);
+    const invalidFillsForDeposit = invalidFills.filter((x) => x.depositId.eq(deposit.depositId));
     if (invalidFillsForDeposit.length > 0) {
       this.logger.warn({
         at: "SpokePoolClient",
@@ -396,8 +427,8 @@ export class SpokePoolClient extends BaseAbstractClient {
    * @note This hash is used to match deposits and fills together.
    * @note This hash takes the form of: `${depositId}-${originChainId}`.
    */
-  public getDepositHash(event: { depositId: number; originChainId: number }): string {
-    return `${event.depositId}-${event.originChainId}`;
+  public getDepositHash(event: { depositId: BigNumber; originChainId: number }): string {
+    return `${event.depositId.toString()}-${event.originChainId}`;
   }
 
   /**
@@ -405,7 +436,7 @@ export class SpokePoolClient extends BaseAbstractClient {
    * @param blockTag The block number to search for the deposit ID at.
    * @returns The deposit ID.
    */
-  public _getDepositIdAtBlock(blockTag: number): Promise<number> {
+  public _getDepositIdAtBlock(blockTag: number): Promise<BigNumber> {
     return getDepositIdAtBlock(this.spokePool as SpokePool, blockTag);
   }
 
@@ -438,10 +469,11 @@ export class SpokePoolClient extends BaseAbstractClient {
    */
   protected async _update(eventsToQuery: string[]): Promise<SpokePoolUpdate> {
     // Find the earliest known depositId. This assumes no deposits were placed in the deployment block.
-    let firstDepositId: number = this.firstDepositIdForSpokePool;
-    if (firstDepositId === Number.MAX_SAFE_INTEGER) {
+    let firstDepositId = this.firstDepositIdForSpokePool;
+    if (firstDepositId.eq(MAX_BIG_INT)) {
       firstDepositId = await this.spokePool.numberOfDeposits({ blockTag: this.deploymentBlock });
-      if (isNaN(firstDepositId) || firstDepositId < 0) {
+      firstDepositId = BigNumber.from(firstDepositId); // Cast input to a big number.
+      if (!BigNumber.isBigNumber(firstDepositId) || firstDepositId.lt(bnZero)) {
         throw new Error(`SpokePoolClient::update: Invalid first deposit id (${firstDepositId})`);
       }
     }
@@ -491,9 +523,10 @@ export class SpokePoolClient extends BaseAbstractClient {
     ]);
     this.log("debug", `Time to query new events from RPC for ${this.chainId}: ${Date.now() - timerStart} ms`);
 
-    const [currentTime, numberOfDeposits] = multicallFunctions.map(
+    const [currentTime, _numberOfDeposits] = multicallFunctions.map(
       (fn, idx) => spokePool.interface.decodeFunctionResult(fn, multicallOutput[idx])[0]
     );
+    const _latestDepositId = BigNumber.from(_numberOfDeposits).sub(bnOne);
 
     if (!BigNumber.isBigNumber(currentTime) || currentTime.lt(this.currentTime)) {
       const errMsg = BigNumber.isBigNumber(currentTime)
@@ -510,7 +543,7 @@ export class SpokePoolClient extends BaseAbstractClient {
       currentTime: currentTime.toNumber(), // uint32
       oldestTime: oldestTime.toNumber(),
       firstDepositId,
-      latestDepositId: Math.max(numberOfDeposits - 1, 0),
+      latestDepositId: _latestDepositId.gt(bnZero) ? _latestDepositId : bnZero,
       searchEndBlock: searchConfig.toBlock,
       events,
     };
@@ -575,14 +608,15 @@ export class SpokePoolClient extends BaseAbstractClient {
         }
 
         if (this.depositHashes[this.getDepositHash(deposit)] !== undefined) {
+          assign(this.duplicateDepositHashes, [this.getDepositHash(deposit)], [deposit]);
           continue;
         }
         assign(this.depositHashes, [this.getDepositHash(deposit)], deposit);
 
-        if (deposit.depositId < this.earliestDepositIdQueried) {
+        if (deposit.depositId.lt(this.earliestDepositIdQueried) && !isUnsafeDepositId(deposit.depositId)) {
           this.earliestDepositIdQueried = deposit.depositId;
         }
-        if (deposit.depositId > this.latestDepositIdQueried) {
+        if (deposit.depositId.gt(this.latestDepositIdQueried) && !isUnsafeDepositId(deposit.depositId)) {
           this.latestDepositIdQueried = deposit.depositId;
         }
       }
@@ -594,7 +628,7 @@ export class SpokePoolClient extends BaseAbstractClient {
 
       for (const event of speedUpEvents) {
         const speedUp = { ...spreadEventWithBlockNumber(event), originChainId: this.chainId } as SpeedUpWithBlock;
-        assign(this.speedUps, [speedUp.depositor, speedUp.depositId], [speedUp]);
+        assign(this.speedUps, [speedUp.depositor, speedUp.depositId.toString()], [speedUp]);
 
         // Find deposit hash matching this speed up event and update the deposit data associated with the hash,
         // if the hash+data exists.
@@ -778,7 +812,7 @@ export class SpokePoolClient extends BaseAbstractClient {
     return this.oldestTime;
   }
 
-  async findDeposit(depositId: number, destinationChainId: number): Promise<DepositWithBlock> {
+  async findDeposit(depositId: BigNumber, destinationChainId: number): Promise<DepositWithBlock> {
     // Binary search for event search bounds. This way we can get the blocks before and after the deposit with
     // deposit ID = fill.depositId and use those blocks to optimize the search for that deposit.
     // Stop searches after a maximum # of searches to limit number of eth_call requests. Make an
@@ -807,12 +841,12 @@ export class SpokePoolClient extends BaseAbstractClient {
     );
     const tStop = Date.now();
 
-    const event = query.find(({ args }) => args["depositId"] === depositId);
+    const event = query.find(({ args }) => args["depositId"].eq(depositId));
     if (event === undefined) {
       const srcChain = getNetworkName(this.chainId);
       const dstChain = getNetworkName(destinationChainId);
       throw new Error(
-        `Could not find deposit ${depositId} for ${dstChain} fill` +
+        `Could not find deposit ${depositId.toString()} for ${dstChain} fill` +
           ` between ${srcChain} blocks [${searchBounds.low}, ${searchBounds.high}]`
       );
     }
