@@ -13,6 +13,7 @@ import {
   FillWithBlock,
   SlowFillLeaf,
   SpeedUp,
+  TokensBridged,
 } from "../../interfaces";
 import { toBN, toBNWei, getCurrentTime, randomAddress, BigNumber, bnZero, bnMax } from "../../utils";
 import { SpokePoolClient, SpokePoolUpdate } from "../SpokePoolClient";
@@ -215,6 +216,19 @@ export class MockSpokePoolClient extends SpokePoolClient {
     const event = "RequestedSpeedUpV3Deposit";
     const topics = [speedUp.depositId, speedUp.depositor];
     const args = { ...speedUp };
+
+    return this.eventManager.generateEvent({
+      event,
+      address: this.spokePool.address,
+      topics: topics.map((topic) => topic.toString()),
+      args,
+    });
+  }
+
+  setTokensBridged(tokensBridged: TokensBridged): Log {
+    const event = "TokensBridged";
+    const topics = [tokensBridged.chainId, tokensBridged.leafId, tokensBridged.l2TokenAddress];
+    const args = { ...tokensBridged };
 
     return this.eventManager.generateEvent({
       event,

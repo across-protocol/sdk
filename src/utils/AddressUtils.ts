@@ -46,17 +46,13 @@ export function toBytes32(address: string): string {
   return utils.hexZeroPad(address, 32).toLowerCase();
 }
 
-// Converts an input (assumed to be) bytes32 string into a bytes20 string.
-// If the input is not a bytes32 but is less than type(uint160).max, then this function
-// will still succeed.
-// Throws an error if the string as an unsigned integer is greater than type(uint160).max.
-export function toAddress(bytes32: string): string {
+// Checks if the input string can be coerced into a bytes20 evm address. Returns true if it is possible, and false otherwise.
+export function toAddress(hexString: string): string {
   // rawAddress is the address which is not properly checksummed.
-  const rawAddress = utils.hexZeroPad(utils.hexStripZeros(bytes32), 20);
+  const rawAddress = utils.hexZeroPad(utils.hexStripZeros(hexString), 20);
   return utils.getAddress(rawAddress);
 }
 
-// Checks if the input string can be coerced into a bytes20 evm address. Returns true if it is possible, and false otherwise.
 export function isValidEvmAddress(address: string): boolean {
   if (utils.isAddress(address)) {
     return true;
