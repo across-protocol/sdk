@@ -697,6 +697,7 @@ export class BundleDataClient {
     const bundleFillsV3: BundleFillsV3 = {}; // Fills to refund in bundle block range.
     const bundleInvalidFillsV3: V3FillWithBlock[] = []; // Fills that are not valid in this bundle.
     const bundleUnrepayableFillsV3: V3FillWithBlock[] = []; // Fills that are not repayable in this bundle.
+    const bundleInvalidSlowFillRequests: SlowFillRequestWithBlock[] = []; // Slow fill requests that are not valid in this bundle.
     const bundleSlowFillsV3: BundleSlowFills = {}; // Deposits that we need to send slow fills
     // for in this bundle.
     const expiredDepositsToRefundV3: ExpiredDepositsToRefundV3 = {};
@@ -1111,18 +1112,21 @@ export class BundleDataClient {
             // want to perform a binary search lookup for it because the deposit ID is "unsafe" and cannot be
             // found using such a method) because infinite fill deadlines cannot be produced from the unsafeDepositV3()
             // function.
-            if (
-              INFINITE_FILL_DEADLINE.eq(slowFillRequest.fillDeadline) &&
-              slowFillRequest.blockNumber >= destinationChainBlockRange[0]
-            ) {
+            if (slowFillRequest.blockNumber >= destinationChainBlockRange[0]) {
+              if (!INFINITE_FILL_DEADLINE.eq(slowFillRequest.fillDeadline)) {
+                bundleInvalidSlowFillRequests.push(slowFillRequest);
+                return;
+              }
               const historicalDeposit = await queryHistoricalDepositForFill(originClient, slowFillRequest);
               if (!historicalDeposit.found) {
+                bundleInvalidSlowFillRequests.push(slowFillRequest);
                 return;
               }
               const matchedDeposit: V3DepositWithBlock = historicalDeposit.deposit;
               // If deposit is in a following bundle, then this slow fill request will have to be created
               // once that deposit is in the current bundle.
               if (matchedDeposit.blockNumber > originChainBlockRange[1]) {
+                bundleInvalidSlowFillRequests.push(slowFillRequest);
                 return;
               }
               // @dev Since queryHistoricalDepositForFill validates the slow fill request by checking individual
@@ -1443,7 +1447,7 @@ export class BundleDataClient {
     if (bundleInvalidFillsV3.length > 0) {
       this.logger.debug({
         at: "BundleDataClient#loadData",
-        message: "Finished loading V3 spoke pool data and found some invalid V3 fills in range",
+        message: "Finished loading V3 spoke pool data and found some invalid fills in range",
         blockRangesForChains,
         bundleInvalidFillsV3,
       });
@@ -1452,9 +1456,18 @@ export class BundleDataClient {
     if (bundleUnrepayableFillsV3.length > 0) {
       this.logger.debug({
         at: "BundleDataClient#loadData",
-        message: "Finished loading V3 spoke pool data and found some unrepayable V3 fills in range",
+        message: "Finished loading V3 spoke pool data and found some unrepayable fills in range",
         blockRangesForChains,
         bundleUnrepayableFillsV3,
+      });
+    }
+
+    if (bundleInvalidSlowFillRequests.length > 0) {
+      this.logger.debug({
+        at: "BundleDataClient#loadData",
+        message: "Finished loading V3 spoke pool data and found some invalid slow fill requests in range",
+        blockRangesForChains,
+        bundleInvalidSlowFillRequests,
       });
     }
 
