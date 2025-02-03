@@ -14,8 +14,6 @@ import {
   toBN,
   bnOne,
   isUnsafeDepositId,
-  isSlowFill,
-  isValidEvmAddress,
 } from "../utils";
 import {
   paginatedEventQuery,
@@ -40,7 +38,7 @@ import {
   TokensBridged,
 } from "../interfaces";
 import { SpokePool } from "../typechain";
-import { chainIsEvm, getNetworkName } from "../utils/NetworkUtils";
+import { getNetworkName } from "../utils/NetworkUtils";
 import { getBlockRangeForDepositId, getDepositIdAtBlock, relayFillStatus } from "../utils/SpokeUtils";
 import { BaseAbstractClient, isUpdateFailureReason, UpdateFailureReason } from "./BaseAbstractClient";
 import { HubPoolClient } from "./HubPoolClient";
