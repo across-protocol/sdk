@@ -1424,6 +1424,7 @@ export class BundleDataClient {
       if (validatedBundleSlowFills.slice(0, idx).some((d) => this.getRelayHashFromEvent(d) === relayDataHash)) {
         return;
       }
+      assert(!_depositIsExpired(deposit), "Cannot create slow fill leaf for expired deposit.");
       updateBundleSlowFills(bundleSlowFillsV3, { ...deposit, lpFeePct });
     });
     v3UnexecutableSlowFillLpFees.forEach(({ realizedLpFeePct: lpFeePct }, idx) => {
