@@ -120,7 +120,7 @@ export function chainIsLinea(chainId: number): boolean {
  * @returns True if chainId is a DoctorWho chain, otherwise false.
  */
 export function chainIsDoctorWho(chainId: number): boolean {
-  return CHAIN_IDs.DOCTOR_WHO === chainId;
+  return [CHAIN_IDs.DOCTOR_WHO].includes(chainId);
 }
 
 /**
