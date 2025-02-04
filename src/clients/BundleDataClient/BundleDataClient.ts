@@ -349,8 +349,7 @@ export class BundleDataClient {
         }
         const matchingDeposit = this.spokePoolClients[fill.originChainId].getDeposit(fill.depositId);
         const hasMatchingDeposit =
-          matchingDeposit !== undefined &&
-          getRelayEventKey(fill) === getRelayEventKey(matchingDeposit);
+          matchingDeposit !== undefined && getRelayEventKey(fill) === getRelayEventKey(matchingDeposit);
         if (hasMatchingDeposit) {
           const validRepayment = await verifyFillRepayment(
             fill,
@@ -1133,10 +1132,7 @@ export class BundleDataClient {
               // object property values against the deposit's, we
               // sanity check it here by comparing the full relay hashes. If there's an error here then the
               // historical deposit query is not working as expected.
-              assert(
-                getRelayEventKey(matchedDeposit) === relayDataHash,
-                "Deposit relay hashes should match."
-              );
+              assert(getRelayEventKey(matchedDeposit) === relayDataHash, "Deposit relay hashes should match.");
               v3RelayHashes[relayDataHash].deposits = [matchedDeposit];
 
               if (!_canCreateSlowFillLeaf(matchedDeposit) || _depositIsExpired(matchedDeposit)) {

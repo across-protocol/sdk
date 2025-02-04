@@ -79,10 +79,10 @@ export function getRelayEventKey(event: Deposit | Fill | SlowFillRequest): strin
     event.fillDeadline,
     event.exclusivityDeadline,
     event.message,
-  ].map(String).join("-");
+  ]
+    .map(String)
+    .join("-");
 }
-
-
 
 /**
  * Find the block range that contains the deposit ID. This is a binary search that searches for the block range
