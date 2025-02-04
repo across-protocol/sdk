@@ -593,6 +593,7 @@ export class SpokePoolClient extends BaseAbstractClient {
         // Derive and append the common properties that are not part of the onchain event.
         const deposit = {
           ...spreadEventWithBlockNumber(event),
+          messageHash: getMessageHash(event.args["message"]),
           quoteBlockNumber,
           originChainId: this.chainId,
           // The following properties are placeholders to be updated immediately.

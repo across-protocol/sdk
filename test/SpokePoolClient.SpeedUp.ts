@@ -1,6 +1,6 @@
 import { SpokePoolClient } from "../src/clients";
 import { Deposit, SpeedUp } from "../src/interfaces";
-import { bnOne } from "../src/utils";
+import { bnOne, getMessageHash } from "../src/utils";
 import { destinationChainId, originChainId } from "./constants";
 import {
   assert,
@@ -97,14 +97,14 @@ describe("SpokePoolClient: SpeedUp", function () {
     // After speedup should return the appended object with the new fee information and signature.
     const expectedDepositData: Deposit = {
       ...deposit,
+      messageHash: getMessageHash(deposit.message),
       speedUpSignature: signature,
       updatedOutputAmount,
       updatedMessage,
       updatedRecipient,
     };
-
-    expect(deepEqualsWithBigNumber(spokePoolClient.appendMaxSpeedUpSignatureToDeposit(deposit), expectedDepositData)).to
-      .be.true;
+    const updatedDeposit = spokePoolClient.appendMaxSpeedUpSignatureToDeposit(deposit);
+    expect(deepEqualsWithBigNumber(updatedDeposit, expectedDepositData)).to.be.true;
 
     // Fetching deposits for the depositor should contain the correct fees.
     expect(
