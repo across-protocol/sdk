@@ -4,10 +4,11 @@ import { getMessageHash, getRelayEventKey, keccak256, randomAddress, toBN } from
 import { expect } from "./utils";
 
 const random = () => Math.round(Math.random() * 1e8);
+const randomBytes = () => `0x${ethersUtils.randomBytes(48).join("").slice(0,64)}`;
 
 describe("SpokeUtils", function () {
   it("getRelayEventKey correctly concatenates an event key", function () {
-    const message = `0x${ethersUtils.randomBytes(48).join("")}`;
+    const message = randomBytes();
     const messageHash = ethersUtils.keccak256(message);
     const data = {
       originChainId: random(),
@@ -51,7 +52,7 @@ describe("SpokeUtils", function () {
     expect(getMessageHash("0x")).to.equal(ZERO_BYTES);
     expect(getMessageHash("0x1234")).to.equal(keccak256("0x1234"));
 
-    const message = `0x${ethersUtils.randomBytes(48).join("")}`;
+    const message = randomBytes();
     expect(getMessageHash(message)).to.equal(keccak256(message));
   });
 });
