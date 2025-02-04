@@ -547,7 +547,7 @@ describe("SpokePoolClient: Event Filtering", function () {
 
       destinationSpokePoolClient.requestV3SlowFill({
         ...deposit,
-        blockNumber: destinationSpokePoolClient.latestBlockSearched
+        blockNumber: destinationSpokePoolClient.latestBlockSearched,
       });
       await destinationSpokePoolClient.update();
 
