@@ -1,22 +1,11 @@
 import { expect } from "chai";
-import { utils as sdkUtils } from "../src";
 import { BundleData, BundleDataClient } from "../src/clients/BundleDataClient";
-import { randomAddress, toBN } from "../src/utils";
+import { getMessageHash, randomAddress, toBN } from "../src/utils";
 import { UNDEFINED_MESSAGE_HASH } from "../src/constants";
 import { MockSpokePoolClient } from "../src/clients/mocks";
-import { Log } from "../src/interfaces";
-import {
-  SignerWithAddress,
-  createSpyLogger,
-  deployConfigStore,
-  deploySpokePool,
-  ethers,
-  hubPoolFixture,
-} from "./utils";
+import { createSpyLogger } from "./utils";
 
 const random = () => Math.round(Math.random() * 1e6);
-
-type EventSearchConfig = sdkUtils.EventSearchConfig;
 
 describe("BundleDataClient", function () {
   let chainIds: number[];
@@ -67,14 +56,18 @@ describe("BundleDataClient", function () {
       logIndex: 0,
     }
 
-    const relayExecutionInfo = {
-      updatedRecipient: eventData.recipient,
-      updatedMessage: eventData.message,
-      updatedOutputAmount: eventData.outputAmount,
-      fillType: random(),
+    const miscFill = {
+      relayer: randomAddress(),
+      repaymentChainId: random(),
+      relayExecutionInfo: {
+        updatedRecipient: eventData.recipient,
+        updatedMessage: eventData.message,
+        updatedOutputAmount: eventData.outputAmount,
+        fillType: random(),
+      }
     };
 
-    const bundleData: BundleData = {
+    const bundleData: Pick<BundleData, "bundleDepositsV3" | "bundleFillsV3"> = {
       bundleDepositsV3: {
         [originChainId]: {
           [l1Token]: [
@@ -100,25 +93,22 @@ describe("BundleDataClient", function () {
               {
                 ...eventData,
                 ...blockFields,
-                ...relayExecutionInfo,
-                lpFeePct: "0",
+                ...miscFill,
+                lpFeePct: toBN(random()),
               },
               {
                 ...eventData,
                 ...blockFields,
-                ...relayExecutionInfo,
-                lpFeePct: "0",
+                ...miscFill,
+                lpFeePct: toBN(random()),
               }
             ],
-            totalRefundAmount: random().toString(),
-            realizedLpFees: random().toString(),
+            totalRefundAmount: toBN(random()),
+            realizedLpFees: toBN(random()),
             refunds: {},
           },
         }
       },
-      bundleSlowFills: {},
-      expiredDepositsToRefundV3: {},
-      unexecutableSlowFills: {},
     };
 
     bundleDataClient.backfillMessageHashes(bundleData);
@@ -126,10 +116,8 @@ describe("BundleDataClient", function () {
     Object.values(bundleData.bundleDepositsV3[originChainId][l1Token])
       .forEach((deposit) => {
         expect(deposit.message).to.exist;
-        expect(deposit.messageHash).to.exist;
-        
+        expect(deposit.messageHash).to.not.equal(UNDEFINED_MESSAGE_HASH);
+        expect(deposit.messageHash).to.equal(getMessageHash(deposit.message));
       });
-
-
   });
 });

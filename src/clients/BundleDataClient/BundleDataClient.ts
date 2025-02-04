@@ -212,7 +212,7 @@ export class BundleDataClient {
 
   // Post-populate any missing message hashes.
   // @todo This can be removed once the legacy types hurdle is cleared (earliest 7 days post migration).
-  backfillMessageHashes(data: BundleData): void {
+  backfillMessageHashes(data: Pick<BundleData, "bundleDepositsV3" | "bundleFillsV3">): void {
     Object.values(data.bundleDepositsV3).forEach((x) =>
       Object.values(x).forEach((deposits) =>
         deposits.forEach((deposit) => {
