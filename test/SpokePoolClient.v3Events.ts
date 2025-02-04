@@ -582,7 +582,7 @@ describe("SpokePoolClient: Event Filtering", function () {
       let [fill] = destinationSpokePoolClient.getFillsForRelayer(relayer);
       expect(fill).to.not.exist;
 
-      destinationSpokePoolClient.fillV3Relay(fillFromDeposit(deposit, relayer) as FillWithBlock);
+      destinationSpokePoolClient.fillV3Relay(fillFromDeposit(deposit, relayer));
       await destinationSpokePoolClient.update();
 
       [fill] = destinationSpokePoolClient.getFillsForRelayer(relayer);

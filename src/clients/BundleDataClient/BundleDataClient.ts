@@ -32,6 +32,7 @@ import {
   getBlockRangeForChain,
   getImpliedBundleBlockRanges,
   getMessageHash,
+  getRelayEventKey,
   isSlowFill,
   mapAsync,
   filterAsync,
@@ -55,6 +56,7 @@ import {
   isEvmRepaymentValid,
   PoolRebalanceRoot,
   prettyPrintV3SpokePoolEvents,
+  UNDEFINED_MESSAGE_HASH,
   V3DepositWithBlock,
   V3FillWithBlock,
   verifyFillRepayment,
@@ -377,8 +379,7 @@ export class BundleDataClient {
         }
         const matchingDeposit = this.spokePoolClients[fill.originChainId].getDeposit(fill.depositId);
         const hasMatchingDeposit =
-          matchingDeposit !== undefined &&
-          this.getRelayHashFromEvent(fill) === this.getRelayHashFromEvent(matchingDeposit);
+          matchingDeposit !== undefined && getRelayEventKey(fill) === getRelayEventKey(matchingDeposit);
         if (hasMatchingDeposit) {
           const validRepayment = await verifyFillRepayment(
             fill,
@@ -858,7 +859,7 @@ export class BundleDataClient {
           if (deposit.blockNumber > originChainBlockRange[1] || isZeroValueDeposit(deposit)) {
             return;
           }
-          const relayDataHash = this.getRelayHashFromEvent(deposit);
+          const relayDataHash = getRelayEventKey(deposit);
 
           if (!v3RelayHashes[relayDataHash]) {
             v3RelayHashes[relayDataHash] = {
@@ -935,7 +936,7 @@ export class BundleDataClient {
             ),
           async (fill) => {
             fillCounter++;
-            const relayDataHash = this.getRelayHashFromEvent(fill);
+            const relayDataHash = getRelayEventKey(fill);
             if (v3RelayHashes[relayDataHash]) {
               if (!v3RelayHashes[relayDataHash].fill) {
                 assert(
@@ -1053,7 +1054,7 @@ export class BundleDataClient {
                   // object property values against the deposit's, we
                   // sanity check it here by comparing the full relay hashes. If there's an error here then the
                   // historical deposit query is not working as expected.
-                  assert(this.getRelayHashFromEvent(matchedDeposit) === relayDataHash, "Relay hashes should match.");
+                  assert(getRelayEventKey(matchedDeposit) === relayDataHash, "Relay hashes should match.");
                   validatedBundleV3Fills.push({
                     ...fillToRefund,
                     quoteTimestamp: matchedDeposit.quoteTimestamp,
@@ -1091,7 +1092,7 @@ export class BundleDataClient {
                 request.blockNumber <= destinationChainBlockRange[1] && !isZeroValueFillOrSlowFillRequest(request)
             ),
           async (slowFillRequest: SlowFillRequestWithBlock) => {
-            const relayDataHash = this.getRelayHashFromEvent(slowFillRequest);
+            const relayDataHash = getRelayEventKey(slowFillRequest);
 
             if (v3RelayHashes[relayDataHash]) {
               if (!v3RelayHashes[relayDataHash].slowFillRequest) {
@@ -1161,10 +1162,7 @@ export class BundleDataClient {
               // object property values against the deposit's, we
               // sanity check it here by comparing the full relay hashes. If there's an error here then the
               // historical deposit query is not working as expected.
-              assert(
-                this.getRelayHashFromEvent(matchedDeposit) === relayDataHash,
-                "Deposit relay hashes should match."
-              );
+              assert(getRelayEventKey(matchedDeposit) === relayDataHash, "Deposit relay hashes should match.");
               v3RelayHashes[relayDataHash].deposits = [matchedDeposit];
 
               if (!_canCreateSlowFillLeaf(matchedDeposit) || _depositIsExpired(matchedDeposit)) {
@@ -1245,7 +1243,7 @@ export class BundleDataClient {
               canRefundPrefills &&
               slowFillRequest.blockNumber < destinationChainBlockRange[0] &&
               _canCreateSlowFillLeaf(deposit) &&
-              validatedBundleSlowFills.every((d) => this.getRelayHashFromEvent(d) !== relayDataHash)
+              validatedBundleSlowFills.every((d) => getRelayEventKey(d) !== relayDataHash)
             ) {
               validatedBundleSlowFills.push(deposit);
             }
@@ -1264,7 +1262,7 @@ export class BundleDataClient {
             // then we wouldn't be in this branch of the code.
             const prefill = await this.findMatchingFillEvent(deposit, destinationClient);
             assert(isDefined(prefill), `findFillEvent# Cannot find prefill: ${relayDataHash}`);
-            assert(this.getRelayHashFromEvent(prefill!) === relayDataHash, "Relay hashes should match.");
+            assert(getRelayEventKey(prefill!) === relayDataHash, "Relay hashes should match.");
             if (canRefundPrefills) {
               const verifiedFill = await verifyFillRepayment(
                 prefill!,
@@ -1288,7 +1286,7 @@ export class BundleDataClient {
           } else if (
             fillStatus === FillStatus.RequestedSlowFill &&
             // Don't create duplicate slow fill requests for the same deposit.
-            validatedBundleSlowFills.every((d) => this.getRelayHashFromEvent(d) !== relayDataHash)
+            validatedBundleSlowFills.every((d) => getRelayEventKey(d) !== relayDataHash)
           ) {
             if (canRefundPrefills && _canCreateSlowFillLeaf(deposit)) {
               validatedBundleSlowFills.push(deposit);
@@ -1391,7 +1389,7 @@ export class BundleDataClient {
       validatedBundleV3Fills.length > 0
         ? this.clients.hubPoolClient.batchComputeRealizedLpFeePct(
             validatedBundleV3Fills.map((fill) => {
-              const matchedDeposit = v3RelayHashes[this.getRelayHashFromEvent(fill)].deposits![0];
+              const matchedDeposit = v3RelayHashes[getRelayEventKey(fill)].deposits![0];
               assert(isDefined(matchedDeposit), "Deposit should exist in relay hash dictionary.");
               const { chainToSendRefundTo: paymentChainId } = getRefundInformationFromFill(
                 fill,
@@ -1435,7 +1433,7 @@ export class BundleDataClient {
     });
     v3FillLpFees.forEach(({ realizedLpFeePct }, idx) => {
       const fill = validatedBundleV3Fills[idx];
-      const associatedDeposit = v3RelayHashes[this.getRelayHashFromEvent(fill)].deposits![0];
+      const associatedDeposit = v3RelayHashes[getRelayEventKey(fill)].deposits![0];
       assert(isDefined(associatedDeposit), "Deposit should exist in relay hash dictionary.");
       const { chainToSendRefundTo, repaymentToken } = getRefundInformationFromFill(
         fill,
@@ -1452,8 +1450,8 @@ export class BundleDataClient {
       // fill leaf for the first deposit (the quote timestamp of the deposit determines the LP fee, so its
       // important we pick out the correct deposit). Deposits are pushed into validatedBundleSlowFills in ascending
       // order so the following slice will only match the first deposit.
-      const relayDataHash = this.getRelayHashFromEvent(deposit);
-      if (validatedBundleSlowFills.slice(0, idx).some((d) => this.getRelayHashFromEvent(d) === relayDataHash)) {
+      const relayDataHash = getRelayEventKey(deposit);
+      if (validatedBundleSlowFills.slice(0, idx).some((d) => getRelayEventKey(d) === relayDataHash)) {
         return;
       }
       assert(!_depositIsExpired(deposit), "Cannot create slow fill leaf for expired deposit.");
@@ -1512,18 +1510,6 @@ export class BundleDataClient {
       unexecutableSlowFills,
       bundleSlowFillsV3,
     };
-  }
-
-  // Internal function to uniquely identify a bridge event. This is preferred over `SDK.getRelayDataHash` which returns
-  // keccak256 hash of the relay data, which can be used as input into the on-chain `fillStatuses()` function in the
-  // spoke pool contract. However, this internal function is used to uniquely identify a bridging event
-  // for speed since its easier to build a string from the event data than to hash it.
-  protected getRelayHashFromEvent(event: V3DepositWithBlock | V3FillWithBlock | SlowFillRequestWithBlock): string {
-    return `${event.depositor}-${event.recipient}-${event.exclusiveRelayer}-${event.inputToken}-${event.outputToken}-${
-      event.inputAmount
-    }-${event.outputAmount}-${event.originChainId}-${event.depositId.toString()}-${event.fillDeadline}-${
-      event.exclusivityDeadline
-    }-${event.messageHash}-${event.destinationChainId}`;
   }
 
   protected async findMatchingFillEvent(
