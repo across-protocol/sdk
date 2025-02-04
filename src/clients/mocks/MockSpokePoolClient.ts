@@ -162,7 +162,7 @@ export class MockSpokePoolClient extends SpokePoolClient {
     });
   }
 
-  fillV3Relay(fill: Omit<FillWithBlock, "relayExecutionInfo" | "messageHash"> & { message: string }): Log {
+  fillV3Relay(fill: Omit<FillWithBlock, "messageHash"> & { message: string }): Log {
     const event = "FilledV3Relay";
 
     const { blockNumber, transactionIndex } = fill;
