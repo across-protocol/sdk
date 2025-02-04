@@ -1,7 +1,7 @@
 import assert from "assert";
 import { BytesLike, Contract, PopulatedTransaction, providers, utils as ethersUtils } from "ethers";
 import { CHAIN_IDs, MAX_SAFE_DEPOSIT_ID, ZERO_ADDRESS, ZERO_BYTES } from "../constants";
-import { Deposit, Fill, FillStatus, RelayData, SlowFillRequest } from "../interfaces";
+import { Deposit, Fill, FillStatus, FillWithBlock, RelayData, SlowFillRequest } from "../interfaces";
 import { SpokePoolClient } from "../clients";
 import { chunk } from "./ArrayUtils";
 import { BigNumber, toBN, bnOne, bnZero } from "./BigNumberUtils";
@@ -9,6 +9,7 @@ import { keccak256 } from "./common";
 import { isMessageEmpty } from "./DepositUtils";
 import { isDefined } from "./TypeGuards";
 import { getNetworkName } from "./NetworkUtils";
+import { paginatedEventQuery, spreadEventWithBlockNumber } from "./EventUtils";
 
 type BlockTag = providers.BlockTag;
 
@@ -20,7 +21,7 @@ type BlockTag = providers.BlockTag;
  */
 export function populateV3Relay(
   spokePool: Contract,
-  deposit: Deposit,
+  deposit: Omit<Deposit, "messageHash">,
   relayer: string,
   repaymentChainId = deposit.destinationChainId
 ): Promise<PopulatedTransaction> {
@@ -54,6 +55,33 @@ export function populateV3Relay(
   }
 
   return spokePool.populateTransaction.fillV3Relay(v3RelayData, repaymentChainId, { from: relayer });
+}
+
+/**
+ * Concatenate all fields from a Deposit, Fill or SlowFillRequest into a single string.
+ * This can be used to identify a bridge event in a mapping. This is used instead of the actual keccak256 hash
+ * (getRelayDataHash()) for two reasons: performance and the fact that only Deposit includes the `message` field, which
+ * is required to compute a complete RelayData hash.
+ * note: This function should _not_ be used to query the SpokePool.fillStatuses mapping.
+ */
+export function getRelayEventKey(data: RelayData & { destinationChainId: number }): string {
+  return [
+    data.depositor,
+    data.recipient,
+    data.exclusiveRelayer,
+    data.inputToken,
+    data.outputToken,
+    data.inputAmount,
+    data.outputAmount,
+    data.originChainId,
+    data.destinationChainId,
+    data.depositId,
+    data.fillDeadline,
+    data.exclusivityDeadline,
+    data.message,
+  ]
+    .map(String)
+    .join("-");
 }
 
 /**
@@ -353,12 +381,11 @@ export async function findFillBlock(
 ): Promise<number | undefined> {
   const { provider } = spokePool;
   highBlockNumber ??= await provider.getBlockNumber();
-  assert(highBlockNumber > lowBlockNumber, `Block numbers out of range (${lowBlockNumber} > ${highBlockNumber})`);
+  assert(highBlockNumber > lowBlockNumber, `Block numbers out of range (${lowBlockNumber} >= ${highBlockNumber})`);
 
   // In production the chainId returned from the provider matches 1:1 with the actual chainId. Querying the provider
   // object saves an RPC query becasue the chainId is cached by StaticJsonRpcProvider instances. In hre, the SpokePool
   // may be configured with a different chainId than what is returned by the provider.
-  // @todo Sub out actual chain IDs w/ CHAIN_IDs constants
   const destinationChainId = Object.values(CHAIN_IDs).includes(relayData.originChainId)
     ? (await provider.getNetwork()).chainId
     : Number(await spokePool.chainId());
@@ -399,6 +426,39 @@ export async function findFillBlock(
   } while (lowBlockNumber < highBlockNumber);
 
   return lowBlockNumber;
+}
+
+export async function findFillEvent(
+  spokePool: Contract,
+  relayData: RelayData,
+  lowBlockNumber: number,
+  highBlockNumber?: number
+): Promise<FillWithBlock | undefined> {
+  const blockNumber = await findFillBlock(spokePool, relayData, lowBlockNumber, highBlockNumber);
+  if (!blockNumber) return undefined;
+  const query = await paginatedEventQuery(
+    spokePool,
+    spokePool.filters.FilledV3Relay(null, null, null, null, null, relayData.originChainId, relayData.depositId),
+    {
+      fromBlock: blockNumber,
+      toBlock: blockNumber,
+      maxBlockLookBack: 0, // We can hardcode this to 0 to instruct paginatedEventQuery to make a single request
+      // for the same block number.
+    }
+  );
+  if (query.length === 0) throw new Error(`Failed to find fill event at block ${blockNumber}`);
+  const event = query[0];
+  // In production the chainId returned from the provider matches 1:1 with the actual chainId. Querying the provider
+  // object saves an RPC query becasue the chainId is cached by StaticJsonRpcProvider instances. In hre, the SpokePool
+  // may be configured with a different chainId than what is returned by the provider.
+  const destinationChainId = Object.values(CHAIN_IDs).includes(relayData.originChainId)
+    ? (await spokePool.provider.getNetwork()).chainId
+    : Number(await spokePool.chainId());
+  const fill = {
+    ...spreadEventWithBlockNumber(event),
+    destinationChainId,
+  } as FillWithBlock;
+  return fill;
 }
 
 // Determines if the input address (either a bytes32 or bytes20) is the zero address.

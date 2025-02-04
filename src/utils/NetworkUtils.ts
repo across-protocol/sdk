@@ -142,9 +142,10 @@ export function chainIsEvm(chainId: number): boolean {
 export function chainIsCCTPEnabled(chainId: number): boolean {
   return [
     // Mainnets
-    CHAIN_IDs.BASE,
-    CHAIN_IDs.OPTIMISM,
     CHAIN_IDs.ARBITRUM,
+    CHAIN_IDs.BASE,
+    CHAIN_IDs.DOCTOR_WHO,
+    CHAIN_IDs.OPTIMISM,
     CHAIN_IDs.POLYGON,
     // Testnets
     CHAIN_IDs.BASE_SEPOLIA,

@@ -281,8 +281,9 @@ describe("SpokePoolClient: Fill Validation", function () {
     expect(spokePoolClient2.getDepositForFill(fill)).to.equal(undefined);
     await spokePoolClient1.update();
 
+    // @todo: Drop `messageHash` exclusion once messageHash is reliably part of fills.
     expect(spokePoolClient1.getDepositForFill(fill))
-      .excludingEvery(["quoteBlockNumber", "fromLiteChain", "toLiteChain"])
+      .excludingEvery(["quoteBlockNumber", "fromLiteChain", "toLiteChain", "messageHash"])
       .to.deep.equal(deposit);
   });
 
@@ -297,7 +298,15 @@ describe("SpokePoolClient: Fill Validation", function () {
     await depositV3(spokePool_1, destinationChainId, depositor, inputToken, inputAmount, outputToken, outputAmount);
     await mineRandomBlocks();
 
-    await depositV3(spokePool_1, destinationChainId, depositor, inputToken, inputAmount, outputToken, outputAmount);
+    const { blockNumber: deposit1Block } = await depositV3(
+      spokePool_1,
+      destinationChainId,
+      depositor,
+      inputToken,
+      inputAmount,
+      outputToken,
+      outputAmount
+    );
     await mineRandomBlocks();
 
     const [, deposit1Event] = await spokePool_1.queryFilter("FundsDeposited");
@@ -357,7 +366,7 @@ describe("SpokePoolClient: Fill Validation", function () {
     // Searching for deposit ID -1 that doesn't exist should throw.
     await assertPromiseError(
       getBlockRangeForDepositId(
-        -1,
+        toBN(-1),
         spokePool1DeploymentBlock,
         spokePoolClient1.latestBlockSearched,
         10,
@@ -619,7 +628,7 @@ describe("SpokePoolClient: Fill Validation", function () {
 
     // Override the first spoke pool deposit ID that the client thinks is available in the contract.
     await spokePoolClient1.update();
-    spokePoolClient1.firstDepositIdForSpokePool = deposit.depositId + 1;
+    spokePoolClient1.firstDepositIdForSpokePool = deposit.depositId.add(1);
     expect(fill.depositId < spokePoolClient1.firstDepositIdForSpokePool).is.true;
     const search = await queryHistoricalDepositForFill(spokePoolClient1, fill);
 
@@ -640,7 +649,7 @@ describe("SpokePoolClient: Fill Validation", function () {
     );
 
     // Override the deposit ID that we are "filling" to be > 1, the latest deposit ID in spoke pool 1.
-    await fillV3Relay(spokePool_2, { ...deposit, depositId: deposit.depositId + 1 }, relayer);
+    await fillV3Relay(spokePool_2, { ...deposit, depositId: deposit.depositId.add(1) }, relayer);
     await spokePoolClient2.update();
     const [fill] = spokePoolClient2.getFills();
 
@@ -712,8 +721,9 @@ describe("SpokePoolClient: Fill Validation", function () {
     expect(fill_1.relayExecutionInfo.fillType === FillType.FastFill).to.be.true;
     expect(fill_2.relayExecutionInfo.fillType === FillType.FastFill).to.be.true;
 
+    // @todo: Drop `messageHash` exclusion once messageHash is reliably part of fills.
     expect(spokePoolClient1.getDepositForFill(fill_1))
-      .excludingEvery(["quoteBlockNumber", "fromLiteChain", "toLiteChain"])
+      .excludingEvery(["quoteBlockNumber", "fromLiteChain", "toLiteChain", "messageHash"])
       .to.deep.equal(deposit_1);
     expect(spokePoolClient1.getDepositForFill(fill_2)).to.equal(undefined);
 

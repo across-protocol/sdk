@@ -9,10 +9,11 @@ import {
   MAX_BIG_INT,
   MakeOptional,
   assign,
-  getRelayDataHash,
+  getRelayEventKey,
   isDefined,
   toBN,
   bnOne,
+  getMessageHash,
   isUnsafeDepositId,
   isZeroAddress,
 } from "../utils";
@@ -68,6 +69,7 @@ export class SpokePoolClient extends BaseAbstractClient {
   protected currentTime = 0;
   protected oldestTime = 0;
   protected depositHashes: { [depositHash: string]: DepositWithBlock } = {};
+  protected duplicateDepositHashes: { [depositHash: string]: DepositWithBlock[] } = {};
   protected depositHashesToFills: { [depositHash: string]: FillWithBlock[] } = {};
   protected speedUps: { [depositorAddress: string]: { [depositId: string]: SpeedUpWithBlock[] } } = {};
   protected slowFillRequests: { [relayDataHash: string]: SlowFillRequestWithBlock } = {};
@@ -133,12 +135,40 @@ export class SpokePoolClient extends BaseAbstractClient {
   }
 
   /**
-   * Retrieves a list of deposits from the SpokePool contract destined for the given destination chain ID.
+   * Retrieves a list of unique deposits from the SpokePool contract destined for the given destination chain ID.
    * @param destinationChainId The destination chain ID.
    * @returns A list of deposits.
    */
   public getDepositsForDestinationChain(destinationChainId: number): DepositWithBlock[] {
     return Object.values(this.depositHashes).filter((deposit) => deposit.destinationChainId === destinationChainId);
+  }
+
+  /**
+   * Retrieves a list of duplicate deposits matching the given deposit's deposit hash.
+   * @notice A duplicate is considered any deposit sent after the original deposit with the same deposit hash.
+   * @param deposit The deposit to find duplicates for.
+   * @returns A list of duplicate deposits. Does NOT include the original deposit
+   * unless the original deposit is a duplicate.
+   */
+  private _getDuplicateDeposits(deposit: DepositWithBlock): DepositWithBlock[] {
+    const depositHash = getRelayEventKey(deposit);
+    return this.duplicateDepositHashes[depositHash] ?? [];
+  }
+
+  /**
+   * Returns a list of all deposits including any duplicate ones. Designed only to be used in use cases where
+   * all deposits are required, regardless of duplicates. For example, the Dataworker can use this to refund
+   * expired deposits including for duplicates.
+   * @param destinationChainId
+   * @returns A list of deposits
+   */
+  public getDepositsForDestinationChainWithDuplicates(destinationChainId: number): DepositWithBlock[] {
+    const deposits = this.getDepositsForDestinationChain(destinationChainId);
+    const duplicateDeposits = deposits.reduce((acc, deposit) => {
+      const duplicates = this._getDuplicateDeposits(deposit);
+      return acc.concat(duplicates);
+    }, [] as DepositWithBlock[]);
+    return sortEventsAscendingInPlace(deposits.concat(duplicateDeposits.flat()));
   }
 
   /**
@@ -275,8 +305,7 @@ export class SpokePoolClient extends BaseAbstractClient {
    * @returns The corresponding deposit if found, undefined otherwise.
    */
   public getDeposit(depositId: BigNumber): DepositWithBlock | undefined {
-    const depositHash = this.getDepositHash({ depositId, originChainId: this.chainId });
-    return this.depositHashes[depositHash];
+    return Object.values(this.depositHashes).find(({ depositId: _depositId }) => _depositId.eq(depositId));
   }
 
   /**
@@ -285,7 +314,7 @@ export class SpokePoolClient extends BaseAbstractClient {
    * @returns The corresponding SlowFIllRequest event if found, otherwise undefined.
    */
   public getSlowFillRequest(relayData: RelayData): SlowFillRequestWithBlock | undefined {
-    const hash = getRelayDataHash(relayData, this.chainId);
+    const hash = getRelayEventKey({ ...relayData, destinationChainId: this.chainId });
     return this.slowFillRequests[hash];
   }
 
@@ -314,7 +343,7 @@ export class SpokePoolClient extends BaseAbstractClient {
    * @returns The corresponding deposit if found, undefined otherwise.
    */
   public getDepositForFill(fill: Fill): DepositWithBlock | undefined {
-    const deposit = this.depositHashes[this.getDepositHash(fill)];
+    const deposit = this.depositHashes[getRelayEventKey(fill)];
     const match = validateFillForDeposit(fill, deposit);
     if (match.valid) {
       return deposit;
@@ -337,7 +366,7 @@ export class SpokePoolClient extends BaseAbstractClient {
    * @returns A valid fill for the deposit, or undefined.
    */
   public getFillForDeposit(deposit: Deposit): FillWithBlock | undefined {
-    const fills = this.depositHashesToFills[this.getDepositHash(deposit)];
+    const fills = this.depositHashesToFills[getRelayEventKey(deposit)];
     return fills?.find((fill) => validateFillForDeposit(fill, deposit));
   }
 
@@ -354,7 +383,7 @@ export class SpokePoolClient extends BaseAbstractClient {
     invalidFills: Fill[];
   } {
     const { outputAmount } = deposit;
-    const fillsForDeposit = this.depositHashesToFills[this.getDepositHash(deposit)];
+    const fillsForDeposit = this.depositHashesToFills[getRelayEventKey(deposit)];
 
     // If no fills then the full amount is remaining.
     if (fillsForDeposit === undefined || fillsForDeposit.length === 0) {
@@ -576,6 +605,7 @@ export class SpokePoolClient extends BaseAbstractClient {
         // Derive and append the common properties that are not part of the onchain event.
         const deposit = {
           ...spreadEventWithBlockNumber(event),
+          messageHash: getMessageHash(event.args["message"]),
           quoteBlockNumber,
           originChainId: this.chainId,
           // The following properties are placeholders to be updated immediately.
@@ -590,10 +620,11 @@ export class SpokePoolClient extends BaseAbstractClient {
           deposit.outputToken = this.getDestinationTokenForDeposit(deposit);
         }
 
-        if (this.depositHashes[this.getDepositHash(deposit)] !== undefined) {
+        if (this.depositHashes[getRelayEventKey(deposit)] !== undefined) {
+          assign(this.duplicateDepositHashes, [getRelayEventKey(deposit)], [deposit]);
           continue;
         }
-        assign(this.depositHashes, [this.getDepositHash(deposit)], deposit);
+        assign(this.depositHashes, [getRelayEventKey(deposit)], deposit);
 
         if (deposit.depositId.lt(this.earliestDepositIdQueried) && !isUnsafeDepositId(deposit.depositId)) {
           this.earliestDepositIdQueried = deposit.depositId;
@@ -624,13 +655,13 @@ export class SpokePoolClient extends BaseAbstractClient {
 
         // Find deposit hash matching this speed up event and update the deposit data associated with the hash,
         // if the hash+data exists.
-        const depositHash = this.getDepositHash(speedUp);
+        const deposit = this.getDeposit(speedUp.depositId);
 
         // We can assume all deposits in this lookback window are loaded in-memory already so if the depositHash
         // is not mapped to a deposit, then we can throw away the speedup as it can't be applied to anything.
-        const depositDataAssociatedWithSpeedUp = this.depositHashes[depositHash];
-        if (isDefined(depositDataAssociatedWithSpeedUp)) {
-          this.depositHashes[depositHash] = this.appendMaxSpeedUpSignatureToDeposit(depositDataAssociatedWithSpeedUp);
+        if (isDefined(deposit)) {
+          const eventKey = getRelayEventKey(deposit);
+          this.depositHashes[eventKey] = this.appendMaxSpeedUpSignatureToDeposit(deposit);
         }
       }
     };
@@ -649,14 +680,12 @@ export class SpokePoolClient extends BaseAbstractClient {
       for (const event of slowFillRequests) {
         const slowFillRequest = {
           ...spreadEventWithBlockNumber(event),
+          messageHash: getMessageHash(event.args["message"]),
           destinationChainId: this.chainId,
         } as SlowFillRequestWithBlock;
 
-        const relayDataHash = getRelayDataHash(slowFillRequest, this.chainId);
-        if (this.slowFillRequests[relayDataHash] !== undefined) {
-          continue;
-        }
-        this.slowFillRequests[relayDataHash] = slowFillRequest;
+        const depositHash = getRelayEventKey({ ...slowFillRequest, destinationChainId: this.chainId });
+        this.slowFillRequests[depositHash] ??= slowFillRequest;
       }
     };
 
@@ -687,7 +716,7 @@ export class SpokePoolClient extends BaseAbstractClient {
         } as FillWithBlock;
 
         assign(this.fills, [fill.originChainId], [fill]);
-        assign(this.depositHashesToFills, [this.getDepositHash(fill)], [fill]);
+        assign(this.depositHashesToFills, [getRelayEventKey(fill)], [fill]);
       }
     };
 
