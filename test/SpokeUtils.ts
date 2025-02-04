@@ -16,7 +16,7 @@ describe("SpokeUtils", function () {
       inputAmount: toBN(random()),
       outputToken: randomAddress(),
       outputAmount: toBN(random()),
-      message: ethersUtils.randomBytes(48).toString(),
+      message: `0x${ethersUtils.randomBytes(48).join("")}`,
       depositId: toBN(random()),
       fillDeadline: random(),
       exclusiveRelayer: randomAddress(),
@@ -48,7 +48,7 @@ describe("SpokeUtils", function () {
     expect(getMessageHash("0x")).to.equal(ZERO_BYTES);
     expect(getMessageHash("0x1234")).to.equal(keccak256("0x1234"));
 
-    const message = ethersUtils.randomBytes(48).toString();
+    const message = `0x${ethersUtils.randomBytes(48).join("")}`;
     expect(getMessageHash(message)).to.equal(keccak256(message));
   });
 });
