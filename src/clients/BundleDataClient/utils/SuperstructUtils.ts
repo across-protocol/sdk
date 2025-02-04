@@ -1,4 +1,5 @@
 import {
+  Infer,
   object,
   number,
   optional,
@@ -134,3 +135,5 @@ export const BundleDataSS = type({
   bundleSlowFillsV3: nestedV3DepositRecordWithLpFeePctSS,
   bundleFillsV3: nestedV3BundleFillsSS,
 });
+
+export type BundleData = Infer<typeof BundleDataSS>;
