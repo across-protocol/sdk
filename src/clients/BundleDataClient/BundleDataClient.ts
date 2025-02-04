@@ -253,8 +253,8 @@ export class BundleDataClient {
       )
     );
     Object.values(data.bundleFillsV3).forEach((x) =>
-      Object.values(x).forEach((fills) =>
-        fills.fills.forEach((fill) => {
+      Object.values(x).forEach(({ fills }) =>
+        fills.forEach((fill) => {
           if (fill.messageHash === UNDEFINED_MESSAGE_HASH) {
             fill.messageHash = getMessageHash(fill.message);
           }
