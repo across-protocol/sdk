@@ -17,8 +17,6 @@ import {
 import { UNDEFINED_MESSAGE_HASH } from "../../../constants";
 import { BigNumber } from "../../../utils";
 
-export const UNDEFINED_MESSAGE_HASH = "";
-
 const PositiveIntegerStringSS = pattern(string(), /\d+/);
 const Web3AddressSS = pattern(string(), /^0x[a-fA-F0-9]{40}$/);
 
