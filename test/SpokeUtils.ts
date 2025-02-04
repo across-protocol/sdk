@@ -1,3 +1,4 @@
+import { utils as ethersUtils } from "ethers";
 import { ZERO_BYTES } from "../src/constants";
 import { getMessageHash, getRelayEventKey, keccak256, randomAddress, toBN } from "../src/utils";
 import { expect } from "./utils";
@@ -15,7 +16,7 @@ describe("SpokeUtils", function () {
       inputAmount: toBN(random()),
       outputToken: randomAddress(),
       outputAmount: toBN(random()),
-      message: "0x",
+      message: ethersUtils.randomBytes(48).toString(),
       depositId: toBN(random()),
       fillDeadline: random(),
       exclusiveRelayer: randomAddress(),
