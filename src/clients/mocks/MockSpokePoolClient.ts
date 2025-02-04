@@ -134,7 +134,7 @@ export class MockSpokePoolClient extends SpokePoolClient {
     inputAmount ??= toBNWei(random(1, 1000, false));
     outputAmount ??= inputAmount.mul(toBN("0.95"));
 
-    const message = deposit["message"] ?? `${event} event at block ${blockNumber}, index ${transactionIndex}.`;
+    const message = deposit["message"] ?? "0x";
     const topics = [destinationChainId, depositId, depositor];
     const quoteTimestamp = deposit.quoteTimestamp ?? getCurrentTime();
     const args = {
@@ -179,7 +179,7 @@ export class MockSpokePoolClient extends SpokePoolClient {
 
     const topics = [originChainId, depositId, relayer];
     const recipient = fill.recipient ?? randomAddress();
-    const message = fill["message"] ?? `${event} event at block ${blockNumber}, index ${transactionIndex}.`;
+    const message = fill["message"] ?? "0x";
 
     const args = {
       inputToken,

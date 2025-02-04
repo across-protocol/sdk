@@ -536,6 +536,18 @@ describe("SpokePoolClient: Event Filtering", function () {
   });
 
   describe("SpokePoolClient: messageHash Handling", function () {
+    it("Correctly appends FundsDepositedV3 messageHash", async function () {
+      const _deposit = generateDeposit(originSpokePoolClient);
+      expect(_deposit?.args?.messageHash).to.equal(undefined);
+      await originSpokePoolClient.update(fundsDepositedEvents);
+
+      let deposit = originSpokePoolClient.getDeposit(_deposit.args.depositId);
+      expect(deposit).to.exist;
+      deposit = deposit!;
+
+      expect(deposit.messageHash).to.equal(getMessageHash(deposit.message));
+    });
+
     it("Correctly appends RequestedV3SlowFill messageHash", async function () {
       const _deposit = generateDeposit(originSpokePoolClient);
       expect(_deposit?.args?.messageHash).to.equal(undefined);
