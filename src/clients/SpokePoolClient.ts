@@ -9,7 +9,7 @@ import {
   MAX_BIG_INT,
   MakeOptional,
   assign,
-  getRelayDataHash,
+  getRelayEventKey,
   isDefined,
   toBN,
   bnOne,
@@ -307,7 +307,7 @@ export class SpokePoolClient extends BaseAbstractClient {
    * @returns The corresponding SlowFIllRequest event if found, otherwise undefined.
    */
   public getSlowFillRequest(relayData: RelayData): SlowFillRequestWithBlock | undefined {
-    const hash = getRelayDataHash(relayData, this.chainId);
+    const hash = getRelayEventKey(relayData);
     return this.slowFillRequests[hash];
   }
 
@@ -651,7 +651,7 @@ export class SpokePoolClient extends BaseAbstractClient {
           destinationChainId: this.chainId,
         } as SlowFillRequestWithBlock;
 
-        const relayDataHash = getRelayDataHash(slowFillRequest, this.chainId);
+        const relayDataHash = getRelayEventKey(slowFillRequest);
         if (this.slowFillRequests[relayDataHash] !== undefined) {
           continue;
         }
