@@ -16,18 +16,18 @@ describe("BundleDataClient", function () {
   const l1Token = randomAddress();
   const originChainId = 1;
 
-  beforeEach(async function () {
+  beforeEach(function () {
     spokePoolClients = {};
-		bundleDataClient = new BundleDataClient(
-			logger,
-			{}, // commonClients
-			spokePoolClients,
-			chainIds,
-			{} // block buffers
-		);
+    bundleDataClient = new BundleDataClient(
+      logger,
+      {}, // commonClients
+      spokePoolClients,
+      chainIds,
+      {} // block buffers
+    );
   });
 
-  it("Correctly appends message hashes to deposit and fill events", async function () {
+  it("Correctly appends message hashes to deposit and fill events", function () {
     const eventData = {
       depositor: randomAddress(),
       recipient: randomAddress(),
@@ -54,7 +54,7 @@ describe("BundleDataClient", function () {
       blockNumber: 0,
       transactionIndex: 0,
       logIndex: 0,
-    }
+    };
 
     const miscFill = {
       relayer: randomAddress(),
@@ -64,7 +64,7 @@ describe("BundleDataClient", function () {
         updatedMessage: eventData.message,
         updatedOutputAmount: eventData.outputAmount,
         fillType: random(),
-      }
+      },
     };
 
     const bundleData: Pick<BundleData, "bundleDepositsV3" | "bundleFillsV3"> = {
@@ -101,23 +101,22 @@ describe("BundleDataClient", function () {
                 ...blockFields,
                 ...miscFill,
                 lpFeePct: toBN(random()),
-              }
+              },
             ],
             totalRefundAmount: toBN(random()),
             realizedLpFees: toBN(random()),
             refunds: {},
           },
-        }
+        },
       },
     };
 
     bundleDataClient.backfillMessageHashes(bundleData);
-    
-    Object.values(bundleData.bundleDepositsV3[originChainId][l1Token])
-      .forEach((deposit) => {
-        expect(deposit.message).to.exist;
-        expect(deposit.messageHash).to.not.equal(UNDEFINED_MESSAGE_HASH);
-        expect(deposit.messageHash).to.equal(getMessageHash(deposit.message));
-      });
+
+    Object.values(bundleData.bundleDepositsV3[originChainId][l1Token]).forEach((deposit) => {
+      expect(deposit.message).to.exist;
+      expect(deposit.messageHash).to.not.equal(UNDEFINED_MESSAGE_HASH);
+      expect(deposit.messageHash).to.equal(getMessageHash(deposit.message));
+    });
   });
 });
