@@ -550,8 +550,8 @@ describe("SpokePoolClient: Event Filtering", function () {
 
       let slowFillRequest = destinationSpokePoolClient.getSlowFillRequest(deposit);
       expect(slowFillRequest).to.exist;
-
       slowFillRequest = slowFillRequest!;
+
       expect(slowFillRequest.messageHash).to.equal(getMessageHash(deposit.message));
     });
   });
