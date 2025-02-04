@@ -545,10 +545,7 @@ describe("SpokePoolClient: Event Filtering", function () {
       expect(deposit).to.exist;
       deposit = deposit!;
 
-      destinationSpokePoolClient.requestV3SlowFill({
-        ...deposit,
-        blockNumber: destinationSpokePoolClient.latestBlockSearched,
-      });
+      destinationSpokePoolClient.requestV3SlowFill({ ...deposit, blockNumber: undefined });
       await destinationSpokePoolClient.update();
 
       let slowFillRequest = destinationSpokePoolClient.getSlowFillRequest(deposit);
