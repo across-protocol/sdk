@@ -13,6 +13,7 @@ import {
   isDefined,
   toBN,
   bnOne,
+  getMessageHash,
   isUnsafeDepositId,
 } from "../utils";
 import {
@@ -648,14 +649,12 @@ export class SpokePoolClient extends BaseAbstractClient {
       for (const event of slowFillRequests) {
         const slowFillRequest = {
           ...spreadEventWithBlockNumber(event),
+          messageHash: getMessageHash(event.args["message"]),
           destinationChainId: this.chainId,
         } as SlowFillRequestWithBlock;
 
-        const relayDataHash = getRelayEventKey({ ...slowFillRequest, destinationChainId: this.chainId });
-        if (this.slowFillRequests[relayDataHash] !== undefined) {
-          continue;
-        }
-        this.slowFillRequests[relayDataHash] = slowFillRequest;
+        const depositHash = getRelayEventKey({ ...slowFillRequest, destinationChainId: this.chainId });
+        this.slowFillRequests[depositHash] ??= slowFillRequest;
       }
     }
 

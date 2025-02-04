@@ -5,10 +5,12 @@ import winston from "winston";
 import { ZERO_ADDRESS } from "../../constants";
 import {
   Log,
+  Deposit,
   DepositWithBlock,
   FillType,
-  RelayerRefundExecutionWithBlock,
-  SlowFillRequestWithBlock,
+  RelayerRefundExecution,
+  SlowFillRequest,
+  SortableEvent,
   Fill,
   FillWithBlock,
   SlowFillLeaf,
@@ -117,7 +119,7 @@ export class MockSpokePoolClient extends SpokePoolClient {
     EnabledDepositRoute: "address,uint256,bool",
   };
 
-  depositV3(deposit: DepositWithBlock): Log {
+  depositV3(deposit: Omit<Deposit, "messageHash"> & Partial<SortableEvent>): Log {
     const event = "V3FundsDeposited";
 
     const { blockNumber, transactionIndex } = deposit;
@@ -162,7 +164,7 @@ export class MockSpokePoolClient extends SpokePoolClient {
     });
   }
 
-  fillV3Relay(fill: FillWithBlock): Log {
+  fillV3Relay(fill: Omit<Fill, "messageHash"> & Partial<SortableEvent>): Log {
     const event = "FilledV3Relay";
 
     const { blockNumber, transactionIndex } = fill;
@@ -238,7 +240,7 @@ export class MockSpokePoolClient extends SpokePoolClient {
     });
   }
 
-  requestV3SlowFill(request: SlowFillRequestWithBlock): Log {
+  requestV3SlowFill(request: Omit<SlowFillRequest, "messageHash"> & Partial<SortableEvent>): Log {
     const event = "RequestedV3SlowFill";
 
     const { originChainId, depositId } = request;
@@ -274,7 +276,7 @@ export class MockSpokePoolClient extends SpokePoolClient {
     return this.fillV3Relay(fill as FillWithBlock);
   }
 
-  executeRelayerRefundLeaf(refund: RelayerRefundExecutionWithBlock): Log {
+  executeRelayerRefundLeaf(refund: RelayerRefundExecution & Partial<SortableEvent>): Log {
     const event = "ExecutedRelayerRefundRoot";
 
     const chainId = refund.chainId ?? this.chainId;
