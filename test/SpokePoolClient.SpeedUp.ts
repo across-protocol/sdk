@@ -215,13 +215,13 @@ describe("SpokePoolClient: SpeedUp", function () {
     // attributed to the existing deposit.
     for (const field of ["originChainId", "depositId", "depositor"]) {
       const testOriginChainId = field !== "originChainId" ? originChainId : originChainId + 1;
-      const testDepositId = field !== "depositId" ? depositId : depositId + 1;
+      const testDepositId = field !== "depositId" ? depositId : depositId.add(1);
       const testDepositor = field !== "depositor" ? depositor : (await ethers.getSigners())[0];
       assert.isTrue(field !== "depositor" || testDepositor.address !== depositor.address); // Sanity check
 
       const signature = await getUpdatedV3DepositSignature(
         testDepositor,
-        testDepositId,
+        testDepositId.toNumber(),
         testOriginChainId,
         updatedOutputAmount,
         updatedRecipient,

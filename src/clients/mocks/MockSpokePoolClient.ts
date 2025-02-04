@@ -13,6 +13,7 @@ import {
   FillWithBlock,
   SlowFillLeaf,
   SpeedUp,
+  TokensBridged,
 } from "../../interfaces";
 import { toBN, toBNWei, getCurrentTime, randomAddress, BigNumber, bnZero, bnOne, bnMax } from "../../utils";
 import { SpokePoolClient, SpokePoolUpdate } from "../SpokePoolClient";
@@ -122,7 +123,6 @@ export class MockSpokePoolClient extends SpokePoolClient {
     const { blockNumber, transactionIndex } = deposit;
     let { depositId, depositor, destinationChainId, inputToken, inputAmount, outputToken, outputAmount } = deposit;
     depositId ??= this.numberOfDeposits;
-    assert(depositId.gte(this.numberOfDeposits), `${depositId.toString()} < ${this.numberOfDeposits}`);
     this.numberOfDeposits = depositId.add(bnOne);
 
     destinationChainId ??= random(1, 42161, false);
@@ -216,6 +216,19 @@ export class MockSpokePoolClient extends SpokePoolClient {
     const event = "RequestedSpeedUpV3Deposit";
     const topics = [speedUp.depositId, speedUp.depositor];
     const args = { ...speedUp };
+
+    return this.eventManager.generateEvent({
+      event,
+      address: this.spokePool.address,
+      topics: topics.map((topic) => topic.toString()),
+      args,
+    });
+  }
+
+  setTokensBridged(tokensBridged: TokensBridged): Log {
+    const event = "TokensBridged";
+    const topics = [tokensBridged.chainId, tokensBridged.leafId, tokensBridged.l2TokenAddress];
+    const args = { ...tokensBridged };
 
     return this.eventManager.generateEvent({
       event,
