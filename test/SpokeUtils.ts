@@ -39,6 +39,7 @@ describe("SpokeUtils", function () {
       `-${data.message}`;
 
     expect(eventKey).to.equal(expectedKey);
+    eventKey.split("-").forEach((field) => expect(field).to.not.equal("undefined"));
   });
 
   it("getMessageHash correctly handles empty messages", function () {
