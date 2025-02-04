@@ -298,7 +298,7 @@ export class SpokePoolClient extends BaseAbstractClient {
    * @returns The corresponding deposit if found, undefined otherwise.
    */
   public getDeposit(depositId: BigNumber): DepositWithBlock | undefined {
-    return Object.values(this.depositHashes).find(({ depositId: _depositId }) => _depositId === depositId);
+    return Object.values(this.depositHashes).find(({ depositId: _depositId }) => _depositId.eq(depositId));
   }
 
   /**
