@@ -58,6 +58,33 @@ export function populateV3Relay(
 }
 
 /**
+ * Concatenate all fields from a Deposit, Fill or SlowFillRequest into a single string.
+ * This can be used to identify a bridge event in a mapping. This is used instead of the actual keccak256 hash
+ * (getRelayDataHash()) for two reasons: performance and the fact that only Deposit includes the `message` field, which
+ * is required to compute a complete RelayData hash.
+ * note: This function should _not_ be used to query the SpokePool.fillStatuses mapping.
+ */
+export function getRelayEventKey(event: Deposit | Fill | SlowFillRequest): string {
+  return [
+    event.depositor,
+    event.recipient,
+    event.exclusiveRelayer,
+    event.inputToken,
+    event.outputToken,
+    event.inputAmount,
+    event.outputAmount,
+    event.originChainId,
+    event.destinationChainId,
+    event.depositId,
+    event.fillDeadline,
+    event.exclusivityDeadline,
+    event.message,
+  ].map(String).join("-");
+}
+
+
+
+/**
  * Find the block range that contains the deposit ID. This is a binary search that searches for the block range
  * that contains the deposit ID.
  * @param targetDepositId The target deposit ID to search for.
