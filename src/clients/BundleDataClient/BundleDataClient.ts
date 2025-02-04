@@ -15,6 +15,7 @@ import {
   Clients,
   CombinedRefunds,
 } from "../../interfaces";
+import { UNDEFINED_MESSAGE_HASH } from "../../constants";
 import { AcrossConfigStoreClient, SpokePoolClient } from "..";
 import {
   BigNumber,
@@ -48,7 +49,6 @@ import {
   isChainDisabled,
   PoolRebalanceRoot,
   prettyPrintV3SpokePoolEvents,
-  UNDEFINED_MESSAGE_HASH,
   V3DepositWithBlock,
   V3FillWithBlock,
   verifyFillRepayment,
