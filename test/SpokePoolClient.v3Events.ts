@@ -585,12 +585,11 @@ describe("SpokePoolClient: Event Filtering", function () {
       destinationSpokePoolClient.fillV3Relay(fillFromDeposit(deposit, relayer) as FillWithBlock);
       await destinationSpokePoolClient.update();
 
-      ([fill] = destinationSpokePoolClient.getFillsForRelayer(relayer));
+      [fill] = destinationSpokePoolClient.getFillsForRelayer(relayer);
       expect(fill).to.exist;
       fill = fill!;
 
       expect(fill.messageHash).to.equal(getMessageHash(deposit.message));
     });
-
   });
 });
