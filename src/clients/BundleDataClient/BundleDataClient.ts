@@ -18,7 +18,6 @@ import {
   Deposit,
   DepositWithBlock,
 } from "../../interfaces";
-import { UNDEFINED_MESSAGE_HASH } from "../../constants";
 import { AcrossConfigStoreClient, SpokePoolClient } from "..";
 import {
   BigNumber,
@@ -59,7 +58,7 @@ import {
   V3FillWithBlock,
   verifyFillRepayment,
 } from "./utils";
-import { PRE_FILL_MIN_CONFIG_STORE_VERSION } from "../../constants";
+import { PRE_FILL_MIN_CONFIG_STORE_VERSION, UNDEFINED_MESSAGE_HASH } from "../../constants";
 
 // max(uint256) - 1
 export const INFINITE_FILL_DEADLINE = bnUint32Max;
