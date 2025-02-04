@@ -566,5 +566,35 @@ describe("SpokePoolClient: Event Filtering", function () {
 
       expect(slowFillRequest.messageHash).to.equal(getMessageHash(deposit.message));
     });
+
+    it("Correctly appends FilledV3Relay messageHash", async function () {
+      const _deposit = generateDeposit(originSpokePoolClient);
+      expect(_deposit?.args?.messageHash).to.equal(undefined);
+      await originSpokePoolClient.update(fundsDepositedEvents);
+
+      let deposit = originSpokePoolClient.getDeposit(_deposit.args.depositId);
+      expect(deposit).to.exist;
+      deposit = deposit!;
+
+      const relayer = randomAddress();
+
+      await destinationSpokePoolClient.update();
+      let [fill] = destinationSpokePoolClient.getFillsForRelayer(relayer);
+      expect(fill).to.not.exist;
+
+      destinationSpokePoolClient.fillV3Relay({
+        ...deposit,
+        relayer,
+        repaymentChainId,
+      });
+      await destinationSpokePoolClient.update();
+
+      ([fill] = destinationSpokePoolClient.getFillsForRelayer(relayer));
+      expect(fill).to.exist;
+      fill = fill!;
+
+      expect(fill.messageHash).to.equal(getMessageHash(deposit.message));
+    });
+
   });
 });
