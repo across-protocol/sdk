@@ -12,7 +12,6 @@ import {
   SlowFillRequest,
   SortableEvent,
   Fill,
-  FillWithBlock,
   SlowFillLeaf,
   SpeedUp,
   TokensBridged,
@@ -259,10 +258,9 @@ export class MockSpokePoolClient extends SpokePoolClient {
 
   // This is a simple wrapper around fillV3Relay().
   // rootBundleId and proof are discarded here - we have no interest in verifying that.
-  executeV3SlowRelayLeaf(leaf: SlowFillLeaf): Log {
-    const fill: Fill = {
+  executeV3SlowRelayLeaf(leaf: Omit<SlowFillLeaf, "messageHash">): Log {
+    const fill = {
       ...leaf.relayData,
-      messageHash: "", // Not used.
       destinationChainId: this.chainId,
       relayer: ZERO_ADDRESS,
       repaymentChainId: 0,
@@ -274,7 +272,7 @@ export class MockSpokePoolClient extends SpokePoolClient {
       },
     };
 
-    return this.fillV3Relay(fill as FillWithBlock);
+    return this.fillV3Relay(fill);
   }
 
   executeRelayerRefundLeaf(refund: RelayerRefundExecution & Partial<SortableEvent>): Log {
