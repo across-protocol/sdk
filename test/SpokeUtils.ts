@@ -7,6 +7,8 @@ const random = () => Math.round(Math.random() * 1e8);
 
 describe("SpokeUtils", function () {
   it("getRelayEventKey correctly concatenates an event key", function () {
+    const message = `0x${ethersUtils.randomBytes(48).join("")}`;
+    const messageHash = ethersUtils.keccak256(message);
     const data = {
       originChainId: random(),
       destinationChainId: random(),
@@ -16,7 +18,8 @@ describe("SpokeUtils", function () {
       inputAmount: toBN(random()),
       outputToken: randomAddress(),
       outputAmount: toBN(random()),
-      message: `0x${ethersUtils.randomBytes(48).join("")}`,
+      message,
+      messageHash,
       depositId: toBN(random()),
       fillDeadline: random(),
       exclusiveRelayer: randomAddress(),
@@ -37,7 +40,7 @@ describe("SpokeUtils", function () {
       `-${data.depositId}` +
       `-${data.fillDeadline}` +
       `-${data.exclusivityDeadline}` +
-      `-${data.message}`;
+      `-${data.messageHash}`;
 
     expect(eventKey).to.equal(expectedKey);
     eventKey.split("-").forEach((field) => expect(field).to.not.equal("undefined"));
