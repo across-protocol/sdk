@@ -536,7 +536,7 @@ describe("SpokePoolClient: Event Filtering", function () {
   });
 
   describe("SpokePoolClient: messageHash Handling", function () {
-    it.only("Correctly appends RequestedV3SlowFill messageHash", async function () {
+    it("Correctly appends RequestedV3SlowFill messageHash", async function () {
       const _deposit = generateDeposit(originSpokePoolClient);
       expect(_deposit?.args?.messageHash).to.equal(undefined);
       await originSpokePoolClient.update(fundsDepositedEvents);
