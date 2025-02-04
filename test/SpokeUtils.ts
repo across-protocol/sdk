@@ -47,5 +47,8 @@ describe("SpokeUtils", function () {
     expect(getMessageHash("")).to.equal(ZERO_BYTES);
     expect(getMessageHash("0x")).to.equal(ZERO_BYTES);
     expect(getMessageHash("0x1234")).to.equal(keccak256("0x1234"));
+
+    const message = ethersUtils.randomBytes(48).toString();
+    expect(getMessageHash(message)).to.equal(keccak256(message));
   });
 });
