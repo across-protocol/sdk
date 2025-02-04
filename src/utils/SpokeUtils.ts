@@ -64,21 +64,21 @@ export function populateV3Relay(
  * is required to compute a complete RelayData hash.
  * note: This function should _not_ be used to query the SpokePool.fillStatuses mapping.
  */
-export function getRelayEventKey(event: Deposit | Fill | SlowFillRequest): string {
+export function getRelayEventKey(data: RelayData & { destinationChainId: number }): string {
   return [
-    event.depositor,
-    event.recipient,
-    event.exclusiveRelayer,
-    event.inputToken,
-    event.outputToken,
-    event.inputAmount,
-    event.outputAmount,
-    event.originChainId,
-    event.destinationChainId,
-    event.depositId,
-    event.fillDeadline,
-    event.exclusivityDeadline,
-    event.message,
+    data.depositor,
+    data.recipient,
+    data.exclusiveRelayer,
+    data.inputToken,
+    data.outputToken,
+    data.inputAmount,
+    data.outputAmount,
+    data.originChainId,
+    data.destinationChainId,
+    data.depositId,
+    data.fillDeadline,
+    data.exclusivityDeadline,
+    data.message,
   ]
     .map(String)
     .join("-");
