@@ -1,6 +1,6 @@
 import assert from "assert";
 import { SpokePoolClient } from "../clients";
-import { DEFAULT_CACHING_TTL, EMPTY_MESSAGE } from "../constants";
+import { DEFAULT_CACHING_TTL, EMPTY_MESSAGE, ZERO_BYTES } from "../constants";
 import { CachingMechanismInterface, Deposit, DepositWithBlock, Fill, SlowFillRequest } from "../interfaces";
 import { getNetworkName } from "./NetworkUtils";
 import { getDepositInCache, getDepositKey, setDepositInCache } from "./CachingUtils";
@@ -146,6 +146,10 @@ export function isZeroValueDeposit(deposit: Pick<Deposit, "inputAmount" | "messa
   return deposit.inputAmount.eq(0) && isMessageEmpty(deposit.message);
 }
 
+export function isZeroValueFillOrSlowFillRequest(e: Pick<Fill | SlowFillRequest, "inputAmount" | "message">): boolean {
+  return e.inputAmount.eq(0) && isFillOrSlowFillRequestMessageEmpty(e.message);
+}
+
 /**
  * Determines if a message is empty or not.
  * @param message The message to check.
@@ -153,6 +157,10 @@ export function isZeroValueDeposit(deposit: Pick<Deposit, "inputAmount" | "messa
  */
 export function isMessageEmpty(message = EMPTY_MESSAGE): boolean {
   return message === "" || message === "0x";
+}
+
+export function isFillOrSlowFillRequestMessageEmpty(message: string): boolean {
+  return isMessageEmpty(message) || message === ZERO_BYTES;
 }
 
 /**
