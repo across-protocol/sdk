@@ -4,7 +4,7 @@ import { getMessageHash, getRelayEventKey, keccak256, randomAddress, toBN } from
 import { expect } from "./utils";
 
 const random = () => Math.round(Math.random() * 1e8);
-const randomBytes = () => `0x${ethersUtils.randomBytes(48).join("").slice(0,64)}`;
+const randomBytes = () => `0x${ethersUtils.randomBytes(48).join("").slice(0, 64)}`;
 
 describe("SpokeUtils", function () {
   it("getRelayEventKey correctly concatenates an event key", function () {
