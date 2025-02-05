@@ -230,6 +230,9 @@ export class BundleDataClient {
           if (fill.messageHash === UNDEFINED_MESSAGE_HASH) {
             fill.messageHash = getMessageHash(fill.message);
           }
+          if (fill.relayExecutionInfo.updatedMessageHash === UNDEFINED_MESSAGE_HASH) {
+            fill.relayExecutionInfo.updatedMessageHash = getMessageHash(fill.relayExecutionInfo.updatedMessage);
+          }
         })
       )
     );

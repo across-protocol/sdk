@@ -16,7 +16,7 @@ import {
   SpeedUp,
   TokensBridged,
 } from "../../interfaces";
-import { toBN, toBNWei, getCurrentTime, randomAddress, BigNumber, bnZero, bnMax, bnOne } from "../../utils";
+import { toBN, toBNWei, getCurrentTime, getMessageHash, randomAddress, BigNumber, bnZero, bnMax, bnOne } from "../../utils";
 import { SpokePoolClient, SpokePoolUpdate } from "../SpokePoolClient";
 import { HubPoolClient } from "../HubPoolClient";
 import { EventManager, EventOverrides, getEventManager } from "./MockEvents";
@@ -268,6 +268,7 @@ export class MockSpokePoolClient extends SpokePoolClient {
         updatedRecipient: leaf.relayData.recipient,
         updatedOutputAmount: leaf.updatedOutputAmount,
         updatedMessage: leaf.relayData.message,
+        updatedMessageHash: getMessageHash(leaf.relayData.message),
         fillType: FillType.SlowFill,
       },
     };

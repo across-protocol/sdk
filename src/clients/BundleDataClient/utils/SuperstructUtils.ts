@@ -86,6 +86,7 @@ const V3RelayExecutionEventInfoSS = object({
   fillType: FillTypeSS,
   updatedRecipient: string(),
   updatedMessage: string(),
+  updatedMessageHash: defaulted(string(), UNDEFINED_MESSAGE_HASH),
 });
 
 const V3FillSS = {
