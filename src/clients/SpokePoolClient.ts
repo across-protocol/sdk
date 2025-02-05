@@ -717,6 +717,8 @@ export class SpokePoolClient extends BaseAbstractClient {
           destinationChainId: this.chainId,
         } as FillWithBlock;
 
+        fill.relayExecutionInfo.updatedMessageHash = getMessageHash(fill.relayExecutionInfo.updatedMessage);
+
         assign(this.fills, [fill.originChainId], [fill]);
         assign(this.depositHashesToFills, [getRelayEventKey(fill)], [fill]);
       }

@@ -26,6 +26,7 @@ import {
   bnZero,
   bnMax,
   bnOne,
+  toBytes32
 } from "../../utils";
 import { SpokePoolClient, SpokePoolUpdate } from "../SpokePoolClient";
 import { HubPoolClient } from "../HubPoolClient";
@@ -174,7 +175,25 @@ export class MockSpokePoolClient extends SpokePoolClient {
   }
 
   fillV3Relay(fill: Omit<Fill, "messageHash"> & { message: string } & Partial<SortableEvent>): Log {
-    const event = "FilledV3Relay";
+    return this._fillRelay("FilledV3Relay", fill);
+  }
+
+  fillRelay(fill: Omit<Fill, "messageHash"> & { message: string } & Partial<SortableEvent>): Log {
+    const _fill = {
+      ...fill,
+      depositor: toBytes32(fill.depositor),
+      recipient: toBytes32(fill.recipient),
+      inputToken: toBytes32(fill.inputToken),
+      outputToken: toBytes32(fill.outputToken),
+      exclusiveRelayer: toBytes32(fill.exclusiveRelayer),
+    };
+    return this._fillRelay("FilledRelay", _fill);
+  }
+
+  protected _fillRelay(
+    event: string,
+    fill: Omit<Fill, "messageHash"> & { message: string } & Partial<SortableEvent>
+  ): Log {
 
     const { blockNumber, transactionIndex } = fill;
     let { originChainId, depositId, inputToken, inputAmount, outputAmount, fillDeadline, relayer } = fill;
@@ -186,12 +205,17 @@ export class MockSpokePoolClient extends SpokePoolClient {
     fillDeadline ??= getCurrentTime() + 60;
     relayer ??= randomAddress();
 
-    const topics = [originChainId, depositId, relayer];
+    const topics = [originChainId, depositId, relayer]; // @todo verify
     const recipient = fill.recipient ?? randomAddress();
     const message = fill["message"] ?? "0x";
-    const updatedMessage = fill.relayExecutionInfo?.updatedMessage ?? message;
 
-    const args = {
+    const relayExecutionInfo = {
+      updatedRecipient: fill.relayExecutionInfo?.updatedRecipient ?? recipient,
+      updatedOutputAmount: fill.relayExecutionInfo?.updatedOutputAmount ?? outputAmount,
+      fillType: fill.relayExecutionInfo?.fillType ?? FillType.FastFill,
+    };
+
+    const _args = {
       inputToken,
       outputToken: fill.outputToken ?? ZERO_ADDRESS, // resolved via HubPoolClient.
       inputAmount: fill.inputAmount,
@@ -205,15 +229,26 @@ export class MockSpokePoolClient extends SpokePoolClient {
       relayer,
       depositor: fill.depositor ?? randomAddress(),
       recipient,
-      message,
-      relayExecutionInfo: {
-        updatedRecipient: fill.relayExecutionInfo?.updatedRecipient ?? recipient,
-        updatedMessage,
-        updatedMessageHash: getMessageHash(updatedMessage),
-        updatedOutputAmount: fill.relayExecutionInfo?.updatedOutputAmount ?? outputAmount,
-        fillType: fill.relayExecutionInfo?.fillType ?? FillType.FastFill,
-      },
+      relayExecutionInfo
     };
+
+    const args = event === "FilledRelay"
+      ? {
+          ..._args,
+          messageHash: getMessageHash(message),
+          relayExecutionInfo: {
+            ...relayExecutionInfo,
+            updatedMessageHash: fill.relayExecutionInfo.updatedMessageHash ?? getMessageHash(fill.message)
+          },
+        }
+      : { // FilledV3Relay
+        ..._args,
+        message,
+        relayExecutionInfo: {
+          ...relayExecutionInfo,
+          updatedMessage: fill.relayExecutionInfo?.updatedMessage ?? message
+        }
+      };
 
     return this.eventManager.generateEvent({
       event,
