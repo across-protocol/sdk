@@ -1,6 +1,6 @@
-import { isDefined, isMessageEmpty } from "../utils";
+import { isDefined } from "../utils";
 import { Deposit, RelayData } from "../interfaces";
-import { UNDEFINED_MESSAGE_HASH, ZERO_BYTES } from "../constants";
+import { UNDEFINED_MESSAGE_HASH } from "../constants";
 
 export const RELAYDATA_KEYS = [
   "depositId",
