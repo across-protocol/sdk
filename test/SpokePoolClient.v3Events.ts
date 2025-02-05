@@ -5,7 +5,7 @@ import { DEFAULT_CONFIG_STORE_VERSION, GLOBAL_CONFIG_STORE_KEYS } from "../src/c
 import { MockConfigStoreClient, MockHubPoolClient, MockSpokePoolClient } from "../src/clients/mocks";
 import { EMPTY_MESSAGE, ZERO_ADDRESS } from "../src/constants";
 import { DepositWithBlock, FillWithBlock, Log, SlowFillRequest, SlowFillRequestWithBlock } from "../src/interfaces";
-import { getCurrentTime, getMessageHash, isDefined, randomAddress, toAddress, toBN } from "../src/utils";
+import { getCurrentTime, isDefined, randomAddress, toAddress, toBN } from "../src/utils";
 import {
   SignerWithAddress,
   createSpyLogger,
@@ -533,26 +533,5 @@ describe("SpokePoolClient: Event Filtering", function () {
       // TokensBridged
       expect(tokensBridged.l2TokenAddress).to.equal(l2TokenAddress);
     }
-  });
-
-  describe("SpokePoolClient: messageHash Handling", function () {
-    it("Correctly appends RequestedV3SlowFill messageHash", async function () {
-      const _deposit = generateDeposit(originSpokePoolClient);
-      expect(_deposit?.args?.messageHash).to.equal(undefined);
-      await originSpokePoolClient.update(fundsDepositedEvents);
-
-      let deposit = originSpokePoolClient.getDeposit(_deposit.args.depositId);
-      expect(deposit).to.exist;
-      deposit = deposit!;
-
-      destinationSpokePoolClient.requestV3SlowFill({ ...deposit, blockNumber: undefined });
-      await destinationSpokePoolClient.update();
-
-      let slowFillRequest = destinationSpokePoolClient.getSlowFillRequest(deposit);
-      expect(slowFillRequest).to.exist;
-      slowFillRequest = slowFillRequest!;
-
-      expect(slowFillRequest.messageHash).to.equal(getMessageHash(deposit.message));
-    });
   });
 });
