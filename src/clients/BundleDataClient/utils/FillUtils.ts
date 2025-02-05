@@ -108,7 +108,9 @@ export async function verifyFillRepayment(
     // Otherwise, assume the relayer to be repaid is the msg.sender and swap repayment chain to destination chain
     // where we know the new fill.relayer exists.
     fill.relayer = destinationRelayer;
-    fill.repaymentChainId = fill.destinationChainId;
+    if (!matchedDeposit.fromLiteChain) {
+      fill.repaymentChainId = fill.destinationChainId;
+    }
     return fill;
   }
   // Case 3: Repayment chain is not an EVM chain, must be invalid.
