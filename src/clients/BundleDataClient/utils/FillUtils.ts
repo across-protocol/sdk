@@ -74,7 +74,7 @@ export async function verifyFillRepayment(
 
   // If repayment chain doesn't have a Pool Rebalance Route for the input token, then change the repayment
   // chain to the destination chain.
-  if (!isSlowFill(fill)) {
+  if (!isSlowFill(fill) && !matchedDeposit.fromLiteChain) {
     try {
       const l1TokenCounterpart = hubPoolClient.getL1TokenForL2TokenAtBlock(
         fill.inputToken,
@@ -100,6 +100,10 @@ export async function verifyFillRepayment(
     if (!chainIsEvm(repaymentChainId)) {
       if (!matchedDeposit.fromLiteChain) {
         fill.repaymentChainId = fill.destinationChainId;
+      } else {
+        // Since we can't switch the repayment chain for a lite chain deposit, we return undefined here
+        // because the origin chain is nota valid repayment chain.
+        return undefined;
       }
     }
 
