@@ -726,7 +726,6 @@ export class SpokePoolClient extends BaseAbstractClient {
     // Update observed fills with ingested event data.
     ["FilledV3Relay", "FilledRelay"].forEach((event) => {
       if (eventsToQuery.includes(event)) {
-        console.log(`XXX checking for ${event} events.`);
         queryFilledRelayEvents(event);
       }
     });
