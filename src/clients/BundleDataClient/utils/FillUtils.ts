@@ -98,8 +98,9 @@ export async function verifyFillRepayment(
   // address to msg.sender of relay transaction and repayment chain to destination chain.
   else {
     if (!chainIsEvm(repaymentChainId)) {
-      const newRepaymentChain = matchedDeposit.fromLiteChain ? fill.originChainId : fill.destinationChainId;
-      fill.repaymentChainId = newRepaymentChain;
+      if (!matchedDeposit.fromLiteChain) {
+        fill.repaymentChainId = fill.destinationChainId;
+      }
     }
 
     if (!isValidEvmAddress(fill.relayer)) {
