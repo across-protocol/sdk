@@ -87,6 +87,7 @@ export async function verifyFillRepayment(
         message:
           "Filler selected repayment chain that does not have a PoolRebalanceRoute for the input token, overriding to destination chain",
         fill,
+        notificationPath: "across-unrepayable-fills",
       });
       // Repayment token doesn't exist on repayment chain via PoolRebalanceRoutes, impossible to repay filler there.
       repaymentChainId = fill.destinationChainId;
