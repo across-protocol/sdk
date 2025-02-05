@@ -62,18 +62,12 @@ describe("SpokeUtils", function () {
     ];
 
     testPairs.forEach(({ messageHash, valid }) => {
-      const result = validateFillForDeposit(
-        { ...sampleData, messageHash },
-        sampleData
-      );
+      const result = validateFillForDeposit({ ...sampleData, messageHash }, sampleData);
       validateResult(result, valid, "messageHash mismatch");
     });
 
     testPairs.forEach(({ messageHash, valid }) => {
-      const result = validateFillForDeposit(
-        sampleData,
-        { ...sampleData, messageHash }
-      );
+      const result = validateFillForDeposit(sampleData, { ...sampleData, messageHash });
       validateResult(result, valid, "messageHash mismatch");
     });
 
