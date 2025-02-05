@@ -303,7 +303,10 @@ export class MockSpokePoolClient extends SpokePoolClient {
     return this._requestSlowFill("RequestedSlowFill", request);
   }
 
-  protected _requestSlowFill(event: string, request: Omit<SlowFillRequest, "messageHash"> & Partial<SortableEvent>): Log {
+  protected _requestSlowFill(
+    event: string,
+    request: Omit<SlowFillRequest, "messageHash"> & Partial<SortableEvent>
+  ): Log {
     const { originChainId, depositId } = request;
     const topics = [originChainId, depositId];
     const args = { ...request };

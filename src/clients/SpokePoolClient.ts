@@ -111,23 +111,22 @@ export class SpokePoolClient extends BaseAbstractClient {
   }
 
   public eventSignatures: Record<string, string> = {
-    FundsDeposited: "FundsDeposited(bytes32,bytes32,uint256,uint256,uint256,uint256,uint32,uint32,uint32,bytes32,bytes32,bytes32,bytes)",
-    FilledRelay: "FilledRelay(bytes32,bytes32,uint256,uint256,uint256,uint256,uint256,uint32,uint32,bytes32,bytes32,bytes32,bytes32,bytes32,(bytes32,bytes32,uint256,uint8))",
+    FundsDeposited:
+      "FundsDeposited(bytes32,bytes32,uint256,uint256,uint256,uint256,uint32,uint32,uint32,bytes32,bytes32,bytes32,bytes)",
+    FilledRelay:
+      "FilledRelay(bytes32,bytes32,uint256,uint256,uint256,uint256,uint256,uint32,uint32,bytes32,bytes32,bytes32,bytes32,bytes32,(bytes32,bytes32,uint256,uint8))",
     RequestedSpeedUpDeposit: "RequestedSpeedUpDeposit(uint256,uint256,bytes32,bytes32,bytes,bytes)",
-    RequestedSlowFill: "RequestedSlowFill(bytes32,bytes32,uint256,uint256,uint256,uint256,uint32,uint32,bytes32,bytes32,bytes32,bytes32)",
+    RequestedSlowFill:
+      "RequestedSlowFill(bytes32,bytes32,uint256,uint256,uint256,uint256,uint32,uint32,bytes32,bytes32,bytes32,bytes32)",
   };
 
   public _queryableEventNames(): { [eventName: string]: EventFilter } {
-    const newEventNames = [
-      "FundsDeposited",
-      "RequestedSpeedUpDeposit",
-      "RequestedSlowFill",
-      "FilledRelay",
-    ];
+    const newEventNames = ["FundsDeposited", "RequestedSpeedUpDeposit", "RequestedSlowFill", "FilledRelay"];
     return Object.fromEntries(
       this.spokePool.interface.fragments
-        .filter(({ name, type }) =>
-          type === "event" && this.spokePool.filters[name] !== undefined || newEventNames.includes(name)
+        .filter(
+          ({ name, type }) =>
+            (type === "event" && this.spokePool.filters[name] !== undefined) || newEventNames.includes(name)
         )
         .map(({ name }) => {
           const filter = this.spokePool.filters[name]() ?? {
