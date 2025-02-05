@@ -179,6 +179,7 @@ export class MockSpokePoolClient extends SpokePoolClient {
     const topics = [originChainId, depositId, relayer];
     const recipient = fill.recipient ?? randomAddress();
     const message = fill["message"] ?? "0x";
+    const updatedMessage = fill.relayExecutionInfo?.updatedMessage ?? message;
 
     const args = {
       inputToken,
@@ -197,7 +198,8 @@ export class MockSpokePoolClient extends SpokePoolClient {
       message,
       relayExecutionInfo: {
         updatedRecipient: fill.relayExecutionInfo?.updatedRecipient ?? recipient,
-        updatedMessage: fill.relayExecutionInfo?.updatedMessage ?? message,
+        updatedMessage,
+        updatedMessageHash: getMessageHash(updatedMessage),
         updatedOutputAmount: fill.relayExecutionInfo?.updatedOutputAmount ?? outputAmount,
         fillType: fill.relayExecutionInfo?.fillType ?? FillType.FastFill,
       },
