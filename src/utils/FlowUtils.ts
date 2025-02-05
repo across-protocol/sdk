@@ -34,7 +34,6 @@ export function validateFillForDeposit(
   let invalidKey = RELAYDATA_KEYS.find((key) => relayData[key].toString() !== deposit[key].toString());
 
   // There should be no paths for `messageHash` to be unset, but mask it off anyway.
-  // @todo Add test.
   if (!isDefined(invalidKey) && [relayData.messageHash, deposit.messageHash].includes(UNDEFINED_MESSAGE_HASH)) {
     invalidKey = "messageHash";
   }
