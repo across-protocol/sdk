@@ -1,4 +1,4 @@
-import { Contract, EventFilter } from "ethers";
+import { Contract, EventFilter, utils as ethersUtils } from "ethers";
 import winston from "winston";
 import {
   AnyObject,
@@ -110,18 +110,15 @@ export class SpokePoolClient extends BaseAbstractClient {
     this.configStoreClient = hubPoolClient?.configStoreClient;
   }
 
-  public _queryableEventNames(): { [eventName: string]: EventFilter } {
-    const knownEventNames = [
-      "EnabledDepositRoute",
-      "TokensBridged",
-      "RelayedRootBundle",
-      "ExecutedRelayerRefundRoot",
-      "V3FundsDeposited",
-      "RequestedSpeedUpV3Deposit",
-      "RequestedV3SlowFill",
-      "FilledV3Relay",
+  public eventSignatures: Record<string, string> = {
+    FundsDeposited: "FundsDeposited(bytes32,bytes32,uint256,uint256,uint256,uint256,uint32,uint32,uint32,bytes32,bytes32,bytes32,bytes)",
+    FilledRelay: "FilledRelay(bytes32,bytes32,uint256,uint256,uint256,uint256,uint256,uint32,uint32,bytes32,bytes32,bytes32,bytes32,bytes32,(bytes32,bytes32,uint256,uint8))",
+    RequestedSpeedUpDeposit: "RequestedSpeedUpDeposit(uint256,uint256,bytes32,bytes32,bytes,bytes)",
+    RequestedSlowFill: "RequestedSlowFill(bytes32,bytes32,uint256,uint256,uint256,uint256,uint32,uint32,bytes32,bytes32,bytes32,bytes32)",
+  };
 
-      // Upgrade-only events
+  public _queryableEventNames(): { [eventName: string]: EventFilter } {
+    const newEventNames = [
       "FundsDeposited",
       "RequestedSpeedUpDeposit",
       "RequestedSlowFill",
@@ -129,8 +126,17 @@ export class SpokePoolClient extends BaseAbstractClient {
     ];
     return Object.fromEntries(
       this.spokePool.interface.fragments
-        .filter(({ name, type }) => type === "event" && knownEventNames.includes(name))
-        .map(({ name }) => [name, this.spokePool.filters[name]()])
+        .filter(({ name, type }) =>
+          type === "event" && this.spokePool.filters[name] !== undefined || newEventNames.includes(name)
+        )
+        .map(({ name }) => {
+          const filter = this.spokePool.filters[name]() ?? {
+            address: this.spokePool.address,
+            topics: [ethersUtils.id(this.eventSignatures[name])],
+          };
+
+          return [name, filter];
+        })
     );
   }
 
