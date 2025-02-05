@@ -590,6 +590,12 @@ describe("SpokePoolClient: Event Filtering", function () {
       fill = fill!;
 
       expect(fill.messageHash).to.equal(getMessageHash(deposit.message));
+
+      const { relayExecutionInfo } = fill;
+      expect(relayExecutionInfo).to.exist;
+      expect(relayExecutionInfo.updatedMessage).to.exist;
+      expect(relayExecutionInfo.updatedMessageHash).to.exist;
+      expect(relayExecutionInfo.updatedMessageHash).to.equal(getMessageHash(relayExecutionInfo.updatedMessage!));
     });
   });
 });
