@@ -18,7 +18,7 @@ import {
   Deposit,
   DepositWithBlock,
 } from "../../interfaces";
-import { AcrossConfigStoreClient, SpokePoolClient } from "..";
+import { AcrossConfigStoreClient, HubPoolClient, SpokePoolClient } from "..";
 import {
   BigNumber,
   bnZero,
@@ -91,7 +91,7 @@ function updateBundleFillsV3(
   lpFeePct: BigNumber,
   repaymentChainId: number,
   repaymentToken: string,
-  repaymentAddress: string
+  repaymentAddress: string,
 ): void {
   // We shouldn't pass any unrepayable fills into this function, so we perform an extra safety check.
   assert(
@@ -355,11 +355,7 @@ export class BundleDataClient {
             fill,
             this.spokePoolClients[fill.destinationChainId].spokePool.provider,
             matchingDeposit,
-            // @dev: to get valid repayment chain ID's, get all chain IDs for the bundle block range and remove
-            // disabled block ranges.
-            this.clients.configStoreClient
-              .getChainIdIndicesForBlock(blockRanges[0][1])
-              .filter((_chainId, i) => !isChainDisabled(blockRanges[i]))
+            this.clients.hubPoolClient,
           );
           if (!isDefined(validRepayment)) {
             return false;
@@ -919,7 +915,7 @@ export class BundleDataClient {
                     fill,
                     destinationClient.spokePool.provider,
                     v3RelayHashes[relayDataHash].deposits![0],
-                    allChainIds
+                    this.clients.hubPoolClient,
                   );
                   if (!isDefined(fillToRefund)) {
                     bundleUnrepayableFillsV3.push(fill);
@@ -1013,7 +1009,7 @@ export class BundleDataClient {
                   fill,
                   destinationClient.spokePool.provider,
                   matchedDeposit,
-                  allChainIds
+                  this.clients.hubPoolClient,
                 );
                 if (!isDefined(fillToRefund)) {
                   bundleUnrepayableFillsV3.push(fill);
@@ -1187,7 +1183,7 @@ export class BundleDataClient {
                 fill,
                 destinationClient.spokePool.provider,
                 v3RelayHashes[relayDataHash].deposits![0],
-                allChainIds
+                this.clients.hubPoolClient,
               );
               if (!isDefined(fillToRefund)) {
                 bundleUnrepayableFillsV3.push(fill);
@@ -1241,7 +1237,7 @@ export class BundleDataClient {
                 prefill!,
                 destinationClient.spokePool.provider,
                 deposit,
-                allChainIds
+                this.clients.hubPoolClient,
               );
               if (!isDefined(verifiedFill)) {
                 bundleUnrepayableFillsV3.push(prefill!);
@@ -1415,7 +1411,16 @@ export class BundleDataClient {
         chainIds,
         associatedDeposit!.fromLiteChain
       );
-      updateBundleFillsV3(bundleFillsV3, fill, realizedLpFeePct, chainToSendRefundTo, repaymentToken, fill.relayer);
+      updateBundleFillsV3(
+        bundleFillsV3,
+        fill,
+        realizedLpFeePct,
+        chainToSendRefundTo,
+        repaymentToken,
+        fill.relayer,
+        this.clients.hubPoolClient,
+        associatedDeposit.quoteBlockNumber
+      );
     });
     v3SlowFillLpFees.forEach(({ realizedLpFeePct: lpFeePct }, idx) => {
       const deposit = validatedBundleSlowFills[idx];

@@ -52,19 +52,10 @@ export function getRepaymentChainId(fill: Fill, matchedDeposit: Deposit): number
   return matchedDeposit.fromLiteChain ? fill.originChainId : fill.repaymentChainId;
 }
 
-export function isEvmRepaymentValid(
-  fill: Fill,
-  repaymentChainId: number,
-  possibleRepaymentChainIds: number[] = []
-): boolean {
+export function isEvmRepaymentValid(fill: Fill, repaymentChainId: number): boolean {
   // Slow fills don't result in repayments so they're always valid.
   if (isSlowFill(fill)) {
     return true;
-  }
-  // Return undefined if the requested repayment chain ID is not in a passed in set of eligible chains. This can
-  // be used by the caller to narrow the chains to those that are not disabled in the config store.
-  if (possibleRepaymentChainIds.length > 0 && !possibleRepaymentChainIds.includes(repaymentChainId)) {
-    return false;
   }
   return chainIsEvm(repaymentChainId) && isValidEvmAddress(fill.relayer);
 }
@@ -75,12 +66,25 @@ export async function verifyFillRepayment(
   _fill: FillWithBlock,
   destinationChainProvider: providers.Provider,
   matchedDeposit: DepositWithBlock,
-  possibleRepaymentChainIds: number[] = []
+  hubPoolClient: HubPoolClient
 ): Promise<FillWithBlock | undefined> {
   const fill = _.cloneDeep(_fill);
 
   const repaymentChainId = getRepaymentChainId(fill, matchedDeposit);
-  const validEvmRepayment = isEvmRepaymentValid(fill, repaymentChainId, possibleRepaymentChainIds);
+  const validEvmRepayment = isEvmRepaymentValid(fill, repaymentChainId);
+  try {
+    const l1TokenCounterpart = hubPoolClient.getL1TokenForL2TokenAtBlock(
+      fill.inputToken,
+      fill.originChainId,
+      matchedDeposit.quoteBlockNumber
+    );
+    hubPoolClient.getL2TokenForL1TokenAtBlock(l1TokenCounterpart, repaymentChainId, matchedDeposit.quoteBlockNumber);
+    // Repayment token could be found, this is a valid repayment chain.
+  } catch {
+    // Repayment token doesn't exist on repayment chain via PoolRebalanceRoutes, impossible to repay filler.
+    return undefined;
+  }
+
 
   // Case 1: Repayment chain is EVM and repayment address is valid EVM address.
   if (validEvmRepayment) {
