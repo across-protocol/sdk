@@ -713,11 +713,13 @@ export class SpokePoolClient extends BaseAbstractClient {
       for (const event of fillEvents) {
         const fill = {
           ...spreadEventWithBlockNumber(event),
-          messageHash: getMessageHash(event.args["message"]),
           destinationChainId: this.chainId,
         } as FillWithBlock;
 
-        fill.relayExecutionInfo.updatedMessageHash = getMessageHash(fill.relayExecutionInfo.updatedMessage);
+        if (eventName === "FilledV3Relay") {
+          fill.messageHash = getMessageHash(fill.message);
+          fill.relayExecutionInfo.updatedMessageHash = getMessageHash(fill.relayExecutionInfo.updatedMessage);
+        }
 
         assign(this.fills, [fill.originChainId], [fill]);
         assign(this.depositHashesToFills, [getRelayEventKey(fill)], [fill]);
