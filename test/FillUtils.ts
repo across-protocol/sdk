@@ -25,7 +25,6 @@ describe("FillUtils", function () {
   let hubPoolClient: MockHubPoolClient;
   let owner: SignerWithAddress;
 
-  const NOT_VALID_EVM_CHAIN = 9999;
   const INVALID_EVM_ADDRESS = createRandomBytes32();
 
   beforeEach(async function () {
@@ -79,6 +78,8 @@ describe("FillUtils", function () {
       hubPoolClient.setTokenMapping(ZERO_ADDRESS, fill.repaymentChainId, ZERO_ADDRESS);
       const result = await verifyFillRepayment(fill, spokeProvider, deposit, hubPoolClient);
       expect(result).to.not.be.undefined;
+      expect(result!.repaymentChainId).to.equal(fill.repaymentChainId);
+      expect(result!.relayer).to.equal(fill.relayer);
     });
     it("SlowFill always valid", async function () {
       // We don't set the repayment chain mapping for the input token because a slow fill should always be valid.
@@ -88,7 +89,7 @@ describe("FillUtils", function () {
       expect(result).to.not.be.undefined;
       expect(slowFill.relayExecutionInfo.fillType).to.equal(FillType.SlowFill);
     });
-    it("Lite chain originChain used as repayment and origin chain is valid repayment chain", async function () {
+    it("Lite chain originChain used as repayment and relayer address is valid", async function () {
       // We don't set repayment chain mapping since repayment happens on origin chain.
       const liteChainDeposit = {
         ...deposit,
@@ -96,32 +97,11 @@ describe("FillUtils", function () {
       };
       const result = await verifyFillRepayment(fill, spokeProvider, liteChainDeposit, hubPoolClient);
       expect(result).to.not.be.undefined;
+      expect(result!.relayer).to.equal(relayer);
 
       // Repayment chain is untouched, it will be modified when computing bundle refunds.
       expect(result!.repaymentChainId).to.equal(repaymentChainId);
-    });
-    it("Lite chain originChain used as repayment but origin chain is invalid repayment chain", async function () {
-      hubPoolClient.deleteTokenMapping(ZERO_ADDRESS, deposit.originChainId);
-      const liteChainDeposit = {
-        ...deposit,
-        fromLiteChain: true,
-      };
-      const liteChainFill = {
-        ...fill,
-        originChainId: NOT_VALID_EVM_CHAIN,
-      };
-      const result = await verifyFillRepayment(liteChainFill, spokeProvider, liteChainDeposit, hubPoolClient);
-      expect(result).to.be.undefined;
-    });
-    it("Repayment chain is invalid", async function () {
-      hubPoolClient.deleteTokenMapping(ZERO_ADDRESS, fill.repaymentChainId);
-      // valid chain ID's doesn't contain repayment chain.
-      const invalidRepaymentFill = {
-        ...fill,
-        repaymentChainId: NOT_VALID_EVM_CHAIN,
-      };
-      const result = await verifyFillRepayment(invalidRepaymentFill, spokeProvider, deposit, hubPoolClient);
-      expect(result).to.be.undefined;
+      expect(result!.relayer).to.equal(relayer);
     });
     it("Lite chain deposit and relayer is not valid EVM address; relayer gets overwritten to msg.sender", async function () {
       // We don't set repayment chain mapping since repayment happens on origin chain.
@@ -139,7 +119,7 @@ describe("FillUtils", function () {
       const result = await verifyFillRepayment(invalidRepaymentFill, spokeProvider, liteChainDeposit, hubPoolClient);
       expect(result).to.not.be.undefined;
       expect(result!.relayer).to.equal(relayer);
-      // Repayment chain is untouched.
+      // Repayment chain is untouched, will be modified when computing bundle refunds.
       expect(result!.repaymentChainId).to.equal(repaymentChainId);
     });
     it("Relayer is not valid EVM address, relayer gets overwritten to msg.sender", async function () {
@@ -155,8 +135,8 @@ describe("FillUtils", function () {
       const result = await verifyFillRepayment(invalidRepaymentFill, spokeProvider, deposit, hubPoolClient);
       expect(result).to.not.be.undefined;
       expect(result!.relayer).to.equal(relayer);
-      // Repayment chain is untouched.
-      expect(result!.repaymentChainId).to.equal(repaymentChainId);
+      // Repayment chain gets overwritten to destination chain.
+      expect(result!.repaymentChainId).to.equal(destinationChainId);
     });
     it("Lite chain deposit and relayer is not valid EVM address; msg.sender is invalid", async function () {
       // We don't set repayment chain mapping since repayment happens on origin chain.

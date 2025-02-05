@@ -1,7 +1,7 @@
 import _ from "lodash";
 import { providers } from "ethers";
 import { Deposit, DepositWithBlock, Fill, FillWithBlock } from "../../../interfaces";
-import { getBlockRangeForChain, isSlowFill, chainIsEvm, isValidEvmAddress, isDefined } from "../../../utils";
+import { getBlockRangeForChain, isSlowFill, isValidEvmAddress, isDefined, chainIsEvm } from "../../../utils";
 import { HubPoolClient } from "../../HubPoolClient";
 
 export function getRefundInformationFromFill(
@@ -49,15 +49,7 @@ export function getRefundInformationFromFill(
 
 export function getRepaymentChainId(fill: Fill, matchedDeposit: Deposit): number {
   // Lite chain deposits force repayment on origin chain.
-  return matchedDeposit.fromLiteChain ? fill.originChainId : fill.repaymentChainId;
-}
-
-export function isEvmRepaymentValid(fill: Fill, repaymentChainId: number): boolean {
-  // Slow fills don't result in repayments so they're always valid.
-  if (isSlowFill(fill)) {
-    return true;
-  }
-  return chainIsEvm(repaymentChainId) && isValidEvmAddress(fill.relayer);
+  return matchedDeposit.fromLiteChain ? matchedDeposit.originChainId : fill.repaymentChainId;
 }
 
 // Verify that a fill sent to an EVM chain has a 20 byte address. If the fill does not, then attempt
@@ -69,6 +61,11 @@ export async function verifyFillRepayment(
   hubPoolClient: HubPoolClient
 ): Promise<FillWithBlock | undefined> {
   const fill = _.cloneDeep(_fill);
+
+  // Slow fills don't result in repayments so they're always valid.
+  if (isSlowFill(fill)) {
+    return fill;
+  }
 
   let repaymentChainId = getRepaymentChainId(fill, matchedDeposit);
 
@@ -88,37 +85,29 @@ export async function verifyFillRepayment(
       repaymentChainId = fill.destinationChainId;
     }
   }
-  const validEvmRepayment = isEvmRepaymentValid(fill, repaymentChainId);
 
-  // Case 1: Repayment chain is EVM and repayment address is valid EVM address.
-  if (validEvmRepayment) {
-    return fill;
-  }
-  // Case 2: Repayment chain is not EVM or address is not a valid EVM address. Attempt to switch repayment
-  // address to msg.sender of relay transaction and repayment chain to destination chain.
-  else {
-    if (!chainIsEvm(repaymentChainId)) {
-      if (!matchedDeposit.fromLiteChain) {
-        fill.repaymentChainId = fill.destinationChainId;
-      } else {
-        // Since we can't switch the repayment chain for a lite chain deposit, we return undefined here
-        // because the origin chain is nota valid repayment chain.
+  if (!isValidEvmAddress(fill.relayer)) {
+    // TODO: Handle case where fill was sent on non-EVM chain, in which case the following call would fail
+    // or return something unexpected. We'd want to return undefined here.
+    const fillTransaction = await destinationChainProvider.getTransaction(fill.transactionHash);
+    const destinationRelayer = fillTransaction?.from;
+    // Repayment chain is still an EVM chain, but the msg.sender is a bytes32 address, so the fill is invalid.
+    if (!isDefined(destinationRelayer) || !isValidEvmAddress(destinationRelayer)) {
+      return undefined;
+    }
+    if (!matchedDeposit.fromLiteChain) {
+      fill.repaymentChainId = fill.destinationChainId;
+    } else {
+      // We can't switch repayment chain for a lite chain deposit so just check whether the repayment chain,
+      // which should be the origin chain, is an EVM chain.
+      if (!chainIsEvm(repaymentChainId)) {
         return undefined;
       }
     }
-
-    if (!isValidEvmAddress(fill.relayer)) {
-      // TODO: Handle case where fill was sent on non-EVM chain, in which case the following call would fail
-      // or return something unexpected. We'd want to return undefined here.
-      const fillTransaction = await destinationChainProvider.getTransaction(fill.transactionHash);
-      const destinationRelayer = fillTransaction?.from;
-      // Repayment chain is still an EVM chain, but the msg.sender is a bytes32 address, so the fill is invalid.
-      if (!isDefined(destinationRelayer) || !isValidEvmAddress(destinationRelayer)) {
-        return undefined;
-      }
-      fill.relayer = destinationRelayer;
-    }
-
-    return fill;
+    fill.relayer = destinationRelayer;
   }
+
+  // Repayment address is now valid and repayment chain is either origin chain for lite chain or the destination
+  // chain for cases where the repayment address was invalid. Fill should be valid now.
+  return fill;
 }

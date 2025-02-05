@@ -50,7 +50,6 @@ import {
   getRefundsFromBundle,
   getWidestPossibleExpectedBlockRange,
   isChainDisabled,
-  isEvmRepaymentValid,
   PoolRebalanceRoot,
   prettyPrintV3SpokePoolEvents,
   V3DepositWithBlock,
@@ -95,7 +94,7 @@ function updateBundleFillsV3(
 ): void {
   // We shouldn't pass any unrepayable fills into this function, so we perform an extra safety check.
   assert(
-    chainIsEvm(repaymentChainId) && isEvmRepaymentValid(fill, repaymentChainId),
+    chainIsEvm(repaymentChainId) && isValidEvmAddress(fill.relayer),
     "validatedBundleV3Fills dictionary should only contain fills with valid repayment information"
   );
   if (!dict?.[repaymentChainId]?.[repaymentToken]) {
