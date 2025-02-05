@@ -22,7 +22,6 @@ export interface RelayData {
 }
 
 export interface Deposit extends RelayData {
-  messageHash: string;
   destinationChainId: number;
   quoteTimestamp: number;
   speedUpSignature?: string;
