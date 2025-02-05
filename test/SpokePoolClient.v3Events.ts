@@ -582,12 +582,7 @@ describe("SpokePoolClient: Event Filtering", function () {
       expect(slowFillRequest.messageHash).to.equal(getMessageHash(deposit.message));
     });
 
-    it.only("Correctly appends FilledV3Relay messageHash", async function () {
-      const functionPairs = {
-        FundsDeposited: destinationSpokePoolClient.fillRelay,
-        V3FundsDeposited: destinationSpokePoolClient.fillV3Relay,
-      };
-
+    it("Correctly appends FilledV3Relay messageHash", async function () {
       for (const event of ["FundsDeposited", "V3FundsDeposited"]) {
         const depositGenerator = event === "FundsDeposited" ? generateV3Deposit : generateDeposit;
         const _deposit = depositGenerator(originSpokePoolClient);
