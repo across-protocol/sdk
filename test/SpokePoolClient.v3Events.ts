@@ -467,7 +467,27 @@ describe("SpokePoolClient: Event Filtering", function () {
         outputToken,
         exclusiveRelayer,
         depositId: toBN(i),
-      } as DepositWithBlock);
+        quoteTimestamp: random(),
+        originChainId: random(),
+        destinationChainId: random(),
+        fillDeadline: random(),
+        exclusivityDeadline: random(),
+        fromLiteChain: false,
+        toLiteChain: false,
+        inputAmount: toBN(random()),
+        outputAmount: toBN(random()),
+      };
+
+      const relayExecutionInfo = {
+        updatedRecipient,
+        updatedOutputAmount: common.outputAmount,
+        updatedMessage: randomBytes(32),
+        depositorSignature: randomBytes(32),
+      };
+
+      // Deposit
+      originSpokePoolClient.deposit({ ...common, message: randomBytes(32) });
+
       // SpeedUpDeposit
       originSpokePoolClient.speedUpV3Deposit({
         depositor,
@@ -475,16 +495,19 @@ describe("SpokePoolClient: Event Filtering", function () {
         depositId: toBN(i),
         updatedOutputAmount: toBN(i),
       } as SpeedUp);
+
       // FillV3Relay
-      originSpokePoolClient.fillV3Relay({
-        depositor,
-        recipient,
-        inputToken,
-        outputToken,
-        exclusiveRelayer,
-        relayer,
-        depositId: toBN(i),
-      } as FillWithBlock);
+      originSpokePoolClient.fillRelay({
+        ...common,
+        repaymentChainId: random(),
+        message: randomBytes(32),
+        relayExecutionInfo: {
+          ...relayExecutionInfo,
+          updatedMessageHash: getMessageHash(randomBytes(32)),
+          fillType: 0,
+        },
+      });
+
       // TokensBridged
       originSpokePoolClient.setTokensBridged({ l2TokenAddress, chainId: i, leafId: i + 1 } as TokensBridged);
       // RequestV3SlowFill
