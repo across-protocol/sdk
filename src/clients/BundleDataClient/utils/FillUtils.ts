@@ -72,17 +72,19 @@ export async function verifyFillRepayment(
 
   const repaymentChainId = getRepaymentChainId(fill, matchedDeposit);
   const validEvmRepayment = isEvmRepaymentValid(fill, repaymentChainId);
-  try {
-    const l1TokenCounterpart = hubPoolClient.getL1TokenForL2TokenAtBlock(
-      fill.inputToken,
-      fill.originChainId,
-      matchedDeposit.quoteBlockNumber
-    );
-    hubPoolClient.getL2TokenForL1TokenAtBlock(l1TokenCounterpart, repaymentChainId, matchedDeposit.quoteBlockNumber);
-    // Repayment token could be found, this is a valid repayment chain.
-  } catch {
-    // Repayment token doesn't exist on repayment chain via PoolRebalanceRoutes, impossible to repay filler.
-    return undefined;
+  if (!isSlowFill(fill)) {
+    try {
+      const l1TokenCounterpart = hubPoolClient.getL1TokenForL2TokenAtBlock(
+        fill.inputToken,
+        fill.originChainId,
+        matchedDeposit.quoteBlockNumber
+      );
+      hubPoolClient.getL2TokenForL1TokenAtBlock(l1TokenCounterpart, repaymentChainId, matchedDeposit.quoteBlockNumber);
+      // Repayment token could be found, this is a valid repayment chain.
+    } catch {
+      // Repayment token doesn't exist on repayment chain via PoolRebalanceRoutes, impossible to repay filler.
+      return undefined;
+    }
   }
 
   // Case 1: Repayment chain is EVM and repayment address is valid EVM address.
