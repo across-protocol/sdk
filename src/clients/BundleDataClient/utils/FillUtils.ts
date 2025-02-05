@@ -85,7 +85,6 @@ export async function verifyFillRepayment(
     return undefined;
   }
 
-
   // Case 1: Repayment chain is EVM and repayment address is valid EVM address.
   if (validEvmRepayment) {
     return fill;

@@ -18,7 +18,7 @@ import {
   Deposit,
   DepositWithBlock,
 } from "../../interfaces";
-import { AcrossConfigStoreClient, HubPoolClient, SpokePoolClient } from "..";
+import { AcrossConfigStoreClient, SpokePoolClient } from "..";
 import {
   BigNumber,
   bnZero,
@@ -91,7 +91,7 @@ function updateBundleFillsV3(
   lpFeePct: BigNumber,
   repaymentChainId: number,
   repaymentToken: string,
-  repaymentAddress: string,
+  repaymentAddress: string
 ): void {
   // We shouldn't pass any unrepayable fills into this function, so we perform an extra safety check.
   assert(
@@ -355,7 +355,7 @@ export class BundleDataClient {
             fill,
             this.spokePoolClients[fill.destinationChainId].spokePool.provider,
             matchingDeposit,
-            this.clients.hubPoolClient,
+            this.clients.hubPoolClient
           );
           if (!isDefined(validRepayment)) {
             return false;
@@ -915,7 +915,7 @@ export class BundleDataClient {
                     fill,
                     destinationClient.spokePool.provider,
                     v3RelayHashes[relayDataHash].deposits![0],
-                    this.clients.hubPoolClient,
+                    this.clients.hubPoolClient
                   );
                   if (!isDefined(fillToRefund)) {
                     bundleUnrepayableFillsV3.push(fill);
@@ -1009,7 +1009,7 @@ export class BundleDataClient {
                   fill,
                   destinationClient.spokePool.provider,
                   matchedDeposit,
-                  this.clients.hubPoolClient,
+                  this.clients.hubPoolClient
                 );
                 if (!isDefined(fillToRefund)) {
                   bundleUnrepayableFillsV3.push(fill);
@@ -1183,7 +1183,7 @@ export class BundleDataClient {
                 fill,
                 destinationClient.spokePool.provider,
                 v3RelayHashes[relayDataHash].deposits![0],
-                this.clients.hubPoolClient,
+                this.clients.hubPoolClient
               );
               if (!isDefined(fillToRefund)) {
                 bundleUnrepayableFillsV3.push(fill);
@@ -1237,7 +1237,7 @@ export class BundleDataClient {
                 prefill!,
                 destinationClient.spokePool.provider,
                 deposit,
-                this.clients.hubPoolClient,
+                this.clients.hubPoolClient
               );
               if (!isDefined(verifiedFill)) {
                 bundleUnrepayableFillsV3.push(prefill!);
