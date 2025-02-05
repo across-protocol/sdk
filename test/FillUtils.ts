@@ -83,6 +83,7 @@ describe("FillUtils", function () {
     });
     it("SlowFill always valid", async function () {
       // We don't set the repayment chain mapping for the input token because a slow fill should always be valid.
+      hubPoolClient.deleteTokenMapping(ZERO_ADDRESS, fill.repaymentChainId);
       const slowFill = { ...fill };
       slowFill.relayExecutionInfo.fillType = FillType.SlowFill;
       const result = await verifyFillRepayment(slowFill, spokeProvider, deposit, hubPoolClient);
@@ -91,6 +92,7 @@ describe("FillUtils", function () {
     });
     it("Lite chain originChain used as repayment and relayer address is valid", async function () {
       // We don't set repayment chain mapping since repayment happens on origin chain.
+      hubPoolClient.deleteTokenMapping(ZERO_ADDRESS, fill.repaymentChainId);
       const liteChainDeposit = {
         ...deposit,
         fromLiteChain: true,
@@ -104,6 +106,7 @@ describe("FillUtils", function () {
     });
     it("Lite chain deposit and relayer is not valid EVM address; relayer gets overwritten to msg.sender", async function () {
       // We don't set repayment chain mapping since repayment happens on origin chain.
+      hubPoolClient.deleteTokenMapping(ZERO_ADDRESS, fill.repaymentChainId);
       const liteChainDeposit = {
         ...deposit,
         fromLiteChain: true,
@@ -138,6 +141,7 @@ describe("FillUtils", function () {
     });
     it("Lite chain deposit and relayer is not valid EVM address; msg.sender is invalid", async function () {
       // We don't set repayment chain mapping since repayment happens on origin chain.
+      hubPoolClient.deleteTokenMapping(ZERO_ADDRESS, fill.repaymentChainId);
       const liteChainDeposit = {
         ...deposit,
         fromLiteChain: true,
