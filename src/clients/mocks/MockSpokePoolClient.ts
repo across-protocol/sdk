@@ -190,15 +190,7 @@ export class MockSpokePoolClient extends SpokePoolClient {
   }
 
   fillRelay(fill: Omit<Fill, "messageHash"> & { message: string } & Partial<SortableEvent>): Log {
-    const _fill = {
-      ...fill,
-      depositor: toBytes32(fill.depositor),
-      recipient: toBytes32(fill.recipient),
-      inputToken: toBytes32(fill.inputToken),
-      outputToken: toBytes32(fill.outputToken),
-      exclusiveRelayer: toBytes32(fill.exclusiveRelayer),
-    };
-    return this._fillRelay("FilledRelay", _fill);
+    return this._fillRelay("FilledRelay", fill);
   }
 
   protected _fillRelay(
@@ -206,17 +198,22 @@ export class MockSpokePoolClient extends SpokePoolClient {
     fill: Omit<Fill, "messageHash"> & { message: string } & Partial<SortableEvent>
   ): Log {
     const { blockNumber, transactionIndex } = fill;
-    let { originChainId, depositId, inputToken, inputAmount, outputAmount, fillDeadline, relayer } = fill;
+    let { originChainId, depositId, inputAmount, outputAmount, fillDeadline } = fill;
     originChainId ??= random(1, 42161, false);
     depositId ??= BigNumber.from(random(1, 100_000, false));
-    inputToken ??= randomAddress();
     inputAmount ??= toBNWei(random(1, 1000, false));
     outputAmount ??= inputAmount;
     fillDeadline ??= getCurrentTime() + 60;
-    relayer ??= randomAddress();
+
+    const addressModifier = event === "FilledRelay" ? toBytes32 : toAddress;
+    const depositor = addressModifier(fill.depositor ?? randomAddress());
+    const recipient = addressModifier(fill.recipient ?? depositor);
+    const inputToken = addressModifier(fill.inputToken ?? randomAddress());
+    const outputToken = addressModifier(fill.outputToken ?? ZERO_ADDRESS);
+    const exclusiveRelayer = addressModifier(fill.exclusiveRelayer ?? ZERO_ADDRESS);
+    const relayer = addressModifier(fill.relayer ?? randomAddress());
 
     const topics = [originChainId, depositId, relayer]; // @todo verify
-    const recipient = fill.recipient ?? randomAddress();
     const message = fill["message"] ?? "0x";
 
     const relayExecutionInfo = {
@@ -227,7 +224,7 @@ export class MockSpokePoolClient extends SpokePoolClient {
 
     const _args = {
       inputToken,
-      outputToken: fill.outputToken ?? ZERO_ADDRESS, // resolved via HubPoolClient.
+      outputToken,
       inputAmount: fill.inputAmount,
       outputAmount: fill.outputAmount,
       repaymentChainId: fill.repaymentChainId ?? this.chainId,
@@ -235,9 +232,9 @@ export class MockSpokePoolClient extends SpokePoolClient {
       depositId,
       fillDeadline,
       exclusivityDeadline: fill.exclusivityDeadline ?? fillDeadline,
-      exclusiveRelayer: fill.exclusiveRelayer ?? ZERO_ADDRESS,
+      exclusiveRelayer,
       relayer,
-      depositor: fill.depositor ?? randomAddress(),
+      depositor,
       recipient,
       relayExecutionInfo,
     };

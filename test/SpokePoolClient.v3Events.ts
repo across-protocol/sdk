@@ -22,7 +22,7 @@ type EventSearchConfig = sdkUtils.EventSearchConfig;
 describe("SpokePoolClient: Event Filtering", function () {
   const fundsDepositedEvents = ["FundsDeposited", "V3FundsDeposited"];
   const slowFillRequestedEvents = ["RequestedV3SlowFill"];
-  const filledRelayEvents = ["FilledV3Relay"];
+  const filledRelayEvents = ["FilledRelay", "FilledV3Relay"];
 
   let owner: SignerWithAddress;
   let chainIds: number[];
@@ -551,14 +551,10 @@ describe("SpokePoolClient: Event Filtering", function () {
       for (const event of ["FundsDeposited", "V3FundsDeposited"]) {
         const depositGenerator = event === "FundsDeposited" ? generateV3Deposit : generateDeposit;
         const _deposit = depositGenerator(originSpokePoolClient);
-        console.log(`xxx got deposit: ${JSON.stringify(_deposit, null, 2)}.`);
         expect(_deposit?.args?.messageHash).to.equal(undefined);
         await originSpokePoolClient.update(fundsDepositedEvents);
 
         let deposit = originSpokePoolClient.getDeposit(_deposit.args.depositId);
-        if (!deposit) {
-          console.log(`xxx could not find deposit() for ${event}`);
-        }
         expect(deposit).to.exist;
         deposit = deposit!;
 
@@ -586,35 +582,53 @@ describe("SpokePoolClient: Event Filtering", function () {
       expect(slowFillRequest.messageHash).to.equal(getMessageHash(deposit.message));
     });
 
-    it("Correctly appends FilledV3Relay messageHash", async function () {
-      const _deposit = generateV3Deposit(originSpokePoolClient);
-      expect(_deposit?.args?.messageHash).to.equal(undefined);
-      await originSpokePoolClient.update(fundsDepositedEvents);
+    it.only("Correctly appends FilledV3Relay messageHash", async function () {
+      const functionPairs = {
+        FundsDeposited: destinationSpokePoolClient.fillRelay,
+        V3FundsDeposited: destinationSpokePoolClient.fillV3Relay,
+      };
 
-      let deposit = originSpokePoolClient.getDeposit(_deposit.args.depositId);
-      expect(deposit).to.exist;
-      deposit = deposit!;
+      for (const event of ["FundsDeposited", "V3FundsDeposited"]) {
+        const depositGenerator = event === "FundsDeposited" ? generateV3Deposit : generateDeposit;
+        const _deposit = depositGenerator(originSpokePoolClient);
+        expect(_deposit?.args?.messageHash).to.equal(undefined);
+        await originSpokePoolClient.update(fundsDepositedEvents);
 
-      const relayer = randomAddress();
+        let deposit = originSpokePoolClient.getDeposit(_deposit.args.depositId);
+        expect(deposit).to.exist;
+        deposit = deposit!;
 
-      await destinationSpokePoolClient.update();
-      let [fill] = destinationSpokePoolClient.getFillsForRelayer(relayer);
-      expect(fill).to.not.exist;
+        const relayer = randomAddress();
 
-      destinationSpokePoolClient.fillV3Relay(fillFromDeposit(deposit, relayer));
-      await destinationSpokePoolClient.update();
+        await destinationSpokePoolClient.update();
+        let [fill] = destinationSpokePoolClient.getFillsForRelayer(relayer);
+        expect(fill).to.not.exist;
 
-      [fill] = destinationSpokePoolClient.getFillsForRelayer(relayer);
-      expect(fill).to.exist;
-      fill = fill!;
+        if (event === "V3FundsDeposited") {
+          destinationSpokePoolClient.fillV3Relay(fillFromDeposit(deposit, relayer));
+        } else {
+          destinationSpokePoolClient.fillRelay(fillFromDeposit(deposit, relayer));
+        }
+        await destinationSpokePoolClient.update(filledRelayEvents);
 
-      expect(fill.messageHash).to.equal(getMessageHash(deposit.message));
+        [fill] = destinationSpokePoolClient.getFillsForRelayer(relayer);
+        expect(fill).to.exist;
+        fill = fill!;
 
-      const { relayExecutionInfo } = fill;
-      expect(relayExecutionInfo).to.exist;
-      expect(relayExecutionInfo.updatedMessage).to.exist;
-      expect(relayExecutionInfo.updatedMessageHash).to.exist;
-      expect(relayExecutionInfo.updatedMessageHash).to.equal(getMessageHash(relayExecutionInfo.updatedMessage!));
+        expect(fill.messageHash).to.equal(getMessageHash(deposit.message));
+
+        const { relayExecutionInfo } = fill;
+        expect(relayExecutionInfo).to.exist;
+
+        if (event === "V3FundsDeposited") {
+          expect(relayExecutionInfo.updatedMessage).to.exist;
+        } else {
+          expect(relayExecutionInfo.updatedMessage).to.not.exist;
+        }
+
+        expect(relayExecutionInfo.updatedMessageHash).to.exist;
+        expect(relayExecutionInfo.updatedMessageHash).to.equal(getMessageHash(deposit.message));
+      }
     });
   });
 });
