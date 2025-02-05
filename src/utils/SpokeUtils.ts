@@ -457,6 +457,7 @@ export async function findFillEvent(
   const fill = {
     ...spreadEventWithBlockNumber(event),
     destinationChainId,
+    messageHash: getMessageHash(event.args.message),
   } as FillWithBlock;
   return fill;
 }

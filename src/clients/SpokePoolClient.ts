@@ -45,6 +45,7 @@ import { getBlockRangeForDepositId, getDepositIdAtBlock, relayFillStatus } from 
 import { BaseAbstractClient, isUpdateFailureReason, UpdateFailureReason } from "./BaseAbstractClient";
 import { HubPoolClient } from "./HubPoolClient";
 import { AcrossConfigStoreClient } from "./AcrossConfigStoreClient";
+import { getRepaymentChainId, isEvmRepaymentValid } from "./BundleDataClient/utils/FillUtils";
 
 type SpokePoolUpdateSuccess = {
   success: true;
@@ -397,16 +398,29 @@ export class SpokePoolClient extends BaseAbstractClient {
       return { unfilledAmount: outputAmount, fillCount: 0, invalidFills: [] };
     }
 
-    const { validFills, invalidFills } = fillsForDeposit.reduce(
-      (groupedFills: { validFills: Fill[]; invalidFills: Fill[] }, fill: Fill) => {
+    const { validFills, invalidFills, unrepayableFills } = fillsForDeposit.reduce(
+      (groupedFills: { validFills: Fill[]; invalidFills: Fill[]; unrepayableFills: Fill[] }, fill: Fill) => {
         if (validateFillForDeposit(fill, deposit).valid) {
+          const repaymentChainId = getRepaymentChainId(fill, deposit);
+          // The list of possible repayment chains should be the enabled chains in the config store (minus any
+          // disabled chains) as of the bundle end block containing this fill. Since we don't know which bundle
+          // this fill belongs to, and we don't want to convert the deposit quote timestamp into a block number
+          // to query the chain list at a mainnet block height (for latency purposes), we will just use the
+          // list of all chains that Across supports, which also can include some disabled chains. Worst case
+          // we don't a mark a fill as unrepayable because its chosen a disabled chain as repayment, and we miss
+          // a log.
+          if (!isEvmRepaymentValid(fill, repaymentChainId, this.configStoreClient?.getEnabledChains() ?? [])) {
+            groupedFills.unrepayableFills.push(fill);
+          }
+          // This fill is still valid and means that the deposit cannot be filled on-chain anymore, but it
+          // also can be unrepayable which we should want to log.
           groupedFills.validFills.push(fill);
         } else {
           groupedFills.invalidFills.push(fill);
         }
         return groupedFills;
       },
-      { validFills: [], invalidFills: [] }
+      { validFills: [], invalidFills: [], unrepayableFills: [] }
     );
 
     // Log any invalid deposits with same deposit id but different params.
@@ -419,6 +433,17 @@ export class SpokePoolClient extends BaseAbstractClient {
         deposit,
         invalidFills: Object.fromEntries(invalidFillsForDeposit.map((x) => [x.relayer, x])),
         notificationPath: "across-invalid-fills",
+      });
+    }
+    const unrepayableFillsForDeposit = unrepayableFills.filter((x) => x.depositId.eq(deposit.depositId));
+    if (unrepayableFillsForDeposit.length > 0) {
+      this.logger.warn({
+        at: "SpokePoolClient",
+        chainId: this.chainId,
+        message: "Unrepayable fills found.",
+        deposit,
+        unrepayableFills: Object.fromEntries(unrepayableFillsForDeposit.map((x) => [x.relayer, x])),
+        notificationPath: "across-unrepayable-fills",
       });
     }
 

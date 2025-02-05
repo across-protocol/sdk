@@ -22,7 +22,7 @@ export const RELAYDATA_KEYS = [
 // by the depositor as well as destinationToken, which are pulled from other clients.
 export function validateFillForDeposit(
   relayData: Omit<RelayData, "message"> & { messageHash: string; destinationChainId: number },
-  deposit?: Deposit
+  deposit?: Omit<Deposit, "quoteTimestamp" | "fromLiteChain" | "toLiteChain">
 ): { valid: true } | { valid: false; reason: string } {
   if (deposit === undefined) {
     return { valid: false, reason: "Deposit is undefined" };
@@ -34,7 +34,6 @@ export function validateFillForDeposit(
   let invalidKey = RELAYDATA_KEYS.find((key) => relayData[key].toString() !== deposit[key].toString());
 
   // There should be no paths for `messageHash` to be unset, but mask it off anyway.
-  // @todo Add test.
   if (!isDefined(invalidKey) && [relayData.messageHash, deposit.messageHash].includes(UNDEFINED_MESSAGE_HASH)) {
     invalidKey = "messageHash";
   }
