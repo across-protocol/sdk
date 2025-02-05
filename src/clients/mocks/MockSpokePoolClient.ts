@@ -16,7 +16,17 @@ import {
   SpeedUp,
   TokensBridged,
 } from "../../interfaces";
-import { toBN, toBNWei, getCurrentTime, getMessageHash, randomAddress, BigNumber, bnZero, bnMax, bnOne } from "../../utils";
+import {
+  toBN,
+  toBNWei,
+  getCurrentTime,
+  getMessageHash,
+  randomAddress,
+  BigNumber,
+  bnZero,
+  bnMax,
+  bnOne,
+} from "../../utils";
 import { SpokePoolClient, SpokePoolUpdate } from "../SpokePoolClient";
 import { HubPoolClient } from "../HubPoolClient";
 import { EventManager, EventOverrides, getEventManager } from "./MockEvents";
