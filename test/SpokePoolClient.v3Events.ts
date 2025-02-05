@@ -21,7 +21,7 @@ type EventSearchConfig = sdkUtils.EventSearchConfig;
 
 describe("SpokePoolClient: Event Filtering", function () {
   const fundsDepositedEvents = ["FundsDeposited", "V3FundsDeposited"];
-  const slowFillRequestedEvents = ["RequestedV3SlowFill"];
+  const slowFillRequestedEvents = ["RequestedSlowFill", "RequestedV3SlowFill"];
   const filledRelayEvents = ["FilledRelay", "FilledV3Relay"];
 
   let owner: SignerWithAddress;
@@ -549,7 +549,7 @@ describe("SpokePoolClient: Event Filtering", function () {
   describe("SpokePoolClient: Legacy messageHash Handling", function () {
     it("Correctly appends messageHash", async function () {
       for (const event of ["FundsDeposited", "V3FundsDeposited"]) {
-        const depositGenerator = event === "FundsDeposited" ? generateV3Deposit : generateDeposit;
+        const depositGenerator = event === "V3FundsDeposited" ? generateV3Deposit : generateDeposit;
         const _deposit = depositGenerator(originSpokePoolClient);
         expect(_deposit?.args?.messageHash).to.equal(undefined);
         await originSpokePoolClient.update(fundsDepositedEvents);
@@ -564,27 +564,34 @@ describe("SpokePoolClient: Event Filtering", function () {
     });
 
     it("Correctly appends RequestedV3SlowFill messageHash", async function () {
-      const _deposit = generateV3Deposit(originSpokePoolClient);
-      expect(_deposit?.args?.messageHash).to.equal(undefined);
-      await originSpokePoolClient.update(fundsDepositedEvents);
+      for (const event of ["RequestedSlowFill", "RequestedV3SlowFill"]) {
+        const depositGenerator = event === "RequestedV3SlowFill" ? generateV3Deposit : generateDeposit;
+        const _deposit = depositGenerator(originSpokePoolClient);
+        expect(_deposit?.args?.messageHash).to.equal(undefined);
+        await originSpokePoolClient.update(fundsDepositedEvents);
 
-      let deposit = originSpokePoolClient.getDeposit(_deposit.args.depositId);
-      expect(deposit).to.exist;
-      deposit = deposit!;
+        let deposit = originSpokePoolClient.getDeposit(_deposit.args.depositId);
+        expect(deposit).to.exist;
+        deposit = deposit!;
 
-      destinationSpokePoolClient.requestV3SlowFill({ ...deposit, blockNumber: undefined });
-      await destinationSpokePoolClient.update();
+        if (event === "RequestedV3SlowFill") {
+          destinationSpokePoolClient.requestV3SlowFill({ ...deposit, blockNumber: undefined });
+        } else {
+          destinationSpokePoolClient.requestSlowFill({ ...deposit, blockNumber: undefined });
+        }
+        await destinationSpokePoolClient.update(slowFillRequestedEvents);
 
-      let slowFillRequest = destinationSpokePoolClient.getSlowFillRequest(deposit);
-      expect(slowFillRequest).to.exist;
-      slowFillRequest = slowFillRequest!;
+        let slowFillRequest = destinationSpokePoolClient.getSlowFillRequest(deposit);
+        expect(slowFillRequest).to.exist;
+        slowFillRequest = slowFillRequest!;
 
-      expect(slowFillRequest.messageHash).to.equal(getMessageHash(deposit.message));
+        expect(slowFillRequest.messageHash).to.equal(getMessageHash(deposit.message));
+      }
     });
 
     it("Correctly appends FilledV3Relay messageHash", async function () {
       for (const event of ["FundsDeposited", "V3FundsDeposited"]) {
-        const depositGenerator = event === "FundsDeposited" ? generateV3Deposit : generateDeposit;
+        const depositGenerator = event === "V3FundsDeposited" ? generateV3Deposit : generateDeposit;
         const _deposit = depositGenerator(originSpokePoolClient);
         expect(_deposit?.args?.messageHash).to.equal(undefined);
         await originSpokePoolClient.update(fundsDepositedEvents);

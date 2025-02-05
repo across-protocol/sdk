@@ -684,22 +684,23 @@ export class SpokePoolClient extends BaseAbstractClient {
       for (const event of slowFillRequests) {
         const slowFillRequest = {
           ...spreadEventWithBlockNumber(event),
-          messageHash: getMessageHash(event.args["message"]),
           destinationChainId: this.chainId,
         } as SlowFillRequestWithBlock;
+
+        if (eventName === "RequestedV3SlowFill") {
+          slowFillRequest.messageHash = getMessageHash(slowFillRequest.message);
+        }
 
         const depositHash = getRelayEventKey({ ...slowFillRequest, destinationChainId: this.chainId });
         this.slowFillRequests[depositHash] ??= slowFillRequest;
       }
     };
 
-    // Update slow fill requests with ingested event data.
-    if (eventsToQuery.includes("RequestedV3SlowFill")) {
-      queryRequestedSlowFillEvents("RequestedV3SlowFill");
-    }
-    if (eventsToQuery.includes("RequestedSlowFill")) {
-      queryRequestedSlowFillEvents("RequestedSlowFill");
-    }
+    ["RequestedV3SlowFill", "RequestedSlowFill"].forEach((event) => {
+      if (eventsToQuery.includes(event)) {
+        queryRequestedSlowFillEvents(event);
+      }
+    });
 
     // Performs indexing of filled relay-like events.
     const queryFilledRelayEvents = (eventName: string) => {

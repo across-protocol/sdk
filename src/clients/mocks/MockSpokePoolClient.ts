@@ -296,17 +296,33 @@ export class MockSpokePoolClient extends SpokePoolClient {
   }
 
   requestV3SlowFill(request: Omit<SlowFillRequest, "messageHash"> & Partial<SortableEvent>): Log {
-    const event = "RequestedV3SlowFill";
+    return this._requestSlowFill("RequestedV3SlowFill", request);
+  }
 
+  requestSlowFill(request: Omit<SlowFillRequest, "messageHash"> & Partial<SortableEvent>): Log {
+    return this._requestSlowFill("RequestedSlowFill", request);
+  }
+
+  protected _requestSlowFill(event: string, request: Omit<SlowFillRequest, "messageHash"> & Partial<SortableEvent>): Log {
     const { originChainId, depositId } = request;
     const topics = [originChainId, depositId];
     const args = { ...request };
+
+    const addressModifier = event === "RequestedSlowFill" ? toBytes32 : toAddress;
+    const depositor = addressModifier(args.depositor ?? randomAddress());
 
     return this.eventManager.generateEvent({
       event,
       address: this.spokePool.address,
       topics: topics.map((topic) => topic.toString()),
-      args,
+      args: {
+        ...args,
+        depositor,
+        recipient: addressModifier(args.recipient ?? depositor),
+        inputToken: addressModifier(args.inputToken ?? randomAddress()),
+        outputToken: addressModifier(args.outputToken ?? ZERO_ADDRESS),
+        exclusiveRelayer: addressModifier(args.exclusiveRelayer ?? ZERO_ADDRESS),
+      },
       blockNumber: request.blockNumber,
       transactionIndex: request.transactionIndex,
     });
