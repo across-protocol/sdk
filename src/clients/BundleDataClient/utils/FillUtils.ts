@@ -70,8 +70,10 @@ export async function verifyFillRepayment(
 ): Promise<FillWithBlock | undefined> {
   const fill = _.cloneDeep(_fill);
 
-  const repaymentChainId = getRepaymentChainId(fill, matchedDeposit);
-  const validEvmRepayment = isEvmRepaymentValid(fill, repaymentChainId);
+  let repaymentChainId = getRepaymentChainId(fill, matchedDeposit);
+
+  // If repayment chain doesn't have a Pool Rebalance Route for the input token, then change the repayment
+  // chain to the destination chain.
   if (!isSlowFill(fill)) {
     try {
       const l1TokenCounterpart = hubPoolClient.getL1TokenForL2TokenAtBlock(
@@ -82,10 +84,11 @@ export async function verifyFillRepayment(
       hubPoolClient.getL2TokenForL1TokenAtBlock(l1TokenCounterpart, repaymentChainId, matchedDeposit.quoteBlockNumber);
       // Repayment token could be found, this is a valid repayment chain.
     } catch {
-      // Repayment token doesn't exist on repayment chain via PoolRebalanceRoutes, impossible to repay filler.
-      return undefined;
+      // Repayment token doesn't exist on repayment chain via PoolRebalanceRoutes, impossible to repay filler there.
+      repaymentChainId = fill.destinationChainId;
     }
   }
+  const validEvmRepayment = isEvmRepaymentValid(fill, repaymentChainId);
 
   // Case 1: Repayment chain is EVM and repayment address is valid EVM address.
   if (validEvmRepayment) {
@@ -102,10 +105,10 @@ export async function verifyFillRepayment(
     if (!isDefined(destinationRelayer) || !isValidEvmAddress(destinationRelayer)) {
       return undefined;
     }
-    // Otherwise, assume the relayer to be repaid is the msg.sender. We don't need to modify the repayment chain since
-    // the getTransaction() call would only succeed if the fill was sent on an EVM chain and therefore the msg.sender
-    // is a valid EVM address and the repayment chain is an EVM chain.
+    // Otherwise, assume the relayer to be repaid is the msg.sender and swap repayment chain to destination chain
+    // where we know the new fill.relayer exists.
     fill.relayer = destinationRelayer;
+    fill.repaymentChainId = fill.destinationChainId;
     return fill;
   }
   // Case 3: Repayment chain is not an EVM chain, must be invalid.
