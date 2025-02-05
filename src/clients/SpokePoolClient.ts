@@ -9,7 +9,6 @@ import {
   MAX_BIG_INT,
   MakeOptional,
   assign,
-  getRelayEventKey,
   isDefined,
   toBN,
   bnOne,
@@ -144,7 +143,7 @@ export class SpokePoolClient extends BaseAbstractClient {
    * unless the original deposit is a duplicate.
    */
   private _getDuplicateDeposits(deposit: DepositWithBlock): DepositWithBlock[] {
-    const depositHash = getRelayEventKey(deposit);
+    const depositHash = this.getDepositHash(deposit);
     return this.duplicateDepositHashes[depositHash] ?? [];
   }
 
@@ -298,7 +297,8 @@ export class SpokePoolClient extends BaseAbstractClient {
    * @returns The corresponding deposit if found, undefined otherwise.
    */
   public getDeposit(depositId: BigNumber): DepositWithBlock | undefined {
-    return Object.values(this.depositHashes).find(({ depositId: _depositId }) => _depositId.eq(depositId));
+    const depositHash = this.getDepositHash({ depositId, originChainId: this.chainId });
+    return this.depositHashes[depositHash];
   }
 
   /**
@@ -307,7 +307,7 @@ export class SpokePoolClient extends BaseAbstractClient {
    * @returns The corresponding SlowFIllRequest event if found, otherwise undefined.
    */
   public getSlowFillRequest(relayData: RelayData): SlowFillRequestWithBlock | undefined {
-    const hash = getRelayEventKey({ ...relayData, destinationChainId: this.chainId });
+    const hash = this.getDepositHash(relayData);
     return this.slowFillRequests[hash];
   }
 
@@ -336,7 +336,7 @@ export class SpokePoolClient extends BaseAbstractClient {
    * @returns The corresponding deposit if found, undefined otherwise.
    */
   public getDepositForFill(fill: Fill): DepositWithBlock | undefined {
-    const deposit = this.depositHashes[getRelayEventKey(fill)];
+    const deposit = this.depositHashes[this.getDepositHash(fill)];
     const match = validateFillForDeposit(fill, deposit);
     if (match.valid) {
       return deposit;
@@ -359,7 +359,7 @@ export class SpokePoolClient extends BaseAbstractClient {
    * @returns A valid fill for the deposit, or undefined.
    */
   public getFillForDeposit(deposit: Deposit): FillWithBlock | undefined {
-    const fills = this.depositHashesToFills[getRelayEventKey(deposit)];
+    const fills = this.depositHashesToFills[this.getDepositHash(deposit)];
     return fills?.find((fill) => validateFillForDeposit(fill, deposit));
   }
 
@@ -376,7 +376,7 @@ export class SpokePoolClient extends BaseAbstractClient {
     invalidFills: Fill[];
   } {
     const { outputAmount } = deposit;
-    const fillsForDeposit = this.depositHashesToFills[getRelayEventKey(deposit)];
+    const fillsForDeposit = this.depositHashesToFills[this.getDepositHash(deposit)];
 
     // If no fills then the full amount is remaining.
     if (fillsForDeposit === undefined || fillsForDeposit.length === 0) {
@@ -608,11 +608,11 @@ export class SpokePoolClient extends BaseAbstractClient {
           deposit.outputToken = this.getDestinationTokenForDeposit(deposit);
         }
 
-        if (this.depositHashes[getRelayEventKey(deposit)] !== undefined) {
-          assign(this.duplicateDepositHashes, [getRelayEventKey(deposit)], [deposit]);
+        if (this.depositHashes[this.getDepositHash(deposit)] !== undefined) {
+          assign(this.duplicateDepositHashes, [this.getDepositHash(deposit)], [deposit]);
           continue;
         }
-        assign(this.depositHashes, [getRelayEventKey(deposit)], deposit);
+        assign(this.depositHashes, [this.getDepositHash(deposit)], deposit);
 
         if (deposit.depositId.lt(this.earliestDepositIdQueried) && !isUnsafeDepositId(deposit.depositId)) {
           this.earliestDepositIdQueried = deposit.depositId;
@@ -633,13 +633,13 @@ export class SpokePoolClient extends BaseAbstractClient {
 
         // Find deposit hash matching this speed up event and update the deposit data associated with the hash,
         // if the hash+data exists.
-        const deposit = this.getDeposit(speedUp.depositId);
+        const depositHash = this.getDepositHash(speedUp);
 
         // We can assume all deposits in this lookback window are loaded in-memory already so if the depositHash
         // is not mapped to a deposit, then we can throw away the speedup as it can't be applied to anything.
-        if (isDefined(deposit)) {
-          const eventKey = getRelayEventKey(deposit);
-          this.depositHashes[eventKey] = this.appendMaxSpeedUpSignatureToDeposit(deposit);
+        const depositDataAssociatedWithSpeedUp = this.depositHashes[depositHash];
+        if (isDefined(depositDataAssociatedWithSpeedUp)) {
+          this.depositHashes[depositHash] = this.appendMaxSpeedUpSignatureToDeposit(depositDataAssociatedWithSpeedUp);
         }
       }
     }
@@ -653,7 +653,7 @@ export class SpokePoolClient extends BaseAbstractClient {
           destinationChainId: this.chainId,
         } as SlowFillRequestWithBlock;
 
-        const depositHash = getRelayEventKey({ ...slowFillRequest, destinationChainId: this.chainId });
+        const depositHash = this.getDepositHash(slowFillRequest);
         this.slowFillRequests[depositHash] ??= slowFillRequest;
       }
     }
@@ -676,7 +676,7 @@ export class SpokePoolClient extends BaseAbstractClient {
         } as FillWithBlock;
 
         assign(this.fills, [fill.originChainId], [fill]);
-        assign(this.depositHashesToFills, [getRelayEventKey(fill)], [fill]);
+        assign(this.depositHashesToFills, [this.getDepositHash(fill)], [fill]);
       }
     }
 
