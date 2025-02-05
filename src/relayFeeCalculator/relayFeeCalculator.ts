@@ -22,7 +22,7 @@ import { Transport } from "viem";
 // This needs to be implemented for every chain and passed into RelayFeeCalculator
 export interface QueryInterface {
   getGasCosts: (
-    deposit: Omit<Deposit, "messageHash">,
+    deposit: Deposit,
     relayer: string,
     options?: Partial<{
       gasPrice: BigNumberish;

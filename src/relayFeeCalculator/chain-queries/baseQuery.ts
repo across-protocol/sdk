@@ -71,7 +71,7 @@ export class QueryBase implements QueryInterface {
    * @returns The gas estimate for this function call (multiplied with the optional buffer).
    */
   async getGasCosts(
-    deposit: Omit<Deposit, "messageHash">,
+    deposit: Deposit,
     relayer = DEFAULT_SIMULATED_RELAYER_ADDRESS,
     options: Partial<{
       gasPrice: BigNumberish;
@@ -121,7 +121,7 @@ export class QueryBase implements QueryInterface {
    * @returns PopulatedTransaction
    */
   getUnsignedTxFromDeposit(
-    deposit: Omit<Deposit, "messageHash">,
+    deposit: Deposit,
     relayer = DEFAULT_SIMULATED_RELAYER_ADDRESS
   ): Promise<PopulatedTransaction> {
     return populateV3Relay(this.spokePool, deposit, relayer);
@@ -133,10 +133,7 @@ export class QueryBase implements QueryInterface {
    * @param relayer Sender of PopulatedTransaction
    * @returns Estimated gas cost based on ethers.VoidSigner's gas estimation
    */
-  async getNativeGasCost(
-    deposit: Omit<Deposit, "messageHash">,
-    relayer = DEFAULT_SIMULATED_RELAYER_ADDRESS
-  ): Promise<BigNumber> {
+  async getNativeGasCost(deposit: Deposit, relayer = DEFAULT_SIMULATED_RELAYER_ADDRESS): Promise<BigNumber> {
     const unsignedTx = await this.getUnsignedTxFromDeposit(deposit, relayer);
     const voidSigner = new VoidSigner(relayer, this.provider);
     return voidSigner.estimateGas(unsignedTx);
