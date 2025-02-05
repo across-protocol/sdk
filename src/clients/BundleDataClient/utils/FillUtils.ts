@@ -94,27 +94,26 @@ export async function verifyFillRepayment(
   if (validEvmRepayment) {
     return fill;
   }
-  // Case 2: Repayment chain is EVM but repayment address is not a valid EVM address. Attempt to switch repayment
-  // address to msg.sender of relay transaction.
-  else if (chainIsEvm(repaymentChainId) && !isValidEvmAddress(fill.relayer)) {
-    // TODO: Handle case where fill was sent on non-EVM chain, in which case the following call would fail
-    // or return something unexpected. We'd want to return undefined here.
-    const fillTransaction = await destinationChainProvider.getTransaction(fill.transactionHash);
-    const destinationRelayer = fillTransaction?.from;
-    // Repayment chain is still an EVM chain, but the msg.sender is a bytes32 address, so the fill is invalid.
-    if (!isDefined(destinationRelayer) || !isValidEvmAddress(destinationRelayer)) {
-      return undefined;
-    }
-    // Otherwise, assume the relayer to be repaid is the msg.sender and swap repayment chain to destination chain
-    // where we know the new fill.relayer exists.
-    fill.relayer = destinationRelayer;
-    if (!matchedDeposit.fromLiteChain) {
-      fill.repaymentChainId = fill.destinationChainId;
-    }
-    return fill;
-  }
-  // Case 3: Repayment chain is not an EVM chain, must be invalid.
+  // Case 2: Repayment chain is not EVM or address is not a valid EVM address. Attempt to switch repayment
+  // address to msg.sender of relay transaction and repayment chain to destination chain.
   else {
-    return undefined;
+    if (!chainIsEvm(repaymentChainId)) {
+      const newRepaymentChain = matchedDeposit.fromLiteChain ? fill.originChainId : fill.destinationChainId;
+      fill.repaymentChainId = newRepaymentChain;
+    }
+
+    if (!isValidEvmAddress(fill.relayer)) {
+      // TODO: Handle case where fill was sent on non-EVM chain, in which case the following call would fail
+      // or return something unexpected. We'd want to return undefined here.
+      const fillTransaction = await destinationChainProvider.getTransaction(fill.transactionHash);
+      const destinationRelayer = fillTransaction?.from;
+      // Repayment chain is still an EVM chain, but the msg.sender is a bytes32 address, so the fill is invalid.
+      if (!isDefined(destinationRelayer) || !isValidEvmAddress(destinationRelayer)) {
+        return undefined;
+      }
+      fill.relayer = destinationRelayer;
+    }
+
+    return fill;
   }
 }
