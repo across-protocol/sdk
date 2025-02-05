@@ -32,7 +32,7 @@ export class PolygonGasStation extends BaseHTTPAdapter {
   readonly chainId: number;
 
   constructor({ chainId = POLYGON, host, timeout = 1500, retries = 1 }: GasStationArgs = {}) {
-    host = (host ?? chainId === POLYGON) ? "gasstation.polygon.technology" : "gasstation-testnet.polygon.technology";
+    host = host ?? chainId === POLYGON ? "gasstation.polygon.technology" : "gasstation-testnet.polygon.technology";
 
     super("Polygon Gas Station", host, { timeout, retries });
     this.chainId = chainId;

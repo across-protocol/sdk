@@ -313,7 +313,7 @@ export class RelayFeeCalculator {
     else {
       const config =
         isDefined(_originRoute) && isDefined(_destinationRoute)
-          ? (tokenCostConfig.routeOverrides?.[_originRoute]?.[_destinationRoute] ?? tokenCostConfig.default)
+          ? tokenCostConfig.routeOverrides?.[_originRoute]?.[_destinationRoute] ?? tokenCostConfig.default
           : tokenCostConfig.default;
 
       // Scale amount "y" to 18 decimals.
