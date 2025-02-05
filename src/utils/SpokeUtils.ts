@@ -21,7 +21,7 @@ type BlockTag = providers.BlockTag;
  */
 export function populateV3Relay(
   spokePool: Contract,
-  deposit: Deposit,
+  deposit: Omit<Deposit, "messageHash">,
   relayer: string,
   repaymentChainId = deposit.destinationChainId
 ): Promise<PopulatedTransaction> {
@@ -55,6 +55,33 @@ export function populateV3Relay(
   }
 
   return spokePool.populateTransaction.fillV3Relay(v3RelayData, repaymentChainId, { from: relayer });
+}
+
+/**
+ * Concatenate all fields from a Deposit, Fill or SlowFillRequest into a single string.
+ * This can be used to identify a bridge event in a mapping. This is used instead of the actual keccak256 hash
+ * (getRelayDataHash()) for two reasons: performance and the fact that only Deposit includes the `message` field, which
+ * is required to compute a complete RelayData hash.
+ * note: This function should _not_ be used to query the SpokePool.fillStatuses mapping.
+ */
+export function getRelayEventKey(data: RelayData & { destinationChainId: number }): string {
+  return [
+    data.depositor,
+    data.recipient,
+    data.exclusiveRelayer,
+    data.inputToken,
+    data.outputToken,
+    data.inputAmount,
+    data.outputAmount,
+    data.originChainId,
+    data.destinationChainId,
+    data.depositId,
+    data.fillDeadline,
+    data.exclusivityDeadline,
+    data.message,
+  ]
+    .map(String)
+    .join("-");
 }
 
 /**
