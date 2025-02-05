@@ -19,6 +19,7 @@ export function getRefundInformationFromFill(
   let chainToSendRefundTo = isSlowFill(fill) ? fill.destinationChainId : fill.repaymentChainId;
   // If the fill is for a deposit originating from the lite chain, the repayment chain is the origin chain
   // regardless of whether it is a slow or fast fill (we ignore slow fills but this is for posterity).
+  // @note fill.repaymentChainId should already be set to originChainId but reset it to be safe.
   if (fromLiteChain) {
     chainToSendRefundTo = fill.originChainId;
   }
@@ -81,6 +82,12 @@ export async function verifyFillRepayment(
       hubPoolClient.getL2TokenForL1TokenAtBlock(l1TokenCounterpart, repaymentChainId, matchedDeposit.quoteBlockNumber);
       // Repayment token could be found, this is a valid repayment chain.
     } catch {
+      hubPoolClient.logger.warn({
+        at: "verifyFillRepayment",
+        message:
+          "Filler selected repayment chain that does not have a PoolRebalanceRoute for the input token, overriding to destination chain",
+        fill,
+      });
       // Repayment token doesn't exist on repayment chain via PoolRebalanceRoutes, impossible to repay filler there.
       repaymentChainId = fill.destinationChainId;
     }
@@ -96,7 +103,7 @@ export async function verifyFillRepayment(
       return undefined;
     }
     if (!matchedDeposit.fromLiteChain) {
-      fill.repaymentChainId = fill.destinationChainId;
+      repaymentChainId = fill.destinationChainId;
     } else {
       // We can't switch repayment chain for a lite chain deposit so just check whether the repayment chain,
       // which should be the origin chain, is an EVM chain.
@@ -109,5 +116,6 @@ export async function verifyFillRepayment(
 
   // Repayment address is now valid and repayment chain is either origin chain for lite chain or the destination
   // chain for cases where the repayment address was invalid. Fill should be valid now.
+  fill.repaymentChainId = repaymentChainId;
   return fill;
 }

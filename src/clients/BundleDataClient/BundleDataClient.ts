@@ -33,7 +33,6 @@ import {
   getImpliedBundleBlockRanges,
   isSlowFill,
   mapAsync,
-  filterAsync,
   bnUint32Max,
   isZeroValueDeposit,
   findFillEvent,
@@ -332,7 +331,7 @@ export class BundleDataClient {
       // and then query the FillStatus on-chain, but that might slow this function down too much. For now, we
       // will live with this expected inaccuracy as it should be small. The pre-fill would have to precede the deposit
       // by more than the caller's event lookback window which is expected to be unlikely.
-      const fillsToCount = await filterAsync(this.spokePoolClients[chainId].getFills(), async (fill) => {
+      const fillsToCount = this.spokePoolClients[chainId].getFills().filter((fill) => {
         if (
           fill.blockNumber < blockRanges[chainIndex][0] ||
           fill.blockNumber > blockRanges[chainIndex][1] ||
@@ -349,22 +348,20 @@ export class BundleDataClient {
         const hasMatchingDeposit =
           matchingDeposit !== undefined &&
           this.getRelayHashFromEvent(fill) === this.getRelayHashFromEvent(matchingDeposit);
-        if (hasMatchingDeposit) {
-          const validRepayment = await verifyFillRepayment(
-            fill,
-            this.spokePoolClients[fill.destinationChainId].spokePool.provider,
-            matchingDeposit,
-            this.clients.hubPoolClient
-          );
-          if (!isDefined(validRepayment)) {
-            return false;
-          }
-        }
         return hasMatchingDeposit;
       });
-      fillsToCount.forEach((fill) => {
-        const matchingDeposit = this.spokePoolClients[fill.originChainId].getDeposit(fill.depositId);
+      await forEachAsync(fillsToCount, async (_fill) => {
+        const matchingDeposit = this.spokePoolClients[_fill.originChainId].getDeposit(_fill.depositId);
         assert(isDefined(matchingDeposit), "Deposit not found for fill.");
+        const fill = await verifyFillRepayment(
+          _fill,
+          this.spokePoolClients[_fill.destinationChainId].spokePool.provider,
+          matchingDeposit!,
+          this.clients.hubPoolClient
+        );
+        if (!isDefined(fill)) {
+          return;
+        }
         const { chainToSendRefundTo, repaymentToken } = getRefundInformationFromFill(
           fill,
           this.clients.hubPoolClient,
