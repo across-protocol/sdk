@@ -48,6 +48,14 @@ describe("SpokeUtils", function () {
   });
 
   it("validateFillForDeposit correctly detects unset messageHashes", function () {
+    type validMatch = { valid: true } | { valid: false; reason: string };
+    const validateResult = (result: validMatch, valid: boolean, reason: string) => {
+      expect(result.valid).to.equal(valid);
+      if (!result.valid) {
+        expect(result.reason.startsWith(reason)).to.be.true;
+      }
+    };
+
     const testPairs = [
       { messageHash: UNDEFINED_MESSAGE_HASH, valid: false },
       { messageHash, valid: true },
@@ -58,11 +66,7 @@ describe("SpokeUtils", function () {
         { ...sampleData, messageHash },
         sampleData
       );
-
-      expect(result.valid).to.equal(valid);
-      if (!result.valid) {
-        expect(result.reason.startsWith("messageHash mismatch")).to.be.true;
-      }
+      validateResult(result, valid, "messageHash mismatch");
     });
 
     testPairs.forEach(({ messageHash, valid }) => {
@@ -70,15 +74,17 @@ describe("SpokeUtils", function () {
         sampleData,
         { ...sampleData, messageHash }
       );
-
-      expect(result.valid).to.equal(valid);
-      if (!result.valid) {
-        expect(result.reason.startsWith("messageHash mismatch")).to.be.true;
-      }
+      validateResult(result, valid, "messageHash mismatch");
     });
 
-    const result = validateFillForDeposit(sampleData, sampleData);
-    expect(result.valid).to.equal(true);
+    let result = validateFillForDeposit(
+      { ...sampleData, messageHash: UNDEFINED_MESSAGE_HASH },
+      { ...sampleData, messageHash: UNDEFINED_MESSAGE_HASH }
+    );
+    validateResult(result, false, "messageHash mismatch");
+
+    result = validateFillForDeposit(sampleData, sampleData);
+    validateResult(result, true, "");
   });
 
   it("getMessageHash correctly handles empty messages", function () {
