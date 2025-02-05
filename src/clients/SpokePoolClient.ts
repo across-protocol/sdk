@@ -429,7 +429,7 @@ export class SpokePoolClient extends BaseAbstractClient {
         message: "Unrepayable fills found.",
         deposit,
         unrepayableFills: Object.fromEntries(unrepayableFillsForDeposit.map((x) => [x.relayer, x])),
-        notificationPath: "across-invalid-fills",
+        notificationPath: "across-unrepayable-fills",
       });
     }
 
