@@ -146,6 +146,7 @@ describe("SpokePoolClient: Fill Validation", function () {
       "relayer",
       "repaymentChainId",
       "relayExecutionInfo",
+      "message",
     ];
 
     // For each RelayData field, toggle the value to produce an invalid fill. Verify that it's rejected.
@@ -263,7 +264,7 @@ describe("SpokePoolClient: Fill Validation", function () {
 
     // Some fields are expected to be dynamically populated by the client, but aren't in this environment.
     // Fill them in manually from the fill struct to get a valid comparison.
-    expect(validateFillForDeposit(fill_1, { ...deposit_1 })).to.deep.equal({ valid: true });
+    expect(validateFillForDeposit(fill_1, deposit_1)).to.deep.equal({ valid: true });
   });
 
   it("Returns deposit matched with fill", async function () {

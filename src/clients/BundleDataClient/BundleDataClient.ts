@@ -46,6 +46,7 @@ import {
 import winston from "winston";
 import {
   _buildPoolRebalanceRoot,
+  BundleData,
   BundleDataSS,
   getEndBlockBuffers,
   getRefundInformationFromFill,
@@ -55,12 +56,11 @@ import {
   isEvmRepaymentValid,
   PoolRebalanceRoot,
   prettyPrintV3SpokePoolEvents,
-  UNDEFINED_MESSAGE_HASH,
   V3DepositWithBlock,
   V3FillWithBlock,
   verifyFillRepayment,
 } from "./utils";
-import { PRE_FILL_MIN_CONFIG_STORE_VERSION } from "../../constants";
+import { PRE_FILL_MIN_CONFIG_STORE_VERSION, UNDEFINED_MESSAGE_HASH } from "../../constants";
 
 // max(uint256) - 1
 export const INFINITE_FILL_DEADLINE = bnUint32Max;
@@ -211,6 +211,30 @@ export class BundleDataClient {
     return `bundles-${BundleDataClient.getArweaveClientKey(blockRangesForChains)}`;
   }
 
+  // Post-populate any missing message hashes.
+  // @todo This can be removed once the legacy types hurdle is cleared (earliest 7 days post migration).
+  backfillMessageHashes(data: Pick<BundleData, "bundleDepositsV3" | "bundleFillsV3">): void {
+    Object.values(data.bundleDepositsV3).forEach((x) =>
+      Object.values(x).forEach((deposits) =>
+        deposits.forEach((deposit) => {
+          if (deposit.messageHash === UNDEFINED_MESSAGE_HASH) {
+            deposit.messageHash = getMessageHash(deposit.message);
+          }
+        })
+      )
+    );
+
+    Object.values(data.bundleFillsV3).forEach((x) =>
+      Object.values(x).forEach(({ fills }) =>
+        fills.forEach((fill) => {
+          if (fill.messageHash === UNDEFINED_MESSAGE_HASH) {
+            fill.messageHash = getMessageHash(fill.message);
+          }
+        })
+      )
+    );
+  }
+
   private async loadPersistedDataFromArweave(
     blockRangesForChains: number[][]
   ): Promise<LoadDataReturnValue | undefined> {
@@ -243,17 +267,7 @@ export class BundleDataClient {
 
     const data = persistedData[0].data;
 
-    // Post-populate any missing message hashes.
-    // @todo This can be removed once the legacy types hurdle is cleared (earliest 7 days post migration).
-    Object.values(data.bundleDepositsV3).forEach((x) =>
-      Object.values(x).forEach((deposits) =>
-        deposits.forEach((deposit) => {
-          if (deposit.messageHash === UNDEFINED_MESSAGE_HASH) {
-            deposit.messageHash = getMessageHash(deposit.message);
-          }
-        })
-      )
-    );
+    this.backfillMessageHashes(data);
 
     const bundleData = {
       bundleFillsV3: convertTypedStringRecordIntoNumericRecord(data.bundleFillsV3),

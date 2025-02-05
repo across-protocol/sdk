@@ -313,13 +313,14 @@ export async function depositV3(
   ]);
 
   const lastEvent = events.at(-1);
-  const args = lastEvent?.args;
+  let args = lastEvent?.args;
   assert.exists(args);
+  args = args!;
 
   const { blockNumber, transactionHash, transactionIndex, logIndex } = lastEvent!;
 
   return {
-    depositId: toBN(args!.depositId),
+    depositId: toBN(args.depositId),
     originChainId: Number(originChainId),
     destinationChainId: Number(args!.destinationChainId),
     depositor: args!.depositor,
@@ -373,6 +374,7 @@ export async function requestV3SlowFill(
     outputToken: args.outputToken,
     outputAmount: args.outputAmount,
     message: args.message,
+    messageHash: getMessageHash(args.message),
     fillDeadline: args.fillDeadline,
     exclusivityDeadline: args.exclusivityDeadline,
     exclusiveRelayer: args.exclusiveRelayer,
@@ -420,7 +422,8 @@ export async function fillV3Relay(
     inputAmount: args.inputAmount,
     outputToken: args.outputToken,
     outputAmount: args.outputAmount,
-    messageHash: args.messageHash,
+    message: args.message,
+    messageHash: getMessageHash(args.message),
     fillDeadline: args.fillDeadline,
     exclusivityDeadline: args.exclusivityDeadline,
     exclusiveRelayer: args.exclusiveRelayer,
@@ -506,6 +509,7 @@ export function buildDepositForRelayerFeeTest(
   }
 
   const currentTime = getCurrentTime();
+  const message = EMPTY_MESSAGE;
   return {
     depositId: bnUint32Max,
     originChainId: 1,
@@ -516,7 +520,8 @@ export function buildDepositForRelayerFeeTest(
     inputAmount: toBN(amount),
     outputToken,
     outputAmount: toBN(amount).sub(bnOne),
-    message: EMPTY_MESSAGE,
+    message,
+    messageHash: getMessageHash(message),
     quoteTimestamp: currentTime,
     fillDeadline: currentTime + 7200,
     exclusivityDeadline: 0,

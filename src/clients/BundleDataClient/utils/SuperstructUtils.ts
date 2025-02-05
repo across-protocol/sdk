@@ -1,4 +1,5 @@
 import {
+  Infer,
   object,
   number,
   optional,
@@ -13,9 +14,8 @@ import {
   union,
   type,
 } from "superstruct";
+import { UNDEFINED_MESSAGE_HASH } from "../../../constants";
 import { BigNumber } from "../../../utils";
-
-export const UNDEFINED_MESSAGE_HASH = "";
 
 const PositiveIntegerStringSS = pattern(string(), /\d+/);
 const Web3AddressSS = pattern(string(), /^0x[a-fA-F0-9]{40}$/);
@@ -90,12 +90,12 @@ const V3RelayExecutionEventInfoSS = object({
 
 const V3FillSS = {
   ...V3RelayDataSS,
+  messageHash: defaulted(string(), UNDEFINED_MESSAGE_HASH),
   destinationChainId: number(),
   relayer: string(),
   repaymentChainId: number(),
   relayExecutionInfo: V3RelayExecutionEventInfoSS,
   quoteTimestamp: number(),
-  messageHash: optional(string()),
 };
 
 const V3FillWithBlockSS = {
@@ -135,3 +135,5 @@ export const BundleDataSS = type({
   bundleSlowFillsV3: nestedV3DepositRecordWithLpFeePctSS,
   bundleFillsV3: nestedV3BundleFillsSS,
 });
+
+export type BundleData = Infer<typeof BundleDataSS>;
