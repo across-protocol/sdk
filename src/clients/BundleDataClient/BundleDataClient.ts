@@ -1411,16 +1411,7 @@ export class BundleDataClient {
         chainIds,
         associatedDeposit!.fromLiteChain
       );
-      updateBundleFillsV3(
-        bundleFillsV3,
-        fill,
-        realizedLpFeePct,
-        chainToSendRefundTo,
-        repaymentToken,
-        fill.relayer,
-        this.clients.hubPoolClient,
-        associatedDeposit.quoteBlockNumber
-      );
+      updateBundleFillsV3(bundleFillsV3, fill, realizedLpFeePct, chainToSendRefundTo, repaymentToken, fill.relayer);
     });
     v3SlowFillLpFees.forEach(({ realizedLpFeePct: lpFeePct }, idx) => {
       const deposit = validatedBundleSlowFills[idx];
