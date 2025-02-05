@@ -26,7 +26,8 @@ import {
   bnZero,
   bnMax,
   bnOne,
-  toBytes32
+  toAddress,
+  toBytes32,
 } from "../../utils";
 import { SpokePoolClient, SpokePoolUpdate } from "../SpokePoolClient";
 import { HubPoolClient } from "../HubPoolClient";
@@ -129,18 +130,28 @@ export class MockSpokePoolClient extends SpokePoolClient {
     EnabledDepositRoute: "address,uint256,bool",
   };
 
-  depositV3(deposit: Omit<Deposit, "messageHash"> & Partial<SortableEvent>): Log {
-    const event = "V3FundsDeposited";
+  deposit(deposit: Omit<Deposit, "messageHash"> & Partial<SortableEvent>): Log {
+    return this._deposit("FundsDeposited", deposit);
+  }
 
+  depositV3(deposit: Omit<Deposit, "messageHash"> & Partial<SortableEvent>): Log {
+    return this._deposit("V3FundsDeposited", deposit);
+  }
+
+  protected _deposit(event: string, deposit: Omit<Deposit, "messageHash"> & Partial<SortableEvent>): Log {
     const { blockNumber, transactionIndex } = deposit;
-    let { depositId, depositor, destinationChainId, inputToken, inputAmount, outputToken, outputAmount } = deposit;
+    let { depositId, destinationChainId, inputAmount, outputAmount } = deposit;
     depositId ??= this.numberOfDeposits;
     this.numberOfDeposits = depositId.add(bnOne);
 
     destinationChainId ??= random(1, 42161, false);
-    depositor ??= randomAddress();
-    inputToken ??= randomAddress();
-    outputToken ??= inputToken;
+    const addressModifier = event === "FundsDeposited" ? toBytes32 : toAddress;
+    const depositor = addressModifier(deposit.depositor ?? randomAddress());
+    const recipient = addressModifier(deposit.recipient ?? depositor);
+    const inputToken = addressModifier(deposit.inputToken ?? randomAddress());
+    const outputToken = addressModifier(deposit.outputToken ?? inputToken);
+    const exclusiveRelayer = addressModifier(deposit.exclusiveRelayer ?? ZERO_ADDRESS);
+
     inputAmount ??= toBNWei(random(1, 1000, false));
     outputAmount ??= inputAmount.mul(toBN("0.95"));
 
@@ -152,14 +163,14 @@ export class MockSpokePoolClient extends SpokePoolClient {
       originChainId: deposit.originChainId ?? this.chainId,
       destinationChainId,
       depositor,
-      recipient: deposit.recipient ?? depositor,
+      recipient,
       inputToken,
       inputAmount,
       outputToken,
       outputAmount,
       quoteTimestamp,
       fillDeadline: deposit.fillDeadline ?? quoteTimestamp + 3600,
-      exclusiveRelayer: deposit.exclusiveRelayer ?? ZERO_ADDRESS,
+      exclusiveRelayer,
       exclusivityDeadline: deposit.exclusivityDeadline ?? quoteTimestamp + 600,
       message,
     };
@@ -194,7 +205,6 @@ export class MockSpokePoolClient extends SpokePoolClient {
     event: string,
     fill: Omit<Fill, "messageHash"> & { message: string } & Partial<SortableEvent>
   ): Log {
-
     const { blockNumber, transactionIndex } = fill;
     let { originChainId, depositId, inputToken, inputAmount, outputAmount, fillDeadline, relayer } = fill;
     originChainId ??= random(1, 42161, false);
@@ -229,26 +239,28 @@ export class MockSpokePoolClient extends SpokePoolClient {
       relayer,
       depositor: fill.depositor ?? randomAddress(),
       recipient,
-      relayExecutionInfo
+      relayExecutionInfo,
     };
 
-    const args = event === "FilledRelay"
-      ? {
-          ..._args,
-          messageHash: getMessageHash(message),
-          relayExecutionInfo: {
-            ...relayExecutionInfo,
-            updatedMessageHash: fill.relayExecutionInfo.updatedMessageHash ?? getMessageHash(fill.message)
-          },
-        }
-      : { // FilledV3Relay
-        ..._args,
-        message,
-        relayExecutionInfo: {
-          ...relayExecutionInfo,
-          updatedMessage: fill.relayExecutionInfo?.updatedMessage ?? message
-        }
-      };
+    const args =
+      event === "FilledRelay"
+        ? {
+            ..._args,
+            messageHash: getMessageHash(message),
+            relayExecutionInfo: {
+              ...relayExecutionInfo,
+              updatedMessageHash: fill.relayExecutionInfo.updatedMessageHash ?? getMessageHash(fill.message),
+            },
+          }
+        : {
+            // FilledV3Relay
+            ..._args,
+            message,
+            relayExecutionInfo: {
+              ...relayExecutionInfo,
+              updatedMessage: fill.relayExecutionInfo?.updatedMessage ?? message,
+            },
+          };
 
     return this.eventManager.generateEvent({
       event,

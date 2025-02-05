@@ -606,7 +606,7 @@ export class SpokePoolClient extends BaseAbstractClient {
         // Derive and append the common properties that are not part of the onchain event.
         const deposit = {
           ...spreadEventWithBlockNumber(event),
-          messageHash: getMessageHash(event.args["message"]),
+          messageHash: getMessageHash(event.args.message),
           quoteBlockNumber,
           originChainId: this.chainId,
           // The following properties are placeholders to be updated immediately.
@@ -637,13 +637,10 @@ export class SpokePoolClient extends BaseAbstractClient {
     };
 
     // Query "legacy" V3FundsDeposited events.
-    if (eventsToQuery.includes("V3FundsDeposited")) {
-      await queryDepositEvents("V3FundsDeposited");
-    }
-
-    // Additionally query the newer FundsDeposited spoke pool events.
-    if (eventsToQuery.includes("FundsDeposited")) {
-      await queryDepositEvents("FundsDeposited");
+    for (const event of ["V3FundsDeposited", "FundsDeposited"]) {
+      if (eventsToQuery.includes(event)) {
+        await queryDepositEvents(event);
+      }
     }
 
     // Performs indexing of a "speed up deposit"-like event.
@@ -727,12 +724,12 @@ export class SpokePoolClient extends BaseAbstractClient {
     };
 
     // Update observed fills with ingested event data.
-    if (eventsToQuery.includes("FilledV3Relay")) {
-      queryFilledRelayEvents("FilledV3Relay");
-    }
-    if (eventsToQuery.includes("FilledRelay")) {
-      queryFilledRelayEvents("FilledRelay");
-    }
+    ["FilledV3Relay", "FilledRelay"].forEach((event) => {
+      if (eventsToQuery.includes(event)) {
+        console.log(`XXX checking for ${event} events.`);
+        queryFilledRelayEvents(event);
+      }
+    });
 
     if (eventsToQuery.includes("EnabledDepositRoute")) {
       const enableDepositsEvents = queryResults[eventsToQuery.indexOf("EnabledDepositRoute")];
