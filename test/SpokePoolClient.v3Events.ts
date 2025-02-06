@@ -152,6 +152,27 @@ describe("SpokePoolClient: Event Filtering", function () {
     });
   });
 
+  it("Maps multiple fills for same deposit ID + origin chain ID to same deposit", async function () {
+    const depositEvent = generateV3Deposit(originSpokePoolClient);
+    await originSpokePoolClient.update(fundsDepositedEvents);
+    let deposit = originSpokePoolClient.getDeposits().at(-1);
+    expect(deposit).to.exist;
+    deposit = deposit!;
+    expect(deposit.depositId).to.equal(depositEvent.args!.depositId);
+
+    // Mock invalid fills:
+    destinationSpokePoolClient.fillV3Relay(
+      fillFromDeposit({ ...deposit, exclusivityDeadline: deposit.exclusivityDeadline + 2 }, randomAddress())
+    );
+    destinationSpokePoolClient.fillV3Relay(
+      fillFromDeposit({ ...deposit, exclusivityDeadline: deposit.exclusivityDeadline + 1 }, randomAddress())
+    );
+    await destinationSpokePoolClient.update(filledRelayEvents);
+
+    const fillsForDeposit = destinationSpokePoolClient.getFillsForDeposit(deposit);
+    expect(fillsForDeposit.length).to.equal(2);
+  });
+
   it("Correctly sets the `fromLiteChain` flag by using `isOriginLiteChain`", async function () {
     // Update the config store to set the originChainId as a lite chain.
     configStoreClient.updateGlobalConfig(
