@@ -18,6 +18,7 @@ import {
   isSlowFill,
   isValidEvmAddress,
   isZeroAddress,
+  toAddress,
 } from "../utils";
 import {
   paginatedEventQuery,
@@ -120,9 +121,13 @@ export class SpokePoolClient extends BaseAbstractClient {
       "RelayedRootBundle",
       "ExecutedRelayerRefundRoot",
       "V3FundsDeposited",
+      "FundsDeposited",
       "RequestedSpeedUpV3Deposit",
+      "RequestedSpeedUpDeposit",
       "RequestedV3SlowFill",
+      "RequestedSlowFill",
       "FilledV3Relay",
+      "FilledRelay",
     ];
     return Object.fromEntries(
       this.spokePool.interface.fragments
@@ -268,7 +273,10 @@ export class SpokePoolClient extends BaseAbstractClient {
    */
   public appendMaxSpeedUpSignatureToDeposit(deposit: DepositWithBlock): DepositWithBlock {
     const { depositId, depositor } = deposit;
-    const speedups = this.speedUps[depositor]?.[depositId.toString()];
+
+    // Note: we know depositor cannot be more than 20 bytes since this is guaranteed by contracts.
+    const speedups = this.speedUps[toAddress(depositor)]?.[depositId.toString()];
+
     if (!isDefined(speedups) || speedups.length === 0) {
       return deposit;
     }
@@ -901,15 +909,23 @@ export class SpokePoolClient extends BaseAbstractClient {
     );
 
     const tStart = Date.now();
-    const query = await paginatedEventQuery(
-      this.spokePool,
-      this.spokePool.filters.V3FundsDeposited(null, null, null, null, null, depositId),
-      {
-        fromBlock: searchBounds.low,
-        toBlock: searchBounds.high,
-        maxBlockLookBack: this.eventSearchConfig.maxBlockLookBack,
-      }
-    );
+    // Check both V3FundsDeposited and FundsDeposited events to look for a specified depositId.
+    const [fromBlock, toBlock] = [searchBounds.low, searchBounds.high];
+    const { maxBlockLookBack } = this.eventSearchConfig;
+    const query = (
+      await Promise.all([
+        paginatedEventQuery(
+          this.spokePool,
+          this.spokePool.filters.V3FundsDeposited(null, null, null, null, null, depositId),
+          { fromBlock, toBlock, maxBlockLookBack }
+        ),
+        paginatedEventQuery(
+          this.spokePool,
+          this.spokePool.filters.FundsDeposited(null, null, null, null, null, depositId),
+          { fromBlock, toBlock, maxBlockLookBack }
+        ),
+      ])
+    ).flat();
     const tStop = Date.now();
 
     const event = query.find(({ args }) => args["depositId"].eq(depositId));
