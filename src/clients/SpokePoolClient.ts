@@ -9,10 +9,11 @@ import {
   MAX_BIG_INT,
   MakeOptional,
   assign,
-  getRelayDataHash,
+  getRelayEventKey,
   isDefined,
   toBN,
   bnOne,
+  getMessageHash,
   isUnsafeDepositId,
 } from "../utils";
 import {
@@ -43,6 +44,7 @@ import { getBlockRangeForDepositId, getDepositIdAtBlock, relayFillStatus } from 
 import { BaseAbstractClient, isUpdateFailureReason, UpdateFailureReason } from "./BaseAbstractClient";
 import { HubPoolClient } from "./HubPoolClient";
 import { AcrossConfigStoreClient } from "./AcrossConfigStoreClient";
+import { getRepaymentChainId, isEvmRepaymentValid } from "./BundleDataClient/utils/FillUtils";
 
 type SpokePoolUpdateSuccess = {
   success: true;
@@ -143,7 +145,7 @@ export class SpokePoolClient extends BaseAbstractClient {
    * unless the original deposit is a duplicate.
    */
   private _getDuplicateDeposits(deposit: DepositWithBlock): DepositWithBlock[] {
-    const depositHash = this.getDepositHash(deposit);
+    const depositHash = getRelayEventKey(deposit);
     return this.duplicateDepositHashes[depositHash] ?? [];
   }
 
@@ -297,8 +299,7 @@ export class SpokePoolClient extends BaseAbstractClient {
    * @returns The corresponding deposit if found, undefined otherwise.
    */
   public getDeposit(depositId: BigNumber): DepositWithBlock | undefined {
-    const depositHash = this.getDepositHash({ depositId, originChainId: this.chainId });
-    return this.depositHashes[depositHash];
+    return Object.values(this.depositHashes).find(({ depositId: _depositId }) => _depositId.eq(depositId));
   }
 
   /**
@@ -307,7 +308,7 @@ export class SpokePoolClient extends BaseAbstractClient {
    * @returns The corresponding SlowFIllRequest event if found, otherwise undefined.
    */
   public getSlowFillRequest(relayData: RelayData): SlowFillRequestWithBlock | undefined {
-    const hash = getRelayDataHash(relayData, this.chainId);
+    const hash = getRelayEventKey({ ...relayData, destinationChainId: this.chainId });
     return this.slowFillRequests[hash];
   }
 
@@ -336,7 +337,7 @@ export class SpokePoolClient extends BaseAbstractClient {
    * @returns The corresponding deposit if found, undefined otherwise.
    */
   public getDepositForFill(fill: Fill): DepositWithBlock | undefined {
-    const deposit = this.depositHashes[this.getDepositHash(fill)];
+    const deposit = this.depositHashes[getRelayEventKey(fill)];
     const match = validateFillForDeposit(fill, deposit);
     if (match.valid) {
       return deposit;
@@ -359,7 +360,7 @@ export class SpokePoolClient extends BaseAbstractClient {
    * @returns A valid fill for the deposit, or undefined.
    */
   public getFillForDeposit(deposit: Deposit): FillWithBlock | undefined {
-    const fills = this.depositHashesToFills[this.getDepositHash(deposit)];
+    const fills = this.depositHashesToFills[getRelayEventKey(deposit)];
     return fills?.find((fill) => validateFillForDeposit(fill, deposit));
   }
 
@@ -376,23 +377,36 @@ export class SpokePoolClient extends BaseAbstractClient {
     invalidFills: Fill[];
   } {
     const { outputAmount } = deposit;
-    const fillsForDeposit = this.depositHashesToFills[this.getDepositHash(deposit)];
+    const fillsForDeposit = this.depositHashesToFills[getRelayEventKey(deposit)];
 
     // If no fills then the full amount is remaining.
     if (fillsForDeposit === undefined || fillsForDeposit.length === 0) {
       return { unfilledAmount: outputAmount, fillCount: 0, invalidFills: [] };
     }
 
-    const { validFills, invalidFills } = fillsForDeposit.reduce(
-      (groupedFills: { validFills: Fill[]; invalidFills: Fill[] }, fill: Fill) => {
+    const { validFills, invalidFills, unrepayableFills } = fillsForDeposit.reduce(
+      (groupedFills: { validFills: Fill[]; invalidFills: Fill[]; unrepayableFills: Fill[] }, fill: Fill) => {
         if (validateFillForDeposit(fill, deposit).valid) {
+          const repaymentChainId = getRepaymentChainId(fill, deposit);
+          // The list of possible repayment chains should be the enabled chains in the config store (minus any
+          // disabled chains) as of the bundle end block containing this fill. Since we don't know which bundle
+          // this fill belongs to, and we don't want to convert the deposit quote timestamp into a block number
+          // to query the chain list at a mainnet block height (for latency purposes), we will just use the
+          // list of all chains that Across supports, which also can include some disabled chains. Worst case
+          // we don't a mark a fill as unrepayable because its chosen a disabled chain as repayment, and we miss
+          // a log.
+          if (!isEvmRepaymentValid(fill, repaymentChainId, this.configStoreClient?.getEnabledChains() ?? [])) {
+            groupedFills.unrepayableFills.push(fill);
+          }
+          // This fill is still valid and means that the deposit cannot be filled on-chain anymore, but it
+          // also can be unrepayable which we should want to log.
           groupedFills.validFills.push(fill);
         } else {
           groupedFills.invalidFills.push(fill);
         }
         return groupedFills;
       },
-      { validFills: [], invalidFills: [] }
+      { validFills: [], invalidFills: [], unrepayableFills: [] }
     );
 
     // Log any invalid deposits with same deposit id but different params.
@@ -405,6 +419,17 @@ export class SpokePoolClient extends BaseAbstractClient {
         deposit,
         invalidFills: Object.fromEntries(invalidFillsForDeposit.map((x) => [x.relayer, x])),
         notificationPath: "across-invalid-fills",
+      });
+    }
+    const unrepayableFillsForDeposit = unrepayableFills.filter((x) => x.depositId.eq(deposit.depositId));
+    if (unrepayableFillsForDeposit.length > 0) {
+      this.logger.warn({
+        at: "SpokePoolClient",
+        chainId: this.chainId,
+        message: "Unrepayable fills found.",
+        deposit,
+        unrepayableFills: Object.fromEntries(unrepayableFillsForDeposit.map((x) => [x.relayer, x])),
+        notificationPath: "across-unrepayable-fills",
       });
     }
 
@@ -593,6 +618,7 @@ export class SpokePoolClient extends BaseAbstractClient {
         // Derive and append the common properties that are not part of the onchain event.
         const deposit = {
           ...spreadEventWithBlockNumber(event),
+          messageHash: getMessageHash(event.args["message"]),
           quoteBlockNumber,
           originChainId: this.chainId,
           // The following properties are placeholders to be updated immediately.
@@ -607,11 +633,11 @@ export class SpokePoolClient extends BaseAbstractClient {
           deposit.outputToken = this.getDestinationTokenForDeposit(deposit);
         }
 
-        if (this.depositHashes[this.getDepositHash(deposit)] !== undefined) {
-          assign(this.duplicateDepositHashes, [this.getDepositHash(deposit)], [deposit]);
+        if (this.depositHashes[getRelayEventKey(deposit)] !== undefined) {
+          assign(this.duplicateDepositHashes, [getRelayEventKey(deposit)], [deposit]);
           continue;
         }
-        assign(this.depositHashes, [this.getDepositHash(deposit)], deposit);
+        assign(this.depositHashes, [getRelayEventKey(deposit)], deposit);
 
         if (deposit.depositId.lt(this.earliestDepositIdQueried) && !isUnsafeDepositId(deposit.depositId)) {
           this.earliestDepositIdQueried = deposit.depositId;
@@ -632,13 +658,13 @@ export class SpokePoolClient extends BaseAbstractClient {
 
         // Find deposit hash matching this speed up event and update the deposit data associated with the hash,
         // if the hash+data exists.
-        const depositHash = this.getDepositHash(speedUp);
+        const deposit = this.getDeposit(speedUp.depositId);
 
         // We can assume all deposits in this lookback window are loaded in-memory already so if the depositHash
         // is not mapped to a deposit, then we can throw away the speedup as it can't be applied to anything.
-        const depositDataAssociatedWithSpeedUp = this.depositHashes[depositHash];
-        if (isDefined(depositDataAssociatedWithSpeedUp)) {
-          this.depositHashes[depositHash] = this.appendMaxSpeedUpSignatureToDeposit(depositDataAssociatedWithSpeedUp);
+        if (isDefined(deposit)) {
+          const eventKey = getRelayEventKey(deposit);
+          this.depositHashes[eventKey] = this.appendMaxSpeedUpSignatureToDeposit(deposit);
         }
       }
     }
@@ -648,14 +674,12 @@ export class SpokePoolClient extends BaseAbstractClient {
       for (const event of slowFillRequests) {
         const slowFillRequest = {
           ...spreadEventWithBlockNumber(event),
+          messageHash: getMessageHash(event.args["message"]),
           destinationChainId: this.chainId,
         } as SlowFillRequestWithBlock;
 
-        const relayDataHash = getRelayDataHash(slowFillRequest, this.chainId);
-        if (this.slowFillRequests[relayDataHash] !== undefined) {
-          continue;
-        }
-        this.slowFillRequests[relayDataHash] = slowFillRequest;
+        const depositHash = getRelayEventKey({ ...slowFillRequest, destinationChainId: this.chainId });
+        this.slowFillRequests[depositHash] ??= slowFillRequest;
       }
     }
 
@@ -677,7 +701,7 @@ export class SpokePoolClient extends BaseAbstractClient {
         } as FillWithBlock;
 
         assign(this.fills, [fill.originChainId], [fill]);
-        assign(this.depositHashesToFills, [this.getDepositHash(fill)], [fill]);
+        assign(this.depositHashesToFills, [getRelayEventKey(fill)], [fill]);
       }
     }
 
