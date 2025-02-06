@@ -11,7 +11,6 @@ import {
   spreadEvent,
   isMessageEmpty,
   fixedPointAdjustment,
-  toBytes32,
 } from "../src/utils";
 import {
   BigNumber,
@@ -452,7 +451,7 @@ describe("RelayFeeCalculator: Composable Bridging", function () {
       ...spreadFill.relayExecutionInfo,
       updatedOutputAmount: spreadFill.relayExecutionInfo.updatedOutputAmount.toString(),
     }).to.deep.eq({
-      updatedRecipient: toBytes32(testContract.address).toLowerCase(),
+      updatedRecipient: testContract.address,
       updatedMessageHash: ethers.utils.keccak256("0xabcdef"),
       updatedOutputAmount: "1",
       fillType: 0,
