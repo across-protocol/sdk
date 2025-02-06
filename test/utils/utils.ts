@@ -14,8 +14,8 @@ import {
   toBNWei,
   toWei,
   utf8ToHex,
-  toAddress,
   toBytes32,
+  toAddress,
 } from "../../src/utils";
 import {
   MAX_L1_TOKENS_PER_POOL_REBALANCE_LEAF,

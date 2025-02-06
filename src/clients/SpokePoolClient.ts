@@ -18,6 +18,7 @@ import {
   isSlowFill,
   isValidEvmAddress,
   isZeroAddress,
+  toAddress,
 } from "../utils";
 import {
   paginatedEventQuery,
@@ -272,7 +273,10 @@ export class SpokePoolClient extends BaseAbstractClient {
    */
   public appendMaxSpeedUpSignatureToDeposit(deposit: DepositWithBlock): DepositWithBlock {
     const { depositId, depositor } = deposit;
-    const speedups = this.speedUps[depositor]?.[depositId.toString()];
+
+    // Note: we know depositor cannot be more than 20 bytes since this is guaranteed by contracts.
+    const speedups = this.speedUps[toAddress(depositor)]?.[depositId.toString()];
+
     if (!isDefined(speedups) || speedups.length === 0) {
       return deposit;
     }
