@@ -903,26 +903,21 @@ export class SpokePoolClient extends BaseAbstractClient {
 
     const tStart = Date.now();
     // Check both V3FundsDeposited and FundsDeposited events to look for a specified depositId.
+    const fromBlock = searchBounds.low;
+    const toBlock = searchBounds.high;
+    const { maxBlockLookBack } = this.eventSearchConfig;
     const query = (
       await Promise.all([
         paginatedEventQuery(
           this.spokePool,
           this.spokePool.filters.V3FundsDeposited(null, null, null, null, null, depositId),
-          {
-            fromBlock: searchBounds.low,
-            toBlock: searchBounds.high,
-            maxBlockLookBack: this.eventSearchConfig.maxBlockLookBack,
-          }
+          { fromBlock, toBlock, maxBlockLookBack }
         ),
 
         paginatedEventQuery(
           this.spokePool,
           this.spokePool.filters.FundsDeposited(null, null, null, null, null, depositId),
-          {
-            fromBlock: searchBounds.low,
-            toBlock: searchBounds.high,
-            maxBlockLookBack: this.eventSearchConfig.maxBlockLookBack,
-          }
+          { fromBlock, toBlock, maxBlockLookBack }
         ),
       ])
     ).flat();
