@@ -118,9 +118,13 @@ export class SpokePoolClient extends BaseAbstractClient {
       "RelayedRootBundle",
       "ExecutedRelayerRefundRoot",
       "V3FundsDeposited",
+      "FundsDeposited",
       "RequestedSpeedUpV3Deposit",
+      "RequestedSpeedUpDeposit",
       "RequestedV3SlowFill",
+      "RequestedSlowFill",
       "FilledV3Relay",
+      "FilledRelay",
     ];
     return Object.fromEntries(
       this.spokePool.interface.fragments
