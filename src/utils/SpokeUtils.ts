@@ -1,7 +1,7 @@
 import assert from "assert";
 import { BytesLike, Contract, PopulatedTransaction, providers, utils as ethersUtils } from "ethers";
 import { CHAIN_IDs, MAX_SAFE_DEPOSIT_ID, ZERO_ADDRESS, ZERO_BYTES } from "../constants";
-import { Deposit, Fill, FillStatus, FillWithBlock, RelayData, SlowFillRequest } from "../interfaces";
+import { Deposit, FillStatus, FillWithBlock, RelayData } from "../interfaces";
 import { SpokePoolClient } from "../clients";
 import { chunk } from "./ArrayUtils";
 import { BigNumber, toBN, bnOne, bnZero } from "./BigNumberUtils";
@@ -64,7 +64,9 @@ export function populateV3Relay(
  * is required to compute a complete RelayData hash.
  * note: This function should _not_ be used to query the SpokePool.fillStatuses mapping.
  */
-export function getRelayEventKey(data: RelayData & { messageHash: string; destinationChainId: number }): string {
+export function getRelayEventKey(
+  data: Omit<RelayData, "message"> & { messageHash: string; destinationChainId: number }
+): string {
   return [
     data.depositor,
     data.recipient,
@@ -284,7 +286,7 @@ export function getRelayDataHash(relayData: RelayData, destinationChainId: numbe
   );
 }
 
-export function getRelayHashFromEvent(e: Deposit | Fill | SlowFillRequest): string {
+export function getRelayHashFromEvent(e: RelayData & { destinationChainId: number }): string {
   return getRelayDataHash(e, e.destinationChainId);
 }
 
