@@ -261,7 +261,7 @@ export async function addLiquidity(
   await hubPool.connect(signer).addLiquidity(l1Token.address, amount);
 }
 
-export async function deposit(
+export function deposit(
   spokePool: Contract,
   destinationChainId: number,
   signer: SignerWithAddress,
@@ -279,22 +279,13 @@ export async function deposit(
     exclusiveRelayer?: string;
   } = {}
 ): Promise<DepositWithBlock> {
-  return _deposit(
-    spokePool,
-    destinationChainId,
-    signer,
-    inputToken,
-    inputAmount,
-    outputToken,
-    outputAmount,
-    {
-      ...opts,
-      addressModifier: toBytes32
-    }
-  );
+  return _deposit(spokePool, destinationChainId, signer, inputToken, inputAmount, outputToken, outputAmount, {
+    ...opts,
+    addressModifier: toBytes32,
+  });
 }
 
-export async function depositV3(
+export function depositV3(
   spokePool: Contract,
   destinationChainId: number,
   signer: SignerWithAddress,
@@ -312,19 +303,10 @@ export async function depositV3(
     exclusiveRelayer?: string;
   } = {}
 ): Promise<DepositWithBlock> {
-  return _deposit(
-    spokePool,
-    destinationChainId,
-    signer,
-    inputToken,
-    inputAmount,
-    outputToken,
-    outputAmount,
-    {
-      ...opts,
-      addressModifier: toAddress,
-    }
-  );
+  return _deposit(spokePool, destinationChainId, signer, inputToken, inputAmount, outputToken, outputAmount, {
+    ...opts,
+    addressModifier: toAddress,
+  });
 }
 
 async function _deposit(
@@ -343,7 +325,7 @@ async function _deposit(
     fillDeadline?: number;
     exclusivityDeadline?: number;
     exclusiveRelayer?: string;
-    addressModifier?: (address: string) => string,
+    addressModifier?: (address: string) => string;
   } = {}
 ): Promise<DepositWithBlock> {
   const addressModifier = opts.addressModifier ?? toBytes32;

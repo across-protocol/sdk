@@ -11,7 +11,6 @@ import {
   queryHistoricalDepositForFill,
   DepositSearchResult,
   getBlockRangeForDepositId,
-  toBytes32,
 } from "../src/utils";
 import { ZERO_BYTES } from "../src/constants";
 import { CHAIN_ID_TEST_LIST, originChainId, destinationChainId, repaymentChainId } from "./constants";
