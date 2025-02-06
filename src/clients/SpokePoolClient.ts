@@ -912,7 +912,6 @@ export class SpokePoolClient extends BaseAbstractClient {
           this.spokePool.filters.V3FundsDeposited(null, null, null, null, null, depositId),
           { fromBlock, toBlock, maxBlockLookBack }
         ),
-
         paginatedEventQuery(
           this.spokePool,
           this.spokePool.filters.FundsDeposited(null, null, null, null, null, depositId),
