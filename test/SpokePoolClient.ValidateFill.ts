@@ -161,8 +161,6 @@ describe("SpokePoolClient: Fill Validation", function () {
         expect(typeof fill[field]).to.equal("number");
         val = fill[field] + 1;
       }
-      // Remap the messageHash field to message for the deposit.
-      field = field === "messageHash" ? "message" : field;
 
       const result = validateFillForDeposit(fill, { ...deposit_2, [field]: val });
       expect(result.valid).to.be.false;
