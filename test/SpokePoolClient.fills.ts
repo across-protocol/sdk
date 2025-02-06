@@ -1,7 +1,7 @@
 import hre from "hardhat";
 import { SpokePoolClient } from "../src/clients";
 import { Deposit } from "../src/interfaces";
-import { bnOne, bnZero, findFillBlock, findFillEvent, getNetworkName } from "../src/utils";
+import { bnOne, bnZero, findFillBlock, findFillEvent, getMessageHash, getNetworkName, toBytes32 } from "../src/utils";
 import { EMPTY_MESSAGE, ZERO_ADDRESS } from "../src/constants";
 import { originChainId, destinationChainId } from "./constants";
 import {
@@ -47,6 +47,8 @@ describe("SpokePoolClient: Fills", function () {
 
     const spokePoolTime = Number(await spokePool.getCurrentTime());
     const outputAmount = toBNWei(1);
+
+    const message = EMPTY_MESSAGE;
     deposit = {
       depositId: bnZero,
       originChainId,
@@ -58,7 +60,8 @@ describe("SpokePoolClient: Fills", function () {
       outputToken: destErc20.address,
       outputAmount: toBNWei("1"),
       quoteTimestamp: spokePoolTime - 60,
-      message: EMPTY_MESSAGE,
+      message,
+      messageHash: getMessageHash(message),
       fillDeadline: spokePoolTime + 600,
       exclusivityDeadline: 0,
       exclusiveRelayer: ZERO_ADDRESS,
@@ -88,8 +91,8 @@ describe("SpokePoolClient: Fills", function () {
 
     expect(spokePoolClient.getFillsForOriginChain(originChainId).length).to.equal(3);
     expect(spokePoolClient.getFillsForOriginChain(originChainId2).length).to.equal(1);
-    expect(spokePoolClient.getFillsForRelayer(toBytes32(relayer1.address)).length).to.equal(3);
-    expect(spokePoolClient.getFillsForRelayer(toBytes32(relayer2.address)).length).to.equal(1);
+    expect(spokePoolClient.getFillsForRelayer(relayer1.address).length).to.equal(3);
+    expect(spokePoolClient.getFillsForRelayer(relayer2.address).length).to.equal(1);
   });
 
   it("Correctly locates the block number for a FilledV3Relay event", async function () {
@@ -123,9 +126,11 @@ describe("SpokePoolClient: Fills", function () {
     await fillV3Relay(spokePool, { ...deposit, depositId: deposit.depositId.add(2) }, relayer1);
     await hre.network.provider.send("evm_mine");
 
-    const fill = await findFillEvent(spokePool, targetDeposit, startBlock);
+    let fill = await findFillEvent(spokePool, targetDeposit, startBlock);
     expect(fill).to.not.be.undefined;
-    expect(fill!.depositId).to.equal(targetDeposit.depositId);
+    fill = fill!;
+
+    expect(fill.depositId).to.equal(targetDeposit.depositId);
 
     // Looking for a fill can return undefined:
     const missingFill = await findFillEvent(spokePool, { ...deposit, depositId: deposit.depositId.add(3) }, startBlock);
