@@ -17,7 +17,6 @@ import {
   getUpdatedV3DepositSignature,
   setupTokensForWallet,
 } from "./utils";
-import assert from "assert";
 
 describe("SpokePoolClient: SpeedUp", function () {
   const ignoredFields = [
@@ -176,7 +175,7 @@ describe("SpokePoolClient: SpeedUp", function () {
       let updatedDeposit = spokePoolClient.getDepositsForDestinationChain(deposit.destinationChainId).at(-1);
 
       // Convoluted checks to help tsc narrow types.
-      assert.exists(updatedDeposit);
+      expect(updatedDeposit).to.exist;
       updatedDeposit = updatedDeposit!;
 
       if (lowestOutputAmount.eq(deposit.outputAmount)) {
@@ -217,11 +216,11 @@ describe("SpokePoolClient: SpeedUp", function () {
       const testOriginChainId = field !== "originChainId" ? originChainId : originChainId + 1;
       const testDepositId = field !== "depositId" ? depositId : depositId.add(1);
       const testDepositor = field !== "depositor" ? depositor : (await ethers.getSigners())[0];
-      assert.isTrue(field !== "depositor" || testDepositor.address !== depositor.address); // Sanity check
+      expect(field !== "depositor" || testDepositor.address !== depositor.address).to.be.true; // Sanity check
 
       const signature = await getUpdatedV3DepositSignature(
         testDepositor,
-        testDepositId.toNumber(),
+        testDepositId,
         testOriginChainId,
         updatedOutputAmount,
         updatedRecipient,
