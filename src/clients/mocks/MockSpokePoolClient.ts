@@ -283,7 +283,6 @@ export class MockSpokePoolClient extends SpokePoolClient {
     const topics = [speedUp.depositId, depositor];
     const args = { ...speedUp };
 
-
     return this.eventManager.generateEvent({
       event,
       address: this.spokePool.address,
