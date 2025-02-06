@@ -601,12 +601,17 @@ export class SpokePoolClient extends BaseAbstractClient {
       }
     }
 
-    if (eventsToQuery.includes("V3FundsDeposited")) {
-      const depositEvents = queryResults[eventsToQuery.indexOf("V3FundsDeposited")] ?? [];
+    // Performs the indexing of a deposit-like spoke pool event.
+    const queryDepositEvents = async (eventName: string) => {
+      const depositEvents = queryResults[eventsToQuery.indexOf(eventName)] ?? [];
       if (depositEvents.length > 0) {
-        this.log("debug", `Using ${depositEvents.length} newly queried deposit events for chain ${this.chainId}`, {
-          earliestEvent: depositEvents[0].blockNumber,
-        });
+        this.log(
+          "debug",
+          `Using ${depositEvents.length} newly queried ${eventName} deposit events for chain ${this.chainId}`,
+          {
+            earliestEvent: depositEvents[0].blockNumber,
+          }
+        );
       }
 
       // For each deposit, resolve its quoteTimestamp to a block number on the HubPool.
@@ -620,7 +625,7 @@ export class SpokePoolClient extends BaseAbstractClient {
         // Derive and append the common properties that are not part of the onchain event.
         const deposit = {
           ...spreadEventWithBlockNumber(event),
-          messageHash: getMessageHash(event.args["message"]),
+          messageHash: getMessageHash(event.args.message),
           quoteBlockNumber,
           originChainId: this.chainId,
           // The following properties are placeholders to be updated immediately.
@@ -648,11 +653,18 @@ export class SpokePoolClient extends BaseAbstractClient {
           this.latestDepositIdQueried = deposit.depositId;
         }
       }
+    };
+
+    // Query "legacy" V3FundsDeposited events.
+    for (const event of ["V3FundsDeposited", "FundsDeposited"]) {
+      if (eventsToQuery.includes(event)) {
+        await queryDepositEvents(event);
+      }
     }
 
-    // Update deposits with speed up requests from depositor.
-    if (eventsToQuery.includes("RequestedSpeedUpV3Deposit")) {
-      const speedUpEvents = queryResults[eventsToQuery.indexOf("RequestedSpeedUpV3Deposit")] ?? [];
+    // Performs indexing of a "speed up deposit"-like event.
+    const querySpeedUpDepositEvents = (eventName: string) => {
+      const speedUpEvents = queryResults[eventsToQuery.indexOf(eventName)] ?? [];
 
       for (const event of speedUpEvents) {
         const speedUp = { ...spreadEventWithBlockNumber(event), originChainId: this.chainId } as SpeedUpWithBlock;
@@ -669,27 +681,45 @@ export class SpokePoolClient extends BaseAbstractClient {
           this.depositHashes[eventKey] = this.appendMaxSpeedUpSignatureToDeposit(deposit);
         }
       }
-    }
+    };
 
-    if (eventsToQuery.includes("RequestedV3SlowFill")) {
-      const slowFillRequests = queryResults[eventsToQuery.indexOf("RequestedV3SlowFill")];
+    // Update deposits with speed up requests from depositor.
+    ["RequestedSpeedUpV3Deposit", "RequestedSpeedUpDeposit"].forEach((event) => {
+      if (eventsToQuery.includes(event)) {
+        querySpeedUpDepositEvents(event);
+      }
+    });
+
+    // Performs indexing of "requested slow fill"-like events.
+    const queryRequestedSlowFillEvents = (eventName: string) => {
+      const slowFillRequests = queryResults[eventsToQuery.indexOf(eventName)];
       for (const event of slowFillRequests) {
         const slowFillRequest = {
           ...spreadEventWithBlockNumber(event),
-          messageHash: getMessageHash(event.args["message"]),
           destinationChainId: this.chainId,
         } as SlowFillRequestWithBlock;
+
+        if (eventName === "RequestedV3SlowFill") {
+          slowFillRequest.messageHash = getMessageHash(slowFillRequest.message);
+        }
 
         const depositHash = getRelayEventKey({ ...slowFillRequest, destinationChainId: this.chainId });
         this.slowFillRequests[depositHash] ??= slowFillRequest;
       }
-    }
+    };
 
-    if (eventsToQuery.includes("FilledV3Relay")) {
-      const fillEvents = queryResults[eventsToQuery.indexOf("FilledV3Relay")] ?? [];
+    ["RequestedV3SlowFill", "RequestedSlowFill"].forEach((event) => {
+      if (eventsToQuery.includes(event)) {
+        queryRequestedSlowFillEvents(event);
+      }
+    });
+
+    // Performs indexing of filled relay-like events.
+    const queryFilledRelayEvents = (eventName: string) => {
+      const fillEvents = queryResults[eventsToQuery.indexOf(eventName)] ?? [];
 
       if (fillEvents.length > 0) {
-        this.log("debug", `Using ${fillEvents.length} newly queried fill events for chain ${this.chainId}`, {
+        this.log("debug", `Using ${fillEvents.length} newly queried ${eventName} events for chain ${this.chainId}`, {
           earliestEvent: fillEvents[0].blockNumber,
         });
       }
@@ -699,14 +729,25 @@ export class SpokePoolClient extends BaseAbstractClient {
       for (const event of fillEvents) {
         const fill = {
           ...spreadEventWithBlockNumber(event),
-          messageHash: getMessageHash(event.args["message"]),
           destinationChainId: this.chainId,
         } as FillWithBlock;
+
+        if (eventName === "FilledV3Relay") {
+          fill.messageHash = getMessageHash(fill.message);
+          fill.relayExecutionInfo.updatedMessageHash = getMessageHash(fill.relayExecutionInfo.updatedMessage);
+        }
 
         assign(this.fills, [fill.originChainId], [fill]);
         assign(this.depositHashesToFills, [getRelayEventKey(fill)], [fill]);
       }
-    }
+    };
+
+    // Update observed fills with ingested event data.
+    ["FilledV3Relay", "FilledRelay"].forEach((event) => {
+      if (eventsToQuery.includes(event)) {
+        queryFilledRelayEvents(event);
+      }
+    });
 
     if (eventsToQuery.includes("EnabledDepositRoute")) {
       const enableDepositsEvents = queryResults[eventsToQuery.indexOf("EnabledDepositRoute")];

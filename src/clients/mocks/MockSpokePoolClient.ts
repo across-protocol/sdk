@@ -26,6 +26,8 @@ import {
   bnZero,
   bnMax,
   bnOne,
+  toAddress,
+  toBytes32,
 } from "../../utils";
 import { SpokePoolClient, SpokePoolUpdate } from "../SpokePoolClient";
 import { HubPoolClient } from "../HubPoolClient";
@@ -128,18 +130,28 @@ export class MockSpokePoolClient extends SpokePoolClient {
     EnabledDepositRoute: "address,uint256,bool",
   };
 
-  depositV3(deposit: Omit<Deposit, "messageHash"> & Partial<SortableEvent>): Log {
-    const event = "V3FundsDeposited";
+  deposit(deposit: Omit<Deposit, "messageHash"> & Partial<SortableEvent>): Log {
+    return this._deposit("FundsDeposited", deposit);
+  }
 
+  depositV3(deposit: Omit<Deposit, "messageHash"> & Partial<SortableEvent>): Log {
+    return this._deposit("V3FundsDeposited", deposit);
+  }
+
+  protected _deposit(event: string, deposit: Omit<Deposit, "messageHash"> & Partial<SortableEvent>): Log {
     const { blockNumber, transactionIndex } = deposit;
-    let { depositId, depositor, destinationChainId, inputToken, inputAmount, outputToken, outputAmount } = deposit;
+    let { depositId, destinationChainId, inputAmount, outputAmount } = deposit;
     depositId ??= this.numberOfDeposits;
     this.numberOfDeposits = depositId.add(bnOne);
 
     destinationChainId ??= random(1, 42161, false);
-    depositor ??= randomAddress();
-    inputToken ??= randomAddress();
-    outputToken ??= inputToken;
+    const addressModifier = event === "FundsDeposited" ? toBytes32 : toAddress;
+    const depositor = addressModifier(deposit.depositor ?? randomAddress());
+    const recipient = addressModifier(deposit.recipient ?? depositor);
+    const inputToken = addressModifier(deposit.inputToken ?? randomAddress());
+    const outputToken = addressModifier(deposit.outputToken ?? inputToken);
+    const exclusiveRelayer = addressModifier(deposit.exclusiveRelayer ?? ZERO_ADDRESS);
+
     inputAmount ??= toBNWei(random(1, 1000, false));
     outputAmount ??= inputAmount.mul(toBN("0.95"));
 
@@ -151,14 +163,14 @@ export class MockSpokePoolClient extends SpokePoolClient {
       originChainId: deposit.originChainId ?? this.chainId,
       destinationChainId,
       depositor,
-      recipient: deposit.recipient ?? depositor,
+      recipient,
       inputToken,
       inputAmount,
       outputToken,
       outputAmount,
       quoteTimestamp,
       fillDeadline: deposit.fillDeadline ?? quoteTimestamp + 3600,
-      exclusiveRelayer: deposit.exclusiveRelayer ?? ZERO_ADDRESS,
+      exclusiveRelayer,
       exclusivityDeadline: deposit.exclusivityDeadline ?? quoteTimestamp + 600,
       message,
     };
@@ -174,26 +186,45 @@ export class MockSpokePoolClient extends SpokePoolClient {
   }
 
   fillV3Relay(fill: Omit<Fill, "messageHash"> & { message: string } & Partial<SortableEvent>): Log {
-    const event = "FilledV3Relay";
+    return this._fillRelay("FilledV3Relay", fill);
+  }
 
+  fillRelay(fill: Omit<Fill, "messageHash"> & { message: string } & Partial<SortableEvent>): Log {
+    return this._fillRelay("FilledRelay", fill);
+  }
+
+  protected _fillRelay(
+    event: string,
+    fill: Omit<Fill, "messageHash"> & { message: string } & Partial<SortableEvent>
+  ): Log {
     const { blockNumber, transactionIndex } = fill;
-    let { originChainId, depositId, inputToken, inputAmount, outputAmount, fillDeadline, relayer } = fill;
+    let { originChainId, depositId, inputAmount, outputAmount, fillDeadline } = fill;
     originChainId ??= random(1, 42161, false);
     depositId ??= BigNumber.from(random(1, 100_000, false));
-    inputToken ??= randomAddress();
     inputAmount ??= toBNWei(random(1, 1000, false));
     outputAmount ??= inputAmount;
     fillDeadline ??= getCurrentTime() + 60;
-    relayer ??= randomAddress();
 
-    const topics = [originChainId, depositId, relayer];
-    const recipient = fill.recipient ?? randomAddress();
+    const addressModifier = event === "FilledRelay" ? toBytes32 : toAddress;
+    const depositor = addressModifier(fill.depositor ?? randomAddress());
+    const recipient = addressModifier(fill.recipient ?? depositor);
+    const inputToken = addressModifier(fill.inputToken ?? randomAddress());
+    const outputToken = addressModifier(fill.outputToken ?? ZERO_ADDRESS);
+    const exclusiveRelayer = addressModifier(fill.exclusiveRelayer ?? ZERO_ADDRESS);
+    const relayer = addressModifier(fill.relayer ?? randomAddress());
+
+    const topics = [originChainId, depositId, relayer]; // @todo verify
     const message = fill["message"] ?? "0x";
-    const updatedMessage = fill.relayExecutionInfo?.updatedMessage ?? message;
 
-    const args = {
+    const relayExecutionInfo = {
+      updatedRecipient: fill.relayExecutionInfo?.updatedRecipient ?? recipient,
+      updatedOutputAmount: fill.relayExecutionInfo?.updatedOutputAmount ?? outputAmount,
+      fillType: fill.relayExecutionInfo?.fillType ?? FillType.FastFill,
+    };
+
+    const _args = {
       inputToken,
-      outputToken: fill.outputToken ?? ZERO_ADDRESS, // resolved via HubPoolClient.
+      outputToken,
       inputAmount: fill.inputAmount,
       outputAmount: fill.outputAmount,
       repaymentChainId: fill.repaymentChainId ?? this.chainId,
@@ -201,19 +232,32 @@ export class MockSpokePoolClient extends SpokePoolClient {
       depositId,
       fillDeadline,
       exclusivityDeadline: fill.exclusivityDeadline ?? fillDeadline,
-      exclusiveRelayer: fill.exclusiveRelayer ?? ZERO_ADDRESS,
+      exclusiveRelayer,
       relayer,
-      depositor: fill.depositor ?? randomAddress(),
+      depositor,
       recipient,
-      message,
-      relayExecutionInfo: {
-        updatedRecipient: fill.relayExecutionInfo?.updatedRecipient ?? recipient,
-        updatedMessage,
-        updatedMessageHash: getMessageHash(updatedMessage),
-        updatedOutputAmount: fill.relayExecutionInfo?.updatedOutputAmount ?? outputAmount,
-        fillType: fill.relayExecutionInfo?.fillType ?? FillType.FastFill,
-      },
+      relayExecutionInfo,
     };
+
+    const args =
+      event === "FilledRelay"
+        ? {
+            ..._args,
+            messageHash: getMessageHash(message),
+            relayExecutionInfo: {
+              ...relayExecutionInfo,
+              updatedMessageHash: fill.relayExecutionInfo.updatedMessageHash ?? getMessageHash(fill.message),
+            },
+          }
+        : {
+            // FilledV3Relay
+            ..._args,
+            message,
+            relayExecutionInfo: {
+              ...relayExecutionInfo,
+              updatedMessage: fill.relayExecutionInfo?.updatedMessage ?? message,
+            },
+          };
 
     return this.eventManager.generateEvent({
       event,
@@ -226,15 +270,29 @@ export class MockSpokePoolClient extends SpokePoolClient {
   }
 
   speedUpV3Deposit(speedUp: SpeedUp): Log {
-    const event = "RequestedSpeedUpV3Deposit";
-    const topics = [speedUp.depositId, speedUp.depositor];
+    return this._speedUpDeposit("RequestedSpeedUpV3Deposit", speedUp);
+  }
+
+  speedUpDeposit(speedUp: SpeedUp): Log {
+    return this._speedUpDeposit("RequestedSpeedUpDeposit", speedUp);
+  }
+
+  protected _speedUpDeposit(event: string, speedUp: SpeedUp): Log {
+    const addressModifier = event === "RequestedSpeedUpDeposit" ? toBytes32 : toAddress;
+    const depositor = addressModifier(speedUp.depositor);
+    const topics = [speedUp.depositId, depositor];
     const args = { ...speedUp };
+
 
     return this.eventManager.generateEvent({
       event,
       address: this.spokePool.address,
       topics: topics.map((topic) => topic.toString()),
-      args,
+      args: {
+        ...args,
+        depositor,
+        updatedRecipient: addressModifier(speedUp.updatedRecipient),
+      },
     });
   }
 
@@ -252,17 +310,33 @@ export class MockSpokePoolClient extends SpokePoolClient {
   }
 
   requestV3SlowFill(request: Omit<SlowFillRequest, "messageHash"> & Partial<SortableEvent>): Log {
-    const event = "RequestedV3SlowFill";
+    return this._requestSlowFill("RequestedV3SlowFill", request);
+  }
 
+  requestSlowFill(request: Omit<SlowFillRequest, "messageHash"> & Partial<SortableEvent>): Log {
+    return this._requestSlowFill("RequestedSlowFill", request);
+  }
+
+  protected _requestSlowFill(event: string, request: Omit<SlowFillRequest, "messageHash"> & Partial<SortableEvent>): Log {
     const { originChainId, depositId } = request;
     const topics = [originChainId, depositId];
     const args = { ...request };
+
+    const addressModifier = event === "RequestedSlowFill" ? toBytes32 : toAddress;
+    const depositor = addressModifier(args.depositor ?? randomAddress());
 
     return this.eventManager.generateEvent({
       event,
       address: this.spokePool.address,
       topics: topics.map((topic) => topic.toString()),
-      args,
+      args: {
+        ...args,
+        depositor,
+        recipient: addressModifier(args.recipient ?? depositor),
+        inputToken: addressModifier(args.inputToken ?? randomAddress()),
+        outputToken: addressModifier(args.outputToken ?? ZERO_ADDRESS),
+        exclusiveRelayer: addressModifier(args.exclusiveRelayer ?? ZERO_ADDRESS),
+      },
       blockNumber: request.blockNumber,
       transactionIndex: request.transactionIndex,
     });
