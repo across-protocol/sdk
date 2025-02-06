@@ -151,7 +151,7 @@ describe("SpokePoolClient: Fill Validation", function () {
 
     // For each RelayData field, toggle the value to produce an invalid fill. Verify that it's rejected.
     const fields = Object.keys(fill).filter((field) => !ignoredFields.includes(field));
-    for (let field of fields) {
+    for (const field of fields) {
       let val: BigNumber | string | number;
       if (BigNumber.isBigNumber(fill[field])) {
         val = fill[field].add(bnOne);
