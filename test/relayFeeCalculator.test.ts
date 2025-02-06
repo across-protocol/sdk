@@ -8,6 +8,7 @@ import {
   TransactionCostEstimate,
   bnOne,
   getCurrentTime,
+  getMessageHash,
   spreadEvent,
   isMessageEmpty,
   fixedPointAdjustment,
