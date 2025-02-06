@@ -399,7 +399,7 @@ export class BundleDataClient {
           this.clients.hubPoolClient,
           blockRanges,
           this.chainIdListForBundleEvaluationBlockNumbers,
-          matchingDeposit!.fromLiteChain // Use ! because we've already asserted that matchingDeposit is defined.
+          matchingDeposit.fromLiteChain
         );
         // Assume that lp fees are 0 for the sake of speed. In the future we could batch compute
         // these or make hardcoded assumptions based on the origin-repayment chain direction. This might result
@@ -862,16 +862,21 @@ export class BundleDataClient {
               slowFillRequest: undefined,
             };
           } else {
-            v3RelayHashes[relayDataHash].deposits!.push(deposit);
+            assert(isDefined(v3RelayHashes[relayDataHash].deposits), "Deposit should exist in relay hash dictionary.");
+            v3RelayHashes[relayDataHash].deposits.push(deposit);
           }
 
           // Account for duplicate deposits by concatenating the relayDataHash with the count of the number of times
           // we have seen it so far.
-          const newBundleDepositHash = `${relayDataHash}@${v3RelayHashes[relayDataHash].deposits!.length - 1}`;
+          assert(
+            isDefined(v3RelayHashes[relayDataHash].deposits) && v3RelayHashes[relayDataHash].deposits.length > 0,
+            "Deposit should exist in relay hash dictionary."
+          );
+          const newBundleDepositHash = `${relayDataHash}@${v3RelayHashes[relayDataHash].deposits.length - 1}`;
           const decodedBundleDepositHash = decodeBundleDepositHash(newBundleDepositHash);
           assert(
             decodedBundleDepositHash.relayDataHash === relayDataHash &&
-              decodedBundleDepositHash.index === v3RelayHashes[relayDataHash].deposits!.length - 1,
+              decodedBundleDepositHash.index === v3RelayHashes[relayDataHash].deposits.length - 1,
             "Not using correct bundle deposit hash key"
           );
           if (deposit.blockNumber >= originChainBlockRange[0]) {
@@ -934,7 +939,7 @@ export class BundleDataClient {
             if (v3RelayHashes[relayDataHash]) {
               if (!v3RelayHashes[relayDataHash].fill) {
                 assert(
-                  isDefined(v3RelayHashes[relayDataHash].deposits) && v3RelayHashes[relayDataHash].deposits!.length > 0,
+                  isDefined(v3RelayHashes[relayDataHash].deposits) && v3RelayHashes[relayDataHash].deposits.length > 0,
                   "Deposit should exist in relay hash dictionary."
                 );
                 v3RelayHashes[relayDataHash].fill = fill;
@@ -942,7 +947,7 @@ export class BundleDataClient {
                   const fillToRefund = await verifyFillRepayment(
                     fill,
                     destinationClient.spokePool.provider,
-                    v3RelayHashes[relayDataHash].deposits![0],
+                    v3RelayHashes[relayDataHash].deposits[0],
                     this.clients.hubPoolClient
                   );
                   if (!isDefined(fillToRefund)) {
@@ -953,7 +958,7 @@ export class BundleDataClient {
                     v3RelayHashes[relayDataHash].fill = fillToRefund;
                     validatedBundleV3Fills.push({
                       ...fillToRefund,
-                      quoteTimestamp: v3RelayHashes[relayDataHash].deposits![0].quoteTimestamp,
+                      quoteTimestamp: v3RelayHashes[relayDataHash].deposits[0].quoteTimestamp,
                     });
 
                     // Now that we know this deposit has been filled on-chain, identify any duplicate deposits
@@ -964,7 +969,7 @@ export class BundleDataClient {
                     // fill is from a prior bundle. Paying out the filler keeps the behavior consistent for how
                     // we deal with duplicate deposits regardless if the deposit is matched with a pre-fill or
                     // a current bundle fill.
-                    const duplicateDeposits = v3RelayHashes[relayDataHash].deposits!.slice(1);
+                    const duplicateDeposits = v3RelayHashes[relayDataHash].deposits.slice(1);
                     duplicateDeposits.forEach((duplicateDeposit) => {
                       if (isSlowFill(fill)) {
                         updateExpiredDepositsV3(expiredDepositsToRefundV3, duplicateDeposit);
@@ -982,7 +987,7 @@ export class BundleDataClient {
                   // events.
                   if (
                     fill.relayExecutionInfo.fillType === FillType.ReplacedSlowFill &&
-                    _canCreateSlowFillLeaf(v3RelayHashes[relayDataHash].deposits![0])
+                    _canCreateSlowFillLeaf(v3RelayHashes[relayDataHash].deposits[0])
                   ) {
                     fastFillsReplacingSlowFills.push(relayDataHash);
                   }
@@ -1098,10 +1103,10 @@ export class BundleDataClient {
                   return;
                 }
                 assert(
-                  isDefined(v3RelayHashes[relayDataHash].deposits) && v3RelayHashes[relayDataHash].deposits!.length > 0,
+                  isDefined(v3RelayHashes[relayDataHash].deposits) && v3RelayHashes[relayDataHash].deposits.length > 0,
                   "Deposit should exist in relay hash dictionary."
                 );
-                const matchedDeposit = v3RelayHashes[relayDataHash].deposits![0];
+                const matchedDeposit = v3RelayHashes[relayDataHash].deposits[0];
 
                 if (
                   slowFillRequest.blockNumber >= destinationChainBlockRange[0] &&
@@ -1191,11 +1196,9 @@ export class BundleDataClient {
         await mapAsync(bundleDepositHashes, async (depositHash) => {
           const { relayDataHash, index } = decodeBundleDepositHash(depositHash);
           const { deposits, fill, slowFillRequest } = v3RelayHashes[relayDataHash];
-          if (!deposits || deposits.length === 0) {
-            throw new Error("Deposits should exist in relay hash dictionary.");
-          }
+          assert(isDefined(deposits) && deposits.length > 0, "Deposit should exist in relay hash dictionary.");
           const deposit = deposits[index];
-          if (!deposit) throw new Error("Deposit should exist in relay hash dictionary.");
+          assert(isDefined(deposit), "Deposit should exist in relay hash dictionary.");
           if (deposit.originChainId !== originChainId || deposit.destinationChainId !== destinationChainId) {
             return;
           }
@@ -1207,7 +1210,7 @@ export class BundleDataClient {
               const fillToRefund = await verifyFillRepayment(
                 fill,
                 destinationClient.spokePool.provider,
-                v3RelayHashes[relayDataHash].deposits![0],
+                deposits[0],
                 this.clients.hubPoolClient
               );
               if (!isDefined(fillToRefund)) {
@@ -1256,19 +1259,19 @@ export class BundleDataClient {
             // then we wouldn't be in this branch of the code.
             const prefill = await this.findMatchingFillEvent(deposit, destinationClient);
             assert(isDefined(prefill), `findFillEvent# Cannot find prefill: ${relayDataHash}`);
-            assert(getRelayEventKey(prefill!) === relayDataHash, "Relay hashes should match.");
+            assert(getRelayEventKey(prefill) === relayDataHash, "Relay hashes should match.");
             if (canRefundPrefills) {
               const verifiedFill = await verifyFillRepayment(
-                prefill!,
+                prefill,
                 destinationClient.spokePool.provider,
                 deposit,
                 this.clients.hubPoolClient
               );
               if (!isDefined(verifiedFill)) {
-                bundleUnrepayableFillsV3.push(prefill!);
+                bundleUnrepayableFillsV3.push(prefill);
               } else if (!isSlowFill(verifiedFill)) {
                 validatedBundleV3Fills.push({
-                  ...verifiedFill!,
+                  ...verifiedFill,
                   quoteTimestamp: deposit.quoteTimestamp,
                 });
               } else {
@@ -1383,14 +1386,19 @@ export class BundleDataClient {
       validatedBundleV3Fills.length > 0
         ? this.clients.hubPoolClient.batchComputeRealizedLpFeePct(
             validatedBundleV3Fills.map((fill) => {
-              const matchedDeposit = v3RelayHashes[getRelayEventKey(fill)].deposits![0];
+              const relayKey = getRelayEventKey(fill);
+              assert(
+                isDefined(v3RelayHashes[relayKey].deposits) && v3RelayHashes[relayKey].deposits.length > 0,
+                "Deposit should exist in relay hash dictionary."
+              );
+              const matchedDeposit = v3RelayHashes[relayKey].deposits[0];
               assert(isDefined(matchedDeposit), "Deposit should exist in relay hash dictionary.");
               const { chainToSendRefundTo: paymentChainId } = getRefundInformationFromFill(
                 fill,
                 this.clients.hubPoolClient,
                 blockRangesForChains,
                 chainIds,
-                matchedDeposit!.fromLiteChain
+                matchedDeposit.fromLiteChain
               );
               return {
                 ...fill,
@@ -1427,14 +1435,17 @@ export class BundleDataClient {
     });
     v3FillLpFees.forEach(({ realizedLpFeePct }, idx) => {
       const fill = validatedBundleV3Fills[idx];
-      const associatedDeposit = v3RelayHashes[getRelayEventKey(fill)].deposits![0];
+      const relayKey = getRelayEventKey(fill);
+      const { deposits } = v3RelayHashes[relayKey];
+      assert(isDefined(deposits) && deposits.length > 0, "Deposits should exist in relay hash dictionary.");
+      const associatedDeposit = deposits[0];
       assert(isDefined(associatedDeposit), "Deposit should exist in relay hash dictionary.");
       const { chainToSendRefundTo, repaymentToken } = getRefundInformationFromFill(
         fill,
         this.clients.hubPoolClient,
         blockRangesForChains,
         chainIds,
-        associatedDeposit!.fromLiteChain
+        associatedDeposit.fromLiteChain
       );
       updateBundleFillsV3(bundleFillsV3, fill, realizedLpFeePct, chainToSendRefundTo, repaymentToken, fill.relayer);
     });
