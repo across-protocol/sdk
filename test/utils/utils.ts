@@ -295,14 +295,14 @@ export async function depositV3(
   await spokePool
     .connect(signer)
     .depositV3(
-      toBytes32(depositor),
-      toBytes32(recipient),
-      toBytes32(inputToken),
-      toBytes32(outputToken),
+      toAddress(depositor),
+      toAddress(recipient),
+      toAddress(inputToken),
+      toAddress(outputToken),
       inputAmount,
       outputAmount,
       destinationChainId,
-      toBytes32(exclusiveRelayer),
+      toAddress(exclusiveRelayer),
       quoteTimestamp,
       fillDeadline,
       exclusivityDeadline,
