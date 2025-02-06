@@ -46,7 +46,7 @@ import { getBlockRangeForDepositId, getDepositIdAtBlock, relayFillStatus } from 
 import { BaseAbstractClient, isUpdateFailureReason, UpdateFailureReason } from "./BaseAbstractClient";
 import { HubPoolClient } from "./HubPoolClient";
 import { AcrossConfigStoreClient } from "./AcrossConfigStoreClient";
-import { getRepaymentChainId, overwriteRepaymentChain, willOverwriteRepaymentChain } from "./BundleDataClient/utils/FillUtils";
+import { getRepaymentChainId, willOverwriteRepaymentChain } from "./BundleDataClient/utils/FillUtils";
 
 type SpokePoolUpdateSuccess = {
   success: true;
