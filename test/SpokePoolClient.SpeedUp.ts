@@ -65,7 +65,6 @@ describe("SpokePoolClient: SpeedUp", function () {
       outputToken,
       outputAmount
     );
-
     await spokePoolClient.update();
 
     // Should return the normal deposit object before any update is applied.
@@ -106,7 +105,6 @@ describe("SpokePoolClient: SpeedUp", function () {
       updatedRecipient,
     };
     const updatedDeposit = spokePoolClient.appendMaxSpeedUpSignatureToDeposit(deposit);
-
     expect(deepEqualsWithBigNumber(updatedDeposit, expectedDepositData)).to.be.true;
 
     // Fetching deposits for the depositor should contain the correct fees.

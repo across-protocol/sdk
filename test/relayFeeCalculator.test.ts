@@ -452,7 +452,7 @@ describe("RelayFeeCalculator: Composable Bridging", function () {
       updatedOutputAmount: spreadFill.relayExecutionInfo.updatedOutputAmount.toString(),
     }).to.deep.eq({
       updatedRecipient: testContract.address,
-      updatedMessageHash: ethers.utils.keccak256("0xabcdef"),
+      updatedMessageHash: getMessageHash("0xabcdef"),
       updatedOutputAmount: "1",
       fillType: 0,
     });
