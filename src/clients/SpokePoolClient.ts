@@ -364,7 +364,7 @@ export class SpokePoolClient extends BaseAbstractClient {
    * @returns A valid fill for the deposit, or undefined.
    */
   public getFillForDeposit(deposit: Deposit): FillWithBlock | undefined {
-    const fills = this.depositHashesToFills[getRelayEventKey(deposit)];
+    const fills = this.depositHashesToFills[this.getDepositHash(deposit)];
     return fills?.find((fill) => validateFillForDeposit(fill, deposit));
   }
 
@@ -381,8 +381,7 @@ export class SpokePoolClient extends BaseAbstractClient {
     invalidFills: Fill[];
   } {
     const { outputAmount } = deposit;
-    const fillsForDeposit = this.depositHashesToFills[getRelayEventKey(deposit)];
-
+    const fillsForDeposit = this.depositHashesToFills[this.getDepositHash(deposit)];
     // If no fills then the full amount is remaining.
     if (fillsForDeposit === undefined || fillsForDeposit.length === 0) {
       return { unfilledAmount: outputAmount, fillCount: 0, invalidFills: [] };
@@ -748,7 +747,7 @@ export class SpokePoolClient extends BaseAbstractClient {
         }
 
         assign(this.fills, [fill.originChainId], [fill]);
-        assign(this.depositHashesToFills, [getRelayEventKey(fill)], [fill]);
+        assign(this.depositHashesToFills, [this.getDepositHash(fill)], [fill]);
       }
     };
 
