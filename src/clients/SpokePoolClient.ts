@@ -46,7 +46,7 @@ import { getBlockRangeForDepositId, getDepositIdAtBlock, relayFillStatus } from 
 import { BaseAbstractClient, isUpdateFailureReason, UpdateFailureReason } from "./BaseAbstractClient";
 import { HubPoolClient } from "./HubPoolClient";
 import { AcrossConfigStoreClient } from "./AcrossConfigStoreClient";
-import { getRepaymentChainId, willOverwriteRepaymentChain } from "./BundleDataClient/utils/FillUtils";
+import { getRepaymentChainId, forceDestinationRepayment } from "./BundleDataClient/utils/FillUtils";
 
 type SpokePoolUpdateSuccess = {
   success: true;
@@ -400,7 +400,7 @@ export class SpokePoolClient extends BaseAbstractClient {
             this.hubPoolClient &&
             !isSlowFill(fill) &&
             (!isValidEvmAddress(fill.relayer) ||
-              willOverwriteRepaymentChain(
+              forceDestinationRepayment(
                 repaymentChainId,
                 { ...deposit, quoteBlockNumber: this.hubPoolClient!.latestBlockSearched },
                 this.hubPoolClient
