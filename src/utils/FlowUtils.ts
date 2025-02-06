@@ -1,4 +1,4 @@
-import { isDefined } from "../utils";
+import { isDefined, toBytes32 } from "../utils";
 import { Deposit, RelayData } from "../interfaces";
 import { UNDEFINED_MESSAGE_HASH } from "../constants";
 
@@ -31,7 +31,17 @@ export function validateFillForDeposit(
   // Note: this short circuits when a key is found where the comparison doesn't match.
   // TODO: if we turn on "strict" in the tsconfig, the elements of FILL_DEPOSIT_COMPARISON_KEYS will be automatically
   // validated against the fields in Fill and Deposit, generating an error if there is a discrepency.
-  let invalidKey = RELAYDATA_KEYS.find((key) => relayData[key].toString() !== deposit[key].toString());
+  let invalidKey = RELAYDATA_KEYS.find((key) => {
+    const [depositField, fillField] = [deposit[key].toString(), relayData[key].toString()];
+
+    // Promote address types to bytes32 to avoid mismatches.
+    // @todo: This must be hardened on the interfaces where these values are ingested.
+    if (["depositor", "recipient", "inputToken", "outputToken", "exclusiveRelayer"].includes(key)) {
+      return toBytes32(depositField) !== toBytes32(fillField);
+    }
+
+    return depositField !== fillField;
+  });
 
   // There should be no paths for `messageHash` to be unset, but mask it off anyway.
   if (!isDefined(invalidKey) && [relayData.messageHash, deposit.messageHash].includes(UNDEFINED_MESSAGE_HASH)) {
