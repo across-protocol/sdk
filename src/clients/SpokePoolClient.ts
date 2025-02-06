@@ -394,7 +394,8 @@ export class SpokePoolClient extends BaseAbstractClient {
           // we'll have to overwrite repayment information for. This includes fills for lite chains where the
           // repayment address is invalid, and fills for non-lite chains where the repayment address is valid or
           // the repayment chain is invalid. We don't check that the origin chain is a valid EVM chain for
-          // lite chain deposits yet because only EVM chains are supported on Across...for now.
+          // lite chain deposits yet because only EVM chains are supported on Across...for now. This means
+          // this logic will have to be revisited when we add SVM to log properly.
           if (
             this.hubPoolClient &&
             !isSlowFill(fill) &&
