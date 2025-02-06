@@ -482,9 +482,7 @@ describe("SpokePoolClient: Event Filtering", function () {
         relayer,
         updatedRecipient,
         l2TokenAddress,
-      ] = Array(8)
-        .fill(0)
-        .map(randomAddress);
+      ] = Array(8).fill(0).map(randomAddress);
 
       const common = {
         depositor,
@@ -561,10 +559,7 @@ describe("SpokePoolClient: Event Filtering", function () {
         "TokensBridged",
       ]);
 
-      await destinationSpokePoolClient.update([
-        ...filledRelayEvents,
-        ...slowFillRequestedEvents,
-      ]);
+      await destinationSpokePoolClient.update([...filledRelayEvents, ...slowFillRequestedEvents]);
 
       let slowFill = destinationSpokePoolClient.getSlowFillRequestsForOriginChain(originChainId).at(-1);
       expect(slowFill).to.exist;

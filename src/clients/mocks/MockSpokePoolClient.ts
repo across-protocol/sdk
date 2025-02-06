@@ -283,7 +283,6 @@ export class MockSpokePoolClient extends SpokePoolClient {
     const topics = [speedUp.depositId, depositor];
     const args = { ...speedUp };
 
-
     return this.eventManager.generateEvent({
       event,
       address: this.spokePool.address,
@@ -317,7 +316,10 @@ export class MockSpokePoolClient extends SpokePoolClient {
     return this._requestSlowFill("RequestedSlowFill", request);
   }
 
-  protected _requestSlowFill(event: string, request: Omit<SlowFillRequest, "messageHash"> & Partial<SortableEvent>): Log {
+  protected _requestSlowFill(
+    event: string,
+    request: Omit<SlowFillRequest, "messageHash"> & Partial<SortableEvent>
+  ): Log {
     const { originChainId, depositId } = request;
     const topics = [originChainId, depositId];
     const args = { ...request };
