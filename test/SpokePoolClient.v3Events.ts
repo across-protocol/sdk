@@ -482,9 +482,7 @@ describe("SpokePoolClient: Event Filtering", function () {
         relayer,
         updatedRecipient,
         l2TokenAddress,
-      ] = Array(8)
-        .fill(0)
-        .map(() => randomBytes(32));
+      ] = Array(8).fill(0).map(randomAddress);
 
       const common = {
         depositor,
@@ -494,8 +492,8 @@ describe("SpokePoolClient: Event Filtering", function () {
         exclusiveRelayer,
         depositId: toBN(i),
         quoteTimestamp: random(),
-        originChainId: random(),
-        destinationChainId: random(),
+        originChainId,
+        destinationChainId,
         fillDeadline: random(),
         exclusivityDeadline: random(),
         fromLiteChain: false,
@@ -515,19 +513,22 @@ describe("SpokePoolClient: Event Filtering", function () {
       originSpokePoolClient.deposit({ ...common, message: randomBytes(32) });
 
       // SpeedUpDeposit
-      originSpokePoolClient.speedUpV3Deposit({
+      originSpokePoolClient.speedUpDeposit({
+        originChainId,
+        depositId: toBN(i),
         depositor,
         updatedRecipient,
-        depositId: toBN(i),
-        updatedOutputAmount: toBN(i),
-      } as SpeedUp);
+        updatedOutputAmount: common.outputAmount.sub(bnOne),
+        updatedMessage: randomBytes(32),
+        depositorSignature: randomBytes(32),
+      });
 
       // FillV3Relay
       originSpokePoolClient.fillRelay({
         ...common,
         repaymentChainId: random(),
         message: randomBytes(32),
-        relayer: randomBytes(32),
+        relayer,
         relayExecutionInfo: {
           ...relayExecutionInfo,
           updatedMessageHash: getMessageHash(randomBytes(32)),
@@ -548,30 +549,19 @@ describe("SpokePoolClient: Event Filtering", function () {
       });
 
       // RequestV3SlowFill
-      originSpokePoolClient.requestV3SlowFill({
-        depositor,
-        recipient,
-        inputToken,
-        outputToken,
-        exclusiveRelayer,
-        depositId: toBN(i),
-        originChainId: 1,
-        inputAmount: toBN(i),
-        outputAmount: toBN(i),
-        message: "0x",
-        fillDeadline: 0,
-        exclusivityDeadline: 0,
-      } as SlowFillRequestWithBlock);
+      destinationSpokePoolClient.requestSlowFill({ ...common, message: randomBytes(32) });
 
       await originSpokePoolClient.update([
-        "V3FundsDeposited",
-        "FilledV3Relay",
+        ...fundsDepositedEvents,
+        ...filledRelayEvents,
+        ...speedUpEvents,
+        ...slowFillRequestedEvents,
         "TokensBridged",
-        "RequestedSpeedUpV3Deposit",
-        "RequestedV3SlowFill",
       ]);
 
-      let slowFill = originSpokePoolClient.getSlowFillRequestsForOriginChain(1).at(-1);
+      await destinationSpokePoolClient.update([...filledRelayEvents, ...slowFillRequestedEvents]);
+
+      let slowFill = destinationSpokePoolClient.getSlowFillRequestsForOriginChain(originChainId).at(-1);
       expect(slowFill).to.exist;
       slowFill = slowFill!;
 
@@ -579,7 +569,7 @@ describe("SpokePoolClient: Event Filtering", function () {
       expect(tokensBridged).to.exist;
       tokensBridged = tokensBridged!;
 
-      let speedUp = originSpokePoolClient.getSpeedUps()[depositor][toBN(i).toString()].at(-1);
+      let speedUp = originSpokePoolClient.getSpeedUps()[depositor]?.[common.depositId.toString()]?.at(-1);
       expect(speedUp).to.exist;
       speedUp = speedUp!;
 

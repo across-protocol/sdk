@@ -763,7 +763,7 @@ describe("SpokePoolClient: Fill Validation", function () {
     expect((result as { reason: string }).reason.startsWith("outputAmount mismatch")).to.be.true;
 
     // Invalid depositId.
-    result = validateFillForDeposit({ ...fill, depositId: 1337 }, deposit_2);
+    result = validateFillForDeposit({ ...fill, depositId: toBN(1337) }, deposit_2);
     expect(result.valid).to.be.false;
     expect((result as { reason: string }).reason.startsWith("depositId mismatch")).to.be.true;
 
