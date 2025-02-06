@@ -732,8 +732,8 @@ export class SpokePoolClient extends BaseAbstractClient {
         } as FillWithBlock;
 
         if (eventName === "FilledV3Relay") {
-          fill.messageHash = getMessageHash(fill.message);
-          fill.relayExecutionInfo.updatedMessageHash = getMessageHash(fill.relayExecutionInfo.updatedMessage);
+          fill.messageHash = getMessageHash(event.args.message);
+          fill.relayExecutionInfo.updatedMessageHash = getMessageHash(event.args.relayExecutionInfo.updatedMessage);
         }
 
         assign(this.fills, [fill.originChainId], [fill]);
