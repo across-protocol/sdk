@@ -96,7 +96,7 @@ export async function verifyFillRepayment(
 
   // If repayment chain doesn't have a Pool Rebalance Route for the input token, then change the repayment
   // chain to the destination chain.
-  if (!isSlowFill(fill) && forceDestinationRepayment(repaymentChainId, matchedDeposit, hubPoolClient)) {
+  if (forceDestinationRepayment(repaymentChainId, matchedDeposit, hubPoolClient)) {
     repaymentChainId = fill.destinationChainId;
   }
 
