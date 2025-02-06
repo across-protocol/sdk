@@ -3,7 +3,6 @@ import { Deposit, SpeedUp } from "../src/interfaces";
 import { bnOne, getMessageHash } from "../src/utils";
 import { destinationChainId, originChainId } from "./constants";
 import {
-  assert,
   assertPromiseError,
   Contract,
   BigNumber,
@@ -18,6 +17,7 @@ import {
   getUpdatedV3DepositSignature,
   setupTokensForWallet,
 } from "./utils";
+import assert from "assert";
 
 describe("SpokePoolClient: SpeedUp", function () {
   const ignoredFields = [

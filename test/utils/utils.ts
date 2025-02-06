@@ -31,7 +31,7 @@ import { EMPTY_MESSAGE, PROTOCOL_DEFAULT_CHAIN_ID_INDICES, ZERO_ADDRESS } from "
 import { SpyTransport } from "./SpyTransport";
 
 chai.use(chaiExclude);
-const assert = chai.assert;
+const chaiAssert = chai.assert;
 
 export type SignerWithAddress = utils.SignerWithAddress;
 
@@ -49,7 +49,7 @@ export const {
   zeroAddress,
 } = utils;
 
-export { assert, BigNumber, expect, chai, Contract, sinon, toBN, toBNWei, toWei, utf8ToHex, winston };
+export { chaiAssert, BigNumber, expect, chai, Contract, sinon, toBN, toBNWei, toWei, utf8ToHex, winston };
 
 const TokenRolesEnum = {
   OWNER: "0",
@@ -71,7 +71,7 @@ export function deepEqualsWithBigNumber(x: unknown, y: unknown, omitKeys: string
       .sort()
       .map((key) => [key, y?.[key]])
   );
-  assert.deepStrictEqual(_.omit(sortedKeysX, omitKeys), _.omit(sortedKeysY, omitKeys));
+  chaiAssert.deepStrictEqual(_.omit(sortedKeysX, omitKeys), _.omit(sortedKeysY, omitKeys));
   return true;
 }
 
@@ -86,7 +86,7 @@ export async function assertPromiseError<T>(promise: Promise<T>, errMessage?: st
       throw err;
     }
     if (errMessage) {
-      assert.isTrue(err.message.includes(errMessage));
+      chaiAssert.isTrue(err.message.includes(errMessage));
     }
   }
 }
@@ -314,7 +314,7 @@ export async function depositV3(
 
   const lastEvent = events.at(-1);
   let args = lastEvent?.args;
-  assert.exists(args);
+  chaiAssert.exists(args);
   args = args!;
 
   const { blockNumber, transactionHash, transactionIndex, logIndex } = lastEvent!;
@@ -351,14 +351,14 @@ export async function requestV3SlowFill(
   signer: SignerWithAddress
 ): Promise<SlowFillRequestWithBlock> {
   const destinationChainId = Number(await spokePool.chainId());
-  assert.notEqual(relayData.originChainId, destinationChainId);
+  chaiAssert.notEqual(relayData.originChainId, destinationChainId);
 
   await spokePool.connect(signer).requestV3SlowFill(relayData);
 
   const events = await spokePool.queryFilter(spokePool.filters.RequestedV3SlowFill());
   const lastEvent = events.at(-1);
   let args = lastEvent!.args;
-  assert.exists(args);
+  chaiAssert.exists(args);
   args = args!;
 
   const { blockNumber, transactionHash, transactionIndex, logIndex } = lastEvent!;
@@ -392,14 +392,14 @@ export async function fillV3Relay(
   repaymentChainId?: number
 ): Promise<FillWithBlock> {
   const destinationChainId = Number(await spokePool.chainId());
-  assert.notEqual(deposit.originChainId, destinationChainId);
+  chaiAssert.notEqual(deposit.originChainId, destinationChainId);
 
   await spokePool.connect(signer).fillV3Relay(deposit, repaymentChainId ?? destinationChainId);
 
   const events = await spokePool.queryFilter(spokePool.filters.FilledV3Relay());
   const lastEvent = events.at(-1);
   let args = lastEvent!.args;
-  assert.exists(args);
+  chaiAssert.exists(args);
   args = args!;
 
   const { blockNumber, transactionHash, transactionIndex, logIndex } = lastEvent!;
