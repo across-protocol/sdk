@@ -57,7 +57,7 @@ export interface RelayExecutionEventInfo {
   fillType: FillType;
 }
 
-export interface Fill extends RelayData {
+export interface Fill extends Omit<RelayData, "message"> {
   messageHash: string;
   destinationChainId: number;
   relayer: string;

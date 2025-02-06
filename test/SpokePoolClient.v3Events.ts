@@ -75,8 +75,8 @@ describe("SpokePoolClient: Event Filtering", function () {
 
     ({ chainId: destinationChainId } = await owner.provider.getNetwork());
 
-    originChainId = random(100_000, 1_000_000, false);
-    repaymentChainId = random(1_000_001, 2_000_000, false);
+    originChainId = random();
+    repaymentChainId = random();
     chainIds = [originChainId, destinationChainId, repaymentChainId];
 
     spokePoolClients = {};

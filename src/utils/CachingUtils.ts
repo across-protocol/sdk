@@ -2,7 +2,7 @@ import { DEFAULT_CACHING_SAFE_LAG, DEFAULT_CACHING_TTL } from "../constants";
 import { CachingMechanismInterface, Deposit, Fill, SlowFillRequest } from "../interfaces";
 import { assert } from "./LogUtils";
 import { composeRevivers, objectWithBigNumberReviver } from "./ReviverUtils";
-import { getRelayHashFromEvent } from "./SpokeUtils";
+import { getRelayEventKey } from "./SpokeUtils";
 import { getCurrentTime } from "./TimeUtils";
 import { isDefined } from "./TypeGuards";
 
@@ -51,6 +51,6 @@ export async function setDepositInCache(
  * @returns The key for caching the event.
  */
 export function getDepositKey(bridgeEvent: Deposit | Fill | SlowFillRequest): string {
-  const relayHash = getRelayHashFromEvent(bridgeEvent);
+  const relayHash = getRelayEventKey(bridgeEvent);
   return `deposit_${bridgeEvent.originChainId}_${bridgeEvent.depositId.toString()}_${relayHash}`;
 }
