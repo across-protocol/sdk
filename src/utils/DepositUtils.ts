@@ -3,6 +3,7 @@ import { SpokePoolClient } from "../clients";
 import { DEFAULT_CACHING_TTL, EMPTY_MESSAGE, ZERO_BYTES } from "../constants";
 import { CachingMechanismInterface, Deposit, DepositWithBlock, Fill, SlowFillRequest } from "../interfaces";
 import { getNetworkName } from "./NetworkUtils";
+import { bnZero } from "./BigNumberUtils";
 import { getDepositInCache, getDepositKey, setDepositInCache } from "./CachingUtils";
 import { validateFillForDeposit } from "./FlowUtils";
 import { getMessageHash, isUnsafeDepositId } from "./SpokeUtils";
@@ -148,8 +149,10 @@ export function isZeroValueDeposit(deposit: Pick<Deposit, "inputAmount" | "messa
   return deposit.inputAmount.eq(0) && isMessageEmpty(deposit.message);
 }
 
-export function isZeroValueFillOrSlowFillRequest(e: Pick<Fill | SlowFillRequest, "inputAmount" | "message">): boolean {
-  return e.inputAmount.eq(0) && isFillOrSlowFillRequestMessageEmpty(e.message);
+export function isZeroValueFillOrSlowFillRequest(
+  e: Pick<Fill | SlowFillRequest, "inputAmount" | "messageHash">
+): boolean {
+  return e.inputAmount.eq(bnZero) && e.messageHash === ZERO_BYTES;
 }
 
 /**
