@@ -438,16 +438,25 @@ export async function findFillEvent(
 ): Promise<FillWithBlock | undefined> {
   const blockNumber = await findFillBlock(spokePool, relayData, lowBlockNumber, highBlockNumber);
   if (!blockNumber) return undefined;
-  const query = await paginatedEventQuery(
-    spokePool,
-    spokePool.filters.FilledV3Relay(null, null, null, null, null, relayData.originChainId, relayData.depositId),
-    {
-      fromBlock: blockNumber,
-      toBlock: blockNumber,
-      maxBlockLookBack: 0, // We can hardcode this to 0 to instruct paginatedEventQuery to make a single request
-      // for the same block number.
-    }
-  );
+
+  // We can hardcode this to 0 to instruct paginatedEventQuery to make a single request for the same block number.
+  const maxBlockLookBack = 0;
+  const [fromBlock, toBlock] = [blockNumber, blockNumber];
+
+  const query = (
+    await Promise.all([
+      paginatedEventQuery(
+        spokePool,
+        spokePool.filters.FilledRelay(null, null, null, null, null, relayData.originChainId, relayData.depositId),
+        { fromBlock, toBlock, maxBlockLookBack }
+      ),
+      paginatedEventQuery(
+        spokePool,
+        spokePool.filters.FilledV3Relay(null, null, null, null, null, relayData.originChainId, relayData.depositId),
+        { fromBlock, toBlock, maxBlockLookBack }
+      ),
+    ])
+  ).flat();
   if (query.length === 0) throw new Error(`Failed to find fill event at block ${blockNumber}`);
   const event = query[0];
   // In production the chainId returned from the provider matches 1:1 with the actual chainId. Querying the provider
