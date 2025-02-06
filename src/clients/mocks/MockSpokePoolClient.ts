@@ -270,15 +270,29 @@ export class MockSpokePoolClient extends SpokePoolClient {
   }
 
   speedUpV3Deposit(speedUp: SpeedUp): Log {
-    const event = "RequestedSpeedUpV3Deposit";
-    const topics = [speedUp.depositId, speedUp.depositor];
+    return this._speedUpDeposit("RequestedSpeedUpV3Deposit", speedUp);
+  }
+
+  speedUpDeposit(speedUp: SpeedUp): Log {
+    return this._speedUpDeposit("RequestedSpeedUpDeposit", speedUp);
+  }
+
+  protected _speedUpDeposit(event: string, speedUp: SpeedUp): Log {
+    const addressModifier = event === "RequestedSpeedUpDeposit" ? toBytes32 : toAddress;
+    const depositor = addressModifier(speedUp.depositor);
+    const topics = [speedUp.depositId, depositor];
     const args = { ...speedUp };
+
 
     return this.eventManager.generateEvent({
       event,
       address: this.spokePool.address,
       topics: topics.map((topic) => topic.toString()),
-      args,
+      args: {
+        ...args,
+        depositor,
+        updatedRecipient: addressModifier(speedUp.updatedRecipient),
+      },
     });
   }
 

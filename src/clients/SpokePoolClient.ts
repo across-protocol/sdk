@@ -696,12 +696,11 @@ export class SpokePoolClient extends BaseAbstractClient {
     };
 
     // Update deposits with speed up requests from depositor.
-    if (eventsToQuery.includes("RequestedSpeedUpV3Deposit")) {
-      querySpeedUpDepositEvents("RequestedSpeedUpV3Deposit");
-    }
-    if (eventsToQuery.includes("RequestedSpeedUpDeposit")) {
-      querySpeedUpDepositEvents("RequestedSpeedUpDeposit");
-    }
+    ["RequestedSpeedUpV3Deposit", "RequestedSpeedUpDeposit"].forEach((event) => {
+      if (eventsToQuery.includes(event)) {
+        querySpeedUpDepositEvents(event);
+      }
+    });
 
     // Performs indexing of "requested slow fill"-like events.
     const queryRequestedSlowFillEvents = (eventName: string) => {
