@@ -37,7 +37,7 @@ export const ARWEAVE_TAG_APP_NAME = "across-protocol";
 // A hardcoded version number used, by default, to tag all Arweave records.
 // Version 3:
 // - Changed depositId number -> string (uint32 -> uint256).
-// Version 3:
+// Version 4:
 // - Dropped message field from Fill event data.
 export const ARWEAVE_TAG_APP_VERSION = 4;
 

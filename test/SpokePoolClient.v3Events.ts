@@ -75,8 +75,8 @@ describe("SpokePoolClient: Event Filtering", function () {
 
     ({ chainId: destinationChainId } = await owner.provider.getNetwork());
 
-    originChainId = random(100_000, 1_000_000, false);
-    repaymentChainId = random(1_000_001, 2_000_000, false);
+    originChainId = random();
+    repaymentChainId = random();
     chainIds = [originChainId, destinationChainId, repaymentChainId];
 
     spokePoolClients = {};
@@ -472,6 +472,9 @@ describe("SpokePoolClient: Event Filtering", function () {
     }
   });
   it("Does not throw when processing a bytes32 address", async function () {
+    const random = () => Math.round(Math.random() * 1e6);
+    const randomBytes = (n: number): string => ethers.utils.hexlify(ethers.utils.randomBytes(n));
+
     for (let i = 0; i < 10; ++i) {
       const [
         depositor,

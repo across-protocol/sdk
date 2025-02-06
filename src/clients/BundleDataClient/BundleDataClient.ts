@@ -35,7 +35,6 @@ import {
   getRelayEventKey,
   isSlowFill,
   mapAsync,
-  filterAsync,
   bnUint32Max,
   isZeroValueDeposit,
   findFillEvent,
@@ -53,7 +52,6 @@ import {
   getRefundsFromBundle,
   getWidestPossibleExpectedBlockRange,
   isChainDisabled,
-  isEvmRepaymentValid,
   PoolRebalanceRoot,
   prettyPrintV3SpokePoolEvents,
   V3DepositWithBlock,
@@ -98,7 +96,7 @@ function updateBundleFillsV3(
 ): void {
   // We shouldn't pass any unrepayable fills into this function, so we perform an extra safety check.
   assert(
-    chainIsEvm(repaymentChainId) && isEvmRepaymentValid(fill, repaymentChainId),
+    chainIsEvm(repaymentChainId) && isValidEvmAddress(fill.relayer),
     "validatedBundleV3Fills dictionary should only contain fills with valid repayment information"
   );
   if (!dict?.[repaymentChainId]?.[repaymentToken]) {
@@ -366,7 +364,7 @@ export class BundleDataClient {
       // and then query the FillStatus on-chain, but that might slow this function down too much. For now, we
       // will live with this expected inaccuracy as it should be small. The pre-fill would have to precede the deposit
       // by more than the caller's event lookback window which is expected to be unlikely.
-      const fillsToCount = await filterAsync(this.spokePoolClients[chainId].getFills(), async (fill) => {
+      const fillsToCount = this.spokePoolClients[chainId].getFills().filter((fill) => {
         if (
           fill.blockNumber < blockRanges[chainIndex][0] ||
           fill.blockNumber > blockRanges[chainIndex][1] ||
@@ -382,26 +380,20 @@ export class BundleDataClient {
         const matchingDeposit = this.spokePoolClients[fill.originChainId].getDeposit(fill.depositId);
         const hasMatchingDeposit =
           matchingDeposit !== undefined && getRelayEventKey(fill) === getRelayEventKey(matchingDeposit);
-        if (hasMatchingDeposit) {
-          const validRepayment = await verifyFillRepayment(
-            fill,
-            this.spokePoolClients[fill.destinationChainId].spokePool.provider,
-            matchingDeposit,
-            // @dev: to get valid repayment chain ID's, get all chain IDs for the bundle block range and remove
-            // disabled block ranges.
-            this.clients.configStoreClient
-              .getChainIdIndicesForBlock(blockRanges[0][1])
-              .filter((_chainId, i) => !isChainDisabled(blockRanges[i]))
-          );
-          if (!isDefined(validRepayment)) {
-            return false;
-          }
-        }
         return hasMatchingDeposit;
       });
-      fillsToCount.forEach((fill) => {
-        const matchingDeposit = this.spokePoolClients[fill.originChainId].getDeposit(fill.depositId);
+      await forEachAsync(fillsToCount, async (_fill) => {
+        const matchingDeposit = this.spokePoolClients[_fill.originChainId].getDeposit(_fill.depositId);
         assert(isDefined(matchingDeposit), "Deposit not found for fill.");
+        const fill = await verifyFillRepayment(
+          _fill,
+          this.spokePoolClients[_fill.destinationChainId].spokePool.provider,
+          matchingDeposit!,
+          this.clients.hubPoolClient
+        );
+        if (!isDefined(fill)) {
+          return;
+        }
         const { chainToSendRefundTo, repaymentToken } = getRefundInformationFromFill(
           fill,
           this.clients.hubPoolClient,
@@ -951,7 +943,7 @@ export class BundleDataClient {
                     fill,
                     destinationClient.spokePool.provider,
                     v3RelayHashes[relayDataHash].deposits![0],
-                    allChainIds
+                    this.clients.hubPoolClient
                   );
                   if (!isDefined(fillToRefund)) {
                     bundleUnrepayableFillsV3.push(fill);
@@ -1045,7 +1037,7 @@ export class BundleDataClient {
                   fill,
                   destinationClient.spokePool.provider,
                   matchedDeposit,
-                  allChainIds
+                  this.clients.hubPoolClient
                 );
                 if (!isDefined(fillToRefund)) {
                   bundleUnrepayableFillsV3.push(fill);
@@ -1216,7 +1208,7 @@ export class BundleDataClient {
                 fill,
                 destinationClient.spokePool.provider,
                 v3RelayHashes[relayDataHash].deposits![0],
-                allChainIds
+                this.clients.hubPoolClient
               );
               if (!isDefined(fillToRefund)) {
                 bundleUnrepayableFillsV3.push(fill);
@@ -1270,7 +1262,7 @@ export class BundleDataClient {
                 prefill!,
                 destinationClient.spokePool.provider,
                 deposit,
-                allChainIds
+                this.clients.hubPoolClient
               );
               if (!isDefined(verifiedFill)) {
                 bundleUnrepayableFillsV3.push(prefill!);
