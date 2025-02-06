@@ -155,6 +155,8 @@ describe("SpokePoolClient: Fill Validation", function () {
       let val: BigNumber | string | number;
       if (BigNumber.isBigNumber(fill[field])) {
         val = fill[field].add(bnOne);
+      } else if (["depositor", "recipient", "inputToken", "outputToken", "exclusiveRelayer"].includes(field)) {
+        val = fill[field].slice(0, -4).concat("1234");
       } else if (typeof fill[field] === "string") {
         val = fill[field] + "1234";
       } else {
