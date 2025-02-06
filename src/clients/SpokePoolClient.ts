@@ -15,6 +15,8 @@ import {
   bnOne,
   getMessageHash,
   isUnsafeDepositId,
+  isSlowFill,
+  isValidEvmAddress,
 } from "../utils";
 import {
   paginatedEventQuery,
@@ -44,7 +46,7 @@ import { getBlockRangeForDepositId, getDepositIdAtBlock, relayFillStatus } from 
 import { BaseAbstractClient, isUpdateFailureReason, UpdateFailureReason } from "./BaseAbstractClient";
 import { HubPoolClient } from "./HubPoolClient";
 import { AcrossConfigStoreClient } from "./AcrossConfigStoreClient";
-import { getRepaymentChainId, isEvmRepaymentValid } from "./BundleDataClient/utils/FillUtils";
+import { getRepaymentChainId, overwriteRepaymentChain } from "./BundleDataClient/utils/FillUtils";
 
 type SpokePoolUpdateSuccess = {
   success: true;
@@ -388,14 +390,21 @@ export class SpokePoolClient extends BaseAbstractClient {
       (groupedFills: { validFills: Fill[]; invalidFills: Fill[]; unrepayableFills: Fill[] }, fill: Fill) => {
         if (validateFillForDeposit(fill, deposit).valid) {
           const repaymentChainId = getRepaymentChainId(fill, deposit);
-          // The list of possible repayment chains should be the enabled chains in the config store (minus any
-          // disabled chains) as of the bundle end block containing this fill. Since we don't know which bundle
-          // this fill belongs to, and we don't want to convert the deposit quote timestamp into a block number
-          // to query the chain list at a mainnet block height (for latency purposes), we will just use the
-          // list of all chains that Across supports, which also can include some disabled chains. Worst case
-          // we don't a mark a fill as unrepayable because its chosen a disabled chain as repayment, and we miss
-          // a log.
-          if (!isEvmRepaymentValid(fill, repaymentChainId, this.configStoreClient?.getEnabledChains() ?? [])) {
+          // In order to keep this function sync, we can't call verifyFillRepayment so we'll log any fills that
+          // we'll have to overwrite repayment information for. This includes fills for lite chains where the
+          // repayment address is invalid, and fills for non-lite chains where the repayment address is valid or
+          // the repayment chain is invalid. We don't check that the origin chain is a valid EVM chain for
+          // lite chain deposits yet because only EVM chains are supported on Across...for now.
+          if (
+            this.hubPoolClient &&
+            !isSlowFill(fill) &&
+            (!isValidEvmAddress(fill.relayer) ||
+              overwriteRepaymentChain(
+                repaymentChainId,
+                { ...deposit, quoteBlockNumber: this.hubPoolClient!.latestBlockSearched },
+                this.hubPoolClient
+              ))
+          ) {
             groupedFills.unrepayableFills.push(fill);
           }
           // This fill is still valid and means that the deposit cannot be filled on-chain anymore, but it
@@ -426,7 +435,7 @@ export class SpokePoolClient extends BaseAbstractClient {
       this.logger.warn({
         at: "SpokePoolClient",
         chainId: this.chainId,
-        message: "Unrepayable fills found.",
+        message: "Unrepayable fills found where we need to switch repayment address and or chain",
         deposit,
         unrepayableFills: Object.fromEntries(unrepayableFillsForDeposit.map((x) => [x.relayer, x])),
         notificationPath: "across-unrepayable-fills",

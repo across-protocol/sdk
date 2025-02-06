@@ -53,6 +53,30 @@ export function getRepaymentChainId(fill: Fill, matchedDeposit: Deposit): number
   return matchedDeposit.fromLiteChain ? matchedDeposit.originChainId : fill.repaymentChainId;
 }
 
+export function overwriteRepaymentChain(
+  repaymentChainId: number,
+  matchedDeposit: Deposit & { quoteBlockNumber: number },
+  hubPoolClient: HubPoolClient
+): boolean {
+  if (!matchedDeposit.fromLiteChain) {
+    try {
+      const l1TokenCounterpart = hubPoolClient.getL1TokenForL2TokenAtBlock(
+        matchedDeposit.inputToken,
+        matchedDeposit.originChainId,
+        matchedDeposit.quoteBlockNumber
+      );
+      hubPoolClient.getL2TokenForL1TokenAtBlock(l1TokenCounterpart, repaymentChainId, matchedDeposit.quoteBlockNumber);
+      // Repayment token could be found, this is a valid repayment chain.
+      return false;
+    } catch {
+      // Repayment token doesn't exist on repayment chain via PoolRebalanceRoutes, impossible to repay filler there.
+      return true;
+    }
+  } else {
+    return false;
+  }
+}
+
 // Verify that a fill sent to an EVM chain has a 20 byte address. If the fill does not, then attempt
 // to repay the `msg.sender` of the relay transaction. Otherwise, return undefined.
 export async function verifyFillRepayment(
@@ -72,19 +96,8 @@ export async function verifyFillRepayment(
 
   // If repayment chain doesn't have a Pool Rebalance Route for the input token, then change the repayment
   // chain to the destination chain.
-  if (!isSlowFill(fill) && !matchedDeposit.fromLiteChain) {
-    try {
-      const l1TokenCounterpart = hubPoolClient.getL1TokenForL2TokenAtBlock(
-        fill.inputToken,
-        fill.originChainId,
-        matchedDeposit.quoteBlockNumber
-      );
-      hubPoolClient.getL2TokenForL1TokenAtBlock(l1TokenCounterpart, repaymentChainId, matchedDeposit.quoteBlockNumber);
-      // Repayment token could be found, this is a valid repayment chain.
-    } catch {
-      // Repayment token doesn't exist on repayment chain via PoolRebalanceRoutes, impossible to repay filler there.
-      repaymentChainId = fill.destinationChainId;
-    }
+  if (!isSlowFill(fill) && overwriteRepaymentChain(repaymentChainId, matchedDeposit, hubPoolClient)) {
+    repaymentChainId = fill.destinationChainId;
   }
 
   if (!isValidEvmAddress(fill.relayer)) {
