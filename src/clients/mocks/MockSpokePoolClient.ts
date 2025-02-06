@@ -215,6 +215,7 @@ export class MockSpokePoolClient extends SpokePoolClient {
 
     const topics = [originChainId, depositId, relayer]; // @todo verify
     const message = fill["message"] ?? "0x";
+    const updatedMessage = fill.relayExecutionInfo?.updatedMessage ?? message;
 
     const relayExecutionInfo = {
       updatedRecipient: fill.relayExecutionInfo?.updatedRecipient ?? recipient,
@@ -236,7 +237,14 @@ export class MockSpokePoolClient extends SpokePoolClient {
       relayer,
       depositor,
       recipient,
-      relayExecutionInfo,
+      message,
+      relayExecutionInfo: {
+        updatedRecipient: fill.relayExecutionInfo?.updatedRecipient ?? recipient,
+        updatedMessage,
+        updatedMessageHash: getMessageHash(updatedMessage),
+        updatedOutputAmount: fill.relayExecutionInfo?.updatedOutputAmount ?? outputAmount,
+        fillType: fill.relayExecutionInfo?.fillType ?? FillType.FastFill,
+      },
     };
 
     const args =
