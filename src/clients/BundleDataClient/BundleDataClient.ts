@@ -1,3 +1,4 @@
+import assert from "assert";
 import _ from "lodash";
 import {
   ProposedRootBundle,
@@ -24,7 +25,6 @@ import {
   bnZero,
   queryHistoricalDepositForFill,
   assign,
-  assert,
   fixedPointAdjustment,
   isDefined,
   toBN,
@@ -388,7 +388,7 @@ export class BundleDataClient {
         const fill = await verifyFillRepayment(
           _fill,
           this.spokePoolClients[_fill.destinationChainId].spokePool.provider,
-          matchingDeposit!,
+          matchingDeposit,
           this.clients.hubPoolClient
         );
         if (!isDefined(fill)) {
