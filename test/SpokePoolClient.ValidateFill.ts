@@ -282,7 +282,7 @@ describe("SpokePoolClient: Fill Validation", function () {
     const deposit = spokePoolClient1.getDepositForFill(fill);
     expect(deposit).to.exist;
     deposit = deposit!;
-    
+
     expect(deposit)
       .excludingEvery(["quoteBlockNumber", "fromLiteChain", "toLiteChain", "message"])
       .to.deep.equal(deposit);
