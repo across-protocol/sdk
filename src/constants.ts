@@ -35,7 +35,11 @@ export const PRE_FILL_MIN_CONFIG_STORE_VERSION = 5;
 export const ARWEAVE_TAG_APP_NAME = "across-protocol";
 
 // A hardcoded version number used, by default, to tag all Arweave records.
-export const ARWEAVE_TAG_APP_VERSION = 3;
+// Version 3:
+// - Changed depositId number -> string (uint32 -> uint256).
+// Version 3:
+// - Dropped message field from Fill event data.
+export const ARWEAVE_TAG_APP_VERSION = 4;
 
 /**
  * A default list of chain Ids that the protocol supports. This is outlined
