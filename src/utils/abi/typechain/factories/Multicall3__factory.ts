@@ -452,7 +452,10 @@ export class Multicall3__factory {
   static createInterface(): Multicall3Interface {
     return new utils.Interface(_abi) as Multicall3Interface;
   }
-  static connect(address: string, signerOrProvider: Signer | Provider): Multicall3 {
+  static connect(
+    address: string,
+    signerOrProvider: Signer | Provider
+  ): Multicall3 {
     return new Contract(address, _abi, signerOrProvider) as Multicall3;
   }
 }
