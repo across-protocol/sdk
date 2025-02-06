@@ -266,7 +266,7 @@ describe("SpokePoolClient: Fill Validation", function () {
   });
 
   it("Returns deposit matched with fill", async function () {
-    const deposit = await depositV3(
+    const _deposit = await depositV3(
       spokePool_1,
       destinationChainId,
       depositor,
@@ -276,13 +276,15 @@ describe("SpokePoolClient: Fill Validation", function () {
       outputAmount
     );
 
-    const fill = await fillV3Relay(spokePool_2, deposit, relayer);
+    const fill = await fillV3Relay(spokePool_2, _deposit, relayer);
     expect(spokePoolClient2.getDepositForFill(fill)).to.equal(undefined);
     await spokePoolClient1.update();
 
-    // @todo: Drop `messageHash` exclusion once messageHash is reliably part of fills.
+    const deposit = spokePoolClient1.getDepositForFill(fill);
+    expect(deposit).to.exist;
+
     expect(spokePoolClient1.getDepositForFill(fill))
-      .excludingEvery(["quoteBlockNumber", "fromLiteChain", "toLiteChain", "messageHash"])
+      .excludingEvery(["quoteBlockNumber", "fromLiteChain", "toLiteChain", "message"])
       .to.deep.equal(deposit);
   });
 
@@ -683,7 +685,7 @@ describe("SpokePoolClient: Fill Validation", function () {
   });
 
   it("Returns sped up deposit matched with fill", async function () {
-    const deposit_1 = await depositV3(
+    const _deposit_1 = await depositV3(
       spokePool_1,
       destinationChainId,
       depositor,
@@ -694,13 +696,13 @@ describe("SpokePoolClient: Fill Validation", function () {
     );
     await spokePoolClient1.update();
 
-    const fill_1 = await fillV3Relay(spokePool_2, deposit_1, relayer);
+    const fill_1 = await fillV3Relay(spokePool_2, _deposit_1, relayer);
     const fill_2 = await fillV3Relay(
       spokePool_2,
       {
-        ...deposit_1,
+        ..._deposit_1,
         recipient: toBytes32(relayer.address),
-        outputAmount: deposit_1.outputAmount.div(2),
+        outputAmount: _deposit_1.outputAmount.div(2),
         message: "0x12",
       },
       relayer
@@ -720,13 +722,13 @@ describe("SpokePoolClient: Fill Validation", function () {
     expect(fill_1.relayExecutionInfo.fillType === FillType.FastFill).to.be.true;
     expect(fill_2.relayExecutionInfo.fillType === FillType.FastFill).to.be.true;
 
-    // @todo: Drop `messageHash` exclusion once messageHash is reliably part of fills.
-    expect(spokePoolClient1.getDepositForFill(fill_1))
-      .excludingEvery(["quoteBlockNumber", "fromLiteChain", "toLiteChain", "messageHash"])
-      .to.deep.equal(deposit_1);
+    const deposit = spokePoolClient1.getDepositForFill(fill_1);
+    expect(deposit).to.exist;
+    let result = validateFillForDeposit(fill_1, deposit);
+    expect(result.valid).to.be.true;
     expect(spokePoolClient1.getDepositForFill(fill_2)).to.equal(undefined);
 
-    const deposit_2 = await depositV3(
+    const _deposit_2 = await depositV3(
       spokePool_1,
       destinationChainId,
       depositor,
@@ -735,43 +737,43 @@ describe("SpokePoolClient: Fill Validation", function () {
       outputToken,
       outputAmount
     );
-    const fill = await fillV3Relay(spokePool_2, deposit_2, relayer);
+    const fill = await fillV3Relay(spokePool_2, _deposit_2, relayer);
     await spokePoolClient2.update();
 
-    expect(validateFillForDeposit(fill, deposit_2)).to.deep.equal({ valid: true });
+    expect(validateFillForDeposit(fill, _deposit_2)).to.deep.equal({ valid: true });
 
     // Changed the input token.
-    let result = validateFillForDeposit(fill, { ...deposit_2, inputToken: owner.address });
+    result = validateFillForDeposit(fill, { ..._deposit_2, inputToken: owner.address });
     expect(result.valid).to.be.false;
     expect((result as { reason: string }).reason.startsWith("inputToken mismatch")).to.be.true;
 
     // Invalid input amount.
-    result = validateFillForDeposit({ ...fill, inputAmount: toBNWei(1337) }, deposit_2);
+    result = validateFillForDeposit({ ...fill, inputAmount: toBNWei(1337) }, _deposit_2);
     expect(result.valid).to.be.false;
     expect((result as { reason: string }).reason.startsWith("inputAmount mismatch")).to.be.true;
 
     // Changed the output token.
-    result = validateFillForDeposit(fill, { ...deposit_2, outputToken: owner.address });
+    result = validateFillForDeposit(fill, { ..._deposit_2, outputToken: owner.address });
     expect(result.valid).to.be.false;
     expect((result as { reason: string }).reason.startsWith("outputToken mismatch")).to.be.true;
 
     // Changed the output amount.
-    result = validateFillForDeposit({ ...fill, outputAmount: toBNWei(1337) }, deposit_2);
+    result = validateFillForDeposit({ ...fill, outputAmount: toBNWei(1337) }, _deposit_2);
     expect(result.valid).to.be.false;
     expect((result as { reason: string }).reason.startsWith("outputAmount mismatch")).to.be.true;
 
     // Invalid depositId.
-    result = validateFillForDeposit({ ...fill, depositId: toBN(1337) }, deposit_2);
+    result = validateFillForDeposit({ ...fill, depositId: toBN(1337) }, _deposit_2);
     expect(result.valid).to.be.false;
     expect((result as { reason: string }).reason.startsWith("depositId mismatch")).to.be.true;
 
     // Changed the depositor.
-    result = validateFillForDeposit({ ...fill, depositor: relayer.address }, deposit_2);
+    result = validateFillForDeposit({ ...fill, depositor: relayer.address }, _deposit_2);
     expect(result.valid).to.be.false;
     expect((result as { reason: string }).reason.startsWith("depositor mismatch")).to.be.true;
 
     // Changed the recipient.
-    result = validateFillForDeposit({ ...fill, recipient: relayer.address }, deposit_2);
+    result = validateFillForDeposit({ ...fill, recipient: relayer.address }, _deposit_2);
     expect(result.valid).to.be.false;
     expect((result as { reason: string }).reason.startsWith("recipient mismatch")).to.be.true;
   });
