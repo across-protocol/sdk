@@ -261,6 +261,39 @@ export async function addLiquidity(
   await hubPool.connect(signer).addLiquidity(l1Token.address, amount);
 }
 
+export async function deposit(
+  spokePool: Contract,
+  destinationChainId: number,
+  signer: SignerWithAddress,
+  inputToken: string,
+  inputAmount: BigNumber,
+  outputToken: string,
+  outputAmount: BigNumber,
+  opts: {
+    destinationChainId?: number;
+    recipient?: string;
+    quoteTimestamp?: number;
+    message?: string;
+    fillDeadline?: number;
+    exclusivityDeadline?: number;
+    exclusiveRelayer?: string;
+  } = {}
+): Promise<DepositWithBlock> {
+  return _deposit(
+    spokePool,
+    destinationChainId,
+    signer,
+    inputToken,
+    inputAmount,
+    outputToken,
+    outputAmount,
+    {
+      ...opts,
+      addressModifier: toBytes32
+    }
+  );
+}
+
 export async function depositV3(
   spokePool: Contract,
   destinationChainId: number,
@@ -279,6 +312,41 @@ export async function depositV3(
     exclusiveRelayer?: string;
   } = {}
 ): Promise<DepositWithBlock> {
+  return _deposit(
+    spokePool,
+    destinationChainId,
+    signer,
+    inputToken,
+    inputAmount,
+    outputToken,
+    outputAmount,
+    {
+      ...opts,
+      addressModifier: toAddress,
+    }
+  );
+}
+
+async function _deposit(
+  spokePool: Contract,
+  destinationChainId: number,
+  signer: SignerWithAddress,
+  inputToken: string,
+  inputAmount: BigNumber,
+  outputToken: string,
+  outputAmount: BigNumber,
+  opts: {
+    destinationChainId?: number;
+    recipient?: string;
+    quoteTimestamp?: number;
+    message?: string;
+    fillDeadline?: number;
+    exclusivityDeadline?: number;
+    exclusiveRelayer?: string;
+    addressModifier?: (address: string) => string,
+  } = {}
+): Promise<DepositWithBlock> {
+  const addressModifier = opts.addressModifier ?? toBytes32;
   const depositor = signer.address;
   const recipient = opts.recipient ?? depositor;
 
@@ -290,19 +358,19 @@ export async function depositV3(
   const message = opts.message ?? EMPTY_MESSAGE;
   const fillDeadline = opts.fillDeadline ?? spokePoolTime + fillDeadlineBuffer;
   const exclusivityDeadline = opts.exclusivityDeadline ?? 0;
-  const exclusiveRelayer = opts.exclusiveRelayer ?? zeroAddress;
+  const exclusiveRelayer = addressModifier(opts.exclusiveRelayer ?? zeroAddress);
 
   await spokePool
     .connect(signer)
     .depositV3(
-      toAddress(depositor),
-      toAddress(recipient),
-      toAddress(inputToken),
-      toAddress(outputToken),
+      addressModifier(depositor),
+      addressModifier(recipient),
+      addressModifier(inputToken),
+      addressModifier(outputToken),
       inputAmount,
       outputAmount,
       destinationChainId,
-      toAddress(exclusiveRelayer),
+      addressModifier(exclusiveRelayer),
       quoteTimestamp,
       fillDeadline,
       exclusivityDeadline,
