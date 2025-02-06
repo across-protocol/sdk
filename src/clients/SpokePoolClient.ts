@@ -655,7 +655,6 @@ export class SpokePoolClient extends BaseAbstractClient {
       }
     };
 
-    // Query "legacy" V3FundsDeposited events.
     for (const event of ["V3FundsDeposited", "FundsDeposited"]) {
       if (eventsToQuery.includes(event)) {
         await queryDepositEvents(event);
