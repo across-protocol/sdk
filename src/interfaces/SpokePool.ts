@@ -52,11 +52,13 @@ export enum FillType {
 export interface RelayExecutionEventInfo {
   updatedRecipient: string;
   updatedOutputAmount: BigNumber;
-  updatedMessage: string;
+  updatedMessage?: string;
+  updatedMessageHash: string;
   fillType: FillType;
 }
 
 export interface Fill extends RelayData {
+  messageHash: string;
   destinationChainId: number;
   relayer: string;
   repaymentChainId: number;

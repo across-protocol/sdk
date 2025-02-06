@@ -64,7 +64,7 @@ export function populateV3Relay(
  * is required to compute a complete RelayData hash.
  * note: This function should _not_ be used to query the SpokePool.fillStatuses mapping.
  */
-export function getRelayEventKey(data: RelayData & { destinationChainId: number }): string {
+export function getRelayEventKey(data: RelayData & { messageHash: string; destinationChainId: number }): string {
   return [
     data.depositor,
     data.recipient,
@@ -78,7 +78,7 @@ export function getRelayEventKey(data: RelayData & { destinationChainId: number 
     data.depositId,
     data.fillDeadline,
     data.exclusivityDeadline,
-    data.message,
+    data.messageHash,
   ]
     .map(String)
     .join("-");
@@ -455,6 +455,7 @@ export async function findFillEvent(
   const fill = {
     ...spreadEventWithBlockNumber(event),
     destinationChainId,
+    messageHash: getMessageHash(event.args.message),
   } as FillWithBlock;
   return fill;
 }

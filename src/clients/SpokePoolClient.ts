@@ -309,7 +309,8 @@ export class SpokePoolClient extends BaseAbstractClient {
    * @returns The corresponding SlowFIllRequest event if found, otherwise undefined.
    */
   public getSlowFillRequest(relayData: RelayData): SlowFillRequestWithBlock | undefined {
-    const hash = getRelayEventKey({ ...relayData, destinationChainId: this.chainId });
+    const messageHash = getMessageHash(relayData.message);
+    const hash = getRelayEventKey({ ...relayData, messageHash, destinationChainId: this.chainId });
     return this.slowFillRequests[hash];
   }
 
@@ -698,6 +699,7 @@ export class SpokePoolClient extends BaseAbstractClient {
       for (const event of fillEvents) {
         const fill = {
           ...spreadEventWithBlockNumber(event),
+          messageHash: getMessageHash(event.args["message"]),
           destinationChainId: this.chainId,
         } as FillWithBlock;
 
