@@ -53,7 +53,7 @@ export function getRepaymentChainId(fill: Fill, matchedDeposit: Deposit): number
   return matchedDeposit.fromLiteChain ? matchedDeposit.originChainId : fill.repaymentChainId;
 }
 
-export function overwriteRepaymentChain(
+export function willOverwriteRepaymentChain(
   repaymentChainId: number,
   matchedDeposit: Deposit & { quoteBlockNumber: number },
   hubPoolClient: HubPoolClient
@@ -96,7 +96,7 @@ export async function verifyFillRepayment(
 
   // If repayment chain doesn't have a Pool Rebalance Route for the input token, then change the repayment
   // chain to the destination chain.
-  if (!isSlowFill(fill) && overwriteRepaymentChain(repaymentChainId, matchedDeposit, hubPoolClient)) {
+  if (!isSlowFill(fill) && willOverwriteRepaymentChain(repaymentChainId, matchedDeposit, hubPoolClient)) {
     repaymentChainId = fill.destinationChainId;
   }
 
