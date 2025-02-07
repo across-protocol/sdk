@@ -1469,11 +1469,43 @@ export class BundleDataClient {
     );
 
     if (bundleInvalidFillsV3.length > 0) {
+      // For extra clarity, check if any invalid fills match with a deposit on deposit ID and origin chain. These
+      // are most likely truly invalid fills due to re-org.
+      const invalidFillsWithPartialMatchedDeposits: FillWithBlock[] = [];
+
+      // If the fill matches with a deposit following the bundle then the fill will be refunded as a pre-fill
+      // in the next bundle.
+      const preFillsForNextBundle: FillWithBlock[] = [];
+
+      // These fills don't partially match with any deposit in our memory.
+      const unknownReasonInvalidFills: FillWithBlock[] = [];
+
+      bundleInvalidFillsV3.forEach((fill) => {
+        const originClient = spokePoolClients[fill.originChainId];
+        const fullyMatchedDeposit = originClient.getDepositForFill(fill);
+        if (!isDefined(fullyMatchedDeposit)) {
+          const partiallyMatchedDeposit = originClient.getDeposit(fill.depositId);
+          if (isDefined(partiallyMatchedDeposit)) {
+            invalidFillsWithPartialMatchedDeposits.push(fill);
+          } else {
+            unknownReasonInvalidFills.push(fill);
+          }
+        } else {
+          const originBundleBlockRange = getBlockRangeForChain(blockRangesForChains, fill.originChainId, chainIds);
+          if (fullyMatchedDeposit.blockNumber <= originBundleBlockRange[1]) {
+            throw new Error("Detected invalid fill that matches fully with a deposit in current or prior bundle");
+          }
+          preFillsForNextBundle.push(fill);
+        }
+      });
+
       this.logger.debug({
         at: "BundleDataClient#loadData",
         message: "Finished loading V3 spoke pool data and found some invalid fills in range",
         blockRangesForChains,
-        bundleInvalidFillsV3,
+        invalidFillsWithPartialMatchedDeposits,
+        preFillsForNextBundle,
+        unknownReasonInvalidFills,
       });
     }
 
