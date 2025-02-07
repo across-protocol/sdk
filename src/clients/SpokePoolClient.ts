@@ -354,16 +354,7 @@ export class SpokePoolClient extends BaseAbstractClient {
     if (match.valid) {
       return deposit;
     }
-
-    this.logger.debug({
-      at: "SpokePoolClient::getDepositForFill",
-      message: `Rejected fill for ${getNetworkName(fill.originChainId)} deposit ${fill.depositId.toString()}.`,
-      reason: match.reason,
-      deposit,
-      fill,
-    });
-
-    return;
+    return undefined;
   }
 
   public getFillsForDeposit(deposit: Deposit): FillWithBlock[] {
