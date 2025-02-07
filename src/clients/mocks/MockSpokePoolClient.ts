@@ -2,7 +2,7 @@ import assert from "assert";
 import { Contract } from "ethers";
 import { random } from "lodash";
 import winston from "winston";
-import { ZERO_ADDRESS } from "../../constants";
+import { EMPTY_MESSAGE, ZERO_ADDRESS } from "../../constants";
 import {
   Log,
   Deposit,
@@ -214,7 +214,7 @@ export class MockSpokePoolClient extends SpokePoolClient {
     const relayer = addressModifier(fill.relayer ?? randomAddress());
 
     const topics = [originChainId, depositId, relayer]; // @todo verify
-    const message = fill["message"] ?? "0x";
+    const message = fill.message ?? EMPTY_MESSAGE;
     const updatedMessage = fill.relayExecutionInfo?.updatedMessage ?? message;
 
     const relayExecutionInfo = {
@@ -251,7 +251,7 @@ export class MockSpokePoolClient extends SpokePoolClient {
             messageHash: getMessageHash(message),
             relayExecutionInfo: {
               ...relayExecutionInfo,
-              updatedMessageHash: fill.relayExecutionInfo.updatedMessageHash ?? getMessageHash(fill.message),
+              updatedMessageHash: getMessageHash(updatedMessage),
             },
           }
         : {
@@ -260,7 +260,7 @@ export class MockSpokePoolClient extends SpokePoolClient {
             message,
             relayExecutionInfo: {
               ...relayExecutionInfo,
-              updatedMessage: fill.relayExecutionInfo?.updatedMessage ?? message,
+              updatedMessage,
             },
           };
 
