@@ -237,7 +237,6 @@ export class MockSpokePoolClient extends SpokePoolClient {
       relayer,
       depositor,
       recipient,
-      message,
       relayExecutionInfo: {
         updatedRecipient: fill.relayExecutionInfo?.updatedRecipient ?? recipient,
         updatedMessage,

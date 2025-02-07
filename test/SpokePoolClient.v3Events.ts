@@ -52,14 +52,14 @@ describe("SpokePoolClient: Event Filtering", function () {
     inputToken?: string
   ): Log => {
     inputToken ??= randomAddress();
-    const message = EMPTY_MESSAGE;
+    const message = randomBytes(32);
     quoteTimestamp ??= getCurrentTime() - 10;
     return spokePoolClient.depositV3({ destinationChainId, inputToken, message, quoteTimestamp } as DepositWithBlock);
   };
 
   const generateDeposit = (spokePoolClient: MockSpokePoolClient, quoteTimestamp?: number, inputToken?: string): Log => {
     inputToken ??= randomAddress();
-    const message = EMPTY_MESSAGE;
+    const message = randomBytes(32);
     quoteTimestamp ??= getCurrentTime() - 10;
     return spokePoolClient.deposit({ destinationChainId, inputToken, message, quoteTimestamp } as DepositWithBlock);
   };
