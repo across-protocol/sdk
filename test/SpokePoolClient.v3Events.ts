@@ -2,7 +2,7 @@ import { expect } from "chai";
 import { utils as sdkUtils } from "../src";
 import { DEFAULT_CONFIG_STORE_VERSION, GLOBAL_CONFIG_STORE_KEYS } from "../src/clients";
 import { MockConfigStoreClient, MockHubPoolClient, MockSpokePoolClient } from "../src/clients/mocks";
-import { EMPTY_MESSAGE, ZERO_ADDRESS } from "../src/constants";
+import { ZERO_ADDRESS } from "../src/constants";
 import {
   DepositWithBlock,
   FillWithBlock,
