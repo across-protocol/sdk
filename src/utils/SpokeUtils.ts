@@ -10,6 +10,7 @@ import { isMessageEmpty } from "./DepositUtils";
 import { isDefined } from "./TypeGuards";
 import { getNetworkName } from "./NetworkUtils";
 import { paginatedEventQuery, spreadEventWithBlockNumber } from "./EventUtils";
+import { toBytes32 } from "./AddressUtils";
 
 type BlockTag = providers.BlockTag;
 
@@ -25,12 +26,12 @@ export function populateV3Relay(
   relayer: string,
   repaymentChainId = deposit.destinationChainId
 ): Promise<PopulatedTransaction> {
-  const v3RelayData: RelayData = {
-    depositor: toBytes32(deposit.depositor),
-    recipient: toBytes32(deposit.recipient),
-    exclusiveRelayer: toBytes32(deposit.exclusiveRelayer),
-    inputToken: toBytes32(deposit.inputToken),
-    outputToken: toBytes32(deposit.outputToken),
+  let v3RelayData: RelayData = {
+    depositor: deposit.depositor,
+    recipient: deposit.recipient,
+    exclusiveRelayer: deposit.exclusiveRelayer,
+    inputToken: deposit.inputToken,
+    outputToken: deposit.outputToken,
     inputAmount: deposit.inputAmount,
     outputAmount: deposit.outputAmount,
     originChainId: deposit.originChainId,
@@ -39,6 +40,16 @@ export function populateV3Relay(
     exclusivityDeadline: deposit.exclusivityDeadline,
     message: deposit.message,
   };
+  if (process.env.ENABLE_V6) {
+    v3RelayData = {
+      ...v3RelayData,
+      depositor: toBytes32(deposit.depositor),
+      recipient: toBytes32(deposit.recipient),
+      exclusiveRelayer: toBytes32(deposit.exclusiveRelayer),
+      inputToken: toBytes32(deposit.inputToken),
+      outputToken: toBytes32(deposit.outputToken),
+    };
+  }
   if (isDefined(deposit.speedUpSignature)) {
     assert(isDefined(deposit.updatedRecipient) && !isZeroAddress(deposit.updatedRecipient));
     assert(isDefined(deposit.updatedOutputAmount));
@@ -46,16 +57,18 @@ export function populateV3Relay(
     return spokePool.populateTransaction.fillRelayWithUpdatedDeposit(
       v3RelayData,
       repaymentChainId,
-      toBytes32(relayer),
+      process.env.ENABLE_V6 ? toBytes32(relayer) : relayer,
       deposit.updatedOutputAmount,
-      toBytes32(deposit.updatedRecipient),
+      process.env.ENABLE_V6 ? toBytes32(deposit.updatedRecipient) : deposit.updatedRecipient,
       deposit.updatedMessage,
       deposit.speedUpSignature,
       { from: relayer }
     );
   }
 
-  return spokePool.populateTransaction.fillRelay(v3RelayData, repaymentChainId, toBytes32(relayer), { from: relayer });
+  return process.env.ENABLE_V6
+    ? spokePool.populateTransaction.fillRelay(v3RelayData, repaymentChainId, toBytes32(relayer), { from: relayer })
+    : spokePool.populateTransaction.fillV3Relay(v3RelayData, repaymentChainId, { from: relayer });
 }
 
 /**
