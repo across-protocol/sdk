@@ -225,10 +225,14 @@ export class BundleDataClient {
     Object.values(data.bundleFillsV3).forEach((x) =>
       Object.values(x).forEach(({ fills }) =>
         fills.forEach((fill) => {
-          if (fill.messageHash === UNDEFINED_MESSAGE_HASH) {
+          if (fill.messageHash === UNDEFINED_MESSAGE_HASH && isDefined(fill.message)) {
+            // If messageHash is undefined, fill should be of type FilledV3Relay and should have a message.
             fill.messageHash = getMessageHash(fill.message);
           }
-          if (fill.relayExecutionInfo.updatedMessageHash === UNDEFINED_MESSAGE_HASH) {
+          if (
+            fill.relayExecutionInfo.updatedMessageHash === UNDEFINED_MESSAGE_HASH &&
+            isDefined(fill.relayExecutionInfo.updatedMessage)
+          ) {
             fill.relayExecutionInfo.updatedMessageHash = getMessageHash(fill.relayExecutionInfo.updatedMessage);
           }
         })
