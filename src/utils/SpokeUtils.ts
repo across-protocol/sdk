@@ -54,16 +54,26 @@ export function populateV3Relay(
     assert(isDefined(deposit.updatedRecipient) && !isZeroAddress(deposit.updatedRecipient));
     assert(isDefined(deposit.updatedOutputAmount));
     assert(isDefined(deposit.updatedMessage));
-    return spokePool.populateTransaction.fillRelayWithUpdatedDeposit(
-      v3RelayData,
-      repaymentChainId,
-      process.env.ENABLE_V6 ? toBytes32(relayer) : relayer,
-      deposit.updatedOutputAmount,
-      process.env.ENABLE_V6 ? toBytes32(deposit.updatedRecipient) : deposit.updatedRecipient,
-      deposit.updatedMessage,
-      deposit.speedUpSignature,
-      { from: relayer }
-    );
+    return process.env.enableV6
+      ? spokePool.populateTransaction.fillRelayWithUpdatedDeposit(
+          v3RelayData,
+          repaymentChainId,
+          toBytes32(relayer),
+          deposit.updatedOutputAmount,
+          toBytes32(deposit.updatedRecipient),
+          deposit.updatedMessage,
+          deposit.speedUpSignature,
+          { from: relayer }
+        )
+      : spokePool.populateTransaction.fillV3RelayWithUpdatedDeposit(
+          v3RelayData,
+          repaymentChainId,
+          deposit.updatedOutputAmount,
+          deposit.updatedRecipient,
+          deposit.updatedMessage,
+          deposit.speedUpSignature,
+          { from: relayer }
+        );
   }
 
   return process.env.ENABLE_V6
