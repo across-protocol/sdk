@@ -239,8 +239,6 @@ export class MockSpokePoolClient extends SpokePoolClient {
       recipient,
       relayExecutionInfo: {
         updatedRecipient: fill.relayExecutionInfo?.updatedRecipient ?? recipient,
-        updatedMessage,
-        updatedMessageHash: getMessageHash(updatedMessage),
         updatedOutputAmount: fill.relayExecutionInfo?.updatedOutputAmount ?? outputAmount,
         fillType: fill.relayExecutionInfo?.fillType ?? FillType.FastFill,
       },
