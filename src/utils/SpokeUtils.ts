@@ -54,7 +54,7 @@ export function populateV3Relay(
     assert(isDefined(deposit.updatedRecipient) && !isZeroAddress(deposit.updatedRecipient));
     assert(isDefined(deposit.updatedOutputAmount));
     assert(isDefined(deposit.updatedMessage));
-    return process.env.enableV6
+    return process.env.ENABLE_V6
       ? spokePool.populateTransaction.fillRelayWithUpdatedDeposit(
           v3RelayData,
           repaymentChainId,
