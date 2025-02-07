@@ -26,11 +26,11 @@ export function populateV3Relay(
   repaymentChainId = deposit.destinationChainId
 ): Promise<PopulatedTransaction> {
   const v3RelayData: RelayData = {
-    depositor: deposit.depositor,
-    recipient: deposit.recipient,
-    exclusiveRelayer: deposit.exclusiveRelayer,
-    inputToken: deposit.inputToken,
-    outputToken: deposit.outputToken,
+    depositor: toBytes32(deposit.depositor),
+    recipient: toBytes32(deposit.recipient),
+    exclusiveRelayer: toBytes32(deposit.exclusiveRelayer),
+    inputToken: toBytes32(deposit.inputToken),
+    outputToken: toBytes32(deposit.outputToken),
     inputAmount: deposit.inputAmount,
     outputAmount: deposit.outputAmount,
     originChainId: deposit.originChainId,
@@ -40,21 +40,22 @@ export function populateV3Relay(
     message: deposit.message,
   };
   if (isDefined(deposit.speedUpSignature)) {
-    assert(isDefined(deposit.updatedRecipient) && deposit.updatedRecipient !== ZERO_ADDRESS);
+    assert(isDefined(deposit.updatedRecipient) && !isZeroAddress(deposit.updatedRecipient));
     assert(isDefined(deposit.updatedOutputAmount));
     assert(isDefined(deposit.updatedMessage));
-    return spokePool.populateTransaction.fillV3RelayWithUpdatedDeposit(
+    return spokePool.populateTransaction.fillRelayWithUpdatedDeposit(
       v3RelayData,
       repaymentChainId,
+      toBytes32(relayer),
       deposit.updatedOutputAmount,
-      deposit.updatedRecipient,
+      toBytes32(deposit.updatedRecipient),
       deposit.updatedMessage,
       deposit.speedUpSignature,
       { from: relayer }
     );
   }
 
-  return spokePool.populateTransaction.fillV3Relay(v3RelayData, repaymentChainId, { from: relayer });
+  return spokePool.populateTransaction.fillRelay(v3RelayData, repaymentChainId, toBytes32(relayer), { from: relayer });
 }
 
 /**
