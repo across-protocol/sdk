@@ -33,21 +33,6 @@ const BigNumberType = coerce(instance(BigNumber), union([string(), number()]), (
 
 const FillTypeSS = number();
 
-const PartialV3RelayDataSS = {
-  inputToken: string(),
-  inputAmount: BigNumberType,
-  outputToken: string(),
-  outputAmount: BigNumberType,
-  fillDeadline: number(),
-  exclusiveRelayer: string(),
-  exclusivityDeadline: number(),
-  originChainId: number(),
-  depositor: string(),
-  recipient: string(),
-  depositId: BigNumberType,
-  message: optional(string()),
-};
-
 const V3RelayDataSS = {
   inputToken: string(),
   inputAmount: BigNumberType,
@@ -105,7 +90,8 @@ const V3RelayExecutionEventInfoSS = object({
 });
 
 const V3FillSS = {
-  ...PartialV3RelayDataSS,
+  ...V3RelayDataSS,
+  message: optional(string()),
   messageHash: defaulted(string(), UNDEFINED_MESSAGE_HASH),
   destinationChainId: number(),
   relayer: string(),
