@@ -40,16 +40,6 @@ export function populateV3Relay(
     exclusivityDeadline: deposit.exclusivityDeadline,
     message: deposit.message,
   };
-  if (process.env.ENABLE_V6) {
-    v3RelayData = {
-      ...v3RelayData,
-      depositor: toBytes32(deposit.depositor),
-      recipient: toBytes32(deposit.recipient),
-      exclusiveRelayer: toBytes32(deposit.exclusiveRelayer),
-      inputToken: toBytes32(deposit.inputToken),
-      outputToken: toBytes32(deposit.outputToken),
-    };
-  }
   if (isDefined(deposit.speedUpSignature)) {
     assert(isDefined(deposit.updatedRecipient) && !isZeroAddress(deposit.updatedRecipient));
     assert(isDefined(deposit.updatedOutputAmount));
