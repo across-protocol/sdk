@@ -229,7 +229,10 @@ export class BundleDataClient {
             // If messageHash is undefined, fill should be of type FilledV3Relay and should have a message.
             fill.messageHash = getMessageHash(fill.message);
           }
-          if (fill.relayExecutionInfo.updatedMessageHash === UNDEFINED_MESSAGE_HASH && isDefined(fill.relayExecutionInfo.updatedMessage)) {
+          if (
+            fill.relayExecutionInfo.updatedMessageHash === UNDEFINED_MESSAGE_HASH &&
+            isDefined(fill.relayExecutionInfo.updatedMessage)
+          ) {
             fill.relayExecutionInfo.updatedMessageHash = getMessageHash(fill.relayExecutionInfo.updatedMessage);
           }
         })
