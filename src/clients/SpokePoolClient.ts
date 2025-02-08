@@ -635,6 +635,9 @@ export class SpokePoolClient extends BaseAbstractClient {
           toLiteChain: true,
         } as DepositWithBlock;
 
+        if (deposit.recipient.length > 42) continue;
+        if (deposit.outputToken.length > 42) continue;
+
         deposit.fromLiteChain = this.isOriginLiteChain(deposit);
         deposit.toLiteChain = this.isDestinationLiteChain(deposit);
 
