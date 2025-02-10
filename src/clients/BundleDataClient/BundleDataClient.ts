@@ -1243,12 +1243,12 @@ export class BundleDataClient {
             // then we wouldn't be in this branch of the code.
             const prefill = await this.findMatchingFillEvent(deposit, destinationClient);
             assert(isDefined(prefill), `findFillEvent# Cannot find prefill: ${relayDataHash}`);
-            assert(this.getRelayHashFromEvent(prefill!) === relayDataHash, "Relay hashes should match.");
+            assert(getRelayEventKey(prefill!) === relayDataHash, "Relay hashes should match.");
             const verifiedFill = await verifyFillRepayment(
               prefill!,
               destinationClient.spokePool.provider,
               deposit,
-              allChainIds
+              this.clients.hubPoolClient
             );
             if (!isDefined(verifiedFill)) {
               bundleUnrepayableFillsV3.push(prefill!);
