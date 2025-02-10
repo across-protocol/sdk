@@ -83,6 +83,13 @@ function updateBundleDepositsV3(dict: BundleDepositsV3, deposit: V3DepositWithBl
   if (!dict?.[originChainId]?.[inputToken]) {
     assign(dict, [originChainId, inputToken], []);
   }
+  if (
+    dict[originChainId][inputToken].some(
+      (d) => d.transactionHash === deposit.transactionHash && d.logIndex === deposit.logIndex
+    )
+  ) {
+    throw new Error("Duplicate deposit in bundleDeposits");
+  };
   dict[originChainId][inputToken].push(deposit);
 }
 
