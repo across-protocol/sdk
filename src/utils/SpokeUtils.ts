@@ -388,7 +388,7 @@ export async function findFillBlock(
   assert(highBlockNumber > lowBlockNumber, `Block numbers out of range (${lowBlockNumber} >= ${highBlockNumber})`);
 
   // In production the chainId returned from the provider matches 1:1 with the actual chainId. Querying the provider
-  // object saves an RPC query becasue the chainId is cached by StaticJsonRpcProvider instances. In hre, the SpokePool
+  // object saves an RPC query because the chainId is cached by StaticJsonRpcProvider instances. In hre, the SpokePool
   // may be configured with a different chainId than what is returned by the provider.
   const destinationChainId = Object.values(CHAIN_IDs).includes(relayData.originChainId)
     ? (await provider.getNetwork()).chainId
@@ -462,7 +462,7 @@ export async function findFillEvent(
   if (query.length === 0) throw new Error(`Failed to find fill event at block ${blockNumber}`);
   const event = query[0];
   // In production the chainId returned from the provider matches 1:1 with the actual chainId. Querying the provider
-  // object saves an RPC query becasue the chainId is cached by StaticJsonRpcProvider instances. In hre, the SpokePool
+  // object saves an RPC query because the chainId is cached by StaticJsonRpcProvider instances. In hre, the SpokePool
   // may be configured with a different chainId than what is returned by the provider.
   const destinationChainId = Object.values(CHAIN_IDs).includes(relayData.originChainId)
     ? (await spokePool.provider.getNetwork()).chainId
