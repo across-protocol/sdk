@@ -89,7 +89,7 @@ function updateBundleDepositsV3(dict: BundleDepositsV3, deposit: V3DepositWithBl
     )
   ) {
     throw new Error("Duplicate deposit in bundleDeposits");
-  };
+  }
   dict[originChainId][inputToken].push(deposit);
 }
 
