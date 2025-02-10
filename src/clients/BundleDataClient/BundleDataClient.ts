@@ -992,7 +992,11 @@ export class BundleDataClient {
                   }
                 }
               } else {
-                throw new Error("Duplicate fill detected");
+                this.logger.warn({
+                  at: "BundleDataClient#loadDataFromScratch",
+                  message: "Detected duplicate fill",
+                  fill,
+                });
               }
               return;
             }
@@ -1115,7 +1119,11 @@ export class BundleDataClient {
                   validatedBundleSlowFills.push(matchedDeposit);
                 }
               } else {
-                throw new Error("Duplicate slow fill request detected.");
+                this.logger.warn({
+                  at: "BundleDataClient#loadDataFromScratch",
+                  message: "Detected duplicate slow fill request",
+                  slowFillRequest,
+                });
               }
               return;
             }
