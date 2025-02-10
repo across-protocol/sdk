@@ -1259,23 +1259,7 @@ export class BundleDataClient {
               });
             } else {
               updateExpiredDepositsV3(expiredDepositsToRefundV3, deposit);
-            assert(getRelayEventKey(prefill!) === relayDataHash, "Relay hashes should match.");
-              const verifiedFill = await verifyFillRepayment(
-                prefill!,
-                destinationClient.spokePool.provider,
-                deposit,
-                this.clients.hubPoolClient
-              );
-              if (!isDefined(verifiedFill)) {
-                bundleUnrepayableFillsV3.push(prefill!);
-              } else if (!isSlowFill(verifiedFill)) {
-                validatedBundleV3Fills.push({
-                  ...verifiedFill!,
-                  quoteTimestamp: deposit.quoteTimestamp,
-                });
-              } else {
-                updateExpiredDepositsV3(expiredDepositsToRefundV3, deposit);
-              }
+            }
           } else if (_depositIsExpired(deposit)) {
             updateExpiredDepositsV3(expiredDepositsToRefundV3, deposit);
           } else if (
