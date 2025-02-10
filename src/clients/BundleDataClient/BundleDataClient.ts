@@ -240,13 +240,7 @@ export class BundleDataClient {
     );
   }
 
-  private async loadPersistedDataFromArweave(
-    blockRangesForChains: number[][]
-  ): Promise<LoadDataReturnValue | undefined> {
-    if (!isDefined(this.clients?.arweaveClient)) {
-      return undefined;
-    }
-    const start = performance.now();
+  private async getBundleDataFromArweave(blockRangesForChains: number[][]) {
     const persistedData = await this.clients.arweaveClient.getByTopic(
       this.getArweaveBundleDataClientKey(blockRangesForChains),
       BundleDataSS
@@ -254,6 +248,20 @@ export class BundleDataClient {
     // If there is no data or the data is empty, return undefined because we couldn't
     // pull info from the Arweave persistence layer.
     if (!isDefined(persistedData) || persistedData.length < 1) {
+      return undefined;
+    }
+    return persistedData;
+  }
+
+  private async loadPersistedDataFromArweave(
+    blockRangesForChains: number[][]
+  ): Promise<LoadDataReturnValue | undefined> {
+    if (!isDefined(this.clients?.arweaveClient)) {
+      return undefined;
+    }
+    const start = performance.now();
+    const persistedData = await this.getBundleDataFromArweave(blockRangesForChains);
+    if (!isDefined(persistedData)) {
       return undefined;
     }
 
@@ -435,24 +443,39 @@ export class BundleDataClient {
     const hubPoolClient = this.clients.hubPoolClient;
     // Determine which bundle we should fetch from arweave, either the pending bundle or the latest
     // executed one. Both should have arweave data but if for some reason the arweave data is missing,
-    // this function will have to compute the bundle data from scratch which will be slow. We have to fallback
-    // to computing the bundle from scratch since this function needs to return the full bundle data so that
-    // it can be used to get the running balance proposed using its data.
-    const bundleBlockRanges = getImpliedBundleBlockRanges(
+    // this function will load the bundle data from the most recent bundle data published to Arweave.
+    
+    let bundleBlockRanges = getImpliedBundleBlockRanges(
       hubPoolClient,
       this.clients.configStoreClient,
       hubPoolClient.hasPendingProposal()
         ? hubPoolClient.getLatestProposedRootBundle()
-        : hubPoolClient.getLatestFullyExecutedRootBundle(hubPoolClient.latestBlockSearched)! // ! because we know there is a bundle
+        : hubPoolClient.getNthFullyExecutedRootBundle(-1)!
     );
-    return {
-      blockRanges: bundleBlockRanges,
-      bundleData: await this.loadData(
-        bundleBlockRanges,
-        this.spokePoolClients,
-        true // this bundle data should have been published to arweave
-      ),
-    };
+    // Check if bundle data exists on arweave, otherwise fallback to last published bundle data. If the
+    // first bundle block range we are trying is the pending proposal, then we'll grab the most recently
+    // validated bundle, otherwise we'll grab the second most recently validated bundle.
+    let n = hubPoolClient.hasPendingProposal() ? 1 : 2;
+
+    // eslint-disable-next-line no-constant-condition
+    while (true) {
+      const bundleDataOnArweave = await this.getBundleDataFromArweave(bundleBlockRanges);
+      if (!isDefined(bundleDataOnArweave)) {
+        // Bundle data is not arweave, try the next most recently validated bundle.
+        bundleBlockRanges = getImpliedBundleBlockRanges(
+          hubPoolClient,
+          this.clients.configStoreClient,
+          hubPoolClient.getNthFullyExecutedRootBundle(-n)!
+        );
+      } else {
+        return {
+          blockRanges: bundleBlockRanges,
+          bundleData: await this.loadData(bundleBlockRanges, this.spokePoolClients, true),
+        };
+      }
+
+      n++;
+    }
   }
 
   async getLatestPoolRebalanceRoot(): Promise<{ root: PoolRebalanceRoot; blockRanges: number[][] }> {
@@ -992,11 +1015,7 @@ export class BundleDataClient {
                   }
                 }
               } else {
-                this.logger.warn({
-                  at: "BundleDataClient#loadDataFromScratch",
-                  message: "Detected duplicate fill",
-                  fill,
-                });
+                throw new Error("Duplicate fill detected");
               }
               return;
             }
@@ -1119,11 +1138,7 @@ export class BundleDataClient {
                   validatedBundleSlowFills.push(matchedDeposit);
                 }
               } else {
-                this.logger.warn({
-                  at: "BundleDataClient#loadDataFromScratch",
-                  message: "Detected duplicate slow fill request",
-                  slowFillRequest,
-                });
+                throw new Error("Duplicate slow fill request detected.");
               }
               return;
             }

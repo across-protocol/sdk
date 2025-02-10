@@ -726,13 +726,27 @@ export class SpokePoolClient extends BaseAbstractClient {
         const slowFillRequest = {
           ...spreadEventWithBlockNumber(event),
           destinationChainId: this.chainId,
-        } as SlowFillRequestWithBlock;
+        } as SlowFillRequestWithBlock;        
 
         if (eventName === "RequestedV3SlowFill") {
           slowFillRequest.messageHash = getMessageHash(slowFillRequest.message);
         }
 
         const depositHash = getRelayEventKey({ ...slowFillRequest, destinationChainId: this.chainId });
+        
+        // Sanity check that this event is not a duplicate.
+        if (
+          this.slowFillRequests[depositHash] !== undefined
+        ) {
+          this.logger.warn({
+            at: "SpokePoolClient#update",
+            chainId: this.chainId,
+            message: "Duplicate slow fill request found",
+            slowFillRequest,
+          });
+          continue;
+        }
+        
         this.slowFillRequests[depositHash] ??= slowFillRequest;
       }
     };
@@ -764,6 +778,22 @@ export class SpokePoolClient extends BaseAbstractClient {
         if (eventName === "FilledV3Relay") {
           fill.messageHash = getMessageHash(event.args.message);
           fill.relayExecutionInfo.updatedMessageHash = getMessageHash(event.args.relayExecutionInfo.updatedMessage);
+        }
+
+        // Sanity check that this event is not a duplicate.
+        if (
+          this.fills[fill.originChainId] !== undefined &&
+          this.fills[fill.originChainId].some(
+            (f) => f.transactionHash === fill.transactionHash && f.logIndex === fill.logIndex
+          )
+        ) {
+          this.logger.warn({
+            at: "SpokePoolClient#update",
+            chainId: this.chainId,
+            message: "Duplicate fill found",
+            fill,
+          });
+          continue;
         }
 
         assign(this.fills, [fill.originChainId], [fill]);
