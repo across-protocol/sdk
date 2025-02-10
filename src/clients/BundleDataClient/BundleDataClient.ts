@@ -444,7 +444,7 @@ export class BundleDataClient {
     // Determine which bundle we should fetch from arweave, either the pending bundle or the latest
     // executed one. Both should have arweave data but if for some reason the arweave data is missing,
     // this function will load the bundle data from the most recent bundle data published to Arweave.
-    
+
     let bundleBlockRanges = getImpliedBundleBlockRanges(
       hubPoolClient,
       this.clients.configStoreClient,

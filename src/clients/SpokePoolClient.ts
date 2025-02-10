@@ -726,18 +726,16 @@ export class SpokePoolClient extends BaseAbstractClient {
         const slowFillRequest = {
           ...spreadEventWithBlockNumber(event),
           destinationChainId: this.chainId,
-        } as SlowFillRequestWithBlock;        
+        } as SlowFillRequestWithBlock;
 
         if (eventName === "RequestedV3SlowFill") {
           slowFillRequest.messageHash = getMessageHash(slowFillRequest.message);
         }
 
         const depositHash = getRelayEventKey({ ...slowFillRequest, destinationChainId: this.chainId });
-        
+
         // Sanity check that this event is not a duplicate.
-        if (
-          this.slowFillRequests[depositHash] !== undefined
-        ) {
+        if (this.slowFillRequests[depositHash] !== undefined) {
           this.logger.warn({
             at: "SpokePoolClient#update",
             chainId: this.chainId,
@@ -746,7 +744,7 @@ export class SpokePoolClient extends BaseAbstractClient {
           });
           continue;
         }
-        
+
         this.slowFillRequests[depositHash] ??= slowFillRequest;
       }
     };
