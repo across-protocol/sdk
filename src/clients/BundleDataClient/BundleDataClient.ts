@@ -1311,11 +1311,19 @@ export class BundleDataClient {
             "fastFillsReplacingSlowFills should contain only deposits that can be slow filled"
           );
           const destinationBlockRange = getBlockRangeForChain(blockRangesForChains, destinationChainId, chainIds);
+          const originBlockRange = getBlockRangeForChain(blockRangesForChains, originChainId, chainIds);
+          const matchedDeposit = deposits[0];
+          // For a slow fill leaf to have been created (and subsequently create an excess), the deposit matching the
+          // slow fill request must have been included in a previous bundle AND the slow fill request should not
+          // be included in this bundle. This is because a slow fill request is only valid once its deposit
+          // has been mined, so if the deposit is not in a prior bundle to the fill, then no slow fill leaf could
+          // have been created. Secondly, the slow fill request itself must have occurred in an older bundle than the
+          // fill otherwise the slow fill leaf be unexecutable for an already-filled deposit..
           if (
+            matchedDeposit.blockNumber < originBlockRange[0] &&
             // If there is a slow fill request in this bundle that matches the relay hash, then there was no slow fill
             // created that would be considered excess.
-            !slowFillRequest ||
-            slowFillRequest.blockNumber < destinationBlockRange[0]
+            (!slowFillRequest || slowFillRequest.blockNumber < destinationBlockRange[0])
           ) {
             validatedBundleUnexecutableSlowFills.push(deposits[0]);
           }
@@ -1373,8 +1381,9 @@ export class BundleDataClient {
 
         // If there is a slow fill request in this bundle, then the expired deposit refund will supercede
         // the slow fill request. If there is no slow fill request seen or its older than this bundle, then we can
-        // assume a slow fill leaf was created for it because of the previous _canCreateSlowFillLeaf check.
-        // The slow fill request was also sent before the fill deadline expired since we checked that above.
+        // assume a slow fill leaf was created for it when the deposit was mined. Therefore, because the deposit
+        // was in an older bundle, we can assume that a slow fill leaf was created at that time and therefore
+        // is now unexecutable.
         if (!slowFillRequest || slowFillRequest.blockNumber < destinationBlockRange[0]) {
           validatedBundleUnexecutableSlowFills.push(deposit);
         }
