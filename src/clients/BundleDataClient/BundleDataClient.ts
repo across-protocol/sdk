@@ -1381,8 +1381,9 @@ export class BundleDataClient {
 
         // If there is a slow fill request in this bundle, then the expired deposit refund will supercede
         // the slow fill request. If there is no slow fill request seen or its older than this bundle, then we can
-        // assume a slow fill leaf was created for it because of the previous _canCreateSlowFillLeaf check.
-        // The slow fill request was also sent before the fill deadline expired since we checked that above.
+        // assume a slow fill leaf was created for it when the deposit was mined. Therefore, because the deposit
+        // was in an older bundle, we can assume that a slow fill leaf was created at that time and therefore
+        // is now unexecutable.
         if (!slowFillRequest || slowFillRequest.blockNumber < destinationBlockRange[0]) {
           validatedBundleUnexecutableSlowFills.push(deposit);
         }
