@@ -1022,6 +1022,11 @@ export class BundleDataClient {
                   }
                 }
               } else {
+                this.logger.debug({
+                  at: "BundleDataClient#loadData",
+                  message: "Duplicate fill detected",
+                  fill,
+                });
                 throw new Error("Duplicate fill detected");
               }
               return;
@@ -1145,6 +1150,11 @@ export class BundleDataClient {
                   validatedBundleSlowFills.push(matchedDeposit);
                 }
               } else {
+                this.logger.debug({
+                  at: "BundleDataClient#loadData",
+                  message: "Duplicate slow fill request detected",
+                  slowFillRequest,
+                });
                 throw new Error("Duplicate slow fill request detected.");
               }
               return;
