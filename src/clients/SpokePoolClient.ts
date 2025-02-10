@@ -598,19 +598,6 @@ export class SpokePoolClient extends BaseAbstractClient {
     const { events: queryResults, currentTime, oldestTime, searchEndBlock } = update;
 
     if (eventsToQuery.includes("TokensBridged")) {
-      // Temporarily query old spoke pool events as well to ease migration:
-      const legacySpokePoolAbi = [
-        "event TokensBridged(uint256 amountToReturn,uint256 indexed chainId,uint32 indexed leafId,address indexed l2TokenAddress,address caller)",
-      ];
-      const prevSpoke = new Contract(this.spokePool.address, legacySpokePoolAbi, this.spokePool.provider);
-      const legacyQueryResults = await paginatedEventQuery(
-        prevSpoke,
-        prevSpoke.filters.TokensBridged(),
-        (await this.updateSearchConfig(this.spokePool.provider)) as EventSearchConfig
-      );
-      for (const event of legacyQueryResults) {
-        this.tokensBridged.push(spreadEventWithBlockNumber(event) as TokensBridged);
-      }
       for (const event of queryResults[eventsToQuery.indexOf("TokensBridged")]) {
         this.tokensBridged.push(spreadEventWithBlockNumber(event) as TokensBridged);
       }
