@@ -656,6 +656,21 @@ export class SpokePoolClient extends BaseAbstractClient {
         }
 
         if (this.depositHashes[getRelayEventKey(deposit)] !== undefined) {
+          // Sanity check that this event is not a duplicate, even though the relay data hash is a duplicate.
+          const allDeposits = this._getDuplicateDeposits(deposit).concat(this.depositHashes[getRelayEventKey(deposit)]);
+          if (
+            allDeposits.some((e) => {
+              return e.transactionHash === deposit.transactionHash && e.logIndex === deposit.logIndex;
+            })
+          ) {
+            this.logger.warn({
+              at: "SpokePoolClient#update",
+              chainId: this.chainId,
+              message: "Duplicate deposit found with same transaction hash and log index",
+              deposit,
+            });
+            continue;
+          }
           assign(this.duplicateDepositHashes, [getRelayEventKey(deposit)], [deposit]);
           continue;
         }
