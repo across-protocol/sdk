@@ -468,6 +468,12 @@ export class BundleDataClient {
     while (n < 4) {
       const bundleDataOnArweave = await this.getBundleDataFromArweave(bundleBlockRanges);
       if (!isDefined(bundleDataOnArweave)) {
+        this.logger.debug({
+          at: "BundleDataClient#getLatestProposedBundleData",
+          message: `No bundle data found on arweave for ${this.getArweaveBundleDataClientKey(
+            bundleBlockRanges
+          )}, trying previous bundle block range`,
+        });
         // Bundle data is not arweave, try the next most recently validated bundle.
         bundleBlockRanges = getImpliedBundleBlockRanges(
           hubPoolClient,
