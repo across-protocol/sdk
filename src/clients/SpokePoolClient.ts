@@ -602,7 +602,7 @@ export class SpokePoolClient extends BaseAbstractClient {
       const legacySpokePoolAbi = [
         "event TokensBridged(uint256 amountToReturn,uint256 indexed chainId,uint32 indexed leafId,address indexed l2TokenAddress,address caller)",
       ];
-      const prevSpoke = new Contract(this.spokePool.address, legacySpokePoolAbi, this.spokePool.provider);
+      const prevSpoke = new Contract(this.spokePool.address, legacySpokePoolAbi, this.spokePool.signer);
       const legacyQueryResults = await paginatedEventQuery(
         prevSpoke,
         prevSpoke.filters.TokensBridged(),
