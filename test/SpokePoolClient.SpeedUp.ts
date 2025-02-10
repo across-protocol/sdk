@@ -1,6 +1,6 @@
 import { SpokePoolClient } from "../src/clients";
 import { Deposit, SpeedUp } from "../src/interfaces";
-import { bnOne } from "../src/utils";
+import { bnOne, getMessageHash, toBytes32 } from "../src/utils";
 import { destinationChainId, originChainId } from "./constants";
 import {
   assert,
@@ -78,33 +78,34 @@ describe("SpokePoolClient: SpeedUp", function () {
       deposit.depositId,
       originChainId,
       updatedOutputAmount,
-      updatedRecipient,
+      toBytes32(updatedRecipient),
       updatedMessage
     );
 
     await spokePool
       .connect(depositor)
-      .speedUpV3Deposit(
-        depositor.address,
+      .speedUpDeposit(
+        toBytes32(depositor.address),
         deposit.depositId,
         updatedOutputAmount,
-        updatedRecipient,
+        toBytes32(updatedRecipient),
         updatedMessage,
         signature
       );
+
     await spokePoolClient.update();
 
     // After speedup should return the appended object with the new fee information and signature.
     const expectedDepositData: Deposit = {
       ...deposit,
+      messageHash: getMessageHash(deposit.message),
       speedUpSignature: signature,
       updatedOutputAmount,
       updatedMessage,
       updatedRecipient,
     };
-
-    expect(deepEqualsWithBigNumber(spokePoolClient.appendMaxSpeedUpSignatureToDeposit(deposit), expectedDepositData)).to
-      .be.true;
+    const updatedDeposit = spokePoolClient.appendMaxSpeedUpSignatureToDeposit(deposit);
+    expect(deepEqualsWithBigNumber(updatedDeposit, expectedDepositData)).to.be.true;
 
     // Fetching deposits for the depositor should contain the correct fees.
     expect(
@@ -140,17 +141,17 @@ describe("SpokePoolClient: SpeedUp", function () {
         depositId,
         originChainId,
         updatedOutputAmount,
-        updatedRecipient,
+        toBytes32(updatedRecipient),
         updatedMessage
       );
 
       await spokePool
         .connect(depositor)
-        .speedUpV3Deposit(
-          depositor.address,
+        .speedUpDeposit(
+          toBytes32(depositor.address),
           depositId,
           updatedOutputAmount,
-          updatedRecipient,
+          toBytes32(updatedRecipient),
           updatedMessage,
           depositorSignature
         );
@@ -224,7 +225,7 @@ describe("SpokePoolClient: SpeedUp", function () {
         testDepositId.toNumber(),
         testOriginChainId,
         updatedOutputAmount,
-        updatedRecipient,
+        toBytes32(updatedRecipient),
         updatedMessage
       );
 
@@ -234,7 +235,7 @@ describe("SpokePoolClient: SpeedUp", function () {
           testDepositor.address,
           testDepositId,
           updatedOutputAmount,
-          updatedRecipient,
+          toBytes32(updatedRecipient),
           updatedMessage,
           signature
         );

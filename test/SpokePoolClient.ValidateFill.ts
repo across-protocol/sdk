@@ -12,6 +12,7 @@ import {
   DepositSearchResult,
   getBlockRangeForDepositId,
 } from "../src/utils";
+import { ZERO_BYTES } from "../src/constants";
 import { CHAIN_ID_TEST_LIST, originChainId, destinationChainId, repaymentChainId } from "./constants";
 import {
   assert,
@@ -144,6 +145,7 @@ describe("SpokePoolClient: Fill Validation", function () {
       "relayer",
       "repaymentChainId",
       "relayExecutionInfo",
+      "message",
     ];
 
     // For each RelayData field, toggle the value to produce an invalid fill. Verify that it's rejected.
@@ -153,7 +155,7 @@ describe("SpokePoolClient: Fill Validation", function () {
       if (BigNumber.isBigNumber(fill[field])) {
         val = fill[field].add(bnOne);
       } else if (typeof fill[field] === "string") {
-        val = fill[field] + "xxx";
+        val = fill[field] + "1234";
       } else {
         expect(typeof fill[field]).to.equal("number");
         val = fill[field] + 1;
@@ -259,11 +261,11 @@ describe("SpokePoolClient: Fill Validation", function () {
 
     // Some fields are expected to be dynamically populated by the client, but aren't in this environment.
     // Fill them in manually from the fill struct to get a valid comparison.
-    expect(validateFillForDeposit(fill_1, { ...deposit_1 })).to.deep.equal({ valid: true });
+    expect(validateFillForDeposit(fill_1, deposit_1)).to.deep.equal({ valid: true });
   });
 
   it("Returns deposit matched with fill", async function () {
-    const deposit = await depositV3(
+    const _deposit = await depositV3(
       spokePool_1,
       destinationChainId,
       depositor,
@@ -273,12 +275,16 @@ describe("SpokePoolClient: Fill Validation", function () {
       outputAmount
     );
 
-    const fill = await fillV3Relay(spokePool_2, deposit, relayer);
+    const fill = await fillV3Relay(spokePool_2, _deposit, relayer);
     expect(spokePoolClient2.getDepositForFill(fill)).to.equal(undefined);
     await spokePoolClient1.update();
 
-    expect(spokePoolClient1.getDepositForFill(fill))
-      .excludingEvery(["quoteBlockNumber", "fromLiteChain", "toLiteChain"])
+    const deposit = spokePoolClient1.getDepositForFill(fill);
+    expect(deposit).to.exist;
+    deposit = deposit!;
+
+    expect(deposit)
+      .excludingEvery(["quoteBlockNumber", "fromLiteChain", "toLiteChain", "message"])
       .to.deep.equal(deposit);
   });
 
@@ -293,10 +299,18 @@ describe("SpokePoolClient: Fill Validation", function () {
     await depositV3(spokePool_1, destinationChainId, depositor, inputToken, inputAmount, outputToken, outputAmount);
     await mineRandomBlocks();
 
-    await depositV3(spokePool_1, destinationChainId, depositor, inputToken, inputAmount, outputToken, outputAmount);
+    const { blockNumber: deposit1Block } = await depositV3(
+      spokePool_1,
+      destinationChainId,
+      depositor,
+      inputToken,
+      inputAmount,
+      outputToken,
+      outputAmount
+    );
     await mineRandomBlocks();
 
-    const [, deposit1Event] = await spokePool_1.queryFilter("V3FundsDeposited");
+    const [, deposit1Event] = await spokePool_1.queryFilter("FundsDeposited");
     const deposit1Block = deposit1Event.blockNumber;
 
     // Throws when low < high
@@ -353,7 +367,7 @@ describe("SpokePoolClient: Fill Validation", function () {
     // Searching for deposit ID -1 that doesn't exist should throw.
     await assertPromiseError(
       getBlockRangeForDepositId(
-        -1,
+        toBN(-1),
         spokePool1DeploymentBlock,
         spokePoolClient1.latestBlockSearched,
         10,
@@ -371,10 +385,10 @@ describe("SpokePoolClient: Fill Validation", function () {
       relayerFeePct: toBNWei("0.01"),
       quoteTimestamp: await spokePool_1.getCurrentTime(),
     });
-    const depositData = await spokePool_1.populateTransaction.deposit(...depositParams);
+    const depositData = await spokePool_1.populateTransaction.depositDeprecated_5947912356(...depositParams);
     await spokePool_1.connect(depositor).multicall(Array(3).fill(depositData.data));
     expect(await spokePool_1.numberOfDeposits()).to.equal(5);
-    const depositEvents = await spokePool_1.queryFilter("V3FundsDeposited");
+    const depositEvents = await spokePool_1.queryFilter("FundsDeposited");
 
     // Set fromBlock to block later than deposits.
     spokePoolClient1.latestBlockSearched = await spokePool_1.provider.getBlockNumber();
@@ -671,7 +685,7 @@ describe("SpokePoolClient: Fill Validation", function () {
   });
 
   it("Returns sped up deposit matched with fill", async function () {
-    const deposit_1 = await depositV3(
+    const _deposit_1 = await depositV3(
       spokePool_1,
       destinationChainId,
       depositor,
@@ -682,10 +696,15 @@ describe("SpokePoolClient: Fill Validation", function () {
     );
     await spokePoolClient1.update();
 
-    const fill_1 = await fillV3Relay(spokePool_2, deposit_1, relayer);
+    const fill_1 = await fillV3Relay(spokePool_2, _deposit_1, relayer);
     const fill_2 = await fillV3Relay(
       spokePool_2,
-      { ...deposit_1, recipient: relayer.address, outputAmount: deposit_1.outputAmount.div(2), message: "0x12" },
+      {
+        ..._deposit_1,
+        recipient: relayer.address,
+        outputAmount: _deposit_1.outputAmount.div(2),
+        message: "0x12",
+      },
       relayer
     );
 
@@ -697,18 +716,19 @@ describe("SpokePoolClient: Fill Validation", function () {
 
     expect(fill_1.relayExecutionInfo.updatedRecipient === depositor.address).to.be.true;
     expect(fill_2.relayExecutionInfo.updatedRecipient === relayer.address).to.be.true;
-    expect(fill_2.relayExecutionInfo.updatedMessage === "0x12").to.be.true;
-    expect(fill_1.relayExecutionInfo.updatedMessage === "0x").to.be.true;
+    expect(fill_2.relayExecutionInfo.updatedMessageHash === ethers.utils.keccak256("0x12")).to.be.true;
+    expect(fill_1.relayExecutionInfo.updatedMessageHash === ZERO_BYTES).to.be.true;
     expect(fill_1.relayExecutionInfo.updatedOutputAmount.eq(fill_2.relayExecutionInfo.updatedOutputAmount)).to.be.false;
     expect(fill_1.relayExecutionInfo.fillType === FillType.FastFill).to.be.true;
     expect(fill_2.relayExecutionInfo.fillType === FillType.FastFill).to.be.true;
 
-    expect(spokePoolClient1.getDepositForFill(fill_1))
-      .excludingEvery(["quoteBlockNumber", "fromLiteChain", "toLiteChain"])
-      .to.deep.equal(deposit_1);
+    const deposit = spokePoolClient1.getDepositForFill(fill_1);
+    expect(deposit).to.exist;
+    let result = validateFillForDeposit(fill_1, deposit);
+    expect(result.valid).to.be.true;
     expect(spokePoolClient1.getDepositForFill(fill_2)).to.equal(undefined);
 
-    const deposit_2 = await depositV3(
+    const _deposit_2 = await depositV3(
       spokePool_1,
       destinationChainId,
       depositor,
@@ -717,43 +737,43 @@ describe("SpokePoolClient: Fill Validation", function () {
       outputToken,
       outputAmount
     );
-    const fill = await fillV3Relay(spokePool_2, deposit_2, relayer);
+    const fill = await fillV3Relay(spokePool_2, _deposit_2, relayer);
     await spokePoolClient2.update();
 
-    expect(validateFillForDeposit(fill, deposit_2)).to.deep.equal({ valid: true });
+    expect(validateFillForDeposit(fill, _deposit_2)).to.deep.equal({ valid: true });
 
     // Changed the input token.
-    let result = validateFillForDeposit(fill, { ...deposit_2, inputToken: owner.address });
+    result = validateFillForDeposit(fill, { ..._deposit_2, inputToken: owner.address });
     expect(result.valid).to.be.false;
     expect((result as { reason: string }).reason.startsWith("inputToken mismatch")).to.be.true;
 
     // Invalid input amount.
-    result = validateFillForDeposit({ ...fill, inputAmount: toBNWei(1337) }, deposit_2);
+    result = validateFillForDeposit({ ...fill, inputAmount: toBNWei(1337) }, _deposit_2);
     expect(result.valid).to.be.false;
     expect((result as { reason: string }).reason.startsWith("inputAmount mismatch")).to.be.true;
 
     // Changed the output token.
-    result = validateFillForDeposit(fill, { ...deposit_2, outputToken: owner.address });
+    result = validateFillForDeposit(fill, { ..._deposit_2, outputToken: owner.address });
     expect(result.valid).to.be.false;
     expect((result as { reason: string }).reason.startsWith("outputToken mismatch")).to.be.true;
 
     // Changed the output amount.
-    result = validateFillForDeposit({ ...fill, outputAmount: toBNWei(1337) }, deposit_2);
+    result = validateFillForDeposit({ ...fill, outputAmount: toBNWei(1337) }, _deposit_2);
     expect(result.valid).to.be.false;
     expect((result as { reason: string }).reason.startsWith("outputAmount mismatch")).to.be.true;
 
     // Invalid depositId.
-    result = validateFillForDeposit({ ...fill, depositId: 1337 }, deposit_2);
+    result = validateFillForDeposit({ ...fill, depositId: toBN(1337) }, _deposit_2);
     expect(result.valid).to.be.false;
     expect((result as { reason: string }).reason.startsWith("depositId mismatch")).to.be.true;
 
     // Changed the depositor.
-    result = validateFillForDeposit({ ...fill, depositor: relayer.address }, deposit_2);
+    result = validateFillForDeposit({ ...fill, depositor: relayer.address }, _deposit_2);
     expect(result.valid).to.be.false;
     expect((result as { reason: string }).reason.startsWith("depositor mismatch")).to.be.true;
 
     // Changed the recipient.
-    result = validateFillForDeposit({ ...fill, recipient: relayer.address }, deposit_2);
+    result = validateFillForDeposit({ ...fill, recipient: relayer.address }, _deposit_2);
     expect(result.valid).to.be.false;
     expect((result as { reason: string }).reason.startsWith("recipient mismatch")).to.be.true;
   });

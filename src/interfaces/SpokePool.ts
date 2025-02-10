@@ -22,6 +22,7 @@ export interface RelayData {
 }
 
 export interface Deposit extends RelayData {
+  messageHash: string;
   destinationChainId: number;
   quoteTimestamp: number;
   speedUpSignature?: string;
@@ -51,11 +52,13 @@ export enum FillType {
 export interface RelayExecutionEventInfo {
   updatedRecipient: string;
   updatedOutputAmount: BigNumber;
-  updatedMessage: string;
+  updatedMessage?: string;
+  updatedMessageHash: string;
   fillType: FillType;
 }
 
-export interface Fill extends RelayData {
+export interface Fill extends Omit<RelayData, "message"> {
+  messageHash: string;
   destinationChainId: number;
   relayer: string;
   repaymentChainId: number;
@@ -77,6 +80,7 @@ export interface SpeedUp {
 export interface SpeedUpWithBlock extends SpeedUp, SortableEvent {}
 
 export interface SlowFillRequest extends RelayData {
+  messageHash: string;
   destinationChainId: number;
 }
 export interface SlowFillRequestWithBlock extends SlowFillRequest, SortableEvent {}

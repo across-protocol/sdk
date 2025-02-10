@@ -39,10 +39,14 @@ export function compareAddressesSimple(addressA?: string, addressB?: string): bo
   return addressA.toLowerCase() === addressB.toLowerCase();
 }
 
-// Converts an input (assumed to be) bytes32 string into a bytes20 string.
-// If the input is not a bytes32 but is less than type(uint160).max, then this function
-// will still succeed.
-// Throws an error if the string as an unsigned integer is greater than type(uint160).max.
+// Converts an input hex data string into a bytes32 string. Note that the output bytes will be lowercase
+// so that it naturally matches with ethers event data.
+// Throws an error if the input string is already greater than 32 bytes.
+export function toBytes32(address: string): string {
+  return utils.hexZeroPad(address, 32).toLowerCase();
+}
+
+// Checks if the input string can be coerced into a bytes20 evm address. Returns true if it is possible, and false otherwise.
 export function toAddress(hexString: string): string {
   // rawAddress is the address which is not properly checksummed.
   const rawAddress = utils.hexZeroPad(utils.hexStripZeros(hexString), 20);
