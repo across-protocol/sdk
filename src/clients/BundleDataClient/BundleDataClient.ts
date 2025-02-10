@@ -464,8 +464,8 @@ export class BundleDataClient {
     // validated bundle, otherwise we'll grab the second most recently validated bundle.
     let n = hubPoolClient.hasPendingProposal() ? 1 : 2;
 
-    // eslint-disable-next-line no-constant-condition
-    while (true) {
+    // Try to find an older bundle that has arweave data but cut off after a few tries and just load data from scratch.
+    while (n < 4) {
       const bundleDataOnArweave = await this.getBundleDataFromArweave(bundleBlockRanges);
       if (!isDefined(bundleDataOnArweave)) {
         // Bundle data is not arweave, try the next most recently validated bundle.
@@ -475,14 +475,16 @@ export class BundleDataClient {
           hubPoolClient.getNthFullyExecutedRootBundle(-n)!
         );
       } else {
-        return {
-          blockRanges: bundleBlockRanges,
-          bundleData: await this.loadData(bundleBlockRanges, this.spokePoolClients, true),
-        };
+        break;
       }
 
       n++;
     }
+
+    return {
+      blockRanges: bundleBlockRanges,
+      bundleData: await this.loadData(bundleBlockRanges, this.spokePoolClients, true),
+    };
   }
 
   async getLatestPoolRebalanceRoot(): Promise<{ root: PoolRebalanceRoot; blockRanges: number[][] }> {
