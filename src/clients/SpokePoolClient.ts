@@ -779,12 +779,10 @@ export class SpokePoolClient extends BaseAbstractClient {
         }
 
         // Sanity check that this event is not a duplicate.
-        if (
-          this.fills[fill.originChainId] !== undefined &&
-          this.fills[fill.originChainId].some(
-            (f) => f.transactionHash === fill.transactionHash && f.logIndex === fill.logIndex
-          )
-        ) {
+        const duplicateFill = this.fills[fill.originChainId]?.find(
+          (f) => f.transactionHash === fill.transactionHash && f.logIndex === fill.logIndex
+        );
+        if (duplicateFill) {
           this.logger.error({
             at: "SpokePoolClient#update",
             chainId: this.chainId,
