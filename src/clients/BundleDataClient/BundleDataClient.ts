@@ -1311,11 +1311,20 @@ export class BundleDataClient {
             "fastFillsReplacingSlowFills should contain only deposits that can be slow filled"
           );
           const destinationBlockRange = getBlockRangeForChain(blockRangesForChains, destinationChainId, chainIds);
+          const originBlockRange = getBlockRangeForChain(blockRangesForChains, originChainId, chainIds);
+          const matchedDeposit = deposits[0];
+          // For a slow fill leaf to have been created (and subsequently create an excess), the deposit matching the
+          // slow fill request must have been included in a previous bundle AND the slow fill request should not
+          // be included in this bundle. This is because a slow fill request is only valid once its deposit
+          // has been mined, so if the deposit is not in a prior bundle to the fill, then no slow fill leaf could
+          // have been created. Secondly, the slow fill request itself must have occurred in an older bundle than the 
+          // fill otherwise the slow fill leaf be unexecutable for an already-filled deposit..
           if (
+            matchedDeposit.blockNumber < originBlockRange[0] &&
             // If there is a slow fill request in this bundle that matches the relay hash, then there was no slow fill
             // created that would be considered excess.
-            !slowFillRequest ||
-            slowFillRequest.blockNumber < destinationBlockRange[0]
+            (!slowFillRequest ||
+            slowFillRequest.blockNumber < destinationBlockRange[0])
           ) {
             validatedBundleUnexecutableSlowFills.push(deposits[0]);
           }
