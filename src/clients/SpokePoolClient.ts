@@ -663,7 +663,7 @@ export class SpokePoolClient extends BaseAbstractClient {
               return e.transactionHash === deposit.transactionHash && e.logIndex === deposit.logIndex;
             })
           ) {
-            this.logger.warn({
+            this.logger.error({
               at: "SpokePoolClient#update",
               chainId: this.chainId,
               message: "Duplicate deposit found with same transaction hash and log index",
@@ -736,7 +736,7 @@ export class SpokePoolClient extends BaseAbstractClient {
 
         // Sanity check that this event is not a duplicate.
         if (this.slowFillRequests[depositHash] !== undefined) {
-          this.logger.warn({
+          this.logger.error({
             at: "SpokePoolClient#update",
             chainId: this.chainId,
             message: "Duplicate slow fill request found",
@@ -785,7 +785,7 @@ export class SpokePoolClient extends BaseAbstractClient {
             (f) => f.transactionHash === fill.transactionHash && f.logIndex === fill.logIndex
           )
         ) {
-          this.logger.warn({
+          this.logger.error({
             at: "SpokePoolClient#update",
             chainId: this.chainId,
             message: "Duplicate fill found",
