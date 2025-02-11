@@ -914,7 +914,7 @@ export class BundleDataClient {
           );
           if (deposit.blockNumber >= originChainBlockRange[0]) {
             if (
-              bundleDepositsV3?.[originChainId]?.[deposit.inputToken].find(
+              bundleDepositsV3?.[originChainId]?.[deposit.inputToken]?.find(
                 (d) => d.transactionHash === deposit.transactionHash && d.logIndex === deposit.logIndex
               )
             ) {
