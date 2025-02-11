@@ -83,13 +83,6 @@ function updateBundleDepositsV3(dict: BundleDepositsV3, deposit: V3DepositWithBl
   if (!dict?.[originChainId]?.[inputToken]) {
     assign(dict, [originChainId, inputToken], []);
   }
-  if (
-    dict[originChainId][inputToken].some(
-      (d) => d.transactionHash === deposit.transactionHash && d.logIndex === deposit.logIndex
-    )
-  ) {
-    throw new Error(`Duplicate deposit in bundleDeposits: ${JSON.stringify(deposit)}`);
-  }
   dict[originChainId][inputToken].push(deposit);
 }
 
@@ -917,6 +910,18 @@ export class BundleDataClient {
             "Not using correct bundle deposit hash key"
           );
           if (deposit.blockNumber >= originChainBlockRange[0]) {
+            if (
+              bundleDepositsV3[originChainId][deposit.inputToken].find(
+                (d) => d.transactionHash === deposit.transactionHash && d.logIndex === deposit.logIndex
+              )
+            ) {
+              this.logger.debug({
+                at: "BundleDataClient#loadData",
+                message: "Duplicate deposit detected",
+                deposit,
+              });
+              throw new Error("Duplicate deposit detected");
+            }
             bundleDepositHashes.push(newBundleDepositHash);
             updateBundleDepositsV3(bundleDepositsV3, deposit);
           } else if (deposit.blockNumber < originChainBlockRange[0]) {

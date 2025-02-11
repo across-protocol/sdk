@@ -39,7 +39,6 @@ import {
   RelayerRefundExecutionWithBlock,
   RootBundleRelayWithBlock,
   SlowFillRequestWithBlock,
-  SortableEvent,
   SpeedUpWithBlock,
   TokensBridged,
 } from "../interfaces";
@@ -588,7 +587,7 @@ export class SpokePoolClient extends BaseAbstractClient {
    * @see _update
    */
   public async update(eventsToQuery = this.queryableEventNames): Promise<void> {
-    const duplicateEvents: SortableEvent[] = [];
+    const duplicateEvents: Log[] = [];
     if (this.hubPoolClient !== null && !this.hubPoolClient.isUpdated) {
       throw new Error("HubPoolClient not updated");
     }
@@ -665,7 +664,7 @@ export class SpokePoolClient extends BaseAbstractClient {
               return e.transactionHash === deposit.transactionHash && e.logIndex === deposit.logIndex;
             })
           ) {
-            duplicateEvents.push(deposit);
+            duplicateEvents.push(event);
             continue;
           }
           assign(this.duplicateDepositHashes, [getRelayEventKey(deposit)], [deposit]);
@@ -733,7 +732,7 @@ export class SpokePoolClient extends BaseAbstractClient {
 
         // Sanity check that this event is not a duplicate.
         if (this.slowFillRequests[depositHash] !== undefined) {
-          duplicateEvents.push(slowFillRequest);
+          duplicateEvents.push(event);
           continue;
         }
 
@@ -775,7 +774,7 @@ export class SpokePoolClient extends BaseAbstractClient {
           (f) => f.transactionHash === fill.transactionHash && f.logIndex === fill.logIndex
         );
         if (duplicateFill) {
-          duplicateEvents.push(duplicateFill);
+          duplicateEvents.push(event);
           continue;
         }
 
@@ -824,9 +823,10 @@ export class SpokePoolClient extends BaseAbstractClient {
     }
 
     if (duplicateEvents.length > 0) {
-      this.log("error", "Duplicate events found", {
+      this.log("debug", "Duplicate events listed", {
         duplicateEvents,
       });
+      this.log("error", "Duplicate events detected, check debug logs");
     }
 
     // Next iteration should start off from where this one ended.
