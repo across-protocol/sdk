@@ -439,7 +439,10 @@ export class BundleDataClient {
       }, toBN(0));
   }
 
-  private async getLatestProposedBundleData(): Promise<{ bundleData: LoadDataReturnValue; blockRanges: number[][] }> {
+  private async getLatestProposedBundleDataFromArweave(): Promise<{
+    bundleData: LoadDataReturnValue;
+    blockRanges: number[][];
+  }> {
     const hubPoolClient = this.clients.hubPoolClient;
     // Determine which bundle we should fetch from arweave, either the pending bundle or the latest
     // executed one. Both should have arweave data but if for some reason the arweave data is missing,
@@ -462,7 +465,7 @@ export class BundleDataClient {
       const bundleDataOnArweave = await this.getBundleDataFromArweave(bundleBlockRanges);
       if (!isDefined(bundleDataOnArweave)) {
         this.logger.debug({
-          at: "BundleDataClient#getLatestProposedBundleData",
+          at: "BundleDataClient#getLatestProposedBundleDataFromArweave",
           message: `No bundle data found on arweave for ${this.getArweaveBundleDataClientKey(
             bundleBlockRanges
           )}, trying previous bundle block range`,
@@ -487,7 +490,7 @@ export class BundleDataClient {
   }
 
   async getLatestPoolRebalanceRootFromArweave(): Promise<{ root: PoolRebalanceRoot; blockRanges: number[][] }> {
-    const { bundleData, blockRanges } = await this.getLatestProposedBundleData();
+    const { bundleData, blockRanges } = await this.getLatestProposedBundleDataFromArweave();
     const hubPoolClient = this.clients.hubPoolClient;
     const root = _buildPoolRebalanceRoot(
       hubPoolClient.latestBlockSearched,
