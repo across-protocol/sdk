@@ -88,7 +88,7 @@ function updateBundleDepositsV3(dict: BundleDepositsV3, deposit: V3DepositWithBl
       (d) => d.transactionHash === deposit.transactionHash && d.logIndex === deposit.logIndex
     )
   ) {
-    throw new Error("Duplicate deposit in bundleDeposits");
+    throw new Error(`Duplicate deposit in bundleDeposits: ${JSON.stringify(deposit)}`);
   }
   dict[originChainId][inputToken].push(deposit);
 }
