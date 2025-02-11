@@ -587,6 +587,7 @@ export class SpokePoolClient extends BaseAbstractClient {
    * @see _update
    */
   public async update(eventsToQuery = this.queryableEventNames): Promise<void> {
+    const duplicateEvents: any[] = [];
     if (this.hubPoolClient !== null && !this.hubPoolClient.isUpdated) {
       throw new Error("HubPoolClient not updated");
     }
@@ -663,12 +664,7 @@ export class SpokePoolClient extends BaseAbstractClient {
               return e.transactionHash === deposit.transactionHash && e.logIndex === deposit.logIndex;
             })
           ) {
-            this.logger.error({
-              at: "SpokePoolClient#update",
-              chainId: this.chainId,
-              message: "Duplicate deposit found with same transaction hash and log index",
-              deposit,
-            });
+            duplicateEvents.push(deposit);
             continue;
           }
           assign(this.duplicateDepositHashes, [getRelayEventKey(deposit)], [deposit]);
@@ -736,12 +732,7 @@ export class SpokePoolClient extends BaseAbstractClient {
 
         // Sanity check that this event is not a duplicate.
         if (this.slowFillRequests[depositHash] !== undefined) {
-          this.logger.error({
-            at: "SpokePoolClient#update",
-            chainId: this.chainId,
-            message: "Duplicate slow fill request found",
-            slowFillRequest,
-          });
+          duplicateEvents.push(slowFillRequest);
           continue;
         }
 
@@ -783,12 +774,7 @@ export class SpokePoolClient extends BaseAbstractClient {
           (f) => f.transactionHash === fill.transactionHash && f.logIndex === fill.logIndex
         );
         if (duplicateFill) {
-          this.logger.error({
-            at: "SpokePoolClient#update",
-            chainId: this.chainId,
-            message: "Duplicate fill found",
-            fill,
-          });
+          duplicateEvents.push(duplicateFill);
           continue;
         }
 
@@ -834,6 +820,12 @@ export class SpokePoolClient extends BaseAbstractClient {
         );
         this.relayerRefundExecutions.push(executedRefund);
       }
+    }
+
+    if (duplicateEvents.length > 0) {
+      this.log("error", "Duplicate events found", {
+        duplicateEvents,
+      });
     }
 
     // Next iteration should start off from where this one ended.
