@@ -486,7 +486,7 @@ export class BundleDataClient {
     };
   }
 
-  async getLatestPoolRebalanceRoot(): Promise<{ root: PoolRebalanceRoot; blockRanges: number[][] }> {
+  async getLatestPoolRebalanceRootFromArweave(): Promise<{ root: PoolRebalanceRoot; blockRanges: number[][] }> {
     const { bundleData, blockRanges } = await this.getLatestProposedBundleData();
     const hubPoolClient = this.clients.hubPoolClient;
     const root = _buildPoolRebalanceRoot(
