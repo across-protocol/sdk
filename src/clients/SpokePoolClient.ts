@@ -39,6 +39,7 @@ import {
   RelayerRefundExecutionWithBlock,
   RootBundleRelayWithBlock,
   SlowFillRequestWithBlock,
+  SortableEvent,
   SpeedUpWithBlock,
   TokensBridged,
 } from "../interfaces";
@@ -587,7 +588,7 @@ export class SpokePoolClient extends BaseAbstractClient {
    * @see _update
    */
   public async update(eventsToQuery = this.queryableEventNames): Promise<void> {
-    const duplicateEvents: any[] = [];
+    const duplicateEvents: SortableEvent[] = [];
     if (this.hubPoolClient !== null && !this.hubPoolClient.isUpdated) {
       throw new Error("HubPoolClient not updated");
     }
