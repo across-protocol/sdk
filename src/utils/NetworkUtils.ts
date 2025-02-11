@@ -144,9 +144,9 @@ export function chainIsCCTPEnabled(chainId: number): boolean {
     // Mainnets
     CHAIN_IDs.ARBITRUM,
     CHAIN_IDs.BASE,
-    CHAIN_IDs.DOCTOR_WHO,
     CHAIN_IDs.OPTIMISM,
     CHAIN_IDs.POLYGON,
+    CHAIN_IDs.UNICHAIN,
     // Testnets
     CHAIN_IDs.BASE_SEPOLIA,
     CHAIN_IDs.OPTIMISM_SEPOLIA,
