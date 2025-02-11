@@ -58,7 +58,7 @@ import {
   V3FillWithBlock,
   verifyFillRepayment,
 } from "./utils";
-import { PRE_FILL_MIN_CONFIG_STORE_VERSION, UNDEFINED_MESSAGE_HASH } from "../../constants";
+import { UNDEFINED_MESSAGE_HASH } from "../../constants";
 
 // max(uint256) - 1
 export const INFINITE_FILL_DEADLINE = bnUint32Max;
@@ -827,22 +827,6 @@ export class BundleDataClient {
       return { relayDataHash, index: Number(i) };
     };
 
-    // We use the following toggle to aid with the migration to pre-fills. The first bundle proposed using this
-    // pre-fill logic can double refund pre-fills that have already been filled in the last bundle, because the
-    // last bundle did not recognize a fill as a pre-fill. Therefore the developer should ensure that the version
-    // is bumped to the PRE_FILL_MIN_CONFIG_STORE_VERSION version before the first pre-fill bundle is proposed.
-    // To test the following bundle after this, the developer can set the FORCE_REFUND_PREFILLS environment variable
-    // to "true" simulate the bundle with pre-fill refunds.
-    // @todo Remove this logic once we have advanced sufficiently past the pre-fill migration.
-    const startBlockForMainnet = getBlockRangeForChain(
-      blockRangesForChains,
-      this.clients.hubPoolClient.chainId,
-      this.chainIdListForBundleEvaluationBlockNumbers
-    )[0];
-    const versionAtProposalBlock = this.clients.configStoreClient.getConfigStoreVersionForBlock(startBlockForMainnet);
-    const canRefundPrefills =
-      versionAtProposalBlock >= PRE_FILL_MIN_CONFIG_STORE_VERSION || process.env.FORCE_REFUND_PREFILLS === "true";
-
     // Prerequisite step: Load all deposit events from the current or older bundles into the v3RelayHashes dictionary
     // for convenient matching with fills.
     for (const originChainId of allChainIds) {
@@ -1207,7 +1191,7 @@ export class BundleDataClient {
           // If fill is in the current bundle then we can assume there is already a refund for it, so only
           // include this pre fill if the fill is in an older bundle.
           if (fill) {
-            if (canRefundPrefills && fill.blockNumber < destinationChainBlockRange[0]) {
+            if (fill.blockNumber < destinationChainBlockRange[0]) {
               const fillToRefund = await verifyFillRepayment(
                 fill,
                 destinationClient.spokePool.provider,
@@ -1238,7 +1222,6 @@ export class BundleDataClient {
             if (_depositIsExpired(deposit)) {
               updateExpiredDepositsV3(expiredDepositsToRefundV3, deposit);
             } else if (
-              canRefundPrefills &&
               slowFillRequest.blockNumber < destinationChainBlockRange[0] &&
               _canCreateSlowFillLeaf(deposit) &&
               validatedBundleSlowFills.every((d) => getRelayEventKey(d) !== relayDataHash)
@@ -1261,23 +1244,21 @@ export class BundleDataClient {
             const prefill = await this.findMatchingFillEvent(deposit, destinationClient);
             assert(isDefined(prefill), `findFillEvent# Cannot find prefill: ${relayDataHash}`);
             assert(getRelayEventKey(prefill!) === relayDataHash, "Relay hashes should match.");
-            if (canRefundPrefills) {
-              const verifiedFill = await verifyFillRepayment(
-                prefill!,
-                destinationClient.spokePool.provider,
-                deposit,
-                this.clients.hubPoolClient
-              );
-              if (!isDefined(verifiedFill)) {
-                bundleUnrepayableFillsV3.push(prefill!);
-              } else if (!isSlowFill(verifiedFill)) {
-                validatedBundleV3Fills.push({
-                  ...verifiedFill!,
-                  quoteTimestamp: deposit.quoteTimestamp,
-                });
-              } else {
-                updateExpiredDepositsV3(expiredDepositsToRefundV3, deposit);
-              }
+            const verifiedFill = await verifyFillRepayment(
+              prefill!,
+              destinationClient.spokePool.provider,
+              deposit,
+              this.clients.hubPoolClient
+            );
+            if (!isDefined(verifiedFill)) {
+              bundleUnrepayableFillsV3.push(prefill!);
+            } else if (!isSlowFill(verifiedFill)) {
+              validatedBundleV3Fills.push({
+                ...verifiedFill!,
+                quoteTimestamp: deposit.quoteTimestamp,
+              });
+            } else {
+              updateExpiredDepositsV3(expiredDepositsToRefundV3, deposit);
             }
           } else if (_depositIsExpired(deposit)) {
             updateExpiredDepositsV3(expiredDepositsToRefundV3, deposit);
@@ -1286,7 +1267,7 @@ export class BundleDataClient {
             // Don't create duplicate slow fill requests for the same deposit.
             validatedBundleSlowFills.every((d) => getRelayEventKey(d) !== relayDataHash)
           ) {
-            if (canRefundPrefills && _canCreateSlowFillLeaf(deposit)) {
+            if (_canCreateSlowFillLeaf(deposit)) {
               validatedBundleSlowFills.push(deposit);
             }
           }
