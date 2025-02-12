@@ -85,12 +85,13 @@ const V3RelayExecutionEventInfoSS = object({
   updatedOutputAmount: BigNumberType,
   fillType: FillTypeSS,
   updatedRecipient: string(),
-  updatedMessage: string(),
+  updatedMessage: optional(string()),
   updatedMessageHash: defaulted(string(), UNDEFINED_MESSAGE_HASH),
 });
 
 const V3FillSS = {
   ...V3RelayDataSS,
+  message: optional(string()),
   messageHash: defaulted(string(), UNDEFINED_MESSAGE_HASH),
   destinationChainId: number(),
   relayer: string(),

@@ -1,7 +1,7 @@
 import assert from "assert";
 import { BytesLike, Contract, PopulatedTransaction, providers, utils as ethersUtils } from "ethers";
 import { CHAIN_IDs, MAX_SAFE_DEPOSIT_ID, ZERO_ADDRESS, ZERO_BYTES } from "../constants";
-import { Deposit, Fill, FillStatus, FillWithBlock, RelayData, SlowFillRequest } from "../interfaces";
+import { Deposit, FillStatus, FillWithBlock, RelayData } from "../interfaces";
 import { SpokePoolClient } from "../clients";
 import { chunk } from "./ArrayUtils";
 import { BigNumber, toBN, bnOne, bnZero } from "./BigNumberUtils";
@@ -10,6 +10,7 @@ import { isMessageEmpty } from "./DepositUtils";
 import { isDefined } from "./TypeGuards";
 import { getNetworkName } from "./NetworkUtils";
 import { paginatedEventQuery, spreadEventWithBlockNumber } from "./EventUtils";
+import { toBytes32 } from "./AddressUtils";
 
 type BlockTag = providers.BlockTag;
 
@@ -26,11 +27,11 @@ export function populateV3Relay(
   repaymentChainId = deposit.destinationChainId
 ): Promise<PopulatedTransaction> {
   const v3RelayData: RelayData = {
-    depositor: deposit.depositor,
-    recipient: deposit.recipient,
-    exclusiveRelayer: deposit.exclusiveRelayer,
-    inputToken: deposit.inputToken,
-    outputToken: deposit.outputToken,
+    depositor: toBytes32(deposit.depositor),
+    recipient: toBytes32(deposit.recipient),
+    exclusiveRelayer: toBytes32(deposit.exclusiveRelayer),
+    inputToken: toBytes32(deposit.inputToken),
+    outputToken: toBytes32(deposit.outputToken),
     inputAmount: deposit.inputAmount,
     outputAmount: deposit.outputAmount,
     originChainId: deposit.originChainId,
@@ -40,21 +41,22 @@ export function populateV3Relay(
     message: deposit.message,
   };
   if (isDefined(deposit.speedUpSignature)) {
-    assert(isDefined(deposit.updatedRecipient) && deposit.updatedRecipient !== ZERO_ADDRESS);
+    assert(isDefined(deposit.updatedRecipient) && !isZeroAddress(deposit.updatedRecipient));
     assert(isDefined(deposit.updatedOutputAmount));
     assert(isDefined(deposit.updatedMessage));
-    return spokePool.populateTransaction.fillV3RelayWithUpdatedDeposit(
+    return spokePool.populateTransaction.fillRelayWithUpdatedDeposit(
       v3RelayData,
       repaymentChainId,
+      toBytes32(relayer),
       deposit.updatedOutputAmount,
-      deposit.updatedRecipient,
+      toBytes32(deposit.updatedRecipient),
       deposit.updatedMessage,
       deposit.speedUpSignature,
       { from: relayer }
     );
   }
 
-  return spokePool.populateTransaction.fillV3Relay(v3RelayData, repaymentChainId, { from: relayer });
+  return spokePool.populateTransaction.fillRelay(v3RelayData, repaymentChainId, toBytes32(relayer), { from: relayer });
 }
 
 /**
@@ -64,7 +66,9 @@ export function populateV3Relay(
  * is required to compute a complete RelayData hash.
  * note: This function should _not_ be used to query the SpokePool.fillStatuses mapping.
  */
-export function getRelayEventKey(data: RelayData & { messageHash: string; destinationChainId: number }): string {
+export function getRelayEventKey(
+  data: Omit<RelayData, "message"> & { messageHash: string; destinationChainId: number }
+): string {
   return [
     data.depositor,
     data.recipient,
@@ -284,7 +288,7 @@ export function getRelayDataHash(relayData: RelayData, destinationChainId: numbe
   );
 }
 
-export function getRelayHashFromEvent(e: Deposit | Fill | SlowFillRequest): string {
+export function getRelayHashFromEvent(e: RelayData & { destinationChainId: number }): string {
   return getRelayDataHash(e, e.destinationChainId);
 }
 
@@ -312,7 +316,9 @@ export async function relayFillStatus(
   destinationChainId?: number
 ): Promise<FillStatus> {
   destinationChainId ??= await spokePool.chainId();
-  const hash = getRelayDataHash(relayData, destinationChainId!);
+  assert(isDefined(destinationChainId));
+
+  const hash = getRelayDataHash(relayData, destinationChainId);
   const _fillStatus = await spokePool.fillStatuses(hash, { blockTag });
   const fillStatus = Number(_fillStatus);
 
@@ -434,16 +440,25 @@ export async function findFillEvent(
 ): Promise<FillWithBlock | undefined> {
   const blockNumber = await findFillBlock(spokePool, relayData, lowBlockNumber, highBlockNumber);
   if (!blockNumber) return undefined;
-  const query = await paginatedEventQuery(
-    spokePool,
-    spokePool.filters.FilledV3Relay(null, null, null, null, null, relayData.originChainId, relayData.depositId),
-    {
-      fromBlock: blockNumber,
-      toBlock: blockNumber,
-      maxBlockLookBack: 0, // We can hardcode this to 0 to instruct paginatedEventQuery to make a single request
-      // for the same block number.
-    }
-  );
+
+  // We can hardcode this to 0 to instruct paginatedEventQuery to make a single request for the same block number.
+  const maxBlockLookBack = 0;
+  const [fromBlock, toBlock] = [blockNumber, blockNumber];
+
+  const query = (
+    await Promise.all([
+      paginatedEventQuery(
+        spokePool,
+        spokePool.filters.FilledRelay(null, null, null, null, null, relayData.originChainId, relayData.depositId),
+        { fromBlock, toBlock, maxBlockLookBack }
+      ),
+      paginatedEventQuery(
+        spokePool,
+        spokePool.filters.FilledV3Relay(null, null, null, null, null, relayData.originChainId, relayData.depositId),
+        { fromBlock, toBlock, maxBlockLookBack }
+      ),
+    ])
+  ).flat();
   if (query.length === 0) throw new Error(`Failed to find fill event at block ${blockNumber}`);
   const event = query[0];
   // In production the chainId returned from the provider matches 1:1 with the actual chainId. Querying the provider

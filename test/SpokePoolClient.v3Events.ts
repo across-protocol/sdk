@@ -2,7 +2,7 @@ import { expect } from "chai";
 import { utils as sdkUtils } from "../src";
 import { DEFAULT_CONFIG_STORE_VERSION, GLOBAL_CONFIG_STORE_KEYS } from "../src/clients";
 import { MockConfigStoreClient, MockHubPoolClient, MockSpokePoolClient } from "../src/clients/mocks";
-import { EMPTY_MESSAGE, ZERO_ADDRESS } from "../src/constants";
+import { ZERO_ADDRESS } from "../src/constants";
 import {
   DepositWithBlock,
   FillWithBlock,
@@ -52,14 +52,14 @@ describe("SpokePoolClient: Event Filtering", function () {
     inputToken?: string
   ): Log => {
     inputToken ??= randomAddress();
-    const message = EMPTY_MESSAGE;
+    const message = randomBytes(32);
     quoteTimestamp ??= getCurrentTime() - 10;
     return spokePoolClient.depositV3({ destinationChainId, inputToken, message, quoteTimestamp } as DepositWithBlock);
   };
 
   const generateDeposit = (spokePoolClient: MockSpokePoolClient, quoteTimestamp?: number, inputToken?: string): Log => {
     inputToken ??= randomAddress();
-    const message = EMPTY_MESSAGE;
+    const message = randomBytes(32);
     quoteTimestamp ??= getCurrentTime() - 10;
     return spokePoolClient.deposit({ destinationChainId, inputToken, message, quoteTimestamp } as DepositWithBlock);
   };
@@ -75,8 +75,8 @@ describe("SpokePoolClient: Event Filtering", function () {
 
     ({ chainId: destinationChainId } = await owner.provider.getNetwork());
 
-    originChainId = random(100_000, 1_000_000, false);
-    repaymentChainId = random(1_000_001, 2_000_000, false);
+    originChainId = random();
+    repaymentChainId = random();
     chainIds = [originChainId, destinationChainId, repaymentChainId];
 
     spokePoolClients = {};
@@ -150,6 +150,27 @@ describe("SpokePoolClient: Event Filtering", function () {
       const expectedInputToken = expectedDeposit.args!.inputToken;
       expect(depositEvent.inputToken).to.equal(expectedInputToken);
     });
+  });
+
+  it("Maps multiple fills for same deposit ID + origin chain ID to same deposit", async function () {
+    const depositEvent = generateV3Deposit(originSpokePoolClient);
+    await originSpokePoolClient.update(fundsDepositedEvents);
+    let deposit = originSpokePoolClient.getDeposits().at(-1);
+    expect(deposit).to.exist;
+    deposit = deposit!;
+    expect(deposit.depositId).to.equal(depositEvent.args!.depositId);
+
+    // Mock invalid fills:
+    destinationSpokePoolClient.fillV3Relay(
+      fillFromDeposit({ ...deposit, exclusivityDeadline: deposit.exclusivityDeadline + 2 }, randomAddress())
+    );
+    destinationSpokePoolClient.fillV3Relay(
+      fillFromDeposit({ ...deposit, exclusivityDeadline: deposit.exclusivityDeadline + 1 }, randomAddress())
+    );
+    await destinationSpokePoolClient.update(filledRelayEvents);
+
+    const fillsForDeposit = destinationSpokePoolClient.getFillsForDeposit(deposit);
+    expect(fillsForDeposit.length).to.equal(2);
   });
 
   it("Correctly sets the `fromLiteChain` flag by using `isOriginLiteChain`", async function () {
@@ -737,37 +758,6 @@ describe("SpokePoolClient: Event Filtering", function () {
         expect(relayExecutionInfo.updatedMessageHash).to.exist;
         expect(relayExecutionInfo.updatedMessageHash).to.equal(getMessageHash(deposit.message));
       }
-    });
-
-    it("Correctly appends FilledV3Relay messageHash", async function () {
-      const _deposit = generateDeposit(originSpokePoolClient);
-      expect(_deposit?.args?.messageHash).to.equal(undefined);
-      await originSpokePoolClient.update(fundsDepositedEvents);
-
-      let deposit = originSpokePoolClient.getDeposit(_deposit.args.depositId);
-      expect(deposit).to.exist;
-      deposit = deposit!;
-
-      const relayer = randomAddress();
-
-      await destinationSpokePoolClient.update();
-      let [fill] = destinationSpokePoolClient.getFillsForRelayer(relayer);
-      expect(fill).to.not.exist;
-
-      destinationSpokePoolClient.fillV3Relay(fillFromDeposit(deposit, relayer));
-      await destinationSpokePoolClient.update();
-
-      [fill] = destinationSpokePoolClient.getFillsForRelayer(relayer);
-      expect(fill).to.exist;
-      fill = fill!;
-
-      expect(fill.messageHash).to.equal(getMessageHash(deposit.message));
-
-      const { relayExecutionInfo } = fill;
-      expect(relayExecutionInfo).to.exist;
-      expect(relayExecutionInfo.updatedMessage).to.exist;
-      expect(relayExecutionInfo.updatedMessageHash).to.exist;
-      expect(relayExecutionInfo.updatedMessageHash).to.equal(getMessageHash(relayExecutionInfo.updatedMessage!));
     });
   });
 });

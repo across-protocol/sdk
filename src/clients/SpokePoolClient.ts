@@ -18,6 +18,7 @@ import {
   isSlowFill,
   isValidEvmAddress,
   isZeroAddress,
+  toAddress,
 } from "../utils";
 import {
   paginatedEventQuery,
@@ -120,9 +121,13 @@ export class SpokePoolClient extends BaseAbstractClient {
       "RelayedRootBundle",
       "ExecutedRelayerRefundRoot",
       "V3FundsDeposited",
+      "FundsDeposited",
       "RequestedSpeedUpV3Deposit",
+      "RequestedSpeedUpDeposit",
       "RequestedV3SlowFill",
+      "RequestedSlowFill",
       "FilledV3Relay",
+      "FilledRelay",
     ];
     return Object.fromEntries(
       this.spokePool.interface.fragments
@@ -268,7 +273,10 @@ export class SpokePoolClient extends BaseAbstractClient {
    */
   public appendMaxSpeedUpSignatureToDeposit(deposit: DepositWithBlock): DepositWithBlock {
     const { depositId, depositor } = deposit;
-    const speedups = this.speedUps[depositor]?.[depositId.toString()];
+
+    // Note: we know depositor cannot be more than 20 bytes since this is guaranteed by contracts.
+    const speedups = this.speedUps[toAddress(depositor)]?.[depositId.toString()];
+
     if (!isDefined(speedups) || speedups.length === 0) {
       return deposit;
     }
@@ -346,26 +354,11 @@ export class SpokePoolClient extends BaseAbstractClient {
     if (match.valid) {
       return deposit;
     }
-
-    this.logger.debug({
-      at: "SpokePoolClient::getDepositForFill",
-      message: `Rejected fill for ${getNetworkName(fill.originChainId)} deposit ${fill.depositId.toString()}.`,
-      reason: match.reason,
-      deposit,
-      fill,
-    });
-
-    return;
+    return undefined;
   }
 
-  /**
-   * Find a valid fill for a given deposit.
-   * @param deposit A deposit event.
-   * @returns A valid fill for the deposit, or undefined.
-   */
-  public getFillForDeposit(deposit: Deposit): FillWithBlock | undefined {
-    const fills = this.depositHashesToFills[getRelayEventKey(deposit)];
-    return fills?.find((fill) => validateFillForDeposit(fill, deposit));
+  public getFillsForDeposit(deposit: Deposit): FillWithBlock[] {
+    return this.depositHashesToFills[this.getDepositHash(deposit)];
   }
 
   /**
@@ -381,8 +374,7 @@ export class SpokePoolClient extends BaseAbstractClient {
     invalidFills: Fill[];
   } {
     const { outputAmount } = deposit;
-    const fillsForDeposit = this.depositHashesToFills[getRelayEventKey(deposit)];
-
+    const fillsForDeposit = this.depositHashesToFills[this.getDepositHash(deposit)];
     // If no fills then the full amount is remaining.
     if (fillsForDeposit === undefined || fillsForDeposit.length === 0) {
       return { unfilledAmount: outputAmount, fillCount: 0, invalidFills: [] };
@@ -606,6 +598,19 @@ export class SpokePoolClient extends BaseAbstractClient {
     const { events: queryResults, currentTime, oldestTime, searchEndBlock } = update;
 
     if (eventsToQuery.includes("TokensBridged")) {
+      // Temporarily query old spoke pool events as well to ease migration:
+      const legacySpokePoolAbi = [
+        "event TokensBridged(uint256 amountToReturn,uint256 indexed chainId,uint32 indexed leafId,address indexed l2TokenAddress,address caller)",
+      ];
+      const prevSpoke = new Contract(this.spokePool.address, legacySpokePoolAbi, this.spokePool.provider);
+      const legacyQueryResults = await paginatedEventQuery(
+        prevSpoke,
+        prevSpoke.filters.TokensBridged(),
+        (await this.updateSearchConfig(this.spokePool.provider)) as EventSearchConfig
+      );
+      for (const event of legacyQueryResults) {
+        this.tokensBridged.push(spreadEventWithBlockNumber(event) as TokensBridged);
+      }
       for (const event of queryResults[eventsToQuery.indexOf("TokensBridged")]) {
         this.tokensBridged.push(spreadEventWithBlockNumber(event) as TokensBridged);
       }
@@ -738,7 +743,6 @@ export class SpokePoolClient extends BaseAbstractClient {
       for (const event of fillEvents) {
         const fill = {
           ...spreadEventWithBlockNumber(event),
-          messageHash: getMessageHash(event.args["message"]),
           destinationChainId: this.chainId,
         } as FillWithBlock;
 
@@ -748,7 +752,7 @@ export class SpokePoolClient extends BaseAbstractClient {
         }
 
         assign(this.fills, [fill.originChainId], [fill]);
-        assign(this.depositHashesToFills, [getRelayEventKey(fill)], [fill]);
+        assign(this.depositHashesToFills, [this.getDepositHash(fill)], [fill]);
       }
     };
 
@@ -908,15 +912,23 @@ export class SpokePoolClient extends BaseAbstractClient {
     );
 
     const tStart = Date.now();
-    const query = await paginatedEventQuery(
-      this.spokePool,
-      this.spokePool.filters.V3FundsDeposited(null, null, null, null, null, depositId),
-      {
-        fromBlock: searchBounds.low,
-        toBlock: searchBounds.high,
-        maxBlockLookBack: this.eventSearchConfig.maxBlockLookBack,
-      }
-    );
+    // Check both V3FundsDeposited and FundsDeposited events to look for a specified depositId.
+    const [fromBlock, toBlock] = [searchBounds.low, searchBounds.high];
+    const { maxBlockLookBack } = this.eventSearchConfig;
+    const query = (
+      await Promise.all([
+        paginatedEventQuery(
+          this.spokePool,
+          this.spokePool.filters.V3FundsDeposited(null, null, null, null, null, depositId),
+          { fromBlock, toBlock, maxBlockLookBack }
+        ),
+        paginatedEventQuery(
+          this.spokePool,
+          this.spokePool.filters.FundsDeposited(null, null, null, null, null, depositId),
+          { fromBlock, toBlock, maxBlockLookBack }
+        ),
+      ])
+    ).flat();
     const tStop = Date.now();
 
     const event = query.find(({ args }) => args["depositId"].eq(depositId));

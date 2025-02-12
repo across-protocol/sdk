@@ -58,7 +58,7 @@ import {
   V3FillWithBlock,
   verifyFillRepayment,
 } from "./utils";
-import { PRE_FILL_MIN_CONFIG_STORE_VERSION, UNDEFINED_MESSAGE_HASH } from "../../constants";
+import { UNDEFINED_MESSAGE_HASH } from "../../constants";
 
 // max(uint256) - 1
 export const INFINITE_FILL_DEADLINE = bnUint32Max;
@@ -225,10 +225,14 @@ export class BundleDataClient {
     Object.values(data.bundleFillsV3).forEach((x) =>
       Object.values(x).forEach(({ fills }) =>
         fills.forEach((fill) => {
-          if (fill.messageHash === UNDEFINED_MESSAGE_HASH) {
+          if (fill.messageHash === UNDEFINED_MESSAGE_HASH && isDefined(fill.message)) {
+            // If messageHash is undefined, fill should be of type FilledV3Relay and should have a message.
             fill.messageHash = getMessageHash(fill.message);
           }
-          if (fill.relayExecutionInfo.updatedMessageHash === UNDEFINED_MESSAGE_HASH) {
+          if (
+            fill.relayExecutionInfo.updatedMessageHash === UNDEFINED_MESSAGE_HASH &&
+            isDefined(fill.relayExecutionInfo.updatedMessage)
+          ) {
             fill.relayExecutionInfo.updatedMessageHash = getMessageHash(fill.relayExecutionInfo.updatedMessage);
           }
         })
@@ -823,22 +827,6 @@ export class BundleDataClient {
       return { relayDataHash, index: Number(i) };
     };
 
-    // We use the following toggle to aid with the migration to pre-fills. The first bundle proposed using this
-    // pre-fill logic can double refund pre-fills that have already been filled in the last bundle, because the
-    // last bundle did not recognize a fill as a pre-fill. Therefore the developer should ensure that the version
-    // is bumped to the PRE_FILL_MIN_CONFIG_STORE_VERSION version before the first pre-fill bundle is proposed.
-    // To test the following bundle after this, the developer can set the FORCE_REFUND_PREFILLS environment variable
-    // to "true" simulate the bundle with pre-fill refunds.
-    // @todo Remove this logic once we have advanced sufficiently past the pre-fill migration.
-    const startBlockForMainnet = getBlockRangeForChain(
-      blockRangesForChains,
-      this.clients.hubPoolClient.chainId,
-      this.chainIdListForBundleEvaluationBlockNumbers
-    )[0];
-    const versionAtProposalBlock = this.clients.configStoreClient.getConfigStoreVersionForBlock(startBlockForMainnet);
-    const canRefundPrefills =
-      versionAtProposalBlock >= PRE_FILL_MIN_CONFIG_STORE_VERSION || process.env.FORCE_REFUND_PREFILLS === "true";
-
     // Prerequisite step: Load all deposit events from the current or older bundles into the v3RelayHashes dictionary
     // for convenient matching with fills.
     for (const originChainId of allChainIds) {
@@ -1203,7 +1191,7 @@ export class BundleDataClient {
           // If fill is in the current bundle then we can assume there is already a refund for it, so only
           // include this pre fill if the fill is in an older bundle.
           if (fill) {
-            if (canRefundPrefills && fill.blockNumber < destinationChainBlockRange[0]) {
+            if (fill.blockNumber < destinationChainBlockRange[0]) {
               const fillToRefund = await verifyFillRepayment(
                 fill,
                 destinationClient.spokePool.provider,
@@ -1234,7 +1222,6 @@ export class BundleDataClient {
             if (_depositIsExpired(deposit)) {
               updateExpiredDepositsV3(expiredDepositsToRefundV3, deposit);
             } else if (
-              canRefundPrefills &&
               slowFillRequest.blockNumber < destinationChainBlockRange[0] &&
               _canCreateSlowFillLeaf(deposit) &&
               validatedBundleSlowFills.every((d) => getRelayEventKey(d) !== relayDataHash)
@@ -1257,23 +1244,21 @@ export class BundleDataClient {
             const prefill = await this.findMatchingFillEvent(deposit, destinationClient);
             assert(isDefined(prefill), `findFillEvent# Cannot find prefill: ${relayDataHash}`);
             assert(getRelayEventKey(prefill) === relayDataHash, "Relay hashes should match.");
-            if (canRefundPrefills) {
-              const verifiedFill = await verifyFillRepayment(
-                prefill,
-                destinationClient.spokePool.provider,
-                deposit,
-                this.clients.hubPoolClient
-              );
-              if (!isDefined(verifiedFill)) {
-                bundleUnrepayableFillsV3.push(prefill);
-              } else if (!isSlowFill(verifiedFill)) {
-                validatedBundleV3Fills.push({
-                  ...verifiedFill,
-                  quoteTimestamp: deposit.quoteTimestamp,
-                });
-              } else {
-                updateExpiredDepositsV3(expiredDepositsToRefundV3, deposit);
-              }
+            const verifiedFill = await verifyFillRepayment(
+              prefill,
+              destinationClient.spokePool.provider,
+              deposit,
+              this.clients.hubPoolClient
+            );
+            if (!isDefined(verifiedFill)) {
+              bundleUnrepayableFillsV3.push(prefill);
+            } else if (!isSlowFill(verifiedFill)) {
+              validatedBundleV3Fills.push({
+                ...verifiedFill,
+                quoteTimestamp: deposit.quoteTimestamp,
+              });
+            } else {
+              updateExpiredDepositsV3(expiredDepositsToRefundV3, deposit);
             }
           } else if (_depositIsExpired(deposit)) {
             updateExpiredDepositsV3(expiredDepositsToRefundV3, deposit);
@@ -1282,7 +1267,7 @@ export class BundleDataClient {
             // Don't create duplicate slow fill requests for the same deposit.
             validatedBundleSlowFills.every((d) => getRelayEventKey(d) !== relayDataHash)
           ) {
-            if (canRefundPrefills && _canCreateSlowFillLeaf(deposit)) {
+            if (_canCreateSlowFillLeaf(deposit)) {
               validatedBundleSlowFills.push(deposit);
             }
           }
@@ -1307,11 +1292,19 @@ export class BundleDataClient {
             "fastFillsReplacingSlowFills should contain only deposits that can be slow filled"
           );
           const destinationBlockRange = getBlockRangeForChain(blockRangesForChains, destinationChainId, chainIds);
+          const originBlockRange = getBlockRangeForChain(blockRangesForChains, originChainId, chainIds);
+          const matchedDeposit = deposits[0];
+          // For a slow fill leaf to have been created (and subsequently create an excess), the deposit matching the
+          // slow fill request must have been included in a previous bundle AND the slow fill request should not
+          // be included in this bundle. This is because a slow fill request is only valid once its deposit
+          // has been mined, so if the deposit is not in a prior bundle to the fill, then no slow fill leaf could
+          // have been created. Secondly, the slow fill request itself must have occurred in an older bundle than the
+          // fill otherwise the slow fill leaf be unexecutable for an already-filled deposit..
           if (
+            matchedDeposit.blockNumber < originBlockRange[0] &&
             // If there is a slow fill request in this bundle that matches the relay hash, then there was no slow fill
             // created that would be considered excess.
-            !slowFillRequest ||
-            slowFillRequest.blockNumber < destinationBlockRange[0]
+            (!slowFillRequest || slowFillRequest.blockNumber < destinationBlockRange[0])
           ) {
             validatedBundleUnexecutableSlowFills.push(deposits[0]);
           }
@@ -1369,8 +1362,9 @@ export class BundleDataClient {
 
         // If there is a slow fill request in this bundle, then the expired deposit refund will supercede
         // the slow fill request. If there is no slow fill request seen or its older than this bundle, then we can
-        // assume a slow fill leaf was created for it because of the previous _canCreateSlowFillLeaf check.
-        // The slow fill request was also sent before the fill deadline expired since we checked that above.
+        // assume a slow fill leaf was created for it when the deposit was mined. Therefore, because the deposit
+        // was in an older bundle, we can assume that a slow fill leaf was created at that time and therefore
+        // is now unexecutable.
         if (!slowFillRequest || slowFillRequest.blockNumber < destinationBlockRange[0]) {
           validatedBundleUnexecutableSlowFills.push(deposit);
         }
@@ -1469,11 +1463,43 @@ export class BundleDataClient {
     );
 
     if (bundleInvalidFillsV3.length > 0) {
+      // For extra clarity, check if any invalid fills match with a deposit on deposit ID and origin chain. These
+      // are most likely truly invalid fills due to re-org.
+      const invalidFillsWithPartialMatchedDeposits: FillWithBlock[] = [];
+
+      // If the fill matches with a deposit following the bundle then the fill will be refunded as a pre-fill
+      // in the next bundle.
+      const preFillsForNextBundle: FillWithBlock[] = [];
+
+      // These fills don't partially match with any deposit in our memory.
+      const unknownReasonInvalidFills: FillWithBlock[] = [];
+
+      bundleInvalidFillsV3.forEach((fill) => {
+        const originClient = spokePoolClients[fill.originChainId];
+        const fullyMatchedDeposit = originClient.getDepositForFill(fill);
+        if (!isDefined(fullyMatchedDeposit)) {
+          const partiallyMatchedDeposit = originClient.getDeposit(fill.depositId);
+          if (isDefined(partiallyMatchedDeposit)) {
+            invalidFillsWithPartialMatchedDeposits.push(fill);
+          } else {
+            unknownReasonInvalidFills.push(fill);
+          }
+        } else {
+          const originBundleBlockRange = getBlockRangeForChain(blockRangesForChains, fill.originChainId, chainIds);
+          if (fullyMatchedDeposit.blockNumber <= originBundleBlockRange[1]) {
+            throw new Error("Detected invalid fill that matches fully with a deposit in current or prior bundle");
+          }
+          preFillsForNextBundle.push(fill);
+        }
+      });
+
       this.logger.debug({
         at: "BundleDataClient#loadData",
         message: "Finished loading V3 spoke pool data and found some invalid fills in range",
         blockRangesForChains,
-        bundleInvalidFillsV3,
+        invalidFillsWithPartialMatchedDeposits,
+        preFillsForNextBundle,
+        unknownReasonInvalidFills,
       });
     }
 
