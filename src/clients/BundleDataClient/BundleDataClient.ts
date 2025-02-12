@@ -456,28 +456,21 @@ export class BundleDataClient {
     if (!isDefined(bundleDataOnArweave)) {
       return undefined;
     }
-    const pendingBundleData = await this.loadData(bundleBlockRanges, this.spokePoolClients, true);
-    // This should be defined since we've checked that the data exists on Arweave, but handle the unexpected
-    // case where its not.
-    if (!isDefined(pendingBundleData)) {
-      return undefined;
-    } else {
-      const hubPoolClient = this.clients.hubPoolClient;
-      const root = _buildPoolRebalanceRoot(
-        hubPoolClient.latestBlockSearched,
-        bundleBlockRanges[0][1],
-        pendingBundleData.bundleDepositsV3,
-        pendingBundleData.bundleFillsV3,
-        pendingBundleData.bundleSlowFillsV3,
-        pendingBundleData.unexecutableSlowFills,
-        pendingBundleData.expiredDepositsToRefundV3,
-        {
-          hubPoolClient,
-          configStoreClient: hubPoolClient.configStoreClient as AcrossConfigStoreClient,
-        }
-      );
-      return root;
-    }
+    const pendingBundleData = await this.loadArweaveData(bundleBlockRanges);
+    const root = _buildPoolRebalanceRoot(
+      hubPoolClient.latestBlockSearched,
+      bundleBlockRanges[0][1],
+      pendingBundleData.bundleDepositsV3,
+      pendingBundleData.bundleFillsV3,
+      pendingBundleData.bundleSlowFillsV3,
+      pendingBundleData.unexecutableSlowFills,
+      pendingBundleData.expiredDepositsToRefundV3,
+      {
+        hubPoolClient,
+        configStoreClient: hubPoolClient.configStoreClient as AcrossConfigStoreClient,
+      }
+    );
+    return root;
   }
 
   // @dev This function should probably be moved to the InventoryClient since it bypasses loadData completely now.
