@@ -21,6 +21,7 @@ import {
   toAddress,
 } from "../utils";
 import {
+  duplicateEvent,
   paginatedEventQuery,
   sortEventsAscendingInPlace,
   spreadEvent,
@@ -661,7 +662,7 @@ export class SpokePoolClient extends BaseAbstractClient {
           const allDeposits = this._getDuplicateDeposits(deposit).concat(this.depositHashes[getRelayEventKey(deposit)]);
           if (
             allDeposits.some((e) => {
-              return e.transactionHash === deposit.transactionHash && e.logIndex === deposit.logIndex;
+              return duplicateEvent(deposit, e);
             })
           ) {
             duplicateEvents.push(event);
@@ -770,9 +771,7 @@ export class SpokePoolClient extends BaseAbstractClient {
         }
 
         // Sanity check that this event is not a duplicate.
-        const duplicateFill = this.fills[fill.originChainId]?.find(
-          (f) => f.transactionHash === fill.transactionHash && f.logIndex === fill.logIndex
-        );
+        const duplicateFill = this.fills[fill.originChainId]?.find((f) => duplicateEvent(fill, f));
         if (duplicateFill) {
           duplicateEvents.push(event);
           continue;
