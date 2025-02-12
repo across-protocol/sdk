@@ -239,19 +239,6 @@ export class BundleDataClient {
     );
   }
 
-  private async getBundleDataFromArweave(blockRangesForChains: number[][]) {
-    const persistedData = await this.clients.arweaveClient.getByTopic(
-      this.getArweaveBundleDataClientKey(blockRangesForChains),
-      BundleDataSS
-    );
-    // If there is no data or the data is empty, return undefined because we couldn't
-    // pull info from the Arweave persistence layer.
-    if (!isDefined(persistedData) || persistedData.length < 1) {
-      return undefined;
-    }
-    return persistedData;
-  }
-
   private async loadPersistedDataFromArweave(
     blockRangesForChains: number[][]
   ): Promise<LoadDataReturnValue | undefined> {
@@ -259,8 +246,13 @@ export class BundleDataClient {
       return undefined;
     }
     const start = performance.now();
-    const persistedData = await this.getBundleDataFromArweave(blockRangesForChains);
-    if (!isDefined(persistedData)) {
+    const persistedData = await this.clients.arweaveClient.getByTopic(
+      this.getArweaveBundleDataClientKey(blockRangesForChains),
+      BundleDataSS
+    );
+    // If there is no data or the data is empty, return undefined because we couldn't
+    // pull info from the Arweave persistence layer.
+    if (!isDefined(persistedData) || persistedData.length < 1) {
       return undefined;
     }
 
