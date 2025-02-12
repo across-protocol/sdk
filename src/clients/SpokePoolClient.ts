@@ -11,7 +11,6 @@ import {
   getBlockRangeForDepositId,
   getDepositIdAtBlock,
   getNetworkName,
-  getRelayDataHash,
   MAX_BIG_INT,
   MakeOptional,
   relayFillStatus,
