@@ -448,20 +448,21 @@ export class BundleDataClient {
     // executed one. Both should have arweave data but if for some reason the arweave data is missing,
     // this function will load the bundle data from the most recent bundle data published to Arweave.
 
-    let bundleBlockRanges = getImpliedBundleBlockRanges(
+    const latestBundleBlockRanges = getImpliedBundleBlockRanges(
       hubPoolClient,
       this.clients.configStoreClient,
       hubPoolClient.hasPendingProposal()
         ? hubPoolClient.getLatestProposedRootBundle()
         : hubPoolClient.getNthFullyExecutedRootBundle(-1)!
     );
+    let bundleBlockRanges = latestBundleBlockRanges;
     // Check if bundle data exists on arweave, otherwise fallback to last published bundle data. If the
     // first bundle block range we are trying is the pending proposal, then we'll grab the most recently
     // validated bundle, otherwise we'll grab the second most recently validated bundle.
     let n = hubPoolClient.hasPendingProposal() ? 1 : 2;
 
     // Try to find an older bundle that has arweave data but cut off after a few tries and just load data from scratch.
-    while (n < 4) {
+    while (n < 3) {
       const bundleDataOnArweave = await this.getBundleDataFromArweave(bundleBlockRanges);
       if (!isDefined(bundleDataOnArweave)) {
         this.logger.debug({
@@ -477,15 +478,22 @@ export class BundleDataClient {
           hubPoolClient.getNthFullyExecutedRootBundle(-n)!
         );
       } else {
+        // Bundle block ranges have bundle data published on arweave, so use it:
+        return {
+          blockRanges: bundleBlockRanges,
+          bundleData: await this.loadData(bundleBlockRanges, this.spokePoolClients, true),
+        };
         break;
       }
 
       n++;
     }
 
+    // None of the n bundles we looked at have arweave bundle data, so just load the pending bundle from scratch to
+    // at least get the latest data, albeit slowly.
     return {
       blockRanges: bundleBlockRanges,
-      bundleData: await this.loadData(bundleBlockRanges, this.spokePoolClients, true),
+      bundleData: await this.loadData(latestBundleBlockRanges, this.spokePoolClients, true),
     };
   }
 
