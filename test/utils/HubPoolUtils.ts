@@ -13,7 +13,6 @@ export async function publishValidatedBundles(
   spokePoolClients: SpokePoolClientsByChain,
   numberOfBundles: number,
   _runningBalances?: BigNumber[],
-  _incentiveBalances?: BigNumber[]
 ): Promise<Record<number, { start: number; end: number }[]>> {
   // Create a sets of unique block ranges per chain so that we have a lower chance of false positives
   // when fetching the block ranges for a specific chain.
@@ -28,7 +27,6 @@ export async function publishValidatedBundles(
   );
 
   const runningBalances = _runningBalances ?? chainIds.map(() => toBN(0));
-  const incentiveBalances = _incentiveBalances ?? chainIds.map(() => toBN(0));
   for (let i = 0; i < numberOfBundles; i++) {
     const bundleEvaluationBlockNumbers = chainIds.map((chainId) => {
       if (!expectedBlockRanges[chainId]) {
@@ -57,7 +55,6 @@ export async function publishValidatedBundles(
         l1Tokens, // l1Tokens
         runningBalances, // bundleLpFees
         runningBalances, // netSendAmounts
-        runningBalances.concat(incentiveBalances) // runningBalances
       );
     });
 
