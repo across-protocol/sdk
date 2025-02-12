@@ -3,11 +3,11 @@ import { CHAIN_IDs, TOKEN_SYMBOLS_MAP } from "@across-protocol/constants";
 import { getDeployedAddress } from "@across-protocol/contracts";
 import { asL2Provider } from "@eth-optimism/sdk";
 import { providers } from "ethers";
-import { DEFAULT_SIMULATED_RELAYER_ADDRESS } from "../../constants";
-import { chainIsMatic, chainIsOPStack, isDefined } from "../../utils";
+import { DEFAULT_SIMULATED_RELAYER_ADDRESS, CUSTOM_GAS_TOKENS } from "../../constants";
+import { chainIsOPStack, isDefined } from "../../utils";
 import { QueryBase } from "./baseQuery";
-import { PolygonQueries } from "./polygon";
 import { DEFAULT_LOGGER, Logger } from "../relayFeeCalculator";
+import { CustomGasTokenQueries } from "./customGasToken";
 
 /**
  * Some chains have a fixed gas price that is applied to the gas estimates. We should override
@@ -26,23 +26,27 @@ export class QueryBase__factory {
     simulatedRelayerAddress = DEFAULT_SIMULATED_RELAYER_ADDRESS,
     coingeckoProApiKey?: string,
     logger: Logger = DEFAULT_LOGGER,
-    gasMarkup = 0,
     coingeckoBaseCurrency = "eth"
   ): QueryBase {
     assert(isDefined(spokePoolAddress));
 
-    // Currently the only chain that has a custom query class is Polygon
-    if (chainIsMatic(chainId)) {
-      return new PolygonQueries(
-        provider,
-        symbolMapping,
-        spokePoolAddress,
-        simulatedRelayerAddress,
-        coingeckoProApiKey,
-        logger,
-        gasMarkup
-      );
+    const customGasTokenSymbol = CUSTOM_GAS_TOKENS[chainId];
+    if (customGasTokenSymbol) {
+      return new CustomGasTokenQueries({
+        queryBaseArgs: [
+          provider,
+          symbolMapping,
+          spokePoolAddress,
+          simulatedRelayerAddress,
+          logger,
+          coingeckoProApiKey,
+          fixedGasPrice[chainId],
+          "usd",
+        ],
+        customGasTokenSymbol,
+      });
     }
+
     // For OPStack chains, we need to wrap the provider in an L2Provider
     provider = chainIsOPStack(chainId) ? asL2Provider(provider) : provider;
 
@@ -51,7 +55,6 @@ export class QueryBase__factory {
       symbolMapping,
       spokePoolAddress,
       simulatedRelayerAddress,
-      gasMarkup,
       logger,
       coingeckoProApiKey,
       fixedGasPrice[chainId],

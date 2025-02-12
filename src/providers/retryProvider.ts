@@ -1,10 +1,12 @@
-import { ethers, logger } from "ethers";
+import { ethers } from "ethers";
 import { CachingMechanismInterface } from "../interfaces";
+import { CHAIN_IDs } from "../constants";
 import { delay, isDefined, isPromiseFulfilled, isPromiseRejected } from "../utils";
 import { getOriginFromURL } from "../utils/NetworkUtils";
 import { CacheProvider } from "./cachedProvider";
 import { compareRpcResults, createSendErrorWithMessage, formatProviderError } from "./utils";
 import { PROVIDER_CACHE_TTL } from "./constants";
+import { JsonRpcError, RpcError } from "./types";
 import { Logger } from "winston";
 
 export class RetryProvider extends ethers.providers.StaticJsonRpcProvider {
@@ -22,7 +24,7 @@ export class RetryProvider extends ethers.providers.StaticJsonRpcProvider {
     standardTtlBlockDistance?: number,
     noTtlBlockDistance?: number,
     providerCacheTtl = PROVIDER_CACHE_TTL,
-    logger?: Logger
+    readonly logger?: Logger
   ) {
     // Initialize the super just with the chainId, which stops it from trying to immediately send out a .send before
     // this derived class is initialized.
@@ -42,18 +44,10 @@ export class RetryProvider extends ethers.providers.StaticJsonRpcProvider {
         )
     );
 
-    // This is added for interim testing to see whether relayer fill performance improves.
-    this.providers.forEach((provider) => {
-      const url = getOriginFromURL(provider.connection.url);
-      const { pollingInterval } = provider;
-      provider.pollingInterval = 1000;
-      logger?.debug({
-        at: "RetryProvider",
-        message: `Dropped ${url} pollingInterval ${pollingInterval} -> ${provider.pollingInterval}.`,
-      });
-    });
-
-    this.pollingInterval = 1000;
+    if (chainId !== CHAIN_IDs.MAINNET) {
+      this.pollingInterval = 1000;
+      this.providers.forEach((provider) => (provider.pollingInterval = this.pollingInterval));
+    }
 
     if (this.nodeQuorumThreshold < 1 || !Number.isInteger(this.nodeQuorumThreshold)) {
       throw new Error(
@@ -88,13 +82,19 @@ export class RetryProvider extends ethers.providers.StaticJsonRpcProvider {
     ): Promise<[ethers.providers.StaticJsonRpcProvider, unknown]> => {
       return this._trySend(provider, method, params)
         .then((result): [ethers.providers.StaticJsonRpcProvider, unknown] => [provider, result])
-        .catch((err) => {
+        .catch((err: unknown) => {
           // Append the provider and error to the error array.
-          errors.push([provider, err?.stack || err?.toString()]);
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          errors.push([provider, (err as any)?.stack || err?.toString()]);
 
           // If there are no new fallback providers to use, terminate the recursion by throwing an error.
           // Otherwise, we can try to call another provider.
           if (fallbackProviders.length === 0) {
+            throw err;
+          }
+
+          // If one RPC provider reverted, others likely will too. Skip them.
+          if (quorumThreshold === 1 && this.callReverted(method, err)) {
             throw err;
           }
 
@@ -128,28 +128,26 @@ export class RetryProvider extends ethers.providers.StaticJsonRpcProvider {
     }
 
     const getMismatchedProviders = (values: [ethers.providers.StaticJsonRpcProvider, unknown][]) => {
-      return Object.fromEntries(
-        values
-          .filter(([, result]) => !compareRpcResults(method, result, quorumResult))
-          .map(([provider, result]) => [provider.connection.url, result])
-      );
+      return values
+        .filter(([, result]) => !compareRpcResults(method, result, quorumResult))
+        .map(([provider]) => provider.connection.url);
     };
 
     const logQuorumMismatchOrFailureDetails = (
       method: string,
       params: Array<unknown>,
       quorumProviders: string[],
-      mismatchedProviders: { [k: string]: unknown },
+      mismatchedProviders: string[],
       errors: [ethers.providers.StaticJsonRpcProvider, string][]
     ) => {
-      logger.warn({
+      this.logger?.warn({
         at: "ProviderUtils",
         message: "Some providers mismatched with the quorum result or failed 🚸",
         notificationPath: "across-warn",
         method,
         params: JSON.stringify(params),
         quorumProviders,
-        mismatchedProviders: JSON.stringify(mismatchedProviders),
+        mismatchedProviders,
         erroringProviders: errors.map(([provider, errorText]) => formatProviderError(provider, errorText)),
       });
     };
@@ -225,7 +223,7 @@ export class RetryProvider extends ethers.providers.StaticJsonRpcProvider {
     const quorumProviders = [...values, ...fallbackValues]
       .filter(([, result]) => compareRpcResults(method, result, quorumResult))
       .map(([provider]) => provider.connection.url);
-    if (Object.keys(mismatchedProviders).length > 0 || errors.length > 0) {
+    if (mismatchedProviders.length > 0 || errors.length > 0) {
       logQuorumMismatchOrFailureDetails(method, params, quorumProviders, mismatchedProviders, errors);
     }
 
@@ -247,7 +245,7 @@ export class RetryProvider extends ethers.providers.StaticJsonRpcProvider {
     const response = await provider.send(method, params);
     if (!this._validateResponse(method, params, response)) {
       // Not a warning to avoid spam since this could trigger a lot.
-      logger.debug({
+      this.logger?.debug({
         at: "ProviderUtils",
         message: "Provider returned invalid response",
         provider: getOriginFromURL(provider.connection.url),
@@ -260,12 +258,57 @@ export class RetryProvider extends ethers.providers.StaticJsonRpcProvider {
     return response;
   }
 
-  _trySend(provider: ethers.providers.StaticJsonRpcProvider, method: string, params: Array<unknown>): Promise<unknown> {
-    let promise = this._sendAndValidate(provider, method, params);
-    for (let i = 0; i < this.retries; i++) {
-      promise = promise.catch(() => delay(this.delay).then(() => this._sendAndValidate(provider, method, params)));
+  // For an error emitted in response to an eth_call or eth_estimateGas request, determine
+  // whether the response body indicates that the call reverted during execution.
+  protected callReverted(method: string, error: unknown): boolean {
+    if (!(method === "eth_call" || method === "eth_estimateGas") || !RpcError.is(error)) {
+      return false;
     }
-    return promise;
+
+    let response: unknown;
+    try {
+      // The exact RPC responses returned can vary, but `error.body` has reliably included both
+      // the code (typically 3 on revert) and the error message indicating "execution reverted".
+      response = JSON.parse(error.body);
+    } catch {
+      return false;
+    }
+
+    if (!JsonRpcError.is(response)) {
+      return false;
+    }
+
+    // [-32768, -32100] is reserved by the JSON-RPC spec.
+    // [-32099, -32000] is allocated for implementation-defined responses.
+    // Everything else is available for use by the application space.
+    // Most node implementations return 3 for an eth_call revert, but some return -32000.
+    // See also https://www.jsonrpc.org/specification
+    if (response.error.code >= -32768 && response.error.code <= -32100) {
+      return false;
+    }
+
+    return response.error.message.toLowerCase().includes("revert");
+  }
+
+  async _trySend(
+    provider: ethers.providers.StaticJsonRpcProvider,
+    method: string,
+    params: Array<unknown>
+  ): Promise<unknown> {
+    let { retries } = this;
+
+    // eslint-disable-next-line no-constant-condition
+    while (true) {
+      const [settled] = await Promise.allSettled([this._sendAndValidate(provider, method, params)]);
+      if (settled.status === "fulfilled") {
+        return settled.value;
+      }
+
+      if (retries-- <= 0 || this.callReverted(method, settled.reason)) {
+        throw settled.reason;
+      }
+      await delay(this.delay);
+    }
   }
 
   _getQuorum(method: string, params: Array<unknown>): number {
@@ -277,7 +320,7 @@ export class RetryProvider extends ethers.providers.StaticJsonRpcProvider {
     }
 
     // getBlockByNumber should only use the quorum if it's not asking for the latest block.
-    if (method === "eth_getBlockByNumber" && params[0] !== "latest") {
+    if (method === "eth_getBlockByNumber" && params[0] !== "latest" && params[0] !== "pending") {
       return this.nodeQuorumThreshold;
     }
 

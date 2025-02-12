@@ -114,7 +114,7 @@ export class ArweaveClient {
       // If the data does not match the validator, log a warning and return null.
       this.logger.warn({
         at: "ArweaveClient:get",
-        message: "Retrieved value from Arweave does not match the expected type",
+        message: `Retrieved value from Arweave does not match the expected type: ${e}`,
       });
       return null;
     }

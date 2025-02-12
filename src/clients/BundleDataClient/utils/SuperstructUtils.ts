@@ -1,4 +1,5 @@
 import {
+  Infer,
   object,
   number,
   optional,
@@ -10,13 +11,16 @@ import {
   pattern,
   boolean,
   defaulted,
+  union,
+  type,
 } from "superstruct";
+import { UNDEFINED_MESSAGE_HASH } from "../../../constants";
 import { BigNumber } from "../../../utils";
 
 const PositiveIntegerStringSS = pattern(string(), /\d+/);
 const Web3AddressSS = pattern(string(), /^0x[a-fA-F0-9]{40}$/);
 
-const BigNumberType = coerce(instance(BigNumber), string(), (value) => {
+const BigNumberType = coerce(instance(BigNumber), union([string(), number()]), (value) => {
   try {
     // Attempt to convert the string to a BigNumber
     return BigNumber.from(value);
@@ -40,7 +44,7 @@ const V3RelayDataSS = {
   originChainId: number(),
   depositor: string(),
   recipient: string(),
-  depositId: number(),
+  depositId: BigNumberType,
   message: string(),
 };
 
@@ -52,6 +56,7 @@ const SortableEventSS = {
 };
 
 const V3DepositSS = {
+  messageHash: defaulted(string(), UNDEFINED_MESSAGE_HASH),
   fromLiteChain: defaulted(boolean(), false),
   toLiteChain: defaulted(boolean(), false),
   destinationChainId: number(),
@@ -80,11 +85,14 @@ const V3RelayExecutionEventInfoSS = object({
   updatedOutputAmount: BigNumberType,
   fillType: FillTypeSS,
   updatedRecipient: string(),
-  updatedMessage: string(),
+  updatedMessage: optional(string()),
+  updatedMessageHash: defaulted(string(), UNDEFINED_MESSAGE_HASH),
 });
 
 const V3FillSS = {
   ...V3RelayDataSS,
+  message: optional(string()),
+  messageHash: defaulted(string(), UNDEFINED_MESSAGE_HASH),
   destinationChainId: number(),
   relayer: string(),
   repaymentChainId: number(),
@@ -122,11 +130,12 @@ const nestedV3BundleFillsSS = record(
   )
 );
 
-export const BundleDataSS = object({
-  bundleBlockRanges: array(array(number())),
+export const BundleDataSS = type({
   bundleDepositsV3: nestedV3DepositRecordSS,
   expiredDepositsToRefundV3: nestedV3DepositRecordSS,
   unexecutableSlowFills: nestedV3DepositRecordWithLpFeePctSS,
   bundleSlowFillsV3: nestedV3DepositRecordWithLpFeePctSS,
   bundleFillsV3: nestedV3BundleFillsSS,
 });
+
+export type BundleData = Infer<typeof BundleDataSS>;

@@ -1,7 +1,7 @@
 {
   "name": "@across-protocol/sdk",
   "author": "UMA Team",
-  "version": "3.2.10",
+  "version": "4.1.9",
   "license": "AGPL-3.0",
   "homepage": "https://docs.across.to/reference/sdk",
   "files": [
@@ -9,7 +9,7 @@
     "src"
   ],
   "engines": {
-    "node": ">=16.18.0"
+    "node": ">=20.18.0"
   },
   "scripts": {
     "start": "yarn typechain && nodemon -e ts,tsx,json,js,jsx --watch ./src --ignore ./dist --exec 'yarn dev'",
@@ -99,13 +99,13 @@
   },
   "dependencies": {
     "@across-protocol/across-token": "^1.0.0",
-    "@across-protocol/constants": "^3.1.16",
-    "@across-protocol/contracts": "^3.0.11",
+    "@across-protocol/constants": "^3.1.34",
+    "@across-protocol/contracts": "4.0.0",
     "@eth-optimism/sdk": "^3.3.1",
     "@ethersproject/bignumber": "^5.7.0",
     "@pinata/sdk": "^2.1.0",
     "@types/mocha": "^10.0.1",
-    "@uma/sdk": "^0.34.1",
+    "@uma/sdk": "^0.34.10",
     "arweave": "^1.14.4",
     "async": "^3.2.5",
     "axios": "^0.27.2",
@@ -115,7 +115,8 @@
     "lodash": "^4.17.21",
     "lodash.get": "^4.4.2",
     "superstruct": "^0.15.4",
-    "tslib": "^2.6.2"
+    "tslib": "^2.6.2",
+    "viem": "^2.21.15"
   },
   "publishConfig": {
     "registry": "https://registry.npmjs.com/",
@@ -143,5 +144,19 @@
       "require": "./dist/cjs/*.js",
       "import": "./dist/esm/*.js"
     }
+  },
+  "resolutions": {
+    "**/eccrypto/secp256k1": "3.8.1",
+    "**/eth-crypto/secp256k1": "5.0.1",
+    "**/libp2p-crypto/secp256k1": "4.0.4",
+    "**/ethereum-cryptography/secp256k1": "4.0.4",
+    "**/arbundles/secp256k1": "4.0.4",
+    "**/ganache/secp256k1": "4.0.4",
+    "**/ethereumjs-util/secp256k1": "3.8.1"
+  },
+  "overrides": {
+    "secp256k1@3.7.1": "3.8.1",
+    "secp256k1@4.0.3": "4.0.4",
+    "secp256k1@5.0.0": "5.0.1"
   }
 }

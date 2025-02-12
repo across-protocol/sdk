@@ -1,10 +1,12 @@
 import assert from "assert";
 import { SpokePoolClient } from "../clients";
-import { DEFAULT_CACHING_TTL, EMPTY_MESSAGE } from "../constants";
+import { DEFAULT_CACHING_TTL, EMPTY_MESSAGE, ZERO_BYTES } from "../constants";
 import { CachingMechanismInterface, Deposit, DepositWithBlock, Fill, SlowFillRequest } from "../interfaces";
 import { getNetworkName } from "./NetworkUtils";
+import { bnZero } from "./BigNumberUtils";
 import { getDepositInCache, getDepositKey, setDepositInCache } from "./CachingUtils";
 import { validateFillForDeposit } from "./FlowUtils";
+import { getMessageHash, isUnsafeDepositId } from "./SpokeUtils";
 import { getCurrentTime } from "./TimeUtils";
 import { isDefined } from "./TypeGuards";
 import { isDepositFormedCorrectly } from "./ValidatorUtils";
@@ -17,6 +19,7 @@ export enum InvalidFill {
   DepositIdInvalid = 0, // Deposit ID seems invalid for origin SpokePool
   DepositIdNotFound, // Deposit ID not found (bad RPC data?)
   FillMismatch, // Fill does not match deposit parameters for deposit ID.
+  DepositIdOutOfRange, // Fill is for a deterministic deposit.
 }
 
 export type DepositSearchResult =
@@ -40,6 +43,13 @@ export async function queryHistoricalDepositForFill(
   fill: Fill | SlowFillRequest,
   cache?: CachingMechanismInterface
 ): Promise<DepositSearchResult> {
+  if (isUnsafeDepositId(fill.depositId)) {
+    return {
+      found: false,
+      code: InvalidFill.DepositIdOutOfRange,
+      reason: `Cannot find historical deposit for fill with unsafe deposit ID ${fill.depositId}.`,
+    };
+  }
   if (fill.originChainId !== spokePoolClient.chainId) {
     throw new Error(`OriginChainId mismatch (${fill.originChainId} != ${spokePoolClient.chainId})`);
   }
@@ -52,16 +62,16 @@ export async function queryHistoricalDepositForFill(
 
   const { depositId } = fill;
   let { firstDepositIdForSpokePool: lowId, lastDepositIdForSpokePool: highId } = spokePoolClient;
-  if (depositId < lowId || depositId > highId) {
+  if (depositId.lt(lowId) || depositId.gt(highId)) {
     return {
       found: false,
       code: InvalidFill.DepositIdInvalid,
-      reason: `Deposit ID ${depositId} is outside of SpokePool bounds [${lowId},${highId}].`,
+      reason: `Deposit ID ${depositId.toString()} is outside of SpokePool bounds [${lowId},${highId}].`,
     };
   }
 
   ({ earliestDepositIdQueried: lowId, latestDepositIdQueried: highId } = spokePoolClient);
-  if (depositId >= lowId && depositId <= highId) {
+  if (depositId.gte(lowId) && depositId.lte(highId)) {
     const originChain = getNetworkName(fill.originChainId);
     const deposit = spokePoolClient.getDeposit(depositId);
     if (isDefined(deposit)) {
@@ -73,14 +83,14 @@ export async function queryHistoricalDepositForFill(
       return {
         found: false,
         code: InvalidFill.FillMismatch,
-        reason: `Fill for ${originChain} deposit ID ${depositId} is invalid (${match.reason}).`,
+        reason: `Fill for ${originChain} deposit ID ${depositId.toString()} is invalid (${match.reason}).`,
       };
     }
 
     return {
       found: false,
       code: InvalidFill.DepositIdNotFound,
-      reason: `${originChain} deposit ID ${depositId} not found in SpokePoolClient event buffer.`,
+      reason: `${originChain} deposit ID ${depositId.toString()} not found in SpokePoolClient event buffer.`,
     };
   }
 
@@ -113,6 +123,8 @@ export async function queryHistoricalDepositForFill(
     }
   }
 
+  deposit.messageHash ??= getMessageHash(deposit.message);
+
   const match = validateFillForDeposit(fill, deposit);
   if (match.valid) {
     return { found: true, deposit };
@@ -126,12 +138,34 @@ export async function queryHistoricalDepositForFill(
 }
 
 /**
+ * Returns true if filling this deposit (as a slow or fast fill) or refunding it would not change any state
+ * on-chain. The dataworker functions can use this to conveniently filter out useless deposits.
+ * @dev The reason we allow a 0-input deposit to have a non-empty message is that the message might be used
+ * to pay the filler in an indirect way so it might have economic value as a fast or slow fill.
+ * @param deposit Deposit to check.
+ * @returns True if deposit's input amount is 0 and message is empty.
+ */
+export function isZeroValueDeposit(deposit: Pick<Deposit, "inputAmount" | "message">): boolean {
+  return deposit.inputAmount.eq(0) && isMessageEmpty(deposit.message);
+}
+
+export function isZeroValueFillOrSlowFillRequest(
+  e: Pick<Fill | SlowFillRequest, "inputAmount" | "messageHash">
+): boolean {
+  return e.inputAmount.eq(bnZero) && e.messageHash === ZERO_BYTES;
+}
+
+/**
  * Determines if a message is empty or not.
  * @param message The message to check.
  * @returns True if the message is empty, false otherwise.
  */
 export function isMessageEmpty(message = EMPTY_MESSAGE): boolean {
   return message === "" || message === "0x";
+}
+
+export function isFillOrSlowFillRequestMessageEmpty(message: string): boolean {
+  return isMessageEmpty(message) || message === ZERO_BYTES;
 }
 
 /**
