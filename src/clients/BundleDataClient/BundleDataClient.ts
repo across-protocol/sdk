@@ -41,6 +41,7 @@ import {
   isZeroValueFillOrSlowFillRequest,
   chainIsEvm,
   isValidEvmAddress,
+  duplicateEvent,
 } from "../../utils";
 import winston from "winston";
 import {
@@ -439,84 +440,44 @@ export class BundleDataClient {
       }, toBN(0));
   }
 
-  private async getLatestProposedBundleDataFromArweave(): Promise<{
-    bundleData: LoadDataReturnValue;
-    blockRanges: number[][];
-  }> {
+  async getPendingPoolRebalanceLeavesFromArweave(): Promise<PoolRebalanceRoot | undefined> {
+    if (!this.clients.hubPoolClient.hasPendingProposal()) {
+      return undefined;
+    }
     const hubPoolClient = this.clients.hubPoolClient;
-    // Determine which bundle we should fetch from arweave, either the pending bundle or the latest
-    // executed one. Both should have arweave data but if for some reason the arweave data is missing,
-    // this function will load the bundle data from the most recent bundle data published to Arweave.
-
-    const latestBundleBlockRanges = getImpliedBundleBlockRanges(
+    const bundleBlockRanges = getImpliedBundleBlockRanges(
       hubPoolClient,
       this.clients.configStoreClient,
-      hubPoolClient.hasPendingProposal()
-        ? hubPoolClient.getLatestProposedRootBundle()
-        : hubPoolClient.getNthFullyExecutedRootBundle(-1)!
+      hubPoolClient.getLatestProposedRootBundle()
     );
-    let bundleBlockRanges = latestBundleBlockRanges;
-    // Check if bundle data exists on arweave, otherwise fallback to last published bundle data. If the
-    // first bundle block range we are trying is the pending proposal, then we'll grab the most recently
-    // validated bundle, otherwise we'll grab the second most recently validated bundle.
-    let n = hubPoolClient.hasPendingProposal() ? 1 : 2;
-
-    // Try to find an older bundle that has arweave data but cut off after a few tries and just load data from scratch.
-    while (n < 3) {
-      const bundleDataOnArweave = await this.getBundleDataFromArweave(bundleBlockRanges);
-      if (!isDefined(bundleDataOnArweave)) {
-        this.logger.debug({
-          at: "BundleDataClient#getLatestProposedBundleDataFromArweave",
-          message: `No bundle data found on arweave for ${this.getArweaveBundleDataClientKey(
-            bundleBlockRanges
-          )}, trying previous bundle block range`,
-        });
-        // Bundle data is not arweave, try the next most recently validated bundle.
-        bundleBlockRanges = getImpliedBundleBlockRanges(
-          hubPoolClient,
-          this.clients.configStoreClient,
-          hubPoolClient.getNthFullyExecutedRootBundle(-n)!
-        );
-      } else {
-        // Bundle block ranges have bundle data published on arweave, so use it:
-        return {
-          blockRanges: bundleBlockRanges,
-          bundleData: await this.loadData(bundleBlockRanges, this.spokePoolClients, true),
-        };
-        break;
-      }
-
-      n++;
+    // If bundle data is not on arweave, return undefined as this function is designed to return
+    // bundle data quickly rather than load from scratch.
+    const bundleDataOnArweave = await this.getBundleDataFromArweave(bundleBlockRanges);
+    if (!isDefined(bundleDataOnArweave)) {
+      return undefined;
     }
-
-    // None of the n bundles we looked at have arweave bundle data, so just load the pending bundle from scratch to
-    // at least get the latest data, albeit slowly.
-    return {
-      blockRanges: bundleBlockRanges,
-      bundleData: await this.loadData(latestBundleBlockRanges, this.spokePoolClients, true),
-    };
-  }
-
-  async getLatestPoolRebalanceRootFromArweave(): Promise<{ root: PoolRebalanceRoot; blockRanges: number[][] }> {
-    const { bundleData, blockRanges } = await this.getLatestProposedBundleDataFromArweave();
-    const hubPoolClient = this.clients.hubPoolClient;
-    const root = _buildPoolRebalanceRoot(
-      hubPoolClient.latestBlockSearched,
-      blockRanges[0][1],
-      bundleData.bundleDepositsV3,
-      bundleData.bundleFillsV3,
-      bundleData.bundleSlowFillsV3,
-      bundleData.unexecutableSlowFills,
-      bundleData.expiredDepositsToRefundV3,
-      {
-        hubPoolClient,
-        configStoreClient: hubPoolClient.configStoreClient as AcrossConfigStoreClient,
-      }
-    );
-    return {
-      root,
-      blockRanges,
-    };
+    const pendingBundleData = await this.loadData(bundleBlockRanges, this.spokePoolClients, true);
+    // This should be defined since we've checked that the data exists on Arweave, but handle the unexpected
+    // case where its not.
+    if (!isDefined(pendingBundleData)) {
+      return undefined;
+    } else {
+      const hubPoolClient = this.clients.hubPoolClient;
+      const root = _buildPoolRebalanceRoot(
+        hubPoolClient.latestBlockSearched,
+        bundleBlockRanges[0][1],
+        pendingBundleData.bundleDepositsV3,
+        pendingBundleData.bundleFillsV3,
+        pendingBundleData.bundleSlowFillsV3,
+        pendingBundleData.unexecutableSlowFills,
+        pendingBundleData.expiredDepositsToRefundV3,
+        {
+          hubPoolClient,
+          configStoreClient: hubPoolClient.configStoreClient as AcrossConfigStoreClient,
+        }
+      );
+      return root;
+    }
   }
 
   // @dev This function should probably be moved to the InventoryClient since it bypasses loadData completely now.
@@ -905,11 +866,7 @@ export class BundleDataClient {
             "Not using correct bundle deposit hash key"
           );
           if (deposit.blockNumber >= originChainBlockRange[0]) {
-            if (
-              bundleDepositsV3?.[originChainId]?.[deposit.inputToken]?.find(
-                (d) => d.transactionHash === deposit.transactionHash && d.logIndex === deposit.logIndex
-              )
-            ) {
+            if (bundleDepositsV3?.[originChainId]?.[deposit.inputToken]?.find((d) => duplicateEvent(deposit, d))) {
               this.logger.debug({
                 at: "BundleDataClient#loadData",
                 message: "Duplicate deposit detected",
