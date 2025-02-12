@@ -776,17 +776,19 @@ export class HubPoolClient extends BaseAbstractClient {
     return endBlock > 0 ? endBlock + 1 : 0;
   }
 
-  getRunningBalanceBeforeBlockForChain(block: number, chain: number, l1Token: string): TokenRunningBalance {
+  getLatestExecutedRootBundleContainingL1Token(block: number, chain: number, l1Token: string): ExecutedRootBundle {
     // Search ExecutedRootBundles in descending block order to find the most recent event before the target block.
-    const executedRootBundle = sortEventsDescending(this.executedRootBundles).find(
-      (executedLeaf: ExecutedRootBundle) => {
-        return (
-          executedLeaf.blockNumber <= block &&
-          executedLeaf.chainId === chain &&
-          executedLeaf.l1Tokens.map((l1Token) => l1Token.toLowerCase()).includes(l1Token.toLowerCase())
-        );
-      }
-    ) as ExecutedRootBundle;
+    return sortEventsDescending(this.executedRootBundles).find((executedLeaf: ExecutedRootBundle) => {
+      return (
+        executedLeaf.blockNumber <= block &&
+        executedLeaf.chainId === chain &&
+        executedLeaf.l1Tokens.map((l1Token) => l1Token.toLowerCase()).includes(l1Token.toLowerCase())
+      );
+    }) as ExecutedRootBundle;
+  }
+
+  getRunningBalanceBeforeBlockForChain(block: number, chain: number, l1Token: string): TokenRunningBalance {
+    const executedRootBundle = this.getLatestExecutedRootBundleContainingL1Token(block, chain, l1Token);
 
     return this.getRunningBalanceForToken(l1Token, executedRootBundle);
   }

@@ -18,7 +18,7 @@ import {
   Deposit,
   DepositWithBlock,
 } from "../../interfaces";
-import { AcrossConfigStoreClient, SpokePoolClient } from "..";
+import { SpokePoolClient } from "..";
 import {
   BigNumber,
   bnZero,
@@ -45,7 +45,6 @@ import {
 } from "../../utils";
 import winston from "winston";
 import {
-  _buildPoolRebalanceRoot,
   BundleData,
   BundleDataSS,
   getEndBlockBuffers,
@@ -53,7 +52,6 @@ import {
   getRefundsFromBundle,
   getWidestPossibleExpectedBlockRange,
   isChainDisabled,
-  PoolRebalanceRoot,
   prettyPrintV3SpokePoolEvents,
   V3DepositWithBlock,
   V3FillWithBlock,
@@ -438,39 +436,6 @@ export class BundleDataClient {
       .reduce((acc, deposit) => {
         return acc.add(deposit.inputAmount);
       }, toBN(0));
-  }
-
-  async getPendingPoolRebalanceLeavesFromArweave(): Promise<PoolRebalanceRoot | undefined> {
-    if (!this.clients.hubPoolClient.hasPendingProposal()) {
-      return undefined;
-    }
-    const hubPoolClient = this.clients.hubPoolClient;
-    const bundleBlockRanges = getImpliedBundleBlockRanges(
-      hubPoolClient,
-      this.clients.configStoreClient,
-      hubPoolClient.getLatestProposedRootBundle()
-    );
-    // If bundle data is not on arweave, return undefined as this function is designed to return
-    // bundle data quickly rather than load from scratch.
-    const bundleDataOnArweave = await this.getBundleDataFromArweave(bundleBlockRanges);
-    if (!isDefined(bundleDataOnArweave)) {
-      return undefined;
-    }
-    const pendingBundleData = await this.loadArweaveData(bundleBlockRanges);
-    const root = _buildPoolRebalanceRoot(
-      hubPoolClient.latestBlockSearched,
-      bundleBlockRanges[0][1],
-      pendingBundleData.bundleDepositsV3,
-      pendingBundleData.bundleFillsV3,
-      pendingBundleData.bundleSlowFillsV3,
-      pendingBundleData.unexecutableSlowFills,
-      pendingBundleData.expiredDepositsToRefundV3,
-      {
-        hubPoolClient,
-        configStoreClient: hubPoolClient.configStoreClient as AcrossConfigStoreClient,
-      }
-    );
-    return root;
   }
 
   // @dev This function should probably be moved to the InventoryClient since it bypasses loadData completely now.
