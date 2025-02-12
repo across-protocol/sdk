@@ -55,8 +55,8 @@ import { getRepaymentChainId, forceDestinationRepayment } from "./BundleDataClie
 type SpokePoolUpdateSuccess = {
   success: true;
   currentTime: number;
-  firstDepositId: number;
-  latestDepositId: number;
+  firstDepositId: BigNumber;
+  latestDepositId: BigNumber;
   events: Log[][];
   searchEndBlock: number;
 };
