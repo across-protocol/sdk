@@ -8,12 +8,8 @@ import {
   bnUint32Max,
   DefaultLogLevels,
   EventSearchConfig,
-  getBlockRangeForDepositId,
-  getDepositIdAtBlock,
-  getNetworkName,
   MAX_BIG_INT,
   MakeOptional,
-  relayFillStatus,
   assign,
   getRelayEventKey,
   isDefined,
@@ -49,6 +45,8 @@ import {
   TokensBridged,
 } from "../interfaces";
 import { SpokePool } from "../typechain";
+import { getNetworkName } from "../utils/NetworkUtils";
+import { getBlockRangeForDepositId, getDepositIdAtBlock, relayFillStatus } from "../utils/SpokeUtils";
 import { BaseAbstractClient, isUpdateFailureReason, UpdateFailureReason } from "./BaseAbstractClient";
 import { HubPoolClient } from "./HubPoolClient";
 import { AcrossConfigStoreClient } from "./AcrossConfigStoreClient";
