@@ -14,7 +14,7 @@ dotenv.config({ path: ".env" });
 const stdLastBaseFeePerGas = parseUnits("12", 9);
 const stdMaxPriorityFeePerGas = parseUnits("1", 9); // EIP-1559 chains only
 const expectedLineaMaxFeePerGas = BigNumber.from("7");
-const legacyChainIds = [324, 59144, 534352];
+const legacyChainIds = [324, 534352];
 const arbOrbitChainIds = [42161, 41455];
 const ethersProviderChainIds = [10, 8453, ...legacyChainIds, ...arbOrbitChainIds];
 const lineaEstimateGasUnsignedTxMultiplier = 2; // Amount that priority fee scales by if unsignedTx has data. Applied
@@ -81,8 +81,6 @@ describe("Gas Price Oracle", function () {
   });
   it("Linea Viem gas price retrieval with unsignedTx", async function () {
     const chainId = 59144;
-    const chainKey = `NEW_GAS_PRICE_ORACLE_${chainId}`;
-    process.env[chainKey] = "true";
     const priorityFeeMultiplier = toBNWei("2.0");
     const unsignedTx = {
       to: randomAddress(),
@@ -108,12 +106,9 @@ describe("Gas Price Oracle", function () {
     );
     expect(maxFeePerGas).to.equal(expectedLineaMaxFeePerGas.add(expectedPriorityFee));
     expect(maxPriorityFeePerGas).to.equal(expectedPriorityFee);
-    delete process.env[chainKey];
   });
   it("Linea Viem gas price retrieval", async function () {
     const chainId = 59144;
-    const chainKey = `NEW_GAS_PRICE_ORACLE_${chainId}`;
-    process.env[chainKey] = "true";
     const priorityFeeMultiplier = toBNWei("2.0");
     const { maxFeePerGas, maxPriorityFeePerGas } = await getGasPriceEstimate(provider, {
       chainId,
@@ -127,7 +122,6 @@ describe("Gas Price Oracle", function () {
     const expectedPriorityFee = stdMaxPriorityFeePerGas.mul(priorityFeeMultiplier).div(fixedPointAdjustment);
     expect(maxFeePerGas).to.equal(expectedLineaMaxFeePerGas.add(expectedPriorityFee));
     expect(maxPriorityFeePerGas).to.equal(expectedPriorityFee);
-    delete process.env[chainKey];
   });
   it("Ethers gas price retrieval", async function () {
     const baseFeeMultiplier = toBNWei("2.0");
@@ -188,9 +182,7 @@ describe("Gas Price Oracle", function () {
     const minPriorityFeeScaler = "1.5";
     const minPriorityFee = parseUnits(minPriorityFeeScaler, 9);
     const chainId = 1;
-    const chainKey = `GAS_PRICE_EIP1559_RAW_${chainId}`;
     const minPriorityFeeKey = `MIN_PRIORITY_FEE_PER_GAS_${chainId}`;
-    process.env[chainKey] = "true";
     process.env[minPriorityFeeKey] = minPriorityFeeScaler;
 
     const { maxFeePerGas: markedUpMaxFeePerGas, maxPriorityFeePerGas: markedUpMaxPriorityFeePerGas } =
@@ -207,7 +199,6 @@ describe("Gas Price Oracle", function () {
 
     // Priority fees should be scaled.
     expect(markedUpMaxPriorityFeePerGas).to.equal(expectedMarkedUpPriorityFee);
-    delete process.env[chainKey];
     delete process.env[minPriorityFeeKey];
   });
   it("Ethers EIP1559 Raw: min priority fee is ignored", async function () {
@@ -217,9 +208,7 @@ describe("Gas Price Oracle", function () {
     const minPriorityFee = parseUnits(minPriorityFeeScaler, 9);
     expect(minPriorityFee.lt(stdMaxPriorityFeePerGas)).to.be.true;
     const chainId = 1;
-    const chainKey = `GAS_PRICE_EIP1559_RAW_${chainId}`;
     const minPriorityFeeKey = `MIN_PRIORITY_FEE_PER_GAS_${chainId}`;
-    process.env[chainKey] = "true";
     process.env[minPriorityFeeKey] = minPriorityFeeScaler.toString();
 
     const { maxFeePerGas: markedUpMaxFeePerGas, maxPriorityFeePerGas: markedUpMaxPriorityFeePerGas } =
@@ -236,30 +225,7 @@ describe("Gas Price Oracle", function () {
 
     // Priority fees should be scaled.
     expect(markedUpMaxPriorityFeePerGas).to.equal(expectedMarkedUpPriorityFee);
-    delete process.env[chainKey];
     delete process.env[minPriorityFeeKey];
-  });
-  it("Ethers EIP1559 Bad", async function () {
-    // This test should return identical results to the Raw test but it makes different
-    // provider calls, so we're really testing that the expected provider functions are called.
-    const baseFeeMultiplier = toBNWei("2.0");
-    const priorityFeeMultiplier = toBNWei("1.5");
-    const chainId = 1;
-
-    const { maxFeePerGas: markedUpMaxFeePerGas, maxPriorityFeePerGas: markedUpMaxPriorityFeePerGas } =
-      await getGasPriceEstimate(provider, { chainId, baseFeeMultiplier, priorityFeeMultiplier });
-
-    // Base fee should be multiplied by multiplier. Returned max fee includes priority fee
-    // so back it out before scaling.
-    const expectedMarkedUpPriorityFee = stdMaxPriorityFeePerGas.mul(priorityFeeMultiplier).div(fixedPointAdjustment);
-    const expectedMarkedUpMaxFeePerGas = stdLastBaseFeePerGas
-      .mul(baseFeeMultiplier)
-      .div(fixedPointAdjustment)
-      .add(expectedMarkedUpPriorityFee);
-    expect(markedUpMaxFeePerGas).to.equal(expectedMarkedUpMaxFeePerGas);
-
-    // Priority fees should be scaled.
-    expect(markedUpMaxPriorityFeePerGas).to.equal(expectedMarkedUpPriorityFee);
   });
   it("Ethers Legacy", async function () {
     const baseFeeMultiplier = toBNWei("2.0");
