@@ -885,14 +885,7 @@ export class BundleDataClient {
             fillCounter++;
             const relayDataHash = getRelayEventKey(fill);
             if (v3RelayHashes[relayDataHash]) {
-              if (v3RelayHashes[relayDataHash].fill) {
-                this.logger.debug({
-                  at: "BundleDataClient#loadData",
-                  message: "Duplicate fill detected",
-                  fill,
-                });
-                throw new Error("Duplicate fill detected");
-              }
+              if (!v3RelayHashes[relayDataHash].fill) {
                 const { deposits } = v3RelayHashes[relayDataHash];
                 assert(isDefined(deposits) && deposits.length > 0, "Deposit should exist in relay hash dictionary.");
                 v3RelayHashes[relayDataHash].fill = fill;
@@ -944,6 +937,14 @@ export class BundleDataClient {
                   ) {
                     fastFillsReplacingSlowFills.push(relayDataHash);
                   }
+                } else {
+                  this.logger.debug({
+                    at: "BundleDataClient#loadData",
+                    message: "Duplicate fill detected",
+                    fill,
+                  });
+                  throw new Error("Duplicate fill detected");
+                }
               }
               assert(
                 isDefined(v3RelayHashes[relayDataHash].deposits) && v3RelayHashes[relayDataHash].deposits!.length > 0,
