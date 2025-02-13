@@ -12,7 +12,7 @@ export async function publishValidatedBundles(
   hubPoolClient: MockHubPoolClient,
   spokePoolClients: SpokePoolClientsByChain,
   numberOfBundles: number,
-  _runningBalances?: BigNumber[],
+  _runningBalances?: BigNumber[]
 ): Promise<Record<number, { start: number; end: number }[]>> {
   // Create a sets of unique block ranges per chain so that we have a lower chance of false positives
   // when fetching the block ranges for a specific chain.
@@ -54,7 +54,7 @@ export async function publishValidatedBundles(
         toBN(chainId),
         l1Tokens, // l1Tokens
         runningBalances, // bundleLpFees
-        runningBalances, // netSendAmounts
+        runningBalances // netSendAmounts
       );
     });
 
