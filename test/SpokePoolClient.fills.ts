@@ -1,7 +1,7 @@
 import hre from "hardhat";
 import { SpokePoolClient } from "../src/clients";
 import { Deposit } from "../src/interfaces";
-import { bnOne, findFillBlock, getNetworkName } from "../src/utils";
+import { bnOne, bnZero, findFillBlock, findFillEvent, getMessageHash, getNetworkName } from "../src/utils";
 import { EMPTY_MESSAGE, ZERO_ADDRESS } from "../src/constants";
 import { originChainId, destinationChainId } from "./constants";
 import {
@@ -47,8 +47,10 @@ describe("SpokePoolClient: Fills", function () {
 
     const spokePoolTime = Number(await spokePool.getCurrentTime());
     const outputAmount = toBNWei(1);
+
+    const message = EMPTY_MESSAGE;
     deposit = {
-      depositId: 0,
+      depositId: bnZero,
       originChainId,
       destinationChainId,
       depositor: depositor.address,
@@ -58,7 +60,8 @@ describe("SpokePoolClient: Fills", function () {
       outputToken: destErc20.address,
       outputAmount: toBNWei("1"),
       quoteTimestamp: spokePoolTime - 60,
-      message: EMPTY_MESSAGE,
+      message,
+      messageHash: getMessageHash(message),
       fillDeadline: spokePoolTime + 600,
       exclusivityDeadline: 0,
       exclusiveRelayer: ZERO_ADDRESS,
@@ -69,7 +72,7 @@ describe("SpokePoolClient: Fills", function () {
 
   it("Correctly fetches fill data single fill, single chain", async function () {
     await fillV3Relay(spokePool, deposit, relayer1);
-    await fillV3Relay(spokePool, { ...deposit, depositId: deposit.depositId + 1 }, relayer1);
+    await fillV3Relay(spokePool, { ...deposit, depositId: deposit.depositId.add(1) }, relayer1);
     await spokePoolClient.update();
     expect(spokePoolClient.getFills().length).to.equal(2);
   });
@@ -114,6 +117,26 @@ describe("SpokePoolClient: Fills", function () {
     expect(fillBlock).to.equal(targetFillBlock);
   });
 
+  it("Correctly returns the FilledV3Relay event using the relay data", async function () {
+    const targetDeposit = { ...deposit, depositId: deposit.depositId.add(1) };
+    // Submit multiple fills at the same block:
+    const startBlock = await spokePool.provider.getBlockNumber();
+    await fillV3Relay(spokePool, deposit, relayer1);
+    await fillV3Relay(spokePool, targetDeposit, relayer1);
+    await fillV3Relay(spokePool, { ...deposit, depositId: deposit.depositId.add(2) }, relayer1);
+    await hre.network.provider.send("evm_mine");
+
+    let fill = await findFillEvent(spokePool, targetDeposit, startBlock);
+    expect(fill).to.not.be.undefined;
+    fill = fill!;
+
+    expect(fill.depositId).to.equal(targetDeposit.depositId);
+
+    // Looking for a fill can return undefined:
+    const missingFill = await findFillEvent(spokePool, { ...deposit, depositId: deposit.depositId.add(3) }, startBlock);
+    expect(missingFill).to.be.undefined;
+  });
+
   it("FilledV3Relay block search: bounds checking", async function () {
     const nBlocks = 100;
     const startBlock = await spokePool.provider.getBlockNumber();
@@ -132,7 +155,7 @@ describe("SpokePoolClient: Fills", function () {
     const srcChain = getNetworkName(deposit.originChainId);
     await assertPromiseError(
       findFillBlock(spokePool, deposit, lateBlockNumber),
-      `${srcChain} deposit ${deposit.depositId} filled on `
+      `${srcChain} deposit ${deposit.depositId.toString()} filled on `
     );
 
     // Should assert if highBlock <= lowBlock.

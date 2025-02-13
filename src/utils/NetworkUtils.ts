@@ -61,6 +61,15 @@ export function chainIsOPStack(chainId: number): boolean {
 }
 
 /**
+ * Determines whether a chain ID is a ZkStack implementation.
+ * @param chainId Chain ID to evaluate.
+ * @returns True if chainId is a ZkStack chain, otherwise false.
+ */
+export function chainIsZkStack(chainId: number): boolean {
+  return PUBLIC_NETWORKS[chainId]?.family === ChainFamily.ZK_STACK;
+}
+
+/**
  * Determines whether a chain ID is an Arbitrum Orbit implementation.
  * @param chainId Chain ID to evaluate.
  * @returns True if chainId is an Orbit chain, otherwise false.
@@ -88,6 +97,15 @@ export function chainIsAlephZero(chainId: number): boolean {
 }
 
 /**
+ * Determines whether a chain ID is a Lens implementation
+ * @param chainId Chain ID to evaluate
+ * @returns True if chainId is a Lens chain, otherwise false.
+ */
+export function chainIsLens(chainId: number): boolean {
+  return [CHAIN_IDs.LENS_SEPOLIA].includes(chainId);
+}
+
+/**
  * Determines whether a chain ID is a Linea implementation.
  * @param chainId Chain ID to evaluate.
  * @returns True if chainId is a Linea chain, otherwise false.
@@ -106,6 +124,17 @@ export function chainIsL1(chainId: number): boolean {
 }
 
 /**
+ * Determines whether a chain ID runs on an EVM-like execution layer.
+ * @param chainId Chain ID to evaluate.
+ * @returns True if chain corresponding to chainId has an EVM-like execution layer.
+ */
+export function chainIsEvm(chainId: number): boolean {
+  chainId;
+  // TODO: Fix when we support non-EVM chains.
+  return true;
+}
+
+/**
  * Determines whether a chain ID has the capacity for having its USDC bridged via CCTP.
  * @param chainId Chain ID to evaluate.
  * @returns True if chainId is a CCTP-bridging enabled chain, otherwise false.
@@ -113,10 +142,11 @@ export function chainIsL1(chainId: number): boolean {
 export function chainIsCCTPEnabled(chainId: number): boolean {
   return [
     // Mainnets
+    CHAIN_IDs.ARBITRUM,
     CHAIN_IDs.BASE,
     CHAIN_IDs.OPTIMISM,
-    CHAIN_IDs.ARBITRUM,
     CHAIN_IDs.POLYGON,
+    CHAIN_IDs.UNICHAIN,
     // Testnets
     CHAIN_IDs.BASE_SEPOLIA,
     CHAIN_IDs.OPTIMISM_SEPOLIA,

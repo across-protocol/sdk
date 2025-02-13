@@ -8,14 +8,15 @@ import {
   TransactionCostEstimate,
   bnOne,
   getCurrentTime,
+  getMessageHash,
   spreadEvent,
   isMessageEmpty,
+  fixedPointAdjustment,
 } from "../src/utils";
 import {
   BigNumber,
   Contract,
   SignerWithAddress,
-  assert,
   assertPromiseError,
   assertPromisePasses,
   buildDepositForRelayerFeeTest,
@@ -27,10 +28,13 @@ import {
   setupTokensForWallet,
   makeCustomTransport,
 } from "./utils";
+import assert from "assert";
 import { TOKEN_SYMBOLS_MAP } from "@across-protocol/constants";
 import { EMPTY_MESSAGE, ZERO_ADDRESS } from "../src/constants";
 import { SpokePool } from "@across-protocol/contracts";
 import { QueryBase, QueryBase__factory } from "../src/relayFeeCalculator";
+import { getDefaultProvider } from "ethers";
+import { MockedProvider } from "../src/providers/mockProvider";
 
 dotenv.config({ path: ".env" });
 
@@ -334,7 +338,7 @@ describe("RelayFeeCalculator: Composable Bridging", function () {
           outputToken: destErc20.address,
           recipient: testContract.address,
           quoteTimestamp: 1,
-          depositId: 1000000,
+          depositId: BigNumber.from(1000000),
           depositor: depositor.address,
           originChainId: 10,
           destinationChainId: 1,
@@ -350,6 +354,7 @@ describe("RelayFeeCalculator: Composable Bridging", function () {
         relayer.address,
         1,
         tokenMap,
+        undefined,
         undefined,
         undefined,
         customTransport
@@ -436,9 +441,9 @@ describe("RelayFeeCalculator: Composable Bridging", function () {
       },
       10
     );
-    const fillData = await spokePool.queryFilter(spokePool.filters.FilledV3Relay());
+    const fillData = await spokePool.queryFilter(spokePool.filters.FilledRelay());
     expect(fillData.length).to.eq(1);
-    const onlyMessages = fillData.filter((fill) => !isMessageEmpty(fill.args.message));
+    const onlyMessages = fillData.filter((fill) => !isMessageEmpty(fill.args.messageHash));
     expect(onlyMessages.length).to.eq(1);
     const relevantFill = onlyMessages[0];
     const spreadFill = spreadEvent(relevantFill.args);
@@ -448,9 +453,69 @@ describe("RelayFeeCalculator: Composable Bridging", function () {
       updatedOutputAmount: spreadFill.relayExecutionInfo.updatedOutputAmount.toString(),
     }).to.deep.eq({
       updatedRecipient: testContract.address,
-      updatedMessage: "0xabcdef",
+      updatedMessageHash: getMessageHash("0xabcdef"),
       updatedOutputAmount: "1",
       fillType: 0,
+    });
+  });
+});
+
+describe("QueryBase", function () {
+  describe("estimateGas", function () {
+    let queryBase: QueryBase;
+    beforeEach(function () {
+      queryBase = QueryBase__factory.create(
+        1, // chainId
+        getDefaultProvider(),
+        undefined, // symbolMapping
+        undefined, // spokePoolAddress
+        undefined, // simulatedRelayerAddress
+        undefined,
+        this.logger
+      );
+    });
+    it("Uses passed in options", async function () {
+      const options = {
+        gasUnits: BigNumber.from(300_000),
+        gasPrice: toGWei("1.5"),
+      };
+      const result = await queryBase.estimateGas(
+        {}, // populatedTransaction
+        randomAddress(),
+        getDefaultProvider(),
+        options
+      );
+      expect(result.gasPrice).to.equal(options.gasPrice);
+      expect(result.nativeGasCost).to.equal(options.gasUnits);
+      expect(result.tokenGasCost).to.equal(options.gasPrice.mul(options.gasUnits));
+    });
+    it("Queries GasPriceOracle for gasPrice if not supplied", async function () {
+      const options = {
+        gasUnits: BigNumber.from(300_000),
+        gasPrice: undefined,
+        baseFeeMultiplier: toBNWei("2"),
+      };
+      // Mocked provider gets queried to compute gas price.
+      const stdLastBaseFeePerGas = toGWei("12");
+      const stdMaxPriorityFeePerGas = toGWei("1");
+      const chainId = 1; // get gas price from GasPriceOracle.ethereum.eip1559()
+      const mockedProvider = new MockedProvider(stdLastBaseFeePerGas, stdMaxPriorityFeePerGas, chainId);
+
+      const result = await queryBase.estimateGas(
+        {}, // populatedTransaction
+        randomAddress(),
+        mockedProvider,
+        options
+      );
+      // In this test, verify that the baseFeeMultiplier is passed correctly to the
+      // GasPriceOracle.
+      const expectedGasPrice = stdLastBaseFeePerGas
+        .mul(options.baseFeeMultiplier)
+        .div(fixedPointAdjustment)
+        .add(stdMaxPriorityFeePerGas);
+      expect(result.gasPrice).to.equal(expectedGasPrice);
+      expect(result.nativeGasCost).to.equal(options.gasUnits);
+      expect(result.tokenGasCost).to.equal(expectedGasPrice.mul(options.gasUnits));
     });
   });
 });

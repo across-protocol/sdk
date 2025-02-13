@@ -1,7 +1,7 @@
 {
   "name": "@across-protocol/sdk",
   "author": "UMA Team",
-  "version": "3.3.32",
+  "version": "4.1.9",
   "license": "AGPL-3.0",
   "homepage": "https://docs.across.to/reference/sdk",
   "files": [
@@ -9,7 +9,7 @@
     "src"
   ],
   "engines": {
-    "node": ">=16.18.0"
+    "node": ">=20.18.0"
   },
   "scripts": {
     "start": "yarn typechain && nodemon -e ts,tsx,json,js,jsx --watch ./src --ignore ./dist --exec 'yarn dev'",
@@ -99,8 +99,8 @@
   },
   "dependencies": {
     "@across-protocol/across-token": "^1.0.0",
-    "@across-protocol/constants": "^3.1.25",
-    "@across-protocol/contracts": "^3.0.19",
+    "@across-protocol/constants": "^3.1.34",
+    "@across-protocol/contracts": "4.0.0",
     "@eth-optimism/sdk": "^3.3.1",
     "@ethersproject/bignumber": "^5.7.0",
     "@pinata/sdk": "^2.1.0",
