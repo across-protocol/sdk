@@ -1,6 +1,6 @@
 import { DEFAULT_CACHING_SAFE_LAG, DEFAULT_CACHING_TTL } from "../constants";
 import { CachingMechanismInterface, Deposit, Fill, SlowFillRequest } from "../interfaces";
-import { assert } from "./LogUtils";
+import assert from "assert";
 import { composeRevivers, objectWithBigNumberReviver } from "./ReviverUtils";
 import { getRelayEventKey } from "./SpokeUtils";
 import { getCurrentTime } from "./TimeUtils";

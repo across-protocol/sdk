@@ -13,10 +13,10 @@ import {
   BigNumber,
   toBNWei,
   bnZero,
-  assert,
   chainIsOPStack,
   fixedPointAdjustment,
 } from "../../utils";
+import assert from "assert";
 import { Logger, QueryInterface } from "../relayFeeCalculator";
 import { Transport } from "viem";
 import { getGasPriceEstimate } from "../../gasPriceOracle/oracle";

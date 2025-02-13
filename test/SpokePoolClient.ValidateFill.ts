@@ -15,7 +15,6 @@ import {
 import { ZERO_BYTES } from "../src/constants";
 import { CHAIN_ID_TEST_LIST, originChainId, destinationChainId, repaymentChainId } from "./constants";
 import {
-  assert,
   expect,
   BigNumber,
   toBNWei,
@@ -38,6 +37,7 @@ import {
   winston,
   lastSpyLogIncludes,
 } from "./utils";
+import assert from "assert";
 import { MockConfigStoreClient, MockHubPoolClient, MockSpokePoolClient } from "./mocks";
 
 let spokePool_1: Contract, erc20_1: Contract, spokePool_2: Contract, erc20_2: Contract, hubPool: Contract;
