@@ -938,10 +938,6 @@ export class BundleDataClient {
                     fastFillsReplacingSlowFills.push(relayDataHash);
                   }
                 }
-                assert(
-                  isDefined(v3RelayHashes[relayDataHash].deposits) && v3RelayHashes[relayDataHash].deposits!.length > 0,
-                  "Deposit should exist in relay hash dictionary."
-                );
               } else {
                 this.logger.debug({
                   at: "BundleDataClient#loadData",
@@ -950,6 +946,7 @@ export class BundleDataClient {
                 });
                 throw new Error("Duplicate fill detected");
               }
+              return;
             }
 
             // At this point, there is no relay hash dictionary entry for this fill, so we need to
@@ -1074,26 +1071,6 @@ export class BundleDataClient {
                   slowFillRequest,
                 });
                 throw new Error("Duplicate slow fill request detected.");
-              }
-              v3RelayHashes[relayDataHash].slowFillRequest = slowFillRequest;
-              if (v3RelayHashes[relayDataHash].fill) {
-                // Exiting here assumes that slow fill requests must precede fills, so if there was a fill
-                // following this slow fill request, then we would have already seen it. We don't need to check
-                // for a fill older than this slow fill request.
-                return;
-              }
-              assert(
-                isDefined(v3RelayHashes[relayDataHash].deposits) && v3RelayHashes[relayDataHash].deposits!.length > 0,
-                "Deposit should exist in relay hash dictionary."
-              );
-              const matchedDeposit = v3RelayHashes[relayDataHash].deposits![0];
-
-              if (
-                slowFillRequest.blockNumber >= destinationChainBlockRange[0] &&
-                _canCreateSlowFillLeaf(matchedDeposit) &&
-                !_depositIsExpired(matchedDeposit)
-              ) {
-                validatedBundleSlowFills.push(matchedDeposit);
               }
               return;
             }
