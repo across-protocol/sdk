@@ -786,7 +786,7 @@ export class HubPoolClient extends BaseAbstractClient {
       return (
         executedLeaf.blockNumber <= block &&
         executedLeaf.chainId === chain &&
-        executedLeaf.l1Tokens.some((token) => token.toLowerCase() === l1Token.toLowerCase()
+        executedLeaf.l1Tokens.some((token) => token.toLowerCase() === l1Token.toLowerCase())
       );
     });
   }
