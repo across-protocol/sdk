@@ -29,13 +29,15 @@ export const HUBPOOL_CHAIN_ID = 1;
 // List of versions where certain UMIP features were deprecated or activated
 export const TRANSFER_THRESHOLD_MAX_CONFIG_STORE_VERSION = 1;
 
-export const PRE_FILL_MIN_CONFIG_STORE_VERSION = 5;
-
 // A hardcoded identifier used, by default, to tag all Arweave records.
 export const ARWEAVE_TAG_APP_NAME = "across-protocol";
 
 // A hardcoded version number used, by default, to tag all Arweave records.
-export const ARWEAVE_TAG_APP_VERSION = 3;
+// Version 3:
+// - Changed depositId number -> string (uint32 -> uint256).
+// Version 4:
+// - Dropped message field from Fill event data.
+export const ARWEAVE_TAG_APP_VERSION = 4;
 
 /**
  * A default list of chain Ids that the protocol supports. This is outlined
@@ -56,6 +58,7 @@ export const DEFAULT_SIMULATED_RELAYER_ADDRESS_TEST = "0x9A8f92a830A5cB89a3816e3
 export const DEFAULT_ARWEAVE_STORAGE_ADDRESS = "Z6hjBM8FHu90lYWB8o5jR1dfX92FlV2WBaND9xgp8Lg";
 
 export const EMPTY_MESSAGE = "0x";
+export const UNDEFINED_MESSAGE_HASH = "";
 
 export const BRIDGED_USDC_SYMBOLS = [
   TOKEN_SYMBOLS_MAP["USDC.e"].symbol,
