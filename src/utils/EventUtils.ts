@@ -266,3 +266,7 @@ export function isEventOlder<T extends SortableEvent>(ex: T, ey: T): boolean {
 export function getTransactionHashes(events: SortableEvent[]): string[] {
   return [...Array.from(new Set(events.map((e) => e.transactionHash)))];
 }
+
+export function duplicateEvent(a: SortableEvent, b: SortableEvent): boolean {
+  return a.transactionHash === b.transactionHash && a.logIndex === b.logIndex;
+}

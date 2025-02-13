@@ -23,6 +23,7 @@ import {
   toAddress,
 } from "../utils";
 import {
+  duplicateEvent,
   paginatedEventQuery,
   sortEventsAscendingInPlace,
   spreadEvent,
@@ -585,6 +586,7 @@ export class SpokePoolClient extends BaseAbstractClient {
    * @see _update
    */
   public async update(eventsToQuery = this.queryableEventNames): Promise<void> {
+    const duplicateEvents: Log[] = [];
     if (this.hubPoolClient !== null && !this.hubPoolClient.isUpdated) {
       throw new Error("HubPoolClient not updated");
     }
@@ -654,6 +656,12 @@ export class SpokePoolClient extends BaseAbstractClient {
         }
 
         if (this.depositHashes[getRelayEventKey(deposit)] !== undefined) {
+          // Sanity check that this event is not a duplicate, even though the relay data hash is a duplicate.
+          const allDeposits = this._getDuplicateDeposits(deposit).concat(this.depositHashes[getRelayEventKey(deposit)]);
+          if (allDeposits.some((e) => duplicateEvent(deposit, e))) {
+            duplicateEvents.push(event);
+            continue;
+          }
           assign(this.duplicateDepositHashes, [getRelayEventKey(deposit)], [deposit]);
           continue;
         }
@@ -716,6 +724,13 @@ export class SpokePoolClient extends BaseAbstractClient {
         }
 
         const depositHash = getRelayEventKey({ ...slowFillRequest, destinationChainId: this.chainId });
+
+        // Sanity check that this event is not a duplicate.
+        if (this.slowFillRequests[depositHash] !== undefined) {
+          duplicateEvents.push(event);
+          continue;
+        }
+
         this.slowFillRequests[depositHash] ??= slowFillRequest;
       }
     };
@@ -747,6 +762,13 @@ export class SpokePoolClient extends BaseAbstractClient {
         if (eventName === "FilledV3Relay") {
           fill.messageHash = getMessageHash(event.args.message);
           fill.relayExecutionInfo.updatedMessageHash = getMessageHash(event.args.relayExecutionInfo.updatedMessage);
+        }
+
+        // Sanity check that this event is not a duplicate.
+        const duplicateFill = this.fills[fill.originChainId]?.find((f) => duplicateEvent(fill, f));
+        if (duplicateFill) {
+          duplicateEvents.push(event);
+          continue;
         }
 
         assign(this.fills, [fill.originChainId], [fill]);
@@ -791,6 +813,13 @@ export class SpokePoolClient extends BaseAbstractClient {
         );
         this.relayerRefundExecutions.push(executedRefund);
       }
+    }
+
+    if (duplicateEvents.length > 0) {
+      this.log("debug", "Duplicate events listed", {
+        duplicateEvents,
+      });
+      this.log("error", "Duplicate events detected, check debug logs");
     }
 
     // Next iteration should start off from where this one ended.

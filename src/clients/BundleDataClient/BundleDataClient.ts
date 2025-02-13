@@ -19,7 +19,7 @@ import {
   Deposit,
   DepositWithBlock,
 } from "../../interfaces";
-import { AcrossConfigStoreClient, SpokePoolClient } from "..";
+import { SpokePoolClient } from "..";
 import {
   BigNumber,
   bnZero,
@@ -41,10 +41,10 @@ import {
   isZeroValueFillOrSlowFillRequest,
   chainIsEvm,
   isValidEvmAddress,
+  duplicateEvent,
 } from "../../utils";
 import winston from "winston";
 import {
-  _buildPoolRebalanceRoot,
   BundleData,
   BundleDataSS,
   getEndBlockBuffers,
@@ -52,7 +52,6 @@ import {
   getRefundsFromBundle,
   getWidestPossibleExpectedBlockRange,
   isChainDisabled,
-  PoolRebalanceRoot,
   prettyPrintV3SpokePoolEvents,
   V3DepositWithBlock,
   V3FillWithBlock,
@@ -429,52 +428,6 @@ export class BundleDataClient {
       .reduce((acc, deposit) => {
         return acc.add(deposit.inputAmount);
       }, toBN(0));
-  }
-
-  private async getLatestProposedBundleData(): Promise<{ bundleData: LoadDataReturnValue; blockRanges: number[][] }> {
-    const hubPoolClient = this.clients.hubPoolClient;
-    // Determine which bundle we should fetch from arweave, either the pending bundle or the latest
-    // executed one. Both should have arweave data but if for some reason the arweave data is missing,
-    // this function will have to compute the bundle data from scratch which will be slow. We have to fallback
-    // to computing the bundle from scratch since this function needs to return the full bundle data so that
-    // it can be used to get the running balance proposed using its data.
-    const bundleBlockRanges = getImpliedBundleBlockRanges(
-      hubPoolClient,
-      this.clients.configStoreClient,
-      hubPoolClient.hasPendingProposal()
-        ? hubPoolClient.getLatestProposedRootBundle()
-        : hubPoolClient.getLatestFullyExecutedRootBundle(hubPoolClient.latestBlockSearched)! // ! because we know there is a bundle
-    );
-    return {
-      blockRanges: bundleBlockRanges,
-      bundleData: await this.loadData(
-        bundleBlockRanges,
-        this.spokePoolClients,
-        true // this bundle data should have been published to arweave
-      ),
-    };
-  }
-
-  async getLatestPoolRebalanceRoot(): Promise<{ root: PoolRebalanceRoot; blockRanges: number[][] }> {
-    const { bundleData, blockRanges } = await this.getLatestProposedBundleData();
-    const hubPoolClient = this.clients.hubPoolClient;
-    const root = _buildPoolRebalanceRoot(
-      hubPoolClient.latestBlockSearched,
-      blockRanges[0][1],
-      bundleData.bundleDepositsV3,
-      bundleData.bundleFillsV3,
-      bundleData.bundleSlowFillsV3,
-      bundleData.unexecutableSlowFills,
-      bundleData.expiredDepositsToRefundV3,
-      {
-        hubPoolClient,
-        configStoreClient: hubPoolClient.configStoreClient as AcrossConfigStoreClient,
-      }
-    );
-    return {
-      root,
-      blockRanges,
-    };
   }
 
   // @dev This function should probably be moved to the InventoryClient since it bypasses loadData completely now.
@@ -867,6 +820,14 @@ export class BundleDataClient {
             "Not using correct bundle deposit hash key"
           );
           if (deposit.blockNumber >= originChainBlockRange[0]) {
+            if (bundleDepositsV3?.[originChainId]?.[deposit.inputToken]?.find((d) => duplicateEvent(deposit, d))) {
+              this.logger.debug({
+                at: "BundleDataClient#loadData",
+                message: "Duplicate deposit detected",
+                deposit,
+              });
+              throw new Error("Duplicate deposit detected");
+            }
             bundleDepositHashes.push(newBundleDepositHash);
             updateBundleDepositsV3(bundleDepositsV3, deposit);
           } else if (deposit.blockNumber < originChainBlockRange[0]) {
@@ -978,6 +939,11 @@ export class BundleDataClient {
                   }
                 }
               } else {
+                this.logger.debug({
+                  at: "BundleDataClient#loadData",
+                  message: "Duplicate fill detected",
+                  fill,
+                });
                 throw new Error("Duplicate fill detected");
               }
               return;
@@ -1099,6 +1065,11 @@ export class BundleDataClient {
                   validatedBundleSlowFills.push(matchedDeposit);
                 }
               } else {
+                this.logger.debug({
+                  at: "BundleDataClient#loadData",
+                  message: "Duplicate slow fill request detected",
+                  slowFillRequest,
+                });
                 throw new Error("Duplicate slow fill request detected.");
               }
               return;
