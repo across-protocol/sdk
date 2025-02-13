@@ -660,11 +660,7 @@ export class SpokePoolClient extends BaseAbstractClient {
         if (this.depositHashes[getRelayEventKey(deposit)] !== undefined) {
           // Sanity check that this event is not a duplicate, even though the relay data hash is a duplicate.
           const allDeposits = this._getDuplicateDeposits(deposit).concat(this.depositHashes[getRelayEventKey(deposit)]);
-          if (
-            allDeposits.some((e) => {
-              return duplicateEvent(deposit, e);
-            })
-          ) {
+          if (allDeposits.some((e) => duplicateEvent(deposit, e))) {
             duplicateEvents.push(event);
             continue;
           }
