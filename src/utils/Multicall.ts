@@ -34,6 +34,7 @@ const DETERMINISTIC_MULTICALL_CHAINS = [
   CHAIN_IDs.POLYGON_AMOY,
   CHAIN_IDs.SCROLL_SEPOLIA,
   CHAIN_IDs.SEPOLIA,
+  CHAIN_IDS.ARBITRUM_SEPOLIA,
 ];
 
 export function getMulticallAddress(chainId: number): string | undefined {
