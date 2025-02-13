@@ -13,10 +13,10 @@ describe("poolClient", function () {
     };
     const result = poolClient.previewRemoval(user, 0.75);
 
-    expect(BigNumber.from(result.total.`receive).add(result.total.remain).toString()).to.be.eq(user.positionValue);
-    expect(BigNumber.from(result.position.`receive).add(result.position.remain).toString()).to.be.eq(
+    expect(BigNumber.from(result.total.receive).add(result.total.remain).toString()).to.be.eq(user.positionValue);
+    expect(BigNumber.from(result.position.receive).add(result.position.remain).toString()).to.be.eq(
       user.totalDeposited
     );
-    expect(BigNumber.from(result.fees.`receive).add(result.fees.remain).toString()).to.be.eq(user.feesEarned);
+    expect(BigNumber.from(result.fees.receive).add(result.fees.remain).toString()).to.be.eq(user.feesEarned);
   });
 });
