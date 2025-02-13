@@ -885,14 +885,7 @@ export class BundleDataClient {
             fillCounter++;
             const relayDataHash = getRelayEventKey(fill);
             if (v3RelayHashes[relayDataHash]) {
-              if (v3RelayHashes[relayDataHash].fill) {
-                this.logger.debug({
-                  at: "BundleDataClient#loadData",
-                  message: "Duplicate fill detected",
-                  fill,
-                });
-                throw new Error("Duplicate fill detected");
-              }
+              if (!v3RelayHashes[relayDataHash].fill) {
                 const { deposits } = v3RelayHashes[relayDataHash];
                 assert(isDefined(deposits) && deposits.length > 0, "Deposit should exist in relay hash dictionary.");
                 v3RelayHashes[relayDataHash].fill = fill;
@@ -944,63 +937,71 @@ export class BundleDataClient {
                   ) {
                     fastFillsReplacingSlowFills.push(relayDataHash);
                   }
-              }
-              assert(
-                isDefined(v3RelayHashes[relayDataHash].deposits) && v3RelayHashes[relayDataHash].deposits!.length > 0,
-                "Deposit should exist in relay hash dictionary."
-              );
-              v3RelayHashes[relayDataHash].fill = fill;
-              if (fill.blockNumber >= destinationChainBlockRange[0]) {
-                const fillToRefund = await verifyFillRepayment(
-                  fill,
-                  destinationClient.spokePool.provider,
-                  v3RelayHashes[relayDataHash].deposits![0],
-                  this.clients.hubPoolClient
+                }
+                assert(
+                  isDefined(v3RelayHashes[relayDataHash].deposits) && v3RelayHashes[relayDataHash].deposits!.length > 0,
+                  "Deposit should exist in relay hash dictionary."
                 );
-                if (!isDefined(fillToRefund)) {
-                  bundleUnrepayableFillsV3.push(fill);
-                  // We don't return here yet because we still need to mark unexecutable slow fill leaves
-                  // or duplicate deposits. However, we won't issue a fast fill refund.
-                } else {
-                  v3RelayHashes[relayDataHash].fill = fillToRefund;
-                  validatedBundleV3Fills.push({
-                    ...fillToRefund,
-                    quoteTimestamp: v3RelayHashes[relayDataHash].deposits![0].quoteTimestamp,
-                  });
+                v3RelayHashes[relayDataHash].fill = fill;
+                if (fill.blockNumber >= destinationChainBlockRange[0]) {
+                  const fillToRefund = await verifyFillRepayment(
+                    fill,
+                    destinationClient.spokePool.provider,
+                    v3RelayHashes[relayDataHash].deposits![0],
+                    this.clients.hubPoolClient
+                  );
+                  if (!isDefined(fillToRefund)) {
+                    bundleUnrepayableFillsV3.push(fill);
+                    // We don't return here yet because we still need to mark unexecutable slow fill leaves
+                    // or duplicate deposits. However, we won't issue a fast fill refund.
+                  } else {
+                    v3RelayHashes[relayDataHash].fill = fillToRefund;
+                    validatedBundleV3Fills.push({
+                      ...fillToRefund,
+                      quoteTimestamp: v3RelayHashes[relayDataHash].deposits![0].quoteTimestamp,
+                    });
 
-                  // Now that we know this deposit has been filled on-chain, identify any duplicate deposits
-                  // sent for this fill and refund them to the filler, because this value would not be paid out
-                  // otherwise. These deposits can no longer expire and get refunded as an expired deposit,
-                  // and they won't trigger a pre-fill refund because the fill is in this bundle.
-                  // Pre-fill refunds only happen when deposits are sent in this bundle and the
-                  // fill is from a prior bundle. Paying out the filler keeps the behavior consistent for how
-                  // we deal with duplicate deposits regardless if the deposit is matched with a pre-fill or
-                  // a current bundle fill.
-                  const duplicateDeposits = v3RelayHashes[relayDataHash].deposits!.slice(1);
-                  duplicateDeposits.forEach((duplicateDeposit) => {
-                    if (isSlowFill(fill)) {
-                      updateExpiredDepositsV3(expiredDepositsToRefundV3, duplicateDeposit);
-                    } else {
-                      validatedBundleV3Fills.push({
-                        ...fillToRefund,
-                        quoteTimestamp: duplicateDeposit.quoteTimestamp,
-                      });
-                    }
-                  });
+                    // Now that we know this deposit has been filled on-chain, identify any duplicate deposits
+                    // sent for this fill and refund them to the filler, because this value would not be paid out
+                    // otherwise. These deposits can no longer expire and get refunded as an expired deposit,
+                    // and they won't trigger a pre-fill refund because the fill is in this bundle.
+                    // Pre-fill refunds only happen when deposits are sent in this bundle and the
+                    // fill is from a prior bundle. Paying out the filler keeps the behavior consistent for how
+                    // we deal with duplicate deposits regardless if the deposit is matched with a pre-fill or
+                    // a current bundle fill.
+                    const duplicateDeposits = v3RelayHashes[relayDataHash].deposits!.slice(1);
+                    duplicateDeposits.forEach((duplicateDeposit) => {
+                      if (isSlowFill(fill)) {
+                        updateExpiredDepositsV3(expiredDepositsToRefundV3, duplicateDeposit);
+                      } else {
+                        validatedBundleV3Fills.push({
+                          ...fillToRefund,
+                          quoteTimestamp: duplicateDeposit.quoteTimestamp,
+                        });
+                      }
+                    });
+                  }
+
+                  // If fill replaced a slow fill request, then mark it as one that might have created an
+                  // unexecutable slow fill. We can't know for sure until we check the slow fill request
+                  // events.
+                  if (
+                    fill.relayExecutionInfo.fillType === FillType.ReplacedSlowFill &&
+                    _canCreateSlowFillLeaf(v3RelayHashes[relayDataHash].deposits![0])
+                  ) {
+                    fastFillsReplacingSlowFills.push(relayDataHash);
+                  }
                 }
 
-                // If fill replaced a slow fill request, then mark it as one that might have created an
-                // unexecutable slow fill. We can't know for sure until we check the slow fill request
-                // events.
-                if (
-                  fill.relayExecutionInfo.fillType === FillType.ReplacedSlowFill &&
-                  _canCreateSlowFillLeaf(v3RelayHashes[relayDataHash].deposits![0])
-                ) {
-                  fastFillsReplacingSlowFills.push(relayDataHash);
-                }
+                return;
               }
-
-              return;
+            } else {
+              this.logger.debug({
+                at: "BundleDataClient#loadData",
+                message: "Duplicate fill detected",
+                fill,
+              });
+              throw new Error("Duplicate fill detected");
             }
 
             // At this point, there is no relay hash dictionary entry for this fill, so we need to
