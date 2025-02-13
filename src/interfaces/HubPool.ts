@@ -54,7 +54,6 @@ export interface ExecutedRootBundle extends SortableEvent {
   bundleLpFees: BigNumber[];
   netSendAmounts: BigNumber[];
   runningBalances: BigNumber[];
-  incentiveBalances: BigNumber[];
   leafId: number;
   l1Tokens: string[];
   proof: string[];
@@ -62,17 +61,15 @@ export interface ExecutedRootBundle extends SortableEvent {
 
 export type ExecutedRootBundleStringified = Omit<
   ExecutedRootBundle,
-  "bundleLpFees" | "netSendAmounts" | "runningBalances" | "incentiveBalances"
+  "bundleLpFees" | "netSendAmounts" | "runningBalances"
 > & {
   bundleLpFees: string[];
   netSendAmounts: string[];
   runningBalances: string[];
-  incentiveBalances: string[];
 };
 
 export type TokenRunningBalance = {
   runningBalance: BigNumber;
-  incentiveBalance: BigNumber;
 };
 
 export interface RelayerRefundLeafWithGroup extends RelayerRefundLeaf {

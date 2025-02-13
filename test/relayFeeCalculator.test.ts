@@ -17,7 +17,6 @@ import {
   BigNumber,
   Contract,
   SignerWithAddress,
-  assert,
   assertPromiseError,
   assertPromisePasses,
   buildDepositForRelayerFeeTest,
@@ -29,6 +28,7 @@ import {
   setupTokensForWallet,
   makeCustomTransport,
 } from "./utils";
+import assert from "assert";
 import { TOKEN_SYMBOLS_MAP } from "@across-protocol/constants";
 import { EMPTY_MESSAGE, ZERO_ADDRESS } from "../src/constants";
 import { SpokePool } from "@across-protocol/contracts";

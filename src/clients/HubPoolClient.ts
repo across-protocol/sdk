@@ -795,16 +795,14 @@ export class HubPoolClient extends BaseAbstractClient {
 
   public getRunningBalanceForToken(l1Token: string, executedRootBundle: ExecutedRootBundle): TokenRunningBalance {
     let runningBalance = toBN(0);
-    let incentiveBalance = toBN(0);
     if (executedRootBundle) {
       const indexOfL1Token = executedRootBundle.l1Tokens
         .map((l1Token) => l1Token.toLowerCase())
         .indexOf(l1Token.toLowerCase());
       runningBalance = executedRootBundle.runningBalances[indexOfL1Token];
-      incentiveBalance = executedRootBundle.incentiveBalances[indexOfL1Token];
     }
 
-    return { runningBalance, incentiveBalance };
+    return { runningBalance };
   }
 
   async _update(eventNames: HubPoolEvent[]): Promise<HubPoolUpdate> {
@@ -1009,8 +1007,6 @@ export class HubPoolClient extends BaseAbstractClient {
           );
         }
         executedRootBundle.runningBalances = runningBalances.slice(0, nTokens);
-        executedRootBundle.incentiveBalances =
-          runningBalances.length > nTokens ? runningBalances.slice(nTokens) : runningBalances.map(() => toBN(0));
         this.executedRootBundles.push(executedRootBundle);
       }
     }

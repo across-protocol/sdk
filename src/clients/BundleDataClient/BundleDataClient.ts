@@ -1,3 +1,4 @@
+import assert from "assert";
 import _ from "lodash";
 import {
   ProposedRootBundle,
@@ -24,7 +25,6 @@ import {
   bnZero,
   queryHistoricalDepositForFill,
   assign,
-  assert,
   fixedPointAdjustment,
   isDefined,
   toBN,
@@ -391,7 +391,7 @@ export class BundleDataClient {
         const fill = await verifyFillRepayment(
           _fill,
           this.spokePoolClients[_fill.destinationChainId].spokePool.provider,
-          matchingDeposit!,
+          matchingDeposit,
           this.clients.hubPoolClient
         );
         if (!isDefined(fill)) {
@@ -402,7 +402,7 @@ export class BundleDataClient {
           this.clients.hubPoolClient,
           blockRanges,
           this.chainIdListForBundleEvaluationBlockNumbers,
-          matchingDeposit!.fromLiteChain // Use ! because we've already asserted that matchingDeposit is defined.
+          matchingDeposit.fromLiteChain
         );
         // Assume that lp fees are 0 for the sake of speed. In the future we could batch compute
         // these or make hardcoded assumptions based on the origin-repayment chain direction. This might result
@@ -803,16 +803,20 @@ export class BundleDataClient {
               slowFillRequest: undefined,
             };
           } else {
-            v3RelayHashes[relayDataHash].deposits!.push(deposit);
+            const { deposits } = v3RelayHashes[relayDataHash];
+            assert(isDefined(deposits) && deposits.length > 0, "Deposit should exist in relay hash dictionary.");
+            deposits.push(deposit);
           }
 
           // Account for duplicate deposits by concatenating the relayDataHash with the count of the number of times
           // we have seen it so far.
-          const newBundleDepositHash = `${relayDataHash}@${v3RelayHashes[relayDataHash].deposits!.length - 1}`;
+          const { deposits } = v3RelayHashes[relayDataHash];
+          assert(isDefined(deposits) && deposits.length > 0, "Deposit should exist in relay hash dictionary.");
+          const newBundleDepositHash = `${relayDataHash}@${deposits.length - 1}`;
           const decodedBundleDepositHash = decodeBundleDepositHash(newBundleDepositHash);
           assert(
             decodedBundleDepositHash.relayDataHash === relayDataHash &&
-              decodedBundleDepositHash.index === v3RelayHashes[relayDataHash].deposits!.length - 1,
+              decodedBundleDepositHash.index === deposits.length - 1,
             "Not using correct bundle deposit hash key"
           );
           if (deposit.blockNumber >= originChainBlockRange[0]) {
@@ -888,6 +892,58 @@ export class BundleDataClient {
                   fill,
                 });
                 throw new Error("Duplicate fill detected");
+              }
+              const { deposits } = v3RelayHashes[relayDataHash];
+              assert(isDefined(deposits) && deposits.length > 0, "Deposit should exist in relay hash dictionary.");
+              v3RelayHashes[relayDataHash].fill = fill;
+              if (fill.blockNumber >= destinationChainBlockRange[0]) {
+                const fillToRefund = await verifyFillRepayment(
+                  fill,
+                  destinationClient.spokePool.provider,
+                  deposits[0],
+                  this.clients.hubPoolClient
+                );
+                if (!isDefined(fillToRefund)) {
+                  bundleUnrepayableFillsV3.push(fill);
+                  // We don't return here yet because we still need to mark unexecutable slow fill leaves
+                  // or duplicate deposits. However, we won't issue a fast fill refund.
+                } else {
+                  v3RelayHashes[relayDataHash].fill = fillToRefund;
+                  validatedBundleV3Fills.push({
+                    ...fillToRefund,
+                    quoteTimestamp: deposits[0].quoteTimestamp,
+                  });
+
+                  // Now that we know this deposit has been filled on-chain, identify any duplicate deposits
+                  // sent for this fill and refund them to the filler, because this value would not be paid out
+                  // otherwise. These deposits can no longer expire and get refunded as an expired deposit,
+                  // and they won't trigger a pre-fill refund because the fill is in this bundle.
+                  // Pre-fill refunds only happen when deposits are sent in this bundle and the
+                  // fill is from a prior bundle. Paying out the filler keeps the behavior consistent for how
+                  // we deal with duplicate deposits regardless if the deposit is matched with a pre-fill or
+                  // a current bundle fill.
+                  const duplicateDeposits = deposits.slice(1);
+                  duplicateDeposits.forEach((duplicateDeposit) => {
+                    if (isSlowFill(fill)) {
+                      updateExpiredDepositsV3(expiredDepositsToRefundV3, duplicateDeposit);
+                    } else {
+                      validatedBundleV3Fills.push({
+                        ...fillToRefund,
+                        quoteTimestamp: duplicateDeposit.quoteTimestamp,
+                      });
+                    }
+                  });
+                }
+
+                // If fill replaced a slow fill request, then mark it as one that might have created an
+                // unexecutable slow fill. We can't know for sure until we check the slow fill request
+                // events.
+                if (
+                  fill.relayExecutionInfo.fillType === FillType.ReplacedSlowFill &&
+                  _canCreateSlowFillLeaf(deposits[0])
+                ) {
+                  fastFillsReplacingSlowFills.push(relayDataHash);
+                }
               }
               assert(
                 isDefined(v3RelayHashes[relayDataHash].deposits) && v3RelayHashes[relayDataHash].deposits!.length > 0,
@@ -1049,7 +1105,25 @@ export class BundleDataClient {
                   message: "Duplicate slow fill request detected",
                   slowFillRequest,
                 });
-                throw new Error("Duplicate slow fill request detected.");
+                throw new Error("Duplicate slow fill request detected");
+              }
+              v3RelayHashes[relayDataHash].slowFillRequest = slowFillRequest;
+              const { deposits, fill } = v3RelayHashes[relayDataHash];
+              if (fill) {
+                // Exiting here assumes that slow fill requests must precede fills, so if there was a fill
+                // following this slow fill request, then we would have already seen it. We don't need to check
+                // for a fill older than this slow fill request.
+                return;
+              }
+              assert(isDefined(deposits) && deposits.length > 0, "Deposit should exist in relay hash dictionary.");
+              const matchedDeposit = deposits[0];
+
+              if (
+                slowFillRequest.blockNumber >= destinationChainBlockRange[0] &&
+                _canCreateSlowFillLeaf(matchedDeposit) &&
+                !_depositIsExpired(matchedDeposit)
+              ) {
+                validatedBundleSlowFills.push(matchedDeposit);
               }
               v3RelayHashes[relayDataHash].slowFillRequest = slowFillRequest;
               if (v3RelayHashes[relayDataHash].fill) {
@@ -1062,7 +1136,6 @@ export class BundleDataClient {
                 isDefined(v3RelayHashes[relayDataHash].deposits) && v3RelayHashes[relayDataHash].deposits!.length > 0,
                 "Deposit should exist in relay hash dictionary."
               );
-              const matchedDeposit = v3RelayHashes[relayDataHash].deposits![0];
 
               if (
                 slowFillRequest.blockNumber >= destinationChainBlockRange[0] &&
@@ -1165,7 +1238,7 @@ export class BundleDataClient {
               const fillToRefund = await verifyFillRepayment(
                 fill,
                 destinationClient.spokePool.provider,
-                v3RelayHashes[relayDataHash].deposits![0],
+                deposits[0],
                 this.clients.hubPoolClient
               );
               if (!isDefined(fillToRefund)) {
@@ -1213,18 +1286,18 @@ export class BundleDataClient {
             // then we wouldn't be in this branch of the code.
             const prefill = await this.findMatchingFillEvent(deposit, destinationClient);
             assert(isDefined(prefill), `findFillEvent# Cannot find prefill: ${relayDataHash}`);
-            assert(getRelayEventKey(prefill!) === relayDataHash, "Relay hashes should match.");
+            assert(getRelayEventKey(prefill) === relayDataHash, "Relay hashes should match.");
             const verifiedFill = await verifyFillRepayment(
-              prefill!,
+              prefill,
               destinationClient.spokePool.provider,
               deposit,
               this.clients.hubPoolClient
             );
             if (!isDefined(verifiedFill)) {
-              bundleUnrepayableFillsV3.push(prefill!);
+              bundleUnrepayableFillsV3.push(prefill);
             } else if (!isSlowFill(verifiedFill)) {
               validatedBundleV3Fills.push({
-                ...verifiedFill!,
+                ...verifiedFill,
                 quoteTimestamp: deposit.quoteTimestamp,
               });
             } else {
@@ -1347,14 +1420,16 @@ export class BundleDataClient {
       validatedBundleV3Fills.length > 0
         ? this.clients.hubPoolClient.batchComputeRealizedLpFeePct(
             validatedBundleV3Fills.map((fill) => {
-              const matchedDeposit = v3RelayHashes[getRelayEventKey(fill)].deposits![0];
+              const { deposits } = v3RelayHashes[getRelayEventKey(fill)];
+              assert(isDefined(deposits) && deposits.length > 0, "Deposit should exist in relay hash dictionary.");
+              const matchedDeposit = deposits[0];
               assert(isDefined(matchedDeposit), "Deposit should exist in relay hash dictionary.");
               const { chainToSendRefundTo: paymentChainId } = getRefundInformationFromFill(
                 fill,
                 this.clients.hubPoolClient,
                 blockRangesForChains,
                 chainIds,
-                matchedDeposit!.fromLiteChain
+                matchedDeposit.fromLiteChain
               );
               return {
                 ...fill,
@@ -1391,14 +1466,16 @@ export class BundleDataClient {
     });
     v3FillLpFees.forEach(({ realizedLpFeePct }, idx) => {
       const fill = validatedBundleV3Fills[idx];
-      const associatedDeposit = v3RelayHashes[getRelayEventKey(fill)].deposits![0];
+      const { deposits } = v3RelayHashes[getRelayEventKey(fill)];
+      assert(isDefined(deposits) && deposits.length > 0, "Deposit should exist in relay hash dictionary.");
+      const associatedDeposit = deposits[0];
       assert(isDefined(associatedDeposit), "Deposit should exist in relay hash dictionary.");
       const { chainToSendRefundTo, repaymentToken } = getRefundInformationFromFill(
         fill,
         this.clients.hubPoolClient,
         blockRangesForChains,
         chainIds,
-        associatedDeposit!.fromLiteChain
+        associatedDeposit.fromLiteChain
       );
       updateBundleFillsV3(bundleFillsV3, fill, realizedLpFeePct, chainToSendRefundTo, repaymentToken, fill.relayer);
     });
