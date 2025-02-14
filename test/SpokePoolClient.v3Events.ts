@@ -315,7 +315,10 @@ describe("SpokePoolClient: Event Filtering", function () {
     }
     await destinationSpokePoolClient.update(slowFillRequestedEvents);
 
-    // Should receive _all_ fills submitted on the destination chain.
+    // Should receive _all_ slow fills submitted on the destination chain.
+    const slowFillRequests = destinationSpokePoolClient.getSlowFillRequests();
+    expect(slowFillRequests.length).to.equal(requests.length);
+
     requests.forEach((event) => {
       let { args } = event;
       expect(args).to.not.be.undefined;
@@ -363,7 +366,7 @@ describe("SpokePoolClient: Event Filtering", function () {
       expect(deposit.depositId).to.equal(depositEvent.args!.depositId);
 
       const v3Fill = fillFromDeposit(deposit, relayer);
-      fillEvents.push(destinationSpokePoolClient.fillV3Relay(v3Fill as FillWithBlock));
+      fillEvents.push(destinationSpokePoolClient.fillV3Relay(v3Fill as FillWithBlock & { message: string }));
     }
     await destinationSpokePoolClient.update(filledRelayEvents);
 
@@ -447,7 +450,7 @@ describe("SpokePoolClient: Event Filtering", function () {
         exclusiveRelayer,
         relayer,
         depositId: toBN(i),
-      } as FillWithBlock);
+      } as FillWithBlock & { message: string });
       await originSpokePoolClient.update(["FilledV3Relay"]);
       let relay = originSpokePoolClient.getFills().at(-1);
       expect(relay).to.exist;
