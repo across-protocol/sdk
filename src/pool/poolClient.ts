@@ -335,7 +335,7 @@ export function calculateRemoval(amountWei: BigNumber, percentWei: BigNumber) {
   const receive = amountWei.mul(percentWei).div(fixedPointAdjustment);
   const remain = amountWei.sub(receive);
   return {
-    recieve: receive.toString(),
+    receive: receive.toString(),
     remain: remain.toString(),
   };
 }
