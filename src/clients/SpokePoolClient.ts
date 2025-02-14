@@ -315,9 +315,17 @@ export class SpokePoolClient extends BaseAbstractClient {
   }
 
   /**
+   * Retrieves a list of slow fill requests from the SpokePool contract.
+   * @returns A list of slow fill requests.
+   */
+  public getSlowFillRequests(): SlowFillRequestWithBlock[] {
+    return sortEventsAscendingInPlace(Object.values(this.slowFillRequests));
+  }
+
+  /**
    * Find a SlowFillRequested event based on its deposit RelayData.
    * @param relayData RelayData field for the SlowFill request.
-   * @returns The corresponding SlowFIllRequest event if found, otherwise undefined.
+   * @returns The corresponding SlowFillRequest event if found, otherwise undefined.
    */
   public getSlowFillRequest(relayData: RelayData): SlowFillRequestWithBlock | undefined {
     const messageHash = getMessageHash(relayData.message);
