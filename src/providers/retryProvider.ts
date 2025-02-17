@@ -94,7 +94,7 @@ export class RetryProvider extends ethers.providers.StaticJsonRpcProvider {
           }
 
           // If one RPC provider reverted, others likely will too. Skip them.
-          if (quorumThreshold === 1 && this.callReverted(method, err)) {
+          if (quorumThreshold === 1 && this.failImmediate(method, err)) {
             throw err;
           }
 
@@ -258,24 +258,38 @@ export class RetryProvider extends ethers.providers.StaticJsonRpcProvider {
     return response;
   }
 
-  // For an error emitted in response to an eth_call or eth_estimateGas request, determine
-  // whether the response body indicates that the call reverted during execution.
-  protected callReverted(method: string, error: unknown): boolean {
-    if (!(method === "eth_call" || method === "eth_estimateGas") || !RpcError.is(error)) {
-      return false;
+  /**
+   * Validate and parse a possible JSON-RPC error response.
+   * @param error An unknown error object received in response to a JSON-RPC request.
+   * @returns A JSON-RPC error object, or undefined.
+   */
+  protected parseError(response: unknown): { code: number; message: string; data?: unknown } | undefined {
+    if (!RpcError.is(response)) {
+      return;
     }
 
-    let response: unknown;
     try {
-      // The exact RPC responses returned can vary, but `error.body` has reliably included both
-      // the code (typically 3 on revert) and the error message indicating "execution reverted".
-      response = JSON.parse(error.body);
-    } catch {
-      return false;
-    }
+      const error = JSON.parse(response.body);
+      if (!JsonRpcError.is(error)) {
+        return;
+      }
 
-    if (!JsonRpcError.is(response)) {
-      return false;
+      return error.error;
+    } catch {
+      return;
+    }
+  }
+
+  /**
+   * Determine whether a JSON-RPC error response indicates an unrecoverable error.
+   * @param method JSON-RPC method that produced the error.
+   * @param error JSON-RPC error instance.
+   * @returns True if the request should be aborted immediately, otherwise false.
+   */
+  protected failImmediate(method: string, response: unknown): boolean {
+    const err = this.parseError(response);
+    if (!err) {
+      return false; // Not a JSON-RPC error.
     }
 
     // [-32768, -32100] is reserved by the JSON-RPC spec.
@@ -283,11 +297,23 @@ export class RetryProvider extends ethers.providers.StaticJsonRpcProvider {
     // Everything else is available for use by the application space.
     // Most node implementations return 3 for an eth_call revert, but some return -32000.
     // See also https://www.jsonrpc.org/specification
-    if (response.error.code >= -32768 && response.error.code <= -32100) {
-      return false;
+    if (err.code >= -32768 && err.code <= -32100) {
+      return false; // Cannot handle these errors.
     }
 
-    return response.error.message.toLowerCase().includes("revert");
+    // The `data` member of err _may_ be populated but would need to be verified.
+    const { message } = err;
+    switch (method) {
+      case "eth_call":
+      case "eth_estimateGas":
+        return message.toLowerCase().includes("revert"); // Transaction will fail.
+      case "eth_sendRawTransaction":
+        return message.toLowerCase().includes("nonce"); // Nonce too low.
+      default:
+        break;
+    }
+
+    return false;
   }
 
   async _trySend(
@@ -304,7 +330,7 @@ export class RetryProvider extends ethers.providers.StaticJsonRpcProvider {
         return settled.value;
       }
 
-      if (retries-- <= 0 || this.callReverted(method, settled.reason)) {
+      if (retries-- <= 0 || this.failImmediate(method, settled.reason)) {
         throw settled.reason;
       }
       await delay(this.delay);
