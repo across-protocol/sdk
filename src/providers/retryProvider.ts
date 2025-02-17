@@ -277,7 +277,7 @@ export class RetryProvider extends ethers.providers.StaticJsonRpcProvider {
       return error.error;
     } catch {
       return;
-    } // do nothing
+    }
   }
 
   /**
