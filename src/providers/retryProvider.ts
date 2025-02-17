@@ -268,20 +268,16 @@ export class RetryProvider extends ethers.providers.StaticJsonRpcProvider {
       return;
     }
 
-    let error: unknown;
     try {
-      // The exact RPC responses returned can vary, but `error.body` has reliably included both
-      // the code (typically 3 on revert) and the error message indicating "execution reverted".
-      error = JSON.parse(response.body);
+      const error = JSON.parse(response.body);
+      if (!JsonRpcError.is(error)) {
+        return;
+      }
+
+      return error.error;
     } catch {
-      return;
-    }
-
-    if (!JsonRpcError.is(error)) {
-      return;
-    }
-
-    return error.error;
+      return
+    } // do nothing
   }
 
   /**
@@ -293,7 +289,7 @@ export class RetryProvider extends ethers.providers.StaticJsonRpcProvider {
   protected failImmediate(method: string, response: unknown): boolean {
     const err = this.parseError(response);
     if (!err) {
-      return true;
+      return false; // Not a JSON-RPC error.
     }
 
     // [-32768, -32100] is reserved by the JSON-RPC spec.
@@ -302,7 +298,7 @@ export class RetryProvider extends ethers.providers.StaticJsonRpcProvider {
     // Most node implementations return 3 for an eth_call revert, but some return -32000.
     // See also https://www.jsonrpc.org/specification
     if (err.code >= -32768 && err.code <= -32100) {
-      return true; // Cannot handle these errors.
+      return false; // Cannot handle these errors.
     }
 
     // The `data` member of err _may_ be populated but would need to be verified.
