@@ -328,9 +328,10 @@ export class SpokePoolClient extends BaseAbstractClient {
    * @param relayData RelayData field for the SlowFill request.
    * @returns The corresponding SlowFillRequest event if found, otherwise undefined.
    */
-  public getSlowFillRequest(relayData: RelayData): SlowFillRequestWithBlock | undefined {
-    const messageHash = getMessageHash(relayData.message);
-    const hash = getRelayEventKey({ ...relayData, messageHash, destinationChainId: this.chainId });
+  public getSlowFillRequest(
+    relayData: Omit<RelayData, "message"> & { messageHash: string }
+  ): SlowFillRequestWithBlock | undefined {
+    const hash = getRelayEventKey({ ...relayData, destinationChainId: this.chainId });
     return this.slowFillRequests[hash];
   }
 
@@ -726,10 +727,6 @@ export class SpokePoolClient extends BaseAbstractClient {
           destinationChainId: this.chainId,
         } as SlowFillRequestWithBlock;
 
-        if (eventName === "RequestedV3SlowFill") {
-          slowFillRequest.messageHash = getMessageHash(slowFillRequest.message);
-        }
-
         const depositHash = getRelayEventKey({ ...slowFillRequest, destinationChainId: this.chainId });
 
         // Sanity check that this event is not a duplicate.
@@ -742,7 +739,7 @@ export class SpokePoolClient extends BaseAbstractClient {
       }
     };
 
-    ["RequestedV3SlowFill", "RequestedSlowFill"].forEach((event) => {
+    ["RequestedSlowFill"].forEach((event) => {
       if (eventsToQuery.includes(event)) {
         queryRequestedSlowFillEvents(event);
       }
