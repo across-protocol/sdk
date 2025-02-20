@@ -1,20 +1,21 @@
-import { createDefaultRpcTransport, RpcResponse, RpcTransport } from "@solana/web3.js";
+import { RpcResponse, RpcTransport } from "@solana/web3.js";
 import { QueueObject, queue } from "async";
 import winston, { Logger } from "winston";
 import { SolanaClusterRpcFactory } from "./baseRpcFactories";
+import { SolanaDefaultRpcFactory } from "./defaultRpcFactory";
 import { SolanaRateLimitTask } from "./utils";
 import { getOriginFromURL } from "../../utils";
 
-// This factory is a very small addition to the createDefaultRpcTransport that ensures that no more than maxConcurrency
+// This factory is a very small addition to the SolanaDefaultRpcFactory that ensures that no more than maxConcurrency
 // requests are ever in flight. It uses the async/queue library to manage this.
 export class RateLimitedSolanaRpcFactory extends SolanaClusterRpcFactory {
   // The queue object that manages the tasks.
   private queue: QueueObject<SolanaRateLimitTask>;
 
   // Holds the underlying transport that the rate limiter wraps.
-  private readonly baseTransport: RpcTransport;
+  private readonly defaultTransport: RpcTransport;
 
-  // Takes the same arguments as the createDefaultRpcTransport, but it has an additional parameters to control
+  // Takes the same arguments as the SolanaDefaultRpcFactory, but it has an additional parameters to control
   // concurrency and logging at the beginning of the list.
   constructor(
     maxConcurrency: number,
@@ -22,11 +23,10 @@ export class RateLimitedSolanaRpcFactory extends SolanaClusterRpcFactory {
     readonly logger: Logger = winston.createLogger({
       transports: [new winston.transports.Console()],
     }),
-    chainId: number,
-    ...rpcTransportParams: Parameters<typeof createDefaultRpcTransport>
+    ...defaultConstructorParams: ConstructorParameters<typeof SolanaDefaultRpcFactory>
   ) {
-    super(chainId, rpcTransportParams[0].url);
-    this.baseTransport = createDefaultRpcTransport(...rpcTransportParams);
+    super(...defaultConstructorParams);
+    this.defaultTransport = new SolanaDefaultRpcFactory(...defaultConstructorParams).createTransport();
 
     // This sets up the queue. Each task is executed by forwarding the RPC request to the underlying base transport.
     // This queue sends out requests concurrently, but stops once the concurrency limit is reached. The maxConcurrency
@@ -44,7 +44,7 @@ export class RateLimitedSolanaRpcFactory extends SolanaClusterRpcFactory {
   private async wrapSendWithLog(...rpcArgs: Parameters<RpcTransport>) {
     if (this.pctRpcCallsLogged <= 0 || Math.random() > this.pctRpcCallsLogged / 100) {
       // Non sample path: no logging or timing, just issue the request.
-      return await this.baseTransport(...rpcArgs);
+      return await this.defaultTransport(...rpcArgs);
     } else {
       const payload = rpcArgs[0].payload as { method: string; params?: unknown[] };
       const loggerArgs = {
@@ -61,7 +61,7 @@ export class RateLimitedSolanaRpcFactory extends SolanaClusterRpcFactory {
       // Note: use performance.now() to ensure a purely monotonic clock.
       const startTime = performance.now();
       try {
-        const result = await this.baseTransport(...rpcArgs);
+        const result = await this.defaultTransport(...rpcArgs);
         const elapsedTimeS = (performance.now() - startTime) / 1000;
         this.logger.debug({
           ...loggerArgs,
