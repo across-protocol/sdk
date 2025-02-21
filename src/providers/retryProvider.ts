@@ -302,13 +302,14 @@ export class RetryProvider extends ethers.providers.StaticJsonRpcProvider {
     }
 
     // The `data` member of err _may_ be populated but would need to be verified.
-    const { message } = err;
+    const message = err.message.toLowerCase();
     switch (method) {
       case "eth_call":
       case "eth_estimateGas":
-        return message.toLowerCase().includes("revert"); // Transaction will fail.
+        return message.includes("revert"); // Transaction will fail.
       case "eth_sendRawTransaction":
-        return message.toLowerCase().includes("nonce"); // Nonce too low.
+        // Nonce too low or gas price is too low.
+        return message.includes("nonce") || message.includes("underpriced");
       default:
         break;
     }
