@@ -5,7 +5,10 @@ import { RateLimitedProvider } from "./rateLimitedProvider";
 import { CacheType } from "./utils";
 
 export class CacheProvider extends RateLimitedProvider {
-  public readonly cachePrefix: string;
+  public readonly getBlockByNumberPrefix: string;
+  public readonly getLogsCachePrefix: string;
+  public readonly callCachePrefix: string;
+  public readonly getTransactionReceiptPrefix: string;
   public readonly baseTTL: number;
 
   constructor(
@@ -22,7 +25,12 @@ export class CacheProvider extends RateLimitedProvider {
 
     const { chainId } = this.network;
 
-    this.cachePrefix = `${providerCacheNamespace},${new URL(this.connection.url).hostname},${chainId}`;
+     // Pre-compute as much of the redis key as possible.
+     const cachePrefix = `${providerCacheNamespace},${new URL(this.connection.url).hostname},${chainId}`;
+     this.getBlockByNumberPrefix = `${cachePrefix}:getBlockByNumber,`;
+     this.getLogsCachePrefix = `${cachePrefix}:eth_getLogs,`;
+     this.callCachePrefix = `${cachePrefix}:eth_call,`;
+     this.getTransactionReceiptPrefix = `${cachePrefix}:eth_getTransactionReceipt,`;
 
     const _ttlVar = providerCacheTtl;
     const _ttl = Number(_ttlVar);
@@ -80,9 +88,15 @@ export class CacheProvider extends RateLimitedProvider {
   private buildRedisKey(method: string, params: Array<unknown>) {
     switch (method) {
       case "eth_getBlockByNumber":
-        return `${this.cachePrefix}:getBlockByNumber,` + JSON.stringify(params);
+        return this.getBlockByNumberPrefix + JSON.stringify(params);
+      case "eth_getLogs":
+        return this.getLogsCachePrefix + JSON.stringify(params);
+      case "eth_call":
+        return this.callCachePrefix + JSON.stringify(params);
+      case "eth_getTransactionReceipt":
+        return this.getTransactionReceiptPrefix + JSON.stringify(params);
       default:
-        return `${this.cachePrefix}:${method},` + JSON.stringify(params);
+        throw new Error(`CacheProvider::buildRedisKey: invalid JSON-RPC method ${method}`);
     }
   }
 
