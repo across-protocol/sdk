@@ -12,7 +12,7 @@ import { toBNWei } from "../src/utils";
 // sample interest rate model. note these tests are in JS and so we can impose the RateModel type.
 const rateModel = { UBar: toBNWei("0.65"), R0: toBNWei("0.00"), R1: toBNWei("0.08"), R2: toBNWei("1.00") };
 
-describe("Realized liquidity provision calculation", function () {
+describe.only("Realized liquidity provision calculation", function () {
   it("Realized liquidity provision calculation", function () {
     // Define a set of intervals to test over. Each interval contains the utilization at pointA (before deposit), the
     // utilization at pointB (after the deposit), expected APY rate and the expected weekly rate. The numbers are
@@ -29,6 +29,12 @@ describe("Realized liquidity provision calculation", function () {
       { utilA: toBNWei("0.95"), utilB: toBNWei("1.00"), apy: "1008571428571428580", wpy: "13502339199904125" },
       { utilA: toBNWei("0"), utilB: toBNWei("0.99"), apy: "220548340548340547", wpy: "3840050658887291" },
       { utilA: toBNWei("0"), utilB: toBNWei("1.00"), apy: "229000000000000000", wpy: "3973273191633388" },
+      {
+        utilA: toBNWei("0"),
+        utilB: toBNWei("100000000000000000000.00"), // Absurdly high utilization to ensure that the wpy caps at 100% or 1e18
+        apy: "142857142857142857141079999999999999999",
+        wpy: "1000000000000000000",
+      },
     ];
     const testedIntervalsTruncated = [
       { utilA: toBNWei("0"), utilB: toBNWei("0.01"), apy: "615384615384600", wpy: "11000000000000" },
@@ -42,6 +48,12 @@ describe("Realized liquidity provision calculation", function () {
       { utilA: toBNWei("0.95"), utilB: toBNWei("1.00"), apy: "1008571428571428580", wpy: "13502000000000000" },
       { utilA: toBNWei("0"), utilB: toBNWei("0.99"), apy: "220548340548340547", wpy: "3840000000000000" },
       { utilA: toBNWei("0"), utilB: toBNWei("1.00"), apy: "229000000000000000", wpy: "3973000000000000" },
+      {
+        utilA: toBNWei("0"),
+        utilB: toBNWei("100000000000000000000.00"), // Absurdly high utilization to ensure that the wpy caps at 100% or 1e18
+        apy: "142857142857142857141079999999999999999",
+        wpy: "1000000000000000000",
+      },
     ];
 
     // Test special rate model case where dividing by 0 can occur
