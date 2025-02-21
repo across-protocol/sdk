@@ -3,7 +3,7 @@
 // and ethers BNs in the main entry point function calculateRealizedLpFeePct.
 
 import Decimal from "decimal.js";
-import { BigNumberish, BN, toBN, toBNWei, fromWei, min, max, fixedPointAdjustment } from "../utils";
+import { BigNumberish, BN, toBN, toBNWei, fromWei, min, max, fixedPointAdjustment, BigNumber } from "../utils";
 
 // note a similar type exists in the constants file, but are strings only. This is a bit more permissive to allow
 // backward compatibility for callers with a rate model defined with bignumbers and not strings.
@@ -13,6 +13,8 @@ export interface RateModel {
   R1: BigNumberish; // R_0+R_1 is the interest rate charged at UBar
   R2: BigNumberish; // R_0+R_1+R_2 is the interest rate charged at 100% utilization
 }
+
+const ONE_HUNDRED_PERCENT = toBN(10).pow(18);
 
 // converts an APY rate to a one week rate. Uses the Decimal library to take a fractional exponent
 function convertApyToWeeklyFee(apy: BN): BN {
@@ -99,7 +101,10 @@ export class LPFeeCalculator {
     const apy = this.calculateApyFromUtilization(toBN(utilizationBeforeDeposit), toBN(utilizationAfterDeposit));
 
     // ACROSS UMIP requires that the realized fee percent is floor rounded as decimal to 6 decimals.
-    return truncateDecimals ? truncate18DecimalBN(convertApyToWeeklyFee(apy), 6) : convertApyToWeeklyFee(apy);
+    return min(
+      ONE_HUNDRED_PERCENT,
+      truncateDecimals ? truncate18DecimalBN(convertApyToWeeklyFee(apy), 6) : convertApyToWeeklyFee(apy)
+    );
   }
   /**
    * Calculate the realized yearly LP Fee APY Percent for a given rate model, utilization before and after the deposit.
