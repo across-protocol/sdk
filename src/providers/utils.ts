@@ -169,4 +169,5 @@ export enum CacheType {
   NONE, // Do not cache
   WITH_TTL, // Cache with TTL
   NO_TTL, // Cache with infinite TTL
+  DECIDE_TTL_POST_SEND, // Decide which TTL to cache with after we receive the RPC response
 }

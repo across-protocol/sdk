@@ -5,9 +5,7 @@ import { RateLimitedProvider } from "./rateLimitedProvider";
 import { CacheType } from "./utils";
 
 export class CacheProvider extends RateLimitedProvider {
-  public readonly getBlockByNumberPrefix: string;
-  public readonly getLogsCachePrefix: string;
-  public readonly callCachePrefix: string;
+  public readonly cachePrefix: string;
   public readonly baseTTL: number;
 
   constructor(
@@ -24,11 +22,7 @@ export class CacheProvider extends RateLimitedProvider {
 
     const { chainId } = this.network;
 
-    // Pre-compute as much of the redis key as possible.
-    const cachePrefix = `${providerCacheNamespace},${new URL(this.connection.url).hostname},${chainId}`;
-    this.getBlockByNumberPrefix = `${cachePrefix}:getBlockByNumber,`;
-    this.getLogsCachePrefix = `${cachePrefix}:eth_getLogs,`;
-    this.callCachePrefix = `${cachePrefix}:eth_call,`;
+    this.cachePrefix = `${providerCacheNamespace},${new URL(this.connection.url).hostname},${chainId}`;
 
     const _ttlVar = providerCacheTtl;
     const _ttl = Number(_ttlVar);
@@ -38,9 +32,9 @@ export class CacheProvider extends RateLimitedProvider {
     this.baseTTL = _ttl;
   }
   override async send(method: string, params: Array<unknown>): Promise<unknown> {
-    const cacheType = this.redisClient ? await this.cacheType(method, params) : CacheType.NONE;
+    const preRequestCacheType = this.redisClient ? await this.cacheType(method, params) : CacheType.NONE;
 
-    if (cacheType !== CacheType.NONE) {
+    if (preRequestCacheType !== CacheType.NONE) {
       const redisKey = this.buildRedisKey(method, params);
 
       // Attempt to pull the result from the cache.
@@ -54,8 +48,14 @@ export class CacheProvider extends RateLimitedProvider {
       // Cache does not have the result. Query it directly and cache.
       const result = await super.send(method, params);
 
+      let postRequestCacheType: CacheType = preRequestCacheType;
+      if (preRequestCacheType === CacheType.DECIDE_TTL_POST_SEND) {
+        const blockNumber = this.getBlockNumberFromRpcResponse(method, result);
+        postRequestCacheType = await this.cacheTypeForBlock(blockNumber);
+      }
+
       // Note: use swtich to ensure all enum cases are handled.
-      switch (cacheType) {
+      switch (postRequestCacheType) {
         case CacheType.WITH_TTL:
           {
             // Apply a random margin to spread expiry over a larger time window.
@@ -67,7 +67,7 @@ export class CacheProvider extends RateLimitedProvider {
           await this.redisClient?.set(redisKey, JSON.stringify(result), Number.POSITIVE_INFINITY);
           break;
         default:
-          throw new Error(`Unexpected Cache type: ${cacheType}`);
+          throw new Error(`Unexpected Cache type: ${postRequestCacheType}`);
       }
 
       // Return the cached result.
@@ -78,16 +78,11 @@ export class CacheProvider extends RateLimitedProvider {
   }
 
   private buildRedisKey(method: string, params: Array<unknown>) {
-    // Only handles eth_getLogs and eth_call right now.
     switch (method) {
       case "eth_getBlockByNumber":
-        return this.getBlockByNumberPrefix + JSON.stringify(params);
-      case "eth_getLogs":
-        return this.getLogsCachePrefix + JSON.stringify(params);
-      case "eth_call":
-        return this.callCachePrefix + JSON.stringify(params);
+        return `${this.cachePrefix}:getBlockByNumber,` + JSON.stringify(params);
       default:
-        throw new Error(`CacheProvider::buildRedisKey: invalid JSON-RPC method ${method}`);
+        return `${this.cachePrefix}:${method},` + JSON.stringify(params);
     }
   }
 
@@ -125,8 +120,21 @@ export class CacheProvider extends RateLimitedProvider {
 
       // If the block is old enough to cache, cache the call.
       return this.cacheTypeForBlock(blockNumber);
+    } else if ("eth_getTransactionReceipt" === method) {
+      // The only param to this request is "hash" so we can't determine how old the data we want is until after
+      // we receive the RPC result. Therefore we'll defer the TTL decision.
+      return Promise.resolve(CacheType.DECIDE_TTL_POST_SEND);
     } else {
       return Promise.resolve(CacheType.NONE);
+    }
+  }
+
+  private getBlockNumberFromRpcResponse(method: string, result: unknown): number {
+    if (method === "eth_getTransactionReceipt") {
+      const receipt = result as { blockNumber: number | string };
+      return Number(receipt.blockNumber);
+    } else {
+      throw new Error(`CacheProvider::getBlockNumberFromRpcResponse: unsupported JSON-RPC method ${method}`);
     }
   }
 
