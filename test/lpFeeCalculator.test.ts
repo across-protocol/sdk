@@ -12,7 +12,7 @@ import { toBNWei } from "../src/utils";
 // sample interest rate model. note these tests are in JS and so we can impose the RateModel type.
 const rateModel = { UBar: toBNWei("0.65"), R0: toBNWei("0.00"), R1: toBNWei("0.08"), R2: toBNWei("1.00") };
 
-describe.only("Realized liquidity provision calculation", function () {
+describe("Realized liquidity provision calculation", function () {
   it("Realized liquidity provision calculation", function () {
     // Define a set of intervals to test over. Each interval contains the utilization at pointA (before deposit), the
     // utilization at pointB (after the deposit), expected APY rate and the expected weekly rate. The numbers are
