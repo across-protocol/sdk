@@ -25,12 +25,12 @@ export class CacheProvider extends RateLimitedProvider {
 
     const { chainId } = this.network;
 
-     // Pre-compute as much of the redis key as possible.
-     const cachePrefix = `${providerCacheNamespace},${new URL(this.connection.url).hostname},${chainId}`;
-     this.getBlockByNumberPrefix = `${cachePrefix}:getBlockByNumber,`;
-     this.getLogsCachePrefix = `${cachePrefix}:eth_getLogs,`;
-     this.callCachePrefix = `${cachePrefix}:eth_call,`;
-     this.getTransactionReceiptPrefix = `${cachePrefix}:eth_getTransactionReceipt,`;
+    // Pre-compute as much of the redis key as possible.
+    const cachePrefix = `${providerCacheNamespace},${new URL(this.connection.url).hostname},${chainId}`;
+    this.getBlockByNumberPrefix = `${cachePrefix}:getBlockByNumber,`;
+    this.getLogsCachePrefix = `${cachePrefix}:eth_getLogs,`;
+    this.callCachePrefix = `${cachePrefix}:eth_call,`;
+    this.getTransactionReceiptPrefix = `${cachePrefix}:eth_getTransactionReceipt,`;
 
     const _ttlVar = providerCacheTtl;
     const _ttl = Number(_ttlVar);
