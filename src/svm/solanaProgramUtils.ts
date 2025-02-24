@@ -109,7 +109,7 @@ async function processEventFromTx(
       ) {
         const ixData = utils.bytes.bs58.decode(ix.data);
         const eventData = utils.bytes.base64.encode(Buffer.from(new Uint8Array(ixData).slice(8)));
-        let event = new BorshEventCoder(programIdl).decode(eventData);
+        const event = new BorshEventCoder(programIdl).decode(eventData);
         events.push({
           program: programId,
           data: event?.data,
