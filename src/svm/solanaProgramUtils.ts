@@ -28,8 +28,8 @@ export async function readProgramEvents(
 ) {
   const allSignatures: GetSignaturesForAddressTransaction[] = [];
 
-  // Fetch all signatures in sequential batches
-  while (true) {
+  let hasMoreSignatures = true;
+  while (hasMoreSignatures) {
     const signatures: GetSignaturesForAddressApiResponse = await rpc.getSignaturesForAddress(program, options).send();
     allSignatures.push(...signatures);
 
@@ -38,7 +38,7 @@ export async function readProgramEvents(
       options = { ...options, before: signatures[signatures.length - 1].signature };
     }
 
-    if (options.limit && signatures.length < options.limit) break; // Exit early if the number of signatures < limit
+    hasMoreSignatures = Boolean(options.limit && signatures.length === options.limit);
   }
 
   // Fetch events for all signatures in parallel
