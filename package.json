@@ -12,6 +12,8 @@
     "node": ">=20.18.0"
   },
   "scripts": {
+    "build-bigint-buffer": "[ -d node_modules/bigint-buffer ] && command -v node-gyp > /dev/null && cd node_modules/bigint-buffer && node-gyp configure && node-gyp build || echo 'Skipping bigint-buffer build: folder or node-gyp not found'",
+    "postinstall": "yarn build-bigint-buffer",
     "start": "yarn typechain && nodemon -e ts,tsx,json,js,jsx --watch ./src --ignore ./dist --exec 'yarn dev'",
     "build": "yarn run clean && yarn typechain && yarn run build:cjs & yarn run build:esm & yarn run build:types; wait",
     "dev": "yarn run build:cjs & yarn run build:esm & yarn run build:types; wait",
@@ -106,6 +108,7 @@
     "@ethersproject/bignumber": "^5.7.0",
     "@pinata/sdk": "^2.1.0",
     "@solana/web3.js": "^2.0.0",
+    "@coral-xyz/anchor": "^0.30.1",
     "@types/mocha": "^10.0.1",
     "@uma/sdk": "^0.34.10",
     "arweave": "^1.14.4",
@@ -116,6 +119,7 @@
     "ethers": "^5.7.2",
     "lodash": "^4.17.21",
     "lodash.get": "^4.4.2",
+    "node-gyp": "^11.0.0",
     "superstruct": "^0.15.4",
     "tslib": "^2.6.2",
     "viem": "^2.21.15"
