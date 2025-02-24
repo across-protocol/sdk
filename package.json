@@ -1,7 +1,7 @@
 {
   "name": "@across-protocol/sdk",
   "author": "UMA Team",
-  "version": "4.1.17",
+  "version": "4.1.18",
   "license": "AGPL-3.0",
   "homepage": "https://docs.across.to/reference/sdk",
   "files": [
@@ -100,7 +100,7 @@
   },
   "dependencies": {
     "@across-protocol/across-token": "^1.0.0",
-    "@across-protocol/constants": "^3.1.34",
+    "@across-protocol/constants": "^3.1.38",
     "@across-protocol/contracts": "4.0.2",
     "@eth-optimism/sdk": "^3.3.1",
     "@ethersproject/bignumber": "^5.7.0",
