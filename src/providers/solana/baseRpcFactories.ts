@@ -1,8 +1,8 @@
-import { ClusterUrl, createSolanaRpcFromTransport, RpcTransport } from "@solana/web3.js";
+import { ClusterUrl, createSolanaRpcFromTransport, RpcTransport } from "@solana/web3-v2.js";
 
 // This is abstract base class for creating Solana RPC clients and transports.
 export abstract class SolanaBaseRpcFactory {
-  constructor(readonly chainId: number) {}
+  constructor(readonly chainId: number) { }
 
   // This method must be implemented by the derived class to create a transport.
   public abstract createTransport(): RpcTransport;

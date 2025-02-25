@@ -1,4 +1,4 @@
-import { RpcResponse, RpcTransport } from "@solana/web3.js";
+import { RpcResponse, RpcTransport } from "@solana/web3-v2.js";
 import { QueueObject, queue } from "async";
 import winston, { Logger } from "winston";
 import { SolanaClusterRpcFactory } from "./baseRpcFactories";

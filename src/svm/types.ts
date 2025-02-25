@@ -1,32 +1,34 @@
+import { Signature, Address, UnixTimestamp } from "@solana/web3-v2.js";
+
 export type BridgedToHubPoolEvent = {
-    amount: string;
-    mint: string;
+    amount: bigint;
+    mint: Address;
 };
 
 export type TokensBridgedEvent = {
-    amount_to_return: string;
-    chain_id: string;
+    amount_to_return: bigint;
+    chain_id: bigint;
     leaf_id: number;
-    l2_token_address: string;
-    caller: string;
+    l2_token_address: Address;
+    caller: Address;
 };
 
 export type ExecutedRelayerRefundRootEvent = {
-    amount_to_return: string;
-    chain_id: string;
-    refund_amounts: string[];
+    amount_to_return: bigint;
+    chain_id: bigint;
+    refund_amounts: bigint[];
     root_bundle_id: number;
     leaf_id: number;
-    l2_token_address: string;
-    refund_addresses: string[];
+    l2_token_address: Address;
+    refund_addresses: Address[];
     deferred_refunds: boolean;
-    caller: string;
+    caller: Address;
 };
 
 export type RelayedRootBundleEvent = {
     root_bundle_id: number;
-    relayer_refund_root: string;
-    slow_relay_root: string;
+    relayer_refund_root: Array<number>;
+    slow_relay_root: Array<number>;
 };
 
 export type PausedDepositsEvent = {
@@ -38,54 +40,54 @@ export type PausedFillsEvent = {
 };
 
 export type SetXDomainAdminEvent = {
-    new_admin: string;
+    new_admin: Address;
 };
 
 export type EnabledDepositRouteEvent = {
-    origin_token: string;
-    destination_chain_id: string;
+    origin_token: Address;
+    destination_chain_id: bigint;
     enabled: boolean;
 };
 
+export type FillType = "FastFill" | "ReplacedSlowFill" | "SlowFill";
+
 export type FilledRelayEvent = {
-    input_token: string;
-    output_token: string;
-    input_amount: string;
-    output_amount: string;
-    repayment_chain_id: string;
-    origin_chain_id: string;
-    deposit_id: string;
+    input_token: Address;
+    output_token: Address;
+    input_amount: bigint;
+    output_amount: bigint;
+    repayment_chain_id: bigint;
+    origin_chain_id: bigint;
+    deposit_id: Array<number>;
     fill_deadline: number;
     exclusivity_deadline: number;
-    exclusive_relayer: string;
-    relayer: string;
-    depositor: string;
-    recipient: string;
+    exclusive_relayer: Address;
+    relayer: Address;
+    depositor: Address;
+    recipient: Address;
     message_hash: string;
     relay_execution_info: {
-        updated_recipient: string;
+        updated_recipient: Address;
         updated_message_hash: string;
-        updated_output_amount: string;
-        fill_type: {
-            FastFill: {};
-        };
+        updated_output_amount: bigint;
+        fill_type: Record<FillType, {}>;
     };
 };
 
 export type FundsDepositedEvent = {
-    input_token: string;
-    output_token: string;
-    input_amount: string;
-    output_amount: string;
-    destination_chain_id: string;
-    deposit_id: string;
+    input_token: Address;
+    output_token: Address;
+    input_amount: bigint;
+    output_amount: bigint;
+    destination_chain_id: bigint;
+    deposit_id: Array<number>;
     quote_timestamp: number;
     fill_deadline: number;
     exclusivity_deadline: number;
-    depositor: string;
-    recipient: string;
-    exclusive_relayer: string;
-    message: {};
+    depositor: Address;
+    recipient: Address;
+    exclusive_relayer: Address;
+    message: Buffer;
 };
 
 export type EmergencyDeletedRootBundleEvent = {
@@ -93,24 +95,24 @@ export type EmergencyDeletedRootBundleEvent = {
 };
 
 export type RequestedSlowFillEvent = {
-    input_token: string;
-    output_token: string;
-    input_amount: string;
-    output_amount: string;
-    origin_chain_id: string;
-    deposit_id: string;
+    input_token: Address;
+    output_token: Address;
+    input_amount: bigint;
+    output_amount: bigint;
+    origin_chain_id: bigint;
+    deposit_id: Array<number>;
     fill_deadline: number;
     exclusivity_deadline: number;
-    exclusive_relayer: string;
-    depositor: string;
-    recipient: string;
+    exclusive_relayer: Address;
+    depositor: Address;
+    recipient: Address;
     message_hash: string;
 };
 
 export type ClaimedRelayerRefundEvent = {
-    l2_token_address: string;
-    claim_amount: string;
-    refund_address: string;
+    l2_token_address: Address;
+    claim_amount: bigint;
+    refund_address: Address;
 };
 
 export type EventData =
@@ -145,3 +147,13 @@ export enum SVMEventNames {
 }
 
 export type EventName = keyof typeof SVMEventNames;
+
+export type EventWithData<T extends EventData> = {
+    confirmationStatus: string;
+    blockTime: UnixTimestamp;
+    signature: Signature;
+    slot: bigint;
+    name: string;
+    data: T;
+    program: Address;
+};

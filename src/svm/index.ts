@@ -1,1 +1,1 @@
-export * from "./solanaProgramUtils";
+export * from "./eventsClient";
