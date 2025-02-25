@@ -1,24 +1,7 @@
+import { SvmSpokeClient } from "@across-protocol/contracts";
 import { BN } from "@coral-xyz/anchor";
 import web3 from "@solana/web3-v2.js";
-import {
-  BridgedToHubPoolEvent,
-  ClaimedRelayerRefundEvent,
-  EmergencyDeletedRootBundleEvent,
-  EnabledDepositRouteEvent,
-  EventData,
-  EventName,
-  ExecutedRelayerRefundRootEvent,
-  FilledRelayEvent,
-  FundsDepositedEvent,
-  PausedDepositsEvent,
-  PausedFillsEvent,
-  RelayedRootBundleEvent,
-  RequestedSlowFillEvent,
-  SetXDomainAdminEvent,
-  SVMEventNames,
-  TokensBridgedEvent,
-  TransferredOwnershipEvent,
-} from "../types";
+import { EventData, EventName, SVMEventNames } from "../types";
 
 /**
  * Parses event data from a transaction.
@@ -39,10 +22,20 @@ export function parseEventData(eventData: any): any {
       return BigInt(eventData.toString());
     }
 
-    return Object.fromEntries(Object.entries(eventData).map(([key, value]) => [key, parseEventData(value)]));
+    // Convert each key from snake_case to camelCase and process the value recursively.
+    return Object.fromEntries(
+      Object.entries(eventData).map(([key, value]) => [snakeToCamel(key), parseEventData(value)])
+    );
   }
 
   return eventData;
+}
+
+/**
+ * Converts a snake_case string to camelCase.
+ */
+function snakeToCamel(s: string): string {
+  return s.replace(/(_\w)/g, (match) => match[1].toUpperCase());
 }
 
 /**
@@ -61,33 +54,33 @@ export function getEventName(rawName?: string): EventName {
 export function mapEventData(eventData: any, name: EventName): EventData {
   switch (name) {
     case "FilledRelay":
-      return eventData as FilledRelayEvent;
+      return eventData as SvmSpokeClient.FilledRelay;
     case "FundsDeposited":
-      return eventData as FundsDepositedEvent;
+      return eventData as SvmSpokeClient.FundsDeposited;
     case "BridgedToHubPool":
-      return eventData as BridgedToHubPoolEvent;
+      return eventData as SvmSpokeClient.BridgedToHubPool;
     case "TokensBridged":
-      return eventData as TokensBridgedEvent;
+      return eventData as SvmSpokeClient.TokensBridged;
     case "ExecutedRelayerRefundRoot":
-      return eventData as ExecutedRelayerRefundRootEvent;
+      return eventData as SvmSpokeClient.ExecutedRelayerRefundRoot;
     case "RelayedRootBundle":
-      return eventData as RelayedRootBundleEvent;
+      return eventData as SvmSpokeClient.RelayedRootBundle;
     case "PausedDeposits":
-      return eventData as PausedDepositsEvent;
+      return eventData as SvmSpokeClient.PausedDeposits;
     case "PausedFills":
-      return eventData as PausedFillsEvent;
+      return eventData as SvmSpokeClient.PausedFills;
     case "SetXDomainAdmin":
-      return eventData as SetXDomainAdminEvent;
+      return eventData as SvmSpokeClient.SetXDomainAdmin;
     case "EnabledDepositRoute":
-      return eventData as EnabledDepositRouteEvent;
+      return eventData as SvmSpokeClient.EnabledDepositRoute;
     case "EmergencyDeletedRootBundle":
-      return eventData as EmergencyDeletedRootBundleEvent;
+      return eventData as SvmSpokeClient.EmergencyDeletedRootBundle;
     case "RequestedSlowFill":
-      return eventData as RequestedSlowFillEvent;
+      return eventData as SvmSpokeClient.RequestedSlowFill;
     case "ClaimedRelayerRefund":
-      return eventData as ClaimedRelayerRefundEvent;
+      return eventData as SvmSpokeClient.ClaimedRelayerRefund;
     case "TransferredOwnership":
-      return eventData as TransferredOwnershipEvent;
+      return eventData as SvmSpokeClient.TransferredOwnership;
     default:
       throw new Error(`Unknown event name: ${name}`);
   }
