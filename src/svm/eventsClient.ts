@@ -8,7 +8,7 @@ import web3, {
   GetTransactionApi,
   RpcTransport,
   Signature,
-  unixTimestamp
+  unixTimestamp,
 } from "@solana/web3-v2.js";
 import { EventData, EventName, EventWithData } from "./types";
 import { getEventName, mapEventData, parseEventData } from "./utils/events";
@@ -26,10 +26,7 @@ export class SvmSpokeEventsClient {
   /**
    * Private constructor. Use the async create() method to instantiate.
    */
-  private constructor(
-    rpc: web3.Rpc<web3.SolanaRpcApiFromTransport<RpcTransport>>,
-    svmSpokeAddress: Address
-  ) {
+  private constructor(rpc: web3.Rpc<web3.SolanaRpcApiFromTransport<RpcTransport>>, svmSpokeAddress: Address) {
     this.rpc = rpc;
     this.svmSpokeAddress = svmSpokeAddress;
   }
@@ -41,10 +38,7 @@ export class SvmSpokeEventsClient {
     rpc: web3.Rpc<web3.SolanaRpcApiFromTransport<RpcTransport>>
   ): Promise<SvmSpokeEventsClient> {
     const isTestnet = await isDevnet(rpc);
-    const programId = getDeployedAddress(
-      "SvmSpoke",
-      getSolanaChainId(isTestnet ? "devnet" : "mainnet").toString()
-    );
+    const programId = getDeployedAddress("SvmSpoke", getSolanaChainId(isTestnet ? "devnet" : "mainnet").toString());
     if (!programId) throw new Error("Program not found");
     return new SvmSpokeEventsClient(rpc, web3.address(programId));
   }
@@ -66,14 +60,7 @@ export class SvmSpokeEventsClient {
     options: GetSignaturesForAddressConfig = { limit: 1000 },
     finality: Commitment = "confirmed"
   ): Promise<EventWithData<T>[]> {
-    const events = await this.queryAllEvents(
-      this.svmSpokeAddress,
-      SvmSpokeIdl,
-      fromSlot,
-      toSlot,
-      options,
-      finality
-    );
+    const events = await this.queryAllEvents(this.svmSpokeAddress, SvmSpokeIdl, fromSlot, toSlot, options, finality);
     return events.filter((event) => event.name === eventName) as EventWithData<T>[];
   }
 
@@ -116,7 +103,9 @@ export class SvmSpokeEventsClient {
         hasMoreSignatures = false;
       }
 
-      hasMoreSignatures = Boolean(hasMoreSignatures && currentOptions.limit && signatures.length === currentOptions.limit);
+      hasMoreSignatures = Boolean(
+        hasMoreSignatures && currentOptions.limit && signatures.length === currentOptions.limit
+      );
     }
 
     const filteredSignatures = allSignatures.filter((signatureTransaction) => {
@@ -128,12 +117,7 @@ export class SvmSpokeEventsClient {
     // Fetch events for all signatures in parallel.
     const eventsWithSlots = await Promise.all(
       filteredSignatures.map(async (signatureTransaction) => {
-        const events = await this.readEventsFromSignature(
-          signatureTransaction.signature,
-          program,
-          anchorIdl,
-          finality
-        );
+        const events = await this.readEventsFromSignature(signatureTransaction.signature, program, anchorIdl, finality);
         return events.map((event) => ({
           ...event,
           confirmationStatus: signatureTransaction.confirmationStatus || "Unknown",
@@ -204,8 +188,7 @@ export class SvmSpokeEventsClient {
     for (const ixBlock of txResult.meta?.innerInstructions ?? []) {
       for (const ix of ixBlock.instructions) {
         const ixProgramId = messageAccountKeys[ix.programIdIndex];
-        const singleIxAccount =
-          ix.accounts.length === 1 ? messageAccountKeys[ix.accounts[0]] : undefined;
+        const singleIxAccount = ix.accounts.length === 1 ? messageAccountKeys[ix.accounts[0]] : undefined;
         if (
           ixProgramId !== undefined &&
           singleIxAccount !== undefined &&
@@ -214,9 +197,7 @@ export class SvmSpokeEventsClient {
         ) {
           const ixData = utils.bytes.bs58.decode(ix.data);
           // Skip the first 8 bytes (assumed header) and encode the rest.
-          const eventData = utils.bytes.base64.encode(
-            Buffer.from(new Uint8Array(ixData).slice(8))
-          );
+          const eventData = utils.bytes.base64.encode(Buffer.from(new Uint8Array(ixData).slice(8)));
           const event = new BorshEventCoder(programIdl).decode(eventData);
           const name = getEventName(event?.name);
           events.push({
