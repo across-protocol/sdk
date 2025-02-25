@@ -42,49 +42,49 @@ export class CacheProvider extends RateLimitedProvider {
   override async send(method: string, params: Array<unknown>): Promise<unknown> {
     let cacheType = this.redisClient ? await this.cacheType(method, params) : CacheType.NONE;
 
-    if (cacheType !== CacheType.NONE) {
-      const redisKey = this.buildRedisKey(method, params);
-
-      // Attempt to pull the result from the cache.
-      const redisResult = await this.redisClient?.get<string>(redisKey);
-
-      // If cache has the result, parse the json and return it.
-      if (redisResult) {
-        return JSON.parse(redisResult);
-      }
-
-      // Cache does not have the result. Query it directly and cache.
-      const result = await super.send(method, params);
-
-      if (cacheType === CacheType.DECIDE_TTL_POST_SEND) {
-        const blockNumber = this.getBlockNumberFromRpcResponse(method, result);
-        cacheType = await this.cacheTypeForBlock(blockNumber);
-        if (cacheType === CacheType.NONE) {
-          return result;
-        }
-      }
-
-      // Note: use swtich to ensure all enum cases are handled.
-      switch (cacheType) {
-        case CacheType.WITH_TTL:
-          {
-            // Apply a random margin to spread expiry over a larger time window.
-            const ttl = this.baseTTL + Math.ceil(random(-ttl_modifier, ttl_modifier, true) * this.baseTTL);
-            await this.redisClient?.set(redisKey, JSON.stringify(result), ttl);
-          }
-          break;
-        case CacheType.NO_TTL:
-          await this.redisClient?.set(redisKey, JSON.stringify(result), Number.POSITIVE_INFINITY);
-          break;
-        default:
-          throw new Error(`Unexpected Cache type: ${cacheType}`);
-      }
-
-      // Return the cached result.
-      return result;
+    if (cacheType === CacheType.NONE) {
+      return await super.send(method, params);
     }
 
-    return await super.send(method, params);
+    const redisKey = this.buildRedisKey(method, params);
+
+    // Attempt to pull the result from the cache.
+    const redisResult = await this.redisClient?.get<string>(redisKey);
+
+    // If cache has the result, parse the json and return it.
+    if (redisResult) {
+      return JSON.parse(redisResult);
+    }
+
+    // Cache does not have the result. Query it directly and cache.
+    const result = await super.send(method, params);
+
+    if (cacheType === CacheType.DECIDE_TTL_POST_SEND) {
+      const blockNumber = this.getBlockNumberFromRpcResponse(method, result);
+      cacheType = await this.cacheTypeForBlock(blockNumber);
+      if (cacheType === CacheType.NONE) {
+        return result;
+      }
+    }
+
+    // Note: use swtich to ensure all enum cases are handled.
+    switch (cacheType) {
+      case CacheType.WITH_TTL:
+        {
+          // Apply a random margin to spread expiry over a larger time window.
+          const ttl = this.baseTTL + Math.ceil(random(-ttl_modifier, ttl_modifier, true) * this.baseTTL);
+          await this.redisClient?.set(redisKey, JSON.stringify(result), ttl);
+        }
+        break;
+      case CacheType.NO_TTL:
+        await this.redisClient?.set(redisKey, JSON.stringify(result), Number.POSITIVE_INFINITY);
+        break;
+      default:
+        throw new Error(`Unexpected Cache type: ${cacheType}`);
+    }
+
+    // Return the cached result.
+    return result;
   }
 
   private buildRedisKey(method: string, params: Array<unknown>) {
