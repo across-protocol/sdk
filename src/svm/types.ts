@@ -70,7 +70,7 @@ export type FilledRelayEvent = {
     updated_recipient: Address;
     updated_message_hash: string;
     updated_output_amount: bigint;
-    fill_type: Record<FillType, {}>;
+    fill_type: Record<FillType, Record<string, never>>;
   };
 };
 
