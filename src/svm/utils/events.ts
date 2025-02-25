@@ -17,6 +17,7 @@ import {
   SetXDomainAdminEvent,
   SVMEventNames,
   TokensBridgedEvent,
+  TransferredOwnershipEvent,
 } from "../types";
 
 /**
@@ -83,6 +84,8 @@ export function mapEventData(eventData: any, name: EventName): EventData {
       return eventData as RequestedSlowFillEvent;
     case "ClaimedRelayerRefund":
       return eventData as ClaimedRelayerRefundEvent;
+    case "TransferredOwnership":
+      return eventData as TransferredOwnershipEvent;
     default:
       throw new Error(`Unknown event name: ${name}`);
   }

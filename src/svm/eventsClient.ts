@@ -75,7 +75,7 @@ export class SvmSpokeEventsClient {
    * @param finality - Commitment level.
    * @returns A promise that resolves to an array of all events with additional metadata.
    */
-  public async queryAllEvents(
+  private async queryAllEvents(
     program: Address,
     anchorIdl: Idl,
     fromSlot?: bigint,

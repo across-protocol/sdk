@@ -115,6 +115,10 @@ export type ClaimedRelayerRefundEvent = {
   refund_address: Address;
 };
 
+export type TransferredOwnershipEvent = {
+  new_owner: Address;
+};
+
 export type EventData =
   | BridgedToHubPoolEvent
   | TokensBridgedEvent
@@ -128,7 +132,8 @@ export type EventData =
   | FundsDepositedEvent
   | EmergencyDeletedRootBundleEvent
   | RequestedSlowFillEvent
-  | ClaimedRelayerRefundEvent;
+  | ClaimedRelayerRefundEvent
+  | TransferredOwnershipEvent;
 
 export enum SVMEventNames {
   FilledRelay = "FilledRelay",
@@ -144,6 +149,7 @@ export enum SVMEventNames {
   RequestedSlowFill = "RequestedSlowFill",
   ClaimedRelayerRefund = "ClaimedRelayerRefund",
   TokensBridged = "TokensBridged",
+  TransferredOwnership = "TransferredOwnership",
 }
 
 export type EventName = keyof typeof SVMEventNames;
