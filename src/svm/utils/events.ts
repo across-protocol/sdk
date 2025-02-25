@@ -23,6 +23,7 @@ import {
 /**
  * Parses event data from a transaction.
  */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function parseEventData(eventData: any): any {
   if (!eventData) return eventData;
 
@@ -56,6 +57,7 @@ export function getEventName(rawName?: string): EventName {
 /**
  * Maps event data to an event type.
  */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function mapEventData(eventData: any, name: EventName): EventData {
   switch (name) {
     case "FilledRelay":
