@@ -59,6 +59,9 @@ export class CacheProvider extends RateLimitedProvider {
       if (cacheType === CacheType.DECIDE_TTL_POST_SEND) {
         const blockNumber = this.getBlockNumberFromRpcResponse(method, result);
         cacheType = await this.cacheTypeForBlock(blockNumber);
+        if (cacheType === CacheType.NONE) {
+          return result;
+        }
       }
 
       // Note: use swtich to ensure all enum cases are handled.
