@@ -11,7 +11,7 @@ import web3, {
   unixTimestamp,
 } from "@solana/web3-v2.js";
 import { EventData, EventName, EventWithData } from "./types";
-import { getEventName, mapEventData, parseEventData } from "./utils/events";
+import { getEventName, parseEventData } from "./utils/events";
 import { isDevnet } from "./utils/helpers";
 
 type GetTransactionReturnType = ReturnType<GetTransactionApi["getTransaction"]>;
@@ -165,11 +165,11 @@ export class SvmSpokeEventsClient {
     txResult: GetTransactionReturnType,
     programId: Address,
     programIdl: Idl
-  ): Promise<{ program: Address; data: EventData; name: string }[]> {
+  ): Promise<{ program: Address; data: EventData; name: EventName }[]> {
     if (!txResult) return [];
 
     const eventAuthorities: Map<string, Address> = new Map();
-    const events: { program: Address; data: EventData; name: string }[] = [];
+    const events: { program: Address; data: EventData; name: EventName }[] = [];
 
     // Derive the event authority PDA.
     const [pda] = await web3.getProgramDerivedAddress({
@@ -202,7 +202,7 @@ export class SvmSpokeEventsClient {
           const name = getEventName(event?.name);
           events.push({
             program: programId,
-            data: mapEventData(parseEventData(event?.data), name),
+            data: parseEventData(event?.data),
             name,
           });
         }

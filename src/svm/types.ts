@@ -41,7 +41,7 @@ export type EventWithData<T extends EventData> = {
   blockTime: UnixTimestamp;
   signature: Signature;
   slot: bigint;
-  name: string;
+  name: EventName;
   data: T;
   program: Address;
 };
