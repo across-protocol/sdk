@@ -3,8 +3,8 @@ import { SolanaClusterRpcFactory } from "../../src/providers";
 
 // Exposes mocked RPC transport for Solana in the SolanaClusterRpcFactory class.
 export class MockSolanaRpcFactory extends SolanaClusterRpcFactory {
-  private result: unknown;
   private responseTime: number; // in milliseconds
+  private responses: Map<string, unknown> = new Map();
 
   constructor(...clusterConstructorParams: ConstructorParameters<typeof SolanaClusterRpcFactory>) {
     super(...clusterConstructorParams);
@@ -16,8 +16,9 @@ export class MockSolanaRpcFactory extends SolanaClusterRpcFactory {
     };
   }
 
-  public setResult(result: unknown) {
-    this.result = result;
+  public setResult(method: string, params: unknown[], result: unknown) {
+    const requestKey = JSON.stringify({ method, params });
+    this.responses.set(requestKey, result);
   }
 
   public setResponseTime(responseTime: number) {
@@ -25,9 +26,16 @@ export class MockSolanaRpcFactory extends SolanaClusterRpcFactory {
   }
 
   private createMockRpcTransport(): RpcTransport {
-    return async <TResponse>(): Promise<RpcResponse<TResponse>> => {
+    return async <TResponse>({ payload }: Parameters<RpcTransport>[0]): Promise<RpcResponse<TResponse>> => {
+      const { method, params } = payload as { method: string; params?: unknown[] };
+      const requestKey = JSON.stringify({ method, params });
+      let result = this.responses.get(requestKey);
+      if (result === undefined) {
+        const requestKeyWithoutParams = JSON.stringify({ method, params: [] });
+        result = this.responses.get(requestKeyWithoutParams);
+      }
       await new Promise((resolve) => setTimeout(resolve, this.responseTime));
-      return { result: this.result } as TResponse;
+      return { result } as TResponse;
     };
   }
 }

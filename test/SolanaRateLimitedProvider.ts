@@ -17,9 +17,10 @@ describe("rate limited solana provider", () => {
     const mockRpcFactory = new MockSolanaRpcFactory(url, chainId);
     mockRpcFactory.setResponseTime(mockResponseTime);
     const interval = setInterval(() => {
-      mockRpcFactory.setResult(mockResult);
+      mockRpcFactory.setResult("getSlot", [], mockResult);
       mockResult += 1;
     }, mockResponseTime);
+    await new Promise((resolve) => setTimeout(resolve, mockResponseTime)); // Wait for the first result to be set
 
     const rateLimitedRpcClient = new MockRateLimitedSolanaRpcFactory(
       mockRpcFactory,
@@ -51,9 +52,10 @@ describe("rate limited solana provider", () => {
     const mockRpcFactory = new MockSolanaRpcFactory(url, chainId);
     mockRpcFactory.setResponseTime(mockResponseTime);
     const interval = setInterval(() => {
-      mockRpcFactory.setResult(mockResult);
+      mockRpcFactory.setResult("getSlot", [], mockResult);
       mockResult += 1;
     }, mockResponseTime);
+    await new Promise((resolve) => setTimeout(resolve, mockResponseTime)); // Wait for the first result to be set
 
     const rateLimitedRpcClient = new MockRateLimitedSolanaRpcFactory(
       mockRpcFactory,
@@ -88,7 +90,7 @@ describe("rate limited solana provider", () => {
       chainId
     ).createRpcClient();
 
-    mockRpcFactory.setResult(mockResult);
+    mockRpcFactory.setResult("getSlot", [], mockResult);
 
     const getSlotParams: Parameters<GetSlotApi["getSlot"]> = [{ commitment: "confirmed" }];
     await rateLimitedRpcClient.getSlot(getSlotParams[0]).send();
