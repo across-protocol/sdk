@@ -26,8 +26,7 @@ import {
   bnZero,
   bnMax,
   bnOne,
-  toAddress,
-  toBytes32,
+  Address,
 } from "../../utils";
 import { SpokePoolClient, SpokePoolUpdate } from "../SpokePoolClient";
 import { HubPoolClient } from "../HubPoolClient";
@@ -145,12 +144,12 @@ export class MockSpokePoolClient extends SpokePoolClient {
     this.numberOfDeposits = depositId.add(bnOne);
 
     destinationChainId ??= random(1, 42161, false);
-    const addressModifier = event === "FundsDeposited" ? toBytes32 : toAddress;
-    const depositor = addressModifier(deposit.depositor ?? randomAddress());
-    const recipient = addressModifier(deposit.recipient ?? depositor);
-    const inputToken = addressModifier(deposit.inputToken ?? randomAddress());
-    const outputToken = addressModifier(deposit.outputToken ?? inputToken);
-    const exclusiveRelayer = addressModifier(deposit.exclusiveRelayer ?? ZERO_ADDRESS);
+    const addressModifier = event === "FundsDeposited" ? "toBytes32" : "toAddress";
+    const depositor = Address.fromHex(deposit.depositor ?? randomAddress())[addressModifier]();
+    const recipient = Address.fromHex(deposit.recipient ?? depositor)[addressModifier]();
+    const inputToken = Address.fromHex(deposit.inputToken ?? randomAddress())[addressModifier]();
+    const outputToken = Address.fromHex(deposit.outputToken ?? inputToken)[addressModifier]();
+    const exclusiveRelayer = Address.fromHex(deposit.exclusiveRelayer ?? ZERO_ADDRESS)[addressModifier]();
 
     inputAmount ??= toBNWei(random(1, 1000, false));
     outputAmount ??= inputAmount.mul(toBN("0.95"));
@@ -205,13 +204,13 @@ export class MockSpokePoolClient extends SpokePoolClient {
     outputAmount ??= inputAmount;
     fillDeadline ??= getCurrentTime() + 60;
 
-    const addressModifier = event === "FilledRelay" ? toBytes32 : toAddress;
-    const depositor = addressModifier(fill.depositor ?? randomAddress());
-    const recipient = addressModifier(fill.recipient ?? depositor);
-    const inputToken = addressModifier(fill.inputToken ?? randomAddress());
-    const outputToken = addressModifier(fill.outputToken ?? ZERO_ADDRESS);
-    const exclusiveRelayer = addressModifier(fill.exclusiveRelayer ?? ZERO_ADDRESS);
-    const relayer = addressModifier(fill.relayer ?? randomAddress());
+    const addressModifier = event === "FilledRelay" ? "toBytes32" : "toAddress";
+    const depositor = Address.fromHex(fill.depositor ?? randomAddress())[addressModifier]();
+    const recipient = Address.fromHex(fill.recipient ?? depositor)[addressModifier]();
+    const inputToken = Address.fromHex(fill.inputToken ?? randomAddress())[addressModifier]();
+    const outputToken = Address.fromHex(fill.outputToken ?? ZERO_ADDRESS)[addressModifier]();
+    const exclusiveRelayer = Address.fromHex(fill.exclusiveRelayer ?? ZERO_ADDRESS)[addressModifier]();
+    const relayer = Address.fromHex(fill.relayer ?? randomAddress())[addressModifier]();
 
     const topics = [originChainId, depositId, relayer]; // @todo verify
     const message = fill.message ?? EMPTY_MESSAGE;
@@ -283,8 +282,8 @@ export class MockSpokePoolClient extends SpokePoolClient {
   }
 
   protected _speedUpDeposit(event: string, speedUp: SpeedUp): Log {
-    const addressModifier = event === "RequestedSpeedUpDeposit" ? toBytes32 : toAddress;
-    const depositor = addressModifier(speedUp.depositor);
+    const addressModifier = event === "RequestedSpeedUpDeposit" ? "toBytes32" : "toAddress";
+    const depositor = Address.fromHex(speedUp.depositor)[addressModifier]();
     const topics = [speedUp.depositId, depositor];
     const args = { ...speedUp };
 
@@ -295,7 +294,7 @@ export class MockSpokePoolClient extends SpokePoolClient {
       args: {
         ...args,
         depositor,
-        updatedRecipient: addressModifier(speedUp.updatedRecipient),
+        updatedRecipient: Address.fromHex(speedUp.updatedRecipient)[addressModifier](),
       },
     });
   }
@@ -329,8 +328,8 @@ export class MockSpokePoolClient extends SpokePoolClient {
     const topics = [originChainId, depositId];
     const args = { ...request };
 
-    const addressModifier = event === "RequestedSlowFill" ? toBytes32 : toAddress;
-    const depositor = addressModifier(args.depositor ?? randomAddress());
+    const addressModifier = event === "RequestedSlowFill" ? "toBytes32" : "toAddress";
+    const depositor = Address.fromHex(args.depositor ?? randomAddress())[addressModifier]();
 
     return this.eventManager.generateEvent({
       event,
@@ -339,10 +338,10 @@ export class MockSpokePoolClient extends SpokePoolClient {
       args: {
         ...args,
         depositor,
-        recipient: addressModifier(args.recipient ?? depositor),
-        inputToken: addressModifier(args.inputToken ?? randomAddress()),
-        outputToken: addressModifier(args.outputToken ?? ZERO_ADDRESS),
-        exclusiveRelayer: addressModifier(args.exclusiveRelayer ?? ZERO_ADDRESS),
+        recipient: Address.fromHex(args.recipient ?? depositor)[addressModifier](),
+        inputToken: Address.fromHex(args.inputToken ?? randomAddress())[addressModifier](),
+        outputToken: Address.fromHex(args.outputToken ?? ZERO_ADDRESS)[addressModifier](),
+        exclusiveRelayer: Address.fromHex(args.exclusiveRelayer ?? ZERO_ADDRESS)[addressModifier](),
       },
       blockNumber: request.blockNumber,
       transactionIndex: request.transactionIndex,

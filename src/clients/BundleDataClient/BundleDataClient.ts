@@ -40,7 +40,7 @@ import {
   findFillEvent,
   isZeroValueFillOrSlowFillRequest,
   chainIsEvm,
-  isValidEvmAddress,
+  Address,
   duplicateEvent,
 } from "../../utils";
 import winston from "winston";
@@ -67,7 +67,7 @@ type DataCache = Record<string, Promise<LoadDataReturnValue>>;
 // V3 dictionary helper functions
 function updateExpiredDepositsV3(dict: ExpiredDepositsToRefundV3, deposit: V3DepositWithBlock): void {
   // A deposit refund for a deposit is invalid if the depositor has a bytes32 address input for an EVM chain. It is valid otherwise.
-  if (chainIsEvm(deposit.originChainId) && !isValidEvmAddress(deposit.depositor)) {
+  if (chainIsEvm(deposit.originChainId) && !Address.fromHex(deposit.depositor).isValidEvmAddress()) {
     return;
   }
   const { originChainId, inputToken } = deposit;
@@ -95,7 +95,7 @@ function updateBundleFillsV3(
 ): void {
   // We shouldn't pass any unrepayable fills into this function, so we perform an extra safety check.
   assert(
-    chainIsEvm(repaymentChainId) && isValidEvmAddress(fill.relayer),
+    chainIsEvm(repaymentChainId) && Address.fromHex(fill.relayer).isValidEvmAddress(),
     "validatedBundleV3Fills dictionary should only contain fills with valid repayment information"
   );
   if (!dict?.[repaymentChainId]?.[repaymentToken]) {
@@ -147,7 +147,7 @@ function updateBundleExcessSlowFills(
 }
 
 function updateBundleSlowFills(dict: BundleSlowFills, deposit: V3DepositWithBlock & { lpFeePct: BigNumber }): void {
-  if (chainIsEvm(deposit.destinationChainId) && !isValidEvmAddress(deposit.recipient)) {
+  if (chainIsEvm(deposit.destinationChainId) && !Address.fromHex(deposit.recipient).isValidEvmAddress()) {
     return;
   }
   const { destinationChainId, outputToken } = deposit;

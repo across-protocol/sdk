@@ -18,9 +18,8 @@ import {
   getMessageHash,
   isUnsafeDepositId,
   isSlowFill,
-  isValidEvmAddress,
   isZeroAddress,
-  toAddress,
+  Address,
 } from "../utils";
 import {
   duplicateEvent,
@@ -276,7 +275,7 @@ export class SpokePoolClient extends BaseAbstractClient {
     const { depositId, depositor } = deposit;
 
     // Note: we know depositor cannot be more than 20 bytes since this is guaranteed by contracts.
-    const speedups = this.speedUps[toAddress(depositor)]?.[depositId.toString()];
+    const speedups = this.speedUps[Address.fromHex(depositor).toAddress()]?.[depositId.toString()];
 
     if (!isDefined(speedups) || speedups.length === 0) {
       return deposit;
@@ -402,7 +401,7 @@ export class SpokePoolClient extends BaseAbstractClient {
           if (
             this.hubPoolClient &&
             !isSlowFill(fill) &&
-            (!isValidEvmAddress(fill.relayer) ||
+            (!Address.fromHex(fill.relayer).isValidEvmAddress() ||
               forceDestinationRepayment(
                 repaymentChainId,
                 { ...deposit, quoteBlockNumber: this.hubPoolClient!.latestBlockSearched },

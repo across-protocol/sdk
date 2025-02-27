@@ -10,7 +10,7 @@ import { isMessageEmpty } from "./DepositUtils";
 import { isDefined } from "./TypeGuards";
 import { getNetworkName } from "./NetworkUtils";
 import { paginatedEventQuery, spreadEventWithBlockNumber } from "./EventUtils";
-import { toBytes32 } from "./AddressUtils";
+import { Address } from "./AddressUtils";
 
 type BlockTag = providers.BlockTag;
 
@@ -27,11 +27,11 @@ export function populateV3Relay(
   repaymentChainId = deposit.destinationChainId
 ): Promise<PopulatedTransaction> {
   const v3RelayData: RelayData = {
-    depositor: toBytes32(deposit.depositor),
-    recipient: toBytes32(deposit.recipient),
-    exclusiveRelayer: toBytes32(deposit.exclusiveRelayer),
-    inputToken: toBytes32(deposit.inputToken),
-    outputToken: toBytes32(deposit.outputToken),
+    depositor: Address.fromHex(deposit.depositor).toBytes32(),
+    recipient: Address.fromHex(deposit.recipient).toBytes32(),
+    exclusiveRelayer: Address.fromHex(deposit.exclusiveRelayer).toBytes32(),
+    inputToken: Address.fromHex(deposit.inputToken).toBytes32(),
+    outputToken: Address.fromHex(deposit.outputToken).toBytes32(),
     inputAmount: deposit.inputAmount,
     outputAmount: deposit.outputAmount,
     originChainId: deposit.originChainId,
@@ -47,16 +47,18 @@ export function populateV3Relay(
     return spokePool.populateTransaction.fillRelayWithUpdatedDeposit(
       v3RelayData,
       repaymentChainId,
-      toBytes32(relayer),
+      Address.fromHex(relayer).toBytes32(),
       deposit.updatedOutputAmount,
-      toBytes32(deposit.updatedRecipient),
+      Address.fromHex(deposit.updatedRecipient).toBytes32(),
       deposit.updatedMessage,
       deposit.speedUpSignature,
       { from: relayer }
     );
   }
 
-  return spokePool.populateTransaction.fillRelay(v3RelayData, repaymentChainId, toBytes32(relayer), { from: relayer });
+  return spokePool.populateTransaction.fillRelay(v3RelayData, repaymentChainId, Address.fromHex(relayer).toBytes32(), {
+    from: relayer,
+  });
 }
 
 /**

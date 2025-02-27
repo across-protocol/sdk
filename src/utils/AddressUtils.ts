@@ -1,4 +1,5 @@
 import { providers, utils } from "ethers";
+import bs58 from "bs58";
 import { BigNumber } from "./BigNumberUtils";
 
 /**
@@ -39,32 +40,67 @@ export function compareAddressesSimple(addressA?: string, addressB?: string): bo
   return addressA.toLowerCase() === addressB.toLowerCase();
 }
 
-// Converts an input hex data string into a bytes32 string. Note that the output bytes will be lowercase
-// so that it naturally matches with ethers event data.
-// Throws an error if the input string is already greater than 32 bytes.
-export function toBytes32(address: string): string {
-  return utils.hexZeroPad(address, 32).toLowerCase();
-}
-
-// Checks if the input string can be coerced into a bytes20 evm address. Returns true if it is possible, and false otherwise.
-export function toAddress(hexString: string): string {
-  // rawAddress is the address which is not properly checksummed.
-  const rawAddress = utils.hexZeroPad(utils.hexStripZeros(hexString), 20);
-  return utils.getAddress(rawAddress);
-}
-
-export function isValidEvmAddress(address: string): boolean {
-  if (utils.isAddress(address)) {
-    return true;
+// The Address class can contain any address type. It is up to the subclasses to determine how to format the address's internal representation,
+// which for this class, is a bytes32 hex string.
+export class Address {
+  constructor(readonly rawAddress: Uint8Array) {
+    // No forced validation is done in this class, and therefore there are no guarantees here that the address will be well-defined on any network.
+    // Instead, validation is done on the subclasses so that we can guarantee that, for example, an EvmAddress type will always contain a valid, 20-byte
+    // EVM address.
   }
-  // We may throw an error here if hexZeroPadFails. This will happen if the address to pad is greater than 20 bytes long, indicating
-  // that the address had less than 12 leading zero bytes.
-  // We may also throw at getAddress if the input cannot be converted into a checksummed EVM address for some reason.
-  // For both cases, this indicates that the address cannot be casted as a bytes20 EVM address, so we should return false.
-  try {
-    const evmAddress = utils.hexZeroPad(utils.hexStripZeros(address), 20);
-    return utils.isAddress(utils.getAddress(evmAddress));
-  } catch (_e) {
-    return false;
+
+  static fromBase58(bs58Address: string): Address {
+    return new Address(bs58.decode(bs58Address));
+  }
+
+  static fromHex(hexString: string): Address {
+    return new Address(utils.arrayify(hexString));
+  }
+
+  // Converts an input hex data string into a bytes32 string. Note that the output bytes will be lowercase
+  // so that it naturally matches with ethers event data.
+  // Throws an error if the input string is already greater than 32 bytes.
+  toBytes32(): string {
+    return utils.hexZeroPad(utils.hexlify(this.rawAddress), 32).toLowerCase();
+  }
+
+  // Converts an input hex address (can be bytes32 or bytes20) to its base58 counterpart.
+  toBase58(): string {
+    return bs58.encode(this.rawAddress);
+  }
+
+  toAddress(): string {
+    const hexString = utils.hexlify(this.rawAddress);
+    const rawAddress = utils.hexZeroPad(utils.hexStripZeros(hexString), 20);
+    return utils.getAddress(rawAddress);
+  }
+
+  // Checks if the input string can be coerced into a bytes20 evm address. Returns true if it is possible, and false otherwise.
+  isValidEvmAddress(): boolean {
+    try {
+      this.toAddress();
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  isValidSvmAddress(): boolean {
+    try {
+      this.toBase58();
+      return true;
+    } catch {
+      return false;
+    }
+  }
+}
+
+export class EvmAddress extends Address {
+  constructor(rawAddress: Uint8Array) {
+    super(rawAddress);
+    const hexString = utils.hexlify(rawAddress);
+    if (!this.isValidEvmAddress()) {
+      throw new Error(`${hexString} is neither a valid SVM nor a valid EVM address`);
+    }
   }
 }

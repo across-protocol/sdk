@@ -1,7 +1,7 @@
 import _ from "lodash";
 import { providers } from "ethers";
 import { Deposit, DepositWithBlock, Fill, FillWithBlock } from "../../../interfaces";
-import { getBlockRangeForChain, isSlowFill, isValidEvmAddress, isDefined, chainIsEvm } from "../../../utils";
+import { getBlockRangeForChain, isSlowFill, Address, isDefined, chainIsEvm } from "../../../utils";
 import { HubPoolClient } from "../../HubPoolClient";
 
 export function getRefundInformationFromFill(
@@ -100,13 +100,13 @@ export async function verifyFillRepayment(
     repaymentChainId = fill.destinationChainId;
   }
 
-  if (!isValidEvmAddress(fill.relayer)) {
+  if (!Address.fromHex(fill.relayer).isValidEvmAddress()) {
     // TODO: Handle case where fill was sent on non-EVM chain, in which case the following call would fail
     // or return something unexpected. We'd want to return undefined here.
     const fillTransaction = await destinationChainProvider.getTransaction(fill.transactionHash);
     const destinationRelayer = fillTransaction?.from;
     // Repayment chain is still an EVM chain, but the msg.sender is a bytes32 address, so the fill is invalid.
-    if (!isDefined(destinationRelayer) || !isValidEvmAddress(destinationRelayer)) {
+    if (!isDefined(destinationRelayer) || !Address.fromHex(destinationRelayer).isValidEvmAddress()) {
       return undefined;
     }
     if (!matchedDeposit.fromLiteChain) {
