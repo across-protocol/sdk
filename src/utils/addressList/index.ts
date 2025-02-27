@@ -6,8 +6,8 @@ export class AddressList {
   constructor(readonly addressLists: AddressListAdapter[]) {}
 
   async update(): Promise<{ length: number; addresses: Set<string> }> {
-    const _addresses = await Promise.all(this.addressLists.map((adapter) => adapter.update()));
-    const addresses = _addresses
+    const rawAddresses = await Promise.all(this.addressLists.map((adapter) => adapter.update()));
+    const allAddresses = rawAddresses
       .flat()
       .map((address) => {
         try {
@@ -17,7 +17,14 @@ export class AddressList {
         }
       })
       .filter((address) => address !== INVALID_ADDRESS);
-    return { addresses: new Set(addresses), length: addresses.length };
+
+    // Dedup the aggregated, normalised, filtered set of addresses.
+    const addresses = new Set(allAddresses);
+
+    return {
+      addresses,
+      length: Array.from(addresses).length,
+    };
   }
 }
 
