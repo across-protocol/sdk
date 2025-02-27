@@ -83,3 +83,37 @@ export function jsonReviverWithBigNumbers(_key: string, value: unknown): unknown
   }
   return value;
 }
+
+/**
+ * A replacer for use in `JSON.stringify` that converts BigInt number objects containing numeric string value.
+ * @param _key Unused
+ * @param value The value to convert
+ * @returns The converted object
+ */
+export function jsonReplacerWithBigInts(_key: string, value: unknown): unknown {
+  if (typeof value === "bigint") {
+    return { type: "BigInt", value: value.toString() };
+  }
+  return value;
+}
+
+/**
+ * A reviver for use in `JSON.parse` that converts BigInt objects to BigInt numbers.
+ * @param _key Unused
+ * @param value The value to convert
+ * @returns The converted value
+ */
+export function jsonReviverWithBigInts(_key: string, value: unknown): unknown {
+  if (
+    typeof value === "object" &&
+    value !== null &&
+    "type" in value &&
+    "value" in value &&
+    value.type === "BigInt" &&
+    typeof value.value === "string" &&
+    /^-?\d+$/.test(value.value) // Ensure it's a valid BigInt value
+  ) {
+    return BigInt(value.value);
+  }
+  return value;
+}

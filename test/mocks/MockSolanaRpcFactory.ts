@@ -33,6 +33,7 @@ export class MockSolanaRpcFactory extends SolanaClusterRpcFactory {
       if (result === undefined) {
         const requestKeyWithoutParams = JSON.stringify({ method, params: [] });
         result = this.responses.get(requestKeyWithoutParams);
+        if (result === undefined) result = null;
       }
       await new Promise((resolve) => setTimeout(resolve, this.responseTime));
       return { result } as TResponse;
