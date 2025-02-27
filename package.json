@@ -103,7 +103,7 @@
   "dependencies": {
     "@across-protocol/across-token": "^1.0.0",
     "@across-protocol/constants": "^3.1.38",
-    "@across-protocol/contracts": "4.0.2",
+    "@across-protocol/contracts": "4.0.3",
     "@eth-optimism/sdk": "^3.3.1",
     "@ethersproject/bignumber": "^5.7.0",
     "@pinata/sdk": "^2.1.0",
