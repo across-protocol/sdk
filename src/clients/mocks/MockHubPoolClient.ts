@@ -1,6 +1,7 @@
 import winston from "winston";
 import { Contract } from "ethers";
-import { BigNumber, randomAddress, assign, bnZero } from "../../utils";
+import { ZERO_ADDRESS } from "../../constants";
+import { BigNumber, randomAddress, assign, bnZero, EvmAddress, Address, isDefined } from "../../utils";
 import { L1Token, Log, PendingRootBundle, RealizedLpFee } from "../../interfaces";
 import { AcrossConfigStoreClient as ConfigStoreClient } from "../AcrossConfigStoreClient";
 import { HubPoolClient, HubPoolUpdate, LpFeeRequest } from "../HubPoolClient";
@@ -10,7 +11,7 @@ const emptyRootBundle: PendingRootBundle = {
   poolRebalanceRoot: "",
   relayerRefundRoot: "",
   slowRelayRoot: "",
-  proposer: "",
+  proposer: EvmAddress.fromHex(ZERO_ADDRESS),
   unclaimedPoolRebalanceLeafCount: 0,
   challengePeriodEndTimestamp: 0,
   bundleEvaluationBlockNumbers: [],
@@ -23,9 +24,9 @@ export class MockHubPoolClient extends HubPoolClient {
   private realizedLpFeePctOverride = false;
 
   private l1TokensMock: L1Token[] = []; // L1Tokens and their associated info.
-  private tokenInfoToReturn: L1Token = { address: "", decimals: 0, symbol: "" };
+  private tokenInfoToReturn: L1Token = { address: EvmAddress.fromHex(ZERO_ADDRESS), decimals: 0, symbol: "" };
 
-  private spokePoolTokens: { [l1Token: string]: { [chainId: number]: string } } = {};
+  private spokePoolTokens: { [l1Token: string]: { [chainId: number]: Address } } = {};
 
   private eventManager: EventManager;
 
@@ -95,29 +96,31 @@ export class MockHubPoolClient extends HubPoolClient {
     return this.tokenInfoToReturn;
   }
 
-  setTokenMapping(l1Token: string, chainId: number, l2Token: string) {
-    this.spokePoolTokens[l1Token] ??= {};
-    this.spokePoolTokens[l1Token][chainId] = l2Token;
+  setTokenMapping(l1Token: EvmAddress, chainId: number, l2Token: Address) {
+    this.spokePoolTokens[l1Token.toAddress()] ??= {};
+    this.spokePoolTokens[l1Token.toAddress()][chainId] = l2Token;
   }
 
-  deleteTokenMapping(l1Token: string, chainId: number) {
-    delete this.spokePoolTokens[l1Token]?.[chainId];
+  deleteTokenMapping(l1Token: EvmAddress, chainId: number) {
+    delete this.spokePoolTokens[l1Token.toAddress()]?.[chainId];
   }
 
-  getL1TokenForL2TokenAtBlock(l2Token: string, chainId: number, blockNumber: number): string {
+  getL1TokenForL2TokenAtBlock(l2Token: Address, chainId: number, blockNumber: number): EvmAddress {
     const l1Token = Object.keys(this.spokePoolTokens).find(
-      (l1Token) => this.spokePoolTokens[l1Token]?.[chainId] === l2Token
+      (l1Token) => this.spokePoolTokens[l1Token]?.[chainId].eq(l2Token)
     );
-    return l1Token ?? super.getL1TokenForL2TokenAtBlock(l2Token, chainId, blockNumber);
+    return isDefined(l1Token)
+      ? EvmAddress.fromHex(l1Token)
+      : super.getL1TokenForL2TokenAtBlock(l2Token, chainId, blockNumber);
   }
 
-  getL2TokenForL1TokenAtBlock(l1Token: string, chainId: number, blockNumber: number): string {
-    const l2Token = this.spokePoolTokens[l1Token]?.[chainId];
+  getL2TokenForL1TokenAtBlock(l1Token: EvmAddress, chainId: number, blockNumber: number): Address {
+    const l2Token = this.spokePoolTokens[l1Token.toString()]?.[chainId];
     return l2Token ?? super.getL2TokenForL1TokenAtBlock(l1Token, chainId, blockNumber);
   }
 
-  getTokenInfoForL1Token(l1Token: string): L1Token | undefined {
-    return this.l1TokensMock.find((token) => token.address === l1Token);
+  getTokenInfoForL1Token(l1Token: EvmAddress): L1Token | undefined {
+    return this.l1TokensMock.find((token) => token.address.eq(l1Token));
   }
 
   setTokenInfoToReturn(tokenInfo: L1Token) {

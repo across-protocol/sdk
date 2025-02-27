@@ -1,5 +1,5 @@
 import { DepositWithBlock, FillType, FillWithBlock } from "../src/interfaces";
-import { bnOne, bnZero, toBN } from "../src/utils";
+import { bnOne, bnZero, toBN, EvmAddress, Address } from "../src/utils";
 import { ZERO_ADDRESS } from "../src/constants";
 import { originChainId, destinationChainId, repaymentChainId } from "./constants";
 import {
@@ -28,24 +28,24 @@ describe("FillUtils", function () {
   const INVALID_EVM_ADDRESS = createRandomBytes32();
 
   beforeEach(async function () {
-    relayer = randomAddress();
+    relayer = EvmAddress.fromHex(randomAddress());
     [owner] = await ethers.getSigners();
     spokeProvider = new MockedProvider(bnZero, bnZero);
     deposit = {
       depositId: bnOne,
-      depositor: ZERO_ADDRESS,
+      depositor: EvmAddress.fromHex(ZERO_ADDRESS),
       destinationChainId,
       originChainId,
       inputAmount: toBN(100),
-      inputToken: ZERO_ADDRESS,
+      inputToken: EvmAddress.fromHex(ZERO_ADDRESS),
       outputAmount: toBN(100),
-      outputToken: ZERO_ADDRESS,
+      outputToken: EvmAddress.fromHex(ZERO_ADDRESS),
       message: "",
       quoteTimestamp: 0,
-      recipient: ZERO_ADDRESS,
-      updatedRecipient: ZERO_ADDRESS,
+      recipient: EvmAddress.fromHex(ZERO_ADDRESS),
+      updatedRecipient: EvmAddress.fromHex(ZERO_ADDRESS),
       fillDeadline: 100,
-      exclusiveRelayer: ZERO_ADDRESS,
+      exclusiveRelayer: EvmAddress.fromHex(ZERO_ADDRESS),
       exclusivityDeadline: 100,
       transactionHash: "0xa",
       blockNumber: 0,
@@ -70,7 +70,7 @@ describe("FillUtils", function () {
     const { configStore } = await deployConfigStore(owner, []);
     const configStoreClient = new MockConfigStoreClient(createSpyLogger().spyLogger, configStore);
     hubPoolClient = new MockHubPoolClient(createSpyLogger().spyLogger, hubPool, configStoreClient);
-    hubPoolClient.setTokenMapping(ZERO_ADDRESS, deposit.originChainId, deposit.inputToken);
+    hubPoolClient.setTokenMapping(ZERO_ADDRESS, deposit.originChainId, deposit.inputToken.toString());
   });
 
   describe("verifyFillRepayment", function () {
@@ -79,7 +79,7 @@ describe("FillUtils", function () {
       const result = await verifyFillRepayment(fill, spokeProvider, deposit, hubPoolClient);
       expect(result).to.not.be.undefined;
       expect(result!.repaymentChainId).to.equal(fill.repaymentChainId);
-      expect(result!.relayer).to.equal(fill.relayer);
+      expect(result!.relayer).to.deep.equal(fill.relayer);
     });
     it("SlowFill always valid", async function () {
       // We don't set the repayment chain mapping for the input token because a slow fill should always be valid.
@@ -99,10 +99,10 @@ describe("FillUtils", function () {
       };
       const result = await verifyFillRepayment(fill, spokeProvider, liteChainDeposit, hubPoolClient);
       expect(result).to.not.be.undefined;
-      expect(result!.relayer).to.equal(relayer);
+      expect(result!.relayer).to.deep.equal(relayer);
 
       expect(result!.repaymentChainId).to.equal(originChainId);
-      expect(result!.relayer).to.equal(relayer);
+      expect(result!.relayer).to.deep.equal(relayer);
     });
     it("Lite chain deposit and relayer is not valid EVM address; relayer gets overwritten to msg.sender", async function () {
       // We don't set repayment chain mapping since repayment happens on origin chain.
@@ -113,14 +113,14 @@ describe("FillUtils", function () {
       };
       const invalidRepaymentFill = {
         ...fill,
-        relayer: INVALID_EVM_ADDRESS,
+        relayer: Address.fromHex(INVALID_EVM_ADDRESS),
       };
       spokeProvider._setTransaction(fill.transactionHash, {
-        from: relayer,
+        from: relayer.toAddress(),
       } as unknown as TransactionResponse);
       const result = await verifyFillRepayment(invalidRepaymentFill, spokeProvider, liteChainDeposit, hubPoolClient);
       expect(result).to.not.be.undefined;
-      expect(result!.relayer).to.equal(relayer);
+      expect(result!.relayer).to.deep.equal(relayer);
       expect(result!.repaymentChainId).to.equal(originChainId);
     });
     it("Relayer is not valid EVM address, relayer gets overwritten to msg.sender", async function () {
@@ -128,14 +128,14 @@ describe("FillUtils", function () {
       // valid chain ID's doesn't contain repayment chain.
       const invalidRepaymentFill = {
         ...fill,
-        relayer: INVALID_EVM_ADDRESS,
+        relayer: Address.fromHex(INVALID_EVM_ADDRESS),
       };
       spokeProvider._setTransaction(fill.transactionHash, {
-        from: relayer,
+        from: relayer.toAddress(),
       } as unknown as TransactionResponse);
       const result = await verifyFillRepayment(invalidRepaymentFill, spokeProvider, deposit, hubPoolClient);
       expect(result).to.not.be.undefined;
-      expect(result!.relayer).to.equal(relayer);
+      expect(result!.relayer).to.deep.equal(relayer);
       // Repayment chain gets overwritten to destination chain.
       expect(result!.repaymentChainId).to.equal(destinationChainId);
     });
@@ -148,7 +148,7 @@ describe("FillUtils", function () {
       };
       const invalidRepaymentFill = {
         ...fill,
-        relayer: INVALID_EVM_ADDRESS,
+        relayer: Address.fromHex(INVALID_EVM_ADDRESS),
       };
       spokeProvider._setTransaction(fill.transactionHash, {
         from: INVALID_EVM_ADDRESS,
@@ -163,7 +163,7 @@ describe("FillUtils", function () {
       // repayment chain is Ethereum and the repayment address is an SVM address.
       const invalidRepaymentFill = {
         ...fill,
-        relayer: INVALID_EVM_ADDRESS,
+        relayer: Address.fromHex(INVALID_EVM_ADDRESS),
       };
       spokeProvider._setTransaction(fill.transactionHash, {
         from: INVALID_EVM_ADDRESS,

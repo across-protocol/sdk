@@ -67,10 +67,11 @@ type DataCache = Record<string, Promise<LoadDataReturnValue>>;
 // V3 dictionary helper functions
 function updateExpiredDepositsV3(dict: ExpiredDepositsToRefundV3, deposit: V3DepositWithBlock): void {
   // A deposit refund for a deposit is invalid if the depositor has a bytes32 address input for an EVM chain. It is valid otherwise.
-  if (chainIsEvm(deposit.originChainId) && !Address.fromHex(deposit.depositor).isValidEvmAddress()) {
+  if (chainIsEvm(deposit.originChainId) && !deposit.depositor.isValidEvmAddress()) {
     return;
   }
-  const { originChainId, inputToken } = deposit;
+  const { originChainId, inputToken: _inputToken } = deposit;
+  const inputToken = _inputToken.toString();
   if (!dict?.[originChainId]?.[inputToken]) {
     assign(dict, [originChainId, inputToken], []);
   }
@@ -78,7 +79,8 @@ function updateExpiredDepositsV3(dict: ExpiredDepositsToRefundV3, deposit: V3Dep
 }
 
 function updateBundleDepositsV3(dict: BundleDepositsV3, deposit: V3DepositWithBlock): void {
-  const { originChainId, inputToken } = deposit;
+  const { originChainId, inputToken: _inputToken } = deposit;
+  const inputToken = _inputToken.toString();
   if (!dict?.[originChainId]?.[inputToken]) {
     assign(dict, [originChainId, inputToken], []);
   }
@@ -90,16 +92,16 @@ function updateBundleFillsV3(
   fill: V3FillWithBlock,
   lpFeePct: BigNumber,
   repaymentChainId: number,
-  repaymentToken: string,
-  repaymentAddress: string
+  repaymentToken: Address,
+  repaymentAddress: Address
 ): void {
   // We shouldn't pass any unrepayable fills into this function, so we perform an extra safety check.
   assert(
-    chainIsEvm(repaymentChainId) && Address.fromHex(fill.relayer).isValidEvmAddress(),
+    chainIsEvm(repaymentChainId) && fill.relayer.isValidEvmAddress(),
     "validatedBundleV3Fills dictionary should only contain fills with valid repayment information"
   );
-  if (!dict?.[repaymentChainId]?.[repaymentToken]) {
-    assign(dict, [repaymentChainId, repaymentToken], {
+  if (!dict?.[repaymentChainId]?.[repaymentToken.toString()]) {
+    assign(dict, [repaymentChainId, repaymentToken.toString()], {
       fills: [],
       totalRefundAmount: bnZero,
       realizedLpFees: bnZero,
@@ -113,7 +115,7 @@ function updateBundleFillsV3(
   assign(dict, [repaymentChainId, repaymentToken, "fills"], [bundleFill]);
 
   // All fills update the bundle LP fees.
-  const refundObj = dict[repaymentChainId][repaymentToken];
+  const refundObj = dict[repaymentChainId][repaymentToken.toString()];
   const realizedLpFee = bundleFill.inputAmount.mul(bundleFill.lpFeePct).div(fixedPointAdjustment);
   refundObj.realizedLpFees = refundObj.realizedLpFees ? refundObj.realizedLpFees.add(realizedLpFee) : realizedLpFee;
 
@@ -127,10 +129,11 @@ function updateBundleFillsV3(
     // Instantiate dictionary if it doesn't exist.
     refundObj.refunds ??= {};
 
-    if (refundObj.refunds[bundleFill.relayer]) {
-      refundObj.refunds[bundleFill.relayer] = refundObj.refunds[bundleFill.relayer].add(refundAmount);
+    if (refundObj.refunds[bundleFill.relayer.toString()]) {
+      refundObj.refunds[bundleFill.relayer.toString()] =
+        refundObj.refunds[bundleFill.relayer.toString()].add(refundAmount);
     } else {
-      refundObj.refunds[bundleFill.relayer] = refundAmount;
+      refundObj.refunds[bundleFill.relayer.toString()] = refundAmount;
     }
   }
 }
@@ -139,7 +142,8 @@ function updateBundleExcessSlowFills(
   dict: BundleExcessSlowFills,
   deposit: V3DepositWithBlock & { lpFeePct: BigNumber }
 ): void {
-  const { destinationChainId, outputToken } = deposit;
+  const { destinationChainId, outputToken: _outputToken } = deposit;
+  const outputToken = _outputToken.toString();
   if (!dict?.[destinationChainId]?.[outputToken]) {
     assign(dict, [destinationChainId, outputToken], []);
   }
@@ -147,10 +151,11 @@ function updateBundleExcessSlowFills(
 }
 
 function updateBundleSlowFills(dict: BundleSlowFills, deposit: V3DepositWithBlock & { lpFeePct: BigNumber }): void {
-  if (chainIsEvm(deposit.destinationChainId) && !Address.fromHex(deposit.recipient).isValidEvmAddress()) {
+  if (chainIsEvm(deposit.destinationChainId) && !deposit.recipient.isValidEvmAddress()) {
     return;
   }
-  const { destinationChainId, outputToken } = deposit;
+  const { destinationChainId, outputToken: _outputToken } = deposit;
+  const outputToken = _outputToken.toString();
   if (!dict?.[destinationChainId]?.[outputToken]) {
     assign(dict, [destinationChainId, outputToken], []);
   }
@@ -410,21 +415,23 @@ export class BundleDataClient {
         // worst from the relayer's perspective.
         const { relayer, inputAmount: refundAmount } = fill;
         refundsForChain[chainToSendRefundTo] ??= {};
-        refundsForChain[chainToSendRefundTo][repaymentToken] ??= {};
-        const existingRefundAmount = refundsForChain[chainToSendRefundTo][repaymentToken][relayer] ?? bnZero;
-        refundsForChain[chainToSendRefundTo][repaymentToken][relayer] = existingRefundAmount.add(refundAmount);
+        refundsForChain[chainToSendRefundTo][repaymentToken.toString()] ??= {};
+        const existingRefundAmount =
+          refundsForChain[chainToSendRefundTo][repaymentToken.toString()][relayer.toString()] ?? bnZero;
+        refundsForChain[chainToSendRefundTo][repaymentToken.toString()][relayer.toString()] =
+          existingRefundAmount.add(refundAmount);
       });
     }
     return refundsForChain;
   }
 
-  getUpcomingDepositAmount(chainId: number, l2Token: string, latestBlockToSearch: number): BigNumber {
+  getUpcomingDepositAmount(chainId: number, l2Token: Address, latestBlockToSearch: number): BigNumber {
     if (this.spokePoolClients[chainId] === undefined) {
       return toBN(0);
     }
     return this.spokePoolClients[chainId]
       .getDeposits()
-      .filter((deposit) => deposit.blockNumber > latestBlockToSearch && deposit.inputToken === l2Token)
+      .filter((deposit) => deposit.blockNumber > latestBlockToSearch && deposit.inputToken.eq(l2Token))
       .reduce((acc, deposit) => {
         return acc.add(deposit.inputAmount);
       }, toBN(0));
@@ -546,14 +553,14 @@ export class BundleDataClient {
       .filter((leaf) => leaf.rootBundleId === bundle.rootBundleId);
     const executedRefunds: { [tokenAddress: string]: { [relayer: string]: BigNumber } } = {};
     for (const refundLeaf of executedRefundLeaves) {
-      const tokenAddress = refundLeaf.l2TokenAddress;
+      const tokenAddress = refundLeaf.l2TokenAddress.toString();
       if (executedRefunds[tokenAddress] === undefined) {
         executedRefunds[tokenAddress] = {};
       }
       const executedTokenRefunds = executedRefunds[tokenAddress];
 
       for (let i = 0; i < refundLeaf.refundAddresses.length; i++) {
-        const relayer = refundLeaf.refundAddresses[i];
+        const relayer = refundLeaf.refundAddresses[i].toString();
         const refundAmount = refundLeaf.refundAmounts[i];
         if (executedTokenRefunds[relayer] === undefined) {
           executedTokenRefunds[relayer] = bnZero;
@@ -599,15 +606,15 @@ export class BundleDataClient {
     return allRefunds;
   }
 
-  getRefundsFor(bundleRefunds: CombinedRefunds, relayer: string, chainId: number, token: string): BigNumber {
-    if (!bundleRefunds[chainId] || !bundleRefunds[chainId][token]) {
+  getRefundsFor(bundleRefunds: CombinedRefunds, relayer: Address, chainId: number, token: Address): BigNumber {
+    if (!bundleRefunds[chainId] || !bundleRefunds[chainId][token.toString()]) {
       return BigNumber.from(0);
     }
-    const allRefunds = bundleRefunds[chainId][token];
-    return allRefunds && allRefunds[relayer] ? allRefunds[relayer] : BigNumber.from(0);
+    const allRefunds = bundleRefunds[chainId][token.toString()];
+    return allRefunds && allRefunds[relayer.toString()] ? allRefunds[relayer.toString()] : BigNumber.from(0);
   }
 
-  getTotalRefund(refunds: CombinedRefunds[], relayer: string, chainId: number, refundToken: string): BigNumber {
+  getTotalRefund(refunds: CombinedRefunds[], relayer: Address, chainId: number, refundToken: Address): BigNumber {
     return refunds.reduce((totalRefund, refunds) => {
       return totalRefund.add(this.getRefundsFor(refunds, relayer, chainId, refundToken));
     }, bnZero);
@@ -820,7 +827,11 @@ export class BundleDataClient {
             "Not using correct bundle deposit hash key"
           );
           if (deposit.blockNumber >= originChainBlockRange[0]) {
-            if (bundleDepositsV3?.[originChainId]?.[deposit.inputToken]?.find((d) => duplicateEvent(deposit, d))) {
+            if (
+              bundleDepositsV3?.[originChainId]?.[deposit.inputToken.toString()]?.find((d) =>
+                duplicateEvent(deposit, d)
+              )
+            ) {
               this.logger.debug({
                 at: "BundleDataClient#loadData",
                 message: "Duplicate deposit detected",

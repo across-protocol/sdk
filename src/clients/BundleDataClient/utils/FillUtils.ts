@@ -1,7 +1,7 @@
 import _ from "lodash";
 import { providers } from "ethers";
 import { Deposit, DepositWithBlock, Fill, FillWithBlock } from "../../../interfaces";
-import { getBlockRangeForChain, isSlowFill, Address, isDefined, chainIsEvm } from "../../../utils";
+import { getBlockRangeForChain, isSlowFill, toAddress, isDefined, chainIsEvm, Address } from "../../../utils";
 import { HubPoolClient } from "../../HubPoolClient";
 
 export function getRefundInformationFromFill(
@@ -12,7 +12,7 @@ export function getRefundInformationFromFill(
   fromLiteChain: boolean
 ): {
   chainToSendRefundTo: number;
-  repaymentToken: string;
+  repaymentToken: Address;
 } {
   // Handle slow relay where repaymentChainId = 0. Slow relays always pay recipient on destination chain.
   // So, save the slow fill under the destination chain, and save the fast fill under its repayment chain.
@@ -100,13 +100,14 @@ export async function verifyFillRepayment(
     repaymentChainId = fill.destinationChainId;
   }
 
-  if (!Address.fromHex(fill.relayer).isValidEvmAddress()) {
+  if (!fill.relayer.isValidEvmAddress()) {
     // TODO: Handle case where fill was sent on non-EVM chain, in which case the following call would fail
     // or return something unexpected. We'd want to return undefined here.
     const fillTransaction = await destinationChainProvider.getTransaction(fill.transactionHash);
     const destinationRelayer = fillTransaction?.from;
+    const replacementRelayer = toAddress(destinationRelayer, repaymentChainId);
     // Repayment chain is still an EVM chain, but the msg.sender is a bytes32 address, so the fill is invalid.
-    if (!isDefined(destinationRelayer) || !Address.fromHex(destinationRelayer).isValidEvmAddress()) {
+    if (!isDefined(destinationRelayer) || !replacementRelayer.isValidEvmAddress()) {
       return undefined;
     }
     if (!matchedDeposit.fromLiteChain) {
@@ -118,7 +119,7 @@ export async function verifyFillRepayment(
         return undefined;
       }
     }
-    fill.relayer = destinationRelayer;
+    fill.relayer = replacementRelayer;
   }
 
   // Repayment address is now valid and repayment chain is either origin chain for lite chain or the destination

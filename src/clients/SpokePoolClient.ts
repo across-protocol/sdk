@@ -18,7 +18,7 @@ import {
   getMessageHash,
   isUnsafeDepositId,
   isSlowFill,
-  isZeroAddress,
+  EvmAddress,
   Address,
 } from "../utils";
 import {
@@ -226,8 +226,8 @@ export class SpokePoolClient extends BaseAbstractClient {
    * @param relayer The relayer address.
    * @returns A list of fills.
    */
-  public getFillsForRelayer(relayer: string): FillWithBlock[] {
-    return this.getFills().filter((fill) => fill.relayer === relayer);
+  public getFillsForRelayer(relayer: Address): FillWithBlock[] {
+    return this.getFills().filter((fill) => fill.relayer.eq(relayer));
   }
 
   /**
@@ -275,7 +275,7 @@ export class SpokePoolClient extends BaseAbstractClient {
     const { depositId, depositor } = deposit;
 
     // Note: we know depositor cannot be more than 20 bytes since this is guaranteed by contracts.
-    const speedups = this.speedUps[Address.fromHex(depositor).toAddress()]?.[depositId.toString()];
+    const speedups = this.speedUps[depositor.toString()]?.[depositId.toString()];
 
     if (!isDefined(speedups) || speedups.length === 0) {
       return deposit;
@@ -401,7 +401,7 @@ export class SpokePoolClient extends BaseAbstractClient {
           if (
             this.hubPoolClient &&
             !isSlowFill(fill) &&
-            (!Address.fromHex(fill.relayer).isValidEvmAddress() ||
+            (!fill.relayer.isValidEvmAddress() ||
               forceDestinationRepayment(
                 repaymentChainId,
                 { ...deposit, quoteBlockNumber: this.hubPoolClient!.latestBlockSearched },
@@ -645,7 +645,7 @@ export class SpokePoolClient extends BaseAbstractClient {
         deposit.fromLiteChain = this.isOriginLiteChain(deposit);
         deposit.toLiteChain = this.isDestinationLiteChain(deposit);
 
-        if (isZeroAddress(deposit.outputToken)) {
+        if (deposit.outputToken.isZeroAddress()) {
           deposit.outputToken = this.getDestinationTokenForDeposit(deposit);
         }
 
@@ -835,7 +835,7 @@ export class SpokePoolClient extends BaseAbstractClient {
    * @param eventL2Token The l2TokenAddress of the executed refund leaf.
    * @returns The l2TokenAddress of the executed refund leaf.
    */
-  public static getExecutedRefundLeafL2Token(chainId: number, eventL2Token: string): string {
+  public static getExecutedRefundLeafL2Token(chainId: number, eventL2Token: EvmAddress): EvmAddress {
     // If execution of WETH refund leaf occurred on an OVM spoke pool, then we'll convert its l2Token from the native
     // token address to the wrapped token address. This is because the OVM_SpokePool modifies the l2TokenAddress prop
     // in _bridgeTokensToHubPool before emitting the ExecutedRelayerRefundLeaf event.
@@ -843,11 +843,11 @@ export class SpokePoolClient extends BaseAbstractClient {
     // - https://github.com/across-protocol/contracts/blob/954528a4620863d1c868e54a370fd8556d5ed05c/contracts/Ovm_SpokePool.sol#L142
     if (
       (chainId === 10 || chainId === 8453) &&
-      eventL2Token.toLowerCase() === "0xdeaddeaddeaddeaddeaddeaddeaddeaddead0000"
+      eventL2Token.toAddress().toLowerCase() === "0xdeaddeaddeaddeaddeaddeaddeaddeaddead0000"
     ) {
-      return "0x4200000000000000000000000000000000000006";
-    } else if (chainId === 288 && eventL2Token.toLowerCase() === "0x4200000000000000000000000000000000000006") {
-      return "0xDeadDeAddeAddEAddeadDEaDDEAdDeaDDeAD0000";
+      return EvmAddress.fromHex("0x4200000000000000000000000000000000000006");
+    } else if (chainId === 288 && eventL2Token.toAddress() === "0x4200000000000000000000000000000000000006") {
+      return EvmAddress.fromHex("0xDeadDeAddeAddEAddeadDEaDDEAdDeaDDeAD0000");
     } else {
       return eventL2Token;
     }
@@ -879,10 +879,10 @@ export class SpokePoolClient extends BaseAbstractClient {
    * @param deposit The deposit to retrieve the destination token for.
    * @returns The destination token.
    */
-  protected getDestinationTokenForDeposit(deposit: DepositWithBlock): string {
+  protected getDestinationTokenForDeposit(deposit: DepositWithBlock): Address {
     // If there is no rate model client return address(0).
     if (!this.hubPoolClient) {
-      return ZERO_ADDRESS;
+      return Address.fromHex(ZERO_ADDRESS);
     }
 
     return this.hubPoolClient.getL2TokenForDeposit(deposit);
@@ -971,7 +971,7 @@ export class SpokePoolClient extends BaseAbstractClient {
       toLiteChain: true, // To be updated immediately afterwards.
     } as DepositWithBlock;
 
-    if (isZeroAddress(deposit.outputToken)) {
+    if (deposit.outputToken.isZeroAddress()) {
       deposit.outputToken = this.getDestinationTokenForDeposit(deposit);
     }
     deposit.fromLiteChain = this.isOriginLiteChain(deposit);

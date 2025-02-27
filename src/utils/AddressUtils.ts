@@ -1,7 +1,7 @@
 import { providers, utils } from "ethers";
 import bs58 from "bs58";
 import { isAddress as isSvmAddress } from "@solana/web3.js";
-import { BigNumber } from "./BigNumberUtils";
+import { BigNumber, chainIsEvm } from "./";
 
 /**
  * Checks if a contract is deployed at the given address
@@ -41,13 +41,27 @@ export function compareAddressesSimple(addressA?: string, addressB?: string): bo
   return addressA.toLowerCase() === addressB.toLowerCase();
 }
 
+// Constructs the appropriate Address type given an input string and chain ID.
+export function toAddress(address: string, chainId: number): Address {
+  if (chainIsEvm(chainId)) {
+    return EvmAddress.from(address);
+  }
+  return SvmAddress.from(address);
+}
+
 // The Address class can contain any address type. It is up to the subclasses to determine how to format the address's internal representation,
 // which for this class, is a bytes32 hex string.
 export class Address {
-  constructor(readonly rawAddress: Uint8Array) {
-    // No forced validation is done in this class, and therefore there are no guarantees here that the address will be well-defined on any network.
-    // Instead, validation is done on the subclasses so that we can guarantee that, for example, an EvmAddress type will always contain a valid, 20-byte
+  readonly rawAddress;
+  constructor(_rawAddress: Uint8Array) {
+    // The only validation done here is checking that the address is at most a 32-byte address, which  will be well-defined on any supported network.
+    // Further validation is done on the subclasses so that we can guarantee that, for example, an EvmAddress type will always contain a valid, 20-byte
     // EVM address.
+    if (_rawAddress.length > 32) {
+      throw new Error(`Address ${utils.hexlify(_rawAddress)} cannot be longer than 32 bytes.`);
+    }
+    // Ensure all addresses in this class are internally stored as 32 bytes.
+    this.rawAddress = utils.zeroPad(_rawAddress, 32);
   }
 
   // Constructs a new Address type given an input base58 string. Performs no validation.
@@ -60,20 +74,24 @@ export class Address {
     return new Address(utils.arrayify(hexString));
   }
 
-  // Converts the address into a bytes32 string. Note that the output bytes will be lowercase  so that it matches ethers event data. Throws an error if the
-  // input string is already greater than 32 bytes.
+  // Constructs a new Address type by attempting to infer the input string's format.
+  static from(address: string): Address {
+    if (utils.isHexString(address)) {
+      return EvmAddress.fromHex(address);
+    }
+    return SvmAddress.fromBase58(address);
+  }
+
+  // Converts the address into a bytes32 string. Note that the output bytes will be lowercase  so that it matches ethers event data. This function will never
+  // throw since address length validation was done at construction time.
   toBytes32(): string {
     return utils.hexZeroPad(utils.hexlify(this.rawAddress), 32).toLowerCase();
   }
 
-  // Converts the address (can be bytes32 or bytes20) to its base58 counterpart. These addresses are assumed to be valid on Solana, so this function will
-  // also perform address validation and throw an error if the address is determined to not be a valid SVM address.
+  // Converts the address (can be bytes32 or bytes20) to its base58 counterpart. This conversion will always succeed, even if the input address is not valid on Solana,
+  // as this address may be needed to represent an EVM address on Solana.
   toBase58(): string {
-    const publicKey = bs58.encode(this.rawAddress);
-    if (!isSvmAddress(publicKey)) {
-      throw new Error(`Public key ${publicKey} does not correspond to a valid SVM account`);
-    }
-    return publicKey;
+    return bs58.encode(this.rawAddress);
   }
 
   // Converts the address to a valid EVM address. If it is unable to convert the address to a valid EVM address for some reason, such as if this address
@@ -96,12 +114,22 @@ export class Address {
 
   // Checks if this address can be coerced into a valid Solana address. Return true if possible and false otherwise.
   isValidSvmAddress(): boolean {
-    try {
-      this.toBase58();
-      return true;
-    } catch {
-      return false;
-    }
+    return isSvmAddress(this.toBase58());
+  }
+
+  // Converts the input address to a 32-byte hex data string.
+  toString(): string {
+    return this.toBytes32();
+  }
+
+  // Checks if the address is the zero address.
+  isZeroAddress(): boolean {
+    return utils.stripZeros(this.rawAddress).length === 0;
+  }
+
+  // Checks if the other address is equivalent to this address.
+  eq(other: Address): boolean {
+    return this.toString() === other.toString();
   }
 }
 
@@ -112,7 +140,24 @@ export class EvmAddress extends Address {
     super(rawAddress);
     const hexString = utils.hexlify(rawAddress);
     if (!this.isValidEvmAddress()) {
-      throw new Error(`${hexString} is neither a valid SVM nor a valid EVM address`);
+      throw new Error(`${hexString} is not a valid EVM address`);
     }
+  }
+}
+
+// Subclass of address which strictly deals SVM addresses. These addresses are guaranteed to be valid SVM addresses, so `toBase58` will always produce a valid Solana address.
+export class SvmAddress extends Address {
+  // On construction, validate that the address is a point on Curve25519. Throw immediately if it is not.
+  constructor(rawAddress: Uint8Array) {
+    super(rawAddress);
+    if (!this.isValidSvmAddress()) {
+      throw new Error(`${this} is not a valid SVM address`);
+    }
+  }
+
+  // Override the toAddress function for SVM addresses only since while they will never have a defined 20-byte representation. The base58 encoded addresses are also the encodings
+  // used in TOKEN_SYMBOLS_MAP.
+  override toAddress(): string {
+    return this.toBase58();
   }
 }

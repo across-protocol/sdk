@@ -17,6 +17,7 @@ import {
   toBN,
   toWei,
   utf8ToHex,
+  EvmAddress,
 } from "../../utils";
 import { PROTOCOL_DEFAULT_CHAIN_ID_INDICES } from "../../constants";
 import {
@@ -108,7 +109,7 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
   }
 
   getRateModelForBlockNumber(
-    l1Token: string,
+    l1Token: EvmAddress,
     originChainId: number | string,
     destinationChainId: number | string,
     blockNumber: number | undefined = undefined
@@ -131,7 +132,7 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
   }
 
   getRouteRateModelForBlockNumber(
-    l1Token: string,
+    l1Token: EvmAddress,
     route: string,
     blockNumber: number | undefined = undefined
   ): RateModel | undefined {
@@ -212,7 +213,7 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
   }
 
   getSpokeTargetBalancesForBlock(
-    l1Token: string,
+    l1Token: EvmAddress,
     chainId: number,
     blockNumber: number = Number.MAX_SAFE_INTEGER
   ): SpokePoolTargetBalance {
@@ -390,9 +391,10 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
 
       try {
         const { rateModel, routeRateModel, spokeTargetBalances } = this.validateTokenConfigUpdate(args);
-        const { value, key: l1Token, ...eventData } = args;
+        const { value, key: _l1Token, ...eventData } = args;
 
         if (rateModel !== undefined) {
+          const l1Token = EvmAddress.fromHex(_l1Token);
           this.cumulativeRateModelUpdates.push({ ...eventData, rateModel, l1Token });
           this.cumulativeSpokeTargetBalanceUpdates.push({
             ...eventData,

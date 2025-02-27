@@ -15,7 +15,7 @@ import {
   type,
 } from "superstruct";
 import { UNDEFINED_MESSAGE_HASH } from "../../../constants";
-import { BigNumber } from "../../../utils";
+import { BigNumber, Address } from "../../../utils";
 
 const PositiveIntegerStringSS = pattern(string(), /\d+/);
 const Web3AddressSS = pattern(string(), /^0x[a-fA-F0-9]{40}$/);
@@ -31,19 +31,30 @@ const BigNumberType = coerce(instance(BigNumber), union([string(), number()]), (
   }
 });
 
+const AddressType = coerce(instance(Address), string(), (value) => {
+  try {
+    // Attempt to convert the string to a BigNumber
+    return Address.from(value);
+  } catch (error) {
+    // In case of any error during conversion, return the original value
+    // This will lead to a validation error, as the resulting value won't match the expected BigNumber type
+    return value;
+  }
+});
+
 const FillTypeSS = number();
 
 const V3RelayDataSS = {
-  inputToken: string(),
+  inputToken: AddressType,
   inputAmount: BigNumberType,
-  outputToken: string(),
+  outputToken: AddressType,
   outputAmount: BigNumberType,
   fillDeadline: number(),
-  exclusiveRelayer: string(),
+  exclusiveRelayer: AddressType,
   exclusivityDeadline: number(),
   originChainId: number(),
-  depositor: string(),
-  recipient: string(),
+  depositor: AddressType,
+  recipient: AddressType,
   depositId: BigNumberType,
   message: string(),
 };
@@ -63,7 +74,7 @@ const V3DepositSS = {
   quoteTimestamp: number(),
   relayerFeePct: optional(BigNumberType),
   speedUpSignature: optional(string()),
-  updatedRecipient: optional(string()),
+  updatedRecipient: optional(AddressType),
   updatedOutputAmount: optional(BigNumberType),
   updatedMessage: optional(string()),
 };
@@ -84,7 +95,7 @@ const V3DepositWithBlockLpFeeSS = object({
 const V3RelayExecutionEventInfoSS = object({
   updatedOutputAmount: BigNumberType,
   fillType: FillTypeSS,
-  updatedRecipient: string(),
+  updatedRecipient: AddressType,
   updatedMessage: optional(string()),
   updatedMessageHash: defaulted(string(), UNDEFINED_MESSAGE_HASH),
 });
@@ -94,7 +105,7 @@ const V3FillSS = {
   message: optional(string()),
   messageHash: defaulted(string(), UNDEFINED_MESSAGE_HASH),
   destinationChainId: number(),
-  relayer: string(),
+  relayer: AddressType,
   repaymentChainId: number(),
   relayExecutionInfo: V3RelayExecutionEventInfoSS,
   quoteTimestamp: number(),

@@ -8,8 +8,9 @@ import { isDefined, toBN, BigNumberish, Address } from "./";
 const maxRetries = 3;
 const retrySleepTime = 10;
 
-// Event fields which changed from an `address` to `bytes32` after the SVM contract upgrade.
-const knownExtendedAddressFields = [
+// Event fields which must be mutated to a custom `Address` type.
+const addressFields = new Set<string>([
+  // / Spoke Pool Fields
   // TokensBridged
   "l2TokenAddress",
   // FundsDeposited/FilledRelay/RequestedSlowFill
@@ -22,7 +23,30 @@ const knownExtendedAddressFields = [
   "relayer",
   // RequestedSpeedUpDeposit
   "updatedRecipient",
-];
+  // ClaimedRelayerRefund
+  "refundAddress",
+  "caller",
+  // ExecutedRelayerRefundRoot
+  "refundAddresses",
+
+  // / Hub Pool Fields
+  // ProposeRootBundle
+  "proposer",
+  // CrossChainContractsSet
+  "adapter",
+  "spokePool",
+  // *ForLiquidityProvision
+  "l1Token",
+  "lpToken",
+  // Liquidity*
+  "liquidityProvider",
+  // SetPoolRebalanceRoute
+  "destinationToken",
+  // SetEnableDepositRoute
+  "originToken",
+  // RootBundleDisputed
+  "disputer",
+]);
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function spreadEvent(args: Result | Record<string, unknown>): { [key: string]: any } {
@@ -84,14 +108,16 @@ export function spreadEvent(args: Result | Record<string, unknown>): { [key: str
   }
 
   // Truncate all fields which may be bytes32 into a bytes20 string.
-  for (const field of knownExtendedAddressFields) {
-    if (isDefined(returnedObject[field])) {
-      let address = String(returnedObject[field]);
-      try {
-        address = Address.fromHex(address).toAddress();
-        // eslint-disable-next-line no-empty
-      } catch (_) {}
-      returnedObject[field] = address;
+  for (const key of keys) {
+    if (addressFields.has(key)) {
+      // Big TODO: Figure out where to validate that the input address is good, since taking all event addresses and just treating them as only an `Address` type
+      // diminishes the utility of having a distinction between `EvmAddress` and `SvmAddress`.
+      if (Array.isArray(returnedObject[key])) {
+        const mappedAddresses = (returnedObject[key] as unknown[]).map((_address) => Address.from(String(_address)));
+        returnedObject[key] = mappedAddresses;
+      } else {
+        returnedObject[key] = Address.from(String(returnedObject[key]));
+      }
     }
   }
 

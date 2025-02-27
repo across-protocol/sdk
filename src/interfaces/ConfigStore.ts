@@ -1,5 +1,5 @@
 import { RateModel } from "../lpFeeCalculator";
-import { BigNumber } from "../utils";
+import { BigNumber, EvmAddress } from "../utils";
 import { SortableEvent } from "./Common";
 
 export interface ParsedTokenConfig {
@@ -29,26 +29,26 @@ export interface SpokeTargetBalanceUpdate extends SortableEvent {
   spokeTargetBalances?: {
     [chainId: number]: SpokePoolTargetBalance;
   };
-  l1Token: string;
+  l1Token: EvmAddress;
 }
 
 export interface SpokeTargetBalanceUpdateStringified extends SortableEvent {
   spokeTargetBalances?: {
     [chainId: number]: SpokePoolTargetBalanceStringified;
   };
-  l1Token: string;
+  l1Token: EvmAddress;
 }
 
 export interface RouteRateModelUpdate extends SortableEvent {
   routeRateModel: {
     [path: string]: string;
   };
-  l1Token: string;
+  l1Token: EvmAddress;
 }
 
 export interface RateModelUpdate extends SortableEvent {
   rateModel: string;
-  l1Token: string;
+  l1Token: EvmAddress;
 }
 
 export interface TokenConfig extends SortableEvent {

@@ -10,7 +10,7 @@ import { isMessageEmpty } from "./DepositUtils";
 import { isDefined } from "./TypeGuards";
 import { getNetworkName } from "./NetworkUtils";
 import { paginatedEventQuery, spreadEventWithBlockNumber } from "./EventUtils";
-import { Address } from "./AddressUtils";
+import { EvmAddress } from "./AddressUtils";
 
 type BlockTag = providers.BlockTag;
 
@@ -27,11 +27,11 @@ export function populateV3Relay(
   repaymentChainId = deposit.destinationChainId
 ): Promise<PopulatedTransaction> {
   const v3RelayData: RelayData = {
-    depositor: Address.fromHex(deposit.depositor).toBytes32(),
-    recipient: Address.fromHex(deposit.recipient).toBytes32(),
-    exclusiveRelayer: Address.fromHex(deposit.exclusiveRelayer).toBytes32(),
-    inputToken: Address.fromHex(deposit.inputToken).toBytes32(),
-    outputToken: Address.fromHex(deposit.outputToken).toBytes32(),
+    depositor: deposit.depositor,
+    recipient: deposit.recipient,
+    exclusiveRelayer: deposit.exclusiveRelayer,
+    inputToken: deposit.inputToken,
+    outputToken: deposit.outputToken,
     inputAmount: deposit.inputAmount,
     outputAmount: deposit.outputAmount,
     originChainId: deposit.originChainId,
@@ -41,22 +41,22 @@ export function populateV3Relay(
     message: deposit.message,
   };
   if (isDefined(deposit.speedUpSignature)) {
-    assert(isDefined(deposit.updatedRecipient) && !isZeroAddress(deposit.updatedRecipient));
+    assert(isDefined(deposit.updatedRecipient) && !deposit.updatedRecipient.isZeroAddress());
     assert(isDefined(deposit.updatedOutputAmount));
     assert(isDefined(deposit.updatedMessage));
     return spokePool.populateTransaction.fillRelayWithUpdatedDeposit(
       v3RelayData,
       repaymentChainId,
-      Address.fromHex(relayer).toBytes32(),
+      EvmAddress.fromHex(relayer),
       deposit.updatedOutputAmount,
-      Address.fromHex(deposit.updatedRecipient).toBytes32(),
+      deposit.updatedRecipient,
       deposit.updatedMessage,
       deposit.speedUpSignature,
       { from: relayer }
     );
   }
 
-  return spokePool.populateTransaction.fillRelay(v3RelayData, repaymentChainId, Address.fromHex(relayer).toBytes32(), {
+  return spokePool.populateTransaction.fillRelay(v3RelayData, repaymentChainId, EvmAddress.fromHex(relayer), {
     from: relayer,
   });
 }
@@ -258,14 +258,6 @@ export async function getDepositIdAtBlock(contract: Contract, blockTag: number):
  * @returns The corresponding RelayData hash.
  */
 export function getRelayDataHash(relayData: RelayData, destinationChainId: number): string {
-  const _relayData = {
-    ...relayData,
-    depositor: ethersUtils.hexZeroPad(relayData.depositor, 32),
-    recipient: ethersUtils.hexZeroPad(relayData.recipient, 32),
-    inputToken: ethersUtils.hexZeroPad(relayData.inputToken, 32),
-    outputToken: ethersUtils.hexZeroPad(relayData.outputToken, 32),
-    exclusiveRelayer: ethersUtils.hexZeroPad(relayData.exclusiveRelayer, 32),
-  };
   return ethersUtils.keccak256(
     ethersUtils.defaultAbiCoder.encode(
       [
@@ -285,7 +277,7 @@ export function getRelayDataHash(relayData: RelayData, destinationChainId: numbe
           ")",
         "uint256 destinationChainId",
       ],
-      [_relayData, destinationChainId]
+      [relayData, destinationChainId]
     )
   );
 }

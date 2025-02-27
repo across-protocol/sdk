@@ -244,7 +244,7 @@ export class RelayFeeCalculator {
     if (toBN(amountToRelay).eq(bnZero)) return MAX_BIG_INT;
 
     const { inputToken } = deposit;
-    const token = getTokenInformationFromAddress(inputToken, tokenMapping);
+    const token = getTokenInformationFromAddress(inputToken.toString(), tokenMapping);
     if (!isDefined(token)) {
       throw new Error(`Could not find token information for ${inputToken}`);
     }
@@ -371,7 +371,7 @@ export class RelayFeeCalculator {
     // should use the full deposit amount.
     amountToRelay ??= deposit.outputAmount;
     const { inputToken } = deposit;
-    const token = getTokenInformationFromAddress(inputToken);
+    const token = getTokenInformationFromAddress(inputToken.toString());
     if (!isDefined(token)) {
       throw new Error(`Could not find token information for ${inputToken}`);
     }

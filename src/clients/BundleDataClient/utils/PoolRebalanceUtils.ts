@@ -1,7 +1,7 @@
 import { MerkleTree } from "@across-protocol/contracts/dist/utils/MerkleTree";
 import { RunningBalances, PoolRebalanceLeaf, Clients, SpokePoolTargetBalance } from "../../../interfaces";
 import { SpokePoolClient } from "../../SpokePoolClient";
-import { BigNumber, bnZero, compareAddresses } from "../../../utils";
+import { BigNumber, bnZero, compareAddresses, EvmAddress } from "../../../utils";
 import { HubPoolClient } from "../../HubPoolClient";
 import { V3DepositWithBlock } from "./shims";
 import { AcrossConfigStoreClient } from "../../AcrossConfigStoreClient";
@@ -125,13 +125,14 @@ export function getRunningBalanceForL1Token(
 export function updateRunningBalance(
   runningBalances: RunningBalances,
   l2ChainId: number,
-  l1Token: string,
+  _l1Token: EvmAddress,
   updateAmount: BigNumber
 ): void {
   // Initialize dictionary if empty.
   if (!runningBalances[l2ChainId]) {
     runningBalances[l2ChainId] = {};
   }
+  const l1Token = _l1Token.toAddress();
   const runningBalance = runningBalances[l2ChainId][l1Token];
   if (runningBalance) {
     runningBalances[l2ChainId][l1Token] = runningBalance.add(updateAmount);
@@ -146,7 +147,8 @@ export function addLastRunningBalance(
   hubPoolClient: HubPoolClient
 ): void {
   Object.keys(runningBalances).forEach((repaymentChainId) => {
-    Object.keys(runningBalances[Number(repaymentChainId)]).forEach((l1TokenAddress) => {
+    Object.keys(runningBalances[Number(repaymentChainId)]).forEach((_l1TokenAddress) => {
+      const l1TokenAddress = EvmAddress.fromHex(_l1TokenAddress);
       const { runningBalance } = hubPoolClient.getRunningBalanceBeforeBlockForChain(
         latestMainnetBlock,
         Number(repaymentChainId),
@@ -200,7 +202,9 @@ export function constructPoolRebalanceLeaves(
       const maxL1TokensPerLeaf =
         maxL1TokenCount || configStoreClient.getMaxRefundCountForRelayerRefundLeafForBlock(latestMainnetBlock);
       for (let i = 0; i < sortedL1Tokens.length; i += maxL1TokensPerLeaf) {
-        const l1TokensToIncludeInThisLeaf = sortedL1Tokens.slice(i, i + maxL1TokensPerLeaf);
+        const l1TokensToIncludeInThisLeaf = sortedL1Tokens
+          .slice(i, i + maxL1TokensPerLeaf)
+          .map((l1TokenString) => EvmAddress.fromHex(l1TokenString));
 
         const spokeTargetBalances = l1TokensToIncludeInThisLeaf.map((l1Token) =>
           configStoreClient.getSpokeTargetBalancesForBlock(l1Token, chainId, latestMainnetBlock)
@@ -209,16 +213,16 @@ export function constructPoolRebalanceLeaves(
         // Build leaves using running balances and realized lp fees data for l1Token + chain, or default to
         // zero if undefined.
         const leafBundleLpFees = l1TokensToIncludeInThisLeaf.map(
-          (l1Token) => realizedLpFees[chainId]?.[l1Token] ?? bnZero
+          (l1Token) => realizedLpFees[chainId]?.[l1Token.toAddress()] ?? bnZero
         );
         const leafNetSendAmounts = l1TokensToIncludeInThisLeaf.map((l1Token, index) =>
-          runningBalances[chainId] && runningBalances[chainId][l1Token]
-            ? getNetSendAmountForL1Token(spokeTargetBalances[index], runningBalances[chainId][l1Token])
+          runningBalances[chainId] && runningBalances[chainId][l1Token.toAddress()]
+            ? getNetSendAmountForL1Token(spokeTargetBalances[index], runningBalances[chainId][l1Token.toAddress()])
             : bnZero
         );
         const leafRunningBalances = l1TokensToIncludeInThisLeaf.map((l1Token, index) =>
-          runningBalances[chainId]?.[l1Token]
-            ? getRunningBalanceForL1Token(spokeTargetBalances[index], runningBalances[chainId][l1Token])
+          runningBalances[chainId]?.[l1Token.toAddress()]
+            ? getRunningBalanceForL1Token(spokeTargetBalances[index], runningBalances[chainId][l1Token.toAddress()])
             : bnZero
         );
 
