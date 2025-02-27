@@ -427,14 +427,13 @@ export class SpokePoolClient extends BaseAbstractClient {
       { validFills: [], invalidFills: [], unrepayableFills: [] }
     );
 
-    const getTxnIdx = (x: SortableEvent) => `${x.transactionHash}:${x.logIndex}`;
-
     // Log any invalid deposits with same deposit id but different params.
-    const invalidFillsForDeposit = invalidFills.filter(
-      (x) => x.depositId.eq(deposit.depositId) && !this.invalidFills.has(getTxnIdx(x))
-    );
+    const invalidFillsForDeposit = invalidFills.filter((x) => {
+      const txnUid = `${x.transactionHash}:${x.logIndex}`;
+      // if txnUid doesn't exist in the invalidFills set, add it now.
+      return x.depositId.eq(deposit.depositId) && (!this.invalidFills.has(txnUid) || this.invalidFills.add(txnUid))
+    });
     if (invalidFillsForDeposit.length > 0) {
-      invalidFillsForDeposit.forEach((x) => this.invalidFills.add(getTxnIdx(x)));
       this.logger.warn({
         at: "SpokePoolClient",
         chainId: this.chainId,
