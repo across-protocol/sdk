@@ -433,7 +433,7 @@ export class SpokePoolClient extends BaseAbstractClient {
       const newInvalidFill = x.depositId.eq(deposit.depositId) && !this.invalidFills.has(txnUid);
       if (newInvalidFill) {
         this.invalidFills.add(txnUid);
-      };
+      }
       return newInvalidFill;
     });
     if (invalidFillsForDeposit.length > 0) {
