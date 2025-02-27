@@ -42,7 +42,6 @@ import {
   RelayerRefundExecutionWithBlock,
   RootBundleRelayWithBlock,
   SlowFillRequestWithBlock,
-  SortableEvent,
   SpeedUpWithBlock,
   TokensBridged,
 } from "../interfaces";
