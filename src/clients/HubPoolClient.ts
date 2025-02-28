@@ -352,10 +352,10 @@ export class HubPoolClient extends BaseAbstractClient {
       const overrides = { blockTag: blockNumber };
       if (depositAmount.eq(0)) {
         // For zero amount, just get the utilisation at `blockNumber`.
-        return await this.hubPool.callStatic.liquidityUtilizationCurrent(hubPoolToken, overrides);
+        return await this.hubPool.callStatic.liquidityUtilizationCurrent(hubPoolToken.toAddress(), overrides);
       }
 
-      return await this.hubPool.callStatic.liquidityUtilizationPostRelay(hubPoolToken, depositAmount, overrides);
+      return await this.hubPool.callStatic.liquidityUtilizationPostRelay(hubPoolToken.toAddress(), depositAmount, overrides);
     };
 
     // Resolve the cache locally so that we can appease typescript
@@ -543,14 +543,14 @@ export class HubPoolClient extends BaseAbstractClient {
       // Resolve both SpokePool tokens back to their respective HubPool tokens and verify that they match.
       const l1TokenA = this.getL1TokenForL2TokenAtBlock(tokenA, chainIdA, hubPoolBlock);
       const l1TokenB = this.getL1TokenForL2TokenAtBlock(tokenB, chainIdB, hubPoolBlock);
-      if (l1TokenA !== l1TokenB) {
+      if (!l1TokenA.eq(l1TokenB)) {
         return false;
       }
 
       // Resolve both HubPool tokens back to a current SpokePool token and verify that they match.
       const _tokenA = this.getL2TokenForL1TokenAtBlock(l1TokenA, chainIdA, hubPoolBlock);
       const _tokenB = this.getL2TokenForL1TokenAtBlock(l1TokenB, chainIdB, hubPoolBlock);
-      return tokenA === _tokenA && tokenB === _tokenB;
+      return tokenA.eq(_tokenA) && tokenB.eq(_tokenB);
     } catch {
       return false; // One or both input tokens were not recognised.
     }
@@ -931,12 +931,12 @@ export class HubPoolClient extends BaseAbstractClient {
         const args = spreadEventWithBlockNumber(event) as SetPoolRebalanceRoot;
         assign(
           this.l1TokensToDestinationTokens,
-          [args.l1Token.toString(), args.destinationChainId],
+          [args.l1Token.toAddress(), args.destinationChainId],
           args.destinationToken
         );
         assign(
           this.l1TokensToDestinationTokensWithBlock,
-          [args.l1Token.toString(), args.destinationChainId],
+          [args.l1Token.toAddress(), args.destinationChainId],
           [
             {
               l1Token: args.l1Token,
@@ -965,7 +965,7 @@ export class HubPoolClient extends BaseAbstractClient {
         ),
         Promise.all(
           uniqueL1Tokens.map(
-            async (l1Token: EvmAddress) => await this.hubPool.pooledTokens(l1Token, { blockTag: update.searchEndBlock })
+            async (l1Token: EvmAddress) => await this.hubPool.pooledTokens(l1Token.toAddress(), { blockTag: update.searchEndBlock })
           )
         ),
       ]);
@@ -980,7 +980,7 @@ export class HubPoolClient extends BaseAbstractClient {
       }
 
       uniqueL1Tokens.forEach((token: EvmAddress, i) => {
-        this.lpTokens[token.toString()] = {
+        this.lpTokens[token.toAddress()] = {
           lastLpFeeUpdate: lpTokenInfo[i].lastLpFeeUpdate,
           liquidReserves: lpTokenInfo[i].liquidReserves,
         };

@@ -77,7 +77,7 @@ describe("SpokePoolClient: SpeedUp", function () {
       deposit.depositId,
       originChainId,
       updatedOutputAmount,
-      Address.fromHex(updatedRecipient).toBytes32(),
+      updatedRecipient,
       updatedMessage
     );
 
@@ -87,7 +87,7 @@ describe("SpokePoolClient: SpeedUp", function () {
         Address.fromHex(depositor.address).toBytes32(),
         deposit.depositId,
         updatedOutputAmount,
-        Address.fromHex(updatedRecipient).toBytes32(),
+        updatedRecipient,
         updatedMessage,
         signature
       );
@@ -187,7 +187,7 @@ describe("SpokePoolClient: SpeedUp", function () {
       } else {
         expect(updatedDeposit.updatedOutputAmount!.eq(bestDepositUpdate.updatedOutputAmount)).to.be.true;
         expect(updatedDeposit.speedUpSignature).to.equal(bestDepositUpdate.depositorSignature);
-        expect(updatedDeposit.updatedRecipient).to.equal(bestDepositUpdate.updatedRecipient);
+        expect(updatedDeposit.updatedRecipient).to.deep.equal(bestDepositUpdate.updatedRecipient);
         expect(updatedDeposit.updatedMessage).to.equal(bestDepositUpdate.updatedMessage);
       }
     }

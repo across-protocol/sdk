@@ -27,6 +27,7 @@ import {
   toBNWei,
   toWei,
 } from "./utils";
+import { Address, EvmAddress } from "../src/utils";
 
 let configStore: Contract, hubPool: Contract;
 let l1Token: Contract, l2Token: Contract, timer: Contract, weth: Contract;
@@ -98,7 +99,7 @@ describe("HubPool Utilization", function () {
     await configStoreClient.update();
 
     hubPoolClient = new MockHubPoolClient(createSpyLogger().spyLogger, hubPool, configStoreClient);
-    hubPoolClient.setTokenMapping(l1Token.address, originChainId, l2Token.address);
+    hubPoolClient.setTokenMapping(EvmAddress.from(l1Token.address), originChainId, Address.from(l2Token.address));
     await configStoreClient.update();
     // Mine some blocks to get the rate model to update.
     for (let i = 0; i < 10; i++) {
@@ -115,11 +116,11 @@ describe("HubPool Utilization", function () {
     // so the fee should reflect a 10% post deposit utilization.
     const depositData = {
       depositId: 0,
-      depositor: owner.address,
-      recipient: owner.address,
-      inputToken: l2Token.address,
+      depositor: Address.fromHex(owner.address),
+      recipient: Address.fromHex(owner.address),
+      inputToken: Address.fromHex(l2Token.address),
       inputAmount: amountToLp.div(10),
-      outputToken: l1Token.address,
+      outputToken: Address.fromHex(l1Token.address),
       outputAmount: l1Token.address,
       originChainId,
       destinationChainId: repaymentChainId,
@@ -129,12 +130,14 @@ describe("HubPool Utilization", function () {
       // Quote time needs to be >= first rate model event time
     };
 
+    console.log("MARKER");
     // Relayed amount being 10% of total LP amount should give exact same results as this test in v1:
     // - https://github.com/UMAprotocol/protocol/blob/3b1a88ead18088e8056ecfefb781c97fce7fdf4d/packages/financial-templates-lib/test/clients/InsuredBridgeL1Client.js#L1037
     expect((await hubPoolClient.computeRealizedLpFeePct(depositData)).realizedLpFeePct).to.equal(
       toBNWei("0.000117987509354032")
     );
 
+    console.log("MARKER");
     // Next, let's increase the pool utilization from 0% to 60% by sending 60% of the pool's liquidity to
     // another chain.
     const leaves = buildPoolRebalanceLeaves(
@@ -145,12 +148,15 @@ describe("HubPool Utilization", function () {
       [[toBN(0)]],
       [0]
     );
+    console.log("MARKER");
     const tree = await buildPoolRebalanceLeafTree(leaves);
     await weth.approve(hubPool.address, totalBond);
     await hubPool.proposeRootBundle([1], 1, tree.getHexRoot(), mockTreeRoot, mockTreeRoot);
     await timer.setCurrentTime(Number(await timer.getCurrentTime()) + refundProposalLiveness + 1);
+    console.log("MARKER");
     await hubPool.executeRootBundle(...Object.values(leaves[0]), tree.getHexProof(leaves[0]));
 
+    console.log("MARKER");
     // Submit a deposit with a de minimis amount of tokens so we can isolate the computed realized lp fee % to the
     // pool utilization factor.
     expect(
@@ -165,6 +171,7 @@ describe("HubPool Utilization", function () {
       ).realizedLpFeePct
     ).to.equal(toBNWei("0.001371068779697899"));
 
+    console.log("MARKER");
     // Relaying 10% of pool should give exact same result as this test, which sends a relay that is 10% of the pool's
     // size when the pool is already at 60% utilization. The resulting post-relay utilization is therefore 70%.
     // - https://github.com/UMAprotocol/protocol/blob/3b1a88ead18088e8056ecfefb781c97fce7fdf4d/packages/financial-templates-lib/test/clients/InsuredBridgeL1Client.js#L1064

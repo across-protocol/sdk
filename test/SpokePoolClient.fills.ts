@@ -1,7 +1,7 @@
 import hre from "hardhat";
 import { SpokePoolClient } from "../src/clients";
 import { Deposit } from "../src/interfaces";
-import { bnOne, bnZero, findFillBlock, findFillEvent, getMessageHash, getNetworkName } from "../src/utils";
+import { bnOne, bnZero, findFillBlock, findFillEvent, getMessageHash, getNetworkName, EvmAddress } from "../src/utils";
 import { EMPTY_MESSAGE, ZERO_ADDRESS } from "../src/constants";
 import { originChainId, destinationChainId } from "./constants";
 import {
@@ -53,18 +53,18 @@ describe("SpokePoolClient: Fills", function () {
       depositId: bnZero,
       originChainId,
       destinationChainId,
-      depositor: depositor.address,
-      recipient: depositor.address,
-      inputToken: erc20.address,
+      depositor: EvmAddress.fromHex(depositor.address),
+      recipient: EvmAddress.fromHex(depositor.address),
+      inputToken: EvmAddress.fromHex(erc20.address),
       inputAmount: outputAmount.add(bnOne),
-      outputToken: destErc20.address,
+      outputToken: EvmAddress.fromHex(destErc20.address),
       outputAmount: toBNWei("1"),
       quoteTimestamp: spokePoolTime - 60,
       message,
       messageHash: getMessageHash(message),
       fillDeadline: spokePoolTime + 600,
       exclusivityDeadline: 0,
-      exclusiveRelayer: ZERO_ADDRESS,
+      exclusiveRelayer: EvmAddress.fromHex(ZERO_ADDRESS),
       fromLiteChain: false,
       toLiteChain: false,
     };
@@ -91,8 +91,8 @@ describe("SpokePoolClient: Fills", function () {
 
     expect(spokePoolClient.getFillsForOriginChain(originChainId).length).to.equal(3);
     expect(spokePoolClient.getFillsForOriginChain(originChainId2).length).to.equal(1);
-    expect(spokePoolClient.getFillsForRelayer(relayer1.address).length).to.equal(3);
-    expect(spokePoolClient.getFillsForRelayer(relayer2.address).length).to.equal(1);
+    expect(spokePoolClient.getFillsForRelayer(EvmAddress.fromHex(relayer1.address).toBytes32()).length).to.equal(3);
+    expect(spokePoolClient.getFillsForRelayer(EvmAddress.fromHex(relayer2.address).toBytes32()).length).to.equal(1);
   });
 
   it("Correctly locates the block number for a FilledV3Relay event", async function () {

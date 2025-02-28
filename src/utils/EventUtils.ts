@@ -46,6 +46,8 @@ const addressFields = new Set<string>([
   "originToken",
   // RootBundleDisputed
   "disputer",
+  // ExecutedRootBundle
+  "l1Tokens",
 ]);
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

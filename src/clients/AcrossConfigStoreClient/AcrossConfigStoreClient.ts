@@ -123,7 +123,7 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
 
     const defaultRateModelUpdate = sortEventsDescending(this.cumulativeRateModelUpdates).find(
       (config) =>
-        config.blockNumber <= (blockNumber ?? 0) && config.l1Token === l1Token && config.rateModel !== undefined
+        config.blockNumber <= (blockNumber ?? 0) && config.l1Token.eq(l1Token) && config.rateModel !== undefined
     );
     if (!defaultRateModelUpdate) {
       throw new Error(`Could not find TokenConfig update for ${l1Token} at block ${blockNumber}`);
@@ -137,7 +137,7 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
     blockNumber: number | undefined = undefined
   ): RateModel | undefined {
     const config = (sortEventsDescending(this.cumulativeRouteRateModelUpdates) as RouteRateModelUpdate[]).find(
-      (config) => config.blockNumber <= (blockNumber ?? 0) && config.l1Token === l1Token
+      (config) => config.blockNumber <= (blockNumber ?? 0) && config.l1Token.eq(l1Token)
     );
     if (config?.routeRateModel[route] === undefined) {
       return undefined;
@@ -218,7 +218,7 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
     blockNumber: number = Number.MAX_SAFE_INTEGER
   ): SpokePoolTargetBalance {
     const config = (sortEventsDescending(this.cumulativeSpokeTargetBalanceUpdates) as SpokeTargetBalanceUpdate[]).find(
-      (config) => config.l1Token === l1Token && config.blockNumber <= blockNumber
+      (config) => config.l1Token.eq(l1Token) && config.blockNumber <= blockNumber
     );
     const targetBalance = config?.spokeTargetBalances?.[chainId];
     return targetBalance || { target: toBN(0), threshold: toBN(0) };

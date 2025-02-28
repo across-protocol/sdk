@@ -115,7 +115,7 @@ export class MockHubPoolClient extends HubPoolClient {
   }
 
   getL2TokenForL1TokenAtBlock(l1Token: EvmAddress, chainId: number, blockNumber: number): Address {
-    const l2Token = this.spokePoolTokens[l1Token.toString()]?.[chainId];
+    const l2Token = this.spokePoolTokens[l1Token.toAddress()]?.[chainId];
     return l2Token ?? super.getL2TokenForL1TokenAtBlock(l1Token, chainId, blockNumber);
   }
 

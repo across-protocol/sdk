@@ -102,6 +102,11 @@ export class Address {
     return utils.getAddress(rawAddress);
   }
 
+  // Implements `Hexable` for `Address`. Needed for encoding purposes. This class is treated by default as a bytes32 primitive type, but can change for subclasses.
+  toHexString(): string {
+    return this.toBytes32();
+  }
+
   // Checks if this address can be coerced into a bytes20 evm address. Returns true if it is possible and false otherwise.
   isValidEvmAddress(): boolean {
     try {
