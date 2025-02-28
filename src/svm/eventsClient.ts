@@ -13,9 +13,15 @@ import { EventData, EventName, EventWithData } from "./types";
 import { getEventName, parseEventData } from "./utils/events";
 import { isDevnet } from "./utils/helpers";
 
-// Note: Type assumes default JSON encoding. Using different encoding options (e.g. base58) would result in incompatible
-// return types.
-type GetTransactionReturnType = ReturnType<GetTransactionApi["getTransaction"]>;
+// Utility type to extract the return type for the JSON encoding overload. We only care about the overload where the
+// configuration parameter (C) has the optional property 'encoding' set to 'json'.
+type ExtractJsonOverload<T> = T extends (signature: infer _S, config: infer C) => infer R
+  ? C extends { encoding?: "json" }
+    ? R
+    : never
+  : never;
+
+type GetTransactionReturnType = ExtractJsonOverload<GetTransactionApi["getTransaction"]>;
 type GetSignaturesForAddressConfig = Parameters<GetSignaturesForAddressApi["getSignaturesForAddress"]>[1];
 type GetSignaturesForAddressTransaction = ReturnType<GetSignaturesForAddressApi["getSignaturesForAddress"]>[number];
 type GetSignaturesForAddressApiResponse = readonly GetSignaturesForAddressTransaction[];
