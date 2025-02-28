@@ -344,7 +344,7 @@ async function _deposit(
 
   await spokePool
     .connect(signer)
-    .depositV3(
+    .deposit(
       addressModifier(depositor),
       addressModifier(recipient),
       addressModifier(inputToken),
@@ -431,7 +431,6 @@ export async function requestV3SlowFill(
     inputAmount: args.inputAmount,
     outputToken: toAddress(args.outputToken),
     outputAmount: args.outputAmount,
-    message: args.message,
     messageHash: getMessageHash(args.message),
     fillDeadline: args.fillDeadline,
     exclusivityDeadline: args.exclusivityDeadline,
@@ -443,7 +442,7 @@ export async function requestV3SlowFill(
   };
 }
 
-export async function fillV3Relay(
+export async function fillRelay(
   spokePool: Contract,
   deposit: Omit<Deposit, "destinationChainId">,
   signer: SignerWithAddress,
@@ -474,20 +473,20 @@ export async function fillV3Relay(
     depositId: toBN(args.depositId),
     originChainId: Number(args.originChainId),
     destinationChainId,
-    depositor: toAddress(args.depositor),
-    recipient: toAddress(args.recipient),
-    inputToken: toAddress(args.inputToken),
+    depositor: toBytes32(args.depositor),
+    recipient: toBytes32(args.recipient),
+    inputToken: toBytes32(args.inputToken),
     inputAmount: args.inputAmount,
-    outputToken: toAddress(args.outputToken),
+    outputToken: toBytes32(args.outputToken),
     outputAmount: args.outputAmount,
     messageHash: getMessageHash(args.message),
     fillDeadline: args.fillDeadline,
     exclusivityDeadline: args.exclusivityDeadline,
-    exclusiveRelayer: toAddress(args.exclusiveRelayer),
+    exclusiveRelayer: toBytes32(args.exclusiveRelayer),
     relayer: args.relayer,
     repaymentChainId: Number(args.repaymentChainId),
     relayExecutionInfo: {
-      updatedRecipient: toAddress(args.relayExecutionInfo.updatedRecipient),
+      updatedRecipient: toBytes32(args.relayExecutionInfo.updatedRecipient),
       updatedMessageHash: args.relayExecutionInfo.updatedMessageHash,
       updatedOutputAmount: args.relayExecutionInfo.updatedOutputAmount,
       fillType: args.relayExecutionInfo.fillType,
