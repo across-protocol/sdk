@@ -23,13 +23,15 @@ type GetSignaturesForAddressApiResponse = readonly GetSignaturesForAddressTransa
 export class SvmSpokeEventsClient {
   private rpc: web3.Rpc<web3.SolanaRpcApiFromTransport<RpcTransport>>;
   private svmSpokeAddress: Address;
+  private svmSpokeEventAuthority: Address;
 
   /**
    * Private constructor. Use the async create() method to instantiate.
    */
-  private constructor(rpc: web3.Rpc<web3.SolanaRpcApiFromTransport<RpcTransport>>, svmSpokeAddress: Address) {
+  private constructor(rpc: web3.Rpc<web3.SolanaRpcApiFromTransport<RpcTransport>>, svmSpokeAddress: Address, eventAuthority: Address) {
     this.rpc = rpc;
     this.svmSpokeAddress = svmSpokeAddress;
+    this.svmSpokeEventAuthority = eventAuthority;
   }
 
   /**
@@ -41,7 +43,12 @@ export class SvmSpokeEventsClient {
     const isTestnet = await isDevnet(rpc);
     const programId = getDeployedAddress("SvmSpoke", getSolanaChainId(isTestnet ? "devnet" : "mainnet").toString());
     if (!programId) throw new Error("Program not found");
-    return new SvmSpokeEventsClient(rpc, web3.address(programId));
+    const svmSpokeAddress = web3.address(programId);
+    const [svmSpokeEventAuthority] = await web3.getProgramDerivedAddress({
+      programAddress: svmSpokeAddress,
+      seeds: ["__event_authority"],
+    });
+    return new SvmSpokeEventsClient(rpc, svmSpokeAddress, svmSpokeEventAuthority);
   }
 
   /**
@@ -51,7 +58,6 @@ export class SvmSpokeEventsClient {
    * @param fromSlot - Optional starting slot.
    * @param toSlot - Optional ending slot.
    * @param options - Options for fetching signatures.
-   * @param finality - Commitment level.
    * @returns A promise that resolves to an array of events matching the eventName.
    */
   public async queryEvents<T extends EventData>(
@@ -67,12 +73,9 @@ export class SvmSpokeEventsClient {
   /**
    * Queries all events for a specific program.
    *
-   * @param program - The program address.
-   * @param anchorIdl - The IDL describing the program events.
    * @param fromSlot - Optional starting slot.
    * @param toSlot - Optional ending slot.
    * @param options - Options for fetching signatures.
-   * @param commitment - Commitment level.
    * @returns A promise that resolves to an array of all events with additional metadata.
    */
   private async queryAllEvents(
@@ -113,15 +116,9 @@ export class SvmSpokeEventsClient {
 
     // Fetch events for all signatures in parallel.
     const eventsWithSlots = await Promise.all(
-      filteredSignatures.map(async (signatureTransaction) => {
+      filteredSignatures.flatMap(async (signatureTransaction) => {
         const events = await this.readEventsFromSignature(signatureTransaction.signature, options.commitment);
-        return events.map((event) => ({
-          ...event,
-          confirmationStatus: signatureTransaction.confirmationStatus,
-          blockTime: signatureTransaction.blockTime,
-          signature: signatureTransaction.signature,
-          slot: signatureTransaction.slot,
-        }));
+        return events.map((event) => ({ ...event, confirmationStatus: signatureTransaction.confirmationStatus, blockTime: signatureTransaction.blockTime, signature: signatureTransaction.signature, slot: signatureTransaction.slot }));
       })
     );
     return eventsWithSlots.flat();
@@ -131,8 +128,6 @@ export class SvmSpokeEventsClient {
    * Reads events from a transaction signature.
    *
    * @param txSignature - The transaction signature.
-   * @param programId - The program address.
-   * @param programIdl - The program IDL.
    * @param commitment - Commitment level.
    * @returns A promise that resolves to an array of events.
    */
@@ -152,24 +147,13 @@ export class SvmSpokeEventsClient {
    * Processes events from a transaction.
    *
    * @param txResult - The transaction result.
-   * @param programId - The program address.
-   * @param programIdl - The program IDL.
    * @returns A promise that resolves to an array of events with their data and name.
    */
   private async processEventFromTx(
     txResult: GetTransactionReturnType
   ): Promise<{ program: Address; data: EventData; name: EventName }[]> {
     if (!txResult) return [];
-
-    const eventAuthorities: Map<string, Address> = new Map();
     const events: { program: Address; data: EventData; name: EventName }[] = [];
-
-    // Derive the event authority PDA.
-    const [pda] = await web3.getProgramDerivedAddress({
-      programAddress: this.svmSpokeAddress,
-      seeds: ["__event_authority"],
-    });
-    eventAuthorities.set(this.svmSpokeAddress.toString(), pda);
 
     const accountKeys = txResult.transaction.message.accountKeys;
     const messageAccountKeys = [...accountKeys];
@@ -186,7 +170,7 @@ export class SvmSpokeEventsClient {
           ixProgramId !== undefined &&
           singleIxAccount !== undefined &&
           this.svmSpokeAddress === ixProgramId &&
-          eventAuthorities.get(ixProgramId.toString()) === singleIxAccount
+          this.svmSpokeEventAuthority === singleIxAccount
         ) {
           const ixData = utils.bytes.bs58.decode(ix.data);
           // Skip the first 8 bytes (assumed header) and encode the rest.
