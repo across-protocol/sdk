@@ -9,6 +9,7 @@ import {
   createSpyLogger,
 } from "./utils";
 import { AcrossConfigStoreClient as ConfigStoreClient, HubPoolClient } from "../src/clients";
+import { EvmAddress } from "../src/utils";
 import { CONFIG_STORE_VERSION } from "./constants";
 
 let hubPool: Contract, lpTokenFactory: Contract;
@@ -49,9 +50,9 @@ describe("HubPoolClient: L1Tokens", function () {
 
     await hubPoolClient.update();
     expect(hubPoolClient.getL1Tokens()).to.deep.equal([
-      { address: l1Token1.address, symbol: "Coin1", decimals: 18 },
-      { address: l1Token2.address, symbol: "Coin2", decimals: 17 },
-      { address: l1Token3.address, symbol: "Coin3", decimals: 16 },
+      { address: EvmAddress.fromHex(l1Token1.address), symbol: "Coin1", decimals: 18 },
+      { address: EvmAddress.fromHex(l1Token2.address), symbol: "Coin2", decimals: 17 },
+      { address: EvmAddress.fromHex(l1Token3.address), symbol: "Coin3", decimals: 16 },
     ]);
   });
 });

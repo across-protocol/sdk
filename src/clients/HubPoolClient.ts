@@ -355,7 +355,11 @@ export class HubPoolClient extends BaseAbstractClient {
         return await this.hubPool.callStatic.liquidityUtilizationCurrent(hubPoolToken.toAddress(), overrides);
       }
 
-      return await this.hubPool.callStatic.liquidityUtilizationPostRelay(hubPoolToken.toAddress(), depositAmount, overrides);
+      return await this.hubPool.callStatic.liquidityUtilizationPostRelay(
+        hubPoolToken.toAddress(),
+        depositAmount,
+        overrides
+      );
     };
 
     // Resolve the cache locally so that we can appease typescript
@@ -493,7 +497,10 @@ export class HubPoolClient extends BaseAbstractClient {
     // For each token / quoteBlock pair, resolve the utilisation for each quoted block.
     // This can be reused for each deposit with the same HubPool token and quoteTimestamp pair.
     utilization = Object.fromEntries(
-      await mapAsync(getHubPoolTokens(), async (hubPoolToken) => [hubPoolToken, await resolveUtilization(hubPoolToken)])
+      await mapAsync(getHubPoolTokens(), async (hubPoolToken) => [
+        hubPoolToken.toAddress(),
+        await resolveUtilization(hubPoolToken),
+      ])
     );
 
     // For each deposit, compute the post-relay HubPool utilisation independently.
@@ -965,7 +972,8 @@ export class HubPoolClient extends BaseAbstractClient {
         ),
         Promise.all(
           uniqueL1Tokens.map(
-            async (l1Token: EvmAddress) => await this.hubPool.pooledTokens(l1Token.toAddress(), { blockTag: update.searchEndBlock })
+            async (l1Token: EvmAddress) =>
+              await this.hubPool.pooledTokens(l1Token.toAddress(), { blockTag: update.searchEndBlock })
           )
         ),
       ]);

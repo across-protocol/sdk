@@ -11,6 +11,7 @@ import {
   queryHistoricalDepositForFill,
   DepositSearchResult,
   getBlockRangeForDepositId,
+  EvmAddress,
 } from "../src/utils";
 import { ZERO_BYTES } from "../src/constants";
 import { CHAIN_ID_TEST_LIST, originChainId, destinationChainId, repaymentChainId } from "./constants";
@@ -87,8 +88,8 @@ describe("SpokePoolClient: Fill Validation", function () {
     await configStoreClient.update();
 
     hubPoolClient = new MockHubPoolClient(spyLogger, hubPool, configStoreClient);
-    hubPoolClient.setTokenMapping(l1Token.address, originChainId, erc20_1.address);
-    hubPoolClient.setTokenMapping(l1Token.address, destinationChainId, erc20_2.address);
+    hubPoolClient.setTokenMapping(EvmAddress.fromHex(l1Token.address), originChainId, erc20_1.address);
+    hubPoolClient.setTokenMapping(EvmAddress.fromHex(l1Token.address), destinationChainId, erc20_2.address);
 
     await hubPoolClient.update();
     spokePoolClient1 = new SpokePoolClient(
@@ -701,7 +702,7 @@ describe("SpokePoolClient: Fill Validation", function () {
       spokePool_2,
       {
         ..._deposit_1,
-        recipient: relayer.address,
+        recipient: EvmAddress.fromHex(relayer.address),
         outputAmount: _deposit_1.outputAmount.div(2),
         message: "0x12",
       },
@@ -714,8 +715,8 @@ describe("SpokePoolClient: Fill Validation", function () {
       throw new Error("fill_2 is undefined");
     }
 
-    expect(fill_1.relayExecutionInfo.updatedRecipient === depositor.address).to.be.true;
-    expect(fill_2.relayExecutionInfo.updatedRecipient === relayer.address).to.be.true;
+    expect(fill_1.relayExecutionInfo.updatedRecipient).to.deep.eq(EvmAddress.fromHex(depositor.address));
+    expect(fill_2.relayExecutionInfo.updatedRecipient.eq(EvmAddress.fromHex(relayer.address))).to.be.true;
     expect(fill_2.relayExecutionInfo.updatedMessageHash === ethers.utils.keccak256("0x12")).to.be.true;
     expect(fill_1.relayExecutionInfo.updatedMessageHash === ZERO_BYTES).to.be.true;
     expect(fill_1.relayExecutionInfo.updatedOutputAmount.eq(fill_2.relayExecutionInfo.updatedOutputAmount)).to.be.false;

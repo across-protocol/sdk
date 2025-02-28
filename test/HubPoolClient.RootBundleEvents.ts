@@ -215,11 +215,7 @@ describe("HubPoolClient: RootBundle Events", function () {
     expect(runningBalance.eq(toBNWei(100))).to.be.true;
 
     // Target block is before event.
-    ({ runningBalance } = hubPoolClient.getRunningBalanceBeforeBlockForChain(
-      0,
-      constants.originChainId,
-      l1Token
-    ));
+    ({ runningBalance } = hubPoolClient.getRunningBalanceBeforeBlockForChain(0, constants.originChainId, l1Token));
     expect(runningBalance.eq(0)).to.be.true;
 
     // chain ID and L1 token combination not found.

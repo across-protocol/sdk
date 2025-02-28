@@ -130,14 +130,12 @@ describe("HubPool Utilization", function () {
       // Quote time needs to be >= first rate model event time
     };
 
-    console.log("MARKER");
     // Relayed amount being 10% of total LP amount should give exact same results as this test in v1:
     // - https://github.com/UMAprotocol/protocol/blob/3b1a88ead18088e8056ecfefb781c97fce7fdf4d/packages/financial-templates-lib/test/clients/InsuredBridgeL1Client.js#L1037
     expect((await hubPoolClient.computeRealizedLpFeePct(depositData)).realizedLpFeePct).to.equal(
       toBNWei("0.000117987509354032")
     );
 
-    console.log("MARKER");
     // Next, let's increase the pool utilization from 0% to 60% by sending 60% of the pool's liquidity to
     // another chain.
     const leaves = buildPoolRebalanceLeaves(
@@ -148,15 +146,12 @@ describe("HubPool Utilization", function () {
       [[toBN(0)]],
       [0]
     );
-    console.log("MARKER");
     const tree = await buildPoolRebalanceLeafTree(leaves);
     await weth.approve(hubPool.address, totalBond);
     await hubPool.proposeRootBundle([1], 1, tree.getHexRoot(), mockTreeRoot, mockTreeRoot);
     await timer.setCurrentTime(Number(await timer.getCurrentTime()) + refundProposalLiveness + 1);
-    console.log("MARKER");
     await hubPool.executeRootBundle(...Object.values(leaves[0]), tree.getHexProof(leaves[0]));
 
-    console.log("MARKER");
     // Submit a deposit with a de minimis amount of tokens so we can isolate the computed realized lp fee % to the
     // pool utilization factor.
     expect(
@@ -171,7 +166,6 @@ describe("HubPool Utilization", function () {
       ).realizedLpFeePct
     ).to.equal(toBNWei("0.001371068779697899"));
 
-    console.log("MARKER");
     // Relaying 10% of pool should give exact same result as this test, which sends a relay that is 10% of the pool's
     // size when the pool is already at 60% utilization. The resulting post-relay utilization is therefore 70%.
     // - https://github.com/UMAprotocol/protocol/blob/3b1a88ead18088e8056ecfefb781c97fce7fdf4d/packages/financial-templates-lib/test/clients/InsuredBridgeL1Client.js#L1064
