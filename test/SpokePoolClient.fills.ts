@@ -8,7 +8,7 @@ import {
   assertPromiseError,
   Contract,
   SignerWithAddress,
-  fillV3Relay,
+  fillRelay,
   createSpyLogger,
   deploySpokePoolWithToken,
   ethers,
@@ -71,18 +71,18 @@ describe("SpokePoolClient: Fills", function () {
   });
 
   it("Correctly fetches fill data single fill, single chain", async function () {
-    await fillV3Relay(spokePool, deposit, relayer1);
-    await fillV3Relay(spokePool, { ...deposit, depositId: deposit.depositId.add(1) }, relayer1);
+    await fillRelay(spokePool, deposit, relayer1);
+    await fillRelay(spokePool, { ...deposit, depositId: deposit.depositId.add(1) }, relayer1);
     await spokePoolClient.update();
     expect(spokePoolClient.getFills().length).to.equal(2);
   });
 
   it("Correctly fetches deposit data multiple fills, multiple chains", async function () {
     // Mix and match various fields to produce unique fills and verify they are all recorded by the SpokePoolClient.
-    await fillV3Relay(spokePool, deposit, relayer1);
-    await fillV3Relay(spokePool, { ...deposit, originChainId: originChainId2 }, relayer1);
-    await fillV3Relay(spokePool, { ...deposit, inputAmount: deposit.inputAmount.add(bnOne) }, relayer1);
-    await fillV3Relay(spokePool, { ...deposit, inputAmount: deposit.outputAmount.sub(bnOne) }, relayer2);
+    await fillRelay(spokePool, deposit, relayer1);
+    await fillRelay(spokePool, { ...deposit, originChainId: originChainId2 }, relayer1);
+    await fillRelay(spokePool, { ...deposit, inputAmount: deposit.inputAmount.add(bnOne) }, relayer1);
+    await fillRelay(spokePool, { ...deposit, inputAmount: deposit.outputAmount.sub(bnOne) }, relayer2);
 
     await spokePoolClient.update();
 
@@ -105,7 +105,7 @@ describe("SpokePoolClient: Fills", function () {
     for (let i = 0; i < nBlocks; ++i) {
       const blockNumber = await spokePool.provider.getBlockNumber();
       if (blockNumber === targetFillBlock - 1) {
-        const { blockNumber: fillBlockNumber } = await fillV3Relay(spokePool, deposit, relayer1);
+        const { blockNumber: fillBlockNumber } = await fillRelay(spokePool, deposit, relayer1);
         expect(fillBlockNumber).to.equal(targetFillBlock);
         continue;
       }
@@ -121,9 +121,9 @@ describe("SpokePoolClient: Fills", function () {
     const targetDeposit = { ...deposit, depositId: deposit.depositId.add(1) };
     // Submit multiple fills at the same block:
     const startBlock = await spokePool.provider.getBlockNumber();
-    await fillV3Relay(spokePool, deposit, relayer1);
-    await fillV3Relay(spokePool, targetDeposit, relayer1);
-    await fillV3Relay(spokePool, { ...deposit, depositId: deposit.depositId.add(2) }, relayer1);
+    await fillRelay(spokePool, deposit, relayer1);
+    await fillRelay(spokePool, targetDeposit, relayer1);
+    await fillRelay(spokePool, { ...deposit, depositId: deposit.depositId.add(2) }, relayer1);
     await hre.network.provider.send("evm_mine");
 
     let fill = await findFillEvent(spokePool, targetDeposit, startBlock);
@@ -148,7 +148,7 @@ describe("SpokePoolClient: Fills", function () {
     const fillBlock = await findFillBlock(spokePool, deposit, startBlock);
     expect(fillBlock).to.be.undefined;
 
-    const { blockNumber: lateBlockNumber } = await fillV3Relay(spokePool, deposit, relayer1);
+    const { blockNumber: lateBlockNumber } = await fillRelay(spokePool, deposit, relayer1);
     await hre.network.provider.send("evm_mine");
 
     // Now search for the fill _after_ it was filled and expect an exception.
