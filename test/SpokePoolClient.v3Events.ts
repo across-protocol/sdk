@@ -3,14 +3,7 @@ import { utils as sdkUtils } from "../src";
 import { DEFAULT_CONFIG_STORE_VERSION, GLOBAL_CONFIG_STORE_KEYS } from "../src/clients";
 import { MockConfigStoreClient, MockHubPoolClient, MockSpokePoolClient } from "../src/clients/mocks";
 import { ZERO_ADDRESS, ZERO_BYTES } from "../src/constants";
-import {
-  DepositWithBlock,
-  FillWithBlock,
-  Log,
-  SlowFillRequest,
-  SpeedUp,
-  TokensBridged,
-} from "../src/interfaces";
+import { DepositWithBlock, FillWithBlock, Log, SlowFillRequest, SpeedUp, TokensBridged } from "../src/interfaces";
 import {
   bnOne,
   getCurrentTime,
