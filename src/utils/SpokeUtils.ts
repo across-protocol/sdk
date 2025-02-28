@@ -16,51 +16,6 @@ type BlockTag = providers.BlockTag;
 
 /**
  * @param spokePool SpokePool Contract instance.
- * @param deposit Deopsit instance.
- * @param repaymentChainId Optional repaymentChainId (defaults to destinationChainId).
- * @returns An Ethers UnsignedTransaction instance.
- */
-export function populateRelay(
-  spokePool: Contract,
-  deposit: Omit<Deposit, "messageHash">,
-  relayer: string,
-  repaymentChainId = deposit.destinationChainId
-): Promise<PopulatedTransaction> {
-  const RelayData = {
-    depositor: toBytes32(deposit.depositor),
-    recipient: toBytes32(deposit.recipient),
-    exclusiveRelayer: toBytes32(deposit.exclusiveRelayer),
-    inputToken: toBytes32(deposit.inputToken),
-    outputToken: toBytes32(deposit.outputToken),
-    inputAmount: deposit.inputAmount,
-    outputAmount: deposit.outputAmount,
-    originChainId: deposit.originChainId,
-    depositId: deposit.depositId,
-    fillDeadline: deposit.fillDeadline,
-    exclusivityDeadline: deposit.exclusivityDeadline,
-    message: deposit.message,
-  };
-  if (isDefined(deposit.speedUpSignature)) {
-    assert(isDefined(deposit.updatedRecipient) && !isZeroAddress(deposit.updatedRecipient));
-    assert(isDefined(deposit.updatedOutputAmount));
-    assert(isDefined(deposit.updatedMessage));
-    return spokePool.populateTransaction.fillRelayWithUpdatedDeposit(
-      RelayData,
-      repaymentChainId,
-      toBytes32(relayer),
-      deposit.updatedOutputAmount,
-      toBytes32(deposit.updatedRecipient),
-      deposit.updatedMessage,
-      deposit.speedUpSignature,
-      { from: relayer }
-    );
-  }
-
-  return spokePool.populateTransaction.fillRelay(RelayData, repaymentChainId, toBytes32(relayer), { from: relayer });
-}
-
-/**
- * @param spokePool SpokePool Contract instance.
  * @param deposit V3Deopsit instance.
  * @param repaymentChainId Optional repaymentChainId (defaults to destinationChainId).
  * @returns An Ethers UnsignedTransaction instance.
