@@ -122,13 +122,9 @@ export class SpokePoolClient extends BaseAbstractClient {
       "TokensBridged",
       "RelayedRootBundle",
       "ExecutedRelayerRefundRoot",
-      "V3FundsDeposited",
       "FundsDeposited",
-      "RequestedSpeedUpV3Deposit",
       "RequestedSpeedUpDeposit",
-      "RequestedV3SlowFill",
       "RequestedSlowFill",
-      "FilledV3Relay",
       "FilledRelay",
     ];
     return Object.fromEntries(
@@ -494,7 +490,7 @@ export class SpokePoolClient extends BaseAbstractClient {
   /**
    * @notice Return maximum of fill deadline buffer at start and end of block range. This is a contract
    * immutable state variable so we can't query other events to find its updates.
-   * @dev V3 deposits have a fill deadline which can be set to a maximum of fillDeadlineBuffer + deposit.block.timestamp.
+   * @dev Deposits have a fill deadline which can be set to a maximum of fillDeadlineBuffer + deposit.block.timestamp.
    * Therefore, we cannot evaluate a block range for expired deposits if the spoke pool client doesn't return us
    * deposits whose block.timestamp is within fillDeadlineBuffer of the end block time. As a conservative check,
    * we verify that the time between the end block timestamp and the first timestamp queried by the
@@ -684,7 +680,7 @@ export class SpokePoolClient extends BaseAbstractClient {
       }
     };
 
-    for (const event of ["V3FundsDeposited", "FundsDeposited"]) {
+    for (const event of ["FundsDeposited"]) {
       if (eventsToQuery.includes(event)) {
         await queryDepositEvents(event);
       }
@@ -712,7 +708,7 @@ export class SpokePoolClient extends BaseAbstractClient {
     };
 
     // Update deposits with speed up requests from depositor.
-    ["RequestedSpeedUpV3Deposit", "RequestedSpeedUpDeposit"].forEach((event) => {
+    ["RequestedSpeedUpDeposit"].forEach((event) => {
       if (eventsToQuery.includes(event)) {
         querySpeedUpDepositEvents(event);
       }
@@ -763,11 +759,6 @@ export class SpokePoolClient extends BaseAbstractClient {
           destinationChainId: this.chainId,
         } as FillWithBlock;
 
-        if (eventName === "FilledV3Relay") {
-          fill.messageHash = getMessageHash(event.args.message);
-          fill.relayExecutionInfo.updatedMessageHash = getMessageHash(event.args.relayExecutionInfo.updatedMessage);
-        }
-
         // Sanity check that this event is not a duplicate.
         const duplicateFill = this.fills[fill.originChainId]?.find((f) => duplicateEvent(fill, f));
         if (duplicateFill) {
@@ -781,7 +772,7 @@ export class SpokePoolClient extends BaseAbstractClient {
     };
 
     // Update observed fills with ingested event data.
-    ["FilledV3Relay", "FilledRelay"].forEach((event) => {
+    ["FilledRelay"].forEach((event) => {
       if (eventsToQuery.includes(event)) {
         queryFilledRelayEvents(event);
       }
@@ -944,23 +935,13 @@ export class SpokePoolClient extends BaseAbstractClient {
     );
 
     const tStart = Date.now();
-    // Check both V3FundsDeposited and FundsDeposited events to look for a specified depositId.
     const [fromBlock, toBlock] = [searchBounds.low, searchBounds.high];
     const { maxBlockLookBack } = this.eventSearchConfig;
-    const query = (
-      await Promise.all([
-        paginatedEventQuery(
-          this.spokePool,
-          this.spokePool.filters.V3FundsDeposited(null, null, null, null, null, depositId),
-          { fromBlock, toBlock, maxBlockLookBack }
-        ),
-        paginatedEventQuery(
-          this.spokePool,
-          this.spokePool.filters.FundsDeposited(null, null, null, null, null, depositId),
-          { fromBlock, toBlock, maxBlockLookBack }
-        ),
-      ])
-    ).flat();
+    const query = await paginatedEventQuery(
+      this.spokePool,
+      this.spokePool.filters.FundsDeposited(null, null, null, null, null, depositId),
+      { fromBlock, toBlock, maxBlockLookBack }
+    );
     const tStop = Date.now();
 
     const event = query.find(({ args }) => args["depositId"].eq(depositId));
@@ -989,7 +970,7 @@ export class SpokePoolClient extends BaseAbstractClient {
 
     this.logger.debug({
       at: "SpokePoolClient#findDeposit",
-      message: "Located V3 deposit outside of SpokePoolClient's search range",
+      message: "Located deposit outside of SpokePoolClient's search range",
       deposit,
       elapsedMs: tStop - tStart,
     });
