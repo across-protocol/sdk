@@ -56,10 +56,10 @@ let spokePoolClient1: SpokePoolClient, configStoreClient: MockConfigStoreClient;
 describe("SpokePoolClient: Fill Validation", function () {
   const truncateAddresses = (relayData: Omit<RelayData, "message">): void => {
     // Events emit bytes32 but the SpokePoolClient truncates evm addresses back to bytes20.
-    ["depositor", "recipient", "inputToken", "outputToken", "exclusiveRelayer"].forEach((field) =>
-      relayData[field] = toAddress(relayData[field])
+    ["depositor", "recipient", "inputToken", "outputToken", "exclusiveRelayer"].forEach(
+      (field) => (relayData[field] = toAddress(relayData[field]))
     );
-  }
+  };
 
   let inputToken: string, outputToken: string;
   let inputAmount: BigNumber, outputAmount: BigNumber;
