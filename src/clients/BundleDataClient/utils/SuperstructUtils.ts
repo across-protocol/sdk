@@ -33,11 +33,11 @@ const BigNumberType = coerce(instance(BigNumber), union([string(), number()]), (
 
 const AddressType = coerce(instance(Address), string(), (value) => {
   try {
-    // Attempt to convert the string to a BigNumber
+    // Attempt to convert the string to an Address 
     return Address.from(value);
   } catch (error) {
     // In case of any error during conversion, return the original value
-    // This will lead to a validation error, as the resulting value won't match the expected BigNumber type
+    // This will lead to a validation error, as the resulting value won't match the expected Address type
     return value;
   }
 });
