@@ -21,6 +21,7 @@ import {
   isValidEvmAddress,
   isZeroAddress,
   toAddress,
+  validateFillForDeposit,
 } from "../utils";
 import {
   duplicateEvent,
@@ -29,7 +30,6 @@ import {
   spreadEvent,
   spreadEventWithBlockNumber,
 } from "../utils/EventUtils";
-import { validateFillForDeposit } from "../utils/FlowUtils";
 import { ZERO_ADDRESS } from "../constants";
 import {
   Deposit,

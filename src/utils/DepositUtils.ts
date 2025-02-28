@@ -5,8 +5,7 @@ import { CachingMechanismInterface, Deposit, DepositWithBlock, Fill, SlowFillReq
 import { getNetworkName } from "./NetworkUtils";
 import { bnZero } from "./BigNumberUtils";
 import { getDepositInCache, getDepositKey, setDepositInCache } from "./CachingUtils";
-import { validateFillForDeposit } from "./FlowUtils";
-import { getMessageHash, isUnsafeDepositId } from "./SpokeUtils";
+import { getMessageHash, isUnsafeDepositId, validateFillForDeposit } from "./SpokeUtils";
 import { getCurrentTime } from "./TimeUtils";
 import { isDefined } from "./TypeGuards";
 import { isDepositFormedCorrectly } from "./ValidatorUtils";
