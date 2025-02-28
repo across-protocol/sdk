@@ -42,7 +42,10 @@ export function compareAddressesSimple(addressA?: string, addressB?: string): bo
 }
 
 // Constructs the appropriate Address type given an input string and chain ID.
-export function toAddress(address: string, chainId: number): Address {
+export function toAddress(address: string, chainId: number, forceCoercion = true): Address {
+  if (!forceCoercion) {
+    return Address.from(address);
+  }
   if (chainIsEvm(chainId)) {
     return EvmAddress.from(address);
   }
@@ -66,20 +69,20 @@ export class Address {
 
   // Constructs a new Address type given an input base58 string. Performs no validation.
   static fromBase58(bs58Address: string): Address {
-    return new Address(bs58.decode(bs58Address));
+    return new this(bs58.decode(bs58Address));
   }
 
   // Constructs a new Address type given an input hex string (of arbitrary length). Performs no validation.
   static fromHex(hexString: string): Address {
-    return new Address(utils.arrayify(hexString));
+    return new this(utils.arrayify(hexString));
   }
 
   // Constructs a new Address type by attempting to infer the input string's format.
   static from(address: string): Address {
     if (utils.isHexString(address)) {
-      return EvmAddress.fromHex(address);
+      return this.fromHex(address);
     }
-    return SvmAddress.fromBase58(address);
+    return this.fromBase58(address);
   }
 
   // Converts the address into a bytes32 string. Note that the output bytes will be lowercase  so that it matches ethers event data. This function will never

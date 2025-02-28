@@ -705,7 +705,7 @@ describe("SpokePoolClient: Fill Validation", function () {
       spokePool_2,
       {
         ..._deposit_1,
-        recipient: EvmAddress.fromHex(relayer.address),
+        recipient: Address.fromHex(relayer.address),
         outputAmount: _deposit_1.outputAmount.div(2),
         message: "0x12",
       },
@@ -718,8 +718,8 @@ describe("SpokePoolClient: Fill Validation", function () {
       throw new Error("fill_2 is undefined");
     }
 
-    expect(fill_1.relayExecutionInfo.updatedRecipient).to.deep.eq(EvmAddress.fromHex(depositor.address));
-    expect(fill_2.relayExecutionInfo.updatedRecipient.eq(EvmAddress.fromHex(relayer.address))).to.be.true;
+    expect(fill_1.relayExecutionInfo.updatedRecipient).to.deep.eq(Address.fromHex(depositor.address));
+    expect(fill_2.relayExecutionInfo.updatedRecipient.eq(Address.fromHex(relayer.address))).to.be.true;
     expect(fill_2.relayExecutionInfo.updatedMessageHash === ethers.utils.keccak256("0x12")).to.be.true;
     expect(fill_1.relayExecutionInfo.updatedMessageHash === ZERO_BYTES).to.be.true;
     expect(fill_1.relayExecutionInfo.updatedOutputAmount.eq(fill_2.relayExecutionInfo.updatedOutputAmount)).to.be.false;

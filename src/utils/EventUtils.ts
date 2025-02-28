@@ -115,10 +115,10 @@ export function spreadEvent(args: Result | Record<string, unknown>): { [key: str
       // Big TODO: Figure out where to validate that the input address is good, since taking all event addresses and just treating them as only an `Address` type
       // diminishes the utility of having a distinction between `EvmAddress` and `SvmAddress`.
       if (Array.isArray(returnedObject[key])) {
-        const mappedAddresses = (returnedObject[key] as unknown[]).map((_address) => Address.from(String(_address)));
+        const mappedAddresses = (returnedObject[key] as unknown[]).map((_address) => Address.fromHex(String(_address)));
         returnedObject[key] = mappedAddresses;
       } else {
-        returnedObject[key] = Address.from(String(returnedObject[key]));
+        returnedObject[key] = Address.fromHex(String(returnedObject[key]));
       }
     }
   }

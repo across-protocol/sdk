@@ -14,7 +14,7 @@ import {
   toBNWei,
   toWei,
   utf8ToHex,
-  EvmAddress,
+  Address,
 } from "../../src/utils";
 import {
   MAX_L1_TOKENS_PER_POOL_REBALANCE_LEAF,
@@ -339,19 +339,19 @@ async function _deposit(
   const message = opts.message ?? EMPTY_MESSAGE;
   const fillDeadline = opts.fillDeadline ?? spokePoolTime + fillDeadlineBuffer;
   const exclusivityDeadline = opts.exclusivityDeadline ?? 0;
-  const exclusiveRelayer = EvmAddress.fromHex(opts.exclusiveRelayer ?? zeroAddress)[addressModifier]();
+  const exclusiveRelayer = Address.fromHex(opts.exclusiveRelayer ?? zeroAddress)[addressModifier]();
 
   await spokePool
     .connect(signer)
     .depositV3(
-      EvmAddress.fromHex(depositor)[addressModifier](),
-      EvmAddress.fromHex(recipient)[addressModifier](),
-      EvmAddress.fromHex(inputToken)[addressModifier](),
-      EvmAddress.fromHex(outputToken)[addressModifier](),
+      Address.fromHex(depositor)[addressModifier](),
+      Address.fromHex(recipient)[addressModifier](),
+      Address.fromHex(inputToken)[addressModifier](),
+      Address.fromHex(outputToken)[addressModifier](),
       inputAmount,
       outputAmount,
       destinationChainId,
-      EvmAddress.fromHex(exclusiveRelayer)[addressModifier](),
+      Address.fromHex(exclusiveRelayer)[addressModifier](),
       quoteTimestamp,
       fillDeadline,
       exclusivityDeadline,
@@ -373,18 +373,18 @@ async function _deposit(
     depositId: toBN(args.depositId),
     originChainId: Number(originChainId),
     destinationChainId: Number(args!.destinationChainId),
-    depositor: EvmAddress.fromHex(args.depositor),
-    recipient: EvmAddress.fromHex(args.recipient),
-    inputToken: EvmAddress.fromHex(args.inputToken),
+    depositor: Address.fromHex(args.depositor),
+    recipient: Address.fromHex(args.recipient),
+    inputToken: Address.fromHex(args.inputToken),
     inputAmount: args.inputAmount,
-    outputToken: EvmAddress.fromHex(args.outputToken),
+    outputToken: Address.fromHex(args.outputToken),
     outputAmount: args.outputAmount,
     quoteTimestamp: args.quoteTimestamp,
     message: args.message,
     messageHash: getMessageHash(args.message),
     fillDeadline: args.fillDeadline,
     exclusivityDeadline: args.exclusivityDeadline,
-    exclusiveRelayer: EvmAddress.fromHex(args.exclusiveRelayer),
+    exclusiveRelayer: Address.fromHex(args.exclusiveRelayer),
     fromLiteChain: false,
     toLiteChain: false,
     quoteBlockNumber: 0, // @todo
@@ -417,17 +417,17 @@ export async function requestV3SlowFill(
     depositId: toBN(args.depositId),
     originChainId: Number(args.originChainId),
     destinationChainId,
-    depositor: EvmAddress.fromHex(args.depositor),
-    recipient: EvmAddress.fromHex(args.recipient),
-    inputToken: EvmAddress.fromHex(args.inputToken),
+    depositor: Address.fromHex(args.depositor),
+    recipient: Address.fromHex(args.recipient),
+    inputToken: Address.fromHex(args.inputToken),
     inputAmount: args.inputAmount,
-    outputToken: EvmAddress.fromHex(args.outputToken),
+    outputToken: Address.fromHex(args.outputToken),
     outputAmount: args.outputAmount,
     message: args.message,
     messageHash: getMessageHash(args.message),
     fillDeadline: args.fillDeadline,
     exclusivityDeadline: args.exclusivityDeadline,
-    exclusiveRelayer: EvmAddress.fromHex(args.exclusiveRelayer),
+    exclusiveRelayer: Address.fromHex(args.exclusiveRelayer),
     blockNumber,
     transactionHash,
     transactionIndex,
@@ -446,7 +446,7 @@ export async function fillV3Relay(
 
   await spokePool
     .connect(signer)
-    .fillRelay(deposit, repaymentChainId ?? destinationChainId, EvmAddress.fromHex(signer.address).toBytes32());
+    .fillRelay(deposit, repaymentChainId ?? destinationChainId, Address.fromHex(signer.address).toBytes32());
 
   const events = await spokePool.queryFilter(spokePool.filters.FilledRelay());
   const lastEvent = events.at(-1);
@@ -460,20 +460,20 @@ export async function fillV3Relay(
     depositId: toBN(args.depositId),
     originChainId: Number(args.originChainId),
     destinationChainId,
-    depositor: EvmAddress.fromHex(args.depositor),
-    recipient: EvmAddress.fromHex(args.recipient),
-    inputToken: EvmAddress.fromHex(args.inputToken),
+    depositor: Address.fromHex(args.depositor),
+    recipient: Address.fromHex(args.recipient),
+    inputToken: Address.fromHex(args.inputToken),
     inputAmount: args.inputAmount,
-    outputToken: EvmAddress.fromHex(args.outputToken),
+    outputToken: Address.fromHex(args.outputToken),
     outputAmount: args.outputAmount,
     messageHash: getMessageHash(args.message),
     fillDeadline: args.fillDeadline,
     exclusivityDeadline: args.exclusivityDeadline,
-    exclusiveRelayer: EvmAddress.fromHex(args.exclusiveRelayer),
-    relayer: EvmAddress.fromHex(args.relayer),
+    exclusiveRelayer: Address.fromHex(args.exclusiveRelayer),
+    relayer: Address.fromHex(args.relayer),
     repaymentChainId: Number(args.repaymentChainId),
     relayExecutionInfo: {
-      updatedRecipient: EvmAddress.fromHex(args.relayExecutionInfo.updatedRecipient),
+      updatedRecipient: Address.fromHex(args.relayExecutionInfo.updatedRecipient),
       updatedMessageHash: args.relayExecutionInfo.updatedMessageHash,
       updatedOutputAmount: args.relayExecutionInfo.updatedOutputAmount,
       fillType: args.relayExecutionInfo.fillType,
@@ -557,18 +557,18 @@ export function buildDepositForRelayerFeeTest(
     depositId: bnUint32Max,
     originChainId: 1,
     destinationChainId: 10,
-    depositor: EvmAddress.fromHex(randomAddress()),
-    recipient: EvmAddress.fromHex(randomAddress()),
-    inputToken: EvmAddress.fromHex(inputToken),
+    depositor: Address.fromHex(randomAddress()),
+    recipient: Address.fromHex(randomAddress()),
+    inputToken: Address.fromHex(inputToken),
     inputAmount: toBN(amount),
-    outputToken: EvmAddress.fromHex(outputToken),
+    outputToken: Address.fromHex(outputToken),
     outputAmount: toBN(amount).sub(bnOne),
     message,
     messageHash: getMessageHash(message),
     quoteTimestamp: currentTime,
     fillDeadline: currentTime + 7200,
     exclusivityDeadline: 0,
-    exclusiveRelayer: EvmAddress.fromHex(ZERO_ADDRESS),
+    exclusiveRelayer: Address.fromHex(ZERO_ADDRESS),
     fromLiteChain: false,
     toLiteChain: false,
   };

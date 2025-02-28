@@ -682,7 +682,7 @@ export class SpokePoolClient extends BaseAbstractClient {
 
       for (const event of speedUpEvents) {
         const speedUp = { ...spreadEventWithBlockNumber(event), originChainId: this.chainId } as SpeedUpWithBlock;
-        assign(this.speedUps, [speedUp.depositor, speedUp.depositId.toString()], [speedUp]);
+        assign(this.speedUps, [speedUp.depositor.toString(), speedUp.depositId.toString()], [speedUp]);
 
         // Find deposit hash matching this speed up event and update the deposit data associated with the hash,
         // if the hash+data exists.
@@ -784,7 +784,7 @@ export class SpokePoolClient extends BaseAbstractClient {
         const enableDeposit = spreadEvent(event.args);
         assign(
           this.depositRoutes,
-          [enableDeposit.originToken, enableDeposit.destinationChainId],
+          [enableDeposit.originToken.toString(), enableDeposit.destinationChainId],
           enableDeposit.enabled
         );
       }

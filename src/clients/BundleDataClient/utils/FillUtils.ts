@@ -105,7 +105,7 @@ export async function verifyFillRepayment(
     // or return something unexpected. We'd want to return undefined here.
     const fillTransaction = await destinationChainProvider.getTransaction(fill.transactionHash);
     const destinationRelayer = fillTransaction?.from;
-    const replacementRelayer = toAddress(destinationRelayer, repaymentChainId);
+    const replacementRelayer = toAddress(destinationRelayer, repaymentChainId, false);
     // Repayment chain is still an EVM chain, but the msg.sender is a bytes32 address, so the fill is invalid.
     if (!isDefined(destinationRelayer) || !replacementRelayer.isValidEvmAddress()) {
       return undefined;

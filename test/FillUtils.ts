@@ -124,7 +124,7 @@ describe("FillUtils", function () {
       } as unknown as TransactionResponse);
       const result = await verifyFillRepayment(invalidRepaymentFill, spokeProvider, liteChainDeposit, hubPoolClient);
       expect(result).to.not.be.undefined;
-      expect(result!.relayer).to.deep.equal(relayer);
+      expect(result!.relayer.eq(relayer)).to.be.true;
       expect(result!.repaymentChainId).to.equal(originChainId);
     });
     it("Relayer is not valid EVM address, relayer gets overwritten to msg.sender", async function () {
@@ -143,7 +143,7 @@ describe("FillUtils", function () {
       } as unknown as TransactionResponse);
       const result = await verifyFillRepayment(invalidRepaymentFill, spokeProvider, deposit, hubPoolClient);
       expect(result).to.not.be.undefined;
-      expect(result!.relayer).to.deep.equal(relayer);
+      expect(result!.relayer.eq(relayer)).to.be.true;
       // Repayment chain gets overwritten to destination chain.
       expect(result!.repaymentChainId).to.equal(destinationChainId);
     });
