@@ -40,8 +40,7 @@ function snakeToCamel(s: string): string {
 /**
  * Gets the event name from a raw name.
  */
-export function getEventName(rawName?: string): EventName {
-  if (!rawName) throw new Error("Raw name is undefined");
+export function getEventName(rawName: string): EventName {
   if (Object.values(SVMEventNames).some((name) => rawName.includes(name))) return rawName as EventName;
   throw new Error(`Unknown event name: ${rawName}`);
 }

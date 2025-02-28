@@ -1,19 +1,20 @@
 import { getDeployedAddress, SvmSpokeIdl } from "@across-protocol/contracts";
 import { getSolanaChainId } from "@across-protocol/contracts/dist/src/svm/web3-v1";
-import { BorshEventCoder, Idl, utils } from "@coral-xyz/anchor";
+import { BorshEventCoder, utils } from "@coral-xyz/anchor";
 import web3, {
   Address,
   Commitment,
   GetSignaturesForAddressApi,
   GetTransactionApi,
   RpcTransport,
-  Signature,
-  unixTimestamp,
+  Signature
 } from "@solana/web3-v2.js";
 import { EventData, EventName, EventWithData } from "./types";
 import { getEventName, parseEventData } from "./utils/events";
 import { isDevnet } from "./utils/helpers";
 
+// Note: Type assumes default JSON encoding. Using different encoding options (e.g. base58) would result in incompatible
+// return types.
 type GetTransactionReturnType = ReturnType<GetTransactionApi["getTransaction"]>;
 type GetSignaturesForAddressConfig = Parameters<GetSignaturesForAddressApi["getSignaturesForAddress"]>[1];
 type GetSignaturesForAddressTransaction = ReturnType<GetSignaturesForAddressApi["getSignaturesForAddress"]>[number];
@@ -57,10 +58,9 @@ export class SvmSpokeEventsClient {
     eventName: EventName,
     fromSlot?: bigint,
     toSlot?: bigint,
-    options: GetSignaturesForAddressConfig = { limit: 1000 },
-    finality: Commitment = "confirmed"
+    options: GetSignaturesForAddressConfig = { limit: 1000, commitment: "confirmed" },
   ): Promise<EventWithData<T>[]> {
-    const events = await this.queryAllEvents(this.svmSpokeAddress, SvmSpokeIdl, fromSlot, toSlot, options, finality);
+    const events = await this.queryAllEvents(fromSlot, toSlot, options);
     return events.filter((event) => event.name === eventName) as EventWithData<T>[];
   }
 
@@ -72,16 +72,13 @@ export class SvmSpokeEventsClient {
    * @param fromSlot - Optional starting slot.
    * @param toSlot - Optional ending slot.
    * @param options - Options for fetching signatures.
-   * @param finality - Commitment level.
+   * @param commitment - Commitment level.
    * @returns A promise that resolves to an array of all events with additional metadata.
    */
   private async queryAllEvents(
-    program: Address,
-    anchorIdl: Idl,
     fromSlot?: bigint,
     toSlot?: bigint,
-    options: GetSignaturesForAddressConfig = { limit: 1000 },
-    finality: Commitment = "confirmed"
+    options: GetSignaturesForAddressConfig = { limit: 1000, commitment: "confirmed" }
   ): Promise<EventWithData<EventData>[]> {
     const allSignatures: GetSignaturesForAddressTransaction[] = [];
     let hasMoreSignatures = true;
@@ -89,7 +86,7 @@ export class SvmSpokeEventsClient {
 
     while (hasMoreSignatures) {
       const signatures: GetSignaturesForAddressApiResponse = await this.rpc
-        .getSignaturesForAddress(program, currentOptions)
+        .getSignaturesForAddress(this.svmSpokeAddress, currentOptions)
         .send();
       // Signatures are sorted by slot in descending order.
       allSignatures.push(...signatures);
@@ -117,11 +114,11 @@ export class SvmSpokeEventsClient {
     // Fetch events for all signatures in parallel.
     const eventsWithSlots = await Promise.all(
       filteredSignatures.map(async (signatureTransaction) => {
-        const events = await this.readEventsFromSignature(signatureTransaction.signature, program, anchorIdl, finality);
+        const events = await this.readEventsFromSignature(signatureTransaction.signature, options.commitment);
         return events.map((event) => ({
           ...event,
-          confirmationStatus: signatureTransaction.confirmationStatus || "Unknown",
-          blockTime: signatureTransaction.blockTime || unixTimestamp(BigInt(0)),
+          confirmationStatus: signatureTransaction.confirmationStatus,
+          blockTime: signatureTransaction.blockTime,
           signature: signatureTransaction.signature,
           slot: signatureTransaction.slot,
         }));
@@ -141,8 +138,6 @@ export class SvmSpokeEventsClient {
    */
   private async readEventsFromSignature(
     txSignature: Signature,
-    programId: Address,
-    programIdl: Idl,
     commitment: Commitment = "confirmed"
   ) {
     const txResult = await this.rpc
@@ -150,7 +145,7 @@ export class SvmSpokeEventsClient {
       .send();
 
     if (txResult === null) return [];
-    return this.processEventFromTx(txResult, programId, programIdl);
+    return this.processEventFromTx(txResult);
   }
 
   /**
@@ -162,9 +157,7 @@ export class SvmSpokeEventsClient {
    * @returns A promise that resolves to an array of events with their data and name.
    */
   private async processEventFromTx(
-    txResult: GetTransactionReturnType,
-    programId: Address,
-    programIdl: Idl
+    txResult: GetTransactionReturnType
   ): Promise<{ program: Address; data: EventData; name: EventName }[]> {
     if (!txResult) return [];
 
@@ -173,10 +166,10 @@ export class SvmSpokeEventsClient {
 
     // Derive the event authority PDA.
     const [pda] = await web3.getProgramDerivedAddress({
-      programAddress: programId,
+      programAddress: this.svmSpokeAddress,
       seeds: ["__event_authority"],
     });
-    eventAuthorities.set(programId, pda);
+    eventAuthorities.set(this.svmSpokeAddress.toString(), pda);
 
     const accountKeys = txResult.transaction.message.accountKeys;
     const messageAccountKeys = [...accountKeys];
@@ -192,16 +185,17 @@ export class SvmSpokeEventsClient {
         if (
           ixProgramId !== undefined &&
           singleIxAccount !== undefined &&
-          programId == ixProgramId &&
-          eventAuthorities.get(ixProgramId.toString()) == singleIxAccount
+          this.svmSpokeAddress === ixProgramId &&
+          eventAuthorities.get(ixProgramId.toString()) === singleIxAccount
         ) {
           const ixData = utils.bytes.bs58.decode(ix.data);
           // Skip the first 8 bytes (assumed header) and encode the rest.
           const eventData = utils.bytes.base64.encode(Buffer.from(new Uint8Array(ixData).slice(8)));
-          const event = new BorshEventCoder(programIdl).decode(eventData);
-          const name = getEventName(event?.name);
+          const event = new BorshEventCoder(SvmSpokeIdl).decode(eventData);
+          if (!event?.name) throw new Error("Event name is undefined");
+          const name = getEventName(event.name);
           events.push({
-            program: programId,
+            program: this.svmSpokeAddress,
             data: parseEventData(event?.data),
             name,
           });
