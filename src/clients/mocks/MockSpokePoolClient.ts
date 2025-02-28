@@ -202,7 +202,7 @@ export class MockSpokePoolClient extends SpokePoolClient {
     const exclusiveRelayer = toBytes32(fill.exclusiveRelayer ?? ZERO_ADDRESS);
     const relayer = toBytes32(fill.relayer ?? randomAddress());
 
-    const topics = [originChainId, depositId, relayer]; // @todo verify
+    const topics = [originChainId, depositId, relayer];
     const message = fill.message ?? EMPTY_MESSAGE;
     const updatedMessage = fill.relayExecutionInfo?.updatedMessage ?? message;
 
