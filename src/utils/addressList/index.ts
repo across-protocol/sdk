@@ -5,7 +5,7 @@ import * as bybit from "./adapters/bybit";
 export class AddressList {
   constructor(readonly addressLists: AddressListAdapter[]) {}
 
-  async update(): Promise<{ length: number; addresses: Set<string> }> {
+  async update(): Promise<Set<string>> {
     const rawAddresses = await Promise.all(this.addressLists.map((adapter) => adapter.update()));
     const allAddresses = rawAddresses
       .flat()
@@ -19,20 +19,15 @@ export class AddressList {
       .filter((address) => address !== INVALID_ADDRESS);
 
     // Dedup the aggregated, normalised, filtered set of addresses.
-    const addresses = new Set(allAddresses);
-
-    return {
-      addresses,
-      length: Array.from(addresses).length,
-    };
+    return new Set(allAddresses);
   }
 }
 
 async function run(): Promise<number> {
   const addressList = new AddressList([new bybit.AddressList()]);
 
-  const { length, addresses } = await addressList.update();
-  console.log(`Retrieved ${length} addresses: ${JSON.stringify(Array.from(addresses), null, 2)}`);
+  const addresses = await addressList.update();
+  console.log(`Retrieved ${addresses.size} addresses: ${JSON.stringify(Array.from(addresses), null, 2)}`);
 
   return 0;
 }
