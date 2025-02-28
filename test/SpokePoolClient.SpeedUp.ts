@@ -10,7 +10,7 @@ import {
   createSpyLogger,
   deepEqualsWithBigNumber,
   deploySpokePoolWithToken,
-  depositV3,
+  deposit,
   enableRoutes,
   ethers,
   expect,
@@ -55,7 +55,7 @@ describe("SpokePoolClient: SpeedUp", function () {
   });
 
   it("Fetches speedup data associated with a deposit", async function () {
-    const deposit = await depositV3(
+    const depositEvent = await deposit(
       spokePool,
       destinationChainId,
       depositor,
@@ -67,14 +67,14 @@ describe("SpokePoolClient: SpeedUp", function () {
     await spokePoolClient.update();
 
     // Should return the normal deposit object before any update is applied.
-    expect(spokePoolClient.appendMaxSpeedUpSignatureToDeposit(deposit)).to.deep.equal(deposit);
+    expect(spokePoolClient.appendMaxSpeedUpSignatureToDeposit(depositEvent)).to.deep.equal(depositEvent);
 
-    const updatedOutputAmount = deposit.outputAmount.sub(bnOne);
-    const updatedRecipient = deposit.recipient;
-    const updatedMessage = deposit.message;
+    const updatedOutputAmount = depositEvent.outputAmount.sub(bnOne);
+    const updatedRecipient = depositEvent.recipient;
+    const updatedMessage = depositEvent.message;
     const signature = await getUpdatedV3DepositSignature(
       depositor,
-      deposit.depositId,
+      depositEvent.depositId,
       originChainId,
       updatedOutputAmount,
       toBytes32(updatedRecipient),
@@ -85,7 +85,7 @@ describe("SpokePoolClient: SpeedUp", function () {
       .connect(depositor)
       .speedUpDeposit(
         toBytes32(depositor.address),
-        deposit.depositId,
+        depositEvent.depositId,
         updatedOutputAmount,
         toBytes32(updatedRecipient),
         updatedMessage,
@@ -96,14 +96,14 @@ describe("SpokePoolClient: SpeedUp", function () {
 
     // After speedup should return the appended object with the new fee information and signature.
     const expectedDepositData: Deposit = {
-      ...deposit,
-      messageHash: getMessageHash(deposit.message),
+      ...depositEvent,
+      messageHash: getMessageHash(depositEvent.message),
       speedUpSignature: signature,
       updatedOutputAmount,
       updatedMessage,
       updatedRecipient,
     };
-    const updatedDeposit = spokePoolClient.appendMaxSpeedUpSignatureToDeposit(deposit);
+    const updatedDeposit = spokePoolClient.appendMaxSpeedUpSignatureToDeposit(depositEvent);
     expect(deepEqualsWithBigNumber(updatedDeposit, expectedDepositData)).to.be.true;
 
     // Fetching deposits for the depositor should contain the correct fees.
@@ -118,7 +118,7 @@ describe("SpokePoolClient: SpeedUp", function () {
   });
 
   it("Selects the lowest outputAmount when multiple are presented", async function () {
-    const deposit = await depositV3(
+    const depositEvent = await deposit(
       spokePool,
       destinationChainId,
       depositor,
@@ -130,10 +130,10 @@ describe("SpokePoolClient: SpeedUp", function () {
     await spokePoolClient.update();
 
     // Should return the normal deposit object before any update is applied.
-    expect(spokePoolClient.appendMaxSpeedUpSignatureToDeposit(deposit)).to.deep.equal(deposit);
+    expect(spokePoolClient.appendMaxSpeedUpSignatureToDeposit(depositEvent)).to.deep.equal(depositEvent);
 
     const depositUpdates: SpeedUp[] = [];
-    const { depositId, recipient: updatedRecipient, message: updatedMessage } = deposit;
+    const { depositId, recipient: updatedRecipient, message: updatedMessage } = depositEvent;
     for (const updatedOutputAmount of [outputAmount.add(1), outputAmount, outputAmount.sub(1), outputAmount.sub(2)]) {
       const depositorSignature = await getUpdatedV3DepositSignature(
         depositor,
@@ -173,13 +173,13 @@ describe("SpokePoolClient: SpeedUp", function () {
         : outputAmount;
 
       await spokePoolClient.update();
-      let updatedDeposit = spokePoolClient.getDepositsForDestinationChain(deposit.destinationChainId).at(-1);
+      let updatedDeposit = spokePoolClient.getDepositsForDestinationChain(depositEvent.destinationChainId).at(-1);
 
       // Convoluted checks to help tsc narrow types.
       expect(updatedDeposit).to.exist;
       updatedDeposit = updatedDeposit!;
 
-      if (lowestOutputAmount.eq(deposit.outputAmount)) {
+      if (lowestOutputAmount.eq(depositEvent.outputAmount)) {
         expect(updatedDeposit.updatedOutputAmount).to.be.undefined;
         expect(updatedDeposit.speedUpSignature).to.be.undefined;
         expect(updatedDeposit.updatedRecipient).to.be.undefined;
@@ -194,7 +194,7 @@ describe("SpokePoolClient: SpeedUp", function () {
   });
 
   it("Ignores invalid updates", async function () {
-    const deposit = await depositV3(
+    const depositEvent = await deposit(
       spokePool,
       destinationChainId,
       depositor,
@@ -206,10 +206,10 @@ describe("SpokePoolClient: SpeedUp", function () {
     await spokePoolClient.update();
 
     // Should return the normal deposit object before any update is applied.
-    expect(spokePoolClient.appendMaxSpeedUpSignatureToDeposit(deposit)).to.deep.equal(deposit);
+    expect(spokePoolClient.appendMaxSpeedUpSignatureToDeposit(depositEvent)).to.deep.equal(depositEvent);
 
-    const { depositId, originChainId, recipient: updatedRecipient, message: updatedMessage } = deposit;
-    const updatedOutputAmount = deposit.outputAmount.sub(bnOne);
+    const { depositId, originChainId, recipient: updatedRecipient, message: updatedMessage } = depositEvent;
+    const updatedOutputAmount = depositEvent.outputAmount.sub(bnOne);
 
     // Independently toggle originChainId, depositId and depositor. Verify that a mismatch on these fields is not
     // attributed to the existing deposit.
@@ -230,7 +230,7 @@ describe("SpokePoolClient: SpeedUp", function () {
 
       const speedUp = spokePool
         .connect(depositor)
-        .speedUpV3Deposit(
+        .speedUpDeposit(
           testDepositor.address,
           testDepositId,
           updatedOutputAmount,
@@ -244,9 +244,8 @@ describe("SpokePoolClient: SpeedUp", function () {
         await assertPromiseError(speedUp);
       }
 
-      // The updated deposit information should never be attached to the
-      // deposit.
-      expect(spokePoolClient.appendMaxSpeedUpSignatureToDeposit(deposit)).to.deep.equal(deposit);
+      // The updated deposit information should never be attached to the deposit.
+      expect(spokePoolClient.appendMaxSpeedUpSignatureToDeposit(depositEvent)).to.deep.equal(depositEvent);
     }
   });
 });

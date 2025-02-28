@@ -1,4 +1,4 @@
-import { DepositWithBlock, FillStatus, FillType } from "../src/interfaces";
+import { DepositWithBlock, FillStatus, FillType, RelayData } from "../src/interfaces";
 import { SpokePoolClient } from "../src/clients";
 import {
   bnOne,
@@ -12,6 +12,7 @@ import {
   DepositSearchResult,
   getBlockRangeForDepositId,
   toAddress,
+  toBytes32,
 } from "../src/utils";
 import { ZERO_BYTES } from "../src/constants";
 import { CHAIN_ID_TEST_LIST, originChainId, destinationChainId, repaymentChainId } from "./constants";
@@ -53,6 +54,13 @@ let spokePoolClient2: SpokePoolClient, hubPoolClient: MockHubPoolClient;
 let spokePoolClient1: SpokePoolClient, configStoreClient: MockConfigStoreClient;
 
 describe("SpokePoolClient: Fill Validation", function () {
+  const truncateAddresses = (relayData: Omit<RelayData, "message">): void => {
+    // Events emit bytes32 but the SpokePoolClient truncates evm addresses back to bytes20.
+    ["depositor", "recipient", "inputToken", "outputToken", "exclusiveRelayer"].forEach((field) =>
+      relayData[field] = toAddress(relayData[field])
+    );
+  }
+
   let inputToken: string, outputToken: string;
   let inputAmount: BigNumber, outputAmount: BigNumber;
 
@@ -134,10 +142,7 @@ describe("SpokePoolClient: Fill Validation", function () {
     const fill = await fillRelay(spokePool_2, depositEvent, relayer);
     await spokePoolClient2.update();
 
-    // Events emit bytes32 but the SpokePoolClient truncates evm addresses back to bytes20.
-    ["depositor", "recipient", "inputToken", "outputToken", "exclusiveRelayer"].forEach(
-      (field) => (fill[field] = toAddress(fill[field]))
-    );
+    truncateAddresses(fill);
     expect(validateFillForDeposit(fill, depositEvent)).to.deep.equal({ valid: true });
 
     const ignoredFields = [
@@ -281,6 +286,8 @@ describe("SpokePoolClient: Fill Validation", function () {
     );
 
     const fill = await fillRelay(spokePool_2, depositEvent, relayer);
+    truncateAddresses(fill);
+
     expect(spokePoolClient2.getDepositForFill(fill)).to.not.exist;
     await spokePoolClient1.update();
 
@@ -514,8 +521,8 @@ describe("SpokePoolClient: Fill Validation", function () {
 
     await assertPromiseError(queryHistoricalDepositForFill(spokePoolClient1, fill), "SpokePoolClient must be updated");
 
-    // Set event search config from block to latest block so client doesn't see event.
-    spokePoolClient1.eventSearchConfig.fromBlock = await spokePool_1.provider.getBlockNumber();
+    // Set event search config from block ahead of the deposit block so client doesn't see event.
+    spokePoolClient1.eventSearchConfig.fromBlock = depositEvent.blockNumber + 1;
     spokePoolClient1.firstBlockToSearch = spokePoolClient1.eventSearchConfig.fromBlock;
     await spokePoolClient1.update();
 
@@ -539,7 +546,7 @@ describe("SpokePoolClient: Fill Validation", function () {
       outputToken,
       outputAmount
     );
-    const { blockNumber: depositBlock } = deposit;
+    const { blockNumber: depositBlock } = depositEvent;
 
     await fillRelay(spokePool_2, depositEvent, relayer);
     await spokePoolClient2.update();
@@ -561,7 +568,7 @@ describe("SpokePoolClient: Fill Validation", function () {
     const historicalDeposit = await queryHistoricalDepositForFill(spokePoolClient1, fill);
     assert.equal(historicalDeposit.found, true, "Test is broken"); // Help tsc to narrow the discriminated union.
     expect((historicalDeposit as Extract<DepositSearchResult, { found: true }>).deposit.depositId).to.deep.equal(
-      deposit.depositId
+      depositEvent.depositId
     );
   });
 
@@ -576,17 +583,19 @@ describe("SpokePoolClient: Fill Validation", function () {
       outputAmount
     );
     const fill = await fillRelay(spokePool_2, depositEvent, relayer);
+    truncateAddresses(fill);
+
     await spokePoolClient1.update();
-    expect(spokePoolClient1.earliestDepositIdQueried == 0).is.true;
+    expect(spokePoolClient1.earliestDepositIdQueried.eq(bnZero)).is.true;
 
     // Client should NOT send RPC requests to fetch this deposit, instead it should load from memory.
     expect((await queryHistoricalDepositForFill(spokePoolClient1, fill)).found).is.true;
     expect(lastSpyLogIncludes(spy, "updated!")).is.true;
 
     // Now override earliest deposit ID queried so that its > deposit ID and check that client sends RPC requests.
-    spokePoolClient1.earliestDepositIdQueried = 1;
+    spokePoolClient1.earliestDepositIdQueried = bnOne;
     expect((await queryHistoricalDepositForFill(spokePoolClient1, fill)).found).is.true;
-    expect(lastSpyLogIncludes(spy, "Located V3 deposit outside of SpokePoolClient's search range")).is.true;
+    expect(lastSpyLogIncludes(spy, "Located deposit outside of SpokePoolClient's search range")).is.true;
   });
 
   it("Loads fills from memory with deposit ID < spoke pool client's latest deposit ID queried", async function () {
@@ -601,18 +610,20 @@ describe("SpokePoolClient: Fill Validation", function () {
       outputAmount
     );
     const fill = await fillRelay(spokePool_2, depositEvent, relayer);
+    truncateAddresses(fill);
+
     await spokePoolClient1.update();
     // Manually override latest deposit ID queried so that its > deposit ID.
-    spokePoolClient1.latestDepositIdQueried = 1;
+    spokePoolClient1.latestDepositIdQueried = bnOne;
 
     // Client should NOT send RPC requests to fetch this deposit, instead it should load from memory.
     expect((await queryHistoricalDepositForFill(spokePoolClient1, fill)).found).is.true;
     expect(lastSpyLogIncludes(spy, "updated!")).is.true;
 
     // Now override latest deposit ID queried so that its < deposit ID and check that client sends RPC requests.
-    spokePoolClient1.latestDepositIdQueried = -1;
+    spokePoolClient1.latestDepositIdQueried = toBN("-1");
     expect((await queryHistoricalDepositForFill(spokePoolClient1, fill)).found).is.true;
-    expect(lastSpyLogIncludes(spy, "Located V3 deposit outside of SpokePoolClient's search range")).is.true;
+    expect(lastSpyLogIncludes(spy, "Located deposit outside of SpokePoolClient's search range")).is.true;
   });
 
   it("Ignores fills with deposit ID < first deposit ID in spoke pool", async function () {
@@ -631,7 +642,7 @@ describe("SpokePoolClient: Fill Validation", function () {
 
     // Override the first spoke pool deposit ID that the client thinks is available in the contract.
     await spokePoolClient1.update();
-    spokePoolClient1.firstDepositIdForSpokePool = deposit.depositId.add(1);
+    spokePoolClient1.firstDepositIdForSpokePool = depositEvent.depositId.add(1);
     expect(fill.depositId < spokePoolClient1.firstDepositIdForSpokePool).is.true;
     const search = await queryHistoricalDepositForFill(spokePoolClient1, fill);
 
@@ -710,20 +721,15 @@ describe("SpokePoolClient: Fill Validation", function () {
       relayer
     );
 
-    // Sanity Check: Ensure that fill2 is defined
-    expect(fill_2).to.not.be.undefined;
-    if (!fill_2) {
-      throw new Error("fill_2 is undefined");
-    }
-
-    expect(fill_1.relayExecutionInfo.updatedRecipient === depositor.address).to.be.true;
-    expect(fill_2.relayExecutionInfo.updatedRecipient === relayer.address).to.be.true;
+    expect(fill_1.relayExecutionInfo.updatedRecipient).to.eq(toBytes32(depositor.address));
+    expect(fill_2.relayExecutionInfo.updatedRecipient).to.eq(toBytes32(relayer.address));
     expect(fill_2.relayExecutionInfo.updatedMessageHash === ethers.utils.keccak256("0x12")).to.be.true;
     expect(fill_1.relayExecutionInfo.updatedMessageHash === ZERO_BYTES).to.be.true;
     expect(fill_1.relayExecutionInfo.updatedOutputAmount.eq(fill_2.relayExecutionInfo.updatedOutputAmount)).to.be.false;
     expect(fill_1.relayExecutionInfo.fillType === FillType.FastFill).to.be.true;
     expect(fill_2.relayExecutionInfo.fillType === FillType.FastFill).to.be.true;
 
+    [fill_1, fill_2].forEach(truncateAddresses);
     const _deposit = spokePoolClient1.getDepositForFill(fill_1);
     expect(_deposit).to.exist;
     let result = validateFillForDeposit(fill_1, _deposit);
@@ -740,6 +746,8 @@ describe("SpokePoolClient: Fill Validation", function () {
       outputAmount
     );
     const fill = await fillRelay(spokePool_2, depositEvent_2, relayer);
+    truncateAddresses(fill);
+
     await spokePoolClient2.update();
 
     expect(validateFillForDeposit(fill, depositEvent_2)).to.deep.equal({ valid: true });
