@@ -8,7 +8,6 @@ import {
   FillWithBlock,
   Log,
   SlowFillRequest,
-  SlowFillRequestWithBlock,
   SpeedUp,
   TokensBridged,
 } from "../src/interfaces";
@@ -364,7 +363,7 @@ describe("SpokePoolClient: Event Filtering", function () {
       expect(deposit.depositId).to.equal(depositEvent.args.depositId);
 
       const fill = fillFromDeposit(deposit, relayer);
-      fillEvents.push(destinationSpokePoolClient.fillRelay(fill as FillWithBlock & { message: string }));
+      fillEvents.push(destinationSpokePoolClient.fillRelay(fill));
     }
     await destinationSpokePoolClient.update(filledRelayEvents);
 
@@ -449,7 +448,7 @@ describe("SpokePoolClient: Event Filtering", function () {
         exclusiveRelayer,
         relayer,
         depositId: toBN(i),
-      } as FillWithBlock & { message: string });
+      } as Omit<FillWithBlock, "messageHash">);
       await originSpokePoolClient.update(filledRelayEvents);
 
       let relay = originSpokePoolClient.getFills().at(-1);
@@ -482,7 +481,7 @@ describe("SpokePoolClient: Event Filtering", function () {
         messageHash: ZERO_BYTES,
         fillDeadline: 0,
         exclusivityDeadline: 0,
-      } as SlowFillRequestWithBlock);
+      });
       await originSpokePoolClient.update(slowFillRequestedEvents);
 
       let slowFill = originSpokePoolClient.getSlowFillRequestsForOriginChain(1).at(-1);

@@ -179,13 +179,13 @@ export class MockSpokePoolClient extends SpokePoolClient {
     });
   }
 
-  fillRelay(fill: Omit<Fill, "messageHash"> & { message: string } & Partial<SortableEvent>): Log {
+  fillRelay(fill: Omit<Fill, "messageHash"> & { message?: string } & Partial<SortableEvent>): Log {
     return this._fillRelay("FilledRelay", fill);
   }
 
   protected _fillRelay(
     event: string,
-    fill: Omit<Fill, "messageHash"> & { message: string } & Partial<SortableEvent>
+    fill: Omit<Fill, "messageHash"> & { message?: string } & Partial<SortableEvent>
   ): Log {
     const { blockNumber, transactionIndex } = fill;
     let { originChainId, depositId, inputAmount, outputAmount, fillDeadline } = fill;
@@ -286,11 +286,14 @@ export class MockSpokePoolClient extends SpokePoolClient {
     });
   }
 
-  requestSlowFill(request: SlowFillRequest & Partial<SortableEvent>): Log {
+  requestSlowFill(request: Omit<SlowFillRequest, "destinationChainId"> & Partial<SortableEvent>): Log {
     return this._requestSlowFill("RequestedSlowFill", request);
   }
 
-  protected _requestSlowFill(event: string, request: SlowFillRequest & Partial<SortableEvent>): Log {
+  protected _requestSlowFill(
+    event: string,
+    request: Omit<SlowFillRequest, "destinationChainId"> & Partial<SortableEvent>
+  ): Log {
     const { originChainId, depositId } = request;
     const topics = [originChainId, depositId];
     const args = { ...request };
@@ -303,6 +306,7 @@ export class MockSpokePoolClient extends SpokePoolClient {
       topics: topics.map((topic) => topic.toString()),
       args: {
         ...args,
+        destinationChainId: this.chainId,
         depositor,
         recipient: toBytes32(args.recipient ?? depositor),
         inputToken: toBytes32(args.inputToken ?? randomAddress()),
