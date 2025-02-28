@@ -17,6 +17,7 @@ import {
   fixedPointAdjustment,
   count2DDictionaryValues,
   count3DDictionaryValues,
+  Address,
 } from "../../../utils";
 import {
   addLastRunningBalance,
@@ -65,10 +66,10 @@ export function getRefundsFromBundle(
     Object.entries(depositsForChain).forEach(([l2TokenAddress, deposits]) => {
       deposits.forEach((deposit) => {
         if (combinedRefunds[originChainId][l2TokenAddress] === undefined) {
-          combinedRefunds[originChainId][l2TokenAddress] = { [deposit.depositor]: deposit.inputAmount };
+          combinedRefunds[originChainId][l2TokenAddress] = { [deposit.depositor.toString()]: deposit.inputAmount };
         } else {
-          const existingRefundAmount = combinedRefunds[originChainId][l2TokenAddress][deposit.depositor];
-          combinedRefunds[originChainId][l2TokenAddress][deposit.depositor] = deposit.inputAmount.add(
+          const existingRefundAmount = combinedRefunds[originChainId][l2TokenAddress][deposit.depositor.toString()];
+          combinedRefunds[originChainId][l2TokenAddress][deposit.depositor.toString()] = deposit.inputAmount.add(
             existingRefundAmount ?? bnZero
           );
         }
@@ -145,7 +146,8 @@ export function _buildPoolRebalanceRoot(
   Object.entries(bundleFillsV3).forEach(([_repaymentChainId, fillsForChain]) => {
     const repaymentChainId = Number(_repaymentChainId);
     Object.entries(fillsForChain).forEach(
-      ([l2TokenAddress, { realizedLpFees: totalRealizedLpFee, totalRefundAmount }]) => {
+      ([_l2TokenAddress, { realizedLpFees: totalRealizedLpFee, totalRefundAmount }]) => {
+        const l2TokenAddress = Address.fromHex(_l2TokenAddress);
         const l1TokenCounterpart = clients.hubPoolClient.getL1TokenForL2TokenAtBlock(
           l2TokenAddress,
           repaymentChainId,
@@ -167,7 +169,8 @@ export function _buildPoolRebalanceRoot(
   // Increment the updatedOutputAmount to the destination chain.
   Object.entries(bundleSlowFillsV3).forEach(([_destinationChainId, depositsForChain]) => {
     const destinationChainId = Number(_destinationChainId);
-    Object.entries(depositsForChain).forEach(([outputToken, deposits]) => {
+    Object.entries(depositsForChain).forEach(([_outputToken, deposits]) => {
+      const outputToken = Address.fromHex(_outputToken);
       deposits.forEach((deposit) => {
         const l1TokenCounterpart = clients.hubPoolClient.getL1TokenForL2TokenAtBlock(
           outputToken,
@@ -191,7 +194,8 @@ export function _buildPoolRebalanceRoot(
   // the updatedOutputAmount = inputAmount - lpFees.
   Object.entries(unexecutableSlowFills).forEach(([_destinationChainId, slowFilledDepositsForChain]) => {
     const destinationChainId = Number(_destinationChainId);
-    Object.entries(slowFilledDepositsForChain).forEach(([outputToken, slowFilledDeposits]) => {
+    Object.entries(slowFilledDepositsForChain).forEach(([_outputToken, slowFilledDeposits]) => {
+      const outputToken = Address.fromHex(_outputToken);
       slowFilledDeposits.forEach((deposit) => {
         const l1TokenCounterpart = clients.hubPoolClient.getL1TokenForL2TokenAtBlock(
           outputToken,
@@ -227,7 +231,8 @@ export function _buildPoolRebalanceRoot(
   // Add origin chain running balance for expired v3 deposits. These should refund the inputAmount.
   Object.entries(expiredDepositsToRefundV3).forEach(([_originChainId, depositsForChain]) => {
     const originChainId = Number(_originChainId);
-    Object.entries(depositsForChain).forEach(([inputToken, deposits]) => {
+    Object.entries(depositsForChain).forEach(([_inputToken, deposits]) => {
+      const inputToken = Address.fromHex(_inputToken);
       deposits.forEach((deposit) => {
         const l1TokenCounterpart = clients.hubPoolClient.getL1TokenForL2TokenAtBlock(
           inputToken,

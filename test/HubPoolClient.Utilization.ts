@@ -27,6 +27,7 @@ import {
   toBNWei,
   toWei,
 } from "./utils";
+import { Address, EvmAddress } from "../src/utils";
 
 let configStore: Contract, hubPool: Contract;
 let l1Token: Contract, l2Token: Contract, timer: Contract, weth: Contract;
@@ -98,7 +99,7 @@ describe("HubPool Utilization", function () {
     await configStoreClient.update();
 
     hubPoolClient = new MockHubPoolClient(createSpyLogger().spyLogger, hubPool, configStoreClient);
-    hubPoolClient.setTokenMapping(l1Token.address, originChainId, l2Token.address);
+    hubPoolClient.setTokenMapping(EvmAddress.from(l1Token.address), originChainId, Address.from(l2Token.address));
     await configStoreClient.update();
     // Mine some blocks to get the rate model to update.
     for (let i = 0; i < 10; i++) {
@@ -115,11 +116,11 @@ describe("HubPool Utilization", function () {
     // so the fee should reflect a 10% post deposit utilization.
     const depositData = {
       depositId: 0,
-      depositor: owner.address,
-      recipient: owner.address,
-      inputToken: l2Token.address,
+      depositor: Address.fromHex(owner.address),
+      recipient: Address.fromHex(owner.address),
+      inputToken: Address.fromHex(l2Token.address),
       inputAmount: amountToLp.div(10),
-      outputToken: l1Token.address,
+      outputToken: Address.fromHex(l1Token.address),
       outputAmount: l1Token.address,
       originChainId,
       destinationChainId: repaymentChainId,
