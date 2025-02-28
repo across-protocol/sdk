@@ -12,6 +12,7 @@ import {
   DepositSearchResult,
   getBlockRangeForDepositId,
   EvmAddress,
+  Address,
 } from "../src/utils";
 import { ZERO_BYTES } from "../src/constants";
 import { CHAIN_ID_TEST_LIST, originChainId, destinationChainId, repaymentChainId } from "./constants";
@@ -152,9 +153,11 @@ describe("SpokePoolClient: Fill Validation", function () {
     // For each RelayData field, toggle the value to produce an invalid fill. Verify that it's rejected.
     const fields = Object.keys(fill).filter((field) => !ignoredFields.includes(field));
     for (const field of fields) {
-      let val: BigNumber | string | number;
+      let val: BigNumber | string | number | Address;
       if (BigNumber.isBigNumber(fill[field])) {
         val = fill[field].add(bnOne);
+      } else if (Address.isAddress(fill[field])) {
+        val = Address.fromHex(fill[field].toAddress() + "1234");
       } else if (typeof fill[field] === "string") {
         val = fill[field] + "1234";
       } else {
