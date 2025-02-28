@@ -7,7 +7,7 @@ import web3, {
   GetSignaturesForAddressApi,
   GetTransactionApi,
   RpcTransport,
-  Signature
+  Signature,
 } from "@solana/web3-v2.js";
 import { EventData, EventName, EventWithData } from "./types";
 import { getEventName, parseEventData } from "./utils/events";
@@ -28,7 +28,11 @@ export class SvmSpokeEventsClient {
   /**
    * Private constructor. Use the async create() method to instantiate.
    */
-  private constructor(rpc: web3.Rpc<web3.SolanaRpcApiFromTransport<RpcTransport>>, svmSpokeAddress: Address, eventAuthority: Address) {
+  private constructor(
+    rpc: web3.Rpc<web3.SolanaRpcApiFromTransport<RpcTransport>>,
+    svmSpokeAddress: Address,
+    eventAuthority: Address
+  ) {
     this.rpc = rpc;
     this.svmSpokeAddress = svmSpokeAddress;
     this.svmSpokeEventAuthority = eventAuthority;
@@ -64,7 +68,7 @@ export class SvmSpokeEventsClient {
     eventName: EventName,
     fromSlot?: bigint,
     toSlot?: bigint,
-    options: GetSignaturesForAddressConfig = { limit: 1000, commitment: "confirmed" },
+    options: GetSignaturesForAddressConfig = { limit: 1000, commitment: "confirmed" }
   ): Promise<EventWithData<T>[]> {
     const events = await this.queryAllEvents(fromSlot, toSlot, options);
     return events.filter((event) => event.name === eventName) as EventWithData<T>[];
@@ -118,7 +122,13 @@ export class SvmSpokeEventsClient {
     const eventsWithSlots = await Promise.all(
       filteredSignatures.flatMap(async (signatureTransaction) => {
         const events = await this.readEventsFromSignature(signatureTransaction.signature, options.commitment);
-        return events.map((event) => ({ ...event, confirmationStatus: signatureTransaction.confirmationStatus, blockTime: signatureTransaction.blockTime, signature: signatureTransaction.signature, slot: signatureTransaction.slot }));
+        return events.map((event) => ({
+          ...event,
+          confirmationStatus: signatureTransaction.confirmationStatus,
+          blockTime: signatureTransaction.blockTime,
+          signature: signatureTransaction.signature,
+          slot: signatureTransaction.slot,
+        }));
       })
     );
     return eventsWithSlots.flat();
@@ -131,10 +141,7 @@ export class SvmSpokeEventsClient {
    * @param commitment - Commitment level.
    * @returns A promise that resolves to an array of events.
    */
-  private async readEventsFromSignature(
-    txSignature: Signature,
-    commitment: Commitment = "confirmed"
-  ) {
+  private async readEventsFromSignature(txSignature: Signature, commitment: Commitment = "confirmed") {
     const txResult = await this.rpc
       .getTransaction(txSignature, { commitment, maxSupportedTransactionVersion: 0 })
       .send();
@@ -149,9 +156,9 @@ export class SvmSpokeEventsClient {
    * @param txResult - The transaction result.
    * @returns A promise that resolves to an array of events with their data and name.
    */
-  private async processEventFromTx(
+  private processEventFromTx(
     txResult: GetTransactionReturnType
-  ): Promise<{ program: Address; data: EventData; name: EventName }[]> {
+  ): { program: Address; data: EventData; name: EventName }[] {
     if (!txResult) return [];
     const events: { program: Address; data: EventData; name: EventName }[] = [];
 
