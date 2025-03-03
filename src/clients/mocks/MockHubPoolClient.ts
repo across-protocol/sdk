@@ -92,6 +92,10 @@ export class MockHubPoolClient extends HubPoolClient {
     return this.l1TokensMock;
   }
 
+  getL1TokensToDestinationTokensWithBlock() {
+    return this.l1TokensToDestinationTokensWithBlock;
+  }
+
   getTokenInfoForDeposit() {
     return this.tokenInfoToReturn;
   }
@@ -184,6 +188,23 @@ export class MockHubPoolClient extends HubPoolClient {
       event,
       address: this.hubPool.address,
       topics: topics.map((topic) => topic.toString()),
+      args,
+      blockNumber: overrides.blockNumber,
+    });
+  }
+
+  enableL1TokenForLiquidityProvision(l1Token: string, lpToken?: string, overrides: EventOverrides = {}): Log {
+    const event = "L1TokenEnabledForLiquidityProvision";
+
+    const args = {
+      l1Token,
+      lpToken: lpToken ?? randomAddress(),
+    };
+
+    return this.eventManager.generateEvent({
+      event,
+      address: this.hubPool.address,
+      topics: [],
       args,
       blockNumber: overrides.blockNumber,
     });

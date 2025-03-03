@@ -60,6 +60,14 @@ export class MockConfigStoreClient extends AcrossConfigStoreClient {
     this.configStoreVersion = version;
   }
 
+  getRouteRateModelUpdates() {
+    return this.cumulativeRouteRateModelUpdates;
+  }
+
+  getRateModelUpdates() {
+    return this.cumulativeRateModelUpdates;
+  }
+
   _update(): Promise<ConfigStoreUpdate> {
     // Backwards compatibility for pre-existing MockConfigStoreClient users.
     if (this.eventManager === null) {
