@@ -525,17 +525,14 @@ export class HubPoolClient extends BaseAbstractClient {
     return this.getTokenInfoForL1Token(l1TokenCounterpart);
   }
 
-  getTokenInfoForDeposit(deposit: Deposit): L1Token | undefined {
+  getTokenInfoForDeposit(deposit: Pick<Deposit, "inputToken" | "originChainId">): L1Token | undefined {
     return this.getTokenInfoForL1Token(
       this.getL1TokenForL2TokenAtBlock(deposit.inputToken, deposit.originChainId, this.latestBlockSearched)
     );
   }
 
-  getTokenInfo(chainId: number | string, tokenAddress: Address): L1Token | undefined {
-    const deposit = {
-      originChainId: parseInt(chainId.toString()),
-      inputToken: tokenAddress,
-    } as Deposit;
+  getTokenInfo(chainId: number | string, tokenAddress: string): L1Token | undefined {
+    const deposit = { originChainId: parseInt(chainId.toString()), inputToken: tokenAddress };
     return this.getTokenInfoForDeposit(deposit);
   }
 
