@@ -531,7 +531,7 @@ export class HubPoolClient extends BaseAbstractClient {
     );
   }
 
-  getTokenInfo(chainId: number | string, tokenAddress: string): L1Token | undefined {
+  getTokenInfo(chainId: number | string, tokenAddress: Address): L1Token | undefined {
     const deposit = { originChainId: parseInt(chainId.toString()), inputToken: tokenAddress };
     return this.getTokenInfoForDeposit(deposit);
   }
@@ -819,8 +819,8 @@ export class HubPoolClient extends BaseAbstractClient {
     let runningBalance = toBN(0);
     if (executedRootBundle) {
       const indexOfL1Token = executedRootBundle.l1Tokens
-        .map((_l1Token) => _l1Token.toAddress().toLowerCase())
-        .indexOf(l1Token.toAddress().toLowerCase());
+        .map((_l1Token) => _l1Token.toAddress())
+        .indexOf(l1Token.toAddress());
       runningBalance = executedRootBundle.runningBalances[indexOfL1Token];
     }
 

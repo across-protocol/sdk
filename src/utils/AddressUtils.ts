@@ -125,6 +125,14 @@ export class Address {
     return isSvmAddress(this.toBase58());
   }
 
+  // Checks if the address is valid on the given chain ID.
+  isValidOn(chainId: number): boolean {
+    if (chainIsEvm(chainId)) {
+      return this.isValidEvmAddress();
+    }
+    return this.isValidSvmAddress();
+  }
+
   // Checks if the object is an address by looking at whether it has an Address constructor.
   static isAddress(obj: Record<string, unknown>): boolean {
     return obj instanceof Address;
