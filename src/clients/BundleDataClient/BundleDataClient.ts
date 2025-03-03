@@ -608,10 +608,10 @@ export class BundleDataClient {
 
   getRefundsFor(bundleRefunds: CombinedRefunds, relayer: Address, chainId: number, token: Address): BigNumber {
     if (!bundleRefunds[chainId] || !bundleRefunds[chainId][token.toString()]) {
-      return BigNumber.from(0);
+      return bnZero;
     }
     const allRefunds = bundleRefunds[chainId][token.toString()];
-    return allRefunds && allRefunds[relayer.toString()] ? allRefunds[relayer.toString()] : BigNumber.from(0);
+    return allRefunds && allRefunds[relayer.toString()] ? allRefunds[relayer.toString()] : bnZero;
   }
 
   getTotalRefund(refunds: CombinedRefunds[], relayer: Address, chainId: number, refundToken: Address): BigNumber {
