@@ -1,8 +1,9 @@
 import { utils as ethersUtils } from "ethers";
 import { AddressListAdapter, INVALID_ADDRESS } from "./types";
 import * as bybit from "./adapters/bybit";
+import * as processEnv from "./adapters/env";
 
-export class AddressList {
+export class AddressAggregator {
   constructor(readonly addressLists: AddressListAdapter[]) {}
 
   async update(): Promise<Set<string>> {
@@ -24,8 +25,8 @@ export class AddressList {
 }
 
 async function run(): Promise<number> {
-  const addressList = new AddressList([
-    // new bybit.AddressList(),
+  const addressList = new AddressAggregator([
+    new bybit.AddressList(),
     new processEnv.AddressList()
   ]);
 
