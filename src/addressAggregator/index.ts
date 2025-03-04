@@ -3,6 +3,8 @@ import { AddressListAdapter, INVALID_ADDRESS } from "./types";
 import * as bybit from "./adapters/bybit";
 import * as processEnv from "./adapters/env";
 
+export * as adapters from "./adapters";
+
 export class AddressAggregator {
   constructor(readonly addressLists: AddressListAdapter[]) {}
 
