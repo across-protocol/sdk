@@ -8,7 +8,7 @@ export class AddressList implements AddressListAdapter {
 
   constructor(readonly envVar = "ACROSS_IGNORED_ADDRESSES") {}
 
-  async update(): Promise<string[]> {
+  update(): Promise<string[]> {
     const invalidConfig = Promise.resolve([]);
 
     const config = process.env[this.envVar];
@@ -17,10 +17,8 @@ export class AddressList implements AddressListAdapter {
     }
 
     try {
-       const addresses = JSON.parse(config);
-       return envConfig.is(addresses)
-        ? addresses
-        : invalidConfig;
+      const addresses = JSON.parse(config);
+      return envConfig.is(addresses) ? Promise.resolve(addresses) : invalidConfig;
     } catch {
       return invalidConfig;
     }
