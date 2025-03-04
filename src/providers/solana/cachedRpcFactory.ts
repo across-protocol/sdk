@@ -42,22 +42,22 @@ export class CachedSolanaRpcFactory extends SolanaClusterRpcFactory {
       const { method, params } = args[0].payload as { method: string; params?: unknown[] };
       const cacheType = this.redisClient ? this.cacheType(method) : CacheType.NONE;
 
-      if (cacheType !== CacheType.NONE) {
-        const redisKey = this.buildRedisKey(method, params);
+      if (cacheType === CacheType.NONE) {
+        return this.rateLimitedTransport<TResponse>(...args);
+      }
+       
+      const redisKey = this.buildRedisKey(method, params);
 
-        // Attempt to pull the result from the cache.
-        const redisResult = await this.redisClient?.get<string>(redisKey);
+      // Attempt to pull the result from the cache.
+      const redisResult = await this.redisClient?.get<string>(redisKey);
 
-        // If cache has the result, parse the json and return it.
-        if (redisResult) {
-          return JSON.parse(redisResult, jsonReviverWithBigInts);
-        }
-
-        // Cache does not have the result. Query it directly and cache it if finalized.
-        return this.requestAndCacheFinalized<TResponse>(...args);
+      // If cache has the result, parse the json and return it.
+      if (redisResult) {
+        return JSON.parse(redisResult, jsonReviverWithBigInts);
       }
 
-      return this.rateLimitedTransport<TResponse>(...args);
+      // Cache does not have the result. Query it directly and cache it if finalized.
+      return this.requestAndCacheFinalized<TResponse>(...args);
     };
   }
 
