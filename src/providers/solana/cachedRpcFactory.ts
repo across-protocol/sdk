@@ -45,7 +45,7 @@ export class CachedSolanaRpcFactory extends SolanaClusterRpcFactory {
       if (cacheType === CacheType.NONE) {
         return this.rateLimitedTransport<TResponse>(...args);
       }
-       
+
       const redisKey = this.buildRedisKey(method, params);
 
       // Attempt to pull the result from the cache.
