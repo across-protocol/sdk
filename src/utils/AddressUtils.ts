@@ -71,6 +71,15 @@ export function isValidEvmAddress(address: string): boolean {
   }
 }
 
+// Creates the proper address type given the input chain ID corresponding to the address's origin network.
+// @todo: Change this to `toAddress` once we remove the other `toAddress` function.
+export function toAddressType(address: string, chainId: number): EvmAddress | SvmAddress {
+  if (chainIsEvm(chainId)) {
+    return EvmAddress.from(address);
+  }
+  return SvmAddress.from(address);
+}
+
 // The Address class can contain any address type. It is up to the subclasses to determine how to format the address's internal representation,
 // which for this class, is a bytes32 hex string.
 export class Address {
@@ -84,24 +93,6 @@ export class Address {
     }
     // Ensure all addresses in this class are internally stored as 32 bytes.
     this.rawAddress = utils.zeroPad(_rawAddress, 32);
-  }
-
-  // Constructs a new Address type given an input base58 string. Performs no validation.
-  static fromBase58(bs58Address: string): Address {
-    return new this(bs58.decode(bs58Address));
-  }
-
-  // Constructs a new Address type given an input hex string (of arbitrary length). Performs no validation.
-  static fromHex(hexString: string): Address {
-    return new this(utils.arrayify(hexString));
-  }
-
-  // Constructs a new Address type by attempting to infer the input string's format.
-  static from(address: string): Address {
-    if (utils.isHexString(address)) {
-      return this.fromHex(address);
-    }
-    return this.fromBase58(address);
   }
 
   // Converts the address into a bytes32 string. Note that the output bytes will be lowercase  so that it matches ethers event data. This function will never
@@ -218,6 +209,11 @@ export class EvmAddress extends Address {
   override toHexString(): string {
     return this.toAddress();
   }
+
+  // Constructs a new EvmAddress type.
+  static from(hexString: string): EvmAddress {
+    return new this(utils.arrayify(hexString));
+  }
 }
 
 // Subclass of address which strictly deals SVM addresses. These addresses are guaranteed to be valid SVM addresses, so `toBase58` will always produce a valid Solana address.
@@ -234,5 +230,10 @@ export class SvmAddress extends Address {
   // used in TOKEN_SYMBOLS_MAP.
   override toAddress(): string {
     return this.toBase58();
+  }
+
+  // Constructs a new SvmAddress type.
+  static from(bs58Address: string): SvmAddress {
+    return new this(bs58.decode(bs58Address));
   }
 }
