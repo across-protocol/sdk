@@ -1,6 +1,6 @@
 import { array, defaulted, string, type } from "superstruct";
 import { AddressListAdapter } from "../types";
-import { fetch } from "./util";
+import { logError, Logger, fetch } from "./util";
 
 const DEFAULT_URL = "https://hackscan.hackbounty.io/public/hack-address.json";
 
@@ -20,10 +20,13 @@ export class AddressList implements AddressListAdapter {
 
   constructor(readonly url = DEFAULT_URL) {}
 
-  async update(): Promise<string[]> {
+  async update(logger?: Logger): Promise<string[]> {
     const response = await fetch(this.name, this.url, this.timeout, this.retries);
-    return bybitResponse.is(response)
-      ? [...response["0221"].eth, ...response["0221"].bsc, ...response["0221"].arbi]
-      : [];
+    if (!bybitResponse.is(response)) {
+      // nb. don't log the response because it might be very large.
+      return logError(this.name, "Failed to validate response", logger);
+    }
+
+    return [...response["0221"].eth, ...response["0221"].bsc, ...response["0221"].arbi];
   }
 }

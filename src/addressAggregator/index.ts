@@ -1,31 +1,64 @@
 import { utils as ethersUtils } from "ethers";
+import { Logger, mapAsync } from "../utils";
 import { AddressListAdapter, INVALID_ADDRESS } from "./types";
 import * as adapters from "./adapters";
 
 export * as adapters from "./adapters";
 
 export class AddressAggregator {
-  constructor(readonly addressLists: AddressListAdapter[]) {}
+  constructor(readonly adapters: AddressListAdapter[], protected readonly logger?: Logger) {}
 
   static sources(): string[] {
     return Object.keys(adapters);
   }
 
   async update(): Promise<Set<string>> {
-    const rawAddresses = await Promise.all(this.addressLists.map((adapter) => adapter.update()));
-    const allAddresses = rawAddresses
-      .flat()
-      .map((address) => {
-        try {
-          return ethersUtils.getAddress(address.toLowerCase());
-        } catch {
-          return INVALID_ADDRESS;
-        }
-      })
-      .filter((address) => address !== INVALID_ADDRESS);
+    this.logger?.debug({
+      at: "AddressAggregator::update",
+      message: "Updating addresses.",
+      sources: this.adapters.map((adapter) => adapter.name),
+      supportedSources: AddressAggregator.sources(),
+    });
+
+    const allAddresses = await mapAsync(this.adapters, async (adapter) => {
+      const invalidAddresses: string[] = [];
+      const addresses = (await adapter.update(this.logger))
+        .map((address) => {
+          try {
+            return ethersUtils.getAddress(address.toLowerCase());
+          } catch {
+            invalidAddresses.push(address);
+            return INVALID_ADDRESS;
+          }
+        })
+        .filter((address) => address !== INVALID_ADDRESS);
+
+      if (invalidAddresses.length > 0) {
+        this.logger?.warn({
+          at: "AddressAggregator::update()",
+          message: `Read ${invalidAddresses.length} malformed addresses on ${adapter.name}.`,
+          invalidAddresses
+        });
+      }
+
+      this.logger?.debug({
+        at: "AddressAggregator::update",
+        message: `Loaded ${addresses.length} addresses from ${adapter.name}.`
+      });
+
+      return addresses;
+    });
 
     // Dedup the aggregated, normalised, filtered set of addresses.
-    return new Set(allAddresses);
+    const addresses = new Set(allAddresses.flat());
+
+    this.logger?.debug({
+      at: "AddressAggregator::update",
+      message: `Loaded ${addresses.size} addresses.`,
+      sources: this.adapters.map((adapter) => adapter.name),
+    });
+
+    return addresses;
   }
 }
 

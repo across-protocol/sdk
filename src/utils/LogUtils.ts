@@ -1,5 +1,6 @@
-import { Logger } from "winston";
+import winston from "winston";
 
+export class Logger extends winston.Logger {};
 export type DefaultLogLevels = "debug" | "info" | "warn" | "error";
 
 type LogParamType = {
@@ -13,7 +14,7 @@ type LogParamType = {
 };
 
 export function formattedLog(
-  logger: Logger | undefined,
+  logger: winston.Logger | undefined,
   { level, message, at: { location, function: fnName }, data }: LogParamType
 ): void {
   if (logger) {

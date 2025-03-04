@@ -1,9 +1,28 @@
 import axios from "axios";
+import { Logger } from "../../utils";
+
+export { Logger } from "../../utils";
 
 const { ACROSS_USER_AGENT = "across-protocol" } = process.env;
 
 function sleep(ms: number): Promise<void> {
   return new Promise((r) => setTimeout(r, ms));
+}
+
+export function logError(name: string, error: unknown, logger?: Logger): Promise<string[]> {
+  let reason: string;
+  if (error instanceof Error) {
+    reason = error.message;
+  } else {
+    reason = typeof error === "string" ? error : "unknown error";
+  }
+
+  logger?.warn({
+    at: `${name}::update`,
+    message: `Failed to read addresses from ${name}.`,
+    reason
+  });
+  return Promise.resolve([]);
 }
 
 export async function fetch(name: string, url: string, timeout = 2000, retries = 1): Promise<unknown> {
