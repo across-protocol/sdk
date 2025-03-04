@@ -1,2 +1,2 @@
 export * as bybit from "./bybit";
-export * as env from "./env";
+export * as processEnv from "./env";
