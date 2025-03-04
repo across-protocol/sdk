@@ -65,33 +65,31 @@ export class CachedSolanaRpcFactory extends SolanaClusterRpcFactory {
     const { method, params } = args[0].payload as { method: string; params?: unknown[] };
 
     // Only handles getTransaction right now.
-    if (method === "getTransaction") {
-      // Do not throw if params are not valid, just skip caching and pass through to the underlying transport.
-      if (!this.isGetTransactionParams(params)) return this.rateLimitedTransport<TResponse>(...args);
+    if (method !== "getTransaction") return this.rateLimitedTransport<TResponse>(...args);
 
-      // Check the confirmation status first to avoid caching non-finalized transactions.
-      const getSignatureStatusesResponse = await this.rateLimitedRpcClient
-        .getSignatureStatuses([params[0]], {
-          searchTransactionHistory: true,
-        })
-        .send();
+    // Do not throw if params are not valid, just skip caching and pass through to the underlying transport.
+    if (!this.isGetTransactionParams(params)) return this.rateLimitedTransport<TResponse>(...args);
 
-      const getTransactionResponse = await this.rateLimitedTransport<TResponse>(...args);
+    // Check the confirmation status first to avoid caching non-finalized transactions.
+    const getSignatureStatusesResponse = await this.rateLimitedRpcClient
+      .getSignatureStatuses([params[0]], {
+        searchTransactionHistory: true,
+      })
+      .send();
 
-      // Cache the transaction only if it is finalized.
-      if (getSignatureStatusesResponse.value[0]?.confirmationStatus === "finalized") {
-        const redisKey = this.buildRedisKey(method, params);
-        await this.redisClient?.set(
-          redisKey,
-          JSON.stringify(getTransactionResponse, jsonReplacerWithBigInts),
-          Number.POSITIVE_INFINITY
-        );
-      }
+    const getTransactionResponse = await this.rateLimitedTransport<TResponse>(...args);
 
-      return getTransactionResponse;
-    } else {
-      return this.rateLimitedTransport<TResponse>(...args);
+    // Cache the transaction only if it is finalized.
+    if (getSignatureStatusesResponse.value[0]?.confirmationStatus === "finalized") {
+      const redisKey = this.buildRedisKey(method, params);
+      await this.redisClient?.set(
+        redisKey,
+        JSON.stringify(getTransactionResponse, jsonReplacerWithBigInts),
+        Number.POSITIVE_INFINITY
+      );
     }
+
+    return getTransactionResponse;
   }
 
   private buildRedisKey(method: string, params?: unknown[]) {
