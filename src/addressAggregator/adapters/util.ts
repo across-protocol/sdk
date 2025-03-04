@@ -20,7 +20,7 @@ export function logError(name: string, error: unknown, logger?: Logger): Promise
   logger?.warn({
     at: `${name}::update`,
     message: `Failed to read addresses from ${name}.`,
-    reason
+    reason,
   });
   return Promise.resolve([]);
 }

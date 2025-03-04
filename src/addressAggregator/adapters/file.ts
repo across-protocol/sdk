@@ -21,7 +21,7 @@ export class AddressList implements AddressListAdapter {
     }
 
     if (!data) {
-      return logError(this.name, `No addresses found in \"${this.path}\"`, logger);
+      return logError(this.name, `No addresses found in "${this.path}"`, logger);
     }
 
     let addresses: unknown;

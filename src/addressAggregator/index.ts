@@ -6,7 +6,10 @@ import * as adapters from "./adapters";
 export * as adapters from "./adapters";
 
 export class AddressAggregator {
-  constructor(readonly adapters: AddressListAdapter[], protected readonly logger?: Logger) {}
+  constructor(
+    readonly adapters: AddressListAdapter[],
+    protected readonly logger?: Logger
+  ) {}
 
   static sources(): string[] {
     return Object.keys(adapters);
@@ -37,13 +40,13 @@ export class AddressAggregator {
         this.logger?.warn({
           at: "AddressAggregator::update()",
           message: `Read ${invalidAddresses.length} malformed addresses on ${adapter.name}.`,
-          invalidAddresses
+          invalidAddresses,
         });
       }
 
       this.logger?.debug({
         at: "AddressAggregator::update",
-        message: `Loaded ${addresses.length} addresses from ${adapter.name}.`
+        message: `Loaded ${addresses.length} addresses from ${adapter.name}.`,
       });
 
       return addresses;

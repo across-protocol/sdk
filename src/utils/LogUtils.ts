@@ -1,6 +1,6 @@
 import winston from "winston";
 
-export class Logger extends winston.Logger {};
+export class Logger extends winston.Logger {}
 export type DefaultLogLevels = "debug" | "info" | "warn" | "error";
 
 type LogParamType = {
