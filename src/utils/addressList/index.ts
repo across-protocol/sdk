@@ -24,7 +24,10 @@ export class AddressList {
 }
 
 async function run(): Promise<number> {
-  const addressList = new AddressList([new bybit.AddressList()]);
+  const addressList = new AddressList([
+    // new bybit.AddressList(),
+    new processEnv.AddressList()
+  ]);
 
   const addresses = await addressList.update();
   console.log(`Retrieved ${addresses.size} addresses: ${JSON.stringify(Array.from(addresses), null, 2)}`);
