@@ -18,12 +18,10 @@ export class AddressList implements AddressListAdapter {
     try {
       data = await readFile(this.path, { encoding: "utf8" });
     } catch {
-      console.log(`error on filename`);
       return invalidConfig;
     }
 
     if (!data) {
-      console.log(`error no data`);
       return invalidConfig;
     }
 
@@ -32,7 +30,6 @@ export class AddressList implements AddressListAdapter {
       addresses = JSON.parse(data);
       return fileConfig.is(addresses) ? Promise.resolve(addresses) : invalidConfig;
     } catch {
-      console.log(`error bad JSON`);
       return invalidConfig;
     }
   }
