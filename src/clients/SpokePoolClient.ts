@@ -21,6 +21,7 @@ import {
   isValidEvmAddress,
   isZeroAddress,
   toAddress,
+  validateFillForDeposit,
 } from "../utils";
 import {
   duplicateEvent,
@@ -29,7 +30,6 @@ import {
   spreadEvent,
   spreadEventWithBlockNumber,
 } from "../utils/EventUtils";
-import { validateFillForDeposit } from "../utils/FlowUtils";
 import { ZERO_ADDRESS } from "../constants";
 import {
   Deposit,
@@ -84,6 +84,7 @@ export class SpokePoolClient extends BaseAbstractClient {
   protected relayerRefundExecutions: RelayerRefundExecutionWithBlock[] = [];
   protected queryableEventNames: string[] = [];
   protected configStoreClient: AcrossConfigStoreClient | undefined;
+  protected invalidFills: Set<string> = new Set();
   public earliestDepositIdQueried = MAX_BIG_INT;
   public latestDepositIdQueried = bnZero;
   public firstDepositIdForSpokePool = MAX_BIG_INT;
@@ -380,7 +381,7 @@ export class SpokePoolClient extends BaseAbstractClient {
   public getValidUnfilledAmountForDeposit(deposit: Deposit): {
     unfilledAmount: BigNumber;
     fillCount: number;
-    invalidFills: Fill[];
+    invalidFills: FillWithBlock[];
   } {
     const { outputAmount } = deposit;
     const fillsForDeposit = this.depositHashesToFills[this.getDepositHash(deposit)];
@@ -390,7 +391,10 @@ export class SpokePoolClient extends BaseAbstractClient {
     }
 
     const { validFills, invalidFills, unrepayableFills } = fillsForDeposit.reduce(
-      (groupedFills: { validFills: Fill[]; invalidFills: Fill[]; unrepayableFills: Fill[] }, fill: Fill) => {
+      (
+        groupedFills: { validFills: FillWithBlock[]; invalidFills: FillWithBlock[]; unrepayableFills: FillWithBlock[] },
+        fill: FillWithBlock
+      ) => {
         if (validateFillForDeposit(fill, deposit).valid) {
           const repaymentChainId = getRepaymentChainId(fill, deposit);
           // In order to keep this function sync, we can't call verifyFillRepayment so we'll log any fills that
@@ -423,7 +427,15 @@ export class SpokePoolClient extends BaseAbstractClient {
     );
 
     // Log any invalid deposits with same deposit id but different params.
-    const invalidFillsForDeposit = invalidFills.filter((x) => x.depositId.eq(deposit.depositId));
+    const invalidFillsForDeposit = invalidFills.filter((x) => {
+      const txnUid = `${x.transactionHash}:${x.logIndex}`;
+      // if txnUid doesn't exist in the invalidFills set, add it now, but log the corresponding fill.
+      const newInvalidFill = x.depositId.eq(deposit.depositId) && !this.invalidFills.has(txnUid);
+      if (newInvalidFill) {
+        this.invalidFills.add(txnUid);
+      }
+      return newInvalidFill;
+    });
     if (invalidFillsForDeposit.length > 0) {
       this.logger.warn({
         at: "SpokePoolClient",
@@ -606,19 +618,6 @@ export class SpokePoolClient extends BaseAbstractClient {
     const { events: queryResults, currentTime, searchEndBlock } = update;
 
     if (eventsToQuery.includes("TokensBridged")) {
-      // Temporarily query old spoke pool events as well to ease migration:
-      const legacySpokePoolAbi = [
-        "event TokensBridged(uint256 amountToReturn,uint256 indexed chainId,uint32 indexed leafId,address indexed l2TokenAddress,address caller)",
-      ];
-      const prevSpoke = new Contract(this.spokePool.address, legacySpokePoolAbi, this.spokePool.provider);
-      const legacyQueryResults = await paginatedEventQuery(
-        prevSpoke,
-        prevSpoke.filters.TokensBridged(),
-        (await this.updateSearchConfig(this.spokePool.provider)) as EventSearchConfig
-      );
-      for (const event of legacyQueryResults) {
-        this.tokensBridged.push(spreadEventWithBlockNumber(event) as TokensBridged);
-      }
       for (const event of queryResults[eventsToQuery.indexOf("TokensBridged")]) {
         this.tokensBridged.push(spreadEventWithBlockNumber(event) as TokensBridged);
       }
