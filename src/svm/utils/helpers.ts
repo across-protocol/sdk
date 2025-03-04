@@ -1,4 +1,4 @@
-import web3, { RpcTransport } from "@solana/web3-v2.js";
+import web3, { RpcTransport } from "@solana/kit";
 
 /**
  * Helper to determine if the current RPC network is devnet.

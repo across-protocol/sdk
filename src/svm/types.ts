@@ -1,4 +1,4 @@
-import { Signature, Address, UnixTimestamp } from "@solana/web3-v2.js";
+import { Signature, Address, UnixTimestamp } from "@solana/kit";
 import { SvmSpokeClient } from "@across-protocol/contracts";
 
 export type EventData =

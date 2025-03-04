@@ -1,5 +1,5 @@
 import { BN } from "@coral-xyz/anchor";
-import web3 from "@solana/web3-v2.js";
+import web3 from "@solana/kit";
 import { EventName, SVMEventNames } from "../types";
 
 /**

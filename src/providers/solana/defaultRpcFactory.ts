@@ -1,4 +1,4 @@
-import { createDefaultRpcTransport, RpcTransport } from "@solana/web3-v2.js";
+import { createDefaultRpcTransport, RpcTransport } from "@solana/kit";
 import { SolanaClusterRpcFactory } from "./baseRpcFactories";
 
 // Exposes default RPC transport for Solana in the SolanaClusterRpcFactory class.
