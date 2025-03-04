@@ -126,7 +126,7 @@ export class SvmSpokeEventsClient {
 
     // Fetch events for all signatures in parallel.
     const eventsWithSlots = await Promise.all(
-      filteredSignatures.flatMap(async (signatureTransaction) => {
+      filteredSignatures.map(async (signatureTransaction) => {
         const events = await this.readEventsFromSignature(signatureTransaction.signature, options.commitment);
         return events.map((event) => ({
           ...event,
