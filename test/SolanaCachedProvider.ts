@@ -1,4 +1,4 @@
-import { signature, Commitment, Rpc, SolanaRpcApiFromTransport, RpcTransport } from "@solana/web3.js";
+import { signature, Commitment, Rpc, SolanaRpcApiFromTransport, RpcTransport } from "@solana/kit";
 import bs58 from "bs58";
 import { createHash } from "crypto";
 import winston from "winston";

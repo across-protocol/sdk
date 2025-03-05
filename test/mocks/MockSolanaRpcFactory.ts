@@ -1,4 +1,4 @@
-import { RpcResponse, RpcTransport } from "@solana/web3.js";
+import { RpcResponse, RpcTransport } from "@solana/kit";
 import { SolanaClusterRpcFactory } from "../../src/providers";
 
 // Exposes mocked RPC transport for Solana in the SolanaClusterRpcFactory class.
