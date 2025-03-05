@@ -1,4 +1,4 @@
-import { GetSlotApi } from "@solana/web3.js";
+import { GetSlotApi } from "@solana/kit";
 import { MockRateLimitedSolanaRpcFactory, MockSolanaRpcFactory } from "./mocks";
 import { createSpyLogger, expect } from "./utils";
 

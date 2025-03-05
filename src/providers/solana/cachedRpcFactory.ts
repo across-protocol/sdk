@@ -1,4 +1,4 @@
-import { RpcTransport, GetTransactionApi, RpcFromTransport, SolanaRpcApiFromTransport } from "@solana/web3.js";
+import { RpcTransport, GetTransactionApi, RpcFromTransport, SolanaRpcApiFromTransport } from "@solana/kit";
 import { is, object, optional, string, tuple } from "superstruct";
 import { CachingMechanismInterface } from "../../interfaces";
 import { SolanaClusterRpcFactory } from "./baseRpcFactories";
