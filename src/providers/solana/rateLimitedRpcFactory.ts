@@ -13,7 +13,7 @@ export class RateLimitedSolanaRpcFactory extends SolanaClusterRpcFactory {
   private queue: QueueObject<SolanaRateLimitTask>;
 
   // Holds the underlying transport that the rate limiter wraps.
-  private readonly defaultTransport: RpcTransport;
+  protected defaultTransport: RpcTransport;
 
   // Takes the same arguments as the SolanaDefaultRpcFactory, but it has an additional parameters to control
   // concurrency and logging at the beginning of the list.
