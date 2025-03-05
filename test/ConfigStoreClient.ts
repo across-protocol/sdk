@@ -1,6 +1,7 @@
 import { AcrossConfigStore } from "@across-protocol/contracts";
 import { constants } from "../src";
 import { GLOBAL_CONFIG_STORE_KEYS } from "../src/clients";
+import { EvmAddress } from "../src/utils";
 import { SpokePoolTargetBalance } from "../src/interfaces";
 import {
   MAX_L1_TOKENS_PER_POOL_REBALANCE_LEAF,
@@ -261,23 +262,25 @@ describe("AcrossConfigStoreClient", function () {
       await configStoreClient.update();
 
       const initialRateModelUpdate = (await configStore.queryFilter(configStore.filters.UpdatedTokenConfig()))[0];
+      const _l1Token = EvmAddress.fromHex(l1Token.address);
+      const _l2Token = EvmAddress.fromHex(l2Token.address);
 
       // Test with and without route rate model:
       expect(
-        configStoreClient.getRateModelForBlockNumber(l1Token.address, 1, 2, initialRateModelUpdate.blockNumber)
+        configStoreClient.getRateModelForBlockNumber(_l1Token, 1, 2, initialRateModelUpdate.blockNumber)
       ).to.deep.equal(sampleRateModel);
       expect(
-        configStoreClient.getRateModelForBlockNumber(l1Token.address, 999, 888, initialRateModelUpdate.blockNumber)
+        configStoreClient.getRateModelForBlockNumber(_l1Token, 999, 888, initialRateModelUpdate.blockNumber)
       ).to.deep.equal(sampleRateModel2);
 
       // Block number when there is no rate model
       expect(() =>
-        configStoreClient.getRateModelForBlockNumber(l1Token.address, 1, 2, initialRateModelUpdate.blockNumber - 1)
+        configStoreClient.getRateModelForBlockNumber(_l1Token, 1, 2, initialRateModelUpdate.blockNumber - 1)
       ).to.throw(/Could not find TokenConfig update/);
 
       // L1 token where there is no rate model
       expect(() =>
-        configStoreClient.getRateModelForBlockNumber(l2Token.address, 1, 2, initialRateModelUpdate.blockNumber)
+        configStoreClient.getRateModelForBlockNumber(_l2Token, 1, 2, initialRateModelUpdate.blockNumber)
       ).to.throw(/Could not find TokenConfig update/);
     });
 

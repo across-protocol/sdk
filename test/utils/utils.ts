@@ -14,8 +14,7 @@ import {
   toBNWei,
   toWei,
   utf8ToHex,
-  toBytes32,
-  toAddress,
+  Address,
 } from "../../src/utils";
 import {
   MAX_L1_TOKENS_PER_POOL_REBALANCE_LEAF,
@@ -281,7 +280,7 @@ export function deposit(
 ): Promise<DepositWithBlock> {
   return _deposit(spokePool, destinationChainId, signer, inputToken, inputAmount, outputToken, outputAmount, {
     ...opts,
-    addressModifier: toBytes32,
+    addressModifier: "toBytes32",
   });
 }
 
@@ -305,7 +304,7 @@ export function depositV3(
 ): Promise<DepositWithBlock> {
   return _deposit(spokePool, destinationChainId, signer, inputToken, inputAmount, outputToken, outputAmount, {
     ...opts,
-    addressModifier: toAddress,
+    addressModifier: "toAddress",
   });
 }
 
@@ -325,10 +324,10 @@ async function _deposit(
     fillDeadline?: number;
     exclusivityDeadline?: number;
     exclusiveRelayer?: string;
-    addressModifier?: (address: string) => string;
+    addressModifier?: string;
   } = {}
 ): Promise<DepositWithBlock> {
-  const addressModifier = opts.addressModifier ?? toBytes32;
+  const addressModifier = opts.addressModifier ?? "toBytes32";
   const depositor = signer.address;
   const recipient = opts.recipient ?? depositor;
 
@@ -340,19 +339,19 @@ async function _deposit(
   const message = opts.message ?? EMPTY_MESSAGE;
   const fillDeadline = opts.fillDeadline ?? spokePoolTime + fillDeadlineBuffer;
   const exclusivityDeadline = opts.exclusivityDeadline ?? 0;
-  const exclusiveRelayer = addressModifier(opts.exclusiveRelayer ?? zeroAddress);
+  const exclusiveRelayer = Address.fromHex(opts.exclusiveRelayer ?? zeroAddress)[addressModifier]();
 
   await spokePool
     .connect(signer)
     .depositV3(
-      addressModifier(depositor),
-      addressModifier(recipient),
-      addressModifier(inputToken),
-      addressModifier(outputToken),
+      Address.fromHex(depositor)[addressModifier](),
+      Address.fromHex(recipient)[addressModifier](),
+      Address.fromHex(inputToken)[addressModifier](),
+      Address.fromHex(outputToken)[addressModifier](),
       inputAmount,
       outputAmount,
       destinationChainId,
-      addressModifier(exclusiveRelayer),
+      Address.fromHex(exclusiveRelayer)[addressModifier](),
       quoteTimestamp,
       fillDeadline,
       exclusivityDeadline,
@@ -374,18 +373,18 @@ async function _deposit(
     depositId: toBN(args.depositId),
     originChainId: Number(originChainId),
     destinationChainId: Number(args!.destinationChainId),
-    depositor: toAddress(args.depositor),
-    recipient: toAddress(args.recipient),
-    inputToken: toAddress(args.inputToken),
+    depositor: Address.fromHex(args.depositor),
+    recipient: Address.fromHex(args.recipient),
+    inputToken: Address.fromHex(args.inputToken),
     inputAmount: args.inputAmount,
-    outputToken: toAddress(args.outputToken),
+    outputToken: Address.fromHex(args.outputToken),
     outputAmount: args.outputAmount,
     quoteTimestamp: args.quoteTimestamp,
     message: args.message,
     messageHash: getMessageHash(args.message),
     fillDeadline: args.fillDeadline,
     exclusivityDeadline: args.exclusivityDeadline,
-    exclusiveRelayer: toAddress(args.exclusiveRelayer),
+    exclusiveRelayer: Address.fromHex(args.exclusiveRelayer),
     fromLiteChain: false,
     toLiteChain: false,
     quoteBlockNumber: 0, // @todo
@@ -404,14 +403,7 @@ export async function requestV3SlowFill(
   const destinationChainId = Number(await spokePool.chainId());
   chaiAssert.notEqual(relayData.originChainId, destinationChainId);
 
-  await spokePool.connect(signer).requestSlowFill({
-    ...relayData,
-    depositor: toBytes32(relayData.depositor),
-    recipient: toBytes32(relayData.recipient),
-    inputToken: toBytes32(relayData.inputToken),
-    outputToken: toBytes32(relayData.outputToken),
-    exclusiveRelayer: toBytes32(relayData.exclusiveRelayer),
-  });
+  await spokePool.connect(signer).requestSlowFill(relayData);
 
   const events = await spokePool.queryFilter(spokePool.filters.RequestedSlowFill());
   const lastEvent = events.at(-1);
@@ -425,17 +417,17 @@ export async function requestV3SlowFill(
     depositId: toBN(args.depositId),
     originChainId: Number(args.originChainId),
     destinationChainId,
-    depositor: toAddress(args.depositor),
-    recipient: toAddress(args.recipient),
-    inputToken: toAddress(args.inputToken),
+    depositor: Address.fromHex(args.depositor),
+    recipient: Address.fromHex(args.recipient),
+    inputToken: Address.fromHex(args.inputToken),
     inputAmount: args.inputAmount,
-    outputToken: toAddress(args.outputToken),
+    outputToken: Address.fromHex(args.outputToken),
     outputAmount: args.outputAmount,
     message: args.message,
     messageHash: getMessageHash(args.message),
     fillDeadline: args.fillDeadline,
     exclusivityDeadline: args.exclusivityDeadline,
-    exclusiveRelayer: toAddress(args.exclusiveRelayer),
+    exclusiveRelayer: Address.fromHex(args.exclusiveRelayer),
     blockNumber,
     transactionHash,
     transactionIndex,
@@ -452,15 +444,9 @@ export async function fillV3Relay(
   const destinationChainId = Number(await spokePool.chainId());
   chaiAssert.notEqual(deposit.originChainId, destinationChainId);
 
-  // If the input deposit token has a bytes32 on any field, assume it is going to the new fillRelay
-  // spoke pool method.
-  // Should be 0x + 32 bytes, so a 2 + 64 = 66 length string.
-  const useFillRelayMethod = deposit.depositor.length === 66;
-  if (useFillRelayMethod)
-    await spokePool
-      .connect(signer)
-      .fillRelay(deposit, repaymentChainId ?? destinationChainId, toBytes32(signer.address));
-  else await spokePool.connect(signer).fillV3Relay(deposit, repaymentChainId ?? destinationChainId);
+  await spokePool
+    .connect(signer)
+    .fillRelay(deposit, repaymentChainId ?? destinationChainId, Address.fromHex(signer.address).toBytes32());
 
   const events = await spokePool.queryFilter(spokePool.filters.FilledRelay());
   const lastEvent = events.at(-1);
@@ -474,20 +460,20 @@ export async function fillV3Relay(
     depositId: toBN(args.depositId),
     originChainId: Number(args.originChainId),
     destinationChainId,
-    depositor: toAddress(args.depositor),
-    recipient: toAddress(args.recipient),
-    inputToken: toAddress(args.inputToken),
+    depositor: Address.fromHex(args.depositor),
+    recipient: Address.fromHex(args.recipient),
+    inputToken: Address.fromHex(args.inputToken),
     inputAmount: args.inputAmount,
-    outputToken: toAddress(args.outputToken),
+    outputToken: Address.fromHex(args.outputToken),
     outputAmount: args.outputAmount,
     messageHash: getMessageHash(args.message),
     fillDeadline: args.fillDeadline,
     exclusivityDeadline: args.exclusivityDeadline,
-    exclusiveRelayer: toAddress(args.exclusiveRelayer),
-    relayer: args.relayer,
+    exclusiveRelayer: Address.fromHex(args.exclusiveRelayer),
+    relayer: Address.fromHex(args.relayer),
     repaymentChainId: Number(args.repaymentChainId),
     relayExecutionInfo: {
-      updatedRecipient: toAddress(args.relayExecutionInfo.updatedRecipient),
+      updatedRecipient: Address.fromHex(args.relayExecutionInfo.updatedRecipient),
       updatedMessageHash: args.relayExecutionInfo.updatedMessageHash,
       updatedOutputAmount: args.relayExecutionInfo.updatedOutputAmount,
       fillType: args.relayExecutionInfo.fillType,
@@ -571,18 +557,18 @@ export function buildDepositForRelayerFeeTest(
     depositId: bnUint32Max,
     originChainId: 1,
     destinationChainId: 10,
-    depositor: randomAddress(),
-    recipient: randomAddress(),
-    inputToken,
+    depositor: Address.fromHex(randomAddress()),
+    recipient: Address.fromHex(randomAddress()),
+    inputToken: Address.fromHex(inputToken),
     inputAmount: toBN(amount),
-    outputToken,
+    outputToken: Address.fromHex(outputToken),
     outputAmount: toBN(amount).sub(bnOne),
     message,
     messageHash: getMessageHash(message),
     quoteTimestamp: currentTime,
     fillDeadline: currentTime + 7200,
     exclusivityDeadline: 0,
-    exclusiveRelayer: ZERO_ADDRESS,
+    exclusiveRelayer: Address.fromHex(ZERO_ADDRESS),
     fromLiteChain: false,
     toLiteChain: false,
   };

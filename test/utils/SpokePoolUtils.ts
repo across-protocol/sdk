@@ -1,5 +1,5 @@
 import { DepositWithBlock, Fill, FillType } from "../../src/interfaces";
-import { getMessageHash } from "../../src/utils";
+import { getMessageHash, EvmAddress } from "../../src/utils";
 
 export function fillFromDeposit(
   deposit: DepositWithBlock,
@@ -11,10 +11,10 @@ export function fillFromDeposit(
   const updatedMessage = deposit.updatedMessage ?? message;
   const fill = {
     ...partialDeposit,
-    relayer,
+    relayer: EvmAddress.fromHex(relayer),
     message,
     // Caller can modify these later.
-    exclusiveRelayer: relayer,
+    exclusiveRelayer: EvmAddress.fromHex(relayer),
     repaymentChainId: deposit.destinationChainId,
     relayExecutionInfo: {
       updatedRecipient: deposit.updatedRecipient ?? recipient,

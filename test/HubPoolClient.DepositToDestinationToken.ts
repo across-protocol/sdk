@@ -57,7 +57,7 @@ describe("HubPoolClient: Deposit to Destination Token", function () {
     expect(() => hubPoolClient.getL2TokenForL1TokenAtBlock(randomL1Token, destinationChainId, 0)).to.throw(
       /Could not find SpokePool mapping/
     );
-    expect(hubPoolClient.getL2TokenForL1TokenAtBlock(randomL1Token, destinationChainId, e1.blockNumber)).to.equal(
+    expect(hubPoolClient.getL2TokenForL1TokenAtBlock(randomL1Token, destinationChainId, e1.blockNumber)).to.deep.equal(
       randomDestinationToken
     );
 
@@ -65,10 +65,10 @@ describe("HubPoolClient: Deposit to Destination Token", function () {
     const e2 = hubPoolClient.setPoolRebalanceRoute(destinationChainId, randomL1Token, randomDestinationToken2);
     await hubPoolClient.update();
 
-    expect(hubPoolClient.getL2TokenForL1TokenAtBlock(randomL1Token, destinationChainId, e2.blockNumber)).to.equal(
+    expect(hubPoolClient.getL2TokenForL1TokenAtBlock(randomL1Token, destinationChainId, e2.blockNumber)).to.deep.equal(
       randomDestinationToken2
     );
-    expect(hubPoolClient.getL2TokenForL1TokenAtBlock(randomL1Token, destinationChainId, e1.blockNumber)).to.equal(
+    expect(hubPoolClient.getL2TokenForL1TokenAtBlock(randomL1Token, destinationChainId, e1.blockNumber)).to.deep.equal(
       randomDestinationToken
     );
   });
@@ -85,7 +85,7 @@ describe("HubPoolClient: Deposit to Destination Token", function () {
     );
     expect(
       hubPoolClient.getL1TokenForL2TokenAtBlock(randomDestinationToken, destinationChainId, e1.blockNumber)
-    ).to.equal(randomL1Token);
+    ).to.deep.equal(randomL1Token);
 
     // Now try changing the L1 token while keeping destination chain and L2 token the same.
     const e2 = hubPoolClient.setPoolRebalanceRoute(destinationChainId, randomOriginToken, randomDestinationToken);
@@ -93,10 +93,10 @@ describe("HubPoolClient: Deposit to Destination Token", function () {
 
     expect(
       hubPoolClient.getL1TokenForL2TokenAtBlock(randomDestinationToken, destinationChainId, e2.blockNumber)
-    ).to.equal(randomOriginToken);
+    ).to.deep.equal(randomOriginToken);
     expect(
       hubPoolClient.getL1TokenForL2TokenAtBlock(randomDestinationToken, destinationChainId, e1.blockNumber)
-    ).to.equal(randomL1Token);
+    ).to.deep.equal(randomL1Token);
 
     // If L2 token mapping doesn't exist, throw.
     expect(() => hubPoolClient.getL1TokenForL2TokenAtBlock(randomL1Token, destinationChainId, e2.blockNumber)).to.throw(
@@ -114,7 +114,7 @@ describe("HubPoolClient: Deposit to Destination Token", function () {
 
     const e0 = hubPoolClient.setPoolRebalanceRoute(originChainId, randomL1Token, randomOriginToken);
     await hubPoolClient.update();
-    expect(hubPoolClient.getL1TokenForDeposit({ ...depositData, quoteBlockNumber: e0.blockNumber })).to.equal(
+    expect(hubPoolClient.getL1TokenForDeposit({ ...depositData, quoteBlockNumber: e0.blockNumber })).to.deep.equal(
       randomL1Token
     );
 
@@ -134,7 +134,7 @@ describe("HubPoolClient: Deposit to Destination Token", function () {
 
     const e1 = hubPoolClient.setPoolRebalanceRoute(originChainId, randomOriginToken, randomOriginToken);
     await hubPoolClient.update();
-    expect(hubPoolClient.getL1TokenForDeposit({ ...depositData, quoteBlockNumber: e1.blockNumber })).to.equal(
+    expect(hubPoolClient.getL1TokenForDeposit({ ...depositData, quoteBlockNumber: e1.blockNumber })).to.deep.equal(
       randomOriginToken
     );
   });
@@ -149,7 +149,7 @@ describe("HubPoolClient: Deposit to Destination Token", function () {
     await hubPoolClient.update();
     expect(
       hubPoolClient.getL2TokenForDeposit({ ...depositData, destinationChainId, quoteBlockNumber: e1.blockNumber })
-    ).to.equal(randomDestinationToken);
+    ).to.deep.equal(randomDestinationToken);
 
     // origin chain token is set but none for destination chain yet, as of e0.
     expect(() =>
@@ -175,7 +175,7 @@ describe("HubPoolClient: Deposit to Destination Token", function () {
     await hubPoolClient.update();
     expect(
       hubPoolClient.getL2TokenForDeposit({ ...depositData, destinationChainId, quoteBlockNumber: e2.blockNumber })
-    ).to.equal(randomL1Token);
+    ).to.deep.equal(randomL1Token);
   });
 
   it("Correctly implements token equivalency", async function () {

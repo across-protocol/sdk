@@ -12,6 +12,7 @@ import {
   spreadEvent,
   isMessageEmpty,
   fixedPointAdjustment,
+  Address,
 } from "../src/utils";
 import {
   BigNumber,
@@ -334,16 +335,16 @@ describe("RelayFeeCalculator: Composable Bridging", function () {
         {
           inputAmount: bnOne,
           outputAmount: bnOne,
-          inputToken: erc20.address,
-          outputToken: destErc20.address,
-          recipient: testContract.address,
+          inputToken: Address.fromHex(erc20.address),
+          outputToken: Address.fromHex(destErc20.address),
+          recipient: Address.fromHex(testContract.address),
           quoteTimestamp: 1,
           depositId: BigNumber.from(1000000),
-          depositor: depositor.address,
+          depositor: Address.fromHex(depositor.address),
           originChainId: 10,
           destinationChainId: 1,
           message: message || EMPTY_MESSAGE,
-          exclusiveRelayer: ZERO_ADDRESS,
+          exclusiveRelayer: Address.fromHex(ZERO_ADDRESS),
           fillDeadline: getCurrentTime() + 60000,
           exclusivityDeadline: 0,
           fromLiteChain: false,
@@ -452,7 +453,7 @@ describe("RelayFeeCalculator: Composable Bridging", function () {
       ...spreadFill.relayExecutionInfo,
       updatedOutputAmount: spreadFill.relayExecutionInfo.updatedOutputAmount.toString(),
     }).to.deep.eq({
-      updatedRecipient: testContract.address,
+      updatedRecipient: Address.fromHex(testContract.address),
       updatedMessageHash: getMessageHash("0xabcdef"),
       updatedOutputAmount: "1",
       fillType: 0,
