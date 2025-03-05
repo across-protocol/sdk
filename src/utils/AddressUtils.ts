@@ -71,8 +71,13 @@ export function isValidEvmAddress(address: string): boolean {
   }
 }
 
-// Creates the proper address type given the input chain ID corresponding to the address's origin network.
-// @todo: Change this to `toAddress` once we remove the other `toAddress` function.
+/**
+ * Creates the proper address type given the input chain ID corresponding to the address's origin network.
+ * @param address Stringified address type to convert. Can be either hex encoded or base58 encoded.
+ * @param chainId Network ID corresponding to the input address, used to determine which address type to output.
+ * @returns a child `Address` type most fitting for the chain ID.
+ * @todo: Change this to `toAddress` once we remove the other `toAddress` function.
+ */
 export function toAddressType(address: string, chainId: number): EvmAddress | SvmAddress {
   if (chainIsEvm(chainId)) {
     return EvmAddress.from(address);
@@ -83,7 +88,14 @@ export function toAddressType(address: string, chainId: number): EvmAddress | Sv
 // The Address class can contain any address type. It is up to the subclasses to determine how to format the address's internal representation,
 // which for this class, is a bytes32 hex string.
 export class Address {
-  readonly rawAddress;
+  readonly rawAddress: Uint8Array;
+
+  // Keep all address types in cache so that we may lazily evaluate them when necessary.
+  evmAddress: string | undefined = undefined;
+  bytes32Address: string | undefined = undefined;
+  svmAddress: string | undefined = undefined;
+  bnAddress: BigNumber | undefined = undefined;
+
   constructor(_rawAddress: Uint8Array) {
     // The only validation done here is checking that the address is at most a 32-byte address, which  will be well-defined on any supported network.
     // Further validation is done on the subclasses so that we can guarantee that, for example, an EvmAddress type will always contain a valid, 20-byte
@@ -95,24 +107,32 @@ export class Address {
     this.rawAddress = utils.zeroPad(_rawAddress, 32);
   }
 
-  // Converts the address into a bytes32 string. Note that the output bytes will be lowercase  so that it matches ethers event data. This function will never
+  // Converts the address into a bytes32 string. Note that the output bytes will be lowercase so that it matches ethers event data. This function will never
   // throw since address length validation was done at construction time.
   toBytes32(): string {
-    return utils.hexZeroPad(utils.hexlify(this.rawAddress), 32).toLowerCase();
+    return (this.bytes32Address ??= utils.hexZeroPad(utils.hexlify(this.rawAddress), 32).toLowerCase());
   }
 
   // Converts the address (can be bytes32 or bytes20) to its base58 counterpart. This conversion will always succeed, even if the input address is not valid on Solana,
   // as this address may be needed to represent an EVM address on Solana.
   toBase58(): string {
-    return bs58.encode(this.rawAddress);
+    return (this.svmAddress ??= bs58.encode(this.rawAddress));
+  }
+
+  // Converts the address to a BigNumber type.
+  toBigNumber(): BigNumber {
+    return (this.bnAddress ??= BigNumber.from(this.toBytes32()));
   }
 
   // Converts the address to a valid EVM address. If it is unable to convert the address to a valid EVM address for some reason, such as if this address
   // is longer than 20 bytes, then this function will throw an error.
   toAddress(): string {
-    const hexString = utils.hexlify(this.rawAddress);
-    const rawAddress = utils.hexZeroPad(utils.hexStripZeros(hexString), 20);
-    return utils.getAddress(rawAddress);
+    const parseRawAddress = () => {
+      const hexString = utils.hexlify(this.rawAddress);
+      const rawAddress = utils.hexZeroPad(utils.hexStripZeros(hexString), 20);
+      return utils.getAddress(rawAddress);
+    };
+    return (this.evmAddress ??= parseRawAddress());
   }
 
   // Implements `Hexable` for `Address`. Needed for encoding purposes. This class is treated by default as a bytes32 primitive type, but can change for subclasses.
@@ -144,7 +164,7 @@ export class Address {
   }
 
   // Checks if the object is an address by looking at whether it has an Address constructor.
-  static isAddress(obj: Record<string, unknown>): boolean {
+  static isAddress(obj: unknown): boolean {
     return obj instanceof Address;
   }
 
@@ -163,27 +183,12 @@ export class Address {
     return this.toString() === other.toString();
   }
 
-  /**
-   * Checks if a contract is deployed at the given address
-   * @param provider A valid Ethers.js provider
-   * @returns A boolean indicating if a contract is deployed at the given address or not (true = contract, false = no contract)
-   */
-  async isContractDeployedToAddress(provider: providers.Provider): Promise<boolean> {
-    if (this.isValidEvmAddress()) {
-      const code = await provider.getCode(this.toAddress());
-      // If the code is not empty, then there is a contract at this address
-      return code !== "0x";
-    }
-    // @todo Make this work for SVM
-    return false;
-  }
-
   // Compares Addresses by first converting them to BigNumbers.
-  compareAddresses(otherAddress: Address): 1 | -1 | 0 {
+  compare(otherAddress: Address): 1 | -1 | 0 {
     // Convert address strings to BigNumbers and then sort numerical value of the BigNumber, which sorts the addresses
     // effectively by their hex value.
-    const bnAddressA = BigNumber.from(this.toBytes32());
-    const bnAddressB = BigNumber.from(otherAddress.toBytes32());
+    const bnAddressA = this.toBigNumber();
+    const bnAddressB = otherAddress.toBigNumber();
     if (bnAddressA.gt(bnAddressB)) {
       return 1;
     } else if (bnAddressA.lt(bnAddressB)) {
