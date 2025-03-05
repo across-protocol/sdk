@@ -1,10 +1,7 @@
 import { SortableEvent } from "./Common";
-import { FilledV3RelayEvent, V3FundsDepositedEvent } from "../typechain";
 import { SpokePoolClient } from "../clients";
 import { BigNumber } from "../utils";
 import { RelayerRefundLeaf } from "./HubPool";
-
-export type { FilledV3RelayEvent, V3FundsDepositedEvent };
 
 export interface RelayData {
   originChainId: number;
@@ -79,7 +76,7 @@ export interface SpeedUp {
 
 export interface SpeedUpWithBlock extends SpeedUp, SortableEvent {}
 
-export interface SlowFillRequest extends RelayData {
+export interface SlowFillRequest extends Omit<RelayData, "message"> {
   messageHash: string;
   destinationChainId: number;
 }
