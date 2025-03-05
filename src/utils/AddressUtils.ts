@@ -132,13 +132,19 @@ export class Address {
 
   // Converts the address to a valid EVM address. If it is unable to convert the address to a valid EVM address for some reason, such as if this address
   // is longer than 20 bytes, then this function will throw an error.
-  toAddress(): string {
+  toEvmAddress(): string {
     const parseRawAddress = () => {
       const hexString = utils.hexlify(this.rawAddress);
       const rawAddress = utils.hexZeroPad(utils.hexStripZeros(hexString), 20);
       return utils.getAddress(rawAddress);
     };
     return (this.evmAddress ??= parseRawAddress());
+  }
+
+  // Converts the address to a hex string. This method should be overriden by subclasses to obtain more meaningful
+  // address representations for the target chain ID.
+  toAddress(): string {
+    return this.toBytes32();
   }
 
   // Implements `Hexable` for `Address`. Needed for encoding purposes. This class is treated by default as a bytes32 primitive type, but can change for subclasses.
@@ -219,6 +225,11 @@ export class EvmAddress extends Address {
   // Override `toHexString` so `EvmAddress` types will be encoded as `address` types automatically by ethers.js
   override toHexString(): string {
     return this.toAddress();
+  }
+
+  // Override `toAddress` to return the 20-byte representation address.
+  override toAddress(): string {
+    return this.toEvmAddress();
   }
 
   // Constructs a new EvmAddress type.
