@@ -84,7 +84,7 @@ export function toAddressType(address: string, chainId: number): Address | EvmAd
       return EvmAddress.from(address);
     }
     return SvmAddress.from(address);
-  } catch {
+  } catch (e) {
     // If we hit this block, then the validation for one of the child address classes failed. We still may want to keep this address in our state, so
     // return an unchecked address type.
     return new Address(utils.arrayify(address));
@@ -177,7 +177,7 @@ export class Address {
 
   // Checks if the object is an address by looking at whether it has an Address constructor.
   static isAddress(obj: unknown): boolean {
-    return obj instanceof Address;
+    return obj instanceof this;
   }
 
   // Converts the input address to a 32-byte hex data string.
@@ -220,11 +220,6 @@ export class EvmAddress extends Address {
     if (!this.isValidEvmAddress()) {
       throw new Error(`${hexString} is not a valid EVM address`);
     }
-  }
-
-  // Override `toHexString` so `EvmAddress` types will be encoded as `address` types automatically by ethers.js
-  override toHexString(): string {
-    return this.toAddress();
   }
 
   // Override `toAddress` to return the 20-byte representation address.
