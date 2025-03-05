@@ -78,11 +78,17 @@ export function isValidEvmAddress(address: string): boolean {
  * @returns a child `Address` type most fitting for the chain ID.
  * @todo: Change this to `toAddress` once we remove the other `toAddress` function.
  */
-export function toAddressType(address: string, chainId: number): EvmAddress | SvmAddress {
-  if (chainIsEvm(chainId)) {
-    return EvmAddress.from(address);
+export function toAddressType(address: string, chainId: number): Address | EvmAddress | SvmAddress {
+  try {
+    if (chainIsEvm(chainId)) {
+      return EvmAddress.from(address);
+    }
+    return SvmAddress.from(address);
+  } catch {
+    // If we hit this block, then the validation for one of the child address classes failed. We still may want to keep this address in our state, so
+    // return an unchecked address type.
+    return new Address(utils.arrayify(address));
   }
-  return SvmAddress.from(address);
 }
 
 // The Address class can contain any address type. It is up to the subclasses to determine how to format the address's internal representation,
