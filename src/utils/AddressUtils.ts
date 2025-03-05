@@ -1,6 +1,7 @@
 import { providers, utils } from "ethers";
 import { BigNumber } from "./BigNumberUtils";
-
+import { getAddress, isAddress as isEvmAddress } from "viem";
+import { isAddress as isSvmAddress } from "@solana/kit";
 /**
  * Checks if a contract is deployed at the given address
  * @param address The ETH address to check
@@ -67,4 +68,15 @@ export function isValidEvmAddress(address: string): boolean {
   } catch (_e) {
     return false;
   }
+}
+
+// throws if invalid svm or evm address
+export function checksumAddress(address: string) {
+  if (isEvmAddress(address)) {
+    return getAddress(address);
+  }
+  if (isSvmAddress(address)) {
+    return address;
+  }
+  throw new Error("Invalid address");
 }
