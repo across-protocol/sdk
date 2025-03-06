@@ -12,6 +12,7 @@ import {
   MakeOptional,
   assign,
   getRelayEventKey,
+  InvalidFill,
   isDefined,
   toBN,
   getMessageHash,
@@ -899,7 +900,7 @@ export class SpokePoolClient extends BaseAbstractClient {
     return currentTime.toNumber();
   }
 
-  async findDeposit(depositId: BigNumber, destinationChainId: number): Promise<DepositWithBlock> {
+  async findDeposit(depositId: BigNumber): Promise<DepositSearchResult> {
     // Binary search for event search bounds. This way we can get the blocks before and after the deposit with
     // deposit ID = fill.depositId and use those blocks to optimize the search for that deposit.
     // Stop searches after a maximum # of searches to limit number of eth_call requests. Make an
@@ -908,7 +909,7 @@ export class SpokePoolClient extends BaseAbstractClient {
     //
     // @dev Limiting between 5-10 searches empirically performs best when there are ~300,000 deposits
     // for a spoke pool and we're looking for a deposit <5 days older than HEAD.
-    const searchBounds = await getBlockRangeForDepositId(
+    const { low: fromBlock, high: toBlock } = await getBlockRangeForDepositId(
       depositId,
       this.deploymentBlock,
       this.latestBlockSearched,
@@ -918,7 +919,6 @@ export class SpokePoolClient extends BaseAbstractClient {
 
     const tStart = Date.now();
     // Check both V3FundsDeposited and FundsDeposited events to look for a specified depositId.
-    const [fromBlock, toBlock] = [searchBounds.low, searchBounds.high];
     const { maxBlockLookBack } = this.eventSearchConfig;
     const query = (
       await Promise.all([
@@ -939,11 +939,11 @@ export class SpokePoolClient extends BaseAbstractClient {
     const event = query.find(({ args }) => args["depositId"].eq(depositId));
     if (event === undefined) {
       const srcChain = getNetworkName(this.chainId);
-      const dstChain = getNetworkName(destinationChainId);
-      throw new Error(
-        `Could not find deposit ${depositId.toString()} for ${dstChain} fill` +
-          ` between ${srcChain} blocks [${searchBounds.low}, ${searchBounds.high}]`
-      );
+      return {
+        found: false,
+        code: InvalidFill.DepositIdNotFound,
+        reason: `${srcChain} depositId ${depositId} not found between blocks [${fromBlock}, ${toBlock}].`,
+      };
     }
 
     const deposit = {
@@ -967,7 +967,7 @@ export class SpokePoolClient extends BaseAbstractClient {
       elapsedMs: tStop - tStart,
     });
 
-    return deposit;
+    return { found: true, deposit };
   }
 
   /**

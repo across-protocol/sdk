@@ -99,17 +99,24 @@ export async function queryHistoricalDepositForFill(
   if (isDefined(cachedDeposit)) {
     deposit = cachedDeposit as DepositWithBlock;
   } else {
-    deposit = await spokePoolClient.findDeposit(fill.depositId, fill.destinationChainId);
+    const result = await spokePoolClient.findDeposit(fill.depositId);
+    if (!result.found) {
+      return result;
+    }
+
+    ({ deposit } = result);
     if (cache) {
-      await setDepositInCache(deposit, getCurrentTime(), cache, DEFAULT_CACHING_TTL);
+      await setDepositInCache(deposit!, getCurrentTime(), cache, DEFAULT_CACHING_TTL);
     }
   }
 
-  deposit.messageHash ??= getMessageHash(deposit.message);
+  if (isDefined(deposit)) {
+    deposit.messageHash ??= getMessageHash(deposit.message);
+  }
 
   const match = validateFillForDeposit(fill, deposit);
   if (match.valid) {
-    return { found: true, deposit };
+    return { found: true, deposit: deposit! };
   }
 
   return {
