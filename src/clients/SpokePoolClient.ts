@@ -9,6 +9,7 @@ import {
   DefaultLogLevels,
   DepositSearchResult,
   EventSearchConfig,
+  findDepositBlock,
   MAX_BIG_INT,
   MakeOptional,
   assign,
@@ -47,7 +48,7 @@ import {
 } from "../interfaces";
 import { SpokePool } from "../typechain";
 import { getNetworkName } from "../utils/NetworkUtils";
-import { findDepositBlock, getDepositIdAtBlock, relayFillStatus } from "../utils/SpokeUtils";
+import { getDepositIdAtBlock, relayFillStatus } from "../utils/SpokeUtils";
 import { BaseAbstractClient, isUpdateFailureReason, UpdateFailureReason } from "./BaseAbstractClient";
 import { HubPoolClient } from "./HubPoolClient";
 import { AcrossConfigStoreClient } from "./AcrossConfigStoreClient";
@@ -901,14 +902,27 @@ export class SpokePoolClient extends BaseAbstractClient {
     return currentTime.toNumber();
   }
 
+  /**
+   * For a given origin chain depositId, resolve the corresponding Deposit.
+   * Note: This method can only be used for depositIds within the non-deterministic range (0 < depositId < 2^32 - 1).
+   * @param depositId Deposit ID of the deposit to resolve.
+   * @returns A DepositSearchResult instance.
+   */
   async findDeposit(depositId: BigNumber): Promise<DepositSearchResult> {
+    let deposit = this.getDeposit(depositId);
+    if (deposit) {
+      return { found: true, deposit };
+    }
+
+    // No deposit found; revert to searching for it.
     const upperBound = this.latestBlockSearched || undefined; // Don't permit block 0 as the high block.
     const fromBlock = await findDepositBlock(this.spokePool, depositId, this.deploymentBlock, upperBound);
+    const chain = getNetworkName(this.chainId);
     if (!fromBlock) {
-      const chain = getNetworkName(this.chainId);
-      throw new Error(
-        `Unable to find ${chain} depositId ${depositId} within blocks [${this.deploymentBlock}, ${upperBound}]`
-      );
+      const reason =
+        `Unable to find ${chain} depositId ${depositId}` +
+        ` within blocks [${this.deploymentBlock}, ${upperBound ?? "latest"}].`;
+      return { found: false, code: InvalidFill.DepositIdNotFound, reason };
     }
 
     const toBlock = fromBlock;
@@ -933,15 +947,14 @@ export class SpokePoolClient extends BaseAbstractClient {
 
     const event = query.find(({ args }) => args["depositId"].eq(depositId));
     if (event === undefined) {
-      const srcChain = getNetworkName(this.chainId);
       return {
         found: false,
         code: InvalidFill.DepositIdNotFound,
-        reason: `${srcChain} depositId ${depositId} not found between blocks [${fromBlock}, ${toBlock}].`,
+        reason: `${chain} depositId ${depositId} not found at block ${fromBlock}.`,
       };
     }
 
-    const deposit = {
+    deposit = {
       ...spreadEventWithBlockNumber(event),
       originChainId: this.chainId,
       quoteBlockNumber: await this.getBlockNumber(Number(event.args["quoteTimestamp"])),
