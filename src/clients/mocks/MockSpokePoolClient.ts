@@ -24,7 +24,6 @@ import {
   randomAddress,
   BigNumber,
   bnZero,
-  bnMax,
   bnOne,
   toAddress,
   toBytes32,
@@ -107,17 +106,9 @@ export class MockSpokePoolClient extends SpokePoolClient {
         }
       });
 
-    // Update latestDepositIdQueried.
-    const idx = eventsToQuery.indexOf("V3FundsDeposited");
-    const latestDepositId = (events[idx] ?? []).reduce(
-      (depositId, event) => bnMax(depositId, event.args["depositId"] ?? bnZero),
-      this.latestDepositIdQueried
-    );
-
     return Promise.resolve({
       success: true,
       firstDepositId: bnZero,
-      latestDepositId,
       currentTime,
       oldestTime: 0,
       events,
