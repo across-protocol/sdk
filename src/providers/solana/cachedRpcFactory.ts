@@ -1,4 +1,5 @@
 import { RpcTransport, GetTransactionApi, RpcFromTransport, SolanaRpcApiFromTransport } from "@solana/kit";
+import { getThrowSolanaErrorResponseTransformer } from "@solana/rpc-transformers";
 import { is, object, optional, string, tuple } from "superstruct";
 import { CachingMechanismInterface } from "../../interfaces";
 import { SolanaClusterRpcFactory } from "./baseRpcFactories";
@@ -70,24 +71,37 @@ export class CachedSolanaRpcFactory extends SolanaClusterRpcFactory {
     // Do not throw if params are not valid, just skip caching and pass through to the underlying transport.
     if (!this.isGetTransactionParams(params)) return this.rateLimitedTransport<TResponse>(...args);
 
-    // Check the confirmation status first to avoid caching non-finalized transactions.
-    const getSignatureStatusesResponse = await this.rateLimitedRpcClient
-      .getSignatureStatuses([params[0]], {
-        searchTransactionHistory: true,
-      })
-      .send();
+    // Check the confirmation status first to avoid caching non-finalized transactions. In case of null or errors just
+    // skip caching and pass through to the underlying transport.
+    try {
+      const getSignatureStatusesResponse = await this.rateLimitedRpcClient
+        .getSignatureStatuses([params[0]], {
+          searchTransactionHistory: true,
+        })
+        .send();
+      if (getSignatureStatusesResponse.value[0]?.confirmationStatus !== "finalized") {
+        return this.rateLimitedTransport<TResponse>(...args);
+      }
+    } catch (error) {
+      return this.rateLimitedTransport<TResponse>(...args);
+    }
 
     const getTransactionResponse = await this.rateLimitedTransport<TResponse>(...args);
 
-    // Cache the transaction only if it is finalized.
-    if (getSignatureStatusesResponse.value[0]?.confirmationStatus === "finalized") {
-      const redisKey = this.buildRedisKey(method, params);
-      await this.redisClient?.set(
-        redisKey,
-        JSON.stringify(getTransactionResponse, jsonReplacerWithBigInts),
-        Number.POSITIVE_INFINITY
-      );
+    // Do not cache JSON-RPC error responses, let them pass through for the RPC client to handle.
+    try {
+      getThrowSolanaErrorResponseTransformer()(getTransactionResponse, { methodName: method, params });
+    } catch {
+      return getTransactionResponse;
     }
+
+    // Cache the transaction JSON-RPC response as we checked the transaction is finalized and not an error.
+    const redisKey = this.buildRedisKey(method, params);
+    await this.redisClient?.set(
+      redisKey,
+      JSON.stringify(getTransactionResponse, jsonReplacerWithBigInts),
+      Number.POSITIVE_INFINITY
+    );
 
     return getTransactionResponse;
   }
