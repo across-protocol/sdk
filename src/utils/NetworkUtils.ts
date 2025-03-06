@@ -129,9 +129,7 @@ export function chainIsL1(chainId: number): boolean {
  * @returns True if chain corresponding to chainId has an EVM-like execution layer.
  */
 export function chainIsEvm(chainId: number): boolean {
-  chainId;
-  // TODO: Fix when we support non-EVM chains.
-  return true;
+  return ![CHAIN_IDs.SOLANA, CHAIN_IDs.SOLANA_DEVNET].includes(chainId);
 }
 
 /**
