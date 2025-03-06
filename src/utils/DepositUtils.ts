@@ -60,40 +60,23 @@ export async function queryHistoricalDepositForFill(
   }
 
   const { depositId } = fill;
-  let { firstDepositIdForSpokePool: lowId, lastDepositIdForSpokePool: highId } = spokePoolClient;
-  if (depositId.lt(lowId) || depositId.gt(highId)) {
-    return {
-      found: false,
-      code: InvalidFill.DepositIdInvalid,
-      reason: `Deposit ID ${depositId.toString()} is outside of SpokePool bounds [${lowId},${highId}].`,
-    };
-  }
-
-  ({ earliestDepositIdQueried: lowId, latestDepositIdQueried: highId } = spokePoolClient);
-  if (depositId.gte(lowId) && depositId.lte(highId)) {
-    const originChain = getNetworkName(fill.originChainId);
-    const deposit = spokePoolClient.getDeposit(depositId);
-    if (isDefined(deposit)) {
-      const match = validateFillForDeposit(fill, deposit);
-      if (match.valid) {
-        return { found: true, deposit };
-      }
-
-      return {
-        found: false,
-        code: InvalidFill.FillMismatch,
-        reason: `Fill for ${originChain} deposit ID ${depositId.toString()} is invalid (${match.reason}).`,
-      };
+  const originChain = getNetworkName(fill.originChainId);
+  let deposit = spokePoolClient.getDeposit(depositId);
+  if (isDefined(deposit)) {
+    const match = validateFillForDeposit(fill, deposit);
+    if (match.valid) {
+      return { found: true, deposit };
     }
 
     return {
       found: false,
-      code: InvalidFill.DepositIdNotFound,
-      reason: `${originChain} deposit ID ${depositId.toString()} not found in SpokePoolClient event buffer.`,
+      code: InvalidFill.FillMismatch,
+      reason: `Fill for ${originChain} deposit ID ${depositId.toString()} is invalid (${match.reason}).`,
     };
   }
 
-  let deposit: DepositWithBlock, cachedDeposit: Deposit | undefined;
+  // Deposit not found in SpokePoolClient buffer, search elsewhere.
+  let cachedDeposit: Deposit | undefined;
   if (cache) {
     cachedDeposit = await getDepositInCache(getDepositKey(fill), cache);
     // We only want to warn and remove the cached deposit if it
