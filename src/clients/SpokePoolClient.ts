@@ -47,7 +47,7 @@ import {
 } from "../interfaces";
 import { SpokePool } from "../typechain";
 import { getNetworkName } from "../utils/NetworkUtils";
-import { getBlockRangeForDepositId, getDepositIdAtBlock, relayFillStatus } from "../utils/SpokeUtils";
+import { findDepositBlock, getDepositIdAtBlock, relayFillStatus } from "../utils/SpokeUtils";
 import { BaseAbstractClient, isUpdateFailureReason, UpdateFailureReason } from "./BaseAbstractClient";
 import { HubPoolClient } from "./HubPoolClient";
 import { AcrossConfigStoreClient } from "./AcrossConfigStoreClient";
@@ -930,25 +930,18 @@ export class SpokePoolClient extends BaseAbstractClient {
   }
 
   async findDeposit(depositId: BigNumber, destinationChainId: number): Promise<DepositWithBlock> {
-    // Binary search for event search bounds. This way we can get the blocks before and after the deposit with
-    // deposit ID = fill.depositId and use those blocks to optimize the search for that deposit.
-    // Stop searches after a maximum # of searches to limit number of eth_call requests. Make an
-    // eth_getLogs call on the remaining block range (i.e. the [low, high] remaining from the binary
-    // search) to find the target deposit ID.
-    //
-    // @dev Limiting between 5-10 searches empirically performs best when there are ~300,000 deposits
-    // for a spoke pool and we're looking for a deposit <5 days older than HEAD.
-    const searchBounds = await getBlockRangeForDepositId(
-      depositId,
-      this.deploymentBlock,
-      this.latestBlockSearched,
-      7,
-      this
-    );
+    const upperBound = this.latestBlockSearched || undefined; // Don't permit block 0 as the high block.
+    const fromBlock = await findDepositBlock(this.spokePool, depositId, this.deploymentBlock, upperBound);
+    if (!fromBlock) {
+      const chain = getNetworkName(this.chainId);
+      throw new Error(
+        `Unable to find ${chain} depositId ${depositId} within blocks [${this.deploymentBlock}, ${upperBound}]`
+      );
+    }
 
+    const toBlock = fromBlock;
     const tStart = Date.now();
     // Check both V3FundsDeposited and FundsDeposited events to look for a specified depositId.
-    const [fromBlock, toBlock] = [searchBounds.low, searchBounds.high];
     const { maxBlockLookBack } = this.eventSearchConfig;
     const query = (
       await Promise.all([
@@ -972,7 +965,7 @@ export class SpokePoolClient extends BaseAbstractClient {
       const dstChain = getNetworkName(destinationChainId);
       throw new Error(
         `Could not find deposit ${depositId.toString()} for ${dstChain} fill` +
-          ` between ${srcChain} blocks [${searchBounds.low}, ${searchBounds.high}]`
+          ` between ${srcChain} blocks [${fromBlock}, ${toBlock}]`
       );
     }
 

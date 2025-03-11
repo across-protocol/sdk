@@ -1,12 +1,21 @@
 import hre from "hardhat";
 import { SpokePoolClient } from "../src/clients";
 import { Deposit } from "../src/interfaces";
-import { bnOne, bnZero, findFillBlock, findFillEvent, getMessageHash, getNetworkName } from "../src/utils";
+import {
+  bnOne,
+  bnZero,
+  findDepositBlock,
+  findFillBlock,
+  findFillEvent,
+  getMessageHash,
+  getNetworkName,
+} from "../src/utils";
 import { EMPTY_MESSAGE, ZERO_ADDRESS } from "../src/constants";
 import { originChainId, destinationChainId } from "./constants";
 import {
   assertPromiseError,
   Contract,
+  depositV3,
   SignerWithAddress,
   fillV3Relay,
   createSpyLogger,
@@ -14,6 +23,7 @@ import {
   ethers,
   expect,
   setupTokensForWallet,
+  toBN,
   toBNWei,
 } from "./utils";
 
@@ -95,7 +105,45 @@ describe("SpokePoolClient: Fills", function () {
     expect(spokePoolClient.getFillsForRelayer(relayer2.address).length).to.equal(1);
   });
 
-  it("Correctly locates the block number for a FilledV3Relay event", async function () {
+  it("Correctly locates the block number for a Deposit", async function () {
+    const nBlocks = 1_000;
+
+    // Submit the deposit randomly within the next `nBlocks` blocks.
+    const startBlock = await spokePool.provider.getBlockNumber();
+    const targetDepositBlock = startBlock + Math.floor(Math.random() * nBlocks);
+
+    let depositId = toBN(-1);
+    for (let i = 0; i < nBlocks; ++i) {
+      const blockNumber = await spokePool.provider.getBlockNumber();
+      if (blockNumber === targetDepositBlock - 1) {
+        const inputToken = erc20.address;
+        const inputAmount = bnOne;
+        const outputToken = ZERO_ADDRESS;
+        const outputAmount = bnOne;
+        const { depositId: _depositId, blockNumber: depositBlockNumber } = await depositV3(
+          spokePool,
+          destinationChainId,
+          relayer1,
+          inputToken,
+          inputAmount,
+          outputToken,
+          outputAmount
+        );
+        depositId = toBN(_depositId);
+
+        expect(depositBlockNumber).to.equal(targetDepositBlock);
+        continue;
+      }
+
+      await hre.network.provider.send("evm_mine");
+    }
+
+    expect(depositId.eq(-1)).to.be.false;
+    const depositBlock = await findDepositBlock(spokePool, depositId, startBlock);
+    expect(depositBlock).to.equal(targetDepositBlock);
+  });
+
+  it("Correctly locates the block number for a Fill event", async function () {
     const nBlocks = 1_000;
 
     // Submit the fill randomly within the next `nBlocks` blocks.
@@ -117,7 +165,7 @@ describe("SpokePoolClient: Fills", function () {
     expect(fillBlock).to.equal(targetFillBlock);
   });
 
-  it("Correctly returns the FilledV3Relay event using the relay data", async function () {
+  it("Correctly returns a Fill event using the relay data", async function () {
     const targetDeposit = { ...deposit, depositId: deposit.depositId.add(1) };
     // Submit multiple fills at the same block:
     const startBlock = await spokePool.provider.getBlockNumber();
@@ -137,7 +185,50 @@ describe("SpokePoolClient: Fills", function () {
     expect(missingFill).to.be.undefined;
   });
 
-  it("FilledV3Relay block search: bounds checking", async function () {
+  it("Deposit block search: bounds checking", async function () {
+    const nBlocks = 100;
+    const startBlock = await spokePool.provider.getBlockNumber();
+    for (let i = 0; i < nBlocks; ++i) {
+      await hre.network.provider.send("evm_mine");
+    }
+
+    // No fill has been made, so expect an undefined fillBlock.
+    const numberOfDeposits = await spokePool.numberOfDeposits();
+    const expectedDepositId = toBN(Math.max(numberOfDeposits - 1, 0));
+
+    const depositBlockNumber = await findDepositBlock(spokePool, expectedDepositId, startBlock);
+    expect(depositBlockNumber).to.be.undefined;
+
+    const inputToken = erc20.address;
+    const inputAmount = bnOne;
+    const outputToken = ZERO_ADDRESS;
+    const outputAmount = bnOne;
+
+    const { depositId, blockNumber } = await depositV3(
+      spokePool,
+      destinationChainId,
+      relayer1,
+      inputToken,
+      inputAmount,
+      outputToken,
+      outputAmount
+    );
+    await hre.network.provider.send("evm_mine");
+
+    expect(expectedDepositId.eq(depositId)).to.be.true;
+
+    // Now search for the deposit _after_ it was made, with the wrong lower bound (too high).
+    const depositBlock = await findDepositBlock(spokePool, depositId, blockNumber);
+    expect(depositBlock).to.not.exist;
+
+    // Should assert if highBlock <= lowBlock.
+    await assertPromiseError(
+      findDepositBlock(spokePool, depositId, await spokePool.provider.getBlockNumber(), blockNumber),
+      "Block numbers out of range"
+    );
+  });
+
+  it("Fill block search: bounds checking", async function () {
     const nBlocks = 100;
     const startBlock = await spokePool.provider.getBlockNumber();
     for (let i = 0; i < nBlocks; ++i) {

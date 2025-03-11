@@ -333,6 +333,48 @@ export function getRelayHashFromEvent(e: RelayData & { destinationChainId: numbe
   return getRelayDataHash(e, e.destinationChainId);
 }
 
+export async function findDepositBlock(
+  spokePool: Contract,
+  depositId: BigNumber,
+  lowBlockNumber: number,
+  highBlockNumber?: number
+): Promise<number | undefined> {
+  // We can only perform this search when we have a safe deposit ID.
+  if (isUnsafeDepositId(depositId)) {
+    throw new Error(`Cannot binary search for depositId ${depositId}`);
+  }
+
+  // @todo this call can be optimised away by clever use of multicall
+  highBlockNumber ??= await spokePool.provider.getBlockNumber();
+  assert(highBlockNumber > lowBlockNumber, `Block numbers out of range (${lowBlockNumber} >= ${highBlockNumber})`);
+
+  // Make sure the deposit occurred within the block range supplied by the caller.
+  const [nDepositsLow, nDepositsHigh] = (
+    await Promise.all([
+      spokePool.numberOfDeposits({ blockTag: lowBlockNumber }),
+      spokePool.numberOfDeposits({ blockTag: highBlockNumber }),
+    ])
+  ).map((n) => toBN(n));
+
+  if (nDepositsLow.gt(depositId) || nDepositsHigh.lte(depositId)) {
+    return undefined; // Deposit did not occur within the specified block range.
+  }
+
+  // Find the lowest block number where numberOfDeposits is greater than the requested depositId.
+  do {
+    const midBlockNumber = Math.floor((highBlockNumber + lowBlockNumber) / 2);
+    const numberOfDeposits = toBN(await spokePool.numberOfDeposits({ blockTag: midBlockNumber }));
+
+    if (numberOfDeposits.gt(depositId)) {
+      highBlockNumber = midBlockNumber;
+    } else {
+      lowBlockNumber = midBlockNumber + 1;
+    }
+  } while (lowBlockNumber < highBlockNumber);
+
+  return lowBlockNumber;
+}
+
 export function isUnsafeDepositId(depositId: BigNumber): boolean {
   // SpokePool.unsafeDepositV3() produces a uint256 depositId by hashing the msg.sender, depositor and input
   // uint256 depositNonce. There is a possibility that this resultant uint256 is less than the maxSafeDepositId (i.e.
@@ -439,7 +481,7 @@ export async function findFillBlock(
     `Origin & destination chain IDs must not be equal (${destinationChainId})`
   );
 
-  // Make sure the relay war completed within the block range supplied by the caller.
+  // Make sure the relay was completed within the block range supplied by the caller.
   const [initialFillStatus, finalFillStatus] = (
     await Promise.all([
       relayFillStatus(spokePool, relayData, lowBlockNumber, destinationChainId),
