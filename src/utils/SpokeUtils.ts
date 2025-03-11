@@ -344,7 +344,8 @@ export async function findDepositBlock(
     throw new Error(`Cannot binary search for depositId ${depositId}`);
   }
 
-  // @todo this call can be optimised away by clever use of multicall
+  // @todo this call can be optimised away by using multicall3.blockAndAggregate(..., { blockTag: highBlockNumber }).
+  // This is left for future because the change is a bit complex, and multicall3 isn't supported in test.
   highBlockNumber ??= await spokePool.provider.getBlockNumber();
   assert(highBlockNumber > lowBlockNumber, `Block numbers out of range (${lowBlockNumber} >= ${highBlockNumber})`);
 
