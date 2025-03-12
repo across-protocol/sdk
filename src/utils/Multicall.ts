@@ -66,3 +66,30 @@ export async function aggregate(multicall3: Contract, calls: Call3[], blockTag?:
     return contract.interface.decodeFunctionResult(method, result);
   });
 }
+
+export async function blockAndAggregate(
+  multicall3: Contract,
+  calls: Call3[],
+  blockTag?: BlockTag
+): Promise<{ blockNumber: number; returnData: Result[] }> {
+  const inputs = calls.map(({ contract, method, args }) => ({
+    target: contract.address,
+    callData: contract.interface.encodeFunctionData(method, args),
+  }));
+
+  type blockAndAggregateResponse = Promise<{
+    blockNumber: BigNumber;
+    blockHash: string;
+    returnData: Multicall3.ResultStructOutput[];
+  }>;
+  const { blockNumber, returnData: _returnData } = await (multicall3.callStatic.blockAndAggregate(inputs, {
+    blockTag,
+  }) as blockAndAggregateResponse);
+
+  const returnData = _returnData.map(({ returnData }, idx) => {
+    const { contract, method } = calls[idx];
+    return contract.interface.decodeFunctionResult(method, returnData);
+  });
+
+  return { blockNumber: blockNumber.toNumber(), returnData };
+}
