@@ -352,7 +352,7 @@ export async function findDepositBlock(
   assert(multicall3, `No multicall3 defined for chain ${chainId}`);
 
   // Make sure the deposit occurred within the block range supplied by the caller.
-  const [_nDepositsLow, { blockNumber: _highBlock, returnData: _returnData }] = await Promise.all([
+  const [_nDepositsLow, { blockNumber: _highBlock, returnData }] = await Promise.all([
     spokePool.numberOfDeposits({ blockTag: lowBlock }),
     blockAndAggregate(multicall3, [{ contract: spokePool, method: "numberOfDeposits" }], highBlock),
   ]);
@@ -360,7 +360,7 @@ export async function findDepositBlock(
   assert(highBlock > lowBlock, `Block numbers out of range (${lowBlock} >= ${highBlock})`);
 
   const nDepositsLow = toBN(_nDepositsLow);
-  const nDepositsHigh = toBN(_returnData.at(0)!);
+  const nDepositsHigh = toBN(returnData.at(0)!);
   if (nDepositsLow.gt(depositId) || nDepositsHigh.lte(depositId)) {
     return undefined; // Deposit did not occur within the specified block range.
   }
