@@ -17,6 +17,7 @@ import {
   toBN,
   toWei,
   utf8ToHex,
+  EvmAddress,
 } from "../../utils";
 import { PROTOCOL_DEFAULT_CHAIN_ID_INDICES } from "../../constants";
 import {
@@ -108,7 +109,7 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
   }
 
   getRateModelForBlockNumber(
-    l1Token: string,
+    l1Token: EvmAddress,
     originChainId: number | string,
     destinationChainId: number | string,
     blockNumber: number | undefined = undefined
@@ -122,7 +123,7 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
 
     const defaultRateModelUpdate = sortEventsDescending(this.cumulativeRateModelUpdates).find(
       (config) =>
-        config.blockNumber <= (blockNumber ?? 0) && config.l1Token === l1Token && config.rateModel !== undefined
+        config.blockNumber <= (blockNumber ?? 0) && config.l1Token.eq(l1Token) && config.rateModel !== undefined
     );
     if (!defaultRateModelUpdate) {
       throw new Error(`Could not find TokenConfig update for ${l1Token} at block ${blockNumber}`);
@@ -131,12 +132,12 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
   }
 
   getRouteRateModelForBlockNumber(
-    l1Token: string,
+    l1Token: EvmAddress,
     route: string,
     blockNumber: number | undefined = undefined
   ): RateModel | undefined {
     const config = (sortEventsDescending(this.cumulativeRouteRateModelUpdates) as RouteRateModelUpdate[]).find(
-      (config) => config.blockNumber <= (blockNumber ?? 0) && config.l1Token === l1Token
+      (config) => config.blockNumber <= (blockNumber ?? 0) && config.l1Token.eq(l1Token)
     );
     if (config?.routeRateModel[route] === undefined) {
       return undefined;
@@ -212,12 +213,12 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
   }
 
   getSpokeTargetBalancesForBlock(
-    l1Token: string,
+    l1Token: EvmAddress,
     chainId: number,
     blockNumber: number = Number.MAX_SAFE_INTEGER
   ): SpokePoolTargetBalance {
     const config = (sortEventsDescending(this.cumulativeSpokeTargetBalanceUpdates) as SpokeTargetBalanceUpdate[]).find(
-      (config) => config.l1Token === l1Token && config.blockNumber <= blockNumber
+      (config) => config.l1Token.eq(l1Token) && config.blockNumber <= blockNumber
     );
     const targetBalance = config?.spokeTargetBalances?.[chainId];
     return targetBalance || { target: toBN(0), threshold: toBN(0) };
@@ -390,9 +391,10 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
 
       try {
         const { rateModel, routeRateModel, spokeTargetBalances } = this.validateTokenConfigUpdate(args);
-        const { value, key: l1Token, ...eventData } = args;
+        const { value, key: _l1Token, ...eventData } = args;
 
         if (rateModel !== undefined) {
+          const l1Token = EvmAddress.fromHex(_l1Token);
           this.cumulativeRateModelUpdates.push({ ...eventData, rateModel, l1Token });
           this.cumulativeSpokeTargetBalanceUpdates.push({
             ...eventData,

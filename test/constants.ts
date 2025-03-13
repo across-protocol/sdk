@@ -1,5 +1,6 @@
 import * as contracts from "@across-protocol/contracts/dist/test-utils"; // Contains all the Across contract constants.
 import { DEFAULT_CONFIG_STORE_VERSION } from "./mocks";
+import { Address } from "../src/utils";
 
 export const {
   amountToDeposit,
@@ -13,10 +14,10 @@ export const {
   totalBond,
 } = contracts;
 export const CONFIG_STORE_VERSION = DEFAULT_CONFIG_STORE_VERSION;
-export const randomL1Token = contracts.randomAddress();
-export const randomOriginToken = contracts.randomAddress();
-export const randomDestinationToken = contracts.randomAddress();
-export const randomDestinationToken2 = contracts.randomAddress();
+export const randomL1Token = Address.fromHex(contracts.randomAddress());
+export const randomOriginToken = Address.fromHex(contracts.randomAddress());
+export const randomDestinationToken = Address.fromHex(contracts.randomAddress());
+export const randomDestinationToken2 = Address.fromHex(contracts.randomAddress());
 
 // Max number of refunds in relayer refund leaf for a { repaymentChainId, L2TokenAddress }.
 export const MAX_REFUNDS_PER_RELAYER_REFUND_LEAF = 3;

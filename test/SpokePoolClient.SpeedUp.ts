@@ -1,6 +1,6 @@
 import { SpokePoolClient } from "../src/clients";
 import { Deposit, SpeedUp } from "../src/interfaces";
-import { bnOne, getMessageHash, toBytes32 } from "../src/utils";
+import { bnOne, getMessageHash, Address } from "../src/utils";
 import { destinationChainId, originChainId } from "./constants";
 import {
   assertPromiseError,
@@ -77,17 +77,17 @@ describe("SpokePoolClient: SpeedUp", function () {
       deposit.depositId,
       originChainId,
       updatedOutputAmount,
-      toBytes32(updatedRecipient),
+      updatedRecipient,
       updatedMessage
     );
 
     await spokePool
       .connect(depositor)
       .speedUpDeposit(
-        toBytes32(depositor.address),
+        Address.fromHex(depositor.address).toBytes32(),
         deposit.depositId,
         updatedOutputAmount,
-        toBytes32(updatedRecipient),
+        updatedRecipient,
         updatedMessage,
         signature
       );
@@ -140,17 +140,17 @@ describe("SpokePoolClient: SpeedUp", function () {
         depositId,
         originChainId,
         updatedOutputAmount,
-        toBytes32(updatedRecipient),
+        Address.fromHex(updatedRecipient).toBytes32(),
         updatedMessage
       );
 
       await spokePool
         .connect(depositor)
         .speedUpDeposit(
-          toBytes32(depositor.address),
+          Address.fromHex(depositor.address).toBytes32(),
           depositId,
           updatedOutputAmount,
-          toBytes32(updatedRecipient),
+          Address.fromHex(updatedRecipient).toBytes32(),
           updatedMessage,
           depositorSignature
         );
@@ -187,7 +187,7 @@ describe("SpokePoolClient: SpeedUp", function () {
       } else {
         expect(updatedDeposit.updatedOutputAmount!.eq(bestDepositUpdate.updatedOutputAmount)).to.be.true;
         expect(updatedDeposit.speedUpSignature).to.equal(bestDepositUpdate.depositorSignature);
-        expect(updatedDeposit.updatedRecipient).to.equal(bestDepositUpdate.updatedRecipient);
+        expect(updatedDeposit.updatedRecipient).to.deep.equal(bestDepositUpdate.updatedRecipient);
         expect(updatedDeposit.updatedMessage).to.equal(bestDepositUpdate.updatedMessage);
       }
     }
@@ -224,7 +224,7 @@ describe("SpokePoolClient: SpeedUp", function () {
         testDepositId,
         testOriginChainId,
         updatedOutputAmount,
-        toBytes32(updatedRecipient),
+        Address.fromHex(updatedRecipient).toBytes32(),
         updatedMessage
       );
 
@@ -234,7 +234,7 @@ describe("SpokePoolClient: SpeedUp", function () {
           testDepositor.address,
           testDepositId,
           updatedOutputAmount,
-          toBytes32(updatedRecipient),
+          Address.fromHex(updatedRecipient).toBytes32(),
           updatedMessage,
           signature
         );

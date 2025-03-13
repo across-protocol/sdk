@@ -6,7 +6,7 @@ import { ERC20__factory } from "../typechain";
 import { BigNumber } from "./BigNumberUtils";
 import { getNetworkName } from "./NetworkUtils";
 import { isDefined } from "./TypeGuards";
-import { compareAddressesSimple } from "./AddressUtils";
+import { compareAddressesSimple, EvmAddress } from "./AddressUtils";
 const { TOKEN_SYMBOLS_MAP, CHAIN_IDs } = constants;
 
 type SignerOrProvider = providers.Provider | Signer;
@@ -14,7 +14,7 @@ type SignerOrProvider = providers.Provider | Signer;
 export async function fetchTokenInfo(address: string, signerOrProvider: SignerOrProvider): Promise<L1Token> {
   const token = new Contract(address, ERC20__factory.abi, signerOrProvider);
   const [symbol, decimals] = await Promise.all([token.symbol(), token.decimals()]);
-  return { address, symbol, decimals };
+  return { address: EvmAddress.fromHex(address), symbol, decimals };
 }
 
 export const getL2TokenAddresses = (
@@ -44,7 +44,7 @@ export function resolveSymbolOnChain(chainId: number, symbol: string): L1Token {
   const { decimals, addresses } = token;
   const address = addresses[chainId];
 
-  return { symbol, decimals, address };
+  return { symbol, decimals, address: EvmAddress.fromHex(address) };
 }
 
 /**
@@ -72,7 +72,7 @@ export function getTokenInformationFromAddress(address: string, tokenMapping = T
     ? {
         decimals: details.decimals,
         symbol: details.symbol,
-        address,
+        address: EvmAddress.fromHex(address),
       }
     : undefined;
 }
@@ -119,7 +119,7 @@ export function getTokenInfo(l2TokenAddress: string, chainId: number): L1Token {
     );
   }
   return {
-    address: l2TokenAddress,
+    address: EvmAddress.fromHex(l2TokenAddress),
     symbol: tokenObject.symbol,
     decimals: tokenObject.decimals,
   };
@@ -149,7 +149,7 @@ export function getL1TokenInfo(l2TokenAddress: string, chainId: number): L1Token
     );
   }
   return {
-    address: l1TokenAddress,
+    address: EvmAddress.fromHex(l1TokenAddress),
     symbol: tokenObject.symbol,
     decimals: tokenObject.decimals,
   };

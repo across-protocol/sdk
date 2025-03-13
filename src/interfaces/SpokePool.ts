@@ -1,23 +1,23 @@
 import { SortableEvent } from "./Common";
 import { FilledV3RelayEvent, V3FundsDepositedEvent } from "../typechain";
 import { SpokePoolClient } from "../clients";
-import { BigNumber } from "../utils";
+import { BigNumber, Address } from "../utils";
 import { RelayerRefundLeaf } from "./HubPool";
 
 export type { FilledV3RelayEvent, V3FundsDepositedEvent };
 
 export interface RelayData {
   originChainId: number;
-  depositor: string;
-  recipient: string;
+  depositor: Address;
+  recipient: Address;
   depositId: BigNumber;
-  inputToken: string;
+  inputToken: Address;
   inputAmount: BigNumber;
-  outputToken: string;
+  outputToken: Address;
   outputAmount: BigNumber;
   message: string;
   fillDeadline: number;
-  exclusiveRelayer: string;
+  exclusiveRelayer: Address;
   exclusivityDeadline: number;
 }
 
@@ -26,7 +26,7 @@ export interface Deposit extends RelayData {
   destinationChainId: number;
   quoteTimestamp: number;
   speedUpSignature?: string;
-  updatedRecipient?: string;
+  updatedRecipient?: Address;
   updatedOutputAmount?: BigNumber;
   updatedMessage?: string;
   fromLiteChain: boolean;
@@ -50,7 +50,7 @@ export enum FillType {
 }
 
 export interface RelayExecutionEventInfo {
-  updatedRecipient: string;
+  updatedRecipient: Address;
   updatedOutputAmount: BigNumber;
   updatedMessage?: string;
   updatedMessageHash: string;
@@ -60,7 +60,7 @@ export interface RelayExecutionEventInfo {
 export interface Fill extends Omit<RelayData, "message"> {
   messageHash: string;
   destinationChainId: number;
-  relayer: string;
+  relayer: Address;
   repaymentChainId: number;
   relayExecutionInfo: RelayExecutionEventInfo;
 }
@@ -68,11 +68,11 @@ export interface Fill extends Omit<RelayData, "message"> {
 export interface FillWithBlock extends Fill, SortableEvent {}
 
 export interface SpeedUp {
-  depositor: string;
+  depositor: Address;
   depositorSignature: string;
   depositId: BigNumber;
   originChainId: number;
-  updatedRecipient: string;
+  updatedRecipient: Address;
   updatedOutputAmount: BigNumber;
   updatedMessage: string;
 }
@@ -119,7 +119,7 @@ export interface TokensBridged extends SortableEvent {
   amountToReturn: BigNumber;
   chainId: number;
   leafId: number;
-  l2TokenAddress: string;
+  l2TokenAddress: Address;
 }
 
 export interface SpokePoolClientsByChain {
