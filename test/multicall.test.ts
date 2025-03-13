@@ -47,7 +47,7 @@ describe("getMulticall3", async () => {
   });
 });
 
-describe("Multicall3", async function () {
+describe("Multicall3", function () {
   let provider: ethers.providers.Provider;
   let funder: SignerWithAddress;
   let multicall3: Multicall3;
