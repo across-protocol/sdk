@@ -7,6 +7,7 @@ import { chunk } from "./ArrayUtils";
 import { BigNumber, toBN, bnOne, bnZero } from "./BigNumberUtils";
 import { keccak256 } from "./common";
 import { isMessageEmpty } from "./DepositUtils";
+import { blockAndAggregate, getMulticall3 } from "./Multicall";
 import { isDefined } from "./TypeGuards";
 import { getNetworkName } from "./NetworkUtils";
 import { paginatedEventQuery, spreadEventWithBlockNumber } from "./EventUtils";
@@ -346,28 +347,30 @@ export async function findDepositBlock(
 
   // @todo this call can be optimised away by using multicall3.blockAndAggregate(..., { blockTag: highBlockNumber }).
   // This is left for future because the change is a bit complex, and multicall3 isn't supported in test.
-  highBlock ??= await spokePool.provider.getBlockNumber();
-  assert(highBlock > lowBlock, `Block numbers out of range (${lowBlock} >= ${highBlock})`);
+  const { chainId } = await spokePool.provider.getNetwork();
+  const multicall3 = getMulticall3(chainId, spokePool.provider);
+  assert(multicall3);
 
   // Make sure the deposit occurred within the block range supplied by the caller.
-  const [nDepositsLow, nDepositsHigh] = (
-    await Promise.all([
-      spokePool.numberOfDeposits({ blockTag: lowBlock }),
-      spokePool.numberOfDeposits({ blockTag: highBlock }),
-    ])
-  ).map((n) => toBN(n));
+  const [_nDepositsLow, { blockNumber: _highBlock, returnData: _returnData }] = await Promise.all([
+    spokePool.numberOfDeposits({ blockTag: lowBlock }),
+    blockAndAggregate(multicall3, [{ contract: spokePool, method: "numberOfDeposits" }], highBlock),
+  ]);
+  highBlock = _highBlock;
+  assert(highBlock > lowBlock, `Block numbers out of range (${lowBlock} >= ${highBlock})`);
 
+  const nDepositsLow = toBN(_nDepositsLow);
+  const nDepositsHigh = toBN(_returnData.at(0)!);
   if (nDepositsLow.gt(depositId) || nDepositsHigh.lte(depositId)) {
     return undefined; // Deposit did not occur within the specified block range.
   }
 
-  const nDeposits: { [blockNumber: number]: BigNumber } = {};
   // Find the lowest block number where numberOfDeposits is greater than the requested depositId.
   do {
     const midBlock = Math.floor((highBlock + lowBlock) / 2);
-    const numberOfDeposits = (nDeposits[midBlock] ??= toBN(await spokePool.numberOfDeposits({ blockTag: midBlock })));
+    const nDeposits = toBN(await spokePool.numberOfDeposits({ blockTag: midBlock }));
 
-    if (numberOfDeposits.gt(depositId)) {
+    if (nDeposits.gt(depositId)) {
       highBlock = midBlock;
     } else {
       lowBlock = midBlock + 1;
