@@ -371,9 +371,9 @@ export async function findDepositBlock(
     const nDeposits = toBN(await spokePool.numberOfDeposits({ blockTag: midBlock }));
 
     if (nDeposits.gt(depositId)) {
-      highBlock = midBlock;
+      highBlock = midBlock; // depositId occurred at or earlier than midBlock.
     } else {
-      lowBlock = midBlock + 1;
+      lowBlock = midBlock + 1; // depositId occurred later than midBlock.
     }
   } while (lowBlock < highBlock);
 
