@@ -37,6 +37,7 @@ import {
   winston,
   lastSpyLogIncludes,
 } from "./utils";
+import { deploy as deployMulticall } from "./utils/multicall";
 import assert from "assert";
 import { MockConfigStoreClient, MockHubPoolClient, MockSpokePoolClient } from "./mocks";
 
@@ -57,6 +58,8 @@ describe("SpokePoolClient: Fill Validation", function () {
 
   beforeEach(async function () {
     [owner, depositor, relayer] = await ethers.getSigners();
+    await deployMulticall(owner);
+
     // Creat two spoke pools: one to act as the source and the other to act as the destination.
     ({
       spokePool: spokePool_1,

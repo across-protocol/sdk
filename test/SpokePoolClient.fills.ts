@@ -26,6 +26,7 @@ import {
   toBN,
   toBNWei,
 } from "./utils";
+import { deploy as deployMulticall } from "./utils/multicall";
 
 describe("SpokePoolClient: Fills", function () {
   const originChainId2 = originChainId + 1;
@@ -38,6 +39,8 @@ describe("SpokePoolClient: Fills", function () {
 
   beforeEach(async function () {
     [, depositor, relayer1, relayer2] = await ethers.getSigners();
+    await deployMulticall(depositor);
+
     ({ spokePool, erc20, destErc20, weth, deploymentBlock } = await deploySpokePoolWithToken(
       originChainId,
       destinationChainId
