@@ -336,8 +336,8 @@ export function getRelayHashFromEvent(e: RelayData & { destinationChainId: numbe
 export async function findDepositBlock(
   spokePool: Contract,
   depositId: BigNumber,
-  lowBlockNumber: number,
-  highBlockNumber?: number
+  lowBlock: number,
+  highBlock?: number
 ): Promise<number | undefined> {
   // We can only perform this search when we have a safe deposit ID.
   if (isUnsafeDepositId(depositId)) {
@@ -346,14 +346,14 @@ export async function findDepositBlock(
 
   // @todo this call can be optimised away by using multicall3.blockAndAggregate(..., { blockTag: highBlockNumber }).
   // This is left for future because the change is a bit complex, and multicall3 isn't supported in test.
-  highBlockNumber ??= await spokePool.provider.getBlockNumber();
-  assert(highBlockNumber > lowBlockNumber, `Block numbers out of range (${lowBlockNumber} >= ${highBlockNumber})`);
+  highBlock ??= await spokePool.provider.getBlockNumber();
+  assert(highBlock > lowBlock, `Block numbers out of range (${lowBlock} >= ${highBlock})`);
 
   // Make sure the deposit occurred within the block range supplied by the caller.
   const [nDepositsLow, nDepositsHigh] = (
     await Promise.all([
-      spokePool.numberOfDeposits({ blockTag: lowBlockNumber }),
-      spokePool.numberOfDeposits({ blockTag: highBlockNumber }),
+      spokePool.numberOfDeposits({ blockTag: lowBlock }),
+      spokePool.numberOfDeposits({ blockTag: highBlock }),
     ])
   ).map((n) => toBN(n));
 
@@ -361,19 +361,21 @@ export async function findDepositBlock(
     return undefined; // Deposit did not occur within the specified block range.
   }
 
+  const nDeposits: { [blockNumber: number]: BigNumber } = {};
   // Find the lowest block number where numberOfDeposits is greater than the requested depositId.
   do {
-    const midBlockNumber = Math.floor((highBlockNumber + lowBlockNumber) / 2);
-    const numberOfDeposits = toBN(await spokePool.numberOfDeposits({ blockTag: midBlockNumber }));
+    const midBlock = Math.floor((highBlock + lowBlock) / 2);
+    const numberOfDeposits = nDeposits[midBlock] ??= toBN(await spokePool.numberOfDeposits({ blockTag: midBlock }));
 
     if (numberOfDeposits.gt(depositId)) {
-      highBlockNumber = midBlockNumber;
+      highBlock = midBlock;
     } else {
-      lowBlockNumber = midBlockNumber + 1;
+      lowBlock = midBlock + 1;
     }
-  } while (lowBlockNumber < highBlockNumber);
 
-  return lowBlockNumber;
+  } while (lowBlock < highBlock);
+
+  return lowBlock;
 }
 
 export function isUnsafeDepositId(depositId: BigNumber): boolean {
