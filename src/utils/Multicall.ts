@@ -1,6 +1,6 @@
 import { Contract, providers, Signer, utils as ethersUtils } from "ethers";
 import { CHAIN_IDs } from "@across-protocol/constants";
-import { chainIsOPStack } from "./NetworkUtils";
+import { chainIsOPStack, hreNetworks } from "./NetworkUtils";
 import { BigNumber } from "./BigNumberUtils";
 import { Multicall3, Multicall3__factory } from "./abi/typechain";
 
@@ -35,6 +35,7 @@ const DETERMINISTIC_MULTICALL_CHAINS = [
   CHAIN_IDs.SCROLL_SEPOLIA,
   CHAIN_IDs.SEPOLIA,
   CHAIN_IDs.ARBITRUM_SEPOLIA,
+  ...Object.keys(hreNetworks).map(Number), // See test/utils/multicall.ts
 ];
 
 export function getMulticallAddress(chainId: number): string | undefined {
@@ -65,4 +66,31 @@ export async function aggregate(multicall3: Contract, calls: Call3[], blockTag?:
     const { contract, method } = calls[idx];
     return contract.interface.decodeFunctionResult(method, result);
   });
+}
+
+export async function blockAndAggregate(
+  multicall3: Contract,
+  calls: Call3[],
+  blockTag?: BlockTag
+): Promise<{ blockNumber: number; returnData: Result[] }> {
+  const inputs = calls.map(({ contract, method, args }) => ({
+    target: contract.address,
+    callData: contract.interface.encodeFunctionData(method, args),
+  }));
+
+  type blockAndAggregateResponse = Promise<{
+    blockNumber: BigNumber;
+    blockHash: string;
+    returnData: Multicall3.ResultStructOutput[];
+  }>;
+  const { blockNumber, returnData: _returnData } = await (multicall3.callStatic.blockAndAggregate(inputs, {
+    blockTag,
+  }) as blockAndAggregateResponse);
+
+  const returnData = _returnData.map(({ returnData }, idx) => {
+    const { contract, method } = calls[idx];
+    return contract.interface.decodeFunctionResult(method, returnData);
+  });
+
+  return { blockNumber: blockNumber.toNumber(), returnData };
 }
