@@ -1,6 +1,5 @@
 import { providers, utils } from "ethers";
 import bs58 from "bs58";
-import { isAddress as isSvmAddress } from "@solana/web3.js";
 import { BigNumber, chainIsEvm } from "./";
 
 /**
@@ -162,17 +161,13 @@ export class Address {
     }
   }
 
-  // Checks if this address can be coerced into a valid Solana address. Return true if possible and false otherwise.
-  isValidSvmAddress(): boolean {
-    return isSvmAddress(this.toBase58());
-  }
-
   // Checks if the address is valid on the given chain ID.
   isValidOn(chainId: number): boolean {
     if (chainIsEvm(chainId)) {
       return this.isValidEvmAddress();
     }
-    return this.isValidSvmAddress();
+    // Assume the address is always valid on Solana.
+    return true;
   }
 
   // Checks if the object is an address by looking at whether it has an Address constructor.
@@ -238,9 +233,6 @@ export class SvmAddress extends Address {
   // On construction, validate that the address is a point on Curve25519. Throw immediately if it is not.
   constructor(rawAddress: Uint8Array) {
     super(rawAddress);
-    if (!this.isValidSvmAddress()) {
-      throw new Error(`${this} is not a valid SVM address`);
-    }
   }
 
   // Override the toAddress function for SVM addresses only since while they will never have a defined 20-byte representation. The base58 encoded addresses are also the encodings

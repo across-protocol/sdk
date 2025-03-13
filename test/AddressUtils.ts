@@ -5,14 +5,7 @@ import { expect, ethers } from "./utils";
 
 describe("Address Utils: Address Type", function () {
   const randomBytes = (n: number): string => ethers.utils.hexlify(ethers.utils.randomBytes(n));
-  const generateSvmAddress = () => {
-    let svmToken;
-    // The random bytes we choose may not be an element in curve25519's field, so just rotate until we find one.
-    do {
-      svmToken = toAddressType(bs58.encode(ethers.utils.randomBytes(32)), CHAIN_IDs.SOLANA);
-    } while (!svmToken.isValidSvmAddress());
-    return svmToken;
-  };
+  const generateSvmAddress = () => toAddressType(bs58.encode(ethers.utils.randomBytes(32)), CHAIN_IDs.SOLANA);
 
   describe("Correctness of Address methods", function () {
     it("Correctly identifies address types", function () {
