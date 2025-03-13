@@ -1,6 +1,6 @@
 import { Contract, providers, Signer, utils as ethersUtils } from "ethers";
 import { CHAIN_IDs } from "@across-protocol/constants";
-import { chainIsOPStack } from "./NetworkUtils";
+import { chainIsOPStack, hreNetworks } from "./NetworkUtils";
 import { BigNumber } from "./BigNumberUtils";
 import { Multicall3, Multicall3__factory } from "./abi/typechain";
 
@@ -35,6 +35,7 @@ const DETERMINISTIC_MULTICALL_CHAINS = [
   CHAIN_IDs.SCROLL_SEPOLIA,
   CHAIN_IDs.SEPOLIA,
   CHAIN_IDs.ARBITRUM_SEPOLIA,
+  ...Object.keys(hreNetworks).map(Number), // See test/utils/multicall.ts
 ];
 
 export function getMulticallAddress(chainId: number): string | undefined {
