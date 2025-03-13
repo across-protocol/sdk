@@ -349,7 +349,7 @@ export async function findDepositBlock(
   // This is left for future because the change is a bit complex, and multicall3 isn't supported in test.
   const { chainId } = await spokePool.provider.getNetwork();
   const multicall3 = getMulticall3(chainId, spokePool.provider);
-  assert(multicall3);
+  assert(multicall3, `No multicall3 defined for chain ${chainId}`);
 
   // Make sure the deposit occurred within the block range supplied by the caller.
   const [_nDepositsLow, { blockNumber: _highBlock, returnData: _returnData }] = await Promise.all([
