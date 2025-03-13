@@ -365,14 +365,13 @@ export async function findDepositBlock(
   // Find the lowest block number where numberOfDeposits is greater than the requested depositId.
   do {
     const midBlock = Math.floor((highBlock + lowBlock) / 2);
-    const numberOfDeposits = nDeposits[midBlock] ??= toBN(await spokePool.numberOfDeposits({ blockTag: midBlock }));
+    const numberOfDeposits = (nDeposits[midBlock] ??= toBN(await spokePool.numberOfDeposits({ blockTag: midBlock })));
 
     if (numberOfDeposits.gt(depositId)) {
       highBlock = midBlock;
     } else {
       lowBlock = midBlock + 1;
     }
-
   } while (lowBlock < highBlock);
 
   return lowBlock;
