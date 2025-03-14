@@ -106,7 +106,7 @@ export async function queryHistoricalDepositForFill(
 
     ({ deposit } = result);
     if (cache) {
-      await setDepositInCache(deposit!, getCurrentTime(), cache, DEFAULT_CACHING_TTL);
+      await setDepositInCache(deposit, getCurrentTime(), cache, DEFAULT_CACHING_TTL);
     }
   }
 
