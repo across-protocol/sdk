@@ -110,7 +110,6 @@ export class MockSpokePoolClient extends SpokePoolClient {
       success: true,
       firstDepositId: bnZero,
       currentTime,
-      oldestTime: 0,
       events,
       searchEndBlock: this.eventSearchConfig.toBlock || latestBlockSearched,
     });
