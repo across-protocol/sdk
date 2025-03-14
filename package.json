@@ -1,7 +1,7 @@
 {
   "name": "@across-protocol/sdk",
   "author": "UMA Team",
-  "version": "4.1.21",
+  "version": "4.1.22",
   "license": "AGPL-3.0",
   "homepage": "https://docs.across.to/reference/sdk",
   "files": [
@@ -12,8 +12,8 @@
     "node": ">=20.18.0"
   },
   "scripts": {
-    "build-bigint-buffer": "[ -d node_modules/bigint-buffer ] && command -v node-gyp > /dev/null && cd node_modules/bigint-buffer && node-gyp configure && node-gyp build || echo 'Skipping bigint-buffer build: folder or node-gyp not found'",
-    "postinstall": "yarn build-bigint-buffer",
+    "build-bigint-buffer": "node scripts/build-bigint-buffer.js",
+    "postinstall": "node scripts/build-bigint-buffer.js",
     "start": "yarn typechain && nodemon -e ts,tsx,json,js,jsx --watch ./src --ignore ./dist --exec 'yarn dev'",
     "build": "yarn run clean && yarn typechain && yarn run build:cjs & yarn run build:esm & yarn run build:types; wait",
     "dev": "yarn run build:cjs & yarn run build:esm & yarn run build:types; wait",
