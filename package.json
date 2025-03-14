@@ -6,6 +6,7 @@
   "homepage": "https://docs.across.to/reference/sdk",
   "files": [
     "dist",
+    "scripts",
     "src"
   ],
   "engines": {
