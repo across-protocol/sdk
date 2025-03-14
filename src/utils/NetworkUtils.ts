@@ -130,9 +130,17 @@ export function chainIsL1(chainId: number): boolean {
  * @returns True if chain corresponding to chainId has an EVM-like execution layer.
  */
 export function chainIsEvm(chainId: number): boolean {
-  chainId;
-  // TODO: Fix when we support non-EVM chains.
-  return true;
+  // TODO: Update when additional execution layers beyond EVM and SVM are supported.
+  return PUBLIC_NETWORKS[chainId]?.family !== ChainFamily.SVM;
+}
+
+/**
+ * Determines whether a chain ID runs on an SVM-like execution layer.
+ * @param chainId Chain ID to evaluate.
+ * @returns True if chain corresponding to chainId has an SVM-like execution layer.
+ */
+export function chainIsSvm(chainId: number): boolean {
+  return PUBLIC_NETWORKS[chainId]?.family === ChainFamily.SVM;
 }
 
 /**
