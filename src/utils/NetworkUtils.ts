@@ -1,8 +1,9 @@
 import { ChainFamily, CHAIN_IDs, MAINNET_CHAIN_IDs, PUBLIC_NETWORKS, TESTNET_CHAIN_IDs } from "../constants";
 
-const hreNetworks: Record<number, string> = {
+export const hreNetworks: Record<number, string> = {
   666: "Hardhat1",
   1337: "Hardhat2",
+  31337: "HardhatNetwork",
 };
 
 /**
@@ -129,7 +130,17 @@ export function chainIsL1(chainId: number): boolean {
  * @returns True if chain corresponding to chainId has an EVM-like execution layer.
  */
 export function chainIsEvm(chainId: number): boolean {
-  return ![CHAIN_IDs.SOLANA, CHAIN_IDs.SOLANA_DEVNET].includes(chainId);
+  // TODO: Update when additional execution layers beyond EVM and SVM are supported.
+  return PUBLIC_NETWORKS[chainId]?.family !== ChainFamily.SVM;
+}
+
+/**
+ * Determines whether a chain ID runs on an SVM-like execution layer.
+ * @param chainId Chain ID to evaluate.
+ * @returns True if chain corresponding to chainId has an SVM-like execution layer.
+ */
+export function chainIsSvm(chainId: number): boolean {
+  return PUBLIC_NETWORKS[chainId]?.family === ChainFamily.SVM;
 }
 
 /**
