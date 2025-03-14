@@ -1,3 +1,4 @@
+import hre from "hardhat";
 import { DepositWithBlock, FillStatus, FillType } from "../src/interfaces";
 import { SpokePoolClient } from "../src/clients";
 import {
@@ -9,7 +10,6 @@ import {
   relayFillStatus,
   validateFillForDeposit,
   queryHistoricalDepositForFill,
-  DepositSearchResult,
   getBlockRangeForDepositId,
 } from "../src/utils";
 import { ZERO_BYTES } from "../src/constants";
@@ -282,7 +282,7 @@ describe("SpokePoolClient: Fill Validation", function () {
     expect(spokePoolClient2.getDepositForFill(fill)).to.equal(undefined);
     await spokePoolClient1.update();
 
-    const deposit = spokePoolClient1.getDepositForFill(fill);
+    let deposit = spokePoolClient1.getDepositForFill(fill);
     expect(deposit).to.exist;
     deposit = deposit!;
 
@@ -312,9 +312,6 @@ describe("SpokePoolClient: Fill Validation", function () {
       outputAmount
     );
     await mineRandomBlocks();
-
-    const [, deposit1Event] = await spokePool_1.queryFilter("FundsDeposited");
-    const deposit1Block = deposit1Event.blockNumber;
 
     // Throws when low < high
     await assertPromiseError(
@@ -513,8 +510,6 @@ describe("SpokePoolClient: Fill Validation", function () {
     await spokePoolClient2.update();
     const [fill] = spokePoolClient2.getFills();
 
-    await assertPromiseError(queryHistoricalDepositForFill(spokePoolClient1, fill), "SpokePoolClient must be updated");
-
     // Set event search config from block to latest block so client doesn't see event.
     spokePoolClient1.eventSearchConfig.fromBlock = await spokePool_1.provider.getBlockNumber();
     spokePoolClient1.firstBlockToSearch = spokePoolClient1.eventSearchConfig.fromBlock;
@@ -523,11 +518,13 @@ describe("SpokePoolClient: Fill Validation", function () {
     // Client has 0 deposits in memory so querying historical deposit sends fresh RPC requests.
     expect(spokePoolClient1.getDeposits().length).to.equal(0);
 
-    const historicalDeposit = await queryHistoricalDepositForFill(spokePoolClient1, fill);
-    assert.equal(historicalDeposit.found, true, "Test is broken"); // Help tsc to narrow the discriminated union.
-    expect((historicalDeposit as Extract<DepositSearchResult, { found: true }>).deposit.depositId).to.deep.equal(
-      deposit.depositId
-    );
+    const historicalDeposit = await spokePoolClient1.findDeposit(fill.depositId);
+
+    assert.equal(historicalDeposit.found, true, "Test is broken");
+    // tsc narrowing
+    if (historicalDeposit.found) {
+      expect(historicalDeposit.deposit.depositId.eq(deposit.depositId)).to.be.true;
+    }
   });
 
   it("Can fetch younger deposit matching fill", async function () {
@@ -546,8 +543,6 @@ describe("SpokePoolClient: Fill Validation", function () {
     await spokePoolClient2.update();
     const [fill] = spokePoolClient2.getFills();
 
-    await assertPromiseError(queryHistoricalDepositForFill(spokePoolClient1, fill), "SpokePoolClient must be updated");
-
     // Set event search config to block to before deposit so client doesn't see event.
     spokePoolClient1.eventSearchConfig.toBlock = depositBlock - 1;
     await spokePoolClient1.update();
@@ -560,13 +555,15 @@ describe("SpokePoolClient: Fill Validation", function () {
     expect(spokePoolClient1.getDeposits().length).to.equal(0);
 
     const historicalDeposit = await queryHistoricalDepositForFill(spokePoolClient1, fill);
-    assert.equal(historicalDeposit.found, true, "Test is broken"); // Help tsc to narrow the discriminated union.
-    expect((historicalDeposit as Extract<DepositSearchResult, { found: true }>).deposit.depositId).to.deep.equal(
-      deposit.depositId
-    );
+
+    assert.equal(historicalDeposit.found, true, "Test is broken");
+    // tsc narrowing
+    if (historicalDeposit.found) {
+      expect(historicalDeposit.deposit.depositId.eq(deposit.depositId)).to.be.true;
+    }
   });
 
-  it("Loads fills from memory with deposit ID > spoke pool client's earliest deposit ID queried", async function () {
+  it("Loads fills from memory with deposit ID > SpokePoolClient's earliest deposit ID queried", async function () {
     const deposit = await depositV3(
       spokePool_1,
       destinationChainId,
@@ -576,94 +573,50 @@ describe("SpokePoolClient: Fill Validation", function () {
       outputToken,
       outputAmount
     );
-    const fill = await fillV3Relay(spokePool_2, deposit, relayer);
+
+    await hre.network.provider.send("evm_mine");
+    await hre.network.provider.send("evm_mine");
+
+    // Configure the search range to skip the deposit.
+    spokePoolClient1.firstBlockToSearch = deposit.blockNumber + 1;
+    spokePoolClient1.eventSearchConfig.toBlock = undefined;
     await spokePoolClient1.update();
-    expect(spokePoolClient1.earliestDepositIdQueried == 0).is.true;
 
-    // Client should NOT send RPC requests to fetch this deposit, instead it should load from memory.
-    expect((await queryHistoricalDepositForFill(spokePoolClient1, fill)).found).is.true;
-    expect(lastSpyLogIncludes(spy, "updated!")).is.true;
+    // Client does not have the deposit and should search for it.
+    expect((await spokePoolClient1.findDeposit(deposit.depositId)).found).is.true;
+    expect(lastSpyLogIncludes(spy, "Located V3 deposit outside of SpokePoolClient's search range")).to.be.true;
 
-    // Now override earliest deposit ID queried so that its > deposit ID and check that client sends RPC requests.
-    spokePoolClient1.earliestDepositIdQueried = 1;
-    expect((await queryHistoricalDepositForFill(spokePoolClient1, fill)).found).is.true;
-    expect(lastSpyLogIncludes(spy, "Located V3 deposit outside of SpokePoolClient's search range")).is.true;
-  });
-
-  it("Loads fills from memory with deposit ID < spoke pool client's latest deposit ID queried", async function () {
-    // Send fill for deposit ID 0.
-    const deposit = await depositV3(
-      spokePool_1,
-      destinationChainId,
-      depositor,
-      inputToken,
-      inputAmount,
-      outputToken,
-      outputAmount
-    );
-    const fill = await fillV3Relay(spokePool_2, deposit, relayer);
+    // Search the missing block range.
+    spokePoolClient1.firstBlockToSearch = deposit.blockNumber - 1;
     await spokePoolClient1.update();
-    // Manually override latest deposit ID queried so that its > deposit ID.
-    spokePoolClient1.latestDepositIdQueried = 1;
 
-    // Client should NOT send RPC requests to fetch this deposit, instead it should load from memory.
-    expect((await queryHistoricalDepositForFill(spokePoolClient1, fill)).found).is.true;
-    expect(lastSpyLogIncludes(spy, "updated!")).is.true;
-
-    // Now override latest deposit ID queried so that its < deposit ID and check that client sends RPC requests.
-    spokePoolClient1.latestDepositIdQueried = -1;
-    expect((await queryHistoricalDepositForFill(spokePoolClient1, fill)).found).is.true;
-    expect(lastSpyLogIncludes(spy, "Located V3 deposit outside of SpokePoolClient's search range")).is.true;
+    // Client has the deposit now; should not search.
+    expect((await spokePoolClient1.findDeposit(deposit.depositId)).found).is.true;
+    expect(lastSpyLogIncludes(spy, "Located V3 deposit outside of SpokePoolClient's search range")).to.be.false;
   });
 
   it("Ignores fills with deposit ID < first deposit ID in spoke pool", async function () {
-    const deposit = await depositV3(
-      spokePool_1,
-      destinationChainId,
-      depositor,
-      inputToken,
-      inputAmount,
-      outputToken,
-      outputAmount
-    );
-    await fillV3Relay(spokePool_2, deposit, relayer);
-    await spokePoolClient2.update();
-    const [fill] = spokePoolClient2.getFills();
-
-    // Override the first spoke pool deposit ID that the client thinks is available in the contract.
-    await spokePoolClient1.update();
-    spokePoolClient1.firstDepositIdForSpokePool = deposit.depositId.add(1);
-    expect(fill.depositId < spokePoolClient1.firstDepositIdForSpokePool).is.true;
-    const search = await queryHistoricalDepositForFill(spokePoolClient1, fill);
-
-    assert.equal(search.found, false, "Test is broken"); // Help tsc to narrow the discriminated union.
-    expect((search as Extract<DepositSearchResult, { found: false }>).code).to.equal(InvalidFill.DepositIdInvalid);
-    expect(lastSpyLogIncludes(spy, "Queried RPC for deposit")).is.not.true;
+    // Make no deposit; search for depositId 0.
+    const search = await spokePoolClient1.findDeposit(bnZero);
+    assert.equal(search.found, false, "Test is broken");
+    // tsc narrowing
+    if (!search.found) {
+      expect(search.code).to.equal(InvalidFill.DepositIdNotFound);
+    }
   });
 
   it("Ignores fills with deposit ID > latest deposit ID in spoke pool", async function () {
-    const deposit = await depositV3(
-      spokePool_1,
-      destinationChainId,
-      depositor,
-      inputToken,
-      inputAmount,
-      outputToken,
-      outputAmount
-    );
+    await depositV3(spokePool_1, destinationChainId, depositor, inputToken, inputAmount, outputToken, outputAmount);
 
-    // Override the deposit ID that we are "filling" to be > 1, the latest deposit ID in spoke pool 1.
-    await fillV3Relay(spokePool_2, { ...deposit, depositId: deposit.depositId.add(1) }, relayer);
-    await spokePoolClient2.update();
-    const [fill] = spokePoolClient2.getFills();
-
+    const nextDepositId = await spokePool_1.numberOfDeposits();
     await spokePoolClient1.update();
-    expect(fill.depositId > spokePoolClient1.lastDepositIdForSpokePool).is.true;
-    const search = await queryHistoricalDepositForFill(spokePoolClient1, fill);
+    const search = await spokePoolClient1.findDeposit(nextDepositId);
 
-    assert.equal(search.found, false, "Test is broken"); // Help tsc to narrow the discriminated union.
-    expect((search as Extract<DepositSearchResult, { found: false }>).code).to.equal(InvalidFill.DepositIdInvalid);
-    expect(lastSpyLogIncludes(spy, "Queried RPC for deposit")).is.not.true;
+    assert.equal(search.found, false, "Test is broken");
+    // tsc narrowing
+    if (!search.found) {
+      expect(search.code).to.equal(InvalidFill.DepositIdNotFound);
+    }
   });
 
   it("Ignores matching fills that mis-specify a deposit attribute", async function () {
@@ -682,9 +635,15 @@ describe("SpokePoolClient: Fill Validation", function () {
 
     await Promise.all([spokePoolClient1.update(), spokePoolClient2.update()]);
 
-    const search = await queryHistoricalDepositForFill(spokePoolClient1, fill);
-    assert.equal(search.found, false, "Test is broken"); // Help tsc to narrow the discriminated union.
-    expect((search as Extract<DepositSearchResult, { found: false }>).code).to.equal(InvalidFill.FillMismatch);
+    const search = await queryHistoricalDepositForFill(spokePoolClient1, {
+      ...fill,
+      outputAmount: fill.outputAmount.sub(bnOne),
+    });
+    assert.equal(search.found, false, "Test is broken");
+    // tsc narrowing
+    if (!search.found) {
+      expect(search.code).to.equal(InvalidFill.FillMismatch);
+    }
   });
 
   it("Returns sped up deposit matched with fill", async function () {
