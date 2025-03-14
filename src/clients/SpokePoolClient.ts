@@ -9,7 +9,6 @@ import {
   DefaultLogLevels,
   DepositSearchResult,
   EventSearchConfig,
-  findDepositBlock,
   MAX_BIG_INT,
   MakeOptional,
   assign,
@@ -48,7 +47,7 @@ import {
 } from "../interfaces";
 import { SpokePool } from "../typechain";
 import { getNetworkName } from "../utils/NetworkUtils";
-import { getDepositIdAtBlock, relayFillStatus } from "../utils/SpokeUtils";
+import { findDepositBlock, getDepositIdAtBlock, relayFillStatus } from "../utils/SpokeUtils";
 import { BaseAbstractClient, isUpdateFailureReason, UpdateFailureReason } from "./BaseAbstractClient";
 import { HubPoolClient } from "./HubPoolClient";
 import { AcrossConfigStoreClient } from "./AcrossConfigStoreClient";
