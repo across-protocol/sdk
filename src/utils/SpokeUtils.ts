@@ -7,6 +7,7 @@ import { chunk } from "./ArrayUtils";
 import { BigNumber, toBN, bnOne, bnZero } from "./BigNumberUtils";
 import { keccak256 } from "./common";
 import { isMessageEmpty } from "./DepositUtils";
+import { blockAndAggregate, getMulticall3 } from "./Multicall";
 import { isDefined } from "./TypeGuards";
 import { getNetworkName } from "./NetworkUtils";
 import { paginatedEventQuery, spreadEventWithBlockNumber } from "./EventUtils";
@@ -333,6 +334,52 @@ export function getRelayHashFromEvent(e: RelayData & { destinationChainId: numbe
   return getRelayDataHash(e, e.destinationChainId);
 }
 
+export async function findDepositBlock(
+  spokePool: Contract,
+  depositId: BigNumber,
+  lowBlock: number,
+  highBlock?: number
+): Promise<number | undefined> {
+  // We can only perform this search when we have a safe deposit ID.
+  if (isUnsafeDepositId(depositId)) {
+    throw new Error(`Cannot binary search for depositId ${depositId}`);
+  }
+
+  // @todo this call can be optimised away by using multicall3.blockAndAggregate(..., { blockTag: highBlockNumber }).
+  // This is left for future because the change is a bit complex, and multicall3 isn't supported in test.
+  const { chainId } = await spokePool.provider.getNetwork();
+  const multicall3 = getMulticall3(chainId, spokePool.provider);
+  assert(multicall3, `No multicall3 defined for chain ${chainId}`);
+
+  // Make sure the deposit occurred within the block range supplied by the caller.
+  const [_nDepositsLow, { blockNumber: _highBlock, returnData }] = await Promise.all([
+    spokePool.numberOfDeposits({ blockTag: lowBlock }),
+    blockAndAggregate(multicall3, [{ contract: spokePool, method: "numberOfDeposits" }], highBlock),
+  ]);
+  highBlock = _highBlock;
+  assert(highBlock > lowBlock, `Block numbers out of range (${lowBlock} >= ${highBlock})`);
+
+  const nDepositsLow = toBN(_nDepositsLow);
+  const nDepositsHigh = toBN(returnData.at(0)!);
+  if (nDepositsLow.gt(depositId) || nDepositsHigh.lte(depositId)) {
+    return undefined; // Deposit did not occur within the specified block range.
+  }
+
+  // Find the lowest block number where numberOfDeposits is greater than the requested depositId.
+  do {
+    const midBlock = Math.floor((highBlock + lowBlock) / 2);
+    const nDeposits = toBN(await spokePool.numberOfDeposits({ blockTag: midBlock }));
+
+    if (nDeposits.gt(depositId)) {
+      highBlock = midBlock; // depositId occurred at or earlier than midBlock.
+    } else {
+      lowBlock = midBlock + 1; // depositId occurred later than midBlock.
+    }
+  } while (lowBlock < highBlock);
+
+  return lowBlock;
+}
+
 export function isUnsafeDepositId(depositId: BigNumber): boolean {
   // SpokePool.unsafeDepositV3() produces a uint256 depositId by hashing the msg.sender, depositor and input
   // uint256 depositNonce. There is a possibility that this resultant uint256 is less than the maxSafeDepositId (i.e.
@@ -439,7 +486,7 @@ export async function findFillBlock(
     `Origin & destination chain IDs must not be equal (${destinationChainId})`
   );
 
-  // Make sure the relay war completed within the block range supplied by the caller.
+  // Make sure the relay was completed within the block range supplied by the caller.
   const [initialFillStatus, finalFillStatus] = (
     await Promise.all([
       relayFillStatus(spokePool, relayData, lowBlockNumber, destinationChainId),
