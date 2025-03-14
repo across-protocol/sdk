@@ -109,10 +109,9 @@ export async function queryHistoricalDepositForFill(
       await setDepositInCache(deposit, getCurrentTime(), cache, DEFAULT_CACHING_TTL);
     }
   }
+  assert(isDefined(deposit), `Unexpectedly failed to locate ${originChain} deposit ${fill.depositId}`);
 
-  if (isDefined(deposit)) {
-    deposit.messageHash ??= getMessageHash(deposit.message);
-  }
+  deposit.messageHash ??= getMessageHash(deposit.message);
 
   const match = validateFillForDeposit(fill, deposit);
   if (match.valid) {
