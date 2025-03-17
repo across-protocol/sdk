@@ -1,4 +1,11 @@
-import { signature, Commitment, Rpc, SolanaRpcApiFromTransport, RpcTransport } from "@solana/kit";
+import {
+  signature,
+  Commitment,
+  Rpc,
+  SolanaRpcApiFromTransport,
+  RpcTransport,
+  SOLANA_ERROR__JSON_RPC__INTERNAL_ERROR,
+} from "@solana/kit";
 import bs58 from "bs58";
 import { createHash } from "crypto";
 import winston from "winston";
@@ -24,6 +31,9 @@ const getTransactionResult = {
   blockTime: null,
   meta: null,
 };
+const errorCode = SOLANA_ERROR__JSON_RPC__INTERNAL_ERROR; // Need real error code, otherwise error generation will fail.
+const errorMessage = "test error message";
+const jsonRpcError = { code: errorCode, message: errorMessage };
 
 describe("cached solana provider", () => {
   let spy: sinon.SinonSpy;
@@ -134,5 +144,89 @@ describe("cached solana provider", () => {
     // Second request should have triggered the underlying transport again, doubling the log entries.
     expect(spy.callCount).to.equal(2);
     expect(spyLogIncludes(spy, 1, "getSlot")).to.be.true;
+  });
+
+  it("does not cache error responses", async () => {
+    // Prepare required mock responses.
+    mockRpcFactory.setResult("getSignatureStatuses", getSignatureStatusesParams, {
+      value: [{ confirmationStatus: "finalized" }],
+    });
+    mockRpcFactory.setError("getTransaction", [testSignature, getTransactionConfig], jsonRpcError);
+
+    try {
+      await cachedRpcClient.getTransaction(testSignature, getTransactionConfig).send();
+      expect.fail("Expected an error to be thrown");
+    } catch (error) {
+      expect(error.context.__code).to.equal(errorCode);
+      expect(error.context.__serverMessage).to.equal(errorMessage);
+    }
+
+    // Check the cache is empty.
+    const cacheKey = `${providerCacheNamespace},${
+      new URL(url).hostname
+    },${chainId}:getTransaction,["${testSignature}",${JSON.stringify(getTransactionConfig)}]`;
+    const cacheValue = JSON.parse((await memoryCache.get(cacheKey)) || "{}", jsonReviverWithBigInts);
+    expect(cacheValue).to.be.empty;
+  });
+
+  it("does not cache when json-rpc error in getting signature status", async () => {
+    // Prepare required mock responses.
+    mockRpcFactory.setError("getSignatureStatuses", getSignatureStatusesParams, jsonRpcError);
+    mockRpcFactory.setResult("getTransaction", [testSignature, getTransactionConfig], getTransactionResult);
+
+    // Only the getSignatureStatuses call returns error, the getTransaction call should still succeed.
+    let result = await cachedRpcClient.getTransaction(testSignature, getTransactionConfig).send();
+    expect(result).to.deep.equal(getTransactionResult);
+
+    // Check the cache is empty.
+    const cacheKey = `${providerCacheNamespace},${
+      new URL(url).hostname
+    },${chainId}:getTransaction,["${testSignature}",${JSON.stringify(getTransactionConfig)}]`;
+    const cacheValue = JSON.parse((await memoryCache.get(cacheKey)) || "{}", jsonReviverWithBigInts);
+    expect(cacheValue).to.be.empty;
+
+    // Expect 2 log entries from the underlying transport: one for getSignatureStatuses and one for getTransaction.
+    expect(spy.callCount).to.equal(2);
+    expect(spyLogIncludes(spy, 0, "getSignatureStatuses")).to.be.true;
+    expect(spyLogIncludes(spy, 1, "getTransaction")).to.be.true;
+
+    result = await cachedRpcClient.getTransaction(testSignature, getTransactionConfig).send();
+    expect(result).to.deep.equal(getTransactionResult);
+
+    // Second request should have triggered the underlying transport again, doubling the log entries.
+    expect(spy.callCount).to.equal(4);
+    expect(spyLogIncludes(spy, 2, "getSignatureStatuses")).to.be.true;
+    expect(spyLogIncludes(spy, 3, "getTransaction")).to.be.true;
+  });
+
+  it("does not cache when thrown in getting signature status", async () => {
+    // Prepare required mock responses.
+    const throwMessage = "test throw message";
+    mockRpcFactory.setThrow("getSignatureStatuses", getSignatureStatusesParams, throwMessage);
+    mockRpcFactory.setResult("getTransaction", [testSignature, getTransactionConfig], getTransactionResult);
+
+    // Only the getSignatureStatuses call throws, the getTransaction call should still succeed.
+    let result = await cachedRpcClient.getTransaction(testSignature, getTransactionConfig).send();
+    expect(result).to.deep.equal(getTransactionResult);
+
+    // Check the cache is empty.
+    const cacheKey = `${providerCacheNamespace},${
+      new URL(url).hostname
+    },${chainId}:getTransaction,["${testSignature}",${JSON.stringify(getTransactionConfig)}]`;
+    const cacheValue = JSON.parse((await memoryCache.get(cacheKey)) || "{}", jsonReviverWithBigInts);
+    expect(cacheValue).to.be.empty;
+
+    // Expect 2 log entries from the underlying transport: one for getSignatureStatuses and one for getTransaction.
+    expect(spy.callCount).to.equal(2);
+    expect(spyLogIncludes(spy, 0, "getSignatureStatuses")).to.be.true;
+    expect(spyLogIncludes(spy, 1, "getTransaction")).to.be.true;
+
+    result = await cachedRpcClient.getTransaction(testSignature, getTransactionConfig).send();
+    expect(result).to.deep.equal(getTransactionResult);
+
+    // Second request should have triggered the underlying transport again, doubling the log entries.
+    expect(spy.callCount).to.equal(4);
+    expect(spyLogIncludes(spy, 2, "getSignatureStatuses")).to.be.true;
+    expect(spyLogIncludes(spy, 3, "getTransaction")).to.be.true;
   });
 });
