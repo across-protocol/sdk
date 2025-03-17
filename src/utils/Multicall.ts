@@ -1,6 +1,6 @@
 import assert from "assert";
 import { Contract, providers, Signer, utils as ethersUtils } from "ethers";
-import { CHAIN_IDs } from "@across-protocol/constants";
+import { CHAIN_IDs, MAINNET_CHAIN_IDs } from "@across-protocol/constants";
 import { chainIsOPStack, hreNetworks } from "./NetworkUtils";
 import { BigNumber } from "./BigNumberUtils";
 import { Multicall3, Multicall3__factory } from "./abi/typechain";
@@ -110,12 +110,12 @@ async function isDeployed(provider: providers.Provider): Promise<boolean> {
  * @param signer An Ethers Signer instance with at least 0.1 ETH.
  */
 export async function deploy(signer: Signer) {
-  const { chainId } = await provider.getNetwork();
-  assert(!MAINNET_CHAIN_IDs.includes(chainId));
   assert(signer.provider);
   if (await isDeployed(signer.provider)) {
     return true;
   }
+  const { chainId } = await signer.provider.getNetwork();
+  assert(!Object.values(MAINNET_CHAIN_IDs).includes(chainId));
 
   await signer.sendTransaction({ to: MULTICALL_DEPLOYER, value: ethersUtils.parseEther("0.1") }); // Pre-fund the deployer address.
   await signer.provider.sendTransaction(MULTICALL_CALLDATA); // Deploy
