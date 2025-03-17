@@ -1,8 +1,7 @@
 import { CHAIN_IDs } from "@across-protocol/constants";
-import { blockAndAggregate, getMulticall3, getMulticallAddress } from "../src/utils/Multicall";
+import { blockAndAggregate, getMulticall3, getMulticallAddress, deploy } from "../src/utils/Multicall";
 import { Multicall3 } from "../src/utils/abi/typechain";
 import { ethers, expect, SignerWithAddress } from "./utils";
-import { deploy } from "./utils/multicall";
 
 describe("getMulticallAddress", () => {
   it("should return the deterministic multicall address for a chain in DETERMINISTIC_MULTICALL_CHAINS", () => {
