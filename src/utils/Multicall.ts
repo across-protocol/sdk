@@ -17,7 +17,7 @@ export type Call3 = {
 };
 
 const DETERMINISTIC_MULTICALL_ADDRESS = "0xcA11bde05977b3631167028862bE2a173976CA11";
-const MULTICALL_DEPLOYER = "0x05f32b3cc3888453ff71b01135b34ff8e41263f2";
+const MULTICALL_DEPLOYER = "0x05f32B3cC3888453ff71B01135B34FF8e41263F2";
 
 const NON_DETERMINISTIC_MULTICALL_ADDRESSES = {
   [CHAIN_IDs.ZK_SYNC]: "0xF9cda624FBC7e059355ce98a31693d299FACd963",
@@ -98,7 +98,7 @@ export async function blockAndAggregate(
 }
 
 async function isDeployed(provider: providers.Provider): Promise<boolean> {
-  const chainId = (await provider.getNetwork()).chainId;
+  const { chainId } = await provider.getNetwork();
   const expectedMulticallAddress = getMulticallAddress(chainId) ?? DETERMINISTIC_MULTICALL_ADDRESS;
   const code = await provider.getCode(expectedMulticallAddress);
   return code !== "0x";
