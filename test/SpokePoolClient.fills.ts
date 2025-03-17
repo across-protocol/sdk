@@ -9,6 +9,7 @@ import {
   findFillEvent,
   getMessageHash,
   getNetworkName,
+  deploy as deployMulticall,
 } from "../src/utils";
 import { EMPTY_MESSAGE, ZERO_ADDRESS } from "../src/constants";
 import { originChainId, destinationChainId } from "./constants";
@@ -26,7 +27,6 @@ import {
   toBN,
   toBNWei,
 } from "./utils";
-import { deploy as deployMulticall } from "./utils/multicall";
 
 describe("SpokePoolClient: Fills", function () {
   const originChainId2 = originChainId + 1;
