@@ -110,6 +110,8 @@ async function isDeployed(provider: providers.Provider): Promise<boolean> {
  * @param signer An Ethers Signer instance with at least 0.1 ETH.
  */
 export async function deploy(signer: Signer) {
+  const { chainId } = await provider.getNetwork();
+  assert(!MAINNET_CHAIN_IDs.includes(chainId));
   assert(signer.provider);
   if (await isDeployed(signer.provider)) {
     return true;
