@@ -29,21 +29,26 @@ module.exports = {
     "no-restricted-imports": [
       "error",
       {
-        "patterns": [
+        patterns: [
           { group: ["@ethersproject/bignumber"], message: "Use 'src/utils/BigNumberUtils' instead" },
-          { group: ["@ethersproject/contracts"], importNames: ["Event"], message: "Use Log from 'src/interfaces/Common' instead" },
+          {
+            group: ["@ethersproject/contracts"],
+            importNames: ["Event"],
+            message: "Use Log from 'src/interfaces/Common' instead",
+          },
         ],
-        "paths": [
+        paths: [
           { name: "ethers", importNames: ["BigNumber"], message: "Use 'src/utils/BigNumberUtils' instead" },
-          { name: "ethers", importNames: ["Event"], message: "Use Log from 'src/interfaces/Common' instead" }
-        ]
-      }
+          { name: "ethers", importNames: ["Event"], message: "Use Log from 'src/interfaces/Common' instead" },
+        ],
+      },
     ],
     "@typescript-eslint/no-unused-vars": [
-      "error", {
+      "error",
+      {
         argsIgnorePattern: "^_",
-        ignoreRestSiblings: true
-      }
+        ignoreRestSiblings: true,
+      },
     ],
     "chai-expect/missing-assertion": 2,
     "no-duplicate-imports": "error",

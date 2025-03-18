@@ -7,20 +7,21 @@ import {
   bnZero,
   bnUint32Max,
   DefaultLogLevels,
+  DepositSearchResult,
   EventSearchConfig,
   MAX_BIG_INT,
   MakeOptional,
   assign,
   getRelayEventKey,
+  InvalidFill,
   isDefined,
   toBN,
-  bnOne,
   getMessageHash,
-  isUnsafeDepositId,
   isSlowFill,
   isValidEvmAddress,
   isZeroAddress,
   toAddress,
+  validateFillForDeposit,
 } from "../utils";
 import {
   duplicateEvent,
@@ -29,7 +30,6 @@ import {
   spreadEvent,
   spreadEventWithBlockNumber,
 } from "../utils/EventUtils";
-import { validateFillForDeposit } from "../utils/FlowUtils";
 import { ZERO_ADDRESS } from "../constants";
 import {
   Deposit,
@@ -47,7 +47,7 @@ import {
 } from "../interfaces";
 import { SpokePool } from "../typechain";
 import { getNetworkName } from "../utils/NetworkUtils";
-import { getBlockRangeForDepositId, getDepositIdAtBlock, relayFillStatus } from "../utils/SpokeUtils";
+import { findDepositBlock, getDepositIdAtBlock, relayFillStatus } from "../utils/SpokeUtils";
 import { BaseAbstractClient, isUpdateFailureReason, UpdateFailureReason } from "./BaseAbstractClient";
 import { HubPoolClient } from "./HubPoolClient";
 import { AcrossConfigStoreClient } from "./AcrossConfigStoreClient";
@@ -56,8 +56,6 @@ import { getRepaymentChainId, forceDestinationRepayment } from "./BundleDataClie
 type SpokePoolUpdateSuccess = {
   success: true;
   currentTime: number;
-  firstDepositId: BigNumber;
-  latestDepositId: BigNumber;
   events: Log[][];
   searchEndBlock: number;
 };
@@ -85,10 +83,6 @@ export class SpokePoolClient extends BaseAbstractClient {
   protected queryableEventNames: string[] = [];
   protected configStoreClient: AcrossConfigStoreClient | undefined;
   protected invalidFills: Set<string> = new Set();
-  public earliestDepositIdQueried = MAX_BIG_INT;
-  public latestDepositIdQueried = bnZero;
-  public firstDepositIdForSpokePool = MAX_BIG_INT;
-  public lastDepositIdForSpokePool = MAX_BIG_INT;
   public fills: { [OriginChainId: number]: FillWithBlock[] } = {};
 
   /**
@@ -515,16 +509,6 @@ export class SpokePoolClient extends BaseAbstractClient {
    * @returns A Promise that resolves to a SpokePoolUpdate object.
    */
   protected async _update(eventsToQuery: string[]): Promise<SpokePoolUpdate> {
-    // Find the earliest known depositId. This assumes no deposits were placed in the deployment block.
-    let firstDepositId = this.firstDepositIdForSpokePool;
-    if (firstDepositId.eq(MAX_BIG_INT)) {
-      firstDepositId = await this.spokePool.numberOfDeposits({ blockTag: this.deploymentBlock });
-      firstDepositId = BigNumber.from(firstDepositId); // Cast input to a big number.
-      if (!BigNumber.isBigNumber(firstDepositId) || firstDepositId.lt(bnZero)) {
-        throw new Error(`SpokePoolClient::update: Invalid first deposit id (${firstDepositId})`);
-      }
-    }
-
     const searchConfig = await this.updateSearchConfig(this.spokePool.provider);
     if (isUpdateFailureReason(searchConfig)) {
       const reason = searchConfig;
@@ -559,7 +543,7 @@ export class SpokePoolClient extends BaseAbstractClient {
     });
 
     const timerStart = Date.now();
-    const multicallFunctions = ["getCurrentTime", "numberOfDeposits"];
+    const multicallFunctions = ["getCurrentTime"];
     const [multicallOutput, ...events] = await Promise.all([
       spokePool.callStatic.multicall(
         multicallFunctions.map((f) => spokePool.interface.encodeFunctionData(f)),
@@ -569,10 +553,9 @@ export class SpokePoolClient extends BaseAbstractClient {
     ]);
     this.log("debug", `Time to query new events from RPC for ${this.chainId}: ${Date.now() - timerStart} ms`);
 
-    const [currentTime, _numberOfDeposits] = multicallFunctions.map(
+    const [currentTime] = multicallFunctions.map(
       (fn, idx) => spokePool.interface.decodeFunctionResult(fn, multicallOutput[idx])[0]
     );
-    const _latestDepositId = BigNumber.from(_numberOfDeposits).sub(bnOne);
 
     if (!BigNumber.isBigNumber(currentTime) || currentTime.lt(this.currentTime)) {
       const errMsg = BigNumber.isBigNumber(currentTime)
@@ -587,8 +570,6 @@ export class SpokePoolClient extends BaseAbstractClient {
     return {
       success: true,
       currentTime: currentTime.toNumber(), // uint32
-      firstDepositId,
-      latestDepositId: _latestDepositId.gt(bnZero) ? _latestDepositId : bnZero,
       searchEndBlock: searchConfig.toBlock,
       events,
     };
@@ -670,13 +651,6 @@ export class SpokePoolClient extends BaseAbstractClient {
           continue;
         }
         assign(this.depositHashes, [getRelayEventKey(deposit)], deposit);
-
-        if (deposit.depositId.lt(this.earliestDepositIdQueried) && !isUnsafeDepositId(deposit.depositId)) {
-          this.earliestDepositIdQueried = deposit.depositId;
-        }
-        if (deposit.depositId.gt(this.latestDepositIdQueried) && !isUnsafeDepositId(deposit.depositId)) {
-          this.latestDepositIdQueried = deposit.depositId;
-        }
       }
     };
 
@@ -819,9 +793,7 @@ export class SpokePoolClient extends BaseAbstractClient {
 
     // Next iteration should start off from where this one ended.
     this.currentTime = currentTime;
-    this.firstDepositIdForSpokePool = update.firstDepositId;
     this.latestBlockSearched = searchEndBlock;
-    this.lastDepositIdForSpokePool = update.latestDepositId;
     this.firstBlockToSearch = searchEndBlock + 1;
     this.eventSearchConfig.toBlock = undefined; // Caller can re-set on subsequent updates if necessary
     this.isUpdated = true;
@@ -917,28 +889,33 @@ export class SpokePoolClient extends BaseAbstractClient {
     return currentTime.toNumber();
   }
 
-  async findDeposit(depositId: BigNumber, destinationChainId: number): Promise<DepositWithBlock> {
-    // Binary search for event search bounds. This way we can get the blocks before and after the deposit with
-    // deposit ID = fill.depositId and use those blocks to optimize the search for that deposit.
-    // Stop searches after a maximum # of searches to limit number of eth_call requests. Make an
-    // eth_getLogs call on the remaining block range (i.e. the [low, high] remaining from the binary
-    // search) to find the target deposit ID.
-    //
-    // @dev Limiting between 5-10 searches empirically performs best when there are ~300,000 deposits
-    // for a spoke pool and we're looking for a deposit <5 days older than HEAD.
-    const searchBounds = await getBlockRangeForDepositId(
-      depositId,
-      this.deploymentBlock,
-      this.latestBlockSearched,
-      7,
-      this
-    );
+  /**
+   * For a given origin chain depositId, resolve the corresponding Deposit.
+   * Note: This method can only be used for depositIds within the non-deterministic range (0 < depositId < 2^32 - 1).
+   * @param depositId Deposit ID of the deposit to resolve.
+   * @returns A DepositSearchResult instance.
+   */
+  async findDeposit(depositId: BigNumber): Promise<DepositSearchResult> {
+    let deposit = this.getDeposit(depositId);
+    if (deposit) {
+      return { found: true, deposit };
+    }
 
+    // No deposit found; revert to searching for it.
+    const upperBound = this.latestBlockSearched || undefined; // Don't permit block 0 as the high block.
+    const fromBlock = await findDepositBlock(this.spokePool, depositId, this.deploymentBlock, upperBound);
+    const chain = getNetworkName(this.chainId);
+    if (!fromBlock) {
+      const reason =
+        `Unable to find ${chain} depositId ${depositId}` +
+        ` within blocks [${this.deploymentBlock}, ${upperBound ?? "latest"}].`;
+      return { found: false, code: InvalidFill.DepositIdNotFound, reason };
+    }
+
+    const toBlock = fromBlock;
     const tStart = Date.now();
-    // Check both V3FundsDeposited and FundsDeposited events to look for a specified depositId.
-    // This must be retained for the forseeable future because older V3FundsDeposited events with infinite
-    // expiry might still exist and be filled in future.
-    const [fromBlock, toBlock] = [searchBounds.low, searchBounds.high];
+    // Check both V3FundsDeposited and FundsDeposited for the forseeable future because older
+    // V3FundsDeposited events with infinite expiry might still exist and be filled in future.
     const { maxBlockLookBack } = this.eventSearchConfig;
     const query = (
       await Promise.all([
@@ -958,15 +935,14 @@ export class SpokePoolClient extends BaseAbstractClient {
 
     const event = query.find(({ args }) => args["depositId"].eq(depositId));
     if (event === undefined) {
-      const srcChain = getNetworkName(this.chainId);
-      const dstChain = getNetworkName(destinationChainId);
-      throw new Error(
-        `Could not find deposit ${depositId.toString()} for ${dstChain} fill` +
-          ` between ${srcChain} blocks [${searchBounds.low}, ${searchBounds.high}]`
-      );
+      return {
+        found: false,
+        code: InvalidFill.DepositIdNotFound,
+        reason: `${chain} depositId ${depositId} not found at block ${fromBlock}.`,
+      };
     }
 
-    const deposit = {
+    deposit = {
       ...spreadEventWithBlockNumber(event),
       originChainId: this.chainId,
       quoteBlockNumber: await this.getBlockNumber(Number(event.args["quoteTimestamp"])),
@@ -987,7 +963,7 @@ export class SpokePoolClient extends BaseAbstractClient {
       elapsedMs: tStop - tStart,
     });
 
-    return deposit;
+    return { found: true, deposit };
   }
 
   /**

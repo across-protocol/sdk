@@ -24,7 +24,6 @@ import {
   randomAddress,
   BigNumber,
   bnZero,
-  bnMax,
   bnOne,
   toBytes32,
 } from "../../utils";
@@ -84,6 +83,7 @@ export class MockSpokePoolClient extends SpokePoolClient {
       lastDepositId = _depositIds[i];
     }
   }
+
   _getDepositIdAtBlock(blockTag: number): Promise<BigNumber> {
     return Promise.resolve(this.depositIdAtBlock[blockTag]);
   }
@@ -106,19 +106,10 @@ export class MockSpokePoolClient extends SpokePoolClient {
         }
       });
 
-    // Update latestDepositIdQueried.
-    const idx = eventsToQuery.indexOf("FundsDeposited");
-    const latestDepositId = (events[idx] ?? []).reduce(
-      (depositId, event) => bnMax(depositId, event.args["depositId"] ?? bnZero),
-      this.latestDepositIdQueried
-    );
-
     return Promise.resolve({
       success: true,
       firstDepositId: bnZero,
-      latestDepositId,
       currentTime,
-      oldestTime: 0,
       events,
       searchEndBlock: this.eventSearchConfig.toBlock || latestBlockSearched,
     });

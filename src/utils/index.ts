@@ -9,7 +9,6 @@ export * from "./TypeGuards";
 export * from "./TypeUtils";
 export * from "./TokenUtils";
 export * from "./LogUtils";
-export * from "./FlowUtils";
 export * from "./BundleUtils";
 export * from "./JSONUtils";
 export * from "./IPFSUtils";
