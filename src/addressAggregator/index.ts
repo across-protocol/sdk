@@ -66,7 +66,7 @@ export class AddressAggregator {
 }
 
 async function run(): Promise<number> {
-  const addressList = new AddressAggregator([new adapters.bybit.AddressList(), new adapters.processEnv.AddressList()]);
+  const addressList = new AddressAggregator([new adapters.risklabs.AddressList()]);
 
   const addresses = await addressList.update();
   console.log(`Retrieved ${addresses.size} addresses: ${JSON.stringify(Array.from(addresses), null, 2)}`);
