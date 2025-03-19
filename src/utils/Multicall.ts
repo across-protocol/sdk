@@ -70,6 +70,10 @@ export async function aggregate(multicall3: Contract, calls: Call3[], blockTag?:
   });
 }
 
+/**
+ * Note that this function behaves unexpectedly on Arbitrum chains, where block.number
+ * corresponds to the approximate block number of the underlying chain.
+ */
 export async function blockAndAggregate(
   multicall3: Contract,
   calls: Call3[],
