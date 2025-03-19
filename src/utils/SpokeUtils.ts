@@ -345,13 +345,15 @@ export async function findDepositBlock(
   }
 
   highBlock ??= await spokePool.provider.getBlockNumber();
+  assert(highBlock > lowBlock, `Block numbers out of range (${lowBlock} >= ${highBlock})`);
 
   // Make sure the deposit occurred within the block range supplied by the caller.
-  const [nDepositsLow, nDepositsHigh] = (await Promise.all([
-    spokePool.numberOfDeposits({ blockTag: lowBlock }),
-    spokePool.numberOfDeposits({ blockTag: highBlock })
-  ])).map((n) => toBN(n));
-  assert(highBlock > lowBlock, `Block numbers out of range (${lowBlock} >= ${highBlock})`);
+  const [nDepositsLow, nDepositsHigh] = (
+    await Promise.all([
+      spokePool.numberOfDeposits({ blockTag: lowBlock }),
+      spokePool.numberOfDeposits({ blockTag: highBlock }),
+    ])
+  ).map((n) => toBN(n));
 
   if (nDepositsLow.gt(depositId) || nDepositsHigh.lte(depositId)) {
     return undefined; // Deposit did not occur within the specified block range.
