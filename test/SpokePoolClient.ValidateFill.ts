@@ -538,7 +538,7 @@ describe("SpokePoolClient: Fill Validation", function () {
     }
   });
 
-  it.only("Can fetch younger deposit matching fill", async function () {
+  it("Can fetch younger deposit matching fill", async function () {
     const depositEvent = await deposit(
       spokePool_1,
       destinationChainId,
@@ -554,8 +554,8 @@ describe("SpokePoolClient: Fill Validation", function () {
     await spokePoolClient2.update();
     const [fill] = spokePoolClient2.getFills();
 
-    // Set event search config to block to before deposit so client doesn't see event.
-    spokePoolClient1.firstBlockToSearch = depositBlock - 1;
+    // Set event search config to block to after deposit so client doesn't see event.
+    spokePoolClient1.firstBlockToSearch = depositBlock + 1;
     await spokePoolClient1.update();
 
     // Make sure that the client's latestBlockSearched encompasses the event so it can see it on the subsequent
