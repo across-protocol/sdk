@@ -16,7 +16,7 @@ import { originChainId, destinationChainId } from "./constants";
 import {
   assertPromiseError,
   Contract,
-  depositV3,
+  deposit,
   SignerWithAddress,
   fillRelay,
   createSpyLogger,
@@ -35,7 +35,7 @@ describe("SpokePoolClient: Fills", function () {
   let depositor: SignerWithAddress, relayer1: SignerWithAddress, relayer2: SignerWithAddress;
   let spokePoolClient: SpokePoolClient;
   let deploymentBlock: number;
-  let deposit: Deposit;
+  let depositTemplate: Deposit;
 
   beforeEach(async function () {
     [, depositor, relayer1, relayer2] = await ethers.getSigners();
@@ -62,7 +62,7 @@ describe("SpokePoolClient: Fills", function () {
     const outputAmount = toBNWei(1);
 
     const message = EMPTY_MESSAGE;
-    deposit = {
+    depositTemplate = {
       depositId: bnZero,
       originChainId,
       destinationChainId,
@@ -84,18 +84,18 @@ describe("SpokePoolClient: Fills", function () {
   });
 
   it("Correctly fetches fill data single fill, single chain", async function () {
-    await fillRelay(spokePool, deposit, relayer1);
-    await fillRelay(spokePool, { ...deposit, depositId: deposit.depositId.add(1) }, relayer1);
+    await fillRelay(spokePool, depositTemplate, relayer1);
+    await fillRelay(spokePool, { ...depositTemplate, depositId: depositTemplate.depositId.add(1) }, relayer1);
     await spokePoolClient.update();
     expect(spokePoolClient.getFills().length).to.equal(2);
   });
 
   it("Correctly fetches deposit data multiple fills, multiple chains", async function () {
     // Mix and match various fields to produce unique fills and verify they are all recorded by the SpokePoolClient.
-    await fillRelay(spokePool, deposit, relayer1);
-    await fillRelay(spokePool, { ...deposit, originChainId: originChainId2 }, relayer1);
-    await fillRelay(spokePool, { ...deposit, inputAmount: deposit.inputAmount.add(bnOne) }, relayer1);
-    await fillRelay(spokePool, { ...deposit, inputAmount: deposit.outputAmount.sub(bnOne) }, relayer2);
+    await fillRelay(spokePool, depositTemplate, relayer1);
+    await fillRelay(spokePool, { ...depositTemplate, originChainId: originChainId2 }, relayer1);
+    await fillRelay(spokePool, { ...depositTemplate, inputAmount: depositTemplate.inputAmount.add(bnOne) }, relayer1);
+    await fillRelay(spokePool, { ...depositTemplate, inputAmount: depositTemplate.outputAmount.sub(bnOne) }, relayer2);
 
     await spokePoolClient.update();
 
@@ -123,7 +123,7 @@ describe("SpokePoolClient: Fills", function () {
         const inputAmount = bnOne;
         const outputToken = ZERO_ADDRESS;
         const outputAmount = bnOne;
-        const { depositId: _depositId, blockNumber: depositBlockNumber } = await depositV3(
+        const { depositId: _depositId, blockNumber: depositBlockNumber } = await deposit(
           spokePool,
           destinationChainId,
           relayer1,
@@ -156,7 +156,7 @@ describe("SpokePoolClient: Fills", function () {
     for (let i = 0; i < nBlocks; ++i) {
       const blockNumber = await spokePool.provider.getBlockNumber();
       if (blockNumber === targetFillBlock - 1) {
-        const { blockNumber: fillBlockNumber } = await fillRelay(spokePool, deposit, relayer1);
+        const { blockNumber: fillBlockNumber } = await fillRelay(spokePool, depositTemplate, relayer1);
         expect(fillBlockNumber).to.equal(targetFillBlock);
         continue;
       }
@@ -164,17 +164,17 @@ describe("SpokePoolClient: Fills", function () {
       await hre.network.provider.send("evm_mine");
     }
 
-    const fillBlock = await findFillBlock(spokePool, deposit, startBlock);
+    const fillBlock = await findFillBlock(spokePool, depositTemplate, startBlock);
     expect(fillBlock).to.equal(targetFillBlock);
   });
 
   it("Correctly returns a Fill event using the relay data", async function () {
-    const targetDeposit = { ...deposit, depositId: deposit.depositId.add(1) };
+    const targetDeposit = { ...depositTemplate, depositId: depositTemplate.depositId.add(1) };
     // Submit multiple fills at the same block:
     const startBlock = await spokePool.provider.getBlockNumber();
-    await fillRelay(spokePool, deposit, relayer1);
+    await fillRelay(spokePool, depositTemplate, relayer1);
     await fillRelay(spokePool, targetDeposit, relayer1);
-    await fillRelay(spokePool, { ...deposit, depositId: deposit.depositId.add(2) }, relayer1);
+    await fillRelay(spokePool, { ...depositTemplate, depositId: depositTemplate.depositId.add(2) }, relayer1);
     await hre.network.provider.send("evm_mine");
 
     let fill = await findFillEvent(spokePool, targetDeposit, startBlock);
@@ -184,7 +184,7 @@ describe("SpokePoolClient: Fills", function () {
     expect(fill.depositId).to.equal(targetDeposit.depositId);
 
     // Looking for a fill can return undefined:
-    const missingFill = await findFillEvent(spokePool, { ...deposit, depositId: deposit.depositId.add(3) }, startBlock);
+    const missingFill = await findFillEvent(spokePool, { ...depositTemplate, depositId: depositTemplate.depositId.add(3) }, startBlock);
     expect(missingFill).to.be.undefined;
   });
 
@@ -207,7 +207,7 @@ describe("SpokePoolClient: Fills", function () {
     const outputToken = ZERO_ADDRESS;
     const outputAmount = bnOne;
 
-    const { depositId, blockNumber } = await depositV3(
+    const { depositId, blockNumber } = await deposit(
       spokePool,
       destinationChainId,
       relayer1,
@@ -239,22 +239,22 @@ describe("SpokePoolClient: Fills", function () {
     }
 
     // No fill has been made, so expect an undefined fillBlock.
-    const fillBlock = await findFillBlock(spokePool, deposit, startBlock);
+    const fillBlock = await findFillBlock(spokePool, depositTemplate, startBlock);
     expect(fillBlock).to.be.undefined;
 
-    const { blockNumber: lateBlockNumber } = await fillRelay(spokePool, deposit, relayer1);
+    const { blockNumber: lateBlockNumber } = await fillRelay(spokePool, depositTemplate, relayer1);
     await hre.network.provider.send("evm_mine");
 
     // Now search for the fill _after_ it was filled and expect an exception.
-    const srcChain = getNetworkName(deposit.originChainId);
+    const srcChain = getNetworkName(depositTemplate.originChainId);
     await assertPromiseError(
-      findFillBlock(spokePool, deposit, lateBlockNumber),
-      `${srcChain} deposit ${deposit.depositId.toString()} filled on `
+      findFillBlock(spokePool, depositTemplate, lateBlockNumber),
+      `${srcChain} deposit ${depositTemplate.depositId.toString()} filled on `
     );
 
     // Should assert if highBlock <= lowBlock.
     await assertPromiseError(
-      findFillBlock(spokePool, deposit, await spokePool.provider.getBlockNumber()),
+      findFillBlock(spokePool, depositTemplate, await spokePool.provider.getBlockNumber()),
       "Block numbers out of range"
     );
   });
