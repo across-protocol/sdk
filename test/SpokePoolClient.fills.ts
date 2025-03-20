@@ -184,7 +184,11 @@ describe("SpokePoolClient: Fills", function () {
     expect(fill.depositId).to.equal(targetDeposit.depositId);
 
     // Looking for a fill can return undefined:
-    const missingFill = await findFillEvent(spokePool, { ...depositTemplate, depositId: depositTemplate.depositId.add(3) }, startBlock);
+    const missingFill = await findFillEvent(
+      spokePool,
+      { ...depositTemplate, depositId: depositTemplate.depositId.add(3) },
+      startBlock
+    );
     expect(missingFill).to.be.undefined;
   });
 
