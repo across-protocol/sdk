@@ -13,6 +13,7 @@ import {
   getBlockRangeForDepositId,
   toAddress,
   toBytes32,
+  deploy as deployMulticall,
 } from "../src/utils";
 import { ZERO_BYTES } from "../src/constants";
 import { CHAIN_ID_TEST_LIST, originChainId, destinationChainId, repaymentChainId } from "./constants";
@@ -39,7 +40,6 @@ import {
   winston,
   lastSpyLogIncludes,
 } from "./utils";
-import { deploy as deployMulticall } from "./utils/multicall";
 import assert from "assert";
 import { MockConfigStoreClient, MockHubPoolClient, MockSpokePoolClient } from "./mocks";
 

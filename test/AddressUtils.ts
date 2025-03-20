@@ -17,7 +17,6 @@ describe("Address Utils: Address Type", function () {
 
       const svmToken = generateSvmAddress();
       expect(Address.isAddress(svmToken)).to.be.true;
-      console.log(svmToken);
       expect(SvmAddress.isAddress(svmToken)).to.be.true;
       expect(ethers.utils.isHexString(svmToken.toAddress())).to.be.false;
     });

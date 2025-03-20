@@ -7,7 +7,6 @@ import { chunk } from "./ArrayUtils";
 import { BigNumber, toBN, bnOne, bnZero } from "./BigNumberUtils";
 import { keccak256 } from "./common";
 import { isMessageEmpty } from "./DepositUtils";
-import { blockAndAggregate, getMulticall3 } from "./Multicall";
 import { isDefined } from "./TypeGuards";
 import { getNetworkName } from "./NetworkUtils";
 import { paginatedEventQuery, spreadEventWithBlockNumber } from "./EventUtils";
@@ -345,22 +344,17 @@ export async function findDepositBlock(
     throw new Error(`Cannot binary search for depositId ${depositId}`);
   }
 
-  // @todo this call can be optimised away by using multicall3.blockAndAggregate(..., { blockTag: highBlockNumber }).
-  // This is left for future because the change is a bit complex, and multicall3 isn't supported in test.
-  const { chainId } = await spokePool.provider.getNetwork();
-  const multicall3 = getMulticall3(chainId, spokePool.provider);
-  assert(multicall3, `No multicall3 defined for chain ${chainId}`);
-
-  // Make sure the deposit occurred within the block range supplied by the caller.
-  const [_nDepositsLow, { blockNumber: _highBlock, returnData }] = await Promise.all([
-    spokePool.numberOfDeposits({ blockTag: lowBlock }),
-    blockAndAggregate(multicall3, [{ contract: spokePool, method: "numberOfDeposits" }], highBlock),
-  ]);
-  highBlock = _highBlock;
+  highBlock ??= await spokePool.provider.getBlockNumber();
   assert(highBlock > lowBlock, `Block numbers out of range (${lowBlock} >= ${highBlock})`);
 
-  const nDepositsLow = toBN(_nDepositsLow);
-  const nDepositsHigh = toBN(returnData.at(0)!);
+  // Make sure the deposit occurred within the block range supplied by the caller.
+  const [nDepositsLow, nDepositsHigh] = (
+    await Promise.all([
+      spokePool.numberOfDeposits({ blockTag: lowBlock }),
+      spokePool.numberOfDeposits({ blockTag: highBlock }),
+    ])
+  ).map((n) => toBN(n));
+
   if (nDepositsLow.gt(depositId) || nDepositsHigh.lte(depositId)) {
     return undefined; // Deposit did not occur within the specified block range.
   }
