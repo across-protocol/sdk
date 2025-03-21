@@ -47,7 +47,12 @@ import {
 } from "../interfaces";
 import { SpokePool } from "../typechain";
 import { getNetworkName } from "../utils/NetworkUtils";
-import { findDepositBlock, getDepositIdAtBlock, relayFillStatus } from "../utils/SpokeUtils";
+import {
+  findDepositBlock,
+  getDepositIdAtBlock,
+  getMaxFillDeadlineInRange as getMaxFillDeadline,
+  relayFillStatus,
+} from "../utils/SpokeUtils";
 import { BaseAbstractClient, isUpdateFailureReason, UpdateFailureReason } from "./BaseAbstractClient";
 import { HubPoolClient } from "./HubPoolClient";
 import { AcrossConfigStoreClient } from "./AcrossConfigStoreClient";
@@ -497,12 +502,8 @@ export class SpokePoolClient extends BaseAbstractClient {
    * @param endBlock end block
    * @returns maximum of fill deadline buffer at start and end block
    */
-  public async getMaxFillDeadlineInRange(startBlock: number, endBlock: number): Promise<number> {
-    const fillDeadlineBuffers: number[] = await Promise.all([
-      this.spokePool.fillDeadlineBuffer({ blockTag: startBlock }),
-      this.spokePool.fillDeadlineBuffer({ blockTag: endBlock }),
-    ]);
-    return Math.max(fillDeadlineBuffers[0], fillDeadlineBuffers[1]);
+  public getMaxFillDeadlineInRange(startBlock: number, endBlock: number): Promise<number> {
+    return getMaxFillDeadline(this.spokePool, startBlock, endBlock);
   }
 
   /**
