@@ -12,7 +12,7 @@ import {
   SpeedUp,
   TokensBridged,
 } from "../src/interfaces";
-import { bnOne, getCurrentTime, getMessageHash, isDefined, randomAddress, toAddress, toBN } from "../src/utils";
+import { bnOne, getCurrentTime, getMessageHash, isDefined, randomAddress, toAddress, toBN, bnZero } from "../src/utils";
 import {
   SignerWithAddress,
   createSpyLogger,
@@ -23,6 +23,7 @@ import {
   hubPoolFixture,
   toBNWei,
 } from "./utils";
+import { mocks } from "../src/providers";
 
 type EventSearchConfig = sdkUtils.EventSearchConfig;
 
@@ -266,6 +267,8 @@ describe("SpokePoolClient: Event Filtering", function () {
   it("Correctly substitutes outputToken when set to 0x0", async function () {
     const { spokePool, chainId, deploymentBlock } = originSpokePoolClient;
     const spokePoolClient = new MockSpokePoolClient(logger, spokePool, chainId, deploymentBlock, { hubPoolClient });
+    // Overwrite the provider of the spoke pool client.
+    hubPoolClient.blockFinder.provider = new mocks.MockedProvider(bnZero, bnZero);
 
     const hubPoolToken = randomAddress();
     const inputToken = randomAddress();
