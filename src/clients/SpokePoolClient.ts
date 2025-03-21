@@ -991,11 +991,6 @@ export class SpokePoolClient extends BaseAbstractClient {
     );
   }
 
-  public async getTimestampForBlock(blockTag: number): Promise<number> {
-    const block = await this.spokePool.provider.getBlock(blockTag);
-    return Number(block.timestamp);
-  }
-
   /**
    * Find the amount filled for a deposit at a particular block.
    * @param relayData Deposit information that is used to complete a fill.
