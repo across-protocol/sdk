@@ -1,11 +1,9 @@
-import assert from "assert";
 import { Contract, EventFilter } from "ethers";
 import winston from "winston";
 import {
   AnyObject,
   BigNumber,
   bnZero,
-  bnUint32Max,
   DefaultLogLevels,
   DepositSearchResult,
   EventSearchConfig,
@@ -46,7 +44,12 @@ import {
   TokensBridged,
 } from "../interfaces";
 import { getNetworkName } from "../utils/NetworkUtils";
-import { findDepositBlock, relayFillStatus } from "../utils/SpokeUtils";
+import {
+  findDepositBlock,
+  getMaxFillDeadlineInRange as getMaxFillDeadline,
+  getTimeAt as _getTimeAt,
+  relayFillStatus,
+} from "../utils/SpokeUtils";
 import { BaseAbstractClient, isUpdateFailureReason, UpdateFailureReason } from "./BaseAbstractClient";
 import { HubPoolClient } from "./HubPoolClient";
 import { AcrossConfigStoreClient } from "./AcrossConfigStoreClient";
@@ -333,9 +336,7 @@ export class SpokePoolClient extends BaseAbstractClient {
    * @returns A list of slow fill requests.
    */
   public getSlowFillRequestsForOriginChain(originChainId: number): SlowFillRequestWithBlock[] {
-    return Object.values(this.slowFillRequests).filter(
-      (e: SlowFillRequestWithBlock) => e.originChainId === originChainId
-    );
+    return Object.values(this.slowFillRequests).filter((e) => e.originChainId === originChainId);
   }
 
   /**
@@ -354,10 +355,7 @@ export class SpokePoolClient extends BaseAbstractClient {
   public getDepositForFill(fill: Fill): DepositWithBlock | undefined {
     const deposit = this.depositHashes[getRelayEventKey(fill)];
     const match = validateFillForDeposit(fill, deposit);
-    if (match.valid) {
-      return deposit;
-    }
-    return undefined;
+    return match.valid ? deposit : undefined;
   }
 
   public getFillsForDeposit(deposit: Deposit): FillWithBlock[] {
@@ -487,12 +485,8 @@ export class SpokePoolClient extends BaseAbstractClient {
    * @param endBlock end block
    * @returns maximum of fill deadline buffer at start and end block
    */
-  public async getMaxFillDeadlineInRange(startBlock: number, endBlock: number): Promise<number> {
-    const fillDeadlineBuffers: number[] = await Promise.all([
-      this.spokePool.fillDeadlineBuffer({ blockTag: startBlock }),
-      this.spokePool.fillDeadlineBuffer({ blockTag: endBlock }),
-    ]);
-    return Math.max(fillDeadlineBuffers[0], fillDeadlineBuffers[1]);
+  public getMaxFillDeadlineInRange(startBlock: number, endBlock: number): Promise<number> {
+    return getMaxFillDeadline(this.spokePool, startBlock, endBlock);
   }
 
   /**
@@ -558,7 +552,7 @@ export class SpokePoolClient extends BaseAbstractClient {
     }
 
     // Sort all events to ensure they are stored in a consistent order.
-    events.forEach((events: Log[]) => sortEventsAscendingInPlace(events));
+    events.forEach((events) => sortEventsAscendingInPlace(events));
 
     return {
       success: true,
@@ -856,11 +850,7 @@ export class SpokePoolClient extends BaseAbstractClient {
    */
   protected getDestinationTokenForDeposit(deposit: DepositWithBlock): string {
     // If there is no rate model client return address(0).
-    if (!this.hubPoolClient) {
-      return ZERO_ADDRESS;
-    }
-
-    return this.hubPoolClient.getL2TokenForDeposit(deposit);
+    return this.hubPoolClient?.getL2TokenForDeposit(deposit) ?? ZERO_ADDRESS;
   }
 
   /**
@@ -885,10 +875,8 @@ export class SpokePoolClient extends BaseAbstractClient {
    * Retrieves the time from the SpokePool contract at a particular block.
    * @returns The time at the specified block tag.
    */
-  public async getTimeAt(blockNumber: number): Promise<number> {
-    const currentTime = await this.spokePool.getCurrentTime({ blockTag: blockNumber });
-    assert(BigNumber.isBigNumber(currentTime) && currentTime.lt(bnUint32Max));
-    return currentTime.toNumber();
+  public getTimeAt(blockNumber: number): Promise<number> {
+    return _getTimeAt(this.spokePool, blockNumber);
   }
 
   /**

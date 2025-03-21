@@ -3,7 +3,7 @@ import { BytesLike, Contract, PopulatedTransaction, providers, utils as ethersUt
 import { CHAIN_IDs, MAX_SAFE_DEPOSIT_ID, UNDEFINED_MESSAGE_HASH, ZERO_ADDRESS, ZERO_BYTES } from "../constants";
 import { Deposit, FillStatus, FillWithBlock, RelayData } from "../interfaces";
 import { chunk } from "./ArrayUtils";
-import { BigNumber, toBN } from "./BigNumberUtils";
+import { BigNumber, toBN, bnZero, bnUint32Max } from "./BigNumberUtils";
 import { keccak256 } from "./common";
 import { isMessageEmpty } from "./DepositUtils";
 import { isDefined } from "./TypeGuards";
@@ -126,6 +126,50 @@ export function validateFillForDeposit(
   return isDefined(invalidKey)
     ? { valid: false, reason: `${invalidKey} mismatch (${relayData[invalidKey]} != ${deposit[invalidKey]})` }
     : { valid: true };
+}
+
+/**
+ * Retrieves the time from the SpokePool contract at a particular block.
+ * @returns The time at the specified block tag.
+ */
+export async function getTimeAt(spokePool: Contract, blockNumber: number): Promise<number> {
+  const currentTime = await spokePool.getCurrentTime({ blockTag: blockNumber });
+  assert(BigNumber.isBigNumber(currentTime) && currentTime.lt(bnUint32Max));
+  return currentTime.toNumber();
+}
+
+/**
+ * Return maximum of fill deadline buffer at start and end of block range.
+ * @param spokePool SpokePool contract instance
+ * @param startBlock start block
+ * @param endBlock end block
+ * @returns maximum of fill deadline buffer at start and end block
+ */
+export async function getMaxFillDeadlineInRange(
+  spokePool: Contract,
+  startBlock: number,
+  endBlock: number
+): Promise<number> {
+  const fillDeadlineBuffers = await Promise.all([
+    spokePool.fillDeadlineBuffer({ blockTag: startBlock }),
+    spokePool.fillDeadlineBuffer({ blockTag: endBlock }),
+  ]);
+  return Math.max(fillDeadlineBuffers[0], fillDeadlineBuffers[1]);
+}
+
+/**
+ * Finds the deposit id at a specific block number.
+ * @param blockTag The block number to search for the deposit ID at.
+ * @returns The deposit ID.
+ */
+export async function getDepositIdAtBlock(contract: Contract, blockTag: number): Promise<BigNumber> {
+  const _depositIdAtBlock = await contract.numberOfDeposits({ blockTag });
+  const depositIdAtBlock = toBN(_depositIdAtBlock);
+  // Sanity check to ensure that the deposit ID is greater than or equal to zero.
+  if (depositIdAtBlock.lt(bnZero)) {
+    throw new Error("Invalid deposit count");
+  }
+  return depositIdAtBlock;
 }
 
 /**
