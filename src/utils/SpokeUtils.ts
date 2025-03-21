@@ -286,6 +286,25 @@ export async function getTimeAt(spokePool: Contract, blockNumber: number): Promi
 }
 
 /**
+ * Return maximum of fill deadline buffer at start and end of block range.
+ * @param spokePool SpokePool contract instance
+ * @param startBlock start block
+ * @param endBlock end block
+ * @returns maximum of fill deadline buffer at start and end block
+ */
+export async function getMaxFillDeadlineInRange(
+  spokePool: Contract,
+  startBlock: number,
+  endBlock: number
+): Promise<number> {
+  const fillDeadlineBuffers = await Promise.all([
+    spokePool.fillDeadlineBuffer({ blockTag: startBlock }),
+    spokePool.fillDeadlineBuffer({ blockTag: endBlock }),
+  ]);
+  return Math.max(fillDeadlineBuffers[0], fillDeadlineBuffers[1]);
+}
+
+/**
  * Finds the deposit id at a specific block number.
  * @param blockTag The block number to search for the deposit ID at.
  * @returns The deposit ID.
