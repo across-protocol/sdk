@@ -27,6 +27,7 @@ import {
 } from "./PoolRebalanceUtils";
 import { AcrossConfigStoreClient } from "../../AcrossConfigStoreClient";
 import { HubPoolClient } from "../../HubPoolClient";
+import { CrosschainProvider } from "../../../providers";
 import { buildPoolRebalanceLeafTree } from "./MerkleTreeUtils";
 
 // and expired deposits.
@@ -113,7 +114,7 @@ export function getEndBlockBuffers(
   return chainIdListForBundleEvaluationBlockNumbers.map((chainId: number) => blockRangeEndBlockBuffer[chainId] ?? 0);
 }
 
-export function _buildPoolRebalanceRoot(
+export function _buildPoolRebalanceRoot<P extends CrosschainProvider>(
   latestMainnetBlock: number,
   mainnetBundleEndBlock: number,
   bundleV3Deposits: BundleDepositsV3,
@@ -121,7 +122,7 @@ export function _buildPoolRebalanceRoot(
   bundleSlowFillsV3: BundleSlowFills,
   unexecutableSlowFills: BundleExcessSlowFills,
   expiredDepositsToRefundV3: ExpiredDepositsToRefundV3,
-  clients: { hubPoolClient: HubPoolClient; configStoreClient: AcrossConfigStoreClient },
+  clients: { hubPoolClient: HubPoolClient<P>; configStoreClient: AcrossConfigStoreClient },
   maxL1TokenCountOverride?: number
 ): PoolRebalanceRoot {
   // Running balances are the amount of tokens that we need to send to each SpokePool to pay for all instant and

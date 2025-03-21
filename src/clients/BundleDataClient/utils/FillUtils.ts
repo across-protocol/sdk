@@ -3,10 +3,11 @@ import { providers } from "ethers";
 import { Deposit, DepositWithBlock, Fill, FillWithBlock } from "../../../interfaces";
 import { getBlockRangeForChain, isSlowFill, isValidEvmAddress, isDefined, chainIsEvm } from "../../../utils";
 import { HubPoolClient } from "../../HubPoolClient";
+import { CrosschainProvider } from "../../../providers";
 
-export function getRefundInformationFromFill(
+export function getRefundInformationFromFill<P extends CrosschainProvider>(
   fill: Fill,
-  hubPoolClient: HubPoolClient,
+  hubPoolClient: HubPoolClient<P>,
   blockRangesForChains: number[][],
   chainIdListForBundleEvaluationBlockNumbers: number[],
   fromLiteChain: boolean
@@ -53,10 +54,10 @@ export function getRepaymentChainId(fill: Fill, matchedDeposit: Deposit): number
   return matchedDeposit.fromLiteChain ? matchedDeposit.originChainId : fill.repaymentChainId;
 }
 
-export function forceDestinationRepayment(
+export function forceDestinationRepayment<P extends CrosschainProvider>(
   repaymentChainId: number,
   matchedDeposit: Deposit & { quoteBlockNumber: number },
-  hubPoolClient: HubPoolClient
+  hubPoolClient: HubPoolClient<P>
 ): boolean {
   if (!matchedDeposit.fromLiteChain) {
     try {
@@ -79,11 +80,11 @@ export function forceDestinationRepayment(
 
 // Verify that a fill sent to an EVM chain has a 20 byte address. If the fill does not, then attempt
 // to repay the `msg.sender` of the relay transaction. Otherwise, return undefined.
-export async function verifyFillRepayment(
+export async function verifyFillRepayment<P extends CrosschainProvider>(
   _fill: FillWithBlock,
   destinationChainProvider: providers.Provider,
   matchedDeposit: DepositWithBlock,
-  hubPoolClient: HubPoolClient
+  hubPoolClient: HubPoolClient<P>
 ): Promise<FillWithBlock | undefined> {
   const fill = _.cloneDeep(_fill);
 

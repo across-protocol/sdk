@@ -4,6 +4,7 @@ import { HubPoolClient } from "../clients/HubPoolClient";
 import { AcrossConfigStoreClient } from "../clients";
 import { ArweaveClient } from "../caching";
 import { BigNumber } from "../utils";
+import { CrosschainProvider } from "../providers";
 
 export type ExpiredDepositsToRefundV3 = {
   [originChainId: number]: {
@@ -55,8 +56,8 @@ export type BundleData = LoadDataReturnValue & {
   bundleBlockRanges: number[][];
 };
 
-export interface Clients {
-  hubPoolClient: HubPoolClient;
+export interface Clients<P extends CrosschainProvider> {
+  hubPoolClient: HubPoolClient<P>;
   configStoreClient: AcrossConfigStoreClient;
   hubSigner?: Signer;
   arweaveClient: ArweaveClient;

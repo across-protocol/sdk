@@ -32,10 +32,11 @@ import { SpokePoolClient, SpokePoolUpdate } from "../SpokePoolClient";
 import { HubPoolClient } from "../HubPoolClient";
 import { EventManager, EventOverrides, getEventManager } from "./MockEvents";
 import { AcrossConfigStoreClient } from "../AcrossConfigStoreClient";
+import { CrosschainProvider } from "../../providers";
 
 // This class replaces internal SpokePoolClient functionality, enabling
 // the user to bypass on-chain queries and inject Log objects directly.
-export class MockSpokePoolClient extends SpokePoolClient {
+export class MockSpokePoolClient<P extends CrosschainProvider> extends SpokePoolClient<P> {
   public eventManager: EventManager;
   private destinationTokenForChainOverride: Record<number, string> = {};
   // Allow tester to set the numberOfDeposits() returned by SpokePool at a block height.
@@ -47,7 +48,7 @@ export class MockSpokePoolClient extends SpokePoolClient {
     spokePool: Contract,
     chainId: number,
     deploymentBlock: number,
-    opts: { hubPoolClient: HubPoolClient | null } = { hubPoolClient: null }
+    opts: { hubPoolClient: HubPoolClient<P> | null } = { hubPoolClient: null }
   ) {
     super(logger, spokePool, opts.hubPoolClient, chainId, deploymentBlock);
     this.latestBlockSearched = deploymentBlock;

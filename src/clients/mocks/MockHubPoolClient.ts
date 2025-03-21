@@ -5,6 +5,7 @@ import { L1Token, Log, PendingRootBundle, RealizedLpFee } from "../../interfaces
 import { AcrossConfigStoreClient as ConfigStoreClient } from "../AcrossConfigStoreClient";
 import { HubPoolClient, HubPoolUpdate, LpFeeRequest } from "../HubPoolClient";
 import { EventManager, EventOverrides, getEventManager } from "./MockEvents";
+import { CrosschainProvider } from "../../providers";
 
 const emptyRootBundle: PendingRootBundle = {
   poolRebalanceRoot: "",
@@ -17,7 +18,7 @@ const emptyRootBundle: PendingRootBundle = {
   proposalBlockNumber: undefined,
 };
 
-export class MockHubPoolClient extends HubPoolClient {
+export class MockHubPoolClient<P extends CrosschainProvider> extends HubPoolClient<P> {
   public rootBundleProposal = emptyRootBundle;
   private realizedLpFeePct: BigNumber = bnZero;
   private realizedLpFeePctOverride = false;

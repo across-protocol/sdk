@@ -4,11 +4,12 @@ import { CacheProvider } from "./cachedProvider";
 import { formatProviderError } from "./utils";
 import { PROVIDER_CACHE_TTL } from "./constants";
 import { Logger } from "winston";
+import { CrosschainProvider } from "./interface";
 
 /**
  * RPC provider that sends requests to multiple providers in parallel and returns the fastest response.
  */
-export class SpeedProvider extends ethers.providers.StaticJsonRpcProvider {
+export class SpeedProvider extends ethers.providers.StaticJsonRpcProvider implements CrosschainProvider {
   readonly providers: ethers.providers.StaticJsonRpcProvider[];
 
   constructor(
@@ -59,5 +60,11 @@ export class SpeedProvider extends ethers.providers.StaticJsonRpcProvider {
       }
       throw error;
     }
+  }
+
+  // Returns the chain ID of the provider's network.
+  async getNetworkId(): Promise<number> {
+    const { chainId } = await super.getNetwork();
+    return chainId;
   }
 }

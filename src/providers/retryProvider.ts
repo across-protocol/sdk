@@ -8,8 +8,9 @@ import { compareRpcResults, createSendErrorWithMessage, formatProviderError } fr
 import { PROVIDER_CACHE_TTL } from "./constants";
 import { JsonRpcError, RpcError } from "./types";
 import { Logger } from "winston";
+import { CrosschainProvider } from "./interface";
 
-export class RetryProvider extends ethers.providers.StaticJsonRpcProvider {
+export class RetryProvider extends ethers.providers.StaticJsonRpcProvider implements CrosschainProvider {
   readonly providers: ethers.providers.StaticJsonRpcProvider[];
   constructor(
     params: ConstructorParameters<typeof ethers.providers.StaticJsonRpcProvider>[],
@@ -228,6 +229,12 @@ export class RetryProvider extends ethers.providers.StaticJsonRpcProvider {
     }
 
     return quorumResult;
+  }
+
+  // Returns the chain ID of the provider's network.
+  async getNetworkId(): Promise<number> {
+    const { chainId } = await this.getNetwork();
+    return chainId;
   }
 
   _validateResponse(method: string, _: Array<unknown>, response: unknown): boolean {

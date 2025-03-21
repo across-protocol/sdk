@@ -1,5 +1,5 @@
 import assert from "assert";
-import type { Block, Provider } from "@ethersproject/abstract-provider";
+import type { Block } from "@ethersproject/abstract-provider";
 import { clamp, sortedIndexBy } from "lodash";
 import { chainIsOPStack, getNetworkName } from "./NetworkUtils";
 import { isDefined } from "./TypeGuards";
@@ -7,6 +7,7 @@ import { getCurrentTime } from "./TimeUtils";
 import { CachingMechanismInterface } from "../interfaces";
 import { shouldCache } from "./CachingUtils";
 import { CHAIN_IDs, DEFAULT_CACHING_SAFE_LAG } from "../constants";
+import { CrosschainProvider } from "../providers";
 
 type Opts = {
   highBlock?: number;
@@ -45,12 +46,12 @@ const blockTimes: { [chainId: number]: BlockTimeAverage } = {
  * @description Compute the average block time over a block range.
  * @returns Average number of seconds per block.
  */
-export async function averageBlockTime(
-  provider: Provider,
+export async function averageBlockTime<P extends CrosschainProvider>(
+  provider: P,
   { highBlock, highBlockOffset, blockRange }: Opts = {}
 ): Promise<Pick<BlockTimeAverage, "average" | "blockRange">> {
   // Does not block for StaticJsonRpcProvider.
-  const { chainId } = await provider.getNetwork();
+  const chainId = await provider.getNetworkId();
 
   // OP stack chains inherit Optimism block times, but can be overridden.
   const cache = blockTimes[chainId] ?? (chainIsOPStack(chainId) ? blockTimes[CHAIN_IDs.OPTIMISM] : undefined);
@@ -69,10 +70,10 @@ export async function averageBlockTime(
   blockRange ??= defaultBlockRange;
 
   const earliestBlockNumber = highBlock - blockRange;
-  const [firstBlock, lastBlock] = await Promise.all([
+  const [firstBlock, lastBlock] = (await Promise.all([
     provider.getBlock(earliestBlockNumber),
     provider.getBlock(highBlock),
-  ]);
+  ])) as [Block, Block];
   [firstBlock, lastBlock].forEach((block: Block | undefined) => {
     if (!isDefined(block?.timestamp)) {
       const network = getNetworkName(chainId);
@@ -87,7 +88,11 @@ export async function averageBlockTime(
   return { average, blockRange };
 }
 
-async function estimateBlocksElapsed(seconds: number, cushionPercentage = 0.0, provider: Provider): Promise<number> {
+async function estimateBlocksElapsed<P extends CrosschainProvider>(
+  seconds: number,
+  cushionPercentage = 0.0,
+  provider: P
+): Promise<number> {
   const cushionMultiplier = cushionPercentage + 1.0;
   const { average } = await averageBlockTime(provider);
   return Math.floor((seconds * cushionMultiplier) / average);
@@ -98,9 +103,9 @@ export type BlockFinderHints = {
   highBlock?: number;
 };
 
-export class BlockFinder {
+export class BlockFinder<P extends CrosschainProvider> {
   constructor(
-    private readonly provider: Provider,
+    private readonly provider: P,
     private readonly blocks: Block[] = []
   ) {}
 
@@ -136,6 +141,7 @@ export class BlockFinder {
       const cushion = 1;
       const incrementDistance = Math.max(
         // Ensure the increment block distance is _at least_ a single block to prevent an infinite loop.
+        // TODO: Casting here is completely unsafe and needs to be changed.
         await estimateBlocksElapsed(initialBlock.timestamp - timestamp, cushion, this.provider),
         1
       );
@@ -157,7 +163,7 @@ export class BlockFinder {
 
   // Grabs the most recent block and caches it.
   private async getLatestBlock() {
-    const block = await this.provider.getBlock("latest");
+    const block = (await this.provider.getBlock("latest")) as Block;
     const index = sortedIndexBy(this.blocks, block, "number");
     if (this.blocks[index]?.number !== block.number) this.blocks.splice(index, 0, block);
     return this.blocks[index];
@@ -167,7 +173,7 @@ export class BlockFinder {
   private async getBlock(number: number) {
     let index = sortedIndexBy(this.blocks, { number } as Block, "number");
     if (this.blocks[index]?.number === number) return this.blocks[index]; // Return early if block already exists.
-    const block = await this.provider.getBlock(number);
+    const block = (await this.provider.getBlock(number)) as Block;
 
     // Recompute the index after the async call since the state of this.blocks could have changed!
     index = sortedIndexBy(this.blocks, { number } as Block, "number");
@@ -224,10 +230,10 @@ export class BlockFinder {
  * or loading from cache. This is useful for testing primarily.
  * @returns Block number for the requested timestamp.
  */
-export async function getCachedBlockForTimestamp(
+export async function getCachedBlockForTimestamp<P extends CrosschainProvider>(
   chainId: number,
   timestamp: number,
-  blockFinder: BlockFinder,
+  blockFinder: BlockFinder<P>,
   cache?: CachingMechanismInterface,
   hints?: BlockFinderHints
 ): Promise<number> {

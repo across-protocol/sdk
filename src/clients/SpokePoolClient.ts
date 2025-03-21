@@ -54,6 +54,7 @@ import {
 } from "../utils/SpokeUtils";
 import { BaseAbstractClient, isUpdateFailureReason, UpdateFailureReason } from "./BaseAbstractClient";
 import { HubPoolClient } from "./HubPoolClient";
+import { CrosschainProvider } from "../providers";
 import { AcrossConfigStoreClient } from "./AcrossConfigStoreClient";
 import { getRepaymentChainId, forceDestinationRepayment } from "./BundleDataClient/utils/FillUtils";
 
@@ -73,7 +74,7 @@ export type SpokePoolUpdate = SpokePoolUpdateSuccess | SpokePoolUpdateFailure;
  * SpokePoolClient is a client for the SpokePool contract. It is responsible for querying the SpokePool contract
  * for events and storing them in memory. It also provides some convenience methods for querying the stored events.
  */
-export class SpokePoolClient extends BaseAbstractClient {
+export class SpokePoolClient<P extends CrosschainProvider> extends BaseAbstractClient {
   protected currentTime = 0;
   protected depositHashes: { [depositHash: string]: DepositWithBlock } = {};
   protected duplicateDepositHashes: { [depositHash: string]: DepositWithBlock[] } = {};
@@ -102,7 +103,7 @@ export class SpokePoolClient extends BaseAbstractClient {
     readonly logger: winston.Logger,
     readonly spokePool: Contract,
     // Can be excluded. This disables some deposit validation.
-    readonly hubPoolClient: HubPoolClient | null,
+    readonly hubPoolClient: HubPoolClient<P> | null,
     readonly chainId: number,
     public deploymentBlock: number,
     eventSearchConfig: MakeOptional<EventSearchConfig, "toBlock"> = { fromBlock: 0, maxBlockLookBack: 0 }
