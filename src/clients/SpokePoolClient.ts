@@ -334,9 +334,7 @@ export class SpokePoolClient extends BaseAbstractClient {
    * @returns A list of slow fill requests.
    */
   public getSlowFillRequestsForOriginChain(originChainId: number): SlowFillRequestWithBlock[] {
-    return Object.values(this.slowFillRequests).filter(
-      (e: SlowFillRequestWithBlock) => e.originChainId === originChainId
-    );
+    return Object.values(this.slowFillRequests).filter((e) => e.originChainId === originChainId);
   }
 
   /**
@@ -355,10 +353,7 @@ export class SpokePoolClient extends BaseAbstractClient {
   public getDepositForFill(fill: Fill): DepositWithBlock | undefined {
     const deposit = this.depositHashes[getRelayEventKey(fill)];
     const match = validateFillForDeposit(fill, deposit);
-    if (match.valid) {
-      return deposit;
-    }
-    return undefined;
+    return match.valid ? deposit : undefined;
   }
 
   public getFillsForDeposit(deposit: Deposit): FillWithBlock[] {
@@ -568,7 +563,7 @@ export class SpokePoolClient extends BaseAbstractClient {
     }
 
     // Sort all events to ensure they are stored in a consistent order.
-    events.forEach((events: Log[]) => sortEventsAscendingInPlace(events));
+    events.forEach((events) => sortEventsAscendingInPlace(events));
 
     return {
       success: true,
@@ -866,11 +861,7 @@ export class SpokePoolClient extends BaseAbstractClient {
    */
   protected getDestinationTokenForDeposit(deposit: DepositWithBlock): string {
     // If there is no rate model client return address(0).
-    if (!this.hubPoolClient) {
-      return ZERO_ADDRESS;
-    }
-
-    return this.hubPoolClient.getL2TokenForDeposit(deposit);
+    return this.hubPoolClient?.getL2TokenForDeposit(deposit) ?? ZERO_ADDRESS;
   }
 
   /**
