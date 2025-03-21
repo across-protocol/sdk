@@ -120,13 +120,9 @@ export class SpokePoolClient extends BaseAbstractClient {
       "TokensBridged",
       "RelayedRootBundle",
       "ExecutedRelayerRefundRoot",
-      "V3FundsDeposited",
       "FundsDeposited",
-      "RequestedSpeedUpV3Deposit",
       "RequestedSpeedUpDeposit",
-      "RequestedV3SlowFill",
       "RequestedSlowFill",
-      "FilledV3Relay",
       "FilledRelay",
     ];
     return Object.fromEntries(
@@ -326,9 +322,10 @@ export class SpokePoolClient extends BaseAbstractClient {
    * @param relayData RelayData field for the SlowFill request.
    * @returns The corresponding SlowFillRequest event if found, otherwise undefined.
    */
-  public getSlowFillRequest(relayData: RelayData): SlowFillRequestWithBlock | undefined {
-    const messageHash = getMessageHash(relayData.message);
-    const hash = getRelayEventKey({ ...relayData, messageHash, destinationChainId: this.chainId });
+  public getSlowFillRequest(
+    relayData: Omit<RelayData, "message"> & { messageHash: string }
+  ): SlowFillRequestWithBlock | undefined {
+    const hash = getRelayEventKey({ ...relayData, destinationChainId: this.chainId });
     return this.slowFillRequests[hash];
   }
 
@@ -486,7 +483,7 @@ export class SpokePoolClient extends BaseAbstractClient {
   /**
    * @notice Return maximum of fill deadline buffer at start and end of block range. This is a contract
    * immutable state variable so we can't query other events to find its updates.
-   * @dev V3 deposits have a fill deadline which can be set to a maximum of fillDeadlineBuffer + deposit.block.timestamp.
+   * @dev Deposits have a fill deadline which can be set to a maximum of fillDeadlineBuffer + deposit.block.timestamp.
    * Therefore, we cannot evaluate a block range for expired deposits if the spoke pool client doesn't return us
    * deposits whose block.timestamp is within fillDeadlineBuffer of the end block time. As a conservative check,
    * we verify that the time between the end block timestamp and the first timestamp queried by the
@@ -652,7 +649,7 @@ export class SpokePoolClient extends BaseAbstractClient {
       }
     };
 
-    for (const event of ["V3FundsDeposited", "FundsDeposited"]) {
+    for (const event of ["FundsDeposited"]) {
       if (eventsToQuery.includes(event)) {
         await queryDepositEvents(event);
       }
@@ -680,7 +677,7 @@ export class SpokePoolClient extends BaseAbstractClient {
     };
 
     // Update deposits with speed up requests from depositor.
-    ["RequestedSpeedUpV3Deposit", "RequestedSpeedUpDeposit"].forEach((event) => {
+    ["RequestedSpeedUpDeposit"].forEach((event) => {
       if (eventsToQuery.includes(event)) {
         querySpeedUpDepositEvents(event);
       }
@@ -695,10 +692,6 @@ export class SpokePoolClient extends BaseAbstractClient {
           destinationChainId: this.chainId,
         } as SlowFillRequestWithBlock;
 
-        if (eventName === "RequestedV3SlowFill") {
-          slowFillRequest.messageHash = getMessageHash(slowFillRequest.message);
-        }
-
         const depositHash = getRelayEventKey({ ...slowFillRequest, destinationChainId: this.chainId });
 
         // Sanity check that this event is not a duplicate.
@@ -711,7 +704,7 @@ export class SpokePoolClient extends BaseAbstractClient {
       }
     };
 
-    ["RequestedV3SlowFill", "RequestedSlowFill"].forEach((event) => {
+    ["RequestedSlowFill"].forEach((event) => {
       if (eventsToQuery.includes(event)) {
         queryRequestedSlowFillEvents(event);
       }
@@ -735,11 +728,6 @@ export class SpokePoolClient extends BaseAbstractClient {
           destinationChainId: this.chainId,
         } as FillWithBlock;
 
-        if (eventName === "FilledV3Relay") {
-          fill.messageHash = getMessageHash(event.args.message);
-          fill.relayExecutionInfo.updatedMessageHash = getMessageHash(event.args.relayExecutionInfo.updatedMessage);
-        }
-
         // Sanity check that this event is not a duplicate.
         const duplicateFill = this.fills[fill.originChainId]?.find((f) => duplicateEvent(fill, f));
         if (duplicateFill) {
@@ -753,7 +741,7 @@ export class SpokePoolClient extends BaseAbstractClient {
     };
 
     // Update observed fills with ingested event data.
-    ["FilledV3Relay", "FilledRelay"].forEach((event) => {
+    ["FilledRelay"].forEach((event) => {
       if (eventsToQuery.includes(event)) {
         queryFilledRelayEvents(event);
       }
@@ -915,7 +903,8 @@ export class SpokePoolClient extends BaseAbstractClient {
 
     const toBlock = fromBlock;
     const tStart = Date.now();
-    // Check both V3FundsDeposited and FundsDeposited events to look for a specified depositId.
+    // Check both V3FundsDeposited and FundsDeposited for the forseeable future because older
+    // V3FundsDeposited events with infinite expiry might still exist and be filled in future.
     const { maxBlockLookBack } = this.eventSearchConfig;
     const query = (
       await Promise.all([
@@ -958,7 +947,7 @@ export class SpokePoolClient extends BaseAbstractClient {
 
     this.logger.debug({
       at: "SpokePoolClient#findDeposit",
-      message: "Located V3 deposit outside of SpokePoolClient's search range",
+      message: "Located deposit outside of SpokePoolClient's search range",
       deposit,
       elapsedMs: tStop - tStart,
     });
