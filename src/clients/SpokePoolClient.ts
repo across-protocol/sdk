@@ -1,11 +1,9 @@
-import assert from "assert";
 import { Contract, EventFilter } from "ethers";
 import winston from "winston";
 import {
   AnyObject,
   BigNumber,
   bnZero,
-  bnUint32Max,
   DefaultLogLevels,
   DepositSearchResult,
   EventSearchConfig,
@@ -51,6 +49,7 @@ import {
   findDepositBlock,
   getDepositIdAtBlock,
   getMaxFillDeadlineInRange as getMaxFillDeadline,
+  getTimeAt as _getTimeAt,
   relayFillStatus,
 } from "../utils/SpokeUtils";
 import { BaseAbstractClient, isUpdateFailureReason, UpdateFailureReason } from "./BaseAbstractClient";
@@ -887,10 +886,8 @@ export class SpokePoolClient extends BaseAbstractClient {
    * Retrieves the time from the SpokePool contract at a particular block.
    * @returns The time at the specified block tag.
    */
-  public async getTimeAt(blockNumber: number): Promise<number> {
-    const currentTime = await this.spokePool.getCurrentTime({ blockTag: blockNumber });
-    assert(BigNumber.isBigNumber(currentTime) && currentTime.lt(bnUint32Max));
-    return currentTime.toNumber();
+  public getTimeAt(blockNumber: number): Promise<number> {
+    return _getTimeAt(this.spokePool, blockNumber);
   }
 
   /**

@@ -4,7 +4,7 @@ import { CHAIN_IDs, MAX_SAFE_DEPOSIT_ID, UNDEFINED_MESSAGE_HASH, ZERO_ADDRESS, Z
 import { Deposit, FillStatus, FillWithBlock, RelayData } from "../interfaces";
 import { SpokePoolClient } from "../clients";
 import { chunk } from "./ArrayUtils";
-import { BigNumber, toBN, bnOne, bnZero } from "./BigNumberUtils";
+import { bnUint32Max, BigNumber, toBN, bnOne, bnZero } from "./BigNumberUtils";
 import { keccak256 } from "./common";
 import { isMessageEmpty } from "./DepositUtils";
 import { isDefined } from "./TypeGuards";
@@ -273,6 +273,16 @@ export async function getBlockRangeForDepositId(
   // We've either found the block range or we've exceeded the maximum number of searches.
   // In either case, the block range is [low, high] so we can return it.
   return { low, high };
+}
+
+/**
+ * Retrieves the time from the SpokePool contract at a particular block.
+ * @returns The time at the specified block tag.
+ */
+export async function getTimeAt(spokePool: Contract, blockNumber: number): Promise<number> {
+  const currentTime = await spokePool.getCurrentTime({ blockTag: blockNumber });
+  assert(BigNumber.isBigNumber(currentTime) && currentTime.lt(bnUint32Max));
+  return currentTime.toNumber();
 }
 
 /**
