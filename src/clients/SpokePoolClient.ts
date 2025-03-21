@@ -45,9 +45,8 @@ import {
   SpeedUpWithBlock,
   TokensBridged,
 } from "../interfaces";
-import { SpokePool } from "../typechain";
 import { getNetworkName } from "../utils/NetworkUtils";
-import { findDepositBlock, getDepositIdAtBlock, relayFillStatus } from "../utils/SpokeUtils";
+import { findDepositBlock, relayFillStatus } from "../utils/SpokeUtils";
 import { BaseAbstractClient, isUpdateFailureReason, UpdateFailureReason } from "./BaseAbstractClient";
 import { HubPoolClient } from "./HubPoolClient";
 import { AcrossConfigStoreClient } from "./AcrossConfigStoreClient";
@@ -473,15 +472,6 @@ export class SpokePoolClient extends BaseAbstractClient {
    */
   public getDepositHash(event: { depositId: BigNumber; originChainId: number }): string {
     return `${event.depositId.toString()}-${event.originChainId}`;
-  }
-
-  /**
-   * Finds the deposit id at a specific block number.
-   * @param blockTag The block number to search for the deposit ID at.
-   * @returns The deposit ID.
-   */
-  public _getDepositIdAtBlock(blockTag: number): Promise<BigNumber> {
-    return getDepositIdAtBlock(this.spokePool as SpokePool, blockTag);
   }
 
   /**
