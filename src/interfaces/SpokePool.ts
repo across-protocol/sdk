@@ -1,6 +1,7 @@
 import { SortableEvent } from "./Common";
 import { FilledV3RelayEvent, V3FundsDepositedEvent } from "../typechain";
 import { SpokePoolClient } from "../clients";
+import { CrosschainProvider } from "../providers";
 import { BigNumber } from "../utils";
 import { RelayerRefundLeaf } from "./HubPool";
 
@@ -122,6 +123,6 @@ export interface TokensBridged extends SortableEvent {
   l2TokenAddress: string;
 }
 
-export interface SpokePoolClientsByChain {
-  [chainId: number]: SpokePoolClient;
+export interface SpokePoolClientsByChain<P extends CrosschainProvider> {
+  [chainId: number]: SpokePoolClient<P>;
 }

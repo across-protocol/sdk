@@ -58,6 +58,7 @@ import {
   verifyFillRepayment,
 } from "./utils";
 import { UNDEFINED_MESSAGE_HASH } from "../../constants";
+import { CrosschainProvider } from "../../providers";
 
 // max(uint256) - 1
 export const INFINITE_FILL_DEADLINE = bnUint32Max;
@@ -158,7 +159,7 @@ function updateBundleSlowFills(dict: BundleSlowFills, deposit: V3DepositWithBloc
 }
 
 // @notice Shared client for computing data needed to construct or validate a bundle.
-export class BundleDataClient {
+export class BundleDataClient<P extends CrosschainProvider> {
   private loadDataCache: DataCache = {};
   private arweaveDataCache: Record<string, Promise<LoadDataReturnValue | undefined>> = {};
 
@@ -167,8 +168,8 @@ export class BundleDataClient {
   // eslint-disable-next-line no-useless-constructor
   constructor(
     readonly logger: winston.Logger,
-    readonly clients: Clients,
-    readonly spokePoolClients: { [chainId: number]: SpokePoolClient },
+    readonly clients: Clients<P>,
+    readonly spokePoolClients: { [chainId: number]: SpokePoolClient<P> },
     readonly chainIdListForBundleEvaluationBlockNumbers: number[],
     readonly blockRangeEndBlockBuffer: { [chainId: number]: number } = {}
   ) {}
@@ -520,7 +521,7 @@ export class BundleDataClient {
 
   // @dev This helper function should probably be moved to the InventoryClient
   getExecutedRefunds(
-    spokePoolClient: SpokePoolClient,
+    spokePoolClient: SpokePoolClient<P>,
     relayerRefundRoot: string
   ): {
     [tokenAddress: string]: {
@@ -628,7 +629,7 @@ export class BundleDataClient {
   // on deprecated spoke pools.
   async loadData(
     blockRangesForChains: number[][],
-    spokePoolClients: SpokePoolClientsByChain,
+    spokePoolClients: SpokePoolClientsByChain<P>,
     attemptArweaveLoad = false
   ): Promise<LoadDataReturnValue> {
     const key = JSON.stringify(blockRangesForChains);
@@ -653,7 +654,7 @@ export class BundleDataClient {
 
   private async loadDataFromScratch(
     blockRangesForChains: number[][],
-    spokePoolClients: SpokePoolClientsByChain
+    spokePoolClients: SpokePoolClientsByChain<P>
   ): Promise<LoadDataReturnValue> {
     let start = performance.now();
     const key = JSON.stringify(blockRangesForChains);
@@ -1509,7 +1510,7 @@ export class BundleDataClient {
 
   protected async findMatchingFillEvent(
     deposit: DepositWithBlock,
-    spokePoolClient: SpokePoolClient
+    spokePoolClient: SpokePoolClient<P>
   ): Promise<FillWithBlock | undefined> {
     return await findFillEvent(
       spokePoolClient.spokePool,
@@ -1522,7 +1523,7 @@ export class BundleDataClient {
   async getBundleBlockTimestamps(
     chainIds: number[],
     blockRangesForChains: number[][],
-    spokePoolClients: SpokePoolClientsByChain
+    spokePoolClients: SpokePoolClientsByChain<P>
   ): Promise<{ [chainId: string]: number[] }> {
     return Object.fromEntries(
       (

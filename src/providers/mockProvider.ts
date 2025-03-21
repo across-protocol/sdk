@@ -1,12 +1,13 @@
 import { BigNumber, providers } from "ethers";
 import { Block, BlockTag, FeeData, TransactionResponse } from "@ethersproject/abstract-provider";
 import { bnZero } from "../utils/BigNumberUtils";
+import { CrosschainProvider } from "./";
 
 /**
  * @notice Class used to test GasPriceOracle which makes ethers provider calls to the following implemented
  * methods.
  */
-export class MockedProvider extends providers.StaticJsonRpcProvider {
+export class MockedProvider extends providers.StaticJsonRpcProvider implements CrosschainProvider {
   private transactions: { [hash: string]: TransactionResponse } = {};
 
   constructor(
@@ -69,6 +70,10 @@ export class MockedProvider extends providers.StaticJsonRpcProvider {
       name: "mocknetwork",
       chainId: this.defaultChainId,
     });
+  }
+
+  getNetworkId(): Promise<number> {
+    return Promise.resolve(this.defaultChainId);
   }
 
   _setTransaction(hash: string, transaction: TransactionResponse) {

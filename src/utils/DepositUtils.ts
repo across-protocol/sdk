@@ -9,6 +9,7 @@ import { getMessageHash, isUnsafeDepositId, validateFillForDeposit } from "./Spo
 import { getCurrentTime } from "./TimeUtils";
 import { isDefined } from "./TypeGuards";
 import { isDepositFormedCorrectly } from "./ValidatorUtils";
+import { CrosschainProvider } from "../providers";
 
 // Load a deposit for a fill if the fill's deposit ID is outside this client's search range.
 // This can be used by the Dataworker to determine whether to give a relayer a refund for a fill
@@ -37,8 +38,8 @@ export type DepositSearchResult =
  * @throws If the fill's origin chain ID does not match the spoke pool client's chain ID.
  * @throws If the spoke pool client has not been updated.
  */
-export async function queryHistoricalDepositForFill(
-  spokePoolClient: SpokePoolClient,
+export async function queryHistoricalDepositForFill<P extends CrosschainProvider>(
+  spokePoolClient: SpokePoolClient<P>,
   fill: Fill | SlowFillRequest,
   cache?: CachingMechanismInterface
 ): Promise<DepositSearchResult> {

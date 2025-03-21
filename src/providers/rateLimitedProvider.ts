@@ -7,10 +7,11 @@ import { ethers } from "ethers";
 import { RateLimitTask } from "./utils";
 import { getOriginFromURL } from "../utils/NetworkUtils";
 import winston, { Logger } from "winston";
+import { CrosschainProvider } from "./interface";
 
 // This provider is a very small addition to the StaticJsonRpcProvider that ensures that no more than `maxConcurrency`
 // requests are ever in flight. It uses the async/queue library to manage this.
-export class RateLimitedProvider extends ethers.providers.StaticJsonRpcProvider {
+export class RateLimitedProvider extends ethers.providers.StaticJsonRpcProvider implements CrosschainProvider {
   // The queue object that manages the tasks.
   private queue: QueueObject<RateLimitTask>;
 
@@ -92,5 +93,11 @@ export class RateLimitedProvider extends ethers.providers.StaticJsonRpcProvider 
       // the same behavior with the `void` keyword.
       void this.queue.push(task);
     });
+  }
+
+  // Returns the chain ID of the provider's network.
+  async getNetworkId(): Promise<number> {
+    const { chainId } = await this.getNetwork();
+    return chainId;
   }
 }

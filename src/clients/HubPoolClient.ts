@@ -47,6 +47,7 @@ import {
 } from "../utils";
 import { AcrossConfigStoreClient as ConfigStoreClient } from "./AcrossConfigStoreClient/AcrossConfigStoreClient";
 import { BaseAbstractClient, isUpdateFailureReason, UpdateFailureReason } from "./BaseAbstractClient";
+import { CrosschainProvider } from "../providers";
 
 type HubPoolUpdateSuccess = {
   success: true;
@@ -78,7 +79,7 @@ export type LpFeeRequest = Pick<Deposit, "originChainId" | "inputToken" | "input
   paymentChainId?: number;
 };
 
-export class HubPoolClient extends BaseAbstractClient {
+export class HubPoolClient<P extends CrosschainProvider> extends BaseAbstractClient {
   // L1Token -> destinationChainId -> destinationToken
   protected l1TokensToDestinationTokens: L1TokensToDestinationTokens = {};
   protected l1Tokens: L1Token[] = []; // L1Tokens and their associated info.
@@ -94,7 +95,7 @@ export class HubPoolClient extends BaseAbstractClient {
   protected pendingRootBundle: PendingRootBundle | undefined;
 
   public currentTime: number | undefined;
-  public readonly blockFinder: BlockFinder;
+  public readonly blockFinder: BlockFinder<P>;
 
   constructor(
     readonly logger: winston.Logger,
@@ -117,7 +118,9 @@ export class HubPoolClient extends BaseAbstractClient {
     this.latestBlockSearched = Math.min(deploymentBlock - 1, 0);
     this.firstBlockToSearch = eventSearchConfig.fromBlock;
 
-    const provider = this.hubPool.provider;
+    // Casting to a generic type which extends crosschain provider is safe here iff the hub pool client is using one of the provider
+    // wrappers exposed by this SDK.
+    const provider = this.hubPool.provider as unknown as P;
     this.blockFinder = new BlockFinder(provider);
   }
 
