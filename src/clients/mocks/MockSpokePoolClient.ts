@@ -28,14 +28,14 @@ import {
   toAddress,
   toBytes32,
 } from "../../utils";
-import { SpokePoolClient, SpokePoolUpdate } from "../SpokePoolClient";
+import { EVMSpokePoolClient, SpokePoolUpdate } from "../SpokePoolClient";
 import { HubPoolClient } from "../HubPoolClient";
 import { EventManager, EventOverrides, getEventManager } from "./MockEvents";
 import { AcrossConfigStoreClient } from "../AcrossConfigStoreClient";
 
 // This class replaces internal SpokePoolClient functionality, enabling
 // the user to bypass on-chain queries and inject Log objects directly.
-export class MockSpokePoolClient extends SpokePoolClient {
+export class MockSpokePoolClient extends EVMSpokePoolClient {
   public eventManager: EventManager;
   private destinationTokenForChainOverride: Record<number, string> = {};
   // Allow tester to set the numberOfDeposits() returned by SpokePool at a block height.

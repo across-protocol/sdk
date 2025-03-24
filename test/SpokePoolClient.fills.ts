@@ -1,5 +1,5 @@
 import hre from "hardhat";
-import { SpokePoolClient } from "../src/clients";
+import { EVMSpokePoolClient, SpokePoolClient } from "../src/clients";
 import { Deposit } from "../src/interfaces";
 import {
   bnOne,
@@ -47,7 +47,7 @@ describe("SpokePoolClient: Fills", function () {
     ));
     await spokePool.setChainId(destinationChainId); // The spoke pool for a fill should be at the destinationChainId.
 
-    spokePoolClient = new SpokePoolClient(
+    spokePoolClient = new EVMSpokePoolClient(
       createSpyLogger().spyLogger,
       spokePool,
       null,
