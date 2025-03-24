@@ -125,6 +125,35 @@ export async function queryHistoricalDepositForFill(
   };
 }
 
+/**
+ * Concatenate all fields from a Deposit, Fill or SlowFillRequest into a single string.
+ * This can be used to identify a bridge event in a mapping. This is used instead of the actual keccak256 hash
+ * (getRelayDataHash()) for two reasons: performance and the fact that only Deposit includes the `message` field, which
+ * is required to compute a complete RelayData hash.
+ * note: This function should _not_ be used to query the SpokePool.fillStatuses mapping.
+ */
+export function getRelayEventKey(
+  data: Omit<RelayData, "message"> & { messageHash: string; destinationChainId: number }
+): string {
+  return [
+    data.depositor,
+    data.recipient,
+    data.exclusiveRelayer,
+    data.inputToken,
+    data.outputToken,
+    data.inputAmount,
+    data.outputAmount,
+    data.originChainId,
+    data.destinationChainId,
+    data.depositId,
+    data.fillDeadline,
+    data.exclusivityDeadline,
+    data.messageHash,
+  ]
+    .map(String)
+    .join("-");
+}
+
 const RELAYDATA_KEYS = [
   "depositId",
   "originChainId",
@@ -164,35 +193,6 @@ export function validateFillForDeposit(
   return isDefined(invalidKey)
     ? { valid: false, reason: `${invalidKey} mismatch (${relayData[invalidKey]} != ${deposit[invalidKey]})` }
     : { valid: true };
-}
-
-/**
- * Concatenate all fields from a Deposit, Fill or SlowFillRequest into a single string.
- * This can be used to identify a bridge event in a mapping. This is used instead of the actual keccak256 hash
- * (getRelayDataHash()) for two reasons: performance and the fact that only Deposit includes the `message` field, which
- * is required to compute a complete RelayData hash.
- * note: This function should _not_ be used to query the SpokePool.fillStatuses mapping.
- */
-export function getRelayEventKey(
-  data: Omit<RelayData, "message"> & { messageHash: string; destinationChainId: number }
-): string {
-  return [
-    data.depositor,
-    data.recipient,
-    data.exclusiveRelayer,
-    data.inputToken,
-    data.outputToken,
-    data.inputAmount,
-    data.outputAmount,
-    data.originChainId,
-    data.destinationChainId,
-    data.depositId,
-    data.fillDeadline,
-    data.exclusivityDeadline,
-    data.messageHash,
-  ]
-    .map(String)
-    .join("-");
 }
 
 /**
