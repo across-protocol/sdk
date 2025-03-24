@@ -167,6 +167,35 @@ export function validateFillForDeposit(
 }
 
 /**
+ * Concatenate all fields from a Deposit, Fill or SlowFillRequest into a single string.
+ * This can be used to identify a bridge event in a mapping. This is used instead of the actual keccak256 hash
+ * (getRelayDataHash()) for two reasons: performance and the fact that only Deposit includes the `message` field, which
+ * is required to compute a complete RelayData hash.
+ * note: This function should _not_ be used to query the SpokePool.fillStatuses mapping.
+ */
+export function getRelayEventKey(
+  data: Omit<RelayData, "message"> & { messageHash: string; destinationChainId: number }
+): string {
+  return [
+    data.depositor,
+    data.recipient,
+    data.exclusiveRelayer,
+    data.inputToken,
+    data.outputToken,
+    data.inputAmount,
+    data.outputAmount,
+    data.originChainId,
+    data.destinationChainId,
+    data.depositId,
+    data.fillDeadline,
+    data.exclusivityDeadline,
+    data.messageHash,
+  ]
+    .map(String)
+    .join("-");
+}
+
+/**
  * Returns true if filling this deposit (as a slow or fast fill) or refunding it would not change any state
  * on-chain. The dataworker functions can use this to conveniently filter out useless deposits.
  * @dev The reason we allow a 0-input deposit to have a non-empty message is that the message might be used
