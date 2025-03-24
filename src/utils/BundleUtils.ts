@@ -1,5 +1,6 @@
 import { AcrossConfigStoreClient, HubPoolClient } from "../clients";
 import { ProposedRootBundle } from "../interfaces";
+import { CrosschainProvider } from "../providers";
 
 /**
  * Return block number for `chain` in `bundleEvaluationBlockNumbers` using the mapping
@@ -57,8 +58,8 @@ export function getBlockRangeForChain(
  * @param rootBundle Root bundle to return bundle block range for
  * @returns blockRanges: number[][], [[startBlock, endBlock], [startBlock, endBlock], ...]
  */
-export function getImpliedBundleBlockRanges(
-  hubPoolClient: HubPoolClient,
+export function getImpliedBundleBlockRanges<P extends CrosschainProvider>(
+  hubPoolClient: HubPoolClient<P>,
   configStoreClient: AcrossConfigStoreClient,
   rootBundle: ProposedRootBundle
 ): number[][] {

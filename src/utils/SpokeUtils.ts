@@ -11,6 +11,7 @@ import { isDefined } from "./TypeGuards";
 import { getNetworkName } from "./NetworkUtils";
 import { paginatedEventQuery, spreadEventWithBlockNumber } from "./EventUtils";
 import { toBytes32 } from "./AddressUtils";
+import { CrosschainProvider } from "../providers";
 
 type BlockTag = providers.BlockTag;
 
@@ -74,12 +75,12 @@ export function populateV3Relay(
  *        // contain the event emitted when deposit ID was incremented to targetDepositId + 1. This is the same transaction
  *        // where the deposit with deposit ID = targetDepositId was created.
  */
-export async function getBlockRangeForDepositId(
+export async function getBlockRangeForDepositId<P extends CrosschainProvider>(
   targetDepositId: BigNumber,
   initLow: number,
   initHigh: number,
   maxSearches: number,
-  spokePool: SpokePoolClient
+  spokePool: SpokePoolClient<P>
 ): Promise<{
   low: number;
   high: number;

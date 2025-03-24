@@ -5,6 +5,7 @@ import { BigNumber, bnZero, compareAddresses } from "../../../utils";
 import { HubPoolClient } from "../../HubPoolClient";
 import { V3DepositWithBlock } from "./shims";
 import { AcrossConfigStoreClient } from "../../AcrossConfigStoreClient";
+import { CrosschainProvider } from "../../../providers";
 
 export type PoolRebalanceRoot = {
   runningBalances: RunningBalances;
@@ -17,11 +18,11 @@ export type PoolRebalanceRoot = {
 // when evaluating  pending root bundle. The block end numbers must be less than the latest blocks for each chain ID
 // (because we can't evaluate events in the future), and greater than the expected start blocks, which are the
 // greater of 0 and the latest bundle end block for an executed root bundle proposal + 1.
-export function getWidestPossibleExpectedBlockRange(
+export function getWidestPossibleExpectedBlockRange<P extends CrosschainProvider>(
   chainIdListForBundleEvaluationBlockNumbers: number[],
-  spokeClients: { [chainId: number]: SpokePoolClient },
+  spokeClients: { [chainId: number]: SpokePoolClient<P> },
   endBlockBuffers: number[],
-  clients: Clients,
+  clients: Clients<P>,
   latestMainnetBlock: number,
   enabledChains: number[]
 ): number[][] {
@@ -140,10 +141,10 @@ export function updateRunningBalance(
   }
 }
 
-export function addLastRunningBalance(
+export function addLastRunningBalance<P extends CrosschainProvider>(
   latestMainnetBlock: number,
   runningBalances: RunningBalances,
-  hubPoolClient: HubPoolClient
+  hubPoolClient: HubPoolClient<P>
 ): void {
   Object.keys(runningBalances).forEach((repaymentChainId) => {
     Object.keys(runningBalances[Number(repaymentChainId)]).forEach((l1TokenAddress) => {
@@ -159,9 +160,9 @@ export function addLastRunningBalance(
   });
 }
 
-export function updateRunningBalanceForDeposit(
+export function updateRunningBalanceForDeposit<P extends CrosschainProvider>(
   runningBalances: RunningBalances,
-  hubPoolClient: HubPoolClient,
+  hubPoolClient: HubPoolClient<P>,
   deposit: V3DepositWithBlock,
   updateAmount: BigNumber
 ): void {

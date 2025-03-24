@@ -6,8 +6,9 @@ import { SolanaClusterRpcFactory } from "./baseRpcFactories";
 import { RateLimitedSolanaRpcFactory } from "./rateLimitedRpcFactory";
 import { CacheType } from "../utils";
 import { jsonReplacerWithBigInts, jsonReviverWithBigInts } from "../../utils";
+import { CrosschainProvider } from "../";
 
-export class CachedSolanaRpcFactory extends SolanaClusterRpcFactory {
+export class CachedSolanaRpcFactory extends SolanaClusterRpcFactory implements CrosschainProvider {
   public readonly getTransactionCachePrefix: string;
 
   // Holds the underlying transport that the cached transport wraps.
@@ -60,6 +61,26 @@ export class CachedSolanaRpcFactory extends SolanaClusterRpcFactory {
       // Cache does not have the result. Query it directly and cache it if finalized.
       return this.requestAndCacheFinalized<TResponse>(...args);
     };
+  }
+
+  getNetworkId(): Promise<number> {
+    return Promise.resolve(this.chainId);
+  }
+
+  async getBlock(blockNumber: string | number): Promise<unknown> {
+    // TODO: Support other evm block tags.
+    let slot;
+    try {
+      slot = BigInt(blockNumber);
+    } catch {
+      // Assume block tag = "latest";
+      slot = BigInt(await this.getBlockNumber());
+    }
+    return this.rateLimitedRpcClient.getBlock(slot, {});
+  }
+
+  async getBlockNumber(): Promise<number> {
+    return Number(await this.rateLimitedRpcClient.getBlockHeight().send());
   }
 
   private async requestAndCacheFinalized<TResponse>(...args: Parameters<RpcTransport>): Promise<TResponse> {
