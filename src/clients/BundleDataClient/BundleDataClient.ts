@@ -58,6 +58,7 @@ import {
   verifyFillRepayment,
 } from "./utils";
 import { UNDEFINED_MESSAGE_HASH } from "../../constants";
+import { isEVMSpokePoolClient } from "../SpokePoolClient";
 
 // max(uint256) - 1
 export const INFINITE_FILL_DEADLINE = bnUint32Max;
@@ -388,9 +389,15 @@ export class BundleDataClient {
       await forEachAsync(fillsToCount, async (_fill) => {
         const matchingDeposit = this.spokePoolClients[_fill.originChainId].getDeposit(_fill.depositId);
         assert(isDefined(matchingDeposit), "Deposit not found for fill.");
+
+        const spokeClient = this.spokePoolClients[_fill.destinationChainId];
+        if (!isEVMSpokePoolClient(spokeClient)) {
+          // FIXME: Handle non-EVM chains.
+          throw new Error("Destination chain is not an EVM chain.");
+        }
         const fill = await verifyFillRepayment(
           _fill,
-          this.spokePoolClients[_fill.destinationChainId].spokePool.provider,
+          spokeClient.spokePool.provider,
           matchingDeposit,
           this.clients.hubPoolClient
         );
@@ -890,6 +897,10 @@ export class BundleDataClient {
                 assert(isDefined(deposits) && deposits.length > 0, "Deposit should exist in relay hash dictionary.");
                 v3RelayHashes[relayDataHash].fill = fill;
                 if (fill.blockNumber >= destinationChainBlockRange[0]) {
+                  if (!isEVMSpokePoolClient(destinationClient)) {
+                    // FIXME: Handle non-EVM chains.
+                    throw new Error("Destination chain is not an EVM chain.");
+                  }
                   const fillToRefund = await verifyFillRepayment(
                     fill,
                     destinationClient.spokePool.provider,
@@ -988,6 +999,11 @@ export class BundleDataClient {
                   return;
                 }
                 v3RelayHashes[relayDataHash].deposits = [matchedDeposit];
+
+                if (!isEVMSpokePoolClient(destinationClient)) {
+                  // FIXME: Handle non-EVM chains.
+                  throw new Error("Destination chain is not an EVM chain.");
+                }
 
                 const fillToRefund = await verifyFillRepayment(
                   fill,
@@ -1163,6 +1179,10 @@ export class BundleDataClient {
           // include this pre fill if the fill is in an older bundle.
           if (fill) {
             if (fill.blockNumber < destinationChainBlockRange[0]) {
+              if (!isEVMSpokePoolClient(destinationClient)) {
+                // FIXME: Handle non-EVM chains.
+                throw new Error("Destination chain is not an EVM chain.");
+              }
               const fillToRefund = await verifyFillRepayment(
                 fill,
                 destinationClient.spokePool.provider,
@@ -1215,6 +1235,10 @@ export class BundleDataClient {
             const prefill = await this.findMatchingFillEvent(deposit, destinationClient);
             assert(isDefined(prefill), `findFillEvent# Cannot find prefill: ${relayDataHash}`);
             assert(getRelayEventKey(prefill) === relayDataHash, "Relay hashes should match.");
+            if (!isEVMSpokePoolClient(destinationClient)) {
+              // FIXME: Handle non-EVM chains.
+              throw new Error("Destination chain is not an EVM chain.");
+            }
             const verifiedFill = await verifyFillRepayment(
               prefill,
               destinationClient.spokePool.provider,
@@ -1511,6 +1535,10 @@ export class BundleDataClient {
     deposit: DepositWithBlock,
     spokePoolClient: SpokePoolClient
   ): Promise<FillWithBlock | undefined> {
+    if (!isEVMSpokePoolClient(spokePoolClient)) {
+      // FIXME: Handle non-EVM chains.
+      throw new Error("Destination chain is not an EVM chain.");
+    }
     return await findFillEvent(
       spokePoolClient.spokePool,
       deposit,
