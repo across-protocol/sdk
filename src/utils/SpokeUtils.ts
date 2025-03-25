@@ -3,7 +3,7 @@ import { BytesLike, Contract, PopulatedTransaction, providers, utils as ethersUt
 import { CHAIN_IDs, MAX_SAFE_DEPOSIT_ID, ZERO_ADDRESS, ZERO_BYTES } from "../constants";
 import { Deposit, FillStatus, FillWithBlock, RelayData } from "../interfaces";
 import { chunk } from "./ArrayUtils";
-import { BigNumber, toBN, bnZero, bnUint32Max } from "./BigNumberUtils";
+import { bnUint32Max, BigNumber, toBN, bnZero } from "./BigNumberUtils";
 import { keccak256 } from "./common";
 import { isMessageEmpty } from "./DepositUtils";
 import { isDefined } from "./TypeGuards";
