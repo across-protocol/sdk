@@ -772,10 +772,6 @@ export class SpokePoolClient extends BaseAbstractClient {
       const refundEvents = queryResults[eventsToQuery.indexOf("ExecutedRelayerRefundRoot")];
       for (const event of refundEvents) {
         const executedRefund = spreadEventWithBlockNumber(event) as RelayerRefundExecutionWithBlock;
-        executedRefund.l2TokenAddress = SpokePoolClient.getExecutedRefundLeafL2Token(
-          executedRefund.chainId,
-          executedRefund.l2TokenAddress
-        );
         this.relayerRefundExecutions.push(executedRefund);
       }
     }
@@ -796,30 +792,6 @@ export class SpokePoolClient extends BaseAbstractClient {
     this.log("debug", `SpokePool client for chain ${this.chainId} updated!`, {
       nextFirstBlockToSearch: this.firstBlockToSearch,
     });
-  }
-
-  /**
-   * Retrieves the l2TokenAddress for a given executed refund leaf.
-   * @param chainId The chain ID of the executed refund leaf.
-   * @param eventL2Token The l2TokenAddress of the executed refund leaf.
-   * @returns The l2TokenAddress of the executed refund leaf.
-   */
-  public static getExecutedRefundLeafL2Token(chainId: number, eventL2Token: string): string {
-    // If execution of WETH refund leaf occurred on an OVM spoke pool, then we'll convert its l2Token from the native
-    // token address to the wrapped token address. This is because the OVM_SpokePool modifies the l2TokenAddress prop
-    // in _bridgeTokensToHubPool before emitting the ExecutedRelayerRefundLeaf event.
-    // Here is the contract code referenced:
-    // - https://github.com/across-protocol/contracts/blob/954528a4620863d1c868e54a370fd8556d5ed05c/contracts/Ovm_SpokePool.sol#L142
-    if (
-      (chainId === 10 || chainId === 8453) &&
-      eventL2Token.toLowerCase() === "0xdeaddeaddeaddeaddeaddeaddeaddeaddead0000"
-    ) {
-      return "0x4200000000000000000000000000000000000006";
-    } else if (chainId === 288 && eventL2Token.toLowerCase() === "0x4200000000000000000000000000000000000006") {
-      return "0xDeadDeAddeAddEAddeadDEaDDEAdDeaDDeAD0000";
-    } else {
-      return eventL2Token;
-    }
   }
 
   /**
@@ -975,11 +947,6 @@ export class SpokePoolClient extends BaseAbstractClient {
     return (
       this.configStoreClient?.isChainLiteChainAtTimestamp(deposit.destinationChainId, deposit.quoteTimestamp) ?? false
     );
-  }
-
-  public async getTimestampForBlock(blockTag: number): Promise<number> {
-    const block = await this.spokePool.provider.getBlock(blockTag);
-    return Number(block.timestamp);
   }
 
   /**
