@@ -1,13 +1,5 @@
 import { Contract, EventFilter } from "ethers";
-import {
-  BigNumber,
-  DepositSearchResult,
-  getDepositIdAtBlock,
-  getNetworkName,
-  InvalidFill,
-  MakeOptional,
-  toBN,
-} from "../../utils";
+import { BigNumber, DepositSearchResult, getNetworkName, InvalidFill, MakeOptional, toBN } from "../../utils";
 import {
   EventSearchConfig,
   paginatedEventQuery,
@@ -18,15 +10,16 @@ import { isUpdateFailureReason } from "../BaseAbstractClient";
 import { knownEventNames, SpokePoolClient, SpokePoolUpdate } from "./SpokePoolClient";
 import winston from "winston";
 import { HubPoolClient } from "../HubPoolClient";
-import { SpokePool } from "../../typechain";
 import {
   findDepositBlock,
   getMaxFillDeadlineInRange as getMaxFillDeadline,
   getTimeAt as _getTimeAt,
   relayFillStatus,
   isZeroAddress,
+  getDepositIdAtBlock,
 } from "../../utils/SpokeUtils";
 import { DepositWithBlock, FillStatus, RelayData } from "../../interfaces";
+import { SpokePool } from "../../typechain";
 
 /**
  * An EVM-specific SpokePoolClient.
@@ -43,12 +36,7 @@ export class EVMSpokePoolClient extends SpokePoolClient {
     super(logger, hubPoolClient, chainId, deploymentBlock, eventSearchConfig);
   }
 
-  public async getTimestampForBlock(blockTag: number): Promise<number> {
-    const block = await this.spokePool.provider.getBlock(blockTag);
-    return Number(block.timestamp);
-  }
-
-  public relayFillStatus(
+  public override relayFillStatus(
     relayData: RelayData,
     blockTag?: number | "latest",
     destinationChainId?: number
@@ -148,21 +136,11 @@ export class EVMSpokePoolClient extends SpokePoolClient {
     };
   }
 
-  /**
-   * Retrieves the time from the SpokePool contract at a particular block.
-   * @returns The time at the specified block tag.
-   */
-  public getTimeAt(blockNumber: number): Promise<number> {
+  public override getTimeAt(blockNumber: number): Promise<number> {
     return _getTimeAt(this.spokePool, blockNumber);
   }
 
-  /**
-   * For a given origin chain depositId, resolve the corresponding Deposit.
-   * Note: This method can only be used for depositIds within the non-deterministic range (0 < depositId < 2^32 - 1).
-   * @param depositId Deposit ID of the deposit to resolve.
-   * @returns A DepositSearchResult instance.
-   */
-  async findDeposit(depositId: BigNumber): Promise<DepositSearchResult> {
+  public override async findDeposit(depositId: BigNumber): Promise<DepositSearchResult> {
     let deposit = this.getDeposit(depositId);
     if (deposit) {
       return { found: true, deposit };
