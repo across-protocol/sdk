@@ -10,7 +10,6 @@ import {
   relayFillStatus,
   validateFillForDeposit,
   queryHistoricalDepositForFill,
-  getBlockRangeForDepositId,
   deploy as deployMulticall,
 } from "../src/utils";
 import { ZERO_BYTES } from "../src/constants";
@@ -32,14 +31,11 @@ import {
   enableRoutesOnHubPool,
   deployConfigStore,
   getLastBlockTime,
-  assertPromiseError,
-  getDepositParams,
-  mineRandomBlocks,
   winston,
   lastSpyLogIncludes,
 } from "./utils";
 import assert from "assert";
-import { MockConfigStoreClient, MockHubPoolClient, MockSpokePoolClient } from "./mocks";
+import { MockConfigStoreClient, MockHubPoolClient } from "./mocks";
 
 let spokePool_1: Contract, erc20_1: Contract, spokePool_2: Contract, erc20_2: Contract, hubPool: Contract;
 let owner: SignerWithAddress, depositor: SignerWithAddress, relayer: SignerWithAddress;
@@ -289,211 +285,6 @@ describe("SpokePoolClient: Fill Validation", function () {
     expect(deposit)
       .excludingEvery(["quoteBlockNumber", "fromLiteChain", "toLiteChain", "message"])
       .to.deep.equal(deposit);
-  });
-
-  it("Get search bounds for deposit ID", async function () {
-    // @dev In this test we mine random counts of block between deposits to "fuzz" test the binary search algo
-    // which can produce different results depending on the total search range and where deposit events fall.
-
-    // Let's set the spoke pool client's isUpdated to true
-    spokePoolClient1.isUpdated = true;
-
-    // Send 2 deposits and mine blocks between them to ensure deposits are in different blocks.
-    await depositV3(spokePool_1, destinationChainId, depositor, inputToken, inputAmount, outputToken, outputAmount);
-    await mineRandomBlocks();
-
-    const { blockNumber: deposit1Block } = await depositV3(
-      spokePool_1,
-      destinationChainId,
-      depositor,
-      inputToken,
-      inputAmount,
-      outputToken,
-      outputAmount
-    );
-    await mineRandomBlocks();
-
-    // Throws when low < high
-    await assertPromiseError(
-      getBlockRangeForDepositId(bnZero, 1, 0, 10, spokePoolClient1),
-      "Binary search failed because low > high"
-    );
-
-    // Set spoke pool client's latest to be the latest block so that the binary search defaults the "high" block
-    // to this.
-    spokePoolClient1.latestBlockSearched = await spokePool_1.provider.getBlockNumber();
-    // Searching for deposit ID 0 with 10 max searches should return the block range that deposit ID 0 was mined in.
-    // Note: the search range is inclusive, so the range should include the block that deposit ID 0 was mined in.
-    const searchRange0 = await getBlockRangeForDepositId(
-      bnZero,
-      spokePool1DeploymentBlock,
-      spokePoolClient1.latestBlockSearched,
-      10,
-      spokePoolClient1
-    );
-    // The range should be within the spoke pool's deployment block and the latest block.
-    // We can assume this because the binary search will always return a range that is within the search bounds.
-    expect(searchRange0.low).to.greaterThanOrEqual(spokePool1DeploymentBlock);
-    expect(searchRange0.high).to.lessThanOrEqual(spokePoolClient1.latestBlockSearched);
-
-    // Searching for deposit ID 1 should also match invariants:
-    // - range low <= correct block
-    // - correct block <= range high
-    // Where correct block is the block that the deposit ID incremented to the target.
-    // So the correct block for deposit ID 1 is the block that deposit ID 0 was mined in.
-    const searchRange1 = await getBlockRangeForDepositId(
-      bnOne,
-      spokePool1DeploymentBlock,
-      spokePoolClient1.latestBlockSearched,
-      10,
-      spokePoolClient1
-    );
-
-    expect(searchRange1.high).to.be.greaterThanOrEqual(deposit1Block);
-    expect(searchRange1.low).to.be.lessThanOrEqual(deposit1Block);
-
-    // Searching for deposit ID 2 that doesn't exist yet should throw.
-    await assertPromiseError(
-      getBlockRangeForDepositId(
-        toBN(2),
-        spokePool1DeploymentBlock,
-        spokePoolClient1.latestBlockSearched,
-        10,
-        spokePoolClient1
-      ),
-      "Target depositId is greater than the initial high block"
-    );
-
-    // Searching for deposit ID -1 that doesn't exist should throw.
-    await assertPromiseError(
-      getBlockRangeForDepositId(
-        toBN(-1),
-        spokePool1DeploymentBlock,
-        spokePoolClient1.latestBlockSearched,
-        10,
-        spokePoolClient1
-      ),
-      "Target depositId is less than the initial low block"
-    );
-
-    // Now send multiple deposits in the same block.
-    const depositParams = getDepositParams({
-      recipient: depositor.address,
-      originToken: erc20_1.address,
-      amount: toBNWei("1"),
-      destinationChainId: destinationChainId,
-      relayerFeePct: toBNWei("0.01"),
-      quoteTimestamp: await spokePool_1.getCurrentTime(),
-    });
-    const depositData = await spokePool_1.populateTransaction.depositDeprecated_5947912356(...depositParams);
-    await spokePool_1.connect(depositor).multicall(Array(3).fill(depositData.data));
-    expect(await spokePool_1.numberOfDeposits()).to.equal(5);
-    const depositEvents = await spokePool_1.queryFilter("FundsDeposited");
-
-    // Set fromBlock to block later than deposits.
-    spokePoolClient1.latestBlockSearched = await spokePool_1.provider.getBlockNumber();
-
-    // Check that ranges maintain invariants. These tests are interesting because SpokePool.numberOfDeposits()
-    // will never equal any of the target IDs (e.g. 3,4,5) because multiple deposits were mined in the same block,
-    // incrementing numberOfDeposits() atomically from 2 to 6.
-    const searchRange3 = await getBlockRangeForDepositId(
-      toBN(3),
-      spokePool1DeploymentBlock,
-      spokePoolClient1.latestBlockSearched,
-      10,
-      spokePoolClient1
-    );
-    const searchRange4 = await getBlockRangeForDepositId(
-      toBN(4),
-      spokePool1DeploymentBlock,
-      spokePoolClient1.latestBlockSearched,
-      10,
-      spokePoolClient1
-    );
-
-    await assertPromiseError(
-      getBlockRangeForDepositId(
-        toBN(5),
-        spokePool1DeploymentBlock,
-        spokePoolClient1.latestBlockSearched,
-        10,
-        spokePoolClient1
-      ),
-      "Target depositId is greater than the initial high block"
-    );
-
-    expect(searchRange3.high).to.be.greaterThanOrEqual(depositEvents[2].blockNumber);
-    expect(searchRange3.low).to.be.lessThanOrEqual(depositEvents[2].blockNumber);
-    expect(searchRange4.high).to.be.greaterThanOrEqual(depositEvents[3].blockNumber);
-    expect(searchRange4.low).to.be.lessThanOrEqual(depositEvents[3].blockNumber);
-  });
-
-  it("Fuzz: get search bounds for deposit ID", async function () {
-    const fuzzClient = new MockSpokePoolClient(
-      createSpyLogger().spyLogger,
-      spokePool_2,
-      destinationChainId,
-      spokePool2DeploymentBlock
-    );
-
-    fuzzClient.isUpdated = true;
-
-    const initLow = fuzzClient.deploymentBlock;
-    const initHigh = 1000000;
-    const depositIds = Array(initHigh + 1).fill(0);
-
-    const testIterations = 1000;
-
-    // Randomize deposit ID's between initLow and initHigh. ID's should only increase
-    // and will do so 50% of the time. The other 50% of the time they will stay the same.
-    // The increment will be between 0 and 10, to simulate sending multiple deposits in the same
-    // block.
-    for (let i = 1; i < depositIds.length; i++) {
-      const increment = Math.max(0, Math.floor((Math.random() - 0.5) * 10));
-      depositIds[i] = depositIds[i - 1] + increment;
-    }
-    fuzzClient.setDepositIds(depositIds.map(toBN));
-    fuzzClient.setLatestBlockNumber(initHigh + 1);
-
-    for (let i = 0; i < testIterations; i++) {
-      // Randomize target between highest and lowest values in deposit IDs.
-      const target = Math.floor(Math.random() * (depositIds[depositIds.length - 1] - initLow)) + initLow;
-
-      // Randomize max # of searches.
-      const maxSearches = Math.floor(Math.random() * 19) + 1;
-      const results = await getBlockRangeForDepositId(toBN(target), initLow, initHigh, maxSearches, fuzzClient);
-
-      // The "correct" block is the first block whose previous block's deposit ID is greater than
-      // or equal to the target and whose deposit ID count is greater than the target.
-      const correctBlock = depositIds.findIndex(
-        (depositId, idx) => idx > 0 && target >= depositIds[idx - 1] && target < depositId
-      );
-
-      // Resolve the deposit number at the correct block.
-      const startingInclusiveDepositIdAtCorrectBlock = depositIds[correctBlock - 1];
-      const endingInclusiveDepositIdAtCorrectBlock = depositIds[correctBlock];
-
-      // Resolve the true range of what our binary search should have returned.
-      const startingInclusiveDepositIdAtLowRange = depositIds[results.low - 1];
-      const endingInclusiveDepositIdAtHighRange = depositIds[results.high] - 1;
-
-      // We should expect that the target is within the correct block's range
-      // Note: this is a sanity check to ensure that our test is valid.
-      expect(target >= startingInclusiveDepositIdAtCorrectBlock).to.be.true;
-      expect(target <= endingInclusiveDepositIdAtCorrectBlock).to.be.true;
-
-      // We should expect that the target is within the range returned by the binary search.
-      expect(target >= startingInclusiveDepositIdAtLowRange).to.be.true;
-      expect(target <= endingInclusiveDepositIdAtHighRange).to.be.true;
-
-      // We should expect the correct block to be within the range returned by the binary search.
-      expect(correctBlock >= results.low).to.be.true;
-      expect(correctBlock <= results.high).to.be.true;
-
-      // We should expect that our range is within the bounds of our initial range.
-      expect(results.low >= initLow).to.be.true;
-      expect(results.high <= initHigh).to.be.true;
-    }
   });
 
   it("Can fetch older deposit matching fill", async function () {
