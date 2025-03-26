@@ -48,6 +48,7 @@ import {
   findDepositBlock,
   getMaxFillDeadlineInRange as getMaxFillDeadline,
   getTimeAt as _getTimeAt,
+  getTimestampForBlock as _getTimestampForBlock,
   relayFillStatus,
 } from "../utils/SpokeUtils";
 import { BaseAbstractClient, isUpdateFailureReason, UpdateFailureReason } from "./BaseAbstractClient";
@@ -949,9 +950,8 @@ export class SpokePoolClient extends BaseAbstractClient {
     );
   }
 
-  public async getTimestampForBlock(blockTag: number): Promise<number> {
-    const block = await this.spokePool.provider.getBlock(blockTag);
-    return Number(block.timestamp);
+  public getTimestampForBlock(blockTag: number): Promise<number> {
+    return _getTimestampForBlock(blockTag);
   }
 
   /**

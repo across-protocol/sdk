@@ -69,6 +69,16 @@ export async function getTimeAt(spokePool: Contract, blockNumber: number): Promi
 }
 
 /**
+ * Retrieves the chain time at a particular block.
+ * @note This should be the same as getTimeAt() but can differ in test. These two functions should be consolidated.
+ * @returns The chain time at the specified block tag.
+ */
+export async function getTimestampForBlock(provider: providers.Provider, blockNumber: number): Promise<number> {
+  const block = await provider.getBlock(blockNumber);
+  return block.timestamp;
+}
+
+/**
  * Return maximum of fill deadline buffer at start and end of block range.
  * @param spokePool SpokePool contract instance
  * @param startBlock start block
