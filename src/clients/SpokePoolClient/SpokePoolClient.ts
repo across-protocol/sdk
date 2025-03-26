@@ -801,13 +801,6 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
   public abstract findDeposit(depositId: BigNumber): Promise<DepositSearchResult>;
 
   /**
-   * Retrieves the timestamp for a given block number.
-   * @param blockTag The block number to retrieve the timestamp for.
-   * @returns The timestamp for the given block number.
-   */
-  public abstract getTimestampForBlock(blockTag: number): Promise<number>;
-
-  /**
    * Retrieves the fill status for a given relay data.
    * @param relayData The relay data to retrieve the fill status for.
    * @returns The fill status for the given relay data.
