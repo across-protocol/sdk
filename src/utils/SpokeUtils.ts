@@ -3,7 +3,7 @@ import { BytesLike, Contract, PopulatedTransaction, providers, utils as ethersUt
 import { CHAIN_IDs, MAX_SAFE_DEPOSIT_ID, ZERO_ADDRESS, ZERO_BYTES } from "../constants";
 import { Deposit, FillStatus, FillWithBlock, RelayData } from "../interfaces";
 import { chunk } from "./ArrayUtils";
-import { BigNumber, toBN, bnZero } from "./BigNumberUtils";
+import { bnUint32Max, BigNumber, toBN, bnZero } from "./BigNumberUtils";
 import { keccak256 } from "./common";
 import { isMessageEmpty } from "./DepositUtils";
 import { isDefined } from "./TypeGuards";
@@ -59,10 +59,21 @@ export function populateV3Relay(
 }
 
 /**
- * Retrieves the chain time at a particular block.
+ * Retrieves the time from the SpokePool contract at a particular block.
  * @returns The time at the specified block tag.
  */
-export async function getTimeAt(provider: providers.Provider, blockNumber: number): Promise<number> {
+export async function getTimeAt(spokePool: Contract, blockNumber: number): Promise<number> {
+  const currentTime = await spokePool.getCurrentTime({ blockTag: blockNumber });
+  assert(BigNumber.isBigNumber(currentTime) && currentTime.lt(bnUint32Max));
+  return currentTime.toNumber();
+}
+
+/**
+ * Retrieves the chain time at a particular block.
+ * @note This should be the same as getTimeAt() but can differ in test. These two functions should be consolidated.
+ * @returns The chain time at the specified block tag.
+ */
+export async function getTimestampForBlock(provider: providers.Provider, blockNumber: number): Promise<number> {
   const block = await provider.getBlock(blockNumber);
   return block.timestamp;
 }

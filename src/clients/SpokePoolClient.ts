@@ -48,6 +48,7 @@ import {
   findDepositBlock,
   getMaxFillDeadlineInRange as getMaxFillDeadline,
   getTimeAt as _getTimeAt,
+  getTimestampForBlock as _getTimestampForBlock,
   relayFillStatus,
 } from "../utils/SpokeUtils";
 import { BaseAbstractClient, isUpdateFailureReason, UpdateFailureReason } from "./BaseAbstractClient";
@@ -844,11 +845,11 @@ export class SpokePoolClient extends BaseAbstractClient {
   }
 
   /**
-   * Retrieves the SpokePool chain time at a particular block.
+   * Retrieves the time from the SpokePool contract at a particular block.
    * @returns The time at the specified block tag.
    */
   public getTimeAt(blockNumber: number): Promise<number> {
-    return _getTimeAt(this.spokePool.provider, blockNumber);
+    return _getTimeAt(this.spokePool, blockNumber);
   }
 
   /**
@@ -947,6 +948,10 @@ export class SpokePoolClient extends BaseAbstractClient {
     return (
       this.configStoreClient?.isChainLiteChainAtTimestamp(deposit.destinationChainId, deposit.quoteTimestamp) ?? false
     );
+  }
+
+  public getTimestampForBlock(blockTag: number): Promise<number> {
+    return _getTimestampForBlock(this.spokePool.provider, blockTag);
   }
 
   /**
