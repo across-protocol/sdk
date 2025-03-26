@@ -951,7 +951,7 @@ export class SpokePoolClient extends BaseAbstractClient {
   }
 
   public getTimestampForBlock(blockTag: number): Promise<number> {
-    return _getTimestampForBlock(blockTag);
+    return _getTimestampForBlock(this.spokePool.provider, blockTag);
   }
 
   /**
