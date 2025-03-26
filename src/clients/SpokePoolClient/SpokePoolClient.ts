@@ -397,7 +397,7 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
 
     // Log any invalid deposits with same deposit id but different params.
     const invalidFillsForDeposit = invalidFills.filter((x) => {
-      const txnUid = `${x.transactionHash}:${x.logIndex}`;
+      const txnUid = `${x.txnRef}:${x.logIndex}`;
       // if txnUid doesn't exist in the invalidFills set, add it now, but log the corresponding fill.
       const newInvalidFill = x.depositId.eq(deposit.depositId) && !this.invalidFills.has(txnUid);
       if (newInvalidFill) {

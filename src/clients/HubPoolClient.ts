@@ -907,7 +907,7 @@ export class HubPoolClient extends BaseAbstractClient {
             {
               spokePool: args.spokePool,
               blockNumber: args.blockNumber,
-              transactionIndex: args.transactionIndex,
+              txnIndex: args.txnIndex,
               logIndex: args.logIndex,
             },
           ]
@@ -927,9 +927,9 @@ export class HubPoolClient extends BaseAbstractClient {
               l1Token: args.l1Token,
               l2Token: args.destinationToken,
               blockNumber: args.blockNumber,
-              transactionIndex: args.transactionIndex,
+              txnIndex: args.txnIndex,
               logIndex: args.logIndex,
-              transactionHash: args.transactionHash,
+              txnRef: args.txnRef,
             },
           ]
         );
@@ -974,12 +974,7 @@ export class HubPoolClient extends BaseAbstractClient {
       this.proposedRootBundles.push(
         ...events["ProposeRootBundle"]
           .filter((event) => !this.configOverride.ignoredHubProposedBundles.includes(event.blockNumber))
-          .map((event) => {
-            return {
-              ...spreadEventWithBlockNumber(event),
-              transactionHash: event.transactionHash,
-            } as ProposedRootBundle;
-          })
+          .map((event) => spreadEventWithBlockNumber(event) as ProposedRootBundle)
       );
     }
 
