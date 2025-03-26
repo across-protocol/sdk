@@ -844,11 +844,11 @@ export class SpokePoolClient extends BaseAbstractClient {
   }
 
   /**
-   * Retrieves the time from the SpokePool contract at a particular block.
+   * Retrieves the SpokePool chain time at a particular block.
    * @returns The time at the specified block tag.
    */
   public getTimeAt(blockNumber: number): Promise<number> {
-    return _getTimeAt(this.spokePool, blockNumber);
+    return _getTimeAt(this.spokePool.provider, blockNumber);
   }
 
   /**
