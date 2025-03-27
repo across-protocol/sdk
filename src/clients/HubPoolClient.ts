@@ -44,6 +44,7 @@ import {
   getTokenInfo,
   getUsdcSymbol,
   getL1TokenInfo,
+  logToSortableEvent,
 } from "../utils";
 import { AcrossConfigStoreClient as ConfigStoreClient } from "./AcrossConfigStoreClient/AcrossConfigStoreClient";
 import { BaseAbstractClient, isUpdateFailureReason, UpdateFailureReason } from "./BaseAbstractClient";
@@ -906,9 +907,7 @@ export class HubPoolClient extends BaseAbstractClient {
           [
             {
               spokePool: args.spokePool,
-              blockNumber: args.blockNumber,
-              txnIndex: args.txnIndex,
-              logIndex: args.logIndex,
+              ...logToSortableEvent(event),
             },
           ]
         );
@@ -926,10 +925,7 @@ export class HubPoolClient extends BaseAbstractClient {
             {
               l1Token: args.l1Token,
               l2Token: args.destinationToken,
-              blockNumber: args.blockNumber,
-              txnIndex: args.txnIndex,
-              logIndex: args.logIndex,
-              txnRef: args.txnRef,
+              ...logToSortableEvent(event),
             },
           ]
         );
