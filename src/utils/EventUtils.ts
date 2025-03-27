@@ -269,7 +269,7 @@ export function isEventOlder<T extends SortableEvent>(ex: T, ey: T): boolean {
   return ex.logIndex < ey.logIndex;
 }
 
-export function getTransactionHashes(events: SortableEvent[]): string[] {
+export function getTransactionRefs(events: SortableEvent[]): string[] {
   return [...Array.from(new Set(events.map((e) => e.txnRef)))];
 }
 
