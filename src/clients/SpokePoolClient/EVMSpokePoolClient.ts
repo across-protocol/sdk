@@ -16,6 +16,7 @@ import {
   getTimeAt as _getTimeAt,
   relayFillStatus,
   isZeroAddress,
+  getTimestampForBlock as _getTimestampForBlock,
 } from "../../utils/SpokeUtils";
 import { DepositWithBlock, FillStatus, RelayData } from "../../interfaces";
 
@@ -197,5 +198,9 @@ export class EVMSpokePoolClient extends SpokePoolClient {
     });
 
     return { found: true, deposit };
+  }
+
+  public override getTimestampForBlock(blockNumber: number): Promise<number> {
+    return _getTimestampForBlock(this.spokePool.provider, blockNumber);
   }
 }
