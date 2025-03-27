@@ -16,7 +16,7 @@
     "build-bigint-buffer": "node scripts/build-bigint-buffer.js",
     "postinstall": "node scripts/build-bigint-buffer.js",
     "start": "yarn typechain && nodemon -e ts,tsx,json,js,jsx --watch ./src --ignore ./dist --exec 'yarn dev'",
-    "build": "yarn run clean && yarn typechain && concurrently --kill-others-on-fail --names 'cjs,esm,types' --prefix-colors 'blue,magenta,green' 'yarn run build:cjs' 'yarn run build:esm' 'yarn run build:types'",
+    "build": "yarn run clean && yarn typechain && yarn dev",
     "dev": "concurrently --kill-others-on-fail --names 'cjs,esm,types' --prefix-colors 'blue,magenta,green' 'yarn run build:cjs' 'yarn run build:esm' 'yarn run build:types'",
     "build:cjs": "tsc --project tsconfig.build.json --module commonjs --outDir ./dist/cjs --removeComments --verbatimModuleSyntax false && echo > ./dist/cjs/package.json '{\"type\":\"commonjs\"}'",
     "build:esm": "tsc --project tsconfig.build.json --module es2015 --outDir ./dist/esm && echo > ./dist/esm/package.json '{\"type\":\"module\",\"sideEffects\":false}'",
