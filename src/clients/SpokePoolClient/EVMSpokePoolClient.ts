@@ -16,10 +16,8 @@ import {
   getTimeAt as _getTimeAt,
   relayFillStatus,
   isZeroAddress,
-  getDepositIdAtBlock,
 } from "../../utils/SpokeUtils";
 import { DepositWithBlock, FillStatus, RelayData } from "../../interfaces";
-import { SpokePool } from "../../typechain";
 
 /**
  * An EVM-specific SpokePoolClient.
