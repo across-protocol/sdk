@@ -787,6 +787,13 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
   public abstract getMaxFillDeadlineInRange(startBlock: number, endBlock: number): Promise<number>;
 
   /**
+   * Retrieves the timestamp for a given block number.
+   * @param blockTag The block number to retrieve the timestamp for.
+   * @returns The timestamp for the given block number.
+   */
+  public abstract getTimestampForBlock(blockTag: number): Promise<number>;
+
+  /**
    * Retrieves the time from the SpokePool contract at a particular block.
    * @returns The time at the specified block tag.
    */
