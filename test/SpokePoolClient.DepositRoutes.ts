@@ -1,4 +1,4 @@
-import { SpokePoolClient } from "../src/clients"; // tested
+import { EVMSpokePoolClient, SpokePoolClient } from "../src/clients"; // tested
 import { originChainId, destinationChainId } from "./constants";
 import { Contract, createSpyLogger, deploySpokePool, enableRoutes, ethers, expect, randomAddress } from "./utils";
 
@@ -11,7 +11,13 @@ describe("SpokePoolClient: Deposit Routes", function () {
     // Deploy a minimal spokePool, without using the fixture as this does some route enabling within it.
     ({ spokePool } = await deploySpokePool(ethers));
     const deploymentBlock = await spokePool.provider.getBlockNumber();
-    spokePoolClient = new SpokePoolClient(createSpyLogger().spyLogger, spokePool, null, originChainId, deploymentBlock);
+    spokePoolClient = new EVMSpokePoolClient(
+      createSpyLogger().spyLogger,
+      spokePool,
+      null,
+      originChainId,
+      deploymentBlock
+    );
   });
 
   it("Fetches enabled deposit routes", async function () {

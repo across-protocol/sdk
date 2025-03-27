@@ -1,6 +1,6 @@
 import hre from "hardhat";
 import { DepositWithBlock, FillStatus, FillType } from "../src/interfaces";
-import { SpokePoolClient } from "../src/clients";
+import { EVMSpokePoolClient, SpokePoolClient } from "../src/clients";
 import {
   bnOne,
   bnZero,
@@ -90,14 +90,14 @@ describe("SpokePoolClient: Fill Validation", function () {
     hubPoolClient.setTokenMapping(l1Token.address, destinationChainId, erc20_2.address);
 
     await hubPoolClient.update();
-    spokePoolClient1 = new SpokePoolClient(
+    spokePoolClient1 = new EVMSpokePoolClient(
       spyLogger,
       spokePool_1,
       hubPoolClient,
       originChainId,
       spokePool1DeploymentBlock
     );
-    spokePoolClient2 = new SpokePoolClient(
+    spokePoolClient2 = new EVMSpokePoolClient(
       createSpyLogger().spyLogger,
       spokePool_2,
       null,
