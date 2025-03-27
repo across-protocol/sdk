@@ -1,6 +1,6 @@
 import { DepositWithBlock, FillType, FillWithBlock } from "../src/interfaces";
 import { bnOne, bnZero, toBN } from "../src/utils";
-import { ZERO_ADDRESS } from "../src/constants";
+import { ZERO_ADDRESS, ZERO_BYTES } from "../src/constants";
 import { originChainId, destinationChainId, repaymentChainId } from "./constants";
 import {
   createSpyLogger,
@@ -40,8 +40,8 @@ describe("FillUtils", function () {
       inputToken: ZERO_ADDRESS,
       outputAmount: toBN(100),
       outputToken: ZERO_ADDRESS,
-      message: "0x",
-      messageHash: "0x",
+      message: ZERO_BYTES,
+      messageHash: ZERO_BYTES,
       quoteTimestamp: 0,
       recipient: ZERO_ADDRESS,
       updatedRecipient: ZERO_ADDRESS,
