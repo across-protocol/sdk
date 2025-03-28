@@ -70,7 +70,6 @@ export const CUSTOM_GAS_TOKENS = {
   [CHAIN_IDs.POLYGON]: "MATIC",
   [CHAIN_IDs.POLYGON_AMOY]: "MATIC",
   [CHAIN_IDs.ALEPH_ZERO]: "AZERO",
-  // FIXME: Replace with GRASS price once listed on Coingecko.
-  // For testing purposes, we use ETH price instead.
-  [CHAIN_IDs.LENS_SEPOLIA]: "ETH",
+  [CHAIN_IDs.LENS]: "GHO",
+  [CHAIN_IDs.LENS_SEPOLIA]: "GHO",
 };
