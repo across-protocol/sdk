@@ -2,6 +2,7 @@ import { Contract, EventFilter } from "ethers";
 import { BigNumber, DepositSearchResult, getNetworkName, InvalidFill, MakeOptional, toBN } from "../../utils";
 import {
   EventSearchConfig,
+  logToSortableEvent,
   paginatedEventQuery,
   sortEventsAscendingInPlace,
   spreadEventWithBlockNumber,
@@ -116,7 +117,7 @@ export class EVMSpokePoolClient extends SpokePoolClient {
     }
 
     // Sort all events to ensure they are stored in a consistent order.
-    events.forEach((events) => sortEventsAscendingInPlace(events));
+    events.forEach((events) => sortEventsAscendingInPlace(events.map(logToSortableEvent)));
 
     return {
       success: true,
