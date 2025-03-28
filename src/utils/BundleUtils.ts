@@ -91,9 +91,9 @@ export function getImpliedBundleBlockRanges(
   result.forEach(([start, end], i) => {
     const chainId = chainIdIndices[i];
     if (enabledChainsAtMainnetStartBlock.includes(chainId)) {
-      if (start >= end) {
+      if (start > end) {
         throw new Error(
-          `Invalid block range for enabled chain ${chainId}: start block ${start} is greater than or equal to end block ${end}`
+          `Invalid block range for enabled chain ${chainId}: start block ${start} is greater than end block ${end}`
         );
       }
     } else {
