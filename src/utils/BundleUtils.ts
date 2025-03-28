@@ -75,8 +75,8 @@ export function getImpliedBundleBlockRanges(
   // Load all chain indices in order to map bundle evaluation block numbers to enabled chains list.
   const chainIdIndices = configStoreClient.getChainIdIndicesForBlock(rootBundle.blockNumber);
   const result = rootBundle.bundleEvaluationBlockNumbers.map((endBlock, i) => {
-    const bundleEndBlock = prevRootBundle?.bundleEvaluationBlockNumbers?.[i] ?? 0;
-    const fromBlock = bundleEndBlock === endBlock ? endBlock : bundleEndBlock + 1;
+    const bundleEndBlock = (prevRootBundle?.bundleEvaluationBlockNumbers?.[i] ?? 0).toNumber();
+    const fromBlock = bundleEndBlock === endBlock.toNumber() ? endBlock.toNumber() : bundleEndBlock + 1;
     const chainId = chainIdIndices[i];
     if (!enabledChainsAtMainnetStartBlock.includes(chainId)) {
       return [endBlock.toNumber(), endBlock.toNumber()];
