@@ -1,4 +1,4 @@
-import { SpokePoolClient } from "../src/clients";
+import { EVMSpokePoolClient, SpokePoolClient } from "../src/clients";
 import { Deposit, SpeedUp } from "../src/interfaces";
 import { bnOne, getMessageHash, toBytes32 } from "../src/utils";
 import { destinationChainId, originChainId } from "./constants";
@@ -44,7 +44,13 @@ describe("SpokePoolClient: SpeedUp", function () {
   beforeEach(async function () {
     ({ spokePool, erc20, destErc20, weth, deploymentBlock } = await deploySpokePoolWithToken(originChainId));
     await enableRoutes(spokePool, [{ originToken: erc20.address, destinationChainId: destinationChainId2 }]);
-    spokePoolClient = new SpokePoolClient(createSpyLogger().spyLogger, spokePool, null, originChainId, deploymentBlock);
+    spokePoolClient = new EVMSpokePoolClient(
+      createSpyLogger().spyLogger,
+      spokePool,
+      null,
+      originChainId,
+      deploymentBlock
+    );
 
     await setupTokensForWallet(spokePool, depositor, [erc20, destErc20], weth, 10);
     balance = await erc20.connect(depositor).balanceOf(depositor.address);

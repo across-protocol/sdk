@@ -1,4 +1,3 @@
-import { Contract, EventFilter } from "ethers";
 import winston from "winston";
 import {
   AnyObject,
@@ -11,24 +10,21 @@ import {
   MakeOptional,
   assign,
   getRelayEventKey,
-  InvalidFill,
   isDefined,
-  toBN,
   getMessageHash,
   isSlowFill,
   isValidEvmAddress,
   isZeroAddress,
   toAddress,
   validateFillForDeposit,
-} from "../utils";
+} from "../../utils";
 import {
   duplicateEvent,
-  paginatedEventQuery,
   sortEventsAscendingInPlace,
   spreadEvent,
   spreadEventWithBlockNumber,
-} from "../utils/EventUtils";
-import { ZERO_ADDRESS } from "../constants";
+} from "../../utils/EventUtils";
+import { ZERO_ADDRESS } from "../../constants";
 import {
   Deposit,
   DepositWithBlock,
@@ -42,37 +38,44 @@ import {
   SlowFillRequestWithBlock,
   SpeedUpWithBlock,
   TokensBridged,
-} from "../interfaces";
-import { getNetworkName } from "../utils/NetworkUtils";
-import {
-  findDepositBlock,
-  getMaxFillDeadlineInRange as getMaxFillDeadline,
-  getTimeAt as _getTimeAt,
-  getTimestampForBlock as _getTimestampForBlock,
-  relayFillStatus,
-} from "../utils/SpokeUtils";
-import { BaseAbstractClient, isUpdateFailureReason, UpdateFailureReason } from "./BaseAbstractClient";
-import { HubPoolClient } from "./HubPoolClient";
-import { AcrossConfigStoreClient } from "./AcrossConfigStoreClient";
-import { getRepaymentChainId, forceDestinationRepayment } from "./BundleDataClient/utils/FillUtils";
+} from "../../interfaces";
+import { BaseAbstractClient, UpdateFailureReason } from "../BaseAbstractClient";
+import { AcrossConfigStoreClient } from "../AcrossConfigStoreClient";
+import { getRepaymentChainId, forceDestinationRepayment } from "../BundleDataClient";
+import { HubPoolClient } from "../HubPoolClient";
 
-type SpokePoolUpdateSuccess = {
+export type SpokePoolUpdateSuccess = {
   success: true;
   currentTime: number;
   events: Log[][];
   searchEndBlock: number;
 };
-type SpokePoolUpdateFailure = {
+export type SpokePoolUpdateFailure = {
   success: false;
   reason: UpdateFailureReason;
 };
 export type SpokePoolUpdate = SpokePoolUpdateSuccess | SpokePoolUpdateFailure;
 
+export const knownEventNames = [
+  "EnabledDepositRoute",
+  "TokensBridged",
+  "RelayedRootBundle",
+  "ExecutedRelayerRefundRoot",
+  "V3FundsDeposited",
+  "FundsDeposited",
+  "RequestedSpeedUpV3Deposit",
+  "RequestedSpeedUpDeposit",
+  "RequestedV3SlowFill",
+  "RequestedSlowFill",
+  "FilledV3Relay",
+  "FilledRelay",
+];
+
 /**
  * SpokePoolClient is a client for the SpokePool contract. It is responsible for querying the SpokePool contract
  * for events and storing them in memory. It also provides some convenience methods for querying the stored events.
  */
-export class SpokePoolClient extends BaseAbstractClient {
+export abstract class SpokePoolClient extends BaseAbstractClient {
   protected currentTime = 0;
   protected depositHashes: { [depositHash: string]: DepositWithBlock } = {};
   protected duplicateDepositHashes: { [depositHash: string]: DepositWithBlock[] } = {};
@@ -83,7 +86,6 @@ export class SpokePoolClient extends BaseAbstractClient {
   protected tokensBridged: TokensBridged[] = [];
   protected rootBundleRelays: RootBundleRelayWithBlock[] = [];
   protected relayerRefundExecutions: RelayerRefundExecutionWithBlock[] = [];
-  protected queryableEventNames: string[] = [];
   protected configStoreClient: AcrossConfigStoreClient | undefined;
   protected invalidFills: Set<string> = new Set();
   public fills: { [OriginChainId: number]: FillWithBlock[] } = {};
@@ -91,15 +93,13 @@ export class SpokePoolClient extends BaseAbstractClient {
   /**
    * Creates a new SpokePoolClient.
    * @param logger A logger instance.
-   * @param spokePool The SpokePool contract instance that this client will query.
    * @param hubPoolClient An optional HubPoolClient instance. This is used to fetch spoke data that is not stored on the SpokePool contract but is stored on the HubPool contract.
    * @param chainId The chain ID of the chain that this client is querying.
    * @param deploymentBlock The block number that the SpokePool contract was deployed at.
    * @param eventSearchConfig An optional EventSearchConfig object that controls how far back in history the client will search for events. If not provided, the client will only search for events from the deployment block.
    */
-  constructor(
+  protected constructor(
     readonly logger: winston.Logger,
-    readonly spokePool: Contract,
     // Can be excluded. This disables some deposit validation.
     readonly hubPoolClient: HubPoolClient | null,
     readonly chainId: number,
@@ -109,30 +109,7 @@ export class SpokePoolClient extends BaseAbstractClient {
     super(eventSearchConfig);
     this.firstBlockToSearch = eventSearchConfig.fromBlock;
     this.latestBlockSearched = 0;
-    this.queryableEventNames = Object.keys(this._queryableEventNames());
     this.configStoreClient = hubPoolClient?.configStoreClient;
-  }
-
-  public _queryableEventNames(): { [eventName: string]: EventFilter } {
-    const knownEventNames = [
-      "EnabledDepositRoute",
-      "TokensBridged",
-      "RelayedRootBundle",
-      "ExecutedRelayerRefundRoot",
-      "V3FundsDeposited",
-      "FundsDeposited",
-      "RequestedSpeedUpV3Deposit",
-      "RequestedSpeedUpDeposit",
-      "RequestedV3SlowFill",
-      "RequestedSlowFill",
-      "FilledV3Relay",
-      "FilledRelay",
-    ];
-    return Object.fromEntries(
-      this.spokePool.interface.fragments
-        .filter(({ name, type }) => type === "event" && knownEventNames.includes(name))
-        .map(({ name }) => [name, this.spokePool.filters[name]()])
-    );
   }
 
   /**
@@ -474,96 +451,6 @@ export class SpokePoolClient extends BaseAbstractClient {
   }
 
   /**
-   * @notice Return maximum of fill deadline buffer at start and end of block range. This is a contract
-   * immutable state variable so we can't query other events to find its updates.
-   * @dev V3 deposits have a fill deadline which can be set to a maximum of fillDeadlineBuffer + deposit.block.timestamp.
-   * Therefore, we cannot evaluate a block range for expired deposits if the spoke pool client doesn't return us
-   * deposits whose block.timestamp is within fillDeadlineBuffer of the end block time. As a conservative check,
-   * we verify that the time between the end block timestamp and the first timestamp queried by the
-   * spoke pool client is greater than the maximum of the fill deadline buffers at the start and end of the block
-   * range. We assume the fill deadline buffer wasn't changed more than once within a bundle.
-   * @param startBlock start block
-   * @param endBlock end block
-   * @returns maximum of fill deadline buffer at start and end block
-   */
-  public getMaxFillDeadlineInRange(startBlock: number, endBlock: number): Promise<number> {
-    return getMaxFillDeadline(this.spokePool, startBlock, endBlock);
-  }
-
-  /**
-   * Performs an update to refresh the state of this client. This will query the SpokePool contract for new events
-   * and store them in memory. This method is the primary method for updating the state of this client.
-   * @param eventsToQuery An optional list of events to query. If not provided, all events will be queried.
-   * @returns A Promise that resolves to a SpokePoolUpdate object.
-   */
-  protected async _update(eventsToQuery: string[]): Promise<SpokePoolUpdate> {
-    const searchConfig = await this.updateSearchConfig(this.spokePool.provider);
-    if (isUpdateFailureReason(searchConfig)) {
-      const reason = searchConfig;
-      return { success: false, reason };
-    }
-
-    const eventSearchConfigs = eventsToQuery.map((eventName) => {
-      if (!this.queryableEventNames.includes(eventName)) {
-        throw new Error(`SpokePoolClient: Cannot query unrecognised SpokePool event name: ${eventName}`);
-      }
-
-      const _searchConfig = { ...searchConfig }; // shallow copy
-
-      // By default, an event's query range is controlled by the `eventSearchConfig` passed in during instantiation.
-      // However, certain events have special overriding requirements to their search ranges:
-      // - EnabledDepositRoute: The full history is always required, so override the requested fromBlock.
-      if (eventName === "EnabledDepositRoute" && !this.isUpdated) {
-        _searchConfig.fromBlock = this.deploymentBlock;
-      }
-
-      return {
-        filter: this._queryableEventNames()[eventName],
-        searchConfig: _searchConfig,
-      };
-    });
-
-    const { spokePool } = this;
-    this.log("debug", `Updating SpokePool client for chain ${this.chainId}`, {
-      eventsToQuery,
-      searchConfig,
-      spokePool: spokePool.address,
-    });
-
-    const timerStart = Date.now();
-    const multicallFunctions = ["getCurrentTime"];
-    const [multicallOutput, ...events] = await Promise.all([
-      spokePool.callStatic.multicall(
-        multicallFunctions.map((f) => spokePool.interface.encodeFunctionData(f)),
-        { blockTag: searchConfig.toBlock }
-      ),
-      ...eventSearchConfigs.map((config) => paginatedEventQuery(this.spokePool, config.filter, config.searchConfig)),
-    ]);
-    this.log("debug", `Time to query new events from RPC for ${this.chainId}: ${Date.now() - timerStart} ms`);
-
-    const [currentTime] = multicallFunctions.map(
-      (fn, idx) => spokePool.interface.decodeFunctionResult(fn, multicallOutput[idx])[0]
-    );
-
-    if (!BigNumber.isBigNumber(currentTime) || currentTime.lt(this.currentTime)) {
-      const errMsg = BigNumber.isBigNumber(currentTime)
-        ? `currentTime: ${currentTime} < ${toBN(this.currentTime)}`
-        : `currentTime is not a BigNumber: ${JSON.stringify(currentTime)}`;
-      throw new Error(`SpokePoolClient::update: ${errMsg}`);
-    }
-
-    // Sort all events to ensure they are stored in a consistent order.
-    events.forEach((events) => sortEventsAscendingInPlace(events));
-
-    return {
-      success: true,
-      currentTime: currentTime.toNumber(), // uint32
-      searchEndBlock: searchConfig.toBlock,
-      events,
-    };
-  }
-
-  /**
    * A wrapper over the `_update` method that handles errors and logs. This method additionally calls into the
    * HubPoolClient to update the state of this client with data from the HubPool contract.
    * @param eventsToQuery An optional list of events to query. If not provided, all events will be queried.
@@ -571,7 +458,7 @@ export class SpokePoolClient extends BaseAbstractClient {
    * @note This method is the primary method for updating the state of this client externally.
    * @see _update
    */
-  public async update(eventsToQuery = this.queryableEventNames): Promise<void> {
+  public async update(eventsToQuery = this._queryableEventNames()): Promise<void> {
     const duplicateEvents: Log[] = [];
     if (this.hubPoolClient !== null && !this.hubPoolClient.isUpdated) {
       throw new Error("HubPoolClient not updated");
@@ -845,90 +732,6 @@ export class SpokePoolClient extends BaseAbstractClient {
   }
 
   /**
-   * Retrieves the time from the SpokePool contract at a particular block.
-   * @returns The time at the specified block tag.
-   */
-  public getTimeAt(blockNumber: number): Promise<number> {
-    return _getTimeAt(this.spokePool, blockNumber);
-  }
-
-  /**
-   * For a given origin chain depositId, resolve the corresponding Deposit.
-   * Note: This method can only be used for depositIds within the non-deterministic range (0 < depositId < 2^32 - 1).
-   * @param depositId Deposit ID of the deposit to resolve.
-   * @returns A DepositSearchResult instance.
-   */
-  async findDeposit(depositId: BigNumber): Promise<DepositSearchResult> {
-    let deposit = this.getDeposit(depositId);
-    if (deposit) {
-      return { found: true, deposit };
-    }
-
-    // No deposit found; revert to searching for it.
-    const upperBound = this.latestBlockSearched || undefined; // Don't permit block 0 as the high block.
-    const fromBlock = await findDepositBlock(this.spokePool, depositId, this.deploymentBlock, upperBound);
-    const chain = getNetworkName(this.chainId);
-    if (!fromBlock) {
-      const reason =
-        `Unable to find ${chain} depositId ${depositId}` +
-        ` within blocks [${this.deploymentBlock}, ${upperBound ?? "latest"}].`;
-      return { found: false, code: InvalidFill.DepositIdNotFound, reason };
-    }
-
-    const toBlock = fromBlock;
-    const tStart = Date.now();
-    // Check both V3FundsDeposited and FundsDeposited events to look for a specified depositId.
-    const { maxBlockLookBack } = this.eventSearchConfig;
-    const query = (
-      await Promise.all([
-        paginatedEventQuery(
-          this.spokePool,
-          this.spokePool.filters.V3FundsDeposited(null, null, null, null, null, depositId),
-          { fromBlock, toBlock, maxBlockLookBack }
-        ),
-        paginatedEventQuery(
-          this.spokePool,
-          this.spokePool.filters.FundsDeposited(null, null, null, null, null, depositId),
-          { fromBlock, toBlock, maxBlockLookBack }
-        ),
-      ])
-    ).flat();
-    const tStop = Date.now();
-
-    const event = query.find(({ args }) => args["depositId"].eq(depositId));
-    if (event === undefined) {
-      return {
-        found: false,
-        code: InvalidFill.DepositIdNotFound,
-        reason: `${chain} depositId ${depositId} not found at block ${fromBlock}.`,
-      };
-    }
-
-    deposit = {
-      ...spreadEventWithBlockNumber(event),
-      originChainId: this.chainId,
-      quoteBlockNumber: await this.getBlockNumber(Number(event.args["quoteTimestamp"])),
-      fromLiteChain: true, // To be updated immediately afterwards.
-      toLiteChain: true, // To be updated immediately afterwards.
-    } as DepositWithBlock;
-
-    if (isZeroAddress(deposit.outputToken)) {
-      deposit.outputToken = this.getDestinationTokenForDeposit(deposit);
-    }
-    deposit.fromLiteChain = this.isOriginLiteChain(deposit);
-    deposit.toLiteChain = this.isDestinationLiteChain(deposit);
-
-    this.logger.debug({
-      at: "SpokePoolClient#findDeposit",
-      message: "Located V3 deposit outside of SpokePoolClient's search range",
-      deposit,
-      elapsedMs: tStop - tStart,
-    });
-
-    return { found: true, deposit };
-  }
-
-  /**
    * Determines whether a deposit originates from a lite chain.
    * @param deposit The deposit to evaluate.
    * @returns True if the deposit originates from a lite chain, false otherwise. If the hub pool client is not defined,
@@ -950,21 +753,68 @@ export class SpokePoolClient extends BaseAbstractClient {
     );
   }
 
-  public getTimestampForBlock(blockTag: number): Promise<number> {
-    return _getTimestampForBlock(this.spokePool.provider, blockTag);
-  }
+  // ///////////////////////
+  // // ABSTRACT METHODS //
+  // ///////////////////////
 
   /**
-   * Find the amount filled for a deposit at a particular block.
-   * @param relayData Deposit information that is used to complete a fill.
-   * @param blockTag Block tag (numeric or "latest") to query at.
-   * @returns The amount filled for the specified deposit at the requested block (or latest).
+   * Returns a list of event names that are queryable for the SpokePoolClient.
+   * @returns A list of event names that are queryable for the SpokePoolClient.
    */
-  public relayFillStatus(
+  public abstract _queryableEventNames(): string[];
+
+  /**
+   * Performs an update to refresh the state of this client. This will query the SpokePool contract for new events
+   * and store them in memory. This method is the primary method for updating the state of this client.
+   * @param eventsToQuery An optional list of events to query. If not provided, all events will be queried.
+   * @returns A Promise that resolves to a SpokePoolUpdate object.
+   */
+  protected abstract _update(eventsToQuery: string[]): Promise<SpokePoolUpdate>;
+
+  /**
+   * @notice Return maximum of fill deadline buffer at start and end of block range. This is a contract
+   * immutable state variable so we can't query other events to find its updates.
+   * @dev V3 deposits have a fill deadline which can be set to a maximum of fillDeadlineBuffer + deposit.block.timestamp.
+   * Therefore, we cannot evaluate a block range for expired deposits if the spoke pool client doesn't return us
+   * deposits whose block.timestamp is within fillDeadlineBuffer of the end block time. As a conservative check,
+   * we verify that the time between the end block timestamp and the first timestamp queried by the
+   * spoke pool client is greater than the maximum of the fill deadline buffers at the start and end of the block
+   * range. We assume the fill deadline buffer wasn't changed more than once within a bundle.
+   * @param startBlock start block
+   * @param endBlock end block
+   * @returns maximum of fill deadline buffer at start and end block
+   */
+  public abstract getMaxFillDeadlineInRange(startBlock: number, endBlock: number): Promise<number>;
+
+  /**
+   * Retrieves the timestamp for a given block number.
+   * @param blockTag The block number to retrieve the timestamp for.
+   * @returns The timestamp for the given block number.
+   */
+  public abstract getTimestampForBlock(blockTag: number): Promise<number>;
+
+  /**
+   * Retrieves the time from the SpokePool contract at a particular block.
+   * @returns The time at the specified block tag.
+   */
+  public abstract getTimeAt(blockNumber: number): Promise<number>;
+
+  /**
+   * For a given origin chain depositId, resolve the corresponding Deposit.
+   * Note: This method can only be used for depositIds within the non-deterministic range (0 < depositId < 2^32 - 1).
+   * @param depositId Deposit ID of the deposit to resolve.
+   * @returns A DepositSearchResult instance.
+   */
+  public abstract findDeposit(depositId: BigNumber): Promise<DepositSearchResult>;
+
+  /**
+   * Retrieves the fill status for a given relay data.
+   * @param relayData The relay data to retrieve the fill status for.
+   * @returns The fill status for the given relay data.
+   */
+  public abstract relayFillStatus(
     relayData: RelayData,
     blockTag?: number | "latest",
     destinationChainId?: number
-  ): Promise<FillStatus> {
-    return relayFillStatus(this.spokePool, relayData, blockTag, destinationChainId);
-  }
+  ): Promise<FillStatus>;
 }
