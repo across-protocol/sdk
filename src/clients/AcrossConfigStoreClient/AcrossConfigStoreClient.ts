@@ -9,6 +9,7 @@ import {
   isArrayOf,
   isDefined,
   isPositiveInteger,
+  logToSortableEvent,
   max,
   paginatedEventQuery,
   sortEventsAscendingInPlace,
@@ -342,7 +343,9 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
     ]);
 
     // Events *should* normally be received in ascending order, but explicitly enforce the ordering.
-    [updatedTokenConfigEvents, updatedGlobalConfigEvents].forEach((events) => sortEventsAscendingInPlace(events));
+    [updatedTokenConfigEvents, updatedGlobalConfigEvents].forEach((events) =>
+      sortEventsAscendingInPlace(events.map(logToSortableEvent))
+    );
 
     const globalConfigUpdateTimes = (
       await Promise.all(updatedGlobalConfigEvents.map((event) => this.configStore.provider.getBlock(event.blockNumber)))
@@ -562,7 +565,7 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
     rateModel: string | undefined;
     routeRateModel: RouteRateModelUpdate["routeRateModel"];
   } {
-    const { value, key, transactionHash } = args;
+    const { value, key, txnRef } = args;
     const parsedValue = parseJSONWithNumericString(value) as ParsedTokenConfig;
     const l1Token = key;
 
@@ -578,7 +581,7 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
       const rateModel = parsedValue.rateModel;
       assert(
         this.isValidRateModel(rateModel),
-        `Invalid rateModel UBar for ${l1Token} at transaction ${transactionHash}, ${JSON.stringify(rateModel)}`
+        `Invalid rateModel UBar for ${l1Token} at transaction ${txnRef}, ${JSON.stringify(rateModel)}`
       );
       rateModelForToken = JSON.stringify(rateModel);
 
@@ -601,7 +604,7 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
           Object.entries(parsedValue.routeRateModel).map(([path, routeRateModel]) => {
             assert(
               this.isValidRateModel(routeRateModel) &&
-                `Invalid routeRateModel UBar for ${path} for ${l1Token} at transaction ${transactionHash}, ${JSON.stringify(
+                `Invalid routeRateModel UBar for ${path} for ${l1Token} at transaction ${txnRef}, ${JSON.stringify(
                   routeRateModel
                 )}`
             );

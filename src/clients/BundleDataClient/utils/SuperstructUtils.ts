@@ -50,9 +50,9 @@ const V3RelayDataSS = {
 
 const SortableEventSS = {
   blockNumber: number(),
-  transactionIndex: number(),
+  txnIndex: number(),
   logIndex: number(),
-  transactionHash: string(),
+  txnRef: string(),
 };
 
 const V3DepositSS = {
