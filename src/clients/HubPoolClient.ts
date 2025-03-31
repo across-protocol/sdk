@@ -44,6 +44,7 @@ import {
   getTokenInfo,
   getUsdcSymbol,
   getL1TokenInfo,
+  compareAddressesSimple,
 } from "../utils";
 import { AcrossConfigStoreClient as ConfigStoreClient } from "./AcrossConfigStoreClient/AcrossConfigStoreClient";
 import { BaseAbstractClient, isUpdateFailureReason, UpdateFailureReason } from "./BaseAbstractClient";
@@ -937,9 +938,16 @@ export class HubPoolClient extends BaseAbstractClient {
             ]
           );
         } else {
-          // Clear out the mapping for the L1 token entirely.
+          // Clear out the mapping for the L1 token entirely. If there is an empty dict after removing the
+          // destination chain ID mapping, delete the dict.
           delete this.l1TokensToDestinationTokens[args.l1Token][args.destinationChainId];
+          if (Object.values(this.l1TokensToDestinationTokens[args.l1Token]).length === 0) {
+            delete this.l1TokensToDestinationTokens[args.l1Token];
+          }
           delete this.l1TokensToDestinationTokensWithBlock[(args.l1Token, args.destinationChainId)];
+          if (Object.values(this.l1TokensToDestinationTokensWithBlock[args.l1Token]).length === 0) {
+            delete this.l1TokensToDestinationTokensWithBlock[args.l1Token];
+          }
         }
       }
     }
@@ -961,7 +969,7 @@ export class HubPoolClient extends BaseAbstractClient {
         ),
       ]);
       for (const info of tokenInfo) {
-        if (!this.l1Tokens.find((token) => token.address === info.address)) {
+        if (!this.l1Tokens.find((token) => compareAddressesSimple(token.address, info.address))) {
           if (info.decimals > 0 && info.decimals <= 18) {
             this.l1Tokens.push(info);
           } else {
