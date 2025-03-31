@@ -25,7 +25,7 @@ export class AddressAggregator {
 
     const allAddresses = await mapAsync(this.adapters, async (adapter) => {
       const invalidAddresses: string[] = [];
-      const addresses = (await adapter.update(this.logger))
+      const addresses = (await adapter.update())
         .map((address) => {
           try {
             return ethersUtils.getAddress(address.toLowerCase());
@@ -66,7 +66,7 @@ export class AddressAggregator {
 }
 
 async function run(): Promise<number> {
-  const addressList = new AddressAggregator([new adapters.risklabs.AddressList()]);
+  const addressList = new AddressAggregator([new adapters.risklabs.AddressList({ throwOnError: true })]);
 
   const addresses = await addressList.update();
   console.log(`Retrieved ${addresses.size} addresses: ${JSON.stringify(Array.from(addresses), null, 2)}`);
