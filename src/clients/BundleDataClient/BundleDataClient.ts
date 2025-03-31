@@ -270,16 +270,134 @@ export class BundleDataClient {
         {} as Record<number, Record<string, UnderlyingType>>
       );
 
+    const convertSortableEventFieldsIntoRequiredFields = <
+      T extends {
+        txnIndex?: number;
+        transactionIndex?: number;
+        txnRef?: string;
+        transactionHash?: string;
+      },
+    >(
+      data: T[]
+    ): Array<
+      Omit<T, "txnIndex" | "transactionIndex" | "txnRef" | "transactionHash"> & {
+        txnIndex: number;
+        txnRef: string;
+      }
+    > => {
+      return data.map((item) => {
+        // For txnIndex/transactionIndex: throw if both are defined or both are missing.
+        if (
+          (item.txnIndex !== undefined && item.transactionIndex !== undefined) ||
+          (item.txnIndex === undefined && item.transactionIndex === undefined)
+        ) {
+          throw new Error("Either txnIndex or transactionIndex must be defined, but not both.");
+        }
+
+        // For txnRef/transactionHash: throw if both are defined or both are missing.
+        if (
+          (item.txnRef !== undefined && item.transactionHash !== undefined) ||
+          (item.txnRef === undefined && item.transactionHash === undefined)
+        ) {
+          throw new Error("Either txnRef or transactionHash must be defined, but not both.");
+        }
+
+        // Destructure the fields we don't need anymore
+        const { txnIndex, transactionIndex, txnRef, transactionHash, ...rest } = item;
+
+        // Return a new object with normalized fields.
+        // The non-null assertion (!) is safe here because our conditions ensure that one of each pair is defined.
+        return {
+          ...rest,
+          txnIndex: txnIndex ?? transactionIndex!,
+          txnRef: txnRef ?? transactionHash!,
+        };
+      });
+    };
+
     const data = persistedData[0].data;
 
     this.backfillMessageHashes(data);
 
+    // This section processes and transforms bundle data loaded from Arweave storage into the correct format:
+    // 1. Each field (bundleFillsV3, expiredDepositsToRefundV3, etc.) contains nested records keyed by chainId and token
+    // 2. The chainId keys are converted from strings to numbers using convertTypedStringRecordIntoNumericRecord
+    // 3. For arrays of events (fills, deposits, etc.), the transaction fields are normalized:
+    //    - txnIndex/transactionIndex -> txnIndex
+    //    - txnRef/transactionHash -> txnRef
+    //    This ensures consistent field names across all event objects
+    // 4. The data structure maintains all other fields like refunds, totalRefundAmount, and realizedLpFees
     const bundleData = {
-      bundleFillsV3: convertTypedStringRecordIntoNumericRecord(data.bundleFillsV3),
-      expiredDepositsToRefundV3: convertTypedStringRecordIntoNumericRecord(data.expiredDepositsToRefundV3),
-      bundleDepositsV3: convertTypedStringRecordIntoNumericRecord(data.bundleDepositsV3),
-      unexecutableSlowFills: convertTypedStringRecordIntoNumericRecord(data.unexecutableSlowFills),
-      bundleSlowFillsV3: convertTypedStringRecordIntoNumericRecord(data.bundleSlowFillsV3),
+      bundleFillsV3: convertTypedStringRecordIntoNumericRecord(
+        Object.fromEntries(
+          Object.entries(data.bundleFillsV3).map(([chainId, tokenData]) => [
+            chainId,
+            Object.fromEntries(
+              Object.entries(tokenData).map(([token, data]) => [
+                token,
+                {
+                  refunds: data.refunds,
+                  totalRefundAmount: data.totalRefundAmount,
+                  realizedLpFees: data.realizedLpFees,
+                  fills: convertSortableEventFieldsIntoRequiredFields(data.fills),
+                },
+              ])
+            ),
+          ])
+        )
+      ),
+      expiredDepositsToRefundV3: convertTypedStringRecordIntoNumericRecord(
+        Object.fromEntries(
+          Object.entries(data.expiredDepositsToRefundV3).map(([chainId, tokenData]) => [
+            chainId,
+            Object.fromEntries(
+              Object.entries(tokenData).map(([token, data]) => [
+                token,
+                convertSortableEventFieldsIntoRequiredFields(data),
+              ])
+            ),
+          ])
+        )
+      ),
+      bundleDepositsV3: convertTypedStringRecordIntoNumericRecord(
+        Object.fromEntries(
+          Object.entries(data.bundleDepositsV3).map(([chainId, tokenData]) => [
+            chainId,
+            Object.fromEntries(
+              Object.entries(tokenData).map(([token, data]) => [
+                token,
+                convertSortableEventFieldsIntoRequiredFields(data),
+              ])
+            ),
+          ])
+        )
+      ),
+      unexecutableSlowFills: convertTypedStringRecordIntoNumericRecord(
+        Object.fromEntries(
+          Object.entries(data.unexecutableSlowFills).map(([chainId, tokenData]) => [
+            chainId,
+            Object.fromEntries(
+              Object.entries(tokenData).map(([token, data]) => [
+                token,
+                convertSortableEventFieldsIntoRequiredFields(data),
+              ])
+            ),
+          ])
+        )
+      ),
+      bundleSlowFillsV3: convertTypedStringRecordIntoNumericRecord(
+        Object.fromEntries(
+          Object.entries(data.bundleSlowFillsV3).map(([chainId, tokenData]) => [
+            chainId,
+            Object.fromEntries(
+              Object.entries(tokenData).map(([token, data]) => [
+                token,
+                convertSortableEventFieldsIntoRequiredFields(data),
+              ])
+            ),
+          ])
+        )
+      ),
     };
     this.logger.debug({
       at: "BundleDataClient#loadPersistedDataFromArweave",
@@ -922,8 +1040,7 @@ export class BundleDataClient {
                     // sent for this fill and refund them to the filler, because this value would not be paid out
                     // otherwise. These deposits can no longer expire and get refunded as an expired deposit,
                     // and they won't trigger a pre-fill refund because the fill is in this bundle.
-                    // Pre-fill refunds only happen when deposits are sent in this bundle and the
-                    // fill is from a prior bundle. Paying out the filler keeps the behavior consistent for how
+                    // Paying out the filler keeps the behavior consistent for how
                     // we deal with duplicate deposits regardless if the deposit is matched with a pre-fill or
                     // a current bundle fill.
                     const duplicateDeposits = deposits.slice(1);
