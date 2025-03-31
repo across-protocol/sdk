@@ -2,7 +2,7 @@ import assert from "assert";
 import { Contract, EventFilter } from "ethers";
 import _ from "lodash";
 import winston from "winston";
-import { DEFAULT_CACHING_SAFE_LAG, DEFAULT_CACHING_TTL } from "../constants";
+import { DEFAULT_CACHING_SAFE_LAG, DEFAULT_CACHING_TTL, ZERO_ADDRESS } from "../constants";
 import {
   CachingMechanismInterface,
   CancelledRootBundle,
@@ -918,21 +918,29 @@ export class HubPoolClient extends BaseAbstractClient {
     if (eventsToQuery.includes("SetPoolRebalanceRoute")) {
       for (const event of events["SetPoolRebalanceRoute"]) {
         const args = spreadEventWithBlockNumber(event) as SetPoolRebalanceRoot;
-        assign(this.l1TokensToDestinationTokens, [args.l1Token, args.destinationChainId], args.destinationToken);
-        assign(
-          this.l1TokensToDestinationTokensWithBlock,
-          [args.l1Token, args.destinationChainId],
-          [
-            {
-              l1Token: args.l1Token,
-              l2Token: args.destinationToken,
-              blockNumber: args.blockNumber,
-              transactionIndex: args.transactionIndex,
-              logIndex: args.logIndex,
-              transactionHash: args.transactionHash,
-            },
-          ]
-        );
+        // If the destination token is set to the zero address in an event, then this means Across should no longer
+        // rebalance to this chain.
+        if (args.destinationToken !== ZERO_ADDRESS) {
+          assign(this.l1TokensToDestinationTokens, [args.l1Token, args.destinationChainId], args.destinationToken);
+          assign(
+            this.l1TokensToDestinationTokensWithBlock,
+            [args.l1Token, args.destinationChainId],
+            [
+              {
+                l1Token: args.l1Token,
+                l2Token: args.destinationToken,
+                blockNumber: args.blockNumber,
+                transactionIndex: args.transactionIndex,
+                logIndex: args.logIndex,
+                transactionHash: args.transactionHash,
+              },
+            ]
+          );
+        } else {
+          // Clear out the mapping for the L1 token entirely.
+          delete this.l1TokensToDestinationTokens[args.l1Token][args.destinationChainId];
+          delete this.l1TokensToDestinationTokensWithBlock[(args.l1Token, args.destinationChainId)];
+        }
       }
     }
 
@@ -953,7 +961,7 @@ export class HubPoolClient extends BaseAbstractClient {
         ),
       ]);
       for (const info of tokenInfo) {
-        if (!this.l1Tokens.find((token) => token.symbol === info.symbol)) {
+        if (!this.l1Tokens.find((token) => token.address === info.address)) {
           if (info.decimals > 0 && info.decimals <= 18) {
             this.l1Tokens.push(info);
           } else {
