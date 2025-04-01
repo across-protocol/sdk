@@ -45,7 +45,6 @@ import {
   getUsdcSymbol,
   getL1TokenInfo,
   compareAddressesSimple,
-  deleteFromJson,
 } from "../utils";
 import { AcrossConfigStoreClient as ConfigStoreClient } from "./AcrossConfigStoreClient/AcrossConfigStoreClient";
 import { BaseAbstractClient, isUpdateFailureReason, UpdateFailureReason } from "./BaseAbstractClient";
@@ -938,11 +937,6 @@ export class HubPoolClient extends BaseAbstractClient {
               },
             ]
           );
-        } else {
-          // Clear out the mapping for the L1 token entirely. If there is an empty dict after removing the
-          // destination chain ID mapping, delete the dict.
-          deleteFromJson(this.l1TokensToDestinationTokens, [args.l1Token, args.destinationChainId]);
-          deleteFromJson(this.l1TokensToDestinationTokensWithBlock, [args.l1Token, args.destinationChainId]);
         }
       }
     }
