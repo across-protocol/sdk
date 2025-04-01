@@ -21,6 +21,11 @@
   resolved "https://registry.yarnpkg.com/@across-protocol/constants/-/constants-3.1.46.tgz#9f567eecd47eaa5035460193c49307f413623167"
   integrity sha512-EHwFVLlSfwIOOQsqnL53UUPtjw9GUN1Y7PDEXUDttPxuqcc/IRDSp7xBnYgn7OWhrEg3404SzBKmc2A1l3Sqhw==
 
+"@across-protocol/constants@^3.1.48":
+  version "3.1.48"
+  resolved "https://registry.yarnpkg.com/@across-protocol/constants/-/constants-3.1.48.tgz#98cf969f36e11f0e81bfcf59e47f82607cff1935"
+  integrity sha512-355HwAb8EzrcRpAkiyHZZIFJa84+MLTMKnxW8zsc7G5q1J0IXW81rO1F7AMmSQgqLYS0FbIQBIUnVI6aLzshjQ==
+
 "@across-protocol/contracts@^0.1.4":
   version "0.1.4"
   resolved "https://registry.yarnpkg.com/@across-protocol/contracts/-/contracts-0.1.4.tgz#64b3d91e639d2bb120ea94ddef3d160967047fa5"
