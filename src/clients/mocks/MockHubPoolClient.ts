@@ -162,6 +162,30 @@ export class MockHubPoolClient extends HubPoolClient {
     RootBundleExecuted: "uint256,uint256,uint256,address[],uint256[],int256[],int256[],address",
   };
 
+  setCrossChainContractsEvent(
+    l2ChainId: number,
+    adapter: string,
+    spokePool: string,
+    overrides: EventOverrides = {}
+  ): Log {
+    const event = "CrossChainContractsSet";
+
+    const topics: string[] = [];
+    const args = {
+      l2ChainId,
+      adapter,
+      spokePool,
+    };
+
+    return this.eventManager.generateEvent({
+      event,
+      address: this.hubPool.address,
+      topics: topics.map((topic) => topic.toString()),
+      args,
+      blockNumber: overrides.blockNumber,
+    });
+  }
+
   setPoolRebalanceRoute(
     destinationChainId: number,
     l1Token: string,

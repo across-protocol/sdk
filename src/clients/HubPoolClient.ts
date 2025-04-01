@@ -46,6 +46,9 @@ import {
   getL1TokenInfo,
   compareAddressesSimple,
   deleteFromJson,
+  chainIsSvm,
+  getDeployedAddress,
+  SvmAddress,
 } from "../utils";
 import { AcrossConfigStoreClient as ConfigStoreClient } from "./AcrossConfigStoreClient/AcrossConfigStoreClient";
 import { BaseAbstractClient, isUpdateFailureReason, UpdateFailureReason } from "./BaseAbstractClient";
@@ -902,18 +905,33 @@ export class HubPoolClient extends BaseAbstractClient {
     if (eventsToQuery.includes("CrossChainContractsSet")) {
       for (const event of events["CrossChainContractsSet"]) {
         const args = spreadEventWithBlockNumber(event) as CrossChainContractsSet;
-        assign(
-          this.crossChainContracts,
-          [args.l2ChainId],
-          [
-            {
-              spokePool: args.spokePool,
-              blockNumber: args.blockNumber,
-              transactionIndex: args.transactionIndex,
-              logIndex: args.logIndex,
-            },
-          ]
-        );
+        const dataToAdd = {
+          spokePool: args.spokePool,
+          blockNumber: args.blockNumber,
+          transactionIndex: args.transactionIndex,
+          logIndex: args.logIndex,
+        };
+        // If the chain is SVM then our `args.spokePool` will be set to the `solanaSpokePool.toAddressUnchecked()` in the
+        // hubpool event because our hub deals with `address` types and not byte32. Therefore, we should confirm that the
+        // `args.spokePool` is the same as the `solanaSpokePool.toAddressUnchecked()`. We can derive the `solanaSpokePool`
+        // address by using the `getDeployedAddress` function.
+        if (chainIsSvm(args.l2ChainId)) {
+          const solanaSpokePool = getDeployedAddress("SvmSpoke", args.l2ChainId);
+          if (!solanaSpokePool) {
+            throw new Error(`SVM spoke pool not found for chain ${args.l2ChainId}`);
+          }
+          const truncatedAddress = SvmAddress.from(solanaSpokePool).toEvmAddress();
+          // Verify the event address matches our expected truncated address
+          if (args.spokePool.toLowerCase() !== truncatedAddress.toLowerCase()) {
+            throw new Error(
+              `SVM spoke pool address mismatch for chain ${args.l2ChainId}. ` +
+                `Expected ${truncatedAddress}, got ${args.spokePool}`
+            );
+          }
+          // Store the full Solana address
+          dataToAdd.spokePool = solanaSpokePool;
+        }
+        assign(this.crossChainContracts, [args.l2ChainId], [dataToAdd]);
       }
     }
 

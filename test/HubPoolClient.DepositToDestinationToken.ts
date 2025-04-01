@@ -1,3 +1,4 @@
+import { CHAIN_IDs } from "@across-protocol/constants";
 import { Log } from "../src/interfaces";
 import {
   CONFIG_STORE_VERSION,
@@ -19,6 +20,8 @@ import {
   getContractFactory,
   zeroAddress,
 } from "./utils";
+import { getDeployedAddress } from "@across-protocol/contracts";
+import { SvmAddress } from "../src/utils/AddressUtils";
 
 let hubPool: Contract, lpTokenFactory: Contract, mockAdapter: Contract;
 let owner: SignerWithAddress;
@@ -44,6 +47,23 @@ describe("HubPoolClient: Deposit to Destination Token", function () {
 
     hubPoolClient = new MockHubPoolClient(logger, hubPool, configStoreClient);
     await hubPoolClient.update();
+  });
+
+  it("expands cross chain contracts solana addresses", async function () {
+    const svmChain = CHAIN_IDs.SOLANA;
+    const solanaSpokePool = getDeployedAddress("SvmSpoke", svmChain);
+
+    expect(solanaSpokePool).to.not.be.undefined;
+    if (!solanaSpokePool) {
+      return;
+    }
+
+    const truncatedAddress = SvmAddress.from(solanaSpokePool).toEvmAddress();
+    hubPoolClient.setCrossChainContractsEvent(svmChain, mockAdapter.address, truncatedAddress);
+
+    await hubPoolClient.update();
+
+    expect(hubPoolClient.getSpokePoolForBlock(svmChain).toLowerCase()).to.equal(solanaSpokePool.toLowerCase());
   });
 
   it("Gets L2 token counterpart", async function () {
