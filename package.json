@@ -104,7 +104,7 @@
   },
   "dependencies": {
     "@across-protocol/across-token": "^1.0.0",
-    "@across-protocol/constants": "^3.1.47",
+    "@across-protocol/constants": "^3.1.48",
     "@across-protocol/contracts": "^4.0.5",
     "@coral-xyz/anchor": "^0.30.1",
     "@eth-optimism/sdk": "^3.3.1",
