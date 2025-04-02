@@ -1,4 +1,4 @@
-import { CHAIN_IDs } from "@across-protocol/constants";
+import { CHAIN_IDs, TOKEN_SYMBOLS_MAP } from "@across-protocol/constants";
 import { Log } from "../src/interfaces";
 import {
   CONFIG_STORE_VERSION,
@@ -13,15 +13,17 @@ import { MockConfigStoreClient, MockHubPoolClient } from "./mocks";
 import {
   Contract,
   SignerWithAddress,
+  assertPromiseError,
   createSpyLogger,
   deployConfigStore,
   ethers,
   expect,
   getContractFactory,
+  randomAddress,
   zeroAddress,
 } from "./utils";
 import { getDeployedAddress } from "@across-protocol/contracts";
-import { SvmAddress } from "../src/utils/AddressUtils";
+import { Address, SvmAddress } from "../src/utils/AddressUtils";
 
 let hubPool: Contract, lpTokenFactory: Contract, mockAdapter: Contract;
 let owner: SignerWithAddress;
@@ -53,7 +55,7 @@ describe("HubPoolClient: Deposit to Destination Token", function () {
     const svmChain = CHAIN_IDs.SOLANA;
     const solanaSpokePool = getDeployedAddress("SvmSpoke", svmChain);
 
-    expect(solanaSpokePool).to.not.be.undefined;
+    expect(solanaSpokePool).to.exist;
     if (!solanaSpokePool) {
       return;
     }
@@ -298,5 +300,29 @@ describe("HubPoolClient: Deposit to Destination Token", function () {
       update.blockNumber
     );
     expect(equivalent).to.be.true;
+  });
+
+  it("Correctly handles SVM addresses in pool rebalance routes", async function () {
+    const svmChain = CHAIN_IDs.SOLANA;
+
+    const usdcTokenSol = TOKEN_SYMBOLS_MAP.USDC.addresses[svmChain];
+
+    // Set up initial route with truncated SVM address
+    const truncatedAddress = SvmAddress.from(usdcTokenSol).toEvmAddress();
+    const e1 = hubPoolClient.setPoolRebalanceRoute(svmChain, randomL1Token, truncatedAddress);
+    await hubPoolClient.update();
+
+    // Verify that the L2 token mapping is correctly expanded to full SVM address
+    expect(hubPoolClient.getL2TokenForL1TokenAtBlock(randomL1Token, svmChain, e1.blockNumber)).to.equal(usdcTokenSol);
+
+    // Verify that the L1 token mapping is also correct
+    expect(hubPoolClient.getL1TokenForL2TokenAtBlock(usdcTokenSol, svmChain, e1.blockNumber)).to.equal(randomL1Token);
+
+    // Test changing the route with a different SVM address - this will fail
+    // because only USDC is supported as an L2 on SVM
+    const newSvmAddress = new Address(Buffer.from(randomAddress(), "hex")).toBase58();
+    const newTruncatedAddress = SvmAddress.from(newSvmAddress).toEvmAddress();
+    hubPoolClient.setPoolRebalanceRoute(svmChain, randomL1Token, newTruncatedAddress);
+    await assertPromiseError(hubPoolClient.update(), "SVM USDC address mismatch for chain");
   });
 });

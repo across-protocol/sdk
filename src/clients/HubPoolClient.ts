@@ -2,7 +2,7 @@ import assert from "assert";
 import { Contract, EventFilter } from "ethers";
 import _ from "lodash";
 import winston from "winston";
-import { DEFAULT_CACHING_SAFE_LAG, DEFAULT_CACHING_TTL, ZERO_ADDRESS } from "../constants";
+import { DEFAULT_CACHING_SAFE_LAG, DEFAULT_CACHING_TTL, TOKEN_SYMBOLS_MAP, ZERO_ADDRESS } from "../constants";
 import {
   CachingMechanismInterface,
   CancelledRootBundle,
@@ -938,17 +938,34 @@ export class HubPoolClient extends BaseAbstractClient {
     if (eventsToQuery.includes("SetPoolRebalanceRoute")) {
       for (const event of events["SetPoolRebalanceRoute"]) {
         const args = spreadEventWithBlockNumber(event) as SetPoolRebalanceRoot;
+
+        // If the destination chain is SVM, then we need to convert the destination token to the Solana address.
+        // This is because the HubPool contract only holds a truncated address for the USDC token and currently
+        // only supports USDC as a destination token for Solana.
+        let destinationToken = args.destinationToken;
+        if (chainIsSvm(args.destinationChainId)) {
+          const usdcTokenSol = TOKEN_SYMBOLS_MAP.USDC.addresses[args.destinationChainId];
+          const truncatedAddress = SvmAddress.from(usdcTokenSol).toEvmAddress();
+          if (destinationToken.toLowerCase() !== truncatedAddress.toLowerCase()) {
+            throw new Error(
+              `SVM USDC address mismatch for chain ${args.destinationChainId}. ` +
+                `Expected ${truncatedAddress}, got ${destinationToken}`
+            );
+          }
+          destinationToken = usdcTokenSol;
+        }
+
         // If the destination token is set to the zero address in an event, then this means Across should no longer
         // rebalance to this chain.
-        if (args.destinationToken !== ZERO_ADDRESS) {
-          assign(this.l1TokensToDestinationTokens, [args.l1Token, args.destinationChainId], args.destinationToken);
+        if (destinationToken !== ZERO_ADDRESS) {
+          assign(this.l1TokensToDestinationTokens, [args.l1Token, args.destinationChainId], destinationToken);
           assign(
             this.l1TokensToDestinationTokensWithBlock,
             [args.l1Token, args.destinationChainId],
             [
               {
                 l1Token: args.l1Token,
-                l2Token: args.destinationToken,
+                l2Token: destinationToken,
                 blockNumber: args.blockNumber,
                 transactionIndex: args.transactionIndex,
                 logIndex: args.logIndex,
