@@ -27,19 +27,70 @@ export function getTimeAt(_spokePool: unknown, _blockNumber: number): Promise<nu
   throw new Error("getTimeAt: not implemented");
 }
 
+// Teach BigInt how to be represented as JSON.
+(BigInt.prototype as any).toJSON = function () {
+  return this.toString();
+};
+
 /**
  * Retrieves the chain time at a particular block.
  * @note This should be the same as getTimeAt() but can differ in test. These two functions should be consolidated.
  * @returns The chain time at the specified block tag.
  */
 export async function getTimestampForBlock(provider: Provider, blockNumber: number): Promise<number> {
-  const block = await provider.getBlock(BigInt(blockNumber)).send();
+  const block = await provider.getBlock(
+    BigInt(blockNumber),
+    { transactionDetails: "none", maxSupportedTransactionVersion: 0 }
+  ).send();
+  console.log(`xxx got block: ${JSON.stringify(block)}.`);
   let timestamp: number;
   if (!block?.blockTime) {
     console.error(`Unable to resolve svm block ${blockNumber}`);
     timestamp = 0; // @todo: How to handle this?
   } else {
     timestamp = Number(block.blockTime); // Unix timestamps fit within number.
+  }
+
+  return timestamp;
+}
+
+/**
+ * xxx todo
+ */
+export async function getSlotForBlock(provider: Provider, blockNumber: number): Promise<BigInt> {
+	const opts = { transactionDetails: "none", maxSupportedTransactionVersion: 0 };
+ 
+  const getBlock = async (blockNumber: number): Promise<BigInt> => await (provider.getBlock(BigInt(blockNumber), opts)).send(); 
+
+  const [slotLow, slotHigh] = (
+    await Promise.all([
+      provider.getBlock({ blockTag: lowBlock }),
+      spokePool.numberOfDeposits({ blockTag: highBlock }),
+    ])
+  ).map((n) => toBN(n));
+
+  if (nDepositsLow.gt(depositId) || nDepositsHigh.lte(depositId)) {
+    return undefined; // Deposit did not occur within the specified block range.
+  }
+
+  // Find the lowest block number where numberOfDeposits is greater than the requested depositId.
+  do {
+    const midBlock = Math.floor((highBlock + lowBlock) / 2);
+    const nDeposits = toBN(await spokePool.numberOfDeposits({ blockTag: midBlock }));
+
+    if (nDeposits.gt(depositId)) {
+      highBlock = midBlock; // depositId occurred at or earlier than midBlock.
+    } else {
+      lowBlock = midBlock + 1; // depositId occurred later than midBlock.
+    }
+  } while (lowBlock < highBlock);
+
+  
+  let timestamp: BigInt;
+  if (!block?.blockTime) {
+    timestamp = BigInt(0);
+  } else {
+    timestamp = block.parentSlot;
   }
 
   return timestamp;
