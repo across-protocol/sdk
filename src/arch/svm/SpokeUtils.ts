@@ -1,9 +1,6 @@
 import { Rpc, SolanaRpcApi } from "@solana/kit";
 import { Deposit, FillStatus, FillWithBlock, RelayData } from "../../interfaces";
-import {
-  BigNumber,
-  isUnsafeDepositId,
-} from "../../utils";
+import { BigNumber, isUnsafeDepositId } from "../../utils";
 
 type Provider = Rpc<SolanaRpcApi>;
 
@@ -26,7 +23,7 @@ export function populateV3Relay(
  * Retrieves the time from the SpokePool contract at a particular block.
  * @returns The time at the specified block tag.
  */
-export async function getTimeAt(_spokePool: unknown, _blockNumber: number): Promise<number> {
+export function getTimeAt(_spokePool: unknown, _blockNumber: number): Promise<number> {
   throw new Error("getTimeAt: not implemented");
 }
 
@@ -36,7 +33,7 @@ export async function getTimeAt(_spokePool: unknown, _blockNumber: number): Prom
  * @returns The chain time at the specified block tag.
  */
 export async function getTimestampForBlock(provider: Provider, blockNumber: number): Promise<number> {
-  const block = await (provider.getBlock(BigInt(blockNumber))).send();
+  const block = await provider.getBlock(BigInt(blockNumber)).send();
   let timestamp: number;
   if (!block?.blockTime) {
     console.error(`Unable to resolve svm block ${blockNumber}`);
@@ -55,7 +52,7 @@ export async function getTimestampForBlock(provider: Provider, blockNumber: numb
  * @param endBlock end block
  * @returns maximum of fill deadline buffer at start and end block
  */
-export async function getMaxFillDeadlineInRange(
+export function getMaxFillDeadlineInRange(
   _spokePool: unknown,
   _startBlock: number,
   _endBlock: number
@@ -68,7 +65,7 @@ export async function getMaxFillDeadlineInRange(
  * @param blockTag The block number to search for the deposit ID at.
  * @returns The deposit ID.
  */
-export async function getDepositIdAtBlock(_contract: unknown, _blockTag: number): Promise<BigNumber> {
+export function getDepositIdAtBlock(_contract: unknown, _blockTag: number): Promise<BigNumber> {
   throw new Error("getDepositIdAtBlock: not implemented");
 }
 
@@ -86,7 +83,7 @@ export function getRelayHashFromEvent(e: RelayData & { destinationChainId: numbe
   return getRelayDataHash(e, e.destinationChainId);
 }
 
-export async function findDepositBlock(
+export function findDepositBlock(
   _spokePool: unknown,
   depositId: BigNumber,
   _lowBlock: number,
@@ -106,7 +103,7 @@ export async function findDepositBlock(
  * @param blockTag Block tag (numeric or "latest") to query at.
  * @returns The amount filled for the specified deposit at the requested block (or latest).
  */
-export async function relayFillStatus(
+export function relayFillStatus(
   _spokePool: unknown,
   _relayData: RelayData,
   _blockTag?: number | "latest",
@@ -115,7 +112,7 @@ export async function relayFillStatus(
   throw new Error("relayFillStatus: not implemented");
 }
 
-export async function fillStatusArray(
+export function fillStatusArray(
   _spokePool: unknown,
   _relayData: RelayData[],
   _blockTag = "processed"
@@ -132,7 +129,7 @@ export async function fillStatusArray(
  * @param highBlocknumber Optional upper bound for the search.
  * @returns The block number at which the relay was completed, or undefined.
  */
-export async function findFillBlock(
+export function findFillBlock(
   _spokePool: unknown,
   _relayData: RelayData,
   _lowBlockNumber: number,
@@ -141,7 +138,7 @@ export async function findFillBlock(
   throw new Error("fillStatusArray: not implemented");
 }
 
-export async function findFillEvent(
+export function findFillEvent(
   _spokePool: unknown,
   _relayData: RelayData,
   _lowBlockNumber: number,
