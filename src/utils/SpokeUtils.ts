@@ -44,6 +44,10 @@ export function getRelayDataHash(relayData: RelayData, destinationChainId: numbe
   );
 }
 
+export function getRelayHashFromEvent(e: RelayData & { destinationChainId: number }): string {
+  return getRelayDataHash(e, e.destinationChainId);
+}
+
 export function isUnsafeDepositId(depositId: BigNumber): boolean {
   // SpokePool.unsafeDepositV3() produces a uint256 depositId by hashing the msg.sender, depositor and input
   // uint256 depositNonce. There is a possibility that this resultant uint256 is less than the maxSafeDepositId (i.e.

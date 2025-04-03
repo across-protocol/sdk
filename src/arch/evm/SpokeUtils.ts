@@ -120,10 +120,6 @@ export async function getDepositIdAtBlock(contract: Contract, blockTag: number):
   return depositIdAtBlock;
 }
 
-export function getRelayHashFromEvent(e: RelayData & { destinationChainId: number }): string {
-  return getRelayDataHash(e, e.destinationChainId);
-}
-
 export async function findDepositBlock(
   spokePool: Contract,
   depositId: BigNumber,
