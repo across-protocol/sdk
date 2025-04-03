@@ -34,14 +34,14 @@ export function populateV3Relay(
   relayer: string,
   repaymentChainId = deposit.destinationChainId
 ): Promise<PopulatedTransaction> {
-  const v3RelayData = getDepositRelayData(deposit);
+  const relayData = getDepositRelayData(deposit);
 
   if (isDefined(deposit.speedUpSignature)) {
     assert(isDefined(deposit.updatedRecipient) && !isZeroAddress(deposit.updatedRecipient));
     assert(isDefined(deposit.updatedOutputAmount));
     assert(isDefined(deposit.updatedMessage));
     return spokePool.populateTransaction.fillRelayWithUpdatedDeposit(
-      v3RelayData,
+      relayData,
       repaymentChainId,
       toBytes32(relayer),
       deposit.updatedOutputAmount,
@@ -52,7 +52,7 @@ export function populateV3Relay(
     );
   }
 
-  return spokePool.populateTransaction.fillRelay(v3RelayData, repaymentChainId, toBytes32(relayer), { from: relayer });
+  return spokePool.populateTransaction.fillRelay(relayData, repaymentChainId, toBytes32(relayer), { from: relayer });
 }
 
 /**
