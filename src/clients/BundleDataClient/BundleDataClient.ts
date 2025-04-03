@@ -315,6 +315,29 @@ export class BundleDataClient {
       });
     };
 
+    const convertEmbeddedSortableEventFieldsIntoRequiredFields = <
+      T extends {
+        txnIndex?: number;
+        transactionIndex?: number;
+        txnRef?: string;
+        transactionHash?: string;
+      },
+    >(
+      data: Record<string, Record<string, T[]>>
+    ) => {
+      return Object.fromEntries(
+        Object.entries(data).map(([chainId, tokenData]) => [
+          chainId,
+          Object.fromEntries(
+            Object.entries(tokenData).map(([token, data]) => [
+              token,
+              convertSortableEventFieldsIntoRequiredFields(data),
+            ])
+          ),
+        ])
+      );
+    };
+
     const data = persistedData[0].data;
 
     this.backfillMessageHashes(data);
@@ -347,56 +370,16 @@ export class BundleDataClient {
         )
       ),
       expiredDepositsToRefundV3: convertTypedStringRecordIntoNumericRecord(
-        Object.fromEntries(
-          Object.entries(data.expiredDepositsToRefundV3).map(([chainId, tokenData]) => [
-            chainId,
-            Object.fromEntries(
-              Object.entries(tokenData).map(([token, data]) => [
-                token,
-                convertSortableEventFieldsIntoRequiredFields(data),
-              ])
-            ),
-          ])
-        )
+        convertEmbeddedSortableEventFieldsIntoRequiredFields(data.expiredDepositsToRefundV3)
       ),
       bundleDepositsV3: convertTypedStringRecordIntoNumericRecord(
-        Object.fromEntries(
-          Object.entries(data.bundleDepositsV3).map(([chainId, tokenData]) => [
-            chainId,
-            Object.fromEntries(
-              Object.entries(tokenData).map(([token, data]) => [
-                token,
-                convertSortableEventFieldsIntoRequiredFields(data),
-              ])
-            ),
-          ])
-        )
+        convertEmbeddedSortableEventFieldsIntoRequiredFields(data.bundleDepositsV3)
       ),
       unexecutableSlowFills: convertTypedStringRecordIntoNumericRecord(
-        Object.fromEntries(
-          Object.entries(data.unexecutableSlowFills).map(([chainId, tokenData]) => [
-            chainId,
-            Object.fromEntries(
-              Object.entries(tokenData).map(([token, data]) => [
-                token,
-                convertSortableEventFieldsIntoRequiredFields(data),
-              ])
-            ),
-          ])
-        )
+        convertEmbeddedSortableEventFieldsIntoRequiredFields(data.unexecutableSlowFills)
       ),
       bundleSlowFillsV3: convertTypedStringRecordIntoNumericRecord(
-        Object.fromEntries(
-          Object.entries(data.bundleSlowFillsV3).map(([chainId, tokenData]) => [
-            chainId,
-            Object.fromEntries(
-              Object.entries(tokenData).map(([token, data]) => [
-                token,
-                convertSortableEventFieldsIntoRequiredFields(data),
-              ])
-            ),
-          ])
-        )
+        convertEmbeddedSortableEventFieldsIntoRequiredFields(data.bundleSlowFillsV3)
       ),
     };
     this.logger.debug({
