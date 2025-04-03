@@ -1,6 +1,7 @@
 import { utils as ethersUtils } from "ethers";
 import { MAX_SAFE_DEPOSIT_ID, ZERO_ADDRESS, ZERO_BYTES } from "../constants";
 import { RelayData } from "../interfaces";
+import { toBytes32 } from "./AddressUtils";
 import { keccak256 } from "./common";
 import { BigNumber } from "./BigNumberUtils";
 import { isMessageEmpty } from "./DepositUtils";
@@ -14,13 +15,13 @@ import { isMessageEmpty } from "./DepositUtils";
 export function getRelayDataHash(relayData: RelayData, destinationChainId: number): string {
   const _relayData = {
     ...relayData,
-    depositor: ethersUtils.hexZeroPad(relayData.depositor, 32),
-    recipient: ethersUtils.hexZeroPad(relayData.recipient, 32),
-    inputToken: ethersUtils.hexZeroPad(relayData.inputToken, 32),
-    outputToken: ethersUtils.hexZeroPad(relayData.outputToken, 32),
-    exclusiveRelayer: ethersUtils.hexZeroPad(relayData.exclusiveRelayer, 32),
+    depositor: toBytes32(relayData.depositor),
+    recipient: toBytes32(relayData.recipient),
+    inputToken: toBytes32(relayData.inputToken),
+    outputToken: toBytes32(relayData.outputToken),
+    exclusiveRelayer: toBytes32(relayData.exclusiveRelayer),
   };
-  return ethersUtils.keccak256(
+  return keccak256(
     ethersUtils.defaultAbiCoder.encode(
       [
         "tuple(" +
