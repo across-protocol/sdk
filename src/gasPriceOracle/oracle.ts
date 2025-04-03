@@ -94,8 +94,8 @@ function _getEthersGasPriceEstimate(
 
     // Testnet Chains
     [CHAIN_IDs.ARBITRUM_SEPOLIA]: arbitrum.eip1559,
-    [CHAIN_IDs.SEPOLIA]: ethereum.eip1559,
     [CHAIN_IDs.POLYGON_AMOY]: polygon.gasStation,
+    [CHAIN_IDs.SEPOLIA]: ethereum.eip1559,
     [CHAIN_IDs.TATARA]: ethereum.eip1559,
   } as const;
 
