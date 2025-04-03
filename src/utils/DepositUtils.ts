@@ -2,10 +2,10 @@ import assert from "assert";
 import { SpokePoolClient } from "../clients";
 import { DEFAULT_CACHING_TTL, EMPTY_MESSAGE, UNDEFINED_MESSAGE_HASH, ZERO_BYTES } from "../constants";
 import { CachingMechanismInterface, Deposit, DepositWithBlock, Fill, RelayData, SlowFillRequest } from "../interfaces";
+import { getMessageHash, isUnsafeDepositId } from "./SpokeUtils";
 import { getNetworkName } from "./NetworkUtils";
 import { bnZero } from "./BigNumberUtils";
 import { getDepositInCache, getDepositKey, setDepositInCache } from "./CachingUtils";
-import { getMessageHash, isUnsafeDepositId } from "./SpokeUtils";
 import { getCurrentTime } from "./TimeUtils";
 import { isDefined } from "./TypeGuards";
 import { isDepositFormedCorrectly } from "./ValidatorUtils";
@@ -37,6 +37,7 @@ export type DepositSearchResult =
  * @throws If the fill's origin chain ID does not match the spoke pool client's chain ID.
  * @throws If the spoke pool client has not been updated.
  */
+// @todo relocate
 export async function queryHistoricalDepositForFill(
   spokePoolClient: SpokePoolClient,
   fill: Fill | SlowFillRequest,

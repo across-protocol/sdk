@@ -20,6 +20,7 @@ import {
   DepositWithBlock,
 } from "../../interfaces";
 import { SpokePoolClient } from "..";
+import { findFillEvent } from "../../arch/evm";
 import {
   BigNumber,
   bnZero,
@@ -37,7 +38,6 @@ import {
   mapAsync,
   bnUint32Max,
   isZeroValueDeposit,
-  findFillEvent,
   isZeroValueFillOrSlowFillRequest,
   chainIsEvm,
   isValidEvmAddress,

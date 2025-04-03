@@ -1,5 +1,21 @@
 import { Contract, EventFilter } from "ethers";
-import { BigNumber, DepositSearchResult, getNetworkName, InvalidFill, MakeOptional, toBN } from "../../utils";
+import {
+  findDepositBlock,
+  getMaxFillDeadlineInRange as getMaxFillDeadline,
+  getTimeAt as _getTimeAt,
+  relayFillStatus,
+  getTimestampForBlock as _getTimestampForBlock,
+} from "../../arch/evm";
+import { DepositWithBlock, FillStatus, RelayData } from "../../interfaces";
+import {
+  BigNumber,
+  DepositSearchResult,
+  getNetworkName,
+  InvalidFill,
+  isZeroAddress,
+  MakeOptional,
+  toBN,
+} from "../../utils";
 import {
   EventSearchConfig,
   paginatedEventQuery,
@@ -10,15 +26,6 @@ import { isUpdateFailureReason } from "../BaseAbstractClient";
 import { knownEventNames, SpokePoolClient, SpokePoolUpdate } from "./SpokePoolClient";
 import winston from "winston";
 import { HubPoolClient } from "../HubPoolClient";
-import {
-  findDepositBlock,
-  getMaxFillDeadlineInRange as getMaxFillDeadline,
-  getTimeAt as _getTimeAt,
-  relayFillStatus,
-  isZeroAddress,
-  getTimestampForBlock as _getTimestampForBlock,
-} from "../../utils/SpokeUtils";
-import { DepositWithBlock, FillStatus, RelayData } from "../../interfaces";
 
 /**
  * An EVM-specific SpokePoolClient.

@@ -6,10 +6,10 @@ import { Coingecko } from "../../coingecko";
 import { CHAIN_IDs, DEFAULT_SIMULATED_RELAYER_ADDRESS } from "../../constants";
 import { Deposit } from "../../interfaces";
 import { SpokePool, SpokePool__factory } from "../../typechain";
+import { populateV3Relay } from "../../arch/evm";
 import {
   BigNumberish,
   TransactionCostEstimate,
-  populateV3Relay,
   BigNumber,
   toBNWei,
   bnZero,
