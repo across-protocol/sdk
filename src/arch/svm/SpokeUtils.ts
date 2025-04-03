@@ -1,8 +1,6 @@
-import { Rpc, SolanaRpcApi } from "@solana/kit";
 import { Deposit, FillStatus, FillWithBlock, RelayData } from "../../interfaces";
 import { BigNumber, isUnsafeDepositId } from "../../utils";
-
-type Provider = Rpc<SolanaRpcApi>;
+import { Provider } from "./types";
 
 /**
  * @param spokePool SpokePool Contract instance.
@@ -38,8 +36,14 @@ export function getTimeAt(_spokePool: unknown, _blockNumber: number): Promise<nu
  * @returns The chain time at the specified block tag.
  */
 export async function getTimestampForBlock(provider: Provider, blockNumber: number): Promise<number> {
+  let slot = await getSlotForBlock(provider, BigInt(blockNumber), BigInt(0));
+  if (!slot) {
+    console.error(`xxx could not resolve slot for block ${blockNumber}`);
+    slot = BigInt(0);
+  }
+
   const block = await provider.getBlock(
-    BigInt(blockNumber),
+    slot,
     { transactionDetails: "none", maxSupportedTransactionVersion: 0 }
   ).send();
   console.log(`xxx got block: ${JSON.stringify(block)}.`);
@@ -57,43 +61,43 @@ export async function getTimestampForBlock(provider: Provider, blockNumber: numb
 /**
  * xxx todo
  */
-export async function getSlotForBlock(provider: Provider, blockNumber: number): Promise<BigInt> {
-	const opts = { transactionDetails: "none", maxSupportedTransactionVersion: 0 };
- 
-  const getBlock = async (blockNumber: number): Promise<BigInt> => await (provider.getBlock(BigInt(blockNumber), opts)).send(); 
+export async function getSlotForBlock(provider: Provider, blockNumber: bigint, lowSlot: bigint, _highSlot?: bigint): Promise<bigint | undefined> {
+  // @todo: Factor getBlock out to SlotFinder ??
+  const getBlock = async (slot: bigint): Promise<bigint> => {
+		const block = await provider.getBlock(
+      slot,
+	    { transactionDetails: "none", maxSupportedTransactionVersion: 0 }
+    ).send();
+    return block?.blockHeight ?? BigInt(0);
+	}
 
-  const [slotLow, slotHigh] = (
-    await Promise.all([
-      provider.getBlock({ blockTag: lowBlock }),
-      spokePool.numberOfDeposits({ blockTag: highBlock }),
-    ])
-  ).map((n) => toBN(n));
+  let highSlot = _highSlot ?? await provider.getSlot().send();
+  const [blockLow, blockHigh] = await Promise.all([
+    getBlock(lowSlot),
+    getBlock(highSlot),
+  ]);
 
-  if (nDepositsLow.gt(depositId) || nDepositsHigh.lte(depositId)) {
-    return undefined; // Deposit did not occur within the specified block range.
+  if (blockLow > blockNumber || blockHigh < blockNumber) {
+    return undefined; // blockNumber did not occur within the specified block range.
   }
 
-  // Find the lowest block number where numberOfDeposits is greater than the requested depositId.
+  // Find the lowest slot number where blockHeight is greater than the requested blockNumber.
+  console.log(`Looking for slot for block ${blockNumber} between slots ${lowSlot}, ${highSlot}.`);
   do {
-    const midBlock = Math.floor((highBlock + lowBlock) / 2);
-    const nDeposits = toBN(await spokePool.numberOfDeposits({ blockTag: midBlock }));
+    const midSlot = (highSlot + lowSlot) / BigInt(2);
+    const midBlock = await getBlock(midSlot);
+    console.log(`xxx got midBlock ${midBlock} for slot ${midSlot}.`);
 
-    if (nDeposits.gt(depositId)) {
-      highBlock = midBlock; // depositId occurred at or earlier than midBlock.
+    if (midBlock < blockNumber) {
+      lowSlot = midSlot + BigInt(1);
+    } else if (midBlock > blockNumber) {
+      highSlot = midSlot + BigInt(1); // blockNumber occurred at or earlier than midBlock.
     } else {
-      lowBlock = midBlock + 1; // depositId occurred later than midBlock.
+      return midSlot;
     }
-  } while (lowBlock < highBlock);
+  } while (lowSlot <= highSlot);
 
-  
-  let timestamp: BigInt;
-  if (!block?.blockTime) {
-    timestamp = BigInt(0);
-  } else {
-    timestamp = block.parentSlot;
-  }
-
-  return timestamp;
+  return undefined;
 }
 
 /**
