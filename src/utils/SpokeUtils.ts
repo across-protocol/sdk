@@ -1,10 +1,32 @@
 import { utils as ethersUtils } from "ethers";
 import { MAX_SAFE_DEPOSIT_ID, ZERO_ADDRESS, ZERO_BYTES } from "../constants";
-import { RelayData } from "../interfaces";
+import { Deposit, RelayData } from "../interfaces";
 import { toBytes32 } from "./AddressUtils";
 import { keccak256 } from "./common";
 import { BigNumber } from "./BigNumberUtils";
 import { isMessageEmpty } from "./DepositUtils";
+
+/**
+ * Produce the RelayData for a Deposit.
+ * @param deposit Deposit instance.
+ * @returns The corresponding RelayData object.
+ */
+export function getDepositRelayData(deposit: Omit<Deposit, "messageHash">): RelayData {
+  return {
+    depositor: toBytes32(deposit.depositor),
+    recipient: toBytes32(deposit.recipient),
+    exclusiveRelayer: toBytes32(deposit.exclusiveRelayer),
+    inputToken: toBytes32(deposit.inputToken),
+    outputToken: toBytes32(deposit.outputToken),
+    inputAmount: deposit.inputAmount,
+    outputAmount: deposit.outputAmount,
+    originChainId: deposit.originChainId,
+    depositId: deposit.depositId,
+    fillDeadline: deposit.fillDeadline,
+    exclusivityDeadline: deposit.exclusivityDeadline,
+    message: deposit.message,
+  };
+}
 
 /**
  * Compute the RelayData hash for a fill. This can be used to determine the fill status.

@@ -13,6 +13,7 @@ import {
   isDefined,
   isUnsafeDepositId,
   isZeroAddress,
+  getDepositRelayData,
   getNetworkName,
   paginatedEventQuery,
   spreadEventWithBlockNumber,
@@ -33,20 +34,8 @@ export function populateV3Relay(
   relayer: string,
   repaymentChainId = deposit.destinationChainId
 ): Promise<PopulatedTransaction> {
-  const v3RelayData: RelayData = {
-    depositor: toBytes32(deposit.depositor),
-    recipient: toBytes32(deposit.recipient),
-    exclusiveRelayer: toBytes32(deposit.exclusiveRelayer),
-    inputToken: toBytes32(deposit.inputToken),
-    outputToken: toBytes32(deposit.outputToken),
-    inputAmount: deposit.inputAmount,
-    outputAmount: deposit.outputAmount,
-    originChainId: deposit.originChainId,
-    depositId: deposit.depositId,
-    fillDeadline: deposit.fillDeadline,
-    exclusivityDeadline: deposit.exclusivityDeadline,
-    message: deposit.message,
-  };
+  const v3RelayData = getDepositRelayData(deposit);
+
   if (isDefined(deposit.speedUpSignature)) {
     assert(isDefined(deposit.updatedRecipient) && !isZeroAddress(deposit.updatedRecipient));
     assert(isDefined(deposit.updatedOutputAmount));
