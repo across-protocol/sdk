@@ -1040,7 +1040,8 @@ export class BundleDataClient {
                     // sent for this fill and refund them to the filler, because this value would not be paid out
                     // otherwise. These deposits can no longer expire and get refunded as an expired deposit,
                     // and they won't trigger a pre-fill refund because the fill is in this bundle.
-                    // Paying out the filler keeps the behavior consistent for how
+                    // Pre-fill refunds only happen when deposits are sent in this bundle and the
+                    // fill is from a prior bundle. Paying out the filler keeps the behavior consistent for how
                     // we deal with duplicate deposits regardless if the deposit is matched with a pre-fill or
                     // a current bundle fill.
                     const duplicateDeposits = deposits.slice(1);
