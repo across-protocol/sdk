@@ -5,16 +5,6 @@ import { keccak256 } from "./common";
 import { BigNumber } from "./BigNumberUtils";
 import { isMessageEmpty } from "./DepositUtils";
 
-export function isUnsafeDepositId(depositId: BigNumber): boolean {
-  // SpokePool.unsafeDepositV3() produces a uint256 depositId by hashing the msg.sender, depositor and input
-  // uint256 depositNonce. There is a possibility that this resultant uint256 is less than the maxSafeDepositId (i.e.
-  // the maximum uint32 value) which makes it possible that an unsafeDepositV3's depositId can collide with a safe
-  // depositV3's depositId, but the chances of a collision are 1 in 2^(256 - 32), so we'll ignore this
-  // possibility.
-  const maxSafeDepositId = BigNumber.from(MAX_SAFE_DEPOSIT_ID);
-  return maxSafeDepositId.lt(depositId);
-}
-
 /**
  * Compute the RelayData hash for a fill. This can be used to determine the fill status.
  * @param relayData RelayData information that is used to complete a fill.
@@ -52,6 +42,16 @@ export function getRelayDataHash(relayData: RelayData, destinationChainId: numbe
       [_relayData, destinationChainId]
     )
   );
+}
+
+export function isUnsafeDepositId(depositId: BigNumber): boolean {
+  // SpokePool.unsafeDepositV3() produces a uint256 depositId by hashing the msg.sender, depositor and input
+  // uint256 depositNonce. There is a possibility that this resultant uint256 is less than the maxSafeDepositId (i.e.
+  // the maximum uint32 value) which makes it possible that an unsafeDepositV3's depositId can collide with a safe
+  // depositV3's depositId, but the chances of a collision are 1 in 2^(256 - 32), so we'll ignore this
+  // possibility.
+  const maxSafeDepositId = BigNumber.from(MAX_SAFE_DEPOSIT_ID);
+  return maxSafeDepositId.lt(depositId);
 }
 
 // Determines if the input address (either a bytes32 or bytes20) is the zero address.
