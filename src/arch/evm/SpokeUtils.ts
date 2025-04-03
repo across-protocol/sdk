@@ -1,5 +1,5 @@
 import assert from "assert";
-import { BytesLike, Contract, PopulatedTransaction, providers, utils as ethersUtils } from "ethers";
+import { BytesLike, Contract, PopulatedTransaction, providers } from "ethers";
 import { CHAIN_IDs } from "../../constants";
 import { Deposit, FillStatus, FillWithBlock, RelayData } from "../../interfaces";
 import {
@@ -9,6 +9,7 @@ import {
   bnZero,
   chunk,
   getMessageHash,
+  getRelayDataHash,
   isDefined,
   isUnsafeDepositId,
   isZeroAddress,
@@ -117,45 +118,6 @@ export async function getDepositIdAtBlock(contract: Contract, blockTag: number):
     throw new Error("Invalid deposit count");
   }
   return depositIdAtBlock;
-}
-
-/**
- * Compute the RelayData hash for a fill. This can be used to determine the fill status.
- * @param relayData RelayData information that is used to complete a fill.
- * @param destinationChainId Supplementary destination chain ID required by V3 hashes.
- * @returns The corresponding RelayData hash.
- */
-export function getRelayDataHash(relayData: RelayData, destinationChainId: number): string {
-  const _relayData = {
-    ...relayData,
-    depositor: ethersUtils.hexZeroPad(relayData.depositor, 32),
-    recipient: ethersUtils.hexZeroPad(relayData.recipient, 32),
-    inputToken: ethersUtils.hexZeroPad(relayData.inputToken, 32),
-    outputToken: ethersUtils.hexZeroPad(relayData.outputToken, 32),
-    exclusiveRelayer: ethersUtils.hexZeroPad(relayData.exclusiveRelayer, 32),
-  };
-  return ethersUtils.keccak256(
-    ethersUtils.defaultAbiCoder.encode(
-      [
-        "tuple(" +
-          "bytes32 depositor," +
-          "bytes32 recipient," +
-          "bytes32 exclusiveRelayer," +
-          "bytes32 inputToken," +
-          "bytes32 outputToken," +
-          "uint256 inputAmount," +
-          "uint256 outputAmount," +
-          "uint256 originChainId," +
-          "uint256 depositId," +
-          "uint32 fillDeadline," +
-          "uint32 exclusivityDeadline," +
-          "bytes message" +
-          ")",
-        "uint256 destinationChainId",
-      ],
-      [_relayData, destinationChainId]
-    )
-  );
 }
 
 export function getRelayHashFromEvent(e: RelayData & { destinationChainId: number }): string {
