@@ -810,11 +810,8 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
   /**
    * Retrieves the fill status for a given relay data.
    * @param relayData The relay data to retrieve the fill status for.
+   * @param blockTag The block at which to query the fill status.
    * @returns The fill status for the given relay data.
    */
-  public abstract relayFillStatus(
-    relayData: RelayData,
-    blockTag?: number | "latest",
-    destinationChainId?: number
-  ): Promise<FillStatus>;
+  public abstract relayFillStatus(relayData: RelayData, blockTag?: number | "latest"): Promise<FillStatus>;
 }
