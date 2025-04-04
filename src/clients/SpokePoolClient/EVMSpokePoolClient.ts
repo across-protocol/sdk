@@ -47,7 +47,7 @@ export class EVMSpokePoolClient extends SpokePoolClient {
     return relayFillStatus(this.spokePool, relayData, blockTag, this.chainId);
   }
 
-  public override fillStatusArray(relayData: RelayData[], blockTag?: number | "latest"): Promise<FillStatus> {
+  public override fillStatusArray(relayData: RelayData[], blockTag?: number | "latest"): Promise<(FillStatus | undefined)[]> {
     return fillStatusArray(this.spokePool, relayData, blockTag);
   }
 
