@@ -1,6 +1,6 @@
-import { BN } from "@coral-xyz/anchor";
+import { BN, BorshEventCoder, Idl } from "@coral-xyz/anchor";
 import web3 from "@solana/kit";
-import { EventName, SVMEventNames } from "../types";
+import { EventName, EventData, SVMEventNames } from "../types";
 
 /**
  * Parses event data from a transaction.
@@ -28,6 +28,19 @@ export function parseEventData(eventData: any): any {
   }
 
   return eventData;
+}
+
+/**
+ * Decodes a raw event according to a supplied IDL.
+ */
+export function decodeEvent(idl: Idl, rawEvent: string): { data: EventData; name: EventName } {
+  const event = new BorshEventCoder(idl).decode(rawEvent);
+  if (!event?.name) throw new Error("Event name is undefined");
+  const name = getEventName(event.name);
+  return {
+    data: parseEventData(event?.data),
+    name,
+  };
 }
 
 /**
