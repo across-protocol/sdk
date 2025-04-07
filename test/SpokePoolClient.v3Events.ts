@@ -29,6 +29,7 @@ type EventSearchConfig = sdkUtils.EventSearchConfig;
 describe("SpokePoolClient: Event Filtering", function () {
   const random = () => Math.round(Math.random() * 1e6);
   const randomBytes = (n: number): string => ethers.utils.hexlify(ethers.utils.randomBytes(n));
+  const destinationToken = randomAddress();
 
   const fundsDepositedEvents = ["FundsDeposited", "V3FundsDeposited"];
   const slowFillRequestedEvents = ["RequestedSlowFill", "RequestedV3SlowFill"];
@@ -117,8 +118,7 @@ describe("SpokePoolClient: Event Filtering", function () {
           continue;
         }
 
-        // @todo: destinationToken
-        [ZERO_ADDRESS].forEach((originToken) => {
+        [destinationToken].forEach((originToken) => {
           spokePoolClient.setEnableRoute(originToken, destinationChainId, true);
           hubPoolClient.setPoolRebalanceRoute(destinationChainId, originToken, originToken);
         });
