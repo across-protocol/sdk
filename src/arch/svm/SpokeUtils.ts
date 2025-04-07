@@ -69,20 +69,6 @@ export function getDepositIdAtBlock(_contract: unknown, _blockTag: number): Prom
   throw new Error("getDepositIdAtBlock: not implemented");
 }
 
-/**
- * Compute the RelayData hash for a fill. This can be used to determine the fill status.
- * @param relayData RelayData information that is used to complete a fill.
- * @param destinationChainId Supplementary destination chain ID required by V3 hashes.
- * @returns The corresponding RelayData hash.
- */
-export function getRelayDataHash(_relayData: RelayData, _destinationChainId: number): string {
-  throw new Error("getRelayDataHash: not implemented");
-}
-
-export function getRelayHashFromEvent(e: RelayData & { destinationChainId: number }): string {
-  return getRelayDataHash(e, e.destinationChainId);
-}
-
 export function findDepositBlock(
   _spokePool: unknown,
   depositId: BigNumber,
