@@ -405,7 +405,7 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
       }
       return newInvalidFill;
     });
-    // Log invalid and unrepayable fills as warns iff the hub pool client is defined for mainnet.
+    // Log invalid and unrepayable fills as warns iff the hub pool client is defined and the hub chain is mainnet.
     const logLevel = this.hubPoolClient?.chainId === CHAIN_IDs.MAINNET ? "warn" : "debug";
     if (invalidFillsForDeposit.length > 0) {
       this.logger[logLevel]({
