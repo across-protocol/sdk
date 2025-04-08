@@ -111,7 +111,7 @@ export function isBridgedUsdc(tokenSymbol: string): boolean {
 
 export function isStablecoin(tokenSymbol: string): boolean {
   return constants.STABLE_COIN_SYMBOLS.some(
-    (bridgedUsdcSymbol) => bridgedUsdcSymbol.toLowerCase() === tokenSymbol.toLowerCase()
+    (stablecoinSymbol) => stablecoinSymbol.toLowerCase() === tokenSymbol.toLowerCase()
   );
 }
 
