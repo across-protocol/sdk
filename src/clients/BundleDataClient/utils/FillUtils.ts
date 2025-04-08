@@ -1,6 +1,6 @@
 import _ from "lodash";
 import { providers } from "ethers";
-import { Deposit, DepositWithBlock, Fill, FillWithBlock, RelayData } from "../../../interfaces";
+import { Deposit, DepositWithBlock, Fill, FillWithBlock } from "../../../interfaces";
 import { getBlockRangeForChain, isSlowFill, isValidEvmAddress, isDefined, chainIsEvm } from "../../../utils";
 import { HubPoolClient } from "../../HubPoolClient";
 
