@@ -365,7 +365,7 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
         fill: FillWithBlock
       ) => {
         if (validateFillForDeposit(fill, deposit).valid) {
-          const repaymentChainId = getRepaymentChainId(fill, deposit);
+          const repaymentChainId = getRepaymentChainId(fill, deposit, this.hubPoolClient!);
           // In order to keep this function sync, we can't call verifyFillRepayment so we'll log any fills that
           // we'll have to overwrite repayment information for. This includes fills for lite chains where the
           // repayment address is invalid, and fills for non-lite chains where the repayment address is valid or

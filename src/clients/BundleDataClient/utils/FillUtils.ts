@@ -20,7 +20,7 @@ export function getRefundInformationFromFill(
     return {
       chainToSendRefundTo: fill.originChainId,
       repaymentToken: fill.inputToken,
-    }
+    };
   }
 
   // Handle slow relay where repaymentChainId = 0. Slow relays always pay recipient on destination chain.
@@ -57,9 +57,15 @@ export function getRefundInformationFromFill(
   };
 }
 
-export function getRepaymentChainId(fill: Fill, matchedDeposit: Deposit): number {
+export function getRepaymentChainId(fill: Fill, matchedDeposit: Deposit, hubPoolClient: HubPoolClient): number {
   // Lite chain deposits force repayment on origin chain.
-  return matchedDeposit.fromLiteChain ? matchedDeposit.originChainId : fill.repaymentChainId;
+  if (matchedDeposit.fromLiteChain) {
+    return matchedDeposit.originChainId;
+  }
+  if (!hubPoolClient.l2TokenHasPoolRebalanceRoute(matchedDeposit.inputToken, matchedDeposit.originChainId)) {
+    return matchedDeposit.originChainId;
+  }
+  return fill.repaymentChainId;
 }
 
 export function forceDestinationRepayment(
@@ -67,7 +73,10 @@ export function forceDestinationRepayment(
   matchedDeposit: Deposit & { quoteBlockNumber: number },
   hubPoolClient: HubPoolClient
 ): boolean {
-  if (!matchedDeposit.fromLiteChain) {
+  if (
+    !matchedDeposit.fromLiteChain &&
+    hubPoolClient.l2TokenHasPoolRebalanceRoute(matchedDeposit.inputToken, matchedDeposit.originChainId)
+  ) {
     try {
       const l1TokenCounterpart = hubPoolClient.getL1TokenForL2TokenAtBlock(
         matchedDeposit.inputToken,
@@ -101,7 +110,7 @@ export async function verifyFillRepayment(
     return fill;
   }
 
-  let repaymentChainId = getRepaymentChainId(fill, matchedDeposit);
+  let repaymentChainId = getRepaymentChainId(fill, matchedDeposit, hubPoolClient);
 
   // If repayment chain doesn't have a Pool Rebalance Route for the input token, then change the repayment
   // chain to the destination chain.
@@ -118,7 +127,10 @@ export async function verifyFillRepayment(
     if (!isDefined(destinationRelayer) || !isValidEvmAddress(destinationRelayer)) {
       return undefined;
     }
-    if (!matchedDeposit.fromLiteChain) {
+    if (
+      !matchedDeposit.fromLiteChain &&
+      hubPoolClient.l2TokenHasPoolRebalanceRoute(matchedDeposit.inputToken, matchedDeposit.originChainId)
+    ) {
       repaymentChainId = fill.destinationChainId;
     } else {
       // We can't switch repayment chain for a lite chain deposit so just check whether the repayment chain,

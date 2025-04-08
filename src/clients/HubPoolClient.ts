@@ -529,6 +529,9 @@ export class HubPoolClient extends BaseAbstractClient {
     chainIdB: number,
     hubPoolBlock = this.latestBlockSearched
   ): boolean {
+    if (!this.l2TokenHasPoolRebalanceRoute(tokenA, chainIdA) || !this.l2TokenHasPoolRebalanceRoute(tokenB, chainIdB)) {
+      return false;
+    }
     try {
       // Resolve both SpokePool tokens back to their respective HubPool tokens and verify that they match.
       const l1TokenA = this.getL1TokenForL2TokenAtBlock(tokenA, chainIdA, hubPoolBlock);
