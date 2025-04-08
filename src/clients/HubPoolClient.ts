@@ -213,7 +213,7 @@ export class HubPoolClient extends BaseAbstractClient {
     latestHubBlock = Number.MAX_SAFE_INTEGER
   ): string {
     const l2Tokens = Object.keys(this.l1TokensToDestinationTokensWithBlock)
-      .filter((l1Token) => this.l2TokenEnabledForL1Token(l1Token, destinationChainId))
+      .filter((l1Token) => this.l2TokenHasPoolRebalanceRoute(l1Token, destinationChainId))
       .map((l1Token) => {
         // Return all matching L2 token mappings that are equal to or earlier than the target block.
         return this.l1TokensToDestinationTokensWithBlock[l1Token][destinationChainId].filter(
@@ -261,8 +261,8 @@ export class HubPoolClient extends BaseAbstractClient {
     return this.getL2TokenForL1TokenAtBlock(l1Token, l2ChainId, deposit.quoteBlockNumber);
   }
 
-  l2TokenEnabledForL1Token(l1Token: string, destinationChainId: number): boolean {
-    return this.l1TokensToDestinationTokens?.[l1Token]?.[destinationChainId] != undefined;
+  l2TokenHasPoolRebalanceRoute(l2Token: string, l2ChainId: number): boolean {
+    return this.l1TokensToDestinationTokens?.[l2Token]?.[l2ChainId] != undefined;
   }
 
   /**

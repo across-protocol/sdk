@@ -14,6 +14,15 @@ export function getRefundInformationFromFill(
   chainToSendRefundTo: number;
   repaymentToken: string;
 } {
+  // If the input token and origin chain ID do not map to a PoolRebalanceRoute graph, then repayment must
+  // happen on the origin chain.
+  if (!hubPoolClient.l2TokenHasPoolRebalanceRoute(fill.inputToken, fill.originChainId)) {
+    return {
+      chainToSendRefundTo: fill.originChainId,
+      repaymentToken: fill.inputToken,
+    }
+  }
+
   // Handle slow relay where repaymentChainId = 0. Slow relays always pay recipient on destination chain.
   // So, save the slow fill under the destination chain, and save the fast fill under its repayment chain.
   let chainToSendRefundTo = isSlowFill(fill) ? fill.destinationChainId : fill.repaymentChainId;
