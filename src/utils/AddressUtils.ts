@@ -241,6 +241,10 @@ export class SvmAddress extends Address {
     return this.toBase58();
   }
 
+  override toEvmAddress(): string {
+    return `0x${this.toBytes32().slice(-40)}`;
+  }
+
   // Constructs a new SvmAddress type.
   static from(bs58Address: string): SvmAddress {
     return new this(bs58.decode(bs58Address));
