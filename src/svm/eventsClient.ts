@@ -8,7 +8,8 @@ import web3, {
   RpcTransport,
   Signature,
 } from "@solana/kit";
-import { base58, base64 } from "../utils";
+import bs58 from "bs58";
+import bs64 from "bs64";
 import { EventData, EventName, EventWithData } from "./types";
 import { decodeEvent } from "./utils/events";
 import { isDevnet } from "./utils/helpers";
@@ -185,9 +186,9 @@ export class SvmSpokeEventsClient {
           this.svmSpokeAddress === ixProgramId &&
           this.svmSpokeEventAuthority === singleIxAccount
         ) {
-          const ixData = base58.decode(ix.data);
+          const ixData = bs58.decode(ix.data);
           // Skip the first 8 bytes (assumed header) and encode the rest.
-          const eventData = base64.encode(ixData.slice(8));
+          const eventData = bs64.encode(ixData.slice(8));
           const { name, data } = decodeEvent(SvmSpokeIdl, eventData);
           events.push({ program: this.svmSpokeAddress, name, data });
         }

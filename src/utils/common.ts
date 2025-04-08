@@ -7,7 +7,7 @@ export type Decimalish = string | number | Decimal;
 export const AddressZero = ethers.constants.AddressZero;
 export const MAX_BIG_INT = BigNumber.from(Number.MAX_SAFE_INTEGER.toString());
 
-export const { base58, base64, keccak256 } = ethers.utils;
+export const { keccak256 } = ethers.utils;
 
 /**
  * toBNWei.

@@ -37,8 +37,8 @@ export function decodeEvent(idl: Idl, rawEvent: string): { data: EventData; name
   const event = new BorshEventCoder(idl).decode(rawEvent);
   if (!event) throw new Error(`Malformed rawEvent for IDL ${idl.address}: ${rawEvent}`);
   return {
-    data: parseEventData(event.data),
     name: getEventName(event.name),
+    data: parseEventData(event.data),
   };
 }
 
