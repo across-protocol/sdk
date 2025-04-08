@@ -109,6 +109,12 @@ export function isBridgedUsdc(tokenSymbol: string): boolean {
   );
 }
 
+export function isStablecoin(tokenSymbol: string): boolean {
+  return constants.STABLE_COIN_SYMBOLS.some(
+    (bridgedUsdcSymbol) => bridgedUsdcSymbol.toLowerCase() === tokenSymbol.toLowerCase()
+  );
+}
+
 export function getTokenInfo(l2TokenAddress: string, chainId: number): L1Token {
   // @dev This might give false positives if tokens on different networks have the same address. I'm not sure how
   // to get around this...
