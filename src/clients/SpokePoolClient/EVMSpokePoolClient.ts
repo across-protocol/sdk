@@ -1,5 +1,22 @@
 import { Contract, EventFilter } from "ethers";
-import { BigNumber, DepositSearchResult, getNetworkName, InvalidFill, MakeOptional, toBN } from "../../utils";
+import {
+  fillStatusArray,
+  findDepositBlock,
+  getMaxFillDeadlineInRange as getMaxFillDeadline,
+  getTimeAt as _getTimeAt,
+  relayFillStatus,
+  getTimestampForBlock as _getTimestampForBlock,
+} from "../../arch/evm";
+import { DepositWithBlock, FillStatus, RelayData } from "../../interfaces";
+import {
+  BigNumber,
+  DepositSearchResult,
+  getNetworkName,
+  InvalidFill,
+  isZeroAddress,
+  MakeOptional,
+  toBN,
+} from "../../utils";
 import {
   EventSearchConfig,
   paginatedEventQuery,
@@ -10,15 +27,6 @@ import { isUpdateFailureReason } from "../BaseAbstractClient";
 import { knownEventNames, SpokePoolClient, SpokePoolUpdate } from "./SpokePoolClient";
 import winston from "winston";
 import { HubPoolClient } from "../HubPoolClient";
-import {
-  findDepositBlock,
-  getMaxFillDeadlineInRange as getMaxFillDeadline,
-  getTimeAt as _getTimeAt,
-  relayFillStatus,
-  isZeroAddress,
-  getTimestampForBlock as _getTimestampForBlock,
-} from "../../utils/SpokeUtils";
-import { DepositWithBlock, FillStatus, RelayData } from "../../interfaces";
 
 /**
  * An EVM-specific SpokePoolClient.
@@ -35,12 +43,15 @@ export class EVMSpokePoolClient extends SpokePoolClient {
     super(logger, hubPoolClient, chainId, deploymentBlock, eventSearchConfig);
   }
 
-  public override relayFillStatus(
-    relayData: RelayData,
-    blockTag?: number | "latest",
-    destinationChainId?: number
-  ): Promise<FillStatus> {
-    return relayFillStatus(this.spokePool, relayData, blockTag, destinationChainId);
+  public override relayFillStatus(relayData: RelayData, blockTag?: number | "latest"): Promise<FillStatus> {
+    return relayFillStatus(this.spokePool, relayData, blockTag, this.chainId);
+  }
+
+  public override fillStatusArray(
+    relayData: RelayData[],
+    blockTag?: number | "latest"
+  ): Promise<(FillStatus | undefined)[]> {
+    return fillStatusArray(this.spokePool, relayData, blockTag);
   }
 
   public override getMaxFillDeadlineInRange(startBlock: number, endBlock: number): Promise<number> {
