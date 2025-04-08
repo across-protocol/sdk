@@ -164,16 +164,6 @@ export function chainIsCCTPEnabled(chainId: number): boolean {
     CHAIN_IDs.POLYGON_AMOY,
   ].includes(chainId);
 }
-
-/**
- * Determines if a chain ID requires a manual L1 -> L2 finalization step.
- * @param chainId Chain ID to evaluate.
- * @returns True if chainId requires manual L1 -> L2 finalization, otherwise false.
- */
-export function chainRequiresL1ToL2Finalization(chainId: number): boolean {
-  return chainIsCCTPEnabled(chainId);
-}
-
 /**
  * Returns the origin of a URL.
  * @param url A URL.
