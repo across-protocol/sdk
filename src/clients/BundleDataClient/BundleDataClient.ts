@@ -20,6 +20,7 @@ import {
   DepositWithBlock,
 } from "../../interfaces";
 import { SpokePoolClient } from "..";
+import { findFillEvent } from "../../arch/evm";
 import {
   BigNumber,
   bnZero,
@@ -37,7 +38,6 @@ import {
   mapAsync,
   bnUint32Max,
   isZeroValueDeposit,
-  findFillEvent,
   isZeroValueFillOrSlowFillRequest,
   chainIsEvm,
   isValidEvmAddress,
@@ -728,8 +728,7 @@ export class BundleDataClient {
         // hasn't queried. This is because this function will usually be called
         // in production with block ranges that were validated by
         // DataworkerUtils.blockRangesAreInvalidForSpokeClients.
-        Math.min(queryBlock, spokePoolClients[deposit.destinationChainId].latestBlockSearched),
-        deposit.destinationChainId
+        Math.min(queryBlock, spokePoolClients[deposit.destinationChainId].latestBlockSearched)
       );
     };
 
