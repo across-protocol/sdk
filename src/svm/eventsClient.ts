@@ -9,7 +9,6 @@ import web3, {
   Signature,
 } from "@solana/kit";
 import bs58 from "bs58";
-import bs64 from "bs64";
 import { EventData, EventName, EventWithData } from "./types";
 import { decodeEvent } from "./utils/events";
 import { isDevnet } from "./utils/helpers";
@@ -188,7 +187,7 @@ export class SvmSpokeEventsClient {
         ) {
           const ixData = bs58.decode(ix.data);
           // Skip the first 8 bytes (assumed header) and encode the rest.
-          const eventData = bs64.encode(ixData.slice(8));
+          const eventData = Buffer.from(ixData.slice(8)).toString("base64");
           const { name, data } = decodeEvent(SvmSpokeIdl, eventData);
           events.push({ program: this.svmSpokeAddress, name, data });
         }
