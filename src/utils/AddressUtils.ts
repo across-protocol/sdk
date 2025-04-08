@@ -225,7 +225,7 @@ export class EvmAddress extends Address {
   // Constructs a new EvmAddress type.
   static from(address: string, encoding: "base16" | "base58" = "base16"): EvmAddress {
     if (encoding === "base16") {
-      return  new this(utils.arrayify(address));
+      return new this(utils.arrayify(address));
     }
 
     const decodedAddress = bs58.decode(address);
