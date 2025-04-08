@@ -69,6 +69,46 @@ export function getDepositIdAtBlock(_contract: unknown, _blockTag: number): Prom
   throw new Error("getDepositIdAtBlock: not implemented");
 }
 
+/**
+ * xxx todo
+ */
+export async function getSlotForBlock(provider: Provider, blockNumber: bigint, lowSlot: bigint, _highSlot?: bigint): Promise<bigint | undefined> {
+  // @todo: Factor getBlock out to SlotFinder ??
+  const getBlockNumber = async (slot: bigint): Promise<bigint> => {
+		const block = await provider.getBlock(
+      slot,
+	    { transactionDetails: "none", maxSupportedTransactionVersion: 0 }
+    ).send();
+    return block?.blockHeight ?? BigInt(0); // @xxx Handle undefined here!
+	}
+
+  let highSlot = _highSlot ?? await provider.getSlot().send();
+  const [blockLow = 0, blockHigh = 1_000_000_000] = await Promise.all([
+    getBlockNumber(lowSlot),
+    getBlockNumber(highSlot),
+  ]);
+
+  if (blockLow > blockNumber || blockHigh < blockNumber) {
+    return undefined; // blockNumber did not occur within the specified block range.
+  }
+
+  // Find the lowest slot number where blockHeight is greater than the requested blockNumber.
+  do {
+    const midSlot = (highSlot + lowSlot) / BigInt(2);
+    const midBlock = await getBlockNumber(midSlot);
+
+    if (midBlock < blockNumber) {
+      lowSlot = midSlot + BigInt(1);
+    } else if (midBlock > blockNumber) {
+      highSlot = midSlot + BigInt(1); // blockNumber occurred at or earlier than midBlock.
+    } else {
+      return midSlot;
+    }
+  } while (lowSlot <= highSlot);
+
+  return undefined;
+}
+
 export function findDepositBlock(
   _spokePool: unknown,
   depositId: BigNumber,
