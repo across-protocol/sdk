@@ -11,6 +11,8 @@ import web3, {
 import { bs58 } from "../../utils";
 import { EventData, EventName, EventWithData } from "./types";
 import { decodeEvent, isDevnet } from "./utils";
+import { getEventName, parseEventData } from "./utils/events";
+import { getSlotForBlock } from "../arch/svm";
 
 // Utility type to extract the return type for the JSON encoding overload. We only care about the overload where the
 // configuration parameter (C) has the optional property 'encoding' set to 'json'.
@@ -64,37 +66,50 @@ export class SvmSpokeEventsClient {
    * Queries events for the SvmSpoke program filtered by event name.
    *
    * @param eventName - The name of the event to filter by.
-   * @param fromSlot - Optional starting slot.
-   * @param toSlot - Optional ending slot.
+   * @param fromBlock - Optional starting block.
+   * @param toBlock - Optional ending block.
    * @param options - Options for fetching signatures.
    * @returns A promise that resolves to an array of events matching the eventName.
    */
   public async queryEvents<T extends EventData>(
     eventName: EventName,
-    fromSlot?: bigint,
-    toSlot?: bigint,
+    fromBlock?: bigint,
+    toBlock?: bigint,
     options: GetSignaturesForAddressConfig = { limit: 1000, commitment: "confirmed" }
   ): Promise<EventWithData<T>[]> {
-    const events = await this.queryAllEvents(fromSlot, toSlot, options);
+    const events = await this.queryAllEvents(fromBlock, toBlock, options);
     return events.filter((event) => event.name === eventName) as EventWithData<T>[];
   }
 
   /**
    * Queries all events for a specific program.
    *
-   * @param fromSlot - Optional starting slot.
-   * @param toSlot - Optional ending slot.
+   * @param fromBlock - Optional starting block.
+   * @param toBlock - Optional ending block.
    * @param options - Options for fetching signatures.
    * @returns A promise that resolves to an array of all events with additional metadata.
    */
   private async queryAllEvents(
-    fromSlot?: bigint,
-    toSlot?: bigint,
+    fromBlock?: bigint,
+    toBlock?: bigint,
     options: GetSignaturesForAddressConfig = { limit: 1000, commitment: "confirmed" }
   ): Promise<EventWithData<EventData>[]> {
     const allSignatures: GetSignaturesForAddressTransaction[] = [];
     let hasMoreSignatures = true;
     let currentOptions = options;
+
+    let fromSlot: bigint | undefined;
+    let toSlot: bigint | undefined;
+
+    if (fromBlock) {
+      const slot = await getSlotForBlock(this.rpc, fromBlock, BigInt(0));
+      fromSlot = slot;
+    }
+
+    if (toBlock) {
+      const slot = await getSlotForBlock(this.rpc, toBlock, BigInt(0));
+      toSlot = slot;
+    }
 
     while (hasMoreSignatures) {
       const signatures: GetSignaturesForAddressApiResponse = await this.rpc
