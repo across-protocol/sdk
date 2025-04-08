@@ -64,7 +64,6 @@ export const BRIDGED_USDC_SYMBOLS = [
   TOKEN_SYMBOLS_MAP["USDC.e"].symbol,
   TOKEN_SYMBOLS_MAP.USDbC.symbol,
   TOKEN_SYMBOLS_MAP.USDzC.symbol,
-  TOKEN_SYMBOLS_MAP.USDB.symbol,
 ];
 
 export const STABLE_COIN_SYMBOLS = [
