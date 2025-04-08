@@ -1,5 +1,5 @@
 import { BN, BorshEventCoder, Idl } from "@coral-xyz/anchor";
-import { address }  from "@solana/kit";
+import { address } from "@solana/kit";
 import { EventName, EventData, SVMEventNames } from "../types";
 
 /**
