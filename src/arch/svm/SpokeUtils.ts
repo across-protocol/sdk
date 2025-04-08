@@ -72,17 +72,21 @@ export function getDepositIdAtBlock(_contract: unknown, _blockTag: number): Prom
 /**
  * xxx todo
  */
-export async function getSlotForBlock(provider: Provider, blockNumber: bigint, lowSlot: bigint, _highSlot?: bigint): Promise<bigint | undefined> {
+export async function getSlotForBlock(
+  provider: Provider,
+  blockNumber: bigint,
+  lowSlot: bigint,
+  _highSlot?: bigint
+): Promise<bigint | undefined> {
   // @todo: Factor getBlock out to SlotFinder ??
   const getBlockNumber = async (slot: bigint): Promise<bigint> => {
-		const block = await provider.getBlock(
-      slot,
-	    { transactionDetails: "none", maxSupportedTransactionVersion: 0 }
-    ).send();
+    const block = await provider
+      .getBlock(slot, { transactionDetails: "none", maxSupportedTransactionVersion: 0 })
+      .send();
     return block?.blockHeight ?? BigInt(0); // @xxx Handle undefined here!
-	}
+  };
 
-  let highSlot = _highSlot ?? await provider.getSlot().send();
+  let highSlot = _highSlot ?? (await provider.getSlot().send());
   const [blockLow = 0, blockHigh = 1_000_000_000] = await Promise.all([
     getBlockNumber(lowSlot),
     getBlockNumber(highSlot),
