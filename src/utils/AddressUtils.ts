@@ -223,8 +223,20 @@ export class EvmAddress extends Address {
   }
 
   // Constructs a new EvmAddress type.
-  static from(hexString: string): EvmAddress {
-    return new this(utils.arrayify(hexString));
+  static from(address: string, encoding: "base16" | "base58" = "base16"): EvmAddress {
+    if (encoding === "base16") {
+      return  new this(utils.arrayify(address));
+    }
+
+    const decodedAddress = bs58.decode(address);
+    const padding = decodedAddress.subarray(0, 12);
+    const evmAddress = decodedAddress.subarray(12);
+
+    if (padding.length !== 12 || utils.stripZeros(padding).length !== 0 || evmAddress.length !== 20) {
+      throw new Error(`Not a valid base58-encoded EVM address: ${address}`);
+    }
+
+    return new this(evmAddress);
   }
 }
 
