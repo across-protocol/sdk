@@ -192,4 +192,14 @@ export class SvmSpokePoolClient extends SpokePoolClient {
   ): Promise<FillStatus> {
     throw new Error("relayFillStatus not implemented for SVM");
   }
+
+  /**
+   * Retrieves the fill status for an array of given relay data.
+   * @param relayData The array relay data to retrieve the fill status for.
+   * @param blockTag The block at which to query the fill status.
+   * @returns The fill status for each of the given relay data.
+   */
+  public fillStatusArray(_relayData: RelayData[], _blockTag?: number | "latest"): Promise<(FillStatus | undefined)[]> {
+    throw new Error("fillStatusArray not implemented for SVM");
+  }
 }
