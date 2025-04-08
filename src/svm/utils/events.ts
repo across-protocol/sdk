@@ -1,5 +1,5 @@
 import { BN, BorshEventCoder, Idl } from "@coral-xyz/anchor";
-import web3 from "@solana/kit";
+import { address }  from "@solana/kit";
 import { EventName, EventData, SVMEventNames } from "../types";
 
 /**
@@ -15,7 +15,7 @@ export function parseEventData(eventData: any): any {
 
   if (typeof eventData === "object") {
     if (eventData.constructor.name === "PublicKey") {
-      return web3.address(eventData.toString());
+      return address(eventData.toString());
     }
     if (BN.isBN(eventData)) {
       return BigInt(eventData.toString());
@@ -35,11 +35,10 @@ export function parseEventData(eventData: any): any {
  */
 export function decodeEvent(idl: Idl, rawEvent: string): { data: EventData; name: EventName } {
   const event = new BorshEventCoder(idl).decode(rawEvent);
-  if (!event?.name) throw new Error("Event name is undefined");
-  const name = getEventName(event.name);
+  if (!event) throw new Error(`Malformed rawEvent for IDL ${idl.address}: ${rawEvent}`);
   return {
-    data: parseEventData(event?.data),
-    name,
+    data: parseEventData(event.data),
+    name: getEventName(event.name),
   };
 }
 

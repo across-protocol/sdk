@@ -1,6 +1,5 @@
 import { getDeployedAddress, SvmSpokeIdl } from "@across-protocol/contracts";
 import { getSolanaChainId } from "@across-protocol/contracts/dist/src/svm/web3-v1";
-import { utils } from "@coral-xyz/anchor";
 import web3, {
   Address,
   Commitment,
@@ -9,6 +8,7 @@ import web3, {
   RpcTransport,
   Signature,
 } from "@solana/kit";
+import { base58, base64 } from "../utils";
 import { EventData, EventName, EventWithData } from "./types";
 import { decodeEvent } from "./utils/events";
 import { isDevnet } from "./utils/helpers";
@@ -185,9 +185,9 @@ export class SvmSpokeEventsClient {
           this.svmSpokeAddress === ixProgramId &&
           this.svmSpokeEventAuthority === singleIxAccount
         ) {
-          const ixData = utils.bytes.bs58.decode(ix.data);
+          const ixData = base58.decode(ix.data);
           // Skip the first 8 bytes (assumed header) and encode the rest.
-          const eventData = utils.bytes.base64.encode(Buffer.from(new Uint8Array(ixData).slice(8)));
+          const eventData = base64.encode(ixData.slice(8));
           const { name, data } = decodeEvent(SvmSpokeIdl, eventData);
           events.push({ program: this.svmSpokeAddress, name, data });
         }
