@@ -8,7 +8,7 @@ import web3, {
   RpcTransport,
   Signature,
 } from "@solana/kit";
-import bs58 from "bs58";
+import { bs58 } from "../utils";
 import { EventData, EventName, EventWithData } from "./types";
 import { decodeEvent } from "./utils/events";
 import { isDevnet } from "./utils/helpers";
