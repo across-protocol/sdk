@@ -41,7 +41,6 @@ import {
 } from "../../interfaces";
 import { BaseAbstractClient, UpdateFailureReason } from "../BaseAbstractClient";
 import { AcrossConfigStoreClient } from "../AcrossConfigStoreClient";
-import { getRepaymentChainId, forceDestinationRepayment } from "../BundleDataClient";
 import { HubPoolClient } from "../HubPoolClient";
 
 export type SpokePoolUpdateSuccess = {
@@ -365,23 +364,13 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
         fill: FillWithBlock
       ) => {
         if (validateFillForDeposit(fill, deposit).valid) {
-          const repaymentChainId = getRepaymentChainId(fill, deposit, this.hubPoolClient!);
           // In order to keep this function sync, we can't call verifyFillRepayment so we'll log any fills that
           // we'll have to overwrite repayment information for. This includes fills for lite chains where the
           // repayment address is invalid, and fills for non-lite chains where the repayment address is valid or
           // the repayment chain is invalid. We don't check that the origin chain is a valid EVM chain for
           // lite chain deposits yet because only EVM chains are supported on Across...for now. This means
           // this logic will have to be revisited when we add SVM to log properly.
-          if (
-            this.hubPoolClient &&
-            !isSlowFill(fill) &&
-            (!isValidEvmAddress(fill.relayer) ||
-              forceDestinationRepayment(
-                repaymentChainId,
-                { ...deposit, quoteBlockNumber: this.hubPoolClient!.latestBlockSearched },
-                this.hubPoolClient
-              ))
-          ) {
+          if (this.hubPoolClient && !isSlowFill(fill) && !isValidEvmAddress(fill.relayer)) {
             groupedFills.unrepayableFills.push(fill);
           }
           // This fill is still valid and means that the deposit cannot be filled on-chain anymore, but it
