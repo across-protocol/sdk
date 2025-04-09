@@ -76,7 +76,7 @@ function forceOriginChainRepayment(
   );
 }
 
-function getRepaymentChainId(
+export function getRepaymentChainId(
   repaymentChainId: number,
   matchedDeposit: MatchedDepositRepaymentInformation,
   hubPoolClient: HubPoolClient
@@ -84,7 +84,7 @@ function getRepaymentChainId(
   return forceOriginChainRepayment(matchedDeposit, hubPoolClient) ? matchedDeposit.originChainId : repaymentChainId;
 }
 
-function forceDestinationRepayment(
+export function forceDestinationRepayment(
   repaymentChainId: number,
   matchedDeposit: MatchedDepositRepaymentInformation,
   hubPoolClient: HubPoolClient
