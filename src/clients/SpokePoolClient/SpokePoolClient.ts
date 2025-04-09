@@ -17,6 +17,7 @@ import {
   isZeroAddress,
   toAddress,
   validateFillForDeposit,
+  chainIsEvm,
 } from "../../utils";
 import {
   duplicateEvent,
@@ -41,7 +42,7 @@ import {
 } from "../../interfaces";
 import { BaseAbstractClient, UpdateFailureReason } from "../BaseAbstractClient";
 import { AcrossConfigStoreClient } from "../AcrossConfigStoreClient";
-import { getRepaymentChainId, forceDestinationRepayment } from "../BundleDataClient";
+import { getRepaymentChainId } from "../BundleDataClient";
 import { HubPoolClient } from "../HubPoolClient";
 
 export type SpokePoolUpdateSuccess = {
@@ -365,22 +366,22 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
         fill: FillWithBlock
       ) => {
         if (validateFillForDeposit(fill, deposit).valid) {
-          const repaymentChainId = getRepaymentChainId(fill, deposit, this.hubPoolClient!);
-          // In order to keep this function sync, we can't call verifyFillRepayment so we'll log any fills that
-          // we'll have to overwrite repayment information for. This includes fills for lite chains where the
-          // repayment address is invalid, and fills for non-lite chains where the repayment address is valid or
-          // the repayment chain is invalid. We don't check that the origin chain is a valid EVM chain for
-          // lite chain deposits yet because only EVM chains are supported on Across...for now. This means
-          // this logic will have to be revisited when we add SVM to log properly.
+          const depositWithQuoteBlock = { ...deposit, quoteBlockNumber: this.hubPoolClient!.latestBlockSearched };
+          const repaymentChainId = getRepaymentChainId(
+            fill.repaymentChainId,
+            depositWithQuoteBlock,
+            this.hubPoolClient!
+          );
+          // In order to keep this function sync, we can't call verifyFillRepayment so we'll log any fills where
+          // the filler-specified repayment chain and repayment address is not a valid repayment upon
+          // first glance. In other words, the repayment address is not a valid EVM address or the repayment chain
+          // is not a valid EVM chain. In the case where the repayment address is not a valid EVM address, the dataworker
+          // might be able to overwrite the repayment address to the msg.sender on the fill txn, but to keep this
+          // functioon synchronous, we can't make that decision now. So this function might log some false positives.
           if (
             this.hubPoolClient &&
             !isSlowFill(fill) &&
-            (!isValidEvmAddress(fill.relayer) ||
-              forceDestinationRepayment(
-                repaymentChainId,
-                { ...deposit, quoteBlockNumber: this.hubPoolClient!.latestBlockSearched },
-                this.hubPoolClient
-              ))
+            (!chainIsEvm(repaymentChainId) || !isValidEvmAddress(fill.relayer))
           ) {
             groupedFills.unrepayableFills.push(fill);
           }
