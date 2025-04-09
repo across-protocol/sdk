@@ -74,6 +74,43 @@ describe("FillUtils", function () {
   });
 
   describe("verifyFillRepayment", function () {
+    describe("Deposit is not mapped to a PoolRebalanceRoute", function () {
+      beforeEach(function () {
+        hubPoolClient.deleteTokenMapping(ZERO_ADDRESS, deposit.originChainId);
+      });
+      it("Relayer address on origin chain is valid", async function () {
+        const result = await verifyFillRepayment(fill, spokeProvider, deposit, hubPoolClient);
+        expect(result).to.not.be.undefined;
+        expect(result!.relayer).to.equal(relayer);
+
+        expect(result!.repaymentChainId).to.equal(originChainId);
+        expect(result!.relayer).to.equal(relayer);
+      });
+      it("Relayer is not valid EVM address; relayer gets overwritten to msg.sender", async function () {
+        const invalidRepaymentFill = {
+          ...fill,
+          relayer: INVALID_EVM_ADDRESS,
+        };
+        spokeProvider._setTransaction(fill.transactionHash, {
+          from: relayer,
+        } as unknown as TransactionResponse);
+        const result = await verifyFillRepayment(invalidRepaymentFill, spokeProvider, deposit, hubPoolClient);
+        expect(result).to.not.be.undefined;
+        expect(result!.relayer).to.equal(relayer);
+        expect(result!.repaymentChainId).to.equal(originChainId);
+      });
+      it("Relayer is not valid EVM address; msg.sender is also invalid", async function () {
+        const invalidRepaymentFill = {
+          ...fill,
+          relayer: INVALID_EVM_ADDRESS,
+        };
+        spokeProvider._setTransaction(fill.transactionHash, {
+          from: INVALID_EVM_ADDRESS,
+        } as unknown as TransactionResponse);
+        const result = await verifyFillRepayment(invalidRepaymentFill, spokeProvider, deposit, hubPoolClient);
+        expect(result).to.be.undefined;
+      });
+    });
     it("Original repayment is valid", async function () {
       hubPoolClient.setTokenMapping(ZERO_ADDRESS, fill.repaymentChainId, ZERO_ADDRESS);
       const result = await verifyFillRepayment(fill, spokeProvider, deposit, hubPoolClient);

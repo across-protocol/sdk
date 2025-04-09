@@ -702,7 +702,7 @@ export class BundleDataClient {
 
     const _canCreateSlowFillLeaf = (deposit: DepositWithBlock): boolean => {
       return (
-        // Cannot slow fill when input and output tokens are not equivalent. 
+        // Cannot slow fill when input and output tokens are not equivalent.
         this.clients.hubPoolClient.areTokensEquivalent(
           deposit.inputToken,
           deposit.originChainId,

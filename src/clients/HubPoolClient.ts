@@ -213,7 +213,7 @@ export class HubPoolClient extends BaseAbstractClient {
     latestHubBlock = Number.MAX_SAFE_INTEGER
   ): string {
     const l2Tokens = Object.keys(this.l1TokensToDestinationTokensWithBlock)
-      .filter((l1Token) => this.l2TokenHasPoolRebalanceRoute(l1Token, destinationChainId))
+      .filter((l1Token) => this.l2TokenEnabledForL1Token(l1Token, destinationChainId))
       .map((l1Token) => {
         // Return all matching L2 token mappings that are equal to or earlier than the target block.
         return this.l1TokensToDestinationTokensWithBlock[l1Token][destinationChainId].filter(
@@ -261,8 +261,22 @@ export class HubPoolClient extends BaseAbstractClient {
     return this.getL2TokenForL1TokenAtBlock(l1Token, l2ChainId, deposit.quoteBlockNumber);
   }
 
-  l2TokenHasPoolRebalanceRoute(l2Token: string, l2ChainId: number): boolean {
-    return this.l1TokensToDestinationTokens?.[l2Token]?.[l2ChainId] != undefined;
+  l2TokenEnabledForL1Token(l1Token: string, destinationChainId: number): boolean {
+    return this.l1TokensToDestinationTokens?.[l1Token]?.[destinationChainId] != undefined;
+  }
+
+  l2TokenHasPoolRebalanceRoute(l2Token: string, l2ChainId: number, hubPoolBlock = this.latestBlockSearched): boolean {
+    return Object.values(this.l1TokensToDestinationTokensWithBlock).some((destinationTokenMapping) => {
+      return Object.entries(destinationTokenMapping).some(([_l2ChainId, setPoolRebalanceRouteEvents]) => {
+        return setPoolRebalanceRouteEvents.some((e) => {
+          return (
+            e.blockNumber <= hubPoolBlock &&
+            compareAddressesSimple(e.l2Token, l2Token) &&
+            Number(_l2ChainId) === l2ChainId
+          );
+        });
+      });
+    });
   }
 
   /**
@@ -529,7 +543,10 @@ export class HubPoolClient extends BaseAbstractClient {
     chainIdB: number,
     hubPoolBlock = this.latestBlockSearched
   ): boolean {
-    if (!this.l2TokenHasPoolRebalanceRoute(tokenA, chainIdA) || !this.l2TokenHasPoolRebalanceRoute(tokenB, chainIdB)) {
+    if (
+      !this.l2TokenHasPoolRebalanceRoute(tokenA, chainIdA, hubPoolBlock) ||
+      !this.l2TokenHasPoolRebalanceRoute(tokenB, chainIdB, hubPoolBlock)
+    ) {
       return false;
     }
     try {

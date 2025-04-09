@@ -149,7 +149,9 @@ export function _buildPoolRebalanceRoot(
         // If the repayment token and repayment chain ID do not map to a PoolRebalanceRoute graph, then
         // it has no effect on running balances and fees because it results in a repayment using the deposited
         // funds on the origin chain.
-        if (!clients.hubPoolClient.l2TokenHasPoolRebalanceRoute(l2TokenAddress, repaymentChainId)) {
+        if (
+          !clients.hubPoolClient.l2TokenHasPoolRebalanceRoute(l2TokenAddress, repaymentChainId, mainnetBundleEndBlock)
+        ) {
           return;
         }
         const l1TokenCounterpart = clients.hubPoolClient.getL1TokenForL2TokenAtBlock(
@@ -224,7 +226,13 @@ export function _buildPoolRebalanceRoot(
         // If the deposited token and origin chain ID do not map to a PoolRebalanceRoute graph, then
         // it has no effect on running balances and fees because it results in a repayment using the deposited
         // funds on the origin chain.
-        if (!clients.hubPoolClient.l2TokenHasPoolRebalanceRoute(deposit.inputToken, deposit.originChainId)) {
+        if (
+          !clients.hubPoolClient.l2TokenHasPoolRebalanceRoute(
+            deposit.inputToken,
+            deposit.originChainId,
+            mainnetBundleEndBlock
+          )
+        ) {
           return;
         }
         updateRunningBalanceForDeposit(runningBalances, clients.hubPoolClient, deposit, deposit.inputAmount.mul(-1));
@@ -244,7 +252,13 @@ export function _buildPoolRebalanceRoot(
         // If the deposited token and origin chain ID do not map to a PoolRebalanceRoute graph, then
         // it has no effect on running balances and fees because it results in a repayment using the deposited
         // funds on the origin chain.
-        if (!clients.hubPoolClient.l2TokenHasPoolRebalanceRoute(deposit.inputToken, deposit.originChainId)) {
+        if (
+          !clients.hubPoolClient.l2TokenHasPoolRebalanceRoute(
+            deposit.inputToken,
+            deposit.originChainId,
+            mainnetBundleEndBlock
+          )
+        ) {
           return;
         }
         const l1TokenCounterpart = clients.hubPoolClient.getL1TokenForL2TokenAtBlock(
