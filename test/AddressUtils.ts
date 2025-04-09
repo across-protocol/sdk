@@ -1,6 +1,5 @@
-import { EvmAddress, Address, SvmAddress, toAddressType } from "../src/utils";
+import { bs58, EvmAddress, Address, SvmAddress, toAddressType } from "../src/utils";
 import { CHAIN_IDs } from "../src/constants";
-import { bs58 } from "../src/utils";
 import { expect, ethers } from "./utils";
 
 describe("Address Utils: Address Type", function () {
@@ -33,29 +32,24 @@ describe("Address Utils: Address Type", function () {
 
       // Valid padding length
       let padding = new Uint8Array(12);
-      let b58Address = bs58.encode([ ...padding, ...rawAddress]).toString();
-      let address = EvmAddress.from(b58Address, "base58");
+      let b58Address = bs58.encode([...padding, ...rawAddress]).toString();
+      const address = EvmAddress.from(b58Address, "base58");
       expect(address.toAddress()).to.equal(ethers.utils.getAddress(ethers.utils.hexlify(rawAddress)));
 
       // Wrong encoding
-      expect(() => EvmAddress.from(b58Address, "base16"))
-        .to.throw(Error, /invalid arrayify value/);
+      expect(() => EvmAddress.from(b58Address, "base16")).to.throw(Error, /invalid arrayify value/);
 
       // Invalid EVM address length
       [19, 21].forEach((len) => {
-        b58Address = bs58.encode(
-          [ ...padding, ...ethers.utils.arrayify(randomBytes(len))]
-        ).toString();
-        expect(() => EvmAddress.from(b58Address, "base58"))
-          .to.throw(Error, /Not a valid base58-encoded EVM address/);
+        b58Address = bs58.encode([...padding, ...ethers.utils.arrayify(randomBytes(len))]).toString();
+        expect(() => EvmAddress.from(b58Address, "base58")).to.throw(Error, /Not a valid base58-encoded EVM address/);
       });
 
       // Invalid padding length.
       [11, 13].forEach((len) => {
         padding = new Uint8Array(len);
-        b58Address = bs58.encode([ ...padding, ...rawAddress]).toString();
-        expect(() => EvmAddress.from(b58Address, "base58"))
-          .to.throw(Error, /Not a valid base58-encoded EVM address/);
+        b58Address = bs58.encode([...padding, ...rawAddress]).toString();
+        expect(() => EvmAddress.from(b58Address, "base58")).to.throw(Error, /Not a valid base58-encoded EVM address/);
       });
     });
     it("Handles base16-encoded SVM addresses", function () {
@@ -63,17 +57,18 @@ describe("Address Utils: Address Type", function () {
       const expectedAddress = bs58.encode(ethers.utils.arrayify(rawAddress));
 
       // Valid address
-      let address = SvmAddress.from(rawAddress, "base16");
+      const address = SvmAddress.from(rawAddress, "base16");
       expect(address.toAddress()).to.equal(expectedAddress);
 
       // Wrong encoding
-      expect(() => SvmAddress.from(rawAddress, "base58"))
-        .to.throw(Error, /Non-base58 character/);
+      expect(() => SvmAddress.from(rawAddress, "base58")).to.throw(Error, /Non-base58 character/);
 
       // Invalid SVM address length
       [31, 33].forEach((len) => {
-        expect(() => SvmAddress.from(randomBytes(len), "base16"))
-          .to.throw(Error, /Not a valid base16-encoded SVM address/);
+        expect(() => SvmAddress.from(randomBytes(len), "base16")).to.throw(
+          Error,
+          /Not a valid base16-encoded SVM address/
+        );
       });
     });
   });
