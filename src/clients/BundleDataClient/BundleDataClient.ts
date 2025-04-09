@@ -270,16 +270,117 @@ export class BundleDataClient {
         {} as Record<number, Record<string, UnderlyingType>>
       );
 
+    const convertSortableEventFieldsIntoRequiredFields = <
+      T extends {
+        txnIndex?: number;
+        transactionIndex?: number;
+        txnRef?: string;
+        transactionHash?: string;
+      },
+    >(
+      data: T[]
+    ): Array<
+      Omit<T, "txnIndex" | "transactionIndex" | "txnRef" | "transactionHash"> & {
+        txnIndex: number;
+        txnRef: string;
+      }
+    > => {
+      return data.map((item) => {
+        // For txnIndex/transactionIndex: throw if both are defined or both are missing.
+        if (
+          (item.txnIndex !== undefined && item.transactionIndex !== undefined) ||
+          (item.txnIndex === undefined && item.transactionIndex === undefined)
+        ) {
+          throw new Error("Either txnIndex or transactionIndex must be defined, but not both.");
+        }
+
+        // For txnRef/transactionHash: throw if both are defined or both are missing.
+        if (
+          (item.txnRef !== undefined && item.transactionHash !== undefined) ||
+          (item.txnRef === undefined && item.transactionHash === undefined)
+        ) {
+          throw new Error("Either txnRef or transactionHash must be defined, but not both.");
+        }
+
+        // Destructure the fields we don't need anymore
+        const { txnIndex, transactionIndex, txnRef, transactionHash, ...rest } = item;
+
+        // Return a new object with normalized fields.
+        // The non-null assertion (!) is safe here because our conditions ensure that one of each pair is defined.
+        return {
+          ...rest,
+          txnIndex: txnIndex ?? transactionIndex!,
+          txnRef: txnRef ?? transactionHash!,
+        };
+      });
+    };
+
+    const convertEmbeddedSortableEventFieldsIntoRequiredFields = <
+      T extends {
+        txnIndex?: number;
+        transactionIndex?: number;
+        txnRef?: string;
+        transactionHash?: string;
+      },
+    >(
+      data: Record<string, Record<string, T[]>>
+    ) => {
+      return Object.fromEntries(
+        Object.entries(data).map(([chainId, tokenData]) => [
+          chainId,
+          Object.fromEntries(
+            Object.entries(tokenData).map(([token, data]) => [
+              token,
+              convertSortableEventFieldsIntoRequiredFields(data),
+            ])
+          ),
+        ])
+      );
+    };
+
     const data = persistedData[0].data;
 
     this.backfillMessageHashes(data);
 
+    // This section processes and transforms bundle data loaded from Arweave storage into the correct format:
+    // 1. Each field (bundleFillsV3, expiredDepositsToRefundV3, etc.) contains nested records keyed by chainId and token
+    // 2. The chainId keys are converted from strings to numbers using convertTypedStringRecordIntoNumericRecord
+    // 3. For arrays of events (fills, deposits, etc.), the transaction fields are normalized:
+    //    - txnIndex/transactionIndex -> txnIndex
+    //    - txnRef/transactionHash -> txnRef
+    //    This ensures consistent field names across all event objects
+    // 4. The data structure maintains all other fields like refunds, totalRefundAmount, and realizedLpFees
     const bundleData = {
-      bundleFillsV3: convertTypedStringRecordIntoNumericRecord(data.bundleFillsV3),
-      expiredDepositsToRefundV3: convertTypedStringRecordIntoNumericRecord(data.expiredDepositsToRefundV3),
-      bundleDepositsV3: convertTypedStringRecordIntoNumericRecord(data.bundleDepositsV3),
-      unexecutableSlowFills: convertTypedStringRecordIntoNumericRecord(data.unexecutableSlowFills),
-      bundleSlowFillsV3: convertTypedStringRecordIntoNumericRecord(data.bundleSlowFillsV3),
+      bundleFillsV3: convertTypedStringRecordIntoNumericRecord(
+        Object.fromEntries(
+          Object.entries(data.bundleFillsV3).map(([chainId, tokenData]) => [
+            chainId,
+            Object.fromEntries(
+              Object.entries(tokenData).map(([token, data]) => [
+                token,
+                {
+                  refunds: data.refunds,
+                  totalRefundAmount: data.totalRefundAmount,
+                  realizedLpFees: data.realizedLpFees,
+                  fills: convertSortableEventFieldsIntoRequiredFields(data.fills),
+                },
+              ])
+            ),
+          ])
+        )
+      ),
+      expiredDepositsToRefundV3: convertTypedStringRecordIntoNumericRecord(
+        convertEmbeddedSortableEventFieldsIntoRequiredFields(data.expiredDepositsToRefundV3)
+      ),
+      bundleDepositsV3: convertTypedStringRecordIntoNumericRecord(
+        convertEmbeddedSortableEventFieldsIntoRequiredFields(data.bundleDepositsV3)
+      ),
+      unexecutableSlowFills: convertTypedStringRecordIntoNumericRecord(
+        convertEmbeddedSortableEventFieldsIntoRequiredFields(data.unexecutableSlowFills)
+      ),
+      bundleSlowFillsV3: convertTypedStringRecordIntoNumericRecord(
+        convertEmbeddedSortableEventFieldsIntoRequiredFields(data.bundleSlowFillsV3)
+      ),
     };
     this.logger.debug({
       at: "BundleDataClient#loadPersistedDataFromArweave",
