@@ -216,4 +216,8 @@ export class SvmSpokeEventsClient {
 
     return events;
   }
+
+  public getSvmSpokeAddress(): Address {
+    return this.svmSpokeAddress;
+  }
 }
