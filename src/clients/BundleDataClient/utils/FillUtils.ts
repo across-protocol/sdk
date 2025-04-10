@@ -62,24 +62,6 @@ export function getRefundInformationFromFill(
 
 type FillRepaymentInformation = Fill & { quoteBlockNumber: number; fromLiteChain: boolean };
 
-export function _depositHasPoolRebalanceRoute(
-  relayData: FillRepaymentInformation,
-  hubPoolClient: HubPoolClient
-): boolean {
-  return (
-    hubPoolClient.l2TokenHasPoolRebalanceRoute(
-      relayData.inputToken,
-      relayData.originChainId,
-      relayData.quoteBlockNumber
-    ) &&
-    hubPoolClient.l2TokenHasPoolRebalanceRoute(
-      relayData.outputToken,
-      relayData.destinationChainId,
-      relayData.quoteBlockNumber
-    )
-  );
-}
-
 /**
  * @notice Returns repayment chain for the fill based on its input, output, and requested repayment
  * tokens and chains as well as its Lite chain and Slow Fill statuses
