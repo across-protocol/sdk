@@ -2,6 +2,8 @@ import { utils as ethersUtils } from "ethers";
 import { UNDEFINED_MESSAGE_HASH, ZERO_BYTES } from "../src/constants";
 import { getMessageHash, getRelayEventKey, keccak256, randomAddress, toBN, validateFillForDeposit } from "../src/utils";
 import { expect } from "./utils";
+import { CachedSolanaRpcFactory } from "../src/providers";
+import { getMaxFillDeadlineInRange } from "../src/arch/svm/SpokeUtils";
 
 const random = () => Math.round(Math.random() * 1e8);
 const randomBytes = () => `0x${ethersUtils.randomBytes(48).join("").slice(0, 64)}`;
@@ -25,6 +27,21 @@ describe("SpokeUtils", function () {
     exclusiveRelayer: randomAddress(),
     exclusivityDeadline: random(),
   };
+
+  it.only("getMaxFillDeadlineInRange returns the correct fill deadline", async function () {
+    const rpcFactory = new CachedSolanaRpcFactory(
+      "sdk-test",
+      undefined,
+      10,
+      0,
+      undefined,
+      "https://api.mainnet-beta.solana.com",
+      34268394551451
+    );
+    const provider = rpcFactory.createRpcClient();
+    const fillDeadline = await getMaxFillDeadlineInRange({ provider }, 0, 100);
+    console.log(fillDeadline);
+  });
 
   it("getRelayEventKey correctly concatenates an event key", function () {
     const eventKey = getRelayEventKey(sampleData);

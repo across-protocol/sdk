@@ -33,7 +33,7 @@ export function parseEventData(eventData: any): any {
 /**
  * Converts a snake_case string to camelCase.
  */
-function snakeToCamel(s: string): string {
+export function snakeToCamel(s: string): string {
   return s.replace(/(_\w)/g, (match) => match[1].toUpperCase());
 }
 
