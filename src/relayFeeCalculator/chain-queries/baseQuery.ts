@@ -22,7 +22,7 @@ import { Transport } from "viem";
 import { getGasPriceEstimate } from "../../gasPriceOracle/oracle";
 type Provider = providers.Provider;
 type OptimismProvider = L2Provider<Provider>;
-type SymbolMappingType = Record<
+export type SymbolMappingType = Record<
   string,
   {
     addresses: Record<number, string>;

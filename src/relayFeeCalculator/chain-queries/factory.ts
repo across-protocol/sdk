@@ -8,6 +8,7 @@ import { chainIsOPStack, isDefined } from "../../utils";
 import { QueryBase } from "./baseQuery";
 import { DEFAULT_LOGGER, Logger } from "../relayFeeCalculator";
 import { CustomGasTokenQueries } from "./customGasToken";
+import { SvmQuery } from "./svmQuery";
 
 /**
  * Some chains have a fixed gas price that is applied to the gas estimates. We should override
@@ -45,6 +46,18 @@ export class QueryBase__factory {
         ],
         customGasTokenSymbol,
       });
+    }
+    if (chainIsSvm(chainId)) {
+      return new SvmQuery(
+        provider,
+        symbolMapping,
+        spokePoolAddress,
+        simulatedRelayerAddress,
+        logger,
+        coingeckoProApiKey,
+        fixedGasPrice[chainId],
+        coingeckoBaseCurrency
+      );
     }
 
     // For OPStack chains, we need to wrap the provider in an L2Provider
