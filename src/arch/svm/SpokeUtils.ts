@@ -1,6 +1,20 @@
-import { Rpc, SolanaRpcApi } from "@solana/kit";
+import {
+  Rpc,
+  SolanaRpcApi,
+  Address,
+  getProgramDerivedAddress,
+  address,
+  getStructDecoder,
+  getBooleanCodec,
+  getU32Codec,
+  getU64Codec,
+  getAddressCodec,
+  getAddressDecoder,
+} from "@solana/kit";
+
 import { Deposit, FillStatus, FillWithBlock, RelayData } from "../../interfaces";
 import { BigNumber, isUnsafeDepositId } from "../../utils";
+import { snakeToCamel } from "../../svm/utils/events";
 
 type Provider = Rpc<SolanaRpcApi>;
 
@@ -52,12 +66,16 @@ export async function getTimestampForBlock(provider: Provider, blockNumber: numb
  * @param endBlock end block
  * @returns maximum of fill deadline buffer at start and end block
  */
-export function getMaxFillDeadlineInRange(
-  _spokePool: unknown,
+export async function getMaxFillDeadlineInRange(
+  _spokePool: { provider: Provider },
   _startBlock: number,
   _endBlock: number
-): Promise<number> {
-  throw new Error("getMaxFillDeadlineInRange: not implemented");
+): Promise<any> {
+  const programId = "JAZWcGrpSWNPTBj8QtJ9UyQqhJCDhG9GJkDeMf5NQBiq"; // TODO: read this from the spokePool
+  const statePda = await getStatePda(programId);
+  const state = await queryStateFromStatePda(statePda, _spokePool.provider);
+
+  return state.fillDeadlineBuffer;
 }
 
 /**
@@ -175,4 +193,39 @@ export function findFillEvent(
   _highBlockNumber?: number
 ): Promise<FillWithBlock | undefined> {
   throw new Error("fillStatusArray: not implemented");
+}
+
+export async function queryStateFromStatePda(statePda: Address, provider: Provider) {
+  const pdaAccountInfo = await provider.getAccountInfo(statePda, { encoding: "base64" }).send();
+  if (!pdaAccountInfo.value?.data) {
+    throw new Error("State account data not found");
+  }
+  const stateDecoder = getStructDecoder([
+    ["paused_deposits", getBooleanCodec()],
+    ["paused_fills", getBooleanCodec()],
+    ["owner", getAddressDecoder()],
+    ["seed", getU64Codec()],
+    ["number_of_deposits", getU32Codec()],
+    ["chain_id", getU64Codec()],
+    ["current_time", getU32Codec()],
+    ["remote_domain", getU32Codec()],
+    ["cross_domain_admin", getAddressCodec()],
+    ["root_bundle_id", getU32Codec()],
+    ["deposit_quote_time_buffer", getU32Codec()],
+    ["fill_deadline_buffer", getU32Codec()],
+  ]);
+  const stateData = pdaAccountInfo.value.data[0];
+  const stateDataBytes = Buffer.from(stateData, "base64");
+  const discriminatorBytesSize = 8;
+  const decodedState = stateDecoder.decode(Uint8Array.from(stateDataBytes), discriminatorBytesSize);
+  return Object.fromEntries(Object.entries(decodedState).map(([key, value]) => [snakeToCamel(key), value]));
+}
+
+// TODO: Should accept seed
+export async function getStatePda(programId: string): Promise<Address> {
+  const [statePda] = await getProgramDerivedAddress({
+    programAddress: address(programId),
+    seeds: ["state", new Uint8Array(8)], // This only works if second seed is zero, make it dynamic
+  });
+  return statePda;
 }
