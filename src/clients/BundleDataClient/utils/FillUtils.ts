@@ -80,10 +80,6 @@ export function _depositHasPoolRebalanceRoute(
   );
 }
 
-function _forceOriginChainRepayment(relayData: FillRepaymentInformation, hubPoolClient: HubPoolClient): boolean {
-  return relayData.fromLiteChain || !_depositHasPoolRebalanceRoute(relayData, hubPoolClient);
-}
-
 /**
  * @notice Returns repayment chain for the fill based on its input, output, and requested repayment
  * tokens and chains as well as its Lite chain and Slow Fill statuses
@@ -93,9 +89,8 @@ export function getRepaymentChainId(
   relayData: FillRepaymentInformation,
   hubPoolClient: HubPoolClient
 ): number {
-  // This will be true if the input or output tokens do not have valid PoolRebalanceRoute mappings or if the
-  // deposit originated from a lite chain.
-  if (_forceOriginChainRepayment(relayData, hubPoolClient)) {
+  if (relayData.fromLiteChain) {
+    assert(!isSlowFill(relayData), "getRepaymentChainId: fromLiteChain and slow fill are mutually exclusive");
     return relayData.originChainId;
   }
 
@@ -107,28 +102,51 @@ export function getRepaymentChainId(
 
   // If desired repayment chain isn't a valid chain for the PoolRebalanceRoute mapping of the input token,
   // then repayment must be overwritten to the destination chain.
-  const repaymentTokenIsInvalid = _repaymentChainTokenIsInvalid(repaymentChainId, relayData, hubPoolClient);
-  return repaymentTokenIsInvalid ? relayData.destinationChainId : repaymentChainId;
+  const repaymentTokenIsValid = _repaymentChainTokenIsValid(repaymentChainId, relayData, hubPoolClient);
+  if (repaymentTokenIsValid) {
+    return repaymentChainId;
+  }
+
+  // If repayment chain is not valid, then check if we can resolve the input token to a destination chain token,
+  // otherwise the fallback is to return the input token on the origin chain.
+  if (
+    hubPoolClient.l2TokenHasPoolRebalanceRoute(
+      relayData.outputToken,
+      relayData.destinationChainId,
+      relayData.quoteBlockNumber
+    )
+  ) {
+    return relayData.destinationChainId;
+  } else {
+    return relayData.originChainId;
+  }
 }
 
-function _repaymentChainTokenIsInvalid(
+function _repaymentChainTokenIsValid(
   repaymentChainId: number,
   relayData: FillRepaymentInformation,
   hubPoolClient: HubPoolClient
 ): boolean {
-  try {
-    const l1TokenCounterpart = hubPoolClient.getL1TokenForL2TokenAtBlock(
+  if (
+    !hubPoolClient.l2TokenHasPoolRebalanceRoute(
       relayData.inputToken,
       relayData.originChainId,
       relayData.quoteBlockNumber
-    );
-    hubPoolClient.getL2TokenForL1TokenAtBlock(l1TokenCounterpart, repaymentChainId, relayData.quoteBlockNumber);
-    // Repayment token could be found, this is a valid repayment chain.
+    )
+  ) {
     return false;
-  } catch {
-    // Repayment token doesn't exist on repayment chain via PoolRebalanceRoutes, impossible to repay filler there.
-    return true;
   }
+  const l1TokenCounterpart = hubPoolClient.getL1TokenForL2TokenAtBlock(
+    relayData.inputToken,
+    relayData.originChainId,
+    relayData.quoteBlockNumber
+  );
+  if (
+    !hubPoolClient.l2TokenEnabledForL1TokenAtBlock(l1TokenCounterpart, repaymentChainId, relayData.quoteBlockNumber)
+  ) {
+    return false;
+  }
+  return true;
 }
 
 function _repaymentAddressNeedsToBeOverwritten(fill: Fill): boolean {
@@ -175,11 +193,17 @@ export async function verifyFillRepayment(
     if (!isDefined(destinationRelayer) || !isValidEvmAddress(destinationRelayer)) {
       return undefined;
     }
-    // If we can switch the repayment chain to the destination chain, then do so. Otherwise,
-    // check whether the repayment chain is an EVM chain
-    if (!_forceOriginChainRepayment(fill, hubPoolClient)) {
+    // If we can switch the repayment chain to the destination chain, then do so.
+    if (
+      !matchedDeposit.fromLiteChain &&
+      hubPoolClient.l2TokenHasPoolRebalanceRoute(fill.outputToken, fill.destinationChainId, fill.quoteBlockNumber)
+    ) {
       repaymentChainId = fill.destinationChainId;
-    } else {
+    }
+    // If we can't switch the chain, then we need to verify that the msg.sender is a valid address on the repayment chain.
+    // Because we already checked that the `destinationRelayer` was a valid EVM address above, we only need to check
+    // that the repayment chain is an EVM chain.
+    else {
       if (!chainIsEvm(repaymentChainId)) {
         return undefined;
       }
