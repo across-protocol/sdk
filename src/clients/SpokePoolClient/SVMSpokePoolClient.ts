@@ -1,12 +1,10 @@
 import winston from "winston";
 import { Rpc, SolanaRpcApiFromTransport, RpcTransport } from "@solana/kit";
 import { BigNumber, DepositSearchResult, EventSearchConfig, MakeOptional } from "../../utils";
+import { SvmSpokeEventsClient, SVMEventNames } from "../../arch/svm";
 import { HubPoolClient } from "../HubPoolClient";
 import { knownEventNames, SpokePoolClient, SpokePoolUpdate } from "./SpokePoolClient";
-import { SvmSpokeEventsClient } from "../../svm/eventsClient";
 import { RelayData, FillStatus } from "../../interfaces";
-import { SVMEventNames } from "../../svm/types";
-
 /**
  * SvmSpokePoolClient is a client for the SVM SpokePool program. It extends the base SpokePoolClient
  * and implements the abstract methods required for interacting with an SVM Spoke Pool.
