@@ -82,8 +82,7 @@ export function getRepaymentChainId(
     return relayData.destinationChainId;
   }
 
-  // If desired repayment chain isn't a valid chain for the PoolRebalanceRoute mapping of the input token,
-  // then repayment must be overwritten to the destination chain.
+  // Repayment chain is valid if the input token and repayment chain are mapped to the same PoolRebalanceRoute.
   const repaymentTokenIsValid = _repaymentChainTokenIsValid(repaymentChainId, relayData, hubPoolClient);
   if (repaymentTokenIsValid) {
     return repaymentChainId;
