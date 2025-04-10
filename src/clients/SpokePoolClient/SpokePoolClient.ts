@@ -366,12 +366,12 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
         fill: FillWithBlock
       ) => {
         if (validateFillForDeposit(fill, deposit).valid) {
-          const depositWithQuoteBlock = { ...deposit, quoteBlockNumber: this.hubPoolClient!.latestBlockSearched };
-          const repaymentChainId = getRepaymentChainId(
-            fill.repaymentChainId,
-            depositWithQuoteBlock,
-            this.hubPoolClient!
-          );
+          const fillRepaymentData = {
+            ...fill,
+            fromLiteChain: deposit.fromLiteChain,
+            quoteBlockNumber: this.hubPoolClient!.latestBlockSearched,
+          };
+          const repaymentChainId = getRepaymentChainId(fill.repaymentChainId, fillRepaymentData, this.hubPoolClient!);
           // In order to keep this function sync, we can't call verifyFillRepayment so we'll log any fills where
           // the filler-specified repayment chain and repayment address is not a valid repayment upon
           // first glance. In other words, the repayment address is not a valid EVM address or the repayment chain
