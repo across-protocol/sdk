@@ -451,6 +451,30 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
     return `${event.depositId.toString()}-${event.originChainId}`;
   }
 
+  protected canResolveZeroAddressOutputToken(deposit: DepositWithBlock): boolean {
+    if (
+      !this.hubPoolClient?.l2TokenHasPoolRebalanceRoute(
+        deposit.inputToken,
+        deposit.originChainId,
+        deposit.quoteBlockNumber
+      )
+    ) {
+      return false;
+    } else {
+      const l1Token = this.hubPoolClient?.getL1TokenForDeposit(deposit);
+      if (
+        !this.hubPoolClient.l2TokenEnabledForL1TokenAtBlock(
+          l1Token,
+          deposit.destinationChainId,
+          deposit.quoteBlockNumber
+        )
+      ) {
+        return false;
+      }
+      return true;
+    }
+  }
+
   /**
    * A wrapper over the `_update` method that handles errors and logs. This method additionally calls into the
    * HubPoolClient to update the state of this client with data from the HubPool contract.
@@ -513,7 +537,11 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
         deposit.toLiteChain = this.isDestinationLiteChain(deposit);
 
         if (isZeroAddress(deposit.outputToken)) {
-          deposit.outputToken = this.getDestinationTokenForDeposit(deposit);
+          if (!this.canResolveZeroAddressOutputToken(deposit)) {
+            continue;
+          } else {
+            deposit.outputToken = this.getDestinationTokenForDeposit(deposit);
+          }
         }
 
         if (this.depositHashes[getRelayEventKey(deposit)] !== undefined) {

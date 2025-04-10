@@ -265,6 +265,14 @@ export class HubPoolClient extends BaseAbstractClient {
     return this.l1TokensToDestinationTokens?.[l1Token]?.[destinationChainId] != undefined;
   }
 
+  l2TokenEnabledForL1TokenAtBlock(l1Token: string, destinationChainId: number, hubBlockNumber: number): boolean {
+    // Find the last mapping published before the target block.
+    const l2Token: DestinationTokenWithBlock | undefined = sortEventsDescending(
+      this.l1TokensToDestinationTokensWithBlock[l1Token][destinationChainId]
+    ).find((mapping: DestinationTokenWithBlock) => mapping.blockNumber <= hubBlockNumber);
+    return l2Token !== undefined;
+  }
+
   l2TokenHasPoolRebalanceRoute(l2Token: string, l2ChainId: number, hubPoolBlock = this.latestBlockSearched): boolean {
     return Object.values(this.l1TokensToDestinationTokensWithBlock).some((destinationTokenMapping) => {
       return Object.entries(destinationTokenMapping).some(([_l2ChainId, setPoolRebalanceRouteEvents]) => {

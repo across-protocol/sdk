@@ -6,7 +6,7 @@ import { getBlockRangeForChain, isSlowFill, isValidEvmAddress, isDefined, chainI
 import { HubPoolClient } from "../../HubPoolClient";
 
 /**
- * @notice Return repayment chain and repayment token for a fill, but does not verify if the returned 
+ * @notice Return repayment chain and repayment token for a fill, but does not verify if the returned
  * repayment information is valid for the desired repayment address.
  * @dev The passed in fill ideally should be verified via verifyFillRepayment(), otherwise the returned
  * repayment chain cannot be used to repay this fill.
@@ -34,10 +34,10 @@ export function getRefundInformationFromFill(
     return {
       chainToSendRefundTo,
       repaymentToken: fill.inputToken,
-    }
+    };
   }
 
-  // Now figure out the equivalent L2 token for the repayment token. If the inputToken doesn't have a 
+  // Now figure out the equivalent L2 token for the repayment token. If the inputToken doesn't have a
   // PoolRebalanceRoute, then the repayment chain would have been the originChainId after the getRepaymentChainId()
   // call and we would have returned already, so the following call should always succeed.
   const l1TokenCounterpart = hubPoolClient.getL1TokenForL2TokenAtBlock(
@@ -63,27 +63,26 @@ export function _depositHasPoolRebalanceRoute(
   relayData: FillRepaymentInformation,
   hubPoolClient: HubPoolClient
 ): boolean {
-  return hubPoolClient.l2TokenHasPoolRebalanceRoute(
-    relayData.inputToken,
-    relayData.originChainId,
-    relayData.quoteBlockNumber
+  return (
+    hubPoolClient.l2TokenHasPoolRebalanceRoute(
+      relayData.inputToken,
+      relayData.originChainId,
+      relayData.quoteBlockNumber
     ) &&
     hubPoolClient.l2TokenHasPoolRebalanceRoute(
       relayData.outputToken,
       relayData.destinationChainId,
       relayData.quoteBlockNumber
-    );
+    )
+  );
 }
 
-function _forceOriginChainRepayment(
-  relayData: FillRepaymentInformation,
-  hubPoolClient: HubPoolClient
-): boolean {
+function _forceOriginChainRepayment(relayData: FillRepaymentInformation, hubPoolClient: HubPoolClient): boolean {
   return relayData.fromLiteChain || !_depositHasPoolRebalanceRoute(relayData, hubPoolClient);
 }
 
 /**
- * @notice Returns repayment chain for the fill based on its input, output, and requested repayment 
+ * @notice Returns repayment chain for the fill based on its input, output, and requested repayment
  * tokens and chains as well as its Lite chain and Slow Fill statuses
  */
 export function getRepaymentChainId(
@@ -97,7 +96,7 @@ export function getRepaymentChainId(
     return relayData.originChainId;
   }
 
-  // Handle slow relay where FilledRelay.repaymentChainId = 0, as hardcoded in the SpokePool contract. 
+  // Handle slow relay where FilledRelay.repaymentChainId = 0, as hardcoded in the SpokePool contract.
   // Slow relays always pay recipient on destination chain.
   if (isSlowFill(relayData)) {
     return relayData.destinationChainId;
@@ -140,7 +139,7 @@ function _fillRepaymentNeedsToBeOverwritten(fill: Fill): boolean {
 /**
  * @notice Verifies that the fill is valid for the repayment address and chain. If the repayment address is not
  * valid for the computed repayment chain, then this function will attempt to change the fill's repayment chain
- * to the destination chain and its repayment address to the  msg.sender and if this is possible, 
+ * to the destination chain and its repayment address to the  msg.sender and if this is possible,
  * return the fill. Otherwise, return undefined.
  */
 export async function verifyFillRepayment(
@@ -152,8 +151,8 @@ export async function verifyFillRepayment(
   const fill = {
     ..._.cloneDeep(_fill),
     fromLiteChain: matchedDeposit.fromLiteChain,
-    quoteBlockNumber: matchedDeposit.quoteBlockNumber
-  }
+    quoteBlockNumber: matchedDeposit.quoteBlockNumber,
+  };
 
   // Slow fills don't result in repayments so they're always valid.
   if (isSlowFill(fill)) {
@@ -173,7 +172,7 @@ export async function verifyFillRepayment(
     if (!isDefined(destinationRelayer) || !isValidEvmAddress(destinationRelayer)) {
       return undefined;
     }
-    // If we can switch the repayment chain to the destination chain, then do so. Otherwise, 
+    // If we can switch the repayment chain to the destination chain, then do so. Otherwise,
     // check whether the repayment chain is an EVM chain
     if (!_forceOriginChainRepayment(fill, hubPoolClient)) {
       repaymentChainId = fill.destinationChainId;

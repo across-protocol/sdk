@@ -41,6 +41,7 @@ describe("FillUtils", function () {
       outputAmount: toBN(100),
       outputToken: ZERO_ADDRESS,
       message: "",
+      messageHash: "0x",
       quoteTimestamp: 0,
       recipient: ZERO_ADDRESS,
       updatedRecipient: ZERO_ADDRESS,
@@ -59,6 +60,7 @@ describe("FillUtils", function () {
       ...deposit,
       relayExecutionInfo: {
         updatedMessage: deposit.message,
+        updatedMessageHash: deposit.messageHash,
         updatedOutputAmount: deposit.outputAmount,
         updatedRecipient: deposit.recipient,
         fillType: FillType.FastFill,
@@ -70,23 +72,30 @@ describe("FillUtils", function () {
     const { configStore } = await deployConfigStore(owner, []);
     const configStoreClient = new MockConfigStoreClient(createSpyLogger().spyLogger, configStore);
     hubPoolClient = new MockHubPoolClient(createSpyLogger().spyLogger, hubPool, configStoreClient);
-    hubPoolClient.setTokenMapping(ZERO_ADDRESS, deposit.originChainId, deposit.inputToken);
   });
 
   describe("verifyFillRepayment", function () {
     describe("Deposit is not mapped to a PoolRebalanceRoute", function () {
-      beforeEach(function () {
-        hubPoolClient.deleteTokenMapping(ZERO_ADDRESS, deposit.originChainId);
-      });
-      it("Relayer address on origin chain is valid", async function () {
+      it("Repayment gets overwritten to origin chain if either origin or destination chain is not mapped to a PoolRebalanceRoute", async function () {
         const result = await verifyFillRepayment(fill, spokeProvider, deposit, hubPoolClient);
         expect(result).to.not.be.undefined;
         expect(result!.relayer).to.equal(relayer);
 
         expect(result!.repaymentChainId).to.equal(originChainId);
         expect(result!.relayer).to.equal(relayer);
+
+        // Requires both the origin and destination chain to be mapped to a PoolRebalanceRoute.
+        hubPoolClient.setTokenMapping(ZERO_ADDRESS, deposit.destinationChainId, deposit.outputToken);
+        expect((await verifyFillRepayment(fill, spokeProvider, deposit, hubPoolClient))!.repaymentChainId).to.equal(
+          originChainId
+        );
+        hubPoolClient.deleteTokenMapping(ZERO_ADDRESS, deposit.destinationChainId);
+        hubPoolClient.setTokenMapping(ZERO_ADDRESS, deposit.originChainId, deposit.inputToken);
+        expect((await verifyFillRepayment(fill, spokeProvider, deposit, hubPoolClient))!.repaymentChainId).to.equal(
+          originChainId
+        );
       });
-      it("Relayer is not valid EVM address; relayer gets overwritten to msg.sender", async function () {
+      it("Relayer is not valid EVM address; relayer gets overwritten to msg.sender on origin chain", async function () {
         const invalidRepaymentFill = {
           ...fill,
           relayer: INVALID_EVM_ADDRESS,
@@ -111,102 +120,108 @@ describe("FillUtils", function () {
         expect(result).to.be.undefined;
       });
     });
-    it("Original repayment is valid", async function () {
-      hubPoolClient.setTokenMapping(ZERO_ADDRESS, fill.repaymentChainId, ZERO_ADDRESS);
-      const result = await verifyFillRepayment(fill, spokeProvider, deposit, hubPoolClient);
-      expect(result).to.not.be.undefined;
-      expect(result!.repaymentChainId).to.equal(fill.repaymentChainId);
-      expect(result!.relayer).to.equal(fill.relayer);
-    });
-    it("SlowFill always valid", async function () {
-      // We don't set the repayment chain mapping for the input token because a slow fill should always be valid.
-      hubPoolClient.deleteTokenMapping(ZERO_ADDRESS, fill.repaymentChainId);
-      const slowFill = { ...fill };
-      slowFill.relayExecutionInfo.fillType = FillType.SlowFill;
-      const result = await verifyFillRepayment(slowFill, spokeProvider, deposit, hubPoolClient);
-      expect(result).to.not.be.undefined;
-      expect(slowFill.relayExecutionInfo.fillType).to.equal(FillType.SlowFill);
-    });
-    it("Lite chain originChain used as repayment and relayer address is valid", async function () {
-      // We don't set repayment chain mapping since repayment happens on origin chain.
-      hubPoolClient.deleteTokenMapping(ZERO_ADDRESS, fill.repaymentChainId);
-      const liteChainDeposit = {
-        ...deposit,
-        fromLiteChain: true,
-      };
-      const result = await verifyFillRepayment(fill, spokeProvider, liteChainDeposit, hubPoolClient);
-      expect(result).to.not.be.undefined;
-      expect(result!.relayer).to.equal(relayer);
+    describe("Deposit has valid PoolRebalanceRoute mapping", function () {
+      beforeEach(function () {
+        hubPoolClient.setTokenMapping(ZERO_ADDRESS, deposit.originChainId, deposit.inputToken);
+        hubPoolClient.setTokenMapping(ZERO_ADDRESS, deposit.destinationChainId, deposit.outputToken);
+      });
+      it("Original repayment chain and address is valid", async function () {
+        hubPoolClient.setTokenMapping(ZERO_ADDRESS, fill.repaymentChainId, ZERO_ADDRESS);
+        const result = await verifyFillRepayment(fill, spokeProvider, deposit, hubPoolClient);
+        expect(result).to.not.be.undefined;
+        expect(result!.repaymentChainId).to.equal(fill.repaymentChainId);
+        expect(result!.relayer).to.equal(fill.relayer);
+      });
+      it("SlowFill always valid", async function () {
+        // We don't set the repayment chain mapping for the input token because a slow fill should always be valid.
+        hubPoolClient.deleteTokenMapping(ZERO_ADDRESS, fill.repaymentChainId);
+        const slowFill = { ...fill };
+        slowFill.relayExecutionInfo.fillType = FillType.SlowFill;
+        const result = await verifyFillRepayment(slowFill, spokeProvider, deposit, hubPoolClient);
+        expect(result).to.not.be.undefined;
+        expect(slowFill.relayExecutionInfo.fillType).to.equal(FillType.SlowFill);
+      });
+      it("Lite chain originChain used as repayment and relayer address is valid", async function () {
+        // We don't set repayment chain mapping since repayment happens on origin chain.
+        hubPoolClient.deleteTokenMapping(ZERO_ADDRESS, fill.repaymentChainId);
+        const liteChainDeposit = {
+          ...deposit,
+          fromLiteChain: true,
+        };
+        const result = await verifyFillRepayment(fill, spokeProvider, liteChainDeposit, hubPoolClient);
+        expect(result).to.not.be.undefined;
+        expect(result!.relayer).to.equal(relayer);
 
-      expect(result!.repaymentChainId).to.equal(originChainId);
-      expect(result!.relayer).to.equal(relayer);
-    });
-    it("Lite chain deposit and relayer is not valid EVM address; relayer gets overwritten to msg.sender", async function () {
-      // We don't set repayment chain mapping since repayment happens on origin chain.
-      hubPoolClient.deleteTokenMapping(ZERO_ADDRESS, fill.repaymentChainId);
-      const liteChainDeposit = {
-        ...deposit,
-        fromLiteChain: true,
-      };
-      const invalidRepaymentFill = {
-        ...fill,
-        relayer: INVALID_EVM_ADDRESS,
-      };
-      spokeProvider._setTransaction(fill.transactionHash, {
-        from: relayer,
-      } as unknown as TransactionResponse);
-      const result = await verifyFillRepayment(invalidRepaymentFill, spokeProvider, liteChainDeposit, hubPoolClient);
-      expect(result).to.not.be.undefined;
-      expect(result!.relayer).to.equal(relayer);
-      expect(result!.repaymentChainId).to.equal(originChainId);
-    });
-    it("Relayer is not valid EVM address, relayer gets overwritten to msg.sender", async function () {
-      hubPoolClient.setTokenMapping(ZERO_ADDRESS, fill.repaymentChainId, ZERO_ADDRESS);
-      // valid chain ID's doesn't contain repayment chain.
-      const invalidRepaymentFill = {
-        ...fill,
-        relayer: INVALID_EVM_ADDRESS,
-      };
-      spokeProvider._setTransaction(fill.transactionHash, {
-        from: relayer,
-      } as unknown as TransactionResponse);
-      const result = await verifyFillRepayment(invalidRepaymentFill, spokeProvider, deposit, hubPoolClient);
-      expect(result).to.not.be.undefined;
-      expect(result!.relayer).to.equal(relayer);
-      // Repayment chain gets overwritten to destination chain.
-      expect(result!.repaymentChainId).to.equal(destinationChainId);
-    });
-    it("Lite chain deposit and relayer is not valid EVM address; msg.sender is invalid", async function () {
-      // We don't set repayment chain mapping since repayment happens on origin chain.
-      hubPoolClient.deleteTokenMapping(ZERO_ADDRESS, fill.repaymentChainId);
-      const liteChainDeposit = {
-        ...deposit,
-        fromLiteChain: true,
-      };
-      const invalidRepaymentFill = {
-        ...fill,
-        relayer: INVALID_EVM_ADDRESS,
-      };
-      spokeProvider._setTransaction(fill.transactionHash, {
-        from: INVALID_EVM_ADDRESS,
-      } as unknown as TransactionResponse);
-      const result = await verifyFillRepayment(invalidRepaymentFill, spokeProvider, liteChainDeposit, hubPoolClient);
-      expect(result).to.be.undefined;
-    });
-    it("Relayer is not valid EVM address, and msg.sender is invalid", async function () {
-      hubPoolClient.setTokenMapping(ZERO_ADDRESS, fill.repaymentChainId, ZERO_ADDRESS);
-      // Simulate what happens if the repayment chain is an EVM chain, the repayment address is not a vaid EVM address,
-      // and the msg.sender is not a valid EVM address. This could happen if the fill was sent on Solana and the
-      // repayment chain is Ethereum and the repayment address is an SVM address.
-      const invalidRepaymentFill = {
-        ...fill,
-        relayer: INVALID_EVM_ADDRESS,
-      };
-      spokeProvider._setTransaction(fill.transactionHash, {
-        from: INVALID_EVM_ADDRESS,
-      } as unknown as TransactionResponse);
-      const result = await verifyFillRepayment(invalidRepaymentFill, spokeProvider, deposit, hubPoolClient);
-      expect(result).to.be.undefined;
+        expect(result!.repaymentChainId).to.equal(originChainId);
+        expect(result!.relayer).to.equal(relayer);
+      });
+      it("Lite chain deposit and relayer is not valid EVM address; relayer gets overwritten to msg.sender", async function () {
+        // We don't set repayment chain mapping since repayment happens on origin chain.
+        hubPoolClient.deleteTokenMapping(ZERO_ADDRESS, fill.repaymentChainId);
+        const liteChainDeposit = {
+          ...deposit,
+          fromLiteChain: true,
+        };
+        const invalidRepaymentFill = {
+          ...fill,
+          relayer: INVALID_EVM_ADDRESS,
+        };
+        spokeProvider._setTransaction(fill.transactionHash, {
+          from: relayer,
+        } as unknown as TransactionResponse);
+        const result = await verifyFillRepayment(invalidRepaymentFill, spokeProvider, liteChainDeposit, hubPoolClient);
+        expect(result).to.not.be.undefined;
+        expect(result!.relayer).to.equal(relayer);
+        expect(result!.repaymentChainId).to.equal(originChainId);
+      });
+      it("Relayer is not valid EVM address, relayer gets overwritten to msg.sender on destination chain", async function () {
+        hubPoolClient.setTokenMapping(ZERO_ADDRESS, fill.repaymentChainId, ZERO_ADDRESS);
+        // valid chain ID's doesn't contain repayment chain.
+        const invalidRepaymentFill = {
+          ...fill,
+          relayer: INVALID_EVM_ADDRESS,
+        };
+        spokeProvider._setTransaction(fill.transactionHash, {
+          from: relayer,
+        } as unknown as TransactionResponse);
+        const result = await verifyFillRepayment(invalidRepaymentFill, spokeProvider, deposit, hubPoolClient);
+        expect(result).to.not.be.undefined;
+        expect(result!.relayer).to.equal(relayer);
+        // Repayment chain gets overwritten to destination chain.
+        expect(result!.repaymentChainId).to.equal(destinationChainId);
+      });
+      it("Lite chain deposit and relayer is not valid EVM address; msg.sender is invalid", async function () {
+        // We don't set repayment chain mapping since repayment happens on origin chain.
+        hubPoolClient.deleteTokenMapping(ZERO_ADDRESS, fill.repaymentChainId);
+        const liteChainDeposit = {
+          ...deposit,
+          fromLiteChain: true,
+        };
+        const invalidRepaymentFill = {
+          ...fill,
+          relayer: INVALID_EVM_ADDRESS,
+        };
+        spokeProvider._setTransaction(fill.transactionHash, {
+          from: INVALID_EVM_ADDRESS,
+        } as unknown as TransactionResponse);
+        const result = await verifyFillRepayment(invalidRepaymentFill, spokeProvider, liteChainDeposit, hubPoolClient);
+        expect(result).to.be.undefined;
+      });
+      it("Relayer is not valid EVM address, and msg.sender is invalid", async function () {
+        hubPoolClient.setTokenMapping(ZERO_ADDRESS, fill.repaymentChainId, ZERO_ADDRESS);
+        // Simulate what happens if the repayment chain is an EVM chain, the repayment address is not a vaid EVM address,
+        // and the msg.sender is not a valid EVM address. This could happen if the fill was sent on Solana and the
+        // repayment chain is Ethereum and the repayment address is an SVM address.
+        const invalidRepaymentFill = {
+          ...fill,
+          relayer: INVALID_EVM_ADDRESS,
+        };
+        spokeProvider._setTransaction(fill.transactionHash, {
+          from: INVALID_EVM_ADDRESS,
+        } as unknown as TransactionResponse);
+        const result = await verifyFillRepayment(invalidRepaymentFill, spokeProvider, deposit, hubPoolClient);
+        expect(result).to.be.undefined;
+      });
     });
   });
 });
