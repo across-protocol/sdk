@@ -2,10 +2,12 @@ import { constants as ethersConstants } from "ethers";
 import { CHAIN_IDs, TOKEN_SYMBOLS_MAP } from "@across-protocol/constants";
 
 export {
+  CCTP_NO_DOMAIN,
   ChainFamily,
   CHAIN_IDs,
   MAINNET_CHAIN_IDs,
   PUBLIC_NETWORKS,
+  PRODUCTION_NETWORKS,
   TESTNET_CHAIN_IDs,
   TOKEN_SYMBOLS_MAP,
 } from "@across-protocol/constants";
