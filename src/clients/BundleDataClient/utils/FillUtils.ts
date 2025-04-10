@@ -9,7 +9,7 @@ import { HubPoolClient } from "../../HubPoolClient";
  * @notice Return repayment chain and repayment token for a fill, but does not verify if the returned
  * repayment information is valid for the desired repayment address.
  * @dev The passed in fill ideally should be verified via verifyFillRepayment(), otherwise the returned
- * repayment chain cannot be used to repay this fill.
+ * repayment chain might not be able to be used to repay this fill.relayer
  * @param fill The fill to get the repayment information for
  */
 export function getRefundInformationFromFill(
@@ -22,7 +22,10 @@ export function getRefundInformationFromFill(
   chainToSendRefundTo: number;
   repaymentToken: string;
 } {
-  assert(!_fillRepaymentNeedsToBeOverwritten(fill), "getRefundInformationFromFill: fill repayment must be overwritten");
+  assert(
+    !_repaymentAddressNeedsToBeOverwritten(fill),
+    "getRefundInformationFromFill: fill repayment address must be overwritten"
+  );
   const endBlockForMainnet = getBlockRangeForChain(
     blockRangesForChains,
     hubPoolClient.chainId,
@@ -128,7 +131,7 @@ function _repaymentChainTokenIsInvalid(
   }
 }
 
-function _fillRepaymentNeedsToBeOverwritten(fill: Fill): boolean {
+function _repaymentAddressNeedsToBeOverwritten(fill: Fill): boolean {
   // Slow fills don't result in repayments so they're always valid.
   if (isSlowFill(fill)) {
     return false;
@@ -163,7 +166,7 @@ export async function verifyFillRepayment(
 
   // Repayments will always go to the fill.relayer address so check if its a valid EVM address. If its not, attempt
   // to change it to the msg.sender of the FilledRelay.
-  if (_fillRepaymentNeedsToBeOverwritten(fill)) {
+  if (_repaymentAddressNeedsToBeOverwritten(fill)) {
     // TODO: Handle case where fill was sent on non-EVM chain, in which case the following call would fail
     // or return something unexpected. We'd want to return undefined here.
     const fillTransaction = await destinationChainProvider.getTransaction(fill.transactionHash);
