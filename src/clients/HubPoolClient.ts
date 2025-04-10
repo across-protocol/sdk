@@ -267,6 +267,9 @@ export class HubPoolClient extends BaseAbstractClient {
 
   l2TokenEnabledForL1TokenAtBlock(l1Token: string, destinationChainId: number, hubBlockNumber: number): boolean {
     // Find the last mapping published before the target block.
+    if (!this.l1TokensToDestinationTokensWithBlock?.[l1Token]?.[destinationChainId]) {
+      return false;
+    }
     const l2Token: DestinationTokenWithBlock | undefined = sortEventsDescending(
       this.l1TokensToDestinationTokensWithBlock[l1Token][destinationChainId]
     ).find((mapping: DestinationTokenWithBlock) => mapping.blockNumber <= hubBlockNumber);
