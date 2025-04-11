@@ -8,10 +8,9 @@ import web3, {
   RpcTransport,
   Signature,
 } from "@solana/kit";
-import { bs58 } from "../utils";
+import { bs58 } from "../../utils";
 import { EventData, EventName, EventWithData } from "./types";
-import { decodeEvent } from "./utils/events";
-import { isDevnet } from "./utils/helpers";
+import { decodeEvent, isDevnet } from "./utils";
 
 // Utility type to extract the return type for the JSON encoding overload. We only care about the overload where the
 // configuration parameter (C) has the optional property 'encoding' set to 'json'.
