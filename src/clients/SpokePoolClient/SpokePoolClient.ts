@@ -532,6 +532,10 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
         deposit.toLiteChain = this.isDestinationLiteChain(deposit);
 
         if (isZeroAddress(deposit.outputToken)) {
+          // If we cannot resolve the 0x0 output token to a valid token on the destination chain, ignore it completely
+          // which will help simplify the logic in users of this client. This could potentially make debugging more
+          // challenging since we're literally not going to store this event but storing it would mean adding special
+          // checks to the relayer and dataworker to filter out such deposits with outputToken = 0x.
           if (!this.canResolveZeroAddressOutputToken(deposit)) {
             continue;
           } else {
