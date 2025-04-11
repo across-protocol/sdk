@@ -185,15 +185,7 @@ export class EVMSpokePoolClient extends SpokePoolClient {
     } as DepositWithBlock;
 
     if (isZeroAddress(deposit.outputToken)) {
-      if (!this.canResolveZeroAddressOutputToken(deposit)) {
-        return {
-          found: false,
-          code: InvalidFill.FillMismatch,
-          reason: "Invalid 0x0 output token with no pool rebalance route mapping",
-        };
-      } else {
-        deposit.outputToken = this.getDestinationTokenForDeposit(deposit);
-      }
+      deposit.outputToken = this.getDestinationTokenForDeposit(deposit);
     }
     deposit.fromLiteChain = this.isOriginLiteChain(deposit);
     deposit.toLiteChain = this.isDestinationLiteChain(deposit);

@@ -535,15 +535,7 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
         deposit.toLiteChain = this.isDestinationLiteChain(deposit);
 
         if (isZeroAddress(deposit.outputToken)) {
-          // If we cannot resolve the 0x0 output token to a valid token on the destination chain, ignore it completely
-          // which will help simplify the logic in users of this client. This could potentially make debugging more
-          // challenging since we're literally not going to store this event but storing it would mean adding special
-          // checks to the relayer and dataworker to filter out such deposits with outputToken = 0x.
-          if (!this.canResolveZeroAddressOutputToken(deposit)) {
-            continue;
-          } else {
-            deposit.outputToken = this.getDestinationTokenForDeposit(deposit);
-          }
+          deposit.outputToken = this.getDestinationTokenForDeposit(deposit);
         }
 
         if (this.depositHashes[getRelayEventKey(deposit)] !== undefined) {
@@ -740,6 +732,9 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
    * @returns The destination token.
    */
   protected getDestinationTokenForDeposit(deposit: DepositWithBlock): string {
+    if (!this.canResolveZeroAddressOutputToken(deposit)) {
+      return ZERO_ADDRESS;
+    }
     // If there is no rate model client return address(0).
     return this.hubPoolClient?.getL2TokenForDeposit(deposit) ?? ZERO_ADDRESS;
   }
