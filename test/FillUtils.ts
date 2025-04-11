@@ -75,17 +75,9 @@ describe("FillUtils", function () {
   });
 
   describe("verifyFillRepayment", function () {
-    describe("Deposit repayment and origin chain are not mapped to a PoolRebalanceRoute", function () {
-      it("Repayment gets overwritten to destination chain if destination chain is mapped to a PoolRebalanceRoute", async function () {
+    describe("Deposit repayment is not mapped to a PoolRebalanceRoute", function () {
+      it("Repayment gets overwritten to origin chain if only destination chain is mapped to a PoolRebalanceRoute", async function () {
         hubPoolClient.setTokenMapping(ZERO_ADDRESS, deposit.destinationChainId, deposit.outputToken);
-        const result = await verifyFillRepayment(fill, spokeProvider, deposit, hubPoolClient);
-        expect(result).to.not.be.undefined;
-        expect(result!.relayer).to.equal(relayer);
-
-        expect(result!.repaymentChainId).to.equal(destinationChainId);
-        expect(result!.relayer).to.equal(relayer);
-      });
-      it("Repayment gets overwritten to origin chain if destination chain is not mapped to a PoolRebalanceRoute", async function () {
         const result = await verifyFillRepayment(fill, spokeProvider, deposit, hubPoolClient);
         expect(result).to.not.be.undefined;
         expect(result!.relayer).to.equal(relayer);
@@ -93,8 +85,17 @@ describe("FillUtils", function () {
         expect(result!.repaymentChainId).to.equal(originChainId);
         expect(result!.relayer).to.equal(relayer);
       });
-      it("Relayer is not valid EVM address; relayer gets overwritten to msg.sender on destination chain if destination chain is mapped to PoolRebalanceRoute", async function () {
+      it("Repayment gets overwritten to origin chain if origin chain is not mapped to a PoolRebalanceRoute", async function () {
+        const result = await verifyFillRepayment(fill, spokeProvider, deposit, hubPoolClient);
+        expect(result).to.not.be.undefined;
+        expect(result!.relayer).to.equal(relayer);
+
+        expect(result!.repaymentChainId).to.equal(originChainId);
+        expect(result!.relayer).to.equal(relayer);
+      });
+      it("Relayer is not valid EVM address; relayer gets overwritten to msg.sender on destination chain if destination and origin chain are mapped to PoolRebalanceRoute", async function () {
         hubPoolClient.setTokenMapping(ZERO_ADDRESS, deposit.destinationChainId, deposit.outputToken);
+        hubPoolClient.setTokenMapping(ZERO_ADDRESS, deposit.originChainId, deposit.inputToken);
         const invalidRepaymentFill = {
           ...fill,
           relayer: INVALID_EVM_ADDRESS,
@@ -107,7 +108,9 @@ describe("FillUtils", function () {
         expect(result!.relayer).to.equal(relayer);
         expect(result!.repaymentChainId).to.equal(destinationChainId);
       });
-      it("Relayer is not valid EVM address; relayer gets overwritten to msg.sender on origin chain if destination chain is not mapped to PoolRebalanceRoute", async function () {
+      it("Relayer is not valid EVM address; relayer gets overwritten to msg.sender on origin chain if origin chain is not mapped to PoolRebalanceRoute", async function () {
+        // Origin chain is not mapped:
+        hubPoolClient.setTokenMapping(ZERO_ADDRESS, deposit.destinationChainId, deposit.outputToken);
         const invalidRepaymentFill = {
           ...fill,
           relayer: INVALID_EVM_ADDRESS,

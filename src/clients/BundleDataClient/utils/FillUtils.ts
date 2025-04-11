@@ -88,19 +88,7 @@ export function getRepaymentChainId(
     return repaymentChainId;
   }
 
-  // If repayment chain is not valid, then check if we can resolve the input token to a destination chain token,
-  // otherwise the fallback is to return the input token on the origin chain.
-  if (
-    hubPoolClient.l2TokenHasPoolRebalanceRoute(
-      relayData.outputToken,
-      relayData.destinationChainId,
-      relayData.quoteBlockNumber
-    )
-  ) {
-    return relayData.destinationChainId;
-  } else {
-    return relayData.originChainId;
-  }
+  return relayData.originChainId;
 }
 
 function _repaymentChainTokenIsValid(
@@ -174,10 +162,12 @@ export async function verifyFillRepayment(
     if (!isDefined(destinationRelayer) || !isValidEvmAddress(destinationRelayer)) {
       return undefined;
     }
-    // If we can switch the repayment chain to the destination chain, then do so.
+    // If we can switch the repayment chain to the destination chain, then do so. We should only switch if the
+    // destination chain has a valid repayment token that is equivalent to the deposited input token. This would
+    // also be the same mapping as the repayment token on the repayment chain.
     if (
       !matchedDeposit.fromLiteChain &&
-      hubPoolClient.l2TokenHasPoolRebalanceRoute(fill.outputToken, fill.destinationChainId, fill.quoteBlockNumber)
+      hubPoolClient.areTokensEquivalent(fill.inputToken, fill.originChainId, fill.outputToken, fill.destinationChainId)
     ) {
       repaymentChainId = fill.destinationChainId;
     }
