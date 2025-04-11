@@ -147,8 +147,7 @@ export function _buildPoolRebalanceRoot(
     Object.entries(fillsForChain).forEach(
       ([l2TokenAddress, { realizedLpFees: totalRealizedLpFee, totalRefundAmount }]) => {
         // If the repayment token and repayment chain ID do not map to a PoolRebalanceRoute graph, then
-        // it has no effect on running balances and fees because it results in a repayment using the deposited
-        // funds on the origin chain.
+        // there are no relevant L1 running balances.
         if (
           !clients.hubPoolClient.l2TokenHasPoolRebalanceRoute(l2TokenAddress, repaymentChainId, mainnetBundleEndBlock)
         ) {
@@ -223,9 +222,8 @@ export function _buildPoolRebalanceRoot(
   Object.entries(bundleV3Deposits).forEach(([, depositsForChain]) => {
     Object.entries(depositsForChain).forEach(([, deposits]) => {
       deposits.forEach((deposit) => {
-        // If the deposited token and origin chain ID do not map to a PoolRebalanceRoute graph, then
-        // it has no effect on running balances and fees because it results in a repayment using the deposited
-        // funds on the origin chain.
+        // If the repayment token and repayment chain ID do not map to a PoolRebalanceRoute graph, then
+        // there are no relevant L1 running balances.
         if (
           !clients.hubPoolClient.l2TokenHasPoolRebalanceRoute(
             deposit.inputToken,
@@ -249,9 +247,8 @@ export function _buildPoolRebalanceRoot(
     const originChainId = Number(_originChainId);
     Object.entries(depositsForChain).forEach(([inputToken, deposits]) => {
       deposits.forEach((deposit) => {
-        // If the deposited token and origin chain ID do not map to a PoolRebalanceRoute graph, then
-        // it has no effect on running balances and fees because it results in a repayment using the deposited
-        // funds on the origin chain.
+        // If the repayment token and repayment chain ID do not map to a PoolRebalanceRoute graph, then
+        // there are no relevant L1 running balances.
         if (
           !clients.hubPoolClient.l2TokenHasPoolRebalanceRoute(
             deposit.inputToken,

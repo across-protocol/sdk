@@ -213,9 +213,9 @@ export function invalidOutputToken(deposit: Pick<DepositWithBlock, "outputToken"
 }
 
 export function isZeroValueFillOrSlowFillRequest(
-  e: Pick<Fill | SlowFillRequest, "inputAmount" | "messageHash" | "outputToken">
+  e: Pick<Fill | SlowFillRequest, "inputAmount" | "messageHash">
 ): boolean {
-  return invalidOutputToken(e) || (e.inputAmount.eq(bnZero) && e.messageHash === ZERO_BYTES);
+  return e.inputAmount.eq(bnZero) && e.messageHash === ZERO_BYTES;
 }
 
 /**

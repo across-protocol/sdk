@@ -42,6 +42,7 @@ import {
   chainIsEvm,
   isValidEvmAddress,
   duplicateEvent,
+  invalidOutputToken,
 } from "../../utils";
 import winston from "winston";
 import {
@@ -372,7 +373,8 @@ export class BundleDataClient {
         if (
           fill.blockNumber < blockRanges[chainIndex][0] ||
           fill.blockNumber > blockRanges[chainIndex][1] ||
-          isZeroValueFillOrSlowFillRequest(fill)
+          isZeroValueFillOrSlowFillRequest(fill) ||
+          invalidOutputToken(fill)
         ) {
           return false;
         }
@@ -887,7 +889,10 @@ export class BundleDataClient {
             // tokens to the filler. We can't remove non-empty message deposit here in case there is a slow fill
             // request for the deposit, we'd want to see the fill took place.
             .filter(
-              (fill) => fill.blockNumber <= destinationChainBlockRange[1] && !isZeroValueFillOrSlowFillRequest(fill)
+              (fill) =>
+                fill.blockNumber <= destinationChainBlockRange[1] &&
+                !isZeroValueFillOrSlowFillRequest(fill) &&
+                !invalidOutputToken(fill)
             ),
           async (fill) => {
             fillCounter++;
@@ -1056,7 +1061,9 @@ export class BundleDataClient {
             .getSlowFillRequestsForOriginChain(originChainId)
             .filter(
               (request) =>
-                request.blockNumber <= destinationChainBlockRange[1] && !isZeroValueFillOrSlowFillRequest(request)
+                request.blockNumber <= destinationChainBlockRange[1] &&
+                !isZeroValueFillOrSlowFillRequest(request) &&
+                !invalidOutputToken(request)
             ),
           async (slowFillRequest: SlowFillRequestWithBlock) => {
             const relayDataHash = getRelayEventKey(slowFillRequest);
