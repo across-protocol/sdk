@@ -42,6 +42,7 @@ import {
   chainIsEvm,
   isValidEvmAddress,
   duplicateEvent,
+  invalidOutputToken,
 } from "../../utils";
 import winston from "winston";
 import {
@@ -372,7 +373,8 @@ export class BundleDataClient {
         if (
           fill.blockNumber < blockRanges[chainIndex][0] ||
           fill.blockNumber > blockRanges[chainIndex][1] ||
-          isZeroValueFillOrSlowFillRequest(fill)
+          isZeroValueFillOrSlowFillRequest(fill) ||
+          invalidOutputToken(fill)
         ) {
           return false;
         }
@@ -405,11 +407,12 @@ export class BundleDataClient {
           return;
         }
         const { chainToSendRefundTo, repaymentToken } = getRefundInformationFromFill(
-          fill,
-          this.clients.hubPoolClient,
-          blockRanges,
-          this.chainIdListForBundleEvaluationBlockNumbers,
-          matchingDeposit.fromLiteChain
+          {
+            ...fill,
+            fromLiteChain: matchingDeposit.fromLiteChain,
+            quoteBlockNumber: matchingDeposit.quoteBlockNumber,
+          },
+          this.clients.hubPoolClient
         );
         // Assume that lp fees are 0 for the sake of speed. In the future we could batch compute
         // these or make hardcoded assumptions based on the origin-repayment chain direction. This might result
@@ -885,7 +888,10 @@ export class BundleDataClient {
             // tokens to the filler. We can't remove non-empty message deposit here in case there is a slow fill
             // request for the deposit, we'd want to see the fill took place.
             .filter(
-              (fill) => fill.blockNumber <= destinationChainBlockRange[1] && !isZeroValueFillOrSlowFillRequest(fill)
+              (fill) =>
+                fill.blockNumber <= destinationChainBlockRange[1] &&
+                !isZeroValueFillOrSlowFillRequest(fill) &&
+                !invalidOutputToken(fill)
             ),
           async (fill) => {
             fillCounter++;
@@ -1054,7 +1060,9 @@ export class BundleDataClient {
             .getSlowFillRequestsForOriginChain(originChainId)
             .filter(
               (request) =>
-                request.blockNumber <= destinationChainBlockRange[1] && !isZeroValueFillOrSlowFillRequest(request)
+                request.blockNumber <= destinationChainBlockRange[1] &&
+                !isZeroValueFillOrSlowFillRequest(request) &&
+                !invalidOutputToken(request)
             ),
           async (slowFillRequest: SlowFillRequestWithBlock) => {
             const relayDataHash = getRelayEventKey(slowFillRequest);
@@ -1376,11 +1384,12 @@ export class BundleDataClient {
               const matchedDeposit = deposits[0];
               assert(isDefined(matchedDeposit), "Deposit should exist in relay hash dictionary.");
               const { chainToSendRefundTo: paymentChainId } = getRefundInformationFromFill(
-                fill,
-                this.clients.hubPoolClient,
-                blockRangesForChains,
-                chainIds,
-                matchedDeposit.fromLiteChain
+                {
+                  ...fill,
+                  fromLiteChain: matchedDeposit.fromLiteChain,
+                  quoteBlockNumber: matchedDeposit.quoteBlockNumber,
+                },
+                this.clients.hubPoolClient
               );
               return {
                 ...fill,
@@ -1422,11 +1431,12 @@ export class BundleDataClient {
       const associatedDeposit = deposits[0];
       assert(isDefined(associatedDeposit), "Deposit should exist in relay hash dictionary.");
       const { chainToSendRefundTo, repaymentToken } = getRefundInformationFromFill(
-        fill,
-        this.clients.hubPoolClient,
-        blockRangesForChains,
-        chainIds,
-        associatedDeposit.fromLiteChain
+        {
+          ...fill,
+          fromLiteChain: associatedDeposit.fromLiteChain,
+          quoteBlockNumber: associatedDeposit.quoteBlockNumber,
+        },
+        this.clients.hubPoolClient
       );
       updateBundleFillsV3(bundleFillsV3, fill, realizedLpFeePct, chainToSendRefundTo, repaymentToken, fill.relayer);
     });
