@@ -462,16 +462,11 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
       return false;
     } else {
       const l1Token = this.hubPoolClient?.getL1TokenForDeposit(deposit);
-      if (
-        !this.hubPoolClient.l2TokenEnabledForL1TokenAtBlock(
-          l1Token,
-          deposit.destinationChainId,
-          deposit.quoteBlockNumber
-        )
-      ) {
-        return false;
-      }
-      return true;
+      return this.hubPoolClient.l2TokenEnabledForL1TokenAtBlock(
+        l1Token,
+        deposit.destinationChainId,
+        deposit.quoteBlockNumber
+      );
     }
   }
 
