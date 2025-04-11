@@ -1,5 +1,7 @@
 import { providers, utils } from "ethers";
 import bs58 from "bs58";
+import { PublicKey } from "@solana/web3.js";
+import { Address as V2Address } from "@solana/kit";
 import { BigNumber, chainIsEvm } from "./";
 
 /**
@@ -230,6 +232,7 @@ export class EvmAddress extends Address {
 
 // Subclass of address which strictly deals SVM addresses. These addresses are guaranteed to be valid SVM addresses, so `toBase58` will always produce a valid Solana address.
 export class SvmAddress extends Address {
+  protected publicKey: PublicKey | undefined;
   // On construction, validate that the address is a point on Curve25519. Throw immediately if it is not.
   constructor(rawAddress: Uint8Array) {
     super(rawAddress);
@@ -239,6 +242,16 @@ export class SvmAddress extends Address {
   // used in TOKEN_SYMBOLS_MAP.
   override toAddress(): string {
     return this.toBase58();
+  }
+
+  // Return a solana/web3.js PublicKey type.
+  toPublicKey(): PublicKey {
+    this.publicKey ??= new PublicKey(this.toBase58());
+    return this.publicKey;
+  }
+
+  toV2Address(): V2Address<string> {
+    return this.toBase58() as V2Address<string>;
   }
 
   // Constructs a new SvmAddress type.

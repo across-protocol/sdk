@@ -3,7 +3,8 @@ import { Coingecko } from "../../coingecko";
 import { SymbolMappingType } from "./";
 import { CHAIN_IDs, DEFAULT_SIMULATED_RELAYER_ADDRESS } from "../../constants";
 import { Deposit } from "../../interfaces";
-import { BigNumberish, TransactionCostEstimate, BigNumber, SvmAddress } from "../../utils";
+import { BigNumberish, TransactionCostEstimate, BigNumber, SvmAddress, bnZero, toBN, isDefined } from "../../utils";
+import { TransactionInstruction } from "@solana/web3.js";
 import web3, {
   RpcTransport,
   createTransactionMessage,
@@ -14,11 +15,12 @@ import web3, {
 } from "@solana/kit";
 import {
   createAssociatedTokenAccountInstruction,
+  getAssociatedTokenAddressSync,
   TOKEN_PROGRAM_ID,
   ASSOCIATED_TOKEN_PROGRAM_ID,
   getAccount,
 } from "@solana/spl-token";
-import { fillV3RelayInstruction } from "../../arch/svm";
+import { fillRelayInstruction, createApproveInstruction, createTokenAccountsInstruction } from "../../arch/svm";
 import { Logger, QueryInterface } from "../relayFeeCalculator";
 /**
  * A special QueryBase implementation for SVM used for querying gas costs, token prices, and decimals of various tokens
@@ -71,56 +73,59 @@ export class SvmQuery implements QueryInterface {
       gasUnits: BigNumberish;
       baseFeeMultiplier: BigNumber;
       priorityFeeMultiplier: BigNumber;
-      opStackL1GasCostMultiplier: BigNumber;
-      transport: Transport;
     }> = {}
   ): Promise<TransactionCostEstimate> {
-    // Get the most recent confirmed blockhash.
-    const recentBlockhash = await this.provider.getLatestBlockhash().send();
-
     // If the user did not have a token account created on destination, then we need to include this as a "gascost.
-    const mint = EvmAddress.from(deposit.outputToken).toBase58();
-    const owner = EvmAddress.from(deposit.recipient).toBase58(); // @todo check.
+    const mint = SvmAddress.from(deposit.outputToken);
+    const owner = SvmAddress.from(deposit.recipient);
     const associatedToken = getAssociatedTokenAddressSync(
-      mint,
-      owner,
+      mint.toPublicKey(),
+      owner.toPublicKey(),
       true,
       TOKEN_PROGRAM_ID,
       ASSOCIATED_TOKEN_PROGRAM_ID
     );
 
     // If the recipient has an associated token account on destination, then skip generating the instruction for creating a new token account.
-    let recipientCreateTokenAccountInstruction;
+    let recipientCreateTokenAccountInstruction: TransactionInstruction | undefined = undefined;
     try {
-      await getAccount(this.provider, associatedToken, undefined, TOKEN_PROGRAM_ID);
+      await getAccount(this.provider.connection, associatedToken, undefined, TOKEN_PROGRAM_ID);
     } catch {
       recipientCreateTokenAccountInstruction = createAssociatedTokenAccountInstruction(
-        this.simulatedRelayerAddress.toBase58(),
+        this.simulatedRelayerAddress.toPublicKey(),
         associatedToken,
-        owner,
-        mint,
+        owner.toPublicKey(),
+        mint.toPublicKey(),
         TOKEN_PROGRAM_ID,
         ASSOCIATED_TOKEN_PROGRAM_ID
       );
     }
 
     const [createTokenAccountsIx, approveIx, fillIx] = await Promise.all([
-      0,
-      0,
-      await fillV3RelayInstruction(deposit, this.simulatedRelayerAddress, this.spokePoolAddress, recipientTokenAccount),
+      createTokenAccountsInstruction(mint, this.simulatedRelayerAddress),
+      createApproveInstruction(mint, deposit.outputAmount, this.simulatedRelayerAddress, this.spokePoolAddress),
+      fillRelayInstruction(
+        this.spokePoolAddress,
+        deposit,
+        this.simulatedRelayerAddress,
+        SvmAddress.from(associatedToken.toString())
+      ),
     ]);
+
+    // Get the most recent confirmed blockhash.
+    const recentBlockhash = await this.provider.getLatestBlockhash().send();
     const fillRelayMessage = pipe(
       createTransactionMessage({ version: 0 }),
-      (tx) => setTransactionMessageFeePayer(this.simulatedRelayerAddress.toBase58(), tx),
+      (tx) => setTransactionMessageFeePayer(this.simulatedRelayerAddress.toV2Address(), tx),
       (tx) => setTransactionMessageLifetimeUsingBlockhash(recentBlockhash, tx),
       (tx) =>
         isDefined(recipientCreateTokenAccountInstruction)
-          ? appendTransactionMessageInstructions([recipientCreateTokenAccountInstruction])
+          ? appendTransactionMessageInstructions([recipientCreateTokenAccountInstruction], tx)
           : tx,
       (tx) => appendTransactionMessageInstructions([createTokenAccountsIx, approveIx, fillIx], tx)
     );
 
-    const computeUnitsConsumed = await this.computeUnitEstimator(fillRelayMessage);
+    const computeUnitsConsumed = toBN(await this.computeUnitEstimator(fillRelayMessage));
 
     const tokenGasCost = bnZero; // TODO;
 

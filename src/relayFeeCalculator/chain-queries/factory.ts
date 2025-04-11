@@ -4,7 +4,7 @@ import { getDeployedAddress } from "@across-protocol/contracts";
 import { asL2Provider } from "@eth-optimism/sdk";
 import { providers } from "ethers";
 import { DEFAULT_SIMULATED_RELAYER_ADDRESS, CUSTOM_GAS_TOKENS } from "../../constants";
-import { chainIsOPStack, isDefined } from "../../utils";
+import { chainIsOPStack, isDefined, chainIsSvm } from "../../utils";
 import { QueryBase } from "./baseQuery";
 import { DEFAULT_LOGGER, Logger } from "../relayFeeCalculator";
 import { CustomGasTokenQueries } from "./customGasToken";
@@ -28,7 +28,7 @@ export class QueryBase__factory {
     coingeckoProApiKey?: string,
     logger: Logger = DEFAULT_LOGGER,
     coingeckoBaseCurrency = "eth"
-  ): QueryBase {
+  ): QueryBase | SvmQuery {
     assert(isDefined(spokePoolAddress));
 
     const customGasTokenSymbol = CUSTOM_GAS_TOKENS[chainId];
