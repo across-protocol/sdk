@@ -2,41 +2,40 @@ import _ from "lodash";
 import assert from "assert";
 import { providers } from "ethers";
 import { DepositWithBlock, Fill, FillWithBlock } from "../../../interfaces";
-import { getBlockRangeForChain, isSlowFill, isValidEvmAddress, isDefined, chainIsEvm } from "../../../utils";
+import { isSlowFill, isValidEvmAddress, isDefined, chainIsEvm } from "../../../utils";
 import { HubPoolClient } from "../../HubPoolClient";
+
+/**
+ * @notice FillRepaymentInformation is a fill with additional properties required to determine where it can
+ * be repaid.
+ */
+type FillRepaymentInformation = Fill & { quoteBlockNumber: number; fromLiteChain: boolean };
 
 /**
  * @notice Return repayment chain and repayment token for a fill, but does not verify if the returned
  * repayment information is valid for the desired repayment address.
- * @dev The passed in fill ideally should be verified via verifyFillRepayment(), otherwise the returned
- * repayment chain might not be able to be used to repay this fill.relayer
- * @param fill The fill to get the repayment information for
+ * @dev The passed in fill should be verified first via verifyFillRepayment(), otherwise this function
+ * will throw.
+ * @param fill The fill to get the repayment information for. If this fill cannot be repaid then this
+ * function will throw.
+ * @return The chain to send the refund to and the token to use for the refund.
  */
 export function getRefundInformationFromFill(
-  fill: Fill,
-  hubPoolClient: HubPoolClient,
-  blockRangesForChains: number[][],
-  chainIdListForBundleEvaluationBlockNumbers: number[],
-  fromLiteChain: boolean
+  relayData: FillRepaymentInformation,
+  hubPoolClient: HubPoolClient
 ): {
   chainToSendRefundTo: number;
   repaymentToken: string;
 } {
   assert(
-    !_repaymentAddressNeedsToBeOverwritten(fill),
+    !_repaymentAddressNeedsToBeOverwritten(relayData),
     "getRefundInformationFromFill: fill repayment address must be overwritten"
   );
-  const endBlockForMainnet = getBlockRangeForChain(
-    blockRangesForChains,
-    hubPoolClient.chainId,
-    chainIdListForBundleEvaluationBlockNumbers
-  )[1];
-  const depositRepaymentData = { ...fill, fromLiteChain, quoteBlockNumber: endBlockForMainnet };
-  const chainToSendRefundTo = getRepaymentChainId(fill.repaymentChainId, depositRepaymentData, hubPoolClient);
-  if (chainToSendRefundTo === fill.originChainId) {
+  const chainToSendRefundTo = _getRepaymentChainId(relayData, hubPoolClient);
+  if (chainToSendRefundTo === relayData.originChainId) {
     return {
       chainToSendRefundTo,
-      repaymentToken: fill.inputToken,
+      repaymentToken: relayData.inputToken,
     };
   }
 
@@ -44,97 +43,30 @@ export function getRefundInformationFromFill(
   // PoolRebalanceRoute, then the repayment chain would have been the originChainId after the getRepaymentChainId()
   // call and we would have returned already, so the following call should always succeed.
   const l1TokenCounterpart = hubPoolClient.getL1TokenForL2TokenAtBlock(
-    fill.inputToken,
-    fill.originChainId,
-    endBlockForMainnet
+    relayData.inputToken,
+    relayData.originChainId,
+    relayData.quoteBlockNumber
   );
 
   const repaymentToken = hubPoolClient.getL2TokenForL1TokenAtBlock(
     l1TokenCounterpart,
     chainToSendRefundTo,
-    endBlockForMainnet
+    relayData.quoteBlockNumber
   );
   return {
     chainToSendRefundTo,
     repaymentToken,
   };
 }
-
-type FillRepaymentInformation = Fill & { quoteBlockNumber: number; fromLiteChain: boolean };
-
 /**
- * @notice Returns repayment chain for the fill based on its input, output, and requested repayment
- * tokens and chains as well as its Lite chain and Slow Fill statuses
- */
-export function getRepaymentChainId(
-  repaymentChainId: number,
-  relayData: FillRepaymentInformation,
-  hubPoolClient: HubPoolClient
-): number {
-  if (relayData.fromLiteChain) {
-    assert(!isSlowFill(relayData), "getRepaymentChainId: fromLiteChain and slow fill are mutually exclusive");
-    return relayData.originChainId;
-  }
-
-  // Handle slow relay where FilledRelay.repaymentChainId = 0, as hardcoded in the SpokePool contract.
-  // Slow relays always pay recipient on destination chain.
-  if (isSlowFill(relayData)) {
-    return relayData.destinationChainId;
-  }
-
-  // Repayment chain is valid if the input token and repayment chain are mapped to the same PoolRebalanceRoute.
-  const repaymentTokenIsValid = _repaymentChainTokenIsValid(repaymentChainId, relayData, hubPoolClient);
-  if (repaymentTokenIsValid) {
-    return repaymentChainId;
-  }
-
-  return relayData.originChainId;
-}
-
-function _repaymentChainTokenIsValid(
-  repaymentChainId: number,
-  relayData: FillRepaymentInformation,
-  hubPoolClient: HubPoolClient
-): boolean {
-  if (
-    !hubPoolClient.l2TokenHasPoolRebalanceRoute(
-      relayData.inputToken,
-      relayData.originChainId,
-      relayData.quoteBlockNumber
-    )
-  ) {
-    return false;
-  }
-  const l1TokenCounterpart = hubPoolClient.getL1TokenForL2TokenAtBlock(
-    relayData.inputToken,
-    relayData.originChainId,
-    relayData.quoteBlockNumber
-  );
-  if (
-    !hubPoolClient.l2TokenEnabledForL1TokenAtBlock(l1TokenCounterpart, repaymentChainId, relayData.quoteBlockNumber)
-  ) {
-    return false;
-  }
-  return true;
-}
-
-function _repaymentAddressNeedsToBeOverwritten(fill: Fill): boolean {
-  // Slow fills don't result in repayments so they're always valid.
-  if (isSlowFill(fill)) {
-    return false;
-  }
-
-  // @todo add Solana logic here:
-  // - i.e. If chainIsSvm && !isValidSvmAddress(fill.relayer) then return false
-  //        If chainIsEvm && !isValidEvmAddress(fill.relayer) then return false
-  //        If chainIsEvm && isValidEvmAddress(fill.relayer) then return true
-  return !isValidEvmAddress(fill.relayer);
-}
-/**
- * @notice Verifies that the fill is valid for the repayment address and chain. If the repayment address is not
- * valid for the computed repayment chain, then this function will attempt to change the fill's repayment chain
+ * @notice Verifies that the fill can be repaid. If the repayment address is not
+ * valid for the requested repayment chain, then this function will attempt to change the fill's repayment chain
  * to the destination chain and its repayment address to the  msg.sender and if this is possible,
  * return the fill. Otherwise, return undefined.
+ * @param _fill Fill with a requested repayment chain and address
+ * @return Fill with the applied repayment chain (depends on the validity of the requested repayment address)
+ * and applied repayment address, or undefined if the applied repayment address is not valid for the
+ * applied repayment chain.
  */
 export async function verifyFillRepayment(
   _fill: FillWithBlock,
@@ -153,7 +85,7 @@ export async function verifyFillRepayment(
     return fill;
   }
 
-  let repaymentChainId = getRepaymentChainId(fill.repaymentChainId, fill, hubPoolClient);
+  let repaymentChainId = _getRepaymentChainId(fill, hubPoolClient);
 
   // Repayments will always go to the fill.relayer address so check if its a valid EVM address. If its not, attempt
   // to change it to the msg.sender of the FilledRelay.
@@ -194,4 +126,66 @@ export async function verifyFillRepayment(
   // chain for cases where the repayment address was invalid. Fill should be valid now.
   fill.repaymentChainId = repaymentChainId;
   return fill;
+}
+
+function _getRepaymentChainId(relayData: FillRepaymentInformation, hubPoolClient: HubPoolClient): number {
+  if (relayData.fromLiteChain) {
+    assert(!isSlowFill(relayData), "getRepaymentChainId: fromLiteChain and slow fill are mutually exclusive");
+    return relayData.originChainId;
+  }
+
+  // Handle slow relay where FilledRelay.repaymentChainId = 0, as hardcoded in the SpokePool contract.
+  // Slow relays always pay recipient on destination chain.
+  if (isSlowFill(relayData)) {
+    return relayData.destinationChainId;
+  }
+
+  // Repayment chain is valid if the input token and repayment chain are mapped to the same PoolRebalanceRoute.
+  const repaymentTokenIsValid = _repaymentChainTokenIsValid(relayData, hubPoolClient);
+  if (repaymentTokenIsValid) {
+    return relayData.repaymentChainId;
+  }
+
+  // If repayment chain is not valid, default to origin chain since we always know the input token can be refunded.
+  return relayData.originChainId;
+}
+
+function _repaymentChainTokenIsValid(relayData: FillRepaymentInformation, hubPoolClient: HubPoolClient): boolean {
+  if (
+    !hubPoolClient.l2TokenHasPoolRebalanceRoute(
+      relayData.inputToken,
+      relayData.originChainId,
+      relayData.quoteBlockNumber
+    )
+  ) {
+    return false;
+  }
+  const l1TokenCounterpart = hubPoolClient.getL1TokenForL2TokenAtBlock(
+    relayData.inputToken,
+    relayData.originChainId,
+    relayData.quoteBlockNumber
+  );
+  if (
+    !hubPoolClient.l2TokenEnabledForL1TokenAtBlock(
+      l1TokenCounterpart,
+      relayData.repaymentChainId,
+      relayData.quoteBlockNumber
+    )
+  ) {
+    return false;
+  }
+  return true;
+}
+
+function _repaymentAddressNeedsToBeOverwritten(fill: Fill): boolean {
+  // Slow fills don't result in repayments so they're always valid.
+  if (isSlowFill(fill)) {
+    return false;
+  }
+
+  // @todo add Solana logic here:
+  // - i.e. If chainIsSvm && !isValidSvmAddress(fill.relayer) then return false
+  //        If chainIsEvm && !isValidEvmAddress(fill.relayer) then return false
+  //        If chainIsEvm && isValidEvmAddress(fill.relayer) then return true
+  return !isValidEvmAddress(fill.relayer);
 }

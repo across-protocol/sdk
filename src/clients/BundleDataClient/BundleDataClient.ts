@@ -405,11 +405,12 @@ export class BundleDataClient {
           return;
         }
         const { chainToSendRefundTo, repaymentToken } = getRefundInformationFromFill(
-          fill,
-          this.clients.hubPoolClient,
-          blockRanges,
-          this.chainIdListForBundleEvaluationBlockNumbers,
-          matchingDeposit.fromLiteChain
+          {
+            ...fill,
+            fromLiteChain: matchingDeposit.fromLiteChain,
+            quoteBlockNumber: matchingDeposit.quoteBlockNumber,
+          },
+          this.clients.hubPoolClient
         );
         // Assume that lp fees are 0 for the sake of speed. In the future we could batch compute
         // these or make hardcoded assumptions based on the origin-repayment chain direction. This might result
@@ -1377,11 +1378,12 @@ export class BundleDataClient {
               const matchedDeposit = deposits[0];
               assert(isDefined(matchedDeposit), "Deposit should exist in relay hash dictionary.");
               const { chainToSendRefundTo: paymentChainId } = getRefundInformationFromFill(
-                fill,
-                this.clients.hubPoolClient,
-                blockRangesForChains,
-                chainIds,
-                matchedDeposit.fromLiteChain
+                {
+                  ...fill,
+                  fromLiteChain: matchedDeposit.fromLiteChain,
+                  quoteBlockNumber: matchedDeposit.quoteBlockNumber,
+                },
+                this.clients.hubPoolClient
               );
               return {
                 ...fill,
@@ -1423,11 +1425,12 @@ export class BundleDataClient {
       const associatedDeposit = deposits[0];
       assert(isDefined(associatedDeposit), "Deposit should exist in relay hash dictionary.");
       const { chainToSendRefundTo, repaymentToken } = getRefundInformationFromFill(
-        fill,
-        this.clients.hubPoolClient,
-        blockRangesForChains,
-        chainIds,
-        associatedDeposit.fromLiteChain
+        {
+          ...fill,
+          fromLiteChain: associatedDeposit.fromLiteChain,
+          quoteBlockNumber: associatedDeposit.quoteBlockNumber,
+        },
+        this.clients.hubPoolClient
       );
       updateBundleFillsV3(bundleFillsV3, fill, realizedLpFeePct, chainToSendRefundTo, repaymentToken, fill.relayer);
     });

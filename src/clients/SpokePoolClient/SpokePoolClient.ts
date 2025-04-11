@@ -42,7 +42,7 @@ import {
 } from "../../interfaces";
 import { BaseAbstractClient, UpdateFailureReason } from "../BaseAbstractClient";
 import { AcrossConfigStoreClient } from "../AcrossConfigStoreClient";
-import { getRepaymentChainId } from "../BundleDataClient";
+import { getRefundInformationFromFill } from "../BundleDataClient";
 import { HubPoolClient } from "../HubPoolClient";
 
 export type SpokePoolUpdateSuccess = {
@@ -371,7 +371,10 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
             fromLiteChain: deposit.fromLiteChain,
             quoteBlockNumber: this.hubPoolClient!.latestBlockSearched,
           };
-          const repaymentChainId = getRepaymentChainId(fill.repaymentChainId, fillRepaymentData, this.hubPoolClient!);
+          const { chainToSendRefundTo: repaymentChainId } = getRefundInformationFromFill(
+            fillRepaymentData,
+            this.hubPoolClient!
+          );
           // In order to keep this function sync, we can't call verifyFillRepayment so we'll log any fills where
           // the filler-specified repayment chain and repayment address is not a valid repayment upon
           // first glance. In other words, the repayment address is not a valid EVM address or the repayment chain
