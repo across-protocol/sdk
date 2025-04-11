@@ -207,7 +207,7 @@ export function isZeroValueDeposit(deposit: Pick<Deposit, "inputAmount" | "messa
   return deposit.inputAmount.eq(0) && isMessageEmpty(deposit.message);
 }
 
-function invalidOutputToken(deposit: Pick<DepositWithBlock, "outputToken">): boolean {
+export function invalidOutputToken(deposit: Pick<DepositWithBlock, "outputToken">): boolean {
   // If the output token is zero address, then it is invalid.
   return deposit.outputToken === ZERO_ADDRESS;
 }
