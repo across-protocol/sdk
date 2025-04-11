@@ -124,6 +124,10 @@ function _repaymentAddressNeedsToBeOverwritten(fill: Fill): boolean {
     return false;
   }
 
+  // @todo add Solana logic here:
+  // - i.e. If chainIsSvm && !isValidSvmAddress(fill.relayer) then return false
+  //        If chainIsEvm && !isValidEvmAddress(fill.relayer) then return false
+  //        If chainIsEvm && isValidEvmAddress(fill.relayer) then return true
   return !isValidEvmAddress(fill.relayer);
 }
 /**
@@ -156,6 +160,8 @@ export async function verifyFillRepayment(
   if (_repaymentAddressNeedsToBeOverwritten(fill)) {
     // TODO: Handle case where fill was sent on non-EVM chain, in which case the following call would fail
     // or return something unexpected. We'd want to return undefined here.
+
+    // @todo: If chainIsEvm:
     const fillTransaction = await destinationChainProvider.getTransaction(fill.transactionHash);
     const destinationRelayer = fillTransaction?.from;
     // Repayment chain is still an EVM chain, but the msg.sender is a bytes32 address, so the fill is invalid.
@@ -180,6 +186,8 @@ export async function verifyFillRepayment(
       }
     }
     fill.relayer = destinationRelayer;
+
+    // @todo: If chainIsSvm:
   }
 
   // Repayment address is now valid and repayment chain is either origin chain for lite chain or the destination
