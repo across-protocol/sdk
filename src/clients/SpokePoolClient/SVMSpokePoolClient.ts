@@ -126,8 +126,7 @@ export class SvmSpokePoolClient extends SpokePoolClient {
               blockNumber: Number(block.blockHeight),
               transactionIndex: 0,
               logIndex: 0,
-              // transactionIndex: eve
-              // ...event.data,
+              ...event.data,
             };
           })
         );
