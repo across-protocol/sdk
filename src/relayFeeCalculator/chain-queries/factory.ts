@@ -4,8 +4,9 @@ import { getDeployedAddress } from "@across-protocol/contracts";
 import { asL2Provider } from "@eth-optimism/sdk";
 import { providers } from "ethers";
 import { DEFAULT_SIMULATED_RELAYER_ADDRESS, CUSTOM_GAS_TOKENS } from "../../constants";
-import { chainIsOPStack, isDefined, chainIsSvm } from "../../utils";
+import { chainIsOPStack, isDefined, chainIsSvm, SvmAddress } from "../../utils";
 import { QueryBase } from "./baseQuery";
+import { Provider as svmProvider } from "../../arch/svm";
 import { DEFAULT_LOGGER, Logger } from "../relayFeeCalculator";
 import { CustomGasTokenQueries } from "./customGasToken";
 import { SvmQuery } from "./svmQuery";
@@ -21,7 +22,7 @@ const fixedGasPrice = {
 export class QueryBase__factory {
   static create(
     chainId: number,
-    provider: providers.Provider,
+    provider: providers.Provider | svmProvider,
     symbolMapping = TOKEN_SYMBOLS_MAP,
     spokePoolAddress = getDeployedAddress("SpokePool", chainId),
     simulatedRelayerAddress = DEFAULT_SIMULATED_RELAYER_ADDRESS,
@@ -35,7 +36,7 @@ export class QueryBase__factory {
     if (customGasTokenSymbol) {
       return new CustomGasTokenQueries({
         queryBaseArgs: [
-          provider,
+          provider as providers.Provider,
           symbolMapping,
           spokePoolAddress,
           simulatedRelayerAddress,
@@ -49,10 +50,10 @@ export class QueryBase__factory {
     }
     if (chainIsSvm(chainId)) {
       return new SvmQuery(
-        provider,
+        provider as svmProvider,
         symbolMapping,
-        spokePoolAddress,
-        simulatedRelayerAddress,
+        SvmAddress.from(spokePoolAddress),
+        SvmAddress.from(simulatedRelayerAddress),
         logger,
         coingeckoProApiKey,
         fixedGasPrice[chainId],
@@ -61,7 +62,9 @@ export class QueryBase__factory {
     }
 
     // For OPStack chains, we need to wrap the provider in an L2Provider
-    provider = chainIsOPStack(chainId) ? asL2Provider(provider) : provider;
+    provider = chainIsOPStack(chainId)
+      ? asL2Provider(provider as providers.Provider)
+      : (provider as providers.Provider);
 
     return new QueryBase(
       provider,

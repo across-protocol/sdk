@@ -3,7 +3,7 @@ import {
   getTokenInformationFromAddress,
   BigNumber,
   isDefined,
-  calculateRelayDataHash,
+  getRelayDataHash,
   isUnsafeDepositId,
 } from "../../utils";
 import {
@@ -12,12 +12,11 @@ import {
   getAssociatedTokenAddressSync,
   createApproveCheckedInstruction,
 } from "@solana/spl-token";
-import { SystemProgram } from "@solana/web3.js";
-import { Address, Rpc, SolanaRpcApi } from "@solana/kit";
+import { Address, Rpc, SolanaRpcApi, some, type TransactionSigner } from "@solana/kit";
 import { SvmSpokeClient, findProgramAddress } from "@across-protocol/contracts";
 import { Deposit, FillStatus, FillWithBlock, RelayData } from "../../interfaces";
 
-type Provider = Rpc<SolanaRpcApi>;
+export type Provider = Rpc<SolanaRpcApi>;
 
 /**
  * @param spokePool SpokePool Contract instance.
@@ -202,11 +201,12 @@ export function findFillEvent(
 export function fillRelayInstruction(
   spokePool: SvmAddress,
   deposit: Omit<Deposit, "messageHash">,
-  relayer: SvmAddress,
+  relayer: TransactionSigner<string>,
   recipientTokenAccount: SvmAddress,
-  _repaymentChainId = deposit.destinationChainId
-): Promise<SvmSpokeClient.FillRelayInstruction> {
+  repaymentChainId = deposit.destinationChainId
+): SvmSpokeClient.FillRelayInstruction {
   const programId = spokePool.toBase58();
+  const relayerAddress = SvmAddress.from(relayer.address);
 
   // @todo we need to convert the deposit's relayData to svm-like since the interface assumes the data originates from an EVM Spoke pool.
   // Once we migrate to `Address` types, this can be modified/removed.
@@ -216,14 +216,6 @@ export function fillRelayInstruction(
     exclusiveRelayer: _exclusiveRelayer,
     inputToken: _inputToken,
     outputToken: _outputToken,
-    inputAmount,
-    outputAmount,
-    originChainId,
-    destinationChainId,
-    depositId,
-    fillDeadline,
-    exclusivityDeadline,
-    message: _message,
   } = deposit;
   const [depositor, recipient, exclusiveRelayer, inputToken, outputToken] = [
     _depositor,
@@ -233,38 +225,13 @@ export function fillRelayInstruction(
     _outputToken,
   ].map((addr) => SvmAddress.from(addr));
 
-  const relayData = {
-    depositor: depositor.toBase58(),
-    recipient: recipient.toBase58(),
-    exclusiveRelayer: exclusiveRelayer.toBase58(),
-    inputToken: inputToken.toBase58(),
-    outputToken: outputToken.toBase58(),
-    inputAmount,
-    outputAmount,
-    originChainId,
-    depositId,
-    fillDeadline,
-    exclusivityDeadline,
-    message: Buffer.from(_message, "hex"),
-  };
-  const _relayDataHash = calculateRelayDataHash(
-    {
-      ...relayData,
-      depositor: deposit.depositor,
-      recipient: deposit.recipient,
-      exclusiveRelayer: deposit.exclusiveRelayer,
-      inputToken: deposit.inputToken,
-      outputToken: deposit.outputToken,
-      message: deposit.message,
-    },
-    destinationChainId
-  );
+  const _relayDataHash = getRelayDataHash(deposit, deposit.destinationChainId);
   const relayDataHash = new Uint8Array(Buffer.from(_relayDataHash.slice(2), "hex"));
 
   // Create ATA for the relayer and recipient token accounts
   const relayerTokenAccount = getAssociatedTokenAddressSync(
     outputToken.toPublicKey(),
-    relayer.toPublicKey(),
+    relayerAddress.toPublicKey(),
     true,
     TOKEN_PROGRAM_ID,
     ASSOCIATED_TOKEN_PROGRAM_ID
@@ -272,22 +239,35 @@ export function fillRelayInstruction(
 
   const { publicKey: statePda } = findProgramAddress("state", spokePool.toPublicKey(), ["0"]);
   const { publicKey: fillStatusPda } = findProgramAddress("fills", spokePool.toPublicKey(), [relayDataHash.toString()]);
+  const { publicKey: eventAuthority } = findProgramAddress("__event_authority", spokePool.toPublicKey());
 
-  const fillAccounts = {
-    state: statePda,
-    signer: relayer.toBase58(),
-    instructionParams: programId,
-    mint: outputToken.toBase58(),
-    relayerTokenAccount: relayerTokenAccount,
-    recipientTokenAccount: recipientTokenAccount.toBase58(),
-    fillStatus: fillStatusPda,
-    tokenProgram: TOKEN_PROGRAM_ID,
-    associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
-    systemProgram: SystemProgram.programId,
-    programId: programId,
-    program: programId,
-  };
-  return SvmSpokeClient.getFillRelayInstruction(fillAccounts);
+  return SvmSpokeClient.getFillRelayInstruction({
+    signer: relayer,
+    state: statePda.toBase58() as Address<string>,
+    mint: outputToken.toV2Address(),
+    relayerTokenAccount: relayerTokenAccount.toBase58() as Address<string>,
+    recipientTokenAccount: recipientTokenAccount.toBase58() as Address<string>,
+    fillStatus: fillStatusPda.toBase58() as Address<string>,
+    eventAuthority: eventAuthority.toBase58() as Address<string>,
+    program: programId as Address<string>,
+    relayHash: relayDataHash,
+    relayData: some({
+      depositor: depositor.toV2Address(),
+      recipient: recipient.toV2Address(),
+      exclusiveRelayer: exclusiveRelayer.toV2Address(),
+      inputToken: inputToken.toV2Address(),
+      outputToken: outputToken.toV2Address(),
+      inputAmount: deposit.inputAmount.toBigInt(),
+      outputAmount: deposit.outputAmount.toBigInt(),
+      originChainId: BigInt(deposit.originChainId),
+      fillDeadline: deposit.fillDeadline,
+      exclusivityDeadline: deposit.exclusivityDeadline,
+      depositId: new Uint8Array(Buffer.from(deposit.depositId.toHexString().slice(2), "hex")),
+      message: new Uint8Array(Buffer.from(deposit.message.slice(2), "hex")),
+    }),
+    repaymentChainId: some(repaymentChainId),
+    repaymentAddress: some(relayerAddress.toV2Address()),
+  });
 }
 
 /**
@@ -297,14 +277,15 @@ export function fillRelayInstruction(
  */
 export function createTokenAccountsInstruction(
   mint: SvmAddress,
-  relayer: SvmAddress
+  relayer: TransactionSigner<string>
 ): SvmSpokeClient.CreateTokenAccountsInstruction {
-  return SvmSpokeClient.getCreateTokenAccountsInstruction({
-    signer: relayer.toV2Address(),
-    mint: mint.toV2Address(),
-    tokenProgram: TOKEN_PROGRAM_ID.toBase58() as Address<string>,
-    associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID.toBase58() as Address<string>,
-  });
+  return {
+    ...SvmSpokeClient.getCreateTokenAccountsInstruction({
+      signer: relayer,
+      mint: mint.toV2Address(),
+    }),
+    programAddress: SvmSpokeClient.SVM_SPOKE_PROGRAM_ADDRESS,
+  };
 }
 
 /**
@@ -336,14 +317,17 @@ export async function createApproveInstruction(
     throw new Error(`${mint.toBase58()} is not a recognized token in TOKEN_SYMBOLS_MAP`);
   }
 
-  return await createApproveCheckedInstruction(
-    relayerTokenAccount,
-    mint.toPublicKey(),
-    statePda,
-    relayer.toPublicKey(),
-    BigInt(amount.toString()),
-    tokenInfo!.decimals,
-    undefined,
-    TOKEN_PROGRAM_ID
-  );
+  return {
+    ...(await createApproveCheckedInstruction(
+      relayerTokenAccount,
+      mint.toPublicKey(),
+      statePda,
+      relayer.toPublicKey(),
+      BigInt(amount.toString()),
+      tokenInfo!.decimals,
+      undefined,
+      TOKEN_PROGRAM_ID
+    )),
+    programAddress: SvmSpokeClient.SVM_SPOKE_PROGRAM_ADDRESS,
+  };
 }

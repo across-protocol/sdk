@@ -4,23 +4,29 @@ import { SymbolMappingType } from "./";
 import { CHAIN_IDs, DEFAULT_SIMULATED_RELAYER_ADDRESS } from "../../constants";
 import { Deposit } from "../../interfaces";
 import { BigNumberish, TransactionCostEstimate, BigNumber, SvmAddress, bnZero, toBN, isDefined } from "../../utils";
-import { TransactionInstruction } from "@solana/web3.js";
-import web3, {
-  RpcTransport,
+import {
   createTransactionMessage,
   setTransactionMessageFeePayer,
   setTransactionMessageLifetimeUsingBlockhash,
   appendTransactionMessageInstructions,
   getComputeUnitEstimateForTransactionMessageFactory,
+  fetchEncodedAccount,
+  IInstruction,
+  Address as KitAddress,
 } from "@solana/kit";
 import {
   createAssociatedTokenAccountInstruction,
   getAssociatedTokenAddressSync,
   TOKEN_PROGRAM_ID,
   ASSOCIATED_TOKEN_PROGRAM_ID,
-  getAccount,
 } from "@solana/spl-token";
-import { fillRelayInstruction, createApproveInstruction, createTokenAccountsInstruction } from "../../arch/svm";
+import {
+  fillRelayInstruction,
+  createApproveInstruction,
+  createTokenAccountsInstruction,
+  Provider,
+  SolanaVoidSigner,
+} from "../../arch/svm";
 import { Logger, QueryInterface } from "../relayFeeCalculator";
 /**
  * A special QueryBase implementation for SVM used for querying gas costs, token prices, and decimals of various tokens
@@ -41,7 +47,7 @@ export class SvmQuery implements QueryInterface {
    * @param coingeckoBaseCurrency The basis currency that CoinGecko will use to resolve pricing
    */
   constructor(
-    readonly provider: web3.Rpc<web3.SolanaRpcApiFromTransport<RpcTransport>>,
+    readonly provider: Provider,
     readonly symbolMapping: SymbolMappingType,
     readonly spokePoolAddress: SvmAddress,
     readonly simulatedRelayerAddress: SvmAddress,
@@ -51,7 +57,7 @@ export class SvmQuery implements QueryInterface {
     readonly coingeckoBaseCurrency: string = "eth"
   ) {
     this.computeUnitEstimator = getComputeUnitEstimateForTransactionMessageFactory({
-      provider,
+      rpc: provider,
     });
   }
 
@@ -87,27 +93,32 @@ export class SvmQuery implements QueryInterface {
     );
 
     // If the recipient has an associated token account on destination, then skip generating the instruction for creating a new token account.
-    let recipientCreateTokenAccountInstruction: TransactionInstruction | undefined = undefined;
-    try {
-      await getAccount(this.provider.connection, associatedToken, undefined, TOKEN_PROGRAM_ID);
-    } catch {
-      recipientCreateTokenAccountInstruction = createAssociatedTokenAccountInstruction(
-        this.simulatedRelayerAddress.toPublicKey(),
-        associatedToken,
-        owner.toPublicKey(),
-        mint.toPublicKey(),
-        TOKEN_PROGRAM_ID,
-        ASSOCIATED_TOKEN_PROGRAM_ID
-      );
+    // TODO: Verify this works.
+    let recipientCreateTokenAccountInstruction: IInstruction | undefined = undefined;
+    const associatedTokenAccountExists = (
+      await fetchEncodedAccount(this.provider, associatedToken.toBase58() as KitAddress<string>)
+    ).exists;
+    if (!associatedTokenAccountExists) {
+      recipientCreateTokenAccountInstruction = {
+        ...createAssociatedTokenAccountInstruction(
+          this.simulatedRelayerAddress.toPublicKey(),
+          associatedToken,
+          owner.toPublicKey(),
+          mint.toPublicKey(),
+          TOKEN_PROGRAM_ID,
+          ASSOCIATED_TOKEN_PROGRAM_ID
+        ),
+        programAddress: TOKEN_PROGRAM_ID.toBase58() as KitAddress<string>, // TODO (needs to be the system program but you need to replace this with a kit alternative).
+      };
     }
 
     const [createTokenAccountsIx, approveIx, fillIx] = await Promise.all([
-      createTokenAccountsInstruction(mint, this.simulatedRelayerAddress),
+      createTokenAccountsInstruction(mint, SolanaVoidSigner(this.simulatedRelayerAddress.toBase58())),
       createApproveInstruction(mint, deposit.outputAmount, this.simulatedRelayerAddress, this.spokePoolAddress),
       fillRelayInstruction(
         this.spokePoolAddress,
         deposit,
-        this.simulatedRelayerAddress,
+        SolanaVoidSigner(this.simulatedRelayerAddress.toBase58()),
         SvmAddress.from(associatedToken.toString())
       ),
     ]);
@@ -117,7 +128,7 @@ export class SvmQuery implements QueryInterface {
     const fillRelayMessage = pipe(
       createTransactionMessage({ version: 0 }),
       (tx) => setTransactionMessageFeePayer(this.simulatedRelayerAddress.toV2Address(), tx),
-      (tx) => setTransactionMessageLifetimeUsingBlockhash(recentBlockhash, tx),
+      (tx) => setTransactionMessageLifetimeUsingBlockhash(recentBlockhash.value, tx),
       (tx) =>
         isDefined(recipientCreateTokenAccountInstruction)
           ? appendTransactionMessageInstructions([recipientCreateTokenAccountInstruction], tx)
