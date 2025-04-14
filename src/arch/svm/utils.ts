@@ -53,7 +53,7 @@ export function decodeEvent(idl: Idl, rawEvent: string): { data: EventData; name
 /**
  * Converts a snake_case string to camelCase.
  */
-export function snakeToCamel(s: string): string {
+function snakeToCamel(s: string): string {
   return s.replace(/(_\w)/g, (match) => match[1].toUpperCase());
 }
 
