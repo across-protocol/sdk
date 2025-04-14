@@ -129,11 +129,16 @@ export class EVMSpokePoolClient extends SpokePoolClient {
     // Sort all events to ensure they are stored in a consistent order.
     events.forEach((events) => sortEventsAscendingInPlace(events));
 
+    // Map events to SortableEvent
+    const eventsWithBlockNumber = events.map((eventList) =>
+      eventList.map((event) => spreadEventWithBlockNumber(event))
+    );
+
     return {
       success: true,
       currentTime: currentTime.toNumber(), // uint32
       searchEndBlock: searchConfig.toBlock,
-      events,
+      events: eventsWithBlockNumber,
     };
   }
 

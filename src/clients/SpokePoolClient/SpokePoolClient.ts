@@ -18,24 +18,20 @@ import {
   toAddress,
   validateFillForDeposit,
 } from "../../utils";
-import {
-  duplicateEvent,
-  sortEventsAscendingInPlace,
-  spreadEvent,
-  spreadEventWithBlockNumber,
-} from "../../utils/EventUtils";
+import { duplicateEvent, sortEventsAscendingInPlace } from "../../utils/EventUtils";
 import { ZERO_ADDRESS } from "../../constants";
 import {
   Deposit,
   DepositWithBlock,
+  EnabledDepositRouteWithBlock,
   Fill,
   FillStatus,
   FillWithBlock,
-  Log,
   RelayData,
   RelayerRefundExecutionWithBlock,
   RootBundleRelayWithBlock,
   SlowFillRequestWithBlock,
+  SortableEvent,
   SpeedUpWithBlock,
   TokensBridged,
 } from "../../interfaces";
@@ -47,7 +43,7 @@ import { HubPoolClient } from "../HubPoolClient";
 export type SpokePoolUpdateSuccess = {
   success: true;
   currentTime: number;
-  events: Log[][];
+  events: SortableEvent[][];
   searchEndBlock: number;
 };
 export type SpokePoolUpdateFailure = {
@@ -459,7 +455,7 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
    * @see _update
    */
   public async update(eventsToQuery = this._queryableEventNames()): Promise<void> {
-    const duplicateEvents: Log[] = [];
+    const duplicateEvents: SortableEvent[] = [];
     if (this.hubPoolClient !== null && !this.hubPoolClient.isUpdated) {
       throw new Error("HubPoolClient not updated");
     }
@@ -472,7 +468,7 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
 
     if (eventsToQuery.includes("TokensBridged")) {
       for (const event of queryResults[eventsToQuery.indexOf("TokensBridged")]) {
-        this.tokensBridged.push(spreadEventWithBlockNumber(event) as TokensBridged);
+        this.tokensBridged.push(event as TokensBridged);
       }
     }
 
@@ -492,15 +488,15 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
       // For each deposit, resolve its quoteTimestamp to a block number on the HubPool.
       // Don't bother filtering for uniqueness; the HubPoolClient handles this efficienctly.
       const quoteBlockNumbers = await this.getBlockNumbers(
-        depositEvents.map(({ args }) => Number(args["quoteTimestamp"]))
+        depositEvents.map((e) => (e as DepositWithBlock).quoteTimestamp)
       );
       for (const event of depositEvents) {
-        const quoteBlockNumber = quoteBlockNumbers[Number(event.args["quoteTimestamp"])];
+        const quoteBlockNumber = quoteBlockNumbers[Number((event as DepositWithBlock).quoteTimestamp)];
 
         // Derive and append the common properties that are not part of the onchain event.
         const deposit = {
-          ...spreadEventWithBlockNumber(event),
-          messageHash: getMessageHash(event.args.message),
+          ...event,
+          messageHash: getMessageHash((event as DepositWithBlock).message),
           quoteBlockNumber,
           originChainId: this.chainId,
           // The following properties are placeholders to be updated immediately.
@@ -540,7 +536,7 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
       const speedUpEvents = queryResults[eventsToQuery.indexOf(eventName)] ?? [];
 
       for (const event of speedUpEvents) {
-        const speedUp = { ...spreadEventWithBlockNumber(event), originChainId: this.chainId } as SpeedUpWithBlock;
+        const speedUp = { ...event, originChainId: this.chainId } as SpeedUpWithBlock;
         assign(this.speedUps, [speedUp.depositor, speedUp.depositId.toString()], [speedUp]);
 
         // Find deposit hash matching this speed up event and update the deposit data associated with the hash,
@@ -568,7 +564,7 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
       const slowFillRequests = queryResults[eventsToQuery.indexOf(eventName)];
       for (const event of slowFillRequests) {
         const slowFillRequest = {
-          ...spreadEventWithBlockNumber(event),
+          ...event,
           destinationChainId: this.chainId,
         } as SlowFillRequestWithBlock;
 
@@ -608,13 +604,15 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
       // test that the types are complete. A broader change in strategy for safely unpacking events will be introduced.
       for (const event of fillEvents) {
         const fill = {
-          ...spreadEventWithBlockNumber(event),
+          ...event,
           destinationChainId: this.chainId,
         } as FillWithBlock;
 
         if (eventName === "FilledV3Relay") {
-          fill.messageHash = getMessageHash(event.args.message);
-          fill.relayExecutionInfo.updatedMessageHash = getMessageHash(event.args.relayExecutionInfo.updatedMessage);
+          fill.messageHash = getMessageHash((event as unknown as { message: string }).message);
+          fill.relayExecutionInfo.updatedMessageHash = getMessageHash(
+            (event as FillWithBlock).relayExecutionInfo.updatedMessage!
+          );
         }
 
         // Sanity check that this event is not a duplicate.
@@ -640,7 +638,7 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
       const enableDepositsEvents = queryResults[eventsToQuery.indexOf("EnabledDepositRoute")];
 
       for (const event of enableDepositsEvents) {
-        const enableDeposit = spreadEvent(event.args);
+        const enableDeposit = event as EnabledDepositRouteWithBlock;
         assign(
           this.depositRoutes,
           [enableDeposit.originToken, enableDeposit.destinationChainId],
@@ -652,14 +650,14 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
     if (eventsToQuery.includes("RelayedRootBundle")) {
       const relayedRootBundleEvents = queryResults[eventsToQuery.indexOf("RelayedRootBundle")];
       for (const event of relayedRootBundleEvents) {
-        this.rootBundleRelays.push(spreadEventWithBlockNumber(event) as RootBundleRelayWithBlock);
+        this.rootBundleRelays.push(event as RootBundleRelayWithBlock);
       }
     }
 
     if (eventsToQuery.includes("ExecutedRelayerRefundRoot")) {
       const refundEvents = queryResults[eventsToQuery.indexOf("ExecutedRelayerRefundRoot")];
       for (const event of refundEvents) {
-        const executedRefund = spreadEventWithBlockNumber(event) as RelayerRefundExecutionWithBlock;
+        const executedRefund = event as RelayerRefundExecutionWithBlock;
         this.relayerRefundExecutions.push(executedRefund);
       }
     }

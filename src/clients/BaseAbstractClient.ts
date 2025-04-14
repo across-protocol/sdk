@@ -1,6 +1,7 @@
 import { providers } from "ethers";
 import { CachingMechanismInterface } from "../interfaces";
 import { EventSearchConfig, isDefined, MakeOptional } from "../utils";
+import { Rpc, RpcTransport, SolanaRpcApiFromTransport } from "@solana/kit";
 
 export enum UpdateFailureReason {
   NotReady,
@@ -58,7 +59,9 @@ export abstract class BaseAbstractClient {
    * @provider Ethers RPC provider instance.
    * @returns An EventSearchConfig instance if valid, otherwise an UpdateFailureReason.
    */
-  public async updateSearchConfig(provider: providers.Provider): Promise<EventSearchConfig | UpdateFailureReason> {
+  public async updateSearchConfig(
+    provider: providers.Provider | Rpc<SolanaRpcApiFromTransport<RpcTransport>>
+  ): Promise<EventSearchConfig | UpdateFailureReason> {
     const fromBlock = this.firstBlockToSearch;
     let { toBlock } = this.eventSearchConfig;
     if (isDefined(toBlock)) {
@@ -66,7 +69,11 @@ export abstract class BaseAbstractClient {
         throw new Error(`Invalid event search config fromBlock (${fromBlock}) > toBlock (${toBlock})`);
       }
     } else {
-      toBlock = await provider.getBlockNumber();
+      if (provider instanceof providers.Provider) {
+        toBlock = await provider.getBlockNumber();
+      } else {
+        toBlock = Number(await provider.getBlockHeight({ commitment: "confirmed" }).send());
+      }
       if (toBlock < fromBlock) {
         return UpdateFailureReason.AlreadyUpdated;
       }
