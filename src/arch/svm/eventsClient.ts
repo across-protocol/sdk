@@ -11,8 +11,7 @@ import web3, {
 import { bs58 } from "../../utils";
 import { EventData, EventName, EventWithData } from "./types";
 import { decodeEvent, isDevnet } from "./utils";
-import { getEventName, parseEventData } from "./utils/events";
-import { getSlotForBlock } from "../arch/svm";
+import { getSlotForBlock } from "./SpokeUtils";
 
 // Utility type to extract the return type for the JSON encoding overload. We only care about the overload where the
 // configuration parameter (C) has the optional property 'encoding' set to 'json'.
