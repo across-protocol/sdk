@@ -1,14 +1,16 @@
 import assert from "assert";
 import { Transport } from "viem";
 import { PopulatedTransaction, providers } from "ethers";
+import { Transaction } from "@solana/kit";
 import { CHAIN_IDs } from "../constants";
-import { BigNumber, chainIsOPStack, fixedPointAdjustment, toBNWei } from "../utils";
+import { BigNumber, chainIsOPStack, fixedPointAdjustment, toBNWei, chainIsSvm } from "../utils";
 import { GasPriceEstimate } from "./types";
 import { getPublicClient } from "./util";
 import * as arbitrum from "./adapters/arbitrum";
 import * as ethereum from "./adapters/ethereum";
 import * as polygon from "./adapters/polygon";
 import * as lineaViem from "./adapters/linea-viem";
+import * as solana from "./adapters/solana";
 
 export interface GasPriceEstimateOptions {
   // baseFeeMultiplier Multiplier applied to base fee for EIP1559 gas prices (or total fee for legacy).
@@ -23,6 +25,8 @@ export interface GasPriceEstimateOptions {
   unsignedTx?: PopulatedTransaction;
   // transport Viem Transport object to use for querying gas fees used for testing.
   transport?: Transport;
+  // Solana transaction to estimate.
+  solTransaction?: Pick<Transaction, "signatures">;
 }
 
 const GAS_PRICE_ESTIMATE_DEFAULTS = {
@@ -61,6 +65,11 @@ export async function getGasPriceEstimate(
     ...opts,
     chainId,
   };
+
+  // Exit here if we need to estimate on Solana.
+  if (chainIsSvm(chainId)) {
+    return solana.algorithmic(provider, optsWithDefaults);
+  }
 
   // We only use the unsignedTx in the viem flow.
   const useViem = VIEM_CHAINS.includes(chainId);

@@ -6,13 +6,9 @@ import {
   getRelayDataHash,
   isUnsafeDepositId,
 } from "../../utils";
-import {
-  ASSOCIATED_TOKEN_PROGRAM_ID,
-  TOKEN_PROGRAM_ID,
-  getAssociatedTokenAddressSync,
-  createApproveCheckedInstruction,
-} from "@solana/spl-token";
-import { Address, Rpc, SolanaRpcApi, some, type TransactionSigner } from "@solana/kit";
+import { TOKEN_PROGRAM_ID, createApproveCheckedInstruction } from "@solana/spl-token";
+import { TOKEN_PROGRAM_ADDRESS, ASSOCIATED_TOKEN_PROGRAM_ADDRESS } from "@solana-program/token";
+import { Address, Rpc, SolanaRpcApi, some, getProgramDerivedAddress, type TransactionSigner } from "@solana/kit";
 import { SvmSpokeClient, findProgramAddress } from "@across-protocol/contracts";
 import { Deposit, FillStatus, FillWithBlock, RelayData } from "../../interfaces";
 
@@ -198,13 +194,13 @@ export function findFillEvent(
  * @param repaymentChainId Optional repaymentChainId (defaults to destinationChainId).
  * @returns An Ethers UnsignedTransaction instance.
  */
-export function fillRelayInstruction(
+export async function fillRelayInstruction(
   spokePool: SvmAddress,
   deposit: Omit<Deposit, "messageHash">,
   relayer: TransactionSigner<string>,
-  recipientTokenAccount: SvmAddress,
+  recipientTokenAccount: Address<string>,
   repaymentChainId = deposit.destinationChainId
-): SvmSpokeClient.FillRelayInstruction {
+) {
   const programId = spokePool.toBase58();
   const relayerAddress = SvmAddress.from(relayer.address);
 
@@ -229,13 +225,7 @@ export function fillRelayInstruction(
   const relayDataHash = new Uint8Array(Buffer.from(_relayDataHash.slice(2), "hex"));
 
   // Create ATA for the relayer and recipient token accounts
-  const relayerTokenAccount = getAssociatedTokenAddressSync(
-    outputToken.toPublicKey(),
-    relayerAddress.toPublicKey(),
-    true,
-    TOKEN_PROGRAM_ID,
-    ASSOCIATED_TOKEN_PROGRAM_ID
-  );
+  const relayerTokenAccount = await getAssociatedTokenAddress(relayerAddress.toV2Address(), outputToken.toV2Address());
 
   const { publicKey: statePda } = findProgramAddress("state", spokePool.toPublicKey(), ["0"]);
   const { publicKey: fillStatusPda } = findProgramAddress("fills", spokePool.toPublicKey(), [relayDataHash.toString()]);
@@ -245,8 +235,8 @@ export function fillRelayInstruction(
     signer: relayer,
     state: statePda.toBase58() as Address<string>,
     mint: outputToken.toV2Address(),
-    relayerTokenAccount: relayerTokenAccount.toBase58() as Address<string>,
-    recipientTokenAccount: recipientTokenAccount.toBase58() as Address<string>,
+    relayerTokenAccount: relayerTokenAccount,
+    recipientTokenAccount: recipientTokenAccount,
     fillStatus: fillStatusPda.toBase58() as Address<string>,
     eventAuthority: eventAuthority.toBase58() as Address<string>,
     program: programId as Address<string>,
@@ -279,13 +269,10 @@ export function createTokenAccountsInstruction(
   mint: SvmAddress,
   relayer: TransactionSigner<string>
 ): SvmSpokeClient.CreateTokenAccountsInstruction {
-  return {
-    ...SvmSpokeClient.getCreateTokenAccountsInstruction({
-      signer: relayer,
-      mint: mint.toV2Address(),
-    }),
-    programAddress: SvmSpokeClient.SVM_SPOKE_PROGRAM_ADDRESS,
-  };
+  return SvmSpokeClient.getCreateTokenAccountsInstruction({
+    signer: relayer,
+    mint: mint.toV2Address(),
+  });
 }
 
 /**
@@ -301,12 +288,10 @@ export async function createApproveInstruction(
   relayer: SvmAddress,
   spokePool: SvmAddress
 ) {
-  const relayerTokenAccount = getAssociatedTokenAddressSync(
-    mint.toPublicKey(),
-    relayer.toPublicKey(),
-    true,
-    TOKEN_PROGRAM_ID,
-    ASSOCIATED_TOKEN_PROGRAM_ID
+  const relayerTokenAccount = await getAssociatedTokenAddress(
+    relayer.toV2Address(),
+    mint.toV2Address(),
+    TOKEN_PROGRAM_ADDRESS
   );
   const { publicKey: statePda } = findProgramAddress("state", spokePool.toPublicKey(), ["0"]);
   const tokenInfo = getTokenInformationFromAddress(mint.toBase58());
@@ -317,17 +302,30 @@ export async function createApproveInstruction(
     throw new Error(`${mint.toBase58()} is not a recognized token in TOKEN_SYMBOLS_MAP`);
   }
 
+  const approveIx = await createApproveCheckedInstruction(
+    SvmAddress.from(relayerTokenAccount as string).toPublicKey(),
+    mint.toPublicKey(),
+    statePda,
+    relayer.toPublicKey(),
+    BigInt(amount.toString()),
+    tokenInfo!.decimals,
+    undefined,
+    TOKEN_PROGRAM_ID
+  );
   return {
-    ...(await createApproveCheckedInstruction(
-      relayerTokenAccount,
-      mint.toPublicKey(),
-      statePda,
-      relayer.toPublicKey(),
-      BigInt(amount.toString()),
-      tokenInfo!.decimals,
-      undefined,
-      TOKEN_PROGRAM_ID
-    )),
+    ...approveIx,
     programAddress: SvmSpokeClient.SVM_SPOKE_PROGRAM_ADDRESS,
   };
+}
+
+export async function getAssociatedTokenAddress(
+  owner: Address<string>,
+  mint: Address<string>,
+  associatedTokenProgramId: Address<string> = TOKEN_PROGRAM_ADDRESS
+): Promise<Address<string>> {
+  const [associatedToken] = await getProgramDerivedAddress({
+    programAddress: ASSOCIATED_TOKEN_PROGRAM_ADDRESS,
+    seeds: [owner, associatedTokenProgramId, mint],
+  });
+  return associatedToken;
 }

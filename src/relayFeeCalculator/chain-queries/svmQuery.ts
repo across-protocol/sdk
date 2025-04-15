@@ -12,20 +12,16 @@ import {
   getComputeUnitEstimateForTransactionMessageFactory,
   fetchEncodedAccount,
   IInstruction,
-  Address as KitAddress,
 } from "@solana/kit";
-import {
-  createAssociatedTokenAccountInstruction,
-  getAssociatedTokenAddressSync,
-  TOKEN_PROGRAM_ID,
-  ASSOCIATED_TOKEN_PROGRAM_ID,
-} from "@solana/spl-token";
+import { TOKEN_PROGRAM_ADDRESS, getMintSize, getInitializeMintInstruction } from "@solana-program/token";
+import { getCreateAccountInstruction } from "@solana-program/system";
 import {
   fillRelayInstruction,
   createApproveInstruction,
   createTokenAccountsInstruction,
   Provider,
   SolanaVoidSigner,
+  getAssociatedTokenAddress,
 } from "../../arch/svm";
 import { Logger, QueryInterface } from "../relayFeeCalculator";
 /**
@@ -84,32 +80,28 @@ export class SvmQuery implements QueryInterface {
     // If the user did not have a token account created on destination, then we need to include this as a "gascost.
     const mint = SvmAddress.from(deposit.outputToken);
     const owner = SvmAddress.from(deposit.recipient);
-    const associatedToken = getAssociatedTokenAddressSync(
-      mint.toPublicKey(),
-      owner.toPublicKey(),
-      true,
-      TOKEN_PROGRAM_ID,
-      ASSOCIATED_TOKEN_PROGRAM_ID
-    );
+    const associatedToken = await getAssociatedTokenAddress(owner.toV2Address(), mint.toV2Address());
 
     // If the recipient has an associated token account on destination, then skip generating the instruction for creating a new token account.
-    // TODO: Verify this works.
-    let recipientCreateTokenAccountInstruction: IInstruction | undefined = undefined;
-    const associatedTokenAccountExists = (
-      await fetchEncodedAccount(this.provider, associatedToken.toBase58() as KitAddress<string>)
-    ).exists;
+    let recipientCreateTokenAccountInstructions: IInstruction[] | undefined = undefined;
+    const associatedTokenAccountExists = (await fetchEncodedAccount(this.provider, associatedToken)).exists;
     if (!associatedTokenAccountExists) {
-      recipientCreateTokenAccountInstruction = {
-        ...createAssociatedTokenAccountInstruction(
-          this.simulatedRelayerAddress.toPublicKey(),
-          associatedToken,
-          owner.toPublicKey(),
-          mint.toPublicKey(),
-          TOKEN_PROGRAM_ID,
-          ASSOCIATED_TOKEN_PROGRAM_ID
-        ),
-        programAddress: TOKEN_PROGRAM_ID.toBase58() as KitAddress<string>, // TODO (needs to be the system program but you need to replace this with a kit alternative).
-      };
+      const space = BigInt(getMintSize());
+      const rent = await this.provider.getMinimumBalanceForRentExemption(space).send();
+      const createAccountIx = getCreateAccountInstruction({
+        payer: SolanaVoidSigner(owner.toBase58()),
+        newAccount: SolanaVoidSigner(mint.toBase58()),
+        lamports: rent,
+        space,
+        programAddress: TOKEN_PROGRAM_ADDRESS,
+      });
+
+      const initializeMintIx = getInitializeMintInstruction({
+        mint: mint.toV2Address(),
+        decimals: 2, // TODO
+        mintAuthority: owner.toV2Address(),
+      });
+      recipientCreateTokenAccountInstructions = [createAccountIx, initializeMintIx];
     }
 
     const [createTokenAccountsIx, approveIx, fillIx] = await Promise.all([
@@ -119,7 +111,7 @@ export class SvmQuery implements QueryInterface {
         this.spokePoolAddress,
         deposit,
         SolanaVoidSigner(this.simulatedRelayerAddress.toBase58()),
-        SvmAddress.from(associatedToken.toString())
+        associatedToken
       ),
     ]);
 
@@ -130,8 +122,8 @@ export class SvmQuery implements QueryInterface {
       (tx) => setTransactionMessageFeePayer(this.simulatedRelayerAddress.toV2Address(), tx),
       (tx) => setTransactionMessageLifetimeUsingBlockhash(recentBlockhash.value, tx),
       (tx) =>
-        isDefined(recipientCreateTokenAccountInstruction)
-          ? appendTransactionMessageInstructions([recipientCreateTokenAccountInstruction], tx)
+        isDefined(recipientCreateTokenAccountInstructions)
+          ? appendTransactionMessageInstructions(recipientCreateTokenAccountInstructions, tx)
           : tx,
       (tx) => appendTransactionMessageInstructions([createTokenAccountsIx, approveIx, fillIx], tx)
     );
