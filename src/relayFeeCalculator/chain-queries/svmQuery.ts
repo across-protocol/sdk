@@ -3,7 +3,8 @@ import { Coingecko } from "../../coingecko";
 import { SymbolMappingType } from "./";
 import { CHAIN_IDs, DEFAULT_SIMULATED_RELAYER_ADDRESS } from "../../constants";
 import { Deposit } from "../../interfaces";
-import { BigNumberish, TransactionCostEstimate, BigNumber, SvmAddress, bnZero, toBN, isDefined } from "../../utils";
+import { getGasPriceEstimate } from "../../gasPriceOracle/oracle";
+import { BigNumberish, TransactionCostEstimate, BigNumber, SvmAddress, toBN, isDefined } from "../../utils";
 import { Logger, QueryInterface } from "../relayFeeCalculator";
 import {
   fillRelayInstruction,
@@ -71,7 +72,7 @@ export class SvmQuery implements QueryInterface {
   async getGasCosts(
     deposit: Omit<Deposit, "messageHash">,
     _relayer = DEFAULT_SIMULATED_RELAYER_ADDRESS,
-    _options: Partial<{
+    options: Partial<{
       gasPrice: BigNumberish;
       gasUnits: BigNumberish;
       baseFeeMultiplier: BigNumber;
@@ -118,7 +119,7 @@ export class SvmQuery implements QueryInterface {
 
     // Get the most recent confirmed blockhash.
     const recentBlockhash = await this.provider.getLatestBlockhash().send();
-    const fillRelayMessage = pipe(
+    const fillRelayTx = pipe(
       createTransactionMessage({ version: 0 }),
       (tx) => setTransactionMessageFeePayer(this.simulatedRelayerAddress.toV2Address(), tx),
       (tx) => setTransactionMessageLifetimeUsingBlockhash(recentBlockhash.value, tx),
@@ -129,14 +130,20 @@ export class SvmQuery implements QueryInterface {
       (tx) => appendTransactionMessageInstructions([createTokenAccountsIx, approveIx, fillIx], tx)
     );
 
-    const computeUnitsConsumed = toBN(await this.computeUnitEstimator(fillRelayMessage));
-
-    const tokenGasCost = bnZero; // TODO;
+    const [computeUnitsConsumed, gasPriceEstimate] = await Promise.all([
+      toBN(await this.computeUnitEstimator(fillRelayTx)),
+      getGasPriceEstimate(this.provider, {
+        unsignedTx: fillRelayTx,
+        baseFeeMultiplier: options.baseFeeMultiplier,
+        priorityFeeMultiplier: options.priorityFeeMultiplier,
+      }),
+    ]);
+    const gasPrice = gasPriceEstimate.maxFeePerGas.add(gasPriceEstimate.maxPriorityFeePerGas.mul(computeUnitsConsumed));
 
     return {
       nativeGasCost: computeUnitsConsumed,
-      tokenGasCost,
-      gasPrice: computeUnitsConsumed.mul(tokenGasCost),
+      tokenGasCost: gasPrice,
+      gasPrice,
     };
   }
 
