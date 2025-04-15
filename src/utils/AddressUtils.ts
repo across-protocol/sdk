@@ -242,7 +242,7 @@ export class SvmAddress extends Address {
   }
 
   override toEvmAddress(): string {
-    return `0x${this.toBytes32().slice(-40)}`;
+    return toAddress(`0x${this.toBytes32().slice(-40)}`);
   }
 
   // Constructs a new SvmAddress type.

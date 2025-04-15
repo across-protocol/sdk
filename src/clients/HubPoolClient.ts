@@ -45,7 +45,6 @@ import {
   getUsdcSymbol,
   getL1TokenInfo,
   compareAddressesSimple,
-  deleteFromJson,
   chainIsSvm,
   getDeployedAddress,
   SvmAddress,
