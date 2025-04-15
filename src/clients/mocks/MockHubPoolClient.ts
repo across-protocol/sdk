@@ -107,12 +107,12 @@ export class MockHubPoolClient extends HubPoolClient {
       return super.l2TokenEnabledForL1TokenAtBlock(l1Token, destinationChainId, hubBlockNumber);
     }
   }
-  l2TokenHasPoolRebalanceRoute(l2Token: string, chainId: number): boolean {
+  l2TokenHasPoolRebalanceRoute(l2Token: string, chainId: number, hubPoolBlock: number): boolean {
     const l1Token = Object.keys(this.spokePoolTokens).find(
       (l1Token) => this.spokePoolTokens[l1Token]?.[chainId] === l2Token
     );
     if (!l1Token) {
-      return super.l2TokenHasPoolRebalanceRoute(l2Token, chainId);
+      return super.l2TokenHasPoolRebalanceRoute(l2Token, chainId, hubPoolBlock);
     } else return true;
   }
 
