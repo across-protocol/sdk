@@ -14,10 +14,8 @@ type FillRepaymentInformation = Fill & { quoteBlockNumber: number; fromLiteChain
 /**
  * @notice Return repayment chain and repayment token for a fill, but does not verify if the returned
  * repayment information is valid for the desired repayment address.
- * @dev The passed in fill should be verified first via verifyFillRepayment(), otherwise this function
- * will throw.
- * @param fill The fill to get the repayment information for. If this fill cannot be repaid then this
- * function will throw.
+ * @dev The passed in fill should be verified first via verifyFillRepayment().
+ * @param fill The fill to get the repayment information for.
  * @return The chain to send the refund to and the token to use for the refund.
  */
 export function getRefundInformationFromFill(
@@ -27,10 +25,6 @@ export function getRefundInformationFromFill(
   chainToSendRefundTo: number;
   repaymentToken: string;
 } {
-  assert(
-    !_repaymentAddressNeedsToBeOverwritten(relayData),
-    "getRefundInformationFromFill: fill repayment address must be overwritten"
-  );
   const chainToSendRefundTo = _getRepaymentChainId(relayData, hubPoolClient);
   if (chainToSendRefundTo === relayData.originChainId) {
     return {
