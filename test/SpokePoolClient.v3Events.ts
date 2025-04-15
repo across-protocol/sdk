@@ -570,8 +570,8 @@ describe("SpokePoolClient: Event Filtering", function () {
         leafId: i + 1,
         amountToReturn: toBN(random()),
         blockNumber: random(),
-        transactionHash: randomBytes(32),
-        transactionIndex: random(),
+        txnRef: randomBytes(32),
+        txnIndex: random(),
         logIndex: random(),
       });
 
