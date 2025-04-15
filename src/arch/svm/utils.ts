@@ -1,5 +1,6 @@
 import { BN, BorshEventCoder, Idl } from "@coral-xyz/anchor";
-import web3, { address, RpcTransport } from "@solana/kit";
+import web3, { address, getProgramDerivedAddress, getU64Encoder, Address, RpcTransport } from "@solana/kit";
+
 import { EventName, EventData, SVMEventNames } from "./types";
 
 /**
@@ -63,4 +64,20 @@ function snakeToCamel(s: string): string {
 export function getEventName(rawName: string): EventName {
   if (Object.values(SVMEventNames).some((name) => rawName.includes(name))) return rawName as EventName;
   throw new Error(`Unknown event name: ${rawName}`);
+}
+
+/**
+ * Returns the PDA for the State account.
+ * @param programId The SpokePool program ID.
+ * @param extraSeed An optional extra seed. Defaults to 0.
+ * @returns The PDA for the State account.
+ */
+export async function getStatePda(programId: string, extraSeed = 0): Promise<Address> {
+  const seedEncoder = getU64Encoder();
+  const encodedExtraSeed = seedEncoder.encode(extraSeed);
+  const [statePda] = await getProgramDerivedAddress({
+    programAddress: address(programId),
+    seeds: ["state", encodedExtraSeed],
+  });
+  return statePda;
 }

@@ -1,11 +1,18 @@
 import winston from "winston";
-import { Rpc, SolanaRpcApiFromTransport, RpcTransport } from "@solana/kit";
+import { Address, Rpc, SolanaRpcApiFromTransport, RpcTransport } from "@solana/kit";
 
 import { BigNumber, DepositSearchResult, EventSearchConfig, MakeOptional } from "../../utils";
-import { SvmSpokeEventsClient, SVMEventNames, getFillDeadline, getTimestampForBlock } from "../../arch/svm";
+import {
+  SvmSpokeEventsClient,
+  SVMEventNames,
+  getFillDeadline,
+  getTimestampForBlock,
+  getStatePda,
+} from "../../arch/svm";
 import { HubPoolClient } from "../HubPoolClient";
 import { knownEventNames, SpokePoolClient, SpokePoolUpdate } from "./SpokePoolClient";
 import { RelayData, FillStatus } from "../../interfaces";
+
 /**
  * SvmSpokePoolClient is a client for the SVM SpokePool program. It extends the base SpokePoolClient
  * and implements the abstract methods required for interacting with an SVM Spoke Pool.
@@ -21,6 +28,7 @@ export class SvmSpokePoolClient extends SpokePoolClient {
     deploymentSlot: bigint, // Using slot instead of block number for SVM
     eventSearchConfig: MakeOptional<EventSearchConfig, "toBlock">,
     protected programId: string,
+    protected statePda: Address,
     protected svmEventsClient: SvmSpokeEventsClient,
     protected rpc: Rpc<SolanaRpcApiFromTransport<RpcTransport>>
   ) {
@@ -40,6 +48,7 @@ export class SvmSpokePoolClient extends SpokePoolClient {
     programId: string,
     rpc: Rpc<SolanaRpcApiFromTransport<RpcTransport>>
   ): Promise<SvmSpokePoolClient> {
+    const statePda = await getStatePda(programId);
     const svmEventsClient = await SvmSpokeEventsClient.create(rpc);
     return new SvmSpokePoolClient(
       logger,
@@ -48,6 +57,7 @@ export class SvmSpokePoolClient extends SpokePoolClient {
       deploymentSlot,
       eventSearchConfig,
       programId,
+      statePda,
       svmEventsClient,
       rpc
     );
@@ -158,7 +168,7 @@ export class SvmSpokePoolClient extends SpokePoolClient {
    * @note This function assumes that fill deadline buffer is a constant value in svm environments.
    */
   public override getMaxFillDeadlineInRange(_startSlot: number, _endSlot: number): Promise<number> {
-    return getFillDeadline(this.rpc, this.programId);
+    return getFillDeadline(this.rpc, this.statePda);
   }
 
   /**
