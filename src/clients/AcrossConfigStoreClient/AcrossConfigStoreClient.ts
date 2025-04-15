@@ -9,7 +9,6 @@ import {
   isArrayOf,
   isDefined,
   isPositiveInteger,
-  logToSortableEvent,
   max,
   paginatedEventQuery,
   sortEventsAscendingInPlace,
@@ -25,7 +24,6 @@ import {
   DisabledChainsUpdate,
   GlobalConfigUpdate,
   LiteChainsIdListUpdate,
-  Log,
   ParsedTokenConfig,
   RateModelUpdate,
   RouteRateModelUpdate,
@@ -44,8 +42,8 @@ type ConfigStoreUpdateSuccess = {
   chainId: number;
   searchEndBlock: number;
   events: {
-    updatedTokenConfigEvents: Log[];
-    updatedGlobalConfigEvents: Log[];
+    updatedTokenConfigEvents: SortableEvent[];
+    updatedGlobalConfigEvents: SortableEvent[];
     globalConfigUpdateTimes: number[];
   };
 };
@@ -342,9 +340,12 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
       paginatedEventQuery(this.configStore, this.configStore.filters.UpdatedGlobalConfig(), searchConfig),
     ]);
 
+    const updatedTokenConfigSortableEvents = updatedTokenConfigEvents.map(spreadEventWithBlockNumber);
+    const updatedGlobalConfigSortableEvents = updatedGlobalConfigEvents.map(spreadEventWithBlockNumber);
+
     // Events *should* normally be received in ascending order, but explicitly enforce the ordering.
-    [updatedTokenConfigEvents, updatedGlobalConfigEvents].forEach((events) =>
-      sortEventsAscendingInPlace(events.map(logToSortableEvent))
+    [updatedTokenConfigSortableEvents, updatedGlobalConfigSortableEvents].forEach((events) =>
+      sortEventsAscendingInPlace(events)
     );
 
     const globalConfigUpdateTimes = (
@@ -356,8 +357,8 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
       chainId,
       searchEndBlock: searchConfig.toBlock,
       events: {
-        updatedTokenConfigEvents,
-        updatedGlobalConfigEvents,
+        updatedTokenConfigEvents: updatedTokenConfigSortableEvents,
+        updatedGlobalConfigEvents: updatedGlobalConfigSortableEvents,
         globalConfigUpdateTimes,
       },
     };
@@ -383,13 +384,11 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
     // Save new TokenConfig updates.
     for (const event of updatedTokenConfigEvents) {
       // If transaction hash is known to be invalid, skip it immediately to avoid creating extra logs.
-      if (KNOWN_INVALID_TOKEN_CONFIG_UPDATE_HASHES.includes(event.transactionHash.toLowerCase())) {
+      if (KNOWN_INVALID_TOKEN_CONFIG_UPDATE_HASHES.includes(event.txnRef.toLowerCase())) {
         continue;
       }
 
-      const args = {
-        ...(spreadEventWithBlockNumber(event) as TokenConfig),
-      };
+      const args = event as TokenConfig;
 
       try {
         const { rateModel, routeRateModel, spokeTargetBalances } = this.validateTokenConfigUpdate(args);
@@ -421,7 +420,7 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
           this.logger.debug({
             at: "ConfigStoreClient::update",
             message: `Skipping invalid historical update at block ${event.blockNumber}`,
-            transactionHash: event.transactionHash,
+            txnRef: event.txnRef,
           });
         }
         continue;
@@ -430,7 +429,7 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
 
     // Save new Global config updates.
     for (let i = 0; i < updatedGlobalConfigEvents.length; i++) {
-      const args = spreadEventWithBlockNumber(updatedGlobalConfigEvents[i]) as SortableEvent & {
+      const args = updatedGlobalConfigEvents[i] as SortableEvent & {
         key: string;
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         value: any;
