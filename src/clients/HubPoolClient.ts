@@ -2,7 +2,7 @@ import assert from "assert";
 import { Contract, EventFilter } from "ethers";
 import _ from "lodash";
 import winston from "winston";
-import { DEFAULT_CACHING_SAFE_LAG, DEFAULT_CACHING_TTL } from "../constants";
+import { DEFAULT_CACHING_SAFE_LAG, DEFAULT_CACHING_TTL, ZERO_ADDRESS } from "../constants";
 import {
   CachingMechanismInterface,
   CancelledRootBundle,
@@ -45,6 +45,7 @@ import {
   getUsdcSymbol,
   getL1TokenInfo,
   logToSortableEvent,
+  compareAddressesSimple,
 } from "../utils";
 import { AcrossConfigStoreClient as ConfigStoreClient } from "./AcrossConfigStoreClient/AcrossConfigStoreClient";
 import { BaseAbstractClient, isUpdateFailureReason, UpdateFailureReason } from "./BaseAbstractClient";
@@ -917,18 +918,25 @@ export class HubPoolClient extends BaseAbstractClient {
     if (eventsToQuery.includes("SetPoolRebalanceRoute")) {
       for (const event of events["SetPoolRebalanceRoute"]) {
         const args = spreadEventWithBlockNumber(event) as SetPoolRebalanceRoot;
-        assign(this.l1TokensToDestinationTokens, [args.l1Token, args.destinationChainId], args.destinationToken);
-        assign(
-          this.l1TokensToDestinationTokensWithBlock,
-          [args.l1Token, args.destinationChainId],
-          [
-            {
-              l1Token: args.l1Token,
-              l2Token: args.destinationToken,
-              ...logToSortableEvent(event),
-            },
-          ]
-        );
+        // If the destination token is set to the zero address in an event, then this means Across should no longer
+        // rebalance to this chain.
+        if (args.destinationToken !== ZERO_ADDRESS) {
+          assign(this.l1TokensToDestinationTokens, [args.l1Token, args.destinationChainId], args.destinationToken);
+          assign(
+            this.l1TokensToDestinationTokensWithBlock,
+            [args.l1Token, args.destinationChainId],
+            [
+              {
+                l1Token: args.l1Token,
+                l2Token: args.destinationToken,
+                blockNumber: args.blockNumber,
+                txnIndex: args.txnIndex,
+                logIndex: args.logIndex,
+                txnRef: args.txnRef,
+              },
+            ]
+          );
+        }
       }
     }
 
@@ -949,7 +957,7 @@ export class HubPoolClient extends BaseAbstractClient {
         ),
       ]);
       for (const info of tokenInfo) {
-        if (!this.l1Tokens.find((token) => token.symbol === info.symbol)) {
+        if (!this.l1Tokens.find((token) => compareAddressesSimple(token.address, info.address))) {
           if (info.decimals > 0 && info.decimals <= 18) {
             this.l1Tokens.push(info);
           } else {

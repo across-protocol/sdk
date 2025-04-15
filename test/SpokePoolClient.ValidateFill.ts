@@ -6,12 +6,11 @@ import {
   bnZero,
   toBN,
   InvalidFill,
-  fillStatusArray,
-  relayFillStatus,
   validateFillForDeposit,
   queryHistoricalDepositForFill,
   deploy as deployMulticall,
 } from "../src/utils";
+import { fillStatusArray, relayFillStatus } from "../src/arch/evm";
 import { ZERO_BYTES } from "../src/constants";
 import { CHAIN_ID_TEST_LIST, originChainId, destinationChainId, repaymentChainId } from "./constants";
 import {
