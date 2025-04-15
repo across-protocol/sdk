@@ -292,6 +292,39 @@ describe("SpokePoolClient: Event Filtering", function () {
     expect(deposit.outputToken).to.equal(outputToken);
   });
 
+  it("Handles case where outputToken is set to 0x0 and cannot be resolved", async function () {
+    const { spokePool, chainId, deploymentBlock } = originSpokePoolClient;
+    const spokePoolClient = new MockSpokePoolClient(logger, spokePool, chainId, deploymentBlock, { hubPoolClient });
+
+    const hubPoolToken = randomAddress();
+    const outputToken = randomAddress();
+    const inputToken = randomAddress();
+    hubPoolClient.setDefaultRealizedLpFeePct(toBNWei("0.0001"));
+
+    const _deposit = spokePoolClient.depositV3({
+      originChainId,
+      destinationChainId,
+      inputToken,
+      outputToken: ZERO_ADDRESS,
+    } as DepositWithBlock);
+    expect(_deposit?.args?.outputToken).to.equal(ZERO_ADDRESS);
+
+    await spokePoolClient.update(fundsDepositedEvents);
+
+    const [deposit] = spokePoolClient.getDeposits();
+    expect(deposit).to.exist;
+    expect(deposit.outputToken).to.equal(ZERO_ADDRESS);
+
+    // Both origin and destination chains must map to the PoolRebalanceRoute of the inputToken:
+    hubPoolClient.setTokenMapping(hubPoolToken, originChainId, inputToken);
+    await spokePoolClient.update(fundsDepositedEvents);
+    expect(spokePoolClient.getDeposits()[0].outputToken).to.equal(ZERO_ADDRESS);
+    hubPoolClient.deleteTokenMapping(hubPoolToken, originChainId);
+    hubPoolClient.setTokenMapping(hubPoolToken, destinationChainId, outputToken);
+    await spokePoolClient.update(fundsDepositedEvents);
+    expect(spokePoolClient.getDeposits()[0].outputToken).to.equal(ZERO_ADDRESS);
+  });
+
   it("Correctly retrieves SlowFillRequested events", async function () {
     const requests: Log[] = [];
 
