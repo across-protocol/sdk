@@ -8,7 +8,16 @@ import {
 } from "../../utils";
 import { TOKEN_PROGRAM_ID, createApproveCheckedInstruction } from "@solana/spl-token";
 import { TOKEN_PROGRAM_ADDRESS, ASSOCIATED_TOKEN_PROGRAM_ADDRESS } from "@solana-program/token";
-import { Address, Rpc, SolanaRpcApi, some, getProgramDerivedAddress, type TransactionSigner } from "@solana/kit";
+import {
+  Address,
+  Rpc,
+  SolanaRpcApi,
+  some,
+  getU64Encoder,
+  getProgramDerivedAddress,
+  type TransactionSigner,
+  address,
+} from "@solana/kit";
 import { SvmSpokeClient, findProgramAddress } from "@across-protocol/contracts";
 import { Deposit, FillStatus, FillWithBlock, RelayData } from "../../interfaces";
 
@@ -161,6 +170,22 @@ export function fillStatusArray(
 }
 
 /**
+ * Returns the PDA for the State account.
+ * @param programId The SpokePool program ID.
+ * @param extraSeed An optional extra seed. Defaults to 0.
+ * @returns The PDA for the State account.
+ */
+export async function getStatePda(programId: string, extraSeed = 0): Promise<Address> {
+  const seedEncoder = getU64Encoder();
+  const encodedExtraSeed = seedEncoder.encode(extraSeed);
+  const [statePda] = await getProgramDerivedAddress({
+    programAddress: address(programId),
+    seeds: ["state", encodedExtraSeed],
+  });
+  return statePda;
+}
+
+/**
  * Find the block at which a fill was completed.
  * @todo After SpokePool upgrade, this function can be simplified to use the FillStatus enum.
  * @param spokePool SpokePool contract instance.
@@ -227,19 +252,21 @@ export async function fillRelayInstruction(
   // Create ATA for the relayer and recipient token accounts
   const relayerTokenAccount = await getAssociatedTokenAddress(relayerAddress.toV2Address(), outputToken.toV2Address());
 
-  const { publicKey: statePda } = findProgramAddress("state", spokePool.toPublicKey(), ["0"]);
-  const { publicKey: fillStatusPda } = findProgramAddress("fills", spokePool.toPublicKey(), [relayDataHash.toString()]);
-  const { publicKey: eventAuthority } = findProgramAddress("__event_authority", spokePool.toPublicKey());
+  const [statePda, fillStatusPda, eventAuthority] = await Promise.all([
+    getStatePda(spokePool.toBase58()),
+    getFillStatusPda(_relayDataHash, spokePool.toV2Address()),
+    getEventAuthority(),
+  ]);
 
   return SvmSpokeClient.getFillRelayInstruction({
     signer: relayer,
-    state: statePda.toBase58() as Address<string>,
+    state: statePda,
     mint: outputToken.toV2Address(),
     relayerTokenAccount: relayerTokenAccount,
     recipientTokenAccount: recipientTokenAccount,
-    fillStatus: fillStatusPda.toBase58() as Address<string>,
-    eventAuthority: eventAuthority.toBase58() as Address<string>,
-    program: programId as Address<string>,
+    fillStatus: fillStatusPda,
+    eventAuthority,
+    program: address(programId),
     relayHash: relayDataHash,
     relayData: some({
       depositor: depositor.toV2Address(),
@@ -328,4 +355,26 @@ export async function getAssociatedTokenAddress(
     seeds: [owner, associatedTokenProgramId, mint],
   });
   return associatedToken;
+}
+
+export async function getFillStatusPda(
+  relayDataHash: string,
+  spokePool: Address<string> = SvmSpokeClient.SVM_SPOKE_PROGRAM_ADDRESS
+): Promise<Address<string>> {
+  const [fillStatusPda] = await getProgramDerivedAddress({
+    programAddress: spokePool,
+    seeds: ["fills", relayDataHash],
+  });
+  return fillStatusPda;
+}
+
+export async function getEventAuthority(
+  spokePool: Address<string> = SvmSpokeClient.SVM_SPOKE_PROGRAM_ADDRESS,
+  extraSeeds: string[] = []
+): Promise<Address<string>> {
+  const [eventAuthority] = await getProgramDerivedAddress({
+    programAddress: spokePool,
+    seeds: ["__event_authority", ...extraSeeds],
+  });
+  return eventAuthority;
 }

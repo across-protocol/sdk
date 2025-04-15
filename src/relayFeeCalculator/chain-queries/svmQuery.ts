@@ -4,6 +4,15 @@ import { SymbolMappingType } from "./";
 import { CHAIN_IDs, DEFAULT_SIMULATED_RELAYER_ADDRESS } from "../../constants";
 import { Deposit } from "../../interfaces";
 import { BigNumberish, TransactionCostEstimate, BigNumber, SvmAddress, bnZero, toBN, isDefined } from "../../utils";
+import { Logger, QueryInterface } from "../relayFeeCalculator";
+import {
+  fillRelayInstruction,
+  createApproveInstruction,
+  createTokenAccountsInstruction,
+  Provider,
+  SolanaVoidSigner,
+  getAssociatedTokenAddress,
+} from "../../arch/svm";
 import {
   createTransactionMessage,
   setTransactionMessageFeePayer,
@@ -15,15 +24,7 @@ import {
 } from "@solana/kit";
 import { TOKEN_PROGRAM_ADDRESS, getMintSize, getInitializeMintInstruction } from "@solana-program/token";
 import { getCreateAccountInstruction } from "@solana-program/system";
-import {
-  fillRelayInstruction,
-  createApproveInstruction,
-  createTokenAccountsInstruction,
-  Provider,
-  SolanaVoidSigner,
-  getAssociatedTokenAddress,
-} from "../../arch/svm";
-import { Logger, QueryInterface } from "../relayFeeCalculator";
+
 /**
  * A special QueryBase implementation for SVM used for querying gas costs, token prices, and decimals of various tokens
  * on Solana.
