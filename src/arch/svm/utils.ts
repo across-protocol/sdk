@@ -1,6 +1,7 @@
 import { BN, BorshEventCoder, Idl } from "@coral-xyz/anchor";
-import web3, { address, isAddress, RpcTransport } from "@solana/kit";
+import web3, { address, getProgramDerivedAddress, getU64Encoder, Address, isAddress, RpcTransport } from "@solana/kit";
 import { BigNumber, isUint8Array, SvmAddress } from "../../utils";
+
 import { EventName, EventData, SVMEventNames } from "./types";
 import { FillType } from "../../interfaces";
 
@@ -131,4 +132,20 @@ export function unwrapEventData(
   }
   // Return primitives as is
   return data;
+}
+
+/**
+ * Returns the PDA for the State account.
+ * @param programId The SpokePool program ID.
+ * @param extraSeed An optional extra seed. Defaults to 0.
+ * @returns The PDA for the State account.
+ */
+export async function getStatePda(programId: string, extraSeed = 0): Promise<Address> {
+  const seedEncoder = getU64Encoder();
+  const encodedExtraSeed = seedEncoder.encode(extraSeed);
+  const [statePda] = await getProgramDerivedAddress({
+    programAddress: address(programId),
+    seeds: ["state", encodedExtraSeed],
+  });
+  return statePda;
 }

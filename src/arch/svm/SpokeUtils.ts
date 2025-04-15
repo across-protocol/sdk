@@ -1,4 +1,4 @@
-import { Rpc, SolanaRpcApi, Address, getProgramDerivedAddress, address, getU64Encoder } from "@solana/kit";
+import { Rpc, SolanaRpcApi, Address } from "@solana/kit";
 
 import { Deposit, FillStatus, FillWithBlock, RelayData } from "../../interfaces";
 import { BigNumber, isUnsafeDepositId } from "../../utils";
@@ -50,11 +50,10 @@ export async function getTimestampForBlock(provider: Provider, blockNumber: numb
 /**
  * Returns the current fill deadline buffer.
  * @param provider SVM Provider instance
- * @param programId Program ID from which State account is derived.
+ * @param statePda Spoke Pool's State PDA
  * @returns fill deadline buffer
  */
-export async function getFillDeadline(provider: Provider, programId: string): Promise<number> {
-  const statePda = await getStatePda(programId);
+export async function getFillDeadline(provider: Provider, statePda: Address): Promise<number> {
   const state = await fetchState(provider, statePda);
   return state.data.fillDeadlineBuffer;
 }
@@ -174,20 +173,4 @@ export function findFillEvent(
   _highBlockNumber?: number
 ): Promise<FillWithBlock | undefined> {
   throw new Error("fillStatusArray: not implemented");
-}
-
-/**
- * Returns the PDA for the State account.
- * @param programId The SpokePool program ID.
- * @param extraSeed An optional extra seed. Defaults to 0.
- * @returns The PDA for the State account.
- */
-export async function getStatePda(programId: string, extraSeed = 0): Promise<Address> {
-  const seedEncoder = getU64Encoder();
-  const encodedExtraSeed = seedEncoder.encode(extraSeed);
-  const [statePda] = await getProgramDerivedAddress({
-    programAddress: address(programId),
-    seeds: ["state", encodedExtraSeed],
-  });
-  return statePda;
 }
