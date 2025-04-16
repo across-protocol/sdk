@@ -72,11 +72,11 @@ export function getEventName(rawName: string): EventName {
  * @param extraSeed An optional extra seed. Defaults to 0.
  * @returns The PDA for the State account.
  */
-export async function getStatePda(programId: string, extraSeed = 0): Promise<Address> {
+export async function getStatePda(programId: Address, extraSeed = 0): Promise<Address> {
   const seedEncoder = getU64Encoder();
   const encodedExtraSeed = seedEncoder.encode(extraSeed);
   const [statePda] = await getProgramDerivedAddress({
-    programAddress: address(programId),
+    programAddress: programId,
     seeds: ["state", encodedExtraSeed],
   });
   return statePda;

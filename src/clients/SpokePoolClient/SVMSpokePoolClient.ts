@@ -27,7 +27,7 @@ export class SvmSpokePoolClient extends SpokePoolClient {
     chainId: number,
     deploymentSlot: bigint, // Using slot instead of block number for SVM
     eventSearchConfig: MakeOptional<EventSearchConfig, "toBlock">,
-    protected programId: string,
+    protected programId: Address,
     protected statePda: Address,
     protected svmEventsClient: SvmSpokeEventsClient,
     protected rpc: Rpc<SolanaRpcApiFromTransport<RpcTransport>>
@@ -45,11 +45,11 @@ export class SvmSpokePoolClient extends SpokePoolClient {
     chainId: number,
     deploymentSlot: bigint,
     eventSearchConfig: MakeOptional<EventSearchConfig, "toBlock"> = { fromBlock: 0, maxBlockLookBack: 0 }, // Provide default
-    programId: string,
     rpc: Rpc<SolanaRpcApiFromTransport<RpcTransport>>
   ): Promise<SvmSpokePoolClient> {
-    const statePda = await getStatePda(programId);
     const svmEventsClient = await SvmSpokeEventsClient.create(rpc);
+    const programId = svmEventsClient.getSvmSpokeAddress();
+    const statePda = await getStatePda(programId);
     return new SvmSpokePoolClient(
       logger,
       hubPoolClient,
