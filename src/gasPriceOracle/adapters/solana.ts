@@ -1,8 +1,8 @@
 import { Provider } from "../../arch/svm";
-import { toBN } from "../../utils";
+import { toBN, dedupArray } from "../../utils";
 import { GasPriceEstimate } from "../types";
 import { GasPriceEstimateOptions } from "../oracle";
-import { Transaction, TransactionMessageBytesBase64 } from "@solana/kit";
+import { CompilableTransactionMessage, TransactionMessageBytesBase64, compileTransaction } from "@solana/kit";
 
 /**
  * @notice Returns result of getFeeForMessage and getRecentPrioritizationFees RPC calls.
@@ -10,24 +10,25 @@ import { Transaction, TransactionMessageBytesBase64 } from "@solana/kit";
  */
 export async function messageFee(provider: Provider, opts: GasPriceEstimateOptions): Promise<GasPriceEstimate> {
   const { unsignedTx: _unsignedTx } = opts;
-  const unsignedTx = _unsignedTx as Transaction; // Cast the opaque unsignedTx type to a solana-kit Transaction.
+
+  // Cast the opaque unsignedTx type to a solana-kit CompilableTransactionMessage.
+  const unsignedTx = _unsignedTx as CompilableTransactionMessage;
+  const compiledTransaction = compileTransaction(unsignedTx);
 
   // Get this base fee. This should result in LAMPORTS_PER_SIGNATURE * nSignatures.
-  const encodedTransactionMessage = Buffer.from(unsignedTx.messageBytes).toString(
+  const encodedTransactionMessage = Buffer.from(compiledTransaction.messageBytes).toString(
     "base64"
   ) as TransactionMessageBytesBase64;
   const baseFeeResponse = await provider.getFeeForMessage(encodedTransactionMessage).send();
 
-  // Get the priority fee.
-  const recentPriorityFees = await provider.getRecentPrioritizationFees().send();
+  // Get the priority fee by calling `getRecentPrioritzationFees` on all the addresses in the transaction's instruction array.
+  const instructionAddresses = dedupArray(unsignedTx.instructions.map((instruction) => instruction.programAddress));
+  const recentPriorityFees = await provider.getRecentPrioritizationFees(instructionAddresses).send();
 
-  // TODO: Do some transformation on this value.
-  const priorityFeesPerComputeUnit =
-    (recentPriorityFees.reduce((acc, fee) => acc + Number(fee.prioritizationFee), 0) *
-      opts.priorityFeeMultiplier.toNumber()) /
-    recentPriorityFees.length;
+  const nonzeroPrioritizationFees = recentPriorityFees.map((value) => value.prioritizationFee).filter((fee) => fee > 0);
+  const totalPrioritizationFees = nonzeroPrioritizationFees.reduce((acc, fee) => acc + fee, BigInt(0));
   return {
-    maxFeePerGas: toBN(baseFeeResponse!.value!),
-    maxPriorityFeePerGas: toBN(priorityFeesPerComputeUnit),
+    baseFee: toBN(baseFeeResponse!.value!),
+    microLamportsPerComputeUnit: toBN(totalPrioritizationFees / BigInt(nonzeroPrioritizationFees.length)),
   };
 }

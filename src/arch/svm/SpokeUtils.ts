@@ -5,9 +5,15 @@ import {
   isDefined,
   getRelayDataHash,
   isUnsafeDepositId,
+  toAddressType,
 } from "../../utils";
-import { TOKEN_PROGRAM_ID, createApproveCheckedInstruction } from "@solana/spl-token";
-import { TOKEN_PROGRAM_ADDRESS, ASSOCIATED_TOKEN_PROGRAM_ADDRESS } from "@solana-program/token";
+import { SvmSpokeClient } from "@across-protocol/contracts";
+import { Deposit, FillStatus, FillWithBlock, RelayData } from "../../interfaces";
+import {
+  TOKEN_PROGRAM_ADDRESS,
+  ASSOCIATED_TOKEN_PROGRAM_ADDRESS,
+  getApproveCheckedInstruction,
+} from "@solana-program/token";
 import {
   Address,
   Rpc,
@@ -18,8 +24,6 @@ import {
   type TransactionSigner,
   address,
 } from "@solana/kit";
-import { SvmSpokeClient, findProgramAddress } from "@across-protocol/contracts";
-import { Deposit, FillStatus, FillWithBlock, RelayData } from "../../interfaces";
 
 export type Provider = Rpc<SolanaRpcApi>;
 
@@ -244,13 +248,13 @@ export async function fillRelayInstruction(
     _exclusiveRelayer,
     _inputToken,
     _outputToken,
-  ].map((addr) => SvmAddress.from(addr));
+  ].map((addr) => toAddressType(addr).forceSvmAddress());
 
   const _relayDataHash = getRelayDataHash(deposit, deposit.destinationChainId);
   const relayDataHash = new Uint8Array(Buffer.from(_relayDataHash.slice(2), "hex"));
 
   // Create ATA for the relayer and recipient token accounts
-  const relayerTokenAccount = await getAssociatedTokenAddress(relayerAddress.toV2Address(), outputToken.toV2Address());
+  const relayerTokenAccount = await getAssociatedTokenAddress(relayerAddress, outputToken);
 
   const [statePda, fillStatusPda, eventAuthority] = await Promise.all([
     getStatePda(spokePool.toBase58()),
@@ -282,7 +286,7 @@ export async function fillRelayInstruction(
       depositId: new Uint8Array(Buffer.from(deposit.depositId.toHexString().slice(2), "hex")),
       message: new Uint8Array(Buffer.from(deposit.message.slice(2), "hex")),
     }),
-    repaymentChainId: some(repaymentChainId),
+    repaymentChainId: some(BigInt(repaymentChainId)),
     repaymentAddress: some(relayerAddress.toV2Address()),
   });
 }
@@ -313,46 +317,39 @@ export async function createApproveInstruction(
   mint: SvmAddress,
   amount: BigNumber,
   relayer: SvmAddress,
-  spokePool: SvmAddress
+  spokePool: SvmAddress,
+  mintDecimals?: number
 ) {
-  const relayerTokenAccount = await getAssociatedTokenAddress(
-    relayer.toV2Address(),
-    mint.toV2Address(),
-    TOKEN_PROGRAM_ADDRESS
-  );
-  const { publicKey: statePda } = findProgramAddress("state", spokePool.toPublicKey(), ["0"]);
-  const tokenInfo = getTokenInformationFromAddress(mint.toBase58());
+  const [relayerTokenAccount, statePda] = await Promise.all([
+    getAssociatedTokenAddress(relayer, mint, TOKEN_PROGRAM_ADDRESS),
+    getStatePda(spokePool.toBase58()),
+  ]);
 
-  // FIXME: This will cause any bot to crash if the token being relayed is not in `TOKEN_SYMBOLS_MAP`, which is
-  // going to break lots of integrations post-v4.
-  if (!isDefined(tokenInfo)) {
-    throw new Error(`${mint.toBase58()} is not a recognized token in TOKEN_SYMBOLS_MAP`);
+  // If no mint decimals were supplied, then assign it to whatever value we have in TOKEN_SYMBOLS_MAP.
+  // If this token is not in TOKEN_SYMBOLS_MAP, then throw an error.
+  mintDecimals ??= getTokenInformationFromAddress(mint.toBase58())?.decimals;
+  if (!isDefined(mintDecimals)) {
+    throw new Error(`No mint decimals found for token ${mint.toBase58()}`);
   }
 
-  const approveIx = await createApproveCheckedInstruction(
-    SvmAddress.from(relayerTokenAccount as string).toPublicKey(),
-    mint.toPublicKey(),
-    statePda,
-    relayer.toPublicKey(),
-    BigInt(amount.toString()),
-    tokenInfo!.decimals,
-    undefined,
-    TOKEN_PROGRAM_ID
-  );
-  return {
-    ...approveIx,
-    programAddress: SvmSpokeClient.SVM_SPOKE_PROGRAM_ADDRESS,
-  };
+  return getApproveCheckedInstruction({
+    source: relayerTokenAccount,
+    mint: mint.toV2Address(),
+    delegate: statePda,
+    owner: relayer.toV2Address(),
+    amount: amount.toBigInt(),
+    decimals: mintDecimals,
+  });
 }
 
 export async function getAssociatedTokenAddress(
-  owner: Address<string>,
-  mint: Address<string>,
+  owner: SvmAddress,
+  mint: SvmAddress,
   associatedTokenProgramId: Address<string> = TOKEN_PROGRAM_ADDRESS
 ): Promise<Address<string>> {
   const [associatedToken] = await getProgramDerivedAddress({
     programAddress: ASSOCIATED_TOKEN_PROGRAM_ADDRESS,
-    seeds: [owner, associatedTokenProgramId, mint],
+    seeds: [owner.toBuffer(), SvmAddress.from(associatedTokenProgramId).toBuffer(), mint.toBuffer()],
   });
   return associatedToken;
 }
@@ -363,7 +360,7 @@ export async function getFillStatusPda(
 ): Promise<Address<string>> {
   const [fillStatusPda] = await getProgramDerivedAddress({
     programAddress: spokePool,
-    seeds: ["fills", relayDataHash],
+    seeds: [Buffer.from("fills"), Buffer.from(relayDataHash.slice(2), "hex")],
   });
   return fillStatusPda;
 }
@@ -374,7 +371,7 @@ export async function getEventAuthority(
 ): Promise<Address<string>> {
   const [eventAuthority] = await getProgramDerivedAddress({
     programAddress: spokePool,
-    seeds: ["__event_authority", ...extraSeeds],
+    seeds: [Buffer.from("__event_authority"), ...extraSeeds],
   });
   return eventAuthority;
 }
