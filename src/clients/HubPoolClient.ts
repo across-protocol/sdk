@@ -928,7 +928,7 @@ export class HubPoolClient extends BaseAbstractClient {
             );
           }
           // Store the full Solana address
-          dataToAdd.spokePool = solanaSpokePool;
+          dataToAdd.spokePool = SvmAddress.from(solanaSpokePool).toBytes32();
         }
         assign(this.crossChainContracts, [args.l2ChainId], [dataToAdd]);
       }
@@ -951,7 +951,7 @@ export class HubPoolClient extends BaseAbstractClient {
                 `Expected ${truncatedAddress}, got ${destinationToken}`
             );
           }
-          destinationToken = usdcTokenSol;
+          destinationToken = SvmAddress.from(usdcTokenSol).toBytes32();
         }
 
         // If the destination token is set to the zero address in an event, then this means Across should no longer
