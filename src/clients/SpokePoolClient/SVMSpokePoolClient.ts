@@ -1,6 +1,6 @@
 import { Rpc, RpcTransport, SolanaRpcApiFromTransport } from "@solana/kit";
 import winston from "winston";
-import { SVMEventNames, SvmSpokeEventsClient } from "../../arch/svm";
+import { SVMEventNames, SvmSpokeEventsClient, unwrapEventData } from "../../arch/svm";
 import { FillStatus, RelayData, SortableEvent } from "../../interfaces";
 import {
   BigNumber,
@@ -126,7 +126,7 @@ export class SvmSpokePoolClient extends SpokePoolClient {
               blockNumber: Number(block.blockHeight),
               transactionIndex: 0,
               logIndex: 0,
-              ...event.data,
+              ...(unwrapEventData(event.data) as Record<string, unknown>),
             };
           })
         );
