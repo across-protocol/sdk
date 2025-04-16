@@ -123,7 +123,7 @@ export class EVMSpokePoolClient extends SpokePoolClient {
       const errMsg = BigNumber.isBigNumber(currentTime)
         ? `currentTime: ${currentTime} < ${toBN(this.currentTime)}`
         : `currentTime is not a BigNumber: ${JSON.stringify(currentTime)}`;
-      throw new Error(`SpokePoolClient::update: ${errMsg}`);
+      throw new Error(`EVMSpokePoolClient::update: ${errMsg}`);
     }
 
     // Sort all events to ensure they are stored in a consistent order.
