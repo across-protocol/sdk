@@ -1,6 +1,8 @@
-import { Rpc, SolanaRpcApi } from "@solana/kit";
+import { Rpc, SolanaRpcApi, Address } from "@solana/kit";
+
 import { Deposit, FillStatus, FillWithBlock, RelayData } from "../../interfaces";
 import { BigNumber, isUnsafeDepositId } from "../../utils";
+import { fetchState } from "@across-protocol/contracts/dist/src/svm/clients/SvmSpoke";
 
 type Provider = Rpc<SolanaRpcApi>;
 
@@ -46,18 +48,14 @@ export async function getTimestampForBlock(provider: Provider, blockNumber: numb
 }
 
 /**
- * Return maximum of fill deadline buffer at start and end of block range.
- * @param spokePool SpokePool contract instance
- * @param startBlock start block
- * @param endBlock end block
- * @returns maximum of fill deadline buffer at start and end block
+ * Returns the current fill deadline buffer.
+ * @param provider SVM Provider instance
+ * @param statePda Spoke Pool's State PDA
+ * @returns fill deadline buffer
  */
-export function getMaxFillDeadlineInRange(
-  _spokePool: unknown,
-  _startBlock: number,
-  _endBlock: number
-): Promise<number> {
-  throw new Error("getMaxFillDeadlineInRange: not implemented");
+export async function getFillDeadline(provider: Provider, statePda: Address): Promise<number> {
+  const state = await fetchState(provider, statePda);
+  return state.data.fillDeadlineBuffer;
 }
 
 /**
