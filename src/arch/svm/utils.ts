@@ -1,7 +1,8 @@
 import { BN, BorshEventCoder, Idl } from "@coral-xyz/anchor";
 import web3, { address, isAddress, RpcTransport } from "@solana/kit";
-import { SvmAddress } from "../../utils";
+import { isUint8Array, SvmAddress } from "../../utils";
 import { EventName, EventData, SVMEventNames } from "./types";
+import { FillType } from "../../interfaces";
 
 /**
  * Helper to determine if the current RPC network is devnet.
@@ -67,42 +68,75 @@ export function getEventName(rawName: string): EventName {
 }
 
 /**
- * Unwraps an event data object and converts Address types to strings.
+ * Unwraps any data structure and converts Address types to strings and Uint8Array to hex or BigInt.
+ * Recursively processes nested objects and arrays.
  */
-export function unwrapEventData<T extends EventData>(eventData: T, uint8ArrayKeysAsBigInt = ["depositId"]): unknown {
-  if (!eventData) return eventData;
-
-  if (Array.isArray(eventData)) {
-    return eventData.map((item) => unwrapEventData(item as EventData, uint8ArrayKeysAsBigInt));
+export function unwrapEventData(
+  data: unknown,
+  uint8ArrayKeysAsBigInt: string[] = ["depositId"],
+  currentKey?: string
+): unknown {
+  // Handle null/undefined
+  if (data == null) {
+    return data;
   }
 
-  if (typeof eventData === "string") {
-    // Check if it's an Address instance
-    if (isAddress(eventData)) {
-      return SvmAddress.from(eventData).toBytes32();
+  // Handle Uint8Array and byte arrays
+  if (data instanceof Uint8Array || isUint8Array(data)) {
+    const bytes = data instanceof Uint8Array ? data : new Uint8Array(data as number[]);
+    const hex = "0x" + Buffer.from(bytes).toString("hex");
+    if (currentKey && uint8ArrayKeysAsBigInt.includes(currentKey)) {
+      return BigInt(hex);
     }
+    return hex;
   }
 
-  if (eventData instanceof Uint8Array) {
-    const hex = "0x" + Buffer.from(eventData).toString("hex");
-    return uint8ArrayKeysAsBigInt.includes("depositId") ? BigInt(hex) : hex;
+  // Handle regular arrays (non-byte arrays)
+  if (Array.isArray(data)) {
+    return data.map((item) => unwrapEventData(item, uint8ArrayKeysAsBigInt));
   }
 
-  if (typeof eventData === "object") {
-    // Process regular objects
-    const result = Object.fromEntries(
-      Object.entries(eventData).map(([key, value]) => {
-        const processedValue =
-          value instanceof Uint8Array
-            ? uint8ArrayKeysAsBigInt.includes(key)
-              ? BigInt("0x" + Buffer.from(value).toString("hex"))
-              : "0x" + Buffer.from(value).toString("hex")
-            : unwrapEventData(value as EventData, uint8ArrayKeysAsBigInt);
-        return [key, processedValue];
-      })
+  // Handle strings (potential addresses)
+  if (typeof data === "string" && isAddress(data)) {
+    return SvmAddress.from(data).toBytes32();
+  }
+
+  if (currentKey === "fillType") {
+    console.log(data);
+    console.log(typeof data);
+  }
+
+  // Handle objects
+  if (typeof data === "object") {
+    // Special case: if an object is in the context of the fillType key, then
+    // parse out the fillType from the object
+    if (currentKey === "fillType") {
+      const fillType = Object.keys(data)[0];
+      switch (fillType) {
+        case "FastFill":
+          return FillType.FastFill;
+        case "ReplacedSlowFill":
+          return FillType.ReplacedSlowFill;
+        case "SlowFill":
+          return FillType.SlowFill;
+        default:
+          throw new Error(`Unknown fill type: ${fillType}`);
+      }
+    }
+
+    // Special case: if an object is empty, return 0x
+    if (Object.keys(data).length === 0) {
+      return "0x";
+    }
+
+    return Object.fromEntries(
+      Object.entries(data as Record<string, unknown>).map(([key, value]) => [
+        key,
+        unwrapEventData(value, uint8ArrayKeysAsBigInt, key),
+      ])
     );
-    return result;
   }
 
-  return eventData;
+  // Return primitives as is
+  return data;
 }

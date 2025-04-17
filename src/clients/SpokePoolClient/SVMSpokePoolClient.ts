@@ -4,6 +4,7 @@ import { SVMEventNames, SvmSpokeEventsClient, unwrapEventData } from "../../arch
 import { FillStatus, RelayData, SortableEvent } from "../../interfaces";
 import {
   BigNumber,
+  bs58,
   DepositSearchResult,
   EventSearchConfig,
   MakeOptional,
@@ -103,7 +104,7 @@ export class SvmSpokePoolClient extends SpokePoolClient {
 
     const timerStart = Date.now();
 
-    const [currentTime, ...eventsQueried] = await Promise.all([
+    const [_currentTime, ...eventsQueried] = await Promise.all([
       this.rpc.getBlockTime(BigInt(searchConfig.toBlock)).send(),
       ...eventsToQuery.map(async (eventName, idx) => {
         const config = eventSearchConfigs[idx];
@@ -114,7 +115,7 @@ export class SvmSpokePoolClient extends SpokePoolClient {
         );
         return Promise.all(
           events.map(async (event): Promise<SortableEvent> => {
-            const block = await this.rpc.getBlock(event.slot).send();
+            const block = await this.rpc.getBlock(event.slot, { maxSupportedTransactionVersion: 0 }).send();
 
             if (!block) {
               this.log("error", `SpokePoolClient::update: Failed to get block for slot ${event.slot}`);
@@ -122,7 +123,7 @@ export class SvmSpokePoolClient extends SpokePoolClient {
             }
 
             return {
-              transactionHash: event.signature.toString(),
+              transactionHash: `0x${Buffer.from(bs58.decode(event.signature)).toString("hex")}`,
               blockNumber: Number(block.blockHeight),
               transactionIndex: 0,
               logIndex: 0,
@@ -132,6 +133,7 @@ export class SvmSpokePoolClient extends SpokePoolClient {
         );
       }),
     ]);
+    const currentTime = toBN(_currentTime.toString());
     this.log("debug", `Time to query new events from RPC for ${this.chainId}: ${Date.now() - timerStart} ms`);
     if (!BigNumber.isBigNumber(currentTime) || currentTime.lt(this.currentTime)) {
       const errMsg = BigNumber.isBigNumber(currentTime)
