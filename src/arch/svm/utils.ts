@@ -80,7 +80,6 @@ export function unwrapEventData(
   if (data == null) {
     return data;
   }
-
   // Handle Uint8Array and byte arrays
   if (data instanceof Uint8Array || isUint8Array(data)) {
     const bytes = data instanceof Uint8Array ? data : new Uint8Array(data as number[]);
@@ -90,22 +89,14 @@ export function unwrapEventData(
     }
     return hex;
   }
-
   // Handle regular arrays (non-byte arrays)
   if (Array.isArray(data)) {
     return data.map((item) => unwrapEventData(item, uint8ArrayKeysAsBigInt));
   }
-
   // Handle strings (potential addresses)
   if (typeof data === "string" && isAddress(data)) {
     return SvmAddress.from(data).toBytes32();
   }
-
-  if (currentKey === "fillType") {
-    console.log(data);
-    console.log(typeof data);
-  }
-
   // Handle objects
   if (typeof data === "object") {
     // Special case: if an object is in the context of the fillType key, then
@@ -123,12 +114,10 @@ export function unwrapEventData(
           throw new Error(`Unknown fill type: ${fillType}`);
       }
     }
-
     // Special case: if an object is empty, return 0x
     if (Object.keys(data).length === 0) {
       return "0x";
     }
-
     return Object.fromEntries(
       Object.entries(data as Record<string, unknown>).map(([key, value]) => [
         key,
@@ -136,7 +125,6 @@ export function unwrapEventData(
       ])
     );
   }
-
   // Return primitives as is
   return data;
 }
