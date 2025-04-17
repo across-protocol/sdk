@@ -128,7 +128,5 @@ function _getRelayDataHashSvm(relayData: RelayData, destinationChainId: number, 
     bufferFromHexString(getMessageHash(relayData.message)),
     bufferFromInt(toBN(destinationChainId), 8),
   ]);
-  console.log(contentToHash);
-  console.log(keccak256(contentToHash));
   return keccak256(contentToHash);
 }
