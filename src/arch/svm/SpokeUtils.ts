@@ -261,6 +261,9 @@ export async function fillRelayInstruction(
     getFillStatusPda(_relayDataHash, spokePool.toV2Address()),
     getEventAuthority(),
   ]);
+  const depositIdBuffer = Buffer.alloc(32);
+  const shortenedBuffer = Buffer.from(deposit.depositId.toHexString().slice(2), "hex");
+  shortenedBuffer.copy(depositIdBuffer, 32 - shortenedBuffer.length);
 
   return SvmSpokeClient.getFillRelayInstruction({
     signer: relayer,
@@ -283,7 +286,7 @@ export async function fillRelayInstruction(
       originChainId: BigInt(deposit.originChainId),
       fillDeadline: deposit.fillDeadline,
       exclusivityDeadline: deposit.exclusivityDeadline,
-      depositId: new Uint8Array(Buffer.from(deposit.depositId.toHexString().slice(2), "hex")),
+      depositId: new Uint8Array(depositIdBuffer),
       message: new Uint8Array(Buffer.from(deposit.message.slice(2), "hex")),
     }),
     repaymentChainId: some(BigInt(repaymentChainId)),
@@ -345,11 +348,11 @@ export async function createApproveInstruction(
 export async function getAssociatedTokenAddress(
   owner: SvmAddress,
   mint: SvmAddress,
-  associatedTokenProgramId: Address<string> = TOKEN_PROGRAM_ADDRESS
+  tokenProgramId: Address<string> = TOKEN_PROGRAM_ADDRESS
 ): Promise<Address<string>> {
   const [associatedToken] = await getProgramDerivedAddress({
     programAddress: ASSOCIATED_TOKEN_PROGRAM_ADDRESS,
-    seeds: [owner.toBuffer(), SvmAddress.from(associatedTokenProgramId).toBuffer(), mint.toBuffer()],
+    seeds: [owner.toBuffer(), SvmAddress.from(tokenProgramId).toBuffer(), mint.toBuffer()],
   });
   return associatedToken;
 }

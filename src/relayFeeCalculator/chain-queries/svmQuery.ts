@@ -142,6 +142,7 @@ export class SvmQuery implements QueryInterface {
           : tx,
       (tx) => appendTransactionMessageInstructions([createTokenAccountsIx, approveIx, fillIx], tx)
     );
+
     const [computeUnitsConsumed, _gasPriceEstimate] = await Promise.all([
       toBN(await this.computeUnitEstimator(fillRelayTx)),
       getGasPriceEstimate(this.provider, {
