@@ -67,6 +67,13 @@ export interface Fill extends Omit<RelayData, "message"> {
 
 export interface FillWithBlock extends Fill, SortableEvent {}
 
+export interface EnabledDepositRoute {
+  originToken: string;
+  destinationChainId: number;
+  enabled: boolean;
+}
+
+export interface EnabledDepositRouteWithBlock extends EnabledDepositRoute, SortableEvent {}
 export interface SpeedUp {
   depositor: string;
   depositorSignature: string;

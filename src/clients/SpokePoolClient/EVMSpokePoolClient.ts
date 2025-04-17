@@ -123,17 +123,22 @@ export class EVMSpokePoolClient extends SpokePoolClient {
       const errMsg = BigNumber.isBigNumber(currentTime)
         ? `currentTime: ${currentTime} < ${toBN(this.currentTime)}`
         : `currentTime is not a BigNumber: ${JSON.stringify(currentTime)}`;
-      throw new Error(`SpokePoolClient::update: ${errMsg}`);
+      throw new Error(`EVMSpokePoolClient::update: ${errMsg}`);
     }
 
     // Sort all events to ensure they are stored in a consistent order.
     events.forEach((events) => sortEventsAscendingInPlace(events));
 
+    // Map events to SortableEvent
+    const eventsWithBlockNumber = events.map((eventList) =>
+      eventList.map((event) => spreadEventWithBlockNumber(event))
+    );
+
     return {
       success: true,
       currentTime: currentTime.toNumber(), // uint32
       searchEndBlock: searchConfig.toBlock,
-      events,
+      events: eventsWithBlockNumber,
     };
   }
 

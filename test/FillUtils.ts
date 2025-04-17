@@ -1,6 +1,6 @@
 import { DepositWithBlock, FillType, FillWithBlock } from "../src/interfaces";
 import { bnOne, bnZero, toBN } from "../src/utils";
-import { ZERO_ADDRESS } from "../src/constants";
+import { ZERO_ADDRESS, ZERO_BYTES } from "../src/constants";
 import { originChainId, destinationChainId, repaymentChainId } from "./constants";
 import {
   createSpyLogger,
@@ -54,6 +54,7 @@ describe("FillUtils", function () {
       quoteBlockNumber: 0,
       fromLiteChain: false,
       toLiteChain: false,
+      messageHash: ZERO_BYTES,
     };
     fill = {
       ...deposit,
@@ -62,6 +63,7 @@ describe("FillUtils", function () {
         updatedOutputAmount: deposit.outputAmount,
         updatedRecipient: deposit.recipient,
         fillType: FillType.FastFill,
+        updatedMessageHash: ZERO_BYTES,
       },
       relayer,
       repaymentChainId,

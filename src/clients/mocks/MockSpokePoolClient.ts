@@ -27,6 +27,7 @@ import {
   bnOne,
   toAddress,
   toBytes32,
+  spreadEventWithBlockNumber,
 } from "../../utils";
 import { EVMSpokePoolClient, SpokePoolUpdate } from "../SpokePoolClient";
 import { HubPoolClient } from "../HubPoolClient";
@@ -106,11 +107,15 @@ export class MockSpokePoolClient extends EVMSpokePoolClient {
         }
       });
 
+    const eventsWithBlockNumber = events.map((eventList) =>
+      eventList.map((event) => spreadEventWithBlockNumber(event))
+    );
+
     return Promise.resolve({
       success: true,
       firstDepositId: bnZero,
       currentTime,
-      events,
+      events: eventsWithBlockNumber,
       searchEndBlock: this.eventSearchConfig.toBlock || latestBlockSearched,
     });
   }

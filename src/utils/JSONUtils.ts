@@ -33,6 +33,8 @@ export function stringifyJSONWithNumericString(obj: unknown): string {
   return JSON.stringify(obj, (_key, value) => {
     if (typeof value === "object" && value !== null && value.type === "BigNumber") {
       return BigNumber.from(value).toString();
+    } else if (typeof value === "bigint" && value !== null) {
+      return value.toString();
     }
     return value;
   });

@@ -1,4 +1,4 @@
-import { Signature, Address, UnixTimestamp } from "@solana/kit";
+import { Signature, Address, UnixTimestamp, SolanaRpcApi, Rpc } from "@solana/kit";
 import { SvmSpokeClient } from "@across-protocol/contracts";
 
 export type EventData =
@@ -45,3 +45,5 @@ export type EventWithData<T extends EventData> = {
   data: T;
   program: Address;
 };
+
+export type SVMProvider = Rpc<SolanaRpcApi>;
