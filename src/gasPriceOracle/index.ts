@@ -1,2 +1,2 @@
 export { getGasPriceEstimate } from "./oracle";
-export { GasPriceEstimate } from "./types";
+export { GasPriceEstimate, EvmGasPriceEstimate, SvmGasPriceEstimate } from "./types";

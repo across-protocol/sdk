@@ -1,3 +1,4 @@
+import { PopulatedTransaction } from "ethers";
 import { Address, Hex, PublicClient } from "viem";
 import { estimateGas } from "viem/linea";
 import { DEFAULT_SIMULATED_RELAYER_ADDRESS as account } from "../../constants";
@@ -26,7 +27,8 @@ export async function eip1559(
   provider: PublicClient,
   opts: GasPriceEstimateOptions
 ): Promise<InternalGasPriceEstimate> {
-  const { unsignedTx, priorityFeeMultiplier } = opts;
+  const { unsignedTx: _unsignedTx, priorityFeeMultiplier } = opts;
+  const unsignedTx = _unsignedTx as PopulatedTransaction; // Cast the opaque unsignedTx type to an ethers PopulatedTransaction.
   const { baseFeePerGas, priorityFeePerGas: _priorityFeePerGas } = await estimateGas(provider, {
     account: (unsignedTx?.from as Address) ?? account,
     to: (unsignedTx?.to as Address) ?? account,

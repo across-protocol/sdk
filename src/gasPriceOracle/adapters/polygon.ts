@@ -2,7 +2,7 @@ import { providers } from "ethers";
 import { BaseHTTPAdapter, BaseHTTPAdapterArgs } from "../../priceClient/adapters/baseAdapter";
 import { BigNumber, bnZero, fixedPointAdjustment, isDefined, parseUnits } from "../../utils";
 import { CHAIN_IDs } from "../../constants";
-import { GasPriceEstimate } from "../types";
+import { EvmGasPriceEstimate } from "../types";
 import { gasPriceError } from "../util";
 import { eip1559 } from "./ethereum";
 import { GasPriceEstimateOptions } from "../oracle";
@@ -38,7 +38,7 @@ export class PolygonGasStation extends BaseHTTPAdapter {
     this.chainId = chainId;
   }
 
-  async getFeeData(strategy: "safeLow" | "standard" | "fast" = "fast"): Promise<GasPriceEstimate> {
+  async getFeeData(strategy: "safeLow" | "standard" | "fast" = "fast"): Promise<EvmGasPriceEstimate> {
     const gas = await this.query("v2", {});
 
     const gasPrice = (gas as GasStationV2Response)?.[strategy];
@@ -69,7 +69,7 @@ export class PolygonGasStation extends BaseHTTPAdapter {
 }
 
 class MockRevertingPolygonGasStation extends PolygonGasStation {
-  getFeeData(): Promise<GasPriceEstimate> {
+  getFeeData(): Promise<EvmGasPriceEstimate> {
     throw new Error();
   }
 }
@@ -78,7 +78,7 @@ export const MockPolygonGasStationBaseFee = () => parseUnits("12", 9);
 export const MockPolygonGasStationPriorityFee = () => parseUnits("1", 9);
 
 class MockPolygonGasStation extends PolygonGasStation {
-  getFeeData(): Promise<GasPriceEstimate> {
+  getFeeData(): Promise<EvmGasPriceEstimate> {
     return Promise.resolve({
       maxPriorityFeePerGas: MockPolygonGasStationPriorityFee(),
       maxFeePerGas: MockPolygonGasStationBaseFee().add(MockPolygonGasStationPriorityFee()),
@@ -90,12 +90,12 @@ class MockPolygonGasStation extends PolygonGasStation {
  * @notice Returns the gas price suggested by the Polygon GasStation API or reconstructs it using
  * the eip1559() method as a fallback.
  * @param provider Ethers Provider.
- * @returns GasPriceEstimate
+ * @returns EvmGasPriceEstimate
  */
 export async function gasStation(
   provider: providers.Provider,
   opts: GasPriceEstimateOptions
-): Promise<GasPriceEstimate> {
+): Promise<EvmGasPriceEstimate> {
   const { chainId, baseFeeMultiplier, priorityFeeMultiplier } = opts;
   let gasStation: PolygonGasStation;
   if (process.env.TEST_POLYGON_GAS_STATION === "true") {

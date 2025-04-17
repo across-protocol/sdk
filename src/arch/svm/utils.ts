@@ -1,6 +1,20 @@
 import { BN, BorshEventCoder, Idl } from "@coral-xyz/anchor";
-import web3, { address, RpcTransport } from "@solana/kit";
+import web3, { address, RpcTransport, type TransactionSigner } from "@solana/kit";
 import { EventName, EventData, SVMEventNames } from "./types";
+
+/**
+ * Basic void TransactionSigner type
+ */
+export const SolanaVoidSigner: (simulationAddress: string) => TransactionSigner<string> = (
+  simulationAddress: string
+) => {
+  return {
+    address: address(simulationAddress),
+    signAndSendTransactions: async () => {
+      return await Promise.resolve([]);
+    },
+  };
+};
 
 /**
  * Helper to determine if the current RPC network is devnet.
