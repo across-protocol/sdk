@@ -34,7 +34,6 @@ export interface QueryInterface {
     }>
   ) => Promise<TransactionCostEstimate>;
   getTokenPrice: (tokenSymbol: string) => Promise<number>;
-  getTokenDecimals: (tokenSymbol: string) => number;
 }
 
 export const expectedCapitalCostsKeys = ["lowerBound", "upperBound", "cutoff", "decimals"];

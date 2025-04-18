@@ -96,9 +96,6 @@ class ExampleQueries implements QueryInterface {
     // Return token price denominated in ETH, assuming ETH is native token.
     return Promise.resolve(1 / 1000); // 1 USDC = 1 / $1000 ETH/USD
   }
-  getTokenDecimals(): number {
-    return 6;
-  }
 }
 describe("RelayFeeCalculator", () => {
   let client: RelayFeeCalculator;

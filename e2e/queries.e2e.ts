@@ -30,7 +30,6 @@ describe("Queries", function () {
     );
     await Promise.all([
       arbitrumQueries.getGasCosts(),
-      arbitrumQueries.getTokenDecimals("USDC"),
       arbitrumQueries.getTokenPrice("USDC"),
     ]);
   });
@@ -46,7 +45,6 @@ describe("Queries", function () {
     );
     await Promise.all([
       bobaQueries.getGasCosts(),
-      bobaQueries.getTokenDecimals("USDC"),
       bobaQueries.getTokenPrice("USDC"),
     ]);
   });
@@ -62,7 +60,6 @@ describe("Queries", function () {
     );
     await Promise.all([
       ethereumQueries.getGasCosts(),
-      ethereumQueries.getTokenDecimals("USDC"),
       ethereumQueries.getTokenPrice("USDC"),
     ]);
   });
@@ -78,7 +75,6 @@ describe("Queries", function () {
     );
     await Promise.all([
       optimismQueries.getGasCosts(),
-      optimismQueries.getTokenDecimals("USDC"),
       optimismQueries.getTokenPrice("USDC"),
     ]);
   });
@@ -94,7 +90,6 @@ describe("Queries", function () {
     );
     await Promise.all([
       polygonQueries.getGasCosts(),
-      polygonQueries.getTokenDecimals("USDC"),
       polygonQueries.getTokenPrice("USDC"),
     ]);
   });
