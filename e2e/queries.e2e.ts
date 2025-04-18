@@ -28,11 +28,7 @@ describe("Queries", function () {
       undefined,
       process.env.COINGECKO_PRO_API_KEY
     );
-    await Promise.all([
-      arbitrumQueries.getGasCosts(),
-      arbitrumQueries.getTokenDecimals("USDC"),
-      arbitrumQueries.getTokenPrice("USDC"),
-    ]);
+    await Promise.all([arbitrumQueries.getGasCosts(), arbitrumQueries.getTokenPrice("USDC")]);
   });
   it("Boba", async function () {
     const provider = new providers.JsonRpcProvider(process.env.NODE_URL_288);
@@ -44,11 +40,7 @@ describe("Queries", function () {
       undefined,
       process.env.COINGECKO_PRO_API_KEY
     );
-    await Promise.all([
-      bobaQueries.getGasCosts(),
-      bobaQueries.getTokenDecimals("USDC"),
-      bobaQueries.getTokenPrice("USDC"),
-    ]);
+    await Promise.all([bobaQueries.getGasCosts(), bobaQueries.getTokenPrice("USDC")]);
   });
   it("Ethereum", async function () {
     const provider = new providers.JsonRpcProvider(process.env.NODE_URL_1);
@@ -60,11 +52,7 @@ describe("Queries", function () {
       undefined,
       process.env.COINGECKO_PRO_API_KEY
     );
-    await Promise.all([
-      ethereumQueries.getGasCosts(),
-      ethereumQueries.getTokenDecimals("USDC"),
-      ethereumQueries.getTokenPrice("USDC"),
-    ]);
+    await Promise.all([ethereumQueries.getGasCosts(), ethereumQueries.getTokenPrice("USDC")]);
   });
   it("Optimism", async function () {
     const provider = new providers.JsonRpcProvider(process.env.NODE_URL_10);
@@ -76,11 +64,7 @@ describe("Queries", function () {
       undefined,
       process.env.COINGECKO_PRO_API_KEY
     );
-    await Promise.all([
-      optimismQueries.getGasCosts(),
-      optimismQueries.getTokenDecimals("USDC"),
-      optimismQueries.getTokenPrice("USDC"),
-    ]);
+    await Promise.all([optimismQueries.getGasCosts(), optimismQueries.getTokenPrice("USDC")]);
   });
   it("Polygon", async function () {
     const provider = new providers.JsonRpcProvider(process.env.NODE_URL_137);
@@ -92,10 +76,6 @@ describe("Queries", function () {
       undefined,
       process.env.COINGECKO_PRO_API_KEY
     );
-    await Promise.all([
-      polygonQueries.getGasCosts(),
-      polygonQueries.getTokenDecimals("USDC"),
-      polygonQueries.getTokenPrice("USDC"),
-    ]);
+    await Promise.all([polygonQueries.getGasCosts(), polygonQueries.getTokenPrice("USDC")]);
   });
 });
