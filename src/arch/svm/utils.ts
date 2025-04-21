@@ -1,6 +1,6 @@
 import { BN, BorshEventCoder, Idl } from "@coral-xyz/anchor";
 import web3, { address, isAddress, RpcTransport } from "@solana/kit";
-import { isUint8Array, SvmAddress } from "../../utils";
+import { BigNumber, isUint8Array, SvmAddress } from "../../utils";
 import { EventName, EventData, SVMEventNames } from "./types";
 import { FillType } from "../../interfaces";
 
@@ -85,7 +85,7 @@ export function unwrapEventData(
     const bytes = data instanceof Uint8Array ? data : new Uint8Array(data as number[]);
     const hex = "0x" + Buffer.from(bytes).toString("hex");
     if (currentKey && uint8ArrayKeysAsBigInt.includes(currentKey)) {
-      return BigInt(hex);
+      return BigNumber.from(hex);
     }
     return hex;
   }
