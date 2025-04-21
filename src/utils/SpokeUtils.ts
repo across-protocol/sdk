@@ -94,8 +94,8 @@ export function getMessageHash(message: string): string {
   return isMessageEmpty(message) ? ZERO_BYTES : keccak256(message);
 }
 
-function _getRelayDataHashSvm(relayData: RelayData, destinationChainId: number, littleEndian: boolean = false): string {
-  const bufferFromHexString = (hex: string) => {
+function _getRelayDataHashSvm(relayData: RelayData, destinationChainId: number): string {
+  const bufferFromHexString = (hex: string, littleEndian: boolean = false) => {
     const buffer = Buffer.from(hex.slice(2), "hex");
     if (buffer.length < 32) {
       const zeroPad = Buffer.alloc(32);
