@@ -32,7 +32,6 @@ import {
   forEachAsync,
   getBlockRangeForChain,
   getImpliedBundleBlockRanges,
-  getMessageHash,
   getRelayEventKey,
   isSlowFill,
   mapAsync,
@@ -45,7 +44,6 @@ import {
 } from "../../utils";
 import winston from "winston";
 import {
-  BundleData,
   BundleDataSS,
   getEndBlockBuffers,
   getRefundInformationFromFill,
@@ -57,7 +55,6 @@ import {
   V3FillWithBlock,
   verifyFillRepayment,
 } from "./utils";
-import { UNDEFINED_MESSAGE_HASH } from "../../constants";
 import { isEVMSpokePoolClient } from "../SpokePoolClient";
 
 // max(uint256) - 1
@@ -209,37 +206,6 @@ export class BundleDataClient {
     return `bundles-${BundleDataClient.getArweaveClientKey(blockRangesForChains)}`;
   }
 
-  // Post-populate any missing message hashes.
-  // @todo This can be removed once the legacy types hurdle is cleared (earliest 7 days post migration).
-  backfillMessageHashes(data: Pick<BundleData, "bundleDepositsV3" | "bundleFillsV3">): void {
-    Object.values(data.bundleDepositsV3).forEach((x) =>
-      Object.values(x).forEach((deposits) =>
-        deposits.forEach((deposit) => {
-          if (deposit.messageHash === UNDEFINED_MESSAGE_HASH) {
-            deposit.messageHash = getMessageHash(deposit.message);
-          }
-        })
-      )
-    );
-
-    Object.values(data.bundleFillsV3).forEach((x) =>
-      Object.values(x).forEach(({ fills }) =>
-        fills.forEach((fill) => {
-          if (fill.messageHash === UNDEFINED_MESSAGE_HASH && isDefined(fill.message)) {
-            // If messageHash is undefined, fill should be of type FilledV3Relay and should have a message.
-            fill.messageHash = getMessageHash(fill.message);
-          }
-          if (
-            fill.relayExecutionInfo.updatedMessageHash === UNDEFINED_MESSAGE_HASH &&
-            isDefined(fill.relayExecutionInfo.updatedMessage)
-          ) {
-            fill.relayExecutionInfo.updatedMessageHash = getMessageHash(fill.relayExecutionInfo.updatedMessage);
-          }
-        })
-      )
-    );
-  }
-
   private async loadPersistedDataFromArweave(
     blockRangesForChains: number[][]
   ): Promise<LoadDataReturnValue | undefined> {
@@ -271,9 +237,6 @@ export class BundleDataClient {
       );
 
     const data = persistedData[0].data;
-
-    this.backfillMessageHashes(data);
-
     const bundleData = {
       bundleFillsV3: convertTypedStringRecordIntoNumericRecord(data.bundleFillsV3),
       expiredDepositsToRefundV3: convertTypedStringRecordIntoNumericRecord(data.expiredDepositsToRefundV3),
