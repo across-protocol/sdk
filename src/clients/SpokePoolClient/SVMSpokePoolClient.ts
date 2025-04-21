@@ -1,6 +1,15 @@
 import winston from "winston";
-import { SvmSpokeEventsClient, SVMEventNames, getFillDeadline, getTimestampForBlock, getStatePda, unwrapEventData } from "../../arch/svm";
-import { FillStatus, RelayData, SortableEvent } from "../../interfaces";
+import { Address, Rpc, SolanaRpcApiFromTransport, RpcTransport } from "@solana/kit";
+import {
+  SvmSpokeEventsClient,
+  SVMEventNames,
+  getFillDeadline,
+  getTimestampForBlock,
+  getStatePda,
+  unwrapEventData,
+  relayFillStatus,
+} from "../../arch/svm";
+import { FillStatus, FillType, RelayData, SortableEvent } from "../../interfaces";
 import {
   BigNumber,
   bs58,
@@ -11,12 +20,8 @@ import {
   toBN,
 } from "../../utils";
 import { isUpdateFailureReason } from "../BaseAbstractClient";
-
-
 import { HubPoolClient } from "../HubPoolClient";
 import { knownEventNames, SpokePoolClient, SpokePoolUpdate } from "./SpokePoolClient";
-import { Address, Rpc, SolanaRpcApiFromTransport, RpcTransport } from "@solana/kit";
-
 
 /**
  * SvmSpokePoolClient is a client for the SVM SpokePool program. It extends the base SpokePoolClient
@@ -32,10 +37,10 @@ export class SvmSpokePoolClient extends SpokePoolClient {
     chainId: number,
     deploymentSlot: bigint, // Using slot instead of block number for SVM
     eventSearchConfig: MakeOptional<EventSearchConfig, "toBlock">,
-    protected programId: Address,
+    public programId: Address,
     protected statePda: Address,
-    protected svmEventsClient: SvmSpokeEventsClient,
-    protected rpc: Rpc<SolanaRpcApiFromTransport<RpcTransport>>
+    public svmEventsClient: SvmSpokeEventsClient,
+    public rpc: Rpc<SolanaRpcApiFromTransport<RpcTransport>>
   ) {
     // Convert deploymentSlot to number for base class, might need refinement
     super(logger, hubPoolClient, chainId, Number(deploymentSlot), eventSearchConfig);
@@ -196,12 +201,13 @@ export class SvmSpokePoolClient extends SpokePoolClient {
    * Retrieves the fill status for a given relay data from the SVM chain.
    * TODO: Implement SVM state query for fill status.
    */
-  public relayFillStatus(
-    _relayData: RelayData,
-    _slot?: number | "latest", // Use slot instead of blockTag
-    _destinationChainId?: number
-  ): Promise<FillStatus> {
-    throw new Error("relayFillStatus not implemented for SVM");
+  public override relayFillStatus(
+    relayData: RelayData,
+    blockTag: number | "latest",
+    destinationChainId?: number
+  ): Promise<FillType | undefined> {
+    destinationChainId ??= this.chainId;
+    return relayFillStatus(this.programId, relayData, blockTag, destinationChainId, this.rpc, this.svmEventsClient);
   }
 
   /**

@@ -160,7 +160,7 @@ export class SvmSpokeEventsClient {
    * @param commitment - Commitment level.
    * @returns A promise that resolves to an array of events.
    */
-  private async readEventsFromSignature(txSignature: Signature, commitment: Commitment = "confirmed") {
+  public async readEventsFromSignature(txSignature: Signature, commitment: Commitment = "confirmed") {
     const txResult = await this.rpc
       .getTransaction(txSignature, { commitment, maxSupportedTransactionVersion: 0 })
       .send();
@@ -175,7 +175,7 @@ export class SvmSpokeEventsClient {
    * @param txResult - The transaction result.
    * @returns A promise that resolves to an array of events with their data and name.
    */
-  private processEventFromTx(
+  public processEventFromTx(
     txResult: GetTransactionReturnType
   ): { program: Address; data: EventData; name: EventName }[] {
     if (!txResult) return [];

@@ -26,6 +26,7 @@ import {
   EnabledDepositRouteWithBlock,
   Fill,
   FillStatus,
+  FillType,
   FillWithBlock,
   RelayData,
   RelayerRefundExecutionWithBlock,
@@ -811,7 +812,7 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
    * @param blockTag The block at which to query the fill status.
    * @returns The fill status for the given relay data.
    */
-  public abstract relayFillStatus(relayData: RelayData, blockTag?: number | "latest"): Promise<FillStatus>;
+  public abstract relayFillStatus(relayData: RelayData, blockTag?: number | "latest"): Promise<FillStatus | FillType | undefined>;
 
   /**
    * Retrieves the fill status for an array of given relay data.

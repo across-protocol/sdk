@@ -1,9 +1,9 @@
 import { BN, BorshEventCoder, Idl } from "@coral-xyz/anchor";
 import web3, { address, getProgramDerivedAddress, getU64Encoder, Address, isAddress, RpcTransport } from "@solana/kit";
-import { BigNumber, isUint8Array, SvmAddress } from "../../utils";
+import { BigNumber, getRelayDataHash, isUint8Array, SvmAddress } from "../../utils";
 
 import { EventName, EventData, SVMEventNames } from "./types";
-import { FillType } from "../../interfaces";
+import { FillType, RelayData } from "../../interfaces";
 
 /**
  * Helper to determine if the current RPC network is devnet.
@@ -148,4 +148,18 @@ export async function getStatePda(programId: Address, extraSeed = 0): Promise<Ad
     seeds: ["state", encodedExtraSeed],
   });
   return statePda;
+}
+
+export async function getFillStatusPda(
+  programId: Address,
+  relayData: RelayData,
+  destinationChainId: number
+): Promise<Address> {
+  const relayDataHash = getRelayDataHash(relayData, destinationChainId);
+  const uint8RelayDataHash = new Uint8Array(Buffer.from(relayDataHash.slice(2), "hex"));
+  const [fillStatusPda] = await getProgramDerivedAddress({
+    programAddress: programId,
+    seeds: ["fills", uint8RelayDataHash],
+  });
+  return fillStatusPda;
 }
