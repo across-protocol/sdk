@@ -3,6 +3,7 @@ import { SvmSpokeClient } from "@across-protocol/contracts";
 // import { Address } from "../src/utils";
 import { address } from "@solana/kit";
 import { unwrapEventData } from "../src/arch/svm/utils";
+import { BigNumber } from "ethers";
 
 describe("Solana EventData", () => {
   it("should unwrap event data", () => {
@@ -36,7 +37,7 @@ describe("Solana EventData", () => {
       outputAmount: BigInt(0),
       repaymentChainId: BigInt(0),
       originChainId: BigInt(0),
-      depositId: BigInt(1),
+      depositId: BigNumber.from(1),
       fillDeadline: 0,
       exclusivityDeadline: 0,
       exclusiveRelayer: "0x054a535a992921064d24e87160da387c7c35b5ddbc92bb81e41fa8404105448d",
