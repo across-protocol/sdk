@@ -3,6 +3,7 @@ import { Rpc, SolanaRpcApi, Address } from "@solana/kit";
 import { Deposit, FillStatus, FillWithBlock, RelayData } from "../../interfaces";
 import { BigNumber, isUnsafeDepositId } from "../../utils";
 import { fetchState } from "@across-protocol/contracts/dist/src/svm/clients/SvmSpoke";
+import { SvmCpiEventsClient } from "./eventsClient";
 
 type Provider = Rpc<SolanaRpcApi>;
 
@@ -67,17 +68,107 @@ export function getDepositIdAtBlock(_contract: unknown, _blockTag: number): Prom
   throw new Error("getDepositIdAtBlock: not implemented");
 }
 
-export function findDepositBlock(
-  _spokePool: unknown,
-  depositId: BigNumber,
-  _lowBlock: number,
-  _highBlock?: number
-): Promise<number | undefined> {
+/**
+ * xxx todo
+ */
+export async function getSlotForBlock(
+  provider: Provider,
+  blockNumber: bigint,
+  lowSlot: bigint,
+  _highSlot?: bigint
+): Promise<bigint | undefined> {
+  // @todo: Factor getBlock out to SlotFinder ??
+  const getBlockNumber = async (slot: bigint): Promise<bigint> => {
+    const block = await provider
+      .getBlock(slot, { transactionDetails: "none", maxSupportedTransactionVersion: 0 })
+      .send();
+    return block?.blockHeight ?? BigInt(0); // @xxx Handle undefined here!
+  };
+
+  let highSlot = _highSlot ?? (await provider.getSlot().send());
+  const [blockLow = 0, blockHigh = 1_000_000_000] = await Promise.all([
+    getBlockNumber(lowSlot),
+    getBlockNumber(highSlot),
+  ]);
+
+  if (blockLow > blockNumber || blockHigh < blockNumber) {
+    return undefined; // blockNumber did not occur within the specified block range.
+  }
+
+  // Find the lowest slot number where blockHeight is greater than the requested blockNumber.
+  do {
+    const midSlot = (highSlot + lowSlot) / BigInt(2);
+    const midBlock = await getBlockNumber(midSlot);
+
+    if (midBlock < blockNumber) {
+      lowSlot = midSlot + BigInt(1);
+    } else if (midBlock > blockNumber) {
+      highSlot = midSlot + BigInt(1); // blockNumber occurred at or earlier than midBlock.
+    } else {
+      return midSlot;
+    }
+  } while (lowSlot <= highSlot);
+
+  return undefined;
+}
+
+/**
+ * Finds the block number and slot for a given deposit ID by querying for deposit events
+ * within a limited time range.
+ *
+ * @remarks
+ * This implementation uses a time-limited search approach because Solana PDA state has
+ * limitations that prevent directly referencing old deposit IDs. Unlike EVM chains where
+ * we might use binary search across the entire chain history, in Solana we must query within
+ * a constrained block range.
+ *
+ * We use a 2-day lookback window as a heuristic because:
+ * 1. Most valid deposits that need to be processed will be recent
+ * 2. This covers multiple bundle submission periods
+ * 3. It balances performance with practical deposit age
+ *
+ * @important
+ * This function may return `undefined` for valid deposit IDs that are older than the search
+ * window (approximately 2 days). This is an acceptable limitation as deposits this old are
+ * typically not relevant to current operations.
+ *
+ * @param provider - Solana RPC provider
+ * @param depositId - The deposit ID to search for
+ * @returns The block number and slot where the deposit occurred, or undefined if not found
+ */
+export async function findDepositBlock(
+  provider: Provider,
+  depositId: BigNumber
+): Promise<{ block: BigNumber; slot: BigNumber } | undefined> {
   // We can only perform this search when we have a safe deposit ID.
   if (isUnsafeDepositId(depositId)) {
     throw new Error(`Cannot binary search for depositId ${depositId}`);
   }
-  throw new Error("findDepositBlock: not implemented");
+  // Create an event client to query for the deposit event.
+  const eventClient = await SvmCpiEventsClient.create(provider);
+
+  // We know we're likely to not be searching for a deposit id that is
+  // greater than 2 days old, so we'll start by finding a block from two
+  // days ago. On average, blocks in Solana are produced every 300ms or so
+  // so we can use that to calculate a block number.
+  const msTwoDaysAgo = Date.now() - 2 * 24 * 60 * 60 * 1000;
+  const elapsedBlocks = BigInt(msTwoDaysAgo) / BigInt(300);
+  const currentBlock = await provider.getBlockHeight({ commitment: "confirmed" }).send();
+  const startBlock = currentBlock - elapsedBlocks;
+  // Query for the deposit events with this limited block range. Filter by deposit id.
+  const depositEvent = (await eventClient.queryEvents("FundsDeposited", startBlock, currentBlock))?.find((event) =>
+    depositId.eq((event.data as unknown as { depositId: BigNumber }).depositId)
+  );
+
+  if (!depositEvent) {
+    return undefined;
+  }
+  const block = await provider.getBlock(depositEvent.slot).send();
+  if (!block) {
+    return undefined;
+  }
+
+  return { block: BigNumber.from(block.blockHeight), slot: BigNumber.from(depositEvent.slot) };
 }
 
 /**
