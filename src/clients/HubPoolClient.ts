@@ -43,7 +43,6 @@ import {
   toBN,
   getTokenInfo,
   getUsdcSymbol,
-  getL1TokenInfo,
   compareAddressesSimple,
 } from "../utils";
 import { AcrossConfigStoreClient as ConfigStoreClient } from "./AcrossConfigStoreClient/AcrossConfigStoreClient";
@@ -279,17 +278,6 @@ export class HubPoolClient extends BaseAbstractClient {
       tokenInfo.symbol = getUsdcSymbol(tokenAddress, chain) ?? "UNKNOWN";
     }
     return tokenInfo;
-  }
-
-  /**
-   * @dev If tokenAddress + chain do not exist in TOKEN_SYMBOLS_MAP then this will throw.
-   * @dev if the token matched in TOKEN_SYMBOLS_MAP does not have an L1 token address then this will throw.
-   * @param tokenAddress Token address on `chain`
-   * @param chain Chain where the `tokenAddress` exists in TOKEN_SYMBOLS_MAP.
-   * @returns Token info for the given token address on the Hub chain including symbol and decimal and L1 address.
-   */
-  getL1TokenInfoForAddress(tokenAddress: string, chain: number): L1Token {
-    return getL1TokenInfo(tokenAddress, chain);
   }
 
   /**
