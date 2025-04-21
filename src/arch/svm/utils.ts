@@ -69,15 +69,14 @@ export function getEventName(rawName: string): EventName {
 /**
  * Returns the PDA for the State account.
  * @param programId The SpokePool program ID.
- * @param extraSeed An optional extra seed. Defaults to 0.
  * @returns The PDA for the State account.
  */
-export async function getStatePda(programId: Address, extraSeed = 0): Promise<Address> {
-  const seedEncoder = getU64Encoder();
-  const encodedExtraSeed = seedEncoder.encode(extraSeed);
+export async function getStatePda(programId: Address): Promise<Address> {
+  const intEncoder = getU64Encoder();
+  const seed = intEncoder.encode(0);
   const [statePda] = await getProgramDerivedAddress({
     programAddress: programId,
-    seeds: ["state", encodedExtraSeed],
+    seeds: ["state", seed],
   });
   return statePda;
 }
