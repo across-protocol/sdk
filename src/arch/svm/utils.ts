@@ -80,6 +80,10 @@ export function unwrapEventData(
   if (data == null) {
     return data;
   }
+  // Handle BigInt
+  if (typeof data === "bigint") {
+    return BigNumber.from(data);
+  }
   // Handle Uint8Array and byte arrays
   if (data instanceof Uint8Array || isUint8Array(data)) {
     const bytes = data instanceof Uint8Array ? data : new Uint8Array(data as number[]);
