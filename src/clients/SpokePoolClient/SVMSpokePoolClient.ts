@@ -4,12 +4,10 @@ import { SVMEventNames, SvmSpokeEventsClient, unwrapEventData } from "../../arch
 import { FillStatus, RelayData, SortableEvent } from "../../interfaces";
 import {
   BigNumber,
-  bs58,
   DepositSearchResult,
   EventSearchConfig,
   MakeOptional,
   sortEventsAscendingInPlace,
-  toBN,
 } from "../../utils";
 import { isUpdateFailureReason } from "../BaseAbstractClient";
 import { HubPoolClient } from "../HubPoolClient";
@@ -104,17 +102,14 @@ export class SvmSpokePoolClient extends SpokePoolClient {
 
     const timerStart = Date.now();
 
-    const [_currentTime, ...eventsQueried] = await Promise.all([
+    const [currentTime, ...eventsQueried] = await Promise.all([
       this.rpc.getBlockTime(BigInt(searchConfig.toBlock)).send(),
       ...eventsToQuery.map(async (eventName, idx) => {
         const config = eventSearchConfigs[idx];
         const events = await this.svmEventsClient.queryEvents(
           eventName as SVMEventNames,
           BigInt(config.fromBlock),
-          BigInt(config.toBlock),
-          {
-            limit: config.maxBlockLookBack,
-          }
+          BigInt(config.toBlock)
         );
         return Promise.all(
           events.map(async (event): Promise<SortableEvent> => {
@@ -126,7 +121,7 @@ export class SvmSpokePoolClient extends SpokePoolClient {
             }
 
             return {
-              transactionHash: `0x${Buffer.from(bs58.decode(event.signature)).toString("hex")}`,
+              transactionHash: event.signature.toLowerCase(),
               blockNumber: Number(block.blockHeight),
               transactionIndex: 0,
               logIndex: 0,
@@ -136,12 +131,9 @@ export class SvmSpokePoolClient extends SpokePoolClient {
         );
       }),
     ]);
-    const currentTime = toBN(_currentTime.toString());
     this.log("debug", `Time to query new events from RPC for ${this.chainId}: ${Date.now() - timerStart} ms`);
-    if (!BigNumber.isBigNumber(currentTime) || currentTime.lt(this.currentTime)) {
-      const errMsg = BigNumber.isBigNumber(currentTime)
-        ? `currentTime: ${currentTime} < ${toBN(this.currentTime)}`
-        : `currentTime is not a BigNumber: ${JSON.stringify(currentTime)}`;
+    if (currentTime < this.currentTime) {
+      const errMsg = `currentTime: ${currentTime} < ${this.currentTime}`;
       throw new Error(`SvmSpokePoolClient::update: ${errMsg}`);
     }
 
@@ -150,7 +142,7 @@ export class SvmSpokePoolClient extends SpokePoolClient {
 
     return {
       success: true,
-      currentTime: currentTime.toNumber(), // uint32
+      currentTime: Number(currentTime), // uint32
       searchEndBlock: searchConfig.toBlock,
       events: eventsQueried,
     };

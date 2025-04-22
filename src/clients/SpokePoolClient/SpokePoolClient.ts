@@ -467,14 +467,14 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
     const { events: queryResults, currentTime, searchEndBlock } = update;
 
     if (eventsToQuery.includes("TokensBridged")) {
-      for (const event of queryResults[eventsToQuery.indexOf("TokensBridged")]) {
-        this.tokensBridged.push(event as TokensBridged);
+      for (const event of queryResults[eventsToQuery.indexOf("TokensBridged")] as TokensBridged[]) {
+        this.tokensBridged.push(event);
       }
     }
 
     // Performs the indexing of a deposit-like spoke pool event.
     const queryDepositEvents = async (eventName: string) => {
-      const depositEvents = queryResults[eventsToQuery.indexOf(eventName)] ?? [];
+      const depositEvents = (queryResults[eventsToQuery.indexOf(eventName)] ?? []) as DepositWithBlock[];
       if (depositEvents.length > 0) {
         this.log(
           "debug",
@@ -487,16 +487,14 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
 
       // For each deposit, resolve its quoteTimestamp to a block number on the HubPool.
       // Don't bother filtering for uniqueness; the HubPoolClient handles this efficienctly.
-      const quoteBlockNumbers = await this.getBlockNumbers(
-        depositEvents.map((e) => (e as DepositWithBlock).quoteTimestamp)
-      );
+      const quoteBlockNumbers = await this.getBlockNumbers(depositEvents.map((e) => e.quoteTimestamp));
       for (const event of depositEvents) {
-        const quoteBlockNumber = quoteBlockNumbers[Number((event as DepositWithBlock).quoteTimestamp)];
+        const quoteBlockNumber = quoteBlockNumbers[Number(event.quoteTimestamp)];
 
         // Derive and append the common properties that are not part of the onchain event.
         const deposit = {
           ...event,
-          messageHash: getMessageHash((event as DepositWithBlock).message),
+          messageHash: getMessageHash(event.message),
           quoteBlockNumber,
           originChainId: this.chainId,
           // The following properties are placeholders to be updated immediately.
@@ -533,10 +531,10 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
 
     // Performs indexing of a "speed up deposit"-like event.
     const querySpeedUpDepositEvents = (eventName: string) => {
-      const speedUpEvents = queryResults[eventsToQuery.indexOf(eventName)] ?? [];
+      const speedUpEvents = (queryResults[eventsToQuery.indexOf(eventName)] ?? []) as SpeedUpWithBlock[];
 
       for (const event of speedUpEvents) {
-        const speedUp = { ...event, originChainId: this.chainId } as SpeedUpWithBlock;
+        const speedUp = { ...event, originChainId: this.chainId };
         assign(this.speedUps, [speedUp.depositor, speedUp.depositId.toString()], [speedUp]);
 
         // Find deposit hash matching this speed up event and update the deposit data associated with the hash,
@@ -561,12 +559,12 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
 
     // Performs indexing of "requested slow fill"-like events.
     const queryRequestedSlowFillEvents = (eventName: string) => {
-      const slowFillRequests = queryResults[eventsToQuery.indexOf(eventName)];
+      const slowFillRequests = (queryResults[eventsToQuery.indexOf(eventName)] ?? []) as SlowFillRequestWithBlock[];
       for (const event of slowFillRequests) {
         const slowFillRequest = {
           ...event,
           destinationChainId: this.chainId,
-        } as SlowFillRequestWithBlock;
+        };
 
         if (eventName === "RequestedV3SlowFill") {
           slowFillRequest.messageHash = getMessageHash(slowFillRequest.message);
@@ -592,7 +590,7 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
 
     // Performs indexing of filled relay-like events.
     const queryFilledRelayEvents = (eventName: string) => {
-      const fillEvents = queryResults[eventsToQuery.indexOf(eventName)] ?? [];
+      const fillEvents = (queryResults[eventsToQuery.indexOf(eventName)] ?? []) as FillWithBlock[];
 
       if (fillEvents.length > 0) {
         this.log("debug", `Using ${fillEvents.length} newly queried ${eventName} events for chain ${this.chainId}`, {
@@ -606,13 +604,11 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
         const fill = {
           ...event,
           destinationChainId: this.chainId,
-        } as FillWithBlock;
+        };
 
         if (eventName === "FilledV3Relay") {
           fill.messageHash = getMessageHash((event as unknown as { message: string }).message);
-          fill.relayExecutionInfo.updatedMessageHash = getMessageHash(
-            (event as FillWithBlock).relayExecutionInfo.updatedMessage!
-          );
+          fill.relayExecutionInfo.updatedMessageHash = getMessageHash(event.relayExecutionInfo.updatedMessage!);
         }
 
         // Sanity check that this event is not a duplicate.
@@ -635,30 +631,27 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
     });
 
     if (eventsToQuery.includes("EnabledDepositRoute")) {
-      const enableDepositsEvents = queryResults[eventsToQuery.indexOf("EnabledDepositRoute")];
+      const enableDepositsEvents = (queryResults[eventsToQuery.indexOf("EnabledDepositRoute")] ??
+        []) as EnabledDepositRouteWithBlock[];
 
       for (const event of enableDepositsEvents) {
-        const enableDeposit = event as EnabledDepositRouteWithBlock;
-        assign(
-          this.depositRoutes,
-          [enableDeposit.originToken, enableDeposit.destinationChainId],
-          enableDeposit.enabled
-        );
+        assign(this.depositRoutes, [event.originToken, event.destinationChainId], event.enabled);
       }
     }
 
     if (eventsToQuery.includes("RelayedRootBundle")) {
-      const relayedRootBundleEvents = queryResults[eventsToQuery.indexOf("RelayedRootBundle")];
+      const relayedRootBundleEvents = (queryResults[eventsToQuery.indexOf("RelayedRootBundle")] ??
+        []) as RootBundleRelayWithBlock[];
       for (const event of relayedRootBundleEvents) {
-        this.rootBundleRelays.push(event as RootBundleRelayWithBlock);
+        this.rootBundleRelays.push(event);
       }
     }
 
     if (eventsToQuery.includes("ExecutedRelayerRefundRoot")) {
-      const refundEvents = queryResults[eventsToQuery.indexOf("ExecutedRelayerRefundRoot")];
+      const refundEvents = (queryResults[eventsToQuery.indexOf("ExecutedRelayerRefundRoot")] ??
+        []) as RelayerRefundExecutionWithBlock[];
       for (const event of refundEvents) {
-        const executedRefund = event as RelayerRefundExecutionWithBlock;
-        this.relayerRefundExecutions.push(executedRefund);
+        this.relayerRefundExecutions.push(event);
       }
     }
 
