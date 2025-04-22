@@ -33,4 +33,20 @@ export class MockHubPoolClient extends clients.mocks.MockHubPoolClient {
     // latest L2 token mapping to find the L1 token counterpart.
     return super.getL1TokenForDeposit(deposit);
   }
+
+  /**
+   * Returns the L2 token that should be used as a counterpart to a deposit event. For example, the caller
+   * might want to know what the refund token will be on l2ChainId for the deposit event.
+   * @param l2ChainId Chain where caller wants to get L2 token counterpart for
+   * @param event Deposit event
+   * @returns string L2 token counterpart on l2ChainId
+   */
+  getL2TokenForDeposit(
+    deposit: Pick<DepositWithBlock, "originChainId" | "destinationChainId" | "inputToken" | "quoteBlockNumber">,
+    l2ChainId = deposit.destinationChainId
+  ): string {
+    const l1Token = this.getL1TokenForDeposit(deposit);
+    // Use the latest hub block number to find the L2 token counterpart.
+    return this.getL2TokenForL1TokenAtBlock(l1Token, l2ChainId, deposit.quoteBlockNumber);
+  }
 }
