@@ -1,13 +1,12 @@
-import assert from "assert";
 import { Rpc, SolanaRpcApi, Address } from "@solana/kit";
-import { getDeployedBlockNumber, SvmSpokeClient } from "@across-protocol/contracts";
+import { getDeployedBlockNumber } from "@across-protocol/contracts";
 import { fetchState } from "@across-protocol/contracts/dist/src/svm/clients/SvmSpoke";
 
-import { Deposit, FillStatus, FillType, FillWithBlock, RelayData } from "../../interfaces";
+import { Deposit, FillStatus, RelayData } from "../../interfaces";
 import { isUnsafeDepositId, BigNumber } from "../../utils";
 import { getFillStatusPda } from "./utils";
 import { SvmSpokeEventsClient } from "./eventsClient";
-import { EventWithData, SVMEventNames } from "./types";
+import { SVMEventNames } from "./types";
 
 type Provider = Rpc<SolanaRpcApi>;
 
@@ -81,10 +80,18 @@ export async function getSlotForBlock(
   lowSlot: bigint,
   _highSlot?: bigint
 ): Promise<bigint | undefined> {
+  // @todo: Factor getBlock out to SlotFinder ??
+  const getBlockNumber = async (slot: bigint): Promise<bigint> => {
+    const block = await provider
+      .getBlock(slot, { transactionDetails: "none", maxSupportedTransactionVersion: 0 })
+      .send();
+    return block?.blockHeight ?? BigInt(0); // @xxx Handle undefined here!
+  };
+
   let highSlot = _highSlot ?? (await provider.getSlot().send());
   const [blockLow = 0, blockHigh = 1_000_000_000] = await Promise.all([
-    getBlockNumber(provider, lowSlot),
-    getBlockNumber(provider, highSlot),
+    getBlockNumber(lowSlot),
+    getBlockNumber(highSlot),
   ]);
 
   if (blockLow > blockNumber || blockHigh < blockNumber) {
@@ -94,7 +101,7 @@ export async function getSlotForBlock(
   // Find the lowest slot number where blockHeight is greater than the requested blockNumber.
   do {
     const midSlot = (highSlot + lowSlot) / BigInt(2);
-    const midBlock = await getBlockNumber(provider, midSlot);
+    const midBlock = await getBlockNumber(midSlot);
 
     if (midBlock < blockNumber) {
       lowSlot = midSlot + BigInt(1);
@@ -105,12 +112,6 @@ export async function getSlotForBlock(
     }
   } while (lowSlot <= highSlot);
   return undefined;
-}
-
-// @todo: Factor getBlock out to SlotFinder ??
-async function getBlockNumber(provider: Provider, slot: bigint): Promise<bigint> {
-  const block = await provider.getBlock(slot, { transactionDetails: "none", maxSupportedTransactionVersion: 0 }).send();
-  return block?.blockHeight ?? BigInt(0); // @xxx Handle undefined here!
 }
 
 export function findDepositBlock(
@@ -143,12 +144,12 @@ export async function relayFillStatus(
   destinationChainId: number,
   provider: Provider,
   svmEventsClient: SvmSpokeEventsClient
-): Promise<FillType | undefined> {
+): Promise<FillStatus> {
   // Get fill status PDA using relayData
   const fillStatusPda = await getFillStatusPda(programId, relayData, destinationChainId);
 
-  // Get events from fillStatusPda
-  // TODO: modify this to use svmEventsClient once we can instantiate it with dynamic addresses
+  // Get fill and requested slow fill events from fillStatusPda
+  // TODO: modify this to use svmEventsClient once we can instantiate it with dynamic addresses.
   const fillPdaSignatures = await provider
     .getSignaturesForAddress(fillStatusPda, {
       limit: 1000,
@@ -169,76 +170,46 @@ export async function relayFillStatus(
     })
   );
 
-  // Translate blockTag from block to slots to use for filtering events
-  let toBlock: bigint;
+  // Translate blockTag from block to slot to use for filtering events
+  // This should also be temporary, it can be removed once we can use svmEventsClient with dynamic addresses.
+  let toSlot: bigint | undefined;
   if (blockTag === "latest") {
-    const currentSlot = await provider.getSlot().send();
-    toBlock = await getBlockNumber(provider, currentSlot);
+    toSlot = await provider.getSlot().send();
   } else {
-    toBlock = BigInt(blockTag);
-  }
-
-  const lowSlot = getDeployedBlockNumber("SvmSpoke", destinationChainId);
-  const toSlot = await getSlotForBlock(provider, toBlock, BigInt(lowSlot));
-
-  // Filter events by slot and event name
-  const fillPdaEvents = eventsWithSlots
-    .flat()
-    .filter(
-      (event) => event.slot <= toSlot! && event.name === SVMEventNames.FilledRelay
-    ) as EventWithData<SvmSpokeClient.FilledRelay>[];
-
-  if (fillPdaEvents.length > 0) {
-    assert(fillPdaEvents.length === 1, "Expected exactly one FilledRelay event");
-    const fillPdaEvent = fillPdaEvents[0];
-    const fillTypeObject = fillPdaEvent.data.relayExecutionInfo.fillType;
-    const fillType = Object.keys(fillTypeObject)[0];
-    switch (fillType) {
-      case "FastFill":
-        return FillType.FastFill;
-      case "ReplacedSlowFill":
-        return FillType.ReplacedSlowFill;
-      case "SlowFill":
-        return FillType.SlowFill;
-      default:
-        throw new Error(`Unknown fill type: ${fillType}`);
+    const lowSlot = getDeployedBlockNumber("SvmSpoke", destinationChainId);
+    toSlot = await getSlotForBlock(provider, BigInt(blockTag), BigInt(lowSlot));
+    if (!toSlot) {
+      throw new Error(`Unable to resolve slot for block ${blockTag}`);
     }
   }
 
-  return undefined; // No fill event found
-}
+  // Filter events by slot and event name
+  const relevantEvents = eventsWithSlots
+    .flat()
+    .filter(
+      (event) =>
+        event.slot <= toSlot! &&
+        [SVMEventNames.FilledRelay, SVMEventNames.RequestedSlowFill].includes(event.name as SVMEventNames)
+    );
 
-export function fillStatusArray(
-  _spokePool: unknown,
-  _relayData: RelayData[],
-  _blockTag = "processed"
-): Promise<(FillStatus | undefined)[]> {
-  throw new Error("fillStatusArray: not implemented");
-}
+  if (relevantEvents.length === 0) {
+    // No fill or requested slow fill events found for this fill status PDA
+    return FillStatus.Unfilled;
+  }
 
-/**
- * Find the block at which a fill was completed.
- * @todo After SpokePool upgrade, this function can be simplified to use the FillStatus enum.
- * @param spokePool SpokePool contract instance.
- * @param relayData Deposit information that is used to complete a fill.
- * @param lowBlockNumber The lower bound of the search. Must be bounded by SpokePool deployment.
- * @param highBlocknumber Optional upper bound for the search.
- * @returns The block number at which the relay was completed, or undefined.
- */
-export function findFillBlock(
-  _spokePool: unknown,
-  _relayData: RelayData,
-  _lowBlockNumber: number,
-  _highBlockNumber?: number
-): Promise<number | undefined> {
-  throw new Error("fillStatusArray: not implemented");
-}
+  // Sort events in ascending order of slot number
+  relevantEvents.sort((a, b) => Number(a.slot - b.slot));
 
-export function findFillEvent(
-  _spokePool: unknown,
-  _relayData: RelayData,
-  _lowBlockNumber: number,
-  _highBlockNumber?: number
-): Promise<FillWithBlock | undefined> {
-  throw new Error("fillStatusArray: not implemented");
+  // At this point we have only fill and requested slow fill events and since it's not possible to submit
+  // a slow fill request once a fill has been submitted, we can use the last event in the sorted list to
+  // determine the fill status at the requested block.
+  const fillStatusEvent = relevantEvents.pop();
+  switch (fillStatusEvent!.name) {
+    case SVMEventNames.FilledRelay:
+      return FillStatus.Filled;
+    case SVMEventNames.RequestedSlowFill:
+      return FillStatus.RequestedSlowFill;
+    default:
+      throw new Error(`Unexpected event name: ${fillStatusEvent!.name}`);
+  }
 }
