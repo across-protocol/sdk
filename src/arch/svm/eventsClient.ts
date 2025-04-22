@@ -13,6 +13,9 @@ import { EventData, EventName, EventWithData } from "./types";
 import { decodeEvent, isDevnet } from "./utils";
 import { getSlotForBlock } from "./SpokeUtils";
 
+// Blanket type definition so that we don't need to import the `Idl` type from anchor directly.
+type Idl = typeof SvmSpokeIdl;
+
 // Utility type to extract the return type for the JSON encoding overload. We only care about the overload where the
 // configuration parameter (C) has the optional property 'encoding' set to 'json'.
 type ExtractJsonOverload<T> = T extends (signature: infer _S, config: infer C) => infer R
@@ -39,7 +42,7 @@ export class SvmEventsClient {
     rpc: web3.Rpc<web3.SolanaRpcApiFromTransport<RpcTransport>>,
     svmSpokeAddress: Address,
     eventAuthority: Address,
-    customIdl = SvmSpokeIdl
+    customIdl: Idl
   ) {
     this.rpc = rpc;
     this.svmAddress = svmSpokeAddress;
@@ -54,12 +57,20 @@ export class SvmEventsClient {
     const isTestnet = await isDevnet(rpc);
     const programId = getDeployedAddress("SvmSpoke", getSolanaChainId(isTestnet ? "devnet" : "mainnet").toString());
     if (!programId) throw new Error("Program not found");
-    const svmSpokeAddress = web3.address(programId);
-    const [svmSpokeEventAuthority] = await web3.getProgramDerivedAddress({
-      programAddress: svmSpokeAddress,
+    return this.createFor(rpc, programId, SvmSpokeIdl);
+  }
+
+  public static async createFor(
+    rpc: web3.Rpc<web3.SolanaRpcApiFromTransport<RpcTransport>>,
+    programId: string,
+    idl: Idl
+  ): Promise<SvmEventsClient> {
+    const svmAddress = web3.address(programId);
+    const [svmEventAuthority] = await web3.getProgramDerivedAddress({
+      programAddress: svmAddress,
       seeds: ["__event_authority"],
     });
-    return new SvmEventsClient(rpc, svmSpokeAddress, svmSpokeEventAuthority);
+    return new SvmEventsClient(rpc, svmAddress, svmEventAuthority, idl);
   }
 
   /**
