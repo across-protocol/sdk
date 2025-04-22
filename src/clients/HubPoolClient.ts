@@ -231,34 +231,13 @@ export class HubPoolClient extends BaseAbstractClient {
     return sortEventsDescending(l2Tokens)[0].l1Token;
   }
 
-  /**
-   * Returns the L1 token that should be used for an L2 Bridge event. This function is
-   * designed to be used by the caller to associate the L2 token with its mapped L1 token
-   * at the HubPool equivalent block number of the L2 event.
-   * @param deposit Deposit event
-   * @param returns string L1 token counterpart for Deposit
-   */
-  getL1TokenForDeposit(deposit: Pick<DepositWithBlock, "originChainId" | "inputToken" | "quoteBlockNumber">): string {
+  protected getL1TokenForDeposit(
+    deposit: Pick<DepositWithBlock, "originChainId" | "inputToken" | "quoteBlockNumber">
+  ): string {
     // L1-->L2 token mappings are set via PoolRebalanceRoutes which occur on mainnet,
     // so we use the latest token mapping. This way if a very old deposit is filled, the relayer can use the
     // latest L2 token mapping to find the L1 token counterpart.
     return this.getL1TokenForL2TokenAtBlock(deposit.inputToken, deposit.originChainId, deposit.quoteBlockNumber);
-  }
-
-  /**
-   * Returns the L2 token that should be used as a counterpart to a deposit event. For example, the caller
-   * might want to know what the refund token will be on l2ChainId for the deposit event.
-   * @param l2ChainId Chain where caller wants to get L2 token counterpart for
-   * @param event Deposit event
-   * @returns string L2 token counterpart on l2ChainId
-   */
-  getL2TokenForDeposit(
-    deposit: Pick<DepositWithBlock, "originChainId" | "destinationChainId" | "inputToken" | "quoteBlockNumber">,
-    l2ChainId = deposit.destinationChainId
-  ): string {
-    const l1Token = this.getL1TokenForDeposit(deposit);
-    // Use the latest hub block number to find the L2 token counterpart.
-    return this.getL2TokenForL1TokenAtBlock(l1Token, l2ChainId, deposit.quoteBlockNumber);
   }
 
   l2TokenEnabledForL1Token(l1Token: string, destinationChainId: number): boolean {

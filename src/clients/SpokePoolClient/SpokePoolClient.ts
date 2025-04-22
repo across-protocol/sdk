@@ -464,7 +464,11 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
     ) {
       return false;
     } else {
-      const l1Token = this.hubPoolClient?.getL1TokenForDeposit(deposit);
+      const l1Token = this.hubPoolClient?.getL1TokenForL2TokenAtBlock(
+        deposit.inputToken,
+        deposit.originChainId,
+        deposit.quoteBlockNumber
+      );
       return this.hubPoolClient.l2TokenEnabledForL1TokenAtBlock(
         l1Token,
         deposit.destinationChainId,
@@ -735,8 +739,16 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
     if (!this.canResolveZeroAddressOutputToken(deposit)) {
       return ZERO_ADDRESS;
     }
-    // If there is no rate model client return address(0).
-    return this.hubPoolClient?.getL2TokenForDeposit(deposit) ?? ZERO_ADDRESS;
+    // L1 token should be resolved if we get here:
+    const l1Token = this.hubPoolClient!.getL1TokenForL2TokenAtBlock(
+      deposit.inputToken,
+      deposit.originChainId,
+      deposit.quoteBlockNumber
+    )!;
+    return (
+      this.hubPoolClient!.getL2TokenForL1TokenAtBlock(l1Token, deposit.destinationChainId, deposit.quoteBlockNumber) ??
+      ZERO_ADDRESS
+    );
   }
 
   /**
