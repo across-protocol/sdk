@@ -33,7 +33,7 @@ export class SvmEventsClient {
   private rpc: web3.Rpc<web3.SolanaRpcApiFromTransport<RpcTransport>>;
   private svmAddress: Address;
   private svmEventAuthority: Address;
-  private customIdl;
+  private idl;
 
   /**
    * Private constructor. Use the async create() method to instantiate.
@@ -42,12 +42,12 @@ export class SvmEventsClient {
     rpc: web3.Rpc<web3.SolanaRpcApiFromTransport<RpcTransport>>,
     svmSpokeAddress: Address,
     eventAuthority: Address,
-    customIdl: Idl
+    idl: Idl
   ) {
     this.rpc = rpc;
     this.svmAddress = svmSpokeAddress;
     this.svmEventAuthority = eventAuthority;
-    this.customIdl = customIdl;
+    this.idl = idl;
   }
 
   /**
@@ -213,7 +213,7 @@ export class SvmEventsClient {
           const ixData = bs58.decode(ix.data);
           // Skip the first 8 bytes (assumed header) and encode the rest.
           const eventData = Buffer.from(ixData.slice(8)).toString("base64");
-          const { name, data } = decodeEvent(this.customIdl, eventData);
+          const { name, data } = decodeEvent(this.idl, eventData);
           events.push({ program: this.svmAddress, name, data });
         }
       }
