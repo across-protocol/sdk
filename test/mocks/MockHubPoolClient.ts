@@ -31,6 +31,6 @@ export class MockHubPoolClient extends clients.mocks.MockHubPoolClient {
     // L1-->L2 token mappings are set via PoolRebalanceRoutes which occur on mainnet,
     // so we use the latest token mapping. This way if a very old deposit is filled, the relayer can use the
     // latest L2 token mapping to find the L1 token counterpart.
-    return this.getL1TokenForDeposit(deposit);
+    return super.getL1TokenForDeposit(deposit);
   }
 }
