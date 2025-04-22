@@ -82,14 +82,14 @@ export class SvmEventsClient {
    * @param options - Options for fetching signatures.
    * @returns A promise that resolves to an array of events matching the eventName.
    */
-  public async queryEvents<T extends EventData>(
+  public async queryEvents(
     eventName: EventName,
     fromBlock?: bigint,
     toBlock?: bigint,
     options: GetSignaturesForAddressConfig = { limit: 1000, commitment: "confirmed" }
-  ): Promise<EventWithData<T>[]> {
+  ): Promise<EventWithData[]> {
     const events = await this.queryAllEvents(fromBlock, toBlock, options);
-    return events.filter((event) => event.name === eventName) as EventWithData<T>[];
+    return events.filter((event) => event.name === eventName) as EventWithData[];
   }
 
   /**
@@ -104,7 +104,7 @@ export class SvmEventsClient {
     fromBlock?: bigint,
     toBlock?: bigint,
     options: GetSignaturesForAddressConfig = { limit: 1000, commitment: "confirmed" }
-  ): Promise<EventWithData<EventData>[]> {
+  ): Promise<EventWithData[]> {
     const allSignatures: GetSignaturesForAddressTransaction[] = [];
     let hasMoreSignatures = true;
     let currentOptions = options;
@@ -189,7 +189,7 @@ export class SvmEventsClient {
    */
   private processEventFromTx(
     txResult: GetTransactionReturnType
-  ): { program: Address; data: EventData; name: EventName }[] {
+  ): { program: Address; data: unknown; name: EventName }[] {
     if (!txResult) return [];
     const events: { program: Address; data: EventData; name: EventName }[] = [];
 
