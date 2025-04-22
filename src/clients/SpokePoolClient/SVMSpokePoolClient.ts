@@ -9,7 +9,7 @@ import {
   unwrapEventData,
   relayFillStatus,
 } from "../../arch/svm";
-import { FillStatus, FillType, RelayData, SortableEvent } from "../../interfaces";
+import { FillStatus, RelayData, SortableEvent } from "../../interfaces";
 import {
   BigNumber,
   bs58,
@@ -205,7 +205,7 @@ export class SvmSpokePoolClient extends SpokePoolClient {
     relayData: RelayData,
     blockTag: number | "latest",
     destinationChainId?: number
-  ): Promise<FillType | undefined> {
+  ): Promise<FillStatus> {
     destinationChainId ??= this.chainId;
     return relayFillStatus(this.programId, relayData, blockTag, destinationChainId, this.rpc, this.svmEventsClient);
   }
