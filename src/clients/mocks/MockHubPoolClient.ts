@@ -100,6 +100,22 @@ export class MockHubPoolClient extends HubPoolClient {
     this.spokePoolTokens[l1Token][chainId] = l2Token;
   }
 
+  l2TokenEnabledForL1TokenAtBlock(l1Token: string, destinationChainId: number, hubBlockNumber: number): boolean {
+    if (this.spokePoolTokens[l1Token]?.[destinationChainId]) {
+      return true;
+    } else {
+      return super.l2TokenEnabledForL1TokenAtBlock(l1Token, destinationChainId, hubBlockNumber);
+    }
+  }
+  l2TokenHasPoolRebalanceRoute(l2Token: string, chainId: number, hubPoolBlock: number): boolean {
+    const l1Token = Object.keys(this.spokePoolTokens).find(
+      (l1Token) => this.spokePoolTokens[l1Token]?.[chainId] === l2Token
+    );
+    if (!l1Token) {
+      return super.l2TokenHasPoolRebalanceRoute(l2Token, chainId, hubPoolBlock);
+    } else return true;
+  }
+
   deleteTokenMapping(l1Token: string, chainId: number) {
     delete this.spokePoolTokens[l1Token]?.[chainId];
   }

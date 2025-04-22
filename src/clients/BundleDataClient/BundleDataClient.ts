@@ -41,6 +41,7 @@ import {
   chainIsEvm,
   isValidEvmAddress,
   duplicateEvent,
+  invalidOutputToken,
 } from "../../utils";
 import winston from "winston";
 import {
@@ -321,6 +322,7 @@ export class BundleDataClient {
   // @dev This helper function should probably be moved to the InventoryClient
   async getApproximateRefundsForBlockRange(chainIds: number[], blockRanges: number[][]): Promise<CombinedRefunds> {
     const refundsForChain: CombinedRefunds = {};
+    const bundleEndBlockForMainnet = blockRanges[0][1];
     for (const chainId of chainIds) {
       if (this.spokePoolClients[chainId] === undefined) {
         continue;
@@ -335,7 +337,8 @@ export class BundleDataClient {
         if (
           fill.blockNumber < blockRanges[chainIndex][0] ||
           fill.blockNumber > blockRanges[chainIndex][1] ||
-          isZeroValueFillOrSlowFillRequest(fill)
+          isZeroValueFillOrSlowFillRequest(fill) ||
+          invalidOutputToken(fill)
         ) {
           return false;
         }
@@ -362,17 +365,19 @@ export class BundleDataClient {
           _fill,
           spokeClient.spokePool.provider,
           matchingDeposit,
-          this.clients.hubPoolClient
+          this.clients.hubPoolClient,
+          bundleEndBlockForMainnet
         );
         if (!isDefined(fill)) {
           return;
         }
         const { chainToSendRefundTo, repaymentToken } = getRefundInformationFromFill(
-          fill,
+          {
+            ...fill,
+            fromLiteChain: matchingDeposit.fromLiteChain,
+          },
           this.clients.hubPoolClient,
-          blockRanges,
-          this.chainIdListForBundleEvaluationBlockNumbers,
-          matchingDeposit.fromLiteChain
+          bundleEndBlockForMainnet
         );
         // Assume that lp fees are 0 for the sake of speed. In the future we could batch compute
         // these or make hardcoded assumptions based on the origin-repayment chain direction. This might result
@@ -635,6 +640,7 @@ export class BundleDataClient {
     }
 
     const chainIds = this.clients.configStoreClient.getChainIdIndicesForBlock(blockRangesForChains[0][0]);
+    const bundleEndBlockForMainnet = blockRangesForChains[0][1];
 
     if (blockRangesForChains.length > chainIds.length) {
       throw new Error(
@@ -671,7 +677,7 @@ export class BundleDataClient {
           deposit.originChainId,
           deposit.outputToken,
           deposit.destinationChainId,
-          deposit.quoteBlockNumber
+          bundleEndBlockForMainnet
         ) &&
         // Cannot slow fill from or to a lite chain.
         !deposit.fromLiteChain &&
@@ -848,7 +854,10 @@ export class BundleDataClient {
             // tokens to the filler. We can't remove non-empty message deposit here in case there is a slow fill
             // request for the deposit, we'd want to see the fill took place.
             .filter(
-              (fill) => fill.blockNumber <= destinationChainBlockRange[1] && !isZeroValueFillOrSlowFillRequest(fill)
+              (fill) =>
+                fill.blockNumber <= destinationChainBlockRange[1] &&
+                !isZeroValueFillOrSlowFillRequest(fill) &&
+                !invalidOutputToken(fill)
             ),
           async (fill) => {
             fillCounter++;
@@ -867,7 +876,8 @@ export class BundleDataClient {
                     fill,
                     destinationClient.spokePool.provider,
                     deposits[0],
-                    this.clients.hubPoolClient
+                    this.clients.hubPoolClient,
+                    bundleEndBlockForMainnet
                   );
                   if (!isDefined(fillToRefund)) {
                     bundleUnrepayableFillsV3.push(fill);
@@ -971,7 +981,8 @@ export class BundleDataClient {
                   fill,
                   destinationClient.spokePool.provider,
                   matchedDeposit,
-                  this.clients.hubPoolClient
+                  this.clients.hubPoolClient,
+                  bundleEndBlockForMainnet
                 );
                 if (!isDefined(fillToRefund)) {
                   bundleUnrepayableFillsV3.push(fill);
@@ -1017,7 +1028,9 @@ export class BundleDataClient {
             .getSlowFillRequestsForOriginChain(originChainId)
             .filter(
               (request) =>
-                request.blockNumber <= destinationChainBlockRange[1] && !isZeroValueFillOrSlowFillRequest(request)
+                request.blockNumber <= destinationChainBlockRange[1] &&
+                !isZeroValueFillOrSlowFillRequest(request) &&
+                !invalidOutputToken(request)
             ),
           async (slowFillRequest: SlowFillRequestWithBlock) => {
             const relayDataHash = getRelayEventKey(slowFillRequest);
@@ -1149,7 +1162,8 @@ export class BundleDataClient {
                 fill,
                 destinationClient.spokePool.provider,
                 deposits[0],
-                this.clients.hubPoolClient
+                this.clients.hubPoolClient,
+                bundleEndBlockForMainnet
               );
               if (!isDefined(fillToRefund)) {
                 bundleUnrepayableFillsV3.push(fill);
@@ -1205,7 +1219,8 @@ export class BundleDataClient {
               prefill,
               destinationClient.spokePool.provider,
               deposit,
-              this.clients.hubPoolClient
+              this.clients.hubPoolClient,
+              bundleEndBlockForMainnet
             );
             if (!isDefined(verifiedFill)) {
               bundleUnrepayableFillsV3.push(prefill);
@@ -1339,11 +1354,12 @@ export class BundleDataClient {
               const matchedDeposit = deposits[0];
               assert(isDefined(matchedDeposit), "Deposit should exist in relay hash dictionary.");
               const { chainToSendRefundTo: paymentChainId } = getRefundInformationFromFill(
-                fill,
+                {
+                  ...fill,
+                  fromLiteChain: matchedDeposit.fromLiteChain,
+                },
                 this.clients.hubPoolClient,
-                blockRangesForChains,
-                chainIds,
-                matchedDeposit.fromLiteChain
+                bundleEndBlockForMainnet
               );
               return {
                 ...fill,
@@ -1385,11 +1401,12 @@ export class BundleDataClient {
       const associatedDeposit = deposits[0];
       assert(isDefined(associatedDeposit), "Deposit should exist in relay hash dictionary.");
       const { chainToSendRefundTo, repaymentToken } = getRefundInformationFromFill(
-        fill,
+        {
+          ...fill,
+          fromLiteChain: associatedDeposit.fromLiteChain,
+        },
         this.clients.hubPoolClient,
-        blockRangesForChains,
-        chainIds,
-        associatedDeposit.fromLiteChain
+        bundleEndBlockForMainnet
       );
       updateBundleFillsV3(bundleFillsV3, fill, realizedLpFeePct, chainToSendRefundTo, repaymentToken, fill.relayer);
     });
