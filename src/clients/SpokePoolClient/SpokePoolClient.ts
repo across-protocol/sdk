@@ -369,11 +369,11 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
           const fillRepaymentData = {
             ...fill,
             fromLiteChain: deposit.fromLiteChain,
-            quoteBlockNumber: this.hubPoolClient!.latestBlockSearched,
           };
           const { chainToSendRefundTo: repaymentChainId } = getRefundInformationFromFill(
             fillRepaymentData,
-            this.hubPoolClient!
+            this.hubPoolClient!,
+            this.hubPoolClient!.latestBlockSearched
           );
           // In order to keep this function sync, we can't call verifyFillRepayment so we'll log any fills where
           // the filler-specified repayment chain and repayment address is not a valid repayment upon

@@ -233,7 +233,13 @@ export function _buildPoolRebalanceRoot(
         ) {
           return;
         }
-        updateRunningBalanceForDeposit(runningBalances, clients.hubPoolClient, deposit, deposit.inputAmount.mul(-1));
+        updateRunningBalanceForDeposit(
+          runningBalances,
+          clients.hubPoolClient,
+          deposit,
+          deposit.inputAmount.mul(-1),
+          mainnetBundleEndBlock
+        );
       });
     });
   });

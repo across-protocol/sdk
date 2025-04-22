@@ -9,7 +9,7 @@ import { HubPoolClient } from "../../HubPoolClient";
  * @notice FillRepaymentInformation is a fill with additional properties required to determine where it can
  * be repaid.
  */
-type FillRepaymentInformation = Fill & { quoteBlockNumber: number; fromLiteChain: boolean };
+type FillRepaymentInformation = Fill & { fromLiteChain: boolean };
 
 /**
  * @notice Return repayment chain and repayment token for a fill, but does not verify if the returned
@@ -20,12 +20,13 @@ type FillRepaymentInformation = Fill & { quoteBlockNumber: number; fromLiteChain
  */
 export function getRefundInformationFromFill(
   relayData: FillRepaymentInformation,
-  hubPoolClient: HubPoolClient
+  hubPoolClient: HubPoolClient,
+  bundleEndBlockForMainnet: number
 ): {
   chainToSendRefundTo: number;
   repaymentToken: string;
 } {
-  const chainToSendRefundTo = _getRepaymentChainId(relayData, hubPoolClient);
+  const chainToSendRefundTo = _getRepaymentChainId(relayData, hubPoolClient, bundleEndBlockForMainnet);
   if (chainToSendRefundTo === relayData.originChainId) {
     return {
       chainToSendRefundTo,
@@ -39,13 +40,13 @@ export function getRefundInformationFromFill(
   const l1TokenCounterpart = hubPoolClient.getL1TokenForL2TokenAtBlock(
     relayData.inputToken,
     relayData.originChainId,
-    relayData.quoteBlockNumber
+    bundleEndBlockForMainnet
   );
 
   const repaymentToken = hubPoolClient.getL2TokenForL1TokenAtBlock(
     l1TokenCounterpart,
     chainToSendRefundTo,
-    relayData.quoteBlockNumber
+    bundleEndBlockForMainnet
   );
   return {
     chainToSendRefundTo,
@@ -66,12 +67,12 @@ export async function verifyFillRepayment(
   _fill: FillWithBlock,
   destinationChainProvider: providers.Provider,
   matchedDeposit: DepositWithBlock,
-  hubPoolClient: HubPoolClient
+  hubPoolClient: HubPoolClient,
+  bundleEndBlockForMainnet: number
 ): Promise<FillWithBlock | undefined> {
   const fill = {
     ..._.cloneDeep(_fill),
     fromLiteChain: matchedDeposit.fromLiteChain,
-    quoteBlockNumber: matchedDeposit.quoteBlockNumber,
   };
 
   // Slow fills don't result in repayments so they're always valid.
@@ -79,7 +80,7 @@ export async function verifyFillRepayment(
     return fill;
   }
 
-  let repaymentChainId = _getRepaymentChainId(fill, hubPoolClient);
+  let repaymentChainId = _getRepaymentChainId(fill, hubPoolClient, bundleEndBlockForMainnet);
 
   // Repayments will always go to the fill.relayer address so check if its a valid EVM address. If its not, attempt
   // to change it to the msg.sender of the FilledRelay.
@@ -122,7 +123,11 @@ export async function verifyFillRepayment(
   return fill;
 }
 
-function _getRepaymentChainId(relayData: FillRepaymentInformation, hubPoolClient: HubPoolClient): number {
+function _getRepaymentChainId(
+  relayData: FillRepaymentInformation,
+  hubPoolClient: HubPoolClient,
+  bundleEndBlockForMainnet: number
+): number {
   if (relayData.fromLiteChain) {
     assert(!isSlowFill(relayData), "getRepaymentChainId: fromLiteChain and slow fill are mutually exclusive");
     return relayData.originChainId;
@@ -135,7 +140,7 @@ function _getRepaymentChainId(relayData: FillRepaymentInformation, hubPoolClient
   }
 
   // Repayment chain is valid if the input token and repayment chain are mapped to the same PoolRebalanceRoute.
-  const repaymentTokenIsValid = _repaymentChainTokenIsValid(relayData, hubPoolClient);
+  const repaymentTokenIsValid = _repaymentChainTokenIsValid(relayData, hubPoolClient, bundleEndBlockForMainnet);
   if (repaymentTokenIsValid) {
     return relayData.repaymentChainId;
   }
@@ -144,26 +149,26 @@ function _getRepaymentChainId(relayData: FillRepaymentInformation, hubPoolClient
   return relayData.originChainId;
 }
 
-function _repaymentChainTokenIsValid(relayData: FillRepaymentInformation, hubPoolClient: HubPoolClient): boolean {
+function _repaymentChainTokenIsValid(
+  relayData: FillRepaymentInformation,
+  hubPoolClient: HubPoolClient,
+  bundleEndBlockForMainnet: number
+): boolean {
   if (
-    !hubPoolClient.l2TokenHasPoolRebalanceRoute(
-      relayData.inputToken,
-      relayData.originChainId,
-      relayData.quoteBlockNumber
-    )
+    !hubPoolClient.l2TokenHasPoolRebalanceRoute(relayData.inputToken, relayData.originChainId, bundleEndBlockForMainnet)
   ) {
     return false;
   }
   const l1TokenCounterpart = hubPoolClient.getL1TokenForL2TokenAtBlock(
     relayData.inputToken,
     relayData.originChainId,
-    relayData.quoteBlockNumber
+    bundleEndBlockForMainnet
   );
   if (
     !hubPoolClient.l2TokenEnabledForL1TokenAtBlock(
       l1TokenCounterpart,
       relayData.repaymentChainId,
-      relayData.quoteBlockNumber
+      bundleEndBlockForMainnet
     )
   ) {
     return false;

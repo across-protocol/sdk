@@ -78,7 +78,7 @@ describe("FillUtils", function () {
     describe("Deposit repayment is not mapped to a PoolRebalanceRoute", function () {
       it("Repayment gets overwritten to origin chain if only destination chain is mapped to a PoolRebalanceRoute", async function () {
         hubPoolClient.setTokenMapping(ZERO_ADDRESS, deposit.destinationChainId, deposit.outputToken);
-        const result = await verifyFillRepayment(fill, spokeProvider, deposit, hubPoolClient);
+        const result = await verifyFillRepayment(fill, spokeProvider, deposit, hubPoolClient, 0);
         expect(result).to.not.be.undefined;
         expect(result!.relayer).to.equal(relayer);
 
@@ -86,7 +86,7 @@ describe("FillUtils", function () {
         expect(result!.relayer).to.equal(relayer);
       });
       it("Repayment gets overwritten to origin chain if origin chain is not mapped to a PoolRebalanceRoute", async function () {
-        const result = await verifyFillRepayment(fill, spokeProvider, deposit, hubPoolClient);
+        const result = await verifyFillRepayment(fill, spokeProvider, deposit, hubPoolClient, 0);
         expect(result).to.not.be.undefined;
         expect(result!.relayer).to.equal(relayer);
 
@@ -103,7 +103,7 @@ describe("FillUtils", function () {
         spokeProvider._setTransaction(fill.transactionHash, {
           from: relayer,
         } as unknown as TransactionResponse);
-        const result = await verifyFillRepayment(invalidRepaymentFill, spokeProvider, deposit, hubPoolClient);
+        const result = await verifyFillRepayment(invalidRepaymentFill, spokeProvider, deposit, hubPoolClient, 0);
         expect(result).to.not.be.undefined;
         expect(result!.relayer).to.equal(relayer);
         expect(result!.repaymentChainId).to.equal(destinationChainId);
@@ -118,7 +118,7 @@ describe("FillUtils", function () {
         spokeProvider._setTransaction(fill.transactionHash, {
           from: relayer,
         } as unknown as TransactionResponse);
-        const result = await verifyFillRepayment(invalidRepaymentFill, spokeProvider, deposit, hubPoolClient);
+        const result = await verifyFillRepayment(invalidRepaymentFill, spokeProvider, deposit, hubPoolClient, 0);
         expect(result).to.not.be.undefined;
         expect(result!.relayer).to.equal(relayer);
         expect(result!.repaymentChainId).to.equal(originChainId);
@@ -131,7 +131,7 @@ describe("FillUtils", function () {
         spokeProvider._setTransaction(fill.transactionHash, {
           from: INVALID_EVM_ADDRESS,
         } as unknown as TransactionResponse);
-        const result = await verifyFillRepayment(invalidRepaymentFill, spokeProvider, deposit, hubPoolClient);
+        const result = await verifyFillRepayment(invalidRepaymentFill, spokeProvider, deposit, hubPoolClient, 0);
         expect(result).to.be.undefined;
       });
     });
@@ -141,7 +141,7 @@ describe("FillUtils", function () {
         hubPoolClient.setTokenMapping(ZERO_ADDRESS, fill.repaymentChainId, ZERO_ADDRESS);
       });
       it("Original repayment chain and address is valid", async function () {
-        const result = await verifyFillRepayment(fill, spokeProvider, deposit, hubPoolClient);
+        const result = await verifyFillRepayment(fill, spokeProvider, deposit, hubPoolClient, 0);
         expect(result).to.not.be.undefined;
         expect(result!.repaymentChainId).to.equal(fill.repaymentChainId);
         expect(result!.relayer).to.equal(fill.relayer);
@@ -151,7 +151,7 @@ describe("FillUtils", function () {
         hubPoolClient.deleteTokenMapping(ZERO_ADDRESS, fill.repaymentChainId);
         const slowFill = { ...fill };
         slowFill.relayExecutionInfo.fillType = FillType.SlowFill;
-        const result = await verifyFillRepayment(slowFill, spokeProvider, deposit, hubPoolClient);
+        const result = await verifyFillRepayment(slowFill, spokeProvider, deposit, hubPoolClient, 0);
         expect(result).to.not.be.undefined;
         expect(slowFill.relayExecutionInfo.fillType).to.equal(FillType.SlowFill);
       });
@@ -162,7 +162,7 @@ describe("FillUtils", function () {
           ...deposit,
           fromLiteChain: true,
         };
-        const result = await verifyFillRepayment(fill, spokeProvider, liteChainDeposit, hubPoolClient);
+        const result = await verifyFillRepayment(fill, spokeProvider, liteChainDeposit, hubPoolClient, 0);
         expect(result).to.not.be.undefined;
         expect(result!.relayer).to.equal(relayer);
 
@@ -183,7 +183,13 @@ describe("FillUtils", function () {
         spokeProvider._setTransaction(fill.transactionHash, {
           from: relayer,
         } as unknown as TransactionResponse);
-        const result = await verifyFillRepayment(invalidRepaymentFill, spokeProvider, liteChainDeposit, hubPoolClient);
+        const result = await verifyFillRepayment(
+          invalidRepaymentFill,
+          spokeProvider,
+          liteChainDeposit,
+          hubPoolClient,
+          0
+        );
         expect(result).to.not.be.undefined;
         expect(result!.relayer).to.equal(relayer);
         expect(result!.repaymentChainId).to.equal(originChainId);
@@ -198,7 +204,7 @@ describe("FillUtils", function () {
         spokeProvider._setTransaction(fill.transactionHash, {
           from: relayer,
         } as unknown as TransactionResponse);
-        const result = await verifyFillRepayment(invalidRepaymentFill, spokeProvider, deposit, hubPoolClient);
+        const result = await verifyFillRepayment(invalidRepaymentFill, spokeProvider, deposit, hubPoolClient, 0);
         expect(result).to.not.be.undefined;
         expect(result!.relayer).to.equal(relayer);
         // Repayment chain gets overwritten to destination chain.
@@ -213,7 +219,7 @@ describe("FillUtils", function () {
         spokeProvider._setTransaction(fill.transactionHash, {
           from: relayer,
         } as unknown as TransactionResponse);
-        const result = await verifyFillRepayment(invalidRepaymentFill, spokeProvider, deposit, hubPoolClient);
+        const result = await verifyFillRepayment(invalidRepaymentFill, spokeProvider, deposit, hubPoolClient, 0);
         expect(result).to.not.be.undefined;
         expect(result!.relayer).to.equal(relayer);
         expect(result!.repaymentChainId).to.equal(repaymentChainId);
@@ -232,7 +238,13 @@ describe("FillUtils", function () {
         spokeProvider._setTransaction(fill.transactionHash, {
           from: INVALID_EVM_ADDRESS,
         } as unknown as TransactionResponse);
-        const result = await verifyFillRepayment(invalidRepaymentFill, spokeProvider, liteChainDeposit, hubPoolClient);
+        const result = await verifyFillRepayment(
+          invalidRepaymentFill,
+          spokeProvider,
+          liteChainDeposit,
+          hubPoolClient,
+          0
+        );
         expect(result).to.be.undefined;
       });
       it("Relayer is not valid EVM address, and msg.sender is invalid", async function () {
@@ -247,7 +259,7 @@ describe("FillUtils", function () {
         spokeProvider._setTransaction(fill.transactionHash, {
           from: INVALID_EVM_ADDRESS,
         } as unknown as TransactionResponse);
-        const result = await verifyFillRepayment(invalidRepaymentFill, spokeProvider, deposit, hubPoolClient);
+        const result = await verifyFillRepayment(invalidRepaymentFill, spokeProvider, deposit, hubPoolClient, 0);
         expect(result).to.be.undefined;
       });
     });

@@ -359,6 +359,7 @@ export class BundleDataClient {
   // @dev This helper function should probably be moved to the InventoryClient
   async getApproximateRefundsForBlockRange(chainIds: number[], blockRanges: number[][]): Promise<CombinedRefunds> {
     const refundsForChain: CombinedRefunds = {};
+    const bundleEndBlockForMainnet = blockRanges[0][1];
     for (const chainId of chainIds) {
       if (this.spokePoolClients[chainId] === undefined) {
         continue;
@@ -401,7 +402,8 @@ export class BundleDataClient {
           _fill,
           spokeClient.spokePool.provider,
           matchingDeposit,
-          this.clients.hubPoolClient
+          this.clients.hubPoolClient,
+          bundleEndBlockForMainnet
         );
         if (!isDefined(fill)) {
           return;
@@ -410,9 +412,9 @@ export class BundleDataClient {
           {
             ...fill,
             fromLiteChain: matchingDeposit.fromLiteChain,
-            quoteBlockNumber: matchingDeposit.quoteBlockNumber,
           },
-          this.clients.hubPoolClient
+          this.clients.hubPoolClient,
+          bundleEndBlockForMainnet
         );
         // Assume that lp fees are 0 for the sake of speed. In the future we could batch compute
         // these or make hardcoded assumptions based on the origin-repayment chain direction. This might result
@@ -675,6 +677,7 @@ export class BundleDataClient {
     }
 
     const chainIds = this.clients.configStoreClient.getChainIdIndicesForBlock(blockRangesForChains[0][0]);
+    const bundleEndBlockForMainnet = blockRangesForChains[0][1];
 
     if (blockRangesForChains.length > chainIds.length) {
       throw new Error(
@@ -711,7 +714,7 @@ export class BundleDataClient {
           deposit.originChainId,
           deposit.outputToken,
           deposit.destinationChainId,
-          deposit.quoteBlockNumber
+          bundleEndBlockForMainnet
         ) &&
         // Cannot slow fill from or to a lite chain.
         !deposit.fromLiteChain &&
@@ -910,7 +913,8 @@ export class BundleDataClient {
                     fill,
                     destinationClient.spokePool.provider,
                     deposits[0],
-                    this.clients.hubPoolClient
+                    this.clients.hubPoolClient,
+                    bundleEndBlockForMainnet
                   );
                   if (!isDefined(fillToRefund)) {
                     bundleUnrepayableFillsV3.push(fill);
@@ -1014,7 +1018,8 @@ export class BundleDataClient {
                   fill,
                   destinationClient.spokePool.provider,
                   matchedDeposit,
-                  this.clients.hubPoolClient
+                  this.clients.hubPoolClient,
+                  bundleEndBlockForMainnet
                 );
                 if (!isDefined(fillToRefund)) {
                   bundleUnrepayableFillsV3.push(fill);
@@ -1194,7 +1199,8 @@ export class BundleDataClient {
                 fill,
                 destinationClient.spokePool.provider,
                 deposits[0],
-                this.clients.hubPoolClient
+                this.clients.hubPoolClient,
+                bundleEndBlockForMainnet
               );
               if (!isDefined(fillToRefund)) {
                 bundleUnrepayableFillsV3.push(fill);
@@ -1250,7 +1256,8 @@ export class BundleDataClient {
               prefill,
               destinationClient.spokePool.provider,
               deposit,
-              this.clients.hubPoolClient
+              this.clients.hubPoolClient,
+              bundleEndBlockForMainnet
             );
             if (!isDefined(verifiedFill)) {
               bundleUnrepayableFillsV3.push(prefill);
@@ -1387,9 +1394,9 @@ export class BundleDataClient {
                 {
                   ...fill,
                   fromLiteChain: matchedDeposit.fromLiteChain,
-                  quoteBlockNumber: matchedDeposit.quoteBlockNumber,
                 },
-                this.clients.hubPoolClient
+                this.clients.hubPoolClient,
+                bundleEndBlockForMainnet
               );
               return {
                 ...fill,
@@ -1434,9 +1441,9 @@ export class BundleDataClient {
         {
           ...fill,
           fromLiteChain: associatedDeposit.fromLiteChain,
-          quoteBlockNumber: associatedDeposit.quoteBlockNumber,
         },
-        this.clients.hubPoolClient
+        this.clients.hubPoolClient,
+        bundleEndBlockForMainnet
       );
       updateBundleFillsV3(bundleFillsV3, fill, realizedLpFeePct, chainToSendRefundTo, repaymentToken, fill.relayer);
     });
