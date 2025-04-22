@@ -111,6 +111,7 @@ export async function getSlotForBlock(
       return midSlot;
     }
   } while (lowSlot <= highSlot);
+
   return undefined;
 }
 
