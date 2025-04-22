@@ -163,12 +163,13 @@ export function updateRunningBalanceForDeposit(
   runningBalances: RunningBalances,
   hubPoolClient: HubPoolClient,
   deposit: V3DepositWithBlock,
-  updateAmount: BigNumber
+  updateAmount: BigNumber,
+  mainnetBundleEndBlock: number
 ): void {
   const l1TokenCounterpart = hubPoolClient.getL1TokenForL2TokenAtBlock(
     deposit.inputToken,
     deposit.originChainId,
-    deposit.quoteBlockNumber
+    mainnetBundleEndBlock
   );
   updateRunningBalance(runningBalances, deposit.originChainId, l1TokenCounterpart, updateAmount);
 }
