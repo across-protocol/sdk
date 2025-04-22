@@ -2,7 +2,7 @@ import { Rpc, SolanaRpcApi, Address } from "@solana/kit";
 import { getDeployedBlockNumber } from "@across-protocol/contracts";
 import { fetchState } from "@across-protocol/contracts/dist/src/svm/clients/SvmSpoke";
 
-import { Deposit, FillStatus, RelayData } from "../../interfaces";
+import { Deposit, FillStatus, FillWithBlock, RelayData } from "../../interfaces";
 import { isUnsafeDepositId, BigNumber } from "../../utils";
 import { getFillStatusPda } from "./utils";
 import { SvmSpokeEventsClient } from "./eventsClient";
@@ -212,4 +212,31 @@ export async function relayFillStatus(
     default:
       throw new Error(`Unexpected event name: ${fillStatusEvent!.name}`);
   }
+}
+
+/**
+ * Find the block at which a fill was completed.
+ * @todo After SpokePool upgrade, this function can be simplified to use the FillStatus enum.
+ * @param spokePool SpokePool contract instance.
+ * @param relayData Deposit information that is used to complete a fill.
+ * @param lowBlockNumber The lower bound of the search. Must be bounded by SpokePool deployment.
+ * @param highBlocknumber Optional upper bound for the search.
+ * @returns The block number at which the relay was completed, or undefined.
+ */
+export function findFillBlock(
+  _spokePool: unknown,
+  _relayData: RelayData,
+  _lowBlockNumber: number,
+  _highBlockNumber?: number
+): Promise<number | undefined> {
+  throw new Error("fillStatusArray: not implemented");
+}
+
+export function findFillEvent(
+  _spokePool: unknown,
+  _relayData: RelayData,
+  _lowBlockNumber: number,
+  _highBlockNumber?: number
+): Promise<FillWithBlock | undefined> {
+  throw new Error("fillStatusArray: not implemented");
 }

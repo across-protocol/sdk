@@ -26,7 +26,6 @@ import {
   EnabledDepositRouteWithBlock,
   Fill,
   FillStatus,
-  FillType,
   FillWithBlock,
   RelayData,
   RelayerRefundExecutionWithBlock,
