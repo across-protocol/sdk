@@ -219,4 +219,8 @@ export class SvmCpiEventsClient {
 
     return events;
   }
+
+  public getProgramAddress(): Address {
+    return this.programAddress;
+  }
 }
