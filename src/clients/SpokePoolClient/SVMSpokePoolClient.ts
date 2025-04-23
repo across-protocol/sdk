@@ -1,10 +1,18 @@
 import winston from "winston";
-import { Rpc, SolanaRpcApiFromTransport, RpcTransport } from "@solana/kit";
+import { Address, Rpc, SolanaRpcApiFromTransport, RpcTransport } from "@solana/kit";
+
 import { BigNumber, DepositSearchResult, EventSearchConfig, MakeOptional } from "../../utils";
-import { SvmSpokeEventsClient, SVMEventNames } from "../../arch/svm";
+import {
+  SvmSpokeEventsClient,
+  SVMEventNames,
+  getFillDeadline,
+  getTimestampForBlock,
+  getStatePda,
+} from "../../arch/svm";
 import { HubPoolClient } from "../HubPoolClient";
 import { knownEventNames, SpokePoolClient, SpokePoolUpdate } from "./SpokePoolClient";
 import { RelayData, FillStatus } from "../../interfaces";
+
 /**
  * SvmSpokePoolClient is a client for the SVM SpokePool program. It extends the base SpokePoolClient
  * and implements the abstract methods required for interacting with an SVM Spoke Pool.
@@ -19,6 +27,8 @@ export class SvmSpokePoolClient extends SpokePoolClient {
     chainId: number,
     deploymentSlot: bigint, // Using slot instead of block number for SVM
     eventSearchConfig: MakeOptional<EventSearchConfig, "toBlock">,
+    protected programId: Address,
+    protected statePda: Address,
     protected svmEventsClient: SvmSpokeEventsClient,
     protected rpc: Rpc<SolanaRpcApiFromTransport<RpcTransport>>
   ) {
@@ -38,12 +48,16 @@ export class SvmSpokePoolClient extends SpokePoolClient {
     rpc: Rpc<SolanaRpcApiFromTransport<RpcTransport>>
   ): Promise<SvmSpokePoolClient> {
     const svmEventsClient = await SvmSpokeEventsClient.create(rpc);
+    const programId = svmEventsClient.getSvmSpokeAddress();
+    const statePda = await getStatePda(programId);
     return new SvmSpokePoolClient(
       logger,
       hubPoolClient,
       chainId,
       deploymentSlot,
       eventSearchConfig,
+      programId,
+      statePda,
       svmEventsClient,
       rpc
     );
@@ -150,18 +164,18 @@ export class SvmSpokePoolClient extends SpokePoolClient {
   }
 
   /**
-   * Retrieves the maximum fill deadline buffer.
-   * TODO: Implement SVM equivalent, perhaps reading from a config account.
+   * Retrieves the fill deadline buffer fetched from the State PDA.
+   * @note This function assumes that fill deadline buffer is a constant value in svm environments.
    */
-  public getMaxFillDeadlineInRange(_startSlot: number, _endSlot: number): Promise<number> {
-    throw new Error("getMaxFillDeadlineInRange not implemented for SVM");
+  public override getMaxFillDeadlineInRange(_startSlot: number, _endSlot: number): Promise<number> {
+    return getFillDeadline(this.rpc, this.statePda);
   }
 
   /**
    * Retrieves the timestamp for a given SVM slot number.
    */
-  public getTimestampForBlock(_blockNumber: number): Promise<number> {
-    throw new Error("getTimestampForBlock not implemented for SVM");
+  public override getTimestampForBlock(blockNumber: number): Promise<number> {
+    return getTimestampForBlock(this.rpc, blockNumber);
   }
 
   /**
