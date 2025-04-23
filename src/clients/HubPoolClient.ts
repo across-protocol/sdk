@@ -2,7 +2,7 @@ import assert from "assert";
 import { Contract, EventFilter } from "ethers";
 import _ from "lodash";
 import winston from "winston";
-import { DEFAULT_CACHING_SAFE_LAG, DEFAULT_CACHING_TTL, ZERO_ADDRESS } from "../constants";
+import { DEFAULT_CACHING_SAFE_LAG, DEFAULT_CACHING_TTL, TOKEN_SYMBOLS_MAP, ZERO_ADDRESS } from "../constants";
 import {
   CachingMechanismInterface,
   CancelledRootBundle,
@@ -45,6 +45,9 @@ import {
   getUsdcSymbol,
   getL1TokenInfo,
   compareAddressesSimple,
+  chainIsSvm,
+  getDeployedAddress,
+  SvmAddress,
 } from "../utils";
 import { AcrossConfigStoreClient as ConfigStoreClient } from "./AcrossConfigStoreClient/AcrossConfigStoreClient";
 import { BaseAbstractClient, isUpdateFailureReason, UpdateFailureReason } from "./BaseAbstractClient";
@@ -904,35 +907,67 @@ export class HubPoolClient extends BaseAbstractClient {
     if (eventsToQuery.includes("CrossChainContractsSet")) {
       for (const event of events["CrossChainContractsSet"]) {
         const args = spreadEventWithBlockNumber(event) as CrossChainContractsSet;
-        assign(
-          this.crossChainContracts,
-          [args.l2ChainId],
-          [
-            {
-              spokePool: args.spokePool,
-              blockNumber: args.blockNumber,
-              transactionIndex: args.transactionIndex,
-              logIndex: args.logIndex,
-            },
-          ]
-        );
+        const dataToAdd = {
+          spokePool: args.spokePool,
+          blockNumber: args.blockNumber,
+          transactionIndex: args.transactionIndex,
+          logIndex: args.logIndex,
+        };
+        // If the chain is SVM then our `args.spokePool` will be set to the `solanaSpokePool.toAddressUnchecked()` in the
+        // hubpool event because our hub deals with `address` types and not byte32. Therefore, we should confirm that the
+        // `args.spokePool` is the same as the `solanaSpokePool.toAddressUnchecked()`. We can derive the `solanaSpokePool`
+        // address by using the `getDeployedAddress` function.
+        if (chainIsSvm(args.l2ChainId)) {
+          const solanaSpokePool = getDeployedAddress("SvmSpoke", args.l2ChainId);
+          if (!solanaSpokePool) {
+            throw new Error(`SVM spoke pool not found for chain ${args.l2ChainId}`);
+          }
+          const truncatedAddress = SvmAddress.from(solanaSpokePool).toEvmAddress();
+          // Verify the event address matches our expected truncated address
+          if (args.spokePool.toLowerCase() !== truncatedAddress.toLowerCase()) {
+            throw new Error(
+              `SVM spoke pool address mismatch for chain ${args.l2ChainId}. ` +
+                `Expected ${truncatedAddress}, got ${args.spokePool}`
+            );
+          }
+          // Store the full Solana address
+          dataToAdd.spokePool = SvmAddress.from(solanaSpokePool).toBytes32();
+        }
+        assign(this.crossChainContracts, [args.l2ChainId], [dataToAdd]);
       }
     }
 
     if (eventsToQuery.includes("SetPoolRebalanceRoute")) {
       for (const event of events["SetPoolRebalanceRoute"]) {
         const args = spreadEventWithBlockNumber(event) as SetPoolRebalanceRoot;
+
+        // If the destination chain is SVM, then we need to convert the destination token to the Solana address.
+        // This is because the HubPool contract only holds a truncated address for the USDC token and currently
+        // only supports USDC as a destination token for Solana.
+        let destinationToken = args.destinationToken;
+        if (chainIsSvm(args.destinationChainId)) {
+          const usdcTokenSol = TOKEN_SYMBOLS_MAP.USDC.addresses[args.destinationChainId];
+          const truncatedAddress = SvmAddress.from(usdcTokenSol).toEvmAddress();
+          if (destinationToken.toLowerCase() !== truncatedAddress.toLowerCase()) {
+            throw new Error(
+              `SVM USDC address mismatch for chain ${args.destinationChainId}. ` +
+                `Expected ${truncatedAddress}, got ${destinationToken}`
+            );
+          }
+          destinationToken = SvmAddress.from(usdcTokenSol).toBytes32();
+        }
+
         // If the destination token is set to the zero address in an event, then this means Across should no longer
         // rebalance to this chain.
-        if (args.destinationToken !== ZERO_ADDRESS) {
-          assign(this.l1TokensToDestinationTokens, [args.l1Token, args.destinationChainId], args.destinationToken);
+        if (destinationToken !== ZERO_ADDRESS) {
+          assign(this.l1TokensToDestinationTokens, [args.l1Token, args.destinationChainId], destinationToken);
           assign(
             this.l1TokensToDestinationTokensWithBlock,
             [args.l1Token, args.destinationChainId],
             [
               {
                 l1Token: args.l1Token,
-                l2Token: args.destinationToken,
+                l2Token: destinationToken,
                 blockNumber: args.blockNumber,
                 transactionIndex: args.transactionIndex,
                 logIndex: args.logIndex,
