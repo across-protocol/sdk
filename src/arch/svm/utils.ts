@@ -1,6 +1,5 @@
 import { BN, BorshEventCoder, Idl } from "@coral-xyz/anchor";
 import web3, { address, RpcTransport } from "@solana/kit";
-import { EventName, EventData, SVMEventNames } from "./types";
 
 /**
  * Helper to determine if the current RPC network is devnet.
@@ -41,11 +40,11 @@ export function parseEventData(eventData: any): any {
 /**
  * Decodes a raw event according to a supplied IDL.
  */
-export function decodeEvent(idl: Idl, rawEvent: string): { data: EventData; name: EventName } {
+export function decodeEvent(idl: Idl, rawEvent: string): { data: Record<string, unknown>; name: string } {
   const event = new BorshEventCoder(idl).decode(rawEvent);
   if (!event) throw new Error(`Malformed rawEvent for IDL ${idl.address}: ${rawEvent}`);
   return {
-    name: getEventName(event.name),
+    name: event.name,
     data: parseEventData(event.data),
   };
 }
@@ -55,12 +54,4 @@ export function decodeEvent(idl: Idl, rawEvent: string): { data: EventData; name
  */
 function snakeToCamel(s: string): string {
   return s.replace(/(_\w)/g, (match) => match[1].toUpperCase());
-}
-
-/**
- * Gets the event name from a raw name.
- */
-export function getEventName(rawName: string): EventName {
-  if (Object.values(SVMEventNames).some((name) => rawName.includes(name))) return rawName as EventName;
-  throw new Error(`Unknown event name: ${rawName}`);
 }

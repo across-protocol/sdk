@@ -9,7 +9,7 @@ import web3, {
   Signature,
 } from "@solana/kit";
 import { bs58 } from "../../utils";
-import { EventData, EventName, EventWithData } from "./types";
+import { EventWithData } from "./types";
 import { decodeEvent, isDevnet } from "./utils";
 import { getSlotForBlock } from "./SpokeUtils";
 
@@ -33,7 +33,7 @@ export class SvmEventsClient {
   private rpc: web3.Rpc<web3.SolanaRpcApiFromTransport<RpcTransport>>;
   private svmAddress: Address;
   private svmEventAuthority: Address;
-  private idl;
+  private idl: Idl;
 
   /**
    * Private constructor. Use the async create() method to instantiate.
@@ -83,13 +83,13 @@ export class SvmEventsClient {
    * @returns A promise that resolves to an array of events matching the eventName.
    */
   public async queryEvents(
-    eventName: EventName,
+    eventName: string,
     fromBlock?: bigint,
     toBlock?: bigint,
     options: GetSignaturesForAddressConfig = { limit: 1000, commitment: "confirmed" }
   ): Promise<EventWithData[]> {
     const events = await this.queryAllEvents(fromBlock, toBlock, options);
-    return events.filter((event) => event.name === eventName) as EventWithData[];
+    return events.filter((event) => event.name.toLowerCase() === eventName.toLowerCase()) as EventWithData[];
   }
 
   /**
@@ -187,11 +187,9 @@ export class SvmEventsClient {
    * @param txResult - The transaction result.
    * @returns A promise that resolves to an array of events with their data and name.
    */
-  private processEventFromTx(
-    txResult: GetTransactionReturnType
-  ): { program: Address; data: unknown; name: EventName }[] {
+  private processEventFromTx(txResult: GetTransactionReturnType): { program: Address; data: unknown; name: string }[] {
     if (!txResult) return [];
-    const events: { program: Address; data: EventData; name: EventName }[] = [];
+    const events: { program: Address; data: unknown; name: string }[] = [];
 
     const accountKeys = txResult.transaction.message.accountKeys;
     const messageAccountKeys = [...accountKeys];
