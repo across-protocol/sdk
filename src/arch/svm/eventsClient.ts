@@ -29,10 +29,10 @@ type GetSignaturesForAddressConfig = Parameters<GetSignaturesForAddressApi["getS
 type GetSignaturesForAddressTransaction = ReturnType<GetSignaturesForAddressApi["getSignaturesForAddress"]>[number];
 type GetSignaturesForAddressApiResponse = readonly GetSignaturesForAddressTransaction[];
 
-export class SvmEventsClient {
+export class SvmCpiEventsClient {
   private rpc: web3.Rpc<web3.SolanaRpcApiFromTransport<RpcTransport>>;
-  private svmAddress: Address;
-  private svmEventAuthority: Address;
+  private programAddress: Address;
+  private programEventAuthority: Address;
   private idl: Idl;
 
   /**
@@ -40,20 +40,20 @@ export class SvmEventsClient {
    */
   private constructor(
     rpc: web3.Rpc<web3.SolanaRpcApiFromTransport<RpcTransport>>,
-    svmSpokeAddress: Address,
+    address: Address,
     eventAuthority: Address,
     idl: Idl
   ) {
     this.rpc = rpc;
-    this.svmAddress = svmSpokeAddress;
-    this.svmEventAuthority = eventAuthority;
+    this.programAddress = address;
+    this.programEventAuthority = eventAuthority;
     this.idl = idl;
   }
 
   /**
    * Factory method to asynchronously create an instance of SvmSpokeEventsClient.
    */
-  public static async create(rpc: web3.Rpc<web3.SolanaRpcApiFromTransport<RpcTransport>>): Promise<SvmEventsClient> {
+  public static async create(rpc: web3.Rpc<web3.SolanaRpcApiFromTransport<RpcTransport>>): Promise<SvmCpiEventsClient> {
     const isTestnet = await isDevnet(rpc);
     const programId = getDeployedAddress("SvmSpoke", getSolanaChainId(isTestnet ? "devnet" : "mainnet").toString());
     if (!programId) throw new Error("Program not found");
@@ -64,13 +64,13 @@ export class SvmEventsClient {
     rpc: web3.Rpc<web3.SolanaRpcApiFromTransport<RpcTransport>>,
     programId: string,
     idl: Idl
-  ): Promise<SvmEventsClient> {
-    const svmAddress = web3.address(programId);
-    const [svmEventAuthority] = await web3.getProgramDerivedAddress({
-      programAddress: svmAddress,
+  ): Promise<SvmCpiEventsClient> {
+    const address = web3.address(programId);
+    const [eventAuthority] = await web3.getProgramDerivedAddress({
+      programAddress: address,
       seeds: ["__event_authority"],
     });
-    return new SvmEventsClient(rpc, svmAddress, svmEventAuthority, idl);
+    return new SvmCpiEventsClient(rpc, address, eventAuthority, idl);
   }
 
   /**
@@ -89,7 +89,7 @@ export class SvmEventsClient {
     options: GetSignaturesForAddressConfig = { limit: 1000, commitment: "confirmed" }
   ): Promise<EventWithData[]> {
     const events = await this.queryAllEvents(fromBlock, toBlock, options);
-    return events.filter((event) => event.name.toLowerCase() === eventName.toLowerCase()) as EventWithData[];
+    return events.filter((event) => event.name === eventName) as EventWithData[];
   }
 
   /**
@@ -124,7 +124,7 @@ export class SvmEventsClient {
 
     while (hasMoreSignatures) {
       const signatures: GetSignaturesForAddressApiResponse = await this.rpc
-        .getSignaturesForAddress(this.svmAddress, currentOptions)
+        .getSignaturesForAddress(this.programAddress, currentOptions)
         .send();
       // Signatures are sorted by slot in descending order.
       allSignatures.push(...signatures);
@@ -205,14 +205,14 @@ export class SvmEventsClient {
         if (
           ixProgramId !== undefined &&
           singleIxAccount !== undefined &&
-          this.svmAddress === ixProgramId &&
-          this.svmEventAuthority === singleIxAccount
+          this.programAddress === ixProgramId &&
+          this.programEventAuthority === singleIxAccount
         ) {
           const ixData = bs58.decode(ix.data);
           // Skip the first 8 bytes (assumed header) and encode the rest.
           const eventData = Buffer.from(ixData.slice(8)).toString("base64");
           const { name, data } = decodeEvent(this.idl, eventData);
-          events.push({ program: this.svmAddress, name, data });
+          events.push({ program: this.programAddress, name, data });
         }
       }
     }
