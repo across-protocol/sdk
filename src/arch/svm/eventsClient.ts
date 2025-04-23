@@ -1,3 +1,4 @@
+import { Idl } from "@coral-xyz/anchor";
 import { getDeployedAddress, SvmSpokeIdl } from "@across-protocol/contracts";
 import { getSolanaChainId } from "@across-protocol/contracts/dist/src/svm/web3-v1";
 import web3, {
@@ -12,9 +13,6 @@ import { bs58 } from "../../utils";
 import { EventWithData } from "./types";
 import { decodeEvent, isDevnet } from "./utils";
 import { getSlotForBlock } from "./SpokeUtils";
-
-// Blanket type definition so that we don't need to import the `Idl` type from anchor directly.
-type Idl = typeof SvmSpokeIdl;
 
 // Utility type to extract the return type for the JSON encoding overload. We only care about the overload where the
 // configuration parameter (C) has the optional property 'encoding' set to 'json'.
