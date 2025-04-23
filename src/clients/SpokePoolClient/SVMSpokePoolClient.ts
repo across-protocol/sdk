@@ -109,7 +109,10 @@ export class SvmSpokePoolClient extends SpokePoolClient {
         const events = await this.svmEventsClient.queryEvents(
           eventName as SVMEventNames,
           BigInt(config.fromBlock),
-          BigInt(config.toBlock)
+          BigInt(config.toBlock),
+          {
+            limit: config.maxBlockLookBack,
+          }
         );
         return Promise.all(
           events.map(async (event): Promise<SortableEvent> => {
