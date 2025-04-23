@@ -1,106 +1,90 @@
 import _ from "lodash";
+import assert from "assert";
 import { providers } from "ethers";
-import { Deposit, DepositWithBlock, Fill, FillWithBlock } from "../../../interfaces";
-import { getBlockRangeForChain, isSlowFill, isValidEvmAddress, isDefined, chainIsEvm } from "../../../utils";
+import { DepositWithBlock, Fill, FillWithBlock } from "../../../interfaces";
+import { isSlowFill, isValidEvmAddress, isDefined, chainIsEvm } from "../../../utils";
 import { HubPoolClient } from "../../HubPoolClient";
 
+/**
+ * @notice FillRepaymentInformation is a fill with additional properties required to determine where it can
+ * be repaid.
+ */
+type FillRepaymentInformation = Fill & { fromLiteChain: boolean };
+
+/**
+ * @notice Return repayment chain and repayment token for a fill, but does not verify if the returned
+ * repayment information is valid for the desired repayment address.
+ * @dev The passed in fill should be verified first via verifyFillRepayment().
+ * @param fill The fill to get the repayment information for.
+ * @return The chain to send the refund to and the token to use for the refund.
+ */
 export function getRefundInformationFromFill(
-  fill: Fill,
+  relayData: FillRepaymentInformation,
   hubPoolClient: HubPoolClient,
-  blockRangesForChains: number[][],
-  chainIdListForBundleEvaluationBlockNumbers: number[],
-  fromLiteChain: boolean
+  bundleEndBlockForMainnet: number
 ): {
   chainToSendRefundTo: number;
   repaymentToken: string;
 } {
-  // Handle slow relay where repaymentChainId = 0. Slow relays always pay recipient on destination chain.
-  // So, save the slow fill under the destination chain, and save the fast fill under its repayment chain.
-  let chainToSendRefundTo = isSlowFill(fill) ? fill.destinationChainId : fill.repaymentChainId;
-  // If the fill is for a deposit originating from the lite chain, the repayment chain is the origin chain
-  // regardless of whether it is a slow or fast fill (we ignore slow fills but this is for posterity).
-  // @note fill.repaymentChainId should already be set to originChainId but reset it to be safe.
-  if (fromLiteChain) {
-    chainToSendRefundTo = fill.originChainId;
+  const chainToSendRefundTo = _getRepaymentChainId(relayData, hubPoolClient, bundleEndBlockForMainnet);
+  if (chainToSendRefundTo === relayData.originChainId) {
+    return {
+      chainToSendRefundTo,
+      repaymentToken: relayData.inputToken,
+    };
   }
 
-  // Save fill data and associate with repayment chain and L2 token refund should be denominated in.
-  const endBlockForMainnet = getBlockRangeForChain(
-    blockRangesForChains,
-    hubPoolClient.chainId,
-    chainIdListForBundleEvaluationBlockNumbers
-  )[1];
-
+  // Now figure out the equivalent L2 token for the repayment token. If the inputToken doesn't have a
+  // PoolRebalanceRoute, then the repayment chain would have been the originChainId after the getRepaymentChainId()
+  // call and we would have returned already, so the following call should always succeed.
   const l1TokenCounterpart = hubPoolClient.getL1TokenForL2TokenAtBlock(
-    fill.inputToken,
-    fill.originChainId,
-    endBlockForMainnet
+    relayData.inputToken,
+    relayData.originChainId,
+    bundleEndBlockForMainnet
   );
 
   const repaymentToken = hubPoolClient.getL2TokenForL1TokenAtBlock(
     l1TokenCounterpart,
     chainToSendRefundTo,
-    endBlockForMainnet
+    bundleEndBlockForMainnet
   );
   return {
     chainToSendRefundTo,
     repaymentToken,
   };
 }
-
-export function getRepaymentChainId(fill: Fill, matchedDeposit: Deposit): number {
-  // Lite chain deposits force repayment on origin chain.
-  return matchedDeposit.fromLiteChain ? matchedDeposit.originChainId : fill.repaymentChainId;
-}
-
-export function forceDestinationRepayment(
-  repaymentChainId: number,
-  matchedDeposit: Deposit & { quoteBlockNumber: number },
-  hubPoolClient: HubPoolClient
-): boolean {
-  if (!matchedDeposit.fromLiteChain) {
-    try {
-      const l1TokenCounterpart = hubPoolClient.getL1TokenForL2TokenAtBlock(
-        matchedDeposit.inputToken,
-        matchedDeposit.originChainId,
-        matchedDeposit.quoteBlockNumber
-      );
-      hubPoolClient.getL2TokenForL1TokenAtBlock(l1TokenCounterpart, repaymentChainId, matchedDeposit.quoteBlockNumber);
-      // Repayment token could be found, this is a valid repayment chain.
-      return false;
-    } catch {
-      // Repayment token doesn't exist on repayment chain via PoolRebalanceRoutes, impossible to repay filler there.
-      return true;
-    }
-  } else {
-    return false;
-  }
-}
-
-// Verify that a fill sent to an EVM chain has a 20 byte address. If the fill does not, then attempt
-// to repay the `msg.sender` of the relay transaction. Otherwise, return undefined.
+/**
+ * @notice Verifies that the fill can be repaid. If the repayment address is not
+ * valid for the requested repayment chain, then this function will attempt to change the fill's repayment chain
+ * to the destination chain and its repayment address to the  msg.sender and if this is possible,
+ * return the fill. Otherwise, return undefined.
+ * @param _fill Fill with a requested repayment chain and address
+ * @return Fill with the applied repayment chain (depends on the validity of the requested repayment address)
+ * and applied repayment address, or undefined if the applied repayment address is not valid for the
+ * applied repayment chain.
+ */
 export async function verifyFillRepayment(
   _fill: FillWithBlock,
   destinationChainProvider: providers.Provider,
   matchedDeposit: DepositWithBlock,
-  hubPoolClient: HubPoolClient
+  hubPoolClient: HubPoolClient,
+  bundleEndBlockForMainnet: number
 ): Promise<FillWithBlock | undefined> {
-  const fill = _.cloneDeep(_fill);
+  const fill = {
+    ..._.cloneDeep(_fill),
+    fromLiteChain: matchedDeposit.fromLiteChain,
+  };
 
   // Slow fills don't result in repayments so they're always valid.
   if (isSlowFill(fill)) {
     return fill;
   }
 
-  let repaymentChainId = getRepaymentChainId(fill, matchedDeposit);
+  let repaymentChainId = _getRepaymentChainId(fill, hubPoolClient, bundleEndBlockForMainnet);
 
-  // If repayment chain doesn't have a Pool Rebalance Route for the input token, then change the repayment
-  // chain to the destination chain.
-  if (forceDestinationRepayment(repaymentChainId, matchedDeposit, hubPoolClient)) {
-    repaymentChainId = fill.destinationChainId;
-  }
-
-  if (!isValidEvmAddress(fill.relayer)) {
+  // Repayments will always go to the fill.relayer address so check if its a valid EVM address. If its not, attempt
+  // to change it to the msg.sender of the FilledRelay.
+  if (_repaymentAddressNeedsToBeOverwritten(fill)) {
     // TODO: Handle case where fill was sent on non-EVM chain, in which case the following call would fail
     // or return something unexpected. We'd want to return undefined here.
     const fillTransaction = await destinationChainProvider.getTransaction(fill.txnRef);
@@ -109,20 +93,96 @@ export async function verifyFillRepayment(
     if (!isDefined(destinationRelayer) || !isValidEvmAddress(destinationRelayer)) {
       return undefined;
     }
-    if (!matchedDeposit.fromLiteChain) {
+    // If we can switch the repayment chain to the destination chain, then do so. We should only switch if the
+    // destination chain has a valid repayment token that is equivalent to the deposited input token. This would
+    // also be the same mapping as the repayment token on the repayment chain.
+    if (
+      !matchedDeposit.fromLiteChain &&
+      hubPoolClient.areTokensEquivalent(fill.inputToken, fill.originChainId, fill.outputToken, fill.destinationChainId)
+    ) {
       repaymentChainId = fill.destinationChainId;
-    } else {
-      // We can't switch repayment chain for a lite chain deposit so just check whether the repayment chain,
-      // which should be the origin chain, is an EVM chain.
+    }
+    // If we can't switch the chain, then we need to verify that the msg.sender is a valid address on the repayment chain.
+    // Because we already checked that the `destinationRelayer` was a valid EVM address above, we only need to check
+    // that the repayment chain is an EVM chain.
+    else {
       if (!chainIsEvm(repaymentChainId)) {
         return undefined;
       }
     }
     fill.relayer = destinationRelayer;
+
+    // @todo: If chainIsSvm:
   }
 
   // Repayment address is now valid and repayment chain is either origin chain for lite chain or the destination
   // chain for cases where the repayment address was invalid. Fill should be valid now.
   fill.repaymentChainId = repaymentChainId;
   return fill;
+}
+
+function _getRepaymentChainId(
+  relayData: FillRepaymentInformation,
+  hubPoolClient: HubPoolClient,
+  bundleEndBlockForMainnet: number
+): number {
+  if (relayData.fromLiteChain) {
+    assert(!isSlowFill(relayData), "getRepaymentChainId: fromLiteChain and slow fill are mutually exclusive");
+    return relayData.originChainId;
+  }
+
+  // Handle slow relay where FilledRelay.repaymentChainId = 0, as hardcoded in the SpokePool contract.
+  // Slow relays always pay recipient on destination chain.
+  if (isSlowFill(relayData)) {
+    return relayData.destinationChainId;
+  }
+
+  // Repayment chain is valid if the input token and repayment chain are mapped to the same PoolRebalanceRoute.
+  const repaymentTokenIsValid = _repaymentChainTokenIsValid(relayData, hubPoolClient, bundleEndBlockForMainnet);
+  if (repaymentTokenIsValid) {
+    return relayData.repaymentChainId;
+  }
+
+  // If repayment chain is not valid, default to origin chain since we always know the input token can be refunded.
+  return relayData.originChainId;
+}
+
+function _repaymentChainTokenIsValid(
+  relayData: FillRepaymentInformation,
+  hubPoolClient: HubPoolClient,
+  bundleEndBlockForMainnet: number
+): boolean {
+  if (
+    !hubPoolClient.l2TokenHasPoolRebalanceRoute(relayData.inputToken, relayData.originChainId, bundleEndBlockForMainnet)
+  ) {
+    return false;
+  }
+  const l1TokenCounterpart = hubPoolClient.getL1TokenForL2TokenAtBlock(
+    relayData.inputToken,
+    relayData.originChainId,
+    bundleEndBlockForMainnet
+  );
+  if (
+    !hubPoolClient.l2TokenEnabledForL1TokenAtBlock(
+      l1TokenCounterpart,
+      relayData.repaymentChainId,
+      bundleEndBlockForMainnet
+    )
+  ) {
+    return false;
+  }
+  return true;
+}
+
+function _repaymentAddressNeedsToBeOverwritten(fill: Fill): boolean {
+  // Slow fills don't result in repayments so they're always valid.
+  if (isSlowFill(fill)) {
+    return false;
+  }
+
+  // @todo add Solana logic here:
+  // - i.e. If chainIsSvm && !isValidSvmAddress(fill.relayer) then return false
+  //        If chainIsEvm && !isValidEvmAddress(fill.relayer) then return false
+  //        If chainIsEvm && isValidEvmAddress(fill.relayer) then return true
+  return !isValidEvmAddress(fill.relayer);
 }

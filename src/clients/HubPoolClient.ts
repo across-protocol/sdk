@@ -232,38 +232,39 @@ export class HubPoolClient extends BaseAbstractClient {
     return sortEventsDescending(l2Tokens)[0].l1Token;
   }
 
-  /**
-   * Returns the L1 token that should be used for an L2 Bridge event. This function is
-   * designed to be used by the caller to associate the L2 token with its mapped L1 token
-   * at the HubPool equivalent block number of the L2 event.
-   * @param deposit Deposit event
-   * @param returns string L1 token counterpart for Deposit
-   */
-  getL1TokenForDeposit(deposit: Pick<DepositWithBlock, "originChainId" | "inputToken" | "quoteBlockNumber">): string {
+  protected getL1TokenForDeposit(
+    deposit: Pick<DepositWithBlock, "originChainId" | "inputToken" | "quoteBlockNumber">
+  ): string {
     // L1-->L2 token mappings are set via PoolRebalanceRoutes which occur on mainnet,
     // so we use the latest token mapping. This way if a very old deposit is filled, the relayer can use the
     // latest L2 token mapping to find the L1 token counterpart.
     return this.getL1TokenForL2TokenAtBlock(deposit.inputToken, deposit.originChainId, deposit.quoteBlockNumber);
   }
 
-  /**
-   * Returns the L2 token that should be used as a counterpart to a deposit event. For example, the caller
-   * might want to know what the refund token will be on l2ChainId for the deposit event.
-   * @param l2ChainId Chain where caller wants to get L2 token counterpart for
-   * @param event Deposit event
-   * @returns string L2 token counterpart on l2ChainId
-   */
-  getL2TokenForDeposit(
-    deposit: Pick<DepositWithBlock, "originChainId" | "destinationChainId" | "inputToken" | "quoteBlockNumber">,
-    l2ChainId = deposit.destinationChainId
-  ): string {
-    const l1Token = this.getL1TokenForDeposit(deposit);
-    // Use the latest hub block number to find the L2 token counterpart.
-    return this.getL2TokenForL1TokenAtBlock(l1Token, l2ChainId, deposit.quoteBlockNumber);
-  }
-
   l2TokenEnabledForL1Token(l1Token: string, destinationChainId: number): boolean {
     return this.l1TokensToDestinationTokens?.[l1Token]?.[destinationChainId] != undefined;
+  }
+
+  l2TokenEnabledForL1TokenAtBlock(l1Token: string, destinationChainId: number, hubBlockNumber: number): boolean {
+    // Find the last mapping published before the target block.
+    const l2Token: DestinationTokenWithBlock | undefined = sortEventsDescending(
+      this.l1TokensToDestinationTokensWithBlock?.[l1Token]?.[destinationChainId] ?? []
+    ).find((mapping: DestinationTokenWithBlock) => mapping.blockNumber <= hubBlockNumber);
+    return l2Token !== undefined;
+  }
+
+  l2TokenHasPoolRebalanceRoute(l2Token: string, l2ChainId: number, hubPoolBlock = this.latestBlockSearched): boolean {
+    return Object.values(this.l1TokensToDestinationTokensWithBlock).some((destinationTokenMapping) => {
+      return Object.entries(destinationTokenMapping).some(([_l2ChainId, setPoolRebalanceRouteEvents]) => {
+        return setPoolRebalanceRouteEvents.some((e) => {
+          return (
+            e.blockNumber <= hubPoolBlock &&
+            compareAddressesSimple(e.l2Token, l2Token) &&
+            Number(_l2ChainId) === l2ChainId
+          );
+        });
+      });
+    });
   }
 
   /**
@@ -530,21 +531,23 @@ export class HubPoolClient extends BaseAbstractClient {
     chainIdB: number,
     hubPoolBlock = this.latestBlockSearched
   ): boolean {
-    try {
-      // Resolve both SpokePool tokens back to their respective HubPool tokens and verify that they match.
-      const l1TokenA = this.getL1TokenForL2TokenAtBlock(tokenA, chainIdA, hubPoolBlock);
-      const l1TokenB = this.getL1TokenForL2TokenAtBlock(tokenB, chainIdB, hubPoolBlock);
-      if (l1TokenA !== l1TokenB) {
-        return false;
-      }
-
-      // Resolve both HubPool tokens back to a current SpokePool token and verify that they match.
-      const _tokenA = this.getL2TokenForL1TokenAtBlock(l1TokenA, chainIdA, hubPoolBlock);
-      const _tokenB = this.getL2TokenForL1TokenAtBlock(l1TokenB, chainIdB, hubPoolBlock);
-      return tokenA === _tokenA && tokenB === _tokenB;
-    } catch {
-      return false; // One or both input tokens were not recognised.
+    if (
+      !this.l2TokenHasPoolRebalanceRoute(tokenA, chainIdA, hubPoolBlock) ||
+      !this.l2TokenHasPoolRebalanceRoute(tokenB, chainIdB, hubPoolBlock)
+    ) {
+      return false;
     }
+    // Resolve both SpokePool tokens back to their respective HubPool tokens and verify that they match.
+    const l1TokenA = this.getL1TokenForL2TokenAtBlock(tokenA, chainIdA, hubPoolBlock);
+    const l1TokenB = this.getL1TokenForL2TokenAtBlock(tokenB, chainIdB, hubPoolBlock);
+    if (l1TokenA !== l1TokenB) {
+      return false;
+    }
+
+    // Resolve both HubPool tokens back to a current SpokePool token and verify that they match.
+    const _tokenA = this.getL2TokenForL1TokenAtBlock(l1TokenA, chainIdA, hubPoolBlock);
+    const _tokenB = this.getL2TokenForL1TokenAtBlock(l1TokenB, chainIdB, hubPoolBlock);
+    return tokenA === _tokenA && tokenB === _tokenB;
   }
 
   getSpokeActivationBlockForChain(chainId: number): number {
