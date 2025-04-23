@@ -7,12 +7,14 @@ import {
   getTimestampForSlot,
   getStatePda,
   SvmCpiEventsClient,
+  findDeposit,
 } from "../../arch/svm";
 import { FillStatus, RelayData, SortableEvent } from "../../interfaces";
 import {
   BigNumber,
   DepositSearchResult,
   EventSearchConfig,
+  InvalidFill,
   MakeOptional,
   sortEventsAscendingInPlace,
 } from "../../utils";
@@ -181,10 +183,20 @@ export class SvmSpokePoolClient extends SpokePoolClient {
 
   /**
    * Finds a deposit based on its deposit ID on the SVM chain.
-   * TODO: Implement SVM state query for deposit details.
    */
-  public findDeposit(_depositId: BigNumber): Promise<DepositSearchResult> {
-    throw new Error("findDeposit not implemented for SVM");
+  public async findDeposit(depositId: BigNumber): Promise<DepositSearchResult> {
+    const deposit = await findDeposit(this.rpc, depositId);
+    if (!deposit) {
+      return {
+        found: false,
+        code: InvalidFill.DepositIdNotFound,
+        reason: `Deposit with ID ${depositId} not found`,
+      };
+    }
+    return {
+      found: true,
+      deposit: deposit.deposit,
+    };
   }
 
   /**

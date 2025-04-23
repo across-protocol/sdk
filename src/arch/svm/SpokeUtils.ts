@@ -1,9 +1,10 @@
 import { Rpc, SolanaRpcApi, Address } from "@solana/kit";
 
-import { Deposit, FillStatus, FillWithBlock, RelayData } from "../../interfaces";
 import { BigNumber, isUnsafeDepositId } from "../../utils";
 import { fetchState } from "@across-protocol/contracts/dist/src/svm/clients/SvmSpoke";
 import { SvmCpiEventsClient } from "./eventsClient";
+import { Deposit, DepositWithBlock, FillStatus, FillWithBlock, RelayData } from "../../interfaces";
+import { unwrapEventData } from ".";
 
 type Provider = Rpc<SolanaRpcApi>;
 
@@ -134,12 +135,12 @@ export async function getSlotForBlock(
  *
  * @param provider - Solana RPC provider
  * @param depositId - The deposit ID to search for
- * @returns The block number and slot where the deposit occurred, or undefined if not found
+ * @returns The deposit, block number, and slot where the deposit occurred, or undefined if not found
  */
-export async function findDepositBlock(
+export async function findDeposit(
   provider: Provider,
   depositId: BigNumber
-): Promise<{ block: BigNumber; slot: BigNumber } | undefined> {
+): Promise<{ block: BigNumber; slot: BigNumber; deposit: DepositWithBlock } | undefined> {
   // We can only perform this search when we have a safe deposit ID.
   if (isUnsafeDepositId(depositId)) {
     throw new Error(`Cannot binary search for depositId ${depositId}`);
@@ -168,7 +169,17 @@ export async function findDepositBlock(
     return undefined;
   }
 
-  return { block: BigNumber.from(block.blockHeight), slot: BigNumber.from(depositEvent.slot) };
+  return {
+    block: BigNumber.from(block.blockHeight),
+    slot: BigNumber.from(depositEvent.slot),
+    deposit: {
+      transactionHash: depositEvent.signature.toLowerCase(),
+      blockNumber: Number(block.blockHeight),
+      transactionIndex: 0,
+      logIndex: 0,
+      ...(unwrapEventData(depositEvent.data) as Record<string, unknown>),
+    } as DepositWithBlock,
+  };
 }
 
 /**
