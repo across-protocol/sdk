@@ -500,7 +500,7 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
           // The following properties are placeholders to be updated immediately.
           fromLiteChain: true,
           toLiteChain: true,
-        } as DepositWithBlock;
+        };
 
         deposit.fromLiteChain = this.isOriginLiteChain(deposit);
         deposit.toLiteChain = this.isDestinationLiteChain(deposit);
