@@ -2,13 +2,7 @@ import winston from "winston";
 import { Address, Rpc, SolanaRpcApiFromTransport, RpcTransport } from "@solana/kit";
 
 import { BigNumber, DepositSearchResult, EventSearchConfig, MakeOptional } from "../../utils";
-import {
-  SvmSpokeEventsClient,
-  SVMEventNames,
-  getFillDeadline,
-  getTimestampForBlock,
-  getStatePda,
-} from "../../arch/svm";
+import { SvmCpiEventsClient, SVMEventNames, getFillDeadline, getTimestampForBlock, getStatePda } from "../../arch/svm";
 import { HubPoolClient } from "../HubPoolClient";
 import { knownEventNames, SpokePoolClient, SpokePoolUpdate } from "./SpokePoolClient";
 import { RelayData, FillStatus } from "../../interfaces";
@@ -27,9 +21,9 @@ export class SvmSpokePoolClient extends SpokePoolClient {
     chainId: number,
     deploymentSlot: bigint, // Using slot instead of block number for SVM
     eventSearchConfig: MakeOptional<EventSearchConfig, "toBlock">,
+    protected svmEventsClient: SvmCpiEventsClient,
     protected programId: Address,
     protected statePda: Address,
-    protected svmEventsClient: SvmSpokeEventsClient,
     protected rpc: Rpc<SolanaRpcApiFromTransport<RpcTransport>>
   ) {
     // Convert deploymentSlot to number for base class, might need refinement
@@ -47,8 +41,8 @@ export class SvmSpokePoolClient extends SpokePoolClient {
     eventSearchConfig: MakeOptional<EventSearchConfig, "toBlock"> = { fromBlock: 0, maxBlockLookBack: 0 }, // Provide default
     rpc: Rpc<SolanaRpcApiFromTransport<RpcTransport>>
   ): Promise<SvmSpokePoolClient> {
-    const svmEventsClient = await SvmSpokeEventsClient.create(rpc);
-    const programId = svmEventsClient.getSvmSpokeAddress();
+    const svmEventsClient = await SvmCpiEventsClient.create(rpc);
+    const programId = svmEventsClient.getProgramAddress();
     const statePda = await getStatePda(programId);
     return new SvmSpokePoolClient(
       logger,
@@ -56,9 +50,9 @@ export class SvmSpokePoolClient extends SpokePoolClient {
       chainId,
       deploymentSlot,
       eventSearchConfig,
+      svmEventsClient,
       programId,
       statePda,
-      svmEventsClient,
       rpc
     );
   }
