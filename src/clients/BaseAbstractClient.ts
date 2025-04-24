@@ -19,15 +19,15 @@ export function isUpdateFailureReason(x: EventSearchConfig | UpdateFailureReason
  */
 export abstract class BaseAbstractClient {
   protected _isUpdated: boolean;
-  public firstBlockToSearch = 0;
-  public latestBlockSearched = 0;
+  public firstHeightToSearch = 0;
+  public latestHeightSearched = 0;
 
   /**
    * Creates a new client.
    * @param cachingMechanism The caching mechanism to use for this client. If not provided, the client will not rely on an external cache.
    */
   constructor(
-    readonly eventSearchConfig: MakeOptional<EventSearchConfig, "toBlock"> = { fromBlock: 0, maxBlockLookBack: 0 },
+    readonly eventSearchConfig: MakeOptional<EventSearchConfig, "to"> = { from: 0, maxLookBack: 0 },
     protected cachingMechanism?: CachingMechanismInterface
   ) {
     this._isUpdated = false;
@@ -62,25 +62,25 @@ export abstract class BaseAbstractClient {
   public async updateSearchConfig(
     provider: providers.Provider | SVMProvider
   ): Promise<EventSearchConfig | UpdateFailureReason> {
-    const fromBlock = this.firstBlockToSearch;
-    let { toBlock } = this.eventSearchConfig;
-    if (isDefined(toBlock)) {
-      if (fromBlock > toBlock) {
-        throw new Error(`Invalid event search config fromBlock (${fromBlock}) > toBlock (${toBlock})`);
+    const from = this.firstHeightToSearch;
+    let { to } = this.eventSearchConfig;
+    if (isDefined(to)) {
+      if (from > to) {
+        throw new Error(`Invalid event search config from (${from}) > to (${to})`);
       }
     } else {
       if (provider instanceof providers.Provider) {
-        toBlock = await provider.getBlockNumber();
+        to = await provider.getBlockNumber();
       } else {
-        toBlock = Number(await provider.getBlockHeight({ commitment: "confirmed" }).send());
+        to = Number(await provider.getBlockHeight({ commitment: "confirmed" }).send());
       }
-      if (toBlock < fromBlock) {
+      if (to < from) {
         return UpdateFailureReason.AlreadyUpdated;
       }
     }
 
-    const { maxBlockLookBack } = this.eventSearchConfig;
-    return { fromBlock, toBlock, maxBlockLookBack };
+    const { maxLookBack } = this.eventSearchConfig;
+    return { from, to, maxLookBack };
   }
 
   /**

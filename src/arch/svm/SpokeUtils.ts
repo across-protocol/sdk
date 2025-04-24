@@ -34,11 +34,11 @@ export function getTimeAt(_spokePool: unknown, _blockNumber: number): Promise<nu
  * @note This should be the same as getTimeAt() but can differ in test. These two functions should be consolidated.
  * @returns The chain time at the specified block tag.
  */
-export async function getTimestampForBlock(provider: Provider, blockNumber: number): Promise<number> {
-  const block = await provider.getBlock(BigInt(blockNumber)).send();
+export async function getTimestampForBlock(provider: Provider, slotNumber: number): Promise<number> {
+  const block = await provider.getBlock(BigInt(slotNumber)).send();
   let timestamp: number;
   if (!block?.blockTime) {
-    console.error(`Unable to resolve svm block ${blockNumber}`);
+    console.error(`Unable to resolve svm block ${slotNumber}`);
     timestamp = 0; // @todo: How to handle this?
   } else {
     timestamp = Number(block.blockTime); // Unix timestamps fit within number.
