@@ -98,18 +98,18 @@ export class SvmCpiEventsClient {
    * Queries events for the provided derived address at instantiation filtered by event name.
    *
    * @param eventName - The name of the event to filter by.
-   * @param fromBlock - Optional starting block.
-   * @param toBlock - Optional ending block.
+   * @param fromSlot - Optional starting slot.
+   * @param toSlot - Optional ending slot.
    * @param options - Options for fetching signatures.
    * @returns A promise that resolves to an array of events matching the eventName.
    */
   public async queryDerivedAddressEvents(
     eventName: string,
-    fromBlock?: bigint,
-    toBlock?: bigint,
+    fromSlot?: bigint,
+    toSlot?: bigint,
     options: GetSignaturesForAddressConfig = { limit: 1000, commitment: "confirmed" }
   ): Promise<EventWithData[]> {
-    const events = await this.queryAllEvents(fromBlock, toBlock, options, true);
+    const events = await this.queryAllEvents(fromSlot, toSlot, options, true);
     return events.filter((event) => event.name === eventName) as EventWithData[];
   }
 
