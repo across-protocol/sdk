@@ -146,6 +146,13 @@ export function _buildPoolRebalanceRoot(
     const repaymentChainId = Number(_repaymentChainId);
     Object.entries(fillsForChain).forEach(
       ([l2TokenAddress, { realizedLpFees: totalRealizedLpFee, totalRefundAmount }]) => {
+        // If the repayment token and repayment chain ID do not map to a PoolRebalanceRoute graph, then
+        // there are no relevant L1 running balances.
+        if (
+          !clients.hubPoolClient.l2TokenHasPoolRebalanceRoute(l2TokenAddress, repaymentChainId, mainnetBundleEndBlock)
+        ) {
+          return;
+        }
         const l1TokenCounterpart = clients.hubPoolClient.getL1TokenForL2TokenAtBlock(
           l2TokenAddress,
           repaymentChainId,
@@ -215,7 +222,24 @@ export function _buildPoolRebalanceRoot(
   Object.entries(bundleV3Deposits).forEach(([, depositsForChain]) => {
     Object.entries(depositsForChain).forEach(([, deposits]) => {
       deposits.forEach((deposit) => {
-        updateRunningBalanceForDeposit(runningBalances, clients.hubPoolClient, deposit, deposit.inputAmount.mul(-1));
+        // If the repayment token and repayment chain ID do not map to a PoolRebalanceRoute graph, then
+        // there are no relevant L1 running balances.
+        if (
+          !clients.hubPoolClient.l2TokenHasPoolRebalanceRoute(
+            deposit.inputToken,
+            deposit.originChainId,
+            mainnetBundleEndBlock
+          )
+        ) {
+          return;
+        }
+        updateRunningBalanceForDeposit(
+          runningBalances,
+          clients.hubPoolClient,
+          deposit,
+          deposit.inputAmount.mul(-1),
+          mainnetBundleEndBlock
+        );
       });
     });
   });
@@ -229,6 +253,17 @@ export function _buildPoolRebalanceRoot(
     const originChainId = Number(_originChainId);
     Object.entries(depositsForChain).forEach(([inputToken, deposits]) => {
       deposits.forEach((deposit) => {
+        // If the repayment token and repayment chain ID do not map to a PoolRebalanceRoute graph, then
+        // there are no relevant L1 running balances.
+        if (
+          !clients.hubPoolClient.l2TokenHasPoolRebalanceRoute(
+            deposit.inputToken,
+            deposit.originChainId,
+            mainnetBundleEndBlock
+          )
+        ) {
+          return;
+        }
         const l1TokenCounterpart = clients.hubPoolClient.getL1TokenForL2TokenAtBlock(
           inputToken,
           originChainId,

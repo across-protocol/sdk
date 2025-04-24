@@ -100,6 +100,22 @@ export class MockHubPoolClient extends HubPoolClient {
     this.spokePoolTokens[l1Token][chainId] = l2Token;
   }
 
+  l2TokenEnabledForL1TokenAtBlock(l1Token: string, destinationChainId: number, hubBlockNumber: number): boolean {
+    if (this.spokePoolTokens[l1Token]?.[destinationChainId]) {
+      return true;
+    } else {
+      return super.l2TokenEnabledForL1TokenAtBlock(l1Token, destinationChainId, hubBlockNumber);
+    }
+  }
+  l2TokenHasPoolRebalanceRoute(l2Token: string, chainId: number, hubPoolBlock: number): boolean {
+    const l1Token = Object.keys(this.spokePoolTokens).find(
+      (l1Token) => this.spokePoolTokens[l1Token]?.[chainId] === l2Token
+    );
+    if (!l1Token) {
+      return super.l2TokenHasPoolRebalanceRoute(l2Token, chainId, hubPoolBlock);
+    } else return true;
+  }
+
   deleteTokenMapping(l1Token: string, chainId: number) {
     delete this.spokePoolTokens[l1Token]?.[chainId];
   }
@@ -161,6 +177,30 @@ export class MockHubPoolClient extends HubPoolClient {
     ProposeRootBundle: "uint32,uint8,uint256[],bytes32,bytes32,bytes32,address",
     RootBundleExecuted: "uint256,uint256,uint256,address[],uint256[],int256[],int256[],address",
   };
+
+  setCrossChainContractsEvent(
+    l2ChainId: number,
+    adapter: string,
+    spokePool: string,
+    overrides: EventOverrides = {}
+  ): Log {
+    const event = "CrossChainContractsSet";
+
+    const topics: string[] = [];
+    const args = {
+      l2ChainId,
+      adapter,
+      spokePool,
+    };
+
+    return this.eventManager.generateEvent({
+      event,
+      address: this.hubPool.address,
+      topics: topics.map((topic) => topic.toString()),
+      args,
+      blockNumber: overrides.blockNumber,
+    });
+  }
 
   setPoolRebalanceRoute(
     destinationChainId: number,
