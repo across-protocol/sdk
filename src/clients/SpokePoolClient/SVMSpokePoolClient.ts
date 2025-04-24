@@ -7,6 +7,8 @@ import {
   getTimestampForSlot,
   getStatePda,
   SvmCpiEventsClient,
+  relayFillStatus,
+  fillStatusArray,
 } from "../../arch/svm";
 import { FillStatus, RelayData, SortableEvent } from "../../interfaces";
 import {
@@ -191,12 +193,14 @@ export class SvmSpokePoolClient extends SpokePoolClient {
    * Retrieves the fill status for a given relay data from the SVM chain.
    * TODO: Implement SVM state query for fill status.
    */
-  public relayFillStatus(
-    _relayData: RelayData,
-    _slot?: number | "latest", // Use slot instead of blockTag
-    _destinationChainId?: number
+  public override relayFillStatus(
+    relayData: RelayData,
+    blockTag: number | "confirmed",
+    destinationChainId?: number
   ): Promise<FillStatus> {
-    throw new Error("relayFillStatus not implemented for SVM");
+    destinationChainId ??= this.chainId;
+    // @note: deploymentBlock actually refers to the deployment slot. Also, blockTag should be a slot number.
+    return relayFillStatus(this.programId, relayData, this.deploymentBlock, blockTag, destinationChainId, this.rpc);
   }
 
   /**
@@ -205,7 +209,13 @@ export class SvmSpokePoolClient extends SpokePoolClient {
    * @param blockTag The block at which to query the fill status.
    * @returns The fill status for each of the given relay data.
    */
-  public fillStatusArray(_relayData: RelayData[], _blockTag?: number | "latest"): Promise<(FillStatus | undefined)[]> {
-    throw new Error("fillStatusArray not implemented for SVM");
+  public fillStatusArray(
+    relayData: RelayData[],
+    blockTag?: number | "confirmed",
+    destinationChainId?: number
+  ): Promise<(FillStatus | undefined)[]> {
+    // @note: deploymentBlock actually refers to the deployment slot. Also, blockTag should be a slot number.
+    destinationChainId ??= this.chainId;
+    return fillStatusArray(this.programId, relayData, this.deploymentBlock, blockTag, destinationChainId, this.rpc);
   }
 }

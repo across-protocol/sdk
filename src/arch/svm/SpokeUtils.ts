@@ -1,8 +1,13 @@
+import assert from "assert";
 import { Rpc, SolanaRpcApi, Address } from "@solana/kit";
-
-import { Deposit, FillStatus, FillWithBlock, RelayData } from "../../interfaces";
-import { BigNumber, isUnsafeDepositId } from "../../utils";
+import { SvmSpokeIdl } from "@across-protocol/contracts";
 import { fetchState } from "@across-protocol/contracts/dist/src/svm/clients/SvmSpoke";
+
+import { SvmCpiEventsClient } from "./eventsClient";
+import { Deposit, FillStatus, FillWithBlock, RelayData } from "../../interfaces";
+import { BigNumber, chainIsSvm, chunk, isUnsafeDepositId } from "../../utils";
+import { getFillStatusPda } from "./utils";
+import { SVMEventNames } from "./types";
 
 type Provider = Rpc<SolanaRpcApi>;
 
@@ -81,27 +86,86 @@ export function findDepositBlock(
 }
 
 /**
- * Find the amount filled for a deposit at a particular block.
+ * Find the fill status for a deposit at a particular block.
  * @param spokePool SpokePool contract instance.
  * @param relayData Deposit information that is used to complete a fill.
- * @param blockTag Block tag (numeric or "latest") to query at.
- * @returns The amount filled for the specified deposit at the requested block (or latest).
+ * @param fromSlot Slot to start the search at.
+ * @param blockTag Slot (numeric or "confirmed") to query at.
+ * @returns The fill status for the specified deposit at the requested slot (or at the current confirmed slot).
  */
-export function relayFillStatus(
-  _spokePool: unknown,
-  _relayData: RelayData,
-  _blockTag?: number | "latest",
-  _destinationChainId?: number
+export async function relayFillStatus(
+  programId: Address,
+  relayData: RelayData,
+  fromSlot: number,
+  blockTag: number | "confirmed" = "confirmed",
+  destinationChainId: number,
+  provider: Provider
 ): Promise<FillStatus> {
-  throw new Error("relayFillStatus: not implemented");
+  assert(chainIsSvm(destinationChainId), "Destination chain must be an SVM chain");
+
+  // Get fill status PDA using relayData
+  const fillStatusPda = await getFillStatusPda(programId, relayData, destinationChainId);
+
+  // Set search range
+  let toSlot: bigint;
+  if (blockTag === "confirmed") {
+    toSlot = await provider.getSlot({ commitment: "confirmed" }).send();
+  } else {
+    toSlot = BigInt(blockTag);
+  }
+
+  // Get fill and requested slow fill events from fillStatusPda
+  const pdaEventsClient = await SvmCpiEventsClient.createFor(provider, programId, SvmSpokeIdl, fillStatusPda);
+  const eventsToQuery = [SVMEventNames.FilledRelay, SVMEventNames.RequestedSlowFill];
+  const relevantEvents = (
+    await Promise.all(
+      eventsToQuery.map((eventName) =>
+        pdaEventsClient.queryDerivedAddressEvents(eventName, BigInt(fromSlot), toSlot, { limit: 50 })
+      )
+    )
+  ).flat();
+
+  if (relevantEvents.length === 0) {
+    // No fill or requested slow fill events found for this fill status PDA
+    return FillStatus.Unfilled;
+  }
+
+  // Sort events in ascending order of slot number
+  relevantEvents.sort((a, b) => Number(a.slot - b.slot));
+
+  // At this point we have an ordered array of fill and requested slow fill events and since it's not possible to
+  // submit a slow fill request once a fill has been submitted, we can use the last event in the sorted list to
+  // determine the fill status at the requested block.
+  const fillStatusEvent = relevantEvents.pop();
+  switch (fillStatusEvent!.name) {
+    case SVMEventNames.FilledRelay:
+      return FillStatus.Filled;
+    case SVMEventNames.RequestedSlowFill:
+      return FillStatus.RequestedSlowFill;
+    default:
+      throw new Error(`Unexpected event name: ${fillStatusEvent!.name}`);
+  }
 }
 
-export function fillStatusArray(
-  _spokePool: unknown,
-  _relayData: RelayData[],
-  _blockTag = "processed"
+export async function fillStatusArray(
+  programId: Address,
+  relayData: RelayData[],
+  fromSlot: number,
+  blockTag: number | "confirmed" = "confirmed",
+  destinationChainId: number,
+  provider: Provider
 ): Promise<(FillStatus | undefined)[]> {
-  throw new Error("fillStatusArray: not implemented");
+  assert(chainIsSvm(destinationChainId), "Destination chain must be an SVM chain");
+  const chunkSize = 2;
+  const chunkedRelayData = chunk(relayData, chunkSize);
+  const results = [];
+  for (const chunk of chunkedRelayData) {
+    const chunkResults = await Promise.all(
+      chunk.map((relayData) => relayFillStatus(programId, relayData, fromSlot, blockTag, destinationChainId, provider))
+    );
+    results.push(...chunkResults);
+  }
+  return results.flat();
 }
 
 /**
