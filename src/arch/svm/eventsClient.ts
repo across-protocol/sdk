@@ -31,6 +31,7 @@ export class SvmCpiEventsClient {
   private programAddress: Address;
   private programEventAuthority: Address;
   private idl: Idl;
+  private derivedAddress?: Address;
 
   /**
    * Private constructor. Use the async create() method to instantiate.
@@ -39,12 +40,14 @@ export class SvmCpiEventsClient {
     rpc: web3.Rpc<web3.SolanaRpcApiFromTransport<RpcTransport>>,
     address: Address,
     eventAuthority: Address,
-    idl: Idl
+    idl: Idl,
+    derivedAddress?: Address
   ) {
     this.rpc = rpc;
     this.programAddress = address;
     this.programEventAuthority = eventAuthority;
     this.idl = idl;
+    this.derivedAddress = derivedAddress;
   }
 
   /**
@@ -60,14 +63,16 @@ export class SvmCpiEventsClient {
   public static async createFor(
     rpc: web3.Rpc<web3.SolanaRpcApiFromTransport<RpcTransport>>,
     programId: string,
-    idl: Idl
+    idl: Idl,
+    pda?: string
   ): Promise<SvmCpiEventsClient> {
     const address = web3.address(programId);
+    const derivedAddress = pda ? web3.address(pda) : undefined;
     const [eventAuthority] = await web3.getProgramDerivedAddress({
       programAddress: address,
       seeds: ["__event_authority"],
     });
-    return new SvmCpiEventsClient(rpc, address, eventAuthority, idl);
+    return new SvmCpiEventsClient(rpc, address, eventAuthority, idl, derivedAddress);
   }
 
   /**
@@ -90,25 +95,51 @@ export class SvmCpiEventsClient {
   }
 
   /**
+   * Queries events for the provided derived address at instantiation filtered by event name.
+   *
+   * @param eventName - The name of the event to filter by.
+   * @param fromBlock - Optional starting block.
+   * @param toBlock - Optional ending block.
+   * @param options - Options for fetching signatures.
+   * @returns A promise that resolves to an array of events matching the eventName.
+   */
+  public async queryDerivedAddressEvents(
+    eventName: string,
+    fromBlock?: bigint,
+    toBlock?: bigint,
+    options: GetSignaturesForAddressConfig = { limit: 1000, commitment: "confirmed" }
+  ): Promise<EventWithData[]> {
+    const events = await this.queryAllEvents(fromBlock, toBlock, options, true);
+    return events.filter((event) => event.name === eventName) as EventWithData[];
+  }
+
+  /**
    * Queries all events for a specific program.
    *
    * @param fromSlot - Optional starting slot.
    * @param toSlot - Optional ending slot.
    * @param options - Options for fetching signatures.
+   * @param forDerivedAddress - Whether to query events for the program or the derived address.
    * @returns A promise that resolves to an array of all events with additional metadata.
    */
   private async queryAllEvents(
     fromSlot?: bigint,
     toSlot?: bigint,
-    options: GetSignaturesForAddressConfig = { limit: 1000, commitment: "confirmed" }
+    options: GetSignaturesForAddressConfig = { limit: 1000, commitment: "confirmed" },
+    forDerivedAddress: boolean = false
   ): Promise<EventWithData[]> {
     const allSignatures: GetSignaturesForAddressTransaction[] = [];
     let hasMoreSignatures = true;
     let currentOptions = options;
 
+    if (forDerivedAddress && !this.derivedAddress) {
+      throw new Error("Unable to query PDA events. Derived address not set.");
+    }
+    const addressToQuery = forDerivedAddress ? this.derivedAddress : this.programAddress;
+
     while (hasMoreSignatures) {
       const signatures: GetSignaturesForAddressApiResponse = await this.rpc
-        .getSignaturesForAddress(this.programAddress, currentOptions)
+        .getSignaturesForAddress(addressToQuery!, currentOptions)
         .send();
       // Signatures are sorted by slot in descending order.
       allSignatures.push(...signatures);
