@@ -30,15 +30,15 @@ export function getTimeAt(_spokePool: unknown, _blockNumber: number): Promise<nu
 }
 
 /**
- * Retrieves the chain time at a particular block.
+ * Retrieves the chain time at a particular slot.
  * @note This should be the same as getTimeAt() but can differ in test. These two functions should be consolidated.
- * @returns The chain time at the specified block tag.
+ * @returns The chain time at the specified slot.
  */
-export async function getTimestampForBlock(provider: Provider, blockNumber: number): Promise<number> {
-  const block = await provider.getBlock(BigInt(blockNumber)).send();
+export async function getTimestampForSlot(provider: Provider, slotNumber: number): Promise<number> {
+  const block = await provider.getBlock(BigInt(slotNumber)).send();
   let timestamp: number;
   if (!block?.blockTime) {
-    console.error(`Unable to resolve svm block ${blockNumber}`);
+    console.error(`Unable to resolve svm block ${slotNumber}`);
     timestamp = 0; // @todo: How to handle this?
   } else {
     timestamp = Number(block.blockTime); // Unix timestamps fit within number.
@@ -65,50 +65,6 @@ export async function getFillDeadline(provider: Provider, statePda: Address): Pr
  */
 export function getDepositIdAtBlock(_contract: unknown, _blockTag: number): Promise<BigNumber> {
   throw new Error("getDepositIdAtBlock: not implemented");
-}
-
-/**
- * xxx todo
- */
-export async function getSlotForBlock(
-  provider: Provider,
-  blockNumber: bigint,
-  lowSlot: bigint,
-  _highSlot?: bigint
-): Promise<bigint | undefined> {
-  // @todo: Factor getBlock out to SlotFinder ??
-  const getBlockNumber = async (slot: bigint): Promise<bigint> => {
-    const block = await provider
-      .getBlock(slot, { transactionDetails: "none", maxSupportedTransactionVersion: 0 })
-      .send();
-    return block?.blockHeight ?? BigInt(0); // @xxx Handle undefined here!
-  };
-
-  let highSlot = _highSlot ?? (await provider.getSlot().send());
-  const [blockLow = 0, blockHigh = 1_000_000_000] = await Promise.all([
-    getBlockNumber(lowSlot),
-    getBlockNumber(highSlot),
-  ]);
-
-  if (blockLow > blockNumber || blockHigh < blockNumber) {
-    return undefined; // blockNumber did not occur within the specified block range.
-  }
-
-  // Find the lowest slot number where blockHeight is greater than the requested blockNumber.
-  do {
-    const midSlot = (highSlot + lowSlot) / BigInt(2);
-    const midBlock = await getBlockNumber(midSlot);
-
-    if (midBlock < blockNumber) {
-      lowSlot = midSlot + BigInt(1);
-    } else if (midBlock > blockNumber) {
-      highSlot = midSlot + BigInt(1); // blockNumber occurred at or earlier than midBlock.
-    } else {
-      return midSlot;
-    }
-  } while (lowSlot <= highSlot);
-
-  return undefined;
 }
 
 export function findDepositBlock(

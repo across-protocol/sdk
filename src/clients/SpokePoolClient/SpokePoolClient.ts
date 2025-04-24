@@ -100,11 +100,11 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
     readonly hubPoolClient: HubPoolClient | null,
     readonly chainId: number,
     public deploymentBlock: number,
-    eventSearchConfig: MakeOptional<EventSearchConfig, "toBlock"> = { fromBlock: 0, maxBlockLookBack: 0 }
+    eventSearchConfig: MakeOptional<EventSearchConfig, "to"> = { from: 0, maxLookBack: 0 }
   ) {
     super(eventSearchConfig);
-    this.firstBlockToSearch = eventSearchConfig.fromBlock;
-    this.latestBlockSearched = 0;
+    this.firstHeightToSearch = eventSearchConfig.from;
+    this.latestHeightSearched = 0;
     this.configStoreClient = hubPoolClient?.configStoreClient;
   }
 
@@ -374,7 +374,7 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
             (!isValidEvmAddress(fill.relayer) ||
               forceDestinationRepayment(
                 repaymentChainId,
-                { ...deposit, quoteBlockNumber: this.hubPoolClient!.latestBlockSearched },
+                { ...deposit, quoteBlockNumber: this.hubPoolClient!.latestHeightSearched },
                 this.hubPoolClient
               ))
           ) {
@@ -664,12 +664,12 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
 
     // Next iteration should start off from where this one ended.
     this.currentTime = currentTime;
-    this.latestBlockSearched = searchEndBlock;
-    this.firstBlockToSearch = searchEndBlock + 1;
-    this.eventSearchConfig.toBlock = undefined; // Caller can re-set on subsequent updates if necessary
+    this.latestHeightSearched = searchEndBlock;
+    this.firstHeightToSearch = searchEndBlock + 1;
+    this.eventSearchConfig.to = undefined; // Caller can re-set on subsequent updates if necessary
     this.isUpdated = true;
     this.log("debug", `SpokePool client for chain ${this.chainId} updated!`, {
-      nextFirstBlockToSearch: this.firstBlockToSearch,
+      nextFirstHeightToSearch: this.firstHeightToSearch,
     });
   }
 

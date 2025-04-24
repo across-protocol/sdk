@@ -5,7 +5,7 @@ import {
   SvmSpokeEventsClient,
   unwrapEventData,
   getFillDeadline,
-  getTimestampForBlock,
+  getTimestampForSlot,
   getStatePda,
 } from "../../arch/svm";
 import { FillStatus, RelayData, SortableEvent } from "../../interfaces";
@@ -33,7 +33,7 @@ export class SvmSpokePoolClient extends SpokePoolClient {
     hubPoolClient: HubPoolClient | null,
     chainId: number,
     deploymentSlot: bigint, // Using slot instead of block number for SVM
-    eventSearchConfig: MakeOptional<EventSearchConfig, "toBlock">,
+    eventSearchConfig: MakeOptional<EventSearchConfig, "to">,
     protected programId: Address,
     protected statePda: Address,
     protected svmEventsClient: SvmSpokeEventsClient,
@@ -51,7 +51,7 @@ export class SvmSpokePoolClient extends SpokePoolClient {
     hubPoolClient: HubPoolClient | null,
     chainId: number,
     deploymentSlot: bigint,
-    eventSearchConfig: MakeOptional<EventSearchConfig, "toBlock"> = { fromBlock: 0, maxBlockLookBack: 0 }, // Provide default
+    eventSearchConfig: MakeOptional<EventSearchConfig, "to"> = { from: 0, maxLookBack: 0 }, // Provide default
     rpc: Rpc<SolanaRpcApiFromTransport<RpcTransport>>
   ): Promise<SvmSpokePoolClient> {
     const svmEventsClient = await SvmSpokeEventsClient.create(rpc);
@@ -88,6 +88,8 @@ export class SvmSpokePoolClient extends SpokePoolClient {
       return { success: false, reason };
     }
 
+    const deploymentSlot = BigInt(this.deploymentBlock);
+
     const eventSearchConfigs = eventsToQuery.map((eventName) => {
       if (!this._queryableEventNames().includes(eventName)) {
         throw new Error(`SpokePoolClient: Cannot query unrecognised SpokePool event name: ${eventName}`);
@@ -99,7 +101,7 @@ export class SvmSpokePoolClient extends SpokePoolClient {
       // However, certain events have special overriding requirements to their search ranges:
       // - EnabledDepositRoute: The full history is always required, so override the requested fromBlock.
       if (eventName === "EnabledDepositRoute" && !this.isUpdated) {
-        _searchConfig.fromBlock = this.deploymentBlock;
+        _searchConfig.from = Number(deploymentSlot);
       }
 
       return _searchConfig as EventSearchConfig;
@@ -116,33 +118,24 @@ export class SvmSpokePoolClient extends SpokePoolClient {
     const timerStart = Date.now();
 
     const [currentTime, ...eventsQueried] = await Promise.all([
-      this.rpc.getBlockTime(BigInt(searchConfig.toBlock)).send(),
+      this.rpc.getBlockTime(BigInt(searchConfig.to)).send(),
       ...eventsToQuery.map(async (eventName, idx) => {
         const config = eventSearchConfigs[idx];
         const events = await this.svmEventsClient.queryEvents(
           eventName as SVMEventNames,
-          BigInt(config.fromBlock),
-          BigInt(config.toBlock),
+          BigInt(config.from),
+          BigInt(config.to),
           {
-            limit: config.maxBlockLookBack,
+            limit: config.maxLookBack,
           }
         );
-        return Promise.all(
-          events.map(async (event): Promise<SortableEvent> => {
-            const block = await this.rpc.getBlock(event.slot, { maxSupportedTransactionVersion: 0 }).send();
-
-            if (!block) {
-              this.log("error", `SpokePoolClient::update: Failed to get block for slot ${event.slot}`);
-              throw new Error(`SpokePoolClient::update: Failed to get block for slot ${event.slot}`);
-            }
-
-            return {
-              transactionHash: event.signature.toLowerCase(),
-              blockNumber: Number(block.blockHeight),
-              transactionIndex: 0,
-              logIndex: 0,
-              ...(unwrapEventData(event.data) as Record<string, unknown>),
-            };
+        return events.map(
+          (event): SortableEvent => ({
+            transactionHash: event.signature,
+            blockNumber: Number(event.slot),
+            transactionIndex: 0,
+            logIndex: 0,
+            ...(unwrapEventData(event.data) as Record<string, unknown>),
           })
         );
       }),
@@ -159,7 +152,7 @@ export class SvmSpokePoolClient extends SpokePoolClient {
     return {
       success: true,
       currentTime: Number(currentTime), // uint32
-      searchEndBlock: searchConfig.toBlock,
+      searchEndBlock: searchConfig.to,
       events: eventsQueried,
     };
   }
@@ -175,8 +168,8 @@ export class SvmSpokePoolClient extends SpokePoolClient {
   /**
    * Retrieves the timestamp for a given SVM slot number.
    */
-  public override getTimestampForBlock(blockNumber: number): Promise<number> {
-    return getTimestampForBlock(this.rpc, blockNumber);
+  public override getTimestampForBlock(slot: number): Promise<number> {
+    return getTimestampForSlot(this.rpc, slot);
   }
 
   /**
