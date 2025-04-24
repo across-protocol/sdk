@@ -5,9 +5,8 @@ import {
   SvmSpokeEventsClient,
   unwrapEventData,
   getFillDeadline,
-  getTimestampForBlock,
+  getTimestampForSlot,
   getStatePda,
-  getSlotForBlock,
 } from "../../arch/svm";
 import { FillStatus, RelayData, SortableEvent } from "../../interfaces";
 import {
@@ -132,7 +131,7 @@ export class SvmSpokePoolClient extends SpokePoolClient {
         );
         return events.map(
           (event): SortableEvent => ({
-            transactionHash: event.signature.toLowerCase(),
+            transactionHash: event.signature,
             blockNumber: Number(event.slot),
             transactionIndex: 0,
             logIndex: 0,
@@ -169,13 +168,8 @@ export class SvmSpokePoolClient extends SpokePoolClient {
   /**
    * Retrieves the timestamp for a given SVM slot number.
    */
-  public override async getTimestampForBlock(blockNumber: number): Promise<number> {
-    const slot = await getSlotForBlock(this.rpc, BigInt(blockNumber), BigInt(this.deploymentBlock));
-    if (!slot) {
-      this.log("error", `SvmSpokePoolClient::getTimestampForBlock: could not get slot for block ${blockNumber}`);
-      throw new Error(`SvmSpokePoolClient::getTimestampForBlock: could not get slot for block ${blockNumber}`);
-    }
-    return getTimestampForBlock(this.rpc, Number(slot));
+  public override getTimestampForBlock(slot: number): Promise<number> {
+    return getTimestampForSlot(this.rpc, slot);
   }
 
   /**
