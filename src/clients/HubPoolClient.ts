@@ -505,11 +505,6 @@ export class HubPoolClient extends BaseAbstractClient {
     );
   }
 
-  getTokenInfo(chainId: number | string, tokenAddress: string): L1Token | undefined {
-    const deposit = { originChainId: parseInt(chainId.toString()), inputToken: tokenAddress };
-    return this.getTokenInfoForDeposit(deposit);
-  }
-
   areTokensEquivalent(
     tokenA: string,
     chainIdA: number,
