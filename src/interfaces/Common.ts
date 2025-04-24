@@ -9,9 +9,9 @@ export type Log = _Log & {
 
 export interface SortableEvent {
   blockNumber: number;
-  txnIndex: number;
+  transactionIndex: number;
   logIndex: number;
-  txnRef: string;
+  transactionHash: string;
 }
 
 export interface BigNumberForToken {

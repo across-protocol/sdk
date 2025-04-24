@@ -390,8 +390,8 @@ async function _deposit(
     toLiteChain: false,
     quoteBlockNumber: 0, // @todo
     blockNumber,
-    txnRef: transactionHash,
-    txnIndex: transactionIndex,
+    transactionHash,
+    transactionIndex,
     logIndex,
   };
 }
@@ -437,8 +437,8 @@ export async function requestV3SlowFill(
     exclusivityDeadline: args.exclusivityDeadline,
     exclusiveRelayer: toAddress(args.exclusiveRelayer),
     blockNumber,
-    txnRef: transactionHash,
-    txnIndex: transactionIndex,
+    transactionHash,
+    transactionIndex,
     logIndex,
   };
 }
@@ -493,8 +493,8 @@ export async function fillV3Relay(
       fillType: args.relayExecutionInfo.fillType,
     },
     blockNumber,
-    txnRef: transactionHash,
-    txnIndex: transactionIndex,
+    transactionHash,
+    transactionIndex,
     logIndex,
   };
 }

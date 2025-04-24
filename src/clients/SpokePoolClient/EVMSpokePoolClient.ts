@@ -19,7 +19,6 @@ import {
 } from "../../utils";
 import {
   EventSearchConfig,
-  logToSortableEvent,
   paginatedEventQuery,
   sortEventsAscendingInPlace,
   spreadEventWithBlockNumber,
@@ -128,7 +127,7 @@ export class EVMSpokePoolClient extends SpokePoolClient {
     }
 
     // Sort all events to ensure they are stored in a consistent order.
-    events.forEach((events) => sortEventsAscendingInPlace(events.map(logToSortableEvent)));
+    events.forEach((events) => sortEventsAscendingInPlace(events));
 
     return {
       success: true,

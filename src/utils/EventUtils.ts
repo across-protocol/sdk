@@ -204,19 +204,13 @@ export function getPaginatedBlockRanges({
   return ranges;
 }
 
-export function logToSortableEvent(log: Log): SortableEvent {
-  return {
-    txnIndex: log.transactionIndex,
-    txnRef: log.transactionHash,
-    logIndex: log.logIndex,
-    blockNumber: log.blockNumber,
-  };
-}
-
 export function spreadEventWithBlockNumber(event: Log): SortableEvent {
   return {
     ...spreadEvent(event.args),
-    ...logToSortableEvent(event),
+    blockNumber: event.blockNumber,
+    transactionIndex: event.transactionIndex,
+    logIndex: event.logIndex,
+    transactionHash: event.transactionHash,
   };
 }
 
@@ -232,8 +226,8 @@ export function sortEventsAscendingInPlace<T extends SortableEvent>(events: T[])
     if (ex.blockNumber !== ey.blockNumber) {
       return ex.blockNumber - ey.blockNumber;
     }
-    if (ex.txnIndex !== ey.txnIndex) {
-      return ex.txnIndex - ey.txnIndex;
+    if (ex.transactionIndex !== ey.transactionIndex) {
+      return ex.transactionIndex - ey.transactionIndex;
     }
     return ex.logIndex - ey.logIndex;
   });
@@ -251,8 +245,8 @@ export function sortEventsDescendingInPlace<T extends SortableEvent>(events: T[]
     if (ex.blockNumber !== ey.blockNumber) {
       return ey.blockNumber - ex.blockNumber;
     }
-    if (ex.txnIndex !== ey.txnIndex) {
-      return ey.txnIndex - ex.txnIndex;
+    if (ex.transactionIndex !== ey.transactionIndex) {
+      return ey.transactionIndex - ex.transactionIndex;
     }
     return ey.logIndex - ex.logIndex;
   });
@@ -263,16 +257,16 @@ export function isEventOlder<T extends SortableEvent>(ex: T, ey: T): boolean {
   if (ex.blockNumber !== ey.blockNumber) {
     return ex.blockNumber < ey.blockNumber;
   }
-  if (ex.txnIndex !== ey.txnIndex) {
-    return ex.txnIndex < ey.txnIndex;
+  if (ex.transactionIndex !== ey.transactionIndex) {
+    return ex.transactionIndex < ey.transactionIndex;
   }
   return ex.logIndex < ey.logIndex;
 }
 
-export function getTransactionRefs(events: SortableEvent[]): string[] {
-  return [...Array.from(new Set(events.map((e) => e.txnRef)))];
+export function getTransactionHashes(events: SortableEvent[]): string[] {
+  return [...Array.from(new Set(events.map((e) => e.transactionHash)))];
 }
 
 export function duplicateEvent(a: SortableEvent, b: SortableEvent): boolean {
-  return a.txnRef === b.txnRef && a.logIndex === b.logIndex;
+  return a.transactionHash === b.transactionHash && a.logIndex === b.logIndex;
 }
