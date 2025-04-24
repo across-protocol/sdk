@@ -24,7 +24,7 @@ export class MockHubPoolClient extends HubPoolClient {
 
   private l1TokensMock: L1Token[] = []; // L1Tokens and their associated info.
   private tokenInfoToReturn: L1Token = { address: "", decimals: 0, symbol: "" };
-  
+
   private spokePoolTokens: { [l1Token: string]: { [chainId: number]: string } } = {};
 
   private eventManager: EventManager;
