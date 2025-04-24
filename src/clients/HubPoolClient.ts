@@ -884,13 +884,11 @@ export class HubPoolClient extends BaseAbstractClient {
     if (eventsToQuery.includes("CrossChainContractsSet")) {
       for (const event of events["CrossChainContractsSet"]) {
         const args = spreadEventWithBlockNumber(event) as CrossChainContractsSet;
-        const dataToAdd: CrossChainContractsSet = {
+        const dataToAdd = {
           spokePool: args.spokePool,
           blockNumber: args.blockNumber,
-          txnRef: args.txnRef,
+          transactionIndex: args.transactionIndex,
           logIndex: args.logIndex,
-          txnIndex: args.txnIndex,
-          l2ChainId: args.l2ChainId,
         };
         // If the chain is SVM then our `args.spokePool` will be set to the `solanaSpokePool.toAddressUnchecked()` in the
         // hubpool event because our hub deals with `address` types and not byte32. Therefore, we should confirm that the
@@ -948,9 +946,9 @@ export class HubPoolClient extends BaseAbstractClient {
                 l1Token: args.l1Token,
                 l2Token: destinationToken,
                 blockNumber: args.blockNumber,
-                txnIndex: args.txnIndex,
+                transactionIndex: args.transactionIndex,
                 logIndex: args.logIndex,
-                txnRef: args.txnRef,
+                transactionHash: args.transactionHash,
               },
             ]
           );
@@ -996,7 +994,12 @@ export class HubPoolClient extends BaseAbstractClient {
       this.proposedRootBundles.push(
         ...events["ProposeRootBundle"]
           .filter((event) => !this.configOverride.ignoredHubProposedBundles.includes(event.blockNumber))
-          .map((event) => spreadEventWithBlockNumber(event) as ProposedRootBundle)
+          .map((event) => {
+            return {
+              ...spreadEventWithBlockNumber(event),
+              transactionHash: event.transactionHash,
+            } as ProposedRootBundle;
+          })
       );
     }
 
