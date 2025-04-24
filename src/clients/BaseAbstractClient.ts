@@ -72,7 +72,7 @@ export abstract class BaseAbstractClient {
       if (provider instanceof providers.Provider) {
         to = await provider.getBlockNumber();
       } else {
-        to = Number(await provider.getBlockHeight({ commitment: "confirmed" }).send());
+        to = Number(await provider.getSlot({ commitment: "confirmed" }).send());
       }
       if (to < from) {
         return UpdateFailureReason.AlreadyUpdated;
