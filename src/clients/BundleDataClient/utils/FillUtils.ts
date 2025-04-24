@@ -70,17 +70,21 @@ export async function verifyFillRepayment(
   hubPoolClient: HubPoolClient,
   bundleEndBlockForMainnet: number
 ): Promise<FillWithBlock | undefined> {
-  const fill = {
-    ..._.cloneDeep(_fill),
-    fromLiteChain: matchedDeposit.fromLiteChain,
-  };
+  const fill = _.cloneDeep(_fill);
 
   // Slow fills don't result in repayments so they're always valid.
   if (isSlowFill(fill)) {
     return fill;
   }
 
-  let repaymentChainId = _getRepaymentChainId(fill, hubPoolClient, bundleEndBlockForMainnet);
+  let repaymentChainId = _getRepaymentChainId(
+    {
+      ...fill,
+      fromLiteChain: matchedDeposit.fromLiteChain,
+    },
+    hubPoolClient,
+    bundleEndBlockForMainnet
+  );
 
   // Repayments will always go to the fill.relayer address so check if its a valid EVM address. If its not, attempt
   // to change it to the msg.sender of the FilledRelay.
