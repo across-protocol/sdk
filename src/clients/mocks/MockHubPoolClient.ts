@@ -23,7 +23,6 @@ export class MockHubPoolClient extends HubPoolClient {
   private realizedLpFeePctOverride = false;
 
   private l1TokensMock: L1Token[] = []; // L1Tokens and their associated info.
-  private tokenInfoToReturn: L1Token = { address: "", decimals: 0, symbol: "" };
 
   private spokePoolTokens: { [l1Token: string]: { [chainId: number]: string } } = {};
 
@@ -91,10 +90,6 @@ export class MockHubPoolClient extends HubPoolClient {
     return this.l1TokensMock;
   }
 
-  getTokenInfoForDeposit() {
-    return this.tokenInfoToReturn;
-  }
-
   setTokenMapping(l1Token: string, chainId: number, l2Token: string) {
     this.spokePoolTokens[l1Token] ??= {};
     this.spokePoolTokens[l1Token][chainId] = l2Token;
@@ -118,10 +113,6 @@ export class MockHubPoolClient extends HubPoolClient {
 
   getTokenInfoForL1Token(l1Token: string): L1Token | undefined {
     return this.l1TokensMock.find((token) => token.address === l1Token);
-  }
-
-  setTokenInfoToReturn(tokenInfo: L1Token) {
-    this.tokenInfoToReturn = tokenInfo;
   }
 
   _update(eventNames: string[]): Promise<HubPoolUpdate> {

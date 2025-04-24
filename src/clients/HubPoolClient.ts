@@ -499,12 +499,6 @@ export class HubPoolClient extends BaseAbstractClient {
     return this.getTokenInfoForL1Token(l1TokenCounterpart);
   }
 
-  getTokenInfoForDeposit(deposit: Pick<Deposit, "inputToken" | "originChainId">): L1Token | undefined {
-    return this.getTokenInfoForL1Token(
-      this.getL1TokenForL2TokenAtBlock(deposit.inputToken, deposit.originChainId, this.latestBlockSearched)
-    );
-  }
-
   areTokensEquivalent(
     tokenA: string,
     chainIdA: number,
