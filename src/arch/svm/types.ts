@@ -36,13 +36,13 @@ export enum SVMEventNames {
 
 export type EventName = keyof typeof SVMEventNames;
 
-export type EventWithData<T extends EventData> = {
+export type EventWithData = {
   confirmationStatus: string | null;
   blockTime: UnixTimestamp | null;
   signature: Signature;
   slot: bigint;
-  name: EventName;
-  data: T;
+  name: string;
+  data: unknown;
   program: Address;
 };
 

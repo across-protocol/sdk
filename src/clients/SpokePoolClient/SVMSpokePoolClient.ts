@@ -2,11 +2,11 @@ import { Address, Rpc, RpcTransport, SolanaRpcApiFromTransport } from "@solana/k
 import winston from "winston";
 import {
   SVMEventNames,
-  SvmSpokeEventsClient,
   unwrapEventData,
   getFillDeadline,
   getTimestampForSlot,
   getStatePda,
+  SvmCpiEventsClient,
 } from "../../arch/svm";
 import { FillStatus, RelayData, SortableEvent } from "../../interfaces";
 import {
@@ -34,9 +34,9 @@ export class SvmSpokePoolClient extends SpokePoolClient {
     chainId: number,
     deploymentSlot: bigint, // Using slot instead of block number for SVM
     eventSearchConfig: MakeOptional<EventSearchConfig, "to">,
+    protected svmEventsClient: SvmCpiEventsClient,
     protected programId: Address,
     protected statePda: Address,
-    protected svmEventsClient: SvmSpokeEventsClient,
     protected rpc: Rpc<SolanaRpcApiFromTransport<RpcTransport>>
   ) {
     // Convert deploymentSlot to number for base class, might need refinement
@@ -54,8 +54,8 @@ export class SvmSpokePoolClient extends SpokePoolClient {
     eventSearchConfig: MakeOptional<EventSearchConfig, "to"> = { from: 0, maxLookBack: 0 }, // Provide default
     rpc: Rpc<SolanaRpcApiFromTransport<RpcTransport>>
   ): Promise<SvmSpokePoolClient> {
-    const svmEventsClient = await SvmSpokeEventsClient.create(rpc);
-    const programId = svmEventsClient.getSvmSpokeAddress();
+    const svmEventsClient = await SvmCpiEventsClient.create(rpc);
+    const programId = svmEventsClient.getProgramAddress();
     const statePda = await getStatePda(programId);
     return new SvmSpokePoolClient(
       logger,
@@ -63,9 +63,9 @@ export class SvmSpokePoolClient extends SpokePoolClient {
       chainId,
       deploymentSlot,
       eventSearchConfig,
+      svmEventsClient,
       programId,
       statePda,
-      svmEventsClient,
       rpc
     );
   }
@@ -107,7 +107,7 @@ export class SvmSpokePoolClient extends SpokePoolClient {
       return _searchConfig as EventSearchConfig;
     });
 
-    const spokePoolAddress = this.svmEventsClient.getSvmSpokeAddress();
+    const spokePoolAddress = this.svmEventsClient.getProgramAddress();
 
     this.log("debug", `Updating SpokePool client for chain ${this.chainId}`, {
       eventsToQuery,
