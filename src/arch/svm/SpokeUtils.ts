@@ -3,9 +3,11 @@ import {
   getTokenInformationFromAddress,
   BigNumber,
   isDefined,
-  getRelayDataHash,
   isUnsafeDepositId,
   toAddressType,
+  toBN,
+  getMessageHash,
+  keccak256,
 } from "../../utils";
 import { SvmSpokeClient } from "@across-protocol/contracts";
 import { getStatePda } from "./";
@@ -351,4 +353,32 @@ export async function getEventAuthority(
     seeds: [Buffer.from("__event_authority"), ...extraSeeds],
   });
   return eventAuthority;
+}
+
+export function getRelayDataHash(relayData: RelayData, destinationChainId: number): string {
+  const toBuffer = (hex: string, byteLength: number, littleEndian: boolean = true) => {
+    const buffer = Buffer.from(hex.slice(2), "hex");
+    if (buffer.length < byteLength) {
+      const zeroPad = Buffer.alloc(byteLength);
+      buffer.copy(zeroPad, byteLength - buffer.length);
+      return littleEndian ? zeroPad.reverse() : zeroPad;
+    }
+    return littleEndian ? buffer.slice(0, byteLength).reverse() : buffer.slice(0, byteLength);
+  };
+  const contentToHash = Buffer.concat([
+    toBuffer(relayData.depositor, 32, false),
+    toBuffer(relayData.recipient, 32, false),
+    toBuffer(relayData.exclusiveRelayer, 32, false),
+    toBuffer(relayData.inputToken, 32, false),
+    toBuffer(relayData.outputToken, 32, false),
+    toBuffer(relayData.inputAmount.toHexString(), 8),
+    toBuffer(relayData.outputAmount.toHexString(), 8),
+    toBuffer(toBN(relayData.originChainId).toHexString(), 8),
+    toBuffer(relayData.depositId.toHexString(), 32, false),
+    toBuffer(toBN(relayData.fillDeadline).toHexString(), 4),
+    toBuffer(toBN(relayData.exclusivityDeadline).toHexString(), 4),
+    toBuffer(getMessageHash(relayData.message), 32, false),
+    toBuffer(toBN(destinationChainId).toHexString(), 8),
+  ]);
+  return keccak256(contentToHash);
 }

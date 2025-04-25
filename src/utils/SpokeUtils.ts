@@ -3,9 +3,10 @@ import { MAX_SAFE_DEPOSIT_ID, ZERO_ADDRESS, ZERO_BYTES } from "../constants";
 import { Deposit, RelayData } from "../interfaces";
 import { toBytes32 } from "./AddressUtils";
 import { keccak256 } from "./common";
-import { BigNumber, toBN } from "./BigNumberUtils";
+import { BigNumber } from "./BigNumberUtils";
 import { isMessageEmpty } from "./DepositUtils";
 import { chainIsSvm } from "./NetworkUtils";
+import { svm } from "../arch";
 
 /**
  * Produce the RelayData for a Deposit.
@@ -45,7 +46,7 @@ export function getRelayDataHash(relayData: RelayData, destinationChainId: numbe
     exclusiveRelayer: toBytes32(relayData.exclusiveRelayer),
   };
   if (chainIsSvm(destinationChainId)) {
-    return _getRelayDataHashSvm(_relayData, destinationChainId);
+    return svm.getRelayDataHash(_relayData, destinationChainId);
   }
   return keccak256(
     ethersUtils.defaultAbiCoder.encode(
@@ -92,41 +93,4 @@ export function isZeroAddress(address: string): boolean {
 
 export function getMessageHash(message: string): string {
   return isMessageEmpty(message) ? ZERO_BYTES : keccak256(message);
-}
-
-function _getRelayDataHashSvm(relayData: RelayData, destinationChainId: number): string {
-  const bufferFromHexString = (hex: string, littleEndian: boolean = false) => {
-    const buffer = Buffer.from(hex.slice(2), "hex");
-    if (buffer.length < 32) {
-      const zeroPad = Buffer.alloc(32);
-      buffer.copy(zeroPad, 32 - buffer.length);
-      return littleEndian ? zeroPad.reverse() : zeroPad;
-    }
-    return littleEndian ? buffer.slice(0, 32).reverse() : buffer.slice(0, 32);
-  };
-  const bufferFromInt = (num: BigNumber, byteLength: number, littleEndian: boolean = true) => {
-    const buffer = Buffer.from(num.toHexString().slice(2), "hex");
-    if (buffer.length < byteLength) {
-      const zeroPad = Buffer.alloc(byteLength);
-      buffer.copy(zeroPad, byteLength - buffer.length);
-      return littleEndian ? zeroPad.reverse() : zeroPad;
-    }
-    return littleEndian ? buffer.slice(0, byteLength).reverse() : buffer.slice(0, byteLength);
-  };
-  const contentToHash = Buffer.concat([
-    bufferFromHexString(relayData.depositor),
-    bufferFromHexString(relayData.recipient),
-    bufferFromHexString(relayData.exclusiveRelayer),
-    bufferFromHexString(relayData.inputToken),
-    bufferFromHexString(relayData.outputToken),
-    bufferFromInt(relayData.inputAmount, 8),
-    bufferFromInt(relayData.outputAmount, 8),
-    bufferFromInt(toBN(relayData.originChainId), 8),
-    bufferFromInt(relayData.depositId, 32, false),
-    bufferFromInt(toBN(relayData.fillDeadline), 4),
-    bufferFromInt(toBN(relayData.exclusivityDeadline), 4),
-    bufferFromHexString(getMessageHash(relayData.message)),
-    bufferFromInt(toBN(destinationChainId), 8),
-  ]);
-  return keccak256(contentToHash);
 }
