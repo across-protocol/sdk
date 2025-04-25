@@ -222,15 +222,9 @@ export function sortEventsAscending<T extends SortableEvent>(events: T[]): T[] {
 // This sorts the events in place, meaning it modifies the passed array and returns a reference to the same array.
 // Note: this method should only be used in cases where modifications are acceptable.
 export function sortEventsAscendingInPlace<T extends SortableEvent>(events: T[]): T[] {
-  return events.sort((ex, ey) => {
-    if (ex.blockNumber !== ey.blockNumber) {
-      return ex.blockNumber - ey.blockNumber;
-    }
-    if (ex.transactionIndex !== ey.transactionIndex) {
-      return ex.transactionIndex - ey.transactionIndex;
-    }
-    return ex.logIndex - ey.logIndex;
-  });
+  return events.sort((ex, ey) =>
+    ex.blockNumber === ey.blockNumber ? ex.logIndex - ey.logIndex : ex.blockNumber - ey.blockNumber
+  );
 }
 
 // This copies the array and sorts it, returning a new array with the new ordering.
@@ -241,26 +235,14 @@ export function sortEventsDescending<T extends SortableEvent>(events: T[]): T[] 
 // This sorts the events in place, meaning it modifies the passed array and returns a reference to the same array.
 // Note: this method should only be used in cases where modifications are acceptable.
 export function sortEventsDescendingInPlace<T extends SortableEvent>(events: T[]): T[] {
-  return events.sort((ex, ey) => {
-    if (ex.blockNumber !== ey.blockNumber) {
-      return ey.blockNumber - ex.blockNumber;
-    }
-    if (ex.transactionIndex !== ey.transactionIndex) {
-      return ey.transactionIndex - ex.transactionIndex;
-    }
-    return ey.logIndex - ex.logIndex;
-  });
+  return events.sort((ex, ey) =>
+    ex.blockNumber === ey.blockNumber ? ey.logIndex - ex.logIndex : ey.blockNumber - ex.blockNumber
+  );
 }
 
 // Returns true if ex is older than ey.
 export function isEventOlder<T extends SortableEvent>(ex: T, ey: T): boolean {
-  if (ex.blockNumber !== ey.blockNumber) {
-    return ex.blockNumber < ey.blockNumber;
-  }
-  if (ex.transactionIndex !== ey.transactionIndex) {
-    return ex.transactionIndex < ey.transactionIndex;
-  }
-  return ex.logIndex < ey.logIndex;
+  return ex.blockNumber === ey.blockNumber ? ex.logIndex < ey.logIndex : ex.blockNumber < ey.blockNumber;
 }
 
 export function getTransactionHashes(events: SortableEvent[]): string[] {
