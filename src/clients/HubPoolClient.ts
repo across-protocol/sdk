@@ -43,7 +43,6 @@ import {
   toBN,
   getTokenInfo,
   getUsdcSymbol,
-  getL1TokenInfo,
   compareAddressesSimple,
   chainIsSvm,
   getDeployedAddress,
@@ -286,17 +285,6 @@ export class HubPoolClient extends BaseAbstractClient {
   }
 
   /**
-   * @dev If tokenAddress + chain do not exist in TOKEN_SYMBOLS_MAP then this will throw.
-   * @dev if the token matched in TOKEN_SYMBOLS_MAP does not have an L1 token address then this will throw.
-   * @param tokenAddress Token address on `chain`
-   * @param chain Chain where the `tokenAddress` exists in TOKEN_SYMBOLS_MAP.
-   * @returns Token info for the given token address on the Hub chain including symbol and decimal and L1 address.
-   */
-  getL1TokenInfoForAddress(tokenAddress: string, chain: number): L1Token {
-    return getL1TokenInfo(tokenAddress, chain);
-  }
-
-  /**
    * Resolve a given timestamp to a block number on the HubPool chain.
    * @param timestamp A single timestamp to be resolved to a block number on the HubPool chain.
    * @returns The block number corresponding to the supplied timestamp.
@@ -513,17 +501,6 @@ export class HubPoolClient extends BaseAbstractClient {
   getL1TokenInfoForL2Token(l2Token: string, chainId: number): L1Token | undefined {
     const l1TokenCounterpart = this.getL1TokenForL2TokenAtBlock(l2Token, chainId, this.latestBlockSearched);
     return this.getTokenInfoForL1Token(l1TokenCounterpart);
-  }
-
-  getTokenInfoForDeposit(deposit: Pick<Deposit, "inputToken" | "originChainId">): L1Token | undefined {
-    return this.getTokenInfoForL1Token(
-      this.getL1TokenForL2TokenAtBlock(deposit.inputToken, deposit.originChainId, this.latestBlockSearched)
-    );
-  }
-
-  getTokenInfo(chainId: number | string, tokenAddress: string): L1Token | undefined {
-    const deposit = { originChainId: parseInt(chainId.toString()), inputToken: tokenAddress };
-    return this.getTokenInfoForDeposit(deposit);
   }
 
   areTokensEquivalent(
