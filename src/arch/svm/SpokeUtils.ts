@@ -95,7 +95,6 @@ export function findDepositBlock(
 export async function relayFillStatus(
   programId: Address,
   relayData: RelayData,
-  fromSlot: number,
   blockTag: number | "confirmed" = "confirmed",
   destinationChainId: number,
   provider: Provider,
@@ -119,7 +118,7 @@ export async function relayFillStatus(
   const relevantEvents = (
     await Promise.all(
       eventsToQuery.map((eventName) =>
-        svmEventsClient.queryDerivedAddressEvents(eventName, fillStatusPda, BigInt(fromSlot), toSlot, { limit: 50 })
+        svmEventsClient.queryDerivedAddressEvents(eventName, fillStatusPda, undefined, toSlot, { limit: 50 })
       )
     )
   ).flat();
@@ -149,20 +148,19 @@ export async function relayFillStatus(
 export async function fillStatusArray(
   programId: Address,
   relayData: RelayData[],
-  fromSlot: number,
   blockTag: number | "confirmed" = "confirmed",
   destinationChainId: number,
   provider: Provider,
   svmEventsClient: SvmCpiEventsClient
 ): Promise<(FillStatus | undefined)[]> {
   assert(chainIsSvm(destinationChainId), "Destination chain must be an SVM chain");
-  const chunkSize = 100;
+  const chunkSize = 2;
   const chunkedRelayData = chunk(relayData, chunkSize);
   const results = [];
   for (const chunk of chunkedRelayData) {
     const chunkResults = await Promise.all(
       chunk.map((relayData) =>
-        relayFillStatus(programId, relayData, fromSlot, blockTag, destinationChainId, provider, svmEventsClient)
+        relayFillStatus(programId, relayData, blockTag, destinationChainId, provider, svmEventsClient)
       )
     );
     results.push(...chunkResults);
