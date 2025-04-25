@@ -223,7 +223,7 @@ export function sortEventsAscending<T extends SortableEvent>(events: T[]): T[] {
 // Note: this method should only be used in cases where modifications are acceptable.
 export function sortEventsAscendingInPlace<T extends SortableEvent>(events: T[]): T[] {
   return events.sort((ex, ey) =>
-    ex.blockNumber === ey.blockNumber ? ey.logIndex - ex.logIndex : ey.blockNumber - ex.blockNumber
+    ex.blockNumber === ey.blockNumber ? ex.logIndex - ey.logIndex : ex.blockNumber - ey.blockNumber
   );
 }
 
