@@ -1,6 +1,13 @@
 import { BN, BorshEventCoder, Idl } from "@coral-xyz/anchor";
-import web3, { address, RpcTransport, type TransactionSigner } from "@solana/kit";
-import { EventName, EventData, SVMEventNames } from "./types";
+import web3, {
+  address,
+  getProgramDerivedAddress,
+  getU64Encoder,
+  Address,
+  RpcTransport,
+  type TransactionSigner,
+} from "@solana/kit";
+import { EventName, SVMEventNames } from "./types";
 
 /**
  * Basic void TransactionSigner type
@@ -55,11 +62,11 @@ export function parseEventData(eventData: any): any {
 /**
  * Decodes a raw event according to a supplied IDL.
  */
-export function decodeEvent(idl: Idl, rawEvent: string): { data: EventData; name: EventName } {
+export function decodeEvent(idl: Idl, rawEvent: string): { data: unknown; name: string } {
   const event = new BorshEventCoder(idl).decode(rawEvent);
   if (!event) throw new Error(`Malformed rawEvent for IDL ${idl.address}: ${rawEvent}`);
   return {
-    name: getEventName(event.name),
+    name: event.name,
     data: parseEventData(event.data),
   };
 }
@@ -77,4 +84,19 @@ function snakeToCamel(s: string): string {
 export function getEventName(rawName: string): EventName {
   if (Object.values(SVMEventNames).some((name) => rawName.includes(name))) return rawName as EventName;
   throw new Error(`Unknown event name: ${rawName}`);
+}
+
+/**
+ * Returns the PDA for the State account.
+ * @param programId The SpokePool program ID.
+ * @returns The PDA for the State account.
+ */
+export async function getStatePda(programId: Address): Promise<Address> {
+  const intEncoder = getU64Encoder();
+  const seed = intEncoder.encode(0);
+  const [statePda] = await getProgramDerivedAddress({
+    programAddress: programId,
+    seeds: ["state", seed],
+  });
+  return statePda;
 }

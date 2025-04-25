@@ -8,6 +8,7 @@ import {
   toAddressType,
 } from "../../utils";
 import { SvmSpokeClient } from "@across-protocol/contracts";
+import { getStatePda } from "./";
 import { Deposit, FillStatus, FillWithBlock, RelayData } from "../../interfaces";
 import {
   TOKEN_PROGRAM_ADDRESS,
@@ -19,11 +20,11 @@ import {
   Rpc,
   SolanaRpcApi,
   some,
-  getU64Encoder,
   getProgramDerivedAddress,
   type TransactionSigner,
   address,
 } from "@solana/kit";
+import { fetchState } from "@across-protocol/contracts/dist/src/svm/clients/SvmSpoke";
 
 export type Provider = Rpc<SolanaRpcApi>;
 
@@ -69,18 +70,14 @@ export async function getTimestampForBlock(provider: Provider, blockNumber: numb
 }
 
 /**
- * Return maximum of fill deadline buffer at start and end of block range.
- * @param spokePool SpokePool contract instance
- * @param startBlock start block
- * @param endBlock end block
- * @returns maximum of fill deadline buffer at start and end block
+ * Returns the current fill deadline buffer.
+ * @param provider SVM Provider instance
+ * @param statePda Spoke Pool's State PDA
+ * @returns fill deadline buffer
  */
-export function getMaxFillDeadlineInRange(
-  _spokePool: unknown,
-  _startBlock: number,
-  _endBlock: number
-): Promise<number> {
-  throw new Error("getMaxFillDeadlineInRange: not implemented");
+export async function getFillDeadline(provider: Provider, statePda: Address): Promise<number> {
+  const state = await fetchState(provider, statePda);
+  return state.data.fillDeadlineBuffer;
 }
 
 /**
@@ -174,22 +171,6 @@ export function fillStatusArray(
 }
 
 /**
- * Returns the PDA for the State account.
- * @param programId The SpokePool program ID.
- * @param extraSeed An optional extra seed. Defaults to 0.
- * @returns The PDA for the State account.
- */
-export async function getStatePda(programId: string, extraSeed = 0): Promise<Address> {
-  const seedEncoder = getU64Encoder();
-  const encodedExtraSeed = seedEncoder.encode(extraSeed);
-  const [statePda] = await getProgramDerivedAddress({
-    programAddress: address(programId),
-    seeds: ["state", encodedExtraSeed],
-  });
-  return statePda;
-}
-
-/**
  * Find the block at which a fill was completed.
  * @todo After SpokePool upgrade, this function can be simplified to use the FillStatus enum.
  * @param spokePool SpokePool contract instance.
@@ -250,7 +231,7 @@ export async function fillRelayInstruction(
   const relayerTokenAccount = await getAssociatedTokenAddress(relayerAddress, outputToken);
 
   const [statePda, fillStatusPda, eventAuthority] = await Promise.all([
-    getStatePda(spokePool.toBase58()),
+    getStatePda(spokePool.toV2Address()),
     getFillStatusPda(_relayDataHash, spokePool.toV2Address()),
     getEventAuthority(),
   ]);
@@ -318,7 +299,7 @@ export async function createApproveInstruction(
 ) {
   const [relayerTokenAccount, statePda] = await Promise.all([
     getAssociatedTokenAddress(relayer, mint, TOKEN_PROGRAM_ADDRESS),
-    getStatePda(spokePool.toBase58()),
+    getStatePda(spokePool.toV2Address()),
   ]);
 
   // If no mint decimals were supplied, then assign it to whatever value we have in TOKEN_SYMBOLS_MAP.
