@@ -1,6 +1,5 @@
 import assert from "assert";
 import { Rpc, SolanaRpcApi, Address } from "@solana/kit";
-import { SvmSpokeIdl } from "@across-protocol/contracts";
 import { fetchState } from "@across-protocol/contracts/dist/src/svm/clients/SvmSpoke";
 
 import { SvmCpiEventsClient } from "./eventsClient";
@@ -99,7 +98,8 @@ export async function relayFillStatus(
   fromSlot: number,
   blockTag: number | "confirmed" = "confirmed",
   destinationChainId: number,
-  provider: Provider
+  provider: Provider,
+  svmEventsClient: SvmCpiEventsClient
 ): Promise<FillStatus> {
   assert(chainIsSvm(destinationChainId), "Destination chain must be an SVM chain");
 
@@ -115,12 +115,11 @@ export async function relayFillStatus(
   }
 
   // Get fill and requested slow fill events from fillStatusPda
-  const pdaEventsClient = await SvmCpiEventsClient.createFor(provider, programId, SvmSpokeIdl, fillStatusPda);
   const eventsToQuery = [SVMEventNames.FilledRelay, SVMEventNames.RequestedSlowFill];
   const relevantEvents = (
     await Promise.all(
       eventsToQuery.map((eventName) =>
-        pdaEventsClient.queryDerivedAddressEvents(eventName, BigInt(fromSlot), toSlot, { limit: 50 })
+        svmEventsClient.queryDerivedAddressEvents(eventName, fillStatusPda, BigInt(fromSlot), toSlot, { limit: 50 })
       )
     )
   ).flat();
@@ -153,15 +152,18 @@ export async function fillStatusArray(
   fromSlot: number,
   blockTag: number | "confirmed" = "confirmed",
   destinationChainId: number,
-  provider: Provider
+  provider: Provider,
+  svmEventsClient: SvmCpiEventsClient
 ): Promise<(FillStatus | undefined)[]> {
   assert(chainIsSvm(destinationChainId), "Destination chain must be an SVM chain");
-  const chunkSize = 2;
+  const chunkSize = 100;
   const chunkedRelayData = chunk(relayData, chunkSize);
   const results = [];
   for (const chunk of chunkedRelayData) {
     const chunkResults = await Promise.all(
-      chunk.map((relayData) => relayFillStatus(programId, relayData, fromSlot, blockTag, destinationChainId, provider))
+      chunk.map((relayData) =>
+        relayFillStatus(programId, relayData, fromSlot, blockTag, destinationChainId, provider, svmEventsClient)
+      )
     );
     results.push(...chunkResults);
   }

@@ -31,7 +31,6 @@ export class SvmCpiEventsClient {
   private programAddress: Address;
   private programEventAuthority: Address;
   private idl: Idl;
-  private derivedAddress?: Address;
 
   /**
    * Private constructor. Use the async create() method to instantiate.
@@ -40,14 +39,12 @@ export class SvmCpiEventsClient {
     rpc: web3.Rpc<web3.SolanaRpcApiFromTransport<RpcTransport>>,
     address: Address,
     eventAuthority: Address,
-    idl: Idl,
-    derivedAddress?: Address
+    idl: Idl
   ) {
     this.rpc = rpc;
     this.programAddress = address;
     this.programEventAuthority = eventAuthority;
     this.idl = idl;
-    this.derivedAddress = derivedAddress;
   }
 
   /**
@@ -63,16 +60,14 @@ export class SvmCpiEventsClient {
   public static async createFor(
     rpc: web3.Rpc<web3.SolanaRpcApiFromTransport<RpcTransport>>,
     programId: string,
-    idl: Idl,
-    pda?: string
+    idl: Idl
   ): Promise<SvmCpiEventsClient> {
     const address = web3.address(programId);
-    const derivedAddress = pda ? web3.address(pda) : undefined;
     const [eventAuthority] = await web3.getProgramDerivedAddress({
       programAddress: address,
       seeds: ["__event_authority"],
     });
-    return new SvmCpiEventsClient(rpc, address, eventAuthority, idl, derivedAddress);
+    return new SvmCpiEventsClient(rpc, address, eventAuthority, idl);
   }
 
   /**
@@ -105,11 +100,12 @@ export class SvmCpiEventsClient {
    */
   public async queryDerivedAddressEvents(
     eventName: string,
+    derivedAddress: Address,
     fromSlot?: bigint,
     toSlot?: bigint,
     options: GetSignaturesForAddressConfig = { limit: 1000, commitment: "confirmed" }
   ): Promise<EventWithData[]> {
-    const events = await this.queryAllEvents(fromSlot, toSlot, options, true);
+    const events = await this.queryAllEvents(fromSlot, toSlot, options, derivedAddress);
     return events.filter((event) => event.name === eventName) as EventWithData[];
   }
 
@@ -126,16 +122,12 @@ export class SvmCpiEventsClient {
     fromSlot?: bigint,
     toSlot?: bigint,
     options: GetSignaturesForAddressConfig = { limit: 1000, commitment: "confirmed" },
-    forDerivedAddress: boolean = false
+    derivedAddress?: Address
   ): Promise<EventWithData[]> {
+    const addressToQuery = derivedAddress || this.programAddress;
     const allSignatures: GetSignaturesForAddressTransaction[] = [];
     let hasMoreSignatures = true;
     let currentOptions = options;
-
-    if (forDerivedAddress && !this.derivedAddress) {
-      throw new Error("Unable to query PDA events. Derived address not set.");
-    }
-    const addressToQuery = forDerivedAddress ? this.derivedAddress : this.programAddress;
 
     while (hasMoreSignatures) {
       const signatures: GetSignaturesForAddressApiResponse = await this.rpc
