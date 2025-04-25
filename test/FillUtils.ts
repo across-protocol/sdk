@@ -1,6 +1,6 @@
 import { DepositWithBlock, FillType, FillWithBlock } from "../src/interfaces";
 import { bnOne, bnZero, toBN } from "../src/utils";
-import { ZERO_ADDRESS } from "../src/constants";
+import { ZERO_ADDRESS, ZERO_BYTES } from "../src/constants";
 import { originChainId, destinationChainId, repaymentChainId } from "./constants";
 import {
   createSpyLogger,
@@ -40,17 +40,17 @@ describe("FillUtils", function () {
       inputToken: ZERO_ADDRESS,
       outputAmount: toBN(100),
       outputToken: ZERO_ADDRESS,
-      message: "",
-      messageHash: "0x",
+      message: ZERO_BYTES,
+      messageHash: ZERO_BYTES,
       quoteTimestamp: 0,
       recipient: ZERO_ADDRESS,
       updatedRecipient: ZERO_ADDRESS,
       fillDeadline: 100,
       exclusiveRelayer: ZERO_ADDRESS,
       exclusivityDeadline: 100,
-      transactionHash: "0xa",
+      txnRef: "0xa",
       blockNumber: 0,
-      transactionIndex: 0,
+      txnIndex: 0,
       logIndex: 0,
       quoteBlockNumber: 0,
       fromLiteChain: false,
@@ -65,6 +65,7 @@ describe("FillUtils", function () {
         updatedRecipient: deposit.recipient,
         fillType: FillType.FastFill,
       },
+      messageHash: "0x",
       relayer,
       repaymentChainId,
     };
@@ -100,7 +101,7 @@ describe("FillUtils", function () {
           ...fill,
           relayer: INVALID_EVM_ADDRESS,
         };
-        spokeProvider._setTransaction(fill.transactionHash, {
+        spokeProvider._setTransaction(fill.txnRef, {
           from: relayer,
         } as unknown as TransactionResponse);
         const result = await verifyFillRepayment(invalidRepaymentFill, spokeProvider, deposit, hubPoolClient, 0);
@@ -115,7 +116,7 @@ describe("FillUtils", function () {
           ...fill,
           relayer: INVALID_EVM_ADDRESS,
         };
-        spokeProvider._setTransaction(fill.transactionHash, {
+        spokeProvider._setTransaction(fill.txnRef, {
           from: relayer,
         } as unknown as TransactionResponse);
         const result = await verifyFillRepayment(invalidRepaymentFill, spokeProvider, deposit, hubPoolClient, 0);
@@ -128,7 +129,7 @@ describe("FillUtils", function () {
           ...fill,
           relayer: INVALID_EVM_ADDRESS,
         };
-        spokeProvider._setTransaction(fill.transactionHash, {
+        spokeProvider._setTransaction(fill.txnRef, {
           from: INVALID_EVM_ADDRESS,
         } as unknown as TransactionResponse);
         const result = await verifyFillRepayment(invalidRepaymentFill, spokeProvider, deposit, hubPoolClient, 0);
@@ -180,7 +181,7 @@ describe("FillUtils", function () {
           ...fill,
           relayer: INVALID_EVM_ADDRESS,
         };
-        spokeProvider._setTransaction(fill.transactionHash, {
+        spokeProvider._setTransaction(fill.txnRef, {
           from: relayer,
         } as unknown as TransactionResponse);
         const result = await verifyFillRepayment(
@@ -201,7 +202,7 @@ describe("FillUtils", function () {
           ...fill,
           relayer: INVALID_EVM_ADDRESS,
         };
-        spokeProvider._setTransaction(fill.transactionHash, {
+        spokeProvider._setTransaction(fill.txnRef, {
           from: relayer,
         } as unknown as TransactionResponse);
         const result = await verifyFillRepayment(invalidRepaymentFill, spokeProvider, deposit, hubPoolClient, 0);
@@ -216,7 +217,7 @@ describe("FillUtils", function () {
           ...fill,
           relayer: INVALID_EVM_ADDRESS,
         };
-        spokeProvider._setTransaction(fill.transactionHash, {
+        spokeProvider._setTransaction(fill.txnRef, {
           from: relayer,
         } as unknown as TransactionResponse);
         const result = await verifyFillRepayment(invalidRepaymentFill, spokeProvider, deposit, hubPoolClient, 0);
@@ -235,7 +236,7 @@ describe("FillUtils", function () {
           ...fill,
           relayer: INVALID_EVM_ADDRESS,
         };
-        spokeProvider._setTransaction(fill.transactionHash, {
+        spokeProvider._setTransaction(fill.txnRef, {
           from: INVALID_EVM_ADDRESS,
         } as unknown as TransactionResponse);
         const result = await verifyFillRepayment(
@@ -256,7 +257,7 @@ describe("FillUtils", function () {
           ...fill,
           relayer: INVALID_EVM_ADDRESS,
         };
-        spokeProvider._setTransaction(fill.transactionHash, {
+        spokeProvider._setTransaction(fill.txnRef, {
           from: INVALID_EVM_ADDRESS,
         } as unknown as TransactionResponse);
         const result = await verifyFillRepayment(invalidRepaymentFill, spokeProvider, deposit, hubPoolClient, 0);
