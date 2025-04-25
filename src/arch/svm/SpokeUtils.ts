@@ -95,10 +95,10 @@ export function findDepositBlock(
 export async function relayFillStatus(
   programId: Address,
   relayData: RelayData,
-  blockTag: number | "confirmed" = "confirmed",
   destinationChainId: number,
   provider: Provider,
-  svmEventsClient: SvmCpiEventsClient
+  svmEventsClient: SvmCpiEventsClient,
+  blockTag?: number
 ): Promise<FillStatus> {
   assert(chainIsSvm(destinationChainId), "Destination chain must be an SVM chain");
 
@@ -107,7 +107,7 @@ export async function relayFillStatus(
 
   // Set search range
   let toSlot: bigint;
-  if (blockTag === "confirmed") {
+  if (!blockTag) {
     toSlot = await provider.getSlot({ commitment: "confirmed" }).send();
   } else {
     toSlot = BigInt(blockTag);
@@ -148,10 +148,10 @@ export async function relayFillStatus(
 export async function fillStatusArray(
   programId: Address,
   relayData: RelayData[],
-  blockTag: number | "confirmed" = "confirmed",
   destinationChainId: number,
   provider: Provider,
-  svmEventsClient: SvmCpiEventsClient
+  svmEventsClient: SvmCpiEventsClient,
+  blockTag?: number
 ): Promise<(FillStatus | undefined)[]> {
   assert(chainIsSvm(destinationChainId), "Destination chain must be an SVM chain");
   const chunkSize = 2;
@@ -160,7 +160,7 @@ export async function fillStatusArray(
   for (const chunk of chunkedRelayData) {
     const chunkResults = await Promise.all(
       chunk.map((relayData) =>
-        relayFillStatus(programId, relayData, blockTag, destinationChainId, provider, svmEventsClient)
+        relayFillStatus(programId, relayData, destinationChainId, provider, svmEventsClient, blockTag)
       )
     );
     results.push(...chunkResults);

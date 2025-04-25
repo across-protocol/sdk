@@ -195,12 +195,12 @@ export class SvmSpokePoolClient extends SpokePoolClient {
    */
   public override relayFillStatus(
     relayData: RelayData,
-    blockTag: number | "confirmed",
+    blockTag?: number,
     destinationChainId?: number
   ): Promise<FillStatus> {
     destinationChainId ??= this.chainId;
     // @note: deploymentBlock actually refers to the deployment slot. Also, blockTag should be a slot number.
-    return relayFillStatus(this.programId, relayData, blockTag, destinationChainId, this.rpc, this.svmEventsClient);
+    return relayFillStatus(this.programId, relayData, destinationChainId, this.rpc, this.svmEventsClient, blockTag);
   }
 
   /**
@@ -211,11 +211,11 @@ export class SvmSpokePoolClient extends SpokePoolClient {
    */
   public fillStatusArray(
     relayData: RelayData[],
-    blockTag?: number | "confirmed",
+    blockTag?: number,
     destinationChainId?: number
   ): Promise<(FillStatus | undefined)[]> {
     // @note: deploymentBlock actually refers to the deployment slot. Also, blockTag should be a slot number.
     destinationChainId ??= this.chainId;
-    return fillStatusArray(this.programId, relayData, blockTag, destinationChainId, this.rpc, this.svmEventsClient);
+    return fillStatusArray(this.programId, relayData, destinationChainId, this.rpc, this.svmEventsClient, blockTag);
   }
 }
