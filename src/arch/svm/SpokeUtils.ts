@@ -38,7 +38,7 @@ export async function getTimestampForSlot(provider: Provider, slotNumber: number
   const block = await provider.getBlock(BigInt(slotNumber)).send();
   let timestamp: number;
   if (!block?.blockTime) {
-    console.error(`Unable to resolve svm block ${slotNumber}`);
+    console.error(`Unable to resolve block for slot ${slotNumber}`);
     timestamp = 0; // @todo: How to handle this?
   } else {
     timestamp = Number(block.blockTime); // Unix timestamps fit within number.
