@@ -204,13 +204,19 @@ export function getPaginatedBlockRanges({
   return ranges;
 }
 
+export function logToSortableEvent(log: Log): SortableEvent {
+  return {
+    txnIndex: log.transactionIndex,
+    txnRef: log.transactionHash,
+    logIndex: log.logIndex,
+    blockNumber: log.blockNumber,
+  };
+}
+
 export function spreadEventWithBlockNumber(event: Log): SortableEvent {
   return {
     ...spreadEvent(event.args),
-    blockNumber: event.blockNumber,
-    transactionIndex: event.transactionIndex,
-    logIndex: event.logIndex,
-    transactionHash: event.transactionHash,
+    ...logToSortableEvent(event),
   };
 }
 
@@ -245,10 +251,10 @@ export function isEventOlder<T extends SortableEvent>(ex: T, ey: T): boolean {
   return ex.blockNumber === ey.blockNumber ? ex.logIndex < ey.logIndex : ex.blockNumber < ey.blockNumber;
 }
 
-export function getTransactionHashes(events: SortableEvent[]): string[] {
-  return [...Array.from(new Set(events.map((e) => e.transactionHash)))];
+export function getTransactionRefs(events: SortableEvent[]): string[] {
+  return [...Array.from(new Set(events.map((e) => e.txnRef)))];
 }
 
 export function duplicateEvent(a: SortableEvent, b: SortableEvent): boolean {
-  return a.transactionHash === b.transactionHash && a.logIndex === b.logIndex;
+  return a.txnRef === b.txnRef && a.logIndex === b.logIndex;
 }
