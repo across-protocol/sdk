@@ -87,11 +87,7 @@ export function findDepositBlock(
 /**
  * Resolves the fill status of a deposit at a specific slot or at the current confirmed one.
  *
- * If no slot is provided, the function first tries to fetch the status from the fill status PDA.
- * - If the PDA exists, it reads the status directly.
- * - If the PDA is missing and the deposit's fill deadline has not passed, the deposit is considered unfilled.
- *
- * If a specific slot is requested, or if the PDA is unavailable, the status is reconstructed from PDA events.
+ * If no slot is provided, attempts to solve the fill status using the PDA. Otherwise, it is reconstructed from PDA events.
  *
  * @param programId - The spoke pool program ID.
  * @param relayData - Deposit information used to locate the fill status.
@@ -137,9 +133,8 @@ export async function relayFillStatus(
 }
 
 /**
- * Resolves the fill status of an array of deposits at the requested slot or at the current confirmed one.
- * For current slot queries, first tries to fetch statuses using the PDAs.
- * When PDAs are unavailable, or for specific slot queries, it reconstructs status using PDA events.
+ * Resolves fill statuses for multiple deposits at a specific slot or current confirmed slot.
+ * Uses PDAs for current slot queries, falls back to event reconstruction when needed.
  *
  * @param programId The spoke pool program ID.
  * @param relayData An array of relay data to resolve fill statuses for.
