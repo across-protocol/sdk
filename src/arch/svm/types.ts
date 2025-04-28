@@ -1,4 +1,21 @@
-import { Signature, Address, UnixTimestamp } from "@solana/kit";
+import { Signature, Address, UnixTimestamp, SolanaRpcApi, Rpc } from "@solana/kit";
+import { SvmSpokeClient } from "@across-protocol/contracts";
+
+export type EventData =
+  | SvmSpokeClient.BridgedToHubPool
+  | SvmSpokeClient.TokensBridged
+  | SvmSpokeClient.ExecutedRelayerRefundRoot
+  | SvmSpokeClient.RelayedRootBundle
+  | SvmSpokeClient.PausedDeposits
+  | SvmSpokeClient.PausedFills
+  | SvmSpokeClient.SetXDomainAdmin
+  | SvmSpokeClient.EnabledDepositRoute
+  | SvmSpokeClient.FilledRelay
+  | SvmSpokeClient.FundsDeposited
+  | SvmSpokeClient.EmergencyDeletedRootBundle
+  | SvmSpokeClient.RequestedSlowFill
+  | SvmSpokeClient.ClaimedRelayerRefund
+  | SvmSpokeClient.TransferredOwnership;
 
 export enum SVMEventNames {
   FilledRelay = "FilledRelay",
@@ -28,3 +45,5 @@ export type EventWithData = {
   data: unknown;
   program: Address;
 };
+
+export type SVMProvider = Rpc<SolanaRpcApi>;

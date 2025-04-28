@@ -26,7 +26,7 @@ export class MockConfigStoreClient extends AcrossConfigStoreClient {
   constructor(
     logger: winston.Logger,
     configStore: Contract,
-    eventSearchConfig: MakeOptional<EventSearchConfig, "toBlock"> = { fromBlock: 0, maxBlockLookBack: 0 },
+    eventSearchConfig: MakeOptional<EventSearchConfig, "to"> = { from: 0, maxLookBack: 0 },
     configStoreVersion: number,
     chainId = 1,
     mockUpdate = false,
@@ -90,7 +90,7 @@ export class MockConfigStoreClient extends AcrossConfigStoreClient {
     return Promise.resolve({
       success: true,
       chainId: this.chainId as number,
-      searchEndBlock: this.eventSearchConfig.toBlock || latestBlockSearched,
+      searchEndBlock: this.eventSearchConfig.to || latestBlockSearched,
       events: {
         updatedGlobalConfigEvents: events["UpdatedGlobalConfig"],
         globalConfigUpdateTimes,

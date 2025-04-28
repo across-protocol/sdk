@@ -38,7 +38,7 @@ export class EVMSpokePoolClient extends SpokePoolClient {
     hubPoolClient: HubPoolClient | null,
     chainId: number,
     deploymentBlock: number,
-    eventSearchConfig: MakeOptional<EventSearchConfig, "toBlock"> = { fromBlock: 0, maxBlockLookBack: 0 }
+    eventSearchConfig: MakeOptional<EventSearchConfig, "to"> = { from: 0, maxLookBack: 0 }
   ) {
     super(logger, hubPoolClient, chainId, deploymentBlock, eventSearchConfig);
   }
@@ -88,7 +88,7 @@ export class EVMSpokePoolClient extends SpokePoolClient {
       // However, certain events have special overriding requirements to their search ranges:
       // - EnabledDepositRoute: The full history is always required, so override the requested fromBlock.
       if (eventName === "EnabledDepositRoute" && !this.isUpdated) {
-        _searchConfig.fromBlock = this.deploymentBlock;
+        _searchConfig.from = this.deploymentBlock;
       }
 
       return {
@@ -109,7 +109,7 @@ export class EVMSpokePoolClient extends SpokePoolClient {
     const [multicallOutput, ...events] = await Promise.all([
       spokePool.callStatic.multicall(
         multicallFunctions.map((f) => spokePool.interface.encodeFunctionData(f)),
-        { blockTag: searchConfig.toBlock }
+        { blockTag: searchConfig.to }
       ),
       ...eventSearchConfigs.map((config) => paginatedEventQuery(this.spokePool, config.filter, config.searchConfig)),
     ]);
@@ -123,17 +123,22 @@ export class EVMSpokePoolClient extends SpokePoolClient {
       const errMsg = BigNumber.isBigNumber(currentTime)
         ? `currentTime: ${currentTime} < ${toBN(this.currentTime)}`
         : `currentTime is not a BigNumber: ${JSON.stringify(currentTime)}`;
-      throw new Error(`SpokePoolClient::update: ${errMsg}`);
+      throw new Error(`EVMSpokePoolClient::update: ${errMsg}`);
     }
 
     // Sort all events to ensure they are stored in a consistent order.
     events.forEach((events) => sortEventsAscendingInPlace(events));
 
+    // Map events to SortableEvent
+    const eventsWithBlockNumber = events.map((eventList) =>
+      eventList.map((event) => spreadEventWithBlockNumber(event))
+    );
+
     return {
       success: true,
       currentTime: currentTime.toNumber(), // uint32
-      searchEndBlock: searchConfig.toBlock,
-      events,
+      searchEndBlock: searchConfig.to,
+      events: eventsWithBlockNumber,
     };
   }
 
@@ -148,31 +153,31 @@ export class EVMSpokePoolClient extends SpokePoolClient {
     }
 
     // No deposit found; revert to searching for it.
-    const upperBound = this.latestBlockSearched || undefined; // Don't permit block 0 as the high block.
-    const fromBlock = await findDepositBlock(this.spokePool, depositId, this.deploymentBlock, upperBound);
+    const upperBound = this.latestHeightSearched || undefined; // Don't permit block 0 as the high block.
+    const from = await findDepositBlock(this.spokePool, depositId, this.deploymentBlock, upperBound);
     const chain = getNetworkName(this.chainId);
-    if (!fromBlock) {
+    if (!from) {
       const reason =
         `Unable to find ${chain} depositId ${depositId}` +
         ` within blocks [${this.deploymentBlock}, ${upperBound ?? "latest"}].`;
       return { found: false, code: InvalidFill.DepositIdNotFound, reason };
     }
 
-    const toBlock = fromBlock;
+    const to = from;
     const tStart = Date.now();
     // Check both V3FundsDeposited and FundsDeposited events to look for a specified depositId.
-    const { maxBlockLookBack } = this.eventSearchConfig;
+    const { maxLookBack } = this.eventSearchConfig;
     const query = (
       await Promise.all([
         paginatedEventQuery(
           this.spokePool,
           this.spokePool.filters.V3FundsDeposited(null, null, null, null, null, depositId),
-          { fromBlock, toBlock, maxBlockLookBack }
+          { from, to, maxLookBack }
         ),
         paginatedEventQuery(
           this.spokePool,
           this.spokePool.filters.FundsDeposited(null, null, null, null, null, depositId),
-          { fromBlock, toBlock, maxBlockLookBack }
+          { from, to, maxLookBack }
         ),
       ])
     ).flat();
@@ -183,7 +188,7 @@ export class EVMSpokePoolClient extends SpokePoolClient {
       return {
         found: false,
         code: InvalidFill.DepositIdNotFound,
-        reason: `${chain} depositId ${depositId} not found at block ${fromBlock}.`,
+        reason: `${chain} depositId ${depositId} not found at block ${from}.`,
       };
     }
 
