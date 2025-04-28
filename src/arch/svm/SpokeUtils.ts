@@ -196,7 +196,6 @@ export async function fillStatusArray(
   // @note: This path is mostly used for deposits past their fill deadline.
   // If it becomes a bottleneck, consider returning an "Unknown" status that can be handled downstream.
   for (const chunk of missingChunked) {
-    const start = performance.now();
     const chunkResults = await Promise.all(
       chunk.map(async (missingIndex) => {
         return {
@@ -206,8 +205,6 @@ export async function fillStatusArray(
       })
     );
     missingResults.push(...chunkResults);
-    const end = performance.now();
-    console.log(`Processing ${chunk.length} deposits took ${end - start}ms`);
   }
 
   // Fill in missing statuses back to the result array
