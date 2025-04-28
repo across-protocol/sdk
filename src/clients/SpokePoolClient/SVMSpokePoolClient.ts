@@ -185,7 +185,7 @@ export class SvmSpokePoolClient extends SpokePoolClient {
    * Finds a deposit based on its deposit ID on the SVM chain.
    */
   public async findDeposit(depositId: BigNumber): Promise<DepositSearchResult> {
-    const deposit = await findDeposit(this.rpc, depositId);
+    const deposit = await findDeposit(this.svmEventsClient, depositId);
     if (!deposit) {
       return {
         found: false,
