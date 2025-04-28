@@ -29,7 +29,7 @@ import {
   makeCustomTransport,
 } from "./utils";
 import assert from "assert";
-import { TOKEN_SYMBOLS_MAP } from "@across-protocol/constants";
+import { CHAIN_IDs, TOKEN_SYMBOLS_MAP } from "@across-protocol/constants";
 import { EMPTY_MESSAGE, ZERO_ADDRESS } from "../src/constants";
 import { SpokePool } from "@across-protocol/contracts";
 import { QueryBase, QueryBase__factory } from "../src/relayFeeCalculator";
@@ -279,6 +279,121 @@ describe("RelayFeeCalculator", () => {
     assert.equal(client.capitalFeePercent("0", "DAI").toString(), Number.MAX_SAFE_INTEGER.toString());
     assert.equal(client.capitalFeePercent("0", "ZERO_CUTOFF_WBTC").toString(), Number.MAX_SAFE_INTEGER.toString());
     assert.equal(client.capitalFeePercent("0", "WBTC").toString(), Number.MAX_SAFE_INTEGER.toString());
+  });
+
+  it("destinationChainOverrides", () => {
+    // Create a client with destination chain and route overrides
+    const token = TOKEN_SYMBOLS_MAP.USDC;
+
+    const customCapitalCostsConfig = {
+      [token.symbol]: {
+        default: {
+          lowerBound: toBNWei("0.0003").toString(),
+          upperBound: toBNWei("0.002").toString(),
+          cutoff: toBNWei("15").toString(),
+          decimals: token.decimals,
+        },
+        destinationChainOverrides: {
+          // Override for destination chain ARBITRUM
+          [CHAIN_IDs.ARBITRUM]: {
+            lowerBound: toBNWei("0.0005").toString(),
+            upperBound: toBNWei("0.003").toString(),
+            cutoff: toBNWei("10").toString(),
+            decimals: token.decimals,
+          },
+        },
+        routeOverrides: {
+          // Override for route MAINNET->ARBITRUM
+          [CHAIN_IDs.MAINNET]: {
+            [CHAIN_IDs.ARBITRUM]: {
+              lowerBound: toBNWei("0.0007").toString(),
+              upperBound: toBNWei("0.004").toString(),
+              cutoff: toBNWei("8").toString(),
+              decimals: token.decimals,
+            },
+          },
+        },
+      },
+    };
+
+    const client = new RelayFeeCalculator({
+      queries,
+      capitalCostsConfig: customCapitalCostsConfig,
+    });
+
+    // Get config values for cleaner assertions
+    const defaultConfig = customCapitalCostsConfig[token.symbol].default;
+    const chainOverride = customCapitalCostsConfig[token.symbol].destinationChainOverrides[CHAIN_IDs.ARBITRUM];
+    const routeOverride = customCapitalCostsConfig[token.symbol].routeOverrides[CHAIN_IDs.MAINNET][CHAIN_IDs.ARBITRUM];
+
+    // Test using default config (no routes specified)
+    const defaultFee = client.capitalFeePercent(toBNWei("1", token.decimals), token.symbol);
+    assert.ok(toBN(defaultFee).gte(toBN(defaultConfig.lowerBound)), "Default fee should be at least the lower bound");
+    assert.ok(toBN(defaultFee).lt(toBN(defaultConfig.upperBound)), "Default fee should be less than the upper bound");
+
+    // Test using destination chain override (only destination specified)
+    const destinationFee = client.capitalFeePercent(
+      toBNWei("1", token.decimals),
+      token.symbol,
+      undefined,
+      CHAIN_IDs.ARBITRUM.toString()
+    );
+    assert.ok(
+      toBN(destinationFee).gte(toBN(chainOverride.lowerBound)),
+      "Destination override fee should be at least its lower bound"
+    );
+    assert.ok(
+      toBN(destinationFee).lt(toBN(chainOverride.upperBound)),
+      "Destination override fee should be less than its upper bound"
+    );
+
+    // Test using route-specific override (both origin and destination specified)
+    const routeFee = client.capitalFeePercent(
+      toBNWei("1", token.decimals),
+      token.symbol,
+      CHAIN_IDs.MAINNET.toString(),
+      CHAIN_IDs.ARBITRUM.toString()
+    );
+    assert.ok(
+      toBN(routeFee).gte(toBN(routeOverride.lowerBound)),
+      "Route override fee should be at least its lower bound"
+    );
+    assert.ok(
+      toBN(routeFee).lt(toBN(routeOverride.upperBound)),
+      "Route override fee should be less than its upper bound"
+    );
+
+    // Test fallback to destination chain override when a route is not specifically overridden
+    const fallbackToDestFee = client.capitalFeePercent(
+      toBNWei("1", token.decimals),
+      token.symbol,
+      CHAIN_IDs.OPTIMISM.toString(),
+      CHAIN_IDs.ARBITRUM.toString()
+    );
+    assert.ok(
+      toBN(fallbackToDestFee).gte(toBN(chainOverride.lowerBound)),
+      "Fallback to destination fee should be at least the destination lower bound"
+    );
+    assert.ok(
+      toBN(fallbackToDestFee).lt(toBN(chainOverride.upperBound)),
+      "Fallback to destination fee should be less than the destination upper bound"
+    );
+
+    // Test fallback to default when route doesn't match and no destination chain override exists
+    const fallbackToDefaultFee = client.capitalFeePercent(
+      toBNWei("1", token.decimals),
+      token.symbol,
+      CHAIN_IDs.OPTIMISM.toString(),
+      CHAIN_IDs.POLYGON.toString()
+    );
+    assert.ok(
+      toBN(fallbackToDefaultFee).gte(toBN(defaultConfig.lowerBound)),
+      "Fallback to default fee should be at least the default lower bound"
+    );
+    assert.ok(
+      toBN(fallbackToDefaultFee).lt(toBN(defaultConfig.upperBound)),
+      "Fallback to default fee should be less than the default upper bound"
+    );
   });
 });
 
