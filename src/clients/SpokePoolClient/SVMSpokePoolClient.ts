@@ -191,31 +191,29 @@ export class SvmSpokePoolClient extends SpokePoolClient {
 
   /**
    * Retrieves the fill status for a given relay data from the SVM chain.
-   * TODO: Implement SVM state query for fill status.
    */
   public override relayFillStatus(
     relayData: RelayData,
-    blockTag?: number,
+    atHeight?: number,
     destinationChainId?: number
   ): Promise<FillStatus> {
     destinationChainId ??= this.chainId;
-    // @note: deploymentBlock actually refers to the deployment slot. Also, blockTag should be a slot number.
-    return relayFillStatus(this.programId, relayData, destinationChainId, this.rpc, this.svmEventsClient, blockTag);
+    return relayFillStatus(this.programId, relayData, destinationChainId, this.rpc, this.svmEventsClient, atHeight);
   }
 
   /**
    * Retrieves the fill status for an array of given relay data.
    * @param relayData The array relay data to retrieve the fill status for.
-   * @param blockTag The block at which to query the fill status.
+   * @param atHeight The slot at which to query the fill status.
    * @returns The fill status for each of the given relay data.
    */
   public fillStatusArray(
     relayData: RelayData[],
-    blockTag?: number,
+    atHeight?: number,
     destinationChainId?: number
   ): Promise<(FillStatus | undefined)[]> {
     // @note: deploymentBlock actually refers to the deployment slot. Also, blockTag should be a slot number.
     destinationChainId ??= this.chainId;
-    return fillStatusArray(this.programId, relayData, destinationChainId, this.rpc, this.svmEventsClient, blockTag);
+    return fillStatusArray(this.programId, relayData, destinationChainId, this.rpc, this.svmEventsClient, atHeight);
   }
 }

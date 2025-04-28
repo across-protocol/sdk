@@ -43,12 +43,12 @@ export class EVMSpokePoolClient extends SpokePoolClient {
     super(logger, hubPoolClient, chainId, deploymentBlock, eventSearchConfig);
   }
 
-  public override relayFillStatus(relayData: RelayData, blockTag?: number): Promise<FillStatus> {
-    return relayFillStatus(this.spokePool, relayData, blockTag, this.chainId);
+  public override relayFillStatus(relayData: RelayData, atHeight?: number): Promise<FillStatus> {
+    return relayFillStatus(this.spokePool, relayData, atHeight, this.chainId);
   }
 
-  public override fillStatusArray(relayData: RelayData[], blockTag?: number): Promise<(FillStatus | undefined)[]> {
-    return fillStatusArray(this.spokePool, relayData, blockTag);
+  public override fillStatusArray(relayData: RelayData[], atHeight?: number): Promise<(FillStatus | undefined)[]> {
+    return fillStatusArray(this.spokePool, relayData, atHeight);
   }
 
   public override getMaxFillDeadlineInRange(startBlock: number, endBlock: number): Promise<number> {
