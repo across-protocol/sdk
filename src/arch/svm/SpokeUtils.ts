@@ -224,7 +224,7 @@ export async function fillStatusArray(
  * @param destinationChainId - Destination chain ID (must be an SVM chain).
  * @param svmEventsClient - SVM events client instance for querying events.
  * @param fromSlot - Starting slot to search.
- * @param toSlot - Ending slot to search.
+ * @param toSlot (Optional) Ending slot to search. If not provided, the current confirmed slot will be used.
  * @returns The fill event with block info, or `undefined` if not found.
  */
 export async function findFillEvent(
@@ -232,12 +232,10 @@ export async function findFillEvent(
   destinationChainId: number,
   svmEventsClient: SvmCpiEventsClient,
   fromSlot: number,
-  toSlot: number
+  toSlot?: number | bigint
 ): Promise<FillWithBlock | undefined> {
   assert(chainIsSvm(destinationChainId), "Destination chain must be an SVM chain");
-
-  // TODO: Set toSlot as optional and use events client's provider to set the current confirmed slot as default value
-  // toSlot ??= await svmEventsClient.getProvider().getSlot({ commitment: "confirmed" }).send();
+  toSlot ??= await svmEventsClient.getRpc().getSlot({ commitment: "confirmed" }).send();
 
   // Get fillStatus PDA using relayData
   const programId = svmEventsClient.getProgramAddress();

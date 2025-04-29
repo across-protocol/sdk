@@ -230,4 +230,8 @@ export class SvmCpiEventsClient {
   public getProgramAddress(): Address {
     return this.programAddress;
   }
+
+  public getRpc(): web3.Rpc<web3.SolanaRpcApiFromTransport<RpcTransport>> {
+    return this.rpc;
+  }
 }
