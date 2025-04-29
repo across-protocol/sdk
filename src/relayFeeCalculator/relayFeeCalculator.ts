@@ -195,9 +195,7 @@ export class RelayFeeCalculator {
       }
     }
     // Validate destination chain overrides
-    for (const override of Object.values(config.destinationChainOverrides || {})) {
-      this.validateCapitalCostsConfig(override);
-    }
+    Object.values(config.destinationChainOverrides || {}).forEach(this.validateCapitalCostsConfig)
     return config;
   }
 
