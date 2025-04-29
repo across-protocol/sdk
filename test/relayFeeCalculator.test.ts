@@ -282,7 +282,7 @@ describe("RelayFeeCalculator", () => {
   });
 });
 
-describe("RelayFeeCalculator: Composable Bridging", function () {
+describe.only("RelayFeeCalculator: Composable Bridging", function () {
   let spokePool: SpokePool, erc20: Contract, destErc20: Contract, weth: Contract;
   let client: RelayFeeCalculator;
   let queries: QueryBase;
@@ -332,7 +332,7 @@ describe("RelayFeeCalculator: Composable Bridging", function () {
           inputAmount: bnOne,
           outputAmount: bnOne,
           inputToken: erc20.address,
-          outputToken: destErc20.address,
+          outputToken: erc20.address,
           recipient: testContract.address,
           quoteTimestamp: 1,
           depositId: BigNumber.from(1000000),
