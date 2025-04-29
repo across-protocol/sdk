@@ -384,6 +384,8 @@ export class RelayFeeCalculator {
     // should use the full deposit amount.
     amountToRelay ??= deposit.outputAmount;
     const { inputToken, originChainId } = deposit;
+    // We can perform a simple lookup with `getTokenInfo` here without resolving the exact token to resolve since we only need to
+    // resolve the L1 token symbol and not the L2 token decimals.
     const token = getTokenInfo(inputToken, originChainId);
     if (!isDefined(token)) {
       throw new Error(`Could not find token information for ${inputToken}`);
