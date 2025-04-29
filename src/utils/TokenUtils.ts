@@ -7,7 +7,7 @@ import { BigNumber } from "./BigNumberUtils";
 import { getNetworkName } from "./NetworkUtils";
 import { isDefined } from "./TypeGuards";
 import { compareAddressesSimple } from "./AddressUtils";
-const { TOKEN_SYMBOLS_MAP, CHAIN_IDs } = constants;
+const { TOKEN_SYMBOLS_MAP, CHAIN_IDs, TOKEN_EQUIVALENCE_REMAPPING } = constants;
 
 type SignerOrProvider = providers.Provider | Signer;
 
@@ -68,13 +68,17 @@ export function getTokenInformationFromAddress(address: string, tokenMapping = T
   const details = Object.values(tokenMapping).find((details) => {
     return Object.values(details.addresses).some((t) => t.toLowerCase() === address.toLowerCase());
   });
-  return isDefined(details)
-    ? {
-        decimals: details.decimals,
-        symbol: details.symbol,
-        address,
-      }
-    : undefined;
+  if (!isDefined(details)) {
+    return undefined;
+  }
+  // Re-map the details for the L1 token to its canonical L1 token. E.g. USDC.e -> USDC.
+  const l1TokenSymbol = TOKEN_EQUIVALENCE_REMAPPING[details.symbol] ?? details.symbol;
+  const l1TokenDetails = TOKEN_SYMBOLS_MAP[l1TokenSymbol as keyof typeof TOKEN_SYMBOLS_MAP];
+  return {
+    decimals: l1TokenDetails.decimals,
+    symbol: l1TokenDetails.symbol,
+    address,
+  };
 }
 
 export function getCoingeckoTokenIdByAddress(contractAddress: string): string {
