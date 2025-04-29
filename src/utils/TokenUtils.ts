@@ -4,7 +4,7 @@ import * as constants from "../constants";
 import { L1Token } from "../interfaces";
 import { ERC20__factory } from "../typechain";
 import { BigNumber } from "./BigNumberUtils";
-import { getNetworkName } from "./NetworkUtils";
+import { getNetworkName, chainIsL1 } from "./NetworkUtils";
 import { isDefined } from "./TypeGuards";
 import { compareAddressesSimple } from "./AddressUtils";
 const { TOKEN_SYMBOLS_MAP, CHAIN_IDs, TOKEN_EQUIVALENCE_REMAPPING } = constants;
@@ -65,18 +65,27 @@ export const resolveContractFromSymbol = (
 };
 
 export function getTokenInformationFromAddress(address: string, tokenMapping = TOKEN_SYMBOLS_MAP): L1Token | undefined {
-  const details = Object.values(tokenMapping).find((details) => {
+  let details = Object.values(tokenMapping).find((details) => {
     return Object.values(details.addresses).some((t) => t.toLowerCase() === address.toLowerCase());
   });
   if (!isDefined(details)) {
     return undefined;
   }
-  // Re-map the details for the L1 token to its canonical L1 token. E.g. USDC.e -> USDC.
-  const l1TokenSymbol = TOKEN_EQUIVALENCE_REMAPPING[details.symbol] ?? details.symbol;
-  const l1TokenDetails = TOKEN_SYMBOLS_MAP[l1TokenSymbol as keyof typeof TOKEN_SYMBOLS_MAP];
+  // If we are resolving a token on L1, then we need to re-map the address to the "canonical" L1 token, which in the context of
+  // `TOKEN_SYMBOLS_MAP`, is the token whose symbol is the _value_ in `TOKEN_EQUIVALENCE_REMAPPING`.
+  // `addressChainId` is guaranteed to exist since `details` was defined based on there being a chainId => address mapping for the input address.
+  const addressChainId = Number(
+    Object.keys(details!.addresses).find(
+      (chainId) => details!.addresses[chainId as keyof typeof details].toLowerCase() === address.toLowerCase()
+    )
+  );
+  if (chainIsL1(addressChainId)) {
+    const l1TokenSymbol = TOKEN_EQUIVALENCE_REMAPPING[details.symbol] ?? details.symbol;
+    details = TOKEN_SYMBOLS_MAP[l1TokenSymbol as keyof typeof TOKEN_SYMBOLS_MAP];
+  }
   return {
-    decimals: l1TokenDetails.decimals,
-    symbol: l1TokenDetails.symbol,
+    decimals: details.decimals,
+    symbol: details.symbol,
     address,
   };
 }
