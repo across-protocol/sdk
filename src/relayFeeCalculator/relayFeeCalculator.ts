@@ -47,6 +47,7 @@ type ChainIdAsString = string;
 export interface CapitalCostConfigOverride {
   default: CapitalCostConfig;
   routeOverrides?: Record<ChainIdAsString, Record<ChainIdAsString, CapitalCostConfig>>;
+  destinationChainOverrides?: Record<ChainIdAsString, CapitalCostConfig>;
 }
 export type RelayCapitalCostConfig = CapitalCostConfigOverride | CapitalCostConfig;
 export interface BaseRelayFeeCalculatorConfig {
@@ -189,10 +190,10 @@ export class RelayFeeCalculator {
     this.validateCapitalCostsConfig(config.default);
     // Iterate over all the route overrides and validate them.
     for (const toChainIdRoutes of Object.values(config.routeOverrides || {})) {
-      for (const override of Object.values(toChainIdRoutes)) {
-        this.validateCapitalCostsConfig(override);
-      }
+      Object.values(toChainIdRoutes).forEach(this.validateCapitalCostsConfig);
     }
+    // Validate destination chain overrides
+    Object.values(config.destinationChainOverrides || {}).forEach(this.validateCapitalCostsConfig);
     return config;
   }
 
@@ -310,10 +311,9 @@ export class RelayFeeCalculator {
     // bound to an upper bound. After the kink, the fee % increase will be fixed, and slowly approach the upper bound
     // for very large amount inputs.
     else {
-      const config =
-        isDefined(_originRoute) && isDefined(_destinationRoute)
-          ? tokenCostConfig.routeOverrides?.[_originRoute]?.[_destinationRoute] ?? tokenCostConfig.default
-          : tokenCostConfig.default;
+      const destinationChainOverride = tokenCostConfig?.destinationChainOverrides?.[_destinationRoute || ""];
+      const routeOverride = tokenCostConfig?.routeOverrides?.[_originRoute || ""]?.[_destinationRoute || ""];
+      const config: CapitalCostConfig = routeOverride ?? destinationChainOverride ?? tokenCostConfig.default;
 
       // Scale amount "y" to 18 decimals.
       const y = toBN(_amountToRelay).mul(toBNWei("1", 18 - config.decimals));
