@@ -1,3 +1,4 @@
+import { CCTP_NO_DOMAIN } from "@across-protocol/constants";
 import { ChainFamily, CHAIN_IDs, MAINNET_CHAIN_IDs, PUBLIC_NETWORKS, TESTNET_CHAIN_IDs } from "../constants";
 
 export const hreNetworks: Record<number, string> = {
@@ -158,19 +159,7 @@ export function chainIsSvm(chainId: number): boolean {
  * @returns True if chainId is a CCTP-bridging enabled chain, otherwise false.
  */
 export function chainIsCCTPEnabled(chainId: number): boolean {
-  return [
-    // Mainnets
-    CHAIN_IDs.ARBITRUM,
-    CHAIN_IDs.BASE,
-    CHAIN_IDs.OPTIMISM,
-    CHAIN_IDs.POLYGON,
-    CHAIN_IDs.UNICHAIN,
-    // Testnets
-    CHAIN_IDs.BASE_SEPOLIA,
-    CHAIN_IDs.OPTIMISM_SEPOLIA,
-    CHAIN_IDs.ARBITRUM_SEPOLIA,
-    CHAIN_IDs.POLYGON_AMOY,
-  ].includes(chainId);
+  return PUBLIC_NETWORKS?.[chainId]?.cctpDomain !== CCTP_NO_DOMAIN;
 }
 
 /**
