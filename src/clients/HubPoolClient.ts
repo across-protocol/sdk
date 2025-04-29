@@ -498,11 +498,6 @@ export class HubPoolClient extends BaseAbstractClient {
     return this.lpTokens[l1Token];
   }
 
-  getL1TokenInfoForL2Token(l2Token: string, chainId: number): L1Token | undefined {
-    const l1TokenCounterpart = this.getL1TokenForL2TokenAtBlock(l2Token, chainId, this.latestBlockSearched);
-    return this.getTokenInfoForL1Token(l1TokenCounterpart);
-  }
-
   areTokensEquivalent(
     tokenA: string,
     chainIdA: number,
