@@ -133,8 +133,8 @@ export async function relayFillStatus(
 }
 
 /**
- * Resolves fill statuses for multiple deposits at a specific slot or current confirmed slot.
- * Uses PDAs for current slot queries, falls back to event reconstruction when needed.
+ * Resolves fill statuses for multiple deposits at a specific or latest confirmed slot,
+ * using PDAs when possible and falling back to events if needed.
  *
  * @param programId The spoke pool program ID.
  * @param relayData An array of relay data to resolve fill statuses for.
@@ -165,6 +165,13 @@ export async function fillStatusArray(
       )
     )
   ).flat();
+
+  if (atHeight !== undefined) {
+    console.warn(
+      "fillStatusArray: Querying specific slots for large arrays is slow. " +
+        "For current status, omit 'atHeight' param to use latest confirmed slot instead."
+    );
+  }
 
   // If no specific slot is requested, try fetching current statuses from PDAs
   // Otherwise, initialize all statuses as undefined
