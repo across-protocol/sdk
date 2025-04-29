@@ -64,34 +64,8 @@ export const resolveContractFromSymbol = (
   })?.addresses[Number(chainId)];
 };
 
-export function getTokenInformationFromAddress(address: string, tokenMapping = TOKEN_SYMBOLS_MAP): L1Token | undefined {
-  let details = Object.values(tokenMapping).find((details) => {
-    return Object.values(details.addresses).some((t) => t.toLowerCase() === address.toLowerCase());
-  });
-  if (!isDefined(details)) {
-    return undefined;
-  }
-  // If we are resolving a token on L1, then we need to re-map the address to the "canonical" L1 token, which in the context of
-  // `TOKEN_SYMBOLS_MAP`, is the token whose symbol is the _value_ in `TOKEN_EQUIVALENCE_REMAPPING`.
-  // `addressChainId` is guaranteed to exist since `details` was defined based on there being a chainId => address mapping for the input address.
-  const addressChainId = Number(
-    Object.keys(details!.addresses).find(
-      (chainId) => details!.addresses[chainId as keyof typeof details].toLowerCase() === address.toLowerCase()
-    )
-  );
-  if (chainIsL1(addressChainId)) {
-    const l1TokenSymbol = TOKEN_EQUIVALENCE_REMAPPING[details.symbol] ?? details.symbol;
-    details = TOKEN_SYMBOLS_MAP[l1TokenSymbol as keyof typeof TOKEN_SYMBOLS_MAP];
-  }
-  return {
-    decimals: details.decimals,
-    symbol: details.symbol,
-    address,
-  };
-}
-
-export function getCoingeckoTokenIdByAddress(contractAddress: string): string {
-  const token = getTokenInformationFromAddress(contractAddress);
+export function getCoingeckoTokenIdByAddress(contractAddress: string, chainId: number): string {
+  const token = getTokenInfo(contractAddress, chainId);
   if (!token) {
     throw new Error(`Token with address ${contractAddress} not found in token mapping`);
   }
@@ -128,14 +102,18 @@ export function isStablecoin(tokenSymbol: string): boolean {
   );
 }
 
-export function getTokenInfo(l2TokenAddress: string, chainId: number): L1Token {
+export function getTokenInfo(l2TokenAddress: string, chainId: number, tokenMapping = TOKEN_SYMBOLS_MAP): L1Token {
   // @dev This might give false positives if tokens on different networks have the same address. I'm not sure how
   // to get around this...
-  const tokenObject = Object.values(TOKEN_SYMBOLS_MAP).find(({ addresses }) => addresses[chainId] === l2TokenAddress);
+  let tokenObject = Object.values(tokenMapping).find(({ addresses }) => addresses[chainId] === l2TokenAddress);
   if (!tokenObject) {
     throw new Error(
       `TokenUtils#getTokenInfo: Unable to resolve token in TOKEN_SYMBOLS_MAP for ${l2TokenAddress} on chain ${chainId}`
     );
+  }
+  if (chainIsL1(chainId)) {
+    const l1TokenSymbol = TOKEN_EQUIVALENCE_REMAPPING[tokenObject.symbol] ?? tokenObject.symbol;
+    tokenObject = tokenMapping[l1TokenSymbol as keyof typeof tokenMapping];
   }
   return {
     address: l2TokenAddress,

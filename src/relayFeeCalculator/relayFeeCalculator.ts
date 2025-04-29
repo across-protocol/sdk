@@ -8,7 +8,7 @@ import {
   TransactionCostEstimate,
   bnZero,
   fixedPointAdjustment,
-  getTokenInformationFromAddress,
+  getTokenInfo,
   isDefined,
   max,
   min,
@@ -242,8 +242,8 @@ export class RelayFeeCalculator {
   ): Promise<BigNumber> {
     if (toBN(amountToRelay).eq(bnZero)) return MAX_BIG_INT;
 
-    const { inputToken } = deposit;
-    const token = getTokenInformationFromAddress(inputToken, tokenMapping);
+    const { inputToken, originChainId } = deposit;
+    const token = getTokenInfo(inputToken, originChainId, tokenMapping);
     if (!isDefined(token)) {
       throw new Error(`Could not find token information for ${inputToken}`);
     }
@@ -369,8 +369,8 @@ export class RelayFeeCalculator {
     // If the amount to relay is not provided, then we
     // should use the full deposit amount.
     amountToRelay ??= deposit.outputAmount;
-    const { inputToken } = deposit;
-    const token = getTokenInformationFromAddress(inputToken);
+    const { inputToken, originChainId } = deposit;
+    const token = getTokenInfo(inputToken, originChainId);
     if (!isDefined(token)) {
       throw new Error(`Could not find token information for ${inputToken}`);
     }
