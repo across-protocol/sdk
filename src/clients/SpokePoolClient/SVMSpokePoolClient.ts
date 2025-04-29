@@ -195,7 +195,7 @@ export class SvmSpokePoolClient extends SpokePoolClient {
     }
     return {
       found: true,
-      deposit: deposit.deposit,
+      deposit,
     };
   }
 
