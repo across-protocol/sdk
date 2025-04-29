@@ -282,7 +282,7 @@ describe("RelayFeeCalculator", () => {
   });
 });
 
-describe.only("RelayFeeCalculator: Composable Bridging", function () {
+describe("RelayFeeCalculator: Composable Bridging", function () {
   let spokePool: SpokePool, erc20: Contract, destErc20: Contract, weth: Contract;
   let client: RelayFeeCalculator;
   let queries: QueryBase;
