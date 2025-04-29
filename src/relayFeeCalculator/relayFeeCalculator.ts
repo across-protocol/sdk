@@ -190,12 +190,10 @@ export class RelayFeeCalculator {
     this.validateCapitalCostsConfig(config.default);
     // Iterate over all the route overrides and validate them.
     for (const toChainIdRoutes of Object.values(config.routeOverrides || {})) {
-      for (const override of Object.values(toChainIdRoutes)) {
-        this.validateCapitalCostsConfig(override);
-      }
+      Object.values(toChainIdRoutes).forEach(this.validateCapitalCostsConfig);
     }
     // Validate destination chain overrides
-    Object.values(config.destinationChainOverrides || {}).forEach(this.validateCapitalCostsConfig)
+    Object.values(config.destinationChainOverrides || {}).forEach(this.validateCapitalCostsConfig);
     return config;
   }
 
