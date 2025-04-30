@@ -4,7 +4,7 @@ import * as constants from "../constants";
 import { L1Token } from "../interfaces";
 import { ERC20__factory } from "../typechain";
 import { BigNumber } from "./BigNumberUtils";
-import { getNetworkName, chainIsL1 } from "./NetworkUtils";
+import { getNetworkName, chainIsL1, chainIsProd } from "./NetworkUtils";
 import { isDefined } from "./TypeGuards";
 import { compareAddressesSimple } from "./AddressUtils";
 const { TOKEN_SYMBOLS_MAP, CHAIN_IDs, TOKEN_EQUIVALENCE_REMAPPING } = constants;
@@ -138,10 +138,11 @@ export function getUsdcSymbol(l2Token: string, chainId: number): string | undefi
 }
 
 export function getL1TokenInfo(l2TokenAddress: string, chainId: number): L1Token {
-  if (chainId === CHAIN_IDs.MAINNET)
+  if (chainIsL1(chainId))
     throw new Error("chainId should be an L2 chainId because many mappings re-use the same L1 token address");
   const tokenObject = Object.values(TOKEN_SYMBOLS_MAP).find(({ addresses }) => addresses[chainId] === l2TokenAddress);
-  const l1TokenAddress = tokenObject?.addresses[CHAIN_IDs.MAINNET];
+  const hubChainId = chainIsProd(chainId) ? CHAIN_IDs.MAINNET : CHAIN_IDs.SEPOLIA;
+  const l1TokenAddress = tokenObject?.addresses[hubChainId];
   if (!l1TokenAddress) {
     throw new Error(
       `TokenUtils#getL1TokenInfo: Unable to resolve l1 token address in TOKEN_SYMBOLS_MAP for L2 token ${l2TokenAddress} on chain ${chainId}`
