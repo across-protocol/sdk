@@ -138,7 +138,7 @@ export function getUsdcSymbol(l2Token: string, chainId: number): string | undefi
 }
 
 export function getL1TokenInfo(l2TokenAddress: string, chainId: number): L1Token {
-  if ((chainIsProd(chainId) && chainId === CHAIN_IDs.MAINNET) || chainId === CHAIN_IDs.SEPOLIA)
+  if (chainIsL1(chainId))
     throw new Error("chainId should be an L2 chainId because many mappings re-use the same L1 token address");
   const tokenObject = Object.values(TOKEN_SYMBOLS_MAP).find(({ addresses }) => addresses[chainId] === l2TokenAddress);
   const l1TokenAddress = tokenObject?.addresses[chainIsProd(chainId) ? CHAIN_IDs.MAINNET : CHAIN_IDs.SEPOLIA];
