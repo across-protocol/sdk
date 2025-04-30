@@ -26,9 +26,9 @@ import { knownEventNames, SpokePoolClient, SpokePoolUpdate } from "./SpokePoolCl
  */
 export class SvmSpokePoolClient extends SpokePoolClient {
   /**
-   * Private constructor. Use the async create() method to instantiate.
+   * Protected constructor. Use the async create() method to instantiate.
    */
-  private constructor(
+  protected constructor(
     logger: winston.Logger,
     hubPoolClient: HubPoolClient | null,
     chainId: number,
@@ -36,8 +36,7 @@ export class SvmSpokePoolClient extends SpokePoolClient {
     eventSearchConfig: MakeOptional<EventSearchConfig, "to">,
     protected svmEventsClient: SvmCpiEventsClient,
     protected programId: Address,
-    protected statePda: Address,
-    protected rpc: Rpc<SolanaRpcApiFromTransport<RpcTransport>>
+    protected statePda: Address
   ) {
     // Convert deploymentSlot to number for base class, might need refinement
     super(logger, hubPoolClient, chainId, Number(deploymentSlot), eventSearchConfig);
@@ -65,8 +64,32 @@ export class SvmSpokePoolClient extends SpokePoolClient {
       eventSearchConfig,
       svmEventsClient,
       programId,
-      statePda,
-      rpc
+      statePda
+    );
+  }
+
+  /**
+   * Factory method to asynchronously create an instance of SvmSpokePoolClient with an existing event client.
+   */
+  public static async createWithExistingEventClient(
+    logger: winston.Logger,
+    hubPoolClient: HubPoolClient | null,
+    chainId: number,
+    deploymentSlot: bigint,
+    eventSearchConfig: MakeOptional<EventSearchConfig, "to"> = { from: 0, maxLookBack: 0 }, // Provide default
+    eventClient: SvmCpiEventsClient
+  ) {
+    const programId = eventClient.getProgramAddress();
+    const statePda = await getStatePda(programId);
+    return new SvmSpokePoolClient(
+      logger,
+      hubPoolClient,
+      chainId,
+      deploymentSlot,
+      eventSearchConfig,
+      eventClient,
+      programId,
+      statePda
     );
   }
 
@@ -82,7 +105,7 @@ export class SvmSpokePoolClient extends SpokePoolClient {
    * Performs an update to refresh the state of this client by querying SVM events.
    */
   protected async _update(eventsToQuery: string[]): Promise<SpokePoolUpdate> {
-    const searchConfig = await this.updateSearchConfig(this.rpc);
+    const searchConfig = await this.updateSearchConfig(this.svmEventsClient.getRpc());
     if (isUpdateFailureReason(searchConfig)) {
       const reason = searchConfig;
       return { success: false, reason };
@@ -118,7 +141,7 @@ export class SvmSpokePoolClient extends SpokePoolClient {
     const timerStart = Date.now();
 
     const [currentTime, ...eventsQueried] = await Promise.all([
-      this.rpc.getBlockTime(BigInt(searchConfig.to)).send(),
+      this.svmEventsClient.getRpc().getBlockTime(BigInt(searchConfig.to)).send(),
       ...eventsToQuery.map(async (eventName, idx) => {
         const config = eventSearchConfigs[idx];
         const events = await this.svmEventsClient.queryEvents(
@@ -162,14 +185,14 @@ export class SvmSpokePoolClient extends SpokePoolClient {
    * @note This function assumes that fill deadline buffer is a constant value in svm environments.
    */
   public override getMaxFillDeadlineInRange(_startSlot: number, _endSlot: number): Promise<number> {
-    return getFillDeadline(this.rpc, this.statePda);
+    return getFillDeadline(this.svmEventsClient.getRpc(), this.statePda);
   }
 
   /**
    * Retrieves the timestamp for a given SVM slot number.
    */
   public override getTimestampForBlock(slot: number): Promise<number> {
-    return getTimestampForSlot(this.rpc, slot);
+    return getTimestampForSlot(this.svmEventsClient.getRpc(), slot);
   }
 
   /**
