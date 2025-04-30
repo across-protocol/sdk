@@ -4,7 +4,7 @@ import { fetchState, decodeFillStatusAccount } from "@across-protocol/contracts/
 
 import { SvmCpiEventsClient } from "./eventsClient";
 import { Deposit, FillStatus, FillWithBlock, RelayData } from "../../interfaces";
-import { BigNumber, chainIsSvm, chunk, getCurrentTime, isUnsafeDepositId } from "../../utils";
+import { BigNumber, chainIsSvm, chunk, isUnsafeDepositId } from "../../utils";
 import { getFillStatusPda } from "./utils";
 import { SVMEventNames } from "./types";
 
@@ -109,11 +109,14 @@ export async function relayFillStatus(
 
   // Get fill status PDA using relayData
   const fillStatusPda = await getFillStatusPda(programId, relayData, destinationChainId);
+  const currentSlot = await provider.getSlot({ commitment: "confirmed" }).send();
 
   // If no specific slot is requested, try fetching the current status from the PDA
   if (atHeight === undefined) {
-    const fillStatusAccount = await fetchEncodedAccount(provider, fillStatusPda, { commitment: "confirmed" });
-
+    const [fillStatusAccount, currentSlotTimestamp] = await Promise.all([
+      fetchEncodedAccount(provider, fillStatusPda, { commitment: "confirmed" }),
+      provider.getBlockTime(currentSlot).send(),
+    ]);
     // If the PDA exists, return the stored fill status
     if (fillStatusAccount.exists) {
       const decodedAccountData = decodeFillStatusAccount(fillStatusAccount);
@@ -121,13 +124,13 @@ export async function relayFillStatus(
     }
     // If the PDA doesn't exist and the deadline hasn't passed yet, the deposit must be unfilled,
     // since PDAs can't be closed before the fill deadline.
-    else if (getCurrentTime() < relayData.fillDeadline) {
+    else if (Number(currentSlotTimestamp) < relayData.fillDeadline) {
       return FillStatus.Unfilled;
     }
   }
 
   // If status couldn't be determined from the PDA, or if a specific slot was requested, reconstruct the status from events
-  const toSlot = atHeight ? BigInt(atHeight) : await provider.getSlot({ commitment: "confirmed" }).send();
+  const toSlot = atHeight ? BigInt(atHeight) : currentSlot;
 
   return resolveFillStatusFromPdaEvents(fillStatusPda, toSlot, svmEventsClient);
 }
@@ -301,15 +304,18 @@ async function fetchBatchFillStatusFromPdaAccounts(
   relayDataArray: RelayData[]
 ): Promise<(FillStatus | undefined)[]> {
   const chunkSize = 100; // SVM method getMultipleAccounts allows a max of 100 addresses per request
-  const pdaAccounts = (
-    await Promise.all(
+  const currentSlot = await provider.getSlot({ commitment: "confirmed" }).send();
+
+  const [pdaAccounts, currentSlotTimestamp] = await Promise.all([
+    Promise.all(
       chunk(fillStatusPdas, chunkSize).map((chunk) =>
         fetchEncodedAccounts(provider, chunk, { commitment: "confirmed" })
       )
-    )
-  ).flat();
+    ),
+    provider.getBlockTime(currentSlot).send(),
+  ]);
 
-  const fillStatuses = pdaAccounts.map((account, index) => {
+  const fillStatuses = pdaAccounts.flat().map((account, index) => {
     // If the PDA exists, we can fetch the status directly.
     if (account.exists) {
       const decodedAccount = decodeFillStatusAccount(account);
@@ -317,7 +323,7 @@ async function fetchBatchFillStatusFromPdaAccounts(
     }
     // If the PDA doesn't exist and the deadline hasn't passed yet, the deposit must be unfilled,
     // since PDAs can't be closed before the fill deadline.
-    else if (getCurrentTime() < relayDataArray[index].fillDeadline) {
+    else if (Number(currentSlotTimestamp) < relayDataArray[index].fillDeadline) {
       return FillStatus.Unfilled;
     }
     // If the PDA doesn't exist and the fill deadline has passed, then the status can't be determined and is set to undefined.
