@@ -6,8 +6,10 @@ import web3, {
   Commitment,
   GetSignaturesForAddressApi,
   GetTransactionApi,
+  Rpc,
   RpcTransport,
   Signature,
+  SolanaRpcApiFromTransport,
 } from "@solana/kit";
 import { bs58 } from "../../utils";
 import { EventName, EventWithData } from "./types";
@@ -34,9 +36,9 @@ export class SvmCpiEventsClient {
   private derivedAddress?: Address;
 
   /**
-   * Private constructor. Use the async create() method to instantiate.
+   * Protected constructor. Use the async create() method to instantiate.
    */
-  private constructor(
+  protected constructor(
     rpc: web3.Rpc<web3.SolanaRpcApiFromTransport<RpcTransport>>,
     address: Address,
     eventAuthority: Address,
@@ -237,5 +239,9 @@ export class SvmCpiEventsClient {
 
   public getProgramAddress(): Address {
     return this.programAddress;
+  }
+
+  public getRpc(): Rpc<SolanaRpcApiFromTransport<RpcTransport>> {
+    return this.rpc;
   }
 }
