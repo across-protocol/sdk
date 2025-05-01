@@ -8,7 +8,7 @@ import {
   TransactionCostEstimate,
   bnZero,
   fixedPointAdjustment,
-  getTokenInformationFromAddress,
+  getTokenInfo,
   isDefined,
   max,
   min,
@@ -16,6 +16,8 @@ import {
   percent,
   toBN,
   toBNWei,
+  isZeroAddress,
+  compareAddressesSimple,
 } from "../utils";
 import { Transport } from "viem";
 
@@ -243,8 +245,20 @@ export class RelayFeeCalculator {
   ): Promise<BigNumber> {
     if (toBN(amountToRelay).eq(bnZero)) return MAX_BIG_INT;
 
-    const { inputToken } = deposit;
-    const token = getTokenInformationFromAddress(inputToken, tokenMapping);
+    const { inputToken, destinationChainId, originChainId } = deposit;
+    // It's fine if we resolve a destination token which is not the "canonical" L1 token (e.g. USDB for DAI or USDC.e for USDC), since `getTokenInfo` will re-map
+    // the output token to the canonical version. What matters here is that we find an entry in the token map which has defined addresses for BOTH the origin
+    // and destination chain. This prevents the call to `getTokenInfo` to mistakenly return token info for a token which has a defined address on origin and an
+    // undefined address on destination.
+    const destinationChainTokenDetails = Object.values(tokenMapping).find(
+      (details) =>
+        compareAddressesSimple(details.addresses[originChainId], inputToken) &&
+        isDefined(details.addresses[destinationChainId])
+    );
+    const outputToken = isZeroAddress(deposit.outputToken)
+      ? destinationChainTokenDetails!.addresses[destinationChainId]
+      : deposit.outputToken;
+    const token = getTokenInfo(outputToken, destinationChainId, tokenMapping);
     if (!isDefined(token)) {
       throw new Error(`Could not find token information for ${inputToken}`);
     }
@@ -369,8 +383,10 @@ export class RelayFeeCalculator {
     // If the amount to relay is not provided, then we
     // should use the full deposit amount.
     amountToRelay ??= deposit.outputAmount;
-    const { inputToken } = deposit;
-    const token = getTokenInformationFromAddress(inputToken);
+    const { inputToken, originChainId } = deposit;
+    // We can perform a simple lookup with `getTokenInfo` here without resolving the exact token to resolve since we only need to
+    // resolve the L1 token symbol and not the L2 token decimals.
+    const token = getTokenInfo(inputToken, originChainId);
     if (!isDefined(token)) {
       throw new Error(`Could not find token information for ${inputToken}`);
     }

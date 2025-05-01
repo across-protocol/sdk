@@ -220,34 +220,36 @@ export function spreadEventWithBlockNumber(event: Log): SortableEvent {
   };
 }
 
+type PartialSortableEvent = Pick<SortableEvent, "blockNumber" | "logIndex">;
+
 // This copies the array and sorts it, returning a new array with the new ordering.
-export function sortEventsAscending<T extends SortableEvent>(events: T[]): T[] {
+export function sortEventsAscending<T extends PartialSortableEvent>(events: T[]): T[] {
   return sortEventsAscendingInPlace([...events]);
 }
 
 // This sorts the events in place, meaning it modifies the passed array and returns a reference to the same array.
 // Note: this method should only be used in cases where modifications are acceptable.
-export function sortEventsAscendingInPlace<T extends SortableEvent>(events: T[]): T[] {
+export function sortEventsAscendingInPlace<T extends PartialSortableEvent>(events: T[]): T[] {
   return events.sort((ex, ey) =>
     ex.blockNumber === ey.blockNumber ? ex.logIndex - ey.logIndex : ex.blockNumber - ey.blockNumber
   );
 }
 
 // This copies the array and sorts it, returning a new array with the new ordering.
-export function sortEventsDescending<T extends SortableEvent>(events: T[]): T[] {
+export function sortEventsDescending<T extends PartialSortableEvent>(events: T[]): T[] {
   return sortEventsDescendingInPlace([...events]);
 }
 
 // This sorts the events in place, meaning it modifies the passed array and returns a reference to the same array.
 // Note: this method should only be used in cases where modifications are acceptable.
-export function sortEventsDescendingInPlace<T extends SortableEvent>(events: T[]): T[] {
+export function sortEventsDescendingInPlace<T extends PartialSortableEvent>(events: T[]): T[] {
   return events.sort((ex, ey) =>
     ex.blockNumber === ey.blockNumber ? ey.logIndex - ex.logIndex : ey.blockNumber - ex.blockNumber
   );
 }
 
 // Returns true if ex is older than ey.
-export function isEventOlder<T extends SortableEvent>(ex: T, ey: T): boolean {
+export function isEventOlder<T extends PartialSortableEvent>(ex: T, ey: T): boolean {
   return ex.blockNumber === ey.blockNumber ? ex.logIndex < ey.logIndex : ex.blockNumber < ey.blockNumber;
 }
 

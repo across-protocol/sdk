@@ -569,8 +569,8 @@ export function buildDepositForRelayerFeeTest(
   const message = EMPTY_MESSAGE;
   return {
     depositId: bnUint32Max,
-    originChainId: 1,
-    destinationChainId: 10,
+    originChainId: Number(originChainId),
+    destinationChainId: Number(toChainId),
     depositor: randomAddress(),
     recipient: randomAddress(),
     inputToken,
