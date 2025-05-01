@@ -438,7 +438,7 @@ export class HubPoolClient extends BaseAbstractClient {
       const { originChainId, paymentChainId, inputAmount, quoteTimestamp } = deposit;
       const quoteBlock = quoteBlocks[quoteTimestamp];
 
-      if (paymentChainId === undefined) {
+      if (paymentChainId === undefined || paymentChainId === originChainId) {
         return { quoteBlock, realizedLpFeePct: bnZero };
       }
 
