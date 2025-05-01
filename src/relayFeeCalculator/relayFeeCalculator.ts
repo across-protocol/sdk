@@ -8,7 +8,7 @@ import {
   TransactionCostEstimate,
   bnZero,
   fixedPointAdjustment,
-  getTokenInformationFromAddress,
+  getTokenInfo,
   isDefined,
   max,
   min,
@@ -16,6 +16,8 @@ import {
   percent,
   toBN,
   toBNWei,
+  isZeroAddress,
+  compareAddressesSimple,
 } from "../utils";
 import { Transport } from "viem";
 
@@ -34,7 +36,6 @@ export interface QueryInterface {
     }>
   ) => Promise<TransactionCostEstimate>;
   getTokenPrice: (tokenSymbol: string) => Promise<number>;
-  getTokenDecimals: (tokenSymbol: string) => number;
 }
 
 export const expectedCapitalCostsKeys = ["lowerBound", "upperBound", "cutoff", "decimals"];
@@ -48,6 +49,7 @@ type ChainIdAsString = string;
 export interface CapitalCostConfigOverride {
   default: CapitalCostConfig;
   routeOverrides?: Record<ChainIdAsString, Record<ChainIdAsString, CapitalCostConfig>>;
+  destinationChainOverrides?: Record<ChainIdAsString, CapitalCostConfig>;
 }
 export type RelayCapitalCostConfig = CapitalCostConfigOverride | CapitalCostConfig;
 export interface BaseRelayFeeCalculatorConfig {
@@ -190,10 +192,10 @@ export class RelayFeeCalculator {
     this.validateCapitalCostsConfig(config.default);
     // Iterate over all the route overrides and validate them.
     for (const toChainIdRoutes of Object.values(config.routeOverrides || {})) {
-      for (const override of Object.values(toChainIdRoutes)) {
-        this.validateCapitalCostsConfig(override);
-      }
+      Object.values(toChainIdRoutes).forEach(this.validateCapitalCostsConfig);
     }
+    // Validate destination chain overrides
+    Object.values(config.destinationChainOverrides || {}).forEach(this.validateCapitalCostsConfig);
     return config;
   }
 
@@ -243,8 +245,20 @@ export class RelayFeeCalculator {
   ): Promise<BigNumber> {
     if (toBN(amountToRelay).eq(bnZero)) return MAX_BIG_INT;
 
-    const { inputToken } = deposit;
-    const token = getTokenInformationFromAddress(inputToken, tokenMapping);
+    const { inputToken, destinationChainId, originChainId } = deposit;
+    // It's fine if we resolve a destination token which is not the "canonical" L1 token (e.g. USDB for DAI or USDC.e for USDC), since `getTokenInfo` will re-map
+    // the output token to the canonical version. What matters here is that we find an entry in the token map which has defined addresses for BOTH the origin
+    // and destination chain. This prevents the call to `getTokenInfo` to mistakenly return token info for a token which has a defined address on origin and an
+    // undefined address on destination.
+    const destinationChainTokenDetails = Object.values(tokenMapping).find(
+      (details) =>
+        compareAddressesSimple(details.addresses[originChainId], inputToken) &&
+        isDefined(details.addresses[destinationChainId])
+    );
+    const outputToken = isZeroAddress(deposit.outputToken)
+      ? destinationChainTokenDetails!.addresses[destinationChainId]
+      : deposit.outputToken;
+    const token = getTokenInfo(outputToken, destinationChainId, tokenMapping);
     if (!isDefined(token)) {
       throw new Error(`Could not find token information for ${inputToken}`);
     }
@@ -311,10 +325,9 @@ export class RelayFeeCalculator {
     // bound to an upper bound. After the kink, the fee % increase will be fixed, and slowly approach the upper bound
     // for very large amount inputs.
     else {
-      const config =
-        isDefined(_originRoute) && isDefined(_destinationRoute)
-          ? tokenCostConfig.routeOverrides?.[_originRoute]?.[_destinationRoute] ?? tokenCostConfig.default
-          : tokenCostConfig.default;
+      const destinationChainOverride = tokenCostConfig?.destinationChainOverrides?.[_destinationRoute || ""];
+      const routeOverride = tokenCostConfig?.routeOverrides?.[_originRoute || ""]?.[_destinationRoute || ""];
+      const config: CapitalCostConfig = routeOverride ?? destinationChainOverride ?? tokenCostConfig.default;
 
       // Scale amount "y" to 18 decimals.
       const y = toBN(_amountToRelay).mul(toBNWei("1", 18 - config.decimals));
@@ -370,8 +383,10 @@ export class RelayFeeCalculator {
     // If the amount to relay is not provided, then we
     // should use the full deposit amount.
     amountToRelay ??= deposit.outputAmount;
-    const { inputToken } = deposit;
-    const token = getTokenInformationFromAddress(inputToken);
+    const { inputToken, originChainId } = deposit;
+    // We can perform a simple lookup with `getTokenInfo` here without resolving the exact token to resolve since we only need to
+    // resolve the L1 token symbol and not the L2 token decimals.
+    const token = getTokenInfo(inputToken, originChainId);
     if (!isDefined(token)) {
       throw new Error(`Could not find token information for ${inputToken}`);
     }

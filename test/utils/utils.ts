@@ -390,8 +390,8 @@ async function _deposit(
     toLiteChain: false,
     quoteBlockNumber: 0, // @todo
     blockNumber,
-    transactionHash,
-    transactionIndex,
+    txnRef: transactionHash,
+    txnIndex: transactionIndex,
     logIndex,
   };
 }
@@ -437,8 +437,8 @@ export async function requestV3SlowFill(
     exclusivityDeadline: args.exclusivityDeadline,
     exclusiveRelayer: toAddress(args.exclusiveRelayer),
     blockNumber,
-    transactionHash,
-    transactionIndex,
+    txnRef: transactionHash,
+    txnIndex: transactionIndex,
     logIndex,
   };
 }
@@ -493,8 +493,8 @@ export async function fillV3Relay(
       fillType: args.relayExecutionInfo.fillType,
     },
     blockNumber,
-    transactionHash,
-    transactionIndex,
+    txnRef: transactionHash,
+    txnIndex: transactionIndex,
     logIndex,
   };
 }
@@ -569,8 +569,8 @@ export function buildDepositForRelayerFeeTest(
   const message = EMPTY_MESSAGE;
   return {
     depositId: bnUint32Max,
-    originChainId: 1,
-    destinationChainId: 10,
+    originChainId: Number(originChainId),
+    destinationChainId: Number(toChainId),
     depositor: randomAddress(),
     recipient: randomAddress(),
     inputToken,

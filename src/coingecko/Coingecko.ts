@@ -131,7 +131,7 @@ export class Coingecko {
   protected async getCoingeckoTokenId(address: string, chainId: number): Promise<string> {
     let id: string | undefined;
     try {
-      id = getCoingeckoTokenIdByAddress(address);
+      id = getCoingeckoTokenIdByAddress(address, chainId);
 
       return id;
     } catch (error) {
