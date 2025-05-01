@@ -87,12 +87,11 @@ function _getEthersGasPriceEstimate(
   const gasPriceFeeds = {
     [CHAIN_IDs.ALEPH_ZERO]: arbitrum.eip1559,
     [CHAIN_IDs.ARBITRUM]: arbitrum.eip1559,
-    [CHAIN_IDs.BNB]: ethereum.eip1559,
+    [CHAIN_IDs.BNB]: ethereum.legacy,
     [CHAIN_IDs.MAINNET]: ethereum.eip1559,
     [CHAIN_IDs.POLYGON]: polygon.gasStation,
     [CHAIN_IDs.SCROLL]: ethereum.legacy,
     [CHAIN_IDs.ZK_SYNC]: ethereum.legacy,
-    [CHAIN_IDs.BNB]: ethereum.legacy,
 
     // Testnet Chains
     [CHAIN_IDs.ARBITRUM_SEPOLIA]: arbitrum.eip1559,
