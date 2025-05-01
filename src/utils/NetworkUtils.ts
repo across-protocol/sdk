@@ -117,12 +117,12 @@ export function chainIsLinea(chainId: number): boolean {
 }
 
 /**
- * Determines whether a chain ID is a BNB implementation.
+ * Determines whether a chain ID is a BSC implementation.
  * @param chainId Chain ID to evaluate.
- * @returns True if chainId is a BNB chain, otherwise false.
+ * @returns True if chainId is a BSC chain, otherwise false.
  */
-export function chainIsBNB(chainId: number): boolean {
-  return [CHAIN_IDs.BNB].includes(chainId);
+export function chainIsBSC(chainId: number): boolean {
+  return [CHAIN_IDs.BSC].includes(chainId);
 }
 
 /**
