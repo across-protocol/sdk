@@ -1,6 +1,6 @@
 import { providers } from "ethers";
 import { bnOne } from "../../utils";
-import { GasPriceEstimate, TransactionType } from "../types";
+import { GasPriceEstimate } from "../types";
 import * as ethereum from "./ethereum";
 import { GasPriceEstimateOptions } from "../oracle";
 
@@ -23,5 +23,5 @@ export async function eip1559(provider: providers.Provider, opts: GasPriceEstima
   // The remaining maxFeePerGas should be scaled already.
   const maxFeePerGas = _maxFeePerGas.sub(maxPriorityFeePerGas).add(bnOne);
 
-  return { maxPriorityFeePerGas: bnOne, maxFeePerGas, type: TransactionType.EIP1559 };
+  return { maxPriorityFeePerGas: bnOne, maxFeePerGas };
 }
