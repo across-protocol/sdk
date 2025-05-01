@@ -83,7 +83,7 @@ export const STABLE_COIN_SYMBOLS = [
 ];
 
 export const CUSTOM_GAS_TOKENS = {
-  [CHAIN_IDs.BNB]: "BNB",
+  [CHAIN_IDs.BSC]: "BNB",
   [CHAIN_IDs.POLYGON]: "MATIC",
   [CHAIN_IDs.POLYGON_AMOY]: "MATIC",
   [CHAIN_IDs.ALEPH_ZERO]: "AZERO",
