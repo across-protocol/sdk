@@ -92,6 +92,7 @@ function _getEthersGasPriceEstimate(
     [CHAIN_IDs.POLYGON]: polygon.gasStation,
     [CHAIN_IDs.SCROLL]: ethereum.legacy,
     [CHAIN_IDs.ZK_SYNC]: ethereum.legacy,
+    [CHAIN_IDs.BNB]: ethereum.legacy,
 
     // Testnet Chains
     [CHAIN_IDs.ARBITRUM_SEPOLIA]: arbitrum.eip1559,
