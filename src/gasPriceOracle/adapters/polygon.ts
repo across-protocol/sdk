@@ -2,7 +2,7 @@ import { providers } from "ethers";
 import { BaseHTTPAdapter, BaseHTTPAdapterArgs } from "../../priceClient/adapters/baseAdapter";
 import { BigNumber, bnZero, fixedPointAdjustment, isDefined, parseUnits } from "../../utils";
 import { CHAIN_IDs } from "../../constants";
-import { GasPriceEstimate } from "../types";
+import { GasPriceEstimate, TransactionType } from "../types";
 import { gasPriceError } from "../util";
 import { eip1559 } from "./ethereum";
 import { GasPriceEstimateOptions } from "../oracle";
@@ -130,5 +130,5 @@ export async function gasStation(
     }
   }
 
-  return { maxPriorityFeePerGas, maxFeePerGas };
+  return { maxPriorityFeePerGas, maxFeePerGas, type: TransactionType.EIP1559 };
 }

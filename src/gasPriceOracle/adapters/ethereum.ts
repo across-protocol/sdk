@@ -1,7 +1,7 @@
 import assert from "assert";
 import { providers } from "ethers";
 import { BigNumber, bnZero, fixedPointAdjustment, getNetworkName, parseUnits } from "../../utils";
-import { GasPriceEstimate } from "../types";
+import { GasPriceEstimate, TransactionType } from "../types";
 import { gasPriceError } from "../util";
 import { GasPriceEstimateOptions } from "../oracle";
 
@@ -46,6 +46,7 @@ export async function eip1559Raw(
   return {
     maxFeePerGas: scaledPriorityFee.add(scaledBaseFee),
     maxPriorityFeePerGas: scaledPriorityFee,
+    type: TransactionType.EIP1559
   };
 }
 
@@ -63,5 +64,6 @@ export async function legacy(provider: providers.Provider, opts: GasPriceEstimat
   return {
     maxFeePerGas: gasPrice.mul(baseFeeMultiplier).div(fixedPointAdjustment),
     maxPriorityFeePerGas: bnZero,
+    type: TransactionType.LEGACY,
   };
 }
