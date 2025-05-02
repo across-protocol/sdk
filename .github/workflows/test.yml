@@ -8,6 +8,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
+      - id: versions
+        uses: solana-developers/github-actions/extract-versions@v0.2.5
+      - uses: solana-developers/github-actions/setup-solana@v0.2.5
+        with:
+          solana_version: ${{ steps.versions.outputs.solana_version }}
       - uses: actions/setup-node@v3
         with:
           node-version: 20

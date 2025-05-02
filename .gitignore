@@ -11,6 +11,7 @@ dist
 /coverage
 /artifacts
 /typechain-types
+/test/.ledger
 
 # production
 /build
