@@ -8,6 +8,41 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v3
+      # The following is a similar implementation to the Solana Developers GitHub Action:
+      # https://github.com/solana-developers/github-actions/blob/main/extract-versions/action.yaml
+      # It is adapted to extract only the Solana version from a remote repository (across-protocol/contracts).
+      - name: Extract Solana version from across‑protocol/contracts
+        id: extract-versions
+        run: |
+          set -euo pipefail
+
+          REPO="across-protocol/contracts"
+          REF="main"
+          WORKDIR="/tmp/contracts"
+          mkdir -p "$WORKDIR"
+
+          curl -sSfL "https://raw.githubusercontent.com/${REPO}/${REF}/Cargo.lock" \
+               -o "${WORKDIR}/Cargo.lock" || true
+
+          cd "$WORKDIR"
+
+          if [[ -n "${OVERRIDE_SOLANA_VERSION:-}" ]]; then
+            SOLANA_VERSION="${OVERRIDE_SOLANA_VERSION}"
+          else
+            if [[ -f Cargo.lock ]]; then
+              SOLANA_VERSION=$(grep -A2 'name = "solana-program"' Cargo.lock \
+                               | grep 'version' | head -n1 | cut -d'"' -f2 || true)
+            fi
+          fi
+
+          SOLANA_VERSION=$(echo "$SOLANA_VERSION" \
+                           | grep -o '[0-9]\+\.[0-9]\+\.[0-9]\+')
+          echo "SOLANA_VERSION=$SOLANA_VERSION" | tee -a "$GITHUB_ENV"
+          echo "solana_version=$SOLANA_VERSION" >> "$GITHUB_OUTPUT"
+
+      - uses: solana-developers/github-actions/setup-all@v0.2.6
+        with:
+          solana_version: ${{ steps.extract-versions.outputs.solana_version }}
       - uses: actions/setup-node@v3
         with:
           node-version: 20
