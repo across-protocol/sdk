@@ -10,8 +10,13 @@ jobs:
       - uses: actions/checkout@v3
       - id: versions
         uses: solana-developers/github-actions/extract-versions@v0.2.5
-      - uses: solana-developers/github-actions/setup-solana@v0.2.5
+      - name: Extract Solana versions
+        uses: solana-developers/github-actions/extract-versions@v0.2.5
+        id: versions
+      - name: Setup Anchor & Solana
+        uses: solana-developers/github-actions/setup-all@v0.2.5
         with:
+          anchor_version: ${{ steps.versions.outputs.anchor_version }}
           solana_version: ${{ steps.versions.outputs.solana_version }}
       - uses: actions/setup-node@v3
         with:
