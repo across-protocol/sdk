@@ -258,9 +258,10 @@ export class RelayFeeCalculator {
     const outputToken = isZeroAddress(deposit.outputToken)
       ? destinationChainTokenDetails!.addresses[destinationChainId]
       : deposit.outputToken;
-    const token = getTokenInfo(outputToken, destinationChainId, tokenMapping);
-    if (!isDefined(token)) {
-      throw new Error(`Could not find token information for ${inputToken}`);
+    const outputTokenInfo = getTokenInfo(outputToken, destinationChainId, tokenMapping);
+    const inputTokenInfo = getTokenInfo(inputToken, originChainId, tokenMapping);
+    if (!isDefined(outputTokenInfo) || !isDefined(inputTokenInfo)) {
+      throw new Error(`Could not find token information for ${inputToken} or ${outputToken}`);
     }
 
     // Reduce the output amount to simulate a full fill with a lower value to estimate
@@ -284,7 +285,7 @@ export class RelayFeeCalculator {
     const [tokenGasCost, tokenPrice] = await Promise.all([
       _tokenGasCost ? Promise.resolve(_tokenGasCost) : getGasCosts,
       _tokenPrice ??
-        this.queries.getTokenPrice(token.symbol).catch((error) => {
+        this.queries.getTokenPrice(outputTokenInfo.symbol).catch((error) => {
           this.logger.error({
             at: "sdk/gasFeePercent",
             message: "Error while fetching token price",
@@ -295,7 +296,7 @@ export class RelayFeeCalculator {
           throw error;
         }),
     ]);
-    const gasFeesInToken = nativeToToken(tokenGasCost, tokenPrice, token.decimals, this.nativeTokenDecimals);
+    const gasFeesInToken = nativeToToken(tokenGasCost, tokenPrice, inputTokenInfo.decimals, this.nativeTokenDecimals);
     return percent(gasFeesInToken, amountToRelay.toString());
   }
 
