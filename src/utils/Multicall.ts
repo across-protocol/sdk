@@ -43,6 +43,10 @@ const DETERMINISTIC_MULTICALL_CHAINS = [
   ...Object.keys(hreNetworks).map(Number), // See test/utils/multicall.ts
 ];
 
+const PERMISSIONED_MULTICALL3_ADDRESSES = {
+  [CHAIN_IDs.BSC]: "0x38015ddB8b34c84934Cff058F571349Cc7d4139d",
+}
+
 export function getMulticallAddress(chainId: number): string | undefined {
   if (chainIsOPStack(chainId) || DETERMINISTIC_MULTICALL_CHAINS.includes(chainId)) {
     return DETERMINISTIC_MULTICALL_ADDRESS;
@@ -52,6 +56,15 @@ export function getMulticallAddress(chainId: number): string | undefined {
 
 export function getMulticall3(chainId: number, signerOrProvider: Signer | Provider): Multicall3 | undefined {
   const address = getMulticallAddress(chainId);
+  if (!address) {
+    return undefined;
+  }
+
+  return Multicall3__factory.connect(address, signerOrProvider);
+}
+
+export function getPermissionedMulticall3(chainId: number, signerOrProvider: Signer | Provider): Multicall3 | undefined {
+  const address = PERMISSIONED_MULTICALL3_ADDRESSES[chainId];
   if (!address) {
     return undefined;
   }
