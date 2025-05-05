@@ -258,17 +258,5 @@ export function constructPoolRebalanceLeaves(
       }
     });
 
-  chainsWithRefundsOnly.forEach((chainId) => {
-    leaves.push({
-      chainId,
-      bundleLpFees: [],
-      netSendAmounts: [],
-      runningBalances: [],
-      groupIndex: 0,
-      leafId: 0,
-      l1Tokens: [],
-    });
-  });
-
   return leaves;
 }
