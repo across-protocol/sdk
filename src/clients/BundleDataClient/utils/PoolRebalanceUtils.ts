@@ -5,6 +5,7 @@ import { BigNumber, bnZero, compareAddresses } from "../../../utils";
 import { HubPoolClient } from "../../HubPoolClient";
 import { V3DepositWithBlock } from "./shims";
 import { AcrossConfigStoreClient } from "../../AcrossConfigStoreClient";
+import assert from "assert";
 
 export type PoolRebalanceRoot = {
   runningBalances: RunningBalances;
@@ -178,6 +179,7 @@ export function constructPoolRebalanceLeaves(
   latestMainnetBlock: number,
   runningBalances: RunningBalances,
   realizedLpFees: RunningBalances,
+  chainsWithRefundsOnly: number[],
   configStoreClient: AcrossConfigStoreClient,
   maxL1TokenCount?: number
 ): PoolRebalanceLeaf[] {
@@ -185,10 +187,8 @@ export function constructPoolRebalanceLeaves(
   // we'll split up any leaves with too many L1 tokens.
   const leaves: PoolRebalanceLeaf[] = [];
   Object.keys(runningBalances)
-    .map((chainId) => Number(chainId))
-    // Leaves should be sorted by ascending chain ID
-    .sort((chainIdA, chainIdB) => chainIdA - chainIdB)
-    .map((chainId) => {
+    .map((_chainId) => {
+      const chainId = Number(_chainId);
       // Sort addresses.
       const sortedL1Tokens = Object.keys(runningBalances[chainId]).sort((addressA, addressB) => {
         return compareAddresses(addressA, addressB);
@@ -234,5 +234,25 @@ export function constructPoolRebalanceLeaves(
         });
       }
     });
-  return leaves;
+
+    // Add a leaf for each chain ID with no L1 tokens or running balances
+    assert(
+      chainsWithRefundsOnly.every((chainId) => runningBalances[chainId] === undefined) &&
+      chainsWithRefundsOnly.every((chainId) => realizedLpFees[chainId] === undefined),
+      "Refund-only chains should not have running balances or realized LP fees."
+    );
+    chainsWithRefundsOnly.forEach((chainId) => {
+      leaves.push({
+        chainId,
+        bundleLpFees: [],
+        netSendAmounts: [],
+        runningBalances: [],
+        groupIndex: 0,
+        leafId: 0,
+        l1Tokens: [],
+      })
+    })
+
+  // Leaves should be sorted by ascending chain ID
+  return leaves.sort(({ chainId: chainIdA }, { chainId: chainIdB }) => chainIdA - chainIdB);
 }
