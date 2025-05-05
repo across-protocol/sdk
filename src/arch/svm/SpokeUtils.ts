@@ -232,10 +232,10 @@ export async function findFillEvent(
   destinationChainId: number,
   svmEventsClient: SvmCpiEventsClient,
   fromSlot: number,
-  toSlot?: number | bigint
+  toSlot?: number
 ): Promise<FillWithBlock | undefined> {
   assert(chainIsSvm(destinationChainId), "Destination chain must be an SVM chain");
-  toSlot ??= await svmEventsClient.getRpc().getSlot({ commitment: "confirmed" }).send();
+  toSlot ??= Number(await svmEventsClient.getRpc().getSlot({ commitment: "confirmed" }).send());
 
   // Get fillStatus PDA using relayData
   const programId = svmEventsClient.getProgramAddress();
