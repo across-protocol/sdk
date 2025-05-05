@@ -206,7 +206,7 @@ export function constructPoolRebalanceLeaves(
           netSendAmounts: [],
           runningBalances: [],
           groupIndex: 0,
-          leafId: 0,
+          leafId: leaves.length,
           l1Tokens: [],
         });
         return;
