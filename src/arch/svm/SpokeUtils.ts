@@ -1,4 +1,5 @@
 import assert from "assert";
+import { Logger } from "winston";
 import { Rpc, SolanaRpcApi, Address, fetchEncodedAccounts, fetchEncodedAccount } from "@solana/kit";
 import { fetchState, decodeFillStatusAccount } from "@across-protocol/contracts/dist/src/svm/clients/SvmSpoke";
 
@@ -153,7 +154,8 @@ export async function fillStatusArray(
   destinationChainId: number,
   provider: Provider,
   svmEventsClient: SvmCpiEventsClient,
-  atHeight?: number
+  atHeight?: number,
+  logger?: Logger
 ): Promise<(FillStatus | undefined)[]> {
   assert(chainIsSvm(destinationChainId), "Destination chain must be an SVM chain");
 
@@ -169,11 +171,12 @@ export async function fillStatusArray(
     )
   ).flat();
 
-  if (atHeight !== undefined) {
-    console.warn(
-      "fillStatusArray: Querying specific slots for large arrays is slow. " +
-        "For current status, omit 'atHeight' param to use latest confirmed slot instead."
-    );
+  if (atHeight !== undefined && logger) {
+    logger.warn({
+      at: "SvmSpokeUtils#fillStatusArray",
+      message:
+        "Querying specific slots for large arrays is slow. For current status, omit 'atHeight' param to use latest confirmed slot instead.",
+    });
   }
 
   // If no specific slot is requested, try fetching current statuses from PDAs

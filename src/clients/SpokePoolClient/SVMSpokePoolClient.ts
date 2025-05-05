@@ -214,6 +214,14 @@ export class SvmSpokePoolClient extends SpokePoolClient {
   ): Promise<(FillStatus | undefined)[]> {
     // @note: deploymentBlock actually refers to the deployment slot. Also, blockTag should be a slot number.
     destinationChainId ??= this.chainId;
-    return fillStatusArray(this.programId, relayData, destinationChainId, this.rpc, this.svmEventsClient, atHeight);
+    return fillStatusArray(
+      this.programId,
+      relayData,
+      destinationChainId,
+      this.rpc,
+      this.svmEventsClient,
+      atHeight,
+      this.logger
+    );
   }
 }
