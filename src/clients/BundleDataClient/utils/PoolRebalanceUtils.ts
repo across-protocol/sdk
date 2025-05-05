@@ -186,72 +186,71 @@ export function constructPoolRebalanceLeaves(
   // Create one leaf per L2 chain ID. First we'll create a leaf with all L1 tokens for each chain ID, and then
   // we'll split up any leaves with too many L1 tokens.
   const leaves: PoolRebalanceLeaf[] = [];
-  Object.keys(runningBalances)
-    .map((_chainId) => {
-      const chainId = Number(_chainId);
-      // Sort addresses.
-      const sortedL1Tokens = Object.keys(runningBalances[chainId]).sort((addressA, addressB) => {
-        return compareAddresses(addressA, addressB);
-      });
-
-      // This begins at 0 and increments for each leaf for this { chainId, L1Token } combination.
-      let groupIndexForChainId = 0;
-
-      // Split addresses into multiple leaves if there are more L1 tokens than allowed per leaf.
-      const maxL1TokensPerLeaf =
-        maxL1TokenCount || configStoreClient.getMaxRefundCountForRelayerRefundLeafForBlock(latestMainnetBlock);
-      for (let i = 0; i < sortedL1Tokens.length; i += maxL1TokensPerLeaf) {
-        const l1TokensToIncludeInThisLeaf = sortedL1Tokens.slice(i, i + maxL1TokensPerLeaf);
-
-        const spokeTargetBalances = l1TokensToIncludeInThisLeaf.map((l1Token) =>
-          configStoreClient.getSpokeTargetBalancesForBlock(l1Token, chainId, latestMainnetBlock)
-        );
-
-        // Build leaves using running balances and realized lp fees data for l1Token + chain, or default to
-        // zero if undefined.
-        const leafBundleLpFees = l1TokensToIncludeInThisLeaf.map(
-          (l1Token) => realizedLpFees[chainId]?.[l1Token] ?? bnZero
-        );
-        const leafNetSendAmounts = l1TokensToIncludeInThisLeaf.map((l1Token, index) =>
-          runningBalances[chainId] && runningBalances[chainId][l1Token]
-            ? getNetSendAmountForL1Token(spokeTargetBalances[index], runningBalances[chainId][l1Token])
-            : bnZero
-        );
-        const leafRunningBalances = l1TokensToIncludeInThisLeaf.map((l1Token, index) =>
-          runningBalances[chainId]?.[l1Token]
-            ? getRunningBalanceForL1Token(spokeTargetBalances[index], runningBalances[chainId][l1Token])
-            : bnZero
-        );
-
-        leaves.push({
-          chainId: chainId,
-          bundleLpFees: leafBundleLpFees,
-          netSendAmounts: leafNetSendAmounts,
-          runningBalances: leafRunningBalances,
-          groupIndex: groupIndexForChainId++,
-          leafId: leaves.length,
-          l1Tokens: l1TokensToIncludeInThisLeaf,
-        });
-      }
+  Object.keys(runningBalances).map((_chainId) => {
+    const chainId = Number(_chainId);
+    // Sort addresses.
+    const sortedL1Tokens = Object.keys(runningBalances[chainId]).sort((addressA, addressB) => {
+      return compareAddresses(addressA, addressB);
     });
 
-    // Add a leaf for each chain ID with no L1 tokens or running balances
-    assert(
-      chainsWithRefundsOnly.every((chainId) => runningBalances[chainId] === undefined) &&
-      chainsWithRefundsOnly.every((chainId) => realizedLpFees[chainId] === undefined),
-      "Refund-only chains should not have running balances or realized LP fees."
-    );
-    chainsWithRefundsOnly.forEach((chainId) => {
+    // This begins at 0 and increments for each leaf for this { chainId, L1Token } combination.
+    let groupIndexForChainId = 0;
+
+    // Split addresses into multiple leaves if there are more L1 tokens than allowed per leaf.
+    const maxL1TokensPerLeaf =
+      maxL1TokenCount || configStoreClient.getMaxRefundCountForRelayerRefundLeafForBlock(latestMainnetBlock);
+    for (let i = 0; i < sortedL1Tokens.length; i += maxL1TokensPerLeaf) {
+      const l1TokensToIncludeInThisLeaf = sortedL1Tokens.slice(i, i + maxL1TokensPerLeaf);
+
+      const spokeTargetBalances = l1TokensToIncludeInThisLeaf.map((l1Token) =>
+        configStoreClient.getSpokeTargetBalancesForBlock(l1Token, chainId, latestMainnetBlock)
+      );
+
+      // Build leaves using running balances and realized lp fees data for l1Token + chain, or default to
+      // zero if undefined.
+      const leafBundleLpFees = l1TokensToIncludeInThisLeaf.map(
+        (l1Token) => realizedLpFees[chainId]?.[l1Token] ?? bnZero
+      );
+      const leafNetSendAmounts = l1TokensToIncludeInThisLeaf.map((l1Token, index) =>
+        runningBalances[chainId] && runningBalances[chainId][l1Token]
+          ? getNetSendAmountForL1Token(spokeTargetBalances[index], runningBalances[chainId][l1Token])
+          : bnZero
+      );
+      const leafRunningBalances = l1TokensToIncludeInThisLeaf.map((l1Token, index) =>
+        runningBalances[chainId]?.[l1Token]
+          ? getRunningBalanceForL1Token(spokeTargetBalances[index], runningBalances[chainId][l1Token])
+          : bnZero
+      );
+
       leaves.push({
-        chainId,
-        bundleLpFees: [],
-        netSendAmounts: [],
-        runningBalances: [],
-        groupIndex: 0,
-        leafId: 0,
-        l1Tokens: [],
-      })
-    })
+        chainId: chainId,
+        bundleLpFees: leafBundleLpFees,
+        netSendAmounts: leafNetSendAmounts,
+        runningBalances: leafRunningBalances,
+        groupIndex: groupIndexForChainId++,
+        leafId: leaves.length,
+        l1Tokens: l1TokensToIncludeInThisLeaf,
+      });
+    }
+  });
+
+  // Add a leaf for each chain ID with no L1 tokens or running balances
+  assert(
+    chainsWithRefundsOnly.every((chainId) => runningBalances[chainId] === undefined) &&
+      chainsWithRefundsOnly.every((chainId) => realizedLpFees[chainId] === undefined),
+    "Refund-only chains should not have running balances or realized LP fees."
+  );
+  chainsWithRefundsOnly.forEach((chainId) => {
+    leaves.push({
+      chainId,
+      bundleLpFees: [],
+      netSendAmounts: [],
+      runningBalances: [],
+      groupIndex: 0,
+      leafId: 0,
+      l1Tokens: [],
+    });
+  });
 
   // Leaves should be sorted by ascending chain ID
   return leaves.sort(({ chainId: chainIdA }, { chainId: chainIdB }) => chainIdA - chainIdB);
