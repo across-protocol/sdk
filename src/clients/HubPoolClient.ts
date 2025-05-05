@@ -394,11 +394,13 @@ export class HubPoolClient extends BaseAbstractClient {
     // Map SpokePool token addresses to HubPool token addresses.
     // Note: Should only be accessed via `getHubPoolToken()` or `getHubPoolTokens()`.
     const hubPoolTokens: { [k: string]: string } = {};
-    const getHubPoolToken = (deposit: LpFeeRequest, quoteBlockNumber: number): string => {
+    const getHubPoolToken = (deposit: LpFeeRequest, quoteBlockNumber: number): string | undefined => {
       const tokenKey = `${deposit.originChainId}-${deposit.inputToken}`;
-      return (hubPoolTokens[tokenKey] ??= this.getL1TokenForDeposit({ ...deposit, quoteBlockNumber }));
+      if (this.l2TokenHasPoolRebalanceRoute(deposit.inputToken, deposit.originChainId, quoteBlockNumber)) {
+        return (hubPoolTokens[tokenKey] ??= this.getL1TokenForDeposit({ ...deposit, quoteBlockNumber }));
+      } else return undefined;
     };
-    const getHubPoolTokens = (): string[] => dedupArray(Object.values(hubPoolTokens));
+    const getHubPoolTokens = (): string[] => dedupArray(Object.values(hubPoolTokens).filter(isDefined));
 
     // Helper to resolve the unqiue hubPoolToken & quoteTimestamp mappings.
     const resolveUniqueQuoteTimestamps = (deposit: LpFeeRequest): void => {
@@ -407,6 +409,9 @@ export class HubPoolClient extends BaseAbstractClient {
       // Resolve the HubPool token address for this origin chainId/token pair, if it isn't already known.
       const quoteBlockNumber = quoteBlocks[quoteTimestamp];
       const hubPoolToken = getHubPoolToken(deposit, quoteBlockNumber);
+      if (!hubPoolToken) {
+        return;
+      }
 
       // Append the quoteTimestamp for this HubPool token, if it isn't already enqueued.
       utilizationTimestamps[hubPoolToken] ??= [];
@@ -443,6 +448,11 @@ export class HubPoolClient extends BaseAbstractClient {
       }
 
       const hubPoolToken = getHubPoolToken(deposit, quoteBlock);
+      if (hubPoolToken === undefined) {
+        throw new Error(
+          `Cannot computeRealizedLpFeePct for deposit with no pool rebalance route for input token ${deposit.inputToken} on ${originChainId}`
+        );
+      }
       const rateModel = this.configStoreClient.getRateModelForBlockNumber(
         hubPoolToken,
         originChainId,
@@ -483,7 +493,17 @@ export class HubPoolClient extends BaseAbstractClient {
 
     // For each deposit, compute the post-relay HubPool utilisation independently.
     // @dev The caller expects to receive an array in the same length and ordering as the input `deposits`.
-    return await mapAsync(deposits, (deposit) => computeRealizedLpFeePct(deposit));
+    return await mapAsync(deposits, async (deposit) => {
+      const quoteBlock = quoteBlocks[deposit.quoteTimestamp];
+      if (this.l2TokenHasPoolRebalanceRoute(deposit.inputToken, deposit.originChainId, quoteBlock)) {
+        return await computeRealizedLpFeePct(deposit);
+      } else {
+        return {
+          quoteBlock,
+          realizedLpFeePct: bnZero,
+        };
+      }
+    });
   }
 
   getL1Tokens(): L1Token[] {

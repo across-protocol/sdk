@@ -135,6 +135,10 @@ export function _buildPoolRebalanceRoot(
   const runningBalances: RunningBalances = {};
   const realizedLpFees: RunningBalances = {};
 
+  // Keep track of any chains that we want to create a PoolRebalanceLeaf (and send a root bundle to) but don't have
+  // any running balances.
+  const chainWithRefundsOnly = new Set<number>();
+
   /**
    * REFUNDS FOR FAST FILLS
    */
@@ -151,6 +155,7 @@ export function _buildPoolRebalanceRoot(
         if (
           !clients.hubPoolClient.l2TokenHasPoolRebalanceRoute(l2TokenAddress, repaymentChainId, mainnetBundleEndBlock)
         ) {
+          chainWithRefundsOnly.add(repaymentChainId);
           return;
         }
         const l1TokenCounterpart = clients.hubPoolClient.getL1TokenForL2TokenAtBlock(
@@ -231,6 +236,7 @@ export function _buildPoolRebalanceRoot(
             mainnetBundleEndBlock
           )
         ) {
+          chainWithRefundsOnly.add(deposit.originChainId);
           return;
         }
         updateRunningBalanceForDeposit(
@@ -262,6 +268,7 @@ export function _buildPoolRebalanceRoot(
             mainnetBundleEndBlock
           )
         ) {
+          chainWithRefundsOnly.add(deposit.originChainId);
           return;
         }
         const l1TokenCounterpart = clients.hubPoolClient.getL1TokenForL2TokenAtBlock(
@@ -282,6 +289,7 @@ export function _buildPoolRebalanceRoot(
     mainnetBundleEndBlock,
     runningBalances,
     realizedLpFees,
+    Array.from(chainWithRefundsOnly).filter((chainId) => !Object.keys(runningBalances).includes(chainId.toString())),
     clients.configStoreClient,
     maxL1TokenCountOverride
   );
