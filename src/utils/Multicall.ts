@@ -44,7 +44,7 @@ const DETERMINISTIC_MULTICALL_CHAINS = [
 ];
 
 const PERMISSIONED_MULTICALL3_ADDRESSES = {
-  [CHAIN_IDs.BSC]: "0x38015ddB8b34c84934Cff058F571349Cc7d4139d",
+  [CHAIN_IDs.BSC]: "0x9367CC85B16932b19ee160A7AA2B251C8606d5b4",
 };
 
 export function getMulticallAddress(chainId: number): string | undefined {
