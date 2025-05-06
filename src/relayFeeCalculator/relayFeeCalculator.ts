@@ -156,6 +156,8 @@ export class RelayFeeCalculator {
     );
     assert(Object.keys(this.capitalCostsConfig).length > 0, "capitalCostsConfig must have at least one entry");
     this.logger = logger || DEFAULT_LOGGER;
+    // warn developer of any possible conflicting config overrides
+    this.checkAllConfigConflicts();
   }
 
   /**
@@ -374,6 +376,54 @@ export class RelayFeeCalculator {
       const remainderCharge = yRemainder.mul(toBN(config.upperBound).sub(config.lowerBound)).div(fixedPointAdjustment);
 
       return minCharge.add(triangleCharge).add(remainderCharge).mul(fixedPointAdjustment).div(y);
+    }
+  }
+
+  /**
+   * Checks for configuration conflicts across all token symbols and their associated chain configurations.
+   * This method examines the capital costs configuration for each token and identifies any overlapping
+   * or conflicting configurations between route overrides, destination chain overrides, and origin chain overrides.
+   * If conflicts are found, warnings will be logged via the warnIfConfigConflicts method.
+   */
+  private checkAllConfigConflicts(): void {
+    for (const [tokenSymbol, tokenConfig] of Object.entries(this.capitalCostsConfig)) {
+      // Get all origin chains that have specific configurations
+      const originChains = new Set<string>(Object.keys(tokenConfig.originChainOverrides || {}));
+      // Get all destination chains that have specific configurations
+      const destChains = new Set<string>(Object.keys(tokenConfig.destinationChainOverrides || {}));
+
+      // Add all chains from route overrides
+      if (tokenConfig.routeOverrides) {
+        Object.keys(tokenConfig.routeOverrides).forEach((originChain) => {
+          originChains.add(originChain);
+          Object.keys(tokenConfig.routeOverrides![originChain]).forEach((destChain) => {
+            destChains.add(destChain);
+          });
+        });
+      }
+
+      // If there are no specific chain configurations, just check the default case
+      if (originChains.size === 0 && destChains.size === 0) {
+        continue;
+      }
+
+      // Check for conflicts between all combinations of origin and destination chains
+      for (const originChain of Array.from(originChains)) {
+        for (const destChain of Array.from(destChains)) {
+          const routeOverride = tokenConfig.routeOverrides?.[originChain]?.[destChain];
+          const destinationChainOverride = tokenConfig.destinationChainOverrides?.[destChain];
+          const originChainOverride = tokenConfig.originChainOverrides?.[originChain];
+
+          this.warnIfConfigConflicts(
+            tokenSymbol,
+            originChain,
+            destChain,
+            routeOverride,
+            destinationChainOverride,
+            originChainOverride
+          );
+        }
+      }
     }
   }
 
