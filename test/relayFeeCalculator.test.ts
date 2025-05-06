@@ -184,7 +184,7 @@ describe("RelayFeeCalculator", () => {
         new RelayFeeCalculator({
           queries,
           capitalCostsConfig: {
-            WBTC: { ...testCapitalCostsConfig["WBTC"], upperBound: toBNWei("0.01").toString() },
+            WBTC: { ...testCapitalCostsConfig["WBTC"], upperBound: toBNWei("1.01").toString() },
           },
         }),
       /upper bound must be </
@@ -193,7 +193,7 @@ describe("RelayFeeCalculator", () => {
       () =>
         RelayFeeCalculator.validateCapitalCostsConfig({
           ...testCapitalCostsConfig["WBTC"],
-          upperBound: toBNWei("0.01").toString(),
+          upperBound: toBNWei("1.01").toString(),
         }),
       /upper bound must be </
     );
