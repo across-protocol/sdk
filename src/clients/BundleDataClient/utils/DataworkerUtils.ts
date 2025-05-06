@@ -236,7 +236,6 @@ export function _buildPoolRebalanceRoot(
             mainnetBundleEndBlock
           )
         ) {
-          chainWithRefundsOnly.add(deposit.originChainId);
           return;
         }
         updateRunningBalanceForDeposit(
