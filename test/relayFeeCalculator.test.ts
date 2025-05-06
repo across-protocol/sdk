@@ -293,6 +293,14 @@ describe("RelayFeeCalculator", () => {
           cutoff: toBNWei("15").toString(),
           decimals: token.decimals,
         },
+        originChainOverrides: {
+          [CHAIN_IDs.MAINNET]: {
+            lowerBound: toBNWei("0.0004").toString(),
+            upperBound: toBNWei("0.005").toString(),
+            cutoff: toBNWei("12").toString(),
+            decimals: token.decimals,
+          },
+        },
         destinationChainOverrides: {
           // Override for destination chain ARBITRUM
           [CHAIN_IDs.ARBITRUM]: {
@@ -323,13 +331,29 @@ describe("RelayFeeCalculator", () => {
 
     // Get config values for cleaner assertions
     const defaultConfig = customCapitalCostsConfig[token.symbol].default;
-    const chainOverride = customCapitalCostsConfig[token.symbol].destinationChainOverrides[CHAIN_IDs.ARBITRUM];
+    const originChainOverride = customCapitalCostsConfig[token.symbol].originChainOverrides[CHAIN_IDs.MAINNET];
+    const destChainOverride = customCapitalCostsConfig[token.symbol].destinationChainOverrides[CHAIN_IDs.ARBITRUM];
     const routeOverride = customCapitalCostsConfig[token.symbol].routeOverrides[CHAIN_IDs.MAINNET][CHAIN_IDs.ARBITRUM];
 
     // Test using default config (no routes specified)
     const defaultFee = client.capitalFeePercent(toBNWei("1", token.decimals), token.symbol);
     assert.ok(toBN(defaultFee).gte(toBN(defaultConfig.lowerBound)), "Default fee should be at least the lower bound");
     assert.ok(toBN(defaultFee).lt(toBN(defaultConfig.upperBound)), "Default fee should be less than the upper bound");
+
+    // Test using origin chain override only
+    const originFee = client.capitalFeePercent(
+      toBNWei("1", token.decimals),
+      token.symbol,
+      CHAIN_IDs.MAINNET.toString()
+    );
+    assert.ok(
+      toBN(originFee).gte(toBN(originChainOverride.lowerBound)),
+      "Origin override fee should be at least its lower bound"
+    );
+    assert.ok(
+      toBN(originFee).lt(toBN(originChainOverride.upperBound)),
+      "Origin override fee should be less than its upper bound"
+    );
 
     // Test using destination chain override (only destination specified)
     const destinationFee = client.capitalFeePercent(
@@ -339,11 +363,11 @@ describe("RelayFeeCalculator", () => {
       CHAIN_IDs.ARBITRUM.toString()
     );
     assert.ok(
-      toBN(destinationFee).gte(toBN(chainOverride.lowerBound)),
+      toBN(destinationFee).gte(toBN(destChainOverride.lowerBound)),
       "Destination override fee should be at least its lower bound"
     );
     assert.ok(
-      toBN(destinationFee).lt(toBN(chainOverride.upperBound)),
+      toBN(destinationFee).lt(toBN(destChainOverride.upperBound)),
       "Destination override fee should be less than its upper bound"
     );
 
@@ -363,20 +387,51 @@ describe("RelayFeeCalculator", () => {
       "Route override fee should be less than its upper bound"
     );
 
-    // Test fallback to destination chain override when a route is not specifically overridden
-    const fallbackToDestFee = client.capitalFeePercent(
+    // Test priority order: when both origin and destination chain are specified but no route override exists,
+    // destination chain override should take priority over origin chain override
+    const destOverOriginFee = client.capitalFeePercent(
       toBNWei("1", token.decimals),
       token.symbol,
       CHAIN_IDs.OPTIMISM.toString(),
       CHAIN_IDs.ARBITRUM.toString()
     );
     assert.ok(
-      toBN(fallbackToDestFee).gte(toBN(chainOverride.lowerBound)),
-      "Fallback to destination fee should be at least the destination lower bound"
+      toBN(destOverOriginFee).gte(toBN(destChainOverride.lowerBound)),
+      "Destination should take priority over origin - fee should match destination lower bound"
     );
     assert.ok(
-      toBN(fallbackToDestFee).lt(toBN(chainOverride.upperBound)),
-      "Fallback to destination fee should be less than the destination upper bound"
+      toBN(destOverOriginFee).lt(toBN(destChainOverride.upperBound)),
+      "Destination should take priority over origin - fee should match destination upper bound"
+    );
+
+    // Test priority order: route override takes priority over both origin and destination chain overrides
+    const routeOverBothFee = client.capitalFeePercent(
+      toBNWei("1", token.decimals),
+      token.symbol,
+      CHAIN_IDs.MAINNET.toString(),
+      CHAIN_IDs.ARBITRUM.toString()
+    );
+    assert.ok(
+      toBN(routeOverBothFee).gte(toBN(routeOverride.lowerBound)),
+      "Route should take priority over both origin and destination - fee should match route lower bound"
+    );
+    assert.ok(
+      toBN(routeOverBothFee).lt(toBN(routeOverride.upperBound)),
+      "Route should take priority over both origin and destination - fee should match route upper bound"
+    );
+
+    // Verify that route override != origin override
+    assert.notEqual(
+      routeOverBothFee.toString(),
+      originFee.toString(),
+      "Route override fee should be different from origin override fee"
+    );
+
+    // Verify that route override != destination override
+    assert.notEqual(
+      routeOverBothFee.toString(),
+      destinationFee.toString(),
+      "Route override fee should be different from destination override fee"
     );
 
     // Test fallback to default when route doesn't match and no destination chain override exists
