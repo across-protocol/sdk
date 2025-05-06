@@ -1,15 +1,7 @@
 import winston from "winston";
 import { SvmSpokeClient } from "@across-protocol/contracts";
 import { address, Address } from "@solana/kit";
-import {
-  DepositWithBlock,
-  RelayerRefundExecution,
-  SlowFillRequest,
-  SortableEvent,
-  SlowFillLeaf,
-  TokensBridged,
-  Log,
-} from "../../src/interfaces";
+import { DepositWithBlock, RelayerRefundExecution, SortableEvent, SlowFillLeaf, Log } from "../../src/interfaces";
 import { getCurrentTime, BigNumber, bnZero, MakeOptional, EventSearchConfig } from "../../src/utils";
 import { SpokePoolUpdate, SvmSpokePoolClient } from "../../src/clients/SpokePoolClient";
 import { HubPoolClient } from "../../src/clients/HubPoolClient";
@@ -21,7 +13,7 @@ import { EventWithData, SvmCpiEventsClient, SVMEventNames, unwrapEventData } fro
 // This class replaces internal SpokePoolClient functionality, enabling
 // the user to bypass on-chain queries and inject events directly.
 export class MockSvmSpokePoolClient extends SvmSpokePoolClient {
-  private mockEventsClient: MockSolanaEventClient;
+  public mockEventsClient: MockSolanaEventClient;
   private destinationTokenForChainOverride: Record<number, string> = {};
   public depositIdAtBlock: BigNumber[] = []; // needed?
 
@@ -94,35 +86,35 @@ export class MockSvmSpokePoolClient extends SvmSpokePoolClient {
   }
 
   deposit(deposit: SvmSpokeClient.FundsDeposited & Partial<EventWithData>): EventWithData {
-    return this.mockEventsClient.deposit("FundsDeposited", deposit);
+    return this.mockEventsClient.deposit(deposit);
   }
 
   fillRelay(fill: SvmSpokeClient.FilledRelay & Partial<EventWithData>): EventWithData {
-    return this.mockEventsClient.fillRelay("FilledRelay", fill);
+    return this.mockEventsClient.fillRelay(fill);
   }
 
-  setTokensBridged(tokensBridged: TokensBridged): EventWithData {
-    // TODO: implement this if needed
+  requestSlowFill(request: SvmSpokeClient.RequestedSlowFill & Partial<EventWithData>): EventWithData {
+    return this.mockEventsClient.requestSlowFill(request);
   }
 
-  requestSlowFill(request: Omit<SlowFillRequest, "messageHash"> & Partial<SortableEvent>): Log {
-    // TODO: implement this
+  setTokensBridged(_tokensBridged: SvmSpokeClient.TokensBridged & Partial<EventWithData>): EventWithData {
+    throw new Error("MockSvmSpokePoolClient#setTokensBridged not implemented");
   }
 
-  executeV3SlowRelayLeaf(leaf: Omit<SlowFillLeaf, "messageHash">): Log {
-    // TODO: implement this if needed
+  executeSlowRelayLeaf(_leaf: Omit<SlowFillLeaf, "messageHash">): Log {
+    throw new Error("MockSvmSpokePoolClient#executeV3SlowRelayLeaf not implemented");
   }
 
-  executeRelayerRefundLeaf(refund: RelayerRefundExecution & Partial<SortableEvent>): Log {
-    // TODO: implement this if needed
+  executeRelayerRefundLeaf(_refund: RelayerRefundExecution & Partial<SortableEvent>): Log {
+    throw new Error("MockSvmSpokePoolClient#executeRelayerRefundLeaf not implemented");
   }
 
   setEnableRoute(
-    originToken: string,
-    destinationChainId: number,
-    enabled: boolean,
-    overrides: EventOverrides = {}
+    _originToken: string,
+    _destinationChainId: number,
+    _enabled: boolean,
+    _overrides: EventOverrides = {}
   ): Log {
-    // TODO: implement this if needed
+    throw new Error("MockSvmSpokePoolClient#setEnableRoute not implemented");
   }
 }
