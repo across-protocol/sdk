@@ -50,6 +50,7 @@ export interface CapitalCostConfigOverride {
   default: CapitalCostConfig;
   routeOverrides?: Record<ChainIdAsString, Record<ChainIdAsString, CapitalCostConfig>>;
   destinationChainOverrides?: Record<ChainIdAsString, CapitalCostConfig>;
+  originChainOverrides?: Record<ChainIdAsString, CapitalCostConfig>;
 }
 export type RelayCapitalCostConfig = CapitalCostConfigOverride | CapitalCostConfig;
 export interface BaseRelayFeeCalculatorConfig {
@@ -194,8 +195,11 @@ export class RelayFeeCalculator {
     for (const toChainIdRoutes of Object.values(config.routeOverrides || {})) {
       Object.values(toChainIdRoutes).forEach(this.validateCapitalCostsConfig);
     }
+    // Validate origin chain overrides
+    Object.values(config.originChainOverrides || {}).forEach(this.validateCapitalCostsConfig);
     // Validate destination chain overrides
     Object.values(config.destinationChainOverrides || {}).forEach(this.validateCapitalCostsConfig);
+
     return config;
   }
 
@@ -326,9 +330,26 @@ export class RelayFeeCalculator {
     // bound to an upper bound. After the kink, the fee % increase will be fixed, and slowly approach the upper bound
     // for very large amount inputs.
     else {
-      const destinationChainOverride = tokenCostConfig?.destinationChainOverrides?.[_destinationRoute || ""];
+      // Order of specificity (most specific to least specific):
+      // 1. Route overrides (both origin and destination)
+      // 2. Destination chain overrides
+      // 3. Origin chain overrides
+      // 4. Default config
       const routeOverride = tokenCostConfig?.routeOverrides?.[_originRoute || ""]?.[_destinationRoute || ""];
-      const config: CapitalCostConfig = routeOverride ?? destinationChainOverride ?? tokenCostConfig.default;
+      const destinationChainOverride = tokenCostConfig?.destinationChainOverrides?.[_destinationRoute || ""];
+      const originChainOverride = tokenCostConfig?.originChainOverrides?.[_originRoute || ""];
+      const config: CapitalCostConfig =
+        routeOverride ?? destinationChainOverride ?? originChainOverride ?? tokenCostConfig.default;
+
+      // Check and log warnings for configuration conflicts
+      this.warnIfConfigConflicts(
+        _tokenSymbol,
+        _originRoute || "",
+        _destinationRoute || "",
+        routeOverride,
+        destinationChainOverride,
+        originChainOverride
+      );
 
       // Scale amount "y" to 18 decimals.
       const y = toBN(_amountToRelay).mul(toBNWei("1", 18 - config.decimals));
@@ -353,6 +374,40 @@ export class RelayFeeCalculator {
       const remainderCharge = yRemainder.mul(toBN(config.upperBound).sub(config.lowerBound)).div(fixedPointAdjustment);
 
       return minCharge.add(triangleCharge).add(remainderCharge).mul(fixedPointAdjustment).div(y);
+    }
+  }
+
+  /**
+   * Log a warning if multiple configuration types apply to the same route
+   * @private
+   */
+  private warnIfConfigConflicts(
+    tokenSymbol: string,
+    originChain: string,
+    destChain: string,
+    routeOverride?: CapitalCostConfig,
+    destinationChainOverride?: CapitalCostConfig,
+    originChainOverride?: CapitalCostConfig
+  ): void {
+    const overrideCount = [routeOverride, destinationChainOverride, originChainOverride].filter(Boolean).length;
+
+    if (overrideCount > 1) {
+      const configUsed = routeOverride
+        ? "route override"
+        : destinationChainOverride
+        ? "destination chain override"
+        : originChainOverride
+        ? "origin chain override"
+        : "default override";
+
+      this.logger.warn({
+        at: "RelayFeeCalculator",
+        message: `Multiple configurations found for token ${tokenSymbol} from chain ${originChain} to chain ${destChain}`,
+        configUsed,
+        routeOverride,
+        destinationChainOverride,
+        originChainOverride,
+      });
     }
   }
 
