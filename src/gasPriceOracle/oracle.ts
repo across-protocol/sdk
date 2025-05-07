@@ -63,7 +63,7 @@ export async function getGasPriceEstimate(
       baseFeeMultiplier,
       priorityFeeMultiplier,
       ...opts,
-      chainId: CHAIN_IDs.SOLANA,
+      chainId: opts.chainId ?? CHAIN_IDs.SOLANA,
     };
     return solana.messageFee(provider as SolanaProvider, optsWithDefaults);
   }
