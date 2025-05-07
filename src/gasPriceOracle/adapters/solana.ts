@@ -25,7 +25,11 @@ export async function messageFee(provider: Provider, opts: GasPriceEstimateOptio
   const instructionAddresses = dedupArray(unsignedTx.instructions.map((instruction) => instruction.programAddress));
   const recentPriorityFees = await provider.getRecentPrioritizationFees(instructionAddresses).send();
 
-  const nonzeroPrioritizationFees = recentPriorityFees.map((value) => value.prioritizationFee).filter((fee) => fee > 0);
+  // Take the most recent 25 slots and find the average of the nonzero priority fees.
+  const nonzeroPrioritizationFees = recentPriorityFees
+    .slice(125)
+    .map((value) => value.prioritizationFee)
+    .filter((fee) => fee > 0);
   const totalPrioritizationFees = nonzeroPrioritizationFees.reduce((acc, fee) => acc + fee, BigInt(0));
 
   // Optionally impose a minimum priority fee, denoted in microLamports/computeUnit.
