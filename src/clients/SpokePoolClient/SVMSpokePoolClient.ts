@@ -36,7 +36,7 @@ export class SvmSpokePoolClient extends SpokePoolClient {
     chainId: number,
     deploymentSlot: bigint, // Using slot instead of block number for SVM
     eventSearchConfig: MakeOptional<EventSearchConfig, "to">,
-    protected svmEventsClient: SvmCpiEventsClient,
+    public svmEventsClient: SvmCpiEventsClient,
     protected programId: Address,
     protected statePda: Address
   ) {

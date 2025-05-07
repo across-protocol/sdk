@@ -12,7 +12,7 @@ import {
   chunk,
 } from "../../utils";
 import { SvmSpokeClient } from "@across-protocol/contracts";
-import { getStatePda, SvmCpiEventsClient, getFillStatusPda } from "./";
+import { getStatePda, SvmCpiEventsClient, getFillStatusPda, unwrapEventData } from "./";
 import { Deposit, FillStatus, FillWithBlock, RelayData } from "../../interfaces";
 import {
   TOKEN_PROGRAM_ADDRESS,
@@ -250,30 +250,53 @@ export async function fillStatusArray(
 }
 
 /**
- * Find the block at which a fill was completed.
- * @todo After SpokePool upgrade, this function can be simplified to use the FillStatus enum.
- * @param spokePool SpokePool contract instance.
- * @param relayData Deposit information that is used to complete a fill.
- * @param lowBlockNumber The lower bound of the search. Must be bounded by SpokePool deployment.
- * @param highBlocknumber Optional upper bound for the search.
- * @returns The block number at which the relay was completed, or undefined.
+ * Finds the `FilledRelay` event for a given deposit within the provided slot range.
+ *
+ * @param relayData - Deposit information that is used to complete a fill.
+ * @param destinationChainId - Destination chain ID (must be an SVM chain).
+ * @param svmEventsClient - SVM events client instance for querying events.
+ * @param fromSlot - Starting slot to search.
+ * @param toSlot (Optional) Ending slot to search. If not provided, the current confirmed slot will be used.
+ * @returns The fill event with block info, or `undefined` if not found.
  */
-export function findFillBlock(
-  _spokePool: unknown,
-  _relayData: RelayData,
-  _lowBlockNumber: number,
-  _highBlockNumber?: number
-): Promise<number | undefined> {
-  throw new Error("fillStatusArray: not implemented");
-}
-
-export function findFillEvent(
-  _spokePool: unknown,
-  _relayData: RelayData,
-  _lowBlockNumber: number,
-  _highBlockNumber?: number
+export async function findFillEvent(
+  relayData: RelayData,
+  destinationChainId: number,
+  svmEventsClient: SvmCpiEventsClient,
+  fromSlot: number,
+  toSlot?: number
 ): Promise<FillWithBlock | undefined> {
-  throw new Error("fillStatusArray: not implemented");
+  assert(chainIsSvm(destinationChainId), "Destination chain must be an SVM chain");
+  toSlot ??= Number(await svmEventsClient.getRpc().getSlot({ commitment: "confirmed" }).send());
+
+  // Get fillStatus PDA using relayData
+  const programId = svmEventsClient.getProgramAddress();
+  const fillStatusPda = await getFillStatusPda(programId, relayData, destinationChainId);
+
+  // Get fill events from fillStatus PDA
+  const fillEvents = await svmEventsClient.queryDerivedAddressEvents(
+    SVMEventNames.FilledRelay,
+    fillStatusPda,
+    BigInt(fromSlot),
+    BigInt(toSlot),
+    { limit: 10 }
+  );
+  assert(fillEvents.length <= 1, `Expected at most one fill event for ${fillStatusPda}, got ${fillEvents.length}`);
+
+  if (fillEvents.length > 0) {
+    const rawFillEvent = fillEvents[0];
+    const parsedFillEvent = {
+      transactionHash: rawFillEvent.signature,
+      blockNumber: Number(rawFillEvent.slot),
+      transactionIndex: 0,
+      logIndex: 0,
+      destinationChainId,
+      ...(unwrapEventData(rawFillEvent.data) as Record<string, unknown>),
+    } as unknown as FillWithBlock;
+    return parsedFillEvent;
+  }
+
+  return undefined;
 }
 
 /**
