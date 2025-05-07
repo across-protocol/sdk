@@ -106,10 +106,10 @@ export function isStablecoin(tokenSymbol: string): boolean {
  * @notice Returns the Token info for the token mapping in TOKEN_SYMBOLS_MAP matching the given l2TokenAddress
  * and chainId. If the chain is the hub chain, then will remap the L1 token to its equivalent L1 token symbol for example
  * it will always return a token info with symbol USDC and never USDC.e if chainId = mainnet.
- * @param l2TokenAddress 
- * @param chainId 
- * @param tokenMapping 
- * @returns 
+ * @param l2TokenAddress
+ * @param chainId
+ * @param tokenMapping
+ * @returns
  */
 export function getTokenInfo(l2TokenAddress: string, chainId: number, tokenMapping = TOKEN_SYMBOLS_MAP): L1Token {
   // @dev This might give false positives if tokens on different networks have the same address. I'm not sure how
@@ -150,8 +150,7 @@ export function getUsdcSymbol(l2Token: string, chainId: number): string | undefi
  * @notice Returns the l1 token address matching the given l2TokenAddress and chainId.
  */
 export function getL1TokenAddress(l2TokenAddress: string, chainId: number): string {
-  if (chainIsL1(chainId))
-    return l2TokenAddress;
+  if (chainIsL1(chainId)) return l2TokenAddress;
   const tokenObject = Object.values(TOKEN_SYMBOLS_MAP).find(({ addresses }) => addresses[chainId] === l2TokenAddress);
   const l1TokenAddress = tokenObject?.addresses[chainIsProd(chainId) ? CHAIN_IDs.MAINNET : CHAIN_IDs.SEPOLIA];
   if (!l1TokenAddress) {
