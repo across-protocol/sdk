@@ -5,9 +5,12 @@ import web3, {
   getU64Encoder,
   Address,
   RpcTransport,
+  isAddress,
   type TransactionSigner,
 } from "@solana/kit";
+import { BigNumber, getRelayDataHash, isUint8Array, SvmAddress } from "../../utils";
 import { EventName, SVMEventNames } from "./types";
+import { FillType, RelayData } from "../../interfaces";
 
 /**
  * Basic void TransactionSigner type
@@ -87,6 +90,72 @@ export function getEventName(rawName: string): EventName {
 }
 
 /**
+ * Unwraps any data structure and converts Address types to strings and Uint8Array to hex or BigInt.
+ * Recursively processes nested objects and arrays.
+ */
+export function unwrapEventData(
+  data: unknown,
+  uint8ArrayKeysAsBigInt: string[] = ["depositId"],
+  currentKey?: string
+): unknown {
+  // Handle null/undefined
+  if (data == null) {
+    return data;
+  }
+  // Handle BigInt
+  if (typeof data === "bigint") {
+    return BigNumber.from(data);
+  }
+  // Handle Uint8Array and byte arrays
+  if (data instanceof Uint8Array || isUint8Array(data)) {
+    const bytes = data instanceof Uint8Array ? data : new Uint8Array(data as number[]);
+    const hex = "0x" + Buffer.from(bytes).toString("hex");
+    if (currentKey && uint8ArrayKeysAsBigInt.includes(currentKey)) {
+      return BigNumber.from(hex);
+    }
+    return hex;
+  }
+  // Handle regular arrays (non-byte arrays)
+  if (Array.isArray(data)) {
+    return data.map((item) => unwrapEventData(item, uint8ArrayKeysAsBigInt));
+  }
+  // Handle strings (potential addresses)
+  if (typeof data === "string" && isAddress(data)) {
+    return SvmAddress.from(data).toBytes32();
+  }
+  // Handle objects
+  if (typeof data === "object") {
+    // Special case: if an object is in the context of the fillType key, then
+    // parse out the fillType from the object
+    if (currentKey === "fillType") {
+      const fillType = Object.keys(data)[0];
+      switch (fillType) {
+        case "FastFill":
+          return FillType.FastFill;
+        case "ReplacedSlowFill":
+          return FillType.ReplacedSlowFill;
+        case "SlowFill":
+          return FillType.SlowFill;
+        default:
+          throw new Error(`Unknown fill type: ${fillType}`);
+      }
+    }
+    // Special case: if an object is empty, return 0x
+    if (Object.keys(data).length === 0) {
+      return "0x";
+    }
+    return Object.fromEntries(
+      Object.entries(data as Record<string, unknown>).map(([key, value]) => [
+        key,
+        unwrapEventData(value, uint8ArrayKeysAsBigInt, key),
+      ])
+    );
+  }
+  // Return primitives as is
+  return data;
+}
+
+/**
  * Returns the PDA for the State account.
  * @param programId The SpokePool program ID.
  * @returns The PDA for the State account.
@@ -99,4 +168,25 @@ export async function getStatePda(programId: Address): Promise<Address> {
     seeds: ["state", seed],
   });
   return statePda;
+}
+
+/**
+ * Returns the fill status PDA for the given relay data.
+ * @param programId The SpokePool program ID.
+ * @param relayData The relay data to get the fill status PDA for.
+ * @param destinationChainId The destination chain ID.
+ * @returns The PDA for the fill status.
+ */
+export async function getFillStatusPda(
+  programId: Address,
+  relayData: RelayData,
+  destinationChainId: number
+): Promise<Address> {
+  const relayDataHash = getRelayDataHash(relayData, destinationChainId);
+  const uint8RelayDataHash = new Uint8Array(Buffer.from(relayDataHash.slice(2), "hex"));
+  const [fillStatusPda] = await getProgramDerivedAddress({
+    programAddress: programId,
+    seeds: ["fills", uint8RelayDataHash],
+  });
+  return fillStatusPda;
 }
