@@ -1,8 +1,13 @@
-import { Rpc, SolanaRpcApi, Address } from "@solana/kit";
+import assert from "assert";
+import { Logger } from "winston";
+import { Rpc, SolanaRpcApi, Address, fetchEncodedAccounts, fetchEncodedAccount } from "@solana/kit";
+import { fetchState, decodeFillStatusAccount } from "@across-protocol/contracts/dist/src/svm/clients/SvmSpoke";
 
+import { SvmCpiEventsClient } from "./eventsClient";
 import { Deposit, FillStatus, FillWithBlock, RelayData } from "../../interfaces";
-import { BigNumber, isUnsafeDepositId } from "../../utils";
-import { fetchState } from "@across-protocol/contracts/dist/src/svm/clients/SvmSpoke";
+import { BigNumber, chainIsSvm, chunk, isUnsafeDepositId } from "../../utils";
+import { getFillStatusPda } from "./utils";
+import { SVMEventNames } from "./types";
 
 type Provider = Rpc<SolanaRpcApi>;
 
@@ -81,27 +86,141 @@ export function findDepositBlock(
 }
 
 /**
- * Find the amount filled for a deposit at a particular block.
- * @param spokePool SpokePool contract instance.
- * @param relayData Deposit information that is used to complete a fill.
- * @param blockTag Block tag (numeric or "latest") to query at.
- * @returns The amount filled for the specified deposit at the requested block (or latest).
+ * Resolves the fill status of a deposit at a specific slot or at the current confirmed one.
+ *
+ * If no slot is provided, attempts to solve the fill status using the PDA. Otherwise, it is reconstructed from PDA events.
+ *
+ * @param programId - The spoke pool program ID.
+ * @param relayData - Deposit information used to locate the fill status.
+ * @param destinationChainId - Destination chain ID (must be an SVM chain).
+ * @param provider - SVM provider instance.
+ * @param svmEventsClient - SVM events client for querying events.
+ * @param atHeight - (Optional) Specific slot number to query. Defaults to the latest confirmed slot.
+ * @returns The fill status for the deposit at the specified or current slot.
  */
-export function relayFillStatus(
-  _spokePool: unknown,
-  _relayData: RelayData,
-  _blockTag?: number | "latest",
-  _destinationChainId?: number
+export async function relayFillStatus(
+  programId: Address,
+  relayData: RelayData,
+  destinationChainId: number,
+  provider: Provider,
+  svmEventsClient: SvmCpiEventsClient,
+  atHeight?: number
 ): Promise<FillStatus> {
-  throw new Error("relayFillStatus: not implemented");
+  assert(chainIsSvm(destinationChainId), "Destination chain must be an SVM chain");
+
+  // Get fill status PDA using relayData
+  const fillStatusPda = await getFillStatusPda(programId, relayData, destinationChainId);
+  const currentSlot = await provider.getSlot({ commitment: "confirmed" }).send();
+
+  // If no specific slot is requested, try fetching the current status from the PDA
+  if (atHeight === undefined) {
+    const [fillStatusAccount, currentSlotTimestamp] = await Promise.all([
+      fetchEncodedAccount(provider, fillStatusPda, { commitment: "confirmed" }),
+      provider.getBlockTime(currentSlot).send(),
+    ]);
+    // If the PDA exists, return the stored fill status
+    if (fillStatusAccount.exists) {
+      const decodedAccountData = decodeFillStatusAccount(fillStatusAccount);
+      return decodedAccountData.data.status;
+    }
+    // If the PDA doesn't exist and the deadline hasn't passed yet, the deposit must be unfilled,
+    // since PDAs can't be closed before the fill deadline.
+    else if (Number(currentSlotTimestamp) < relayData.fillDeadline) {
+      return FillStatus.Unfilled;
+    }
+  }
+
+  // If status couldn't be determined from the PDA, or if a specific slot was requested, reconstruct the status from events
+  const toSlot = atHeight ? BigInt(atHeight) : currentSlot;
+
+  return resolveFillStatusFromPdaEvents(fillStatusPda, toSlot, svmEventsClient);
 }
 
-export function fillStatusArray(
-  _spokePool: unknown,
-  _relayData: RelayData[],
-  _blockTag = "processed"
+/**
+ * Resolves fill statuses for multiple deposits at a specific or latest confirmed slot,
+ * using PDAs when possible and falling back to events if needed.
+ *
+ * @param programId The spoke pool program ID.
+ * @param relayData An array of relay data to resolve fill statuses for.
+ * @param destinationChainId The destination chain ID (must be an SVM chain).
+ * @param provider SVM Provider instance.
+ * @param svmEventsClient SVM events client instance for querying events.
+ * @param atHeight (Optional) The slot number to query at. If omitted, queries the latest confirmed slot.
+ * @returns An array of fill statuses for the specified deposits at the requested slot (or at the current confirmed slot).
+ */
+export async function fillStatusArray(
+  programId: Address,
+  relayData: RelayData[],
+  destinationChainId: number,
+  provider: Provider,
+  svmEventsClient: SvmCpiEventsClient,
+  atHeight?: number,
+  logger?: Logger
 ): Promise<(FillStatus | undefined)[]> {
-  throw new Error("fillStatusArray: not implemented");
+  assert(chainIsSvm(destinationChainId), "Destination chain must be an SVM chain");
+
+  const chunkSize = 100;
+  const chunkedRelayData = chunk(relayData, chunkSize);
+
+  // Get all PDAs
+  const fillStatusPdas = (
+    await Promise.all(
+      chunkedRelayData.map((relayDataChunk) =>
+        Promise.all(relayDataChunk.map((relayData) => getFillStatusPda(programId, relayData, destinationChainId)))
+      )
+    )
+  ).flat();
+
+  if (atHeight !== undefined && logger) {
+    logger.warn({
+      at: "SvmSpokeUtils#fillStatusArray",
+      message:
+        "Querying specific slots for large arrays is slow. For current status, omit 'atHeight' param to use latest confirmed slot instead.",
+    });
+  }
+
+  // If no specific slot is requested, try fetching current statuses from PDAs
+  // Otherwise, initialize all statuses as undefined
+  const fillStatuses: (FillStatus | undefined)[] =
+    atHeight === undefined
+      ? await fetchBatchFillStatusFromPdaAccounts(provider, fillStatusPdas, relayData)
+      : new Array(relayData.length).fill(undefined);
+
+  // Collect indices of deposits that still need their status resolved
+  const missingStatuses = fillStatuses.reduce<number[]>((acc, status, index) => {
+    if (status === undefined) {
+      acc.push(index);
+    }
+    return acc;
+  }, []);
+
+  // Chunk the missing deposits for batch processing
+  const missingChunked = chunk(missingStatuses, chunkSize);
+  const missingResults: { index: number; fillStatus: FillStatus }[] = [];
+
+  // Determine the toSlot to use for event reconstruction
+  const toSlot = atHeight ? BigInt(atHeight) : await provider.getSlot({ commitment: "confirmed" }).send();
+
+  // @note: This path is mostly used for deposits past their fill deadline.
+  // If it becomes a bottleneck, consider returning an "Unknown" status that can be handled downstream.
+  for (const chunk of missingChunked) {
+    const chunkResults = await Promise.all(
+      chunk.map(async (missingIndex) => {
+        return {
+          index: missingIndex,
+          fillStatus: await resolveFillStatusFromPdaEvents(fillStatusPdas[missingIndex], toSlot, svmEventsClient),
+        };
+      })
+    );
+    missingResults.push(...chunkResults);
+  }
+
+  // Fill in missing statuses back to the result array
+  missingResults.forEach(({ index, fillStatus }) => {
+    fillStatuses[index] = fillStatus;
+  });
+
+  return fillStatuses;
 }
 
 /**
@@ -129,4 +248,90 @@ export function findFillEvent(
   _highBlockNumber?: number
 ): Promise<FillWithBlock | undefined> {
   throw new Error("fillStatusArray: not implemented");
+}
+
+async function resolveFillStatusFromPdaEvents(
+  fillStatusPda: Address,
+  toSlot: bigint,
+  svmEventsClient: SvmCpiEventsClient
+): Promise<FillStatus> {
+  // Get fill and requested slow fill events from fillStatus PDA
+  const eventsToQuery = [SVMEventNames.FilledRelay, SVMEventNames.RequestedSlowFill];
+  const relevantEvents = (
+    await Promise.all(
+      eventsToQuery.map((eventName) =>
+        // PDAs should have only a few events, requesting up to 10 should be enough.
+        svmEventsClient.queryDerivedAddressEvents(eventName, fillStatusPda, undefined, toSlot, { limit: 10 })
+      )
+    )
+  ).flat();
+
+  if (relevantEvents.length === 0) {
+    // No fill or requested slow fill events found for this PDA
+    return FillStatus.Unfilled;
+  }
+
+  // Sort events in ascending order of slot number
+  relevantEvents.sort((a, b) => Number(a.slot - b.slot));
+
+  // At this point we have an ordered array of only fill and requested slow fill events and
+  // since it's not possible to submit a slow fill request once a fill has been submitted,
+  // we can use the last event in the list to determine the fill status at the requested slot.
+  const fillStatusEvent = relevantEvents.pop();
+  switch (fillStatusEvent!.name) {
+    case SVMEventNames.FilledRelay:
+      return FillStatus.Filled;
+    case SVMEventNames.RequestedSlowFill:
+      return FillStatus.RequestedSlowFill;
+    default:
+      throw new Error(`Unexpected event name: ${fillStatusEvent!.name}`);
+  }
+}
+
+/**
+ * Attempts to resolve the fill status for an array of deposits by reading their fillStatus PDAs.
+ *
+ * - If a PDA exists, the status is read directly from it.
+ * - If the PDA does not exist but the deposit's fill deadline has not passed, the deposit is considered unfilled.
+ * - If the PDA does not exist and the fill deadline has passed, the status cannot be determined and is set to undefined.
+ *
+ * Assumes PDAs can only be closed after the fill deadline expires.
+ *
+ * @param provider SVM provider instance
+ * @param fillStatusPdas An array of fill status PDAs to retrieve the fill status for.
+ * @param relayData An array of relay data from which the fill status PDAs were derived.
+ */
+async function fetchBatchFillStatusFromPdaAccounts(
+  provider: Provider,
+  fillStatusPdas: Address[],
+  relayDataArray: RelayData[]
+): Promise<(FillStatus | undefined)[]> {
+  const chunkSize = 100; // SVM method getMultipleAccounts allows a max of 100 addresses per request
+  const currentSlot = await provider.getSlot({ commitment: "confirmed" }).send();
+
+  const [pdaAccounts, currentSlotTimestamp] = await Promise.all([
+    Promise.all(
+      chunk(fillStatusPdas, chunkSize).map((chunk) =>
+        fetchEncodedAccounts(provider, chunk, { commitment: "confirmed" })
+      )
+    ),
+    provider.getBlockTime(currentSlot).send(),
+  ]);
+
+  const fillStatuses = pdaAccounts.flat().map((account, index) => {
+    // If the PDA exists, we can fetch the status directly.
+    if (account.exists) {
+      const decodedAccount = decodeFillStatusAccount(account);
+      return decodedAccount.data.status;
+    }
+    // If the PDA doesn't exist and the deadline hasn't passed yet, the deposit must be unfilled,
+    // since PDAs can't be closed before the fill deadline.
+    else if (Number(currentSlotTimestamp) < relayDataArray[index].fillDeadline) {
+      return FillStatus.Unfilled;
+    }
+    // If the PDA doesn't exist and the fill deadline has passed, then the status can't be determined and is set to undefined.
+    return undefined;
+  });
+
+  return fillStatuses;
 }

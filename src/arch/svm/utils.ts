@@ -1,9 +1,9 @@
 import { BN, BorshEventCoder, Idl } from "@coral-xyz/anchor";
-import { BigNumber, isUint8Array, SvmAddress } from "../../utils";
+import { BigNumber, getRelayDataHash, isUint8Array, SvmAddress } from "../../utils";
 import web3, { address, isAddress, RpcTransport, getProgramDerivedAddress, getU64Encoder, Address } from "@solana/kit";
 
 import { EventName, SVMEventNames } from "./types";
-import { FillType } from "../../interfaces";
+import { FillType, RelayData } from "../../interfaces";
 
 /**
  * Helper to determine if the current RPC network is devnet.
@@ -147,4 +147,25 @@ export async function getStatePda(programId: Address): Promise<Address> {
     seeds: ["state", seed],
   });
   return statePda;
+}
+
+/**
+ * Returns the fill status PDA for the given relay data.
+ * @param programId The SpokePool program ID.
+ * @param relayData The relay data to get the fill status PDA for.
+ * @param destinationChainId The destination chain ID.
+ * @returns The PDA for the fill status.
+ */
+export async function getFillStatusPda(
+  programId: Address,
+  relayData: RelayData,
+  destinationChainId: number
+): Promise<Address> {
+  const relayDataHash = getRelayDataHash(relayData, destinationChainId);
+  const uint8RelayDataHash = new Uint8Array(Buffer.from(relayDataHash.slice(2), "hex"));
+  const [fillStatusPda] = await getProgramDerivedAddress({
+    programAddress: programId,
+    seeds: ["fills", uint8RelayDataHash],
+  });
+  return fillStatusPda;
 }

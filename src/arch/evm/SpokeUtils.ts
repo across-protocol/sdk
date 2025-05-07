@@ -160,7 +160,7 @@ export async function findDepositBlock(
 export async function relayFillStatus(
   spokePool: Contract,
   relayData: RelayData,
-  blockTag?: number | "latest",
+  blockTag: BlockTag = "latest",
   destinationChainId?: number
 ): Promise<FillStatus> {
   destinationChainId ??= await spokePool.chainId();
