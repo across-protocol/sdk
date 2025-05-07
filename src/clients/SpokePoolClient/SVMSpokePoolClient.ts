@@ -221,7 +221,14 @@ export class SvmSpokePoolClient extends SpokePoolClient {
     destinationChainId?: number
   ): Promise<FillStatus> {
     destinationChainId ??= this.chainId;
-    return relayFillStatus(this.programId, relayData, destinationChainId, this.rpc, this.svmEventsClient, atHeight);
+    return relayFillStatus(
+      this.programId,
+      relayData,
+      destinationChainId,
+      this.svmEventsClient.getRpc(),
+      this.svmEventsClient,
+      atHeight
+    );
   }
 
   /**
@@ -241,7 +248,7 @@ export class SvmSpokePoolClient extends SpokePoolClient {
       this.programId,
       relayData,
       destinationChainId,
-      this.rpc,
+      this.svmEventsClient.getRpc(),
       this.svmEventsClient,
       atHeight,
       this.logger
