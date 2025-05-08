@@ -55,9 +55,8 @@ export async function getGasPriceEstimate(
     `Require 1.0 < priority fee multiplier (${priorityFeeMultiplier}) <= 5.0 for a total gas multiplier within [+1.0, +5.0]`
   );
 
-  const isEthersProvider = provider instanceof providers.Provider;
   // Exit here if we need to estimate on Solana.
-  if (!isEthersProvider) {
+  if (!(provider instanceof providers.Provider)) {
     const optsWithDefaults: GasPriceEstimateOptions = {
       ...GAS_PRICE_ESTIMATE_DEFAULTS,
       baseFeeMultiplier,
@@ -65,7 +64,7 @@ export async function getGasPriceEstimate(
       ...opts,
       chainId: opts.chainId ?? CHAIN_IDs.SOLANA,
     };
-    return solana.messageFee(provider as SolanaProvider, optsWithDefaults);
+    return solana.messageFee(provider, optsWithDefaults);
   }
 
   // Cast the provider to an ethers provider, which should be given to the oracle when querying an EVM network.
