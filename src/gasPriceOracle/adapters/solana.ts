@@ -1,4 +1,4 @@
-import { Provider } from "../../arch/svm";
+import { SVMProvider } from "../../arch/svm";
 import { toBN, dedupArray, parseUnits } from "../../utils";
 import { GasPriceEstimate } from "../types";
 import { GasPriceEstimateOptions } from "../oracle";
@@ -8,7 +8,7 @@ import { CompilableTransactionMessage, TransactionMessageBytesBase64, compileTra
  * @notice Returns result of getFeeForMessage and getRecentPrioritizationFees RPC calls.
  * @returns GasPriceEstimate
  */
-export async function messageFee(provider: Provider, opts: GasPriceEstimateOptions): Promise<GasPriceEstimate> {
+export async function messageFee(provider: SVMProvider, opts: GasPriceEstimateOptions): Promise<GasPriceEstimate> {
   const { unsignedTx: _unsignedTx } = opts;
 
   // Cast the opaque unsignedTx type to a solana-kit CompilableTransactionMessage.

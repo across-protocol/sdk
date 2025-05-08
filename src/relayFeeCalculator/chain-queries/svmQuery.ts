@@ -18,7 +18,7 @@ import {
   fillRelayInstruction,
   createApproveInstruction,
   createTokenAccountsInstruction,
-  Provider,
+  SVMProvider,
   SolanaVoidSigner,
   getAssociatedTokenAddress,
 } from "../../arch/svm";
@@ -53,7 +53,7 @@ export class SvmQuery implements QueryInterface {
    * @param coingeckoBaseCurrency The basis currency that CoinGecko will use to resolve pricing
    */
   constructor(
-    readonly provider: Provider,
+    readonly provider: SVMProvider,
     readonly symbolMapping: SymbolMappingType,
     readonly spokePoolAddress: SvmAddress,
     readonly simulatedRelayerAddress: SvmAddress,

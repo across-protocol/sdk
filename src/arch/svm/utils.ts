@@ -1,16 +1,17 @@
 import { BN, BorshEventCoder, Idl } from "@coral-xyz/anchor";
-import web3, {
+import {
   address,
   getProgramDerivedAddress,
   getU64Encoder,
+  getAddressEncoder,
   Address,
-  RpcTransport,
   isAddress,
   type TransactionSigner,
 } from "@solana/kit";
 import { BigNumber, getRelayDataHash, isUint8Array, SvmAddress } from "../../utils";
-import { EventName, SVMEventNames } from "./types";
+import { SvmSpokeClient } from "@across-protocol/contracts";
 import { FillType, RelayData } from "../../interfaces";
+import { EventName, SVMEventNames, SVMProvider } from "./types";
 
 /**
  * Basic void TransactionSigner type
@@ -29,7 +30,7 @@ export const SolanaVoidSigner: (simulationAddress: string) => TransactionSigner<
 /**
  * Helper to determine if the current RPC network is devnet.
  */
-export async function isDevnet(rpc: web3.Rpc<web3.SolanaRpcApiFromTransport<RpcTransport>>): Promise<boolean> {
+export async function isDevnet(rpc: SVMProvider): Promise<boolean> {
   const genesisHash = await rpc.getGenesisHash().send();
   return genesisHash === "EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG";
 }
@@ -190,3 +191,32 @@ export async function getFillStatusPda(
   });
   return fillStatusPda;
 }
+
+/**
+ * Returns the PDA for a route account on SVM Spoke.
+ * @param originToken The origin token address.
+ * @param seed The seed for the route account.
+ * @param routeChainId The route chain ID.
+ * @returns The PDA for the route account.
+ */
+export async function getRoutePda(originToken: Address, seed: bigint, routeChainId: bigint): Promise<Address> {
+  const intEncoder = getU64Encoder();
+  const addressEncoder = getAddressEncoder();
+  const [pda] = await getProgramDerivedAddress({
+    programAddress: address(SvmSpokeClient.SVM_SPOKE_PROGRAM_ADDRESS),
+    seeds: ["route", addressEncoder.encode(originToken), intEncoder.encode(seed), intEncoder.encode(routeChainId)],
+  });
+  return pda;
+}
+
+/**
+ * Returns the PDA for the Event Authority.
+ * @returns The PDA for the Event Authority.
+ */
+export const getEventAuthority = async () => {
+  const [eventAuthority] = await getProgramDerivedAddress({
+    programAddress: address(SvmSpokeClient.SVM_SPOKE_PROGRAM_ADDRESS),
+    seeds: ["__event_authority"],
+  });
+  return eventAuthority;
+};

@@ -6,7 +6,7 @@ import { providers } from "ethers";
 import { DEFAULT_SIMULATED_RELAYER_ADDRESS, CUSTOM_GAS_TOKENS } from "../../constants";
 import { chainIsOPStack, isDefined, chainIsSvm, SvmAddress } from "../../utils";
 import { QueryBase } from "./baseQuery";
-import { Provider as svmProvider } from "../../arch/svm";
+import { SVMProvider as svmProvider } from "../../arch/svm";
 import { DEFAULT_LOGGER, Logger } from "../relayFeeCalculator";
 import { CustomGasTokenQueries } from "./customGasToken";
 import { SvmQuery } from "./svmQuery";

@@ -3,7 +3,7 @@ import { Transport } from "viem";
 import { providers } from "ethers";
 import { CHAIN_IDs } from "../constants";
 import { BigNumber, chainIsOPStack, fixedPointAdjustment, toBNWei } from "../utils";
-import { Provider as SolanaProvider } from "../arch/svm";
+import { SVMProvider as SolanaProvider } from "../arch/svm";
 import { GasPriceEstimate } from "./types";
 import { getPublicClient } from "./util";
 import * as arbitrum from "./adapters/arbitrum";
