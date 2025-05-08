@@ -1,9 +1,4 @@
 import { SvmSpokeClient } from "@across-protocol/contracts";
-import {
-  DepositInput,
-  InitializeInput,
-  SetEnableRouteInput,
-} from "@across-protocol/contracts/dist/src/svm/clients/SvmSpoke";
 import { getSolanaChainId } from "@across-protocol/contracts/dist/src/svm/web3-v1";
 import { getCreateAccountInstruction, SYSTEM_PROGRAM_ADDRESS } from "@solana-program/system";
 import {
@@ -40,7 +35,7 @@ import {
 } from "@solana/kit";
 import bs58 from "bs58";
 import { ethers } from "ethers";
-import { getEventAuthority, getRoutePda, getStatePda, SVM_SPOKE_SEED, RpcClient } from "../../../src/arch/svm";
+import { getEventAuthority, getRoutePda, getStatePda, RpcClient, SVM_SPOKE_SEED } from "../../../src/arch/svm";
 
 /** RPC / Client */
 
@@ -190,7 +185,7 @@ export const initializeSvmSpoke = async (
 ) => {
   const state = await getStatePda(SvmSpokeClient.SVM_SPOKE_PROGRAM_ADDRESS);
 
-  const initializeInput: InitializeInput = {
+  const initializeInput: SvmSpokeClient.InitializeInput = {
     signer,
     state,
     systemProgram: SYSTEM_PROGRAM_ADDRESS,
@@ -240,7 +235,7 @@ export const enableRoute = async (
   const route = await getRoutePda(mint, 0n, destinationChainId);
   const eventAuthority = await getEventAuthority();
 
-  const input: SetEnableRouteInput = {
+  const input: SvmSpokeClient.SetEnableRouteInput = {
     signer,
     state,
     vault,
@@ -271,7 +266,7 @@ export const enableRoute = async (
 export const deposit = async (
   signer: KeyPairSigner,
   solanaClient: RpcClient,
-  depositInput: DepositInput,
+  depositInput: SvmSpokeClient.DepositInput,
   tokenDecimals: number
 ) => {
   const approveIx = getApproveCheckedInstruction({

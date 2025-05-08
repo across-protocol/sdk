@@ -1,5 +1,4 @@
 import { SvmSpokeClient } from "@across-protocol/contracts";
-import { DepositInput } from "@across-protocol/contracts/dist/src/svm/clients/SvmSpoke";
 import { TOKEN_2022_PROGRAM_ADDRESS } from "@solana-program/token-2022";
 import { Address, KeyPairSigner } from "@solana/kit";
 import { expect } from "chai";
@@ -36,7 +35,7 @@ describe("SvmCpiEventsClient (integration)", () => {
     const currentTime = await solanaClient.rpc.getBlockTime(latestSlot).send();
     const eventAuthority = await getEventAuthority();
 
-    const depositInput: DepositInput = {
+    const depositInput: SvmSpokeClient.DepositInput = {
       depositor: signer.address,
       recipient: signer.address,
       inputToken: mint.address,
