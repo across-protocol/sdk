@@ -198,10 +198,12 @@ export class SvmSpokePoolClient extends SpokePoolClient {
   }
 
   /**
-   * Retrieves the time (timestamp) from the SVM chain state at a particular slot.
+   * Retrieves the timestamp for a given SVM slot number.
+   * @note This function uses the same underlying function as getTimestampForBlock.
+   *       It is kept for consistency with the EVM SpokePoolClient.
    */
-  public getTimeAt(_slot: number): Promise<number> {
-    throw new Error("getTimeAt not implemented for SVM");
+  public getTimeAt(slot: number): Promise<number> {
+    return getTimestampForSlot(this.svmEventsClient.getRpc(), slot);
   }
 
   /**

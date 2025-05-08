@@ -25,29 +25,12 @@ export function populateV3Relay(
 }
 
 /**
- * Retrieves the time from the SpokePool contract at a particular block.
- * @returns The time at the specified block tag.
- */
-export function getTimeAt(_spokePool: unknown, _blockNumber: number): Promise<number> {
-  throw new Error("getTimeAt: not implemented");
-}
-
-/**
  * Retrieves the chain time at a particular slot.
- * @note This should be the same as getTimeAt() but can differ in test. These two functions should be consolidated.
- * @returns The chain time at the specified slot.
  */
 export async function getTimestampForSlot(provider: SVMProvider, slotNumber: number): Promise<number> {
-  const block = await provider.getBlock(BigInt(slotNumber)).send();
-  let timestamp: number;
-  if (!block?.blockTime) {
-    console.error(`Unable to resolve block for slot ${slotNumber}`);
-    timestamp = 0; // @todo: How to handle this?
-  } else {
-    timestamp = Number(block.blockTime); // Unix timestamps fit within number.
-  }
-
-  return timestamp;
+  // @note: getBlockTime receives a slot number, not a block number.
+  const slotTime = await provider.getBlockTime(BigInt(slotNumber)).send();
+  return Number(slotTime);
 }
 
 /**
