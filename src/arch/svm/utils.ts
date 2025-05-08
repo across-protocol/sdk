@@ -1,10 +1,31 @@
 import { BN, BorshEventCoder, Idl } from "@coral-xyz/anchor";
-import { address, Address, getAddressEncoder, getProgramDerivedAddress, getU64Encoder, isAddress } from "@solana/kit";
+import {
+  address,
+  getProgramDerivedAddress,
+  getU64Encoder,
+  getAddressEncoder,
+  Address,
+  isAddress,
+  type TransactionSigner,
+} from "@solana/kit";
 import { BigNumber, getRelayDataHash, isUint8Array, SvmAddress } from "../../utils";
-
 import { SvmSpokeClient } from "@across-protocol/contracts";
 import { FillType, RelayData } from "../../interfaces";
 import { EventName, SVMEventNames, SVMProvider } from "./types";
+
+/**
+ * Basic void TransactionSigner type
+ */
+export const SolanaVoidSigner: (simulationAddress: string) => TransactionSigner<string> = (
+  simulationAddress: string
+) => {
+  return {
+    address: address(simulationAddress),
+    signAndSendTransactions: async () => {
+      return await Promise.resolve([]);
+    },
+  };
+};
 
 /**
  * Helper to determine if the current RPC network is devnet.

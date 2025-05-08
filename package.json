@@ -114,6 +114,7 @@
     "@solana-program/system": "^0.7.0",
     "@solana-program/token-2022": "^0.4.0",
     "@solana/web3.js": "^1.31.0",
+    "@solana-program/system": "^0.7.0",
     "@types/mocha": "^10.0.1",
     "@uma/sdk": "^0.34.10",
     "arweave": "^1.14.4",

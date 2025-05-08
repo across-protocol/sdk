@@ -3,9 +3,10 @@ import { MAX_SAFE_DEPOSIT_ID, ZERO_ADDRESS, ZERO_BYTES } from "../constants";
 import { Deposit, RelayData } from "../interfaces";
 import { toBytes32 } from "./AddressUtils";
 import { keccak256 } from "./common";
-import { BigNumber, toBN } from "./BigNumberUtils";
+import { BigNumber } from "./BigNumberUtils";
 import { isMessageEmpty } from "./DepositUtils";
 import { chainIsSvm } from "./NetworkUtils";
+import { svm } from "../arch";
 
 /**
  * Produce the RelayData for a Deposit.
@@ -45,7 +46,7 @@ export function getRelayDataHash(relayData: RelayData, destinationChainId: numbe
     exclusiveRelayer: toBytes32(relayData.exclusiveRelayer),
   };
   if (chainIsSvm(destinationChainId)) {
-    return _getRelayDataHashSvm(_relayData, destinationChainId);
+    return svm.getRelayDataHash(_relayData, destinationChainId);
   }
   return keccak256(
     ethersUtils.defaultAbiCoder.encode(
@@ -73,46 +74,6 @@ export function getRelayDataHash(relayData: RelayData, destinationChainId: numbe
 
 export function getRelayHashFromEvent(e: RelayData & { destinationChainId: number }): string {
   return getRelayDataHash(e, e.destinationChainId);
-}
-
-function _getRelayDataHashSvm(relayData: RelayData, destinationChainId: number): string {
-  const uint8ArrayFromHexString = (hex: string, littleEndian: boolean = false): Uint8Array => {
-    const buffer = Buffer.from(hex.slice(2), "hex");
-    if (buffer.length < 32) {
-      const zeroPad = new Uint8Array(32);
-      buffer.copy(zeroPad, 32 - buffer.length);
-      return littleEndian ? zeroPad.reverse() : zeroPad;
-    }
-    const result = new Uint8Array(buffer.slice(0, 32));
-    return littleEndian ? result.reverse() : result;
-  };
-  const uint8ArrayFromInt = (num: BigNumber, byteLength: number, littleEndian: boolean = true): Uint8Array => {
-    const buffer = Buffer.from(num.toHexString().slice(2), "hex");
-    if (buffer.length < byteLength) {
-      const zeroPad = new Uint8Array(byteLength);
-      buffer.copy(zeroPad, byteLength - buffer.length);
-      return littleEndian ? zeroPad.reverse() : zeroPad;
-    }
-    const result = new Uint8Array(buffer.slice(0, byteLength));
-    return littleEndian ? result.reverse() : result;
-  };
-  const contentToHash = Buffer.concat([
-    uint8ArrayFromHexString(relayData.depositor),
-    uint8ArrayFromHexString(relayData.recipient),
-    uint8ArrayFromHexString(relayData.exclusiveRelayer),
-    uint8ArrayFromHexString(relayData.inputToken),
-    uint8ArrayFromHexString(relayData.outputToken),
-    uint8ArrayFromInt(relayData.inputAmount, 8),
-    uint8ArrayFromInt(relayData.outputAmount, 8),
-    uint8ArrayFromInt(toBN(relayData.originChainId), 8),
-    uint8ArrayFromInt(relayData.depositId, 32, false),
-    uint8ArrayFromInt(toBN(relayData.fillDeadline), 4),
-    uint8ArrayFromInt(toBN(relayData.exclusivityDeadline), 4),
-    uint8ArrayFromHexString(getMessageHash(relayData.message)),
-    uint8ArrayFromInt(toBN(destinationChainId), 8),
-  ]);
-  const returnHash = keccak256(contentToHash);
-  return returnHash;
 }
 
 export function isUnsafeDepositId(depositId: BigNumber): boolean {
