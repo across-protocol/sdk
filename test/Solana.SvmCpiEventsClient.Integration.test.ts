@@ -31,8 +31,8 @@ describe("SvmCpiEventsClient (integration)", () => {
 
   // helper to create a deposit
   const createDeposit = async (payerAta: Address, inputAmount: bigint, outputAmount: bigint) => {
-    const lastBlock = await solanaClient.rpc.getBlockHeight({ commitment: "confirmed" }).send();
-    const currentTime = await solanaClient.rpc.getBlockTime(lastBlock).send();
+    const latestSlot = await solanaClient.rpc.getSlot({ commitment: "confirmed" }).send();
+    const currentTime = await solanaClient.rpc.getBlockTime(latestSlot).send();
 
     const depositData = {
       depositor: signer.address,
