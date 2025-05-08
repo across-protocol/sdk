@@ -1,7 +1,7 @@
 import { SvmSpokeClient } from "@across-protocol/contracts";
 import {
   DepositInput,
-  InitializeAsyncInput,
+  InitializeInput,
   SetEnableRouteInput,
 } from "@across-protocol/contracts/dist/src/svm/clients/SvmSpoke";
 import { getSolanaChainId } from "@across-protocol/contracts/dist/src/svm/web3-v1";
@@ -27,27 +27,20 @@ import {
   createSolanaRpcSubscriptions,
   createTransactionMessage,
   generateKeyPairSigner,
-  getProgramDerivedAddress,
   getSignatureFromTransaction,
   KeyPairSigner,
   lamports,
   pipe,
-  ReadonlyUint8Array,
-  Rpc,
-  RpcSubscriptions,
-  RpcTransport,
   sendAndConfirmTransactionFactory,
   setTransactionMessageFeePayerSigner,
   setTransactionMessageLifetimeUsingBlockhash,
-  SignatureNotificationsApi,
   signTransactionMessageWithSigners,
-  SlotNotificationsApi,
-  SolanaRpcApiFromTransport,
   TransactionMessageWithBlockhashLifetime,
   TransactionSigner,
 } from "@solana/kit";
 import bs58 from "bs58";
 import { ethers } from "ethers";
+import { getEventAuthority, getRoutePda, getStatePda, SVM_SPOKE_SEED, RpcClient } from "../../../src/arch/svm";
 
 /** RPC / Client */
 
@@ -56,12 +49,6 @@ export const createDefaultSolanaClient = () => {
   const rpc = createSolanaRpc("http://127.0.0.1:8899");
   const rpcSubscriptions = createSolanaRpcSubscriptions("ws://127.0.0.1:8900");
   return { rpc, rpcSubscriptions };
-};
-
-// Typed aggregate of JSON‑RPC and subscription clients.
-export type RpcClient = {
-  rpc: Rpc<SolanaRpcApiFromTransport<RpcTransport>>;
-  rpcSubscriptions: RpcSubscriptions<SignatureNotificationsApi & SlotNotificationsApi>;
 };
 
 /** Wallet & Transaction */
@@ -189,52 +176,6 @@ export function getRandomSvmAddress() {
   return address(base58Address);
 }
 
-// Encodes a bigint into a fixed‑length little‑endian Buffer.
-export function toLEBuffer(value: bigint, byteLen = 8): Buffer {
-  const buf = Buffer.alloc(byteLen);
-  let v = value;
-  for (let i = 0; i < byteLen; i++) {
-    buf[i] = Number(v & 0xffn);
-    v >>= 8n;
-  }
-  if (v !== 0n) throw new RangeError(`Value ${value} overflows ${byteLen} bytes`);
-  return buf;
-}
-
-// Converts a base‑58 address string to a Buffer.
-export function addressToBuffer(addr: Address): Buffer {
-  return Buffer.from(bs58.decode(addr.toString()));
-}
-
-// Derives the PDA for a route account on SVM Spoke.
-export async function createRoutePda(originToken: Address, seed: bigint, routeChainId: bigint): Promise<Address> {
-  const [pda] = await getProgramDerivedAddress({
-    programAddress: address(SvmSpokeClient.SVM_SPOKE_PROGRAM_ADDRESS),
-    seeds: [Buffer.from("route"), addressToBuffer(originToken), toLEBuffer(seed, 8), toLEBuffer(routeChainId, 8)],
-  });
-  return pda;
-}
-
-const STATE_SEED = 0n;
-
-// Derives the global State PDA for SVM Spoke.
-export const getStatePda = async () => {
-  const [state] = await getProgramDerivedAddress({
-    programAddress: address(SvmSpokeClient.SVM_SPOKE_PROGRAM_ADDRESS),
-    seeds: [Buffer.from("state"), toLEBuffer(STATE_SEED, 8)],
-  });
-  return state;
-};
-
-// Derives the SPL Event Authority PDA used by SVM Spoke.
-export const getEventAuthority = async () => {
-  const [eventAuthority] = await getProgramDerivedAddress({
-    programAddress: address(SvmSpokeClient.SVM_SPOKE_PROGRAM_ADDRESS),
-    seeds: ["__event_authority"],
-  });
-  return eventAuthority;
-};
-
 /** SVM Spoke Workflows */
 
 // Initialises the SVM Spoke program on Solana.
@@ -245,11 +186,11 @@ export const initializeSvmSpoke = async (
   initialNumberOfDeposits = 0,
   depositQuoteTimeBuffer = 3600,
   fillDeadlineBuffer = 4 * 3600,
-  seed = STATE_SEED
+  seed = SVM_SPOKE_SEED
 ) => {
-  const state = await getStatePda();
+  const state = await getStatePda(SvmSpokeClient.SVM_SPOKE_PROGRAM_ADDRESS);
 
-  const initializeInput: InitializeAsyncInput = {
+  const initializeInput: InitializeInput = {
     signer,
     state,
     systemProgram: SYSTEM_PROGRAM_ADDRESS,
@@ -261,7 +202,7 @@ export const initializeSvmSpoke = async (
     depositQuoteTimeBuffer,
     fillDeadlineBuffer,
   };
-  const initializeIx = await SvmSpokeClient.getInitializeInstructionAsync(initializeInput);
+  const initializeIx = await SvmSpokeClient.getInitializeInstruction(initializeInput);
 
   await pipe(
     await createDefaultTransaction(solanaClient, signer),
@@ -296,7 +237,7 @@ export const enableRoute = async (
     tokenProgram,
   });
 
-  const route = await createRoutePda(mint, 0n, destinationChainId);
+  const route = await getRoutePda(mint, 0n, destinationChainId);
   const eventAuthority = await getEventAuthority();
 
   const input: SetEnableRouteInput = {
@@ -309,13 +250,13 @@ export const enableRoute = async (
     tokenProgram,
     associatedTokenProgram,
     systemProgram: SYSTEM_PROGRAM_ADDRESS,
-    eventAuthority,
     program: address(SvmSpokeClient.SVM_SPOKE_PROGRAM_ADDRESS),
     originToken: mint,
     destinationChainId,
     enabled: true,
+    eventAuthority,
   };
-  const setEnableRouteIx = await SvmSpokeClient.getSetEnableRouteInstructionAsync(input);
+  const setEnableRouteIx = await SvmSpokeClient.getSetEnableRouteInstruction(input);
 
   await pipe(
     await createDefaultTransaction(solanaClient, signer),
@@ -329,52 +270,20 @@ export const enableRoute = async (
 // Executes a deposit into the SVM Spoke vault.
 export const deposit = async (
   signer: KeyPairSigner,
-  depositData: {
-    depositor: Address;
-    recipient: Address;
-    inputToken: Address;
-    outputToken: Address;
-    inputAmount: bigint;
-    outputAmount: bigint;
-    destinationChainId: number;
-    exclusiveRelayer: Address;
-    quoteTimestamp: number;
-    fillDeadline: number;
-    exclusivityParameter: number;
-    message: ReadonlyUint8Array;
-  },
-  depositAccounts: {
-    state: Address;
-    route: Address;
-    signer: Address;
-    depositorTokenAccount: Address;
-    vault: Address;
-    mint: Address;
-    tokenProgram: Address;
-    program: Address;
-  },
-  tokenDecimals: number,
-  solanaClient: RpcClient
+  solanaClient: RpcClient,
+  depositInput: DepositInput,
+  tokenDecimals: number
 ) => {
-  const eventAuthority = await getEventAuthority();
-
   const approveIx = getApproveCheckedInstruction({
-    source: depositAccounts.depositorTokenAccount,
-    mint: depositAccounts.mint,
-    delegate: depositAccounts.state,
-    owner: depositData.depositor,
-    amount: depositData.inputAmount,
+    source: depositInput.depositorTokenAccount,
+    mint: depositInput.mint,
+    delegate: depositInput.state,
+    owner: depositInput.depositor,
+    amount: depositInput.inputAmount,
     decimals: tokenDecimals,
   });
 
-  const depositInput: DepositInput = {
-    ...depositData,
-    ...depositAccounts,
-    eventAuthority,
-    signer,
-  };
-
-  const depositIx = await SvmSpokeClient.getDepositInstructionAsync(depositInput);
+  const depositIx = await SvmSpokeClient.getDepositInstruction(depositInput);
 
   return pipe(
     await createDefaultTransaction(solanaClient, signer),

@@ -1,9 +1,18 @@
 import { BN, BorshEventCoder, Idl } from "@coral-xyz/anchor";
 import { BigNumber, getRelayDataHash, isUint8Array, SvmAddress } from "../../utils";
-import web3, { address, isAddress, RpcTransport, getProgramDerivedAddress, getU64Encoder, Address } from "@solana/kit";
+import web3, {
+  address,
+  isAddress,
+  RpcTransport,
+  getProgramDerivedAddress,
+  getU64Encoder,
+  Address,
+  getAddressEncoder,
+} from "@solana/kit";
 
 import { EventName, SVMEventNames } from "./types";
 import { FillType, RelayData } from "../../interfaces";
+import { SvmSpokeClient } from "@across-protocol/contracts";
 
 /**
  * Helper to determine if the current RPC network is devnet.
@@ -169,3 +178,32 @@ export async function getFillStatusPda(
   });
   return fillStatusPda;
 }
+
+/**
+ * Returns the PDA for a route account on SVM Spoke.
+ * @param originToken The origin token address.
+ * @param seed The seed for the route account.
+ * @param routeChainId The route chain ID.
+ * @returns The PDA for the route account.
+ */
+export async function getRoutePda(originToken: Address, seed: bigint, routeChainId: bigint): Promise<Address> {
+  const intEncoder = getU64Encoder();
+  const addressEncoder = getAddressEncoder();
+  const [pda] = await getProgramDerivedAddress({
+    programAddress: address(SvmSpokeClient.SVM_SPOKE_PROGRAM_ADDRESS),
+    seeds: ["route", addressEncoder.encode(originToken), intEncoder.encode(seed), intEncoder.encode(routeChainId)],
+  });
+  return pda;
+}
+
+/**
+ * Returns the PDA for the Event Authority.
+ * @returns The PDA for the Event Authority.
+ */
+export const getEventAuthority = async () => {
+  const [eventAuthority] = await getProgramDerivedAddress({
+    programAddress: address(SvmSpokeClient.SVM_SPOKE_PROGRAM_ADDRESS),
+    seeds: ["__event_authority"],
+  });
+  return eventAuthority;
+};

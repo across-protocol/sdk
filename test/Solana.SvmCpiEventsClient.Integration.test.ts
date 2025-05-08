@@ -1,8 +1,9 @@
 import { SvmSpokeClient } from "@across-protocol/contracts";
+import { DepositInput } from "@across-protocol/contracts/dist/src/svm/clients/SvmSpoke";
 import { TOKEN_2022_PROGRAM_ADDRESS } from "@solana-program/token-2022";
 import { Address, KeyPairSigner } from "@solana/kit";
 import { expect } from "chai";
-import { SvmCpiEventsClient } from "../src/arch/svm";
+import { getEventAuthority, SvmCpiEventsClient } from "../src/arch/svm";
 import {
   createDefaultSolanaClient,
   createMint,
@@ -33,8 +34,9 @@ describe("SvmCpiEventsClient (integration)", () => {
   const createDeposit = async (payerAta: Address, inputAmount: bigint, outputAmount: bigint) => {
     const latestSlot = await solanaClient.rpc.getSlot({ commitment: "confirmed" }).send();
     const currentTime = await solanaClient.rpc.getBlockTime(latestSlot).send();
+    const eventAuthority = await getEventAuthority();
 
-    const depositData = {
+    const depositInput: DepositInput = {
       depositor: signer.address,
       recipient: signer.address,
       inputToken: mint.address,
@@ -47,26 +49,24 @@ describe("SvmCpiEventsClient (integration)", () => {
       fillDeadline: Number(currentTime) + 60 * 30, // 30‑minute deadline
       exclusivityParameter: 1,
       message: new Uint8Array(),
-    };
-
-    const depositAccounts = {
       state,
       route,
-      signer: signer.address,
       depositorTokenAccount: payerAta,
       vault,
       mint: mint.address,
       tokenProgram: TOKEN_2022_PROGRAM_ADDRESS,
       program: SvmSpokeClient.SVM_SPOKE_PROGRAM_ADDRESS,
+      eventAuthority,
+      signer,
     };
 
-    const signature = await deposit(signer, depositData, depositAccounts, decimals, solanaClient);
-    return { signature, depositData };
+    const signature = await deposit(signer, solanaClient, depositInput, decimals);
+    return { signature, depositInput };
   };
 
   before(async function () {
     /* Local validator spin‑up can take a few seconds */
-    this.timeout(30_000);
+    this.timeout(60_000);
     await validatorSetup();
     signer = await generateKeyPairSignerWithSol(solanaClient);
     ({ state } = await initializeSvmSpoke(signer, solanaClient, signer.address));
@@ -95,22 +95,22 @@ describe("SvmCpiEventsClient (integration)", () => {
 
   it("creates and reads a single deposit event", async () => {
     const payerAta = await mintTokens(signer, solanaClient, mint.address, tokenAmount);
-    const { depositData } = await createDeposit(payerAta, tokenAmount, tokenAmount);
+    const { depositInput } = await createDeposit(payerAta, tokenAmount, tokenAmount);
 
     const [depositEvent] = await client.queryEvents("FundsDeposited");
 
     const { data } = depositEvent as { data: SvmSpokeClient.FundsDeposited };
 
-    expect(data.depositor).to.equal(depositData.depositor.toString());
-    expect(data.recipient).to.equal(depositData.recipient.toString());
-    expect(data.inputToken).to.equal(depositData.inputToken.toString());
-    expect(data.outputToken).to.equal(depositData.outputToken.toString());
-    expect(data.inputAmount).to.equal(depositData.inputAmount);
-    expect(data.outputAmount).to.equal(depositData.outputAmount);
-    expect(data.destinationChainId).to.equal(BigInt(depositData.destinationChainId));
-    expect(data.exclusiveRelayer).to.equal(depositData.exclusiveRelayer.toString());
-    expect(data.quoteTimestamp).to.equal(depositData.quoteTimestamp);
-    expect(data.fillDeadline).to.equal(depositData.fillDeadline);
+    expect(data.depositor).to.equal(depositInput.depositor.toString());
+    expect(data.recipient).to.equal(depositInput.recipient.toString());
+    expect(data.inputToken).to.equal(depositInput.inputToken.toString());
+    expect(data.outputToken).to.equal(depositInput.outputToken.toString());
+    expect(data.inputAmount).to.equal(depositInput.inputAmount);
+    expect(data.outputAmount).to.equal(depositInput.outputAmount);
+    expect(data.destinationChainId).to.equal(BigInt(depositInput.destinationChainId));
+    expect(data.exclusiveRelayer).to.equal(depositInput.exclusiveRelayer.toString());
+    expect(data.quoteTimestamp).to.equal(depositInput.quoteTimestamp);
+    expect(data.fillDeadline).to.equal(depositInput.fillDeadline);
   });
 
   it("filters deposit events by slot range", async () => {
@@ -126,7 +126,7 @@ describe("SvmCpiEventsClient (integration)", () => {
     if (!tx1) throw new Error("first deposit tx not found");
 
     /* Second deposit (should be returned) */
-    const { depositData: secondDeposit, signature: secondSig } = await createDeposit(
+    const { depositInput: secondDeposit, signature: secondSig } = await createDeposit(
       payerAta,
       tokenAmount + 1n,
       tokenAmount + 1n

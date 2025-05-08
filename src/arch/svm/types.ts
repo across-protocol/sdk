@@ -1,4 +1,15 @@
-import { Signature, Address, UnixTimestamp, SolanaRpcApi, Rpc } from "@solana/kit";
+import {
+  Signature,
+  Address,
+  UnixTimestamp,
+  SolanaRpcApi,
+  Rpc,
+  SolanaRpcApiFromTransport,
+  RpcTransport,
+  RpcSubscriptions,
+  SignatureNotificationsApi,
+  SlotNotificationsApi,
+} from "@solana/kit";
 import { SvmSpokeClient } from "@across-protocol/contracts";
 
 export type EventData =
@@ -47,3 +58,9 @@ export type EventWithData = {
 };
 
 export type SVMProvider = Rpc<SolanaRpcApi>;
+
+// Typed aggregate of JSON‑RPC and subscription clients.
+export type RpcClient = {
+  rpc: Rpc<SolanaRpcApiFromTransport<RpcTransport>>;
+  rpcSubscriptions: RpcSubscriptions<SignatureNotificationsApi & SlotNotificationsApi>;
+};
