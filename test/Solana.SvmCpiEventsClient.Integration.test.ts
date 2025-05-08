@@ -115,7 +115,7 @@ describe("SvmCpiEventsClient (integration)", () => {
 
   it("filters deposit events by slot range", async () => {
     /* First deposit (outside the queried range) */
-    const payerAta = await mintTokens(signer, solanaClient, mint.address, tokenAmount);
+    const payerAta = await mintTokens(signer, solanaClient, mint.address, tokenAmount * 2n + 1n);
     const { signature: firstSig } = await createDeposit(payerAta, tokenAmount, tokenAmount);
     const tx1 = await solanaClient.rpc
       .getTransaction(firstSig, {
@@ -126,7 +126,6 @@ describe("SvmCpiEventsClient (integration)", () => {
     if (!tx1) throw new Error("first deposit tx not found");
 
     /* Second deposit (should be returned) */
-    await mintTokens(signer, solanaClient, mint.address, tokenAmount + 1n);
     const { depositData: secondDeposit, signature: secondSig } = await createDeposit(
       payerAta,
       tokenAmount + 1n,
