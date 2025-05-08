@@ -25,7 +25,7 @@ import {
   spreadEvent,
   spreadEventWithBlockNumber,
 } from "../../utils/EventUtils";
-import { ZERO_ADDRESS } from "../../constants";
+import { ZERO_ADDRESS, CHAIN_IDs } from "../../constants";
 import {
   Deposit,
   DepositWithBlock,
@@ -409,8 +409,10 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
       }
       return newInvalidFill;
     });
+    // Log invalid and unrepayable fills as warns iff the hub pool client is defined and the hub chain is mainnet.
+    const logLevel = this.hubPoolClient?.chainId === CHAIN_IDs.MAINNET ? "warn" : "debug";
     if (invalidFillsForDeposit.length > 0) {
-      this.logger.warn({
+      this.logger[logLevel]({
         at: "SpokePoolClient",
         chainId: this.chainId,
         message: "Invalid fills found matching deposit ID",
@@ -421,7 +423,7 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
     }
     const unrepayableFillsForDeposit = unrepayableFills.filter((x) => x.depositId.eq(deposit.depositId));
     if (unrepayableFillsForDeposit.length > 0) {
-      this.logger.warn({
+      this.logger[logLevel]({
         at: "SpokePoolClient",
         chainId: this.chainId,
         message: "Unrepayable fills found where we need to switch repayment address and or chain",
