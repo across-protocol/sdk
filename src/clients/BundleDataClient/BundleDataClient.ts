@@ -20,7 +20,8 @@ import {
   DepositWithBlock,
 } from "../../interfaces";
 import { SpokePoolClient } from "..";
-import { findFillEvent } from "../../arch/evm";
+import { findFillEvent as findEvmFillEvent } from "../../arch/evm";
+import { findFillEvent as findSvmFillEvent } from "../../arch/svm";
 import {
   BigNumber,
   bnZero,
@@ -58,7 +59,7 @@ import {
   verifyFillRepayment,
 } from "./utils";
 import { UNDEFINED_MESSAGE_HASH } from "../../constants";
-import { isEVMSpokePoolClient } from "../SpokePoolClient";
+import { isEVMSpokePoolClient, isSvmSpokePoolClient } from "../SpokePoolClient";
 
 // max(uint256) - 1
 export const INFINITE_FILL_DEADLINE = bnUint32Max;
@@ -1534,16 +1535,24 @@ export class BundleDataClient {
     deposit: DepositWithBlock,
     spokePoolClient: SpokePoolClient
   ): Promise<FillWithBlock | undefined> {
-    if (!isEVMSpokePoolClient(spokePoolClient)) {
-      // FIXME: Handle non-EVM chains.
-      throw new Error("Destination chain is not an EVM chain.");
+    if (isSvmSpokePoolClient(spokePoolClient)) {
+      return await findSvmFillEvent(
+        deposit,
+        spokePoolClient.chainId,
+        spokePoolClient.svmEventsClient,
+        spokePoolClient.deploymentBlock,
+        spokePoolClient.latestHeightSearched
+      );
+    } else if (isEVMSpokePoolClient(spokePoolClient)) {
+      return await findEvmFillEvent(
+        spokePoolClient.spokePool,
+        deposit,
+        spokePoolClient.deploymentBlock,
+        spokePoolClient.latestHeightSearched
+      );
+    } else {
+      throw new Error("Unsupported spoke pool client type");
     }
-    return await findFillEvent(
-      spokePoolClient.spokePool,
-      deposit,
-      spokePoolClient.deploymentBlock,
-      spokePoolClient.latestHeightSearched
-    );
   }
 
   async getBundleBlockTimestamps(

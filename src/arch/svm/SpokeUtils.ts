@@ -1,15 +1,13 @@
 import assert from "assert";
 import { Logger } from "winston";
-import { Rpc, SolanaRpcApi, Address, fetchEncodedAccounts, fetchEncodedAccount } from "@solana/kit";
+import { Address, fetchEncodedAccounts, fetchEncodedAccount } from "@solana/kit";
 import { fetchState, decodeFillStatusAccount } from "@across-protocol/contracts/dist/src/svm/clients/SvmSpoke";
 
 import { SvmCpiEventsClient } from "./eventsClient";
 import { Deposit, FillStatus, FillWithBlock, RelayData } from "../../interfaces";
 import { BigNumber, chainIsSvm, chunk, isUnsafeDepositId } from "../../utils";
-import { getFillStatusPda } from "./utils";
-import { SVMEventNames } from "./types";
-
-type Provider = Rpc<SolanaRpcApi>;
+import { getFillStatusPda, unwrapEventData } from "./utils";
+import { SVMEventNames, SVMProvider } from "./types";
 
 /**
  * @param spokePool SpokePool Contract instance.
@@ -39,7 +37,7 @@ export function getTimeAt(_spokePool: unknown, _blockNumber: number): Promise<nu
  * @note This should be the same as getTimeAt() but can differ in test. These two functions should be consolidated.
  * @returns The chain time at the specified slot.
  */
-export async function getTimestampForSlot(provider: Provider, slotNumber: number): Promise<number> {
+export async function getTimestampForSlot(provider: SVMProvider, slotNumber: number): Promise<number> {
   const block = await provider.getBlock(BigInt(slotNumber)).send();
   let timestamp: number;
   if (!block?.blockTime) {
@@ -58,7 +56,7 @@ export async function getTimestampForSlot(provider: Provider, slotNumber: number
  * @param statePda Spoke Pool's State PDA
  * @returns fill deadline buffer
  */
-export async function getFillDeadline(provider: Provider, statePda: Address): Promise<number> {
+export async function getFillDeadline(provider: SVMProvider, statePda: Address): Promise<number> {
   const state = await fetchState(provider, statePda);
   return state.data.fillDeadlineBuffer;
 }
@@ -102,12 +100,11 @@ export async function relayFillStatus(
   programId: Address,
   relayData: RelayData,
   destinationChainId: number,
-  provider: Provider,
   svmEventsClient: SvmCpiEventsClient,
   atHeight?: number
 ): Promise<FillStatus> {
   assert(chainIsSvm(destinationChainId), "Destination chain must be an SVM chain");
-
+  const provider = svmEventsClient.getRpc();
   // Get fill status PDA using relayData
   const fillStatusPda = await getFillStatusPda(programId, relayData, destinationChainId);
   const currentSlot = await provider.getSlot({ commitment: "confirmed" }).send();
@@ -152,13 +149,12 @@ export async function fillStatusArray(
   programId: Address,
   relayData: RelayData[],
   destinationChainId: number,
-  provider: Provider,
   svmEventsClient: SvmCpiEventsClient,
   atHeight?: number,
   logger?: Logger
 ): Promise<(FillStatus | undefined)[]> {
   assert(chainIsSvm(destinationChainId), "Destination chain must be an SVM chain");
-
+  const provider = svmEventsClient.getRpc();
   const chunkSize = 100;
   const chunkedRelayData = chunk(relayData, chunkSize);
 
@@ -224,30 +220,53 @@ export async function fillStatusArray(
 }
 
 /**
- * Find the block at which a fill was completed.
- * @todo After SpokePool upgrade, this function can be simplified to use the FillStatus enum.
- * @param spokePool SpokePool contract instance.
- * @param relayData Deposit information that is used to complete a fill.
- * @param lowBlockNumber The lower bound of the search. Must be bounded by SpokePool deployment.
- * @param highBlocknumber Optional upper bound for the search.
- * @returns The block number at which the relay was completed, or undefined.
+ * Finds the `FilledRelay` event for a given deposit within the provided slot range.
+ *
+ * @param relayData - Deposit information that is used to complete a fill.
+ * @param destinationChainId - Destination chain ID (must be an SVM chain).
+ * @param svmEventsClient - SVM events client instance for querying events.
+ * @param fromSlot - Starting slot to search.
+ * @param toSlot (Optional) Ending slot to search. If not provided, the current confirmed slot will be used.
+ * @returns The fill event with block info, or `undefined` if not found.
  */
-export function findFillBlock(
-  _spokePool: unknown,
-  _relayData: RelayData,
-  _lowBlockNumber: number,
-  _highBlockNumber?: number
-): Promise<number | undefined> {
-  throw new Error("fillStatusArray: not implemented");
-}
-
-export function findFillEvent(
-  _spokePool: unknown,
-  _relayData: RelayData,
-  _lowBlockNumber: number,
-  _highBlockNumber?: number
+export async function findFillEvent(
+  relayData: RelayData,
+  destinationChainId: number,
+  svmEventsClient: SvmCpiEventsClient,
+  fromSlot: number,
+  toSlot?: number
 ): Promise<FillWithBlock | undefined> {
-  throw new Error("fillStatusArray: not implemented");
+  assert(chainIsSvm(destinationChainId), "Destination chain must be an SVM chain");
+  toSlot ??= Number(await svmEventsClient.getRpc().getSlot({ commitment: "confirmed" }).send());
+
+  // Get fillStatus PDA using relayData
+  const programId = svmEventsClient.getProgramAddress();
+  const fillStatusPda = await getFillStatusPda(programId, relayData, destinationChainId);
+
+  // Get fill events from fillStatus PDA
+  const fillEvents = await svmEventsClient.queryDerivedAddressEvents(
+    SVMEventNames.FilledRelay,
+    fillStatusPda,
+    BigInt(fromSlot),
+    BigInt(toSlot),
+    { limit: 10 }
+  );
+  assert(fillEvents.length <= 1, `Expected at most one fill event for ${fillStatusPda}, got ${fillEvents.length}`);
+
+  if (fillEvents.length > 0) {
+    const rawFillEvent = fillEvents[0];
+    const parsedFillEvent = {
+      transactionHash: rawFillEvent.signature,
+      blockNumber: Number(rawFillEvent.slot),
+      transactionIndex: 0,
+      logIndex: 0,
+      destinationChainId,
+      ...(unwrapEventData(rawFillEvent.data) as Record<string, unknown>),
+    } as unknown as FillWithBlock;
+    return parsedFillEvent;
+  }
+
+  return undefined;
 }
 
 async function resolveFillStatusFromPdaEvents(
@@ -302,7 +321,7 @@ async function resolveFillStatusFromPdaEvents(
  * @param relayData An array of relay data from which the fill status PDAs were derived.
  */
 async function fetchBatchFillStatusFromPdaAccounts(
-  provider: Provider,
+  provider: SVMProvider,
   fillStatusPdas: Address[],
   relayDataArray: RelayData[]
 ): Promise<(FillStatus | undefined)[]> {

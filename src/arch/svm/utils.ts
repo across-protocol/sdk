@@ -1,23 +1,15 @@
 import { BN, BorshEventCoder, Idl } from "@coral-xyz/anchor";
+import { address, Address, getAddressEncoder, getProgramDerivedAddress, getU64Encoder, isAddress } from "@solana/kit";
 import { BigNumber, getRelayDataHash, isUint8Array, SvmAddress } from "../../utils";
-import web3, {
-  address,
-  isAddress,
-  RpcTransport,
-  getProgramDerivedAddress,
-  getU64Encoder,
-  Address,
-  getAddressEncoder,
-} from "@solana/kit";
 
-import { EventName, SVMEventNames } from "./types";
-import { FillType, RelayData } from "../../interfaces";
 import { SvmSpokeClient } from "@across-protocol/contracts";
+import { FillType, RelayData } from "../../interfaces";
+import { EventName, SVMEventNames, SVMProvider } from "./types";
 
 /**
  * Helper to determine if the current RPC network is devnet.
  */
-export async function isDevnet(rpc: web3.Rpc<web3.SolanaRpcApiFromTransport<RpcTransport>>): Promise<boolean> {
+export async function isDevnet(rpc: SVMProvider): Promise<boolean> {
   const genesisHash = await rpc.getGenesisHash().send();
   return genesisHash === "EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG";
 }

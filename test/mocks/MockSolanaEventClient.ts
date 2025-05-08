@@ -1,7 +1,7 @@
-import { Address, RpcTransport, SolanaRpcApiFromTransport, Rpc } from "@solana/kit";
+import { Address } from "@solana/kit";
 import { SvmCpiEventsClient } from "../../src/arch/svm/eventsClient";
 import { Idl } from "@coral-xyz/anchor";
-import { EventName, EventWithData } from "../../src/arch/svm";
+import { EventName, EventWithData, SVMProvider } from "../../src/arch/svm";
 import { MockSolanaRpcFactory } from "./MockSolanaRpcFactory";
 
 export class MockSolanaEventClient extends SvmCpiEventsClient {
@@ -9,13 +9,7 @@ export class MockSolanaEventClient extends SvmCpiEventsClient {
   private slotHeight: bigint;
 
   constructor(programId = "JAZWcGrpSWNPTBj8QtJ9UyQqhJCDhG9GJkDeMf5NQBiq") {
-    super(
-      null as unknown as Rpc<SolanaRpcApiFromTransport<RpcTransport>>,
-      programId as Address,
-      null as unknown as Address,
-      null as unknown as Idl,
-      null as unknown as Address
-    );
+    super(null as unknown as SVMProvider, programId as Address, null as unknown as Address, null as unknown as Idl);
   }
 
   public setSlotHeight(slotHeight: bigint) {
@@ -47,7 +41,7 @@ export class MockSolanaEventClient extends SvmCpiEventsClient {
     );
   }
 
-  public override getRpc(): Rpc<SolanaRpcApiFromTransport<RpcTransport>> {
+  public override getRpc(): SVMProvider {
     const client = new MockSolanaRpcFactory("https://test.com", 1234567890);
     client.setResult("getSlot", [], this.slotHeight);
     return client.createRpcClient();
