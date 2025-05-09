@@ -2,14 +2,7 @@ import assert from "assert";
 import winston from "winston";
 import { Contract, ethers } from "ethers";
 import { Log } from "../../interfaces";
-import {
-  getCurrentTime,
-  EventSearchConfig,
-  MakeOptional,
-  isDefined,
-  utf8ToHex,
-  spreadEventWithBlockNumber,
-} from "../../utils";
+import { getCurrentTime, EventSearchConfig, MakeOptional, isDefined, utf8ToHex } from "../../utils";
 import {
   AcrossConfigStoreClient,
   ConfigStoreUpdate,
@@ -99,9 +92,9 @@ export class MockConfigStoreClient extends AcrossConfigStoreClient {
       chainId: this.chainId as number,
       searchEndBlock: this.eventSearchConfig.to || latestBlockSearched,
       events: {
-        updatedGlobalConfigEvents: events["UpdatedGlobalConfig"].map(spreadEventWithBlockNumber),
+        updatedGlobalConfigEvents: events["UpdatedGlobalConfig"],
         globalConfigUpdateTimes,
-        updatedTokenConfigEvents: events["UpdatedTokenConfig"].map(spreadEventWithBlockNumber),
+        updatedTokenConfigEvents: events["UpdatedTokenConfig"],
       },
     });
   }

@@ -1,7 +1,8 @@
-import { encodeAbiParameters, keccak256 } from "viem";
+import { utils as ethersUtils } from "ethers";
 import { MAX_SAFE_DEPOSIT_ID, ZERO_ADDRESS, ZERO_BYTES } from "../constants";
 import { Deposit, RelayData } from "../interfaces";
 import { toBytes32 } from "./AddressUtils";
+import { keccak256 } from "./common";
 import { BigNumber } from "./BigNumberUtils";
 import { isMessageEmpty } from "./DepositUtils";
 import { chainIsSvm } from "./NetworkUtils";
@@ -36,27 +37,6 @@ export function getDepositRelayData(deposit: Omit<Deposit, "messageHash">): Rela
  * @returns The corresponding RelayData hash.
  */
 export function getRelayDataHash(relayData: RelayData, destinationChainId: number): string {
-  const abi = [
-    {
-      type: "tuple",
-      components: [
-        { type: "bytes32", name: "depositor" },
-        { type: "bytes32", name: "recipient" },
-        { type: "bytes32", name: "exclusiveRelayer" },
-        { type: "bytes32", name: "inputToken" },
-        { type: "bytes32", name: "outputToken" },
-        { type: "uint256", name: "inputAmount" },
-        { type: "uint256", name: "outputAmount" },
-        { type: "uint256", name: "originChainId" },
-        { type: "uint256", name: "depositId" },
-        { type: "uint32", name: "fillDeadline" },
-        { type: "uint32", name: "exclusivityDeadline" },
-        { type: "bytes", name: "message" },
-      ],
-    },
-    { type: "uint256", name: "destinationChainId" },
-  ];
-
   const _relayData = {
     ...relayData,
     depositor: toBytes32(relayData.depositor),
@@ -68,7 +48,28 @@ export function getRelayDataHash(relayData: RelayData, destinationChainId: numbe
   if (chainIsSvm(destinationChainId)) {
     return svm.getRelayDataHash(_relayData, destinationChainId);
   }
-  return keccak256(encodeAbiParameters(abi, [_relayData, destinationChainId]));
+  return keccak256(
+    ethersUtils.defaultAbiCoder.encode(
+      [
+        "tuple(" +
+          "bytes32 depositor," +
+          "bytes32 recipient," +
+          "bytes32 exclusiveRelayer," +
+          "bytes32 inputToken," +
+          "bytes32 outputToken," +
+          "uint256 inputAmount," +
+          "uint256 outputAmount," +
+          "uint256 originChainId," +
+          "uint256 depositId," +
+          "uint32 fillDeadline," +
+          "uint32 exclusivityDeadline," +
+          "bytes message" +
+          ")",
+        "uint256 destinationChainId",
+      ],
+      [_relayData, destinationChainId]
+    )
+  );
 }
 
 export function getRelayHashFromEvent(e: RelayData & { destinationChainId: number }): string {
@@ -91,5 +92,5 @@ export function isZeroAddress(address: string): boolean {
 }
 
 export function getMessageHash(message: string): string {
-  return isMessageEmpty(message) ? ZERO_BYTES : keccak256(message as "0x{string}");
+  return isMessageEmpty(message) ? ZERO_BYTES : keccak256(message);
 }

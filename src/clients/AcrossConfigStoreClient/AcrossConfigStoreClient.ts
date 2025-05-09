@@ -24,6 +24,7 @@ import {
   DisabledChainsUpdate,
   GlobalConfigUpdate,
   LiteChainsIdListUpdate,
+  Log,
   ParsedTokenConfig,
   RateModelUpdate,
   RouteRateModelUpdate,
@@ -42,8 +43,8 @@ type ConfigStoreUpdateSuccess = {
   chainId: number;
   searchEndBlock: number;
   events: {
-    updatedTokenConfigEvents: SortableEvent[];
-    updatedGlobalConfigEvents: SortableEvent[];
+    updatedTokenConfigEvents: Log[];
+    updatedGlobalConfigEvents: Log[];
     globalConfigUpdateTimes: number[];
   };
 };
@@ -340,13 +341,8 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
       paginatedEventQuery(this.configStore, this.configStore.filters.UpdatedGlobalConfig(), searchConfig),
     ]);
 
-    const updatedTokenConfigSortableEvents = updatedTokenConfigEvents.map(spreadEventWithBlockNumber);
-    const updatedGlobalConfigSortableEvents = updatedGlobalConfigEvents.map(spreadEventWithBlockNumber);
-
     // Events *should* normally be received in ascending order, but explicitly enforce the ordering.
-    [updatedTokenConfigSortableEvents, updatedGlobalConfigSortableEvents].forEach((events) =>
-      sortEventsAscendingInPlace(events)
-    );
+    [updatedTokenConfigEvents, updatedGlobalConfigEvents].forEach((events) => sortEventsAscendingInPlace(events));
 
     const globalConfigUpdateTimes = (
       await Promise.all(updatedGlobalConfigEvents.map((event) => this.configStore.provider.getBlock(event.blockNumber)))
@@ -357,8 +353,8 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
       chainId,
       searchEndBlock: searchConfig.to,
       events: {
-        updatedTokenConfigEvents: updatedTokenConfigSortableEvents,
-        updatedGlobalConfigEvents: updatedGlobalConfigSortableEvents,
+        updatedTokenConfigEvents,
+        updatedGlobalConfigEvents,
         globalConfigUpdateTimes,
       },
     };
@@ -384,11 +380,13 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
     // Save new TokenConfig updates.
     for (const event of updatedTokenConfigEvents) {
       // If transaction hash is known to be invalid, skip it immediately to avoid creating extra logs.
-      if (KNOWN_INVALID_TOKEN_CONFIG_UPDATE_HASHES.includes(event.txnRef.toLowerCase())) {
+      if (KNOWN_INVALID_TOKEN_CONFIG_UPDATE_HASHES.includes(event.transactionHash.toLowerCase())) {
         continue;
       }
 
-      const args = event as TokenConfig;
+      const args = {
+        ...(spreadEventWithBlockNumber(event) as TokenConfig),
+      };
 
       try {
         const { rateModel, routeRateModel, spokeTargetBalances } = this.validateTokenConfigUpdate(args);
@@ -420,7 +418,7 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
           this.logger.debug({
             at: "ConfigStoreClient::update",
             message: `Skipping invalid historical update at block ${event.blockNumber}`,
-            txnRef: event.txnRef,
+            transactionHash: event.transactionHash,
           });
         }
         continue;
@@ -429,7 +427,7 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
 
     // Save new Global config updates.
     for (let i = 0; i < updatedGlobalConfigEvents.length; i++) {
-      const args = updatedGlobalConfigEvents[i] as SortableEvent & {
+      const args = spreadEventWithBlockNumber(updatedGlobalConfigEvents[i]) as SortableEvent & {
         key: string;
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         value: any;
@@ -564,7 +562,7 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
     rateModel: string | undefined;
     routeRateModel: RouteRateModelUpdate["routeRateModel"];
   } {
-    const { value, key, txnRef } = args;
+    const { value, key, transactionHash } = args;
     const parsedValue = parseJSONWithNumericString(value) as ParsedTokenConfig;
     const l1Token = key;
 
@@ -580,7 +578,7 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
       const rateModel = parsedValue.rateModel;
       assert(
         this.isValidRateModel(rateModel),
-        `Invalid rateModel UBar for ${l1Token} at transaction ${txnRef}, ${JSON.stringify(rateModel)}`
+        `Invalid rateModel UBar for ${l1Token} at transaction ${transactionHash}, ${JSON.stringify(rateModel)}`
       );
       rateModelForToken = JSON.stringify(rateModel);
 
@@ -603,7 +601,7 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
           Object.entries(parsedValue.routeRateModel).map(([path, routeRateModel]) => {
             assert(
               this.isValidRateModel(routeRateModel) &&
-                `Invalid routeRateModel UBar for ${path} for ${l1Token} at transaction ${txnRef}, ${JSON.stringify(
+                `Invalid routeRateModel UBar for ${path} for ${l1Token} at transaction ${transactionHash}, ${JSON.stringify(
                   routeRateModel
                 )}`
             );

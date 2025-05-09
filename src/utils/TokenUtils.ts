@@ -4,10 +4,10 @@ import * as constants from "../constants";
 import { L1Token } from "../interfaces";
 import { ERC20__factory } from "../typechain";
 import { BigNumber } from "./BigNumberUtils";
-import { getNetworkName, chainIsL1, chainIsProd } from "./NetworkUtils";
+import { getNetworkName } from "./NetworkUtils";
 import { isDefined } from "./TypeGuards";
 import { compareAddressesSimple } from "./AddressUtils";
-const { TOKEN_SYMBOLS_MAP, CHAIN_IDs, TOKEN_EQUIVALENCE_REMAPPING } = constants;
+const { TOKEN_SYMBOLS_MAP, CHAIN_IDs } = constants;
 
 type SignerOrProvider = providers.Provider | Signer;
 
@@ -64,8 +64,21 @@ export const resolveContractFromSymbol = (
   })?.addresses[Number(chainId)];
 };
 
-export function getCoingeckoTokenIdByAddress(contractAddress: string, chainId: number): string {
-  const token = getTokenInfo(contractAddress, chainId);
+export function getTokenInformationFromAddress(address: string, tokenMapping = TOKEN_SYMBOLS_MAP): L1Token | undefined {
+  const details = Object.values(tokenMapping).find((details) => {
+    return Object.values(details.addresses).some((t) => t.toLowerCase() === address.toLowerCase());
+  });
+  return isDefined(details)
+    ? {
+        decimals: details.decimals,
+        symbol: details.symbol,
+        address,
+      }
+    : undefined;
+}
+
+export function getCoingeckoTokenIdByAddress(contractAddress: string): string {
+  const token = getTokenInformationFromAddress(contractAddress);
   if (!token) {
     throw new Error(`Token with address ${contractAddress} not found in token mapping`);
   }
@@ -102,27 +115,14 @@ export function isStablecoin(tokenSymbol: string): boolean {
   );
 }
 
-/**
- * @notice Returns the Token info for the token mapping in TOKEN_SYMBOLS_MAP matching the given l2TokenAddress
- * and chainId. If the chain is the hub chain, then will remap the L1 token to its equivalent L1 token symbol for example
- * it will always return a token info with symbol USDC and never USDC.e if chainId = mainnet.
- * @param l2TokenAddress
- * @param chainId
- * @param tokenMapping
- * @returns
- */
-export function getTokenInfo(l2TokenAddress: string, chainId: number, tokenMapping = TOKEN_SYMBOLS_MAP): L1Token {
+export function getTokenInfo(l2TokenAddress: string, chainId: number): L1Token {
   // @dev This might give false positives if tokens on different networks have the same address. I'm not sure how
   // to get around this...
-  let tokenObject = Object.values(tokenMapping).find(({ addresses }) => addresses[chainId] === l2TokenAddress);
+  const tokenObject = Object.values(TOKEN_SYMBOLS_MAP).find(({ addresses }) => addresses[chainId] === l2TokenAddress);
   if (!tokenObject) {
     throw new Error(
       `TokenUtils#getTokenInfo: Unable to resolve token in TOKEN_SYMBOLS_MAP for ${l2TokenAddress} on chain ${chainId}`
     );
-  }
-  if (chainIsL1(chainId)) {
-    const l1TokenSymbol = TOKEN_EQUIVALENCE_REMAPPING[tokenObject.symbol] ?? tokenObject.symbol;
-    tokenObject = tokenMapping[l1TokenSymbol as keyof typeof tokenMapping];
   }
   return {
     address: l2TokenAddress,
@@ -146,17 +146,17 @@ export function getUsdcSymbol(l2Token: string, chainId: number): string | undefi
   );
 }
 
-/**
- * @notice Returns the l1 token address matching the given l2TokenAddress and chainId.
- */
-export function getL1TokenAddress(l2TokenAddress: string, chainId: number): string {
-  if (chainIsL1(chainId)) return l2TokenAddress;
+export function getL1TokenInfo(l2TokenAddress: string, chainId: number): L1Token {
   const tokenObject = Object.values(TOKEN_SYMBOLS_MAP).find(({ addresses }) => addresses[chainId] === l2TokenAddress);
-  const l1TokenAddress = tokenObject?.addresses[chainIsProd(chainId) ? CHAIN_IDs.MAINNET : CHAIN_IDs.SEPOLIA];
+  const l1TokenAddress = tokenObject?.addresses[CHAIN_IDs.MAINNET];
   if (!l1TokenAddress) {
     throw new Error(
       `TokenUtils#getL1TokenInfo: Unable to resolve l1 token address in TOKEN_SYMBOLS_MAP for L2 token ${l2TokenAddress} on chain ${chainId}`
     );
   }
-  return l1TokenAddress;
+  return {
+    address: l1TokenAddress,
+    symbol: tokenObject.symbol,
+    decimals: tokenObject.decimals,
+  };
 }

@@ -274,11 +274,6 @@ export class SvmAddress extends Address {
     return this.toBase58() as V2Address<string>;
   }
 
-  // Forces a solana address to an EVM address type by truncating the leading 12 bytes.
-  override toEvmAddress(): string {
-    return toAddress(`0x${this.toBytes32().slice(-40)}`);
-  }
-
   // Constructs a new SvmAddress type.
   static from(address: string, encoding: "base58" | "base16" = "base58"): SvmAddress {
     if (encoding === "base58") {

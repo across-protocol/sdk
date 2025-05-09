@@ -204,59 +204,69 @@ export function getPaginatedBlockRanges({ from, to, maxLookBack }: EventSearchCo
   return ranges;
 }
 
-export function logToSortableEvent(log: Log): SortableEvent {
-  return {
-    txnIndex: log.transactionIndex,
-    txnRef: log.transactionHash,
-    logIndex: log.logIndex,
-    blockNumber: log.blockNumber,
-  };
-}
-
 export function spreadEventWithBlockNumber(event: Log): SortableEvent {
   return {
     ...spreadEvent(event.args),
-    ...logToSortableEvent(event),
+    blockNumber: event.blockNumber,
+    transactionIndex: event.transactionIndex,
+    logIndex: event.logIndex,
+    transactionHash: event.transactionHash,
   };
 }
 
-type PartialSortableEvent = Pick<SortableEvent, "blockNumber" | "logIndex">;
-
 // This copies the array and sorts it, returning a new array with the new ordering.
-export function sortEventsAscending<T extends PartialSortableEvent>(events: T[]): T[] {
+export function sortEventsAscending<T extends SortableEvent>(events: T[]): T[] {
   return sortEventsAscendingInPlace([...events]);
 }
 
 // This sorts the events in place, meaning it modifies the passed array and returns a reference to the same array.
 // Note: this method should only be used in cases where modifications are acceptable.
-export function sortEventsAscendingInPlace<T extends PartialSortableEvent>(events: T[]): T[] {
-  return events.sort((ex, ey) =>
-    ex.blockNumber === ey.blockNumber ? ex.logIndex - ey.logIndex : ex.blockNumber - ey.blockNumber
-  );
+export function sortEventsAscendingInPlace<T extends SortableEvent>(events: T[]): T[] {
+  return events.sort((ex, ey) => {
+    if (ex.blockNumber !== ey.blockNumber) {
+      return ex.blockNumber - ey.blockNumber;
+    }
+    if (ex.transactionIndex !== ey.transactionIndex) {
+      return ex.transactionIndex - ey.transactionIndex;
+    }
+    return ex.logIndex - ey.logIndex;
+  });
 }
 
 // This copies the array and sorts it, returning a new array with the new ordering.
-export function sortEventsDescending<T extends PartialSortableEvent>(events: T[]): T[] {
+export function sortEventsDescending<T extends SortableEvent>(events: T[]): T[] {
   return sortEventsDescendingInPlace([...events]);
 }
 
 // This sorts the events in place, meaning it modifies the passed array and returns a reference to the same array.
 // Note: this method should only be used in cases where modifications are acceptable.
-export function sortEventsDescendingInPlace<T extends PartialSortableEvent>(events: T[]): T[] {
-  return events.sort((ex, ey) =>
-    ex.blockNumber === ey.blockNumber ? ey.logIndex - ex.logIndex : ey.blockNumber - ex.blockNumber
-  );
+export function sortEventsDescendingInPlace<T extends SortableEvent>(events: T[]): T[] {
+  return events.sort((ex, ey) => {
+    if (ex.blockNumber !== ey.blockNumber) {
+      return ey.blockNumber - ex.blockNumber;
+    }
+    if (ex.transactionIndex !== ey.transactionIndex) {
+      return ey.transactionIndex - ex.transactionIndex;
+    }
+    return ey.logIndex - ex.logIndex;
+  });
 }
 
 // Returns true if ex is older than ey.
-export function isEventOlder<T extends PartialSortableEvent>(ex: T, ey: T): boolean {
-  return ex.blockNumber === ey.blockNumber ? ex.logIndex < ey.logIndex : ex.blockNumber < ey.blockNumber;
+export function isEventOlder<T extends SortableEvent>(ex: T, ey: T): boolean {
+  if (ex.blockNumber !== ey.blockNumber) {
+    return ex.blockNumber < ey.blockNumber;
+  }
+  if (ex.transactionIndex !== ey.transactionIndex) {
+    return ex.transactionIndex < ey.transactionIndex;
+  }
+  return ex.logIndex < ey.logIndex;
 }
 
-export function getTransactionRefs(events: SortableEvent[]): string[] {
-  return [...Array.from(new Set(events.map((e) => e.txnRef)))];
+export function getTransactionHashes(events: SortableEvent[]): string[] {
+  return [...Array.from(new Set(events.map((e) => e.transactionHash)))];
 }
 
 export function duplicateEvent(a: SortableEvent, b: SortableEvent): boolean {
-  return a.txnRef === b.txnRef && a.logIndex === b.logIndex;
+  return a.transactionHash === b.transactionHash && a.logIndex === b.logIndex;
 }

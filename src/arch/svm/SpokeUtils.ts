@@ -1,5 +1,6 @@
 import {
   SvmAddress,
+  getTokenInformationFromAddress,
   BigNumber,
   isDefined,
   isUnsafeDepositId,
@@ -9,7 +10,6 @@ import {
   keccak256,
   chainIsSvm,
   chunk,
-  getTokenInfo,
 } from "../../utils";
 import { SvmSpokeClient } from "@across-protocol/contracts";
 import { getStatePda, SvmCpiEventsClient, getFillStatusPda, unwrapEventData, getEventAuthority } from "./";
@@ -32,7 +32,6 @@ import assert from "assert";
 import { Logger } from "winston";
 import { fetchState, decodeFillStatusAccount } from "@across-protocol/contracts/dist/src/svm/clients/SvmSpoke";
 import { SVMEventNames, SVMProvider } from "./types";
-import { CHAIN_IDs } from "../../constants";
 
 /**
  * @param spokePool SpokePool Contract instance.
@@ -384,7 +383,7 @@ export async function createApproveInstruction(
 
   // If no mint decimals were supplied, then assign it to whatever value we have in TOKEN_SYMBOLS_MAP.
   // If this token is not in TOKEN_SYMBOLS_MAP, then throw an error.
-  mintDecimals ??= getTokenInfo(mint.toBase58(), CHAIN_IDs.SOLANA)?.decimals;
+  mintDecimals ??= getTokenInformationFromAddress(mint.toBase58())?.decimals;
   if (!isDefined(mintDecimals)) {
     throw new Error(`No mint decimals found for token ${mint.toBase58()}`);
   }

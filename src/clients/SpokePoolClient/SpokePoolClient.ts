@@ -17,7 +17,6 @@ import {
   isZeroAddress,
   toAddress,
   validateFillForDeposit,
-  chainIsEvm,
 } from "../../utils";
 import { duplicateEvent, sortEventsAscendingInPlace } from "../../utils/EventUtils";
 import { ZERO_ADDRESS } from "../../constants";
@@ -38,7 +37,7 @@ import {
 } from "../../interfaces";
 import { BaseAbstractClient, UpdateFailureReason } from "../BaseAbstractClient";
 import { AcrossConfigStoreClient } from "../AcrossConfigStoreClient";
-import { getRefundInformationFromFill } from "../BundleDataClient";
+import { getRepaymentChainId, forceDestinationRepayment } from "../BundleDataClient";
 import { HubPoolClient } from "../HubPoolClient";
 
 export type SpokePoolUpdateSuccess = {
@@ -362,25 +361,22 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
         fill: FillWithBlock
       ) => {
         if (validateFillForDeposit(fill, deposit).valid) {
-          const fillRepaymentData = {
-            ...fill,
-            fromLiteChain: deposit.fromLiteChain,
-          };
-          const { chainToSendRefundTo: repaymentChainId } = getRefundInformationFromFill(
-            fillRepaymentData,
-            this.hubPoolClient!,
-            this.hubPoolClient!.latestHeightSearched
-          );
-          // In order to keep this function sync, we can't call verifyFillRepayment so we'll log any fills where
-          // the filler-specified repayment chain and repayment address is not a valid repayment upon
-          // first glance. In other words, the repayment address is not a valid EVM address or the repayment chain
-          // is not a valid EVM chain. In the case where the repayment address is not a valid EVM address, the dataworker
-          // might be able to overwrite the repayment address to the msg.sender on the fill txn, but to keep this
-          // functioon synchronous, we can't make that decision now. So this function might log some false positives.
+          const repaymentChainId = getRepaymentChainId(fill, deposit);
+          // In order to keep this function sync, we can't call verifyFillRepayment so we'll log any fills that
+          // we'll have to overwrite repayment information for. This includes fills for lite chains where the
+          // repayment address is invalid, and fills for non-lite chains where the repayment address is valid or
+          // the repayment chain is invalid. We don't check that the origin chain is a valid EVM chain for
+          // lite chain deposits yet because only EVM chains are supported on Across...for now. This means
+          // this logic will have to be revisited when we add SVM to log properly.
           if (
             this.hubPoolClient &&
             !isSlowFill(fill) &&
-            (!chainIsEvm(repaymentChainId) || !isValidEvmAddress(fill.relayer))
+            (!isValidEvmAddress(fill.relayer) ||
+              forceDestinationRepayment(
+                repaymentChainId,
+                { ...deposit, quoteBlockNumber: this.hubPoolClient!.latestHeightSearched },
+                this.hubPoolClient
+              ))
           ) {
             groupedFills.unrepayableFills.push(fill);
           }
@@ -397,7 +393,7 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
 
     // Log any invalid deposits with same deposit id but different params.
     const invalidFillsForDeposit = invalidFills.filter((x) => {
-      const txnUid = `${x.txnRef}:${x.logIndex}`;
+      const txnUid = `${x.transactionHash}:${x.logIndex}`;
       // if txnUid doesn't exist in the invalidFills set, add it now, but log the corresponding fill.
       const newInvalidFill = x.depositId.eq(deposit.depositId) && !this.invalidFills.has(txnUid);
       if (newInvalidFill) {
@@ -448,29 +444,6 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
    */
   public getDepositHash(event: { depositId: BigNumber; originChainId: number }): string {
     return `${event.depositId.toString()}-${event.originChainId}`;
-  }
-
-  protected canResolveZeroAddressOutputToken(deposit: DepositWithBlock): boolean {
-    if (
-      !this.hubPoolClient?.l2TokenHasPoolRebalanceRoute(
-        deposit.inputToken,
-        deposit.originChainId,
-        deposit.quoteBlockNumber
-      )
-    ) {
-      return false;
-    } else {
-      const l1Token = this.hubPoolClient?.getL1TokenForL2TokenAtBlock(
-        deposit.inputToken,
-        deposit.originChainId,
-        deposit.quoteBlockNumber
-      );
-      return this.hubPoolClient.l2TokenEnabledForL1TokenAtBlock(
-        l1Token,
-        deposit.destinationChainId,
-        deposit.quoteBlockNumber
-      );
-    }
   }
 
   /**
@@ -727,19 +700,8 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
    * @returns The destination token.
    */
   protected getDestinationTokenForDeposit(deposit: DepositWithBlock): string {
-    if (!this.canResolveZeroAddressOutputToken(deposit)) {
-      return ZERO_ADDRESS;
-    }
-    // L1 token should be resolved if we get here:
-    const l1Token = this.hubPoolClient!.getL1TokenForL2TokenAtBlock(
-      deposit.inputToken,
-      deposit.originChainId,
-      deposit.quoteBlockNumber
-    )!;
-    return (
-      this.hubPoolClient!.getL2TokenForL1TokenAtBlock(l1Token, deposit.destinationChainId, deposit.quoteBlockNumber) ??
-      ZERO_ADDRESS
-    );
+    // If there is no rate model client return address(0).
+    return this.hubPoolClient?.getL2TokenForDeposit(deposit) ?? ZERO_ADDRESS;
   }
 
   /**
