@@ -1,5 +1,4 @@
 import assert from "assert";
-import { ethers } from "ethers";
 import { createHash } from "crypto";
 import { random } from "lodash";
 import { Address, UnixTimestamp, signature } from "@solana/kit";
@@ -12,6 +11,7 @@ import { SvmCpiEventsClient } from "../../src/arch/svm/eventsClient";
 import { EventName, EventWithData, SVMEventNames, SVMProvider } from "../../src/arch/svm";
 import { bnZero, bnOne, bs58, getCurrentTime } from "../../src/utils";
 import { FillType } from "../../src/interfaces";
+import { getRandomSvmAddress } from "../utils/svm/utils";
 
 export class MockSolanaEventClient extends SvmCpiEventsClient {
   private events: Record<EventName, EventWithData[]> = {} as Record<EventName, EventWithData[]>;
@@ -21,9 +21,9 @@ export class MockSolanaEventClient extends SvmCpiEventsClient {
   public numberOfDeposits = bnZero;
   public SVM_ZERO_ADDRESS = bs58.encode(new Uint8Array(32));
 
-  constructor(programId = "JAZWcGrpSWNPTBj8QtJ9UyQqhJCDhG9GJkDeMf5NQBiq", chainId = CHAIN_IDs.SOLANA) {
+  constructor(programId = SvmSpokeClient.SVM_SPOKE_PROGRAM_ADDRESS, chainId = CHAIN_IDs.SOLANA) {
     super(null as unknown as SVMProvider, programId as Address, null as unknown as Address, null as unknown as Idl);
-    this.chainId = this.chainId;
+    this.chainId = chainId;
   }
 
   public setSlotHeight(slotHeight: bigint) {
@@ -61,10 +61,6 @@ export class MockSolanaEventClient extends SvmCpiEventsClient {
     return client.createRpcClient();
   }
 
-  randomSvmAddress(): string {
-    return bs58.encode(ethers.utils.randomBytes(32));
-  }
-
   public deposit(deposit: SvmSpokeClient.FundsDeposited & Partial<EventWithData>): EventWithData {
     const { slot } = deposit;
     let { depositId, destinationChainId, inputAmount, outputAmount } = deposit;
@@ -72,9 +68,9 @@ export class MockSolanaEventClient extends SvmCpiEventsClient {
     this.numberOfDeposits = this.numberOfDeposits.add(bnOne);
 
     destinationChainId ??= BigInt(random(1, 42161, false));
-    const depositor = deposit.depositor ?? this.randomSvmAddress();
+    const depositor = deposit.depositor ?? getRandomSvmAddress();
     const recipient = deposit.recipient ?? depositor;
-    const inputToken = deposit.inputToken ?? this.randomSvmAddress();
+    const inputToken = deposit.inputToken ?? getRandomSvmAddress();
     const outputToken = deposit.outputToken ?? inputToken;
     inputAmount ??= BigInt(random(1, 1000, false));
     outputAmount ??= (inputAmount * 95n) / 100n;
@@ -113,9 +109,9 @@ export class MockSolanaEventClient extends SvmCpiEventsClient {
     outputAmount ??= (inputAmount * 95n) / 100n;
     fillDeadline ??= getCurrentTime() + 60;
 
-    const depositor = fill.depositor ?? this.randomSvmAddress();
+    const depositor = fill.depositor ?? getRandomSvmAddress();
     const recipient = fill.recipient ?? depositor;
-    const inputToken = fill.inputToken ?? this.randomSvmAddress();
+    const inputToken = fill.inputToken ?? getRandomSvmAddress();
     const outputToken = fill.outputToken ?? inputToken;
     const messageHash = fill.messageHash ?? Uint8Array.from("0x");
 
@@ -138,7 +134,7 @@ export class MockSolanaEventClient extends SvmCpiEventsClient {
       fillDeadline,
       exclusiveRelayer: fill.exclusiveRelayer ?? this.SVM_ZERO_ADDRESS,
       exclusivityDeadline: fill.exclusivityDeadline ?? fillDeadline,
-      relayer: fill.relayer ?? this.randomSvmAddress(),
+      relayer: fill.relayer ?? getRandomSvmAddress(),
       messageHash,
       relayExecutionInfo,
     };
@@ -156,7 +152,7 @@ export class MockSolanaEventClient extends SvmCpiEventsClient {
     let { depositId, originChainId } = slowFillRequest;
     depositId ??= Uint8Array.from([random(1, 100_000, false)]); // double check this
     originChainId ??= BigInt(random(1, 42161, false));
-    const depositor = slowFillRequest.depositor ?? this.randomSvmAddress();
+    const depositor = slowFillRequest.depositor ?? getRandomSvmAddress();
 
     const args = {
       ...slowFillRequest,
@@ -164,8 +160,8 @@ export class MockSolanaEventClient extends SvmCpiEventsClient {
       originChainId,
       depositor,
       recipient: slowFillRequest.recipient ?? depositor,
-      inputToken: slowFillRequest.inputToken ?? this.randomSvmAddress(),
-      outputToken: slowFillRequest.outputToken ?? slowFillRequest.inputToken ?? this.randomSvmAddress(),
+      inputToken: slowFillRequest.inputToken ?? getRandomSvmAddress(),
+      outputToken: slowFillRequest.outputToken ?? slowFillRequest.inputToken ?? getRandomSvmAddress(),
       inputAmount: slowFillRequest.inputAmount ?? BigInt(random(1, 1000, false)),
       outputAmount: slowFillRequest.outputAmount ?? slowFillRequest.inputAmount ?? BigInt(random(1, 1000, false)),
       exclusiveRelayer: slowFillRequest.exclusiveRelayer ?? this.SVM_ZERO_ADDRESS,
@@ -203,7 +199,7 @@ export class MockSolanaEventClient extends SvmCpiEventsClient {
       program: address,
       data: args,
       confirmationStatus: "finalized",
-      blockTime: BigInt(new Date().getTime()) as UnixTimestamp, // double check this
+      blockTime: BigInt(new Date().getTime()) as UnixTimestamp,
     };
 
     this.setEvents([generatedEvent]);
