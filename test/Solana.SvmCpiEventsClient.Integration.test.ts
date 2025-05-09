@@ -9,6 +9,7 @@ import {
   SvmCpiEventsClient,
   _calculateRelayHashUint8Array,
   getEventAuthority,
+  getFillStatusPda,
   getFillStatusPda2,
   getTimestampForSlot,
 } from "../src/arch/svm";
@@ -24,6 +25,8 @@ import {
   requestSlowFill,
 } from "./utils/svm/utils";
 import { validatorSetup, validatorTeardown } from "./utils/svm/validator.setup";
+import { SvmAddress, getRelayDataHash } from "../src/utils";
+import { RelayData } from "../src/interfaces";
 
 describe.only("SvmCpiEventsClient (integration)", () => {
   const solanaClient = createDefaultSolanaClient();
@@ -102,7 +105,7 @@ describe.only("SvmCpiEventsClient (integration)", () => {
       depositId: new Uint8Array(),
       fillDeadline: Number(currentTime) + 60 * 30, // 30‑minute deadline
       exclusivityDeadline: Number(currentTime) + 60 * 30, // 30‑minute deadline
-      message: new Uint8Array([1, 2, 3]),
+      message: new Uint8Array(),
     };
 
     // const formattedRelayData: RelayData = {
@@ -120,6 +123,7 @@ describe.only("SvmCpiEventsClient (integration)", () => {
     //   exclusiveRelayer: SvmAddress.from(relayData.exclusiveRelayer).toBytes32(),
     // };
 
+    // const relayDataHash = getRelayDataHash(formattedRelayData, Number(destinationChainId));
     // const fillStatusPda = await getFillStatusPda(
     //   SvmSpokeClient.SVM_SPOKE_PROGRAM_ADDRESS,
     //   formattedRelayData,
@@ -128,7 +132,7 @@ describe.only("SvmCpiEventsClient (integration)", () => {
 
     const chainId = getSolanaChainId("mainnet");
 
-    const relayDataHash = _calculateRelayHashUint8Array(relayData, BigInt(chainId.toString()));
+    const relayDataHash2 = _calculateRelayHashUint8Array(relayData, BigInt(chainId.toString()));
 
     const fillStatusPda2 = await getFillStatusPda2(
       SvmSpokeClient.SVM_SPOKE_PROGRAM_ADDRESS,
@@ -138,7 +142,7 @@ describe.only("SvmCpiEventsClient (integration)", () => {
 
     const requestSlowFillInput: SvmSpokeClient.RequestSlowFillInput = {
       program: SvmSpokeClient.SVM_SPOKE_PROGRAM_ADDRESS,
-      relayHash: relayDataHash,
+      relayHash: relayDataHash2,
       relayData: relayData,
       state,
       fillStatus: fillStatusPda2,
