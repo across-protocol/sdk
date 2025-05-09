@@ -48,11 +48,15 @@ const V3RelayDataSS = {
   message: string(),
 };
 
-const SortableEventSS = {
+export const SortableEventSS = {
   blockNumber: number(),
-  transactionIndex: number(),
   logIndex: number(),
-  transactionHash: string(),
+
+  txnRef: optional(string()),
+  txnIndex: optional(number()),
+
+  transactionHash: optional(string()),
+  transactionIndex: optional(number()),
 };
 
 const V3DepositSS = {
