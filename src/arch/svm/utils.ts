@@ -1,16 +1,19 @@
+import { SvmSpokeClient } from "@across-protocol/contracts";
+import { hashNonEmptyMessage } from "@across-protocol/contracts/dist/src/svm/web3-v1";
 import { BN, BorshEventCoder, Idl } from "@coral-xyz/anchor";
 import {
-  address,
-  getProgramDerivedAddress,
-  getU64Encoder,
-  getAddressEncoder,
   Address,
+  address,
+  getAddressEncoder,
+  getProgramDerivedAddress,
+  getU32Encoder,
+  getU64Encoder,
   isAddress,
   type TransactionSigner,
 } from "@solana/kit";
-import { BigNumber, getRelayDataHash, isUint8Array, SvmAddress } from "../../utils";
-import { SvmSpokeClient } from "@across-protocol/contracts";
+import { ethers } from "ethers";
 import { FillType, RelayData } from "../../interfaces";
+import { BigNumber, SvmAddress, getRelayDataHash, isUint8Array } from "../../utils";
 import { EventName, SVMEventNames, SVMProvider } from "./types";
 
 /**
@@ -169,6 +172,48 @@ export async function getStatePda(programId: Address): Promise<Address> {
     seeds: ["state", seed],
   });
   return statePda;
+}
+
+/**
+ * Calculates the relay hash from relay data and chain ID.
+ */
+export function _calculateRelayHashUint8Array(relayData: SvmSpokeClient.RelayDataArgs, chainId: bigint): Uint8Array {
+  const addressEncoder = getAddressEncoder();
+  const uint64Encoder = getU64Encoder();
+  const uint32Encoder = getU32Encoder();
+
+  const contentToHash = Buffer.concat([
+    Uint8Array.from(addressEncoder.encode(relayData.depositor)),
+    Uint8Array.from(addressEncoder.encode(relayData.recipient)),
+    Uint8Array.from(addressEncoder.encode(relayData.exclusiveRelayer)),
+    Uint8Array.from(addressEncoder.encode(relayData.inputToken)),
+    Uint8Array.from(addressEncoder.encode(relayData.outputToken)),
+    Uint8Array.from(uint64Encoder.encode(relayData.inputAmount)),
+    Uint8Array.from(uint64Encoder.encode(relayData.outputAmount)),
+    Uint8Array.from(uint64Encoder.encode(relayData.originChainId)),
+    Buffer.from(relayData.depositId),
+    Uint8Array.from(uint32Encoder.encode(relayData.fillDeadline)),
+    Uint8Array.from(uint32Encoder.encode(relayData.exclusivityDeadline)),
+    hashNonEmptyMessage(Buffer.from(relayData.message)),
+    Uint8Array.from(uint64Encoder.encode(chainId)),
+  ]);
+
+  const relayHash = ethers.utils.keccak256(contentToHash);
+  const relayHashBuffer = Buffer.from(relayHash.slice(2), "hex");
+  return new Uint8Array(relayHashBuffer);
+}
+
+export async function getFillStatusPda2(
+  programId: Address,
+  relayData: SvmSpokeClient.RelayDataArgs,
+  destinationChainId: number
+): Promise<Address> {
+  const relayDataHash = _calculateRelayHashUint8Array(relayData, BigInt(destinationChainId));
+  const [fillStatusPda] = await getProgramDerivedAddress({
+    programAddress: programId,
+    seeds: ["fills", relayDataHash],
+  });
+  return fillStatusPda;
 }
 
 /**
