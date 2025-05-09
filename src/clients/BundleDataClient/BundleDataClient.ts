@@ -20,7 +20,8 @@ import {
   DepositWithBlock,
 } from "../../interfaces";
 import { SpokePoolClient } from "..";
-import { findFillEvent } from "../../arch/evm";
+import { findFillEvent as findEvmFillEvent } from "../../arch/evm";
+import { findFillEvent as findSvmFillEvent } from "../../arch/svm";
 import {
   BigNumber,
   bnZero,
@@ -56,7 +57,7 @@ import {
   V3FillWithBlock,
   verifyFillRepayment,
 } from "./utils";
-import { isEVMSpokePoolClient } from "../SpokePoolClient";
+import { isEVMSpokePoolClient, isSvmSpokePoolClient } from "../SpokePoolClient";
 
 // max(uint256) - 1
 export const INFINITE_FILL_DEADLINE = bnUint32Max;
@@ -370,7 +371,7 @@ export class BundleDataClient {
     }
 
     const bundle = this.clients.hubPoolClient.getLatestFullyExecutedRootBundle(
-      this.clients.hubPoolClient.latestBlockSearched
+      this.clients.hubPoolClient.latestHeightSearched
     );
     if (bundle !== undefined) {
       refunds.push(await this.getPendingRefundsFromBundle(bundle));
@@ -383,7 +384,7 @@ export class BundleDataClient {
   async getPendingRefundsFromBundle(bundle: ProposedRootBundle): Promise<CombinedRefunds> {
     const nextBundleMainnetStartBlock = this.clients.hubPoolClient.getNextBundleStartBlockNumber(
       this.chainIdListForBundleEvaluationBlockNumbers,
-      this.clients.hubPoolClient.latestBlockSearched,
+      this.clients.hubPoolClient.latestHeightSearched,
       this.clients.hubPoolClient.chainId
     );
     const chainIds = this.clients.configStoreClient.getChainIdIndicesForBlock(nextBundleMainnetStartBlock);
@@ -517,7 +518,7 @@ export class BundleDataClient {
     const hubPoolClient = this.clients.hubPoolClient;
     const nextBundleMainnetStartBlock = hubPoolClient.getNextBundleStartBlockNumber(
       this.chainIdListForBundleEvaluationBlockNumbers,
-      hubPoolClient.latestBlockSearched,
+      hubPoolClient.latestHeightSearched,
       hubPoolClient.chainId
     );
     const chainIds = this.clients.configStoreClient.getChainIdIndicesForBlock(nextBundleMainnetStartBlock);
@@ -530,8 +531,8 @@ export class BundleDataClient {
       this.spokePoolClients,
       getEndBlockBuffers(chainIds, this.blockRangeEndBlockBuffer),
       this.clients,
-      this.clients.hubPoolClient.latestBlockSearched,
-      this.clients.configStoreClient.getEnabledChains(this.clients.hubPoolClient.latestBlockSearched)
+      this.clients.hubPoolClient.latestHeightSearched,
+      this.clients.configStoreClient.getEnabledChains(this.clients.hubPoolClient.latestHeightSearched)
     );
     // Return block ranges for blocks after _pendingBlockRanges and up to widestBlockRanges.
     // If a chain is disabled or doesn't have a spoke pool client, return a range of 0
@@ -799,7 +800,7 @@ export class BundleDataClient {
         // hasn't queried. This is because this function will usually be called
         // in production with block ranges that were validated by
         // DataworkerUtils.blockRangesAreInvalidForSpokeClients.
-        Math.min(queryBlock, spokePoolClients[deposit.destinationChainId].latestBlockSearched)
+        Math.min(queryBlock, spokePoolClients[deposit.destinationChainId].latestHeightSearched)
       );
     };
 
@@ -1616,16 +1617,24 @@ export class BundleDataClient {
     deposit: DepositWithBlock,
     spokePoolClient: SpokePoolClient
   ): Promise<FillWithBlock | undefined> {
-    if (!isEVMSpokePoolClient(spokePoolClient)) {
-      // FIXME: Handle non-EVM chains.
-      throw new Error("Destination chain is not an EVM chain.");
+    if (isSvmSpokePoolClient(spokePoolClient)) {
+      return await findSvmFillEvent(
+        deposit,
+        spokePoolClient.chainId,
+        spokePoolClient.svmEventsClient,
+        spokePoolClient.deploymentBlock,
+        spokePoolClient.latestHeightSearched
+      );
+    } else if (isEVMSpokePoolClient(spokePoolClient)) {
+      return await findEvmFillEvent(
+        spokePoolClient.spokePool,
+        deposit,
+        spokePoolClient.deploymentBlock,
+        spokePoolClient.latestHeightSearched
+      );
+    } else {
+      throw new Error("Unsupported spoke pool client type");
     }
-    return await findFillEvent(
-      spokePoolClient.spokePool,
-      deposit,
-      spokePoolClient.deploymentBlock,
-      spokePoolClient.latestBlockSearched
-    );
   }
 
   async getBundleBlockTimestamps(
@@ -1652,13 +1661,13 @@ export class BundleDataClient {
           // contain blocks where the spoke pool client hasn't queried. This is because this function
           // will usually be called in production with block ranges that were validated by
           // DataworkerUtils.blockRangesAreInvalidForSpokeClients.
-          const startBlockForChain = Math.min(_startBlockForChain, spokePoolClient.latestBlockSearched);
+          const startBlockForChain = Math.min(_startBlockForChain, spokePoolClient.latestHeightSearched);
           // @dev Add 1 to the bundle end block. The thinking here is that there can be a gap between
           // block timestamps in subsequent blocks. The bundle data client assumes that fill deadlines expire
           // in exactly one bundle, therefore we must make sure that the bundle block timestamp for one bundle's
           // end block is exactly equal to the bundle block timestamp for the next bundle's start block. This way
           // there are no gaps in block timestamps between bundles.
-          const endBlockForChain = Math.min(_endBlockForChain + 1, spokePoolClient.latestBlockSearched);
+          const endBlockForChain = Math.min(_endBlockForChain + 1, spokePoolClient.latestHeightSearched);
           const [startTime, _endTime] = [
             await spokePoolClient.getTimestampForBlock(startBlockForChain),
             await spokePoolClient.getTimestampForBlock(endBlockForChain),

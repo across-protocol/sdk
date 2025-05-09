@@ -79,7 +79,7 @@ export class MockHubPoolClient extends HubPoolClient {
   }
 
   setLatestBlockNumber(blockNumber: number) {
-    this.latestBlockSearched = blockNumber;
+    this.latestHeightSearched = blockNumber;
   }
 
   addL1Token(l1Token: L1Token) {
@@ -158,7 +158,7 @@ export class MockHubPoolClient extends HubPoolClient {
       latestBlockSearched,
       pendingRootBundleProposal: this.rootBundleProposal,
       events,
-      searchEndBlock: this.eventSearchConfig.toBlock || latestBlockSearched,
+      searchEndBlock: this.eventSearchConfig.to || latestBlockSearched,
     });
   }
 

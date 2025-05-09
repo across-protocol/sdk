@@ -98,12 +98,12 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
   constructor(
     readonly logger: winston.Logger,
     readonly configStore: Contract,
-    eventSearchConfig: MakeOptional<EventSearchConfig, "toBlock"> = { fromBlock: 0, maxBlockLookBack: 0 },
+    eventSearchConfig: MakeOptional<EventSearchConfig, "to"> = { from: 0, maxLookBack: 0 },
     readonly configStoreVersion: number
   ) {
     super(eventSearchConfig);
-    this.firstBlockToSearch = eventSearchConfig.fromBlock;
-    this.latestBlockSearched = 0;
+    this.firstHeightToSearch = eventSearchConfig.from;
+    this.latestHeightSearched = 0;
   }
 
   getRateModelForBlockNumber(
@@ -355,7 +355,7 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
     return {
       success: true,
       chainId,
-      searchEndBlock: searchConfig.toBlock,
+      searchEndBlock: searchConfig.to,
       events: {
         updatedTokenConfigEvents: updatedTokenConfigSortableEvents,
         updatedGlobalConfigEvents: updatedGlobalConfigSortableEvents,
@@ -550,9 +550,9 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
     }
 
     this.hasLatestConfigStoreVersion = this.hasValidConfigStoreVersionForTimestamp();
-    this.latestBlockSearched = result.searchEndBlock;
-    this.firstBlockToSearch = result.searchEndBlock + 1; // Next iteration should start off from where this one ended.
-    this.eventSearchConfig.toBlock = undefined; // Caller can re-set on subsequent updates if necessary
+    this.latestHeightSearched = result.searchEndBlock;
+    this.firstHeightToSearch = result.searchEndBlock + 1; // Next iteration should start off from where this one ended.
+    this.eventSearchConfig.to = undefined; // Caller can re-set on subsequent updates if necessary
     this.chainId = this.chainId ?? chainId; // Update on the first run only.
     this.isUpdated = true;
 

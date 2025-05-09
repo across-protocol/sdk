@@ -1,17 +1,10 @@
+import { Idl } from "@coral-xyz/anchor";
 import { getDeployedAddress, SvmSpokeIdl } from "@across-protocol/contracts";
 import { getSolanaChainId } from "@across-protocol/contracts/dist/src/svm/web3-v1";
-import web3, {
-  Address,
-  Commitment,
-  GetSignaturesForAddressApi,
-  GetTransactionApi,
-  RpcTransport,
-  Signature,
-} from "@solana/kit";
-import { bs58 } from "../utils";
-import { EventData, EventName, EventWithData } from "./types";
-import { decodeEvent } from "./utils/events";
-import { isDevnet } from "./utils/helpers";
+import web3, { Address, Commitment, GetSignaturesForAddressApi, GetTransactionApi, Signature } from "@solana/kit";
+import { bs58 } from "../../utils";
+import { EventName, EventWithData, SVMProvider } from "./types";
+import { decodeEvent, isDevnet } from "./utils";
 
 // Utility type to extract the return type for the JSON encoding overload. We only care about the overload where the
 // configuration parameter (C) has the optional property 'encoding' set to 'json'.
@@ -26,39 +19,39 @@ type GetSignaturesForAddressConfig = Parameters<GetSignaturesForAddressApi["getS
 type GetSignaturesForAddressTransaction = ReturnType<GetSignaturesForAddressApi["getSignaturesForAddress"]>[number];
 type GetSignaturesForAddressApiResponse = readonly GetSignaturesForAddressTransaction[];
 
-export class SvmSpokeEventsClient {
-  private rpc: web3.Rpc<web3.SolanaRpcApiFromTransport<RpcTransport>>;
-  private svmSpokeAddress: Address;
-  private svmSpokeEventAuthority: Address;
+export class SvmCpiEventsClient {
+  private rpc: SVMProvider;
+  private programAddress: Address;
+  private programEventAuthority: Address;
+  private idl: Idl;
 
   /**
-   * Private constructor. Use the async create() method to instantiate.
+   * Protected constructor. Use the async create() method to instantiate.
    */
-  private constructor(
-    rpc: web3.Rpc<web3.SolanaRpcApiFromTransport<RpcTransport>>,
-    svmSpokeAddress: Address,
-    eventAuthority: Address
-  ) {
+  protected constructor(rpc: SVMProvider, address: Address, eventAuthority: Address, idl: Idl) {
     this.rpc = rpc;
-    this.svmSpokeAddress = svmSpokeAddress;
-    this.svmSpokeEventAuthority = eventAuthority;
+    this.programAddress = address;
+    this.programEventAuthority = eventAuthority;
+    this.idl = idl;
   }
 
   /**
    * Factory method to asynchronously create an instance of SvmSpokeEventsClient.
    */
-  public static async create(
-    rpc: web3.Rpc<web3.SolanaRpcApiFromTransport<RpcTransport>>
-  ): Promise<SvmSpokeEventsClient> {
+  public static async create(rpc: SVMProvider): Promise<SvmCpiEventsClient> {
     const isTestnet = await isDevnet(rpc);
     const programId = getDeployedAddress("SvmSpoke", getSolanaChainId(isTestnet ? "devnet" : "mainnet").toString());
     if (!programId) throw new Error("Program not found");
-    const svmSpokeAddress = web3.address(programId);
-    const [svmSpokeEventAuthority] = await web3.getProgramDerivedAddress({
-      programAddress: svmSpokeAddress,
+    return this.createFor(rpc, programId, SvmSpokeIdl);
+  }
+
+  public static async createFor(rpc: SVMProvider, programId: string, idl: Idl): Promise<SvmCpiEventsClient> {
+    const address = web3.address(programId);
+    const [eventAuthority] = await web3.getProgramDerivedAddress({
+      programAddress: address,
       seeds: ["__event_authority"],
     });
-    return new SvmSpokeEventsClient(rpc, svmSpokeAddress, svmSpokeEventAuthority);
+    return new SvmCpiEventsClient(rpc, address, eventAuthority, idl);
   }
 
   /**
@@ -70,14 +63,34 @@ export class SvmSpokeEventsClient {
    * @param options - Options for fetching signatures.
    * @returns A promise that resolves to an array of events matching the eventName.
    */
-  public async queryEvents<T extends EventData>(
+  public async queryEvents(
     eventName: EventName,
     fromSlot?: bigint,
     toSlot?: bigint,
     options: GetSignaturesForAddressConfig = { limit: 1000, commitment: "confirmed" }
-  ): Promise<EventWithData<T>[]> {
+  ): Promise<EventWithData[]> {
     const events = await this.queryAllEvents(fromSlot, toSlot, options);
-    return events.filter((event) => event.name === eventName) as EventWithData<T>[];
+    return events.filter((event) => event.name === eventName) as EventWithData[];
+  }
+
+  /**
+   * Queries events for the provided derived address at instantiation filtered by event name.
+   *
+   * @param eventName - The name of the event to filter by.
+   * @param fromSlot - Optional starting slot.
+   * @param toSlot - Optional ending slot.
+   * @param options - Options for fetching signatures.
+   * @returns A promise that resolves to an array of events matching the eventName.
+   */
+  public async queryDerivedAddressEvents(
+    eventName: string,
+    derivedAddress: Address,
+    fromSlot?: bigint,
+    toSlot?: bigint,
+    options: GetSignaturesForAddressConfig = { limit: 1000, commitment: "confirmed" }
+  ): Promise<EventWithData[]> {
+    const events = await this.queryAllEvents(fromSlot, toSlot, options, derivedAddress);
+    return events.filter((event) => event.name === eventName) as EventWithData[];
   }
 
   /**
@@ -86,20 +99,23 @@ export class SvmSpokeEventsClient {
    * @param fromSlot - Optional starting slot.
    * @param toSlot - Optional ending slot.
    * @param options - Options for fetching signatures.
+   * @param forDerivedAddress - Whether to query events for the program or the derived address.
    * @returns A promise that resolves to an array of all events with additional metadata.
    */
   private async queryAllEvents(
     fromSlot?: bigint,
     toSlot?: bigint,
-    options: GetSignaturesForAddressConfig = { limit: 1000, commitment: "confirmed" }
-  ): Promise<EventWithData<EventData>[]> {
+    options: GetSignaturesForAddressConfig = { limit: 1000, commitment: "confirmed" },
+    derivedAddress?: Address
+  ): Promise<EventWithData[]> {
+    const addressToQuery = derivedAddress || this.programAddress;
     const allSignatures: GetSignaturesForAddressTransaction[] = [];
     let hasMoreSignatures = true;
     let currentOptions = options;
 
     while (hasMoreSignatures) {
       const signatures: GetSignaturesForAddressApiResponse = await this.rpc
-        .getSignaturesForAddress(this.svmSpokeAddress, currentOptions)
+        .getSignaturesForAddress(addressToQuery!, currentOptions)
         .send();
       // Signatures are sorted by slot in descending order.
       allSignatures.push(...signatures);
@@ -162,11 +178,9 @@ export class SvmSpokeEventsClient {
    * @param txResult - The transaction result.
    * @returns A promise that resolves to an array of events with their data and name.
    */
-  private processEventFromTx(
-    txResult: GetTransactionReturnType
-  ): { program: Address; data: EventData; name: EventName }[] {
+  private processEventFromTx(txResult: GetTransactionReturnType): { program: Address; data: unknown; name: string }[] {
     if (!txResult) return [];
-    const events: { program: Address; data: EventData; name: EventName }[] = [];
+    const events: { program: Address; data: unknown; name: string }[] = [];
 
     const accountKeys = txResult.transaction.message.accountKeys;
     const messageAccountKeys = [...accountKeys];
@@ -182,18 +196,26 @@ export class SvmSpokeEventsClient {
         if (
           ixProgramId !== undefined &&
           singleIxAccount !== undefined &&
-          this.svmSpokeAddress === ixProgramId &&
-          this.svmSpokeEventAuthority === singleIxAccount
+          this.programAddress === ixProgramId &&
+          this.programEventAuthority === singleIxAccount
         ) {
           const ixData = bs58.decode(ix.data);
           // Skip the first 8 bytes (assumed header) and encode the rest.
           const eventData = Buffer.from(ixData.slice(8)).toString("base64");
-          const { name, data } = decodeEvent(SvmSpokeIdl, eventData);
-          events.push({ program: this.svmSpokeAddress, name, data });
+          const { name, data } = decodeEvent(this.idl, eventData);
+          events.push({ program: this.programAddress, name, data });
         }
       }
     }
 
     return events;
+  }
+
+  public getProgramAddress(): Address {
+    return this.programAddress;
+  }
+
+  public getRpc(): SVMProvider {
+    return this.rpc;
   }
 }

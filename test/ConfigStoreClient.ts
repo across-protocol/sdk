@@ -78,7 +78,9 @@ describe("AcrossConfigStoreClient", function () {
 
     configStore = (await (await getContractFactory("AcrossConfigStore", owner)).deploy()) as AcrossConfigStore;
     const { blockNumber: fromBlock } = await configStore.deployTransaction.wait();
-    configStoreClient = new MockConfigStoreClient(createSpyLogger().spyLogger, configStore, { fromBlock });
+    configStoreClient = new MockConfigStoreClient(createSpyLogger().spyLogger, configStore, {
+      from: fromBlock,
+    });
     configStoreClient.setConfigStoreVersion(0);
   });
 
@@ -86,7 +88,7 @@ describe("AcrossConfigStoreClient", function () {
     const [owner] = await ethers.getSigners();
     const configStore = (await (await getContractFactory("AcrossConfigStore", owner)).deploy()) as AcrossConfigStore;
     const { blockNumber: fromBlock } = await configStore.deployTransaction.wait();
-    const configStoreClient = new MockConfigStoreClient(createSpyLogger().spyLogger, configStore, { fromBlock });
+    const configStoreClient = new MockConfigStoreClient(createSpyLogger().spyLogger, configStore, { from: fromBlock });
     configStoreClient.setConfigStoreVersion(0);
 
     // Await the first update.
@@ -168,7 +170,7 @@ describe("AcrossConfigStoreClient", function () {
     configStoreClient = new MockConfigStoreClient(
       createSpyLogger().spyLogger,
       configStore,
-      { fromBlock },
+      { from: fromBlock },
       undefined,
       undefined,
       undefined,
@@ -229,7 +231,7 @@ describe("AcrossConfigStoreClient", function () {
     configStoreClient = new MockConfigStoreClient(
       createSpyLogger().spyLogger,
       configStore,
-      { fromBlock },
+      { from: fromBlock },
       undefined,
       undefined,
       undefined,

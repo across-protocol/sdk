@@ -160,7 +160,7 @@ export async function findDepositBlock(
 export async function relayFillStatus(
   spokePool: Contract,
   relayData: RelayData,
-  blockTag?: number | "latest",
+  blockTag: BlockTag = "latest",
   destinationChainId?: number
 ): Promise<FillStatus> {
   destinationChainId ??= await spokePool.chainId();
@@ -290,20 +290,20 @@ export async function findFillEvent(
   if (!blockNumber) return undefined;
 
   // We can hardcode this to 0 to instruct paginatedEventQuery to make a single request for the same block number.
-  const maxBlockLookBack = 0;
-  const [fromBlock, toBlock] = [blockNumber, blockNumber];
+  const maxLookBack = 0;
+  const [from, to] = [blockNumber, blockNumber];
 
   const query = (
     await Promise.all([
       paginatedEventQuery(
         spokePool,
         spokePool.filters.FilledRelay(null, null, null, null, null, relayData.originChainId, relayData.depositId),
-        { fromBlock, toBlock, maxBlockLookBack }
+        { from, to, maxLookBack }
       ),
       paginatedEventQuery(
         spokePool,
         spokePool.filters.FilledV3Relay(null, null, null, null, null, relayData.originChainId, relayData.depositId),
-        { fromBlock, toBlock, maxBlockLookBack }
+        { from, to, maxLookBack }
       ),
     ])
   ).flat();

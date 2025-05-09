@@ -54,7 +54,7 @@ describe("HubPoolClient: RootBundle Events", function () {
 
     logger = createSpyLogger().spyLogger;
     const { configStore, deploymentBlock: fromBlock } = await deployConfigStore(owner, [l1Token_1, l1Token_2]);
-    configStoreClient = new ConfigStoreClient(logger, configStore, { fromBlock }, constants.CONFIG_STORE_VERSION);
+    configStoreClient = new ConfigStoreClient(logger, configStore, { from: fromBlock }, constants.CONFIG_STORE_VERSION);
     await configStoreClient.update();
 
     hubPoolClient = new HubPoolClient(logger, hubPool, configStoreClient);
@@ -160,7 +160,7 @@ describe("HubPoolClient: RootBundle Events", function () {
       logIndex: 0,
       transactionHash: "",
     };
-    expect(hubPoolClient.isRootBundleValid(rootBundle, hubPoolClient.latestBlockSearched!)).to.equal(false);
+    expect(hubPoolClient.isRootBundleValid(rootBundle, hubPoolClient.latestHeightSearched!)).to.equal(false);
 
     // Execute leaves.
     await timer.connect(dataworker).setCurrentTime(proposeTime + liveness + 1);
@@ -168,12 +168,12 @@ describe("HubPoolClient: RootBundle Events", function () {
 
     // Not valid until all leaves are executed.
     await hubPoolClient.update();
-    expect(hubPoolClient.isRootBundleValid(rootBundle, hubPoolClient.latestBlockSearched!)).to.equal(false);
-    const blockNumberBeforeAllLeavesExecuted = hubPoolClient.latestBlockSearched;
+    expect(hubPoolClient.isRootBundleValid(rootBundle, hubPoolClient.latestHeightSearched!)).to.equal(false);
+    const blockNumberBeforeAllLeavesExecuted = hubPoolClient.latestHeightSearched;
 
     await hubPool.connect(dataworker).executeRootBundle(...Object.values(leaves[1]), tree.getHexProof(leaves[1]));
     await hubPoolClient.update();
-    expect(hubPoolClient.isRootBundleValid(rootBundle, hubPoolClient.latestBlockSearched!)).to.equal(true);
+    expect(hubPoolClient.isRootBundleValid(rootBundle, hubPoolClient.latestHeightSearched!)).to.equal(true);
 
     // Only searches for executed leaves up to input latest mainnet block to search
     expect(hubPoolClient.isRootBundleValid(rootBundle, blockNumberBeforeAllLeavesExecuted!)).to.equal(false);

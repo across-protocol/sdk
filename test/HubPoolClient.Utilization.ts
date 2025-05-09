@@ -82,7 +82,7 @@ describe("HubPool Utilization", function () {
     configStoreClient = new MockConfigStoreClient(
       createSpyLogger().spyLogger,
       configStore,
-      { fromBlock },
+      { from: fromBlock },
       DEFAULT_CONFIG_STORE_VERSION,
       [originChainId, repaymentChainId, 1],
       chainId,

@@ -55,6 +55,7 @@ describe("FillUtils", function () {
       quoteBlockNumber: 0,
       fromLiteChain: false,
       toLiteChain: false,
+      messageHash: ZERO_BYTES,
     };
     fill = {
       ...deposit,
@@ -64,6 +65,7 @@ describe("FillUtils", function () {
         updatedOutputAmount: deposit.outputAmount,
         updatedRecipient: deposit.recipient,
         fillType: FillType.FastFill,
+        updatedMessageHash: ZERO_BYTES,
       },
       messageHash: "0x",
       relayer,

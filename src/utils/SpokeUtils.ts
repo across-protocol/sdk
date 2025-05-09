@@ -4,6 +4,8 @@ import { Deposit, RelayData } from "../interfaces";
 import { toBytes32 } from "./AddressUtils";
 import { BigNumber } from "./BigNumberUtils";
 import { isMessageEmpty } from "./DepositUtils";
+import { chainIsSvm } from "./NetworkUtils";
+import { svm } from "../arch";
 
 /**
  * Produce the RelayData for a Deposit.
@@ -63,7 +65,9 @@ export function getRelayDataHash(relayData: RelayData, destinationChainId: numbe
     outputToken: toBytes32(relayData.outputToken),
     exclusiveRelayer: toBytes32(relayData.exclusiveRelayer),
   };
-
+  if (chainIsSvm(destinationChainId)) {
+    return svm.getRelayDataHash(_relayData, destinationChainId);
+  }
   return keccak256(encodeAbiParameters(abi, [_relayData, destinationChainId]));
 }
 
