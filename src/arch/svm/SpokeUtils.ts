@@ -13,7 +13,7 @@ import {
 } from "../../utils";
 import { SvmSpokeClient } from "@across-protocol/contracts";
 import { getStatePda, SvmCpiEventsClient, getFillStatusPda, unwrapEventData, getEventAuthority } from "./";
-import { Deposit, FillStatus, FillWithBlock, RelayData } from "../../interfaces";
+import { Deposit, DepositWithBlock, FillStatus, FillWithBlock, RelayData } from "../../interfaces";
 import {
   TOKEN_PROGRAM_ADDRESS,
   ASSOCIATED_TOKEN_PROGRAM_ADDRESS,
@@ -27,6 +27,7 @@ import {
   fetchEncodedAccounts,
   fetchEncodedAccount,
   type TransactionSigner,
+  Signature,
 } from "@solana/kit";
 import assert from "assert";
 import { Logger } from "winston";
@@ -274,6 +275,53 @@ export async function findFillEvent(
   }
 
   return undefined;
+}
+
+/**
+ * Finds all FundsDeposited events for a given transaction signature.
+ *
+ * @param txSignature - The transaction signature to search for events.
+ * @param eventsClient - SvmCpiEventsClient instance for querying events.
+ * @returns A promise that resolves to an array of deposit events for the transaction.
+ */
+export async function getDepositEventsFromSignature(
+  txSignature: Signature,
+  eventsClient: SvmCpiEventsClient
+): Promise<DepositWithBlock[] | undefined> {
+  // get tx at signature
+  const connection = eventsClient.getRpc();
+  const txDetails = await connection
+    .getTransaction(txSignature, {
+      commitment: "confirmed",
+      maxSupportedTransactionVersion: 0,
+    })
+    .send();
+
+  if (!txDetails) {
+    return;
+  }
+
+  const slot = BigInt(txDetails.slot);
+
+  // find FundsDeposited events for that slot
+  const depositEvents = await eventsClient.queryEvents(SVMEventNames.FundsDeposited, slot, slot, {
+    commitment: "confirmed",
+  });
+
+  const events = depositEvents.filter((event) => event.signature === txSignature);
+  if (!events?.length) {
+    return;
+  }
+
+  return events.map((event) => {
+    return {
+      blockNumber: Number(event.slot),
+      transactionHash: event.signature,
+      transactionIndex: 0,
+      logIndex: 0,
+      ...(unwrapEventData(event) as Record<string, unknown>),
+    } as unknown as DepositWithBlock;
+  });
 }
 
 /**
