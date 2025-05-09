@@ -1,8 +1,8 @@
 import winston from "winston";
 import { SvmSpokeClient } from "@across-protocol/contracts";
-import { address, Address } from "@solana/kit";
+import { Address } from "@solana/kit";
 import { DepositWithBlock, RelayerRefundExecution, SortableEvent, SlowFillLeaf, Log } from "../../src/interfaces";
-import { getCurrentTime, BigNumber, bnZero, MakeOptional, EventSearchConfig } from "../../src/utils";
+import { getCurrentTime, bnZero, MakeOptional, EventSearchConfig } from "../../src/utils";
 import { SpokePoolUpdate, SvmSpokePoolClient } from "../../src/clients/SpokePoolClient";
 import { HubPoolClient } from "../../src/clients/HubPoolClient";
 import { EventOverrides } from "../../src/clients/mocks/MockEvents";
@@ -15,12 +15,11 @@ import { EventWithData, SvmCpiEventsClient, SVMEventNames, unwrapEventData } fro
 export class MockSvmSpokePoolClient extends SvmSpokePoolClient {
   public mockEventsClient: MockSolanaEventClient;
   private destinationTokenForChainOverride: Record<number, string> = {};
-  public depositIdAtBlock: BigNumber[] = []; // needed?
 
   constructor(
     logger: winston.Logger,
     chainId: number,
-    programId = address("JAZWcGrpSWNPTBj8QtJ9UyQqhJCDhG9GJkDeMf5NQBiq"),
+    programId = SvmSpokeClient.SVM_SPOKE_PROGRAM_ADDRESS,
     deploymentBlock: number = 1,
     eventSearchConfig: MakeOptional<EventSearchConfig, "to"> = { from: 0, maxLookBack: 0 },
     opts: { hubPoolClient: HubPoolClient | null } = { hubPoolClient: null }
