@@ -301,3 +301,39 @@ export const requestSlowFill = async (
     (tx) => signAndSendTransaction(solanaClient, tx)
   );
 };
+
+// Creates a fill
+export const createFill = async (
+  signer: KeyPairSigner,
+  solanaClient: RpcClient,
+  fillInput: SvmSpokeClient.FillRelayInput,
+  tokenDecimals: number
+) => {
+  const approveIx = getApproveCheckedInstruction({
+    source: fillInput.relayerTokenAccount,
+    mint: fillInput.mint,
+    delegate: fillInput.state,
+    owner: fillInput.signer,
+    amount: (fillInput.relayData as SvmSpokeClient.RelayDataArgs).outputAmount,
+    decimals: tokenDecimals,
+  });
+
+  const createAssociatedTokenIdempotentIx = getCreateAssociatedTokenIdempotentInstruction({
+    payer: signer,
+    owner: (fillInput.relayData as SvmSpokeClient.RelayDataArgs).recipient,
+    mint: fillInput.mint,
+    ata: fillInput.recipientTokenAccount,
+    systemProgram: SYSTEM_PROGRAM_ADDRESS,
+    tokenProgram: fillInput.tokenProgram,
+  });
+
+  const createFillIx = await SvmSpokeClient.getFillRelayInstruction(fillInput);
+
+  return pipe(
+    await createDefaultTransaction(solanaClient, signer),
+    (tx) => appendTransactionMessageInstruction(createAssociatedTokenIdempotentIx, tx),
+    (tx) => appendTransactionMessageInstruction(approveIx, tx),
+    (tx) => appendTransactionMessageInstruction(createFillIx, tx),
+    (tx) => signAndSendTransaction(solanaClient, tx)
+  );
+};

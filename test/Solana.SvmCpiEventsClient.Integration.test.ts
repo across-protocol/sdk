@@ -1,20 +1,24 @@
 import { SvmSpokeClient } from "@across-protocol/contracts";
-import { getSolanaChainId } from "@across-protocol/contracts/dist/src/svm/web3-v1";
+import { getSolanaChainId, intToU8Array32 } from "@across-protocol/contracts/dist/src/svm/web3-v1";
 import { SYSTEM_PROGRAM_ADDRESS } from "@solana-program/system";
-import { TOKEN_2022_PROGRAM_ADDRESS } from "@solana-program/token-2022";
+import { ASSOCIATED_TOKEN_PROGRAM_ADDRESS, TOKEN_2022_PROGRAM_ADDRESS } from "@solana-program/token-2022";
 import { Address, KeyPairSigner } from "@solana/kit";
 import { expect } from "chai";
 import { BigNumber } from "ethers";
+import { arrayify } from "ethers/lib/utils";
 import {
+  SVM_ZERO_ADDRESS,
   SvmCpiEventsClient,
-  _calculateRelayHashUint8Array,
+  getAssociatedTokenAddress,
   getEventAuthority,
   getFillStatusPda,
-  getFillStatusPda2,
   getTimestampForSlot,
 } from "../src/arch/svm";
+import { RelayData } from "../src/interfaces";
+import { SvmAddress, getRelayDataHash } from "../src/utils";
 import {
   createDefaultSolanaClient,
+  createFill,
   createMint,
   deposit,
   enableRoute,
@@ -25,10 +29,29 @@ import {
   requestSlowFill,
 } from "./utils/svm/utils";
 import { validatorSetup, validatorTeardown } from "./utils/svm/validator.setup";
-import { SvmAddress, getRelayDataHash } from "../src/utils";
-import { RelayData } from "../src/interfaces";
 
-describe.only("SvmCpiEventsClient (integration)", () => {
+const formatRelayData = (relayData: SvmSpokeClient.RelayDataArgs): RelayData => {
+  return {
+    originChainId: Number(relayData.originChainId),
+    depositor: SvmAddress.from(relayData.depositor).toBytes32(),
+    depositId: BigNumber.from(relayData.depositId),
+    recipient: SvmAddress.from(relayData.recipient).toBytes32(),
+    inputToken: SvmAddress.from(relayData.inputToken).toBytes32(),
+    outputToken: SvmAddress.from(relayData.outputToken).toBytes32(),
+    inputAmount: BigNumber.from(relayData.inputAmount),
+    outputAmount: BigNumber.from(relayData.outputAmount),
+    fillDeadline: relayData.fillDeadline,
+    exclusivityDeadline: relayData.exclusivityDeadline,
+    message: relayData.message.toString(),
+    exclusiveRelayer: SvmAddress.from(relayData.exclusiveRelayer).toBytes32(),
+  };
+};
+
+const getRandomInt = (min: number = 0, max: number = 1000000) => {
+  return Math.floor(Math.random() * (max - min + 1)) + min;
+};
+
+describe("SvmCpiEventsClient (integration)", () => {
   const solanaClient = createDefaultSolanaClient();
   let client: SvmCpiEventsClient;
 
@@ -37,16 +60,17 @@ describe.only("SvmCpiEventsClient (integration)", () => {
   let vault: Address;
   let route: Address;
   let state: Address;
+  let eventAuthority: Address;
   let decimals: number;
 
-  const destinationChainId = 1n;
+  const solanaChainId = Number(getSolanaChainId("mainnet"));
+  const mainnetId = 1;
   const tokenAmount = 100000000n;
 
   // helper to create a deposit
-  const createDeposit = async (payerAta: Address, inputAmount: bigint, outputAmount: bigint) => {
+  const sendCreateDeposit = async (payerAta: Address, inputAmount: bigint, outputAmount: bigint) => {
     const latestSlot = await solanaClient.rpc.getSlot({ commitment: "confirmed" }).send();
     const currentTime = await solanaClient.rpc.getBlockTime(latestSlot).send();
-    const eventAuthority = await getEventAuthority();
 
     const depositInput: SvmSpokeClient.DepositInput = {
       depositor: signer.address,
@@ -55,7 +79,7 @@ describe.only("SvmCpiEventsClient (integration)", () => {
       outputToken: getRandomSvmAddress(),
       inputAmount,
       outputAmount,
-      destinationChainId: Number(destinationChainId),
+      destinationChainId: Number(mainnetId),
       exclusiveRelayer: signer.address,
       quoteTimestamp: Number(currentTime),
       fillDeadline: Number(currentTime) + 60 * 30, // 30‑minute deadline
@@ -75,82 +99,109 @@ describe.only("SvmCpiEventsClient (integration)", () => {
     const signature = await deposit(signer, solanaClient, depositInput, decimals);
     return { signature, depositInput };
   };
-  const uint8ArrayToBigNumber = (arr: Uint8Array): BigNumber => {
-    if (arr.length === 0) {
-      return BigNumber.from(0); // or handle this case appropriately
-    }
 
-    const hex = Array.from(arr)
-      .map((byte) => byte.toString(16).padStart(2, "0"))
-      .join("");
-
-    return BigNumber.from("0x" + hex);
-  };
-
-  const sendRequestSlowFill = async () => {
-    const eventAuthority = await getEventAuthority();
-
+  // helper to send a request slow fill
+  const sendRequestSlowFill = async (/* add params as needed */) => {
     const latestSlot = await solanaClient.rpc.getSlot({ commitment: "confirmed" }).send();
     const currentTime = await getTimestampForSlot(solanaClient.rpc, Number(latestSlot));
 
     const relayData: SvmSpokeClient.RequestSlowFillInstructionDataArgs["relayData"] = {
-      depositor: signer.address,
-      recipient: signer.address,
-      exclusiveRelayer: signer.address,
-      inputToken: mint.address,
+      depositor: getRandomSvmAddress(),
+      recipient: getRandomSvmAddress(),
+      exclusiveRelayer: SVM_ZERO_ADDRESS,
+      inputToken: getRandomSvmAddress(),
       outputToken: getRandomSvmAddress(),
-      inputAmount: tokenAmount,
-      outputAmount: tokenAmount,
-      originChainId: 1,
-      depositId: new Uint8Array(),
-      fillDeadline: Number(currentTime) + 60 * 30, // 30‑minute deadline
-      exclusivityDeadline: Number(currentTime) + 60 * 30, // 30‑minute deadline
+      inputAmount: getRandomInt(),
+      outputAmount: getRandomInt(),
+      originChainId: BigInt(mainnetId),
+      depositId: new Uint8Array(intToU8Array32(getRandomInt())),
+      fillDeadline: Number(currentTime) + 60 * 30,
+      exclusivityDeadline: 0,
       message: new Uint8Array(),
     };
-
-    // const formattedRelayData: RelayData = {
-    //   originChainId: Number(destinationChainId),
-    //   depositor: SvmAddress.from(relayData.depositor).toBytes32(),
-    //   depositId: uint8ArrayToBigNumber(new Uint8Array(relayData.depositId)),
-    //   recipient: SvmAddress.from(relayData.recipient).toBytes32(),
-    //   inputToken: SvmAddress.from(relayData.inputToken).toBytes32(),
-    //   outputToken: SvmAddress.from(relayData.outputToken).toBytes32(),
-    //   inputAmount: BigNumber.from(relayData.inputAmount),
-    //   outputAmount: BigNumber.from(relayData.outputAmount),
-    //   fillDeadline: relayData.fillDeadline,
-    //   exclusivityDeadline: relayData.exclusivityDeadline,
-    //   message: relayData.message.toString(),
-    //   exclusiveRelayer: SvmAddress.from(relayData.exclusiveRelayer).toBytes32(),
-    // };
-
-    // const relayDataHash = getRelayDataHash(formattedRelayData, Number(destinationChainId));
-    // const fillStatusPda = await getFillStatusPda(
-    //   SvmSpokeClient.SVM_SPOKE_PROGRAM_ADDRESS,
-    //   formattedRelayData,
-    //   Number(getSolanaChainId("mainnet").toString())
-    // );
-
-    const chainId = getSolanaChainId("mainnet");
-
-    const relayDataHash2 = _calculateRelayHashUint8Array(relayData, BigInt(chainId.toString()));
-
-    const fillStatusPda2 = await getFillStatusPda2(
+    const formattedRelayData = formatRelayData(relayData);
+    const relayDataHash = getRelayDataHash(formattedRelayData, solanaChainId);
+    const fillStatusPda = await getFillStatusPda(
       SvmSpokeClient.SVM_SPOKE_PROGRAM_ADDRESS,
-      relayData,
-      Number(chainId.toString())
+      formattedRelayData,
+      solanaChainId
     );
 
     const requestSlowFillInput: SvmSpokeClient.RequestSlowFillInput = {
       program: SvmSpokeClient.SVM_SPOKE_PROGRAM_ADDRESS,
-      relayHash: relayDataHash2,
+      relayHash: arrayify(relayDataHash),
       relayData: relayData,
       state,
-      fillStatus: fillStatusPda2,
+      fillStatus: fillStatusPda,
       systemProgram: SYSTEM_PROGRAM_ADDRESS,
       eventAuthority,
       signer,
     };
-    return requestSlowFill(signer, solanaClient, requestSlowFillInput);
+    const signature = await requestSlowFill(signer, solanaClient, requestSlowFillInput);
+    return { signature, relayData };
+  };
+
+  // helper to send a fill
+  const sendCreateFill = async (/* add params as needed */) => {
+    const latestSlot = await solanaClient.rpc.getSlot({ commitment: "confirmed" }).send();
+    const currentTime = await getTimestampForSlot(solanaClient.rpc, Number(latestSlot));
+
+    const relayData: SvmSpokeClient.FillRelayInput["relayData"] = {
+      depositor: getRandomSvmAddress(),
+      recipient: getRandomSvmAddress(),
+      exclusiveRelayer: SVM_ZERO_ADDRESS,
+      inputToken: getRandomSvmAddress(),
+      outputToken: mint.address,
+      inputAmount: getRandomInt(),
+      outputAmount: tokenAmount,
+      originChainId: BigInt(mainnetId),
+      depositId: new Uint8Array(intToU8Array32(getRandomInt())),
+      fillDeadline: Number(currentTime) + 60 * 30,
+      exclusivityDeadline: Number(currentTime) + 60 * 30,
+      message: new Uint8Array(),
+    };
+
+    const formattedRelayData = formatRelayData(relayData);
+    const relayDataHash = getRelayDataHash(formattedRelayData, solanaChainId);
+    const fillStatusPda = await getFillStatusPda(
+      SvmSpokeClient.SVM_SPOKE_PROGRAM_ADDRESS,
+      formattedRelayData,
+      solanaChainId
+    );
+
+    const payerAta = await getAssociatedTokenAddress(
+      SvmAddress.from(signer.address),
+      SvmAddress.from(mint.address),
+      TOKEN_2022_PROGRAM_ADDRESS
+    );
+
+    const recipientAta = await getAssociatedTokenAddress(
+      SvmAddress.from(relayData.recipient),
+      SvmAddress.from(mint.address),
+      TOKEN_2022_PROGRAM_ADDRESS
+    );
+
+    const fillInput: SvmSpokeClient.FillRelayInput = {
+      signer: signer,
+      instructionParams: undefined,
+      state: state,
+      mint: mint.address,
+      relayerTokenAccount: payerAta,
+      recipientTokenAccount: recipientAta,
+      fillStatus: fillStatusPda,
+      tokenProgram: TOKEN_2022_PROGRAM_ADDRESS,
+      associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ADDRESS,
+      systemProgram: SYSTEM_PROGRAM_ADDRESS,
+      eventAuthority: eventAuthority,
+      program: SvmSpokeClient.SVM_SPOKE_PROGRAM_ADDRESS,
+      relayHash: arrayify(relayDataHash),
+      relayData: relayData,
+      repaymentChainId: BigInt(mainnetId),
+      repaymentAddress: signer.address,
+    };
+
+    const signature = await createFill(signer, solanaClient, fillInput, decimals);
+    return { signature, relayData };
   };
 
   before(async function () {
@@ -160,8 +211,9 @@ describe.only("SvmCpiEventsClient (integration)", () => {
     signer = await generateKeyPairSignerWithSol(solanaClient);
     ({ state } = await initializeSvmSpoke(signer, solanaClient, signer.address));
     ({ mint, decimals } = await createMint(signer, solanaClient));
-    ({ vault, route } = await enableRoute(signer, solanaClient, destinationChainId, state, mint.address));
+    ({ vault, route } = await enableRoute(signer, solanaClient, BigInt(mainnetId), state, mint.address));
     client = await SvmCpiEventsClient.create(solanaClient.rpc);
+    eventAuthority = await getEventAuthority();
   });
 
   after(async () => {
@@ -170,8 +222,8 @@ describe.only("SvmCpiEventsClient (integration)", () => {
 
   it("fetches all events", async () => {
     const payerAta = await mintTokens(signer, solanaClient, mint.address, tokenAmount * 2n + 1n);
-    await createDeposit(payerAta, tokenAmount, tokenAmount);
-    await createDeposit(payerAta, tokenAmount + 1n, tokenAmount + 1n);
+    await sendCreateDeposit(payerAta, tokenAmount, tokenAmount);
+    await sendCreateDeposit(payerAta, tokenAmount + 1n, tokenAmount + 1n);
 
     const allEvents = await client["queryAllEvents"]();
 
@@ -184,7 +236,7 @@ describe.only("SvmCpiEventsClient (integration)", () => {
 
   it("creates and reads a single deposit event", async () => {
     const payerAta = await mintTokens(signer, solanaClient, mint.address, tokenAmount);
-    const { depositInput } = await createDeposit(payerAta, tokenAmount, tokenAmount);
+    const { depositInput } = await sendCreateDeposit(payerAta, tokenAmount, tokenAmount);
 
     const [depositEvent] = await client.queryEvents("FundsDeposited");
 
@@ -205,7 +257,7 @@ describe.only("SvmCpiEventsClient (integration)", () => {
   it("filters deposit events by slot range", async () => {
     /* First deposit (outside the queried range) */
     const payerAta = await mintTokens(signer, solanaClient, mint.address, tokenAmount * 2n + 1n);
-    const { signature: firstSig } = await createDeposit(payerAta, tokenAmount, tokenAmount);
+    const { signature: firstSig } = await sendCreateDeposit(payerAta, tokenAmount, tokenAmount);
     const tx1 = await solanaClient.rpc
       .getTransaction(firstSig, {
         commitment: "confirmed",
@@ -215,7 +267,7 @@ describe.only("SvmCpiEventsClient (integration)", () => {
     if (!tx1) throw new Error("first deposit tx not found");
 
     /* Second deposit (should be returned) */
-    const { depositInput: secondDeposit, signature: secondSig } = await createDeposit(
+    const { depositInput: secondDeposit, signature: secondSig } = await sendCreateDeposit(
       payerAta,
       tokenAmount + 1n,
       tokenAmount + 1n
@@ -238,15 +290,42 @@ describe.only("SvmCpiEventsClient (integration)", () => {
     expect(events[0].data.inputAmount).to.equal(secondDeposit.inputAmount);
   });
 
-  it.only("creates and reads a single request slow fill event", async () => {
-    await sendRequestSlowFill();
+  it("creates and reads a single request slow fill event", async () => {
+    const { relayData } = await sendRequestSlowFill();
 
     const [requestSlowFillEvent] = await client.queryEvents("RequestedSlowFill");
 
     const { data } = requestSlowFillEvent as { data: SvmSpokeClient.RequestedSlowFill };
 
-    expect(data.depositor).to.equal(signer.address.toString());
-    expect(data.recipient).to.equal(signer.address.toString());
-    expect(data.inputToken).to.equal(mint.address.toString());
+    expect(data.depositor).to.equal(relayData.depositor.toString());
+    expect(data.recipient).to.equal(relayData.recipient.toString());
+    expect(data.inputToken).to.equal(relayData.inputToken.toString());
+    expect(data.outputToken).to.equal(relayData.outputToken.toString());
+    expect(data.inputAmount).to.equal(BigInt(relayData.inputAmount));
+    expect(data.outputAmount).to.equal(BigInt(relayData.outputAmount));
+    expect(data.originChainId).to.equal(BigInt(relayData.originChainId));
+    expect(data.depositId.toString()).to.equal(Array.from(relayData.depositId).toString());
+    expect(data.fillDeadline).to.equal(relayData.fillDeadline);
+    expect(data.exclusivityDeadline).to.equal(relayData.exclusivityDeadline);
+  });
+
+  it("creates and reads a single fill event", async () => {
+    await mintTokens(signer, solanaClient, mint.address, tokenAmount);
+    const { relayData } = await sendCreateFill();
+
+    const [fillEvent] = await client.queryEvents("FilledRelay");
+
+    const { data } = fillEvent as { data: SvmSpokeClient.FilledRelay };
+
+    expect(data.depositor).to.equal(relayData.depositor.toString());
+    expect(data.recipient).to.equal(relayData.recipient.toString());
+    expect(data.inputToken).to.equal(relayData.inputToken.toString());
+    expect(data.outputToken).to.equal(relayData.outputToken.toString());
+    expect(data.inputAmount).to.equal(BigInt(relayData.inputAmount));
+    expect(data.outputAmount).to.equal(BigInt(relayData.outputAmount));
+    expect(data.originChainId).to.equal(BigInt(relayData.originChainId));
+    expect(data.depositId.toString()).to.equal(Array.from(relayData.depositId).toString());
+    expect(data.fillDeadline).to.equal(relayData.fillDeadline);
+    expect(data.exclusivityDeadline).to.equal(relayData.exclusivityDeadline);
   });
 });

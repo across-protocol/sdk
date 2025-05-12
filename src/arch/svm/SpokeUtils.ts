@@ -1,36 +1,39 @@
-import {
-  SvmAddress,
-  getTokenInformationFromAddress,
-  BigNumber,
-  isDefined,
-  isUnsafeDepositId,
-  toAddressType,
-  toBN,
-  getMessageHash,
-  keccak256,
-  chainIsSvm,
-  chunk,
-} from "../../utils";
 import { SvmSpokeClient } from "@across-protocol/contracts";
-import { getStatePda, SvmCpiEventsClient, getFillStatusPda, unwrapEventData, getEventAuthority } from "./";
-import { Deposit, FillStatus, FillWithBlock, RelayData } from "../../interfaces";
+import { decodeFillStatusAccount, fetchState } from "@across-protocol/contracts/dist/src/svm/clients/SvmSpoke";
+import { hashNonEmptyMessage } from "@across-protocol/contracts/dist/src/svm/web3-v1";
 import {
-  TOKEN_PROGRAM_ADDRESS,
   ASSOCIATED_TOKEN_PROGRAM_ADDRESS,
+  TOKEN_PROGRAM_ADDRESS,
   getApproveCheckedInstruction,
 } from "@solana-program/token";
 import {
   Address,
-  some,
   address,
-  getProgramDerivedAddress,
-  fetchEncodedAccounts,
   fetchEncodedAccount,
+  fetchEncodedAccounts,
+  getAddressEncoder,
+  getProgramDerivedAddress,
+  getU32Encoder,
+  getU64Encoder,
+  some,
   type TransactionSigner,
 } from "@solana/kit";
 import assert from "assert";
+import { arrayify, hexZeroPad, hexlify } from "ethers/lib/utils";
 import { Logger } from "winston";
-import { fetchState, decodeFillStatusAccount } from "@across-protocol/contracts/dist/src/svm/clients/SvmSpoke";
+import { Deposit, FillStatus, FillWithBlock, RelayData } from "../../interfaces";
+import {
+  BigNumber,
+  SvmAddress,
+  chainIsSvm,
+  chunk,
+  getTokenInformationFromAddress,
+  isDefined,
+  isUnsafeDepositId,
+  keccak256,
+  toAddressType,
+} from "../../utils";
+import { SvmCpiEventsClient, getEventAuthority, getFillStatusPda, getStatePda, unwrapEventData } from "./";
 import { SVMEventNames, SVMProvider } from "./types";
 
 /**
@@ -411,29 +414,24 @@ export async function getAssociatedTokenAddress(
 }
 
 export function getRelayDataHash(relayData: RelayData, destinationChainId: number): string {
-  const toBuffer = (hex: string, byteLength: number, littleEndian: boolean = true) => {
-    const buffer = Buffer.from(hex.slice(2), "hex");
-    if (buffer.length < byteLength) {
-      const zeroPad = Buffer.alloc(byteLength);
-      buffer.copy(zeroPad, byteLength - buffer.length);
-      return littleEndian ? zeroPad.reverse() : zeroPad;
-    }
-    return littleEndian ? buffer.slice(0, byteLength).reverse() : buffer.slice(0, byteLength);
-  };
+  const addressEncoder = getAddressEncoder();
+  const uint64Encoder = getU64Encoder();
+  const uint32Encoder = getU32Encoder();
+
   const contentToHash = Buffer.concat([
-    toBuffer(relayData.depositor, 32, false),
-    toBuffer(relayData.recipient, 32, false),
-    toBuffer(relayData.exclusiveRelayer, 32, false),
-    toBuffer(relayData.inputToken, 32, false),
-    toBuffer(relayData.outputToken, 32, false),
-    toBuffer(relayData.inputAmount.toHexString(), 8),
-    toBuffer(relayData.outputAmount.toHexString(), 8),
-    toBuffer(toBN(relayData.originChainId).toHexString(), 8),
-    toBuffer(relayData.depositId.toHexString(), 32, false),
-    toBuffer(toBN(relayData.fillDeadline).toHexString(), 4),
-    toBuffer(toBN(relayData.exclusivityDeadline).toHexString(), 4),
-    toBuffer(getMessageHash(relayData.message), 32, false),
-    toBuffer(toBN(destinationChainId).toHexString(), 8),
+    Uint8Array.from(addressEncoder.encode(SvmAddress.from(relayData.depositor, "base16").toV2Address())),
+    Uint8Array.from(addressEncoder.encode(SvmAddress.from(relayData.recipient, "base16").toV2Address())),
+    Uint8Array.from(addressEncoder.encode(SvmAddress.from(relayData.exclusiveRelayer, "base16").toV2Address())),
+    Uint8Array.from(addressEncoder.encode(SvmAddress.from(relayData.inputToken, "base16").toV2Address())),
+    Uint8Array.from(addressEncoder.encode(SvmAddress.from(relayData.outputToken, "base16").toV2Address())),
+    Uint8Array.from(uint64Encoder.encode(BigInt(relayData.inputAmount.toString()))),
+    Uint8Array.from(uint64Encoder.encode(BigInt(relayData.outputAmount.toString()))),
+    Uint8Array.from(uint64Encoder.encode(BigInt(relayData.originChainId.toString()))),
+    arrayify(hexZeroPad(hexlify(relayData.depositId), 32)),
+    Uint8Array.from(uint32Encoder.encode(relayData.fillDeadline)),
+    Uint8Array.from(uint32Encoder.encode(relayData.exclusivityDeadline)),
+    hashNonEmptyMessage(Buffer.from(relayData.message)),
+    Uint8Array.from(uint64Encoder.encode(BigInt(destinationChainId))),
   ]);
   return keccak256(contentToHash);
 }
