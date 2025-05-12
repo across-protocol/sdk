@@ -21,13 +21,14 @@ import {
 import assert from "assert";
 import { arrayify, hexZeroPad, hexlify } from "ethers/lib/utils";
 import { Logger } from "winston";
+import { CHAIN_IDs } from "../../constants";
 import { Deposit, FillStatus, FillWithBlock, RelayData } from "../../interfaces";
 import {
   BigNumber,
   SvmAddress,
   chainIsSvm,
   chunk,
-  getTokenInformationFromAddress,
+  getTokenInfo,
   isDefined,
   isUnsafeDepositId,
   keccak256,
@@ -386,7 +387,7 @@ export async function createApproveInstruction(
 
   // If no mint decimals were supplied, then assign it to whatever value we have in TOKEN_SYMBOLS_MAP.
   // If this token is not in TOKEN_SYMBOLS_MAP, then throw an error.
-  mintDecimals ??= getTokenInformationFromAddress(mint.toBase58())?.decimals;
+  mintDecimals ??= getTokenInfo(mint.toBase58(), CHAIN_IDs.SOLANA)?.decimals;
   if (!isDefined(mintDecimals)) {
     throw new Error(`No mint decimals found for token ${mint.toBase58()}`);
   }

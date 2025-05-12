@@ -134,7 +134,7 @@ export class MockSpokePoolClient extends EVMSpokePoolClient {
   }
 
   protected _deposit(event: string, deposit: Omit<Deposit, "messageHash"> & Partial<SortableEvent>): Log {
-    const { blockNumber, transactionIndex } = deposit;
+    const { blockNumber, txnIndex } = deposit;
     let { depositId, destinationChainId, inputAmount, outputAmount } = deposit;
     depositId ??= this.numberOfDeposits;
     this.numberOfDeposits = depositId.add(bnOne);
@@ -176,7 +176,7 @@ export class MockSpokePoolClient extends EVMSpokePoolClient {
       topics: topics.map((topic) => topic.toString()),
       args,
       blockNumber,
-      transactionIndex,
+      transactionIndex: txnIndex,
     });
   }
 
@@ -192,7 +192,7 @@ export class MockSpokePoolClient extends EVMSpokePoolClient {
     event: string,
     fill: Omit<Fill, "messageHash"> & { message: string } & Partial<SortableEvent>
   ): Log {
-    const { blockNumber, transactionIndex } = fill;
+    const { blockNumber, txnIndex } = fill;
     let { originChainId, depositId, inputAmount, outputAmount, fillDeadline } = fill;
     originChainId ??= random(1, 42161, false);
     depositId ??= BigNumber.from(random(1, 100_000, false));
@@ -265,7 +265,7 @@ export class MockSpokePoolClient extends EVMSpokePoolClient {
       topics: topics.map((topic) => topic.toString()),
       args,
       blockNumber,
-      transactionIndex,
+      transactionIndex: txnIndex,
     });
   }
 
@@ -340,7 +340,7 @@ export class MockSpokePoolClient extends EVMSpokePoolClient {
         exclusiveRelayer: addressModifier(args.exclusiveRelayer ?? ZERO_ADDRESS),
       },
       blockNumber: request.blockNumber,
-      transactionIndex: request.transactionIndex,
+      transactionIndex: request.txnIndex,
     });
   }
 

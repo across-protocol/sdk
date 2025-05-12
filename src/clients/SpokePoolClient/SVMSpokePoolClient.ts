@@ -156,9 +156,9 @@ export class SvmSpokePoolClient extends SpokePoolClient {
         );
         return events.map(
           (event): SortableEvent => ({
-            transactionHash: event.signature,
+            txnRef: event.signature,
             blockNumber: Number(event.slot),
-            transactionIndex: 0,
+            txnIndex: 0,
             logIndex: 0,
             ...(unwrapEventData(event.data) as Record<string, unknown>),
           })
