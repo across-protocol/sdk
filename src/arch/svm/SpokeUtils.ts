@@ -280,9 +280,10 @@ export async function findFillEvent(
 /**
  * Finds all FundsDeposited events for a given transaction signature.
  *
+ * @param originChainId - The chain ID where the deposit originated.
  * @param txSignature - The transaction signature to search for events.
  * @param eventsClient - SvmCpiEventsClient instance for querying events.
- * @returns A promise that resolves to an array of deposit events for the transaction.
+ * @returns A promise that resolves to an array of deposit events for the transaction, or undefined if none found.
  */
 export async function getDepositEventsFromSignature(
   originChainId: number,
