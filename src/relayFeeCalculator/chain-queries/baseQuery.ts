@@ -19,10 +19,10 @@ import {
 import assert from "assert";
 import { Logger, QueryInterface } from "../relayFeeCalculator";
 import { Transport } from "viem";
-import { getGasPriceEstimate } from "../../gasPriceOracle/oracle";
+import { getGasPriceEstimate, EvmGasPriceEstimate } from "../../gasPriceOracle";
 type Provider = providers.Provider;
 type OptimismProvider = L2Provider<Provider>;
-type SymbolMappingType = Record<
+export type SymbolMappingType = Record<
   string,
   {
     addresses: Record<number, string>;
@@ -213,7 +213,9 @@ export class QueryBase implements QueryInterface {
         ? Promise.resolve({ maxFeePerGas: _gasPrice })
         : getGasPriceEstimate(provider, { chainId, baseFeeMultiplier, priorityFeeMultiplier, transport, unsignedTx }),
     ] as const;
-    const [nativeGasCost, { maxFeePerGas: gasPrice }] = await Promise.all(queries);
+    const [nativeGasCost, _gasPriceEstimate] = await Promise.all(queries);
+    // It should be safe to cast to an EvmGasPriceEstimate here since QueryBase is only used for EVM chains.
+    const gasPrice = (_gasPriceEstimate as EvmGasPriceEstimate).maxFeePerGas;
     assert(nativeGasCost.gt(bnZero), "Gas cost should not be 0");
     let tokenGasCost: BigNumber;
 
@@ -251,15 +253,5 @@ export class QueryBase implements QueryInterface {
       this.coingeckoBaseCurrency
     );
     return price;
-  }
-
-  /**
-   * Resolves the number of decimal places a token can have
-   * @param tokenSymbol A valid Across-Enabled Token ID
-   * @returns The number of decimals of precision for the corresponding tokenSymbol
-   */
-  getTokenDecimals(tokenSymbol: string): number {
-    if (!this.symbolMapping[tokenSymbol]) throw new Error(`${tokenSymbol} does not exist in mapping`);
-    return this.symbolMapping[tokenSymbol].decimals;
   }
 }

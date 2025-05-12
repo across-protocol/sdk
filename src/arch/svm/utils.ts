@@ -1,14 +1,36 @@
 import { BN, BorshEventCoder, Idl } from "@coral-xyz/anchor";
-import { BigNumber, isUint8Array, SvmAddress } from "../../utils";
-import web3, { address, isAddress, RpcTransport, getProgramDerivedAddress, getU64Encoder, Address } from "@solana/kit";
+import {
+  address,
+  getProgramDerivedAddress,
+  getU64Encoder,
+  getAddressEncoder,
+  Address,
+  isAddress,
+  type TransactionSigner,
+} from "@solana/kit";
+import { BigNumber, getRelayDataHash, isUint8Array, SvmAddress } from "../../utils";
+import { SvmSpokeClient } from "@across-protocol/contracts";
+import { FillType, RelayData } from "../../interfaces";
+import { EventName, SVMEventNames, SVMProvider } from "./types";
 
-import { EventName, SVMEventNames } from "./types";
-import { FillType } from "../../interfaces";
+/**
+ * Basic void TransactionSigner type
+ */
+export const SolanaVoidSigner: (simulationAddress: string) => TransactionSigner<string> = (
+  simulationAddress: string
+) => {
+  return {
+    address: address(simulationAddress),
+    signAndSendTransactions: async () => {
+      return await Promise.resolve([]);
+    },
+  };
+};
 
 /**
  * Helper to determine if the current RPC network is devnet.
  */
-export async function isDevnet(rpc: web3.Rpc<web3.SolanaRpcApiFromTransport<RpcTransport>>): Promise<boolean> {
+export async function isDevnet(rpc: SVMProvider): Promise<boolean> {
   const genesisHash = await rpc.getGenesisHash().send();
   return genesisHash === "EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG";
 }
@@ -148,3 +170,53 @@ export async function getStatePda(programId: Address): Promise<Address> {
   });
   return statePda;
 }
+
+/**
+ * Returns the fill status PDA for the given relay data.
+ * @param programId The SpokePool program ID.
+ * @param relayData The relay data to get the fill status PDA for.
+ * @param destinationChainId The destination chain ID.
+ * @returns The PDA for the fill status.
+ */
+export async function getFillStatusPda(
+  programId: Address,
+  relayData: RelayData,
+  destinationChainId: number
+): Promise<Address> {
+  const relayDataHash = getRelayDataHash(relayData, destinationChainId);
+  const uint8RelayDataHash = new Uint8Array(Buffer.from(relayDataHash.slice(2), "hex"));
+  const [fillStatusPda] = await getProgramDerivedAddress({
+    programAddress: programId,
+    seeds: ["fills", uint8RelayDataHash],
+  });
+  return fillStatusPda;
+}
+
+/**
+ * Returns the PDA for a route account on SVM Spoke.
+ * @param originToken The origin token address.
+ * @param seed The seed for the route account.
+ * @param routeChainId The route chain ID.
+ * @returns The PDA for the route account.
+ */
+export async function getRoutePda(originToken: Address, seed: bigint, routeChainId: bigint): Promise<Address> {
+  const intEncoder = getU64Encoder();
+  const addressEncoder = getAddressEncoder();
+  const [pda] = await getProgramDerivedAddress({
+    programAddress: address(SvmSpokeClient.SVM_SPOKE_PROGRAM_ADDRESS),
+    seeds: ["route", addressEncoder.encode(originToken), intEncoder.encode(seed), intEncoder.encode(routeChainId)],
+  });
+  return pda;
+}
+
+/**
+ * Returns the PDA for the Event Authority.
+ * @returns The PDA for the Event Authority.
+ */
+export const getEventAuthority = async () => {
+  const [eventAuthority] = await getProgramDerivedAddress({
+    programAddress: address(SvmSpokeClient.SVM_SPOKE_PROGRAM_ADDRESS),
+    seeds: ["__event_authority"],
+  });
+  return eventAuthority;
+};

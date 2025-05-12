@@ -1,18 +1,9 @@
 import { Idl } from "@coral-xyz/anchor";
 import { getDeployedAddress, SvmSpokeIdl } from "@across-protocol/contracts";
 import { getSolanaChainId } from "@across-protocol/contracts/dist/src/svm/web3-v1";
-import web3, {
-  Address,
-  Commitment,
-  GetSignaturesForAddressApi,
-  GetTransactionApi,
-  Rpc,
-  RpcTransport,
-  Signature,
-  SolanaRpcApiFromTransport,
-} from "@solana/kit";
+import web3, { Address, Commitment, GetSignaturesForAddressApi, GetTransactionApi, Signature } from "@solana/kit";
 import { bs58 } from "../../utils";
-import { EventName, EventWithData } from "./types";
+import { EventName, EventWithData, SVMProvider } from "./types";
 import { decodeEvent, isDevnet } from "./utils";
 
 // Utility type to extract the return type for the JSON encoding overload. We only care about the overload where the
@@ -29,52 +20,38 @@ type GetSignaturesForAddressTransaction = ReturnType<GetSignaturesForAddressApi[
 type GetSignaturesForAddressApiResponse = readonly GetSignaturesForAddressTransaction[];
 
 export class SvmCpiEventsClient {
-  private rpc: web3.Rpc<web3.SolanaRpcApiFromTransport<RpcTransport>>;
+  private rpc: SVMProvider;
   private programAddress: Address;
   private programEventAuthority: Address;
   private idl: Idl;
-  private derivedAddress?: Address;
 
   /**
    * Protected constructor. Use the async create() method to instantiate.
    */
-  protected constructor(
-    rpc: web3.Rpc<web3.SolanaRpcApiFromTransport<RpcTransport>>,
-    address: Address,
-    eventAuthority: Address,
-    idl: Idl,
-    derivedAddress?: Address
-  ) {
+  protected constructor(rpc: SVMProvider, address: Address, eventAuthority: Address, idl: Idl) {
     this.rpc = rpc;
     this.programAddress = address;
     this.programEventAuthority = eventAuthority;
     this.idl = idl;
-    this.derivedAddress = derivedAddress;
   }
 
   /**
    * Factory method to asynchronously create an instance of SvmSpokeEventsClient.
    */
-  public static async create(rpc: web3.Rpc<web3.SolanaRpcApiFromTransport<RpcTransport>>): Promise<SvmCpiEventsClient> {
+  public static async create(rpc: SVMProvider): Promise<SvmCpiEventsClient> {
     const isTestnet = await isDevnet(rpc);
     const programId = getDeployedAddress("SvmSpoke", getSolanaChainId(isTestnet ? "devnet" : "mainnet").toString());
     if (!programId) throw new Error("Program not found");
     return this.createFor(rpc, programId, SvmSpokeIdl);
   }
 
-  public static async createFor(
-    rpc: web3.Rpc<web3.SolanaRpcApiFromTransport<RpcTransport>>,
-    programId: string,
-    idl: Idl,
-    pda?: string
-  ): Promise<SvmCpiEventsClient> {
+  public static async createFor(rpc: SVMProvider, programId: string, idl: Idl): Promise<SvmCpiEventsClient> {
     const address = web3.address(programId);
-    const derivedAddress = pda ? web3.address(pda) : undefined;
     const [eventAuthority] = await web3.getProgramDerivedAddress({
       programAddress: address,
       seeds: ["__event_authority"],
     });
-    return new SvmCpiEventsClient(rpc, address, eventAuthority, idl, derivedAddress);
+    return new SvmCpiEventsClient(rpc, address, eventAuthority, idl);
   }
 
   /**
@@ -107,11 +84,12 @@ export class SvmCpiEventsClient {
    */
   public async queryDerivedAddressEvents(
     eventName: string,
+    derivedAddress: Address,
     fromSlot?: bigint,
     toSlot?: bigint,
     options: GetSignaturesForAddressConfig = { limit: 1000, commitment: "confirmed" }
   ): Promise<EventWithData[]> {
-    const events = await this.queryAllEvents(fromSlot, toSlot, options, true);
+    const events = await this.queryAllEvents(fromSlot, toSlot, options, derivedAddress);
     return events.filter((event) => event.name === eventName) as EventWithData[];
   }
 
@@ -128,16 +106,12 @@ export class SvmCpiEventsClient {
     fromSlot?: bigint,
     toSlot?: bigint,
     options: GetSignaturesForAddressConfig = { limit: 1000, commitment: "confirmed" },
-    forDerivedAddress: boolean = false
+    derivedAddress?: Address
   ): Promise<EventWithData[]> {
+    const addressToQuery = derivedAddress || this.programAddress;
     const allSignatures: GetSignaturesForAddressTransaction[] = [];
     let hasMoreSignatures = true;
     let currentOptions = options;
-
-    if (forDerivedAddress && !this.derivedAddress) {
-      throw new Error("Unable to query PDA events. Derived address not set.");
-    }
-    const addressToQuery = forDerivedAddress ? this.derivedAddress : this.programAddress;
 
     while (hasMoreSignatures) {
       const signatures: GetSignaturesForAddressApiResponse = await this.rpc
@@ -241,7 +215,7 @@ export class SvmCpiEventsClient {
     return this.programAddress;
   }
 
-  public getRpc(): Rpc<SolanaRpcApiFromTransport<RpcTransport>> {
+  public getRpc(): SVMProvider {
     return this.rpc;
   }
 }

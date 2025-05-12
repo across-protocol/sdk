@@ -8,6 +8,8 @@ import {
   getStatePda,
   SvmCpiEventsClient,
   findDeposit,
+  relayFillStatus,
+  fillStatusArray,
 } from "../../arch/svm";
 import { FillStatus, RelayData, SortableEvent } from "../../interfaces";
 import {
@@ -36,7 +38,7 @@ export class SvmSpokePoolClient extends SpokePoolClient {
     chainId: number,
     deploymentSlot: bigint, // Using slot instead of block number for SVM
     eventSearchConfig: MakeOptional<EventSearchConfig, "to">,
-    protected svmEventsClient: SvmCpiEventsClient,
+    public svmEventsClient: SvmCpiEventsClient,
     protected programId: Address,
     protected statePda: Address
   ) {
@@ -156,9 +158,9 @@ export class SvmSpokePoolClient extends SpokePoolClient {
         );
         return events.map(
           (event): SortableEvent => ({
-            transactionHash: event.signature,
+            txnRef: event.signature,
             blockNumber: Number(event.slot),
-            transactionIndex: 0,
+            txnIndex: 0,
             logIndex: 0,
             ...(unwrapEventData(event.data) as Record<string, unknown>),
           })
@@ -198,10 +200,12 @@ export class SvmSpokePoolClient extends SpokePoolClient {
   }
 
   /**
-   * Retrieves the time (timestamp) from the SVM chain state at a particular slot.
+   * Retrieves the timestamp for a given SVM slot number.
+   * @note This function uses the same underlying function as getTimestampForBlock.
+   *       It is kept for consistency with the EVM SpokePoolClient.
    */
-  public getTimeAt(_slot: number): Promise<number> {
-    throw new Error("getTimeAt not implemented for SVM");
+  public getTimeAt(slot: number): Promise<number> {
+    return getTimestampForSlot(this.svmEventsClient.getRpc(), slot);
   }
 
   /**
@@ -224,23 +228,29 @@ export class SvmSpokePoolClient extends SpokePoolClient {
 
   /**
    * Retrieves the fill status for a given relay data from the SVM chain.
-   * TODO: Implement SVM state query for fill status.
    */
-  public relayFillStatus(
-    _relayData: RelayData,
-    _slot?: number | "latest", // Use slot instead of blockTag
-    _destinationChainId?: number
+  public override relayFillStatus(
+    relayData: RelayData,
+    atHeight?: number,
+    destinationChainId?: number
   ): Promise<FillStatus> {
-    throw new Error("relayFillStatus not implemented for SVM");
+    destinationChainId ??= this.chainId;
+    return relayFillStatus(this.programId, relayData, destinationChainId, this.svmEventsClient, atHeight);
   }
 
   /**
    * Retrieves the fill status for an array of given relay data.
    * @param relayData The array relay data to retrieve the fill status for.
-   * @param blockTag The block at which to query the fill status.
+   * @param atHeight The slot at which to query the fill status.
    * @returns The fill status for each of the given relay data.
    */
-  public fillStatusArray(_relayData: RelayData[], _blockTag?: number | "latest"): Promise<(FillStatus | undefined)[]> {
-    throw new Error("fillStatusArray not implemented for SVM");
+  public fillStatusArray(
+    relayData: RelayData[],
+    atHeight?: number,
+    destinationChainId?: number
+  ): Promise<(FillStatus | undefined)[]> {
+    // @note: deploymentBlock actually refers to the deployment slot. Also, blockTag should be a slot number.
+    destinationChainId ??= this.chainId;
+    return fillStatusArray(this.programId, relayData, destinationChainId, this.svmEventsClient, atHeight, this.logger);
   }
 }
