@@ -285,6 +285,7 @@ export async function findFillEvent(
  * @returns A promise that resolves to an array of deposit events for the transaction.
  */
 export async function getDepositEventsFromSignature(
+  originChainId: number,
   txSignature: Signature,
   eventsClient: SvmCpiEventsClient
 ): Promise<DepositWithBlock[] | undefined> {
@@ -314,12 +315,20 @@ export async function getDepositEventsFromSignature(
   }
 
   return events.map((event) => {
+    const unwrappedEventArgs = unwrapEventData(event as Record<"data", Record<string, unknown>>) as Record<
+      string,
+      unknown
+    >;
     return {
+      originChainId,
+      fromLiteChain: false, // to be updated
+      toLiteChain: false, // to be updated
+      messageHash: getMessageHash(unwrappedEventArgs.message as string),
       blockNumber: Number(event.slot),
       transactionHash: event.signature,
       transactionIndex: 0,
       logIndex: 0,
-      ...(unwrapEventData(event) as Record<string, unknown>),
+      ...unwrappedEventArgs,
     } as unknown as DepositWithBlock;
   });
 }
