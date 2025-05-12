@@ -315,7 +315,7 @@ export async function fillRelayInstruction(
     getFillStatusPda(spokePool.toV2Address(), deposit, deposit.destinationChainId),
     getEventAuthority(),
   ]);
-  const depositIdBuffer = Buffer.alloc(32);
+  const depositIdBuffer = Buffer.alloc(32) as unknown as Uint8Array;
   const shortenedBuffer = Buffer.from(deposit.depositId.toHexString().slice(2), "hex");
   shortenedBuffer.copy(depositIdBuffer, 32 - shortenedBuffer.length);
 
@@ -406,20 +406,26 @@ export async function getAssociatedTokenAddress(
 ): Promise<Address<string>> {
   const [associatedToken] = await getProgramDerivedAddress({
     programAddress: ASSOCIATED_TOKEN_PROGRAM_ADDRESS,
-    seeds: [owner.toBuffer(), SvmAddress.from(tokenProgramId).toBuffer(), mint.toBuffer()],
+    seeds: [
+      owner.toBuffer() as unknown as Uint8Array,
+      SvmAddress.from(tokenProgramId).toBuffer() as unknown as Uint8Array,
+      mint.toBuffer() as unknown as Uint8Array,
+    ],
   });
   return associatedToken;
 }
 
 export function getRelayDataHash(relayData: RelayData, destinationChainId: number): string {
-  const toBuffer = (hex: string, byteLength: number, littleEndian: boolean = true) => {
+  const toBuffer = (hex: string, byteLength: number, littleEndian: boolean = true): Uint8Array => {
     const buffer = Buffer.from(hex.slice(2), "hex");
     if (buffer.length < byteLength) {
-      const zeroPad = Buffer.alloc(byteLength);
+      const zeroPad = Buffer.alloc(byteLength) as unknown as Uint8Array;
       buffer.copy(zeroPad, byteLength - buffer.length);
       return littleEndian ? zeroPad.reverse() : zeroPad;
     }
-    return littleEndian ? buffer.slice(0, byteLength).reverse() : buffer.slice(0, byteLength);
+    return (littleEndian
+      ? buffer.slice(0, byteLength).reverse()
+      : buffer.slice(0, byteLength)) as unknown as Uint8Array;
   };
   const contentToHash = Buffer.concat([
     toBuffer(relayData.depositor, 32, false),
