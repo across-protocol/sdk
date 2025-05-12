@@ -27,4 +27,3 @@ export function isSVMGasPrice(gasPrice: GasPriceEstimate): gasPrice is SvmGasPri
   const { baseFee, microLamportsPerComputeUnit } = gasPrice as SvmGasPriceEstimate;
   return isDefined(baseFee) && isDefined(microLamportsPerComputeUnit);
 }
-
