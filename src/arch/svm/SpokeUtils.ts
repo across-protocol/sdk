@@ -316,20 +316,20 @@ export async function getDepositEventsFromSignature(
   }
 
   return events.map((event) => {
-    const unwrappedEventArgs = unwrapEventData(event as Record<"data", Record<string, unknown>>) as Record<
-      string,
-      unknown
+    const unwrappedEventArgs = unwrapEventData(event as Record<string, unknown>) as Record<
+      "data",
+      Record<string, unknown>
     >;
     return {
       originChainId,
       fromLiteChain: false, // to be updated
       toLiteChain: false, // to be updated
-      messageHash: getMessageHash(unwrappedEventArgs.message as string),
+      messageHash: getMessageHash(unwrappedEventArgs.data.message as string),
       blockNumber: Number(event.slot),
       transactionHash: event.signature,
       transactionIndex: 0,
       logIndex: 0,
-      ...unwrappedEventArgs,
+      ...unwrappedEventArgs.data,
     } as unknown as DepositWithBlock;
   });
 }
