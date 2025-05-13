@@ -30,6 +30,7 @@ type EventSearchConfig = sdkUtils.EventSearchConfig;
 describe("SpokePoolClient: Event Filtering", function () {
   const random = () => Math.round(Math.random() * 1e6);
   const randomBytes = (n: number): string => ethers.utils.hexlify(ethers.utils.randomBytes(n));
+  const destinationToken = randomAddress();
 
   const fundsDepositedEvents = ["FundsDeposited"];
   const slowFillRequestedEvents = ["RequestedSlowFill"];
@@ -107,8 +108,7 @@ describe("SpokePoolClient: Event Filtering", function () {
           continue;
         }
 
-        // @todo: destinationToken
-        [ZERO_ADDRESS].forEach((originToken) => {
+        [destinationToken].forEach((originToken) => {
           spokePoolClient.setEnableRoute(originToken, destinationChainId, true);
           hubPoolClient.setPoolRebalanceRoute(destinationChainId, originToken, originToken);
         });
@@ -281,6 +281,39 @@ describe("SpokePoolClient: Event Filtering", function () {
 
     expect(deposit.outputToken).to.not.equal(ZERO_ADDRESS);
     expect(deposit.outputToken).to.equal(outputToken);
+  });
+
+  it("Handles case where outputToken is set to 0x0 and cannot be resolved", async function () {
+    const { spokePool, chainId, deploymentBlock } = originSpokePoolClient;
+    const spokePoolClient = new MockSpokePoolClient(logger, spokePool, chainId, deploymentBlock, { hubPoolClient });
+
+    const hubPoolToken = randomAddress();
+    const outputToken = randomAddress();
+    const inputToken = randomAddress();
+    hubPoolClient.setDefaultRealizedLpFeePct(toBNWei("0.0001"));
+
+    const _deposit = spokePoolClient.depositV3({
+      originChainId,
+      destinationChainId,
+      inputToken,
+      outputToken: ZERO_ADDRESS,
+    } as DepositWithBlock);
+    expect(_deposit?.args?.outputToken).to.equal(ZERO_ADDRESS);
+
+    await spokePoolClient.update(fundsDepositedEvents);
+
+    const [deposit] = spokePoolClient.getDeposits();
+    expect(deposit).to.exist;
+    expect(deposit.outputToken).to.equal(ZERO_ADDRESS);
+
+    // Both origin and destination chains must map to the PoolRebalanceRoute of the inputToken:
+    hubPoolClient.setTokenMapping(hubPoolToken, originChainId, inputToken);
+    await spokePoolClient.update(fundsDepositedEvents);
+    expect(spokePoolClient.getDeposits()[0].outputToken).to.equal(ZERO_ADDRESS);
+    hubPoolClient.deleteTokenMapping(hubPoolToken, originChainId);
+    hubPoolClient.setTokenMapping(hubPoolToken, destinationChainId, outputToken);
+    await spokePoolClient.update(fundsDepositedEvents);
+    expect(spokePoolClient.getDeposits()[0].outputToken).to.equal(ZERO_ADDRESS);
   });
 
   it("Correctly retrieves SlowFillRequested events", async function () {
@@ -563,8 +596,8 @@ describe("SpokePoolClient: Event Filtering", function () {
         leafId: i + 1,
         amountToReturn: toBN(random()),
         blockNumber: random(),
-        transactionHash: randomBytes(32),
-        transactionIndex: random(),
+        txnRef: randomBytes(32),
+        txnIndex: random(),
         logIndex: random(),
       });
 

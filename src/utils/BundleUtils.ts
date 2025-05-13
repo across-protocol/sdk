@@ -74,15 +74,15 @@ export function getImpliedBundleBlockRanges(
 
   // Load all chain indices in order to map bundle evaluation block numbers to enabled chains list.
   const chainIdIndices = configStoreClient.getChainIdIndicesForBlock(rootBundle.blockNumber);
-  const result = rootBundle.bundleEvaluationBlockNumbers.map((endBlock, i) => {
-    const fromBlock = prevRootBundle?.bundleEvaluationBlockNumbers?.[i]
-      ? prevRootBundle.bundleEvaluationBlockNumbers[i].toNumber() + 1
-      : 0;
+  const result = rootBundle.bundleEvaluationBlockNumbers.map((_endBlock, i) => {
+    const endBlock = _endBlock.toNumber();
+    const bundleEndBlock = prevRootBundle?.bundleEvaluationBlockNumbers?.[i]?.toNumber() ?? 0;
+    const fromBlock = bundleEndBlock === endBlock ? endBlock : bundleEndBlock + 1;
     const chainId = chainIdIndices[i];
     if (!enabledChainsAtMainnetStartBlock.includes(chainId)) {
-      return [endBlock.toNumber(), endBlock.toNumber()];
+      return [endBlock, endBlock];
     }
-    return [fromBlock, endBlock.toNumber()];
+    return [fromBlock, endBlock];
   });
 
   // Lastly, sanity check the results to catch errors early:
@@ -91,9 +91,9 @@ export function getImpliedBundleBlockRanges(
   result.forEach(([start, end], i) => {
     const chainId = chainIdIndices[i];
     if (enabledChainsAtMainnetStartBlock.includes(chainId)) {
-      if (start >= end) {
+      if (start > end) {
         throw new Error(
-          `Invalid block range for enabled chain ${chainId}: start block ${start} is greater than or equal to end block ${end}`
+          `Invalid block range for enabled chain ${chainId}: start block ${start} is greater than end block ${end}`
         );
       }
     } else {

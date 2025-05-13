@@ -1,11 +1,8 @@
-import assert from "assert";
-import { Contract, EventFilter } from "ethers";
 import winston from "winston";
 import {
   AnyObject,
   BigNumber,
   bnZero,
-  bnUint32Max,
   DefaultLogLevels,
   DepositSearchResult,
   EventSearchConfig,
@@ -13,24 +10,22 @@ import {
   MakeOptional,
   assign,
   getRelayEventKey,
-  InvalidFill,
   isDefined,
-  toBN,
   getMessageHash,
   isSlowFill,
   isValidEvmAddress,
   isZeroAddress,
   toAddress,
   validateFillForDeposit,
-} from "../utils";
+  chainIsEvm,
+} from "../../utils";
 import {
   duplicateEvent,
-  paginatedEventQuery,
   sortEventsAscendingInPlace,
   spreadEvent,
   spreadEventWithBlockNumber,
-} from "../utils/EventUtils";
-import { ZERO_ADDRESS } from "../constants";
+} from "../../utils/EventUtils";
+import { ZERO_ADDRESS } from "../../constants";
 import {
   Deposit,
   DepositWithBlock,
@@ -44,32 +39,44 @@ import {
   SlowFillRequestWithBlock,
   SpeedUpWithBlock,
   TokensBridged,
-} from "../interfaces";
-import { SpokePool } from "../typechain";
-import { getNetworkName } from "../utils/NetworkUtils";
-import { findDepositBlock, getDepositIdAtBlock, relayFillStatus } from "../utils/SpokeUtils";
-import { BaseAbstractClient, isUpdateFailureReason, UpdateFailureReason } from "./BaseAbstractClient";
-import { HubPoolClient } from "./HubPoolClient";
-import { AcrossConfigStoreClient } from "./AcrossConfigStoreClient";
-import { getRepaymentChainId, forceDestinationRepayment } from "./BundleDataClient/utils/FillUtils";
+} from "../../interfaces";
+import { BaseAbstractClient, UpdateFailureReason } from "../BaseAbstractClient";
+import { AcrossConfigStoreClient } from "../AcrossConfigStoreClient";
+import { getRefundInformationFromFill } from "../BundleDataClient";
+import { HubPoolClient } from "../HubPoolClient";
 
-type SpokePoolUpdateSuccess = {
+export type SpokePoolUpdateSuccess = {
   success: true;
   currentTime: number;
   events: Log[][];
   searchEndBlock: number;
 };
-type SpokePoolUpdateFailure = {
+export type SpokePoolUpdateFailure = {
   success: false;
   reason: UpdateFailureReason;
 };
 export type SpokePoolUpdate = SpokePoolUpdateSuccess | SpokePoolUpdateFailure;
 
+export const knownEventNames = [
+  "EnabledDepositRoute",
+  "TokensBridged",
+  "RelayedRootBundle",
+  "ExecutedRelayerRefundRoot",
+  "V3FundsDeposited",
+  "FundsDeposited",
+  "RequestedSpeedUpV3Deposit",
+  "RequestedSpeedUpDeposit",
+  "RequestedV3SlowFill",
+  "RequestedSlowFill",
+  "FilledV3Relay",
+  "FilledRelay",
+];
+
 /**
  * SpokePoolClient is a client for the SpokePool contract. It is responsible for querying the SpokePool contract
  * for events and storing them in memory. It also provides some convenience methods for querying the stored events.
  */
-export class SpokePoolClient extends BaseAbstractClient {
+export abstract class SpokePoolClient extends BaseAbstractClient {
   protected currentTime = 0;
   protected depositHashes: { [depositHash: string]: DepositWithBlock } = {};
   protected duplicateDepositHashes: { [depositHash: string]: DepositWithBlock[] } = {};
@@ -80,7 +87,6 @@ export class SpokePoolClient extends BaseAbstractClient {
   protected tokensBridged: TokensBridged[] = [];
   protected rootBundleRelays: RootBundleRelayWithBlock[] = [];
   protected relayerRefundExecutions: RelayerRefundExecutionWithBlock[] = [];
-  protected queryableEventNames: string[] = [];
   protected configStoreClient: AcrossConfigStoreClient | undefined;
   protected invalidFills: Set<string> = new Set();
   public fills: { [OriginChainId: number]: FillWithBlock[] } = {};
@@ -88,15 +94,13 @@ export class SpokePoolClient extends BaseAbstractClient {
   /**
    * Creates a new SpokePoolClient.
    * @param logger A logger instance.
-   * @param spokePool The SpokePool contract instance that this client will query.
    * @param hubPoolClient An optional HubPoolClient instance. This is used to fetch spoke data that is not stored on the SpokePool contract but is stored on the HubPool contract.
    * @param chainId The chain ID of the chain that this client is querying.
    * @param deploymentBlock The block number that the SpokePool contract was deployed at.
    * @param eventSearchConfig An optional EventSearchConfig object that controls how far back in history the client will search for events. If not provided, the client will only search for events from the deployment block.
    */
-  constructor(
+  protected constructor(
     readonly logger: winston.Logger,
-    readonly spokePool: Contract,
     // Can be excluded. This disables some deposit validation.
     readonly hubPoolClient: HubPoolClient | null,
     readonly chainId: number,
@@ -106,26 +110,7 @@ export class SpokePoolClient extends BaseAbstractClient {
     super(eventSearchConfig);
     this.firstBlockToSearch = eventSearchConfig.fromBlock;
     this.latestBlockSearched = 0;
-    this.queryableEventNames = Object.keys(this._queryableEventNames());
     this.configStoreClient = hubPoolClient?.configStoreClient;
-  }
-
-  public _queryableEventNames(): { [eventName: string]: EventFilter } {
-    const knownEventNames = [
-      "EnabledDepositRoute",
-      "TokensBridged",
-      "RelayedRootBundle",
-      "ExecutedRelayerRefundRoot",
-      "FundsDeposited",
-      "RequestedSpeedUpDeposit",
-      "RequestedSlowFill",
-      "FilledRelay",
-    ];
-    return Object.fromEntries(
-      this.spokePool.interface.fragments
-        .filter(({ name, type }) => type === "event" && knownEventNames.includes(name))
-        .map(({ name }) => [name, this.spokePool.filters[name]()])
-    );
   }
 
   /**
@@ -331,9 +316,7 @@ export class SpokePoolClient extends BaseAbstractClient {
    * @returns A list of slow fill requests.
    */
   public getSlowFillRequestsForOriginChain(originChainId: number): SlowFillRequestWithBlock[] {
-    return Object.values(this.slowFillRequests).filter(
-      (e: SlowFillRequestWithBlock) => e.originChainId === originChainId
-    );
+    return Object.values(this.slowFillRequests).filter((e) => e.originChainId === originChainId);
   }
 
   /**
@@ -352,10 +335,7 @@ export class SpokePoolClient extends BaseAbstractClient {
   public getDepositForFill(fill: Fill): DepositWithBlock | undefined {
     const deposit = this.depositHashes[getRelayEventKey(fill)];
     const match = validateFillForDeposit(fill, deposit);
-    if (match.valid) {
-      return deposit;
-    }
-    return undefined;
+    return match.valid ? deposit : undefined;
   }
 
   public getFillsForDeposit(deposit: Deposit): FillWithBlock[] {
@@ -387,22 +367,25 @@ export class SpokePoolClient extends BaseAbstractClient {
         fill: FillWithBlock
       ) => {
         if (validateFillForDeposit(fill, deposit).valid) {
-          const repaymentChainId = getRepaymentChainId(fill, deposit);
-          // In order to keep this function sync, we can't call verifyFillRepayment so we'll log any fills that
-          // we'll have to overwrite repayment information for. This includes fills for lite chains where the
-          // repayment address is invalid, and fills for non-lite chains where the repayment address is valid or
-          // the repayment chain is invalid. We don't check that the origin chain is a valid EVM chain for
-          // lite chain deposits yet because only EVM chains are supported on Across...for now. This means
-          // this logic will have to be revisited when we add SVM to log properly.
+          const fillRepaymentData = {
+            ...fill,
+            fromLiteChain: deposit.fromLiteChain,
+          };
+          const { chainToSendRefundTo: repaymentChainId } = getRefundInformationFromFill(
+            fillRepaymentData,
+            this.hubPoolClient!,
+            this.hubPoolClient!.latestBlockSearched
+          );
+          // In order to keep this function sync, we can't call verifyFillRepayment so we'll log any fills where
+          // the filler-specified repayment chain and repayment address is not a valid repayment upon
+          // first glance. In other words, the repayment address is not a valid EVM address or the repayment chain
+          // is not a valid EVM chain. In the case where the repayment address is not a valid EVM address, the dataworker
+          // might be able to overwrite the repayment address to the msg.sender on the fill txn, but to keep this
+          // functioon synchronous, we can't make that decision now. So this function might log some false positives.
           if (
             this.hubPoolClient &&
             !isSlowFill(fill) &&
-            (!isValidEvmAddress(fill.relayer) ||
-              forceDestinationRepayment(
-                repaymentChainId,
-                { ...deposit, quoteBlockNumber: this.hubPoolClient!.latestBlockSearched },
-                this.hubPoolClient
-              ))
+            (!chainIsEvm(repaymentChainId) || !isValidEvmAddress(fill.relayer))
           ) {
             groupedFills.unrepayableFills.push(fill);
           }
@@ -419,7 +402,7 @@ export class SpokePoolClient extends BaseAbstractClient {
 
     // Log any invalid deposits with same deposit id but different params.
     const invalidFillsForDeposit = invalidFills.filter((x) => {
-      const txnUid = `${x.transactionHash}:${x.logIndex}`;
+      const txnUid = `${x.txnRef}:${x.logIndex}`;
       // if txnUid doesn't exist in the invalidFills set, add it now, but log the corresponding fill.
       const newInvalidFill = x.depositId.eq(deposit.depositId) && !this.invalidFills.has(txnUid);
       if (newInvalidFill) {
@@ -472,107 +455,27 @@ export class SpokePoolClient extends BaseAbstractClient {
     return `${event.depositId.toString()}-${event.originChainId}`;
   }
 
-  /**
-   * Finds the deposit id at a specific block number.
-   * @param blockTag The block number to search for the deposit ID at.
-   * @returns The deposit ID.
-   */
-  public _getDepositIdAtBlock(blockTag: number): Promise<BigNumber> {
-    return getDepositIdAtBlock(this.spokePool as SpokePool, blockTag);
-  }
-
-  /**
-   * @notice Return maximum of fill deadline buffer at start and end of block range. This is a contract
-   * immutable state variable so we can't query other events to find its updates.
-   * @dev Deposits have a fill deadline which can be set to a maximum of fillDeadlineBuffer + deposit.block.timestamp.
-   * Therefore, we cannot evaluate a block range for expired deposits if the spoke pool client doesn't return us
-   * deposits whose block.timestamp is within fillDeadlineBuffer of the end block time. As a conservative check,
-   * we verify that the time between the end block timestamp and the first timestamp queried by the
-   * spoke pool client is greater than the maximum of the fill deadline buffers at the start and end of the block
-   * range. We assume the fill deadline buffer wasn't changed more than once within a bundle.
-   * @param startBlock start block
-   * @param endBlock end block
-   * @returns maximum of fill deadline buffer at start and end block
-   */
-  public async getMaxFillDeadlineInRange(startBlock: number, endBlock: number): Promise<number> {
-    const fillDeadlineBuffers: number[] = await Promise.all([
-      this.spokePool.fillDeadlineBuffer({ blockTag: startBlock }),
-      this.spokePool.fillDeadlineBuffer({ blockTag: endBlock }),
-    ]);
-    return Math.max(fillDeadlineBuffers[0], fillDeadlineBuffers[1]);
-  }
-
-  /**
-   * Performs an update to refresh the state of this client. This will query the SpokePool contract for new events
-   * and store them in memory. This method is the primary method for updating the state of this client.
-   * @param eventsToQuery An optional list of events to query. If not provided, all events will be queried.
-   * @returns A Promise that resolves to a SpokePoolUpdate object.
-   */
-  protected async _update(eventsToQuery: string[]): Promise<SpokePoolUpdate> {
-    const searchConfig = await this.updateSearchConfig(this.spokePool.provider);
-    if (isUpdateFailureReason(searchConfig)) {
-      const reason = searchConfig;
-      return { success: false, reason };
+  protected canResolveZeroAddressOutputToken(deposit: DepositWithBlock): boolean {
+    if (
+      !this.hubPoolClient?.l2TokenHasPoolRebalanceRoute(
+        deposit.inputToken,
+        deposit.originChainId,
+        deposit.quoteBlockNumber
+      )
+    ) {
+      return false;
+    } else {
+      const l1Token = this.hubPoolClient?.getL1TokenForL2TokenAtBlock(
+        deposit.inputToken,
+        deposit.originChainId,
+        deposit.quoteBlockNumber
+      );
+      return this.hubPoolClient.l2TokenEnabledForL1TokenAtBlock(
+        l1Token,
+        deposit.destinationChainId,
+        deposit.quoteBlockNumber
+      );
     }
-
-    const eventSearchConfigs = eventsToQuery.map((eventName) => {
-      if (!this.queryableEventNames.includes(eventName)) {
-        throw new Error(`SpokePoolClient: Cannot query unrecognised SpokePool event name: ${eventName}`);
-      }
-
-      const _searchConfig = { ...searchConfig }; // shallow copy
-
-      // By default, an event's query range is controlled by the `eventSearchConfig` passed in during instantiation.
-      // However, certain events have special overriding requirements to their search ranges:
-      // - EnabledDepositRoute: The full history is always required, so override the requested fromBlock.
-      if (eventName === "EnabledDepositRoute" && !this.isUpdated) {
-        _searchConfig.fromBlock = this.deploymentBlock;
-      }
-
-      return {
-        filter: this._queryableEventNames()[eventName],
-        searchConfig: _searchConfig,
-      };
-    });
-
-    const { spokePool } = this;
-    this.log("debug", `Updating SpokePool client for chain ${this.chainId}`, {
-      eventsToQuery,
-      searchConfig,
-      spokePool: spokePool.address,
-    });
-
-    const timerStart = Date.now();
-    const multicallFunctions = ["getCurrentTime"];
-    const [multicallOutput, ...events] = await Promise.all([
-      spokePool.callStatic.multicall(
-        multicallFunctions.map((f) => spokePool.interface.encodeFunctionData(f)),
-        { blockTag: searchConfig.toBlock }
-      ),
-      ...eventSearchConfigs.map((config) => paginatedEventQuery(this.spokePool, config.filter, config.searchConfig)),
-    ]);
-    this.log("debug", `Time to query new events from RPC for ${this.chainId}: ${Date.now() - timerStart} ms`);
-
-    const [currentTime] = multicallFunctions.map(
-      (fn, idx) => spokePool.interface.decodeFunctionResult(fn, multicallOutput[idx])[0]
-    );
-
-    if (!BigNumber.isBigNumber(currentTime) || currentTime.lt(this.currentTime)) {
-      const errMsg = BigNumber.isBigNumber(currentTime)
-        ? `currentTime: ${currentTime} < ${toBN(this.currentTime)}`
-        : `currentTime is not a BigNumber: ${JSON.stringify(currentTime)}`;
-      throw new Error(`SpokePoolClient::update: ${errMsg}`);
-    }
-
-    // Sort all events to ensure they are stored in a consistent order.
-    events.forEach((events: Log[]) => sortEventsAscendingInPlace(events));
-
-    return {
-      success: true,
-      currentTime: currentTime.toNumber(), // uint32
-      searchEndBlock: searchConfig.toBlock,
-      events,
-    };
   }
 
   /**
@@ -583,7 +486,7 @@ export class SpokePoolClient extends BaseAbstractClient {
    * @note This method is the primary method for updating the state of this client externally.
    * @see _update
    */
-  public async update(eventsToQuery = this.queryableEventNames): Promise<void> {
+  public async update(eventsToQuery = this._queryableEventNames()): Promise<void> {
     const duplicateEvents: Log[] = [];
     if (this.hubPoolClient !== null && !this.hubPoolClient.isUpdated) {
       throw new Error("HubPoolClient not updated");
@@ -776,10 +679,6 @@ export class SpokePoolClient extends BaseAbstractClient {
       const refundEvents = queryResults[eventsToQuery.indexOf("ExecutedRelayerRefundRoot")];
       for (const event of refundEvents) {
         const executedRefund = spreadEventWithBlockNumber(event) as RelayerRefundExecutionWithBlock;
-        executedRefund.l2TokenAddress = SpokePoolClient.getExecutedRefundLeafL2Token(
-          executedRefund.chainId,
-          executedRefund.l2TokenAddress
-        );
         this.relayerRefundExecutions.push(executedRefund);
       }
     }
@@ -800,30 +699,6 @@ export class SpokePoolClient extends BaseAbstractClient {
     this.log("debug", `SpokePool client for chain ${this.chainId} updated!`, {
       nextFirstBlockToSearch: this.firstBlockToSearch,
     });
-  }
-
-  /**
-   * Retrieves the l2TokenAddress for a given executed refund leaf.
-   * @param chainId The chain ID of the executed refund leaf.
-   * @param eventL2Token The l2TokenAddress of the executed refund leaf.
-   * @returns The l2TokenAddress of the executed refund leaf.
-   */
-  public static getExecutedRefundLeafL2Token(chainId: number, eventL2Token: string): string {
-    // If execution of WETH refund leaf occurred on an OVM spoke pool, then we'll convert its l2Token from the native
-    // token address to the wrapped token address. This is because the OVM_SpokePool modifies the l2TokenAddress prop
-    // in _bridgeTokensToHubPool before emitting the ExecutedRelayerRefundLeaf event.
-    // Here is the contract code referenced:
-    // - https://github.com/across-protocol/contracts/blob/954528a4620863d1c868e54a370fd8556d5ed05c/contracts/Ovm_SpokePool.sol#L142
-    if (
-      (chainId === 10 || chainId === 8453) &&
-      eventL2Token.toLowerCase() === "0xdeaddeaddeaddeaddeaddeaddeaddeaddead0000"
-    ) {
-      return "0x4200000000000000000000000000000000000006";
-    } else if (chainId === 288 && eventL2Token.toLowerCase() === "0x4200000000000000000000000000000000000006") {
-      return "0xDeadDeAddeAddEAddeadDEaDDEAdDeaDDeAD0000";
-    } else {
-      return eventL2Token;
-    }
   }
 
   /**
@@ -853,12 +728,19 @@ export class SpokePoolClient extends BaseAbstractClient {
    * @returns The destination token.
    */
   protected getDestinationTokenForDeposit(deposit: DepositWithBlock): string {
-    // If there is no rate model client return address(0).
-    if (!this.hubPoolClient) {
+    if (!this.canResolveZeroAddressOutputToken(deposit)) {
       return ZERO_ADDRESS;
     }
-
-    return this.hubPoolClient.getL2TokenForDeposit(deposit);
+    // L1 token should be resolved if we get here:
+    const l1Token = this.hubPoolClient!.getL1TokenForL2TokenAtBlock(
+      deposit.inputToken,
+      deposit.originChainId,
+      deposit.quoteBlockNumber
+    )!;
+    return (
+      this.hubPoolClient!.getL2TokenForL1TokenAtBlock(l1Token, deposit.destinationChainId, deposit.quoteBlockNumber) ??
+      ZERO_ADDRESS
+    );
   }
 
   /**
@@ -877,93 +759,6 @@ export class SpokePoolClient extends BaseAbstractClient {
    */
   public getCurrentTime(): number {
     return this.currentTime;
-  }
-
-  /**
-   * Retrieves the time from the SpokePool contract at a particular block.
-   * @returns The time at the specified block tag.
-   */
-  public async getTimeAt(blockNumber: number): Promise<number> {
-    const currentTime = await this.spokePool.getCurrentTime({ blockTag: blockNumber });
-    assert(BigNumber.isBigNumber(currentTime) && currentTime.lt(bnUint32Max));
-    return currentTime.toNumber();
-  }
-
-  /**
-   * For a given origin chain depositId, resolve the corresponding Deposit.
-   * Note: This method can only be used for depositIds within the non-deterministic range (0 < depositId < 2^32 - 1).
-   * @param depositId Deposit ID of the deposit to resolve.
-   * @returns A DepositSearchResult instance.
-   */
-  async findDeposit(depositId: BigNumber): Promise<DepositSearchResult> {
-    let deposit = this.getDeposit(depositId);
-    if (deposit) {
-      return { found: true, deposit };
-    }
-
-    // No deposit found; revert to searching for it.
-    const upperBound = this.latestBlockSearched || undefined; // Don't permit block 0 as the high block.
-    const fromBlock = await findDepositBlock(this.spokePool, depositId, this.deploymentBlock, upperBound);
-    const chain = getNetworkName(this.chainId);
-    if (!fromBlock) {
-      const reason =
-        `Unable to find ${chain} depositId ${depositId}` +
-        ` within blocks [${this.deploymentBlock}, ${upperBound ?? "latest"}].`;
-      return { found: false, code: InvalidFill.DepositIdNotFound, reason };
-    }
-
-    const toBlock = fromBlock;
-    const tStart = Date.now();
-    // Check both V3FundsDeposited and FundsDeposited for the forseeable future because older
-    // V3FundsDeposited events with infinite expiry might still exist and be filled in future.
-    const { maxBlockLookBack } = this.eventSearchConfig;
-    const query = (
-      await Promise.all([
-        paginatedEventQuery(
-          this.spokePool,
-          this.spokePool.filters.V3FundsDeposited(null, null, null, null, null, depositId),
-          { fromBlock, toBlock, maxBlockLookBack }
-        ),
-        paginatedEventQuery(
-          this.spokePool,
-          this.spokePool.filters.FundsDeposited(null, null, null, null, null, depositId),
-          { fromBlock, toBlock, maxBlockLookBack }
-        ),
-      ])
-    ).flat();
-    const tStop = Date.now();
-
-    const event = query.find(({ args }) => args["depositId"].eq(depositId));
-    if (event === undefined) {
-      return {
-        found: false,
-        code: InvalidFill.DepositIdNotFound,
-        reason: `${chain} depositId ${depositId} not found at block ${fromBlock}.`,
-      };
-    }
-
-    deposit = {
-      ...spreadEventWithBlockNumber(event),
-      originChainId: this.chainId,
-      quoteBlockNumber: await this.getBlockNumber(Number(event.args["quoteTimestamp"])),
-      fromLiteChain: true, // To be updated immediately afterwards.
-      toLiteChain: true, // To be updated immediately afterwards.
-    } as DepositWithBlock;
-
-    if (isZeroAddress(deposit.outputToken)) {
-      deposit.outputToken = this.getDestinationTokenForDeposit(deposit);
-    }
-    deposit.fromLiteChain = this.isOriginLiteChain(deposit);
-    deposit.toLiteChain = this.isDestinationLiteChain(deposit);
-
-    this.logger.debug({
-      at: "SpokePoolClient#findDeposit",
-      message: "Located deposit outside of SpokePoolClient's search range",
-      deposit,
-      elapsedMs: tStop - tStart,
-    });
-
-    return { found: true, deposit };
   }
 
   /**
@@ -988,22 +783,76 @@ export class SpokePoolClient extends BaseAbstractClient {
     );
   }
 
-  public async getTimestampForBlock(blockTag: number): Promise<number> {
-    const block = await this.spokePool.provider.getBlock(blockTag);
-    return Number(block.timestamp);
-  }
+  // ///////////////////////
+  // // ABSTRACT METHODS //
+  // ///////////////////////
 
   /**
-   * Find the amount filled for a deposit at a particular block.
-   * @param relayData Deposit information that is used to complete a fill.
-   * @param blockTag Block tag (numeric or "latest") to query at.
-   * @returns The amount filled for the specified deposit at the requested block (or latest).
+   * Returns a list of event names that are queryable for the SpokePoolClient.
+   * @returns A list of event names that are queryable for the SpokePoolClient.
    */
-  public relayFillStatus(
-    relayData: RelayData,
-    blockTag?: number | "latest",
-    destinationChainId?: number
-  ): Promise<FillStatus> {
-    return relayFillStatus(this.spokePool, relayData, blockTag, destinationChainId);
-  }
+  public abstract _queryableEventNames(): string[];
+
+  /**
+   * Performs an update to refresh the state of this client. This will query the SpokePool contract for new events
+   * and store them in memory. This method is the primary method for updating the state of this client.
+   * @param eventsToQuery An optional list of events to query. If not provided, all events will be queried.
+   * @returns A Promise that resolves to a SpokePoolUpdate object.
+   */
+  protected abstract _update(eventsToQuery: string[]): Promise<SpokePoolUpdate>;
+
+  /**
+   * @notice Return maximum of fill deadline buffer at start and end of block range. This is a contract
+   * immutable state variable so we can't query other events to find its updates.
+   * @dev V3 deposits have a fill deadline which can be set to a maximum of fillDeadlineBuffer + deposit.block.timestamp.
+   * Therefore, we cannot evaluate a block range for expired deposits if the spoke pool client doesn't return us
+   * deposits whose block.timestamp is within fillDeadlineBuffer of the end block time. As a conservative check,
+   * we verify that the time between the end block timestamp and the first timestamp queried by the
+   * spoke pool client is greater than the maximum of the fill deadline buffers at the start and end of the block
+   * range. We assume the fill deadline buffer wasn't changed more than once within a bundle.
+   * @param startBlock start block
+   * @param endBlock end block
+   * @returns maximum of fill deadline buffer at start and end block
+   */
+  public abstract getMaxFillDeadlineInRange(startBlock: number, endBlock: number): Promise<number>;
+
+  /**
+   * Retrieves the timestamp for a given block number.
+   * @param blockTag The block number to retrieve the timestamp for.
+   * @returns The timestamp for the given block number.
+   */
+  public abstract getTimestampForBlock(blockTag: number): Promise<number>;
+
+  /**
+   * Retrieves the time from the SpokePool contract at a particular block.
+   * @returns The time at the specified block tag.
+   */
+  public abstract getTimeAt(blockNumber: number): Promise<number>;
+
+  /**
+   * For a given origin chain depositId, resolve the corresponding Deposit.
+   * Note: This method can only be used for depositIds within the non-deterministic range (0 < depositId < 2^32 - 1).
+   * @param depositId Deposit ID of the deposit to resolve.
+   * @returns A DepositSearchResult instance.
+   */
+  public abstract findDeposit(depositId: BigNumber): Promise<DepositSearchResult>;
+
+  /**
+   * Retrieves the fill status for a given relay data.
+   * @param relayData The relay data to retrieve the fill status for.
+   * @param blockTag The block at which to query the fill status.
+   * @returns The fill status for the given relay data.
+   */
+  public abstract relayFillStatus(relayData: RelayData, blockTag?: number | "latest"): Promise<FillStatus>;
+
+  /**
+   * Retrieves the fill status for an array of given relay data.
+   * @param relayData The array relay data to retrieve the fill status for.
+   * @param blockTag The block at which to query the fill status.
+   * @returns The fill status for each of the given relay data.
+   */
+  public abstract fillStatusArray(
+    relayData: RelayData[],
+    blockTag?: number | "latest"
+  ): Promise<(FillStatus | undefined)[]>;
 }

@@ -1,3 +1,4 @@
+export * as arch from "./arch";
 export * as addressAggregator from "./addressAggregator";
 export * as lpFeeCalculator from "./lpFeeCalculator";
 export * as pool from "./pool";

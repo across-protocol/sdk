@@ -1,17 +1,9 @@
 import hre from "hardhat";
-import { SpokePoolClient } from "../src/clients";
+import { EVMSpokePoolClient, SpokePoolClient } from "../src/clients";
 import { Deposit } from "../src/interfaces";
-import {
-  bnOne,
-  bnZero,
-  findDepositBlock,
-  findFillBlock,
-  findFillEvent,
-  getMessageHash,
-  getNetworkName,
-  deploy as deployMulticall,
-} from "../src/utils";
+import { bnOne, bnZero, getMessageHash, getNetworkName, deploy as deployMulticall } from "../src/utils";
 import { EMPTY_MESSAGE, ZERO_ADDRESS } from "../src/constants";
+import { findDepositBlock, findFillBlock, findFillEvent } from "../src/arch/evm";
 import { originChainId, destinationChainId } from "./constants";
 import {
   assertPromiseError,
@@ -47,7 +39,7 @@ describe("SpokePoolClient: Fills", function () {
     ));
     await spokePool.setChainId(destinationChainId); // The spoke pool for a fill should be at the destinationChainId.
 
-    spokePoolClient = new SpokePoolClient(
+    spokePoolClient = new EVMSpokePoolClient(
       createSpyLogger().spyLogger,
       spokePool,
       null,

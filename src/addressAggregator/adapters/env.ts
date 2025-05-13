@@ -1,16 +1,16 @@
 import { array, defaulted, string } from "superstruct";
-import { AddressListAdapter } from "../types";
-import { Logger, logError } from "./util";
+import { AdapterOptions } from "../types";
+import { AbstractAdapter } from "./abstract";
 
 const envConfig = defaulted(array(string()), []);
 
-export class AddressList implements AddressListAdapter {
-  readonly name = "process.env";
+export class AddressList extends AbstractAdapter {
+  constructor(opts?: AdapterOptions) {
+    super(opts?.name ?? "process.env", opts?.path ?? "ACROSS_IGNORED_ADDRESSES", opts);
+  }
 
-  constructor(readonly envVar = "ACROSS_IGNORED_ADDRESSES") {}
-
-  update(logger?: Logger): Promise<string[]> {
-    const config = process.env[this.envVar];
+  update(): Promise<string[]> {
+    const config = process.env[this.path];
     if (!config) {
       return Promise.resolve([]);
     }
@@ -19,10 +19,10 @@ export class AddressList implements AddressListAdapter {
     try {
       addresses = JSON.parse(config);
       if (!envConfig.is(addresses)) {
-        return logError(this.name, "Address format validation failure.", logger);
+        return this.error("Address format validation failure.");
       }
     } catch (err) {
-      return logError(this.name, err, logger);
+      return this.error(err);
     }
 
     return Promise.resolve(addresses);

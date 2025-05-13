@@ -27,14 +27,14 @@ import {
   bnOne,
   toBytes32,
 } from "../../utils";
-import { SpokePoolClient, SpokePoolUpdate } from "../SpokePoolClient";
+import { EVMSpokePoolClient, SpokePoolUpdate } from "../SpokePoolClient";
 import { HubPoolClient } from "../HubPoolClient";
 import { EventManager, EventOverrides, getEventManager } from "./MockEvents";
 import { AcrossConfigStoreClient } from "../AcrossConfigStoreClient";
 
 // This class replaces internal SpokePoolClient functionality, enabling
 // the user to bypass on-chain queries and inject Log objects directly.
-export class MockSpokePoolClient extends SpokePoolClient {
+export class MockSpokePoolClient extends EVMSpokePoolClient {
   public eventManager: EventManager;
   private destinationTokenForChainOverride: Record<number, string> = {};
   // Allow tester to set the numberOfDeposits() returned by SpokePool at a block height.
@@ -125,7 +125,7 @@ export class MockSpokePoolClient extends SpokePoolClient {
   }
 
   protected _deposit(event: string, deposit: Omit<Deposit, "messageHash"> & Partial<SortableEvent>): Log {
-    const { blockNumber, transactionIndex } = deposit;
+    const { blockNumber, txnIndex } = deposit;
     let { depositId, destinationChainId, inputAmount, outputAmount } = deposit;
     depositId ??= this.numberOfDeposits;
     this.numberOfDeposits = depositId.add(bnOne);
@@ -166,7 +166,7 @@ export class MockSpokePoolClient extends SpokePoolClient {
       topics: topics.map((topic) => topic.toString()),
       args,
       blockNumber,
-      transactionIndex,
+      transactionIndex: txnIndex,
     });
   }
 
@@ -178,7 +178,7 @@ export class MockSpokePoolClient extends SpokePoolClient {
     event: string,
     fill: Omit<Fill, "messageHash"> & { message?: string } & Partial<SortableEvent>
   ): Log {
-    const { blockNumber, transactionIndex } = fill;
+    const { blockNumber, txnIndex } = fill;
     let { originChainId, depositId, inputAmount, outputAmount, fillDeadline } = fill;
     originChainId ??= random(1, 42161, false);
     depositId ??= BigNumber.from(random(1, 100_000, false));
@@ -239,7 +239,7 @@ export class MockSpokePoolClient extends SpokePoolClient {
       topics: topics.map((topic) => topic.toString()),
       args,
       blockNumber,
-      transactionIndex,
+      transactionIndex: txnIndex,
     });
   }
 
@@ -305,7 +305,7 @@ export class MockSpokePoolClient extends SpokePoolClient {
         exclusiveRelayer: toBytes32(args.exclusiveRelayer ?? ZERO_ADDRESS),
       },
       blockNumber: request.blockNumber,
-      transactionIndex: request.transactionIndex,
+      transactionIndex: request.txnIndex,
     });
   }
 

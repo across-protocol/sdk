@@ -6,10 +6,10 @@ import { Coingecko } from "../../coingecko";
 import { CHAIN_IDs, DEFAULT_SIMULATED_RELAYER_ADDRESS } from "../../constants";
 import { Deposit } from "../../interfaces";
 import { SpokePool, SpokePool__factory } from "../../typechain";
+import { populateV3Relay } from "../../arch/evm";
 import {
   BigNumberish,
   TransactionCostEstimate,
-  populateV3Relay,
   BigNumber,
   toBNWei,
   bnZero,
@@ -251,15 +251,5 @@ export class QueryBase implements QueryInterface {
       this.coingeckoBaseCurrency
     );
     return price;
-  }
-
-  /**
-   * Resolves the number of decimal places a token can have
-   * @param tokenSymbol A valid Across-Enabled Token ID
-   * @returns The number of decimals of precision for the corresponding tokenSymbol
-   */
-  getTokenDecimals(tokenSymbol: string): number {
-    if (!this.symbolMapping[tokenSymbol]) throw new Error(`${tokenSymbol} does not exist in mapping`);
-    return this.symbolMapping[tokenSymbol].decimals;
   }
 }

@@ -31,6 +31,20 @@ export function assign(obj: any, keyPath: any[], value: any): void {
   }
 }
 
+// Trims `obj` by deleting `value` and all empty dictionaries produced from that deletion.
+export function deleteFromJson(obj: Record<string | number, unknown>, keyPath: (string | number)[]): void {
+  const lastKeyIndex = keyPath.length - 1;
+  let _obj = obj; // Copy the pointer.
+  for (let i = 0; i < lastKeyIndex; ++i) {
+    const key = keyPath[i];
+    _obj = obj[key] as Record<string | number, unknown>;
+  }
+  delete _obj[keyPath[lastKeyIndex]];
+  if (lastKeyIndex !== 0 && Object.values(_obj).length === 0) {
+    deleteFromJson(obj, keyPath.slice(0, lastKeyIndex));
+  }
+}
+
 // Refactor to be more generalized with N props
 export function groupObjectCountsByThreeProps(
   objects: any[],
