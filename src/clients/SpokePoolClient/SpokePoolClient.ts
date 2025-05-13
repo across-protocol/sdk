@@ -18,6 +18,7 @@ import {
   toAddress,
   validateFillForDeposit,
   chainIsEvm,
+  chainIsProd,
 } from "../../utils";
 import {
   duplicateEvent,
@@ -25,7 +26,7 @@ import {
   spreadEvent,
   spreadEventWithBlockNumber,
 } from "../../utils/EventUtils";
-import { ZERO_ADDRESS, CHAIN_IDs } from "../../constants";
+import { ZERO_ADDRESS } from "../../constants";
 import {
   Deposit,
   DepositWithBlock,
@@ -353,7 +354,7 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
     fillCount: number;
     invalidFills: FillWithBlock[];
   } {
-    const { outputAmount } = deposit;
+    const { outputAmount, originChainId } = deposit;
     const fillsForDeposit = this.depositHashesToFills[this.getDepositHash(deposit)];
     // If no fills then the full amount is remaining.
     if (fillsForDeposit === undefined || fillsForDeposit.length === 0) {
@@ -409,8 +410,8 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
       }
       return newInvalidFill;
     });
-    // Log invalid and unrepayable fills as warns iff the hub pool client is defined and the hub chain is mainnet.
-    const logLevel = this.hubPoolClient?.chainId === CHAIN_IDs.MAINNET ? "warn" : "debug";
+    // Log invalid and unrepayable fills as warns if we are on a production network.
+    const logLevel = chainIsProd(originChainId) ? "warn" : "debug";
     if (invalidFillsForDeposit.length > 0) {
       this.logger[logLevel]({
         at: "SpokePoolClient",
