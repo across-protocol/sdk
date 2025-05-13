@@ -13,7 +13,7 @@ import {
 } from "../../utils";
 import { SvmSpokeClient } from "@across-protocol/contracts";
 import { getStatePda, SvmCpiEventsClient, getFillStatusPda, unwrapEventData, getEventAuthority } from "./";
-import { Deposit, DepositWithTime, FillStatus, FillWithBlock, FillWithTime, RelayData } from "../../interfaces";
+import { Deposit, FillStatus, FillWithBlock, RelayData } from "../../interfaces";
 import {
   TOKEN_PROGRAM_ADDRESS,
   ASSOCIATED_TOKEN_PROGRAM_ADDRESS,
@@ -27,14 +27,11 @@ import {
   fetchEncodedAccounts,
   fetchEncodedAccount,
   type TransactionSigner,
-  Signature,
 } from "@solana/kit";
 import assert from "assert";
 import { Logger } from "winston";
 import { fetchState, decodeFillStatusAccount } from "@across-protocol/contracts/dist/src/svm/clients/SvmSpoke";
 import { SVMEventNames, SVMProvider } from "./types";
-import { FundsDepositedEventObject } from "@across-protocol/contracts/dist/typechain/contracts/WorldChain_SpokePool";
-import { FilledRelayEventObject } from "@across-protocol/contracts/dist/typechain/contracts/AlephZero_SpokePool";
 
 /**
  * @param spokePool SpokePool Contract instance.
@@ -277,122 +274,6 @@ export async function findFillEvent(
   }
 
   return undefined;
-}
-
-/**
- * Finds all FundsDeposited events for a given transaction signature.
- *
- * @param originChainId - The chain ID where the deposit originated.
- * @param txSignature - The transaction signature to search for events.
- * @param eventsClient - SvmCpiEventsClient instance for querying events.
- * @returns A promise that resolves to an array of deposit events for the transaction, or undefined if none found.
- */
-
-export type DepositEventFromSignature = Omit<DepositWithTime, "fromLiteChain" | "toLiteChain">;
-export async function getDepositEventsFromSignature(
-  originChainId: number,
-  txSignature: Signature,
-  eventsClient: SvmCpiEventsClient,
-  commitment?: Parameters<typeof eventsClient.readEventsFromSignature>[1]
-): Promise<DepositEventFromSignature[] | undefined> {
-  assert(chainIsSvm(originChainId), `Origin chain ${originChainId} is not an SVM chain`);
-
-  const rpc = eventsClient.getRpc();
-
-  const [events, txDetails] = await Promise.all([
-    eventsClient.readEventsFromSignature(txSignature, commitment),
-    rpc
-      .getTransaction(txSignature, {
-        commitment: "confirmed",
-        maxSupportedTransactionVersion: 0,
-      })
-      .send(),
-  ]);
-
-  // Filter for FundsDeposited events only
-  const depositEvents = events?.filter((event) => event?.name === SVMEventNames.FundsDeposited);
-
-  if (!txDetails || !depositEvents?.length) {
-    return;
-  }
-
-  const slot = BigInt(txDetails.slot);
-
-  return events.map((event) => {
-    const unwrappedEventArgs = unwrapEventData(event as Record<string, unknown>, ["depositId"]) as Record<
-      "data",
-      FundsDepositedEventObject
-    >;
-
-    return {
-      ...unwrappedEventArgs.data,
-      depositTimestamp: Number(txDetails.blockTime),
-      originChainId,
-      messageHash: getMessageHash(unwrappedEventArgs?.data.message as string),
-      blockNumber: Number(slot),
-      transactionHash: txSignature,
-      transactionIndex: 0,
-      logIndex: 0,
-      destinationChainId: unwrappedEventArgs.data.destinationChainId.toNumber(),
-    } as unknown as DepositEventFromSignature;
-  });
-}
-
-/**
- * Finds all FilledRelay events for a given transaction signature.
- *
- * @param destinationChainId - The destination chain ID (must be an SVM chain).
- * @param txSignature - The transaction signature to search for events.
- * @param eventsClient - SvmCpiEventsClient instance for querying events.
- * @returns A promise that resolves to an array of fill events for the transaction, or undefined if none found.
- */
-
-export type FillEventFromSignature = FillWithTime;
-export async function getFillEventsFromSignature(
-  destinationChainId: number,
-  txSignature: Signature,
-  eventsClient: SvmCpiEventsClient
-): Promise<FillEventFromSignature[] | undefined> {
-  assert(chainIsSvm(destinationChainId), `Destination chain ${destinationChainId} is not an SVM chain`);
-
-  // get tx at signature
-  const rpc = eventsClient.getRpc();
-
-  // Find all events from the transaction signature and get transaction details
-  const [events, txDetails] = await Promise.all([
-    eventsClient.readEventsFromSignature(txSignature),
-    rpc
-      .getTransaction(txSignature, {
-        commitment: "confirmed",
-        maxSupportedTransactionVersion: 0,
-      })
-      .send(),
-  ]);
-
-  // Filter for FilledRelay events only
-  const fillEvents = events?.filter((event) => event?.name === SVMEventNames.FilledRelay);
-
-  if (!txDetails || !fillEvents?.length) {
-    return;
-  }
-
-  return fillEvents.map((event) => {
-    const unwrappedEventData = unwrapEventData(event as Record<string, unknown>) as Record<
-      "data",
-      FilledRelayEventObject
-    >;
-    return {
-      ...unwrappedEventData.data,
-      fillTimestamp: Number(txDetails.blockTime),
-      blockNumber: Number(txDetails.slot),
-      transactionHash: txSignature,
-      transactionIndex: 0,
-      logIndex: 0,
-      destinationChainId,
-      repaymentChainId: unwrappedEventData.data.repaymentChainId.toNumber(),
-      originChainId: unwrappedEventData.data.originChainId.toNumber(),
-    } as unknown as FillEventFromSignature;
-  });
 }
 
 /**
