@@ -18,6 +18,7 @@ import {
   toAddress,
   validateFillForDeposit,
   chainIsEvm,
+  chainIsProd,
 } from "../../utils";
 import {
   duplicateEvent,
@@ -353,7 +354,7 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
     fillCount: number;
     invalidFills: FillWithBlock[];
   } {
-    const { outputAmount } = deposit;
+    const { outputAmount, originChainId } = deposit;
     const fillsForDeposit = this.depositHashesToFills[this.getDepositHash(deposit)];
     // If no fills then the full amount is remaining.
     if (fillsForDeposit === undefined || fillsForDeposit.length === 0) {
@@ -409,8 +410,10 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
       }
       return newInvalidFill;
     });
+    // Log invalid and unrepayable fills as warns if we are on a production network.
+    const logLevel = chainIsProd(originChainId) ? "warn" : "debug";
     if (invalidFillsForDeposit.length > 0) {
-      this.logger.warn({
+      this.logger[logLevel]({
         at: "SpokePoolClient",
         chainId: this.chainId,
         message: "Invalid fills found matching deposit ID",
@@ -421,7 +424,7 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
     }
     const unrepayableFillsForDeposit = unrepayableFills.filter((x) => x.depositId.eq(deposit.depositId));
     if (unrepayableFillsForDeposit.length > 0) {
-      this.logger.warn({
+      this.logger[logLevel]({
         at: "SpokePoolClient",
         chainId: this.chainId,
         message: "Unrepayable fills found where we need to switch repayment address and or chain",
