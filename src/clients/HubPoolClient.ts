@@ -2,7 +2,7 @@ import assert from "assert";
 import { Contract, EventFilter } from "ethers";
 import _ from "lodash";
 import winston from "winston";
-import { DEFAULT_CACHING_SAFE_LAG, DEFAULT_CACHING_TTL, ZERO_ADDRESS } from "../constants";
+import { DEFAULT_CACHING_SAFE_LAG, DEFAULT_CACHING_TTL, TOKEN_SYMBOLS_MAP, ZERO_ADDRESS } from "../constants";
 import {
   CachingMechanismInterface,
   CancelledRootBundle,
@@ -43,8 +43,10 @@ import {
   toBN,
   getTokenInfo,
   getUsdcSymbol,
-  getL1TokenInfo,
   compareAddressesSimple,
+  chainIsSvm,
+  getDeployedAddress,
+  SvmAddress,
 } from "../utils";
 import { AcrossConfigStoreClient as ConfigStoreClient } from "./AcrossConfigStoreClient/AcrossConfigStoreClient";
 import { BaseAbstractClient, isUpdateFailureReason, UpdateFailureReason } from "./BaseAbstractClient";
@@ -231,38 +233,39 @@ export class HubPoolClient extends BaseAbstractClient {
     return sortEventsDescending(l2Tokens)[0].l1Token;
   }
 
-  /**
-   * Returns the L1 token that should be used for an L2 Bridge event. This function is
-   * designed to be used by the caller to associate the L2 token with its mapped L1 token
-   * at the HubPool equivalent block number of the L2 event.
-   * @param deposit Deposit event
-   * @param returns string L1 token counterpart for Deposit
-   */
-  getL1TokenForDeposit(deposit: Pick<DepositWithBlock, "originChainId" | "inputToken" | "quoteBlockNumber">): string {
+  protected getL1TokenForDeposit(
+    deposit: Pick<DepositWithBlock, "originChainId" | "inputToken" | "quoteBlockNumber">
+  ): string {
     // L1-->L2 token mappings are set via PoolRebalanceRoutes which occur on mainnet,
     // so we use the latest token mapping. This way if a very old deposit is filled, the relayer can use the
     // latest L2 token mapping to find the L1 token counterpart.
     return this.getL1TokenForL2TokenAtBlock(deposit.inputToken, deposit.originChainId, deposit.quoteBlockNumber);
   }
 
-  /**
-   * Returns the L2 token that should be used as a counterpart to a deposit event. For example, the caller
-   * might want to know what the refund token will be on l2ChainId for the deposit event.
-   * @param l2ChainId Chain where caller wants to get L2 token counterpart for
-   * @param event Deposit event
-   * @returns string L2 token counterpart on l2ChainId
-   */
-  getL2TokenForDeposit(
-    deposit: Pick<DepositWithBlock, "originChainId" | "destinationChainId" | "inputToken" | "quoteBlockNumber">,
-    l2ChainId = deposit.destinationChainId
-  ): string {
-    const l1Token = this.getL1TokenForDeposit(deposit);
-    // Use the latest hub block number to find the L2 token counterpart.
-    return this.getL2TokenForL1TokenAtBlock(l1Token, l2ChainId, deposit.quoteBlockNumber);
-  }
-
   l2TokenEnabledForL1Token(l1Token: string, destinationChainId: number): boolean {
     return this.l1TokensToDestinationTokens?.[l1Token]?.[destinationChainId] != undefined;
+  }
+
+  l2TokenEnabledForL1TokenAtBlock(l1Token: string, destinationChainId: number, hubBlockNumber: number): boolean {
+    // Find the last mapping published before the target block.
+    const l2Token: DestinationTokenWithBlock | undefined = sortEventsDescending(
+      this.l1TokensToDestinationTokensWithBlock?.[l1Token]?.[destinationChainId] ?? []
+    ).find((mapping: DestinationTokenWithBlock) => mapping.blockNumber <= hubBlockNumber);
+    return l2Token !== undefined;
+  }
+
+  l2TokenHasPoolRebalanceRoute(l2Token: string, l2ChainId: number, hubPoolBlock = this.latestBlockSearched): boolean {
+    return Object.values(this.l1TokensToDestinationTokensWithBlock).some((destinationTokenMapping) => {
+      return Object.entries(destinationTokenMapping).some(([_l2ChainId, setPoolRebalanceRouteEvents]) => {
+        return setPoolRebalanceRouteEvents.some((e) => {
+          return (
+            e.blockNumber <= hubPoolBlock &&
+            compareAddressesSimple(e.l2Token, l2Token) &&
+            Number(_l2ChainId) === l2ChainId
+          );
+        });
+      });
+    });
   }
 
   /**
@@ -279,17 +282,6 @@ export class HubPoolClient extends BaseAbstractClient {
       tokenInfo.symbol = getUsdcSymbol(tokenAddress, chain) ?? "UNKNOWN";
     }
     return tokenInfo;
-  }
-
-  /**
-   * @dev If tokenAddress + chain do not exist in TOKEN_SYMBOLS_MAP then this will throw.
-   * @dev if the token matched in TOKEN_SYMBOLS_MAP does not have an L1 token address then this will throw.
-   * @param tokenAddress Token address on `chain`
-   * @param chain Chain where the `tokenAddress` exists in TOKEN_SYMBOLS_MAP.
-   * @returns Token info for the given token address on the Hub chain including symbol and decimal and L1 address.
-   */
-  getL1TokenInfoForAddress(tokenAddress: string, chain: number): L1Token {
-    return getL1TokenInfo(tokenAddress, chain);
   }
 
   /**
@@ -402,11 +394,13 @@ export class HubPoolClient extends BaseAbstractClient {
     // Map SpokePool token addresses to HubPool token addresses.
     // Note: Should only be accessed via `getHubPoolToken()` or `getHubPoolTokens()`.
     const hubPoolTokens: { [k: string]: string } = {};
-    const getHubPoolToken = (deposit: LpFeeRequest, quoteBlockNumber: number): string => {
+    const getHubPoolToken = (deposit: LpFeeRequest, quoteBlockNumber: number): string | undefined => {
       const tokenKey = `${deposit.originChainId}-${deposit.inputToken}`;
-      return (hubPoolTokens[tokenKey] ??= this.getL1TokenForDeposit({ ...deposit, quoteBlockNumber }));
+      if (this.l2TokenHasPoolRebalanceRoute(deposit.inputToken, deposit.originChainId, quoteBlockNumber)) {
+        return (hubPoolTokens[tokenKey] ??= this.getL1TokenForDeposit({ ...deposit, quoteBlockNumber }));
+      } else return undefined;
     };
-    const getHubPoolTokens = (): string[] => dedupArray(Object.values(hubPoolTokens));
+    const getHubPoolTokens = (): string[] => dedupArray(Object.values(hubPoolTokens).filter(isDefined));
 
     // Helper to resolve the unqiue hubPoolToken & quoteTimestamp mappings.
     const resolveUniqueQuoteTimestamps = (deposit: LpFeeRequest): void => {
@@ -415,6 +409,9 @@ export class HubPoolClient extends BaseAbstractClient {
       // Resolve the HubPool token address for this origin chainId/token pair, if it isn't already known.
       const quoteBlockNumber = quoteBlocks[quoteTimestamp];
       const hubPoolToken = getHubPoolToken(deposit, quoteBlockNumber);
+      if (!hubPoolToken) {
+        return;
+      }
 
       // Append the quoteTimestamp for this HubPool token, if it isn't already enqueued.
       utilizationTimestamps[hubPoolToken] ??= [];
@@ -446,11 +443,16 @@ export class HubPoolClient extends BaseAbstractClient {
       const { originChainId, paymentChainId, inputAmount, quoteTimestamp } = deposit;
       const quoteBlock = quoteBlocks[quoteTimestamp];
 
-      if (paymentChainId === undefined) {
+      if (paymentChainId === undefined || paymentChainId === originChainId) {
         return { quoteBlock, realizedLpFeePct: bnZero };
       }
 
       const hubPoolToken = getHubPoolToken(deposit, quoteBlock);
+      if (hubPoolToken === undefined) {
+        throw new Error(
+          `Cannot computeRealizedLpFeePct for deposit with no pool rebalance route for input token ${deposit.inputToken} on ${originChainId}`
+        );
+      }
       const rateModel = this.configStoreClient.getRateModelForBlockNumber(
         hubPoolToken,
         originChainId,
@@ -491,7 +493,17 @@ export class HubPoolClient extends BaseAbstractClient {
 
     // For each deposit, compute the post-relay HubPool utilisation independently.
     // @dev The caller expects to receive an array in the same length and ordering as the input `deposits`.
-    return await mapAsync(deposits, (deposit) => computeRealizedLpFeePct(deposit));
+    return await mapAsync(deposits, async (deposit) => {
+      const quoteBlock = quoteBlocks[deposit.quoteTimestamp];
+      if (this.l2TokenHasPoolRebalanceRoute(deposit.inputToken, deposit.originChainId, quoteBlock)) {
+        return await computeRealizedLpFeePct(deposit);
+      } else {
+        return {
+          quoteBlock,
+          realizedLpFeePct: bnZero,
+        };
+      }
+    });
   }
 
   getL1Tokens(): L1Token[] {
@@ -506,22 +518,6 @@ export class HubPoolClient extends BaseAbstractClient {
     return this.lpTokens[l1Token];
   }
 
-  getL1TokenInfoForL2Token(l2Token: string, chainId: number): L1Token | undefined {
-    const l1TokenCounterpart = this.getL1TokenForL2TokenAtBlock(l2Token, chainId, this.latestBlockSearched);
-    return this.getTokenInfoForL1Token(l1TokenCounterpart);
-  }
-
-  getTokenInfoForDeposit(deposit: Pick<Deposit, "inputToken" | "originChainId">): L1Token | undefined {
-    return this.getTokenInfoForL1Token(
-      this.getL1TokenForL2TokenAtBlock(deposit.inputToken, deposit.originChainId, this.latestBlockSearched)
-    );
-  }
-
-  getTokenInfo(chainId: number | string, tokenAddress: string): L1Token | undefined {
-    const deposit = { originChainId: parseInt(chainId.toString()), inputToken: tokenAddress };
-    return this.getTokenInfoForDeposit(deposit);
-  }
-
   areTokensEquivalent(
     tokenA: string,
     chainIdA: number,
@@ -529,21 +525,23 @@ export class HubPoolClient extends BaseAbstractClient {
     chainIdB: number,
     hubPoolBlock = this.latestBlockSearched
   ): boolean {
-    try {
-      // Resolve both SpokePool tokens back to their respective HubPool tokens and verify that they match.
-      const l1TokenA = this.getL1TokenForL2TokenAtBlock(tokenA, chainIdA, hubPoolBlock);
-      const l1TokenB = this.getL1TokenForL2TokenAtBlock(tokenB, chainIdB, hubPoolBlock);
-      if (l1TokenA !== l1TokenB) {
-        return false;
-      }
-
-      // Resolve both HubPool tokens back to a current SpokePool token and verify that they match.
-      const _tokenA = this.getL2TokenForL1TokenAtBlock(l1TokenA, chainIdA, hubPoolBlock);
-      const _tokenB = this.getL2TokenForL1TokenAtBlock(l1TokenB, chainIdB, hubPoolBlock);
-      return tokenA === _tokenA && tokenB === _tokenB;
-    } catch {
-      return false; // One or both input tokens were not recognised.
+    if (
+      !this.l2TokenHasPoolRebalanceRoute(tokenA, chainIdA, hubPoolBlock) ||
+      !this.l2TokenHasPoolRebalanceRoute(tokenB, chainIdB, hubPoolBlock)
+    ) {
+      return false;
     }
+    // Resolve both SpokePool tokens back to their respective HubPool tokens and verify that they match.
+    const l1TokenA = this.getL1TokenForL2TokenAtBlock(tokenA, chainIdA, hubPoolBlock);
+    const l1TokenB = this.getL1TokenForL2TokenAtBlock(tokenB, chainIdB, hubPoolBlock);
+    if (l1TokenA !== l1TokenB) {
+      return false;
+    }
+
+    // Resolve both HubPool tokens back to a current SpokePool token and verify that they match.
+    const _tokenA = this.getL2TokenForL1TokenAtBlock(l1TokenA, chainIdA, hubPoolBlock);
+    const _tokenB = this.getL2TokenForL1TokenAtBlock(l1TokenB, chainIdB, hubPoolBlock);
+    return tokenA === _tokenA && tokenB === _tokenB;
   }
 
   getSpokeActivationBlockForChain(chainId: number): number {
@@ -901,39 +899,73 @@ export class HubPoolClient extends BaseAbstractClient {
     if (eventsToQuery.includes("CrossChainContractsSet")) {
       for (const event of events["CrossChainContractsSet"]) {
         const args = spreadEventWithBlockNumber(event) as CrossChainContractsSet;
-        assign(
-          this.crossChainContracts,
-          [args.l2ChainId],
-          [
-            {
-              spokePool: args.spokePool,
-              blockNumber: args.blockNumber,
-              transactionIndex: args.transactionIndex,
-              logIndex: args.logIndex,
-            },
-          ]
-        );
+        const dataToAdd: CrossChainContractsSet = {
+          spokePool: args.spokePool,
+          blockNumber: args.blockNumber,
+          txnRef: args.txnRef,
+          logIndex: args.logIndex,
+          txnIndex: args.txnIndex,
+          l2ChainId: args.l2ChainId,
+        };
+        // If the chain is SVM then our `args.spokePool` will be set to the `solanaSpokePool.toAddressUnchecked()` in the
+        // hubpool event because our hub deals with `address` types and not byte32. Therefore, we should confirm that the
+        // `args.spokePool` is the same as the `solanaSpokePool.toAddressUnchecked()`. We can derive the `solanaSpokePool`
+        // address by using the `getDeployedAddress` function.
+        if (chainIsSvm(args.l2ChainId)) {
+          const solanaSpokePool = getDeployedAddress("SvmSpoke", args.l2ChainId);
+          if (!solanaSpokePool) {
+            throw new Error(`SVM spoke pool not found for chain ${args.l2ChainId}`);
+          }
+          const truncatedAddress = SvmAddress.from(solanaSpokePool).toEvmAddress();
+          // Verify the event address matches our expected truncated address
+          if (args.spokePool.toLowerCase() !== truncatedAddress.toLowerCase()) {
+            throw new Error(
+              `SVM spoke pool address mismatch for chain ${args.l2ChainId}. ` +
+                `Expected ${truncatedAddress}, got ${args.spokePool}`
+            );
+          }
+          // Store the full Solana address
+          dataToAdd.spokePool = SvmAddress.from(solanaSpokePool).toBytes32();
+        }
+        assign(this.crossChainContracts, [args.l2ChainId], [dataToAdd]);
       }
     }
 
     if (eventsToQuery.includes("SetPoolRebalanceRoute")) {
       for (const event of events["SetPoolRebalanceRoute"]) {
         const args = spreadEventWithBlockNumber(event) as SetPoolRebalanceRoot;
+
+        // If the destination chain is SVM, then we need to convert the destination token to the Solana address.
+        // This is because the HubPool contract only holds a truncated address for the USDC token and currently
+        // only supports USDC as a destination token for Solana.
+        let destinationToken = args.destinationToken;
+        if (chainIsSvm(args.destinationChainId)) {
+          const usdcTokenSol = TOKEN_SYMBOLS_MAP.USDC.addresses[args.destinationChainId];
+          const truncatedAddress = SvmAddress.from(usdcTokenSol).toEvmAddress();
+          if (destinationToken.toLowerCase() !== truncatedAddress.toLowerCase()) {
+            throw new Error(
+              `SVM USDC address mismatch for chain ${args.destinationChainId}. ` +
+                `Expected ${truncatedAddress}, got ${destinationToken}`
+            );
+          }
+          destinationToken = SvmAddress.from(usdcTokenSol).toBytes32();
+        }
+
         // If the destination token is set to the zero address in an event, then this means Across should no longer
         // rebalance to this chain.
-        if (args.destinationToken !== ZERO_ADDRESS) {
-          assign(this.l1TokensToDestinationTokens, [args.l1Token, args.destinationChainId], args.destinationToken);
+        if (destinationToken !== ZERO_ADDRESS) {
+          assign(this.l1TokensToDestinationTokens, [args.l1Token, args.destinationChainId], destinationToken);
           assign(
             this.l1TokensToDestinationTokensWithBlock,
             [args.l1Token, args.destinationChainId],
             [
               {
                 l1Token: args.l1Token,
-                l2Token: args.destinationToken,
+                l2Token: destinationToken,
                 blockNumber: args.blockNumber,
-                transactionIndex: args.transactionIndex,
+                txnIndex: args.txnIndex,
                 logIndex: args.logIndex,
-                transactionHash: args.transactionHash,
+                txnRef: args.txnRef,
               },
             ]
           );
@@ -979,12 +1011,7 @@ export class HubPoolClient extends BaseAbstractClient {
       this.proposedRootBundles.push(
         ...events["ProposeRootBundle"]
           .filter((event) => !this.configOverride.ignoredHubProposedBundles.includes(event.blockNumber))
-          .map((event) => {
-            return {
-              ...spreadEventWithBlockNumber(event),
-              transactionHash: event.transactionHash,
-            } as ProposedRootBundle;
-          })
+          .map((event) => spreadEventWithBlockNumber(event) as ProposedRootBundle)
       );
     }
 

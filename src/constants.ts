@@ -8,6 +8,7 @@ export {
   PUBLIC_NETWORKS,
   TESTNET_CHAIN_IDs,
   TOKEN_SYMBOLS_MAP,
+  TOKEN_EQUIVALENCE_REMAPPING,
 } from "@across-protocol/constants";
 
 export const { AddressZero: ZERO_ADDRESS, HashZero: ZERO_BYTES } = ethersConstants;
@@ -64,9 +65,25 @@ export const BRIDGED_USDC_SYMBOLS = [
   TOKEN_SYMBOLS_MAP["USDC.e"].symbol,
   TOKEN_SYMBOLS_MAP.USDbC.symbol,
   TOKEN_SYMBOLS_MAP.USDzC.symbol,
+  TOKEN_SYMBOLS_MAP["USDC-BNB"].symbol,
+];
+
+export const STABLE_COIN_SYMBOLS = [
+  ...BRIDGED_USDC_SYMBOLS,
+  TOKEN_SYMBOLS_MAP.USDB.symbol,
+  TOKEN_SYMBOLS_MAP.USDC.symbol,
+  TOKEN_SYMBOLS_MAP.USDT.symbol,
+  TOKEN_SYMBOLS_MAP["USDT-BNB"].symbol,
+  TOKEN_SYMBOLS_MAP.DAI.symbol,
+  TOKEN_SYMBOLS_MAP["TATARA-USDC"].symbol,
+  TOKEN_SYMBOLS_MAP["TATARA-USDT"].symbol,
+  TOKEN_SYMBOLS_MAP["TATARA-USDS"].symbol,
+  TOKEN_SYMBOLS_MAP.GHO.symbol,
+  TOKEN_SYMBOLS_MAP.WGHO.symbol,
 ];
 
 export const CUSTOM_GAS_TOKENS = {
+  [CHAIN_IDs.BSC]: "BNB",
   [CHAIN_IDs.POLYGON]: "MATIC",
   [CHAIN_IDs.POLYGON_AMOY]: "MATIC",
   [CHAIN_IDs.ALEPH_ZERO]: "AZERO",

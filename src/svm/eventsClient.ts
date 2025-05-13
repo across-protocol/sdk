@@ -1,6 +1,5 @@
 import { getDeployedAddress, SvmSpokeIdl } from "@across-protocol/contracts";
 import { getSolanaChainId } from "@across-protocol/contracts/dist/src/svm/web3-v1";
-import { BorshEventCoder, utils } from "@coral-xyz/anchor";
 import web3, {
   Address,
   Commitment,
@@ -9,8 +8,9 @@ import web3, {
   RpcTransport,
   Signature,
 } from "@solana/kit";
+import { bs58 } from "../utils";
 import { EventData, EventName, EventWithData } from "./types";
-import { getEventName, parseEventData } from "./utils/events";
+import { decodeEvent } from "./utils/events";
 import { isDevnet } from "./utils/helpers";
 
 // Utility type to extract the return type for the JSON encoding overload. We only care about the overload where the
@@ -185,17 +185,11 @@ export class SvmSpokeEventsClient {
           this.svmSpokeAddress === ixProgramId &&
           this.svmSpokeEventAuthority === singleIxAccount
         ) {
-          const ixData = utils.bytes.bs58.decode(ix.data);
+          const ixData = bs58.decode(ix.data);
           // Skip the first 8 bytes (assumed header) and encode the rest.
-          const eventData = utils.bytes.base64.encode(Buffer.from(new Uint8Array(ixData).slice(8)));
-          const event = new BorshEventCoder(SvmSpokeIdl).decode(eventData);
-          if (!event?.name) throw new Error("Event name is undefined");
-          const name = getEventName(event.name);
-          events.push({
-            program: this.svmSpokeAddress,
-            data: parseEventData(event?.data),
-            name,
-          });
+          const eventData = Buffer.from(ixData.slice(8)).toString("base64");
+          const { name, data } = decodeEvent(SvmSpokeIdl, eventData);
+          events.push({ program: this.svmSpokeAddress, name, data });
         }
       }
     }

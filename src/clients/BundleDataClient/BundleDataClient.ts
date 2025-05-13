@@ -32,7 +32,6 @@ import {
   forEachAsync,
   getBlockRangeForChain,
   getImpliedBundleBlockRanges,
-  getMessageHash,
   getRelayEventKey,
   isSlowFill,
   mapAsync,
@@ -42,10 +41,10 @@ import {
   chainIsEvm,
   isValidEvmAddress,
   duplicateEvent,
+  invalidOutputToken,
 } from "../../utils";
 import winston from "winston";
 import {
-  BundleData,
   BundleDataSS,
   getEndBlockBuffers,
   getRefundInformationFromFill,
@@ -57,7 +56,6 @@ import {
   V3FillWithBlock,
   verifyFillRepayment,
 } from "./utils";
-import { UNDEFINED_MESSAGE_HASH } from "../../constants";
 import { isEVMSpokePoolClient } from "../SpokePoolClient";
 
 // max(uint256) - 1
@@ -209,37 +207,6 @@ export class BundleDataClient {
     return `bundles-${BundleDataClient.getArweaveClientKey(blockRangesForChains)}`;
   }
 
-  // Post-populate any missing message hashes.
-  // @todo This can be removed once the legacy types hurdle is cleared (earliest 7 days post migration).
-  backfillMessageHashes(data: Pick<BundleData, "bundleDepositsV3" | "bundleFillsV3">): void {
-    Object.values(data.bundleDepositsV3).forEach((x) =>
-      Object.values(x).forEach((deposits) =>
-        deposits.forEach((deposit) => {
-          if (deposit.messageHash === UNDEFINED_MESSAGE_HASH) {
-            deposit.messageHash = getMessageHash(deposit.message);
-          }
-        })
-      )
-    );
-
-    Object.values(data.bundleFillsV3).forEach((x) =>
-      Object.values(x).forEach(({ fills }) =>
-        fills.forEach((fill) => {
-          if (fill.messageHash === UNDEFINED_MESSAGE_HASH && isDefined(fill.message)) {
-            // If messageHash is undefined, fill should be of type FilledV3Relay and should have a message.
-            fill.messageHash = getMessageHash(fill.message);
-          }
-          if (
-            fill.relayExecutionInfo.updatedMessageHash === UNDEFINED_MESSAGE_HASH &&
-            isDefined(fill.relayExecutionInfo.updatedMessage)
-          ) {
-            fill.relayExecutionInfo.updatedMessageHash = getMessageHash(fill.relayExecutionInfo.updatedMessage);
-          }
-        })
-      )
-    );
-  }
-
   private async loadPersistedDataFromArweave(
     blockRangesForChains: number[][]
   ): Promise<LoadDataReturnValue | undefined> {
@@ -270,16 +237,115 @@ export class BundleDataClient {
         {} as Record<number, Record<string, UnderlyingType>>
       );
 
+    const convertSortableEventFieldsIntoRequiredFields = <
+      T extends {
+        txnIndex?: number;
+        transactionIndex?: number;
+        txnRef?: string;
+        transactionHash?: string;
+      },
+    >(
+      data: T[]
+    ): Array<
+      Omit<T, "txnIndex" | "transactionIndex" | "txnRef" | "transactionHash"> & {
+        txnIndex: number;
+        txnRef: string;
+      }
+    > => {
+      return data.map((item) => {
+        // For txnIndex/transactionIndex: throw if both are defined or both are missing.
+        if (
+          (item.txnIndex !== undefined && item.transactionIndex !== undefined) ||
+          (item.txnIndex === undefined && item.transactionIndex === undefined)
+        ) {
+          throw new Error("Either txnIndex or transactionIndex must be defined, but not both.");
+        }
+
+        // For txnRef/transactionHash: throw if both are defined or both are missing.
+        if (
+          (item.txnRef !== undefined && item.transactionHash !== undefined) ||
+          (item.txnRef === undefined && item.transactionHash === undefined)
+        ) {
+          throw new Error("Either txnRef or transactionHash must be defined, but not both.");
+        }
+
+        // Destructure the fields we don't need anymore
+        const { txnIndex, transactionIndex, txnRef, transactionHash, ...rest } = item;
+
+        // Return a new object with normalized fields.
+        // The non-null assertion (!) is safe here because our conditions ensure that one of each pair is defined.
+        return {
+          ...rest,
+          txnIndex: txnIndex ?? transactionIndex!,
+          txnRef: txnRef ?? transactionHash!,
+        };
+      });
+    };
+
+    const convertEmbeddedSortableEventFieldsIntoRequiredFields = <
+      T extends {
+        txnIndex?: number;
+        transactionIndex?: number;
+        txnRef?: string;
+        transactionHash?: string;
+      },
+    >(
+      data: Record<string, Record<string, T[]>>
+    ) => {
+      return Object.fromEntries(
+        Object.entries(data).map(([chainId, tokenData]) => [
+          chainId,
+          Object.fromEntries(
+            Object.entries(tokenData).map(([token, data]) => [
+              token,
+              convertSortableEventFieldsIntoRequiredFields(data),
+            ])
+          ),
+        ])
+      );
+    };
+
     const data = persistedData[0].data;
 
-    this.backfillMessageHashes(data);
-
+    // This section processes and transforms bundle data loaded from Arweave storage into the correct format:
+    // 1. Each field (bundleFillsV3, expiredDepositsToRefundV3, etc.) contains nested records keyed by chainId and token
+    // 2. The chainId keys are converted from strings to numbers using convertTypedStringRecordIntoNumericRecord
+    // 3. For arrays of events (fills, deposits, etc.), the transaction fields are normalized:
+    //    - txnIndex/transactionIndex -> txnIndex
+    //    - txnRef/transactionHash -> txnRef
+    //    This ensures consistent field names across all event objects
+    // 4. The data structure maintains all other fields like refunds, totalRefundAmount, and realizedLpFees
     const bundleData = {
-      bundleFillsV3: convertTypedStringRecordIntoNumericRecord(data.bundleFillsV3),
-      expiredDepositsToRefundV3: convertTypedStringRecordIntoNumericRecord(data.expiredDepositsToRefundV3),
-      bundleDepositsV3: convertTypedStringRecordIntoNumericRecord(data.bundleDepositsV3),
-      unexecutableSlowFills: convertTypedStringRecordIntoNumericRecord(data.unexecutableSlowFills),
-      bundleSlowFillsV3: convertTypedStringRecordIntoNumericRecord(data.bundleSlowFillsV3),
+      bundleFillsV3: convertTypedStringRecordIntoNumericRecord(
+        Object.fromEntries(
+          Object.entries(data.bundleFillsV3).map(([chainId, tokenData]) => [
+            chainId,
+            Object.fromEntries(
+              Object.entries(tokenData).map(([token, data]) => [
+                token,
+                {
+                  refunds: data.refunds,
+                  totalRefundAmount: data.totalRefundAmount,
+                  realizedLpFees: data.realizedLpFees,
+                  fills: convertSortableEventFieldsIntoRequiredFields(data.fills),
+                },
+              ])
+            ),
+          ])
+        )
+      ),
+      expiredDepositsToRefundV3: convertTypedStringRecordIntoNumericRecord(
+        convertEmbeddedSortableEventFieldsIntoRequiredFields(data.expiredDepositsToRefundV3)
+      ),
+      bundleDepositsV3: convertTypedStringRecordIntoNumericRecord(
+        convertEmbeddedSortableEventFieldsIntoRequiredFields(data.bundleDepositsV3)
+      ),
+      unexecutableSlowFills: convertTypedStringRecordIntoNumericRecord(
+        convertEmbeddedSortableEventFieldsIntoRequiredFields(data.unexecutableSlowFills)
+      ),
+      bundleSlowFillsV3: convertTypedStringRecordIntoNumericRecord(
+        convertEmbeddedSortableEventFieldsIntoRequiredFields(data.bundleSlowFillsV3)
+      ),
     };
     this.logger.debug({
       at: "BundleDataClient#loadPersistedDataFromArweave",
@@ -358,6 +424,7 @@ export class BundleDataClient {
   // @dev This helper function should probably be moved to the InventoryClient
   async getApproximateRefundsForBlockRange(chainIds: number[], blockRanges: number[][]): Promise<CombinedRefunds> {
     const refundsForChain: CombinedRefunds = {};
+    const bundleEndBlockForMainnet = blockRanges[0][1];
     for (const chainId of chainIds) {
       if (this.spokePoolClients[chainId] === undefined) {
         continue;
@@ -372,7 +439,8 @@ export class BundleDataClient {
         if (
           fill.blockNumber < blockRanges[chainIndex][0] ||
           fill.blockNumber > blockRanges[chainIndex][1] ||
-          isZeroValueFillOrSlowFillRequest(fill)
+          isZeroValueFillOrSlowFillRequest(fill) ||
+          invalidOutputToken(fill)
         ) {
           return false;
         }
@@ -399,17 +467,19 @@ export class BundleDataClient {
           _fill,
           spokeClient.spokePool.provider,
           matchingDeposit,
-          this.clients.hubPoolClient
+          this.clients.hubPoolClient,
+          bundleEndBlockForMainnet
         );
         if (!isDefined(fill)) {
           return;
         }
         const { chainToSendRefundTo, repaymentToken } = getRefundInformationFromFill(
-          fill,
+          {
+            ...fill,
+            fromLiteChain: matchingDeposit.fromLiteChain,
+          },
           this.clients.hubPoolClient,
-          blockRanges,
-          this.chainIdListForBundleEvaluationBlockNumbers,
-          matchingDeposit.fromLiteChain
+          bundleEndBlockForMainnet
         );
         // Assume that lp fees are 0 for the sake of speed. In the future we could batch compute
         // these or make hardcoded assumptions based on the origin-repayment chain direction. This might result
@@ -672,6 +742,7 @@ export class BundleDataClient {
     }
 
     const chainIds = this.clients.configStoreClient.getChainIdIndicesForBlock(blockRangesForChains[0][0]);
+    const bundleEndBlockForMainnet = blockRangesForChains[0][1];
 
     if (blockRangesForChains.length > chainIds.length) {
       throw new Error(
@@ -708,7 +779,7 @@ export class BundleDataClient {
           deposit.originChainId,
           deposit.outputToken,
           deposit.destinationChainId,
-          deposit.quoteBlockNumber
+          bundleEndBlockForMainnet
         ) &&
         // Cannot slow fill from or to a lite chain.
         !deposit.fromLiteChain &&
@@ -885,7 +956,10 @@ export class BundleDataClient {
             // tokens to the filler. We can't remove non-empty message deposit here in case there is a slow fill
             // request for the deposit, we'd want to see the fill took place.
             .filter(
-              (fill) => fill.blockNumber <= destinationChainBlockRange[1] && !isZeroValueFillOrSlowFillRequest(fill)
+              (fill) =>
+                fill.blockNumber <= destinationChainBlockRange[1] &&
+                !isZeroValueFillOrSlowFillRequest(fill) &&
+                !invalidOutputToken(fill)
             ),
           async (fill) => {
             fillCounter++;
@@ -904,7 +978,8 @@ export class BundleDataClient {
                     fill,
                     destinationClient.spokePool.provider,
                     deposits[0],
-                    this.clients.hubPoolClient
+                    this.clients.hubPoolClient,
+                    bundleEndBlockForMainnet
                   );
                   if (!isDefined(fillToRefund)) {
                     bundleUnrepayableFillsV3.push(fill);
@@ -1008,7 +1083,8 @@ export class BundleDataClient {
                   fill,
                   destinationClient.spokePool.provider,
                   matchedDeposit,
-                  this.clients.hubPoolClient
+                  this.clients.hubPoolClient,
+                  bundleEndBlockForMainnet
                 );
                 if (!isDefined(fillToRefund)) {
                   bundleUnrepayableFillsV3.push(fill);
@@ -1054,7 +1130,9 @@ export class BundleDataClient {
             .getSlowFillRequestsForOriginChain(originChainId)
             .filter(
               (request) =>
-                request.blockNumber <= destinationChainBlockRange[1] && !isZeroValueFillOrSlowFillRequest(request)
+                request.blockNumber <= destinationChainBlockRange[1] &&
+                !isZeroValueFillOrSlowFillRequest(request) &&
+                !invalidOutputToken(request)
             ),
           async (slowFillRequest: SlowFillRequestWithBlock) => {
             const relayDataHash = getRelayEventKey(slowFillRequest);
@@ -1186,7 +1264,8 @@ export class BundleDataClient {
                 fill,
                 destinationClient.spokePool.provider,
                 deposits[0],
-                this.clients.hubPoolClient
+                this.clients.hubPoolClient,
+                bundleEndBlockForMainnet
               );
               if (!isDefined(fillToRefund)) {
                 bundleUnrepayableFillsV3.push(fill);
@@ -1242,7 +1321,8 @@ export class BundleDataClient {
               prefill,
               destinationClient.spokePool.provider,
               deposit,
-              this.clients.hubPoolClient
+              this.clients.hubPoolClient,
+              bundleEndBlockForMainnet
             );
             if (!isDefined(verifiedFill)) {
               bundleUnrepayableFillsV3.push(prefill);
@@ -1376,11 +1456,12 @@ export class BundleDataClient {
               const matchedDeposit = deposits[0];
               assert(isDefined(matchedDeposit), "Deposit should exist in relay hash dictionary.");
               const { chainToSendRefundTo: paymentChainId } = getRefundInformationFromFill(
-                fill,
+                {
+                  ...fill,
+                  fromLiteChain: matchedDeposit.fromLiteChain,
+                },
                 this.clients.hubPoolClient,
-                blockRangesForChains,
-                chainIds,
-                matchedDeposit.fromLiteChain
+                bundleEndBlockForMainnet
               );
               return {
                 ...fill,
@@ -1422,11 +1503,12 @@ export class BundleDataClient {
       const associatedDeposit = deposits[0];
       assert(isDefined(associatedDeposit), "Deposit should exist in relay hash dictionary.");
       const { chainToSendRefundTo, repaymentToken } = getRefundInformationFromFill(
-        fill,
+        {
+          ...fill,
+          fromLiteChain: associatedDeposit.fromLiteChain,
+        },
         this.clients.hubPoolClient,
-        blockRangesForChains,
-        chainIds,
-        associatedDeposit.fromLiteChain
+        bundleEndBlockForMainnet
       );
       updateBundleFillsV3(bundleFillsV3, fill, realizedLpFeePct, chainToSendRefundTo, repaymentToken, fill.relayer);
     });
