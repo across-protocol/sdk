@@ -263,7 +263,7 @@ export class SvmCpiEventsClient {
         ...unwrappedEventArgs.data,
         depositTimestamp: Number(txDetails.blockTime),
         originChainId,
-        messageHash: getMessageHash(unwrappedEventArgs?.data.message as string),
+        messageHash: getMessageHash(unwrappedEventArgs.data.message),
         blockNumber: Number(slot),
         txnIndex: 0,
         txnRef: txSignature,
