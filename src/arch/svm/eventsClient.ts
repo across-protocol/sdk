@@ -265,11 +265,11 @@ export class SvmCpiEventsClient {
         originChainId,
         messageHash: getMessageHash(unwrappedEventArgs?.data.message as string),
         blockNumber: Number(slot),
-        transactionHash: txSignature,
-        transactionIndex: 0,
+        txnIndex: 0,
+        txnRef: txSignature,
         logIndex: 0,
         destinationChainId: unwrappedEventArgs.data.destinationChainId.toNumber(),
-      } as unknown as DepositEventFromSignature;
+      } satisfies DepositEventFromSignature;
     });
   }
 
@@ -313,13 +313,13 @@ export class SvmCpiEventsClient {
         ...unwrappedEventData.data,
         fillTimestamp: Number(txDetails.blockTime),
         blockNumber: Number(txDetails.slot),
-        transactionHash: txSignature,
-        transactionIndex: 0,
+        txnRef: txSignature,
+        txnIndex: 0,
         logIndex: 0,
         destinationChainId,
         repaymentChainId: unwrappedEventData.data.repaymentChainId.toNumber(),
         originChainId: unwrappedEventData.data.originChainId.toNumber(),
-      } as unknown as FillEventFromSignature;
+      } satisfies FillEventFromSignature;
     });
   }
 
