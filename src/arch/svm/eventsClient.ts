@@ -8,8 +8,10 @@ import { decodeEvent, isDevnet } from "./utils";
 import { DepositWithTime, FillWithTime } from "../../interfaces";
 import { unwrapEventData } from "./";
 import assert from "assert";
-import { FundsDepositedEventObject } from "@across-protocol/contracts/dist/typechain/contracts/WorldChain_SpokePool";
-import { FilledRelayEventObject } from "@across-protocol/contracts/dist/typechain/contracts/AlephZero_SpokePool";
+import {
+  FundsDepositedEventObject,
+  FilledRelayEventObject,
+} from "@across-protocol/contracts/dist/typechain/contracts/SpokePool";
 
 // Utility type to extract the return type for the JSON encoding overload. We only care about the overload where the
 // configuration parameter (C) has the optional property 'encoding' set to 'json'.
