@@ -5,7 +5,7 @@ import { ASSOCIATED_TOKEN_PROGRAM_ADDRESS, TOKEN_2022_PROGRAM_ADDRESS } from "@s
 import { Address, KeyPairSigner } from "@solana/kit";
 import { expect } from "chai";
 import { BigNumber } from "ethers";
-import { arrayify } from "ethers/lib/utils";
+import { arrayify, hexlify } from "ethers/lib/utils";
 import {
   SVM_ZERO_ADDRESS,
   SvmCpiEventsClient,
@@ -42,7 +42,7 @@ const formatRelayData = (relayData: SvmSpokeClient.RelayDataArgs): RelayData => 
     outputAmount: BigNumber.from(relayData.outputAmount),
     fillDeadline: relayData.fillDeadline,
     exclusivityDeadline: relayData.exclusivityDeadline,
-    message: relayData.message.toString(),
+    message: hexlify(relayData.message),
     exclusiveRelayer: SvmAddress.from(relayData.exclusiveRelayer).toBytes32(),
   };
 };

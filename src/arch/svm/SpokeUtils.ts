@@ -419,6 +419,8 @@ export function getRelayDataHash(relayData: RelayData, destinationChainId: numbe
   const uint64Encoder = getU64Encoder();
   const uint32Encoder = getU32Encoder();
 
+  assert(relayData.message.startsWith("0x"), "Message must be a hex string");
+
   const contentToHash = Buffer.concat([
     Uint8Array.from(addressEncoder.encode(SvmAddress.from(relayData.depositor, "base16").toV2Address())),
     Uint8Array.from(addressEncoder.encode(SvmAddress.from(relayData.recipient, "base16").toV2Address())),
@@ -431,7 +433,7 @@ export function getRelayDataHash(relayData: RelayData, destinationChainId: numbe
     arrayify(hexZeroPad(hexlify(relayData.depositId), 32)),
     Uint8Array.from(uint32Encoder.encode(relayData.fillDeadline)),
     Uint8Array.from(uint32Encoder.encode(relayData.exclusivityDeadline)),
-    hashNonEmptyMessage(Buffer.from(relayData.message)),
+    hashNonEmptyMessage(Buffer.from(arrayify(relayData.message))),
     Uint8Array.from(uint64Encoder.encode(BigInt(destinationChainId))),
   ]);
   return keccak256(contentToHash);
