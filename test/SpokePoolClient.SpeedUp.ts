@@ -11,7 +11,6 @@ import {
   deepEqualsWithBigNumber,
   deploySpokePoolWithToken,
   depositV3,
-  enableRoutes,
   ethers,
   expect,
   getUpdatedV3DepositSignature,
@@ -28,8 +27,6 @@ describe("SpokePoolClient: SpeedUp", function () {
     "transactionIndex",
   ];
 
-  const destinationChainId2 = destinationChainId + 1;
-
   let spokePool: Contract, erc20: Contract, destErc20: Contract, weth: Contract;
   let depositor: SignerWithAddress, deploymentBlock: number;
   let spokePoolClient: SpokePoolClient;
@@ -43,7 +40,6 @@ describe("SpokePoolClient: SpeedUp", function () {
 
   beforeEach(async function () {
     ({ spokePool, erc20, destErc20, weth, deploymentBlock } = await deploySpokePoolWithToken(originChainId));
-    await enableRoutes(spokePool, [{ originToken: erc20.address, destinationChainId: destinationChainId2 }]);
     spokePoolClient = new EVMSpokePoolClient(
       createSpyLogger().spyLogger,
       spokePool,
