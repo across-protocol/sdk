@@ -204,7 +204,7 @@ export class EVMSpokePoolClient extends SpokePoolClient {
 
     this.logger.debug({
       at: "SpokePoolClient#findDeposit",
-      message: "Located V3 deposit outside of SpokePoolClient's search range",
+      message: "Located deposit outside of SpokePoolClient's search range",
       deposit,
       elapsedMs: tStop - tStart,
     });
