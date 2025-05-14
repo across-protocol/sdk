@@ -3,7 +3,6 @@ import { getSolanaChainId } from "@across-protocol/contracts/dist/src/svm/web3-v
 import { getCreateAccountInstruction, SYSTEM_PROGRAM_ADDRESS } from "@solana-program/system";
 import {
   ASSOCIATED_TOKEN_PROGRAM_ADDRESS,
-  findAssociatedTokenPda,
   getApproveCheckedInstruction,
   getCreateAssociatedTokenIdempotentInstruction,
   getInitializeMintInstruction,
@@ -35,7 +34,15 @@ import {
 } from "@solana/kit";
 import bs58 from "bs58";
 import { ethers } from "ethers";
-import { getEventAuthority, getRoutePda, getStatePda, RpcClient, SVM_SPOKE_SEED } from "../../../src/arch/svm";
+import {
+  getAssociatedTokenAddress,
+  getEventAuthority,
+  getRoutePda,
+  getStatePda,
+  RpcClient,
+  SVM_SPOKE_SEED,
+} from "../../../src/arch/svm";
+import { SvmAddress } from "../../../src/utils";
 
 /** RPC / Client */
 
@@ -132,11 +139,7 @@ export async function mintTokens(
   amount: bigint,
   tokenProgram: Address = TOKEN_2022_PROGRAM_ADDRESS
 ) {
-  const [payerAta] = await findAssociatedTokenPda({
-    owner: payer.address,
-    tokenProgram,
-    mint,
-  });
+  const payerAta = await getAssociatedTokenAddress(SvmAddress.from(payer.address), SvmAddress.from(mint), tokenProgram);
 
   const createAssociatedTokenIdempotentIx = getCreateAssociatedTokenIdempotentInstruction({
     payer,
@@ -217,11 +220,7 @@ export const enableRoute = async (
   tokenProgram: Address = TOKEN_2022_PROGRAM_ADDRESS,
   associatedTokenProgram: Address = ASSOCIATED_TOKEN_PROGRAM_ADDRESS
 ) => {
-  const [vault] = await findAssociatedTokenPda({
-    owner: state,
-    tokenProgram,
-    mint,
-  });
+  const vault = await getAssociatedTokenAddress(SvmAddress.from(state), SvmAddress.from(mint), tokenProgram);
 
   const createAssociatedTokenIdempotentIx = getCreateAssociatedTokenIdempotentInstruction({
     payer: signer,
@@ -284,6 +283,57 @@ export const deposit = async (
     await createDefaultTransaction(solanaClient, signer),
     (tx) => appendTransactionMessageInstruction(approveIx, tx),
     (tx) => appendTransactionMessageInstruction(depositIx, tx),
+    (tx) => signAndSendTransaction(solanaClient, tx)
+  );
+};
+
+// Requests a slow fill
+export const requestSlowFill = async (
+  signer: KeyPairSigner,
+  solanaClient: RpcClient,
+  depositInput: SvmSpokeClient.RequestSlowFillInput
+) => {
+  const requestSlowFillIx = await SvmSpokeClient.getRequestSlowFillInstruction(depositInput);
+
+  return pipe(
+    await createDefaultTransaction(solanaClient, signer),
+    (tx) => appendTransactionMessageInstruction(requestSlowFillIx, tx),
+    (tx) => signAndSendTransaction(solanaClient, tx)
+  );
+};
+
+// Creates a fill
+export const createFill = async (
+  signer: KeyPairSigner,
+  solanaClient: RpcClient,
+  fillInput: SvmSpokeClient.FillRelayInput,
+  tokenDecimals: number
+) => {
+  const approveIx = getApproveCheckedInstruction({
+    source: fillInput.relayerTokenAccount,
+    mint: fillInput.mint,
+    delegate: fillInput.state,
+    owner: fillInput.signer,
+    amount: (fillInput.relayData as SvmSpokeClient.RelayDataArgs).outputAmount,
+    decimals: tokenDecimals,
+  });
+
+  const createAssociatedTokenIdempotentIx = getCreateAssociatedTokenIdempotentInstruction({
+    payer: signer,
+    owner: (fillInput.relayData as SvmSpokeClient.RelayDataArgs).recipient,
+    mint: fillInput.mint,
+    ata: fillInput.recipientTokenAccount,
+    systemProgram: SYSTEM_PROGRAM_ADDRESS,
+    tokenProgram: fillInput.tokenProgram,
+  });
+
+  const createFillIx = await SvmSpokeClient.getFillRelayInstruction(fillInput);
+
+  return pipe(
+    await createDefaultTransaction(solanaClient, signer),
+    (tx) => appendTransactionMessageInstruction(createAssociatedTokenIdempotentIx, tx),
+    (tx) => appendTransactionMessageInstruction(approveIx, tx),
+    (tx) => appendTransactionMessageInstruction(createFillIx, tx),
     (tx) => signAndSendTransaction(solanaClient, tx)
   );
 };
