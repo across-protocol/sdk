@@ -1,21 +1,22 @@
 import assert from "assert";
 import { createHash } from "crypto";
+import { hexlify, arrayify, hexZeroPad } from "ethers/lib/utils";
 import { random } from "lodash";
 import { Address, UnixTimestamp, signature } from "@solana/kit";
 import { Idl } from "@coral-xyz/anchor";
 import { SvmSpokeClient } from "@across-protocol/contracts";
 import { CHAIN_IDs } from "@across-protocol/constants";
 
-import { MockSolanaRpcFactory } from "./MockSolanaRpcFactory";
-import { SvmCpiEventsClient } from "../../src/arch/svm/eventsClient";
-import { EventName, EventWithData, SVMEventNames, SVMProvider } from "../../src/arch/svm";
-import { bnZero, bnOne, bs58, getCurrentTime } from "../../src/utils";
-import { FillType } from "../../src/interfaces";
-import { getRandomSvmAddress } from "../utils/svm/utils";
+import { MockSolanaRpcFactory } from "../../providers/mocks";
+import { SvmCpiEventsClient } from "../../arch/svm/eventsClient";
+import { EventName, EventWithData, SVMEventNames, SVMProvider } from "../../arch/svm";
+import { bnZero, bnOne, bs58, getCurrentTime, randomAddress, EvmAddress } from "../../utils";
+import { FillType } from "../../interfaces";
+import { getRandomSvmAddress } from "../../arch/svm/utils";
 
 export class MockSolanaEventClient extends SvmCpiEventsClient {
   private events: Record<EventName, EventWithData[]> = {} as Record<EventName, EventWithData[]>;
-  private slotHeight: bigint;
+  private slotHeight: bigint = BigInt(0);
   public chainId: number;
   public minBlockRange = 10;
   public numberOfDeposits = bnZero;
@@ -32,11 +33,11 @@ export class MockSolanaEventClient extends SvmCpiEventsClient {
 
   public setEvents(events: EventWithData[]) {
     for (const event of events) {
-      this.events[event.name] ??= [];
-      this.events[event.name].push(event);
+      this.events[event.name as EventName] ??= [];
+      this.events[event.name as EventName].push(event);
     }
     const maxSlot = Math.max(...events.map((event) => Number(event.slot)));
-    this.setSlotHeight(BigInt(maxSlot) + 1n);
+    this.setSlotHeight(BigInt(maxSlot) + BigInt(1));
   }
 
   public clearEvents(name?: EventName) {
@@ -64,17 +65,17 @@ export class MockSolanaEventClient extends SvmCpiEventsClient {
   public deposit(deposit: SvmSpokeClient.FundsDeposited & Partial<EventWithData>): EventWithData {
     const { slot } = deposit;
     let { depositId, destinationChainId, inputAmount, outputAmount } = deposit;
-    depositId ??= Uint8Array.from([this.numberOfDeposits]);
+    depositId ??= arrayify(hexZeroPad(hexlify(random(1, 100_000, false)), 32));
     this.numberOfDeposits = this.numberOfDeposits.add(bnOne);
 
     destinationChainId ??= BigInt(random(1, 42161, false));
     const depositor = deposit.depositor ?? getRandomSvmAddress();
-    const recipient = deposit.recipient ?? depositor;
+    const recipient = deposit.recipient ?? EvmAddress.from(randomAddress()).toBase58();
     const inputToken = deposit.inputToken ?? getRandomSvmAddress();
-    const outputToken = deposit.outputToken ?? inputToken;
+    const outputToken = deposit.outputToken ?? EvmAddress.from(randomAddress()).toBase58();
     inputAmount ??= BigInt(random(1, 1000, false));
-    outputAmount ??= (inputAmount * 95n) / 100n;
-    const message = deposit.message ?? Uint8Array.from("0x");
+    outputAmount ??= (inputAmount * BigInt(95)) / BigInt(100);
+    const message = deposit.message ?? new Uint8Array(32);
     const quoteTimestamp = deposit.quoteTimestamp ?? getCurrentTime();
 
     const args = {
@@ -104,16 +105,16 @@ export class MockSolanaEventClient extends SvmCpiEventsClient {
   public fillRelay(fill: SvmSpokeClient.FilledRelay & Partial<EventWithData>): EventWithData {
     const { slot } = fill;
     let { depositId, inputAmount, outputAmount, fillDeadline } = fill;
-    depositId ??= Uint8Array.from([random(1, 100_000, false)]);
+    depositId ??= arrayify(hexZeroPad(hexlify(random(1, 100_000, false)), 32));
     inputAmount ??= BigInt(random(1, 1000, false));
-    outputAmount ??= (inputAmount * 95n) / 100n;
+    outputAmount ??= (inputAmount * BigInt(95)) / BigInt(100);
     fillDeadline ??= getCurrentTime() + 60;
 
-    const depositor = fill.depositor ?? getRandomSvmAddress();
-    const recipient = fill.recipient ?? depositor;
-    const inputToken = fill.inputToken ?? getRandomSvmAddress();
-    const outputToken = fill.outputToken ?? inputToken;
-    const messageHash = fill.messageHash ?? Uint8Array.from("0x");
+    const depositor = fill.depositor ?? EvmAddress.from(randomAddress()).toBase58();
+    const recipient = fill.recipient ?? getRandomSvmAddress();
+    const inputToken = fill.inputToken ?? EvmAddress.from(randomAddress()).toBase58();
+    const outputToken = fill.outputToken ?? getRandomSvmAddress();
+    const messageHash = fill.messageHash ?? new Uint8Array(32);
 
     const relayExecutionInfo = {
       updatedRecipient: fill.relayExecutionInfo?.updatedRecipient ?? recipient,
@@ -150,18 +151,21 @@ export class MockSolanaEventClient extends SvmCpiEventsClient {
   public requestSlowFill(slowFillRequest: SvmSpokeClient.RequestedSlowFill & Partial<EventWithData>): EventWithData {
     const { slot } = slowFillRequest;
     let { depositId, originChainId } = slowFillRequest;
-    depositId ??= Uint8Array.from([random(1, 100_000, false)]); // double check this
+    depositId ??= Uint8Array.from([random(1, 100_000, false)]);
     originChainId ??= BigInt(random(1, 42161, false));
-    const depositor = slowFillRequest.depositor ?? getRandomSvmAddress();
+    const depositor = slowFillRequest.depositor ?? EvmAddress.from(randomAddress()).toBase58();
+    const recipient = slowFillRequest.recipient ?? getRandomSvmAddress();
+    const inputToken = slowFillRequest.inputToken ?? EvmAddress.from(randomAddress()).toBase58();
+    const outputToken = slowFillRequest.outputToken ?? getRandomSvmAddress();
 
     const args = {
       ...slowFillRequest,
       depositId,
       originChainId,
       depositor,
-      recipient: slowFillRequest.recipient ?? depositor,
-      inputToken: slowFillRequest.inputToken ?? getRandomSvmAddress(),
-      outputToken: slowFillRequest.outputToken ?? slowFillRequest.inputToken ?? getRandomSvmAddress(),
+      recipient,
+      inputToken,
+      outputToken,
       inputAmount: slowFillRequest.inputAmount ?? BigInt(random(1, 1000, false)),
       outputAmount: slowFillRequest.outputAmount ?? slowFillRequest.inputAmount ?? BigInt(random(1, 1000, false)),
       exclusiveRelayer: slowFillRequest.exclusiveRelayer ?? this.SVM_ZERO_ADDRESS,
@@ -175,14 +179,22 @@ export class MockSolanaEventClient extends SvmCpiEventsClient {
     });
   }
 
-  protected generateEvent(inputs) {
+  protected generateEvent(inputs: {
+    address: Address;
+    event: EventName;
+    args: Record<string, unknown>;
+    slot?: bigint;
+  }) {
     // TODO: set types
     const { address, event, args } = inputs;
     let { slot } = inputs;
 
+    const randomSlotWithinRange = () =>
+      random(Number(this.slotHeight) + 1, Number(this.slotHeight) + this.minBlockRange, false);
+
     // Increment the slot number by at least 1, by default. The caller may override
     // to force the same slot number to be used, but never a previous slot number.
-    slot ??= random(Number(this.slotHeight) + 1, Number(this.slotHeight) + this.minBlockRange, false);
+    slot ??= BigInt(randomSlotWithinRange());
     assert(slot >= this.slotHeight, `${slot} < ${this.slotHeight}`);
     this.slotHeight = slot;
 
@@ -191,9 +203,11 @@ export class MockSolanaEventClient extends SvmCpiEventsClient {
       slot,
       signature: signature(
         bs58.encode(
-          createHash("sha512")
-            .update(`Across-${event}-${slot}-${random(1, 100_000)}`)
-            .digest()
+          Uint8Array.from(
+            createHash("sha512")
+              .update(`Across-${event}-${slot}-${random(1, 100_000)}`)
+              .digest()
+          )
         )
       ),
       program: address,

@@ -1,14 +1,14 @@
 import winston from "winston";
 import { SvmSpokeClient } from "@across-protocol/contracts";
 import { Address } from "@solana/kit";
-import { DepositWithBlock, RelayerRefundExecution, SortableEvent, SlowFillLeaf, Log } from "../../src/interfaces";
-import { getCurrentTime, bnZero, MakeOptional, EventSearchConfig } from "../../src/utils";
-import { SpokePoolUpdate, SvmSpokePoolClient } from "../../src/clients/SpokePoolClient";
-import { HubPoolClient } from "../../src/clients/HubPoolClient";
-import { EventOverrides } from "../../src/clients/mocks/MockEvents";
-import { AcrossConfigStoreClient } from "../../src/clients/AcrossConfigStoreClient";
+import { DepositWithBlock, RelayerRefundExecution, SortableEvent, SlowFillLeaf, Log } from "../../interfaces";
+import { getCurrentTime, bnZero, MakeOptional, EventSearchConfig } from "../../utils";
+import { SpokePoolUpdate, SvmSpokePoolClient } from "../SpokePoolClient";
+import { HubPoolClient } from "../HubPoolClient";
+import { EventOverrides } from "./MockEvents";
+import { AcrossConfigStoreClient } from "../AcrossConfigStoreClient";
 import { MockSolanaEventClient } from "./MockSolanaEventClient";
-import { EventWithData, SvmCpiEventsClient, SVMEventNames, unwrapEventData } from "../../src/arch/svm";
+import { EventWithData, SvmCpiEventsClient, SVMEventNames, unwrapEventData } from "../../arch/svm";
 
 // This class replaces internal SpokePoolClient functionality, enabling
 // the user to bypass on-chain queries and inject events directly.
@@ -55,12 +55,12 @@ export class MockSvmSpokePoolClient extends SvmSpokePoolClient {
   }
 
   async _update(eventsToQuery: string[]): Promise<SpokePoolUpdate> {
-    const from = this.eventSearchConfig.from ? BigInt(this.eventSearchConfig.from) : undefined;
+    const from = this.eventSearchConfig.from ?? this.deploymentBlock;
     const to = this.eventSearchConfig.to ? BigInt(this.eventSearchConfig.to) : undefined;
 
     // Get events from the mock event client.
     const events: EventWithData[][] = await Promise.all(
-      eventsToQuery.map((eventName) => this.mockEventsClient.queryEvents(eventName as SVMEventNames, from, to))
+      eventsToQuery.map((eventName) => this.mockEventsClient.queryEvents(eventName as SVMEventNames, BigInt(from), to))
     );
 
     const eventsWithBlockNumber = events.map((eventList) =>
