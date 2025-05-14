@@ -8,11 +8,17 @@ import { SvmSpokeClient } from "@across-protocol/contracts";
 import { CHAIN_IDs } from "@across-protocol/constants";
 
 import { MockSolanaRpcFactory } from "../../providers/mocks";
-import { SvmCpiEventsClient } from "../../arch/svm/eventsClient";
-import { EventName, EventWithData, SVMEventNames, SVMProvider } from "../../arch/svm";
+import {
+  SVM_DEFAULT_ADDRESS,
+  EventName,
+  EventWithData,
+  SvmCpiEventsClient,
+  SVMEventNames,
+  SVMProvider,
+  getRandomSvmAddress,
+} from "../../arch/svm";
 import { bnZero, bnOne, bs58, getCurrentTime, randomAddress, EvmAddress } from "../../utils";
 import { FillType } from "../../interfaces";
-import { getRandomSvmAddress } from "../../arch/svm/utils";
 
 export class MockSolanaEventClient extends SvmCpiEventsClient {
   private events: Record<EventName, EventWithData[]> = {} as Record<EventName, EventWithData[]>;
@@ -20,7 +26,6 @@ export class MockSolanaEventClient extends SvmCpiEventsClient {
   public chainId: number;
   public minBlockRange = 10;
   public numberOfDeposits = bnZero;
-  public SVM_ZERO_ADDRESS = bs58.encode(new Uint8Array(32));
 
   constructor(programId = SvmSpokeClient.SVM_SPOKE_PROGRAM_ADDRESS, chainId = CHAIN_IDs.SOLANA) {
     super(null as unknown as SVMProvider, programId as Address, null as unknown as Address, null as unknown as Idl);
@@ -89,7 +94,7 @@ export class MockSolanaEventClient extends SvmCpiEventsClient {
       outputAmount,
       quoteTimestamp,
       fillDeadline: deposit.fillDeadline ?? quoteTimestamp + 3600,
-      exclusiveRelayer: deposit.exclusiveRelayer ?? this.SVM_ZERO_ADDRESS,
+      exclusiveRelayer: deposit.exclusiveRelayer ?? SVM_DEFAULT_ADDRESS,
       exclusivityDeadline: deposit.exclusivityDeadline ?? quoteTimestamp + 600,
       message,
     };
@@ -133,7 +138,7 @@ export class MockSolanaEventClient extends SvmCpiEventsClient {
       outputToken,
       outputAmount,
       fillDeadline,
-      exclusiveRelayer: fill.exclusiveRelayer ?? this.SVM_ZERO_ADDRESS,
+      exclusiveRelayer: fill.exclusiveRelayer ?? SVM_DEFAULT_ADDRESS,
       exclusivityDeadline: fill.exclusivityDeadline ?? fillDeadline,
       relayer: fill.relayer ?? getRandomSvmAddress(),
       messageHash,
@@ -168,7 +173,7 @@ export class MockSolanaEventClient extends SvmCpiEventsClient {
       outputToken,
       inputAmount: slowFillRequest.inputAmount ?? BigInt(random(1, 1000, false)),
       outputAmount: slowFillRequest.outputAmount ?? slowFillRequest.inputAmount ?? BigInt(random(1, 1000, false)),
-      exclusiveRelayer: slowFillRequest.exclusiveRelayer ?? this.SVM_ZERO_ADDRESS,
+      exclusiveRelayer: slowFillRequest.exclusiveRelayer ?? SVM_DEFAULT_ADDRESS,
     };
 
     return this.generateEvent({
