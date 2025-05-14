@@ -26,7 +26,6 @@ import { CHAIN_IDs } from "../../constants";
 import { Deposit, DepositWithBlock, FillStatus, FillWithBlock, RelayData } from "../../interfaces";
 import {
   BigNumber,
-  getCurrentTime,
   isUnsafeDepositId,
   SvmAddress,
   getTokenInfo,
@@ -38,6 +37,11 @@ import {
 } from "../../utils";
 import { getStatePda, SvmCpiEventsClient, getFillStatusPda, unwrapEventData, getEventAuthority } from "./";
 import { SVMEventNames, SVMProvider } from "./types";
+
+/**
+ * @note: Average Solana slot duration is about 400-500ms, using 500ms to be conservative
+ */
+export const SLOT_DURATION_MS = 500;
 
 /**
  * @param spokePool SpokePool Contract instance.
@@ -84,16 +88,16 @@ export function getDepositIdAtBlock(_contract: unknown, _blockTag: number): Prom
 }
 
 /**
- * Finds deposit events within a 2-day window ending at the specified timestamp.
+ * Finds deposit events within a 2-day window ending at the specified slot.
  *
  * @remarks
- * This implementation uses a time-limited search approach because Solana PDA state has
+ * This implementation uses a slot-limited search approach because Solana PDA state has
  * limitations that prevent directly referencing old deposit IDs. Unlike EVM chains where
  * we might use binary search across the entire chain history, in Solana we must query within
  * a constrained slot range.
  *
  * The search window is calculated by:
- * 1. Finding the slot at the specified timestamp (or current time if no timestamp is provided)
+ * 1. Using the provided slot (or current confirmed slot if none is provided)
  * 2. Looking back 2 days worth of slots from that point
  *
  * We use a 2-day window because:
@@ -103,45 +107,49 @@ export function getDepositIdAtBlock(_contract: unknown, _blockTag: number): Prom
  *
  * @important
  * This function may return `undefined` for valid deposit IDs that are older than the search
- * window (approximately 2 days before the specified timestamp). This is an acceptable limitation
+ * window (approximately 2 days before the specified slot). This is an acceptable limitation
  * as deposits this old are typically not relevant to current operations.
  *
  * @param eventClient - SvmCpiEventsClient instance
  * @param depositId - The deposit ID to search for
- * @param timestamp - The timestamp to search up to (defaults to current time). The search will look
- *                   for deposits between (timestamp - 2 days) and timestamp. Time must be in seconds.
- * @returns The deposit if found within the time window, undefined otherwise
+ * @param slot - The slot to search up to (defaults to current slot). The search will look
+ *              for deposits between (slot - secondsLookback) and slot.
+ * @param secondsLookback - The number of seconds to look back for deposits (defaults to 2 days).
+ * @returns The deposit if found within the slot window, undefined otherwise
  */
 export async function findDeposit(
   eventClient: SvmCpiEventsClient,
   depositId: BigNumber,
-  timestamp: number = getCurrentTime()
+  slot?: bigint,
+  secondsLookback = 2 * 24 * 60 * 60 // 2 days
 ): Promise<DepositWithBlock | undefined> {
   // We can only perform this search when we have a safe deposit ID.
   if (isUnsafeDepositId(depositId)) {
     throw new Error(`Cannot binary search for depositId ${depositId}`);
   }
-  const [currentTimeInMs, timestampInMs] = [getCurrentTime() * 1000, timestamp * 1000];
-  const slotDurationInMs = 300;
 
-  // We know we're likely to not be searching for a deposit id that is
-  // greater than two days older than the provided timestamp (or current time if no timestamp is provided)
-  // therefore we can use the current block and timestamp to calculate the slot at the timestamp and then
-  // calculate two days ago from that slot.
   const provider = eventClient.getRpc();
   const currentSlot = await provider.getSlot({ commitment: "confirmed" }).send();
-  const endSlot = currentSlot - BigInt(Math.round((currentTimeInMs - timestampInMs) / slotDurationInMs));
-  const startSlot = endSlot - BigInt(Math.round((2 * 24 * 60 * 60 * 1000) / slotDurationInMs));
 
-  // Query for the deposit events with this limited block range. Filter by deposit id.
+  // If no slot is provided, use the current slot
+  // If a slot is provided, ensure it's not in the future
+  const endSlot = slot !== undefined ? BigInt(Math.min(Number(slot), Number(currentSlot))) : currentSlot;
+
+  // Calculate start slot (approximately secondsLookback seconds earlier)
+  const slotsInElapsed = BigInt(Math.round((secondsLookback * 1000) / SLOT_DURATION_MS));
+  const startSlot = endSlot - slotsInElapsed;
+
+  // Query for the deposit events with this limited slot range. Filter by deposit id.
   const depositEvent = (await eventClient.queryEvents("FundsDeposited", startSlot, endSlot))?.find((event) =>
     depositId.eq((event.data as unknown as { depositId: BigNumber }).depositId)
   );
 
+  // If no deposit event is found, return undefined
   if (!depositEvent) {
     return undefined;
   }
 
+  // Return the deposit event with block info
   return {
     txnRef: depositEvent.signature.toString(),
     blockNumber: Number(depositEvent.slot),
