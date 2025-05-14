@@ -7,7 +7,7 @@ import { expect } from "chai";
 import { BigNumber } from "ethers";
 import { arrayify, hexlify } from "ethers/lib/utils";
 import {
-  SVM_ZERO_ADDRESS,
+  SVM_DEFAULT_ADDRESS,
   SvmCpiEventsClient,
   getAssociatedTokenAddress,
   getEventAuthority,
@@ -64,7 +64,7 @@ describe("SvmCpiEventsClient (integration)", () => {
   let decimals: number;
 
   const solanaChainId = Number(getSolanaChainId("mainnet"));
-  const mainnetId = 1;
+  const destinationChainId = 1;
   const tokenAmount = 100000000n;
 
   // helper to create a deposit
@@ -79,7 +79,7 @@ describe("SvmCpiEventsClient (integration)", () => {
       outputToken: getRandomSvmAddress(),
       inputAmount,
       outputAmount,
-      destinationChainId: Number(mainnetId),
+      destinationChainId: Number(destinationChainId),
       exclusiveRelayer: signer.address,
       quoteTimestamp: Number(currentTime),
       fillDeadline: Number(currentTime) + 60 * 30, // 30‑minute deadline
@@ -108,12 +108,12 @@ describe("SvmCpiEventsClient (integration)", () => {
     const relayData: SvmSpokeClient.RequestSlowFillInstructionDataArgs["relayData"] = {
       depositor: getRandomSvmAddress(),
       recipient: getRandomSvmAddress(),
-      exclusiveRelayer: SVM_ZERO_ADDRESS,
+      exclusiveRelayer: SVM_DEFAULT_ADDRESS,
       inputToken: getRandomSvmAddress(),
       outputToken: getRandomSvmAddress(),
       inputAmount: getRandomInt(),
       outputAmount: getRandomInt(),
-      originChainId: BigInt(mainnetId),
+      originChainId: BigInt(destinationChainId),
       depositId: new Uint8Array(intToU8Array32(getRandomInt())),
       fillDeadline: Number(currentTime) + 60 * 30,
       exclusivityDeadline: 0,
@@ -149,12 +149,12 @@ describe("SvmCpiEventsClient (integration)", () => {
     const relayData: SvmSpokeClient.FillRelayInput["relayData"] = {
       depositor: getRandomSvmAddress(),
       recipient: getRandomSvmAddress(),
-      exclusiveRelayer: SVM_ZERO_ADDRESS,
+      exclusiveRelayer: SVM_DEFAULT_ADDRESS,
       inputToken: getRandomSvmAddress(),
       outputToken: mint.address,
       inputAmount: getRandomInt(),
       outputAmount: tokenAmount,
-      originChainId: BigInt(mainnetId),
+      originChainId: BigInt(destinationChainId),
       depositId: new Uint8Array(intToU8Array32(getRandomInt())),
       fillDeadline: Number(currentTime) + 60 * 30,
       exclusivityDeadline: Number(currentTime) + 60 * 30,
@@ -196,7 +196,7 @@ describe("SvmCpiEventsClient (integration)", () => {
       program: SvmSpokeClient.SVM_SPOKE_PROGRAM_ADDRESS,
       relayHash: arrayify(relayDataHash),
       relayData: relayData,
-      repaymentChainId: BigInt(mainnetId),
+      repaymentChainId: BigInt(destinationChainId),
       repaymentAddress: signer.address,
     };
 
@@ -211,7 +211,7 @@ describe("SvmCpiEventsClient (integration)", () => {
     signer = await generateKeyPairSignerWithSol(solanaClient);
     ({ state } = await initializeSvmSpoke(signer, solanaClient, signer.address));
     ({ mint, decimals } = await createMint(signer, solanaClient));
-    ({ vault, route } = await enableRoute(signer, solanaClient, BigInt(mainnetId), state, mint.address));
+    ({ vault, route } = await enableRoute(signer, solanaClient, BigInt(destinationChainId), state, mint.address));
     client = await SvmCpiEventsClient.create(solanaClient.rpc);
     eventAuthority = await getEventAuthority();
   });

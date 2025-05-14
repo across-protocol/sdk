@@ -1,4 +1,2 @@
-import { address } from "@solana/kit";
-
+export { SYSTEM_PROGRAM_ADDRESS as SVM_DEFAULT_ADDRESS } from "@solana-program/system";
 export const SVM_SPOKE_SEED = BigInt(0);
-export const SVM_ZERO_ADDRESS = address("11111111111111111111111111111111");
