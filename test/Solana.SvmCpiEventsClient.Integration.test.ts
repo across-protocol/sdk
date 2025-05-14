@@ -28,7 +28,6 @@ import {
   mintTokens,
   requestSlowFill,
 } from "./utils/svm/utils";
-import { validatorSetup, validatorTeardown } from "./utils/svm/validator.setup";
 
 const formatRelayData = (relayData: SvmSpokeClient.RelayDataArgs): RelayData => {
   return {
@@ -205,19 +204,12 @@ describe("SvmCpiEventsClient (integration)", () => {
   };
 
   before(async function () {
-    /* Local validator spin‑up can take a few seconds */
-    this.timeout(60_000);
-    await validatorSetup();
     signer = await generateKeyPairSignerWithSol(solanaClient);
     ({ state } = await initializeSvmSpoke(signer, solanaClient, signer.address));
     ({ mint, decimals } = await createMint(signer, solanaClient));
     ({ vault, route } = await enableRoute(signer, solanaClient, BigInt(destinationChainId), state, mint.address));
     client = await SvmCpiEventsClient.create(solanaClient.rpc);
     eventAuthority = await getEventAuthority();
-  });
-
-  after(async () => {
-    await validatorTeardown();
   });
 
   it("fetches all events", async () => {
