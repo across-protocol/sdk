@@ -232,7 +232,7 @@ export class SvmCpiEventsClient {
   public async getDepositEventsFromSignature(
     originChainId: number,
     txSignature: Signature,
-    commitment?: Commitment
+    commitment: Commitment = "confirmed"
   ): Promise<DepositEventFromSignature[] | undefined> {
     assert(chainIsSvm(originChainId), `Origin chain ${originChainId} is not an SVM chain`);
 
@@ -240,7 +240,7 @@ export class SvmCpiEventsClient {
       this.readEventsFromSignature(txSignature, commitment),
       this.rpc
         .getTransaction(txSignature, {
-          commitment: "confirmed",
+          commitment,
           maxSupportedTransactionVersion: 0,
         })
         .send(),
@@ -253,8 +253,6 @@ export class SvmCpiEventsClient {
       return;
     }
 
-    const slot = BigInt(txDetails.slot);
-
     return events.map((event) => {
       const unwrappedEventArgs = unwrapEventData(event as Record<string, unknown>, ["depositId"]) as Record<
         "data",
@@ -266,7 +264,7 @@ export class SvmCpiEventsClient {
         depositTimestamp: Number(txDetails.blockTime),
         originChainId,
         messageHash: getMessageHash(unwrappedEventArgs.data.message),
-        blockNumber: Number(slot),
+        blockNumber: Number(txDetails.slot),
         txnIndex: 0,
         txnRef: txSignature,
         logIndex: 0,
@@ -284,16 +282,17 @@ export class SvmCpiEventsClient {
    */
   public async getFillEventsFromSignature(
     destinationChainId: number,
-    txSignature: Signature
+    txSignature: Signature,
+    commitment: Commitment = "confirmed"
   ): Promise<FillEventFromSignature[] | undefined> {
     assert(chainIsSvm(destinationChainId), `Destination chain ${destinationChainId} is not an SVM chain`);
 
     // Find all events from the transaction signature and get transaction details
     const [events, txDetails] = await Promise.all([
-      this.readEventsFromSignature(txSignature),
+      this.readEventsFromSignature(txSignature, commitment),
       this.rpc
         .getTransaction(txSignature, {
-          commitment: "confirmed",
+          commitment,
           maxSupportedTransactionVersion: 0,
         })
         .send(),
