@@ -292,13 +292,13 @@ describe("SpokePoolClient: Event Filtering", function () {
     const inputToken = randomAddress();
     hubPoolClient.setDefaultRealizedLpFeePct(toBNWei("0.0001"));
 
-    const _deposit = spokePoolClient.depositV3({
+    const _deposit = spokePoolClient.deposit({
       originChainId,
       destinationChainId,
       inputToken,
       outputToken: ZERO_ADDRESS,
     } as DepositWithBlock);
-    expect(_deposit?.args?.outputToken).to.equal(ZERO_ADDRESS);
+    expect(_deposit?.args?.outputToken).to.equal(ZERO_BYTES);
 
     await spokePoolClient.update(fundsDepositedEvents);
 
