@@ -2521,17 +2521,6 @@
   dependencies:
     tslib "^2.5.0"
 
-"@solana-developers/helpers@^2.4.0":
-  version "2.5.6"
-  resolved "https://registry.yarnpkg.com/@solana-developers/helpers/-/helpers-2.5.6.tgz#2af7613ea6848ce087c0dec7cf38e6f172abcbd4"
-  integrity sha512-NPWZblVMl4LuVVSJOZG0ZF0VYnrMUjCyMNTiGwNUXPK2WWYJCqpuDyzs/PMqwvM4gMTjk4pEToBX8N2UxDvZkQ==
-  dependencies:
-    "@solana/spl-token" "^0.4.8"
-    "@solana/spl-token-metadata" "^0.1.4"
-    "@solana/web3.js" "^1.95.2"
-    bs58 "^6.0.0"
-    dotenv "^16.4.5"
-
 "@solana-program/system@^0.7.0":
   version "0.7.0"
   resolved "https://registry.yarnpkg.com/@solana-program/system/-/system-0.7.0.tgz#3e21c9fb31d3795eb65ba5cb663947c19b305bad"

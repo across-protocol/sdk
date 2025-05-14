@@ -1,16 +1,16 @@
+import { SvmSpokeClient } from "@across-protocol/contracts";
 import { BN, BorshEventCoder, Idl } from "@coral-xyz/anchor";
 import {
+  Address,
   address,
+  getAddressEncoder,
   getProgramDerivedAddress,
   getU64Encoder,
-  getAddressEncoder,
-  Address,
   isAddress,
   type TransactionSigner,
 } from "@solana/kit";
-import { BigNumber, getRelayDataHash, isUint8Array, SvmAddress } from "../../utils";
-import { SvmSpokeClient } from "@across-protocol/contracts";
 import { FillType, RelayData } from "../../interfaces";
+import { BigNumber, SvmAddress, getRelayDataHash, isUint8Array } from "../../utils";
 import { EventName, SVMEventNames, SVMProvider } from "./types";
 
 /**
