@@ -7,7 +7,7 @@ import { SpokePoolUpdate, SvmSpokePoolClient } from "../SpokePoolClient";
 import { HubPoolClient } from "../HubPoolClient";
 import { EventOverrides } from "./MockEvents";
 import { AcrossConfigStoreClient } from "../AcrossConfigStoreClient";
-import { MockSvmCpiEventsClient } from "./MockSolanaEventClient";
+import { MockSvmCpiEventsClient } from "./MockSvmCpiEventsClient";
 import { EventWithData, SvmCpiEventsClient, SVMEventNames, unwrapEventData } from "../../arch/svm";
 
 // This class replaces internal SpokePoolClient functionality, enabling
