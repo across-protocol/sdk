@@ -2,34 +2,8 @@ import { isDefined } from "./TypeGuards";
 import { getCurrentTime } from "./TimeUtils";
 import { CachingMechanismInterface } from "../interfaces";
 import { shouldCache } from "./CachingUtils";
+import { BlockFinderHints, BlockFinder, Block } from "./BlockFinder";
 import { DEFAULT_CACHING_SAFE_LAG } from "../constants";
-
-export type BlockFinderOpts = {
-  highBlock?: number;
-  highBlockOffset?: number;
-  blockRange?: number;
-};
-
-export type BlockTimeAverage = {
-  average: number;
-  blockRange: number;
-  timestamp: number;
-};
-
-export interface Block {
-  hash: string;
-  number: number;
-  timestamp: number;
-}
-
-export type BlockFinderHints = {
-  lowBlock?: number;
-  highBlock?: number;
-};
-
-export abstract class BlockFinder<TBlock extends Block> {
-  abstract getBlockForTimestamp(timestamp: number | string, hints: BlockFinderHints): Promise<TBlock>;
-}
 
 /**
  * @notice Get the block number for a given timestamp fresh from on-chain data if not found in redis cache.

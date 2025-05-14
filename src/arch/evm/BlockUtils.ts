@@ -1,17 +1,16 @@
 import assert from "assert";
 import { Provider, Block as EthersBlock } from "@ethersproject/abstract-provider";
 import { clamp, sortedIndexBy } from "lodash";
+import { chainIsOPStack, getNetworkName } from "../../utils/NetworkUtils";
+import { isDefined } from "../../utils/TypeGuards";
 import {
-  chainIsOPStack,
-  getNetworkName,
-  isDefined,
-  getCurrentTime,
-  Block,
   BlockFinder,
-  BlockFinderOpts as Opts,
-  BlockTimeAverage,
-  BlockFinderHints,
-} from "../../utils";
+  type Block,
+  type BlockFinderOpts as Opts,
+  type BlockTimeAverage,
+  type BlockFinderHints,
+} from "../../utils/BlockFinder";
+import { getCurrentTime } from "../../utils/TimeUtils";
 import { CHAIN_IDs } from "../../constants";
 
 // Extension of the EthersBlock type which implements `Block`.
