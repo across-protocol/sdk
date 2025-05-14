@@ -1,6 +1,6 @@
 import { SvmSpokeClient } from "@across-protocol/contracts";
 import { TOKEN_2022_PROGRAM_ADDRESS } from "@solana-program/token-2022";
-import { Address, KeyPairSigner } from "@solana/kit";
+import { address, Address, KeyPairSigner } from "@solana/kit";
 import { expect } from "chai";
 import { getEventAuthority, SvmCpiEventsClient } from "../src/arch/svm";
 import {
@@ -14,9 +14,18 @@ import {
   mintTokens,
 } from "./utils/svm/utils";
 import { validatorSetup, validatorTeardown } from "./utils/svm/validator.setup";
+import { CHAIN_IDs } from "@across-protocol/constants";
+import { SvmAddress } from "../src/utils";
+
+// Define an extended interface for our Solana client with chainId
+interface ExtendedSolanaClient extends ReturnType<typeof createDefaultSolanaClient> {
+  chainId: number;
+}
 
 describe("SvmCpiEventsClient (integration)", () => {
-  const solanaClient = createDefaultSolanaClient();
+  const solanaClient = createDefaultSolanaClient() as ExtendedSolanaClient;
+  // Add chainId property for tests
+  solanaClient.chainId = 7777; // Use a test value for Solana testnet
   let client: SvmCpiEventsClient;
 
   let signer: KeyPairSigner;
@@ -146,5 +155,30 @@ describe("SvmCpiEventsClient (integration)", () => {
 
     expect(events).to.have.lengthOf(1);
     expect(events[0].data.inputAmount).to.equal(secondDeposit.inputAmount);
+  });
+
+  it("gets deposit events from transaction signature", async () => {
+    // deposit from solana
+    solanaClient.chainId = CHAIN_IDs.SOLANA;
+    const payerAta = await mintTokens(signer, solanaClient, address(mint.address), tokenAmount);
+    const { depositInput, signature } = await createDeposit(payerAta, tokenAmount, tokenAmount);
+
+    const depositEvents = await client.getDepositEventsFromSignature(solanaClient.chainId, signature);
+
+    expect(depositEvents).to.have.lengthOf(1);
+    const depositEvent = depositEvents![0];
+    expect(SvmAddress.from(depositEvent.depositor, "base16").toBase58()).to.equal(depositInput.depositor.toString());
+    expect(SvmAddress.from(depositEvent.recipient, "base16").toBase58()).to.equal(depositInput.recipient.toString());
+    expect(SvmAddress.from(depositEvent.inputToken, "base16").toBase58()).to.equal(depositInput.inputToken.toString());
+    expect(SvmAddress.from(depositEvent.outputToken, "base16").toBase58()).to.equal(
+      depositInput.outputToken.toString()
+    );
+    expect(depositEvent.inputAmount).to.equal(depositInput.inputAmount);
+    expect(depositEvent.outputAmount).to.equal(depositInput.outputAmount);
+    expect(depositEvent.destinationChainId).to.equal(depositInput.destinationChainId);
+  });
+
+  it("gets fill events from transaction signature", async () => {
+    // TODO
   });
 });
