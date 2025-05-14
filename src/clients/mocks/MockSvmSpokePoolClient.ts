@@ -35,7 +35,7 @@ export class MockSvmSpokePoolClient extends SvmSpokePoolClient {
       null as unknown as Address
     );
     this.mockEventsClient = new MockSolanaEventClient();
-    this.latestHeightSearched = deploymentBlock; // needed?
+    this.latestHeightSearched = deploymentBlock;
   }
 
   setConfigStoreClient(configStore?: AcrossConfigStoreClient): void {
