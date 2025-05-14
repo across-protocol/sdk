@@ -7,13 +7,13 @@ import { SpokePoolUpdate, SvmSpokePoolClient } from "../SpokePoolClient";
 import { HubPoolClient } from "../HubPoolClient";
 import { EventOverrides } from "./MockEvents";
 import { AcrossConfigStoreClient } from "../AcrossConfigStoreClient";
-import { MockSolanaEventClient } from "./MockSolanaEventClient";
+import { MockSvmCpiEventsClient } from "./MockSolanaEventClient";
 import { EventWithData, SvmCpiEventsClient, SVMEventNames, unwrapEventData } from "../../arch/svm";
 
 // This class replaces internal SpokePoolClient functionality, enabling
 // the user to bypass on-chain queries and inject events directly.
 export class MockSvmSpokePoolClient extends SvmSpokePoolClient {
-  public mockEventsClient: MockSolanaEventClient;
+  public mockEventsClient: MockSvmCpiEventsClient;
   private destinationTokenForChainOverride: Record<number, string> = {};
 
   constructor(
@@ -34,7 +34,7 @@ export class MockSvmSpokePoolClient extends SvmSpokePoolClient {
       programId,
       null as unknown as Address
     );
-    this.mockEventsClient = new MockSolanaEventClient();
+    this.mockEventsClient = new MockSvmCpiEventsClient();
     this.latestHeightSearched = deploymentBlock;
   }
 

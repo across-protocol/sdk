@@ -20,7 +20,7 @@ import {
 import { bnZero, bnOne, bs58, getCurrentTime, randomAddress, EvmAddress } from "../../utils";
 import { FillType } from "../../interfaces";
 
-export class MockSolanaEventClient extends SvmCpiEventsClient {
+export class MockSvmCpiEventsClient extends SvmCpiEventsClient {
   private events: Record<EventName, EventWithData[]> = {} as Record<EventName, EventWithData[]>;
   private slotHeight: bigint = BigInt(0);
   public chainId: number;
@@ -190,7 +190,6 @@ export class MockSolanaEventClient extends SvmCpiEventsClient {
     args: Record<string, unknown>;
     slot?: bigint;
   }) {
-    // TODO: set types
     const { address, event, args } = inputs;
     let { slot } = inputs;
 
