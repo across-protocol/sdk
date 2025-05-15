@@ -19,7 +19,7 @@ const config: HardhatUserConfig = {
   },
   mocha: {
     timeout: 100000,
-    require: ["./test/setup.ts"],
+    require: ["./test/Solana.setup.ts"],
   },
   watcher: {
     test: {
