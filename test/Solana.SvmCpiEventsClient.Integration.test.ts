@@ -1,8 +1,9 @@
+import { CHAIN_IDs } from "@across-protocol/constants";
 import { SvmSpokeClient } from "@across-protocol/contracts";
 import { getSolanaChainId, intToU8Array32, u8Array32ToInt } from "@across-protocol/contracts/dist/src/svm/web3-v1";
 import { SYSTEM_PROGRAM_ADDRESS } from "@solana-program/system";
 import { ASSOCIATED_TOKEN_PROGRAM_ADDRESS, TOKEN_2022_PROGRAM_ADDRESS } from "@solana-program/token-2022";
-import { address, Address, KeyPairSigner } from "@solana/kit";
+import { Address, KeyPairSigner, address } from "@solana/kit";
 import { expect } from "chai";
 import { BigNumber } from "ethers";
 import { arrayify, hexlify } from "ethers/lib/utils";
@@ -28,8 +29,6 @@ import {
   mintTokens,
   requestSlowFill,
 } from "./utils/svm/utils";
-import { validatorSetup, validatorTeardown } from "./utils/svm/validator.setup";
-import { CHAIN_IDs } from "@across-protocol/constants";
 
 // Define an extended interface for our Solana client with chainId
 interface ExtendedSolanaClient extends ReturnType<typeof createDefaultSolanaClient> {
@@ -213,19 +212,12 @@ describe("SvmCpiEventsClient (integration)", () => {
   };
 
   before(async function () {
-    /* Local validator spin‑up can take a few seconds */
-    this.timeout(60_000);
-    await validatorSetup();
     signer = await generateKeyPairSignerWithSol(solanaClient);
     ({ state } = await initializeSvmSpoke(signer, solanaClient, signer.address));
     ({ mint, decimals } = await createMint(signer, solanaClient));
     ({ vault, route } = await enableRoute(signer, solanaClient, BigInt(destinationChainId), state, mint.address));
     client = await SvmCpiEventsClient.create(solanaClient.rpc);
     eventAuthority = await getEventAuthority();
-  });
-
-  after(async () => {
-    await validatorTeardown();
   });
 
   it("fetches all events", async () => {
@@ -377,7 +369,7 @@ describe("SvmCpiEventsClient (integration)", () => {
     expect(fillEvent.inputAmount.toString()).to.equal(BigInt(relayData.inputAmount).toString());
     expect(fillEvent.outputAmount.toString()).to.equal(BigInt(relayData.outputAmount).toString());
     expect(fillEvent.originChainId).to.equal(Number(relayData.originChainId));
-    expect(fillEvent.depositId).to.equal(u8Array32ToInt(relayData.depositId));
+    expect(fillEvent.depositId).to.equal(u8Array32ToInt(Array.from(relayData.depositId)));
     expect(fillEvent.fillDeadline).to.equal(Number(relayData.fillDeadline));
     expect(fillEvent.exclusivityDeadline).to.equal(Number(relayData.exclusivityDeadline));
   });
