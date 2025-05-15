@@ -1,4 +1,4 @@
-import { encodeAbiParameters, keccak256 } from "viem";
+import { encodeAbiParameters, Hex, keccak256 } from "viem";
 import { MAX_SAFE_DEPOSIT_ID, ZERO_ADDRESS, ZERO_BYTES } from "../constants";
 import { Deposit, RelayData } from "../interfaces";
 import { toBytes32 } from "./AddressUtils";
@@ -91,5 +91,5 @@ export function isZeroAddress(address: string): boolean {
 }
 
 export function getMessageHash(message: string): string {
-  return isMessageEmpty(message) ? ZERO_BYTES : keccak256(message as "0x{string}");
+  return isMessageEmpty(message) ? ZERO_BYTES : keccak256(message as Hex);
 }

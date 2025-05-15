@@ -2,9 +2,16 @@ import { Idl } from "@coral-xyz/anchor";
 import { getDeployedAddress, SvmSpokeIdl } from "@across-protocol/contracts";
 import { getSolanaChainId } from "@across-protocol/contracts/dist/src/svm/web3-v1";
 import web3, { Address, Commitment, GetSignaturesForAddressApi, GetTransactionApi, Signature } from "@solana/kit";
-import { bs58 } from "../../utils";
+import { bs58, chainIsSvm, getMessageHash } from "../../utils";
 import { EventName, EventWithData, SVMProvider } from "./types";
 import { decodeEvent, isDevnet } from "./utils";
+import { DepositWithTime, FillWithTime } from "../../interfaces";
+import { unwrapEventData } from "./";
+import assert from "assert";
+import {
+  FundsDepositedEventObject,
+  FilledRelayEventObject,
+} from "@across-protocol/contracts/dist/typechain/contracts/SpokePool";
 
 // Utility type to extract the return type for the JSON encoding overload. We only care about the overload where the
 // configuration parameter (C) has the optional property 'encoding' set to 'json'.
@@ -18,6 +25,9 @@ type GetTransactionReturnType = ExtractJsonOverload<GetTransactionApi["getTransa
 type GetSignaturesForAddressConfig = Parameters<GetSignaturesForAddressApi["getSignaturesForAddress"]>[1];
 type GetSignaturesForAddressTransaction = ReturnType<GetSignaturesForAddressApi["getSignaturesForAddress"]>[number];
 type GetSignaturesForAddressApiResponse = readonly GetSignaturesForAddressTransaction[];
+
+export type DepositEventFromSignature = Omit<DepositWithTime, "fromLiteChain" | "toLiteChain">;
+export type FillEventFromSignature = FillWithTime;
 
 export class SvmCpiEventsClient {
   private rpc: SVMProvider;
@@ -209,6 +219,109 @@ export class SvmCpiEventsClient {
     }
 
     return events;
+  }
+
+  /**
+   * Finds all FundsDeposited events for a given transaction signature.
+   *
+   * @param originChainId - The chain ID where the deposit originated.
+   * @param txSignature - The transaction signature to search for events.
+   * @param commitment - Optional commitment level for the transaction query.
+   * @returns A promise that resolves to an array of deposit events for the transaction, or undefined if none found.
+   */
+  public async getDepositEventsFromSignature(
+    originChainId: number,
+    txSignature: Signature,
+    commitment: Commitment = "confirmed"
+  ): Promise<DepositEventFromSignature[] | undefined> {
+    assert(chainIsSvm(originChainId), `Origin chain ${originChainId} is not an SVM chain`);
+
+    const [events, txDetails] = await Promise.all([
+      this.readEventsFromSignature(txSignature, commitment),
+      this.rpc
+        .getTransaction(txSignature, {
+          commitment,
+          maxSupportedTransactionVersion: 0,
+        })
+        .send(),
+    ]);
+
+    // Filter for FundsDeposited events only
+    const depositEvents = events?.filter((event) => event?.name === "FundsDeposited");
+
+    if (!txDetails || !depositEvents?.length) {
+      return;
+    }
+
+    return events.map((event) => {
+      const unwrappedEventArgs = unwrapEventData(event as Record<string, unknown>, ["depositId"]) as Record<
+        "data",
+        FundsDepositedEventObject
+      >;
+
+      return {
+        ...unwrappedEventArgs.data,
+        depositTimestamp: Number(txDetails.blockTime),
+        originChainId,
+        messageHash: getMessageHash(unwrappedEventArgs.data.message),
+        blockNumber: Number(txDetails.slot),
+        txnIndex: 0,
+        txnRef: txSignature,
+        logIndex: 0,
+        destinationChainId: unwrappedEventArgs.data.destinationChainId.toNumber(),
+      } satisfies DepositEventFromSignature;
+    });
+  }
+
+  /**
+   * Finds all FilledRelay events for a given transaction signature.
+   *
+   * @param destinationChainId - The destination chain ID (must be an SVM chain).
+   * @param txSignature - The transaction signature to search for events.
+   * @returns A promise that resolves to an array of fill events for the transaction, or undefined if none found.
+   */
+  public async getFillEventsFromSignature(
+    destinationChainId: number,
+    txSignature: Signature,
+    commitment: Commitment = "confirmed"
+  ): Promise<FillEventFromSignature[] | undefined> {
+    assert(chainIsSvm(destinationChainId), `Destination chain ${destinationChainId} is not an SVM chain`);
+
+    // Find all events from the transaction signature and get transaction details
+    const [events, txDetails] = await Promise.all([
+      this.readEventsFromSignature(txSignature, commitment),
+      this.rpc
+        .getTransaction(txSignature, {
+          commitment,
+          maxSupportedTransactionVersion: 0,
+        })
+        .send(),
+    ]);
+
+    // Filter for FilledRelay events only
+    const fillEvents = events?.filter((event) => event?.name === "FilledRelay");
+
+    if (!txDetails || !fillEvents?.length) {
+      return;
+    }
+
+    return fillEvents.map((event) => {
+      const unwrappedEventData = unwrapEventData(event as Record<string, unknown>) as Record<
+        "data",
+        FilledRelayEventObject
+      >;
+      return {
+        ...unwrappedEventData.data,
+        fillTimestamp: Number(txDetails.blockTime),
+        blockNumber: Number(txDetails.slot),
+        txnRef: txSignature,
+        txnIndex: 0,
+        logIndex: 0,
+        destinationChainId,
+        repaymentChainId: unwrappedEventData.data.repaymentChainId.toNumber(),
+        originChainId: unwrappedEventData.data.originChainId.toNumber(),
+      } satisfies FillEventFromSignature;
+    });
   }
 
   public getProgramAddress(): Address {
