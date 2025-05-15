@@ -17,6 +17,7 @@ import {
   DepositSearchResult,
   EventSearchConfig,
   InvalidFill,
+  isZeroAddress,
   MakeOptional,
   sortEventsAscendingInPlace,
 } from "../../utils";
@@ -220,9 +221,20 @@ export class SvmSpokePoolClient extends SpokePoolClient {
         reason: `Deposit with ID ${depositId} not found`,
       };
     }
+    // Because we have additional context about this deposit, we can enrich it
+    // with additional information.
     return {
       found: true,
-      deposit,
+      deposit: {
+        ...deposit,
+        quoteBlockNumber: await this.getBlockNumber(Number(deposit.quoteTimestamp)),
+        originChainId: this.chainId,
+        fromLiteChain: this.isOriginLiteChain(deposit),
+        toLiteChain: this.isDestinationLiteChain(deposit),
+        outputToken: isZeroAddress(deposit.outputToken)
+          ? this.getDestinationTokenForDeposit(deposit)
+          : deposit.outputToken,
+      },
     };
   }
 
