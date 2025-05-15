@@ -1,7 +1,7 @@
 import { pipe } from "@solana/functional";
 import { Coingecko } from "../../coingecko";
 import { SymbolMappingType } from "./";
-import { CHAIN_IDs, DEFAULT_SIMULATED_RELAYER_ADDRESS } from "../../constants";
+import { CHAIN_IDs } from "../../constants";
 import { Deposit } from "../../interfaces";
 import { getGasPriceEstimate, SvmGasPriceEstimate } from "../../gasPriceOracle";
 import {
@@ -13,7 +13,7 @@ import {
   isDefined,
   toAddressType,
 } from "../../utils";
-import { Logger, QueryInterface } from "../relayFeeCalculator";
+import { getDefaultSimulatedRelayerAddress, Logger, QueryInterface } from "../relayFeeCalculator";
 import {
   fillRelayInstruction,
   createApproveInstruction,
@@ -79,7 +79,7 @@ export class SvmQuery implements QueryInterface {
    */
   async getGasCosts(
     deposit: Omit<Deposit, "messageHash">,
-    _relayer = DEFAULT_SIMULATED_RELAYER_ADDRESS,
+    _relayer = getDefaultSimulatedRelayerAddress(deposit.destinationChainId),
     options: Partial<{
       gasPrice: BigNumberish;
       gasUnits: BigNumberish;
@@ -87,11 +87,64 @@ export class SvmQuery implements QueryInterface {
       priorityFeeMultiplier: BigNumber;
     }> = {}
   ): Promise<TransactionCostEstimate> {
+    const relayer = _relayer ? toAddressType(_relayer).forceSvmAddress() : this.simulatedRelayerAddress;
+
+    const fillRelayTx = await this.getFillRelayTx(deposit, relayer.toBase58());
+
+    const [computeUnitsConsumed, _gasPriceEstimate] = await Promise.all([
+      toBN(await this.computeUnitEstimator(fillRelayTx)),
+      getGasPriceEstimate(this.provider, {
+        unsignedTx: fillRelayTx,
+        baseFeeMultiplier: options.baseFeeMultiplier,
+        priorityFeeMultiplier: options.priorityFeeMultiplier,
+      }),
+    ]);
+
+    // We can cast the gas price estimate to an SvmGasPriceEstimate here since the oracle should always
+    // query the Solana adapter.
+    const gasPriceEstimate = _gasPriceEstimate as SvmGasPriceEstimate;
+    const gasPrice = gasPriceEstimate.baseFee.add(
+      gasPriceEstimate.microLamportsPerComputeUnit.mul(computeUnitsConsumed).div(toBN(1_000_000)) // 1_000_000 microLamports/lamport.
+    );
+
+    return {
+      nativeGasCost: computeUnitsConsumed,
+      tokenGasCost: gasPrice,
+      gasPrice,
+    };
+  }
+
+  /**
+   * @notice Return the gas cost of a simulated transaction
+   * @param fillRelayTx FillRelay transaction
+   * @param relayer SVM address of the relayer
+   * @returns Estimated gas cost in compute units
+   */
+  async getNativeGasCost(
+    deposit: Omit<Deposit, "messageHash">,
+    _relayer = getDefaultSimulatedRelayerAddress(deposit.destinationChainId)
+  ): Promise<BigNumber> {
+    const fillRelayTx = await this.getFillRelayTx(deposit, _relayer);
+    const computeUnitsConsumed = toBN(await this.computeUnitEstimator(fillRelayTx));
+    return computeUnitsConsumed;
+  }
+
+  /**
+   * @notice Return the fillRelay transaction for a given deposit
+   * @param deposit
+   * @param relayer SVM address of the relayer
+   * @returns FillRelay transaction
+   */
+  async getFillRelayTx(
+    deposit: Omit<Deposit, "messageHash">,
+    _relayer = getDefaultSimulatedRelayerAddress(deposit.destinationChainId)
+  ) {
+    const relayer = _relayer ? toAddressType(_relayer).forceSvmAddress() : this.simulatedRelayerAddress;
     // If the user did not have a token account created on destination, then we need to include this as a gas cost.
     const mint = toAddressType(deposit.outputToken).forceSvmAddress();
     const owner = toAddressType(deposit.recipient).forceSvmAddress();
     const associatedToken = await getAssociatedTokenAddress(owner, mint);
-    const simulatedSigner = SolanaVoidSigner(this.simulatedRelayerAddress.toBase58());
+    const simulatedSigner = SolanaVoidSigner(relayer.toBase58());
 
     // If the recipient has an associated token account on destination, then skip generating the instruction for creating a new token account.
     let recipientCreateTokenAccountInstructions: IInstruction[] | undefined = undefined;
@@ -134,7 +187,7 @@ export class SvmQuery implements QueryInterface {
     const recentBlockhash = await this.provider.getLatestBlockhash().send();
     const fillRelayTx = pipe(
       createTransactionMessage({ version: 0 }),
-      (tx) => setTransactionMessageFeePayer(this.simulatedRelayerAddress.toV2Address(), tx),
+      (tx) => setTransactionMessageFeePayer(relayer.toV2Address(), tx),
       (tx) => setTransactionMessageLifetimeUsingBlockhash(recentBlockhash.value, tx),
       (tx) =>
         isDefined(recipientCreateTokenAccountInstructions)
@@ -142,28 +195,7 @@ export class SvmQuery implements QueryInterface {
           : tx,
       (tx) => appendTransactionMessageInstructions([createTokenAccountsIx, approveIx, fillIx], tx)
     );
-
-    const [computeUnitsConsumed, _gasPriceEstimate] = await Promise.all([
-      toBN(await this.computeUnitEstimator(fillRelayTx)),
-      getGasPriceEstimate(this.provider, {
-        unsignedTx: fillRelayTx,
-        baseFeeMultiplier: options.baseFeeMultiplier,
-        priorityFeeMultiplier: options.priorityFeeMultiplier,
-      }),
-    ]);
-
-    // We can cast the gas price estimate to an SvmGasPriceEstimate here since the oracle should always
-    // query the Solana adapter.
-    const gasPriceEstimate = _gasPriceEstimate as SvmGasPriceEstimate;
-    const gasPrice = gasPriceEstimate.baseFee.add(
-      gasPriceEstimate.microLamportsPerComputeUnit.mul(computeUnitsConsumed).div(toBN(1_000_000)) // 1_000_000 microLamports/lamport.
-    );
-
-    return {
-      nativeGasCost: computeUnitsConsumed,
-      tokenGasCost: gasPrice,
-      gasPrice,
-    };
+    return fillRelayTx;
   }
 
   /**

@@ -26,8 +26,12 @@ describe("getMulticallAddress", () => {
   });
 });
 
-describe("getMulticall3", async () => {
-  const provider = (await ethers.getSigners()).at(0).provider;
+describe("getMulticall3", function () {
+  let provider;
+
+  before(async function () {
+    provider = (await ethers.getSigners()).at(0)?.provider;
+  });
 
   it("should return undefined for an unsupported chainId", () => {
     const chainId = 100; // Unsupported chain (Mumbai)
