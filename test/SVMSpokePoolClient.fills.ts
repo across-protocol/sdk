@@ -106,7 +106,7 @@ describe("SVMSpokePoolClient: Fills", function () {
 
     // Submit fill event:
     const currentSlot = await solanaClient.rpc.getSlot().send();
-    await mintTokens(signer, solanaClient, mint.address, BigInt(targetRelayData.inputAmount));
+    await mintTokens(signer, solanaClient, mint.address, BigInt(targetRelayData.outputAmount));
     await sendCreateFill(solanaClient, signer, mint, decimals, targetRelayData);
 
     // Get fill status before fill slot:
