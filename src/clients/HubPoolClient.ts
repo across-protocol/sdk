@@ -22,9 +22,9 @@ import {
   TokenRunningBalance,
 } from "../interfaces";
 import * as lpFeeCalculator from "../lpFeeCalculator";
+import { EVMBlockFinder } from "../arch/evm";
 import {
   BigNumber,
-  BlockFinder,
   bnZero,
   dedupArray,
   EventSearchConfig,
@@ -97,7 +97,7 @@ export class HubPoolClient extends BaseAbstractClient {
   protected pendingRootBundle: PendingRootBundle | undefined;
 
   public currentTime: number | undefined;
-  public readonly blockFinder: BlockFinder;
+  public readonly blockFinder: EVMBlockFinder;
 
   constructor(
     readonly logger: winston.Logger,
@@ -121,7 +121,7 @@ export class HubPoolClient extends BaseAbstractClient {
     this.firstHeightToSearch = eventSearchConfig.from;
 
     const provider = this.hubPool.provider;
-    this.blockFinder = new BlockFinder(provider);
+    this.blockFinder = new EVMBlockFinder(provider);
   }
 
   protected hubPoolEventFilters(): Record<HubPoolEvent, EventFilter> {

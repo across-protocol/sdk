@@ -3,11 +3,11 @@ import { CHAIN_IDs, TOKEN_SYMBOLS_MAP } from "@across-protocol/constants";
 import { getDeployedAddress } from "@across-protocol/contracts";
 import { asL2Provider } from "@eth-optimism/sdk";
 import { providers } from "ethers";
-import { DEFAULT_SIMULATED_RELAYER_ADDRESS, CUSTOM_GAS_TOKENS } from "../../constants";
+import { CUSTOM_GAS_TOKENS } from "../../constants";
 import { chainIsOPStack, isDefined, chainIsSvm, SvmAddress } from "../../utils";
 import { QueryBase } from "./baseQuery";
 import { SVMProvider as svmProvider } from "../../arch/svm";
-import { DEFAULT_LOGGER, Logger } from "../relayFeeCalculator";
+import { DEFAULT_LOGGER, getDefaultSimulatedRelayerAddress, Logger } from "../relayFeeCalculator";
 import { CustomGasTokenQueries } from "./customGasToken";
 import { SvmQuery } from "./svmQuery";
 
@@ -25,7 +25,7 @@ export class QueryBase__factory {
     provider: providers.Provider | svmProvider,
     symbolMapping = TOKEN_SYMBOLS_MAP,
     spokePoolAddress = getDeployedAddress("SpokePool", chainId),
-    simulatedRelayerAddress = DEFAULT_SIMULATED_RELAYER_ADDRESS,
+    simulatedRelayerAddress = getDefaultSimulatedRelayerAddress(chainId),
     coingeckoProApiKey?: string,
     logger: Logger = DEFAULT_LOGGER,
     coingeckoBaseCurrency = "eth"
