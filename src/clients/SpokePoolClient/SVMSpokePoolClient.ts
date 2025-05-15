@@ -7,6 +7,7 @@ import {
   getTimestampForSlot,
   getStatePda,
   SvmCpiEventsClient,
+  findDeposit,
   relayFillStatus,
   fillStatusArray,
 } from "../../arch/svm";
@@ -15,6 +16,8 @@ import {
   BigNumber,
   DepositSearchResult,
   EventSearchConfig,
+  InvalidFill,
+  isZeroAddress,
   MakeOptional,
   sortEventsAscendingInPlace,
 } from "../../utils";
@@ -208,10 +211,31 @@ export class SvmSpokePoolClient extends SpokePoolClient {
 
   /**
    * Finds a deposit based on its deposit ID on the SVM chain.
-   * TODO: Implement SVM state query for deposit details.
    */
-  public findDeposit(_depositId: BigNumber): Promise<DepositSearchResult> {
-    throw new Error("findDeposit not implemented for SVM");
+  public async findDeposit(depositId: BigNumber): Promise<DepositSearchResult> {
+    const deposit = await findDeposit(this.svmEventsClient, depositId);
+    if (!deposit) {
+      return {
+        found: false,
+        code: InvalidFill.DepositIdNotFound,
+        reason: `Deposit with ID ${depositId} not found`,
+      };
+    }
+    // Because we have additional context about this deposit, we can enrich it
+    // with additional information.
+    return {
+      found: true,
+      deposit: {
+        ...deposit,
+        quoteBlockNumber: await this.getBlockNumber(Number(deposit.quoteTimestamp)),
+        originChainId: this.chainId,
+        fromLiteChain: this.isOriginLiteChain(deposit),
+        toLiteChain: this.isDestinationLiteChain(deposit),
+        outputToken: isZeroAddress(deposit.outputToken)
+          ? this.getDestinationTokenForDeposit(deposit)
+          : deposit.outputToken,
+      },
+    };
   }
 
   /**

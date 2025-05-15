@@ -21,21 +21,28 @@ import {
 import assert from "assert";
 import { arrayify, hexZeroPad, hexlify } from "ethers/lib/utils";
 import { Logger } from "winston";
+
 import { CHAIN_IDs } from "../../constants";
-import { Deposit, FillStatus, FillWithBlock, RelayData } from "../../interfaces";
+import { Deposit, DepositWithBlock, FillStatus, FillWithBlock, RelayData } from "../../interfaces";
 import {
   BigNumber,
+  isUnsafeDepositId,
   SvmAddress,
-  chainIsSvm,
-  chunk,
   getTokenInfo,
   isDefined,
-  isUnsafeDepositId,
-  keccak256,
   toAddressType,
+  keccak256,
+  chainIsSvm,
+  chunk,
 } from "../../utils";
-import { SvmCpiEventsClient, getEventAuthority, getFillStatusPda, getStatePda, unwrapEventData } from "./";
+import { getStatePda, SvmCpiEventsClient, getFillStatusPda, unwrapEventData, getEventAuthority } from "./";
 import { SVMEventNames, SVMProvider } from "./types";
+
+/**
+ * @note: Average Solana slot duration is about 400-500ms. We can be conservative
+ *        and choose 400 to ensure that the most slots get included in our ranges
+ */
+export const SLOT_DURATION_MS = 400;
 
 /**
  * @param spokePool SpokePool Contract instance.
@@ -81,17 +88,76 @@ export function getDepositIdAtBlock(_contract: unknown, _blockTag: number): Prom
   throw new Error("getDepositIdAtBlock: not implemented");
 }
 
-export function findDepositBlock(
-  _spokePool: unknown,
+/**
+ * Finds deposit events within a 2-day window ending at the specified slot.
+ *
+ * @remarks
+ * This implementation uses a slot-limited search approach because Solana PDA state has
+ * limitations that prevent directly referencing old deposit IDs. Unlike EVM chains where
+ * we might use binary search across the entire chain history, in Solana we must query within
+ * a constrained slot range.
+ *
+ * The search window is calculated by:
+ * 1. Using the provided slot (or current confirmed slot if none is provided)
+ * 2. Looking back 2 days worth of slots from that point
+ *
+ * We use a 2-day window because:
+ * 1. Most valid deposits that need to be processed will be recent
+ * 2. This covers multiple bundle submission periods
+ * 3. It balances performance with practical deposit age
+ *
+ * @important
+ * This function may return `undefined` for valid deposit IDs that are older than the search
+ * window (approximately 2 days before the specified slot). This is an acceptable limitation
+ * as deposits this old are typically not relevant to current operations.
+ *
+ * @param eventClient - SvmCpiEventsClient instance
+ * @param depositId - The deposit ID to search for
+ * @param slot - The slot to search up to (defaults to current slot). The search will look
+ *              for deposits between (slot - secondsLookback) and slot.
+ * @param secondsLookback - The number of seconds to look back for deposits (defaults to 2 days).
+ * @returns The deposit if found within the slot window, undefined otherwise
+ */
+export async function findDeposit(
+  eventClient: SvmCpiEventsClient,
   depositId: BigNumber,
-  _lowBlock: number,
-  _highBlock?: number
-): Promise<number | undefined> {
+  slot?: bigint,
+  secondsLookback = 2 * 24 * 60 * 60 // 2 days
+): Promise<DepositWithBlock | undefined> {
   // We can only perform this search when we have a safe deposit ID.
   if (isUnsafeDepositId(depositId)) {
     throw new Error(`Cannot binary search for depositId ${depositId}`);
   }
-  throw new Error("findDepositBlock: not implemented");
+
+  const provider = eventClient.getRpc();
+  const currentSlot = await provider.getSlot({ commitment: "confirmed" }).send();
+
+  // If no slot is provided, use the current slot
+  // If a slot is provided, ensure it's not in the future
+  const endSlot = slot !== undefined ? BigInt(Math.min(Number(slot), Number(currentSlot))) : currentSlot;
+
+  // Calculate start slot (approximately secondsLookback seconds earlier)
+  const slotsInElapsed = BigInt(Math.round((secondsLookback * 1000) / SLOT_DURATION_MS));
+  const startSlot = endSlot - slotsInElapsed;
+
+  // Query for the deposit events with this limited slot range. Filter by deposit id.
+  const depositEvent = (await eventClient.queryEvents("FundsDeposited", startSlot, endSlot))?.find((event) =>
+    depositId.eq((event.data as unknown as { depositId: BigNumber }).depositId)
+  );
+
+  // If no deposit event is found, return undefined
+  if (!depositEvent) {
+    return undefined;
+  }
+
+  // Return the deposit event with block info
+  return {
+    txnRef: depositEvent.signature.toString(),
+    blockNumber: Number(depositEvent.slot),
+    txnIndex: 0,
+    logIndex: 0,
+    ...(unwrapEventData(depositEvent.data) as Record<string, unknown>),
+  } as DepositWithBlock;
 }
 
 /**
@@ -318,9 +384,9 @@ export async function fillRelayInstruction(
     getFillStatusPda(spokePool.toV2Address(), deposit, deposit.destinationChainId),
     getEventAuthority(),
   ]);
-  const depositIdBuffer = Buffer.alloc(32);
-  const shortenedBuffer = Buffer.from(deposit.depositId.toHexString().slice(2), "hex");
-  shortenedBuffer.copy(depositIdBuffer, 32 - shortenedBuffer.length);
+  const depositIdBuffer = new Uint8Array(32);
+  const shortenedBuffer = new Uint8Array(Buffer.from(deposit.depositId.toHexString().slice(2), "hex"));
+  depositIdBuffer.set(shortenedBuffer, 32 - shortenedBuffer.length);
 
   return SvmSpokeClient.getFillRelayInstruction({
     signer: relayer,
@@ -343,7 +409,7 @@ export async function fillRelayInstruction(
       originChainId: BigInt(deposit.originChainId),
       fillDeadline: deposit.fillDeadline,
       exclusivityDeadline: deposit.exclusivityDeadline,
-      depositId: new Uint8Array(depositIdBuffer),
+      depositId: depositIdBuffer,
       message: new Uint8Array(Buffer.from(deposit.message.slice(2), "hex")),
     }),
     repaymentChainId: some(BigInt(repaymentChainId)),
@@ -409,7 +475,11 @@ export async function getAssociatedTokenAddress(
 ): Promise<Address<string>> {
   const [associatedToken] = await getProgramDerivedAddress({
     programAddress: ASSOCIATED_TOKEN_PROGRAM_ADDRESS,
-    seeds: [owner.toBuffer(), SvmAddress.from(tokenProgramId).toBuffer(), mint.toBuffer()],
+    seeds: [
+      new Uint8Array(owner.toBuffer()),
+      new Uint8Array(SvmAddress.from(tokenProgramId).toBuffer()),
+      new Uint8Array(mint.toBuffer()),
+    ],
   });
   return associatedToken;
 }
