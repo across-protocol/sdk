@@ -73,7 +73,7 @@ describe("SVMSpokePoolClient: Fills", function () {
     const formattedRelayData = formatRelayData(relayData);
 
     // Submit fill event:
-    await mintTokens(signer, solanaClient, mint.address, BigInt(relayData.inputAmount));
+    await mintTokens(signer, solanaClient, mint.address, BigInt(relayData.outputAmount));
     await sendCreateFill(solanaClient, signer, mint, decimals, relayData);
 
     // Look for the fill event:
