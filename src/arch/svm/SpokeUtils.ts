@@ -39,9 +39,10 @@ import { getStatePda, SvmCpiEventsClient, getFillStatusPda, unwrapEventData, get
 import { SVMEventNames, SVMProvider } from "./types";
 
 /**
- * @note: Average Solana slot duration is about 400-500ms, using 500ms to be conservative
+ * @note: Average Solana slot duration is about 400-500ms. We can be conservative
+ *        and choose 400 to ensure that the most slots get included in our ranges
  */
-export const SLOT_DURATION_MS = 500;
+export const SLOT_DURATION_MS = 400;
 
 /**
  * @param spokePool SpokePool Contract instance.
