@@ -149,7 +149,7 @@ describe("SVMSpokePoolClient: Fills", function () {
       signer,
       solanaClient,
       mint.address,
-      BigInt(relayData.inputAmount) * BigInt(relayDataEntries.length)
+      BigInt(relayData.outputAmount) * BigInt(relayDataEntries.length)
     );
     await sendCreateFill(solanaClient, signer, mint, decimals, relayDataEntries[0]); // For depositId + 10
     await sendRequestSlowFill(solanaClient, signer, relayDataEntries[1]); // For depositId + 11
