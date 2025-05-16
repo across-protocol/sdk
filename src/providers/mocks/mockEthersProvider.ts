@@ -1,6 +1,6 @@
 import { BigNumber, providers } from "ethers";
 import { Block, BlockTag, FeeData, TransactionResponse } from "@ethersproject/abstract-provider";
-import { bnZero } from "../utils/BigNumberUtils";
+import { bnZero } from "../../utils/BigNumberUtils";
 
 /**
  * @notice Class used to test GasPriceOracle which makes ethers provider calls to the following implemented

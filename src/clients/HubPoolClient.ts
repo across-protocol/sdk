@@ -22,9 +22,9 @@ import {
   TokenRunningBalance,
 } from "../interfaces";
 import * as lpFeeCalculator from "../lpFeeCalculator";
+import { EVMBlockFinder } from "../arch/evm";
 import {
   BigNumber,
-  BlockFinder,
   bnZero,
   dedupArray,
   EventSearchConfig,
@@ -97,7 +97,7 @@ export class HubPoolClient extends BaseAbstractClient {
   protected pendingRootBundle: PendingRootBundle | undefined;
 
   public currentTime: number | undefined;
-  public readonly blockFinder: BlockFinder;
+  public readonly blockFinder: EVMBlockFinder;
 
   constructor(
     readonly logger: winston.Logger,
@@ -105,7 +105,7 @@ export class HubPoolClient extends BaseAbstractClient {
     public configStoreClient: ConfigStoreClient,
     public deploymentBlock = 0,
     readonly chainId: number = 1,
-    eventSearchConfig: MakeOptional<EventSearchConfig, "toBlock"> = { fromBlock: 0, maxBlockLookBack: 0 },
+    eventSearchConfig: MakeOptional<EventSearchConfig, "to"> = { from: 0, maxLookBack: 0 },
     protected readonly configOverride: {
       ignoredHubExecutedBundles: number[];
       ignoredHubProposedBundles: number[];
@@ -117,11 +117,11 @@ export class HubPoolClient extends BaseAbstractClient {
     cachingMechanism?: CachingMechanismInterface
   ) {
     super(eventSearchConfig, cachingMechanism);
-    this.latestBlockSearched = Math.min(deploymentBlock - 1, 0);
-    this.firstBlockToSearch = eventSearchConfig.fromBlock;
+    this.latestHeightSearched = Math.min(deploymentBlock - 1, 0);
+    this.firstHeightToSearch = eventSearchConfig.from;
 
     const provider = this.hubPool.provider;
-    this.blockFinder = new BlockFinder(provider);
+    this.blockFinder = new EVMBlockFinder(provider);
   }
 
   protected hubPoolEventFilters(): Record<HubPoolEvent, EventFilter> {
@@ -254,7 +254,7 @@ export class HubPoolClient extends BaseAbstractClient {
     return l2Token !== undefined;
   }
 
-  l2TokenHasPoolRebalanceRoute(l2Token: string, l2ChainId: number, hubPoolBlock = this.latestBlockSearched): boolean {
+  l2TokenHasPoolRebalanceRoute(l2Token: string, l2ChainId: number, hubPoolBlock = this.latestHeightSearched): boolean {
     return Object.values(this.l1TokensToDestinationTokensWithBlock).some((destinationTokenMapping) => {
       return Object.entries(destinationTokenMapping).some(([_l2ChainId, setPoolRebalanceRouteEvents]) => {
         return setPoolRebalanceRouteEvents.some((e) => {
@@ -312,7 +312,7 @@ export class HubPoolClient extends BaseAbstractClient {
   }
 
   async getCurrentPoolUtilization(l1Token: string): Promise<BigNumber> {
-    const blockNumber = this.latestBlockSearched ?? (await this.hubPool.provider.getBlockNumber());
+    const blockNumber = this.latestHeightSearched ?? (await this.hubPool.provider.getBlockNumber());
     return await this.getUtilization(l1Token, blockNumber, bnZero, getCurrentTime(), 0);
   }
 
@@ -523,7 +523,7 @@ export class HubPoolClient extends BaseAbstractClient {
     chainIdA: number,
     tokenB: string,
     chainIdB: number,
-    hubPoolBlock = this.latestBlockSearched
+    hubPoolBlock = this.latestHeightSearched
   ): boolean {
     if (
       !this.l2TokenHasPoolRebalanceRoute(tokenA, chainIdA, hubPoolBlock) ||
@@ -719,7 +719,7 @@ export class HubPoolClient extends BaseAbstractClient {
     if (n === 0) {
       throw new Error("n cannot be 0");
     }
-    if (!this.latestBlockSearched) {
+    if (!this.latestHeightSearched) {
       throw new Error("HubPoolClient::getNthFullyExecutedRootBundle client not updated");
     }
 
@@ -728,7 +728,7 @@ export class HubPoolClient extends BaseAbstractClient {
     // If n is negative, then return the Nth latest executed bundle, otherwise return the Nth earliest
     // executed bundle.
     if (n < 0) {
-      let nextLatestMainnetBlock = startBlock ?? this.latestBlockSearched;
+      let nextLatestMainnetBlock = startBlock ?? this.latestHeightSearched;
       for (let i = 0; i < Math.abs(n); i++) {
         bundleToReturn = this.getLatestFullyExecutedRootBundle(nextLatestMainnetBlock);
         const bundleBlockNumber = bundleToReturn ? bundleToReturn.blockNumber : 0;
@@ -740,12 +740,12 @@ export class HubPoolClient extends BaseAbstractClient {
     } else {
       let nextStartBlock = startBlock ?? 0;
       for (let i = 0; i < n; i++) {
-        bundleToReturn = this.getEarliestFullyExecutedRootBundle(this.latestBlockSearched, nextStartBlock);
+        bundleToReturn = this.getEarliestFullyExecutedRootBundle(this.latestHeightSearched, nextStartBlock);
         const bundleBlockNumber = bundleToReturn ? bundleToReturn.blockNumber : 0;
 
         // Add 1 so that next `getEarliestFullyExecutedRootBundle` call filters out the root bundle we just found
         // because its block number is < nextStartBlock.
-        nextStartBlock = Math.min(bundleBlockNumber + 1, this.latestBlockSearched);
+        nextStartBlock = Math.min(bundleBlockNumber + 1, this.latestHeightSearched);
       }
     }
 
@@ -831,7 +831,7 @@ export class HubPoolClient extends BaseAbstractClient {
       // instantiation. However, certain events generally must be queried back to HubPool genesis.
       const overrideEvents = ["CrossChainContractsSet", "L1TokenEnabledForLiquidityProvision", "SetPoolRebalanceRoute"];
       if (overrideEvents.includes(eventName) && !this.isUpdated) {
-        _searchConfig.fromBlock = this.deploymentBlock;
+        _searchConfig.from = this.deploymentBlock;
       }
 
       return {
@@ -853,7 +853,7 @@ export class HubPoolClient extends BaseAbstractClient {
     const [multicallOutput, ...events] = await Promise.all([
       hubPool.callStatic.multicall(
         multicallFunctions.map((f) => hubPool.interface.encodeFunctionData(f)),
-        { blockTag: searchConfig.toBlock }
+        { blockTag: searchConfig.to }
       ),
       ...eventSearchConfigs.map((config) => paginatedEventQuery(hubPool, config.filter, config.searchConfig)),
     ]);
@@ -874,7 +874,7 @@ export class HubPoolClient extends BaseAbstractClient {
       success: true,
       currentTime,
       pendingRootBundleProposal,
-      searchEndBlock: searchConfig.toBlock,
+      searchEndBlock: searchConfig.to,
       events: _events,
     };
   }
@@ -1087,9 +1087,9 @@ export class HubPoolClient extends BaseAbstractClient {
     }
 
     this.currentTime = currentTime;
-    this.latestBlockSearched = searchEndBlock;
-    this.firstBlockToSearch = update.searchEndBlock + 1; // Next iteration should start off from where this one ended.
-    this.eventSearchConfig.toBlock = undefined; // Caller can re-set on subsequent updates if necessary.
+    this.latestHeightSearched = searchEndBlock;
+    this.firstHeightToSearch = update.searchEndBlock + 1; // Next iteration should start off from where this one ended.
+    this.eventSearchConfig.to = undefined; // Caller can re-set on subsequent updates if necessary.
 
     this.isUpdated = true;
     this.logger.debug({ at: "HubPoolClient::update", message: "HubPool client updated!", searchEndBlock });

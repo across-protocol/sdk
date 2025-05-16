@@ -2,6 +2,7 @@ export * from "./common";
 export * from "./abi";
 export * from "./ArrayUtils";
 export * from "./BlockUtils";
+export * from "./BlockFinder";
 export * from "./EventUtils";
 export * from "./ObjectUtils";
 export * from "./TimeUtils";

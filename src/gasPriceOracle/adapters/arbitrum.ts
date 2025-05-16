@@ -1,6 +1,6 @@
 import { providers } from "ethers";
 import { bnOne } from "../../utils";
-import { GasPriceEstimate } from "../types";
+import { EvmGasPriceEstimate } from "../types";
 import * as ethereum from "./ethereum";
 import { GasPriceEstimateOptions } from "../oracle";
 
@@ -16,7 +16,10 @@ import { GasPriceEstimateOptions } from "../oracle";
  * function.
  * @returns GasPriceEstimate
  */
-export async function eip1559(provider: providers.Provider, opts: GasPriceEstimateOptions): Promise<GasPriceEstimate> {
+export async function eip1559(
+  provider: providers.Provider,
+  opts: GasPriceEstimateOptions
+): Promise<EvmGasPriceEstimate> {
   const { maxFeePerGas: _maxFeePerGas, maxPriorityFeePerGas } = await ethereum.eip1559(provider, opts);
 
   // eip1559() sets maxFeePerGas = lastBaseFeePerGas + maxPriorityFeePerGas, so back out priority fee.

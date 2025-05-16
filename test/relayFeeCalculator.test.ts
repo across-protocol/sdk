@@ -34,7 +34,7 @@ import { EMPTY_MESSAGE, ZERO_ADDRESS } from "../src/constants";
 import { SpokePool } from "@across-protocol/contracts";
 import { QueryBase, QueryBase__factory } from "../src/relayFeeCalculator";
 import { getDefaultProvider } from "ethers";
-import { MockedProvider } from "../src/providers/mockProvider";
+import { MockedProvider } from "../src/providers/mocks";
 
 dotenv.config({ path: ".env" });
 
