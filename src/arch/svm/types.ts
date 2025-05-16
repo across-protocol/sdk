@@ -1,5 +1,15 @@
-import { Signature, Address, UnixTimestamp } from "@solana/kit";
 import { SvmSpokeClient } from "@across-protocol/contracts";
+import {
+  Address,
+  Rpc,
+  RpcSubscriptions,
+  RpcTransport,
+  Signature,
+  SignatureNotificationsApi,
+  SlotNotificationsApi,
+  SolanaRpcApiFromTransport,
+  UnixTimestamp,
+} from "@solana/kit";
 
 export type EventData =
   | SvmSpokeClient.BridgedToHubPool
@@ -36,12 +46,19 @@ export enum SVMEventNames {
 
 export type EventName = keyof typeof SVMEventNames;
 
-export type EventWithData<T extends EventData> = {
+export type EventWithData = {
   confirmationStatus: string | null;
   blockTime: UnixTimestamp | null;
   signature: Signature;
   slot: bigint;
-  name: EventName;
-  data: T;
+  name: string;
+  data: unknown;
   program: Address;
 };
+
+// Typed aggregate of JSON‑RPC and subscription clients.
+export type RpcClient = {
+  rpc: Rpc<SolanaRpcApiFromTransport<RpcTransport>>;
+  rpcSubscriptions: RpcSubscriptions<SignatureNotificationsApi & SlotNotificationsApi>;
+};
+export type SVMProvider = Rpc<SolanaRpcApiFromTransport<RpcTransport>>;

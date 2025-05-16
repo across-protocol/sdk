@@ -313,7 +313,7 @@ describe("SpokePoolClient: Fill Validation", function () {
     const [fill] = spokePoolClient2.getFills();
 
     // Set event search config from block ahead of the deposit block so client doesn't see event.
-    spokePoolClient1.firstBlockToSearch = depositEvent.blockNumber + 1;
+    spokePoolClient1.firstHeightToSearch = depositEvent.blockNumber + 1;
     await spokePoolClient1.update();
 
     // Client has 0 deposits in memory so querying historical deposit sends fresh RPC requests.
@@ -344,13 +344,18 @@ describe("SpokePoolClient: Fill Validation", function () {
     await spokePoolClient2.update();
     const [fill] = spokePoolClient2.getFills();
 
+<<<<<<< HEAD
     // Set event search config to block to after deposit so client doesn't see event.
     spokePoolClient1.firstBlockToSearch = depositBlock + 1;
+=======
+    // Set event search config to block to before deposit so client doesn't see event.
+    spokePoolClient1.eventSearchConfig.to = depositBlock - 1;
+>>>>>>> origin/master
     await spokePoolClient1.update();
 
     // Make sure that the client's latestBlockSearched encompasses the event so it can see it on the subsequent
     // queryHistoricalDepositForFill call.
-    spokePoolClient1.latestBlockSearched = depositBlock;
+    spokePoolClient1.latestHeightSearched = depositBlock;
 
     // Client has 0 deposits in memory so querying historical deposit sends fresh RPC requests.
     expect(spokePoolClient1.getDeposits().length).to.equal(0);
@@ -378,8 +383,13 @@ describe("SpokePoolClient: Fill Validation", function () {
     await hre.network.provider.send("evm_mine");
 
     // Configure the search range to skip the deposit.
+<<<<<<< HEAD
     spokePoolClient1.firstBlockToSearch = depositEvent.blockNumber + 1;
     spokePoolClient1.eventSearchConfig.toBlock = undefined;
+=======
+    spokePoolClient1.firstHeightToSearch = deposit.blockNumber + 1;
+    spokePoolClient1.eventSearchConfig.to = undefined;
+>>>>>>> origin/master
     await spokePoolClient1.update();
 
     // Client does not have the deposit and should search for it.
@@ -387,7 +397,11 @@ describe("SpokePoolClient: Fill Validation", function () {
     expect(lastSpyLogIncludes(spy, "Located deposit outside of SpokePoolClient's search range")).to.be.true;
 
     // Search the missing block range.
+<<<<<<< HEAD
     spokePoolClient1.firstBlockToSearch = depositEvent.blockNumber - 1;
+=======
+    spokePoolClient1.firstHeightToSearch = deposit.blockNumber - 1;
+>>>>>>> origin/master
     await spokePoolClient1.update();
 
     // Client has the deposit now; should not search.

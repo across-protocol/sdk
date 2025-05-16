@@ -1,7 +1,7 @@
 import assert from "assert";
 import { providers } from "ethers";
 import { BigNumber, bnZero, fixedPointAdjustment, getNetworkName, parseUnits } from "../../utils";
-import { GasPriceEstimate } from "../types";
+import { EvmGasPriceEstimate } from "../types";
 import { gasPriceError } from "../util";
 import { GasPriceEstimateOptions } from "../oracle";
 
@@ -13,7 +13,7 @@ import { GasPriceEstimateOptions } from "../oracle";
  * @param priorityFeeMultiplier Amount to multiply priority fee or unused for legacy gas pricing.
  * @returns Promise of gas price estimate object.
  */
-export function eip1559(provider: providers.Provider, opts: GasPriceEstimateOptions): Promise<GasPriceEstimate> {
+export function eip1559(provider: providers.Provider, opts: GasPriceEstimateOptions): Promise<EvmGasPriceEstimate> {
   return eip1559Raw(provider, opts.chainId, opts.baseFeeMultiplier, opts.priorityFeeMultiplier);
 }
 
@@ -29,7 +29,7 @@ export async function eip1559Raw(
   chainId: number,
   baseFeeMultiplier: BigNumber,
   priorityFeeMultiplier: BigNumber
-): Promise<GasPriceEstimate> {
+): Promise<EvmGasPriceEstimate> {
   const [{ baseFeePerGas }, _maxPriorityFeePerGas] = await Promise.all([
     provider.getBlock("pending"),
     (provider as providers.JsonRpcProvider).send("eth_maxPriorityFeePerGas", []),
@@ -54,7 +54,10 @@ export async function eip1559Raw(
  * @dev Its recommended to use the eip1559Raw method over this one where possible as it will be more accurate.
  * @returns GasPriceEstimate
  */
-export async function legacy(provider: providers.Provider, opts: GasPriceEstimateOptions): Promise<GasPriceEstimate> {
+export async function legacy(
+  provider: providers.Provider,
+  opts: GasPriceEstimateOptions
+): Promise<EvmGasPriceEstimate> {
   const { chainId, baseFeeMultiplier } = opts;
   const gasPrice = await provider.getGasPrice();
 

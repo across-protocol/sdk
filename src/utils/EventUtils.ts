@@ -99,9 +99,9 @@ export function spreadEvent(args: Result | Record<string, unknown>): { [key: str
 }
 
 export interface EventSearchConfig {
-  fromBlock: number;
-  toBlock: number;
-  maxBlockLookBack?: number;
+  from: number;
+  to: number;
+  maxLookBack?: number;
 }
 
 export const eventToLog = (event: Event): Log => ({ ...event, event: event.event!, args: spreadEvent(event.args!) });
@@ -113,8 +113,8 @@ export async function paginatedEventQuery(
   retryCount = 0
 ): Promise<Log[]> {
   // If the max block look back is set to 0 then we dont need to do any pagination and can query over the whole range.
-  if (searchConfig.maxBlockLookBack === 0) {
-    const events = await contract.queryFilter(filter, searchConfig.fromBlock, searchConfig.toBlock);
+  if (searchConfig.maxLookBack === 0) {
+    const events = await contract.queryFilter(filter, searchConfig.from, searchConfig.to);
     return events.map(eventToLog);
   }
 
@@ -132,7 +132,7 @@ export async function paginatedEventQuery(
       )
         .flat()
         // Filter events by block number because ranges can include blocks that are outside the range specified for caching reasons.
-        .filter((event) => event.blockNumber >= searchConfig.fromBlock && event.blockNumber <= searchConfig.toBlock)
+        .filter((event) => event.blockNumber >= searchConfig.from && event.blockNumber <= searchConfig.to)
         .map(eventToLog)
     );
   } catch (error) {
@@ -159,11 +159,11 @@ export async function paginatedEventQuery(
  * input range, but can include blocks outside of the desired range, so results should be filtered. Results
  * are ordered from smallest to largest.
  */
-export function getPaginatedBlockRanges({
-  fromBlock,
-  toBlock,
-  maxBlockLookBack,
-}: EventSearchConfig): [number, number][] {
+export function getPaginatedBlockRanges({ from, to, maxLookBack }: EventSearchConfig): [number, number][] {
+  const fromBlock = from;
+  const toBlock = to;
+  const maxBlockLookBack = maxLookBack;
+
   // If the maxBlockLookBack is undefined, we can look back as far as we like. Just return the entire range.
   if (maxBlockLookBack === undefined) {
     return [[fromBlock, toBlock]];

@@ -15,3 +15,13 @@ export function isInteger(value: unknown): value is number {
 export function isPositiveInteger(value: unknown): value is number {
   return isInteger(value) && value > 0;
 }
+
+/**
+ * Returns a random integer between min (inclusive) and max (exclusive).
+ * @param min The minimum value (inclusive).
+ * @param max The maximum value (exclusive). Defaults to 1000000.
+ * @returns A random integer between min and max.
+ */
+export function getRandomInt(min: number = 0, max: number = 1000000) {
+  return Math.floor(Math.random() * (max - min + 1)) + min;
+}

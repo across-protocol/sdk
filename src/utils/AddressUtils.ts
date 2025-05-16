@@ -1,5 +1,6 @@
 import { providers, utils } from "ethers";
 import bs58 from "bs58";
+import { Address as V2Address } from "@solana/kit";
 import { BigNumber, chainIsEvm } from "./";
 
 /**
@@ -77,9 +78,9 @@ export function isValidEvmAddress(address: string): boolean {
  * @returns a child `Address` type most fitting for the chain ID.
  * @todo: Change this to `toAddress` once we remove the other `toAddress` function.
  */
-export function toAddressType(address: string, chainId: number): Address | EvmAddress | SvmAddress {
+export function toAddressType(address: string): Address | EvmAddress | SvmAddress {
   try {
-    if (chainIsEvm(chainId)) {
+    if (utils.isHexString(address)) {
       return EvmAddress.from(address);
     }
     return SvmAddress.from(address);
@@ -146,6 +147,11 @@ export class Address {
     return this.toBytes32();
   }
 
+  // Converts the address to a Buffer type.
+  toBuffer(): Buffer {
+    return Buffer.from(this.rawAddress);
+  }
+
   // Implements `Hexable` for `Address`. Needed for encoding purposes. This class is treated by default as a bytes32 primitive type, but can change for subclasses.
   toHexString(): string {
     return this.toBytes32();
@@ -183,6 +189,16 @@ export class Address {
   // Checks if the address is the zero address.
   isZeroAddress(): boolean {
     return utils.stripZeros(this.rawAddress).length === 0;
+  }
+
+  // Forces `rawAddress` to become an SvmAddress type. This will only throw if `rawAddress.length > 32`.
+  forceSvmAddress(): SvmAddress {
+    return SvmAddress.from(this.toBase58());
+  }
+
+  // Forces `rawAddress` to become an EvmAddress type. This will throw if `rawAddress.length > 20`.
+  forceEvmAddress(): EvmAddress {
+    return EvmAddress.from(this.toEvmAddress());
   }
 
   // Checks if the other address is equivalent to this address.
@@ -223,8 +239,20 @@ export class EvmAddress extends Address {
   }
 
   // Constructs a new EvmAddress type.
-  static from(hexString: string): EvmAddress {
-    return new this(utils.arrayify(hexString));
+  static from(address: string, encoding: "base16" | "base58" = "base16"): EvmAddress {
+    if (encoding === "base16") {
+      return new this(utils.arrayify(address));
+    }
+
+    const decodedAddress = bs58.decode(address);
+    const padding = decodedAddress.subarray(0, 12);
+    const evmAddress = decodedAddress.subarray(12);
+
+    if (padding.length !== 12 || utils.stripZeros(padding).length !== 0 || evmAddress.length !== 20) {
+      throw new Error(`Not a valid base58-encoded EVM address: ${address}`);
+    }
+
+    return new this(evmAddress);
   }
 }
 
@@ -241,12 +269,27 @@ export class SvmAddress extends Address {
     return this.toBase58();
   }
 
+  // Small utility to convert an SvmAddress to a Solana Kit branded type.
+  toV2Address(): V2Address<string> {
+    return this.toBase58() as V2Address<string>;
+  }
+
+  // Forces an SvmAddress to an EVM address string by truncating the leading 12 bytes.
   override toEvmAddress(): string {
     return toAddress(`0x${this.toBytes32().slice(-40)}`);
   }
 
   // Constructs a new SvmAddress type.
-  static from(bs58Address: string): SvmAddress {
-    return new this(bs58.decode(bs58Address));
+  static from(address: string, encoding: "base58" | "base16" = "base58"): SvmAddress {
+    if (encoding === "base58") {
+      return new this(bs58.decode(address));
+    }
+
+    const decodedAddress = utils.arrayify(address);
+    if (decodedAddress.length !== 32) {
+      throw new Error(`Not a valid base16-encoded SVM address: ${address}`);
+    }
+
+    return new this(decodedAddress);
   }
 }

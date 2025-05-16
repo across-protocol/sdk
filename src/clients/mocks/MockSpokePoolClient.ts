@@ -26,6 +26,7 @@ import {
   bnZero,
   bnOne,
   toBytes32,
+  spreadEventWithBlockNumber,
 } from "../../utils";
 import { EVMSpokePoolClient, SpokePoolUpdate } from "../SpokePoolClient";
 import { HubPoolClient } from "../HubPoolClient";
@@ -49,7 +50,7 @@ export class MockSpokePoolClient extends EVMSpokePoolClient {
     opts: { hubPoolClient: HubPoolClient | null } = { hubPoolClient: null }
   ) {
     super(logger, spokePool, opts.hubPoolClient, chainId, deploymentBlock);
-    this.latestBlockSearched = deploymentBlock;
+    this.latestHeightSearched = deploymentBlock;
     this.eventManager = getEventManager(chainId, this.eventSignatures, deploymentBlock);
   }
 
@@ -66,7 +67,7 @@ export class MockSpokePoolClient extends EVMSpokePoolClient {
   }
 
   setLatestBlockNumber(blockNumber: number): void {
-    this.latestBlockSearched = blockNumber;
+    this.latestHeightSearched = blockNumber;
   }
 
   setDepositIds(_depositIds: BigNumber[]): void {
@@ -106,12 +107,16 @@ export class MockSpokePoolClient extends EVMSpokePoolClient {
         }
       });
 
+    const eventsWithBlockNumber = events.map((eventList) =>
+      eventList.map((event) => spreadEventWithBlockNumber(event))
+    );
+
     return Promise.resolve({
       success: true,
       firstDepositId: bnZero,
       currentTime,
-      events,
-      searchEndBlock: this.eventSearchConfig.toBlock || latestBlockSearched,
+      events: eventsWithBlockNumber,
+      searchEndBlock: this.eventSearchConfig.to || latestBlockSearched,
     });
   }
 

@@ -12,7 +12,7 @@ import {
   ethers,
 } from "./utils";
 import { verifyFillRepayment } from "../src/clients/BundleDataClient";
-import { MockedProvider } from "../src/providers/mockProvider";
+import { MockedProvider } from "../src/providers/mocks";
 import { createRandomBytes32 } from "@across-protocol/contracts/dist/test-utils";
 import { TransactionResponse } from "@ethersproject/abstract-provider";
 import { MockConfigStoreClient, MockHubPoolClient } from "./mocks";
@@ -55,6 +55,7 @@ describe("FillUtils", function () {
       quoteBlockNumber: 0,
       fromLiteChain: false,
       toLiteChain: false,
+      messageHash: ZERO_BYTES,
     };
     fill = {
       ...deposit,
@@ -64,6 +65,7 @@ describe("FillUtils", function () {
         updatedOutputAmount: deposit.outputAmount,
         updatedRecipient: deposit.recipient,
         fillType: FillType.FastFill,
+        updatedMessageHash: ZERO_BYTES,
       },
       messageHash: "0x",
       relayer,
