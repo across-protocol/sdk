@@ -13,6 +13,7 @@ import {
   getAssociatedTokenAddress,
   getEventAuthority,
   getFillStatusPda,
+  getRandomSvmAddress,
   getTimestampForSlot,
 } from "../src/arch/svm";
 import { RelayData } from "../src/interfaces";
@@ -24,7 +25,6 @@ import {
   deposit,
   enableRoute,
   generateKeyPairSignerWithSol,
-  getRandomSvmAddress,
   initializeSvmSpoke,
   mintTokens,
   requestSlowFill,
