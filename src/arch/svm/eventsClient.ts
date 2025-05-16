@@ -1,7 +1,15 @@
 import { Idl } from "@coral-xyz/anchor";
 import { getDeployedAddress, SvmSpokeIdl } from "@across-protocol/contracts";
 import { getSolanaChainId } from "@across-protocol/contracts/dist/src/svm/web3-v1";
-import web3, { Address, Commitment, GetSignaturesForAddressApi, GetTransactionApi, Signature } from "@solana/kit";
+import {
+  address,
+  Address,
+  Commitment,
+  getProgramDerivedAddress,
+  GetSignaturesForAddressApi,
+  GetTransactionApi,
+  Signature,
+} from "@solana/kit";
 import { bs58, chainIsSvm, getMessageHash } from "../../utils";
 import { EventName, EventWithData, SVMProvider } from "./types";
 import { decodeEvent, isDevnet } from "./utils";
@@ -56,12 +64,12 @@ export class SvmCpiEventsClient {
   }
 
   public static async createFor(rpc: SVMProvider, programId: string, idl: Idl): Promise<SvmCpiEventsClient> {
-    const address = web3.address(programId);
-    const [eventAuthority] = await web3.getProgramDerivedAddress({
-      programAddress: address,
+    const programAddress = address(programId);
+    const [eventAuthority] = await getProgramDerivedAddress({
+      programAddress,
       seeds: ["__event_authority"],
     });
-    return new SvmCpiEventsClient(rpc, address, eventAuthority, idl);
+    return new SvmCpiEventsClient(rpc, programAddress, eventAuthority, idl);
   }
 
   /**
