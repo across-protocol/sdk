@@ -56,9 +56,10 @@ export type EventWithData = {
   program: Address;
 };
 
+export type SVMProvider = Rpc<SolanaRpcApiFromTransport<RpcTransport>>;
+
 // Typed aggregate of JSON‑RPC and subscription clients.
 export type RpcClient = {
-  rpc: Rpc<SolanaRpcApiFromTransport<RpcTransport>>;
+  rpc: SVMProvider;
   rpcSubscriptions: RpcSubscriptions<SignatureNotificationsApi & SlotNotificationsApi>;
 };
-export type SVMProvider = Rpc<SolanaRpcApiFromTransport<RpcTransport>>;
