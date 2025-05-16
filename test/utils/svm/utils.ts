@@ -1,7 +1,7 @@
-import { SvmSpokeClient } from "@across-protocol/contracts";
-import { intToU8Array32 } from "@across-protocol/contracts/dist/src/svm/web3-v1";
-import { RelayDataArgs } from "@across-protocol/contracts/dist/src/svm/clients/SvmSpoke";
 import { CHAIN_IDs } from "@across-protocol/constants";
+import { SvmSpokeClient } from "@across-protocol/contracts";
+import { RelayDataArgs } from "@across-protocol/contracts/dist/src/svm/clients/SvmSpoke";
+import { intToU8Array32 } from "@across-protocol/contracts/dist/src/svm/web3-v1";
 import { getCreateAccountInstruction, SYSTEM_PROGRAM_ADDRESS } from "@solana-program/system";
 import {
   ASSOCIATED_TOKEN_PROGRAM_ADDRESS,
@@ -34,7 +34,7 @@ import {
   TransactionMessageWithBlockhashLifetime,
   TransactionSigner,
 } from "@solana/kit";
-import { hexlify, arrayify } from "ethers/lib/utils";
+import { arrayify, hexlify } from "ethers/lib/utils";
 import {
   getAssociatedTokenAddress,
   getEventAuthority,
@@ -47,8 +47,8 @@ import {
   SVM_DEFAULT_ADDRESS,
   SVM_SPOKE_SEED,
 } from "../../../src/arch/svm";
-import { EvmAddress, SvmAddress, getRandomInt, getRelayDataHash, randomAddress, BigNumber } from "../../../src/utils";
 import { RelayData } from "../../../src/interfaces";
+import { BigNumber, EvmAddress, getRandomInt, getRelayDataHash, randomAddress, SvmAddress } from "../../../src/utils";
 
 /** RPC / Client */
 
@@ -336,6 +336,34 @@ export const createFill = async (
   );
 };
 
+// Closes the fill PDA.
+export const closeFillPda = async (signer: KeyPairSigner, solanaClient: RpcClient, fillStatusPda: Address) => {
+  const closeFillPdaIx = await SvmSpokeClient.getCloseFillPdaInstruction({
+    signer,
+    state: await getStatePda(SvmSpokeClient.SVM_SPOKE_PROGRAM_ADDRESS),
+    fillStatus: fillStatusPda,
+  });
+  return pipe(
+    await createDefaultTransaction(solanaClient, signer),
+    (tx) => appendTransactionMessageInstruction(closeFillPdaIx, tx),
+    (tx) => signAndSendTransaction(solanaClient, tx)
+  );
+};
+
+// Sets the current time for the SVM Spoke program.
+export const setCurrentTime = async (signer: KeyPairSigner, solanaClient: RpcClient, newTime: number) => {
+  const setCurrentTimeIx = await SvmSpokeClient.getSetCurrentTimeInstruction({
+    signer,
+    state: await getStatePda(SvmSpokeClient.SVM_SPOKE_PROGRAM_ADDRESS),
+    newTime,
+  });
+  return pipe(
+    await createDefaultTransaction(solanaClient, signer),
+    (tx) => appendTransactionMessageInstruction(setCurrentTimeIx, tx),
+    (tx) => signAndSendTransaction(solanaClient, tx)
+  );
+};
+
 // helper to send a fill
 export const sendCreateFill = async (
   solanaClient: RpcClient,
@@ -402,7 +430,7 @@ export const sendCreateFill = async (
   };
 
   const signature = await createFill(signer, solanaClient, fillInput, mintDecimals);
-  return { signature, relayData };
+  return { signature, relayData, fillInput };
 };
 
 // helper to send a request slow fill

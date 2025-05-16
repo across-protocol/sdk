@@ -1,4 +1,4 @@
-import { KeyPairSigner, address } from "@solana/kit";
+import { KeyPairSigner, address, fetchEncodedAccount } from "@solana/kit";
 import { CHAIN_IDs } from "@across-protocol/constants";
 import { SvmSpokeClient } from "@across-protocol/contracts";
 import { intToU8Array32 } from "@across-protocol/contracts/dist/src/svm/web3-v1";
@@ -12,6 +12,8 @@ import {
   formatRelayData,
   mintTokens,
   sendRequestSlowFill,
+  closeFillPda,
+  setCurrentTime,
 } from "./utils/svm/utils";
 import { SVM_DEFAULT_ADDRESS, findFillEvent, getRandomSvmAddress } from "../src/arch/svm";
 import { SvmSpokePoolClient } from "../src/clients";
@@ -200,5 +202,30 @@ describe("SVMSpokePoolClient: Fills", function () {
       CHAIN_IDs.SOLANA
     );
     expect(fillStatusAfterRequest).to.equal(FillStatus.RequestedSlowFill);
+  });
+
+  it.only("Correctly returns the fill status after closing the fill pda", async () => {
+    const formattedRelayData = formatRelayData(relayData);
+    await mintTokens(signer, solanaClient, mint.address, BigInt(relayData.outputAmount));
+    const { fillInput, relayData: fillRelayData } = await sendCreateFill(solanaClient, signer, mint, decimals, relayData);
+
+    const fillStatusAfterFill = await spokePoolClient.relayFillStatus(formattedRelayData);
+    expect(fillStatusAfterFill).to.equal(FillStatus.Filled);
+
+    try {
+      await closeFillPda(signer, solanaClient, fillInput.fillStatus);
+    } catch (error) {
+      expect(error.context.logs.some((log) => log.includes("The fill deadline has not passed!"))).to.be.true;
+    }
+
+    await setCurrentTime(signer, solanaClient, fillRelayData.fillDeadline + 1);
+
+    await closeFillPda(signer, solanaClient, fillInput.fillStatus).catch((error) => {
+      console.log(error.context.logs);
+    });
+
+    const fillStatusAccount = await fetchEncodedAccount(solanaClient.rpc, fillInput.fillStatus, { commitment: "confirmed" })
+
+    expect(fillStatusAccount.exists).to.be.false;
   });
 });
