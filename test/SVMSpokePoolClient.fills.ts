@@ -207,7 +207,13 @@ describe("SVMSpokePoolClient: Fills", function () {
   it("Closes the fill pda after the fill deadline has passed", async () => {
     const formattedRelayData = formatRelayData(relayData);
     await mintTokens(signer, solanaClient, mint.address, BigInt(relayData.outputAmount));
-    const { fillInput, relayData: fillRelayData } = await sendCreateFill(solanaClient, signer, mint, decimals, relayData);
+    const { fillInput, relayData: fillRelayData } = await sendCreateFill(
+      solanaClient,
+      signer,
+      mint,
+      decimals,
+      relayData
+    );
 
     const fillStatusAfterFill = await spokePoolClient.relayFillStatus(formattedRelayData);
     expect(fillStatusAfterFill).to.equal(FillStatus.Filled);
@@ -224,7 +230,9 @@ describe("SVMSpokePoolClient: Fills", function () {
       console.log(error.context.logs);
     });
 
-    const fillStatusAccount = await fetchEncodedAccount(solanaClient.rpc, fillInput.fillStatus, { commitment: "confirmed" })
+    const fillStatusAccount = await fetchEncodedAccount(solanaClient.rpc, fillInput.fillStatus, {
+      commitment: "confirmed",
+    });
 
     expect(fillStatusAccount.exists).to.be.false;
   });
