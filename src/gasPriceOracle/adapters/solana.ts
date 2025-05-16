@@ -34,7 +34,9 @@ export async function messageFee(provider: SVMProvider, opts: GasPriceEstimateOp
 
   // Optionally impose a minimum priority fee, denoted in microLamports/computeUnit.
   const flooredPriorityFeePerGas = parseUnits(process.env[`MIN_PRIORITY_FEE_PER_GAS_${opts.chainId}`] || "0", 6);
-  let microLamportsPerComputeUnit = toBN(totalPrioritizationFees / BigInt(nonzeroPrioritizationFees.length));
+  let microLamportsPerComputeUnit = toBN(
+    totalPrioritizationFees / BigInt(Math.max(nonzeroPrioritizationFees.length, 1))
+  );
   if (microLamportsPerComputeUnit.lt(flooredPriorityFeePerGas)) {
     microLamportsPerComputeUnit = flooredPriorityFeePerGas;
   }

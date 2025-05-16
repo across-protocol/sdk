@@ -4,9 +4,9 @@ import * as constants from "../constants";
 import { L1Token } from "../interfaces";
 import { ERC20__factory } from "../typechain";
 import { BigNumber } from "./BigNumberUtils";
-import { getNetworkName, chainIsL1, chainIsProd } from "./NetworkUtils";
+import { getNetworkName, chainIsL1, chainIsProd, chainIsSvm } from "./NetworkUtils";
 import { isDefined } from "./TypeGuards";
-import { compareAddressesSimple } from "./AddressUtils";
+import { compareAddressesSimple, toAddressType } from "./AddressUtils";
 const { TOKEN_SYMBOLS_MAP, CHAIN_IDs, TOKEN_EQUIVALENCE_REMAPPING } = constants;
 
 type SignerOrProvider = providers.Provider | Signer;
@@ -112,9 +112,12 @@ export function isStablecoin(tokenSymbol: string): boolean {
  * @returns
  */
 export function getTokenInfo(l2TokenAddress: string, chainId: number, tokenMapping = TOKEN_SYMBOLS_MAP): L1Token {
+  const parsedAddress = chainIsSvm(chainId)
+    ? toAddressType(l2TokenAddress).toBase58()
+    : toAddressType(l2TokenAddress).toEvmAddress();
   // @dev This might give false positives if tokens on different networks have the same address. I'm not sure how
   // to get around this...
-  let tokenObject = Object.values(tokenMapping).find(({ addresses }) => addresses[chainId] === l2TokenAddress);
+  let tokenObject = Object.values(tokenMapping).find(({ addresses }) => addresses[chainId] === parsedAddress);
   if (!tokenObject) {
     throw new Error(
       `TokenUtils#getTokenInfo: Unable to resolve token in TOKEN_SYMBOLS_MAP for ${l2TokenAddress} on chain ${chainId}`
