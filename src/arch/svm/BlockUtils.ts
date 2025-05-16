@@ -157,8 +157,8 @@ export class SVMBlockFinder extends BlockFinder<SVMBlock> {
   private async getBlock(number: number): Promise<SVMBlock> {
     let index = sortedIndexBy(this.blocks, { number } as Block, "number");
     if (this.blocks[index]?.number === number) return this.blocks[index]; // Return early if block already exists.
-    const blocks = await this.provider.getBlocks(BigInt(number - defaultBlockRange), BigInt(number+1)).send(); // Add search from [number-defaultBlockRange, number].
-    const _block = await this.provider.getBlock(blocks[blocks.length-1]).send();
+    const blocks = await this.provider.getBlocks(BigInt(number - defaultBlockRange), BigInt(number + 1)).send(); // Add search from [number-defaultBlockRange, number].
+    const _block = await this.provider.getBlock(blocks[blocks.length - 1]).send();
     assert(isDefined(_block));
     // Cast the return type to an SVMBlock.
     const block: SVMBlock = {
