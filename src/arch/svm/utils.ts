@@ -1,4 +1,5 @@
-import { SvmSpokeClient } from "@across-protocol/contracts";
+import bs58 from "bs58";
+import { ethers } from "ethers";
 import { BN, BorshEventCoder, Idl } from "@coral-xyz/anchor";
 import {
   Address,
@@ -9,6 +10,7 @@ import {
   isAddress,
   type TransactionSigner,
 } from "@solana/kit";
+import { SvmSpokeClient } from "@across-protocol/contracts";
 import { FillType, RelayData } from "../../interfaces";
 import { BigNumber, SvmAddress, getRelayDataHash, isUint8Array } from "../../utils";
 import { EventName, SVMEventNames, SVMProvider } from "./types";
@@ -220,3 +222,12 @@ export const getEventAuthority = async () => {
   });
   return eventAuthority;
 };
+
+/**
+ * Returns a random SVM address.
+ */
+export function getRandomSvmAddress() {
+  const bytes = ethers.utils.randomBytes(32);
+  const base58Address = bs58.encode(bytes);
+  return address(base58Address);
+}

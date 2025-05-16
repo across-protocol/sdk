@@ -8,13 +8,12 @@ import { BigNumber, EvmAddress, getCurrentTime, getRandomInt, randomAddress, Svm
 import {
   createMint,
   createDefaultSolanaClient,
-  getRandomSvmAddress,
   sendCreateFill,
   formatRelayData,
   mintTokens,
   sendRequestSlowFill,
 } from "./utils/svm/utils";
-import { SVM_DEFAULT_ADDRESS, findFillEvent } from "../src/arch/svm";
+import { SVM_DEFAULT_ADDRESS, findFillEvent, getRandomSvmAddress } from "../src/arch/svm";
 import { SvmSpokePoolClient } from "../src/clients";
 import { signer } from "./Solana.setup";
 describe("SVMSpokePoolClient: Fills", function () {

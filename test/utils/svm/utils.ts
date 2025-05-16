@@ -34,13 +34,12 @@ import {
   TransactionMessageWithBlockhashLifetime,
   TransactionSigner,
 } from "@solana/kit";
-import bs58 from "bs58";
-import { ethers } from "ethers";
 import { hexlify, arrayify } from "ethers/lib/utils";
 import {
   getAssociatedTokenAddress,
   getEventAuthority,
   getFillStatusPda,
+  getRandomSvmAddress,
   getRoutePda,
   getStatePda,
   getTimestampForSlot,
@@ -171,14 +170,6 @@ export async function mintTokens(
     (tx) => signAndSendTransaction(client, tx)
   );
   return payerAta;
-}
-
-/** PDA & Utility */
-
-export function getRandomSvmAddress() {
-  const bytes = ethers.utils.randomBytes(32);
-  const base58Address = bs58.encode(bytes);
-  return address(base58Address);
 }
 
 /** SVM Spoke Workflows */
