@@ -45,21 +45,6 @@ import { SVMEventNames, SVMProvider } from "./types";
 export const SLOT_DURATION_MS = 400;
 
 /**
- * @param spokePool SpokePool Contract instance.
- * @param deposit V3Deopsit instance.
- * @param repaymentChainId Optional repaymentChainId (defaults to destinationChainId).
- * @returns An Ethers UnsignedTransaction instance.
- */
-export function populateV3Relay(
-  _spokePool: unknown,
-  _deposit: Omit<Deposit, "messageHash">,
-  _relayer: string,
-  _repaymentChainId = _deposit.destinationChainId
-): Promise<unknown> {
-  throw new Error("populateV3Relay: not implemented");
-}
-
-/**
  * Retrieves the chain time at a particular slot.
  */
 export async function getTimestampForSlot(provider: SVMProvider, slotNumber: number): Promise<number> {
