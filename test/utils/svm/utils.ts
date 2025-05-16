@@ -281,9 +281,7 @@ export const deposit = async (
     (tx) => appendTransactionMessageInstruction(approveIx, tx),
     (tx) => appendTransactionMessageInstruction(depositIx, tx),
     (tx) => signAndSendTransaction(solanaClient, tx)
-  ).catch((e) => {
-    console.log(e);
-  });
+  );
 };
 
 // Requests a slow fill
