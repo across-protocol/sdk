@@ -42,7 +42,6 @@ import {
   getRandomSvmAddress,
   getRoutePda,
   getStatePda,
-  getTimestampForSlot,
   RpcClient,
   SVM_DEFAULT_ADDRESS,
   SVM_SPOKE_SEED,
@@ -282,7 +281,9 @@ export const deposit = async (
     (tx) => appendTransactionMessageInstruction(approveIx, tx),
     (tx) => appendTransactionMessageInstruction(depositIx, tx),
     (tx) => signAndSendTransaction(solanaClient, tx)
-  );
+  ).catch((e) => {
+    console.log(e);
+  });
 };
 
 // Requests a slow fill
@@ -364,6 +365,12 @@ export const setCurrentTime = async (signer: KeyPairSigner, solanaClient: RpcCli
   );
 };
 
+export const getCurrentTime = async (solanaClient: RpcClient) => {
+  const statePda = await getStatePda(SvmSpokeClient.SVM_SPOKE_PROGRAM_ADDRESS);
+  const state = await SvmSpokeClient.fetchState(solanaClient.rpc, statePda);
+  return state.data.currentTime;
+};
+
 // helper to send a fill
 export const sendCreateFill = async (
   solanaClient: RpcClient,
@@ -372,8 +379,7 @@ export const sendCreateFill = async (
   mintDecimals: number,
   overrides: Partial<RelayDataArgs> = {}
 ) => {
-  const latestSlot = await solanaClient.rpc.getSlot({ commitment: "confirmed" }).send();
-  const currentTime = await getTimestampForSlot(solanaClient.rpc, Number(latestSlot));
+  const currentTime = await getCurrentTime(solanaClient);
 
   const relayData: SvmSpokeClient.FillRelayInput["relayData"] = {
     depositor: overrides.depositor ?? address(EvmAddress.from(randomAddress()).toBase58()),
@@ -440,8 +446,7 @@ export const sendRequestSlowFill = async (
   overrides: Partial<RelayDataArgs> = {}
 ) => {
   const destinationChainId = CHAIN_IDs.SOLANA;
-  const latestSlot = await solanaClient.rpc.getSlot({ commitment: "confirmed" }).send();
-  const currentTime = await getTimestampForSlot(solanaClient.rpc, Number(latestSlot));
+  const currentTime = await getCurrentTime(solanaClient);
 
   const relayData: SvmSpokeClient.RequestSlowFillInstructionDataArgs["relayData"] = {
     depositor: overrides.depositor ?? address(EvmAddress.from(randomAddress()).toBase58()),
@@ -491,8 +496,7 @@ export const sendCreateDeposit = async (
   overrides: Partial<SvmSpokeClient.DepositInput> = {},
   destinationChainId: number = CHAIN_IDs.MAINNET
 ) => {
-  const latestSlot = await solanaClient.rpc.getSlot({ commitment: "confirmed" }).send();
-  const currentTime = await solanaClient.rpc.getBlockTime(latestSlot).send();
+  const currentTime = await getCurrentTime(solanaClient);
 
   const depositInput: SvmSpokeClient.DepositInput = {
     depositor: signer.address,
