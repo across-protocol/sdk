@@ -2,7 +2,7 @@ import assert from "assert";
 import { Transport } from "viem";
 import { providers } from "ethers";
 import { CHAIN_IDs } from "../constants";
-import { BigNumber, chainIsOPStack, fixedPointAdjustment, toBNWei } from "../utils";
+import { BigNumber, chainIsOPStack, fixedPointAdjustment, isEvmProvider, toBNWei } from "../utils";
 import { SVMProvider as SolanaProvider } from "../arch/svm";
 import { EvmGasPriceEstimate, GasPriceEstimate, SvmGasPriceEstimate } from "./types";
 import { getPublicClient } from "./util";
@@ -11,7 +11,6 @@ import * as ethereum from "./adapters/ethereum";
 import * as polygon from "./adapters/polygon";
 import * as lineaViem from "./adapters/linea-viem";
 import * as solana from "./adapters/solana";
-import { isEvmProvider } from "../providers";
 
 export interface GasPriceEstimateOptions {
   // baseFeeMultiplier Multiplier applied to base fee for EIP1559 gas prices (or total fee for legacy).
