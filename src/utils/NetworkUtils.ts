@@ -8,6 +8,7 @@ import {
   TESTNET_CHAIN_IDs,
 } from "../constants";
 
+
 export const hreNetworks: Record<number, string> = {
   666: "Hardhat1",
   1337: "Hardhat2",
