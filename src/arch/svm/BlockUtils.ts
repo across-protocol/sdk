@@ -23,12 +23,12 @@ const averageBlockTimes: { [chainId: number]: BlockTimeAverage } = {
  * @description Compute the average block time over a block range.
  * @returns Average number of seconds per block.
  */
-export async function averageBlockTime(
+export function averageBlockTime(
   _provider: SVMProvider,
   _opts: Opts = {}
-): Promise<Pick<BlockTimeAverage, "average" | "blockRange">> {
+): Pick<BlockTimeAverage, "average" | "blockRange"> {
   // @todo This may need to be expanded to work without assuming that chainId = CHAIN_IDs.SOLANA.
-  return await Promise.resolve(averageBlockTimes[CHAIN_IDs.SOLANA]);
+  return averageBlockTimes[CHAIN_IDs.SOLANA];
 }
 
 async function estimateBlocksElapsed(seconds: number, cushionPercentage = 0.0, provider: SVMProvider): Promise<number> {
