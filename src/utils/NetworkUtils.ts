@@ -1,5 +1,12 @@
-import { CCTP_NO_DOMAIN } from "@across-protocol/constants";
-import { ChainFamily, CHAIN_IDs, MAINNET_CHAIN_IDs, PUBLIC_NETWORKS, TESTNET_CHAIN_IDs } from "../constants";
+import {
+  CCTP_NO_DOMAIN,
+  ChainFamily,
+  CHAIN_IDs,
+  MAINNET_CHAIN_IDs,
+  PRODUCTION_NETWORKS,
+  PUBLIC_NETWORKS,
+  TESTNET_CHAIN_IDs,
+} from "../constants";
 
 export const hreNetworks: Record<number, string> = {
   666: "Hardhat1",
@@ -90,24 +97,6 @@ export function chainIsArbitrum(chainId: number): boolean {
 }
 
 /**
- * Determines whether a chain ID is an Aleph0 implementation
- * @param chainId Chain ID to evaluate
- * @returns True if chainId is an Aleph0 chain, otherwise false.
- */
-export function chainIsAlephZero(chainId: number): boolean {
-  return [CHAIN_IDs.ALEPH_ZERO].includes(chainId);
-}
-
-/**
- * Determines whether a chain ID is a Lens implementation
- * @param chainId Chain ID to evaluate
- * @returns True if chainId is a Lens chain, otherwise false.
- */
-export function chainIsLens(chainId: number): boolean {
-  return [CHAIN_IDs.LENS_SEPOLIA].includes(chainId);
-}
-
-/**
  * Determines whether a chain ID is a Linea implementation.
  * @param chainId Chain ID to evaluate.
  * @returns True if chainId is a Linea chain, otherwise false.
@@ -159,7 +148,10 @@ export function chainIsSvm(chainId: number): boolean {
  * @returns True if chainId is a CCTP-bridging enabled chain, otherwise false.
  */
 export function chainIsCCTPEnabled(chainId: number): boolean {
-  return PUBLIC_NETWORKS?.[chainId]?.cctpDomain !== CCTP_NO_DOMAIN;
+  // Add chainIds to cctpExceptions to administratively disable CCTP on a chain.
+  // This is useful if constants has been updated to specify a CCTP domain in advance of it being activated.
+  const cctpExceptions: number[] = [];
+  return PRODUCTION_NETWORKS[chainId]?.cctpDomain !== CCTP_NO_DOMAIN && !cctpExceptions.includes(chainId);
 }
 
 /**
