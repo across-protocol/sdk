@@ -16,6 +16,7 @@ import {
   isZeroAddress,
   MakeOptional,
   toBN,
+  EvmAddress,
 } from "../../utils";
 import {
   EventSearchConfig,
@@ -42,6 +43,7 @@ export class EVMSpokePoolClient extends SpokePoolClient {
     eventSearchConfig: MakeOptional<EventSearchConfig, "to"> = { from: 0, maxLookBack: 0 }
   ) {
     super(logger, hubPoolClient, chainId, deploymentBlock, eventSearchConfig);
+    this.spokePoolAddress = EvmAddress.from(spokePool.address);
   }
 
   public override relayFillStatus(relayData: RelayData, atHeight?: number): Promise<FillStatus> {
