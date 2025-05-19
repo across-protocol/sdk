@@ -14,63 +14,21 @@ import { SVMProvider } from "./";
 
 interface SVMBlock extends Block {}
 
-const defaultHighBlockOffset = 10;
-
-const defaultBlockRange = 120;
-const cacheTTL = 60 * 15;
-const blockTimes: { [chainId: number]: BlockTimeAverage } = {};
+const now = getCurrentTime();
+const averageBlockTimes: { [chainId: number]: BlockTimeAverage } = {
+  [CHAIN_IDs.SOLANA]: { average: 0.4, timestamp: now, blockRange: 1 },
+};
 
 /**
  * @description Compute the average block time over a block range.
  * @returns Average number of seconds per block.
  */
 export async function averageBlockTime(
-  provider: SVMProvider,
-  { highBlock, highBlockOffset, blockRange }: Opts = {}
+  _provider: SVMProvider,
+  _opts: Opts = {}
 ): Promise<Pick<BlockTimeAverage, "average" | "blockRange">> {
   // @todo This may need to be expanded to work without assuming that chainId = CHAIN_IDs.SOLANA.
-  const chainId = CHAIN_IDs.SOLANA;
-
-  const cache = blockTimes[chainId];
-
-  const now = getCurrentTime();
-  if (isDefined(cache) && now < cache.timestamp + cacheTTL) {
-    return { average: cache.average, blockRange: cache.blockRange };
-  }
-
-  // If the caller was not specific about highBlock, resolve it via the RPC provider. Subtract an offset
-  // to account for various RPC provider sync issues that might occur when querting the latest block.
-  if (!isDefined(highBlock)) {
-    const highBlockBigInt = await provider.getSlot().send();
-    highBlock = Number(highBlockBigInt);
-    highBlock -= highBlockOffset ?? defaultHighBlockOffset;
-  }
-  blockRange ??= defaultBlockRange;
-
-  const earliestBlockNumber = highBlock - blockRange;
-  // At this point, we have a high slot and a low slot, but it is not guaranteed that a block exists for
-  // either of these two slots. Therefore, we need to query blocks across this range and return the earliest
-  // and latest valid block in this range.
-  const slotRange = await provider.getBlocks(BigInt(earliestBlockNumber), BigInt(highBlock)).send();
-  const [firstBlock, lastBlock] = await Promise.all([
-    provider
-      .getBlock(slotRange[0], {
-        maxSupportedTransactionVersion: 0,
-      })
-      .send(),
-    provider
-      .getBlock(slotRange[slotRange.length - 1], {
-        maxSupportedTransactionVersion: 0,
-      })
-      .send(),
-  ]);
-  // @todo Do not assert. Guarantee that blocks are here.
-  assert(isDefined(firstBlock) && isDefined(lastBlock));
-
-  const average = (Number(lastBlock.blockTime) - Number(firstBlock.blockTime)) / slotRange.length;
-  blockTimes[chainId] = { timestamp: now, average, blockRange: slotRange.length };
-
-  return { average, blockRange };
+  return await Promise.resolve(averageBlockTimes[CHAIN_IDs.SOLANA]);
 }
 
 async function estimateBlocksElapsed(seconds: number, cushionPercentage = 0.0, provider: SVMProvider): Promise<number> {
@@ -138,24 +96,15 @@ export class SVMBlockFinder extends BlockFinder<SVMBlock> {
     return this.findBlock(this.blocks[index - 1], this.blocks[index], timestamp);
   }
 
-  // Grabs the most recent block and caches it.
+  // Grabs the most recent slot and caches it.
   private async getLatestBlock(): Promise<SVMBlock> {
-    // We do not know the latest block given no context, so the strategy is to take some lookback,
-    // get a range of blocks, and then return the latest block across that range.
-    const latestFinalizedSlot = await this.provider.getSlot({ commitment: "finalized" }).send();
-    const blockRange = await this.provider.getBlocks(latestFinalizedSlot).send();
-    const _block = await this.provider
-      .getBlock(blockRange[blockRange.length - 1], {
-        maxSupportedTransactionVersion: 0,
-      })
-      .send();
-    assert(isDefined(_block), `There has been no blocks since slot ${latestFinalizedSlot}`);
+    const latestSlot = await this.provider.getSlot().send();
+    const estimatedSlotTime = await this.provider.getBlockTime(latestSlot).send();
 
     // Cast the return type to an SVMBlock.
     const block: SVMBlock = {
-      timestamp: Number(_block.blockTime),
-      number: Number(_block.blockHeight),
-      hash: String(_block.blockhash),
+      timestamp: Number(estimatedSlotTime),
+      number: Number(latestSlot),
     };
     const index = sortedIndexBy(this.blocks, block, "number");
     if (this.blocks[index]?.number !== block.number) this.blocks.splice(index, 0, block);
@@ -169,18 +118,12 @@ export class SVMBlockFinder extends BlockFinder<SVMBlock> {
   private async getBlock(number: number): Promise<SVMBlock> {
     let index = sortedIndexBy(this.blocks, { number } as Block, "number");
     if (this.blocks[index]?.number === number) return this.blocks[index]; // Return early if block already exists.
-    const blocks = await this.provider.getBlocks(BigInt(number - defaultBlockRange), BigInt(number + 1)).send(); // Add search from [number-defaultBlockRange, number].
-    const _block = await this.provider
-      .getBlock(blocks[blocks.length - 1], {
-        maxSupportedTransactionVersion: 0,
-      })
-      .send();
-    assert(isDefined(_block));
+
+    const estimatedSlotTime = await this.provider.getBlockTime(BigInt(number)).send();
     // Cast the return type to an SVMBlock.
     const block: SVMBlock = {
-      timestamp: Number(_block.blockTime),
-      number: Number(_block.blockHeight),
-      hash: String(_block.blockhash),
+      timestamp: Number(estimatedSlotTime),
+      number,
     };
 
     // Recompute the index after the async call since the state of this.blocks could have changed!
