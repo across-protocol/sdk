@@ -7,6 +7,7 @@ import { RPCProvider, RPCTransport } from "./types";
 import * as alchemy from "./alchemy";
 import * as infura from "./infura";
 import * as drpc from "./drpc";
+import { SVMProvider } from "../arch/svm";
 
 /**
  * Infura DIN is identified separately to allow it to be configured explicitly.
@@ -170,4 +171,8 @@ export enum CacheType {
   WITH_TTL, // Cache with TTL
   NO_TTL, // Cache with infinite TTL
   DECIDE_TTL_POST_SEND, // Decide which TTL to cache with after we receive the RPC response
+}
+
+export function isEvmProvider(provider: providers.Provider | SVMProvider): provider is providers.Provider {
+  return provider instanceof providers.Provider;
 }
