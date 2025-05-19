@@ -53,8 +53,16 @@ export async function averageBlockTime(
   // and latest valid block in this range.
   const slotRange = await provider.getBlocks(BigInt(earliestBlockNumber), BigInt(highBlock)).send();
   const [firstBlock, lastBlock] = await Promise.all([
-    provider.getBlock(slotRange[0]).send(),
-    provider.getBlock(slotRange[slotRange.length - 1]).send(),
+    provider
+      .getBlock(slotRange[0], {
+        maxSupportedTransactionVersion: 0,
+      })
+      .send(),
+    provider
+      .getBlock(slotRange[slotRange.length - 1], {
+        maxSupportedTransactionVersion: 0,
+      })
+      .send(),
   ]);
   // @todo Do not assert. Guarantee that blocks are here.
   assert(isDefined(firstBlock) && isDefined(lastBlock));
@@ -136,7 +144,11 @@ export class SVMBlockFinder extends BlockFinder<SVMBlock> {
     // get a range of blocks, and then return the latest block across that range.
     const latestFinalizedSlot = await this.provider.getSlot({ commitment: "finalized" }).send();
     const blockRange = await this.provider.getBlocks(latestFinalizedSlot).send();
-    const _block = await this.provider.getBlock(blockRange[blockRange.length - 1]).send();
+    const _block = await this.provider
+      .getBlock(blockRange[blockRange.length - 1], {
+        maxSupportedTransactionVersion: 0,
+      })
+      .send();
     assert(isDefined(_block), `There has been no blocks since slot ${latestFinalizedSlot}`);
 
     // Cast the return type to an SVMBlock.
@@ -158,7 +170,11 @@ export class SVMBlockFinder extends BlockFinder<SVMBlock> {
     let index = sortedIndexBy(this.blocks, { number } as Block, "number");
     if (this.blocks[index]?.number === number) return this.blocks[index]; // Return early if block already exists.
     const blocks = await this.provider.getBlocks(BigInt(number - defaultBlockRange), BigInt(number + 1)).send(); // Add search from [number-defaultBlockRange, number].
-    const _block = await this.provider.getBlock(blocks[blocks.length - 1]).send();
+    const _block = await this.provider
+      .getBlock(blocks[blocks.length - 1], {
+        maxSupportedTransactionVersion: 0,
+      })
+      .send();
     assert(isDefined(_block));
     // Cast the return type to an SVMBlock.
     const block: SVMBlock = {
