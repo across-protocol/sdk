@@ -1,37 +1,36 @@
 import { readFile } from "node:fs/promises";
 import { array, defaulted, string } from "superstruct";
-import { AddressListAdapter } from "../types";
-import { Logger, logError } from "./util";
+import { AdapterOptions } from "../types";
+import { AbstractAdapter } from "./abstract";
 
 const fileConfig = defaulted(array(string()), []);
 
-export class AddressList implements AddressListAdapter {
-  readonly name: string;
-
-  constructor(readonly path = "./addresses.json") {
-    this.name = `fs:${path}`;
+export class AddressList extends AbstractAdapter {
+  constructor(opts?: AdapterOptions) {
+    const { path = "addresses.json" } = opts ?? {};
+    super(opts?.name ?? `fs:${path}`, path, opts);
   }
 
-  async update(logger?: Logger): Promise<string[]> {
+  async update(): Promise<string[]> {
     let data: string;
     try {
       data = await readFile(this.path, { encoding: "utf8" });
     } catch (err) {
-      return logError(this.name, err, logger);
+      return this.error(err);
     }
 
     if (!data) {
-      return logError(this.name, `No addresses found in "${this.path}"`, logger);
+      return this.error("No addresses found");
     }
 
     let addresses: unknown;
     try {
       addresses = JSON.parse(data);
       if (!fileConfig.is(addresses)) {
-        return logError(this.name, "Address format validation failure.", logger);
+        return this.error("Address format validation failure.");
       }
     } catch (err) {
-      return logError(this.name, err, logger);
+      return this.error(err);
     }
 
     return Promise.resolve(addresses);

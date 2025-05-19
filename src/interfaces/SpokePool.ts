@@ -37,6 +37,10 @@ export interface DepositWithBlock extends Deposit, SortableEvent {
   quoteBlockNumber: number;
 }
 
+export interface DepositWithTime extends Deposit, SortableEvent {
+  depositTimestamp: number;
+}
+
 export enum FillStatus {
   Unfilled = 0,
   RequestedSlowFill,
@@ -66,7 +70,17 @@ export interface Fill extends Omit<RelayData, "message"> {
 }
 
 export interface FillWithBlock extends Fill, SortableEvent {}
+export interface FillWithTime extends Fill, SortableEvent {
+  fillTimestamp: number;
+}
 
+export interface EnabledDepositRoute {
+  originToken: string;
+  destinationChainId: number;
+  enabled: boolean;
+}
+
+export interface EnabledDepositRouteWithBlock extends EnabledDepositRoute, SortableEvent {}
 export interface SpeedUp {
   depositor: string;
   depositorSignature: string;

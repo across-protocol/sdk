@@ -2,7 +2,14 @@ import assert from "assert";
 import winston from "winston";
 import { Contract, ethers } from "ethers";
 import { Log } from "../../interfaces";
-import { getCurrentTime, EventSearchConfig, MakeOptional, isDefined, utf8ToHex } from "../../utils";
+import {
+  getCurrentTime,
+  EventSearchConfig,
+  MakeOptional,
+  isDefined,
+  utf8ToHex,
+  spreadEventWithBlockNumber,
+} from "../../utils";
 import {
   AcrossConfigStoreClient,
   ConfigStoreUpdate,
@@ -26,7 +33,7 @@ export class MockConfigStoreClient extends AcrossConfigStoreClient {
   constructor(
     logger: winston.Logger,
     configStore: Contract,
-    eventSearchConfig: MakeOptional<EventSearchConfig, "toBlock"> = { fromBlock: 0, maxBlockLookBack: 0 },
+    eventSearchConfig: MakeOptional<EventSearchConfig, "to"> = { from: 0, maxLookBack: 0 },
     configStoreVersion: number,
     chainId = 1,
     mockUpdate = false,
@@ -90,11 +97,11 @@ export class MockConfigStoreClient extends AcrossConfigStoreClient {
     return Promise.resolve({
       success: true,
       chainId: this.chainId as number,
-      searchEndBlock: this.eventSearchConfig.toBlock || latestBlockSearched,
+      searchEndBlock: this.eventSearchConfig.to || latestBlockSearched,
       events: {
-        updatedGlobalConfigEvents: events["UpdatedGlobalConfig"],
+        updatedGlobalConfigEvents: events["UpdatedGlobalConfig"].map(spreadEventWithBlockNumber),
         globalConfigUpdateTimes,
-        updatedTokenConfigEvents: events["UpdatedTokenConfig"],
+        updatedTokenConfigEvents: events["UpdatedTokenConfig"].map(spreadEventWithBlockNumber),
       },
     });
   }

@@ -106,6 +106,15 @@ export function chainIsLinea(chainId: number): boolean {
 }
 
 /**
+ * Determines whether a chain ID is a BSC implementation.
+ * @param chainId Chain ID to evaluate.
+ * @returns True if chainId is a BSC chain, otherwise false.
+ */
+export function chainIsBSC(chainId: number): boolean {
+  return [CHAIN_IDs.BSC].includes(chainId);
+}
+
+/**
  * Determines whether a chain ID has a corresponding hub pool contract.
  * @param chainId Chain ID to evaluate.
  * @returns True if chain corresponding to chainId has a hub pool implementation.

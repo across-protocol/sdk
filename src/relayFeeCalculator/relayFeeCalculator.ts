@@ -1,5 +1,9 @@
 import assert from "assert";
-import { DEFAULT_SIMULATED_RELAYER_ADDRESS, TOKEN_SYMBOLS_MAP } from "../constants";
+import {
+  DEFAULT_SIMULATED_RELAYER_ADDRESS,
+  DEFAULT_SIMULATED_RELAYER_ADDRESS_SVM,
+  TOKEN_SYMBOLS_MAP,
+} from "../constants";
 import { Deposit } from "../interfaces";
 import {
   BigNumber,
@@ -8,7 +12,7 @@ import {
   TransactionCostEstimate,
   bnZero,
   fixedPointAdjustment,
-  getTokenInformationFromAddress,
+  getTokenInfo,
   isDefined,
   max,
   min,
@@ -16,6 +20,9 @@ import {
   percent,
   toBN,
   toBNWei,
+  isZeroAddress,
+  compareAddressesSimple,
+  chainIsSvm,
 } from "../utils";
 import { Transport } from "viem";
 
@@ -34,7 +41,7 @@ export interface QueryInterface {
     }>
   ) => Promise<TransactionCostEstimate>;
   getTokenPrice: (tokenSymbol: string) => Promise<number>;
-  getTokenDecimals: (tokenSymbol: string) => number;
+  getNativeGasCost: (deposit: Omit<Deposit, "messageHash">, relayer: string) => Promise<BigNumber>;
 }
 
 export const expectedCapitalCostsKeys = ["lowerBound", "upperBound", "cutoff", "decimals"];
@@ -48,6 +55,8 @@ type ChainIdAsString = string;
 export interface CapitalCostConfigOverride {
   default: CapitalCostConfig;
   routeOverrides?: Record<ChainIdAsString, Record<ChainIdAsString, CapitalCostConfig>>;
+  destinationChainOverrides?: Record<ChainIdAsString, CapitalCostConfig>;
+  originChainOverrides?: Record<ChainIdAsString, CapitalCostConfig>;
 }
 export type RelayCapitalCostConfig = CapitalCostConfigOverride | CapitalCostConfig;
 export interface BaseRelayFeeCalculatorConfig {
@@ -102,6 +111,12 @@ export const DEFAULT_LOGGER: Logger = {
   error: (...args) => console.error(args),
 };
 
+export function getDefaultSimulatedRelayerAddress(chainId?: number) {
+  return isDefined(chainId) && chainIsSvm(chainId)
+    ? DEFAULT_SIMULATED_RELAYER_ADDRESS_SVM
+    : DEFAULT_SIMULATED_RELAYER_ADDRESS;
+}
+
 // Small amount to simulate filling with. Should be low enough to guarantee a successful fill.
 const safeOutputAmount = toBN(100);
 
@@ -153,6 +168,8 @@ export class RelayFeeCalculator {
     );
     assert(Object.keys(this.capitalCostsConfig).length > 0, "capitalCostsConfig must have at least one entry");
     this.logger = logger || DEFAULT_LOGGER;
+    // warn developer of any possible conflicting config overrides
+    this.checkAllConfigConflicts();
   }
 
   /**
@@ -190,10 +207,13 @@ export class RelayFeeCalculator {
     this.validateCapitalCostsConfig(config.default);
     // Iterate over all the route overrides and validate them.
     for (const toChainIdRoutes of Object.values(config.routeOverrides || {})) {
-      for (const override of Object.values(toChainIdRoutes)) {
-        this.validateCapitalCostsConfig(override);
-      }
+      Object.values(toChainIdRoutes).forEach(this.validateCapitalCostsConfig);
     }
+    // Validate origin chain overrides
+    Object.values(config.originChainOverrides || {}).forEach(this.validateCapitalCostsConfig);
+    // Validate destination chain overrides
+    Object.values(config.destinationChainOverrides || {}).forEach(this.validateCapitalCostsConfig);
+
     return config;
   }
 
@@ -202,7 +222,7 @@ export class RelayFeeCalculator {
    * @param capitalCosts CapitalCostConfig
    */
   static validateCapitalCostsConfig(capitalCosts: CapitalCostConfig): void {
-    assert(toBN(capitalCosts.upperBound).lt(toBNWei("0.01")), "upper bound must be < 1%");
+    assert(toBN(capitalCosts.upperBound).lt(toBNWei("1")), "upper bound must be < 100%");
     assert(capitalCosts.decimals > 0 && capitalCosts.decimals <= 18, "invalid decimals");
   }
 
@@ -233,7 +253,7 @@ export class RelayFeeCalculator {
     deposit: Deposit,
     amountToRelay: BigNumberish,
     simulateZeroFill = false,
-    relayerAddress = DEFAULT_SIMULATED_RELAYER_ADDRESS,
+    relayerAddress = getDefaultSimulatedRelayerAddress(deposit.destinationChainId),
     _tokenPrice?: number,
     tokenMapping = TOKEN_SYMBOLS_MAP,
     gasPrice?: BigNumberish,
@@ -243,10 +263,23 @@ export class RelayFeeCalculator {
   ): Promise<BigNumber> {
     if (toBN(amountToRelay).eq(bnZero)) return MAX_BIG_INT;
 
-    const { inputToken } = deposit;
-    const token = getTokenInformationFromAddress(inputToken, tokenMapping);
-    if (!isDefined(token)) {
-      throw new Error(`Could not find token information for ${inputToken}`);
+    const { inputToken, destinationChainId, originChainId } = deposit;
+    // It's fine if we resolve a destination token which is not the "canonical" L1 token (e.g. USDB for DAI or USDC.e for USDC), since `getTokenInfo` will re-map
+    // the output token to the canonical version. What matters here is that we find an entry in the token map which has defined addresses for BOTH the origin
+    // and destination chain. This prevents the call to `getTokenInfo` to mistakenly return token info for a token which has a defined address on origin and an
+    // undefined address on destination.
+    const destinationChainTokenDetails = Object.values(tokenMapping).find(
+      (details) =>
+        compareAddressesSimple(details.addresses[originChainId], inputToken) &&
+        isDefined(details.addresses[destinationChainId])
+    );
+    const outputToken = isZeroAddress(deposit.outputToken)
+      ? destinationChainTokenDetails!.addresses[destinationChainId]
+      : deposit.outputToken;
+    const outputTokenInfo = getTokenInfo(outputToken, destinationChainId, tokenMapping);
+    const inputTokenInfo = getTokenInfo(inputToken, originChainId, tokenMapping);
+    if (!isDefined(outputTokenInfo) || !isDefined(inputTokenInfo)) {
+      throw new Error(`Could not find token information for ${inputToken} or ${outputToken}`);
     }
 
     // Reduce the output amount to simulate a full fill with a lower value to estimate
@@ -270,7 +303,7 @@ export class RelayFeeCalculator {
     const [tokenGasCost, tokenPrice] = await Promise.all([
       _tokenGasCost ? Promise.resolve(_tokenGasCost) : getGasCosts,
       _tokenPrice ??
-        this.queries.getTokenPrice(token.symbol).catch((error) => {
+        this.queries.getTokenPrice(outputTokenInfo.symbol).catch((error) => {
           this.logger.error({
             at: "sdk/gasFeePercent",
             message: "Error while fetching token price",
@@ -281,7 +314,7 @@ export class RelayFeeCalculator {
           throw error;
         }),
     ]);
-    const gasFeesInToken = nativeToToken(tokenGasCost, tokenPrice, token.decimals, this.nativeTokenDecimals);
+    const gasFeesInToken = nativeToToken(tokenGasCost, tokenPrice, inputTokenInfo.decimals, this.nativeTokenDecimals);
     return percent(gasFeesInToken, amountToRelay.toString());
   }
 
@@ -311,10 +344,26 @@ export class RelayFeeCalculator {
     // bound to an upper bound. After the kink, the fee % increase will be fixed, and slowly approach the upper bound
     // for very large amount inputs.
     else {
-      const config =
-        isDefined(_originRoute) && isDefined(_destinationRoute)
-          ? tokenCostConfig.routeOverrides?.[_originRoute]?.[_destinationRoute] ?? tokenCostConfig.default
-          : tokenCostConfig.default;
+      // Order of specificity (most specific to least specific):
+      // 1. Route overrides (both origin and destination)
+      // 2. Destination chain overrides
+      // 3. Origin chain overrides
+      // 4. Default config
+      const routeOverride = tokenCostConfig?.routeOverrides?.[_originRoute || ""]?.[_destinationRoute || ""];
+      const destinationChainOverride = tokenCostConfig?.destinationChainOverrides?.[_destinationRoute || ""];
+      const originChainOverride = tokenCostConfig?.originChainOverrides?.[_originRoute || ""];
+      const config: CapitalCostConfig =
+        routeOverride ?? destinationChainOverride ?? originChainOverride ?? tokenCostConfig.default;
+
+      // Check and log warnings for configuration conflicts
+      this.warnIfConfigConflicts(
+        _tokenSymbol,
+        _originRoute || "",
+        _destinationRoute || "",
+        routeOverride,
+        destinationChainOverride,
+        originChainOverride
+      );
 
       // Scale amount "y" to 18 decimals.
       const y = toBN(_amountToRelay).mul(toBNWei("1", 18 - config.decimals));
@@ -343,6 +392,88 @@ export class RelayFeeCalculator {
   }
 
   /**
+   * Checks for configuration conflicts across all token symbols and their associated chain configurations.
+   * This method examines the capital costs configuration for each token and identifies any overlapping
+   * or conflicting configurations between route overrides, destination chain overrides, and origin chain overrides.
+   * If conflicts are found, warnings will be logged via the warnIfConfigConflicts method.
+   */
+  private checkAllConfigConflicts(): void {
+    for (const [tokenSymbol, tokenConfig] of Object.entries(this.capitalCostsConfig)) {
+      // Get all origin chains that have specific configurations
+      const originChains = new Set<string>(Object.keys(tokenConfig.originChainOverrides || {}));
+      // Get all destination chains that have specific configurations
+      const destChains = new Set<string>(Object.keys(tokenConfig.destinationChainOverrides || {}));
+
+      // Add all chains from route overrides
+      if (tokenConfig.routeOverrides) {
+        Object.keys(tokenConfig.routeOverrides).forEach((originChain) => {
+          originChains.add(originChain);
+          Object.keys(tokenConfig.routeOverrides![originChain]).forEach((destChain) => {
+            destChains.add(destChain);
+          });
+        });
+      }
+
+      // If there are no specific chain configurations, just check the default case
+      if (originChains.size === 0 && destChains.size === 0) {
+        continue;
+      }
+
+      // Check for conflicts between all combinations of origin and destination chains
+      for (const originChain of Array.from(originChains)) {
+        for (const destChain of Array.from(destChains)) {
+          const routeOverride = tokenConfig.routeOverrides?.[originChain]?.[destChain];
+          const destinationChainOverride = tokenConfig.destinationChainOverrides?.[destChain];
+          const originChainOverride = tokenConfig.originChainOverrides?.[originChain];
+
+          this.warnIfConfigConflicts(
+            tokenSymbol,
+            originChain,
+            destChain,
+            routeOverride,
+            destinationChainOverride,
+            originChainOverride
+          );
+        }
+      }
+    }
+  }
+
+  /**
+   * Log a warning if multiple configuration types apply to the same route
+   * @private
+   */
+  private warnIfConfigConflicts(
+    tokenSymbol: string,
+    originChain: string,
+    destChain: string,
+    routeOverride?: CapitalCostConfig,
+    destinationChainOverride?: CapitalCostConfig,
+    originChainOverride?: CapitalCostConfig
+  ): void {
+    const overrideCount = [routeOverride, destinationChainOverride, originChainOverride].filter(Boolean).length;
+
+    if (overrideCount > 1) {
+      const configUsed = routeOverride
+        ? "route override"
+        : destinationChainOverride
+        ? "destination chain override"
+        : originChainOverride
+        ? "origin chain override"
+        : "default override";
+
+      this.logger.warn({
+        at: "RelayFeeCalculator",
+        message: `Multiple configurations found for token ${tokenSymbol} from chain ${originChain} to chain ${destChain}`,
+        configUsed,
+        routeOverride,
+        destinationChainOverride,
+        originChainOverride,
+      });
+    }
+  }
+
+  /**
    * Retrieves the relayer fee details for a deposit.
    * @param deposit A valid deposit object to reason about
    * @param amountToRelay The amount that the relayer would simulate a fill for
@@ -361,7 +492,7 @@ export class RelayFeeCalculator {
     deposit: Deposit,
     amountToRelay?: BigNumberish,
     simulateZeroFill = false,
-    relayerAddress = DEFAULT_SIMULATED_RELAYER_ADDRESS,
+    relayerAddress = getDefaultSimulatedRelayerAddress(deposit.destinationChainId),
     _tokenPrice?: number,
     gasPrice?: BigNumberish,
     gasUnits?: BigNumberish,
@@ -370,8 +501,10 @@ export class RelayFeeCalculator {
     // If the amount to relay is not provided, then we
     // should use the full deposit amount.
     amountToRelay ??= deposit.outputAmount;
-    const { inputToken } = deposit;
-    const token = getTokenInformationFromAddress(inputToken);
+    const { inputToken, originChainId } = deposit;
+    // We can perform a simple lookup with `getTokenInfo` here without resolving the exact token to resolve since we only need to
+    // resolve the L1 token symbol and not the L2 token decimals.
+    const token = getTokenInfo(inputToken, originChainId);
     if (!isDefined(token)) {
       throw new Error(`Could not find token information for ${inputToken}`);
     }

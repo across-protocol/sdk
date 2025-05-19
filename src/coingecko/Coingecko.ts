@@ -70,13 +70,14 @@ export class Coingecko {
   private platformIdMap = new Map<number, string>(); // chainId => platform_id (137 => "polygon-pos")
   private tokenIdMap: Record<string, Record<string, string>> = {}; // coinGeckoId => { platform_id : "tokenAddress":}
 
-  public static get(logger: Logger, apiKey?: string) {
+  public static get(logger: Logger, apiKey?: string, customPlatformIdMap?: Record<number, string>) {
     if (!this.instance)
       this.instance = new Coingecko(
         "https://api.coingecko.com/api/v3",
         "https://pro-api.coingecko.com/api/v3",
         logger,
-        apiKey
+        apiKey,
+        customPlatformIdMap
       );
     return this.instance;
   }
@@ -98,7 +99,8 @@ export class Coingecko {
     private readonly host: string,
     private readonly proHost: string,
     private readonly logger: Logger,
-    private readonly apiKey?: string
+    private readonly apiKey?: string,
+    private readonly customPlatformIdMap?: Record<number, string>
   ) {
     this.prices = {};
   }
@@ -114,6 +116,13 @@ export class Coingecko {
     this.platformIdMap = new Map(
       platforms.filter((chain) => Boolean(chain.chain_identifier)).map((chain) => [chain.chain_identifier, chain.id])
     );
+
+    // Extend the platformIdMap with any custom platform ids
+    if (this.customPlatformIdMap) {
+      Object.entries(this.customPlatformIdMap).forEach(([chainId, platformId]) => {
+        this.platformIdMap.set(Number(chainId), platformId);
+      });
+    }
 
     id = this.platformIdMap.get(chainId);
     if (!id) {
@@ -131,7 +140,7 @@ export class Coingecko {
   protected async getCoingeckoTokenId(address: string, chainId: number): Promise<string> {
     let id: string | undefined;
     try {
-      id = getCoingeckoTokenIdByAddress(address);
+      id = getCoingeckoTokenIdByAddress(address, chainId);
 
       return id;
     } catch (error) {

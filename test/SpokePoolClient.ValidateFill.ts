@@ -6,12 +6,11 @@ import {
   bnZero,
   toBN,
   InvalidFill,
-  fillStatusArray,
-  relayFillStatus,
   validateFillForDeposit,
   queryHistoricalDepositForFill,
   deploy as deployMulticall,
 } from "../src/utils";
+import { fillStatusArray, relayFillStatus } from "../src/arch/evm";
 import { ZERO_BYTES } from "../src/constants";
 import { CHAIN_ID_TEST_LIST, originChainId, destinationChainId, repaymentChainId } from "./constants";
 import {
@@ -138,8 +137,8 @@ describe("SpokePoolClient: Fill Validation", function () {
       "fromLiteChain",
       "toLiteChain",
       "blockNumber",
-      "transactionHash",
-      "transactionIndex",
+      "txnRef",
+      "txnIndex",
       "logIndex",
       "relayer",
       "repaymentChainId",
@@ -302,8 +301,8 @@ describe("SpokePoolClient: Fill Validation", function () {
     const [fill] = spokePoolClient2.getFills();
 
     // Set event search config from block to latest block so client doesn't see event.
-    spokePoolClient1.eventSearchConfig.fromBlock = await spokePool_1.provider.getBlockNumber();
-    spokePoolClient1.firstBlockToSearch = spokePoolClient1.eventSearchConfig.fromBlock;
+    spokePoolClient1.eventSearchConfig.from = await spokePool_1.provider.getBlockNumber();
+    spokePoolClient1.firstHeightToSearch = spokePoolClient1.eventSearchConfig.from;
     await spokePoolClient1.update();
 
     // Client has 0 deposits in memory so querying historical deposit sends fresh RPC requests.
@@ -335,12 +334,12 @@ describe("SpokePoolClient: Fill Validation", function () {
     const [fill] = spokePoolClient2.getFills();
 
     // Set event search config to block to before deposit so client doesn't see event.
-    spokePoolClient1.eventSearchConfig.toBlock = depositBlock - 1;
+    spokePoolClient1.eventSearchConfig.to = depositBlock - 1;
     await spokePoolClient1.update();
 
     // Make sure that the client's latestBlockSearched encompasses the event so it can see it on the subsequent
     // queryHistoricalDepositForFill call.
-    spokePoolClient1.latestBlockSearched = depositBlock;
+    spokePoolClient1.latestHeightSearched = depositBlock;
 
     // Client has 0 deposits in memory so querying historical deposit sends fresh RPC requests.
     expect(spokePoolClient1.getDeposits().length).to.equal(0);
@@ -369,8 +368,8 @@ describe("SpokePoolClient: Fill Validation", function () {
     await hre.network.provider.send("evm_mine");
 
     // Configure the search range to skip the deposit.
-    spokePoolClient1.firstBlockToSearch = deposit.blockNumber + 1;
-    spokePoolClient1.eventSearchConfig.toBlock = undefined;
+    spokePoolClient1.firstHeightToSearch = deposit.blockNumber + 1;
+    spokePoolClient1.eventSearchConfig.to = undefined;
     await spokePoolClient1.update();
 
     // Client does not have the deposit and should search for it.
@@ -378,7 +377,7 @@ describe("SpokePoolClient: Fill Validation", function () {
     expect(lastSpyLogIncludes(spy, "Located V3 deposit outside of SpokePoolClient's search range")).to.be.true;
 
     // Search the missing block range.
-    spokePoolClient1.firstBlockToSearch = deposit.blockNumber - 1;
+    spokePoolClient1.firstHeightToSearch = deposit.blockNumber - 1;
     await spokePoolClient1.update();
 
     // Client has the deposit now; should not search.

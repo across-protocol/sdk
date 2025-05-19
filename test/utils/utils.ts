@@ -41,7 +41,6 @@ export const {
   buildPoolRebalanceLeafTree,
   buildPoolRebalanceLeaves,
   deploySpokePool,
-  enableRoutes,
   getContractFactory,
   getDepositParams,
   getUpdatedV3DepositSignature,
@@ -135,22 +134,12 @@ export function createSpyLogger(): SpyLoggerResult {
   return { spy, spyLogger };
 }
 
-export async function deploySpokePoolWithToken(
-  fromChainId = 0,
-  toChainId = 0,
-  enableRoute = true
-): Promise<SpokePoolDeploymentResult> {
+export async function deploySpokePoolWithToken(fromChainId = 0): Promise<SpokePoolDeploymentResult> {
   const { weth, erc20, spokePool, unwhitelistedErc20, destErc20 } = await utils.deploySpokePool(utils.ethers);
   const receipt = await spokePool.deployTransaction.wait();
 
   await spokePool.setChainId(fromChainId == 0 ? utils.originChainId : fromChainId);
 
-  if (enableRoute) {
-    await utils.enableRoutes(spokePool, [
-      { originToken: erc20.address, destinationChainId: toChainId == 0 ? utils.destinationChainId : toChainId },
-      { originToken: weth.address, destinationChainId: toChainId == 0 ? utils.destinationChainId : toChainId },
-    ]);
-  }
   return { weth, erc20, spokePool, unwhitelistedErc20, destErc20, deploymentBlock: receipt.blockNumber };
 }
 
@@ -390,8 +379,8 @@ async function _deposit(
     toLiteChain: false,
     quoteBlockNumber: 0, // @todo
     blockNumber,
-    transactionHash,
-    transactionIndex,
+    txnRef: transactionHash,
+    txnIndex: transactionIndex,
     logIndex,
   };
 }
@@ -437,8 +426,8 @@ export async function requestV3SlowFill(
     exclusivityDeadline: args.exclusivityDeadline,
     exclusiveRelayer: toAddress(args.exclusiveRelayer),
     blockNumber,
-    transactionHash,
-    transactionIndex,
+    txnRef: transactionHash,
+    txnIndex: transactionIndex,
     logIndex,
   };
 }
@@ -493,8 +482,8 @@ export async function fillV3Relay(
       fillType: args.relayExecutionInfo.fillType,
     },
     blockNumber,
-    transactionHash,
-    transactionIndex,
+    txnRef: transactionHash,
+    txnIndex: transactionIndex,
     logIndex,
   };
 }
@@ -569,8 +558,8 @@ export function buildDepositForRelayerFeeTest(
   const message = EMPTY_MESSAGE;
   return {
     depositId: bnUint32Max,
-    originChainId: 1,
-    destinationChainId: 10,
+    originChainId: Number(originChainId),
+    destinationChainId: Number(toChainId),
     depositor: randomAddress(),
     recipient: randomAddress(),
     inputToken,

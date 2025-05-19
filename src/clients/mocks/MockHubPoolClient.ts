@@ -23,7 +23,6 @@ export class MockHubPoolClient extends HubPoolClient {
   private realizedLpFeePctOverride = false;
 
   private l1TokensMock: L1Token[] = []; // L1Tokens and their associated info.
-  private tokenInfoToReturn: L1Token = { address: "", decimals: 0, symbol: "" };
 
   private spokePoolTokens: { [l1Token: string]: { [chainId: number]: string } } = {};
 
@@ -80,7 +79,7 @@ export class MockHubPoolClient extends HubPoolClient {
   }
 
   setLatestBlockNumber(blockNumber: number) {
-    this.latestBlockSearched = blockNumber;
+    this.latestHeightSearched = blockNumber;
   }
 
   addL1Token(l1Token: L1Token) {
@@ -91,13 +90,25 @@ export class MockHubPoolClient extends HubPoolClient {
     return this.l1TokensMock;
   }
 
-  getTokenInfoForDeposit() {
-    return this.tokenInfoToReturn;
-  }
-
   setTokenMapping(l1Token: string, chainId: number, l2Token: string) {
     this.spokePoolTokens[l1Token] ??= {};
     this.spokePoolTokens[l1Token][chainId] = l2Token;
+  }
+
+  l2TokenEnabledForL1TokenAtBlock(l1Token: string, destinationChainId: number, hubBlockNumber: number): boolean {
+    if (this.spokePoolTokens[l1Token]?.[destinationChainId]) {
+      return true;
+    } else {
+      return super.l2TokenEnabledForL1TokenAtBlock(l1Token, destinationChainId, hubBlockNumber);
+    }
+  }
+  l2TokenHasPoolRebalanceRoute(l2Token: string, chainId: number, hubPoolBlock: number): boolean {
+    const l1Token = Object.keys(this.spokePoolTokens).find(
+      (l1Token) => this.spokePoolTokens[l1Token]?.[chainId] === l2Token
+    );
+    if (!l1Token) {
+      return super.l2TokenHasPoolRebalanceRoute(l2Token, chainId, hubPoolBlock);
+    } else return true;
   }
 
   deleteTokenMapping(l1Token: string, chainId: number) {
@@ -118,10 +129,6 @@ export class MockHubPoolClient extends HubPoolClient {
 
   getTokenInfoForL1Token(l1Token: string): L1Token | undefined {
     return this.l1TokensMock.find((token) => token.address === l1Token);
-  }
-
-  setTokenInfoToReturn(tokenInfo: L1Token) {
-    this.tokenInfoToReturn = tokenInfo;
   }
 
   _update(eventNames: string[]): Promise<HubPoolUpdate> {
@@ -151,7 +158,7 @@ export class MockHubPoolClient extends HubPoolClient {
       latestBlockSearched,
       pendingRootBundleProposal: this.rootBundleProposal,
       events,
-      searchEndBlock: this.eventSearchConfig.toBlock || latestBlockSearched,
+      searchEndBlock: this.eventSearchConfig.to || latestBlockSearched,
     });
   }
 
@@ -161,6 +168,30 @@ export class MockHubPoolClient extends HubPoolClient {
     ProposeRootBundle: "uint32,uint8,uint256[],bytes32,bytes32,bytes32,address",
     RootBundleExecuted: "uint256,uint256,uint256,address[],uint256[],int256[],int256[],address",
   };
+
+  setCrossChainContractsEvent(
+    l2ChainId: number,
+    adapter: string,
+    spokePool: string,
+    overrides: EventOverrides = {}
+  ): Log {
+    const event = "CrossChainContractsSet";
+
+    const topics: string[] = [];
+    const args = {
+      l2ChainId,
+      adapter,
+      spokePool,
+    };
+
+    return this.eventManager.generateEvent({
+      event,
+      address: this.hubPool.address,
+      topics: topics.map((topic) => topic.toString()),
+      args,
+      blockNumber: overrides.blockNumber,
+    });
+  }
 
   setPoolRebalanceRoute(
     destinationChainId: number,

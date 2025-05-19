@@ -1,14 +1,16 @@
 import assert from "assert";
 import { Transport } from "viem";
-import { PopulatedTransaction, providers } from "ethers";
+import { providers } from "ethers";
 import { CHAIN_IDs } from "../constants";
 import { BigNumber, chainIsOPStack, fixedPointAdjustment, toBNWei } from "../utils";
+import { SVMProvider as SolanaProvider } from "../arch/svm";
 import { GasPriceEstimate } from "./types";
 import { getPublicClient } from "./util";
 import * as arbitrum from "./adapters/arbitrum";
 import * as ethereum from "./adapters/ethereum";
 import * as polygon from "./adapters/polygon";
 import * as lineaViem from "./adapters/linea-viem";
+import * as solana from "./adapters/solana";
 
 export interface GasPriceEstimateOptions {
   // baseFeeMultiplier Multiplier applied to base fee for EIP1559 gas prices (or total fee for legacy).
@@ -19,8 +21,8 @@ export interface GasPriceEstimateOptions {
   legacyFallback: boolean;
   // chainId The chain ID to query for gas prices. If omitted can be inferred by provider.
   chainId: number;
-  // unsignedTx The unsigned transaction used for simulation by Linea's Viem provider to produce the priority gas fee.
-  unsignedTx?: PopulatedTransaction;
+  // unsignedTx The unsigned transaction used for simulation by Linea's Viem provider to produce the priority gas fee, or alternatively, by Solana's provider to determine the base/priority fee.
+  unsignedTx?: unknown;
   // transport Viem Transport object to use for querying gas fees used for testing.
   transport?: Transport;
 }
@@ -39,7 +41,7 @@ const VIEM_CHAINS = [CHAIN_IDs.LINEA];
  * @returns An  object of type GasPriceEstimate.
  */
 export async function getGasPriceEstimate(
-  provider: providers.Provider,
+  provider: providers.Provider | SolanaProvider,
   opts: Partial<GasPriceEstimateOptions> = {}
 ): Promise<GasPriceEstimate> {
   const baseFeeMultiplier = opts.baseFeeMultiplier ?? toBNWei("1");
@@ -53,6 +55,20 @@ export async function getGasPriceEstimate(
     `Require 1.0 < priority fee multiplier (${priorityFeeMultiplier}) <= 5.0 for a total gas multiplier within [+1.0, +5.0]`
   );
 
+  // Exit here if we need to estimate on Solana.
+  if (!(provider instanceof providers.Provider)) {
+    const optsWithDefaults: GasPriceEstimateOptions = {
+      ...GAS_PRICE_ESTIMATE_DEFAULTS,
+      baseFeeMultiplier,
+      priorityFeeMultiplier,
+      ...opts,
+      chainId: opts.chainId ?? CHAIN_IDs.SOLANA,
+    };
+    return solana.messageFee(provider, optsWithDefaults);
+  }
+
+  // Cast the provider to an ethers provider, which should be given to the oracle when querying an EVM network.
+  provider = provider as providers.Provider;
   const chainId = opts.chainId ?? (await provider.getNetwork()).chainId;
   const optsWithDefaults: GasPriceEstimateOptions = {
     ...GAS_PRICE_ESTIMATE_DEFAULTS,
@@ -87,10 +103,17 @@ function _getEthersGasPriceEstimate(
   const gasPriceFeeds = {
     [CHAIN_IDs.ALEPH_ZERO]: arbitrum.eip1559,
     [CHAIN_IDs.ARBITRUM]: arbitrum.eip1559,
+    [CHAIN_IDs.BSC]: ethereum.legacy,
     [CHAIN_IDs.MAINNET]: ethereum.eip1559,
     [CHAIN_IDs.POLYGON]: polygon.gasStation,
     [CHAIN_IDs.SCROLL]: ethereum.legacy,
     [CHAIN_IDs.ZK_SYNC]: ethereum.legacy,
+
+    // Testnet Chains
+    [CHAIN_IDs.ARBITRUM_SEPOLIA]: arbitrum.eip1559,
+    [CHAIN_IDs.POLYGON_AMOY]: polygon.gasStation,
+    [CHAIN_IDs.SEPOLIA]: ethereum.eip1559,
+    [CHAIN_IDs.TATARA]: ethereum.eip1559,
   } as const;
 
   let gasPriceFeed = gasPriceFeeds[chainId];
