@@ -6,6 +6,7 @@ const MAINNET_CHAIN_IDs = Object.values(_MAINNET_CHAIN_IDs);
 // Chain-specific overrides for when the endpoint name does not match the canonical chain name.
 const endpoints: { [chainId: string]: string } = {
   [CHAIN_IDs.ARBITRUM]: "arbitrum",
+  [CHAIN_IDs.BSC]: "bsc",
 };
 
 export function getURL(chainId: number, apiKey: string, transport: RPCTransport): string {
