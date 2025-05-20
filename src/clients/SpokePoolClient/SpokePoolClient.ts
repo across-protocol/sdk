@@ -87,7 +87,7 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
   protected relayerRefundExecutions: RelayerRefundExecutionWithBlock[] = [];
   protected configStoreClient: AcrossConfigStoreClient | undefined;
   protected invalidFills: Set<string> = new Set();
-  protected spokePoolAddress: Address | undefined;
+  public spokePoolAddress: Address | undefined;
   public fills: { [OriginChainId: number]: FillWithBlock[] } = {};
 
   /**
