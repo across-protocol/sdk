@@ -49,7 +49,7 @@ export async function getGasPriceEstimate(
 /**
  * Provide an estimate for the current gas price for a particular chain.
  * @param provider A valid ethers provider.
- * @param {opts} GasPriceEstimateOptions optional parameters.
+ * @param {GasPriceEstimateOptions} opts optional parameters.
  * @returns An  object of type GasPriceEstimate.
  */
 export async function getGasPriceEstimate(
