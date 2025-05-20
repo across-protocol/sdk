@@ -1,12 +1,6 @@
 import assert from "assert";
 import { clamp, sortedIndexBy } from "lodash";
-import {
-  BlockFinder,
-  type Block,
-  type BlockFinderOpts as Opts,
-  type BlockTimeAverage,
-  type BlockFinderHints,
-} from "../../utils/BlockFinder";
+import { BlockFinder, type Block, type BlockTimeAverage, type BlockFinderHints } from "../../utils/BlockFinder";
 import { isDefined } from "../../utils/TypeGuards";
 import { getCurrentTime } from "../../utils/TimeUtils";
 import { CHAIN_IDs } from "../../constants";
@@ -24,17 +18,18 @@ const averageBlockTimes: { [chainId: number]: BlockTimeAverage } = {
  * @dev Solana slots are all defined to be ~400ms away from each other += a small deviation, so we can hardcode this.
  * @returns Average number of seconds per slot
  */
-export function averageBlockTime(
-  _provider: SVMProvider,
-  _opts: Opts = {}
-): Pick<BlockTimeAverage, "average" | "blockRange"> {
+export function averageBlockTime(): Pick<BlockTimeAverage, "average" | "blockRange"> {
   // @todo This may need to be expanded to work without assuming that chainId = CHAIN_IDs.SOLANA.
   return averageBlockTimes[CHAIN_IDs.SOLANA];
 }
 
-async function estimateBlocksElapsed(seconds: number, cushionPercentage = 0.0, provider: SVMProvider): Promise<number> {
+async function estimateBlocksElapsed(
+  seconds: number,
+  cushionPercentage = 0.0,
+  _provider: SVMProvider
+): Promise<number> {
   const cushionMultiplier = cushionPercentage + 1.0;
-  const { average } = await averageBlockTime(provider);
+  const { average } = await averageBlockTime();
   return Math.floor((seconds * cushionMultiplier) / average);
 }
 
