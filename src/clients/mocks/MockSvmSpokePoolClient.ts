@@ -3,7 +3,7 @@ import { SvmSpokeClient } from "@across-protocol/contracts";
 import { Address } from "@solana/kit";
 import { DepositWithBlock, RelayerRefundExecution, SortableEvent, SlowFillLeaf, Log } from "../../interfaces";
 import { getCurrentTime, bnZero, MakeOptional, EventSearchConfig } from "../../utils";
-import { SpokePoolUpdate, SvmSpokePoolClient } from "../SpokePoolClient";
+import { SpokePoolUpdate, SVMSpokePoolClient } from "../SpokePoolClient";
 import { HubPoolClient } from "../HubPoolClient";
 import { EventOverrides } from "./MockEvents";
 import { AcrossConfigStoreClient } from "../AcrossConfigStoreClient";
@@ -12,7 +12,7 @@ import { EventWithData, SvmCpiEventsClient, SVMEventNames, unwrapEventData } fro
 
 // This class replaces internal SpokePoolClient functionality, enabling
 // the user to bypass on-chain queries and inject events directly.
-export class MockSvmSpokePoolClient extends SvmSpokePoolClient {
+export class MockSvmSpokePoolClient extends SVMSpokePoolClient {
   public mockEventsClient: MockSvmCpiEventsClient;
   private destinationTokenForChainOverride: Record<number, string> = {};
 

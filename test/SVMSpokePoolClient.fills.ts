@@ -14,7 +14,7 @@ import {
   sendRequestSlowFill,
 } from "./utils/svm/utils";
 import { SVM_DEFAULT_ADDRESS, findFillEvent, getRandomSvmAddress } from "../src/arch/svm";
-import { SvmSpokePoolClient } from "../src/clients";
+import { SVMSpokePoolClient } from "../src/clients";
 import { signer } from "./Solana.setup";
 describe("SVMSpokePoolClient: Fills", function () {
   const solanaClient = createDefaultSolanaClient();
@@ -57,7 +57,7 @@ describe("SVMSpokePoolClient: Fills", function () {
     };
 
     // Instantiate SpokePoolClient
-    spokePoolClient = await SvmSpokePoolClient.create(
+    spokePoolClient = await SVMSpokePoolClient.create(
       createSpyLogger().spyLogger,
       null,
       CHAIN_IDs.SOLANA,

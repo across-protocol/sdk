@@ -1,10 +1,10 @@
 import { EVMSpokePoolClient } from "./EVMSpokePoolClient";
-import { SvmSpokePoolClient } from "./SVMSpokePoolClient";
+import { SVMSpokePoolClient } from "./SVMSpokePoolClient";
 import { SpokePoolClient } from "./SpokePoolClient";
 
 export { EVMSpokePoolClient } from "./EVMSpokePoolClient";
 export { SpokePoolClient, SpokePoolUpdate } from "./SpokePoolClient";
-export { SvmSpokePoolClient } from "./SVMSpokePoolClient";
+export { SVMSpokePoolClient } from "./SVMSpokePoolClient";
 
 /**
  * Checks if a SpokePoolClient is an EVMSpokePoolClient.
@@ -20,6 +20,6 @@ export function isEVMSpokePoolClient(spokePoolClient: SpokePoolClient): spokePoo
  * @param spokePoolClient The SpokePoolClient to check.
  * @returns True if the SpokePoolClient is an SVMSpokePoolClient, false otherwise.
  */
-export function isSvmSpokePoolClient(spokePoolClient: SpokePoolClient): spokePoolClient is SvmSpokePoolClient {
-  return spokePoolClient instanceof SvmSpokePoolClient;
+export function isSVMSpokePoolClient(spokePoolClient: SpokePoolClient): spokePoolClient is SVMSpokePoolClient {
+  return spokePoolClient instanceof SVMSpokePoolClient;
 }

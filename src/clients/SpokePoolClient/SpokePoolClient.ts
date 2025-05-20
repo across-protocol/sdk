@@ -19,6 +19,7 @@ import {
   validateFillForDeposit,
   chainIsEvm,
   chainIsProd,
+  Address,
 } from "../../utils";
 import { duplicateEvent, sortEventsAscendingInPlace } from "../../utils/EventUtils";
 import { ZERO_ADDRESS } from "../../constants";
@@ -86,6 +87,7 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
   protected relayerRefundExecutions: RelayerRefundExecutionWithBlock[] = [];
   protected configStoreClient: AcrossConfigStoreClient | undefined;
   protected invalidFills: Set<string> = new Set();
+  public spokePoolAddress: Address | undefined;
   public fills: { [OriginChainId: number]: FillWithBlock[] } = {};
 
   /**
