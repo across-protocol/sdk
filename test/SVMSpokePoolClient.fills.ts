@@ -16,6 +16,7 @@ import {
 import { SVM_DEFAULT_ADDRESS, findFillEvent, getRandomSvmAddress } from "../src/arch/svm";
 import { SVMSpokePoolClient } from "../src/clients";
 import { signer } from "./Solana.setup";
+
 describe("SVMSpokePoolClient: Fills", function () {
   const solanaClient = createDefaultSolanaClient();
 
@@ -23,7 +24,7 @@ describe("SVMSpokePoolClient: Fills", function () {
   let decimals: number;
 
   // SpokePoolClient:
-  let spokePoolClient: SvmSpokePoolClient;
+  let spokePoolClient: SVMSpokePoolClient;
 
   // Relay data:
   let depositor: EvmAddress;
