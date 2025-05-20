@@ -57,7 +57,7 @@ import {
   V3FillWithBlock,
   verifyFillRepayment,
 } from "./utils";
-import { isEVMSpokePoolClient, isSvmSpokePoolClient } from "../SpokePoolClient";
+import { isEVMSpokePoolClient, isSVMSpokePoolClient } from "../SpokePoolClient";
 
 // max(uint256) - 1
 export const INFINITE_FILL_DEADLINE = bnUint32Max;
@@ -1617,7 +1617,7 @@ export class BundleDataClient {
     deposit: DepositWithBlock,
     spokePoolClient: SpokePoolClient
   ): Promise<FillWithBlock | undefined> {
-    if (isSvmSpokePoolClient(spokePoolClient)) {
+    if (isSVMSpokePoolClient(spokePoolClient)) {
       return await findSvmFillEvent(
         deposit,
         spokePoolClient.chainId,

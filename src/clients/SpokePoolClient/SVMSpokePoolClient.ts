@@ -20,6 +20,7 @@ import {
   isZeroAddress,
   MakeOptional,
   sortEventsAscendingInPlace,
+  SvmAddress,
 } from "../../utils";
 import { isUpdateFailureReason } from "../BaseAbstractClient";
 import { HubPoolClient } from "../HubPoolClient";
@@ -29,7 +30,7 @@ import { knownEventNames, SpokePoolClient, SpokePoolUpdate } from "./SpokePoolCl
  * SvmSpokePoolClient is a client for the SVM SpokePool program. It extends the base SpokePoolClient
  * and implements the abstract methods required for interacting with an SVM Spoke Pool.
  */
-export class SvmSpokePoolClient extends SpokePoolClient {
+export class SVMSpokePoolClient extends SpokePoolClient {
   /**
    * Protected constructor. Use the async create() method to instantiate.
    */
@@ -45,6 +46,7 @@ export class SvmSpokePoolClient extends SpokePoolClient {
   ) {
     // Convert deploymentSlot to number for base class, might need refinement
     super(logger, hubPoolClient, chainId, Number(deploymentSlot), eventSearchConfig);
+    this.spokePoolAddress = SvmAddress.from(programId.toString());
   }
 
   /**
@@ -57,11 +59,11 @@ export class SvmSpokePoolClient extends SpokePoolClient {
     deploymentSlot: bigint,
     eventSearchConfig: MakeOptional<EventSearchConfig, "to"> = { from: 0, maxLookBack: 0 }, // Provide default
     rpc: Rpc<SolanaRpcApiFromTransport<RpcTransport>>
-  ): Promise<SvmSpokePoolClient> {
+  ): Promise<SVMSpokePoolClient> {
     const svmEventsClient = await SvmCpiEventsClient.create(rpc);
     const programId = svmEventsClient.getProgramAddress();
     const statePda = await getStatePda(programId);
-    return new SvmSpokePoolClient(
+    return new SVMSpokePoolClient(
       logger,
       hubPoolClient,
       chainId,
@@ -86,7 +88,7 @@ export class SvmSpokePoolClient extends SpokePoolClient {
   ) {
     const programId = eventClient.getProgramAddress();
     const statePda = await getStatePda(programId);
-    return new SvmSpokePoolClient(
+    return new SVMSpokePoolClient(
       logger,
       hubPoolClient,
       chainId,
