@@ -38,7 +38,7 @@ export type DepositEventFromSignature = Omit<DepositWithTime, "fromLiteChain" | 
 export type FillEventFromSignature = FillWithTime;
 
 export class SvmCpiEventsClient {
-  private rpc: SVMProvider;
+  public rpc: SVMProvider;
   private programAddress: Address;
   private programEventAuthority: Address;
   private idl: Idl;
