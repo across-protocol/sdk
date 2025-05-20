@@ -64,7 +64,7 @@ export class SVMBlockFinder extends BlockFinder<SVMBlock> {
     // If the hint is accurate, then this will bypass the subsequent estimation.
     await Promise.all(
       Object.values(hints)
-        .filter((blockNumber) => isDefined(blockNumber))
+        .filter(isDefined)
         .map((blockNumber) => this.getBlock(blockNumber))
     );
 
