@@ -107,6 +107,10 @@ export function unwrapEventData(
   }
   // Handle BigInt
   if (typeof data === "bigint") {
+    const bigIntKeysAsNumber = ["originChainId", "destinationChainId", "repaymentChainId", "chainId"];
+    if (currentKey && bigIntKeysAsNumber.includes(currentKey)) {
+      return Number(data);
+    }
     return BigNumber.from(data);
   }
   // Handle Uint8Array and byte arrays
