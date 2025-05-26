@@ -205,8 +205,12 @@ describe("SVMSpokePoolClient: Fills", function () {
     expect(fillStatusAfterRequest).to.equal(FillStatus.RequestedSlowFill);
   });
 
-  it.only("Closes the fill pda after the fill deadline has passed", async () => {
-    const newRelayData = { ...relayData, depositId: new Uint8Array(intToU8Array32(getRandomInt())) };
+  it("Closes the fill pda after the fill deadline has passed", async () => {
+    const currentSlot = await solanaClient.rpc.getSlot({ commitment: "confirmed" }).send();
+    const currentSlotTimestamp = await solanaClient.rpc.getBlockTime(currentSlot).send();
+    const fillDeadline = Number(currentSlotTimestamp) + 3;
+    await setCurrentTime(signer, solanaClient, Number(currentSlotTimestamp));
+    const newRelayData = { ...relayData, depositId: new Uint8Array(intToU8Array32(getRandomInt())), fillDeadline };
     const formattedRelayData = formatRelayData(newRelayData);
     await mintTokens(signer, solanaClient, mint.address, BigInt(relayData.outputAmount));
     const { fillInput, relayData: fillRelayData } = await sendCreateFill(
@@ -235,5 +239,8 @@ describe("SVMSpokePoolClient: Fills", function () {
     });
 
     expect(fillStatusAccount.exists).to.be.false;
+
+    const fillStatusWithPdaClosed = await spokePoolClient.relayFillStatus(formattedRelayData);
+    expect(fillStatusWithPdaClosed).to.equal(FillStatus.Filled);
   });
 });
