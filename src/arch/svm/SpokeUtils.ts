@@ -1,6 +1,6 @@
 import { SvmSpokeClient } from "@across-protocol/contracts";
 import { decodeFillStatusAccount, fetchState } from "@across-protocol/contracts/dist/src/svm/clients/SvmSpoke";
-import { hashNonEmptyMessage } from "@across-protocol/contracts/dist/src/svm/web3-v1";
+import { getFillRelayDelegatePda, hashNonEmptyMessage } from "@across-protocol/contracts/dist/src/svm/web3-v1";
 import {
   ASSOCIATED_TOKEN_PROGRAM_ADDRESS,
   TOKEN_PROGRAM_ADDRESS,
@@ -37,6 +37,8 @@ import {
 } from "../../utils";
 import { getStatePda, SvmCpiEventsClient, getFillStatusPda, unwrapEventData, getEventAuthority } from "./";
 import { SVMEventNames, SVMProvider } from "./types";
+import { BN } from "@coral-xyz/anchor";
+import { PublicKey } from "@solana/web3.js";
 
 /**
  * @note: Average Solana slot duration is about 400-500ms. We can be conservative
@@ -372,10 +374,18 @@ export async function fillRelayInstruction(
   const depositIdBuffer = new Uint8Array(32);
   const shortenedBuffer = new Uint8Array(Buffer.from(deposit.depositId.toHexString().slice(2), "hex"));
   depositIdBuffer.set(shortenedBuffer, 32 - shortenedBuffer.length);
+  relayerAddress.toV2Address();
+  const { pda: delegatePda } = getFillRelayDelegatePda(
+    relayDataHash,
+    new BN(repaymentChainId),
+    new PublicKey(relayerAddress.toV2Address()),
+    new PublicKey(programId)
+  );
 
   return SvmSpokeClient.getFillRelayInstruction({
     signer: relayer,
     state: statePda,
+    delegate: SvmAddress.from(delegatePda.toString()).toV2Address(),
     mint: outputToken.toV2Address(),
     relayerTokenAccount: relayerTokenAccount,
     recipientTokenAccount: recipientTokenAccount,

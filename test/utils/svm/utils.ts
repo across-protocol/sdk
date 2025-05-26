@@ -1,7 +1,12 @@
 import { CHAIN_IDs } from "@across-protocol/constants";
 import { SvmSpokeClient } from "@across-protocol/contracts";
 import { RelayDataArgs } from "@across-protocol/contracts/dist/src/svm/clients/SvmSpoke";
-import { intToU8Array32 } from "@across-protocol/contracts/dist/src/svm/web3-v1";
+import {
+  getDepositPda,
+  getDepositSeedHash,
+  getFillRelayDelegatePda,
+  intToU8Array32,
+} from "@across-protocol/contracts/dist/src/svm/web3-v1";
 import { getCreateAccountInstruction, SYSTEM_PROGRAM_ADDRESS } from "@solana-program/system";
 import {
   ASSOCIATED_TOKEN_PROGRAM_ADDRESS,
@@ -40,7 +45,6 @@ import {
   getEventAuthority,
   getFillStatusPda,
   getRandomSvmAddress,
-  getRoutePda,
   getStatePda,
   RpcClient,
   SVM_DEFAULT_ADDRESS,
@@ -48,6 +52,8 @@ import {
 } from "../../../src/arch/svm";
 import { RelayData } from "../../../src/interfaces";
 import { BigNumber, EvmAddress, getRandomInt, getRelayDataHash, randomAddress, SvmAddress } from "../../../src/utils";
+import { BN } from "@coral-xyz/anchor";
+import { PublicKey } from "@solana/web3.js";
 
 /** RPC / Client */
 
@@ -207,57 +213,6 @@ export const initializeSvmSpoke = async (
   return { state };
 };
 
-// Enables a token route and creates the program vault ATA.
-export const enableRoute = async (
-  signer: KeyPairSigner,
-  solanaClient: RpcClient,
-  destinationChainId: bigint,
-  state: Address,
-  mint: Address,
-  tokenProgram: Address = TOKEN_2022_PROGRAM_ADDRESS,
-  associatedTokenProgram: Address = ASSOCIATED_TOKEN_PROGRAM_ADDRESS
-) => {
-  const vault = await getAssociatedTokenAddress(SvmAddress.from(state), SvmAddress.from(mint), tokenProgram);
-
-  const createAssociatedTokenIdempotentIx = getCreateAssociatedTokenIdempotentInstruction({
-    payer: signer,
-    owner: state,
-    mint,
-    ata: vault,
-    systemProgram: SYSTEM_PROGRAM_ADDRESS,
-    tokenProgram,
-  });
-
-  const route = await getRoutePda(mint, 0n, destinationChainId);
-  const eventAuthority = await getEventAuthority();
-
-  const input: SvmSpokeClient.SetEnableRouteInput = {
-    signer,
-    state,
-    vault,
-    payer: signer,
-    route,
-    originTokenMint: mint,
-    tokenProgram,
-    associatedTokenProgram,
-    systemProgram: SYSTEM_PROGRAM_ADDRESS,
-    program: address(SvmSpokeClient.SVM_SPOKE_PROGRAM_ADDRESS),
-    originToken: mint,
-    destinationChainId,
-    enabled: true,
-    eventAuthority,
-  };
-  const setEnableRouteIx = await SvmSpokeClient.getSetEnableRouteInstruction(input);
-
-  await pipe(
-    await createDefaultTransaction(solanaClient, signer),
-    (tx) => appendTransactionMessageInstruction(createAssociatedTokenIdempotentIx, tx),
-    (tx) => appendTransactionMessageInstruction(setEnableRouteIx, tx),
-    (tx) => signAndSendTransaction(solanaClient, tx)
-  );
-  return { vault, route };
-};
-
 // Executes a deposit into the SVM Spoke vault.
 export const deposit = async (
   signer: KeyPairSigner,
@@ -265,19 +220,26 @@ export const deposit = async (
   depositInput: SvmSpokeClient.DepositInput,
   tokenDecimals: number
 ) => {
+  const createAssociatedTokenIdempotentIx = getCreateAssociatedTokenIdempotentInstruction({
+    payer: signer,
+    owner: depositInput.state,
+    mint: depositInput.mint,
+    ata: depositInput.vault,
+    systemProgram: depositInput.systemProgram,
+    tokenProgram: depositInput.tokenProgram,
+  });
   const approveIx = getApproveCheckedInstruction({
     source: depositInput.depositorTokenAccount,
     mint: depositInput.mint,
-    delegate: depositInput.state,
+    delegate: depositInput.delegate,
     owner: depositInput.depositor,
     amount: depositInput.inputAmount,
     decimals: tokenDecimals,
   });
-
   const depositIx = await SvmSpokeClient.getDepositInstruction(depositInput);
-
   return pipe(
     await createDefaultTransaction(solanaClient, signer),
+    (tx) => appendTransactionMessageInstruction(createAssociatedTokenIdempotentIx, tx),
     (tx) => appendTransactionMessageInstruction(approveIx, tx),
     (tx) => appendTransactionMessageInstruction(depositIx, tx),
     (tx) => signAndSendTransaction(solanaClient, tx)
@@ -309,7 +271,7 @@ export const createFill = async (
   const approveIx = getApproveCheckedInstruction({
     source: fillInput.relayerTokenAccount,
     mint: fillInput.mint,
-    delegate: fillInput.state,
+    delegate: fillInput.delegate,
     owner: fillInput.signer,
     amount: (fillInput.relayData as SvmSpokeClient.RelayDataArgs).outputAmount,
     decimals: tokenDecimals,
@@ -414,8 +376,16 @@ export const sendCreateFill = async (
     TOKEN_2022_PROGRAM_ADDRESS
   );
 
+  const { pda: delegatePda } = getFillRelayDelegatePda(
+    new Uint8Array(Buffer.from(relayDataHash.slice(2), "hex")),
+    new BN(CHAIN_IDs.SOLANA),
+    new PublicKey(signer.address),
+    new PublicKey(SvmSpokeClient.SVM_SPOKE_PROGRAM_ADDRESS)
+  );
+
   const fillInput: SvmSpokeClient.FillRelayInput = {
     signer: signer,
+    delegate: SvmAddress.from(delegatePda.toString()).toV2Address(),
     instructionParams: undefined,
     state: await getStatePda(SvmSpokeClient.SVM_SPOKE_PROGRAM_ADDRESS),
     mint: mint.address,
@@ -482,22 +452,27 @@ export const sendRequestSlowFill = async (
   return { signature, relayData };
 };
 
+type DepositDataSeed = Parameters<typeof getDepositSeedHash>[0];
+
 // helper to create a deposit
 export const sendCreateDeposit = async (
   solanaClient: RpcClient,
   signer: KeyPairSigner,
   mint: KeyPairSigner,
   mintDecimals: number,
-  route: Address,
-  vault: Address,
   payerAta: Address,
   overrides: Partial<SvmSpokeClient.DepositInput> = {},
   destinationChainId: number = CHAIN_IDs.MAINNET
 ) => {
   const currentTime = await getCurrentTime(solanaClient);
 
+  const state = await getStatePda(SvmSpokeClient.SVM_SPOKE_PROGRAM_ADDRESS);
+  const tokenProgram = TOKEN_2022_PROGRAM_ADDRESS;
+  const vault = await getAssociatedTokenAddress(SvmAddress.from(state), SvmAddress.from(mint.address), tokenProgram);
+
   const depositInput: SvmSpokeClient.DepositInput = {
     depositor: signer.address,
+    delegate: address(EvmAddress.from(randomAddress()).toBase58()),
     recipient: overrides.recipient ?? address(EvmAddress.from(randomAddress()).toBase58()),
     inputToken: mint.address,
     outputToken: overrides.outputToken ?? address(EvmAddress.from(randomAddress()).toBase58()),
@@ -510,15 +485,34 @@ export const sendCreateDeposit = async (
     exclusivityParameter: overrides.exclusivityParameter ?? 1,
     message: overrides.message ?? new Uint8Array(),
     state: await getStatePda(SvmSpokeClient.SVM_SPOKE_PROGRAM_ADDRESS),
-    route,
     depositorTokenAccount: payerAta,
     vault,
     mint: mint.address,
-    tokenProgram: TOKEN_2022_PROGRAM_ADDRESS,
+    tokenProgram,
     program: SvmSpokeClient.SVM_SPOKE_PROGRAM_ADDRESS,
     eventAuthority: await getEventAuthority(),
+    associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ADDRESS,
+    systemProgram: SYSTEM_PROGRAM_ADDRESS,
     signer,
   };
+
+  const depositDataSeed: DepositDataSeed = {
+    depositor: new PublicKey(depositInput.depositor),
+    recipient: new PublicKey(depositInput.recipient),
+    inputToken: new PublicKey(depositInput.inputToken),
+    outputToken: new PublicKey(depositInput.outputToken),
+    inputAmount: new BN(depositInput.inputAmount.toString()),
+    outputAmount: new BN(depositInput.outputAmount.toString()),
+    destinationChainId: new BN(destinationChainId),
+    exclusiveRelayer: new PublicKey(depositInput.exclusiveRelayer),
+    quoteTimestamp: new BN(depositInput.quoteTimestamp),
+    fillDeadline: new BN(depositInput.fillDeadline),
+    exclusivityParameter: new BN(depositInput.exclusivityParameter),
+    message: new Uint8Array(depositInput.message),
+  };
+
+  const pda = getDepositPda(depositDataSeed, new PublicKey(SvmSpokeClient.SVM_SPOKE_PROGRAM_ADDRESS));
+  depositInput.delegate = address(pda.toString());
 
   const signature = await deposit(signer, solanaClient, depositInput, mintDecimals);
   return { signature, depositInput };
