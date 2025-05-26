@@ -118,21 +118,12 @@ export class SVMSpokePoolClient extends SpokePoolClient {
       return { success: false, reason };
     }
 
-    const deploymentSlot = BigInt(this.deploymentBlock);
-
     const eventSearchConfigs = eventsToQuery.map((eventName) => {
       if (!this._queryableEventNames().includes(eventName)) {
         throw new Error(`SpokePoolClient: Cannot query unrecognised SpokePool event name: ${eventName}`);
       }
 
       const _searchConfig = { ...searchConfig }; // shallow copy
-
-      // By default, an event's query range is controlled by the `eventSearchConfig` passed in during instantiation.
-      // However, certain events have special overriding requirements to their search ranges:
-      // - EnabledDepositRoute: The full history is always required, so override the requested fromBlock.
-      if (eventName === "EnabledDepositRoute" && !this.isUpdated) {
-        _searchConfig.from = Number(deploymentSlot);
-      }
 
       return _searchConfig as EventSearchConfig;
     });

@@ -19,7 +19,6 @@ export type EventData =
   | SvmSpokeClient.PausedDeposits
   | SvmSpokeClient.PausedFills
   | SvmSpokeClient.SetXDomainAdmin
-  | SvmSpokeClient.EnabledDepositRoute
   | SvmSpokeClient.FilledRelay
   | SvmSpokeClient.FundsDeposited
   | SvmSpokeClient.EmergencyDeletedRootBundle
@@ -30,7 +29,6 @@ export type EventData =
 export enum SVMEventNames {
   FilledRelay = "FilledRelay",
   FundsDeposited = "FundsDeposited",
-  EnabledDepositRoute = "EnabledDepositRoute",
   RelayedRootBundle = "RelayedRootBundle",
   ExecutedRelayerRefundRoot = "ExecutedRelayerRefundRoot",
   BridgedToHubPool = "BridgedToHubPool",
