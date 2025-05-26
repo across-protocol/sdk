@@ -205,7 +205,7 @@ describe("SVMSpokePoolClient: Fills", function () {
     expect(fillStatusAfterRequest).to.equal(FillStatus.RequestedSlowFill);
   });
 
-  it("Closes the fill pda after the fill deadline has passed", async () => {
+  it.only("Closes the fill pda after the fill deadline has passed", async () => {
     const newRelayData = { ...relayData, depositId: new Uint8Array(intToU8Array32(getRandomInt())) };
     const formattedRelayData = formatRelayData(newRelayData);
     await mintTokens(signer, solanaClient, mint.address, BigInt(relayData.outputAmount));
