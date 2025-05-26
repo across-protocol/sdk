@@ -208,7 +208,7 @@ describe("SVMSpokePoolClient: Fills", function () {
   it("Closes the fill pda after the fill deadline has passed", async () => {
     const currentSlot = await solanaClient.rpc.getSlot({ commitment: "confirmed" }).send();
     const currentSlotTimestamp = await solanaClient.rpc.getBlockTime(currentSlot).send();
-    const fillDeadline = Number(currentSlotTimestamp) + 3;
+    const fillDeadline = Number(currentSlotTimestamp) + 1;
     await setCurrentTime(signer, solanaClient, Number(currentSlotTimestamp));
     const newRelayData = { ...relayData, depositId: new Uint8Array(intToU8Array32(getRandomInt())), fillDeadline };
     const formattedRelayData = formatRelayData(newRelayData);
