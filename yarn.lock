@@ -21,10 +21,31 @@
   resolved "https://registry.yarnpkg.com/@across-protocol/constants/-/constants-3.1.67.tgz#10e37b48792e839a94e4841cd6f31b8980969147"
   integrity sha512-5XJcHU0I8UksYHCHO394uiAAAKkmlNs49dWBSgD5UZwslo/U7HTiQY6MfO24f/Q8rgSabBsSt9jdquyeba7VxA==
 
+<<<<<<< HEAD
 "@across-protocol/contracts@4.0.9":
   version "4.0.9"
   resolved "https://registry.yarnpkg.com/@across-protocol/contracts/-/contracts-4.0.9.tgz#e17187104576c24fe390cd29256814d9a5b6300a"
   integrity sha512-nYfvCQMtMxur4TGzGXn9p6cibm6mMNtl+BM549NIhip0JRMTeu+SmGBddVbcpX9LEh//qXzrRADybB2je4P/vQ==
+=======
+"@across-protocol/constants@^3.1.66":
+  version "3.1.66"
+  resolved "https://registry.yarnpkg.com/@across-protocol/constants/-/constants-3.1.66.tgz#952964fe1ae98ac8bd928655d81a20744da8dbe7"
+  integrity sha512-PP0445MLMnFWFzCvpXZQHD4n3DBJIQoIt3RSENNjCOJbkxDd4pqqDOAwN/BWv1jS6kLhKt6/U2poHRGJ4UPPXg==
+
+"@across-protocol/contracts@^0.1.4":
+  version "0.1.4"
+  resolved "https://registry.yarnpkg.com/@across-protocol/contracts/-/contracts-0.1.4.tgz#64b3d91e639d2bb120ea94ddef3d160967047fa5"
+  integrity sha512-y9FVRSFdPgEdGWBcf8rUmmzdYhzGdy0752HwpaAFtMJ1pn+HFgNaI0EZc/UudMKIPOkk+/BxPIHYPy7tKad5/A==
+  dependencies:
+    "@eth-optimism/contracts" "^0.5.5"
+    "@openzeppelin/contracts" "4.1.0"
+    "@uma/core" "^2.18.0"
+
+"@across-protocol/contracts@^4.0.12":
+  version "4.0.12"
+  resolved "https://registry.yarnpkg.com/@across-protocol/contracts/-/contracts-4.0.12.tgz#45e8d6cc1fe137ae5349c1aa4b17e9ebc8e982cd"
+  integrity sha512-OreKSdJS1uOo9/bPkYQrym1Gcwz9ccINviQ+72Nbfw11NwJmlkdWEMAMQ7Y8MaiXPvneOkXH1enZJI2M9YIrgA==
+>>>>>>> 68b7bee8 (feat: get across contract version from package.json)
   dependencies:
     "@across-protocol/constants" "^3.1.63"
     "@coral-xyz/anchor" "^0.31.1"
@@ -3016,6 +3037,17 @@
     "@solana/spl-token-metadata" "^0.1.6"
     buffer "^6.0.3"
 
+"@solana/spl-token@^0.4.8":
+  version "0.4.13"
+  resolved "https://registry.yarnpkg.com/@solana/spl-token/-/spl-token-0.4.13.tgz#8f65c3c2b315e1a00a91b8d0f60922c6eb71de62"
+  integrity sha512-cite/pYWQZZVvLbg5lsodSovbetK/eA24gaR0eeUeMuBAMNrT8XFCwaygKy0N2WSg3gSyjjNpIeAGBAKZaY/1w==
+  dependencies:
+    "@solana/buffer-layout" "^4.0.0"
+    "@solana/buffer-layout-utils" "^0.2.0"
+    "@solana/spl-token-group" "^0.0.7"
+    "@solana/spl-token-metadata" "^0.1.6"
+    buffer "^6.0.3"
+
 "@solana/subscribable@2.1.0":
   version "2.1.0"
   resolved "https://registry.npmjs.org/@solana/subscribable/-/subscribable-2.1.0.tgz#690880897ff4953dc79230d7fb8ed7f3fa8fd527"
@@ -3098,7 +3130,11 @@
     "@wallet-standard/base" "^1.0.1"
     "@wallet-standard/features" "^1.0.3"
 
+<<<<<<< HEAD
 "@solana/web3.js@1.98.2", "@solana/web3.js@^1.32.0", "@solana/web3.js@^1.69.0":
+=======
+"@solana/web3.js@1.98.2", "@solana/web3.js@^1.69.0", "@solana/web3.js@^1.98.0":
+>>>>>>> 68b7bee8 (feat: get across contract version from package.json)
   version "1.98.2"
   resolved "https://registry.yarnpkg.com/@solana/web3.js/-/web3.js-1.98.2.tgz#45167a5cfb64436944bf4dc1e8be8482bd6d4c14"
   integrity sha512-BqVwEG+TaG2yCkBMbD3C4hdpustR4FpuUFRPUmqRZYYlPI9Hg4XMWxHWOWRzHE9Lkc9NDjzXFX7lDXSgzC7R1A==
