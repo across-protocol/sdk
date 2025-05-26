@@ -4,12 +4,20 @@ import { spawn } from "child_process";
 import fs from "node:fs/promises";
 import path from "node:path";
 import tar from "tar";
+import pkg from "../../../package.json" assert { type: "json" };
+
+// Helper function to get the @across-protocol/contracts version from the package.json
+const getContractsVersion = (): string => {
+  const raw = pkg.dependencies["@across-protocol/contracts"];
+  const numeric = raw.replace(/^[\^~]/, "");
+  return `v${numeric}`;
+};
 
 // Directory and file constants
 const LEDGER_DIR = path.resolve(__dirname, "..", ".ledger");
 const TARGET_DIR = path.resolve(__dirname, "..", "..", "..");
 const SVM_SPOKE_SO_PATH = path.resolve(TARGET_DIR, "target", "deploy", "svm_spoke.so");
-const BINARY_RELEASE_TAG = process.env.SVM_BINARY_RELEASE_TAG || "v4.0.11";
+const BINARY_RELEASE_TAG = process.env.SVM_BINARY_RELEASE_TAG || getContractsVersion();
 const BINARY_ARCHIVE_NAME = process.env.SVM_BINARY_ARCHIVE_NAME || "svm-verified-test-binaries.tar.gz";
 const BINARY_DOWNLOAD_URL = `https://github.com/across-protocol/contracts/releases/download/${BINARY_RELEASE_TAG}/${BINARY_ARCHIVE_NAME}`;
 const SAVED_ARCHIVE_NAME = `svm-verified-test-binaries.${BINARY_RELEASE_TAG}.tar.gz`;
