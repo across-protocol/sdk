@@ -1,3 +1,6 @@
+import { providers } from "ethers";
+import { SVMProvider } from "../arch/svm/types";
+
 export function isPromiseFulfilled<T>(
   promiseSettledResult: PromiseSettledResult<T>
 ): promiseSettledResult is PromiseFulfilledResult<T> {
@@ -12,4 +15,8 @@ export function isPromiseRejected<T>(
 
 export function isDefined<T>(input: T | null | undefined): input is T {
   return input !== null && input !== undefined;
+}
+
+export function isEvmProvider(provider: providers.Provider | SVMProvider): provider is providers.Provider {
+  return provider instanceof providers.Provider;
 }
