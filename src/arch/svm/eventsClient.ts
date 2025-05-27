@@ -177,7 +177,7 @@ export class SvmCpiEventsClient {
    * @param commitment - Commitment level.
    * @returns A promise that resolves to an array of events.
    */
-  private async readEventsFromSignature(txSignature: Signature, commitment: Commitment = "confirmed") {
+  async readEventsFromSignature(txSignature: Signature, commitment: Commitment = "confirmed") {
     const txResult = await this.rpc
       .getTransaction(txSignature, { commitment, maxSupportedTransactionVersion: 0 })
       .send();
