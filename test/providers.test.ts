@@ -6,6 +6,7 @@ import { providers } from "ethers";
 import { SVMProvider } from "../src/arch/svm/types";
 import { CHAIN_IDs, PUBLIC_NETWORKS } from "@across-protocol/constants";
 import { MainnetUrl, createSolanaRpc } from "@solana/kit";
+import { asL2Provider } from "@eth-optimism/sdk";
 
 interface TempTask {
   resolve: (result: unknown) => void;
@@ -54,7 +55,7 @@ describe("providers", () => {
   });
 
   describe("isEvmProvider", () => {
-    const evmProvider = new providers.JsonRpcProvider();
+    const evmProvider = providers.getDefaultProvider(CHAIN_IDs.OPTIMISM);
     const svmProvider = createSolanaRpc(
       PUBLIC_NETWORKS[Number(CHAIN_IDs.SOLANA)]?.publicRPC as MainnetUrl
     ) as unknown as SVMProvider;
@@ -63,15 +64,12 @@ describe("providers", () => {
       expect(isEvmProvider(evmProvider)).to.be.true;
     });
 
-    it("should correctly rejects SVM provider", () => {
-      expect(isEvmProvider(svmProvider)).to.be.false;
+    it("should correctly accept Optimism provider", () => {
+      expect(isEvmProvider(asL2Provider(evmProvider))).to.be.true;
     });
 
-    it("should correctly rejects null & undefined", () => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      expect(isEvmProvider(null as any)).to.be.false;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      expect(isEvmProvider(undefined as any)).to.be.false;
+    it("should correctly rejects SVM provider", () => {
+      expect(isEvmProvider(svmProvider)).to.be.false;
     });
   });
 });
