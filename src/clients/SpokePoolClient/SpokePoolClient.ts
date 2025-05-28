@@ -76,7 +76,6 @@ export const knownEventNames = [
  */
 export abstract class SpokePoolClient extends BaseAbstractClient {
   protected currentTime = 0;
-  protected depositHashes: { [depositHash: string]: DepositWithBlock } = {};
   protected duplicateDepositHashes: { [depositHash: string]: DepositWithBlock[] } = {};
   protected depositHashesToFills: { [depositHash: string]: FillWithBlock[] } = {};
   protected speedUps: { [depositorAddress: string]: { [depositId: string]: SpeedUpWithBlock[] } } = {};
@@ -87,6 +86,7 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
   protected relayerRefundExecutions: RelayerRefundExecutionWithBlock[] = [];
   protected configStoreClient: AcrossConfigStoreClient | undefined;
   protected invalidFills: Set<string> = new Set();
+  public readonly depositHashes: { [depositHash: string]: DepositWithBlock } = {};
   public spokePoolAddress: Address | undefined;
   public fills: { [OriginChainId: number]: FillWithBlock[] } = {};
 
