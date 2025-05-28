@@ -1,59 +1,54 @@
 import { CHAIN_IDs } from "@across-protocol/constants";
 import { SvmSpokeClient } from "@across-protocol/contracts";
 import { RelayDataArgs } from "@across-protocol/contracts/dist/src/svm/clients/SvmSpoke";
-import {
-  getDepositPda,
-  getDepositSeedHash,
-  getFillRelayDelegatePda,
-  intToU8Array32,
-} from "@across-protocol/contracts/dist/src/svm/web3-v1";
-import { getCreateAccountInstruction, SYSTEM_PROGRAM_ADDRESS } from "@solana-program/system";
+import { intToU8Array32 } from "@across-protocol/contracts/dist/src/svm/web3-v1";
+import { SYSTEM_PROGRAM_ADDRESS, getCreateAccountInstruction } from "@solana-program/system";
 import {
   ASSOCIATED_TOKEN_PROGRAM_ADDRESS,
+  TOKEN_2022_PROGRAM_ADDRESS,
   getApproveCheckedInstruction,
   getCreateAssociatedTokenIdempotentInstruction,
   getInitializeMintInstruction,
   getMintSize,
   getMintToInstruction,
-  TOKEN_2022_PROGRAM_ADDRESS,
 } from "@solana-program/token-2022";
 import {
   Address,
+  Commitment,
+  CompilableTransactionMessage,
+  KeyPairSigner,
+  TransactionMessageWithBlockhashLifetime,
+  TransactionSigner,
   address,
   airdropFactory,
   appendTransactionMessageInstruction,
-  Commitment,
-  CompilableTransactionMessage,
   createSolanaRpc,
   createSolanaRpcSubscriptions,
   createTransactionMessage,
   generateKeyPairSigner,
   getSignatureFromTransaction,
-  KeyPairSigner,
   lamports,
   pipe,
   sendAndConfirmTransactionFactory,
   setTransactionMessageFeePayerSigner,
   setTransactionMessageLifetimeUsingBlockhash,
   signTransactionMessageWithSigners,
-  TransactionMessageWithBlockhashLifetime,
-  TransactionSigner,
 } from "@solana/kit";
 import { arrayify, hexlify } from "ethers/lib/utils";
 import {
-  getAssociatedTokenAddress,
-  getEventAuthority,
-  getFillStatusPda,
-  getRandomSvmAddress,
-  getStatePda,
   RpcClient,
   SVM_DEFAULT_ADDRESS,
   SVM_SPOKE_SEED,
+  getAssociatedTokenAddress,
+  getDepositDelegatePda,
+  getEventAuthority,
+  getFillRelayDelegatePda,
+  getFillStatusPda,
+  getRandomSvmAddress,
+  getStatePda,
 } from "../../../src/arch/svm";
 import { RelayData } from "../../../src/interfaces";
-import { BigNumber, EvmAddress, getRandomInt, getRelayDataHash, randomAddress, SvmAddress } from "../../../src/utils";
-import { BN } from "@coral-xyz/anchor";
-import { PublicKey } from "@solana/web3.js";
+import { BigNumber, EvmAddress, SvmAddress, getRandomInt, getRelayDataHash, randomAddress } from "../../../src/utils";
 
 /** RPC / Client */
 
@@ -376,11 +371,11 @@ export const sendCreateFill = async (
     TOKEN_2022_PROGRAM_ADDRESS
   );
 
-  const { pda: delegatePda } = getFillRelayDelegatePda(
+  const delegatePda = await getFillRelayDelegatePda(
     new Uint8Array(Buffer.from(relayDataHash.slice(2), "hex")),
-    new BN(CHAIN_IDs.SOLANA),
-    new PublicKey(signer.address),
-    new PublicKey(SvmSpokeClient.SVM_SPOKE_PROGRAM_ADDRESS)
+    BigInt(CHAIN_IDs.SOLANA),
+    signer.address,
+    SvmSpokeClient.SVM_SPOKE_PROGRAM_ADDRESS
   );
 
   const fillInput: SvmSpokeClient.FillRelayInput = {
@@ -452,8 +447,6 @@ export const sendRequestSlowFill = async (
   return { signature, relayData };
 };
 
-type DepositDataSeed = Parameters<typeof getDepositSeedHash>[0];
-
 // helper to create a deposit
 export const sendCreateDeposit = async (
   solanaClient: RpcClient,
@@ -496,23 +489,23 @@ export const sendCreateDeposit = async (
     signer,
   };
 
-  const depositDataSeed: DepositDataSeed = {
-    depositor: new PublicKey(depositInput.depositor),
-    recipient: new PublicKey(depositInput.recipient),
-    inputToken: new PublicKey(depositInput.inputToken),
-    outputToken: new PublicKey(depositInput.outputToken),
-    inputAmount: new BN(depositInput.inputAmount.toString()),
-    outputAmount: new BN(depositInput.outputAmount.toString()),
-    destinationChainId: new BN(destinationChainId),
-    exclusiveRelayer: new PublicKey(depositInput.exclusiveRelayer),
-    quoteTimestamp: new BN(depositInput.quoteTimestamp),
-    fillDeadline: new BN(depositInput.fillDeadline),
-    exclusivityParameter: new BN(depositInput.exclusivityParameter),
+  const depositDataSeed: Parameters<typeof getDepositDelegatePda>[0] = {
+    depositor: depositInput.depositor,
+    recipient: depositInput.recipient,
+    inputToken: depositInput.inputToken,
+    outputToken: depositInput.outputToken,
+    inputAmount: BigInt(depositInput.inputAmount),
+    outputAmount: BigInt(depositInput.outputAmount),
+    destinationChainId: BigInt(destinationChainId),
+    exclusiveRelayer: depositInput.exclusiveRelayer,
+    quoteTimestamp: BigInt(depositInput.quoteTimestamp),
+    fillDeadline: BigInt(depositInput.fillDeadline),
+    exclusivityParameter: BigInt(depositInput.exclusivityParameter),
     message: new Uint8Array(depositInput.message),
   };
 
-  const pda = getDepositPda(depositDataSeed, new PublicKey(SvmSpokeClient.SVM_SPOKE_PROGRAM_ADDRESS));
-  depositInput.delegate = address(pda.toString());
+  const pda = await getDepositDelegatePda(depositDataSeed, SvmSpokeClient.SVM_SPOKE_PROGRAM_ADDRESS);
+  depositInput.delegate = pda;
 
   const signature = await deposit(signer, solanaClient, depositInput, mintDecimals);
   return { signature, depositInput };
