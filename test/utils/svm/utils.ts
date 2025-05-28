@@ -465,7 +465,7 @@ export const sendCreateDeposit = async (
 
   const depositInput: SvmSpokeClient.DepositInput = {
     depositor: signer.address,
-    delegate: address(EvmAddress.from(randomAddress()).toBase58()),
+    delegate: address(EvmAddress.from(randomAddress()).toBase58()), // Random address for now but calculated later
     recipient: overrides.recipient ?? address(EvmAddress.from(randomAddress()).toBase58()),
     inputToken: mint.address,
     outputToken: overrides.outputToken ?? address(EvmAddress.from(randomAddress()).toBase58()),

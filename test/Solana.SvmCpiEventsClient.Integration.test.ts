@@ -3,7 +3,7 @@ import { SvmSpokeClient } from "@across-protocol/contracts";
 import { u8Array32ToInt } from "@across-protocol/contracts/dist/src/svm/web3-v1";
 import { KeyPairSigner, address } from "@solana/kit";
 import { expect } from "chai";
-import { SvmCpiEventsClient, getStatePda } from "../src/arch/svm";
+import { SvmCpiEventsClient } from "../src/arch/svm";
 import { SvmAddress } from "../src/utils";
 import { signer } from "./Solana.setup";
 import {
@@ -32,7 +32,6 @@ describe("SvmCpiEventsClient (integration)", () => {
   const tokenAmount = 100000000n;
 
   before(async function () {
-    await getStatePda(SvmSpokeClient.SVM_SPOKE_PROGRAM_ADDRESS);
     ({ mint, decimals } = await createMint(signer, solanaClient));
     client = await SvmCpiEventsClient.create(solanaClient.rpc);
   });
