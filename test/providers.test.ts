@@ -1,6 +1,11 @@
 import { queue } from "async";
 import { assertPromisePasses, expect } from "./utils";
 import { delay } from "../src/utils";
+import { isEvmProvider } from "../src/utils/TypeGuards";
+import { providers } from "ethers";
+import { SVMProvider } from "../src/arch/svm/types";
+import { CHAIN_IDs, PUBLIC_NETWORKS } from "@across-protocol/constants";
+import { MainnetUrl, createSolanaRpc } from "@solana/kit";
 
 interface TempTask {
   resolve: (result: unknown) => void;
@@ -46,5 +51,27 @@ describe("providers", () => {
     expect(testQueueWithoutCallback.idle()).to.be.false; // The queue should not be idle.
     expect(testQueueWithoutCallback.length()).to.equal(totalTasks - concurrency); // The queue should have failed to resolve all tasks.
     expect(amnt).to.equal(concurrency); // The amount of resolved tasks should be equal to the concurrency because no task truly finished.
+  });
+
+  describe("isEvmProvider", () => {
+    const evmProvider = new providers.JsonRpcProvider();
+    const svmProvider = createSolanaRpc(
+      PUBLIC_NETWORKS[Number(CHAIN_IDs.SOLANA)]?.publicRPC as MainnetUrl
+    ) as unknown as SVMProvider;
+
+    it("should correctly accepts EVM provider", () => {
+      expect(isEvmProvider(evmProvider)).to.be.true;
+    });
+
+    it("should correctly rejects SVM provider", () => {
+      expect(isEvmProvider(svmProvider)).to.be.false;
+    });
+
+    it("should correctly rejects null & undefined", () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      expect(isEvmProvider(null as any)).to.be.false;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      expect(isEvmProvider(undefined as any)).to.be.false;
+    });
   });
 });

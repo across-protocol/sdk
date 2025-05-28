@@ -18,6 +18,12 @@ export function isDefined<T>(input: T | null | undefined): input is T {
 }
 
 export function isEvmProvider(provider: EvmProvider | SVMProvider): provider is EvmProvider {
-  // Check that the provider doesn't have SVM-specific methods
-  return typeof provider === "object" && provider !== null && !("getSlot" in provider);
+  // Check for EVM-specific methods that should exist on all ethers.js providers
+  return (
+    provider !== null &&
+    typeof provider === "object" &&
+    "getNetwork" in provider &&
+    "getBlock" in provider &&
+    "getCode" in provider
+  );
 }
