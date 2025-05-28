@@ -1,10 +1,11 @@
 import { CHAIN_IDs } from "@across-protocol/constants";
 import { SvmSpokeClient } from "@across-protocol/contracts";
 import { u8Array32ToInt } from "@across-protocol/contracts/dist/src/svm/web3-v1";
-import { Address, KeyPairSigner, address } from "@solana/kit";
+import { KeyPairSigner, address } from "@solana/kit";
 import { expect } from "chai";
-import { getAssociatedTokenAddress, getStatePda, SvmCpiEventsClient } from "../src/arch/svm";
+import { SvmCpiEventsClient, getStatePda } from "../src/arch/svm";
 import { SvmAddress } from "../src/utils";
+import { signer } from "./Solana.setup";
 import {
   createDefaultSolanaClient,
   createMint,
@@ -13,7 +14,6 @@ import {
   sendCreateFill,
   sendRequestSlowFill,
 } from "./utils/svm/utils";
-import { signer } from "./Solana.setup";
 
 // Define an extended interface for our Solana client with chainId
 interface ExtendedSolanaClient extends ReturnType<typeof createDefaultSolanaClient> {
@@ -27,20 +27,13 @@ describe("SvmCpiEventsClient (integration)", () => {
   let client: SvmCpiEventsClient;
 
   let mint: KeyPairSigner;
-  let vault: Address;
-  let state: Address;
   let decimals: number;
 
   const tokenAmount = 100000000n;
 
   before(async function () {
-    state = await getStatePda(SvmSpokeClient.SVM_SPOKE_PROGRAM_ADDRESS);
+    await getStatePda(SvmSpokeClient.SVM_SPOKE_PROGRAM_ADDRESS);
     ({ mint, decimals } = await createMint(signer, solanaClient));
-    vault = await getAssociatedTokenAddress(
-      SvmAddress.from(state),
-      SvmAddress.from(mint.address),
-      SvmSpokeClient.SVM_SPOKE_PROGRAM_ADDRESS
-    );
     client = await SvmCpiEventsClient.create(solanaClient.rpc);
   });
 
