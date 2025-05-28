@@ -11,6 +11,7 @@ import * as ethereum from "./adapters/ethereum";
 import * as polygon from "./adapters/polygon";
 import * as lineaViem from "./adapters/linea-viem";
 import * as solana from "./adapters/solana";
+import { EvmProvider } from "../arch/evm/types";
 
 export interface GasPriceEstimateOptions {
   // baseFeeMultiplier Multiplier applied to base fee for EIP1559 gas prices (or total fee for legacy).
@@ -36,7 +37,7 @@ const VIEM_CHAINS = [CHAIN_IDs.LINEA];
 
 // Overload For EVM providers
 export async function getGasPriceEstimate(
-  provider: providers.Provider,
+  provider: EvmProvider,
   opts?: Partial<GasPriceEstimateOptions>
 ): Promise<EvmGasPriceEstimate>;
 
@@ -53,7 +54,7 @@ export async function getGasPriceEstimate(
  * @returns An  object of type GasPriceEstimate.
  */
 export async function getGasPriceEstimate(
-  provider: providers.Provider | SolanaProvider,
+  provider: EvmProvider | SolanaProvider,
   opts: Partial<GasPriceEstimateOptions> = {}
 ): Promise<GasPriceEstimate> {
   const baseFeeMultiplier = opts.baseFeeMultiplier ?? toBNWei("1");
