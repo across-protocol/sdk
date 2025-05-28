@@ -4,13 +4,11 @@ import { spawn } from "child_process";
 import fs from "node:fs/promises";
 import path from "node:path";
 import tar from "tar";
-import pkg from "../../../package.json" assert { type: "json" };
+import contractsPkg from "@across-protocol/contracts/package.json" assert { type: "json" };
 
 // Helper function to get the @across-protocol/contracts version from the package.json
 const getContractsVersion = (): string => {
-  const raw = pkg.dependencies["@across-protocol/contracts"];
-  const numeric = raw.replace(/^[\^~]/, "");
-  return `v${numeric}`;
+  return `v${contractsPkg.version}`;
 };
 
 // Directory and file constants
