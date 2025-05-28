@@ -32,9 +32,9 @@ import { knownEventNames, SpokePoolClient, SpokePoolUpdate } from "./SpokePoolCl
  */
 export class SVMSpokePoolClient extends SpokePoolClient {
   /**
-   * Protected constructor. Use the async create() method to instantiate.
+   * Note: Strongly prefer to use the async create() method to instantiate.
    */
-  protected constructor(
+  constructor(
     logger: winston.Logger,
     hubPoolClient: HubPoolClient | null,
     chainId: number,
