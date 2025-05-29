@@ -1,6 +1,5 @@
 import { SVMProvider } from "../arch/svm/types";
 import { EvmProvider } from "../arch/evm/types";
-import { providers } from "ethers";
 
 export function isPromiseFulfilled<T>(
   promiseSettledResult: PromiseSettledResult<T>
