@@ -7,6 +7,7 @@ import {
   getAddressEncoder,
   getProgramDerivedAddress,
   getU64Encoder,
+  getU32Encoder,
   isAddress,
   type TransactionSigner,
 } from "@solana/kit";
@@ -211,6 +212,50 @@ export async function getRoutePda(originToken: Address, seed: bigint, routeChain
   const [pda] = await getProgramDerivedAddress({
     programAddress: address(SvmSpokeClient.SVM_SPOKE_PROGRAM_ADDRESS),
     seeds: ["route", addressEncoder.encode(originToken), intEncoder.encode(seed), intEncoder.encode(routeChainId)],
+  });
+  return pda;
+}
+
+/**
+ * Returns the PDA for the SVM Spoke's transfer liability account.
+ * @param programId the address of the spoke pool.
+ * @param originToken the address of the corresponding token.
+ */
+export async function getTransferLiabilityPda(programId: Address, originToken: Address): Promise<Address> {
+  const addressEncoder = getAddressEncoder();
+  const [pda] = await getProgramDerivedAddress({
+    programAddress: programId,
+    seeds: ["transfer_liability", addressEncoder.encode(originToken)],
+  });
+  return pda;
+}
+
+/**
+ * Returns the PDA for the SVM Spoke's root bundle account.
+ * @param programId the address of the spoke pool.
+ * @param statePda the spoke pool's state pda.
+ * @param rootBundleId the associated root bundle ID.
+ */
+export async function getRootBundlePda(programId: Address, state: Address, rootBundleId: number): Promise<Address> {
+  const intEncoder = getU32Encoder();
+  const addressEncoder = getAddressEncoder();
+  const [pda] = await getProgramDerivedAddress({
+    programAddress: programId,
+    seeds: ["root_bundle", addressEncoder.encode(state), intEncoder.encode(rootBundleId)],
+  });
+  return pda;
+}
+
+/**
+ * Returns the PDA for the SVM Spoke's instruction params account.
+ * @param programId the address of the spoke pool.
+ * @param signer the signer of the authenticated call.
+ */
+export async function getInstructionParamsPda(programId: Address, signer: Address): Promise<Address> {
+  const addressEncoder = getAddressEncoder();
+  const [pda] = await getProgramDerivedAddress({
+    programAddress: programId,
+    seeds: ["instruction_params", addressEncoder.encode(signer)],
   });
   return pda;
 }
