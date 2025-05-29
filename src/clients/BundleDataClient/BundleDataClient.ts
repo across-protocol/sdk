@@ -94,10 +94,9 @@ function updateBundleFillsV3(
   repaymentAddress: string
 ): void {
   // We shouldn't pass any unrepayable fills into this function, so we perform an extra safety check.
-  assert(
-    chainIsEvm(repaymentChainId) && isValidEvmAddress(fill.relayer),
-    "validatedBundleV3Fills dictionary should only contain fills with valid repayment information"
-  );
+  if (chainIsEvm(repaymentChainId) && !isValidEvmAddress(fill.relayer)) {
+    return;
+  }
   if (!dict?.[repaymentChainId]?.[repaymentToken]) {
     assign(dict, [repaymentChainId, repaymentToken], {
       fills: [],
@@ -460,13 +459,15 @@ export class BundleDataClient {
         assert(isDefined(matchingDeposit), "Deposit not found for fill.");
 
         const spokeClient = this.spokePoolClients[_fill.destinationChainId];
-        if (!isEVMSpokePoolClient(spokeClient)) {
-          // FIXME: Handle non-EVM chains.
-          throw new Error("Destination chain is not an EVM chain.");
+        let provider;
+        if (isEVMSpokePoolClient(spokeClient)) {
+          provider = spokeClient.spokePool.provider;
+        } else if (isSVMSpokePoolClient(spokeClient)) {
+          provider = spokeClient.svmEventsClient.getRpc();
         }
         const fill = await verifyFillRepayment(
           _fill,
-          spokeClient.spokePool.provider,
+          provider!,
           matchingDeposit,
           this.clients.hubPoolClient,
           bundleEndBlockForMainnet
@@ -971,17 +972,20 @@ export class BundleDataClient {
                 assert(isDefined(deposits) && deposits.length > 0, "Deposit should exist in relay hash dictionary.");
                 v3RelayHashes[relayDataHash].fill = fill;
                 if (fill.blockNumber >= destinationChainBlockRange[0]) {
-                  if (!isEVMSpokePoolClient(destinationClient)) {
-                    // FIXME: Handle non-EVM chains.
-                    throw new Error("Destination chain is not an EVM chain.");
+                  let provider;
+                  if (isEVMSpokePoolClient(destinationClient)) {
+                    provider = destinationClient.spokePool.provider;
+                  } else if (isSVMSpokePoolClient(destinationClient)) {
+                    provider = destinationClient.svmEventsClient.getRpc();
                   }
                   const fillToRefund = await verifyFillRepayment(
                     fill,
-                    destinationClient.spokePool.provider,
+                    provider!,
                     deposits[0],
                     this.clients.hubPoolClient,
                     bundleEndBlockForMainnet
                   );
+
                   if (!isDefined(fillToRefund)) {
                     bundleUnrepayableFillsV3.push(fill);
                     // We don't return here yet because we still need to mark unexecutable slow fill leaves
@@ -1075,14 +1079,16 @@ export class BundleDataClient {
                 }
                 v3RelayHashes[relayDataHash].deposits = [matchedDeposit];
 
-                if (!isEVMSpokePoolClient(destinationClient)) {
-                  // FIXME: Handle non-EVM chains.
-                  throw new Error("Destination chain is not an EVM chain.");
+                let provider;
+                if (isEVMSpokePoolClient(destinationClient)) {
+                  provider = destinationClient.spokePool.provider;
+                } else if (isSVMSpokePoolClient(destinationClient)) {
+                  provider = destinationClient.svmEventsClient.getRpc();
                 }
 
                 const fillToRefund = await verifyFillRepayment(
                   fill,
-                  destinationClient.spokePool.provider,
+                  provider!,
                   matchedDeposit,
                   this.clients.hubPoolClient,
                   bundleEndBlockForMainnet
@@ -1257,13 +1263,15 @@ export class BundleDataClient {
           // include this pre fill if the fill is in an older bundle.
           if (fill) {
             if (fill.blockNumber < destinationChainBlockRange[0]) {
-              if (!isEVMSpokePoolClient(destinationClient)) {
-                // FIXME: Handle non-EVM chains.
-                throw new Error("Destination chain is not an EVM chain.");
+              let provider;
+              if (isEVMSpokePoolClient(destinationClient)) {
+                provider = destinationClient.spokePool.provider;
+              } else if (isSVMSpokePoolClient(destinationClient)) {
+                provider = destinationClient.svmEventsClient.getRpc();
               }
               const fillToRefund = await verifyFillRepayment(
                 fill,
-                destinationClient.spokePool.provider,
+                provider!,
                 deposits[0],
                 this.clients.hubPoolClient,
                 bundleEndBlockForMainnet
@@ -1314,13 +1322,15 @@ export class BundleDataClient {
             const prefill = await this.findMatchingFillEvent(deposit, destinationClient);
             assert(isDefined(prefill), `findFillEvent# Cannot find prefill: ${relayDataHash}`);
             assert(getRelayEventKey(prefill) === relayDataHash, "Relay hashes should match.");
-            if (!isEVMSpokePoolClient(destinationClient)) {
-              // FIXME: Handle non-EVM chains.
-              throw new Error("Destination chain is not an EVM chain.");
+            let provider;
+            if (isEVMSpokePoolClient(destinationClient)) {
+              provider = destinationClient.spokePool.provider;
+            } else if (isSVMSpokePoolClient(destinationClient)) {
+              provider = destinationClient.svmEventsClient.getRpc();
             }
             const verifiedFill = await verifyFillRepayment(
               prefill,
-              destinationClient.spokePool.provider,
+              provider!,
               deposit,
               this.clients.hubPoolClient,
               bundleEndBlockForMainnet
