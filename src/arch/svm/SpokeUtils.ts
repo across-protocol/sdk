@@ -26,16 +26,16 @@ import { CHAIN_IDs } from "../../constants";
 import { Deposit, DepositWithBlock, FillStatus, FillWithBlock, RelayData } from "../../interfaces";
 import {
   BigNumber,
-  isUnsafeDepositId,
   SvmAddress,
-  getTokenInfo,
-  isDefined,
-  toAddressType,
-  keccak256,
   chainIsSvm,
   chunk,
+  getTokenInfo,
+  isDefined,
+  isUnsafeDepositId,
+  keccak256,
+  toAddressType,
 } from "../../utils";
-import { getStatePda, SvmCpiEventsClient, getFillStatusPda, unwrapEventData, getEventAuthority } from "./";
+import { SvmCpiEventsClient, getEventAuthority, getFillStatusPda, getStatePda, unwrapEventData } from "./";
 import { SVMEventNames, SVMProvider } from "./types";
 
 /**
@@ -373,9 +373,17 @@ export async function fillRelayInstruction(
   const shortenedBuffer = new Uint8Array(Buffer.from(deposit.depositId.toHexString().slice(2), "hex"));
   depositIdBuffer.set(shortenedBuffer, 32 - shortenedBuffer.length);
 
+  const delegatePda = await getFillRelayDelegatePda(
+    relayDataHash,
+    BigInt(repaymentChainId),
+    relayerAddress.toV2Address(),
+    spokePool.toV2Address()
+  );
+
   return SvmSpokeClient.getFillRelayInstruction({
     signer: relayer,
     state: statePda,
+    delegate: SvmAddress.from(delegatePda.toString()).toV2Address(),
     mint: outputToken.toV2Address(),
     relayerTokenAccount: relayerTokenAccount,
     recipientTokenAccount: recipientTokenAccount,
@@ -578,4 +586,130 @@ async function fetchBatchFillStatusFromPdaAccounts(
   });
 
   return fillStatuses;
+}
+
+/**
+ * Returns the delegate PDA for deposit.
+ */
+export async function getDepositDelegatePda(
+  depositData: {
+    depositor: Address<string>;
+    recipient: Address<string>;
+    inputToken: Address<string>;
+    outputToken: Address<string>;
+    inputAmount: bigint;
+    outputAmount: bigint;
+    destinationChainId: bigint;
+    exclusiveRelayer: Address<string>;
+    quoteTimestamp: bigint;
+    fillDeadline: bigint;
+    exclusivityParameter: bigint;
+    message: Uint8Array;
+  },
+  programId: Address<string>
+): Promise<Address<string>> {
+  const addrEnc = getAddressEncoder();
+  const u64 = getU64Encoder();
+  const u32 = getU32Encoder();
+
+  const parts: Uint8Array[] = [
+    Uint8Array.from(addrEnc.encode(depositData.depositor)),
+    Uint8Array.from(addrEnc.encode(depositData.recipient)),
+    Uint8Array.from(addrEnc.encode(depositData.inputToken)),
+    Uint8Array.from(addrEnc.encode(depositData.outputToken)),
+    Uint8Array.from(u64.encode(depositData.inputAmount)),
+    Uint8Array.from(u64.encode(depositData.outputAmount)),
+    Uint8Array.from(u64.encode(depositData.destinationChainId)),
+    Uint8Array.from(addrEnc.encode(depositData.exclusiveRelayer)),
+    Uint8Array.from(u32.encode(depositData.quoteTimestamp)),
+    Uint8Array.from(u32.encode(depositData.fillDeadline)),
+    Uint8Array.from(u32.encode(depositData.exclusivityParameter)),
+    Uint8Array.from(u32.encode(BigInt(depositData.message.length))),
+    depositData.message,
+  ];
+
+  const seedHash = Buffer.from(keccak256(Buffer.concat(parts)).slice(2), "hex");
+
+  const [pda] = await getProgramDerivedAddress({
+    programAddress: programId,
+    seeds: [Buffer.from("delegate"), seedHash],
+  });
+
+  return pda;
+}
+
+/**
+ * Returns the delegate PDA for depositNow.
+ */
+export async function getDepositNowDelegatePda(
+  depositData: {
+    depositor: Address<string>;
+    recipient: Address<string>;
+    inputToken: Address<string>;
+    outputToken: Address<string>;
+    inputAmount: bigint;
+    outputAmount: bigint;
+    destinationChainId: bigint;
+    exclusiveRelayer: Address<string>;
+    fillDeadlineOffset: bigint;
+    exclusivityPeriod: bigint;
+    message: Uint8Array;
+  },
+  programId: Address<string>
+): Promise<Address<string>> {
+  const addrEnc = getAddressEncoder();
+  const u64 = getU64Encoder();
+  const u32 = getU32Encoder();
+
+  const parts: Uint8Array[] = [
+    Uint8Array.from(addrEnc.encode(depositData.depositor)),
+    Uint8Array.from(addrEnc.encode(depositData.recipient)),
+    Uint8Array.from(addrEnc.encode(depositData.inputToken)),
+    Uint8Array.from(addrEnc.encode(depositData.outputToken)),
+    Uint8Array.from(u64.encode(depositData.inputAmount)),
+    Uint8Array.from(u64.encode(depositData.outputAmount)),
+    Uint8Array.from(u64.encode(depositData.destinationChainId)),
+    Uint8Array.from(addrEnc.encode(depositData.exclusiveRelayer)),
+    Uint8Array.from(u32.encode(depositData.fillDeadlineOffset)),
+    Uint8Array.from(u32.encode(depositData.exclusivityPeriod)),
+    Uint8Array.from(u32.encode(BigInt(depositData.message.length))),
+    depositData.message,
+  ];
+
+  const seedHash = Buffer.from(keccak256(Buffer.concat(parts)).slice(2), "hex");
+
+  const [pda] = await getProgramDerivedAddress({
+    programAddress: programId,
+    seeds: [Buffer.from("delegate"), seedHash],
+  });
+
+  return pda;
+}
+
+/**
+ * Returns the fill-delegate PDA for fillRelay.
+ */
+export async function getFillRelayDelegatePda(
+  relayHash: Uint8Array,
+  repaymentChainId: bigint,
+  repaymentAddress: Address<string>,
+  programId: Address<string>
+): Promise<Address<string>> {
+  const addrEnc = getAddressEncoder();
+  const u64 = getU64Encoder();
+
+  const parts: Uint8Array[] = [
+    relayHash,
+    Uint8Array.from(u64.encode(repaymentChainId)),
+    Uint8Array.from(addrEnc.encode(repaymentAddress)),
+  ];
+
+  const seedHash = Buffer.from(keccak256(Buffer.concat(parts)).slice(2), "hex");
+
+  const [pda] = await getProgramDerivedAddress({
+    programAddress: programId,
+    seeds: [Buffer.from("delegate"), seedHash],
+  });
+
+  return pda;
 }
