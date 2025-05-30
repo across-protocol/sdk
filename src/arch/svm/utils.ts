@@ -10,6 +10,10 @@ import {
   getU32Encoder,
   isAddress,
   type TransactionSigner,
+  pipe,
+  createTransactionMessage,
+  setTransactionMessageFeePayerSigner,
+  setTransactionMessageLifetimeUsingBlockhash,
 } from "@solana/kit";
 import { SvmSpokeClient } from "@across-protocol/contracts";
 import { FillType, RelayData } from "../../interfaces";
@@ -280,3 +284,18 @@ export function getRandomSvmAddress() {
   const base58Address = bs58.encode(bytes);
   return address(base58Address);
 }
+
+/**
+ * Creates a default v0 transaction skeleton.
+ * @param rpcClient - The Solana client.
+ * @param signer - The signer of the transaction.
+ * @returns The default transaction.
+ */
+export const createDefaultTransaction = async (rpcClient: SVMProvider, signer: TransactionSigner) => {
+  const { value: latestBlockhash } = await rpcClient.getLatestBlockhash().send();
+  return pipe(
+    createTransactionMessage({ version: 0 }),
+    (tx) => setTransactionMessageFeePayerSigner(signer, tx),
+    (tx) => setTransactionMessageLifetimeUsingBlockhash(latestBlockhash, tx)
+  );
+};

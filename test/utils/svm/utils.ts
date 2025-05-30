@@ -6,7 +6,6 @@ import { SYSTEM_PROGRAM_ADDRESS, getCreateAccountInstruction } from "@solana-pro
 import {
   ASSOCIATED_TOKEN_PROGRAM_ADDRESS,
   TOKEN_2022_PROGRAM_ADDRESS,
-  getApproveCheckedInstruction,
   getCreateAssociatedTokenIdempotentInstruction,
   getInitializeMintInstruction,
   getMintSize,
@@ -18,20 +17,16 @@ import {
   CompilableTransactionMessage,
   KeyPairSigner,
   TransactionMessageWithBlockhashLifetime,
-  TransactionSigner,
   address,
   airdropFactory,
   appendTransactionMessageInstruction,
   createSolanaRpc,
   createSolanaRpcSubscriptions,
-  createTransactionMessage,
   generateKeyPairSigner,
   getSignatureFromTransaction,
   lamports,
   pipe,
   sendAndConfirmTransactionFactory,
-  setTransactionMessageFeePayerSigner,
-  setTransactionMessageLifetimeUsingBlockhash,
   signTransactionMessageWithSigners,
 } from "@solana/kit";
 import { arrayify, hexlify } from "ethers/lib/utils";
@@ -39,6 +34,10 @@ import {
   RpcClient,
   SVM_DEFAULT_ADDRESS,
   SVM_SPOKE_SEED,
+  createDefaultTransaction,
+  createDepositInstruction,
+  createFillInstruction,
+  createRequestSlowFillInstruction,
   getAssociatedTokenAddress,
   getDepositDelegatePda,
   getEventAuthority,
@@ -84,16 +83,6 @@ export const signAndSendTransaction = async (
   return signature;
 };
 
-// Creates a pre‑populated version‑0 transaction skeleton.
-export const createDefaultTransaction = async (rpcClient: RpcClient, signer: TransactionSigner) => {
-  const { value: latestBlockhash } = await rpcClient.rpc.getLatestBlockhash().send();
-  return pipe(
-    createTransactionMessage({ version: 0 }),
-    (tx) => setTransactionMessageFeePayerSigner(signer, tx),
-    (tx) => setTransactionMessageLifetimeUsingBlockhash(latestBlockhash, tx)
-  );
-};
-
 /** Token ‒ Minting & ATA */
 
 // Creates and initialises a new mint account.
@@ -128,7 +117,7 @@ export async function createMint(
   });
 
   await pipe(
-    await createDefaultTransaction(client, payer),
+    await createDefaultTransaction(client.rpc, payer),
     (tx) => appendTransactionMessageInstruction(createAccountIx, tx),
     (tx) => appendTransactionMessageInstruction(initializeMintIx, tx),
     (tx) => signAndSendTransaction(client, tx)
@@ -164,7 +153,7 @@ export async function mintTokens(
   });
 
   await pipe(
-    await createDefaultTransaction(client, payer),
+    await createDefaultTransaction(client.rpc, payer),
     (tx) => appendTransactionMessageInstruction(createAssociatedTokenIdempotentIx, tx),
     (tx) => appendTransactionMessageInstruction(mintTx, tx),
     (tx) => signAndSendTransaction(client, tx)
@@ -201,109 +190,11 @@ export const initializeSvmSpoke = async (
   const initializeIx = SvmSpokeClient.getInitializeInstruction(initializeInput);
 
   await pipe(
-    await createDefaultTransaction(solanaClient, signer),
+    await createDefaultTransaction(solanaClient.rpc, signer),
     (tx) => appendTransactionMessageInstruction(initializeIx, tx),
     (tx) => signAndSendTransaction(solanaClient, tx)
   );
   return { state };
-};
-
-// Executes a deposit into the SVM Spoke vault.
-export const deposit = async (
-  signer: KeyPairSigner,
-  solanaClient: RpcClient,
-  depositInput: SvmSpokeClient.DepositInput,
-  tokenDecimals: number
-) => {
-  const createAssociatedTokenIdempotentIx = getCreateAssociatedTokenIdempotentInstruction({
-    payer: signer,
-    owner: depositInput.state,
-    mint: depositInput.mint,
-    ata: depositInput.vault,
-    systemProgram: depositInput.systemProgram,
-    tokenProgram: depositInput.tokenProgram,
-  });
-  const approveIx = getApproveCheckedInstruction({
-    source: depositInput.depositorTokenAccount,
-    mint: depositInput.mint,
-    delegate: depositInput.delegate,
-    owner: depositInput.depositor,
-    amount: depositInput.inputAmount,
-    decimals: tokenDecimals,
-  });
-  const depositIx = await SvmSpokeClient.getDepositInstruction(depositInput);
-  return pipe(
-    await createDefaultTransaction(solanaClient, signer),
-    (tx) => appendTransactionMessageInstruction(createAssociatedTokenIdempotentIx, tx),
-    (tx) => appendTransactionMessageInstruction(approveIx, tx),
-    (tx) => appendTransactionMessageInstruction(depositIx, tx),
-    (tx) => signAndSendTransaction(solanaClient, tx)
-  );
-};
-
-// Requests a slow fill
-export const requestSlowFill = async (
-  signer: KeyPairSigner,
-  solanaClient: RpcClient,
-  depositInput: SvmSpokeClient.RequestSlowFillInput
-) => {
-  const requestSlowFillIx = await SvmSpokeClient.getRequestSlowFillInstruction(depositInput);
-
-  return pipe(
-    await createDefaultTransaction(solanaClient, signer),
-    (tx) => appendTransactionMessageInstruction(requestSlowFillIx, tx),
-    (tx) => signAndSendTransaction(solanaClient, tx)
-  );
-};
-
-// Creates a fill
-export const createFill = async (
-  signer: KeyPairSigner,
-  solanaClient: RpcClient,
-  fillInput: SvmSpokeClient.FillRelayInput,
-  tokenDecimals: number
-) => {
-  const approveIx = getApproveCheckedInstruction({
-    source: fillInput.relayerTokenAccount,
-    mint: fillInput.mint,
-    delegate: fillInput.delegate,
-    owner: fillInput.signer,
-    amount: (fillInput.relayData as SvmSpokeClient.RelayDataArgs).outputAmount,
-    decimals: tokenDecimals,
-  });
-
-  const createAssociatedTokenIdempotentIx = getCreateAssociatedTokenIdempotentInstruction({
-    payer: signer,
-    owner: (fillInput.relayData as SvmSpokeClient.RelayDataArgs).recipient,
-    mint: fillInput.mint,
-    ata: fillInput.recipientTokenAccount,
-    systemProgram: SYSTEM_PROGRAM_ADDRESS,
-    tokenProgram: fillInput.tokenProgram,
-  });
-
-  const createFillIx = await SvmSpokeClient.getFillRelayInstruction(fillInput);
-
-  return pipe(
-    await createDefaultTransaction(solanaClient, signer),
-    (tx) => appendTransactionMessageInstruction(createAssociatedTokenIdempotentIx, tx),
-    (tx) => appendTransactionMessageInstruction(approveIx, tx),
-    (tx) => appendTransactionMessageInstruction(createFillIx, tx),
-    (tx) => signAndSendTransaction(solanaClient, tx)
-  );
-};
-
-// Closes the fill PDA.
-export const closeFillPda = async (signer: KeyPairSigner, solanaClient: RpcClient, fillStatusPda: Address) => {
-  const closeFillPdaIx = await SvmSpokeClient.getCloseFillPdaInstruction({
-    signer,
-    state: await getStatePda(SvmSpokeClient.SVM_SPOKE_PROGRAM_ADDRESS),
-    fillStatus: fillStatusPda,
-  });
-  return pipe(
-    await createDefaultTransaction(solanaClient, signer),
-    (tx) => appendTransactionMessageInstruction(closeFillPdaIx, tx),
-    (tx) => signAndSendTransaction(solanaClient, tx)
-  );
 };
 
 // Sets the current time for the SVM Spoke program.
@@ -314,7 +205,7 @@ export const setCurrentTime = async (signer: KeyPairSigner, solanaClient: RpcCli
     newTime,
   });
   return pipe(
-    await createDefaultTransaction(solanaClient, signer),
+    await createDefaultTransaction(solanaClient.rpc, signer),
     (tx) => appendTransactionMessageInstruction(setCurrentTimeIx, tx),
     (tx) => signAndSendTransaction(solanaClient, tx)
   );
@@ -398,7 +289,8 @@ export const sendCreateFill = async (
     repaymentAddress: signer.address,
   };
 
-  const signature = await createFill(signer, solanaClient, fillInput, mintDecimals);
+  const fillTx = await createFillInstruction(signer, solanaClient.rpc, fillInput, mintDecimals);
+  const signature = await signAndSendTransaction(solanaClient, fillTx);
   return { signature, relayData, fillInput };
 };
 
@@ -443,7 +335,8 @@ export const sendRequestSlowFill = async (
     eventAuthority: await getEventAuthority(),
     signer,
   };
-  const signature = await requestSlowFill(signer, solanaClient, requestSlowFillInput);
+  const requestSlowFillTx = await createRequestSlowFillInstruction(signer, solanaClient.rpc, requestSlowFillInput);
+  const signature = await signAndSendTransaction(solanaClient, requestSlowFillTx);
   return { signature, relayData };
 };
 
@@ -507,7 +400,8 @@ export const sendCreateDeposit = async (
   const pda = await getDepositDelegatePda(depositDataSeed, SvmSpokeClient.SVM_SPOKE_PROGRAM_ADDRESS);
   depositInput.delegate = pda;
 
-  const signature = await deposit(signer, solanaClient, depositInput, mintDecimals);
+  const depositTx = await createDepositInstruction(signer, solanaClient.rpc, depositInput, mintDecimals);
+  const signature = await signAndSendTransaction(solanaClient, depositTx);
   return { signature, depositInput };
 };
 
