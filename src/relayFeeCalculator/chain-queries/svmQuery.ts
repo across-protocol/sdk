@@ -31,8 +31,7 @@ import {
   fetchEncodedAccount,
   IInstruction,
 } from "@solana/kit";
-import { TOKEN_PROGRAM_ADDRESS, getMintSize, getInitializeMintInstruction, fetchMint } from "@solana-program/token";
-import { getCreateAccountInstruction } from "@solana-program/system";
+import { fetchMint, getCreateAssociatedTokenInstructionAsync } from "@solana-program/token";
 
 /**
  * A special QueryBase implementation for SVM used for querying gas costs, token prices, and decimals of various tokens
@@ -67,6 +66,39 @@ export class SvmQuery implements QueryInterface {
     });
   }
 
+  private formatDepositForSvm(deposit: Omit<Deposit, "messageHash">): Omit<Deposit, "messageHash"> {
+    // Create a new object, effectively a deep clone for the structure.
+    // BigNumber and other non-address fields are directly assigned (standard practice as they are often immutable or treated as such).
+    const newDeposit: Omit<Deposit, "messageHash"> = {
+      // RelayData fields
+      originChainId: deposit.originChainId,
+      depositor: toAddressType(deposit.depositor).forceSvmAddress().toBytes32(),
+      recipient: toAddressType(deposit.recipient).forceSvmAddress().toBytes32(),
+      depositId: deposit.depositId, // BigNumber, assign directly
+      inputToken: toAddressType(deposit.inputToken).forceSvmAddress().toBytes32(),
+      inputAmount: deposit.inputAmount, // BigNumber, assign directly
+      outputToken: toAddressType(deposit.outputToken).forceSvmAddress().toBytes32(),
+      outputAmount: deposit.outputAmount, // BigNumber, assign directly
+      message: deposit.message,
+      fillDeadline: deposit.fillDeadline,
+      exclusiveRelayer: toAddressType(deposit.exclusiveRelayer).forceSvmAddress().toBytes32(),
+      exclusivityDeadline: deposit.exclusivityDeadline,
+      // Deposit specific fields
+      destinationChainId: deposit.destinationChainId,
+      quoteTimestamp: deposit.quoteTimestamp,
+      speedUpSignature: deposit.speedUpSignature,
+      // updatedRecipient is optional, handle it if present
+      updatedRecipient: deposit.updatedRecipient
+        ? toAddressType(deposit.updatedRecipient).forceSvmAddress().toBytes32()
+        : undefined,
+      updatedOutputAmount: deposit.updatedOutputAmount, // BigNumber, assign directly
+      updatedMessage: deposit.updatedMessage,
+      fromLiteChain: deposit.fromLiteChain,
+      toLiteChain: deposit.toLiteChain,
+    };
+    return newDeposit;
+  }
+
   /**
    * Retrieves the current gas costs of performing a fillRelay contract at the referenced SpokePool.
    * @param deposit V3 deposit instance.
@@ -89,10 +121,15 @@ export class SvmQuery implements QueryInterface {
   ): Promise<TransactionCostEstimate> {
     const relayer = _relayer ? toAddressType(_relayer).forceSvmAddress() : this.simulatedRelayerAddress;
 
-    const fillRelayTx = await this.getFillRelayTx(deposit, relayer.toBase58());
+    const fillRelayTx = await this.getFillRelayTx(this.formatDepositForSvm(deposit), relayer.toBase58());
+
+    console.log("[USER_LOG_getGasCosts] before computeUnitEstimator");
+    console.log("[USER_LOG_getGasCosts] fillRelayTx ", fillRelayTx);
+    const cu = await this.computeUnitEstimator(fillRelayTx);
+    console.log("[USER_LOG_getGasCosts] after computeUnitEstimator");
 
     const [computeUnitsConsumed, _gasPriceEstimate] = await Promise.all([
-      toBN(await this.computeUnitEstimator(fillRelayTx)),
+      toBN(cu),
       getGasPriceEstimate(this.provider, {
         unsignedTx: fillRelayTx,
         baseFeeMultiplier: options.baseFeeMultiplier,
@@ -153,22 +190,13 @@ export class SvmQuery implements QueryInterface {
       fetchMint(this.provider, mint.toV2Address()),
     ]);
     if (!associatedTokenAccountExists) {
-      const space = BigInt(getMintSize());
-      const rent = await this.provider.getMinimumBalanceForRentExemption(space).send();
-      const createAccountIx = getCreateAccountInstruction({
+      const createATAInstruction = await getCreateAssociatedTokenInstructionAsync({
         payer: simulatedSigner,
-        newAccount: SolanaVoidSigner(mint.toBase58()),
-        lamports: rent,
-        space,
-        programAddress: TOKEN_PROGRAM_ADDRESS,
-      });
-
-      const initializeMintIx = getInitializeMintInstruction({
+        ata: associatedToken,
+        owner: owner.toV2Address(),
         mint: mint.toV2Address(),
-        decimals: mintInfo.data.decimals,
-        mintAuthority: owner.toV2Address(),
       });
-      recipientCreateTokenAccountInstructions = [createAccountIx, initializeMintIx];
+      recipientCreateTokenAccountInstructions = [createATAInstruction];
     }
 
     const [createTokenAccountsIx, approveIx, fillIx] = await Promise.all([
@@ -187,7 +215,11 @@ export class SvmQuery implements QueryInterface {
     const recentBlockhash = await this.provider.getLatestBlockhash().send();
     const fillRelayTx = pipe(
       createTransactionMessage({ version: 0 }),
-      (tx) => setTransactionMessageFeePayer(relayer.toV2Address(), tx),
+      (tx) =>
+        setTransactionMessageFeePayer(
+          SvmAddress.from("86ZyCV5E9XRYucpvQX8jupXveGyDLpnbmi8v5ixpXCrT", "base58").toV2Address(),
+          tx
+        ),
       (tx) => setTransactionMessageLifetimeUsingBlockhash(recentBlockhash.value, tx),
       (tx) =>
         isDefined(recipientCreateTokenAccountInstructions)
