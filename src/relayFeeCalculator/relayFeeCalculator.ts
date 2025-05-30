@@ -302,7 +302,7 @@ export class RelayFeeCalculator {
           throw error;
         }),
     ]);
-    const gasFeesInToken = nativeToToken(tokenGasCost, tokenPrice, inputTokenInfo.decimals, this.nativeTokenDecimals);
+    const gasFeesInToken = nativeToToken(tokenGasCost, tokenPrice, outputTokenInfo.decimals, this.nativeTokenDecimals);
     return percent(gasFeesInToken, amountToRelay.toString());
   }
 
