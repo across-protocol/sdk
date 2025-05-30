@@ -1,4 +1,5 @@
 import winston from "winston";
+import assert from "assert";
 import {
   AnyObject,
   BigNumber,
@@ -610,13 +611,14 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
           exclusiveRelayer: convertToHex(event.exclusiveRelayer),
           depositor: convertToHex(event.depositor),
           recipient: convertToHex(event.recipient),
-          messageHash: convertToHex(event.messageHash),
+          messageHash: isDefined(event.messageHash) ? convertToHex(event.messageHash) : "",
           destinationChainId: this.chainId,
         };
 
         if (eventName === "RequestedV3SlowFill") {
           slowFillRequest.messageHash = getMessageHash(convertToHex(slowFillRequest.message));
         }
+        assert(slowFillRequest.messageHash.length !== 0);
 
         const depositHash = getRelayEventKey({ ...slowFillRequest, destinationChainId: this.chainId });
 
@@ -658,7 +660,7 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
           relayer: convertToHex(event.relayer),
           depositor: convertToHex(event.depositor),
           recipient: convertToHex(event.recipient),
-          messageHash: isDefined(event.messageHash) ? convertToHex(event.messageHash) : undefined,
+          messageHash: isDefined(event.messageHash) ? convertToHex(event.messageHash) : "",
           destinationChainId: this.chainId,
         };
 
@@ -666,6 +668,7 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
           fill.messageHash = getMessageHash((event as unknown as { message: string }).message);
           fill.relayExecutionInfo.updatedMessageHash = getMessageHash(event.relayExecutionInfo.updatedMessage!);
         }
+        assert(fill.messageHash.length !== 0);
 
         // Sanity check that this event is not a duplicate.
         const duplicateFill = this.fills[fill.originChainId]?.find((f) => duplicateEvent(fill, f));
