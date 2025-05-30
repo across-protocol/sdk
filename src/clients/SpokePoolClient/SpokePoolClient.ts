@@ -20,6 +20,8 @@ import {
   chainIsEvm,
   chainIsProd,
   Address,
+  toBN,
+  convertToHex,
 } from "../../utils";
 import { duplicateEvent, sortEventsAscendingInPlace } from "../../utils/EventUtils";
 import { ZERO_ADDRESS } from "../../constants";
@@ -526,7 +528,13 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
         // Derive and append the common properties that are not part of the onchain event.
         const deposit = {
           ...event,
-          messageHash: getMessageHash(event.message),
+          depositor: convertToHex(event.depositor),
+          recipient: convertToHex(event.recipient),
+          exclusiveRelayer: convertToHex(event.exclusiveRelayer),
+          inputToken: convertToHex(event.inputToken),
+          message: convertToHex(event.message),
+          depositId: toBN(event.depositId),
+          messageHash: getMessageHash(convertToHex(event.message)),
           quoteBlockNumber,
           originChainId: this.chainId,
           // The following properties are placeholders to be updated immediately.
@@ -537,7 +545,7 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
         deposit.fromLiteChain = this.isOriginLiteChain(deposit);
         deposit.toLiteChain = this.isDestinationLiteChain(deposit);
 
-        if (isZeroAddress(deposit.outputToken)) {
+        if (isZeroAddress(convertToHex(deposit.outputToken))) {
           deposit.outputToken = this.getDestinationTokenForDeposit(deposit);
         }
 
@@ -562,6 +570,7 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
     }
 
     // Performs indexing of a "speed up deposit"-like event.
+    // @dev SpeedUpDeposit events do not exist on Solana, so we do not need to convert the fields to hex.
     const querySpeedUpDepositEvents = (eventName: string) => {
       const speedUpEvents = (queryResults[eventsToQuery.indexOf(eventName)] ?? []) as SpeedUpWithBlock[];
 
@@ -595,11 +604,18 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
       for (const event of slowFillRequests) {
         const slowFillRequest = {
           ...event,
+          inputToken: convertToHex(event.inputToken),
+          outputToken: convertToHex(event.outputToken),
+          depositId: toBN(event.depositId),
+          exclusiveRelayer: convertToHex(event.exclusiveRelayer),
+          depositor: convertToHex(event.depositor),
+          recipient: convertToHex(event.recipient),
+          messageHash: convertToHex(event.messageHash),
           destinationChainId: this.chainId,
         };
 
         if (eventName === "RequestedV3SlowFill") {
-          slowFillRequest.messageHash = getMessageHash(slowFillRequest.message);
+          slowFillRequest.messageHash = getMessageHash(convertToHex(slowFillRequest.message));
         }
 
         const depositHash = getRelayEventKey({ ...slowFillRequest, destinationChainId: this.chainId });
@@ -635,6 +651,14 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
       for (const event of fillEvents) {
         const fill = {
           ...event,
+          inputToken: convertToHex(event.inputToken),
+          outputToken: convertToHex(event.outputToken),
+          depositId: toBN(event.depositId),
+          exclusiveRelayer: convertToHex(event.exclusiveRelayer),
+          relayer: convertToHex(event.relayer),
+          depositor: convertToHex(event.depositor),
+          recipient: convertToHex(event.recipient),
+          messageHash: isDefined(event.messageHash) ? convertToHex(event.messageHash) : undefined,
           destinationChainId: this.chainId,
         };
 

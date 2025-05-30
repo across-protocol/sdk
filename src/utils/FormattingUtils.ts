@@ -2,6 +2,7 @@ import { utils as ethersUtils } from "ethers";
 import { formatUnits, BigNumber as ethersBigNumber, BN, parseUnits, toBN } from "./BigNumberUtils";
 import { fromWei } from "./common";
 import assert from "assert";
+import bs58 from "bs58";
 import { BigNumber } from "bignumber.js";
 
 // Formats the input to round to decimalPlaces number of decimals if the number has a magnitude larger than 1 and fixes
@@ -187,4 +188,20 @@ export function parseWinston(numericString: string): ethersBigNumber {
  */
 export function formatWinston(winstonValue: ethersBigNumber): string {
   return formatUnits(winstonValue, 12);
+}
+
+/**
+ * Converts an input bytes string to a hex string.
+ * @param bytes The bytes to convert to hex.
+ * @returns A hex string of the input bytes.
+ */
+export function convertToHex(bytes: string | Uint8Array): string {
+  if (typeof bytes !== "string") {
+    return ethersUtils.hexlify(Object.values(bytes));
+  }
+  if (ethersUtils.isHexString(bytes)) {
+    return bytes as string; // It is a hex string, so it is safe to cast as a string.
+  } else {
+    return ethersUtils.hexlify(bs58.decode(bytes as string));
+  }
 }
