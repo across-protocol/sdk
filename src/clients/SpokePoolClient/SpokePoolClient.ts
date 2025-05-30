@@ -20,6 +20,7 @@ import {
   chainIsEvm,
   chainIsProd,
   Address,
+  toAddressType,
 } from "../../utils";
 import { duplicateEvent, sortEventsAscendingInPlace } from "../../utils/EventUtils";
 import { ZERO_ADDRESS } from "../../constants";
@@ -458,7 +459,7 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
   protected canResolveZeroAddressOutputToken(deposit: DepositWithBlock): boolean {
     if (
       !this.hubPoolClient?.l2TokenHasPoolRebalanceRoute(
-        deposit.inputToken,
+        toAddressType(deposit.inputToken),
         deposit.originChainId,
         deposit.quoteBlockNumber
       )
@@ -466,7 +467,7 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
       return false;
     } else {
       const l1Token = this.hubPoolClient?.getL1TokenForL2TokenAtBlock(
-        deposit.inputToken,
+        toAddressType(deposit.inputToken),
         deposit.originChainId,
         deposit.quoteBlockNumber
       );
@@ -737,13 +738,17 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
     }
     // L1 token should be resolved if we get here:
     const l1Token = this.hubPoolClient!.getL1TokenForL2TokenAtBlock(
-      deposit.inputToken,
+      toAddressType(deposit.inputToken),
       deposit.originChainId,
       deposit.quoteBlockNumber
     )!;
     return (
-      this.hubPoolClient!.getL2TokenForL1TokenAtBlock(l1Token, deposit.destinationChainId, deposit.quoteBlockNumber) ??
-      ZERO_ADDRESS
+      // ! TODO: don't change too much cause Bennett's change prob. affects this. Just use `.toAddress`
+      this.hubPoolClient!.getL2TokenForL1TokenAtBlock(
+        l1Token,
+        deposit.destinationChainId,
+        deposit.quoteBlockNumber
+      )?.toAddress() ?? ZERO_ADDRESS
     );
   }
 

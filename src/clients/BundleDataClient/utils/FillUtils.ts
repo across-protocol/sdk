@@ -2,7 +2,7 @@ import _ from "lodash";
 import assert from "assert";
 import { providers } from "ethers";
 import { DepositWithBlock, Fill, FillWithBlock } from "../../../interfaces";
-import { isSlowFill, isValidEvmAddress, isDefined, chainIsEvm } from "../../../utils";
+import { isSlowFill, isValidEvmAddress, isDefined, chainIsEvm, toAddressType } from "../../../utils";
 import { HubPoolClient } from "../../HubPoolClient";
 import { SVMProvider } from "../../../arch/svm";
 
@@ -39,7 +39,7 @@ export function getRefundInformationFromFill(
   // PoolRebalanceRoute, then the repayment chain would have been the originChainId after the getRepaymentChainId()
   // call and we would have returned already, so the following call should always succeed.
   const l1TokenCounterpart = hubPoolClient.getL1TokenForL2TokenAtBlock(
-    relayData.inputToken,
+    toAddressType(relayData.inputToken),
     relayData.originChainId,
     bundleEndBlockForMainnet
   );
@@ -49,9 +49,12 @@ export function getRefundInformationFromFill(
     chainToSendRefundTo,
     bundleEndBlockForMainnet
   );
+
   return {
     chainToSendRefundTo,
-    repaymentToken,
+    // ! TODO: here, .toAddress is to produce a 20byte hex string for Evm addrs, and a base58-encoded 32byte addrs for Svm addrs. That's the hope?
+    // ! TODO: also depends on function usage. Instead can do an chainIsSvm()-type checks and conversions
+    repaymentToken: repaymentToken.toAddress(),
   };
 }
 /**
@@ -109,9 +112,9 @@ export async function verifyFillRepayment(
       if (
         !matchedDeposit.fromLiteChain &&
         hubPoolClient.areTokensEquivalent(
-          fill.inputToken,
+          toAddressType(fill.inputToken),
           fill.originChainId,
-          fill.outputToken,
+          toAddressType(fill.outputToken),
           fill.destinationChainId
         )
       ) {
@@ -169,12 +172,16 @@ function _repaymentChainTokenIsValid(
   bundleEndBlockForMainnet: number
 ): boolean {
   if (
-    !hubPoolClient.l2TokenHasPoolRebalanceRoute(relayData.inputToken, relayData.originChainId, bundleEndBlockForMainnet)
+    !hubPoolClient.l2TokenHasPoolRebalanceRoute(
+      toAddressType(relayData.inputToken),
+      relayData.originChainId,
+      bundleEndBlockForMainnet
+    )
   ) {
     return false;
   }
   const l1TokenCounterpart = hubPoolClient.getL1TokenForL2TokenAtBlock(
-    relayData.inputToken,
+    toAddressType(relayData.inputToken),
     relayData.originChainId,
     bundleEndBlockForMainnet
   );

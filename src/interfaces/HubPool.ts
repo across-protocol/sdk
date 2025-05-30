@@ -1,4 +1,4 @@
-import { BigNumber } from "../utils";
+import { Address, BigNumber, EvmAddress } from "../utils";
 import { SortableEvent } from "./Common";
 
 export interface PoolRebalanceLeaf {
@@ -8,7 +8,7 @@ export interface PoolRebalanceLeaf {
   netSendAmounts: BigNumber[];
   runningBalances: BigNumber[];
   leafId: number;
-  l1Tokens: string[];
+  l1Tokens: EvmAddress[];
 }
 
 export interface RelayerRefundLeaf {
@@ -16,8 +16,8 @@ export interface RelayerRefundLeaf {
   chainId: number;
   refundAmounts: BigNumber[];
   leafId: number;
-  l2TokenAddress: string;
-  refundAddresses: string[];
+  l2TokenAddress: Address; // TODO: Address? I assume that's from dstChain
+  refundAddresses: Address[]; // TODO: Address? I assume that's from dstChain
 }
 
 export interface ProposedRootBundle extends SortableEvent {
@@ -27,7 +27,7 @@ export interface ProposedRootBundle extends SortableEvent {
   poolRebalanceRoot: string;
   relayerRefundRoot: string;
   slowRelayRoot: string;
-  proposer: string;
+  proposer: EvmAddress;
 }
 
 export type RealizedLpFee = {
@@ -40,12 +40,12 @@ export type ProposedRootBundleStringified = Omit<ProposedRootBundle, "bundleEval
 };
 
 export interface CancelledRootBundle extends SortableEvent {
-  disputer: string;
+  disputer: EvmAddress;
   requestTime: number;
 }
 
 export interface DisputedRootBundle extends SortableEvent {
-  disputer: string;
+  disputer: EvmAddress;
   requestTime: number;
 }
 
@@ -55,7 +55,7 @@ export interface ExecutedRootBundle extends SortableEvent {
   netSendAmounts: BigNumber[];
   runningBalances: BigNumber[];
   leafId: number;
-  l1Tokens: string[];
+  l1Tokens: EvmAddress[];
   proof: string[];
 }
 
@@ -76,8 +76,14 @@ export interface RelayerRefundLeafWithGroup extends RelayerRefundLeaf {
   groupIndex: number;
 }
 
-export interface L1Token {
-  address: string;
+export interface L1TokenInfo {
+  address: EvmAddress;
+  symbol: string;
+  decimals: number;
+}
+
+export interface TokenInfo {
+  address: Address;
   symbol: string;
   decimals: number;
 }
@@ -87,16 +93,19 @@ export interface LpToken {
   liquidReserves: BigNumber;
 }
 
+// TODO: I think I don't change string -> Address in the Events. I change right after the event is read
 export interface CrossChainContractsSet extends SortableEvent {
   l2ChainId: number;
   spokePool: string;
 }
 
+// TODO: I think I don't change string -> Address in the Events. I change right after the event is read
 export interface DestinationTokenWithBlock extends SortableEvent {
   l2Token: string;
   l1Token: string;
 }
 
+// TODO: I think I don't change string -> Address in the Events. I change right after the event is read
 export interface SetPoolRebalanceRoot extends SortableEvent {
   destinationChainId: number;
   l1Token: string;
@@ -107,7 +116,7 @@ export interface PendingRootBundle {
   poolRebalanceRoot: string;
   relayerRefundRoot: string;
   slowRelayRoot: string;
-  proposer: string;
+  proposer: EvmAddress;
   unclaimedPoolRebalanceLeafCount: number;
   challengePeriodEndTimestamp: number;
   bundleEvaluationBlockNumbers: number[];

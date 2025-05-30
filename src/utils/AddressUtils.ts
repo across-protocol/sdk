@@ -119,6 +119,14 @@ export class Address {
     return (this.bytes32Address ??= utils.hexZeroPad(utils.hexlify(this.rawAddress), 32).toLowerCase());
   }
 
+  // Returns last 20 bytes of Address as a hex string. Truncates if necessary. This function is useful for comparing some longer addresses(e.g. Solana) to Solidity events
+  // that contain truncated `address` type as one of the fields
+  truncateToBytes20(): string {
+    // Take the last 20 bytes
+    const bytes20 = this.rawAddress.slice(-20);
+    return utils.hexlify(bytes20).toLowerCase();
+  }
+
   // Converts the address (can be bytes32 or bytes20) to its base58 counterpart. This conversion will always succeed, even if the input address is not valid on Solana,
   // as this address may be needed to represent an EVM address on Solana.
   toBase58(): string {

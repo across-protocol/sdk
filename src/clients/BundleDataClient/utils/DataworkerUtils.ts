@@ -17,6 +17,7 @@ import {
   fixedPointAdjustment,
   count2DDictionaryValues,
   count3DDictionaryValues,
+  toAddressType,
 } from "../../../utils";
 import {
   addLastRunningBalance,
@@ -153,19 +154,23 @@ export function _buildPoolRebalanceRoot(
         // If the repayment token and repayment chain ID do not map to a PoolRebalanceRoute graph, then
         // there are no relevant L1 running balances.
         if (
-          !clients.hubPoolClient.l2TokenHasPoolRebalanceRoute(l2TokenAddress, repaymentChainId, mainnetBundleEndBlock)
+          !clients.hubPoolClient.l2TokenHasPoolRebalanceRoute(
+            toAddressType(l2TokenAddress),
+            repaymentChainId,
+            mainnetBundleEndBlock
+          )
         ) {
           chainWithRefundsOnly.add(repaymentChainId);
           return;
         }
         const l1TokenCounterpart = clients.hubPoolClient.getL1TokenForL2TokenAtBlock(
-          l2TokenAddress,
+          toAddressType(l2TokenAddress),
           repaymentChainId,
           mainnetBundleEndBlock
         );
 
-        updateRunningBalance(runningBalances, repaymentChainId, l1TokenCounterpart, totalRefundAmount);
-        updateRunningBalance(realizedLpFees, repaymentChainId, l1TokenCounterpart, totalRealizedLpFee);
+        updateRunningBalance(runningBalances, repaymentChainId, l1TokenCounterpart.toEvmAddress(), totalRefundAmount);
+        updateRunningBalance(realizedLpFees, repaymentChainId, l1TokenCounterpart.toEvmAddress(), totalRealizedLpFee);
       }
     );
   });
@@ -182,12 +187,17 @@ export function _buildPoolRebalanceRoot(
     Object.entries(depositsForChain).forEach(([outputToken, deposits]) => {
       deposits.forEach((deposit) => {
         const l1TokenCounterpart = clients.hubPoolClient.getL1TokenForL2TokenAtBlock(
-          outputToken,
+          toAddressType(outputToken),
           destinationChainId,
           mainnetBundleEndBlock
         );
         const lpFee = deposit.lpFeePct.mul(deposit.inputAmount).div(fixedPointAdjustment);
-        updateRunningBalance(runningBalances, destinationChainId, l1TokenCounterpart, deposit.inputAmount.sub(lpFee));
+        updateRunningBalance(
+          runningBalances,
+          destinationChainId,
+          l1TokenCounterpart.toEvmAddress(),
+          deposit.inputAmount.sub(lpFee)
+        );
         // Slow fill LP fees are accounted for when the slow fill executes and a V3FilledRelay is emitted. i.e. when
         // the slow fill execution is included in bundleFillsV3.
       });
@@ -206,12 +216,17 @@ export function _buildPoolRebalanceRoot(
     Object.entries(slowFilledDepositsForChain).forEach(([outputToken, slowFilledDeposits]) => {
       slowFilledDeposits.forEach((deposit) => {
         const l1TokenCounterpart = clients.hubPoolClient.getL1TokenForL2TokenAtBlock(
-          outputToken,
+          toAddressType(outputToken),
           destinationChainId,
           mainnetBundleEndBlock
         );
         const lpFee = deposit.lpFeePct.mul(deposit.inputAmount).div(fixedPointAdjustment);
-        updateRunningBalance(runningBalances, destinationChainId, l1TokenCounterpart, lpFee.sub(deposit.inputAmount));
+        updateRunningBalance(
+          runningBalances,
+          destinationChainId,
+          l1TokenCounterpart.toEvmAddress(),
+          lpFee.sub(deposit.inputAmount)
+        );
         // Slow fills don't add to lpFees, only when the slow fill is executed and a V3FilledRelay is emitted, so
         // we don't need to subtract it here. Moreover, the HubPoole expects bundleLpFees to be > 0.
       });
@@ -231,7 +246,7 @@ export function _buildPoolRebalanceRoot(
         // there are no relevant L1 running balances.
         if (
           !clients.hubPoolClient.l2TokenHasPoolRebalanceRoute(
-            deposit.inputToken,
+            toAddressType(deposit.inputToken),
             deposit.originChainId,
             mainnetBundleEndBlock
           )
@@ -262,7 +277,7 @@ export function _buildPoolRebalanceRoot(
         // there are no relevant L1 running balances.
         if (
           !clients.hubPoolClient.l2TokenHasPoolRebalanceRoute(
-            deposit.inputToken,
+            toAddressType(deposit.inputToken),
             deposit.originChainId,
             mainnetBundleEndBlock
           )
@@ -271,11 +286,11 @@ export function _buildPoolRebalanceRoot(
           return;
         }
         const l1TokenCounterpart = clients.hubPoolClient.getL1TokenForL2TokenAtBlock(
-          inputToken,
+          toAddressType(inputToken),
           originChainId,
           mainnetBundleEndBlock
         );
-        updateRunningBalance(runningBalances, originChainId, l1TokenCounterpart, deposit.inputAmount);
+        updateRunningBalance(runningBalances, originChainId, l1TokenCounterpart.toEvmAddress(), deposit.inputAmount);
       });
     });
   });
