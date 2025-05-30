@@ -609,7 +609,7 @@ describe("SpokePoolClient: Event Filtering", function () {
       });
 
       // RequestV3SlowFill
-      destinationSpokePoolClient.requestSlowFill({ ...common, message: randomBytes(32) });
+      destinationSpokePoolClient.requestSlowFill({ ...common, message: randomBytes(32), messageHash: randomBytes(32) });
 
       await originSpokePoolClient.update([
         ...fundsDepositedEvents,

@@ -58,6 +58,9 @@ export const toBN = (num: BigNumberish, rounding: "floor" | "round" | "ceil" = "
     const roundUp = decimal.length > 0 && (rounding === "ceil" || (rounding === "round" && parseInt(decimal[0]) >= 5));
     // If we need to round up, we can just add 1 to the integer.
     return BigNumber.from(integer).add(roundUp ? 1 : 0);
+  } else if (ethersUtils.isBytesLike(num)) {
+    // If num is an array object, then let BigNumber parse it.
+    return BigNumber.from(num);
   }
   // Otherwise, it is a string int and we can parse it directly.
   return BigNumber.from(num.toString());
