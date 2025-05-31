@@ -22,6 +22,7 @@ import {
   toWei,
   utf8ToHex,
 } from "./utils";
+import { EvmAddress } from "../src/utils";
 
 let l1Token: Contract, l2Token: Contract, configStore: AcrossConfigStore;
 let owner: SignerWithAddress;
@@ -266,20 +267,40 @@ describe("AcrossConfigStoreClient", function () {
 
       // Test with and without route rate model:
       expect(
-        configStoreClient.getRateModelForBlockNumber(l1Token.address, 1, 2, initialRateModelUpdate.blockNumber)
+        configStoreClient.getRateModelForBlockNumber(
+          EvmAddress.from(l1Token.address),
+          1,
+          2,
+          initialRateModelUpdate.blockNumber
+        )
       ).to.deep.equal(sampleRateModel);
       expect(
-        configStoreClient.getRateModelForBlockNumber(l1Token.address, 999, 888, initialRateModelUpdate.blockNumber)
+        configStoreClient.getRateModelForBlockNumber(
+          EvmAddress.from(l1Token.address),
+          999,
+          888,
+          initialRateModelUpdate.blockNumber
+        )
       ).to.deep.equal(sampleRateModel2);
 
       // Block number when there is no rate model
       expect(() =>
-        configStoreClient.getRateModelForBlockNumber(l1Token.address, 1, 2, initialRateModelUpdate.blockNumber - 1)
+        configStoreClient.getRateModelForBlockNumber(
+          EvmAddress.from(l1Token.address),
+          1,
+          2,
+          initialRateModelUpdate.blockNumber - 1
+        )
       ).to.throw(/Could not find TokenConfig update/);
 
       // L1 token where there is no rate model
       expect(() =>
-        configStoreClient.getRateModelForBlockNumber(l2Token.address, 1, 2, initialRateModelUpdate.blockNumber)
+        configStoreClient.getRateModelForBlockNumber(
+          EvmAddress.from(l2Token.address),
+          1,
+          2,
+          initialRateModelUpdate.blockNumber
+        )
       ).to.throw(/Could not find TokenConfig update/);
     });
 
