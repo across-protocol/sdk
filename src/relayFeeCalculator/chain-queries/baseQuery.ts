@@ -15,6 +15,8 @@ import {
   bnZero,
   chainIsOPStack,
   fixedPointAdjustment,
+  toAddressType,
+  Address,
 } from "../../utils";
 import assert from "assert";
 import { Logger, QueryInterface, getDefaultSimulatedRelayerAddress } from "../relayFeeCalculator";
@@ -72,7 +74,7 @@ export class QueryBase implements QueryInterface {
    */
   async getGasCosts(
     deposit: Omit<Deposit, "messageHash">,
-    relayer = getDefaultSimulatedRelayerAddress(deposit.destinationChainId),
+    relayer = toAddressType(getDefaultSimulatedRelayerAddress(deposit.destinationChainId)),
     options: Partial<{
       gasPrice: BigNumberish;
       gasUnits: BigNumberish;
@@ -122,7 +124,7 @@ export class QueryBase implements QueryInterface {
    */
   getUnsignedTxFromDeposit(
     deposit: Omit<Deposit, "messageHash">,
-    relayer = getDefaultSimulatedRelayerAddress(deposit.destinationChainId)
+    relayer = toAddressType(getDefaultSimulatedRelayerAddress(deposit.destinationChainId))
   ): Promise<PopulatedTransaction> {
     return populateV3Relay(this.spokePool, deposit, relayer);
   }
@@ -135,10 +137,10 @@ export class QueryBase implements QueryInterface {
    */
   async getNativeGasCost(
     deposit: Omit<Deposit, "messageHash">,
-    relayer = getDefaultSimulatedRelayerAddress(deposit.destinationChainId)
+    relayer = toAddressType(getDefaultSimulatedRelayerAddress(deposit.destinationChainId))
   ): Promise<BigNumber> {
     const unsignedTx = await this.getUnsignedTxFromDeposit(deposit, relayer);
-    const voidSigner = new VoidSigner(relayer, this.provider);
+    const voidSigner = new VoidSigner(relayer.toEvmAddress(), this.provider);
     return voidSigner.estimateGas(unsignedTx);
   }
 
@@ -152,7 +154,7 @@ export class QueryBase implements QueryInterface {
    */
   async getOpStackL1DataFee(
     unsignedTx: PopulatedTransaction,
-    relayer = getDefaultSimulatedRelayerAddress(unsignedTx.chainId),
+    relayer = toAddressType(getDefaultSimulatedRelayerAddress(unsignedTx.chainId)),
     options: Partial<{
       opStackL2GasUnits: BigNumberish;
       opStackL1DataFeeMultiplier: BigNumber;
@@ -161,7 +163,7 @@ export class QueryBase implements QueryInterface {
     const { opStackL2GasUnits, opStackL1DataFeeMultiplier = toBNWei("1") } = options || {};
     const { chainId } = await this.provider.getNetwork();
     assert(isOptimismL2Provider(this.provider), `Unexpected provider for chain ID ${chainId}.`);
-    const voidSigner = new VoidSigner(relayer, this.provider);
+    const voidSigner = new VoidSigner(relayer.toEvmAddress(), this.provider);
     const populatedTransaction = await voidSigner.populateTransaction({
       ...unsignedTx,
       gasLimit: opStackL2GasUnits, // prevents additional gas estimation call
@@ -183,7 +185,7 @@ export class QueryBase implements QueryInterface {
    */
   async estimateGas(
     unsignedTx: PopulatedTransaction,
-    senderAddress: string,
+    senderAddress: Address,
     provider: providers.Provider | L2Provider<providers.Provider>,
     options: Partial<{
       gasPrice: BigNumberish;
@@ -204,7 +206,7 @@ export class QueryBase implements QueryInterface {
     } = options || {};
 
     const { chainId } = await provider.getNetwork();
-    const voidSigner = new VoidSigner(senderAddress, provider);
+    const voidSigner = new VoidSigner(senderAddress.toEvmAddress(), provider);
 
     // Estimate the Gas units required to submit this transaction.
     const queries = [

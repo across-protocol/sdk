@@ -12,6 +12,7 @@ import {
   spreadEvent,
   isMessageEmpty,
   fixedPointAdjustment,
+  toAddressType,
 } from "../src/utils";
 import {
   BigNumber,
@@ -131,7 +132,7 @@ describe("RelayFeeCalculator", () => {
       buildDepositForRelayerFeeTest(100e6, "usdc", "10", "1"),
       100e6,
       false,
-      randomAddress(),
+      toAddressType(randomAddress()),
       1.01
     );
     assert.ok(resultWithPrice);
@@ -501,16 +502,16 @@ describe("RelayFeeCalculator: Composable Bridging", function () {
         {
           inputAmount: bnOne,
           outputAmount: bnOne,
-          inputToken: erc20.address,
-          outputToken: erc20.address,
-          recipient: testContract.address,
+          inputToken: toAddressType(erc20.address),
+          outputToken: toAddressType(erc20.address),
+          recipient: toAddressType(testContract.address),
           quoteTimestamp: 1,
           depositId: BigNumber.from(1000000),
-          depositor: depositor.address,
+          depositor: toAddressType(depositor.address),
           originChainId: 10,
           destinationChainId: 1,
           message: message || EMPTY_MESSAGE,
-          exclusiveRelayer: ZERO_ADDRESS,
+          exclusiveRelayer: toAddressType(ZERO_ADDRESS),
           fillDeadline: getCurrentTime() + 60000,
           exclusivityDeadline: 0,
           fromLiteChain: false,
@@ -518,7 +519,7 @@ describe("RelayFeeCalculator: Composable Bridging", function () {
         },
         1,
         false,
-        relayer.address,
+        toAddressType(relayer.address),
         1,
         tokenMap,
         undefined,
@@ -648,7 +649,7 @@ describe("QueryBase", function () {
       };
       const result = await queryBase.estimateGas(
         {}, // populatedTransaction
-        randomAddress(),
+        toAddressType(randomAddress()),
         getDefaultProvider(),
         options
       );
@@ -670,7 +671,7 @@ describe("QueryBase", function () {
 
       const result = await queryBase.estimateGas(
         {}, // populatedTransaction
-        randomAddress(),
+        toAddressType(randomAddress()),
         mockedProvider,
         options
       );

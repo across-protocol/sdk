@@ -28,6 +28,9 @@ import {
   toAddress,
   toBytes32,
   spreadEventWithBlockNumber,
+  Address,
+  toAddressType,
+  isDefined,
 } from "../../utils";
 import { EVMSpokePoolClient, SpokePoolUpdate } from "../SpokePoolClient";
 import { HubPoolClient } from "../HubPoolClient";
@@ -63,8 +66,9 @@ export class MockSpokePoolClient extends EVMSpokePoolClient {
     this.destinationTokenForChainOverride[chainId] = token;
   }
 
-  getDestinationTokenForDeposit(deposit: DepositWithBlock): string {
-    return this.destinationTokenForChainOverride[deposit.originChainId] ?? super.getDestinationTokenForDeposit(deposit);
+  getDestinationTokenForDeposit(deposit: DepositWithBlock): Address {
+    const override = this.destinationTokenForChainOverride[deposit.originChainId];
+    return isDefined(override) ? toAddressType(override) : super.getDestinationTokenForDeposit(deposit);
   }
 
   setLatestBlockNumber(blockNumber: number): void {
@@ -141,11 +145,11 @@ export class MockSpokePoolClient extends EVMSpokePoolClient {
 
     destinationChainId ??= random(1, 42161, false);
     const addressModifier = event === "FundsDeposited" ? toBytes32 : toAddress;
-    const depositor = addressModifier(deposit.depositor ?? randomAddress());
-    const recipient = addressModifier(deposit.recipient ?? depositor);
-    const inputToken = addressModifier(deposit.inputToken ?? randomAddress());
-    const outputToken = addressModifier(deposit.outputToken ?? inputToken);
-    const exclusiveRelayer = addressModifier(deposit.exclusiveRelayer ?? ZERO_ADDRESS);
+    const depositor = addressModifier((deposit.depositor ?? toAddressType(randomAddress())).toAddress());
+    const recipient = addressModifier((deposit.recipient ?? toAddressType(depositor)).toAddress());
+    const inputToken = addressModifier((deposit.inputToken ?? toAddressType(randomAddress())).toAddress());
+    const outputToken = addressModifier((deposit.outputToken ?? toAddressType(inputToken)).toAddress());
+    const exclusiveRelayer = addressModifier((deposit.exclusiveRelayer ?? toAddressType(ZERO_ADDRESS)).toAddress());
 
     inputAmount ??= toBNWei(random(1, 1000, false));
     outputAmount ??= inputAmount.mul(toBN("0.95"));
@@ -201,12 +205,12 @@ export class MockSpokePoolClient extends EVMSpokePoolClient {
     fillDeadline ??= getCurrentTime() + 60;
 
     const addressModifier = event === "FilledRelay" ? toBytes32 : toAddress;
-    const depositor = addressModifier(fill.depositor ?? randomAddress());
-    const recipient = addressModifier(fill.recipient ?? depositor);
-    const inputToken = addressModifier(fill.inputToken ?? randomAddress());
-    const outputToken = addressModifier(fill.outputToken ?? ZERO_ADDRESS);
-    const exclusiveRelayer = addressModifier(fill.exclusiveRelayer ?? ZERO_ADDRESS);
-    const relayer = addressModifier(fill.relayer ?? randomAddress());
+    const depositor = addressModifier((fill.depositor ?? toAddressType(randomAddress())).toAddress());
+    const recipient = addressModifier((fill.recipient ?? toAddressType(depositor)).toAddress());
+    const inputToken = addressModifier((fill.inputToken ?? toAddressType(randomAddress())).toAddress());
+    const outputToken = addressModifier((fill.outputToken ?? toAddressType(ZERO_ADDRESS)).toAddress());
+    const exclusiveRelayer = addressModifier((fill.exclusiveRelayer ?? toAddressType(ZERO_ADDRESS)).toAddress());
+    const relayer = addressModifier((fill.relayer ?? toAddressType(randomAddress())).toAddress());
 
     const topics = [originChainId, depositId, relayer]; // @todo verify
     const message = fill.message ?? EMPTY_MESSAGE;
@@ -279,7 +283,7 @@ export class MockSpokePoolClient extends EVMSpokePoolClient {
 
   protected _speedUpDeposit(event: string, speedUp: SpeedUp): Log {
     const addressModifier = event === "RequestedSpeedUpDeposit" ? toBytes32 : toAddress;
-    const depositor = addressModifier(speedUp.depositor);
+    const depositor = addressModifier(speedUp.depositor.toBytes32());
     const topics = [speedUp.depositId, depositor];
     const args = { ...speedUp };
 
@@ -290,7 +294,7 @@ export class MockSpokePoolClient extends EVMSpokePoolClient {
       args: {
         ...args,
         depositor,
-        updatedRecipient: addressModifier(speedUp.updatedRecipient),
+        updatedRecipient: addressModifier(speedUp.updatedRecipient.toBytes32()),
       },
     });
   }
@@ -325,7 +329,7 @@ export class MockSpokePoolClient extends EVMSpokePoolClient {
     const args = { ...request };
 
     const addressModifier = event === "RequestedSlowFill" ? toBytes32 : toAddress;
-    const depositor = addressModifier(args.depositor ?? randomAddress());
+    const depositor = addressModifier(args.depositor.toBytes32() ?? randomAddress());
 
     return this.eventManager.generateEvent({
       event,
@@ -334,10 +338,10 @@ export class MockSpokePoolClient extends EVMSpokePoolClient {
       args: {
         ...args,
         depositor,
-        recipient: addressModifier(args.recipient ?? depositor),
-        inputToken: addressModifier(args.inputToken ?? randomAddress()),
-        outputToken: addressModifier(args.outputToken ?? ZERO_ADDRESS),
-        exclusiveRelayer: addressModifier(args.exclusiveRelayer ?? ZERO_ADDRESS),
+        recipient: addressModifier((args.recipient ?? toAddressType(depositor)).toAddress()),
+        inputToken: addressModifier((args.inputToken ?? toAddressType(randomAddress())).toAddress()),
+        outputToken: addressModifier((args.outputToken ?? toAddressType(ZERO_ADDRESS)).toAddress()),
+        exclusiveRelayer: addressModifier((args.exclusiveRelayer ?? toAddressType(ZERO_ADDRESS)).toAddress()),
       },
       blockNumber: request.blockNumber,
       transactionIndex: request.txnIndex,
@@ -350,7 +354,7 @@ export class MockSpokePoolClient extends EVMSpokePoolClient {
     const fill = {
       ...leaf.relayData,
       destinationChainId: this.chainId,
-      relayer: ZERO_ADDRESS,
+      relayer: toAddressType(ZERO_ADDRESS),
       repaymentChainId: 0,
       relayExecutionInfo: {
         updatedRecipient: leaf.relayData.recipient,

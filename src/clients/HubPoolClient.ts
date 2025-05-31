@@ -239,7 +239,11 @@ export class HubPoolClient extends BaseAbstractClient {
     // L1-->L2 token mappings are set via PoolRebalanceRoutes which occur on mainnet,
     // so we use the latest token mapping. This way if a very old deposit is filled, the relayer can use the
     // latest L2 token mapping to find the L1 token counterpart.
-    return this.getL1TokenForL2TokenAtBlock(deposit.inputToken, deposit.originChainId, deposit.quoteBlockNumber);
+    return this.getL1TokenForL2TokenAtBlock(
+      deposit.inputToken.toEvmAddress(),
+      deposit.originChainId,
+      deposit.quoteBlockNumber
+    );
   }
 
   l2TokenEnabledForL1Token(l1Token: string, destinationChainId: number): boolean {
@@ -396,7 +400,9 @@ export class HubPoolClient extends BaseAbstractClient {
     const hubPoolTokens: { [k: string]: string } = {};
     const getHubPoolToken = (deposit: LpFeeRequest, quoteBlockNumber: number): string | undefined => {
       const tokenKey = `${deposit.originChainId}-${deposit.inputToken}`;
-      if (this.l2TokenHasPoolRebalanceRoute(deposit.inputToken, deposit.originChainId, quoteBlockNumber)) {
+      if (
+        this.l2TokenHasPoolRebalanceRoute(deposit.inputToken.toEvmAddress(), deposit.originChainId, quoteBlockNumber)
+      ) {
         return (hubPoolTokens[tokenKey] ??= this.getL1TokenForDeposit({ ...deposit, quoteBlockNumber }));
       } else return undefined;
     };
@@ -495,7 +501,7 @@ export class HubPoolClient extends BaseAbstractClient {
     // @dev The caller expects to receive an array in the same length and ordering as the input `deposits`.
     return await mapAsync(deposits, async (deposit) => {
       const quoteBlock = quoteBlocks[deposit.quoteTimestamp];
-      if (this.l2TokenHasPoolRebalanceRoute(deposit.inputToken, deposit.originChainId, quoteBlock)) {
+      if (this.l2TokenHasPoolRebalanceRoute(deposit.inputToken.toEvmAddress(), deposit.originChainId, quoteBlock)) {
         return await computeRealizedLpFeePct(deposit);
       } else {
         return {
