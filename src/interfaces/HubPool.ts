@@ -16,8 +16,8 @@ export interface RelayerRefundLeaf {
   chainId: number;
   refundAmounts: BigNumber[];
   leafId: number;
-  l2TokenAddress: Address; // TODO: Address? I assume that's from dstChain
-  refundAddresses: Address[]; // TODO: Address? I assume that's from dstChain
+  l2TokenAddress: Address;
+  refundAddresses: Address[];
 }
 
 export interface ProposedRootBundle extends SortableEvent {
@@ -27,7 +27,7 @@ export interface ProposedRootBundle extends SortableEvent {
   poolRebalanceRoot: string;
   relayerRefundRoot: string;
   slowRelayRoot: string;
-  proposer: EvmAddress;
+  proposer: string;
 }
 
 export type RealizedLpFee = {
@@ -40,12 +40,12 @@ export type ProposedRootBundleStringified = Omit<ProposedRootBundle, "bundleEval
 };
 
 export interface CancelledRootBundle extends SortableEvent {
-  disputer: EvmAddress;
+  disputer: string;
   requestTime: number;
 }
 
 export interface DisputedRootBundle extends SortableEvent {
-  disputer: EvmAddress;
+  disputer: string;
   requestTime: number;
 }
 
@@ -55,7 +55,7 @@ export interface ExecutedRootBundle extends SortableEvent {
   netSendAmounts: BigNumber[];
   runningBalances: BigNumber[];
   leafId: number;
-  l1Tokens: EvmAddress[];
+  l1Tokens: string[];
   proof: string[];
 }
 

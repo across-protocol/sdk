@@ -19,6 +19,7 @@ import {
   winston,
 } from "./utils";
 import { setupHubPool } from "./fixtures/HubPool.Fixture";
+import { EvmAddress } from "../src/utils";
 
 let hubPool: Contract, timer: Contract;
 let l1Token_1: Contract, l1Token_2: Contract;
@@ -199,7 +200,7 @@ describe("HubPoolClient: RootBundle Events", function () {
     ({ runningBalance } = hubPoolClient.getRunningBalanceBeforeBlockForChain(
       firstRootBundleBlockNumber,
       constants.originChainId,
-      l1Token_1.address
+      EvmAddress.from(l1Token_1.address)
     ));
     expect(runningBalance.eq(0)).to.be.true;
     await hubPoolClient.update();
@@ -208,7 +209,7 @@ describe("HubPoolClient: RootBundle Events", function () {
     ({ runningBalance } = hubPoolClient.getRunningBalanceBeforeBlockForChain(
       firstRootBundleBlockNumber,
       constants.originChainId,
-      l1Token_1.address
+      EvmAddress.from(l1Token_1.address)
     ));
     expect(runningBalance.eq(toBNWei(100))).to.be.true;
 
@@ -216,7 +217,7 @@ describe("HubPoolClient: RootBundle Events", function () {
     ({ runningBalance } = hubPoolClient.getRunningBalanceBeforeBlockForChain(
       0,
       constants.originChainId,
-      l1Token_1.address
+      EvmAddress.from(l1Token_1.address)
     ));
     expect(runningBalance.eq(0)).to.be.true;
 
@@ -224,14 +225,14 @@ describe("HubPoolClient: RootBundle Events", function () {
     ({ runningBalance } = hubPoolClient.getRunningBalanceBeforeBlockForChain(
       firstRootBundleBlockNumber,
       constants.destinationChainId,
-      l1Token_1.address
+      EvmAddress.from(l1Token_1.address)
     ));
     expect(runningBalance.eq(0)).to.be.true;
 
     ({ runningBalance } = hubPoolClient.getRunningBalanceBeforeBlockForChain(
       firstRootBundleBlockNumber,
       constants.originChainId,
-      timer.address
+      EvmAddress.from(timer.address)
     ));
     expect(runningBalance.eq(0)).to.be.true;
 
@@ -239,7 +240,7 @@ describe("HubPoolClient: RootBundle Events", function () {
     ({ runningBalance } = hubPoolClient.getRunningBalanceBeforeBlockForChain(
       firstRootBundleBlockNumber,
       constants.originChainId,
-      l1Token_2.address
+      EvmAddress.from(l1Token_2.address)
     ));
     expect(runningBalance.eq(toBNWei(200))).to.be.true;
 
@@ -257,14 +258,14 @@ describe("HubPoolClient: RootBundle Events", function () {
     ({ runningBalance } = hubPoolClient.getRunningBalanceBeforeBlockForChain(
       secondRootBundleBlockNumber,
       constants.originChainId,
-      l1Token_1.address
+      EvmAddress.from(l1Token_1.address)
     ));
     expect(runningBalance.eq(toBNWei(200))).to.be.true; // Grabs second running balance
 
     ({ runningBalance } = hubPoolClient.getRunningBalanceBeforeBlockForChain(
       firstRootBundleBlockNumber,
       constants.originChainId,
-      l1Token_1.address
+      EvmAddress.from(l1Token_1.address)
     ));
     expect(runningBalance.eq(toBNWei(100))).to.be.true; // Grabs first running balance
   });

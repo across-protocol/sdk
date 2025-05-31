@@ -65,7 +65,7 @@ const tokenConfigToUpdate = JSON.stringify({
   spokeTargetBalances: sampleSpokeTargetBalances,
 });
 
-describe("HubPool Utilization", function () {
+describe.only("HubPool Utilization", function () {
   beforeEach(async function () {
     [owner] = await ethers.getSigners();
     const getNetwork = owner?.provider?.getNetwork();

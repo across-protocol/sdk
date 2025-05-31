@@ -511,7 +511,10 @@ export class HubPoolClient extends BaseAbstractClient {
     // For each token / quoteBlock pair, resolve the utilisation for each quoted block.
     // This can be reused for each deposit with the same HubPool token and quoteTimestamp pair.
     utilization = Object.fromEntries(
-      await mapAsync(getHubPoolTokens(), async (hubPoolToken) => [hubPoolToken, await resolveUtilization(hubPoolToken)])
+      await mapAsync(getHubPoolTokens(), async (hubPoolToken) => [
+        hubPoolToken.toEvmAddress(),
+        await resolveUtilization(hubPoolToken),
+      ])
     );
 
     // For each deposit, compute the post-relay HubPool utilisation independently.
@@ -809,7 +812,7 @@ export class HubPoolClient extends BaseAbstractClient {
       return (
         executedLeaf.blockNumber <= block &&
         executedLeaf.chainId === chain &&
-        executedLeaf.l1Tokens.some((token) => token.eq(l1Token))
+        executedLeaf.l1Tokens.some((token) => token === l1Token.toEvmAddress())
       );
     });
   }
@@ -826,7 +829,9 @@ export class HubPoolClient extends BaseAbstractClient {
   ): TokenRunningBalance {
     let runningBalance = toBN(0);
     if (executedRootBundle) {
-      const indexOfL1Token = executedRootBundle.l1Tokens.findIndex((tokenInBundle) => tokenInBundle.eq(l1Token));
+      const indexOfL1Token = executedRootBundle.l1Tokens.findIndex(
+        (tokenInBundle) => tokenInBundle === l1Token.toEvmAddress()
+      );
       // TODO: not sure this if is required. Wasn't here before. Probably `getRunningBalanceForToken` is used on checked tokens only
       if (indexOfL1Token !== -1) {
         runningBalance = executedRootBundle.runningBalances[indexOfL1Token];
