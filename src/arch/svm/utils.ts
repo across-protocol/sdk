@@ -264,13 +264,13 @@ export async function getInstructionParamsPda(programId: Address, signer: Addres
  * Returns the PDA for the Event Authority.
  * @returns The PDA for the Event Authority.
  */
-export const getEventAuthority = async () => {
+export async function getEventAuthority(programId: Address): Promise<Address> {
   const [eventAuthority] = await getProgramDerivedAddress({
-    programAddress: address(SvmSpokeClient.SVM_SPOKE_PROGRAM_ADDRESS),
+    programAddress: programId,
     seeds: ["__event_authority"],
   });
   return eventAuthority;
-};
+}
 
 /**
  * Returns a random SVM address.

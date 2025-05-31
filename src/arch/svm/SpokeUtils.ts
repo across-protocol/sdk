@@ -33,7 +33,6 @@ import {
   isDefined,
   isUnsafeDepositId,
   keccak256,
-  toAddressType,
 } from "../../utils";
 import { SvmCpiEventsClient, getEventAuthority, getFillStatusPda, getStatePda, unwrapEventData } from "./";
 import { SVMEventNames, SVMProvider } from "./types";
@@ -356,7 +355,7 @@ export async function fillRelayInstruction(
     deposit.exclusiveRelayer,
     deposit.inputToken,
     deposit.outputToken,
-  ].map((addr) => toAddressType(addr).forceSvmAddress());
+  ].map((addr) => addr.forceSvmAddress());
 
   const _relayDataHash = getRelayDataHash(deposit, deposit.destinationChainId);
   const relayDataHash = new Uint8Array(Buffer.from(_relayDataHash.slice(2), "hex"));
@@ -367,7 +366,7 @@ export async function fillRelayInstruction(
   const [statePda, fillStatusPda, eventAuthority] = await Promise.all([
     getStatePda(spokePool.toV2Address()),
     getFillStatusPda(spokePool.toV2Address(), deposit, deposit.destinationChainId),
-    getEventAuthority(),
+    getEventAuthority(spokePool.toV2Address()),
   ]);
   const depositIdBuffer = new Uint8Array(32);
   const shortenedBuffer = new Uint8Array(Buffer.from(deposit.depositId.toHexString().slice(2), "hex"));
@@ -485,11 +484,11 @@ export function getRelayDataHash(relayData: RelayData, destinationChainId: numbe
   assert(relayData.message.startsWith("0x"), "Message must be a hex string");
 
   const contentToHash = Buffer.concat([
-    Uint8Array.from(addressEncoder.encode(SvmAddress.from(relayData.depositor, "base16").toV2Address())),
-    Uint8Array.from(addressEncoder.encode(SvmAddress.from(relayData.recipient, "base16").toV2Address())),
-    Uint8Array.from(addressEncoder.encode(SvmAddress.from(relayData.exclusiveRelayer, "base16").toV2Address())),
-    Uint8Array.from(addressEncoder.encode(SvmAddress.from(relayData.inputToken, "base16").toV2Address())),
-    Uint8Array.from(addressEncoder.encode(SvmAddress.from(relayData.outputToken, "base16").toV2Address())),
+    Uint8Array.from(addressEncoder.encode(address(relayData.depositor.toBase58()))),
+    Uint8Array.from(addressEncoder.encode(address(relayData.recipient.toBase58()))),
+    Uint8Array.from(addressEncoder.encode(address(relayData.exclusiveRelayer.toBase58()))),
+    Uint8Array.from(addressEncoder.encode(address(relayData.inputToken.toBase58()))),
+    Uint8Array.from(addressEncoder.encode(address(relayData.outputToken.toBase58()))),
     Uint8Array.from(uint64Encoder.encode(BigInt(relayData.inputAmount.toString()))),
     Uint8Array.from(uint64Encoder.encode(BigInt(relayData.outputAmount.toString()))),
     Uint8Array.from(uint64Encoder.encode(BigInt(relayData.originChainId.toString()))),

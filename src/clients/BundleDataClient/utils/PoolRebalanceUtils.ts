@@ -168,7 +168,7 @@ export function updateRunningBalanceForDeposit(
   mainnetBundleEndBlock: number
 ): void {
   const l1TokenCounterpart = hubPoolClient.getL1TokenForL2TokenAtBlock(
-    deposit.inputToken,
+    deposit.inputToken.toEvmAddress(),
     deposit.originChainId,
     mainnetBundleEndBlock
   );

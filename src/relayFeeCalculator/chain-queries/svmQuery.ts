@@ -79,7 +79,7 @@ export class SvmQuery implements QueryInterface {
    */
   async getGasCosts(
     deposit: Omit<Deposit, "messageHash">,
-    _relayer = getDefaultSimulatedRelayerAddress(deposit.destinationChainId),
+    _relayer = toAddressType(getDefaultSimulatedRelayerAddress(deposit.destinationChainId)),
     options: Partial<{
       gasPrice: BigNumberish;
       gasUnits: BigNumberish;
@@ -87,9 +87,9 @@ export class SvmQuery implements QueryInterface {
       priorityFeeMultiplier: BigNumber;
     }> = {}
   ): Promise<TransactionCostEstimate> {
-    const relayer = _relayer ? toAddressType(_relayer).forceSvmAddress() : this.simulatedRelayerAddress;
+    const relayer = _relayer ? _relayer.forceSvmAddress() : this.simulatedRelayerAddress;
 
-    const fillRelayTx = await this.getFillRelayTx(deposit, relayer.toBase58());
+    const fillRelayTx = await this.getFillRelayTx(deposit, relayer);
 
     const [computeUnitsConsumed, _gasPriceEstimate] = await Promise.all([
       toBN(await this.computeUnitEstimator(fillRelayTx)),
@@ -122,7 +122,7 @@ export class SvmQuery implements QueryInterface {
    */
   async getNativeGasCost(
     deposit: Omit<Deposit, "messageHash">,
-    _relayer = getDefaultSimulatedRelayerAddress(deposit.destinationChainId)
+    _relayer = toAddressType(getDefaultSimulatedRelayerAddress(deposit.destinationChainId))
   ): Promise<BigNumber> {
     const fillRelayTx = await this.getFillRelayTx(deposit, _relayer);
     const computeUnitsConsumed = toBN(await this.computeUnitEstimator(fillRelayTx));
@@ -137,12 +137,12 @@ export class SvmQuery implements QueryInterface {
    */
   async getFillRelayTx(
     deposit: Omit<Deposit, "messageHash">,
-    _relayer = getDefaultSimulatedRelayerAddress(deposit.destinationChainId)
+    _relayer = toAddressType(getDefaultSimulatedRelayerAddress(deposit.destinationChainId))
   ) {
-    const relayer = _relayer ? toAddressType(_relayer).forceSvmAddress() : this.simulatedRelayerAddress;
+    const relayer = isDefined(_relayer) ? _relayer : this.simulatedRelayerAddress;
     // If the user did not have a token account created on destination, then we need to include this as a gas cost.
-    const mint = toAddressType(deposit.outputToken).forceSvmAddress();
-    const owner = toAddressType(deposit.recipient).forceSvmAddress();
+    const mint = deposit.outputToken.forceSvmAddress();
+    const owner = deposit.recipient.forceSvmAddress();
     const associatedToken = await getAssociatedTokenAddress(owner, mint);
     const simulatedSigner = SolanaVoidSigner(relayer.toBase58());
 
@@ -174,7 +174,7 @@ export class SvmQuery implements QueryInterface {
     const [createTokenAccountsIx, approveIx, fillIx] = await Promise.all([
       createTokenAccountsInstruction(mint, simulatedSigner),
       createApproveInstruction(
-        mint,
+        mint.forceSvmAddress(),
         deposit.outputAmount,
         this.simulatedRelayerAddress,
         this.spokePoolAddress,
@@ -187,7 +187,7 @@ export class SvmQuery implements QueryInterface {
     const recentBlockhash = await this.provider.getLatestBlockhash().send();
     const fillRelayTx = pipe(
       createTransactionMessage({ version: 0 }),
-      (tx) => setTransactionMessageFeePayer(relayer.toV2Address(), tx),
+      (tx) => setTransactionMessageFeePayer(relayer.forceSvmAddress().toV2Address(), tx),
       (tx) => setTransactionMessageLifetimeUsingBlockhash(recentBlockhash.value, tx),
       (tx) =>
         isDefined(recipientCreateTokenAccountInstructions)

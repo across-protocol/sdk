@@ -65,10 +65,10 @@ export function getRefundsFromBundle(
     Object.entries(depositsForChain).forEach(([l2TokenAddress, deposits]) => {
       deposits.forEach((deposit) => {
         if (combinedRefunds[originChainId][l2TokenAddress] === undefined) {
-          combinedRefunds[originChainId][l2TokenAddress] = { [deposit.depositor]: deposit.inputAmount };
+          combinedRefunds[originChainId][l2TokenAddress] = { [deposit.depositor.toBytes32()]: deposit.inputAmount };
         } else {
-          const existingRefundAmount = combinedRefunds[originChainId][l2TokenAddress][deposit.depositor];
-          combinedRefunds[originChainId][l2TokenAddress][deposit.depositor] = deposit.inputAmount.add(
+          const existingRefundAmount = combinedRefunds[originChainId][l2TokenAddress][deposit.depositor.toBytes32()];
+          combinedRefunds[originChainId][l2TokenAddress][deposit.depositor.toBytes32()] = deposit.inputAmount.add(
             existingRefundAmount ?? bnZero
           );
         }
@@ -231,7 +231,7 @@ export function _buildPoolRebalanceRoot(
         // there are no relevant L1 running balances.
         if (
           !clients.hubPoolClient.l2TokenHasPoolRebalanceRoute(
-            deposit.inputToken,
+            deposit.inputToken.toEvmAddress(),
             deposit.originChainId,
             mainnetBundleEndBlock
           )
@@ -262,7 +262,7 @@ export function _buildPoolRebalanceRoot(
         // there are no relevant L1 running balances.
         if (
           !clients.hubPoolClient.l2TokenHasPoolRebalanceRoute(
-            deposit.inputToken,
+            deposit.inputToken.toEvmAddress(),
             deposit.originChainId,
             mainnetBundleEndBlock
           )

@@ -1,33 +1,11 @@
 import { encodeAbiParameters, Hex, keccak256 } from "viem";
-import { MAX_SAFE_DEPOSIT_ID, ZERO_ADDRESS, ZERO_BYTES } from "../constants";
-import { Deposit, RelayData } from "../interfaces";
-import { toBytes32 } from "./AddressUtils";
+import { MAX_SAFE_DEPOSIT_ID, ZERO_BYTES } from "../constants";
+import { RelayData } from "../interfaces";
 import { BigNumber } from "./BigNumberUtils";
+import { Address } from "./AddressUtils";
 import { isMessageEmpty } from "./DepositUtils";
 import { chainIsSvm } from "./NetworkUtils";
 import { svm } from "../arch";
-
-/**
- * Produce the RelayData for a Deposit.
- * @param deposit Deposit instance.
- * @returns The corresponding RelayData object.
- */
-export function getDepositRelayData(deposit: Omit<Deposit, "messageHash">): RelayData {
-  return {
-    depositor: toBytes32(deposit.depositor),
-    recipient: toBytes32(deposit.recipient),
-    exclusiveRelayer: toBytes32(deposit.exclusiveRelayer),
-    inputToken: toBytes32(deposit.inputToken),
-    outputToken: toBytes32(deposit.outputToken),
-    inputAmount: deposit.inputAmount,
-    outputAmount: deposit.outputAmount,
-    originChainId: deposit.originChainId,
-    depositId: deposit.depositId,
-    fillDeadline: deposit.fillDeadline,
-    exclusivityDeadline: deposit.exclusivityDeadline,
-    message: deposit.message,
-  };
-}
 
 /**
  * Compute the RelayData hash for a fill. This can be used to determine the fill status.
@@ -59,14 +37,14 @@ export function getRelayDataHash(relayData: RelayData, destinationChainId: numbe
 
   const _relayData = {
     ...relayData,
-    depositor: toBytes32(relayData.depositor),
-    recipient: toBytes32(relayData.recipient),
-    inputToken: toBytes32(relayData.inputToken),
-    outputToken: toBytes32(relayData.outputToken),
-    exclusiveRelayer: toBytes32(relayData.exclusiveRelayer),
+    depositor: relayData.depositor.toBytes32(),
+    recipient: relayData.recipient.toBytes32(),
+    inputToken: relayData.inputToken.toBytes32(),
+    outputToken: relayData.outputToken.toBytes32(),
+    exclusiveRelayer: relayData.exclusiveRelayer.toBytes32(),
   };
   if (chainIsSvm(destinationChainId)) {
-    return svm.getRelayDataHash(_relayData, destinationChainId);
+    return svm.getRelayDataHash(relayData, destinationChainId);
   }
   return keccak256(encodeAbiParameters(abi, [_relayData, destinationChainId]));
 }
@@ -86,8 +64,8 @@ export function isUnsafeDepositId(depositId: BigNumber): boolean {
 }
 
 // Determines if the input address (either a bytes32 or bytes20) is the zero address.
-export function isZeroAddress(address: string): boolean {
-  return address === ZERO_ADDRESS || address === ZERO_BYTES;
+export function isZeroAddress(address: Address): boolean {
+  return address.toBytes32() === ZERO_BYTES;
 }
 
 export function getMessageHash(message: string): string {

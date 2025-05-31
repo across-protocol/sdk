@@ -12,7 +12,17 @@ import {
   SpeedUp,
   TokensBridged,
 } from "../src/interfaces";
-import { bnOne, getCurrentTime, getMessageHash, isDefined, randomAddress, toAddress, toBN } from "../src/utils";
+import {
+  bnOne,
+  getCurrentTime,
+  getMessageHash,
+  isDefined,
+  randomAddress,
+  toAddress,
+  toBN,
+  toAddressType,
+  Address,
+} from "../src/utils";
 import {
   SignerWithAddress,
   createSpyLogger,
@@ -50,16 +60,20 @@ describe("SpokePoolClient: Event Filtering", function () {
   const generateV3Deposit = (
     spokePoolClient: MockSpokePoolClient,
     quoteTimestamp?: number,
-    inputToken?: string
+    inputToken?: Address
   ): Log => {
-    inputToken ??= randomAddress();
+    inputToken ??= toAddressType(randomAddress());
     const message = randomBytes(32);
     quoteTimestamp ??= getCurrentTime() - 10;
     return spokePoolClient.depositV3({ destinationChainId, inputToken, message, quoteTimestamp } as DepositWithBlock);
   };
 
-  const generateDeposit = (spokePoolClient: MockSpokePoolClient, quoteTimestamp?: number, inputToken?: string): Log => {
-    inputToken ??= randomAddress();
+  const generateDeposit = (
+    spokePoolClient: MockSpokePoolClient,
+    quoteTimestamp?: number,
+    inputToken?: Address
+  ): Log => {
+    inputToken ??= toAddressType(randomAddress());
     const message = randomBytes(32);
     quoteTimestamp ??= getCurrentTime() - 10;
     return spokePoolClient.deposit({ destinationChainId, inputToken, message, quoteTimestamp } as DepositWithBlock);
@@ -147,8 +161,8 @@ describe("SpokePoolClient: Event Filtering", function () {
       const expectedDeposit = depositEvents[idx];
       expect(depositEvent.blockNumber).to.equal(expectedDeposit.blockNumber);
 
-      const expectedInputToken = expectedDeposit.args!.inputToken;
-      expect(depositEvent.inputToken).to.equal(expectedInputToken);
+      const expectedInputToken = toAddressType(expectedDeposit.args!.inputToken);
+      expect(depositEvent.inputToken.eq(expectedInputToken)).to.be.true;
     });
   });
 
