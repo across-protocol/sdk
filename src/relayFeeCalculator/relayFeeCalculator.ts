@@ -18,6 +18,7 @@ import {
   toBNWei,
   isZeroAddress,
   compareAddressesSimple,
+  ConvertDecimals,
 } from "../utils";
 import { Transport } from "viem";
 
@@ -489,12 +490,13 @@ export class RelayFeeCalculator {
     // If the amount to relay is not provided, then we
     // should use the full deposit amount.
     amountToRelay ??= deposit.outputAmount;
-    const { inputToken, originChainId } = deposit;
+    const { inputToken, originChainId, outputToken, destinationChainId } = deposit;
     // We can perform a simple lookup with `getTokenInfo` here without resolving the exact token to resolve since we only need to
     // resolve the L1 token symbol and not the L2 token decimals.
-    const token = getTokenInfo(inputToken, originChainId);
-    if (!isDefined(token)) {
-      throw new Error(`Could not find token information for ${inputToken}`);
+    const inputTokenInfo = getTokenInfo(inputToken, originChainId);
+    const outputTokenInfo = getTokenInfo(outputToken, destinationChainId);
+    if (!isDefined(inputTokenInfo) || !isDefined(outputTokenInfo)) {
+      throw new Error(`Could not find token information for ${inputToken} or ${outputToken}`);
     }
 
     const gasFeePercent = await this.gasFeePercent(
@@ -508,14 +510,15 @@ export class RelayFeeCalculator {
       gasUnits,
       tokenGasCost
     );
-    const gasFeeTotal = gasFeePercent.mul(amountToRelay).div(fixedPointAdjustment);
+    const outToInDecimals = ConvertDecimals(outputTokenInfo.decimals, inputTokenInfo.decimals);
+    const gasFeeTotal = gasFeePercent.mul(outToInDecimals(amountToRelay.toString())).div(fixedPointAdjustment);
     const capitalFeePercent = this.capitalFeePercent(
       amountToRelay,
-      token.symbol,
+      inputTokenInfo.symbol,
       deposit.originChainId.toString(),
       deposit.destinationChainId.toString()
     );
-    const capitalFeeTotal = capitalFeePercent.mul(amountToRelay).div(fixedPointAdjustment);
+    const capitalFeeTotal = capitalFeePercent.mul(outToInDecimals(amountToRelay.toString())).div(fixedPointAdjustment);
     const relayFeePercent = gasFeePercent.add(capitalFeePercent);
     const relayFeeTotal = gasFeeTotal.add(capitalFeeTotal);
 
@@ -539,7 +542,7 @@ export class RelayFeeCalculator {
 
     return {
       amountToRelay: amountToRelay.toString(),
-      tokenSymbol: token.symbol,
+      tokenSymbol: inputTokenInfo.symbol,
       gasFeePercent: gasFeePercent.toString(),
       gasFeeTotal: gasFeeTotal.toString(),
       gasDiscountPercent: this.gasDiscountPercent,
