@@ -240,7 +240,7 @@ export class RelayFeeCalculator {
    */
   async gasFeePercent(
     deposit: Deposit,
-    amountToRelay: BigNumberish,
+    outputAmount: BigNumberish,
     simulateZeroFill = false,
     relayerAddress = DEFAULT_SIMULATED_RELAYER_ADDRESS,
     _tokenPrice?: number,
@@ -250,7 +250,7 @@ export class RelayFeeCalculator {
     _tokenGasCost?: BigNumberish,
     transport?: Transport
   ): Promise<BigNumber> {
-    if (toBN(amountToRelay).eq(bnZero)) return MAX_BIG_INT;
+    if (toBN(outputAmount).eq(bnZero)) return MAX_BIG_INT;
 
     const { inputToken, destinationChainId, originChainId } = deposit;
     // It's fine if we resolve a destination token which is not the "canonical" L1 token (e.g. USDB for DAI or USDC.e for USDC), since `getTokenInfo` will re-map
@@ -273,7 +273,7 @@ export class RelayFeeCalculator {
 
     // Reduce the output amount to simulate a full fill with a lower value to estimate
     // the fill cost accurately without risking a failure due to insufficient balance.
-    const simulatedAmount = simulateZeroFill ? safeOutputAmount : toBN(amountToRelay);
+    const simulatedAmount = simulateZeroFill ? safeOutputAmount : toBN(outputAmount);
     deposit = { ...deposit, outputAmount: simulatedAmount };
 
     const getGasCosts = this.queries
@@ -304,18 +304,18 @@ export class RelayFeeCalculator {
         }),
     ]);
     const gasFeesInToken = nativeToToken(tokenGasCost, tokenPrice, outputTokenInfo.decimals, this.nativeTokenDecimals);
-    return percent(gasFeesInToken, amountToRelay.toString());
+    return percent(gasFeesInToken, outputAmount.toString());
   }
 
   // Note: these variables are unused now, but may be needed in future versions of this function that are more complex.
   capitalFeePercent(
-    _amountToRelay: BigNumberish,
+    _outputAmount: BigNumberish,
     _tokenSymbol: string,
     _originRoute?: ChainIdAsString,
     _destinationRoute?: ChainIdAsString
   ): BigNumber {
     // If amount is 0, then the capital fee % should be the max 100%
-    if (toBN(_amountToRelay).eq(toBN(0))) return MAX_BIG_INT;
+    if (toBN(_outputAmount).eq(toBN(0))) return MAX_BIG_INT;
 
     // V0: Ensure that there is a capital fee available for the token.
     // If not, then we should throw an error because this is indicative
@@ -355,7 +355,7 @@ export class RelayFeeCalculator {
       );
 
       // Scale amount "y" to 18 decimals.
-      const y = toBN(_amountToRelay).mul(toBNWei("1", 18 - config.decimals));
+      const y = toBN(_outputAmount).mul(toBNWei("1", 18 - config.decimals));
       // At a minimum, the fee will be equal to lower bound fee * y
       const minCharge = toBN(config.lowerBound).mul(y).div(fixedPointAdjustment);
 
@@ -479,7 +479,7 @@ export class RelayFeeCalculator {
    */
   async relayerFeeDetails(
     deposit: Deposit,
-    amountToRelay?: BigNumberish,
+    outputAmount?: BigNumberish,
     simulateZeroFill = false,
     relayerAddress = DEFAULT_SIMULATED_RELAYER_ADDRESS,
     _tokenPrice?: number,
@@ -489,7 +489,7 @@ export class RelayFeeCalculator {
   ): Promise<RelayerFeeDetails> {
     // If the amount to relay is not provided, then we
     // should use the full deposit amount.
-    amountToRelay ??= deposit.outputAmount;
+    outputAmount ??= deposit.outputAmount;
     const { inputToken, originChainId, outputToken, destinationChainId } = deposit;
     // We can perform a simple lookup with `getTokenInfo` here without resolving the exact token to resolve since we only need to
     // resolve the L1 token symbol and not the L2 token decimals.
@@ -501,7 +501,7 @@ export class RelayFeeCalculator {
 
     const gasFeePercent = await this.gasFeePercent(
       deposit,
-      amountToRelay,
+      outputAmount,
       simulateZeroFill,
       relayerAddress,
       _tokenPrice,
@@ -511,14 +511,14 @@ export class RelayFeeCalculator {
       tokenGasCost
     );
     const outToInDecimals = ConvertDecimals(outputTokenInfo.decimals, inputTokenInfo.decimals);
-    const gasFeeTotal = gasFeePercent.mul(outToInDecimals(amountToRelay.toString())).div(fixedPointAdjustment);
+    const gasFeeTotal = gasFeePercent.mul(outToInDecimals(outputAmount.toString())).div(fixedPointAdjustment);
     const capitalFeePercent = this.capitalFeePercent(
-      amountToRelay,
+      outputAmount,
       inputTokenInfo.symbol,
       deposit.originChainId.toString(),
       deposit.destinationChainId.toString()
     );
-    const capitalFeeTotal = capitalFeePercent.mul(outToInDecimals(amountToRelay.toString())).div(fixedPointAdjustment);
+    const capitalFeeTotal = capitalFeePercent.mul(outToInDecimals(outputAmount.toString())).div(fixedPointAdjustment);
     const relayFeePercent = gasFeePercent.add(capitalFeePercent);
     const relayFeeTotal = gasFeeTotal.add(capitalFeeTotal);
 
@@ -537,11 +537,11 @@ export class RelayFeeCalculator {
       isAmountTooLow = true;
     } else {
       minDeposit = gasFeeTotal.mul(fixedPointAdjustment).div(maxGasFeePercent);
-      isAmountTooLow = toBN(amountToRelay).lt(minDeposit);
+      isAmountTooLow = toBN(outputAmount).lt(minDeposit);
     }
 
     return {
-      amountToRelay: amountToRelay.toString(),
+      amountToRelay: outputAmount.toString(),
       tokenSymbol: inputTokenInfo.symbol,
       gasFeePercent: gasFeePercent.toString(),
       gasFeeTotal: gasFeeTotal.toString(),
