@@ -298,6 +298,10 @@ describe("SVMSpokePoolClient: Fills", function () {
 
     const gasCosts = await svmQuery.getGasCosts(depositData, signer.address);
 
+    const nativeGasCost = await svmQuery.getNativeGasCost(depositData, signer.address);
+
+    expect(nativeGasCost).to.equal(gasCosts.nativeGasCost);
+
     const { signature } = await sendCreateFill(solanaClient, signer, mint, decimals, newRelayData);
 
     const receipt = await solanaClient.rpc
