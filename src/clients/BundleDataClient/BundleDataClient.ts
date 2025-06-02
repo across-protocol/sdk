@@ -629,18 +629,18 @@ export class BundleDataClient {
     const executedRefunds: { [tokenAddress: string]: { [relayer: string]: BigNumber } } = {};
     for (const refundLeaf of executedRefundLeaves) {
       const tokenAddress = refundLeaf.l2TokenAddress;
-      if (executedRefunds[tokenAddress] === undefined) {
-        executedRefunds[tokenAddress] = {};
+      if (executedRefunds[tokenAddress.toBytes32()] === undefined) {
+        executedRefunds[tokenAddress.toBytes32()] = {};
       }
-      const executedTokenRefunds = executedRefunds[tokenAddress];
+      const executedTokenRefunds = executedRefunds[tokenAddress.toBytes32()];
 
       for (let i = 0; i < refundLeaf.refundAddresses.length; i++) {
         const relayer = refundLeaf.refundAddresses[i];
         const refundAmount = refundLeaf.refundAmounts[i];
-        if (executedTokenRefunds[relayer] === undefined) {
-          executedTokenRefunds[relayer] = bnZero;
+        if (executedTokenRefunds[relayer.toBytes32()] === undefined) {
+          executedTokenRefunds[relayer.toBytes32()] = bnZero;
         }
-        executedTokenRefunds[relayer] = executedTokenRefunds[relayer].add(refundAmount);
+        executedTokenRefunds[relayer.toBytes32()] = executedTokenRefunds[relayer.toBytes32()].add(refundAmount);
       }
     }
     return executedRefunds;
@@ -780,9 +780,9 @@ export class BundleDataClient {
       return (
         // Cannot slow fill when input and output tokens are not equivalent.
         this.clients.hubPoolClient.areTokensEquivalent(
-          deposit.inputToken.toEvmAddress(),
+          deposit.inputToken,
           deposit.originChainId,
-          deposit.outputToken.toEvmAddress(),
+          deposit.outputToken,
           deposit.destinationChainId,
           bundleEndBlockForMainnet
         ) &&

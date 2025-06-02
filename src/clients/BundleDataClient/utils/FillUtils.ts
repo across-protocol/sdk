@@ -39,7 +39,7 @@ export function getRefundInformationFromFill(
   // PoolRebalanceRoute, then the repayment chain would have been the originChainId after the getRepaymentChainId()
   // call and we would have returned already, so the following call should always succeed.
   const l1TokenCounterpart = hubPoolClient.getL1TokenForL2TokenAtBlock(
-    relayData.inputToken.toEvmAddress(),
+    relayData.inputToken,
     relayData.originChainId,
     bundleEndBlockForMainnet
   );
@@ -49,9 +49,10 @@ export function getRefundInformationFromFill(
     chainToSendRefundTo,
     bundleEndBlockForMainnet
   );
+
   return {
     chainToSendRefundTo,
-    repaymentToken: toAddressType(repaymentToken),
+    repaymentToken,
   };
 }
 /**
@@ -109,9 +110,9 @@ export async function verifyFillRepayment(
       if (
         !matchedDeposit.fromLiteChain &&
         hubPoolClient.areTokensEquivalent(
-          fill.inputToken.toEvmAddress(),
+          fill.inputToken,
           fill.originChainId,
-          fill.outputToken.toEvmAddress(),
+          fill.outputToken,
           fill.destinationChainId
         )
       ) {
@@ -169,16 +170,12 @@ function _repaymentChainTokenIsValid(
   bundleEndBlockForMainnet: number
 ): boolean {
   if (
-    !hubPoolClient.l2TokenHasPoolRebalanceRoute(
-      relayData.inputToken.toEvmAddress(),
-      relayData.originChainId,
-      bundleEndBlockForMainnet
-    )
+    !hubPoolClient.l2TokenHasPoolRebalanceRoute(relayData.inputToken, relayData.originChainId, bundleEndBlockForMainnet)
   ) {
     return false;
   }
   const l1TokenCounterpart = hubPoolClient.getL1TokenForL2TokenAtBlock(
-    relayData.inputToken.toEvmAddress(),
+    relayData.inputToken,
     relayData.originChainId,
     bundleEndBlockForMainnet
   );

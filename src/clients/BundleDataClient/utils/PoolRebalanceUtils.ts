@@ -1,7 +1,7 @@
 import { MerkleTree } from "@across-protocol/contracts/dist/utils/MerkleTree";
 import { RunningBalances, PoolRebalanceLeaf, Clients, SpokePoolTargetBalance } from "../../../interfaces";
 import { SpokePoolClient } from "../../SpokePoolClient";
-import { BigNumber, bnZero, compareAddresses } from "../../../utils";
+import { BigNumber, bnZero, compareAddresses, EvmAddress } from "../../../utils";
 import { HubPoolClient } from "../../HubPoolClient";
 import { V3DepositWithBlock } from "./shims";
 import { AcrossConfigStoreClient } from "../../AcrossConfigStoreClient";
@@ -151,7 +151,7 @@ export function addLastRunningBalance(
       const { runningBalance } = hubPoolClient.getRunningBalanceBeforeBlockForChain(
         latestMainnetBlock,
         Number(repaymentChainId),
-        l1TokenAddress
+        EvmAddress.from(l1TokenAddress)
       );
       if (!runningBalance.eq(bnZero)) {
         updateRunningBalance(runningBalances, Number(repaymentChainId), l1TokenAddress, runningBalance);
@@ -168,11 +168,11 @@ export function updateRunningBalanceForDeposit(
   mainnetBundleEndBlock: number
 ): void {
   const l1TokenCounterpart = hubPoolClient.getL1TokenForL2TokenAtBlock(
-    deposit.inputToken.toEvmAddress(),
+    deposit.inputToken,
     deposit.originChainId,
     mainnetBundleEndBlock
   );
-  updateRunningBalance(runningBalances, deposit.originChainId, l1TokenCounterpart, updateAmount);
+  updateRunningBalance(runningBalances, deposit.originChainId, l1TokenCounterpart.toEvmAddress(), updateAmount);
 }
 
 export function constructPoolRebalanceLeaves(
@@ -253,7 +253,7 @@ export function constructPoolRebalanceLeaves(
           runningBalances: leafRunningBalances,
           groupIndex: groupIndexForChainId++,
           leafId: leaves.length,
-          l1Tokens: l1TokensToIncludeInThisLeaf,
+          l1Tokens: l1TokensToIncludeInThisLeaf.map((l1TokenAddr: string) => EvmAddress.from(l1TokenAddr)),
         });
       }
     });

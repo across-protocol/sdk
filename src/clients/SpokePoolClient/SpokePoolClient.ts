@@ -460,7 +460,7 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
   protected canResolveZeroAddressOutputToken(deposit: DepositWithBlock): boolean {
     if (
       !this.hubPoolClient?.l2TokenHasPoolRebalanceRoute(
-        deposit.inputToken.toAddress(),
+        deposit.inputToken,
         deposit.originChainId,
         deposit.quoteBlockNumber
       )
@@ -468,7 +468,7 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
       return false;
     } else {
       const l1Token = this.hubPoolClient?.getL1TokenForL2TokenAtBlock(
-        deposit.inputToken.toAddress(),
+        deposit.inputToken,
         deposit.originChainId,
         deposit.quoteBlockNumber
       );
@@ -804,7 +804,7 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
     }
     // L1 token should be resolved if we get here:
     const l1Token = this.hubPoolClient!.getL1TokenForL2TokenAtBlock(
-      deposit.inputToken.toAddress(),
+      deposit.inputToken,
       deposit.originChainId,
       deposit.quoteBlockNumber
     )!;
@@ -813,7 +813,7 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
       deposit.destinationChainId,
       deposit.quoteBlockNumber
     );
-    return toAddressType(counterpartToken ?? ZERO_ADDRESS);
+    return counterpartToken ?? toAddressType(ZERO_ADDRESS);
   }
 
   /**
