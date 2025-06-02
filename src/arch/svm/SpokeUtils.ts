@@ -26,19 +26,9 @@ import assert from "assert";
 import { arrayify, hexZeroPad, hexlify } from "ethers/lib/utils";
 import { Logger } from "winston";
 
-import { CHAIN_IDs } from "../../constants";
+import { SYSTEM_PROGRAM_ADDRESS } from "@solana-program/system";
 import { Deposit, DepositWithBlock, FillStatus, FillWithBlock, RelayData } from "../../interfaces";
-import {
-  BigNumber,
-  SvmAddress,
-  chainIsSvm,
-  chunk,
-  getTokenInfo,
-  isDefined,
-  isUnsafeDepositId,
-  keccak256,
-  toAddressType,
-} from "../../utils";
+import { BigNumber, SvmAddress, chainIsSvm, chunk, isUnsafeDepositId, keccak256, toAddressType } from "../../utils";
 import {
   SvmCpiEventsClient,
   createDefaultTransaction,
@@ -48,7 +38,6 @@ import {
   unwrapEventData,
 } from "./";
 import { SVMEventNames, SVMProvider } from "./types";
-import { SYSTEM_PROGRAM_ADDRESS } from "@solana-program/system";
 
 /**
  * @note: Average Solana slot duration is about 400-500ms. We can be conservative
