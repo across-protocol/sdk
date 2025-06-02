@@ -1,5 +1,9 @@
 import assert from "assert";
-import { DEFAULT_SIMULATED_RELAYER_ADDRESS, TOKEN_SYMBOLS_MAP } from "../constants";
+import {
+  DEFAULT_SIMULATED_RELAYER_ADDRESS,
+  DEFAULT_SIMULATED_RELAYER_ADDRESS_SVM,
+  TOKEN_SYMBOLS_MAP,
+} from "../constants";
 import { Deposit } from "../interfaces";
 import {
   BigNumber,
@@ -19,6 +23,7 @@ import {
   isZeroAddress,
   compareAddressesSimple,
   ConvertDecimals,
+  chainIsSvm,
 } from "../utils";
 import { Transport } from "viem";
 
@@ -37,6 +42,7 @@ export interface QueryInterface {
     }>
   ) => Promise<TransactionCostEstimate>;
   getTokenPrice: (tokenSymbol: string) => Promise<number>;
+  getNativeGasCost: (deposit: Omit<Deposit, "messageHash">, relayer: string) => Promise<BigNumber>;
 }
 
 export const expectedCapitalCostsKeys = ["lowerBound", "upperBound", "cutoff", "decimals"];
@@ -105,6 +111,12 @@ export const DEFAULT_LOGGER: Logger = {
   warn: (...args) => console.warn(args),
   error: (...args) => console.error(args),
 };
+
+export function getDefaultSimulatedRelayerAddress(chainId?: number) {
+  return isDefined(chainId) && chainIsSvm(chainId)
+    ? DEFAULT_SIMULATED_RELAYER_ADDRESS_SVM
+    : DEFAULT_SIMULATED_RELAYER_ADDRESS;
+}
 
 // Small amount to simulate filling with. Should be low enough to guarantee a successful fill.
 const safeOutputAmount = toBN(100);
@@ -242,7 +254,7 @@ export class RelayFeeCalculator {
     deposit: Deposit,
     outputAmount: BigNumberish,
     simulateZeroFill = false,
-    relayerAddress = DEFAULT_SIMULATED_RELAYER_ADDRESS,
+    relayerAddress = getDefaultSimulatedRelayerAddress(deposit.destinationChainId),
     _tokenPrice?: number,
     tokenMapping = TOKEN_SYMBOLS_MAP,
     gasPrice?: BigNumberish,
@@ -481,7 +493,7 @@ export class RelayFeeCalculator {
     deposit: Deposit,
     outputAmount?: BigNumberish,
     simulateZeroFill = false,
-    relayerAddress = DEFAULT_SIMULATED_RELAYER_ADDRESS,
+    relayerAddress = getDefaultSimulatedRelayerAddress(deposit.destinationChainId),
     _tokenPrice?: number,
     gasPrice?: BigNumberish,
     gasUnits?: BigNumberish,

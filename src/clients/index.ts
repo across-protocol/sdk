@@ -6,6 +6,13 @@ export {
 } from "./AcrossConfigStoreClient";
 export { UpdateFailureReason } from "./BaseAbstractClient";
 export { HubPoolClient, LpFeeRequest } from "./HubPoolClient";
-export { SpokePoolClient, SpokePoolUpdate, EVMSpokePoolClient } from "./SpokePoolClient";
+export {
+  SpokePoolClient,
+  SpokePoolUpdate,
+  EVMSpokePoolClient,
+  SVMSpokePoolClient,
+  isEVMSpokePoolClient,
+  isSVMSpokePoolClient,
+} from "./SpokePoolClient";
 export * as BundleDataClient from "./BundleDataClient";
 export * as mocks from "./mocks";

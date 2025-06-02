@@ -1,5 +1,15 @@
-import { Signature, Address, UnixTimestamp } from "@solana/kit";
 import { SvmSpokeClient } from "@across-protocol/contracts";
+import {
+  Address,
+  Rpc,
+  RpcSubscriptions,
+  RpcTransport,
+  Signature,
+  SignatureNotificationsApi,
+  SlotNotificationsApi,
+  SolanaRpcApiFromTransport,
+  UnixTimestamp,
+} from "@solana/kit";
 
 export type EventData =
   | SvmSpokeClient.BridgedToHubPool
@@ -9,7 +19,6 @@ export type EventData =
   | SvmSpokeClient.PausedDeposits
   | SvmSpokeClient.PausedFills
   | SvmSpokeClient.SetXDomainAdmin
-  | SvmSpokeClient.EnabledDepositRoute
   | SvmSpokeClient.FilledRelay
   | SvmSpokeClient.FundsDeposited
   | SvmSpokeClient.EmergencyDeletedRootBundle
@@ -20,7 +29,6 @@ export type EventData =
 export enum SVMEventNames {
   FilledRelay = "FilledRelay",
   FundsDeposited = "FundsDeposited",
-  EnabledDepositRoute = "EnabledDepositRoute",
   RelayedRootBundle = "RelayedRootBundle",
   ExecutedRelayerRefundRoot = "ExecutedRelayerRefundRoot",
   BridgedToHubPool = "BridgedToHubPool",
@@ -36,12 +44,20 @@ export enum SVMEventNames {
 
 export type EventName = keyof typeof SVMEventNames;
 
-export type EventWithData<T extends EventData> = {
+export type EventWithData = {
   confirmationStatus: string | null;
   blockTime: UnixTimestamp | null;
   signature: Signature;
   slot: bigint;
-  name: EventName;
-  data: T;
+  name: string;
+  data: unknown;
   program: Address;
+};
+
+export type SVMProvider = Rpc<SolanaRpcApiFromTransport<RpcTransport>>;
+
+// Typed aggregate of JSON‑RPC and subscription clients.
+export type RpcClient = {
+  rpc: SVMProvider;
+  rpcSubscriptions: RpcSubscriptions<SignatureNotificationsApi & SlotNotificationsApi>;
 };

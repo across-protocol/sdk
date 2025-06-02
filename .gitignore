@@ -11,6 +11,9 @@ dist
 /coverage
 /artifacts
 /typechain-types
+.ledger
+/target
+*.tar.gz
 
 # production
 /build

@@ -18,25 +18,23 @@ import {
   toAddress,
   validateFillForDeposit,
   chainIsEvm,
+  chainIsProd,
+  Address,
 } from "../../utils";
-import {
-  duplicateEvent,
-  sortEventsAscendingInPlace,
-  spreadEvent,
-  spreadEventWithBlockNumber,
-} from "../../utils/EventUtils";
+import { duplicateEvent, sortEventsAscendingInPlace } from "../../utils/EventUtils";
 import { ZERO_ADDRESS } from "../../constants";
 import {
   Deposit,
   DepositWithBlock,
+  EnabledDepositRouteWithBlock,
   Fill,
   FillStatus,
   FillWithBlock,
-  Log,
   RelayData,
   RelayerRefundExecutionWithBlock,
   RootBundleRelayWithBlock,
   SlowFillRequestWithBlock,
+  SortableEvent,
   SpeedUpWithBlock,
   TokensBridged,
 } from "../../interfaces";
@@ -48,7 +46,7 @@ import { HubPoolClient } from "../HubPoolClient";
 export type SpokePoolUpdateSuccess = {
   success: true;
   currentTime: number;
-  events: Log[][];
+  events: SortableEvent[][];
   searchEndBlock: number;
 };
 export type SpokePoolUpdateFailure = {
@@ -78,7 +76,6 @@ export const knownEventNames = [
  */
 export abstract class SpokePoolClient extends BaseAbstractClient {
   protected currentTime = 0;
-  protected depositHashes: { [depositHash: string]: DepositWithBlock } = {};
   protected duplicateDepositHashes: { [depositHash: string]: DepositWithBlock[] } = {};
   protected depositHashesToFills: { [depositHash: string]: FillWithBlock[] } = {};
   protected speedUps: { [depositorAddress: string]: { [depositId: string]: SpeedUpWithBlock[] } } = {};
@@ -89,6 +86,8 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
   protected relayerRefundExecutions: RelayerRefundExecutionWithBlock[] = [];
   protected configStoreClient: AcrossConfigStoreClient | undefined;
   protected invalidFills: Set<string> = new Set();
+  public readonly depositHashes: { [depositHash: string]: DepositWithBlock } = {};
+  public spokePoolAddress: Address | undefined;
   public fills: { [OriginChainId: number]: FillWithBlock[] } = {};
 
   /**
@@ -105,11 +104,11 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
     readonly hubPoolClient: HubPoolClient | null,
     readonly chainId: number,
     public deploymentBlock: number,
-    eventSearchConfig: MakeOptional<EventSearchConfig, "toBlock"> = { fromBlock: 0, maxBlockLookBack: 0 }
+    eventSearchConfig: MakeOptional<EventSearchConfig, "to"> = { from: 0, maxLookBack: 0 }
   ) {
     super(eventSearchConfig);
-    this.firstBlockToSearch = eventSearchConfig.fromBlock;
-    this.latestBlockSearched = 0;
+    this.firstHeightToSearch = eventSearchConfig.from;
+    this.latestHeightSearched = 0;
     this.configStoreClient = hubPoolClient?.configStoreClient;
   }
 
@@ -353,7 +352,7 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
     fillCount: number;
     invalidFills: FillWithBlock[];
   } {
-    const { outputAmount } = deposit;
+    const { outputAmount, originChainId } = deposit;
     const fillsForDeposit = this.depositHashesToFills[this.getDepositHash(deposit)];
     // If no fills then the full amount is remaining.
     if (fillsForDeposit === undefined || fillsForDeposit.length === 0) {
@@ -373,7 +372,7 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
           const { chainToSendRefundTo: repaymentChainId } = getRefundInformationFromFill(
             fillRepaymentData,
             this.hubPoolClient!,
-            this.hubPoolClient!.latestBlockSearched
+            this.hubPoolClient!.latestHeightSearched
           );
           // In order to keep this function sync, we can't call verifyFillRepayment so we'll log any fills where
           // the filler-specified repayment chain and repayment address is not a valid repayment upon
@@ -409,8 +408,10 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
       }
       return newInvalidFill;
     });
+    // Log invalid and unrepayable fills as warns if we are on a production network.
+    const logLevel = chainIsProd(originChainId) ? "warn" : "debug";
     if (invalidFillsForDeposit.length > 0) {
-      this.logger.warn({
+      this.logger[logLevel]({
         at: "SpokePoolClient",
         chainId: this.chainId,
         message: "Invalid fills found matching deposit ID",
@@ -421,7 +422,7 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
     }
     const unrepayableFillsForDeposit = unrepayableFills.filter((x) => x.depositId.eq(deposit.depositId));
     if (unrepayableFillsForDeposit.length > 0) {
-      this.logger.warn({
+      this.logger[logLevel]({
         at: "SpokePoolClient",
         chainId: this.chainId,
         message: "Unrepayable fills found where we need to switch repayment address and or chain",
@@ -486,7 +487,7 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
    * @see _update
    */
   public async update(eventsToQuery = this._queryableEventNames()): Promise<void> {
-    const duplicateEvents: Log[] = [];
+    const duplicateEvents: SortableEvent[] = [];
     if (this.hubPoolClient !== null && !this.hubPoolClient.isUpdated) {
       throw new Error("HubPoolClient not updated");
     }
@@ -498,14 +499,14 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
     const { events: queryResults, currentTime, searchEndBlock } = update;
 
     if (eventsToQuery.includes("TokensBridged")) {
-      for (const event of queryResults[eventsToQuery.indexOf("TokensBridged")]) {
-        this.tokensBridged.push(spreadEventWithBlockNumber(event) as TokensBridged);
+      for (const event of queryResults[eventsToQuery.indexOf("TokensBridged")] as TokensBridged[]) {
+        this.tokensBridged.push(event);
       }
     }
 
     // Performs the indexing of a deposit-like spoke pool event.
     const queryDepositEvents = async (eventName: string) => {
-      const depositEvents = queryResults[eventsToQuery.indexOf(eventName)] ?? [];
+      const depositEvents = (queryResults[eventsToQuery.indexOf(eventName)] ?? []) as DepositWithBlock[];
       if (depositEvents.length > 0) {
         this.log(
           "debug",
@@ -518,22 +519,20 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
 
       // For each deposit, resolve its quoteTimestamp to a block number on the HubPool.
       // Don't bother filtering for uniqueness; the HubPoolClient handles this efficienctly.
-      const quoteBlockNumbers = await this.getBlockNumbers(
-        depositEvents.map(({ args }) => Number(args["quoteTimestamp"]))
-      );
+      const quoteBlockNumbers = await this.getBlockNumbers(depositEvents.map((e) => e.quoteTimestamp));
       for (const event of depositEvents) {
-        const quoteBlockNumber = quoteBlockNumbers[Number(event.args["quoteTimestamp"])];
+        const quoteBlockNumber = quoteBlockNumbers[Number(event.quoteTimestamp)];
 
         // Derive and append the common properties that are not part of the onchain event.
         const deposit = {
-          ...spreadEventWithBlockNumber(event),
-          messageHash: getMessageHash(event.args.message),
+          ...event,
+          messageHash: getMessageHash(event.message),
           quoteBlockNumber,
           originChainId: this.chainId,
           // The following properties are placeholders to be updated immediately.
           fromLiteChain: true,
           toLiteChain: true,
-        } as DepositWithBlock;
+        };
 
         deposit.fromLiteChain = this.isOriginLiteChain(deposit);
         deposit.toLiteChain = this.isDestinationLiteChain(deposit);
@@ -564,10 +563,10 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
 
     // Performs indexing of a "speed up deposit"-like event.
     const querySpeedUpDepositEvents = (eventName: string) => {
-      const speedUpEvents = queryResults[eventsToQuery.indexOf(eventName)] ?? [];
+      const speedUpEvents = (queryResults[eventsToQuery.indexOf(eventName)] ?? []) as SpeedUpWithBlock[];
 
       for (const event of speedUpEvents) {
-        const speedUp = { ...spreadEventWithBlockNumber(event), originChainId: this.chainId } as SpeedUpWithBlock;
+        const speedUp = { ...event, originChainId: this.chainId };
         assign(this.speedUps, [speedUp.depositor, speedUp.depositId.toString()], [speedUp]);
 
         // Find deposit hash matching this speed up event and update the deposit data associated with the hash,
@@ -592,12 +591,12 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
 
     // Performs indexing of "requested slow fill"-like events.
     const queryRequestedSlowFillEvents = (eventName: string) => {
-      const slowFillRequests = queryResults[eventsToQuery.indexOf(eventName)];
+      const slowFillRequests = (queryResults[eventsToQuery.indexOf(eventName)] ?? []) as SlowFillRequestWithBlock[];
       for (const event of slowFillRequests) {
         const slowFillRequest = {
-          ...spreadEventWithBlockNumber(event),
+          ...event,
           destinationChainId: this.chainId,
-        } as SlowFillRequestWithBlock;
+        };
 
         if (eventName === "RequestedV3SlowFill") {
           slowFillRequest.messageHash = getMessageHash(slowFillRequest.message);
@@ -623,7 +622,7 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
 
     // Performs indexing of filled relay-like events.
     const queryFilledRelayEvents = (eventName: string) => {
-      const fillEvents = queryResults[eventsToQuery.indexOf(eventName)] ?? [];
+      const fillEvents = (queryResults[eventsToQuery.indexOf(eventName)] ?? []) as FillWithBlock[];
 
       if (fillEvents.length > 0) {
         this.log("debug", `Using ${fillEvents.length} newly queried ${eventName} events for chain ${this.chainId}`, {
@@ -635,13 +634,13 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
       // test that the types are complete. A broader change in strategy for safely unpacking events will be introduced.
       for (const event of fillEvents) {
         const fill = {
-          ...spreadEventWithBlockNumber(event),
+          ...event,
           destinationChainId: this.chainId,
-        } as FillWithBlock;
+        };
 
         if (eventName === "FilledV3Relay") {
-          fill.messageHash = getMessageHash(event.args.message);
-          fill.relayExecutionInfo.updatedMessageHash = getMessageHash(event.args.relayExecutionInfo.updatedMessage);
+          fill.messageHash = getMessageHash((event as unknown as { message: string }).message);
+          fill.relayExecutionInfo.updatedMessageHash = getMessageHash(event.relayExecutionInfo.updatedMessage!);
         }
 
         // Sanity check that this event is not a duplicate.
@@ -664,30 +663,27 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
     });
 
     if (eventsToQuery.includes("EnabledDepositRoute")) {
-      const enableDepositsEvents = queryResults[eventsToQuery.indexOf("EnabledDepositRoute")];
+      const enableDepositsEvents = (queryResults[eventsToQuery.indexOf("EnabledDepositRoute")] ??
+        []) as EnabledDepositRouteWithBlock[];
 
       for (const event of enableDepositsEvents) {
-        const enableDeposit = spreadEvent(event.args);
-        assign(
-          this.depositRoutes,
-          [enableDeposit.originToken, enableDeposit.destinationChainId],
-          enableDeposit.enabled
-        );
+        assign(this.depositRoutes, [event.originToken, event.destinationChainId], event.enabled);
       }
     }
 
     if (eventsToQuery.includes("RelayedRootBundle")) {
-      const relayedRootBundleEvents = queryResults[eventsToQuery.indexOf("RelayedRootBundle")];
+      const relayedRootBundleEvents = (queryResults[eventsToQuery.indexOf("RelayedRootBundle")] ??
+        []) as RootBundleRelayWithBlock[];
       for (const event of relayedRootBundleEvents) {
-        this.rootBundleRelays.push(spreadEventWithBlockNumber(event) as RootBundleRelayWithBlock);
+        this.rootBundleRelays.push(event);
       }
     }
 
     if (eventsToQuery.includes("ExecutedRelayerRefundRoot")) {
-      const refundEvents = queryResults[eventsToQuery.indexOf("ExecutedRelayerRefundRoot")];
+      const refundEvents = (queryResults[eventsToQuery.indexOf("ExecutedRelayerRefundRoot")] ??
+        []) as RelayerRefundExecutionWithBlock[];
       for (const event of refundEvents) {
-        const executedRefund = spreadEventWithBlockNumber(event) as RelayerRefundExecutionWithBlock;
-        this.relayerRefundExecutions.push(executedRefund);
+        this.relayerRefundExecutions.push(event);
       }
     }
 
@@ -700,12 +696,12 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
 
     // Next iteration should start off from where this one ended.
     this.currentTime = currentTime;
-    this.latestBlockSearched = searchEndBlock;
-    this.firstBlockToSearch = searchEndBlock + 1;
-    this.eventSearchConfig.toBlock = undefined; // Caller can re-set on subsequent updates if necessary
+    this.latestHeightSearched = searchEndBlock;
+    this.firstHeightToSearch = searchEndBlock + 1;
+    this.eventSearchConfig.to = undefined; // Caller can re-set on subsequent updates if necessary
     this.isUpdated = true;
     this.log("debug", `SpokePool client for chain ${this.chainId} updated!`, {
-      nextFirstBlockToSearch: this.firstBlockToSearch,
+      nextFirstHeightToSearch: this.firstHeightToSearch,
     });
   }
 
@@ -848,19 +844,16 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
   /**
    * Retrieves the fill status for a given relay data.
    * @param relayData The relay data to retrieve the fill status for.
-   * @param blockTag The block at which to query the fill status.
+   * @param atHeight The height at which to query the fill status.
    * @returns The fill status for the given relay data.
    */
-  public abstract relayFillStatus(relayData: RelayData, blockTag?: number | "latest"): Promise<FillStatus>;
+  public abstract relayFillStatus(relayData: RelayData, atHeight?: number): Promise<FillStatus>;
 
   /**
    * Retrieves the fill status for an array of given relay data.
    * @param relayData The array relay data to retrieve the fill status for.
-   * @param blockTag The block at which to query the fill status.
+   * @param atHeight The height at which to query the fill status.
    * @returns The fill status for each of the given relay data.
    */
-  public abstract fillStatusArray(
-    relayData: RelayData[],
-    blockTag?: number | "latest"
-  ): Promise<(FillStatus | undefined)[]>;
+  public abstract fillStatusArray(relayData: RelayData[], atHeight?: number): Promise<(FillStatus | undefined)[]>;
 }

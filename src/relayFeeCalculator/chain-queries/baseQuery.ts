@@ -3,7 +3,7 @@ import { isL2Provider as isOptimismL2Provider } from "@eth-optimism/sdk/dist/l2-
 
 import { PopulatedTransaction, providers, VoidSigner } from "ethers";
 import { Coingecko } from "../../coingecko";
-import { CHAIN_IDs, DEFAULT_SIMULATED_RELAYER_ADDRESS } from "../../constants";
+import { CHAIN_IDs } from "../../constants";
 import { Deposit } from "../../interfaces";
 import { SpokePool, SpokePool__factory } from "../../typechain";
 import { populateV3Relay } from "../../arch/evm";
@@ -17,12 +17,12 @@ import {
   fixedPointAdjustment,
 } from "../../utils";
 import assert from "assert";
-import { Logger, QueryInterface } from "../relayFeeCalculator";
+import { Logger, QueryInterface, getDefaultSimulatedRelayerAddress } from "../relayFeeCalculator";
 import { Transport } from "viem";
-import { getGasPriceEstimate } from "../../gasPriceOracle/oracle";
-type Provider = providers.Provider;
-type OptimismProvider = L2Provider<Provider>;
-type SymbolMappingType = Record<
+import { getGasPriceEstimate, EvmGasPriceEstimate } from "../../gasPriceOracle";
+import { EvmProvider } from "../../arch/evm/types";
+
+export type SymbolMappingType = Record<
   string,
   {
     addresses: Record<number, string>;
@@ -48,7 +48,7 @@ export class QueryBase implements QueryInterface {
    * @param coingeckoBaseCurrency The basis currency that CoinGecko will use to resolve pricing
    */
   constructor(
-    readonly provider: Provider | OptimismProvider,
+    readonly provider: EvmProvider,
     readonly symbolMapping: SymbolMappingType,
     readonly spokePoolAddress: string,
     readonly simulatedRelayerAddress: string,
@@ -72,7 +72,7 @@ export class QueryBase implements QueryInterface {
    */
   async getGasCosts(
     deposit: Omit<Deposit, "messageHash">,
-    relayer = DEFAULT_SIMULATED_RELAYER_ADDRESS,
+    relayer = getDefaultSimulatedRelayerAddress(deposit.destinationChainId),
     options: Partial<{
       gasPrice: BigNumberish;
       gasUnits: BigNumberish;
@@ -122,7 +122,7 @@ export class QueryBase implements QueryInterface {
    */
   getUnsignedTxFromDeposit(
     deposit: Omit<Deposit, "messageHash">,
-    relayer = DEFAULT_SIMULATED_RELAYER_ADDRESS
+    relayer = getDefaultSimulatedRelayerAddress(deposit.destinationChainId)
   ): Promise<PopulatedTransaction> {
     return populateV3Relay(this.spokePool, deposit, relayer);
   }
@@ -135,7 +135,7 @@ export class QueryBase implements QueryInterface {
    */
   async getNativeGasCost(
     deposit: Omit<Deposit, "messageHash">,
-    relayer = DEFAULT_SIMULATED_RELAYER_ADDRESS
+    relayer = getDefaultSimulatedRelayerAddress(deposit.destinationChainId)
   ): Promise<BigNumber> {
     const unsignedTx = await this.getUnsignedTxFromDeposit(deposit, relayer);
     const voidSigner = new VoidSigner(relayer, this.provider);
@@ -152,7 +152,7 @@ export class QueryBase implements QueryInterface {
    */
   async getOpStackL1DataFee(
     unsignedTx: PopulatedTransaction,
-    relayer = DEFAULT_SIMULATED_RELAYER_ADDRESS,
+    relayer = getDefaultSimulatedRelayerAddress(unsignedTx.chainId),
     options: Partial<{
       opStackL2GasUnits: BigNumberish;
       opStackL1DataFeeMultiplier: BigNumber;
@@ -213,7 +213,9 @@ export class QueryBase implements QueryInterface {
         ? Promise.resolve({ maxFeePerGas: _gasPrice })
         : getGasPriceEstimate(provider, { chainId, baseFeeMultiplier, priorityFeeMultiplier, transport, unsignedTx }),
     ] as const;
-    const [nativeGasCost, { maxFeePerGas: gasPrice }] = await Promise.all(queries);
+    const [nativeGasCost, _gasPriceEstimate] = await Promise.all(queries);
+    // It should be safe to cast to an EvmGasPriceEstimate here since QueryBase is only used for EVM chains.
+    const gasPrice = (_gasPriceEstimate as EvmGasPriceEstimate).maxFeePerGas;
     assert(nativeGasCost.gt(bnZero), "Gas cost should not be 0");
     let tokenGasCost: BigNumber;
 

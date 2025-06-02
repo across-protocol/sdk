@@ -4,6 +4,7 @@ import { providers } from "ethers";
 import { DepositWithBlock, Fill, FillWithBlock } from "../../../interfaces";
 import { isSlowFill, isValidEvmAddress, isDefined, chainIsEvm } from "../../../utils";
 import { HubPoolClient } from "../../HubPoolClient";
+import { SVMProvider } from "../../../arch/svm";
 
 /**
  * @notice FillRepaymentInformation is a fill with additional properties required to determine where it can
@@ -65,7 +66,7 @@ export function getRefundInformationFromFill(
  */
 export async function verifyFillRepayment(
   _fill: FillWithBlock,
-  destinationChainProvider: providers.Provider,
+  destinationChainProvider: providers.Provider | SVMProvider,
   matchedDeposit: DepositWithBlock,
   hubPoolClient: HubPoolClient,
   bundleEndBlockForMainnet: number
@@ -91,32 +92,43 @@ export async function verifyFillRepayment(
   if (_repaymentAddressNeedsToBeOverwritten(fill)) {
     // TODO: Handle case where fill was sent on non-EVM chain, in which case the following call would fail
     // or return something unexpected. We'd want to return undefined here.
-    const fillTransaction = await destinationChainProvider.getTransaction(fill.txnRef);
-    const destinationRelayer = fillTransaction?.from;
-    // Repayment chain is still an EVM chain, but the msg.sender is a bytes32 address, so the fill is invalid.
-    if (!isDefined(destinationRelayer) || !isValidEvmAddress(destinationRelayer)) {
-      return undefined;
-    }
-    // If we can switch the repayment chain to the destination chain, then do so. We should only switch if the
-    // destination chain has a valid repayment token that is equivalent to the deposited input token. This would
-    // also be the same mapping as the repayment token on the repayment chain.
-    if (
-      !matchedDeposit.fromLiteChain &&
-      hubPoolClient.areTokensEquivalent(fill.inputToken, fill.originChainId, fill.outputToken, fill.destinationChainId)
-    ) {
-      repaymentChainId = fill.destinationChainId;
-    }
-    // If we can't switch the chain, then we need to verify that the msg.sender is a valid address on the repayment chain.
-    // Because we already checked that the `destinationRelayer` was a valid EVM address above, we only need to check
-    // that the repayment chain is an EVM chain.
-    else {
-      if (!chainIsEvm(repaymentChainId)) {
+    if (chainIsEvm(fill.destinationChainId)) {
+      assert(
+        destinationChainProvider instanceof providers.Provider,
+        `BundleDataClient#verifyFillRepayment: unexpected destination chain provider for chain ID ${fill.destinationChainId}`
+      );
+      const fillTransaction = await destinationChainProvider.getTransaction(fill.txnRef);
+      const destinationRelayer = fillTransaction?.from;
+      // Repayment chain is still an EVM chain, but the msg.sender is a bytes32 address, so the fill is invalid.
+      if (!isDefined(destinationRelayer) || !isValidEvmAddress(destinationRelayer)) {
         return undefined;
       }
+      // If we can switch the repayment chain to the destination chain, then do so. We should only switch if the
+      // destination chain has a valid repayment token that is equivalent to the deposited input token. This would
+      // also be the same mapping as the repayment token on the repayment chain.
+      if (
+        !matchedDeposit.fromLiteChain &&
+        hubPoolClient.areTokensEquivalent(
+          fill.inputToken,
+          fill.originChainId,
+          fill.outputToken,
+          fill.destinationChainId
+        )
+      ) {
+        repaymentChainId = fill.destinationChainId;
+      }
+      // If we can't switch the chain, then we need to verify that the msg.sender is a valid address on the repayment chain.
+      // Because we already checked that the `destinationRelayer` was a valid EVM address above, we only need to check
+      // that the repayment chain is an EVM chain.
+      else {
+        if (!chainIsEvm(repaymentChainId)) {
+          return undefined;
+        }
+      }
+      fill.relayer = destinationRelayer;
+    } else {
+      return undefined;
     }
-    fill.relayer = destinationRelayer;
-
-    // @todo: If chainIsSvm:
   }
 
   // Repayment address is now valid and repayment chain is either origin chain for lite chain or the destination

@@ -1,11 +1,11 @@
 import { RpcResponse, RpcTransport } from "@solana/kit";
-import { SolanaClusterRpcFactory } from "../../src/providers";
+import { SolanaClusterRpcFactory } from "../solana";
 
 type CachedResponse = { result: unknown } | { error: unknown } | { throwError: string };
 
 // Exposes mocked RPC transport for Solana in the SolanaClusterRpcFactory class.
 export class MockSolanaRpcFactory extends SolanaClusterRpcFactory {
-  private responseTime: number; // in milliseconds
+  private responseTime: number = 10; // in milliseconds
   private responses: Map<string, CachedResponse> = new Map();
 
   constructor(...clusterConstructorParams: ConstructorParameters<typeof SolanaClusterRpcFactory>) {
