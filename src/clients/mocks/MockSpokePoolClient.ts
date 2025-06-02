@@ -215,9 +215,12 @@ export class MockSpokePoolClient extends EVMSpokePoolClient {
     const topics = [originChainId, depositId, relayer]; // @todo verify
     const message = fill.message ?? EMPTY_MESSAGE;
     const updatedMessage = fill.relayExecutionInfo?.updatedMessage ?? message;
+    const updatedRecipient = addressModifier(
+      (fill.relayExecutionInfo?.updatedRecipient ?? toAddressType(recipient)).toAddress()
+    );
 
     const relayExecutionInfo = {
-      updatedRecipient: fill.relayExecutionInfo?.updatedRecipient ?? recipient,
+      updatedRecipient,
       updatedOutputAmount: fill.relayExecutionInfo?.updatedOutputAmount ?? outputAmount,
       fillType: fill.relayExecutionInfo?.fillType ?? FillType.FastFill,
     };
@@ -237,7 +240,7 @@ export class MockSpokePoolClient extends EVMSpokePoolClient {
       depositor,
       recipient,
       relayExecutionInfo: {
-        updatedRecipient: fill.relayExecutionInfo?.updatedRecipient ?? recipient,
+        updatedRecipient,
         updatedOutputAmount: fill.relayExecutionInfo?.updatedOutputAmount ?? outputAmount,
         fillType: fill.relayExecutionInfo?.fillType ?? FillType.FastFill,
       },

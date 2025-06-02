@@ -2,15 +2,7 @@ import _ from "lodash";
 import assert from "assert";
 import { providers } from "ethers";
 import { DepositWithBlock, Fill, FillWithBlock } from "../../../interfaces";
-import {
-  isSlowFill,
-  isValidEvmAddress,
-  isDefined,
-  chainIsEvm,
-  chainIsSvm,
-  Address,
-  toAddressType,
-} from "../../../utils";
+import { isSlowFill, isValidEvmAddress, isDefined, chainIsEvm, Address, toAddressType } from "../../../utils";
 import { HubPoolClient } from "../../HubPoolClient";
 import { SVMProvider } from "../../../arch/svm";
 
@@ -212,5 +204,5 @@ function _repaymentAddressNeedsToBeOverwritten(fill: Fill): boolean {
   // - i.e. If chainIsSvm && !isValidSvmAddress(fill.relayer) then return false
   //        If chainIsEvm && !isValidEvmAddress(fill.relayer) then return false
   //        If chainIsEvm && isValidEvmAddress(fill.relayer) then return true
-  return (chainIsEvm(fill.repaymentChainId) && fill.relayer.isValidEvmAddress()) || chainIsSvm(fill.repaymentChainId);
+  return chainIsEvm(fill.repaymentChainId) && !fill.relayer.isValidEvmAddress();
 }

@@ -17,6 +17,7 @@ import {
   MakeOptional,
   toBN,
   EvmAddress,
+  toAddressType,
 } from "../../utils";
 import {
   EventSearchConfig,
@@ -194,6 +195,11 @@ export class EVMSpokePoolClient extends SpokePoolClient {
 
     deposit = {
       ...spreadEventWithBlockNumber(event),
+      inputToken: toAddressType(event.args.inputToken),
+      outputToken: toAddressType(event.args.outputToken),
+      depositor: toAddressType(event.args.depositor),
+      recipient: toAddressType(event.args.recipient),
+      exclusiveRelayer: toAddressType(event.args.exclusiveRelayer),
       originChainId: this.chainId,
       quoteBlockNumber: await this.getBlockNumber(Number(event.args["quoteTimestamp"])),
       fromLiteChain: true, // To be updated immediately afterwards.

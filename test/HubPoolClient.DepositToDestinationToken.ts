@@ -23,7 +23,7 @@ import {
   zeroAddress,
 } from "./utils";
 import { getDeployedAddress } from "@across-protocol/contracts";
-import { Address, SvmAddress } from "../src/utils/AddressUtils";
+import { Address, SvmAddress, toAddressType } from "../src/utils/AddressUtils";
 
 let hubPool: Contract, lpTokenFactory: Contract, mockAdapter: Contract;
 let owner: SignerWithAddress;
@@ -133,7 +133,7 @@ describe("HubPoolClient: Deposit to Destination Token", function () {
   it("Gets L1 token for deposit", async function () {
     const depositData = {
       originChainId,
-      inputToken: randomOriginToken,
+      inputToken: toAddressType(randomOriginToken),
     };
 
     const e0 = hubPoolClient.setPoolRebalanceRoute(originChainId, randomL1Token, randomOriginToken);
@@ -151,7 +151,7 @@ describe("HubPoolClient: Deposit to Destination Token", function () {
     expect(() =>
       hubPoolClient.getL1TokenForDeposit({
         ...depositData,
-        inputToken: randomL1Token,
+        inputToken: toAddressType(randomL1Token),
         quoteBlockNumber: e0.blockNumber,
       })
     ).to.throw(/Could not find HubPool mapping/);
@@ -165,7 +165,7 @@ describe("HubPoolClient: Deposit to Destination Token", function () {
   it("Gets L2 token for deposit", async function () {
     const depositData = {
       originChainId,
-      inputToken: randomOriginToken,
+      inputToken: toAddressType(randomOriginToken),
     };
 
     const e0 = hubPoolClient.setPoolRebalanceRoute(originChainId, randomL1Token, randomOriginToken);
@@ -190,7 +190,7 @@ describe("HubPoolClient: Deposit to Destination Token", function () {
       hubPoolClient.getL2TokenForDeposit({
         ...depositData,
         destinationChainId,
-        inputToken: randomL1Token,
+        inputToken: toAddressType(randomL1Token),
         quoteBlockNumber: e0.blockNumber,
       })
     ).to.throw(/Could not find HubPool mapping/);

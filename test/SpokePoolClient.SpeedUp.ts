@@ -109,13 +109,25 @@ describe("SpokePoolClient: SpeedUp", function () {
     expect(updatedDeposit).to.deep.eq(expectedDepositData);
 
     // Fetching deposits for the depositor should contain the correct fees.
+    const clientDeposit = spokePoolClient.getDepositsForDestinationChain(destinationChainId)[0];
     expect(
-      deepEqualsWithBigNumber(
-        spokePoolClient.getDepositsForDestinationChain(destinationChainId)[0],
-        expectedDepositData,
-        [...ignoredFields, "realizedLpFeePct", "fromLiteChain", "toLiteChain"]
-      )
+      deepEqualsWithBigNumber(clientDeposit, expectedDepositData, [
+        ...ignoredFields,
+        "realizedLpFeePct",
+        "fromLiteChain",
+        "toLiteChain",
+        "depositor",
+        "recipient",
+        "inputToken",
+        "outputToken",
+        "exclusiveRelayer",
+      ])
     ).to.be.true;
+    expect(clientDeposit.depositor.eq(expectedDepositData.depositor)).to.be.true;
+    expect(clientDeposit.recipient.eq(expectedDepositData.recipient)).to.be.true;
+    expect(clientDeposit.inputToken.eq(expectedDepositData.inputToken)).to.be.true;
+    expect(clientDeposit.outputToken.eq(expectedDepositData.outputToken)).to.be.true;
+    expect(clientDeposit.exclusiveRelayer.eq(expectedDepositData.exclusiveRelayer)).to.be.true;
 
     expect(spokePoolClient.getDepositsForDestinationChain(destinationChainId).length).to.equal(1);
   });

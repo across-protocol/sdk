@@ -8,6 +8,9 @@ import {
   InvalidFill,
   validateFillForDeposit,
   queryHistoricalDepositForFill,
+  toAddressType,
+  randomAddress,
+  Address,
   deploy as deployMulticall,
 } from "../src/utils";
 import { fillStatusArray, relayFillStatus } from "../src/arch/evm";
@@ -112,9 +115,9 @@ describe("SpokePoolClient: Fill Validation", function () {
     // this on the deposit chain because that chain's spoke pool client will have to fill in its realized lp fee %.
     await spokePool_1.setCurrentTime(await getLastBlockTime(spokePool_1.provider));
 
-    inputToken = erc20_1.address;
+    inputToken = toAddressType(erc20_1.address);
     inputAmount = toBNWei(1);
-    outputToken = erc20_2.address;
+    outputToken = toAddressType(erc20_2.address);
     outputAmount = inputAmount.sub(bnOne);
   });
 
@@ -154,6 +157,8 @@ describe("SpokePoolClient: Fill Validation", function () {
         val = fill[field].add(bnOne);
       } else if (typeof fill[field] === "string") {
         val = fill[field] + "1234";
+      } else if (Address.isAddress(fill[field])) {
+        val = toAddressType(randomAddress());
       } else {
         expect(typeof fill[field]).to.equal("number");
         val = fill[field] + 1;
@@ -453,7 +458,7 @@ describe("SpokePoolClient: Fill Validation", function () {
       spokePool_2,
       {
         ..._deposit_1,
-        recipient: relayer.address,
+        recipient: toAddressType(relayer.address),
         outputAmount: _deposit_1.outputAmount.div(2),
         message: "0x12",
       },
@@ -466,8 +471,8 @@ describe("SpokePoolClient: Fill Validation", function () {
       throw new Error("fill_2 is undefined");
     }
 
-    expect(fill_1.relayExecutionInfo.updatedRecipient === depositor.address).to.be.true;
-    expect(fill_2.relayExecutionInfo.updatedRecipient === relayer.address).to.be.true;
+    expect(fill_1.relayExecutionInfo.updatedRecipient.toAddress() === depositor.address).to.be.true;
+    expect(fill_2.relayExecutionInfo.updatedRecipient.toAddress() === relayer.address).to.be.true;
     expect(fill_2.relayExecutionInfo.updatedMessageHash === ethers.utils.keccak256("0x12")).to.be.true;
     expect(fill_1.relayExecutionInfo.updatedMessageHash === ZERO_BYTES).to.be.true;
     expect(fill_1.relayExecutionInfo.updatedOutputAmount.eq(fill_2.relayExecutionInfo.updatedOutputAmount)).to.be.false;

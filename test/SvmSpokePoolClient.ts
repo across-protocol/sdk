@@ -4,7 +4,7 @@ import { MockSvmSpokePoolClient } from "../src/clients/mocks";
 import { createSpyLogger } from "./utils";
 import { EventWithData, SVMEventNames } from "../src/arch/svm";
 import { expect } from "chai";
-import { SvmAddress, BigNumber } from "../src/utils";
+import { BigNumber, toAddressType } from "../src/utils";
 import { hexlify } from "ethers/lib/utils";
 
 describe("SvmSpokePoolClient: Event fetching", function () {
@@ -33,8 +33,8 @@ describe("SvmSpokePoolClient: Event fetching", function () {
     deposits.forEach((depositEvent, idx) => {
       const expectedDeposit = depositEvents[idx];
       expect(depositEvent.depositId).to.equal(BigNumber.from(hexlify(expectedDeposit.data.depositId)));
-      expect(depositEvent.depositor).to.equal(SvmAddress.from(expectedDeposit.data.depositor).toBytes32());
-      expect(depositEvent.recipient).to.equal(SvmAddress.from(expectedDeposit.data.recipient).toBytes32());
+      expect(depositEvent.depositor.eq(toAddressType(expectedDeposit.data.depositor))).to.be.true;
+      expect(depositEvent.recipient.eq(toAddressType(expectedDeposit.data.recipient))).to.be.true;
     });
   });
 
@@ -61,8 +61,8 @@ describe("SvmSpokePoolClient: Event fetching", function () {
     fills.forEach((fillEvent, idx) => {
       const expectedFill = fillEvents[idx];
       expect(fillEvent.depositId).to.equal(BigNumber.from(hexlify(expectedFill.data.depositId)));
-      expect(fillEvent.depositor).to.equal(SvmAddress.from(expectedFill.data.depositor).toBytes32());
-      expect(fillEvent.recipient).to.equal(SvmAddress.from(expectedFill.data.recipient).toBytes32());
+      expect(fillEvent.depositor.eq(toAddressType(expectedFill.data.depositor))).to.be.true;
+      expect(fillEvent.recipient.eq(toAddressType(expectedFill.data.recipient))).to.be.true;
     });
   });
 });

@@ -129,10 +129,10 @@ describe("SvmCpiEventsClient (integration)", () => {
 
     const { data } = requestSlowFillEvent as { data: SvmSpokeClient.RequestedSlowFill };
 
-    expect(data.depositor).to.equal(relayData.depositor.toString());
-    expect(data.recipient).to.equal(relayData.recipient.toString());
-    expect(data.inputToken).to.equal(relayData.inputToken.toString());
-    expect(data.outputToken).to.equal(relayData.outputToken.toString());
+    expect(data.depositor).to.equal(relayData.depositor.toBase58());
+    expect(data.recipient).to.equal(relayData.recipient.toBase58());
+    expect(data.inputToken).to.equal(relayData.inputToken.toBase58());
+    expect(data.outputToken).to.equal(relayData.outputToken.toBase58());
     expect(data.inputAmount).to.equal(BigInt(relayData.inputAmount));
     expect(data.outputAmount).to.equal(BigInt(relayData.outputAmount));
     expect(data.originChainId).to.equal(BigInt(relayData.originChainId));
@@ -148,10 +148,10 @@ describe("SvmCpiEventsClient (integration)", () => {
 
     const { data } = fillEvent as { data: SvmSpokeClient.FilledRelay };
 
-    expect(data.depositor).to.equal(relayData.depositor.toString());
-    expect(data.recipient).to.equal(relayData.recipient.toString());
-    expect(data.inputToken).to.equal(relayData.inputToken.toString());
-    expect(data.outputToken).to.equal(relayData.outputToken.toString());
+    expect(data.depositor).to.equal(relayData.depositor.toBase58());
+    expect(data.recipient).to.equal(relayData.recipient.toBase58());
+    expect(data.inputToken).to.equal(relayData.inputToken.toBase58());
+    expect(data.outputToken).to.equal(relayData.outputToken.toBase58());
     expect(data.inputAmount).to.equal(BigInt(relayData.inputAmount));
     expect(data.outputAmount).to.equal(BigInt(relayData.outputAmount));
     expect(data.originChainId).to.equal(BigInt(relayData.originChainId));
@@ -196,10 +196,10 @@ describe("SvmCpiEventsClient (integration)", () => {
     expect(fillEvents).to.have.lengthOf(1);
     const fillEvent = fillEvents![0];
 
-    expect(SvmAddress.from(fillEvent.depositor, "base16").toBase58()).to.equal(relayData.depositor.toString());
-    expect(SvmAddress.from(fillEvent.recipient, "base16").toBase58()).to.equal(relayData.recipient.toString());
-    expect(SvmAddress.from(fillEvent.inputToken, "base16").toBase58()).to.equal(relayData.inputToken.toString());
-    expect(SvmAddress.from(fillEvent.outputToken, "base16").toBase58()).to.equal(relayData.outputToken.toString());
+    expect(SvmAddress.from(fillEvent.depositor, "base16").toBase58()).to.equal(relayData.depositor.toBase58());
+    expect(SvmAddress.from(fillEvent.recipient, "base16").toBase58()).to.equal(relayData.recipient.toBase58());
+    expect(SvmAddress.from(fillEvent.inputToken, "base16").toBase58()).to.equal(relayData.inputToken.toBase58());
+    expect(SvmAddress.from(fillEvent.outputToken, "base16").toBase58()).to.equal(relayData.outputToken.toBase58());
     expect(fillEvent.inputAmount.toString()).to.equal(BigInt(relayData.inputAmount).toString());
     expect(fillEvent.outputAmount.toString()).to.equal(BigInt(relayData.outputAmount).toString());
     expect(fillEvent.originChainId).to.equal(Number(relayData.originChainId));

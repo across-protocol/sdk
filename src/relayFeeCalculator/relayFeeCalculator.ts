@@ -508,7 +508,7 @@ export class RelayFeeCalculator {
     // We can perform a simple lookup with `getTokenInfo` here without resolving the exact token to resolve since we only need to
     // resolve the L1 token symbol and not the L2 token decimals.
     const inputTokenInfo = getTokenInfo(inputToken.toAddress(), originChainId);
-    const outputTokenInfo = getTokenInfo(outputToken, destinationChainId);
+    const outputTokenInfo = getTokenInfo(outputToken.toAddress(), destinationChainId);
     if (!isDefined(inputTokenInfo) || !isDefined(outputTokenInfo)) {
       throw new Error(`Could not find token information for ${inputToken} or ${outputToken}`);
     }

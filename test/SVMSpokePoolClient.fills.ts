@@ -1,10 +1,18 @@
-import { KeyPairSigner, address, fetchEncodedAccount } from "@solana/kit";
+import { KeyPairSigner, fetchEncodedAccount } from "@solana/kit";
 import { CHAIN_IDs } from "@across-protocol/constants";
 import { SvmSpokeClient } from "@across-protocol/contracts";
 import { intToU8Array32 } from "@across-protocol/contracts/dist/src/svm/web3-v1";
 import { createSpyLogger, expect } from "./utils";
 import { FillStatus } from "../src/interfaces";
-import { BigNumber, EvmAddress, getCurrentTime, getRandomInt, randomAddress, SvmAddress } from "../src/utils";
+import {
+  BigNumber,
+  EvmAddress,
+  getCurrentTime,
+  getRandomInt,
+  randomAddress,
+  SvmAddress,
+  toAddressType,
+} from "../src/utils";
 import {
   createMint,
   createDefaultSolanaClient,
@@ -45,11 +53,11 @@ describe("SVMSpokePoolClient: Fills", function () {
     inputToken = EvmAddress.from(randomAddress());
     depositId = getRandomInt();
     relayData = {
-      depositor: address(depositor.toBase58()),
-      recipient: address(recipient.toBase58()),
-      exclusiveRelayer: SVM_DEFAULT_ADDRESS,
-      inputToken: address(inputToken.toBase58()),
-      outputToken: mint.address,
+      depositor,
+      recipient,
+      exclusiveRelayer: toAddressType(SVM_DEFAULT_ADDRESS),
+      inputToken,
+      outputToken: toAddressType(mint.address),
       inputAmount: 10,
       outputAmount: 9,
       originChainId: CHAIN_IDs.MAINNET,
