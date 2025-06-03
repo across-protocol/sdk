@@ -1,5 +1,5 @@
 import hre from "hardhat";
-import { DepositWithBlock, FillStatus, FillType, RelayData } from "../src/interfaces";
+import { DepositWithBlock, FillStatus, FillType } from "../src/interfaces";
 import { EVMSpokePoolClient, SpokePoolClient } from "../src/clients";
 import {
   bnOne,
@@ -51,13 +51,6 @@ let spokePoolClient2: SpokePoolClient, hubPoolClient: MockHubPoolClient;
 let spokePoolClient1: SpokePoolClient, configStoreClient: MockConfigStoreClient;
 
 describe("SpokePoolClient: Fill Validation", function () {
-  const truncateAddresses = (relayData: Omit<RelayData, "message">): void => {
-    // Events emit bytes32 but the SpokePoolClient truncates evm addresses back to bytes20.
-    ["depositor", "recipient", "inputToken", "outputToken", "exclusiveRelayer"].forEach(
-      (field) => (relayData[field] = toAddress(relayData[field]))
-    );
-  };
-
   let inputToken: string, outputToken: string;
   let inputAmount: BigNumber, outputAmount: BigNumber;
 
@@ -141,7 +134,6 @@ describe("SpokePoolClient: Fill Validation", function () {
     const fill = await fillRelay(spokePool_2, depositEvent, relayer);
     await spokePoolClient2.update();
 
-    truncateAddresses(fill);
     expect(validateFillForDeposit(fill, depositEvent)).to.deep.equal({ valid: true });
 
     const ignoredFields = [
@@ -287,7 +279,6 @@ describe("SpokePoolClient: Fill Validation", function () {
     );
 
     const fill = await fillRelay(spokePool_2, depositEvent, relayer);
-    truncateAddresses(fill);
 
     expect(spokePoolClient2.getDepositForFill(fill)).to.not.exist;
     await spokePoolClient1.update();
@@ -487,7 +478,6 @@ describe("SpokePoolClient: Fill Validation", function () {
     expect(fill_1.relayExecutionInfo.fillType === FillType.FastFill).to.be.true;
     expect(fill_2.relayExecutionInfo.fillType === FillType.FastFill).to.be.true;
 
-    [fill_1, fill_2].forEach(truncateAddresses);
     const _deposit = spokePoolClient1.getDepositForFill(fill_1);
     expect(_deposit).to.exist;
     let result = validateFillForDeposit(fill_1, _deposit);
@@ -504,7 +494,6 @@ describe("SpokePoolClient: Fill Validation", function () {
       outputAmount
     );
     const fill = await fillRelay(spokePool_2, depositEvent_2, relayer);
-    truncateAddresses(fill);
 
     await spokePoolClient2.update();
 

@@ -502,8 +502,14 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
     const { events: queryResults, currentTime, searchEndBlock } = update;
 
     if (eventsToQuery.includes("TokensBridged")) {
-      for (const event of queryResults[eventsToQuery.indexOf("TokensBridged")] as TokensBridged[]) {
-        this.tokensBridged.push(event);
+      for (const _event of queryResults[eventsToQuery.indexOf("TokensBridged")]) {
+        const event = _event as TokensBridged & {
+          l2TokenAddress: string;
+        };
+        this.tokensBridged.push({
+          ...event,
+          l2TokenAddress: toAddressType(event.l2TokenAddress),
+        } as TokensBridged);
       }
     }
 

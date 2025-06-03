@@ -12,7 +12,6 @@ import {
   isDefined,
   randomAddress,
   toAddressType,
-  toAddress,
   toBN,
   toBytes32,
 } from "../src/utils";
@@ -158,10 +157,16 @@ describe("SpokePoolClient: Event Filtering", function () {
 
     // Mock invalid fills:
     destinationSpokePoolClient.fillRelay(
-      fillFromDeposit({ ...deposit, exclusivityDeadline: deposit.exclusivityDeadline + 2 }, randomAddress())
+      fillFromDeposit(
+        { ...deposit, exclusivityDeadline: deposit.exclusivityDeadline + 2 },
+        toAddressType(randomAddress())
+      )
     );
     destinationSpokePoolClient.fillRelay(
-      fillFromDeposit({ ...deposit, exclusivityDeadline: deposit.exclusivityDeadline + 1 }, randomAddress())
+      fillFromDeposit(
+        { ...deposit, exclusivityDeadline: deposit.exclusivityDeadline + 1 },
+        toAddressType(randomAddress())
+      )
     );
     await destinationSpokePoolClient.update(filledRelayEvents);
 
@@ -366,6 +371,7 @@ describe("SpokePoolClient: Event Filtering", function () {
       let slowFillRequest = destinationSpokePoolClient.getSlowFillRequest({
         ...relayData,
         message: EMPTY_MESSAGE,
+        messageHash: args.messageHash,
       });
       expect(slowFillRequest).to.exist;
       slowFillRequest = slowFillRequest!;
@@ -374,7 +380,7 @@ describe("SpokePoolClient: Event Filtering", function () {
       expect(slowFillRequest.destinationChainId).to.exist;
       expect(slowFillRequest.destinationChainId).to.equal(destinationChainId);
       Object.entries(relayData).forEach(
-        ([k, v]) => expect(isDefined(v)).to.equal(true) && expect(slowFillRequest[k]).to.equal(v)
+        ([k, v]) => expect(isDefined(v)).to.equal(true) && expect(slowFillRequest[k]).to.deep.equal(v)
       );
     });
   });
@@ -393,7 +399,7 @@ describe("SpokePoolClient: Event Filtering", function () {
       deposit = deposit!;
       expect(deposit.depositId).to.equal(depositEvent.args.depositId);
 
-      const fill = fillFromDeposit(deposit, relayer.toAddress());
+      const fill = fillFromDeposit(deposit, relayer);
       fillEvents.push(destinationSpokePoolClient.fillRelay(fill));
     }
     await destinationSpokePoolClient.update(filledRelayEvents);
@@ -409,7 +415,7 @@ describe("SpokePoolClient: Event Filtering", function () {
 
       // destinationChainId is appended by the SpokePoolClient for V3FundsDeposited events, so verify its correctness.
       expect(fillEvent.destinationChainId).to.equal(destinationChainId);
-      expect(fillEvent.outputToken.toAddress()).to.equal(expectedFill.args.outputToken);
+      expect(fillEvent.outputToken.toBytes32()).to.equal(expectedFill.args.outputToken);
     });
   });
 
@@ -422,7 +428,7 @@ describe("SpokePoolClient: Event Filtering", function () {
       expect(tokensBridged).to.exist;
       tokensBridged = tokensBridged!;
 
-      expect(tokensBridged.l2TokenAddress).to.equal(toAddress(l2TokenAddress));
+      expect(tokensBridged.l2TokenAddress.toBytes32()).to.equal(l2TokenAddress.toLowerCase());
     }
   });
 
@@ -459,7 +465,7 @@ describe("SpokePoolClient: Event Filtering", function () {
 
       originSpokePoolClient.speedUpDeposit({ depositor, updatedRecipient, depositId: toBN(i) } as SpeedUp);
       await originSpokePoolClient.update(speedUpEvents);
-      let speedUp = originSpokePoolClient.getSpeedUps()[depositor.toBytes32()][toBN(i).toString()].at(-1);
+      let speedUp = originSpokePoolClient.getSpeedUps()[depositor.toAddress()][toBN(i).toString()].at(-1);
       expect(speedUp).to.exist;
       speedUp = speedUp!;
 

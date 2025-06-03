@@ -2,7 +2,7 @@ import assert from "assert";
 import { Contract } from "ethers";
 import { random } from "lodash";
 import winston from "winston";
-import { EMPTY_MESSAGE, ZERO_ADDRESS } from "../../constants";
+import { EMPTY_MESSAGE, ZERO_ADDRESS, ZERO_BYTES } from "../../constants";
 import {
   Log,
   Deposit,
@@ -133,7 +133,10 @@ export class MockSpokePoolClient extends EVMSpokePoolClient {
     return this._deposit("FundsDeposited", deposit);
   }
 
-  protected _deposit(event: string, deposit: Omit<Deposit, "messageHash"> & { message?: string } & Partial<SortableEvent>): Log {
+  protected _deposit(
+    event: string,
+    deposit: Omit<Deposit, "messageHash"> & { message?: string } & Partial<SortableEvent>
+  ): Log {
     const { blockNumber, txnIndex } = deposit;
     let { depositId, destinationChainId, inputAmount, outputAmount } = deposit;
     depositId ??= this.numberOfDeposits;
@@ -313,6 +316,7 @@ export class MockSpokePoolClient extends EVMSpokePoolClient {
         inputToken: args.inputToken.toBytes32() ?? toBytes32(randomAddress()),
         outputToken: args.outputToken.toBytes32() ?? toBytes32(ZERO_ADDRESS),
         exclusiveRelayer: args.exclusiveRelayer.toBytes32() ?? toBytes32(ZERO_ADDRESS),
+        messageHash: args.messageHash ?? ZERO_BYTES,
       },
       blockNumber: request.blockNumber,
       transactionIndex: request.txnIndex,
