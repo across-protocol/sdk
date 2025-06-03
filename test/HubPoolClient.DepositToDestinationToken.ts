@@ -83,7 +83,6 @@ describe("HubPoolClient: Deposit to Destination Token", function () {
     expect(() => hubPoolClient.getL2TokenForL1TokenAtBlock(randomL1TokenAddr, destinationChainId, 0)).to.throw(
       /Could not find SpokePool mapping/
     );
-    console.log(hubPoolClient.getL2TokenForL1TokenAtBlock(randomL1TokenAddr, destinationChainId, e1.blockNumber));
     expect(
       hubPoolClient
         .getL2TokenForL1TokenAtBlock(randomL1TokenAddr, destinationChainId, e1.blockNumber)
