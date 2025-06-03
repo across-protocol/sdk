@@ -60,7 +60,7 @@ describe("HubPoolClient: Deposit to Destination Token", function () {
       return;
     }
 
-    const truncatedAddress = SvmAddress.from(solanaSpokePool).toEvmAddress();
+    const truncatedAddress = SvmAddress.from(solanaSpokePool).truncateToBytes20();
     hubPoolClient.setCrossChainContractsEvent(svmChain, mockAdapter.address, truncatedAddress);
 
     await hubPoolClient.update();
@@ -330,7 +330,7 @@ describe("HubPoolClient: Deposit to Destination Token", function () {
     const usdcTokenSol = TOKEN_SYMBOLS_MAP.USDC.addresses[svmChain];
 
     // Set up initial route with truncated SVM address
-    const truncatedAddress = SvmAddress.from(usdcTokenSol).toEvmAddress();
+    const truncatedAddress = SvmAddress.from(usdcTokenSol).truncateToBytes20();
     const e1 = hubPoolClient.setPoolRebalanceRoute(svmChain, randomL1Token, truncatedAddress);
     await hubPoolClient.update();
 

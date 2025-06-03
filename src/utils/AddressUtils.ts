@@ -131,7 +131,7 @@ export class Address {
   truncateToBytes20(): string {
     // Take the last 20 bytes
     const bytes20 = this.rawAddress.slice(-20);
-    return utils.hexlify(bytes20).toLowerCase();
+    return toAddress(utils.hexlify(bytes20));
   }
 
   // Converts the address (can be bytes32 or bytes20) to its base58 counterpart. This conversion will always succeed, even if the input address is not valid on Solana,
@@ -204,6 +204,11 @@ export class Address {
   // Checks if the address is the zero address.
   isZeroAddress(): boolean {
     return utils.stripZeros(this.rawAddress).length === 0;
+  }
+
+  // Small utility to convert an Address to a Solana Kit branded type.
+  toV2Address(): V2Address<string> {
+    return this.toBase58() as V2Address<string>;
   }
 
   // Forces `rawAddress` to become an SvmAddress type. This will only throw if `rawAddress.length > 32`.
@@ -290,16 +295,6 @@ export class SvmAddress extends Address {
   // used in TOKEN_SYMBOLS_MAP.
   override toAddress(): string {
     return this.toBase58();
-  }
-
-  // Small utility to convert an SvmAddress to a Solana Kit branded type.
-  toV2Address(): V2Address<string> {
-    return this.toBase58() as V2Address<string>;
-  }
-
-  // Forces an SvmAddress to an EVM address string by truncating the leading 12 bytes.
-  override toEvmAddress(): string {
-    return toAddress(`0x${this.toBytes32().slice(-40)}`);
   }
 
   // Constructs a new SvmAddress type.
