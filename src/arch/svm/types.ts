@@ -19,7 +19,6 @@ export type EventData =
   | SvmSpokeClient.PausedDeposits
   | SvmSpokeClient.PausedFills
   | SvmSpokeClient.SetXDomainAdmin
-  | SvmSpokeClient.EnabledDepositRoute
   | SvmSpokeClient.FilledRelay
   | SvmSpokeClient.FundsDeposited
   | SvmSpokeClient.EmergencyDeletedRootBundle
@@ -30,7 +29,6 @@ export type EventData =
 export enum SVMEventNames {
   FilledRelay = "FilledRelay",
   FundsDeposited = "FundsDeposited",
-  EnabledDepositRoute = "EnabledDepositRoute",
   RelayedRootBundle = "RelayedRootBundle",
   ExecutedRelayerRefundRoot = "ExecutedRelayerRefundRoot",
   BridgedToHubPool = "BridgedToHubPool",
@@ -56,9 +54,10 @@ export type EventWithData = {
   program: Address;
 };
 
+export type SVMProvider = Rpc<SolanaRpcApiFromTransport<RpcTransport>>;
+
 // Typed aggregate of JSON‑RPC and subscription clients.
 export type RpcClient = {
-  rpc: Rpc<SolanaRpcApiFromTransport<RpcTransport>>;
+  rpc: SVMProvider;
   rpcSubscriptions: RpcSubscriptions<SignatureNotificationsApi & SlotNotificationsApi>;
 };
-export type SVMProvider = Rpc<SolanaRpcApiFromTransport<RpcTransport>>;

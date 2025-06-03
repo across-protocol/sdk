@@ -2,15 +2,16 @@ import assert from "assert";
 import { Transport } from "viem";
 import { providers } from "ethers";
 import { CHAIN_IDs } from "../constants";
-import { BigNumber, chainIsOPStack, fixedPointAdjustment, toBNWei } from "../utils";
+import { BigNumber, chainIsOPStack, fixedPointAdjustment, isEvmProvider, toBNWei } from "../utils";
 import { SVMProvider as SolanaProvider } from "../arch/svm";
-import { GasPriceEstimate } from "./types";
+import { EvmGasPriceEstimate, GasPriceEstimate, SvmGasPriceEstimate } from "./types";
 import { getPublicClient } from "./util";
 import * as arbitrum from "./adapters/arbitrum";
 import * as ethereum from "./adapters/ethereum";
 import * as polygon from "./adapters/polygon";
 import * as lineaViem from "./adapters/linea-viem";
 import * as solana from "./adapters/solana";
+import { EvmProvider } from "../arch/evm/types";
 
 export interface GasPriceEstimateOptions {
   // baseFeeMultiplier Multiplier applied to base fee for EIP1559 gas prices (or total fee for legacy).
@@ -34,14 +35,26 @@ const GAS_PRICE_ESTIMATE_DEFAULTS = {
 // Chains that use the Viem gas price oracle.
 const VIEM_CHAINS = [CHAIN_IDs.LINEA];
 
+// Overload For EVM providers
+export async function getGasPriceEstimate(
+  provider: EvmProvider,
+  opts?: Partial<GasPriceEstimateOptions>
+): Promise<EvmGasPriceEstimate>;
+
+// Overload For SVM providers
+export async function getGasPriceEstimate(
+  provider: SolanaProvider,
+  opts?: Partial<GasPriceEstimateOptions>
+): Promise<SvmGasPriceEstimate>;
+
 /**
  * Provide an estimate for the current gas price for a particular chain.
  * @param provider A valid ethers provider.
- * @param {opts} GasPriceEstimateOptions optional parameters.
+ * @param {GasPriceEstimateOptions} opts optional parameters.
  * @returns An  object of type GasPriceEstimate.
  */
 export async function getGasPriceEstimate(
-  provider: providers.Provider | SolanaProvider,
+  provider: EvmProvider | SolanaProvider,
   opts: Partial<GasPriceEstimateOptions> = {}
 ): Promise<GasPriceEstimate> {
   const baseFeeMultiplier = opts.baseFeeMultiplier ?? toBNWei("1");
@@ -56,7 +69,7 @@ export async function getGasPriceEstimate(
   );
 
   // Exit here if we need to estimate on Solana.
-  if (!(provider instanceof providers.Provider)) {
+  if (!isEvmProvider(provider)) {
     const optsWithDefaults: GasPriceEstimateOptions = {
       ...GAS_PRICE_ESTIMATE_DEFAULTS,
       baseFeeMultiplier,
@@ -68,7 +81,6 @@ export async function getGasPriceEstimate(
   }
 
   // Cast the provider to an ethers provider, which should be given to the oracle when querying an EVM network.
-  provider = provider as providers.Provider;
   const chainId = opts.chainId ?? (await provider.getNetwork()).chainId;
   const optsWithDefaults: GasPriceEstimateOptions = {
     ...GAS_PRICE_ESTIMATE_DEFAULTS,

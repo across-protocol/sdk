@@ -13,13 +13,9 @@ import {
 import { bs58, chainIsSvm, getMessageHash } from "../../utils";
 import { EventName, EventWithData, SVMProvider } from "./types";
 import { decodeEvent, isDevnet } from "./utils";
-import { DepositWithTime, FillWithTime } from "../../interfaces";
+import { Deposit, DepositWithTime, Fill, FillWithTime } from "../../interfaces";
 import { unwrapEventData } from "./";
 import assert from "assert";
-import {
-  FundsDepositedEventObject,
-  FilledRelayEventObject,
-} from "@across-protocol/contracts/dist/typechain/contracts/SpokePool";
 
 // Utility type to extract the return type for the JSON encoding overload. We only care about the overload where the
 // configuration parameter (C) has the optional property 'encoding' set to 'json'.
@@ -181,7 +177,7 @@ export class SvmCpiEventsClient {
    * @param commitment - Commitment level.
    * @returns A promise that resolves to an array of events.
    */
-  private async readEventsFromSignature(txSignature: Signature, commitment: Commitment = "confirmed") {
+  async readEventsFromSignature(txSignature: Signature, commitment: Commitment = "confirmed") {
     const txResult = await this.rpc
       .getTransaction(txSignature, { commitment, maxSupportedTransactionVersion: 0 })
       .send();
@@ -264,7 +260,7 @@ export class SvmCpiEventsClient {
     return events.map((event) => {
       const unwrappedEventArgs = unwrapEventData(event as Record<string, unknown>, ["depositId"]) as Record<
         "data",
-        FundsDepositedEventObject
+        Deposit
       >;
 
       return {
@@ -276,7 +272,6 @@ export class SvmCpiEventsClient {
         txnIndex: 0,
         txnRef: txSignature,
         logIndex: 0,
-        destinationChainId: unwrappedEventArgs.data.destinationChainId.toNumber(),
       } satisfies DepositEventFromSignature;
     });
   }
@@ -314,10 +309,7 @@ export class SvmCpiEventsClient {
     }
 
     return fillEvents.map((event) => {
-      const unwrappedEventData = unwrapEventData(event as Record<string, unknown>) as Record<
-        "data",
-        FilledRelayEventObject
-      >;
+      const unwrappedEventData = unwrapEventData(event as Record<string, unknown>) as Record<"data", Fill>;
       return {
         ...unwrappedEventData.data,
         fillTimestamp: Number(txDetails.blockTime),
@@ -326,8 +318,6 @@ export class SvmCpiEventsClient {
         txnIndex: 0,
         logIndex: 0,
         destinationChainId,
-        repaymentChainId: unwrappedEventData.data.repaymentChainId.toNumber(),
-        originChainId: unwrappedEventData.data.originChainId.toNumber(),
       } satisfies FillEventFromSignature;
     });
   }

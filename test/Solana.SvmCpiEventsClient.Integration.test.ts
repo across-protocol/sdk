@@ -1,20 +1,19 @@
 import { CHAIN_IDs } from "@across-protocol/constants";
 import { SvmSpokeClient } from "@across-protocol/contracts";
 import { u8Array32ToInt } from "@across-protocol/contracts/dist/src/svm/web3-v1";
-import { Address, KeyPairSigner, address } from "@solana/kit";
+import { KeyPairSigner, address } from "@solana/kit";
 import { expect } from "chai";
-import { getStatePda, SvmCpiEventsClient } from "../src/arch/svm";
+import { SvmCpiEventsClient } from "../src/arch/svm";
 import { SvmAddress } from "../src/utils";
+import { signer } from "./Solana.setup";
 import {
   createDefaultSolanaClient,
   createMint,
-  enableRoute,
   mintTokens,
   sendCreateDeposit,
   sendCreateFill,
   sendRequestSlowFill,
 } from "./utils/svm/utils";
-import { signer } from "./Solana.setup";
 
 // Define an extended interface for our Solana client with chainId
 interface ExtendedSolanaClient extends ReturnType<typeof createDefaultSolanaClient> {
@@ -28,18 +27,12 @@ describe("SvmCpiEventsClient (integration)", () => {
   let client: SvmCpiEventsClient;
 
   let mint: KeyPairSigner;
-  let vault: Address;
-  let route: Address;
-  let state: Address;
   let decimals: number;
 
-  const destinationChainId = 1;
   const tokenAmount = 100000000n;
 
   before(async function () {
-    state = await getStatePda(SvmSpokeClient.SVM_SPOKE_PROGRAM_ADDRESS);
     ({ mint, decimals } = await createMint(signer, solanaClient));
-    ({ vault, route } = await enableRoute(signer, solanaClient, BigInt(destinationChainId), state, mint.address));
     client = await SvmCpiEventsClient.create(solanaClient.rpc);
   });
 
@@ -47,11 +40,11 @@ describe("SvmCpiEventsClient (integration)", () => {
     // Store initial slot
     const fromSlot = await solanaClient.rpc.getSlot().send();
     const payerAta = await mintTokens(signer, solanaClient, mint.address, tokenAmount * 2n + 1n);
-    await sendCreateDeposit(solanaClient, signer, mint, decimals, route, vault, payerAta, {
+    await sendCreateDeposit(solanaClient, signer, mint, decimals, payerAta, {
       inputAmount: tokenAmount,
       outputAmount: tokenAmount,
     });
-    await sendCreateDeposit(solanaClient, signer, mint, decimals, route, vault, payerAta, {
+    await sendCreateDeposit(solanaClient, signer, mint, decimals, payerAta, {
       inputAmount: tokenAmount + 1n,
       outputAmount: tokenAmount + 1n,
     });
@@ -61,16 +54,12 @@ describe("SvmCpiEventsClient (integration)", () => {
     // Query events from initial to final slot
     const allEvents = await client["queryAllEvents"](fromSlot, toSlot);
 
-    expect(allEvents.map((e: { name: string }) => e.name)).to.deep.equal([
-      "FundsDeposited",
-      "FundsDeposited",
-      "EnabledDepositRoute",
-    ]);
+    expect(allEvents.map((e: { name: string }) => e.name)).to.deep.equal(["FundsDeposited", "FundsDeposited"]);
   });
 
   it("creates and reads a single deposit event", async () => {
     const payerAta = await mintTokens(signer, solanaClient, mint.address, tokenAmount);
-    const { depositInput } = await sendCreateDeposit(solanaClient, signer, mint, decimals, route, vault, payerAta, {
+    const { depositInput } = await sendCreateDeposit(solanaClient, signer, mint, decimals, payerAta, {
       inputAmount: tokenAmount,
       outputAmount: tokenAmount,
     });
@@ -94,16 +83,10 @@ describe("SvmCpiEventsClient (integration)", () => {
   it("filters deposit events by slot range", async () => {
     /* First deposit (outside the queried range) */
     const payerAta = await mintTokens(signer, solanaClient, mint.address, tokenAmount * 2n + 1n);
-    const { signature: firstSig } = await sendCreateDeposit(
-      solanaClient,
-      signer,
-      mint,
-      decimals,
-      route,
-      vault,
-      payerAta,
-      { inputAmount: tokenAmount, outputAmount: tokenAmount }
-    );
+    const { signature: firstSig } = await sendCreateDeposit(solanaClient, signer, mint, decimals, payerAta, {
+      inputAmount: tokenAmount,
+      outputAmount: tokenAmount,
+    });
     const tx1 = await solanaClient.rpc
       .getTransaction(firstSig, {
         commitment: "confirmed",
@@ -118,8 +101,6 @@ describe("SvmCpiEventsClient (integration)", () => {
       signer,
       mint,
       decimals,
-      route,
-      vault,
       payerAta,
       { inputAmount: tokenAmount + 1n, outputAmount: tokenAmount + 1n }
     );
@@ -183,16 +164,10 @@ describe("SvmCpiEventsClient (integration)", () => {
     // deposit from solana
     solanaClient.chainId = CHAIN_IDs.SOLANA;
     const payerAta = await mintTokens(signer, solanaClient, address(mint.address), tokenAmount);
-    const { depositInput, signature } = await sendCreateDeposit(
-      solanaClient,
-      signer,
-      mint,
-      decimals,
-      route,
-      vault,
-      payerAta,
-      { inputAmount: tokenAmount, outputAmount: tokenAmount }
-    );
+    const { depositInput, signature } = await sendCreateDeposit(solanaClient, signer, mint, decimals, payerAta, {
+      inputAmount: tokenAmount,
+      outputAmount: tokenAmount,
+    });
 
     const depositEvents = await client.getDepositEventsFromSignature(solanaClient.chainId, signature);
 

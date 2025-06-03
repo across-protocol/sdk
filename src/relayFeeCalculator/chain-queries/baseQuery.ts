@@ -20,8 +20,8 @@ import assert from "assert";
 import { Logger, QueryInterface, getDefaultSimulatedRelayerAddress } from "../relayFeeCalculator";
 import { Transport } from "viem";
 import { getGasPriceEstimate, EvmGasPriceEstimate } from "../../gasPriceOracle";
-type Provider = providers.Provider;
-type OptimismProvider = L2Provider<Provider>;
+import { EvmProvider } from "../../arch/evm/types";
+
 export type SymbolMappingType = Record<
   string,
   {
@@ -48,7 +48,7 @@ export class QueryBase implements QueryInterface {
    * @param coingeckoBaseCurrency The basis currency that CoinGecko will use to resolve pricing
    */
   constructor(
-    readonly provider: Provider | OptimismProvider,
+    readonly provider: EvmProvider,
     readonly symbolMapping: SymbolMappingType,
     readonly spokePoolAddress: string,
     readonly simulatedRelayerAddress: string,
