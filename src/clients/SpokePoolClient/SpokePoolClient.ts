@@ -595,7 +595,7 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
           depositor: toAddressType(event.depositor),
           updatedRecipient: toAddressType(event.updatedRecipient),
         } as SpeedUpWithBlock;
-      }) as SpeedUpWithBlock[];
+      });
 
       for (const event of speedUpEvents) {
         const speedUp = {

@@ -243,10 +243,6 @@ export class Address {
   static isSvmAddress(address: Address): boolean {
     return address instanceof SvmAddress;
   }
-
-  static isCustomAddress(address: Address): boolean {
-    return Address.isEvmAddress(address) || Address.isSvmAddress(address);
-  }
 }
 
 // Subclass of address which strictly deals with 20-byte addresses. These addresses are guaranteed to be valid EVM addresses, so `toAddress` will always succeed.

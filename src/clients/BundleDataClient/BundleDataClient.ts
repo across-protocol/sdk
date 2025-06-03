@@ -71,17 +71,15 @@ function updateExpiredDepositsV3(dict: ExpiredDepositsToRefundV3, deposit: V3Dep
     return;
   }
   const { originChainId, inputToken } = deposit;
-  if (!dict?.[originChainId]?.[inputToken.toBytes32()]) {
-    assign(dict, [originChainId, inputToken.toBytes32()], []);
-  }
+  dict[originChainId] ??= {};
+  dict[originChainId][inputToken.toBytes32()] ??= [];
   dict[originChainId][inputToken.toBytes32()].push(deposit);
 }
 
 function updateBundleDepositsV3(dict: BundleDepositsV3, deposit: V3DepositWithBlock): void {
   const { originChainId, inputToken } = deposit;
-  if (!dict?.[originChainId]?.[inputToken.toBytes32()]) {
-    assign(dict, [originChainId, inputToken.toBytes32()], []);
-  }
+  dict[originChainId] ??= {};
+  dict[originChainId][inputToken.toBytes32()] ??= [];
   dict[originChainId][inputToken.toBytes32()].push(deposit);
 }
 
@@ -97,14 +95,13 @@ function updateBundleFillsV3(
   if (chainIsEvm(repaymentChainId) && !fill.relayer.isValidEvmAddress()) {
     return;
   }
-  if (!dict?.[repaymentChainId]?.[repaymentToken.toBytes32()]) {
-    assign(dict, [repaymentChainId, repaymentToken.toBytes32()], {
-      fills: [],
-      totalRefundAmount: bnZero,
-      realizedLpFees: bnZero,
-      refunds: {},
-    });
-  }
+  dict[repaymentChainId] ??= {};
+  dict[repaymentChainId][repaymentToken.toBytes32()] ??= {
+    fills: [],
+    totalRefundAmount: bnZero,
+    realizedLpFees: bnZero,
+    refunds: {},
+  };
 
   const bundleFill: BundleFillV3 = { ...fill, lpFeePct, relayer: repaymentAddress };
 
@@ -140,9 +137,8 @@ function updateBundleExcessSlowFills(
   deposit: V3DepositWithBlock & { lpFeePct: BigNumber }
 ): void {
   const { destinationChainId, outputToken } = deposit;
-  if (!dict?.[destinationChainId]?.[outputToken.toBytes32()]) {
-    assign(dict, [destinationChainId, outputToken.toBytes32()], []);
-  }
+  dict[destinationChainId] ??= {};
+  dict[destinationChainId][outputToken.toBytes32()] ??= [];
   dict[destinationChainId][outputToken.toBytes32()].push(deposit);
 }
 
@@ -151,9 +147,8 @@ function updateBundleSlowFills(dict: BundleSlowFills, deposit: V3DepositWithBloc
     return;
   }
   const { destinationChainId, outputToken } = deposit;
-  if (!dict?.[destinationChainId]?.[outputToken.toBytes32()]) {
-    assign(dict, [destinationChainId, outputToken.toBytes32()], []);
-  }
+  dict[destinationChainId] ??= {};
+  dict[destinationChainId][outputToken.toBytes32()] ??= [];
   dict[destinationChainId][outputToken.toBytes32()].push(deposit);
 }
 
