@@ -55,7 +55,7 @@ export interface ExecutedRootBundle extends SortableEvent {
   netSendAmounts: BigNumber[];
   runningBalances: BigNumber[];
   leafId: number;
-  l1Tokens: string[];
+  l1Tokens: EvmAddress[];
   proof: string[];
 }
 
@@ -96,20 +96,20 @@ export interface LpToken {
 // TODO: I think I don't change string -> Address in the Events. I change right after the event is read
 export interface CrossChainContractsSet extends SortableEvent {
   l2ChainId: number;
-  spokePool: string;
+  spokePool: Address;
 }
 
 // TODO: I think I don't change string -> Address in the Events. I change right after the event is read
 export interface DestinationTokenWithBlock extends SortableEvent {
-  l2Token: string;
-  l1Token: string;
+  l2Token: Address;
+  l1Token: EvmAddress;
 }
 
 // TODO: I think I don't change string -> Address in the Events. I change right after the event is read
 export interface SetPoolRebalanceRoot extends SortableEvent {
   destinationChainId: number;
-  l1Token: string;
-  destinationToken: string;
+  l1Token: EvmAddress;
+  destinationToken: Address;
 }
 
 export interface PendingRootBundle {

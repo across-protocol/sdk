@@ -44,7 +44,6 @@ import {
   toBN,
   getTokenInfo,
   getUsdcSymbol,
-  compareAddressesSimple,
   chainIsSvm,
   getDeployedAddress,
   SvmAddress,
@@ -166,7 +165,7 @@ export class HubPoolClient extends BaseAbstractClient {
     return this.executedRootBundles;
   }
 
-  getSpokePoolForBlock(chain: number, block: number = Number.MAX_SAFE_INTEGER): string {
+  getSpokePoolForBlock(chain: number, block: number = Number.MAX_SAFE_INTEGER): Address {
     if (!this.crossChainContracts[chain]) {
       throw new Error(`No cross chain contracts set for ${chain}`);
     }
@@ -180,11 +179,11 @@ export class HubPoolClient extends BaseAbstractClient {
     }
   }
 
-  getSpokePoolActivationBlock(chain: number, spokePool: string): number | undefined {
+  getSpokePoolActivationBlock(chain: number, spokePool: Address): number | undefined {
     // Return first time that this spoke pool was registered in the HubPool as a cross chain contract. We can use
     // this block as the oldest block that we should query for SpokePoolClient purposes.
-    const mostRecentSpokePoolUpdateBeforeBlock = this.crossChainContracts[chain].find(
-      (crossChainContract) => crossChainContract.spokePool === spokePool
+    const mostRecentSpokePoolUpdateBeforeBlock = this.crossChainContracts[chain].find((crossChainContract) =>
+      crossChainContract.spokePool.eq(spokePool)
     );
     return mostRecentSpokePoolUpdateBeforeBlock?.blockNumber;
   }
@@ -211,7 +210,7 @@ export class HubPoolClient extends BaseAbstractClient {
         `Could not find SpokePool mapping for ${symbol} on ${chain} at or before HubPool block ${latestHubBlock}!`
       );
     }
-    return toAddressType(l2Token.l2Token);
+    return l2Token.l2Token;
   }
 
   // TODO: this might have to deal with truncated Solana addresses? Depends on what input is given actually
@@ -230,7 +229,7 @@ export class HubPoolClient extends BaseAbstractClient {
           // ! TODO: Okay. Here, in `l1TokensToDestinationTokensWithBlock`, we might be saving truncated solana addresses (as `l1TokensToDestinationTokensWithBlock` is probably generated from events)
           // ! TODO: Considering this, this filtering should be a bit different. If .isSvmAddress => check not for equality, but for *truncated equality*. If .isEvmAddress, check for equality
           (dstTokenWithBlock) =>
-            toAddressType(dstTokenWithBlock.l2Token).eq(l2Token) && dstTokenWithBlock.blockNumber <= latestHubBlock
+            dstTokenWithBlock.l2Token.eq(l2Token) && dstTokenWithBlock.blockNumber <= latestHubBlock
         );
       })
       .flat();
@@ -241,7 +240,7 @@ export class HubPoolClient extends BaseAbstractClient {
       );
     }
     // Find the last mapping published before the target block.
-    return EvmAddress.from(sortEventsDescending(l2Tokens)[0].l1Token);
+    return sortEventsDescending(l2Tokens)[0].l1Token;
   }
 
   protected getL1TokenForDeposit(
@@ -272,7 +271,7 @@ export class HubPoolClient extends BaseAbstractClient {
           return (
             e.blockNumber <= hubPoolBlock &&
             // TODO: compare the last 20 bytes of l2Token only. Solana workaround, is this correct?
-            compareAddressesSimple(e.l2Token, l2Token.truncateToBytes20()) &&
+            e.l2Token.eq(l2Token) &&
             Number(_l2ChainId) === l2ChainId
           );
         });
@@ -805,7 +804,7 @@ export class HubPoolClient extends BaseAbstractClient {
       return (
         executedLeaf.blockNumber <= block &&
         executedLeaf.chainId === chain &&
-        executedLeaf.l1Tokens.some((token) => token === l1Token.toEvmAddress())
+        executedLeaf.l1Tokens.some((token) => token.eq(l1Token))
       );
     });
   }
@@ -822,9 +821,7 @@ export class HubPoolClient extends BaseAbstractClient {
   ): TokenRunningBalance {
     let runningBalance = toBN(0);
     if (executedRootBundle) {
-      const indexOfL1Token = executedRootBundle.l1Tokens.findIndex(
-        (tokenInBundle) => tokenInBundle === l1Token.toEvmAddress()
-      );
+      const indexOfL1Token = executedRootBundle.l1Tokens.findIndex((tokenInBundle) => tokenInBundle.eq(l1Token));
       // TODO: not sure this if is required. Wasn't here before. Probably `getRunningBalanceForToken` is used on checked tokens only
       if (indexOfL1Token !== -1) {
         runningBalance = executedRootBundle.runningBalances[indexOfL1Token];
@@ -921,9 +918,9 @@ export class HubPoolClient extends BaseAbstractClient {
 
     if (eventsToQuery.includes("CrossChainContractsSet")) {
       for (const event of events["CrossChainContractsSet"]) {
-        const args = spreadEventWithBlockNumber(event) as CrossChainContractsSet;
+        const args = spreadEventWithBlockNumber(event) as CrossChainContractsSet & { spokePool: string };
         const dataToAdd: CrossChainContractsSet = {
-          spokePool: args.spokePool,
+          spokePool: toAddressType(args.spokePool),
           blockNumber: args.blockNumber,
           txnRef: args.txnRef,
           logIndex: args.logIndex,
@@ -939,16 +936,15 @@ export class HubPoolClient extends BaseAbstractClient {
           if (!solanaSpokePool) {
             throw new Error(`SVM spoke pool not found for chain ${args.l2ChainId}`);
           }
-          const truncatedAddress = SvmAddress.from(solanaSpokePool).toEvmAddress();
+          const svmSpoke = SvmAddress.from(solanaSpokePool);
           // Verify the event address matches our expected truncated address
-          if (args.spokePool.toLowerCase() !== truncatedAddress.toLowerCase()) {
+          if (args.spokePool.toLowerCase() !== svmSpoke.truncateToBytes20().toLowerCase()) {
             throw new Error(
               `SVM spoke pool address mismatch for chain ${args.l2ChainId}. ` +
-                `Expected ${truncatedAddress}, got ${args.spokePool}`
+                `Expected ${svmSpoke.truncateToBytes20()}, got ${args.spokePool}`
             );
           }
-          // Store the full Solana address
-          dataToAdd.spokePool = SvmAddress.from(solanaSpokePool).toBytes32();
+          dataToAdd.spokePool = svmSpoke;
         }
         assign(this.crossChainContracts, [args.l2ChainId], [dataToAdd]);
       }
@@ -956,34 +952,37 @@ export class HubPoolClient extends BaseAbstractClient {
 
     if (eventsToQuery.includes("SetPoolRebalanceRoute")) {
       for (const event of events["SetPoolRebalanceRoute"]) {
-        const args = spreadEventWithBlockNumber(event) as SetPoolRebalanceRoot;
+        const args = spreadEventWithBlockNumber(event) as SetPoolRebalanceRoot & {
+          l1Token: string;
+          destinationToken: string;
+        };
 
         // If the destination chain is SVM, then we need to convert the destination token to the Solana address.
         // This is because the HubPool contract only holds a truncated address for the USDC token and currently
         // only supports USDC as a destination token for Solana.
-        let destinationToken = args.destinationToken;
+        let destinationToken = toAddressType(args.destinationToken);
         if (chainIsSvm(args.destinationChainId)) {
           const usdcTokenSol = TOKEN_SYMBOLS_MAP.USDC.addresses[args.destinationChainId];
-          const truncatedAddress = SvmAddress.from(usdcTokenSol).toEvmAddress();
-          if (destinationToken.toLowerCase() !== truncatedAddress.toLowerCase()) {
+          const svmUsdc = SvmAddress.from(usdcTokenSol);
+          if (destinationToken.truncateToBytes20() !== svmUsdc.truncateToBytes20()) {
             throw new Error(
               `SVM USDC address mismatch for chain ${args.destinationChainId}. ` +
-                `Expected ${truncatedAddress}, got ${destinationToken}`
+                `Expected ${svmUsdc.truncateToBytes20()}, got ${destinationToken}`
             );
           }
-          destinationToken = SvmAddress.from(usdcTokenSol).toBytes32();
+          destinationToken = svmUsdc;
         }
 
         // If the destination token is set to the zero address in an event, then this means Across should no longer
         // rebalance to this chain.
-        if (destinationToken !== ZERO_ADDRESS) {
+        if (destinationToken.toAddress() !== ZERO_ADDRESS) {
           assign(this.l1TokensToDestinationTokens, [args.l1Token, args.destinationChainId], destinationToken);
           assign(
             this.l1TokensToDestinationTokensWithBlock,
             [args.l1Token, args.destinationChainId],
             [
               {
-                l1Token: args.l1Token,
+                l1Token: toAddressType(args.l1Token),
                 l2Token: destinationToken,
                 blockNumber: args.blockNumber,
                 txnIndex: args.txnIndex,
@@ -1065,7 +1064,7 @@ export class HubPoolClient extends BaseAbstractClient {
         }
 
         // Set running balances and incentive balances for this bundle.
-        const executedRootBundle = spreadEventWithBlockNumber(event) as ExecutedRootBundle;
+        const executedRootBundle = spreadEventWithBlockNumber(event) as ExecutedRootBundle & { l1Tokens: string[] };
         const { l1Tokens, runningBalances } = executedRootBundle;
         const nTokens = l1Tokens.length;
 
@@ -1077,7 +1076,11 @@ export class HubPoolClient extends BaseAbstractClient {
           );
         }
         executedRootBundle.runningBalances = runningBalances.slice(0, nTokens);
-        this.executedRootBundles.push(executedRootBundle);
+        const executedRootBundleWithL1Tokens = {
+          ...executedRootBundle,
+          l1Tokens: executedRootBundle.l1Tokens.map(toAddressType),
+        };
+        this.executedRootBundles.push(executedRootBundleWithL1Tokens);
       }
     }
 

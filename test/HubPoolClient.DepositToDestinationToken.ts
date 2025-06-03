@@ -65,9 +65,7 @@ describe("HubPoolClient: Deposit to Destination Token", function () {
 
     await hubPoolClient.update();
 
-    expect(hubPoolClient.getSpokePoolForBlock(svmChain).toLowerCase()).to.equal(
-      SvmAddress.from(solanaSpokePool).toBytes32().toLowerCase()
-    );
+    expect(hubPoolClient.getSpokePoolForBlock(svmChain)).to.deep.equal(SvmAddress.from(solanaSpokePool));
   });
 
   it("Gets L2 token counterpart", async function () {
@@ -85,6 +83,7 @@ describe("HubPoolClient: Deposit to Destination Token", function () {
     expect(() => hubPoolClient.getL2TokenForL1TokenAtBlock(randomL1TokenAddr, destinationChainId, 0)).to.throw(
       /Could not find SpokePool mapping/
     );
+    console.log(hubPoolClient.getL2TokenForL1TokenAtBlock(randomL1TokenAddr, destinationChainId, e1.blockNumber));
     expect(
       hubPoolClient
         .getL2TokenForL1TokenAtBlock(randomL1TokenAddr, destinationChainId, e1.blockNumber)

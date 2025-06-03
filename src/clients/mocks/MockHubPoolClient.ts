@@ -70,7 +70,7 @@ export class MockHubPoolClient extends HubPoolClient {
       [chainId],
       [
         {
-          spokePool: contract,
+          spokePool: toAddressType(contract),
           blockNumber: blockNumber,
           transactionIndex: 0,
           logIndex: 0,
@@ -105,7 +105,7 @@ export class MockHubPoolClient extends HubPoolClient {
   }
   l2TokenHasPoolRebalanceRoute(l2Token: Address, chainId: number, hubPoolBlock: number): boolean {
     const l1Token = Object.keys(this.spokePoolTokens).find(
-      (l1Token) => this.spokePoolTokens[l1Token]?.[chainId].eq(l2Token)
+      (l1Token) => this.spokePoolTokens[l1Token]?.[chainId]?.eq(l2Token)
     );
     if (!l1Token) {
       return super.l2TokenHasPoolRebalanceRoute(l2Token, chainId, hubPoolBlock);
