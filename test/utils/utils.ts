@@ -3,6 +3,7 @@ import { Contract, providers } from "ethers";
 import { AcrossConfigStoreClient as ConfigStoreClient, GLOBAL_CONFIG_STORE_KEYS } from "../../src/clients";
 import { SlowFillRequestWithBlock, RelayData, Deposit, DepositWithBlock, FillWithBlock } from "../../src/interfaces";
 import {
+  Address,
   BigNumber,
   BigNumberish,
   bnUint32Max,
@@ -420,7 +421,6 @@ export async function requestV3SlowFill(
     inputAmount: args.inputAmount,
     outputToken: toAddressType(args.outputToken),
     outputAmount: args.outputAmount,
-    message: args.message,
     messageHash: getMessageHash(args.message),
     fillDeadline: args.fillDeadline,
     exclusivityDeadline: args.exclusivityDeadline,
@@ -432,7 +432,7 @@ export async function requestV3SlowFill(
   };
 }
 
-export async function fillV3Relay(
+export async function fillRelay(
   spokePool: Contract,
   _deposit: Omit<Deposit, "destinationChainId">,
   signer: SignerWithAddress,
