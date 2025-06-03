@@ -131,7 +131,8 @@ export class SvmQuery implements QueryInterface {
   async getFillRelayTx(
     deposit: Omit<Deposit, "messageHash">,
     _relayer = getDefaultSimulatedRelayerAddress(deposit.destinationChainId),
-    repaymentChainId = deposit.destinationChainId
+    repaymentChainId = deposit.destinationChainId,
+    repaymentAddress = getDefaultSimulatedRelayerAddress(deposit.destinationChainId)
   ) {
     const toSvmAddress = (address: string) => toAddressType(address).forceSvmAddress().toV2Address();
     const relayer = _relayer ? toAddressType(_relayer).forceSvmAddress() : this.simulatedRelayerAddress;
@@ -141,7 +142,7 @@ export class SvmQuery implements QueryInterface {
     const delegate = await getFillRelayDelegatePda(
       relayDataHash,
       BigInt(repaymentChainId),
-      toSvmAddress(deposit.recipient),
+      toSvmAddress(repaymentAddress),
       this.spokePoolAddress.toV2Address()
     );
     const mint = toAddressType(deposit.outputToken).forceSvmAddress();
@@ -191,7 +192,7 @@ export class SvmQuery implements QueryInterface {
       relayHash: relayDataHash,
       relayData,
       repaymentChainId: BigInt(repaymentChainId),
-      repaymentAddress: toSvmAddress(deposit.recipient),
+      repaymentAddress: toSvmAddress(repaymentAddress),
     };
     // Pass createRecipientAtaIfNeeded =true to the createFillInstruction function to create the recipient token account
     // if it doesn't exist.

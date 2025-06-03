@@ -315,7 +315,7 @@ describe("SVMSpokePoolClient: Fills", function () {
       actualGasUnits > expectedGasUnits ? actualGasUnits - expectedGasUnits : expectedGasUnits - actualGasUnits;
 
     const percentageDiff = Number(diff * BigInt(100)) / Number(expectedGasUnits);
-    const maxPercentageDiff = 20; // 20%
+    const maxPercentageDiff = 5; // 5%
     expect(percentageDiff).to.be.lessThan(
       maxPercentageDiff,
       `Gas usage difference too high: ${percentageDiff.toFixed(2)}%`
