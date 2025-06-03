@@ -1,11 +1,11 @@
 import { DepositWithBlock, Fill, FillType } from "../../src/interfaces";
-import { getMessageHash } from "../../src/utils";
+import { Address, getMessageHash } from "../../src/utils";
 
 export function fillFromDeposit(
   deposit: DepositWithBlock,
-  relayer: string
+  relayer: Address
 ): Omit<Fill, "messageHash"> & { message: string } {
-  const { blockNumber, transactionHash, transactionIndex, ...partialDeposit } = deposit;
+  const { blockNumber, txnRef, txnIndex, ...partialDeposit } = deposit;
   const { recipient, message } = partialDeposit;
 
   const updatedMessage = deposit.updatedMessage ?? message;
@@ -17,7 +17,7 @@ export function fillFromDeposit(
     exclusiveRelayer: relayer,
     repaymentChainId: deposit.destinationChainId,
     relayExecutionInfo: {
-      updatedRecipient: deposit.updatedRecipient ?? recipient,
+      updatedRecipient: deposit.updatedRecipient?.toBytes32() ?? recipient,
       updatedMessage,
       updatedMessageHash: getMessageHash(updatedMessage),
       updatedOutputAmount: deposit.updatedOutputAmount ?? deposit.outputAmount,

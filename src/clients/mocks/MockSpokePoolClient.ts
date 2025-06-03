@@ -133,23 +133,23 @@ export class MockSpokePoolClient extends EVMSpokePoolClient {
     return this._deposit("FundsDeposited", deposit);
   }
 
-  protected _deposit(event: string, deposit: Omit<Deposit, "messageHash"> & Partial<SortableEvent>): Log {
+  protected _deposit(event: string, deposit: Omit<Deposit, "messageHash"> & { message?: string } & Partial<SortableEvent>): Log {
     const { blockNumber, txnIndex } = deposit;
     let { depositId, destinationChainId, inputAmount, outputAmount } = deposit;
     depositId ??= this.numberOfDeposits;
     this.numberOfDeposits = depositId.add(bnOne);
 
     destinationChainId ??= random(1, 42161, false);
-    const depositor = deposit.depositor.toBytes32() ?? toBytes32(randomAddress());
-    const recipient = deposit.recipient.toBytes32() ?? toBytes32(depositor);
-    const inputToken = deposit.inputToken.toBytes32() ?? toBytes32(randomAddress());
-    const outputToken = deposit.outputToken.toBytes32() ?? inputToken;
-    const exclusiveRelayer = deposit.exclusiveRelayer.toBytes32() ?? toBytes32(ZERO_ADDRESS);
+    const depositor = deposit.depositor?.toBytes32() ?? toBytes32(randomAddress());
+    const recipient = deposit.recipient?.toBytes32() ?? toBytes32(depositor);
+    const inputToken = deposit.inputToken?.toBytes32() ?? toBytes32(randomAddress());
+    const outputToken = deposit.outputToken?.toBytes32() ?? inputToken;
+    const exclusiveRelayer = deposit.exclusiveRelayer?.toBytes32() ?? toBytes32(ZERO_ADDRESS);
 
     inputAmount ??= toBNWei(random(1, 1000, false));
     outputAmount ??= inputAmount.mul(toBN("0.95"));
 
-    const message = deposit["message"] ?? "0x";
+    const message = deposit.message ?? "0x";
     const topics = [destinationChainId, depositId, depositor];
     const quoteTimestamp = deposit.quoteTimestamp ?? getCurrentTime();
     const args = {
@@ -195,12 +195,12 @@ export class MockSpokePoolClient extends EVMSpokePoolClient {
     outputAmount ??= inputAmount;
     fillDeadline ??= getCurrentTime() + 60;
 
-    const depositor = fill.depositor.toBytes32() ?? toBytes32(randomAddress());
-    const recipient = fill.recipient.toBytes32() ?? toBytes32(depositor);
-    const inputToken = fill.inputToken.toBytes32() ?? toBytes32(randomAddress());
-    const outputToken = fill.outputToken.toBytes32() ?? toBytes32(ZERO_ADDRESS);
-    const exclusiveRelayer = fill.exclusiveRelayer.toBytes32() ?? toBytes32(ZERO_ADDRESS);
-    const relayer = fill.relayer.toBytes32() ?? toBytes32(randomAddress());
+    const depositor = fill.depositor?.toBytes32() ?? toBytes32(randomAddress());
+    const recipient = fill.recipient?.toBytes32() ?? toBytes32(depositor);
+    const inputToken = fill.inputToken?.toBytes32() ?? toBytes32(randomAddress());
+    const outputToken = fill.outputToken?.toBytes32() ?? toBytes32(ZERO_ADDRESS);
+    const exclusiveRelayer = fill.exclusiveRelayer?.toBytes32() ?? toBytes32(ZERO_ADDRESS);
+    const relayer = fill.relayer?.toBytes32() ?? toBytes32(randomAddress());
 
     const topics = [originChainId, depositId, relayer];
     const message = fill.message ?? EMPTY_MESSAGE;
