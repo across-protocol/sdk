@@ -14,7 +14,6 @@ export function is7702Delegate(code: string): boolean {
   return code.length === 48 && code.startsWith("0xef0100") && isAddress(`0x${code.slice(8)}`);
 }
 
-
 /**
  * Checks if a contract is deployed at the given address
  * @param address The ETH address to check
@@ -22,7 +21,11 @@ export function is7702Delegate(code: string): boolean {
  * @param ignore7702 A boolean to indicate whether EIP-7702 delegations should be considered as contract code.
  * @returns A boolean indicating if a contract is deployed at the given address or not (true = contract, false = no contract)
  */
-export async function isContractDeployedToAddress(address: string, provider: providers.Provider, ignore7702 = false): Promise<boolean> {
+export async function isContractDeployedToAddress(
+  address: string,
+  provider: providers.Provider,
+  ignore7702 = false
+): Promise<boolean> {
   // A base case for if the address is null or malformed
   if (!address || !isAddress(address)) {
     return false;
