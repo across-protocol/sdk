@@ -253,7 +253,7 @@ export class Address {
 // Subclass of address which strictly deals with 20-byte addresses. These addresses are guaranteed to be valid EVM addresses, so `toAddress` will always succeed.
 export class EvmAddress extends Address {
   // On construction, validate that the address can indeed be coerced into an EVM address. Throw immediately if it cannot.
-  private constructor(rawAddress: Uint8Array) {
+  constructor(rawAddress: Uint8Array) {
     super(rawAddress);
     const hexString = utils.hexlify(rawAddress);
     if (!this.isValidEvmAddress()) {
@@ -287,7 +287,7 @@ export class EvmAddress extends Address {
 // Subclass of address which strictly deals SVM addresses. These addresses are guaranteed to be valid SVM addresses, so `toBase58` will always produce a valid Solana address.
 export class SvmAddress extends Address {
   // On construction, validate that the address is a point on Curve25519. Throw immediately if it is not.
-  private constructor(rawAddress: Uint8Array) {
+  constructor(rawAddress: Uint8Array) {
     super(rawAddress);
   }
 
