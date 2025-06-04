@@ -676,15 +676,15 @@ export class BundleDataClient {
     return allRefunds;
   }
 
-  getRefundsFor(bundleRefunds: CombinedRefunds, relayer: string, chainId: number, token: string): BigNumber {
-    if (!bundleRefunds[chainId] || !bundleRefunds[chainId][token]) {
+  getRefundsFor(bundleRefunds: CombinedRefunds, relayer: Address, chainId: number, token: Address): BigNumber {
+    if (!bundleRefunds[chainId] || !bundleRefunds[chainId][token.toBytes32()]) {
       return BigNumber.from(0);
     }
-    const allRefunds = bundleRefunds[chainId][token];
-    return allRefunds && allRefunds[relayer] ? allRefunds[relayer] : BigNumber.from(0);
+    const allRefunds = bundleRefunds[chainId][token.toBytes32()];
+    return allRefunds && allRefunds[relayer.toBytes32()] ? allRefunds[relayer.toBytes32()] : BigNumber.from(0);
   }
 
-  getTotalRefund(refunds: CombinedRefunds[], relayer: string, chainId: number, refundToken: string): BigNumber {
+  getTotalRefund(refunds: CombinedRefunds[], relayer: Address, chainId: number, refundToken: Address): BigNumber {
     return refunds.reduce((totalRefund, refunds) => {
       return totalRefund.add(this.getRefundsFor(refunds, relayer, chainId, refundToken));
     }, bnZero);

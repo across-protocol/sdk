@@ -533,8 +533,8 @@ export class HubPoolClient extends BaseAbstractClient {
     return this.l1Tokens.find((token) => token.address.eq(l1Token));
   }
 
-  getLpTokenInfoForL1Token(l1Token: string): LpToken | undefined {
-    return this.lpTokens[l1Token];
+  getLpTokenInfoForL1Token(l1Token: EvmAddress): LpToken | undefined {
+    return this.lpTokens[l1Token.toEvmAddress()];
   }
 
   areTokensEquivalent(
