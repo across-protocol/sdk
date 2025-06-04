@@ -1042,10 +1042,10 @@ export class HubPoolClient extends BaseAbstractClient {
         ...events["ProposeRootBundle"]
           .filter((event) => !this.configOverride.ignoredHubProposedBundles.includes(event.blockNumber))
           .map((_event) => {
-            const event = spreadEventWithBlockNumber(_event) as ProposedRootBundle & { proposer: string };
+            const args = spreadEventWithBlockNumber(_event) as ProposedRootBundle & { proposer: string };
             return {
-              ...spreadEventWithBlockNumber(event),
-              proposer: toAddressType(event.proposer),
+              ...args,
+              proposer: toAddressType(args.proposer),
             };
           })
       );
@@ -1102,7 +1102,7 @@ export class HubPoolClient extends BaseAbstractClient {
           poolRebalanceRoot: pendingRootBundleProposal.poolRebalanceRoot,
           relayerRefundRoot: pendingRootBundleProposal.relayerRefundRoot,
           slowRelayRoot: pendingRootBundleProposal.slowRelayRoot,
-          proposer: toAddressType(pendingRootBundleProposal.proposer),
+          proposer: pendingRootBundleProposal.proposer,
           unclaimedPoolRebalanceLeafCount: pendingRootBundleProposal.unclaimedPoolRebalanceLeafCount,
           challengePeriodEndTimestamp: pendingRootBundleProposal.challengePeriodEndTimestamp,
           bundleEvaluationBlockNumbers: mostRecentProposedRootBundle.bundleEvaluationBlockNumbers.map(

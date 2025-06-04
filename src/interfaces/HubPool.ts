@@ -27,7 +27,7 @@ export interface ProposedRootBundle extends SortableEvent {
   poolRebalanceRoot: string;
   relayerRefundRoot: string;
   slowRelayRoot: string;
-  proposer: string;
+  proposer: EvmAddress;
 }
 
 export type RealizedLpFee = {
