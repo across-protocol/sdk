@@ -37,6 +37,10 @@ export function populateV3Relay(
   relayer: Address,
   repaymentChainId = deposit.destinationChainId
 ): Promise<PopulatedTransaction> {
+  assert(
+    relayer.isValidOn(repaymentChainId),
+    `Invalid repayment address for chain ${repaymentChainId}: ${relayer.toAddress()}.`
+  );
   const relayData = {
     depositor: deposit.depositor.toBytes32(),
     recipient: deposit.recipient.toBytes32(),
