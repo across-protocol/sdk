@@ -509,7 +509,7 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
         this.tokensBridged.push({
           ...event,
           l2TokenAddress: toAddressType(event.l2TokenAddress),
-        } as TokensBridged);
+        });
       }
     }
 
@@ -531,7 +531,7 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
           outputToken: toAddressType(event.outputToken),
           exclusiveRelayer: toAddressType(event.exclusiveRelayer),
         } as DepositWithBlock;
-      }) as DepositWithBlock[];
+      });
       if (depositEvents.length > 0) {
         this.log(
           "debug",
@@ -642,7 +642,7 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
           outputToken: toAddressType(event.outputToken),
           exclusiveRelayer: toAddressType(event.exclusiveRelayer),
         } as SlowFillRequestWithBlock;
-      }) as SlowFillRequestWithBlock[];
+      });
       for (const event of slowFillRequests) {
         const slowFillRequest = {
           ...event,
@@ -692,7 +692,7 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
             updatedRecipient: toAddressType(event.relayExecutionInfo.updatedRecipient),
           },
         } as FillWithBlock;
-      }) as FillWithBlock[];
+      });
 
       if (fillEvents.length > 0) {
         this.log("debug", `Using ${fillEvents.length} newly queried ${eventName} events for chain ${this.chainId}`, {
@@ -728,8 +728,9 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
     });
 
     if (eventsToQuery.includes("EnabledDepositRoute")) {
-      const enableDepositsEvents = (queryResults[eventsToQuery.indexOf("EnabledDepositRoute")] ??
-        []) as EnabledDepositRouteWithBlock[];
+      const enableDepositsEvents = queryResults[
+        eventsToQuery.indexOf("EnabledDepositRoute")
+      ] as EnabledDepositRouteWithBlock[];
 
       for (const event of enableDepositsEvents) {
         assign(this.depositRoutes, [event.originToken, event.destinationChainId], event.enabled);
@@ -737,16 +738,18 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
     }
 
     if (eventsToQuery.includes("RelayedRootBundle")) {
-      const relayedRootBundleEvents = (queryResults[eventsToQuery.indexOf("RelayedRootBundle")] ??
-        []) as RootBundleRelayWithBlock[];
+      const relayedRootBundleEvents = queryResults[
+        eventsToQuery.indexOf("RelayedRootBundle")
+      ] as RootBundleRelayWithBlock[];
       for (const event of relayedRootBundleEvents) {
         this.rootBundleRelays.push(event);
       }
     }
 
     if (eventsToQuery.includes("ExecutedRelayerRefundRoot")) {
-      const refundEvents = (queryResults[eventsToQuery.indexOf("ExecutedRelayerRefundRoot")] ??
-        []) as RelayerRefundExecutionWithBlock[];
+      const refundEvents = queryResults[
+        eventsToQuery.indexOf("ExecutedRelayerRefundRoot")
+      ] as RelayerRefundExecutionWithBlock[];
       for (const event of refundEvents) {
         this.relayerRefundExecutions.push(event);
       }
