@@ -302,9 +302,10 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
    * @param relayData RelayData field for the SlowFill request.
    * @returns The corresponding SlowFillRequest event if found, otherwise undefined.
    */
-  public getSlowFillRequest(relayData: RelayData): SlowFillRequestWithBlock | undefined {
-    const messageHash = getMessageHash(relayData.message);
-    const hash = getRelayEventKey({ ...relayData, messageHash, destinationChainId: this.chainId });
+  public getSlowFillRequest(
+    relayData: Omit<RelayData, "message"> & { messageHash: string }
+  ): SlowFillRequestWithBlock | undefined {
+    const hash = getRelayEventKey({ ...relayData, destinationChainId: this.chainId });
     return this.slowFillRequests[hash];
   }
 
@@ -555,7 +556,7 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
       }
     };
 
-    for (const event of ["V3FundsDeposited", "FundsDeposited"]) {
+    for (const event of ["FundsDeposited"]) {
       if (eventsToQuery.includes(event)) {
         await queryDepositEvents(event);
       }
@@ -583,7 +584,7 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
     };
 
     // Update deposits with speed up requests from depositor.
-    ["RequestedSpeedUpV3Deposit", "RequestedSpeedUpDeposit"].forEach((event) => {
+    ["RequestedSpeedUpDeposit"].forEach((event) => {
       if (eventsToQuery.includes(event)) {
         querySpeedUpDepositEvents(event);
       }
@@ -598,10 +599,6 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
           destinationChainId: this.chainId,
         };
 
-        if (eventName === "RequestedV3SlowFill") {
-          slowFillRequest.messageHash = getMessageHash(slowFillRequest.message);
-        }
-
         const depositHash = getRelayEventKey({ ...slowFillRequest, destinationChainId: this.chainId });
 
         // Sanity check that this event is not a duplicate.
@@ -614,7 +611,7 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
       }
     };
 
-    ["RequestedV3SlowFill", "RequestedSlowFill"].forEach((event) => {
+    ["RequestedSlowFill"].forEach((event) => {
       if (eventsToQuery.includes(event)) {
         queryRequestedSlowFillEvents(event);
       }
@@ -638,11 +635,6 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
           destinationChainId: this.chainId,
         };
 
-        if (eventName === "FilledV3Relay") {
-          fill.messageHash = getMessageHash((event as unknown as { message: string }).message);
-          fill.relayExecutionInfo.updatedMessageHash = getMessageHash(event.relayExecutionInfo.updatedMessage!);
-        }
-
         // Sanity check that this event is not a duplicate.
         const duplicateFill = this.fills[fill.originChainId]?.find((f) => duplicateEvent(fill, f));
         if (duplicateFill) {
@@ -656,7 +648,7 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
     };
 
     // Update observed fills with ingested event data.
-    ["FilledV3Relay", "FilledRelay"].forEach((event) => {
+    ["FilledRelay"].forEach((event) => {
       if (eventsToQuery.includes(event)) {
         queryFilledRelayEvents(event);
       }
