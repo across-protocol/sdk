@@ -1,4 +1,5 @@
 import assert from "assert";
+import { Transport } from "viem";
 import {
   DEFAULT_SIMULATED_RELAYER_ADDRESS,
   DEFAULT_SIMULATED_RELAYER_ADDRESS_SVM,
@@ -8,24 +9,23 @@ import { Deposit } from "../interfaces";
 import {
   BigNumber,
   BigNumberish,
+  ConvertDecimals,
   MAX_BIG_INT,
   TransactionCostEstimate,
   bnZero,
+  chainIsSvm,
+  compareAddressesSimple,
   fixedPointAdjustment,
   getTokenInfo,
   isDefined,
+  isZeroAddress,
   max,
   min,
   nativeToToken,
   percent,
   toBN,
   toBNWei,
-  isZeroAddress,
-  compareAddressesSimple,
-  ConvertDecimals,
-  chainIsSvm,
 } from "../utils";
-import { Transport } from "viem";
 
 // This needs to be implemented for every chain and passed into RelayFeeCalculator
 export interface QueryInterface {
