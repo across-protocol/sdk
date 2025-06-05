@@ -74,7 +74,7 @@ export class QueryBase implements QueryInterface {
    */
   async getGasCosts(
     deposit: Omit<Deposit, "messageHash">,
-    relayer = toAddressType(getDefaultSimulatedRelayerAddress(deposit.destinationChainId)),
+    relayer = toAddressType(getDefaultSimulatedRelayerAddress(deposit.destinationChainId), deposit.destinationChainId),
     options: Partial<{
       gasPrice: BigNumberish;
       gasUnits: BigNumberish;
@@ -124,7 +124,7 @@ export class QueryBase implements QueryInterface {
    */
   getUnsignedTxFromDeposit(
     deposit: Omit<Deposit, "messageHash">,
-    relayer = toAddressType(getDefaultSimulatedRelayerAddress(deposit.destinationChainId))
+    relayer = toAddressType(getDefaultSimulatedRelayerAddress(deposit.destinationChainId), deposit.destinationChainId)
   ): Promise<PopulatedTransaction> {
     return populateV3Relay(this.spokePool, deposit, relayer);
   }
@@ -137,7 +137,7 @@ export class QueryBase implements QueryInterface {
    */
   async getNativeGasCost(
     deposit: Omit<Deposit, "messageHash">,
-    relayer = toAddressType(getDefaultSimulatedRelayerAddress(deposit.destinationChainId))
+    relayer = toAddressType(getDefaultSimulatedRelayerAddress(deposit.destinationChainId), deposit.destinationChainId)
   ): Promise<BigNumber> {
     const unsignedTx = await this.getUnsignedTxFromDeposit(deposit, relayer);
     const voidSigner = new VoidSigner(relayer.toEvmAddress(), this.provider);
@@ -154,7 +154,7 @@ export class QueryBase implements QueryInterface {
    */
   async getOpStackL1DataFee(
     unsignedTx: PopulatedTransaction,
-    relayer = toAddressType(getDefaultSimulatedRelayerAddress(unsignedTx.chainId)),
+    relayer = toAddressType(getDefaultSimulatedRelayerAddress(unsignedTx.chainId), unsignedTx.chainId),
     options: Partial<{
       opStackL2GasUnits: BigNumberish;
       opStackL1DataFeeMultiplier: BigNumber;

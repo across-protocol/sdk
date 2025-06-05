@@ -508,7 +508,7 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
         };
         this.tokensBridged.push({
           ...event,
-          l2TokenAddress: toAddressType(event.l2TokenAddress),
+          l2TokenAddress: toAddressType(event.l2TokenAddress, this.chainId),
         });
       }
     }
@@ -525,11 +525,11 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
         };
         return {
           ...event,
-          depositor: toAddressType(event.depositor),
-          recipient: toAddressType(event.recipient),
-          inputToken: toAddressType(event.inputToken),
-          outputToken: toAddressType(event.outputToken),
-          exclusiveRelayer: toAddressType(event.exclusiveRelayer),
+          depositor: toAddressType(event.depositor, this.chainId),
+          recipient: toAddressType(event.recipient, event.destinationChainId),
+          inputToken: toAddressType(event.inputToken, this.chainId),
+          outputToken: toAddressType(event.outputToken, event.destinationChainId),
+          exclusiveRelayer: toAddressType(event.exclusiveRelayer, event.destinationChainId),
         } as DepositWithBlock;
       });
       if (depositEvents.length > 0) {
@@ -592,7 +592,7 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
         const event = _event as SpeedUpWithBlock & { depositor: string; updatedRecipient: string };
         return {
           ...event,
-          depositor: toAddressType(event.depositor),
+          depositor: toAddressType(event.depositor, this.chainId),
           updatedRecipient: toAddressType(event.updatedRecipient),
         } as SpeedUpWithBlock;
       });
@@ -636,11 +636,11 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
         };
         return {
           ...event,
-          depositor: toAddressType(event.depositor),
-          recipient: toAddressType(event.recipient),
-          inputToken: toAddressType(event.inputToken),
-          outputToken: toAddressType(event.outputToken),
-          exclusiveRelayer: toAddressType(event.exclusiveRelayer),
+          depositor: toAddressType(event.depositor, event.originChainId),
+          recipient: toAddressType(event.recipient, this.chainId),
+          inputToken: toAddressType(event.inputToken, event.originChainId),
+          outputToken: toAddressType(event.outputToken, this.chainId),
+          exclusiveRelayer: toAddressType(event.exclusiveRelayer, this.chainId),
         } as SlowFillRequestWithBlock;
       });
       for (const event of slowFillRequests) {
@@ -681,15 +681,15 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
         };
         return {
           ...event,
-          depositor: toAddressType(event.depositor),
-          recipient: toAddressType(event.recipient),
-          inputToken: toAddressType(event.inputToken),
-          outputToken: toAddressType(event.outputToken),
-          exclusiveRelayer: toAddressType(event.exclusiveRelayer),
-          relayer: toAddressType(event.relayer),
+          depositor: toAddressType(event.depositor, event.originChainId),
+          recipient: toAddressType(event.recipient, this.chainId),
+          inputToken: toAddressType(event.inputToken, event.originChainId),
+          outputToken: toAddressType(event.outputToken, this.chainId),
+          exclusiveRelayer: toAddressType(event.exclusiveRelayer, this.chainId),
+          relayer: toAddressType(event.relayer, this.chainId),
           relayExecutionInfo: {
             ...event.relayExecutionInfo,
-            updatedRecipient: toAddressType(event.relayExecutionInfo.updatedRecipient),
+            updatedRecipient: toAddressType(event.relayExecutionInfo.updatedRecipient, this.chainId),
           },
         } as FillWithBlock;
       });

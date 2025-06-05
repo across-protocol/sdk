@@ -155,7 +155,7 @@ export function _buildPoolRebalanceRoot(
         // there are no relevant L1 running balances.
         if (
           !clients.hubPoolClient.l2TokenHasPoolRebalanceRoute(
-            toAddressType(l2TokenAddress),
+            toAddressType(l2TokenAddress, repaymentChainId),
             repaymentChainId,
             mainnetBundleEndBlock
           )
@@ -164,7 +164,7 @@ export function _buildPoolRebalanceRoot(
           return;
         }
         const l1TokenCounterpart = clients.hubPoolClient.getL1TokenForL2TokenAtBlock(
-          toAddressType(l2TokenAddress),
+          toAddressType(l2TokenAddress, repaymentChainId),
           repaymentChainId,
           mainnetBundleEndBlock
         );
@@ -187,7 +187,7 @@ export function _buildPoolRebalanceRoot(
     Object.entries(depositsForChain).forEach(([outputToken, deposits]) => {
       deposits.forEach((deposit) => {
         const l1TokenCounterpart = clients.hubPoolClient.getL1TokenForL2TokenAtBlock(
-          toAddressType(outputToken),
+          toAddressType(outputToken, destinationChainId),
           destinationChainId,
           mainnetBundleEndBlock
         );
@@ -216,7 +216,7 @@ export function _buildPoolRebalanceRoot(
     Object.entries(slowFilledDepositsForChain).forEach(([outputToken, slowFilledDeposits]) => {
       slowFilledDeposits.forEach((deposit) => {
         const l1TokenCounterpart = clients.hubPoolClient.getL1TokenForL2TokenAtBlock(
-          toAddressType(outputToken),
+          toAddressType(outputToken, destinationChainId),
           destinationChainId,
           mainnetBundleEndBlock
         );
@@ -286,7 +286,7 @@ export function _buildPoolRebalanceRoot(
           return;
         }
         const l1TokenCounterpart = clients.hubPoolClient.getL1TokenForL2TokenAtBlock(
-          toAddressType(inputToken),
+          toAddressType(inputToken, originChainId),
           originChainId,
           mainnetBundleEndBlock
         );

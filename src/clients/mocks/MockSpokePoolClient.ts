@@ -67,7 +67,9 @@ export class MockSpokePoolClient extends EVMSpokePoolClient {
 
   getDestinationTokenForDeposit(deposit: DepositWithBlock): Address {
     const override = this.destinationTokenForChainOverride[deposit.originChainId];
-    return isDefined(override) ? toAddressType(override) : super.getDestinationTokenForDeposit(deposit);
+    return isDefined(override)
+      ? toAddressType(override, deposit.destinationChainId)
+      : super.getDestinationTokenForDeposit(deposit);
   }
 
   setLatestBlockNumber(blockNumber: number): void {

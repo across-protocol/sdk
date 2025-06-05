@@ -920,7 +920,7 @@ export class HubPoolClient extends BaseAbstractClient {
       for (const event of events["CrossChainContractsSet"]) {
         const args = spreadEventWithBlockNumber(event) as CrossChainContractsSet & { spokePool: string };
         const dataToAdd: CrossChainContractsSet = {
-          spokePool: toAddressType(args.spokePool),
+          spokePool: toAddressType(args.spokePool, this.chainId),
           blockNumber: args.blockNumber,
           txnRef: args.txnRef,
           logIndex: args.logIndex,
@@ -960,7 +960,7 @@ export class HubPoolClient extends BaseAbstractClient {
         // If the destination chain is SVM, then we need to convert the destination token to the Solana address.
         // This is because the HubPool contract only holds a truncated address for the USDC token and currently
         // only supports USDC as a destination token for Solana.
-        let destinationToken = toAddressType(args.destinationToken);
+        let destinationToken = toAddressType(args.destinationToken, this.chainId);
         if (chainIsSvm(args.destinationChainId)) {
           const usdcTokenSol = TOKEN_SYMBOLS_MAP.USDC.addresses[args.destinationChainId];
           const svmUsdc = SvmAddress.from(usdcTokenSol);
@@ -982,7 +982,7 @@ export class HubPoolClient extends BaseAbstractClient {
             [args.l1Token, args.destinationChainId],
             [
               {
-                l1Token: toAddressType(args.l1Token),
+                l1Token: toAddressType(args.l1Token, this.chainId),
                 l2Token: destinationToken,
                 blockNumber: args.blockNumber,
                 txnIndex: args.txnIndex,
@@ -1045,7 +1045,7 @@ export class HubPoolClient extends BaseAbstractClient {
             const args = spreadEventWithBlockNumber(_event) as ProposedRootBundle & { proposer: string };
             return {
               ...args,
-              proposer: toAddressType(args.proposer),
+              proposer: toAddressType(args.proposer, this.chainId),
             };
           })
       );
@@ -1084,7 +1084,7 @@ export class HubPoolClient extends BaseAbstractClient {
         executedRootBundle.runningBalances = runningBalances.slice(0, nTokens);
         const executedRootBundleWithL1Tokens = {
           ...executedRootBundle,
-          l1Tokens: executedRootBundle.l1Tokens.map(toAddressType),
+          l1Tokens: executedRootBundle.l1Tokens.map(toAddressType, this.chainId),
         };
         this.executedRootBundles.push(executedRootBundleWithL1Tokens);
       }

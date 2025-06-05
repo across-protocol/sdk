@@ -14,7 +14,7 @@ type SignerOrProvider = providers.Provider | Signer;
 export async function fetchTokenInfo(address: string, signerOrProvider: SignerOrProvider): Promise<TokenInfo> {
   const token = new Contract(address, ERC20__factory.abi, signerOrProvider);
   const [symbol, decimals] = await Promise.all([token.symbol(), token.decimals()]);
-  return { address: toAddressType(address), symbol, decimals };
+  return { address: toAddressType(address).forceEvmAddress(), symbol, decimals };
 }
 
 export const getL2TokenAddresses = (
@@ -44,7 +44,7 @@ export function resolveSymbolOnChain(chainId: number, symbol: string): TokenInfo
   const { decimals, addresses } = token;
   const address = addresses[chainId];
 
-  return { symbol, decimals, address: toAddressType(address) };
+  return { symbol, decimals, address: toAddressType(address, chainId) };
 }
 
 /**
@@ -128,7 +128,7 @@ export function getTokenInfo(l2TokenAddress: string, chainId: number, tokenMappi
     tokenObject = tokenMapping[l1TokenSymbol as keyof typeof tokenMapping];
   }
   return {
-    address: toAddressType(l2TokenAddress),
+    address: toAddressType(l2TokenAddress, chainId),
     symbol: tokenObject.symbol,
     decimals: tokenObject.decimals,
   };

@@ -256,7 +256,10 @@ export class RelayFeeCalculator {
     deposit: Deposit,
     outputAmount: BigNumberish,
     simulateZeroFill = false,
-    relayerAddress = toAddressType(getDefaultSimulatedRelayerAddress(deposit.destinationChainId)),
+    relayerAddress = toAddressType(
+      getDefaultSimulatedRelayerAddress(deposit.destinationChainId),
+      deposit.destinationChainId
+    ),
     _tokenPrice?: number,
     tokenMapping = TOKEN_SYMBOLS_MAP,
     gasPrice?: BigNumberish,
@@ -495,7 +498,10 @@ export class RelayFeeCalculator {
     deposit: Deposit,
     outputAmount?: BigNumberish,
     simulateZeroFill = false,
-    relayerAddress = toAddressType(getDefaultSimulatedRelayerAddress(deposit.destinationChainId)),
+    relayerAddress = toAddressType(
+      getDefaultSimulatedRelayerAddress(deposit.destinationChainId),
+      deposit.destinationChainId
+    ),
     _tokenPrice?: number,
     gasPrice?: BigNumberish,
     gasUnits?: BigNumberish,

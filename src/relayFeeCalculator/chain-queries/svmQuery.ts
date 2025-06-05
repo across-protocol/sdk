@@ -79,7 +79,7 @@ export class SvmQuery implements QueryInterface {
    */
   async getGasCosts(
     deposit: Omit<Deposit, "messageHash">,
-    _relayer = toAddressType(getDefaultSimulatedRelayerAddress(deposit.destinationChainId)),
+    _relayer = toAddressType(getDefaultSimulatedRelayerAddress(deposit.destinationChainId), deposit.destinationChainId),
     options: Partial<{
       gasPrice: BigNumberish;
       gasUnits: BigNumberish;
@@ -122,7 +122,7 @@ export class SvmQuery implements QueryInterface {
    */
   async getNativeGasCost(
     deposit: Omit<Deposit, "messageHash">,
-    _relayer = toAddressType(getDefaultSimulatedRelayerAddress(deposit.destinationChainId))
+    _relayer = toAddressType(getDefaultSimulatedRelayerAddress(deposit.destinationChainId), deposit.destinationChainId)
   ): Promise<BigNumber> {
     const fillRelayTx = await this.getFillRelayTx(deposit, _relayer);
     const computeUnitsConsumed = toBN(await this.computeUnitEstimator(fillRelayTx));
@@ -137,7 +137,7 @@ export class SvmQuery implements QueryInterface {
    */
   async getFillRelayTx(
     deposit: Omit<Deposit, "messageHash">,
-    _relayer = toAddressType(getDefaultSimulatedRelayerAddress(deposit.destinationChainId))
+    _relayer = toAddressType(getDefaultSimulatedRelayerAddress(deposit.destinationChainId), deposit.destinationChainId)
   ) {
     const relayer = isDefined(_relayer) ? _relayer : this.simulatedRelayerAddress;
     // If the user did not have a token account created on destination, then we need to include this as a gas cost.
