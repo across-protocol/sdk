@@ -4,17 +4,21 @@ import { hashNonEmptyMessage } from "@across-protocol/contracts/dist/src/svm/web
 import {
   ASSOCIATED_TOKEN_PROGRAM_ADDRESS,
   TOKEN_PROGRAM_ADDRESS,
+  fetchMint,
   getApproveCheckedInstruction,
+  getCreateAssociatedTokenIdempotentInstruction,
 } from "@solana-program/token";
 import {
   Address,
   address,
+  appendTransactionMessageInstruction,
   fetchEncodedAccount,
   fetchEncodedAccounts,
   getAddressEncoder,
   getProgramDerivedAddress,
   getU32Encoder,
   getU64Encoder,
+  pipe,
   some,
   type TransactionSigner,
 } from "@solana/kit";
@@ -22,19 +26,17 @@ import assert from "assert";
 import { arrayify, hexZeroPad, hexlify } from "ethers/lib/utils";
 import { Logger } from "winston";
 
-import { CHAIN_IDs } from "../../constants";
+import { SYSTEM_PROGRAM_ADDRESS } from "@solana-program/system";
 import { Deposit, DepositWithBlock, FillStatus, FillWithBlock, RelayData } from "../../interfaces";
+import { BigNumber, SvmAddress, chainIsSvm, chunk, isUnsafeDepositId, keccak256 } from "../../utils";
 import {
-  BigNumber,
-  SvmAddress,
-  chainIsSvm,
-  chunk,
-  getTokenInfo,
-  isDefined,
-  isUnsafeDepositId,
-  keccak256,
-} from "../../utils";
-import { SvmCpiEventsClient, getEventAuthority, getFillStatusPda, getStatePda, unwrapEventData } from "./";
+  SvmCpiEventsClient,
+  createDefaultTransaction,
+  getEventAuthority,
+  getFillStatusPda,
+  getStatePda,
+  unwrapEventData,
+} from "./";
 import { SVMEventNames, SVMProvider } from "./types";
 
 /**
@@ -425,41 +427,146 @@ export function createTokenAccountsInstruction(
 }
 
 /**
- * @param mint Address of the token corresponding to the account being made.
- * @param amount Amount of the token to approve.
- * @param relayer Address of the relayer filling the deposit.
- * @param spokePool Address (program ID) of the SvmSpoke.
- * @returns A token approval instruction.
+ * Creates a fill instruction.
+ * @param signer - The signer of the transaction.
+ * @param solanaClient - The Solana client.
+ * @param fillInput - The fill input.
+ * @param tokenDecimals - The token decimals.
+ * @param createRecipientAtaIfNeeded - Whether to create a recipient token account.
+ * @returns The fill instruction.
  */
-export async function createApproveInstruction(
-  mint: SvmAddress,
-  amount: BigNumber,
-  relayer: SvmAddress,
-  spokePool: SvmAddress,
-  mintDecimals?: number
-) {
-  const [relayerTokenAccount, statePda] = await Promise.all([
-    getAssociatedTokenAddress(relayer, mint, TOKEN_PROGRAM_ADDRESS),
-    getStatePda(spokePool.toV2Address()),
-  ]);
+export const createFillInstruction = async (
+  signer: TransactionSigner,
+  solanaClient: SVMProvider,
+  fillInput: SvmSpokeClient.FillRelayInput,
+  tokenDecimals: number,
+  createRecipientAtaIfNeeded: boolean = true
+) => {
+  const mintInfo = await fetchMint(solanaClient, fillInput.mint);
+  const approveIx = getApproveCheckedInstruction(
+    {
+      source: fillInput.relayerTokenAccount,
+      mint: fillInput.mint,
+      delegate: fillInput.delegate,
+      owner: fillInput.signer,
+      amount: (fillInput.relayData as SvmSpokeClient.RelayDataArgs).outputAmount,
+      decimals: tokenDecimals,
+    },
+    {
+      programAddress: mintInfo.programAddress,
+    }
+  );
 
-  // If no mint decimals were supplied, then assign it to whatever value we have in TOKEN_SYMBOLS_MAP.
-  // If this token is not in TOKEN_SYMBOLS_MAP, then throw an error.
-  mintDecimals ??= getTokenInfo(mint.toBase58(), CHAIN_IDs.SOLANA)?.decimals;
-  if (!isDefined(mintDecimals)) {
-    throw new Error(`No mint decimals found for token ${mint.toBase58()}`);
-  }
+  const getCreateAssociatedTokenIdempotentIx = () =>
+    getCreateAssociatedTokenIdempotentInstruction({
+      payer: signer,
+      owner: (fillInput.relayData as SvmSpokeClient.RelayDataArgs).recipient,
+      mint: fillInput.mint,
+      ata: fillInput.recipientTokenAccount,
+      systemProgram: SYSTEM_PROGRAM_ADDRESS,
+      tokenProgram: fillInput.tokenProgram,
+    });
 
-  return getApproveCheckedInstruction({
-    source: relayerTokenAccount,
-    mint: mint.toV2Address(),
-    delegate: statePda,
-    owner: relayer.toV2Address(),
-    amount: amount.toBigInt(),
-    decimals: mintDecimals,
+  const createFillIx = await SvmSpokeClient.getFillRelayInstruction(fillInput);
+
+  return pipe(
+    await createDefaultTransaction(solanaClient, signer),
+    (tx) =>
+      createRecipientAtaIfNeeded ? appendTransactionMessageInstruction(getCreateAssociatedTokenIdempotentIx(), tx) : tx,
+    (tx) => appendTransactionMessageInstruction(approveIx, tx),
+    (tx) => appendTransactionMessageInstruction(createFillIx, tx)
+  );
+};
+
+/**
+ * Creates a deposit instruction.
+ * @param signer - The signer of the transaction.
+ * @param solanaClient - The Solana client.
+ * @param depositInput - The deposit input.
+ * @param tokenDecimals - The token decimals.
+ * @param createVaultAtaIfNeeded - Whether to create a vault token account.
+ * @returns The deposit instruction.
+ */
+export const createDepositInstruction = async (
+  signer: TransactionSigner,
+  solanaClient: SVMProvider,
+  depositInput: SvmSpokeClient.DepositInput,
+  tokenDecimals: number,
+  createVaultAtaIfNeeded: boolean = true
+) => {
+  const getCreateAssociatedTokenIdempotentIx = () =>
+    getCreateAssociatedTokenIdempotentInstruction({
+      payer: signer,
+      owner: depositInput.state,
+      mint: depositInput.mint,
+      ata: depositInput.vault,
+      systemProgram: depositInput.systemProgram,
+      tokenProgram: depositInput.tokenProgram,
+    });
+  const mintInfo = await fetchMint(solanaClient, depositInput.mint);
+  const approveIx = getApproveCheckedInstruction(
+    {
+      source: depositInput.depositorTokenAccount,
+      mint: depositInput.mint,
+      delegate: depositInput.delegate,
+      owner: depositInput.depositor,
+      amount: depositInput.inputAmount,
+      decimals: tokenDecimals,
+    },
+    {
+      programAddress: mintInfo.programAddress,
+    }
+  );
+  const depositIx = await SvmSpokeClient.getDepositInstruction(depositInput);
+  return pipe(
+    await createDefaultTransaction(solanaClient, signer),
+    (tx) =>
+      createVaultAtaIfNeeded ? appendTransactionMessageInstruction(getCreateAssociatedTokenIdempotentIx(), tx) : tx,
+    (tx) => appendTransactionMessageInstruction(approveIx, tx),
+    (tx) => appendTransactionMessageInstruction(depositIx, tx)
+  );
+};
+
+/**
+ * Creates a request slow fill instruction.
+ * @param signer - The signer of the transaction.
+ * @param solanaClient - The Solana client.
+ * @param depositInput - The deposit input.
+ * @returns The request slow fill instruction.
+ */
+export const createRequestSlowFillInstruction = async (
+  signer: TransactionSigner,
+  solanaClient: SVMProvider,
+  depositInput: SvmSpokeClient.RequestSlowFillInput
+) => {
+  const requestSlowFillIx = await SvmSpokeClient.getRequestSlowFillInstruction(depositInput);
+
+  return pipe(await createDefaultTransaction(solanaClient, signer), (tx) =>
+    appendTransactionMessageInstruction(requestSlowFillIx, tx)
+  );
+};
+
+/**
+ * Creates a close fill PDA instruction.
+ * @param signer - The signer of the transaction.
+ * @param solanaClient - The Solana client.
+ * @param fillStatusPda - The fill status PDA.
+ * @returns The close fill PDA instruction.
+ */
+export const createCloseFillPdaInstruction = async (
+  signer: TransactionSigner,
+  solanaClient: SVMProvider,
+  fillStatusPda: Address
+) => {
+  const closeFillPdaIx = await SvmSpokeClient.getCloseFillPdaInstruction({
+    signer,
+    state: await getStatePda(SvmSpokeClient.SVM_SPOKE_PROGRAM_ADDRESS),
+    fillStatus: fillStatusPda,
   });
-}
-
+  return pipe(await createDefaultTransaction(solanaClient, signer), (tx) =>
+    appendTransactionMessageInstruction(closeFillPdaIx, tx)
+  );
+};
 export async function getAssociatedTokenAddress(
   owner: SvmAddress,
   mint: SvmAddress,

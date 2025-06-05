@@ -88,7 +88,6 @@ export function toAddressType(address: string, chainId?: number): Address | EvmA
       }
       return SvmAddress.from(address);
     } catch (e) {
-      console.log(address);
       // If we hit this block, then the validation for one of the child address classes failed. We still may want to keep this address in our state, so
       // return an unchecked address type.
       assert(utils.isHexString(address));
