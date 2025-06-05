@@ -2,7 +2,15 @@ import winston from "winston";
 import { SvmSpokeClient } from "@across-protocol/contracts";
 import { Address } from "@solana/kit";
 import { DepositWithBlock, RelayerRefundExecution, SortableEvent, SlowFillLeaf, Log } from "../../interfaces";
-import { getCurrentTime, bnZero, MakeOptional, EventSearchConfig } from "../../utils";
+import {
+  getCurrentTime,
+  bnZero,
+  MakeOptional,
+  EventSearchConfig,
+  Address as SDKAddress,
+  toAddressType,
+  isDefined,
+} from "../../utils";
 import { SpokePoolUpdate, SVMSpokePoolClient } from "../SpokePoolClient";
 import { HubPoolClient } from "../HubPoolClient";
 import { EventOverrides } from "./MockEvents";
@@ -46,8 +54,9 @@ export class MockSvmSpokePoolClient extends SVMSpokePoolClient {
     this.destinationTokenForChainOverride[chainId] = token;
   }
 
-  getDestinationTokenForDeposit(deposit: DepositWithBlock): string {
-    return this.destinationTokenForChainOverride[deposit.originChainId] ?? super.getDestinationTokenForDeposit(deposit);
+  getDestinationTokenForDeposit(deposit: DepositWithBlock): SDKAddress {
+    const override = this.destinationTokenForChainOverride[deposit.originChainId];
+    return isDefined(override) ? toAddressType(override) : super.getDestinationTokenForDeposit(deposit);
   }
 
   setLatestBlockNumber(blockNumber: number): void {

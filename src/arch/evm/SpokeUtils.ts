@@ -3,6 +3,7 @@ import { BytesLike, Contract, PopulatedTransaction, providers } from "ethers";
 import { CHAIN_IDs } from "../../constants";
 import { Deposit, FillStatus, FillWithBlock, RelayData } from "../../interfaces";
 import {
+  EvmAddress,
   bnUint32Max,
   BigNumber,
   toBN,
@@ -13,11 +14,10 @@ import {
   isDefined,
   isUnsafeDepositId,
   isZeroAddress,
-  getDepositRelayData,
   getNetworkName,
   paginatedEventQuery,
   spreadEventWithBlockNumber,
-  toBytes32,
+  Address,
 } from "../../utils";
 
 type BlockTag = providers.BlockTag;
@@ -30,11 +30,31 @@ type BlockTag = providers.BlockTag;
  */
 export function populateV3Relay(
   spokePool: Contract,
-  deposit: Omit<Deposit, "messageHash">,
-  relayer: string,
+  deposit: Omit<Deposit, "messageHash" | "fromLiteChain" | "toLiteChain"> & {
+    recipient: EvmAddress;
+    exclusiveRelayer: EvmAddress;
+  },
+  relayer: Address,
   repaymentChainId = deposit.destinationChainId
 ): Promise<PopulatedTransaction> {
-  const relayData = getDepositRelayData(deposit);
+  assert(
+    relayer.isValidOn(repaymentChainId),
+    `Invalid repayment address for chain ${repaymentChainId}: ${relayer.toAddress()}.`
+  );
+  const relayData = {
+    depositor: deposit.depositor.toBytes32(),
+    recipient: deposit.recipient.toBytes32(),
+    inputToken: deposit.inputToken.toBytes32(),
+    outputToken: deposit.outputToken.toBytes32(),
+    inputAmount: deposit.inputAmount,
+    outputAmount: deposit.outputAmount,
+    originChainId: deposit.originChainId,
+    depositId: deposit.depositId,
+    fillDeadline: deposit.fillDeadline,
+    exclusivityDeadline: deposit.exclusivityDeadline,
+    message: deposit.message,
+    exclusiveRelayer: deposit.exclusiveRelayer.toBytes32(),
+  };
 
   if (isDefined(deposit.speedUpSignature)) {
     assert(isDefined(deposit.updatedRecipient) && !isZeroAddress(deposit.updatedRecipient));
@@ -43,16 +63,18 @@ export function populateV3Relay(
     return spokePool.populateTransaction.fillRelayWithUpdatedDeposit(
       relayData,
       repaymentChainId,
-      toBytes32(relayer),
+      relayer.toBytes32(),
       deposit.updatedOutputAmount,
-      toBytes32(deposit.updatedRecipient),
+      deposit.updatedRecipient.toBytes32(),
       deposit.updatedMessage,
       deposit.speedUpSignature,
-      { from: relayer }
+      { from: relayer.toAddress() }
     );
   }
 
-  return spokePool.populateTransaction.fillRelay(relayData, repaymentChainId, toBytes32(relayer), { from: relayer });
+  return spokePool.populateTransaction.fillRelay(relayData, repaymentChainId, relayer.toBytes32(), {
+    from: relayer.toAddress(),
+  });
 }
 
 /**

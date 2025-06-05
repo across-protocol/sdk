@@ -21,6 +21,12 @@ export function buildPoolRebalanceLeafTree(poolRebalanceLeaves: PoolRebalanceLea
   }
 
   const paramType = getParamType("MerkleLibTest", "verifyPoolRebalance", "rebalance");
-  const hashFn = (input: PoolRebalanceLeaf) => utils.keccak256(utils.defaultAbiCoder.encode([paramType], [input]));
+  const hashFn = (input: PoolRebalanceLeaf) => {
+    const ethersLeaf = {
+      ...input,
+      l1Tokens: input.l1Tokens.map((l1Token) => l1Token.toEvmAddress()),
+    };
+    return utils.keccak256(utils.defaultAbiCoder.encode([paramType], [ethersLeaf]));
+  };
   return new MerkleTree<PoolRebalanceLeaf>(poolRebalanceLeaves, hashFn);
 }

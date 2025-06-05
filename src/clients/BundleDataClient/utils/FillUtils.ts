@@ -2,7 +2,7 @@ import _ from "lodash";
 import assert from "assert";
 import { providers } from "ethers";
 import { DepositWithBlock, Fill, FillWithBlock } from "../../../interfaces";
-import { isSlowFill, isValidEvmAddress, isDefined, chainIsEvm } from "../../../utils";
+import { isSlowFill, isValidEvmAddress, isDefined, chainIsEvm, Address, toAddressType } from "../../../utils";
 import { HubPoolClient } from "../../HubPoolClient";
 import { SVMProvider } from "../../../arch/svm";
 
@@ -25,7 +25,7 @@ export function getRefundInformationFromFill(
   bundleEndBlockForMainnet: number
 ): {
   chainToSendRefundTo: number;
-  repaymentToken: string;
+  repaymentToken: Address;
 } {
   const chainToSendRefundTo = _getRepaymentChainId(relayData, hubPoolClient, bundleEndBlockForMainnet);
   if (chainToSendRefundTo === relayData.originChainId) {
@@ -49,6 +49,7 @@ export function getRefundInformationFromFill(
     chainToSendRefundTo,
     bundleEndBlockForMainnet
   );
+
   return {
     chainToSendRefundTo,
     repaymentToken,
@@ -125,7 +126,8 @@ export async function verifyFillRepayment(
           return undefined;
         }
       }
-      fill.relayer = destinationRelayer;
+      fill.relayer = toAddressType(destinationRelayer);
+      assert(fill.relayer.isValidEvmAddress(), `Cannot re-assign fill to msg.sender: ${destinationRelayer}`);
     } else {
       return undefined;
     }
@@ -200,5 +202,5 @@ function _repaymentAddressNeedsToBeOverwritten(fill: Fill): boolean {
   // - i.e. If chainIsSvm && !isValidSvmAddress(fill.relayer) then return false
   //        If chainIsEvm && !isValidEvmAddress(fill.relayer) then return false
   //        If chainIsEvm && isValidEvmAddress(fill.relayer) then return true
-  return !isValidEvmAddress(fill.relayer);
+  return chainIsEvm(fill.repaymentChainId) && !fill.relayer.isValidEvmAddress();
 }
