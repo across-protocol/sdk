@@ -283,7 +283,7 @@ describe("HubPoolClient: RootBundle Events", function () {
       .proposeRootBundle(bundleBlockEvalNumbers, 1, tree1.getHexRoot(), constants.mockTreeRoot, constants.mockTreeRoot);
 
     await hubPoolClient.update();
-    expect(hubPoolClient.getProposedRootBundles()[0].proposer).to.equal(dataworker.address);
+    expect(hubPoolClient.getProposedRootBundles()[0].proposer.toEvmAddress()).to.equal(dataworker.address);
     expect(hubPoolClient.getDisputedRootBundles().length).to.equal(0);
 
     await hubPool.connect(dataworker).disputeRootBundle();
