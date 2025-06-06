@@ -77,6 +77,14 @@ export function decodeEvent(idl: Idl, rawEvent: string): { data: unknown; name: 
   };
 }
 
+function decodeMessage(message: { [key: string]: number }): string {
+  const messageBuffer = new ArrayBuffer(Object.keys(message).length);
+  const messageUint8Array = new Uint8Array(messageBuffer);
+  messageUint8Array.set(Object.values(message));
+  const decoder = new TextDecoder();
+  return decoder.decode(messageUint8Array);
+}
+
 /**
  * Converts a snake_case string to camelCase.
  */
@@ -147,6 +155,11 @@ export function unwrapEventData(
           throw new Error(`Unknown fill type: ${fillType}`);
       }
     }
+
+    if (currentKey === "message") {
+      return decodeMessage(data as Record<string, number>);
+    }
+
     // Special case: if an object is empty, return 0x
     if (Object.keys(data).length === 0) {
       return "0x";
