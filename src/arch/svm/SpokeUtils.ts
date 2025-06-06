@@ -28,7 +28,7 @@ import { Logger } from "winston";
 
 import { SYSTEM_PROGRAM_ADDRESS } from "@solana-program/system";
 import { Deposit, DepositWithBlock, FillStatus, FillWithBlock, RelayData } from "../../interfaces";
-import { BigNumber, SvmAddress, chainIsSvm, chunk, isUnsafeDepositId, keccak256 } from "../../utils";
+import { BigNumber, SvmAddress, chainIsSvm, chunk, isUnsafeDepositId, keccak256, toAddressType } from "../../utils";
 import {
   SvmCpiEventsClient,
   createDefaultTransaction,
@@ -136,13 +136,19 @@ export async function findDeposit(
     return undefined;
   }
 
+  const unwrappedDepositEvent = unwrapEventData(depositEvent.data) as Record<string, unknown>;
   // Return the deposit event with block info
   return {
     txnRef: depositEvent.signature.toString(),
     blockNumber: Number(depositEvent.slot),
     txnIndex: 0,
     logIndex: 0,
-    ...(unwrapEventData(depositEvent.data) as Record<string, unknown>),
+    ...unwrappedDepositEvent,
+    depositor: toAddressType(unwrappedDepositEvent.depositor as string),
+    recipient: toAddressType(unwrappedDepositEvent.recipient as string),
+    inputToken: toAddressType(unwrappedDepositEvent.inputToken as string),
+    outputToken: toAddressType(unwrappedDepositEvent.outputToken as string),
+    exclusiveRelayer: toAddressType(unwrappedDepositEvent.exclusiveRelayer as string),
   } as DepositWithBlock;
 }
 
@@ -318,13 +324,21 @@ export async function findFillEvent(
 
   if (fillEvents.length > 0) {
     const rawFillEvent = fillEvents[0];
+    const eventData = unwrapEventData(rawFillEvent.data) as Record<string, unknown>;
+    const originChainId = eventData.originChainId as number;
     const parsedFillEvent = {
       transactionHash: rawFillEvent.signature,
       blockNumber: Number(rawFillEvent.slot),
       transactionIndex: 0,
       logIndex: 0,
       destinationChainId,
-      ...(unwrapEventData(rawFillEvent.data) as Record<string, unknown>),
+      ...eventData,
+      inputToken: toAddressType(eventData.inputToken as string, originChainId),
+      outputToken: toAddressType(eventData.outputToken as string, destinationChainId),
+      relayer: toAddressType(eventData.relayer as string, destinationChainId),
+      exclusiveRelayer: toAddressType(eventData.exclusiveRelayer as string, destinationChainId),
+      depositor: toAddressType(eventData.depositor as string, originChainId),
+      recipient: toAddressType(eventData.recipient as string, destinationChainId),
     } as unknown as FillWithBlock;
     return parsedFillEvent;
   }
