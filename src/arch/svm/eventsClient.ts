@@ -40,9 +40,9 @@ export class SvmCpiEventsClient {
   private idl: Idl;
 
   /**
-   * Protected constructor. Use the async create() method to instantiate.
+   * Note: Strongly prefer to use the async create() method to instantiate.
    */
-  protected constructor(rpc: SVMProvider, address: Address, eventAuthority: Address, idl: Idl) {
+  constructor(rpc: SVMProvider, address: Address, eventAuthority: Address, idl: Idl) {
     this.rpc = rpc;
     this.programAddress = address;
     this.programEventAuthority = eventAuthority;
