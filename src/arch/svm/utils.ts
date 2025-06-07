@@ -53,6 +53,10 @@ export function parseEventData(eventData: any): any {
     return eventData.map(parseEventData);
   }
 
+  if (Buffer.isBuffer(eventData)) {
+    return new Uint8Array(eventData);
+  }
+
   if (typeof eventData === "object") {
     if (eventData.constructor.name === "PublicKey") {
       return address(eventData.toString());
@@ -121,7 +125,12 @@ export function unwrapEventData(
   // Handle Uint8Array and byte arrays
   if (data instanceof Uint8Array || isUint8Array(data)) {
     const bytes = data instanceof Uint8Array ? data : new Uint8Array(data as number[]);
-    const hex = "0x" + Buffer.from(bytes).toString("hex");
+    // 3078 is the prefix for 0x in hex
+    let hex = Buffer.from(bytes).toString("hex");
+    if (hex.startsWith("3078")) {
+      hex = hex.slice(2);
+    }
+    hex = "0x" + hex;
     if (currentKey && uint8ArrayKeysAsBigInt.includes(currentKey)) {
       return BigNumber.from(hex);
     }
@@ -152,6 +161,7 @@ export function unwrapEventData(
           throw new Error(`Unknown fill type: ${fillType}`);
       }
     }
+
     // Special case: if an object is empty, return 0x
     if (Object.keys(data).length === 0) {
       return "0x";

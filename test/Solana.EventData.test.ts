@@ -55,4 +55,40 @@ describe("Solana EventData", () => {
 
     expect(unwrapEventData(fill)).to.deep.equal(expectedUnwrapped);
   });
+
+  it("should unwrap deposit event data", () => {
+    const fill: SvmSpokeClient.FundsDeposited = {
+      inputToken: address("MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr"),
+      outputToken: address("MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr"),
+      inputAmount: BigInt(0),
+      outputAmount: BigInt(0),
+      destinationChainId: BigInt(0),
+      depositId: new Uint8Array([1]),
+      quoteTimestamp: 0,
+      fillDeadline: 0,
+      exclusivityDeadline: 0,
+      exclusiveRelayer: address("MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr"),
+      depositor: address("MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr"),
+      recipient: address("MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr"),
+      message: new Uint8Array([68, 101, 108, 108, 111]),
+    };
+
+    const expectedUnwrapped = {
+      inputToken: "0x054a535a992921064d24e87160da387c7c35b5ddbc92bb81e41fa8404105448d",
+      outputToken: "0x054a535a992921064d24e87160da387c7c35b5ddbc92bb81e41fa8404105448d",
+      inputAmount: BigNumber.from(0),
+      outputAmount: BigNumber.from(0),
+      destinationChainId: 0,
+      depositId: BigNumber.from(1),
+      quoteTimestamp: 0,
+      fillDeadline: 0,
+      exclusivityDeadline: 0,
+      exclusiveRelayer: "0x054a535a992921064d24e87160da387c7c35b5ddbc92bb81e41fa8404105448d",
+      depositor: "0x054a535a992921064d24e87160da387c7c35b5ddbc92bb81e41fa8404105448d",
+      recipient: "0x054a535a992921064d24e87160da387c7c35b5ddbc92bb81e41fa8404105448d",
+      message: "0x44656c6c6f",
+    };
+
+    expect(unwrapEventData(fill)).to.deep.equal(expectedUnwrapped);
+  });
 });

@@ -62,6 +62,7 @@ describe("SvmCpiEventsClient (integration)", () => {
     const { depositInput } = await sendCreateDeposit(solanaClient, signer, mint, decimals, payerAta, {
       inputAmount: tokenAmount,
       outputAmount: tokenAmount,
+      message: Buffer.from([48, 120]),
     });
 
     const [depositEvent] = await client.queryEvents("FundsDeposited");
@@ -78,6 +79,7 @@ describe("SvmCpiEventsClient (integration)", () => {
     expect(data.exclusiveRelayer).to.equal(depositInput.exclusiveRelayer.toString());
     expect(data.quoteTimestamp).to.equal(depositInput.quoteTimestamp);
     expect(data.fillDeadline).to.equal(depositInput.fillDeadline);
+    expect(Buffer.from(data.message).toString()).to.equal(depositInput.message.toString());
   });
 
   it("filters deposit events by slot range", async () => {
