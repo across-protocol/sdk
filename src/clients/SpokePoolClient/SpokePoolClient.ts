@@ -410,7 +410,8 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
       return newInvalidFill;
     });
     // Log invalid and unrepayable fills as warns if we are on a production network.
-    const logLevel = chainIsProd(originChainId) ? "warn" : "debug";
+    const suppressWarn = process.env.RELAYER_SUPPRESS_INVALID_FILLS === "true";
+    const logLevel = chainIsProd(originChainId) && !suppressWarn ? "warn" : "debug";
     if (invalidFillsForDeposit.length > 0) {
       this.logger[logLevel]({
         at: "SpokePoolClient",
