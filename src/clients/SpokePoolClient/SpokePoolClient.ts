@@ -413,12 +413,17 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
     const suppressWarn = process.env.RELAYER_SUPPRESS_INVALID_FILLS === "true";
     const logLevel = chainIsProd(originChainId) && !suppressWarn ? "warn" : "debug";
     if (invalidFillsForDeposit.length > 0) {
+      const invalidFills = Object.fromEntries(
+        invalidFillsForDeposit.map(({ relayer, originChainId, destinationChainId, depositId, txnRef, }) => {
+          return [relayer, { originChainId, destinationChainId, depositId, txnRef }]
+        })
+      );
       this.logger[logLevel]({
         at: "SpokePoolClient",
         chainId: this.chainId,
         message: "Invalid fills found matching deposit ID",
         deposit,
-        invalidFills: Object.fromEntries(invalidFillsForDeposit.map((x) => [x.relayer, x])),
+        invalidFills,
         notificationPath: "across-invalid-fills",
       });
     }
