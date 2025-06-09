@@ -414,8 +414,8 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
     const logLevel = chainIsProd(originChainId) && !suppressWarn ? "warn" : "debug";
     if (invalidFillsForDeposit.length > 0) {
       const invalidFills = Object.fromEntries(
-        invalidFillsForDeposit.map(({ relayer, originChainId, destinationChainId, depositId, txnRef, }) => {
-          return [relayer, { originChainId, destinationChainId, depositId, txnRef }]
+        invalidFillsForDeposit.map(({ relayer, originChainId, destinationChainId, depositId, txnRef }) => {
+          return [relayer, { originChainId, destinationChainId, depositId, txnRef }];
         })
       );
       this.logger[logLevel]({
