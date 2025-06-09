@@ -27,7 +27,14 @@ import { arrayify, hexZeroPad, hexlify } from "ethers/lib/utils";
 import { Logger } from "winston";
 
 import { SYSTEM_PROGRAM_ADDRESS } from "@solana-program/system";
-import { Deposit, DepositWithBlock, FillStatus, FillWithBlock, RelayData } from "../../interfaces";
+import {
+  Deposit,
+  DepositWithBlock,
+  FillStatus,
+  FillWithBlock,
+  RelayData,
+  RelayExecutionEventInfo,
+} from "../../interfaces";
 import { BigNumber, SvmAddress, chainIsSvm, chunk, isUnsafeDepositId, keccak256, toAddressType } from "../../utils";
 import {
   SvmCpiEventsClient,
@@ -324,22 +331,34 @@ export async function findFillEvent(
 
   if (fillEvents.length > 0) {
     const rawFillEvent = fillEvents[0];
-    const eventData = unwrapEventData(rawFillEvent.data) as Record<string, unknown>;
-    const originChainId = eventData.originChainId as number;
+    const eventData = unwrapEventData(rawFillEvent.data) as FillWithBlock & {
+      depositor: string;
+      recipient: string;
+      inputToken: string;
+      outputToken: string;
+      exclusiveRelayer: string;
+      relayer: string;
+      relayExecutionInfo: RelayExecutionEventInfo & { updatedRecipient: string };
+    };
+    const originChainId = eventData.originChainId;
     const parsedFillEvent = {
+      ...eventData,
       transactionHash: rawFillEvent.signature,
       blockNumber: Number(rawFillEvent.slot),
       transactionIndex: 0,
       logIndex: 0,
       destinationChainId,
-      ...eventData,
-      inputToken: toAddressType(eventData.inputToken as string, originChainId),
-      outputToken: toAddressType(eventData.outputToken as string, destinationChainId),
-      relayer: toAddressType(eventData.relayer as string, destinationChainId),
-      exclusiveRelayer: toAddressType(eventData.exclusiveRelayer as string, destinationChainId),
-      depositor: toAddressType(eventData.depositor as string, originChainId),
-      recipient: toAddressType(eventData.recipient as string, destinationChainId),
-    } as unknown as FillWithBlock;
+      inputToken: toAddressType(eventData.inputToken, originChainId),
+      outputToken: toAddressType(eventData.outputToken, destinationChainId),
+      relayer: toAddressType(eventData.relayer, destinationChainId),
+      exclusiveRelayer: toAddressType(eventData.exclusiveRelayer, destinationChainId),
+      depositor: toAddressType(eventData.depositor, originChainId),
+      recipient: toAddressType(eventData.recipient, destinationChainId),
+      relayExecutionInfo: {
+        ...eventData.relayExecutionInfo,
+        updatedRecipient: eventData.relayExecutionInfo.updatedRecipient,
+      },
+    } as FillWithBlock;
     return parsedFillEvent;
   }
 

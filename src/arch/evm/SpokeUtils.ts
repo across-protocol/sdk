@@ -1,7 +1,7 @@
 import assert from "assert";
 import { BytesLike, Contract, PopulatedTransaction, providers } from "ethers";
 import { CHAIN_IDs } from "../../constants";
-import { Deposit, FillStatus, FillWithBlock, RelayData, SortableEvent } from "../../interfaces";
+import { Deposit, FillStatus, FillWithBlock, RelayData, RelayExecutionEventInfo } from "../../interfaces";
 import {
   EvmAddress,
   bnUint32Max,
@@ -338,15 +338,27 @@ export async function findFillEvent(
   const destinationChainId = Object.values(CHAIN_IDs).includes(relayData.originChainId)
     ? (await spokePool.provider.getNetwork()).chainId
     : Number(await spokePool.chainId());
-  const fillEvent = spreadEventWithBlockNumber(event) as SortableEvent & Record<string, unknown>;
+  const fillEvent = spreadEventWithBlockNumber(event) as FillWithBlock & {
+    depositor: string;
+    recipient: string;
+    inputToken: string;
+    outputToken: string;
+    exclusiveRelayer: string;
+    relayer: string;
+    relayExecutionInfo: RelayExecutionEventInfo & { updatedRecipient: string };
+  };
   const fill = {
     ...fillEvent,
-    inputToken: toAddressType(fillEvent.inputToken as string, relayData.originChainId),
-    outputToken: toAddressType(fillEvent.outputToken as string, destinationChainId),
-    depositor: toAddressType(fillEvent.depositor as string, relayData.originChainId),
-    recipient: toAddressType(fillEvent.recipient as string, destinationChainId),
-    exclusiveRelayer: toAddressType(fillEvent.exclusiveRelayer as string, destinationChainId),
-    relayer: toAddressType(fillEvent.relayer as string, destinationChainId),
+    inputToken: toAddressType(fillEvent.inputToken, relayData.originChainId),
+    outputToken: toAddressType(fillEvent.outputToken, destinationChainId),
+    depositor: toAddressType(fillEvent.depositor, relayData.originChainId),
+    recipient: toAddressType(fillEvent.recipient, destinationChainId),
+    exclusiveRelayer: toAddressType(fillEvent.exclusiveRelayer, destinationChainId),
+    relayer: toAddressType(fillEvent.relayer, destinationChainId),
+    relayExecutionInfo: {
+      ...fillEvent.relayExecutionInfo,
+      updatedRecipient: toAddressType(fillEvent.relayExecutionInfo.updatedRecipient, destinationChainId),
+    },
     destinationChainId,
     messageHash: getMessageHash(event.args.message),
   } as FillWithBlock;
