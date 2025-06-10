@@ -1,12 +1,21 @@
 import { encodeAbiParameters, Hex, keccak256 } from "viem";
+import { fixedPointAdjustment as fixedPoint } from "./common";
 import { MAX_SAFE_DEPOSIT_ID, ZERO_ADDRESS, ZERO_BYTES } from "../constants";
-import { Deposit, RelayData } from "../interfaces";
+import { Deposit, Fill, FillType, RelayData, SlowFillLeaf } from "../interfaces";
 import { toBytes32 } from "./AddressUtils";
 import { BigNumber } from "./BigNumberUtils";
 import { isMessageEmpty } from "./DepositUtils";
 import { chainIsSvm } from "./NetworkUtils";
 import { svm } from "../arch";
 
+export function isSlowFill(fill: Fill): boolean {
+  return fill.relayExecutionInfo.fillType === FillType.SlowFill;
+}
+
+export function getSlowFillLeafLpFeePct(leaf: SlowFillLeaf): BigNumber {
+  const { relayData, updatedOutputAmount } = leaf;
+  return relayData.inputAmount.sub(updatedOutputAmount).mul(fixedPoint).div(relayData.inputAmount);
+}
 /**
  * Produce the RelayData for a Deposit.
  * @param deposit Deposit instance.
