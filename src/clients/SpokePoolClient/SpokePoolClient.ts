@@ -399,34 +399,7 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
       { validFills: [], invalidFills: [], unrepayableFills: [] }
     );
 
-    // Log any invalid deposits with same deposit id but different params.
-    const invalidFillsForDeposit = invalidFills.filter((x) => {
-      const txnUid = `${x.txnRef}:${x.logIndex}`;
-      // if txnUid doesn't exist in the invalidFills set, add it now, but log the corresponding fill.
-      const newInvalidFill = x.depositId.eq(deposit.depositId) && !this.invalidFills.has(txnUid);
-      if (newInvalidFill) {
-        this.invalidFills.add(txnUid);
-      }
-      return newInvalidFill;
-    });
-    // Log invalid and unrepayable fills as warns if we are on a production network.
-    const suppressWarn = process.env.RELAYER_SUPPRESS_INVALID_FILLS === "true";
-    const logLevel = chainIsProd(originChainId) && !suppressWarn ? "warn" : "debug";
-    if (invalidFillsForDeposit.length > 0) {
-      const invalidFills = Object.fromEntries(
-        invalidFillsForDeposit.map(({ relayer, originChainId, destinationChainId, depositId, txnRef }) => {
-          return [relayer, { originChainId, destinationChainId, depositId, txnRef }];
-        })
-      );
-      this.logger[logLevel]({
-        at: "SpokePoolClient",
-        chainId: this.chainId,
-        message: "Invalid fills found matching deposit ID",
-        deposit,
-        invalidFills,
-        notificationPath: "across-invalid-fills",
-      });
-    }
+    const logLevel = chainIsProd(originChainId) ? "warn" : "debug";
     const unrepayableFillsForDeposit = unrepayableFills.filter((x) => x.depositId.eq(deposit.depositId));
     if (unrepayableFillsForDeposit.length > 0) {
       this.logger[logLevel]({
