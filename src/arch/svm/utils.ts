@@ -120,12 +120,7 @@ export function unwrapEventData(
   // Handle Uint8Array and byte arrays
   if (data instanceof Uint8Array || isUint8Array(data)) {
     const bytes = data instanceof Uint8Array ? data : new Uint8Array(data as number[]);
-    // 3078 is the prefix for 0x in hex
-    let hex = Buffer.from(bytes).toString("hex");
-    if (hex.startsWith("3078")) {
-      hex = hex.slice(2);
-    }
-    hex = "0x" + hex;
+    const hex = ethers.utils.hexlify(bytes);
     if (currentKey && uint8ArrayKeysAsBigInt.includes(currentKey)) {
       return BigNumber.from(hex);
     }
