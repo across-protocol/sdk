@@ -36,12 +36,12 @@ export function populateV3Relay(
     outputToken: EvmAddress;
     exclusiveRelayer: EvmAddress;
   },
-  relayer: Address,
-  repaymentChainId = deposit.destinationChainId
+  repaymentAddress: Address,
+  repaymentChainId = deposit.destinationChainId,
 ): Promise<PopulatedTransaction> {
   assert(
-    relayer.isValidOn(repaymentChainId),
-    `Invalid repayment address for chain ${repaymentChainId}: ${relayer.toAddress()}.`
+    repaymentAddress.isValidOn(repaymentChainId),
+    `Invalid repayment address for chain ${repaymentChainId}: ${repaymentAddress.toAddress()}.`
   );
   const relayData = {
     depositor: deposit.depositor.toBytes32(),
@@ -65,18 +65,15 @@ export function populateV3Relay(
     return spokePool.populateTransaction.fillRelayWithUpdatedDeposit(
       relayData,
       repaymentChainId,
-      relayer.toBytes32(),
+      repaymentAddress.toBytes32(),
       deposit.updatedOutputAmount,
       deposit.updatedRecipient.toBytes32(),
       deposit.updatedMessage,
       deposit.speedUpSignature,
-      { from: relayer.toAddress() }
     );
   }
 
-  return spokePool.populateTransaction.fillRelay(relayData, repaymentChainId, relayer.toBytes32(), {
-    from: relayer.toAddress(),
-  });
+  return spokePool.populateTransaction.fillRelay(relayData, repaymentChainId, repaymentAddress.toBytes32());
 }
 
 /**
