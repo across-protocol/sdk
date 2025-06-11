@@ -33,6 +33,7 @@ export function populateV3Relay(
   spokePool: Contract,
   deposit: Omit<Deposit, "messageHash" | "fromLiteChain" | "toLiteChain"> & {
     recipient: EvmAddress;
+    outputToken: EvmAddress;
     exclusiveRelayer: EvmAddress;
   },
   relayer: Address,
