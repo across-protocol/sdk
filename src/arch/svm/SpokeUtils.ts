@@ -386,7 +386,6 @@ export async function fillRelayInstruction(
 ) {
   const programId = spokePool.toBase58();
 
-  // @todo: This must be handled more gracefully.
   assert(
     repaymentAddress.isValidOn(repaymentChainId),
     `Invalid repaymentChainId for address ${repaymentAddress.toAddress()}: ${repaymentChainId}`
