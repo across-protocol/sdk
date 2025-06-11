@@ -35,7 +35,16 @@ import {
   RelayData,
   RelayExecutionEventInfo,
 } from "../../interfaces";
-import { BigNumber, EvmAddress, SvmAddress, chainIsSvm, chunk, isUnsafeDepositId, keccak256, toAddressType } from "../../utils";
+import {
+  BigNumber,
+  EvmAddress,
+  SvmAddress,
+  chainIsSvm,
+  chunk,
+  isUnsafeDepositId,
+  keccak256,
+  toAddressType,
+} from "../../utils";
 import {
   SvmCpiEventsClient,
   createDefaultTransaction,
@@ -382,7 +391,7 @@ export async function fillRelayInstruction(
   signer: TransactionSigner<string>,
   recipientTokenAccount: Address<string>,
   repaymentChainId = deposit.destinationChainId,
-  repaymentAddress: EvmAddress | SvmAddress = SvmAddress.from(signer.address),
+  repaymentAddress: EvmAddress | SvmAddress = SvmAddress.from(signer.address)
 ) {
   const programId = spokePool.toBase58();
 
