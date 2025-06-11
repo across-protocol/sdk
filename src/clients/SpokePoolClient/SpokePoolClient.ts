@@ -726,11 +726,14 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
     }
 
     if (eventsToQuery.includes("ExecutedRelayerRefundRoot")) {
-      const refundEvents = queryResults[
-        eventsToQuery.indexOf("ExecutedRelayerRefundRoot")
-      ] as RelayerRefundExecutionWithBlock[];
-      for (const event of refundEvents) {
-        this.relayerRefundExecutions.push(event);
+      const refundEvents = queryResults[eventsToQuery.indexOf("ExecutedRelayerRefundRoot")];
+      for (const _event of refundEvents) {
+        const event = _event as { l2TokenAddress: string; refundAddresses: string[] } & RelayerRefundExecutionWithBlock;
+        this.relayerRefundExecutions.push({
+          ...event,
+          l2TokenAddress: toAddressType(event.l2TokenAddress, this.chainId),
+          refundAddresses: event.refundAddresses.map((addr) => toAddressType(addr, this.chainId)),
+        });
       }
     }
 
