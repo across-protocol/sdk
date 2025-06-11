@@ -374,7 +374,11 @@ export async function findFillEvent(
  */
 export async function fillRelayInstruction(
   spokePool: SvmAddress,
-  deposit: Omit<Deposit, "messageHash">,
+  deposit: Omit<Deposit, "messageHash" | "fromLiteChain" | "toLiteChain"> & {
+    recipient: SvmAddress;
+    outputToken: SvmAddress;
+    exclusiveRelayer: SvmAddress;
+  },
   relayer: TransactionSigner<string>,
   recipientTokenAccount: Address<string>,
   repaymentChainId = deposit.destinationChainId
@@ -382,21 +386,23 @@ export async function fillRelayInstruction(
   const programId = spokePool.toBase58();
   const relayerAddress = SvmAddress.from(relayer.address);
 
-  // @todo we need to convert the deposit's relayData to svm-like since the interface assumes the data originates from an EVM Spoke pool.
-  // Once we migrate to `Address` types, this can be modified/removed.
-  const [depositor, recipient, exclusiveRelayer, inputToken, outputToken] = [
-    deposit.depositor,
-    deposit.recipient,
-    deposit.exclusiveRelayer,
-    deposit.inputToken,
-    deposit.outputToken,
-  ].map((addr) => addr.forceSvmAddress());
+  // @todo: This must be handled more gracefully.
+  assert(
+    relayerAddress.isValidOn(repaymentChainId),
+    `Invalid repaymentChainId for relayer ${relayerAddress.toAddress()}: ${repaymentChainId}`
+  );
+
+  // @todo we need to convert the deposit's relayData to svm-like since the interface assumes the data originates
+  // from an EVM Spoke pool. Once we migrate to `Address` types, this can be modified/removed.
+  const [depositor, inputToken] = [deposit.depositor, deposit.inputToken].map((addr) =>
+    addr.forceSvmAddress().toV2Address()
+  );
 
   const _relayDataHash = getRelayDataHash(deposit, deposit.destinationChainId);
   const relayDataHash = new Uint8Array(Buffer.from(_relayDataHash.slice(2), "hex"));
 
   // Create ATA for the relayer and recipient token accounts
-  const relayerTokenAccount = await getAssociatedTokenAddress(relayerAddress, outputToken);
+  const relayerTokenAccount = await getAssociatedTokenAddress(relayerAddress, deposit.outputToken);
 
   const [statePda, fillStatusPda, eventAuthority] = await Promise.all([
     getStatePda(spokePool.toV2Address()),
@@ -414,11 +420,15 @@ export async function fillRelayInstruction(
     spokePool.toV2Address()
   );
 
+  const recipient = deposit.recipient.toV2Address();
+  const outputToken = deposit.outputToken.toV2Address();
+  const exclusiveRelayer = deposit.exclusiveRelayer.toV2Address();
+
   return SvmSpokeClient.getFillRelayInstruction({
     signer: relayer,
     state: statePda,
     delegate: SvmAddress.from(delegatePda.toString()).toV2Address(),
-    mint: outputToken.toV2Address(),
+    mint: outputToken,
     relayerTokenAccount: relayerTokenAccount,
     recipientTokenAccount: recipientTokenAccount,
     fillStatus: fillStatusPda,
@@ -426,11 +436,11 @@ export async function fillRelayInstruction(
     program: address(programId),
     relayHash: relayDataHash,
     relayData: some({
-      depositor: depositor.toV2Address(),
-      recipient: recipient.toV2Address(),
-      exclusiveRelayer: exclusiveRelayer.toV2Address(),
-      inputToken: inputToken.toV2Address(),
-      outputToken: outputToken.toV2Address(),
+      depositor,
+      recipient,
+      exclusiveRelayer,
+      inputToken,
+      outputToken,
       inputAmount: deposit.inputAmount.toBigInt(),
       outputAmount: deposit.outputAmount.toBigInt(),
       originChainId: BigInt(deposit.originChainId),
@@ -440,7 +450,7 @@ export async function fillRelayInstruction(
       message: new Uint8Array(Buffer.from(deposit.message.slice(2), "hex")),
     }),
     repaymentChainId: some(BigInt(repaymentChainId)),
-    repaymentAddress: some(relayerAddress.toV2Address()),
+    repaymentAddress: some(relayerAddress.toV2Address()), // @todo: Handle non-SVM repayment.
   });
 }
 
