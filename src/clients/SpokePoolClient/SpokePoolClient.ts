@@ -255,7 +255,7 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
    * Retrieves a list of bridged to hub pool events from the SpokePool contract.
    * @returns A list of bridged to hub pool events.
    */
-  public getBridgedToHubPool(): BridgedToHubPoolWithBlock[] {
+  public getBridgedToHubPoolEvents(): BridgedToHubPoolWithBlock[] {
     return this.bridgedToHubPool;
   }
 
