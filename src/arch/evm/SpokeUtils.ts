@@ -37,7 +37,7 @@ export function populateV3Relay(
     exclusiveRelayer: EvmAddress;
   },
   repaymentAddress: Address,
-  repaymentChainId = deposit.destinationChainId,
+  repaymentChainId = deposit.destinationChainId
 ): Promise<PopulatedTransaction> {
   assert(
     repaymentAddress.isValidOn(repaymentChainId),
@@ -69,7 +69,7 @@ export function populateV3Relay(
       deposit.updatedOutputAmount,
       deposit.updatedRecipient.toBytes32(),
       deposit.updatedMessage,
-      deposit.speedUpSignature,
+      deposit.speedUpSignature
     );
   }
 

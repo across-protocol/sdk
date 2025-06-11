@@ -390,8 +390,8 @@ export async function fillRelayInstruction(
   },
   signer: TransactionSigner<string>,
   recipientTokenAccount: Address<string>,
-  repaymentChainId = deposit.destinationChainId,
-  repaymentAddress: EvmAddress | SvmAddress = SvmAddress.from(signer.address)
+  repaymentAddress: EvmAddress | SvmAddress = SvmAddress.from(signer.address),
+  repaymentChainId = deposit.destinationChainId
 ) {
   const programId = spokePool.toBase58();
 
