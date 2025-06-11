@@ -1,12 +1,21 @@
 import { encodeAbiParameters, Hex, keccak256 } from "viem";
+import { fixedPointAdjustment as fixedPoint } from "./common";
 import { MAX_SAFE_DEPOSIT_ID, ZERO_BYTES } from "../constants";
-import { RelayData } from "../interfaces";
+import { Fill, FillType, RelayData, SlowFillLeaf } from "../interfaces";
 import { BigNumber } from "./BigNumberUtils";
 import { Address } from "./AddressUtils";
 import { isMessageEmpty } from "./DepositUtils";
 import { chainIsSvm } from "./NetworkUtils";
 import { svm } from "../arch";
 
+export function isSlowFill(fill: Fill): boolean {
+  return fill.relayExecutionInfo.fillType === FillType.SlowFill;
+}
+
+export function getSlowFillLeafLpFeePct(leaf: SlowFillLeaf): BigNumber {
+  const { relayData, updatedOutputAmount } = leaf;
+  return relayData.inputAmount.sub(updatedOutputAmount).mul(fixedPoint).div(relayData.inputAmount);
+}
 /**
  * Compute the RelayData hash for a fill. This can be used to determine the fill status.
  * @param relayData RelayData information that is used to complete a fill.

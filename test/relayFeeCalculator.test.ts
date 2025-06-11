@@ -516,6 +516,7 @@ describe("RelayFeeCalculator: Composable Bridging", function () {
           exclusivityDeadline: 0,
           fromLiteChain: false,
           toLiteChain: false,
+          messageHash: message ? getMessageHash(message) : EMPTY_MESSAGE,
         },
         1,
         false,
