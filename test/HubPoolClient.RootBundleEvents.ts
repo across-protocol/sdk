@@ -19,7 +19,7 @@ import {
   winston,
 } from "./utils";
 import { setupHubPool } from "./fixtures/HubPool.Fixture";
-import { EvmAddress } from "../src/utils";
+import { EvmAddress, toAddressType } from "../src/utils";
 
 let hubPool: Contract, timer: Contract;
 let l1Token_1: Contract, l1Token_2: Contract;
@@ -85,7 +85,7 @@ describe("HubPoolClient: RootBundle Events", function () {
       poolRebalanceRoot: tree.getHexRoot(),
       relayerRefundRoot: constants.mockTreeRoot,
       slowRelayRoot: constants.mockTreeRoot,
-      proposer: dataworker.address,
+      proposer: toAddressType(dataworker.address),
       unclaimedPoolRebalanceLeafCount: 2,
       challengePeriodEndTimestamp: proposeTime + liveness,
       bundleEvaluationBlockNumbers: [11, 22],

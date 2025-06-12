@@ -893,7 +893,10 @@ export class HubPoolClient extends BaseAbstractClient {
     return {
       success: true,
       currentTime,
-      pendingRootBundleProposal,
+      pendingRootBundleProposal: {
+        ...pendingRootBundleProposal,
+        proposer: toAddressType(pendingRootBundleProposal.proposer, this.chainId),
+      },
       searchEndBlock: searchConfig.to,
       events: _events,
     };
