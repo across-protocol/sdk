@@ -27,8 +27,23 @@ import { arrayify, hexZeroPad, hexlify } from "ethers/lib/utils";
 import { Logger } from "winston";
 
 import { SYSTEM_PROGRAM_ADDRESS } from "@solana-program/system";
-import { Deposit, DepositWithBlock, FillStatus, FillWithBlock, RelayData } from "../../interfaces";
-import { BigNumber, SvmAddress, chainIsSvm, chunk, isUnsafeDepositId, keccak256, toAddressType } from "../../utils";
+import {
+  Deposit,
+  DepositWithBlock,
+  FillStatus,
+  FillWithBlock,
+  RelayData,
+} from "../../interfaces";
+import {
+  BigNumber,
+  EvmAddress,
+  SvmAddress,
+  chainIsSvm,
+  chunk,
+  isUnsafeDepositId,
+  keccak256,
+  toAddressType,
+} from "../../utils";
 import {
   SvmCpiEventsClient,
   createDefaultTransaction,
@@ -341,29 +356,28 @@ export async function findFillEvent(
  */
 export async function fillRelayInstruction(
   spokePool: SvmAddress,
-  deposit: Omit<Deposit, "messageHash">,
-  relayer: TransactionSigner<string>,
+  deposit: Omit<Deposit, "messageHash" | "fromLiteChain" | "toLiteChain">,
+  signer: TransactionSigner<string>,
   recipientTokenAccount: Address<string>,
+  repaymentAddress: EvmAddress | SvmAddress = SvmAddress.from(signer.address),
   repaymentChainId = deposit.destinationChainId
 ) {
   const programId = spokePool.toBase58();
-  const relayerAddress = SvmAddress.from(relayer.address);
 
-  // @todo we need to convert the deposit's relayData to svm-like since the interface assumes the data originates from an EVM Spoke pool.
-  // Once we migrate to `Address` types, this can be modified/removed.
-  const [depositor, recipient, exclusiveRelayer, inputToken, outputToken] = [
-    deposit.depositor,
-    deposit.recipient,
-    deposit.exclusiveRelayer,
-    deposit.inputToken,
-    deposit.outputToken,
-  ].map((addr) => toAddressType(addr).forceSvmAddress());
+  assert(
+    repaymentAddress.isValidOn(repaymentChainId),
+    `Invalid repayment address for chain ${repaymentChainId}: ${repaymentAddress.toAddress()}.`
+  );
 
   const _relayDataHash = getRelayDataHash(deposit, deposit.destinationChainId);
   const relayDataHash = new Uint8Array(Buffer.from(_relayDataHash.slice(2), "hex"));
 
+  const relayer = SvmAddress.from(signer.address);
   // Create ATA for the relayer and recipient token accounts
-  const relayerTokenAccount = await getAssociatedTokenAddress(relayerAddress, outputToken);
+  const relayerTokenAccount = await getAssociatedTokenAddress(
+    relayer,
+    toAddressType(deposit.outputToken, deposit.destinationChainId)
+  );
 
   const [statePda, fillStatusPda, eventAuthority] = await Promise.all([
     getStatePda(spokePool.toV2Address()),
@@ -377,15 +391,26 @@ export async function fillRelayInstruction(
   const delegatePda = await getFillRelayDelegatePda(
     relayDataHash,
     BigInt(repaymentChainId),
-    relayerAddress.toV2Address(),
+    relayer.toV2Address(),
     spokePool.toV2Address()
   );
 
+  // @todo we need to convert the deposit's relayData to svm-like since the interface assumes the data originates
+  // from an EVM Spoke pool. Once we migrate to `Address` types, this can be modified/removed.
+  const [depositor, inputToken] = [deposit.depositor, deposit.inputToken].map((addr: string) =>
+    toAddressType(addr, deposit.originChainId).toV2Address()
+  );
+  const [recipient, outputToken, exclusiveRelayer] = [
+    deposit.recipient,
+    deposit.outputToken,
+    deposit.exclusiveRelayer
+  ].map((addr) => toAddressType(addr, deposit.destinationChainId).toV2Address());
+
   return SvmSpokeClient.getFillRelayInstruction({
-    signer: relayer,
+    signer,
     state: statePda,
     delegate: SvmAddress.from(delegatePda.toString()).toV2Address(),
-    mint: outputToken.toV2Address(),
+    mint: outputToken,
     relayerTokenAccount: relayerTokenAccount,
     recipientTokenAccount: recipientTokenAccount,
     fillStatus: fillStatusPda,
@@ -393,11 +418,11 @@ export async function fillRelayInstruction(
     program: address(programId),
     relayHash: relayDataHash,
     relayData: some({
-      depositor: depositor.toV2Address(),
-      recipient: recipient.toV2Address(),
-      exclusiveRelayer: exclusiveRelayer.toV2Address(),
-      inputToken: inputToken.toV2Address(),
-      outputToken: outputToken.toV2Address(),
+      depositor,
+      recipient,
+      exclusiveRelayer,
+      inputToken,
+      outputToken,
       inputAmount: deposit.inputAmount.toBigInt(),
       outputAmount: deposit.outputAmount.toBigInt(),
       originChainId: BigInt(deposit.originChainId),
@@ -407,7 +432,7 @@ export async function fillRelayInstruction(
       message: new Uint8Array(Buffer.from(deposit.message.slice(2), "hex")),
     }),
     repaymentChainId: some(BigInt(repaymentChainId)),
-    repaymentAddress: some(relayerAddress.toV2Address()),
+    repaymentAddress: repaymentAddress.toV2Address(),
   });
 }
 
