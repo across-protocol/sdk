@@ -137,7 +137,7 @@ export interface ClaimedRelayerRefundWithBlock extends SortableEvent {
   l2TokenAddress: string;
   refundAddress: string;
   amount: BigNumber;
-  caller: string;
+  caller?: string;
 }
 
 export interface BridgedToHubPoolWithBlock extends SortableEvent {
