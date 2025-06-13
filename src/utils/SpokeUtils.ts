@@ -129,8 +129,8 @@ export function findInvalidFills(spokePoolClients: { [chainId: number]: SpokePoo
           validationResults: [
             {
               reason: `no deposit with depositId ${fill.depositId} found`,
-            }
-          ]
+            },
+          ],
         });
         return;
       }
@@ -148,7 +148,7 @@ export function findInvalidFills(spokePoolClients: { [chainId: number]: SpokePoo
         }
         validationResults.push({
           reason: validationResult.reason,
-          deposit
+          deposit,
         });
       }
 
@@ -156,7 +156,7 @@ export function findInvalidFills(spokePoolClients: { [chainId: number]: SpokePoo
       if (!foundValidDeposit) {
         invalidFills.push({
           fill,
-          validationResults
+          validationResults,
         });
       }
     });
