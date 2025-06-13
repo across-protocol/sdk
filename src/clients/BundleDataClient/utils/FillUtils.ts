@@ -126,7 +126,7 @@ export async function verifyFillRepayment(
           return undefined;
         }
       }
-      fill.relayer = toAddressType(destinationRelayer);
+      fill.relayer = toAddressType(destinationRelayer, fill.destinationChainId);
       assert(fill.relayer.isValidEvmAddress(), `Cannot re-assign fill to msg.sender: ${destinationRelayer}`);
     } else {
       return undefined;

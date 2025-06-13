@@ -581,7 +581,7 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
           ...event,
           originChainId: this.chainId,
         };
-        assign(this.speedUps, [speedUp.depositor.toAddress(), speedUp.depositId.toString()], [speedUp]);
+        assign(this.speedUps, [speedUp.depositor.toEvmAddress(), speedUp.depositId.toString()], [speedUp]);
 
         // Find deposit hash matching this speed up event and update the deposit data associated with the hash,
         // if the hash+data exists.

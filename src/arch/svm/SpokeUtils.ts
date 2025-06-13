@@ -25,7 +25,6 @@ import {
 import assert from "assert";
 import { arrayify, hexZeroPad, hexlify } from "ethers/lib/utils";
 import { Logger } from "winston";
-
 import { SYSTEM_PROGRAM_ADDRESS } from "@solana-program/system";
 import {
   Deposit,
@@ -53,6 +52,7 @@ import {
   getStatePda,
   unwrapEventData,
 } from "./";
+import { CHAIN_IDs } from "../../constants";
 import { SVMEventNames, SVMProvider } from "./types";
 
 /**
@@ -153,6 +153,7 @@ export async function findDeposit(
   }
 
   const unwrappedDepositEvent = unwrapEventData(depositEvent.data) as Record<string, unknown>;
+  const destinationChainId = unwrappedDepositEvent.destinationChainId as number;
   // Return the deposit event with block info
   return {
     txnRef: depositEvent.signature.toString(),
@@ -160,11 +161,11 @@ export async function findDeposit(
     txnIndex: 0,
     logIndex: 0,
     ...unwrappedDepositEvent,
-    depositor: toAddressType(unwrappedDepositEvent.depositor as string),
-    recipient: toAddressType(unwrappedDepositEvent.recipient as string),
-    inputToken: toAddressType(unwrappedDepositEvent.inputToken as string),
-    outputToken: toAddressType(unwrappedDepositEvent.outputToken as string),
-    exclusiveRelayer: toAddressType(unwrappedDepositEvent.exclusiveRelayer as string),
+    depositor: toAddressType(unwrappedDepositEvent.depositor as string, CHAIN_IDs.SOLANA),
+    recipient: toAddressType(unwrappedDepositEvent.recipient as string, destinationChainId),
+    inputToken: toAddressType(unwrappedDepositEvent.inputToken as string, CHAIN_IDs.SOLANA),
+    outputToken: toAddressType(unwrappedDepositEvent.outputToken as string, destinationChainId),
+    exclusiveRelayer: toAddressType(unwrappedDepositEvent.exclusiveRelayer as string, destinationChainId),
   } as DepositWithBlock;
 }
 
@@ -640,13 +641,16 @@ export function getRelayDataHash(relayData: RelayData, destinationChainId: numbe
   const uint32Encoder = getU32Encoder();
 
   assert(relayData.message.startsWith("0x"), "Message must be a hex string");
+  const encodeAddress = (data: SvmAddress) => {
+    return Uint8Array.from(addressEncoder.encode(address(data.toBase58())));
+  };
 
   const contentToHash = Buffer.concat([
-    Uint8Array.from(addressEncoder.encode(address(relayData.depositor.toBase58()))),
-    Uint8Array.from(addressEncoder.encode(address(relayData.recipient.toBase58()))),
-    Uint8Array.from(addressEncoder.encode(address(relayData.exclusiveRelayer.toBase58()))),
-    Uint8Array.from(addressEncoder.encode(address(relayData.inputToken.toBase58()))),
-    Uint8Array.from(addressEncoder.encode(address(relayData.outputToken.toBase58()))),
+    encodeAddress(relayData.depositor),
+    encodeAddress(relayData.recipient),
+    encodeAddress(relayData.exclusiveRelayer),
+    encodeAddress(relayData.inputToken),
+    encodeAddress(relayData.outputToken),
     Uint8Array.from(uint64Encoder.encode(BigInt(relayData.inputAmount.toString()))),
     Uint8Array.from(uint64Encoder.encode(BigInt(relayData.outputAmount.toString()))),
     Uint8Array.from(uint64Encoder.encode(BigInt(relayData.originChainId.toString()))),
