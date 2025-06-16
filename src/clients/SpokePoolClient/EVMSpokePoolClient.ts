@@ -234,9 +234,9 @@ export class EVMSpokePoolClient extends SpokePoolClient {
 
   public override async findAllDeposits(depositId: BigNumber): Promise<MultipleDepositSearchResult> {
     // First check memory for deposits
-    const memoryDeposits = this.getDepositsForDepositId(depositId);
-    if (memoryDeposits.length > 0) {
-      return { found: true, deposits: memoryDeposits };
+    let deposits = this.getDepositsForDepositId(depositId);
+    if (deposits.length > 0) {
+      return { found: true, deposits: deposits };
     }
 
     // If no deposits found in memory, try to find on-chain
@@ -248,9 +248,9 @@ export class EVMSpokePoolClient extends SpokePoolClient {
     const { events: query, chain, elapsedMs } = result;
 
     // Find all events with matching depositId
-    const matchingEvents = query.filter(({ args }) => args["depositId"].eq(depositId));
+    const events = query.filter(({ args }) => args["depositId"].eq(depositId));
 
-    if (matchingEvents.length === 0) {
+    if (events.length === 0) {
       return {
         found: false,
         code: InvalidFill.DepositIdNotFound,
@@ -259,7 +259,7 @@ export class EVMSpokePoolClient extends SpokePoolClient {
     }
 
     // First do all synchronous operations
-    const deposits = matchingEvents.map((event) => {
+    deposits = events.map((event) => {
       const deposit = {
         ...spreadEventWithBlockNumber(event),
         originChainId: this.chainId,
@@ -277,7 +277,7 @@ export class EVMSpokePoolClient extends SpokePoolClient {
     });
 
     // Then do all async operations in parallel
-    const enrichedDeposits = await Promise.all(
+    deposits = await Promise.all(
       deposits.map(async (deposit) => ({
         ...deposit,
         quoteBlockNumber: await this.getBlockNumber(Number(deposit.quoteTimestamp)),
@@ -287,11 +287,11 @@ export class EVMSpokePoolClient extends SpokePoolClient {
     this.logger.debug({
       at: "SpokePoolClient#findAllDeposits",
       message: "Located deposits outside of SpokePoolClient's search range",
-      deposits: enrichedDeposits,
+      deposits: deposits,
       elapsedMs,
     });
 
-    return { found: true, deposits: enrichedDeposits };
+    return { found: true, deposits: deposits };
   }
 
   public override getTimestampForBlock(blockNumber: number): Promise<number> {
