@@ -104,26 +104,28 @@ export function getMessageHash(message: string): string {
   return isMessageEmpty(message) ? ZERO_BYTES : keccak256(message as Hex);
 }
 
-export function findInvalidFills(spokePoolClients: { [chainId: number]: SpokePoolClient }): InvalidFill[] {
+export async function findInvalidFills(spokePoolClients: {
+  [chainId: number]: SpokePoolClient;
+}): Promise<InvalidFill[]> {
   const invalidFills: InvalidFill[] = [];
 
   // Iterate through each spoke pool client
-  Object.values(spokePoolClients).forEach((spokePoolClient) => {
+  for (const spokePoolClient of Object.values(spokePoolClients)) {
     // Get all fills for this client
     const fills = spokePoolClient.getFills();
 
     // Process each fill
-    fills.forEach((fill) => {
+    for (const fill of fills) {
       // Skip fills with unsafe deposit IDs
       if (isUnsafeDepositId(fill.depositId)) {
-        return;
+        continue;
       }
 
-      // Get all deposits (including duplicates) for this fill's depositId
-      const deposits = spokePoolClients[fill.originChainId].getDepositsForDepositId(fill.depositId);
+      // Get all deposits (including duplicates) for this fill's depositId, both in memory and on-chain
+      const depositResult = await spokePoolClients[fill.originChainId].findAllDeposits(fill.depositId);
 
       // If no deposits found at all
-      if (deposits.length === 0) {
+      if (!depositResult.found) {
         invalidFills.push({
           fill,
           validationResults: [
@@ -132,14 +134,14 @@ export function findInvalidFills(spokePoolClients: { [chainId: number]: SpokePoo
             },
           ],
         });
-        return;
+        continue;
       }
 
       // Try to find a valid deposit for this fill
       let foundValidDeposit = false;
       const validationResults: Array<{ reason: string; deposit: DepositWithBlock }> = [];
 
-      for (const deposit of deposits) {
+      for (const deposit of depositResult.deposits) {
         // Validate the fill against the deposit
         const validationResult = validateFillForDeposit(fill, deposit);
         if (validationResult.valid) {
@@ -159,8 +161,8 @@ export function findInvalidFills(spokePoolClients: { [chainId: number]: SpokePoo
           validationResults,
         });
       }
-    });
-  });
+    }
+  }
 
   return invalidFills;
 }
