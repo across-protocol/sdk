@@ -1,10 +1,5 @@
 import { EVMSpokePoolClient, SpokePoolClient } from "../src/clients";
-import {
-  bnOne,
-  toBN,
-  InvalidFill,
-  deploy as deployMulticall,
-} from "../src/utils";
+import { bnOne, toBN, InvalidFill, deploy as deployMulticall } from "../src/utils";
 import { CHAIN_ID_TEST_LIST, originChainId, destinationChainId, repaymentChainId } from "./constants";
 import {
   expect,
@@ -29,13 +24,13 @@ import sinon from "sinon";
 describe("SpokePoolClient: Find Deposits", function () {
   let spokePool_1: Contract, erc20_1: Contract, spokePool_2: Contract, erc20_2: Contract, hubPool: Contract;
   let owner: SignerWithAddress, depositor: SignerWithAddress, relayer: SignerWithAddress;
-  let spokePool1DeploymentBlock: number, spokePool2DeploymentBlock: number;
+  let spokePool1DeploymentBlock: number;
   let l1Token: Contract, configStore: Contract;
   let spyLogger: winston.Logger;
-  let spokePoolClient2: SpokePoolClient, hubPoolClient: MockHubPoolClient;
   let spokePoolClient1: SpokePoolClient, configStoreClient: MockConfigStoreClient;
   let inputToken: string, outputToken: string;
   let inputAmount: BigNumber, outputAmount: BigNumber;
+  let hubPoolClient: MockHubPoolClient;
 
   beforeEach(async function () {
     [owner, depositor, relayer] = await ethers.getSigners();
@@ -44,12 +39,8 @@ describe("SpokePoolClient: Find Deposits", function () {
       spokePool: spokePool_1,
       erc20: erc20_1,
       deploymentBlock: spokePool1DeploymentBlock,
-    } = await deploySpokePoolWithToken(originChainId, destinationChainId));
-    ({
-      spokePool: spokePool_2,
-      erc20: erc20_2,
-      deploymentBlock: spokePool2DeploymentBlock,
-    } = await deploySpokePoolWithToken(destinationChainId, originChainId));
+    } = await deploySpokePoolWithToken(originChainId));
+    ({ spokePool: spokePool_2, erc20: erc20_2 } = await deploySpokePoolWithToken(destinationChainId));
     ({ hubPool, l1Token_1: l1Token } = await deployAndConfigureHubPool(owner, [
       { l2ChainId: destinationChainId, spokePool: spokePool_2 },
       { l2ChainId: originChainId, spokePool: spokePool_1 },
@@ -60,7 +51,7 @@ describe("SpokePoolClient: Find Deposits", function () {
       { destinationChainId: originChainId, l1Token, destinationToken: erc20_1 },
       { destinationChainId: destinationChainId, l1Token, destinationToken: erc20_2 },
     ]);
-    ({ spy, spyLogger } = createSpyLogger());
+    ({ spyLogger } = createSpyLogger());
     ({ configStore } = await deployConfigStore(owner, [l1Token]));
     configStoreClient = new MockConfigStoreClient(spyLogger, configStore, undefined, undefined, CHAIN_ID_TEST_LIST);
     await configStoreClient.update();
@@ -74,13 +65,6 @@ describe("SpokePoolClient: Find Deposits", function () {
       hubPoolClient,
       originChainId,
       spokePool1DeploymentBlock
-    );
-    spokePoolClient2 = new EVMSpokePoolClient(
-      createSpyLogger().spyLogger,
-      spokePool_2,
-      null,
-      destinationChainId,
-      spokePool2DeploymentBlock
     );
     await setupTokensForWallet(spokePool_1, depositor, [erc20_1], undefined, 10);
     await setupTokensForWallet(spokePool_2, relayer, [erc20_2], undefined, 10);
@@ -172,7 +156,7 @@ describe("SpokePoolClient: Find Deposits", function () {
         outputAmount
       );
       await spokePoolClient1.update();
-      delete spokePoolClient1['depositHashes'][depositEvent.depositId.toString()];
+      delete spokePoolClient1["depositHashes"][depositEvent.depositId.toString()];
       const filter = spokePool_1.filters.FundsDeposited();
       const fakeEvent = {
         args: {
@@ -197,7 +181,8 @@ describe("SpokePoolClient: Find Deposits", function () {
         logIndex: depositEvent.logIndex,
       };
       const queryFilterStub = sinon.stub(spokePool_1, "queryFilter");
-      queryFilterStub.withArgs(filter).resolves([fakeEvent]);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      queryFilterStub.withArgs(filter).resolves([fakeEvent as any]);
       await spokePoolClient1.update();
       const result = await spokePoolClient1.findAllDeposits(depositEvent.depositId);
       expect(result.found).to.be.true;
@@ -218,4 +203,4 @@ describe("SpokePoolClient: Find Deposits", function () {
       queryFilterStub.restore();
     });
   });
-}); 
+});
