@@ -1,6 +1,6 @@
 import { utils as ethersUtils } from "ethers";
-import { UNDEFINED_MESSAGE_HASH, ZERO_BYTES } from "../src/constants";
-import { getMessageHash, getRelayEventKey, keccak256, randomAddress, toBN, validateFillForDeposit } from "../src/utils";
+import { MAX_SAFE_DEPOSIT_ID, UNDEFINED_MESSAGE_HASH, ZERO_BYTES } from "../src/constants";
+import { findInvalidFills, getMessageHash, getRelayEventKey, keccak256, randomAddress, toBN, validateFillForDeposit } from "../src/utils";
 import { expect } from "./utils";
 
 const random = () => Math.round(Math.random() * 1e8);
@@ -88,5 +88,143 @@ describe("SpokeUtils", function () {
 
     const message = randomBytes();
     expect(getMessageHash(message)).to.equal(keccak256(message));
+  });
+
+  describe("findInvalidFills", function () {
+    let mockSpokePoolClient: any;
+    let mockSpokePoolClients: { [chainId: number]: any };
+
+    beforeEach(function () {
+      mockSpokePoolClient = {
+        getFills: () => [],
+        findAllDeposits: async () => ({ found: false, deposits: [] }),
+      };
+
+      mockSpokePoolClients = {
+        [sampleData.originChainId]: mockSpokePoolClient,
+      };
+    });
+
+    it("returns empty array when no fills exist", async function () {
+      const invalidFills = await findInvalidFills(mockSpokePoolClients);
+      expect(invalidFills).to.be.an("array").that.is.empty;
+    });
+
+    it("skips fills with unsafe deposit IDs", async function () {
+      const unsafeDepositId = toBN(MAX_SAFE_DEPOSIT_ID).add(1);
+      mockSpokePoolClient.getFills = () => [{
+        ...sampleData,
+        depositId: unsafeDepositId,
+        messageHash,
+      }];
+
+      const invalidFills = await findInvalidFills(mockSpokePoolClients);
+      expect(invalidFills).to.be.an("array").that.is.empty;
+    });
+
+    it("detects fills with no matching deposits", async function () {
+      mockSpokePoolClient.getFills = () => [{
+        ...sampleData,
+        depositId: toBN(random()),
+        messageHash,
+      }];
+
+      const invalidFills = await findInvalidFills(mockSpokePoolClients);
+      expect(invalidFills).to.have.lengthOf(1);
+      expect(invalidFills[0].validationResults).to.have.lengthOf(1);
+      expect(invalidFills[0].validationResults[0].reason).to.include("no deposit with depositId");
+    });
+
+    it("detects fills with mismatched deposit attributes", async function () {
+      const deposit = {
+        ...sampleData,
+        blockNumber: random(),
+        txnRef: randomBytes(),
+        txnIndex: random(),
+        logIndex: random(),
+        quoteTimestamp: random(),
+        quoteBlockNumber: random(),
+        fromLiteChain: false,
+        toLiteChain: false,
+        messageHash,
+      };
+
+      const fill = {
+        ...deposit,
+        recipient: randomAddress(),
+        relayer: randomAddress(),
+        repaymentChainId: random(),
+        relayExecutionInfo: {
+          updatedRecipient: randomAddress(),
+          updatedOutputAmount: deposit.outputAmount,
+          updatedMessageHash: deposit.messageHash,
+          fillType: 0,
+        },
+        messageHash,
+      };
+
+      mockSpokePoolClient.getFills = () => [fill];
+      mockSpokePoolClient.findAllDeposits = async () => ({
+        found: true,
+        deposits: [deposit],
+      });
+
+      const invalidFills = await findInvalidFills(mockSpokePoolClients);
+      expect(invalidFills).to.have.lengthOf(1);
+      expect(invalidFills[0].validationResults).to.have.lengthOf(1);
+      expect(invalidFills[0].validationResults[0].reason).to.include("recipient mismatch");
+    });
+
+    it("handles multiple fills with different validation results", async function () {
+      const validDeposit = {
+        ...sampleData,
+        blockNumber: random(),
+        txnRef: randomBytes(),
+        txnIndex: random(),
+        logIndex: random(),
+        quoteTimestamp: random(),
+        quoteBlockNumber: random(),
+        fromLiteChain: false,
+        toLiteChain: false,
+        messageHash,
+      };
+
+      const validFill = {
+        ...validDeposit,
+        relayer: randomAddress(),
+        repaymentChainId: random(),
+        relayExecutionInfo: {
+          updatedRecipient: validDeposit.recipient,
+          updatedOutputAmount: validDeposit.outputAmount,
+          updatedMessageHash: validDeposit.messageHash,
+          fillType: 0,
+        },
+        messageHash,
+      };
+
+      const invalidFill = {
+        ...validDeposit,
+        recipient: randomAddress(),
+        relayer: randomAddress(),
+        repaymentChainId: random(),
+        relayExecutionInfo: {
+          updatedRecipient: randomAddress(),
+          updatedOutputAmount: validDeposit.outputAmount,
+          updatedMessageHash: validDeposit.messageHash,
+          fillType: 0,
+        },
+        messageHash,
+      };
+
+      mockSpokePoolClient.getFills = () => [validFill, invalidFill];
+      mockSpokePoolClient.findAllDeposits = async () => ({
+        found: true,
+        deposits: [validDeposit],
+      });
+
+      const invalidFills = await findInvalidFills(mockSpokePoolClients);
+      expect(invalidFills).to.have.lengthOf(1);
+      expect(invalidFills[0].fill).to.deep.equal(invalidFill);
+    });
   });
 });
