@@ -62,9 +62,13 @@ export const knownEventNames = [
   "TokensBridged",
   "RelayedRootBundle",
   "ExecutedRelayerRefundRoot",
+  "V3FundsDeposited",
   "FundsDeposited",
+  "RequestedSpeedUpV3Deposit",
   "RequestedSpeedUpDeposit",
+  "RequestedV3SlowFill",
   "RequestedSlowFill",
+  "FilledV3Relay",
   "FilledRelay",
   "ClaimedRelayerRefund",
 ];
