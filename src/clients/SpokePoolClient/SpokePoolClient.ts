@@ -24,6 +24,8 @@ import {
 import { duplicateEvent, sortEventsAscendingInPlace } from "../../utils/EventUtils";
 import { ZERO_ADDRESS } from "../../constants";
 import {
+  BridgedToHubPoolWithBlock,
+  ClaimedRelayerRefundWithBlock,
   Deposit,
   DepositWithBlock,
   EnabledDepositRouteWithBlock,
@@ -68,6 +70,7 @@ export const knownEventNames = [
   "RequestedSlowFill",
   "FilledV3Relay",
   "FilledRelay",
+  "ClaimedRelayerRefund",
 ];
 
 /**
@@ -84,6 +87,8 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
   protected tokensBridged: TokensBridged[] = [];
   protected rootBundleRelays: RootBundleRelayWithBlock[] = [];
   protected relayerRefundExecutions: RelayerRefundExecutionWithBlock[] = [];
+  protected claimedRelayerRefunds: ClaimedRelayerRefundWithBlock[] = [];
+  protected bridgedToHubPool: BridgedToHubPoolWithBlock[] = [];
   protected configStoreClient: AcrossConfigStoreClient | undefined;
   protected invalidFills: Set<string> = new Set();
   public readonly depositHashes: { [depositHash: string]: DepositWithBlock } = {};
@@ -240,6 +245,22 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
    */
   public getRelayerRefundExecutions(): RelayerRefundExecutionWithBlock[] {
     return this.relayerRefundExecutions;
+  }
+
+  /**
+   * Retrieves a list of claimed relayer refunds from the SpokePool contract.
+   * @returns A list of claimed relayer refunds.
+   */
+  public getClaimedRelayerRefunds(): ClaimedRelayerRefundWithBlock[] {
+    return this.claimedRelayerRefunds;
+  }
+
+  /**
+   * Retrieves a list of bridged to hub pool events from the SpokePool contract.
+   * @returns A list of bridged to hub pool events.
+   */
+  public getBridgedToHubPoolEvents(): BridgedToHubPoolWithBlock[] {
+    return this.bridgedToHubPool;
   }
 
   /**
@@ -655,6 +676,25 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
         []) as RelayerRefundExecutionWithBlock[];
       for (const event of refundEvents) {
         this.relayerRefundExecutions.push(event);
+      }
+    }
+
+    if (eventsToQuery.includes("ClaimedRelayerRefund")) {
+      const claimedRelayerRefundEvents = (queryResults[eventsToQuery.indexOf("ClaimedRelayerRefund")] ??
+        []) as (ClaimedRelayerRefundWithBlock & { claimAmount?: BigNumber })[];
+      for (const event of claimedRelayerRefundEvents) {
+        this.claimedRelayerRefunds.push({
+          ...event,
+          amount: event.amount || event.claimAmount, // Note: This field is named differently in EVM and SVM
+        });
+      }
+    }
+
+    if (eventsToQuery.includes("BridgedToHubPool")) {
+      const bridgedToHubPoolEvents = (queryResults[eventsToQuery.indexOf("BridgedToHubPool")] ??
+        []) as (BridgedToHubPoolWithBlock & { amount?: BigNumber })[];
+      for (const event of bridgedToHubPoolEvents) {
+        this.bridgedToHubPool.push(event);
       }
     }
 
