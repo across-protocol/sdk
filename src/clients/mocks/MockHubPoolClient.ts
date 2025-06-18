@@ -97,7 +97,7 @@ export class MockHubPoolClient extends HubPoolClient {
   }
 
   l2TokenEnabledForL1TokenAtBlock(l1Token: EvmAddress, destinationChainId: number, hubBlockNumber: number): boolean {
-    if (this.spokePoolTokens[l1Token.toEvmAddress()]?.[destinationChainId]) {
+    if (this.spokePoolTokens[l1Token.formatAsChecksummedEvmAddress()]?.[destinationChainId]) {
       return true;
     } else {
       return super.l2TokenEnabledForL1TokenAtBlock(l1Token, destinationChainId, hubBlockNumber);
@@ -128,7 +128,7 @@ export class MockHubPoolClient extends HubPoolClient {
   }
 
   getL2TokenForL1TokenAtBlock(l1Token: EvmAddress, chainId: number, blockNumber: number): Address {
-    const l2Token = this.spokePoolTokens[l1Token.toEvmAddress()]?.[chainId];
+    const l2Token = this.spokePoolTokens[l1Token.formatAsChecksummedEvmAddress()]?.[chainId];
     return l2Token ?? super.getL2TokenForL1TokenAtBlock(l1Token, chainId, blockNumber);
   }
 

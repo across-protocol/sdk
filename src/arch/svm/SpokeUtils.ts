@@ -427,7 +427,7 @@ export async function fillRelayInstruction(
   // @todo we need to convert the deposit's relayData to svm-like since the interface assumes the data originates
   // from an EVM Spoke pool. Once we migrate to `Address` types, this can be modified/removed.
   const [depositor, inputToken] = [deposit.depositor, deposit.inputToken].map((addr) =>
-    addr.forceSvmAddress().toV2Address()
+    addr.__unsafeStaticCastToSvmAddress().toV2Address()
   );
   const recipient = deposit.recipient.toV2Address();
   const outputToken = deposit.outputToken.toV2Address();

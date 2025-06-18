@@ -2,7 +2,7 @@ import { providers, utils } from "ethers";
 import assert from "assert";
 import bs58 from "bs58";
 import { Address as V2Address } from "@solana/kit";
-import { BigNumber, chainIsEvm, isDefined } from "./";
+import { BigNumber, chainIsEvm, chainIsSvm, isDefined } from "./";
 
 /**
  * Checks if a contract is deployed at the given address
@@ -78,42 +78,40 @@ export function isValidEvmAddress(address: string): boolean {
  * @param chainId Network ID corresponding to the input address, used to determine which address type to output.
  * If no chain ID is specified, then fallback to inference via the structure of the address string.
  * @returns a child `Address` type most fitting for the chain ID.
- * @todo: Change this to `toAddress` once we remove the other `toAddress` function.
  */
-export function toAddressType(address: string, chainId?: number): Address | EvmAddress | SvmAddress {
-  const parseAddress = (address: string) => {
+export function toAddressType(address: string, chainId?: number): Address {
+  if (isDefined(chainId)) {
     try {
-      if (utils.isHexString(address)) {
+      if (chainIsEvm(chainId)) {
         return EvmAddress.from(address);
+      } else {
+        assert(chainIsSvm(chainId));
+        return SvmAddress.from(address);
       }
-      return SvmAddress.from(address);
     } catch (e) {
-      // If we hit this block, then the validation for one of the child address classes failed. We still may want to keep this address in our state, so
-      // return an unchecked address type.
       assert(utils.isHexString(address));
       assert(utils.hexDataLength(address) === 32);
-      return Address.__unsafeConstruct(utils.arrayify(address));
-    }
-  };
-  // If there is no network ID, then infer the address by the string format.
-  const addressType = parseAddress(address);
-  if (!isDefined(chainId)) {
-    return addressType;
-  }
-  // Wrap this in a try/catch in case we are trying to force an invalid EVM address to an EvmAddress type.
-  if (chainIsEvm(chainId)) {
-    try {
-      return addressType.forceEvmAddress();
-    } catch {
-      return addressType;
+      return RawAddress.from(utils.arrayify(address));
     }
   }
-  return addressType.forceSvmAddress();
+
+  try {
+    if (utils.isHexString(address)) {
+      return EvmAddress.from(address);
+    }
+    return SvmAddress.from(address);
+  } catch (e) {
+    // If we hit this block, then the validation for one of the child address classes failed. We still may want to keep this address in our state, so
+    // return an unchecked address type.
+    assert(utils.isHexString(address));
+    assert(utils.hexDataLength(address) === 32);
+    return RawAddress.from(utils.arrayify(address));
+  }
 }
 
 // The Address class can contain any address type. It is up to the subclasses to determine how to format the address's internal representation,
 // which for this class, is a bytes32 hex string.
-export class Address {
+export abstract class Address {
   readonly rawAddress: Uint8Array;
 
   // Keep all address types in cache so that we may lazily evaluate them when necessary.
@@ -122,7 +120,7 @@ export class Address {
   svmAddress: string | undefined = undefined;
   bnAddress: BigNumber | undefined = undefined;
 
-  constructor(_rawAddress: Uint8Array) {
+  protected constructor(_rawAddress: Uint8Array) {
     // The only validation done here is checking that the address is at most a 32-byte address, which  will be well-defined on any supported network.
     // Further validation is done on the subclasses so that we can guarantee that, for example, an EvmAddress type will always contain a valid, 20-byte
     // EVM address.
@@ -131,10 +129,6 @@ export class Address {
     }
     // Ensure all addresses in this class are internally stored as 32 bytes.
     this.rawAddress = utils.zeroPad(_rawAddress, 32);
-  }
-
-  static __unsafeConstruct(_rawAddress: Uint8Array): Address {
-    return new this(_rawAddress);
   }
 
   // Converts the address into a bytes32 string. Note that the output bytes will be lowercase so that it matches ethers event data. This function will never
@@ -162,22 +156,8 @@ export class Address {
     return (this.bnAddress ??= BigNumber.from(this.toBytes32()));
   }
 
-  // Converts the address to a valid EVM address. If it is unable to convert the address to a valid EVM address for some reason, such as if this address
-  // is longer than 20 bytes, then this function will throw an error.
-  toEvmAddress(): string {
-    const parseRawAddress = () => {
-      const hexString = utils.hexlify(this.rawAddress);
-      const rawAddress = utils.hexZeroPad(utils.hexStripZeros(hexString), 20);
-      return utils.getAddress(rawAddress);
-    };
-    return (this.evmAddress ??= parseRawAddress());
-  }
-
-  // Converts the address to a hex string. This method should be overriden by subclasses to obtain more meaningful
-  // address representations for the target chain ID.
-  toAddress(): string {
-    return this.toBytes32();
-  }
+  // Formats Address to a native representation of the ecosystem it belongs to. E.g. checksummed 20 bytes for EVM, and base58-encoded 32 bytes for SVM
+  abstract formatAsNativeAddress(): string;
 
   // Converts the address to a Buffer type.
   toBuffer(): Buffer {
@@ -189,24 +169,8 @@ export class Address {
     return this.toBytes32();
   }
 
-  // Checks if this address can be coerced into a bytes20 evm address. Returns true if it is possible and false otherwise.
-  isValidEvmAddress(): boolean {
-    try {
-      this.toEvmAddress();
-      return true;
-    } catch {
-      return false;
-    }
-  }
-
   // Checks if the address is valid on the given chain ID.
-  isValidOn(chainId: number): boolean {
-    if (chainIsEvm(chainId)) {
-      return this.isValidEvmAddress();
-    }
-    // Assume the address is always valid on Solana.
-    return true;
-  }
+  abstract isValidOn(chainId: number): boolean;
 
   // Checks if the object is an address by looking at whether it has an Address constructor.
   static isAddress(obj: unknown): boolean {
@@ -223,20 +187,9 @@ export class Address {
     return utils.stripZeros(this.rawAddress).length === 0;
   }
 
-  // Small utility to convert an Address to a Solana Kit branded type.
-  toV2Address(): V2Address<string> {
-    return this.toBase58() as V2Address<string>;
-  }
-
-  // Forces `rawAddress` to become an SvmAddress type. This will only throw if `rawAddress.length > 32`.
-  forceSvmAddress(): SvmAddress {
-    return SvmAddress.from(this.toBase58());
-  }
-
-  // Forces `rawAddress` to become an EvmAddress type. This will throw if `rawAddress.length > 20`.
-  forceEvmAddress(): EvmAddress {
-    return EvmAddress.from(this.toEvmAddress());
-  }
+  // Functions below should only be used after `isEvmAddress` / `isSvmAddress` checks are performed. They throw if underlying type is incorrect
+  abstract __unsafeStaticCastToSvmAddress(): SvmAddress;
+  abstract __unsafeStaticCastToEvmAddress(): EvmAddress;
 
   // Checks if the other address is equivalent to this address.
   eq(other: Address): boolean {
@@ -270,17 +223,34 @@ export class Address {
 // Subclass of address which strictly deals with 20-byte addresses. These addresses are guaranteed to be valid EVM addresses, so `toAddress` will always succeed.
 export class EvmAddress extends Address {
   // On construction, validate that the address can indeed be coerced into an EVM address. Throw immediately if it cannot.
-  constructor(rawAddress: Uint8Array) {
+  protected constructor(rawAddress: Uint8Array) {
     super(rawAddress);
     const hexString = utils.hexlify(rawAddress);
-    if (!this.isValidEvmAddress()) {
+    if (!isValidEvmAddress(hexString)) {
       throw new Error(`${hexString} is not a valid EVM address`);
     }
   }
 
-  // Override `toAddress` to return the 20-byte representation address.
-  override toAddress(): string {
-    return this.toEvmAddress();
+  // Formats the address as a valid EVM address. This function should never throw as constructor-check will have ensured we have a valid Evm address
+  formatAsChecksummedEvmAddress(): string {
+    const parseRawAddress = () => {
+      const hexString = utils.hexlify(this.rawAddress);
+      const rawAddress = utils.hexZeroPad(utils.hexStripZeros(hexString), 20);
+      return utils.getAddress(rawAddress);
+    };
+    return (this.evmAddress ??= parseRawAddress());
+  }
+
+  // Override `formatAsNativeAddress` to return the 20-byte representation address.
+  override formatAsNativeAddress(): string {
+    return this.formatAsChecksummedEvmAddress();
+  }
+
+  override isValidOn(chainId: number): boolean {
+    if (chainIsEvm(chainId)) {
+      return true;
+    }
+    return false;
   }
 
   // Constructs a new EvmAddress type.
@@ -299,19 +269,48 @@ export class EvmAddress extends Address {
 
     return new this(evmAddress);
   }
+
+  override __unsafeStaticCastToSvmAddress(): SvmAddress {
+    throw new Error("Cannot cast `EvmAddress` to `SvmAddress`.");
+  }
+
+  override __unsafeStaticCastToEvmAddress(): EvmAddress {
+    return this;
+  }
 }
 
 // Subclass of address which strictly deals SVM addresses. These addresses are guaranteed to be valid SVM addresses, so `toBase58` will always produce a valid Solana address.
 export class SvmAddress extends Address {
+  // TODO: the comment below was never implemented
   // On construction, validate that the address is a point on Curve25519. Throw immediately if it is not.
-  constructor(rawAddress: Uint8Array) {
+  protected constructor(rawAddress: Uint8Array) {
     super(rawAddress);
   }
 
-  // Override the toAddress function for SVM addresses only since while they will never have a defined 20-byte representation. The base58 encoded addresses are also the encodings
+  // Override the formatAsNativeAddress function for SVM addresses only since while they will never have a defined 20-byte representation. The base58 encoded addresses are also the encodings
   // used in TOKEN_SYMBOLS_MAP.
-  override toAddress(): string {
+  override formatAsNativeAddress(): string {
     return this.toBase58();
+  }
+
+  override isValidOn(chainId: number): boolean {
+    if (chainIsSvm(chainId)) {
+      return true;
+    }
+    return false;
+  }
+
+  override __unsafeStaticCastToSvmAddress(): SvmAddress {
+    return this;
+  }
+
+  override __unsafeStaticCastToEvmAddress(): EvmAddress {
+    throw new Error("Cannot cast `SvmAddress` to `EvmAddress`.");
+  }
+
+  // Small utility to convert an Address to a Solana Kit branded type.
+  toV2Address(): V2Address<string> {
+    return this.toBase58() as V2Address<string>;
   }
 
   // Constructs a new SvmAddress type.
@@ -326,5 +325,32 @@ export class SvmAddress extends Address {
     }
 
     return new this(decodedAddress);
+  }
+}
+
+// `RawAddress` stores data for addresses that were deemed incorrect for their context (e.g. EVM-style address for SVM-side deposit recipient)
+// OR addresses that have unknown context
+export class RawAddress extends Address {
+  static from(rawAddress: Uint8Array): RawAddress {
+    return new this(rawAddress);
+  }
+
+  // TODO? Consider throwing here instead
+  override formatAsNativeAddress(): string {
+    return this.toBytes32();
+  }
+
+  // TODO? Good assumption?
+  // @dev use false everywhere here. This address *technically* can be valid on some chain, but we don't want to allow any accidental uses of `InvalidAddress` beyond simple logging or converting to bytes32 or something
+  override isValidOn(_chainId: number): boolean {
+    return false;
+  }
+
+  override __unsafeStaticCastToSvmAddress(): SvmAddress {
+    throw new Error("Cannot cast `InvalidAddress` to `SvmAddress`.");
+  }
+
+  override __unsafeStaticCastToEvmAddress(): EvmAddress {
+    throw new Error("Cannot cast `InvalidAddress` to `EvmAddress`.");
   }
 }

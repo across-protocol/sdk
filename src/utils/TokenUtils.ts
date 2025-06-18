@@ -14,7 +14,7 @@ type SignerOrProvider = providers.Provider | Signer;
 export async function fetchTokenInfo(address: string, signerOrProvider: SignerOrProvider): Promise<TokenInfo> {
   const token = new Contract(address, ERC20__factory.abi, signerOrProvider);
   const [symbol, decimals] = await Promise.all([token.symbol(), token.decimals()]);
-  return { address: toAddressType(address).forceEvmAddress(), symbol, decimals };
+  return { address: toAddressType(address).__unsafeStaticCastToSvmAddress(), symbol, decimals };
 }
 
 export const getL2TokenAddresses = (
@@ -114,7 +114,7 @@ export function isStablecoin(tokenSymbol: string): boolean {
 export function getTokenInfo(l2TokenAddress: string, chainId: number, tokenMapping = TOKEN_SYMBOLS_MAP): TokenInfo {
   const parsedAddress = chainIsSvm(chainId)
     ? toAddressType(l2TokenAddress).toBase58()
-    : toAddressType(l2TokenAddress).toEvmAddress();
+    : toAddressType(l2TokenAddress).formatAsChecksummedEvmAddress();
   // @dev This might give false positives if tokens on different networks have the same address. I'm not sure how
   // to get around this...
   let tokenObject = Object.values(tokenMapping).find(({ addresses }) => addresses[chainId] === parsedAddress);

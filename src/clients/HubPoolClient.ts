@@ -194,14 +194,14 @@ export class HubPoolClient extends BaseAbstractClient {
     destinationChainId: number,
     latestHubBlock = Number.MAX_SAFE_INTEGER
   ): Address {
-    if (!this.l1TokensToDestinationTokensWithBlock?.[l1Token.toEvmAddress()]?.[destinationChainId]) {
+    if (!this.l1TokensToDestinationTokensWithBlock?.[l1Token.formatAsChecksummedEvmAddress()]?.[destinationChainId]) {
       const chain = getNetworkName(destinationChainId);
       const { symbol } = this.l1Tokens.find(({ address }) => address.eq(l1Token)) ?? { symbol: l1Token.toString() };
       throw new Error(`Could not find SpokePool mapping for ${symbol} on ${chain} and L1 token ${l1Token}`);
     }
     // Find the last mapping published before the target block.
     const l2Token: DestinationTokenWithBlock | undefined = sortEventsDescending(
-      this.l1TokensToDestinationTokensWithBlock[l1Token.toEvmAddress()][destinationChainId]
+      this.l1TokensToDestinationTokensWithBlock[l1Token.formatAsChecksummedEvmAddress()][destinationChainId]
     ).find((mapping: DestinationTokenWithBlock) => mapping.blockNumber <= latestHubBlock);
     if (!l2Token) {
       const chain = getNetworkName(destinationChainId);
@@ -253,13 +253,15 @@ export class HubPoolClient extends BaseAbstractClient {
   }
 
   l2TokenEnabledForL1Token(l1Token: EvmAddress, destinationChainId: number): boolean {
-    return this.l1TokensToDestinationTokens?.[l1Token.toEvmAddress()]?.[destinationChainId] != undefined;
+    return (
+      this.l1TokensToDestinationTokens?.[l1Token.formatAsChecksummedEvmAddress()]?.[destinationChainId] != undefined
+    );
   }
 
   l2TokenEnabledForL1TokenAtBlock(l1Token: EvmAddress, destinationChainId: number, hubBlockNumber: number): boolean {
     // Find the last mapping published before the target block.
     const l2Token: DestinationTokenWithBlock | undefined = sortEventsDescending(
-      this.l1TokensToDestinationTokensWithBlock?.[l1Token.toEvmAddress()]?.[destinationChainId] ?? []
+      this.l1TokensToDestinationTokensWithBlock?.[l1Token.formatAsChecksummedEvmAddress()]?.[destinationChainId] ?? []
     ).find((mapping: DestinationTokenWithBlock) => mapping.blockNumber <= hubBlockNumber);
     return l2Token !== undefined;
   }
@@ -349,11 +351,14 @@ export class HubPoolClient extends BaseAbstractClient {
       const overrides = { blockTag: blockNumber };
       if (depositAmount.eq(0)) {
         // For zero amount, just get the utilisation at `blockNumber`.
-        return await this.hubPool.callStatic.liquidityUtilizationCurrent(hubPoolToken.toEvmAddress(), overrides);
+        return await this.hubPool.callStatic.liquidityUtilizationCurrent(
+          hubPoolToken.formatAsChecksummedEvmAddress(),
+          overrides
+        );
       }
 
       return await this.hubPool.callStatic.liquidityUtilizationPostRelay(
-        hubPoolToken.toEvmAddress(),
+        hubPoolToken.formatAsChecksummedEvmAddress(),
         depositAmount,
         overrides
       );
@@ -371,8 +376,8 @@ export class HubPoolClient extends BaseAbstractClient {
     // @note Avoid collisions with pre-existing cache keys by appending an underscore (_) for post-relay utilization.
     // @fixme This can be removed once the existing keys have been ejected from the cache (i.e. 7 days).
     const key = depositAmount.eq(0)
-      ? `utilization_${hubPoolToken.toEvmAddress()}_${blockNumber}`
-      : `utilization_${hubPoolToken.toEvmAddress()}_${blockNumber}_${depositAmount.toString()}_`;
+      ? `utilization_${hubPoolToken.formatAsChecksummedEvmAddress()}_${blockNumber}`
+      : `utilization_${hubPoolToken.formatAsChecksummedEvmAddress()}_${blockNumber}_${depositAmount.toString()}_`;
     const result = await cache.get<string>(key);
     if (isDefined(result)) {
       return BigNumber.from(result);
@@ -430,9 +435,9 @@ export class HubPoolClient extends BaseAbstractClient {
       }
 
       // Append the quoteTimestamp for this HubPool token, if it isn't already enqueued.
-      utilizationTimestamps[hubPoolToken.toEvmAddress()] ??= [];
-      if (!utilizationTimestamps[hubPoolToken.toEvmAddress()].includes(quoteTimestamp)) {
-        utilizationTimestamps[hubPoolToken.toEvmAddress()].push(quoteTimestamp);
+      utilizationTimestamps[hubPoolToken.formatAsChecksummedEvmAddress()] ??= [];
+      if (!utilizationTimestamps[hubPoolToken.formatAsChecksummedEvmAddress()].includes(quoteTimestamp)) {
+        utilizationTimestamps[hubPoolToken.formatAsChecksummedEvmAddress()].push(quoteTimestamp);
       }
     };
 
@@ -440,7 +445,7 @@ export class HubPoolClient extends BaseAbstractClient {
     // Produces a mapping of blockNumber -> utilization for a specific token.
     const resolveUtilization = async (hubPoolToken: EvmAddress): Promise<Record<number, BigNumber>> => {
       return Object.fromEntries(
-        await mapAsync(utilizationTimestamps[hubPoolToken.toEvmAddress()], async (quoteTimestamp) => {
+        await mapAsync(utilizationTimestamps[hubPoolToken.formatAsChecksummedEvmAddress()], async (quoteTimestamp) => {
           const blockNumber = quoteBlocks[quoteTimestamp];
           const utilization = await this.getUtilization(
             hubPoolToken,
@@ -476,7 +481,7 @@ export class HubPoolClient extends BaseAbstractClient {
         quoteBlock
       );
 
-      const preUtilization = utilization[hubPoolToken.toEvmAddress()][quoteBlock];
+      const preUtilization = utilization[hubPoolToken.formatAsChecksummedEvmAddress()][quoteBlock];
       const postUtilization = await this.getUtilization(
         hubPoolToken,
         quoteBlock,
@@ -505,7 +510,7 @@ export class HubPoolClient extends BaseAbstractClient {
     // This can be reused for each deposit with the same HubPool token and quoteTimestamp pair.
     utilization = Object.fromEntries(
       await mapAsync(getHubPoolTokens(), async (hubPoolToken) => [
-        hubPoolToken.toEvmAddress(),
+        hubPoolToken.formatAsChecksummedEvmAddress(),
         await resolveUtilization(hubPoolToken),
       ])
     );
@@ -534,7 +539,7 @@ export class HubPoolClient extends BaseAbstractClient {
   }
 
   getLpTokenInfoForL1Token(l1Token: EvmAddress): LpToken | undefined {
-    return this.lpTokens[l1Token.toEvmAddress()];
+    return this.lpTokens[l1Token.formatAsChecksummedEvmAddress()];
   }
 
   areTokensEquivalent(

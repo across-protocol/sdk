@@ -83,7 +83,7 @@ export class SvmQuery implements QueryInterface {
       priorityFeeMultiplier: BigNumber;
     }> = {}
   ): Promise<TransactionCostEstimate> {
-    const relayer = _relayer ? _relayer.forceSvmAddress() : this.simulatedRelayerAddress;
+    const relayer = _relayer ? _relayer.__unsafeStaticCastToSvmAddress() : this.simulatedRelayerAddress;
     const fillRelayTx = await this.getFillRelayTx(deposit, relayer);
 
     const [computeUnitsConsumed, _gasPriceEstimate] = await Promise.all([

@@ -24,7 +24,7 @@ export function buildPoolRebalanceLeafTree(poolRebalanceLeaves: PoolRebalanceLea
   const hashFn = (input: PoolRebalanceLeaf) => {
     const ethersLeaf = {
       ...input,
-      l1Tokens: input.l1Tokens.map((l1Token) => l1Token.toEvmAddress()),
+      l1Tokens: input.l1Tokens.map((l1Token) => l1Token.formatAsChecksummedEvmAddress()),
     };
     return utils.keccak256(utils.defaultAbiCoder.encode([paramType], [ethersLeaf]));
   };

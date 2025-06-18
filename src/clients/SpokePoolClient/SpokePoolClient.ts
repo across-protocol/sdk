@@ -252,7 +252,7 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
 
     // Note: we know depositor cannot be more than 20 bytes since this is guaranteed by contracts.
     // Additionally, speed ups can only be done on EVM networks.
-    const speedups = this.speedUps[depositor.toEvmAddress()]?.[depositId.toString()];
+    const speedups = this.speedUps[depositor.formatAsChecksummedEvmAddress()]?.[depositId.toString()];
 
     if (!isDefined(speedups) || speedups.length === 0) {
       return deposit;
@@ -581,7 +581,11 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
           ...event,
           originChainId: this.chainId,
         };
-        assign(this.speedUps, [speedUp.depositor.toEvmAddress(), speedUp.depositId.toString()], [speedUp]);
+        assign(
+          this.speedUps,
+          [speedUp.depositor.formatAsChecksummedEvmAddress(), speedUp.depositId.toString()],
+          [speedUp]
+        );
 
         // Find deposit hash matching this speed up event and update the deposit data associated with the hash,
         // if the hash+data exists.
