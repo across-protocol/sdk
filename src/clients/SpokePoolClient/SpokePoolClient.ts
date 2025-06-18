@@ -70,6 +70,7 @@ export const knownEventNames = [
   "RequestedSlowFill",
   "FilledV3Relay",
   "FilledRelay",
+  "BridgedToHubPool",
   "ClaimedRelayerRefund",
 ];
 
