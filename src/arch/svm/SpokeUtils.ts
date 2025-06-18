@@ -90,7 +90,7 @@ async function queryDepositEventsInWindow(
 ): Promise<EventWithData[]> {
   // We can only perform this search when we have a safe deposit ID.
   if (isUnsafeDepositId(depositId)) {
-    throw new Error(`Cannot binary search for depositId ${depositId}`);
+    throw new Error(`Cannot find historical deposit for unsafe deposit ID ${depositId}.`);
   }
 
   const provider = eventClient.getRpc();
@@ -105,11 +105,11 @@ async function queryDepositEventsInWindow(
   const startSlot = endSlot - slotsInElapsed;
 
   // Query for the deposit events with this limited slot range
-  return eventClient.queryEvents("FundsDeposited", startSlot, endSlot) || [];
+  return eventClient.queryEvents("FundsDeposited", startSlot, endSlot);
 }
 
 /**
- * Finds deposit events within a 2-day window ending at the specified slot.
+ * Finds deposit events within a time window (default 2 days) ending at the specified slot.
  *
  * @remarks
  * This implementation uses a slot-limited search approach because Solana PDA state has
@@ -129,7 +129,8 @@ async function queryDepositEventsInWindow(
  * @important
  * This function may return `undefined` for valid deposit IDs that are older than the search
  * window (approximately 2 days before the specified slot). This is an acceptable limitation
- * as deposits this old are typically not relevant to current operations.
+ * as deposits this old are typically not relevant to current operations. This can be an issue
+ * if no proposal was made for a chain over a period of > 1.5 days.
  *
  * @param eventClient - SvmCpiEventsClient instance
  * @param depositId - The deposit ID to search for
@@ -167,7 +168,7 @@ export async function findDeposit(
 }
 
 /**
- * Finds all deposit events within a 2-day window ending at the specified slot.
+ * Finds all deposit events within a time window (default 2 days) ending at the specified slot.
  *
  * @remarks
  * This implementation uses a slot-limited search approach because Solana PDA state has
@@ -187,7 +188,8 @@ export async function findDeposit(
  * @important
  * This function may return an empty array for valid deposit IDs that are older than the search
  * window (approximately 2 days before the specified slot). This is an acceptable limitation
- * as deposits this old are typically not relevant to current operations.
+ * as deposits this old are typically not relevant to current operations. This can be an issue
+ * if no proposal was made for a chain over a period of > 1.5 days.
  *
  * @param eventClient - SvmCpiEventsClient instance
  * @param depositId - The deposit ID to search for
@@ -208,11 +210,6 @@ export async function findAllDeposits(
   const matchingEvents = depositEvents.filter((event) =>
     depositId.eq((event.data as unknown as { depositId: BigNumber }).depositId)
   );
-
-  // If no deposit events are found, return empty array
-  if (!matchingEvents || matchingEvents.length === 0) {
-    return [];
-  }
 
   // Return all deposit events with block info
   return matchingEvents.map((event) => ({

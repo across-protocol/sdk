@@ -149,7 +149,7 @@ export class EVMSpokePoolClient extends SpokePoolClient {
 
   private async queryDepositEvents(
     depositId: BigNumber
-  ): Promise<{ events: Log[]; from: number; chain: string; elapsedMs: number } | { reason: string }> {
+  ): Promise<{ events: Log[]; from: number; elapsedMs: number } | { reason: string }> {
     const tStart = Date.now();
     const upperBound = this.latestHeightSearched || undefined;
     const from = await findDepositBlock(this.spokePool, depositId, this.deploymentBlock, upperBound);
@@ -178,10 +178,12 @@ export class EVMSpokePoolClient extends SpokePoolClient {
           { from, to, maxLookBack }
         ),
       ])
-    ).flat();
+    )
+      .flat()
+      .filter(({ args }) => args["depositId"].eq(depositId));
 
     const tStop = Date.now();
-    return { events, from, chain, elapsedMs: tStop - tStart };
+    return { events, from, elapsedMs: tStop - tStart };
   }
 
   public override async findDeposit(depositId: BigNumber): Promise<DepositSearchResult> {
@@ -197,14 +199,14 @@ export class EVMSpokePoolClient extends SpokePoolClient {
       return { found: false, code: InvalidFill.DepositIdNotFound, reason: result.reason };
     }
 
-    const { events: query, from, chain, elapsedMs } = result;
+    const { events: query, from, elapsedMs } = result;
 
     const event = query.find(({ args }) => args["depositId"].eq(depositId));
     if (event === undefined) {
       return {
         found: false,
         code: InvalidFill.DepositIdNotFound,
-        reason: `${chain} depositId ${depositId} not found at block ${from}.`,
+        reason: `${getNetworkName(this.chainId)} depositId ${depositId} not found at block ${from}.`,
       };
     }
 
@@ -236,7 +238,7 @@ export class EVMSpokePoolClient extends SpokePoolClient {
     // First check memory for deposits
     let deposits = this.getDepositsForDepositId(depositId);
     if (deposits.length > 0) {
-      return { found: true, deposits: deposits };
+      return { found: true, deposits };
     }
 
     // If no deposits found in memory, try to find on-chain
@@ -245,16 +247,13 @@ export class EVMSpokePoolClient extends SpokePoolClient {
       return { found: false, code: InvalidFill.DepositIdNotFound, reason: result.reason };
     }
 
-    const { events: query, chain, elapsedMs } = result;
-
-    // Find all events with matching depositId
-    const events = query.filter(({ args }) => args["depositId"].eq(depositId));
+    const { events, elapsedMs } = result;
 
     if (events.length === 0) {
       return {
         found: false,
         code: InvalidFill.DepositIdNotFound,
-        reason: `${chain} depositId ${depositId} not found at block ${result.from}.`,
+        reason: `${getNetworkName(this.chainId)} depositId ${depositId} not found at block ${result.from}.`,
       };
     }
 
