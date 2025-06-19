@@ -20,7 +20,11 @@ describe("Address Utils: Address Type", function () {
       expect(ethers.utils.isHexString(svmToken.toAddress())).to.be.false;
     });
     it("Coerces addresses to their proper type when possible", function () {
-      const evmAddress = toAddressType(randomBytes(20), CHAIN_IDs.MAINNET);
+      let evmAddress = toAddressType(randomBytes(20), CHAIN_IDs.MAINNET);
+      expect(EvmAddress.isAddress(evmAddress)).to.be.true;
+
+      // Should also accept 32-byte zero-padded addresses.
+      evmAddress = toAddressType("0x000000000000000000000000" + randomBytes(20).slice(2), CHAIN_IDs.MAINNET);
       expect(EvmAddress.isAddress(evmAddress)).to.be.true;
 
       const invalidEvmAddress = ethers.utils.arrayify(randomBytes(32));
