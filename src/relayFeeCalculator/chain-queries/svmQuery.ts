@@ -82,7 +82,9 @@ export class SvmQuery implements QueryInterface {
       priorityFeeMultiplier: BigNumber;
     }> = {}
   ): Promise<TransactionCostEstimate> {
-    const relayer = _relayer ? toAddressType(_relayer, CHAIN_IDs.SOLANA).forceSvmAddress() : this.simulatedRelayerAddress;
+    const relayer = _relayer
+      ? toAddressType(_relayer, deposit.destinationChainId).forceSvmAddress()
+      : this.simulatedRelayerAddress;
     const fillRelayTx = await this.getFillRelayTx(deposit, relayer.toBase58());
 
     const [computeUnitsConsumed, _gasPriceEstimate] = await Promise.all([
@@ -137,9 +139,12 @@ export class SvmQuery implements QueryInterface {
     const toSvmAddress = (address: string, chainId: number) =>
       toAddressType(address, chainId).forceSvmAddress().toV2Address();
 
-    const { depositor, recipient, inputToken, outputToken, exclusiveRelayer, originChainId, destinationChainId } = deposit;
+    const { depositor, recipient, inputToken, outputToken, exclusiveRelayer, originChainId, destinationChainId } =
+      deposit;
 
-    const relayer = _relayer ? toAddressType(_relayer, deposit.destinationChainId).forceSvmAddress() : this.simulatedRelayerAddress;
+    const relayer = _relayer
+      ? toAddressType(_relayer, deposit.destinationChainId).forceSvmAddress()
+      : this.simulatedRelayerAddress;
     const state = await getStatePda(this.spokePoolAddress.toV2Address());
     const _relayDataHash = getRelayDataHash(deposit, destinationChainId);
     const relayDataHash = new Uint8Array(Buffer.from(_relayDataHash.slice(2), "hex"));
