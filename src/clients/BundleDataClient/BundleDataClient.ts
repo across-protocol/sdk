@@ -1418,7 +1418,7 @@ export class BundleDataClient {
       }
       const deposit = deposits[index];
       const { destinationChainId } = deposit;
-      // @TODO The function getBlockRangeForChain can throw an error if chainId is wrong. 
+      // @TODO The function getBlockRangeForChain can throw an error if chainId is wrong.
       // Look at getBlockRangeForChain implementation.
       const destinationBlockRange = getBlockRangeForChain(blockRangesForChains, destinationChainId, chainIds);
 
