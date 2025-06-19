@@ -224,12 +224,15 @@ export class Address {
 
 // Subclass of address which strictly deals with 20-byte addresses. These addresses are guaranteed to be valid EVM addresses, so `toAddress` will always succeed.
 export class EvmAddress extends Address {
+  static validate(rawAddress: Uint8Array): boolean {
+    return rawAddress.length == 20 || rawAddress.length === 32 && rawAddress.slice(0,12).some((field) => field !== 0);
+  }
+
   // On construction, validate that the address can indeed be coerced into an EVM address. Throw immediately if it cannot.
   constructor(rawAddress: Uint8Array) {
     super(rawAddress);
-    const hexString = utils.hexlify(rawAddress);
-    if (!this.isValidEvmAddress()) {
-      throw new Error(`${hexString} is not a valid EVM address`);
+    if (!EvmAddress.validate(rawAddress)) {
+      throw new Error(`${utils.hexlify(rawAddress)} is not a valid EVM address`);
     }
   }
 
