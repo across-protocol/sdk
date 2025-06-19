@@ -813,6 +813,7 @@ export class BundleDataClient {
     // Infer chain ID's to load from number of block ranges passed in.
     const allChainIds = blockRangesForChains
       .map((_blockRange, index) => chainIds[index])
+      // Because of this check, there is a good chance that _getFillStatusForDeposit will not throw an error.
       .filter((chainId) => !_isChainDisabled(chainId) && spokePoolClients[chainId] !== undefined);
     allChainIds.forEach((chainId) => {
       const spokePoolClient = spokePoolClients[chainId];
