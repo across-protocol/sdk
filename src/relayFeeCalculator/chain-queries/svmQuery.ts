@@ -171,7 +171,7 @@ export class SvmQuery implements QueryInterface {
 
     const relayData: SvmSpokeClient.FillRelayInput["relayData"] = {
       depositor: toSvmAddress(depositor, originChainId),
-      recipient: toSvmAddress(recipient, originChainId),
+      recipient: toSvmAddress(recipient, destinationChainId),
       exclusiveRelayer: toSvmAddress(exclusiveRelayer, destinationChainId),
       inputToken: toSvmAddress(inputToken, originChainId),
       outputToken: mint.toV2Address(),
