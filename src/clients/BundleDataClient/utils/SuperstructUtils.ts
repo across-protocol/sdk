@@ -15,7 +15,7 @@ import {
   type,
 } from "superstruct";
 import { UNDEFINED_MESSAGE_HASH } from "../../../constants";
-import { BigNumber, toAddressType, Address } from "../../../utils";
+import { BigNumber, toAddressType, EvmAddress, SvmAddress, RawAddress } from "../../../utils";
 
 const PositiveIntegerStringSS = pattern(string(), /\d+/);
 const Web3AddressSS = pattern(string(), /^0x[a-fA-F0-9]{40}$/);
@@ -31,9 +31,23 @@ const BigNumberType = coerce(instance(BigNumber), union([string(), number()]), (
   }
 });
 
-const AddressType = coerce(instance(Address), string(), (value) => {
-  return toAddressType(value);
-});
+// Superstruct's `instance()` helper expects a value with a *public* constructor signature, which conflicts with
+// the `protected` constructors used in our `Address` subclasses.  We can safely bypass the type-checker here
+// because the runtime behavior we need—`instanceof` checks—doesn't depend on the constructor visibility.
+// We cast each class to a generic `new (...args: any) => any` so TypeScript is satisfied while preserving
+// accurate runtime validation.
+
+type Newable<T = any> = new (...args: any[]) => T;
+
+const AddressType = coerce(
+  union([
+    instance(EvmAddress as unknown as Newable),
+    instance(SvmAddress as unknown as Newable),
+    instance(RawAddress as unknown as Newable),
+  ]),
+  string(),
+  (value: string) => toAddressType(value)
+) as any;
 
 const FillTypeSS = number();
 

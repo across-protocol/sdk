@@ -169,8 +169,18 @@ export function _buildPoolRebalanceRoot(
           mainnetBundleEndBlock
         );
 
-        updateRunningBalance(runningBalances, repaymentChainId, l1TokenCounterpart.toEvmAddress(), totalRefundAmount);
-        updateRunningBalance(realizedLpFees, repaymentChainId, l1TokenCounterpart.toEvmAddress(), totalRealizedLpFee);
+        updateRunningBalance(
+          runningBalances,
+          repaymentChainId,
+          l1TokenCounterpart.formatAsChecksummedEvmAddress(),
+          totalRefundAmount
+        );
+        updateRunningBalance(
+          realizedLpFees,
+          repaymentChainId,
+          l1TokenCounterpart.formatAsChecksummedEvmAddress(),
+          totalRealizedLpFee
+        );
       }
     );
   });
@@ -195,7 +205,7 @@ export function _buildPoolRebalanceRoot(
         updateRunningBalance(
           runningBalances,
           destinationChainId,
-          l1TokenCounterpart.toEvmAddress(),
+          l1TokenCounterpart.formatAsChecksummedEvmAddress(),
           deposit.inputAmount.sub(lpFee)
         );
         // Slow fill LP fees are accounted for when the slow fill executes and a V3FilledRelay is emitted. i.e. when
@@ -224,7 +234,7 @@ export function _buildPoolRebalanceRoot(
         updateRunningBalance(
           runningBalances,
           destinationChainId,
-          l1TokenCounterpart.toEvmAddress(),
+          l1TokenCounterpart.formatAsChecksummedEvmAddress(),
           lpFee.sub(deposit.inputAmount)
         );
         // Slow fills don't add to lpFees, only when the slow fill is executed and a V3FilledRelay is emitted, so
@@ -290,7 +300,12 @@ export function _buildPoolRebalanceRoot(
           originChainId,
           mainnetBundleEndBlock
         );
-        updateRunningBalance(runningBalances, originChainId, l1TokenCounterpart.toEvmAddress(), deposit.inputAmount);
+        updateRunningBalance(
+          runningBalances,
+          originChainId,
+          l1TokenCounterpart.formatAsChecksummedEvmAddress(),
+          deposit.inputAmount
+        );
       });
     });
   });

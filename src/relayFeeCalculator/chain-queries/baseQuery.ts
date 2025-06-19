@@ -126,7 +126,18 @@ export class QueryBase implements QueryInterface {
     deposit: Omit<Deposit, "messageHash">,
     relayer = toAddressType(getDefaultSimulatedRelayerAddress(deposit.destinationChainId), deposit.destinationChainId)
   ): Promise<PopulatedTransaction> {
-    return populateV3Relay(this.spokePool, deposit, relayer);
+    // TODO? We should confirm that these deposit fields were verified on ingestion, otherwise we will throw on casts here
+    // TODO? If anything, this `getUnsignedTxFromDeposit` function should already accept deposit & { ...fields: EvmAddress }-type argument
+    return populateV3Relay(
+      this.spokePool,
+      {
+        ...deposit,
+        recipient: deposit.recipient.__unsafeStaticCastToEvmAddress(),
+        outputToken: deposit.outputToken.__unsafeStaticCastToEvmAddress(),
+        exclusiveRelayer: deposit.exclusiveRelayer.__unsafeStaticCastToEvmAddress(),
+      },
+      relayer
+    );
   }
 
   /**
@@ -140,7 +151,14 @@ export class QueryBase implements QueryInterface {
     relayer = toAddressType(getDefaultSimulatedRelayerAddress(deposit.destinationChainId), deposit.destinationChainId)
   ): Promise<BigNumber> {
     const unsignedTx = await this.getUnsignedTxFromDeposit(deposit, relayer);
-    const voidSigner = new VoidSigner(relayer.toEvmAddress(), this.provider);
+    assert(
+      Address.isEvmAddress(relayer),
+      `getNativeGasCost can only be called with evm relayer address. Provided: ${relayer.formatAsNativeAddress()}`
+    );
+    const voidSigner = new VoidSigner(
+      relayer.__unsafeStaticCastToEvmAddress().formatAsChecksummedEvmAddress(),
+      this.provider
+    );
     return voidSigner.estimateGas(unsignedTx);
   }
 
@@ -163,7 +181,14 @@ export class QueryBase implements QueryInterface {
     const { opStackL2GasUnits, opStackL1DataFeeMultiplier = toBNWei("1") } = options || {};
     const { chainId } = await this.provider.getNetwork();
     assert(isOptimismL2Provider(this.provider), `Unexpected provider for chain ID ${chainId}.`);
-    const voidSigner = new VoidSigner(relayer.toEvmAddress(), this.provider);
+    assert(
+      Address.isEvmAddress(relayer),
+      `getOpStackL1DataFee can only be called with evm relayer address. Provided: ${relayer.formatAsNativeAddress()}`
+    );
+    const voidSigner = new VoidSigner(
+      relayer.__unsafeStaticCastToEvmAddress().formatAsChecksummedEvmAddress(),
+      this.provider
+    );
     const populatedTransaction = await voidSigner.populateTransaction({
       ...unsignedTx,
       gasLimit: opStackL2GasUnits, // prevents additional gas estimation call
@@ -206,7 +231,14 @@ export class QueryBase implements QueryInterface {
     } = options || {};
 
     const { chainId } = await provider.getNetwork();
-    const voidSigner = new VoidSigner(senderAddress.toEvmAddress(), provider);
+    assert(
+      Address.isEvmAddress(senderAddress),
+      `getOpStackL1DataFee can only be called with evm senderAddress address. Provided: ${senderAddress.formatAsNativeAddress()}`
+    );
+    const voidSigner = new VoidSigner(
+      senderAddress.__unsafeStaticCastToEvmAddress().formatAsChecksummedEvmAddress(),
+      provider
+    );
 
     // Estimate the Gas units required to submit this transaction.
     const queries = [

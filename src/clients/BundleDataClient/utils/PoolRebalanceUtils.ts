@@ -172,7 +172,12 @@ export function updateRunningBalanceForDeposit(
     deposit.originChainId,
     mainnetBundleEndBlock
   );
-  updateRunningBalance(runningBalances, deposit.originChainId, l1TokenCounterpart.toEvmAddress(), updateAmount);
+  updateRunningBalance(
+    runningBalances,
+    deposit.originChainId,
+    l1TokenCounterpart.formatAsChecksummedEvmAddress(),
+    updateAmount
+  );
 }
 
 export function constructPoolRebalanceLeaves(
