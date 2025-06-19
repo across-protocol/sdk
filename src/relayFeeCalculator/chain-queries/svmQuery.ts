@@ -7,6 +7,7 @@ import { getComputeUnitEstimateForTransactionMessageFactory } from "@solana/kit"
 import {
   SVMProvider,
   SolanaVoidSigner,
+  bigToU8a32,
   createFillInstruction,
   getAssociatedTokenAddress,
   getEventAuthority,
@@ -196,7 +197,7 @@ export class SvmQuery implements QueryInterface {
       exclusiveRelayer: toAddress(exclusiveRelayer),
       inputToken: toAddress(inputToken),
       outputToken: mint,
-      inputAmount: relayData.inputAmount.toBigInt(),
+      inputAmount: bigToU8a32(relayData.inputAmount.toBigInt()),
       outputAmount: relayData.outputAmount.toBigInt(),
       originChainId: relayData.originChainId,
       depositId: new Uint8Array(intToU8Array32(relayData.depositId.toNumber())),

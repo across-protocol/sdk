@@ -17,6 +17,7 @@ import {
   SVMEventNames,
   SVMProvider,
   getRandomSvmAddress,
+  bigToU8a32,
 } from "../../arch/svm";
 import { bnZero, bnOne, bs58, getCurrentTime, randomAddress, EvmAddress, SvmAddress } from "../../utils";
 import { FillType } from "../../interfaces";
@@ -82,7 +83,7 @@ export class MockSvmCpiEventsClient extends SvmCpiEventsClient {
     const inputToken = deposit.inputToken ?? getRandomSvmAddress();
     const outputToken = deposit.outputToken ?? SvmAddress.from(randomBytes(32), "base16").toBase58();
     inputAmount ??= BigInt(random(1, 1000, false));
-    outputAmount ??= (inputAmount * BigInt(95)) / BigInt(100);
+    outputAmount ??= bigToU8a32((inputAmount * BigInt(95)) / BigInt(100));
     const message = deposit.message ?? new Uint8Array(32);
     const quoteTimestamp = deposit.quoteTimestamp ?? getCurrentTime();
 
@@ -114,8 +115,9 @@ export class MockSvmCpiEventsClient extends SvmCpiEventsClient {
     const { slot } = fill;
     let { depositId, inputAmount, outputAmount, fillDeadline } = fill;
     depositId ??= arrayify(hexZeroPad(hexlify(random(1, 100_000, false)), 32));
-    inputAmount ??= BigInt(random(1, 1000, false));
-    outputAmount ??= (inputAmount * BigInt(95)) / BigInt(100);
+    const inputAmountBigInt = BigInt(random(1, 1000, false));
+    inputAmount ??= bigToU8a32(inputAmountBigInt);
+    outputAmount ??= (inputAmountBigInt * BigInt(95)) / BigInt(100);
     fillDeadline ??= getCurrentTime() + 60;
 
     const depositor = fill.depositor ?? EvmAddress.from(randomAddress()).toBase58();

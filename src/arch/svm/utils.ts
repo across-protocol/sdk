@@ -19,6 +19,7 @@ import { SvmSpokeClient } from "@across-protocol/contracts";
 import { FillType, RelayData } from "../../interfaces";
 import { BigNumber, getRelayDataHash, isUint8Array, Address as SdkAddress } from "../../utils";
 import { EventName, SVMEventNames, SVMProvider } from "./types";
+import { intToU8Array32 } from "@across-protocol/contracts/dist/src/svm/web3-v1";
 
 /**
  * Basic void TransactionSigner type
@@ -310,4 +311,22 @@ export const createDefaultTransaction = async (rpcClient: SVMProvider, signer: T
     (tx) => setTransactionMessageFeePayerSigner(signer, tx),
     (tx) => setTransactionMessageLifetimeUsingBlockhash(latestBlockhash, tx)
   );
+};
+
+/**
+ * Converts a BigNumber or bigint to a Uint8Array of 32 bytes.
+ * @param bn - The BigNumber or bigint to convert.
+ * @returns The Uint8Array of 32 bytes.
+ */
+export const bigToU8a32 = (bn: BigNumber | bigint) => {
+  return new Uint8Array(intToU8Array32(Number(bn)));
+};
+
+/**
+ * Converts a number to a Uint8Array of 32 bytes.
+ * @param n - The number to convert.
+ * @returns The Uint8Array of 32 bytes.
+ */
+export const numberToU8a32 = (n: number) => {
+  return new Uint8Array(intToU8Array32(n));
 };
