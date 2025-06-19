@@ -20,12 +20,26 @@ describe("Address Utils: Address Type", function () {
       expect(ethers.utils.isHexString(svmToken.toAddress())).to.be.false;
     });
     it("Coerces addresses to their proper type when possible", function () {
-      const evmAddress = toAddressType(randomBytes(20), CHAIN_IDs.MAINNET);
+      let evmAddress = toAddressType(randomBytes(20), CHAIN_IDs.MAINNET);
       expect(EvmAddress.isAddress(evmAddress)).to.be.true;
 
-      const invalidEvmAddress = toAddressType(randomBytes(32), CHAIN_IDs.MAINNET);
-      expect(EvmAddress.isAddress(invalidEvmAddress)).to.be.false;
-      expect(Address.isAddress(invalidEvmAddress)).to.be.true;
+      // Should also accept 32-byte zero-padded addresses.
+      evmAddress = toAddressType("0x000000000000000000000000" + randomBytes(20).slice(2), CHAIN_IDs.MAINNET);
+      expect(EvmAddress.isAddress(evmAddress)).to.be.true;
+
+      const invalidEvmAddress = ethers.utils.arrayify(randomBytes(32));
+      invalidEvmAddress[0] = 1;
+      expect(EvmAddress.validate(invalidEvmAddress)).to.be.false;
+      expect(toAddressType(invalidEvmAddress, CHAIN_IDs.MAINNET)).to.throw;
+    });
+    it("Rejects invalid SVM address lengths", function () {
+      [20, 31, 33].forEach((len) => {
+        const rawAddress = ethers.utils.arrayify(randomBytes(len));
+        expect(() => new SvmAddress(rawAddress)).to.throw;
+      });
+
+      const rawAddress = ethers.utils.arrayify(randomBytes(32));
+      expect(new SvmAddress(rawAddress)).to.not.throw;
     });
     it("Handles base58-encoded EVM addresses", function () {
       const rawAddress = ethers.utils.arrayify(randomBytes(20));
