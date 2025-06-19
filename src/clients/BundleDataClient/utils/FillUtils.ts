@@ -127,7 +127,7 @@ export async function verifyFillRepayment(
         }
       }
       fill.relayer = toAddressType(destinationRelayer, fill.destinationChainId);
-      assert(fill.relayer.isValidEvmAddress(), `Cannot re-assign fill to msg.sender: ${destinationRelayer}`);
+      assert(Address.isEvmAddress(fill.relayer), `Cannot re-assign fill to msg.sender: ${destinationRelayer}`);
     } else {
       return undefined;
     }
@@ -202,5 +202,5 @@ function _repaymentAddressNeedsToBeOverwritten(fill: Fill): boolean {
   // - i.e. If chainIsSvm && !isValidSvmAddress(fill.relayer) then return false
   //        If chainIsEvm && !isValidEvmAddress(fill.relayer) then return false
   //        If chainIsEvm && isValidEvmAddress(fill.relayer) then return true
-  return chainIsEvm(fill.repaymentChainId) && !fill.relayer.isValidEvmAddress();
+  return chainIsEvm(fill.repaymentChainId) && !Address.isEvmAddress(fill.relayer);
 }

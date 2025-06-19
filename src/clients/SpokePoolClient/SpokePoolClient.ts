@@ -252,7 +252,8 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
 
     // Note: we know depositor cannot be more than 20 bytes since this is guaranteed by contracts.
     // Additionally, speed ups can only be done on EVM networks.
-    const speedups = this.speedUps[depositor.formatAsChecksummedEvmAddress()]?.[depositId.toString()];
+    const speedups =
+      this.speedUps[depositor.__unsafeStaticCastToEvmAddress().formatAsChecksummedEvmAddress()]?.[depositId.toString()];
 
     if (!isDefined(speedups) || speedups.length === 0) {
       return deposit;
@@ -386,7 +387,7 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
             this.hubPoolClient &&
             !isSlowFill(fill) &&
             chainIsEvm(repaymentChainId) &&
-            !fill.relayer.isValidEvmAddress()
+            !Address.isEvmAddress(fill.relayer)
           ) {
             groupedFills.unrepayableFills.push(fill);
           }
@@ -409,7 +410,9 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
         chainId: this.chainId,
         message: "Unrepayable fills found where we need to switch repayment address and or chain",
         deposit,
-        unrepayableFills: Object.fromEntries(unrepayableFillsForDeposit.map((x) => [x.relayer.toAddress(), x])),
+        unrepayableFills: Object.fromEntries(
+          unrepayableFillsForDeposit.map((x) => [x.relayer.formatAsNativeAddress(), x])
+        ),
         notificationPath: "across-unrepayable-fills",
       });
     }
@@ -502,6 +505,9 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
           outputToken: string;
           exclusiveRelayer: string;
         };
+
+        // TODO! Here, if any of the Address type come back as `RawAddress`, we need to send them to a refund pipeline
+
         return {
           ...event,
           depositor: toAddressType(event.depositor, this.chainId),
@@ -526,6 +532,8 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
       const quoteBlockNumbers = await this.getBlockNumbers(depositEvents.map((e) => e.quoteTimestamp));
       for (const event of depositEvents) {
         const quoteBlockNumber = quoteBlockNumbers[Number(event.quoteTimestamp)];
+
+        // ! TODO IHOR XXXXXXX HERE
 
         // Derive and append the common properties that are not part of the onchain event.
         const deposit = {

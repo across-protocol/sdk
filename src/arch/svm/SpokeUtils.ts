@@ -398,7 +398,7 @@ export async function fillRelayInstruction(
 
   assert(
     repaymentAddress.isValidOn(repaymentChainId),
-    `Invalid repayment address for chain ${repaymentChainId}: ${repaymentAddress.toAddress()}.`
+    `Invalid repayment address for chain ${repaymentChainId}: ${repaymentAddress.formatAsNativeAddress()}.`
   );
 
   const _relayDataHash = getRelayDataHash(deposit, deposit.destinationChainId);

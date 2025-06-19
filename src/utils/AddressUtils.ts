@@ -187,6 +187,11 @@ export abstract class Address {
     return utils.stripZeros(this.rawAddress).length === 0;
   }
 
+  // Small utility to convert an Address to a Solana Kit branded type.
+  toV2Address(): V2Address<string> {
+    return this.toBase58() as V2Address<string>;
+  }
+
   // Functions below should only be used after `isEvmAddress` / `isSvmAddress` checks are performed. They throw if underlying type is incorrect
   abstract __unsafeStaticCastToSvmAddress(): SvmAddress;
   abstract __unsafeStaticCastToEvmAddress(): EvmAddress;
@@ -306,11 +311,6 @@ export class SvmAddress extends Address {
 
   override __unsafeStaticCastToEvmAddress(): EvmAddress {
     throw new Error("Cannot cast `SvmAddress` to `EvmAddress`.");
-  }
-
-  // Small utility to convert an Address to a Solana Kit branded type.
-  toV2Address(): V2Address<string> {
-    return this.toBase58() as V2Address<string>;
   }
 
   // Constructs a new SvmAddress type.

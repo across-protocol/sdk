@@ -79,7 +79,7 @@ describe("SpokePoolClient: SpeedUp", function () {
       depositEvent.depositId,
       originChainId,
       updatedOutputAmount,
-      toBytes32(updatedRecipient.toAddress()),
+      toBytes32(updatedRecipient.formatAsNativeAddress()),
       updatedMessage
     );
 
@@ -89,7 +89,7 @@ describe("SpokePoolClient: SpeedUp", function () {
         toBytes32(depositor.address),
         depositEvent.depositId,
         updatedOutputAmount,
-        toBytes32(updatedRecipient.toAddress()),
+        toBytes32(updatedRecipient.formatAsNativeAddress()),
         updatedMessage,
         signature
       );
@@ -155,7 +155,7 @@ describe("SpokePoolClient: SpeedUp", function () {
         depositId,
         originChainId,
         updatedOutputAmount,
-        toBytes32(updatedRecipient.toAddress()),
+        toBytes32(updatedRecipient.formatAsNativeAddress()),
         updatedMessage
       );
 
@@ -165,7 +165,7 @@ describe("SpokePoolClient: SpeedUp", function () {
           toBytes32(depositor.address),
           depositId,
           updatedOutputAmount,
-          toBytes32(updatedRecipient.toAddress()),
+          toBytes32(updatedRecipient.formatAsNativeAddress()),
           updatedMessage,
           depositorSignature
         );

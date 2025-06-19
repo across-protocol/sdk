@@ -470,8 +470,8 @@ describe("SpokePoolClient: Fill Validation", function () {
       throw new Error("fill_2 is undefined");
     }
 
-    expect(fill_1.relayExecutionInfo.updatedRecipient.toAddress() === depositor.address).to.be.true;
-    expect(fill_2.relayExecutionInfo.updatedRecipient.toAddress() === relayer.address).to.be.true;
+    expect(fill_1.relayExecutionInfo.updatedRecipient.formatAsNativeAddress() === depositor.address).to.be.true;
+    expect(fill_2.relayExecutionInfo.updatedRecipient.formatAsNativeAddress() === relayer.address).to.be.true;
     expect(fill_2.relayExecutionInfo.updatedMessageHash === ethers.utils.keccak256("0x12")).to.be.true;
     expect(fill_1.relayExecutionInfo.updatedMessageHash === ZERO_BYTES).to.be.true;
     expect(fill_1.relayExecutionInfo.updatedOutputAmount.eq(fill_2.relayExecutionInfo.updatedOutputAmount)).to.be.false;

@@ -114,7 +114,7 @@ export function isStablecoin(tokenSymbol: string): boolean {
 export function getTokenInfo(l2TokenAddress: string, chainId: number, tokenMapping = TOKEN_SYMBOLS_MAP): TokenInfo {
   const parsedAddress = chainIsSvm(chainId)
     ? toAddressType(l2TokenAddress).toBase58()
-    : toAddressType(l2TokenAddress).formatAsChecksummedEvmAddress();
+    : toAddressType(l2TokenAddress).__unsafeStaticCastToEvmAddress().formatAsChecksummedEvmAddress();
   // @dev This might give false positives if tokens on different networks have the same address. I'm not sure how
   // to get around this...
   let tokenObject = Object.values(tokenMapping).find(({ addresses }) => addresses[chainId] === parsedAddress);

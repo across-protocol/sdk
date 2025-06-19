@@ -983,7 +983,7 @@ export class HubPoolClient extends BaseAbstractClient {
 
         // If the destination token is set to the zero address in an event, then this means Across should no longer
         // rebalance to this chain.
-        if (destinationToken.toAddress() !== ZERO_ADDRESS) {
+        if (destinationToken.formatAsNativeAddress() !== ZERO_ADDRESS) {
           assign(this.l1TokensToDestinationTokens, [args.l1Token, args.destinationChainId], destinationToken);
           assign(
             this.l1TokensToDestinationTokensWithBlock,
@@ -1014,7 +1014,7 @@ export class HubPoolClient extends BaseAbstractClient {
       const [tokenInfo, lpTokenInfo] = await Promise.all([
         Promise.all(
           uniqueL1Tokens.map(async (l1Token: string) => {
-            const tokenInfo: L1TokenInfo = await fetchTokenInfo(l1Token, this.hubPool.provider);
+            const tokenInfo = await fetchTokenInfo(l1Token, this.hubPool.provider);
             return {
               ...tokenInfo,
               address: EvmAddress.from(l1Token),
@@ -1053,7 +1053,7 @@ export class HubPoolClient extends BaseAbstractClient {
             const args = spreadEventWithBlockNumber(_event) as ProposedRootBundle & { proposer: string };
             return {
               ...args,
-              proposer: toAddressType(args.proposer, this.chainId),
+              proposer: toAddressType(args.proposer, this.chainId).__unsafeStaticCastToEvmAddress(),
             };
           })
       );
@@ -1092,7 +1092,9 @@ export class HubPoolClient extends BaseAbstractClient {
         executedRootBundle.runningBalances = runningBalances.slice(0, nTokens);
         const executedRootBundleWithL1Tokens = {
           ...executedRootBundle,
-          l1Tokens: executedRootBundle.l1Tokens.map(toAddressType, this.chainId),
+          l1Tokens: executedRootBundle.l1Tokens.map(toAddressType, this.chainId).map((addressObject) => {
+            return addressObject.__unsafeStaticCastToEvmAddress();
+          }),
         };
         this.executedRootBundles.push(executedRootBundleWithL1Tokens);
       }

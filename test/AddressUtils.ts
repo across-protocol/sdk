@@ -11,13 +11,13 @@ describe("Address Utils: Address Type", function () {
       const evmToken = EvmAddress.from(randomBytes(20));
       expect(Address.isAddress(evmToken)).to.be.true;
       expect(evmToken.isValidEvmAddress()).to.be.true;
-      expect(ethers.utils.isAddress(evmToken.toAddress())).to.be.true;
-      expect(ethers.utils.hexDataLength(evmToken.toAddress()) === 20).to.be.true;
+      expect(ethers.utils.isAddress(evmToken.formatAsNativeAddress())).to.be.true;
+      expect(ethers.utils.hexDataLength(evmToken.formatAsNativeAddress()) === 20).to.be.true;
 
       const svmToken = generateSvmAddress();
       expect(Address.isAddress(svmToken)).to.be.true;
       expect(SvmAddress.isAddress(svmToken)).to.be.true;
-      expect(ethers.utils.isHexString(svmToken.toAddress())).to.be.false;
+      expect(ethers.utils.isHexString(svmToken.formatAsNativeAddress())).to.be.false;
     });
     it("Coerces addresses to their proper type when possible", function () {
       const evmAddress = toAddressType(randomBytes(20), CHAIN_IDs.MAINNET);
@@ -34,7 +34,7 @@ describe("Address Utils: Address Type", function () {
       let padding = new Uint8Array(12);
       let b58Address = bs58.encode([...padding, ...rawAddress]).toString();
       const address = EvmAddress.from(b58Address, "base58");
-      expect(address.toAddress()).to.equal(ethers.utils.getAddress(ethers.utils.hexlify(rawAddress)));
+      expect(address.formatAsNativeAddress()).to.equal(ethers.utils.getAddress(ethers.utils.hexlify(rawAddress)));
 
       // Wrong encoding
       expect(() => EvmAddress.from(b58Address, "base16")).to.throw(Error, /invalid arrayify value/);
@@ -58,7 +58,7 @@ describe("Address Utils: Address Type", function () {
 
       // Valid address
       const address = SvmAddress.from(rawAddress, "base16");
-      expect(address.toAddress()).to.equal(expectedAddress);
+      expect(address.formatAsNativeAddress()).to.equal(expectedAddress);
 
       // Wrong encoding
       expect(() => SvmAddress.from(rawAddress, "base58")).to.throw(Error, /Non-base58 character/);
