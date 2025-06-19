@@ -4,7 +4,7 @@ import * as constants from "../constants";
 import { L1Token } from "../interfaces";
 import { ERC20__factory } from "../typechain";
 import { BigNumber } from "./BigNumberUtils";
-import { getNetworkName, chainIsL1, chainIsProd, chainIsSvm } from "./NetworkUtils";
+import { getNetworkName, chainIsL1, chainIsProd } from "./NetworkUtils";
 import { isDefined } from "./TypeGuards";
 import { compareAddressesSimple, toAddressType } from "./AddressUtils";
 const { TOKEN_SYMBOLS_MAP, CHAIN_IDs, TOKEN_EQUIVALENCE_REMAPPING } = constants;
