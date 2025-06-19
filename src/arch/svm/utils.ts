@@ -19,7 +19,6 @@ import { SvmSpokeClient } from "@across-protocol/contracts";
 import { FillType, RelayData } from "../../interfaces";
 import { BigNumber, getRelayDataHash, isUint8Array, Address as SdkAddress } from "../../utils";
 import { EventName, SVMEventNames, SVMProvider } from "./types";
-import { intToU8Array32 } from "@across-protocol/contracts/dist/src/svm/web3-v1";
 
 /**
  * Basic void TransactionSigner type
@@ -314,19 +313,17 @@ export const createDefaultTransaction = async (rpcClient: SVMProvider, signer: T
 };
 
 /**
- * Converts a BigNumber or bigint to a Uint8Array of 32 bytes.
- * @param bn - The BigNumber or bigint to convert.
- * @returns The Uint8Array of 32 bytes.
+ * Convert a bigint (0 ≤ n < 2^256) to a 32-byte Uint8Array (big-endian).
  */
-export const bigToU8a32 = (bn: BigNumber | bigint) => {
-  return new Uint8Array(intToU8Array32(Number(bn)));
-};
+export function bigintToU8a32(n: bigint): Uint8Array {
+  if (n < BigInt(0) || n > ethers.constants.MaxUint256.toBigInt()) {
+    throw new RangeError("Value must fit in 256 bits");
+  }
+  const hexPadded = ethers.utils.hexZeroPad("0x" + n.toString(16), 32);
+  return ethers.utils.arrayify(hexPadded);
+}
 
-/**
- * Converts a number to a Uint8Array of 32 bytes.
- * @param n - The number to convert.
- * @returns The Uint8Array of 32 bytes.
- */
-export const numberToU8a32 = (n: number) => {
-  return new Uint8Array(intToU8Array32(n));
-};
+export const bigToU8a32 = (bn: bigint | BigNumber) =>
+  bigintToU8a32(typeof bn === "bigint" ? bn : BigInt(bn.toString()));
+
+export const numberToU8a32 = (n: number) => bigintToU8a32(BigInt(n));
