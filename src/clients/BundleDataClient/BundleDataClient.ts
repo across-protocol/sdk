@@ -436,7 +436,6 @@ export class BundleDataClient {
       // will live with this expected inaccuracy as it should be small. The pre-fill would have to precede the deposit
       // by more than the caller's event lookback window which is expected to be unlikely.
 
-      // @TODO This can throw an runtime error if chainId is wrong.
       const fillsToCount = this.spokePoolClients[chainId].getFills().filter((fill) => {
         if (
           fill.blockNumber < blockRanges[chainIndex][0] ||

@@ -218,7 +218,7 @@ export class HubPoolClient extends BaseAbstractClient {
       .filter((l1Token) => this.l2TokenEnabledForL1Token(l1Token, destinationChainId))
       .map((l1Token) => {
         // Return all matching L2 token mappings that are equal to or earlier than the target block.
-        // @TODO This can throw an runtime error if chainId is wrong.
+        
         return this.l1TokensToDestinationTokensWithBlock[l1Token][destinationChainId].filter(
           (mapping) => mapping.l2Token === l2Token && mapping.blockNumber <= latestHubBlock
         );
@@ -1116,7 +1116,7 @@ export class HubPoolClient extends BaseAbstractClient {
     if (chainIdIndex >= bundleEvaluationBlockNumbers.length) {
       return 0;
     }
-    // @TODO This can throw an runtime error if chainId is wrong.
+  
     return bundleEvaluationBlockNumbers[chainIdIndex].toNumber();
   }
 }
