@@ -533,8 +533,6 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
       for (const event of depositEvents) {
         const quoteBlockNumber = quoteBlockNumbers[Number(event.quoteTimestamp)];
 
-        // ! TODO IHOR XXXXXXX HERE
-
         // Derive and append the common properties that are not part of the onchain event.
         const deposit = {
           ...event,
