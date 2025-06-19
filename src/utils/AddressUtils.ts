@@ -224,16 +224,19 @@ export class Address {
 
 // Subclass of address which strictly deals with 20-byte addresses. These addresses are guaranteed to be valid EVM addresses, so `toAddress` will always succeed.
 export class EvmAddress extends Address {
-  static validate(rawAddress: Uint8Array): boolean {
-    return rawAddress.length == 20 || rawAddress.length === 32 && rawAddress.slice(0,12).some((field) => field !== 0);
-  }
-
   // On construction, validate that the address can indeed be coerced into an EVM address. Throw immediately if it cannot.
   constructor(rawAddress: Uint8Array) {
-    super(rawAddress);
     if (!EvmAddress.validate(rawAddress)) {
       throw new Error(`${utils.hexlify(rawAddress)} is not a valid EVM address`);
     }
+
+    super(rawAddress);
+  }
+
+  static validate(rawAddress: Uint8Array): boolean {
+    return (
+      rawAddress.length == 20 || (rawAddress.length === 32 && rawAddress.slice(0, 12).some((field) => field !== 0))
+    );
   }
 
   // Override `toAddress` to return the 20-byte representation address.
@@ -263,7 +266,15 @@ export class EvmAddress extends Address {
 export class SvmAddress extends Address {
   // On construction, validate that the address is a point on Curve25519. Throw immediately if it is not.
   constructor(rawAddress: Uint8Array) {
+    if (!SvmAddress.validate(rawAddress)) {
+      throw new Error(`${utils.hexlify(rawAddress)} is not a valid SVM address`); // @todo: Display as Base58?
+    }
+
     super(rawAddress);
+  }
+
+  static validate(rawAddress: Uint8Array): boolean {
+    return rawAddress.length === 32;
   }
 
   // Override the toAddress function for SVM addresses only since while they will never have a defined 20-byte representation. The base58 encoded addresses are also the encodings
