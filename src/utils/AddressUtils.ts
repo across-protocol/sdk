@@ -80,7 +80,7 @@ export function isValidEvmAddress(address: string): boolean {
  * @returns a child `Address` type most fitting for the chain ID.
  * @todo: Change this to `toAddress` once we remove the other `toAddress` function.
  */
-export function toAddressType(address: string, chainId?: number): Address | EvmAddress | SvmAddress {
+export function toAddressType(address: string, chainId: number): Address | EvmAddress | SvmAddress {
   const parseAddress = (address: string) => {
     try {
       if (utils.isHexString(address)) {
