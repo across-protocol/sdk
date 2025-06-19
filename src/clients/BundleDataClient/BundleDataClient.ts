@@ -67,7 +67,7 @@ type DataCache = Record<string, Promise<LoadDataReturnValue>>;
 // V3 dictionary helper functions
 function updateExpiredDepositsV3(dict: ExpiredDepositsToRefundV3, deposit: V3DepositWithBlock): void {
   // A deposit refund for a deposit is invalid if the depositor has a bytes32 address input for an EVM chain. It is valid otherwise.
-  if (chainIsEvm(deposit.originChainId) && !deposit.depositor.isValidEvmAddress()) {
+  if (chainIsEvm(deposit.originChainId) && !Address.isEvmAddress(deposit.depositor)) {
     return;
   }
   const { originChainId, inputToken } = deposit;
@@ -92,7 +92,7 @@ function updateBundleFillsV3(
   repaymentAddress: Address
 ): void {
   // We shouldn't pass any unrepayable fills into this function, so we perform an extra safety check.
-  if (chainIsEvm(repaymentChainId) && !fill.relayer.isValidEvmAddress()) {
+  if (chainIsEvm(repaymentChainId) && !Address.isEvmAddress(fill.relayer)) {
     return;
   }
   dict[repaymentChainId] ??= {};
@@ -143,7 +143,7 @@ function updateBundleExcessSlowFills(
 }
 
 function updateBundleSlowFills(dict: BundleSlowFills, deposit: V3DepositWithBlock & { lpFeePct: BigNumber }): void {
-  if (chainIsEvm(deposit.destinationChainId) && !deposit.recipient.isValidEvmAddress()) {
+  if (chainIsEvm(deposit.destinationChainId) && !Address.isEvmAddress(deposit.recipient)) {
     return;
   }
   const { destinationChainId, outputToken } = deposit;
@@ -348,14 +348,14 @@ export class BundleDataClient {
       message: `Loaded persisted data from Arweave in ${Math.round(performance.now() - start) / 1000}s.`,
       blockRanges: JSON.stringify(blockRangesForChains),
       bundleData: prettyPrintV3SpokePoolEvents(
-        bundleData.bundleDepositsV3,
-        bundleData.bundleFillsV3,
-        bundleData.bundleSlowFillsV3,
-        bundleData.expiredDepositsToRefundV3,
-        bundleData.unexecutableSlowFills
+        bundleData.bundleDepositsV3 as BundleDepositsV3,
+        bundleData.bundleFillsV3 as BundleFillsV3,
+        bundleData.bundleSlowFillsV3 as BundleSlowFills,
+        bundleData.expiredDepositsToRefundV3 as ExpiredDepositsToRefundV3,
+        bundleData.unexecutableSlowFills as BundleExcessSlowFills
       ),
     });
-    return bundleData;
+    return bundleData as LoadDataReturnValue;
   }
 
   // @dev This function should probably be moved to the InventoryClient since it bypasses loadData completely now.

@@ -17,7 +17,6 @@ import {
   fixedPointAdjustment,
   toAddressType,
   Address,
-  EvmAddress,
 } from "../../utils";
 import assert from "assert";
 import { Logger, QueryInterface, getDefaultSimulatedRelayerAddress } from "../relayFeeCalculator";

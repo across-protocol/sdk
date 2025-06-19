@@ -1,7 +1,7 @@
 import winston from "winston";
 import { Contract } from "ethers";
 import { BigNumber, randomAddress, assign, bnZero, toAddressType, EvmAddress, Address, isDefined } from "../../utils";
-import { TokenInfo, Log, PendingRootBundle, RealizedLpFee, L1TokenInfo } from "../../interfaces";
+import { Log, PendingRootBundle, RealizedLpFee, L1TokenInfo } from "../../interfaces";
 import { AcrossConfigStoreClient as ConfigStoreClient } from "../AcrossConfigStoreClient";
 import { HubPoolClient, HubPoolUpdate, LpFeeRequest } from "../HubPoolClient";
 import { EventManager, EventOverrides, getEventManager } from "./MockEvents";
@@ -83,7 +83,7 @@ export class MockHubPoolClient extends HubPoolClient {
     this.latestHeightSearched = blockNumber;
   }
 
-  addL1Token(l1Token: TokenInfo) {
+  addL1Token(l1Token: L1TokenInfo) {
     this.l1TokensMock.push(l1Token);
   }
 
@@ -132,7 +132,7 @@ export class MockHubPoolClient extends HubPoolClient {
     return l2Token ?? super.getL2TokenForL1TokenAtBlock(l1Token, chainId, blockNumber);
   }
 
-  getTokenInfoForL1Token(l1Token: EvmAddress): TokenInfo | undefined {
+  getTokenInfoForL1Token(l1Token: EvmAddress): L1TokenInfo | undefined {
     return this.l1TokensMock.find((token) => token.address.eq(l1Token));
   }
 
