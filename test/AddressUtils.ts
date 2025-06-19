@@ -30,7 +30,16 @@ describe("Address Utils: Address Type", function () {
       const invalidEvmAddress = ethers.utils.arrayify(randomBytes(32));
       invalidEvmAddress[0] = 1;
       expect(EvmAddress.validate(invalidEvmAddress)).to.be.false;
-      expect(toAddressType(invalidEvmAddress, CHAIN_IDs.MAINNET)).to.be.reverted;
+      expect(toAddressType(invalidEvmAddress, CHAIN_IDs.MAINNET)).to.throw;
+    });
+    it("Rejects invalid SVM address lengths", function () {
+      [20, 31, 33].forEach((len) => {
+        const rawAddress = ethers.utils.arrayify(randomBytes(len));
+        expect(() => new SvmAddress(rawAddress)).to.throw;
+      });
+
+      const rawAddress = ethers.utils.arrayify(randomBytes(32));
+      expect(new SvmAddress(rawAddress)).to.not.throw;
     });
     it("Handles base58-encoded EVM addresses", function () {
       const rawAddress = ethers.utils.arrayify(randomBytes(20));
