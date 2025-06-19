@@ -572,11 +572,10 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
         assign(this.speedUps, [speedUp.depositor, speedUp.depositId.toString()], [speedUp]);
 
         // Find deposit hash matching this speed up event and update the deposit data associated with the hash,
-        // if the hash+data exists.
+        // if the hash+data exists. nb. Relying on depositId alone can produce collisions on deterministic deposit IDs.
         const deposit = this.getDeposit(speedUp.depositId);
 
         // SpeedUp requests are only supported EVM -> EVM.
-        // nb. Relying on depositId alone check can collide;
         if (isDefined(deposit) && chainIsEvm(deposit.destinationChainId)) {
           // We can assume all deposits in this lookback window are loaded in-memory already so if the depositHash
           // is not mapped to a deposit, then we can throw away the speedup as it can't be applied to anything.
