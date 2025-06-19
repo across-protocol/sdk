@@ -1,5 +1,5 @@
 import { CHAIN_IDs } from "@across-protocol/constants";
-import { SvmSpokeClient } from "@across-protocol/contracts";
+import { SvmSpokeClient, MessageTransmitterClient } from "@across-protocol/contracts";
 import { RelayDataArgs } from "@across-protocol/contracts/dist/src/svm/clients/SvmSpoke";
 import { intToU8Array32 } from "@across-protocol/contracts/dist/src/svm/web3-v1";
 import { SYSTEM_PROGRAM_ADDRESS, getCreateAccountInstruction } from "@solana-program/system";
@@ -23,12 +23,15 @@ import {
   createSolanaRpc,
   createSolanaRpcSubscriptions,
   generateKeyPairSigner,
+  getProgramDerivedAddress,
   getSignatureFromTransaction,
+  getBase64EncodedWireTransaction,
   lamports,
   pipe,
   sendAndConfirmTransactionFactory,
   signTransactionMessageWithSigners,
 } from "@solana/kit";
+import { createSolanaClient } from "gill";
 import { arrayify, hexlify } from "ethers/lib/utils";
 import {
   RpcClient,
@@ -48,7 +51,16 @@ import {
   toAddress,
 } from "../../../src/arch/svm";
 import { RelayData } from "../../../src/interfaces";
-import { BigNumber, EvmAddress, SvmAddress, getRandomInt, getRelayDataHash, randomAddress } from "../../../src/utils";
+import {
+  BigNumber,
+  EvmAddress,
+  SvmAddress,
+  bs58,
+  getRandomInt,
+  getRelayDataHash,
+  randomAddress,
+} from "../../../src/utils";
+import { sendAndConfirmDurableNonceTransaction_INTERNAL_ONLY_DO_NOT_EXPORT } from "@solana/kit/dist/types/send-transaction-internal";
 
 /** RPC / Client */
 
@@ -404,6 +416,70 @@ export const sendCreateDeposit = async (
   const depositTx = await createDepositInstruction(signer, solanaClient.rpc, depositInput, mintDecimals);
   const signature = await signAndSendTransaction(solanaClient, depositTx);
   return { signature, depositInput };
+};
+
+// helper to receive a cctp message transmitter message
+export const sendReceiveCctpMessage = async (solanaClient: RpcClient, signer: KeyPairSigner) => {
+  const [authorityPda] = await getProgramDerivedAddress({
+    programAddress: MessageTransmitterClient.MESSAGE_TRANSMITTER_PROGRAM_ADDRESS,
+    seeds: [Buffer.from("delegate"), SvmAddress.from(SvmSpokeClient.SVM_SPOKE_PROGRAM_ADDRESS).toBuffer()],
+  });
+
+  const [messageTransmitterState] = await getProgramDerivedAddress({
+    programAddress: MessageTransmitterClient.MESSAGE_TRANSMITTER_PROGRAM_ADDRESS,
+    seeds: [Buffer.from("message_transmitter")],
+  });
+  // const statePda = await getStatePda(SvmSpokeClient.SVM_SPOKE_PROGRAM_ADDRESS);
+  // const state = await SvmSpokeClient.fetchState(solanaClient.rpc, statePda);
+  const nonce = 1;
+  const remoteDomain = 0; // Ethereum
+  const usedNoncesInstruction = await MessageTransmitterClient.getGetNoncePdaInstruction({
+    messageTransmitter: messageTransmitterState,
+    nonce: nonce,
+    sourceDomain: remoteDomain,
+  });
+
+  const usedNonces = await MessageTransmitterClient.fetchAllUsedNonces(solanaClient.rpc, [messageTransmitterState]);
+
+  const test = pipe(await createDefaultTransaction(solanaClient.rpc, signer), (tx) =>
+    appendTransactionMessageInstruction(usedNoncesInstruction, tx)
+  );
+
+  const result = await solanaClient.rpc
+    .simulateTransaction(getBase64EncodedWireTransaction(await signTransactionMessageWithSigners(test)), {
+      encoding: "base64",
+    })
+    .send();
+
+  console.log("Simulation Result:");
+  console.log("- Error:", result.value.err);
+  console.log("- Logs:", result.value.logs);
+  console.log("- Units consumed:", result.value.unitsConsumed);
+
+  // If there's return data from the instruction
+  if (result.value.returnData) {
+    console.log("- Return data program:", result.value.returnData.programId);
+    console.log("- Return data (base64):", result.value.returnData.data[0]);
+    // Decode the base64 data if needed
+    const returnDataBuffer = Buffer.from(result.value.returnData.data[0], "base64");
+    console.log("- Return data (hex):", returnDataBuffer.toString("hex"));
+    if (returnDataBuffer.length === 32) {
+      const pubkeyBase58 = bs58.encode(returnDataBuffer);
+      console.log("- Return data (base58 pubkey):", pubkeyBase58);
+    }
+  }
+  console.log(result);
+  const input: MessageTransmitterClient.ReceiveMessageInput = {
+    program: MessageTransmitterClient.MESSAGE_TRANSMITTER_PROGRAM_ADDRESS,
+    message: overrides.message ?? new Uint8Array(),
+    payer: signer,
+    caller: signer,
+    authorityPda,
+    messageTransmitter: MessageTransmitterClient.MESSAGE_TRANSMITTER_PROGRAM_ADDRESS,
+    usedNonces,
+    receiver: signer.address,
+    systemProgram: SYSTEM_PROGRAM_ADDRESS,
+  };
 };
 
 /** Relay Data Utils */
