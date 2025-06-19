@@ -15,7 +15,7 @@ import {
 } from "../../arch/svm";
 import { Coingecko } from "../../coingecko";
 import { CHAIN_IDs } from "../../constants";
-import { SvmGasPriceEstimate, getGasPriceEstimate } from "../../gasPriceOracle";
+import { getGasPriceEstimate } from "../../gasPriceOracle";
 import { Deposit } from "../../interfaces";
 import {
   BigNumber,
@@ -85,7 +85,7 @@ export class SvmQuery implements QueryInterface {
     const relayer = _relayer ? toAddressType(_relayer).forceSvmAddress() : this.simulatedRelayerAddress;
     const fillRelayTx = await this.getFillRelayTx(deposit, relayer.toBase58());
 
-    const [computeUnitsConsumed, _gasPriceEstimate] = await Promise.all([
+    const [computeUnitsConsumed, gasPriceEstimate] = await Promise.all([
       toBN(await this.computeUnitEstimator(fillRelayTx)),
       getGasPriceEstimate(this.provider, {
         unsignedTx: fillRelayTx,
@@ -96,7 +96,6 @@ export class SvmQuery implements QueryInterface {
 
     // We can cast the gas price estimate to an SvmGasPriceEstimate here since the oracle should always
     // query the Solana adapter.
-    const gasPriceEstimate = _gasPriceEstimate as SvmGasPriceEstimate;
     const gasPrice = gasPriceEstimate.baseFee.add(
       gasPriceEstimate.microLamportsPerComputeUnit.mul(computeUnitsConsumed).div(toBN(1_000_000)) // 1_000_000 microLamports/lamport.
     );
