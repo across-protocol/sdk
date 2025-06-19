@@ -235,7 +235,7 @@ export class EvmAddress extends Address {
 
   static validate(rawAddress: Uint8Array): boolean {
     return (
-      rawAddress.length == 20 || (rawAddress.length === 32 && rawAddress.slice(0, 12).some((field) => field !== 0))
+      rawAddress.length == 20 || (rawAddress.length === 32 && rawAddress.slice(0, 12).every((field) => field === 0))
     );
   }
 

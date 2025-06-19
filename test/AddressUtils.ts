@@ -23,9 +23,10 @@ describe("Address Utils: Address Type", function () {
       const evmAddress = toAddressType(randomBytes(20), CHAIN_IDs.MAINNET);
       expect(EvmAddress.isAddress(evmAddress)).to.be.true;
 
-      const invalidEvmAddress = toAddressType(randomBytes(32), CHAIN_IDs.MAINNET);
-      expect(EvmAddress.isAddress(invalidEvmAddress)).to.be.false;
-      expect(Address.isAddress(invalidEvmAddress)).to.be.true;
+      const invalidEvmAddress = ethers.utils.arrayify(randomBytes(32));
+      invalidEvmAddress[0] = 1;
+      expect(EvmAddress.validate(invalidEvmAddress)).to.be.false;
+      expect(toAddressType(invalidEvmAddress, CHAIN_IDs.MAINNET)).to.be.reverted;
     });
     it("Handles base58-encoded EVM addresses", function () {
       const rawAddress = ethers.utils.arrayify(randomBytes(20));
