@@ -82,9 +82,7 @@ export class SvmQuery implements QueryInterface {
       priorityFeeMultiplier: BigNumber;
     }> = {}
   ): Promise<TransactionCostEstimate> {
-    const relayer = _relayer
-      ? toAddressType(_relayer, deposit.destinationChainId).forceSvmAddress()
-      : this.simulatedRelayerAddress;
+    const relayer = _relayer ? toAddressType(_relayer, deposit.destinationChainId) : this.simulatedRelayerAddress;
     const fillRelayTx = await this.getFillRelayTx(deposit, relayer.toBase58());
 
     const [computeUnitsConsumed, _gasPriceEstimate] = await Promise.all([
@@ -136,15 +134,12 @@ export class SvmQuery implements QueryInterface {
     repaymentChainId = deposit.destinationChainId,
     repaymentAddress = getDefaultSimulatedRelayerAddress(deposit.destinationChainId)
   ) {
-    const toSvmAddress = (address: string, chainId: number) =>
-      toAddressType(address, chainId).forceSvmAddress().toV2Address();
+    const toSvmAddress = (address: string, chainId: number) => toAddressType(address, chainId).toV2Address();
 
     const { depositor, recipient, inputToken, outputToken, exclusiveRelayer, originChainId, destinationChainId } =
       deposit;
 
-    const relayer = _relayer
-      ? toAddressType(_relayer, deposit.destinationChainId).forceSvmAddress()
-      : this.simulatedRelayerAddress;
+    const relayer = _relayer ? toAddressType(_relayer, deposit.destinationChainId) : this.simulatedRelayerAddress;
     const state = await getStatePda(this.spokePoolAddress.toV2Address());
     const _relayDataHash = getRelayDataHash(deposit, destinationChainId);
     const relayDataHash = new Uint8Array(Buffer.from(_relayDataHash.slice(2), "hex"));
@@ -154,10 +149,10 @@ export class SvmQuery implements QueryInterface {
       toSvmAddress(repaymentAddress, repaymentChainId),
       this.spokePoolAddress.toV2Address()
     );
-    const mint = toAddressType(outputToken, destinationChainId).forceSvmAddress();
+    const mint = toAddressType(outputToken, destinationChainId);
     const mintInfo = await fetchMint(this.provider, mint.toV2Address());
     const recipientAta = await getAssociatedTokenAddress(
-      toAddressType(deposit.recipient, destinationChainId).forceSvmAddress(),
+      toAddressType(deposit.recipient, destinationChainId),
       mint,
       mintInfo.programAddress
     );

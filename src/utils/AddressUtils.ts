@@ -103,12 +103,12 @@ export function toAddressType(address: string, chainId: number): Address | EvmAd
   // Wrap this in a try/catch in case we are trying to force an invalid EVM address to an EvmAddress type.
   if (chainIsEvm(chainId)) {
     try {
-      return addressType.forceEvmAddress();
+      return EvmAddress.from(addressType.toEvmAddress());
     } catch {
       return addressType;
     }
   }
-  return addressType.forceSvmAddress();
+  return SvmAddress.from(addressType.toBase58());
 }
 
 // The Address class can contain any address type. It is up to the subclasses to determine how to format the address's internal representation,
@@ -226,16 +226,6 @@ export class Address {
   // Small utility to convert an Address to a Solana Kit branded type.
   toV2Address(): V2Address<string> {
     return this.toBase58() as V2Address<string>;
-  }
-
-  // Forces `rawAddress` to become an SvmAddress type. This will only throw if `rawAddress.length > 32`.
-  forceSvmAddress(): SvmAddress {
-    return SvmAddress.from(this.toBase58());
-  }
-
-  // Forces `rawAddress` to become an EvmAddress type. This will throw if `rawAddress.length > 20`.
-  forceEvmAddress(): EvmAddress {
-    return EvmAddress.from(this.toEvmAddress());
   }
 
   // Checks if the other address is equivalent to this address.
