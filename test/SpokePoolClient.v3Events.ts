@@ -369,7 +369,7 @@ describe("SpokePoolClient: Event Filtering", function () {
       expect(slowFillRequest.destinationChainId).to.exist;
       expect(slowFillRequest.destinationChainId).to.equal(destinationChainId);
       Object.entries(relayData).forEach(
-        ([k, v]) => expect(isDefined(v)).to.equal(true) && expect(slowFillRequest[k]).to.equal(v)
+        ([k, v]) => expect(isDefined(v)).to.equal(true) && expect(slowFillRequest![k]).to.equal(v)
       );
     });
   });
