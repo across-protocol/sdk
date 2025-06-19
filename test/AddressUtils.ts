@@ -27,10 +27,9 @@ describe("Address Utils: Address Type", function () {
       evmAddress = toAddressType("0x000000000000000000000000" + randomBytes(20).slice(2), CHAIN_IDs.MAINNET);
       expect(EvmAddress.isAddress(evmAddress)).to.be.true;
 
-      const invalidEvmAddress = ethers.utils.arrayify(randomBytes(32));
-      invalidEvmAddress[0] = 1;
-      expect(EvmAddress.validate(invalidEvmAddress)).to.be.false;
-      expect(toAddressType(invalidEvmAddress, CHAIN_IDs.MAINNET)).to.throw;
+      const invalidEvmAddress = randomBytes(32);
+      expect(EvmAddress.validate(ethers.utils.arrayify(invalidEvmAddress))).to.be.false;
+      expect(() => toAddressType(invalidEvmAddress, CHAIN_IDs.MAINNET)).to.throw;
     });
     it("Rejects invalid SVM address lengths", function () {
       [20, 31, 33].forEach((len) => {

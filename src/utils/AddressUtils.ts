@@ -1,8 +1,7 @@
 import { providers, utils } from "ethers";
-import assert from "assert";
 import bs58 from "bs58";
 import { Address as V2Address } from "@solana/kit";
-import { BigNumber, chainIsEvm, isDefined } from "./";
+import { BigNumber, chainIsEvm } from "./";
 
 /**
  * Checks if a contract is deployed at the given address
@@ -75,40 +74,19 @@ export function isValidEvmAddress(address: string): boolean {
 /**
  * Creates the proper address type given the input chain ID corresponding to the address's origin network.
  * @param address Stringified address type to convert. Can be either hex encoded or base58 encoded.
- * @param chainId Network ID corresponding to the input address, used to determine which address type to output.
- * If no chain ID is specified, then fallback to inference via the structure of the address string.
+ * @param chainId Chain ID for the intended use of the address.
  * @returns a child `Address` type most fitting for the chain ID.
  * @todo: Change this to `toAddress` once we remove the other `toAddress` function.
  */
 export function toAddressType(address: string, chainId: number): Address | EvmAddress | SvmAddress {
-  const parseAddress = (address: string) => {
-    try {
-      if (utils.isHexString(address)) {
-        return EvmAddress.from(address);
-      }
-      return SvmAddress.from(address);
-    } catch (e) {
-      // If we hit this block, then the validation for one of the child address classes failed. We still may want to keep this address in our state, so
-      // return an unchecked address type.
-      assert(utils.isHexString(address));
-      assert(utils.hexDataLength(address) === 32);
-      return Address.__unsafeConstruct(utils.arrayify(address));
-    }
-  };
-  // If there is no network ID, then infer the address by the string format.
-  const addressType = parseAddress(address);
-  if (!isDefined(chainId)) {
-    return addressType;
-  }
-  // Wrap this in a try/catch in case we are trying to force an invalid EVM address to an EvmAddress type.
-  if (chainIsEvm(chainId)) {
-    try {
-      return addressType.forceEvmAddress();
-    } catch {
-      return addressType;
-    }
-  }
-  return addressType.forceSvmAddress();
+  const rawAddress = address.startsWith("0x")
+    ? utils.arrayify(address)
+    : bs58.decode(address);
+
+  // @todo: Handle invalid addresses gracefully.
+  return chainIsEvm(chainId)
+    ? new EvmAddress(rawAddress)
+    : new SvmAddress(rawAddress);
 }
 
 // The Address class can contain any address type. It is up to the subclasses to determine how to format the address's internal representation,
