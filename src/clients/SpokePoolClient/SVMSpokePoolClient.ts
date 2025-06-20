@@ -11,7 +11,7 @@ import {
   relayFillStatus,
   fillStatusArray,
 } from "../../arch/svm";
-import { FillStatus, RelayData, SortableEvent } from "../../interfaces";
+import { DepositWithBlock, FillStatus, RelayData, SortableEvent } from "../../interfaces";
 import {
   BigNumber,
   DepositSearchResult,
@@ -19,12 +19,14 @@ import {
   InvalidFill,
   isZeroAddress,
   MakeOptional,
+  MultipleDepositSearchResult,
   sortEventsAscendingInPlace,
   SvmAddress,
 } from "../../utils";
 import { isUpdateFailureReason } from "../BaseAbstractClient";
 import { HubPoolClient } from "../HubPoolClient";
 import { knownEventNames, SpokePoolClient, SpokePoolUpdate } from "./SpokePoolClient";
+import { findAllDeposits } from "../../arch/svm/SpokeUtils";
 
 /**
  * SvmSpokePoolClient is a client for the SVM SpokePool program. It extends the base SpokePoolClient
@@ -229,6 +231,41 @@ export class SVMSpokePoolClient extends SpokePoolClient {
           : deposit.outputToken,
       },
     };
+  }
+
+  public override async findAllDeposits(depositId: BigNumber): Promise<MultipleDepositSearchResult> {
+    // TODO: Should we have something like this? In findDeposit we don't look in memory.
+    // // First check memory for deposits
+    // const memoryDeposits = this.getDepositsForDepositId(depositId);
+    // if (memoryDeposits.length > 0) {
+    //   return { found: true, deposits: memoryDeposits };
+    // }
+
+    // If no deposits found in memory, try to find on-chain
+    const deposits = await findAllDeposits(this.svmEventsClient, depositId);
+    if (!deposits || deposits.length === 0) {
+      return {
+        found: false,
+        code: InvalidFill.DepositIdNotFound,
+        reason: `Deposit with ID ${depositId} not found`,
+      };
+    }
+
+    // Enrich all deposits with additional information
+    const enrichedDeposits = await Promise.all(
+      deposits.map(async (deposit: DepositWithBlock) => ({
+        ...deposit,
+        quoteBlockNumber: await this.getBlockNumber(Number(deposit.quoteTimestamp)),
+        originChainId: this.chainId,
+        fromLiteChain: this.isOriginLiteChain(deposit),
+        toLiteChain: this.isDestinationLiteChain(deposit),
+        outputToken: isZeroAddress(deposit.outputToken)
+          ? this.getDestinationTokenForDeposit(deposit)
+          : deposit.outputToken,
+      }))
+    );
+
+    return { found: true, deposits: enrichedDeposits };
   }
 
   /**

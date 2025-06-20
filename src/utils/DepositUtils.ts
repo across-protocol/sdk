@@ -25,6 +25,10 @@ export type DepositSearchResult =
   | { found: true; deposit: DepositWithBlock }
   | { found: false; code: InvalidFill; reason: string };
 
+export type MultipleDepositSearchResult =
+  | { found: true; deposits: DepositWithBlock[] }
+  | { found: false; code: InvalidFill; reason: string };
+
 /**
  * Attempts to resolve a deposit for a fill. If the fill's deposit Id is within the spoke pool client's search range,
  * the deposit is returned immediately. Otherwise, the deposit is queried first from the provided cache, and if it is
