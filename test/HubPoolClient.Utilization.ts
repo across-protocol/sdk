@@ -27,6 +27,7 @@ import {
   toBNWei,
   toWei,
 } from "./utils";
+import { toAddressType } from "../src/utils";
 
 let configStore: Contract, hubPool: Contract;
 let l1Token: Contract, l2Token: Contract, timer: Contract, weth: Contract;
@@ -115,11 +116,11 @@ describe("HubPool Utilization", function () {
     // so the fee should reflect a 10% post deposit utilization.
     const depositData = {
       depositId: 0,
-      depositor: owner.address,
-      recipient: owner.address,
-      inputToken: l2Token.address,
+      depositor: toAddressType(owner.address),
+      recipient: toAddressType(owner.address),
+      inputToken: toAddressType(l2Token.address),
       inputAmount: amountToLp.div(10),
-      outputToken: l1Token.address,
+      outputToken: toAddressType(l1Token.address),
       outputAmount: l1Token.address,
       originChainId,
       destinationChainId: repaymentChainId,

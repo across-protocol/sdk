@@ -5,6 +5,7 @@ import winston from "winston";
 import { isError } from "../../typeguards";
 import {
   EventSearchConfig,
+  EvmAddress,
   MakeOptional,
   isArrayOf,
   isDefined,
@@ -107,7 +108,7 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
   }
 
   getRateModelForBlockNumber(
-    l1Token: string,
+    l1Token: EvmAddress,
     originChainId: number | string,
     destinationChainId: number | string,
     blockNumber: number | undefined = undefined
@@ -121,7 +122,9 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
 
     const defaultRateModelUpdate = sortEventsDescending(this.cumulativeRateModelUpdates).find(
       (config) =>
-        config.blockNumber <= (blockNumber ?? 0) && config.l1Token === l1Token && config.rateModel !== undefined
+        config.blockNumber <= (blockNumber ?? 0) &&
+        config.l1Token === l1Token.toEvmAddress() &&
+        config.rateModel !== undefined
     );
     if (!defaultRateModelUpdate) {
       throw new Error(`Could not find TokenConfig update for ${l1Token} at block ${blockNumber}`);
@@ -130,12 +133,12 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
   }
 
   getRouteRateModelForBlockNumber(
-    l1Token: string,
+    l1Token: EvmAddress,
     route: string,
     blockNumber: number | undefined = undefined
   ): RateModel | undefined {
     const config = (sortEventsDescending(this.cumulativeRouteRateModelUpdates) as RouteRateModelUpdate[]).find(
-      (config) => config.blockNumber <= (blockNumber ?? 0) && config.l1Token === l1Token
+      (config) => config.blockNumber <= (blockNumber ?? 0) && config.l1Token === l1Token.toEvmAddress()
     );
     if (config?.routeRateModel[route] === undefined) {
       return undefined;
