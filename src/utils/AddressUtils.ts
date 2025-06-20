@@ -47,8 +47,9 @@ export function toBytes32(address: string): string {
   return utils.hexZeroPad(address, 32).toLowerCase();
 }
 
-// Checks if the input string can be coerced into a bytes20 evm address. Returns true if it is possible, and false otherwise.
-export function toAddress(hexString: string): string {
+// Constructs a 20-byte checksummed EVM address from a hex string input.
+// Throws an error if the underlying address length is longer than 20 bytes or incorrectly checksummed.
+export function toEvmAddress(hexString: string): string {
   // rawAddress is the address which is not properly checksummed.
   const rawAddress = utils.hexZeroPad(utils.hexStripZeros(hexString), 20);
   return utils.getAddress(rawAddress);
@@ -77,11 +78,13 @@ export function isValidEvmAddress(address: string): boolean {
  * @returns a child `Address` type most fitting for the chain ID.
  * @todo: Change this to `toAddress` once we remove the other `toAddress` function.
  */
-export function toAddressType(address: string, chainId: number): Address | EvmAddress | SvmAddress {
+export function toAddressType(address: string, chainId: number): Address {
   const rawAddress = address.startsWith("0x") ? utils.arrayify(address) : bs58.decode(address);
 
-  // @todo: Handle invalid addresses gracefully.
-  return chainIsEvm(chainId) ? new EvmAddress(rawAddress) : new SvmAddress(rawAddress);
+  const isEvm = chainIsEvm(chainId);
+  if (isEvm && EvmAddress.validate(rawAddress)) return new EvmAddress(rawAddress);
+  if (!isEvm && SvmAddress.validate(rawAddress)) return new SvmAddress(rawAddress);
+  return new Address(rawAddress);
 }
 
 // The Address class can contain any address type. It is up to the subclasses to determine how to format the address's internal representation,
@@ -121,7 +124,7 @@ export class Address {
   truncateToBytes20(): string {
     // Take the last 20 bytes
     const bytes20 = this.rawAddress.slice(-20);
-    return toAddress(utils.hexlify(bytes20));
+    return toEvmAddress(utils.hexlify(bytes20));
   }
 
   // Converts the address (can be bytes32 or bytes20) to its base58 counterpart. This conversion will always succeed, even if the input address is not valid on Solana,
@@ -131,7 +134,7 @@ export class Address {
   }
 
   // Converts the address to a BigNumber type.
-  toBigNumber(): BigNumber {
+  private toBigNumber(): BigNumber {
     return (this.bnAddress ??= BigNumber.from(this.toBytes32()));
   }
 
@@ -148,13 +151,8 @@ export class Address {
 
   // Converts the address to a hex string. This method should be overriden by subclasses to obtain more meaningful
   // address representations for the target chain ID.
-  toAddress(): string {
+  toNative(): string {
     return this.toBytes32();
-  }
-
-  // Converts the address to a Buffer type.
-  toBuffer(): Buffer {
-    return Buffer.from(this.rawAddress);
   }
 
   // Implements `Hexable` for `Address`. Needed for encoding purposes. This class is treated by default as a bytes32 primitive type, but can change for subclasses.
@@ -162,23 +160,11 @@ export class Address {
     return this.toBytes32();
   }
 
-  // Checks if this address can be coerced into a bytes20 evm address. Returns true if it is possible and false otherwise.
-  isValidEvmAddress(): boolean {
-    try {
-      this.toEvmAddress();
-      return true;
-    } catch {
-      return false;
-    }
-  }
-
   // Checks if the address is valid on the given chain ID.
   isValidOn(chainId: number): boolean {
-    if (chainIsEvm(chainId)) {
-      return this.isValidEvmAddress();
-    }
-    // Assume the address is always valid on Solana.
-    return true;
+    if (chainIsEvm(chainId)) return EvmAddress.validate(this.rawAddress);
+    if (chainIsSvm(chainId)) return SvmAddress.validate(this.rawAddress);
+    return false;
   }
 
   // Checks if the object is an address by looking at whether it has an Address constructor.
@@ -188,7 +174,7 @@ export class Address {
 
   // Converts the input address to a 32-byte hex data string.
   toString(): string {
-    return this.toHexString();
+    return this.toNative();
   }
 
   // Checks if the address is the zero address.
@@ -199,11 +185,6 @@ export class Address {
   // Forces `rawAddress` to become an SvmAddress type. This will only throw if `rawAddress.length > 32`.
   forceSvmAddress(): SvmAddress {
     return SvmAddress.from(this.toBase58());
-  }
-
-  // Forces `rawAddress` to become an EvmAddress type. This will throw if `rawAddress.length > 20`.
-  forceEvmAddress(): EvmAddress {
-    return EvmAddress.from(this.toEvmAddress());
   }
 
   // Checks if the other address is equivalent to this address.
@@ -253,7 +234,7 @@ export class EvmAddress extends Address {
   }
 
   // Override `toAddress` to return the 20-byte representation address.
-  override toAddress(): string {
+  override toNative(): string {
     return this.toEvmAddress();
   }
 
@@ -292,7 +273,7 @@ export class SvmAddress extends Address {
 
   // Override the toAddress function for SVM addresses only since while they will never have a defined 20-byte representation. The base58 encoded addresses are also the encodings
   // used in TOKEN_SYMBOLS_MAP.
-  override toAddress(): string {
+  override toNative(): string {
     return this.toBase58();
   }
 

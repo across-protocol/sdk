@@ -360,7 +360,7 @@ export async function fillRelayInstruction(
 
   assert(
     repaymentAddress.isValidOn(repaymentChainId),
-    `Invalid repayment address for chain ${repaymentChainId}: ${repaymentAddress.toAddress()}.`
+    `Invalid repayment address for chain ${repaymentChainId}: ${repaymentAddress.toNative()}.`
   );
 
   const _relayDataHash = getRelayDataHash(deposit, deposit.destinationChainId);
@@ -591,13 +591,10 @@ export async function getAssociatedTokenAddress(
   mint: SvmAddress,
   tokenProgramId: Address<string> = TOKEN_PROGRAM_ADDRESS
 ): Promise<Address<string>> {
+  const encoder = getAddressEncoder();
   const [associatedToken] = await getProgramDerivedAddress({
     programAddress: ASSOCIATED_TOKEN_PROGRAM_ADDRESS,
-    seeds: [
-      new Uint8Array(owner.toBuffer()),
-      new Uint8Array(SvmAddress.from(tokenProgramId).toBuffer()),
-      new Uint8Array(mint.toBuffer()),
-    ],
+    seeds: [encoder.encode(toAddress(owner)), encoder.encode(tokenProgramId), encoder.encode(toAddress(mint))],
   });
   return associatedToken;
 }

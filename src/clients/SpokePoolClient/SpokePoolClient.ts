@@ -15,7 +15,7 @@ import {
   isSlowFill,
   isValidEvmAddress,
   isZeroAddress,
-  toAddress,
+  toEvmAddress,
   validateFillForDeposit,
   chainIsEvm,
   chainIsProd,
@@ -273,7 +273,7 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
     const { depositId, depositor } = deposit;
 
     // Note: we know depositor cannot be more than 20 bytes since this is guaranteed by contracts.
-    const speedups = this.speedUps[toAddress(depositor)]?.[depositId.toString()];
+    const speedups = this.speedUps[toEvmAddress(depositor)]?.[depositId.toString()];
 
     if (!isDefined(speedups) || speedups.length === 0) {
       return deposit;
