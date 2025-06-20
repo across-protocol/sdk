@@ -367,11 +367,13 @@ export async function fillRelayInstruction(
   const relayDataHash = new Uint8Array(Buffer.from(_relayDataHash.slice(2), "hex"));
 
   const relayer = SvmAddress.from(signer.address);
+  const outputTokenAddress = toAddressType(deposit.outputToken, deposit.destinationChainId);
+  if (!(outputTokenAddress instanceof SvmAddress)) {
+    return;
+  }
+
   // Create ATA for the relayer and recipient token accounts
-  const relayerTokenAccount = await getAssociatedTokenAddress(
-    relayer,
-    toAddressType(deposit.outputToken, deposit.destinationChainId)
-  );
+  const relayerTokenAccount = await getAssociatedTokenAddress(relayer, outputTokenAddress);
 
   const [statePda, fillStatusPda, eventAuthority] = await Promise.all([
     getStatePda(program),
@@ -391,14 +393,31 @@ export async function fillRelayInstruction(
 
   // @todo we need to convert the deposit's relayData to svm-like since the interface assumes the data originates
   // from an EVM Spoke pool. Once we migrate to `Address` types, this can be modified/removed.
-  const [depositor, inputToken] = [deposit.depositor, deposit.inputToken].map((addr: string) =>
-    toAddress(toAddressType(addr, deposit.originChainId))
-  );
+  const [depositor, inputToken] = [deposit.depositor, deposit.inputToken].map((addr: string) => {
+    const addressObj = toAddressType(addr, deposit.originChainId);
+    // @todo if depositor or inputToken are incorrectly formatted for originChainId, we can still construct a Solana
+    // SDK `Address` type from `Address` of our own. Should we?
+    if (!(addressObj instanceof EvmAddress) || !(addressObj instanceof SvmAddress)) {
+      return undefined;
+    }
+    return toAddress(addressObj);
+  });
+
+  if (!depositor || !inputToken) return;
+
   const [recipient, outputToken, exclusiveRelayer] = [
     deposit.recipient,
     deposit.outputToken,
     deposit.exclusiveRelayer,
-  ].map((addr) => toAddress(toAddressType(addr, deposit.destinationChainId)));
+  ].map((addr) => {
+    const addressObj = toAddressType(addr, deposit.originChainId);
+    if (!(addressObj instanceof SvmAddress)) {
+      return undefined;
+    }
+    return toAddress(addressObj);
+  });
+
+  if (!recipient || !outputToken || !exclusiveRelayer) return;
 
   return SvmSpokeClient.getFillRelayInstruction({
     signer,
@@ -605,8 +624,12 @@ export function getRelayDataHash(relayData: RelayData, destinationChainId: numbe
   const uint32Encoder = getU32Encoder();
 
   assert(relayData.message.startsWith("0x"), "Message must be a hex string");
-  const encodeAddress = (addr: string, chainId: number) =>
-    Uint8Array.from(addressEncoder.encode(toAddress(toAddressType(addr, chainId))));
+  const encodeAddress = (addr: string, chainId: number) => {
+    const addrObj = toAddressType(addr, chainId);
+    // @dev even if `addrObj` is of type `Address` here, we still want to calculate the relayHash
+    // based on `base58` representation of the `Address`
+    return Uint8Array.from(addressEncoder.encode(addrObj.toBase58() as Address<string>));
+  };
 
   const contentToHash = Buffer.concat([
     encodeAddress(relayData.depositor, relayData.originChainId),
