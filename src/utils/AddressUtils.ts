@@ -1,6 +1,6 @@
 import { providers, utils } from "ethers";
 import bs58 from "bs58";
-import { BigNumber, chainIsEvm } from "./";
+import { BigNumber, chainIsEvm, chainIsSvm } from "./";
 
 /**
  * Checks if a contract is deployed at the given address
