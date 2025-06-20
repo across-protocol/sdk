@@ -1,6 +1,5 @@
 import { providers, utils } from "ethers";
 import bs58 from "bs58";
-import { Address as V2Address } from "@solana/kit";
 import { BigNumber, chainIsEvm } from "./";
 
 /**
@@ -195,11 +194,6 @@ export class Address {
   // Checks if the address is the zero address.
   isZeroAddress(): boolean {
     return utils.stripZeros(this.rawAddress).length === 0;
-  }
-
-  // Small utility to convert an Address to a Solana Kit branded type.
-  toV2Address(): V2Address<string> {
-    return this.toBase58() as V2Address<string>;
   }
 
   // Forces `rawAddress` to become an SvmAddress type. This will only throw if `rawAddress.length > 32`.

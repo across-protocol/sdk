@@ -17,7 +17,7 @@ import {
 } from "@solana/kit";
 import { SvmSpokeClient } from "@across-protocol/contracts";
 import { FillType, RelayData } from "../../interfaces";
-import { BigNumber, SvmAddress, getRelayDataHash, isUint8Array } from "../../utils";
+import { BigNumber, EvmAddress, SvmAddress, getRelayDataHash, isUint8Array } from "../../utils";
 import { EventName, SVMEventNames, SVMProvider } from "./types";
 
 /**
@@ -40,6 +40,13 @@ export const SolanaVoidSigner: (simulationAddress: string) => TransactionSigner<
 export async function isDevnet(rpc: SVMProvider): Promise<boolean> {
   const genesisHash = await rpc.getGenesisHash().send();
   return genesisHash === "EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG";
+}
+
+/**
+ * Small utility to convert an Address to a Solana Kit branded type.
+ */
+export function toAddress(address: EvmAddress | SvmAddress): Address<string> {
+  return address.toBase58() as Address<string>;
 }
 
 /**
