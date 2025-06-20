@@ -45,6 +45,7 @@ import {
   getFillStatusPda,
   getRandomSvmAddress,
   getStatePda,
+  toAddress,
 } from "../../../src/arch/svm";
 import { RelayData } from "../../../src/interfaces";
 import {
@@ -288,7 +289,7 @@ export const sendCreateFill = async (
 
   const fillInput: SvmSpokeClient.FillRelayInput = {
     signer: signer,
-    delegate: SvmAddress.from(delegatePda.toString()).toV2Address(),
+    delegate: toAddress(SvmAddress.from(delegatePda.toString())),
     instructionParams: undefined,
     state: await getStatePda(SvmSpokeClient.SVM_SPOKE_PROGRAM_ADDRESS),
     mint: mint.address,

@@ -2,7 +2,7 @@ import assert from "assert";
 import { Contract, EventFilter } from "ethers";
 import _ from "lodash";
 import winston from "winston";
-import { DEFAULT_CACHING_SAFE_LAG, DEFAULT_CACHING_TTL, TOKEN_SYMBOLS_MAP, ZERO_ADDRESS } from "../constants";
+import { DEFAULT_CACHING_SAFE_LAG, DEFAULT_CACHING_TTL, TOKEN_SYMBOLS_MAP } from "../constants";
 import {
   CachingMechanismInterface,
   CancelledRootBundle,
@@ -940,11 +940,12 @@ export class HubPoolClient extends BaseAbstractClient {
             throw new Error(`SVM spoke pool not found for chain ${args.l2ChainId}`);
           }
           const svmSpoke = SvmAddress.from(solanaSpokePool);
+          const truncatedAddress = svmSpoke.truncateToBytes20();
           // Verify the event address matches our expected truncated address
-          if (args.spokePool.toLowerCase() !== svmSpoke.truncateToBytes20().toLowerCase()) {
+          if (args.spokePool.toLowerCase() !== truncatedAddress.toLowerCase()) {
             throw new Error(
               `SVM spoke pool address mismatch for chain ${args.l2ChainId}. ` +
-                `Expected ${svmSpoke.truncateToBytes20()}, got ${args.spokePool}`
+                `Expected ${truncatedAddress}, got ${args.spokePool}`
             );
           }
           dataToAdd.spokePool = svmSpoke;
@@ -978,7 +979,7 @@ export class HubPoolClient extends BaseAbstractClient {
 
         // If the destination token is set to the zero address in an event, then this means Across should no longer
         // rebalance to this chain.
-        if (destinationToken.toAddress() !== ZERO_ADDRESS) {
+        if (!destinationToken.isZeroAddress()) {
           assign(this.l1TokensToDestinationTokens, [args.l1Token, args.destinationChainId], destinationToken);
           assign(
             this.l1TokensToDestinationTokensWithBlock,

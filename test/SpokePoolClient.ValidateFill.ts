@@ -2,16 +2,16 @@ import hre from "hardhat";
 import { DepositWithBlock, FillStatus, FillType } from "../src/interfaces";
 import { EVMSpokePoolClient, SpokePoolClient } from "../src/clients";
 import {
+  Address,
   bnOne,
   bnZero,
+  deploy as deployMulticall,
   toBN,
   InvalidFill,
   validateFillForDeposit,
   queryHistoricalDepositForFill,
   toAddressType,
   randomAddress,
-  Address,
-  deploy as deployMulticall,
 } from "../src/utils";
 import { fillStatusArray, relayFillStatus } from "../src/arch/evm";
 import { ZERO_BYTES } from "../src/constants";
@@ -63,12 +63,12 @@ describe("SpokePoolClient: Fill Validation", function () {
       spokePool: spokePool_1,
       erc20: erc20_1,
       deploymentBlock: spokePool1DeploymentBlock,
-    } = await deploySpokePoolWithToken(originChainId, destinationChainId));
+    } = await deploySpokePoolWithToken(originChainId));
     ({
       spokePool: spokePool_2,
       erc20: erc20_2,
       deploymentBlock: spokePool2DeploymentBlock,
-    } = await deploySpokePoolWithToken(destinationChainId, originChainId));
+    } = await deploySpokePoolWithToken(destinationChainId));
     ({ hubPool, l1Token_1: l1Token } = await deployAndConfigureHubPool(owner, [
       { l2ChainId: destinationChainId, spokePool: spokePool_2 },
       { l2ChainId: originChainId, spokePool: spokePool_1 },

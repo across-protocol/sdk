@@ -56,7 +56,7 @@ export class MockSvmSpokePoolClient extends SVMSpokePoolClient {
 
   getDestinationTokenForDeposit(deposit: DepositWithBlock): SDKAddress {
     const override = this.destinationTokenForChainOverride[deposit.originChainId];
-    return isDefined(override) ? toAddressType(override) : super.getDestinationTokenForDeposit(deposit);
+    return isDefined(override) ? toAddressType(override, this.chainId) : super.getDestinationTokenForDeposit(deposit);
   }
 
   setLatestBlockNumber(blockNumber: number): void {

@@ -1,4 +1,5 @@
 import winston from "winston";
+import { utils as ethersUtils } from "ethers";
 import {
   AnyObject,
   BigNumber,
@@ -6,6 +7,7 @@ import {
   DefaultLogLevels,
   DepositSearchResult,
   EventSearchConfig,
+  EvmAddress,
   MAX_BIG_INT,
   MakeOptional,
   assign,
@@ -15,13 +17,12 @@ import {
   isSlowFill,
   isZeroAddress,
   validateFillForDeposit,
-  chainIsEvm,
   chainIsProd,
   Address,
   toAddressType,
 } from "../../utils";
 import { duplicateEvent, sortEventsAscendingInPlace } from "../../utils/EventUtils";
-import { ZERO_ADDRESS } from "../../constants";
+import { CHAIN_IDs, ZERO_ADDRESS } from "../../constants";
 import {
   BridgedToHubPoolWithBlock,
   ClaimedRelayerRefundWithBlock,
@@ -275,7 +276,6 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
     // Note: we know depositor cannot be more than 20 bytes since this is guaranteed by contracts.
     // Additionally, speed ups can only be done on EVM networks.
     const speedups = this.speedUps[depositor.toEvmAddress()]?.[depositId.toString()];
-
     if (!isDefined(speedups) || speedups.length === 0) {
       return deposit;
     }
@@ -404,12 +404,7 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
           // is not a valid EVM chain. In the case where the repayment address is not a valid EVM address, the dataworker
           // might be able to overwrite the repayment address to the msg.sender on the fill txn, but to keep this
           // functioon synchronous, we can't make that decision now. So this function might log some false positives.
-          if (
-            this.hubPoolClient &&
-            !isSlowFill(fill) &&
-            chainIsEvm(repaymentChainId) &&
-            !fill.relayer.isValidEvmAddress()
-          ) {
+          if (this.hubPoolClient && !isSlowFill(fill) && !fill.relayer.isValidOn(repaymentChainId)) {
             groupedFills.unrepayableFills.push(fill);
           }
           // This fill is still valid and means that the deposit cannot be filled on-chain anymore, but it
@@ -431,7 +426,7 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
         chainId: this.chainId,
         message: "Unrepayable fills found where we need to switch repayment address and or chain",
         deposit,
-        unrepayableFills: Object.fromEntries(unrepayableFillsForDeposit.map((x) => [x.relayer.toAddress(), x])),
+        unrepayableFills: Object.fromEntries(unrepayableFillsForDeposit.map((x) => [x.relayer.toNative(), x])),
         notificationPath: "across-unrepayable-fills",
       });
     }
@@ -589,14 +584,21 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
 
     // Performs indexing of a "speed up deposit"-like event.
     const querySpeedUpDepositEvents = (eventName: string) => {
-      const speedUpEvents = (queryResults[eventsToQuery.indexOf(eventName)] ?? []).map((_event) => {
-        const event = _event as SpeedUpWithBlock & { depositor: string; updatedRecipient: string };
-        return {
-          ...event,
-          depositor: toAddressType(event.depositor, this.chainId),
-          updatedRecipient: toAddressType(event.updatedRecipient),
-        } as SpeedUpWithBlock;
-      });
+      const speedUpEvents = (queryResults[eventsToQuery.indexOf(eventName)] ?? [])
+        .map((_event) => {
+          const event = _event as SpeedUpWithBlock & { depositor: string; updatedRecipient: string };
+
+          if (!EvmAddress.validate(ethersUtils.arrayify(event.updatedRecipient))) {
+            return;
+          }
+
+          return {
+            ...event,
+            depositor: toAddressType(event.depositor, this.chainId),
+            updatedRecipient: EvmAddress.from(event.updatedRecipient),
+          } as SpeedUpWithBlock;
+        })
+        .filter(isDefined);
 
       for (const event of speedUpEvents) {
         const speedUp = {
@@ -824,7 +826,7 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
    */
   protected getDestinationTokenForDeposit(deposit: DepositWithBlock): Address {
     if (!this.canResolveZeroAddressOutputToken(deposit)) {
-      return toAddressType(ZERO_ADDRESS);
+      return toAddressType(ZERO_ADDRESS, CHAIN_IDs.MAINNET);
     }
     // L1 token should be resolved if we get here:
     const l1Token = this.hubPoolClient!.getL1TokenForL2TokenAtBlock(
@@ -837,7 +839,7 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
       deposit.destinationChainId,
       deposit.quoteBlockNumber
     );
-    return counterpartToken ?? toAddressType(ZERO_ADDRESS);
+    return counterpartToken ?? toAddressType(ZERO_ADDRESS, CHAIN_IDs.MAINNET);
   }
 
   /**

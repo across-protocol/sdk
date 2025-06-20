@@ -328,10 +328,11 @@ export class MockSpokePoolClient extends EVMSpokePoolClient {
   // This is a simple wrapper around fillRelay().
   // rootBundleId and proof are discarded here - we have no interest in verifying that.
   executeSlowRelayLeaf(leaf: Omit<SlowFillLeaf, "messageHash">): Log {
+    const destinationChainId = this.chainId;
     const fill = {
       ...leaf.relayData,
-      destinationChainId: this.chainId,
-      relayer: toAddressType(ZERO_ADDRESS),
+      destinationChainId,
+      relayer: toAddressType(ZERO_ADDRESS, destinationChainId),
       repaymentChainId: 0,
       relayExecutionInfo: {
         updatedRecipient: leaf.relayData.recipient,

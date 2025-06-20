@@ -127,7 +127,10 @@ export async function verifyFillRepayment(
         }
       }
       fill.relayer = toAddressType(destinationRelayer, fill.destinationChainId);
-      assert(fill.relayer.isValidEvmAddress(), `Cannot re-assign fill to msg.sender: ${destinationRelayer}`);
+      assert(
+        fill.relayer.isValidOn(fill.destinationChainId),
+        `Cannot re-assign fill to msg.sender: ${destinationRelayer}`
+      );
     } else {
       return undefined;
     }
@@ -202,5 +205,6 @@ function _repaymentAddressNeedsToBeOverwritten(fill: Fill): boolean {
   // - i.e. If chainIsSvm && !isValidSvmAddress(fill.relayer) then return false
   //        If chainIsEvm && !isValidEvmAddress(fill.relayer) then return false
   //        If chainIsEvm && isValidEvmAddress(fill.relayer) then return true
-  return chainIsEvm(fill.repaymentChainId) && !fill.relayer.isValidEvmAddress();
+  // @todo: UMIP might require upper 12 bytes non-zero for SVM repayment
+  return !fill.relayer.isValidOn(fill.repaymentChainId);
 }

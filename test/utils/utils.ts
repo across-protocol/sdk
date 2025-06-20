@@ -1,3 +1,4 @@
+import assert from "assert";
 import * as utils from "@across-protocol/contracts/dist/test-utils";
 import { Contract, providers } from "ethers";
 import { AcrossConfigStoreClient as ConfigStoreClient, GLOBAL_CONFIG_STORE_KEYS } from "../../src/clients";
@@ -18,6 +19,7 @@ import {
   toBytes32,
   toAddress,
   toAddressType,
+  toEvmAddress,
 } from "../../src/utils";
 import {
   MAX_L1_TOKENS_PER_POOL_REBALANCE_LEAF,
@@ -296,7 +298,7 @@ export function depositV3(
 ): Promise<DepositWithBlock> {
   return _deposit(spokePool, destinationChainId, signer, inputToken, inputAmount, outputToken, outputAmount, {
     ...opts,
-    addressModifier: toAddress,
+    addressModifier: toEvmAddress,
   });
 }
 
@@ -348,9 +350,10 @@ async function _deposit(
       exclusivityDeadline,
       message
     );
+  const getChainId = (): Promise<number> => Promise.resolve(Number(await spokePool.chainId()));
   const [events, originChainId] = await Promise.all([
     spokePool.queryFilter(spokePool.filters.FundsDeposited()),
-    spokePool.chainId(),
+    getChainId()
   ]);
 
   const lastEvent = events.at(-1);
@@ -359,23 +362,24 @@ async function _deposit(
   args = args!;
 
   const { blockNumber, transactionHash, transactionIndex, logIndex } = lastEvent!;
+  assert(args.destinationChainId === destinationChainId);
 
   return {
     depositId: toBN(args.depositId),
-    originChainId: Number(originChainId),
-    destinationChainId: Number(args!.destinationChainId),
-    depositor: toAddressType(args.depositor),
-    recipient: toAddressType(args.recipient),
-    inputToken: toAddressType(args.inputToken),
+    originChainId: originChainId,
+    destinationChainId,
+    depositor: toAddressType(args.depositor, originChainId),
+    recipient: toAddressType(args.recipient, destinationChainId),
+    inputToken: toAddressType(args.inputToken, originChainId),
     inputAmount: args.inputAmount,
-    outputToken: toAddressType(args.outputToken),
+    outputToken: toAddressType(args.outputToken, destinationChainId),
     outputAmount: args.outputAmount,
     quoteTimestamp: args.quoteTimestamp,
     message: args.message,
     messageHash: getMessageHash(args.message),
     fillDeadline: args.fillDeadline,
     exclusivityDeadline: args.exclusivityDeadline,
-    exclusiveRelayer: toAddressType(args.exclusiveRelayer),
+    exclusiveRelayer: toAddressType(args.exclusiveRelayer, destinationChainId),
     fromLiteChain: false,
     toLiteChain: false,
     quoteBlockNumber: 0, // @todo
@@ -405,26 +409,26 @@ export async function requestV3SlowFill(
 
   const events = await spokePool.queryFilter(spokePool.filters.RequestedSlowFill());
   const lastEvent = events.at(-1);
-  let args = lastEvent!.args;
-  chaiAssert.exists(args);
-  args = args!;
 
-  const { blockNumber, transactionHash, transactionIndex, logIndex } = lastEvent!;
+  let { args, blockNumber, transactionHash, transactionIndex, logIndex } = lastEvent!;
+  expect(args).to.exist;
+  args = args!;
+  const originChainId = Number(args.originChainId);
 
   return {
     depositId: toBN(args.depositId),
-    originChainId: Number(args.originChainId),
+    originChainId,
     destinationChainId,
-    depositor: toAddressType(args.depositor),
-    recipient: toAddressType(args.recipient),
-    inputToken: toAddressType(args.inputToken),
+    depositor: toAddressType(args.depositor, originChainId),
+    recipient: toAddressType(args.recipient, destinationChainId),
+    inputToken: toAddressType(args.inputToken, originChainId),
     inputAmount: args.inputAmount,
-    outputToken: toAddressType(args.outputToken),
+    outputToken: toAddressType(args.outputToken, destinationChainId),
     outputAmount: args.outputAmount,
     messageHash: getMessageHash(args.message),
     fillDeadline: args.fillDeadline,
     exclusivityDeadline: args.exclusivityDeadline,
-    exclusiveRelayer: toAddressType(args.exclusiveRelayer),
+    exclusiveRelayer: toAddressType(args.exclusiveRelayer, destinationChainId),
     blockNumber,
     txnRef: transactionHash,
     txnIndex: transactionIndex,

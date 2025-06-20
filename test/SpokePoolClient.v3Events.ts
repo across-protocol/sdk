@@ -2,16 +2,18 @@ import { expect } from "chai";
 import { utils as sdkUtils } from "../src";
 import { DEFAULT_CONFIG_STORE_VERSION, GLOBAL_CONFIG_STORE_KEYS } from "../src/clients";
 import { MockConfigStoreClient, MockHubPoolClient, MockSpokePoolClient } from "../src/clients/mocks";
-import { EMPTY_MESSAGE, ZERO_ADDRESS, ZERO_BYTES } from "../src/constants";
+import { ZERO_ADDRESS, ZERO_BYTES } from "../src/constants";
 import { DepositWithBlock, FillWithBlock, Log, SlowFillRequest, SpeedUp, TokensBridged } from "../src/interfaces";
 import {
   Address,
   bnOne,
+  EvmAddress,
   getCurrentTime,
   getMessageHash,
   isDefined,
   randomAddress,
   toAddressType,
+  toEvmAddress,
   toBN,
   toBytes32,
 } from "../src/utils";
@@ -354,23 +356,23 @@ describe("SpokePoolClient: Event Filtering", function () {
     expect(slowFillRequests.length).to.equal(requests.length);
 
     requests.forEach(({ args }) => {
+      const { originChainId, destinationChainId } = args;
       const relayData = {
         depositId: args.depositId,
         originChainId: args.originChainId,
-        depositor: toAddressType(args.depositor),
-        recipient: toAddressType(args.recipient),
-        inputToken: toAddressType(args.inputToken),
+        depositor: toAddressType(args.depositor, originChainId),
+        recipient: toAddressType(args.recipient, destinationChainId),
+        inputToken: toAddressType(args.inputToken, originChainId),
         inputAmount: args.inputAmount,
-        outputToken: toAddressType(args.outputToken),
+        outputToken: toAddressType(args.outputToken, destinationChainId),
         outputAmount: args.outputAmount,
         fillDeadline: args.fillDeadline,
-        exclusiveRelayer: toAddressType(args.exclusiveRelayer),
+        exclusiveRelayer: toAddressType(args.exclusiveRelayer, destinationChainId),
         exclusivityDeadline: args.exclusivityDeadline,
       };
 
       let slowFillRequest = destinationSpokePoolClient.getSlowFillRequest({
         ...relayData,
-        message: EMPTY_MESSAGE,
         messageHash: args.messageHash,
       });
       expect(slowFillRequest).to.exist;
@@ -428,7 +430,7 @@ describe("SpokePoolClient: Event Filtering", function () {
       expect(tokensBridged).to.exist;
       tokensBridged = tokensBridged!;
 
-      expect(tokensBridged.l2TokenAddress.toBytes32()).to.equal(l2TokenAddress.toLowerCase());
+      expect(tokensBridged.l2TokenAddress).to.equal(toEvmAddress(l2TokenAddress));
     }
   });
 
@@ -436,7 +438,7 @@ describe("SpokePoolClient: Event Filtering", function () {
     for (let _i = 0; _i < 10; ++_i) {
       const [depositor, recipient, inputToken, outputToken, exclusiveRelayer] = Array(5)
         .fill(0)
-        .map((_) => toAddressType(ethers.utils.hexZeroPad(randomAddress(), 32)));
+        .map((_) => EvmAddress.from(ethers.utils.hexZeroPad(randomAddress(), 32)));
 
       originSpokePoolClient.deposit({
         depositor,
@@ -461,11 +463,11 @@ describe("SpokePoolClient: Event Filtering", function () {
     for (let i = 0; i < 10; ++i) {
       const [depositor, updatedRecipient] = Array(2)
         .fill(0)
-        .map((_) => toAddressType(ethers.utils.hexZeroPad(randomAddress(), 32)));
+        .map(() => EvmAddress.from(ethers.utils.hexZeroPad(randomAddress(), 32)));
 
       originSpokePoolClient.speedUpDeposit({ depositor, updatedRecipient, depositId: toBN(i) } as SpeedUp);
       await originSpokePoolClient.update(speedUpEvents);
-      let speedUp = originSpokePoolClient.getSpeedUps()[depositor.toAddress()][toBN(i).toString()].at(-1);
+      let speedUp = originSpokePoolClient.getSpeedUps()[depositor.toNative()][toBN(i).toString()].at(-1);
       expect(speedUp).to.exist;
       speedUp = speedUp!;
 
@@ -477,7 +479,7 @@ describe("SpokePoolClient: Event Filtering", function () {
     for (let i = 0; i < 10; ++i) {
       const [depositor, recipient, inputToken, outputToken, exclusiveRelayer, relayer] = Array(6)
         .fill(0)
-        .map((_) => toAddressType(ethers.utils.hexZeroPad(randomAddress(), 32)));
+        .map(() => toAddressType(ethers.utils.hexZeroPad(randomAddress(), 32), originSpokePoolClient.chainId));
 
       originSpokePoolClient.fillRelay({
         depositor,
@@ -506,7 +508,7 @@ describe("SpokePoolClient: Event Filtering", function () {
     for (let i = 0; i < 10; ++i) {
       const [depositor, recipient, inputToken, outputToken, exclusiveRelayer] = Array(5)
         .fill(0)
-        .map((_) => toAddressType(ethers.utils.hexZeroPad(randomAddress(), 32)));
+        .map(() => toAddressType(ethers.utils.hexZeroPad(randomAddress(), 32), originSpokePoolClient.chainId));
 
       originSpokePoolClient.requestSlowFill({
         depositor,
@@ -551,7 +553,7 @@ describe("SpokePoolClient: Event Filtering", function () {
         l2TokenAddress,
       ] = Array(8)
         .fill(0)
-        .map((_) => toAddressType(randomAddress()));
+        .map((_) => toAddressType(randomAddress(), originChainId));
 
       const common = {
         depositor,

@@ -70,7 +70,7 @@ export class MockHubPoolClient extends HubPoolClient {
       [chainId],
       [
         {
-          spokePool: toAddressType(contract),
+          spokePool: toAddressType(contract, chainId),
           blockNumber: blockNumber,
           transactionIndex: 0,
           logIndex: 0,
@@ -93,7 +93,7 @@ export class MockHubPoolClient extends HubPoolClient {
 
   setTokenMapping(l1Token: string, chainId: number, l2Token: string) {
     this.spokePoolTokens[l1Token] ??= {};
-    this.spokePoolTokens[l1Token][chainId] = toAddressType(l2Token);
+    this.spokePoolTokens[l1Token][chainId] = toAddressType(l2Token, chainId);
   }
 
   l2TokenEnabledForL1TokenAtBlock(l1Token: EvmAddress, destinationChainId: number, hubBlockNumber: number): boolean {

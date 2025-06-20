@@ -39,7 +39,6 @@ import {
   bnUint32Max,
   isZeroValueDeposit,
   isZeroValueFillOrSlowFillRequest,
-  chainIsEvm,
   duplicateEvent,
   invalidOutputToken,
   Address,
@@ -67,9 +66,10 @@ type DataCache = Record<string, Promise<LoadDataReturnValue>>;
 // V3 dictionary helper functions
 function updateExpiredDepositsV3(dict: ExpiredDepositsToRefundV3, deposit: V3DepositWithBlock): void {
   // A deposit refund for a deposit is invalid if the depositor has a bytes32 address input for an EVM chain. It is valid otherwise.
-  if (chainIsEvm(deposit.originChainId) && !deposit.depositor.isValidEvmAddress()) {
+  if (!deposit.depositor.isValidOn(deposit.originChainId)) {
     return;
   }
+
   const { originChainId, inputToken } = deposit;
   dict[originChainId] ??= {};
   dict[originChainId][inputToken.toBytes32()] ??= [];
@@ -92,9 +92,10 @@ function updateBundleFillsV3(
   repaymentAddress: Address
 ): void {
   // We shouldn't pass any unrepayable fills into this function, so we perform an extra safety check.
-  if (chainIsEvm(repaymentChainId) && !fill.relayer.isValidEvmAddress()) {
+  if (fill.relayer.isValidOn(repaymentChainId)) {
     return;
   }
+
   dict[repaymentChainId] ??= {};
   dict[repaymentChainId][repaymentToken.toBytes32()] ??= {
     fills: [],
@@ -143,9 +144,10 @@ function updateBundleExcessSlowFills(
 }
 
 function updateBundleSlowFills(dict: BundleSlowFills, deposit: V3DepositWithBlock & { lpFeePct: BigNumber }): void {
-  if (chainIsEvm(deposit.destinationChainId) && !deposit.recipient.isValidEvmAddress()) {
+  if (!deposit.recipient.isValidOn(deposit.destinationChainId)) {
     return;
   }
+
   const { destinationChainId, outputToken } = deposit;
   dict[destinationChainId] ??= {};
   dict[destinationChainId][outputToken.toBytes32()] ??= [];

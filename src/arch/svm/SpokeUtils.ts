@@ -10,7 +10,6 @@ import {
 } from "@solana-program/token";
 import {
   Address,
-  address,
   appendTransactionMessageInstruction,
   fetchEncodedAccount,
   fetchEncodedAccounts,
@@ -50,6 +49,7 @@ import {
   getEventAuthority,
   getFillStatusPda,
   getStatePda,
+  toAddress,
   unwrapEventData,
 } from "./";
 import { CHAIN_IDs } from "../../constants";
@@ -394,11 +394,11 @@ export async function fillRelayInstruction(
   repaymentAddress: EvmAddress | SvmAddress = SvmAddress.from(signer.address),
   repaymentChainId = deposit.destinationChainId
 ) {
-  const programId = spokePool.toBase58();
+  const program = toAddress(spokePool);
 
   assert(
     repaymentAddress.isValidOn(repaymentChainId),
-    `Invalid repayment address for chain ${repaymentChainId}: ${repaymentAddress.toAddress()}.`
+    `Invalid repayment address for chain ${repaymentChainId}: ${repaymentAddress.toNative()}.`
   );
 
   const _relayDataHash = getRelayDataHash(deposit, deposit.destinationChainId);
@@ -409,10 +409,11 @@ export async function fillRelayInstruction(
   const relayerTokenAccount = await getAssociatedTokenAddress(relayer, deposit.outputToken);
 
   const [statePda, fillStatusPda, eventAuthority] = await Promise.all([
-    getStatePda(spokePool.toV2Address()),
-    getFillStatusPda(spokePool.toV2Address(), deposit, deposit.destinationChainId),
-    getEventAuthority(spokePool.toV2Address()),
+    getStatePda(program),
+    getFillStatusPda(program, deposit, deposit.destinationChainId),
+    getEventAuthority(program),
   ]);
+
   const depositIdBuffer = new Uint8Array(32);
   const shortenedBuffer = new Uint8Array(Buffer.from(deposit.depositId.toHexString().slice(2), "hex"));
   depositIdBuffer.set(shortenedBuffer, 32 - shortenedBuffer.length);
@@ -420,29 +421,29 @@ export async function fillRelayInstruction(
   const delegatePda = await getFillRelayDelegatePda(
     relayDataHash,
     BigInt(repaymentChainId),
-    relayer.toV2Address(),
-    spokePool.toV2Address()
+    toAddress(relayer),
+    program
   );
 
   // @todo we need to convert the deposit's relayData to svm-like since the interface assumes the data originates
   // from an EVM Spoke pool. Once we migrate to `Address` types, this can be modified/removed.
-  const [depositor, inputToken] = [deposit.depositor, deposit.inputToken].map((addr) =>
-    addr.forceSvmAddress().toV2Address()
-  );
-  const recipient = deposit.recipient.toV2Address();
-  const outputToken = deposit.outputToken.toV2Address();
-  const exclusiveRelayer = deposit.exclusiveRelayer.toV2Address();
+  const [depositor, inputToken] = [deposit.depositor, deposit.inputToken].map(toAddress);
+  const [recipient, outputToken, exclusiveRelayer] = [
+    deposit.recipient,
+    deposit.outputToken,
+    deposit.exclusiveRelayer,
+  ].map(toAddress);
 
   return SvmSpokeClient.getFillRelayInstruction({
     signer,
     state: statePda,
-    delegate: SvmAddress.from(delegatePda.toString()).toV2Address(),
+    delegate: toAddress(SvmAddress.from(delegatePda.toString())),
     mint: outputToken,
     relayerTokenAccount: relayerTokenAccount,
     recipientTokenAccount: recipientTokenAccount,
     fillStatus: fillStatusPda,
     eventAuthority,
-    program: address(programId),
+    program,
     relayHash: relayDataHash,
     relayData: some({
       depositor,
@@ -459,7 +460,7 @@ export async function fillRelayInstruction(
       message: new Uint8Array(Buffer.from(deposit.message.slice(2), "hex")),
     }),
     repaymentChainId: some(BigInt(repaymentChainId)),
-    repaymentAddress: repaymentAddress.toV2Address(),
+    repaymentAddress: toAddress(repaymentAddress),
   });
 }
 
@@ -474,7 +475,7 @@ export function createTokenAccountsInstruction(
 ): SvmSpokeClient.CreateTokenAccountsInstruction {
   return SvmSpokeClient.getCreateTokenAccountsInstruction({
     signer: relayer,
-    mint: mint.toV2Address(),
+    mint: toAddress(mint),
   });
 }
 
@@ -519,7 +520,7 @@ export const createFillInstruction = async (
       tokenProgram: fillInput.tokenProgram,
     });
 
-  const createFillIx = await SvmSpokeClient.getFillRelayInstruction(fillInput);
+  const createFillIx = SvmSpokeClient.getFillRelayInstruction(fillInput);
 
   return pipe(
     await createDefaultTransaction(solanaClient, signer),
@@ -569,7 +570,7 @@ export const createDepositInstruction = async (
       programAddress: mintInfo.programAddress,
     }
   );
-  const depositIx = await SvmSpokeClient.getDepositInstruction(depositInput);
+  const depositIx = SvmSpokeClient.getDepositInstruction(depositInput);
   return pipe(
     await createDefaultTransaction(solanaClient, signer),
     (tx) =>
@@ -591,7 +592,7 @@ export const createRequestSlowFillInstruction = async (
   solanaClient: SVMProvider,
   depositInput: SvmSpokeClient.RequestSlowFillInput
 ) => {
-  const requestSlowFillIx = await SvmSpokeClient.getRequestSlowFillInstruction(depositInput);
+  const requestSlowFillIx = SvmSpokeClient.getRequestSlowFillInstruction(depositInput);
 
   return pipe(await createDefaultTransaction(solanaClient, signer), (tx) =>
     appendTransactionMessageInstruction(requestSlowFillIx, tx)
@@ -610,7 +611,7 @@ export const createCloseFillPdaInstruction = async (
   solanaClient: SVMProvider,
   fillStatusPda: Address
 ) => {
-  const closeFillPdaIx = await SvmSpokeClient.getCloseFillPdaInstruction({
+  const closeFillPdaIx = SvmSpokeClient.getCloseFillPdaInstruction({
     signer,
     state: await getStatePda(SvmSpokeClient.SVM_SPOKE_PROGRAM_ADDRESS),
     fillStatus: fillStatusPda,
@@ -624,13 +625,10 @@ export async function getAssociatedTokenAddress(
   mint: SvmAddress,
   tokenProgramId: Address<string> = TOKEN_PROGRAM_ADDRESS
 ): Promise<Address<string>> {
+  const encoder = getAddressEncoder();
   const [associatedToken] = await getProgramDerivedAddress({
     programAddress: ASSOCIATED_TOKEN_PROGRAM_ADDRESS,
-    seeds: [
-      new Uint8Array(owner.toBuffer()),
-      new Uint8Array(SvmAddress.from(tokenProgramId).toBuffer()),
-      new Uint8Array(mint.toBuffer()),
-    ],
+    seeds: [encoder.encode(toAddress(owner)), encoder.encode(tokenProgramId), encoder.encode(toAddress(mint))],
   });
   return associatedToken;
 }
@@ -641,9 +639,7 @@ export function getRelayDataHash(relayData: RelayData, destinationChainId: numbe
   const uint32Encoder = getU32Encoder();
 
   assert(relayData.message.startsWith("0x"), "Message must be a hex string");
-  const encodeAddress = (data: SvmAddress) => {
-    return Uint8Array.from(addressEncoder.encode(address(data.toBase58())));
-  };
+  const encodeAddress = (data: SvmAddress) => Uint8Array.from(addressEncoder.encode(toAddress(data)));
 
   const contentToHash = Buffer.concat([
     encodeAddress(relayData.depositor),

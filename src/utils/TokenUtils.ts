@@ -1,10 +1,10 @@
 import { BlockTag } from "@ethersproject/abstract-provider";
 import { Contract, providers, Signer } from "ethers";
 import * as constants from "../constants";
-import { TokenInfo } from "../interfaces";
+import { L1TokenInfo, TokenInfo } from "../interfaces";
 import { ERC20__factory } from "../typechain";
 import { BigNumber } from "./BigNumberUtils";
-import { getNetworkName, chainIsL1, chainIsProd, chainIsSvm } from "./NetworkUtils";
+import { getNetworkName, chainIsL1, chainIsProd } from "./NetworkUtils";
 import { isDefined } from "./TypeGuards";
 import { compareAddressesSimple, toAddressType } from "./AddressUtils";
 const { TOKEN_SYMBOLS_MAP, CHAIN_IDs, TOKEN_EQUIVALENCE_REMAPPING } = constants;
@@ -14,7 +14,7 @@ type SignerOrProvider = providers.Provider | Signer;
 export async function fetchTokenInfo(address: string, signerOrProvider: SignerOrProvider): Promise<TokenInfo> {
   const token = new Contract(address, ERC20__factory.abi, signerOrProvider);
   const [symbol, decimals] = await Promise.all([token.symbol(), token.decimals()]);
-  return { address: toAddressType(address).forceEvmAddress(), symbol, decimals };
+  return { address: toAddressType(address, CHAIN_IDs.MAINNET), symbol, decimals };
 }
 
 export const getL2TokenAddresses = (
@@ -111,10 +111,9 @@ export function isStablecoin(tokenSymbol: string): boolean {
  * @param tokenMapping
  * @returns
  */
-export function getTokenInfo(l2TokenAddress: string, chainId: number, tokenMapping = TOKEN_SYMBOLS_MAP): TokenInfo {
-  const parsedAddress = chainIsSvm(chainId)
-    ? toAddressType(l2TokenAddress).toBase58()
-    : toAddressType(l2TokenAddress).toEvmAddress();
+export function getTokenInfo(l2TokenAddress: string, chainId: number, tokenMapping = TOKEN_SYMBOLS_MAP): L1TokenInfo {
+  const parsedAddress = toAddressType(l2TokenAddress, chainId).toNative();
+
   // @dev This might give false positives if tokens on different networks have the same address. I'm not sure how
   // to get around this...
   let tokenObject = Object.values(tokenMapping).find(({ addresses }) => addresses[chainId] === parsedAddress);

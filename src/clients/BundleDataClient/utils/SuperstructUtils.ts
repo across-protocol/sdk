@@ -32,7 +32,7 @@ const BigNumberType = coerce(instance(BigNumber), union([string(), number()]), (
 });
 
 const AddressType = coerce(instance(Address), string(), (value) => {
-  return toAddressType(value);
+  return toAddressType(value, 1); // @todo Don't merge without fixing this!
 });
 
 const FillTypeSS = number();
