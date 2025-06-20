@@ -517,6 +517,13 @@ export const sendReceiveCctpMessage = async (solanaClient: RpcClient, signer: Ke
   const remainingAccounts = [];
 
   const receiveMessageTx = await createReceiveMessageInstruction(signer, solanaClient.rpc, input);
+
+  const remainingAccounts: IAccountMeta<string>[] = remainingAccounts.map((account) => ({
+    address: address(account.pubkey.toString()),
+    role: account.isWritable ? AccountRole.WRITABLE : AccountRole.READONLY,
+  }));
+  (receiveMessageTx.accounts as IAccountMeta<string>[]).push(...remainingAccounts);
+
   const signature = await signAndSendTransaction(solanaClient, receiveMessageTx);
   return { signature, input };
 };
