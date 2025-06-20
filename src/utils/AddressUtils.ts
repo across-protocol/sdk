@@ -84,12 +84,12 @@ export function toAddressType(address: string, chainId: number): Address {
   const isEvm = chainIsEvm(chainId);
   if (isEvm && EvmAddress.validate(rawAddress)) return new EvmAddress(rawAddress);
   if (!isEvm && SvmAddress.validate(rawAddress)) return new SvmAddress(rawAddress);
-  return new Address(rawAddress);
+  return new RawAddress(rawAddress);
 }
 
 // The Address class can contain any address type. It is up to the subclasses to determine how to format the address's internal representation,
 // which for this class, is a bytes32 hex string.
-export class Address {
+export abstract class Address {
   readonly rawAddress: Uint8Array;
 
   // Keep all address types in cache so that we may lazily evaluate them when necessary.
@@ -107,10 +107,6 @@ export class Address {
     }
     // Ensure all addresses in this class are internally stored as 32 bytes.
     this.rawAddress = utils.zeroPad(_rawAddress, 32);
-  }
-
-  static __unsafeConstruct(_rawAddress: Uint8Array): Address {
-    return new this(_rawAddress);
   }
 
   // Converts the address into a bytes32 string. Note that the output bytes will be lowercase so that it matches ethers event data. This function will never
@@ -218,7 +214,7 @@ export class Address {
 
 // Subclass of address which strictly deals with 20-byte addresses. These addresses are guaranteed to be valid EVM addresses, so `toAddress` will always succeed.
 export class EvmAddress extends Address {
-  // @dev This property is required for Typescript typechecker to know to distinguish between `Address`, `SvmAddress` and `EvmAddress`.
+  // @dev This property is required for Typescript typechecker to know to distinguish between `RawAddress`, `SvmAddress` and `EvmAddress`.
   // Otherwise it lets any of these to use in place where other is expected.
   private readonly _brandEvmAddress!: void;
 
@@ -262,7 +258,7 @@ export class EvmAddress extends Address {
 
 // Subclass of address which strictly deals SVM addresses. These addresses are guaranteed to be valid SVM addresses, so `toBase58` will always produce a valid Solana address.
 export class SvmAddress extends Address {
-  // @dev This property is required for Typescript typechecker to know to distinguish between `Address`, `SvmAddress` and `EvmAddress`.
+  // @dev This property is required for Typescript typechecker to know to distinguish between `RawAddress`, `SvmAddress` and `EvmAddress`.
   // Otherwise it lets any of these to use in place where other is expected.
   private readonly _brandSvmAddress!: void;
 
@@ -297,5 +293,15 @@ export class SvmAddress extends Address {
     }
 
     return new this(decodedAddress);
+  }
+}
+
+export class RawAddress extends Address {
+  // @dev This property is required for Typescript typechecker to know to distinguish between `RawAddress`, `SvmAddress` and `EvmAddress`.
+  // Otherwise it lets any of these to use in place where other is expected.
+  private readonly _brandRawAddress!: void;
+
+  constructor(rawAddress: Uint8Array) {
+    super(rawAddress);
   }
 }
