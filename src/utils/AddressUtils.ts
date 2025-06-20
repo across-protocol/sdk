@@ -79,14 +79,10 @@ export function isValidEvmAddress(address: string): boolean {
  * @todo: Change this to `toAddress` once we remove the other `toAddress` function.
  */
 export function toAddressType(address: string, chainId: number): Address | EvmAddress | SvmAddress {
-  const rawAddress = address.startsWith("0x")
-    ? utils.arrayify(address)
-    : bs58.decode(address);
+  const rawAddress = address.startsWith("0x") ? utils.arrayify(address) : bs58.decode(address);
 
   // @todo: Handle invalid addresses gracefully.
-  return chainIsEvm(chainId)
-    ? new EvmAddress(rawAddress)
-    : new SvmAddress(rawAddress);
+  return chainIsEvm(chainId) ? new EvmAddress(rawAddress) : new SvmAddress(rawAddress);
 }
 
 // The Address class can contain any address type. It is up to the subclasses to determine how to format the address's internal representation,

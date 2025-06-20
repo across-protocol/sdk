@@ -27,13 +27,7 @@ import { arrayify, hexZeroPad, hexlify } from "ethers/lib/utils";
 import { Logger } from "winston";
 
 import { SYSTEM_PROGRAM_ADDRESS } from "@solana-program/system";
-import {
-  Deposit,
-  DepositWithBlock,
-  FillStatus,
-  FillWithBlock,
-  RelayData,
-} from "../../interfaces";
+import { Deposit, DepositWithBlock, FillStatus, FillWithBlock, RelayData } from "../../interfaces";
 import {
   BigNumber,
   EvmAddress,
@@ -403,7 +397,7 @@ export async function fillRelayInstruction(
   const [recipient, outputToken, exclusiveRelayer] = [
     deposit.recipient,
     deposit.outputToken,
-    deposit.exclusiveRelayer
+    deposit.exclusiveRelayer,
   ].map((addr) => toAddressType(addr, deposit.destinationChainId).toV2Address());
 
   return SvmSpokeClient.getFillRelayInstruction({
