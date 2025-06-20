@@ -1,4 +1,4 @@
-import { SvmSpokeClient } from "@across-protocol/contracts";
+import { MessageTransmitterClient, SvmSpokeClient } from "@across-protocol/contracts";
 import { decodeFillStatusAccount, fetchState } from "@across-protocol/contracts/dist/src/svm/clients/SvmSpoke";
 import { hashNonEmptyMessage } from "@across-protocol/contracts/dist/src/svm/web3-v1";
 import {
@@ -586,6 +586,18 @@ export const createCloseFillPdaInstruction = async (
     appendTransactionMessageInstruction(closeFillPdaIx, tx)
   );
 };
+
+export const createReceiveMessageInstruction = async (
+  signer: TransactionSigner,
+  solanaClient: SVMProvider,
+  input: MessageTransmitterClient.ReceiveMessageInput
+) => {
+  const receiveMessageIx = await MessageTransmitterClient.getReceiveMessageInstruction(input);
+  return pipe(await createDefaultTransaction(solanaClient, signer), (tx) =>
+    appendTransactionMessageInstruction(receiveMessageIx, tx)
+  );
+};
+
 export async function getAssociatedTokenAddress(
   owner: SvmAddress,
   mint: SvmAddress,

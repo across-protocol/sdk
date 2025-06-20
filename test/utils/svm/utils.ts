@@ -1,7 +1,7 @@
 import { CHAIN_IDs } from "@across-protocol/constants";
 import { SvmSpokeClient, MessageTransmitterClient } from "@across-protocol/contracts";
 import { RelayDataArgs } from "@across-protocol/contracts/dist/src/svm/clients/SvmSpoke";
-import { intToU8Array32 } from "@across-protocol/contracts/dist/src/svm/web3-v1";
+import { encodeMessageHeader, intToU8Array32 } from "@across-protocol/contracts/dist/src/svm/web3-v1";
 import { SYSTEM_PROGRAM_ADDRESS, getCreateAccountInstruction } from "@solana-program/system";
 import {
   ASSOCIATED_TOKEN_PROGRAM_ADDRESS,
@@ -40,6 +40,7 @@ import {
   createDefaultTransaction,
   createDepositInstruction,
   createFillInstruction,
+  createReceiveMessageInstruction,
   createRequestSlowFillInstruction,
   getAssociatedTokenAddress,
   getDepositDelegatePda,
@@ -61,6 +62,8 @@ import {
   randomAddress,
 } from "../../../src/utils";
 import { sendAndConfirmDurableNonceTransaction_INTERNAL_ONLY_DO_NOT_EXPORT } from "@solana/kit/dist/types/send-transaction-internal";
+import { ethers } from "ethers";
+import { PublicKey } from "@solana/web3.js";
 
 /** RPC / Client */
 
@@ -439,7 +442,7 @@ export const sendReceiveCctpMessage = async (solanaClient: RpcClient, signer: Ke
     sourceDomain: remoteDomain,
   });
 
-  const usedNonces = await MessageTransmitterClient.fetchAllUsedNonces(solanaClient.rpc, [messageTransmitterState]);
+  // const usedNonces = await MessageTransmitterClient.fetchAllUsedNonces(solanaClient.rpc, [messageTransmitterState]);
 
   const test = pipe(await createDefaultTransaction(solanaClient.rpc, signer), (tx) =>
     appendTransactionMessageInstruction(usedNoncesInstruction, tx)
@@ -457,6 +460,7 @@ export const sendReceiveCctpMessage = async (solanaClient: RpcClient, signer: Ke
   console.log("- Units consumed:", result.value.unitsConsumed);
 
   // If there's return data from the instruction
+  let usedNonces;
   if (result.value.returnData) {
     console.log("- Return data program:", result.value.returnData.programId);
     console.log("- Return data (base64):", result.value.returnData.data[0]);
@@ -466,20 +470,55 @@ export const sendReceiveCctpMessage = async (solanaClient: RpcClient, signer: Ke
     if (returnDataBuffer.length === 32) {
       const pubkeyBase58 = bs58.encode(returnDataBuffer);
       console.log("- Return data (base58 pubkey):", pubkeyBase58);
+      usedNonces = address(pubkeyBase58);
     }
   }
   console.log(result);
+  const ethereumIface = new ethers.utils.Interface([
+    "function pauseDeposits(bool pause)",
+    "function pauseFills(bool pause)",
+    "function setCrossDomainAdmin(address newCrossDomainAdmin)",
+    "function relayRootBundle(bytes32 relayerRefundRoot, bytes32 slowRelayRoot)",
+    "function emergencyDeleteRootBundle(uint256 rootBundleId)",
+  ]);
+  const localDomain = 5;
+  const cctpMessageversion = 0;
+
+  const calldata = ethereumIface.encodeFunctionData("pauseDeposits", [true]);
+  const messageBody = Buffer.from(calldata.slice(2), "hex");
+  const statePda = await getStatePda(SvmSpokeClient.SVM_SPOKE_PROGRAM_ADDRESS);
+  const state = await SvmSpokeClient.fetchState(solanaClient.rpc, statePda);
+  const { crossDomainAdmin } = state.data;
+  const message = encodeMessageHeader({
+    version: cctpMessageversion,
+    sourceDomain: remoteDomain,
+    destinationDomain: localDomain,
+    nonce: BigInt(nonce),
+    sender: new PublicKey(crossDomainAdmin),
+    recipient: new PublicKey(SvmSpokeClient.SVM_SPOKE_PROGRAM_ADDRESS),
+    destinationCaller: new PublicKey(new Uint8Array(32)),
+    messageBody,
+  });
+
   const input: MessageTransmitterClient.ReceiveMessageInput = {
     program: MessageTransmitterClient.MESSAGE_TRANSMITTER_PROGRAM_ADDRESS,
-    message: overrides.message ?? new Uint8Array(),
     payer: signer,
     caller: signer,
     authorityPda,
-    messageTransmitter: MessageTransmitterClient.MESSAGE_TRANSMITTER_PROGRAM_ADDRESS,
+    messageTransmitter: messageTransmitterState,
+    eventAuthority: await getEventAuthority(),
     usedNonces,
-    receiver: signer.address,
+    receiver: SvmSpokeClient.SVM_SPOKE_PROGRAM_ADDRESS,
     systemProgram: SYSTEM_PROGRAM_ADDRESS,
+    message,
+    attestation: Buffer.alloc(0),
   };
+
+  const remainingAccounts = [];
+
+  const receiveMessageTx = await createReceiveMessageInstruction(signer, solanaClient.rpc, input);
+  const signature = await signAndSendTransaction(solanaClient, receiveMessageTx);
+  return { signature, input };
 };
 
 /** Relay Data Utils */
