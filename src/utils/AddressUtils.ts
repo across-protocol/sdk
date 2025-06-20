@@ -215,6 +215,10 @@ export class Address {
 
 // Subclass of address which strictly deals with 20-byte addresses. These addresses are guaranteed to be valid EVM addresses, so `toAddress` will always succeed.
 export class EvmAddress extends Address {
+  // @dev This property is required for Typescript typechecker to know to distinguish between `Address`, `SvmAddress` and `EvmAddress`.
+  // Otherwise it lets any of these to use in place where other is expected.
+  private readonly _brandEvmAddress!: void;
+
   // On construction, validate that the address can indeed be coerced into an EVM address. Throw immediately if it cannot.
   constructor(rawAddress: Uint8Array) {
     if (!EvmAddress.validate(rawAddress)) {
@@ -255,6 +259,10 @@ export class EvmAddress extends Address {
 
 // Subclass of address which strictly deals SVM addresses. These addresses are guaranteed to be valid SVM addresses, so `toBase58` will always produce a valid Solana address.
 export class SvmAddress extends Address {
+  // @dev This property is required for Typescript typechecker to know to distinguish between `Address`, `SvmAddress` and `EvmAddress`.
+  // Otherwise it lets any of these to use in place where other is expected.
+  private readonly _brandSvmAddress!: void;
+
   // On construction, validate that the address is a point on Curve25519. Throw immediately if it is not.
   constructor(rawAddress: Uint8Array) {
     if (!SvmAddress.validate(rawAddress)) {
