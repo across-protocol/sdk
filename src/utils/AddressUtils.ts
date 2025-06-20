@@ -161,11 +161,7 @@ export class Address {
 
   // Checks if the address is valid on the given chain ID.
   isValidOn(chainId: number): boolean {
-    if (chainIsEvm(chainId)) {
-      return isValidEvmAddress(this.toHexString());
-    }
-    // Assume the address is always valid on Solana.
-    return true;
+    return chainIsEvm(chainId) ? EvmAddress.validate(this.rawAddress) : SvmAddress.validate(this.rawAddress);
   }
 
   // Checks if the object is an address by looking at whether it has an Address constructor.
