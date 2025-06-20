@@ -19,6 +19,7 @@ import {
   getU32Encoder,
   getU64Encoder,
   pipe,
+  ReadonlyUint8Array,
   some,
   type TransactionSigner,
 } from "@solana/kit";
@@ -31,6 +32,7 @@ import { Deposit, DepositWithBlock, FillStatus, FillWithBlock, RelayData } from 
 import { BigNumber, SvmAddress, chainIsSvm, chunk, isUnsafeDepositId, keccak256, toAddressType } from "../../utils";
 import {
   SvmCpiEventsClient,
+  bigToU8a32,
   createDefaultTransaction,
   getEventAuthority,
   getFillStatusPda,
@@ -398,7 +400,7 @@ export async function fillRelayInstruction(
       exclusiveRelayer: exclusiveRelayer.toV2Address(),
       inputToken: inputToken.toV2Address(),
       outputToken: outputToken.toV2Address(),
-      inputAmount: deposit.inputAmount.toBigInt(),
+      inputAmount: bigToU8a32(deposit.inputAmount),
       outputAmount: deposit.outputAmount.toBigInt(),
       originChainId: BigInt(deposit.originChainId),
       fillDeadline: deposit.fillDeadline,
@@ -596,7 +598,7 @@ export function getRelayDataHash(relayData: RelayData, destinationChainId: numbe
     Uint8Array.from(addressEncoder.encode(SvmAddress.from(relayData.exclusiveRelayer, "base16").toV2Address())),
     Uint8Array.from(addressEncoder.encode(SvmAddress.from(relayData.inputToken, "base16").toV2Address())),
     Uint8Array.from(addressEncoder.encode(SvmAddress.from(relayData.outputToken, "base16").toV2Address())),
-    Uint8Array.from(uint64Encoder.encode(BigInt(relayData.inputAmount.toString()))),
+    arrayify(hexZeroPad(hexlify(relayData.inputAmount), 32)),
     Uint8Array.from(uint64Encoder.encode(BigInt(relayData.outputAmount.toString()))),
     Uint8Array.from(uint64Encoder.encode(BigInt(relayData.originChainId.toString()))),
     arrayify(hexZeroPad(hexlify(relayData.depositId), 32)),
@@ -704,7 +706,7 @@ export async function getDepositDelegatePda(
     inputToken: Address<string>;
     outputToken: Address<string>;
     inputAmount: bigint;
-    outputAmount: bigint;
+    outputAmount: ReadonlyUint8Array;
     destinationChainId: bigint;
     exclusiveRelayer: Address<string>;
     quoteTimestamp: bigint;
@@ -724,7 +726,7 @@ export async function getDepositDelegatePda(
     Uint8Array.from(addrEnc.encode(depositData.inputToken)),
     Uint8Array.from(addrEnc.encode(depositData.outputToken)),
     Uint8Array.from(u64.encode(depositData.inputAmount)),
-    Uint8Array.from(u64.encode(depositData.outputAmount)),
+    Uint8Array.from(depositData.outputAmount),
     Uint8Array.from(u64.encode(depositData.destinationChainId)),
     Uint8Array.from(addrEnc.encode(depositData.exclusiveRelayer)),
     Uint8Array.from(u32.encode(depositData.quoteTimestamp)),
@@ -754,7 +756,7 @@ export async function getDepositNowDelegatePda(
     inputToken: Address<string>;
     outputToken: Address<string>;
     inputAmount: bigint;
-    outputAmount: bigint;
+    outputAmount: ReadonlyUint8Array;
     destinationChainId: bigint;
     exclusiveRelayer: Address<string>;
     fillDeadlineOffset: bigint;
@@ -773,7 +775,7 @@ export async function getDepositNowDelegatePda(
     Uint8Array.from(addrEnc.encode(depositData.inputToken)),
     Uint8Array.from(addrEnc.encode(depositData.outputToken)),
     Uint8Array.from(u64.encode(depositData.inputAmount)),
-    Uint8Array.from(u64.encode(depositData.outputAmount)),
+    Uint8Array.from(depositData.outputAmount),
     Uint8Array.from(u64.encode(depositData.destinationChainId)),
     Uint8Array.from(addrEnc.encode(depositData.exclusiveRelayer)),
     Uint8Array.from(u32.encode(depositData.fillDeadlineOffset)),

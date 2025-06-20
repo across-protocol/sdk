@@ -8,6 +8,7 @@ import {
   createCloseFillPdaInstruction,
   findFillEvent,
   getRandomSvmAddress,
+  numberToU8a32,
 } from "../src/arch/svm";
 import { SVMSpokePoolClient } from "../src/clients";
 import { Deposit, FillStatus } from "../src/interfaces";
@@ -56,7 +57,7 @@ describe("SVMSpokePoolClient: Fills", function () {
       exclusiveRelayer: SVM_DEFAULT_ADDRESS,
       inputToken: address(inputToken.toBase58()),
       outputToken: mint.address,
-      inputAmount: 10,
+      inputAmount: numberToU8a32(10),
       outputAmount: 9,
       originChainId: CHAIN_IDs.MAINNET,
       depositId: new Uint8Array(intToU8Array32(depositId)),
