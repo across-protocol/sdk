@@ -47,7 +47,8 @@ export function toBytes32(address: string): string {
   return utils.hexZeroPad(address, 32).toLowerCase();
 }
 
-// Constructs a 20-byte checksummed EVM address from a hex string input. If hex string is longer than 20 bytes or incorrectly checksummed, throws an error
+// Constructs a 20-byte checksummed EVM address from a hex string input.
+// Throws an error if the underlying address length is longer than 20 bytes or incorrectly checksummed.
 export function toEvmAddress(hexString: string): string {
   // rawAddress is the address which is not properly checksummed.
   const rawAddress = utils.hexZeroPad(utils.hexStripZeros(hexString), 20);
@@ -161,7 +162,9 @@ export class Address {
 
   // Checks if the address is valid on the given chain ID.
   isValidOn(chainId: number): boolean {
-    return chainIsEvm(chainId) ? EvmAddress.validate(this.rawAddress) : SvmAddress.validate(this.rawAddress);
+    if (chainIsEvm(chainId)) return EvmAddress.validate(this.rawAddress);
+    if (chainIsSvm(chainId)) return SvmAddress.validate(this.rawAddress);
+    return false;
   }
 
   // Checks if the object is an address by looking at whether it has an Address constructor.
