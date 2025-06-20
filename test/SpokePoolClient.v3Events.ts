@@ -10,7 +10,7 @@ import {
   getMessageHash,
   isDefined,
   randomAddress,
-  toAddress,
+  toEvmAddress,
   toBytes32,
   toBN,
 } from "../src/utils";
@@ -347,14 +347,14 @@ describe("SpokePoolClient: Event Filtering", function () {
       const relayData = {
         depositId: args.depositId,
         originChainId: args.originChainId,
-        depositor: toAddress(args.depositor),
-        recipient: toAddress(args.recipient),
-        inputToken: toAddress(args.inputToken),
+        depositor: toEvmAddress(args.depositor),
+        recipient: toEvmAddress(args.recipient),
+        inputToken: toEvmAddress(args.inputToken),
         inputAmount: args.inputAmount,
-        outputToken: toAddress(args.outputToken),
+        outputToken: toEvmAddress(args.outputToken),
         outputAmount: args.outputAmount,
         fillDeadline: args.fillDeadline,
-        exclusiveRelayer: toAddress(args.exclusiveRelayer),
+        exclusiveRelayer: toEvmAddress(args.exclusiveRelayer),
         exclusivityDeadline: args.exclusivityDeadline,
       };
 
@@ -417,7 +417,7 @@ describe("SpokePoolClient: Event Filtering", function () {
       expect(tokensBridged).to.exist;
       tokensBridged = tokensBridged!;
 
-      expect(tokensBridged.l2TokenAddress).to.equal(toAddress(l2TokenAddress));
+      expect(tokensBridged.l2TokenAddress).to.equal(toEvmAddress(l2TokenAddress));
     }
   });
 
@@ -439,11 +439,11 @@ describe("SpokePoolClient: Event Filtering", function () {
       expect(deposit).to.exist;
       deposit = deposit!;
 
-      expect(deposit.depositor).to.equal(toAddress(depositor));
-      expect(deposit.recipient).to.equal(toAddress(recipient));
-      expect(deposit.inputToken).to.equal(toAddress(inputToken));
-      expect(deposit.outputToken).to.equal(toAddress(outputToken));
-      expect(deposit.exclusiveRelayer).to.equal(toAddress(exclusiveRelayer));
+      expect(deposit.depositor).to.equal(toEvmAddress(depositor));
+      expect(deposit.recipient).to.equal(toEvmAddress(recipient));
+      expect(deposit.inputToken).to.equal(toEvmAddress(inputToken));
+      expect(deposit.outputToken).to.equal(toEvmAddress(outputToken));
+      expect(deposit.exclusiveRelayer).to.equal(toEvmAddress(exclusiveRelayer));
     }
   });
   it("Correctly truncates events with bytes32 address fields: RequestedSpeedUpDeposit", async function () {
@@ -453,12 +453,12 @@ describe("SpokePoolClient: Event Filtering", function () {
         .map((_) => ethers.utils.hexZeroPad(randomAddress(), 32));
       originSpokePoolClient.speedUpDeposit({ depositor, updatedRecipient, depositId: toBN(i) } as SpeedUp);
       await originSpokePoolClient.update(speedUpEvents);
-      let speedUp = originSpokePoolClient.getSpeedUps()[toAddress(depositor)][toBN(i).toString()].at(-1);
+      let speedUp = originSpokePoolClient.getSpeedUps()[toEvmAddress(depositor)][toBN(i).toString()].at(-1);
       expect(speedUp).to.exist;
       speedUp = speedUp!;
 
-      expect(speedUp.depositor).to.equal(toAddress(depositor));
-      expect(speedUp.updatedRecipient).to.equal(toAddress(updatedRecipient));
+      expect(speedUp.depositor).to.equal(toEvmAddress(depositor));
+      expect(speedUp.updatedRecipient).to.equal(toEvmAddress(updatedRecipient));
     }
   });
   it("Correctly truncates events with bytes32 address fields: FilledRelay", async function () {
@@ -481,12 +481,12 @@ describe("SpokePoolClient: Event Filtering", function () {
       expect(relay).to.exist;
       relay = relay!;
 
-      expect(relay.depositor).to.equal(toAddress(depositor));
-      expect(relay.recipient).to.equal(toAddress(recipient));
-      expect(relay.inputToken).to.equal(toAddress(inputToken));
-      expect(relay.outputToken).to.equal(toAddress(outputToken));
-      expect(relay.exclusiveRelayer).to.equal(toAddress(exclusiveRelayer));
-      expect(relay.relayer).to.equal(toAddress(relayer));
+      expect(relay.depositor).to.equal(toEvmAddress(depositor));
+      expect(relay.recipient).to.equal(toEvmAddress(recipient));
+      expect(relay.inputToken).to.equal(toEvmAddress(inputToken));
+      expect(relay.outputToken).to.equal(toEvmAddress(outputToken));
+      expect(relay.exclusiveRelayer).to.equal(toEvmAddress(exclusiveRelayer));
+      expect(relay.relayer).to.equal(toEvmAddress(relayer));
     }
   });
   it("Correctly truncates events with bytes32 address fields: RequestedSlowFill", async function () {
@@ -514,11 +514,11 @@ describe("SpokePoolClient: Event Filtering", function () {
       expect(slowFill).to.exist;
       slowFill = slowFill!;
 
-      expect(slowFill.depositor).to.equal(toAddress(depositor));
-      expect(slowFill.recipient).to.equal(toAddress(recipient));
-      expect(slowFill.inputToken).to.equal(toAddress(inputToken));
-      expect(slowFill.outputToken).to.equal(toAddress(outputToken));
-      expect(slowFill.exclusiveRelayer).to.equal(toAddress(exclusiveRelayer));
+      expect(slowFill.depositor).to.equal(toEvmAddress(depositor));
+      expect(slowFill.recipient).to.equal(toEvmAddress(recipient));
+      expect(slowFill.inputToken).to.equal(toEvmAddress(inputToken));
+      expect(slowFill.outputToken).to.equal(toEvmAddress(outputToken));
+      expect(slowFill.exclusiveRelayer).to.equal(toEvmAddress(exclusiveRelayer));
     }
   });
   it("Does not throw when processing a bytes32 address", async function () {
