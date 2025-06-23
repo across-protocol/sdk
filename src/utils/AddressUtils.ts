@@ -229,6 +229,8 @@ export class EvmAddress extends Address {
     }
 
     super(rawAddress);
+    // @dev required for TS to compile with `noUnusedLocals` rule
+    this._brandEvmAddress;
   }
 
   static validate(rawAddress: Uint8Array): boolean {
@@ -273,6 +275,8 @@ export class SvmAddress extends Address {
     }
 
     super(rawAddress);
+    // @dev required for TS to compile with `noUnusedLocals` rule
+    this._brandSvmAddress;
   }
 
   static validate(rawAddress: Uint8Array): boolean {

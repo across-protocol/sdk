@@ -369,7 +369,7 @@ export async function fillRelayInstruction(
   const relayer = SvmAddress.from(signer.address);
   const outputTokenAddress = toAddressType(deposit.outputToken, deposit.destinationChainId);
   if (!(outputTokenAddress instanceof SvmAddress)) {
-    return;
+    return undefined;
   }
 
   // Create ATA for the relayer and recipient token accounts
@@ -395,15 +395,10 @@ export async function fillRelayInstruction(
   // from an EVM Spoke pool. Once we migrate to `Address` types, this can be modified/removed.
   const [depositor, inputToken] = [deposit.depositor, deposit.inputToken].map((addr: string) => {
     const addressObj = toAddressType(addr, deposit.originChainId);
-    // @todo if depositor or inputToken are incorrectly formatted for originChainId, we can still construct a Solana
-    // SDK `Address` type from `Address` of our own. Should we?
-    if (!(addressObj instanceof EvmAddress) || !(addressObj instanceof SvmAddress)) {
-      return undefined;
-    }
-    return toAddress(addressObj);
+    // @dev we don't really care for correctness of format of depositor / inputToken, so we're fine converting to Solana
+    // SDK `Address<string>` type even if our `toAddressType` function returned a raw address.
+    return addressObj.toBase58() as Address<string>;
   });
-
-  if (!depositor || !inputToken) return;
 
   const [recipient, exclusiveRelayer] = [deposit.recipient, deposit.exclusiveRelayer].map((addr) => {
     const addressObj = toAddressType(addr, deposit.originChainId);
@@ -413,7 +408,7 @@ export async function fillRelayInstruction(
     return toAddress(addressObj);
   });
 
-  if (!recipient || !exclusiveRelayer) return;
+  if (!recipient || !exclusiveRelayer) return undefined;
 
   const outputToken = toAddress(outputTokenAddress);
   return SvmSpokeClient.getFillRelayInstruction({
