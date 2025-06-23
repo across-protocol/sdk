@@ -405,11 +405,7 @@ export async function fillRelayInstruction(
 
   if (!depositor || !inputToken) return;
 
-  const [recipient, outputToken, exclusiveRelayer] = [
-    deposit.recipient,
-    deposit.outputToken,
-    deposit.exclusiveRelayer,
-  ].map((addr) => {
+  const [recipient, exclusiveRelayer] = [deposit.recipient, deposit.exclusiveRelayer].map((addr) => {
     const addressObj = toAddressType(addr, deposit.originChainId);
     if (!(addressObj instanceof SvmAddress)) {
       return undefined;
@@ -417,8 +413,9 @@ export async function fillRelayInstruction(
     return toAddress(addressObj);
   });
 
-  if (!recipient || !outputToken || !exclusiveRelayer) return;
+  if (!recipient || !exclusiveRelayer) return;
 
+  const outputToken = toAddress(outputTokenAddress);
   return SvmSpokeClient.getFillRelayInstruction({
     signer,
     state: statePda,
