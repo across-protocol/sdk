@@ -17,7 +17,6 @@ import {
   toWei,
   utf8ToHex,
   toBytes32,
-  toAddress,
   toAddressType,
   toEvmAddress,
 } from "../../src/utils";
@@ -332,7 +331,7 @@ async function _deposit(
   const message = opts.message ?? EMPTY_MESSAGE;
   const fillDeadline = opts.fillDeadline ?? spokePoolTime + fillDeadlineBuffer;
   const exclusivityDeadline = opts.exclusivityDeadline ?? 0;
-  const exclusiveRelayer = opts.exclusiveRelayer ?? toAddressType(zeroAddress);
+  const exclusiveRelayer = opts.exclusiveRelayer ?? toAddressType(zeroAddress, destinationChainId);
 
   await spokePool
     .connect(signer)
@@ -350,10 +349,10 @@ async function _deposit(
       exclusivityDeadline,
       message
     );
-  const getChainId = (): Promise<number> => Promise.resolve(Number(await spokePool.chainId()));
+  const getChainId = async (): Promise<number> => Promise.resolve(Number(await spokePool.chainId()));
   const [events, originChainId] = await Promise.all([
     spokePool.queryFilter(spokePool.filters.FundsDeposited()),
-    getChainId()
+    getChainId(),
   ]);
 
   const lastEvent = events.at(-1);
@@ -409,10 +408,11 @@ export async function requestV3SlowFill(
 
   const events = await spokePool.queryFilter(spokePool.filters.RequestedSlowFill());
   const lastEvent = events.at(-1);
+  expect(lastEvent).to.exist;
 
-  let { args, blockNumber, transactionHash, transactionIndex, logIndex } = lastEvent!;
-  expect(args).to.exist;
-  args = args!;
+  const { blockNumber, transactionHash, transactionIndex, logIndex } = lastEvent!;
+  expect(lastEvent!.args).to.exist;
+  const args = lastEvent!.args!;
   const originChainId = Number(args.originChainId);
 
   return {
