@@ -791,22 +791,26 @@ export class BundleDataClient {
     };
 
     const _depositIsExpired = (deposit: DepositWithBlock): boolean => {
-      // @TODO This can throw an runtime error if chainId is wrong.
-      return deposit.fillDeadline < bundleBlockTimestamps[deposit.destinationChainId][1];
+      const [, endTimestamp] =
+        bundleBlockTimestamps[deposit.destinationChainId] ?? bundleBlockTimestamps[this.clients.hubPoolClient.chainId];
+      return deposit.fillDeadline < endTimestamp;
     };
 
     const _getFillStatusForDeposit = (deposit: Deposit, queryBlock: number): Promise<FillStatus> => {
-      // @TODO This can throw an runtime error if chainId is wrong.
-      return spokePoolClients[deposit.destinationChainId].relayFillStatus(
+      const spokePoolClient = spokePoolClients[deposit.destinationChainId];
+
+      if (!isDefined(spokePoolClient)) {
+        return Promise.resolve(FillStatus.Unfilled);
+      }
+
+      return spokePoolClient.relayFillStatus(
         deposit,
         // We can assume that in production
         // the block to query is not one that the spoke pool client
         // hasn't queried. This is because this function will usually be called
         // in production with block ranges that were validated by
         // DataworkerUtils.blockRangesAreInvalidForSpokeClients.
-
-        // @TODO This can throw an runtime error if chainId is wrong.
-        Math.min(queryBlock, spokePoolClients[deposit.destinationChainId].latestHeightSearched)
+        Math.min(queryBlock, spokePoolClient.latestHeightSearched)
       );
     };
 
@@ -1572,7 +1576,7 @@ export class BundleDataClient {
       bundleInvalidFillsV3.forEach((fill) => {
         // @TODO This can throw an runtime error if chainId is wrong.
         const originClient = spokePoolClients[fill.originChainId];
-        const fullyMatchedDeposit = originClient.getDepositForFill(fill);
+        const fullyMatchedDeposit = originClient?.getDepositForFill(fill);
         if (!isDefined(fullyMatchedDeposit)) {
           const partiallyMatchedDeposit = originClient.getDeposit(fill.depositId);
           if (isDefined(partiallyMatchedDeposit)) {
