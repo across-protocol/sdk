@@ -303,13 +303,10 @@ export class SvmAddress extends Address {
 }
 
 export class RawAddress extends Address {
-  // @dev This property is required for Typescript typechecker to know to distinguish between `RawAddress`, `SvmAddress` and `EvmAddress`.
-  // Otherwise it lets any of these to use in place where other is expected.
-  private readonly _brandRawAddress!: void;
+  private readonly _type = "raw";
 
   constructor(rawAddress: Uint8Array) {
     super(rawAddress);
-    // @dev required for TS to compile with `noUnusedLocals` rule
-    this._brandRawAddress;
+    this._type; // tsc noUnusedLocals appeasement.
   }
 }
