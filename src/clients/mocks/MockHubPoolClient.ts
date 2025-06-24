@@ -1,4 +1,3 @@
-import assert from "assert";
 import winston from "winston";
 import { Contract } from "ethers";
 import { BigNumber, randomAddress, assign, bnZero, toAddressType, EvmAddress, Address, isDefined } from "../../utils";
