@@ -161,9 +161,9 @@ export class MockSvmCpiEventsClient extends SvmCpiEventsClient {
     let { depositId, originChainId } = slowFillRequest;
     depositId ??= Uint8Array.from([random(1, 100_000, false)]);
     originChainId ??= BigInt(random(1, 42161, false));
-    const depositor = slowFillRequest.depositor ?? EvmAddress.from(randomAddress()).toBase58();
+    const depositor = slowFillRequest.depositor ?? SvmAddress.from(randomBytes(32)).toBase58();
     const recipient = slowFillRequest.recipient ?? getRandomSvmAddress();
-    const inputToken = slowFillRequest.inputToken ?? EvmAddress.from(randomAddress()).toBase58();
+    const inputToken = slowFillRequest.inputToken ?? SvmAddress.from(randomBytes(32)).toBase58();
     const outputToken = slowFillRequest.outputToken ?? getRandomSvmAddress();
 
     const args = {
