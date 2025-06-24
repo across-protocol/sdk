@@ -1086,7 +1086,12 @@ export class HubPoolClient extends BaseAbstractClient {
           );
         }
         executedRootBundle.runningBalances = runningBalances.slice(0, nTokens);
-        this.executedRootBundles.push(executedRootBundle);
+        this.executedRootBundles.push({
+          ...executedRootBundle,
+          l1Tokens: l1Tokens.map((token: string) => {
+            return EvmAddress.from(token, "base16");
+          }),
+        });
       }
     }
 

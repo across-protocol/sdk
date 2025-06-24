@@ -152,14 +152,14 @@ describe("HubPoolClient: RootBundle Events", function () {
       poolRebalanceRoot: tree.getHexRoot(),
       relayerRefundRoot: constants.mockTreeRoot,
       slowRelayRoot: constants.mockTreeRoot,
-      proposer: dataworker.address,
+      proposer: EvmAddress.from(dataworker.address),
       poolRebalanceLeafCount: 2,
       challengePeriodEndTimestamp: proposeTime + liveness,
       bundleEvaluationBlockNumbers: [toBN(11), toBN(22)],
       blockNumber: (await txn.wait()).blockNumber,
-      transactionIndex: 0,
+      txnIndex: 0,
       logIndex: 0,
-      transactionHash: "",
+      txnRef: "",
     };
     expect(hubPoolClient.isRootBundleValid(rootBundle, hubPoolClient.latestHeightSearched!)).to.equal(false);
 
