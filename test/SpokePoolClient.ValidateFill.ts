@@ -288,8 +288,13 @@ describe("SpokePoolClient: Fill Validation", function () {
     _deposit = _deposit!;
 
     expect(_deposit)
-      .excludingEvery(["quoteBlockNumber", "fromLiteChain", "toLiteChain", "message"])
+      .excludingEvery(["quoteBlockNumber", "fromLiteChain", "toLiteChain", "message", "depositor", "recipient", "inputToken", "outputToken", "exclusiveRelayer"])
       .to.deep.equal(depositEvent);
+    expect(_deposit.depositor.eq(depositEvent.depositor)).to.be.true;
+    expect(_deposit.recipient.eq(depositEvent.recipient)).to.be.true;
+    expect(_deposit.inputToken.eq(depositEvent.inputToken)).to.be.true;
+    expect(_deposit.outputToken.eq(depositEvent.outputToken)).to.be.true;
+    expect(_deposit.exclusiveRelayer.eq(depositEvent.exclusiveRelayer)).to.be.true;
   });
 
   it("Can fetch older deposit matching fill", async function () {
@@ -470,8 +475,8 @@ describe("SpokePoolClient: Fill Validation", function () {
       throw new Error("fill_2 is undefined");
     }
 
-    expect(fill_1.relayExecutionInfo.updatedRecipient.toAddress() === depositor.address).to.be.true;
-    expect(fill_2.relayExecutionInfo.updatedRecipient.toAddress() === relayer.address).to.be.true;
+    expect(fill_1.relayExecutionInfo.updatedRecipient.toNative() === depositor.address).to.be.true;
+    expect(fill_2.relayExecutionInfo.updatedRecipient.toNative() === relayer.address).to.be.true;
     expect(fill_2.relayExecutionInfo.updatedMessageHash === ethers.utils.keccak256("0x12")).to.be.true;
     expect(fill_1.relayExecutionInfo.updatedMessageHash === ZERO_BYTES).to.be.true;
     expect(fill_1.relayExecutionInfo.updatedOutputAmount.eq(fill_2.relayExecutionInfo.updatedOutputAmount)).to.be.false;

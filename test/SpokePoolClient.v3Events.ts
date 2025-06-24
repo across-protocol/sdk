@@ -56,7 +56,7 @@ describe("SpokePoolClient: Event Filtering", function () {
     quoteTimestamp?: number,
     inputToken?: Address
   ): Log => {
-    inputToken ??= toAddressType(randomAddress());
+    inputToken ??= toAddressType(randomAddress(), originChainId);
     const message = randomBytes(32);
     quoteTimestamp ??= getCurrentTime() - 10;
     return spokePoolClient.deposit({ destinationChainId, inputToken, message, quoteTimestamp } as DepositWithBlock);
@@ -144,7 +144,7 @@ describe("SpokePoolClient: Event Filtering", function () {
       const expectedDeposit = depositEvents[idx];
       expect(depositEvent.blockNumber).to.equal(expectedDeposit.blockNumber);
 
-      const expectedInputToken = toAddressType(expectedDeposit.args.inputToken);
+      const expectedInputToken = toAddressType(expectedDeposit.args.inputToken, originChainId);
       expect(depositEvent.inputToken.eq(expectedInputToken)).to.be.true;
     });
   });
@@ -161,13 +161,13 @@ describe("SpokePoolClient: Event Filtering", function () {
     destinationSpokePoolClient.fillRelay(
       fillFromDeposit(
         { ...deposit, exclusivityDeadline: deposit.exclusivityDeadline + 2 },
-        toAddressType(randomAddress())
+        toAddressType(randomAddress(), destinationChainId)
       )
     );
     destinationSpokePoolClient.fillRelay(
       fillFromDeposit(
         { ...deposit, exclusivityDeadline: deposit.exclusivityDeadline + 1 },
-        toAddressType(randomAddress())
+        toAddressType(randomAddress(), destinationChainId)
       )
     );
     await destinationSpokePoolClient.update(filledRelayEvents);
@@ -280,8 +280,8 @@ describe("SpokePoolClient: Event Filtering", function () {
     const _deposit = spokePoolClient.deposit({
       originChainId,
       destinationChainId,
-      inputToken: toAddressType(inputToken),
-      outputToken: toAddressType(ZERO_ADDRESS), // outputToken must _not_ be ZERO_ADDRESS after SpokePoolClient ingestion.
+      inputToken: toAddressType(inputToken, originChainId),
+      outputToken: toAddressType(ZERO_ADDRESS, destinationChainId), // outputToken must _not_ be ZERO_ADDRESS after SpokePoolClient ingestion.
     } as DepositWithBlock);
     expect(_deposit?.args?.outputToken).to.equal(toBytes32(ZERO_ADDRESS));
 
@@ -290,9 +290,9 @@ describe("SpokePoolClient: Event Filtering", function () {
     const [deposit] = spokePoolClient.getDeposits();
     expect(deposit).to.exist;
 
-    expect(deposit.inputToken.toAddress()).to.equal(inputToken);
-    expect(deposit.outputToken.toAddress()).to.not.equal(ZERO_ADDRESS);
-    expect(deposit.outputToken.toAddress()).to.equal(outputToken);
+    expect(deposit.inputToken.toNative()).to.equal(inputToken);
+    expect(deposit.outputToken.toNative()).to.not.equal(ZERO_ADDRESS);
+    expect(deposit.outputToken.toNative()).to.equal(outputToken);
   });
 
   it("Handles case where outputToken is set to 0x0 and cannot be resolved", async function () {
@@ -307,8 +307,8 @@ describe("SpokePoolClient: Event Filtering", function () {
     const _deposit = spokePoolClient.deposit({
       originChainId,
       destinationChainId,
-      inputToken: toAddressType(inputToken),
-      outputToken: toAddressType(ZERO_ADDRESS),
+      inputToken: toAddressType(inputToken, originChainId),
+      outputToken: toAddressType(ZERO_ADDRESS, destinationChainId),
     } as DepositWithBlock);
     expect(_deposit?.args?.outputToken).to.equal(ZERO_BYTES);
 
@@ -316,16 +316,16 @@ describe("SpokePoolClient: Event Filtering", function () {
 
     const [deposit] = spokePoolClient.getDeposits();
     expect(deposit).to.exist;
-    expect(deposit.outputToken.toAddress()).to.equal(ZERO_ADDRESS);
+    expect(deposit.outputToken.toNative()).to.equal(ZERO_ADDRESS);
 
     // Both origin and destination chains must map to the PoolRebalanceRoute of the inputToken:
     hubPoolClient.setTokenMapping(hubPoolToken, originChainId, inputToken);
     await spokePoolClient.update(fundsDepositedEvents);
-    expect(spokePoolClient.getDeposits()[0].outputToken.toAddress()).to.equal(ZERO_ADDRESS);
+    expect(spokePoolClient.getDeposits()[0].outputToken.toNative()).to.equal(ZERO_ADDRESS);
     hubPoolClient.deleteTokenMapping(hubPoolToken, originChainId);
     hubPoolClient.setTokenMapping(hubPoolToken, destinationChainId, outputToken);
     await spokePoolClient.update(fundsDepositedEvents);
-    expect(spokePoolClient.getDeposits()[0].outputToken.toAddress()).to.equal(ZERO_ADDRESS);
+    expect(spokePoolClient.getDeposits()[0].outputToken.toNative()).to.equal(ZERO_ADDRESS);
   });
 
   it("Correctly retrieves SlowFillRequested events", async function () {
@@ -390,7 +390,7 @@ describe("SpokePoolClient: Event Filtering", function () {
   it("Correctly retrieves FilledRelay events", async function () {
     // Inject a series of DepositWithBlock events.
     const fillEvents: Log[] = [];
-    const relayer = toAddressType(randomAddress());
+    const relayer = toAddressType(randomAddress(), destinationChainId);
 
     for (let idx = 0; idx < 10; ++idx) {
       const depositEvent = generateDeposit(originSpokePoolClient);
@@ -430,7 +430,7 @@ describe("SpokePoolClient: Event Filtering", function () {
       expect(tokensBridged).to.exist;
       tokensBridged = tokensBridged!;
 
-      expect(tokensBridged.l2TokenAddress).to.equal(toEvmAddress(l2TokenAddress));
+      expect(tokensBridged.l2TokenAddress).to.deep.equal(toAddressType(l2TokenAddress, i));
     }
   });
 
@@ -640,7 +640,7 @@ describe("SpokePoolClient: Event Filtering", function () {
       expect(tokensBridged).to.exist;
       tokensBridged = tokensBridged!;
 
-      let speedUp = originSpokePoolClient.getSpeedUps()[depositor.toAddress()]?.[common.depositId.toString()]?.at(-1);
+      let speedUp = originSpokePoolClient.getSpeedUps()[depositor.toNative()]?.[common.depositId.toString()]?.at(-1);
       expect(speedUp).to.exist;
       speedUp = speedUp!;
 

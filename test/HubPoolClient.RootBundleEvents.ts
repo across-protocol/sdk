@@ -85,7 +85,7 @@ describe("HubPoolClient: RootBundle Events", function () {
       poolRebalanceRoot: tree.getHexRoot(),
       relayerRefundRoot: constants.mockTreeRoot,
       slowRelayRoot: constants.mockTreeRoot,
-      proposer: toAddressType(dataworker.address),
+      proposer: toAddressType(dataworker.address, hubPoolClient.chainId),
       unclaimedPoolRebalanceLeafCount: 2,
       challengePeriodEndTimestamp: proposeTime + liveness,
       bundleEvaluationBlockNumbers: [11, 22],
@@ -407,8 +407,8 @@ describe("HubPoolClient: RootBundle Events", function () {
     await hubPoolClient.update();
 
     // Happy case where latest spoke pool at block is returned
-    expect(hubPoolClient.getSpokePoolForBlock(11, firstUpdateBlockNumber).toAddress()).to.equal(spokePool1);
-    expect(hubPoolClient.getSpokePoolForBlock(11, secondUpdateBlockNumber).toAddress()).to.equal(spokePool2);
+    expect(hubPoolClient.getSpokePoolForBlock(11, firstUpdateBlockNumber).toNative()).to.equal(spokePool1);
+    expect(hubPoolClient.getSpokePoolForBlock(11, secondUpdateBlockNumber).toNative()).to.equal(spokePool2);
 
     // Chain has events but none before block
     expect(() => hubPoolClient.getSpokePoolForBlock(11, firstUpdateBlockNumber - 1)).to.throw(

@@ -33,8 +33,8 @@ describe("SvmSpokePoolClient: Event fetching", function () {
     deposits.forEach((depositEvent, idx) => {
       const expectedDeposit = depositEvents[idx];
       expect(depositEvent.depositId).to.equal(BigNumber.from(hexlify(expectedDeposit.data.depositId)));
-      expect(depositEvent.depositor.eq(toAddressType(expectedDeposit.data.depositor))).to.be.true;
-      expect(depositEvent.recipient.eq(toAddressType(expectedDeposit.data.recipient))).to.be.true;
+      expect(depositEvent.depositor.eq(toAddressType(expectedDeposit.data.depositor, CHAIN_IDs.SOLANA))).to.be.true;
+      expect(depositEvent.recipient.eq(toAddressType(expectedDeposit.data.recipient, CHAIN_IDs.MAINNET))).to.be.true;
     });
   });
 
@@ -61,8 +61,8 @@ describe("SvmSpokePoolClient: Event fetching", function () {
     fills.forEach((fillEvent, idx) => {
       const expectedFill = fillEvents[idx];
       expect(fillEvent.depositId).to.equal(BigNumber.from(hexlify(expectedFill.data.depositId)));
-      expect(fillEvent.depositor.eq(toAddressType(expectedFill.data.depositor))).to.be.true;
-      expect(fillEvent.recipient.eq(toAddressType(expectedFill.data.recipient))).to.be.true;
+      expect(fillEvent.depositor.eq(toAddressType(expectedFill.data.depositor, CHAIN_IDs.MAINNET))).to.be.true;
+      expect(fillEvent.recipient.eq(toAddressType(expectedFill.data.recipient, CHAIN_IDs.SOLANA))).to.be.true;
     });
   });
 });

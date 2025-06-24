@@ -237,10 +237,12 @@ export const sendCreateFill = async (
   const currentTime = await getCurrentTime(solanaClient);
 
   const relayData: SvmSpokeClient.FillRelayInput["relayData"] = {
-    depositor: overrides.depositor ?? toAddressType(address(EvmAddress.from(randomAddress()).toBase58())),
-    recipient: overrides.recipient ?? toAddressType(getRandomSvmAddress()),
-    exclusiveRelayer: overrides.exclusiveRelayer ?? toAddressType(SVM_DEFAULT_ADDRESS),
-    inputToken: overrides.inputToken ?? toAddressType(address(EvmAddress.from(randomAddress()).toBase58())),
+    depositor:
+      overrides.depositor ?? toAddressType(address(EvmAddress.from(randomAddress()).toBase58()), CHAIN_IDs.MAINNET),
+    recipient: overrides.recipient ?? toAddressType(getRandomSvmAddress(), CHAIN_IDs.SOLANA),
+    exclusiveRelayer: overrides.exclusiveRelayer ?? toAddressType(SVM_DEFAULT_ADDRESS, CHAIN_IDs.SOLANA),
+    inputToken:
+      overrides.inputToken ?? toAddressType(address(EvmAddress.from(randomAddress()).toBase58()), CHAIN_IDs.MAINNET),
     outputToken: toAddressType(mint.address),
     inputAmount: overrides.inputAmount ?? getRandomInt(),
     outputAmount: overrides.outputAmount ?? getRandomInt(),
@@ -280,11 +282,11 @@ export const sendCreateFill = async (
 
   const relayDataInput = {
     ...relayData,
-    inputToken: relayData.inputToken.forceSvmAddress().toV2Address(),
-    outputToken: relayData.outputToken.forceSvmAddress().toV2Address(),
-    depositor: relayData.depositor.forceSvmAddress().toV2Address(),
-    recipient: relayData.recipient.forceSvmAddress().toV2Address(),
-    exclusiveRelayer: relayData.exclusiveRelayer.forceSvmAddress().toV2Address(),
+    inputToken: toAddress(relayData.inputToken.forceSvmAddress()),
+    outputToken: toAddress(relayData.outputToken.forceSvmAddress()),
+    depositor: toAddress(relayData.depositor.forceSvmAddress()),
+    recipient: toAddress(relayData.recipient.forceSvmAddress()),
+    exclusiveRelayer: toAddress(relayData.exclusiveRelayer.forceSvmAddress()),
   };
 
   const fillInput: SvmSpokeClient.FillRelayInput = {
@@ -323,10 +325,10 @@ export const sendRequestSlowFill = async (
 
   const relayData: SvmSpokeClient.RequestSlowFillInstructionDataArgs["relayData"] = {
     depositor: overrides.depositor ?? EvmAddress.from(randomAddress()),
-    recipient: overrides.recipient ?? toAddressType(getRandomSvmAddress()),
-    exclusiveRelayer: overrides.exclusiveRelayer ?? toAddressType(SVM_DEFAULT_ADDRESS),
+    recipient: overrides.recipient ?? toAddressType(getRandomSvmAddress(), CHAIN_IDs.SOLANA),
+    exclusiveRelayer: overrides.exclusiveRelayer ?? toAddressType(SVM_DEFAULT_ADDRESS, CHAIN_IDs.SOLANA),
     inputToken: overrides.inputToken ?? EvmAddress.from(randomAddress()),
-    outputToken: overrides.outputToken ?? toAddressType(getRandomSvmAddress()),
+    outputToken: overrides.outputToken ?? toAddressType(getRandomSvmAddress(), CHAIN_IDs.SOLANA),
     inputAmount: overrides.inputAmount ?? getRandomInt(),
     outputAmount: overrides.outputAmount ?? getRandomInt(),
     originChainId: overrides.originChainId ?? CHAIN_IDs.MAINNET,
@@ -345,11 +347,11 @@ export const sendRequestSlowFill = async (
 
   const relayDataInput = {
     ...relayData,
-    inputToken: relayData.inputToken.forceSvmAddress().toV2Address(),
-    outputToken: relayData.outputToken.forceSvmAddress().toV2Address(),
-    depositor: relayData.depositor.forceSvmAddress().toV2Address(),
-    recipient: relayData.recipient.forceSvmAddress().toV2Address(),
-    exclusiveRelayer: relayData.exclusiveRelayer.forceSvmAddress().toV2Address(),
+    inputToken: toAddress(relayData.inputToken.forceSvmAddress()),
+    outputToken: toAddress(relayData.outputToken.forceSvmAddress()),
+    depositor: toAddress(relayData.depositor.forceSvmAddress()),
+    recipient: toAddress(relayData.recipient.forceSvmAddress()),
+    exclusiveRelayer: toAddress(relayData.exclusiveRelayer.forceSvmAddress()),
   };
 
   const requestSlowFillInput: SvmSpokeClient.RequestSlowFillInput = {

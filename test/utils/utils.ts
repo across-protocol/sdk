@@ -320,7 +320,7 @@ async function _deposit(
     addressModifier?: (address: string) => string;
   } = {}
 ): Promise<DepositWithBlock> {
-  const depositor = toAddressType(signer.address);
+  const depositor = toAddressType(signer.address, await spokePool.chainId());
   const recipient = opts.recipient ?? depositor;
 
   const [spokePoolTime, fillDeadlineBuffer] = (
@@ -361,7 +361,7 @@ async function _deposit(
   args = args!;
 
   const { blockNumber, transactionHash, transactionIndex, logIndex } = lastEvent!;
-  assert(args.destinationChainId === destinationChainId);
+  assert(args.destinationChainId.toNumber() === destinationChainId);
 
   return {
     depositId: toBN(args.depositId),
@@ -468,20 +468,20 @@ export async function fillRelay(
     depositId: toBN(args.depositId),
     originChainId: Number(args.originChainId),
     destinationChainId,
-    depositor: toAddressType(args.depositor),
-    recipient: toAddressType(args.recipient),
-    inputToken: toAddressType(args.inputToken),
+    depositor: toAddressType(args.depositor, args.originChainId),
+    recipient: toAddressType(args.recipient, destinationChainId),
+    inputToken: toAddressType(args.inputToken, args.originChainId),
     inputAmount: args.inputAmount,
-    outputToken: toAddressType(args.outputToken),
+    outputToken: toAddressType(args.outputToken, destinationChainId),
     outputAmount: args.outputAmount,
     messageHash: getMessageHash(args.message),
     fillDeadline: args.fillDeadline,
     exclusivityDeadline: args.exclusivityDeadline,
-    exclusiveRelayer: toAddressType(args.exclusiveRelayer),
+    exclusiveRelayer: toAddressType(args.exclusiveRelayer, destinationChainId),
     relayer: args.relayer,
     repaymentChainId: Number(args.repaymentChainId),
     relayExecutionInfo: {
-      updatedRecipient: toAddressType(args.relayExecutionInfo.updatedRecipient),
+      updatedRecipient: toAddressType(args.relayExecutionInfo.updatedRecipient, destinationChainId),
       updatedMessageHash: args.relayExecutionInfo.updatedMessageHash,
       updatedOutputAmount: args.relayExecutionInfo.updatedOutputAmount,
       fillType: args.relayExecutionInfo.fillType,
@@ -551,8 +551,8 @@ export function buildDepositForRelayerFeeTest(
   originChainId: string | number,
   toChainId: string | number
 ): Deposit {
-  const inputToken = toAddressType(resolveContractFromSymbol(tokenSymbol, String(originChainId)));
-  const outputToken = toAddressType(resolveContractFromSymbol(tokenSymbol, String(toChainId)));
+  const inputToken = toAddressType(resolveContractFromSymbol(tokenSymbol, String(originChainId)), originChainId);
+  const outputToken = toAddressType(resolveContractFromSymbol(tokenSymbol, String(toChainId)), toChainId);
   expect(inputToken).to.not.be.undefined;
   expect(outputToken).to.not.undefined;
   if (!inputToken || !outputToken) {
@@ -565,8 +565,8 @@ export function buildDepositForRelayerFeeTest(
     depositId: bnUint32Max,
     originChainId: Number(originChainId),
     destinationChainId: Number(toChainId),
-    depositor: toAddressType(randomAddress()),
-    recipient: toAddressType(randomAddress()),
+    depositor: toAddressType(randomAddress(), Number(originChainId)),
+    recipient: toAddressType(randomAddress(), Number(toChainId)),
     inputToken,
     inputAmount: toBN(amount),
     outputToken,
@@ -576,7 +576,7 @@ export function buildDepositForRelayerFeeTest(
     quoteTimestamp: currentTime,
     fillDeadline: currentTime + 7200,
     exclusivityDeadline: 0,
-    exclusiveRelayer: toAddressType(ZERO_ADDRESS),
+    exclusiveRelayer: toAddressType(ZERO_ADDRESS, Number(toChainId)),
     fromLiteChain: false,
     toLiteChain: false,
   };

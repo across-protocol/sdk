@@ -116,11 +116,11 @@ describe("HubPool Utilization", function () {
     // so the fee should reflect a 10% post deposit utilization.
     const depositData = {
       depositId: 0,
-      depositor: toAddressType(owner.address),
-      recipient: toAddressType(owner.address),
-      inputToken: toAddressType(l2Token.address),
+      depositor: toAddressType(owner.address, originChainId),
+      recipient: toAddressType(owner.address, destinationChainId),
+      inputToken: toAddressType(l2Token.address, originChainId),
       inputAmount: amountToLp.div(10),
-      outputToken: toAddressType(l1Token.address),
+      outputToken: toAddressType(l1Token.address, destinationChainId),
       outputAmount: l1Token.address,
       originChainId,
       destinationChainId: repaymentChainId,

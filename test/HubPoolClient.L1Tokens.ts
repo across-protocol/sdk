@@ -50,7 +50,7 @@ describe("HubPoolClient: L1Tokens", function () {
     await hubPoolClient.update();
     expect(
       hubPoolClient.getL1Tokens().map((l1Token) => {
-        return { ...l1Token, address: l1Token.address.toAddress() };
+        return { ...l1Token, address: l1Token.address.toNative() };
       })
     ).to.deep.equal([
       { address: l1Token1.address, symbol: "Coin1", decimals: 18 },

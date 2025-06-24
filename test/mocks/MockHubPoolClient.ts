@@ -50,6 +50,6 @@ export class MockHubPoolClient extends clients.mocks.MockHubPoolClient {
   ): string {
     const l1Token = this.getL1TokenForDeposit(deposit);
     // Use the latest hub block number to find the L2 token counterpart.
-    return this.getL2TokenForL1TokenAtBlock(l1Token, l2ChainId, deposit.quoteBlockNumber).toAddress();
+    return this.getL2TokenForL1TokenAtBlock(l1Token, l2ChainId, deposit.quoteBlockNumber).toNative();
   }
 }

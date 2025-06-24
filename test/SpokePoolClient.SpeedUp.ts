@@ -79,7 +79,7 @@ describe("SpokePoolClient: SpeedUp", function () {
       depositEvent.depositId,
       originChainId,
       updatedOutputAmount,
-      toBytes32(updatedRecipient.toAddress()),
+      toBytes32(updatedRecipient.toNative()),
       updatedMessage
     );
 
@@ -89,7 +89,7 @@ describe("SpokePoolClient: SpeedUp", function () {
         toBytes32(depositor.address),
         depositEvent.depositId,
         updatedOutputAmount,
-        toBytes32(updatedRecipient.toAddress()),
+        toBytes32(updatedRecipient.toNative()),
         updatedMessage,
         signature
       );
@@ -106,6 +106,7 @@ describe("SpokePoolClient: SpeedUp", function () {
       updatedRecipient,
     };
     const updatedDeposit = spokePoolClient.appendMaxSpeedUpSignatureToDeposit(depositEvent);
+    updatedDeposit.updatedRecipient.toNative();
     expect(updatedDeposit).to.deep.eq(expectedDepositData);
 
     // Fetching deposits for the depositor should contain the correct fees.
@@ -155,7 +156,7 @@ describe("SpokePoolClient: SpeedUp", function () {
         depositId,
         originChainId,
         updatedOutputAmount,
-        toBytes32(updatedRecipient.toAddress()),
+        toBytes32(updatedRecipient.toNative()),
         updatedMessage
       );
 
@@ -165,7 +166,7 @@ describe("SpokePoolClient: SpeedUp", function () {
           toBytes32(depositor.address),
           depositId,
           updatedOutputAmount,
-          toBytes32(updatedRecipient.toAddress()),
+          toBytes32(updatedRecipient.toNative()),
           updatedMessage,
           depositorSignature
         );
@@ -202,6 +203,7 @@ describe("SpokePoolClient: SpeedUp", function () {
       } else {
         expect(updatedDeposit.updatedOutputAmount!.eq(bestDepositUpdate.updatedOutputAmount)).to.be.true;
         expect(updatedDeposit.speedUpSignature).to.equal(bestDepositUpdate.depositorSignature);
+        updatedDeposit.updatedRecipient.toNative();
         expect(updatedDeposit.updatedRecipient).to.deep.equal(bestDepositUpdate.updatedRecipient);
         expect(updatedDeposit.updatedMessage).to.equal(bestDepositUpdate.updatedMessage);
       }

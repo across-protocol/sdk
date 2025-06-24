@@ -132,7 +132,7 @@ describe("RelayFeeCalculator", () => {
       buildDepositForRelayerFeeTest(100e6, "usdc", "10", "1"),
       100e6,
       false,
-      toAddressType(randomAddress()),
+      toAddressType(randomAddress(), 1),
       1.01
     );
     assert.ok(resultWithPrice);
@@ -502,16 +502,16 @@ describe("RelayFeeCalculator: Composable Bridging", function () {
         {
           inputAmount: bnOne,
           outputAmount: bnOne,
-          inputToken: toAddressType(erc20.address),
-          outputToken: toAddressType(erc20.address),
-          recipient: toAddressType(testContract.address),
+          inputToken: toAddressType(erc20.address, 10),
+          outputToken: toAddressType(erc20.address, 1),
+          recipient: toAddressType(testContract.address, 1),
           quoteTimestamp: 1,
           depositId: BigNumber.from(1000000),
-          depositor: toAddressType(depositor.address),
+          depositor: toAddressType(depositor.address, 10),
           originChainId: 10,
           destinationChainId: 1,
           message: message || EMPTY_MESSAGE,
-          exclusiveRelayer: toAddressType(ZERO_ADDRESS),
+          exclusiveRelayer: toAddressType(ZERO_ADDRESS, 1),
           fillDeadline: getCurrentTime() + 60000,
           exclusivityDeadline: 0,
           fromLiteChain: false,
@@ -520,7 +520,7 @@ describe("RelayFeeCalculator: Composable Bridging", function () {
         },
         1,
         false,
-        toAddressType(relayer.address),
+        toAddressType(relayer.address, 1),
         1,
         tokenMap,
         undefined,
@@ -650,7 +650,7 @@ describe("QueryBase", function () {
       };
       const result = await queryBase.estimateGas(
         {}, // populatedTransaction
-        toAddressType(randomAddress()),
+        toAddressType(randomAddress(), 1),
         getDefaultProvider(),
         options
       );
@@ -672,7 +672,7 @@ describe("QueryBase", function () {
 
       const result = await queryBase.estimateGas(
         {}, // populatedTransaction
-        toAddressType(randomAddress()),
+        toAddressType(randomAddress(), 1),
         mockedProvider,
         options
       );
