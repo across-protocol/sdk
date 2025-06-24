@@ -1086,10 +1086,7 @@ export class HubPoolClient extends BaseAbstractClient {
           );
         }
         executedRootBundle.runningBalances = runningBalances.slice(0, nTokens);
-        const executedRootBundleWithL1Tokens = {
-          ...executedRootBundle,
-          l1Tokens: executedRootBundle.l1Tokens.map(toAddressType, this.chainId),
-        };
+        const executedRootBundleWithL1Tokens = { ...executedRootBundle  };
         this.executedRootBundles.push(executedRootBundleWithL1Tokens);
       }
     }
