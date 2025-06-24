@@ -84,12 +84,12 @@ export function toAddressType(address: string, chainId: number): Address {
   const isEvm = chainIsEvm(chainId);
   if (isEvm && EvmAddress.validate(rawAddress)) return new EvmAddress(rawAddress);
   if (!isEvm && SvmAddress.validate(rawAddress)) return new SvmAddress(rawAddress);
-  return new Address(rawAddress);
+  return new RawAddress(rawAddress);
 }
 
 // The Address class can contain any address type. It is up to the subclasses to determine how to format the address's internal representation,
 // which for this class, is a bytes32 hex string.
-export class Address {
+export abstract class Address {
   readonly rawAddress: Uint8Array;
 
   // Keep all address types in cache so that we may lazily evaluate them when necessary.
@@ -107,10 +107,6 @@ export class Address {
     }
     // Ensure all addresses in this class are internally stored as 32 bytes.
     this.rawAddress = utils.zeroPad(_rawAddress, 32);
-  }
-
-  static __unsafeConstruct(_rawAddress: Uint8Array): Address {
-    return new this(_rawAddress);
   }
 
   // Converts the address into a bytes32 string. Note that the output bytes will be lowercase so that it matches ethers event data. This function will never
@@ -303,5 +299,17 @@ export class SvmAddress extends Address {
     }
 
     return new this(decodedAddress);
+  }
+}
+
+export class RawAddress extends Address {
+  // @dev This property is required for Typescript typechecker to know to distinguish between `RawAddress`, `SvmAddress` and `EvmAddress`.
+  // Otherwise it lets any of these to use in place where other is expected.
+  private readonly _brandRawAddress!: void;
+
+  constructor(rawAddress: Uint8Array) {
+    super(rawAddress);
+    // @dev required for TS to compile with `noUnusedLocals` rule
+    this._brandRawAddress;
   }
 }
