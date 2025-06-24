@@ -223,7 +223,7 @@ export class EvmAddress extends Address {
     }
 
     super(rawAddress);
-    this._type;
+    this._type; // tsc noUnusedLocals appeasement.
   }
 
   static validate(rawAddress: Uint8Array): boolean {
@@ -270,7 +270,7 @@ export class SvmAddress extends Address {
     }
 
     super(rawAddress);
-    this._type;
+    this._type; // tsc noUnusedLocals appeasement.
   }
 
   static validate(rawAddress: Uint8Array): boolean {
