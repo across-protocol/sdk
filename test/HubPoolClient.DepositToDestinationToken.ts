@@ -148,14 +148,14 @@ describe("HubPoolClient: Deposit to Destination Token", function () {
     // If L2 token mapping doesn't exist, throw.
     expect(() =>
       hubPoolClient.getL1TokenForL2TokenAtBlock(
-        toAddressType(randomDestinationToken, destinationChainId),
+        toAddressType(randomL1Token, destinationChainId),
         destinationChainId,
         e2.blockNumber
       )
     ).to.throw(/Could not find HubPool mapping/);
     expect(() =>
       hubPoolClient.getL1TokenForL2TokenAtBlock(
-        toAddressType(randomDestinationToken, destinationChainId),
+        toAddressType(randomDestinationToken, originChainId),
         originChainId,
         e2.blockNumber
       )

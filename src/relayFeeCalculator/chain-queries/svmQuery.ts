@@ -151,7 +151,14 @@ export class SvmQuery implements QueryInterface {
       deposit.destinationChainId
     )
   ) {
-    const { depositor, recipient, inputToken, outputToken, exclusiveRelayer, destinationChainId } = deposit;
+    const {
+      depositor,
+      recipient: _recipient,
+      inputToken,
+      outputToken: _outputToken,
+      exclusiveRelayer,
+      destinationChainId,
+    } = deposit;
 
     // tsc appeasement...should be unnecessary, but isn't. @todo Identify why.
     assert(recipient.isSVM());
@@ -166,6 +173,7 @@ export class SvmQuery implements QueryInterface {
       getFillRelayDelegatePda(relayDataHash, BigInt(repaymentChainId), toAddress(repaymentAddress), program),
     ]);
 
+    const [recipient, outputToken] = [_recipient.forceSvmAddress(), _outputToken.forceSvmAddress()];
     const mint = toAddress(outputToken);
     const mintInfo = await fetchMint(this.provider, mint);
 

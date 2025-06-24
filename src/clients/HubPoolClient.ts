@@ -1010,7 +1010,7 @@ export class HubPoolClient extends BaseAbstractClient {
       const [tokenInfo, lpTokenInfo] = await Promise.all([
         Promise.all(
           uniqueL1Tokens.map(async (l1Token: string) => {
-            const tokenInfo: L1TokenInfo = await fetchTokenInfo(l1Token, this.hubPool.provider);
+            const tokenInfo = await fetchTokenInfo(l1Token, this.hubPool.provider);
             return {
               ...tokenInfo,
               address: EvmAddress.from(l1Token),
@@ -1086,8 +1086,7 @@ export class HubPoolClient extends BaseAbstractClient {
           );
         }
         executedRootBundle.runningBalances = runningBalances.slice(0, nTokens);
-        const executedRootBundleWithL1Tokens = { ...executedRootBundle  };
-        this.executedRootBundles.push(executedRootBundleWithL1Tokens);
+        this.executedRootBundles.push(executedRootBundle);
       }
     }
 

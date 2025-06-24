@@ -17,7 +17,7 @@ import {
 } from "@solana/kit";
 import { SvmSpokeClient } from "@across-protocol/contracts";
 import { FillType, RelayData } from "../../interfaces";
-import { Address as AcrossAddress, BigNumber, SvmAddress, getRelayDataHash, isUint8Array } from "../../utils";
+import { BigNumber, SvmAddress, getRelayDataHash, isUint8Array, Address as SdkAddress } from "../../utils";
 import { EventName, SVMEventNames, SVMProvider } from "./types";
 
 /**
@@ -45,7 +45,7 @@ export async function isDevnet(rpc: SVMProvider): Promise<boolean> {
 /**
  * Small utility to convert an Address to a Solana Kit branded type.
  */
-export function toAddress(address: AcrossAddress): Address<string> {
+export function toAddress(address: SdkAddress): Address<string> {
   return address.toBase58() as Address<string>;
 }
 
