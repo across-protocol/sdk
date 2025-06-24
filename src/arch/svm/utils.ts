@@ -289,6 +289,18 @@ export const getEventAuthority = async () => {
 };
 
 /**
+ * Returns the PDA for the Self Authority.
+ * @returns The PDA for the Self Authority.
+ */
+export const getSelfAuthority = async () => {
+  const [selfAuthority] = await getProgramDerivedAddress({
+    programAddress: address(SvmSpokeClient.SVM_SPOKE_PROGRAM_ADDRESS),
+    seeds: ["self_authority"],
+  });
+  return selfAuthority;
+};
+
+/**
  * Returns a random SVM address.
  */
 export function getRandomSvmAddress() {

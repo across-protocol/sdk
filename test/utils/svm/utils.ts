@@ -1,5 +1,5 @@
 import { CHAIN_IDs } from "@across-protocol/constants";
-import { SvmSpokeClient, MessageTransmitterClient } from "@across-protocol/contracts";
+import { MessageTransmitterClient, SpokePool__factory, SvmSpokeClient } from "@across-protocol/contracts";
 import { RelayDataArgs } from "@across-protocol/contracts/dist/src/svm/clients/SvmSpoke";
 import { encodeMessageHeader, intToU8Array32 } from "@across-protocol/contracts/dist/src/svm/web3-v1";
 import { SYSTEM_PROGRAM_ADDRESS, getCreateAccountInstruction } from "@solana-program/system";
@@ -12,9 +12,11 @@ import {
   getMintToInstruction,
 } from "@solana-program/token-2022";
 import {
+  AccountRole,
   Address,
   Commitment,
   CompilableTransactionMessage,
+  IAccountMeta,
   KeyPairSigner,
   TransactionMessageWithBlockhashLifetime,
   address,
@@ -23,15 +25,16 @@ import {
   createSolanaRpc,
   createSolanaRpcSubscriptions,
   generateKeyPairSigner,
+  getBase64EncodedWireTransaction,
   getProgramDerivedAddress,
   getSignatureFromTransaction,
-  getBase64EncodedWireTransaction,
   lamports,
   pipe,
   sendAndConfirmTransactionFactory,
   signTransactionMessageWithSigners,
 } from "@solana/kit";
-import { createSolanaClient } from "gill";
+import { PublicKey } from "@solana/web3.js";
+import { ethers } from "ethers";
 import { arrayify, hexlify } from "ethers/lib/utils";
 import {
   RpcClient,
@@ -48,6 +51,7 @@ import {
   getFillRelayDelegatePda,
   getFillStatusPda,
   getRandomSvmAddress,
+  getSelfAuthority,
   getStatePda,
   toAddress,
 } from "../../../src/arch/svm";
@@ -61,9 +65,6 @@ import {
   getRelayDataHash,
   randomAddress,
 } from "../../../src/utils";
-import { sendAndConfirmDurableNonceTransaction_INTERNAL_ONLY_DO_NOT_EXPORT } from "@solana/kit/dist/types/send-transaction-internal";
-import { ethers } from "ethers";
-import { PublicKey } from "@solana/web3.js";
 
 /** RPC / Client */
 
@@ -198,7 +199,7 @@ export const initializeSvmSpoke = async (
     seed,
     initialNumberOfDeposits,
     chainId: BigInt(CHAIN_IDs.SOLANA),
-    remoteDomain: 1,
+    remoteDomain: 0,
     crossDomainAdmin,
     depositQuoteTimeBuffer,
     fillDeadlineBuffer,
@@ -421,83 +422,96 @@ export const sendCreateDeposit = async (
   return { signature, depositInput };
 };
 
-// helper to receive a cctp message transmitter message
-export const sendReceiveCctpMessage = async (solanaClient: RpcClient, signer: KeyPairSigner) => {
+/**
+ * Helper: Encodes a `pauseDeposits` call and returns it as a Buffer.
+ * @param pause Whether deposits should be paused. Defaults to `true`.
+ */
+export const encodePauseDepositsMessageBody = (pause = true): Buffer => {
+  const spokePoolInterface = new ethers.utils.Interface(SpokePool__factory.abi);
+  const calldata = spokePoolInterface.encodeFunctionData("pauseDeposits", [pause]);
+  return Buffer.from(calldata.slice(2), "hex");
+};
+
+export interface SendReceiveCctpMessageParams {
+  solanaClient: RpcClient;
+  signer: KeyPairSigner;
+  messageBody: Buffer;
+  nonce: number | bigint;
+  remoteDomain?: number;
+  localDomain?: number;
+}
+
+/**
+ * Receives a test CCTP message through Solana. No attestations are needed as we
+ * are using a modified version of the CCTP message transmitter.
+ *
+ * @returns `{ signature, input }` – the confirmed signature and the full CPI input struct.
+ */
+export const sendReceiveCctpMessage = async ({
+  solanaClient,
+  signer,
+  messageBody,
+  nonce,
+  remoteDomain = 0,
+  localDomain = 5,
+}: SendReceiveCctpMessageParams) => {
   const [authorityPda] = await getProgramDerivedAddress({
     programAddress: MessageTransmitterClient.MESSAGE_TRANSMITTER_PROGRAM_ADDRESS,
-    seeds: [Buffer.from("delegate"), SvmAddress.from(SvmSpokeClient.SVM_SPOKE_PROGRAM_ADDRESS).toBuffer()],
+    seeds: [Buffer.from("message_transmitter_authority"), bs58.decode(SvmSpokeClient.SVM_SPOKE_PROGRAM_ADDRESS)],
   });
 
-  const [messageTransmitterState] = await getProgramDerivedAddress({
+  const [messageTransmitterPda] = await getProgramDerivedAddress({
     programAddress: MessageTransmitterClient.MESSAGE_TRANSMITTER_PROGRAM_ADDRESS,
     seeds: [Buffer.from("message_transmitter")],
   });
-  // const statePda = await getStatePda(SvmSpokeClient.SVM_SPOKE_PROGRAM_ADDRESS);
-  // const state = await SvmSpokeClient.fetchState(solanaClient.rpc, statePda);
-  const nonce = 1;
-  const remoteDomain = 0; // Ethereum
-  const usedNoncesInstruction = await MessageTransmitterClient.getGetNoncePdaInstruction({
-    messageTransmitter: messageTransmitterState,
-    nonce: nonce,
+
+  const getNonceIx = await MessageTransmitterClient.getGetNoncePdaInstruction({
+    messageTransmitter: messageTransmitterPda,
+    nonce,
     sourceDomain: remoteDomain,
   });
 
-  // const usedNonces = await MessageTransmitterClient.fetchAllUsedNonces(solanaClient.rpc, [messageTransmitterState]);
-
-  const test = pipe(await createDefaultTransaction(solanaClient.rpc, signer), (tx) =>
-    appendTransactionMessageInstruction(usedNoncesInstruction, tx)
+  const simulationTx = appendTransactionMessageInstruction(
+    getNonceIx,
+    await createDefaultTransaction(solanaClient.rpc, signer)
   );
 
-  const result = await solanaClient.rpc
-    .simulateTransaction(getBase64EncodedWireTransaction(await signTransactionMessageWithSigners(test)), {
+  const simulationResult = await solanaClient.rpc
+    .simulateTransaction(getBase64EncodedWireTransaction(await signTransactionMessageWithSigners(simulationTx)), {
       encoding: "base64",
     })
     .send();
 
-  console.log("Simulation Result:");
-  console.log("- Error:", result.value.err);
-  console.log("- Logs:", result.value.logs);
-  console.log("- Units consumed:", result.value.unitsConsumed);
-
-  // If there's return data from the instruction
-  let usedNonces;
-  if (result.value.returnData) {
-    console.log("- Return data program:", result.value.returnData.programId);
-    console.log("- Return data (base64):", result.value.returnData.data[0]);
-    // Decode the base64 data if needed
-    const returnDataBuffer = Buffer.from(result.value.returnData.data[0], "base64");
-    console.log("- Return data (hex):", returnDataBuffer.toString("hex"));
-    if (returnDataBuffer.length === 32) {
-      const pubkeyBase58 = bs58.encode(returnDataBuffer);
-      console.log("- Return data (base58 pubkey):", pubkeyBase58);
-      usedNonces = address(pubkeyBase58);
+  let usedNoncesPda: string | undefined;
+  const { returnData } = simulationResult.value;
+  if (returnData && returnData.data[0]) {
+    const buf = Buffer.from(returnData.data[0], "base64");
+    if (buf.length === 32) {
+      usedNoncesPda = bs58.encode(buf);
     }
   }
-  console.log(result);
-  const ethereumIface = new ethers.utils.Interface([
-    "function pauseDeposits(bool pause)",
-    "function pauseFills(bool pause)",
-    "function setCrossDomainAdmin(address newCrossDomainAdmin)",
-    "function relayRootBundle(bytes32 relayerRefundRoot, bytes32 slowRelayRoot)",
-    "function emergencyDeleteRootBundle(uint256 rootBundleId)",
-  ]);
-  const localDomain = 5;
-  const cctpMessageversion = 0;
+  // TODO find a better way to do a static call to get the usedNoncesPda
+  if (!usedNoncesPda) {
+    throw new Error("Failed to get usedNoncesPda");
+  }
 
-  const calldata = ethereumIface.encodeFunctionData("pauseDeposits", [true]);
-  const messageBody = Buffer.from(calldata.slice(2), "hex");
   const statePda = await getStatePda(SvmSpokeClient.SVM_SPOKE_PROGRAM_ADDRESS);
   const state = await SvmSpokeClient.fetchState(solanaClient.rpc, statePda);
-  const { crossDomainAdmin } = state.data;
-  const message = encodeMessageHeader({
-    version: cctpMessageversion,
+
+  const cctpHeader = encodeMessageHeader({
+    version: 0,
     sourceDomain: remoteDomain,
     destinationDomain: localDomain,
     nonce: BigInt(nonce),
-    sender: new PublicKey(crossDomainAdmin),
+    sender: new PublicKey(state.data.crossDomainAdmin),
     recipient: new PublicKey(SvmSpokeClient.SVM_SPOKE_PROGRAM_ADDRESS),
     destinationCaller: new PublicKey(new Uint8Array(32)),
     messageBody,
+  });
+
+  const [eventAuthorityPda] = await getProgramDerivedAddress({
+    programAddress: MessageTransmitterClient.MESSAGE_TRANSMITTER_PROGRAM_ADDRESS,
+    seeds: ["__event_authority"],
   });
 
   const input: MessageTransmitterClient.ReceiveMessageInput = {
@@ -505,27 +519,30 @@ export const sendReceiveCctpMessage = async (solanaClient: RpcClient, signer: Ke
     payer: signer,
     caller: signer,
     authorityPda,
-    messageTransmitter: messageTransmitterState,
-    eventAuthority: await getEventAuthority(),
-    usedNonces,
+    messageTransmitter: messageTransmitterPda,
+    eventAuthority: eventAuthorityPda,
+    usedNonces: address(usedNoncesPda),
     receiver: SvmSpokeClient.SVM_SPOKE_PROGRAM_ADDRESS,
     systemProgram: SYSTEM_PROGRAM_ADDRESS,
-    message,
+    message: cctpHeader,
     attestation: Buffer.alloc(0),
   };
 
-  const remainingAccounts = [];
+  // Remaining accounts ORDERED
+  const remainingAccounts: IAccountMeta<string>[] = [
+    { address: statePda, role: AccountRole.READONLY },
+    { address: await getSelfAuthority(), role: AccountRole.READONLY },
+    { address: SvmSpokeClient.SVM_SPOKE_PROGRAM_ADDRESS, role: AccountRole.READONLY },
+    { address: statePda, role: AccountRole.WRITABLE },
+    { address: await getEventAuthority(), role: AccountRole.READONLY },
+    { address: SvmSpokeClient.SVM_SPOKE_PROGRAM_ADDRESS, role: AccountRole.READONLY },
+  ];
 
-  const receiveMessageTx = await createReceiveMessageInstruction(signer, solanaClient.rpc, input);
-
-  const remainingAccounts: IAccountMeta<string>[] = remainingAccounts.map((account) => ({
-    address: address(account.pubkey.toString()),
-    role: account.isWritable ? AccountRole.WRITABLE : AccountRole.READONLY,
-  }));
-  (receiveMessageTx.accounts as IAccountMeta<string>[]).push(...remainingAccounts);
+  const receiveMessageTx = await createReceiveMessageInstruction(signer, solanaClient.rpc, input, remainingAccounts);
 
   const signature = await signAndSendTransaction(solanaClient, receiveMessageTx);
-  return { signature, input };
+
+  return { signature, input } as const;
 };
 
 /** Relay Data Utils */
