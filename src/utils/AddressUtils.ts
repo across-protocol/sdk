@@ -227,6 +227,7 @@ export class EvmAddress extends Address {
     }
 
     super(rawAddress);
+    this._type;
   }
 
   static validate(rawAddress: Uint8Array): boolean {
@@ -236,7 +237,7 @@ export class EvmAddress extends Address {
   }
 
   override isEVM(): this is EvmAddress {
-    return this._type === "evm";
+    return true;
   }
 
   // Override `toAddress` to return the 20-byte representation address.
@@ -273,6 +274,7 @@ export class SvmAddress extends Address {
     }
 
     super(rawAddress);
+    this._type;
   }
 
   static validate(rawAddress: Uint8Array): boolean {
@@ -280,7 +282,7 @@ export class SvmAddress extends Address {
   }
 
   override isSVM(): this is SvmAddress {
-    return this._type === "svm";
+    return true;
   }
 
   // Override the toAddress function for SVM addresses only since while they will never have a defined 20-byte representation. The base58 encoded addresses are also the encodings
