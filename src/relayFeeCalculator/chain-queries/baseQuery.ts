@@ -19,7 +19,7 @@ import {
 import assert from "assert";
 import { Logger, QueryInterface, getDefaultSimulatedRelayerAddress } from "../relayFeeCalculator";
 import { Transport } from "viem";
-import { getGasPriceEstimate, EvmGasPriceEstimate } from "../../gasPriceOracle";
+import { getGasPriceEstimate } from "../../gasPriceOracle";
 import { EvmProvider } from "../../arch/evm/types";
 
 export type SymbolMappingType = Record<
@@ -213,9 +213,9 @@ export class QueryBase implements QueryInterface {
         ? Promise.resolve({ maxFeePerGas: _gasPrice })
         : getGasPriceEstimate(provider, { chainId, baseFeeMultiplier, priorityFeeMultiplier, transport, unsignedTx }),
     ] as const;
-    const [nativeGasCost, _gasPriceEstimate] = await Promise.all(queries);
-    // It should be safe to cast to an EvmGasPriceEstimate here since QueryBase is only used for EVM chains.
-    const gasPrice = (_gasPriceEstimate as EvmGasPriceEstimate).maxFeePerGas;
+    const [nativeGasCost, gasPriceEstimate] = await Promise.all(queries);
+
+    const gasPrice = gasPriceEstimate.maxFeePerGas;
     assert(nativeGasCost.gt(bnZero), "Gas cost should not be 0");
     let tokenGasCost: BigNumber;
 

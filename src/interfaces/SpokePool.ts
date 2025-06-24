@@ -141,6 +141,18 @@ export interface TokensBridged extends SortableEvent {
   l2TokenAddress: string;
 }
 
+export interface ClaimedRelayerRefundWithBlock extends SortableEvent {
+  l2TokenAddress: string;
+  refundAddress: string;
+  amount: BigNumber;
+  caller?: string;
+}
+
+export interface BridgedToHubPoolWithBlock extends SortableEvent {
+  amount: BigNumber;
+  mint: string;
+}
+
 export interface SpokePoolClientsByChain {
   [chainId: number]: SpokePoolClient;
 }
