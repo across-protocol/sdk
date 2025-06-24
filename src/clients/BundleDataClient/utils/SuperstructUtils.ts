@@ -15,7 +15,7 @@ import {
   type,
 } from "superstruct";
 import { UNDEFINED_MESSAGE_HASH } from "../../../constants";
-import { BigNumber, toAddressType, Address } from "../../../utils";
+import { BigNumber, toAddressType, EvmAddress, SvmAddress, RawAddress } from "../../../utils";
 
 const PositiveIntegerStringSS = pattern(string(), /\d+/);
 const Web3AddressSS = pattern(string(), /^0x[a-fA-F0-9]{40}$/);
@@ -31,7 +31,11 @@ const BigNumberType = coerce(instance(BigNumber), union([string(), number()]), (
   }
 });
 
-const AddressType = coerce(instance(Address), string(), (value) => {
+// Accept any concrete implementation of `Address` (Evm, Svm, or Raw) but avoid using the
+// abstract `Address` class directly to keep TypeScript happy.
+const AddressInstanceSS = union([instance(EvmAddress), instance(SvmAddress), instance(RawAddress)]);
+
+const AddressType = coerce(AddressInstanceSS, string(), (value) => {
   return toAddressType(value, 1); // @todo Don't merge without fixing this!
 });
 
