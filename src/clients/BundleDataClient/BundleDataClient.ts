@@ -92,7 +92,7 @@ function updateBundleFillsV3(
   repaymentAddress: Address
 ): void {
   // We shouldn't pass any unrepayable fills into this function, so we perform an extra safety check.
-  if (fill.relayer.isValidOn(repaymentChainId)) {
+  if (!fill.relayer.isValidOn(repaymentChainId)) {
     return;
   }
 
