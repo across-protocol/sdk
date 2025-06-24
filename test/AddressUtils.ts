@@ -55,14 +55,14 @@ describe("Address Utils: Address Type", function () {
       // Invalid EVM address length
       [19, 21].forEach((len) => {
         b58Address = bs58.encode([...padding, ...ethers.utils.arrayify(randomBytes(len))]).toString();
-        expect(() => EvmAddress.from(b58Address, "base58")).to.throw(Error, /Not a valid base58-encoded EVM address/);
+        expect(() => EvmAddress.from(b58Address, "base58")).to.throw(Error, /is not a valid EVM address/);
       });
 
       // Invalid padding length.
       [11, 13].forEach((len) => {
         padding = new Uint8Array(len);
         b58Address = bs58.encode([...padding, ...rawAddress]).toString();
-        expect(() => EvmAddress.from(b58Address, "base58")).to.throw(Error, /Not a valid base58-encoded EVM address/);
+        expect(() => EvmAddress.from(b58Address, "base58")).to.throw(Error, /is not a valid EVM address/);
       });
     });
     it("Handles base16-encoded SVM addresses", function () {
@@ -78,10 +78,7 @@ describe("Address Utils: Address Type", function () {
 
       // Invalid SVM address length
       [31, 33].forEach((len) => {
-        expect(() => SvmAddress.from(randomBytes(len), "base16")).to.throw(
-          Error,
-          /Not a valid base16-encoded SVM address/
-        );
+        expect(() => SvmAddress.from(randomBytes(len), "base16")).to.throw(Error, /is not a valid SVM address/);
       });
     });
   });
