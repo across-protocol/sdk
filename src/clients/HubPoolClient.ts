@@ -1049,7 +1049,7 @@ export class HubPoolClient extends BaseAbstractClient {
             const args = spreadEventWithBlockNumber(_event) as ProposedRootBundle & { proposer: string };
             return {
               ...args,
-              proposer: toAddressType(args.proposer, this.chainId),
+              proposer: EvmAddress.from(args.proposer),
             };
           })
       );
