@@ -207,20 +207,18 @@ export class Address {
     }
   }
 
-  static isEvmAddress(address: Address): boolean {
-    return address instanceof EvmAddress;
+  isEVM(): this is EvmAddress {
+    return false;
   }
 
-  static isSvmAddress(address: Address): boolean {
-    return address instanceof SvmAddress;
+  isSVM(): this is SvmAddress {
+    return false;
   }
 }
 
 // Subclass of address which strictly deals with 20-byte addresses. These addresses are guaranteed to be valid EVM addresses, so `toAddress` will always succeed.
 export class EvmAddress extends Address {
-  // @dev This property is required for Typescript typechecker to know to distinguish between `Address`, `SvmAddress` and `EvmAddress`.
-  // Otherwise it lets any of these to use in place where other is expected.
-  private readonly _brandEvmAddress!: void;
+  private readonly _type = "evm";
 
   // On construction, validate that the address can indeed be coerced into an EVM address. Throw immediately if it cannot.
   constructor(rawAddress: Uint8Array) {
@@ -229,14 +227,16 @@ export class EvmAddress extends Address {
     }
 
     super(rawAddress);
-    // @dev required for TS to compile with `noUnusedLocals` rule
-    this._brandEvmAddress;
   }
 
   static validate(rawAddress: Uint8Array): boolean {
     return (
       rawAddress.length == 20 || (rawAddress.length === 32 && rawAddress.slice(0, 12).every((field) => field === 0))
     );
+  }
+
+  override isEVM(): this is EvmAddress {
+    return this._type === "evm";
   }
 
   // Override `toAddress` to return the 20-byte representation address.
@@ -264,9 +264,7 @@ export class EvmAddress extends Address {
 
 // Subclass of address which strictly deals SVM addresses. These addresses are guaranteed to be valid SVM addresses, so `toBase58` will always produce a valid Solana address.
 export class SvmAddress extends Address {
-  // @dev This property is required for Typescript typechecker to know to distinguish between `Address`, `SvmAddress` and `EvmAddress`.
-  // Otherwise it lets any of these to use in place where other is expected.
-  private readonly _brandSvmAddress!: void;
+  private readonly _type = "svm";
 
   // On construction, validate that the address is a point on Curve25519. Throw immediately if it is not.
   constructor(rawAddress: Uint8Array) {
@@ -275,12 +273,14 @@ export class SvmAddress extends Address {
     }
 
     super(rawAddress);
-    // @dev required for TS to compile with `noUnusedLocals` rule
-    this._brandSvmAddress;
   }
 
   static validate(rawAddress: Uint8Array): boolean {
     return rawAddress.length === 32;
+  }
+
+  override isSVM(): this is SvmAddress {
+    return this._type === "svm";
   }
 
   // Override the toAddress function for SVM addresses only since while they will never have a defined 20-byte representation. The base58 encoded addresses are also the encodings
