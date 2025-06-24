@@ -307,5 +307,7 @@ export class RawAddress extends Address {
 
   constructor(rawAddress: Uint8Array) {
     super(rawAddress);
+    // @dev required for TS to compile with `noUnusedLocals` rule
+    this._brandRawAddress;
   }
 }
