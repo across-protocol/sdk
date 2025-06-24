@@ -293,16 +293,9 @@ export class SvmAddress extends Address {
 
   // Constructs a new SvmAddress type.
   static from(address: string, encoding: "base58" | "base16" = "base58"): SvmAddress {
-    if (encoding === "base58") {
-      return new this(bs58.decode(address));
-    }
-
-    const decodedAddress = utils.arrayify(address);
-    if (decodedAddress.length !== 32) {
-      throw new Error(`Not a valid base16-encoded SVM address: ${address}`);
-    }
-
-    return new this(decodedAddress);
+    return encoding === "base58"
+      ? new this(bs58.decode(address))
+      : new this(utils.arrayify(address));
   }
 }
 
