@@ -127,18 +127,22 @@ describe("HubPoolClient: Deposit to Destination Token", function () {
     await hubPoolClient.update();
 
     expect(
-      hubPoolClient.getL1TokenForL2TokenAtBlock(
-        toAddressType(randomDestinationToken, destinationChainId),
-        destinationChainId,
-        e2.blockNumber
-      ).eq(EvmAddress.from(randomOriginToken))
+      hubPoolClient
+        .getL1TokenForL2TokenAtBlock(
+          toAddressType(randomDestinationToken, destinationChainId),
+          destinationChainId,
+          e2.blockNumber
+        )
+        .eq(EvmAddress.from(randomOriginToken))
     ).to.be.true;
     expect(
-      hubPoolClient.getL1TokenForL2TokenAtBlock(
-        toAddressType(randomDestinationToken, destinationChainId),
-        destinationChainId,
-        e1.blockNumber
-      ).eq(EvmAddress.from(randomL1Token))
+      hubPoolClient
+        .getL1TokenForL2TokenAtBlock(
+          toAddressType(randomDestinationToken, destinationChainId),
+          destinationChainId,
+          e1.blockNumber
+        )
+        .eq(EvmAddress.from(randomL1Token))
     ).to.be.true;
 
     // If L2 token mapping doesn't exist, throw.
@@ -353,9 +357,9 @@ describe("HubPoolClient: Deposit to Destination Token", function () {
     ).to.equal(SvmAddress.from(usdcTokenSol).toBytes32());
 
     // Verify that the L1 token mapping is also correct
-    expect(hubPoolClient.getL1TokenForL2TokenAtBlock(SvmAddress.from(usdcTokenSol), svmChain, e1.blockNumber).toNative()).to.equal(
-      EvmAddress.from(randomL1Token).toNative()
-    );
+    expect(
+      hubPoolClient.getL1TokenForL2TokenAtBlock(SvmAddress.from(usdcTokenSol), svmChain, e1.blockNumber).toNative()
+    ).to.equal(EvmAddress.from(randomL1Token).toNative());
 
     // Test changing the route with a different SVM address - this will fail
     // because only USDC is supported as an L2 on SVM

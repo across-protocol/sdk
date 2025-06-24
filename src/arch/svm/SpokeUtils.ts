@@ -405,6 +405,11 @@ export async function fillRelayInstruction(
   const relayDataHash = new Uint8Array(Buffer.from(_relayDataHash.slice(2), "hex"));
 
   const relayer = SvmAddress.from(signer.address);
+  const outputTokenAddress = toAddressType(deposit.outputToken, deposit.destinationChainId);
+  if (!(outputTokenAddress instanceof SvmAddress)) {
+    return undefined;
+  }
+
   // Create ATA for the relayer and recipient token accounts
   const relayerTokenAccount = await getAssociatedTokenAddress(relayer, deposit.outputToken);
 
@@ -434,6 +439,17 @@ export async function fillRelayInstruction(
     deposit.exclusiveRelayer,
   ].map(toAddress);
 
+  const [recipient, exclusiveRelayer] = [deposit.recipient, deposit.exclusiveRelayer].map((addr) => {
+    const addressObj = toAddressType(addr, deposit.originChainId);
+    if (!(addressObj instanceof SvmAddress)) {
+      return undefined;
+    }
+    return toAddress(addressObj);
+  });
+
+  if (!recipient || !exclusiveRelayer) return undefined;
+
+  const outputToken = toAddress(outputTokenAddress);
   return SvmSpokeClient.getFillRelayInstruction({
     signer,
     state: statePda,

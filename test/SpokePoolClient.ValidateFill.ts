@@ -288,7 +288,17 @@ describe("SpokePoolClient: Fill Validation", function () {
     _deposit = _deposit!;
 
     expect(_deposit)
-      .excludingEvery(["quoteBlockNumber", "fromLiteChain", "toLiteChain", "message", "depositor", "recipient", "inputToken", "outputToken", "exclusiveRelayer"])
+      .excludingEvery([
+        "quoteBlockNumber",
+        "fromLiteChain",
+        "toLiteChain",
+        "message",
+        "depositor",
+        "recipient",
+        "inputToken",
+        "outputToken",
+        "exclusiveRelayer",
+      ])
       .to.deep.equal(depositEvent);
     expect(_deposit.depositor.eq(depositEvent.depositor)).to.be.true;
     expect(_deposit.recipient.eq(depositEvent.recipient)).to.be.true;

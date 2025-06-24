@@ -13,7 +13,6 @@ import {
   isDefined,
   randomAddress,
   toAddressType,
-  toEvmAddress,
   toBN,
   toBytes32,
 } from "../src/utils";
