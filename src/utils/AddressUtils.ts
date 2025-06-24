@@ -266,7 +266,7 @@ export class SvmAddress extends Address {
     // but highly improbable and are much more likely to be a mistaken interpretation of an EVM address. Err on
     // the side of caution for the time being
     // @todo Add test for this.
-    return rawAddress.length === 32 && rawAddress.slice(0, 12).every((field) => field !== 0);
+    return rawAddress.length === 32 && !rawAddress.slice(0, 12).every((field) => field === 0);
   }
 
   override isSVM(): this is SvmAddress {
