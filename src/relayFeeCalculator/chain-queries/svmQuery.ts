@@ -151,14 +151,7 @@ export class SvmQuery implements QueryInterface {
       deposit.destinationChainId
     )
   ) {
-    const {
-      depositor,
-      recipient,
-      inputToken,
-      outputToken,
-      exclusiveRelayer,
-      destinationChainId,
-    } = deposit;
+    const { depositor, recipient, inputToken, outputToken, exclusiveRelayer, destinationChainId } = deposit;
 
     // tsc appeasement...should be unnecessary, but isn't. @todo Identify why.
     assert(recipient.isSVM());
