@@ -153,9 +153,9 @@ export class SvmQuery implements QueryInterface {
   ) {
     const {
       depositor,
-      recipient: _recipient,
+      recipient,
       inputToken,
-      outputToken: _outputToken,
+      outputToken,
       exclusiveRelayer,
       destinationChainId,
     } = deposit;
@@ -173,7 +173,6 @@ export class SvmQuery implements QueryInterface {
       getFillRelayDelegatePda(relayDataHash, BigInt(repaymentChainId), toAddress(repaymentAddress), program),
     ]);
 
-    const [recipient, outputToken] = [_recipient.forceSvmAddress(), _outputToken.forceSvmAddress()];
     const mint = toAddress(outputToken);
     const mintInfo = await fetchMint(this.provider, mint);
 
