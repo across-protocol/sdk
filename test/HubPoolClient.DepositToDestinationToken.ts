@@ -63,64 +63,63 @@ describe("HubPoolClient: Deposit to Destination Token", function () {
 
     await hubPoolClient.update();
 
-    expect(hubPoolClient.getSpokePoolForBlock(svmChain)).to.deep.equal(SvmAddress.from(solanaSpokePool).toBytes32());
+    expect(hubPoolClient.getSpokePoolForBlock(svmChain)).to.deep.equal(SvmAddress.from(solanaSpokePool));
+    // expect(hubPoolClient.getSpokePoolForBlock(svmChain)).to.deep.equal(SvmAddress.from(solanaSpokePool).toBytes32());
   });
 
   it("Gets L2 token counterpart", async function () {
     const randomL1TokenAddr = EvmAddress.from(randomL1Token);
+
     const randomDestinationTokenAddr = toAddressType(randomDestinationToken, CHAIN_IDs.MAINNET);
     const randomDestinationToken2Addr = toAddressType(randomDestinationToken2, CHAIN_IDs.MAINNET);
 
-    expect(() =>
-      hubPoolClient.getL2TokenForL1TokenAtBlock(randomL1TokenAddr.toNative(), destinationChainId, 0)
-    ).to.throw(/Could not find SpokePool mapping/);
+    expect(() => hubPoolClient.getL2TokenForL1TokenAtBlock(randomL1TokenAddr, destinationChainId, 0)).to.throw(
+      /Could not find SpokePool mapping/
+    );
+
     const e1 = hubPoolClient.setPoolRebalanceRoute(destinationChainId, randomL1Token, randomDestinationToken);
     await hubPoolClient.update();
 
     // If input hub pool block is before all events, should throw.
-    expect(() =>
-      hubPoolClient.getL2TokenForL1TokenAtBlock(randomL1TokenAddr.toNative(), destinationChainId, 0)
-    ).to.throw(/Could not find SpokePool mapping/);
+    expect(() => hubPoolClient.getL2TokenForL1TokenAtBlock(randomL1TokenAddr, destinationChainId, 0)).to.throw(
+      /Could not find SpokePool mapping/
+    );
     expect(
-      hubPoolClient.getL2TokenForL1TokenAtBlock(randomL1TokenAddr.toNative(), destinationChainId, e1.blockNumber)
-    ).to.equal(randomDestinationTokenAddr.toNative());
+      hubPoolClient
+        .getL2TokenForL1TokenAtBlock(randomL1TokenAddr, destinationChainId, e1.blockNumber)
+        .eq(randomDestinationTokenAddr)
+    ).to.be.true;
 
     // Now try changing the destination token. Client should correctly handle this.
     const e2 = hubPoolClient.setPoolRebalanceRoute(destinationChainId, randomL1Token, randomDestinationToken2);
     await hubPoolClient.update();
 
     expect(
-      hubPoolClient.getL2TokenForL1TokenAtBlock(randomL1TokenAddr.toNative(), destinationChainId, e2.blockNumber)
-    ).to.equal(randomDestinationToken2Addr.toNative());
+      hubPoolClient
+        .getL2TokenForL1TokenAtBlock(randomL1TokenAddr, destinationChainId, e2.blockNumber)
+        .eq(randomDestinationToken2Addr)
+    ).to.be.true;
     expect(
-      hubPoolClient.getL2TokenForL1TokenAtBlock(randomL1TokenAddr.toNative(), destinationChainId, e1.blockNumber)
-    ).to.equal(randomDestinationTokenAddr.toNative());
+      hubPoolClient
+        .getL2TokenForL1TokenAtBlock(randomL1TokenAddr, destinationChainId, e1.blockNumber)
+        .eq(randomDestinationTokenAddr)
+    ).to.be.true;
   });
   it("Gets L1 token counterpart", async function () {
     expect(() =>
-      hubPoolClient.getL1TokenForL2TokenAtBlock(
-        EvmAddress.from(randomDestinationToken).toNative(),
-        destinationChainId,
-        0
-      )
+      hubPoolClient.getL1TokenForL2TokenAtBlock(EvmAddress.from(randomDestinationToken), destinationChainId, 0)
     ).to.throw(/Could not find HubPool mapping/);
     const e1 = hubPoolClient.setPoolRebalanceRoute(destinationChainId, randomL1Token, randomDestinationToken);
     await hubPoolClient.update();
 
     // If input hub pool block is before all events, should throw.
     expect(() =>
-      hubPoolClient.getL1TokenForL2TokenAtBlock(
-        EvmAddress.from(randomDestinationToken).toNative(),
-        destinationChainId,
-        0
-      )
+      hubPoolClient.getL1TokenForL2TokenAtBlock(EvmAddress.from(randomDestinationToken), destinationChainId, 0)
     ).to.throw(/Could not find HubPool mapping/);
     expect(
-      hubPoolClient.getL1TokenForL2TokenAtBlock(
-        EvmAddress.from(randomDestinationToken).toNative(),
-        destinationChainId,
-        e1.blockNumber
-      )
+      hubPoolClient
+        .getL1TokenForL2TokenAtBlock(EvmAddress.from(randomDestinationToken), destinationChainId, e1.blockNumber)
+        .toNative()
     ).to.equal(EvmAddress.from(randomL1Token).toNative());
 
     // Now try changing the L1 token while keeping destination chain and L2 token the same.
@@ -128,31 +127,35 @@ describe("HubPoolClient: Deposit to Destination Token", function () {
     await hubPoolClient.update();
 
     expect(
-      hubPoolClient.getL1TokenForL2TokenAtBlock(
-        EvmAddress.from(randomDestinationToken).toNative(),
-        destinationChainId,
-        e2.blockNumber
-      )
-    ).to.equal(EvmAddress.from(randomOriginToken).toNative());
+      hubPoolClient
+        .getL1TokenForL2TokenAtBlock(
+          toAddressType(randomDestinationToken, destinationChainId),
+          destinationChainId,
+          e2.blockNumber
+        )
+        .eq(EvmAddress.from(randomOriginToken))
+    ).to.be.true;
     expect(
-      hubPoolClient.getL1TokenForL2TokenAtBlock(
-        EvmAddress.from(randomDestinationToken).toNative(),
-        destinationChainId,
-        e1.blockNumber
-      )
-    ).to.equal(EvmAddress.from(randomL1Token).toNative());
+      hubPoolClient
+        .getL1TokenForL2TokenAtBlock(
+          toAddressType(randomDestinationToken, destinationChainId),
+          destinationChainId,
+          e1.blockNumber
+        )
+        .eq(EvmAddress.from(randomL1Token))
+    ).to.be.true;
 
     // If L2 token mapping doesn't exist, throw.
     expect(() =>
       hubPoolClient.getL1TokenForL2TokenAtBlock(
-        EvmAddress.from(randomL1Token).toNative(),
+        toAddressType(randomDestinationToken, destinationChainId),
         destinationChainId,
         e2.blockNumber
       )
     ).to.throw(/Could not find HubPool mapping/);
     expect(() =>
       hubPoolClient.getL1TokenForL2TokenAtBlock(
-        EvmAddress.from(randomDestinationToken).toNative(),
+        toAddressType(randomDestinationToken, destinationChainId),
         originChainId,
         e2.blockNumber
       )
@@ -161,14 +164,14 @@ describe("HubPoolClient: Deposit to Destination Token", function () {
   it("Gets L1 token for deposit", async function () {
     const depositData = {
       originChainId,
-      inputToken: randomOriginToken,
+      inputToken: EvmAddress.from(randomOriginToken),
     };
 
     const e0 = hubPoolClient.setPoolRebalanceRoute(originChainId, randomL1Token, randomOriginToken);
     await hubPoolClient.update();
-    expect(hubPoolClient.getL1TokenForDeposit({ ...depositData, quoteBlockNumber: e0.blockNumber })).to.equal(
-      randomL1Token
-    );
+    expect(
+      hubPoolClient.getL1TokenForDeposit({ ...depositData, quoteBlockNumber: e0.blockNumber }).toNative()
+    ).to.equal(randomL1Token);
 
     // quote block too early
     expect(() => hubPoolClient.getL1TokenForDeposit({ ...depositData, quoteBlockNumber: 0 })).to.throw(
@@ -179,28 +182,30 @@ describe("HubPoolClient: Deposit to Destination Token", function () {
     expect(() =>
       hubPoolClient.getL1TokenForDeposit({
         ...depositData,
-        inputToken: randomL1Token,
+        inputToken: EvmAddress.from(randomL1Token),
         quoteBlockNumber: e0.blockNumber,
       })
     ).to.throw(/Could not find HubPool mapping/);
 
     const e1 = hubPoolClient.setPoolRebalanceRoute(originChainId, randomOriginToken, randomOriginToken);
     await hubPoolClient.update();
-    expect(hubPoolClient.getL1TokenForDeposit({ ...depositData, quoteBlockNumber: e1.blockNumber })).to.equal(
-      randomOriginToken
-    );
+    expect(
+      hubPoolClient.getL1TokenForDeposit({ ...depositData, quoteBlockNumber: e1.blockNumber }).toNative()
+    ).to.equal(randomOriginToken);
   });
   it("Gets L2 token for deposit", async function () {
     const depositData = {
       originChainId,
-      inputToken: randomOriginToken,
+      inputToken: EvmAddress.from(randomOriginToken),
     };
 
     const e0 = hubPoolClient.setPoolRebalanceRoute(originChainId, randomL1Token, randomOriginToken);
     const e1 = hubPoolClient.setPoolRebalanceRoute(destinationChainId, randomL1Token, randomDestinationToken);
     await hubPoolClient.update();
     expect(
-      hubPoolClient.getL2TokenForDeposit({ ...depositData, destinationChainId, quoteBlockNumber: e1.blockNumber })
+      hubPoolClient
+        .getL2TokenForDeposit({ ...depositData, destinationChainId, quoteBlockNumber: e1.blockNumber })
+        .toString()
     ).to.equal(randomDestinationToken);
 
     // origin chain token is set but none for destination chain yet, as of e0.
@@ -220,7 +225,7 @@ describe("HubPoolClient: Deposit to Destination Token", function () {
       hubPoolClient.getL2TokenForDeposit({
         ...depositData,
         destinationChainId,
-        inputToken: randomL1Token,
+        inputToken: EvmAddress.from(randomL1Token),
         quoteBlockNumber: e0.blockNumber,
       })
     ).to.throw(/Could not find HubPool mapping/);
@@ -228,16 +233,18 @@ describe("HubPoolClient: Deposit to Destination Token", function () {
     const e2 = hubPoolClient.setPoolRebalanceRoute(destinationChainId, randomL1Token, randomL1Token);
     await hubPoolClient.update();
     expect(
-      hubPoolClient.getL2TokenForDeposit({ ...depositData, destinationChainId, quoteBlockNumber: e2.blockNumber })
+      hubPoolClient
+        .getL2TokenForDeposit({ ...depositData, destinationChainId, quoteBlockNumber: e2.blockNumber })
+        .toString()
     ).to.equal(randomL1Token);
   });
 
   it("Correctly implements token equivalency", async function () {
     let equivalent: boolean;
     equivalent = hubPoolClient.areTokensEquivalent(
-      randomOriginToken,
+      toAddressType(randomOriginToken, originChainId),
       originChainId,
-      randomDestinationToken,
+      EvmAddress.from(randomDestinationToken),
       destinationChainId
     );
     expect(equivalent).to.be.false;
@@ -258,9 +265,9 @@ describe("HubPoolClient: Deposit to Destination Token", function () {
 
     // The HubPoolClient should not know about the new token mappings until after its next update.
     equivalent = hubPoolClient.areTokensEquivalent(
-      randomOriginToken,
+      toAddressType(randomOriginToken, originChainId),
       originChainId,
-      randomDestinationToken,
+      EvmAddress.from(randomDestinationToken),
       destinationChainId,
       Number.MAX_SAFE_INTEGER
     );
@@ -271,9 +278,9 @@ describe("HubPoolClient: Deposit to Destination Token", function () {
 
     // The block before the new routes were added should still be non-equivalent.
     equivalent = hubPoolClient.areTokensEquivalent(
-      randomOriginToken,
+      toAddressType(randomOriginToken, originChainId),
       originChainId,
-      randomDestinationToken,
+      toAddressType(randomOriginToken, originChainId),
       destinationChainId,
       events[0].blockNumber - 1
     );
@@ -281,9 +288,9 @@ describe("HubPoolClient: Deposit to Destination Token", function () {
 
     // As at the update, the mappings should be known.
     equivalent = hubPoolClient.areTokensEquivalent(
-      randomOriginToken,
+      toAddressType(randomOriginToken, originChainId),
       originChainId,
-      randomDestinationToken,
+      toAddressType(randomDestinationToken, destinationChainId),
       destinationChainId,
       events[0].blockNumber
     );
@@ -295,9 +302,9 @@ describe("HubPoolClient: Deposit to Destination Token", function () {
 
     // Mapping should still be valid until the latest update.
     equivalent = hubPoolClient.areTokensEquivalent(
-      randomOriginToken,
+      toAddressType(randomOriginToken, originChainId),
       originChainId,
-      randomDestinationToken,
+      toAddressType(randomDestinationToken, destinationChainId),
       destinationChainId,
       update.blockNumber - 1
     );
@@ -305,9 +312,9 @@ describe("HubPoolClient: Deposit to Destination Token", function () {
 
     // The original mapping is no longer valid as at the update block.
     equivalent = hubPoolClient.areTokensEquivalent(
-      randomOriginToken,
+      toAddressType(randomOriginToken, originChainId),
       originChainId,
-      randomDestinationToken,
+      toAddressType(randomDestinationToken, destinationChainId),
       destinationChainId,
       update.blockNumber
     );
@@ -315,9 +322,9 @@ describe("HubPoolClient: Deposit to Destination Token", function () {
 
     // The new mapping was not valid before the update block.
     equivalent = hubPoolClient.areTokensEquivalent(
-      randomOriginToken,
+      toAddressType(randomOriginToken, originChainId),
       originChainId,
-      randomDestinationToken2,
+      toAddressType(randomDestinationToken2, destinationChainId),
       destinationChainId,
       update.blockNumber - 1
     );
@@ -325,9 +332,9 @@ describe("HubPoolClient: Deposit to Destination Token", function () {
 
     // The new mapping is valid as at the update block.
     equivalent = hubPoolClient.areTokensEquivalent(
-      randomOriginToken,
+      toAddressType(randomOriginToken, originChainId),
       originChainId,
-      randomDestinationToken2,
+      toAddressType(randomDestinationToken2, destinationChainId),
       destinationChainId,
       update.blockNumber
     );
@@ -341,21 +348,17 @@ describe("HubPoolClient: Deposit to Destination Token", function () {
 
     // Set up initial route with truncated SVM address
     const truncatedAddress = SvmAddress.from(usdcTokenSol).truncateToBytes20();
-    const e1 = hubPoolClient.setPoolRebalanceRoute(
-      svmChain,
-      EvmAddress.from(randomL1Token).truncateToBytes20(),
-      truncatedAddress
-    );
+    const e1 = hubPoolClient.setPoolRebalanceRoute(svmChain, randomL1Token, truncatedAddress);
     await hubPoolClient.update();
 
     // Verify that the L2 token mapping is correctly expanded to full SVM address
     expect(
-      hubPoolClient.getL2TokenForL1TokenAtBlock(EvmAddress.from(randomL1Token).toNative(), svmChain, e1.blockNumber)
+      hubPoolClient.getL2TokenForL1TokenAtBlock(EvmAddress.from(randomL1Token), svmChain, e1.blockNumber).toBytes32()
     ).to.equal(SvmAddress.from(usdcTokenSol).toBytes32());
 
     // Verify that the L1 token mapping is also correct
     expect(
-      hubPoolClient.getL1TokenForL2TokenAtBlock(SvmAddress.from(usdcTokenSol).toBytes32(), svmChain, e1.blockNumber)
+      hubPoolClient.getL1TokenForL2TokenAtBlock(SvmAddress.from(usdcTokenSol), svmChain, e1.blockNumber).toNative()
     ).to.equal(EvmAddress.from(randomL1Token).toNative());
 
     // Test changing the route with a different SVM address - this will fail

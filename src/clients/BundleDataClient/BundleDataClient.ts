@@ -39,10 +39,9 @@ import {
   bnUint32Max,
   isZeroValueDeposit,
   isZeroValueFillOrSlowFillRequest,
-  chainIsEvm,
-  isValidEvmAddress,
   duplicateEvent,
   invalidOutputToken,
+  Address,
 } from "../../utils";
 import winston from "winston";
 import {
@@ -67,22 +66,21 @@ type DataCache = Record<string, Promise<LoadDataReturnValue>>;
 // V3 dictionary helper functions
 function updateExpiredDepositsV3(dict: ExpiredDepositsToRefundV3, deposit: V3DepositWithBlock): void {
   // A deposit refund for a deposit is invalid if the depositor has a bytes32 address input for an EVM chain. It is valid otherwise.
-  if (chainIsEvm(deposit.originChainId) && !isValidEvmAddress(deposit.depositor)) {
+  if (!deposit.depositor.isValidOn(deposit.originChainId)) {
     return;
   }
+
   const { originChainId, inputToken } = deposit;
-  if (!dict?.[originChainId]?.[inputToken]) {
-    assign(dict, [originChainId, inputToken], []);
-  }
-  dict[originChainId][inputToken].push(deposit);
+  dict[originChainId] ??= {};
+  dict[originChainId][inputToken.toBytes32()] ??= [];
+  dict[originChainId][inputToken.toBytes32()].push(deposit);
 }
 
 function updateBundleDepositsV3(dict: BundleDepositsV3, deposit: V3DepositWithBlock): void {
   const { originChainId, inputToken } = deposit;
-  if (!dict?.[originChainId]?.[inputToken]) {
-    assign(dict, [originChainId, inputToken], []);
-  }
-  dict[originChainId][inputToken].push(deposit);
+  dict[originChainId] ??= {};
+  dict[originChainId][inputToken.toBytes32()] ??= [];
+  dict[originChainId][inputToken.toBytes32()].push(deposit);
 }
 
 function updateBundleFillsV3(
@@ -90,29 +88,29 @@ function updateBundleFillsV3(
   fill: V3FillWithBlock,
   lpFeePct: BigNumber,
   repaymentChainId: number,
-  repaymentToken: string,
-  repaymentAddress: string
+  repaymentToken: Address,
+  repaymentAddress: Address
 ): void {
   // We shouldn't pass any unrepayable fills into this function, so we perform an extra safety check.
-  if (chainIsEvm(repaymentChainId) && !isValidEvmAddress(fill.relayer)) {
+  if (!fill.relayer.isValidOn(repaymentChainId)) {
     return;
   }
-  if (!dict?.[repaymentChainId]?.[repaymentToken]) {
-    assign(dict, [repaymentChainId, repaymentToken], {
-      fills: [],
-      totalRefundAmount: bnZero,
-      realizedLpFees: bnZero,
-      refunds: {},
-    });
-  }
+
+  dict[repaymentChainId] ??= {};
+  dict[repaymentChainId][repaymentToken.toBytes32()] ??= {
+    fills: [],
+    totalRefundAmount: bnZero,
+    realizedLpFees: bnZero,
+    refunds: {},
+  };
 
   const bundleFill: BundleFillV3 = { ...fill, lpFeePct, relayer: repaymentAddress };
 
   // Add all fills, slow and fast, to dictionary.
-  assign(dict, [repaymentChainId, repaymentToken, "fills"], [bundleFill]);
+  assign(dict, [repaymentChainId, repaymentToken.toBytes32(), "fills"], [bundleFill]);
 
   // All fills update the bundle LP fees.
-  const refundObj = dict[repaymentChainId][repaymentToken];
+  const refundObj = dict[repaymentChainId][repaymentToken.toBytes32()];
   const realizedLpFee = bundleFill.inputAmount.mul(bundleFill.lpFeePct).div(fixedPointAdjustment);
   refundObj.realizedLpFees = refundObj.realizedLpFees ? refundObj.realizedLpFees.add(realizedLpFee) : realizedLpFee;
 
@@ -126,10 +124,11 @@ function updateBundleFillsV3(
     // Instantiate dictionary if it doesn't exist.
     refundObj.refunds ??= {};
 
-    if (refundObj.refunds[bundleFill.relayer]) {
-      refundObj.refunds[bundleFill.relayer] = refundObj.refunds[bundleFill.relayer].add(refundAmount);
+    if (refundObj.refunds[bundleFill.relayer.toBytes32()]) {
+      refundObj.refunds[bundleFill.relayer.toBytes32()] =
+        refundObj.refunds[bundleFill.relayer.toBytes32()].add(refundAmount);
     } else {
-      refundObj.refunds[bundleFill.relayer] = refundAmount;
+      refundObj.refunds[bundleFill.relayer.toBytes32()] = refundAmount;
     }
   }
 }
@@ -139,21 +138,20 @@ function updateBundleExcessSlowFills(
   deposit: V3DepositWithBlock & { lpFeePct: BigNumber }
 ): void {
   const { destinationChainId, outputToken } = deposit;
-  if (!dict?.[destinationChainId]?.[outputToken]) {
-    assign(dict, [destinationChainId, outputToken], []);
-  }
-  dict[destinationChainId][outputToken].push(deposit);
+  dict[destinationChainId] ??= {};
+  dict[destinationChainId][outputToken.toBytes32()] ??= [];
+  dict[destinationChainId][outputToken.toBytes32()].push(deposit);
 }
 
 function updateBundleSlowFills(dict: BundleSlowFills, deposit: V3DepositWithBlock & { lpFeePct: BigNumber }): void {
-  if (chainIsEvm(deposit.destinationChainId) && !isValidEvmAddress(deposit.recipient)) {
+  if (!deposit.recipient.isValidOn(deposit.destinationChainId)) {
     return;
   }
+
   const { destinationChainId, outputToken } = deposit;
-  if (!dict?.[destinationChainId]?.[outputToken]) {
-    assign(dict, [destinationChainId, outputToken], []);
-  }
-  dict[destinationChainId][outputToken].push(deposit);
+  dict[destinationChainId] ??= {};
+  dict[destinationChainId][outputToken.toBytes32()] ??= [];
+  dict[destinationChainId][outputToken.toBytes32()].push(deposit);
 }
 
 // @notice Shared client for computing data needed to construct or validate a bundle.
@@ -489,21 +487,23 @@ export class BundleDataClient {
         // worst from the relayer's perspective.
         const { relayer, inputAmount: refundAmount } = fill;
         refundsForChain[chainToSendRefundTo] ??= {};
-        refundsForChain[chainToSendRefundTo][repaymentToken] ??= {};
-        const existingRefundAmount = refundsForChain[chainToSendRefundTo][repaymentToken][relayer] ?? bnZero;
-        refundsForChain[chainToSendRefundTo][repaymentToken][relayer] = existingRefundAmount.add(refundAmount);
+        refundsForChain[chainToSendRefundTo][repaymentToken.toBytes32()] ??= {};
+        const existingRefundAmount =
+          refundsForChain[chainToSendRefundTo][repaymentToken.toBytes32()][relayer.toBytes32()] ?? bnZero;
+        refundsForChain[chainToSendRefundTo][repaymentToken.toBytes32()][relayer.toBytes32()] =
+          existingRefundAmount.add(refundAmount);
       });
     }
     return refundsForChain;
   }
 
-  getUpcomingDepositAmount(chainId: number, l2Token: string, latestBlockToSearch: number): BigNumber {
+  getUpcomingDepositAmount(chainId: number, l2Token: Address, latestBlockToSearch: number): BigNumber {
     if (this.spokePoolClients[chainId] === undefined) {
       return toBN(0);
     }
     return this.spokePoolClients[chainId]
       .getDeposits()
-      .filter((deposit) => deposit.blockNumber > latestBlockToSearch && deposit.inputToken === l2Token)
+      .filter((deposit) => deposit.blockNumber > latestBlockToSearch && deposit.inputToken.eq(l2Token))
       .reduce((acc, deposit) => {
         return acc.add(deposit.inputAmount);
       }, toBN(0));
@@ -626,18 +626,18 @@ export class BundleDataClient {
     const executedRefunds: { [tokenAddress: string]: { [relayer: string]: BigNumber } } = {};
     for (const refundLeaf of executedRefundLeaves) {
       const tokenAddress = refundLeaf.l2TokenAddress;
-      if (executedRefunds[tokenAddress] === undefined) {
-        executedRefunds[tokenAddress] = {};
+      if (executedRefunds[tokenAddress.toBytes32()] === undefined) {
+        executedRefunds[tokenAddress.toBytes32()] = {};
       }
-      const executedTokenRefunds = executedRefunds[tokenAddress];
+      const executedTokenRefunds = executedRefunds[tokenAddress.toBytes32()];
 
       for (let i = 0; i < refundLeaf.refundAddresses.length; i++) {
         const relayer = refundLeaf.refundAddresses[i];
         const refundAmount = refundLeaf.refundAmounts[i];
-        if (executedTokenRefunds[relayer] === undefined) {
-          executedTokenRefunds[relayer] = bnZero;
+        if (executedTokenRefunds[relayer.toBytes32()] === undefined) {
+          executedTokenRefunds[relayer.toBytes32()] = bnZero;
         }
-        executedTokenRefunds[relayer] = executedTokenRefunds[relayer].add(refundAmount);
+        executedTokenRefunds[relayer.toBytes32()] = executedTokenRefunds[relayer.toBytes32()].add(refundAmount);
       }
     }
     return executedRefunds;
@@ -678,15 +678,15 @@ export class BundleDataClient {
     return allRefunds;
   }
 
-  getRefundsFor(bundleRefunds: CombinedRefunds, relayer: string, chainId: number, token: string): BigNumber {
-    if (!bundleRefunds[chainId] || !bundleRefunds[chainId][token]) {
+  getRefundsFor(bundleRefunds: CombinedRefunds, relayer: Address, chainId: number, token: Address): BigNumber {
+    if (!bundleRefunds[chainId] || !bundleRefunds[chainId][token.toBytes32()]) {
       return BigNumber.from(0);
     }
-    const allRefunds = bundleRefunds[chainId][token];
-    return allRefunds && allRefunds[relayer] ? allRefunds[relayer] : BigNumber.from(0);
+    const allRefunds = bundleRefunds[chainId][token.toBytes32()];
+    return allRefunds && allRefunds[relayer.toBytes32()] ? allRefunds[relayer.toBytes32()] : BigNumber.from(0);
   }
 
-  getTotalRefund(refunds: CombinedRefunds[], relayer: string, chainId: number, refundToken: string): BigNumber {
+  getTotalRefund(refunds: CombinedRefunds[], relayer: Address, chainId: number, refundToken: Address): BigNumber {
     return refunds.reduce((totalRefund, refunds) => {
       return totalRefund.add(this.getRefundsFor(refunds, relayer, chainId, refundToken));
     }, bnZero);
@@ -899,7 +899,11 @@ export class BundleDataClient {
             "Not using correct bundle deposit hash key"
           );
           if (deposit.blockNumber >= originChainBlockRange[0]) {
-            if (bundleDepositsV3?.[originChainId]?.[deposit.inputToken]?.find((d) => duplicateEvent(deposit, d))) {
+            if (
+              bundleDepositsV3?.[originChainId]?.[deposit.inputToken.toBytes32()]?.find((d) =>
+                duplicateEvent(deposit, d)
+              )
+            ) {
               this.logger.debug({
                 at: "BundleDataClient#loadData",
                 message: "Duplicate deposit detected",

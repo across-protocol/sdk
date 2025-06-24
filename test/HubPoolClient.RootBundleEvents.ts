@@ -19,6 +19,7 @@ import {
   winston,
 } from "./utils";
 import { setupHubPool } from "./fixtures/HubPool.Fixture";
+import { EvmAddress, toAddressType } from "../src/utils";
 
 let hubPool: Contract, timer: Contract;
 let l1Token_1: Contract, l1Token_2: Contract;
@@ -84,7 +85,7 @@ describe("HubPoolClient: RootBundle Events", function () {
       poolRebalanceRoot: tree.getHexRoot(),
       relayerRefundRoot: constants.mockTreeRoot,
       slowRelayRoot: constants.mockTreeRoot,
-      proposer: dataworker.address,
+      proposer: toAddressType(dataworker.address, hubPoolClient.chainId),
       unclaimedPoolRebalanceLeafCount: 2,
       challengePeriodEndTimestamp: proposeTime + liveness,
       bundleEvaluationBlockNumbers: [11, 22],
@@ -199,7 +200,7 @@ describe("HubPoolClient: RootBundle Events", function () {
     ({ runningBalance } = hubPoolClient.getRunningBalanceBeforeBlockForChain(
       firstRootBundleBlockNumber,
       constants.originChainId,
-      l1Token_1.address
+      EvmAddress.from(l1Token_1.address)
     ));
     expect(runningBalance.eq(0)).to.be.true;
     await hubPoolClient.update();
@@ -208,7 +209,7 @@ describe("HubPoolClient: RootBundle Events", function () {
     ({ runningBalance } = hubPoolClient.getRunningBalanceBeforeBlockForChain(
       firstRootBundleBlockNumber,
       constants.originChainId,
-      l1Token_1.address
+      EvmAddress.from(l1Token_1.address)
     ));
     expect(runningBalance.eq(toBNWei(100))).to.be.true;
 
@@ -216,7 +217,7 @@ describe("HubPoolClient: RootBundle Events", function () {
     ({ runningBalance } = hubPoolClient.getRunningBalanceBeforeBlockForChain(
       0,
       constants.originChainId,
-      l1Token_1.address
+      EvmAddress.from(l1Token_1.address)
     ));
     expect(runningBalance.eq(0)).to.be.true;
 
@@ -224,14 +225,14 @@ describe("HubPoolClient: RootBundle Events", function () {
     ({ runningBalance } = hubPoolClient.getRunningBalanceBeforeBlockForChain(
       firstRootBundleBlockNumber,
       constants.destinationChainId,
-      l1Token_1.address
+      EvmAddress.from(l1Token_1.address)
     ));
     expect(runningBalance.eq(0)).to.be.true;
 
     ({ runningBalance } = hubPoolClient.getRunningBalanceBeforeBlockForChain(
       firstRootBundleBlockNumber,
       constants.originChainId,
-      timer.address
+      EvmAddress.from(timer.address)
     ));
     expect(runningBalance.eq(0)).to.be.true;
 
@@ -239,7 +240,7 @@ describe("HubPoolClient: RootBundle Events", function () {
     ({ runningBalance } = hubPoolClient.getRunningBalanceBeforeBlockForChain(
       firstRootBundleBlockNumber,
       constants.originChainId,
-      l1Token_2.address
+      EvmAddress.from(l1Token_2.address)
     ));
     expect(runningBalance.eq(toBNWei(200))).to.be.true;
 
@@ -257,14 +258,14 @@ describe("HubPoolClient: RootBundle Events", function () {
     ({ runningBalance } = hubPoolClient.getRunningBalanceBeforeBlockForChain(
       secondRootBundleBlockNumber,
       constants.originChainId,
-      l1Token_1.address
+      EvmAddress.from(l1Token_1.address)
     ));
     expect(runningBalance.eq(toBNWei(200))).to.be.true; // Grabs second running balance
 
     ({ runningBalance } = hubPoolClient.getRunningBalanceBeforeBlockForChain(
       firstRootBundleBlockNumber,
       constants.originChainId,
-      l1Token_1.address
+      EvmAddress.from(l1Token_1.address)
     ));
     expect(runningBalance.eq(toBNWei(100))).to.be.true; // Grabs first running balance
   });
@@ -282,7 +283,7 @@ describe("HubPoolClient: RootBundle Events", function () {
       .proposeRootBundle(bundleBlockEvalNumbers, 1, tree1.getHexRoot(), constants.mockTreeRoot, constants.mockTreeRoot);
 
     await hubPoolClient.update();
-    expect(hubPoolClient.getProposedRootBundles()[0].proposer).to.equal(dataworker.address);
+    expect(hubPoolClient.getProposedRootBundles()[0].proposer.toEvmAddress()).to.equal(dataworker.address);
     expect(hubPoolClient.getDisputedRootBundles().length).to.equal(0);
 
     await hubPool.connect(dataworker).disputeRootBundle();
@@ -406,8 +407,8 @@ describe("HubPoolClient: RootBundle Events", function () {
     await hubPoolClient.update();
 
     // Happy case where latest spoke pool at block is returned
-    expect(hubPoolClient.getSpokePoolForBlock(11, firstUpdateBlockNumber)).to.equal(spokePool1);
-    expect(hubPoolClient.getSpokePoolForBlock(11, secondUpdateBlockNumber)).to.equal(spokePool2);
+    expect(hubPoolClient.getSpokePoolForBlock(11, firstUpdateBlockNumber).toNative()).to.equal(spokePool1);
+    expect(hubPoolClient.getSpokePoolForBlock(11, secondUpdateBlockNumber).toNative()).to.equal(spokePool2);
 
     // Chain has events but none before block
     expect(() => hubPoolClient.getSpokePoolForBlock(11, firstUpdateBlockNumber - 1)).to.throw(
