@@ -1,3 +1,4 @@
+import assert from "assert";
 import { BlockTag } from "@ethersproject/abstract-provider";
 import { Contract, providers, Signer } from "ethers";
 import * as constants from "../constants";
@@ -14,7 +15,7 @@ type SignerOrProvider = providers.Provider | Signer;
 export async function fetchTokenInfo(address: string, signerOrProvider: SignerOrProvider): Promise<TokenInfo> {
   const token = new Contract(address, ERC20__factory.abi, signerOrProvider);
   const [symbol, decimals] = await Promise.all([token.symbol(), token.decimals()]);
-  return { address: toAddressType(address, CHAIN_IDs.MAINNET), symbol, decimals };
+  return { address: EvmAddress.from(address), symbol, decimals };
 }
 
 export const getL2TokenAddresses = (
@@ -42,9 +43,10 @@ export function resolveSymbolOnChain(chainId: number, symbol: string): TokenInfo
   }
 
   const { decimals, addresses } = token;
-  const address = addresses[chainId];
+  const address = toAddressType(addresses[chainId], chainId);
+  assert(address.isEVM() || address.isSVM());
 
-  return { symbol, decimals, address: toAddressType(address, chainId) };
+  return { symbol, decimals, address };
 }
 
 /**

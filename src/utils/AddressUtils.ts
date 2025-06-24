@@ -243,9 +243,7 @@ export class EvmAddress extends Address {
 
   // Constructs a new EvmAddress type.
   static from(address: string, encoding: "base58" | "base16" = "base16"): EvmAddress {
-    return encoding === "base16"
-      ? new this(utils.arrayify(address))
-      : new this(bs58.decode(address));
+    return encoding === "base16" ? new this(utils.arrayify(address)) : new this(bs58.decode(address));
   }
 }
 
@@ -268,7 +266,7 @@ export class SvmAddress extends Address {
     // but highly improbable and are much more likely to be a mistaken interpretation of an EVM address. Err on
     // the side of caution for the time being
     // @todo Add test for this.
-    return rawAddress.length === 32 && rawAddress.slice(0,12).every((field) => field !== 0);
+    return rawAddress.length === 32 && rawAddress.slice(0, 12).every((field) => field !== 0);
   }
 
   override isSVM(): this is SvmAddress {
@@ -283,9 +281,7 @@ export class SvmAddress extends Address {
 
   // Constructs a new SvmAddress type.
   static from(address: string, encoding: "base58" | "base16" = "base58"): SvmAddress {
-    return encoding === "base58"
-      ? new this(bs58.decode(address))
-      : new this(utils.arrayify(address));
+    return encoding === "base58" ? new this(bs58.decode(address)) : new this(utils.arrayify(address));
   }
 }
 

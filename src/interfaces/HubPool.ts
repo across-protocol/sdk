@@ -1,4 +1,4 @@
-import { Address, BigNumber, EvmAddress } from "../utils";
+import { Address, BigNumber, EvmAddress, SvmAddress } from "../utils";
 import { SortableEvent } from "./Common";
 
 export interface PoolRebalanceLeaf {
@@ -83,7 +83,7 @@ export interface L1TokenInfo {
 }
 
 export interface TokenInfo {
-  address: Address;
+  address: EvmAddress | SvmAddress;
   symbol: string;
   decimals: number;
 }

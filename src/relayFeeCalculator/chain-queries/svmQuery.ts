@@ -1,3 +1,4 @@
+import assert from "assert";
 import { SvmSpokeClient } from "@across-protocol/contracts";
 import { intToU8Array32 } from "@across-protocol/contracts/dist/src/svm/web3-v1/conversionUtils";
 import { SYSTEM_PROGRAM_ADDRESS } from "@solana-program/system";
@@ -83,7 +84,12 @@ export class SvmQuery implements QueryInterface {
       priorityFeeMultiplier: BigNumber;
     }> = {}
   ): Promise<TransactionCostEstimate> {
-    const fillRelayTx = await this.getFillRelayTx(deposit, relayer);
+    const { recipient, outputToken, exclusiveRelayer } = deposit;
+    assert(recipient.isSVM());
+    assert(outputToken.isSVM());
+    assert(exclusiveRelayer.isSVM());
+
+    const fillRelayTx = await this.getFillRelayTx({ ...deposit, recipient, outputToken, exclusiveRelayer }, relayer);
 
     const [computeUnitsConsumed, gasPriceEstimate] = await Promise.all([
       toBN(await this.computeUnitEstimator(fillRelayTx)),
@@ -114,10 +120,15 @@ export class SvmQuery implements QueryInterface {
    * @returns Estimated gas cost in compute units
    */
   async getNativeGasCost(
-    deposit: Omit<Deposit, "messageHash">,
+    deposit: Omit<Deposit, "messageHash">, // @todo Update interface to permit EvmAddress | SvmAddress
     _relayer = toAddressType(getDefaultSimulatedRelayerAddress(deposit.destinationChainId), deposit.destinationChainId)
   ): Promise<BigNumber> {
-    const fillRelayTx = await this.getFillRelayTx(deposit, _relayer);
+    const { recipient, outputToken, exclusiveRelayer } = deposit;
+    assert(recipient.isSVM());
+    assert(outputToken.isSVM());
+    assert(exclusiveRelayer.isSVM());
+
+    const fillRelayTx = await this.getFillRelayTx({ ...deposit, recipient, outputToken, exclusiveRelayer }, _relayer);
     return toBN(await this.computeUnitEstimator(fillRelayTx));
   }
 
@@ -128,7 +139,11 @@ export class SvmQuery implements QueryInterface {
    * @returns FillRelay transaction
    */
   async getFillRelayTx(
-    deposit: Omit<Deposit, "messageHash">,
+    deposit: Omit<Deposit, "recipent" | "outputToken" | "exclusiveRelayer" | "messageHash"> & {
+      recipient: SvmAddress;
+      outputToken: SvmAddress;
+      exclusiveRelayer: SvmAddress;
+    },
     relayer = toAddressType(getDefaultSimulatedRelayerAddress(deposit.destinationChainId), deposit.destinationChainId),
     repaymentChainId = deposit.destinationChainId,
     repaymentAddress = toAddressType(
@@ -137,6 +152,10 @@ export class SvmQuery implements QueryInterface {
     )
   ) {
     const { depositor, recipient, inputToken, outputToken, exclusiveRelayer, destinationChainId } = deposit;
+
+    // tsc appeasement...should be unnecessary, but isn't. @todo Identify why.
+    assert(recipient.isSVM());
+    assert(repaymentAddress.isEVM() || recipient.isSVM());
 
     const program = toAddress(this.spokePool);
     const _relayDataHash = getRelayDataHash(deposit, destinationChainId);
@@ -151,7 +170,7 @@ export class SvmQuery implements QueryInterface {
     const mintInfo = await fetchMint(this.provider, mint);
 
     const [recipientAta, relayerAta, fillStatus, eventAuthority] = await Promise.all([
-      getAssociatedTokenAddress(deposit.recipient, outputToken, mintInfo.programAddress),
+      getAssociatedTokenAddress(recipient, outputToken, mintInfo.programAddress),
       getAssociatedTokenAddress(SvmAddress.from(relayer.toBase58()), outputToken, mintInfo.programAddress),
       getFillStatusPda(program, deposit, destinationChainId),
       getEventAuthority(program),

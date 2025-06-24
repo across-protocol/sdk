@@ -9,6 +9,7 @@ import { SpokePool, SpokePool__factory } from "../../typechain";
 import { populateV3Relay } from "../../arch/evm";
 import {
   BigNumberish,
+  EvmAddress,
   TransactionCostEstimate,
   BigNumber,
   toBNWei,
@@ -93,7 +94,12 @@ export class QueryBase implements QueryInterface {
       transport,
     } = options;
 
-    const tx = await this.getUnsignedTxFromDeposit(deposit, relayer);
+    const { recipient, outputToken, exclusiveRelayer } = deposit;
+    assert(recipient.isEVM());
+    assert(outputToken.isEVM());
+    assert(exclusiveRelayer.isEVM());
+
+    const tx = await this.getUnsignedTxFromDeposit({ ...deposit, recipient, outputToken, exclusiveRelayer }, relayer);
     const {
       nativeGasCost,
       tokenGasCost,
@@ -123,7 +129,11 @@ export class QueryBase implements QueryInterface {
    * @returns PopulatedTransaction
    */
   getUnsignedTxFromDeposit(
-    deposit: Omit<Deposit, "messageHash">,
+    deposit: Omit<Deposit, "messageHash"> & {
+      recipient: EvmAddress;
+      outputToken: EvmAddress;
+      exclusiveRelayer: EvmAddress;
+    },
     relayer = toAddressType(getDefaultSimulatedRelayerAddress(deposit.destinationChainId), deposit.destinationChainId)
   ): Promise<PopulatedTransaction> {
     return populateV3Relay(this.spokePool, deposit, relayer);
@@ -139,7 +149,15 @@ export class QueryBase implements QueryInterface {
     deposit: Omit<Deposit, "messageHash">,
     relayer = toAddressType(getDefaultSimulatedRelayerAddress(deposit.destinationChainId), deposit.destinationChainId)
   ): Promise<BigNumber> {
-    const unsignedTx = await this.getUnsignedTxFromDeposit(deposit, relayer);
+    const { recipient, outputToken, exclusiveRelayer } = deposit;
+    assert(recipient.isEVM());
+    assert(outputToken.isEVM());
+    assert(exclusiveRelayer.isEVM());
+
+    const unsignedTx = await this.getUnsignedTxFromDeposit(
+      { ...deposit, recipient, outputToken, exclusiveRelayer },
+      relayer
+    );
     const voidSigner = new VoidSigner(relayer.toEvmAddress(), this.provider);
     return voidSigner.estimateGas(unsignedTx);
   }

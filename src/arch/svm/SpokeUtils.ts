@@ -385,7 +385,10 @@ export async function findFillEvent(
  */
 export async function fillRelayInstruction(
   spokePool: SvmAddress,
-  deposit: Omit<Deposit, "messageHash" | "fromLiteChain" | "toLiteChain"> & {
+  deposit: Omit<
+    Deposit,
+    "recipient" | "outputToken" | "exclusiveRelayer" | "messageHash" | "fromLiteChain" | "toLiteChain"
+  > & {
     recipient: SvmAddress;
     outputToken: SvmAddress;
     exclusiveRelayer: SvmAddress;

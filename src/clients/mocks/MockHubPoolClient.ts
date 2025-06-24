@@ -1,3 +1,4 @@
+import assert from "assert";
 import winston from "winston";
 import { Contract } from "ethers";
 import { BigNumber, randomAddress, assign, bnZero, toAddressType, EvmAddress, Address, isDefined } from "../../utils";
@@ -84,7 +85,9 @@ export class MockHubPoolClient extends HubPoolClient {
   }
 
   addL1Token(l1Token: TokenInfo) {
-    this.l1TokensMock.push(l1Token);
+    const { address } = l1Token;
+    assert(address.isEVM());
+    this.l1TokensMock.push({ ...l1Token, address });
   }
 
   getL1Tokens() {
