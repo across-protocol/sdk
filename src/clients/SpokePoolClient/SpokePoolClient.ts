@@ -594,7 +594,7 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
 
           return {
             ...event,
-            depositor: toAddressType(event.depositor, this.chainId),
+            depositor: EvmAddress.from(event.depositor),
             updatedRecipient: EvmAddress.from(event.updatedRecipient),
           } as SpeedUpWithBlock;
         })

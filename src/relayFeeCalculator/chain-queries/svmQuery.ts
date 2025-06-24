@@ -136,7 +136,14 @@ export class SvmQuery implements QueryInterface {
       deposit.destinationChainId
     )
   ) {
-    const { depositor, recipient, inputToken, outputToken, exclusiveRelayer, destinationChainId } = deposit;
+    const {
+      depositor,
+      recipient: _recipient,
+      inputToken,
+      outputToken: _outputToken,
+      exclusiveRelayer,
+      destinationChainId,
+    } = deposit;
 
     const program = toAddress(this.spokePool);
     const _relayDataHash = getRelayDataHash(deposit, destinationChainId);
@@ -147,11 +154,12 @@ export class SvmQuery implements QueryInterface {
       getFillRelayDelegatePda(relayDataHash, BigInt(repaymentChainId), toAddress(repaymentAddress), program),
     ]);
 
+    const [recipient, outputToken] = [_recipient.forceSvmAddress(), _outputToken.forceSvmAddress()];
     const mint = toAddress(outputToken);
     const mintInfo = await fetchMint(this.provider, mint);
 
     const [recipientAta, relayerAta, fillStatus, eventAuthority] = await Promise.all([
-      getAssociatedTokenAddress(deposit.recipient, outputToken, mintInfo.programAddress),
+      getAssociatedTokenAddress(recipient, outputToken, mintInfo.programAddress),
       getAssociatedTokenAddress(SvmAddress.from(relayer.toBase58()), outputToken, mintInfo.programAddress),
       getFillStatusPda(program, deposit, destinationChainId),
       getEventAuthority(program),

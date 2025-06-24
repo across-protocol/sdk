@@ -1,7 +1,7 @@
 import { BlockTag } from "@ethersproject/abstract-provider";
 import { Contract, providers, Signer } from "ethers";
 import * as constants from "../constants";
-import { L1TokenInfo, TokenInfo } from "../interfaces";
+import { TokenInfo } from "../interfaces";
 import { ERC20__factory } from "../typechain";
 import { BigNumber } from "./BigNumberUtils";
 import { getNetworkName, chainIsL1, chainIsProd } from "./NetworkUtils";
@@ -111,7 +111,7 @@ export function isStablecoin(tokenSymbol: string): boolean {
  * @param tokenMapping
  * @returns
  */
-export function getTokenInfo(l2TokenAddress: string, chainId: number, tokenMapping = TOKEN_SYMBOLS_MAP): L1TokenInfo {
+export function getTokenInfo(l2TokenAddress: string, chainId: number, tokenMapping = TOKEN_SYMBOLS_MAP): TokenInfo {
   const parsedAddress = toAddressType(l2TokenAddress, chainId).toNative();
 
   // @dev This might give false positives if tokens on different networks have the same address. I'm not sure how

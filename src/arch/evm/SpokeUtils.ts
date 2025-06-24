@@ -3,7 +3,6 @@ import { BytesLike, Contract, PopulatedTransaction, providers } from "ethers";
 import { CHAIN_IDs } from "../../constants";
 import { Deposit, FillStatus, FillWithBlock, RelayData, RelayExecutionEventInfo } from "../../interfaces";
 import {
-  EvmAddress,
   bnUint32Max,
   BigNumber,
   toBN,
@@ -31,11 +30,7 @@ type BlockTag = providers.BlockTag;
  */
 export function populateV3Relay(
   spokePool: Contract,
-  deposit: Omit<Deposit, "messageHash" | "fromLiteChain" | "toLiteChain"> & {
-    recipient: EvmAddress;
-    outputToken: EvmAddress;
-    exclusiveRelayer: EvmAddress;
-  },
+  deposit: Omit<Deposit, "messageHash" | "fromLiteChain" | "toLiteChain">,
   repaymentAddress: Address,
   repaymentChainId = deposit.destinationChainId
 ): Promise<PopulatedTransaction> {

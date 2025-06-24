@@ -37,6 +37,7 @@ import {
   BigNumber,
   EvmAddress,
   SvmAddress,
+  Address as SdkAddress,
   chainIsSvm,
   chunk,
   isUnsafeDepositId,
@@ -405,10 +406,6 @@ export async function fillRelayInstruction(
   const relayDataHash = new Uint8Array(Buffer.from(_relayDataHash.slice(2), "hex"));
 
   const relayer = SvmAddress.from(signer.address);
-  const outputTokenAddress = toAddressType(deposit.outputToken, deposit.destinationChainId);
-  if (!(outputTokenAddress instanceof SvmAddress)) {
-    return undefined;
-  }
 
   // Create ATA for the relayer and recipient token accounts
   const relayerTokenAccount = await getAssociatedTokenAddress(relayer, deposit.outputToken);
@@ -430,26 +427,14 @@ export async function fillRelayInstruction(
     program
   );
 
-  // @todo we need to convert the deposit's relayData to svm-like since the interface assumes the data originates
-  // from an EVM Spoke pool. Once we migrate to `Address` types, this can be modified/removed.
-  const [depositor, inputToken] = [deposit.depositor, deposit.inputToken].map(toAddress);
-  const [recipient, outputToken, exclusiveRelayer] = [
+  const [recipient, outputToken, exclusiveRelayer, depositor, inputToken] = [
     deposit.recipient,
     deposit.outputToken,
     deposit.exclusiveRelayer,
+    deposit.depositor,
+    deposit.inputToken,
   ].map(toAddress);
 
-  const [recipient, exclusiveRelayer] = [deposit.recipient, deposit.exclusiveRelayer].map((addr) => {
-    const addressObj = toAddressType(addr, deposit.originChainId);
-    if (!(addressObj instanceof SvmAddress)) {
-      return undefined;
-    }
-    return toAddress(addressObj);
-  });
-
-  if (!recipient || !exclusiveRelayer) return undefined;
-
-  const outputToken = toAddress(outputTokenAddress);
   return SvmSpokeClient.getFillRelayInstruction({
     signer,
     state: statePda,
@@ -655,7 +640,7 @@ export function getRelayDataHash(relayData: RelayData, destinationChainId: numbe
   const uint32Encoder = getU32Encoder();
 
   assert(relayData.message.startsWith("0x"), "Message must be a hex string");
-  const encodeAddress = (data: SvmAddress) => Uint8Array.from(addressEncoder.encode(toAddress(data)));
+  const encodeAddress = (data: SdkAddress) => Uint8Array.from(addressEncoder.encode(toAddress(data)));
 
   const contentToHash = Buffer.concat([
     encodeAddress(relayData.depositor),
