@@ -274,7 +274,11 @@ export class SvmAddress extends Address {
   }
 
   static validate(rawAddress: Uint8Array): boolean {
-    return rawAddress.length === 32;
+    // Deliberately invalidate SVM addresses w/ the upper 12 bytes zeroed. These addresses are technically valid
+    // but highly improbable and are much more likely to be a mistaken interpretation of an EVM address. Err on
+    // the side of caution for the time being
+    // @todo Add test for this.
+    return rawAddress.length === 32 && rawAddress.slice(0,12).every((field) => field !== 0);
   }
 
   override isSVM(): this is SvmAddress {
