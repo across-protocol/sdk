@@ -435,6 +435,7 @@ export class BundleDataClient {
       // and then query the FillStatus on-chain, but that might slow this function down too much. For now, we
       // will live with this expected inaccuracy as it should be small. The pre-fill would have to precede the deposit
       // by more than the caller's event lookback window which is expected to be unlikely.
+
       const fillsToCount = this.spokePoolClients[chainId].getFills().filter((fill) => {
         if (
           fill.blockNumber < blockRanges[chainIndex][0] ||
@@ -790,24 +791,36 @@ export class BundleDataClient {
     };
 
     const _depositIsExpired = (deposit: DepositWithBlock): boolean => {
+      // @TODO: We should be defaulting to the mainnet time in case destination SpokePool deployment is not available.
+      // Something like this:
+      // const [, endTimestamp] =
+      //   bundleBlockTimestamps[deposit.destinationChainId] ?? bundleBlockTimestamps[this.clients.hubPoolClient.chainId];
+      // return deposit.fillDeadline < endTimestamp;
       return deposit.fillDeadline < bundleBlockTimestamps[deposit.destinationChainId][1];
     };
 
     const _getFillStatusForDeposit = (deposit: Deposit, queryBlock: number): Promise<FillStatus> => {
-      return spokePoolClients[deposit.destinationChainId].relayFillStatus(
+      const spokePoolClient = spokePoolClients[deposit.destinationChainId];
+
+      if (!isDefined(spokePoolClient)) {
+        return Promise.resolve(FillStatus.Unfilled);
+      }
+
+      return spokePoolClient.relayFillStatus(
         deposit,
         // We can assume that in production
         // the block to query is not one that the spoke pool client
         // hasn't queried. This is because this function will usually be called
         // in production with block ranges that were validated by
         // DataworkerUtils.blockRangesAreInvalidForSpokeClients.
-        Math.min(queryBlock, spokePoolClients[deposit.destinationChainId].latestHeightSearched)
+        Math.min(queryBlock, spokePoolClient.latestHeightSearched)
       );
     };
 
     // Infer chain ID's to load from number of block ranges passed in.
     const allChainIds = blockRangesForChains
       .map((_blockRange, index) => chainIds[index])
+      // Because of this check, there is a good chance that _getFillStatusForDeposit will not throw an error.
       .filter((chainId) => !_isChainDisabled(chainId) && spokePoolClients[chainId] !== undefined);
     allChainIds.forEach((chainId) => {
       const spokePoolClient = spokePoolClients[chainId];
@@ -1413,6 +1426,8 @@ export class BundleDataClient {
       }
       const deposit = deposits[index];
       const { destinationChainId } = deposit;
+      // @TODO The function getBlockRangeForChain can throw an error if chainId is wrong.
+      // Look at getBlockRangeForChain implementation.
       const destinationBlockRange = getBlockRangeForChain(blockRangesForChains, destinationChainId, chainIds);
 
       // Only look for deposits that were mined before this bundle and that are newly expired.
@@ -1563,7 +1578,7 @@ export class BundleDataClient {
 
       bundleInvalidFillsV3.forEach((fill) => {
         const originClient = spokePoolClients[fill.originChainId];
-        const fullyMatchedDeposit = originClient.getDepositForFill(fill);
+        const fullyMatchedDeposit = originClient?.getDepositForFill(fill);
         if (!isDefined(fullyMatchedDeposit)) {
           const partiallyMatchedDeposit = originClient.getDeposit(fill.depositId);
           if (isDefined(partiallyMatchedDeposit)) {
