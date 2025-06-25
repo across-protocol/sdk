@@ -27,7 +27,7 @@ export type DepositSearchResult =
 
 export type MultipleDepositSearchResult =
   | { found: true; deposits: DepositWithBlock[] }
-  | { found: false; code: InvalidFill; reason: string };
+  | { found: false; code: InvalidFill.DepositIdNotFound; reason: string };
 
 /**
  * Attempts to resolve a deposit for a fill. If the fill's deposit Id is within the spoke pool client's search range,
