@@ -158,7 +158,6 @@ describe("SpokePoolClient: Find Deposits", function () {
       await spokePoolClient1.update();
       const depositHash = getRelayEventKey(depositEvent);
       delete spokePoolClient1["depositHashes"][depositHash];
-      const filter = spokePool_1.filters.FundsDeposited();
       const fakeEvent = {
         args: {
           depositId: depositEvent.depositId,

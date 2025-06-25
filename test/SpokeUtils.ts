@@ -61,9 +61,7 @@ describe("SpokeUtils", function () {
   let deploymentBlock: number;
 
   beforeEach(async function () {
-    ({ spokePool, deploymentBlock } = await deploySpokePoolWithToken(
-      sampleData.originChainId
-    ));
+    ({ spokePool, deploymentBlock } = await deploySpokePoolWithToken(sampleData.originChainId));
   });
 
   it("getRelayEventKey correctly concatenates an event key", function () {
