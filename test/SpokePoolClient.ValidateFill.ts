@@ -8,7 +8,7 @@ import {
   InvalidFill,
   validateFillForDeposit,
   queryHistoricalDepositForFill,
-  toAddress,
+  toEvmAddress,
   toBytes32,
   deploy as deployMulticall,
 } from "../src/utils";
@@ -53,7 +53,7 @@ describe("SpokePoolClient: Fill Validation", function () {
   const truncateAddresses = (relayData: Omit<RelayData, "message">): void => {
     // Events emit bytes32 but the SpokePoolClient truncates evm addresses back to bytes20.
     ["depositor", "recipient", "inputToken", "outputToken", "exclusiveRelayer"].forEach(
-      (field) => (relayData[field] = toAddress(relayData[field]))
+      (field) => (relayData[field] = toEvmAddress(relayData[field]))
     );
   };
 

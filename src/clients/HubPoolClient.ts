@@ -917,7 +917,7 @@ export class HubPoolClient extends BaseAbstractClient {
           if (!solanaSpokePool) {
             throw new Error(`SVM spoke pool not found for chain ${args.l2ChainId}`);
           }
-          const truncatedAddress = SvmAddress.from(solanaSpokePool).toEvmAddress();
+          const truncatedAddress = SvmAddress.from(solanaSpokePool).truncateToBytes20();
           // Verify the event address matches our expected truncated address
           if (args.spokePool.toLowerCase() !== truncatedAddress.toLowerCase()) {
             throw new Error(
@@ -942,7 +942,7 @@ export class HubPoolClient extends BaseAbstractClient {
         let destinationToken = args.destinationToken;
         if (chainIsSvm(args.destinationChainId)) {
           const usdcTokenSol = TOKEN_SYMBOLS_MAP.USDC.addresses[args.destinationChainId];
-          const truncatedAddress = SvmAddress.from(usdcTokenSol).toEvmAddress();
+          const truncatedAddress = SvmAddress.from(usdcTokenSol).truncateToBytes20();
           if (destinationToken.toLowerCase() !== truncatedAddress.toLowerCase()) {
             throw new Error(
               `SVM USDC address mismatch for chain ${args.destinationChainId}. ` +

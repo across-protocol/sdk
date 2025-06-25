@@ -10,7 +10,6 @@ import {
 } from "@solana-program/token";
 import {
   Address,
-  address,
   appendTransactionMessageInstruction,
   fetchEncodedAccount,
   fetchEncodedAccounts,
@@ -28,13 +27,23 @@ import { Logger } from "winston";
 
 import { SYSTEM_PROGRAM_ADDRESS } from "@solana-program/system";
 import { Deposit, DepositWithBlock, FillStatus, FillWithBlock, RelayData } from "../../interfaces";
-import { BigNumber, SvmAddress, chainIsSvm, chunk, isUnsafeDepositId, keccak256, toAddressType } from "../../utils";
+import {
+  BigNumber,
+  EvmAddress,
+  SvmAddress,
+  chainIsSvm,
+  chunk,
+  isUnsafeDepositId,
+  keccak256,
+  toAddressType,
+} from "../../utils";
 import {
   SvmCpiEventsClient,
   createDefaultTransaction,
   getEventAuthority,
   getFillStatusPda,
   getStatePda,
+  toAddress,
   unwrapEventData,
 } from "./";
 import { SVMEventNames, SVMProvider } from "./types";
@@ -341,33 +350,34 @@ export async function findFillEvent(
  */
 export async function fillRelayInstruction(
   spokePool: SvmAddress,
-  deposit: Omit<Deposit, "messageHash">,
-  relayer: TransactionSigner<string>,
+  deposit: Omit<Deposit, "messageHash" | "fromLiteChain" | "toLiteChain">,
+  signer: TransactionSigner<string>,
   recipientTokenAccount: Address<string>,
+  repaymentAddress: EvmAddress | SvmAddress = SvmAddress.from(signer.address),
   repaymentChainId = deposit.destinationChainId
 ) {
-  const programId = spokePool.toBase58();
-  const relayerAddress = SvmAddress.from(relayer.address);
+  const program = toAddress(spokePool);
 
-  // @todo we need to convert the deposit's relayData to svm-like since the interface assumes the data originates from an EVM Spoke pool.
-  // Once we migrate to `Address` types, this can be modified/removed.
-  const [depositor, recipient, exclusiveRelayer, inputToken, outputToken] = [
-    deposit.depositor,
-    deposit.recipient,
-    deposit.exclusiveRelayer,
-    deposit.inputToken,
-    deposit.outputToken,
-  ].map((addr) => toAddressType(addr).forceSvmAddress());
+  assert(
+    repaymentAddress.isValidOn(repaymentChainId),
+    `Invalid repayment address for chain ${repaymentChainId}: ${repaymentAddress.toNative()}.`
+  );
 
   const _relayDataHash = getRelayDataHash(deposit, deposit.destinationChainId);
   const relayDataHash = new Uint8Array(Buffer.from(_relayDataHash.slice(2), "hex"));
 
+  const relayer = SvmAddress.from(signer.address);
+  const outputTokenAddress = toAddressType(deposit.outputToken, deposit.destinationChainId);
+  if (!(outputTokenAddress instanceof SvmAddress)) {
+    return undefined;
+  }
+
   // Create ATA for the relayer and recipient token accounts
-  const relayerTokenAccount = await getAssociatedTokenAddress(relayerAddress, outputToken);
+  const relayerTokenAccount = await getAssociatedTokenAddress(relayer, outputTokenAddress);
 
   const [statePda, fillStatusPda, eventAuthority] = await Promise.all([
-    getStatePda(spokePool.toV2Address()),
-    getFillStatusPda(spokePool.toV2Address(), deposit, deposit.destinationChainId),
+    getStatePda(program),
+    getFillStatusPda(program, deposit, deposit.destinationChainId),
     getEventAuthority(),
   ]);
   const depositIdBuffer = new Uint8Array(32);
@@ -377,27 +387,47 @@ export async function fillRelayInstruction(
   const delegatePda = await getFillRelayDelegatePda(
     relayDataHash,
     BigInt(repaymentChainId),
-    relayerAddress.toV2Address(),
-    spokePool.toV2Address()
+    toAddress(relayer),
+    program
   );
 
+  // @todo we need to convert the deposit's relayData to svm-like since the interface assumes the data originates
+  // from an EVM Spoke pool. Once we migrate to `Address` types, this can be modified/removed.
+  const [depositor, inputToken] = [deposit.depositor, deposit.inputToken].map((addr: string) => {
+    const addressObj = toAddressType(addr, deposit.originChainId);
+    // @dev we don't really care for correctness of format of depositor / inputToken, so we're fine converting to Solana
+    // SDK `Address<string>` type even if our `toAddressType` function returned a raw address.
+    return addressObj.toBase58() as Address<string>;
+  });
+
+  const [recipient, exclusiveRelayer] = [deposit.recipient, deposit.exclusiveRelayer].map((addr) => {
+    const addressObj = toAddressType(addr, deposit.originChainId);
+    if (!(addressObj instanceof SvmAddress)) {
+      return undefined;
+    }
+    return toAddress(addressObj);
+  });
+
+  if (!recipient || !exclusiveRelayer) return undefined;
+
+  const outputToken = toAddress(outputTokenAddress);
   return SvmSpokeClient.getFillRelayInstruction({
-    signer: relayer,
+    signer,
     state: statePda,
-    delegate: SvmAddress.from(delegatePda.toString()).toV2Address(),
-    mint: outputToken.toV2Address(),
+    delegate: toAddress(SvmAddress.from(delegatePda.toString())),
+    mint: outputToken,
     relayerTokenAccount: relayerTokenAccount,
     recipientTokenAccount: recipientTokenAccount,
     fillStatus: fillStatusPda,
     eventAuthority,
-    program: address(programId),
+    program,
     relayHash: relayDataHash,
     relayData: some({
-      depositor: depositor.toV2Address(),
-      recipient: recipient.toV2Address(),
-      exclusiveRelayer: exclusiveRelayer.toV2Address(),
-      inputToken: inputToken.toV2Address(),
-      outputToken: outputToken.toV2Address(),
+      depositor,
+      recipient,
+      exclusiveRelayer,
+      inputToken,
+      outputToken,
       inputAmount: deposit.inputAmount.toBigInt(),
       outputAmount: deposit.outputAmount.toBigInt(),
       originChainId: BigInt(deposit.originChainId),
@@ -407,7 +437,7 @@ export async function fillRelayInstruction(
       message: new Uint8Array(Buffer.from(deposit.message.slice(2), "hex")),
     }),
     repaymentChainId: some(BigInt(repaymentChainId)),
-    repaymentAddress: some(relayerAddress.toV2Address()),
+    repaymentAddress: toAddress(repaymentAddress),
   });
 }
 
@@ -422,7 +452,7 @@ export function createTokenAccountsInstruction(
 ): SvmSpokeClient.CreateTokenAccountsInstruction {
   return SvmSpokeClient.getCreateTokenAccountsInstruction({
     signer: relayer,
-    mint: mint.toV2Address(),
+    mint: toAddress(mint),
   });
 }
 
@@ -467,7 +497,7 @@ export const createFillInstruction = async (
       tokenProgram: fillInput.tokenProgram,
     });
 
-  const createFillIx = await SvmSpokeClient.getFillRelayInstruction(fillInput);
+  const createFillIx = SvmSpokeClient.getFillRelayInstruction(fillInput);
 
   return pipe(
     await createDefaultTransaction(solanaClient, signer),
@@ -517,7 +547,7 @@ export const createDepositInstruction = async (
       programAddress: mintInfo.programAddress,
     }
   );
-  const depositIx = await SvmSpokeClient.getDepositInstruction(depositInput);
+  const depositIx = SvmSpokeClient.getDepositInstruction(depositInput);
   return pipe(
     await createDefaultTransaction(solanaClient, signer),
     (tx) =>
@@ -539,7 +569,7 @@ export const createRequestSlowFillInstruction = async (
   solanaClient: SVMProvider,
   depositInput: SvmSpokeClient.RequestSlowFillInput
 ) => {
-  const requestSlowFillIx = await SvmSpokeClient.getRequestSlowFillInstruction(depositInput);
+  const requestSlowFillIx = SvmSpokeClient.getRequestSlowFillInstruction(depositInput);
 
   return pipe(await createDefaultTransaction(solanaClient, signer), (tx) =>
     appendTransactionMessageInstruction(requestSlowFillIx, tx)
@@ -558,7 +588,7 @@ export const createCloseFillPdaInstruction = async (
   solanaClient: SVMProvider,
   fillStatusPda: Address
 ) => {
-  const closeFillPdaIx = await SvmSpokeClient.getCloseFillPdaInstruction({
+  const closeFillPdaIx = SvmSpokeClient.getCloseFillPdaInstruction({
     signer,
     state: await getStatePda(SvmSpokeClient.SVM_SPOKE_PROGRAM_ADDRESS),
     fillStatus: fillStatusPda,
@@ -572,13 +602,10 @@ export async function getAssociatedTokenAddress(
   mint: SvmAddress,
   tokenProgramId: Address<string> = TOKEN_PROGRAM_ADDRESS
 ): Promise<Address<string>> {
+  const encoder = getAddressEncoder();
   const [associatedToken] = await getProgramDerivedAddress({
     programAddress: ASSOCIATED_TOKEN_PROGRAM_ADDRESS,
-    seeds: [
-      new Uint8Array(owner.toBuffer()),
-      new Uint8Array(SvmAddress.from(tokenProgramId).toBuffer()),
-      new Uint8Array(mint.toBuffer()),
-    ],
+    seeds: [encoder.encode(toAddress(owner)), encoder.encode(tokenProgramId), encoder.encode(toAddress(mint))],
   });
   return associatedToken;
 }
@@ -589,13 +616,19 @@ export function getRelayDataHash(relayData: RelayData, destinationChainId: numbe
   const uint32Encoder = getU32Encoder();
 
   assert(relayData.message.startsWith("0x"), "Message must be a hex string");
+  const encodeAddress = (addr: string, chainId: number) => {
+    const addrObj = toAddressType(addr, chainId);
+    // @dev even if `addrObj` is of type `Address` here, we still want to calculate the relayHash
+    // based on `base58` representation of the `Address`
+    return Uint8Array.from(addressEncoder.encode(addrObj.toBase58() as Address<string>));
+  };
 
   const contentToHash = Buffer.concat([
-    Uint8Array.from(addressEncoder.encode(SvmAddress.from(relayData.depositor, "base16").toV2Address())),
-    Uint8Array.from(addressEncoder.encode(SvmAddress.from(relayData.recipient, "base16").toV2Address())),
-    Uint8Array.from(addressEncoder.encode(SvmAddress.from(relayData.exclusiveRelayer, "base16").toV2Address())),
-    Uint8Array.from(addressEncoder.encode(SvmAddress.from(relayData.inputToken, "base16").toV2Address())),
-    Uint8Array.from(addressEncoder.encode(SvmAddress.from(relayData.outputToken, "base16").toV2Address())),
+    encodeAddress(relayData.depositor, relayData.originChainId),
+    encodeAddress(relayData.recipient, destinationChainId),
+    encodeAddress(relayData.exclusiveRelayer, destinationChainId),
+    encodeAddress(relayData.inputToken, relayData.originChainId),
+    encodeAddress(relayData.outputToken, destinationChainId),
     Uint8Array.from(uint64Encoder.encode(BigInt(relayData.inputAmount.toString()))),
     Uint8Array.from(uint64Encoder.encode(BigInt(relayData.outputAmount.toString()))),
     Uint8Array.from(uint64Encoder.encode(BigInt(relayData.originChainId.toString()))),

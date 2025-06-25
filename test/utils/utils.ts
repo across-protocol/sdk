@@ -15,7 +15,7 @@ import {
   toWei,
   utf8ToHex,
   toBytes32,
-  toAddress,
+  toEvmAddress,
 } from "../../src/utils";
 import {
   MAX_L1_TOKENS_PER_POOL_REBALANCE_LEAF,
@@ -294,7 +294,7 @@ export function depositV3(
 ): Promise<DepositWithBlock> {
   return _deposit(spokePool, destinationChainId, signer, inputToken, inputAmount, outputToken, outputAmount, {
     ...opts,
-    addressModifier: toAddress,
+    addressModifier: toEvmAddress,
   });
 }
 
@@ -363,18 +363,18 @@ async function _deposit(
     depositId: toBN(args.depositId),
     originChainId: Number(originChainId),
     destinationChainId: Number(args!.destinationChainId),
-    depositor: toAddress(args.depositor),
-    recipient: toAddress(args.recipient),
-    inputToken: toAddress(args.inputToken),
+    depositor: toEvmAddress(args.depositor),
+    recipient: toEvmAddress(args.recipient),
+    inputToken: toEvmAddress(args.inputToken),
     inputAmount: args.inputAmount,
-    outputToken: toAddress(args.outputToken),
+    outputToken: toEvmAddress(args.outputToken),
     outputAmount: args.outputAmount,
     quoteTimestamp: args.quoteTimestamp,
     message: args.message,
     messageHash: getMessageHash(args.message),
     fillDeadline: args.fillDeadline,
     exclusivityDeadline: args.exclusivityDeadline,
-    exclusiveRelayer: toAddress(args.exclusiveRelayer),
+    exclusiveRelayer: toEvmAddress(args.exclusiveRelayer),
     fromLiteChain: false,
     toLiteChain: false,
     quoteBlockNumber: 0, // @todo
@@ -414,16 +414,16 @@ export async function requestV3SlowFill(
     depositId: toBN(args.depositId),
     originChainId: Number(args.originChainId),
     destinationChainId,
-    depositor: toAddress(args.depositor),
-    recipient: toAddress(args.recipient),
-    inputToken: toAddress(args.inputToken),
+    depositor: toEvmAddress(args.depositor),
+    recipient: toEvmAddress(args.recipient),
+    inputToken: toEvmAddress(args.inputToken),
     inputAmount: args.inputAmount,
-    outputToken: toAddress(args.outputToken),
+    outputToken: toEvmAddress(args.outputToken),
     outputAmount: args.outputAmount,
     messageHash: getMessageHash(args.message),
     fillDeadline: args.fillDeadline,
     exclusivityDeadline: args.exclusivityDeadline,
-    exclusiveRelayer: toAddress(args.exclusiveRelayer),
+    exclusiveRelayer: toEvmAddress(args.exclusiveRelayer),
     blockNumber,
     txnRef: transactionHash,
     txnIndex: transactionIndex,
