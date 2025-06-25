@@ -11,23 +11,22 @@ describe("Address Utils: Address Type", function () {
   describe("Correctness of Address methods", function () {
     it("Correctly identifies address types", function () {
       const evmToken = EvmAddress.from(randomBytes(20));
-      expect(Address.isAddress(evmToken)).to.be.true;
+      expect(evmToken.isEVM()).to.be.true;
       expect(isValidEvmAddress(evmToken.toHexString())).to.be.true;
       expect(ethers.utils.isAddress(evmToken.toNative())).to.be.true;
       expect(ethers.utils.hexDataLength(evmToken.toNative()) === 20).to.be.true;
 
       const svmToken = generateSvmAddress();
-      expect(Address.isAddress(svmToken)).to.be.true;
-      expect(SvmAddress.isAddress(svmToken)).to.be.true;
+      expect(svmToken.isSVM()).to.be.true;
       expect(ethers.utils.isHexString(svmToken.toNative())).to.be.false;
     });
     it("Coerces addresses to their proper type when possible", function () {
       let evmAddress = toAddressType(randomBytes(20), CHAIN_IDs.MAINNET);
-      expect(EvmAddress.isAddress(evmAddress)).to.be.true;
+      expect(evmAddress.isEVM()).to.be.true;
 
       // Should also accept 32-byte zero-padded addresses.
       evmAddress = toAddressType(EVM_ZERO_PAD + randomBytes(20).slice(2), CHAIN_IDs.MAINNET);
-      expect(EvmAddress.isAddress(evmAddress)).to.be.true;
+      expect(evmAddress.isEVM()).to.be.true;
 
       const invalidEvmAddress = randomBytes(32);
       expect(EvmAddress.validate(arrayify(invalidEvmAddress))).to.be.false;
