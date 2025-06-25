@@ -277,10 +277,7 @@ export class SvmCpiEventsClient {
         ...data,
         depositor: toAddressType(data.depositor, data.originChainId),
         recipient: toAddressType(data.recipient, data.destinationChainId),
-        exclusiveRelayer: toAddressType(
-          data.exclusiveRelayer,
-          data.destinationChainId
-        ),
+        exclusiveRelayer: toAddressType(data.exclusiveRelayer, data.destinationChainId),
         inputToken: toAddressType(data.inputToken, data.originChainId),
         outputToken: toAddressType(data.outputToken, data.destinationChainId),
         depositTimestamp: Number(txDetails.blockTime),
@@ -339,16 +336,14 @@ export class SvmCpiEventsClient {
           }
         >;
 
+      const { data } = unwrappedEventData;
       return {
-        ...unwrappedEventData.data,
-        depositor: toAddressType(unwrappedEventData.data.depositor, unwrappedEventData.data.originChainId),
-        recipient: toAddressType(unwrappedEventData.data.recipient, unwrappedEventData.data.destinationChainId),
-        exclusiveRelayer: toAddressType(
-          unwrappedEventData.data.exclusiveRelayer,
-          unwrappedEventData.data.destinationChainId
-        ),
-        inputToken: toAddressType(unwrappedEventData.data.inputToken, unwrappedEventData.data.originChainId),
-        outputToken: toAddressType(unwrappedEventData.data.outputToken, unwrappedEventData.data.destinationChainId),
+        ...data,
+        depositor: toAddressType(data.depositor, data.originChainId),
+        recipient: toAddressType(data.recipient, data.destinationChainId),
+        exclusiveRelayer: toAddressType(data.exclusiveRelayer, data.destinationChainId),
+        inputToken: toAddressType(data.inputToken, data.originChainId),
+        outputToken: toAddressType(data.outputToken, data.destinationChainId),
         fillTimestamp: Number(txDetails.blockTime),
         blockNumber: Number(txDetails.slot),
         txnRef: txSignature,
