@@ -85,9 +85,9 @@ export class SvmQuery implements QueryInterface {
     }> = {}
   ): Promise<TransactionCostEstimate> {
     const { recipient, outputToken, exclusiveRelayer } = deposit;
-    assert(recipient.isSVM());
-    assert(outputToken.isSVM());
-    assert(exclusiveRelayer.isSVM());
+    assert(recipient.isSVM(), "getGasCosts: recipient is not SVM Address");
+    assert(outputToken.isSVM(), "getGasCosts: outputToken is not SVM Address");
+    assert(exclusiveRelayer.isSVM(), "getGasCosts: exclusiveRelayer is not SVM Address");
 
     const fillRelayTx = await this.getFillRelayTx({ ...deposit, recipient, outputToken, exclusiveRelayer }, relayer);
 

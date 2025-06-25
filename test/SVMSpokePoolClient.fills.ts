@@ -61,9 +61,9 @@ describe("SVMSpokePoolClient: Fills", function () {
     relayData = {
       depositor,
       recipient,
-      exclusiveRelayer: toAddressType(SVM_DEFAULT_ADDRESS),
+      exclusiveRelayer: toAddressType(SVM_DEFAULT_ADDRESS, CHAIN_IDs.SOLANA),
       inputToken,
-      outputToken: toAddressType(mint.address),
+      outputToken: toAddressType(mint.address, CHAIN_IDs.SOLANA),
       inputAmount: 10,
       outputAmount: 9,
       originChainId: CHAIN_IDs.MAINNET,
@@ -304,9 +304,9 @@ describe("SVMSpokePoolClient: Fills", function () {
       message: hexlify(newRelayData.message),
     };
 
-    const gasCosts = await svmQuery.getGasCosts(depositData, toAddressType(signer.address));
+    const gasCosts = await svmQuery.getGasCosts(depositData, toAddressType(signer.address, CHAIN_IDs.SOLANA));
 
-    const nativeGasCost = await svmQuery.getNativeGasCost(depositData, toAddressType(signer.address));
+    const nativeGasCost = await svmQuery.getNativeGasCost(depositData, toAddressType(signer.address, CHAIN_IDs.SOLANA));
 
     expect(nativeGasCost).to.equal(gasCosts.nativeGasCost);
 
