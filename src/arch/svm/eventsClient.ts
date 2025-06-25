@@ -252,7 +252,6 @@ export class SvmCpiEventsClient {
 
     // Filter for FundsDeposited events only
     const depositEvents = events?.filter((event) => event?.name === "FundsDeposited");
-
     if (!txDetails || !depositEvents?.length) {
       return;
     }
@@ -273,19 +272,20 @@ export class SvmCpiEventsClient {
           }
         >;
 
+      const { data } = unwrappedEventArgs;
       return {
-        ...unwrappedEventArgs.data,
-        depositor: toAddressType(unwrappedEventArgs.data.depositor, unwrappedEventArgs.data.originChainId),
-        recipient: toAddressType(unwrappedEventArgs.data.recipient, unwrappedEventArgs.data.destinationChainId),
+        ...data,
+        depositor: toAddressType(data.depositor, data.originChainId),
+        recipient: toAddressType(data.recipient, data.destinationChainId),
         exclusiveRelayer: toAddressType(
-          unwrappedEventArgs.data.exclusiveRelayer,
-          unwrappedEventArgs.data.destinationChainId
+          data.exclusiveRelayer,
+          data.destinationChainId
         ),
-        inputToken: toAddressType(unwrappedEventArgs.data.inputToken, unwrappedEventArgs.data.originChainId),
-        outputToken: toAddressType(unwrappedEventArgs.data.outputToken, unwrappedEventArgs.data.destinationChainId),
+        inputToken: toAddressType(data.inputToken, data.originChainId),
+        outputToken: toAddressType(data.outputToken, data.destinationChainId),
         depositTimestamp: Number(txDetails.blockTime),
         originChainId,
-        messageHash: getMessageHash(unwrappedEventArgs.data.message),
+        messageHash: getMessageHash(data.message),
         blockNumber: Number(txDetails.slot),
         txnIndex: 0,
         txnRef: txSignature,
