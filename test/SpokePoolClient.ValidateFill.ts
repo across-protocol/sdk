@@ -6,6 +6,7 @@ import {
   bnOne,
   bnZero,
   deploy as deployMulticall,
+  EvmAddress,
   toBN,
   InvalidFill,
   validateFillForDeposit,
@@ -51,7 +52,7 @@ let spokePoolClient2: SpokePoolClient, hubPoolClient: MockHubPoolClient;
 let spokePoolClient1: SpokePoolClient, configStoreClient: MockConfigStoreClient;
 
 describe("SpokePoolClient: Fill Validation", function () {
-  let inputToken: string, outputToken: string;
+  let inputToken: Address, outputToken: Address;
   let inputAmount: BigNumber, outputAmount: BigNumber;
 
   beforeEach(async function () {
@@ -115,9 +116,9 @@ describe("SpokePoolClient: Fill Validation", function () {
     // this on the deposit chain because that chain's spoke pool client will have to fill in its realized lp fee %.
     await spokePool_1.setCurrentTime(await getLastBlockTime(spokePool_1.provider));
 
-    inputToken = toAddressType(erc20_1.address);
+    inputToken = toAddressType(erc20_1.address, originChainId);
     inputAmount = toBNWei(1);
-    outputToken = toAddressType(erc20_2.address);
+    outputToken = toAddressType(erc20_2.address, destinationChainId);
     outputAmount = inputAmount.sub(bnOne);
   });
 
@@ -152,13 +153,13 @@ describe("SpokePoolClient: Fill Validation", function () {
     // For each RelayData field, toggle the value to produce an invalid fill. Verify that it's rejected.
     const fields = Object.keys(fill).filter((field) => !ignoredFields.includes(field));
     for (const field of fields) {
-      let val: BigNumber | string | number;
+      let val: BigNumber | string | number | Address;
       if (BigNumber.isBigNumber(fill[field])) {
         val = fill[field].add(bnOne);
       } else if (typeof fill[field] === "string") {
         val = fill[field] + "1234";
-      } else if (Address.isAddress(fill[field])) {
-        val = toAddressType(randomAddress());
+      } else if (EvmAddress.validate(ethers.utils.arrayify(fill[field]))) {
+        val = toAddressType(randomAddress(), destinationChainId);
       } else {
         expect(typeof fill[field]).to.equal("number");
         val = fill[field] + 1;
