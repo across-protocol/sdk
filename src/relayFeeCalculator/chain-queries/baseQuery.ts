@@ -95,9 +95,9 @@ export class QueryBase implements QueryInterface {
     } = options;
 
     const { recipient, outputToken, exclusiveRelayer } = deposit;
-    assert(recipient.isEVM());
-    assert(outputToken.isEVM());
-    assert(exclusiveRelayer.isEVM());
+    assert(recipient.isEVM(), `getGasCosts: recipient not an EVM address (${recipient})`);
+    assert(outputToken.isEVM(), `getGasCosts: outputToken not an EVM address (${outputToken})`);
+    assert(exclusiveRelayer.isEVM(), `getGasCosts: exclusiveRelayer not an EVM address (${exclusiveRelayer})`);
 
     const tx = await this.getUnsignedTxFromDeposit({ ...deposit, recipient, outputToken, exclusiveRelayer }, relayer);
     const {
@@ -150,9 +150,9 @@ export class QueryBase implements QueryInterface {
     relayer = toAddressType(getDefaultSimulatedRelayerAddress(deposit.destinationChainId), deposit.destinationChainId)
   ): Promise<BigNumber> {
     const { recipient, outputToken, exclusiveRelayer } = deposit;
-    assert(recipient.isEVM());
-    assert(outputToken.isEVM());
-    assert(exclusiveRelayer.isEVM());
+    assert(recipient.isEVM(), `getNativeGasCost: recipient not an EVM address (${recipient})`);
+    assert(outputToken.isEVM(), `getNativeGasCost: outputToken not an EVM address (${outputToken})`);
+    assert(exclusiveRelayer.isEVM(), `getNativeGasCost: exclusiveRelayer not an EVM address (${exclusiveRelayer})`);
 
     const unsignedTx = await this.getUnsignedTxFromDeposit(
       { ...deposit, recipient, outputToken, exclusiveRelayer },

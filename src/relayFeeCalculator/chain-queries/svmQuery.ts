@@ -85,9 +85,9 @@ export class SvmQuery implements QueryInterface {
     }> = {}
   ): Promise<TransactionCostEstimate> {
     const { recipient, outputToken, exclusiveRelayer } = deposit;
-    assert(recipient.isSVM(), "getGasCosts: recipient is not SVM Address");
-    assert(outputToken.isSVM(), "getGasCosts: outputToken is not SVM Address");
-    assert(exclusiveRelayer.isSVM(), "getGasCosts: exclusiveRelayer is not SVM Address");
+    assert(recipient.isSVM(), `getGasCosts: recipient not an SVM address (${recipient})`);
+    assert(outputToken.isSVM(), `getGasCosts: outputToken not an SVM address (${outputToken})`);
+    assert(exclusiveRelayer.isSVM(), `getGasCosts: exclusiveRelayer not an SVM address (${exclusiveRelayer})`);
 
     const fillRelayTx = await this.getFillRelayTx({ ...deposit, recipient, outputToken, exclusiveRelayer }, relayer);
 
@@ -124,9 +124,9 @@ export class SvmQuery implements QueryInterface {
     _relayer = toAddressType(getDefaultSimulatedRelayerAddress(deposit.destinationChainId), deposit.destinationChainId)
   ): Promise<BigNumber> {
     const { recipient, outputToken, exclusiveRelayer } = deposit;
-    assert(recipient.isSVM());
-    assert(outputToken.isSVM());
-    assert(exclusiveRelayer.isSVM());
+    assert(recipient.isSVM(), `getNativeGasCost: recipient not an SVM address (${recipient})`);
+    assert(outputToken.isSVM(), `getNativeGasCost: outputToken not an SVM address (${outputToken})`);
+    assert(exclusiveRelayer.isSVM(), `getNativeGasCost: exclusiveRelayer not an SVM address (${exclusiveRelayer})`);
 
     const fillRelayTx = await this.getFillRelayTx({ ...deposit, recipient, outputToken, exclusiveRelayer }, _relayer);
     return toBN(await this.computeUnitEstimator(fillRelayTx));
@@ -154,8 +154,11 @@ export class SvmQuery implements QueryInterface {
     const { depositor, recipient, inputToken, outputToken, exclusiveRelayer, destinationChainId } = deposit;
 
     // tsc appeasement...should be unnecessary, but isn't. @todo Identify why.
-    assert(recipient.isSVM());
-    assert(repaymentAddress.isEVM() || recipient.isSVM());
+    assert(recipient.isSVM(), `getFillRelayTx: recipient not an SVM address (${recipient})`);
+    assert(
+      repaymentAddress.isValidOn(repaymentChainId),
+      `getFillRelayTx: repayment address ${repaymentAddress} not valid on chain ${repaymentChainId})`
+    );
 
     const program = toAddress(this.spokePool);
     const _relayDataHash = getRelayDataHash(deposit, destinationChainId);
