@@ -467,7 +467,10 @@ export class BundleDataClient {
         assert(isDefined(matchingDeposit), "Deposit not found for fill.");
 
         const spokeClient = this.spokePoolClientManager.getSpokePoolClientByChainId(_fill.destinationChainId);
-        assert(isDefined(spokeClient), `SpokePoolClient for ${getNetworkName(_fill.destinationChainId)} not found for fill.`);
+        assert(
+          isDefined(spokeClient),
+          `SpokePoolClient for ${getNetworkName(_fill.destinationChainId)} not found for fill.`
+        );
 
         let provider;
         if (isEVMSpokePoolClient(spokeClient)) {
