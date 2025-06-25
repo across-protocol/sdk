@@ -1,4 +1,4 @@
-import { bs58, EvmAddress, Address, SvmAddress, toAddressType, isValidEvmAddress } from "../src/utils";
+import { bs58, EvmAddress, SvmAddress, toAddressType, isValidEvmAddress } from "../src/utils";
 import { CHAIN_IDs } from "../src/constants";
 import { expect, ethers } from "./utils";
 
