@@ -10,7 +10,7 @@ import {
   GetTransactionApi,
   Signature,
 } from "@solana/kit";
-import { bs58, chainIsSvm, getMessageHash } from "../../utils";
+import { bs58, chainIsSvm, getMessageHash, toAddressType } from "../../utils";
 import { EventName, EventWithData, SVMProvider } from "./types";
 import { decodeEvent, isDevnet } from "./utils";
 import { Deposit, DepositWithTime, Fill, FillWithTime } from "../../interfaces";
@@ -261,10 +261,28 @@ export class SvmCpiEventsClient {
       const unwrappedEventArgs = unwrapEventData(event as Record<string, unknown>, ["depositId"]) as Record<
         "data",
         Deposit
-      >;
+      > &
+        Record<
+          "data",
+          {
+            depositor: string;
+            recipient: string;
+            exclusiveRelayer: string;
+            inputToken: string;
+            outputToken: string;
+          }
+        >;
 
       return {
         ...unwrappedEventArgs.data,
+        depositor: toAddressType(unwrappedEventArgs.data.depositor, unwrappedEventArgs.data.originChainId),
+        recipient: toAddressType(unwrappedEventArgs.data.recipient, unwrappedEventArgs.data.destinationChainId),
+        exclusiveRelayer: toAddressType(
+          unwrappedEventArgs.data.exclusiveRelayer,
+          unwrappedEventArgs.data.destinationChainId
+        ),
+        inputToken: toAddressType(unwrappedEventArgs.data.inputToken, unwrappedEventArgs.data.originChainId),
+        outputToken: toAddressType(unwrappedEventArgs.data.outputToken, unwrappedEventArgs.data.destinationChainId),
         depositTimestamp: Number(txDetails.blockTime),
         originChainId,
         messageHash: getMessageHash(unwrappedEventArgs.data.message),
@@ -309,9 +327,28 @@ export class SvmCpiEventsClient {
     }
 
     return fillEvents.map((event) => {
-      const unwrappedEventData = unwrapEventData(event as Record<string, unknown>) as Record<"data", Fill>;
+      const unwrappedEventData = unwrapEventData(event as Record<string, unknown>) as Record<"data", Fill> &
+        Record<
+          "data",
+          {
+            depositor: string;
+            recipient: string;
+            exclusiveRelayer: string;
+            inputToken: string;
+            outputToken: string;
+          }
+        >;
+
       return {
         ...unwrappedEventData.data,
+        depositor: toAddressType(unwrappedEventData.data.depositor, unwrappedEventData.data.originChainId),
+        recipient: toAddressType(unwrappedEventData.data.recipient, unwrappedEventData.data.destinationChainId),
+        exclusiveRelayer: toAddressType(
+          unwrappedEventData.data.exclusiveRelayer,
+          unwrappedEventData.data.destinationChainId
+        ),
+        inputToken: toAddressType(unwrappedEventData.data.inputToken, unwrappedEventData.data.originChainId),
+        outputToken: toAddressType(unwrappedEventData.data.outputToken, unwrappedEventData.data.destinationChainId),
         fillTimestamp: Number(txDetails.blockTime),
         blockNumber: Number(txDetails.slot),
         txnRef: txSignature,
