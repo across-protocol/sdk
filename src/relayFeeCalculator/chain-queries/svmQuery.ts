@@ -1,3 +1,4 @@
+import assert from "assert";
 import { SvmSpokeClient } from "@across-protocol/contracts";
 import { intToU8Array32 } from "@across-protocol/contracts/dist/src/svm/web3-v1/conversionUtils";
 import { SYSTEM_PROGRAM_ADDRESS } from "@solana-program/system";
@@ -83,7 +84,12 @@ export class SvmQuery implements QueryInterface {
       priorityFeeMultiplier: BigNumber;
     }> = {}
   ): Promise<TransactionCostEstimate> {
-    const fillRelayTx = await this.getFillRelayTx(deposit, relayer);
+    const { recipient, outputToken, exclusiveRelayer } = deposit;
+    assert(recipient.isSVM(), `getGasCosts: recipient not an SVM address (${recipient})`);
+    assert(outputToken.isSVM(), `getGasCosts: outputToken not an SVM address (${outputToken})`);
+    assert(exclusiveRelayer.isSVM(), `getGasCosts: exclusiveRelayer not an SVM address (${exclusiveRelayer})`);
+
+    const fillRelayTx = await this.getFillRelayTx({ ...deposit, recipient, outputToken, exclusiveRelayer }, relayer);
 
     const [computeUnitsConsumed, gasPriceEstimate] = await Promise.all([
       toBN(await this.computeUnitEstimator(fillRelayTx)),
@@ -114,10 +120,15 @@ export class SvmQuery implements QueryInterface {
    * @returns Estimated gas cost in compute units
    */
   async getNativeGasCost(
-    deposit: Omit<Deposit, "messageHash">,
+    deposit: Omit<Deposit, "messageHash">, // @todo Update interface to permit EvmAddress | SvmAddress
     _relayer = toAddressType(getDefaultSimulatedRelayerAddress(deposit.destinationChainId), deposit.destinationChainId)
   ): Promise<BigNumber> {
-    const fillRelayTx = await this.getFillRelayTx(deposit, _relayer);
+    const { recipient, outputToken, exclusiveRelayer } = deposit;
+    assert(recipient.isSVM(), `getNativeGasCost: recipient not an SVM address (${recipient})`);
+    assert(outputToken.isSVM(), `getNativeGasCost: outputToken not an SVM address (${outputToken})`);
+    assert(exclusiveRelayer.isSVM(), `getNativeGasCost: exclusiveRelayer not an SVM address (${exclusiveRelayer})`);
+
+    const fillRelayTx = await this.getFillRelayTx({ ...deposit, recipient, outputToken, exclusiveRelayer }, _relayer);
     return toBN(await this.computeUnitEstimator(fillRelayTx));
   }
 
@@ -128,7 +139,11 @@ export class SvmQuery implements QueryInterface {
    * @returns FillRelay transaction
    */
   async getFillRelayTx(
-    deposit: Omit<Deposit, "messageHash">,
+    deposit: Omit<Deposit, "recipent" | "outputToken" | "exclusiveRelayer" | "messageHash"> & {
+      recipient: SvmAddress;
+      outputToken: SvmAddress;
+      exclusiveRelayer: SvmAddress;
+    },
     relayer = toAddressType(getDefaultSimulatedRelayerAddress(deposit.destinationChainId), deposit.destinationChainId),
     repaymentChainId = deposit.destinationChainId,
     repaymentAddress = toAddressType(
@@ -136,14 +151,14 @@ export class SvmQuery implements QueryInterface {
       deposit.destinationChainId
     )
   ) {
-    const {
-      depositor,
-      recipient: _recipient,
-      inputToken,
-      outputToken: _outputToken,
-      exclusiveRelayer,
-      destinationChainId,
-    } = deposit;
+    const { depositor, recipient, inputToken, outputToken, exclusiveRelayer, destinationChainId } = deposit;
+
+    // tsc appeasement...should be unnecessary, but isn't. @todo Identify why.
+    assert(recipient.isSVM(), `getFillRelayTx: recipient not an SVM address (${recipient})`);
+    assert(
+      repaymentAddress.isValidOn(repaymentChainId),
+      `getFillRelayTx: repayment address ${repaymentAddress} not valid on chain ${repaymentChainId})`
+    );
 
     const program = toAddress(this.spokePool);
     const _relayDataHash = getRelayDataHash(deposit, destinationChainId);
@@ -154,7 +169,6 @@ export class SvmQuery implements QueryInterface {
       getFillRelayDelegatePda(relayDataHash, BigInt(repaymentChainId), toAddress(repaymentAddress), program),
     ]);
 
-    const [recipient, outputToken] = [_recipient.forceSvmAddress(), _outputToken.forceSvmAddress()];
     const mint = toAddress(outputToken);
     const mintInfo = await fetchMint(this.provider, mint);
 

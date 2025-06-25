@@ -17,7 +17,7 @@ import {
 } from "@solana/kit";
 import { SvmSpokeClient } from "@across-protocol/contracts";
 import { FillType, RelayData } from "../../interfaces";
-import { BigNumber, SvmAddress, getRelayDataHash, isUint8Array, Address as SdkAddress } from "../../utils";
+import { BigNumber, getRelayDataHash, isUint8Array, Address as SdkAddress } from "../../utils";
 import { EventName, SVMEventNames, SVMProvider } from "./types";
 
 /**
@@ -144,7 +144,7 @@ export function unwrapEventData(
   }
   // Handle strings (potential addresses)
   if (typeof data === "string" && isAddress(data)) {
-    return SvmAddress.from(data).toBytes32();
+    return ethers.utils.hexlify(bs58.decode(data));
   }
   // Handle objects
   if (typeof data === "object") {

@@ -1086,11 +1086,12 @@ export class HubPoolClient extends BaseAbstractClient {
           );
         }
         executedRootBundle.runningBalances = runningBalances.slice(0, nTokens);
-        const executedRootBundleWithL1Tokens = {
+        this.executedRootBundles.push({
           ...executedRootBundle,
-          l1Tokens: l1Tokens.map((l1Token) => EvmAddress.from(String(l1Token))),
-        };
-        this.executedRootBundles.push(executedRootBundleWithL1Tokens);
+          l1Tokens: l1Tokens.map((token: string) => {
+            return EvmAddress.from(token, "base16");
+          }),
+        });
       }
     }
 

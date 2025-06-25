@@ -588,7 +588,10 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
         .map((_event) => {
           const event = _event as SpeedUpWithBlock & { depositor: string; updatedRecipient: string };
 
-          if (!EvmAddress.validate(ethersUtils.arrayify(event.updatedRecipient))) {
+          const invalid = [event.depositor, event.updatedRecipient].some(
+            (addr) => !EvmAddress.validate(ethersUtils.arrayify(addr))
+          );
+          if (invalid) {
             return;
           }
 
