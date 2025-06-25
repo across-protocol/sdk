@@ -16,6 +16,7 @@ import {
   BigNumber,
   DepositSearchResult,
   EventSearchConfig,
+  getNetworkName,
   InvalidFill,
   isZeroAddress,
   MakeOptional,
@@ -247,7 +248,7 @@ export class SVMSpokePoolClient extends SpokePoolClient {
       return {
         found: false,
         code: InvalidFill.DepositIdNotFound,
-        reason: `Deposit with ID ${depositId} not found`,
+        reason: `${getNetworkName(this.chainId)} deposit with ID ${depositId} not found`,
       };
     }
 

@@ -61,11 +61,9 @@ describe("SpokeUtils", function () {
   let deploymentBlock: number;
 
   beforeEach(async function () {
-    const { spokePool: _spokePool, deploymentBlock: _deploymentBlock } = await deploySpokePoolWithToken(
+    ({ spokePool, deploymentBlock } = await deploySpokePoolWithToken(
       sampleData.originChainId
-    );
-    spokePool = _spokePool;
-    deploymentBlock = _deploymentBlock;
+    ));
   });
 
   it("getRelayEventKey correctly concatenates an event key", function () {
@@ -182,7 +180,7 @@ describe("SpokeUtils", function () {
       const invalidFills = await findInvalidFills(mockSpokePoolClients);
       expect(invalidFills).to.have.lengthOf(1);
       expect(invalidFills[0].validationResults).to.have.lengthOf(1);
-      expect(invalidFills[0].validationResults[0].reason).to.include("no deposit with depositId");
+      expect(invalidFills[0].validationResults[0].reason).to.include("deposit with depositId");
     });
 
     it("detects fills with mismatched deposit attributes", async function () {

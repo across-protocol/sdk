@@ -290,7 +290,7 @@ export class EVMSpokePoolClient extends SpokePoolClient {
       elapsedMs,
     });
 
-    return { found: true, deposits: deposits };
+    return { found: true, deposits };
   }
 
   public override getTimestampForBlock(blockNumber: number): Promise<number> {

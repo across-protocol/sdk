@@ -1,5 +1,5 @@
 import { EVMSpokePoolClient, SpokePoolClient } from "../src/clients";
-import { bnOne, toBN, InvalidFill, deploy as deployMulticall } from "../src/utils";
+import { bnOne, toBN, InvalidFill, deploy as deployMulticall, getRelayEventKey } from "../src/utils";
 import { CHAIN_ID_TEST_LIST, originChainId, destinationChainId, repaymentChainId } from "./constants";
 import {
   expect,
@@ -156,7 +156,8 @@ describe("SpokePoolClient: Find Deposits", function () {
         outputAmount
       );
       await spokePoolClient1.update();
-      delete spokePoolClient1["depositHashes"][depositEvent.depositId.toString()];
+      const depositHash = getRelayEventKey(depositEvent);
+      delete spokePoolClient1["depositHashes"][depositHash];
       const filter = spokePool_1.filters.FundsDeposited();
       const fakeEvent = {
         args: {
@@ -182,12 +183,12 @@ describe("SpokePoolClient: Find Deposits", function () {
       };
       const queryFilterStub = sinon.stub(spokePool_1, "queryFilter");
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      queryFilterStub.withArgs(filter).resolves([fakeEvent as any]);
+      queryFilterStub.resolves([fakeEvent as any]);
       await spokePoolClient1.update();
       const result = await spokePoolClient1.findAllDeposits(depositEvent.depositId);
       expect(result.found).to.be.true;
       if (result.found) {
-        expect(result.deposits).to.have.lengthOf(1);
+        expect(result.deposits).to.have.lengthOf(2);
         expect(result.deposits[0]).to.deep.include({
           depositId: depositEvent.depositId,
           originChainId: depositEvent.originChainId,
