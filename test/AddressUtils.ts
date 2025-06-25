@@ -3,8 +3,10 @@ import { CHAIN_IDs } from "../src/constants";
 import { expect, ethers } from "./utils";
 
 describe("Address Utils: Address Type", function () {
+  const EVM_ZERO_PAD = "0x000000000000000000000000";
   const randomBytes = (n: number): string => ethers.utils.hexlify(ethers.utils.randomBytes(n));
   const generateSvmAddress = () => toAddressType(bs58.encode(ethers.utils.randomBytes(32)), CHAIN_IDs.SOLANA);
+  const { arrayify } = ethers.utils;
 
   describe("Correctness of Address methods", function () {
     it("Correctly identifies address types", function () {
@@ -24,24 +26,30 @@ describe("Address Utils: Address Type", function () {
       expect(EvmAddress.isAddress(evmAddress)).to.be.true;
 
       // Should also accept 32-byte zero-padded addresses.
-      evmAddress = toAddressType("0x000000000000000000000000" + randomBytes(20).slice(2), CHAIN_IDs.MAINNET);
+      evmAddress = toAddressType(EVM_ZERO_PAD + randomBytes(20).slice(2), CHAIN_IDs.MAINNET);
       expect(EvmAddress.isAddress(evmAddress)).to.be.true;
 
       const invalidEvmAddress = randomBytes(32);
-      expect(EvmAddress.validate(ethers.utils.arrayify(invalidEvmAddress))).to.be.false;
+      expect(EvmAddress.validate(arrayify(invalidEvmAddress))).to.be.false;
       expect(() => toAddressType(invalidEvmAddress, CHAIN_IDs.MAINNET)).to.throw;
+    });
+    it("Rejects padded SVM (suspect EVM) addresses", function () {
+      const rawAddress = arrayify(EVM_ZERO_PAD + randomBytes(20).slice(2));
+      expect(rawAddress.slice(0, 12).every((field: number) => field === 0)).to.be.true;
+
+      expect(() => new SvmAddress(rawAddress)).to.throw;
     });
     it("Rejects invalid SVM address lengths", function () {
       [20, 31, 33].forEach((len) => {
-        const rawAddress = ethers.utils.arrayify(randomBytes(len));
+        const rawAddress = arrayify(randomBytes(len));
         expect(() => new SvmAddress(rawAddress)).to.throw;
       });
 
-      const rawAddress = ethers.utils.arrayify(randomBytes(32));
+      const rawAddress = arrayify(randomBytes(32));
       expect(new SvmAddress(rawAddress)).to.not.throw;
     });
     it("Handles base58-encoded EVM addresses", function () {
-      const rawAddress = ethers.utils.arrayify(randomBytes(20));
+      const rawAddress = arrayify(randomBytes(20));
 
       // Valid padding length
       let padding = new Uint8Array(12);
@@ -54,7 +62,7 @@ describe("Address Utils: Address Type", function () {
 
       // Invalid EVM address length
       [19, 21].forEach((len) => {
-        b58Address = bs58.encode([...padding, ...ethers.utils.arrayify(randomBytes(len))]).toString();
+        b58Address = bs58.encode([...padding, ...arrayify(randomBytes(len))]).toString();
         expect(() => EvmAddress.from(b58Address, "base58")).to.throw(Error, /is not a valid EVM address/);
       });
 
@@ -67,7 +75,7 @@ describe("Address Utils: Address Type", function () {
     });
     it("Handles base16-encoded SVM addresses", function () {
       const rawAddress = randomBytes(32);
-      const expectedAddress = bs58.encode(ethers.utils.arrayify(rawAddress));
+      const expectedAddress = bs58.encode(arrayify(rawAddress));
 
       // Valid address
       const address = SvmAddress.from(rawAddress, "base16");
