@@ -14,8 +14,8 @@ import {
   union,
   type,
 } from "superstruct";
-import { UNDEFINED_MESSAGE_HASH } from "../../../constants";
-import { BigNumber, toAddressType, EvmAddress, SvmAddress, RawAddress } from "../../../utils";
+import { CHAIN_IDs, UNDEFINED_MESSAGE_HASH } from "../../../constants";
+import { BigNumber, EvmAddress, RawAddress, SvmAddress, toAddressType } from "../../../utils";
 
 const PositiveIntegerStringSS = pattern(string(), /\d+/);
 const Web3AddressSS = pattern(string(), /^0x[a-fA-F0-9]{40}$/);
@@ -36,7 +36,12 @@ const BigNumberType = coerce(instance(BigNumber), union([string(), number()]), (
 const AddressInstanceSS = union([instance(EvmAddress), instance(SvmAddress), instance(RawAddress)]);
 
 const AddressType = coerce(AddressInstanceSS, string(), (value) => {
-  return toAddressType(value, 1); // @todo Don't merge without fixing this!
+  // The chainId for the event data is not directly available, so infer it based on the shape of the address.
+  // Addresses are posted to arweave in their native format (base16 for EVM, base58 for SVM). Infer the relevant
+  // chain family based on the address format. RawAddress will be instantiated if the address format does not
+  // match the expected family.
+  const chainId = value.startsWith("0x") ? CHAIN_IDs.MAINNET : CHAIN_IDs.SOLANA;
+  return toAddressType(value, chainId);
 });
 
 const FillTypeSS = number();
