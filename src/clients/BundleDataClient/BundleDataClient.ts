@@ -791,9 +791,12 @@ export class BundleDataClient {
     };
 
     const _depositIsExpired = (deposit: DepositWithBlock): boolean => {
-      const [, endTimestamp] =
-        bundleBlockTimestamps[deposit.destinationChainId] ?? bundleBlockTimestamps[this.clients.hubPoolClient.chainId];
-      return deposit.fillDeadline < endTimestamp;
+      // @TODO: We should be defaulting to the mainnet time in case destination SpokePool deployment is not available.
+      // Something like this:
+      // const [, endTimestamp] =
+      //   bundleBlockTimestamps[deposit.destinationChainId] ?? bundleBlockTimestamps[this.clients.hubPoolClient.chainId];
+      // return deposit.fillDeadline < endTimestamp;
+      return deposit.fillDeadline < bundleBlockTimestamps[deposit.destinationChainId][1];
     };
 
     const _getFillStatusForDeposit = (deposit: Deposit, queryBlock: number): Promise<FillStatus> => {
@@ -1574,7 +1577,6 @@ export class BundleDataClient {
       const unknownReasonInvalidFills: FillWithBlock[] = [];
 
       bundleInvalidFillsV3.forEach((fill) => {
-        // @TODO This can throw an runtime error if chainId is wrong.
         const originClient = spokePoolClients[fill.originChainId];
         const fullyMatchedDeposit = originClient?.getDepositForFill(fill);
         if (!isDefined(fullyMatchedDeposit)) {
