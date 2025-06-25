@@ -184,6 +184,7 @@ export abstract class Address {
   }
 
   // Compares Addresses by first converting them to BigNumbers.
+  // note: Intended for use when sorting like addresses.
   compare(otherAddress: Address): 1 | -1 | 0 {
     // Convert address strings to BigNumbers and then sort numerical value of the BigNumber, which sorts the addresses
     // effectively by their hex value.
