@@ -36,10 +36,9 @@ const BigNumberType = coerce(instance(BigNumber), union([string(), number()]), (
 const AddressInstanceSS = union([instance(EvmAddress), instance(SvmAddress), instance(RawAddress)]);
 
 const AddressType = coerce(AddressInstanceSS, string(), (value) => {
-  // The chainId for the event data is not directly available, so infer it based on the shape of the address.
-  // Addresses are posted to arweave in their native format (base16 for EVM, base58 for SVM). Infer the relevant
-  // chain family based on the address format. RawAddress will be instantiated if the address format does not
-  // match the expected family.
+  // Addresses are posted to arweave in their native format (base16 for EVM, base58 for SVM). The chainId for
+  // for the event data is not directly available, so infer it based on the shape of the address. RawAddress
+  // will be instantiated if the address format does not match the expected family.
   const chainId = value.startsWith("0x") ? CHAIN_IDs.MAINNET : CHAIN_IDs.SOLANA;
   return toAddressType(value, chainId);
 });
