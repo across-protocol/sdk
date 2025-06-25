@@ -163,11 +163,6 @@ export abstract class Address {
     return false;
   }
 
-  // Checks if the object is an address by looking at whether it has an Address constructor.
-  static isAddress(obj: unknown): boolean {
-    return obj instanceof this;
-  }
-
   // Converts the input address to a 32-byte hex data string.
   toString(): string {
     return this.toNative();
