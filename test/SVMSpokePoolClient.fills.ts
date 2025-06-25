@@ -260,7 +260,7 @@ describe("SVMSpokePoolClient: Fills", function () {
     expect(fillStatusWithPdaClosed).to.equal(FillStatus.Filled);
   });
 
-  it.only("Calculates the gas cost of a fill", async function () {
+  it("Calculates the gas cost of a fill", async function () {
     const currentSlot = await solanaClient.rpc.getSlot({ commitment: "confirmed" }).send();
     const currentSlotTimestamp = await solanaClient.rpc.getBlockTime(currentSlot).send();
     const fillDeadline = Number(currentSlotTimestamp) + 1;
