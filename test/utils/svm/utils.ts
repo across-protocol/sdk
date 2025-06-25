@@ -282,11 +282,11 @@ export const sendCreateFill = async (
 
   const relayDataInput = {
     ...relayData,
-    inputToken: toAddress(relayData.inputToken.forceSvmAddress()),
-    outputToken: toAddress(relayData.outputToken.forceSvmAddress()),
-    depositor: toAddress(relayData.depositor.forceSvmAddress()),
-    recipient: toAddress(relayData.recipient.forceSvmAddress()),
-    exclusiveRelayer: toAddress(relayData.exclusiveRelayer.forceSvmAddress()),
+    inputToken: toAddress(relayData.inputToken),
+    outputToken: toAddress(relayData.outputToken),
+    depositor: toAddress(relayData.depositor),
+    recipient: toAddress(relayData.recipient),
+    exclusiveRelayer: toAddress(relayData.exclusiveRelayer),
   };
 
   const fillInput: SvmSpokeClient.FillRelayInput = {
@@ -347,11 +347,11 @@ export const sendRequestSlowFill = async (
 
   const relayDataInput = {
     ...relayData,
-    inputToken: toAddress(relayData.inputToken.forceSvmAddress()),
-    outputToken: toAddress(relayData.outputToken.forceSvmAddress()),
-    depositor: toAddress(relayData.depositor.forceSvmAddress()),
-    recipient: toAddress(relayData.recipient.forceSvmAddress()),
-    exclusiveRelayer: toAddress(relayData.exclusiveRelayer.forceSvmAddress()),
+    inputToken: toAddress(relayData.inputToken),
+    outputToken: toAddress(relayData.outputToken),
+    depositor: toAddress(relayData.depositor),
+    recipient: toAddress(relayData.recipient),
+    exclusiveRelayer: toAddress(relayData.exclusiveRelayer),
   };
 
   const requestSlowFillInput: SvmSpokeClient.RequestSlowFillInput = {
