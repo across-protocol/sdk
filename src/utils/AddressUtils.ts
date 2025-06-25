@@ -96,6 +96,7 @@ export abstract class Address {
   evmAddress: string | undefined = undefined;
   bytes32Address: string | undefined = undefined;
   svmAddress: string | undefined = undefined;
+  bnAddress: BigNumber | undefined = undefined;
 
   constructor(_rawAddress: Uint8Array) {
     // The only validation done here is checking that the address is at most a 32-byte address, which  will be well-defined on any supported network.
@@ -126,6 +127,11 @@ export abstract class Address {
   // as this address may be needed to represent an EVM address on Solana.
   toBase58(): string {
     return (this.svmAddress ??= bs58.encode(this.rawAddress));
+  }
+
+  // Converts the address to a BigNumber type.
+  private toBigNumber(): BigNumber {
+    return (this.bnAddress ??= BigNumber.from(this.toBytes32()));
   }
 
   // Converts the address to a valid EVM address. If it is unable to convert the address to a valid EVM address for some reason, such as if this address
@@ -175,6 +181,21 @@ export abstract class Address {
   // Checks if the other address is equivalent to this address.
   eq(other: Address): boolean {
     return this.toString() === other.toString();
+  }
+
+  // Compares Addresses by first converting them to BigNumbers.
+  compare(otherAddress: Address): 1 | -1 | 0 {
+    // Convert address strings to BigNumbers and then sort numerical value of the BigNumber, which sorts the addresses
+    // effectively by their hex value.
+    const bnAddressA = this.toBigNumber();
+    const bnAddressB = otherAddress.toBigNumber();
+    if (bnAddressA.gt(bnAddressB)) {
+      return 1;
+    } else if (bnAddressA.lt(bnAddressB)) {
+      return -1;
+    } else {
+      return 0;
+    }
   }
 
   isEVM(): this is EvmAddress {
