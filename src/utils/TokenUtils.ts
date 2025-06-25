@@ -129,7 +129,7 @@ export function getTokenInfo(l2TokenAddress: string, chainId: number, tokenMappi
     tokenObject = tokenMapping[l1TokenSymbol as keyof typeof tokenMapping];
   }
   return {
-    address: EvmAddress.from(l2TokenAddress),
+    address: toAddressType(l2TokenAddress, chainId),
     symbol: tokenObject.symbol,
     decimals: tokenObject.decimals,
   };
