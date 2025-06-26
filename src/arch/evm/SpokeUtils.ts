@@ -40,7 +40,7 @@ type ProtoFill = Omit<RelayData, "recipient" | "outputToken"> &
 
 /**
  * @param spokePool SpokePool Contract instance.
- * @param deposit V3Deopsit instance.
+ * @param deposit A prototype Fill instance that will be used to create a fillRelay transaction.
  * @param repaymentChainId Optional repaymentChainId (defaults to destinationChainId).
  * @returns An Ethers UnsignedTransaction instance.
  */

@@ -377,7 +377,7 @@ export async function findFillEvent(
 
 /**
  * @param spokePool Address (program ID) of the SvmSpoke.
- * @param deposit V3Deopsit instance.
+ * @param deposit A prototype Fill instance that will be used to create a fillRelay transaction.
  * @param relayer Address of the relayer filling the deposit.
  * @param repaymentChainId Optional repaymentChainId (defaults to destinationChainId).
  * @returns An Ethers UnsignedTransaction instance.
