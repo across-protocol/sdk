@@ -1,10 +1,9 @@
 import { L2Provider } from "@eth-optimism/sdk/dist/interfaces/l2-provider";
 import { isL2Provider as isOptimismL2Provider } from "@eth-optimism/sdk/dist/l2-provider";
-
 import { PopulatedTransaction, providers, VoidSigner } from "ethers";
 import { Coingecko } from "../../coingecko";
 import { CHAIN_IDs } from "../../constants";
-import { Deposit } from "../../interfaces";
+import { RelayData } from "../../interfaces";
 import { SpokePool, SpokePool__factory } from "../../typechain";
 import { populateV3Relay } from "../../arch/evm";
 import {
@@ -20,7 +19,7 @@ import {
   Address,
 } from "../../utils";
 import assert from "assert";
-import { Logger, QueryInterface, getDefaultSimulatedRelayerAddress } from "../relayFeeCalculator";
+import { Logger, QueryInterface, getDefaultRelayer } from "../relayFeeCalculator";
 import { Transport } from "viem";
 import { getGasPriceEstimate } from "../../gasPriceOracle";
 import { EvmProvider } from "../../arch/evm/types";
@@ -65,7 +64,7 @@ export class QueryBase implements QueryInterface {
 
   /**
    * Retrieves the current gas costs of performing a fillRelay contract at the referenced SpokePool.
-   * @param deposit V3 deposit instance.
+   * @param relayData RelayData instance, supplemented with destinationChainId
    * @param relayerAddress Relayer address to simulate with.
    * @param options
    * @param options.gasPrice Optional gas price to use for the simulation.
@@ -74,8 +73,8 @@ export class QueryBase implements QueryInterface {
    * @returns The gas estimate for this function call (multiplied with the optional buffer).
    */
   async getGasCosts(
-    deposit: Omit<Deposit, "messageHash">,
-    relayer = toAddressType(getDefaultSimulatedRelayerAddress(deposit.destinationChainId), deposit.destinationChainId),
+    relayData: RelayData & { destinationChainId: number },
+    relayer = toAddressType(getDefaultRelayer(relayData.destinationChainId), relayData.destinationChainId),
     options: Partial<{
       gasPrice: BigNumberish;
       gasUnits: BigNumberish;
@@ -94,12 +93,12 @@ export class QueryBase implements QueryInterface {
       transport,
     } = options;
 
-    const { recipient, outputToken, exclusiveRelayer } = deposit;
+    const { recipient, outputToken, exclusiveRelayer } = relayData;
     assert(recipient.isEVM(), `getGasCosts: recipient not an EVM address (${recipient})`);
     assert(outputToken.isEVM(), `getGasCosts: outputToken not an EVM address (${outputToken})`);
     assert(exclusiveRelayer.isEVM(), `getGasCosts: exclusiveRelayer not an EVM address (${exclusiveRelayer})`);
 
-    const tx = await this.getUnsignedTxFromDeposit({ ...deposit, recipient, outputToken, exclusiveRelayer }, relayer);
+    const tx = await this.getUnsignedTxFromDeposit({ ...relayData, recipient, outputToken, exclusiveRelayer }, relayer);
     const {
       nativeGasCost,
       tokenGasCost,
@@ -124,38 +123,38 @@ export class QueryBase implements QueryInterface {
 
   /**
    * @notice Return ethers.PopulatedTransaction for a fill based on input deposit args
-   * @param deposit
+   * @param relayData RelayData instance, supplemented with destinationChainId
    * @param relayer Sender of PopulatedTransaction
    * @returns PopulatedTransaction
    */
   getUnsignedTxFromDeposit(
-    deposit: Omit<Deposit, "messageHash"> & {
+    relayData: Omit<RelayData, "recipient" | "outputToken"> & {
+      destinationChainId: number;
       recipient: EvmAddress;
       outputToken: EvmAddress;
-      exclusiveRelayer: EvmAddress;
     },
-    relayer = toAddressType(getDefaultSimulatedRelayerAddress(deposit.destinationChainId), deposit.destinationChainId)
+    relayer = toAddressType(getDefaultRelayer(relayData.destinationChainId), relayData.destinationChainId)
   ): Promise<PopulatedTransaction> {
-    return populateV3Relay(this.spokePool, deposit, relayer);
+    return populateV3Relay(this.spokePool, relayData, relayer);
   }
 
   /**
    * @notice Return the gas cost of a simulated transaction
-   * @param deposit
+   * @param relayData RelayData instance, supplemented with destinationChainId
    * @param relayer Sender of PopulatedTransaction
    * @returns Estimated gas cost based on ethers.VoidSigner's gas estimation
    */
   async getNativeGasCost(
-    deposit: Omit<Deposit, "messageHash">,
-    relayer = toAddressType(getDefaultSimulatedRelayerAddress(deposit.destinationChainId), deposit.destinationChainId)
+    relayData: RelayData & { destinationChainId: number },
+    relayer = toAddressType(getDefaultRelayer(relayData.destinationChainId), relayData.destinationChainId)
   ): Promise<BigNumber> {
-    const { recipient, outputToken, exclusiveRelayer } = deposit;
+    const { recipient, outputToken, exclusiveRelayer } = relayData;
     assert(recipient.isEVM(), `getNativeGasCost: recipient not an EVM address (${recipient})`);
     assert(outputToken.isEVM(), `getNativeGasCost: outputToken not an EVM address (${outputToken})`);
     assert(exclusiveRelayer.isEVM(), `getNativeGasCost: exclusiveRelayer not an EVM address (${exclusiveRelayer})`);
 
     const unsignedTx = await this.getUnsignedTxFromDeposit(
-      { ...deposit, recipient, outputToken, exclusiveRelayer },
+      { ...relayData, recipient, outputToken, exclusiveRelayer },
       relayer
     );
     const voidSigner = new VoidSigner(relayer.toEvmAddress(), this.provider);
@@ -172,7 +171,7 @@ export class QueryBase implements QueryInterface {
    */
   async getOpStackL1DataFee(
     unsignedTx: PopulatedTransaction,
-    relayer = toAddressType(getDefaultSimulatedRelayerAddress(unsignedTx.chainId), CHAIN_IDs.MAINNET),
+    relayer = toAddressType(getDefaultRelayer(unsignedTx.chainId), CHAIN_IDs.MAINNET),
     options: Partial<{
       opStackL2GasUnits: BigNumberish;
       opStackL1DataFeeMultiplier: BigNumber;

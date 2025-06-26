@@ -114,7 +114,7 @@ export const DEFAULT_LOGGER: Logger = {
   error: (...args) => console.error(args),
 };
 
-export function getDefaultSimulatedRelayerAddress(chainId?: number) {
+export function getDefaultRelayer(chainId?: number) {
   return isDefined(chainId) && chainIsSvm(chainId)
     ? DEFAULT_SIMULATED_RELAYER_ADDRESS_SVM
     : DEFAULT_SIMULATED_RELAYER_ADDRESS;
@@ -256,10 +256,7 @@ export class RelayFeeCalculator {
     deposit: Deposit,
     outputAmount: BigNumberish,
     simulateZeroFill = false,
-    relayerAddress = toAddressType(
-      getDefaultSimulatedRelayerAddress(deposit.destinationChainId),
-      deposit.destinationChainId
-    ),
+    relayerAddress = toAddressType(getDefaultRelayer(deposit.destinationChainId), deposit.destinationChainId),
     _tokenPrice?: number,
     tokenMapping = TOKEN_SYMBOLS_MAP,
     gasPrice?: BigNumberish,
@@ -498,10 +495,7 @@ export class RelayFeeCalculator {
     deposit: Deposit,
     outputAmount?: BigNumberish,
     simulateZeroFill = false,
-    relayerAddress = toAddressType(
-      getDefaultSimulatedRelayerAddress(deposit.destinationChainId),
-      deposit.destinationChainId
-    ),
+    relayerAddress = toAddressType(getDefaultRelayer(deposit.destinationChainId), deposit.destinationChainId),
     _tokenPrice?: number,
     gasPrice?: BigNumberish,
     gasUnits?: BigNumberish,
