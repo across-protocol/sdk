@@ -66,7 +66,7 @@ export class SvmQuery implements QueryInterface {
 
   /**
    * Retrieves the current gas costs of performing a fillRelay contract at the referenced SpokePool.
-   * @param deposit V3 deposit instance.
+   * @param relayData RelayData instance, supplemented with destinationChainId
    * @param _relayer Relayer address to simulate with.
    * @param options
    * @param options.gasPrice Optional gas price to use for the simulation.
@@ -75,8 +75,8 @@ export class SvmQuery implements QueryInterface {
    * @returns The gas estimate for this function call (multiplied with the optional buffer).
    */
   async getGasCosts(
-    deposit: RelayData & { destinationChainId: number },
-    relayer = toAddressType(getDefaultSimulatedRelayerAddress(deposit.destinationChainId), deposit.destinationChainId),
+    relayData: RelayData & { destinationChainId: number },
+    relayer = toAddressType(getDefaultSimulatedRelayerAddress(relayData.destinationChainId), relayData.destinationChainId),
     options: Partial<{
       gasPrice: BigNumberish;
       gasUnits: BigNumberish;
@@ -84,12 +84,12 @@ export class SvmQuery implements QueryInterface {
       priorityFeeMultiplier: BigNumber;
     }> = {}
   ): Promise<TransactionCostEstimate> {
-    const { recipient, outputToken, exclusiveRelayer } = deposit;
+    const { recipient, outputToken, exclusiveRelayer } = relayData;
     assert(recipient.isSVM(), `getGasCosts: recipient not an SVM address (${recipient})`);
     assert(outputToken.isSVM(), `getGasCosts: outputToken not an SVM address (${outputToken})`);
     assert(exclusiveRelayer.isSVM(), `getGasCosts: exclusiveRelayer not an SVM address (${exclusiveRelayer})`);
 
-    const fillRelayTx = await this.getFillRelayTx({ ...deposit, recipient, outputToken, exclusiveRelayer }, relayer);
+    const fillRelayTx = await this.getFillRelayTx({ ...relayData, recipient, outputToken, exclusiveRelayer }, relayer);
 
     const [computeUnitsConsumed, gasPriceEstimate] = await Promise.all([
       toBN(await this.computeUnitEstimator(fillRelayTx)),
@@ -134,24 +134,24 @@ export class SvmQuery implements QueryInterface {
 
   /**
    * @notice Return the fillRelay transaction for a given deposit
-   * @param deposit
+   * @param relayData RelayData instance, supplemented with destinationChainId
    * @param relayer SVM address of the relayer
    * @returns FillRelay transaction
    */
   async getFillRelayTx(
-    deposit: Omit<RelayData, "recipent" | "outputToken"> & {
+    relayData: Omit<RelayData, "recipent" | "outputToken"> & {
       destinationChainId: number;
       recipient: SvmAddress;
       outputToken: SvmAddress;
     },
-    relayer = toAddressType(getDefaultSimulatedRelayerAddress(deposit.destinationChainId), deposit.destinationChainId),
-    repaymentChainId = deposit.destinationChainId,
+    relayer = toAddressType(getDefaultSimulatedRelayerAddress(relayData.destinationChainId), relayData.destinationChainId),
+    repaymentChainId = relayData.destinationChainId,
     repaymentAddress = toAddressType(
-      getDefaultSimulatedRelayerAddress(deposit.destinationChainId),
-      deposit.destinationChainId
+      getDefaultSimulatedRelayerAddress(relayData.destinationChainId),
+      relayData.destinationChainId
     )
   ) {
-    const { depositor, recipient, inputToken, outputToken, exclusiveRelayer, destinationChainId } = deposit;
+    const { depositor, recipient, inputToken, outputToken, exclusiveRelayer, destinationChainId } = relayData;
 
     // tsc appeasement...should be unnecessary, but isn't. @todo Identify why.
     assert(recipient.isSVM(), `getFillRelayTx: recipient not an SVM address (${recipient})`);
@@ -161,7 +161,7 @@ export class SvmQuery implements QueryInterface {
     );
 
     const program = toAddress(this.spokePool);
-    const _relayDataHash = getRelayDataHash(deposit, destinationChainId);
+    const _relayDataHash = getRelayDataHash(relayData, destinationChainId);
     const relayDataHash = new Uint8Array(Buffer.from(_relayDataHash.slice(2), "hex"));
 
     const [state, delegate] = await Promise.all([
@@ -175,23 +175,23 @@ export class SvmQuery implements QueryInterface {
     const [recipientAta, relayerAta, fillStatus, eventAuthority] = await Promise.all([
       getAssociatedTokenAddress(recipient, outputToken, mintInfo.programAddress),
       getAssociatedTokenAddress(SvmAddress.from(relayer.toBase58()), outputToken, mintInfo.programAddress),
-      getFillStatusPda(program, deposit, destinationChainId),
+      getFillStatusPda(program, relayData, destinationChainId),
       getEventAuthority(program),
     ]);
 
-    const relayData: SvmSpokeClient.FillRelayInput["relayData"] = {
+    const svmRelayData: SvmSpokeClient.FillRelayInput["relayData"] = {
       depositor: toAddress(depositor),
       recipient: toAddress(recipient),
       exclusiveRelayer: toAddress(exclusiveRelayer),
       inputToken: toAddress(inputToken),
       outputToken: mint,
-      inputAmount: deposit.inputAmount.toBigInt(),
-      outputAmount: deposit.outputAmount.toBigInt(),
-      originChainId: deposit.originChainId,
-      depositId: new Uint8Array(intToU8Array32(deposit.depositId.toNumber())),
-      fillDeadline: deposit.fillDeadline,
-      exclusivityDeadline: deposit.exclusivityDeadline,
-      message: new Uint8Array(Buffer.from(deposit.message, "hex")),
+      inputAmount: relayData.inputAmount.toBigInt(),
+      outputAmount: relayData.outputAmount.toBigInt(),
+      originChainId: relayData.originChainId,
+      depositId: new Uint8Array(intToU8Array32(relayData.depositId.toNumber())),
+      fillDeadline: relayData.fillDeadline,
+      exclusivityDeadline: relayData.exclusivityDeadline,
+      message: new Uint8Array(Buffer.from(relayData.message, "hex")),
     };
 
     const simulatedSigner = SolanaVoidSigner(relayer.toBase58());
@@ -209,7 +209,7 @@ export class SvmQuery implements QueryInterface {
       eventAuthority,
       program,
       relayHash: relayDataHash,
-      relayData,
+      relayData: svmRelayData,
       repaymentChainId: BigInt(repaymentChainId),
       repaymentAddress: toAddress(repaymentAddress),
     };
