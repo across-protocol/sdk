@@ -5,7 +5,7 @@ import { SpokePoolClient } from "./SpokePoolClient";
  * SpokePoolClientManager is a wrapper around spokePoolClients. We want to use wrapper almost always
  * instead of direct access to spokePoolClients because chainId can be invalid and we want to return undefined.
  */
-export class SpokePoolClientManager {
+export class SpokePoolManager {
   private spokePoolClients: { [chainId: number]: SpokePoolClient };
 
   constructor(
@@ -21,7 +21,7 @@ export class SpokePoolClientManager {
    * @returns SpokePoolClient | undefined
    * @note This method returns SpokePoolClient for given chainId. If its not found, it returns undefined.
    */
-  getSpokePoolClientByChainId(chainId: number): SpokePoolClient | undefined {
+  getClient(chainId: number): SpokePoolClient | undefined {
     return this.spokePoolClients[chainId];
   }
 

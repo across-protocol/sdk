@@ -59,7 +59,7 @@ import {
   verifyFillRepayment,
 } from "./utils";
 import { isEVMSpokePoolClient, isSVMSpokePoolClient } from "../SpokePoolClient";
-import { SpokePoolClientManager } from "../SpokePoolClient/SpokePoolClientManager";
+import { SpokePoolManager } from "../SpokePoolClient/SpokePoolClientManager";
 
 // max(uint256) - 1
 export const INFINITE_FILL_DEADLINE = bnUint32Max;
@@ -164,7 +164,7 @@ export class BundleDataClient {
   private arweaveDataCache: Record<string, Promise<LoadDataReturnValue | undefined>> = {};
 
   private bundleTimestampCache: Record<string, { [chainId: number]: number[] }> = {};
-  readonly spokePoolClientManager: SpokePoolClientManager;
+  readonly spokePoolClientManager: SpokePoolManager;
 
   // eslint-disable-next-line no-useless-constructor
   constructor(
@@ -174,7 +174,7 @@ export class BundleDataClient {
     readonly chainIdListForBundleEvaluationBlockNumbers: number[],
     readonly blockRangeEndBlockBuffer: { [chainId: number]: number } = {}
   ) {
-    this.spokePoolClientManager = new SpokePoolClientManager(logger, spokePoolClients);
+    this.spokePoolClientManager = new SpokePoolManager(logger, spokePoolClients);
   }
 
   // This should be called whenever it's possible that the loadData information for a block range could have changed.
@@ -415,7 +415,7 @@ export class BundleDataClient {
       // a reasonable assumption. This empty refund chain also matches what the alternative
       // `getApproximateRefundsForBlockRange` would return.
       Object.keys(combinedRefunds).forEach((chainId) => {
-        if (!this.spokePoolClientManager.getSpokePoolClientByChainId(Number(chainId))) {
+        if (!this.spokePoolClientManager.getClient(Number(chainId))) {
           delete combinedRefunds[Number(chainId)];
         }
       });
@@ -431,7 +431,7 @@ export class BundleDataClient {
     const refundsForChain: CombinedRefunds = {};
     const bundleEndBlockForMainnet = blockRanges[0][1];
     for (const chainId of chainIds) {
-      const spokePoolClient = this.spokePoolClientManager.getSpokePoolClientByChainId(chainId);
+      const spokePoolClient = this.spokePoolClientManager.getClient(chainId);
       if (!isDefined(spokePoolClient)) {
         continue;
       }
@@ -451,7 +451,7 @@ export class BundleDataClient {
           return false;
         }
 
-        const originSpokePoolClient = this.spokePoolClientManager.getSpokePoolClientByChainId(fill.originChainId);
+        const originSpokePoolClient = this.spokePoolClientManager.getClient(fill.originChainId);
         // If origin spoke pool client isn't defined, we can't validate it.
         if (!isDefined(originSpokePoolClient)) {
           return false;
@@ -462,11 +462,16 @@ export class BundleDataClient {
         return hasMatchingDeposit;
       });
       await forEachAsync(fillsToCount, async (_fill) => {
-        const originSpokePoolClient = this.spokePoolClientManager.getSpokePoolClientByChainId(_fill.originChainId);
-        const matchingDeposit = originSpokePoolClient?.getDeposit(_fill.depositId);
-        assert(isDefined(matchingDeposit), "Deposit not found for fill.");
+        const originChain = getNetworkName(_fill.originChainId);
+        const originSpokePoolClient = this.spokePoolClientManager.getClient(_fill.originChainId);
+        assert(isDefined(originSpokePoolClient), `No SpokePoolClient for chain ${originChain}`);
+        const matchingDeposit = originSpokePoolClient.getDeposit(_fill.depositId);
+        assert(
+          isDefined(matchingDeposit),
+          `No ${originChain} deposit found for ${getNetworkName(_fill.destinationChainId)} fill ${_fill.depositId}`
+        );
 
-        const spokeClient = this.spokePoolClientManager.getSpokePoolClientByChainId(_fill.destinationChainId);
+        const spokeClient = this.spokePoolClientManager.getClient(_fill.destinationChainId);
         assert(
           isDefined(spokeClient),
           `SpokePoolClient for ${getNetworkName(_fill.destinationChainId)} not found for fill.`
@@ -511,7 +516,7 @@ export class BundleDataClient {
   }
 
   getUpcomingDepositAmount(chainId: number, l2Token: string, latestBlockToSearch: number): BigNumber {
-    const spokePoolClient = this.spokePoolClientManager.getSpokePoolClientByChainId(chainId);
+    const spokePoolClient = this.spokePoolClientManager.getClient(chainId);
     if (!isDefined(spokePoolClient)) {
       return toBN(0);
     }
@@ -664,7 +669,7 @@ export class BundleDataClient {
   ): CombinedRefunds {
     for (const chainIdStr of Object.keys(allRefunds)) {
       const chainId = Number(chainIdStr);
-      const spokePoolClient = this.spokePoolClientManager.getSpokePoolClientByChainId(chainId);
+      const spokePoolClient = this.spokePoolClientManager.getClient(chainId);
       if (!isDefined(spokePoolClient)) {
         continue;
       }
