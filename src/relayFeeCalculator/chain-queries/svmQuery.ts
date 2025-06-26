@@ -28,7 +28,7 @@ import {
   toAddressType,
   toBN,
 } from "../../utils";
-import { Logger, QueryInterface, getDefaultSimulatedRelayerAddress } from "../relayFeeCalculator";
+import { Logger, QueryInterface, getDefaultRelayer } from "../relayFeeCalculator";
 import { SymbolMappingType } from "./";
 
 /**
@@ -76,7 +76,7 @@ export class SvmQuery implements QueryInterface {
    */
   async getGasCosts(
     relayData: RelayData & { destinationChainId: number },
-    relayer = toAddressType(getDefaultSimulatedRelayerAddress(relayData.destinationChainId), relayData.destinationChainId),
+    relayer = toAddressType(getDefaultRelayer(relayData.destinationChainId), relayData.destinationChainId),
     options: Partial<{
       gasPrice: BigNumberish;
       gasUnits: BigNumberish;
@@ -121,7 +121,7 @@ export class SvmQuery implements QueryInterface {
    */
   async getNativeGasCost(
     deposit: RelayData & { destinationChainId: number },
-    _relayer = toAddressType(getDefaultSimulatedRelayerAddress(deposit.destinationChainId), deposit.destinationChainId)
+    _relayer = toAddressType(getDefaultRelayer(deposit.destinationChainId), deposit.destinationChainId)
   ): Promise<BigNumber> {
     const { recipient, outputToken, exclusiveRelayer } = deposit;
     assert(recipient.isSVM(), `getNativeGasCost: recipient not an SVM address (${recipient})`);
@@ -144,12 +144,9 @@ export class SvmQuery implements QueryInterface {
       recipient: SvmAddress;
       outputToken: SvmAddress;
     },
-    relayer = toAddressType(getDefaultSimulatedRelayerAddress(relayData.destinationChainId), relayData.destinationChainId),
+    relayer = toAddressType(getDefaultRelayer(relayData.destinationChainId), relayData.destinationChainId),
     repaymentChainId = relayData.destinationChainId,
-    repaymentAddress = toAddressType(
-      getDefaultSimulatedRelayerAddress(relayData.destinationChainId),
-      relayData.destinationChainId
-    )
+    repaymentAddress = toAddressType(getDefaultRelayer(relayData.destinationChainId), relayData.destinationChainId)
   ) {
     const { depositor, recipient, inputToken, outputToken, exclusiveRelayer, destinationChainId } = relayData;
 
