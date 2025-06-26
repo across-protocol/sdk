@@ -148,3 +148,12 @@ export interface BridgedToHubPoolWithBlock extends SortableEvent {
 export interface SpokePoolClientsByChain {
   [chainId: number]: SpokePoolClient;
 }
+
+export interface UnfilledDeposit {
+  deposit: Deposit;
+  unfilled: boolean;
+  validationResults: Array<{
+    reason: string;
+    fill?: FillWithBlock;
+  }>;
+}
