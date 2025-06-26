@@ -1,7 +1,7 @@
 import { CHAIN_IDs } from "@across-protocol/constants";
-import { MessageTransmitterClient, SpokePool__factory, SvmSpokeClient } from "@across-protocol/contracts";
+import { SpokePool__factory, SvmSpokeClient } from "@across-protocol/contracts";
 import { RelayDataArgs } from "@across-protocol/contracts/dist/src/svm/clients/SvmSpoke";
-import { encodeMessageHeader, intToU8Array32 } from "@across-protocol/contracts/dist/src/svm/web3-v1";
+import { intToU8Array32 } from "@across-protocol/contracts/dist/src/svm/web3-v1";
 import { SYSTEM_PROGRAM_ADDRESS, getCreateAccountInstruction } from "@solana-program/system";
 import {
   ASSOCIATED_TOKEN_PROGRAM_ADDRESS,
@@ -12,11 +12,9 @@ import {
   getMintToInstruction,
 } from "@solana-program/token-2022";
 import {
-  AccountRole,
   Address,
   Commitment,
   CompilableTransactionMessage,
-  IAccountMeta,
   KeyPairSigner,
   TransactionMessageWithBlockhashLifetime,
   address,
@@ -25,15 +23,12 @@ import {
   createSolanaRpc,
   createSolanaRpcSubscriptions,
   generateKeyPairSigner,
-  getBase64EncodedWireTransaction,
-  getProgramDerivedAddress,
   getSignatureFromTransaction,
   lamports,
   pipe,
   sendAndConfirmTransactionFactory,
   signTransactionMessageWithSigners,
 } from "@solana/kit";
-import { PublicKey } from "@solana/web3.js";
 import { ethers } from "ethers";
 import { arrayify, hexlify } from "ethers/lib/utils";
 import {
@@ -43,7 +38,6 @@ import {
   createDefaultTransaction,
   createDepositInstruction,
   createFillInstruction,
-  createReceiveMessageInstruction,
   createRequestSlowFillInstruction,
   getAssociatedTokenAddress,
   getDepositDelegatePda,
@@ -51,20 +45,11 @@ import {
   getFillRelayDelegatePda,
   getFillStatusPda,
   getRandomSvmAddress,
-  getSelfAuthority,
   getStatePda,
   toAddress,
 } from "../../../src/arch/svm";
 import { RelayData } from "../../../src/interfaces";
-import {
-  BigNumber,
-  EvmAddress,
-  SvmAddress,
-  bs58,
-  getRandomInt,
-  getRelayDataHash,
-  randomAddress,
-} from "../../../src/utils";
+import { BigNumber, EvmAddress, SvmAddress, getRandomInt, getRelayDataHash, randomAddress } from "../../../src/utils";
 
 /** RPC / Client */
 
@@ -430,119 +415,6 @@ export const encodePauseDepositsMessageBody = (pause = true): Buffer => {
   const spokePoolInterface = new ethers.utils.Interface(SpokePool__factory.abi);
   const calldata = spokePoolInterface.encodeFunctionData("pauseDeposits", [pause]);
   return Buffer.from(calldata.slice(2), "hex");
-};
-
-export interface SendReceiveCctpMessageParams {
-  solanaClient: RpcClient;
-  signer: KeyPairSigner;
-  messageBody: Buffer;
-  nonce: number | bigint;
-  remoteDomain?: number;
-  localDomain?: number;
-}
-
-/**
- * Receives a test CCTP message through Solana. No attestations are needed as we
- * are using a modified version of the CCTP message transmitter.
- *
- * @returns `{ signature, input }` – the confirmed signature and the full CPI input struct.
- */
-export const sendReceiveCctpMessage = async ({
-  solanaClient,
-  signer,
-  messageBody,
-  nonce,
-  remoteDomain = 0,
-  localDomain = 5,
-}: SendReceiveCctpMessageParams) => {
-  const [authorityPda] = await getProgramDerivedAddress({
-    programAddress: MessageTransmitterClient.MESSAGE_TRANSMITTER_PROGRAM_ADDRESS,
-    seeds: [Buffer.from("message_transmitter_authority"), bs58.decode(SvmSpokeClient.SVM_SPOKE_PROGRAM_ADDRESS)],
-  });
-
-  const [messageTransmitterPda] = await getProgramDerivedAddress({
-    programAddress: MessageTransmitterClient.MESSAGE_TRANSMITTER_PROGRAM_ADDRESS,
-    seeds: [Buffer.from("message_transmitter")],
-  });
-
-  const getNonceIx = await MessageTransmitterClient.getGetNoncePdaInstruction({
-    messageTransmitter: messageTransmitterPda,
-    nonce,
-    sourceDomain: remoteDomain,
-  });
-
-  const simulationTx = appendTransactionMessageInstruction(
-    getNonceIx,
-    await createDefaultTransaction(solanaClient.rpc, signer)
-  );
-
-  const simulationResult = await solanaClient.rpc
-    .simulateTransaction(getBase64EncodedWireTransaction(await signTransactionMessageWithSigners(simulationTx)), {
-      encoding: "base64",
-    })
-    .send();
-
-  let usedNoncesPda: string | undefined;
-  const { returnData } = simulationResult.value;
-  if (returnData && returnData.data[0]) {
-    const buf = Buffer.from(returnData.data[0], "base64");
-    if (buf.length === 32) {
-      usedNoncesPda = bs58.encode(buf);
-    }
-  }
-  // TODO find a better way to do a static call to get the usedNoncesPda
-  if (!usedNoncesPda) {
-    throw new Error("Failed to get usedNoncesPda");
-  }
-
-  const statePda = await getStatePda(SvmSpokeClient.SVM_SPOKE_PROGRAM_ADDRESS);
-  const state = await SvmSpokeClient.fetchState(solanaClient.rpc, statePda);
-
-  const cctpHeader = encodeMessageHeader({
-    version: 0,
-    sourceDomain: remoteDomain,
-    destinationDomain: localDomain,
-    nonce: BigInt(nonce),
-    sender: new PublicKey(state.data.crossDomainAdmin),
-    recipient: new PublicKey(SvmSpokeClient.SVM_SPOKE_PROGRAM_ADDRESS),
-    destinationCaller: new PublicKey(new Uint8Array(32)),
-    messageBody,
-  });
-
-  const [eventAuthorityPda] = await getProgramDerivedAddress({
-    programAddress: MessageTransmitterClient.MESSAGE_TRANSMITTER_PROGRAM_ADDRESS,
-    seeds: ["__event_authority"],
-  });
-
-  const input: MessageTransmitterClient.ReceiveMessageInput = {
-    program: MessageTransmitterClient.MESSAGE_TRANSMITTER_PROGRAM_ADDRESS,
-    payer: signer,
-    caller: signer,
-    authorityPda,
-    messageTransmitter: messageTransmitterPda,
-    eventAuthority: eventAuthorityPda,
-    usedNonces: address(usedNoncesPda),
-    receiver: SvmSpokeClient.SVM_SPOKE_PROGRAM_ADDRESS,
-    systemProgram: SYSTEM_PROGRAM_ADDRESS,
-    message: cctpHeader,
-    attestation: Buffer.alloc(0),
-  };
-
-  // Remaining accounts ORDERED
-  const remainingAccounts: IAccountMeta<string>[] = [
-    { address: statePda, role: AccountRole.READONLY },
-    { address: await getSelfAuthority(), role: AccountRole.READONLY },
-    { address: SvmSpokeClient.SVM_SPOKE_PROGRAM_ADDRESS, role: AccountRole.READONLY },
-    { address: statePda, role: AccountRole.WRITABLE },
-    { address: await getEventAuthority(), role: AccountRole.READONLY },
-    { address: SvmSpokeClient.SVM_SPOKE_PROGRAM_ADDRESS, role: AccountRole.READONLY },
-  ];
-
-  const receiveMessageTx = await createReceiveMessageInstruction(signer, solanaClient.rpc, input, remainingAccounts);
-
-  const signature = await signAndSendTransaction(solanaClient, receiveMessageTx);
-
-  return { signature, input } as const;
 };
 
 /** Relay Data Utils */

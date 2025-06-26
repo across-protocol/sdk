@@ -10,6 +10,7 @@ import {
   SolanaRpcApiFromTransport,
   UnixTimestamp,
 } from "@solana/kit";
+import { interfaces } from "../..";
 
 export type EventData =
   | SvmSpokeClient.BridgedToHubPool
@@ -61,3 +62,28 @@ export type RpcClient = {
   rpc: SVMProvider;
   rpcSubscriptions: RpcSubscriptions<SignatureNotificationsApi & SlotNotificationsApi>;
 };
+
+// CCTP types
+
+type CommonMessageData = {
+  cctpVersion: number;
+  sourceDomain: number;
+  destinationDomain: number;
+  sender: string;
+  recipient: string;
+  messageHash: string;
+  messageBytes: string;
+  nonce: number;
+  nonceHash: string;
+};
+
+export type DepositForBurnMessageData = CommonMessageData & {
+  amount: string;
+  mintRecipient: string;
+  burnToken: string;
+};
+export type CommonMessageEvent = CommonMessageData & { log: interfaces.Log };
+export type DepositForBurnMessageEvent = DepositForBurnMessageData & { log: interfaces.Log };
+export type CCTPMessageStatus = "finalized" | "ready" | "pending";
+export type CCTPMessageEvent = CommonMessageEvent | DepositForBurnMessageEvent;
+export type AttestedCCTPMessage = CCTPMessageEvent & { status: CCTPMessageStatus; attestation: string };
