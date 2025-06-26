@@ -20,7 +20,6 @@ import {
   getRelayDataHash,
   isDefined,
   isUnsafeDepositId,
-  isZeroAddress,
   getNetworkName,
   paginatedEventQuery,
   spreadEventWithBlockNumber,
@@ -40,51 +39,51 @@ type ProtoFill = Omit<RelayData, "recipient" | "outputToken"> &
 
 /**
  * @param spokePool SpokePool Contract instance.
- * @param deposit A prototype Fill instance that will be used to create a fillRelay transaction.
+ * @param relayData RelayData instance, supplemented with destinationChainId
  * @param repaymentChainId Optional repaymentChainId (defaults to destinationChainId).
  * @returns An Ethers UnsignedTransaction instance.
  */
 export function populateV3Relay(
   spokePool: Contract,
-  deposit: ProtoFill,
+  relayData: ProtoFill,
   repaymentAddress: Address,
-  repaymentChainId = deposit.destinationChainId
+  repaymentChainId = relayData.destinationChainId
 ): Promise<PopulatedTransaction> {
   assert(
     repaymentAddress.isValidOn(repaymentChainId),
     `Invalid repayment address for chain ${repaymentChainId}: ${repaymentAddress.toNative()}.`
   );
-  const relayData = {
-    depositor: deposit.depositor.toBytes32(),
-    recipient: deposit.recipient.toBytes32(),
-    inputToken: deposit.inputToken.toBytes32(),
-    outputToken: deposit.outputToken.toBytes32(),
-    inputAmount: deposit.inputAmount,
-    outputAmount: deposit.outputAmount,
-    originChainId: deposit.originChainId,
-    depositId: deposit.depositId,
-    fillDeadline: deposit.fillDeadline,
-    exclusivityDeadline: deposit.exclusivityDeadline,
-    message: deposit.message,
-    exclusiveRelayer: deposit.exclusiveRelayer.toBytes32(),
+  const evmRelayData = {
+    depositor: relayData.depositor.toBytes32(),
+    recipient: relayData.recipient.toBytes32(),
+    inputToken: relayData.inputToken.toBytes32(),
+    outputToken: relayData.outputToken.toBytes32(),
+    inputAmount: relayData.inputAmount,
+    outputAmount: relayData.outputAmount,
+    originChainId: relayData.originChainId,
+    depositId: relayData.depositId,
+    fillDeadline: relayData.fillDeadline,
+    exclusivityDeadline: relayData.exclusivityDeadline,
+    message: relayData.message,
+    exclusiveRelayer: relayData.exclusiveRelayer.toBytes32(),
   };
 
-  if (isDefined(deposit.speedUpSignature)) {
-    assert(isDefined(deposit.updatedRecipient) && !isZeroAddress(deposit.updatedRecipient));
-    assert(isDefined(deposit.updatedOutputAmount));
-    assert(isDefined(deposit.updatedMessage));
+  if (isDefined(relayData.speedUpSignature)) {
+    assert(isDefined(relayData.updatedRecipient) && !relayData.updatedRecipient.isZeroAddress());
+    assert(isDefined(relayData.updatedOutputAmount));
+    assert(isDefined(relayData.updatedMessage));
     return spokePool.populateTransaction.fillRelayWithUpdatedDeposit(
       relayData,
       repaymentChainId,
       repaymentAddress.toBytes32(),
-      deposit.updatedOutputAmount,
-      deposit.updatedRecipient.toBytes32(),
-      deposit.updatedMessage,
-      deposit.speedUpSignature
+      relayData.updatedOutputAmount,
+      relayData.updatedRecipient.toBytes32(),
+      relayData.updatedMessage,
+      relayData.speedUpSignature
     );
   }
 
-  return spokePool.populateTransaction.fillRelay(relayData, repaymentChainId, repaymentAddress.toBytes32());
+  return spokePool.populateTransaction.fillRelay(evmRelayData, repaymentChainId, repaymentAddress.toBytes32());
 }
 
 /**
