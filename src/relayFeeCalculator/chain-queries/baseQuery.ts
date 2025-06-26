@@ -4,7 +4,7 @@ import { isL2Provider as isOptimismL2Provider } from "@eth-optimism/sdk/dist/l2-
 import { PopulatedTransaction, providers, VoidSigner } from "ethers";
 import { Coingecko } from "../../coingecko";
 import { CHAIN_IDs } from "../../constants";
-import { Deposit } from "../../interfaces";
+import { RelayData } from "../../interfaces";
 import { SpokePool, SpokePool__factory } from "../../typechain";
 import { populateV3Relay } from "../../arch/evm";
 import {
@@ -74,7 +74,7 @@ export class QueryBase implements QueryInterface {
    * @returns The gas estimate for this function call (multiplied with the optional buffer).
    */
   async getGasCosts(
-    deposit: Omit<Deposit, "messageHash">,
+    deposit: RelayData & { destinationChainId: number },
     relayer = toAddressType(getDefaultSimulatedRelayerAddress(deposit.destinationChainId), deposit.destinationChainId),
     options: Partial<{
       gasPrice: BigNumberish;
@@ -129,7 +129,8 @@ export class QueryBase implements QueryInterface {
    * @returns PopulatedTransaction
    */
   getUnsignedTxFromDeposit(
-    deposit: Omit<Deposit, "messageHash"> & {
+    deposit: Omit<RelayData, "recipient" | "outputToken"> & {
+      destinationChainId: number;
       recipient: EvmAddress;
       outputToken: EvmAddress;
     },
@@ -145,7 +146,7 @@ export class QueryBase implements QueryInterface {
    * @returns Estimated gas cost based on ethers.VoidSigner's gas estimation
    */
   async getNativeGasCost(
-    deposit: Omit<Deposit, "messageHash">,
+    deposit: RelayData & { destinationChainId: number },
     relayer = toAddressType(getDefaultSimulatedRelayerAddress(deposit.destinationChainId), deposit.destinationChainId)
   ): Promise<BigNumber> {
     const { recipient, outputToken, exclusiveRelayer } = deposit;

@@ -18,7 +18,7 @@ import {
 import { Coingecko } from "../../coingecko";
 import { CHAIN_IDs } from "../../constants";
 import { getGasPriceEstimate } from "../../gasPriceOracle";
-import { Deposit } from "../../interfaces";
+import { RelayData } from "../../interfaces";
 import {
   BigNumber,
   BigNumberish,
@@ -75,7 +75,7 @@ export class SvmQuery implements QueryInterface {
    * @returns The gas estimate for this function call (multiplied with the optional buffer).
    */
   async getGasCosts(
-    deposit: Omit<Deposit, "messageHash">,
+    deposit: RelayData & { destinationChainId: number },
     relayer = toAddressType(getDefaultSimulatedRelayerAddress(deposit.destinationChainId), deposit.destinationChainId),
     options: Partial<{
       gasPrice: BigNumberish;
@@ -120,7 +120,7 @@ export class SvmQuery implements QueryInterface {
    * @returns Estimated gas cost in compute units
    */
   async getNativeGasCost(
-    deposit: Omit<Deposit, "messageHash">, // @todo Update interface to permit EvmAddress | SvmAddress
+    deposit: RelayData & { destinationChainId: number },
     _relayer = toAddressType(getDefaultSimulatedRelayerAddress(deposit.destinationChainId), deposit.destinationChainId)
   ): Promise<BigNumber> {
     const { recipient, outputToken, exclusiveRelayer } = deposit;
@@ -139,10 +139,10 @@ export class SvmQuery implements QueryInterface {
    * @returns FillRelay transaction
    */
   async getFillRelayTx(
-    deposit: Omit<Deposit, "recipent" | "outputToken" | "exclusiveRelayer" | "messageHash"> & {
+    deposit: Omit<RelayData, "recipent" | "outputToken"> & {
+      destinationChainId: number;
       recipient: SvmAddress;
       outputToken: SvmAddress;
-      exclusiveRelayer: SvmAddress;
     },
     relayer = toAddressType(getDefaultSimulatedRelayerAddress(deposit.destinationChainId), deposit.destinationChainId),
     repaymentChainId = deposit.destinationChainId,
