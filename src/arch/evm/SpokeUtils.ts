@@ -1,10 +1,18 @@
 import assert from "assert";
 import { BytesLike, Contract, PopulatedTransaction, providers } from "ethers";
 import { CHAIN_IDs } from "../../constants";
-import { Deposit, FillStatus, FillWithBlock, RelayData, RelayExecutionEventInfo } from "../../interfaces";
+import {
+  Deposit,
+  FillStatus,
+  FillWithBlock,
+  RelayData,
+  RelayExecutionEventInfo,
+  SpeedUpCommon,
+} from "../../interfaces";
 import {
   bnUint32Max,
   BigNumber,
+  EvmAddress,
   toBN,
   bnZero,
   chunk,
@@ -22,6 +30,14 @@ import {
 
 type BlockTag = providers.BlockTag;
 
+type ProtoFill = Omit<RelayData, "recipient" | "outputToken"> &
+  Pick<Deposit, "speedUpSignature"> &
+  Partial<SpeedUpCommon> & {
+    destinationChainId: number;
+    recipient: EvmAddress;
+    outputToken: EvmAddress;
+  };
+
 /**
  * @param spokePool SpokePool Contract instance.
  * @param deposit V3Deopsit instance.
@@ -30,7 +46,7 @@ type BlockTag = providers.BlockTag;
  */
 export function populateV3Relay(
   spokePool: Contract,
-  deposit: Omit<Deposit, "messageHash" | "fromLiteChain" | "toLiteChain">,
+  deposit: ProtoFill,
   repaymentAddress: Address,
   repaymentChainId = deposit.destinationChainId
 ): Promise<PopulatedTransaction> {

@@ -25,14 +25,7 @@ import assert from "assert";
 import { arrayify, hexZeroPad, hexlify } from "ethers/lib/utils";
 import { Logger } from "winston";
 import { SYSTEM_PROGRAM_ADDRESS } from "@solana-program/system";
-import {
-  Deposit,
-  DepositWithBlock,
-  FillStatus,
-  FillWithBlock,
-  RelayData,
-  RelayExecutionEventInfo,
-} from "../../interfaces";
+import { DepositWithBlock, FillStatus, FillWithBlock, RelayData, RelayExecutionEventInfo } from "../../interfaces";
 import {
   BigNumber,
   EvmAddress,
@@ -61,6 +54,12 @@ import { SVMEventNames, SVMProvider } from "./types";
  *        and choose 400 to ensure that the most slots get included in our ranges
  */
 export const SLOT_DURATION_MS = 400;
+
+type ProtoFill = Omit<RelayData, "recipient" | "outputToken"> & {
+  destinationChainId: number;
+  recipient: SvmAddress;
+  outputToken: SvmAddress;
+};
 
 /**
  * Retrieves the chain time at a particular slot.
@@ -385,14 +384,7 @@ export async function findFillEvent(
  */
 export async function fillRelayInstruction(
   spokePool: SvmAddress,
-  deposit: Omit<
-    Deposit,
-    "recipient" | "outputToken" | "exclusiveRelayer" | "messageHash" | "fromLiteChain" | "toLiteChain"
-  > & {
-    recipient: SvmAddress;
-    outputToken: SvmAddress;
-    exclusiveRelayer: SvmAddress;
-  },
+  deposit: ProtoFill,
   signer: TransactionSigner<string>,
   recipientTokenAccount: Address<string>,
   repaymentAddress: EvmAddress | SvmAddress = SvmAddress.from(signer.address),

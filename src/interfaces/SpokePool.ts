@@ -18,14 +18,17 @@ export interface RelayData {
   exclusivityDeadline: number;
 }
 
-export interface Deposit extends RelayData {
+export interface SpeedUpCommon {
+  updatedRecipient: Address;
+  updatedOutputAmount: BigNumber;
+  updatedMessage: string;
+}
+
+export interface Deposit extends RelayData, Partial<SpeedUpCommon> {
   messageHash: string;
   destinationChainId: number;
   quoteTimestamp: number;
   speedUpSignature?: string;
-  updatedRecipient?: Address;
-  updatedOutputAmount?: BigNumber;
-  updatedMessage?: string;
   fromLiteChain: boolean;
   toLiteChain: boolean;
 }
@@ -78,14 +81,11 @@ export interface EnabledDepositRoute {
 }
 
 export interface EnabledDepositRouteWithBlock extends EnabledDepositRoute, SortableEvent {}
-export interface SpeedUp {
+export interface SpeedUp extends SpeedUpCommon {
   depositor: EvmAddress;
   depositorSignature: string;
   depositId: BigNumber;
   originChainId: number;
-  updatedRecipient: Address;
-  updatedOutputAmount: BigNumber;
-  updatedMessage: string;
 }
 
 export interface SpeedUpWithBlock extends SpeedUp, SortableEvent {}

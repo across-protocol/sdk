@@ -132,7 +132,6 @@ export class QueryBase implements QueryInterface {
     deposit: Omit<Deposit, "messageHash"> & {
       recipient: EvmAddress;
       outputToken: EvmAddress;
-      exclusiveRelayer: EvmAddress;
     },
     relayer = toAddressType(getDefaultSimulatedRelayerAddress(deposit.destinationChainId), deposit.destinationChainId)
   ): Promise<PopulatedTransaction> {
