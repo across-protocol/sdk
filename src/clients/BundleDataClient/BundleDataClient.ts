@@ -866,9 +866,6 @@ export class BundleDataClient {
       const originChainBlockRange = getBlockRangeForChain(blockRangesForChains, originChainId, chainIds);
 
       for (const destinationChainId of allChainIds) {
-        if (originChainId === destinationChainId) {
-          continue;
-        }
         originClient.getDepositsForDestinationChainWithDuplicates(destinationChainId).forEach((deposit) => {
           if (deposit.blockNumber > originChainBlockRange[1] || isZeroValueDeposit(deposit)) {
             return;
@@ -942,10 +939,6 @@ export class BundleDataClient {
     for (const originChainId of allChainIds) {
       const originClient = spokePoolClients[originChainId];
       for (const destinationChainId of allChainIds) {
-        if (originChainId === destinationChainId) {
-          continue;
-        }
-
         const destinationClient = spokePoolClients[destinationChainId];
         const destinationChainBlockRange = getBlockRangeForChain(blockRangesForChains, destinationChainId, chainIds);
         const originChainBlockRange = getBlockRangeForChain(blockRangesForChains, originChainId, chainIds);
