@@ -93,19 +93,16 @@ export interface LpToken {
   liquidReserves: BigNumber;
 }
 
-// TODO: I think I don't change string -> Address in the Events. I change right after the event is read
 export interface CrossChainContractsSet extends SortableEvent {
   l2ChainId: number;
   spokePool: Address;
 }
 
-// TODO: I think I don't change string -> Address in the Events. I change right after the event is read
 export interface DestinationTokenWithBlock extends SortableEvent {
   l2Token: Address;
   l1Token: EvmAddress;
 }
 
-// TODO: I think I don't change string -> Address in the Events. I change right after the event is read
 export interface SetPoolRebalanceRoot extends SortableEvent {
   destinationChainId: number;
   l1Token: EvmAddress;

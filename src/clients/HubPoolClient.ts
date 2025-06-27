@@ -213,11 +213,9 @@ export class HubPoolClient extends BaseAbstractClient {
     return l2Token.l2Token;
   }
 
-  // TODO: this might have to deal with truncated Solana addresses? Depends on what input is given actually
-  // TODO: might craete `getL1TokenForL2EVMTokenAtBlock` and some other fn
   // Returns the latest L1 token to use for an L2 token as of the input hub block.
   getL1TokenForL2TokenAtBlock(
-    l2Token: Address, // ! TODO: assuming that for Svm token, we'll have a proper full SvmAddress in this var
+    l2Token: Address,
     destinationChainId: number,
     latestHubBlock = Number.MAX_SAFE_INTEGER
   ): EvmAddress {
@@ -225,11 +223,11 @@ export class HubPoolClient extends BaseAbstractClient {
       .filter((l1Token) => this.l2TokenEnabledForL1Token(EvmAddress.from(l1Token), destinationChainId))
       .map((l1Token) => {
         // Return all matching L2 token mappings that are equal to or earlier than the target block.
+        // @dev Since tokens on L2s (like Solana) can have 32 byte addresses, filter on the lower 20 bytes of the token only.
         return this.l1TokensToDestinationTokensWithBlock[l1Token][destinationChainId].filter(
-          // ! TODO: Okay. Here, in `l1TokensToDestinationTokensWithBlock`, we might be saving truncated solana addresses (as `l1TokensToDestinationTokensWithBlock` is probably generated from events)
-          // ! TODO: Considering this, this filtering should be a bit different. If .isSvmAddress => check not for equality, but for *truncated equality*. If .isEvmAddress, check for equality
           (dstTokenWithBlock) =>
-            dstTokenWithBlock.l2Token.eq(l2Token) && dstTokenWithBlock.blockNumber <= latestHubBlock
+            dstTokenWithBlock.l2Token.truncateToBytes20() === l2Token.truncateToBytes20() &&
+            dstTokenWithBlock.blockNumber <= latestHubBlock
         );
       })
       .flat();
@@ -270,8 +268,7 @@ export class HubPoolClient extends BaseAbstractClient {
         return setPoolRebalanceRouteEvents.some((e) => {
           return (
             e.blockNumber <= hubPoolBlock &&
-            // TODO: compare the last 20 bytes of l2Token only. Solana workaround, is this correct?
-            e.l2Token.eq(l2Token) &&
+            e.l2Token.truncateToBytes20() === l2Token.truncateToBytes20() &&
             Number(_l2ChainId) === l2ChainId
           );
         });
@@ -822,7 +819,6 @@ export class HubPoolClient extends BaseAbstractClient {
     let runningBalance = toBN(0);
     if (executedRootBundle) {
       const indexOfL1Token = executedRootBundle.l1Tokens.findIndex((tokenInBundle) => tokenInBundle.eq(l1Token));
-      // TODO: not sure this if is required. Wasn't here before. Probably `getRunningBalanceForToken` is used on checked tokens only
       if (indexOfL1Token !== -1) {
         runningBalance = executedRootBundle.runningBalances[indexOfL1Token];
       }

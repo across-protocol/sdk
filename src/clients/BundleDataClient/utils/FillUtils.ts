@@ -201,10 +201,8 @@ function _repaymentAddressNeedsToBeOverwritten(fill: Fill): boolean {
     return false;
   }
 
-  // @todo add Solana logic here:
-  // - i.e. If chainIsSvm && !isValidSvmAddress(fill.relayer) then return false
-  //        If chainIsEvm && !isValidEvmAddress(fill.relayer) then return false
-  //        If chainIsEvm && isValidEvmAddress(fill.relayer) then return true
-  // @todo: UMIP might require upper 12 bytes non-zero for SVM repayment
+  // @dev If the repayment chain is EVM, the repayment address is valid if the address is 20 bytes.
+  // If the repayment chain is SVM, the repayment address is valid if the address is strictly greater than
+  // 20 bytes.
   return !fill.relayer.isValidOn(fill.repaymentChainId);
 }
