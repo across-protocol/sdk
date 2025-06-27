@@ -123,7 +123,7 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
     const defaultRateModelUpdate = sortEventsDescending(this.cumulativeRateModelUpdates).find(
       (config) =>
         config.blockNumber <= (blockNumber ?? 0) &&
-        config.l1Token === l1Token.toNative() &&
+        config.l1Token === l1Token.toEvmAddress() &&
         config.rateModel !== undefined
     );
     if (!defaultRateModelUpdate) {
@@ -138,7 +138,7 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
     blockNumber: number | undefined = undefined
   ): RateModel | undefined {
     const config = (sortEventsDescending(this.cumulativeRouteRateModelUpdates) as RouteRateModelUpdate[]).find(
-      (config) => config.blockNumber <= (blockNumber ?? 0) && config.l1Token === l1Token.toNative()
+      (config) => config.blockNumber <= (blockNumber ?? 0) && config.l1Token === l1Token.toEvmAddress()
     );
     if (config?.routeRateModel[route] === undefined) {
       return undefined;

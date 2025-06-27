@@ -156,7 +156,7 @@ export class QueryBase implements QueryInterface {
       { ...relayData, recipient, outputToken, exclusiveRelayer },
       relayer
     );
-    const voidSigner = new VoidSigner(relayer.toNative(), this.provider);
+    const voidSigner = new VoidSigner(relayer.toEvmAddress(), this.provider);
     return voidSigner.estimateGas(unsignedTx);
   }
 
@@ -179,7 +179,7 @@ export class QueryBase implements QueryInterface {
     const { opStackL2GasUnits, opStackL1DataFeeMultiplier = toBNWei("1") } = options || {};
     const { chainId } = await this.provider.getNetwork();
     assert(isOptimismL2Provider(this.provider), `Unexpected provider for chain ID ${chainId}.`);
-    const voidSigner = new VoidSigner(relayer.toNative(), this.provider);
+    const voidSigner = new VoidSigner(relayer.toEvmAddress(), this.provider);
     const populatedTransaction = await voidSigner.populateTransaction({
       ...unsignedTx,
       gasLimit: opStackL2GasUnits, // prevents additional gas estimation call
@@ -222,7 +222,7 @@ export class QueryBase implements QueryInterface {
     } = options || {};
 
     const { chainId } = await provider.getNetwork();
-    const voidSigner = new VoidSigner(senderAddress.toNative(), provider);
+    const voidSigner = new VoidSigner(senderAddress.toEvmAddress(), provider);
 
     // Estimate the Gas units required to submit this transaction.
     const queries = [
