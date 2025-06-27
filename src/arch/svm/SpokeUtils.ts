@@ -1,4 +1,4 @@
-import { SvmSpokeClient } from "@across-protocol/contracts";
+import { MessageTransmitterClient, SvmSpokeClient } from "@across-protocol/contracts";
 import { decodeFillStatusAccount, fetchState } from "@across-protocol/contracts/dist/src/svm/clients/SvmSpoke";
 import { hashNonEmptyMessage } from "@across-protocol/contracts/dist/src/svm/web3-v1";
 import {
@@ -17,6 +17,7 @@ import {
   getProgramDerivedAddress,
   getU32Encoder,
   getU64Encoder,
+  IAccountMeta,
   pipe,
   some,
   type TransactionSigner,
@@ -597,6 +598,20 @@ export const createCloseFillPdaInstruction = async (
     appendTransactionMessageInstruction(closeFillPdaIx, tx)
   );
 };
+
+export const createReceiveMessageInstruction = async (
+  signer: TransactionSigner,
+  solanaClient: SVMProvider,
+  input: MessageTransmitterClient.ReceiveMessageInput,
+  remainingAccounts: IAccountMeta<string>[]
+) => {
+  const receiveMessageIx = await MessageTransmitterClient.getReceiveMessageInstruction(input);
+  (receiveMessageIx.accounts as IAccountMeta<string>[]).push(...remainingAccounts);
+  return pipe(await createDefaultTransaction(solanaClient, signer), (tx) =>
+    appendTransactionMessageInstruction(receiveMessageIx, tx)
+  );
+};
+
 export async function getAssociatedTokenAddress(
   owner: SvmAddress,
   mint: SvmAddress,

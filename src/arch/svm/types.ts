@@ -61,3 +61,14 @@ export type RpcClient = {
   rpc: SVMProvider;
   rpcSubscriptions: RpcSubscriptions<SignatureNotificationsApi & SlotNotificationsApi>;
 };
+
+export type AttestedCCTPMessage = {
+  nonce: number;
+  sourceDomain: number;
+  messageBytes: string;
+  attestation: string;
+  type: "transfer" | "message";
+  amount?: string;
+  mintRecipient?: string;
+  burnToken?: string;
+};
