@@ -363,6 +363,23 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
     return this.depositHashesToFills[this.getDepositHash(deposit)];
   }
 
+  public getFillStatusForDeposit(deposit: Deposit): FillStatus {
+    const depositHash = this.getDepositHash(deposit);
+    const fills = this.depositHashesToFills[depositHash] ?? [];
+
+    for (const fill of fills) {
+      const validation = validateFillForDeposit(fill, deposit);
+
+      if (validation.valid) {
+        return isSlowFill(fill) ? FillStatus.RequestedSlowFill : FillStatus.Filled;
+      }
+    }
+
+    // If there are fills for deposit, and there is no valid fill for it,
+    return FillStatus.Unfilled;
+  }
+
+  // @TODO: Remove this method after refactoring relayer repo.
   /**
    * Find the unfilled amount for a given deposit. This is the full deposit amount minus the total filled amount.
    * @param deposit The deposit to find the unfilled amount for.
