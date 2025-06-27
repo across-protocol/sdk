@@ -3,7 +3,6 @@ import { fixedPointAdjustment as fixedPoint } from "./common";
 import { MAX_SAFE_DEPOSIT_ID, ZERO_BYTES } from "../constants";
 import { Fill, FillType, RelayData, SlowFillLeaf } from "../interfaces";
 import { BigNumber } from "./BigNumberUtils";
-import { Address } from "./AddressUtils";
 import { isMessageEmpty } from "./DepositUtils";
 import { chainIsSvm } from "./NetworkUtils";
 import { svm } from "../arch";
@@ -70,11 +69,6 @@ export function isUnsafeDepositId(depositId: BigNumber): boolean {
   // possibility.
   const maxSafeDepositId = BigNumber.from(MAX_SAFE_DEPOSIT_ID);
   return maxSafeDepositId.lt(depositId);
-}
-
-// Determines if the input address (either a bytes32 or bytes20) is the zero address.
-export function isZeroAddress(address: Address): boolean {
-  return address.toBytes32() === ZERO_BYTES;
 }
 
 export function getMessageHash(message: string): string {

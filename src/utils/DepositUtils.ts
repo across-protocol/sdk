@@ -2,7 +2,7 @@ import assert from "assert";
 import { SpokePoolClient } from "../clients";
 import { DEFAULT_CACHING_TTL, EMPTY_MESSAGE, UNDEFINED_MESSAGE_HASH, ZERO_BYTES } from "../constants";
 import { CachingMechanismInterface, Deposit, DepositWithBlock, Fill, RelayData, SlowFillRequest } from "../interfaces";
-import { getMessageHash, isUnsafeDepositId, isZeroAddress } from "./SpokeUtils";
+import { getMessageHash, isUnsafeDepositId } from "./SpokeUtils";
 import { getNetworkName } from "./NetworkUtils";
 import { bnZero } from "./BigNumberUtils";
 import { getDepositInCache, getDepositKey, setDepositInCache } from "./CachingUtils";
@@ -204,13 +204,13 @@ export function validateFillForDeposit(
  * @param deposit Deposit to check.
  * @returns True if deposit's input amount is 0 and message is empty.
  */
-export function isZeroValueDeposit(deposit: Pick<Deposit, "inputAmount" | "message">): boolean {
+export function isZeroValueDeposit(deposit: Pick<RelayData, "inputAmount" | "message">): boolean {
   return deposit.inputAmount.eq(0) && isMessageEmpty(deposit.message);
 }
 
-export function invalidOutputToken(deposit: Pick<DepositWithBlock, "outputToken">): boolean {
+export function invalidOutputToken(deposit: Pick<RelayData, "outputToken">): boolean {
   // If the output token is zero address, then it is invalid.
-  return isZeroAddress(deposit.outputToken);
+  return deposit.outputToken.isZeroAddress();
 }
 
 export function isZeroValueFillOrSlowFillRequest(

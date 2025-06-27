@@ -15,7 +15,6 @@ import {
   isDefined,
   getMessageHash,
   isSlowFill,
-  isZeroAddress,
   validateFillForDeposit,
   chainIsProd,
   Address,
@@ -558,7 +557,7 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
         deposit.fromLiteChain = this.isOriginLiteChain(deposit);
         deposit.toLiteChain = this.isDestinationLiteChain(deposit);
 
-        if (isZeroAddress(deposit.outputToken)) {
+        if (deposit.outputToken.isZeroAddress()) {
           deposit.outputToken = this.getDestinationTokenForDeposit(deposit);
         }
 

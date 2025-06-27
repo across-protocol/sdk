@@ -644,19 +644,15 @@ export class BundleDataClient {
       .filter((leaf) => leaf.rootBundleId === bundle.rootBundleId);
     const executedRefunds: { [tokenAddress: string]: { [relayer: string]: BigNumber } } = {};
     for (const refundLeaf of executedRefundLeaves) {
-      const tokenAddress = refundLeaf.l2TokenAddress;
-      if (executedRefunds[tokenAddress.toBytes32()] === undefined) {
-        executedRefunds[tokenAddress.toBytes32()] = {};
-      }
-      const executedTokenRefunds = executedRefunds[tokenAddress.toBytes32()];
+      const tokenAddress = refundLeaf.l2TokenAddress.toBytes32();
+      const executedTokenRefunds = (executedRefunds[tokenAddress] ??= {});
 
       for (let i = 0; i < refundLeaf.refundAddresses.length; i++) {
-        const relayer = refundLeaf.refundAddresses[i];
+        const relayer = refundLeaf.refundAddresses[i].toBytes32();
         const refundAmount = refundLeaf.refundAmounts[i];
-        if (executedTokenRefunds[relayer.toBytes32()] === undefined) {
-          executedTokenRefunds[relayer.toBytes32()] = bnZero;
-        }
-        executedTokenRefunds[relayer.toBytes32()] = executedTokenRefunds[relayer.toBytes32()].add(refundAmount);
+
+        executedTokenRefunds[relayer] ??= bnZero;
+        executedTokenRefunds[relayer] = executedTokenRefunds[relayer].add(refundAmount);
       }
     }
     return executedRefunds;

@@ -1,5 +1,5 @@
 // Create a combined `refunds` object containing refunds for V2 + V3 fills
-
+import assert from "assert";
 import {
   BundleDepositsV3,
   BundleExcessSlowFills,
@@ -163,14 +163,16 @@ export function _buildPoolRebalanceRoot(
           chainWithRefundsOnly.add(repaymentChainId);
           return;
         }
-        const l1TokenCounterpart = clients.hubPoolClient.getL1TokenForL2TokenAtBlock(
+        const l1Token = clients.hubPoolClient.getL1TokenForL2TokenAtBlock(
           toAddressType(l2TokenAddress, repaymentChainId),
           repaymentChainId,
           mainnetBundleEndBlock
         );
+        const l1TokenAddr = l1Token.toNative();
+        assert(l1Token.isEVM(), `Expected an EVM address: ${l1TokenAddr}`);
 
-        updateRunningBalance(runningBalances, repaymentChainId, l1TokenCounterpart.toEvmAddress(), totalRefundAmount);
-        updateRunningBalance(realizedLpFees, repaymentChainId, l1TokenCounterpart.toEvmAddress(), totalRealizedLpFee);
+        updateRunningBalance(runningBalances, repaymentChainId, l1TokenAddr, totalRefundAmount);
+        updateRunningBalance(realizedLpFees, repaymentChainId, l1TokenAddr, totalRealizedLpFee);
       }
     );
   });
