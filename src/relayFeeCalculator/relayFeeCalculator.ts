@@ -9,12 +9,9 @@ import { Deposit } from "../interfaces";
 import {
   BigNumber,
   BigNumberish,
-  ConvertDecimals,
   MAX_BIG_INT,
   TransactionCostEstimate,
   bnZero,
-  chainIsSvm,
-  compareAddressesSimple,
   fixedPointAdjustment,
   getTokenInfo,
   isDefined,
@@ -25,13 +22,18 @@ import {
   percent,
   toBN,
   toBNWei,
+  compareAddressesSimple,
+  ConvertDecimals,
+  chainIsSvm,
+  toAddressType,
+  Address,
 } from "../utils";
 
 // This needs to be implemented for every chain and passed into RelayFeeCalculator
 export interface QueryInterface {
   getGasCosts: (
     deposit: Omit<Deposit, "messageHash">,
-    relayer: string,
+    relayer: Address,
     options?: Partial<{
       gasPrice: BigNumberish;
       gasUnits: BigNumberish;
@@ -42,7 +44,7 @@ export interface QueryInterface {
     }>
   ) => Promise<TransactionCostEstimate>;
   getTokenPrice: (tokenSymbol: string) => Promise<number>;
-  getNativeGasCost: (deposit: Omit<Deposit, "messageHash">, relayer: string) => Promise<BigNumber>;
+  getNativeGasCost: (deposit: Omit<Deposit, "messageHash">, relayer: Address) => Promise<BigNumber>;
 }
 
 export const expectedCapitalCostsKeys = ["lowerBound", "upperBound", "cutoff", "decimals"];
@@ -112,7 +114,7 @@ export const DEFAULT_LOGGER: Logger = {
   error: (...args) => console.error(args),
 };
 
-export function getDefaultSimulatedRelayerAddress(chainId?: number) {
+export function getDefaultRelayer(chainId?: number) {
   return isDefined(chainId) && chainIsSvm(chainId)
     ? DEFAULT_SIMULATED_RELAYER_ADDRESS_SVM
     : DEFAULT_SIMULATED_RELAYER_ADDRESS;
@@ -254,7 +256,7 @@ export class RelayFeeCalculator {
     deposit: Deposit,
     outputAmount: BigNumberish,
     simulateZeroFill = false,
-    relayerAddress = getDefaultSimulatedRelayerAddress(deposit.destinationChainId),
+    relayerAddress = toAddressType(getDefaultRelayer(deposit.destinationChainId), deposit.destinationChainId),
     _tokenPrice?: number,
     tokenMapping = TOKEN_SYMBOLS_MAP,
     gasPrice?: BigNumberish,
@@ -271,14 +273,14 @@ export class RelayFeeCalculator {
     // undefined address on destination.
     const destinationChainTokenDetails = Object.values(tokenMapping).find(
       (details) =>
-        compareAddressesSimple(details.addresses[originChainId], inputToken) &&
+        compareAddressesSimple(details.addresses[originChainId], inputToken.toNative()) &&
         isDefined(details.addresses[destinationChainId])
     );
     const outputToken = isZeroAddress(deposit.outputToken)
       ? destinationChainTokenDetails!.addresses[destinationChainId]
-      : deposit.outputToken;
+      : deposit.outputToken.toNative();
     const outputTokenInfo = getTokenInfo(outputToken, destinationChainId, tokenMapping);
-    const inputTokenInfo = getTokenInfo(inputToken, originChainId, tokenMapping);
+    const inputTokenInfo = getTokenInfo(inputToken.toNative(), originChainId, tokenMapping);
     if (!isDefined(outputTokenInfo) || !isDefined(inputTokenInfo)) {
       throw new Error(`Could not find token information for ${inputToken} or ${outputToken}`);
     }
@@ -493,7 +495,7 @@ export class RelayFeeCalculator {
     deposit: Deposit,
     outputAmount?: BigNumberish,
     simulateZeroFill = false,
-    relayerAddress = getDefaultSimulatedRelayerAddress(deposit.destinationChainId),
+    relayerAddress = toAddressType(getDefaultRelayer(deposit.destinationChainId), deposit.destinationChainId),
     _tokenPrice?: number,
     gasPrice?: BigNumberish,
     gasUnits?: BigNumberish,
@@ -505,8 +507,8 @@ export class RelayFeeCalculator {
     const { inputToken, originChainId, outputToken, destinationChainId } = deposit;
     // We can perform a simple lookup with `getTokenInfo` here without resolving the exact token to resolve since we only need to
     // resolve the L1 token symbol and not the L2 token decimals.
-    const inputTokenInfo = getTokenInfo(inputToken, originChainId);
-    const outputTokenInfo = getTokenInfo(outputToken, destinationChainId);
+    const inputTokenInfo = getTokenInfo(inputToken.toNative(), originChainId);
+    const outputTokenInfo = getTokenInfo(outputToken.toNative(), destinationChainId);
     if (!isDefined(inputTokenInfo) || !isDefined(outputTokenInfo)) {
       throw new Error(`Could not find token information for ${inputToken} or ${outputToken}`);
     }

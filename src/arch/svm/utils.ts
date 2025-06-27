@@ -17,7 +17,7 @@ import {
 } from "@solana/kit";
 import { SvmSpokeClient } from "@across-protocol/contracts";
 import { FillType, RelayData } from "../../interfaces";
-import { BigNumber, EvmAddress, SvmAddress, getRelayDataHash, isUint8Array } from "../../utils";
+import { BigNumber, getRelayDataHash, isUint8Array, Address as SdkAddress } from "../../utils";
 import { EventName, SVMEventNames, SVMProvider } from "./types";
 
 /**
@@ -45,7 +45,7 @@ export async function isDevnet(rpc: SVMProvider): Promise<boolean> {
 /**
  * Small utility to convert an Address to a Solana Kit branded type.
  */
-export function toAddress(address: EvmAddress | SvmAddress): Address<string> {
+export function toAddress(address: SdkAddress): Address<string> {
   return address.toBase58() as Address<string>;
 }
 
@@ -144,7 +144,7 @@ export function unwrapEventData(
   }
   // Handle strings (potential addresses)
   if (typeof data === "string" && isAddress(data)) {
-    return SvmAddress.from(data).toBytes32();
+    return ethers.utils.hexlify(bs58.decode(data));
   }
   // Handle objects
   if (typeof data === "object") {
@@ -280,13 +280,13 @@ export async function getInstructionParamsPda(programId: Address, signer: Addres
  * Returns the PDA for the Event Authority.
  * @returns The PDA for the Event Authority.
  */
-export const getEventAuthority = async () => {
+export async function getEventAuthority(programId: Address): Promise<Address> {
   const [eventAuthority] = await getProgramDerivedAddress({
-    programAddress: address(SvmSpokeClient.SVM_SPOKE_PROGRAM_ADDRESS),
+    programAddress: programId,
     seeds: ["__event_authority"],
   });
   return eventAuthority;
-};
+}
 
 /**
  * Returns a random SVM address.

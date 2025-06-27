@@ -1,7 +1,7 @@
 import hre from "hardhat";
 import { EVMSpokePoolClient, SpokePoolClient } from "../src/clients";
 import { Deposit } from "../src/interfaces";
-import { bnOne, bnZero, getMessageHash, getNetworkName, deploy as deployMulticall } from "../src/utils";
+import { bnOne, bnZero, getMessageHash, getNetworkName, deploy as deployMulticall, toAddressType } from "../src/utils";
 import { EMPTY_MESSAGE, ZERO_ADDRESS } from "../src/constants";
 import { findDepositBlock, findFillBlock, findFillEvent } from "../src/arch/evm";
 import { originChainId, destinationChainId } from "./constants";
@@ -58,18 +58,18 @@ describe("SpokePoolClient: Fills", function () {
       depositId: bnZero,
       originChainId,
       destinationChainId,
-      depositor: depositor.address,
-      recipient: depositor.address,
-      inputToken: erc20.address,
+      depositor: toAddressType(depositor.address, originChainId),
+      recipient: toAddressType(depositor.address, destinationChainId),
+      inputToken: toAddressType(erc20.address, originChainId),
       inputAmount: outputAmount.add(bnOne),
-      outputToken: destErc20.address,
+      outputToken: toAddressType(destErc20.address, destinationChainId),
       outputAmount: toBNWei("1"),
       quoteTimestamp: spokePoolTime - 60,
       message,
       messageHash: getMessageHash(message),
       fillDeadline: spokePoolTime + 600,
       exclusivityDeadline: 0,
-      exclusiveRelayer: ZERO_ADDRESS,
+      exclusiveRelayer: toAddressType(ZERO_ADDRESS, destinationChainId),
       fromLiteChain: false,
       toLiteChain: false,
     };
@@ -96,8 +96,8 @@ describe("SpokePoolClient: Fills", function () {
 
     expect(spokePoolClient.getFillsForOriginChain(originChainId).length).to.equal(3);
     expect(spokePoolClient.getFillsForOriginChain(originChainId2).length).to.equal(1);
-    expect(spokePoolClient.getFillsForRelayer(relayer1.address).length).to.equal(3);
-    expect(spokePoolClient.getFillsForRelayer(relayer2.address).length).to.equal(1);
+    expect(spokePoolClient.getFillsForRelayer(toAddressType(relayer1.address, originChainId)).length).to.equal(3);
+    expect(spokePoolClient.getFillsForRelayer(toAddressType(relayer2.address, originChainId)).length).to.equal(1);
   });
 
   it("Correctly locates the block number for a Deposit", async function () {
@@ -111,9 +111,9 @@ describe("SpokePoolClient: Fills", function () {
     for (let i = 0; i < nBlocks; ++i) {
       const blockNumber = await spokePool.provider.getBlockNumber();
       if (blockNumber === targetDepositBlock - 1) {
-        const inputToken = erc20.address;
+        const inputToken = toAddressType(erc20.address, originChainId);
         const inputAmount = bnOne;
-        const outputToken = ZERO_ADDRESS;
+        const outputToken = toAddressType(ZERO_ADDRESS, destinationChainId);
         const outputAmount = bnOne;
         const { depositId: _depositId, blockNumber: depositBlockNumber } = await deposit(
           spokePool,
@@ -198,9 +198,9 @@ describe("SpokePoolClient: Fills", function () {
     const depositBlockNumber = await findDepositBlock(spokePool, expectedDepositId, startBlock);
     expect(depositBlockNumber).to.be.undefined;
 
-    const inputToken = erc20.address;
+    const inputToken = toAddressType(erc20.address, originChainId);
     const inputAmount = bnOne;
-    const outputToken = ZERO_ADDRESS;
+    const outputToken = toAddressType(ZERO_ADDRESS, destinationChainId);
     const outputAmount = bnOne;
 
     const { depositId, blockNumber } = await deposit(
