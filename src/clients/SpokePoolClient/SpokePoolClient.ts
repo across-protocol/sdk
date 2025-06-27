@@ -39,7 +39,6 @@ import {
   SortableEvent,
   SpeedUpWithBlock,
   TokensBridged,
-  UnfilledDeposit,
 } from "../../interfaces";
 import { BaseAbstractClient, UpdateFailureReason } from "../BaseAbstractClient";
 import { AcrossConfigStoreClient } from "../AcrossConfigStoreClient";
@@ -364,53 +363,20 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
     return this.depositHashesToFills[this.getDepositHash(deposit)];
   }
 
-  public getInvalidFillsForDeposit(deposit: Deposit): UnfilledDeposit {
+  public getFillStatusForDeposit(deposit: Deposit): FillStatus {
     const depositHash = this.getDepositHash(deposit);
     const fills = this.depositHashesToFills[depositHash] ?? [];
-
-    // If we don't find any fills for deposit, return deposit and unfilled flag set to true
-    if (fills.length === 0) {
-      return {
-        deposit,
-        unfilled: true,
-        validationResults: [],
-      };
-    }
-
-    // Do one pass through fills to check for valid fills and build validation results
-    let hasValidFill = false;
-    const validationResults: Array<{ reason: string; fill?: FillWithBlock }> = [];
 
     for (const fill of fills) {
       const validation = validateFillForDeposit(fill, deposit);
 
       if (validation.valid) {
-        hasValidFill = true;
-        break;
-      } else {
-        validationResults.push({
-          reason: validation.reason,
-          fill,
-        });
+        return isSlowFill(fill) ? FillStatus.RequestedSlowFill : FillStatus.Filled;
       }
     }
 
-    // If we find valid fill for the deposit, return deposit and unfilled flag set to false
-    if (hasValidFill) {
-      return {
-        deposit,
-        unfilled: false,
-        validationResults: [],
-      };
-    }
-
     // If there are fills for deposit, and there is no valid fill for it,
-    // return deposit and array of pairs reason and fill for it
-    return {
-      deposit,
-      unfilled: true,
-      validationResults,
-    };
+    return FillStatus.Unfilled;
   }
 
   // @TODO: Remove this method after refactoring relayer repo.
