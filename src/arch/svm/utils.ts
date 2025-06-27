@@ -36,14 +36,7 @@ import { ethers } from "ethers";
 import { FillType, RelayData } from "../../interfaces";
 import { BigNumber, EvmAddress, SvmAddress, chainIsProd, getRelayDataHash, isUint8Array, mapAsync } from "../../utils";
 import { createReceiveMessageInstruction, getAssociatedTokenAddress } from "./SpokeUtils";
-import {
-  AttestedCCTPMessage,
-  CCTPMessageEvent,
-  DepositForBurnMessageEvent,
-  EventName,
-  SVMEventNames,
-  SVMProvider,
-} from "./types";
+import { AttestedCCTPMessage, EventName, SVMEventNames, SVMProvider } from "./types";
 
 /**
  * Basic void TransactionSigner type
@@ -423,7 +416,7 @@ export const getCCTPNoncePda = async (
  * @param sourceDomain The source domain.
  * @returns True if the message has been processed, false otherwise.
  */
-export const hasCCTPMessageBeenProcessed = async (
+export const hasCCTPV1MessageBeenProcessed = async (
   solanaClient: RpcClient,
   signer: KeyPairSigner,
   nonce: number,
@@ -435,7 +428,7 @@ export const hasCCTPMessageBeenProcessed = async (
     usedNonces: noncePda,
   });
   const parserFunction = (buf: Buffer): boolean => {
-    return Boolean(buf[0]);
+    return buf.length == 1 && Boolean(buf[0]);
   };
   return await simulateAndDecode(solanaClient, isNonceUsedIx, signer, parserFunction);
 };
@@ -445,7 +438,7 @@ export const hasCCTPMessageBeenProcessed = async (
  * @param event The CCTP message event.
  * @returns True if the message is a deposit for burn event, false otherwise.
  */
-export function isDepositForBurnEvent(event: CCTPMessageEvent): event is DepositForBurnMessageEvent {
+export function isDepositForBurnEvent(event: AttestedCCTPMessage): boolean {
   return "amount" in event && "mintRecipient" in event && "burnToken" in event;
 }
 
@@ -470,14 +463,12 @@ export async function getAccountMetasForTokenlessMessage(): Promise<IAccountMeta
  * @param message The CCTP message.
  * @param hubChainId The chain ID of the hub.
  * @param tokenMessengerMinter The token messenger minter address.
- * @param svmSigner The signer of the transaction.
  * @returns The account metas for a deposit message.
  */
 async function getAccountMetasForDepositMessage(
   message: AttestedCCTPMessage,
   hubChainId: number,
-  tokenMessengerMinter: Address,
-  svmSigner: KeyPairSigner
+  tokenMessengerMinter: Address
 ): Promise<IAccountMeta<string>[]> {
   const l1Usdc = EvmAddress.from(TOKEN_SYMBOLS_MAP.USDC.addresses[hubChainId]);
   const l2Usdc = SvmAddress.from(
@@ -509,15 +500,21 @@ async function getAccountMetasForDepositMessage(
     seeds: [Buffer.from("custody"), bs58.decode(l2Usdc.toBase58())],
   });
 
-  const tokenAccount = await getAssociatedTokenAddress(SvmAddress.from(svmSigner.keyPair.publicKey.toString()), l2Usdc);
+  const state = await getStatePda(SvmSpokeClient.SVM_SPOKE_PROGRAM_ADDRESS);
+  const tokenProgram = TOKEN_PROGRAM_ADDRESS;
+  const vault = await getAssociatedTokenAddress(
+    SvmAddress.from(state),
+    SvmAddress.from(l2Usdc.toBase58()),
+    tokenProgram
+  );
 
   // Define accounts dependent on deposit information.
   const [tokenPairPda] = await getProgramDerivedAddress({
     programAddress: tokenMessengerMinter,
     seeds: [
-      Buffer.from("token_pair"),
-      Buffer.from(String(message.sourceDomain)),
-      Buffer.from(l1Usdc.toBytes32().slice(2), "hex"),
+      new Uint8Array(Buffer.from("token_pair")),
+      new Uint8Array(Buffer.from(String(message.sourceDomain))),
+      new Uint8Array(Buffer.from(l1Usdc.toBytes32().slice(2), "hex")),
     ],
   });
 
@@ -532,7 +529,7 @@ async function getAccountMetasForDepositMessage(
     { address: tokenMinterPda, role: AccountRole.WRITABLE },
     { address: localTokenPda, role: AccountRole.WRITABLE },
     { address: tokenPairPda, role: AccountRole.READONLY },
-    { address: tokenAccount, role: AccountRole.WRITABLE },
+    { address: vault, role: AccountRole.WRITABLE },
     { address: custodyTokenAccountPda, role: AccountRole.WRITABLE },
     { address: TOKEN_PROGRAM_ADDRESS, role: AccountRole.READONLY },
     { address: tokenMessengerEventAuthorityPda, role: AccountRole.READONLY },
@@ -551,7 +548,7 @@ async function getAccountMetasForDepositMessage(
  * @returns A list of executed transaction signatures.
  */
 
-export async function finalizeSvmMessages(
+export async function finalizeCCTPV1Messages(
   attestedMessages: AttestedCCTPMessage[],
   signer: KeyPairSigner,
   simulate = false,
@@ -586,8 +583,7 @@ export async function finalizeSvmMessages(
       ? await getAccountMetasForDepositMessage(
           message,
           hubChainId,
-          TokenMessengerMinterClient.TOKEN_MESSENGER_MINTER_PROGRAM_ADDRESS,
-          signer
+          TokenMessengerMinterClient.TOKEN_MESSENGER_MINTER_PROGRAM_ADDRESS
         )
       : await getAccountMetasForTokenlessMessage();
 
