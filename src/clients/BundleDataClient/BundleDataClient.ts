@@ -42,6 +42,7 @@ import {
   duplicateEvent,
   invalidOutputToken,
   Address,
+  getNetworkName,
 } from "../../utils";
 import winston from "winston";
 import {
@@ -57,6 +58,7 @@ import {
   verifyFillRepayment,
 } from "./utils";
 import { isEVMSpokePoolClient, isSVMSpokePoolClient } from "../SpokePoolClient";
+import { SpokePoolManager } from "../SpokePoolClient/SpokePoolClientManager";
 
 // max(uint256) - 1
 export const INFINITE_FILL_DEADLINE = bnUint32Max;
@@ -160,15 +162,18 @@ export class BundleDataClient {
   private arweaveDataCache: Record<string, Promise<LoadDataReturnValue | undefined>> = {};
 
   private bundleTimestampCache: Record<string, { [chainId: number]: number[] }> = {};
+  readonly spokePoolClientManager: SpokePoolManager;
 
   // eslint-disable-next-line no-useless-constructor
   constructor(
     readonly logger: winston.Logger,
     readonly clients: Clients,
-    readonly spokePoolClients: { [chainId: number]: SpokePoolClient },
+    spokePoolClients: { [chainId: number]: SpokePoolClient },
     readonly chainIdListForBundleEvaluationBlockNumbers: number[],
     readonly blockRangeEndBlockBuffer: { [chainId: number]: number } = {}
-  ) {}
+  ) {
+    this.spokePoolClientManager = new SpokePoolManager(logger, spokePoolClients);
+  }
 
   // This should be called whenever it's possible that the loadData information for a block range could have changed.
   // For instance, if the spoke or hub clients have been updated, it probably makes sense to clear this to be safe.
@@ -398,7 +403,7 @@ export class BundleDataClient {
     // expiries here so we can skip some steps. We also don't need to compute LP fees as they should be small enough
     // so as not to affect this approximate refund count.
     const arweaveData = await this.loadArweaveData(bundleEvaluationBlockRanges);
-    if (arweaveData === undefined) {
+    if (!isDefined(arweaveData)) {
       combinedRefunds = await this.getApproximateRefundsForBlockRange(chainIds, bundleEvaluationBlockRanges);
     } else {
       const { bundleFillsV3, expiredDepositsToRefundV3 } = arweaveData;
@@ -408,7 +413,7 @@ export class BundleDataClient {
       // a reasonable assumption. This empty refund chain also matches what the alternative
       // `getApproximateRefundsForBlockRange` would return.
       Object.keys(combinedRefunds).forEach((chainId) => {
-        if (this.spokePoolClients[Number(chainId)] === undefined) {
+        if (!this.spokePoolClientManager.getClient(Number(chainId))) {
           delete combinedRefunds[Number(chainId)];
         }
       });
@@ -424,7 +429,8 @@ export class BundleDataClient {
     const refundsForChain: CombinedRefunds = {};
     const bundleEndBlockForMainnet = blockRanges[0][1];
     for (const chainId of chainIds) {
-      if (this.spokePoolClients[chainId] === undefined) {
+      const spokePoolClient = this.spokePoolClientManager.getClient(chainId);
+      if (!isDefined(spokePoolClient)) {
         continue;
       }
       const chainIndex = chainIds.indexOf(chainId);
@@ -433,7 +439,7 @@ export class BundleDataClient {
       // and then query the FillStatus on-chain, but that might slow this function down too much. For now, we
       // will live with this expected inaccuracy as it should be small. The pre-fill would have to precede the deposit
       // by more than the caller's event lookback window which is expected to be unlikely.
-      const fillsToCount = this.spokePoolClients[chainId].getFills().filter((fill) => {
+      const fillsToCount = spokePoolClient.getFills().filter((fill) => {
         if (
           fill.blockNumber < blockRanges[chainIndex][0] ||
           fill.blockNumber > blockRanges[chainIndex][1] ||
@@ -443,20 +449,32 @@ export class BundleDataClient {
           return false;
         }
 
+        const originSpokePoolClient = this.spokePoolClientManager.getClient(fill.originChainId);
         // If origin spoke pool client isn't defined, we can't validate it.
-        if (this.spokePoolClients[fill.originChainId] === undefined) {
+        if (!isDefined(originSpokePoolClient)) {
           return false;
         }
-        const matchingDeposit = this.spokePoolClients[fill.originChainId].getDeposit(fill.depositId);
+        const matchingDeposit = originSpokePoolClient.getDeposit(fill.depositId);
         const hasMatchingDeposit =
           matchingDeposit !== undefined && getRelayEventKey(fill) === getRelayEventKey(matchingDeposit);
         return hasMatchingDeposit;
       });
       await forEachAsync(fillsToCount, async (_fill) => {
-        const matchingDeposit = this.spokePoolClients[_fill.originChainId].getDeposit(_fill.depositId);
-        assert(isDefined(matchingDeposit), "Deposit not found for fill.");
+        const originChain = getNetworkName(_fill.originChainId);
+        const originSpokePoolClient = this.spokePoolClientManager.getClient(_fill.originChainId);
+        assert(isDefined(originSpokePoolClient), `No SpokePoolClient for chain ${originChain}`);
+        const matchingDeposit = originSpokePoolClient.getDeposit(_fill.depositId);
+        assert(
+          isDefined(matchingDeposit),
+          `No ${originChain} deposit found for ${getNetworkName(_fill.destinationChainId)} fill ${_fill.depositId}`
+        );
 
-        const spokeClient = this.spokePoolClients[_fill.destinationChainId];
+        const spokeClient = this.spokePoolClientManager.getClient(_fill.destinationChainId);
+        assert(
+          isDefined(spokeClient),
+          `SpokePoolClient for ${getNetworkName(_fill.destinationChainId)} not found for fill.`
+        );
+
         let provider;
         if (isEVMSpokePoolClient(spokeClient)) {
           provider = spokeClient.spokePool.provider;
@@ -498,10 +516,11 @@ export class BundleDataClient {
   }
 
   getUpcomingDepositAmount(chainId: number, l2Token: Address, latestBlockToSearch: number): BigNumber {
-    if (this.spokePoolClients[chainId] === undefined) {
+    const spokePoolClient = this.spokePoolClientManager.getClient(chainId);
+    if (!isDefined(spokePoolClient)) {
       return toBN(0);
     }
-    return this.spokePoolClients[chainId]
+    return spokePoolClient
       .getDeposits()
       .filter((deposit) => deposit.blockNumber > latestBlockToSearch && deposit.inputToken.eq(l2Token))
       .reduce((acc, deposit) => {
@@ -529,7 +548,7 @@ export class BundleDataClient {
     // should be handled gracefully and effectively cause this function to ignore refunds for the chain.
     let widestBundleBlockRanges = getWidestPossibleExpectedBlockRange(
       chainIds,
-      this.spokePoolClients,
+      this.spokePoolClientManager.getSpokePoolClients(),
       getEndBlockBuffers(chainIds, this.blockRangeEndBlockBuffer),
       this.clients,
       this.clients.hubPoolClient.latestHeightSearched,
@@ -572,7 +591,7 @@ export class BundleDataClient {
       // data is undefined and use the much faster approximation method which doesn't consider LP fees which is
       // ok for this use case.
       const arweaveData = await this.loadArweaveData(pendingBundleBlockRanges);
-      if (arweaveData === undefined) {
+      if (!isDefined(arweaveData)) {
         combinedRefunds.push(await this.getApproximateRefundsForBlockRange(chainIds, pendingBundleBlockRanges));
       } else {
         const { bundleFillsV3, expiredDepositsToRefundV3 } = arweaveData;
@@ -650,13 +669,11 @@ export class BundleDataClient {
   ): CombinedRefunds {
     for (const chainIdStr of Object.keys(allRefunds)) {
       const chainId = Number(chainIdStr);
-      if (!isDefined(this.spokePoolClients[chainId])) {
+      const spokePoolClient = this.spokePoolClientManager.getClient(chainId);
+      if (!isDefined(spokePoolClient)) {
         continue;
       }
-      const executedRefunds = this.getExecutedRefunds(
-        this.spokePoolClients[chainId],
-        bundleContainingRefunds.relayerRefundRoot
-      );
+      const executedRefunds = this.getExecutedRefunds(spokePoolClient, bundleContainingRefunds.relayerRefundRoot);
 
       for (const tokenAddress of Object.keys(allRefunds[chainId])) {
         const refunds = allRefunds[chainId][tokenAddress];
