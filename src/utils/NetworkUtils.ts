@@ -21,7 +21,7 @@ export const hreNetworks: Record<number, string> = {
  */
 export function getNetworkName(networkId: number | string): string {
   networkId = Number(networkId);
-  return PUBLIC_NETWORKS[networkId]?.name ?? hreNetworks[networkId] ?? "unknown";
+  return PUBLIC_NETWORKS[networkId]?.name ?? hreNetworks[networkId] ?? `unknown (${networkId})`;
 }
 
 /**
