@@ -19,15 +19,7 @@ import { Coingecko } from "../../coingecko";
 import { CHAIN_IDs } from "../../constants";
 import { getGasPriceEstimate } from "../../gasPriceOracle";
 import { RelayData } from "../../interfaces";
-import {
-  BigNumber,
-  BigNumberish,
-  SvmAddress,
-  TransactionCostEstimate,
-  getRelayDataHash,
-  toAddressType,
-  toBN,
-} from "../../utils";
+import { BigNumber, BigNumberish, SvmAddress, TransactionCostEstimate, getRelayDataHash, toBN } from "../../utils";
 import { Logger, QueryInterface, getDefaultRelayer } from "../relayFeeCalculator";
 import { SymbolMappingType } from "./";
 
@@ -76,7 +68,7 @@ export class SvmQuery implements QueryInterface {
    */
   async getGasCosts(
     relayData: RelayData & { destinationChainId: number },
-    relayer = toAddressType(getDefaultRelayer(relayData.destinationChainId), relayData.destinationChainId),
+    relayer = getDefaultRelayer(relayData.destinationChainId),
     options: Partial<{
       gasPrice: BigNumberish;
       gasUnits: BigNumberish;
@@ -121,14 +113,14 @@ export class SvmQuery implements QueryInterface {
    */
   async getNativeGasCost(
     deposit: RelayData & { destinationChainId: number },
-    _relayer = toAddressType(getDefaultRelayer(deposit.destinationChainId), deposit.destinationChainId)
+    relayer = getDefaultRelayer(deposit.destinationChainId)
   ): Promise<BigNumber> {
     const { recipient, outputToken, exclusiveRelayer } = deposit;
     assert(recipient.isSVM(), `getNativeGasCost: recipient not an SVM address (${recipient})`);
     assert(outputToken.isSVM(), `getNativeGasCost: outputToken not an SVM address (${outputToken})`);
     assert(exclusiveRelayer.isSVM(), `getNativeGasCost: exclusiveRelayer not an SVM address (${exclusiveRelayer})`);
 
-    const fillRelayTx = await this.getFillRelayTx({ ...deposit, recipient, outputToken, exclusiveRelayer }, _relayer);
+    const fillRelayTx = await this.getFillRelayTx({ ...deposit, recipient, outputToken, exclusiveRelayer }, relayer);
     return toBN(await this.computeUnitEstimator(fillRelayTx));
   }
 
@@ -144,9 +136,9 @@ export class SvmQuery implements QueryInterface {
       recipient: SvmAddress;
       outputToken: SvmAddress;
     },
-    relayer = toAddressType(getDefaultRelayer(relayData.destinationChainId), relayData.destinationChainId),
+    relayer = getDefaultRelayer(relayData.destinationChainId),
     repaymentChainId = relayData.destinationChainId,
-    repaymentAddress = toAddressType(getDefaultRelayer(relayData.destinationChainId), relayData.destinationChainId)
+    repaymentAddress = getDefaultRelayer(relayData.destinationChainId)
   ) {
     const { depositor, recipient, inputToken, outputToken, exclusiveRelayer, destinationChainId } = relayData;
 

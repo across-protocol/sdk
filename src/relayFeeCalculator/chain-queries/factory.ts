@@ -25,7 +25,7 @@ export class QueryBase__factory {
     provider: providers.Provider | svmProvider,
     symbolMapping = TOKEN_SYMBOLS_MAP,
     spokePoolAddress = getDeployedAddress("SpokePool", chainId),
-    simulatedRelayerAddress = getDefaultRelayer(chainId),
+    relayerAddress = getDefaultRelayer(chainId),
     coingeckoProApiKey?: string,
     logger: Logger = DEFAULT_LOGGER,
     coingeckoBaseCurrency = "eth"
@@ -34,12 +34,13 @@ export class QueryBase__factory {
 
     const customGasTokenSymbol = CUSTOM_GAS_TOKENS[chainId];
     if (customGasTokenSymbol) {
+      assert(relayerAddress.isEVM());
       return new CustomGasTokenQueries({
         queryBaseArgs: [
           provider as providers.Provider,
           symbolMapping,
           spokePoolAddress,
-          simulatedRelayerAddress,
+          relayerAddress,
           logger,
           coingeckoProApiKey,
           fixedGasPrice[chainId],
@@ -49,11 +50,12 @@ export class QueryBase__factory {
       });
     }
     if (chainIsSvm(chainId)) {
+      assert(relayerAddress.isSVM());
       return new SvmQuery(
         provider as svmProvider,
         symbolMapping,
         SvmAddress.from(spokePoolAddress),
-        SvmAddress.from(simulatedRelayerAddress),
+        relayerAddress,
         logger,
         coingeckoProApiKey,
         fixedGasPrice[chainId],
@@ -66,11 +68,12 @@ export class QueryBase__factory {
       ? asL2Provider(provider as providers.Provider)
       : (provider as providers.Provider);
 
+    assert(relayerAddress.isEVM());
     return new QueryBase(
       provider,
       symbolMapping,
       spokePoolAddress,
-      simulatedRelayerAddress,
+      relayerAddress,
       logger,
       coingeckoProApiKey,
       fixedGasPrice[chainId],

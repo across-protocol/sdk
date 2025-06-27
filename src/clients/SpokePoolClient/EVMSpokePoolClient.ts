@@ -13,7 +13,6 @@ import {
   DepositSearchResult,
   getNetworkName,
   InvalidFill,
-  isZeroAddress,
   MakeOptional,
   toBN,
   EvmAddress,
@@ -195,7 +194,7 @@ export class EVMSpokePoolClient extends SpokePoolClient {
 
     deposit = {
       ...spreadEventWithBlockNumber(event),
-      inputToken: toAddressType(event.args.inputToken, this.chainId),
+      inputToken: toAddressType(event.args.inputToken, event.args.originChainId),
       outputToken: toAddressType(event.args.outputToken, event.args.destinationChainId),
       depositor: toAddressType(event.args.depositor, this.chainId),
       recipient: toAddressType(event.args.recipient, event.args.destinationChainId),
@@ -206,7 +205,7 @@ export class EVMSpokePoolClient extends SpokePoolClient {
       toLiteChain: true, // To be updated immediately afterwards.
     } as DepositWithBlock;
 
-    if (isZeroAddress(deposit.outputToken)) {
+    if (deposit.outputToken.isZeroAddress()) {
       deposit.outputToken = this.getDestinationTokenForDeposit(deposit);
     }
     deposit.fromLiteChain = this.isOriginLiteChain(deposit);

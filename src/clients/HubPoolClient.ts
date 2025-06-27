@@ -49,7 +49,6 @@ import {
   SvmAddress,
   EvmAddress,
   Address,
-  toAddressType,
 } from "../utils";
 import { AcrossConfigStoreClient as ConfigStoreClient } from "./AcrossConfigStoreClient/AcrossConfigStoreClient";
 import { BaseAbstractClient, isUpdateFailureReason, UpdateFailureReason } from "./BaseAbstractClient";
@@ -891,7 +890,7 @@ export class HubPoolClient extends BaseAbstractClient {
       currentTime,
       pendingRootBundleProposal: {
         ...pendingRootBundleProposal,
-        proposer: toAddressType(pendingRootBundleProposal.proposer, this.chainId),
+        proposer: EvmAddress.from(pendingRootBundleProposal.proposer),
       },
       searchEndBlock: searchConfig.to,
       events: _events,
@@ -919,17 +918,16 @@ export class HubPoolClient extends BaseAbstractClient {
       for (const event of events["CrossChainContractsSet"]) {
         const args = spreadEventWithBlockNumber(event) as CrossChainContractsSet & { spokePool: string };
         const dataToAdd: CrossChainContractsSet = {
-          spokePool: toAddressType(args.spokePool, this.chainId),
+          spokePool: EvmAddress.from(args.spokePool),
           blockNumber: args.blockNumber,
           txnRef: args.txnRef,
           logIndex: args.logIndex,
           txnIndex: args.txnIndex,
           l2ChainId: args.l2ChainId,
         };
-        // If the chain is SVM then our `args.spokePool` will be set to the `solanaSpokePool.toAddressUnchecked()` in the
-        // hubpool event because our hub deals with `address` types and not byte32. Therefore, we should confirm that the
-        // `args.spokePool` is the same as the `solanaSpokePool.toAddressUnchecked()`. We can derive the `solanaSpokePool`
-        // address by using the `getDeployedAddress` function.
+
+        // If the chain is SVM then the resulting SpokePool address will be inferred based on the lower 20
+        // bytes of the address. Matching addresses will be promoted to a full 32-byte SvmAddress type.
         if (chainIsSvm(args.l2ChainId)) {
           const solanaSpokePool = getDeployedAddress("SvmSpoke", args.l2ChainId);
           if (!solanaSpokePool) {
@@ -960,7 +958,7 @@ export class HubPoolClient extends BaseAbstractClient {
         // If the destination chain is SVM, then we need to convert the destination token to the Solana address.
         // This is because the HubPool contract only holds a truncated address for the USDC token and currently
         // only supports USDC as a destination token for Solana.
-        let destinationToken = toAddressType(args.destinationToken, this.chainId);
+        let destinationToken: Address = EvmAddress.from(args.destinationToken);
         if (chainIsSvm(args.destinationChainId)) {
           const usdcTokenSol = TOKEN_SYMBOLS_MAP.USDC.addresses[args.destinationChainId];
           const svmUsdc = SvmAddress.from(usdcTokenSol);
@@ -982,7 +980,7 @@ export class HubPoolClient extends BaseAbstractClient {
             [args.l1Token, args.destinationChainId],
             [
               {
-                l1Token: toAddressType(args.l1Token, this.chainId),
+                l1Token: EvmAddress.from(args.l1Token),
                 l2Token: destinationToken,
                 blockNumber: args.blockNumber,
                 txnIndex: args.txnIndex,
