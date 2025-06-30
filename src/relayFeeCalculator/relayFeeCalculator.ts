@@ -27,7 +27,7 @@ import {
   Address,
   EvmAddress,
   SvmAddress,
-  toAddressType
+  toAddressType,
 } from "../utils";
 
 // This needs to be implemented for every chain and passed into RelayFeeCalculator

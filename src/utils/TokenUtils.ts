@@ -136,8 +136,8 @@ export function getTokenInfo(l2Token: Address, chainId: number, tokenMapping = T
 export function getUsdcSymbol(l2Token: Address, chainId: number): string | undefined {
   type TokenRecord = Record<string, { addresses?: Record<number, string> }>;
   const IterableTokenSymbolsMap = TOKEN_SYMBOLS_MAP as TokenRecord;
-  return ["USDC", "USDbC", "USDC.e"].find((token) =>
-    IterableTokenSymbolsMap[token]?.addresses?.[chainId] === l2Token.toNative()
+  return ["USDC", "USDbC", "USDC.e"].find(
+    (token) => IterableTokenSymbolsMap[token]?.addresses?.[chainId] === l2Token.toNative()
   );
 }
 
