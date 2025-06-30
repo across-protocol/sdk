@@ -367,20 +367,7 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
     const depositHash = this.getDepositHash(deposit);
     const fills = this.depositHashesToFills[depositHash] ?? [];
 
-    for (const fill of fills) {
-      const validation = validateFillForDeposit(fill, deposit);
-
-      if (validation.valid) {
-        return FillStatus.Filled;
-      }
-
-      if (isSlowFill(fill)) {
-        return FillStatus.RequestedSlowFill;
-      }
-    }
-
-    // If there are fills for deposit, and there is no valid fill for it,
-    return FillStatus.Unfilled;
+    return fills.some((fill) => validateFillForDeposit(fill, deposit).valid) ? FillStatus.Filled : FillStatus.Unfilled;
   }
 
   // @TODO: Remove this method after refactoring relayer repo.
