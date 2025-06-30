@@ -43,6 +43,7 @@ import {
   invalidOutputToken,
   Address,
   getNetworkName,
+  toBytes32,
 } from "../../utils";
 import winston from "winston";
 import {
@@ -327,7 +328,9 @@ export class BundleDataClient {
               Object.entries(tokenData).map(([token, data]) => [
                 token,
                 {
-                  refunds: data.refunds,
+                  refunds: Object.fromEntries(
+                    Object.entries(data.refunds).map(([refundAddress, refund]) => [toBytes32(refundAddress), refund])
+                  ),
                   totalRefundAmount: data.totalRefundAmount,
                   realizedLpFees: data.realizedLpFees,
                   fills: convertSortableEventFieldsIntoRequiredFields(data.fills),
