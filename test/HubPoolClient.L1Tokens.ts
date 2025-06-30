@@ -48,7 +48,11 @@ describe("HubPoolClient: L1Tokens", function () {
     await hubPool.connect(owner).enableL1TokenForLiquidityProvision(l1Token3.address);
 
     await hubPoolClient.update();
-    expect(hubPoolClient.getL1Tokens()).to.deep.equal([
+    expect(
+      hubPoolClient.getL1Tokens().map((l1Token) => {
+        return { ...l1Token, address: l1Token.address.toNative() };
+      })
+    ).to.deep.equal([
       { address: l1Token1.address, symbol: "Coin1", decimals: 18 },
       { address: l1Token2.address, symbol: "Coin2", decimals: 17 },
       { address: l1Token3.address, symbol: "Coin3", decimals: 16 },

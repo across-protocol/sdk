@@ -34,7 +34,16 @@ import {
 import bs58 from "bs58";
 import { ethers } from "ethers";
 import { FillType, RelayData } from "../../interfaces";
-import { BigNumber, EvmAddress, SvmAddress, chainIsProd, getRelayDataHash, isUint8Array, mapAsync } from "../../utils";
+import {
+  BigNumber,
+  EvmAddress,
+  Address as SdkAddress,
+  SvmAddress,
+  chainIsProd,
+  getRelayDataHash,
+  isUint8Array,
+  mapAsync,
+} from "../../utils";
 import { createReceiveMessageInstruction, getAssociatedTokenAddress } from "./SpokeUtils";
 import { AttestedCCTPMessage, EventName, SVMEventNames, SVMProvider } from "./types";
 
@@ -63,7 +72,7 @@ export async function isDevnet(rpc: SVMProvider): Promise<boolean> {
 /**
  * Small utility to convert an Address to a Solana Kit branded type.
  */
-export function toAddress(address: EvmAddress | SvmAddress): Address<string> {
+export function toAddress(address: SdkAddress): Address<string> {
   return address.toBase58() as Address<string>;
 }
 
@@ -162,7 +171,7 @@ export function unwrapEventData(
   }
   // Handle strings (potential addresses)
   if (typeof data === "string" && isAddress(data)) {
-    return SvmAddress.from(data).toBytes32();
+    return ethers.utils.hexlify(bs58.decode(data));
   }
   // Handle objects
   if (typeof data === "object") {
@@ -298,13 +307,13 @@ export async function getInstructionParamsPda(programId: Address, signer: Addres
  * Returns the PDA for the Event Authority.
  * @returns The PDA for the Event Authority.
  */
-export const getEventAuthority = async () => {
+export async function getEventAuthority(programId: Address): Promise<Address> {
   const [eventAuthority] = await getProgramDerivedAddress({
-    programAddress: address(SvmSpokeClient.SVM_SPOKE_PROGRAM_ADDRESS),
+    programAddress: programId,
     seeds: ["__event_authority"],
   });
   return eventAuthority;
-};
+}
 
 /**
  * Returns the PDA for the Self Authority.
@@ -456,7 +465,7 @@ export async function getAccountMetasForTokenlessMessage(): Promise<IAccountMeta
     { address: await getSelfAuthority(), role: AccountRole.READONLY },
     { address: SvmSpokeClient.SVM_SPOKE_PROGRAM_ADDRESS, role: AccountRole.READONLY },
     { address: statePda, role: AccountRole.WRITABLE },
-    { address: await getEventAuthority(), role: AccountRole.READONLY },
+    { address: await getEventAuthority(SvmSpokeClient.SVM_SPOKE_PROGRAM_ADDRESS), role: AccountRole.READONLY },
     { address: SvmSpokeClient.SVM_SPOKE_PROGRAM_ADDRESS, role: AccountRole.READONLY },
   ];
 }
