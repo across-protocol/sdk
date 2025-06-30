@@ -20,12 +20,12 @@ import { CHAIN_IDs } from "../../constants";
 import { getGasPriceEstimate } from "../../gasPriceOracle";
 import { RelayData } from "../../interfaces";
 import {
+  Address,
   BigNumber,
   BigNumberish,
   SvmAddress,
   TransactionCostEstimate,
   getRelayDataHash,
-  toAddressType,
   toBN,
 } from "../../utils";
 import { Logger, QueryInterface, getDefaultRelayer } from "../relayFeeCalculator";
@@ -76,7 +76,7 @@ export class SvmQuery implements QueryInterface {
    */
   async getGasCosts(
     relayData: RelayData & { destinationChainId: number },
-    relayer = toAddressType(getDefaultRelayer(relayData.destinationChainId), relayData.destinationChainId),
+    relayer = getDefaultRelayer(relayData.destinationChainId),
     options: Partial<{
       gasPrice: BigNumberish;
       gasUnits: BigNumberish;
@@ -84,12 +84,19 @@ export class SvmQuery implements QueryInterface {
       priorityFeeMultiplier: BigNumber;
     }> = {}
   ): Promise<TransactionCostEstimate> {
-    const { recipient, outputToken, exclusiveRelayer } = relayData;
+    const { destinationChainId, recipient, outputToken, exclusiveRelayer } = relayData;
     assert(recipient.isSVM(), `getGasCosts: recipient not an SVM address (${recipient})`);
     assert(outputToken.isSVM(), `getGasCosts: outputToken not an SVM address (${outputToken})`);
     assert(exclusiveRelayer.isSVM(), `getGasCosts: exclusiveRelayer not an SVM address (${exclusiveRelayer})`);
+    assert(relayer.isSVM());
 
-    const fillRelayTx = await this.getFillRelayTx({ ...relayData, recipient, outputToken, exclusiveRelayer }, relayer);
+    const [repaymentChainId, repaymentAddress] = [destinationChainId, relayer]; // These are not important for gas cost simulation.
+    const fillRelayTx = await this.getFillRelayTx(
+      { ...relayData, recipient, outputToken, exclusiveRelayer },
+      relayer,
+      repaymentChainId,
+      repaymentAddress
+    );
 
     const [computeUnitsConsumed, gasPriceEstimate] = await Promise.all([
       toBN(await this.computeUnitEstimator(fillRelayTx)),
@@ -121,14 +128,21 @@ export class SvmQuery implements QueryInterface {
    */
   async getNativeGasCost(
     deposit: RelayData & { destinationChainId: number },
-    _relayer = toAddressType(getDefaultRelayer(deposit.destinationChainId), deposit.destinationChainId)
+    relayer = getDefaultRelayer(deposit.destinationChainId)
   ): Promise<BigNumber> {
-    const { recipient, outputToken, exclusiveRelayer } = deposit;
+    const { destinationChainId, recipient, outputToken, exclusiveRelayer } = deposit;
     assert(recipient.isSVM(), `getNativeGasCost: recipient not an SVM address (${recipient})`);
     assert(outputToken.isSVM(), `getNativeGasCost: outputToken not an SVM address (${outputToken})`);
     assert(exclusiveRelayer.isSVM(), `getNativeGasCost: exclusiveRelayer not an SVM address (${exclusiveRelayer})`);
+    assert(relayer.isSVM());
 
-    const fillRelayTx = await this.getFillRelayTx({ ...deposit, recipient, outputToken, exclusiveRelayer }, _relayer);
+    const [repaymentChainId, repaymentAddress] = [destinationChainId, relayer]; // These are not important for gas cost simulation.
+    const fillRelayTx = await this.getFillRelayTx(
+      { ...deposit, recipient, outputToken, exclusiveRelayer },
+      relayer,
+      repaymentChainId,
+      repaymentAddress
+    );
     return toBN(await this.computeUnitEstimator(fillRelayTx));
   }
 
@@ -138,15 +152,15 @@ export class SvmQuery implements QueryInterface {
    * @param relayer SVM address of the relayer
    * @returns FillRelay transaction
    */
-  async getFillRelayTx(
+  protected async getFillRelayTx(
     relayData: Omit<RelayData, "recipent" | "outputToken"> & {
       destinationChainId: number;
       recipient: SvmAddress;
       outputToken: SvmAddress;
     },
-    relayer = toAddressType(getDefaultRelayer(relayData.destinationChainId), relayData.destinationChainId),
-    repaymentChainId = relayData.destinationChainId,
-    repaymentAddress = toAddressType(getDefaultRelayer(relayData.destinationChainId), relayData.destinationChainId)
+    relayer: SvmAddress,
+    repaymentChainId: number,
+    repaymentAddress: Address
   ) {
     const { depositor, recipient, inputToken, outputToken, exclusiveRelayer, destinationChainId } = relayData;
 

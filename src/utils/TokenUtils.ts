@@ -2,7 +2,7 @@ import assert from "assert";
 import { BlockTag } from "@ethersproject/abstract-provider";
 import { Contract, providers, Signer } from "ethers";
 import * as constants from "../constants";
-import { TokenInfo } from "../interfaces";
+import { L1TokenInfo, TokenInfo } from "../interfaces";
 import { ERC20__factory } from "../typechain";
 import { BigNumber } from "./BigNumberUtils";
 import { getNetworkName, chainIsL1, chainIsProd } from "./NetworkUtils";
@@ -12,7 +12,7 @@ const { TOKEN_SYMBOLS_MAP, CHAIN_IDs, TOKEN_EQUIVALENCE_REMAPPING } = constants;
 
 type SignerOrProvider = providers.Provider | Signer;
 
-export async function fetchTokenInfo(address: string, signerOrProvider: SignerOrProvider): Promise<TokenInfo> {
+export async function fetchTokenInfo(address: string, signerOrProvider: SignerOrProvider): Promise<L1TokenInfo> {
   const token = new Contract(address, ERC20__factory.abi, signerOrProvider);
   const [symbol, decimals] = await Promise.all([token.symbol(), token.decimals()]);
   return { address: EvmAddress.from(address), symbol, decimals };

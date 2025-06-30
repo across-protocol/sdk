@@ -15,7 +15,6 @@ import {
   bnZero,
   chainIsOPStack,
   fixedPointAdjustment,
-  toAddressType,
   Address,
 } from "../../utils";
 import assert from "assert";
@@ -53,7 +52,7 @@ export class QueryBase implements QueryInterface {
     readonly provider: EvmProvider,
     readonly symbolMapping: SymbolMappingType,
     readonly spokePoolAddress: string,
-    readonly simulatedRelayerAddress: string,
+    readonly simulatedRelayerAddress: EvmAddress,
     readonly logger: Logger,
     readonly coingeckoProApiKey?: string,
     readonly fixedGasPrice?: BigNumberish,
@@ -74,7 +73,7 @@ export class QueryBase implements QueryInterface {
    */
   async getGasCosts(
     relayData: RelayData & { destinationChainId: number },
-    relayer = toAddressType(getDefaultRelayer(relayData.destinationChainId), relayData.destinationChainId),
+    relayer = getDefaultRelayer(relayData.destinationChainId),
     options: Partial<{
       gasPrice: BigNumberish;
       gasUnits: BigNumberish;
@@ -133,7 +132,7 @@ export class QueryBase implements QueryInterface {
       recipient: EvmAddress;
       outputToken: EvmAddress;
     },
-    relayer = toAddressType(getDefaultRelayer(relayData.destinationChainId), relayData.destinationChainId)
+    relayer = getDefaultRelayer(relayData.destinationChainId)
   ): Promise<PopulatedTransaction> {
     return populateV3Relay(this.spokePool, relayData, relayer);
   }
@@ -146,7 +145,7 @@ export class QueryBase implements QueryInterface {
    */
   async getNativeGasCost(
     relayData: RelayData & { destinationChainId: number },
-    relayer = toAddressType(getDefaultRelayer(relayData.destinationChainId), relayData.destinationChainId)
+    relayer = getDefaultRelayer(relayData.destinationChainId)
   ): Promise<BigNumber> {
     const { recipient, outputToken, exclusiveRelayer } = relayData;
     assert(recipient.isEVM(), `getNativeGasCost: recipient not an EVM address (${recipient})`);
@@ -171,7 +170,7 @@ export class QueryBase implements QueryInterface {
    */
   async getOpStackL1DataFee(
     unsignedTx: PopulatedTransaction,
-    relayer = toAddressType(getDefaultRelayer(unsignedTx.chainId), CHAIN_IDs.MAINNET),
+    relayer = getDefaultRelayer(unsignedTx.chainId),
     options: Partial<{
       opStackL2GasUnits: BigNumberish;
       opStackL1DataFeeMultiplier: BigNumber;
