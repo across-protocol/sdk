@@ -1,3 +1,4 @@
+import assert from "assert";
 import { SvmSpokeClient } from "@across-protocol/contracts";
 import { intToU8Array32 } from "@across-protocol/contracts/dist/src/svm/web3-v1/conversionUtils";
 import { SYSTEM_PROGRAM_ADDRESS } from "@solana-program/system";
@@ -17,17 +18,17 @@ import {
 import { Coingecko } from "../../coingecko";
 import { CHAIN_IDs } from "../../constants";
 import { getGasPriceEstimate } from "../../gasPriceOracle";
-import { Deposit } from "../../interfaces";
+import { RelayData } from "../../interfaces";
 import {
+  Address,
   BigNumber,
   BigNumberish,
   SvmAddress,
   TransactionCostEstimate,
   getRelayDataHash,
-  toAddressType,
   toBN,
 } from "../../utils";
-import { Logger, QueryInterface, getDefaultSimulatedRelayerAddress } from "../relayFeeCalculator";
+import { Logger, QueryInterface, getDefaultRelayer } from "../relayFeeCalculator";
 import { SymbolMappingType } from "./";
 
 /**
@@ -65,7 +66,7 @@ export class SvmQuery implements QueryInterface {
 
   /**
    * Retrieves the current gas costs of performing a fillRelay contract at the referenced SpokePool.
-   * @param deposit V3 deposit instance.
+   * @param relayData RelayData instance, supplemented with destinationChainId
    * @param _relayer Relayer address to simulate with.
    * @param options
    * @param options.gasPrice Optional gas price to use for the simulation.
@@ -74,8 +75,8 @@ export class SvmQuery implements QueryInterface {
    * @returns The gas estimate for this function call (multiplied with the optional buffer).
    */
   async getGasCosts(
-    deposit: Omit<Deposit, "messageHash">,
-    _relayer = getDefaultSimulatedRelayerAddress(deposit.destinationChainId),
+    relayData: RelayData & { destinationChainId: number },
+    relayer = getDefaultRelayer(relayData.destinationChainId),
     options: Partial<{
       gasPrice: BigNumberish;
       gasUnits: BigNumberish;
@@ -83,10 +84,19 @@ export class SvmQuery implements QueryInterface {
       priorityFeeMultiplier: BigNumber;
     }> = {}
   ): Promise<TransactionCostEstimate> {
-    const relayer = _relayer
-      ? toAddressType(_relayer, deposit.destinationChainId).forceSvmAddress()
-      : this.simulatedRelayerAddress;
-    const fillRelayTx = await this.getFillRelayTx(deposit, relayer.toBase58());
+    const { destinationChainId, recipient, outputToken, exclusiveRelayer } = relayData;
+    assert(recipient.isSVM(), `getGasCosts: recipient not an SVM address (${recipient})`);
+    assert(outputToken.isSVM(), `getGasCosts: outputToken not an SVM address (${outputToken})`);
+    assert(exclusiveRelayer.isSVM(), `getGasCosts: exclusiveRelayer not an SVM address (${exclusiveRelayer})`);
+    assert(relayer.isSVM());
+
+    const [repaymentChainId, repaymentAddress] = [destinationChainId, relayer]; // These are not important for gas cost simulation.
+    const fillRelayTx = await this.getFillRelayTx(
+      { ...relayData, recipient, outputToken, exclusiveRelayer },
+      relayer,
+      repaymentChainId,
+      repaymentAddress
+    );
 
     const [computeUnitsConsumed, gasPriceEstimate] = await Promise.all([
       toBN(await this.computeUnitEstimator(fillRelayTx)),
@@ -117,77 +127,82 @@ export class SvmQuery implements QueryInterface {
    * @returns Estimated gas cost in compute units
    */
   async getNativeGasCost(
-    deposit: Omit<Deposit, "messageHash">,
-    _relayer = getDefaultSimulatedRelayerAddress(deposit.destinationChainId)
+    deposit: RelayData & { destinationChainId: number },
+    relayer = getDefaultRelayer(deposit.destinationChainId)
   ): Promise<BigNumber> {
-    const fillRelayTx = await this.getFillRelayTx(deposit, _relayer);
+    const { destinationChainId, recipient, outputToken, exclusiveRelayer } = deposit;
+    assert(recipient.isSVM(), `getNativeGasCost: recipient not an SVM address (${recipient})`);
+    assert(outputToken.isSVM(), `getNativeGasCost: outputToken not an SVM address (${outputToken})`);
+    assert(exclusiveRelayer.isSVM(), `getNativeGasCost: exclusiveRelayer not an SVM address (${exclusiveRelayer})`);
+    assert(relayer.isSVM());
+
+    const [repaymentChainId, repaymentAddress] = [destinationChainId, relayer]; // These are not important for gas cost simulation.
+    const fillRelayTx = await this.getFillRelayTx(
+      { ...deposit, recipient, outputToken, exclusiveRelayer },
+      relayer,
+      repaymentChainId,
+      repaymentAddress
+    );
     return toBN(await this.computeUnitEstimator(fillRelayTx));
   }
 
   /**
    * @notice Return the fillRelay transaction for a given deposit
-   * @param deposit
+   * @param relayData RelayData instance, supplemented with destinationChainId
    * @param relayer SVM address of the relayer
    * @returns FillRelay transaction
    */
-  async getFillRelayTx(
-    deposit: Omit<Deposit, "messageHash">,
-    _relayer = getDefaultSimulatedRelayerAddress(deposit.destinationChainId),
-    repaymentChainId = deposit.destinationChainId,
-    repaymentAddress = getDefaultSimulatedRelayerAddress(deposit.destinationChainId)
+  protected async getFillRelayTx(
+    relayData: Omit<RelayData, "recipent" | "outputToken"> & {
+      destinationChainId: number;
+      recipient: SvmAddress;
+      outputToken: SvmAddress;
+    },
+    relayer: SvmAddress,
+    repaymentChainId: number,
+    repaymentAddress: Address
   ) {
-    const toSvmAddress = (address: string, chainId: number) =>
-      toAddress(toAddressType(address, chainId).forceSvmAddress());
+    const { depositor, recipient, inputToken, outputToken, exclusiveRelayer, destinationChainId } = relayData;
 
-    const { depositor, recipient, inputToken, outputToken, exclusiveRelayer, originChainId, destinationChainId } =
-      deposit;
+    // tsc appeasement...should be unnecessary, but isn't. @todo Identify why.
+    assert(recipient.isSVM(), `getFillRelayTx: recipient not an SVM address (${recipient})`);
+    assert(
+      repaymentAddress.isValidOn(repaymentChainId),
+      `getFillRelayTx: repayment address ${repaymentAddress} not valid on chain ${repaymentChainId})`
+    );
 
     const program = toAddress(this.spokePool);
-    const relayer = _relayer
-      ? toAddressType(_relayer, deposit.destinationChainId).forceSvmAddress()
-      : this.simulatedRelayerAddress;
-
-    const _relayDataHash = getRelayDataHash(deposit, destinationChainId);
+    const _relayDataHash = getRelayDataHash(relayData, destinationChainId);
     const relayDataHash = new Uint8Array(Buffer.from(_relayDataHash.slice(2), "hex"));
 
     const [state, delegate] = await Promise.all([
       getStatePda(program),
-      getFillRelayDelegatePda(
-        relayDataHash,
-        BigInt(repaymentChainId),
-        toSvmAddress(repaymentAddress, repaymentChainId),
-        program
-      ),
+      getFillRelayDelegatePda(relayDataHash, BigInt(repaymentChainId), toAddress(repaymentAddress), program),
     ]);
 
-    const _mint = toAddressType(outputToken, destinationChainId).forceSvmAddress();
-    const mint = toAddress(_mint);
+    const mint = toAddress(outputToken);
     const mintInfo = await fetchMint(this.provider, mint);
 
     const [recipientAta, relayerAta, fillStatus, eventAuthority] = await Promise.all([
-      getAssociatedTokenAddress(
-        toAddressType(deposit.recipient, destinationChainId).forceSvmAddress(),
-        _mint,
-        mintInfo.programAddress
-      ),
-      getAssociatedTokenAddress(SvmAddress.from(relayer.toBase58()), _mint, mintInfo.programAddress),
-      getFillStatusPda(program, deposit, destinationChainId),
-      getEventAuthority(),
+      getAssociatedTokenAddress(recipient, outputToken, mintInfo.programAddress),
+      getAssociatedTokenAddress(SvmAddress.from(relayer.toBase58()), outputToken, mintInfo.programAddress),
+      getFillStatusPda(program, relayData, destinationChainId),
+      getEventAuthority(program),
     ]);
 
-    const relayData: SvmSpokeClient.FillRelayInput["relayData"] = {
-      depositor: toSvmAddress(depositor, originChainId),
-      recipient: toSvmAddress(recipient, destinationChainId),
-      exclusiveRelayer: toSvmAddress(exclusiveRelayer, destinationChainId),
-      inputToken: toSvmAddress(inputToken, originChainId),
+    const svmRelayData: SvmSpokeClient.FillRelayInput["relayData"] = {
+      depositor: toAddress(depositor),
+      recipient: toAddress(recipient),
+      exclusiveRelayer: toAddress(exclusiveRelayer),
+      inputToken: toAddress(inputToken),
       outputToken: mint,
-      inputAmount: deposit.inputAmount.toBigInt(),
-      outputAmount: deposit.outputAmount.toBigInt(),
-      originChainId: deposit.originChainId,
-      depositId: new Uint8Array(intToU8Array32(deposit.depositId.toNumber())),
-      fillDeadline: deposit.fillDeadline,
-      exclusivityDeadline: deposit.exclusivityDeadline,
-      message: new Uint8Array(Buffer.from(deposit.message, "hex")),
+      inputAmount: relayData.inputAmount.toBigInt(),
+      outputAmount: relayData.outputAmount.toBigInt(),
+      originChainId: relayData.originChainId,
+      depositId: new Uint8Array(intToU8Array32(relayData.depositId.toNumber())),
+      fillDeadline: relayData.fillDeadline,
+      exclusivityDeadline: relayData.exclusivityDeadline,
+      message: new Uint8Array(Buffer.from(relayData.message, "hex")),
     };
 
     const simulatedSigner = SolanaVoidSigner(relayer.toBase58());
@@ -205,9 +220,9 @@ export class SvmQuery implements QueryInterface {
       eventAuthority,
       program,
       relayHash: relayDataHash,
-      relayData,
+      relayData: svmRelayData,
       repaymentChainId: BigInt(repaymentChainId),
-      repaymentAddress: toSvmAddress(repaymentAddress, repaymentChainId),
+      repaymentAddress: toAddress(repaymentAddress),
     };
     // Pass createRecipientAtaIfNeeded =true to the createFillInstruction function to create the recipient token account
     // if it doesn't exist.

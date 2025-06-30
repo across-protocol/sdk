@@ -13,6 +13,7 @@ export {
   SVMSpokePoolClient,
   isEVMSpokePoolClient,
   isSVMSpokePoolClient,
+  SpokePoolManager,
 } from "./SpokePoolClient";
 export * as BundleDataClient from "./BundleDataClient";
 export * as mocks from "./mocks";

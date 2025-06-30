@@ -1,4 +1,5 @@
 import assert from "assert";
+import { utils as ethersUtils } from "ethers";
 import { createHash } from "crypto";
 import { hexlify, arrayify, hexZeroPad } from "ethers/lib/utils";
 import { random } from "lodash";
@@ -17,8 +18,10 @@ import {
   SVMProvider,
   getRandomSvmAddress,
 } from "../../arch/svm";
-import { bnZero, bnOne, bs58, getCurrentTime, randomAddress, EvmAddress } from "../../utils";
+import { bnZero, bnOne, bs58, getCurrentTime, randomAddress, EvmAddress, SvmAddress } from "../../utils";
 import { FillType } from "../../interfaces";
+
+const randomBytes = (n: number) => ethersUtils.hexlify(ethersUtils.randomBytes(n));
 
 export class MockSvmCpiEventsClient extends SvmCpiEventsClient {
   private events: Record<EventName, EventWithData[]> = {} as Record<EventName, EventWithData[]>;
@@ -75,9 +78,9 @@ export class MockSvmCpiEventsClient extends SvmCpiEventsClient {
 
     destinationChainId ??= BigInt(random(1, 42161, false));
     const depositor = deposit.depositor ?? getRandomSvmAddress();
-    const recipient = deposit.recipient ?? EvmAddress.from(randomAddress()).toBase58();
+    const recipient = deposit.recipient ?? SvmAddress.from(randomBytes(32), "base16").toBase58();
     const inputToken = deposit.inputToken ?? getRandomSvmAddress();
-    const outputToken = deposit.outputToken ?? EvmAddress.from(randomAddress()).toBase58();
+    const outputToken = deposit.outputToken ?? SvmAddress.from(randomBytes(32), "base16").toBase58();
     inputAmount ??= BigInt(random(1, 1000, false));
     outputAmount ??= (inputAmount * BigInt(95)) / BigInt(100);
     const message = deposit.message ?? new Uint8Array(32);
@@ -158,9 +161,9 @@ export class MockSvmCpiEventsClient extends SvmCpiEventsClient {
     let { depositId, originChainId } = slowFillRequest;
     depositId ??= Uint8Array.from([random(1, 100_000, false)]);
     originChainId ??= BigInt(random(1, 42161, false));
-    const depositor = slowFillRequest.depositor ?? EvmAddress.from(randomAddress()).toBase58();
+    const depositor = slowFillRequest.depositor ?? SvmAddress.from(randomBytes(32)).toBase58();
     const recipient = slowFillRequest.recipient ?? getRandomSvmAddress();
-    const inputToken = slowFillRequest.inputToken ?? EvmAddress.from(randomAddress()).toBase58();
+    const inputToken = slowFillRequest.inputToken ?? SvmAddress.from(randomBytes(32)).toBase58();
     const outputToken = slowFillRequest.outputToken ?? getRandomSvmAddress();
 
     const args = {
