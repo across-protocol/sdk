@@ -495,7 +495,13 @@ describe("RelayFeeCalculator: Composable Bridging", function () {
     spokePool = spokePool.connect(relayer);
 
     testContract = await hre["upgrades"].deployProxy(await getContractFactory("MockAcrossMessageContract", owner), []);
-    queries = QueryBase__factory.create(1, spokePool.provider, tokenMap, spokePool.address, EvmAddress.from(relayer.address));
+    queries = QueryBase__factory.create(
+      1,
+      spokePool.provider,
+      tokenMap,
+      spokePool.address,
+      EvmAddress.from(relayer.address)
+    );
     client = new RelayFeeCalculator({ queries, capitalCostsConfig: testCapitalCostsConfig });
 
     testGasFeePct = (message?: string) =>
