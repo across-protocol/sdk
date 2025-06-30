@@ -112,13 +112,12 @@ export function isStablecoin(tokenSymbol: string): boolean {
  */
 export function getTokenInfo(l2Token: Address, chainId: number, tokenMapping = TOKEN_SYMBOLS_MAP): TokenInfo {
   const address = l2Token.toNative();
-  assert(l2Token.isValidOn(chainId), `Token ${address} not valid on ${getNetworkName(chainId)}`);
 
   // @dev This might give false positives if tokens on different networks have the same address. I'm not sure how
   // to get around this...
   let tokenObject = Object.values(tokenMapping).find(({ addresses }) => addresses[chainId] === address);
   if (!tokenObject) {
-    throw new Error(`TokenUtils#getTokenInfo: Unable to resolve token info for ${address} on chain ${chainId}`);
+    throw new Error(`Unable to resolve token info for ${address} on chain ${chainId}`);
   }
   if (chainIsL1(chainId)) {
     const l1TokenSymbol = TOKEN_EQUIVALENCE_REMAPPING[tokenObject.symbol] ?? tokenObject.symbol;
