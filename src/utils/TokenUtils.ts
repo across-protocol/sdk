@@ -150,8 +150,8 @@ export function getL1TokenAddress(l2TokenAddress: Address, chainId: number): Evm
     return l2TokenAddress;
   }
 
-  const tokenObject = Object.values(TOKEN_SYMBOLS_MAP).find(({ addresses }) =>
-    l2TokenAddress.toNative() === addresses[chainId]
+  const tokenObject = Object.values(TOKEN_SYMBOLS_MAP).find(
+    ({ addresses }) => l2TokenAddress.toNative() === addresses[chainId]
   );
   const l1TokenAddress = tokenObject?.addresses[chainIsProd(chainId) ? CHAIN_IDs.MAINNET : CHAIN_IDs.SEPOLIA];
   if (!l1TokenAddress) {
