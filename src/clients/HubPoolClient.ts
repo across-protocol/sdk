@@ -281,13 +281,12 @@ export class HubPoolClient extends BaseAbstractClient {
    * @param chainId Chain where the `tokenAddress` exists in TOKEN_SYMBOLS_MAP.
    * @returns Token info for the given token address on the L2 chain including symbol and decimal.
    */
-  // TODO: didn't change `tokenAddress` here to Address because of downstream getTokenInfo impl
-  getTokenInfoForAddress(tokenAddress: string, chainId: number): TokenInfo {
-    const tokenInfo = getTokenInfo(tokenAddress, chainId);
+  getTokenInfoForAddress(address: Address, chainId: number): TokenInfo {
+    const tokenInfo = getTokenInfo(address, chainId);
     // @dev Temporarily handle case where an L2 token for chain ID can map to more than one TOKEN_SYMBOLS_MAP
     // entry. For example, L2 Bridged USDC maps to both the USDC and USDC.e/USDbC entries in TOKEN_SYMBOLS_MAP.
     if (tokenInfo.symbol.toLowerCase() === "usdc" && chainId !== this.chainId) {
-      tokenInfo.symbol = getUsdcSymbol(tokenAddress, chainId) ?? "UNKNOWN";
+      tokenInfo.symbol = getUsdcSymbol(address, chainId) ?? "UNKNOWN";
     }
     return tokenInfo;
   }
