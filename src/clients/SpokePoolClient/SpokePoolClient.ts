@@ -371,7 +371,11 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
       const validation = validateFillForDeposit(fill, deposit);
 
       if (validation.valid) {
-        return isSlowFill(fill) ? FillStatus.RequestedSlowFill : FillStatus.Filled;
+        return FillStatus.Filled;
+      }
+
+      if (isSlowFill(fill)) {
+        return FillStatus.RequestedSlowFill;
       }
     }
 
