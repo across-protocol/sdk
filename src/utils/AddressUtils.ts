@@ -243,8 +243,8 @@ export class EvmAddress extends Address {
   }
 
   // Constructs a new EvmAddress type.
-  static from(address: string, encoding: "base58" | "base16" = "base16"): EvmAddress {
-    return encoding === "base16" ? new this(utils.arrayify(address)) : new this(bs58.decode(address));
+  static from(address: string): EvmAddress {
+    return address.startsWith("0x") ? new this(utils.arrayify(address)) : new this(bs58.decode(address));
   }
 }
 
@@ -283,8 +283,8 @@ export class SvmAddress extends Address {
   }
 
   // Constructs a new SvmAddress type.
-  static from(address: string, encoding: "base58" | "base16" = "base58"): SvmAddress {
-    return encoding === "base58" ? new this(bs58.decode(address)) : new this(utils.arrayify(address));
+  static from(address: string): SvmAddress {
+    return address.startsWith("0x") ? new this(utils.arrayify(address)) : new this(bs58.decode(address));
   }
 }
 
