@@ -367,7 +367,7 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
     const depositHash = this.getDepositHash(deposit);
     const fills = this.depositHashesToFills[depositHash] ?? [];
 
-    return fills.some((fill) => validateFillForDeposit(fill, deposit).valid) ? true : false;
+    return fills.some((fill) => validateFillForDeposit(fill, deposit).valid);
   }
 
   // @TODO: Remove this method after refactoring relayer repo.
