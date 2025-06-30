@@ -144,12 +144,19 @@ export function getUsdcSymbol(l2Token: Address, chainId: number): string | undef
 /**
  * @notice Returns the l1 token address matching the given l2TokenAddress and chainId.
  */
-export function getL1TokenAddress(l2TokenAddress: string, chainId: number): string {
-  if (chainIsL1(chainId)) return l2TokenAddress;
-  const tokenObject = Object.values(TOKEN_SYMBOLS_MAP).find(({ addresses }) => addresses[chainId] === l2TokenAddress);
+export function getL1TokenAddress(l2TokenAddress: Address, chainId: number): EvmAddress {
+  if (chainIsL1(chainId)) {
+    assert(l2TokenAddress.isEVM());
+    return l2TokenAddress;
+  }
+
+  const tokenObject = Object.values(TOKEN_SYMBOLS_MAP).find(({ addresses }) =>
+    l2TokenAddress.toNative() === addresses[chainId]
+  );
   const l1TokenAddress = tokenObject?.addresses[chainIsProd(chainId) ? CHAIN_IDs.MAINNET : CHAIN_IDs.SEPOLIA];
   if (!l1TokenAddress) {
     throw new Error(`getL1TokenAddress: Unable to resolve l1 token for L2 token ${l2TokenAddress} on chain ${chainId}`);
   }
-  return l1TokenAddress;
+
+  return EvmAddress.from(l1TokenAddress);
 }
