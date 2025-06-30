@@ -428,7 +428,10 @@ export const hasCCTPV1MessageBeenProcessed = async (
     usedNonces: noncePda,
   });
   const parserFunction = (buf: Buffer): boolean => {
-    return buf.length == 1 && Boolean(buf[0]);
+    if (buf.length != 1) {
+      throw new Error("Invalid buffer length for isNonceUsedIx");
+    }
+    return Boolean(buf[0]);
   };
   return await simulateAndDecode(solanaClient, isNonceUsedIx, signer, parserFunction);
 };
