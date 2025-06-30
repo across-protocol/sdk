@@ -390,7 +390,7 @@ export const getCCTPNoncePda = async (
 ) => {
   const [messageTransmitterPda] = await getProgramDerivedAddress({
     programAddress: MessageTransmitterClient.MESSAGE_TRANSMITTER_PROGRAM_ADDRESS,
-    seeds: [Buffer.from("message_transmitter")],
+    seeds: ["message_transmitter"],
   });
   const getNonceIx = await MessageTransmitterClient.getGetNoncePdaInstruction({
     messageTransmitter: messageTransmitterPda,
@@ -480,27 +480,27 @@ async function getAccountMetasForDepositMessage(
 
   const [tokenMessengerPda] = await getProgramDerivedAddress({
     programAddress: tokenMessengerMinter,
-    seeds: [Buffer.from("token_messenger")],
+    seeds: ["token_messenger"],
   });
 
   const [tokenMinterPda] = await getProgramDerivedAddress({
     programAddress: tokenMessengerMinter,
-    seeds: [Buffer.from("token_minter")],
+    seeds: ["token_minter"],
   });
 
   const [localTokenPda] = await getProgramDerivedAddress({
     programAddress: tokenMessengerMinter,
-    seeds: [Buffer.from("local_token"), bs58.decode(l2Usdc.toBase58())],
+    seeds: ["local_token", bs58.decode(l2Usdc.toBase58())],
   });
 
   const [tokenMessengerEventAuthorityPda] = await getProgramDerivedAddress({
     programAddress: tokenMessengerMinter,
-    seeds: [Buffer.from("__event_authority")],
+    seeds: ["__event_authority"],
   });
 
   const [custodyTokenAccountPda] = await getProgramDerivedAddress({
     programAddress: tokenMessengerMinter,
-    seeds: [Buffer.from("custody"), bs58.decode(l2Usdc.toBase58())],
+    seeds: ["custody", bs58.decode(l2Usdc.toBase58())],
   });
 
   const state = await getStatePda(SvmSpokeClient.SVM_SPOKE_PROGRAM_ADDRESS);
@@ -523,7 +523,7 @@ async function getAccountMetasForDepositMessage(
 
   const [remoteTokenMessengerPda] = await getProgramDerivedAddress({
     programAddress: tokenMessengerMinter,
-    seeds: [Buffer.from("remote_token_messenger"), Buffer.from(String(message.sourceDomain))],
+    seeds: ["remote_token_messenger", Buffer.from(String(message.sourceDomain))],
   });
 
   return [
@@ -560,7 +560,7 @@ export async function finalizeCCTPV1Messages(
 ): Promise<string[]> {
   const [messageTransmitterPda] = await getProgramDerivedAddress({
     programAddress: MessageTransmitterClient.MESSAGE_TRANSMITTER_PROGRAM_ADDRESS,
-    seeds: [Buffer.from("message_transmitter")],
+    seeds: ["message_transmitter"],
   });
 
   const [eventAuthorityPda] = await getProgramDerivedAddress({
@@ -575,7 +575,7 @@ export async function finalizeCCTPV1Messages(
 
     const [authorityPda] = await getProgramDerivedAddress({
       programAddress: MessageTransmitterClient.MESSAGE_TRANSMITTER_PROGRAM_ADDRESS,
-      seeds: [Buffer.from("message_transmitter_authority"), bs58.decode(cctpMessageReceiver)],
+      seeds: ["message_transmitter_authority", bs58.decode(cctpMessageReceiver)],
     });
 
     // Notice: message.nonce is only valid for v1 messages
