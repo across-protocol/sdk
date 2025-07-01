@@ -1,7 +1,16 @@
 import assert from "assert";
 import { SpokePoolClient } from "../clients";
 import { DEFAULT_CACHING_TTL, EMPTY_MESSAGE, UNDEFINED_MESSAGE_HASH, ZERO_BYTES } from "../constants";
-import { CachingMechanismInterface, Deposit, DepositWithBlock, Fill, RelayData, SlowFillRequest } from "../interfaces";
+import {
+  CachingMechanismInterface,
+  Deposit,
+  DepositWithBlock,
+  Fill,
+  RelayData,
+  SlowFillRequest,
+  ConvertedRelayData,
+  ConvertedFill,
+} from "../interfaces";
 import { getMessageHash, isUnsafeDepositId } from "./SpokeUtils";
 import { getNetworkName } from "./NetworkUtils";
 import { bnZero } from "./BigNumberUtils";
@@ -250,4 +259,43 @@ export function resolveDepositMessage(deposit: Deposit): string {
   const message = isDepositSpedUp(deposit) ? deposit.updatedMessage : deposit.message;
   assert(isDefined(message)); // Appease tsc about the updatedMessage being possibly undefined.
   return message;
+}
+
+/**
+ * Converts a RelayData object with `Address` types as address fields to a `RelayData`-like object with
+ * strings as address fields.
+ * @param relayData RelayData type.
+ * @returns a RelayData-like type which has strings as fields.
+ */
+export function convertRelayDataParamsToBytes32(relayData: RelayData): ConvertedRelayData {
+  return {
+    ...relayData,
+    depositor: relayData.depositor.toBytes32(),
+    recipient: relayData.recipient.toBytes32(),
+    inputToken: relayData.inputToken.toBytes32(),
+    outputToken: relayData.outputToken.toBytes32(),
+    exclusiveRelayer: relayData.exclusiveRelayer.toBytes32(),
+  };
+}
+
+/**
+ * Converts a Fill object with `Address` types as address fields to a `RelayData`-like object with
+ * strings as address fields.
+ * @param relayData RelayData type.
+ * @returns a RelayData-like type which has strings as fields.
+ */
+export function convertFillParamsToBytes32(fill: Fill): ConvertedFill {
+  return {
+    ...fill,
+    depositor: fill.depositor.toBytes32(),
+    recipient: fill.recipient.toBytes32(),
+    inputToken: fill.inputToken.toBytes32(),
+    outputToken: fill.outputToken.toBytes32(),
+    exclusiveRelayer: fill.exclusiveRelayer.toBytes32(),
+    relayer: fill.relayer.toBytes32(),
+    relayExecutionInfo: {
+      ...fill.relayExecutionInfo,
+      updatedRecipient: fill.relayExecutionInfo.updatedRecipient.toBytes32(),
+    },
+  };
 }
