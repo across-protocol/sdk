@@ -257,7 +257,7 @@ export class SVMSpokePoolClient extends SpokePoolClient {
         originChainId: this.chainId,
         fromLiteChain: this.isOriginLiteChain(deposit),
         toLiteChain: this.isDestinationLiteChain(deposit),
-        outputToken: isZeroAddress(deposit.outputToken)
+        outputToken: deposit.outputToken.isZeroAddress()
           ? this.getDestinationTokenForDeposit(deposit)
           : deposit.outputToken,
       }))

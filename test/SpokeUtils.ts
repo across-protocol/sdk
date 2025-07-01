@@ -8,6 +8,8 @@ import {
   randomAddress,
   toBN,
   validateFillForDeposit,
+  toAddressType,
+  InvalidFill,
 } from "../src/utils";
 import { expect, deploySpokePoolWithToken, Contract } from "./utils";
 import { MockSpokePoolClient } from "./mocks";
@@ -18,10 +20,10 @@ const randomBytes = () => `0x${ethersUtils.randomBytes(48).join("").slice(0, 64)
 const dummyLogger = winston.createLogger({ transports: [new winston.transports.Console()] });
 
 const dummyFillProps = {
-  relayer: randomAddress(),
+  relayer: toAddressType(randomAddress(), 1),
   repaymentChainId: random(),
   relayExecutionInfo: {
-    updatedRecipient: randomAddress(),
+    updatedRecipient: toAddressType(randomAddress(), 1),
     updatedOutputAmount: toBN(random()),
     updatedMessageHash: ZERO_BYTES,
     fillType: 0,
@@ -42,17 +44,17 @@ describe("SpokeUtils", function () {
   const sampleData = {
     originChainId: random(),
     destinationChainId: random(),
-    depositor: randomAddress(),
-    recipient: randomAddress(),
-    inputToken: randomAddress(),
+    depositor: toAddressType(randomAddress(), 1),
+    recipient: toAddressType(randomAddress(), 1),
+    inputToken: toAddressType(randomAddress(), 1),
     inputAmount: toBN(random()),
-    outputToken: randomAddress(),
+    outputToken: toAddressType(randomAddress(), 1),
     outputAmount: toBN(random()),
     message,
     messageHash,
     depositId: toBN(random()),
     fillDeadline: random(),
-    exclusiveRelayer: randomAddress(),
+    exclusiveRelayer: toAddressType(randomAddress(), 1),
     exclusivityDeadline: random(),
     ...dummyFillProps,
   };
@@ -137,7 +139,7 @@ describe("SpokeUtils", function () {
       mockSpokePoolClient.getFills = () => [];
       mockSpokePoolClient.findAllDeposits = async () => {
         await Promise.resolve();
-        return { found: false, code: 0, reason: "Deposit not found" };
+        return { found: false, code: InvalidFill.DepositIdNotFound, reason: "Deposit not found" };
       };
 
       mockSpokePoolClients = {
@@ -192,10 +194,10 @@ describe("SpokeUtils", function () {
         quoteBlockNumber: random(),
         fromLiteChain: false,
         toLiteChain: false,
-        relayer: randomAddress(),
+        relayer: toAddressType(randomAddress(), 1),
         repaymentChainId: random(),
         relayExecutionInfo: {
-          updatedRecipient: randomAddress(),
+          updatedRecipient: toAddressType(randomAddress(), 1),
           updatedOutputAmount: sampleData.outputAmount,
           updatedMessageHash: sampleData.messageHash,
           fillType: 0,
@@ -204,11 +206,11 @@ describe("SpokeUtils", function () {
 
       const fill = {
         ...deposit,
-        recipient: randomAddress(),
-        relayer: randomAddress(),
+        recipient: toAddressType(randomAddress(), 1),
+        relayer: toAddressType(randomAddress(), 1),
         repaymentChainId: random(),
         relayExecutionInfo: {
-          updatedRecipient: randomAddress(),
+          updatedRecipient: toAddressType(randomAddress(), 1),
           updatedOutputAmount: deposit.outputAmount,
           updatedMessageHash: deposit.messageHash,
           fillType: 0,
@@ -241,7 +243,7 @@ describe("SpokeUtils", function () {
         quoteBlockNumber: random(),
         fromLiteChain: false,
         toLiteChain: false,
-        relayer: randomAddress(),
+        relayer: toAddressType(randomAddress(), 1),
         repaymentChainId: random(),
         relayExecutionInfo: {
           updatedRecipient: sampleData.recipient,
@@ -253,7 +255,7 @@ describe("SpokeUtils", function () {
 
       const validFill = {
         ...validDeposit,
-        relayer: randomAddress(),
+        relayer: toAddressType(randomAddress(), 1),
         repaymentChainId: random(),
         relayExecutionInfo: {
           updatedRecipient: validDeposit.recipient,
@@ -265,11 +267,11 @@ describe("SpokeUtils", function () {
 
       const invalidFill = {
         ...validDeposit,
-        recipient: randomAddress(),
-        relayer: randomAddress(),
+        recipient: toAddressType(randomAddress(), 1),
+        relayer: toAddressType(randomAddress(), 1),
         repaymentChainId: random(),
         relayExecutionInfo: {
-          updatedRecipient: randomAddress(),
+          updatedRecipient: toAddressType(randomAddress(), 1),
           updatedOutputAmount: validDeposit.outputAmount,
           updatedMessageHash: validDeposit.messageHash,
           fillType: 0,

@@ -1,5 +1,5 @@
 import { EVMSpokePoolClient, SpokePoolClient } from "../src/clients";
-import { bnOne, toBN, InvalidFill, deploy as deployMulticall, getRelayEventKey } from "../src/utils";
+import { bnOne, toBN, InvalidFill, deploy as deployMulticall, getRelayEventKey, toAddressType, Address } from "../src/utils";
 import { CHAIN_ID_TEST_LIST, originChainId, destinationChainId, repaymentChainId } from "./constants";
 import {
   expect,
@@ -28,7 +28,7 @@ describe("SpokePoolClient: Find Deposits", function () {
   let l1Token: Contract, configStore: Contract;
   let spyLogger: winston.Logger;
   let spokePoolClient1: SpokePoolClient, configStoreClient: MockConfigStoreClient;
-  let inputToken: string, outputToken: string;
+  let inputToken: Address, outputToken: Address;
   let inputAmount: BigNumber, outputAmount: BigNumber;
   let hubPoolClient: MockHubPoolClient;
 
@@ -69,9 +69,9 @@ describe("SpokePoolClient: Find Deposits", function () {
     await setupTokensForWallet(spokePool_1, depositor, [erc20_1], undefined, 10);
     await setupTokensForWallet(spokePool_2, relayer, [erc20_2], undefined, 10);
     await spokePool_1.setCurrentTime(await getLastBlockTime(spokePool_1.provider));
-    inputToken = erc20_1.address;
+    inputToken = toAddressType(erc20_1.address, originChainId);
     inputAmount = toBNWei(1);
-    outputToken = erc20_2.address;
+    outputToken = toAddressType(erc20_2.address, destinationChainId);
     outputAmount = inputAmount.sub(bnOne);
   });
 
@@ -91,17 +91,16 @@ describe("SpokePoolClient: Find Deposits", function () {
       expect(result.found).to.be.true;
       if (result.found) {
         expect(result.deposits).to.have.lengthOf(1);
-        expect(result.deposits[0]).to.deep.include({
-          depositId: depositEvent.depositId,
-          originChainId: depositEvent.originChainId,
-          destinationChainId: depositEvent.destinationChainId,
-          depositor: depositEvent.depositor,
-          recipient: depositEvent.recipient,
-          inputToken: depositEvent.inputToken,
-          outputToken: depositEvent.outputToken,
-          inputAmount: depositEvent.inputAmount,
-          outputAmount: depositEvent.outputAmount,
-        });
+        const foundDeposit = result.deposits[0];
+        expect(foundDeposit.depositId).to.equal(depositEvent.depositId);
+        expect(foundDeposit.originChainId).to.equal(depositEvent.originChainId);
+        expect(foundDeposit.destinationChainId).to.equal(depositEvent.destinationChainId);
+        expect(foundDeposit.depositor.eq(depositEvent.depositor)).to.be.true;
+        expect(foundDeposit.recipient.eq(depositEvent.recipient)).to.be.true;
+        expect(foundDeposit.inputToken.eq(depositEvent.inputToken)).to.be.true;
+        expect(foundDeposit.outputToken.eq(depositEvent.outputToken)).to.be.true;
+        expect(foundDeposit.inputAmount).to.equal(depositEvent.inputAmount);
+        expect(foundDeposit.outputAmount).to.equal(depositEvent.outputAmount);
       }
     });
 
@@ -131,17 +130,16 @@ describe("SpokePoolClient: Find Deposits", function () {
       expect(result.found).to.be.true;
       if (result.found) {
         expect(result.deposits).to.have.lengthOf(1);
-        expect(result.deposits[0]).to.deep.include({
-          depositId: depositEvent.depositId,
-          originChainId: depositEvent.originChainId,
-          destinationChainId: depositEvent.destinationChainId,
-          depositor: depositEvent.depositor,
-          recipient: depositEvent.recipient,
-          inputToken: depositEvent.inputToken,
-          outputToken: depositEvent.outputToken,
-          inputAmount: depositEvent.inputAmount,
-          outputAmount: depositEvent.outputAmount,
-        });
+        const foundDeposit = result.deposits[0];
+        expect(foundDeposit.depositId).to.equal(depositEvent.depositId);
+        expect(foundDeposit.originChainId).to.equal(depositEvent.originChainId);
+        expect(foundDeposit.destinationChainId).to.equal(depositEvent.destinationChainId);
+        expect(foundDeposit.depositor.eq(depositEvent.depositor)).to.be.true;
+        expect(foundDeposit.recipient.eq(depositEvent.recipient)).to.be.true;
+        expect(foundDeposit.inputToken.eq(depositEvent.inputToken)).to.be.true;
+        expect(foundDeposit.outputToken.eq(depositEvent.outputToken)).to.be.true;
+        expect(foundDeposit.inputAmount).to.equal(depositEvent.inputAmount);
+        expect(foundDeposit.outputAmount).to.equal(depositEvent.outputAmount);
       }
     });
 
@@ -163,23 +161,25 @@ describe("SpokePoolClient: Find Deposits", function () {
           depositId: depositEvent.depositId,
           originChainId: depositEvent.originChainId,
           destinationChainId: depositEvent.destinationChainId,
-          depositor: depositEvent.depositor,
-          recipient: depositEvent.recipient,
-          inputToken: depositEvent.inputToken,
+          // These are bytes32 strings, as emitted by the contract event
+          depositor: depositEvent.depositor.toBytes32(),
+          recipient: depositEvent.recipient.toBytes32(),
+          inputToken: depositEvent.inputToken.toBytes32(),
           inputAmount: depositEvent.inputAmount,
-          outputToken: depositEvent.outputToken,
+          outputToken: depositEvent.outputToken.toBytes32(),
           outputAmount: depositEvent.outputAmount,
           quoteTimestamp: depositEvent.quoteTimestamp,
           message: depositEvent.message,
           fillDeadline: depositEvent.fillDeadline,
           exclusivityDeadline: depositEvent.exclusivityDeadline,
-          exclusiveRelayer: depositEvent.exclusiveRelayer,
+          exclusiveRelayer: depositEvent.exclusiveRelayer.toBytes32(),
         },
         blockNumber: depositEvent.blockNumber,
         transactionHash: depositEvent.txnRef,
         transactionIndex: depositEvent.txnIndex,
         logIndex: depositEvent.logIndex,
       };
+      // Note: This matches the contract event output, and the client will convert these to Address objects internally.
       const queryFilterStub = sinon.stub(spokePool_1, "queryFilter");
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       queryFilterStub.resolves([fakeEvent as any]);
@@ -188,17 +188,16 @@ describe("SpokePoolClient: Find Deposits", function () {
       expect(result.found).to.be.true;
       if (result.found) {
         expect(result.deposits).to.have.lengthOf(2);
-        expect(result.deposits[0]).to.deep.include({
-          depositId: depositEvent.depositId,
-          originChainId: depositEvent.originChainId,
-          destinationChainId: depositEvent.destinationChainId,
-          depositor: depositEvent.depositor,
-          recipient: depositEvent.recipient,
-          inputToken: depositEvent.inputToken,
-          outputToken: depositEvent.outputToken,
-          inputAmount: depositEvent.inputAmount,
-          outputAmount: depositEvent.outputAmount,
-        });
+        const foundDeposit = result.deposits[0];
+        expect(foundDeposit.depositId).to.equal(depositEvent.depositId);
+        expect(foundDeposit.originChainId).to.equal(depositEvent.originChainId);
+        expect(foundDeposit.destinationChainId).to.equal(depositEvent.destinationChainId);
+        expect(foundDeposit.depositor.eq(depositEvent.depositor)).to.be.true;
+        expect(foundDeposit.recipient.eq(depositEvent.recipient)).to.be.true;
+        expect(foundDeposit.inputToken.eq(depositEvent.inputToken)).to.be.true;
+        expect(foundDeposit.outputToken.eq(depositEvent.outputToken)).to.be.true;
+        expect(foundDeposit.inputAmount).to.equal(depositEvent.inputAmount);
+        expect(foundDeposit.outputAmount).to.equal(depositEvent.outputAmount);
       }
       queryFilterStub.restore();
     });

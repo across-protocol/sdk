@@ -1,8 +1,7 @@
 import { encodeAbiParameters, Hex, keccak256 } from "viem";
 import { fixedPointAdjustment as fixedPoint } from "./common";
-import { MAX_SAFE_DEPOSIT_ID, ZERO_ADDRESS, ZERO_BYTES } from "../constants";
-import { Deposit, DepositWithBlock, Fill, FillType, InvalidFill, RelayData, SlowFillLeaf } from "../interfaces";
-import { toBytes32 } from "./AddressUtils";
+import { MAX_SAFE_DEPOSIT_ID, ZERO_BYTES } from "../constants";
+import { DepositWithBlock, Fill, FillType, InvalidFill, RelayData, SlowFillLeaf } from "../interfaces";
 import { BigNumber } from "./BigNumberUtils";
 import { isMessageEmpty, validateFillForDeposit } from "./DepositUtils";
 import { chainIsSvm, getNetworkName } from "./NetworkUtils";
