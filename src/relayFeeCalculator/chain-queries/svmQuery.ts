@@ -140,7 +140,7 @@ export class SvmQuery implements QueryInterface {
     repaymentChainId: number,
     repaymentAddress: Address
   ) {
-    return getFillRelayTx(this.spokePool, this.provider, relayData, signer, repaymentChainId, repaymentAddress);
+    return await getFillRelayTx(this.spokePool, this.provider, relayData, signer, repaymentChainId, repaymentAddress);
   }
 
   /**
