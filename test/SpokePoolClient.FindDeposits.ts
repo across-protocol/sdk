@@ -1,5 +1,13 @@
 import { EVMSpokePoolClient, SpokePoolClient } from "../src/clients";
-import { bnOne, toBN, InvalidFill, deploy as deployMulticall, getRelayEventKey, toAddressType, Address } from "../src/utils";
+import {
+  bnOne,
+  toBN,
+  InvalidFill,
+  deploy as deployMulticall,
+  getRelayEventKey,
+  toAddressType,
+  Address,
+} from "../src/utils";
 import { CHAIN_ID_TEST_LIST, originChainId, destinationChainId, repaymentChainId } from "./constants";
 import {
   expect,
