@@ -18,6 +18,15 @@ export interface RelayData {
   exclusivityDeadline: number;
 }
 
+export interface ConvertedRelayData
+  extends Omit<RelayData, "depositor" | "recipient" | "inputToken" | "outputToken" | "exclusiveRelayer"> {
+  depositor: string;
+  recipient: string;
+  inputToken: string;
+  outputToken: string;
+  exclusiveRelayer: string;
+}
+
 export interface SpeedUpCommon {
   updatedRecipient: Address;
   updatedOutputAmount: BigNumber;
@@ -67,6 +76,20 @@ export interface Fill extends Omit<RelayData, "message"> {
   relayer: Address;
   repaymentChainId: number;
   relayExecutionInfo: RelayExecutionEventInfo;
+}
+
+export interface ConvertedFill
+  extends Omit<
+    Fill,
+    "depositor" | "recipient" | "inputToken" | "outputToken" | "exclusiveRelayer" | "relayer" | "relayExecutionInfo"
+  > {
+  depositor: string;
+  recipient: string;
+  inputToken: string;
+  outputToken: string;
+  exclusiveRelayer: string;
+  relayer: string;
+  relayExecutionInfo: Omit<RelayExecutionEventInfo, "updatedRecipient"> & { updatedRecipient: string };
 }
 
 export interface FillWithBlock extends Fill, SortableEvent {}
