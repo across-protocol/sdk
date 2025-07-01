@@ -1,5 +1,6 @@
 import { SvmSpokeClient } from "@across-protocol/contracts";
 import { decodeFillStatusAccount, fetchState } from "@across-protocol/contracts/dist/src/svm/clients/SvmSpoke";
+import { intToU8Array32 } from "@across-protocol/contracts/dist/src/svm/web3-v1/conversionUtils";
 import { hashNonEmptyMessage } from "@across-protocol/contracts/dist/src/svm/web3-v1";
 import {
   ASSOCIATED_TOKEN_PROGRAM_ADDRESS,
@@ -473,6 +474,94 @@ export function createTokenAccountsInstruction(
     signer: relayer,
     mint: toAddress(mint),
   });
+}
+
+/**
+ * @notice Return the fillRelay transaction for a given deposit
+ * @param spokePoolAddr Address of the spoke pool we're trying to fill through
+ * @param solanaClient RPC client to interact with Solana chain
+ * @param relayData RelayData instance, supplemented with destinationChainId
+ * @param signer signer associated with the relayer creating a Fill. Can be VoidSigner for gas estimation
+ * @param repaymentChainId Chain id where relayer repayment is desired
+ * @param repaymentAddress Address to which repayment will go to on repaymentChainId
+ * @returns FillRelay transaction
+ */
+export async function getFillRelayTx(
+  spokePoolAddr: SvmAddress,
+  solanaClient: SVMProvider,
+  relayData: Omit<RelayData, "recipent" | "outputToken"> & {
+    destinationChainId: number;
+    recipient: SvmAddress;
+    outputToken: SvmAddress;
+  },
+  signer: TransactionSigner,
+  repaymentChainId: number,
+  repaymentAddress: SdkAddress
+) {
+  const { depositor, recipient, inputToken, outputToken, exclusiveRelayer, destinationChainId } = relayData;
+
+  // tsc appeasement...should be unnecessary, but isn't. @todo Identify why.
+  assert(recipient.isSVM(), `getFillRelayTx: recipient not an SVM address (${recipient})`);
+  assert(
+    repaymentAddress.isValidOn(repaymentChainId),
+    `getFillRelayTx: repayment address ${repaymentAddress} not valid on chain ${repaymentChainId})`
+  );
+
+  const program = toAddress(spokePoolAddr);
+  const _relayDataHash = getRelayDataHash(relayData, destinationChainId);
+  const relayDataHash = new Uint8Array(Buffer.from(_relayDataHash.slice(2), "hex"));
+
+  const [state, delegate] = await Promise.all([
+    getStatePda(program),
+    getFillRelayDelegatePda(relayDataHash, BigInt(repaymentChainId), toAddress(repaymentAddress), program),
+  ]);
+
+  const mint = toAddress(outputToken);
+  const mintInfo = await fetchMint(solanaClient, mint);
+
+  const [recipientAta, relayerAta, fillStatus, eventAuthority] = await Promise.all([
+    getAssociatedTokenAddress(recipient, outputToken, mintInfo.programAddress),
+    getAssociatedTokenAddress(SvmAddress.from(signer.address), outputToken, mintInfo.programAddress),
+    getFillStatusPda(program, relayData, destinationChainId),
+    getEventAuthority(program),
+  ]);
+
+  const svmRelayData: SvmSpokeClient.FillRelayInput["relayData"] = {
+    depositor: toAddress(depositor),
+    recipient: toAddress(recipient),
+    exclusiveRelayer: toAddress(exclusiveRelayer),
+    inputToken: toAddress(inputToken),
+    outputToken: mint,
+    inputAmount: relayData.inputAmount.toBigInt(),
+    outputAmount: relayData.outputAmount.toBigInt(),
+    originChainId: relayData.originChainId,
+    depositId: new Uint8Array(intToU8Array32(relayData.depositId.toNumber())),
+    fillDeadline: relayData.fillDeadline,
+    exclusivityDeadline: relayData.exclusivityDeadline,
+    message: new Uint8Array(Buffer.from(relayData.message, "hex")),
+  };
+
+  const fillInput: SvmSpokeClient.FillRelayInput = {
+    signer: signer,
+    state,
+    delegate,
+    mint,
+    relayerTokenAccount: relayerAta,
+    recipientTokenAccount: recipientAta,
+    fillStatus,
+    tokenProgram: mintInfo.programAddress,
+    associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ADDRESS,
+    systemProgram: SYSTEM_PROGRAM_ADDRESS,
+    eventAuthority,
+    program,
+    relayHash: relayDataHash,
+    relayData: svmRelayData,
+    repaymentChainId: BigInt(repaymentChainId),
+    repaymentAddress: toAddress(repaymentAddress),
+  };
+  // Pass createRecipientAtaIfNeeded =true to the createFillInstruction function to create the recipient token account
+  // if it doesn't exist.
+  return createFillInstruction(signer, solanaClient, fillInput, mintInfo.data.decimals, true);
 }
 
 /**

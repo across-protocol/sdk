@@ -1,33 +1,11 @@
 import assert from "assert";
-import { SvmSpokeClient } from "@across-protocol/contracts";
-import { intToU8Array32 } from "@across-protocol/contracts/dist/src/svm/web3-v1/conversionUtils";
-import { SYSTEM_PROGRAM_ADDRESS } from "@solana-program/system";
-import { ASSOCIATED_TOKEN_PROGRAM_ADDRESS, fetchMint } from "@solana-program/token";
 import { getComputeUnitEstimateForTransactionMessageFactory, TransactionSigner } from "@solana/kit";
-import {
-  SVMProvider,
-  SolanaVoidSigner,
-  createFillInstruction,
-  getAssociatedTokenAddress,
-  getEventAuthority,
-  getFillRelayDelegatePda,
-  getFillStatusPda,
-  getStatePda,
-  toAddress,
-} from "../../arch/svm";
+import { SVMProvider, SolanaVoidSigner, getFillRelayTx } from "../../arch/svm";
 import { Coingecko } from "../../coingecko";
 import { CHAIN_IDs } from "../../constants";
 import { getGasPriceEstimate } from "../../gasPriceOracle";
 import { RelayData } from "../../interfaces";
-import {
-  Address,
-  BigNumber,
-  BigNumberish,
-  SvmAddress,
-  TransactionCostEstimate,
-  getRelayDataHash,
-  toBN,
-} from "../../utils";
+import { Address, BigNumber, BigNumberish, SvmAddress, TransactionCostEstimate, toBN } from "../../utils";
 import { Logger, QueryInterface, getDefaultRelayer } from "../relayFeeCalculator";
 import { SymbolMappingType } from "./";
 
@@ -162,70 +140,7 @@ export class SvmQuery implements QueryInterface {
     repaymentChainId: number,
     repaymentAddress: Address
   ) {
-    const { depositor, recipient, inputToken, outputToken, exclusiveRelayer, destinationChainId } = relayData;
-
-    // tsc appeasement...should be unnecessary, but isn't. @todo Identify why.
-    assert(recipient.isSVM(), `getFillRelayTx: recipient not an SVM address (${recipient})`);
-    assert(
-      repaymentAddress.isValidOn(repaymentChainId),
-      `getFillRelayTx: repayment address ${repaymentAddress} not valid on chain ${repaymentChainId})`
-    );
-
-    const program = toAddress(this.spokePool);
-    const _relayDataHash = getRelayDataHash(relayData, destinationChainId);
-    const relayDataHash = new Uint8Array(Buffer.from(_relayDataHash.slice(2), "hex"));
-
-    const [state, delegate] = await Promise.all([
-      getStatePda(program),
-      getFillRelayDelegatePda(relayDataHash, BigInt(repaymentChainId), toAddress(repaymentAddress), program),
-    ]);
-
-    const mint = toAddress(outputToken);
-    const mintInfo = await fetchMint(this.provider, mint);
-
-    const [recipientAta, relayerAta, fillStatus, eventAuthority] = await Promise.all([
-      getAssociatedTokenAddress(recipient, outputToken, mintInfo.programAddress),
-      getAssociatedTokenAddress(SvmAddress.from(signer.address), outputToken, mintInfo.programAddress),
-      getFillStatusPda(program, relayData, destinationChainId),
-      getEventAuthority(program),
-    ]);
-
-    const svmRelayData: SvmSpokeClient.FillRelayInput["relayData"] = {
-      depositor: toAddress(depositor),
-      recipient: toAddress(recipient),
-      exclusiveRelayer: toAddress(exclusiveRelayer),
-      inputToken: toAddress(inputToken),
-      outputToken: mint,
-      inputAmount: relayData.inputAmount.toBigInt(),
-      outputAmount: relayData.outputAmount.toBigInt(),
-      originChainId: relayData.originChainId,
-      depositId: new Uint8Array(intToU8Array32(relayData.depositId.toNumber())),
-      fillDeadline: relayData.fillDeadline,
-      exclusivityDeadline: relayData.exclusivityDeadline,
-      message: new Uint8Array(Buffer.from(relayData.message, "hex")),
-    };
-
-    const fillInput: SvmSpokeClient.FillRelayInput = {
-      signer: signer,
-      state,
-      delegate,
-      mint,
-      relayerTokenAccount: relayerAta,
-      recipientTokenAccount: recipientAta,
-      fillStatus,
-      tokenProgram: mintInfo.programAddress,
-      associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ADDRESS,
-      systemProgram: SYSTEM_PROGRAM_ADDRESS,
-      eventAuthority,
-      program,
-      relayHash: relayDataHash,
-      relayData: svmRelayData,
-      repaymentChainId: BigInt(repaymentChainId),
-      repaymentAddress: toAddress(repaymentAddress),
-    };
-    // Pass createRecipientAtaIfNeeded =true to the createFillInstruction function to create the recipient token account
-    // if it doesn't exist.
-    return createFillInstruction(signer, this.provider, fillInput, mintInfo.data.decimals, true);
+    return getFillRelayTx(this.spokePool, this.provider, relayData, signer, repaymentChainId, repaymentAddress);
   }
 
   /**
