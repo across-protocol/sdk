@@ -90,6 +90,7 @@ export function toAddressType(address: string, chainId: number): Address {
 // The Address class can contain any address type. It is up to the subclasses to determine how to format the address's internal representation,
 // which for this class, is a bytes32 hex string.
 export abstract class Address {
+  readonly __address_type_brand = true;
   readonly rawAddress: Uint8Array;
 
   // Keep all address types in cache so that we may lazily evaluate them when necessary.
@@ -107,6 +108,10 @@ export abstract class Address {
     }
     // Ensure all addresses in this class are internally stored as 32 bytes.
     this.rawAddress = utils.zeroPad(_rawAddress, 32);
+  }
+
+  static isAddress(obj: unknown): obj is Address {
+    return "__address_type_brand" in (obj as { __address_type_brand: boolean });
   }
 
   // Converts the address into a bytes32 string. Note that the output bytes will be lowercase so that it matches ethers event data. This function will never
