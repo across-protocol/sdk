@@ -39,10 +39,11 @@ import {
   bnUint32Max,
   isZeroValueDeposit,
   isZeroValueFillOrSlowFillRequest,
-  chainIsEvm,
-  isValidEvmAddress,
   duplicateEvent,
   invalidOutputToken,
+  Address,
+  getNetworkName,
+  toBytes32,
 } from "../../utils";
 import winston from "winston";
 import {
@@ -58,6 +59,7 @@ import {
   verifyFillRepayment,
 } from "./utils";
 import { isEVMSpokePoolClient, isSVMSpokePoolClient } from "../SpokePoolClient";
+import { SpokePoolManager } from "../SpokePoolClient/SpokePoolClientManager";
 
 // max(uint256) - 1
 export const INFINITE_FILL_DEADLINE = bnUint32Max;
@@ -67,22 +69,21 @@ type DataCache = Record<string, Promise<LoadDataReturnValue>>;
 // V3 dictionary helper functions
 function updateExpiredDepositsV3(dict: ExpiredDepositsToRefundV3, deposit: V3DepositWithBlock): void {
   // A deposit refund for a deposit is invalid if the depositor has a bytes32 address input for an EVM chain. It is valid otherwise.
-  if (chainIsEvm(deposit.originChainId) && !isValidEvmAddress(deposit.depositor)) {
+  if (!deposit.depositor.isValidOn(deposit.originChainId)) {
     return;
   }
+
   const { originChainId, inputToken } = deposit;
-  if (!dict?.[originChainId]?.[inputToken]) {
-    assign(dict, [originChainId, inputToken], []);
-  }
-  dict[originChainId][inputToken].push(deposit);
+  dict[originChainId] ??= {};
+  dict[originChainId][inputToken.toBytes32()] ??= [];
+  dict[originChainId][inputToken.toBytes32()].push(deposit);
 }
 
 function updateBundleDepositsV3(dict: BundleDepositsV3, deposit: V3DepositWithBlock): void {
   const { originChainId, inputToken } = deposit;
-  if (!dict?.[originChainId]?.[inputToken]) {
-    assign(dict, [originChainId, inputToken], []);
-  }
-  dict[originChainId][inputToken].push(deposit);
+  dict[originChainId] ??= {};
+  dict[originChainId][inputToken.toBytes32()] ??= [];
+  dict[originChainId][inputToken.toBytes32()].push(deposit);
 }
 
 function updateBundleFillsV3(
@@ -90,29 +91,29 @@ function updateBundleFillsV3(
   fill: V3FillWithBlock,
   lpFeePct: BigNumber,
   repaymentChainId: number,
-  repaymentToken: string,
-  repaymentAddress: string
+  repaymentToken: Address,
+  repaymentAddress: Address
 ): void {
   // We shouldn't pass any unrepayable fills into this function, so we perform an extra safety check.
-  if (chainIsEvm(repaymentChainId) && !isValidEvmAddress(fill.relayer)) {
+  if (!fill.relayer.isValidOn(repaymentChainId)) {
     return;
   }
-  if (!dict?.[repaymentChainId]?.[repaymentToken]) {
-    assign(dict, [repaymentChainId, repaymentToken], {
-      fills: [],
-      totalRefundAmount: bnZero,
-      realizedLpFees: bnZero,
-      refunds: {},
-    });
-  }
+
+  dict[repaymentChainId] ??= {};
+  dict[repaymentChainId][repaymentToken.toBytes32()] ??= {
+    fills: [],
+    totalRefundAmount: bnZero,
+    realizedLpFees: bnZero,
+    refunds: {},
+  };
 
   const bundleFill: BundleFillV3 = { ...fill, lpFeePct, relayer: repaymentAddress };
 
   // Add all fills, slow and fast, to dictionary.
-  assign(dict, [repaymentChainId, repaymentToken, "fills"], [bundleFill]);
+  assign(dict, [repaymentChainId, repaymentToken.toBytes32(), "fills"], [bundleFill]);
 
   // All fills update the bundle LP fees.
-  const refundObj = dict[repaymentChainId][repaymentToken];
+  const refundObj = dict[repaymentChainId][repaymentToken.toBytes32()];
   const realizedLpFee = bundleFill.inputAmount.mul(bundleFill.lpFeePct).div(fixedPointAdjustment);
   refundObj.realizedLpFees = refundObj.realizedLpFees ? refundObj.realizedLpFees.add(realizedLpFee) : realizedLpFee;
 
@@ -126,10 +127,11 @@ function updateBundleFillsV3(
     // Instantiate dictionary if it doesn't exist.
     refundObj.refunds ??= {};
 
-    if (refundObj.refunds[bundleFill.relayer]) {
-      refundObj.refunds[bundleFill.relayer] = refundObj.refunds[bundleFill.relayer].add(refundAmount);
+    if (refundObj.refunds[bundleFill.relayer.toBytes32()]) {
+      refundObj.refunds[bundleFill.relayer.toBytes32()] =
+        refundObj.refunds[bundleFill.relayer.toBytes32()].add(refundAmount);
     } else {
-      refundObj.refunds[bundleFill.relayer] = refundAmount;
+      refundObj.refunds[bundleFill.relayer.toBytes32()] = refundAmount;
     }
   }
 }
@@ -139,21 +141,20 @@ function updateBundleExcessSlowFills(
   deposit: V3DepositWithBlock & { lpFeePct: BigNumber }
 ): void {
   const { destinationChainId, outputToken } = deposit;
-  if (!dict?.[destinationChainId]?.[outputToken]) {
-    assign(dict, [destinationChainId, outputToken], []);
-  }
-  dict[destinationChainId][outputToken].push(deposit);
+  dict[destinationChainId] ??= {};
+  dict[destinationChainId][outputToken.toBytes32()] ??= [];
+  dict[destinationChainId][outputToken.toBytes32()].push(deposit);
 }
 
 function updateBundleSlowFills(dict: BundleSlowFills, deposit: V3DepositWithBlock & { lpFeePct: BigNumber }): void {
-  if (chainIsEvm(deposit.destinationChainId) && !isValidEvmAddress(deposit.recipient)) {
+  if (!deposit.recipient.isValidOn(deposit.destinationChainId)) {
     return;
   }
+
   const { destinationChainId, outputToken } = deposit;
-  if (!dict?.[destinationChainId]?.[outputToken]) {
-    assign(dict, [destinationChainId, outputToken], []);
-  }
-  dict[destinationChainId][outputToken].push(deposit);
+  dict[destinationChainId] ??= {};
+  dict[destinationChainId][outputToken.toBytes32()] ??= [];
+  dict[destinationChainId][outputToken.toBytes32()].push(deposit);
 }
 
 // @notice Shared client for computing data needed to construct or validate a bundle.
@@ -162,15 +163,18 @@ export class BundleDataClient {
   private arweaveDataCache: Record<string, Promise<LoadDataReturnValue | undefined>> = {};
 
   private bundleTimestampCache: Record<string, { [chainId: number]: number[] }> = {};
+  readonly spokePoolClientManager: SpokePoolManager;
 
   // eslint-disable-next-line no-useless-constructor
   constructor(
     readonly logger: winston.Logger,
     readonly clients: Clients,
-    readonly spokePoolClients: { [chainId: number]: SpokePoolClient },
+    spokePoolClients: { [chainId: number]: SpokePoolClient },
     readonly chainIdListForBundleEvaluationBlockNumbers: number[],
     readonly blockRangeEndBlockBuffer: { [chainId: number]: number } = {}
-  ) {}
+  ) {
+    this.spokePoolClientManager = new SpokePoolManager(logger, spokePoolClients);
+  }
 
   // This should be called whenever it's possible that the loadData information for a block range could have changed.
   // For instance, if the spoke or hub clients have been updated, it probably makes sense to clear this to be safe.
@@ -324,7 +328,9 @@ export class BundleDataClient {
               Object.entries(tokenData).map(([token, data]) => [
                 token,
                 {
-                  refunds: data.refunds,
+                  refunds: Object.fromEntries(
+                    Object.entries(data.refunds).map(([refundAddress, refund]) => [toBytes32(refundAddress), refund])
+                  ),
                   totalRefundAmount: data.totalRefundAmount,
                   realizedLpFees: data.realizedLpFees,
                   fills: convertSortableEventFieldsIntoRequiredFields(data.fills),
@@ -400,7 +406,7 @@ export class BundleDataClient {
     // expiries here so we can skip some steps. We also don't need to compute LP fees as they should be small enough
     // so as not to affect this approximate refund count.
     const arweaveData = await this.loadArweaveData(bundleEvaluationBlockRanges);
-    if (arweaveData === undefined) {
+    if (!isDefined(arweaveData)) {
       combinedRefunds = await this.getApproximateRefundsForBlockRange(chainIds, bundleEvaluationBlockRanges);
     } else {
       const { bundleFillsV3, expiredDepositsToRefundV3 } = arweaveData;
@@ -410,7 +416,7 @@ export class BundleDataClient {
       // a reasonable assumption. This empty refund chain also matches what the alternative
       // `getApproximateRefundsForBlockRange` would return.
       Object.keys(combinedRefunds).forEach((chainId) => {
-        if (this.spokePoolClients[Number(chainId)] === undefined) {
+        if (!this.spokePoolClientManager.getClient(Number(chainId))) {
           delete combinedRefunds[Number(chainId)];
         }
       });
@@ -426,7 +432,8 @@ export class BundleDataClient {
     const refundsForChain: CombinedRefunds = {};
     const bundleEndBlockForMainnet = blockRanges[0][1];
     for (const chainId of chainIds) {
-      if (this.spokePoolClients[chainId] === undefined) {
+      const spokePoolClient = this.spokePoolClientManager.getClient(chainId);
+      if (!isDefined(spokePoolClient)) {
         continue;
       }
       const chainIndex = chainIds.indexOf(chainId);
@@ -435,7 +442,7 @@ export class BundleDataClient {
       // and then query the FillStatus on-chain, but that might slow this function down too much. For now, we
       // will live with this expected inaccuracy as it should be small. The pre-fill would have to precede the deposit
       // by more than the caller's event lookback window which is expected to be unlikely.
-      const fillsToCount = this.spokePoolClients[chainId].getFills().filter((fill) => {
+      const fillsToCount = spokePoolClient.getFills().filter((fill) => {
         if (
           fill.blockNumber < blockRanges[chainIndex][0] ||
           fill.blockNumber > blockRanges[chainIndex][1] ||
@@ -445,20 +452,32 @@ export class BundleDataClient {
           return false;
         }
 
+        const originSpokePoolClient = this.spokePoolClientManager.getClient(fill.originChainId);
         // If origin spoke pool client isn't defined, we can't validate it.
-        if (this.spokePoolClients[fill.originChainId] === undefined) {
+        if (!isDefined(originSpokePoolClient)) {
           return false;
         }
-        const matchingDeposit = this.spokePoolClients[fill.originChainId].getDeposit(fill.depositId);
+        const matchingDeposit = originSpokePoolClient.getDeposit(fill.depositId);
         const hasMatchingDeposit =
           matchingDeposit !== undefined && getRelayEventKey(fill) === getRelayEventKey(matchingDeposit);
         return hasMatchingDeposit;
       });
       await forEachAsync(fillsToCount, async (_fill) => {
-        const matchingDeposit = this.spokePoolClients[_fill.originChainId].getDeposit(_fill.depositId);
-        assert(isDefined(matchingDeposit), "Deposit not found for fill.");
+        const originChain = getNetworkName(_fill.originChainId);
+        const originSpokePoolClient = this.spokePoolClientManager.getClient(_fill.originChainId);
+        assert(isDefined(originSpokePoolClient), `No SpokePoolClient for chain ${originChain}`);
+        const matchingDeposit = originSpokePoolClient.getDeposit(_fill.depositId);
+        assert(
+          isDefined(matchingDeposit),
+          `No ${originChain} deposit found for ${getNetworkName(_fill.destinationChainId)} fill ${_fill.depositId}`
+        );
 
-        const spokeClient = this.spokePoolClients[_fill.destinationChainId];
+        const spokeClient = this.spokePoolClientManager.getClient(_fill.destinationChainId);
+        assert(
+          isDefined(spokeClient),
+          `SpokePoolClient for ${getNetworkName(_fill.destinationChainId)} not found for fill.`
+        );
+
         let provider;
         if (isEVMSpokePoolClient(spokeClient)) {
           provider = spokeClient.spokePool.provider;
@@ -489,21 +508,24 @@ export class BundleDataClient {
         // worst from the relayer's perspective.
         const { relayer, inputAmount: refundAmount } = fill;
         refundsForChain[chainToSendRefundTo] ??= {};
-        refundsForChain[chainToSendRefundTo][repaymentToken] ??= {};
-        const existingRefundAmount = refundsForChain[chainToSendRefundTo][repaymentToken][relayer] ?? bnZero;
-        refundsForChain[chainToSendRefundTo][repaymentToken][relayer] = existingRefundAmount.add(refundAmount);
+        refundsForChain[chainToSendRefundTo][repaymentToken.toBytes32()] ??= {};
+        const existingRefundAmount =
+          refundsForChain[chainToSendRefundTo][repaymentToken.toBytes32()][relayer.toBytes32()] ?? bnZero;
+        refundsForChain[chainToSendRefundTo][repaymentToken.toBytes32()][relayer.toBytes32()] =
+          existingRefundAmount.add(refundAmount);
       });
     }
     return refundsForChain;
   }
 
-  getUpcomingDepositAmount(chainId: number, l2Token: string, latestBlockToSearch: number): BigNumber {
-    if (this.spokePoolClients[chainId] === undefined) {
+  getUpcomingDepositAmount(chainId: number, l2Token: Address, latestBlockToSearch: number): BigNumber {
+    const spokePoolClient = this.spokePoolClientManager.getClient(chainId);
+    if (!isDefined(spokePoolClient)) {
       return toBN(0);
     }
-    return this.spokePoolClients[chainId]
+    return spokePoolClient
       .getDeposits()
-      .filter((deposit) => deposit.blockNumber > latestBlockToSearch && deposit.inputToken === l2Token)
+      .filter((deposit) => deposit.blockNumber > latestBlockToSearch && deposit.inputToken.eq(l2Token))
       .reduce((acc, deposit) => {
         return acc.add(deposit.inputAmount);
       }, toBN(0));
@@ -529,7 +551,7 @@ export class BundleDataClient {
     // should be handled gracefully and effectively cause this function to ignore refunds for the chain.
     let widestBundleBlockRanges = getWidestPossibleExpectedBlockRange(
       chainIds,
-      this.spokePoolClients,
+      this.spokePoolClientManager.getSpokePoolClients(),
       getEndBlockBuffers(chainIds, this.blockRangeEndBlockBuffer),
       this.clients,
       this.clients.hubPoolClient.latestHeightSearched,
@@ -572,7 +594,7 @@ export class BundleDataClient {
       // data is undefined and use the much faster approximation method which doesn't consider LP fees which is
       // ok for this use case.
       const arweaveData = await this.loadArweaveData(pendingBundleBlockRanges);
-      if (arweaveData === undefined) {
+      if (!isDefined(arweaveData)) {
         combinedRefunds.push(await this.getApproximateRefundsForBlockRange(chainIds, pendingBundleBlockRanges));
       } else {
         const { bundleFillsV3, expiredDepositsToRefundV3 } = arweaveData;
@@ -625,18 +647,14 @@ export class BundleDataClient {
       .filter((leaf) => leaf.rootBundleId === bundle.rootBundleId);
     const executedRefunds: { [tokenAddress: string]: { [relayer: string]: BigNumber } } = {};
     for (const refundLeaf of executedRefundLeaves) {
-      const tokenAddress = refundLeaf.l2TokenAddress;
-      if (executedRefunds[tokenAddress] === undefined) {
-        executedRefunds[tokenAddress] = {};
-      }
-      const executedTokenRefunds = executedRefunds[tokenAddress];
+      const tokenAddress = refundLeaf.l2TokenAddress.toBytes32();
+      const executedTokenRefunds = (executedRefunds[tokenAddress] ??= {});
 
       for (let i = 0; i < refundLeaf.refundAddresses.length; i++) {
-        const relayer = refundLeaf.refundAddresses[i];
+        const relayer = refundLeaf.refundAddresses[i].toBytes32();
         const refundAmount = refundLeaf.refundAmounts[i];
-        if (executedTokenRefunds[relayer] === undefined) {
-          executedTokenRefunds[relayer] = bnZero;
-        }
+
+        executedTokenRefunds[relayer] ??= bnZero;
         executedTokenRefunds[relayer] = executedTokenRefunds[relayer].add(refundAmount);
       }
     }
@@ -650,13 +668,11 @@ export class BundleDataClient {
   ): CombinedRefunds {
     for (const chainIdStr of Object.keys(allRefunds)) {
       const chainId = Number(chainIdStr);
-      if (!isDefined(this.spokePoolClients[chainId])) {
+      const spokePoolClient = this.spokePoolClientManager.getClient(chainId);
+      if (!isDefined(spokePoolClient)) {
         continue;
       }
-      const executedRefunds = this.getExecutedRefunds(
-        this.spokePoolClients[chainId],
-        bundleContainingRefunds.relayerRefundRoot
-      );
+      const executedRefunds = this.getExecutedRefunds(spokePoolClient, bundleContainingRefunds.relayerRefundRoot);
 
       for (const tokenAddress of Object.keys(allRefunds[chainId])) {
         const refunds = allRefunds[chainId][tokenAddress];
@@ -678,15 +694,15 @@ export class BundleDataClient {
     return allRefunds;
   }
 
-  getRefundsFor(bundleRefunds: CombinedRefunds, relayer: string, chainId: number, token: string): BigNumber {
-    if (!bundleRefunds[chainId] || !bundleRefunds[chainId][token]) {
+  getRefundsFor(bundleRefunds: CombinedRefunds, relayer: Address, chainId: number, token: Address): BigNumber {
+    if (!bundleRefunds[chainId] || !bundleRefunds[chainId][token.toBytes32()]) {
       return BigNumber.from(0);
     }
-    const allRefunds = bundleRefunds[chainId][token];
-    return allRefunds && allRefunds[relayer] ? allRefunds[relayer] : BigNumber.from(0);
+    const allRefunds = bundleRefunds[chainId][token.toBytes32()];
+    return allRefunds && allRefunds[relayer.toBytes32()] ? allRefunds[relayer.toBytes32()] : BigNumber.from(0);
   }
 
-  getTotalRefund(refunds: CombinedRefunds[], relayer: string, chainId: number, refundToken: string): BigNumber {
+  getTotalRefund(refunds: CombinedRefunds[], relayer: Address, chainId: number, refundToken: Address): BigNumber {
     return refunds.reduce((totalRefund, refunds) => {
       return totalRefund.add(this.getRefundsFor(refunds, relayer, chainId, refundToken));
     }, bnZero);
@@ -899,7 +915,11 @@ export class BundleDataClient {
             "Not using correct bundle deposit hash key"
           );
           if (deposit.blockNumber >= originChainBlockRange[0]) {
-            if (bundleDepositsV3?.[originChainId]?.[deposit.inputToken]?.find((d) => duplicateEvent(deposit, d))) {
+            if (
+              bundleDepositsV3?.[originChainId]?.[deposit.inputToken.toBytes32()]?.find((d) =>
+                duplicateEvent(deposit, d)
+              )
+            ) {
               this.logger.debug({
                 at: "BundleDataClient#loadData",
                 message: "Duplicate deposit detected",

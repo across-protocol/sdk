@@ -18,7 +18,6 @@ import {
   EventSearchConfig,
   getNetworkName,
   InvalidFill,
-  isZeroAddress,
   MakeOptional,
   MultipleDepositSearchResult,
   sortEventsAscendingInPlace,
@@ -217,6 +216,7 @@ export class SVMSpokePoolClient extends SpokePoolClient {
         reason: `Deposit with ID ${depositId} not found`,
       };
     }
+
     // Because we have additional context about this deposit, we can enrich it
     // with additional information.
     return {
@@ -227,9 +227,6 @@ export class SVMSpokePoolClient extends SpokePoolClient {
         originChainId: this.chainId,
         fromLiteChain: this.isOriginLiteChain(deposit),
         toLiteChain: this.isDestinationLiteChain(deposit),
-        outputToken: isZeroAddress(deposit.outputToken)
-          ? this.getDestinationTokenForDeposit(deposit)
-          : deposit.outputToken,
       },
     };
   }

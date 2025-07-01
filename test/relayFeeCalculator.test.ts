@@ -2,6 +2,7 @@ import dotenv from "dotenv";
 import hre from "hardhat";
 import { RelayFeeCalculator, QueryInterface } from "../src/relayFeeCalculator/relayFeeCalculator";
 import {
+  EvmAddress,
   toBNWei,
   toBN,
   toGWei,
@@ -12,6 +13,7 @@ import {
   spreadEvent,
   isMessageEmpty,
   fixedPointAdjustment,
+  toAddressType,
 } from "../src/utils";
 import {
   BigNumber,
@@ -131,7 +133,7 @@ describe("RelayFeeCalculator", () => {
       buildDepositForRelayerFeeTest(100e6, "usdc", "10", "1"),
       100e6,
       false,
-      randomAddress(),
+      toAddressType(randomAddress(), 1),
       1.01
     );
     assert.ok(resultWithPrice);
@@ -493,7 +495,13 @@ describe("RelayFeeCalculator: Composable Bridging", function () {
     spokePool = spokePool.connect(relayer);
 
     testContract = await hre["upgrades"].deployProxy(await getContractFactory("MockAcrossMessageContract", owner), []);
-    queries = QueryBase__factory.create(1, spokePool.provider, tokenMap, spokePool.address, relayer.address);
+    queries = QueryBase__factory.create(
+      1,
+      spokePool.provider,
+      tokenMap,
+      spokePool.address,
+      EvmAddress.from(relayer.address)
+    );
     client = new RelayFeeCalculator({ queries, capitalCostsConfig: testCapitalCostsConfig });
 
     testGasFeePct = (message?: string) =>
@@ -501,25 +509,21 @@ describe("RelayFeeCalculator: Composable Bridging", function () {
         {
           inputAmount: bnOne,
           outputAmount: bnOne,
-          inputToken: erc20.address,
-          outputToken: erc20.address,
-          recipient: testContract.address,
-          quoteTimestamp: 1,
+          inputToken: toAddressType(erc20.address, 10),
+          outputToken: toAddressType(erc20.address, 1),
+          recipient: toAddressType(testContract.address, 1),
           depositId: BigNumber.from(1000000),
-          depositor: depositor.address,
+          depositor: toAddressType(depositor.address, 10),
           originChainId: 10,
           destinationChainId: 1,
           message: message || EMPTY_MESSAGE,
-          exclusiveRelayer: ZERO_ADDRESS,
+          exclusiveRelayer: toAddressType(ZERO_ADDRESS, 1),
           fillDeadline: getCurrentTime() + 60000,
           exclusivityDeadline: 0,
-          fromLiteChain: false,
-          toLiteChain: false,
-          messageHash: message ? getMessageHash(message) : EMPTY_MESSAGE,
         },
         1,
         false,
-        relayer.address,
+        toAddressType(relayer.address, 1),
         1,
         tokenMap,
         undefined,
@@ -649,7 +653,7 @@ describe("QueryBase", function () {
       };
       const result = await queryBase.estimateGas(
         {}, // populatedTransaction
-        randomAddress(),
+        toAddressType(randomAddress(), 1),
         getDefaultProvider(),
         options
       );
@@ -671,7 +675,7 @@ describe("QueryBase", function () {
 
       const result = await queryBase.estimateGas(
         {}, // populatedTransaction
-        randomAddress(),
+        toAddressType(randomAddress(), 1),
         mockedProvider,
         options
       );

@@ -14,11 +14,11 @@ import {
   union,
   type,
 } from "superstruct";
-import { UNDEFINED_MESSAGE_HASH } from "../../../constants";
-import { BigNumber } from "../../../utils";
+import { CHAIN_IDs, UNDEFINED_MESSAGE_HASH } from "../../../constants";
+import { BigNumber, EvmAddress, RawAddress, SvmAddress, toAddressType, toBytes32 } from "../../../utils";
 
 const PositiveIntegerStringSS = pattern(string(), /\d+/);
-const Web3AddressSS = pattern(string(), /^0x[a-fA-F0-9]{40}$/);
+const Web3AddressSS = pattern(string(), /^0x[a-fA-F0-9]{64}$/);
 
 const BigNumberType = coerce(instance(BigNumber), union([string(), number()]), (value) => {
   try {
@@ -31,19 +31,35 @@ const BigNumberType = coerce(instance(BigNumber), union([string(), number()]), (
   }
 });
 
+// Accept any concrete implementation of `Address` (Evm, Svm, or Raw) but avoid using the
+// abstract `Address` class directly to keep TypeScript happy.
+const AddressInstanceSS = union([instance(EvmAddress), instance(SvmAddress), instance(RawAddress)]);
+
+const AddressType = coerce(AddressInstanceSS, string(), (value) => {
+  // Addresses are posted to arweave in their native format (base16 for EVM, base58 for SVM). The chainId for
+  // for the event data is not directly available, so infer it based on the shape of the address. RawAddress
+  // will be instantiated if the address format does not match the expected family.
+  const chainId = value.startsWith("0x") ? CHAIN_IDs.MAINNET : CHAIN_IDs.SOLANA;
+  return toAddressType(value, chainId);
+});
+
+const Web3AddressType = coerce(Web3AddressSS, string(), (value) => {
+  return toBytes32(value);
+});
+
 const FillTypeSS = number();
 
 const V3RelayDataSS = {
-  inputToken: string(),
+  inputToken: AddressType,
   inputAmount: BigNumberType,
-  outputToken: string(),
+  outputToken: AddressType,
   outputAmount: BigNumberType,
   fillDeadline: number(),
-  exclusiveRelayer: string(),
+  exclusiveRelayer: AddressType,
   exclusivityDeadline: number(),
   originChainId: number(),
-  depositor: string(),
-  recipient: string(),
+  depositor: AddressType,
+  recipient: AddressType,
   depositId: BigNumberType,
   message: string(),
 };
@@ -67,7 +83,7 @@ const V3DepositSS = {
   quoteTimestamp: number(),
   relayerFeePct: optional(BigNumberType),
   speedUpSignature: optional(string()),
-  updatedRecipient: optional(string()),
+  updatedRecipient: optional(AddressType),
   updatedOutputAmount: optional(BigNumberType),
   updatedMessage: optional(string()),
 };
@@ -88,7 +104,7 @@ const V3DepositWithBlockLpFeeSS = object({
 const V3RelayExecutionEventInfoSS = object({
   updatedOutputAmount: BigNumberType,
   fillType: FillTypeSS,
-  updatedRecipient: string(),
+  updatedRecipient: AddressType,
   updatedMessage: optional(string()),
   updatedMessageHash: defaulted(string(), UNDEFINED_MESSAGE_HASH),
 });
@@ -98,7 +114,7 @@ const V3FillSS = {
   message: optional(string()),
   messageHash: defaulted(string(), UNDEFINED_MESSAGE_HASH),
   destinationChainId: number(),
-  relayer: string(),
+  relayer: AddressType,
   repaymentChainId: number(),
   relayExecutionInfo: V3RelayExecutionEventInfoSS,
   quoteTimestamp: number(),
@@ -114,20 +130,20 @@ const BundleFillV3SS = object({
   lpFeePct: BigNumberType,
 });
 
-const nestedV3DepositRecordSS = record(PositiveIntegerStringSS, record(Web3AddressSS, array(V3DepositWithBlockSS)));
+const nestedV3DepositRecordSS = record(PositiveIntegerStringSS, record(Web3AddressType, array(V3DepositWithBlockSS)));
 const nestedV3DepositRecordWithLpFeePctSS = record(
   PositiveIntegerStringSS,
-  record(Web3AddressSS, array(V3DepositWithBlockLpFeeSS))
+  record(Web3AddressType, array(V3DepositWithBlockLpFeeSS))
 );
 
 const nestedV3BundleFillsSS = record(
   // Must be a chainId
   PositiveIntegerStringSS,
   record(
-    Web3AddressSS,
+    Web3AddressType,
     object({
       fills: array(BundleFillV3SS),
-      refunds: record(string(), BigNumberType),
+      refunds: record(Web3AddressType, BigNumberType),
       totalRefundAmount: BigNumberType,
       realizedLpFees: BigNumberType,
     })

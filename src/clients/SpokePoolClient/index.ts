@@ -5,6 +5,7 @@ import { SpokePoolClient } from "./SpokePoolClient";
 export { EVMSpokePoolClient } from "./EVMSpokePoolClient";
 export { SpokePoolClient, SpokePoolUpdate } from "./SpokePoolClient";
 export { SVMSpokePoolClient } from "./SVMSpokePoolClient";
+export { SpokePoolManager } from "./SpokePoolClientManager";
 
 /**
  * Checks if a SpokePoolClient is an EVMSpokePoolClient.

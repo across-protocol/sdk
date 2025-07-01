@@ -1,6 +1,6 @@
 import { EVMSpokePoolClient, SpokePoolClient } from "../src/clients";
 import { Deposit, SpeedUp } from "../src/interfaces";
-import { bnOne, getMessageHash, toBytes32 } from "../src/utils";
+import { bnOne, getMessageHash, toBytes32, toAddressType } from "../src/utils";
 import { destinationChainId, originChainId } from "./constants";
 import {
   assertPromiseError,
@@ -50,8 +50,8 @@ describe("SpokePoolClient: SpeedUp", function () {
 
     await setupTokensForWallet(spokePool, depositor, [erc20, destErc20], weth, 10);
     balance = await erc20.connect(depositor).balanceOf(depositor.address);
-    inputToken = erc20.address;
-    outputToken = destErc20.address;
+    inputToken = toAddressType(erc20.address);
+    outputToken = toAddressType(destErc20.address);
     inputAmount = balance;
     outputAmount = inputAmount.sub(bnOne);
   });
@@ -79,7 +79,7 @@ describe("SpokePoolClient: SpeedUp", function () {
       depositEvent.depositId,
       originChainId,
       updatedOutputAmount,
-      toBytes32(updatedRecipient),
+      toBytes32(updatedRecipient.toNative()),
       updatedMessage
     );
 
@@ -89,7 +89,7 @@ describe("SpokePoolClient: SpeedUp", function () {
         toBytes32(depositor.address),
         depositEvent.depositId,
         updatedOutputAmount,
-        toBytes32(updatedRecipient),
+        toBytes32(updatedRecipient.toNative()),
         updatedMessage,
         signature
       );
@@ -106,16 +106,30 @@ describe("SpokePoolClient: SpeedUp", function () {
       updatedRecipient,
     };
     const updatedDeposit = spokePoolClient.appendMaxSpeedUpSignatureToDeposit(depositEvent);
-    expect(deepEqualsWithBigNumber(updatedDeposit, expectedDepositData)).to.be.true;
+    updatedDeposit.updatedRecipient.toNative();
+    expect(updatedDeposit).to.deep.eq(expectedDepositData);
 
     // Fetching deposits for the depositor should contain the correct fees.
+    const clientDeposit = spokePoolClient.getDepositsForDestinationChain(destinationChainId)[0];
     expect(
-      deepEqualsWithBigNumber(
-        spokePoolClient.getDepositsForDestinationChain(destinationChainId)[0],
-        expectedDepositData,
-        [...ignoredFields, "realizedLpFeePct", "fromLiteChain", "toLiteChain"]
-      )
+      deepEqualsWithBigNumber(clientDeposit, expectedDepositData, [
+        ...ignoredFields,
+        "realizedLpFeePct",
+        "fromLiteChain",
+        "toLiteChain",
+        "depositor",
+        "recipient",
+        "inputToken",
+        "outputToken",
+        "exclusiveRelayer",
+      ])
     ).to.be.true;
+    expect(clientDeposit.depositor.eq(expectedDepositData.depositor)).to.be.true;
+    expect(clientDeposit.recipient.eq(expectedDepositData.recipient)).to.be.true;
+    expect(clientDeposit.inputToken.eq(expectedDepositData.inputToken)).to.be.true;
+    expect(clientDeposit.outputToken.eq(expectedDepositData.outputToken)).to.be.true;
+    expect(clientDeposit.exclusiveRelayer.eq(expectedDepositData.exclusiveRelayer)).to.be.true;
+
     expect(spokePoolClient.getDepositsForDestinationChain(destinationChainId).length).to.equal(1);
   });
 
@@ -142,7 +156,7 @@ describe("SpokePoolClient: SpeedUp", function () {
         depositId,
         originChainId,
         updatedOutputAmount,
-        toBytes32(updatedRecipient),
+        toBytes32(updatedRecipient.toNative()),
         updatedMessage
       );
 
@@ -152,7 +166,7 @@ describe("SpokePoolClient: SpeedUp", function () {
           toBytes32(depositor.address),
           depositId,
           updatedOutputAmount,
-          toBytes32(updatedRecipient),
+          toBytes32(updatedRecipient.toNative()),
           updatedMessage,
           depositorSignature
         );
@@ -161,7 +175,7 @@ describe("SpokePoolClient: SpeedUp", function () {
         depositorSignature,
         updatedOutputAmount,
         depositId,
-        depositor: depositor.address,
+        depositor: toAddressType(depositor.address),
         originChainId,
         updatedRecipient,
         updatedMessage,
@@ -189,7 +203,8 @@ describe("SpokePoolClient: SpeedUp", function () {
       } else {
         expect(updatedDeposit.updatedOutputAmount!.eq(bestDepositUpdate.updatedOutputAmount)).to.be.true;
         expect(updatedDeposit.speedUpSignature).to.equal(bestDepositUpdate.depositorSignature);
-        expect(updatedDeposit.updatedRecipient).to.equal(bestDepositUpdate.updatedRecipient);
+        updatedDeposit.updatedRecipient.toNative();
+        expect(updatedDeposit.updatedRecipient).to.deep.equal(bestDepositUpdate.updatedRecipient);
         expect(updatedDeposit.updatedMessage).to.equal(bestDepositUpdate.updatedMessage);
       }
     }
