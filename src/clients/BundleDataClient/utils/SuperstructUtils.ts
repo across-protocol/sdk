@@ -15,10 +15,10 @@ import {
   type,
 } from "superstruct";
 import { CHAIN_IDs, UNDEFINED_MESSAGE_HASH } from "../../../constants";
-import { BigNumber, EvmAddress, RawAddress, SvmAddress, toAddressType } from "../../../utils";
+import { BigNumber, EvmAddress, RawAddress, SvmAddress, toAddressType, toBytes32 } from "../../../utils";
 
 const PositiveIntegerStringSS = pattern(string(), /\d+/);
-const Web3AddressSS = pattern(string(), /^0x[a-fA-F0-9]{40}$/);
+const Web3AddressSS = pattern(string(), /^0x[a-fA-F0-9]{64}$/);
 
 const BigNumberType = coerce(instance(BigNumber), union([string(), number()]), (value) => {
   try {
@@ -41,6 +41,10 @@ const AddressType = coerce(AddressInstanceSS, string(), (value) => {
   // will be instantiated if the address format does not match the expected family.
   const chainId = value.startsWith("0x") ? CHAIN_IDs.MAINNET : CHAIN_IDs.SOLANA;
   return toAddressType(value, chainId);
+});
+
+const Web3AddressType = coerce(Web3AddressSS, string(), (value) => {
+  return toBytes32(value);
 });
 
 const FillTypeSS = number();
@@ -126,20 +130,20 @@ const BundleFillV3SS = object({
   lpFeePct: BigNumberType,
 });
 
-const nestedV3DepositRecordSS = record(PositiveIntegerStringSS, record(Web3AddressSS, array(V3DepositWithBlockSS)));
+const nestedV3DepositRecordSS = record(PositiveIntegerStringSS, record(Web3AddressType, array(V3DepositWithBlockSS)));
 const nestedV3DepositRecordWithLpFeePctSS = record(
   PositiveIntegerStringSS,
-  record(Web3AddressSS, array(V3DepositWithBlockLpFeeSS))
+  record(Web3AddressType, array(V3DepositWithBlockLpFeeSS))
 );
 
 const nestedV3BundleFillsSS = record(
   // Must be a chainId
   PositiveIntegerStringSS,
   record(
-    Web3AddressSS,
+    Web3AddressType,
     object({
       fills: array(BundleFillV3SS),
-      refunds: record(string(), BigNumberType),
+      refunds: record(Web3AddressType, BigNumberType),
       totalRefundAmount: BigNumberType,
       realizedLpFees: BigNumberType,
     })
