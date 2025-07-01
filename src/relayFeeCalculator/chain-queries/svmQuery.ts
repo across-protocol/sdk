@@ -3,7 +3,7 @@ import { SvmSpokeClient } from "@across-protocol/contracts";
 import { intToU8Array32 } from "@across-protocol/contracts/dist/src/svm/web3-v1/conversionUtils";
 import { SYSTEM_PROGRAM_ADDRESS } from "@solana-program/system";
 import { ASSOCIATED_TOKEN_PROGRAM_ADDRESS, fetchMint } from "@solana-program/token";
-import { getComputeUnitEstimateForTransactionMessageFactory } from "@solana/kit";
+import { getComputeUnitEstimateForTransactionMessageFactory, TransactionSigner } from "@solana/kit";
 import {
   SVMProvider,
   SolanaVoidSigner,
@@ -93,7 +93,7 @@ export class SvmQuery implements QueryInterface {
     const [repaymentChainId, repaymentAddress] = [destinationChainId, relayer]; // These are not important for gas cost simulation.
     const fillRelayTx = await this.getFillRelayTx(
       { ...relayData, recipient, outputToken, exclusiveRelayer },
-      relayer,
+      SolanaVoidSigner(relayer.toBase58()),
       repaymentChainId,
       repaymentAddress
     );
@@ -139,7 +139,7 @@ export class SvmQuery implements QueryInterface {
     const [repaymentChainId, repaymentAddress] = [destinationChainId, relayer]; // These are not important for gas cost simulation.
     const fillRelayTx = await this.getFillRelayTx(
       { ...deposit, recipient, outputToken, exclusiveRelayer },
-      relayer,
+      SolanaVoidSigner(relayer.toBase58()),
       repaymentChainId,
       repaymentAddress
     );
@@ -158,7 +158,7 @@ export class SvmQuery implements QueryInterface {
       recipient: SvmAddress;
       outputToken: SvmAddress;
     },
-    relayer: SvmAddress,
+    signer: TransactionSigner,
     repaymentChainId: number,
     repaymentAddress: Address
   ) {
@@ -185,7 +185,7 @@ export class SvmQuery implements QueryInterface {
 
     const [recipientAta, relayerAta, fillStatus, eventAuthority] = await Promise.all([
       getAssociatedTokenAddress(recipient, outputToken, mintInfo.programAddress),
-      getAssociatedTokenAddress(SvmAddress.from(relayer.toBase58()), outputToken, mintInfo.programAddress),
+      getAssociatedTokenAddress(SvmAddress.from(signer.address), outputToken, mintInfo.programAddress),
       getFillStatusPda(program, relayData, destinationChainId),
       getEventAuthority(program),
     ]);
@@ -205,9 +205,8 @@ export class SvmQuery implements QueryInterface {
       message: new Uint8Array(Buffer.from(relayData.message, "hex")),
     };
 
-    const simulatedSigner = SolanaVoidSigner(relayer.toBase58());
     const fillInput: SvmSpokeClient.FillRelayInput = {
-      signer: simulatedSigner,
+      signer: signer,
       state,
       delegate,
       mint,
@@ -226,7 +225,7 @@ export class SvmQuery implements QueryInterface {
     };
     // Pass createRecipientAtaIfNeeded =true to the createFillInstruction function to create the recipient token account
     // if it doesn't exist.
-    return createFillInstruction(simulatedSigner, this.provider, fillInput, mintInfo.data.decimals, true);
+    return createFillInstruction(signer, this.provider, fillInput, mintInfo.data.decimals, true);
   }
 
   /**
