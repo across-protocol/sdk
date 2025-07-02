@@ -34,6 +34,7 @@ import {
   RpcClient,
   SVM_DEFAULT_ADDRESS,
   SVM_SPOKE_SEED,
+  bigToU8a32,
   createDefaultTransaction,
   createDepositInstruction,
   createFillInstruction,
@@ -46,6 +47,7 @@ import {
   getRandomSvmAddress,
   getStatePda,
   toAddress,
+  numberToU8a32,
 } from "../../../src/arch/svm";
 import { RelayData } from "../../../src/interfaces";
 import {
@@ -244,7 +246,7 @@ export const sendCreateFill = async (
     inputToken:
       overrides.inputToken ?? toAddressType(address(EvmAddress.from(randomAddress()).toBase58()), CHAIN_IDs.MAINNET),
     outputToken: toAddressType(mint.address),
-    inputAmount: overrides.inputAmount ?? getRandomInt(),
+    inputAmount: overrides.inputAmount ?? bigToU8a32(BigNumber.from(getRandomInt())),
     outputAmount: overrides.outputAmount ?? getRandomInt(),
     originChainId: overrides.originChainId ?? CHAIN_IDs.MAINNET,
     depositId: overrides.depositId ?? new Uint8Array(intToU8Array32(getRandomInt())),
@@ -329,7 +331,7 @@ export const sendRequestSlowFill = async (
     exclusiveRelayer: overrides.exclusiveRelayer ?? toAddressType(SVM_DEFAULT_ADDRESS, CHAIN_IDs.SOLANA),
     inputToken: overrides.inputToken ?? EvmAddress.from(randomAddress()),
     outputToken: overrides.outputToken ?? toAddressType(getRandomSvmAddress(), CHAIN_IDs.SOLANA),
-    inputAmount: overrides.inputAmount ?? getRandomInt(),
+    inputAmount: overrides.inputAmount ?? numberToU8a32(getRandomInt()),
     outputAmount: overrides.outputAmount ?? getRandomInt(),
     originChainId: overrides.originChainId ?? CHAIN_IDs.MAINNET,
     depositId: overrides.depositId ?? new Uint8Array(intToU8Array32(getRandomInt())),
@@ -392,7 +394,7 @@ export const sendCreateDeposit = async (
     inputToken: mint.address,
     outputToken: overrides.outputToken ?? address(EvmAddress.from(randomAddress()).toBase58()),
     inputAmount: overrides.inputAmount ?? getRandomInt(),
-    outputAmount: overrides.outputAmount ?? getRandomInt(),
+    outputAmount: overrides.outputAmount ?? numberToU8a32(getRandomInt()),
     destinationChainId: destinationChainId,
     exclusiveRelayer: overrides.exclusiveRelayer ?? address(EvmAddress.from(randomAddress()).toBase58()),
     quoteTimestamp: overrides.quoteTimestamp ?? Number(currentTime),
@@ -417,7 +419,7 @@ export const sendCreateDeposit = async (
     inputToken: depositInput.inputToken,
     outputToken: depositInput.outputToken,
     inputAmount: BigInt(depositInput.inputAmount),
-    outputAmount: BigInt(depositInput.outputAmount),
+    outputAmount: depositInput.outputAmount,
     destinationChainId: BigInt(destinationChainId),
     exclusiveRelayer: depositInput.exclusiveRelayer,
     quoteTimestamp: BigInt(depositInput.quoteTimestamp),
