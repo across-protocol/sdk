@@ -637,3 +637,21 @@ export async function finalizeCCTPV1Messages(
     return signature;
   });
 }
+
+/**
+ * Convert a bigint (0 ≤ n < 2^256) to a 32-byte Uint8Array (big-endian).
+ * @param n The bigint to convert.
+ * @returns The 32-byte Uint8Array.
+ */
+export function bigintToU8a32(n: bigint): Uint8Array {
+  if (n < BigInt(0) || n > ethers.constants.MaxUint256.toBigInt()) {
+    throw new RangeError("Value must fit in 256 bits");
+  }
+  const hexPadded = ethers.utils.hexZeroPad("0x" + n.toString(16), 32);
+  return ethers.utils.arrayify(hexPadded);
+}
+
+export const bigToU8a32 = (bn: bigint | BigNumber) =>
+  bigintToU8a32(typeof bn === "bigint" ? bn : BigInt(bn.toString()));
+
+export const numberToU8a32 = (n: number) => bigintToU8a32(BigInt(n));

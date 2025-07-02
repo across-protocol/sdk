@@ -43,6 +43,9 @@ import {
   invalidOutputToken,
   Address,
   getNetworkName,
+  toBytes32,
+  convertRelayDataParamsToBytes32,
+  convertFillParamsToBytes32,
 } from "../../utils";
 import winston from "winston";
 import {
@@ -327,7 +330,9 @@ export class BundleDataClient {
               Object.entries(tokenData).map(([token, data]) => [
                 token,
                 {
-                  refunds: data.refunds,
+                  refunds: Object.fromEntries(
+                    Object.entries(data.refunds).map(([refundAddress, refund]) => [toBytes32(refundAddress), refund])
+                  ),
                   totalRefundAmount: data.totalRefundAmount,
                   realizedLpFees: data.realizedLpFees,
                   fills: convertSortableEventFieldsIntoRequiredFields(data.fills),
@@ -920,7 +925,7 @@ export class BundleDataClient {
               this.logger.debug({
                 at: "BundleDataClient#loadData",
                 message: "Duplicate deposit detected",
-                deposit,
+                deposit: convertRelayDataParamsToBytes32(deposit),
               });
               throw new Error("Duplicate deposit detected");
             }
@@ -1049,7 +1054,7 @@ export class BundleDataClient {
                 this.logger.debug({
                   at: "BundleDataClient#loadData",
                   message: "Duplicate fill detected",
-                  fill,
+                  fill: convertFillParamsToBytes32(fill),
                 });
                 throw new Error("Duplicate fill detected");
               }
@@ -1601,9 +1606,13 @@ export class BundleDataClient {
         at: "BundleDataClient#loadData",
         message: "Finished loading V3 spoke pool data and found some invalid fills in range",
         blockRangesForChains,
-        invalidFillsWithPartialMatchedDeposits,
-        preFillsForNextBundle,
-        unknownReasonInvalidFills,
+        invalidFillsWithPartialMatchedDeposits: invalidFillsWithPartialMatchedDeposits.map((invalidFill) =>
+          convertFillParamsToBytes32(invalidFill)
+        ),
+        preFillsForNextBundle: preFillsForNextBundle.map((preFill) => convertFillParamsToBytes32(preFill)),
+        unknownReasonInvalidFills: unknownReasonInvalidFills.map((invalidFill) =>
+          convertFillParamsToBytes32(invalidFill)
+        ),
       });
     }
 

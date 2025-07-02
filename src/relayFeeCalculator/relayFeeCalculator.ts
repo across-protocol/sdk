@@ -27,6 +27,7 @@ import {
   Address,
   EvmAddress,
   SvmAddress,
+  toAddressType,
 } from "../utils";
 
 // This needs to be implemented for every chain and passed into RelayFeeCalculator
@@ -277,10 +278,10 @@ export class RelayFeeCalculator {
         isDefined(details.addresses[destinationChainId])
     );
     const outputToken = deposit.outputToken.isZeroAddress()
-      ? destinationChainTokenDetails!.addresses[destinationChainId]
-      : deposit.outputToken.toNative();
+      ? toAddressType(destinationChainTokenDetails!.addresses[destinationChainId], destinationChainId)
+      : deposit.outputToken;
     const outputTokenInfo = getTokenInfo(outputToken, destinationChainId, tokenMapping);
-    const inputTokenInfo = getTokenInfo(inputToken.toNative(), originChainId, tokenMapping);
+    const inputTokenInfo = getTokenInfo(inputToken, originChainId, tokenMapping);
     if (!isDefined(outputTokenInfo) || !isDefined(inputTokenInfo)) {
       throw new Error(`Could not find token information for ${inputToken} or ${outputToken}`);
     }
@@ -507,8 +508,8 @@ export class RelayFeeCalculator {
     const { inputToken, originChainId, outputToken, destinationChainId } = deposit;
     // We can perform a simple lookup with `getTokenInfo` here without resolving the exact token to resolve since we only need to
     // resolve the L1 token symbol and not the L2 token decimals.
-    const inputTokenInfo = getTokenInfo(inputToken.toNative(), originChainId);
-    const outputTokenInfo = getTokenInfo(outputToken.toNative(), destinationChainId);
+    const inputTokenInfo = getTokenInfo(inputToken, originChainId);
+    const outputTokenInfo = getTokenInfo(outputToken, destinationChainId);
     if (!isDefined(inputTokenInfo) || !isDefined(outputTokenInfo)) {
       throw new Error(`Could not find token information for ${inputToken} or ${outputToken}`);
     }
