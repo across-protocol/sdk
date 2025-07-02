@@ -1,11 +1,9 @@
 import {
   CHAIN_IDs,
   MessageTransmitterClient,
-  RpcClient,
   SvmSpokeClient,
   TOKEN_SYMBOLS_MAP,
   TokenMessengerMinterClient,
-  signAndSendTransaction,
 } from "@across-protocol/contracts";
 import { BN, BorshEventCoder, Idl } from "@coral-xyz/anchor";
 import { SYSTEM_PROGRAM_ADDRESS } from "@solana-program/system";
@@ -22,6 +20,7 @@ import {
   getAddressEncoder,
   getBase64EncodedWireTransaction,
   getProgramDerivedAddress,
+  getSignatureFromTransaction,
   getU32Encoder,
   getU64Encoder,
   isAddress,
@@ -360,17 +359,14 @@ export const createDefaultTransaction = async (rpcClient: SVMProvider, signer: T
  * @returns The decoded result.
  */
 export const simulateAndDecode = async <P extends (buf: Buffer) => unknown>(
-  solanaClient: RpcClient,
+  solanaClient: SVMProvider,
   ix: IInstruction,
   signer: KeyPairSigner,
   parser: P
 ): Promise<ReturnType<P>> => {
-  const simulationTx = appendTransactionMessageInstruction(
-    ix,
-    await createDefaultTransaction(solanaClient.rpc, signer)
-  );
+  const simulationTx = appendTransactionMessageInstruction(ix, await createDefaultTransaction(solanaClient, signer));
 
-  const simulationResult = await solanaClient.rpc
+  const simulationResult = await solanaClient
     .simulateTransaction(getBase64EncodedWireTransaction(await signTransactionMessageWithSigners(simulationTx)), {
       encoding: "base64",
     })
@@ -392,7 +388,7 @@ export const simulateAndDecode = async <P extends (buf: Buffer) => unknown>(
  * @returns The PDA for the CCTP nonce.
  */
 export const getCCTPNoncePda = async (
-  solanaClient: RpcClient,
+  solanaClient: SVMProvider,
   signer: KeyPairSigner,
   nonce: number,
   sourceDomain: number
@@ -426,7 +422,7 @@ export const getCCTPNoncePda = async (
  * @returns True if the message has been processed, false otherwise.
  */
 export const hasCCTPV1MessageBeenProcessed = async (
-  solanaClient: RpcClient,
+  solanaClient: SVMProvider,
   signer: KeyPairSigner,
   nonce: number,
   sourceDomain: number
@@ -552,20 +548,20 @@ async function getAccountMetasForDepositMessage(
 /**
  * Finalizes CCTP deposits and messages on Solana.
  *
+ * @param solanaClient The Solana client.
  * @param attestedMessages The CCTP messages to Solana.
  * @param signer A base signer to be converted into a Solana signer.
  * @param simulate Whether to simulate the transaction.
  * @param hubChainId The chain ID of the hub.
- * @param solanaClient The Solana client.
  * @returns A list of executed transaction signatures.
  */
 
 export async function finalizeCCTPV1Messages(
+  solanaClient: SVMProvider,
   attestedMessages: AttestedCCTPMessage[],
   signer: KeyPairSigner,
   simulate = false,
-  hubChainId = 1,
-  solanaClient: RpcClient
+  hubChainId = 1
 ): Promise<string[]> {
   const [messageTransmitterPda] = await getProgramDerivedAddress({
     programAddress: MessageTransmitterClient.MESSAGE_TRANSMITTER_PROGRAM_ADDRESS,
@@ -617,10 +613,10 @@ export async function finalizeCCTPV1Messages(
       attestation: Buffer.from(message.attestation.slice(2), "hex"),
     };
 
-    const receiveMessageIx = await createReceiveMessageInstruction(signer, solanaClient.rpc, input, accountMetas);
+    const receiveMessageIx = await createReceiveMessageInstruction(signer, solanaClient, input, accountMetas);
 
     if (simulate) {
-      await solanaClient.rpc
+      await solanaClient
         .simulateTransaction(
           getBase64EncodedWireTransaction(await signTransactionMessageWithSigners(receiveMessageIx)),
           {
@@ -630,6 +626,14 @@ export async function finalizeCCTPV1Messages(
         .send();
       return "";
     }
-    return signAndSendTransaction(solanaClient, receiveMessageIx);
+
+    const signedTransaction = await signTransactionMessageWithSigners(receiveMessageIx);
+    const signature = getSignatureFromTransaction(signedTransaction);
+    const encodedTransaction = getBase64EncodedWireTransaction(signedTransaction);
+    await solanaClient
+      .sendTransaction(encodedTransaction, { preflightCommitment: "confirmed", encoding: "base64" })
+      .send();
+
+    return signature;
   });
 }

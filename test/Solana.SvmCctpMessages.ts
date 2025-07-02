@@ -1,5 +1,6 @@
 import { SvmSpokeClient } from "@across-protocol/contracts";
 import { encodeMessageHeader } from "@across-protocol/contracts/dist/src/svm/web3-v1";
+import { signature } from "@solana/kit";
 import { PublicKey } from "@solana/web3.js";
 import { expect } from "chai";
 import {
@@ -55,34 +56,48 @@ describe("Svm Cctp Messages (integration)", () => {
     const firstNonce = 1;
     const statePda = await getStatePda(SvmSpokeClient.SVM_SPOKE_PROGRAM_ADDRESS);
 
-    let isNonceUsed = await hasCCTPV1MessageBeenProcessed(solanaClient, signer, firstNonce, 0);
+    let isNonceUsed = await hasCCTPV1MessageBeenProcessed(solanaClient.rpc, signer, firstNonce, 0);
 
     expect(isNonceUsed).to.equal(false);
 
     let attestedMessages = await getAttestedMessage(encodePauseDepositsMessageBody(true), firstNonce, 0, 5);
 
     // simulate the transaction
-    await finalizeCCTPV1Messages(attestedMessages, signer, true, 0, solanaClient);
+    await finalizeCCTPV1Messages(solanaClient.rpc, attestedMessages, signer, true, 0);
 
-    isNonceUsed = await hasCCTPV1MessageBeenProcessed(solanaClient, signer, firstNonce, 0);
+    isNonceUsed = await hasCCTPV1MessageBeenProcessed(solanaClient.rpc, signer, firstNonce, 0);
 
     expect(isNonceUsed).to.equal(false);
-
     // pause deposits
-    await finalizeCCTPV1Messages(attestedMessages, signer, false, 0, solanaClient);
+    let signatures = await finalizeCCTPV1Messages(solanaClient.rpc, attestedMessages, signer, false, 0);
+    await solanaClient.rpc
+      .getTransaction(signature(signatures[0]), {
+        commitment: "finalized",
+        maxSupportedTransactionVersion: 0,
+      })
+      .send();
+
+    await new Promise((resolve) => setTimeout(resolve, 500));
 
     let state = await SvmSpokeClient.fetchState(solanaClient.rpc, statePda);
 
     expect(state.data.pausedDeposits).to.equal(true);
 
-    isNonceUsed = await hasCCTPV1MessageBeenProcessed(solanaClient, signer, firstNonce, 0);
+    isNonceUsed = await hasCCTPV1MessageBeenProcessed(solanaClient.rpc, signer, firstNonce, 0);
 
     expect(isNonceUsed).to.equal(true);
 
     attestedMessages = await getAttestedMessage(encodePauseDepositsMessageBody(false), firstNonce + 1, 0, 5);
 
     // unpause deposits
-    await finalizeCCTPV1Messages(attestedMessages, signer, false, 0, solanaClient);
+    signatures = await finalizeCCTPV1Messages(solanaClient.rpc, attestedMessages, signer, false, 0);
+    await solanaClient.rpc
+      .getTransaction(signature(signatures[0]), {
+        commitment: "finalized",
+        maxSupportedTransactionVersion: 0,
+      })
+      .send();
+    await new Promise((resolve) => setTimeout(resolve, 500));
 
     state = await SvmSpokeClient.fetchState(solanaClient.rpc, statePda);
 
