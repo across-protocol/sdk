@@ -78,7 +78,6 @@ export interface Fill extends Omit<RelayData, "message"> {
   relayExecutionInfo: RelayExecutionEventInfo;
 }
 
-
 export interface InvalidFill {
   fill: FillWithBlock;
   validationResults: Array<{
