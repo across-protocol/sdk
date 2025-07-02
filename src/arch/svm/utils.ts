@@ -66,7 +66,7 @@ export async function getLatestFinalizedSlotWithBlock(
   let slot = BigInt(endSlot);
   do {
     const block = await provider.getBlock(slot, opts).send();
-    if (isDefined(block)) {
+    if (isDefined(block) && [block.blockHeight, block.blockTime].every(isDefined)) {
       break;
     }
   } while (--maxLookback > 0 && --slot > 0);
