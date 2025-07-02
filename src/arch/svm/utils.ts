@@ -278,10 +278,11 @@ export async function getInstructionParamsPda(programId: Address, signer: Addres
 
 /**
  * Returns the PDA for an individual's claim account.
+ * @param programId the address of the spoke pool.
  * @param mint the address of the token.
  * @param tokenOwner the address of the signer which owns the claim account.
  */
-export async function getClaimAccountPda(mint: Address, tokenOwner: Address): Promise<Address> {
+export async function getClaimAccountPda(programId: Address, mint: Address, tokenOwner: Address): Promise<Address> {
   const addressEncoder = getAddressEncoder();
   const [pda] = await getProgramDerivedAddress({
     programAddress: programId,
