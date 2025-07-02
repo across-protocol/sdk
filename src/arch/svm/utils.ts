@@ -54,13 +54,18 @@ export function toAddress(address: SdkAddress): Address<string> {
  * In most cases the first-resolved slot should also have a block. Avoid making arbitrary decisions about
  * how many slots to rotate through.
  */
-export async function getLatestFinalizedSlotWithBlock(provider: SVMProvider, maxLookback = 1000): Promise<number> {
-  let slot = await provider.getSlot({ commitment: "finalized" }).send();
-  const endSlot = slot;
+export async function getLatestFinalizedSlotWithBlock(
+  provider: SVMProvider,
+  maxSlot: bigint,
+  maxLookback = 1000
+): Promise<number> {
+  const finalizedSlot = await provider.getSlot({ commitment: "finalized" }).send();
+  const endSlot = Math.min(Number(maxSlot), Number(finalizedSlot));
   const opts = { maxSupportedTransactionVersion: 0, transactionDetails: "none", rewards: false } as const;
 
+  let slot = BigInt(endSlot);
   do {
-    const block = (await provider.getBlock(slot, opts).send());
+    const block = await provider.getBlock(slot, opts).send();
     if (isDefined(block)) {
       break;
     }

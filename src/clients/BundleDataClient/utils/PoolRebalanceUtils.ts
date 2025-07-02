@@ -1,7 +1,8 @@
 import { MerkleTree } from "@across-protocol/contracts/dist/utils/MerkleTree";
 import { RunningBalances, PoolRebalanceLeaf, Clients, SpokePoolTargetBalance } from "../../../interfaces";
-import { SpokePoolClient } from "../../SpokePoolClient";
-import { BigNumber, bnZero, compareAddresses, EvmAddress } from "../../../utils";
+import { isSVMSpokePoolClient, SpokePoolClient } from "../../SpokePoolClient";
+import { BigNumber, bnZero, chainIsEvm, chainIsSvm, compareAddresses, EvmAddress } from "../../../utils";
+import { getLatestFinalizedSlotWithBlock } from "../../../arch/svm";
 import { HubPoolClient } from "../../HubPoolClient";
 import { V3DepositWithBlock } from "./shims";
 import { AcrossConfigStoreClient } from "../../AcrossConfigStoreClient";
@@ -18,25 +19,47 @@ export type PoolRebalanceRoot = {
 // when evaluating  pending root bundle. The block end numbers must be less than the latest blocks for each chain ID
 // (because we can't evaluate events in the future), and greater than the expected start blocks, which are the
 // greater of 0 and the latest bundle end block for an executed root bundle proposal + 1.
-export function getWidestPossibleExpectedBlockRange(
-  chainIdListForBundleEvaluationBlockNumbers: number[],
+export async function getWidestPossibleExpectedBlockRange(
+  chainIds: number[],
   spokeClients: { [chainId: number]: SpokePoolClient },
   endBlockBuffers: number[],
   clients: Clients,
   latestMainnetBlock: number,
   enabledChains: number[]
-): number[][] {
+): Promise<number[][]> {
   // We impose a buffer on the head of the chain to increase the probability that the received blocks are final.
   // Reducing the latest block that we query also gives partially filled deposits slightly more buffer for relayers
   // to fully fill the deposit and reduces the chance that the data worker includes a slow fill payment that gets
   // filled during the challenge period.
-  const latestPossibleBundleEndBlockNumbers = chainIdListForBundleEvaluationBlockNumbers.map(
-    (chainId: number, index) =>
-      spokeClients[chainId] && Math.max(spokeClients[chainId].latestHeightSearched - endBlockBuffers[index], 0)
+  const resolveEndBlock = (chainId: number, idx: number): number =>
+    Math.max(spokeClients[chainId].latestHeightSearched - endBlockBuffers[idx], 0);
+
+  // Across bundles are bounded by slots on Solana. The UMIP requires that the bundle end slot is backed by a block.
+  const resolveSVMEndBlock = (chainId: number, idx: number): Promise<number> => {
+    const spokePoolClient = spokeClients[chainId];
+    assert(isSVMSpokePoolClient(spokePoolClient));
+
+    const maxSlot = resolveEndBlock(chainId, idx); // Respect any configured buffer for Solana.
+    return getLatestFinalizedSlotWithBlock(spokePoolClient.svmEventsClient.getRpc(), BigInt(maxSlot));
+  };
+
+  const latestPossibleBundleEndBlockNumbers = await Promise.all(
+    chainIds.map((chainId, idx) => {
+      if (chainIsEvm(chainId)) {
+        return Promise.resolve(resolveEndBlock(chainId, idx));
+      }
+
+      if (chainIsSvm(chainId)) {
+        return resolveSVMEndBlock(chainId, idx);
+      }
+
+      assert(false, `Unsupported chainId: ${chainId}`);
+    })
   );
-  return chainIdListForBundleEvaluationBlockNumbers.map((chainId: number, index) => {
+
+  return chainIds.map((chainId: number, index) => {
     const lastEndBlockForChain = clients.hubPoolClient.getLatestBundleEndBlockForChain(
-      chainIdListForBundleEvaluationBlockNumbers,
+      chainIds,
       latestMainnetBlock,
       chainId
     );
@@ -45,26 +68,22 @@ export function getWidestPossibleExpectedBlockRange(
     // and end block.
     if (!enabledChains.includes(chainId)) {
       return [lastEndBlockForChain, lastEndBlockForChain];
-    } else {
-      // If the latest block hasn't advanced enough from the previous proposed end block, then re-use it. It will
-      // be regarded as disabled by the Dataworker clients. Otherwise, add 1 to the previous proposed end block.
-      if (lastEndBlockForChain >= latestPossibleBundleEndBlockNumbers[index]) {
-        // @dev: Without this check, then `getNextBundleStartBlockNumber` could return `latestBlock+1` even when the
-        // latest block for the chain hasn't advanced, resulting in an invalid range being produced.
-        return [lastEndBlockForChain, lastEndBlockForChain];
-      } else {
-        // Chain has advanced far enough including the buffer, return range from previous proposed end block + 1 to
-        // latest block for chain minus buffer.
-        return [
-          clients.hubPoolClient.getNextBundleStartBlockNumber(
-            chainIdListForBundleEvaluationBlockNumbers,
-            latestMainnetBlock,
-            chainId
-          ),
-          latestPossibleBundleEndBlockNumbers[index],
-        ];
-      }
     }
+
+    // If the latest block hasn't advanced enough from the previous proposed end block, then re-use it. It will
+    // be regarded as disabled by the Dataworker clients. Otherwise, add 1 to the previous proposed end block.
+    if (lastEndBlockForChain >= latestPossibleBundleEndBlockNumbers[index]) {
+      // @dev: Without this check, then `getNextBundleStartBlockNumber` could return `latestBlock+1` even when the
+      // latest block for the chain hasn't advanced, resulting in an invalid range being produced.
+      return [lastEndBlockForChain, lastEndBlockForChain];
+    }
+
+    // Chain has advanced far enough including the buffer, return range from previous proposed end block + 1 to
+    // latest block for chain minus buffer.
+    return [
+      clients.hubPoolClient.getNextBundleStartBlockNumber(chainIds, latestMainnetBlock, chainId),
+      latestPossibleBundleEndBlockNumbers[index],
+    ];
   });
 }
 
