@@ -31,8 +31,11 @@ export async function getWidestPossibleExpectedBlockRange(
   // Reducing the latest block that we query also gives partially filled deposits slightly more buffer for relayers
   // to fully fill the deposit and reduces the chance that the data worker includes a slow fill payment that gets
   // filled during the challenge period.
-  const resolveEndBlock = (chainId: number, idx: number): number =>
-    Math.max(spokeClients[chainId].latestHeightSearched - endBlockBuffers[idx], 0);
+  const resolveEndBlock = (chainId: number, idx: number): number => {
+    return enabledChains.includes(chainId)
+      ? Math.max(spokeClients[chainId].latestHeightSearched - endBlockBuffers[idx], 0)
+      : 0; // Chain is not enabled.
+  };
 
   // Across bundles are bounded by slots on Solana. The UMIP requires that the bundle end slot is backed by a block.
   const resolveSVMEndBlock = (chainId: number, idx: number): Promise<number> => {
