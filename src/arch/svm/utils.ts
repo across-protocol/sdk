@@ -17,7 +17,7 @@ import {
 } from "@solana/kit";
 import { SvmSpokeClient } from "@across-protocol/contracts";
 import { FillType, RelayData } from "../../interfaces";
-import { BigNumber, getRelayDataHash, isUint8Array, Address as SdkAddress } from "../../utils";
+import { BigNumber, getRelayDataHash, isDefined, isUint8Array, Address as SdkAddress } from "../../utils";
 import { EventName, SVMEventNames, SVMProvider } from "./types";
 
 /**
@@ -47,6 +47,35 @@ export async function isDevnet(rpc: SVMProvider): Promise<boolean> {
  */
 export function toAddress(address: SdkAddress): Address<string> {
   return address.toBase58() as Address<string>;
+}
+
+/**
+ * Resolve the latest finalized slot, and then work backwards to find the nearest slot containing a block.
+ * In most cases the first-resolved slot should also have a block. Avoid making arbitrary decisions about
+ * how many slots to rotate through.
+ */
+export async function getLatestFinalizedSlotWithBlock(
+  provider: SVMProvider,
+  maxSlot: bigint,
+  maxLookback = 1000
+): Promise<number> {
+  const finalizedSlot = await provider.getSlot({ commitment: "finalized" }).send();
+  const endSlot = Math.min(Number(maxSlot), Number(finalizedSlot));
+  const opts = { maxSupportedTransactionVersion: 0, transactionDetails: "none", rewards: false } as const;
+
+  let slot = BigInt(endSlot);
+  do {
+    const block = await provider.getBlock(slot, opts).send();
+    if (isDefined(block) && [block.blockHeight, block.blockTime].every(isDefined)) {
+      break;
+    }
+  } while (--maxLookback > 0 && --slot > 0);
+
+  if (maxLookback === 0) {
+    throw new Error(`Unable to find Solana block between slots [${slot}, ${endSlot}]`);
+  }
+
+  return Number(slot);
 }
 
 /**

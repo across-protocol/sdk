@@ -551,7 +551,7 @@ export class BundleDataClient {
 
     // @dev: If spoke pool client is undefined for a chain, then the end block will be null or undefined, which
     // should be handled gracefully and effectively cause this function to ignore refunds for the chain.
-    let widestBundleBlockRanges = getWidestPossibleExpectedBlockRange(
+    let widestBundleBlockRanges = await getWidestPossibleExpectedBlockRange(
       chainIds,
       this.spokePoolClientManager.getSpokePoolClients(),
       getEndBlockBuffers(chainIds, this.blockRangeEndBlockBuffer),
