@@ -951,7 +951,7 @@ export async function getDepositDelegatePda(
 
   const [pda] = await getProgramDerivedAddress({
     programAddress: programId,
-    seeds: [new Uint8Array(Buffer.from("delegate")), new Uint8Array(seedHash)],
+    seeds: [Buffer.from("delegate"), seedHash],
   });
 
   return pda;
@@ -999,7 +999,7 @@ export async function getDepositNowDelegatePda(
 
   const [pda] = await getProgramDerivedAddress({
     programAddress: programId,
-    seeds: [new Uint8Array(Buffer.from("delegate")), new Uint8Array(seedHash)],
+    seeds: [Buffer.from("delegate"), seedHash],
   });
 
   return pda;
@@ -1027,7 +1027,7 @@ export async function getFillRelayDelegatePda(
 
   const [pda] = await getProgramDerivedAddress({
     programAddress: programId,
-    seeds: [new Uint8Array(Buffer.from("delegate")), new Uint8Array(seedHash)],
+    seeds: [Buffer.from("delegate"), seedHash],
   });
 
   return pda;
