@@ -1,5 +1,5 @@
 import { CHAIN_IDs } from "@across-protocol/constants";
-import { SvmSpokeClient } from "@across-protocol/contracts";
+import { SpokePool__factory, SvmSpokeClient } from "@across-protocol/contracts";
 import { RelayDataArgs } from "@across-protocol/contracts/dist/src/svm/clients/SvmSpoke";
 import { intToU8Array32 } from "@across-protocol/contracts/dist/src/svm/web3-v1";
 import { SYSTEM_PROGRAM_ADDRESS, getCreateAccountInstruction } from "@solana-program/system";
@@ -29,6 +29,7 @@ import {
   sendAndConfirmTransactionFactory,
   signTransactionMessageWithSigners,
 } from "@solana/kit";
+import { ethers } from "ethers";
 import { arrayify, hexlify } from "ethers/lib/utils";
 import {
   RpcClient,
@@ -193,7 +194,7 @@ export const initializeSvmSpoke = async (
     seed,
     initialNumberOfDeposits,
     chainId: BigInt(CHAIN_IDs.SOLANA),
-    remoteDomain: 1,
+    remoteDomain: 0,
     crossDomainAdmin,
     depositQuoteTimeBuffer,
     fillDeadlineBuffer,
@@ -434,6 +435,16 @@ export const sendCreateDeposit = async (
   const depositTx = await createDepositInstruction(signer, solanaClient.rpc, depositInput, mintDecimals);
   const signature = await signAndSendTransaction(solanaClient, depositTx);
   return { signature, depositInput };
+};
+
+/**
+ * Helper: Encodes a `pauseDeposits` call and returns it as a Buffer.
+ * @param pause Whether deposits should be paused. Defaults to `true`.
+ */
+export const encodePauseDepositsMessageBody = (pause = true): Buffer => {
+  const spokePoolInterface = new ethers.utils.Interface(SpokePool__factory.abi);
+  const calldata = spokePoolInterface.encodeFunctionData("pauseDeposits", [pause]);
+  return Buffer.from(calldata.slice(2), "hex");
 };
 
 /** Relay Data Utils */
