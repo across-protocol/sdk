@@ -671,20 +671,94 @@ export const createDepositInstruction = async (
  * Creates a request slow fill instruction.
  * @param signer - The signer of the transaction.
  * @param solanaClient - The Solana client.
- * @param depositInput - The deposit input.
+ * @param requestSlowFillInput - The deposit input.
  * @returns The request slow fill instruction.
  */
 export const createRequestSlowFillInstruction = async (
   signer: TransactionSigner,
   solanaClient: SVMProvider,
-  depositInput: SvmSpokeClient.RequestSlowFillInput
+  requestSlowFillInput: SvmSpokeClient.RequestSlowFillInput
 ) => {
-  const requestSlowFillIx = SvmSpokeClient.getRequestSlowFillInstruction(depositInput);
+  const requestSlowFillIx = SvmSpokeClient.getRequestSlowFillInstruction(requestSlowFillInput);
 
   return pipe(await createDefaultTransaction(solanaClient, signer), (tx) =>
     appendTransactionMessageInstruction(requestSlowFillIx, tx)
   );
 };
+
+/**
+ * @notice Return the requestSlowFill transaction for a given deposit
+ * @param spokePoolAddr Address of the spoke pool we're trying to fill through
+ * @param solanaClient RPC client to interact with Solana chain
+ * @param relayData RelayData instance, supplemented with destinationChainId
+ * @param signer signer associated with the relayer creating a Fill.
+ * @returns requestSlowFill transaction
+ */
+export async function getSlowFillRequestTx(
+  spokePoolAddr: SvmAddress,
+  solanaClient: SVMProvider,
+  relayData: Omit<RelayData, "recipient" | "outputToken"> & {
+    destinationChainId: number;
+    recipient: SvmAddress;
+    outputToken: SvmAddress;
+  },
+  signer: TransactionSigner
+) {
+  const {
+    depositor,
+    recipient,
+    inputToken,
+    outputToken,
+    exclusiveRelayer,
+    destinationChainId,
+    originChainId,
+    depositId,
+    fillDeadline,
+    exclusivityDeadline,
+    message,
+  } = relayData;
+
+  const program = toAddress(spokePoolAddr);
+  const relayDataHash = getRelayDataHash(relayData, destinationChainId);
+
+  const [state, fillStatus, eventAuthority] = await Promise.all([
+    getStatePda(program),
+    getFillStatusPda(program, relayData, destinationChainId),
+    getEventAuthority(program),
+  ]);
+
+  const depositIdBuffer = new Uint8Array(32);
+  const shortenedBuffer = arrayify(depositId.toHexString());
+  depositIdBuffer.set(shortenedBuffer, 32 - shortenedBuffer.length);
+
+  const relayDataInput: SvmSpokeClient.RequestSlowFillInput["relayData"] = {
+    depositor: toAddress(depositor),
+    recipient: toAddress(recipient),
+    exclusiveRelayer: toAddress(exclusiveRelayer),
+    inputToken: toAddress(inputToken),
+    outputToken: toAddress(outputToken),
+    inputAmount: bigToU8a32(relayData.inputAmount.toBigInt()),
+    outputAmount: relayData.outputAmount.toBigInt(),
+    originChainId: BigInt(originChainId),
+    depositId: depositIdBuffer,
+    fillDeadline: fillDeadline,
+    exclusivityDeadline: exclusivityDeadline,
+    message: arrayify(message),
+  };
+
+  const requestSlowFillInput: SvmSpokeClient.RequestSlowFillInput = {
+    signer,
+    state,
+    fillStatus,
+    eventAuthority,
+    program,
+    relayHash: arrayify(relayDataHash),
+    relayData: relayDataInput,
+    systemProgram: SYSTEM_PROGRAM_ADDRESS,
+  };
+
+  return createRequestSlowFillInstruction(signer, solanaClient, requestSlowFillInput);
+}
 
 /**
  * Creates a close fill PDA instruction.
@@ -707,6 +781,7 @@ export const createCloseFillPdaInstruction = async (
     appendTransactionMessageInstruction(closeFillPdaIx, tx)
   );
 };
+
 export async function getAssociatedTokenAddress(
   owner: SvmAddress,
   mint: SvmAddress,
@@ -876,7 +951,7 @@ export async function getDepositDelegatePda(
 
   const [pda] = await getProgramDerivedAddress({
     programAddress: programId,
-    seeds: [Buffer.from("delegate"), seedHash],
+    seeds: [new Uint8Array(Buffer.from("delegate")), new Uint8Array(seedHash)],
   });
 
   return pda;
@@ -924,7 +999,7 @@ export async function getDepositNowDelegatePda(
 
   const [pda] = await getProgramDerivedAddress({
     programAddress: programId,
-    seeds: [Buffer.from("delegate"), seedHash],
+    seeds: [new Uint8Array(Buffer.from("delegate")), new Uint8Array(seedHash)],
   });
 
   return pda;
@@ -952,7 +1027,7 @@ export async function getFillRelayDelegatePda(
 
   const [pda] = await getProgramDerivedAddress({
     programAddress: programId,
-    seeds: [Buffer.from("delegate"), seedHash],
+    seeds: [new Uint8Array(Buffer.from("delegate")), new Uint8Array(seedHash)],
   });
 
   return pda;
