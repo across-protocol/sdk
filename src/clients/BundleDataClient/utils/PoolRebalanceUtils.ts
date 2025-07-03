@@ -45,7 +45,7 @@ export async function getWidestPossibleExpectedBlockRange(
 
   const latestPossibleBundleEndBlockNumbers = await Promise.all(
     chainIds.map((chainId, idx) => {
-      if (!enabledChains.includes(chainId) || !isDefined(spokeClients[chainId]) {
+      if (!enabledChains.includes(chainId) || !isDefined(spokeClients[chainId])) {
         return -1; // Chain is disabled; end block is redundant and will be overridden later.
       }
 
