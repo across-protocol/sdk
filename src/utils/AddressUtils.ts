@@ -1,22 +1,46 @@
+import { isAddress } from "viem";
 import { providers, utils } from "ethers";
 import bs58 from "bs58";
 import { BigNumber, chainIsEvm, chainIsSvm } from "./";
 
 /**
+ * Verify whether an address' bytecode resembles an EIP-7702 delegation.
+ * @param code Bytecode for a given address.
+ * @returns True if the bytecode resembles an EIP-7702 delegation, otherwise false.
+ */
+export function is7702Delegate(code: string): boolean {
+  // Sample 7702 delegation bytecode: 0xef010063c0c19a282a1b52b07dd5a65b58948a07dae32b
+  return code.length === 48 && code.startsWith("0xef0100") && isAddress(`0x${code.slice(8)}`);
+}
+
+/**
  * Checks if a contract is deployed at the given address
  * @param address The ETH address to check
  * @param provider A valid Ethers.js provider
+ * @param ignore7702 A boolean to indicate whether EIP-7702 delegations should be considered as contract code.
  * @returns A boolean indicating if a contract is deployed at the given address or not (true = contract, false = no contract)
  */
-export async function isContractDeployedToAddress(address: string, provider: providers.Provider): Promise<boolean> {
+export async function isContractDeployedToAddress(
+  address: string,
+  provider: providers.Provider,
+  ignore7702 = false
+): Promise<boolean> {
   // A base case for if the address is null or malformed
-  if (!address || !utils.isAddress(address)) {
+  if (!address || !isAddress(address)) {
     return false;
   }
-  // Retrieve the code at the address
+
   const code = await provider.getCode(address);
-  // If the code is not empty, then there is a contract at this address
-  return code !== "0x";
+  if (code === "0x") {
+    return false;
+  }
+
+  // Ignore EIP-7702 delegations if ignore7702 was set.
+  if (ignore7702) {
+    return !is7702Delegate(code);
+  }
+
+  return true;
 }
 
 export function compareAddresses(addressA: string, addressB: string): 1 | -1 | 0 {
@@ -56,7 +80,7 @@ export function toEvmAddress(hexString: string): string {
 }
 
 export function isValidEvmAddress(address: string): boolean {
-  if (utils.isAddress(address)) {
+  if (isAddress(address)) {
     return true;
   }
   // We may throw an error here if hexZeroPadFails. This will happen if the address to pad is greater than 20 bytes long, indicating
@@ -65,7 +89,7 @@ export function isValidEvmAddress(address: string): boolean {
   // For both cases, this indicates that the address cannot be casted as a bytes20 EVM address, so we should return false.
   try {
     const evmAddress = utils.hexZeroPad(utils.hexStripZeros(address), 20);
-    return utils.isAddress(utils.getAddress(evmAddress));
+    return isAddress(utils.getAddress(evmAddress));
   } catch (_e) {
     return false;
   }
