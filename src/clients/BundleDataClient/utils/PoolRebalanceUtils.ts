@@ -1,7 +1,7 @@
 import { MerkleTree } from "@across-protocol/contracts/dist/utils/MerkleTree";
 import { RunningBalances, PoolRebalanceLeaf, Clients, SpokePoolTargetBalance } from "../../../interfaces";
 import { isSVMSpokePoolClient, SpokePoolClient } from "../../SpokePoolClient";
-import { BigNumber, bnZero, chainIsEvm, chainIsSvm, compareAddresses, EvmAddress } from "../../../utils";
+import { BigNumber, bnZero, chainIsEvm, chainIsSvm, compareAddresses, EvmAddress, isDefined } from "../../../utils";
 import { getLatestFinalizedSlotWithBlock } from "../../../arch/svm";
 import { HubPoolClient } from "../../HubPoolClient";
 import { V3DepositWithBlock } from "./shims";
@@ -45,7 +45,7 @@ export async function getWidestPossibleExpectedBlockRange(
 
   const latestPossibleBundleEndBlockNumbers = await Promise.all(
     chainIds.map((chainId, idx) => {
-      if (!enabledChains.includes(chainId)) {
+      if (!enabledChains.includes(chainId) || !isDefined(spokeClients[chainId]) {
         return -1; // Chain is disabled; end block is redundant and will be overridden later.
       }
 
