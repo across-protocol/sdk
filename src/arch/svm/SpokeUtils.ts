@@ -671,7 +671,7 @@ export const createDepositInstruction = async (
  * Creates a request slow fill instruction.
  * @param signer - The signer of the transaction.
  * @param solanaClient - The Solana client.
- * @param requestSlowFillInput - The deposit input.
+ * @param requestSlowFillInput - The input arguments for the `requestSlowFill` instruction.
  * @returns The request slow fill instruction.
  */
 export const createRequestSlowFillInstruction = async (
