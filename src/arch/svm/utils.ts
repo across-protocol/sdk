@@ -1,17 +1,7 @@
-import {
-  CHAIN_IDs,
-  MessageTransmitterClient,
-  SvmSpokeClient,
-  TOKEN_SYMBOLS_MAP,
-  TokenMessengerMinterClient,
-} from "@across-protocol/contracts";
+import { MessageTransmitterClient, SvmSpokeClient } from "@across-protocol/contracts";
 import { BN, BorshEventCoder, Idl } from "@coral-xyz/anchor";
-import { SYSTEM_PROGRAM_ADDRESS } from "@solana-program/system";
-import { TOKEN_PROGRAM_ADDRESS } from "@solana-program/token";
 import {
-  AccountRole,
   Address,
-  IAccountMeta,
   IInstruction,
   KeyPairSigner,
   address,
@@ -20,7 +10,6 @@ import {
   getAddressEncoder,
   getBase64EncodedWireTransaction,
   getProgramDerivedAddress,
-  getSignatureFromTransaction,
   getU32Encoder,
   getU64Encoder,
   isAddress,
@@ -33,17 +22,7 @@ import {
 import bs58 from "bs58";
 import { ethers } from "ethers";
 import { FillType, RelayData } from "../../interfaces";
-import {
-  BigNumber,
-  EvmAddress,
-  Address as SdkAddress,
-  SvmAddress,
-  chainIsProd,
-  getRelayDataHash,
-  isUint8Array,
-  mapAsync,
-} from "../../utils";
-import { createReceiveMessageInstruction, getAssociatedTokenAddress } from "./SpokeUtils";
+import { BigNumber, Address as SdkAddress, getRelayDataHash, isUint8Array } from "../../utils";
 import { AttestedCCTPMessage, EventName, SVMEventNames, SVMProvider } from "./types";
 
 /**
@@ -414,228 +393,12 @@ export const getCCTPNoncePda = async (
 };
 
 /**
- * Checks if a CCTP message has been processed.
- * @param solanaClient The Solana client.
- * @param signer The signer of the transaction.
- * @param nonce The nonce to check.
- * @param sourceDomain The source domain.
- * @returns True if the message has been processed, false otherwise.
- */
-export const hasCCTPV1MessageBeenProcessed = async (
-  solanaClient: SVMProvider,
-  signer: KeyPairSigner,
-  nonce: number,
-  sourceDomain: number
-): Promise<boolean> => {
-  const noncePda = await getCCTPNoncePda(solanaClient, signer, nonce, sourceDomain);
-  const isNonceUsedIx = await MessageTransmitterClient.getIsNonceUsedInstruction({
-    nonce: nonce,
-    usedNonces: noncePda,
-  });
-  const parserFunction = (buf: Buffer): boolean => {
-    if (buf.length != 1) {
-      throw new Error("Invalid buffer length for isNonceUsedIx");
-    }
-    return Boolean(buf[0]);
-  };
-  return await simulateAndDecode(solanaClient, isNonceUsedIx, signer, parserFunction);
-};
-
-/**
  * Checks if a CCTP message is a deposit for burn event.
  * @param event The CCTP message event.
  * @returns True if the message is a deposit for burn event, false otherwise.
  */
 export function isDepositForBurnEvent(event: AttestedCCTPMessage): boolean {
-  return "amount" in event && "mintRecipient" in event && "burnToken" in event;
-}
-
-/**
- * Returns the account metas for a tokenless message.
- * @returns The account metas for a tokenless message.
- */
-export async function getAccountMetasForTokenlessMessage(): Promise<IAccountMeta<string>[]> {
-  const statePda = await getStatePda(SvmSpokeClient.SVM_SPOKE_PROGRAM_ADDRESS);
-  return [
-    { address: statePda, role: AccountRole.READONLY },
-    { address: await getSelfAuthority(), role: AccountRole.READONLY },
-    { address: SvmSpokeClient.SVM_SPOKE_PROGRAM_ADDRESS, role: AccountRole.READONLY },
-    { address: statePda, role: AccountRole.WRITABLE },
-    { address: await getEventAuthority(SvmSpokeClient.SVM_SPOKE_PROGRAM_ADDRESS), role: AccountRole.READONLY },
-    { address: SvmSpokeClient.SVM_SPOKE_PROGRAM_ADDRESS, role: AccountRole.READONLY },
-  ];
-}
-
-/**
- * Returns the account metas for a deposit message.
- * @param message The CCTP message.
- * @param hubChainId The chain ID of the hub.
- * @param tokenMessengerMinter The token messenger minter address.
- * @returns The account metas for a deposit message.
- */
-async function getAccountMetasForDepositMessage(
-  message: AttestedCCTPMessage,
-  hubChainId: number,
-  tokenMessengerMinter: Address
-): Promise<IAccountMeta<string>[]> {
-  const l1Usdc = EvmAddress.from(TOKEN_SYMBOLS_MAP.USDC.addresses[hubChainId]);
-  const l2Usdc = SvmAddress.from(
-    TOKEN_SYMBOLS_MAP.USDC.addresses[chainIsProd(hubChainId) ? CHAIN_IDs.SOLANA : CHAIN_IDs.SOLANA_DEVNET]
-  );
-
-  const [tokenMessengerPda] = await getProgramDerivedAddress({
-    programAddress: tokenMessengerMinter,
-    seeds: ["token_messenger"],
-  });
-
-  const [tokenMinterPda] = await getProgramDerivedAddress({
-    programAddress: tokenMessengerMinter,
-    seeds: ["token_minter"],
-  });
-
-  const [localTokenPda] = await getProgramDerivedAddress({
-    programAddress: tokenMessengerMinter,
-    seeds: ["local_token", bs58.decode(l2Usdc.toBase58())],
-  });
-
-  const [tokenMessengerEventAuthorityPda] = await getProgramDerivedAddress({
-    programAddress: tokenMessengerMinter,
-    seeds: ["__event_authority"],
-  });
-
-  const [custodyTokenAccountPda] = await getProgramDerivedAddress({
-    programAddress: tokenMessengerMinter,
-    seeds: ["custody", bs58.decode(l2Usdc.toBase58())],
-  });
-
-  const state = await getStatePda(SvmSpokeClient.SVM_SPOKE_PROGRAM_ADDRESS);
-  const tokenProgram = TOKEN_PROGRAM_ADDRESS;
-  const vault = await getAssociatedTokenAddress(
-    SvmAddress.from(state),
-    SvmAddress.from(l2Usdc.toBase58()),
-    tokenProgram
-  );
-
-  // Define accounts dependent on deposit information.
-  const [tokenPairPda] = await getProgramDerivedAddress({
-    programAddress: tokenMessengerMinter,
-    seeds: [
-      new Uint8Array(Buffer.from("token_pair")),
-      new Uint8Array(Buffer.from(String(message.sourceDomain))),
-      new Uint8Array(Buffer.from(l1Usdc.toBytes32().slice(2), "hex")),
-    ],
-  });
-
-  const [remoteTokenMessengerPda] = await getProgramDerivedAddress({
-    programAddress: tokenMessengerMinter,
-    seeds: ["remote_token_messenger", Buffer.from(String(message.sourceDomain))],
-  });
-
-  return [
-    { address: tokenMessengerPda, role: AccountRole.READONLY },
-    { address: remoteTokenMessengerPda, role: AccountRole.READONLY },
-    { address: tokenMinterPda, role: AccountRole.WRITABLE },
-    { address: localTokenPda, role: AccountRole.WRITABLE },
-    { address: tokenPairPda, role: AccountRole.READONLY },
-    { address: vault, role: AccountRole.WRITABLE },
-    { address: custodyTokenAccountPda, role: AccountRole.WRITABLE },
-    { address: TOKEN_PROGRAM_ADDRESS, role: AccountRole.READONLY },
-    { address: tokenMessengerEventAuthorityPda, role: AccountRole.READONLY },
-    { address: tokenMessengerMinter, role: AccountRole.READONLY },
-  ];
-}
-
-/**
- * Finalizes CCTP deposits and messages on Solana.
- *
- * @param solanaClient The Solana client.
- * @param attestedMessages The CCTP messages to Solana.
- * @param signer A base signer to be converted into a Solana signer.
- * @param simulate Whether to simulate the transaction.
- * @param hubChainId The chain ID of the hub.
- * @returns A list of executed transaction signatures.
- */
-
-export async function finalizeCCTPV1Messages(
-  solanaClient: SVMProvider,
-  attestedMessages: AttestedCCTPMessage[],
-  signer: KeyPairSigner,
-  simulate = false,
-  hubChainId = 1
-): Promise<string[]> {
-  const [messageTransmitterPda] = await getProgramDerivedAddress({
-    programAddress: MessageTransmitterClient.MESSAGE_TRANSMITTER_PROGRAM_ADDRESS,
-    seeds: ["message_transmitter"],
-  });
-
-  const [eventAuthorityPda] = await getProgramDerivedAddress({
-    programAddress: MessageTransmitterClient.MESSAGE_TRANSMITTER_PROGRAM_ADDRESS,
-    seeds: ["__event_authority"],
-  });
-
-  return mapAsync(attestedMessages, async (message) => {
-    const cctpMessageReceiver = isDepositForBurnEvent(message)
-      ? TokenMessengerMinterClient.TOKEN_MESSENGER_MINTER_PROGRAM_ADDRESS
-      : SvmSpokeClient.SVM_SPOKE_PROGRAM_ADDRESS;
-
-    const [authorityPda] = await getProgramDerivedAddress({
-      programAddress: MessageTransmitterClient.MESSAGE_TRANSMITTER_PROGRAM_ADDRESS,
-      seeds: ["message_transmitter_authority", bs58.decode(cctpMessageReceiver)],
-    });
-
-    // Notice: message.nonce is only valid for v1 messages
-    const usedNonces = await getCCTPNoncePda(solanaClient, signer, message.nonce, message.sourceDomain);
-
-    // Notice: for Svm tokenless messages, we currently only support very specific finalizations: Hub -> Spoke relayRootBundle calls
-    const accountMetas: IAccountMeta<string>[] = isDepositForBurnEvent(message)
-      ? await getAccountMetasForDepositMessage(
-          message,
-          hubChainId,
-          TokenMessengerMinterClient.TOKEN_MESSENGER_MINTER_PROGRAM_ADDRESS
-        )
-      : await getAccountMetasForTokenlessMessage();
-
-    const messageBytes = message.messageBytes.startsWith("0x")
-      ? Buffer.from(message.messageBytes.slice(2), "hex")
-      : Buffer.from(message.messageBytes, "hex");
-
-    const input: MessageTransmitterClient.ReceiveMessageInput = {
-      program: MessageTransmitterClient.MESSAGE_TRANSMITTER_PROGRAM_ADDRESS,
-      payer: signer,
-      caller: signer,
-      authorityPda,
-      messageTransmitter: messageTransmitterPda,
-      eventAuthority: eventAuthorityPda,
-      usedNonces,
-      receiver: SvmSpokeClient.SVM_SPOKE_PROGRAM_ADDRESS,
-      systemProgram: SYSTEM_PROGRAM_ADDRESS,
-      message: messageBytes,
-      attestation: Buffer.from(message.attestation.slice(2), "hex"),
-    };
-
-    const receiveMessageIx = await createReceiveMessageInstruction(signer, solanaClient, input, accountMetas);
-
-    if (simulate) {
-      await solanaClient
-        .simulateTransaction(
-          getBase64EncodedWireTransaction(await signTransactionMessageWithSigners(receiveMessageIx)),
-          {
-            encoding: "base64",
-          }
-        )
-        .send();
-      return "";
-    }
-
-    const signedTransaction = await signTransactionMessageWithSigners(receiveMessageIx);
-    const signature = getSignatureFromTransaction(signedTransaction);
-    const encodedTransaction = getBase64EncodedWireTransaction(signedTransaction);
-    await solanaClient
-      .sendTransaction(encodedTransaction, { preflightCommitment: "confirmed", encoding: "base64" })
-      .send();
-
-    return signature;
-  });
+  return event.type === "transfer";
 }
 
 /**

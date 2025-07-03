@@ -68,7 +68,4 @@ export type AttestedCCTPMessage = {
   messageBytes: string;
   attestation: string;
   type: "transfer" | "message";
-  amount?: string;
-  mintRecipient?: string;
-  burnToken?: string;
 };

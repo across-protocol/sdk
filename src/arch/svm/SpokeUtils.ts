@@ -1,7 +1,8 @@
-import { MessageTransmitterClient, SvmSpokeClient } from "@across-protocol/contracts";
+import { MessageTransmitterClient, SvmSpokeClient, TokenMessengerMinterClient } from "@across-protocol/contracts";
 import { decodeFillStatusAccount, fetchState } from "@across-protocol/contracts/dist/src/svm/clients/SvmSpoke";
-import { intToU8Array32 } from "@across-protocol/contracts/dist/src/svm/web3-v1/conversionUtils";
 import { hashNonEmptyMessage } from "@across-protocol/contracts/dist/src/svm/web3-v1";
+import { intToU8Array32 } from "@across-protocol/contracts/dist/src/svm/web3-v1/conversionUtils";
+import { SYSTEM_PROGRAM_ADDRESS } from "@solana-program/system";
 import {
   ASSOCIATED_TOKEN_PROGRAM_ADDRESS,
   TOKEN_PROGRAM_ADDRESS,
@@ -10,48 +11,59 @@ import {
   getCreateAssociatedTokenIdempotentInstruction,
 } from "@solana-program/token";
 import {
+  AccountRole,
   Address,
+  IAccountMeta,
+  KeyPairSigner,
+  ReadonlyUint8Array,
   appendTransactionMessageInstruction,
   fetchEncodedAccount,
   fetchEncodedAccounts,
   getAddressEncoder,
+  getBase64EncodedWireTransaction,
   getProgramDerivedAddress,
+  getSignatureFromTransaction,
   getU32Encoder,
   getU64Encoder,
-  IAccountMeta,
   pipe,
-  ReadonlyUint8Array,
+  signTransactionMessageWithSigners,
   some,
   type TransactionSigner,
 } from "@solana/kit";
 import assert from "assert";
 import { arrayify, hexZeroPad, hexlify } from "ethers/lib/utils";
 import { Logger } from "winston";
-import { SYSTEM_PROGRAM_ADDRESS } from "@solana-program/system";
+import { CHAIN_IDs, TOKEN_SYMBOLS_MAP } from "../../constants";
 import { DepositWithBlock, FillStatus, FillWithBlock, RelayData, RelayExecutionEventInfo } from "../../interfaces";
 import {
   BigNumber,
   EvmAddress,
-  SvmAddress,
   Address as SdkAddress,
+  SvmAddress,
+  bs58,
+  chainIsProd,
   chainIsSvm,
   chunk,
   isUnsafeDepositId,
   keccak256,
+  mapAsync,
   toAddressType,
 } from "../../utils";
 import {
   SvmCpiEventsClient,
   bigToU8a32,
   createDefaultTransaction,
+  getCCTPNoncePda,
   getEventAuthority,
   getFillStatusPda,
+  getSelfAuthority,
   getStatePda,
+  isDepositForBurnEvent,
+  simulateAndDecode,
   toAddress,
   unwrapEventData,
 } from "./";
-import { CHAIN_IDs } from "../../constants";
-import { SVMEventNames, SVMProvider } from "./types";
+import { AttestedCCTPMessage, SVMEventNames, SVMProvider } from "./types";
 
 /**
  * @note: Average Solana slot duration is about 400-500ms. We can be conservative
@@ -971,4 +983,240 @@ export async function getFillRelayDelegatePda(
   });
 
   return pda;
+}
+
+/**
+ * Checks if a CCTP message has been processed.
+ * @param solanaClient The Solana client.
+ * @param signer The signer of the transaction.
+ * @param nonce The nonce to check.
+ * @param sourceDomain The source domain.
+ * @returns True if the message has been processed, false otherwise.
+ */
+export const hasCCTPV1MessageBeenProcessed = async (
+  solanaClient: SVMProvider,
+  signer: KeyPairSigner,
+  nonce: number,
+  sourceDomain: number
+): Promise<boolean> => {
+  const noncePda = await getCCTPNoncePda(solanaClient, signer, nonce, sourceDomain);
+  const isNonceUsedIx = await MessageTransmitterClient.getIsNonceUsedInstruction({
+    nonce: nonce,
+    usedNonces: noncePda,
+  });
+  const parserFunction = (buf: Buffer): boolean => {
+    if (buf.length != 1) {
+      throw new Error("Invalid buffer length for isNonceUsedIx");
+    }
+    return Boolean(buf[0]);
+  };
+  return await simulateAndDecode(solanaClient, isNonceUsedIx, signer, parserFunction);
+};
+
+/**
+ * Returns the account metas for a tokenless message.
+ * @returns The account metas for a tokenless message.
+ */
+export async function getAccountMetasForTokenlessMessage(): Promise<IAccountMeta<string>[]> {
+  const statePda = await getStatePda(SvmSpokeClient.SVM_SPOKE_PROGRAM_ADDRESS);
+  return [
+    { address: statePda, role: AccountRole.READONLY },
+    { address: await getSelfAuthority(), role: AccountRole.READONLY },
+    { address: SvmSpokeClient.SVM_SPOKE_PROGRAM_ADDRESS, role: AccountRole.READONLY },
+    { address: statePda, role: AccountRole.WRITABLE },
+    { address: await getEventAuthority(SvmSpokeClient.SVM_SPOKE_PROGRAM_ADDRESS), role: AccountRole.READONLY },
+    { address: SvmSpokeClient.SVM_SPOKE_PROGRAM_ADDRESS, role: AccountRole.READONLY },
+  ];
+}
+
+/**
+ * Returns the account metas for a deposit message.
+ * @param message The CCTP message.
+ * @param hubChainId The chain ID of the hub.
+ * @param tokenMessengerMinter The token messenger minter address.
+ * @returns The account metas for a deposit message.
+ */
+async function getAccountMetasForDepositMessage(
+  message: AttestedCCTPMessage,
+  hubChainId: number,
+  tokenMessengerMinter: Address
+): Promise<IAccountMeta<string>[]> {
+  const l1Usdc = EvmAddress.from(TOKEN_SYMBOLS_MAP.USDC.addresses[hubChainId]);
+  const l2Usdc = SvmAddress.from(
+    TOKEN_SYMBOLS_MAP.USDC.addresses[chainIsProd(hubChainId) ? CHAIN_IDs.SOLANA : CHAIN_IDs.SOLANA_DEVNET]
+  );
+
+  const [tokenMessengerPda] = await getProgramDerivedAddress({
+    programAddress: tokenMessengerMinter,
+    seeds: ["token_messenger"],
+  });
+
+  const [tokenMinterPda] = await getProgramDerivedAddress({
+    programAddress: tokenMessengerMinter,
+    seeds: ["token_minter"],
+  });
+
+  const [localTokenPda] = await getProgramDerivedAddress({
+    programAddress: tokenMessengerMinter,
+    seeds: ["local_token", bs58.decode(l2Usdc.toBase58())],
+  });
+
+  const [tokenMessengerEventAuthorityPda] = await getProgramDerivedAddress({
+    programAddress: tokenMessengerMinter,
+    seeds: ["__event_authority"],
+  });
+
+  const [custodyTokenAccountPda] = await getProgramDerivedAddress({
+    programAddress: tokenMessengerMinter,
+    seeds: ["custody", bs58.decode(l2Usdc.toBase58())],
+  });
+
+  const state = await getStatePda(SvmSpokeClient.SVM_SPOKE_PROGRAM_ADDRESS);
+  const tokenProgram = TOKEN_PROGRAM_ADDRESS;
+  const vault = await getAssociatedTokenAddress(
+    SvmAddress.from(state),
+    SvmAddress.from(l2Usdc.toBase58()),
+    tokenProgram
+  );
+
+  // Define accounts dependent on deposit information.
+  const [tokenPairPda] = await getProgramDerivedAddress({
+    programAddress: tokenMessengerMinter,
+    seeds: [
+      new Uint8Array(Buffer.from("token_pair")),
+      new Uint8Array(Buffer.from(String(message.sourceDomain))),
+      new Uint8Array(Buffer.from(l1Usdc.toBytes32().slice(2), "hex")),
+    ],
+  });
+
+  const [remoteTokenMessengerPda] = await getProgramDerivedAddress({
+    programAddress: tokenMessengerMinter,
+    seeds: ["remote_token_messenger", String(message.sourceDomain)],
+  });
+
+  return [
+    { address: tokenMessengerPda, role: AccountRole.READONLY },
+    { address: remoteTokenMessengerPda, role: AccountRole.READONLY },
+    { address: tokenMinterPda, role: AccountRole.WRITABLE },
+    { address: localTokenPda, role: AccountRole.WRITABLE },
+    { address: tokenPairPda, role: AccountRole.READONLY },
+    { address: vault, role: AccountRole.WRITABLE },
+    { address: custodyTokenAccountPda, role: AccountRole.WRITABLE },
+    { address: TOKEN_PROGRAM_ADDRESS, role: AccountRole.READONLY },
+    { address: tokenMessengerEventAuthorityPda, role: AccountRole.READONLY },
+    { address: tokenMessengerMinter, role: AccountRole.READONLY },
+  ];
+}
+
+/**
+ * Returns the CCTP v1 receive message transaction.
+ * @param solanaClient The Solana client.
+ * @param signer The signer of the transaction.
+ * @param message The CCTP message.
+ * @param hubChainId The chain ID of the hub.
+ * @returns The CCTP v1 receive message transaction.
+ */
+export async function getCCTPV1ReceiveMessageTx(
+  solanaClient: SVMProvider,
+  signer: KeyPairSigner,
+  message: AttestedCCTPMessage,
+  hubChainId: number
+) {
+  const [messageTransmitterPda] = await getProgramDerivedAddress({
+    programAddress: MessageTransmitterClient.MESSAGE_TRANSMITTER_PROGRAM_ADDRESS,
+    seeds: ["message_transmitter"],
+  });
+
+  const [eventAuthorityPda] = await getProgramDerivedAddress({
+    programAddress: MessageTransmitterClient.MESSAGE_TRANSMITTER_PROGRAM_ADDRESS,
+    seeds: ["__event_authority"],
+  });
+
+  const cctpMessageReceiver = isDepositForBurnEvent(message)
+    ? TokenMessengerMinterClient.TOKEN_MESSENGER_MINTER_PROGRAM_ADDRESS
+    : SvmSpokeClient.SVM_SPOKE_PROGRAM_ADDRESS;
+
+  const [authorityPda] = await getProgramDerivedAddress({
+    programAddress: MessageTransmitterClient.MESSAGE_TRANSMITTER_PROGRAM_ADDRESS,
+    seeds: ["message_transmitter_authority", bs58.decode(cctpMessageReceiver)],
+  });
+
+  // Notice: message.nonce is only valid for v1 messages
+  const usedNonces = await getCCTPNoncePda(solanaClient, signer, message.nonce, message.sourceDomain);
+
+  // Notice: for Svm tokenless messages, we currently only support very specific finalizations: Hub -> Spoke relayRootBundle calls
+  const accountMetas: IAccountMeta<string>[] = isDepositForBurnEvent(message)
+    ? await getAccountMetasForDepositMessage(
+        message,
+        hubChainId,
+        TokenMessengerMinterClient.TOKEN_MESSENGER_MINTER_PROGRAM_ADDRESS
+      )
+    : await getAccountMetasForTokenlessMessage();
+
+  const messageBytes = message.messageBytes.startsWith("0x")
+    ? Buffer.from(message.messageBytes.slice(2), "hex")
+    : Buffer.from(message.messageBytes, "hex");
+
+  const input: MessageTransmitterClient.ReceiveMessageInput = {
+    program: MessageTransmitterClient.MESSAGE_TRANSMITTER_PROGRAM_ADDRESS,
+    payer: signer,
+    caller: signer,
+    authorityPda,
+    messageTransmitter: messageTransmitterPda,
+    eventAuthority: eventAuthorityPda,
+    usedNonces,
+    receiver: SvmSpokeClient.SVM_SPOKE_PROGRAM_ADDRESS,
+    systemProgram: SYSTEM_PROGRAM_ADDRESS,
+    message: messageBytes,
+    attestation: Buffer.from(message.attestation.slice(2), "hex"),
+  };
+
+  return createReceiveMessageInstruction(signer, solanaClient, input, accountMetas);
+}
+
+/**
+ * Finalizes CCTP deposits and messages on Solana.
+ *
+ * @param solanaClient The Solana client.
+ * @param attestedMessages The CCTP messages to Solana.
+ * @param signer A base signer to be converted into a Solana signer.
+ * @param simulate Whether to simulate the transaction.
+ * @param hubChainId The chain ID of the hub.
+ * @returns A list of executed transaction signatures.
+ */
+
+export function finalizeCCTPV1Messages(
+  solanaClient: SVMProvider,
+  attestedMessages: AttestedCCTPMessage[],
+  signer: KeyPairSigner,
+  simulate = false,
+  hubChainId = 1
+): Promise<string[]> {
+  return mapAsync(attestedMessages, async (message) => {
+    const receiveMessageIx = await getCCTPV1ReceiveMessageTx(solanaClient, signer, message, hubChainId);
+
+    if (simulate) {
+      const result = await solanaClient
+        .simulateTransaction(
+          getBase64EncodedWireTransaction(await signTransactionMessageWithSigners(receiveMessageIx)),
+          {
+            encoding: "base64",
+          }
+        )
+        .send();
+      if (result.value.err) {
+        throw new Error(result.value.err.toString());
+      }
+      return "";
+    }
+
+    const signedTransaction = await signTransactionMessageWithSigners(receiveMessageIx);
+    const signature = getSignatureFromTransaction(signedTransaction);
+    const encodedTransaction = getBase64EncodedWireTransaction(signedTransaction);
+    await solanaClient
+      .sendTransaction(encodedTransaction, { preflightCommitment: "confirmed", encoding: "base64" })
+      .send();
+
+    return signature;
+  });
 }

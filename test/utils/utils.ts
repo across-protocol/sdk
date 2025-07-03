@@ -1,38 +1,38 @@
-import assert from "assert";
+import { AcrossConfigStore } from "@across-protocol/contracts";
 import * as utils from "@across-protocol/contracts/dist/test-utils";
+import assert from "assert";
+import chai, { expect } from "chai";
+import chaiExclude from "chai-exclude";
 import { Contract, providers } from "ethers";
+import _ from "lodash";
+import sinon from "sinon";
+import winston, { LogEntry } from "winston";
 import { AcrossConfigStoreClient as ConfigStoreClient, GLOBAL_CONFIG_STORE_KEYS } from "../../src/clients";
-import { SlowFillRequestWithBlock, RelayData, Deposit, DepositWithBlock, FillWithBlock } from "../../src/interfaces";
+import { EMPTY_MESSAGE, PROTOCOL_DEFAULT_CHAIN_ID_INDICES, ZERO_ADDRESS } from "../../src/constants";
+import { Deposit, DepositWithBlock, FillWithBlock, RelayData, SlowFillRequestWithBlock } from "../../src/interfaces";
 import {
   Address,
   BigNumber,
   BigNumberish,
-  bnUint32Max,
   bnOne,
+  bnUint32Max,
   getCurrentTime,
   getMessageHash,
   resolveContractFromSymbol,
+  toAddressType,
   toBN,
   toBNWei,
+  toBytes32,
+  toEvmAddress,
   toWei,
   utf8ToHex,
-  toBytes32,
-  toAddressType,
-  toEvmAddress,
 } from "../../src/utils";
 import {
   MAX_L1_TOKENS_PER_POOL_REBALANCE_LEAF,
   MAX_REFUNDS_PER_RELAYER_REFUND_LEAF,
   sampleRateModel,
 } from "../constants";
-import { AcrossConfigStore } from "@across-protocol/contracts";
-import chai, { expect } from "chai";
-import chaiExclude from "chai-exclude";
-import _ from "lodash";
-import sinon from "sinon";
-import winston, { LogEntry } from "winston";
 import { SpokePoolDeploymentResult, SpyLoggerResult } from "../types";
-import { EMPTY_MESSAGE, PROTOCOL_DEFAULT_CHAIN_ID_INDICES, ZERO_ADDRESS } from "../../src/constants";
 import { SpyTransport } from "./SpyTransport";
 
 chai.use(chaiExclude);
@@ -53,7 +53,7 @@ export const {
   zeroAddress,
 } = utils;
 
-export { chaiAssert, BigNumber, expect, chai, Contract, sinon, toBN, toBNWei, toWei, utf8ToHex, winston };
+export { BigNumber, Contract, chai, chaiAssert, expect, sinon, toBN, toBNWei, toWei, utf8ToHex, winston };
 
 const TokenRolesEnum = {
   OWNER: "0",
