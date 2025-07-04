@@ -1067,7 +1067,9 @@ export class HubPoolClient extends BaseAbstractClient {
         }
 
         // Set running balances and incentive balances for this bundle.
-        const executedRootBundle = spreadEventWithBlockNumber(event) as Omit<ExecutedRootBundle, "l1Tokens"> & { l1Tokens: string[] };
+        const executedRootBundle = spreadEventWithBlockNumber(event) as Omit<ExecutedRootBundle, "l1Tokens"> & {
+          l1Tokens: string[];
+        };
         const { l1Tokens, runningBalances } = executedRootBundle;
         const nTokens = l1Tokens.length;
 
