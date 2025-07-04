@@ -71,11 +71,8 @@ type ProtoFill = Omit<RelayData, "recipient" | "outputToken"> & {
  */
 export async function getTimestampForSlot(provider: SVMProvider, slotNumber: number): Promise<number | undefined> {
   // @note: getBlockTime receives a slot number, not a block number.
-  let slot = BigInt(slotNumber);
-  let blockTime: UnixTimestamp | undefined = undefined;
-
   try {
-    blockTime = await provider.getBlockTime(slot).send();
+    const blockTime = await provider.getBlockTime(BigInt(slotNumber)).send();
     return Number(blockTime);
   } catch (err) {
     if (!isSolanaError(err)) {
