@@ -216,7 +216,7 @@ export async function relayFillStatus(
   if (atHeight === undefined) {
     const [fillStatusAccount, currentSlotTimestamp] = await Promise.all([
       fetchEncodedAccount(provider, fillStatusPda, { commitment: "confirmed" }),
-      provider.getBlockTime(currentSlot).send(),
+      provider.getBlockTime(currentSlot).send(), // @todo: handle
     ]);
     // If the PDA exists, return the stored fill status
     if (fillStatusAccount.exists) {
@@ -825,7 +825,7 @@ async function fetchBatchFillStatusFromPdaAccounts(
         fetchEncodedAccounts(provider, chunk, { commitment: "confirmed" })
       )
     ),
-    provider.getBlockTime(currentSlot).send(),
+    provider.getBlockTime(currentSlot).send(), // @todo: handle
   ]);
 
   const fillStatuses = pdaAccounts.flat().map((account, index) => {
