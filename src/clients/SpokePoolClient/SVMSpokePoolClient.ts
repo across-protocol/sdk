@@ -24,14 +24,14 @@ import {
 import { isUpdateFailureReason } from "../BaseAbstractClient";
 import { HubPoolClient } from "../HubPoolClient";
 import { knownEventNames, SpokePoolClient, SpokePoolUpdate } from "./SpokePoolClient";
-import { SVM_SPOKE_POOL_CLIENT_TYPE } from ".";
+import { SVM_SPOKE_POOL_CLIENT_TYPE } from "./types";
 
 /**
  * SvmSpokePoolClient is a client for the SVM SpokePool program. It extends the base SpokePoolClient
  * and implements the abstract methods required for interacting with an SVM Spoke Pool.
  */
 export class SVMSpokePoolClient extends SpokePoolClient {
-  readonly type: string = SVM_SPOKE_POOL_CLIENT_TYPE;
+  readonly type = SVM_SPOKE_POOL_CLIENT_TYPE;
   /**
    * Note: Strongly prefer to use the async create() method to instantiate.
    */

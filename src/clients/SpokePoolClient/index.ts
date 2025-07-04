@@ -1,14 +1,12 @@
 import { EVMSpokePoolClient } from "./EVMSpokePoolClient";
 import { SVMSpokePoolClient } from "./SVMSpokePoolClient";
 import { SpokePoolClient } from "./SpokePoolClient";
+import { EVM_SPOKE_POOL_CLIENT_TYPE, SVM_SPOKE_POOL_CLIENT_TYPE } from "./types";
 
 export { EVMSpokePoolClient } from "./EVMSpokePoolClient";
 export { SpokePoolClient, SpokePoolUpdate } from "./SpokePoolClient";
 export { SVMSpokePoolClient } from "./SVMSpokePoolClient";
 export { SpokePoolManager } from "./SpokePoolClientManager";
-
-export const EVM_SPOKE_POOL_CLIENT_TYPE = "EVM";
-export const SVM_SPOKE_POOL_CLIENT_TYPE = "SVM";
 
 /**
  * Checks if a SpokePoolClient is an EVMSpokePoolClient.
