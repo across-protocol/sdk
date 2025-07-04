@@ -1067,7 +1067,7 @@ export class HubPoolClient extends BaseAbstractClient {
         }
 
         // Set running balances and incentive balances for this bundle.
-        const executedRootBundle = spreadEventWithBlockNumber(event) as ExecutedRootBundle & { l1Tokens: string[] };
+        const executedRootBundle = spreadEventWithBlockNumber(event) as Omit<ExecutedRootBundle, "l1Tokens"> & { l1Tokens: string[] };
         const { l1Tokens, runningBalances } = executedRootBundle;
         const nTokens = l1Tokens.length;
 
@@ -1081,7 +1081,7 @@ export class HubPoolClient extends BaseAbstractClient {
         executedRootBundle.runningBalances = runningBalances.slice(0, nTokens);
         this.executedRootBundles.push({
           ...executedRootBundle,
-          l1Tokens: l1Tokens.map(EvmAddress.from),
+          l1Tokens: l1Tokens.map((l1Token) => EvmAddress.from(l1Token)),
         });
       }
     }
