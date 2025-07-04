@@ -22,7 +22,6 @@ import {
   ReadonlyUint8Array,
   some,
   type TransactionSigner,
-  type UnixTimestamp,
 } from "@solana/kit";
 import assert from "assert";
 import { arrayify, hexZeroPad, hexlify } from "ethers/lib/utils";
