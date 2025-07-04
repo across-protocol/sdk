@@ -915,7 +915,9 @@ export class HubPoolClient extends BaseAbstractClient {
 
     if (eventsToQuery.includes("CrossChainContractsSet")) {
       for (const event of events["CrossChainContractsSet"]) {
-        const args = spreadEventWithBlockNumber(event) as CrossChainContractsSet & { spokePool: string };
+        const args = spreadEventWithBlockNumber(event) as Omit<CrossChainContractsSet, "spokePool"> & {
+          spokePool: string;
+        };
         const dataToAdd: CrossChainContractsSet = {
           spokePool: EvmAddress.from(args.spokePool),
           blockNumber: args.blockNumber,
@@ -949,7 +951,7 @@ export class HubPoolClient extends BaseAbstractClient {
 
     if (eventsToQuery.includes("SetPoolRebalanceRoute")) {
       for (const event of events["SetPoolRebalanceRoute"]) {
-        const args = spreadEventWithBlockNumber(event) as SetPoolRebalanceRoot & {
+        const args = spreadEventWithBlockNumber(event) as Omit<SetPoolRebalanceRoot, "l1Token" | "destinationToken"> & {
           l1Token: string;
           destinationToken: string;
         };
@@ -1039,7 +1041,9 @@ export class HubPoolClient extends BaseAbstractClient {
         ...events["ProposeRootBundle"]
           .filter((event) => !this.configOverride.ignoredHubProposedBundles.includes(event.blockNumber))
           .map((_event) => {
-            const args = spreadEventWithBlockNumber(_event) as ProposedRootBundle & { proposer: string };
+            const args = spreadEventWithBlockNumber(_event) as Omit<ProposedRootBundle, "proposer"> & {
+              proposer: string;
+            };
             return {
               ...args,
               proposer: EvmAddress.from(args.proposer),
