@@ -20,6 +20,8 @@ import { FillType, RelayData } from "../../interfaces";
 import { BigNumber, getRelayDataHash, isDefined, isUint8Array, Address as SdkAddress } from "../../utils";
 import { EventName, SVMEventNames, SVMProvider } from "./types";
 
+export { isSolanaError } from "@solana/kit";
+
 /**
  * Basic void TransactionSigner type
  */

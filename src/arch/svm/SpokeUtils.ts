@@ -22,6 +22,7 @@ import {
   ReadonlyUint8Array,
   some,
   type TransactionSigner,
+  type UnixTimestamp,
 } from "@solana/kit";
 import assert from "assert";
 import { arrayify, hexZeroPad, hexlify } from "ethers/lib/utils";
@@ -39,8 +40,8 @@ import {
   keccak256,
   toAddressType,
 } from "../../utils";
+import { SvmCpiEventsClient } from "./eventsClient";
 import {
-  SvmCpiEventsClient,
   bigToU8a32,
   createDefaultTransaction,
   getEventAuthority,
@@ -48,8 +49,9 @@ import {
   getStatePda,
   toAddress,
   unwrapEventData,
-} from "./";
+} from "./utils";
 import { CHAIN_IDs } from "../../constants";
+import { isSolanaError, SVM_NO_BLOCK_AT_SLOT } from "./provider";
 import { SVMEventNames, SVMProvider } from "./types";
 
 /**
@@ -67,10 +69,26 @@ type ProtoFill = Omit<RelayData, "recipient" | "outputToken"> & {
 /**
  * Retrieves the chain time at a particular slot.
  */
-export async function getTimestampForSlot(provider: SVMProvider, slotNumber: number): Promise<number> {
+export async function getTimestampForSlot(provider: SVMProvider, slotNumber: number): Promise<number | undefined> {
   // @note: getBlockTime receives a slot number, not a block number.
-  const slotTime = await provider.getBlockTime(BigInt(slotNumber)).send();
-  return Number(slotTime);
+  let slot = BigInt(slotNumber);
+  let blockTime: UnixTimestamp | undefined = undefined;
+
+  try {
+    blockTime = await provider.getBlockTime(slot).send();
+    return Number(blockTime);
+  } catch (err) {
+    if (!isSolanaError(err)) {
+      throw err;
+    }
+
+    const { __code: code } = err.context;
+    if ([SVM_NO_BLOCK_AT_SLOT].includes(code)) {
+      return undefined;
+    }
+
+    throw err; // Unhandled Solana error.
+  }
 }
 
 /**
