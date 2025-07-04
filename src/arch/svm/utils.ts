@@ -92,10 +92,7 @@ export function parseEventData(eventData: any): any {
 export function decodeEvent(idl: Idl, rawEvent: string): { data: unknown; name: string } {
   const event = new BorshEventCoder(idl).decode(rawEvent);
   if (!event) throw new Error(`Malformed rawEvent for IDL ${idl.address}: ${rawEvent}`);
-  return {
-    name: event.name,
-    data: parseEventData(event.data),
-  };
+  return { name: event.name, data: parseEventData(event.data) };
 }
 
 /**
@@ -192,10 +189,7 @@ export function unwrapEventData(
 export async function getStatePda(programId: Address): Promise<Address> {
   const intEncoder = getU64Encoder();
   const seed = intEncoder.encode(0);
-  const [statePda] = await getProgramDerivedAddress({
-    programAddress: programId,
-    seeds: ["state", seed],
-  });
+  const [statePda] = await getProgramDerivedAddress({ programAddress: programId, seeds: ["state", seed] });
   return statePda;
 }
 
@@ -286,10 +280,7 @@ export async function getInstructionParamsPda(programId: Address, signer: Addres
  * @returns The PDA for the Event Authority.
  */
 export async function getEventAuthority(programId: Address): Promise<Address> {
-  const [eventAuthority] = await getProgramDerivedAddress({
-    programAddress: programId,
-    seeds: ["__event_authority"],
-  });
+  const [eventAuthority] = await getProgramDerivedAddress({ programAddress: programId, seeds: ["__event_authority"] });
   return eventAuthority;
 }
 
@@ -384,7 +375,7 @@ export const getCCTPNoncePda = async (
 
   const parserFunction = (buf: Buffer): Address => {
     if (buf.length === 32) {
-      return address(bs58.encode(buf));
+      return address(bs58.encode(new Uint8Array(buf)));
     }
     throw new Error("Invalid buffer");
   };

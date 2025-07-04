@@ -28,6 +28,7 @@ dist
 .env.test.local
 .env.production.local
 tsconfig.build.tsbuildinfo
+.vscode
 
 # debug
 cache

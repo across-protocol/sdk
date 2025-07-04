@@ -485,10 +485,7 @@ export function createTokenAccountsInstruction(
   mint: SvmAddress,
   relayer: TransactionSigner<string>
 ): SvmSpokeClient.CreateTokenAccountsInstruction {
-  return SvmSpokeClient.getCreateTokenAccountsInstruction({
-    signer: relayer,
-    mint: toAddress(mint),
-  });
+  return SvmSpokeClient.getCreateTokenAccountsInstruction({ signer: relayer, mint: toAddress(mint) });
 }
 
 /**
@@ -605,9 +602,7 @@ export const createFillInstruction = async (
       amount: (fillInput.relayData as SvmSpokeClient.RelayDataArgs).outputAmount,
       decimals: tokenDecimals,
     },
-    {
-      programAddress: mintInfo.programAddress,
-    }
+    { programAddress: mintInfo.programAddress }
   );
 
   const getCreateAssociatedTokenIdempotentIx = () =>
@@ -666,9 +661,7 @@ export const createDepositInstruction = async (
       amount: depositInput.inputAmount,
       decimals: tokenDecimals,
     },
-    {
-      programAddress: mintInfo.programAddress,
-    }
+    { programAddress: mintInfo.programAddress }
   );
   const depositIx = SvmSpokeClient.getDepositInstruction(depositInput);
   return pipe(
@@ -903,7 +896,7 @@ export async function getDepositDelegatePda(
 
   const [pda] = await getProgramDerivedAddress({
     programAddress: programId,
-    seeds: [Buffer.from("delegate"), seedHash],
+    seeds: [new Uint8Array(Buffer.from("delegate")), new Uint8Array(seedHash)],
   });
 
   return pda;
@@ -951,7 +944,7 @@ export async function getDepositNowDelegatePda(
 
   const [pda] = await getProgramDerivedAddress({
     programAddress: programId,
-    seeds: [Buffer.from("delegate"), seedHash],
+    seeds: [new Uint8Array(Buffer.from("delegate")), new Uint8Array(seedHash)],
   });
 
   return pda;
@@ -979,7 +972,7 @@ export async function getFillRelayDelegatePda(
 
   const [pda] = await getProgramDerivedAddress({
     programAddress: programId,
-    seeds: [Buffer.from("delegate"), seedHash],
+    seeds: [new Uint8Array(Buffer.from("delegate")), new Uint8Array(seedHash)],
   });
 
   return pda;
@@ -1167,8 +1160,8 @@ export async function getCCTPV1ReceiveMessageTx(
     usedNonces,
     receiver: SvmSpokeClient.SVM_SPOKE_PROGRAM_ADDRESS,
     systemProgram: SYSTEM_PROGRAM_ADDRESS,
-    message: messageBytes,
-    attestation: Buffer.from(message.attestation.slice(2), "hex"),
+    message: new Uint8Array(messageBytes),
+    attestation: new Uint8Array(Buffer.from(message.attestation.slice(2), "hex")),
   };
 
   return createReceiveMessageInstruction(signer, solanaClient, input, accountMetas);
@@ -1199,9 +1192,7 @@ export function finalizeCCTPV1Messages(
       const result = await solanaClient
         .simulateTransaction(
           getBase64EncodedWireTransaction(await signTransactionMessageWithSigners(receiveMessageIx)),
-          {
-            encoding: "base64",
-          }
+          { encoding: "base64" }
         )
         .send();
       if (result.value.err) {
