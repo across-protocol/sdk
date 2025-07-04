@@ -257,10 +257,10 @@ export class SvmCpiEventsClient {
     }
 
     return events.map((event) => {
-      const unwrappedEventArgs = unwrapEventData(event as Record<string, unknown>, ["depositId"]) as Record<
-        "data",
-        Deposit
-      > &
+      const unwrappedEventArgs = unwrapEventData(event as Record<string, unknown>, [
+        "depositId",
+        "outputAmount",
+      ]) as Record<"data", Deposit> &
         Record<
           "data",
           {
@@ -324,7 +324,10 @@ export class SvmCpiEventsClient {
     }
 
     return fillEvents.map((event) => {
-      const unwrappedEventData = unwrapEventData(event as Record<string, unknown>) as Record<"data", Fill> &
+      const unwrappedEventData = unwrapEventData(event as Record<string, unknown>, [
+        "depositId",
+        "outputAmount",
+      ]) as Record<"data", Fill> &
         Record<
           "data",
           {
