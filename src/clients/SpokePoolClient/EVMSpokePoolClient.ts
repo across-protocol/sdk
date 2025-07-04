@@ -29,11 +29,13 @@ import { isUpdateFailureReason } from "../BaseAbstractClient";
 import { knownEventNames, SpokePoolClient, SpokePoolUpdate } from "./SpokePoolClient";
 import winston from "winston";
 import { HubPoolClient } from "../HubPoolClient";
+import { EVM_SPOKE_POOL_CLIENT_TYPE } from "./types";
 
 /**
  * An EVM-specific SpokePoolClient.
  */
 export class EVMSpokePoolClient extends SpokePoolClient {
+  readonly type = EVM_SPOKE_POOL_CLIENT_TYPE;
   constructor(
     logger: winston.Logger,
     public readonly spokePool: Contract,
