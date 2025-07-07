@@ -79,6 +79,7 @@ export const knownEventNames = [
  * for events and storing them in memory. It also provides some convenience methods for querying the stored events.
  */
 export abstract class SpokePoolClient extends BaseAbstractClient {
+  abstract readonly type: string;
   protected currentTime = 0;
   protected duplicateDepositHashes: { [depositHash: string]: DepositWithBlock[] } = {};
   protected depositHashesToFills: { [depositHash: string]: FillWithBlock[] } = {};

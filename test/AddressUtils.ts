@@ -53,23 +53,20 @@ describe("Address Utils: Address Type", function () {
       // Valid padding length
       let padding = new Uint8Array(12);
       let b58Address = bs58.encode([...padding, ...rawAddress]).toString();
-      const address = EvmAddress.from(b58Address, "base58");
+      const address = EvmAddress.from(b58Address);
       expect(address.toNative()).to.equal(ethers.utils.getAddress(ethers.utils.hexlify(rawAddress)));
-
-      // Wrong encoding
-      expect(() => EvmAddress.from(b58Address, "base16")).to.throw(Error, /invalid arrayify value/);
 
       // Invalid EVM address length
       [19, 21].forEach((len) => {
         b58Address = bs58.encode([...padding, ...arrayify(randomBytes(len))]).toString();
-        expect(() => EvmAddress.from(b58Address, "base58")).to.throw(Error, /is not a valid EVM address/);
+        expect(() => EvmAddress.from(b58Address)).to.throw(Error, /is not a valid EVM address/);
       });
 
       // Invalid padding length.
       [11, 13].forEach((len) => {
         padding = new Uint8Array(len);
         b58Address = bs58.encode([...padding, ...rawAddress]).toString();
-        expect(() => EvmAddress.from(b58Address, "base58")).to.throw(Error, /is not a valid EVM address/);
+        expect(() => EvmAddress.from(b58Address)).to.throw(Error, /is not a valid EVM address/);
       });
     });
     it("Handles base16-encoded SVM addresses", function () {
@@ -77,15 +74,12 @@ describe("Address Utils: Address Type", function () {
       const expectedAddress = bs58.encode(arrayify(rawAddress));
 
       // Valid address
-      const address = SvmAddress.from(rawAddress, "base16");
+      const address = SvmAddress.from(rawAddress);
       expect(address.toNative()).to.equal(expectedAddress);
-
-      // Wrong encoding
-      expect(() => SvmAddress.from(rawAddress, "base58")).to.throw(Error, /Non-base58 character/);
 
       // Invalid SVM address length
       [31, 33].forEach((len) => {
-        expect(() => SvmAddress.from(randomBytes(len), "base16")).to.throw(Error, /is not a valid SVM address/);
+        expect(() => SvmAddress.from(randomBytes(len))).to.throw(Error, /is not a valid SVM address/);
       });
     });
   });
