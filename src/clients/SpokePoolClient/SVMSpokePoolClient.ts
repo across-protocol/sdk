@@ -142,7 +142,7 @@ export class SVMSpokePoolClient extends SpokePoolClient {
     const timerStart = Date.now();
 
     const [currentTime, ...eventsQueried] = await Promise.all([
-      this.svmEventsClient.getRpc().getBlockTime(BigInt(searchConfig.to)).send(),
+      this.getTimeAt(searchConfig.to),
       ...eventsToQuery.map(async (eventName, idx) => {
         const config = eventSearchConfigs[idx];
         const events = await this.svmEventsClient.queryEvents(
