@@ -68,10 +68,10 @@ type ProtoFill = Omit<RelayData, "recipient" | "outputToken"> & {
 /**
  * Retrieves the chain time at a particular slot.
  */
-export async function getTimestampForSlot(provider: SVMProvider, slotNumber: number): Promise<number | undefined> {
+export async function getTimestampForSlot(provider: SVMProvider, slotNumber: bigint): Promise<number | undefined> {
   // @note: getBlockTime receives a slot number, not a block number.
   try {
-    const blockTime = await provider.getBlockTime(BigInt(slotNumber)).send();
+    const blockTime = await provider.getBlockTime(slotNumber).send();
     return Number(blockTime);
   } catch (err) {
     if (!isSolanaError(err)) {
@@ -216,7 +216,7 @@ export async function relayFillStatus(
   if (atHeight === undefined) {
     const [fillStatusAccount, currentSlotTimestamp] = await Promise.all([
       fetchEncodedAccount(provider, fillStatusPda, { commitment: "confirmed" }),
-      provider.getBlockTime(currentSlot).send(), // @todo: handle
+      getTimestampForSlot(provider, currentSlot),
     ]);
     // If the PDA exists, return the stored fill status
     if (fillStatusAccount.exists) {
@@ -900,7 +900,7 @@ async function fetchBatchFillStatusFromPdaAccounts(
         fetchEncodedAccounts(provider, chunk, { commitment: "confirmed" })
       )
     ),
-    provider.getBlockTime(currentSlot).send(), // @todo: handle
+    getTimestampForSlot(provider, currentSlot),
   ]);
 
   const fillStatuses = pdaAccounts.flat().map((account, index) => {
@@ -909,11 +909,13 @@ async function fetchBatchFillStatusFromPdaAccounts(
       const decodedAccount = decodeFillStatusAccount(account);
       return decodedAccount.data.status;
     }
+
     // If the PDA doesn't exist and the deadline hasn't passed yet, the deposit must be unfilled,
     // since PDAs can't be closed before the fill deadline.
-    else if (Number(currentSlotTimestamp) < relayDataArray[index].fillDeadline) {
+    if (Number(currentSlotTimestamp) < relayDataArray[index].fillDeadline) {
       return FillStatus.Unfilled;
     }
+
     // If the PDA doesn't exist and the fill deadline has passed, then the status can't be determined and is set to undefined.
     return undefined;
   });
