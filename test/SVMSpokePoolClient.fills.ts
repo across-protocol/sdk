@@ -1,18 +1,27 @@
 import { CHAIN_IDs } from "@across-protocol/constants";
 import { SvmSpokeClient, signAndSendTransaction } from "@across-protocol/contracts";
 import { intToU8Array32 } from "@across-protocol/contracts/dist/src/svm/web3-v1";
-import { KeyPairSigner, address, fetchEncodedAccount } from "@solana/kit";
+import { KeyPairSigner, fetchEncodedAccount } from "@solana/kit";
 import { hexlify } from "ethers/lib/utils";
 import {
   SVM_DEFAULT_ADDRESS,
   createCloseFillPdaInstruction,
   findFillEvent,
   getRandomSvmAddress,
+  numberToU8a32,
 } from "../src/arch/svm";
 import { SVMSpokePoolClient } from "../src/clients";
 import { Deposit, FillStatus } from "../src/interfaces";
 import { SvmQuery, SymbolMappingType } from "../src/relayFeeCalculator";
-import { BigNumber, EvmAddress, SvmAddress, getCurrentTime, getRandomInt, randomAddress } from "../src/utils";
+import {
+  BigNumber,
+  EvmAddress,
+  SvmAddress,
+  getCurrentTime,
+  getRandomInt,
+  randomAddress,
+  toAddressType,
+} from "../src/utils";
 import { signer } from "./Solana.setup";
 import { createSpyLogger, expect } from "./utils";
 import {
@@ -51,12 +60,12 @@ describe("SVMSpokePoolClient: Fills", function () {
     inputToken = EvmAddress.from(randomAddress());
     depositId = getRandomInt();
     relayData = {
-      depositor: address(depositor.toBase58()),
-      recipient: address(recipient.toBase58()),
-      exclusiveRelayer: SVM_DEFAULT_ADDRESS,
-      inputToken: address(inputToken.toBase58()),
-      outputToken: mint.address,
-      inputAmount: 10,
+      depositor,
+      recipient,
+      exclusiveRelayer: toAddressType(SVM_DEFAULT_ADDRESS, CHAIN_IDs.SOLANA),
+      inputToken,
+      outputToken: toAddressType(mint.address, CHAIN_IDs.SOLANA),
+      inputAmount: numberToU8a32(10),
       outputAmount: 9,
       originChainId: CHAIN_IDs.MAINNET,
       depositId: new Uint8Array(intToU8Array32(depositId)),
@@ -278,11 +287,11 @@ describe("SVMSpokePoolClient: Fills", function () {
     );
 
     const depositData: Omit<Deposit, "messageHash"> = {
-      depositor: SvmAddress.from(newRelayData.depositor).toBytes32(),
-      recipient: SvmAddress.from(newRelayData.recipient).toBytes32(),
-      exclusiveRelayer: SvmAddress.from(newRelayData.exclusiveRelayer).toBytes32(),
-      inputToken: SvmAddress.from(newRelayData.inputToken).toBytes32(),
-      outputToken: SvmAddress.from(newRelayData.outputToken).toBytes32(),
+      depositor: newRelayData.depositor,
+      recipient: newRelayData.recipient,
+      exclusiveRelayer: newRelayData.exclusiveRelayer,
+      inputToken: newRelayData.inputToken,
+      outputToken: newRelayData.outputToken,
       fillDeadline: newRelayData.fillDeadline,
       exclusivityDeadline: newRelayData.exclusivityDeadline,
       destinationChainId: CHAIN_IDs.SOLANA,
@@ -296,9 +305,9 @@ describe("SVMSpokePoolClient: Fills", function () {
       message: hexlify(newRelayData.message),
     };
 
-    const gasCosts = await svmQuery.getGasCosts(depositData, signer.address);
+    const gasCosts = await svmQuery.getGasCosts(depositData, toAddressType(signer.address, CHAIN_IDs.SOLANA));
 
-    const nativeGasCost = await svmQuery.getNativeGasCost(depositData, signer.address);
+    const nativeGasCost = await svmQuery.getNativeGasCost(depositData, toAddressType(signer.address, CHAIN_IDs.SOLANA));
 
     expect(nativeGasCost).to.equal(gasCosts.nativeGasCost);
 

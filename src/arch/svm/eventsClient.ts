@@ -10,7 +10,7 @@ import {
   GetTransactionApi,
   Signature,
 } from "@solana/kit";
-import { bs58, chainIsSvm, getMessageHash } from "../../utils";
+import { bs58, chainIsSvm, getMessageHash, toAddressType } from "../../utils";
 import { EventName, EventWithData, SVMProvider } from "./types";
 import { decodeEvent, isDevnet } from "./utils";
 import { Deposit, DepositWithTime, Fill, FillWithTime } from "../../interfaces";
@@ -252,22 +252,37 @@ export class SvmCpiEventsClient {
 
     // Filter for FundsDeposited events only
     const depositEvents = events?.filter((event) => event?.name === "FundsDeposited");
-
     if (!txDetails || !depositEvents?.length) {
       return;
     }
 
     return events.map((event) => {
-      const unwrappedEventArgs = unwrapEventData(event as Record<string, unknown>, ["depositId"]) as Record<
-        "data",
-        Deposit
-      >;
+      const unwrappedEventArgs = unwrapEventData(event as Record<string, unknown>, [
+        "depositId",
+        "outputAmount",
+      ]) as Record<"data", Deposit> &
+        Record<
+          "data",
+          {
+            depositor: string;
+            recipient: string;
+            exclusiveRelayer: string;
+            inputToken: string;
+            outputToken: string;
+          }
+        >;
 
+      const { data } = unwrappedEventArgs;
       return {
-        ...unwrappedEventArgs.data,
+        ...data,
+        depositor: toAddressType(data.depositor, data.originChainId),
+        recipient: toAddressType(data.recipient, data.destinationChainId),
+        exclusiveRelayer: toAddressType(data.exclusiveRelayer, data.destinationChainId),
+        inputToken: toAddressType(data.inputToken, data.originChainId),
+        outputToken: toAddressType(data.outputToken, data.destinationChainId),
         depositTimestamp: Number(txDetails.blockTime),
         originChainId,
-        messageHash: getMessageHash(unwrappedEventArgs.data.message),
+        messageHash: getMessageHash(data.message),
         blockNumber: Number(txDetails.slot),
         txnIndex: 0,
         txnRef: txSignature,
@@ -309,9 +324,29 @@ export class SvmCpiEventsClient {
     }
 
     return fillEvents.map((event) => {
-      const unwrappedEventData = unwrapEventData(event as Record<string, unknown>) as Record<"data", Fill>;
+      const unwrappedEventData = unwrapEventData(event as Record<string, unknown>, [
+        "depositId",
+        "outputAmount",
+      ]) as Record<"data", Fill> &
+        Record<
+          "data",
+          {
+            depositor: string;
+            recipient: string;
+            exclusiveRelayer: string;
+            inputToken: string;
+            outputToken: string;
+          }
+        >;
+
+      const { data } = unwrappedEventData;
       return {
-        ...unwrappedEventData.data,
+        ...data,
+        depositor: toAddressType(data.depositor, data.originChainId),
+        recipient: toAddressType(data.recipient, data.destinationChainId),
+        exclusiveRelayer: toAddressType(data.exclusiveRelayer, data.destinationChainId),
+        inputToken: toAddressType(data.inputToken, data.originChainId),
+        outputToken: toAddressType(data.outputToken, data.destinationChainId),
         fillTimestamp: Number(txDetails.blockTime),
         blockNumber: Number(txDetails.slot),
         txnRef: txSignature,

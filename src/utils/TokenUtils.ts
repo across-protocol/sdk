@@ -1,20 +1,21 @@
+import assert from "assert";
 import { BlockTag } from "@ethersproject/abstract-provider";
 import { Contract, providers, Signer } from "ethers";
 import * as constants from "../constants";
-import { L1Token } from "../interfaces";
+import { L1TokenInfo, TokenInfo } from "../interfaces";
 import { ERC20__factory } from "../typechain";
 import { BigNumber } from "./BigNumberUtils";
 import { getNetworkName, chainIsL1, chainIsProd } from "./NetworkUtils";
 import { isDefined } from "./TypeGuards";
-import { compareAddressesSimple, toAddressType } from "./AddressUtils";
+import { Address, EvmAddress, toAddressType } from "./AddressUtils";
 const { TOKEN_SYMBOLS_MAP, CHAIN_IDs, TOKEN_EQUIVALENCE_REMAPPING } = constants;
 
 type SignerOrProvider = providers.Provider | Signer;
 
-export async function fetchTokenInfo(address: string, signerOrProvider: SignerOrProvider): Promise<L1Token> {
+export async function fetchTokenInfo(address: string, signerOrProvider: SignerOrProvider): Promise<L1TokenInfo> {
   const token = new Contract(address, ERC20__factory.abi, signerOrProvider);
   const [symbol, decimals] = await Promise.all([token.symbol(), token.decimals()]);
-  return { address, symbol, decimals };
+  return { address: EvmAddress.from(address), symbol, decimals };
 }
 
 export const getL2TokenAddresses = (
@@ -33,7 +34,7 @@ export const getL2TokenAddresses = (
  * @param chainId Chain ID to query on.
  * @returns Symbol, decimals and contract address on the requested chain.
  */
-export function resolveSymbolOnChain(chainId: number, symbol: string): L1Token {
+export function resolveSymbolOnChain(chainId: number, symbol: string): TokenInfo {
   // @dev Suppress tsc complaints by casting symbol to the expected type.
   const token = TOKEN_SYMBOLS_MAP[symbol as keyof typeof TOKEN_SYMBOLS_MAP];
   if (!isDefined(token) || !isDefined(token.addresses[chainId])) {
@@ -42,7 +43,8 @@ export function resolveSymbolOnChain(chainId: number, symbol: string): L1Token {
   }
 
   const { decimals, addresses } = token;
-  const address = addresses[chainId];
+  const address = toAddressType(addresses[chainId], chainId);
+  assert(address.isEVM() || address.isSVM());
 
   return { symbol, decimals, address };
 }
@@ -64,11 +66,8 @@ export const resolveContractFromSymbol = (
   })?.addresses[Number(chainId)];
 };
 
-export function getCoingeckoTokenIdByAddress(contractAddress: string, chainId: number): string {
-  const token = getTokenInfo(contractAddress, chainId);
-  if (!token) {
-    throw new Error(`Token with address ${contractAddress} not found in token mapping`);
-  }
+export function getCoingeckoTokenIdByAddress(address: string, chainId: number): string {
+  const token = getTokenInfo(toAddressType(address, chainId), chainId);
   return TOKEN_SYMBOLS_MAP[token.symbol as keyof typeof TOKEN_SYMBOLS_MAP].coingeckoId;
 }
 
@@ -106,31 +105,26 @@ export function isStablecoin(tokenSymbol: string): boolean {
  * @notice Returns the Token info for the token mapping in TOKEN_SYMBOLS_MAP matching the given l2TokenAddress
  * and chainId. If the chain is the hub chain, then will remap the L1 token to its equivalent L1 token symbol for example
  * it will always return a token info with symbol USDC and never USDC.e if chainId = mainnet.
- * @param l2TokenAddress
- * @param chainId
- * @param tokenMapping
- * @returns
+ * @param l2Token Address instance.
+ * @param chainId ChainId for l2Token address.
+ * @param tokenMapping Optional custom token mapping.
+ * @returns TokenInfo object.
  */
-export function getTokenInfo(l2TokenAddress: string, chainId: number, tokenMapping = TOKEN_SYMBOLS_MAP): L1Token {
-  const parsedAddress = toAddressType(l2TokenAddress, chainId).toNative();
+export function getTokenInfo(l2Token: Address, chainId: number, tokenMapping = TOKEN_SYMBOLS_MAP): TokenInfo {
+  const address = l2Token.toNative();
 
   // @dev This might give false positives if tokens on different networks have the same address. I'm not sure how
   // to get around this...
-  let tokenObject = Object.values(tokenMapping).find(({ addresses }) => addresses[chainId] === parsedAddress);
+  let tokenObject = Object.values(tokenMapping).find(({ addresses }) => addresses[chainId] === address);
   if (!tokenObject) {
-    throw new Error(
-      `TokenUtils#getTokenInfo: Unable to resolve token in TOKEN_SYMBOLS_MAP for ${l2TokenAddress} on chain ${chainId}`
-    );
+    throw new Error(`Unable to resolve token info for ${address} on chain ${chainId}`);
   }
   if (chainIsL1(chainId)) {
     const l1TokenSymbol = TOKEN_EQUIVALENCE_REMAPPING[tokenObject.symbol] ?? tokenObject.symbol;
     tokenObject = tokenMapping[l1TokenSymbol as keyof typeof tokenMapping];
   }
-  return {
-    address: l2TokenAddress,
-    symbol: tokenObject.symbol,
-    decimals: tokenObject.decimals,
-  };
+
+  return { address: l2Token, symbol: tokenObject.symbol, decimals: tokenObject.decimals };
 }
 
 /**
@@ -139,26 +133,30 @@ export function getTokenInfo(l2TokenAddress: string, chainId: number, tokenMappi
  * @param chainId A chain Id to reference
  * @returns Either USDC (if native) or USDbC/USDC.e (if bridged) or undefined if the token address is not recognized.
  */
-export function getUsdcSymbol(l2Token: string, chainId: number): string | undefined {
-  const compareToken = (token?: string) => isDefined(token) && compareAddressesSimple(l2Token, token);
-  return ["USDC", "USDbC", "USDC.e"].find((token) =>
-    compareToken(
-      (TOKEN_SYMBOLS_MAP as Record<string, { addresses?: Record<number, string> }>)[token]?.addresses?.[chainId]
-    )
+export function getUsdcSymbol(l2Token: Address, chainId: number): string | undefined {
+  type TokenRecord = Record<string, { addresses?: Record<number, string> }>;
+  const IterableTokenSymbolsMap = TOKEN_SYMBOLS_MAP as TokenRecord;
+  return ["USDC", "USDbC", "USDC.e"].find(
+    (token) => IterableTokenSymbolsMap[token]?.addresses?.[chainId] === l2Token.toNative()
   );
 }
 
 /**
  * @notice Returns the l1 token address matching the given l2TokenAddress and chainId.
  */
-export function getL1TokenAddress(l2TokenAddress: string, chainId: number): string {
-  if (chainIsL1(chainId)) return l2TokenAddress;
-  const tokenObject = Object.values(TOKEN_SYMBOLS_MAP).find(({ addresses }) => addresses[chainId] === l2TokenAddress);
+export function getL1TokenAddress(l2TokenAddress: Address, chainId: number): EvmAddress {
+  if (chainIsL1(chainId)) {
+    assert(l2TokenAddress.isEVM());
+    return l2TokenAddress;
+  }
+
+  const tokenObject = Object.values(TOKEN_SYMBOLS_MAP).find(
+    ({ addresses }) => l2TokenAddress.toNative() === addresses[chainId]
+  );
   const l1TokenAddress = tokenObject?.addresses[chainIsProd(chainId) ? CHAIN_IDs.MAINNET : CHAIN_IDs.SEPOLIA];
   if (!l1TokenAddress) {
-    throw new Error(
-      `TokenUtils#getL1TokenInfo: Unable to resolve l1 token address in TOKEN_SYMBOLS_MAP for L2 token ${l2TokenAddress} on chain ${chainId}`
-    );
+    throw new Error(`getL1TokenAddress: Unable to resolve l1 token for L2 token ${l2TokenAddress} on chain ${chainId}`);
   }
-  return l1TokenAddress;
+
+  return EvmAddress.from(l1TokenAddress);
 }

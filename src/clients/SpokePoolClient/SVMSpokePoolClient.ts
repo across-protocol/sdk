@@ -17,7 +17,6 @@ import {
   DepositSearchResult,
   EventSearchConfig,
   InvalidFill,
-  isZeroAddress,
   MakeOptional,
   sortEventsAscendingInPlace,
   SvmAddress,
@@ -25,12 +24,14 @@ import {
 import { isUpdateFailureReason } from "../BaseAbstractClient";
 import { HubPoolClient } from "../HubPoolClient";
 import { knownEventNames, SpokePoolClient, SpokePoolUpdate } from "./SpokePoolClient";
+import { SVM_SPOKE_POOL_CLIENT_TYPE } from "./types";
 
 /**
  * SvmSpokePoolClient is a client for the SVM SpokePool program. It extends the base SpokePoolClient
  * and implements the abstract methods required for interacting with an SVM Spoke Pool.
  */
 export class SVMSpokePoolClient extends SpokePoolClient {
+  readonly type = SVM_SPOKE_POOL_CLIENT_TYPE;
   /**
    * Note: Strongly prefer to use the async create() method to instantiate.
    */
@@ -214,6 +215,7 @@ export class SVMSpokePoolClient extends SpokePoolClient {
         reason: `Deposit with ID ${depositId} not found`,
       };
     }
+
     // Because we have additional context about this deposit, we can enrich it
     // with additional information.
     return {
@@ -224,9 +226,6 @@ export class SVMSpokePoolClient extends SpokePoolClient {
         originChainId: this.chainId,
         fromLiteChain: this.isOriginLiteChain(deposit),
         toLiteChain: this.isDestinationLiteChain(deposit),
-        outputToken: isZeroAddress(deposit.outputToken)
-          ? this.getDestinationTokenForDeposit(deposit)
-          : deposit.outputToken,
       },
     };
   }

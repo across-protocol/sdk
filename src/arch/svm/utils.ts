@@ -17,7 +17,7 @@ import {
 } from "@solana/kit";
 import { SvmSpokeClient } from "@across-protocol/contracts";
 import { FillType, RelayData } from "../../interfaces";
-import { BigNumber, EvmAddress, SvmAddress, getRelayDataHash, isUint8Array } from "../../utils";
+import { BigNumber, getRelayDataHash, isDefined, isUint8Array, Address as SdkAddress } from "../../utils";
 import { EventName, SVMEventNames, SVMProvider } from "./types";
 
 /**
@@ -45,8 +45,37 @@ export async function isDevnet(rpc: SVMProvider): Promise<boolean> {
 /**
  * Small utility to convert an Address to a Solana Kit branded type.
  */
-export function toAddress(address: EvmAddress | SvmAddress): Address<string> {
+export function toAddress(address: SdkAddress): Address<string> {
   return address.toBase58() as Address<string>;
+}
+
+/**
+ * Resolve the latest finalized slot, and then work backwards to find the nearest slot containing a block.
+ * In most cases the first-resolved slot should also have a block. Avoid making arbitrary decisions about
+ * how many slots to rotate through.
+ */
+export async function getLatestFinalizedSlotWithBlock(
+  provider: SVMProvider,
+  maxSlot: bigint,
+  maxLookback = 1000
+): Promise<number> {
+  const finalizedSlot = await provider.getSlot({ commitment: "finalized" }).send();
+  const endSlot = Math.min(Number(maxSlot), Number(finalizedSlot));
+  const opts = { maxSupportedTransactionVersion: 0, transactionDetails: "none", rewards: false } as const;
+
+  let slot = BigInt(endSlot);
+  do {
+    const block = await provider.getBlock(slot, opts).send();
+    if (isDefined(block) && [block.blockHeight, block.blockTime].every(isDefined)) {
+      break;
+    }
+  } while (--maxLookback > 0 && --slot > 0);
+
+  if (maxLookback === 0) {
+    throw new Error(`Unable to find Solana block between slots [${slot}, ${endSlot}]`);
+  }
+
+  return Number(slot);
 }
 
 /**
@@ -114,7 +143,7 @@ export function getEventName(rawName: string): EventName {
  */
 export function unwrapEventData(
   data: unknown,
-  uint8ArrayKeysAsBigInt: string[] = ["depositId"],
+  uint8ArrayKeysAsBigInt: string[] = ["depositId", "outputAmount"],
   currentKey?: string
 ): unknown {
   // Handle null/undefined
@@ -144,7 +173,7 @@ export function unwrapEventData(
   }
   // Handle strings (potential addresses)
   if (typeof data === "string" && isAddress(data)) {
-    return SvmAddress.from(data).toBytes32();
+    return ethers.utils.hexlify(bs58.decode(data));
   }
   // Handle objects
   if (typeof data === "object") {
@@ -277,16 +306,31 @@ export async function getInstructionParamsPda(programId: Address, signer: Addres
 }
 
 /**
+ * Returns the PDA for an individual's claim account.
+ * @param programId the address of the spoke pool.
+ * @param mint the address of the token.
+ * @param tokenOwner the address of the signer which owns the claim account.
+ */
+export async function getClaimAccountPda(programId: Address, mint: Address, tokenOwner: Address): Promise<Address> {
+  const addressEncoder = getAddressEncoder();
+  const [pda] = await getProgramDerivedAddress({
+    programAddress: programId,
+    seeds: ["claim_account", addressEncoder.encode(mint), addressEncoder.encode(tokenOwner)],
+  });
+  return pda;
+}
+
+/**
  * Returns the PDA for the Event Authority.
  * @returns The PDA for the Event Authority.
  */
-export const getEventAuthority = async () => {
+export async function getEventAuthority(programId: Address): Promise<Address> {
   const [eventAuthority] = await getProgramDerivedAddress({
-    programAddress: address(SvmSpokeClient.SVM_SPOKE_PROGRAM_ADDRESS),
+    programAddress: programId,
     seeds: ["__event_authority"],
   });
   return eventAuthority;
-};
+}
 
 /**
  * Returns a random SVM address.
@@ -311,3 +355,19 @@ export const createDefaultTransaction = async (rpcClient: SVMProvider, signer: T
     (tx) => setTransactionMessageLifetimeUsingBlockhash(latestBlockhash, tx)
   );
 };
+
+/**
+ * Convert a bigint (0 ≤ n < 2^256) to a 32-byte Uint8Array (big-endian).
+ */
+export function bigintToU8a32(n: bigint): Uint8Array {
+  if (n < BigInt(0) || n > ethers.constants.MaxUint256.toBigInt()) {
+    throw new RangeError("Value must fit in 256 bits");
+  }
+  const hexPadded = ethers.utils.hexZeroPad("0x" + n.toString(16), 32);
+  return ethers.utils.arrayify(hexPadded);
+}
+
+export const bigToU8a32 = (bn: bigint | BigNumber) =>
+  bigintToU8a32(typeof bn === "bigint" ? bn : BigInt(bn.toString()));
+
+export const numberToU8a32 = (n: number) => bigintToU8a32(BigInt(n));

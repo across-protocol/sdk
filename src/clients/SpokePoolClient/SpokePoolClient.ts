@@ -1,4 +1,5 @@
 import winston from "winston";
+import { utils as ethersUtils } from "ethers";
 import {
   AnyObject,
   BigNumber,
@@ -6,6 +7,7 @@ import {
   DefaultLogLevels,
   DepositSearchResult,
   EventSearchConfig,
+  EvmAddress,
   MAX_BIG_INT,
   MakeOptional,
   assign,
@@ -13,16 +15,13 @@ import {
   isDefined,
   getMessageHash,
   isSlowFill,
-  isValidEvmAddress,
-  isZeroAddress,
-  toEvmAddress,
   validateFillForDeposit,
-  chainIsEvm,
   chainIsProd,
   Address,
+  toAddressType,
 } from "../../utils";
 import { duplicateEvent, sortEventsAscendingInPlace } from "../../utils/EventUtils";
-import { ZERO_ADDRESS } from "../../constants";
+import { CHAIN_IDs, ZERO_ADDRESS } from "../../constants";
 import {
   BridgedToHubPoolWithBlock,
   ClaimedRelayerRefundWithBlock,
@@ -39,6 +38,7 @@ import {
   SortableEvent,
   SpeedUpWithBlock,
   TokensBridged,
+  RelayExecutionEventInfo,
 } from "../../interfaces";
 import { BaseAbstractClient, UpdateFailureReason } from "../BaseAbstractClient";
 import { AcrossConfigStoreClient } from "../AcrossConfigStoreClient";
@@ -79,6 +79,7 @@ export const knownEventNames = [
  * for events and storing them in memory. It also provides some convenience methods for querying the stored events.
  */
 export abstract class SpokePoolClient extends BaseAbstractClient {
+  abstract readonly type: string;
   protected currentTime = 0;
   protected duplicateDepositHashes: { [depositHash: string]: DepositWithBlock[] } = {};
   protected depositHashesToFills: { [depositHash: string]: FillWithBlock[] } = {};
@@ -208,8 +209,8 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
    * @param relayer The relayer address.
    * @returns A list of fills.
    */
-  public getFillsForRelayer(relayer: string): FillWithBlock[] {
-    return this.getFills().filter((fill) => fill.relayer === relayer);
+  public getFillsForRelayer(relayer: Address): FillWithBlock[] {
+    return this.getFills().filter((fill) => fill.relayer.eq(relayer));
   }
 
   /**
@@ -273,8 +274,8 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
     const { depositId, depositor } = deposit;
 
     // Note: we know depositor cannot be more than 20 bytes since this is guaranteed by contracts.
-    const speedups = this.speedUps[toEvmAddress(depositor)]?.[depositId.toString()];
-
+    // Additionally, speed ups can only be done on EVM networks.
+    const speedups = this.speedUps[depositor.toEvmAddress()]?.[depositId.toString()];
     if (!isDefined(speedups) || speedups.length === 0) {
       return deposit;
     }
@@ -363,6 +364,14 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
     return this.depositHashesToFills[this.getDepositHash(deposit)];
   }
 
+  public isDepositFilled(deposit: Deposit): boolean {
+    const depositHash = this.getDepositHash(deposit);
+    const fills = this.depositHashesToFills[depositHash] ?? [];
+
+    return fills.some((fill) => validateFillForDeposit(fill, deposit).valid);
+  }
+
+  // @TODO: Remove this method after refactoring relayer repo.
   /**
    * Find the unfilled amount for a given deposit. This is the full deposit amount minus the total filled amount.
    * @param deposit The deposit to find the unfilled amount for.
@@ -403,11 +412,7 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
           // is not a valid EVM chain. In the case where the repayment address is not a valid EVM address, the dataworker
           // might be able to overwrite the repayment address to the msg.sender on the fill txn, but to keep this
           // functioon synchronous, we can't make that decision now. So this function might log some false positives.
-          if (
-            this.hubPoolClient &&
-            !isSlowFill(fill) &&
-            (!chainIsEvm(repaymentChainId) || !isValidEvmAddress(fill.relayer))
-          ) {
+          if (this.hubPoolClient && !isSlowFill(fill) && !fill.relayer.isValidOn(repaymentChainId)) {
             groupedFills.unrepayableFills.push(fill);
           }
           // This fill is still valid and means that the deposit cannot be filled on-chain anymore, but it
@@ -429,7 +434,7 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
         chainId: this.chainId,
         message: "Unrepayable fills found where we need to switch repayment address and or chain",
         deposit,
-        unrepayableFills: Object.fromEntries(unrepayableFillsForDeposit.map((x) => [x.relayer, x])),
+        unrepayableFills: Object.fromEntries(unrepayableFillsForDeposit.map((x) => [x.relayer.toNative(), x])),
         notificationPath: "across-unrepayable-fills",
       });
     }
@@ -501,14 +506,36 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
     const { events: queryResults, currentTime, searchEndBlock } = update;
 
     if (eventsToQuery.includes("TokensBridged")) {
-      for (const event of queryResults[eventsToQuery.indexOf("TokensBridged")] as TokensBridged[]) {
-        this.tokensBridged.push(event);
+      for (const _event of queryResults[eventsToQuery.indexOf("TokensBridged")]) {
+        const event = _event as TokensBridged & {
+          l2TokenAddress: string;
+        };
+        this.tokensBridged.push({
+          ...event,
+          l2TokenAddress: toAddressType(event.l2TokenAddress, this.chainId),
+        });
       }
     }
 
     // Performs the indexing of a deposit-like spoke pool event.
     const queryDepositEvents = async (eventName: string) => {
-      const depositEvents = (queryResults[eventsToQuery.indexOf(eventName)] ?? []) as DepositWithBlock[];
+      const depositEvents = (queryResults[eventsToQuery.indexOf(eventName)] ?? []).map((_event) => {
+        const event = _event as DepositWithBlock & {
+          depositor: string;
+          recipient: string;
+          inputToken: string;
+          outputToken: string;
+          exclusiveRelayer: string;
+        };
+        return {
+          ...event,
+          depositor: toAddressType(event.depositor, this.chainId),
+          recipient: toAddressType(event.recipient, event.destinationChainId),
+          inputToken: toAddressType(event.inputToken, this.chainId),
+          outputToken: toAddressType(event.outputToken, event.destinationChainId),
+          exclusiveRelayer: toAddressType(event.exclusiveRelayer, event.destinationChainId),
+        } as DepositWithBlock;
+      });
       if (depositEvents.length > 0) {
         this.log(
           "debug",
@@ -539,7 +566,7 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
         deposit.fromLiteChain = this.isOriginLiteChain(deposit);
         deposit.toLiteChain = this.isDestinationLiteChain(deposit);
 
-        if (isZeroAddress(deposit.outputToken)) {
+        if (deposit.outputToken.isZeroAddress()) {
           deposit.outputToken = this.getDestinationTokenForDeposit(deposit);
         }
 
@@ -565,11 +592,31 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
 
     // Performs indexing of a "speed up deposit"-like event.
     const querySpeedUpDepositEvents = (eventName: string) => {
-      const speedUpEvents = (queryResults[eventsToQuery.indexOf(eventName)] ?? []) as SpeedUpWithBlock[];
+      const speedUpEvents = (queryResults[eventsToQuery.indexOf(eventName)] ?? [])
+        .map((_event) => {
+          const event = _event as SpeedUpWithBlock & { depositor: string; updatedRecipient: string };
+
+          const invalid = [event.depositor, event.updatedRecipient].some(
+            (addr) => !EvmAddress.validate(ethersUtils.arrayify(addr))
+          );
+          if (invalid) {
+            return;
+          }
+
+          return {
+            ...event,
+            depositor: EvmAddress.from(event.depositor),
+            updatedRecipient: EvmAddress.from(event.updatedRecipient),
+          } as SpeedUpWithBlock;
+        })
+        .filter(isDefined);
 
       for (const event of speedUpEvents) {
-        const speedUp = { ...event, originChainId: this.chainId };
-        assign(this.speedUps, [speedUp.depositor, speedUp.depositId.toString()], [speedUp]);
+        const speedUp = {
+          ...event,
+          originChainId: this.chainId,
+        };
+        assign(this.speedUps, [speedUp.depositor.toEvmAddress(), speedUp.depositId.toString()], [speedUp]);
 
         // Find deposit hash matching this speed up event and update the deposit data associated with the hash,
         // if the hash+data exists.
@@ -593,7 +640,23 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
 
     // Performs indexing of "requested slow fill"-like events.
     const queryRequestedSlowFillEvents = (eventName: string) => {
-      const slowFillRequests = (queryResults[eventsToQuery.indexOf(eventName)] ?? []) as SlowFillRequestWithBlock[];
+      const slowFillRequests = (queryResults[eventsToQuery.indexOf(eventName)] ?? []).map((_event) => {
+        const event = _event as SlowFillRequestWithBlock & {
+          depositor: string;
+          recipient: string;
+          inputToken: string;
+          outputToken: string;
+          exclusiveRelayer: string;
+        };
+        return {
+          ...event,
+          depositor: toAddressType(event.depositor, event.originChainId),
+          recipient: toAddressType(event.recipient, this.chainId),
+          inputToken: toAddressType(event.inputToken, event.originChainId),
+          outputToken: toAddressType(event.outputToken, this.chainId),
+          exclusiveRelayer: toAddressType(event.exclusiveRelayer, this.chainId),
+        } as SlowFillRequestWithBlock;
+      });
       for (const event of slowFillRequests) {
         const slowFillRequest = {
           ...event,
@@ -620,7 +683,30 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
 
     // Performs indexing of filled relay-like events.
     const queryFilledRelayEvents = (eventName: string) => {
-      const fillEvents = (queryResults[eventsToQuery.indexOf(eventName)] ?? []) as FillWithBlock[];
+      const fillEvents = (queryResults[eventsToQuery.indexOf(eventName)] ?? []).map((_event) => {
+        const event = _event as FillWithBlock & {
+          depositor: string;
+          recipient: string;
+          inputToken: string;
+          outputToken: string;
+          exclusiveRelayer: string;
+          relayer: string;
+          relayExecutionInfo: RelayExecutionEventInfo & { updatedRecipient: string };
+        };
+        return {
+          ...event,
+          depositor: toAddressType(event.depositor, event.originChainId),
+          recipient: toAddressType(event.recipient, this.chainId),
+          inputToken: toAddressType(event.inputToken, event.originChainId),
+          outputToken: toAddressType(event.outputToken, this.chainId),
+          exclusiveRelayer: toAddressType(event.exclusiveRelayer, this.chainId),
+          relayer: toAddressType(event.relayer, this.chainId),
+          relayExecutionInfo: {
+            ...event.relayExecutionInfo,
+            updatedRecipient: toAddressType(event.relayExecutionInfo.updatedRecipient, this.chainId),
+          },
+        } as FillWithBlock;
+      });
 
       if (fillEvents.length > 0) {
         this.log("debug", `Using ${fillEvents.length} newly queried ${eventName} events for chain ${this.chainId}`, {
@@ -656,8 +742,9 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
     });
 
     if (eventsToQuery.includes("EnabledDepositRoute")) {
-      const enableDepositsEvents = (queryResults[eventsToQuery.indexOf("EnabledDepositRoute")] ??
-        []) as EnabledDepositRouteWithBlock[];
+      const enableDepositsEvents = queryResults[
+        eventsToQuery.indexOf("EnabledDepositRoute")
+      ] as EnabledDepositRouteWithBlock[];
 
       for (const event of enableDepositsEvents) {
         assign(this.depositRoutes, [event.originToken, event.destinationChainId], event.enabled);
@@ -665,18 +752,23 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
     }
 
     if (eventsToQuery.includes("RelayedRootBundle")) {
-      const relayedRootBundleEvents = (queryResults[eventsToQuery.indexOf("RelayedRootBundle")] ??
-        []) as RootBundleRelayWithBlock[];
+      const relayedRootBundleEvents = queryResults[
+        eventsToQuery.indexOf("RelayedRootBundle")
+      ] as RootBundleRelayWithBlock[];
       for (const event of relayedRootBundleEvents) {
         this.rootBundleRelays.push(event);
       }
     }
 
     if (eventsToQuery.includes("ExecutedRelayerRefundRoot")) {
-      const refundEvents = (queryResults[eventsToQuery.indexOf("ExecutedRelayerRefundRoot")] ??
-        []) as RelayerRefundExecutionWithBlock[];
-      for (const event of refundEvents) {
-        this.relayerRefundExecutions.push(event);
+      const refundEvents = queryResults[eventsToQuery.indexOf("ExecutedRelayerRefundRoot")];
+      for (const _event of refundEvents) {
+        const event = _event as { l2TokenAddress: string; refundAddresses: string[] } & RelayerRefundExecutionWithBlock;
+        this.relayerRefundExecutions.push({
+          ...event,
+          l2TokenAddress: toAddressType(event.l2TokenAddress, this.chainId),
+          refundAddresses: event.refundAddresses.map((addr) => toAddressType(addr, this.chainId)),
+        });
       }
     }
 
@@ -743,9 +835,9 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
    * @param deposit The deposit to retrieve the destination token for.
    * @returns The destination token.
    */
-  protected getDestinationTokenForDeposit(deposit: DepositWithBlock): string {
+  protected getDestinationTokenForDeposit(deposit: DepositWithBlock): Address {
     if (!this.canResolveZeroAddressOutputToken(deposit)) {
-      return ZERO_ADDRESS;
+      return toAddressType(ZERO_ADDRESS, CHAIN_IDs.MAINNET);
     }
     // L1 token should be resolved if we get here:
     const l1Token = this.hubPoolClient!.getL1TokenForL2TokenAtBlock(
@@ -753,10 +845,12 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
       deposit.originChainId,
       deposit.quoteBlockNumber
     )!;
-    return (
-      this.hubPoolClient!.getL2TokenForL1TokenAtBlock(l1Token, deposit.destinationChainId, deposit.quoteBlockNumber) ??
-      ZERO_ADDRESS
+    const counterpartToken = this.hubPoolClient!.getL2TokenForL1TokenAtBlock(
+      l1Token,
+      deposit.destinationChainId,
+      deposit.quoteBlockNumber
     );
+    return counterpartToken ?? toAddressType(ZERO_ADDRESS, CHAIN_IDs.MAINNET);
   }
 
   /**

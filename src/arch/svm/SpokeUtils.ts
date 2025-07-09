@@ -1,5 +1,6 @@
 import { SvmSpokeClient } from "@across-protocol/contracts";
 import { decodeFillStatusAccount, fetchState } from "@across-protocol/contracts/dist/src/svm/clients/SvmSpoke";
+import { intToU8Array32 } from "@across-protocol/contracts/dist/src/svm/web3-v1/conversionUtils";
 import { hashNonEmptyMessage } from "@across-protocol/contracts/dist/src/svm/web3-v1";
 import {
   ASSOCIATED_TOKEN_PROGRAM_ADDRESS,
@@ -18,19 +19,20 @@ import {
   getU32Encoder,
   getU64Encoder,
   pipe,
+  ReadonlyUint8Array,
   some,
   type TransactionSigner,
 } from "@solana/kit";
 import assert from "assert";
 import { arrayify, hexZeroPad, hexlify } from "ethers/lib/utils";
 import { Logger } from "winston";
-
 import { SYSTEM_PROGRAM_ADDRESS } from "@solana-program/system";
-import { Deposit, DepositWithBlock, FillStatus, FillWithBlock, RelayData } from "../../interfaces";
+import { DepositWithBlock, FillStatus, FillWithBlock, RelayData, RelayExecutionEventInfo } from "../../interfaces";
 import {
   BigNumber,
   EvmAddress,
   SvmAddress,
+  Address as SdkAddress,
   chainIsSvm,
   chunk,
   isUnsafeDepositId,
@@ -39,6 +41,7 @@ import {
 } from "../../utils";
 import {
   SvmCpiEventsClient,
+  bigToU8a32,
   createDefaultTransaction,
   getEventAuthority,
   getFillStatusPda,
@@ -46,6 +49,7 @@ import {
   toAddress,
   unwrapEventData,
 } from "./";
+import { CHAIN_IDs } from "../../constants";
 import { SVMEventNames, SVMProvider } from "./types";
 
 /**
@@ -53,6 +57,12 @@ import { SVMEventNames, SVMProvider } from "./types";
  *        and choose 400 to ensure that the most slots get included in our ranges
  */
 export const SLOT_DURATION_MS = 400;
+
+type ProtoFill = Omit<RelayData, "recipient" | "outputToken"> & {
+  destinationChainId: number;
+  recipient: SvmAddress;
+  outputToken: SvmAddress;
+};
 
 /**
  * Retrieves the chain time at a particular slot.
@@ -145,13 +155,20 @@ export async function findDeposit(
     return undefined;
   }
 
+  const unwrappedDepositEvent = unwrapEventData(depositEvent.data) as Record<string, unknown>;
+  const destinationChainId = unwrappedDepositEvent.destinationChainId as number;
   // Return the deposit event with block info
   return {
     txnRef: depositEvent.signature.toString(),
     blockNumber: Number(depositEvent.slot),
     txnIndex: 0,
     logIndex: 0,
-    ...(unwrapEventData(depositEvent.data) as Record<string, unknown>),
+    ...unwrappedDepositEvent,
+    depositor: toAddressType(unwrappedDepositEvent.depositor as string, CHAIN_IDs.SOLANA),
+    recipient: toAddressType(unwrappedDepositEvent.recipient as string, destinationChainId),
+    inputToken: toAddressType(unwrappedDepositEvent.inputToken as string, CHAIN_IDs.SOLANA),
+    outputToken: toAddressType(unwrappedDepositEvent.outputToken as string, destinationChainId),
+    exclusiveRelayer: toAddressType(unwrappedDepositEvent.exclusiveRelayer as string, destinationChainId),
   } as DepositWithBlock;
 }
 
@@ -327,14 +344,34 @@ export async function findFillEvent(
 
   if (fillEvents.length > 0) {
     const rawFillEvent = fillEvents[0];
+    const eventData = unwrapEventData(rawFillEvent.data) as FillWithBlock & {
+      depositor: string;
+      recipient: string;
+      inputToken: string;
+      outputToken: string;
+      exclusiveRelayer: string;
+      relayer: string;
+      relayExecutionInfo: RelayExecutionEventInfo & { updatedRecipient: string };
+    };
+    const originChainId = eventData.originChainId;
     const parsedFillEvent = {
+      ...eventData,
       transactionHash: rawFillEvent.signature,
       blockNumber: Number(rawFillEvent.slot),
       transactionIndex: 0,
       logIndex: 0,
       destinationChainId,
-      ...(unwrapEventData(rawFillEvent.data) as Record<string, unknown>),
-    } as unknown as FillWithBlock;
+      inputToken: toAddressType(eventData.inputToken, originChainId),
+      outputToken: toAddressType(eventData.outputToken, destinationChainId),
+      relayer: toAddressType(eventData.relayer, destinationChainId),
+      exclusiveRelayer: toAddressType(eventData.exclusiveRelayer, destinationChainId),
+      depositor: toAddressType(eventData.depositor, originChainId),
+      recipient: toAddressType(eventData.recipient, destinationChainId),
+      relayExecutionInfo: {
+        ...eventData.relayExecutionInfo,
+        updatedRecipient: eventData.relayExecutionInfo.updatedRecipient,
+      },
+    } as FillWithBlock;
     return parsedFillEvent;
   }
 
@@ -343,18 +380,18 @@ export async function findFillEvent(
 
 /**
  * @param spokePool Address (program ID) of the SvmSpoke.
- * @param deposit V3Deopsit instance.
+ * @param relayData RelayData instance, supplemented with destinationChainId
  * @param relayer Address of the relayer filling the deposit.
  * @param repaymentChainId Optional repaymentChainId (defaults to destinationChainId).
  * @returns An Ethers UnsignedTransaction instance.
  */
 export async function fillRelayInstruction(
   spokePool: SvmAddress,
-  deposit: Omit<Deposit, "messageHash" | "fromLiteChain" | "toLiteChain">,
+  relayData: ProtoFill,
   signer: TransactionSigner<string>,
   recipientTokenAccount: Address<string>,
   repaymentAddress: EvmAddress | SvmAddress = SvmAddress.from(signer.address),
-  repaymentChainId = deposit.destinationChainId
+  repaymentChainId = relayData.destinationChainId
 ) {
   const program = toAddress(spokePool);
 
@@ -363,25 +400,22 @@ export async function fillRelayInstruction(
     `Invalid repayment address for chain ${repaymentChainId}: ${repaymentAddress.toNative()}.`
   );
 
-  const _relayDataHash = getRelayDataHash(deposit, deposit.destinationChainId);
+  const _relayDataHash = getRelayDataHash(relayData, relayData.destinationChainId);
   const relayDataHash = new Uint8Array(Buffer.from(_relayDataHash.slice(2), "hex"));
 
   const relayer = SvmAddress.from(signer.address);
-  const outputTokenAddress = toAddressType(deposit.outputToken, deposit.destinationChainId);
-  if (!(outputTokenAddress instanceof SvmAddress)) {
-    return undefined;
-  }
 
   // Create ATA for the relayer and recipient token accounts
-  const relayerTokenAccount = await getAssociatedTokenAddress(relayer, outputTokenAddress);
+  const relayerTokenAccount = await getAssociatedTokenAddress(relayer, relayData.outputToken);
 
   const [statePda, fillStatusPda, eventAuthority] = await Promise.all([
     getStatePda(program),
-    getFillStatusPda(program, deposit, deposit.destinationChainId),
-    getEventAuthority(),
+    getFillStatusPda(program, relayData, relayData.destinationChainId),
+    getEventAuthority(program),
   ]);
+
   const depositIdBuffer = new Uint8Array(32);
-  const shortenedBuffer = new Uint8Array(Buffer.from(deposit.depositId.toHexString().slice(2), "hex"));
+  const shortenedBuffer = new Uint8Array(Buffer.from(relayData.depositId.toHexString().slice(2), "hex"));
   depositIdBuffer.set(shortenedBuffer, 32 - shortenedBuffer.length);
 
   const delegatePda = await getFillRelayDelegatePda(
@@ -391,26 +425,14 @@ export async function fillRelayInstruction(
     program
   );
 
-  // @todo we need to convert the deposit's relayData to svm-like since the interface assumes the data originates
-  // from an EVM Spoke pool. Once we migrate to `Address` types, this can be modified/removed.
-  const [depositor, inputToken] = [deposit.depositor, deposit.inputToken].map((addr: string) => {
-    const addressObj = toAddressType(addr, deposit.originChainId);
-    // @dev we don't really care for correctness of format of depositor / inputToken, so we're fine converting to Solana
-    // SDK `Address<string>` type even if our `toAddressType` function returned a raw address.
-    return addressObj.toBase58() as Address<string>;
-  });
+  const [recipient, outputToken, exclusiveRelayer, depositor, inputToken] = [
+    relayData.recipient,
+    relayData.outputToken,
+    relayData.exclusiveRelayer,
+    relayData.depositor,
+    relayData.inputToken,
+  ].map(toAddress);
 
-  const [recipient, exclusiveRelayer] = [deposit.recipient, deposit.exclusiveRelayer].map((addr) => {
-    const addressObj = toAddressType(addr, deposit.originChainId);
-    if (!(addressObj instanceof SvmAddress)) {
-      return undefined;
-    }
-    return toAddress(addressObj);
-  });
-
-  if (!recipient || !exclusiveRelayer) return undefined;
-
-  const outputToken = toAddress(outputTokenAddress);
   return SvmSpokeClient.getFillRelayInstruction({
     signer,
     state: statePda,
@@ -428,13 +450,13 @@ export async function fillRelayInstruction(
       exclusiveRelayer,
       inputToken,
       outputToken,
-      inputAmount: deposit.inputAmount.toBigInt(),
-      outputAmount: deposit.outputAmount.toBigInt(),
-      originChainId: BigInt(deposit.originChainId),
-      fillDeadline: deposit.fillDeadline,
-      exclusivityDeadline: deposit.exclusivityDeadline,
+      inputAmount: bigToU8a32(relayData.inputAmount.toBigInt()),
+      outputAmount: relayData.outputAmount.toBigInt(),
+      originChainId: BigInt(relayData.originChainId),
+      fillDeadline: relayData.fillDeadline,
+      exclusivityDeadline: relayData.exclusivityDeadline,
       depositId: depositIdBuffer,
-      message: new Uint8Array(Buffer.from(deposit.message.slice(2), "hex")),
+      message: new Uint8Array(Buffer.from(relayData.message.slice(2), "hex")),
     }),
     repaymentChainId: some(BigInt(repaymentChainId)),
     repaymentAddress: toAddress(repaymentAddress),
@@ -454,6 +476,94 @@ export function createTokenAccountsInstruction(
     signer: relayer,
     mint: toAddress(mint),
   });
+}
+
+/**
+ * @notice Return the fillRelay transaction for a given deposit
+ * @param spokePoolAddr Address of the spoke pool we're trying to fill through
+ * @param solanaClient RPC client to interact with Solana chain
+ * @param relayData RelayData instance, supplemented with destinationChainId
+ * @param signer signer associated with the relayer creating a Fill. Can be VoidSigner for gas estimation
+ * @param repaymentChainId Chain id where relayer repayment is desired
+ * @param repaymentAddress Address to which repayment will go to on repaymentChainId
+ * @returns FillRelay transaction
+ */
+export async function getFillRelayTx(
+  spokePoolAddr: SvmAddress,
+  solanaClient: SVMProvider,
+  relayData: Omit<RelayData, "recipent" | "outputToken"> & {
+    destinationChainId: number;
+    recipient: SvmAddress;
+    outputToken: SvmAddress;
+  },
+  signer: TransactionSigner,
+  repaymentChainId: number,
+  repaymentAddress: SdkAddress
+) {
+  const { depositor, recipient, inputToken, outputToken, exclusiveRelayer, destinationChainId } = relayData;
+
+  // tsc appeasement...should be unnecessary, but isn't. @todo Identify why.
+  assert(recipient.isSVM(), `getFillRelayTx: recipient not an SVM address (${recipient})`);
+  assert(
+    repaymentAddress.isValidOn(repaymentChainId),
+    `getFillRelayTx: repayment address ${repaymentAddress} not valid on chain ${repaymentChainId})`
+  );
+
+  const program = toAddress(spokePoolAddr);
+  const _relayDataHash = getRelayDataHash(relayData, destinationChainId);
+  const relayDataHash = new Uint8Array(Buffer.from(_relayDataHash.slice(2), "hex"));
+
+  const [state, delegate] = await Promise.all([
+    getStatePda(program),
+    getFillRelayDelegatePda(relayDataHash, BigInt(repaymentChainId), toAddress(repaymentAddress), program),
+  ]);
+
+  const mint = toAddress(outputToken);
+  const mintInfo = await fetchMint(solanaClient, mint);
+
+  const [recipientAta, relayerAta, fillStatus, eventAuthority] = await Promise.all([
+    getAssociatedTokenAddress(recipient, outputToken, mintInfo.programAddress),
+    getAssociatedTokenAddress(SvmAddress.from(signer.address), outputToken, mintInfo.programAddress),
+    getFillStatusPda(program, relayData, destinationChainId),
+    getEventAuthority(program),
+  ]);
+
+  const svmRelayData: SvmSpokeClient.FillRelayInput["relayData"] = {
+    depositor: toAddress(depositor),
+    recipient: toAddress(recipient),
+    exclusiveRelayer: toAddress(exclusiveRelayer),
+    inputToken: toAddress(inputToken),
+    outputToken: mint,
+    inputAmount: bigToU8a32(relayData.inputAmount.toBigInt()),
+    outputAmount: relayData.outputAmount.toBigInt(),
+    originChainId: relayData.originChainId,
+    depositId: new Uint8Array(intToU8Array32(relayData.depositId.toNumber())),
+    fillDeadline: relayData.fillDeadline,
+    exclusivityDeadline: relayData.exclusivityDeadline,
+    message: new Uint8Array(Buffer.from(relayData.message, "hex")),
+  };
+
+  const fillInput: SvmSpokeClient.FillRelayInput = {
+    signer: signer,
+    state,
+    delegate,
+    mint,
+    relayerTokenAccount: relayerAta,
+    recipientTokenAccount: recipientAta,
+    fillStatus,
+    tokenProgram: mintInfo.programAddress,
+    associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ADDRESS,
+    systemProgram: SYSTEM_PROGRAM_ADDRESS,
+    eventAuthority,
+    program,
+    relayHash: relayDataHash,
+    relayData: svmRelayData,
+    repaymentChainId: BigInt(repaymentChainId),
+    repaymentAddress: toAddress(repaymentAddress),
+  };
+  // Pass createRecipientAtaIfNeeded =true to the createFillInstruction function to create the recipient token account
+  // if it doesn't exist.
+  return createFillInstruction(signer, solanaClient, fillInput, mintInfo.data.decimals, true);
 }
 
 /**
@@ -561,20 +671,94 @@ export const createDepositInstruction = async (
  * Creates a request slow fill instruction.
  * @param signer - The signer of the transaction.
  * @param solanaClient - The Solana client.
- * @param depositInput - The deposit input.
+ * @param requestSlowFillInput - The input arguments for the `requestSlowFill` instruction.
  * @returns The request slow fill instruction.
  */
 export const createRequestSlowFillInstruction = async (
   signer: TransactionSigner,
   solanaClient: SVMProvider,
-  depositInput: SvmSpokeClient.RequestSlowFillInput
+  requestSlowFillInput: SvmSpokeClient.RequestSlowFillInput
 ) => {
-  const requestSlowFillIx = SvmSpokeClient.getRequestSlowFillInstruction(depositInput);
+  const requestSlowFillIx = SvmSpokeClient.getRequestSlowFillInstruction(requestSlowFillInput);
 
   return pipe(await createDefaultTransaction(solanaClient, signer), (tx) =>
     appendTransactionMessageInstruction(requestSlowFillIx, tx)
   );
 };
+
+/**
+ * @notice Return the requestSlowFill transaction for a given deposit
+ * @param spokePoolAddr Address of the spoke pool we're trying to fill through
+ * @param solanaClient RPC client to interact with Solana chain
+ * @param relayData RelayData instance, supplemented with destinationChainId
+ * @param signer signer associated with the relayer creating a Fill.
+ * @returns requestSlowFill transaction
+ */
+export async function getSlowFillRequestTx(
+  spokePoolAddr: SvmAddress,
+  solanaClient: SVMProvider,
+  relayData: Omit<RelayData, "recipient" | "outputToken"> & {
+    destinationChainId: number;
+    recipient: SvmAddress;
+    outputToken: SvmAddress;
+  },
+  signer: TransactionSigner
+) {
+  const {
+    depositor,
+    recipient,
+    inputToken,
+    outputToken,
+    exclusiveRelayer,
+    destinationChainId,
+    originChainId,
+    depositId,
+    fillDeadline,
+    exclusivityDeadline,
+    message,
+  } = relayData;
+
+  const program = toAddress(spokePoolAddr);
+  const relayDataHash = getRelayDataHash(relayData, destinationChainId);
+
+  const [state, fillStatus, eventAuthority] = await Promise.all([
+    getStatePda(program),
+    getFillStatusPda(program, relayData, destinationChainId),
+    getEventAuthority(program),
+  ]);
+
+  const depositIdBuffer = new Uint8Array(32);
+  const shortenedBuffer = arrayify(depositId.toHexString());
+  depositIdBuffer.set(shortenedBuffer, 32 - shortenedBuffer.length);
+
+  const relayDataInput: SvmSpokeClient.RequestSlowFillInput["relayData"] = {
+    depositor: toAddress(depositor),
+    recipient: toAddress(recipient),
+    exclusiveRelayer: toAddress(exclusiveRelayer),
+    inputToken: toAddress(inputToken),
+    outputToken: toAddress(outputToken),
+    inputAmount: bigToU8a32(relayData.inputAmount.toBigInt()),
+    outputAmount: relayData.outputAmount.toBigInt(),
+    originChainId: BigInt(originChainId),
+    depositId: depositIdBuffer,
+    fillDeadline: fillDeadline,
+    exclusivityDeadline: exclusivityDeadline,
+    message: arrayify(message),
+  };
+
+  const requestSlowFillInput: SvmSpokeClient.RequestSlowFillInput = {
+    signer,
+    state,
+    fillStatus,
+    eventAuthority,
+    program,
+    relayHash: arrayify(relayDataHash),
+    relayData: relayDataInput,
+    systemProgram: SYSTEM_PROGRAM_ADDRESS,
+  };
+
+  return createRequestSlowFillInstruction(signer, solanaClient, requestSlowFillInput);
+}
 
 /**
  * Creates a close fill PDA instruction.
@@ -597,6 +781,7 @@ export const createCloseFillPdaInstruction = async (
     appendTransactionMessageInstruction(closeFillPdaIx, tx)
   );
 };
+
 export async function getAssociatedTokenAddress(
   owner: SvmAddress,
   mint: SvmAddress,
@@ -616,20 +801,15 @@ export function getRelayDataHash(relayData: RelayData, destinationChainId: numbe
   const uint32Encoder = getU32Encoder();
 
   assert(relayData.message.startsWith("0x"), "Message must be a hex string");
-  const encodeAddress = (addr: string, chainId: number) => {
-    const addrObj = toAddressType(addr, chainId);
-    // @dev even if `addrObj` is of type `Address` here, we still want to calculate the relayHash
-    // based on `base58` representation of the `Address`
-    return Uint8Array.from(addressEncoder.encode(addrObj.toBase58() as Address<string>));
-  };
+  const encodeAddress = (data: SdkAddress) => Uint8Array.from(addressEncoder.encode(toAddress(data)));
 
   const contentToHash = Buffer.concat([
-    encodeAddress(relayData.depositor, relayData.originChainId),
-    encodeAddress(relayData.recipient, destinationChainId),
-    encodeAddress(relayData.exclusiveRelayer, destinationChainId),
-    encodeAddress(relayData.inputToken, relayData.originChainId),
-    encodeAddress(relayData.outputToken, destinationChainId),
-    Uint8Array.from(uint64Encoder.encode(BigInt(relayData.inputAmount.toString()))),
+    encodeAddress(relayData.depositor),
+    encodeAddress(relayData.recipient),
+    encodeAddress(relayData.exclusiveRelayer),
+    encodeAddress(relayData.inputToken),
+    encodeAddress(relayData.outputToken),
+    arrayify(hexZeroPad(hexlify(relayData.inputAmount), 32)),
     Uint8Array.from(uint64Encoder.encode(BigInt(relayData.outputAmount.toString()))),
     Uint8Array.from(uint64Encoder.encode(BigInt(relayData.originChainId.toString()))),
     arrayify(hexZeroPad(hexlify(relayData.depositId), 32)),
@@ -737,7 +917,7 @@ export async function getDepositDelegatePda(
     inputToken: Address<string>;
     outputToken: Address<string>;
     inputAmount: bigint;
-    outputAmount: bigint;
+    outputAmount: ReadonlyUint8Array;
     destinationChainId: bigint;
     exclusiveRelayer: Address<string>;
     quoteTimestamp: bigint;
@@ -757,7 +937,7 @@ export async function getDepositDelegatePda(
     Uint8Array.from(addrEnc.encode(depositData.inputToken)),
     Uint8Array.from(addrEnc.encode(depositData.outputToken)),
     Uint8Array.from(u64.encode(depositData.inputAmount)),
-    Uint8Array.from(u64.encode(depositData.outputAmount)),
+    Uint8Array.from(depositData.outputAmount),
     Uint8Array.from(u64.encode(depositData.destinationChainId)),
     Uint8Array.from(addrEnc.encode(depositData.exclusiveRelayer)),
     Uint8Array.from(u32.encode(depositData.quoteTimestamp)),
@@ -787,7 +967,7 @@ export async function getDepositNowDelegatePda(
     inputToken: Address<string>;
     outputToken: Address<string>;
     inputAmount: bigint;
-    outputAmount: bigint;
+    outputAmount: ReadonlyUint8Array;
     destinationChainId: bigint;
     exclusiveRelayer: Address<string>;
     fillDeadlineOffset: bigint;
@@ -806,7 +986,7 @@ export async function getDepositNowDelegatePda(
     Uint8Array.from(addrEnc.encode(depositData.inputToken)),
     Uint8Array.from(addrEnc.encode(depositData.outputToken)),
     Uint8Array.from(u64.encode(depositData.inputAmount)),
-    Uint8Array.from(u64.encode(depositData.outputAmount)),
+    Uint8Array.from(depositData.outputAmount),
     Uint8Array.from(u64.encode(depositData.destinationChainId)),
     Uint8Array.from(addrEnc.encode(depositData.exclusiveRelayer)),
     Uint8Array.from(u32.encode(depositData.fillDeadlineOffset)),
