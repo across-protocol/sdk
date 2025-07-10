@@ -1,6 +1,8 @@
 import { ethers } from "ethers";
-import { EthersError } from "../interfaces";
 import { BaseError } from "viem";
+import { EthersError } from "../interfaces";
+
+export { isSolanaError } from "../arch/svm";
 
 export const isError = (error: unknown): error is Error => error instanceof Error;
 

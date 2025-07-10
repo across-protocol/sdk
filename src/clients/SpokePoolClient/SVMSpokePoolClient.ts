@@ -17,6 +17,8 @@ import {
   DepositSearchResult,
   EventSearchConfig,
   InvalidFill,
+  getNetworkName,
+  isDefined,
   MakeOptional,
   sortEventsAscendingInPlace,
   SvmAddress,
@@ -140,7 +142,7 @@ export class SVMSpokePoolClient extends SpokePoolClient {
     const timerStart = Date.now();
 
     const [currentTime, ...eventsQueried] = await Promise.all([
-      this.svmEventsClient.getRpc().getBlockTime(BigInt(searchConfig.to)).send(),
+      this.getTimeAt(searchConfig.to),
       ...eventsToQuery.map(async (eventName, idx) => {
         const config = eventSearchConfigs[idx];
         const events = await this.svmEventsClient.queryEvents(
@@ -190,8 +192,16 @@ export class SVMSpokePoolClient extends SpokePoolClient {
   /**
    * Retrieves the timestamp for a given SVM slot number.
    */
-  public override getTimestampForBlock(slot: number): Promise<number> {
-    return getTimestampForSlot(this.svmEventsClient.getRpc(), slot);
+  public override async getTimestampForBlock(slot: number): Promise<number> {
+    let _slot = BigInt(slot);
+    do {
+      const timestamp = await getTimestampForSlot(this.svmEventsClient.getRpc(), _slot);
+      if (isDefined(timestamp)) {
+        return timestamp;
+      }
+    } while (--_slot > 0);
+
+    throw new Error(`Unable to resolve time at or before ${getNetworkName(this.chainId)} slot ${slot}`);
   }
 
   /**
@@ -200,7 +210,7 @@ export class SVMSpokePoolClient extends SpokePoolClient {
    *       It is kept for consistency with the EVM SpokePoolClient.
    */
   public getTimeAt(slot: number): Promise<number> {
-    return getTimestampForSlot(this.svmEventsClient.getRpc(), slot);
+    return this.getTimestampForBlock(slot);
   }
 
   /**
