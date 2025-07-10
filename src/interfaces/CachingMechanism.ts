@@ -34,4 +34,11 @@ export interface CachingMechanismInterface {
     ttl?: number,
     overrides?: OverrideType
   ): Promise<string | undefined>;
+
+  /**
+   * Deletes a value from the cache.
+   * @param key The key to delete.
+   * @returns True if the value was deleted, false otherwise.
+   */
+  del(key: string): Promise<boolean>;
 }
