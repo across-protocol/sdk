@@ -361,7 +361,7 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
   }
 
   public getFillsForDeposit(deposit: Deposit): FillWithBlock[] {
-    return this.depositHashesToFills[this.getDepositHash(deposit)];
+    return this.depositHashesToFills[this.getDepositHash(deposit)] ?? [];
   }
 
   public isDepositFilled(deposit: Deposit): boolean {
