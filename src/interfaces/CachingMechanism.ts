@@ -34,4 +34,18 @@ export interface CachingMechanismInterface {
     ttl?: number,
     overrides?: OverrideType
   ): Promise<string | undefined>;
+
+  /**
+   * Subscribes to a topic.
+   * @param topic The topic to subscribe to.
+   * @param callback The callback to call when a message is received.
+   */
+  sub(topic: string, callback: (message: string, channel: string) => unknown): Promise<number>;
+
+  /**
+   * Publishes a message to the network.
+   * @param topic The topic to publish to.
+   * @param message The message to publish.
+   */
+  pub(topic: string, message: string): Promise<number>;
 }
