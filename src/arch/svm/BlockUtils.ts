@@ -106,7 +106,7 @@ export class SVMBlockFinder extends BlockFinder<SVMBlock> {
     do {
       timestamp = await getTimestampForSlot(this.provider, slot);
     } while (!isDefined(timestamp) && --slot);
-    assert(isDefined(timestamp), `Unable to resolve latest Solana block time for slot ${_slot ?? "latest"}`);
+    assert(isDefined(timestamp), `Unable to resolve block time for Solanan slot ${_slot ?? "latest"}`);
 
     return { slot, timestamp: Number(timestamp) };
   }
