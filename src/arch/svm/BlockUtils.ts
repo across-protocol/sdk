@@ -93,21 +93,32 @@ export class SVMBlockFinder extends BlockFinder<SVMBlock> {
     return this.findBlock(this.blocks[index - 1], this.blocks[index], timestamp);
   }
 
+  /**
+   * For a given slot, resolve the nearest current or preceding timestamp.
+   * Not all Solana slots have an associated block timestamp; in case of no block at the requested slot, an most
+   * immediate preceding block timestamp will be used. Note that this may return an eventually-incorrect timestamp for
+   * future slots.
+   */
+  private async getBlockTime(_slot?: bigint): Promise<{ slot: bigint; timestamp: number }> {
+    let timestamp: number | undefined;
+    let slot = _slot ?? (await this.provider.getSlot({ commitment: "finalized" }).send());
+
+    do {
+      timestamp = await getTimestampForSlot(this.provider, slot);
+    } while (!isDefined(timestamp) && --slot);
+    assert(isDefined(timestamp), "Unable to resolve latest Solana block time");
+
+    return { slot, timestamp: Number(timestamp) };
+  }
+
   // Grabs the most recent slot and caches it.
   private async getLatestBlock(): Promise<SVMBlock> {
-    let latestSlot = await this.provider.getSlot().send();
-
-    // Iterate backwards until we find a slot with a block.
-    let estimatedSlotTime: number | undefined;
-    do {
-      estimatedSlotTime = await getTimestampForSlot(this.provider, latestSlot);
-    } while (!isDefined(estimatedSlotTime) && --latestSlot);
-    assert(isDefined(estimatedSlotTime), "Unable to resolve latest Solana block time");
+    const { slot, timestamp } = await this.getBlockTime();
 
     // Cast the return type to an SVMBlock.
     const block: SVMBlock = {
-      timestamp: Number(estimatedSlotTime),
-      number: Number(latestSlot),
+      timestamp: Number(slot),
+      number: timestamp,
     };
     const index = sortedIndexBy(this.blocks, block, "number");
     if (this.blocks[index]?.number !== block.number) this.blocks.splice(index, 0, block);
