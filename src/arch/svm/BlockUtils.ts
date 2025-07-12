@@ -95,8 +95,14 @@ export class SVMBlockFinder extends BlockFinder<SVMBlock> {
 
   // Grabs the most recent slot and caches it.
   private async getLatestBlock(): Promise<SVMBlock> {
-    const latestSlot = await this.provider.getSlot().send();
-    const estimatedSlotTime = await getTimestampForSlot(this.provider, latestSlot);
+    let latestSlot: bigint;
+    let estimatedSlotTime: number | undefined = undefined;
+
+    // Iterate backwards until we find a slot with a block.
+    do {
+      latestSlot = await this.provider.getSlot().send();
+      estimatedSlotTime = await getTimestampForSlot(this.provider, latestSlot);
+    } while (!isDefined(estimatedSlotTime) && --latestSlot);
 
     // Cast the return type to an SVMBlock.
     const block: SVMBlock = {
