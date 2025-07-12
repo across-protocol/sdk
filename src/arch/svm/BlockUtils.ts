@@ -28,10 +28,10 @@ function estimateBlocksElapsed(
   seconds: number,
   cushionPercentage = 0.0,
   _provider: SVMProvider
-): Promise<number> {
+): number {
   const cushionMultiplier = cushionPercentage + 1.0;
   const { average } = averageBlockTime();
-  return Promise.resolve(Math.floor((seconds * cushionMultiplier) / average));
+  return Math.floor((seconds * cushionMultiplier) / average);
 }
 
 export class SVMBlockFinder extends BlockFinder<SVMBlock> {
@@ -74,7 +74,7 @@ export class SVMBlockFinder extends BlockFinder<SVMBlock> {
       const cushion = 1;
       const incrementDistance = Math.max(
         // Ensure the increment slot distance is _at least_ a single slot to prevent an infinite loop.
-        await estimateBlocksElapsed(initialBlock.timestamp - timestamp, cushion, this.provider),
+        estimateBlocksElapsed(initialBlock.timestamp - timestamp, cushion, this.provider),
         1
       );
 
