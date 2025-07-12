@@ -5,6 +5,7 @@ import { isDefined } from "../../utils/TypeGuards";
 import { getCurrentTime } from "../../utils/TimeUtils";
 import { CHAIN_IDs } from "../../constants";
 import { SVMProvider } from "./";
+import { getTimestampForSlot } from "./SpokeUtils";
 
 interface SVMBlock extends Block {}
 
@@ -95,7 +96,7 @@ export class SVMBlockFinder extends BlockFinder<SVMBlock> {
   // Grabs the most recent slot and caches it.
   private async getLatestBlock(): Promise<SVMBlock> {
     const latestSlot = await this.provider.getSlot().send();
-    const estimatedSlotTime = await this.provider.getBlockTime(latestSlot).send();
+    const estimatedSlotTime = await getTimestampForSlot(this.provider, latestSlot);
 
     // Cast the return type to an SVMBlock.
     const block: SVMBlock = {
