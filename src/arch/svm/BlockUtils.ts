@@ -93,7 +93,7 @@ export class SVMBlockFinder extends BlockFinder<SVMBlock> {
    * For a given slot, resolve the current or preceding timestamp.
    * Not all Solana slots have an associated block timestamp; in case of no block at the requested slot, the most
    * immediate preceding block timestamp will be used. Note that this may return an eventually-incorrect timestamp for
-   * for future slots.
+   * future slots.
    */
   private async getBlockTime(_slot?: bigint): Promise<{ slot: bigint; timestamp: number }> {
     let timestamp: number | undefined;
