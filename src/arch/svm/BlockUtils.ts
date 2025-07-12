@@ -24,14 +24,14 @@ export function averageBlockTime(): Pick<BlockTimeAverage, "average" | "blockRan
   return averageBlockTimes[CHAIN_IDs.SOLANA];
 }
 
-async function estimateBlocksElapsed(
+function estimateBlocksElapsed(
   seconds: number,
   cushionPercentage = 0.0,
   _provider: SVMProvider
 ): Promise<number> {
   const cushionMultiplier = cushionPercentage + 1.0;
   const { average } = averageBlockTime();
-  return Math.floor((seconds * cushionMultiplier) / average);
+  return Promise.resolve(Math.floor((seconds * cushionMultiplier) / average));
 }
 
 export class SVMBlockFinder extends BlockFinder<SVMBlock> {
