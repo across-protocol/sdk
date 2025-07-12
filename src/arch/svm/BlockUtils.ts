@@ -107,7 +107,7 @@ export class SVMBlockFinder extends BlockFinder<SVMBlock> {
       timestamp = await getTimestampForSlot(this.provider, slot);
     } while (!isDefined(timestamp) && --slot);
     assert(isDefined(timestamp), `Unable to resolve block time for SVM slot ${_slot ?? "latest"}`);
-    assert(!BigInt(Number(timestamp)), `Unexpected SVM block timestamp: ${timestamp}`);
+    assert(BigInt(Number(timestamp) === timestamp), `Unexpected SVM block timestamp: ${timestamp}`);
 
     return { slot, timestamp: Number(timestamp) };
   }
