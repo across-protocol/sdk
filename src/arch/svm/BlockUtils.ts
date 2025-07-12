@@ -117,8 +117,8 @@ export class SVMBlockFinder extends BlockFinder<SVMBlock> {
 
     // Cast the return type to an SVMBlock.
     const block: SVMBlock = {
-      timestamp: Number(slot),
-      number: timestamp,
+      timestamp,
+      number: Number(slot),
     };
     const index = sortedIndexBy(this.blocks, block, "number");
     if (this.blocks[index]?.number !== block.number) this.blocks.splice(index, 0, block);
