@@ -102,6 +102,7 @@ export class SVMBlockFinder extends BlockFinder<SVMBlock> {
     do {
       estimatedSlotTime = await getTimestampForSlot(this.provider, latestSlot);
     } while (!isDefined(estimatedSlotTime) && --latestSlot);
+    assert(isDefined(estimatedSlotTime), "Unable to resolve latest Solana block time");
 
     // Cast the return type to an SVMBlock.
     const block: SVMBlock = {
