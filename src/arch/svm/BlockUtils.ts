@@ -131,18 +131,19 @@ export class SVMBlockFinder extends BlockFinder<SVMBlock> {
     if (this.blocks[index]?.number === number) return this.blocks[index]; // Return early if block already exists.
 
     // The resolved slot may be rotated backwards if no timestamp exists at the requested slot.
-    const { slot, timestamp } = await this.getBlockTime(BigInt(number));
+    const { slot: _slot, timestamp } = await this.getBlockTime(BigInt(number));
+    const slot = Number(_slot);
     // Cast the return type to an SVMBlock.
     const block: SVMBlock = {
       timestamp,
-      number: Number(slot),
+      number: slot,
     };
 
     // Recompute the index after the async call since the state of this.blocks could have changed!
-    index = sortedIndexBy(this.blocks, { number } as Block, "number");
+    index = sortedIndexBy(this.blocks, { number: slot } as Block, "number");
 
     // Rerun this check to avoid duplicate insertion.
-    if (this.blocks[index]?.number === number) return this.blocks[index];
+    if (this.blocks[index]?.number === slot) return this.blocks[index];
     this.blocks.splice(index, 0, block); // A simple insert at index.
     return block;
   }
