@@ -24,11 +24,7 @@ export function averageBlockTime(): Pick<BlockTimeAverage, "average" | "blockRan
   return averageBlockTimes[CHAIN_IDs.SOLANA];
 }
 
-function estimateBlocksElapsed(
-  seconds: number,
-  cushionPercentage = 0.0,
-  _provider: SVMProvider
-): number {
+function estimateBlocksElapsed(seconds: number, cushionPercentage = 0.0, _provider: SVMProvider): number {
   const cushionMultiplier = cushionPercentage + 1.0;
   const { average } = averageBlockTime();
   return Math.floor((seconds * cushionMultiplier) / average);
