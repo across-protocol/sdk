@@ -30,7 +30,7 @@ async function estimateBlocksElapsed(
   _provider: SVMProvider
 ): Promise<number> {
   const cushionMultiplier = cushionPercentage + 1.0;
-  const { average } = await averageBlockTime();
+  const { average } = averageBlockTime();
   return Math.floor((seconds * cushionMultiplier) / average);
 }
 
