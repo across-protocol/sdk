@@ -98,7 +98,7 @@ export class SVMBlockFinder extends BlockFinder<SVMBlock> {
     let latestSlot = await this.provider.getSlot().send();
 
     // Iterate backwards until we find a slot with a block.
-    let estimatedSlotTime: number | undefined = undefined;
+    let estimatedSlotTime: number | undefined;
     do {
       estimatedSlotTime = await getTimestampForSlot(this.provider, latestSlot);
     } while (!isDefined(estimatedSlotTime) && --latestSlot);
