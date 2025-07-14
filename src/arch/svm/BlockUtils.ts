@@ -5,6 +5,7 @@ import { isDefined } from "../../utils/TypeGuards";
 import { getCurrentTime } from "../../utils/TimeUtils";
 import { CHAIN_IDs } from "../../constants";
 import { SVMProvider } from "./";
+import { getTimestampForSlot } from "./SpokeUtils";
 
 interface SVMBlock extends Block {}
 
@@ -23,13 +24,9 @@ export function averageBlockTime(): Pick<BlockTimeAverage, "average" | "blockRan
   return averageBlockTimes[CHAIN_IDs.SOLANA];
 }
 
-async function estimateBlocksElapsed(
-  seconds: number,
-  cushionPercentage = 0.0,
-  _provider: SVMProvider
-): Promise<number> {
+function estimateBlocksElapsed(seconds: number, cushionPercentage = 0.0, _provider: SVMProvider): number {
   const cushionMultiplier = cushionPercentage + 1.0;
-  const { average } = await averageBlockTime();
+  const { average } = averageBlockTime();
   return Math.floor((seconds * cushionMultiplier) / average);
 }
 
@@ -73,7 +70,7 @@ export class SVMBlockFinder extends BlockFinder<SVMBlock> {
       const cushion = 1;
       const incrementDistance = Math.max(
         // Ensure the increment slot distance is _at least_ a single slot to prevent an infinite loop.
-        await estimateBlocksElapsed(initialBlock.timestamp - timestamp, cushion, this.provider),
+        estimateBlocksElapsed(initialBlock.timestamp - timestamp, cushion, this.provider),
         1
       );
 
@@ -92,15 +89,33 @@ export class SVMBlockFinder extends BlockFinder<SVMBlock> {
     return this.findBlock(this.blocks[index - 1], this.blocks[index], timestamp);
   }
 
+  /**
+   * For a given slot, resolve the current or preceding timestamp.
+   * Not all Solana slots have an associated block timestamp; in case of no block at the requested slot, the most
+   * immediate preceding block timestamp will be used. Note that this may return an eventually-incorrect timestamp for
+   * future slots.
+   */
+  private async getBlockTime(_slot?: bigint): Promise<{ slot: bigint; timestamp: number }> {
+    let timestamp: number | undefined;
+    let slot = _slot ?? (await this.provider.getSlot({ commitment: "finalized" }).send());
+
+    do {
+      timestamp = await getTimestampForSlot(this.provider, slot);
+    } while (!isDefined(timestamp) && --slot);
+    assert(isDefined(timestamp), `Unable to resolve block time for SVM slot ${_slot ?? "latest"}`);
+    assert(BigInt(Number(timestamp) === timestamp), `Unexpected SVM block timestamp: ${timestamp}`);
+
+    return { slot, timestamp: Number(timestamp) };
+  }
+
   // Grabs the most recent slot and caches it.
   private async getLatestBlock(): Promise<SVMBlock> {
-    const latestSlot = await this.provider.getSlot().send();
-    const estimatedSlotTime = await this.provider.getBlockTime(latestSlot).send();
+    const { slot, timestamp } = await this.getBlockTime();
 
     // Cast the return type to an SVMBlock.
     const block: SVMBlock = {
-      timestamp: Number(estimatedSlotTime),
-      number: Number(latestSlot),
+      timestamp,
+      number: Number(slot),
     };
     const index = sortedIndexBy(this.blocks, block, "number");
     if (this.blocks[index]?.number !== block.number) this.blocks.splice(index, 0, block);
@@ -112,18 +127,20 @@ export class SVMBlockFinder extends BlockFinder<SVMBlock> {
     let index = sortedIndexBy(this.blocks, { number } as Block, "number");
     if (this.blocks[index]?.number === number) return this.blocks[index]; // Return early if block already exists.
 
-    const estimatedSlotTime = await this.provider.getBlockTime(BigInt(number)).send();
+    // The resolved slot may be rotated backwards if no timestamp exists at the requested slot.
+    const { slot: _slot, timestamp } = await this.getBlockTime(BigInt(number));
+    const slot = Number(_slot);
     // Cast the return type to an SVMBlock.
     const block: SVMBlock = {
-      timestamp: Number(estimatedSlotTime),
-      number,
+      timestamp,
+      number: slot,
     };
 
     // Recompute the index after the async call since the state of this.blocks could have changed!
-    index = sortedIndexBy(this.blocks, { number } as Block, "number");
+    index = sortedIndexBy(this.blocks, { number: slot } as Block, "number");
 
     // Rerun this check to avoid duplicate insertion.
-    if (this.blocks[index]?.number === number) return this.blocks[index];
+    if (this.blocks[index]?.number === slot) return this.blocks[index];
     this.blocks.splice(index, 0, block); // A simple insert at index.
     return block;
   }
