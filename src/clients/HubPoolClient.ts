@@ -800,7 +800,7 @@ export class HubPoolClient extends BaseAbstractClient {
     const latestProposedBundle = this.proposedRootBundles[this.proposedRootBundles.length - 1];
 
     // If there is no previous root bundle, then return 0.
-    if (!isDefined(latestValidBundle)) {
+    if (!isDefined(latestProposedBundle)) {
       return 0;
     }
 
