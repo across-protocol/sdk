@@ -790,13 +790,25 @@ export class HubPoolClient extends BaseAbstractClient {
   }
 
   // @dev Returns the start block of the next bundle assuming that if there is a currently outstanding root bundle proposal, it will pass liveness.
-  getOptimisticBundleStartBlockNumber(latestMainnetBlock: number): number {
-    const latestProposedRootBundle = this.proposedRootBundles[this.proposedRootBundles.length - 1];
-    // Get the mainnet bundle end block number, which will always be the first entry in `bundleEvaluationBlockNumbers`.
-    const endBlock = latestProposedRootBundle.bundleEvaluationBlockNumbers[0].toNumber();
-    assert(endBlock < latestMainnetBlock);
+  getOptimisticBundleStartBlockNumber(chainIdList: number[], latestMainnetBlock: number, chainId: number): number {
+    // Get either the pending root bundle, or, if there is none, the latest fully executed root bundle.
+    // We cannot only index `this.proposedRootBundles` since a bundle there may have been previously disputed, so only index `this.proposedRootBundles`
+    // if we have a pending proposal, since this must mean that the pending root bundle is the most recent proposed root bundle.
+    const latestValidBundle = this.hasPendingProposal()
+      ? this.proposedRootBundles[this.proposedRootBundles.length - 1]
+      : this.getLatestFullyExecutedRootBundle(latestMainnetBlock);
 
-    return endBlock > 0 ? endBlock + 1 : 0;
+    // If there is no previous root bundle, then return 0;
+    if (!isDefined(latestValidBundle)) {
+      return 0;
+    }
+
+    // Otherwise, get the bundle end block for the optimistic bundle.
+    const optimisticEndBlock = this.getBundleEndBlockForChain(latestValidBundle, chainId, chainIdList);
+
+    // As above, this assumes that chain ID's are only added to the chain ID list over time, and that chains are never
+    // deleted.
+    return optimisticEndBlock > 0 ? optimisticEndBlock + 1 : 0;
   }
 
   getLatestExecutedRootBundleContainingL1Token(
