@@ -791,20 +791,21 @@ export class HubPoolClient extends BaseAbstractClient {
 
   // @dev Returns the start block of the next bundle assuming that if there is a currently outstanding root bundle proposal, it will pass liveness.
   getOptimisticBundleStartBlockNumber(chainIdList: number[], latestMainnetBlock: number, chainId: number): number {
-    // Get either the pending root bundle, or, if there is none, the latest fully executed root bundle.
-    // We cannot only index `this.proposedRootBundles` since a bundle there may have been previously disputed, so only index `this.proposedRootBundles`
+    // If there is no pending root bundle, then return block ranges based on the latest fully executed root bundle.
+    if (!this.hasPendingProposal()) {
+      return this.getNextBundleStartBlockNumber(chainIdList, latestMainnetBlock, chainId);
+    }
+    // We cannot normally index `this.proposedRootBundles` since a bundle there may have been previously disputed, so only index `this.proposedRootBundles`
     // if we have a pending proposal, since this must mean that the pending root bundle is the most recent proposed root bundle.
-    const latestValidBundle = this.hasPendingProposal()
-      ? this.proposedRootBundles[this.proposedRootBundles.length - 1]
-      : this.getLatestFullyExecutedRootBundle(latestMainnetBlock);
+    const latestProposedBundle = this.proposedRootBundles[this.proposedRootBundles.length - 1];
 
-    // If there is no previous root bundle, then return 0;
+    // If there is no previous root bundle, then return 0.
     if (!isDefined(latestValidBundle)) {
       return 0;
     }
 
     // Otherwise, get the bundle end block for the optimistic bundle.
-    const optimisticEndBlock = this.getBundleEndBlockForChain(latestValidBundle, chainId, chainIdList);
+    const optimisticEndBlock = this.getBundleEndBlockForChain(latestProposedBundle, chainId, chainIdList);
 
     // As above, this assumes that chain ID's are only added to the chain ID list over time, and that chains are never
     // deleted.
