@@ -789,6 +789,16 @@ export class HubPoolClient extends BaseAbstractClient {
     return endBlock > 0 ? endBlock + 1 : 0;
   }
 
+  // @dev Returns the start block of the next bundle assuming that if there is a currently outstanding root bundle proposal, it will pass liveness.
+  getOptimisticBundleStartBlockNumber(latestMainnetBlock: number): number {
+    const latestProposedRootBundle = this.proposedRootBundles[this.proposedRootBundles.length - 1];
+    // Get the mainnet bundle end block number, which will always be the first entry in `bundleEvaluationBlockNumbers`.
+    const endBlock = latestProposedRootBundle.bundleEvaluationBlockNumbers[0].toNumber();
+    assert(endBlock < latestMainnetBlock);
+
+    return endBlock > 0 ? endBlock + 1 : 0;
+  }
+
   getLatestExecutedRootBundleContainingL1Token(
     block: number,
     chain: number,
