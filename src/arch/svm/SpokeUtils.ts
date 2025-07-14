@@ -50,7 +50,6 @@ import {
   toAddressType,
 } from "../../utils";
 import {
-  SvmCpiEventsClient,
   bigToU8a32,
   createDefaultTransaction,
   getCCTPNoncePda,
@@ -63,6 +62,8 @@ import {
   toAddress,
   unwrapEventData,
 } from "./";
+import { SvmCpiEventsClient } from "./eventsClient";
+import { SVM_NO_BLOCK_AT_SLOT, isSolanaError } from "./provider";
 import { AttestedCCTPMessage, SVMEventNames, SVMProvider } from "./types";
 
 /**
@@ -80,10 +81,23 @@ type ProtoFill = Omit<RelayData, "recipient" | "outputToken"> & {
 /**
  * Retrieves the chain time at a particular slot.
  */
-export async function getTimestampForSlot(provider: SVMProvider, slotNumber: number): Promise<number> {
+export async function getTimestampForSlot(provider: SVMProvider, slotNumber: bigint): Promise<number | undefined> {
   // @note: getBlockTime receives a slot number, not a block number.
-  const slotTime = await provider.getBlockTime(BigInt(slotNumber)).send();
-  return Number(slotTime);
+  try {
+    const blockTime = await provider.getBlockTime(slotNumber).send();
+    return Number(blockTime);
+  } catch (err) {
+    if (!isSolanaError(err)) {
+      throw err;
+    }
+
+    const { __code: code } = err.context;
+    if ([SVM_NO_BLOCK_AT_SLOT].includes(code)) {
+      return undefined;
+    }
+
+    throw err; // Unhandled Solana error.
+  }
 }
 
 /**
@@ -215,7 +229,7 @@ export async function relayFillStatus(
   if (atHeight === undefined) {
     const [fillStatusAccount, currentSlotTimestamp] = await Promise.all([
       fetchEncodedAccount(provider, fillStatusPda, { commitment: "confirmed" }),
-      provider.getBlockTime(currentSlot).send(),
+      getTimestampForSlot(provider, currentSlot),
     ]);
     // If the PDA exists, return the stored fill status
     if (fillStatusAccount.exists) {
@@ -684,20 +698,94 @@ export const createDepositInstruction = async (
  * Creates a request slow fill instruction.
  * @param signer - The signer of the transaction.
  * @param solanaClient - The Solana client.
- * @param depositInput - The deposit input.
+ * @param requestSlowFillInput - The input arguments for the `requestSlowFill` instruction.
  * @returns The request slow fill instruction.
  */
 export const createRequestSlowFillInstruction = async (
   signer: TransactionSigner,
   solanaClient: SVMProvider,
-  depositInput: SvmSpokeClient.RequestSlowFillInput
+  requestSlowFillInput: SvmSpokeClient.RequestSlowFillInput
 ) => {
-  const requestSlowFillIx = SvmSpokeClient.getRequestSlowFillInstruction(depositInput);
+  const requestSlowFillIx = SvmSpokeClient.getRequestSlowFillInstruction(requestSlowFillInput);
 
   return pipe(await createDefaultTransaction(solanaClient, signer), (tx) =>
     appendTransactionMessageInstruction(requestSlowFillIx, tx)
   );
 };
+
+/**
+ * @notice Return the requestSlowFill transaction for a given deposit
+ * @param spokePoolAddr Address of the spoke pool we're trying to fill through
+ * @param solanaClient RPC client to interact with Solana chain
+ * @param relayData RelayData instance, supplemented with destinationChainId
+ * @param signer signer associated with the relayer creating a Fill.
+ * @returns requestSlowFill transaction
+ */
+export async function getSlowFillRequestTx(
+  spokePoolAddr: SvmAddress,
+  solanaClient: SVMProvider,
+  relayData: Omit<RelayData, "recipient" | "outputToken"> & {
+    destinationChainId: number;
+    recipient: SvmAddress;
+    outputToken: SvmAddress;
+  },
+  signer: TransactionSigner
+) {
+  const {
+    depositor,
+    recipient,
+    inputToken,
+    outputToken,
+    exclusiveRelayer,
+    destinationChainId,
+    originChainId,
+    depositId,
+    fillDeadline,
+    exclusivityDeadline,
+    message,
+  } = relayData;
+
+  const program = toAddress(spokePoolAddr);
+  const relayDataHash = getRelayDataHash(relayData, destinationChainId);
+
+  const [state, fillStatus, eventAuthority] = await Promise.all([
+    getStatePda(program),
+    getFillStatusPda(program, relayData, destinationChainId),
+    getEventAuthority(program),
+  ]);
+
+  const depositIdBuffer = new Uint8Array(32);
+  const shortenedBuffer = arrayify(depositId.toHexString());
+  depositIdBuffer.set(shortenedBuffer, 32 - shortenedBuffer.length);
+
+  const relayDataInput: SvmSpokeClient.RequestSlowFillInput["relayData"] = {
+    depositor: toAddress(depositor),
+    recipient: toAddress(recipient),
+    exclusiveRelayer: toAddress(exclusiveRelayer),
+    inputToken: toAddress(inputToken),
+    outputToken: toAddress(outputToken),
+    inputAmount: bigToU8a32(relayData.inputAmount.toBigInt()),
+    outputAmount: relayData.outputAmount.toBigInt(),
+    originChainId: BigInt(originChainId),
+    depositId: depositIdBuffer,
+    fillDeadline: fillDeadline,
+    exclusivityDeadline: exclusivityDeadline,
+    message: arrayify(message),
+  };
+
+  const requestSlowFillInput: SvmSpokeClient.RequestSlowFillInput = {
+    signer,
+    state,
+    fillStatus,
+    eventAuthority,
+    program,
+    relayHash: arrayify(relayDataHash),
+    relayData: relayDataInput,
+    systemProgram: SYSTEM_PROGRAM_ADDRESS,
+  };
+
+  return createRequestSlowFillInstruction(signer, solanaClient, requestSlowFillInput);
+}
 
 /**
  * Creates a close fill PDA instruction.
@@ -838,7 +926,7 @@ async function fetchBatchFillStatusFromPdaAccounts(
         fetchEncodedAccounts(provider, chunk, { commitment: "confirmed" })
       )
     ),
-    provider.getBlockTime(currentSlot).send(),
+    getTimestampForSlot(provider, currentSlot),
   ]);
 
   const fillStatuses = pdaAccounts.flat().map((account, index) => {
@@ -847,11 +935,13 @@ async function fetchBatchFillStatusFromPdaAccounts(
       const decodedAccount = decodeFillStatusAccount(account);
       return decodedAccount.data.status;
     }
+
     // If the PDA doesn't exist and the deadline hasn't passed yet, the deposit must be unfilled,
     // since PDAs can't be closed before the fill deadline.
-    else if (Number(currentSlotTimestamp) < relayDataArray[index].fillDeadline) {
+    if (Number(currentSlotTimestamp) < relayDataArray[index].fillDeadline) {
       return FillStatus.Unfilled;
     }
+
     // If the PDA doesn't exist and the fill deadline has passed, then the status can't be determined and is set to undefined.
     return undefined;
   });

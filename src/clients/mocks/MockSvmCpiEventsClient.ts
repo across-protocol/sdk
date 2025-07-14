@@ -79,9 +79,9 @@ export class MockSvmCpiEventsClient extends SvmCpiEventsClient {
 
     destinationChainId ??= BigInt(random(1, 42161, false));
     const depositor = deposit.depositor ?? getRandomSvmAddress();
-    const recipient = deposit.recipient ?? SvmAddress.from(randomBytes(32), "base16").toBase58();
+    const recipient = deposit.recipient ?? SvmAddress.from(randomBytes(32)).toBase58();
     const inputToken = deposit.inputToken ?? getRandomSvmAddress();
-    const outputToken = deposit.outputToken ?? SvmAddress.from(randomBytes(32), "base16").toBase58();
+    const outputToken = deposit.outputToken ?? SvmAddress.from(randomBytes(32)).toBase58();
     inputAmount ??= BigInt(random(1, 1000, false));
     outputAmount ??= bigToU8a32((inputAmount * BigInt(95)) / BigInt(100));
     const message = deposit.message ?? new Uint8Array(32);

@@ -22,8 +22,10 @@ import {
 import bs58 from "bs58";
 import { ethers } from "ethers";
 import { FillType, RelayData } from "../../interfaces";
-import { BigNumber, Address as SdkAddress, getRelayDataHash, isUint8Array } from "../../utils";
+import { BigNumber, Address as SdkAddress, getRelayDataHash, isDefined, isUint8Array } from "../../utils";
 import { AttestedCCTPMessage, EventName, SVMEventNames, SVMProvider } from "./types";
+
+export { isSolanaError } from "@solana/kit";
 
 /**
  * Basic void TransactionSigner type
@@ -52,6 +54,35 @@ export async function isDevnet(rpc: SVMProvider): Promise<boolean> {
  */
 export function toAddress(address: SdkAddress): Address<string> {
   return address.toBase58() as Address<string>;
+}
+
+/**
+ * Resolve the latest finalized slot, and then work backwards to find the nearest slot containing a block.
+ * In most cases the first-resolved slot should also have a block. Avoid making arbitrary decisions about
+ * how many slots to rotate through.
+ */
+export async function getLatestFinalizedSlotWithBlock(
+  provider: SVMProvider,
+  maxSlot: bigint,
+  maxLookback = 1000
+): Promise<number> {
+  const finalizedSlot = await provider.getSlot({ commitment: "finalized" }).send();
+  const endSlot = Math.min(Number(maxSlot), Number(finalizedSlot));
+  const opts = { maxSupportedTransactionVersion: 0, transactionDetails: "none", rewards: false } as const;
+
+  let slot = BigInt(endSlot);
+  do {
+    const block = await provider.getBlock(slot, opts).send();
+    if (isDefined(block) && [block.blockHeight, block.blockTime].every(isDefined)) {
+      break;
+    }
+  } while (--maxLookback > 0 && --slot > 0);
+
+  if (maxLookback === 0) {
+    throw new Error(`Unable to find Solana block between slots [${slot}, ${endSlot}]`);
+  }
+
+  return Number(slot);
 }
 
 /**
@@ -119,7 +150,7 @@ export function getEventName(rawName: string): EventName {
  */
 export function unwrapEventData(
   data: unknown,
-  uint8ArrayKeysAsBigInt: string[] = ["depositId"],
+  uint8ArrayKeysAsBigInt: string[] = ["depositId", "outputAmount"],
   currentKey?: string
 ): unknown {
   // Handle null/undefined
@@ -277,6 +308,21 @@ export async function getInstructionParamsPda(programId: Address, signer: Addres
   const [pda] = await getProgramDerivedAddress({
     programAddress: programId,
     seeds: ["instruction_params", addressEncoder.encode(signer)],
+  });
+  return pda;
+}
+
+/**
+ * Returns the PDA for an individual's claim account.
+ * @param programId the address of the spoke pool.
+ * @param mint the address of the token.
+ * @param tokenOwner the address of the signer which owns the claim account.
+ */
+export async function getClaimAccountPda(programId: Address, mint: Address, tokenOwner: Address): Promise<Address> {
+  const addressEncoder = getAddressEncoder();
+  const [pda] = await getProgramDerivedAddress({
+    programAddress: programId,
+    seeds: ["claim_account", addressEncoder.encode(mint), addressEncoder.encode(tokenOwner)],
   });
   return pda;
 }
