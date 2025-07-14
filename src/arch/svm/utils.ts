@@ -1,24 +1,29 @@
-import bs58 from "bs58";
-import { ethers } from "ethers";
+import { MessageTransmitterClient, SvmSpokeClient } from "@across-protocol/contracts";
 import { BN, BorshEventCoder, Idl } from "@coral-xyz/anchor";
 import {
   Address,
+  IInstruction,
+  KeyPairSigner,
   address,
-  getAddressEncoder,
-  getProgramDerivedAddress,
-  getU64Encoder,
-  getU32Encoder,
-  isAddress,
-  type TransactionSigner,
-  pipe,
+  appendTransactionMessageInstruction,
   createTransactionMessage,
+  getAddressEncoder,
+  getBase64EncodedWireTransaction,
+  getProgramDerivedAddress,
+  getU32Encoder,
+  getU64Encoder,
+  isAddress,
+  pipe,
   setTransactionMessageFeePayerSigner,
   setTransactionMessageLifetimeUsingBlockhash,
+  signTransactionMessageWithSigners,
+  type TransactionSigner,
 } from "@solana/kit";
-import { SvmSpokeClient } from "@across-protocol/contracts";
+import bs58 from "bs58";
+import { ethers } from "ethers";
 import { FillType, RelayData } from "../../interfaces";
-import { BigNumber, getRelayDataHash, isDefined, isUint8Array, Address as SdkAddress } from "../../utils";
-import { EventName, SVMEventNames, SVMProvider } from "./types";
+import { BigNumber, Address as SdkAddress, getRelayDataHash, isDefined, isUint8Array } from "../../utils";
+import { AttestedCCTPMessage, EventName, SVMEventNames, SVMProvider } from "./types";
 
 export { isSolanaError } from "@solana/kit";
 
@@ -335,6 +340,18 @@ export async function getEventAuthority(programId: Address): Promise<Address> {
 }
 
 /**
+ * Returns the PDA for the Self Authority.
+ * @returns The PDA for the Self Authority.
+ */
+export const getSelfAuthority = async () => {
+  const [selfAuthority] = await getProgramDerivedAddress({
+    programAddress: address(SvmSpokeClient.SVM_SPOKE_PROGRAM_ADDRESS),
+    seeds: ["self_authority"],
+  });
+  return selfAuthority;
+};
+
+/**
  * Returns a random SVM address.
  */
 export function getRandomSvmAddress() {
@@ -359,7 +376,81 @@ export const createDefaultTransaction = async (rpcClient: SVMProvider, signer: T
 };
 
 /**
+ * Simulates a transaction and decodes the result using a parser function.
+ * @param solanaClient - The Solana client.
+ * @param ix - The instruction to simulate.
+ * @param signer - The signer of the transaction.
+ * @param parser - The parser function to decode the result.
+ * @returns The decoded result.
+ */
+export const simulateAndDecode = async <P extends (buf: Buffer) => unknown>(
+  solanaClient: SVMProvider,
+  ix: IInstruction,
+  signer: KeyPairSigner,
+  parser: P
+): Promise<ReturnType<P>> => {
+  const simulationTx = appendTransactionMessageInstruction(ix, await createDefaultTransaction(solanaClient, signer));
+
+  const simulationResult = await solanaClient
+    .simulateTransaction(getBase64EncodedWireTransaction(await signTransactionMessageWithSigners(simulationTx)), {
+      encoding: "base64",
+    })
+    .send();
+
+  if (!simulationResult.value.returnData?.data[0]) {
+    throw new Error("No return data");
+  }
+
+  return parser(Buffer.from(simulationResult.value.returnData.data[0], "base64")) as ReturnType<P>;
+};
+
+/**
+ * Returns the PDA for the CCTP nonce.
+ * @param solanaClient The Solana client.
+ * @param signer The signer of the transaction.
+ * @param nonce The nonce to get the PDA for.
+ * @param sourceDomain The source domain.
+ * @returns The PDA for the CCTP nonce.
+ */
+export const getCCTPNoncePda = async (
+  solanaClient: SVMProvider,
+  signer: KeyPairSigner,
+  nonce: number,
+  sourceDomain: number
+) => {
+  const [messageTransmitterPda] = await getProgramDerivedAddress({
+    programAddress: MessageTransmitterClient.MESSAGE_TRANSMITTER_PROGRAM_ADDRESS,
+    seeds: ["message_transmitter"],
+  });
+  const getNonceIx = await MessageTransmitterClient.getGetNoncePdaInstruction({
+    messageTransmitter: messageTransmitterPda,
+    nonce,
+    sourceDomain: sourceDomain,
+  });
+
+  const parserFunction = (buf: Buffer): Address => {
+    if (buf.length === 32) {
+      return address(bs58.encode(buf));
+    }
+    throw new Error("Invalid buffer");
+  };
+
+  return await simulateAndDecode(solanaClient, getNonceIx, signer, parserFunction);
+};
+
+/**
+ * Checks if a CCTP message is a deposit for burn event.
+ * @param event The CCTP message event.
+ * @returns True if the message is a deposit for burn event, false otherwise.
+ */
+export function isDepositForBurnEvent(event: AttestedCCTPMessage): boolean {
+  return event.type === "transfer";
+}
+
+/**
  * Convert a bigint (0 ≤ n < 2^256) to a 32-byte Uint8Array (big-endian).
+ * @param n The bigint to convert.
+ * @returns The 32-byte Uint8Array.
  */
 export function bigintToU8a32(n: bigint): Uint8Array {
   if (n < BigInt(0) || n > ethers.constants.MaxUint256.toBigInt()) {
