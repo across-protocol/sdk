@@ -25,7 +25,8 @@ export async function getWidestPossibleExpectedBlockRange(
   endBlockBuffers: number[],
   clients: Clients,
   latestMainnetBlock: number,
-  enabledChains: number[]
+  enabledChains: number[],
+  optimistic: boolean = false
 ): Promise<number[][]> {
   // We impose a buffer on the head of the chain to increase the probability that the received blocks are final.
   // Reducing the latest block that we query also gives partially filled deposits slightly more buffer for relayers
@@ -85,7 +86,9 @@ export async function getWidestPossibleExpectedBlockRange(
     // Chain has advanced far enough including the buffer, return range from previous proposed end block + 1 to
     // latest block for chain minus buffer.
     return [
-      clients.hubPoolClient.getNextBundleStartBlockNumber(chainIds, latestMainnetBlock, chainId),
+      optimistic
+        ? clients.hubPoolClient.getOptimisticBundleStartBlockNumber(chainIds, latestMainnetBlock, chainId)
+        : clients.hubPoolClient.getNextBundleStartBlockNumber(chainIds, latestMainnetBlock, chainId),
       latestPossibleBundleEndBlockNumbers[index],
     ];
   });
