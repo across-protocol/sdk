@@ -182,7 +182,10 @@ export async function findDeposit(
     return undefined;
   }
 
-  const unwrappedDepositEvent = unwrapEventData(depositEvent.data) as Record<string, unknown>;
+  const unwrappedDepositEvent = unwrapEventData(depositEvent.data, ["depositId", "outputAmount"]) as Record<
+    string,
+    unknown
+  >;
   const destinationChainId = unwrappedDepositEvent.destinationChainId as number;
   // Return the deposit event with block info
   return {
@@ -371,7 +374,7 @@ export async function findFillEvent(
 
   if (fillEvents.length > 0) {
     const rawFillEvent = fillEvents[0];
-    const eventData = unwrapEventData(rawFillEvent.data) as FillWithBlock & {
+    const eventData = unwrapEventData(rawFillEvent.data, ["depositId", "inputAmount"]) as FillWithBlock & {
       depositor: string;
       recipient: string;
       inputToken: string;

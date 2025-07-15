@@ -326,7 +326,7 @@ export class SvmCpiEventsClient {
     return fillEvents.map((event) => {
       const unwrappedEventData = unwrapEventData(event as Record<string, unknown>, [
         "depositId",
-        "outputAmount",
+        "inputAmount",
       ]) as Record<"data", Fill> &
         Record<
           "data",
