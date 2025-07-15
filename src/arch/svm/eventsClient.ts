@@ -260,6 +260,7 @@ export class SvmCpiEventsClient {
       const unwrappedEventArgs = unwrapEventData(event as Record<string, unknown>, [
         "depositId",
         "outputAmount",
+        "inputAmount",
       ]) as Record<"data", Deposit> &
         Record<
           "data",
@@ -327,6 +328,7 @@ export class SvmCpiEventsClient {
       const unwrappedEventData = unwrapEventData(event as Record<string, unknown>, [
         "depositId",
         "outputAmount",
+        "inputAmount",
       ]) as Record<"data", Fill> &
         Record<
           "data",

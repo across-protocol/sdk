@@ -150,7 +150,7 @@ export function getEventName(rawName: string): EventName {
  */
 export function unwrapEventData(
   data: unknown,
-  uint8ArrayKeysAsBigInt: string[] = ["depositId", "outputAmount"],
+  uint8ArrayKeysAsBigInt: string[] = ["depositId", "outputAmount", "inputAmount"],
   currentKey?: string
 ): unknown {
   // Handle null/undefined
