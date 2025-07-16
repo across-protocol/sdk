@@ -58,15 +58,7 @@ export async function getGasPriceEstimate(
   opts: Partial<GasPriceEstimateOptions> = {}
 ): Promise<GasPriceEstimate> {
   const baseFeeMultiplier = opts.baseFeeMultiplier ?? toBNWei("1");
-  assert(
-    baseFeeMultiplier.gte(toBNWei("1.0")) && baseFeeMultiplier.lte(toBNWei("5")),
-    `Require 1.0 < base fee multiplier (${baseFeeMultiplier}) <= 5.0 for a total gas multiplier within [+1.0, +5.0]`
-  );
   const priorityFeeMultiplier = opts.priorityFeeMultiplier ?? toBNWei("1");
-  assert(
-    priorityFeeMultiplier.gte(toBNWei("1.0")) && priorityFeeMultiplier.lte(toBNWei("5")),
-    `Require 1.0 < priority fee multiplier (${priorityFeeMultiplier}) <= 5.0 for a total gas multiplier within [+1.0, +5.0]`
-  );
 
   // Exit here if we need to estimate on Solana.
   if (!isEvmProvider(provider)) {
