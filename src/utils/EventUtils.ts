@@ -3,7 +3,7 @@ import { Result } from "@ethersproject/abi";
 import { Contract, Event, EventFilter } from "ethers";
 import { Log, SortableEvent } from "../interfaces";
 import { delay } from "./common";
-import { isDefined, toBN, BigNumberish, toEvmAddress } from "./";
+import { isDefined, toBN, BigNumberish } from "./";
 
 const maxRetries = 3;
 const retrySleepTime = 10;
@@ -86,12 +86,7 @@ export function spreadEvent(args: Result | Record<string, unknown>): { [key: str
   // Truncate all fields which may be bytes32 into a bytes20 string.
   for (const field of knownExtendedAddressFields) {
     if (isDefined(returnedObject[field])) {
-      let address = String(returnedObject[field]);
-      try {
-        address = toEvmAddress(address);
-        // eslint-disable-next-line no-empty
-      } catch (_) {}
-      returnedObject[field] = address;
+      returnedObject[field] = String(returnedObject[field]);
     }
   }
 
