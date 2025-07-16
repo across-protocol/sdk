@@ -131,7 +131,7 @@ export class SvmQuery implements QueryInterface {
    * @returns FillRelay transaction
    */
   protected async getFillRelayTx(
-    relayData: Omit<RelayData, "recipent" | "outputToken"> & {
+    relayData: Omit<RelayData, "recipient" | "outputToken"> & {
       destinationChainId: number;
       recipient: SvmAddress;
       outputToken: SvmAddress;
