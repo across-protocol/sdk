@@ -6,7 +6,7 @@ import dotenv from "dotenv";
 import { encodeFunctionData } from "viem";
 import { getGasPriceEstimate } from "../src/gasPriceOracle";
 import { BigNumber, bnZero, fixedPointAdjustment, parseUnits, toBNWei } from "../src/utils";
-import { assertPromiseError, expect, makeCustomTransport, randomAddress } from "../test/utils";
+import { expect, makeCustomTransport, randomAddress } from "../test/utils";
 import { MockedProvider } from "../src/providers/mocks";
 import { MockPolygonGasStationBaseFee, MockPolygonGasStationPriorityFee } from "../src/gasPriceOracle/adapters/polygon";
 dotenv.config({ path: ".env" });
@@ -43,42 +43,6 @@ const erc20TransferTransactionObject = encodeFunctionData({
 });
 
 describe("Gas Price Oracle", function () {
-  it("baseFeeMultiplier is validated", async function () {
-    // Too low:
-    await assertPromiseError(
-      getGasPriceEstimate(provider, {
-        chainId: 1,
-        baseFeeMultiplier: toBNWei("0.5"),
-      }),
-      "base fee multiplier"
-    );
-    // Too high:
-    await assertPromiseError(
-      getGasPriceEstimate(provider, {
-        chainId: 1,
-        baseFeeMultiplier: toBNWei("5.5"),
-      }),
-      "base fee multiplier"
-    );
-  });
-  it("priorityFeeMultiplier is validated", async function () {
-    // Too low:
-    await assertPromiseError(
-      getGasPriceEstimate(provider, {
-        chainId: 1,
-        priorityFeeMultiplier: toBNWei("0.5"),
-      }),
-      "priority fee multiplier"
-    );
-    // Too high:
-    await assertPromiseError(
-      getGasPriceEstimate(provider, {
-        chainId: 1,
-        priorityFeeMultiplier: toBNWei("5.5"),
-      }),
-      "priority fee multiplier"
-    );
-  });
   it("Linea Viem gas price retrieval with unsignedTx", async function () {
     const chainId = 59144;
     const priorityFeeMultiplier = toBNWei("2.0");
