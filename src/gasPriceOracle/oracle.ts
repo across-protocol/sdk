@@ -2,7 +2,7 @@ import assert from "assert";
 import { Transport } from "viem";
 import { providers } from "ethers";
 import { CHAIN_IDs } from "../constants";
-import { BigNumber, chainIsOPStack, fixedPointAdjustment, isEvmProvider, toBNWei, parseUnits } from "../utils";
+import { BigNumber, chainIsOPStack, fixedPointAdjustment, isEvmProvider, toBNWei } from "../utils";
 import { SVMProvider as SolanaProvider } from "../arch/svm";
 import { EvmGasPriceEstimate, GasPriceEstimate, SvmGasPriceEstimate } from "./types";
 import { getPublicClient } from "./util";
@@ -167,9 +167,9 @@ export async function _getViemGasPriceEstimate(
     maxFeePerGas ??= (gasPrice! * BigInt(baseFeeMultiplier.toString())) / BigInt(fixedPointAdjustment.toString());
     maxPriorityFeePerGas ??= BigInt(0);
   }
-  const minPriorityFee = parseUnits(process.env[`MIN_PRIORITY_FEE_${chainId}`] || "0", 9);
-  if (minPriorityFee.toBigInt() > maxPriorityFeePerGas) {
-    maxPriorityFeePerGas = minPriorityFee.toBigInt();
+  const minPriorityFee = process.env[`MIN_PRIORITY_FEE_${chainId}`];
+  if (isDefined(minPriorityFee) && BigInt(minPriorityFee) > maxPriorityFeePerGas) {
+    maxPriorityFeePerGas = BigInt(minPriorityFee);
     if (maxPriorityFeePerGas > maxFeePerGas) {
       maxFeePerGas = maxPriorityFeePerGas;
     }
