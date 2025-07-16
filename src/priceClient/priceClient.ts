@@ -87,9 +87,9 @@ export class PriceClient implements PriceFeedAdapter {
     const now = msToS(Date.now());
     const missed: { [address: string]: number } = {};
     addresses.forEach((address) => {
-      const addr = address.toLowerCase();
-      const tokenPrice = priceCache[addr] ?? ({ price: 0, timestamp: 0 } as TokenPrice);
-      priceCache[addr] = tokenPrice; // Update priceCache if necessary;
+      const addrCacheKey = address.toLowerCase();
+      const tokenPrice = priceCache[addrCacheKey] ?? ({ price: 0, timestamp: 0, address } as TokenPrice);
+      priceCache[addrCacheKey] = tokenPrice; // Update priceCache if necessary;
 
       const age = now - tokenPrice.timestamp;
       if (age > this.maxPriceAge) {
@@ -125,34 +125,35 @@ export class PriceClient implements PriceFeedAdapter {
 
   private async updatePrices(currency: string): Promise<void> {
     const priceCache = this.getPriceCache(currency);
-    let addresses = Object.keys(priceCache);
+    let skipped: string[] = [];
 
+    const addrsToRequest = Object.entries(priceCache).map((entry: [string, TokenPrice]) => entry[1].address);
     for (const priceFeed of this.priceFeeds) {
       this.logger.debug({
         at: "PriceClient#updatePrices",
         message: `Looking up prices via ${priceFeed.name}.`,
-        tokens: addresses,
+        tokens: addrsToRequest,
       });
       try {
-        const prices = await priceFeed.getPricesByAddress(addresses, currency);
-        addresses = this.updateCache(priceCache, prices, addresses);
-        if (addresses.length === 0) break; // All done
+        const feedPricesResponse = await priceFeed.getPricesByAddress(addrsToRequest, currency);
+        skipped = this.updateCache(priceCache, feedPricesResponse, addrsToRequest);
+        if (skipped.length === 0) break; // All done
       } catch (err) {
         this.logger.debug({
           at: "PriceClient#updatePrices",
           message: `Price lookup against ${priceFeed.name} failed (${err}).`,
-          tokens: addresses,
+          tokens: addrsToRequest,
         });
         // Failover to the next price feed...
       }
     }
 
-    if (addresses.length !== 0) {
+    if (skipped.length !== 0) {
       this.logger.debug({
         at: "PriceClient#updatePrices",
         message: "Unable to resolve some token prices.",
         priceFeeds: this.listPriceFeeds(),
-        tokens: addresses,
+        tokens: skipped,
       });
       throw new Error(`Price lookup failed against all price feeds (${this.listPriceFeeds().join(", ")})`);
     }
