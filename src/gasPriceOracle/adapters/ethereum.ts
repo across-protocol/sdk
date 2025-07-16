@@ -63,8 +63,14 @@ export async function legacy(
 
   if (!BigNumber.isBigNumber(gasPrice) || gasPrice.lt(bnZero)) gasPriceError("getGasPrice()", chainId, gasPrice);
 
+  let maxFeePerGas = gasPrice.mul(baseFeeMultiplier).div(fixedPointAdjustment);
+  const minFee = parseUnits(process.env[`MIN_FEE_PER_GAS_${chainId}`] || "0", 9);
+  if (maxFeePerGas.lt(minFee)) {
+    maxFeePerGas = minFee;
+  }
+
   return {
-    maxFeePerGas: gasPrice.mul(baseFeeMultiplier).div(fixedPointAdjustment),
+    maxFeePerGas,
     maxPriorityFeePerGas: bnZero,
   };
 }
