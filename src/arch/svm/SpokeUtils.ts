@@ -521,7 +521,7 @@ export function createTokenAccountsInstruction(
 export async function getFillRelayTx(
   spokePoolAddr: SvmAddress,
   solanaClient: SVMProvider,
-  relayData: Omit<RelayData, "recipent" | "outputToken"> & {
+  relayData: Omit<RelayData, "recipient" | "outputToken"> & {
     destinationChainId: number;
     recipient: SvmAddress;
     outputToken: SvmAddress;
@@ -532,8 +532,6 @@ export async function getFillRelayTx(
 ) {
   const { depositor, recipient, inputToken, outputToken, exclusiveRelayer, destinationChainId } = relayData;
 
-  // tsc appeasement...should be unnecessary, but isn't. @todo Identify why.
-  assert(recipient.isSVM(), `getFillRelayTx: recipient not an SVM address (${recipient})`);
   assert(
     repaymentAddress.isValidOn(repaymentChainId),
     `getFillRelayTx: repayment address ${repaymentAddress} not valid on chain ${repaymentChainId})`
