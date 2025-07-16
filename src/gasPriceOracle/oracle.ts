@@ -167,6 +167,13 @@ export async function _getViemGasPriceEstimate(
     maxFeePerGas ??= (gasPrice! * BigInt(baseFeeMultiplier.toString())) / BigInt(fixedPointAdjustment.toString());
     maxPriorityFeePerGas ??= BigInt(0);
   }
+  const minPriorityFee = process.env[`MIN_PRIORITY_FEE_${chainId}`];
+  if (isDefined(minPriorityFee) && BigInt(minPriorityFee) > maxPriorityFeePerGas) {
+    maxPriorityFeePerGas = BigInt(minPriorityFee);
+    if (maxPriorityFeePerGas > maxFeePerGas) {
+      maxFeePerGas = maxPriorityFeePerGas;
+    }
+  }
 
   return {
     maxFeePerGas: BigNumber.from(maxFeePerGas.toString()),
