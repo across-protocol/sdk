@@ -88,7 +88,7 @@ export class PriceClient implements PriceFeedAdapter {
     const missed: { [address: string]: number } = {};
     addresses.forEach((address) => {
       const addrCacheKey = address.toLowerCase();
-      const tokenPrice = priceCache[addrCacheKey] ?? ({ price: 0, timestamp: 0, address } as TokenPrice);
+      const tokenPrice = priceCache[addrCacheKey] ?? { price: 0, timestamp: 0, address };
       priceCache[addrCacheKey] = tokenPrice; // Update priceCache if necessary;
 
       const age = now - tokenPrice.timestamp;
@@ -175,7 +175,7 @@ export class PriceClient implements PriceFeedAdapter {
       } else if (tokenPrice.timestamp >= priceCache[addr].timestamp) {
         const { price, timestamp } = tokenPrice;
         // @todo: Do we care if the token price is older than maxPriceAge?
-        priceCache[addr] = { price, timestamp, address: priceCache[addr].address } as TokenPrice;
+        priceCache[addr] = { price, timestamp, address: priceCache[addr].address };
         updated.push(tokenPrice);
       } else if (tokenPrice.timestamp === priceCache[addr].timestamp) {
         this.logger.debug({
