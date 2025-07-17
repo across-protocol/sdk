@@ -747,7 +747,7 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
       ] as EnabledDepositRouteWithBlock[];
 
       for (const event of enableDepositsEvents) {
-        assign(this.depositRoutes, [event.originToken, event.destinationChainId], event.enabled);
+        assign(this.depositRoutes, [event.originToken.toBytes32(), event.destinationChainId], event.enabled);
       }
     }
 

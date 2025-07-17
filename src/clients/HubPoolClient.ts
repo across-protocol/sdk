@@ -76,7 +76,7 @@ type HubPoolEvent =
   | "CrossChainContractsSet";
 
 type L1TokensToDestinationTokens = {
-  [l1Token: string]: { [destinationChainId: number]: string };
+  [l1Token: string]: { [destinationChainId: number]: Address };
 };
 
 export type LpFeeRequest = Pick<Deposit, "originChainId" | "inputToken" | "inputAmount" | "quoteTimestamp"> & {
