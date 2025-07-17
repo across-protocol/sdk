@@ -70,10 +70,12 @@ export class MockHubPoolClient extends HubPoolClient {
       [chainId],
       [
         {
-          spokePool: toAddressType(contract, this.chainId),
+          spokePool: toAddressType(contract, chainId),
           blockNumber: blockNumber,
-          transactionIndex: 0,
           logIndex: 0,
+          l2ChainId: chainId,
+          txnIndex: 0,
+          txnRef: "",
         },
       ]
     );
