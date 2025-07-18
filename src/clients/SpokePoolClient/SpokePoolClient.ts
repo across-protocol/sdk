@@ -742,9 +742,11 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
     });
 
     if (eventsToQuery.includes("EnabledDepositRoute")) {
-      const enableDepositsEvents = queryResults[
-        eventsToQuery.indexOf("EnabledDepositRoute")
-      ] as EnabledDepositRouteWithBlock[];
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const enableDepositsEvents = queryResults[eventsToQuery.indexOf("EnabledDepositRoute")].map((event: any) => ({
+        ...event,
+        originToken: toAddressType(event.originToken, CHAIN_IDs.MAINNET),
+      })) as EnabledDepositRouteWithBlock[];
 
       for (const event of enableDepositsEvents) {
         assign(this.depositRoutes, [event.originToken.toBytes32(), event.destinationChainId], event.enabled);
