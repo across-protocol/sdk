@@ -31,7 +31,7 @@ export async function eip1559Raw(
   priorityFeeMultiplier: BigNumber
 ): Promise<EvmGasPriceEstimate> {
   const [{ baseFeePerGas }, _maxPriorityFeePerGas] = await Promise.all([
-    provider.getBlock("pending"),
+    provider.getBlock("latest"),
     (provider as providers.JsonRpcProvider).send("eth_maxPriorityFeePerGas", []),
   ]);
   const maxPriorityFeePerGas = BigNumber.from(_maxPriorityFeePerGas);
