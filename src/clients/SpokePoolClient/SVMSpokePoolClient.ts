@@ -246,10 +246,8 @@ export class SVMSpokePoolClient extends SpokePoolClient {
   public override relayFillStatus(
     relayData: RelayData,
     atHeight?: number,
-    destinationChainId?: number
   ): Promise<FillStatus> {
-    destinationChainId ??= this.chainId;
-    return relayFillStatus(this.programId, relayData, destinationChainId, this.svmEventsClient, atHeight);
+    return relayFillStatus(this.programId, relayData, this.chainId, this.svmEventsClient, atHeight);
   }
 
   /**
