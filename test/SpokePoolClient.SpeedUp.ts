@@ -81,7 +81,7 @@ describe("SpokePoolClient: SpeedUp", function () {
       depositEvent.depositId,
       originChainId,
       updatedOutputAmount,
-      toBytes32(updatedRecipient.toNative()),
+      updatedRecipient.toBytes32(),
       updatedMessage
     );
 
@@ -91,7 +91,7 @@ describe("SpokePoolClient: SpeedUp", function () {
         toBytes32(depositor.address),
         depositEvent.depositId,
         updatedOutputAmount,
-        toBytes32(updatedRecipient.toNative()),
+        updatedRecipient.toBytes32(),
         updatedMessage,
         signature
       );
@@ -108,9 +108,9 @@ describe("SpokePoolClient: SpeedUp", function () {
       updatedRecipient,
     };
     const updatedDeposit = spokePoolClient.appendMaxSpeedUpSignatureToDeposit(depositEvent);
-    // Ensure the raw Address fields are populated.
-    updatedDeposit.updatedRecipient.toNative();
-    expect(updatedDeposit).to.deep.eq(expectedDepositData);
+    expect(updatedDeposit).excludingEvery(["updatedRecipient"]).to.deep.eq(expectedDepositData);
+    expect(expectedDepositData.updatedRecipient).to.exist;
+    expect(updatedDeposit.updatedRecipient!.eq(expectedDepositData.updatedRecipient!)).to.be.true;
 
     // Fetching deposits for the depositor should contain the correct fees.
     const clientDeposit = spokePoolClient.getDepositsForDestinationChain(destinationChainId)[0];
@@ -164,7 +164,7 @@ describe("SpokePoolClient: SpeedUp", function () {
         depositId,
         originChainId,
         updatedOutputAmount,
-        toBytes32(updatedRecipient.toNative()),
+        updatedRecipient.toBytes32(),
         updatedMessage
       );
 
@@ -174,7 +174,7 @@ describe("SpokePoolClient: SpeedUp", function () {
           toBytes32(depositor.address),
           depositId,
           updatedOutputAmount,
-          toBytes32(updatedRecipient.toNative()),
+          updatedRecipient.toBytes32(),
           updatedMessage,
           depositorSignature
         );
@@ -214,8 +214,7 @@ describe("SpokePoolClient: SpeedUp", function () {
         expect(updatedDeposit.updatedMessage).to.equal(bestDepositUpdate.updatedMessage);
 
         expect(updatedDeposit.updatedRecipient).to.exist;
-        updatedDeposit.updatedRecipient!.toNative();
-        expect(updatedDeposit.updatedRecipient).to.deep.equal(bestDepositUpdate.updatedRecipient);
+        expect(updatedDeposit.updatedRecipient!.eq(bestDepositUpdate.updatedRecipient)).to.be.true;
       }
     }
   });
@@ -251,7 +250,7 @@ describe("SpokePoolClient: SpeedUp", function () {
         testDepositId,
         testOriginChainId,
         updatedOutputAmount,
-        toBytes32(updatedRecipient),
+        updatedRecipient.toBytes32(),
         updatedMessage
       );
 
@@ -261,7 +260,7 @@ describe("SpokePoolClient: SpeedUp", function () {
           testDepositor.address,
           testDepositId,
           updatedOutputAmount,
-          toBytes32(updatedRecipient),
+          updatedRecipient.toBytes32(),
           updatedMessage,
           signature
         );
