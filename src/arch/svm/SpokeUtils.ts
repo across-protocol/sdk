@@ -65,6 +65,7 @@ import {
 import { SvmCpiEventsClient } from "./eventsClient";
 import { SVM_NO_BLOCK_AT_SLOT, isSolanaError } from "./provider";
 import { AttestedCCTPMessage, SVMEventNames, SVMProvider } from "./types";
+import { findNearestTime } from "./utils";
 
 /**
  * @note: Average Solana slot duration is about 400-500ms. We can be conservative
@@ -226,14 +227,16 @@ export async function relayFillStatus(
   const provider = svmEventsClient.getRpc();
   // Get fill status PDA using relayData
   const fillStatusPda = await getFillStatusPda(programId, relayData, destinationChainId);
-  const currentSlot = await provider.getSlot({ commitment: "confirmed" }).send();
+  let slot: bigint = BigInt(0);
 
   // If no specific slot is requested, try fetching the current status from the PDA
   if (atHeight === undefined) {
-    const [fillStatusAccount, currentSlotTimestamp] = await Promise.all([
+    const [fillStatusAccount, { slot: currentSlot, timestamp }] = await Promise.all([
       fetchEncodedAccount(provider, fillStatusPda, { commitment: "confirmed" }),
-      getTimestampForSlot(provider, currentSlot),
+      findNearestTime(provider),
     ]);
+    slot = currentSlot;
+
     // If the PDA exists, return the stored fill status
     if (fillStatusAccount.exists) {
       const decodedAccountData = decodeFillStatusAccount(fillStatusAccount);
@@ -241,13 +244,13 @@ export async function relayFillStatus(
     }
     // If the PDA doesn't exist and the deadline hasn't passed yet, the deposit must be unfilled,
     // since PDAs can't be closed before the fill deadline.
-    else if (Number(currentSlotTimestamp) < relayData.fillDeadline) {
+    else if (timestamp < relayData.fillDeadline) {
       return FillStatus.Unfilled;
     }
   }
 
   // If status couldn't be determined from the PDA, or if a specific slot was requested, reconstruct the status from events
-  const toSlot = atHeight ? BigInt(atHeight) : currentSlot;
+  const toSlot = atHeight ? BigInt(atHeight) : slot;
 
   return resolveFillStatusFromPdaEvents(fillStatusPda, toSlot, svmEventsClient);
 }

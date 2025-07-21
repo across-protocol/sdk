@@ -1,3 +1,4 @@
+import assert from "assert";
 import { MessageTransmitterClient, SvmSpokeClient } from "@across-protocol/contracts";
 import { BN, BorshEventCoder, Idl } from "@coral-xyz/anchor";
 import {
@@ -24,6 +25,7 @@ import { ethers } from "ethers";
 import { FillType, RelayData } from "../../interfaces";
 import { BigNumber, Address as SdkAddress, getRelayDataHash, isDefined, isUint8Array } from "../../utils";
 import { AttestedCCTPMessage, EventName, SVMEventNames, SVMProvider } from "./types";
+import { getTimestampForSlot } from "./SpokeUtils";
 
 export { isSolanaError } from "@solana/kit";
 
@@ -54,6 +56,28 @@ export async function isDevnet(rpc: SVMProvider): Promise<boolean> {
  */
 export function toAddress(address: SdkAddress): Address<string> {
   return address.toBase58() as Address<string>;
+}
+
+/**
+ * For a given slot (or implicit head of chain), find the immediate preceding slot that contained a block.
+ * @param provider SVM Provider instance.
+ * @param _slot Optional starting slot number, or the latest slot if undefined.
+ * @returns An object containing the slot number and the relevant timestamp for the block.
+ */
+export async function findNearestTime(
+  provider: SVMProvider,
+  _slot?: bigint
+): Promise<{ slot: bigint; timestamp: number }> {
+  let timestamp: number | undefined;
+  let slot = _slot ?? (await provider.getSlot({ commitment: "finalized" }).send());
+
+  do {
+    timestamp = await getTimestampForSlot(provider, slot);
+  } while (!isDefined(timestamp) && --slot);
+  assert(isDefined(timestamp), `Unable to resolve block time for SVM slot ${_slot ?? "latest"}`);
+  assert(BigInt(Number(timestamp) === timestamp), `Unexpected SVM block timestamp: ${timestamp}`);
+
+  return { slot, timestamp: Number(timestamp) };
 }
 
 /**

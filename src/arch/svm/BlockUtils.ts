@@ -5,7 +5,7 @@ import { isDefined } from "../../utils/TypeGuards";
 import { getCurrentTime } from "../../utils/TimeUtils";
 import { CHAIN_IDs } from "../../constants";
 import { SVMProvider } from "./";
-import { getTimestampForSlot } from "./SpokeUtils";
+import { findNearestTime } from "./utils";
 
 interface SVMBlock extends Block {}
 
@@ -95,17 +95,8 @@ export class SVMBlockFinder extends BlockFinder<SVMBlock> {
    * immediate preceding block timestamp will be used. Note that this may return an eventually-incorrect timestamp for
    * future slots.
    */
-  private async getBlockTime(_slot?: bigint): Promise<{ slot: bigint; timestamp: number }> {
-    let timestamp: number | undefined;
-    let slot = _slot ?? (await this.provider.getSlot({ commitment: "finalized" }).send());
-
-    do {
-      timestamp = await getTimestampForSlot(this.provider, slot);
-    } while (!isDefined(timestamp) && --slot);
-    assert(isDefined(timestamp), `Unable to resolve block time for SVM slot ${_slot ?? "latest"}`);
-    assert(BigInt(Number(timestamp) === timestamp), `Unexpected SVM block timestamp: ${timestamp}`);
-
-    return { slot, timestamp: Number(timestamp) };
+  private getBlockTime(_slot?: bigint): Promise<{ slot: bigint; timestamp: number }> {
+    return findNearestTime(this.provider, _slot);
   }
 
   // Grabs the most recent slot and caches it.
