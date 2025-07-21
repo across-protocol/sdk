@@ -1,7 +1,8 @@
 import { EVMSpokePoolClient, SpokePoolClient } from "../src/clients";
 import { Deposit, SpeedUp } from "../src/interfaces";
-import { bnOne, EvmAddress, getMessageHash, toBytes32, toAddressType } from "../src/utils";
-import { destinationChainId, originChainId } from "./constants";
+import { CHAIN_IDs } from "../src/constants";
+import { bnOne, EvmAddress, getMessageHash, toBytes32 } from "../src/utils";
+import { originChainId } from "./constants";
 import {
   assertPromiseError,
   Contract,
@@ -18,6 +19,7 @@ import {
 } from "./utils";
 
 describe("SpokePoolClient: SpeedUp", function () {
+  const destinationChainId = CHAIN_IDs.MAINNET;
   const ignoredFields = [
     "blockNumber",
     "blockTimestamp",
@@ -181,7 +183,7 @@ describe("SpokePoolClient: SpeedUp", function () {
         depositorSignature,
         updatedOutputAmount,
         depositId,
-        depositor: toAddressType(depositor.address),
+        depositor: EvmAddress.from(await depositor.getAddress()),
         originChainId,
         updatedRecipient,
         updatedMessage,
@@ -209,9 +211,11 @@ describe("SpokePoolClient: SpeedUp", function () {
       } else {
         expect(updatedDeposit.updatedOutputAmount!.eq(bestDepositUpdate.updatedOutputAmount)).to.be.true;
         expect(updatedDeposit.speedUpSignature).to.equal(bestDepositUpdate.depositorSignature);
-        updatedDeposit.updatedRecipient.toNative();
-        expect(updatedDeposit.updatedRecipient).to.deep.equal(bestDepositUpdate.updatedRecipient);
         expect(updatedDeposit.updatedMessage).to.equal(bestDepositUpdate.updatedMessage);
+
+        expect(updatedDeposit.updatedRecipient).to.exist;
+        updatedDeposit.updatedRecipient!.toNative();
+        expect(updatedDeposit.updatedRecipient).to.deep.equal(bestDepositUpdate.updatedRecipient);
       }
     }
   });
