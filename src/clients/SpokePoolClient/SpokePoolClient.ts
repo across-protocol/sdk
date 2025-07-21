@@ -16,6 +16,7 @@ import {
   getMessageHash,
   isSlowFill,
   validateFillForDeposit,
+  chainIsEvm,
   chainIsProd,
   Address,
   toAddressType,
