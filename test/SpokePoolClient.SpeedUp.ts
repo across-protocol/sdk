@@ -1,6 +1,6 @@
 import { EVMSpokePoolClient, SpokePoolClient } from "../src/clients";
 import { Deposit, SpeedUp } from "../src/interfaces";
-import { bnOne, getMessageHash, toBytes32, toAddressType } from "../src/utils";
+import { bnOne, EvmAddress, getMessageHash, toBytes32, toAddressType } from "../src/utils";
 import { destinationChainId, originChainId } from "./constants";
 import {
   assertPromiseError,
@@ -31,7 +31,7 @@ describe("SpokePoolClient: SpeedUp", function () {
   let depositor: SignerWithAddress, deploymentBlock: number;
   let spokePoolClient: SpokePoolClient;
   let balance: BigNumber;
-  let inputToken: string, outputToken: string;
+  let inputToken: EvmAddress, outputToken: EvmAddress;
   let inputAmount: BigNumber, outputAmount: BigNumber;
 
   beforeEach(async function () {
@@ -50,8 +50,8 @@ describe("SpokePoolClient: SpeedUp", function () {
 
     await setupTokensForWallet(spokePool, depositor, [erc20, destErc20], weth, 10);
     balance = await erc20.connect(depositor).balanceOf(depositor.address);
-    inputToken = toAddressType(erc20.address);
-    outputToken = toAddressType(destErc20.address);
+    inputToken = EvmAddress.from(erc20.address);
+    outputToken = EvmAddress.from(destErc20.address);
     inputAmount = balance;
     outputAmount = inputAmount.sub(bnOne);
   });
@@ -106,6 +106,7 @@ describe("SpokePoolClient: SpeedUp", function () {
       updatedRecipient,
     };
     const updatedDeposit = spokePoolClient.appendMaxSpeedUpSignatureToDeposit(depositEvent);
+    // Ensure the raw Address fields are populated.
     updatedDeposit.updatedRecipient.toNative();
     expect(updatedDeposit).to.deep.eq(expectedDepositData);
 
@@ -122,6 +123,7 @@ describe("SpokePoolClient: SpeedUp", function () {
         "inputToken",
         "outputToken",
         "exclusiveRelayer",
+        "updatedRecipient",
       ])
     ).to.be.true;
     expect(clientDeposit.depositor.eq(expectedDepositData.depositor)).to.be.true;
@@ -129,6 +131,10 @@ describe("SpokePoolClient: SpeedUp", function () {
     expect(clientDeposit.inputToken.eq(expectedDepositData.inputToken)).to.be.true;
     expect(clientDeposit.outputToken.eq(expectedDepositData.outputToken)).to.be.true;
     expect(clientDeposit.exclusiveRelayer.eq(expectedDepositData.exclusiveRelayer)).to.be.true;
+
+    expect(clientDeposit.updatedRecipient).to.exist;
+    expect(expectedDepositData.updatedRecipient).to.exist;
+    expect(clientDeposit.updatedRecipient!.eq(expectedDepositData.updatedRecipient!)).to.be.true;
 
     expect(spokePoolClient.getDepositsForDestinationChain(destinationChainId).length).to.equal(1);
   });
