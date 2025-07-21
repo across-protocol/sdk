@@ -95,8 +95,8 @@ export class SVMBlockFinder extends BlockFinder<SVMBlock> {
    * immediate preceding block timestamp will be used. Note that this may return an eventually-incorrect timestamp for
    * future slots.
    */
-  private getBlockTime(_slot?: bigint): Promise<{ slot: bigint; timestamp: number }> {
-    return findNearestTime(this.provider, _slot);
+  private getBlockTime(slot?: bigint): Promise<{ slot: bigint; timestamp: number }> {
+    return findNearestTime(this.provider, slot);
   }
 
   // Grabs the most recent slot and caches it.
