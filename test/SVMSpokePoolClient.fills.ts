@@ -130,7 +130,6 @@ describe("SVMSpokePoolClient: Fills", function () {
     const fillStatusBeforeFill = await spokePoolClient.relayFillStatus(
       formattedRelayData,
       Number(currentSlot) - 10,
-      CHAIN_IDs.SOLANA
     );
     expect(fillStatusBeforeFill).to.equal(FillStatus.Unfilled);
 
@@ -138,7 +137,6 @@ describe("SVMSpokePoolClient: Fills", function () {
     const fillStatusAfterFill = await spokePoolClient.relayFillStatus(
       formattedRelayData,
       Number(currentSlot) + 10,
-      CHAIN_IDs.SOLANA
     );
     expect(fillStatusAfterFill).to.equal(FillStatus.Filled);
 
@@ -147,7 +145,6 @@ describe("SVMSpokePoolClient: Fills", function () {
     const fillStatusUnfilledRelay = await spokePoolClient.relayFillStatus(
       unfilledRelayData,
       Number(currentSlot) + 10,
-      CHAIN_IDs.SOLANA
     );
     expect(fillStatusUnfilledRelay).to.equal(FillStatus.Unfilled);
   });
@@ -207,7 +204,6 @@ describe("SVMSpokePoolClient: Fills", function () {
     const fillStatusBeforeRequest = await spokePoolClient.relayFillStatus(
       formattedRelayData,
       Number(currentSlot) - 10,
-      CHAIN_IDs.SOLANA
     );
     expect(fillStatusBeforeRequest).to.equal(FillStatus.Unfilled);
 
@@ -215,7 +211,6 @@ describe("SVMSpokePoolClient: Fills", function () {
     const fillStatusAfterRequest = await spokePoolClient.relayFillStatus(
       formattedRelayData,
       Number(currentSlot) + 10,
-      CHAIN_IDs.SOLANA
     );
     expect(fillStatusAfterRequest).to.equal(FillStatus.RequestedSlowFill);
   });
