@@ -211,7 +211,7 @@ export const initializeSvmSpoke = async (
 
 // Sets the current time for the SVM Spoke program.
 export const setCurrentTime = async (signer: KeyPairSigner, solanaClient: RpcClient, newTime: number) => {
-  const setCurrentTimeIx = await SvmSpokeClient.getSetCurrentTimeInstruction({
+  const setCurrentTimeIx = SvmSpokeClient.getSetCurrentTimeInstruction({
     signer,
     state: await getStatePda(SvmSpokeClient.SVM_SPOKE_PROGRAM_ADDRESS),
     newTime,

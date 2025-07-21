@@ -922,15 +922,14 @@ async function fetchBatchFillStatusFromPdaAccounts(
   relayDataArray: RelayData[]
 ): Promise<(FillStatus | undefined)[]> {
   const chunkSize = 100; // SVM method getMultipleAccounts allows a max of 100 addresses per request
-  const currentSlot = await provider.getSlot({ commitment: "confirmed" }).send();
 
-  const [pdaAccounts, currentSlotTimestamp] = await Promise.all([
+  const [pdaAccounts, { timestamp }] = await Promise.all([
     Promise.all(
       chunk(fillStatusPdas, chunkSize).map((chunk) =>
         fetchEncodedAccounts(provider, chunk, { commitment: "confirmed" })
       )
     ),
-    getTimestampForSlot(provider, currentSlot),
+    findNearestTime(provider),
   ]);
 
   const fillStatuses = pdaAccounts.flat().map((account, index) => {
@@ -942,7 +941,7 @@ async function fetchBatchFillStatusFromPdaAccounts(
 
     // If the PDA doesn't exist and the deadline hasn't passed yet, the deposit must be unfilled,
     // since PDAs can't be closed before the fill deadline.
-    if (Number(currentSlotTimestamp) < relayDataArray[index].fillDeadline) {
+    if (timestamp < relayDataArray[index].fillDeadline) {
       return FillStatus.Unfilled;
     }
 
