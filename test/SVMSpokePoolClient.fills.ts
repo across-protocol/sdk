@@ -127,25 +127,16 @@ describe("SVMSpokePoolClient: Fills", function () {
     await sendCreateFill(solanaClient, signer, mint, decimals, targetRelayData);
 
     // Get fill status before fill slot:
-    const fillStatusBeforeFill = await spokePoolClient.relayFillStatus(
-      formattedRelayData,
-      Number(currentSlot) - 10,
-    );
+    const fillStatusBeforeFill = await spokePoolClient.relayFillStatus(formattedRelayData, Number(currentSlot) - 10);
     expect(fillStatusBeforeFill).to.equal(FillStatus.Unfilled);
 
     // Get fill status after fill slot:
-    const fillStatusAfterFill = await spokePoolClient.relayFillStatus(
-      formattedRelayData,
-      Number(currentSlot) + 10,
-    );
+    const fillStatusAfterFill = await spokePoolClient.relayFillStatus(formattedRelayData, Number(currentSlot) + 10);
     expect(fillStatusAfterFill).to.equal(FillStatus.Filled);
 
     // Get fill status for an unfilled relay data:
     const unfilledRelayData = { ...formattedRelayData, depositId: BigNumber.from(depositId + 3) };
-    const fillStatusUnfilledRelay = await spokePoolClient.relayFillStatus(
-      unfilledRelayData,
-      Number(currentSlot) + 10,
-    );
+    const fillStatusUnfilledRelay = await spokePoolClient.relayFillStatus(unfilledRelayData, Number(currentSlot) + 10);
     expect(fillStatusUnfilledRelay).to.equal(FillStatus.Unfilled);
   });
 
@@ -201,17 +192,11 @@ describe("SVMSpokePoolClient: Fills", function () {
     await sendRequestSlowFill(solanaClient, signer, targetRelayData);
 
     // Get fill status before slow fill request:
-    const fillStatusBeforeRequest = await spokePoolClient.relayFillStatus(
-      formattedRelayData,
-      Number(currentSlot) - 10,
-    );
+    const fillStatusBeforeRequest = await spokePoolClient.relayFillStatus(formattedRelayData, Number(currentSlot) - 10);
     expect(fillStatusBeforeRequest).to.equal(FillStatus.Unfilled);
 
     // Get fill status after slow fill request:
-    const fillStatusAfterRequest = await spokePoolClient.relayFillStatus(
-      formattedRelayData,
-      Number(currentSlot) + 10,
-    );
+    const fillStatusAfterRequest = await spokePoolClient.relayFillStatus(formattedRelayData, Number(currentSlot) + 10);
     expect(fillStatusAfterRequest).to.equal(FillStatus.RequestedSlowFill);
   });
 
