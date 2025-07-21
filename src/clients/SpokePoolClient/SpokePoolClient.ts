@@ -16,6 +16,7 @@ import {
   getMessageHash,
   isSlowFill,
   validateFillForDeposit,
+  chainIsEvm,
   chainIsProd,
   Address,
   toAddressType,
@@ -361,7 +362,7 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
   }
 
   public getFillsForDeposit(deposit: Deposit): FillWithBlock[] {
-    return this.depositHashesToFills[this.getDepositHash(deposit)];
+    return this.depositHashesToFills[this.getDepositHash(deposit)] ?? [];
   }
 
   public isDepositFilled(deposit: Deposit): boolean {
@@ -619,12 +620,13 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
         assign(this.speedUps, [speedUp.depositor.toEvmAddress(), speedUp.depositId.toString()], [speedUp]);
 
         // Find deposit hash matching this speed up event and update the deposit data associated with the hash,
-        // if the hash+data exists.
+        // if the hash+data exists. nb. Relying on depositId alone can produce collisions on deterministic deposit IDs.
         const deposit = this.getDeposit(speedUp.depositId);
 
-        // We can assume all deposits in this lookback window are loaded in-memory already so if the depositHash
-        // is not mapped to a deposit, then we can throw away the speedup as it can't be applied to anything.
-        if (isDefined(deposit)) {
+        // SpeedUp requests are only supported EVM -> EVM.
+        if (isDefined(deposit) && chainIsEvm(deposit.destinationChainId) && deposit.depositor === speedUp.depositor) {
+          // We can assume all deposits in this lookback window are loaded in-memory already so if the depositHash
+          // is not mapped to a deposit, then we can throw away the speedup as it can't be applied to anything.
           const eventKey = getRelayEventKey(deposit);
           this.depositHashes[eventKey] = this.appendMaxSpeedUpSignatureToDeposit(deposit);
         }
