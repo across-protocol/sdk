@@ -624,7 +624,7 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
         const deposit = this.getDeposit(speedUp.depositId);
 
         // SpeedUp requests are only supported EVM -> EVM.
-        if (isDefined(deposit) && chainIsEvm(deposit.destinationChainId) && deposit.depositor === speedUp.depositor) {
+        if (isDefined(deposit) && chainIsEvm(deposit.destinationChainId) && deposit.depositor.eq(speedUp.depositor)) {
           // We can assume all deposits in this lookback window are loaded in-memory already so if the depositHash
           // is not mapped to a deposit, then we can throw away the speedup as it can't be applied to anything.
           const eventKey = getRelayEventKey(deposit);
