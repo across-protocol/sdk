@@ -229,16 +229,17 @@ describe("SVMSpokePoolClient: Fills", function () {
     let { timestamp } = await findNearestTime(provider);
 
     await setCurrentTime(signer, solanaClient, timestamp);
-    const newRelayData = { ...relayData, depositId: new Uint8Array(intToU8Array32(getRandomInt())), fillDeadline: timestamp + 1 };
+    const newRelayData = {
+      ...relayData,
+      depositId: new Uint8Array(intToU8Array32(getRandomInt())),
+      fillDeadline: timestamp + 1,
+    };
     const formattedRelayData = formatRelayData(newRelayData);
     await mintTokens(signer, solanaClient, mint.address, BigInt(relayData.outputAmount));
-    const { fillInput, relayData: { fillDeadline } } = await sendCreateFill(
-      solanaClient,
-      signer,
-      mint,
-      decimals,
-      newRelayData
-    );
+    const {
+      fillInput,
+      relayData: { fillDeadline },
+    } = await sendCreateFill(solanaClient, signer, mint, decimals, newRelayData);
     expect(fillDeadline >= timestamp + 1).to.be.true;
 
     const fillStatusAfterFill = await spokePoolClient.relayFillStatus(formattedRelayData);
