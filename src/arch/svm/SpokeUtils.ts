@@ -84,9 +84,10 @@ type ProtoFill = Omit<RelayData, "recipient" | "outputToken"> & {
  */
 export async function getTimestampForSlot(provider: SVMProvider, slotNumber: bigint): Promise<number | undefined> {
   // @note: getBlockTime receives a slot number, not a block number.
+  let _timestamp: bigint;
+
   try {
-    const blockTime = await provider.getBlockTime(slotNumber).send();
-    return Number(blockTime);
+    _timestamp = await provider.getBlockTime(slotNumber).send();
   } catch (err) {
     if (!isSolanaError(err)) {
       throw err;
@@ -99,6 +100,11 @@ export async function getTimestampForSlot(provider: SVMProvider, slotNumber: big
 
     throw err; // Unhandled Solana error.
   }
+
+  const timestamp = Number(_timestamp);
+  assert(BigInt(timestamp) === _timestamp, `Unexpected SVM block timestamp: ${_timestamp}`);
+
+  return timestamp;
 }
 
 /**

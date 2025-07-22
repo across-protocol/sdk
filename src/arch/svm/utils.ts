@@ -75,7 +75,6 @@ export async function findNearestTime(
     timestamp = await getTimestampForSlot(provider, slot);
   } while (!isDefined(timestamp) && --slot);
   assert(isDefined(timestamp), `Unable to resolve block time for SVM slot ${_slot ?? "latest"}`);
-  assert(BigInt(Number(timestamp) === timestamp), `Unexpected SVM block timestamp: ${timestamp}`);
 
   return { slot, timestamp: Number(timestamp) };
 }
