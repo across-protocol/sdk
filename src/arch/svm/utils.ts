@@ -285,15 +285,16 @@ export async function getTransferLiabilityPda(programId: Address, originToken: A
 /**
  * Returns the PDA for the SVM Spoke's root bundle account.
  * @param programId the address of the spoke pool.
- * @param statePda the spoke pool's state pda.
  * @param rootBundleId the associated root bundle ID.
  */
-export async function getRootBundlePda(programId: Address, state: Address, rootBundleId: number): Promise<Address> {
+export async function getRootBundlePda(programId: Address, rootBundleId: number): Promise<Address> {
+  const seedEncoder = getU64Encoder();
+  const seed = seedEncoder.encode(0); // Default seed.
+
   const intEncoder = getU32Encoder();
-  const addressEncoder = getAddressEncoder();
   const [pda] = await getProgramDerivedAddress({
     programAddress: programId,
-    seeds: ["root_bundle", addressEncoder.encode(state), intEncoder.encode(rootBundleId)],
+    seeds: ["root_bundle", seed, intEncoder.encode(rootBundleId)],
   });
   return pda;
 }
