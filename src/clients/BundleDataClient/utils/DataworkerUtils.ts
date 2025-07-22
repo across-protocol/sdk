@@ -312,7 +312,7 @@ export async function _buildPoolRebalanceRoot(
     clients.hubPoolClient.getPendingRootBundle()?.bundleEvaluationBlockNumbers[0] === mainnetBundleEndBlock ||
     !clients.hubPoolClient.hasPendingProposal() ||
     clients.hubPoolClient
-      .getValidatedRootBundles(latestMainnetBlock)
+      .getValidatedRootBundles()
       .some((bundle) => bundle.bundleEvaluationBlockNumbers[0].toNumber() === mainnetBundleEndBlock)
   ) {
     addLastRunningBalance(latestMainnetBlock, runningBalances, clients.hubPoolClient);
