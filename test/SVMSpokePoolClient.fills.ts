@@ -17,7 +17,6 @@ import { Deposit, FillStatus } from "../src/interfaces";
 import { SvmQuery, SymbolMappingType } from "../src/relayFeeCalculator";
 import {
   BigNumber,
-  delay,
   EvmAddress,
   SvmAddress,
   getCurrentTime,
@@ -226,7 +225,7 @@ describe("SVMSpokePoolClient: Fills", function () {
 
   it("Closes the fill pda after the fill deadline has passed", async () => {
     const provider = solanaClient.rpc;
-    let { timestamp } = await findNearestTime(provider);
+    const { timestamp } = await findNearestTime(provider);
 
     await setCurrentTime(signer, solanaClient, timestamp);
     const newRelayData = {
