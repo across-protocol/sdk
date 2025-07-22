@@ -2,6 +2,8 @@ import { SortableEvent } from "./Common";
 import { SpokePoolClient } from "../clients";
 import { BigNumber, Address, EvmAddress } from "../utils";
 import { RelayerRefundLeaf } from "./HubPool";
+import { object, string, number, boolean, array, Infer, optional } from "superstruct";
+import { BigNumberishStruct, HexEvmAddress, HexString32Bytes } from "../utils/superstruct";
 
 export interface RelayData {
   originChainId: number;
@@ -171,3 +173,154 @@ export interface BridgedToHubPoolWithBlock extends SortableEvent {
 export interface SpokePoolClientsByChain {
   [chainId: number]: SpokePoolClient;
 }
+
+// Structs for raw on-chain event validation:
+
+export const SortableEventStruct = object({
+  blockNumber: number(),
+  logIndex: number(),
+  txnIndex: number(),
+  txnRef: HexString32Bytes,
+});
+
+export const RelayDataStruct = object({
+  originChainId: number(),
+  depositor: string(),
+  recipient: string(),
+  depositId: BigNumberishStruct,
+  inputToken: string(),
+  inputAmount: BigNumberishStruct,
+  outputToken: string(),
+  outputAmount: BigNumberishStruct,
+  message: string(),
+  fillDeadline: number(),
+  exclusiveRelayer: string(),
+  exclusivityDeadline: number(),
+});
+export type RelayDataRaw = Infer<typeof RelayDataStruct>;
+
+export const DepositWithBlockRawStruct = object({
+  // From RelayData, flattened
+  depositor: string(),
+  recipient: string(),
+  depositId: BigNumberishStruct,
+  inputToken: string(),
+  inputAmount: BigNumberishStruct,
+  outputToken: string(),
+  outputAmount: BigNumberishStruct,
+  message: string(),
+  fillDeadline: number(),
+  exclusiveRelayer: string(),
+  exclusivityDeadline: number(),
+  originChainId: number(),
+
+  // From Deposit
+  destinationChainId: number(),
+  quoteTimestamp: number(),
+});
+export type DepositWithBlockRaw = Infer<typeof DepositWithBlockRawStruct>;
+
+export const RelayExecutionEventInfoStruct = object({
+  updatedRecipient: string(),
+  updatedOutputAmount: BigNumberishStruct,
+  updatedMessage: optional(string()),
+  updatedMessageHash: HexString32Bytes,
+  fillType: number(),
+});
+
+export const FillWithBlockRawStruct = object({
+  // from RelayData
+  originChainId: number(),
+  depositor: string(),
+  recipient: string(),
+  depositId: BigNumberishStruct,
+  inputToken: string(),
+  inputAmount: BigNumberishStruct,
+  outputToken: string(),
+  outputAmount: BigNumberishStruct,
+  fillDeadline: number(),
+  exclusiveRelayer: string(),
+  exclusivityDeadline: number(),
+
+  // from Fill
+  messageHash: HexString32Bytes,
+  relayer: string(),
+  repaymentChainId: number(),
+  relayExecutionInfo: RelayExecutionEventInfoStruct,
+});
+export type FillWithBlockRaw = Infer<typeof FillWithBlockRawStruct>;
+
+export const SpeedUpWithBlockRawStruct = object({
+  updatedRecipient: HexEvmAddress,
+  updatedOutputAmount: BigNumberishStruct,
+  updatedMessage: string(),
+  depositor: HexEvmAddress,
+  depositorSignature: string(),
+  depositId: BigNumberishStruct,
+});
+export type SpeedUpWithBlockRaw = Infer<typeof SpeedUpWithBlockRawStruct>;
+
+export const SlowFillRequestWithBlockRawStruct = object({
+  // from RelayData, omit message
+  originChainId: number(),
+  depositor: string(),
+  recipient: string(),
+  depositId: BigNumberishStruct,
+  inputToken: string(),
+  inputAmount: BigNumberishStruct,
+  outputToken: string(),
+  outputAmount: BigNumberishStruct,
+  fillDeadline: number(),
+  exclusiveRelayer: string(),
+  exclusivityDeadline: number(),
+  messageHash: HexString32Bytes,
+});
+export type SlowFillRequestWithBlockRaw = Infer<typeof SlowFillRequestWithBlockRawStruct>;
+
+export const EnabledDepositRouteWithBlockRawStruct = object({
+  originToken: string(),
+  destinationChainId: number(),
+  enabled: boolean(),
+});
+export type EnabledDepositRouteWithBlockRaw = Infer<typeof EnabledDepositRouteWithBlockRawStruct>;
+
+export const RootBundleRelayWithBlockRawStruct = object({
+  rootBundleId: number(),
+  relayerRefundRoot: HexString32Bytes,
+  slowRelayRoot: HexString32Bytes,
+});
+export type RootBundleRelayWithBlockRaw = Infer<typeof RootBundleRelayWithBlockRawStruct>;
+
+export const RelayerRefundExecutionWithBlockRawStruct = object({
+  amountToReturn: BigNumberishStruct,
+  chainId: number(),
+  leafId: number(),
+  l2TokenAddress: string(),
+  refundAddresses: array(string()),
+  refundAmounts: array(BigNumberishStruct),
+  rootBundleId: number(),
+});
+export type RelayerRefundExecutionWithBlockRaw = Infer<typeof RelayerRefundExecutionWithBlockRawStruct>;
+
+export const TokensBridgedRawStruct = object({
+  amountToReturn: BigNumberishStruct,
+  chainId: number(),
+  leafId: number(),
+  l2TokenAddress: string(),
+});
+export type TokensBridgedRaw = Infer<typeof TokensBridgedRawStruct>;
+
+export const ClaimedRelayerRefundWithBlockRawStruct = object({
+  l2TokenAddress: string(),
+  refundAddress: string(),
+  amount: optional(BigNumberishStruct),
+  claimAmount: optional(BigNumberishStruct),
+  caller: optional(string()),
+});
+export type ClaimedRelayerRefundWithBlockRaw = Infer<typeof ClaimedRelayerRefundWithBlockRawStruct>;
+
+export const BridgedToHubPoolWithBlockRawStruct = object({
+  amount: BigNumberishStruct,
+  mint: string(),
+});
+export type BridgedToHubPoolWithBlockRaw = Infer<typeof BridgedToHubPoolWithBlockRawStruct>;

@@ -21,13 +21,13 @@ import {
   toAddressType,
 } from "../../utils";
 import { duplicateEvent, sortEventsAscendingInPlace } from "../../utils/EventUtils";
+import { decodeSortableEvent } from "../../utils/EventParsing";
 import { CHAIN_IDs, ZERO_ADDRESS } from "../../constants";
 import {
   BridgedToHubPoolWithBlock,
   ClaimedRelayerRefundWithBlock,
   Deposit,
   DepositWithBlock,
-  EnabledDepositRouteWithBlock,
   Fill,
   FillStatus,
   FillWithBlock,
@@ -38,8 +38,19 @@ import {
   SortableEvent,
   SpeedUpWithBlock,
   TokensBridged,
-  RelayExecutionEventInfo,
 } from "../../interfaces";
+import {
+  DepositArgsDecoder,
+  SpeedUpArgsDecoder,
+  SlowFillRequestArgsDecoder,
+  FillArgsDecoder,
+  EnabledDepositRouteArgsDecoder,
+  RootBundleRelayArgsDecoder,
+  RelayerRefundExecutionArgsDecoder,
+  TokensBridgedArgsDecoder,
+  ClaimedRelayerRefundArgsDecoder,
+  BridgedToHubPoolArgsDecoder,
+} from "../../interfaces/EventDecoders";
 import { BaseAbstractClient, UpdateFailureReason } from "../BaseAbstractClient";
 import { AcrossConfigStoreClient } from "../AcrossConfigStoreClient";
 import { getRefundInformationFromFill } from "../BundleDataClient";
@@ -506,38 +517,19 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
     const { events: queryResults, currentTime, searchEndBlock } = update;
 
     if (eventsToQuery.includes("TokensBridged")) {
-      for (const _event of queryResults[eventsToQuery.indexOf("TokensBridged")]) {
-        const event = _event as Omit<TokensBridged, "l2TokenAddress"> & {
-          l2TokenAddress: string;
-        };
-        this.tokensBridged.push({
-          ...event,
-          l2TokenAddress: toAddressType(event.l2TokenAddress, this.chainId),
-        });
+      for (const raw of queryResults[eventsToQuery.indexOf("TokensBridged")] ?? []) {
+        const event = decodeSortableEvent(raw, raw, TokensBridgedArgsDecoder, { chainId: this.chainId });
+        this.tokensBridged.push(event);
       }
     }
 
     // Performs the indexing of a deposit-like spoke pool event.
     const queryDepositEvents = async (eventName: string) => {
-      const depositEvents = (queryResults[eventsToQuery.indexOf(eventName)] ?? []).map((_event) => {
-        const event = _event as Omit<
-          DepositWithBlock,
-          "depositor" | "recipient" | "inputToken" | "outputToken" | "exclusiveRelayer"
-        > & {
-          depositor: string;
-          recipient: string;
-          inputToken: string;
-          outputToken: string;
-          exclusiveRelayer: string;
-        };
-        return {
-          ...event,
-          depositor: toAddressType(event.depositor, this.chainId),
-          recipient: toAddressType(event.recipient, event.destinationChainId),
-          inputToken: toAddressType(event.inputToken, this.chainId),
-          outputToken: toAddressType(event.outputToken, event.destinationChainId),
-          exclusiveRelayer: toAddressType(event.exclusiveRelayer, event.destinationChainId),
-        } as DepositWithBlock;
+      const rawEvents = queryResults[eventsToQuery.indexOf(eventName)] ?? [];
+      const depositEvents = rawEvents.map((raw) => {
+        return decodeSortableEvent(raw, raw, DepositArgsDecoder, {
+          chainId: this.chainId,
+        });
       });
       if (depositEvents.length > 0) {
         this.log(
@@ -556,14 +548,14 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
         const quoteBlockNumber = quoteBlockNumbers[Number(event.quoteTimestamp)];
 
         // Derive and append the common properties that are not part of the onchain event.
-        const deposit = {
+        const deposit: DepositWithBlock = {
           ...event,
           messageHash: getMessageHash(event.message),
           quoteBlockNumber,
           originChainId: this.chainId,
           // The following properties are placeholders to be updated immediately.
-          fromLiteChain: true,
-          toLiteChain: true,
+          fromLiteChain: false,
+          toLiteChain: false,
         };
 
         deposit.fromLiteChain = this.isOriginLiteChain(deposit);
@@ -595,25 +587,22 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
 
     // Performs indexing of a "speed up deposit"-like event.
     const querySpeedUpDepositEvents = (eventName: string) => {
-      const speedUpEvents = (queryResults[eventsToQuery.indexOf(eventName)] ?? [])
-        .map((_event) => {
-          const event = _event as Omit<SpeedUpWithBlock, "depositor" | "updatedRecipient"> & {
-            depositor: string;
-            updatedRecipient: string;
-          };
-
-          const invalid = [event.depositor, event.updatedRecipient].some(
-            (addr) => !EvmAddress.validate(ethersUtils.arrayify(addr))
-          );
-          if (invalid) {
-            return;
+      const rawEvents = queryResults[eventsToQuery.indexOf(eventName)] ?? [];
+      const speedUpEvents = rawEvents
+        .map((raw) => {
+          const decoded = decodeSortableEvent(raw, raw, SpeedUpArgsDecoder, {
+            chainId: this.chainId,
+          });
+          // The decoder can't validate cross-field dependencies, so we do it here.
+          // This is a temporary check until we have a better way to handle this.
+          if (
+            !EvmAddress.validate(ethersUtils.arrayify(decoded.depositor.toNative())) ||
+            !EvmAddress.validate(ethersUtils.arrayify(decoded.updatedRecipient.toNative()))
+          ) {
+            this.log("error", `Invalid address in ${eventName} event`, { event: raw });
+            return undefined;
           }
-
-          return {
-            ...event,
-            depositor: EvmAddress.from(event.depositor),
-            updatedRecipient: EvmAddress.from(event.updatedRecipient),
-          } as SpeedUpWithBlock;
+          return decoded;
         })
         .filter(isDefined);
 
@@ -646,37 +635,18 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
 
     // Performs indexing of "requested slow fill"-like events.
     const queryRequestedSlowFillEvents = (eventName: string) => {
-      const slowFillRequests = (queryResults[eventsToQuery.indexOf(eventName)] ?? []).map((_event) => {
-        const event = _event as Omit<
-          SlowFillRequestWithBlock,
-          "depositor" | "recipient" | "inputToken" | "outputToken" | "exclusiveRelayer"
-        > & {
-          depositor: string;
-          recipient: string;
-          inputToken: string;
-          outputToken: string;
-          exclusiveRelayer: string;
-        };
-        return {
-          ...event,
-          depositor: toAddressType(event.depositor, event.originChainId),
-          recipient: toAddressType(event.recipient, this.chainId),
-          inputToken: toAddressType(event.inputToken, event.originChainId),
-          outputToken: toAddressType(event.outputToken, this.chainId),
-          exclusiveRelayer: toAddressType(event.exclusiveRelayer, this.chainId),
-        } as SlowFillRequestWithBlock;
+      const rawEvents = queryResults[eventsToQuery.indexOf(eventName)] ?? [];
+      const slowFillRequests = rawEvents.map((raw) => {
+        return decodeSortableEvent(raw, raw, SlowFillRequestArgsDecoder, {
+          chainId: this.chainId,
+        });
       });
-      for (const event of slowFillRequests) {
-        const slowFillRequest = {
-          ...event,
-          destinationChainId: this.chainId,
-        };
-
+      for (const slowFillRequest of slowFillRequests) {
         const depositHash = getRelayEventKey({ ...slowFillRequest, destinationChainId: this.chainId });
 
         // Sanity check that this event is not a duplicate.
         if (this.slowFillRequests[depositHash] !== undefined) {
-          duplicateEvents.push(event);
+          duplicateEvents.push(slowFillRequest);
           continue;
         }
 
@@ -692,38 +662,11 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
 
     // Performs indexing of filled relay-like events.
     const queryFilledRelayEvents = (eventName: string) => {
-      const fillEvents = (queryResults[eventsToQuery.indexOf(eventName)] ?? []).map((_event) => {
-        const event = _event as Omit<
-          FillWithBlock,
-          | "depositor"
-          | "recipient"
-          | "inputToken"
-          | "outputToken"
-          | "exclusiveRelayer"
-          | "relayer"
-          | "relayExecutionInfo"
-        > & {
-          depositor: string;
-          recipient: string;
-          inputToken: string;
-          outputToken: string;
-          exclusiveRelayer: string;
-          relayer: string;
-          relayExecutionInfo: Omit<RelayExecutionEventInfo, "updatedRecipient"> & { updatedRecipient: string };
-        };
-        return {
-          ...event,
-          depositor: toAddressType(event.depositor, event.originChainId),
-          recipient: toAddressType(event.recipient, this.chainId),
-          inputToken: toAddressType(event.inputToken, event.originChainId),
-          outputToken: toAddressType(event.outputToken, this.chainId),
-          exclusiveRelayer: toAddressType(event.exclusiveRelayer, this.chainId),
-          relayer: toAddressType(event.relayer, this.chainId),
-          relayExecutionInfo: {
-            ...event.relayExecutionInfo,
-            updatedRecipient: toAddressType(event.relayExecutionInfo.updatedRecipient, this.chainId),
-          },
-        } as FillWithBlock;
+      const rawEvents = queryResults[eventsToQuery.indexOf(eventName)] ?? [];
+      const fillEvents = rawEvents.map((raw) => {
+        return decodeSortableEvent(raw, raw, FillArgsDecoder, {
+          chainId: this.chainId,
+        });
       });
 
       if (fillEvents.length > 0) {
@@ -734,16 +677,11 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
 
       // @note The type assertions here suppress errors that might arise due to incomplete types. For now, verify via
       // test that the types are complete. A broader change in strategy for safely unpacking events will be introduced.
-      for (const event of fillEvents) {
-        const fill = {
-          ...event,
-          destinationChainId: this.chainId,
-        };
-
+      for (const fill of fillEvents) {
         // Sanity check that this event is not a duplicate.
         const duplicateFill = this.fills[fill.originChainId]?.find((f) => duplicateEvent(fill, f));
         if (duplicateFill) {
-          duplicateEvents.push(event);
+          duplicateEvents.push(fill);
           continue;
         }
 
@@ -760,12 +698,9 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
     });
 
     if (eventsToQuery.includes("EnabledDepositRoute")) {
-      const enableDepositsEvents = queryResults[eventsToQuery.indexOf("EnabledDepositRoute")].map((_event) => {
-        const event = _event as Omit<EnabledDepositRouteWithBlock, "originToken"> & { originToken: string };
-        return {
-          ...event,
-          originToken: toAddressType(event.originToken, CHAIN_IDs.MAINNET),
-        } as EnabledDepositRouteWithBlock;
+      const rawEvents = queryResults[eventsToQuery.indexOf("EnabledDepositRoute")] ?? [];
+      const enableDepositsEvents = rawEvents.map((raw) => {
+        return decodeSortableEvent(raw, raw, EnabledDepositRouteArgsDecoder);
       });
 
       for (const event of enableDepositsEvents) {
@@ -774,43 +709,40 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
     }
 
     if (eventsToQuery.includes("RelayedRootBundle")) {
-      const relayedRootBundleEvents = queryResults[
-        eventsToQuery.indexOf("RelayedRootBundle")
-      ] as RootBundleRelayWithBlock[];
+      const rawEvents = queryResults[eventsToQuery.indexOf("RelayedRootBundle")] ?? [];
+      const relayedRootBundleEvents = rawEvents.map((raw) => {
+        return decodeSortableEvent(raw, raw, RootBundleRelayArgsDecoder);
+      });
       for (const event of relayedRootBundleEvents) {
         this.rootBundleRelays.push(event);
       }
     }
 
     if (eventsToQuery.includes("ExecutedRelayerRefundRoot")) {
-      const refundEvents = queryResults[eventsToQuery.indexOf("ExecutedRelayerRefundRoot")];
-      for (const _event of refundEvents) {
-        const event = _event as Omit<RelayerRefundExecutionWithBlock, "l2TokenAddress" | "refundAddresses"> & {
-          l2TokenAddress: string;
-          refundAddresses: string[];
-        };
-        this.relayerRefundExecutions.push({
-          ...event,
-          l2TokenAddress: toAddressType(event.l2TokenAddress, this.chainId),
-          refundAddresses: event.refundAddresses.map((addr) => toAddressType(addr, this.chainId)),
-        });
+      const rawEvents = queryResults[eventsToQuery.indexOf("ExecutedRelayerRefundRoot")] ?? [];
+      const refundEvents = rawEvents.map((raw) => {
+        return decodeSortableEvent(raw, raw, RelayerRefundExecutionArgsDecoder, { chainId: this.chainId });
+      });
+      for (const event of refundEvents) {
+        this.relayerRefundExecutions.push(event);
       }
     }
 
     if (eventsToQuery.includes("ClaimedRelayerRefund")) {
-      const claimedRelayerRefundEvents = (queryResults[eventsToQuery.indexOf("ClaimedRelayerRefund")] ??
-        []) as (ClaimedRelayerRefundWithBlock & { claimAmount?: BigNumber })[];
+      const rawEvents = queryResults[eventsToQuery.indexOf("ClaimedRelayerRefund")] ?? [];
+      const claimedRelayerRefundEvents = rawEvents.map((raw) => {
+        return decodeSortableEvent(raw, raw, ClaimedRelayerRefundArgsDecoder);
+      });
       for (const event of claimedRelayerRefundEvents) {
-        this.claimedRelayerRefunds.push({
-          ...event,
-          amount: event.amount || event.claimAmount, // Note: This field is named differently in EVM and SVM
-        });
+        this.claimedRelayerRefunds.push(event);
       }
     }
 
     if (eventsToQuery.includes("BridgedToHubPool")) {
-      const bridgedToHubPoolEvents = (queryResults[eventsToQuery.indexOf("BridgedToHubPool")] ??
-        []) as (BridgedToHubPoolWithBlock & { amount?: BigNumber })[];
+      const rawEvents = queryResults[eventsToQuery.indexOf("BridgedToHubPool")] ?? [];
+      const bridgedToHubPoolEvents = rawEvents.map((raw) => {
+        return decodeSortableEvent(raw, raw, BridgedToHubPoolArgsDecoder);
+      });
       for (const event of bridgedToHubPoolEvents) {
         this.bridgedToHubPool.push(event);
       }

@@ -7,3 +7,4 @@ export * from "./Error";
 export * from "./TypedData";
 export * from "./CachingMechanism";
 export * from "./BundleData";
+export * from "./EventDecoders";
