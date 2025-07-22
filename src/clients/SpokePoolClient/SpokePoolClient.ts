@@ -149,10 +149,10 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
    */
   public getDepositsForDestinationChainWithDuplicates(destinationChainId: number): DepositWithBlock[] {
     const deposits = this.getDepositsForDestinationChain(destinationChainId);
-    const duplicateDeposits = deposits.reduce((acc, deposit) => {
+    const duplicateDeposits = deposits.reduce<DepositWithBlock[]>((acc, deposit) => {
       const duplicates = this._getDuplicateDeposits(deposit);
       return acc.concat(duplicates);
-    }, [] as DepositWithBlock[]);
+    }, []);
     return sortEventsAscendingInPlace(deposits.concat(duplicateDeposits.flat()));
   }
 
@@ -507,7 +507,7 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
 
     if (eventsToQuery.includes("TokensBridged")) {
       for (const _event of queryResults[eventsToQuery.indexOf("TokensBridged")]) {
-        const event = _event as TokensBridged & {
+        const event = _event as Omit<TokensBridged, "l2TokenAddress"> & {
           l2TokenAddress: string;
         };
         this.tokensBridged.push({
@@ -520,7 +520,10 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
     // Performs the indexing of a deposit-like spoke pool event.
     const queryDepositEvents = async (eventName: string) => {
       const depositEvents = (queryResults[eventsToQuery.indexOf(eventName)] ?? []).map((_event) => {
-        const event = _event as DepositWithBlock & {
+        const event = _event as Omit<
+          DepositWithBlock,
+          "depositor" | "recipient" | "inputToken" | "outputToken" | "exclusiveRelayer"
+        > & {
           depositor: string;
           recipient: string;
           inputToken: string;
@@ -594,7 +597,10 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
     const querySpeedUpDepositEvents = (eventName: string) => {
       const speedUpEvents = (queryResults[eventsToQuery.indexOf(eventName)] ?? [])
         .map((_event) => {
-          const event = _event as SpeedUpWithBlock & { depositor: string; updatedRecipient: string };
+          const event = _event as Omit<SpeedUpWithBlock, "depositor" | "updatedRecipient"> & {
+            depositor: string;
+            updatedRecipient: string;
+          };
 
           const invalid = [event.depositor, event.updatedRecipient].some(
             (addr) => !EvmAddress.validate(ethersUtils.arrayify(addr))
@@ -641,7 +647,10 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
     // Performs indexing of "requested slow fill"-like events.
     const queryRequestedSlowFillEvents = (eventName: string) => {
       const slowFillRequests = (queryResults[eventsToQuery.indexOf(eventName)] ?? []).map((_event) => {
-        const event = _event as SlowFillRequestWithBlock & {
+        const event = _event as Omit<
+          SlowFillRequestWithBlock,
+          "depositor" | "recipient" | "inputToken" | "outputToken" | "exclusiveRelayer"
+        > & {
           depositor: string;
           recipient: string;
           inputToken: string;
@@ -684,14 +693,23 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
     // Performs indexing of filled relay-like events.
     const queryFilledRelayEvents = (eventName: string) => {
       const fillEvents = (queryResults[eventsToQuery.indexOf(eventName)] ?? []).map((_event) => {
-        const event = _event as FillWithBlock & {
+        const event = _event as Omit<
+          FillWithBlock,
+          | "depositor"
+          | "recipient"
+          | "inputToken"
+          | "outputToken"
+          | "exclusiveRelayer"
+          | "relayer"
+          | "relayExecutionInfo"
+        > & {
           depositor: string;
           recipient: string;
           inputToken: string;
           outputToken: string;
           exclusiveRelayer: string;
           relayer: string;
-          relayExecutionInfo: RelayExecutionEventInfo & { updatedRecipient: string };
+          relayExecutionInfo: Omit<RelayExecutionEventInfo, "updatedRecipient"> & { updatedRecipient: string };
         };
         return {
           ...event,
@@ -742,11 +760,13 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
     });
 
     if (eventsToQuery.includes("EnabledDepositRoute")) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const enableDepositsEvents = queryResults[eventsToQuery.indexOf("EnabledDepositRoute")].map((event: any) => ({
-        ...event,
-        originToken: toAddressType(event.originToken, CHAIN_IDs.MAINNET),
-      })) as EnabledDepositRouteWithBlock[];
+      const enableDepositsEvents = queryResults[eventsToQuery.indexOf("EnabledDepositRoute")].map((_event) => {
+        const event = _event as Omit<EnabledDepositRouteWithBlock, "originToken"> & { originToken: string };
+        return {
+          ...event,
+          originToken: toAddressType(event.originToken, CHAIN_IDs.MAINNET),
+        } as EnabledDepositRouteWithBlock;
+      });
 
       for (const event of enableDepositsEvents) {
         assign(this.depositRoutes, [event.originToken.toBytes32(), event.destinationChainId], event.enabled);
@@ -765,7 +785,10 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
     if (eventsToQuery.includes("ExecutedRelayerRefundRoot")) {
       const refundEvents = queryResults[eventsToQuery.indexOf("ExecutedRelayerRefundRoot")];
       for (const _event of refundEvents) {
-        const event = _event as { l2TokenAddress: string; refundAddresses: string[] } & RelayerRefundExecutionWithBlock;
+        const event = _event as Omit<RelayerRefundExecutionWithBlock, "l2TokenAddress" | "refundAddresses"> & {
+          l2TokenAddress: string;
+          refundAddresses: string[];
+        };
         this.relayerRefundExecutions.push({
           ...event,
           l2TokenAddress: toAddressType(event.l2TokenAddress, this.chainId),
