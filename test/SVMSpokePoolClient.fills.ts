@@ -257,11 +257,6 @@ describe("SVMSpokePoolClient: Fills", function () {
     const fillStatusAccount = await fetchEncodedAccount(provider, fillInput.fillStatus, { commitment });
     expect(fillStatusAccount.exists).to.be.false;
 
-    do {
-      await delay(0.25);
-      ({ timestamp } = await findNearestTime(provider));
-    } while (timestamp <= fillDeadline);
-
     const fillStatusWithPdaClosed = await spokePoolClient.relayFillStatus(formattedRelayData);
     expect(fillStatusWithPdaClosed).to.equal(FillStatus.Filled);
   });
