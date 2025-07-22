@@ -7,14 +7,17 @@ import {
   SVM_DEFAULT_ADDRESS,
   createCloseFillPdaInstruction,
   findFillEvent,
+  findNearestTime,
   getRandomSvmAddress,
   numberToU8a32,
+  toAddress,
 } from "../src/arch/svm";
 import { SVMSpokePoolClient } from "../src/clients";
 import { Deposit, FillStatus } from "../src/interfaces";
 import { SvmQuery, SymbolMappingType } from "../src/relayFeeCalculator";
 import {
   BigNumber,
+  delay,
   EvmAddress,
   SvmAddress,
   getCurrentTime,
@@ -23,7 +26,7 @@ import {
   toAddressType,
 } from "../src/utils";
 import { signer } from "./Solana.setup";
-import { createSpyLogger, expect } from "./utils";
+import { assertPromiseError, createSpyLogger, expect } from "./utils";
 import {
   createDefaultSolanaClient,
   createMint,
@@ -35,6 +38,7 @@ import {
 } from "./utils/svm/utils";
 
 describe("SVMSpokePoolClient: Fills", function () {
+  const commitment = "confirmed";
   const solanaClient = createDefaultSolanaClient();
 
   let mint: KeyPairSigner;
@@ -60,11 +64,11 @@ describe("SVMSpokePoolClient: Fills", function () {
     inputToken = EvmAddress.from(randomAddress());
     depositId = getRandomInt();
     relayData = {
-      depositor,
-      recipient,
-      exclusiveRelayer: toAddressType(SVM_DEFAULT_ADDRESS, CHAIN_IDs.SOLANA),
-      inputToken,
-      outputToken: toAddressType(mint.address, CHAIN_IDs.SOLANA),
+      depositor: toAddress(depositor),
+      recipient: toAddress(recipient),
+      exclusiveRelayer: toAddress(SvmAddress.from(SVM_DEFAULT_ADDRESS)),
+      inputToken: toAddress(inputToken),
+      outputToken: toAddress(SvmAddress.from(mint.address)),
       inputAmount: numberToU8a32(10),
       outputAmount: 9,
       originChainId: CHAIN_IDs.MAINNET,
@@ -221,48 +225,48 @@ describe("SVMSpokePoolClient: Fills", function () {
   });
 
   it("Closes the fill pda after the fill deadline has passed", async () => {
-    const currentSlot = await solanaClient.rpc.getSlot({ commitment: "confirmed" }).send();
-    const currentSlotTimestamp = await solanaClient.rpc.getBlockTime(currentSlot).send();
-    const fillDeadline = Number(currentSlotTimestamp) + 1;
-    await setCurrentTime(signer, solanaClient, Number(currentSlotTimestamp));
-    const newRelayData = { ...relayData, depositId: new Uint8Array(intToU8Array32(getRandomInt())), fillDeadline };
+    const provider = solanaClient.rpc;
+    let { timestamp } = await findNearestTime(provider);
+
+    await setCurrentTime(signer, solanaClient, timestamp);
+    const newRelayData = { ...relayData, depositId: new Uint8Array(intToU8Array32(getRandomInt())), fillDeadline: timestamp + 1 };
     const formattedRelayData = formatRelayData(newRelayData);
     await mintTokens(signer, solanaClient, mint.address, BigInt(relayData.outputAmount));
-    const { fillInput, relayData: fillRelayData } = await sendCreateFill(
+    const { fillInput, relayData: { fillDeadline } } = await sendCreateFill(
       solanaClient,
       signer,
       mint,
       decimals,
       newRelayData
     );
+    expect(fillDeadline >= timestamp + 1).to.be.true;
 
     const fillStatusAfterFill = await spokePoolClient.relayFillStatus(formattedRelayData);
     expect(fillStatusAfterFill).to.equal(FillStatus.Filled);
 
-    try {
-      const closePdaInstruction = await createCloseFillPdaInstruction(signer, solanaClient.rpc, fillInput.fillStatus);
-      await signAndSendTransaction(solanaClient, closePdaInstruction);
-    } catch (error) {
-      expect(error.context.logs.some((log) => log.includes("The fill deadline has not passed!"))).to.be.true;
-    }
+    // Verify that it's not possible to close the PDA at present.
+    let closePdaInstruction = await createCloseFillPdaInstruction(signer, solanaClient.rpc, fillInput.fillStatus);
+    await assertPromiseError(signAndSendTransaction(solanaClient, closePdaInstruction));
 
-    await setCurrentTime(signer, solanaClient, fillRelayData.fillDeadline + 1);
+    await setCurrentTime(signer, solanaClient, fillDeadline + 1);
 
-    const closePdaInstruction = await createCloseFillPdaInstruction(signer, solanaClient.rpc, fillInput.fillStatus);
+    closePdaInstruction = await createCloseFillPdaInstruction(signer, solanaClient.rpc, fillInput.fillStatus);
     await signAndSendTransaction(solanaClient, closePdaInstruction);
 
-    const fillStatusAccount = await fetchEncodedAccount(solanaClient.rpc, fillInput.fillStatus, {
-      commitment: "confirmed",
-    });
-
+    const fillStatusAccount = await fetchEncodedAccount(provider, fillInput.fillStatus, { commitment });
     expect(fillStatusAccount.exists).to.be.false;
+
+    do {
+      await delay(0.25);
+      ({ timestamp } = await findNearestTime(provider));
+    } while (timestamp <= fillDeadline);
 
     const fillStatusWithPdaClosed = await spokePoolClient.relayFillStatus(formattedRelayData);
     expect(fillStatusWithPdaClosed).to.equal(FillStatus.Filled);
   });
 
   it("Calculates the gas cost of a fill", async function () {
-    const currentSlot = await solanaClient.rpc.getSlot({ commitment: "confirmed" }).send();
+    const currentSlot = await solanaClient.rpc.getSlot({ commitment }).send();
     const currentSlotTimestamp = await solanaClient.rpc.getBlockTime(currentSlot).send();
     const fillDeadline = Number(currentSlotTimestamp) + 1;
     await setCurrentTime(signer, solanaClient, Number(currentSlotTimestamp));
@@ -286,12 +290,13 @@ describe("SVMSpokePoolClient: Fills", function () {
       createSpyLogger().spyLogger
     );
 
+    const originChainId = Number(newRelayData.originChainId);
     const depositData: Omit<Deposit, "messageHash"> = {
-      depositor: newRelayData.depositor,
-      recipient: newRelayData.recipient,
-      exclusiveRelayer: newRelayData.exclusiveRelayer,
-      inputToken: newRelayData.inputToken,
-      outputToken: newRelayData.outputToken,
+      depositor: toAddressType(newRelayData.depositor, originChainId),
+      recipient: SvmAddress.from(newRelayData.recipient),
+      exclusiveRelayer: SvmAddress.from(newRelayData.exclusiveRelayer),
+      inputToken: toAddressType(newRelayData.inputToken, originChainId),
+      outputToken: SvmAddress.from(newRelayData.outputToken),
       fillDeadline: newRelayData.fillDeadline,
       exclusivityDeadline: newRelayData.exclusivityDeadline,
       destinationChainId: CHAIN_IDs.SOLANA,
@@ -314,7 +319,7 @@ describe("SVMSpokePoolClient: Fills", function () {
     const { signature } = await sendCreateFill(solanaClient, signer, mint, decimals, newRelayData);
 
     const receipt = await solanaClient.rpc
-      .getTransaction(signature, { commitment: "confirmed", maxSupportedTransactionVersion: 0 })
+      .getTransaction(signature, { commitment, maxSupportedTransactionVersion: 0 })
       .send();
 
     const actualGasUnits = receipt?.meta?.computeUnitsConsumed || BigInt(0);

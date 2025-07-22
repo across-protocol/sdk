@@ -819,7 +819,7 @@ export const createReceiveMessageInstruction = async (
   input: MessageTransmitterClient.ReceiveMessageInput,
   remainingAccounts: IAccountMeta<string>[]
 ) => {
-  const receiveMessageIx = await MessageTransmitterClient.getReceiveMessageInstruction(input);
+  const receiveMessageIx = MessageTransmitterClient.getReceiveMessageInstruction(input);
   (receiveMessageIx.accounts as IAccountMeta<string>[]).push(...remainingAccounts);
   return pipe(await createDefaultTransaction(solanaClient, signer), (tx) =>
     appendTransactionMessageInstruction(receiveMessageIx, tx)

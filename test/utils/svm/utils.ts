@@ -240,13 +240,11 @@ export const sendCreateFill = async (
   const currentTime = await getCurrentTime(solanaClient);
 
   const relayData: SvmSpokeClient.FillRelayInput["relayData"] = {
-    depositor:
-      overrides.depositor ?? toAddressType(address(EvmAddress.from(randomAddress()).toBase58()), CHAIN_IDs.MAINNET),
-    recipient: overrides.recipient ?? toAddressType(getRandomSvmAddress(), CHAIN_IDs.SOLANA),
-    exclusiveRelayer: overrides.exclusiveRelayer ?? toAddressType(SVM_DEFAULT_ADDRESS, CHAIN_IDs.SOLANA),
-    inputToken:
-      overrides.inputToken ?? toAddressType(address(EvmAddress.from(randomAddress()).toBase58()), CHAIN_IDs.MAINNET),
-    outputToken: toAddressType(mint.address),
+    depositor: overrides.depositor ?? toAddress(EvmAddress.from(randomAddress())),
+    recipient: overrides.recipient ?? toAddress(SvmAddress.from(getRandomSvmAddress())),
+    exclusiveRelayer: overrides.exclusiveRelayer ?? toAddress(SvmAddress.from(SVM_DEFAULT_ADDRESS)),
+    inputToken: overrides.inputToken ?? toAddress(EvmAddress.from(randomAddress())),
+    outputToken: toAddress(SvmAddress.from(mint.address)),
     inputAmount: overrides.inputAmount ?? bigToU8a32(BigNumber.from(getRandomInt())),
     outputAmount: overrides.outputAmount ?? getRandomInt(),
     originChainId: overrides.originChainId ?? CHAIN_IDs.MAINNET,
@@ -271,7 +269,7 @@ export const sendCreateFill = async (
   );
 
   const recipientAta = await getAssociatedTokenAddress(
-    relayData.recipient,
+    SvmAddress.from(relayData.recipient),
     SvmAddress.from(mint.address),
     TOKEN_2022_PROGRAM_ADDRESS
   );
@@ -285,16 +283,11 @@ export const sendCreateFill = async (
 
   const relayDataInput = {
     ...relayData,
-    inputToken: toAddress(relayData.inputToken),
-    outputToken: toAddress(relayData.outputToken),
-    depositor: toAddress(relayData.depositor),
-    recipient: toAddress(relayData.recipient),
-    exclusiveRelayer: toAddress(relayData.exclusiveRelayer),
   };
 
   const fillInput: SvmSpokeClient.FillRelayInput = {
     signer: signer,
-    delegate: toAddress(SvmAddress.from(delegatePda.toString())),
+    delegate: toAddress(SvmAddress.from(delegatePda)),
     instructionParams: undefined,
     state: await getStatePda(SvmSpokeClient.SVM_SPOKE_PROGRAM_ADDRESS),
     mint: mint.address,
@@ -327,11 +320,11 @@ export const sendRequestSlowFill = async (
   const currentTime = await getCurrentTime(solanaClient);
 
   const relayData: SvmSpokeClient.RequestSlowFillInstructionDataArgs["relayData"] = {
-    depositor: overrides.depositor ?? EvmAddress.from(randomAddress()),
-    recipient: overrides.recipient ?? toAddressType(getRandomSvmAddress(), CHAIN_IDs.SOLANA),
-    exclusiveRelayer: overrides.exclusiveRelayer ?? toAddressType(SVM_DEFAULT_ADDRESS, CHAIN_IDs.SOLANA),
-    inputToken: overrides.inputToken ?? EvmAddress.from(randomAddress()),
-    outputToken: overrides.outputToken ?? toAddressType(getRandomSvmAddress(), CHAIN_IDs.SOLANA),
+    depositor: overrides.depositor ?? toAddress(EvmAddress.from(randomAddress())),
+    recipient: overrides.recipient ?? toAddress(SvmAddress.from(getRandomSvmAddress())),
+    exclusiveRelayer: overrides.exclusiveRelayer ?? toAddress(SvmAddress.from(SVM_DEFAULT_ADDRESS)),
+    inputToken: overrides.inputToken ?? toAddress(EvmAddress.from(randomAddress())),
+    outputToken: overrides.outputToken ?? toAddress(SvmAddress.from(getRandomSvmAddress())),
     inputAmount: overrides.inputAmount ?? numberToU8a32(getRandomInt()),
     outputAmount: overrides.outputAmount ?? getRandomInt(),
     originChainId: overrides.originChainId ?? CHAIN_IDs.MAINNET,
@@ -350,11 +343,6 @@ export const sendRequestSlowFill = async (
 
   const relayDataInput = {
     ...relayData,
-    inputToken: toAddress(relayData.inputToken),
-    outputToken: toAddress(relayData.outputToken),
-    depositor: toAddress(relayData.depositor),
-    recipient: toAddress(relayData.recipient),
-    exclusiveRelayer: toAddress(relayData.exclusiveRelayer),
   };
 
   const requestSlowFillInput: SvmSpokeClient.RequestSlowFillInput = {
@@ -390,10 +378,10 @@ export const sendCreateDeposit = async (
 
   const depositInput: SvmSpokeClient.DepositInput = {
     depositor: signer.address,
-    delegate: address(EvmAddress.from(randomAddress()).toBase58()), // Random address for now but calculated later
-    recipient: overrides.recipient ?? address(EvmAddress.from(randomAddress()).toBase58()),
+    delegate: toAddress(EvmAddress.from(randomAddress())), // Random address for now but calculated later
+    recipient: overrides.recipient ?? toAddress(EvmAddress.from(randomAddress())),
     inputToken: mint.address,
-    outputToken: overrides.outputToken ?? address(EvmAddress.from(randomAddress()).toBase58()),
+    outputToken: overrides.outputToken ?? toAddress(EvmAddress.from(randomAddress())),
     inputAmount: overrides.inputAmount ?? getRandomInt(),
     outputAmount: overrides.outputAmount ?? numberToU8a32(getRandomInt()),
     destinationChainId: destinationChainId,
@@ -450,18 +438,19 @@ export const encodePauseDepositsMessageBody = (pause = true): Buffer => {
 /** Relay Data Utils */
 
 export const formatRelayData = (relayData: SvmSpokeClient.RelayDataArgs): RelayData => {
+  const originChainId = Number(relayData.originChainId);
   return {
-    originChainId: Number(relayData.originChainId),
-    depositor: relayData.depositor,
+    originChainId,
+    depositor: toAddressType(relayData.depositor, originChainId),
     depositId: BigNumber.from(relayData.depositId),
-    recipient: relayData.recipient,
-    inputToken: relayData.inputToken,
-    outputToken: relayData.outputToken,
+    recipient: SvmAddress.from(relayData.recipient),
+    inputToken: toAddressType(relayData.inputToken, originChainId),
+    outputToken: SvmAddress.from(relayData.outputToken),
     inputAmount: BigNumber.from(relayData.inputAmount),
     outputAmount: BigNumber.from(relayData.outputAmount),
     fillDeadline: relayData.fillDeadline,
     exclusivityDeadline: relayData.exclusivityDeadline,
     message: hexlify(relayData.message),
-    exclusiveRelayer: relayData.exclusiveRelayer,
+    exclusiveRelayer: SvmAddress.from(relayData.exclusiveRelayer),
   };
 };
