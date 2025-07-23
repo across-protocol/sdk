@@ -233,7 +233,7 @@ export async function relayFillStatus(
   const provider = svmEventsClient.getRpc();
   // Get fill status PDA using relayData
   const fillStatusPda = await getFillStatusPda(programId, relayData, destinationChainId);
-  let slot: bigint = BigInt(0);
+  let toSlot = BigInt(atHeight ?? 0);
 
   // If no specific slot is requested, try fetching the current status from the PDA
   if (atHeight === undefined) {
@@ -242,7 +242,7 @@ export async function relayFillStatus(
       fetchEncodedAccount(provider, fillStatusPda, { commitment }),
       getNearestSlotTime(provider, { commitment }),
     ]);
-    slot = currentSlot;
+    toSlot = currentSlot;
 
     // If the PDA exists, return the stored fill status
     if (fillStatusAccount.exists) {
@@ -256,9 +256,7 @@ export async function relayFillStatus(
     }
   }
 
-  // If status couldn't be determined from the PDA, or if a specific slot was requested, reconstruct the status from events
-  const toSlot = atHeight ? BigInt(atHeight) : slot;
-
+  // If status couldn't be determined from the PDA, or if a specific slot was requested, reconstruct from events.
   return resolveFillStatusFromPdaEvents(fillStatusPda, toSlot, svmEventsClient);
 }
 
