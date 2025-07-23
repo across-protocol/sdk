@@ -74,6 +74,7 @@ export class RetrySolanaRpcFactory extends SolanaClusterRpcFactory {
           provider: getOriginFromURL(this.clusterUrl),
           method,
           retryAttempt: this.retries - retries,
+          retryDelaySeconds: this.retryDelaySeconds,
           error: error?.toString(),
         });
 

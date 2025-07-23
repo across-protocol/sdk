@@ -72,6 +72,7 @@
     "arlocal": "^1.1.65",
     "chai": "^4.3.8",
     "chai-exclude": "^2.1.0",
+    "commander": "^14.0.0",
     "concurrently": "^9.1.2",
     "dotenv": "^16.0.0",
     "eslint": "^8.49.0",
