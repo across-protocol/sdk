@@ -154,7 +154,6 @@ async function runTest(options: TestOptions) {
     const iterationStart = Date.now();
     try {
       const result = await testScenario(rpcClient);
-      const retried = logger.
       const iterationTime = Date.now() - iterationStart;
       console.log(`✅ Success: ${JSON.stringify(result.result)} (${iterationTime}ms)`);
       results.push({ iteration: i + 1, success: true, result: result.result, time: iterationTime });
