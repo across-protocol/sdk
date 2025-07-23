@@ -1,4 +1,5 @@
 #!/usr/bin/env ts-node
+/* eslint-disable @typescript-eslint/no-explicit-any */
 
 import { program } from "commander";
 import winston from "winston";
@@ -7,36 +8,36 @@ import { ClusterUrl } from "@solana/kit";
 
 /**
  * USAGE EXAMPLES:
- * 
+ *
  * Basic usage (default settings):
  *   npx ts-node solanaProvider.e2e.ts
- * 
+ *
  * Test with specific endpoint and method:
  *   npx ts-node solanaProvider.e2e.ts -e https://api.devnet.solana.com -m getVersion
- * 
+ *
  * Stress test with multiple iterations:
  *   npx ts-node solanaProvider.e2e.ts -n 20 -m getSlot
- * 
+ *
  * Test retry logic with high retry settings:
  *   npx ts-node solanaProvider.e2e.ts -r 5 -d 2 -m getLatestBlockhash
- * 
+ *
  * Test different RPC methods:
  *   npx ts-node solanaProvider.e2e.ts -m getHealth
  *   npx ts-node solanaProvider.e2e.ts -m getEpochInfo
  *   npx ts-node solanaProvider.e2e.ts -m getBlockTime
- * 
+ *
  * Test with devnet:
  *   npx ts-node solanaProvider.e2e.ts -e https://api.devnet.solana.com -i 103
- * 
+ *
  * Test with testnet:
  *   npx ts-node solanaProvider.e2e.ts -e https://api.testnet.solana.com -i 102
- * 
+ *
  * Load testing scenario:
  *   npx ts-node solanaProvider.e2e.ts -n 50 -c 20 -m getSlot
- * 
+ *
  * List available methods:
  *   npx ts-node solanaProvider.e2e.ts list-methods
- * 
+ *
  * Show usage examples:
  *   npx ts-node solanaProvider.e2e.ts examples
  */
@@ -202,9 +203,7 @@ async function runTest(options: TestOptions) {
 }
 
 // CLI setup
-program
-  .name("solana-provider-e2e")
-  .description("Test the Solana Retry RPC Factory with configurable parameters")
+program.name("solana-provider-e2e").description("Test the Solana Retry RPC Factory with configurable parameters");
 
 program
   .option("-e, --endpoint <url>", "Solana RPC endpoint URL", "https://api.mainnet-beta.solana.com")
