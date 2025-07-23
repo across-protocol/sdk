@@ -932,11 +932,7 @@ async function fetchBatchFillStatusFromPdaAccounts(
   const commitment = "confirmed";
 
   const [pdaAccounts, { timestamp }] = await Promise.all([
-    Promise.all(
-      chunk(fillStatusPdas, chunkSize).map((chunk) =>
-        fetchEncodedAccounts(provider, chunk, { commitment })
-      )
-    ),
+    Promise.all(chunk(fillStatusPdas, chunkSize).map((chunk) => fetchEncodedAccounts(provider, chunk, { commitment }))),
     getNearestSlotTime(provider, { commitment }),
   ]);
 
