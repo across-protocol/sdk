@@ -3,6 +3,7 @@ import { MessageTransmitterClient, SvmSpokeClient } from "@across-protocol/contr
 import { BN, BorshEventCoder, Idl } from "@coral-xyz/anchor";
 import {
   Address,
+  type Commitment,
   IInstruction,
   KeyPairSigner,
   address,
@@ -23,7 +24,7 @@ import {
 import bs58 from "bs58";
 import { ethers } from "ethers";
 import { FillType, RelayData } from "../../interfaces";
-import { BigNumber, Address as SdkAddress, getRelayDataHash, isDefined, isUint8Array } from "../../utils";
+import { BigNumber, biMin, Address as SdkAddress, getRelayDataHash, isDefined, isUint8Array } from "../../utils";
 import { AttestedCCTPMessage, EventName, SVMEventNames, SVMProvider } from "./types";
 import { getTimestampForSlot } from "./SpokeUtils";
 
@@ -61,20 +62,22 @@ export function toAddress(address: SdkAddress): Address<string> {
 /**
  * For a given slot (or implicit head of chain), find the immediate preceding slot that contained a block.
  * @param provider SVM Provider instance.
- * @param _slot Optional starting slot number, or the latest slot if undefined.
+ * @param opts An object containing a specific slot number, or a Solana commitment, defaulting to "confirmed".
  * @returns An object containing the slot number and the relevant timestamp for the block.
  */
 export async function findNearestTime(
   provider: SVMProvider,
-  _slot?: bigint
+  opts: { slot: bigint } | { commitment: Commitment } = { commitment: "confirmed" }
 ): Promise<{ slot: bigint; timestamp: number }> {
   let timestamp: number | undefined;
-  let slot = _slot ?? (await provider.getSlot({ commitment: "confirmed" }).send());
+  let slot = "slot" in opts
+    ? opts.slot
+    : (await provider.getSlot(opts).send());
 
   do {
     timestamp = await getTimestampForSlot(provider, slot);
   } while (!isDefined(timestamp) && --slot);
-  assert(isDefined(timestamp), `Unable to resolve block time for SVM slot ${_slot ?? "latest"}`);
+  assert(isDefined(timestamp), `Unable to resolve block time for SVM slot ${slot}`);
 
   return { slot, timestamp: Number(timestamp) };
 }
@@ -90,10 +93,10 @@ export async function getLatestFinalizedSlotWithBlock(
   maxLookback = 1000
 ): Promise<number> {
   const finalizedSlot = await provider.getSlot({ commitment: "finalized" }).send();
-  const endSlot = Math.min(Number(maxSlot), Number(finalizedSlot));
+  const endSlot = biMin(maxSlot, finalizedSlot);
   const opts = { maxSupportedTransactionVersion: 0, transactionDetails: "none", rewards: false } as const;
 
-  let slot = BigInt(endSlot);
+  let slot = endSlot;
   do {
     const block = await provider.getBlock(slot, opts).send();
     if (isDefined(block) && [block.blockHeight, block.blockTime].every(isDefined)) {
