@@ -169,7 +169,7 @@ export async function findDeposit(
   }
 
   const provider = eventClient.getRpc();
-  const currentSlot = await provider.getSlot({ commitment: "confirmed" }).send();
+  const { slot: currentSlot } = await getNearestSlotTime(provider);
 
   // If no slot is provided, use the current slot
   // If a slot is provided, ensure it's not in the future
@@ -322,7 +322,7 @@ export async function fillStatusArray(
   const missingResults: { index: number; fillStatus: FillStatus }[] = [];
 
   // Determine the toSlot to use for event reconstruction
-  const toSlot = atHeight ? BigInt(atHeight) : await provider.getSlot({ commitment: "confirmed" }).send();
+  const toSlot = atHeight ? BigInt(atHeight) : (await getNearestSlotTime(provider)).slot;
 
   // @note: This path is mostly used for deposits past their fill deadline.
   // If it becomes a bottleneck, consider returning an "Unknown" status that can be handled downstream.
@@ -364,7 +364,7 @@ export async function findFillEvent(
   toSlot?: number
 ): Promise<FillWithBlock | undefined> {
   assert(chainIsSvm(destinationChainId), "Destination chain must be an SVM chain");
-  toSlot ??= Number(await svmEventsClient.getRpc().getSlot({ commitment: "confirmed" }).send());
+  toSlot ??= Number((await getNearestSlotTime(svmEventsClient.getRpc())).slot);
 
   // Get fillStatus PDA using relayData
   const programId = svmEventsClient.getProgramAddress();

@@ -90,7 +90,7 @@ export async function getLatestFinalizedSlotWithBlock(
   maxSlot: bigint,
   maxLookback = 1000
 ): Promise<number> {
-  const finalizedSlot = await provider.getSlot({ commitment: "finalized" }).send();
+  const { slot: finalizedSlot } = await getNearestSlotTime(provider, { commitment: "finalized" });
   const endSlot = biMin(maxSlot, finalizedSlot);
   const opts = { maxSupportedTransactionVersion: 0, transactionDetails: "none", rewards: false } as const;
 
