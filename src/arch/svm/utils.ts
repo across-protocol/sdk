@@ -77,7 +77,7 @@ export async function findNearestTime(
   } while (!isDefined(timestamp) && --slot);
   assert(isDefined(timestamp), `Unable to resolve block time for SVM slot ${slot}`);
 
-  return { slot, timestamp: Number(timestamp) };
+  return { slot, timestamp };
 }
 
 /**
