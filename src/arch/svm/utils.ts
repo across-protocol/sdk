@@ -70,9 +70,7 @@ export async function findNearestTime(
   opts: { slot: bigint } | { commitment: Commitment } = { commitment: "confirmed" }
 ): Promise<{ slot: bigint; timestamp: number }> {
   let timestamp: number | undefined;
-  let slot = "slot" in opts
-    ? opts.slot
-    : (await provider.getSlot(opts).send());
+  let slot = "slot" in opts ? opts.slot : await provider.getSlot(opts).send();
 
   do {
     timestamp = await getTimestampForSlot(provider, slot);
