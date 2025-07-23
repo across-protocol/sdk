@@ -237,9 +237,10 @@ export async function relayFillStatus(
 
   // If no specific slot is requested, try fetching the current status from the PDA
   if (atHeight === undefined) {
+    const commitment = "confirmed";
     const [fillStatusAccount, { slot: currentSlot, timestamp }] = await Promise.all([
-      fetchEncodedAccount(provider, fillStatusPda, { commitment: "confirmed" }),
-      getNearestSlotTime(provider),
+      fetchEncodedAccount(provider, fillStatusPda, { commitment }),
+      getNearestSlotTime(provider, { commitment }),
     ]);
     slot = currentSlot;
 
