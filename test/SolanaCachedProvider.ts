@@ -9,7 +9,12 @@ import {
 import bs58 from "bs58";
 import { createHash } from "crypto";
 import winston from "winston";
-import { MockRateLimitedSolanaRpcFactory, MockSolanaRpcFactory, MockCachedSolanaRpcFactory } from "./mocks";
+import {
+  MockRateLimitedSolanaRpcFactory,
+  MockSolanaRpcFactory,
+  MockCachedSolanaRpcFactory,
+  MockRetrySolanaRpcFactory,
+} from "./mocks";
 import { createSpyLogger, expect, spyLogIncludes } from "./utils";
 import { MemoryCacheClient } from "../src/caching";
 import { jsonReviverWithBigInts } from "../src/utils";
@@ -19,6 +24,8 @@ const url = "https://test.example.com/";
 const maxConcurrency = 1;
 const pctRpcCallsLogged = 100; // Will use logs to check underlying transport calls.
 const providerCacheNamespace = "test";
+const retries = 0;
+const retryDelaySeconds = 0;
 const testSignature = signature(bs58.encode(createHash("sha512").update("testSignature").digest()));
 const getSignatureStatusesParams = [[testSignature], { searchTransactionHistory: true }];
 const getTransactionConfig = {
@@ -53,13 +60,26 @@ describe("cached solana provider", () => {
       url,
       chainId,
     ];
-    const rateLimitedRpcFactory = new MockRateLimitedSolanaRpcFactory(mockRpcFactory, ...rateLimitedParams);
+    const mockRateLimitedRpcFactory = new MockRateLimitedSolanaRpcFactory(mockRpcFactory, ...rateLimitedParams);
+
+    // Create the retry factory with the new architecture
+    const retryParams: [number, number, number, number, winston.Logger, string, number] = [
+      retries,
+      retryDelaySeconds,
+      maxConcurrency,
+      pctRpcCallsLogged,
+      spyLoggerResult.spyLogger,
+      url,
+      chainId,
+    ];
+    const mockRetryRpcFactory = new MockRetrySolanaRpcFactory(mockRateLimitedRpcFactory, ...retryParams);
+
     memoryCache = new MemoryCacheClient();
     cachedRpcClient = new MockCachedSolanaRpcFactory(
-      rateLimitedRpcFactory,
+      mockRetryRpcFactory,
       providerCacheNamespace,
       memoryCache,
-      ...rateLimitedParams
+      ...retryParams
     ).createRpcClient();
   });
 

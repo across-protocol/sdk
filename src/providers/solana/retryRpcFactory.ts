@@ -11,7 +11,7 @@ export class RetrySolanaRpcFactory extends SolanaClusterRpcFactory {
   // Holds the underlying transport that the retry wrapper wraps.
   protected rateLimitedTransport: RpcTransport;
 
-  private logger: Logger;
+  protected logger: Logger;
 
   constructor(
     readonly retries: number,
