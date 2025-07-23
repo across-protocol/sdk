@@ -9,7 +9,7 @@ export class MockCachedSolanaRpcFactory extends CachedSolanaRpcFactory {
   ) {
     super(...cachedConstructorParams);
 
-    this.rateLimitedTransport = mockRateLimitedSolanaRpcFactory.createTransport();
-    this.rateLimitedRpcClient = mockRateLimitedSolanaRpcFactory.createRpcClient();
+    this.retryTransport = mockRateLimitedSolanaRpcFactory.createTransport();
+    this.retryRpcClient = mockRateLimitedSolanaRpcFactory.createRpcClient();
   }
 }
