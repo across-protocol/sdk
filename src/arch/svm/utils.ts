@@ -22,7 +22,7 @@ import {
 import bs58 from "bs58";
 import { ethers } from "ethers";
 import { FillType, RelayData } from "../../interfaces";
-import { BigNumber, Address as SdkAddress, getRelayDataHash, isDefined, isUint8Array } from "../../utils";
+import { BigNumber, biMin, Address as SdkAddress, getRelayDataHash, isDefined, isUint8Array } from "../../utils";
 import { AttestedCCTPMessage, EventName, SVMEventNames, SVMProvider } from "./types";
 
 export { isSolanaError } from "@solana/kit";
@@ -67,10 +67,10 @@ export async function getLatestFinalizedSlotWithBlock(
   maxLookback = 1000
 ): Promise<number> {
   const finalizedSlot = await provider.getSlot({ commitment: "finalized" }).send();
-  const endSlot = Math.min(Number(maxSlot), Number(finalizedSlot));
+  const endSlot = biMin(maxSlot, finalizedSlot);
   const opts = { maxSupportedTransactionVersion: 0, transactionDetails: "none", rewards: false } as const;
 
-  let slot = BigInt(endSlot);
+  let slot = endSlot;
   do {
     const block = await provider.getBlock(slot, opts).send();
     if (isDefined(block) && [block.blockHeight, block.blockTime].every(isDefined)) {
