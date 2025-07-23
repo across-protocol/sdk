@@ -102,7 +102,7 @@ export async function getTimestampForSlot(provider: SVMProvider, slotNumber: big
   }
 
   const timestamp = Number(_timestamp);
-  assert(BigInt(timestamp) === _timestamp, `Unexpected SVM block timestamp: ${_timestamp}`);
+  assert(BigInt(timestamp) === _timestamp, `Unexpected SVM block timestamp: ${_timestamp}`); // No truncation.
 
   return timestamp;
 }
