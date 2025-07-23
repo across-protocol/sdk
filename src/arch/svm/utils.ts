@@ -65,7 +65,7 @@ export function toAddress(address: SdkAddress): Address<string> {
  * @param opts An object containing a specific slot number, or a Solana commitment, defaulting to "confirmed".
  * @returns An object containing the slot number and the relevant timestamp for the block.
  */
-export async function findNearestTime(
+export async function getNearestSlotTime(
   provider: SVMProvider,
   opts: { slot: bigint } | { commitment: Commitment } = { commitment: "confirmed" }
 ): Promise<{ slot: bigint; timestamp: number }> {

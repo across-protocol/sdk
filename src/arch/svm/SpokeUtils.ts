@@ -65,7 +65,7 @@ import {
 import { SvmCpiEventsClient } from "./eventsClient";
 import { SVM_NO_BLOCK_AT_SLOT, isSolanaError } from "./provider";
 import { AttestedCCTPMessage, SVMEventNames, SVMProvider } from "./types";
-import { findNearestTime } from "./utils";
+import { getNearestSlotTime } from "./utils";
 
 /**
  * @note: Average Solana slot duration is about 400-500ms. We can be conservative
@@ -239,7 +239,7 @@ export async function relayFillStatus(
   if (atHeight === undefined) {
     const [fillStatusAccount, { slot: currentSlot, timestamp }] = await Promise.all([
       fetchEncodedAccount(provider, fillStatusPda, { commitment: "confirmed" }),
-      findNearestTime(provider),
+      getNearestSlotTime(provider),
     ]);
     slot = currentSlot;
 
@@ -935,7 +935,7 @@ async function fetchBatchFillStatusFromPdaAccounts(
         fetchEncodedAccounts(provider, chunk, { commitment: "confirmed" })
       )
     ),
-    findNearestTime(provider),
+    getNearestSlotTime(provider),
   ]);
 
   const fillStatuses = pdaAccounts.flat().map((account, index) => {

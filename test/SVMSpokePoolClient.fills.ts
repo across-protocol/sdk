@@ -7,7 +7,7 @@ import {
   SVM_DEFAULT_ADDRESS,
   createCloseFillPdaInstruction,
   findFillEvent,
-  findNearestTime,
+  getNearestSlotTime,
   getRandomSvmAddress,
   numberToU8a32,
   toAddress,
@@ -205,7 +205,7 @@ describe("SVMSpokePoolClient: Fills", function () {
 
   it("Closes the fill pda after the fill deadline has passed", async () => {
     const provider = solanaClient.rpc;
-    const { timestamp } = await findNearestTime(provider);
+    const { timestamp } = await getNearestSlotTime(provider);
 
     await setCurrentTime(signer, solanaClient, timestamp);
     const newRelayData = {
