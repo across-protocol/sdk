@@ -65,6 +65,7 @@ import {
 import { SvmCpiEventsClient } from "./eventsClient";
 import { SVM_NO_BLOCK_AT_SLOT, isSolanaError } from "./provider";
 import { AttestedCCTPMessage, SVMEventNames, SVMProvider } from "./types";
+import { getNearestSlotTime } from "./utils";
 
 /**
  * @note: Average Solana slot duration is about 400-500ms. We can be conservative
@@ -83,9 +84,10 @@ type ProtoFill = Omit<RelayData, "recipient" | "outputToken"> & {
  */
 export async function getTimestampForSlot(provider: SVMProvider, slotNumber: bigint): Promise<number | undefined> {
   // @note: getBlockTime receives a slot number, not a block number.
+  let _timestamp: bigint;
+
   try {
-    const blockTime = await provider.getBlockTime(slotNumber).send();
-    return Number(blockTime);
+    _timestamp = await provider.getBlockTime(slotNumber).send();
   } catch (err) {
     if (!isSolanaError(err)) {
       throw err;
@@ -98,6 +100,11 @@ export async function getTimestampForSlot(provider: SVMProvider, slotNumber: big
 
     throw err; // Unhandled Solana error.
   }
+
+  const timestamp = Number(_timestamp);
+  assert(BigInt(timestamp) === _timestamp, `Unexpected SVM block timestamp: ${_timestamp}`); // No truncation.
+
+  return timestamp;
 }
 
 /**
@@ -162,7 +169,7 @@ export async function findDeposit(
   }
 
   const provider = eventClient.getRpc();
-  const currentSlot = await provider.getSlot({ commitment: "confirmed" }).send();
+  const { slot: currentSlot } = await getNearestSlotTime(provider);
 
   // If no slot is provided, use the current slot
   // If a slot is provided, ensure it's not in the future
@@ -226,14 +233,17 @@ export async function relayFillStatus(
   const provider = svmEventsClient.getRpc();
   // Get fill status PDA using relayData
   const fillStatusPda = await getFillStatusPda(programId, relayData, destinationChainId);
-  const currentSlot = await provider.getSlot({ commitment: "confirmed" }).send();
+  let toSlot = BigInt(atHeight ?? 0);
 
   // If no specific slot is requested, try fetching the current status from the PDA
   if (atHeight === undefined) {
-    const [fillStatusAccount, currentSlotTimestamp] = await Promise.all([
-      fetchEncodedAccount(provider, fillStatusPda, { commitment: "confirmed" }),
-      getTimestampForSlot(provider, currentSlot),
+    const commitment = "confirmed";
+    const [fillStatusAccount, { slot: currentSlot, timestamp }] = await Promise.all([
+      fetchEncodedAccount(provider, fillStatusPda, { commitment }),
+      getNearestSlotTime(provider, { commitment }),
     ]);
+    toSlot = currentSlot;
+
     // If the PDA exists, return the stored fill status
     if (fillStatusAccount.exists) {
       const decodedAccountData = decodeFillStatusAccount(fillStatusAccount);
@@ -241,14 +251,12 @@ export async function relayFillStatus(
     }
     // If the PDA doesn't exist and the deadline hasn't passed yet, the deposit must be unfilled,
     // since PDAs can't be closed before the fill deadline.
-    else if (Number(currentSlotTimestamp) < relayData.fillDeadline) {
+    else if (timestamp < relayData.fillDeadline) {
       return FillStatus.Unfilled;
     }
   }
 
-  // If status couldn't be determined from the PDA, or if a specific slot was requested, reconstruct the status from events
-  const toSlot = atHeight ? BigInt(atHeight) : currentSlot;
-
+  // If status couldn't be determined from the PDA, or if a specific slot was requested, reconstruct from events.
   return resolveFillStatusFromPdaEvents(fillStatusPda, toSlot, svmEventsClient);
 }
 
@@ -314,7 +322,7 @@ export async function fillStatusArray(
   const missingResults: { index: number; fillStatus: FillStatus }[] = [];
 
   // Determine the toSlot to use for event reconstruction
-  const toSlot = atHeight ? BigInt(atHeight) : await provider.getSlot({ commitment: "confirmed" }).send();
+  const toSlot = atHeight ? BigInt(atHeight) : (await getNearestSlotTime(provider)).slot;
 
   // @note: This path is mostly used for deposits past their fill deadline.
   // If it becomes a bottleneck, consider returning an "Unknown" status that can be handled downstream.
@@ -356,7 +364,7 @@ export async function findFillEvent(
   toSlot?: number
 ): Promise<FillWithBlock | undefined> {
   assert(chainIsSvm(destinationChainId), "Destination chain must be an SVM chain");
-  toSlot ??= Number(await svmEventsClient.getRpc().getSlot({ commitment: "confirmed" }).send());
+  toSlot ??= Number((await getNearestSlotTime(svmEventsClient.getRpc())).slot);
 
   // Get fillStatus PDA using relayData
   const programId = svmEventsClient.getProgramAddress();
@@ -816,7 +824,7 @@ export const createReceiveMessageInstruction = async (
   input: MessageTransmitterClient.ReceiveMessageInput,
   remainingAccounts: IAccountMeta<string>[]
 ) => {
-  const receiveMessageIx = await MessageTransmitterClient.getReceiveMessageInstruction(input);
+  const receiveMessageIx = MessageTransmitterClient.getReceiveMessageInstruction(input);
   (receiveMessageIx.accounts as IAccountMeta<string>[]).push(...remainingAccounts);
   return pipe(await createDefaultTransaction(solanaClient, signer), (tx) =>
     appendTransactionMessageInstruction(receiveMessageIx, tx)
@@ -919,15 +927,11 @@ async function fetchBatchFillStatusFromPdaAccounts(
   relayDataArray: RelayData[]
 ): Promise<(FillStatus | undefined)[]> {
   const chunkSize = 100; // SVM method getMultipleAccounts allows a max of 100 addresses per request
-  const currentSlot = await provider.getSlot({ commitment: "confirmed" }).send();
+  const commitment = "confirmed";
 
-  const [pdaAccounts, currentSlotTimestamp] = await Promise.all([
-    Promise.all(
-      chunk(fillStatusPdas, chunkSize).map((chunk) =>
-        fetchEncodedAccounts(provider, chunk, { commitment: "confirmed" })
-      )
-    ),
-    getTimestampForSlot(provider, currentSlot),
+  const [pdaAccounts, { timestamp }] = await Promise.all([
+    Promise.all(chunk(fillStatusPdas, chunkSize).map((chunk) => fetchEncodedAccounts(provider, chunk, { commitment }))),
+    getNearestSlotTime(provider, { commitment }),
   ]);
 
   const fillStatuses = pdaAccounts.flat().map((account, index) => {
@@ -939,7 +943,7 @@ async function fetchBatchFillStatusFromPdaAccounts(
 
     // If the PDA doesn't exist and the deadline hasn't passed yet, the deposit must be unfilled,
     // since PDAs can't be closed before the fill deadline.
-    if (Number(currentSlotTimestamp) < relayDataArray[index].fillDeadline) {
+    if (timestamp < relayDataArray[index].fillDeadline) {
       return FillStatus.Unfilled;
     }
 
