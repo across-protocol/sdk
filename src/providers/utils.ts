@@ -96,14 +96,17 @@ const IGNORED_FIELDS = {
   // 2023-08-31 Added blockHash because of upstream zkSync provider disagreements. Consider removing later.
   // 2024-05-07 Added l1BatchNumber and logType due to Alchemy. Consider removing later.
   // 2024-07-11 Added blockTimestamp after zkSync rolled out a new node release.
+  // 2025-07-22 Added requestsHash and withdrawals for Chainstack on Polygon.
   eth_getBlockByNumber: [
     "miner", // polygon (sometimes)
     "l1BatchNumber", // zkSync
     "l1BatchTimestamp", // zkSync
+    "requestsHash", // Chainstack Polygon
     "size", // Alchemy/Arbitrum (temporary)
     "totalDifficulty", // Quicknode/Alchemy (sometimes)
     "logsBloom", // zkSync (third-party providers return 0x0..0)
     "transactions", // Polygon yParity field in transactions[]
+    "withdrawals", // Chainstack Polygon
   ],
   eth_getLogs: ["blockTimestamp", "transactionLogIndex", "l1BatchNumber", "logType"],
 };
