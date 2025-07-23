@@ -279,7 +279,7 @@ export class MockSpokePoolClient extends EVMSpokePoolClient {
     });
   }
 
-  setTokensBridged(tokensBridged: TokensBridged): Log {
+  setTokensBridged(tokensBridged: Omit<TokensBridged, "l2TokenAddress"> & { l2TokenAddress: string }): Log {
     const event = "TokensBridged";
     const topics = [tokensBridged.chainId, tokensBridged.leafId, tokensBridged.l2TokenAddress];
     const args = { ...tokensBridged };
