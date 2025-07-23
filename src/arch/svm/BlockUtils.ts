@@ -96,7 +96,8 @@ export class SVMBlockFinder extends BlockFinder<SVMBlock> {
    * future slots.
    */
   private getBlockTime(slot?: bigint): Promise<{ slot: bigint; timestamp: number }> {
-    return isDefined(slot) ? getNearestSlotTime(this.provider, { slot }) : getNearestSlotTime(this.provider);
+    const opts = isDefined(slot) ? { slot } : undefined;
+    return getNearestSlotTime(this.provider, opts);
   }
 
   // Grabs the most recent slot and caches it.
