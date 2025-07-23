@@ -18,7 +18,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v4
 
       # Note we set an `id` called `release`. We'll use that later...
       - name: Validate and extract release information
@@ -29,7 +29,7 @@ jobs:
       - run: yarn
 
       # Setup .npmrc file to publish to npm
-      - uses: actions/setup-node@v3
+      - uses: actions/setup-node@v4
         with:
           node-version: "20.19.2"
           always-auth: true
