@@ -928,14 +928,15 @@ async function fetchBatchFillStatusFromPdaAccounts(
   relayDataArray: RelayData[]
 ): Promise<(FillStatus | undefined)[]> {
   const chunkSize = 100; // SVM method getMultipleAccounts allows a max of 100 addresses per request
+  const commitment = "confirmed";
 
   const [pdaAccounts, { timestamp }] = await Promise.all([
     Promise.all(
       chunk(fillStatusPdas, chunkSize).map((chunk) =>
-        fetchEncodedAccounts(provider, chunk, { commitment: "confirmed" })
+        fetchEncodedAccounts(provider, chunk, { commitment })
       )
     ),
-    getNearestSlotTime(provider),
+    getNearestSlotTime(provider, { commitment }),
   ]);
 
   const fillStatuses = pdaAccounts.flat().map((account, index) => {
