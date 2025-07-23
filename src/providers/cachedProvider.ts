@@ -140,9 +140,9 @@ export class CacheProvider extends RateLimitedProvider {
       // The only param to this request is "hash" so we can't determine how old the data we want is until after
       // we receive the RPC result. Therefore we'll defer the TTL decision.
       return Promise.resolve(CacheType.DECIDE_TTL_POST_SEND);
+    } else {
+      return Promise.resolve(CacheType.NONE);
     }
-
-    return Promise.resolve(CacheType.NONE);
   }
 
   private getBlockNumberFromRpcResponse(method: string, result: unknown): number {
