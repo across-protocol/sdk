@@ -67,6 +67,7 @@ export class ArweaveClient {
     // Send the transaction
     const request = () => this.client.transactions.post(transaction);
     const result = (await this._retryRequest(request, 0)) as Awaited<ReturnType<typeof request>>;
+    const result = await this.client.transactions.post(transaction)
 
     // Ensure that the result is successful
     if (result.status !== 200) {
@@ -102,10 +103,7 @@ export class ArweaveClient {
     // We should query in via Axios directly to the gateway URL. The reasoning behind this is
     // that the Arweave SDK's `getData` method is too slow and does not provide a way to set a timeout.
     // Therefore, something that could take milliesconds to complete could take tens of minutes.
-    const request = () => axios.get<Record<string, unknown>>(transactionUrl);
-    const { data, status: responseStatus } = (await this._retryRequest(request, 0)) as Awaited<
-      ReturnType<typeof request>
-    >;
+    const { data, status: responseStatus } = await axios.get<Record<string, unknown>>(transactionUrl);
     // Ensure that the result is successful. If it is not, the retrieved value is not our expected type
     // but rather a {status: string, statusText: string} object. We can detect that and return null.
     if (responseStatus !== 200 || ("status" in data && data["status"] !== 200)) {
@@ -148,19 +146,18 @@ export class ArweaveClient {
     validator: Struct<T>,
     originQueryAddress = DEFAULT_ARWEAVE_STORAGE_ADDRESS
   ): Promise<{ data: T; hash: string }[]> {
-    const request = () =>
-      this.client.api.post<{
-        data: {
-          transactions: {
-            edges: {
-              node: {
-                id: string;
-              };
-            }[];
-          };
+    const transactions = await this.client.api.post<{
+      data: {
+        transactions: {
+          edges: {
+            node: {
+              id: string;
+            };
+          }[];
         };
-      }>("/graphql", {
-        query: `
+      };
+    }>("/graphql", {
+      query: `
         { 
           transactions (
             owners: ["${originQueryAddress}"]
@@ -172,8 +169,7 @@ export class ArweaveClient {
             ]
           ) { edges { node { id } } } 
         }`,
-      });
-    const transactions = (await this._retryRequest(request, 0)) as Awaited<ReturnType<typeof request>>;
+    });
     const entries = transactions?.data?.data?.transactions?.edges ?? [];
     this.logger.debug({
       at: "ArweaveClient:getByTopic",
@@ -213,9 +209,7 @@ export class ArweaveClient {
    * @returns The metadata of the transaction if it exists, otherwise null
    */
   async getMetadata(transactionID: string): Promise<Record<string, string> | null> {
-    const transaction = (await this._retryRequest(() => this.client.transactions.get(transactionID), 0)) as Awaited<
-      ReturnType<typeof this.client.transactions.get>
-    > | null;
+    const transaction = await this.client.transactions.get(transactionID);
     if (!isDefined(transaction)) {
       return null;
     }
