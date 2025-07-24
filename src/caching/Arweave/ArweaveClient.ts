@@ -50,9 +50,10 @@ export class ArweaveClient {
    * @
    */
   async set(value: Record<string, unknown>, topicTag?: string | undefined): Promise<string | undefined> {
-    const request = () =>
-      this.client.createTransaction({ data: JSON.stringify(value, jsonReplacerWithBigNumbers) }, this.arweaveJWT);
-    const transaction = (await this._retryRequest(request, 0)) as Awaited<ReturnType<typeof request>>;
+    const transaction = await this.client.createTransaction(
+      { data: JSON.stringify(value, jsonReplacerWithBigNumbers) },
+      this.arweaveJWT
+    );
     // Add tags to the transaction
     transaction.addTag("Content-Type", "application/json");
     transaction.addTag("App-Name", ARWEAVE_TAG_APP_NAME);
@@ -64,7 +65,8 @@ export class ArweaveClient {
     // Sign the transaction
     await this.client.transactions.sign(transaction, this.arweaveJWT);
     // Send the transaction
-    const result = await this.client.transactions.post(transaction);
+    const request = () => this.client.transactions.post(transaction);
+    const result = (await this._retryRequest(request, 0)) as Awaited<ReturnType<typeof request>>;
 
     // Ensure that the result is successful
     if (result.status !== 200) {
@@ -266,17 +268,21 @@ export class ArweaveClient {
    */
   async getBalance(): Promise<BigNumber> {
     const address = await this.getAddress();
-    const request = () => this._requestGetBalance(address);
-    const balanceInFloat = (await this._retryRequest(request, 0)) as string;
-
-    // Sometimes the balance is returned in scientific notation, so we need to
-    // convert it to a BigNumber
-    if (balanceInFloat.includes("e")) {
-      const [balance, exponent] = balanceInFloat.split("e");
-      const resultingBN = BigNumber.from(balance).mul(toBN(10).pow(exponent.replace("+", "")));
-      return BigNumber.from(resultingBN.toString());
-    } else {
-      return BigNumber.from(balanceInFloat);
-    }
+    const request = async () => {
+      const balanceInFloat = await this._requestGetBalance(address);
+      // @dev The reasonn we add in the BN.from into this retry loop is because the client.getBalance call
+      // does not correctly throw an error if the request fails, instead it will return the error string as the
+      // balanceInFloat.
+      // Sometimes the balance is returned in scientific notation, so we need to
+      // convert it to a BigNumber
+      if (balanceInFloat.includes("e")) {
+        const [balance, exponent] = balanceInFloat.split("e");
+        const resultingBN = BigNumber.from(balance).mul(toBN(10).pow(exponent.replace("+", "")));
+        return BigNumber.from(resultingBN.toString());
+      } else {
+        return BigNumber.from(balanceInFloat);
+      }
+    };
+    return (await this._retryRequest(request, 0)) as BigNumber;
   }
 }
