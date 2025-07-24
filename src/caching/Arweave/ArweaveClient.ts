@@ -233,10 +233,6 @@ export class ArweaveClient {
     return this.client.wallets.jwkToAddress(this.arweaveJWT);
   }
 
-  private _requestGetBalance(address: string): Promise<string> {
-    return this.client.wallets.getBalance(address);
-  }
-
   private async _retryRequest(request: () => Promise<unknown>, retryCount: number): Promise<unknown> {
     try {
       return request();
@@ -262,8 +258,8 @@ export class ArweaveClient {
   async getBalance(): Promise<BigNumber> {
     const address = await this.getAddress();
     const request = async () => {
-      const balanceInFloat = await this._requestGetBalance(address);
-      // @dev The reasonn we add in the BN.from into this retry loop is because the client.getBalance call
+      const balanceInFloat = await this.client.wallets.getBalance(address);
+      // @dev The reason we add in the BN.from into this retry loop is because the client.getBalance call
       // does not correctly throw an error if the request fails, instead it will return the error string as the
       // balanceInFloat.
       // Sometimes the balance is returned in scientific notation, so we need to
