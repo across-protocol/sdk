@@ -54,6 +54,7 @@ export class ArweaveClient {
       { data: JSON.stringify(value, jsonReplacerWithBigNumbers) },
       this.arweaveJWT
     );
+
     // Add tags to the transaction
     transaction.addTag("Content-Type", "application/json");
     transaction.addTag("App-Name", ARWEAVE_TAG_APP_NAME);
@@ -65,8 +66,6 @@ export class ArweaveClient {
     // Sign the transaction
     await this.client.transactions.sign(transaction, this.arweaveJWT);
     // Send the transaction
-    const request = () => this.client.transactions.post(transaction);
-    const result = (await this._retryRequest(request, 0)) as Awaited<ReturnType<typeof request>>;
     const result = await this.client.transactions.post(transaction)
 
     // Ensure that the result is successful
