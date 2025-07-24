@@ -3,35 +3,35 @@ import { getThrowSolanaErrorResponseTransformer } from "@solana/rpc-transformers
 import { is, object, optional, string, tuple } from "superstruct";
 import { CachingMechanismInterface } from "../../interfaces";
 import { SolanaClusterRpcFactory } from "./baseRpcFactories";
-import { RateLimitedSolanaRpcFactory } from "./rateLimitedRpcFactory";
 import { CacheType } from "../utils";
 import { jsonReplacerWithBigInts, jsonReviverWithBigInts } from "../../utils";
+import { RetrySolanaRpcFactory } from "./retryRpcFactory";
 
 export class CachedSolanaRpcFactory extends SolanaClusterRpcFactory {
   public readonly getTransactionCachePrefix: string;
 
   // Holds the underlying transport that the cached transport wraps.
-  protected rateLimitedTransport: RpcTransport;
+  protected retryTransport: RpcTransport;
 
-  // RPC client based on the rate limited transport, used internally to check confirmation status.
-  protected rateLimitedRpcClient: RpcFromTransport<SolanaRpcApiFromTransport<RpcTransport>, RpcTransport>;
+  // RPC client based on the retry transport, used internally to check confirmation status.
+  protected retryRpcClient: RpcFromTransport<SolanaRpcApiFromTransport<RpcTransport>, RpcTransport>;
 
   constructor(
     providerCacheNamespace: string,
     readonly redisClient?: CachingMechanismInterface,
-    ...rateLimitedConstructorParams: ConstructorParameters<typeof RateLimitedSolanaRpcFactory>
+    ...retryConstructorParams: ConstructorParameters<typeof RetrySolanaRpcFactory>
   ) {
-    // SolanaClusterRpcFactory shares the last two constructor parameters with RateLimitedSolanaRpcFactory.
-    const superParams = rateLimitedConstructorParams.slice(-2) as [
+    // SolanaClusterRpcFactory shares the last two constructor parameters with RetryRpcFactory.
+    const superParams = retryConstructorParams.slice(-2) as [
       ConstructorParameters<typeof SolanaClusterRpcFactory>[0], // clusterUrl: ClusterUrl
       ConstructorParameters<typeof SolanaClusterRpcFactory>[1], // chainId: number
     ];
     super(...superParams);
 
     // Create the rate limited transport and RPC client.
-    const rateLimitedRpcFactory = new RateLimitedSolanaRpcFactory(...rateLimitedConstructorParams);
-    this.rateLimitedTransport = rateLimitedRpcFactory.createTransport();
-    this.rateLimitedRpcClient = rateLimitedRpcFactory.createRpcClient();
+    const retryRpcFactory = new RetrySolanaRpcFactory(...retryConstructorParams);
+    this.retryTransport = retryRpcFactory.createTransport();
+    this.retryRpcClient = retryRpcFactory.createRpcClient();
 
     // Pre-compute as much of the redis key as possible.
     const cachePrefix = `${providerCacheNamespace},${new URL(this.clusterUrl).hostname},${this.chainId}`;
@@ -44,7 +44,7 @@ export class CachedSolanaRpcFactory extends SolanaClusterRpcFactory {
       const cacheType = this.redisClient ? this.cacheType(method) : CacheType.NONE;
 
       if (cacheType === CacheType.NONE) {
-        return this.rateLimitedTransport<TResponse>(...args);
+        return this.retryTransport<TResponse>(...args);
       }
 
       const redisKey = this.buildRedisKey(method, params);
@@ -66,27 +66,27 @@ export class CachedSolanaRpcFactory extends SolanaClusterRpcFactory {
     const { method, params } = args[0].payload as { method: string; params?: unknown[] };
 
     // Only handles getTransaction right now.
-    if (method !== "getTransaction") return this.rateLimitedTransport<TResponse>(...args);
+    if (method !== "getTransaction") return this.retryTransport<TResponse>(...args);
 
     // Do not throw if params are not valid, just skip caching and pass through to the underlying transport.
-    if (!this.isGetTransactionParams(params)) return this.rateLimitedTransport<TResponse>(...args);
+    if (!this.isGetTransactionParams(params)) return this.retryTransport<TResponse>(...args);
 
     // Check the confirmation status first to avoid caching non-finalized transactions. In case of null or errors just
     // skip caching and pass through to the underlying transport.
     try {
-      const getSignatureStatusesResponse = await this.rateLimitedRpcClient
+      const getSignatureStatusesResponse = await this.retryRpcClient
         .getSignatureStatuses([params[0]], {
           searchTransactionHistory: true,
         })
         .send();
       if (getSignatureStatusesResponse.value[0]?.confirmationStatus !== "finalized") {
-        return this.rateLimitedTransport<TResponse>(...args);
+        return this.retryTransport<TResponse>(...args);
       }
     } catch (error) {
-      return this.rateLimitedTransport<TResponse>(...args);
+      return this.retryTransport<TResponse>(...args);
     }
 
-    const getTransactionResponse = await this.rateLimitedTransport<TResponse>(...args);
+    const getTransactionResponse = await this.retryTransport<TResponse>(...args);
 
     // Do not cache JSON-RPC error responses, let them pass through for the RPC client to handle.
     try {

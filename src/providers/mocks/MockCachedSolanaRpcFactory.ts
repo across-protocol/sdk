@@ -1,15 +1,15 @@
 import { CachedSolanaRpcFactory } from "..";
-import { MockRateLimitedSolanaRpcFactory } from "./MockRateLimitedSolanaRpcFactory";
+import { MockRetrySolanaRpcFactory } from "./MockRetrySolanaRpcFactory";
 
-// Creates mocked cached Solana RPC factory by using the mocked Solana RPC factory.
+// Creates mocked cached Solana RPC factory by using the mocked retry Solana RPC factory.
 export class MockCachedSolanaRpcFactory extends CachedSolanaRpcFactory {
   constructor(
-    mockRateLimitedSolanaRpcFactory: MockRateLimitedSolanaRpcFactory,
+    mockRetrySolanaRpcFactory: MockRetrySolanaRpcFactory,
     ...cachedConstructorParams: ConstructorParameters<typeof CachedSolanaRpcFactory>
   ) {
     super(...cachedConstructorParams);
 
-    this.rateLimitedTransport = mockRateLimitedSolanaRpcFactory.createTransport();
-    this.rateLimitedRpcClient = mockRateLimitedSolanaRpcFactory.createRpcClient();
+    this.retryTransport = mockRetrySolanaRpcFactory.createTransport();
+    this.retryRpcClient = mockRetrySolanaRpcFactory.createRpcClient();
   }
 }
