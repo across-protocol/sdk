@@ -16,7 +16,7 @@ export class ArweaveClient {
     gatewayURL = "arweave.net",
     protocol = "https",
     port = 443,
-    private readonly retries = 3,
+    private readonly retries = 2,
     private readonly retryDelaySeconds = 1
   ) {
     this.gatewayUrl = `${protocol}://${gatewayURL}:${port}`;
