@@ -4,7 +4,7 @@ import axios from "axios";
 import { Struct, create } from "superstruct";
 import winston from "winston";
 import { ARWEAVE_TAG_APP_NAME, ARWEAVE_TAG_APP_VERSION, DEFAULT_ARWEAVE_STORAGE_ADDRESS } from "../../constants";
-import { BigNumber, isDefined, jsonReplacerWithBigNumbers, toBN } from "../../utils";
+import { BigNumber, delay, isDefined, jsonReplacerWithBigNumbers, toBN } from "../../utils";
 
 export class ArweaveClient {
   private client: Arweave;
@@ -15,7 +15,9 @@ export class ArweaveClient {
     private logger: winston.Logger,
     gatewayURL = "arweave.net",
     protocol = "https",
-    port = 443
+    port = 443,
+    private readonly retries = 3,
+    private readonly retryDelaySeconds = 1
   ) {
     this.gatewayUrl = `${protocol}://${gatewayURL}:${port}`;
     this.client = new Arweave({
@@ -30,6 +32,12 @@ export class ArweaveClient {
       message: "Arweave client initialized",
       gateway: this.gatewayUrl,
     });
+    if (this.retries < 0 || !Number.isInteger(this.retries)) {
+      throw new Error(`retries cannot be < 0 and must be an integer. Currently set to ${this.retries}`);
+    }
+    if (this.retryDelaySeconds < 0) {
+      throw new Error(`delay cannot be < 0. Currently set to ${this.retryDelaySeconds}`);
+    }
   }
 
   /**
@@ -42,11 +50,9 @@ export class ArweaveClient {
    * @
    */
   async set(value: Record<string, unknown>, topicTag?: string | undefined): Promise<string | undefined> {
-    const transaction = await this.client.createTransaction(
-      { data: JSON.stringify(value, jsonReplacerWithBigNumbers) },
-      this.arweaveJWT
-    );
-
+    const request = () =>
+      this.client.createTransaction({ data: JSON.stringify(value, jsonReplacerWithBigNumbers) }, this.arweaveJWT);
+    const transaction = (await this._retryRequest(request, 0)) as Awaited<ReturnType<typeof request>>;
     // Add tags to the transaction
     transaction.addTag("Content-Type", "application/json");
     transaction.addTag("App-Name", ARWEAVE_TAG_APP_NAME);
@@ -94,7 +100,10 @@ export class ArweaveClient {
     // We should query in via Axios directly to the gateway URL. The reasoning behind this is
     // that the Arweave SDK's `getData` method is too slow and does not provide a way to set a timeout.
     // Therefore, something that could take milliesconds to complete could take tens of minutes.
-    const { data, status: responseStatus } = await axios.get<Record<string, unknown>>(transactionUrl);
+    const request = () => axios.get<Record<string, unknown>>(transactionUrl);
+    const { data, status: responseStatus } = (await this._retryRequest(request, 0)) as Awaited<
+      ReturnType<typeof request>
+    >;
     // Ensure that the result is successful. If it is not, the retrieved value is not our expected type
     // but rather a {status: string, statusText: string} object. We can detect that and return null.
     if (responseStatus !== 200 || ("status" in data && data["status"] !== 200)) {
@@ -137,18 +146,19 @@ export class ArweaveClient {
     validator: Struct<T>,
     originQueryAddress = DEFAULT_ARWEAVE_STORAGE_ADDRESS
   ): Promise<{ data: T; hash: string }[]> {
-    const transactions = await this.client.api.post<{
-      data: {
-        transactions: {
-          edges: {
-            node: {
-              id: string;
-            };
-          }[];
+    const request = () =>
+      this.client.api.post<{
+        data: {
+          transactions: {
+            edges: {
+              node: {
+                id: string;
+              };
+            }[];
+          };
         };
-      };
-    }>("/graphql", {
-      query: `
+      }>("/graphql", {
+        query: `
         { 
           transactions (
             owners: ["${originQueryAddress}"]
@@ -160,7 +170,8 @@ export class ArweaveClient {
             ]
           ) { edges { node { id } } } 
         }`,
-    });
+      });
+    const transactions = (await this._retryRequest(request, 0)) as Awaited<ReturnType<typeof request>>;
     const entries = transactions?.data?.data?.transactions?.edges ?? [];
     this.logger.debug({
       at: "ArweaveClient:getByTopic",
@@ -200,7 +211,9 @@ export class ArweaveClient {
    * @returns The metadata of the transaction if it exists, otherwise null
    */
   async getMetadata(transactionID: string): Promise<Record<string, string> | null> {
-    const transaction = await this.client.transactions.get(transactionID);
+    const transaction = (await this._retryRequest(() => this.client.transactions.get(transactionID), 0)) as Awaited<
+      ReturnType<typeof this.client.transactions.get>
+    > | null;
     if (!isDefined(transaction)) {
       return null;
     }
@@ -225,13 +238,37 @@ export class ArweaveClient {
     return this.client.wallets.jwkToAddress(this.arweaveJWT);
   }
 
+  private _requestGetBalance(address: string): Promise<string> {
+    return this.client.wallets.getBalance(address);
+  }
+
+  private async _retryRequest(request: () => Promise<unknown>, retryCount: number): Promise<unknown> {
+    try {
+      return request();
+    } catch (e) {
+      if (retryCount < this.retries) {
+        this.logger.debug({
+          at: "ArweaveClient:getBalance",
+          message: `Arweave request failed, retrying after waiting ${this.retryDelaySeconds} seconds: ${e}`,
+          retryCount,
+        });
+        await delay(this.retryDelaySeconds);
+        return this._retryRequest(request, retryCount + 1);
+      } else {
+        throw e;
+      }
+    }
+  }
+
   /**
    * The balance of the signer
    * @returns The balance of the signer in winston units
    */
   async getBalance(): Promise<BigNumber> {
     const address = await this.getAddress();
-    const balanceInFloat = await this.client.wallets.getBalance(address);
+    const request = () => this._requestGetBalance(address);
+    const balanceInFloat = (await this._retryRequest(request, 0)) as string;
+
     // Sometimes the balance is returned in scientific notation, so we need to
     // convert it to a BigNumber
     if (balanceInFloat.includes("e")) {
