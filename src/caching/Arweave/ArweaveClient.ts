@@ -66,7 +66,7 @@ export class ArweaveClient {
     // Sign the transaction
     await this.client.transactions.sign(transaction, this.arweaveJWT);
     // Send the transaction
-    const result = await this.client.transactions.post(transaction)
+    const result = await this.client.transactions.post(transaction);
 
     // Ensure that the result is successful
     if (result.status !== 200) {
