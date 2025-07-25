@@ -1043,8 +1043,8 @@ export class HubPoolClient extends BaseAbstractClient {
         ),
         hubPool.callStatic.multicall(multicall, { blockTag: update.searchEndBlock }),
       ]);
-      const lpTokenInfo = lpTokenMulticall.map((lpToken: string) =>
-        hubPool.interface.decodeFunctionResult(pooledTokensFn, lpToken)
+      const lpTokenInfo = lpTokenMulticall.map((result: string) =>
+        hubPool.interface.decodeFunctionResult(pooledTokensFn, result)
       );
 
       for (const info of tokenInfo) {
