@@ -1,9 +1,7 @@
-import assert from "assert";
-import { MessageTransmitterClient, SvmSpokeClient } from "@across-protocol/contracts";
+import { MessageTransmitterClient, SpokePool__factory, SvmSpokeClient } from "@across-protocol/contracts";
 import { BN, BorshEventCoder, Idl } from "@coral-xyz/anchor";
 import {
   Address,
-  type Commitment,
   IInstruction,
   KeyPairSigner,
   address,
@@ -19,14 +17,16 @@ import {
   setTransactionMessageFeePayerSigner,
   setTransactionMessageLifetimeUsingBlockhash,
   signTransactionMessageWithSigners,
+  type Commitment,
   type TransactionSigner,
 } from "@solana/kit";
+import assert from "assert";
 import bs58 from "bs58";
 import { ethers } from "ethers";
 import { FillType, RelayData } from "../../interfaces";
-import { BigNumber, biMin, Address as SdkAddress, getRelayDataHash, isDefined, isUint8Array } from "../../utils";
-import { AttestedCCTPMessage, EventName, SVMEventNames, SVMProvider } from "./types";
+import { BigNumber, Address as SdkAddress, biMin, getRelayDataHash, isDefined, isUint8Array } from "../../utils";
 import { getTimestampForSlot } from "./SpokeUtils";
+import { AttestedCCTPMessage, EventName, SVMEventNames, SVMProvider } from "./types";
 
 export { isSolanaError } from "@solana/kit";
 
@@ -471,6 +471,41 @@ export const getCCTPNoncePda = async (
 export function isDepositForBurnEvent(event: AttestedCCTPMessage): boolean {
   return event.type === "transfer";
 }
+
+/**
+ * True if `body` encodes a `relayRootBundle(bytes32,bytes32)` call.
+ */
+export const isRelayRootBundleMessageBody = (body: Buffer): boolean => {
+  if (body.length < 4) return false;
+
+  const spokePoolInterface = new ethers.utils.Interface(SpokePool__factory.abi);
+  const relayRootBundleSelector = spokePoolInterface.getSighash("relayRootBundle");
+
+  return body.slice(0, 4).equals(Buffer.from(relayRootBundleSelector.slice(2), "hex"));
+};
+
+/**
+ * True if `body` encodes a `emergencyDeleteRootBundle(uint32)` call.
+ */
+export const isEmergencyDeleteRootBundleMessageBody = (body: Buffer): boolean => {
+  if (body.length < 4) return false;
+
+  const spokePoolInterface = new ethers.utils.Interface(SpokePool__factory.abi);
+  const emergencyDeleteRootBundleSelector = spokePoolInterface.getSighash("emergencyDeleteRootBundle");
+
+  return body.slice(0, 4).equals(Buffer.from(emergencyDeleteRootBundleSelector.slice(2), "hex"));
+};
+
+/**
+ * Decodes the root bundle ID from an emergency delete root bundle message body.
+ * @param body The message body.
+ * @returns The root bundle ID.
+ */
+export const getEmergencyDeleteRootBundleRootBundleId = (body: Buffer): number => {
+  const spokePoolInterface = new ethers.utils.Interface(SpokePool__factory.abi);
+  const result = spokePoolInterface.decodeFunctionData("emergencyDeleteRootBundle", body);
+  return result.rootBundleId.toNumber();
+};
 
 /**
  * Convert a bigint (0 ≤ n < 2^256) to a 32-byte Uint8Array (big-endian).
