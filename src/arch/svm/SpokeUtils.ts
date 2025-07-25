@@ -92,13 +92,10 @@ export async function getTimestampForSlot(provider: SVMProvider, slotNumber: big
   try {
     _timestamp = await provider.getBlockTime(slotNumber).send();
   } catch (err) {
-    if (!isSolanaError(err)) {
-      throw err;
-    }
-
-    const { __code: code } = err.context;
-    if ([SVM_NO_BLOCK_AT_SLOT].includes(code)) {
-      return undefined;
+    if (isSolanaError(err)) {
+      if ([SVM_NO_BLOCK_AT_SLOT].includes(err.context.__code)) {
+        return undefined;
+      }
     }
 
     throw err; // Unhandled Solana error.
