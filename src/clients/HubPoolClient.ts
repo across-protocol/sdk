@@ -1035,7 +1035,7 @@ export class HubPoolClient extends BaseAbstractClient {
 
       const [tokenInfo, lpTokenMulticall] = await Promise.all([
         Promise.all(
-          uniqueL1Tokens.map(async (l1Token: string) => {
+          uniqueL1Tokens.map(async (l1Token) => {
             const tokenInfo = await fetchTokenInfo(l1Token, this.hubPool.provider);
             return {
               ...tokenInfo,
@@ -1045,10 +1045,10 @@ export class HubPoolClient extends BaseAbstractClient {
         ),
         hubPool.callStatic.multicall(multicall, { blockTag: update.searchEndBlock }),
       ]);
-
       const lpTokenInfo = lpTokenMulticall.map((lpToken: string) =>
         hubPool.interface.decodeFunctionResult(pooledTokensFn, lpToken)
       );
+
       for (const info of tokenInfo) {
         if (!this.l1Tokens.find((token) => token.address.eq(info.address))) {
           if (info.decimals > 0 && info.decimals <= 18) {
