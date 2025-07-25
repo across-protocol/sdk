@@ -20,6 +20,12 @@ export const bnUint32Max = BigNumber.from("0xffffffff");
 export const bnUint256Max = BigNumber.from("0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff");
 
 /**
+ * BigInt min/max helpers.
+ */
+export const biMin = (a: bigint, b: bigint) => (a > b ? b : a);
+export const biMax = (a: bigint, b: bigint) => (a > b ? a : b);
+
+/**
  * Converts a stringified number into a BigNumber with 18 decimal places.
  * @param num The number to parse.
  * @returns The parsed BigNumber.

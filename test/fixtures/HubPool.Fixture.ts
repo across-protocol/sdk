@@ -60,10 +60,10 @@ export async function setupHubPool(
   const [owner, depositor, relayer, dataworker] = await ethers.getSigners();
   const hubPoolChainId = await owner.getChainId();
 
-  const { spokePool: spokePool_1, erc20: erc20_1 } = await deploySpokePoolWithToken(originChainId, destinationChainId);
-  const { spokePool: spokePool_2, erc20: erc20_2 } = await deploySpokePoolWithToken(destinationChainId, originChainId);
-  const { spokePool: spokePool_3 } = await deploySpokePoolWithToken(repaymentChainId, hubPoolChainId);
-  const { spokePool: spokePool_4 } = await deploySpokePoolWithToken(hubPoolChainId, repaymentChainId);
+  const { spokePool: spokePool_1, erc20: erc20_1 } = await deploySpokePoolWithToken(originChainId);
+  const { spokePool: spokePool_2, erc20: erc20_2 } = await deploySpokePoolWithToken(destinationChainId);
+  const { spokePool: spokePool_3 } = await deploySpokePoolWithToken(repaymentChainId);
+  const { spokePool: spokePool_4 } = await deploySpokePoolWithToken(hubPoolChainId);
   const spokePoolDeploymentBlocks = {
     [originChainId]: await spokePool_1.provider.getBlockNumber(),
     [destinationChainId]: await spokePool_2.provider.getBlockNumber(),
@@ -229,7 +229,7 @@ async function _constructSpokePoolClientsWithLookback(
       hubPoolClient,
       spokePoolChains[i],
       deploymentBlocks?.[spokePoolChains[i]] ?? 0,
-      lookbackForAllChains === undefined ? undefined : { fromBlock: latestBlocks[i] - lookbackForAllChains }
+      lookbackForAllChains === undefined ? undefined : { from: latestBlocks[i] - lookbackForAllChains }
     );
   });
 }
