@@ -552,7 +552,7 @@ describe("SpokePoolClient: Event Filtering", function () {
         l2TokenAddress,
       ] = Array(8)
         .fill(0)
-        .map((_) => toAddressType(randomAddress(), originChainId));
+        .map((_) => EvmAddress.from(randomAddress()));
 
       const common = {
         depositor,
@@ -582,6 +582,8 @@ describe("SpokePoolClient: Event Filtering", function () {
       // Deposit
       originSpokePoolClient.deposit({ ...common, message: randomBytes(32) });
 
+      if (!depositor.isEVM()) throw `depositor is not evm ${depositor}`;
+
       // SpeedUpDeposit
       originSpokePoolClient.speedUpDeposit({
         originChainId,
@@ -608,7 +610,7 @@ describe("SpokePoolClient: Event Filtering", function () {
 
       // TokensBridged
       originSpokePoolClient.setTokensBridged({
-        l2TokenAddress,
+        l2TokenAddress: l2TokenAddress.toBytes32(),
         chainId: i,
         leafId: i + 1,
         amountToReturn: toBN(random()),

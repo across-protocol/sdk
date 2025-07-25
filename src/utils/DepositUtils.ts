@@ -265,7 +265,7 @@ export function resolveDepositMessage(deposit: Deposit): string {
  * Converts a RelayData object with `Address` types as address fields to a `RelayData`-like object with
  * strings as address fields.
  * @param relayData RelayData type.
- * @returns a RelayData-like type which has strings as fields.
+ * @returns a RelayData-like type which has hex 32 byte strings as fields.
  */
 export function convertRelayDataParamsToBytes32(relayData: RelayData): ConvertedRelayData {
   return {
@@ -282,7 +282,7 @@ export function convertRelayDataParamsToBytes32(relayData: RelayData): Converted
  * Converts a Fill object with `Address` types as address fields to a `RelayData`-like object with
  * strings as address fields.
  * @param relayData RelayData type.
- * @returns a RelayData-like type which has strings as fields.
+ * @returns a RelayData-like type which has hex 32 byte strings as fields.
  */
 export function convertFillParamsToBytes32(fill: Fill): ConvertedFill {
   return {
@@ -296,6 +296,45 @@ export function convertFillParamsToBytes32(fill: Fill): ConvertedFill {
     relayExecutionInfo: {
       ...fill.relayExecutionInfo,
       updatedRecipient: fill.relayExecutionInfo.updatedRecipient.toBytes32(),
+    },
+  };
+}
+
+/**
+ * Converts a RelayData object with `Address` types as address fields to a `RelayData`-like object with
+ * strings as address fields.
+ * @param relayData RelayData type.
+ * @returns a RelayData-like type which has native address representation strings as fields.
+ */
+export function convertRelayDataParamsToNative(relayData: RelayData): ConvertedRelayData {
+  return {
+    ...relayData,
+    depositor: relayData.depositor.toNative(),
+    recipient: relayData.recipient.toNative(),
+    inputToken: relayData.inputToken.toNative(),
+    outputToken: relayData.outputToken.toNative(),
+    exclusiveRelayer: relayData.exclusiveRelayer.toNative(),
+  };
+}
+
+/**
+ * Converts a Fill object with `Address` types as address fields to a `RelayData`-like object with
+ * strings as address fields.
+ * @param relayData RelayData type.
+ * @returns a RelayData-like type which has native address representation strings as fields.
+ */
+export function convertFillParamsToNative(fill: Fill): ConvertedFill {
+  return {
+    ...fill,
+    depositor: fill.depositor.toNative(),
+    recipient: fill.recipient.toNative(),
+    inputToken: fill.inputToken.toNative(),
+    outputToken: fill.outputToken.toNative(),
+    exclusiveRelayer: fill.exclusiveRelayer.toNative(),
+    relayer: fill.relayer.toNative(),
+    relayExecutionInfo: {
+      ...fill.relayExecutionInfo,
+      updatedRecipient: fill.relayExecutionInfo.updatedRecipient.toNative(),
     },
   };
 }

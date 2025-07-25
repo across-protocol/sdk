@@ -18,6 +18,7 @@ import {
   bnUint32Max,
   getCurrentTime,
   getMessageHash,
+  isDefined,
   resolveContractFromSymbol,
   toAddressType,
   toBN,
@@ -548,25 +549,25 @@ const iterativelyReplaceBigNumbers = (obj: Record<string | symbol, unknown> | ob
 export function buildDepositForRelayerFeeTest(
   amount: BigNumberish,
   tokenSymbol: string,
-  originChainId: string | number,
-  toChainId: string | number
+  originChainId: number,
+  toChainId: number
 ): Deposit {
-  const inputToken = toAddressType(resolveContractFromSymbol(tokenSymbol, String(originChainId)), originChainId);
-  const outputToken = toAddressType(resolveContractFromSymbol(tokenSymbol, String(toChainId)), toChainId);
-  expect(inputToken).to.not.be.undefined;
-  expect(outputToken).to.not.undefined;
-  if (!inputToken || !outputToken) {
-    throw new Error("Token not found");
-  }
+  const _inputToken = resolveContractFromSymbol(tokenSymbol, originChainId);
+  assert(isDefined(_inputToken), `${tokenSymbol} not found on ${originChainId}`);
+  const inputToken = toAddressType(_inputToken, originChainId);
+
+  const _outputToken = resolveContractFromSymbol(tokenSymbol, toChainId);
+  assert(isDefined(_outputToken), `${tokenSymbol} not found on ${toChainId}`);
+  const outputToken = toAddressType(_outputToken, toChainId);
 
   const currentTime = getCurrentTime();
   const message = EMPTY_MESSAGE;
   return {
     depositId: bnUint32Max,
-    originChainId: Number(originChainId),
-    destinationChainId: Number(toChainId),
-    depositor: toAddressType(randomAddress(), Number(originChainId)),
-    recipient: toAddressType(randomAddress(), Number(toChainId)),
+    originChainId: originChainId,
+    destinationChainId: toChainId,
+    depositor: toAddressType(randomAddress(), originChainId),
+    recipient: toAddressType(randomAddress(), toChainId),
     inputToken,
     inputAmount: toBN(amount),
     outputToken,
@@ -576,7 +577,7 @@ export function buildDepositForRelayerFeeTest(
     quoteTimestamp: currentTime,
     fillDeadline: currentTime + 7200,
     exclusivityDeadline: 0,
-    exclusiveRelayer: toAddressType(ZERO_ADDRESS, Number(toChainId)),
+    exclusiveRelayer: toAddressType(ZERO_ADDRESS, toChainId),
     fromLiteChain: false,
     toLiteChain: false,
   };
