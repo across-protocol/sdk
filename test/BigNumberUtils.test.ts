@@ -1,7 +1,49 @@
-import { BigNumber, parseEther, parseUnits, toWei, toGWei, toBN } from "../src/utils/BigNumberUtils";
+import { BigNumber, parseEther, parseUnits, toWei, toGWei, toBN, biMin, biMax } from "../src/utils/BigNumberUtils";
 import { expect } from "./utils";
 
 describe("BigNumberUtils", () => {
+  describe("biMin", () => {
+    it("should return the smaller of two bigints", () => {
+      expect(biMin(5n, 3n)).to.equal(3n);
+      expect(biMin(3n, 5n)).to.equal(3n);
+    });
+
+    it("should return the same value when both bigints are equal", () => {
+      expect(biMin(7n, 7n)).to.equal(7n);
+    });
+
+    it("should handle negative bigints correctly", () => {
+      expect(biMin(-5n, -3n)).to.equal(-5n);
+      expect(biMin(-3n, 2n)).to.equal(-3n);
+    });
+
+    it("should handle zero correctly", () => {
+      expect(biMin(0n, 5n)).to.equal(0n);
+      expect(biMin(-1n, 0n)).to.equal(-1n);
+    });
+  });
+
+  describe("biMax", () => {
+    it("should return the larger of two bigints", () => {
+      expect(biMax(5n, 3n)).to.equal(5n);
+      expect(biMax(3n, 5n)).to.equal(5n);
+    });
+
+    it("should return the same value when both bigints are equal", () => {
+      expect(biMax(7n, 7n)).to.equal(7n);
+    });
+
+    it("should handle negative bigints correctly", () => {
+      expect(biMax(-5n, -3n)).to.equal(-3n);
+      expect(biMax(-3n, 2n)).to.equal(2n);
+    });
+
+    it("should handle zero correctly", () => {
+      expect(biMax(0n, 5n)).to.equal(5n);
+      expect(biMax(-1n, 0n)).to.equal(0n);
+    });
+  });
+
   describe("toWei", () => {
     it("should convert a stringified number to a BigNumber with 18 decimal places", () => {
       const num = "123.456";

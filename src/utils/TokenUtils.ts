@@ -58,12 +58,12 @@ export function resolveSymbolOnChain(chainId: number, symbol: string): TokenInfo
  */
 export const resolveContractFromSymbol = (
   symbol: string,
-  chainId: string,
+  chainId: number,
   tokenMapping = TOKEN_SYMBOLS_MAP
 ): string | undefined => {
   return Object.values(tokenMapping).find((details) => {
     return details.symbol.toLowerCase() === symbol.toLowerCase();
-  })?.addresses[Number(chainId)];
+  })?.addresses[chainId];
 };
 
 export function getCoingeckoTokenIdByAddress(address: string, chainId: number): string {

@@ -1,7 +1,7 @@
 import { providers } from "ethers";
 import { CachingMechanismInterface } from "../interfaces";
 import { EventSearchConfig, isDefined, MakeOptional } from "../utils";
-import { SVMProvider } from "../arch/svm";
+import { getNearestSlotTime, SVMProvider } from "../arch/svm";
 
 export enum UpdateFailureReason {
   NotReady,
@@ -72,7 +72,8 @@ export abstract class BaseAbstractClient {
       if (provider instanceof providers.Provider) {
         to = await provider.getBlockNumber();
       } else {
-        to = Number(await provider.getSlot({ commitment: "confirmed" }).send());
+        const { slot } = await getNearestSlotTime(provider);
+        to = Number(slot);
       }
       if (to < from) {
         return UpdateFailureReason.AlreadyUpdated;
