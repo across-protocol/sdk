@@ -233,7 +233,7 @@ export class ArweaveClient {
     return this.client.wallets.jwkToAddress(this.arweaveJWT);
   }
 
-  private async _retryRequest(request: () => Promise<unknown>, retryCount: number): Promise<unknown> {
+  private async _retryRequest<T>(request: () => Promise<T>, retryCount: number): Promise<T> {
     try {
       return request();
     } catch (e) {
@@ -275,6 +275,6 @@ export class ArweaveClient {
         return BigNumber.from(balanceInFloat);
       }
     };
-    return (await this._retryRequest(request, 0)) as BigNumber;
+    return await this._retryRequest(request, 0);
   }
 }
