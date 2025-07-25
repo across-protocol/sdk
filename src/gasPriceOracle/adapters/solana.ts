@@ -1,5 +1,5 @@
 import { SVMProvider } from "../../arch/svm";
-import { toBN, dedupArray, parseUnits } from "../../utils";
+import { toBN, dedupArray } from "../../utils";
 import { SvmGasPriceEstimate } from "../types";
 import { GasPriceEstimateOptions } from "../oracle";
 import { CompilableTransactionMessage, TransactionMessageBytesBase64, compileTransaction } from "@solana/kit";
@@ -32,14 +32,9 @@ export async function messageFee(provider: SVMProvider, opts: GasPriceEstimateOp
     .filter((fee) => fee > 0);
   const totalPrioritizationFees = nonzeroPrioritizationFees.reduce((acc, fee) => acc + fee, BigInt(0));
 
-  // Optionally impose a minimum priority fee, denoted in microLamports/computeUnit.
-  const flooredPriorityFeePerGas = parseUnits(process.env[`MIN_PRIORITY_FEE_PER_GAS_${opts.chainId}`] || "0", 6);
-  let microLamportsPerComputeUnit = toBN(
+  const microLamportsPerComputeUnit = toBN(
     totalPrioritizationFees / BigInt(Math.max(nonzeroPrioritizationFees.length, 1))
   );
-  if (microLamportsPerComputeUnit.lt(flooredPriorityFeePerGas)) {
-    microLamportsPerComputeUnit = flooredPriorityFeePerGas;
-  }
   return {
     baseFee: toBN(baseFeeResponse!.value!),
     microLamportsPerComputeUnit,
