@@ -552,7 +552,7 @@ describe("SpokePoolClient: Event Filtering", function () {
         l2TokenAddress,
       ] = Array(8)
         .fill(0)
-        .map((_) => toAddressType(randomAddress(), originChainId));
+        .map((_) => EvmAddress.from(randomAddress()));
 
       const common = {
         depositor,

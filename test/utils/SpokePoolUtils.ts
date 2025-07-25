@@ -1,10 +1,10 @@
-import { DepositWithBlock, Fill, FillType } from "../../src/interfaces";
+import { DepositWithBlock, RelayData, FillType } from "../../src/interfaces";
 import { Address, getMessageHash } from "../../src/utils";
 
 export function fillFromDeposit(
   deposit: DepositWithBlock,
   relayer: Address
-): Omit<Fill, "messageHash"> & { message: string } {
+): RelayData & { destinationChainId: number } {
   const { blockNumber, txnRef, txnIndex, ...partialDeposit } = deposit;
   const { recipient, message } = partialDeposit;
 

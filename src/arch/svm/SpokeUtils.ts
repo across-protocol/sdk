@@ -5,14 +5,17 @@ import { intToU8Array32 } from "@across-protocol/contracts/dist/src/svm/web3-v1/
 import { SYSTEM_PROGRAM_ADDRESS } from "@solana-program/system";
 import {
   ASSOCIATED_TOKEN_PROGRAM_ADDRESS,
+  Mint,
   TOKEN_PROGRAM_ADDRESS,
   fetchMint,
   getApproveCheckedInstruction,
   getCreateAssociatedTokenIdempotentInstruction,
 } from "@solana-program/token";
 import {
+  Account,
   AccountRole,
   Address,
+  FetchAccountConfig,
   IAccountMeta,
   KeyPairSigner,
   ReadonlyUint8Array,
@@ -561,7 +564,7 @@ export async function getFillRelayTx(
   ]);
 
   const mint = toAddress(outputToken);
-  const mintInfo = await fetchMint(solanaClient, mint);
+  const mintInfo = await getMintInfo(solanaClient, mint);
 
   const [recipientAta, relayerAta, fillStatus, eventAuthority] = await Promise.all([
     getAssociatedTokenAddress(recipient, outputToken, mintInfo.programAddress),
@@ -624,7 +627,7 @@ export const createFillInstruction = async (
   tokenDecimals: number,
   createRecipientAtaIfNeeded: boolean = true
 ) => {
-  const mintInfo = await fetchMint(solanaClient, fillInput.mint);
+  const mintInfo = await getMintInfo(solanaClient, fillInput.mint);
   const approveIx = getApproveCheckedInstruction(
     {
       source: fillInput.relayerTokenAccount,
@@ -685,7 +688,7 @@ export const createDepositInstruction = async (
       systemProgram: depositInput.systemProgram,
       tokenProgram: depositInput.tokenProgram,
     });
-  const mintInfo = await fetchMint(solanaClient, depositInput.mint);
+  const mintInfo = await getMintInfo(solanaClient, depositInput.mint);
   const approveIx = getApproveCheckedInstruction(
     {
       source: depositInput.depositorTokenAccount,
@@ -1376,4 +1379,12 @@ export function finalizeCCTPV1Messages(
 
     return signature;
   });
+}
+
+export async function getMintInfo(
+  solanaClient: SVMProvider,
+  mint: Address<string>,
+  config?: FetchAccountConfig
+): Promise<Account<Mint, string>> {
+  return await fetchMint(solanaClient, mint, config);
 }
