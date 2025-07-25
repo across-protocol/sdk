@@ -340,17 +340,13 @@ export class HubPoolClient extends BaseAbstractClient {
     timeToCache: number
   ): Promise<BigNumber> {
     // Resolve this function call as an async anonymous function
-    const resolver = async () => {
+    const resolver = () => {
       const overrides = { blockTag: blockNumber };
 
       // For zero amount, just get the utilisation at `blockNumber`.
       return depositAmount.eq(bnZero)
         ? this.hubPool.callStatic.liquidityUtilizationCurrent(hubPoolToken.toNative(), overrides)
-        : this.hubPool.callStatic.liquidityUtilizationPostRelay(
-          hubPoolToken.toNative(),
-          depositAmount,
-          overrides
-        );
+        : this.hubPool.callStatic.liquidityUtilizationPostRelay(hubPoolToken.toNative(), depositAmount, overrides);
     };
 
     // Resolve the cache locally so that we can appease typescript
@@ -413,9 +409,12 @@ export class HubPoolClient extends BaseAbstractClient {
 
     // Filter hubPoolTokens for duplicates by reverting to their native string
     // representation. This is required for deduplication to work reliably.
-    const getHubPoolTokens = (): EvmAddress[] => dedupArray(
-      Object.values(hubPoolTokens).filter(isDefined).map((token) => token.toNative())
-    ).map(EvmAddress.from);
+    const getHubPoolTokens = (): EvmAddress[] =>
+      dedupArray(
+        Object.values(hubPoolTokens)
+          .filter(isDefined)
+          .map((token) => token.toNative())
+      ).map((token) => EvmAddress.from(token));
 
     // Helper to resolve the unqiue hubPoolToken & quoteTimestamp mappings.
     const resolveUniqueQuoteTimestamps = (deposit: LpFeeRequest): void => {
