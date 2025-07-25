@@ -309,11 +309,8 @@ export async function _buildPoolRebalanceRoot(
   // Add to the running balance value from the last valid root bundle proposal. A root bundle proposal which is still in liveness and has not yet been executed counts as a valid proposal.
   // If the mainnetBundleEndBlock for this pool rebalance root corresponds to the pending root bundle or some root bundle before the pending root bundle, then we can fetch running balances directly from `ExecutedRootBundle` events.
   if (
-    clients.hubPoolClient.getPendingRootBundle()?.bundleEvaluationBlockNumbers[0] === mainnetBundleEndBlock ||
     !clients.hubPoolClient.hasPendingProposal() ||
-    clients.hubPoolClient
-      .getValidatedRootBundles()
-      .some((bundle) => bundle.bundleEvaluationBlockNumbers[0].toNumber() === mainnetBundleEndBlock)
+    clients.hubPoolClient.getPendingRootBundle()!.bundleEvaluationBlockNumbers[0] <= mainnetBundleEndBlock
   ) {
     addLastRunningBalance(latestMainnetBlock, runningBalances, clients.hubPoolClient);
   } else {
