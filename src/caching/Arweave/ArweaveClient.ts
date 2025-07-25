@@ -238,12 +238,15 @@ export class ArweaveClient {
       return request();
     } catch (e) {
       if (retryCount < this.retries) {
+        // Implement a slightly aggressive exponential backoff to account for fierce parallelism.
+        const baseDelay = this.retryDelaySeconds * Math.pow(2, retryCount); // ms; attempt = [0, 1, 2, ...]
+        const delayS = baseDelay + baseDelay * Math.random();
         this.logger.debug({
           at: "ArweaveClient:getBalance",
-          message: `Arweave request failed, retrying after waiting ${this.retryDelaySeconds} seconds: ${e}`,
+          message: `Arweave request failed, retrying after waiting ${delayS} seconds: ${e}`,
           retryCount,
         });
-        await delay(this.retryDelaySeconds);
+        await delay(delayS);
         return this._retryRequest(request, retryCount + 1);
       } else {
         throw e;
