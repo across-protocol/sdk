@@ -1029,9 +1029,7 @@ export class HubPoolClient extends BaseAbstractClient {
 
       // Generate multicall input for pooledTokens query.
       const pooledTokensFn = "pooledTokens";
-      const multicall = uniqueL1Tokens.map((token) =>
-        hubPool.interface.encodeFunctionData(pooledTokensFn, [token])
-      );
+      const multicall = uniqueL1Tokens.map((token) => hubPool.interface.encodeFunctionData(pooledTokensFn, [token]));
 
       const [tokenInfo, lpTokenMulticall] = await Promise.all([
         Promise.all(
