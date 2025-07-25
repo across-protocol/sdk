@@ -6,7 +6,7 @@ describe("BlockExplorerUtils", () => {
     it("should return a valid block explorer link for a transaction hash", () => {
       const txHash = "0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef";
       const chainId = 1;
-      const expectedLink = `<https://etherscan.io/tx/${txHash}|0x1..def>`;
+      const expectedLink = `<https://etherscan.io/tx/${txHash} | 0x1..def>`;
       expect(blockExplorerLink(txHash, chainId)).to.be.eq(expectedLink);
     });
 
