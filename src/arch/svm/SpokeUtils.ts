@@ -53,7 +53,6 @@ import {
   toAddressType,
 } from "../../utils";
 import {
-  SVM_SPOKE_SEED,
   bigToU8a32,
   createDefaultTransaction,
   getCCTPNoncePda,
@@ -65,6 +64,7 @@ import {
   simulateAndDecode,
   toAddress,
   unwrapEventData,
+  getRootBundlePda,
 } from "./";
 import { SvmCpiEventsClient } from "./eventsClient";
 import { SVM_NO_BLOCK_AT_SLOT, isSolanaError } from "./provider";
@@ -1126,18 +1126,6 @@ export async function getAccountMetasForTokenlessMessage(
   signer: KeyPairSigner,
   messageBytes: string
 ): Promise<IAccountMeta<string>[]> {
-  const deriveRootBundlePda = async (rootBundleId: number) => {
-    const intEncoder = getU64Encoder();
-    const idBuf = Buffer.alloc(4);
-    idBuf.writeUInt32LE(rootBundleId);
-
-    const [rootBundle] = await getProgramDerivedAddress({
-      programAddress: SvmSpokeClient.SVM_SPOKE_PROGRAM_ADDRESS,
-      seeds: ["root_bundle", intEncoder.encode(SVM_SPOKE_SEED), idBuf],
-    });
-    return rootBundle;
-  };
-
   const messageHeader = decodeMessageHeader(Buffer.from(messageBytes, "hex"));
   const programAddress = SvmSpokeClient.SVM_SPOKE_PROGRAM_ADDRESS;
   const statePda = await getStatePda(programAddress);
@@ -1154,7 +1142,7 @@ export async function getAccountMetasForTokenlessMessage(
     const {
       data: { rootBundleId },
     } = await SvmSpokeClient.fetchState(solanaClient, statePda);
-    const rootBundle = await deriveRootBundlePda(rootBundleId);
+    const rootBundle = await getRootBundlePda(programAddress, rootBundleId);
 
     return [
       ...base,
@@ -1169,7 +1157,7 @@ export async function getAccountMetasForTokenlessMessage(
 
   if (isEmergencyDeleteRootBundleMessageBody(messageHeader.messageBody)) {
     const rootBundleId = getEmergencyDeleteRootBundleRootBundleId(messageHeader.messageBody);
-    const rootBundle = await deriveRootBundlePda(rootBundleId);
+    const rootBundle = await getRootBundlePda(programAddress, rootBundleId);
 
     return [
       ...base,
@@ -1325,7 +1313,7 @@ export async function getCCTPV1ReceiveMessageTx(
     messageTransmitter: messageTransmitterPda,
     eventAuthority: eventAuthorityPda,
     usedNonces,
-    receiver: SvmSpokeClient.SVM_SPOKE_PROGRAM_ADDRESS,
+    receiver: cctpMessageReceiver,
     systemProgram: SYSTEM_PROGRAM_ADDRESS,
     message: messageBytes,
     attestation: Buffer.from(message.attestation.slice(2), "hex"),
