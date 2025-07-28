@@ -101,18 +101,19 @@ export async function getTimestampForSlot(
     }
 
     const { __code: code } = err.context;
+    const slot = slotNumber.toString();
     switch (err.context.__code) {
       case SVM_NO_BLOCK_AT_SLOT:
         return undefined;
 
       case SVM_BLOCK_NOT_AVAILABLE:
         if (retries <= 0) {
-          throw new Error(`Timeout on SVM getBlockTime() for slot ${slotNumber.toString()}`);
+          throw new Error(`Timeout on SVM getBlockTime() for slot ${slot}`);
         }
         return getTimestampForSlot(provider, slotNumber, --retries);
 
       default:
-        throw new Error(`Unhandled error on SVM getBlockTime() for slot ${slotNumber.toString()}: ${code}`);
+        throw new Error(`Unhandled SVM getBlockTime() error for slot ${slot}: ${code}`, { cause: err });
     }
   }
 
