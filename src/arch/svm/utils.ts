@@ -26,6 +26,7 @@ import { ethers } from "ethers";
 import { FillType, RelayData } from "../../interfaces";
 import { BigNumber, Address as SdkAddress, biMin, getRelayDataHash, isDefined, isUint8Array } from "../../utils";
 import { getTimestampForSlot } from "./SpokeUtils";
+import { isSolanaError } from "./provider";
 import { AttestedCCTPMessage, EventName, SVMEventNames, SVMProvider } from "./types";
 
 export { isSolanaError } from "@solana/kit";
@@ -96,9 +97,17 @@ export async function getLatestFinalizedSlotWithBlock(
 
   let slot = endSlot;
   do {
-    const block = await provider.getBlock(slot, opts).send();
-    if (isDefined(block) && [block.blockHeight, block.blockTime].every(isDefined)) {
-      break;
+    try {
+      const block = await provider.getBlock(slot, opts).send();
+      if (isDefined(block) && [block.blockHeight, block.blockTime].every(isDefined)) {
+        break;
+      }
+    } catch (err) {
+      if (isSolanaError(err)) {
+        const { __code: code } = err.context;
+        throw new Error(`Caught unhandled error on slot ${slot.toString()} (${code})`);
+      }
+      throw err; // Unhandled Solana error.
     }
   } while (--maxLookback > 0 && --slot > 0);
 
