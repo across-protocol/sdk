@@ -310,7 +310,7 @@ export async function _buildPoolRebalanceRoot(
   // If the mainnetBundleEndBlock for this pool rebalance root corresponds to the pending root bundle or some root bundle before the pending root bundle, then we can fetch running balances directly from `ExecutedRootBundle` events.
   if (
     !clients.hubPoolClient.hasPendingProposal() ||
-    clients.hubPoolClient.getPendingRootBundle()!.bundleEvaluationBlockNumbers[0] <= mainnetBundleEndBlock
+    clients.hubPoolClient.getPendingRootBundle()!.bundleEvaluationBlockNumbers[1] <= mainnetBundleEndBlock
   ) {
     addLastRunningBalance(latestMainnetBlock, runningBalances, clients.hubPoolClient);
   } else {
