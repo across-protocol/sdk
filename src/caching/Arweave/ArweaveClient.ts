@@ -32,7 +32,7 @@ export class ArweaveClient {
       message: "Arweave client initialized",
       gateway: this.gatewayUrl,
     });
-    if (this.retries < 0 || !Number.isInteger(this.retries)) {
+    if (this.retries < 0) {
       throw new Error(`retries cannot be < 0 and must be an integer. Currently set to ${this.retries}`);
     }
     if (this.retryDelaySeconds < 0) {
