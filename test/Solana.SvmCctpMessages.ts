@@ -31,7 +31,8 @@ const buildAttestedMessage = async (
   messageBody: Buffer,
   nonce: number,
   sourceDomain = 0,
-  destinationDomain = 5
+  destinationDomain = 5,
+  messageBytesToHex = true
 ): Promise<AttestedCCTPMessage[]> => {
   const statePda = await getStatePda(SvmSpokeClient.SVM_SPOKE_PROGRAM_ADDRESS);
   const stateData = await SvmSpokeClient.fetchState(solanaClient.rpc, statePda);
@@ -47,10 +48,12 @@ const buildAttestedMessage = async (
     messageBody,
   });
 
+  const messageBytesStringPrefix = messageBytesToHex ? "" : "0x";
+
   return [
     {
       sourceDomain,
-      messageBytes: messageBytes.toString("hex"),
+      messageBytes: messageBytesStringPrefix + messageBytes.toString("hex"),
       attestation: "0x",
       nonce,
       type: "message",
@@ -111,7 +114,10 @@ describe("Svm Cctp Messages (integration)", () => {
 
     const relayMsgs = await buildAttestedMessage(
       encodeRelayRootBundleMessageBody(relayerRefundRoot, slowRelayRoot),
-      relayNonce
+      relayNonce,
+      0,
+      5,
+      false
     );
 
     await finalize(relayMsgs, /* simulate = */ true);
@@ -141,7 +147,10 @@ describe("Svm Cctp Messages (integration)", () => {
 
     const emergencyMsgs = await buildAttestedMessage(
       encodeEmergencyDeleteRootBundleMessageBody(beforeRootBundleId),
-      emergencyNonce
+      emergencyNonce,
+      0,
+      5,
+      false
     );
 
     await sendAndConfirm(await finalize(emergencyMsgs));
