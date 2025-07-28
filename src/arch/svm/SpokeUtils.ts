@@ -1,6 +1,6 @@
 import { MessageTransmitterClient, SvmSpokeClient, TokenMessengerMinterClient } from "@across-protocol/contracts";
 import { decodeFillStatusAccount, fetchState } from "@across-protocol/contracts/dist/src/svm/clients/SvmSpoke";
-import { hashNonEmptyMessage } from "@across-protocol/contracts/dist/src/svm/web3-v1";
+import { decodeMessageHeader, hashNonEmptyMessage } from "@across-protocol/contracts/dist/src/svm/web3-v1";
 import { intToU8Array32 } from "@across-protocol/contracts/dist/src/svm/web3-v1/conversionUtils";
 import { SYSTEM_PROGRAM_ADDRESS } from "@solana-program/system";
 import {
@@ -64,11 +64,17 @@ import {
   simulateAndDecode,
   toAddress,
   unwrapEventData,
+  getRootBundlePda,
 } from "./";
 import { SvmCpiEventsClient } from "./eventsClient";
 import { SVM_NO_BLOCK_AT_SLOT, isSolanaError } from "./provider";
 import { AttestedCCTPMessage, SVMEventNames, SVMProvider } from "./types";
-import { getNearestSlotTime } from "./utils";
+import {
+  getEmergencyDeleteRootBundleRootBundleId,
+  getNearestSlotTime,
+  isEmergencyDeleteRootBundleMessageBody,
+  isRelayRootBundleMessageBody,
+} from "./utils";
 
 /**
  * @note: Average Solana slot duration is about 400-500ms. We can be conservative
@@ -1115,15 +1121,60 @@ export const hasCCTPV1MessageBeenProcessed = async (
  * Returns the account metas for a tokenless message.
  * @returns The account metas for a tokenless message.
  */
-export async function getAccountMetasForTokenlessMessage(): Promise<IAccountMeta<string>[]> {
-  const statePda = await getStatePda(SvmSpokeClient.SVM_SPOKE_PROGRAM_ADDRESS);
-  return [
+export async function getAccountMetasForTokenlessMessage(
+  solanaClient: SVMProvider,
+  signer: KeyPairSigner,
+  messageBytes: string
+): Promise<IAccountMeta<string>[]> {
+  const messageHex = messageBytes.slice(2);
+  const messageHeader = decodeMessageHeader(Buffer.from(messageHex, "hex"));
+  const programAddress = SvmSpokeClient.SVM_SPOKE_PROGRAM_ADDRESS;
+  const statePda = await getStatePda(programAddress);
+  const selfAuthority = await getSelfAuthority();
+  const eventAuthority = await getEventAuthority(programAddress);
+
+  const base: IAccountMeta<string>[] = [
     { address: statePda, role: AccountRole.READONLY },
-    { address: await getSelfAuthority(), role: AccountRole.READONLY },
-    { address: SvmSpokeClient.SVM_SPOKE_PROGRAM_ADDRESS, role: AccountRole.READONLY },
+    { address: selfAuthority, role: AccountRole.READONLY },
+    { address: programAddress, role: AccountRole.READONLY },
+  ];
+
+  if (isRelayRootBundleMessageBody(messageHeader.messageBody)) {
+    const {
+      data: { rootBundleId },
+    } = await SvmSpokeClient.fetchState(solanaClient, statePda);
+    const rootBundle = await getRootBundlePda(programAddress, rootBundleId);
+
+    return [
+      ...base,
+      { address: signer.address, role: AccountRole.WRITABLE },
+      { address: statePda, role: AccountRole.WRITABLE },
+      { address: rootBundle, role: AccountRole.WRITABLE },
+      { address: SYSTEM_PROGRAM_ADDRESS, role: AccountRole.READONLY },
+      { address: eventAuthority, role: AccountRole.READONLY },
+      { address: programAddress, role: AccountRole.READONLY },
+    ];
+  }
+
+  if (isEmergencyDeleteRootBundleMessageBody(messageHeader.messageBody)) {
+    const rootBundleId = getEmergencyDeleteRootBundleRootBundleId(messageHeader.messageBody);
+    const rootBundle = await getRootBundlePda(programAddress, rootBundleId);
+
+    return [
+      ...base,
+      { address: signer.address, role: AccountRole.READONLY },
+      { address: statePda, role: AccountRole.READONLY },
+      { address: rootBundle, role: AccountRole.WRITABLE },
+      { address: eventAuthority, role: AccountRole.READONLY },
+      { address: programAddress, role: AccountRole.READONLY },
+    ];
+  }
+
+  return [
+    ...base,
     { address: statePda, role: AccountRole.WRITABLE },
-    { address: await getEventAuthority(SvmSpokeClient.SVM_SPOKE_PROGRAM_ADDRESS), role: AccountRole.READONLY },
-    { address: SvmSpokeClient.SVM_SPOKE_PROGRAM_ADDRESS, role: AccountRole.READONLY },
+    { address: eventAuthority, role: AccountRole.READONLY },
+    { address: programAddress, role: AccountRole.READONLY },
   ];
 }
 
@@ -1249,7 +1300,7 @@ export async function getCCTPV1ReceiveMessageTx(
         hubChainId,
         TokenMessengerMinterClient.TOKEN_MESSENGER_MINTER_PROGRAM_ADDRESS
       )
-    : await getAccountMetasForTokenlessMessage();
+    : await getAccountMetasForTokenlessMessage(solanaClient, signer, message.messageBytes);
 
   const messageBytes = message.messageBytes.startsWith("0x")
     ? Buffer.from(message.messageBytes.slice(2), "hex")
@@ -1263,7 +1314,7 @@ export async function getCCTPV1ReceiveMessageTx(
     messageTransmitter: messageTransmitterPda,
     eventAuthority: eventAuthorityPda,
     usedNonces,
-    receiver: SvmSpokeClient.SVM_SPOKE_PROGRAM_ADDRESS,
+    receiver: cctpMessageReceiver,
     systemProgram: SYSTEM_PROGRAM_ADDRESS,
     message: messageBytes,
     attestation: Buffer.from(message.attestation.slice(2), "hex"),
