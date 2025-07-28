@@ -1126,7 +1126,7 @@ export async function getAccountMetasForTokenlessMessage(
   signer: KeyPairSigner,
   messageBytes: string
 ): Promise<IAccountMeta<string>[]> {
-  const messageHeader = decodeMessageHeader(Buffer.from(messageBytes, "hex"));
+  const messageHeader = decodeMessageHeader(Buffer.from(messageBytes));
   const programAddress = SvmSpokeClient.SVM_SPOKE_PROGRAM_ADDRESS;
   const statePda = await getStatePda(programAddress);
   const selfAuthority = await getSelfAuthority();
