@@ -108,7 +108,7 @@ export async function getTimestampForSlot(
 
     const { __code: code } = err.context;
     const slot = slotNumber.toString();
-    switch (err.context.__code) {
+    switch (code) {
       case SVM_NO_BLOCK_AT_SLOT:
         return undefined;
 
