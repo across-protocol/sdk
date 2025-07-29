@@ -103,10 +103,6 @@ export class RetrySolanaRpcFactory extends SolanaClusterRpcFactory {
     }
 
     const { __code: code } = error.context;
-    if (code === SOLANA_ERROR__RPC__TRANSPORT_HTTP_ERROR && error.context.statusCode === 429) {
-      return false;
-    }
-
     switch (method) {
       case "getBlockTime":
         return code === SVM_NO_BLOCK_AT_SLOT;
