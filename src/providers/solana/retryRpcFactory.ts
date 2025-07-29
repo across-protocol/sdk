@@ -72,7 +72,7 @@ export class RetrySolanaRpcFactory extends SolanaClusterRpcFactory {
         const { retryDelaySeconds } = this;
         const exponentialBackoff = retryDelaySeconds * Math.pow(2, retryAttempt - 1);
         const delayS = this.isRateLimitResponse(error)
-          ? exponentialBackoff * retryDelaySeconds * Math.random()
+          ? exponentialBackoff + retryDelaySeconds * Math.random()
           : retryDelaySeconds;
 
         // Log retry attempt if logger is available
