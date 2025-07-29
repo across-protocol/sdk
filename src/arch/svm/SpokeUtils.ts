@@ -92,10 +92,11 @@ type ProtoFill = Omit<RelayData, "recipient" | "outputToken"> & {
 /**
  * Retrieves the chain time at a particular slot.
  */
+const NUM_RETRIES_GET_BLOCK_TIME = 2;
 export async function getTimestampForSlot(
   provider: SVMProvider,
   slotNumber: bigint,
-  retries = 1
+  retryAttempt = 0
 ): Promise<number | undefined> {
   // @note: getBlockTime receives a slot number, not a block number.
   let _timestamp: bigint;
@@ -114,11 +115,11 @@ export async function getTimestampForSlot(
         return undefined;
 
       case SVM_BLOCK_NOT_AVAILABLE:
-        if (--retries < 0) {
-          throw new Error(`Timeout on SVM getBlockTime() for slot ${slot}`);
+        if (++retryAttempt >= NUM_RETRIES_GET_BLOCK_TIME) {
+          throw new Error(`Timeout on SVM getBlockTime() for slot ${slot} after ${retryAttempt} retry attempts`);
         }
-        await delay(2);
-        return getTimestampForSlot(provider, slotNumber, retries);
+        await delay(2 ** retryAttempt);
+        return getTimestampForSlot(provider, slotNumber, retryAttempt);
 
       default:
         throw new Error(`Unhandled SVM getBlockTime() error for slot ${slot}: ${code}`, { cause: err });

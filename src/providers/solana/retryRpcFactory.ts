@@ -64,7 +64,6 @@ export class RetrySolanaRpcFactory extends SolanaClusterRpcFactory {
       try {
         return await transportCall();
       } catch (error) {
-        console.error(`[RetryRpcFactory#_tryCall] transportCall() threw an error: ${error}`);
         if (retryAttempt++ >= this.retries || this.shouldFailImmediate(method, error)) {
           throw error;
         }
