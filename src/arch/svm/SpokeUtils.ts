@@ -47,6 +47,7 @@ import {
   chainIsProd,
   chainIsSvm,
   chunk,
+  delay,
   isUnsafeDepositId,
   keccak256,
   mapAsync,
@@ -116,6 +117,7 @@ export async function getTimestampForSlot(
         if (--retries < 0) {
           throw new Error(`Timeout on SVM getBlockTime() for slot ${slot}`);
         }
+        await delay(2);
         return getTimestampForSlot(provider, slotNumber, retries);
 
       default:
