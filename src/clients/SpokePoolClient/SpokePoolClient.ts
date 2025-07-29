@@ -13,7 +13,6 @@ import {
   assign,
   getRelayEventKey,
   isDefined,
-  getMessageHash,
   isSlowFill,
   validateFillForDeposit,
   chainIsEvm,
@@ -21,7 +20,7 @@ import {
   Address,
   toAddressType,
 } from "../../utils";
-import { FundsDepositedRaw, FilledRelayRaw } from "./types";
+import { FilledRelayRaw } from "./types";
 import { duplicateEvent, sortEventsAscendingInPlace } from "../../utils/EventUtils";
 import { CHAIN_IDs, ZERO_ADDRESS } from "../../constants";
 import {
