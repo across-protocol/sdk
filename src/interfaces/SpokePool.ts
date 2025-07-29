@@ -1,7 +1,8 @@
 import { SortableEvent } from "./Common";
 import { SpokePoolClient } from "../clients";
-import { BigNumber, Address, EvmAddress } from "../utils";
+import { BigNumber, Address, EvmAddress, BigNumberishStruct, HexEvmAddress } from "../utils";
 import { RelayerRefundLeaf } from "./HubPool";
+import { Infer, assign, number, object, optional, string } from "superstruct";
 
 export interface RelayData {
   originChainId: number;
@@ -171,3 +172,34 @@ export interface BridgedToHubPoolWithBlock extends SortableEvent {
 export interface SpokePoolClientsByChain {
   [chainId: number]: SpokePoolClient;
 }
+
+// @todo ihor: these types are similar to src/clients/SpokePoolClient/types.ts . Need to reconcile the two
+export const RelayDataStruct = object({
+  originChainId: number(),
+  depositor: string(),
+  recipient: string(),
+  depositId: BigNumberishStruct,
+  inputToken: string(),
+  inputAmount: BigNumberishStruct,
+  outputToken: string(),
+  outputAmount: BigNumberishStruct,
+  message: string(),
+  fillDeadline: number(),
+  exclusiveRelayer: string(),
+  exclusivityDeadline: number(),
+});
+export type RelayDataRaw = Infer<typeof RelayDataStruct>;
+
+const DepositExtraFieldsStruct = object({
+  destinationChainId: number(),
+  quoteTimestamp: number(),
+  // Optional SpeedUpCommon fields and depositor-authorised speed up signature.
+  updatedRecipient: optional(HexEvmAddress),
+  updatedOutputAmount: optional(BigNumberishStruct),
+  updatedMessage: optional(string()),
+  speedUpSignature: optional(string()),
+});
+
+export const DepositRawStruct = assign(RelayDataStruct, DepositExtraFieldsStruct);
+
+export type DepositRaw = Infer<typeof DepositRawStruct>;
