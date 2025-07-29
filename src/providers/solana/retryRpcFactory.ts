@@ -115,7 +115,7 @@ export class RetrySolanaRpcFactory extends SolanaClusterRpcFactory {
   /**
    * Identify whether an error thrown was the result of an RPC provider 429 response.
    * @param error Error object from the RPC query.
-   * returns True if the response was a 429 rate-limit response.
+   * @returns True if the response was a 429 rate-limit response.
    */
   private isRateLimitResponse(error: unknown): boolean {
     if (!isSolanaError(error)) {
