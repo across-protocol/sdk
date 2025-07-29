@@ -2,8 +2,8 @@ import { SortableEvent } from "./Common";
 import { SpokePoolClient } from "../clients";
 import { BigNumber, Address, EvmAddress } from "../utils";
 import { RelayerRefundLeaf } from "./HubPool";
-import { object, string, number, boolean, array, Infer, optional } from "superstruct";
-import { BigNumberishStruct, HexEvmAddress, HexString32Bytes } from "../utils/superstruct";
+import { object, string, number, boolean, array, Infer, optional, assign } from "superstruct";
+import { BigNumberishStruct, HexEvmAddress, HexString32Bytes } from "../utils/ValidatorUtils";
 
 export interface RelayData {
   originChainId: number;
@@ -199,26 +199,17 @@ export const RelayDataStruct = object({
 });
 export type RelayDataRaw = Infer<typeof RelayDataStruct>;
 
-export const DepositWithBlockRawStruct = object({
-  // From RelayData, flattened
-  depositor: string(),
-  recipient: string(),
-  depositId: BigNumberishStruct,
-  inputToken: string(),
-  inputAmount: BigNumberishStruct,
-  outputToken: string(),
-  outputAmount: BigNumberishStruct,
-  message: string(),
-  fillDeadline: number(),
-  exclusiveRelayer: string(),
-  exclusivityDeadline: number(),
-  originChainId: number(),
-
-  // From Deposit
+const DepositExtraFieldsStruct = object({
   destinationChainId: number(),
   quoteTimestamp: number(),
+  // Optional SpeedUpCommon fields and depositor-authorised speed up signature.
+  updatedRecipient: optional(HexEvmAddress),
+  updatedOutputAmount: optional(BigNumberishStruct),
+  updatedMessage: optional(string()),
+  speedUpSignature: optional(string()),
 });
-export type DepositWithBlockRaw = Infer<typeof DepositWithBlockRawStruct>;
+export const DepositRawStruct = assign(RelayDataStruct, DepositExtraFieldsStruct);
+export type DepositRaw = Infer<typeof DepositRawStruct>;
 
 export const RelayExecutionEventInfoStruct = object({
   updatedRecipient: string(),

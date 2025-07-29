@@ -6,8 +6,8 @@ import {
   ClaimedRelayerRefundWithBlockRaw,
   ClaimedRelayerRefundWithBlockRawStruct,
   Deposit,
-  DepositWithBlockRaw,
-  DepositWithBlockRawStruct,
+  DepositRaw,
+  DepositRawStruct,
   EnabledDepositRoute,
   EnabledDepositRouteWithBlockRaw,
   EnabledDepositRouteWithBlockRawStruct,
@@ -32,7 +32,7 @@ import {
 } from ".";
 import { CHAIN_IDs } from "../constants";
 import { EventArgsDecoder } from "../utils/EventParsing";
-import { BigNumber, EvmAddress, toAddressType } from "../utils";
+import { BigNumber, EvmAddress, toAddressType, getMessageHash } from "../utils";
 
 type SpokePoolClientContext = {
   chainId: number;
@@ -42,24 +42,47 @@ type SpokePoolClientContext = {
 // fields derivable from the event args. The `...WithBlock` types, which include
 // `SortableEvent` props, will be constructed by the high-level `decodeSortableEvent` wrapper.
 export const DepositArgsDecoder: EventArgsDecoder<
-  DepositWithBlockRaw,
-  Omit<Deposit, "messageHash" | "fromLiteChain" | "toLiteChain">,
+  DepositRaw,
+  Omit<Deposit, "fromLiteChain" | "toLiteChain">,
   SpokePoolClientContext
 > = {
-  struct: DepositWithBlockRawStruct,
+  struct: DepositRawStruct,
   parse: (raw, context) => {
     if (!context) throw new Error("chainId context is required");
-    return {
-      ...raw,
-      depositor: toAddressType(raw.depositor, context.chainId),
-      recipient: toAddressType(raw.recipient, raw.destinationChainId),
-      inputToken: toAddressType(raw.inputToken, context.chainId),
-      outputToken: toAddressType(raw.outputToken, raw.destinationChainId),
-      exclusiveRelayer: toAddressType(raw.exclusiveRelayer, raw.destinationChainId),
-      depositId: BigNumber.from(raw.depositId),
-      inputAmount: BigNumber.from(raw.inputAmount),
-      outputAmount: BigNumber.from(raw.outputAmount),
-    };
+
+    const {
+      // These fields are being re-typed from the raw event
+      depositor,
+      recipient,
+      inputToken,
+      outputToken,
+      exclusiveRelayer,
+      depositId,
+      inputAmount,
+      outputAmount,
+      updatedRecipient,
+      updatedOutputAmount,
+      // The rest of the raw fields can be spread
+      ...rest
+    } = raw;
+
+    const parsed = {
+      ...rest,
+      depositor: toAddressType(depositor, context.chainId),
+      recipient: toAddressType(recipient, raw.destinationChainId),
+      inputToken: toAddressType(inputToken, context.chainId),
+      outputToken: toAddressType(outputToken, raw.destinationChainId),
+      exclusiveRelayer: toAddressType(exclusiveRelayer, raw.destinationChainId),
+      depositId: BigNumber.from(depositId),
+      inputAmount: BigNumber.from(inputAmount),
+      outputAmount: BigNumber.from(outputAmount),
+      messageHash: getMessageHash(raw.message),
+      updatedRecipient:
+        updatedRecipient !== undefined ? toAddressType(updatedRecipient, raw.destinationChainId) : undefined,
+      updatedOutputAmount: updatedOutputAmount !== undefined ? BigNumber.from(updatedOutputAmount) : undefined,
+    } satisfies Omit<Deposit, "fromLiteChain" | "toLiteChain">;
+
+    return parsed;
   },
 };
 
