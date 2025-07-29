@@ -66,7 +66,7 @@ import {
   unwrapEventData,
 } from "./";
 import { SvmCpiEventsClient } from "./eventsClient";
-import { SVM_BLOCK_NOT_AVAILABLE, SVM_NO_BLOCK_AT_SLOT, isSolanaError } from "./provider";
+import { SVM_NO_BLOCK_AT_SLOT, isSolanaError } from "./provider";
 import { AttestedCCTPMessage, SVMEventNames, SVMProvider } from "./types";
 import { getNearestSlotTime } from "./utils";
 
@@ -85,11 +85,7 @@ type ProtoFill = Omit<RelayData, "recipient" | "outputToken"> & {
 /**
  * Retrieves the chain time at a particular slot.
  */
-export async function getTimestampForSlot(
-  provider: SVMProvider,
-  slotNumber: bigint,
-  retries = 1
-): Promise<number | undefined> {
+export async function getTimestampForSlot(provider: SVMProvider, slotNumber: bigint): Promise<number | undefined> {
   // @note: getBlockTime receives a slot number, not a block number.
   let _timestamp: bigint;
 
@@ -105,12 +101,6 @@ export async function getTimestampForSlot(
     switch (err.context.__code) {
       case SVM_NO_BLOCK_AT_SLOT:
         return undefined;
-
-      case SVM_BLOCK_NOT_AVAILABLE:
-        if (retries <= 0) {
-          throw new Error(`Timeout on SVM getBlockTime() for slot ${slot}`);
-        }
-        return getTimestampForSlot(provider, slotNumber, --retries);
 
       default:
         throw new Error(`Unhandled SVM getBlockTime() error for slot ${slot}: ${code}`, { cause: err });
