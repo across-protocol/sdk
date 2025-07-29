@@ -1183,6 +1183,7 @@ export async function getAccountMetasForTokenlessMessage(
  * @param message The CCTP message.
  * @param hubChainId The chain ID of the hub.
  * @param tokenMessengerMinter The token messenger minter address.
+ * @param recipient The ATA of the recipient address.
  * @returns The account metas for a deposit message.
  */
 async function getAccountMetasForDepositMessage(
@@ -1256,7 +1257,7 @@ async function getAccountMetasForDepositMessage(
  * @param signer The signer of the transaction.
  * @param message The CCTP message.
  * @param hubChainId The chain ID of the hub.
- * @param recipient The address of the recipient USDC ATA (token finalizations only).
+ * @param recipient The ATA of the recipient address (used for token finalizations only).
  * @returns The CCTP v1 receive message transaction.
  */
 export async function getCCTPV1ReceiveMessageTx(
