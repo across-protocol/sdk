@@ -1,11 +1,23 @@
 import { utils as ethersUtils } from "ethers";
-import { object, min as Min, define, optional, string, integer, boolean } from "superstruct";
+import { object, min as Min, define, optional, string, integer, boolean, union, number } from "superstruct";
 import { DepositWithBlock } from "../interfaces";
 import { BigNumber } from "../utils";
 
-const AddressValidator = define<string>("AddressValidator", (v) => ethersUtils.isAddress(String(v)));
+export const AddressValidator = define<string>("AddressValidator", (v) => ethersUtils.isAddress(String(v)));
+export const HexEvmAddress = AddressValidator;
+
+export const HexString32Bytes = define<string>(
+  "HexString32Bytes",
+  (v) => typeof v === "string" && ethersUtils.isHexString(v, 32)
+);
 const HexValidator = define<string>("HexValidator", (v) => ethersUtils.isHexString(String(v)));
+
 export const BigNumberValidator = define<BigNumber>("BigNumberValidator", (v) => BigNumber.isBigNumber(v));
+
+// Event arguments that represent a uint256 can be returned from ethers as a BigNumber
+// object, but can also be represented as a hex string or number in other contexts.
+// This struct validates that the value is one of these types.
+export const BigNumberishStruct = union([string(), number(), BigNumberValidator]);
 
 const V3DepositSchema = object({
   depositId: BigNumberValidator,

@@ -45,6 +45,7 @@ import { BaseAbstractClient, UpdateFailureReason } from "../BaseAbstractClient";
 import { AcrossConfigStoreClient } from "../AcrossConfigStoreClient";
 import { getRefundInformationFromFill } from "../BundleDataClient";
 import { HubPoolClient } from "../HubPoolClient";
+import { DepositArgsDecoder, decodeSortableEvent } from "../../utils/EventDecoder";
 
 export type SpokePoolUpdateSuccess = {
   success: true;
@@ -522,23 +523,9 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
     const queryDepositEvents = async (eventName: string) => {
       const depositEvents = (queryResults[eventsToQuery.indexOf(eventName)] ?? [])
         .map((event) => {
-          if (!FundsDepositedRaw.is(event)) {
-            this.log("warn", `Skipping malformed ${eventName} event.`, { event });
-            return;
-          }
-
-          const deposit: Omit<DepositWithBlock, "quoteBlockNumber" | "fromLiteChain" | "toLiteChain"> = {
-            ...event,
-            originChainId: this.chainId,
-            depositor: toAddressType(event.depositor, this.chainId),
-            recipient: toAddressType(event.recipient, event.destinationChainId),
-            inputToken: toAddressType(event.inputToken, this.chainId),
-            outputToken: toAddressType(event.outputToken, event.destinationChainId),
-            exclusiveRelayer: toAddressType(event.exclusiveRelayer, event.destinationChainId),
-            messageHash: getMessageHash(event.message),
-          };
-
-          return deposit;
+          return decodeSortableEvent(event, event, DepositArgsDecoder, {
+            chainId: this.chainId,
+          });
         })
         .filter(isDefined);
 
