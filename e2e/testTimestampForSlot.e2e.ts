@@ -121,11 +121,6 @@ async function runTest(options: TestOptions) {
   for (let i = 0; i < options.iterations; i++) {
     const result = await testNearestSlotTime(rpcClient, i + 1);
     results.push(result);
-
-    // Small delay between requests
-    if (i < options.iterations - 1) {
-      await new Promise((resolve) => setTimeout(resolve, 200));
-    }
   }
 
   const totalTime = Date.now() - testStartTime;
