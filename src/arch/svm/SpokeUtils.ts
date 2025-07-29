@@ -1183,14 +1183,14 @@ export async function getAccountMetasForTokenlessMessage(
  * @param message The CCTP message.
  * @param hubChainId The chain ID of the hub.
  * @param tokenMessengerMinter The token messenger minter address.
- * @param recipient The ATA of the recipient address.
+ * @param recipientAta The ATA of the recipient address.
  * @returns The account metas for a deposit message.
  */
 async function getAccountMetasForDepositMessage(
   message: AttestedCCTPMessage,
   hubChainId: number,
   tokenMessengerMinter: Address,
-  recipient: SvmAddress
+  recipientAta: SvmAddress
 ): Promise<IAccountMeta<string>[]> {
   const l1Usdc = EvmAddress.from(TOKEN_SYMBOLS_MAP.USDC.addresses[hubChainId]);
   const l2Usdc = SvmAddress.from(
@@ -1243,7 +1243,7 @@ async function getAccountMetasForDepositMessage(
     { address: tokenMinterPda, role: AccountRole.WRITABLE },
     { address: localTokenPda, role: AccountRole.WRITABLE },
     { address: tokenPairPda, role: AccountRole.READONLY },
-    { address: toAddress(recipient), role: AccountRole.WRITABLE },
+    { address: toAddress(recipientAta), role: AccountRole.WRITABLE },
     { address: custodyTokenAccountPda, role: AccountRole.WRITABLE },
     { address: TOKEN_PROGRAM_ADDRESS, role: AccountRole.READONLY },
     { address: tokenMessengerEventAuthorityPda, role: AccountRole.READONLY },
@@ -1257,7 +1257,7 @@ async function getAccountMetasForDepositMessage(
  * @param signer The signer of the transaction.
  * @param message The CCTP message.
  * @param hubChainId The chain ID of the hub.
- * @param recipient The ATA of the recipient address (used for token finalizations only).
+ * @param recipientAta The ATA of the recipient address (used for token finalizations only).
  * @returns The CCTP v1 receive message transaction.
  */
 export async function getCCTPV1ReceiveMessageTx(
@@ -1265,7 +1265,7 @@ export async function getCCTPV1ReceiveMessageTx(
   signer: KeyPairSigner,
   message: AttestedCCTPMessage,
   hubChainId: number,
-  recipient: SvmAddress
+  recipientAta: SvmAddress
 ) {
   const [messageTransmitterPda] = await getProgramDerivedAddress({
     programAddress: MessageTransmitterClient.MESSAGE_TRANSMITTER_PROGRAM_ADDRESS,
@@ -1295,7 +1295,7 @@ export async function getCCTPV1ReceiveMessageTx(
         message,
         hubChainId,
         TokenMessengerMinterClient.TOKEN_MESSENGER_MINTER_PROGRAM_ADDRESS,
-        recipient
+        recipientAta
       )
     : await getAccountMetasForTokenlessMessage(solanaClient, signer, message.messageBytes);
 
@@ -1326,7 +1326,7 @@ export async function getCCTPV1ReceiveMessageTx(
  * @param solanaClient The Solana client.
  * @param attestedMessages The CCTP messages to Solana.
  * @param signer A base signer to be converted into a Solana signer.
- * @param recipient The address of the recipient USDC ATA (token finalizations only).
+ * @param recipientAta The ATA of the recipient address (used for token finalizations only).
  * @param simulate Whether to simulate the transaction.
  * @param hubChainId The chain ID of the hub.
  * @returns A list of executed transaction signatures.
@@ -1336,12 +1336,12 @@ export function finalizeCCTPV1Messages(
   solanaClient: SVMProvider,
   attestedMessages: AttestedCCTPMessage[],
   signer: KeyPairSigner,
-  recipient: SvmAddress,
+  recipientAta: SvmAddress,
   simulate = false,
   hubChainId = 1
 ): Promise<string[]> {
   return mapAsync(attestedMessages, async (message) => {
-    const receiveMessageIx = await getCCTPV1ReceiveMessageTx(solanaClient, signer, message, hubChainId, recipient);
+    const receiveMessageIx = await getCCTPV1ReceiveMessageTx(solanaClient, signer, message, hubChainId, recipientAta);
 
     if (simulate) {
       const result = await solanaClient
