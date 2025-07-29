@@ -1189,7 +1189,7 @@ async function getAccountMetasForDepositMessage(
   message: AttestedCCTPMessage,
   hubChainId: number,
   tokenMessengerMinter: Address,
-  _recipient: SvmAddress
+  recipient: SvmAddress
 ): Promise<IAccountMeta<string>[]> {
   const l1Usdc = EvmAddress.from(TOKEN_SYMBOLS_MAP.USDC.addresses[hubChainId]);
   const l2Usdc = SvmAddress.from(
@@ -1221,13 +1221,6 @@ async function getAccountMetasForDepositMessage(
     seeds: ["custody", bs58.decode(l2Usdc.toBase58())],
   });
 
-  const tokenProgram = TOKEN_PROGRAM_ADDRESS;
-
-  const recipient = _recipient.eq(SvmAddress.from(SvmSpokeClient.SVM_SPOKE_PROGRAM_ADDRESS.toString()))
-    ? SvmAddress.from(await getStatePda(SvmSpokeClient.SVM_SPOKE_PROGRAM_ADDRESS))
-    : _recipient;
-  const vault = await getAssociatedTokenAddress(recipient, SvmAddress.from(l2Usdc.toBase58()), tokenProgram);
-
   // Define accounts dependent on deposit information.
   const [tokenPairPda] = await getProgramDerivedAddress({
     programAddress: tokenMessengerMinter,
@@ -1249,7 +1242,7 @@ async function getAccountMetasForDepositMessage(
     { address: tokenMinterPda, role: AccountRole.WRITABLE },
     { address: localTokenPda, role: AccountRole.WRITABLE },
     { address: tokenPairPda, role: AccountRole.READONLY },
-    { address: vault, role: AccountRole.WRITABLE },
+    { address: toAddress(recipient), role: AccountRole.WRITABLE },
     { address: custodyTokenAccountPda, role: AccountRole.WRITABLE },
     { address: TOKEN_PROGRAM_ADDRESS, role: AccountRole.READONLY },
     { address: tokenMessengerEventAuthorityPda, role: AccountRole.READONLY },
