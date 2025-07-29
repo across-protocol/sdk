@@ -47,8 +47,8 @@ import {
   getFillStatusPda,
   getRandomSvmAddress,
   getStatePda,
-  toAddress,
   numberToU8a32,
+  toAddress,
 } from "../../../src/arch/svm";
 import { RelayData } from "../../../src/interfaces";
 import {
@@ -432,6 +432,27 @@ export const sendCreateDeposit = async (
 export const encodePauseDepositsMessageBody = (pause = true): Buffer => {
   const spokePoolInterface = new ethers.utils.Interface(SpokePool__factory.abi);
   const calldata = spokePoolInterface.encodeFunctionData("pauseDeposits", [pause]);
+  return Buffer.from(calldata.slice(2), "hex");
+};
+
+/**
+ * Helper: Encodes a `relayRootBundle` call and returns it as a Buffer.
+ * @param relayerRefundRoot The relayer refund root.
+ * @param slowRelayRoot The slow relay root.
+ */
+export const encodeRelayRootBundleMessageBody = (relayerRefundRoot: string, slowRelayRoot: string): Buffer => {
+  const spokePoolInterface = new ethers.utils.Interface(SpokePool__factory.abi);
+  const calldata = spokePoolInterface.encodeFunctionData("relayRootBundle", [relayerRefundRoot, slowRelayRoot]);
+  return Buffer.from(calldata.slice(2), "hex");
+};
+
+/**
+ * Helper: Encodes a `emergencyDeleteRootBundle` call and returns it as a Buffer.
+ * @param rootBundleId The root bundle ID.
+ */
+export const encodeEmergencyDeleteRootBundleMessageBody = (rootBundleId: number): Buffer => {
+  const spokePoolInterface = new ethers.utils.Interface(SpokePool__factory.abi);
+  const calldata = spokePoolInterface.encodeFunctionData("emergencyDeleteRootBundle", [rootBundleId]);
   return Buffer.from(calldata.slice(2), "hex");
 };
 

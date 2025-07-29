@@ -57,16 +57,20 @@ export class RetrySolanaRpcFactory extends SolanaClusterRpcFactory {
     args: Parameters<RpcTransport>
   ): Promise<TResponse> {
     const { method } = args[0].payload as { method: string; params?: unknown[] };
-    let retries = this.retries;
+    let retryAttempt = 0;
 
     // eslint-disable-next-line no-constant-condition
     while (true) {
       try {
         return await transportCall();
       } catch (error) {
-        if (retries-- <= 0 || this.shouldFailImmediate(method, error)) {
+        if (retryAttempt++ >= this.retries || this.shouldFailImmediate(method, error)) {
           throw error;
         }
+
+        // Implement a slightly aggressive exponential backoff to account for fierce parallelism.
+        const exponentialBackoff = this.retryDelaySeconds * Math.pow(2, retryAttempt);
+        const delayS = this.retryDelaySeconds + exponentialBackoff * Math.random();
 
         // Log retry attempt if logger is available
         this.logger.debug({
@@ -74,12 +78,12 @@ export class RetrySolanaRpcFactory extends SolanaClusterRpcFactory {
           message: "Retrying Solana RPC call",
           provider: getOriginFromURL(this.clusterUrl),
           method,
-          retryAttempt: this.retries - retries,
-          retryDelaySeconds: this.retryDelaySeconds,
+          retryAttempt: retryAttempt,
+          retryDelaySeconds: delayS,
           error: error?.toString(),
         });
 
-        await delay(this.retryDelaySeconds);
+        await delay(delayS);
       }
     }
   }
