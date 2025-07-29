@@ -68,7 +68,7 @@ import {
   getRootBundlePda,
 } from "./";
 import { SvmCpiEventsClient } from "./eventsClient";
-import { SVM_BLOCK_NOT_AVAILABLE, SVM_NO_BLOCK_AT_SLOT, isSolanaError } from "./provider";
+import { SVM_BLOCK_NOT_AVAILABLE, SVM_SLOT_SKIPPED, isSolanaError } from "./provider";
 import { AttestedCCTPMessage, SVMEventNames, SVMProvider } from "./types";
 import {
   getEmergencyDeleteRootBundleRootBundleId,
@@ -110,8 +110,8 @@ export async function getTimestampForSlot(
 
     const { __code: code } = err.context;
     const slot = slotNumber.toString();
-    switch (code) {
-      case SVM_NO_BLOCK_AT_SLOT:
+    switch (err.context.__code) {
+      case SVM_SLOT_SKIPPED:
         return undefined;
 
       case SVM_BLOCK_NOT_AVAILABLE:

@@ -1,7 +1,7 @@
-import { RpcTransport } from "@solana/kit";
+import { RpcTransport, SOLANA_ERROR__RPC__TRANSPORT_HTTP_ERROR } from "@solana/kit";
 import { SolanaClusterRpcFactory } from "./baseRpcFactories";
 import { RateLimitedSolanaRpcFactory } from "./rateLimitedRpcFactory";
-import { isSolanaError, SVM_NO_BLOCK_AT_SLOT } from "../../arch/svm";
+import { isSolanaError } from "../../arch/svm";
 import { delay } from "../../utils";
 import { getOriginFromURL } from "../../utils/NetworkUtils";
 import { Logger } from "winston";
@@ -69,8 +69,11 @@ export class RetrySolanaRpcFactory extends SolanaClusterRpcFactory {
         }
 
         // Implement a slightly aggressive exponential backoff to account for fierce parallelism.
-        const exponentialBackoff = this.retryDelaySeconds * Math.pow(2, retryAttempt);
-        const delayS = this.retryDelaySeconds + exponentialBackoff * Math.random();
+        const { retryDelaySeconds } = this;
+        const exponentialBackoff = retryDelaySeconds * Math.pow(2, retryAttempt - 1);
+        const delayS = this.isRateLimitResponse(error)
+          ? exponentialBackoff + retryDelaySeconds * Math.random() // Add some jitter
+          : retryDelaySeconds;
 
         // Log retry attempt if logger is available
         this.logger.debug({
@@ -99,13 +102,24 @@ export class RetrySolanaRpcFactory extends SolanaClusterRpcFactory {
       return false;
     }
 
-    const { __code: code } = error.context;
+    // const { __code: code } = error.context;
     switch (method) {
-      case "getBlockTime":
-        return code === SVM_NO_BLOCK_AT_SLOT;
-
       default:
         return false;
     }
+  }
+
+  /**
+   * Identify whether an error thrown was the result of an RPC provider 429 response.
+   * @param error Error object from the RPC query.
+   * @returns True if the response was a 429 rate-limit response.
+   */
+  private isRateLimitResponse(error: unknown): boolean {
+    if (!isSolanaError(error)) {
+      return false;
+    }
+
+    const { __code: code } = error.context;
+    return code === SOLANA_ERROR__RPC__TRANSPORT_HTTP_ERROR && error.context.statusCode === 429;
   }
 }
