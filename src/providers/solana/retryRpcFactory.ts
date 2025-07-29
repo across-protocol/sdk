@@ -1,6 +1,7 @@
 import { RpcTransport } from "@solana/kit";
 import { SolanaClusterRpcFactory } from "./baseRpcFactories";
 import { RateLimitedSolanaRpcFactory } from "./rateLimitedRpcFactory";
+import { isSolanaError, SVM_NO_BLOCK_AT_SLOT } from "../../arch/svm";
 import { delay } from "../../utils";
 import { getOriginFromURL } from "../../utils/NetworkUtils";
 import { Logger } from "winston";
@@ -93,9 +94,18 @@ export class RetrySolanaRpcFactory extends SolanaClusterRpcFactory {
    * @param error Error object from the RPC call
    * @returns True if the request should be aborted immediately, otherwise false
    */
-  private shouldFailImmediate(_method: string, _error: unknown): boolean {
-    // TODO: Decide which Solana RPC errors should be considered non-transitory and should not be retried.
-    // For now, retry all errors.
-    return false;
+  private shouldFailImmediate(method: string, error: unknown): boolean {
+    if (!isSolanaError(error)) {
+      return false;
+    }
+
+    const { __code: code } = error.context;
+    switch (method) {
+      case "getBlockTime":
+        return code === SVM_NO_BLOCK_AT_SLOT;
+
+      default:
+        return false;
+    }
   }
 }

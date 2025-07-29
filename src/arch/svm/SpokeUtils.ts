@@ -103,11 +103,14 @@ export async function getTimestampForSlot(provider: SVMProvider, slotNumber: big
     }
 
     const { __code: code } = err.context;
-    if ([SVM_NO_BLOCK_AT_SLOT].includes(code)) {
-      return undefined;
-    }
+    const slot = slotNumber.toString();
+    switch (err.context.__code) {
+      case SVM_NO_BLOCK_AT_SLOT:
+        return undefined;
 
-    throw err; // Unhandled Solana error.
+      default:
+        throw new Error(`Unhandled SVM getBlockTime() error for slot ${slot}: ${code}`, { cause: err });
+    }
   }
 
   const timestamp = Number(_timestamp);
