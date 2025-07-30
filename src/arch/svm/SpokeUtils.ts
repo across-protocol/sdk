@@ -243,6 +243,7 @@ export async function findDeposit(
  * @param provider - SVM provider instance.
  * @param svmEventsClient - SVM events client for querying events.
  * @param atHeight - (Optional) Specific slot number to query. Defaults to the latest confirmed slot.
+ * @param messageHash - (Optional) Hash of the message that will be used to create relayDataHash from fill.
  * @returns The fill status for the deposit at the specified or current slot.
  */
 export async function relayFillStatus(
@@ -250,12 +251,13 @@ export async function relayFillStatus(
   relayData: RelayData,
   destinationChainId: number,
   svmEventsClient: SvmCpiEventsClient,
-  atHeight?: number
+  atHeight?: number,
+  messageHash?: string
 ): Promise<FillStatus> {
   assert(chainIsSvm(destinationChainId), "Destination chain must be an SVM chain");
   const provider = svmEventsClient.getRpc();
   // Get fill status PDA using relayData
-  const fillStatusPda = await getFillStatusPda(programId, relayData, destinationChainId);
+  const fillStatusPda = await getFillStatusPda(programId, relayData, destinationChainId, messageHash);
   let toSlot = BigInt(atHeight ?? 0);
 
   // If no specific slot is requested, try fetching the current status from the PDA
