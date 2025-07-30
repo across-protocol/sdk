@@ -114,6 +114,10 @@ export abstract class Address {
     return "__address_type_brand" in (obj as { __address_type_brand: boolean });
   }
 
+  public toJSON() {
+    return this.toNative();
+  }
+
   // Converts the address into a bytes32 string. Note that the output bytes will be lowercase so that it matches ethers event data. This function will never
   // throw since address length validation was done at construction time.
   toBytes32(): string {
