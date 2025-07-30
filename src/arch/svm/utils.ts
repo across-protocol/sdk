@@ -259,14 +259,16 @@ export async function getStatePda(programId: Address): Promise<Address> {
  * @param programId The SpokePool program ID.
  * @param relayData The relay data to get the fill status PDA for.
  * @param destinationChainId The destination chain ID.
+ * @param messageHash Hash of the message that will be used to create relayDataHash from fill.
  * @returns The PDA for the fill status.
  */
 export async function getFillStatusPda(
   programId: Address,
   relayData: RelayData,
-  destinationChainId: number
+  destinationChainId: number,
+  messageHash?: string
 ): Promise<Address> {
-  const relayDataHash = getRelayDataHash(relayData, destinationChainId);
+  const relayDataHash = getRelayDataHash(relayData, destinationChainId, messageHash);
   const uint8RelayDataHash = new Uint8Array(Buffer.from(relayDataHash.slice(2), "hex"));
   const [fillStatusPda] = await getProgramDerivedAddress({
     programAddress: programId,

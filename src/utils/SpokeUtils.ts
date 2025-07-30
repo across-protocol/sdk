@@ -19,9 +19,10 @@ export function getSlowFillLeafLpFeePct(leaf: SlowFillLeaf): BigNumber {
  * Compute the RelayData hash for a fill. This can be used to determine the fill status.
  * @param relayData RelayData information that is used to complete a fill.
  * @param destinationChainId Supplementary destination chain ID required by V3 hashes.
+ * @param messageHash Hash of the message that will be used to create relayDataHash from fill.
  * @returns The corresponding RelayData hash.
  */
-export function getRelayDataHash(relayData: RelayData, destinationChainId: number): string {
+export function getRelayDataHash(relayData: RelayData, destinationChainId: number, messageHash?: string): string {
   const abi = [
     {
       type: "tuple",
@@ -52,7 +53,11 @@ export function getRelayDataHash(relayData: RelayData, destinationChainId: numbe
     exclusiveRelayer: relayData.exclusiveRelayer.toBytes32(),
   };
   if (chainIsSvm(destinationChainId)) {
-    return svm.getRelayDataHash(relayData, destinationChainId);
+    const relayDataWithMessageHash = {
+      ...relayData,
+      messageHash: messageHash ?? getMessageHash(relayData.message),
+    };
+    return svm.getRelayDataHash(relayDataWithMessageHash, destinationChainId);
   }
   return keccak256(encodeAbiParameters(abi, [_relayData, destinationChainId]));
 }
