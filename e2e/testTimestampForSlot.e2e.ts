@@ -130,14 +130,23 @@ async function runTest(options: TestOptions) {
   console.log("================");
   const successful = results.filter((r) => r.success).length;
   const failed = results.filter((r) => !r.success).length;
+  const retried = results.filter((r) => r.time > 1000); // We know an attempt retried if it took > 1 second
+  const retryCount = retried.length;
+  const retriedSuccessfully = retried.filter((r) => r.success).length;
   const avgTime = results.reduce((sum, r) => sum + r.time, 0) / results.length;
   const longestTime = results.reduce((max, r) => Math.max(max, r.time), 0);
+  const retriedAvgTime = retried.reduce((sum, r) => sum + r.time, 0) / retried.length;
+  const retriedLongestTime = retried.reduce((max, r) => Math.max(max, r.time), 0);
 
-  console.log(`Total tests: ${options.iterations}`);
-  console.log(`Successful: ${successful} (${((successful / options.iterations) * 100).toFixed(1)}%)`);
-  console.log(`Failed: ${failed} (${((failed / options.iterations) * 100).toFixed(1)}%)`);
+  console.log(`Successful: ${successful} / ${options.iterations}`);
+  console.log(`Failed: ${failed} / ${options.iterations}`);
   console.log(`Average time per call: ${avgTime.toFixed(0)}ms`);
   console.log(`Longest time per call: ${longestTime.toFixed(0)}ms`);
+  console.log(`Retried: ${retryCount} / ${options.iterations}`);
+  console.log(`Retried successfully: ${retriedSuccessfully} / ${retryCount}`);
+  console.log(`Retried unsuccessfully: ${retryCount - retriedSuccessfully} / ${retryCount}`);
+  console.log(`Retried average time: ${retriedAvgTime.toFixed(0)}ms`);
+  console.log(`Retried longest time: ${retriedLongestTime.toFixed(0)}ms`);
   console.log(`Total test time: ${totalTime}ms`);
 
   if (failed > 0) {
