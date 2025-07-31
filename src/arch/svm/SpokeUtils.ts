@@ -32,6 +32,8 @@ import {
   signTransactionMessageWithSigners,
   some,
   type TransactionSigner,
+  type WritableAccount,
+  type ReadonlyAccount,
 } from "@solana/kit";
 import assert from "assert";
 import { arrayify, hexZeroPad, hexlify } from "ethers/lib/utils";
@@ -65,6 +67,8 @@ import {
   toAddress,
   unwrapEventData,
   getRootBundlePda,
+  getAcrossPlusMessageDecoder,
+  getAccountMeta,
 } from "./";
 import { SvmCpiEventsClient } from "./eventsClient";
 import { SVM_BLOCK_NOT_AVAILABLE, SVM_SLOT_SKIPPED, isSolanaError } from "./provider";
@@ -586,6 +590,8 @@ export async function getFillRelayTx(
     getEventAuthority(program),
   ]);
 
+  const _message = relayData.message.startsWith("0x") ? relayData.message.slice(2) : relayData.message;
+  const message = new Uint8Array(Buffer.from(_message, "hex"));
   const svmRelayData: SvmSpokeClient.FillRelayInput["relayData"] = {
     depositor: toAddress(depositor),
     recipient: toAddress(recipient),
@@ -598,8 +604,19 @@ export async function getFillRelayTx(
     depositId: new Uint8Array(intToU8Array32(relayData.depositId.toNumber())),
     fillDeadline: relayData.fillDeadline,
     exclusivityDeadline: relayData.exclusivityDeadline,
-    message: new Uint8Array(Buffer.from(relayData.message, "hex")),
+    message,
   };
+
+  // Add remaining accounts if the relayData has a non-empty message.
+  // @dev ! since in the context of creating a `fillRelayTx`, `relayData` must be defined.
+  let remainingAccounts: (WritableAccount | ReadonlyAccount)[] = [];
+  if (message.length !== 0) {
+    const acrossPlusMessageDecoder = getAcrossPlusMessageDecoder();
+    const acrossPlusMessage = acrossPlusMessageDecoder.decode(message);
+    remainingAccounts = acrossPlusMessage.accounts.map((account, idx) =>
+      getAccountMeta(account, idx < acrossPlusMessage.accounts.length - acrossPlusMessage.read_only_len)
+    );
+  }
 
   const fillInput: SvmSpokeClient.FillRelayInput = {
     signer: signer,
@@ -621,7 +638,7 @@ export async function getFillRelayTx(
   };
   // Pass createRecipientAtaIfNeeded =true to the createFillInstruction function to create the recipient token account
   // if it doesn't exist.
-  return createFillInstruction(signer, solanaClient, fillInput, mintInfo.data.decimals, true);
+  return createFillInstruction(signer, solanaClient, fillInput, mintInfo.data.decimals, true, remainingAccounts);
 }
 
 /**
@@ -638,7 +655,8 @@ export const createFillInstruction = async (
   solanaClient: SVMProvider,
   fillInput: SvmSpokeClient.FillRelayInput,
   tokenDecimals: number,
-  createRecipientAtaIfNeeded: boolean = true
+  createRecipientAtaIfNeeded: boolean = true,
+  remainingAccounts: (WritableAccount | ReadonlyAccount)[] = []
 ) => {
   const mintInfo = await getMintInfo(solanaClient, fillInput.mint);
   const approveIx = getApproveCheckedInstruction(
@@ -666,6 +684,9 @@ export const createFillInstruction = async (
     });
 
   const createFillIx = SvmSpokeClient.getFillRelayInstruction(fillInput);
+
+  // Add remaining accounts.
+  createFillIx.accounts.push(...remainingAccounts);
 
   return pipe(
     await createDefaultTransaction(solanaClient, signer),
