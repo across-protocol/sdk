@@ -118,13 +118,16 @@ async function _callGetTimestampForSlotWithRetry(
       case SVM_SLOT_SKIPPED:
         return undefined;
 
-      case SVM_BLOCK_NOT_AVAILABLE:
-        if (++retryAttempt >= NUM_RETRIES_GET_BLOCK_TIME) {
+      case SVM_BLOCK_NOT_AVAILABLE: {
+        // Implement exponential backoff with jitter where the # of seconds to wait is = 2^retryAttempt + jitter
+        // e.g. First two retry delays are ~1.5s and ~2.5s.
+        const delaySeconds = 2 ** retryAttempt + Math.random();
+        if (retryAttempt >= NUM_RETRIES_GET_BLOCK_TIME) {
           throw new Error(`Timeout on SVM getBlockTime() for slot ${slot} after ${retryAttempt} retry attempts`);
         }
-        // Implement exponential backoff with jitter where the # of seconds to wait is = 2^retryAttempt + jitter
-        await delay(2 ** retryAttempt + Math.random() * 0.5);
-        return _callGetTimestampForSlotWithRetry(provider, slotNumber, retryAttempt);
+        await delay(delaySeconds);
+        return _callGetTimestampForSlotWithRetry(provider, slotNumber, ++retryAttempt);
+      }
 
       default:
         throw new Error(`Unhandled SVM getBlockTime() error for slot ${slot}: ${code}`, { cause: err });
