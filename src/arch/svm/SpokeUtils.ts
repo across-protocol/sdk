@@ -92,15 +92,19 @@ type ProtoFill = Omit<RelayData, "recipient" | "outputToken"> & {
 /**
  * Retrieves the chain time at a particular slot.
  */
-export function getTimestampForSlot(provider: SVMProvider, slotNumber: bigint): Promise<number | undefined> {
-  return _callGetTimestampForSlotWithRetry(provider, slotNumber, 0);
+export function getTimestampForSlot(
+  provider: SVMProvider,
+  slotNumber: bigint,
+  maxRetries = 2
+): Promise<number | undefined> {
+  return _callGetTimestampForSlotWithRetry(provider, slotNumber, 0, maxRetries);
 }
 
-const NUM_RETRIES_GET_BLOCK_TIME = 2;
 async function _callGetTimestampForSlotWithRetry(
   provider: SVMProvider,
   slotNumber: bigint,
-  retryAttempt: number
+  retryAttempt: number,
+  maxRetries: number
 ): Promise<number | undefined> {
   // @note: getBlockTime receives a slot number, not a block number.
   let _timestamp: bigint;
@@ -122,11 +126,11 @@ async function _callGetTimestampForSlotWithRetry(
         // Implement exponential backoff with jitter where the # of seconds to wait is = 2^retryAttempt + jitter
         // e.g. First two retry delays are ~1.5s and ~2.5s.
         const delaySeconds = 2 ** retryAttempt + Math.random();
-        if (retryAttempt >= NUM_RETRIES_GET_BLOCK_TIME) {
+        if (retryAttempt >= maxRetries) {
           throw new Error(`Timeout on SVM getBlockTime() for slot ${slot} after ${retryAttempt} retry attempts`);
         }
         await delay(delaySeconds);
-        return _callGetTimestampForSlotWithRetry(provider, slotNumber, ++retryAttempt);
+        return _callGetTimestampForSlotWithRetry(provider, slotNumber, ++retryAttempt, maxRetries);
       }
 
       default:
