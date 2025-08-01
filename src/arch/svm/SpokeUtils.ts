@@ -36,7 +36,7 @@ import {
 } from "@solana/kit";
 import assert from "assert";
 import { arrayify, hexZeroPad, hexlify } from "ethers/lib/utils";
-import winston, { Logger } from "winston";
+import winston from "winston";
 import { CHAIN_IDs, TOKEN_SYMBOLS_MAP } from "../../constants";
 import { DepositWithBlock, FillStatus, FillWithBlock, RelayData, RelayExecutionEventInfo } from "../../interfaces";
 import {
@@ -257,6 +257,7 @@ export function getDepositIdAtBlock(_contract: unknown, _blockTag: number): Prom
 export async function findDeposit(
   eventClient: SvmCpiEventsClient,
   depositId: BigNumber,
+  logger: winston.Logger,
   slot?: bigint,
   secondsLookback = 2 * 24 * 60 * 60 // 2 days
 ): Promise<DepositWithBlock | undefined> {
@@ -266,7 +267,7 @@ export async function findDeposit(
   }
 
   const provider = eventClient.getRpc();
-  const { slot: currentSlot } = await getNearestSlotTime(provider);
+  const { slot: currentSlot } = await getNearestSlotTime(provider, logger);
 
   // If no slot is provided, use the current slot
   // If a slot is provided, ensure it's not in the future
@@ -324,6 +325,7 @@ export async function relayFillStatus(
   relayData: RelayData,
   destinationChainId: number,
   svmEventsClient: SvmCpiEventsClient,
+  logger: winston.Logger,
   atHeight?: number
 ): Promise<FillStatus> {
   assert(chainIsSvm(destinationChainId), "Destination chain must be an SVM chain");
@@ -337,7 +339,7 @@ export async function relayFillStatus(
     const commitment = "confirmed";
     const [fillStatusAccount, { slot: currentSlot, timestamp }] = await Promise.all([
       fetchEncodedAccount(provider, fillStatusPda, { commitment }),
-      getNearestSlotTime(provider, { commitment }),
+      getNearestSlotTime(provider, logger, { commitment }),
     ]);
     toSlot = currentSlot;
 
@@ -374,8 +376,8 @@ export async function fillStatusArray(
   relayData: RelayData[],
   destinationChainId: number,
   svmEventsClient: SvmCpiEventsClient,
-  atHeight?: number,
-  logger?: Logger
+  logger: winston.Logger,
+  atHeight?: number
 ): Promise<(FillStatus | undefined)[]> {
   assert(chainIsSvm(destinationChainId), "Destination chain must be an SVM chain");
   const provider = svmEventsClient.getRpc();
@@ -403,7 +405,7 @@ export async function fillStatusArray(
   // Otherwise, initialize all statuses as undefined
   const fillStatuses: (FillStatus | undefined)[] =
     atHeight === undefined
-      ? await fetchBatchFillStatusFromPdaAccounts(provider, fillStatusPdas, relayData)
+      ? await fetchBatchFillStatusFromPdaAccounts(provider, fillStatusPdas, relayData, logger)
       : new Array(relayData.length).fill(undefined);
 
   // Collect indices of deposits that still need their status resolved
@@ -419,7 +421,7 @@ export async function fillStatusArray(
   const missingResults: { index: number; fillStatus: FillStatus }[] = [];
 
   // Determine the toSlot to use for event reconstruction
-  const toSlot = atHeight ? BigInt(atHeight) : (await getNearestSlotTime(provider)).slot;
+  const toSlot = atHeight ? BigInt(atHeight) : (await getNearestSlotTime(provider, logger)).slot;
 
   // @note: This path is mostly used for deposits past their fill deadline.
   // If it becomes a bottleneck, consider returning an "Unknown" status that can be handled downstream.
@@ -457,11 +459,12 @@ export async function findFillEvent(
   relayData: RelayData,
   destinationChainId: number,
   svmEventsClient: SvmCpiEventsClient,
+  logger: winston.Logger,
   fromSlot: number,
   toSlot?: number
 ): Promise<FillWithBlock | undefined> {
   assert(chainIsSvm(destinationChainId), "Destination chain must be an SVM chain");
-  toSlot ??= Number((await getNearestSlotTime(svmEventsClient.getRpc())).slot);
+  toSlot ??= Number((await getNearestSlotTime(svmEventsClient.getRpc(), logger)).slot);
 
   // Get fillStatus PDA using relayData
   const programId = svmEventsClient.getProgramAddress();
@@ -1021,14 +1024,15 @@ async function resolveFillStatusFromPdaEvents(
 async function fetchBatchFillStatusFromPdaAccounts(
   provider: SVMProvider,
   fillStatusPdas: Address[],
-  relayDataArray: RelayData[]
+  relayDataArray: RelayData[],
+  logger: winston.Logger
 ): Promise<(FillStatus | undefined)[]> {
   const chunkSize = 100; // SVM method getMultipleAccounts allows a max of 100 addresses per request
   const commitment = "confirmed";
 
   const [pdaAccounts, { timestamp }] = await Promise.all([
     Promise.all(chunk(fillStatusPdas, chunkSize).map((chunk) => fetchEncodedAccounts(provider, chunk, { commitment }))),
-    getNearestSlotTime(provider, { commitment }),
+    getNearestSlotTime(provider, logger, { commitment }),
   ]);
 
   const fillStatuses = pdaAccounts.flat().map((account, index) => {

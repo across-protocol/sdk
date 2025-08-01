@@ -120,7 +120,7 @@ export class HubPoolClient extends BaseAbstractClient {
     },
     cachingMechanism?: CachingMechanismInterface
   ) {
-    super(eventSearchConfig, cachingMechanism);
+    super(logger, eventSearchConfig, cachingMechanism);
     this.latestHeightSearched = Math.min(deploymentBlock - 1, 0);
     this.firstHeightToSearch = eventSearchConfig.from;
 

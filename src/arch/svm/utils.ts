@@ -72,7 +72,7 @@ export async function getNearestSlotTime(
   opts: { slot: bigint } | { commitment: Commitment } = { commitment: "confirmed" }
 ): Promise<{ slot: bigint; timestamp: number }> {
   let timestamp: number | undefined;
-  let slot = "slot" in opts ? opts.slot : await getSlot(provider, opts.commitment, logger).send();
+  let slot = "slot" in opts ? opts.slot : await getSlot(provider, opts.commitment, logger);
 
   do {
     timestamp = await getTimestampForSlot(provider, slot, logger);
@@ -89,11 +89,12 @@ export async function getNearestSlotTime(
  */
 export async function getLatestFinalizedSlotWithBlock(
   provider: SVMProvider,
+  logger: winston.Logger,
   maxSlot: bigint,
   maxLookback = 1000
 ): Promise<number> {
   const opts = { maxSupportedTransactionVersion: 0, transactionDetails: "none", rewards: false } as const;
-  const { slot: finalizedSlot } = await getNearestSlotTime(provider, { commitment: "finalized" });
+  const { slot: finalizedSlot } = await getNearestSlotTime(provider, logger, { commitment: "finalized" });
   const endSlot = biMin(maxSlot, finalizedSlot);
 
   let slot = endSlot;
