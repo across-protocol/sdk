@@ -32,6 +32,12 @@ export type AcrossPlusMessage = {
   handler_message: ReadonlyUint8Array;
 };
 
+export type CompiledIx = {
+  program_id_index: number;
+  account_key_indexes: number;
+  data: ReadonlyUint8Array;
+};
+
 export function getAcrossPlusMessageEncoder(): Encoder<AcrossPlusMessage> {
   return getStructEncoder([
     ["handler", getAddressEncoder()],
@@ -49,6 +55,22 @@ export function getAcrossPlusMessageDecoder(): Decoder<AcrossPlusMessage> {
     ["value_amount", getU64Decoder()],
     ["accounts", getArrayDecoder(getAddressDecoder())],
     ["handler_message", addDecoderSizePrefix(getBytesDecoder(), getU32Decoder())],
+  ]);
+}
+
+export function getCompiledIxEncoder(): Encoder<CompiledIx> {
+  return getStructEncoder([
+    ["program_id_index", getU8Encoder()],
+    ["account_key_indexes", getU8Encoder()],
+    ["data", addEncoderSizePrefix(getBytesEncoder(), getU32Encoder())],
+  ]);
+}
+
+export function getCompiledIxDecoder(): Decoder<CompiledIx> {
+  return getStructDecoder([
+    ["program_id_index", getU8Decoder()],
+    ["account_key_indexes", getU8Decoder()],
+    ["data", addDecoderSizePrefix(getBytesDecoder(), getU32Decoder())],
   ]);
 }
 
