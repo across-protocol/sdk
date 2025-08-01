@@ -195,7 +195,7 @@ export class SVMSpokePoolClient extends SpokePoolClient {
   public override async getTimestampForBlock(slot: number): Promise<number> {
     let _slot = BigInt(slot);
     do {
-      const timestamp = await getTimestampForSlot(this.svmEventsClient.getRpc(), _slot);
+      const timestamp = await getTimestampForSlot(this.svmEventsClient.getRpc(), _slot, this.logger);
       if (isDefined(timestamp)) {
         return timestamp;
       }

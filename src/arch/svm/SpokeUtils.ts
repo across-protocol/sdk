@@ -32,10 +32,11 @@ import {
   signTransactionMessageWithSigners,
   some,
   type TransactionSigner,
+  type Commitment,
 } from "@solana/kit";
 import assert from "assert";
 import { arrayify, hexZeroPad, hexlify } from "ethers/lib/utils";
-import { Logger } from "winston";
+import winston, { Logger } from "winston";
 import { CHAIN_IDs, TOKEN_SYMBOLS_MAP } from "../../constants";
 import { DepositWithBlock, FillStatus, FillWithBlock, RelayData, RelayExecutionEventInfo } from "../../interfaces";
 import {
@@ -89,22 +90,63 @@ type ProtoFill = Omit<RelayData, "recipient" | "outputToken"> & {
   outputToken: SvmAddress;
 };
 
+export function getSlot(
+  provider: SVMProvider,
+  commitment: Commitment,
+  logger: winston.Logger,
+  maxRetries = 2
+): Promise<bigint> {
+  return _callGetSlotWithRetry(provider, commitment, 0, maxRetries, logger);
+}
+
+async function _callGetSlotWithRetry(
+  provider: SVMProvider,
+  commitment: Commitment,
+  retryAttempt: number,
+  maxRetries: number,
+  logger: winston.Logger
+): Promise<bigint> {
+  try {
+    return await provider.getSlot({ commitment }).send();
+  } catch (err) {
+    if (!isSolanaError(err)) {
+      throw err;
+    }
+
+    const { __code: code } = err.context;
+
+    logger.debug({
+      at: "getSlot",
+      message: "Caught error from getSlot()",
+      errorCode: code,
+      commitment,
+      retryAttempt,
+      maxRetries,
+    });
+
+    // TODO: Implement retry logic once we better understand how these errors look:
+    throw err;
+  }
+}
+
 /**
  * Retrieves the chain time at a particular slot.
  */
 export function getTimestampForSlot(
   provider: SVMProvider,
   slotNumber: bigint,
+  logger: winston.Logger,
   maxRetries = 2
 ): Promise<number | undefined> {
-  return _callGetTimestampForSlotWithRetry(provider, slotNumber, 0, maxRetries);
+  return _callGetTimestampForSlotWithRetry(provider, slotNumber, 0, maxRetries, logger);
 }
 
 async function _callGetTimestampForSlotWithRetry(
   provider: SVMProvider,
   slotNumber: bigint,
   retryAttempt: number,
-  maxRetries: number
+  maxRetries: number,
+  logger: winston.Logger
 ): Promise<number | undefined> {
   // @note: getBlockTime receives a slot number, not a block number.
   let _timestamp: bigint;
@@ -118,6 +160,16 @@ async function _callGetTimestampForSlotWithRetry(
 
     const { __code: code } = err.context;
     const slot = slotNumber.toString();
+
+    logger.debug({
+      at: "getTimestampForSlot",
+      message: "Caught error from getBlockTime()",
+      errorCode: code,
+      slot,
+      retryAttempt,
+      maxRetries,
+    });
+
     switch (err.context.__code) {
       case SVM_SLOT_SKIPPED:
         return undefined;
@@ -129,8 +181,16 @@ async function _callGetTimestampForSlotWithRetry(
         if (retryAttempt >= maxRetries) {
           throw new Error(`Timeout on SVM getBlockTime() for slot ${slot} after ${retryAttempt} retry attempts`);
         }
+        logger.debug({
+          at: "getTimestampForSlot",
+          message: `Retrying getBlockTime() after ${delaySeconds} seconds for retry attempt #${retryAttempt}`,
+          slot,
+          retryAttempt,
+          maxRetries,
+          delaySeconds,
+        });
         await delay(delaySeconds);
-        return _callGetTimestampForSlotWithRetry(provider, slotNumber, ++retryAttempt, maxRetries);
+        return _callGetTimestampForSlotWithRetry(provider, slotNumber, ++retryAttempt, maxRetries, logger);
       }
 
       default:
