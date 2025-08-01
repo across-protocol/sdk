@@ -36,7 +36,7 @@ import {
   type ReadonlyAccount,
 } from "@solana/kit";
 import assert from "assert";
-import { arrayify, hexZeroPad, hexlify } from "ethers/lib/utils";
+import { arrayify } from "ethers/lib/utils";
 import { Logger } from "winston";
 import { CHAIN_IDs, TOKEN_SYMBOLS_MAP } from "../../constants";
 import { DepositWithBlock, FillStatus, FillWithBlock, RelayData, RelayExecutionEventInfo } from "../../interfaces";
@@ -70,6 +70,7 @@ import {
   getRootBundlePda,
   getAcrossPlusMessageDecoder,
   getAccountMeta,
+  toSvmRelayData,
 } from "./";
 import { SvmCpiEventsClient } from "./eventsClient";
 import { SVM_BLOCK_NOT_AVAILABLE, SVM_SLOT_SKIPPED, isSolanaError } from "./provider";
@@ -624,12 +625,17 @@ export async function getFillRelayTx(
 
   // Add remaining accounts if the relayData has a non-empty message.
   // @dev ! since in the context of creating a `fillRelayTx`, `relayData` must be defined.
-  let remainingAccounts: (WritableAccount | ReadonlyAccount)[] = [];
+  const remainingAccounts: (WritableAccount | ReadonlyAccount)[] = [];
   if (message.length !== 0) {
     const acrossPlusMessageDecoder = getAcrossPlusMessageDecoder();
     const acrossPlusMessage = acrossPlusMessageDecoder.decode(message);
-    remainingAccounts = acrossPlusMessage.accounts.map((account, idx) =>
-      getAccountMeta(account, idx < acrossPlusMessage.accounts.length - acrossPlusMessage.read_only_len)
+    // The first `remainingAccount` _must_ be the handler address.
+    // https://github.com/across-protocol/contracts/blob/3310f8dc716407a5f97ef5fd2eae63df83251f2f/programs/svm-spoke/src/utils/message_utils.rs#L36.
+    remainingAccounts.push(getAccountMeta(acrossPlusMessage.handler, true));
+    remainingAccounts.push(
+      ...acrossPlusMessage.accounts.map((account, idx) =>
+        getAccountMeta(account, idx < acrossPlusMessage.accounts.length - acrossPlusMessage.read_only_len)
+      )
     );
   }
 
@@ -903,28 +909,23 @@ export async function getAssociatedTokenAddress(
 }
 
 export function getRelayDataHash(relayData: RelayData, destinationChainId: number): string {
-  const addressEncoder = getAddressEncoder();
-  const uint64Encoder = getU64Encoder();
-  const uint32Encoder = getU32Encoder();
-
   assert(relayData.message.startsWith("0x"), "Message must be a hex string");
-  const encodeAddress = (data: SdkAddress) => Uint8Array.from(addressEncoder.encode(toAddress(data)));
+  const uint64Encoder = getU64Encoder();
 
+  const svmRelayData = toSvmRelayData(relayData);
+  const relayDataEncoder = SvmSpokeClient.getRelayDataEncoder();
+  const encodedRelayData = relayDataEncoder.encode(svmRelayData);
+  const encodedMessage = Buffer.from(relayData.message.slice(2), "hex");
+
+  // Reformat the encoded relay data the same way it is done in the SvmSpoke:
+  // https://github.com/across-protocol/contracts/blob/3310f8dc716407a5f97ef5fd2eae63df83251f2f/programs/svm-spoke/src/utils/merkle_proof_utils.rs#L5
+  const messageOffset = encodedRelayData.length - 4 - encodedMessage.length;
   const contentToHash = Buffer.concat([
-    encodeAddress(relayData.depositor),
-    encodeAddress(relayData.recipient),
-    encodeAddress(relayData.exclusiveRelayer),
-    encodeAddress(relayData.inputToken),
-    encodeAddress(relayData.outputToken),
-    arrayify(hexZeroPad(hexlify(relayData.inputAmount), 32)),
-    Uint8Array.from(uint64Encoder.encode(BigInt(relayData.outputAmount.toString()))),
-    Uint8Array.from(uint64Encoder.encode(BigInt(relayData.originChainId.toString()))),
-    arrayify(hexZeroPad(hexlify(relayData.depositId), 32)),
-    Uint8Array.from(uint32Encoder.encode(relayData.fillDeadline)),
-    Uint8Array.from(uint32Encoder.encode(relayData.exclusivityDeadline)),
-    hashNonEmptyMessage(Buffer.from(arrayify(relayData.message))),
+    encodedRelayData.slice(0, messageOffset),
+    hashNonEmptyMessage(encodedMessage),
     Uint8Array.from(uint64Encoder.encode(BigInt(destinationChainId))),
   ]);
+
   return keccak256(contentToHash);
 }
 

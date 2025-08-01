@@ -58,6 +58,10 @@ export function getAcrossPlusMessageDecoder(): Decoder<AcrossPlusMessage> {
   ]);
 }
 
+export function getHandlerMessageEncoder(): Encoder<Array<CompiledIx>> {
+  return getArrayEncoder(getCompiledIxEncoder());
+}
+
 export function getCompiledIxEncoder(): Encoder<CompiledIx> {
   return getStructEncoder([
     ["program_id_index", getU8Encoder()],
