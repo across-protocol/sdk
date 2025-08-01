@@ -34,7 +34,7 @@ export type AcrossPlusMessage = {
 
 export type CompiledIx = {
   program_id_index: number;
-  account_key_indexes: number;
+  account_key_indexes: Array<number>;
   data: ReadonlyUint8Array;
 };
 
@@ -65,7 +65,7 @@ export function getHandlerMessageEncoder(): Encoder<Array<CompiledIx>> {
 export function getCompiledIxEncoder(): Encoder<CompiledIx> {
   return getStructEncoder([
     ["program_id_index", getU8Encoder()],
-    ["account_key_indexes", getU8Encoder()],
+    ["account_key_indexes", getArrayEncoder(getU8Encoder())],
     ["data", addEncoderSizePrefix(getBytesEncoder(), getU32Encoder())],
   ]);
 }
@@ -73,7 +73,7 @@ export function getCompiledIxEncoder(): Encoder<CompiledIx> {
 export function getCompiledIxDecoder(): Decoder<CompiledIx> {
   return getStructDecoder([
     ["program_id_index", getU8Decoder()],
-    ["account_key_indexes", getU8Decoder()],
+    ["account_key_indexes", getArrayDecoder(getU8Decoder())],
     ["data", addDecoderSizePrefix(getBytesDecoder(), getU32Decoder())],
   ]);
 }
