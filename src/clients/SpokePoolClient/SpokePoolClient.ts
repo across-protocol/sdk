@@ -21,6 +21,7 @@ import {
   Address,
   toAddressType,
 } from "../../utils";
+import { FundsDepositedRaw, FilledRelayRaw } from "./types";
 import { duplicateEvent, sortEventsAscendingInPlace } from "../../utils/EventUtils";
 import { CHAIN_IDs, ZERO_ADDRESS } from "../../constants";
 import {
@@ -39,7 +40,6 @@ import {
   SortableEvent,
   SpeedUpWithBlock,
   TokensBridged,
-  RelayExecutionEventInfo,
 } from "../../interfaces";
 import { BaseAbstractClient, UpdateFailureReason } from "../BaseAbstractClient";
 import { AcrossConfigStoreClient } from "../AcrossConfigStoreClient";
@@ -520,26 +520,28 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
 
     // Performs the indexing of a deposit-like spoke pool event.
     const queryDepositEvents = async (eventName: string) => {
-      const depositEvents = (queryResults[eventsToQuery.indexOf(eventName)] ?? []).map((_event) => {
-        const event = _event as Omit<
-          DepositWithBlock,
-          "depositor" | "recipient" | "inputToken" | "outputToken" | "exclusiveRelayer"
-        > & {
-          depositor: string;
-          recipient: string;
-          inputToken: string;
-          outputToken: string;
-          exclusiveRelayer: string;
-        };
-        return {
-          ...event,
-          depositor: toAddressType(event.depositor, this.chainId),
-          recipient: toAddressType(event.recipient, event.destinationChainId),
-          inputToken: toAddressType(event.inputToken, this.chainId),
-          outputToken: toAddressType(event.outputToken, event.destinationChainId),
-          exclusiveRelayer: toAddressType(event.exclusiveRelayer, event.destinationChainId),
-        } as DepositWithBlock;
-      });
+      const depositEvents = (queryResults[eventsToQuery.indexOf(eventName)] ?? [])
+        .map((event) => {
+          if (!FundsDepositedRaw.is(event)) {
+            this.log("warn", `Skipping malformed ${eventName} event.`, { event });
+            return;
+          }
+
+          const deposit: Omit<DepositWithBlock, "quoteBlockNumber" | "fromLiteChain" | "toLiteChain"> = {
+            ...event,
+            originChainId: this.chainId,
+            depositor: toAddressType(event.depositor, this.chainId),
+            recipient: toAddressType(event.recipient, event.destinationChainId),
+            inputToken: toAddressType(event.inputToken, this.chainId),
+            outputToken: toAddressType(event.outputToken, event.destinationChainId),
+            exclusiveRelayer: toAddressType(event.exclusiveRelayer, event.destinationChainId),
+            messageHash: getMessageHash(event.message),
+          };
+
+          return deposit;
+        })
+        .filter(isDefined);
+
       if (depositEvents.length > 0) {
         this.log(
           "debug",
@@ -557,18 +559,12 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
         const quoteBlockNumber = quoteBlockNumbers[Number(event.quoteTimestamp)];
 
         // Derive and append the common properties that are not part of the onchain event.
-        const deposit = {
+        const deposit: DepositWithBlock = {
           ...event,
-          messageHash: getMessageHash(event.message),
           quoteBlockNumber,
-          originChainId: this.chainId,
-          // The following properties are placeholders to be updated immediately.
-          fromLiteChain: true,
-          toLiteChain: true,
+          fromLiteChain: this.isOriginLiteChain(event),
+          toLiteChain: this.isDestinationLiteChain(event),
         };
-
-        deposit.fromLiteChain = this.isOriginLiteChain(deposit);
-        deposit.toLiteChain = this.isDestinationLiteChain(deposit);
 
         if (deposit.outputToken.isZeroAddress()) {
           deposit.outputToken = this.getDestinationTokenForDeposit(deposit);
@@ -694,39 +690,31 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
 
     // Performs indexing of filled relay-like events.
     const queryFilledRelayEvents = (eventName: string) => {
-      const fillEvents = (queryResults[eventsToQuery.indexOf(eventName)] ?? []).map((_event) => {
-        const event = _event as Omit<
-          FillWithBlock,
-          | "depositor"
-          | "recipient"
-          | "inputToken"
-          | "outputToken"
-          | "exclusiveRelayer"
-          | "relayer"
-          | "relayExecutionInfo"
-        > & {
-          depositor: string;
-          recipient: string;
-          inputToken: string;
-          outputToken: string;
-          exclusiveRelayer: string;
-          relayer: string;
-          relayExecutionInfo: Omit<RelayExecutionEventInfo, "updatedRecipient"> & { updatedRecipient: string };
-        };
-        return {
-          ...event,
-          depositor: toAddressType(event.depositor, event.originChainId),
-          recipient: toAddressType(event.recipient, this.chainId),
-          inputToken: toAddressType(event.inputToken, event.originChainId),
-          outputToken: toAddressType(event.outputToken, this.chainId),
-          exclusiveRelayer: toAddressType(event.exclusiveRelayer, this.chainId),
-          relayer: toAddressType(event.relayer, this.chainId),
-          relayExecutionInfo: {
-            ...event.relayExecutionInfo,
-            updatedRecipient: toAddressType(event.relayExecutionInfo.updatedRecipient, this.chainId),
-          },
-        } as FillWithBlock;
-      });
+      const fillEvents = (queryResults[eventsToQuery.indexOf(eventName)] ?? [])
+        .map((event) => {
+          if (!FilledRelayRaw.is(event)) {
+            this.log("warn", `Skipping malformed ${eventName} event.`, { event });
+            return;
+          }
+
+          const fill: FillWithBlock = {
+            ...event,
+            destinationChainId: this.chainId,
+            depositor: toAddressType(event.depositor, event.originChainId),
+            recipient: toAddressType(event.recipient, this.chainId),
+            inputToken: toAddressType(event.inputToken, event.originChainId),
+            outputToken: toAddressType(event.outputToken, this.chainId),
+            exclusiveRelayer: toAddressType(event.exclusiveRelayer, this.chainId),
+            relayer: toAddressType(event.relayer, this.chainId),
+            relayExecutionInfo: {
+              ...event.relayExecutionInfo,
+              updatedRecipient: toAddressType(event.relayExecutionInfo.updatedRecipient, this.chainId),
+            },
+          };
+
+          return fill;
+        })
+        .filter(isDefined);
 
       if (fillEvents.length > 0) {
         this.log("debug", `Using ${fillEvents.length} newly queried ${eventName} events for chain ${this.chainId}`, {
@@ -904,17 +892,17 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
    * @returns True if the deposit originates from a lite chain, false otherwise. If the hub pool client is not defined,
    *          this method will return false.
    */
-  protected isOriginLiteChain(deposit: DepositWithBlock): boolean {
+  protected isOriginLiteChain(deposit: Pick<DepositWithBlock, "originChainId" | "quoteTimestamp">): boolean {
     return this.configStoreClient?.isChainLiteChainAtTimestamp(deposit.originChainId, deposit.quoteTimestamp) ?? false;
   }
 
   /**
    * Determines whether the deposit destination chain is a lite chain.
    * @param deposit The deposit to evaluate.
-   * @returns True if the deposit is destined to a lite chain, false otherwise. If the hub pool client is not defined,
+   * @returns True if the deposit is destined to a lite chain, false otherwise. If the ConfigStoreClient is not defined,
    *          this method will return false.
    */
-  protected isDestinationLiteChain(deposit: DepositWithBlock): boolean {
+  protected isDestinationLiteChain(deposit: Pick<DepositWithBlock, "destinationChainId" | "quoteTimestamp">): boolean {
     return (
       this.configStoreClient?.isChainLiteChainAtTimestamp(deposit.destinationChainId, deposit.quoteTimestamp) ?? false
     );

@@ -5,7 +5,7 @@ import { BigNumber } from "../utils";
 
 const AddressValidator = define<string>("AddressValidator", (v) => ethersUtils.isAddress(String(v)));
 const HexValidator = define<string>("HexValidator", (v) => ethersUtils.isHexString(String(v)));
-const BigNumberValidator = define<BigNumber>("BigNumberValidator", (v) => BigNumber.isBigNumber(v));
+export const BigNumberValidator = define<BigNumber>("BigNumberValidator", (v) => BigNumber.isBigNumber(v));
 
 const V3DepositSchema = object({
   depositId: BigNumberValidator,
