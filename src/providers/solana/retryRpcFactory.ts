@@ -71,9 +71,9 @@ export class RetrySolanaRpcFactory extends SolanaClusterRpcFactory {
         // Implement a slightly aggressive exponential backoff to account for fierce parallelism.
         const { retryDelaySeconds } = this;
         const exponentialBackoff = retryDelaySeconds * Math.pow(2, retryAttempt - 1);
-        const delayS = this.isRateLimitResponse(error)
-          ? exponentialBackoff + retryDelaySeconds * Math.random() // Add some jitter
-          : retryDelaySeconds;
+        const jitter = 1 + 2 * Math.random(); // Range jitter from [1, 3]s to offset problem where there are many
+        // concurrent retry requests sent at the same time.
+        const delayS = this.isRateLimitResponse(error) ? exponentialBackoff + jitter : retryDelaySeconds;
 
         // Log retry attempt if logger is available
         this.logger.debug({
