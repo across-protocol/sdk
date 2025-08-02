@@ -114,7 +114,7 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
     public deploymentBlock: number,
     eventSearchConfig: MakeOptional<EventSearchConfig, "to"> = { from: 0, maxLookBack: 0 }
   ) {
-    super(eventSearchConfig);
+    super(logger, eventSearchConfig);
     this.firstHeightToSearch = eventSearchConfig.from;
     this.latestHeightSearched = 0;
     this.configStoreClient = hubPoolClient?.configStoreClient;

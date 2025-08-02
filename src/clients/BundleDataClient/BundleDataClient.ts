@@ -1651,6 +1651,7 @@ export class BundleDataClient {
         deposit,
         spokePoolClient.chainId,
         spokePoolClient.svmEventsClient,
+        spokePoolClient.logger,
         spokePoolClient.deploymentBlock,
         spokePoolClient.latestHeightSearched
       );
