@@ -6,6 +6,7 @@ const SNOWFLAKES = {
   [CHAIN_IDs.BSC]: "bsc",
   [CHAIN_IDs.POLYGON]: "matic",
   [CHAIN_IDs.OPTIMISM]: "optimism",
+  [CHAIN_IDs.WORLD_CHAIN]: "worldchain-mainnet",
 };
 const SNOWFLAKE_CHAIN_IDs = Object.keys(SNOWFLAKES).map(Number);
 const MAINNET_CHAIN_IDs = Object.values(_MAINNET_CHAIN_IDs).map(Number);
