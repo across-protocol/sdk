@@ -7,6 +7,7 @@ import { RPCProvider, RPCTransport } from "./types";
 import * as alchemy from "./alchemy";
 import * as infura from "./infura";
 import * as drpc from "./drpc";
+import * as quicknode from "./quicknode";
 
 /**
  * Infura DIN is identified separately to allow it to be configured explicitly.
@@ -16,6 +17,7 @@ const PROVIDERS = {
   INFURA: infura.getURL,
   INFURA_DIN: infura.getURL,
   DRPC: drpc.getURL,
+  QUICKNODE: quicknode.getURL,
 };
 
 /**
