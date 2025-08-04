@@ -1,4 +1,4 @@
-import { CHAIN_IDs, MAINNET_CHAIN_IDs as _MAINNET_CHAIN_IDs, PUBLIC_NETWORKS } from "../constants";
+import { CHAIN_IDs, PUBLIC_NETWORKS } from "../constants";
 import { RPCTransport } from "./types";
 
 export function getURL(chainId: number, apiKey: string, transport: RPCTransport): string {
@@ -17,7 +17,7 @@ export function getURL(chainId: number, apiKey: string, transport: RPCTransport)
     return `${transport}://${prefix}.optimism.quicknode.pro/${apiKey}`;
   }
 
-  let chain = PUBLIC_NETWORKS[chainId]?.name.toLowerCase().replace(" ", "-");
+  const chain = PUBLIC_NETWORKS[chainId]?.name.toLowerCase().replace(" ", "-");
   if (!chain) {
     throw new Error(`No known QuickNode provider for chainId ${chainId}`);
   }
