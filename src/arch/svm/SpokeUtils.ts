@@ -73,6 +73,7 @@ import {
   getAccountMeta,
   toSvmRelayData,
   getInstructionParamsPda,
+  type AcrossPlusMessage,
 } from "./";
 import { SvmCpiEventsClient } from "./eventsClient";
 import { SVM_BLOCK_NOT_AVAILABLE, SVM_SLOT_SKIPPED, isSolanaError } from "./provider";
@@ -608,8 +609,7 @@ export async function getFillRelayTx(
     getEventAuthority(program),
   ]);
 
-  const _message = relayData.message.startsWith("0x") ? relayData.message.slice(2) : relayData.message;
-  const message = new Uint8Array(Buffer.from(_message, "hex"));
+  const message = new Uint8Array(Buffer.from(relayData.message.slice(2), "hex"));
   const svmRelayData: SvmSpokeClient.FillRelayInput["relayData"] = {
     depositor: toAddress(depositor),
     recipient: toAddress(recipient),
@@ -628,9 +628,8 @@ export async function getFillRelayTx(
   // Add remaining accounts if the relayData has a non-empty message.
   // @dev ! since in the context of creating a `fillRelayTx`, `relayData` must be defined.
   const remainingAccounts: (WritableAccount | ReadonlyAccount)[] = [];
-  if (message.length !== 0) {
-    const acrossPlusMessageDecoder = getAcrossPlusMessageDecoder();
-    const acrossPlusMessage = acrossPlusMessageDecoder.decode(message);
+  if (relayData.message !== "0x") {
+    const acrossPlusMessage = deserializeMessage(relayData.message);
     // The first `remainingAccount` _must_ be the handler address.
     // https://github.com/across-protocol/contracts/blob/3310f8dc716407a5f97ef5fd2eae63df83251f2f/programs/svm-spoke/src/utils/message_utils.rs#L36.
     remainingAccounts.push(getAccountMeta(acrossPlusMessage.handler, true));
@@ -661,7 +660,105 @@ export async function getFillRelayTx(
   };
   // Pass createRecipientAtaIfNeeded =true to the createFillInstruction function to create the recipient token account
   // if it doesn't exist.
-  return createFillInstruction(signer, solanaClient, fillInput, mintInfo.data.decimals, true, remainingAccounts);
+  return createFillInstruction(
+    signer,
+    solanaClient,
+    fillInput,
+    svmRelayData,
+    mintInfo.data.decimals,
+    true,
+    remainingAccounts
+  );
+}
+
+/**
+ * Creates a fill instruction with an instruction params PDA as the relayData input.
+ * @param spokePoolAddr Address of the spoke pool we're trying to fill through
+ * @param solanaClient RPC client to interact with Solana chain
+ * @param relayData RelayData instance, supplemented with destinationChainId
+ * @param signer signer associated with the relayer creating a Fill. Can be VoidSigner for gas estimation
+ * @param repaymentChainId Chain id where relayer repayment is desired
+ * @param repaymentAddress Address to which repayment will go to on repaymentChainId
+ * @returns FillRelay transaction
+ */
+export async function getIPFillRelayTx(
+  spokePoolAddr: SvmAddress,
+  solanaClient: SVMProvider,
+  relayData: Omit<RelayData, "recipient" | "outputToken"> & {
+    destinationChainId: number;
+    recipient: SvmAddress;
+    outputToken: SvmAddress;
+  },
+  signer: TransactionSigner,
+  repaymentChainId: number,
+  repaymentAddress: SdkAddress
+) {
+  const program = toAddress(spokePoolAddr);
+  const _relayDataHash = getRelayDataHash(relayData, relayData.destinationChainId);
+  const relayDataHash = new Uint8Array(Buffer.from(_relayDataHash.slice(2), "hex"));
+
+  const [state, delegate, instructionParams] = await Promise.all([
+    getStatePda(program),
+    getFillRelayDelegatePda(relayDataHash, BigInt(repaymentChainId), toAddress(repaymentAddress), program),
+    getInstructionParamsPda(program, signer.address),
+  ]);
+
+  const mint = toAddress(relayData.outputToken);
+  const mintInfo = await getMintInfo(solanaClient, mint);
+
+  const [recipientAta, relayerAta, fillStatus, eventAuthority] = await Promise.all([
+    getAssociatedTokenAddress(relayData.recipient, relayData.outputToken, mintInfo.programAddress),
+    getAssociatedTokenAddress(SvmAddress.from(signer.address), relayData.outputToken, mintInfo.programAddress),
+    getFillStatusPda(program, relayData, relayData.destinationChainId),
+    getEventAuthority(program),
+  ]);
+
+  // Add remaining accounts if the relayData has a non-empty message.
+  // @dev ! since in the context of creating a `fillRelayTx`, `relayData` must be defined.
+  const remainingAccounts: (WritableAccount | ReadonlyAccount)[] = [];
+  if (relayData.message !== "0x") {
+    const acrossPlusMessage = deserializeMessage(relayData.message);
+    // The first `remainingAccount` _must_ be the handler address.
+    // https://github.com/across-protocol/contracts/blob/3310f8dc716407a5f97ef5fd2eae63df83251f2f/programs/svm-spoke/src/utils/message_utils.rs#L36.
+    remainingAccounts.push(getAccountMeta(acrossPlusMessage.handler, true));
+    remainingAccounts.push(
+      ...acrossPlusMessage.accounts.map((account, idx) =>
+        getAccountMeta(account, idx < acrossPlusMessage.accounts.length - acrossPlusMessage.read_only_len)
+      )
+    );
+  }
+
+  const fillInput: SvmSpokeClient.FillRelayInput = {
+    signer: signer,
+    state,
+    delegate,
+    mint,
+    relayerTokenAccount: relayerAta,
+    recipientTokenAccount: recipientAta,
+    fillStatus,
+    tokenProgram: mintInfo.programAddress,
+    associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ADDRESS,
+    systemProgram: SYSTEM_PROGRAM_ADDRESS,
+    eventAuthority,
+    program,
+    instructionParams,
+    relayHash: relayDataHash,
+    relayData: null,
+    repaymentChainId: null,
+    repaymentAddress: null,
+  };
+
+  // Pass createRecipientAtaIfNeeded =true to the createFillInstruction function to create the recipient token account
+  // if it doesn't exist.
+  return createFillInstruction(
+    signer,
+    solanaClient,
+    fillInput,
+    { outputAmount: relayData.outputAmount.toBigInt(), recipient: toAddress(relayData.recipient) },
+    mintInfo.data.decimals,
+    true,
+    remainingAccounts
+  );
 }
 
 /**
@@ -677,6 +774,7 @@ export const createFillInstruction = async (
   signer: TransactionSigner,
   solanaClient: SVMProvider,
   fillInput: SvmSpokeClient.FillRelayInput,
+  relayData: Pick<SvmSpokeClient.RelayDataArgs, "outputAmount" | "recipient">,
   tokenDecimals: number,
   createRecipientAtaIfNeeded: boolean = true,
   remainingAccounts: (WritableAccount | ReadonlyAccount)[] = []
@@ -688,7 +786,7 @@ export const createFillInstruction = async (
       mint: fillInput.mint,
       delegate: fillInput.delegate,
       owner: fillInput.signer,
-      amount: (fillInput.relayData as SvmSpokeClient.RelayDataArgs).outputAmount,
+      amount: relayData.outputAmount,
       decimals: tokenDecimals,
     },
     {
@@ -699,7 +797,7 @@ export const createFillInstruction = async (
   const getCreateAssociatedTokenIdempotentIx = () =>
     getCreateAssociatedTokenIdempotentInstruction({
       payer: signer,
-      owner: (fillInput.relayData as SvmSpokeClient.RelayDataArgs).recipient,
+      owner: relayData.recipient,
       mint: fillInput.mint,
       ata: fillInput.recipientTokenAccount,
       systemProgram: SYSTEM_PROGRAM_ADDRESS,
@@ -719,6 +817,14 @@ export const createFillInstruction = async (
     (tx) => appendTransactionMessageInstruction(createFillIx, tx)
   );
 };
+
+export function deserializeMessage(_message: string): AcrossPlusMessage {
+  const message = new Uint8Array(Buffer.from(_message.slice(2), "hex"));
+  // Add remaining accounts if the relayData has a non-empty message.
+  // @dev ! since in the context of creating a `fillRelayTx`, `relayData` must be defined.
+  const acrossPlusMessageDecoder = getAcrossPlusMessageDecoder();
+  return acrossPlusMessageDecoder.decode(message);
+}
 
 /**
  * Creates a deposit instruction.
