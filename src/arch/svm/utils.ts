@@ -430,6 +430,29 @@ export const simulateAndDecode = async <P extends (buf: Buffer) => unknown>(
 };
 
 /**
+ * Converts a common `RelayData` type to an SvmSpokeClient.RelayData` type. This is useful for when we need
+ * to interface directly with the SvmSpoke.
+ * @param relayData The common RelayData TS type.
+ * @returns RelayData which conforms to the typing of the SvmSpoke.
+ */
+export function toSvmRelayData(relayData: RelayData): SvmSpokeClient.RelayData {
+  return {
+    originChainId: BigInt(relayData.originChainId),
+    depositor: address(relayData.depositor.toBase58()),
+    recipient: address(relayData.recipient.toBase58()),
+    depositId: ethers.utils.arrayify(ethers.utils.hexZeroPad(relayData.depositId.toHexString(), 32)),
+    inputToken: address(relayData.inputToken.toBase58()),
+    outputToken: address(relayData.outputToken.toBase58()),
+    inputAmount: ethers.utils.arrayify(ethers.utils.hexZeroPad(relayData.inputAmount.toHexString(), 32)),
+    outputAmount: relayData.outputAmount.toBigInt(),
+    message: Uint8Array.from(Buffer.from(relayData.message.slice(2), "hex")),
+    fillDeadline: relayData.fillDeadline,
+    exclusiveRelayer: address(relayData.exclusiveRelayer.toBase58()),
+    exclusivityDeadline: relayData.exclusivityDeadline,
+  };
+}
+
+/**
  * Returns the PDA for the CCTP nonce.
  * @param solanaClient The Solana client.
  * @param signer The signer of the transaction.
