@@ -17,6 +17,7 @@ import {
   Address,
   FetchAccountConfig,
   IAccountMeta,
+  IInstruction,
   KeyPairSigner,
   ReadonlyUint8Array,
   appendTransactionMessageInstruction,
@@ -71,6 +72,7 @@ import {
   getAcrossPlusMessageDecoder,
   getAccountMeta,
   toSvmRelayData,
+  getInstructionParamsPda,
 } from "./";
 import { SvmCpiEventsClient } from "./eventsClient";
 import { SVM_BLOCK_NOT_AVAILABLE, SVM_SLOT_SKIPPED, isSolanaError } from "./provider";
@@ -1011,6 +1013,47 @@ async function fetchBatchFillStatusFromPdaAccounts(
   });
 
   return fillStatuses;
+}
+
+/**
+ * Returns a set of instructions to execute to fill a relay via instruction params.
+ * @param spokePool The program ID of the Solana spoke pool.
+ * @param relayData The relay data to write to the instruction params PDA.
+ * @param signer The transaction signer and authority of the instruction params PDA.
+ * @param maxWriteSize The maximum fragment size to write to instruction params.
+ */
+export async function getFillRelayViaInstructionParamsInstructions(
+  spokePool: Address<string>,
+  relayData: RelayData,
+  signer: TransactionSigner<string>,
+  maxWriteSize = 450
+): Promise<IInstruction[]> {
+  const instructionParams = await getInstructionParamsPda(spokePool, signer.address);
+
+  const relayDataEncoder = SvmSpokeClient.getRelayDataEncoder();
+  const svmRelayData = toSvmRelayData(relayData);
+  const encodedRelayData = relayDataEncoder.encode(svmRelayData);
+
+  const initInstructionParamsIx = SvmSpokeClient.getInitializeInstructionParamsInstruction({
+    signer,
+    instructionParams,
+    totalSize: encodedRelayData.length,
+  });
+  const instructions: IInstruction[] = [initInstructionParamsIx];
+
+  for (let i = 0; i <= encodedRelayData.length / maxWriteSize; ++i) {
+    const offset = i * maxWriteSize;
+    const offsetEnd = Math.min(offset + maxWriteSize, encodedRelayData.length);
+    const fragment = encodedRelayData.slice(offset, offsetEnd);
+    const writeInstructionParamsIx = SvmSpokeClient.getWriteInstructionParamsFragmentInstruction({
+      signer,
+      instructionParams,
+      offset,
+      fragment,
+    });
+    instructions.push(writeInstructionParamsIx);
+  }
+  return instructions;
 }
 
 /**
