@@ -2,7 +2,7 @@ import { CHAIN_IDs, PUBLIC_NETWORKS } from "../constants";
 import { RPCTransport } from "./types";
 
 export function getURL(chainId: number, apiKey: string, transport: RPCTransport): string {
-  const envVar = "RPC_PROVIDER_QUICKNODE_PREFIX";
+  const envVar = "RPC_PROVIDER_KEY_QUICKNODE_PREFIX";
   const prefix = process.env[`${envVar}_${chainId}`] ?? process.env[envVar];
   if (!prefix) {
     throw new Error(`No API key prefix supplied for QuickNode (${envVar})`);
