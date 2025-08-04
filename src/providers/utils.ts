@@ -26,7 +26,7 @@ const PROVIDERS = {
  * @returns True if the provider string is a supported provider.
  */
 export function isSupportedProvider(provider: string): provider is RPCProvider {
-  return ["ALCHEMY", "INFURA", "INFURA_DIN", "DRPC"].includes(provider);
+  return Object.keys(PROVIDERS).includes(provider);
 }
 
 /**
