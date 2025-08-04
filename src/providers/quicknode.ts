@@ -2,12 +2,14 @@ import { CHAIN_IDs, MAINNET_CHAIN_IDs as _MAINNET_CHAIN_IDs, PUBLIC_NETWORKS } f
 import { RPCTransport } from "./types";
 
 const SNOWFLAKES = {
+  [CHAIN_IDs.ARBITRUM]: "arbitrum-mainnet",
   [CHAIN_IDs.BSC]: "bsc",
   [CHAIN_IDs.POLYGON]: "matic",
   [CHAIN_IDs.OPTIMISM]: "optimism",
+  [CHAIN_IDs.WORLD_CHAIN]: "worldchain-mainnet",
 };
 const SNOWFLAKE_CHAIN_IDs = Object.keys(SNOWFLAKES).map(Number);
-const MAINNET_CHAIN_IDs = Object.keys(_MAINNET_CHAIN_IDs).map(Number);
+const MAINNET_CHAIN_IDs = Object.values(_MAINNET_CHAIN_IDs).map(Number);
 
 export function getURL(chainId: number, apiKey: string, transport: RPCTransport): string {
   const envVar = "RPC_PROVIDER_KEY_QUICKNODE_PREFIX";
