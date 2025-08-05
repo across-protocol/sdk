@@ -37,7 +37,14 @@ import assert from "assert";
 import { arrayify, hexZeroPad, hexlify } from "ethers/lib/utils";
 import { Logger } from "winston";
 import { CHAIN_IDs, TOKEN_SYMBOLS_MAP } from "../../constants";
-import { DepositWithBlock, FillStatus, FillWithBlock, RelayData, RelayExecutionEventInfo } from "../../interfaces";
+import {
+  DepositWithBlock,
+  FillStatus,
+  FillWithBlock,
+  RelayData,
+  RelayDataWithMessageHash,
+  RelayExecutionEventInfo,
+} from "../../interfaces";
 import {
   BigNumber,
   EvmAddress,
@@ -47,7 +54,6 @@ import {
   chainIsProd,
   chainIsSvm,
   chunk,
-  getMessageHash,
   delay,
   isUnsafeDepositId,
   keccak256,
@@ -84,7 +90,7 @@ import {
  */
 export const SLOT_DURATION_MS = 400;
 
-type ProtoFill = Omit<RelayData, "recipient" | "outputToken"> & {
+type ProtoFill = Omit<RelayDataWithMessageHash, "recipient" | "outputToken"> & {
   destinationChainId: number;
   recipient: SvmAddress;
   outputToken: SvmAddress;
@@ -263,16 +269,15 @@ export async function findDeposit(
  */
 export async function relayFillStatus(
   programId: Address,
-  relayData: RelayData,
+  relayData: RelayDataWithMessageHash,
   destinationChainId: number,
   svmEventsClient: SvmCpiEventsClient,
-  atHeight?: number,
-  messageHash?: string
+  atHeight?: number
 ): Promise<FillStatus> {
   assert(chainIsSvm(destinationChainId), "Destination chain must be an SVM chain");
   const provider = svmEventsClient.getRpc();
   // Get fill status PDA using relayData
-  const fillStatusPda = await getFillStatusPda(programId, relayData, destinationChainId, messageHash);
+  const fillStatusPda = await getFillStatusPda(programId, relayData, destinationChainId);
   let toSlot = BigInt(atHeight ?? 0);
 
   // If no specific slot is requested, try fetching the current status from the PDA
@@ -314,7 +319,7 @@ export async function relayFillStatus(
  */
 export async function fillStatusArray(
   programId: Address,
-  relayData: RelayData[],
+  relayData: RelayDataWithMessageHash[],
   destinationChainId: number,
   svmEventsClient: SvmCpiEventsClient,
   atHeight?: number,
@@ -397,7 +402,7 @@ export async function fillStatusArray(
  * @returns The fill event with block info, or `undefined` if not found.
  */
 export async function findFillEvent(
-  relayData: RelayData,
+  relayData: RelayDataWithMessageHash,
   destinationChainId: number,
   svmEventsClient: SvmCpiEventsClient,
   fromSlot: number,
@@ -478,12 +483,7 @@ export async function fillRelayInstruction(
     `Invalid repayment address for chain ${repaymentChainId}: ${repaymentAddress.toNative()}.`
   );
 
-  const relayDataWithMessageHash = {
-    ...relayData,
-    messageHash: getMessageHash(relayData.message),
-  };
-
-  const _relayDataHash = getRelayDataHash(relayDataWithMessageHash, relayData.destinationChainId);
+  const _relayDataHash = getRelayDataHash(relayData, relayData.destinationChainId);
   const relayDataHash = new Uint8Array(Buffer.from(_relayDataHash.slice(2), "hex"));
 
   const relayer = SvmAddress.from(signer.address);
@@ -574,7 +574,7 @@ export function createTokenAccountsInstruction(
 export async function getFillRelayTx(
   spokePoolAddr: SvmAddress,
   solanaClient: SVMProvider,
-  relayData: Omit<RelayData, "recipient" | "outputToken"> & {
+  relayData: Omit<RelayDataWithMessageHash, "recipient" | "outputToken"> & {
     destinationChainId: number;
     recipient: SvmAddress;
     outputToken: SvmAddress;
@@ -592,12 +592,7 @@ export async function getFillRelayTx(
 
   const program = toAddress(spokePoolAddr);
 
-  const relayDataWithMessageHash = {
-    ...relayData,
-    messageHash: getMessageHash(relayData.message),
-  };
-
-  const _relayDataHash = getRelayDataHash(relayDataWithMessageHash, destinationChainId);
+  const _relayDataHash = getRelayDataHash(relayData, destinationChainId);
   const relayDataHash = new Uint8Array(Buffer.from(_relayDataHash.slice(2), "hex"));
 
   const [state, delegate] = await Promise.all([
@@ -784,7 +779,7 @@ export const createRequestSlowFillInstruction = async (
 export async function getSlowFillRequestTx(
   spokePoolAddr: SvmAddress,
   solanaClient: SVMProvider,
-  relayData: Omit<RelayData, "recipient" | "outputToken"> & {
+  relayData: Omit<RelayDataWithMessageHash, "recipient" | "outputToken"> & {
     destinationChainId: number;
     recipient: SvmAddress;
     outputToken: SvmAddress;
@@ -807,12 +802,7 @@ export async function getSlowFillRequestTx(
 
   const program = toAddress(spokePoolAddr);
 
-  const relayDataWithMessageHash = {
-    ...relayData,
-    messageHash: getMessageHash(relayData.message),
-  };
-
-  const relayDataHash = getRelayDataHash(relayDataWithMessageHash, destinationChainId);
+  const relayDataHash = getRelayDataHash(relayData, destinationChainId);
 
   const [state, fillStatus, eventAuthority] = await Promise.all([
     getStatePda(program),
@@ -901,10 +891,7 @@ export async function getAssociatedTokenAddress(
   return associatedToken;
 }
 
-export function getRelayDataHash(
-  relayData: Omit<RelayData, "message"> & { messageHash: string },
-  destinationChainId: number
-): string {
+export function getRelayDataHash(relayData: RelayDataWithMessageHash, destinationChainId: number): string {
   const addressEncoder = getAddressEncoder();
   const uint64Encoder = getU64Encoder();
   const uint32Encoder = getU32Encoder();

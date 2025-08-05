@@ -3,6 +3,10 @@ import { SpokePoolClient } from "../clients";
 import { BigNumber, Address, EvmAddress } from "../utils";
 import { RelayerRefundLeaf } from "./HubPool";
 
+export interface RelayDataWithMessageHash extends RelayData {
+  messageHash: string;
+}
+
 export interface RelayData {
   originChainId: number;
   depositor: Address;

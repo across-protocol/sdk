@@ -50,11 +50,12 @@ import {
   numberToU8a32,
   toAddress,
 } from "../../../src/arch/svm";
-import { RelayData } from "../../../src/interfaces";
+import { RelayDataWithMessageHash } from "../../../src/interfaces";
 import {
   BigNumber,
   EvmAddress,
   SvmAddress,
+  getMessageHash,
   getRandomInt,
   getRelayDataHash,
   randomAddress,
@@ -458,7 +459,7 @@ export const encodeEmergencyDeleteRootBundleMessageBody = (rootBundleId: number)
 
 /** Relay Data Utils */
 
-export const formatRelayData = (relayData: SvmSpokeClient.RelayDataArgs): RelayData => {
+export const formatRelayData = (relayData: SvmSpokeClient.RelayDataArgs): RelayDataWithMessageHash => {
   const originChainId = Number(relayData.originChainId);
   return {
     originChainId,
@@ -473,5 +474,6 @@ export const formatRelayData = (relayData: SvmSpokeClient.RelayDataArgs): RelayD
     exclusivityDeadline: relayData.exclusivityDeadline,
     message: hexlify(relayData.message),
     exclusiveRelayer: SvmAddress.from(relayData.exclusiveRelayer),
+    messageHash: getMessageHash(hexlify(relayData.message)),
   };
 };

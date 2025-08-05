@@ -40,6 +40,7 @@ import {
   SpeedUpWithBlock,
   TokensBridged,
   RelayExecutionEventInfo,
+  RelayDataWithMessageHash,
 } from "../../interfaces";
 import { BaseAbstractClient, UpdateFailureReason } from "../BaseAbstractClient";
 import { AcrossConfigStoreClient } from "../AcrossConfigStoreClient";
@@ -980,7 +981,7 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
    * @param atHeight The height at which to query the fill status.
    * @returns The fill status for the given relay data.
    */
-  public abstract relayFillStatus(relayData: RelayData, atHeight?: number): Promise<FillStatus>;
+  public abstract relayFillStatus(relayData: RelayDataWithMessageHash, atHeight?: number): Promise<FillStatus>;
 
   /**
    * Retrieves the fill status for an array of given relay data.
@@ -988,5 +989,8 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
    * @param atHeight The height at which to query the fill status.
    * @returns The fill status for each of the given relay data.
    */
-  public abstract fillStatusArray(relayData: RelayData[], atHeight?: number): Promise<(FillStatus | undefined)[]>;
+  public abstract fillStatusArray(
+    relayData: RelayDataWithMessageHash[],
+    atHeight?: number
+  ): Promise<(FillStatus | undefined)[]>;
 }
