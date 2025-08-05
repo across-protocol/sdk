@@ -1131,14 +1131,20 @@ async function fetchBatchFillStatusFromPdaAccounts(
 export async function getFillRelayViaInstructionParamsInstructions(
   spokePool: Address<string>,
   relayData: RelayData,
+  repaymentChainId: number,
+  repaymentAddress: SdkAddress,
   signer: TransactionSigner<string>,
   maxWriteSize = 450
 ): Promise<IInstruction[]> {
   const instructionParams = await getInstructionParamsPda(spokePool, signer.address);
 
-  const relayDataEncoder = SvmSpokeClient.getRelayDataEncoder();
+  const relayDataEncoder = SvmSpokeClient.getFillRelayParamsEncoder();
   const svmRelayData = toSvmRelayData(relayData);
-  const encodedRelayData = relayDataEncoder.encode(svmRelayData);
+  const encodedRelayData = relayDataEncoder.encode({
+    relayData: svmRelayData,
+    repaymentChainId,
+    repaymentAddress: toAddress(repaymentAddress),
+  });
 
   const initInstructionParamsIx = SvmSpokeClient.getInitializeInstructionParamsInstruction({
     signer,
