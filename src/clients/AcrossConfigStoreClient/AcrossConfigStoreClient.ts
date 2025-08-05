@@ -102,7 +102,7 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
     eventSearchConfig: MakeOptional<EventSearchConfig, "to"> = { from: 0, maxLookBack: 0 },
     readonly configStoreVersion: number
   ) {
-    super(logger, eventSearchConfig);
+    super(eventSearchConfig);
     this.firstHeightToSearch = eventSearchConfig.from;
     this.latestHeightSearched = 0;
   }
