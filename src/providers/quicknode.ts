@@ -18,7 +18,7 @@ export function getURL(chainId: number, apiKey: string, transport: RPCTransport)
     throw new Error(`No API key prefix supplied for QuickNode (${envVar})`);
   }
 
-  const domain = "quicknode.pro";
+  const domain = "quiknode.pro"; // nb. quiknode, not quicknode
 
   /* Some chains are special snowflakes */
   if (chainId === CHAIN_IDs.MAINNET) {
