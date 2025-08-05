@@ -1,4 +1,4 @@
-import { RetrySolanaRpcFactory } from "..";
+import { RetrySolanaRpcFactory } from "../solana/retryRpcFactory";
 import { MockRateLimitedSolanaRpcFactory } from "./MockRateLimitedSolanaRpcFactory";
 
 // Creates mocked retry Solana RPC factory by using the mocked rate limited Solana RPC factory.

@@ -3,8 +3,8 @@
 
 import { program } from "commander";
 import winston from "winston";
-import { CachedSolanaRpcFactory } from "../src/providers/solana/cachedRpcFactory";
 import { ClusterUrl } from "@solana/kit";
+import { FallbackSolanaRpcFactory } from "../src/providers";
 
 /**
  * USAGE EXAMPLES:
@@ -117,16 +117,20 @@ async function runTest(options: TestOptions) {
   });
 
   // Create the retry RPC factory
-  const rpcFactory = new CachedSolanaRpcFactory(
-    "script-e2e-solana-provider",
-    undefined, // redisClient, unused for now
-    options.retries, // retries
-    options.retryDelay, // retryDelaySeconds
-    10, // maxConcurrency
-    0, // pctRpcCallsLogged
-    logger, // logger
-    options.endpoint as ClusterUrl, // clusterUrl
-    options.chainId // chainId
+  const rpcFactory = new FallbackSolanaRpcFactory(
+    [
+      [
+        "script-e2e-solana-provider",
+        undefined, // redisClient, unused for now
+        options.retries, // retries
+        options.retryDelay, // retryDelaySeconds
+        10, // maxConcurrency
+        0, // pctRpcCallsLogged
+        logger, // logger
+        options.endpoint as ClusterUrl, // clusterUrl
+        options.chainId,
+      ],
+    ] // chainId
   );
 
   // Create RPC client
