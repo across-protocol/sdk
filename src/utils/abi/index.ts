@@ -18,7 +18,7 @@ export function getABIDir(): string {
 }
 
 /**
- * @notice Retrieve an ABI desription from the set of known contracts.
+ * @notice Retrieve an ABI description from the set of known contracts.
  * @param contractName Name of the contract ABI to retrieve.
  * @returns Contract ABI as an ethers ContractInterface type.
  */
