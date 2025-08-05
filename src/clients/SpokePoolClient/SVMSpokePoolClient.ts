@@ -115,7 +115,7 @@ export class SVMSpokePoolClient extends SpokePoolClient {
    * Performs an update to refresh the state of this client by querying SVM events.
    */
   protected async _update(eventsToQuery: string[]): Promise<SpokePoolUpdate> {
-    const searchConfig = await this.updateSearchConfig(this.svmEventsClient.getRpc());
+    const searchConfig = await this.updateSvmSearchConfig(this.svmEventsClient.getRpc(), this.logger);
     if (isUpdateFailureReason(searchConfig)) {
       const reason = searchConfig;
       return { success: false, reason };
