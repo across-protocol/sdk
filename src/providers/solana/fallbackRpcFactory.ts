@@ -27,26 +27,31 @@ export class FallbackSolanaRpcFactory extends SolanaBaseRpcFactory {
   public createTransport(): RpcTransport {
     return <TResponse>(...args: Parameters<RpcTransport>): Promise<RpcResponse<TResponse>> => {
       const fallbackFactories = [...this.rpcFactories.slice(1)];
-      return this.tryCallWithFallbacks<TResponse>(this.rpcFactories[0].transport, ...args)
-        .then((result) => result)
-        .catch((error) => {
-          // If there are no new fallback providers to use, terminate the recursion by throwing an error.
-          // Otherwise, we can try to call another provider.
-          if (fallbackFactories.length === 0) {
-            throw error;
-          }
 
-          const nextFactory = fallbackFactories.shift()!;
-          console.log(`Falling back to ${nextFactory.rpcFactory.clusterUrl}`, error);
-          return this.tryCallWithFallbacks(nextFactory.transport, ...args);
-        });
+      const tryCallWithFallbacks = <TResponse>(
+        transport: RpcTransport,
+        ...args: Parameters<RpcTransport>
+      ): Promise<RpcResponse<TResponse>> => {
+        return transport<TResponse>(...args)
+          .then((result) => result)
+          .catch((error) => {
+            if (fallbackFactories.length === 0) {
+              throw error;
+            }
+
+            const nextFactory = fallbackFactories.shift()!;
+            console.log(
+              `Falling back to ${nextFactory.rpcFactory.clusterUrl}, new fallback providers length: ${fallbackFactories.length}`,
+              error
+            );
+            return tryCallWithFallbacks(nextFactory.transport, ...args);
+          });
+      };
+      const { method } = args[0].payload as { method: string; params?: unknown[] };
+      console.log(
+        `[${method}] Trying to call ${this.rpcFactories[0].rpcFactory.clusterUrl}, fallback providers length: ${fallbackFactories.length}`
+      );
+      return tryCallWithFallbacks<TResponse>(this.rpcFactories[0].transport, ...args);
     };
-  }
-
-  private tryCallWithFallbacks<TResponse>(
-    transport: RpcTransport,
-    ...args: Parameters<RpcTransport>
-  ): Promise<RpcResponse<TResponse>> {
-    return transport<TResponse>(...args);
   }
 }
