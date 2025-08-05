@@ -158,15 +158,6 @@ async function _callGetTimestampForSlotWithRetry(
     const { __code: code } = err.context;
     const slot = slotNumber.toString();
 
-    logger.debug({
-      at: "getTimestampForSlot",
-      message: "Caught error from getBlockTime()",
-      errorCode: code,
-      slot,
-      retryAttempt,
-      maxRetries,
-    });
-
     switch (err.context.__code) {
       case SVM_SLOT_SKIPPED:
         return undefined;
@@ -191,6 +182,14 @@ async function _callGetTimestampForSlotWithRetry(
       }
 
       default:
+        logger.debug({
+          at: "getTimestampForSlot",
+          message: "Caught error from getBlockTime()",
+          errorCode: code,
+          slot,
+          retryAttempt,
+          maxRetries,
+        });
         throw new Error(`Unhandled SVM getBlockTime() error for slot ${slot}: ${code}`, { cause: err });
     }
   }
