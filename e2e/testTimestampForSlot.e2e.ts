@@ -44,6 +44,7 @@ interface TestOptions {
   retryDelay: number;
   chainId: number;
   iterations: number;
+  quorumThreshold: number;
 }
 
 async function testNearestSlotTime(
@@ -94,6 +95,7 @@ async function runTest(options: TestOptions) {
     retries: options.retries,
     retryDelay: options.retryDelay,
     iterations: options.iterations,
+    quorumThreshold: options.quorumThreshold,
   });
 
   // Create the RPC factory
@@ -113,7 +115,7 @@ async function runTest(options: TestOptions) {
       ] as ConstructorParameters<typeof CachedSolanaRpcFactory>
   );
 
-  const rpcFactory = new FallbackSolanaRpcFactory(factoryParams);
+  const rpcFactory = new FallbackSolanaRpcFactory(factoryParams, options.quorumThreshold);
 
   const rpcClient = rpcFactory.createRpcClient();
 
@@ -196,6 +198,7 @@ program
   .option("-d, --retry-delay <seconds>", "Delay between retries in seconds", "1")
   .option("-i, --chain-id <number>", "Chain ID for Solana", "101")
   .option("-n, --iterations <number>", "Number of test iterations", "10")
+  .option("-q, --quorum-threshold <number>", "Quorum threshold for RPC calls", "1")
   .action(async (options) => {
     const testOptions: TestOptions = {
       endpoint: options.endpoint,
@@ -204,6 +207,7 @@ program
       retryDelay: parseFloat(options.retryDelay),
       chainId: parseInt(options.chainId),
       iterations: parseInt(options.iterations),
+      quorumThreshold: parseInt(options.quorumThreshold),
     };
 
     await runTest(testOptions);

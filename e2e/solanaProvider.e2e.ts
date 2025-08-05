@@ -130,7 +130,8 @@ async function runTest(options: TestOptions) {
         options.endpoint as ClusterUrl, // clusterUrl
         options.chainId,
       ],
-    ] // chainId
+    ],
+    1
   );
 
   // Create RPC client
