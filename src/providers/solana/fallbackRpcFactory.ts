@@ -28,7 +28,7 @@ export class FallbackSolanaRpcFactory extends SolanaBaseRpcFactory {
     return <TResponse>(...args: Parameters<RpcTransport>): Promise<RpcResponse<TResponse>> => {
       const fallbackFactories = [...this.rpcFactories.slice(1)];
 
-      const tryCallWithFallbacks = <TResponse>(
+      const tryWithFallback = <TResponse>(
         transport: RpcTransport,
         ...args: Parameters<RpcTransport>
       ): Promise<RpcResponse<TResponse>> => {
@@ -44,14 +44,14 @@ export class FallbackSolanaRpcFactory extends SolanaBaseRpcFactory {
               `Falling back to ${nextFactory.rpcFactory.clusterUrl}, new fallback providers length: ${fallbackFactories.length}`,
               error
             );
-            return tryCallWithFallbacks(nextFactory.transport, ...args);
+            return tryWithFallback(nextFactory.transport, ...args);
           });
       };
       const { method } = args[0].payload as { method: string; params?: unknown[] };
       console.log(
         `[${method}] Trying to call ${this.rpcFactories[0].rpcFactory.clusterUrl}, fallback providers length: ${fallbackFactories.length}`
       );
-      return tryCallWithFallbacks<TResponse>(this.rpcFactories[0].transport, ...args);
+      return tryWithFallback<TResponse>(this.rpcFactories[0].transport, ...args);
     };
   }
 }
