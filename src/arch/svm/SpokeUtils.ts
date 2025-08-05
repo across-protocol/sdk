@@ -109,20 +109,17 @@ async function _callGetSlotWithRetry(
   try {
     return await provider.getSlot({ commitment }).send();
   } catch (err) {
-    if (!isSolanaError(err)) {
-      throw err;
+    if (isSolanaError(err)) {
+      const { __code: code } = err.context;
+      logger.debug({
+        at: "_getSlotWithRetry",
+        message: "Caught error from getSlot()",
+        code,
+        commitment,
+        retryAttempt,
+        maxRetries,
+      });
     }
-
-    const { __code: code } = err.context;
-
-    logger.debug({
-      at: "getSlot",
-      message: "Caught error from getSlot()",
-      errorCode: code,
-      commitment,
-      retryAttempt,
-      maxRetries,
-    });
 
     // TODO: Implement retry logic once we better understand how these errors look:
     throw err;
