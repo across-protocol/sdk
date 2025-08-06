@@ -125,7 +125,8 @@ export function parseEventData(eventData: any): any {
   }
 
   if (typeof eventData === "object") {
-    if (eventData.constructor.name === "PublicKey") {
+    const stringTag = Object.prototype.toString.call(eventData);
+    if (stringTag.includes("PublicKey")) {
       return address(eventData.toString());
     }
     if (BN.isBN(eventData)) {
