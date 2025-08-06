@@ -115,7 +115,7 @@ async function runTest(options: TestOptions) {
       ] as ConstructorParameters<typeof CachedSolanaRpcFactory>
   );
 
-  const rpcFactory = new FallbackSolanaRpcFactory(factoryParams, options.quorumThreshold);
+  const rpcFactory = new FallbackSolanaRpcFactory(factoryParams, options.quorumThreshold, logger);
 
   const rpcClient = rpcFactory.createRpcClient();
 

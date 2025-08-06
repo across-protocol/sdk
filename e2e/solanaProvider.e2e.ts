@@ -131,7 +131,8 @@ async function runTest(options: TestOptions) {
         options.chainId,
       ],
     ],
-    1
+    1,
+    logger
   );
 
   // Create RPC client

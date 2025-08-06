@@ -3,6 +3,7 @@ import { CachedSolanaRpcFactory } from "./cachedRpcFactory";
 import { SolanaBaseRpcFactory, SolanaClusterRpcFactory } from "./baseRpcFactories";
 import { isPromiseFulfilled, isPromiseRejected } from "../../utils/TypeGuards";
 import { compareRpcResults, compareSvmRpcResults, createSendErrorWithMessage } from "../utils";
+import { Logger } from "winston";
 
 // This factory stores multiple Cached RPC factories so that users of this factory can specify multiple RPC providers
 // and the factory will fallback through them if any RPC calls fail. Eventually, this class can be extended with
@@ -16,7 +17,8 @@ export class FallbackSolanaRpcFactory extends SolanaBaseRpcFactory {
 
   constructor(
     factoryConstructorParams: ConstructorParameters<typeof CachedSolanaRpcFactory>[],
-    readonly nodeQuorumThreshold: number
+    readonly nodeQuorumThreshold: number,
+    readonly logger?: Logger
   ) {
     super();
     factoryConstructorParams.forEach((params) => {
@@ -99,11 +101,40 @@ export class FallbackSolanaRpcFactory extends SolanaBaseRpcFactory {
         return values[0][1];
       }
 
-      const throwQuorumError = () => {
+      const getMismatchedProviders = (values: [SolanaClusterRpcFactory, unknown][]) => {
+        return values
+          .filter(([, result]) => !compareSvmRpcResults(method, result, quorumResult))
+          .map(([factory]) => factory.clusterUrl);
+      };
+
+      const logQuorumMismatchOrFailureDetails = (
+        method: string,
+        params: Array<unknown>,
+        quorumProviders: string[],
+        mismatchedProviders: string[],
+        errors: [SolanaClusterRpcFactory, string][]
+      ) => {
+        this.logger?.warn({
+          at: "FallbackSolanaRpcFactory#createTransport",
+          message: "Some providers mismatched with the quorum result or failed 🚸",
+          notificationPath: "across-warn",
+          method,
+          params: JSON.stringify(params),
+          quorumProviders,
+          mismatchedProviders,
+          erroringProviders: errors.map(
+            ([factory, errorText]) => `Provider ${factory.clusterUrl} failed with error ${errorText}`
+          ),
+        });
+      };
+
+      const throwQuorumError = (fallbackValues?: [SolanaClusterRpcFactory, unknown][]) => {
         const errorTexts = errors.map(
           ([factory, errorText]) => `Provider ${factory.clusterUrl} failed with error ${errorText}`
         );
         const successfulProviderUrls = values.map(([provider]) => provider.clusterUrl);
+        const mismatchedProviders = getMismatchedProviders([...values, ...(fallbackValues || [])]);
+        logQuorumMismatchOrFailureDetails(method, params ?? [], successfulProviderUrls, mismatchedProviders, errors);
         throw new Error(
           "Not enough providers agreed to meet quorum.\n" +
             "Providers that errored:\n" +
@@ -166,7 +197,14 @@ export class FallbackSolanaRpcFactory extends SolanaBaseRpcFactory {
         throwQuorumError();
       }
 
-      // TODO: Contains no error logging logic for now because logger isn't passed into this class.
+      // If we've achieved quorum, then we should still log the providers that mismatched with the quorum result.
+      const mismatchedProviders = getMismatchedProviders([...values, ...fallbackValues]);
+      const quorumProviders = [...values, ...fallbackValues]
+        .filter(([, result]) => compareSvmRpcResults(method, result, quorumResult))
+        .map(([factory]) => factory.clusterUrl);
+      if (mismatchedProviders.length > 0 || errors.length > 0) {
+        logQuorumMismatchOrFailureDetails(method, params ?? [], quorumProviders, mismatchedProviders, errors);
+      }
 
       return quorumResult;
     };
