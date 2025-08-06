@@ -264,7 +264,6 @@ export async function findDeposit(
  * @param provider - SVM provider instance.
  * @param svmEventsClient - SVM events client for querying events.
  * @param atHeight - (Optional) Specific slot number to query. Defaults to the latest confirmed slot.
- * @param messageHash - (Optional) Hash of the message that will be used to create relayDataHash from fill.
  * @returns The fill status for the deposit at the specified or current slot.
  */
 export async function relayFillStatus(

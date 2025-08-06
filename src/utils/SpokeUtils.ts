@@ -19,7 +19,6 @@ export function getSlowFillLeafLpFeePct(leaf: SlowFillLeaf): BigNumber {
  * Compute the RelayData hash for a fill. This can be used to determine the fill status.
  * @param relayData RelayData information that is used to complete a fill.
  * @param destinationChainId Supplementary destination chain ID required by V3 hashes.
- * @param messageHash Hash of the message that will be used to create relayDataHash from fill.
  * @returns The corresponding RelayData hash.
  */
 export function getRelayDataHash(relayData: RelayDataWithMessageHash, destinationChainId: number): string {
