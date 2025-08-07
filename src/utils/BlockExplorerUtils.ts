@@ -73,7 +73,7 @@ function _createBlockExplorerLinkMarkdown(hex: string, chainId = 1): string | nu
   ] as [number, string][]) {
     // If the hex string is the correct length, return the link.
     if (hex.length === length) {
-      return `<${constructURL(explorerDomain, [route, hex])}|${shortURLString}>`;
+      return `<${constructURL(explorerDomain, [route, hex])} | ${shortURLString}>`;
     }
   }
   return null;
