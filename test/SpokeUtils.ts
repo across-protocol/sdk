@@ -101,7 +101,7 @@ describe("SpokeUtils", function () {
     expect(getMessageHash(message)).to.equal(keccak256(message));
   });
   // Unlike previous tests, hardcode the correct outputs since any issue in the relay data hashing would output a different hash.
-  it.only("Returns correct relay data hashes against historical values", function () {
+  it("Returns correct relay data hashes against historical values", function () {
     const destinationChainId = 10;
     const mockDeposit = {
       originChainId: 1,
