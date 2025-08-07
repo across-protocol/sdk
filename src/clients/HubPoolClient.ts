@@ -1159,7 +1159,7 @@ export class HubPoolClient extends BaseAbstractClient {
     this.eventSearchConfig.to = undefined; // Caller can re-set on subsequent updates if necessary.
 
     this.isUpdated = true;
-    this.logger.debug({ at: "HubPoolClient::update", message: "HubPool client updated!", searchEndBlock });
+    this.logger.debug({ at: "HubPoolClient::update", message: "HubPool client updated!", searchEndBlock, currentTime });
   }
 
   // Returns end block for `chainId` in ProposedRootBundle.bundleBlockEvalNumbers. Looks up chainId
