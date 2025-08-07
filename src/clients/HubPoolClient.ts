@@ -1019,12 +1019,6 @@ export class HubPoolClient extends BaseAbstractClient {
       }
     }
 
-    this.logger.debug({
-      at: "HubPoolClient::update",
-      message: "l1TokensToDestinationTokensWithBlock",
-      l1TokensToDestinationTokensWithBlock: this.l1TokensToDestinationTokensWithBlock,
-    });
-
     // For each enabled Lp token fetch the token symbol and decimals from the token contract. Note this logic will
     // only run iff a new token has been enabled. Will only append iff the info is not there already.
     // Filter out any duplicate addresses. This might happen due to enabling, disabling and re-enabling a token.
@@ -1165,12 +1159,7 @@ export class HubPoolClient extends BaseAbstractClient {
     this.eventSearchConfig.to = undefined; // Caller can re-set on subsequent updates if necessary.
 
     this.isUpdated = true;
-    this.logger.debug({
-      at: "HubPoolClient::update",
-      message: "HubPool client updated! Hello 2",
-      searchEndBlock,
-      currentTime,
-    });
+    this.logger.debug({ at: "HubPoolClient::update", message: "HubPool client updated!", searchEndBlock });
   }
 
   // Returns end block for `chainId` in ProposedRootBundle.bundleBlockEvalNumbers. Looks up chainId
