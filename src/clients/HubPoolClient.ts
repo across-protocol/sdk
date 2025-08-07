@@ -264,13 +264,15 @@ export class HubPoolClient extends BaseAbstractClient {
   l2TokenHasPoolRebalanceRoute(l2Token: Address, l2ChainId: number, hubPoolBlock = this.latestHeightSearched): boolean {
     return Object.values(this.l1TokensToDestinationTokensWithBlock).some((destinationTokenMapping) => {
       return Object.entries(destinationTokenMapping).some(([_l2ChainId, setPoolRebalanceRouteEvents]) => {
-        return setPoolRebalanceRouteEvents.some((e) => {
-          return (
-            e.blockNumber <= hubPoolBlock &&
-            e.l2Token.truncateToBytes20() === l2Token.truncateToBytes20() &&
-            Number(_l2ChainId) === l2ChainId
-          );
-        });
+        // sort events descending by block number
+        const sortedEvents = sortEventsDescending(setPoolRebalanceRouteEvents).filter(
+          (e) => e.blockNumber <= hubPoolBlock
+        );
+        return (
+          sortedEvents.length > 0 &&
+          sortedEvents[0].l2Token.truncateToBytes20() === l2Token.truncateToBytes20() &&
+          Number(_l2ChainId) === l2ChainId
+        );
       });
     });
   }
@@ -1017,6 +1019,12 @@ export class HubPoolClient extends BaseAbstractClient {
       }
     }
 
+    this.logger.debug({
+      at: "HubPoolClient::update",
+      message: "l1TokensToDestinationTokensWithBlock",
+      l1TokensToDestinationTokensWithBlock: this.l1TokensToDestinationTokensWithBlock,
+    });
+
     // For each enabled Lp token fetch the token symbol and decimals from the token contract. Note this logic will
     // only run iff a new token has been enabled. Will only append iff the info is not there already.
     // Filter out any duplicate addresses. This might happen due to enabling, disabling and re-enabling a token.
@@ -1157,7 +1165,12 @@ export class HubPoolClient extends BaseAbstractClient {
     this.eventSearchConfig.to = undefined; // Caller can re-set on subsequent updates if necessary.
 
     this.isUpdated = true;
-    this.logger.debug({ at: "HubPoolClient::update", message: "HubPool client updated!", searchEndBlock, currentTime });
+    this.logger.debug({
+      at: "HubPoolClient::update",
+      message: "HubPool client updated! Hello 2",
+      searchEndBlock,
+      currentTime,
+    });
   }
 
   // Returns end block for `chainId` in ProposedRootBundle.bundleBlockEvalNumbers. Looks up chainId
