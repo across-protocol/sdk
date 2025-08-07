@@ -64,7 +64,14 @@ export class FallbackSolanaRpcFactory extends SolanaBaseRpcFactory {
               throw error;
             }
 
+            const currentFactory = factory.rpcFactory.clusterUrl;
             const nextFactory = fallbackFactories.shift()!;
+            this.logger?.debug({
+              at: "FallbackSolanaRpcFactory#createTransport::tryWithFallback",
+              message: `[${method}] ${currentFactory} failed, falling back to ${nextFactory.rpcFactory.clusterUrl}, new fallback providers length: ${fallbackFactories.length}`,
+              method,
+              error,
+            });
             return tryWithFallback(nextFactory, ...args);
           });
       };
@@ -132,7 +139,8 @@ export class FallbackSolanaRpcFactory extends SolanaBaseRpcFactory {
         params: Array<unknown>,
         mismatchedProviders: string[],
         successfulProviders: string[],
-        errors: [SolanaClusterRpcFactory, string][]
+        errors: [SolanaClusterRpcFactory, string][],
+        quorumResult: TResponse
       ) => {
         this.logger?.warn({
           at: "FallbackSolanaRpcFactory#createTransport",
@@ -140,6 +148,9 @@ export class FallbackSolanaRpcFactory extends SolanaBaseRpcFactory {
           notificationPath: "across-warn",
           method,
           params: JSON.stringify(params),
+          quorumResult: ["getBlockTime", "getSlot"].includes(method) ? Number(quorumResult) : undefined,
+          // TODO: We might want to suppress this log or shorten it for certain methods where the result
+          // is a large object.
           mismatchedProviders,
           successfulProviders,
           erroringProviders: errors.map(
@@ -154,7 +165,14 @@ export class FallbackSolanaRpcFactory extends SolanaBaseRpcFactory {
         const mismatchedProviders = allValues
           .filter(([, result]) => !compareSvmRpcResults(method, result, mostFrequentResult))
           .map(([factory]) => factory.clusterUrl);
-        logQuorumMismatchOrFailureDetails(method, params ?? [], mismatchedProviders, successfulProviderUrls, errors);
+        logQuorumMismatchOrFailureDetails(
+          method,
+          params ?? [],
+          mismatchedProviders,
+          successfulProviderUrls,
+          errors,
+          mostFrequentResult
+        );
         throw new Error(
           "Not enough providers agreed to meet quorum.\n" +
             "Providers that errored:\n" +
@@ -178,7 +196,7 @@ export class FallbackSolanaRpcFactory extends SolanaBaseRpcFactory {
             .then((result): [SolanaClusterRpcFactory, TResponse] => [factory.rpcFactory, result])
             .catch((err) => {
               errors.push([factory.rpcFactory, err?.stack || err?.toString()]);
-              throw new Error("No fallbacks during quorum search");
+              throw new Error("Fallback RPC call failed while trying to reach quorum", err);
             });
         })
       );
@@ -199,7 +217,14 @@ export class FallbackSolanaRpcFactory extends SolanaBaseRpcFactory {
         .map(([factory]) => factory.clusterUrl);
       const successfulProviderUrls = [...values, ...fallbackValues].map(([provider]) => provider.clusterUrl);
       if (mismatchedProviders.length > 0 || errors.length > 0) {
-        logQuorumMismatchOrFailureDetails(method, params ?? [], mismatchedProviders, successfulProviderUrls, errors);
+        logQuorumMismatchOrFailureDetails(
+          method,
+          params ?? [],
+          mismatchedProviders,
+          successfulProviderUrls,
+          errors,
+          quorumResult
+        );
       }
 
       return quorumResult;
