@@ -65,18 +65,11 @@ export class FallbackSolanaRpcFactory extends SolanaBaseRpcFactory {
             }
 
             const nextFactory = fallbackFactories.shift()!;
-            console.log(
-              `[${method}] Falling back to ${nextFactory.rpcFactory.clusterUrl}, new fallback providers length: ${fallbackFactories.length}`,
-              error
-            );
             return tryWithFallback(nextFactory, ...args);
           });
       };
       const results = await Promise.allSettled(
         requiredFactories.map((factory) => {
-          console.log(
-            `[${method}] Trying to call ${factory.rpcFactory.clusterUrl}, fallback providers length: ${fallbackFactories.length}`
-          );
           return tryWithFallback<TResponse>(factory, ...args);
         })
       );
@@ -88,7 +81,6 @@ export class FallbackSolanaRpcFactory extends SolanaBaseRpcFactory {
       };
 
       if (!results.every(isPromiseFulfilled)) {
-        console.log(`[${method}] Not enough providers succeeded on ${method} call. Errors:`, results);
         // Format the error so that it's very clear which providers failed and succeeded.
         const errorTexts = getErrorStrings();
         const successfulProviderUrls = results.filter(isPromiseFulfilled).map((result) => result.value[0].clusterUrl);
@@ -103,11 +95,6 @@ export class FallbackSolanaRpcFactory extends SolanaBaseRpcFactory {
       // Start at element 1 and begin comparing.
       // If _all_ values are equal, we have hit quorum, so return.
       if (values.slice(1).every(([, output]) => compareSvmRpcResults(method, values[0][1], output))) {
-        console.log(
-          `[${method}] Quorum reached on first attempt at tryWithFallback() calls, returning result from ${values
-            .map(([factory]) => factory.clusterUrl)
-            .join(", ")}`
-        );
         return values[0][1];
       }
 
@@ -180,14 +167,12 @@ export class FallbackSolanaRpcFactory extends SolanaBaseRpcFactory {
       // Exit early if there are no fallback providers left.
       if (fallbackFactories.length === 0) {
         const [mostFrequentResult] = getHighestCountResult(values);
-        console.log(`[${method}] No fallback providers left, throwing quorum error`, values);
         throwQuorumError(mostFrequentResult, values);
       }
 
       // Try each fallback provider in parallel.
       const fallbackResults = await Promise.allSettled(
         fallbackFactories.map((factory) => {
-          console.log(`[${method}] Quorum wasn't reached, trying fallback ${factory.rpcFactory.clusterUrl}`);
           return factory
             .transport<TResponse>(...args)
             .then((result): [SolanaClusterRpcFactory, TResponse] => [factory.rpcFactory, result])
@@ -203,12 +188,8 @@ export class FallbackSolanaRpcFactory extends SolanaBaseRpcFactory {
 
       const [quorumResult, count] = getHighestCountResult([...values, ...fallbackValues]);
       // If this count is less than we need for quorum, throw the quorum error.
-      console.log(`Top count result with count: ${count} and quorumThreshold: ${quorumThreshold}`, quorumResult);
+
       if (count < quorumThreshold) {
-        console.log(`[${method}] Quorum wasn't reached after exhausting fallback providers, throwing quorum error`, [
-          ...values,
-          ...fallbackValues,
-        ]);
         throwQuorumError(quorumResult, [...values, ...fallbackValues]);
       }
 
