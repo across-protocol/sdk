@@ -171,11 +171,7 @@ export function compareRpcResults(method: string, rpcResultA: unknown, rpcResult
 }
 
 export function compareSvmRpcResults(_method: string, rpcResultA: unknown, rpcResultB: unknown): boolean {
-  const equal = isEqual(rpcResultA, rpcResultB);
-  if (!equal) {
-    console.log(`${_method} results are not equal:`, rpcResultA, rpcResultB);
-  }
-  return equal;
+  return isEqual(rpcResultA, rpcResultB);
 }
 
 export enum CacheType {
