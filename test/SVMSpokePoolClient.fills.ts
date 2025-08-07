@@ -20,6 +20,7 @@ import {
   EvmAddress,
   SvmAddress,
   getCurrentTime,
+  getMessageHash,
   getRandomInt,
   randomAddress,
   toAddressType,
@@ -266,7 +267,7 @@ describe("SVMSpokePoolClient: Fills", function () {
     );
 
     const originChainId = Number(newRelayData.originChainId);
-    const depositData: Omit<Deposit, "messageHash"> = {
+    const depositData: Deposit = {
       depositor: toAddressType(newRelayData.depositor, originChainId),
       recipient: SvmAddress.from(newRelayData.recipient),
       exclusiveRelayer: SvmAddress.from(newRelayData.exclusiveRelayer),
@@ -283,6 +284,7 @@ describe("SVMSpokePoolClient: Fills", function () {
       originChainId: Number(newRelayData.originChainId),
       depositId: BigNumber.from(newRelayData.depositId),
       message: hexlify(newRelayData.message),
+      messageHash: getMessageHash(hexlify(newRelayData.message)),
     };
 
     const gasCosts = await svmQuery.getGasCosts(depositData, toAddressType(signer.address, CHAIN_IDs.SOLANA));

@@ -1,6 +1,6 @@
 import { MessageTransmitterClient, SvmSpokeClient, TokenMessengerMinterClient } from "@across-protocol/contracts";
 import { decodeFillStatusAccount, fetchState } from "@across-protocol/contracts/dist/src/svm/clients/SvmSpoke";
-import { decodeMessageHeader, hashNonEmptyMessage } from "@across-protocol/contracts/dist/src/svm/web3-v1";
+import { decodeMessageHeader } from "@across-protocol/contracts/dist/src/svm/web3-v1";
 import { intToU8Array32 } from "@across-protocol/contracts/dist/src/svm/web3-v1/conversionUtils";
 import { SYSTEM_PROGRAM_ADDRESS } from "@solana-program/system";
 import {
@@ -37,7 +37,14 @@ import assert from "assert";
 import { arrayify, hexZeroPad, hexlify } from "ethers/lib/utils";
 import { Logger } from "winston";
 import { CHAIN_IDs, TOKEN_SYMBOLS_MAP } from "../../constants";
-import { DepositWithBlock, FillStatus, FillWithBlock, RelayData, RelayExecutionEventInfo } from "../../interfaces";
+import {
+  DepositWithBlock,
+  FillStatus,
+  FillWithBlock,
+  RelayData,
+  RelayDataWithMessageHash,
+  RelayExecutionEventInfo,
+} from "../../interfaces";
 import {
   BigNumber,
   EvmAddress,
@@ -83,7 +90,7 @@ import {
  */
 export const SLOT_DURATION_MS = 400;
 
-type ProtoFill = Omit<RelayData, "recipient" | "outputToken"> & {
+type ProtoFill = Omit<RelayDataWithMessageHash, "recipient" | "outputToken"> & {
   destinationChainId: number;
   recipient: SvmAddress;
   outputToken: SvmAddress;
@@ -261,7 +268,7 @@ export async function findDeposit(
  */
 export async function relayFillStatus(
   programId: Address,
-  relayData: RelayData,
+  relayData: RelayDataWithMessageHash,
   destinationChainId: number,
   svmEventsClient: SvmCpiEventsClient,
   atHeight?: number
@@ -311,7 +318,7 @@ export async function relayFillStatus(
  */
 export async function fillStatusArray(
   programId: Address,
-  relayData: RelayData[],
+  relayData: RelayDataWithMessageHash[],
   destinationChainId: number,
   svmEventsClient: SvmCpiEventsClient,
   atHeight?: number,
@@ -394,7 +401,7 @@ export async function fillStatusArray(
  * @returns The fill event with block info, or `undefined` if not found.
  */
 export async function findFillEvent(
-  relayData: RelayData,
+  relayData: RelayDataWithMessageHash,
   destinationChainId: number,
   svmEventsClient: SvmCpiEventsClient,
   fromSlot: number,
@@ -566,7 +573,7 @@ export function createTokenAccountsInstruction(
 export async function getFillRelayTx(
   spokePoolAddr: SvmAddress,
   solanaClient: SVMProvider,
-  relayData: Omit<RelayData, "recipient" | "outputToken"> & {
+  relayData: Omit<RelayDataWithMessageHash, "recipient" | "outputToken"> & {
     destinationChainId: number;
     recipient: SvmAddress;
     outputToken: SvmAddress;
@@ -583,6 +590,7 @@ export async function getFillRelayTx(
   );
 
   const program = toAddress(spokePoolAddr);
+
   const _relayDataHash = getRelayDataHash(relayData, destinationChainId);
   const relayDataHash = new Uint8Array(Buffer.from(_relayDataHash.slice(2), "hex"));
 
@@ -770,7 +778,7 @@ export const createRequestSlowFillInstruction = async (
 export async function getSlowFillRequestTx(
   spokePoolAddr: SvmAddress,
   solanaClient: SVMProvider,
-  relayData: Omit<RelayData, "recipient" | "outputToken"> & {
+  relayData: Omit<RelayDataWithMessageHash, "recipient" | "outputToken"> & {
     destinationChainId: number;
     recipient: SvmAddress;
     outputToken: SvmAddress;
@@ -792,6 +800,7 @@ export async function getSlowFillRequestTx(
   } = relayData;
 
   const program = toAddress(spokePoolAddr);
+
   const relayDataHash = getRelayDataHash(relayData, destinationChainId);
 
   const [state, fillStatus, eventAuthority] = await Promise.all([
@@ -881,12 +890,12 @@ export async function getAssociatedTokenAddress(
   return associatedToken;
 }
 
-export function getRelayDataHash(relayData: RelayData, destinationChainId: number): string {
+export function getRelayDataHash(relayData: RelayDataWithMessageHash, destinationChainId: number): string {
   const addressEncoder = getAddressEncoder();
   const uint64Encoder = getU64Encoder();
   const uint32Encoder = getU32Encoder();
 
-  assert(relayData.message.startsWith("0x"), "Message must be a hex string");
+  assert(relayData.messageHash.startsWith("0x"), "Message hash must be a hex string");
   const encodeAddress = (data: SdkAddress) => Uint8Array.from(addressEncoder.encode(toAddress(data)));
 
   const contentToHash = Buffer.concat([
@@ -901,7 +910,7 @@ export function getRelayDataHash(relayData: RelayData, destinationChainId: numbe
     arrayify(hexZeroPad(hexlify(relayData.depositId), 32)),
     Uint8Array.from(uint32Encoder.encode(relayData.fillDeadline)),
     Uint8Array.from(uint32Encoder.encode(relayData.exclusivityDeadline)),
-    hashNonEmptyMessage(Buffer.from(arrayify(relayData.message))),
+    Uint8Array.from(Buffer.from(relayData.messageHash.slice(2), "hex")),
     Uint8Array.from(uint64Encoder.encode(BigInt(destinationChainId))),
   ]);
   return keccak256(contentToHash);

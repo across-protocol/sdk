@@ -10,6 +10,7 @@ import {
   SlowFillRequest,
   ConvertedRelayData,
   ConvertedFill,
+  RelayDataWithMessageHash,
 } from "../interfaces";
 import { getMessageHash, isUnsafeDepositId } from "./SpokeUtils";
 import { getNetworkName } from "./NetworkUtils";
@@ -143,7 +144,7 @@ export async function queryHistoricalDepositForFill(
  * note: This function should _not_ be used to query the SpokePool.fillStatuses mapping.
  */
 export function getRelayEventKey(
-  data: Omit<RelayData, "message"> & { messageHash: string; destinationChainId: number }
+  data: Omit<RelayDataWithMessageHash, "message"> & { destinationChainId: number }
 ): string {
   return [
     data.depositor,

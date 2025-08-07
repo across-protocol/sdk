@@ -11,7 +11,7 @@ import {
   relayFillStatus,
   fillStatusArray,
 } from "../../arch/svm";
-import { FillStatus, RelayData, SortableEvent } from "../../interfaces";
+import { FillStatus, RelayDataWithMessageHash, SortableEvent } from "../../interfaces";
 import {
   BigNumber,
   DepositSearchResult,
@@ -243,7 +243,7 @@ export class SVMSpokePoolClient extends SpokePoolClient {
   /**
    * Retrieves the fill status for a given relay data from the SVM chain.
    */
-  public override relayFillStatus(relayData: RelayData, atHeight?: number): Promise<FillStatus> {
+  public override relayFillStatus(relayData: RelayDataWithMessageHash, atHeight?: number): Promise<FillStatus> {
     return relayFillStatus(this.programId, relayData, this.chainId, this.svmEventsClient, atHeight);
   }
 
@@ -254,7 +254,7 @@ export class SVMSpokePoolClient extends SpokePoolClient {
    * @returns The fill status for each of the given relay data.
    */
   public fillStatusArray(
-    relayData: RelayData[],
+    relayData: RelayDataWithMessageHash[],
     atHeight?: number,
     destinationChainId?: number
   ): Promise<(FillStatus | undefined)[]> {

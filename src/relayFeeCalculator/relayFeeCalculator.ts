@@ -5,7 +5,7 @@ import {
   DEFAULT_SIMULATED_RELAYER_ADDRESS_SVM,
   TOKEN_SYMBOLS_MAP,
 } from "../constants";
-import { RelayData } from "../interfaces";
+import { RelayDataWithMessageHash } from "../interfaces";
 import {
   BigNumber,
   BigNumberish,
@@ -33,7 +33,7 @@ import {
 // This needs to be implemented for every chain and passed into RelayFeeCalculator
 export interface QueryInterface {
   getGasCosts: (
-    deposit: RelayData & { destinationChainId: number },
+    deposit: RelayDataWithMessageHash & { destinationChainId: number },
     relayer: Address,
     options?: Partial<{
       gasPrice: BigNumberish;
@@ -45,7 +45,10 @@ export interface QueryInterface {
     }>
   ) => Promise<TransactionCostEstimate>;
   getTokenPrice: (tokenSymbol: string) => Promise<number>;
-  getNativeGasCost: (deposit: RelayData & { destinationChainId: number }, relayer: Address) => Promise<BigNumber>;
+  getNativeGasCost: (
+    deposit: RelayDataWithMessageHash & { destinationChainId: number },
+    relayer: Address
+  ) => Promise<BigNumber>;
 }
 
 export const expectedCapitalCostsKeys = ["lowerBound", "upperBound", "cutoff", "decimals"];
@@ -254,7 +257,7 @@ export class RelayFeeCalculator {
    *       the correct parameters to see a full fill.
    */
   async gasFeePercent(
-    deposit: RelayData & { destinationChainId: number },
+    deposit: RelayDataWithMessageHash & { destinationChainId: number },
     outputAmount: BigNumberish,
     simulateZeroFill = false,
     relayerAddress = getDefaultRelayer(deposit.destinationChainId),
@@ -493,7 +496,7 @@ export class RelayFeeCalculator {
    * @returns A resulting `RelayerFeeDetails` object
    */
   async relayerFeeDetails(
-    deposit: RelayData & { destinationChainId: number },
+    deposit: RelayDataWithMessageHash & { destinationChainId: number },
     outputAmount?: BigNumberish,
     simulateZeroFill = false,
     relayerAddress = getDefaultRelayer(deposit.destinationChainId),
