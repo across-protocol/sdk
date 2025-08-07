@@ -75,8 +75,8 @@ async function testNearestSlotTime(
     };
   } catch (error: unknown) {
     const elapsedTime = Date.now() - startTime;
-    const errorMsg = error instanceof Error ? error.message : String(error);
-    console.log(`❌ Failed: ${errorMsg} (${elapsedTime}ms)`);
+    const errorMsg = error instanceof Error ? error.message : JSON.stringify(error);
+    console.log(`❌ Failed (${elapsedTime}ms):`, error);
     return {
       iteration,
       slot: "unknown",

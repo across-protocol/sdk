@@ -213,7 +213,7 @@ program.name("solana-provider-e2e").description("Test the Solana Retry RPC Facto
 
 program
   .option("-e, --endpoint <url>", "Solana RPC endpoint URL", "https://api.mainnet-beta.solana.com")
-  .option("-r, --retries <number>", "Number of retries on failure", "3")
+  .option("-r, --retries <number>", "Number of retries on failure", "2")
   .option("-d, --retry-delay <seconds>", "Delay between retries in seconds", "1")
   .option("-c, --max-concurrency <number>", "Maximum concurrent requests", "10")
   .option("-l, --log-percentage <number>", "Percentage of RPC calls to log (0-100)", "100")
