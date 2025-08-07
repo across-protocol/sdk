@@ -108,7 +108,7 @@ async function _callGetSlotWithRetry(
         at: "_getSlotWithRetry",
         message: "Caught error from getSlot()",
         code,
-        commitment
+        commitment,
       });
     }
 
