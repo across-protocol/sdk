@@ -90,20 +90,13 @@ type ProtoFill = Omit<RelayData, "recipient" | "outputToken"> & {
   outputToken: SvmAddress;
 };
 
-export function getSlot(
-  provider: SVMProvider,
-  commitment: Commitment,
-  logger: winston.Logger,
-  maxRetries = 2
-): Promise<bigint> {
-  return _callGetSlotWithRetry(provider, commitment, 0, maxRetries, logger);
+export function getSlot(provider: SVMProvider, commitment: Commitment, logger: winston.Logger): Promise<bigint> {
+  return _callGetSlotWithRetry(provider, commitment, logger);
 }
 
 async function _callGetSlotWithRetry(
   provider: SVMProvider,
   commitment: Commitment,
-  retryAttempt: number,
-  maxRetries: number,
   logger: winston.Logger
 ): Promise<bigint> {
   try {
@@ -115,9 +108,7 @@ async function _callGetSlotWithRetry(
         at: "_getSlotWithRetry",
         message: "Caught error from getSlot()",
         code,
-        commitment,
-        retryAttempt,
-        maxRetries,
+        commitment
       });
     }
 
