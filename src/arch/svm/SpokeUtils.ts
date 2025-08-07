@@ -69,7 +69,6 @@ import {
   getRootBundlePda,
   getAcrossPlusMessageDecoder,
   getAccountMeta,
-  toSvmRelayData,
   getInstructionParamsPda,
   type AcrossPlusMessage,
   toSvmRelayData,
