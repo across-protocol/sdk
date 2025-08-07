@@ -148,9 +148,7 @@ export class FallbackSolanaRpcFactory extends SolanaBaseRpcFactory {
           notificationPath: "across-warn",
           method,
           params: JSON.stringify(params),
-          quorumResult: ["getBlockTime", "getSlot"].includes(method) ? Number(quorumResult) : undefined,
-          // TODO: We might want to suppress this log or shorten it for certain methods where the result
-          // is a large object.
+          quorumResult: METHODS_RETURNING_BIGINT.includes(method) ? Number(quorumResult) : undefined,
           mismatchedProviders,
           successfulProviders,
           erroringProviders: errors.map(
@@ -242,3 +240,7 @@ export class FallbackSolanaRpcFactory extends SolanaBaseRpcFactory {
     return 1;
   }
 }
+
+// These methods return a bigint and their results are loggable because they are succinct and can further assist
+// quorum debugging.
+const METHODS_RETURNING_BIGINT = ["getBlockTime", "getSlot"];
