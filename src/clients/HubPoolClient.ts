@@ -265,8 +265,8 @@ export class HubPoolClient extends BaseAbstractClient {
     return Object.values(this.l1TokensToDestinationTokensWithBlock).some((destinationTokenMapping) => {
       return Object.entries(destinationTokenMapping).some(([_l2ChainId, setPoolRebalanceRouteEvents]) => {
         // sort events descending by block number
-        const sortedEvents = sortEventsDescending(setPoolRebalanceRouteEvents).filter(
-          (e) => e.blockNumber <= hubPoolBlock
+        const sortedEvents = sortEventsDescending(
+          setPoolRebalanceRouteEvents.filter((e) => e.blockNumber <= hubPoolBlock)
         );
         return (
           sortedEvents.length > 0 &&
