@@ -3,8 +3,8 @@
 
 import { program } from "commander";
 import winston from "winston";
-import { CachedSolanaRpcFactory } from "../src/providers/solana/cachedRpcFactory";
 import { ClusterUrl } from "@solana/kit";
+import { FallbackSolanaRpcFactory } from "../src/providers";
 
 /**
  * USAGE EXAMPLES:
@@ -117,16 +117,22 @@ async function runTest(options: TestOptions) {
   });
 
   // Create the retry RPC factory
-  const rpcFactory = new CachedSolanaRpcFactory(
-    "script-e2e-solana-provider",
-    undefined, // redisClient, unused for now
-    options.retries, // retries
-    options.retryDelay, // retryDelaySeconds
-    10, // maxConcurrency
-    0, // pctRpcCallsLogged
-    logger, // logger
-    options.endpoint as ClusterUrl, // clusterUrl
-    options.chainId // chainId
+  const rpcFactory = new FallbackSolanaRpcFactory(
+    [
+      [
+        "script-e2e-solana-provider",
+        undefined, // redisClient, unused for now
+        options.retries, // retries
+        options.retryDelay, // retryDelaySeconds
+        10, // maxConcurrency
+        0, // pctRpcCallsLogged
+        logger, // logger
+        options.endpoint as ClusterUrl, // clusterUrl
+        options.chainId,
+      ],
+    ],
+    1,
+    logger
   );
 
   // Create RPC client
@@ -207,7 +213,7 @@ program.name("solana-provider-e2e").description("Test the Solana Retry RPC Facto
 
 program
   .option("-e, --endpoint <url>", "Solana RPC endpoint URL", "https://api.mainnet-beta.solana.com")
-  .option("-r, --retries <number>", "Number of retries on failure", "3")
+  .option("-r, --retries <number>", "Number of retries on failure", "2")
   .option("-d, --retry-delay <seconds>", "Delay between retries in seconds", "1")
   .option("-c, --max-concurrency <number>", "Maximum concurrent requests", "10")
   .option("-l, --log-percentage <number>", "Percentage of RPC calls to log (0-100)", "100")

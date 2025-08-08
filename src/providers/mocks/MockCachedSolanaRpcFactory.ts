@@ -1,4 +1,4 @@
-import { CachedSolanaRpcFactory } from "..";
+import { CachedSolanaRpcFactory } from "../solana/cachedRpcFactory";
 import { MockRetrySolanaRpcFactory } from "./MockRetrySolanaRpcFactory";
 
 // Creates mocked cached Solana RPC factory by using the mocked retry Solana RPC factory.

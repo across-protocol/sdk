@@ -2,7 +2,7 @@ import { ClusterUrl, createSolanaRpcFromTransport, RpcTransport } from "@solana/
 
 // This is abstract base class for creating Solana RPC clients and transports.
 export abstract class SolanaBaseRpcFactory {
-  constructor(readonly chainId: number) {}
+  constructor() {}
 
   // This method must be implemented by the derived class to create a transport.
   public abstract createTransport(): RpcTransport;
@@ -18,8 +18,8 @@ export abstract class SolanaBaseRpcFactory {
 export abstract class SolanaClusterRpcFactory extends SolanaBaseRpcFactory {
   constructor(
     readonly clusterUrl: ClusterUrl,
-    ...baseConstructorParams: ConstructorParameters<typeof SolanaBaseRpcFactory>
+    readonly chainId: number
   ) {
-    super(...baseConstructorParams);
+    super();
   }
 }
