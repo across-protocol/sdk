@@ -1,10 +1,10 @@
 import { CHAIN_IDs, MAINNET_CHAIN_IDs as _MAINNET_CHAIN_IDs, PUBLIC_NETWORKS } from "../constants";
 import { RPCTransport } from "./types";
 
-const MAINNET_CHAIN_IDs = Object.values(_MAINNET_CHAIN_IDs);
+const MAINNET_CHAIN_IDs = Object.values(_MAINNET_CHAIN_IDs).map(Number);
 
 // Chain-specific overrides for when the endpoint name does not match the canonical chain name.
-const endpoints: { [chainId: string]: string } = {
+const endpoints: { [chainId: number]: string } = {
   [CHAIN_IDs.ARBITRUM]: "arbitrum",
   [CHAIN_IDs.BSC]: "bsc",
 };
