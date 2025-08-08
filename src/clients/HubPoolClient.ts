@@ -49,6 +49,7 @@ import {
   SvmAddress,
   EvmAddress,
   Address,
+  deleteFromJson,
 } from "../utils";
 import { AcrossConfigStoreClient as ConfigStoreClient } from "./AcrossConfigStoreClient/AcrossConfigStoreClient";
 import { BaseAbstractClient, isUpdateFailureReason, UpdateFailureReason } from "./BaseAbstractClient";
@@ -262,17 +263,12 @@ export class HubPoolClient extends BaseAbstractClient {
   }
 
   l2TokenHasPoolRebalanceRoute(l2Token: Address, l2ChainId: number, hubPoolBlock = this.latestHeightSearched): boolean {
-    return Object.values(this.l1TokensToDestinationTokensWithBlock).some((destinationTokenMapping) => {
-      return Object.entries(destinationTokenMapping).some(([_l2ChainId, setPoolRebalanceRouteEvents]) => {
-        return setPoolRebalanceRouteEvents.some((e) => {
-          return (
-            e.blockNumber <= hubPoolBlock &&
-            e.l2Token.truncateToBytes20() === l2Token.truncateToBytes20() &&
-            Number(_l2ChainId) === l2ChainId
-          );
-        });
-      });
-    });
+    try {
+      const l1Token = this.getL1TokenForL2TokenAtBlock(l2Token, l2ChainId, hubPoolBlock);
+      return !l1Token.isZeroAddress();
+    } catch (e) {
+      return false;
+    }
   }
 
   /**
@@ -1013,6 +1009,8 @@ export class HubPoolClient extends BaseAbstractClient {
               },
             ]
           );
+        } else {
+          deleteFromJson(this.l1TokensToDestinationTokens, [args.l1Token, args.destinationChainId]);
         }
       }
     }
