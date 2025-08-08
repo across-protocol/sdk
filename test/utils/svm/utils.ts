@@ -305,7 +305,13 @@ export const sendCreateFill = async (
     repaymentAddress: signer.address,
   };
 
-  const fillTx = await createFillInstruction(signer, solanaClient.rpc, fillInput, mintDecimals);
+  const fillTx = await createFillInstruction(
+    signer,
+    solanaClient.rpc,
+    fillInput,
+    { outputAmount: relayDataInput.outputAmount, recipient: relayDataInput.recipient },
+    mintDecimals
+  );
   const signature = await signAndSendTransaction(solanaClient, fillTx);
   return { signature, relayData, fillInput };
 };
