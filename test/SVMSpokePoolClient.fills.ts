@@ -101,6 +101,7 @@ describe("SVMSpokePoolClient: Fills", function () {
       formattedRelayData,
       CHAIN_IDs.SOLANA,
       spokePoolClient.svmEventsClient,
+      createSpyLogger().spyLogger,
       spokePoolClient.deploymentBlock
     );
     expect(fill).to.not.be.undefined;
@@ -113,6 +114,7 @@ describe("SVMSpokePoolClient: Fills", function () {
       { ...formattedRelayData, depositId: BigNumber.from(depositId + 1) },
       CHAIN_IDs.SOLANA,
       spokePoolClient.svmEventsClient,
+      createSpyLogger().spyLogger,
       spokePoolClient.deploymentBlock
     );
     expect(missingFill).to.be.undefined;
@@ -205,7 +207,7 @@ describe("SVMSpokePoolClient: Fills", function () {
 
   it("Closes the fill pda after the fill deadline has passed", async () => {
     const provider = solanaClient.rpc;
-    const { timestamp } = await getNearestSlotTime(provider);
+    const { timestamp } = await getNearestSlotTime(provider, createSpyLogger().spyLogger);
 
     await setCurrentTime(signer, solanaClient, timestamp);
     const newRelayData = {

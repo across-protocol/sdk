@@ -115,7 +115,7 @@ export class SVMSpokePoolClient extends SpokePoolClient {
    * Performs an update to refresh the state of this client by querying SVM events.
    */
   protected async _update(eventsToQuery: string[]): Promise<SpokePoolUpdate> {
-    const searchConfig = await this.updateSearchConfig(this.svmEventsClient.getRpc());
+    const searchConfig = await this.updateSvmSearchConfig(this.svmEventsClient.getRpc(), this.logger);
     if (isUpdateFailureReason(searchConfig)) {
       const reason = searchConfig;
       return { success: false, reason };
@@ -195,7 +195,7 @@ export class SVMSpokePoolClient extends SpokePoolClient {
   public override async getTimestampForBlock(slot: number): Promise<number> {
     let _slot = BigInt(slot);
     do {
-      const timestamp = await getTimestampForSlot(this.svmEventsClient.getRpc(), _slot);
+      const timestamp = await getTimestampForSlot(this.svmEventsClient.getRpc(), _slot, this.logger);
       if (isDefined(timestamp)) {
         return timestamp;
       }
@@ -217,7 +217,7 @@ export class SVMSpokePoolClient extends SpokePoolClient {
    * Finds a deposit based on its deposit ID on the SVM chain.
    */
   public async findDeposit(depositId: BigNumber): Promise<DepositSearchResult> {
-    const deposit = await findDeposit(this.svmEventsClient, depositId);
+    const deposit = await findDeposit(this.svmEventsClient, depositId, this.logger);
     if (!deposit) {
       return {
         found: false,
@@ -244,7 +244,7 @@ export class SVMSpokePoolClient extends SpokePoolClient {
    * Retrieves the fill status for a given relay data from the SVM chain.
    */
   public override relayFillStatus(relayData: RelayData, atHeight?: number): Promise<FillStatus> {
-    return relayFillStatus(this.programId, relayData, this.chainId, this.svmEventsClient, atHeight);
+    return relayFillStatus(this.programId, relayData, this.chainId, this.svmEventsClient, this.logger, atHeight);
   }
 
   /**
@@ -260,6 +260,6 @@ export class SVMSpokePoolClient extends SpokePoolClient {
   ): Promise<(FillStatus | undefined)[]> {
     // @note: deploymentBlock actually refers to the deployment slot. Also, blockTag should be a slot number.
     destinationChainId ??= this.chainId;
-    return fillStatusArray(this.programId, relayData, destinationChainId, this.svmEventsClient, atHeight, this.logger);
+    return fillStatusArray(this.programId, relayData, destinationChainId, this.svmEventsClient, this.logger, atHeight);
   }
 }
