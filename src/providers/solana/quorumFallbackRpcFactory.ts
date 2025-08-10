@@ -232,7 +232,7 @@ export class QuorumFallbackSolanaRpcFactory extends SolanaBaseRpcFactory {
   _getQuorum(method: string, _params: Array<unknown>): number {
     // Only use quorum if this is a historical query that doesn't depend on the current block number.
 
-    switch (method)
+    switch (method) {
       case "getBlock":
       case "getBlockTime":
         return this.nodeQuorumThreshold;
