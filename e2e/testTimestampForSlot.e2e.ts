@@ -5,22 +5,22 @@ import { program } from "commander";
 import winston from "winston";
 import { ClusterUrl } from "@solana/kit";
 import { getNearestSlotTime } from "../src/arch/svm/utils";
-import { FallbackSolanaRpcFactory, CachedSolanaRpcFactory } from "../src/providers";
+import { QuorumFallbackSolanaRpcFactory, CachedSolanaRpcFactory } from "../src/providers";
 
 /**
  * USAGE EXAMPLES:
  *
  * Basic usage (default settings):
- *   npx ts-node testTimestampForSlot.e2e.ts
+ *   yarn ts-node testTimestampForSlot.e2e.ts
  *
  * Test with specific endpoint:
- *   npx ts-node testTimestampForSlot.e2e.ts -e https://api.devnet.solana.com
+ *   yarn ts-node testTimestampForSlot.e2e.ts -e https://api.devnet.solana.com
  *
  * Test with fallback endpoints:
- *   npx ts-node testTimestampForSlot.e2e.ts -e https://api.mainnet-beta.solana.com -f https://api.devnet.solana.com https://api.testnet.solana.com
+ *   yarn ts-node testTimestampForSlot.e2e.ts -e https://api.mainnet-beta.solana.com -f https://api.devnet.solana.com https://api.testnet.solana.com
  *
  * Test with more iterations:
- *   npx ts-node testTimestampForSlot.e2e.ts -n 20
+ *   yarn ts-node testTimestampForSlot.e2e.ts -n 20
  */
 
 // Configure winston logger
@@ -115,7 +115,7 @@ async function runTest(options: TestOptions) {
       ] as ConstructorParameters<typeof CachedSolanaRpcFactory>
   );
 
-  const rpcFactory = new FallbackSolanaRpcFactory(factoryParams, options.quorumThreshold, logger);
+  const rpcFactory = new QuorumFallbackSolanaRpcFactory(factoryParams, options.quorumThreshold, logger);
 
   const rpcClient = rpcFactory.createRpcClient();
 

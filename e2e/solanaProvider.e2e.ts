@@ -4,42 +4,42 @@
 import { program } from "commander";
 import winston from "winston";
 import { ClusterUrl } from "@solana/kit";
-import { FallbackSolanaRpcFactory } from "../src/providers";
+import { QuorumFallbackSolanaRpcFactory } from "../src/providers";
 
 /**
  * USAGE EXAMPLES:
  *
  * Basic usage (default settings):
- *   npx ts-node solanaProvider.e2e.ts
+ *   yarn ts-node solanaProvider.e2e.ts
  *
  * Test with specific endpoint and method:
- *   npx ts-node solanaProvider.e2e.ts -e https://api.devnet.solana.com -m getVersion
+ *   yarn ts-node solanaProvider.e2e.ts -e https://api.devnet.solana.com -m getVersion
  *
  * Stress test with multiple iterations:
- *   npx ts-node solanaProvider.e2e.ts -n 20 -m getSlot
+ *   yarn ts-node solanaProvider.e2e.ts -n 20 -m getSlot
  *
  * Test retry logic with high retry settings:
- *   npx ts-node solanaProvider.e2e.ts -r 5 -d 2 -m getLatestBlockhash
+ *   yarn ts-node solanaProvider.e2e.ts -r 5 -d 2 -m getLatestBlockhash
  *
  * Test different RPC methods:
- *   npx ts-node solanaProvider.e2e.ts -m getHealth
- *   npx ts-node solanaProvider.e2e.ts -m getEpochInfo
- *   npx ts-node solanaProvider.e2e.ts -m getBlockTime
+ *   yarn ts-node solanaProvider.e2e.ts -m getHealth
+ *   yarn ts-node solanaProvider.e2e.ts -m getEpochInfo
+ *   yarn ts-node solanaProvider.e2e.ts -m getBlockTime
  *
  * Test with devnet:
- *   npx ts-node solanaProvider.e2e.ts -e https://api.devnet.solana.com -i 103
+ *   yarn ts-node solanaProvider.e2e.ts -e https://api.devnet.solana.com -i 103
  *
  * Test with testnet:
- *   npx ts-node solanaProvider.e2e.ts -e https://api.testnet.solana.com -i 102
+ *   yarn ts-node solanaProvider.e2e.ts -e https://api.testnet.solana.com -i 102
  *
  * Load testing scenario:
- *   npx ts-node solanaProvider.e2e.ts -n 50 -c 20 -m getSlot
+ *   yarn ts-node solanaProvider.e2e.ts -n 50 -c 20 -m getSlot
  *
  * List available methods:
- *   npx ts-node solanaProvider.e2e.ts list-methods
+ *   yarn ts-node solanaProvider.e2e.ts list-methods
  *
  * Show usage examples:
- *   npx ts-node solanaProvider.e2e.ts examples
+ *   yarn ts-node solanaProvider.e2e.ts examples
  */
 
 // Configure winston logger for better output
@@ -117,7 +117,7 @@ async function runTest(options: TestOptions) {
   });
 
   // Create the retry RPC factory
-  const rpcFactory = new FallbackSolanaRpcFactory(
+  const rpcFactory = new QuorumFallbackSolanaRpcFactory(
     [
       [
         "script-e2e-solana-provider",

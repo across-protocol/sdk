@@ -6,9 +6,9 @@ import { compareSvmRpcResults, createSendErrorWithMessage } from "../utils";
 import { Logger } from "winston";
 
 // This factory stores multiple Cached RPC factories so that users of this factory can specify multiple RPC providers
-// and the factory will fallback through them if any RPC calls fail. Eventually, this class can be extended with
-// quorum logic.
-export class FallbackSolanaRpcFactory extends SolanaBaseRpcFactory {
+// and the factory will fallback through them if any RPC calls fail. This factory also implements quorum logic amongst
+// the RPC providers.
+export class QuorumFallbackSolanaRpcFactory extends SolanaBaseRpcFactory {
   readonly rpcFactories: {
     transport: RpcTransport;
     rpcClient: RpcFromTransport<SolanaRpcApiFromTransport<RpcTransport>, RpcTransport>;
