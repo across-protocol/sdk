@@ -154,7 +154,7 @@ export abstract class Address {
     return (this.evmAddress ??= parseRawAddress());
   }
 
-  // Converts the address to a hex string. This method should be overriden by subclasses to obtain more meaningful
+  // Converts the address to a hex string. This method should be overridden by subclasses to obtain more meaningful
   // address representations for the target chain ID.
   toNative(): string {
     return this.toBytes32();

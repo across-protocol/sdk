@@ -2,6 +2,7 @@ import { providers } from "ethers";
 import { CachingMechanismInterface } from "../interfaces";
 import { EventSearchConfig, isDefined, MakeOptional } from "../utils";
 import { getNearestSlotTime, SVMProvider } from "../arch/svm";
+import winston from "winston";
 
 export enum UpdateFailureReason {
   NotReady,
@@ -59,8 +60,27 @@ export abstract class BaseAbstractClient {
    * @provider Ethers RPC provider instance.
    * @returns An EventSearchConfig instance if valid, otherwise an UpdateFailureReason.
    */
-  public async updateSearchConfig(
-    provider: providers.Provider | SVMProvider
+  public async updateSearchConfig(provider: providers.Provider): Promise<EventSearchConfig | UpdateFailureReason> {
+    const from = this.firstHeightToSearch;
+    let { to } = this.eventSearchConfig;
+    if (isDefined(to)) {
+      if (from > to) {
+        throw new Error(`Invalid event search config from (${from}) > to (${to})`);
+      }
+    } else {
+      to = await provider.getBlockNumber();
+      if (to < from) {
+        return UpdateFailureReason.AlreadyUpdated;
+      }
+    }
+
+    const { maxLookBack } = this.eventSearchConfig;
+    return { from, to, maxLookBack };
+  }
+
+  public async updateSvmSearchConfig(
+    provider: SVMProvider,
+    logger: winston.Logger
   ): Promise<EventSearchConfig | UpdateFailureReason> {
     const from = this.firstHeightToSearch;
     let { to } = this.eventSearchConfig;
@@ -69,12 +89,8 @@ export abstract class BaseAbstractClient {
         throw new Error(`Invalid event search config from (${from}) > to (${to})`);
       }
     } else {
-      if (provider instanceof providers.Provider) {
-        to = await provider.getBlockNumber();
-      } else {
-        const { slot } = await getNearestSlotTime(provider);
-        to = Number(slot);
-      }
+      const { slot } = await getNearestSlotTime(provider, logger);
+      to = Number(slot);
       if (to < from) {
         return UpdateFailureReason.AlreadyUpdated;
       }
