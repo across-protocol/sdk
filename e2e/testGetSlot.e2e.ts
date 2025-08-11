@@ -120,7 +120,6 @@ async function runTest(options: TestOptions) {
   );
   const rpcFactory = new QuorumFallbackSolanaRpcFactory(factoryParams, options.quorumThreshold, logger);
 
-
   const rpcClient = rpcFactory.createRpcClient();
 
   console.log(`\n📡 Running ${options.iterations} sequential tests...\n`);
