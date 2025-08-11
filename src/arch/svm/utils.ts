@@ -25,8 +25,9 @@ import bs58 from "bs58";
 import { ethers } from "ethers";
 import { FillType, RelayData } from "../../interfaces";
 import { BigNumber, Address as SdkAddress, biMin, getRelayDataHash, isDefined, isUint8Array } from "../../utils";
-import { getTimestampForSlot } from "./SpokeUtils";
+import { getTimestampForSlot, getSlot } from "./SpokeUtils";
 import { AttestedCCTPMessage, EventName, SVMEventNames, SVMProvider } from "./types";
+import winston from "winston";
 
 export { isSolanaError } from "@solana/kit";
 
@@ -67,13 +68,14 @@ export function toAddress(address: SdkAddress): Address<string> {
  */
 export async function getNearestSlotTime(
   provider: SVMProvider,
+  logger: winston.Logger,
   opts: { slot: bigint } | { commitment: Commitment } = { commitment: "confirmed" }
 ): Promise<{ slot: bigint; timestamp: number }> {
   let timestamp: number | undefined;
-  let slot = "slot" in opts ? opts.slot : await provider.getSlot(opts).send();
+  let slot = "slot" in opts ? opts.slot : await getSlot(provider, opts.commitment, logger);
 
   do {
-    timestamp = await getTimestampForSlot(provider, slot);
+    timestamp = await getTimestampForSlot(provider, slot, logger);
   } while (!isDefined(timestamp) && --slot);
   assert(isDefined(timestamp), `Unable to resolve block time for SVM slot ${slot}`);
 
@@ -87,11 +89,12 @@ export async function getNearestSlotTime(
  */
 export async function getLatestFinalizedSlotWithBlock(
   provider: SVMProvider,
+  logger: winston.Logger,
   maxSlot: bigint,
   maxLookback = 1000
 ): Promise<number> {
   const opts = { maxSupportedTransactionVersion: 0, transactionDetails: "none", rewards: false } as const;
-  const { slot: finalizedSlot } = await getNearestSlotTime(provider, { commitment: "finalized" });
+  const { slot: finalizedSlot } = await getNearestSlotTime(provider, logger, { commitment: "finalized" });
   const endSlot = biMin(maxSlot, finalizedSlot);
 
   let slot = endSlot;

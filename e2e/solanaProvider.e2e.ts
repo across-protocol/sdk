@@ -3,43 +3,43 @@
 
 import { program } from "commander";
 import winston from "winston";
-import { CachedSolanaRpcFactory } from "../src/providers/solana/cachedRpcFactory";
 import { ClusterUrl } from "@solana/kit";
+import { QuorumFallbackSolanaRpcFactory } from "../src/providers";
 
 /**
  * USAGE EXAMPLES:
  *
  * Basic usage (default settings):
- *   npx ts-node solanaProvider.e2e.ts
+ *   yarn ts-node solanaProvider.e2e.ts
  *
  * Test with specific endpoint and method:
- *   npx ts-node solanaProvider.e2e.ts -e https://api.devnet.solana.com -m getVersion
+ *   yarn ts-node solanaProvider.e2e.ts -e https://api.devnet.solana.com -m getVersion
  *
  * Stress test with multiple iterations:
- *   npx ts-node solanaProvider.e2e.ts -n 20 -m getSlot
+ *   yarn ts-node solanaProvider.e2e.ts -n 20 -m getSlot
  *
  * Test retry logic with high retry settings:
- *   npx ts-node solanaProvider.e2e.ts -r 5 -d 2 -m getLatestBlockhash
+ *   yarn ts-node solanaProvider.e2e.ts -r 5 -d 2 -m getLatestBlockhash
  *
  * Test different RPC methods:
- *   npx ts-node solanaProvider.e2e.ts -m getHealth
- *   npx ts-node solanaProvider.e2e.ts -m getEpochInfo
- *   npx ts-node solanaProvider.e2e.ts -m getBlockTime
+ *   yarn ts-node solanaProvider.e2e.ts -m getHealth
+ *   yarn ts-node solanaProvider.e2e.ts -m getEpochInfo
+ *   yarn ts-node solanaProvider.e2e.ts -m getBlockTime
  *
  * Test with devnet:
- *   npx ts-node solanaProvider.e2e.ts -e https://api.devnet.solana.com -i 103
+ *   yarn ts-node solanaProvider.e2e.ts -e https://api.devnet.solana.com -i 103
  *
  * Test with testnet:
- *   npx ts-node solanaProvider.e2e.ts -e https://api.testnet.solana.com -i 102
+ *   yarn ts-node solanaProvider.e2e.ts -e https://api.testnet.solana.com -i 102
  *
  * Load testing scenario:
- *   npx ts-node solanaProvider.e2e.ts -n 50 -c 20 -m getSlot
+ *   yarn ts-node solanaProvider.e2e.ts -n 50 -c 20 -m getSlot
  *
  * List available methods:
- *   npx ts-node solanaProvider.e2e.ts list-methods
+ *   yarn ts-node solanaProvider.e2e.ts list-methods
  *
  * Show usage examples:
- *   npx ts-node solanaProvider.e2e.ts examples
+ *   yarn ts-node solanaProvider.e2e.ts examples
  */
 
 // Configure winston logger for better output
@@ -117,16 +117,22 @@ async function runTest(options: TestOptions) {
   });
 
   // Create the retry RPC factory
-  const rpcFactory = new CachedSolanaRpcFactory(
-    "script-e2e-solana-provider",
-    undefined, // redisClient, unused for now
-    options.retries, // retries
-    options.retryDelay, // retryDelaySeconds
-    10, // maxConcurrency
-    0, // pctRpcCallsLogged
-    logger, // logger
-    options.endpoint as ClusterUrl, // clusterUrl
-    options.chainId // chainId
+  const rpcFactory = new QuorumFallbackSolanaRpcFactory(
+    [
+      [
+        "script-e2e-solana-provider",
+        undefined, // redisClient, unused for now
+        options.retries, // retries
+        options.retryDelay, // retryDelaySeconds
+        10, // maxConcurrency
+        0, // pctRpcCallsLogged
+        logger, // logger
+        options.endpoint as ClusterUrl, // clusterUrl
+        options.chainId,
+      ],
+    ],
+    1,
+    logger
   );
 
   // Create RPC client
@@ -207,7 +213,7 @@ program.name("solana-provider-e2e").description("Test the Solana Retry RPC Facto
 
 program
   .option("-e, --endpoint <url>", "Solana RPC endpoint URL", "https://api.mainnet-beta.solana.com")
-  .option("-r, --retries <number>", "Number of retries on failure", "3")
+  .option("-r, --retries <number>", "Number of retries on failure", "2")
   .option("-d, --retry-delay <seconds>", "Delay between retries in seconds", "1")
   .option("-c, --max-concurrency <number>", "Maximum concurrent requests", "10")
   .option("-l, --log-percentage <number>", "Percentage of RPC calls to log (0-100)", "100")
