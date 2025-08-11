@@ -3,21 +3,24 @@
 
 import { program } from "commander";
 import winston from "winston";
-import { CachedSolanaRpcFactory } from "../src/providers/solana/cachedRpcFactory";
 import { ClusterUrl } from "@solana/kit";
 import { getNearestSlotTime } from "../src/arch/svm/utils";
+import { QuorumFallbackSolanaRpcFactory, CachedSolanaRpcFactory } from "../src/providers";
 
 /**
  * USAGE EXAMPLES:
  *
  * Basic usage (default settings):
- *   npx ts-node testTimestampForSlot.e2e.ts
+ *   yarn ts-node testTimestampForSlot.e2e.ts
  *
  * Test with specific endpoint:
- *   npx ts-node testTimestampForSlot.e2e.ts -e https://api.devnet.solana.com
+ *   yarn ts-node testTimestampForSlot.e2e.ts -e https://api.devnet.solana.com
+ *
+ * Test with fallback endpoints:
+ *   yarn ts-node testTimestampForSlot.e2e.ts -e https://api.mainnet-beta.solana.com -f https://api.devnet.solana.com https://api.testnet.solana.com
  *
  * Test with more iterations:
- *   npx ts-node testTimestampForSlot.e2e.ts -n 20
+ *   yarn ts-node testTimestampForSlot.e2e.ts -n 20
  */
 
 // Configure winston logger
@@ -36,10 +39,12 @@ const logger = winston.createLogger({
 
 interface TestOptions {
   endpoint: string;
+  fallbackEndpoints: string[];
   retries: number;
   retryDelay: number;
   chainId: number;
   iterations: number;
+  quorumThreshold: number;
 }
 
 async function testNearestSlotTime(
@@ -70,8 +75,8 @@ async function testNearestSlotTime(
     };
   } catch (error: unknown) {
     const elapsedTime = Date.now() - startTime;
-    const errorMsg = error instanceof Error ? error.message : String(error);
-    console.log(`❌ Failed: ${errorMsg} (${elapsedTime}ms)`);
+    const errorMsg = error instanceof Error ? error.message : JSON.stringify(error);
+    console.log(`❌ Failed (${elapsedTime}ms):`, error);
     return {
       iteration,
       slot: "unknown",
@@ -86,23 +91,31 @@ async function runTest(options: TestOptions) {
   console.log("🚀 Starting getNearestSlotTime E2E Test");
   console.log("Configuration:", {
     endpoint: options.endpoint,
+    fallbackEndpoints: options.fallbackEndpoints,
     retries: options.retries,
     retryDelay: options.retryDelay,
     iterations: options.iterations,
+    quorumThreshold: options.quorumThreshold,
   });
 
   // Create the RPC factory
-  const rpcFactory = new CachedSolanaRpcFactory(
-    "test-timestamp-for-slot",
-    undefined, // redisClient
-    options.retries,
-    options.retryDelay,
-    10, // maxConcurrency
-    0, // pctRpcCallsLogged
-    logger,
-    options.endpoint as ClusterUrl,
-    options.chainId
+  const allEndpoints = [options.endpoint, ...options.fallbackEndpoints];
+  const factoryParams = allEndpoints.map(
+    (endpoint) =>
+      [
+        "test-timestamp-for-slot",
+        undefined, // redisClient
+        options.retries,
+        options.retryDelay,
+        10, // maxConcurrency
+        0, // pctRpcCallsLogged
+        logger,
+        endpoint as ClusterUrl,
+        options.chainId,
+      ] as ConstructorParameters<typeof CachedSolanaRpcFactory>
   );
+
+  const rpcFactory = new QuorumFallbackSolanaRpcFactory(factoryParams, options.quorumThreshold, logger);
 
   const rpcClient = rpcFactory.createRpcClient();
 
@@ -180,17 +193,21 @@ program
 
 program
   .option("-e, --endpoint <url>", "Solana RPC endpoint URL", "https://api.mainnet-beta.solana.com")
+  .option("-f, --fallback-endpoints <urls...>", "Fallback RPC endpoint URLs (space-separated)")
   .option("-r, --retries <number>", "Number of retries on failure", "2")
   .option("-d, --retry-delay <seconds>", "Delay between retries in seconds", "1")
   .option("-i, --chain-id <number>", "Chain ID for Solana", "101")
   .option("-n, --iterations <number>", "Number of test iterations", "10")
+  .option("-q, --quorum-threshold <number>", "Quorum threshold for RPC calls", "1")
   .action(async (options) => {
     const testOptions: TestOptions = {
       endpoint: options.endpoint,
+      fallbackEndpoints: options.fallbackEndpoints || [],
       retries: parseInt(options.retries),
       retryDelay: parseFloat(options.retryDelay),
       chainId: parseInt(options.chainId),
       iterations: parseInt(options.iterations),
+      quorumThreshold: parseInt(options.quorumThreshold),
     };
 
     await runTest(testOptions);

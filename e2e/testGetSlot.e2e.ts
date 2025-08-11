@@ -3,9 +3,9 @@
 
 import { program } from "commander";
 import winston from "winston";
-import { CachedSolanaRpcFactory } from "../src/providers/solana/cachedRpcFactory";
 import { ClusterUrl, type Commitment } from "@solana/kit";
 import { getSlot } from "../src/arch/svm/SpokeUtils";
+import { CachedSolanaRpcFactory, QuorumFallbackSolanaRpcFactory } from "../src/providers/solana";
 
 /**
  * USAGE EXAMPLES:
@@ -39,11 +39,13 @@ const logger = winston.createLogger({
 
 interface TestOptions {
   endpoint: string;
+  fallbackEndpoints: string[];
   retries: number;
   retryDelay: number;
   chainId: number;
   iterations: number;
   commitment: Commitment;
+  quorumThreshold: number;
 }
 
 async function testGetSlot(
@@ -92,24 +94,31 @@ async function runTest(options: TestOptions) {
   console.log("🚀 Starting getSlot E2E Test");
   console.log("Configuration:", {
     endpoint: options.endpoint,
+    fallbackEndpoints: options.fallbackEndpoints,
     retries: options.retries,
     retryDelay: options.retryDelay,
     iterations: options.iterations,
+    quorumThreshold: options.quorumThreshold,
     commitment: options.commitment,
   });
 
   // Create the RPC factory
-  const rpcFactory = new CachedSolanaRpcFactory(
-    "test-get-slot",
-    undefined, // redisClient
-    options.retries,
-    options.retryDelay,
-    10, // maxConcurrency
-    0, // pctRpcCallsLogged
-    logger,
-    options.endpoint as ClusterUrl,
-    options.chainId
+  const allEndpoints = [options.endpoint, ...options.fallbackEndpoints];
+  const factoryParams = allEndpoints.map(
+    (endpoint) =>
+      [
+        "test-timestamp-for-slot",
+        undefined, // redisClient
+        options.retries,
+        options.retryDelay,
+        10, // maxConcurrency
+        0, // pctRpcCallsLogged
+        logger,
+        endpoint as ClusterUrl,
+        options.chainId,
+      ] as ConstructorParameters<typeof CachedSolanaRpcFactory>
   );
+  const rpcFactory = new QuorumFallbackSolanaRpcFactory(factoryParams, options.quorumThreshold, logger);
 
   const rpcClient = rpcFactory.createRpcClient();
 
@@ -185,11 +194,13 @@ program.name("test-get-slot").description("Test getSlot function with configurab
 
 program
   .option("-e, --endpoint <url>", "Solana RPC endpoint URL", "https://api.mainnet-beta.solana.com")
+  .option("-f, --fallback-endpoints <urls...>", "Fallback RPC endpoint URLs (space-separated)")
   .option("-r, --retries <number>", "Number of retries on failure", "2")
   .option("-d, --retry-delay <seconds>", "Delay between retries in seconds", "1")
   .option("-i, --chain-id <number>", "Chain ID for Solana", "101")
   .option("-n, --iterations <number>", "Number of test iterations", "10")
   .option("-c, --commitment <commitment>", "Commitment level (processed, confirmed, finalized)", "confirmed")
+  .option("-q, --quorum-threshold <number>", "Quorum threshold for RPC calls", "1")
   .action(async (options) => {
     // Validate commitment parameter
     const validCommitments: Commitment[] = ["processed", "confirmed", "finalized"];
@@ -200,11 +211,13 @@ program
 
     const testOptions: TestOptions = {
       endpoint: options.endpoint,
+      fallbackEndpoints: options.fallbackEndpoints || [],
       retries: parseInt(options.retries),
       retryDelay: parseFloat(options.retryDelay),
       chainId: parseInt(options.chainId),
       iterations: parseInt(options.iterations),
       commitment: options.commitment as Commitment,
+      quorumThreshold: parseInt(options.quorumThreshold),
     };
 
     await runTest(testOptions);
