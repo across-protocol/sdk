@@ -19,12 +19,11 @@ import {
   ethers,
   expect,
   getContractFactory,
-  randomAddress,
   zeroAddress,
 } from "./utils";
 import { createRandomBytes32 } from "@across-protocol/contracts/dist/test-utils";
 import { getDeployedAddress } from "@across-protocol/contracts";
-import { Address, EvmAddress, SvmAddress, toAddressType } from "../src/utils/AddressUtils";
+import { EvmAddress, SvmAddress, toAddressType } from "../src/utils/AddressUtils";
 
 let hubPool: Contract, lpTokenFactory: Contract, mockAdapter: Contract;
 let owner: SignerWithAddress;
