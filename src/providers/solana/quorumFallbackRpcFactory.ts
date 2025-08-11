@@ -18,7 +18,7 @@ export class QuorumFallbackSolanaRpcFactory extends SolanaBaseRpcFactory {
   constructor(
     factoryConstructorParams: ConstructorParameters<typeof CachedSolanaRpcFactory>[],
     readonly nodeQuorumThreshold: number,
-    readonly logger?: Logger
+    readonly logger: Logger
   ) {
     super();
     factoryConstructorParams.forEach((params) => {
@@ -66,7 +66,7 @@ export class QuorumFallbackSolanaRpcFactory extends SolanaBaseRpcFactory {
 
             const currentFactory = factory.rpcFactory.clusterUrl;
             const nextFactory = fallbackFactories.shift()!;
-            this.logger?.debug({
+            this.logger.debug({
               at: "FallbackSolanaRpcFactory#createTransport::tryWithFallback",
               message: `[${method}] ${currentFactory} failed, falling back to ${nextFactory.rpcFactory.clusterUrl}, new fallback providers length: ${fallbackFactories.length}`,
               method,
@@ -142,7 +142,7 @@ export class QuorumFallbackSolanaRpcFactory extends SolanaBaseRpcFactory {
         errors: [SolanaClusterRpcFactory, string][],
         quorumResult: TResponse
       ) => {
-        this.logger?.warn({
+        this.logger.warn({
           at: "FallbackSolanaRpcFactory#createTransport",
           message: `[${method}] Some providers mismatched with the quorum result or failed 🚸`,
           notificationPath: "across-warn",
