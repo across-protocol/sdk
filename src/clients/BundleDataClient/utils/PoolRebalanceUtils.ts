@@ -202,6 +202,9 @@ export function updateRunningBalanceForDeposit(
     deposit.originChainId,
     mainnetBundleEndBlock
   );
+  if (!l1TokenCounterpart) {
+    return;
+  }
   updateRunningBalance(runningBalances, deposit.originChainId, l1TokenCounterpart.toEvmAddress(), updateAmount);
 }
 

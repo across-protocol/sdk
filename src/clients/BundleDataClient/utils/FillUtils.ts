@@ -2,7 +2,15 @@ import _ from "lodash";
 import assert from "assert";
 import { providers } from "ethers";
 import { DepositWithBlock, Fill, FillWithBlock } from "../../../interfaces";
-import { isSlowFill, isValidEvmAddress, isDefined, chainIsEvm, Address, toAddressType } from "../../../utils";
+import {
+  isSlowFill,
+  isValidEvmAddress,
+  isDefined,
+  chainIsEvm,
+  Address,
+  toAddressType,
+  EvmAddress,
+} from "../../../utils";
 import { HubPoolClient } from "../../HubPoolClient";
 import { SVMProvider } from "../../../arch/svm";
 
@@ -37,18 +45,18 @@ export function getRefundInformationFromFill(
 
   // Now figure out the equivalent L2 token for the repayment token. If the inputToken doesn't have a
   // PoolRebalanceRoute, then the repayment chain would have been the originChainId after the getRepaymentChainId()
-  // call and we would have returned already, so the following call should always succeed.
+  // call and we would have returned already, so the following call should always succeed and we can safely cast.
   const l1TokenCounterpart = hubPoolClient.getL1TokenForL2TokenAtBlock(
     relayData.inputToken,
     relayData.originChainId,
     bundleEndBlockForMainnet
-  );
+  ) as EvmAddress;
 
   const repaymentToken = hubPoolClient.getL2TokenForL1TokenAtBlock(
     l1TokenCounterpart,
     chainToSendRefundTo,
     bundleEndBlockForMainnet
-  );
+  ) as Address;
 
   return {
     chainToSendRefundTo,
@@ -183,6 +191,9 @@ function _repaymentChainTokenIsValid(
     relayData.originChainId,
     bundleEndBlockForMainnet
   );
+  if (!l1TokenCounterpart) {
+    return false;
+  }
   if (
     !hubPoolClient.l2TokenEnabledForL1TokenAtBlock(
       l1TokenCounterpart,

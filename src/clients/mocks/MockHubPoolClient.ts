@@ -118,7 +118,7 @@ export class MockHubPoolClient extends HubPoolClient {
     delete this.spokePoolTokens[l1Token]?.[chainId];
   }
 
-  getL1TokenForL2TokenAtBlock(l2Token: Address, chainId: number, blockNumber: number): EvmAddress {
+  getL1TokenForL2TokenAtBlock(l2Token: Address, chainId: number, blockNumber: number): EvmAddress | undefined {
     const l1Token = Object.keys(this.spokePoolTokens).find(
       (l1Token) => this.spokePoolTokens[l1Token]?.[chainId].eq(l2Token)
     );
