@@ -41,7 +41,11 @@ export async function getWidestPossibleExpectedBlockRange(
     assert(isSVMSpokePoolClient(spokePoolClient));
 
     const maxSlot = resolveEndBlock(chainId, idx); // Respect any configured buffer for Solana.
-    return getLatestFinalizedSlotWithBlock(spokePoolClient.svmEventsClient.getRpc(), BigInt(maxSlot));
+    return getLatestFinalizedSlotWithBlock(
+      spokePoolClient.svmEventsClient.getRpc(),
+      spokePoolClient.logger,
+      BigInt(maxSlot)
+    );
   };
 
   const latestPossibleBundleEndBlockNumbers = await Promise.all(

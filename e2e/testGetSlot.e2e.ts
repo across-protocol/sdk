@@ -4,20 +4,23 @@
 import { program } from "commander";
 import winston from "winston";
 import { CachedSolanaRpcFactory } from "../src/providers/solana/cachedRpcFactory";
-import { ClusterUrl } from "@solana/kit";
-import { getNearestSlotTime } from "../src/arch/svm/utils";
+import { ClusterUrl, type Commitment } from "@solana/kit";
+import { getSlot } from "../src/arch/svm/SpokeUtils";
 
 /**
  * USAGE EXAMPLES:
  *
  * Basic usage (default settings):
- *   npx ts-node testTimestampForSlot.e2e.ts
+ *   npx ts-node testGetSlot.e2e.ts
  *
  * Test with specific endpoint:
- *   npx ts-node testTimestampForSlot.e2e.ts -e https://api.devnet.solana.com
+ *   npx ts-node testGetSlot.e2e.ts -e https://api.devnet.solana.com
  *
  * Test with more iterations:
- *   npx ts-node testTimestampForSlot.e2e.ts -n 20
+ *   npx ts-node testGetSlot.e2e.ts -n 20
+ *
+ * Test with different commitment level:
+ *   npx ts-node testGetSlot.e2e.ts -c finalized
  */
 
 // Configure winston logger
@@ -40,32 +43,34 @@ interface TestOptions {
   retryDelay: number;
   chainId: number;
   iterations: number;
+  commitment: Commitment;
 }
 
-async function testNearestSlotTime(
+async function testGetSlot(
   rpcClient: any,
+  commitment: Commitment,
   iteration: number
 ): Promise<{
   iteration: number;
   slot: string;
   success: boolean;
-  timestamp?: number;
+  commitment: Commitment;
   time: number;
   error?: string;
 }> {
-  console.log(`--- Iteration ${iteration} ---`);
+  console.log(`--- Iteration ${iteration} (commitment: ${commitment}) ---`);
   const startTime = Date.now();
 
   try {
-    const { slot, timestamp } = await getNearestSlotTime(rpcClient, logger);
+    const slot = await getSlot(rpcClient, commitment, logger);
     const elapsedTime = Date.now() - startTime;
 
-    console.log(`✅ Slot ${slot} -> ${timestamp} (${new Date(timestamp * 1000).toISOString()}) (${elapsedTime}ms)`);
+    console.log(`✅ Slot ${slot.toString()} (commitment: ${commitment}) (${elapsedTime}ms)`);
     return {
       iteration,
       slot: slot.toString(),
       success: true,
-      timestamp,
+      commitment,
       time: elapsedTime,
     };
   } catch (error: unknown) {
@@ -76,6 +81,7 @@ async function testNearestSlotTime(
       iteration,
       slot: "unknown",
       success: false,
+      commitment,
       error: errorMsg,
       time: elapsedTime,
     };
@@ -83,17 +89,18 @@ async function testNearestSlotTime(
 }
 
 async function runTest(options: TestOptions) {
-  console.log("🚀 Starting getNearestSlotTime E2E Test");
+  console.log("🚀 Starting getSlot E2E Test");
   console.log("Configuration:", {
     endpoint: options.endpoint,
     retries: options.retries,
     retryDelay: options.retryDelay,
     iterations: options.iterations,
+    commitment: options.commitment,
   });
 
   // Create the RPC factory
   const rpcFactory = new CachedSolanaRpcFactory(
-    "test-timestamp-for-slot",
+    "test-get-slot",
     undefined, // redisClient
     options.retries,
     options.retryDelay,
@@ -113,13 +120,13 @@ async function runTest(options: TestOptions) {
     iteration: number;
     slot: string;
     success: boolean;
-    timestamp?: number;
+    commitment: Commitment;
     time: number;
     error?: string;
   }> = [];
 
   for (let i = 0; i < options.iterations; i++) {
-    const result = await testNearestSlotTime(rpcClient, i + 1);
+    const result = await testGetSlot(rpcClient, options.commitment, i + 1);
     results.push(result);
   }
 
@@ -174,9 +181,7 @@ async function runTest(options: TestOptions) {
 }
 
 // CLI setup
-program
-  .name("test-timestamp-for-slot")
-  .description("Test getNearestSlotTime function (which calls getTimestampForSlot internally)");
+program.name("test-get-slot").description("Test getSlot function with configurable commitment parameter");
 
 program
   .option("-e, --endpoint <url>", "Solana RPC endpoint URL", "https://api.mainnet-beta.solana.com")
@@ -184,13 +189,22 @@ program
   .option("-d, --retry-delay <seconds>", "Delay between retries in seconds", "1")
   .option("-i, --chain-id <number>", "Chain ID for Solana", "101")
   .option("-n, --iterations <number>", "Number of test iterations", "10")
+  .option("-c, --commitment <commitment>", "Commitment level (processed, confirmed, finalized)", "confirmed")
   .action(async (options) => {
+    // Validate commitment parameter
+    const validCommitments: Commitment[] = ["processed", "confirmed", "finalized"];
+    if (!validCommitments.includes(options.commitment as Commitment)) {
+      console.error(`Invalid commitment level: ${options.commitment}. Valid options: ${validCommitments.join(", ")}`);
+      process.exit(1);
+    }
+
     const testOptions: TestOptions = {
       endpoint: options.endpoint,
       retries: parseInt(options.retries),
       retryDelay: parseFloat(options.retryDelay),
       chainId: parseInt(options.chainId),
       iterations: parseInt(options.iterations),
+      commitment: options.commitment as Commitment,
     };
 
     await runTest(testOptions);
