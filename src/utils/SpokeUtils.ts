@@ -1,11 +1,12 @@
 import { encodeAbiParameters, Hex, keccak256 } from "viem";
 import { fixedPointAdjustment as fixedPoint } from "./common";
 import { MAX_SAFE_DEPOSIT_ID, ZERO_BYTES } from "../constants";
-import { Fill, FillType, RelayData, SlowFillLeaf } from "../interfaces";
+import { Fill, FillType, RelayData, SlowFillLeaf, InvalidFill, DepositWithBlock } from "../interfaces";
 import { BigNumber } from "./BigNumberUtils";
-import { isMessageEmpty } from "./DepositUtils";
-import { chainIsSvm } from "./NetworkUtils";
+import { isMessageEmpty, validateFillForDeposit } from "./DepositUtils";
+import { chainIsSvm, getNetworkName } from "./NetworkUtils";
 import { svm } from "../arch";
+import { SpokePoolClient } from "../clients";
 
 export function isSlowFill(fill: Fill): boolean {
   return fill.relayExecutionInfo.fillType === FillType.SlowFill;
@@ -73,4 +74,68 @@ export function isUnsafeDepositId(depositId: BigNumber): boolean {
 
 export function getMessageHash(message: string): string {
   return isMessageEmpty(message) ? ZERO_BYTES : keccak256(message as Hex);
+}
+
+export async function findInvalidFills(spokePoolClients: {
+  [chainId: number]: SpokePoolClient;
+}): Promise<InvalidFill[]> {
+  const invalidFills: InvalidFill[] = [];
+
+  // Iterate through each spoke pool client
+  for (const spokePoolClient of Object.values(spokePoolClients)) {
+    // Get all fills for this client
+    const fills = spokePoolClient.getFills();
+
+    // Process each fill
+    for (const fill of fills) {
+      // Skip fills with unsafe deposit IDs
+      // @TODO Deposits with unsafe depositIds should be processed after some time
+      if (isUnsafeDepositId(fill.depositId)) {
+        continue;
+      }
+
+      // Get all deposits (including duplicates) for this fill's depositId, both in memory and on-chain
+      const depositResult = await spokePoolClients[fill.originChainId]?.findAllDeposits(fill.depositId);
+
+      // If no deposits found at all
+      if (!depositResult?.found) {
+        invalidFills.push({
+          fill,
+          validationResults: [
+            {
+              reason: `No ${getNetworkName(fill.originChainId)} deposit with depositId ${fill.depositId} found`,
+            },
+          ],
+        });
+        continue;
+      }
+
+      // Try to find a valid deposit for this fill
+      let foundValidDeposit = false;
+      const validationResults: Array<{ reason: string; deposit: DepositWithBlock }> = [];
+
+      for (const deposit of depositResult.deposits) {
+        // Validate the fill against the deposit
+        const validationResult = validateFillForDeposit(fill, deposit);
+        if (validationResult.valid) {
+          foundValidDeposit = true;
+          break;
+        }
+        validationResults.push({
+          reason: validationResult.reason,
+          deposit,
+        });
+      }
+
+      // If no valid deposit was found, add to invalid fills with all validation results
+      if (!foundValidDeposit) {
+        invalidFills.push({
+          fill,
+          validationResults,
+        });
+      }
+    }
+  }
+
+  return invalidFills;
 }

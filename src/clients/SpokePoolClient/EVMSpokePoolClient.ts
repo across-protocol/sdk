@@ -7,7 +7,7 @@ import {
   relayFillStatus,
   getTimestampForBlock as _getTimestampForBlock,
 } from "../../arch/evm";
-import { DepositWithBlock, FillStatus, RelayData } from "../../interfaces";
+import { DepositWithBlock, FillStatus, Log, RelayData } from "../../interfaces";
 import {
   BigNumber,
   DepositSearchResult,
@@ -17,6 +17,7 @@ import {
   toBN,
   EvmAddress,
   toAddressType,
+  MultipleDepositSearchResult,
 } from "../../utils";
 import {
   EventSearchConfig,
@@ -148,28 +149,25 @@ export class EVMSpokePoolClient extends SpokePoolClient {
     return _getTimeAt(this.spokePool, blockNumber);
   }
 
-  public override async findDeposit(depositId: BigNumber): Promise<DepositSearchResult> {
-    let deposit = this.getDeposit(depositId);
-    if (deposit) {
-      return { found: true, deposit };
-    }
-
-    // No deposit found; revert to searching for it.
-    const upperBound = this.latestHeightSearched || undefined; // Don't permit block 0 as the high block.
+  private async queryDepositEvents(
+    depositId: BigNumber
+  ): Promise<{ events: Log[]; from: number; elapsedMs: number } | { reason: string }> {
+    const tStart = Date.now();
+    const upperBound = this.latestHeightSearched || undefined;
     const from = await findDepositBlock(this.spokePool, depositId, this.deploymentBlock, upperBound);
     const chain = getNetworkName(this.chainId);
+
     if (!from) {
-      const reason =
-        `Unable to find ${chain} depositId ${depositId}` +
-        ` within blocks [${this.deploymentBlock}, ${upperBound ?? "latest"}].`;
-      return { found: false, code: InvalidFill.DepositIdNotFound, reason };
+      return {
+        reason: `Unable to find ${chain} depositId ${depositId} within blocks [${this.deploymentBlock}, ${
+          upperBound ?? "latest"
+        }].`,
+      };
     }
 
     const to = from;
-    const tStart = Date.now();
-    // Check both V3FundsDeposited and FundsDeposited events to look for a specified depositId.
     const { maxLookBack } = this.eventSearchConfig;
-    const query = (
+    const events = (
       await Promise.all([
         paginatedEventQuery(
           this.spokePool,
@@ -182,15 +180,35 @@ export class EVMSpokePoolClient extends SpokePoolClient {
           { from, to, maxLookBack }
         ),
       ])
-    ).flat();
+    )
+      .flat()
+      .filter(({ args }) => args["depositId"].eq(depositId));
+
     const tStop = Date.now();
+    return { events, from, elapsedMs: tStop - tStart };
+  }
+
+  public override async findDeposit(depositId: BigNumber): Promise<DepositSearchResult> {
+    let deposit = this.getDeposit(depositId);
+    if (deposit) {
+      return { found: true, deposit };
+    }
+
+    // No deposit found; revert to searching for it.
+    const result = await this.queryDepositEvents(depositId);
+
+    if ("reason" in result) {
+      return { found: false, code: InvalidFill.DepositIdNotFound, reason: result.reason };
+    }
+
+    const { events: query, from, elapsedMs } = result;
 
     const event = query.find(({ args }) => args["depositId"].eq(depositId));
     if (event === undefined) {
       return {
         found: false,
         code: InvalidFill.DepositIdNotFound,
-        reason: `${chain} depositId ${depositId} not found at block ${from}.`,
+        reason: `${getNetworkName(this.chainId)} depositId ${depositId} not found at block ${from}.`,
       };
     }
 
@@ -206,21 +224,83 @@ export class EVMSpokePoolClient extends SpokePoolClient {
       fromLiteChain: true, // To be updated immediately afterwards.
       toLiteChain: true, // To be updated immediately afterwards.
     } as DepositWithBlock;
-
     if (deposit.outputToken.isZeroAddress()) {
       deposit.outputToken = this.getDestinationTokenForDeposit(deposit);
     }
     deposit.fromLiteChain = this.isOriginLiteChain(deposit);
     deposit.toLiteChain = this.isDestinationLiteChain(deposit);
-
     this.logger.debug({
       at: "SpokePoolClient#findDeposit",
       message: "Located deposit outside of SpokePoolClient's search range",
       deposit,
-      elapsedMs: tStop - tStart,
+      elapsedMs,
     });
 
     return { found: true, deposit };
+  }
+
+  public override async findAllDeposits(depositId: BigNumber): Promise<MultipleDepositSearchResult> {
+    // First check memory for deposits
+    let deposits = this.getDepositsForDepositId(depositId);
+    if (deposits.length > 0) {
+      return { found: true, deposits };
+    }
+
+    // If no deposits found in memory, try to find on-chain
+    const result = await this.queryDepositEvents(depositId);
+    if ("reason" in result) {
+      return { found: false, code: InvalidFill.DepositIdNotFound, reason: result.reason };
+    }
+
+    const { events, elapsedMs } = result;
+
+    if (events.length === 0) {
+      return {
+        found: false,
+        code: InvalidFill.DepositIdNotFound,
+        reason: `${getNetworkName(this.chainId)} depositId ${depositId} not found at block ${result.from}.`,
+      };
+    }
+
+    // First do all synchronous operations
+    deposits = events.map((event) => {
+      const deposit = {
+        ...spreadEventWithBlockNumber(event),
+        inputToken: toAddressType(event.args.inputToken, event.args.originChainId),
+        outputToken: toAddressType(event.args.outputToken, event.args.destinationChainId),
+        depositor: toAddressType(event.args.depositor, this.chainId),
+        recipient: toAddressType(event.args.recipient, event.args.destinationChainId),
+        exclusiveRelayer: toAddressType(event.args.exclusiveRelayer, event.args.destinationChainId),
+        originChainId: this.chainId,
+        fromLiteChain: true, // To be updated immediately afterwards.
+        toLiteChain: true, // To be updated immediately afterwards.
+      } as DepositWithBlock;
+
+      if (deposit.outputToken.isZeroAddress()) {
+        deposit.outputToken = this.getDestinationTokenForDeposit(deposit);
+      }
+      deposit.fromLiteChain = this.isOriginLiteChain(deposit);
+      deposit.toLiteChain = this.isDestinationLiteChain(deposit);
+
+      return deposit;
+    });
+
+    // Then do all async operations in parallel
+    deposits = await Promise.all(
+      deposits.map(async (deposit) => ({
+        ...deposit,
+        quoteBlockNumber: await this.getBlockNumber(Number(deposit.quoteTimestamp)),
+      }))
+    );
+
+    this.logger.debug({
+      at: "SpokePoolClient#findAllDeposits",
+      message: "Located deposits outside of SpokePoolClient's search range",
+      deposits: deposits,
+      elapsedMs,
+    });
+
+    return { found: true, deposits };
   }
 
   public override getTimestampForBlock(blockNumber: number): Promise<number> {

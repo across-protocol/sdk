@@ -30,6 +30,10 @@ export enum InvalidFill {
   DepositIdOutOfRange, // Fill is for a deterministic deposit.
 }
 
+export type MultipleDepositSearchResult =
+  | { found: true; deposits: DepositWithBlock[] }
+  | { found: false; code: InvalidFill.DepositIdNotFound; reason: string };
+
 export type DepositSearchResult =
   | { found: true; deposit: DepositWithBlock }
   | { found: false; code: InvalidFill; reason: string };

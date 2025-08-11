@@ -171,3 +171,11 @@ export interface BridgedToHubPoolWithBlock extends SortableEvent {
 export interface SpokePoolClientsByChain {
   [chainId: number]: SpokePoolClient;
 }
+
+export interface InvalidFill {
+  fill: FillWithBlock;
+  validationResults: Array<{
+    reason: string;
+    deposit?: DepositWithBlock;
+  }>;
+}
