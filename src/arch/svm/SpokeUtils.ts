@@ -35,9 +35,16 @@ import {
 } from "@solana/kit";
 import assert from "assert";
 import winston from "winston";
-import { arrayify } from "ethers/lib/utils";
+import { arrayify, hexlify, hexZeroPad } from "ethers/lib/utils";
 import { CHAIN_IDs, TOKEN_SYMBOLS_MAP } from "../../constants";
-import { DepositWithBlock, FillStatus, FillWithBlock, RelayData, RelayExecutionEventInfo } from "../../interfaces";
+import {
+  DepositWithBlock,
+  FillStatus,
+  FillWithBlock,
+  RelayData,
+  RelayDataWithMessageHash,
+  RelayExecutionEventInfo,
+} from "../../interfaces";
 import {
   BigNumber,
   EvmAddress,
@@ -846,6 +853,37 @@ export async function getAssociatedTokenAddress(
     seeds: [encoder.encode(toAddress(owner)), encoder.encode(tokenProgramId), encoder.encode(toAddress(mint))],
   });
   return associatedToken;
+}
+
+export function getRelayDataHashWithMessageHash(
+  relayData: RelayDataWithMessageHash,
+  destinationChainId: number
+): string {
+  if (!relayData.messageHash) {
+    return getRelayDataHash(relayData, destinationChainId);
+  }
+  const addressEncoder = getAddressEncoder();
+  const uint64Encoder = getU64Encoder();
+  const uint32Encoder = getU32Encoder();
+
+  const encodeAddress = (data: SdkAddress) => Uint8Array.from(addressEncoder.encode(toAddress(data)));
+
+  const contentToHash = Buffer.concat([
+    encodeAddress(relayData.depositor),
+    encodeAddress(relayData.recipient),
+    encodeAddress(relayData.exclusiveRelayer),
+    encodeAddress(relayData.inputToken),
+    encodeAddress(relayData.outputToken),
+    arrayify(hexZeroPad(hexlify(relayData.inputAmount), 32)),
+    Uint8Array.from(uint64Encoder.encode(BigInt(relayData.outputAmount.toString()))),
+    Uint8Array.from(uint64Encoder.encode(BigInt(relayData.originChainId.toString()))),
+    arrayify(hexZeroPad(hexlify(relayData.depositId), 32)),
+    Uint8Array.from(uint32Encoder.encode(relayData.fillDeadline)),
+    Uint8Array.from(uint32Encoder.encode(relayData.exclusivityDeadline)),
+    Uint8Array.from(Buffer.from(relayData.messageHash.slice(2), "hex")),
+    Uint8Array.from(uint64Encoder.encode(BigInt(destinationChainId))),
+  ]);
+  return keccak256(contentToHash);
 }
 
 export function getRelayDataHash(relayData: RelayData, destinationChainId: number): string {
