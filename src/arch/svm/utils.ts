@@ -25,8 +25,9 @@ import bs58 from "bs58";
 import { ethers } from "ethers";
 import { FillType, RelayData } from "../../interfaces";
 import { BigNumber, Address as SdkAddress, biMin, getRelayDataHash, isDefined, isUint8Array } from "../../utils";
-import { getTimestampForSlot } from "./SpokeUtils";
+import { getTimestampForSlot, getSlot } from "./SpokeUtils";
 import { AttestedCCTPMessage, EventName, SVMEventNames, SVMProvider } from "./types";
+import winston from "winston";
 
 export { isSolanaError } from "@solana/kit";
 
@@ -67,13 +68,15 @@ export function toAddress(address: SdkAddress): Address<string> {
  */
 export async function getNearestSlotTime(
   provider: SVMProvider,
-  opts: { slot: bigint } | { commitment: Commitment } = { commitment: "confirmed" }
+  opts: { slot: bigint } | { commitment: Commitment } = { commitment: "confirmed" },
+  logger?: winston.Logger
 ): Promise<{ slot: bigint; timestamp: number }> {
   let timestamp: number | undefined;
-  let slot = "slot" in opts ? opts.slot : await provider.getSlot(opts).send();
+  let slot = "slot" in opts ? opts.slot : await getSlot(provider, opts.commitment, logger);
+  const maxRetries = undefined; // Inherit defaults
 
   do {
-    timestamp = await getTimestampForSlot(provider, slot);
+    timestamp = await getTimestampForSlot(provider, slot, maxRetries, logger);
   } while (!isDefined(timestamp) && --slot);
   assert(isDefined(timestamp), `Unable to resolve block time for SVM slot ${slot}`);
 
@@ -87,11 +90,12 @@ export async function getNearestSlotTime(
  */
 export async function getLatestFinalizedSlotWithBlock(
   provider: SVMProvider,
+  logger: winston.Logger,
   maxSlot: bigint,
   maxLookback = 1000
 ): Promise<number> {
   const opts = { maxSupportedTransactionVersion: 0, transactionDetails: "none", rewards: false } as const;
-  const { slot: finalizedSlot } = await getNearestSlotTime(provider, { commitment: "finalized" });
+  const { slot: finalizedSlot } = await getNearestSlotTime(provider, { commitment: "finalized" }, logger);
   const endSlot = biMin(maxSlot, finalizedSlot);
 
   let slot = endSlot;
@@ -125,7 +129,8 @@ export function parseEventData(eventData: any): any {
   }
 
   if (typeof eventData === "object") {
-    if (eventData.constructor.name === "PublicKey") {
+    const stringTag = Object.prototype.toString.call(eventData);
+    if (stringTag.includes("PublicKey")) {
       return address(eventData.toString());
     }
     if (BN.isBN(eventData)) {
@@ -428,6 +433,29 @@ export const simulateAndDecode = async <P extends (buf: Buffer) => unknown>(
 
   return parser(Buffer.from(simulationResult.value.returnData.data[0], "base64")) as ReturnType<P>;
 };
+
+/**
+ * Converts a common `RelayData` type to an SvmSpokeClient.RelayData` type. This is useful for when we need
+ * to interface directly with the SvmSpoke.
+ * @param relayData The common RelayData TS type.
+ * @returns RelayData which conforms to the typing of the SvmSpoke.
+ */
+export function toSvmRelayData(relayData: RelayData): SvmSpokeClient.RelayData {
+  return {
+    originChainId: BigInt(relayData.originChainId),
+    depositor: address(relayData.depositor.toBase58()),
+    recipient: address(relayData.recipient.toBase58()),
+    depositId: ethers.utils.arrayify(ethers.utils.hexZeroPad(relayData.depositId.toHexString(), 32)),
+    inputToken: address(relayData.inputToken.toBase58()),
+    outputToken: address(relayData.outputToken.toBase58()),
+    inputAmount: ethers.utils.arrayify(ethers.utils.hexZeroPad(relayData.inputAmount.toHexString(), 32)),
+    outputAmount: relayData.outputAmount.toBigInt(),
+    message: Uint8Array.from(Buffer.from(relayData.message.slice(2), "hex")),
+    fillDeadline: relayData.fillDeadline,
+    exclusiveRelayer: address(relayData.exclusiveRelayer.toBase58()),
+    exclusivityDeadline: relayData.exclusivityDeadline,
+  };
+}
 
 /**
  * Returns the PDA for the CCTP nonce.

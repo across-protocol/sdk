@@ -7,6 +7,7 @@ import { RPCProvider, RPCTransport } from "./types";
 import * as alchemy from "./alchemy";
 import * as infura from "./infura";
 import * as drpc from "./drpc";
+import * as quicknode from "./quicknode";
 
 /**
  * Infura DIN is identified separately to allow it to be configured explicitly.
@@ -16,6 +17,7 @@ const PROVIDERS = {
   INFURA: infura.getURL,
   INFURA_DIN: infura.getURL,
   DRPC: drpc.getURL,
+  QUICKNODE: quicknode.getURL,
 };
 
 /**
@@ -24,7 +26,7 @@ const PROVIDERS = {
  * @returns True if the provider string is a supported provider.
  */
 export function isSupportedProvider(provider: string): provider is RPCProvider {
-  return ["ALCHEMY", "INFURA", "INFURA_DIN", "DRPC"].includes(provider);
+  return Object.keys(PROVIDERS).includes(provider);
 }
 
 /**
@@ -166,6 +168,10 @@ export function compareRpcResults(method: string, rpcResultA: unknown, rpcResult
   } else {
     return isEqual(rpcResultA, rpcResultB);
   }
+}
+
+export function compareSvmRpcResults(_method: string, rpcResultA: unknown, rpcResultB: unknown): boolean {
+  return isEqual(rpcResultA, rpcResultB);
 }
 
 export enum CacheType {

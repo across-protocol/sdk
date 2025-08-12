@@ -114,6 +114,10 @@ export abstract class Address {
     return "__address_type_brand" in (obj as { __address_type_brand: boolean });
   }
 
+  public toJSON() {
+    return this.toNative();
+  }
+
   // Converts the address into a bytes32 string. Note that the output bytes will be lowercase so that it matches ethers event data. This function will never
   // throw since address length validation was done at construction time.
   toBytes32(): string {
@@ -150,7 +154,7 @@ export abstract class Address {
     return (this.evmAddress ??= parseRawAddress());
   }
 
-  // Converts the address to a hex string. This method should be overriden by subclasses to obtain more meaningful
+  // Converts the address to a hex string. This method should be overridden by subclasses to obtain more meaningful
   // address representations for the target chain ID.
   toNative(): string {
     return this.toBytes32();

@@ -1,4 +1,4 @@
-import { RateLimitedSolanaRpcFactory } from "..";
+import { RateLimitedSolanaRpcFactory } from "../solana/rateLimitedRpcFactory";
 import { MockSolanaRpcFactory } from "./MockSolanaRpcFactory";
 
 // Creates mocked rate limited Solana RPC factory by using the mocked Solana RPC factory.

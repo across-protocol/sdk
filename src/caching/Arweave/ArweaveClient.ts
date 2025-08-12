@@ -101,7 +101,7 @@ export class ArweaveClient {
     const transactionUrl = `${this.gatewayUrl}/${transactionID}`;
     // We should query in via Axios directly to the gateway URL. The reasoning behind this is
     // that the Arweave SDK's `getData` method is too slow and does not provide a way to set a timeout.
-    // Therefore, something that could take milliesconds to complete could take tens of minutes.
+    // Therefore, something that could take milliseconds to complete could take tens of minutes.
     const { data, status: responseStatus } = await axios.get<Record<string, unknown>>(transactionUrl);
     // Ensure that the result is successful. If it is not, the retrieved value is not our expected type
     // but rather a {status: string, statusText: string} object. We can detect that and return null.

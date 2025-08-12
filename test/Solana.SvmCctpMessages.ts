@@ -10,7 +10,9 @@ import {
   finalizeCCTPV1Messages,
   getStatePda,
   hasCCTPV1MessageBeenProcessed,
+  getAssociatedTokenAddress,
 } from "../src/arch/svm";
+import { SvmAddress } from "../src/utils";
 import { signer } from "./Solana.setup";
 import {
   createDefaultSolanaClient,
@@ -18,6 +20,7 @@ import {
   encodePauseDepositsMessageBody,
   encodeRelayRootBundleMessageBody,
 } from "./utils/svm/utils";
+import { TOKEN_SYMBOLS_MAP, CHAIN_IDs } from "../src/constants";
 
 let nextCctpNonce = 1;
 const takeNonce = () => nextCctpNonce++;
@@ -26,6 +29,7 @@ interface ExtendedSolanaClient extends ReturnType<typeof createDefaultSolanaClie
   chainId: number;
 }
 const solanaClient = createDefaultSolanaClient() as ExtendedSolanaClient;
+const USDC = SvmAddress.from(TOKEN_SYMBOLS_MAP.USDC.addresses[CHAIN_IDs.SOLANA]);
 
 const buildAttestedMessage = async (
   messageBody: Buffer,
@@ -63,8 +67,8 @@ const buildAttestedMessage = async (
 
 describe("Svm Cctp Messages (integration)", () => {
   const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
-  const finalize = (msgs: AttestedCCTPMessage[], simulate = false) =>
-    finalizeCCTPV1Messages(solanaClient.rpc, msgs, signer, simulate, 0);
+  const finalize = (msgs: AttestedCCTPMessage[], recipient: SvmAddress, simulate = false) =>
+    finalizeCCTPV1Messages(solanaClient.rpc, msgs, signer, recipient, simulate, 0);
   const sendAndConfirm = async (sigs: string[]) => {
     await solanaClient.rpc
       .getTransaction(signature(sigs[0]), {
@@ -79,15 +83,16 @@ describe("Svm Cctp Messages (integration)", () => {
     const pauseNonce = takeNonce();
     const unpauseNonce = takeNonce(); // next nonce in sequence
     const statePda = await getStatePda(SvmSpokeClient.SVM_SPOKE_PROGRAM_ADDRESS);
+    const stateAta = await getAssociatedTokenAddress(SvmAddress.from(statePda.toString()), USDC);
 
     /* ---- pause ---- */
     expect(await hasCCTPV1MessageBeenProcessed(solanaClient.rpc, signer, pauseNonce, 0)).to.equal(false);
 
     let msgs = await buildAttestedMessage(encodePauseDepositsMessageBody(true), pauseNonce);
-    await finalize(msgs, /* simulate = */ true);
+    await finalize(msgs, stateAta, /* simulate = */ true);
     expect(await hasCCTPV1MessageBeenProcessed(solanaClient.rpc, signer, pauseNonce, 0)).to.equal(false);
 
-    await sendAndConfirm(await finalize(msgs));
+    await sendAndConfirm(await finalize(msgs, stateAta));
 
     let state = await SvmSpokeClient.fetchState(solanaClient.rpc, statePda);
     expect(state.data.pausedDeposits).to.equal(true);
@@ -95,7 +100,7 @@ describe("Svm Cctp Messages (integration)", () => {
 
     /* ---- unpause ---- */
     msgs = await buildAttestedMessage(encodePauseDepositsMessageBody(false), unpauseNonce);
-    await sendAndConfirm(await finalize(msgs));
+    await sendAndConfirm(await finalize(msgs, stateAta));
 
     state = await SvmSpokeClient.fetchState(solanaClient.rpc, statePda);
     expect(state.data.pausedDeposits).to.equal(false);
@@ -105,6 +110,7 @@ describe("Svm Cctp Messages (integration)", () => {
     const relayNonce = takeNonce();
     const emergencyNonce = takeNonce();
     const statePda = await getStatePda(SvmSpokeClient.SVM_SPOKE_PROGRAM_ADDRESS);
+    const stateAta = await getAssociatedTokenAddress(SvmAddress.from(statePda.toString()), USDC);
 
     const relayerRefundRoot = ethers.utils.formatBytes32String("relayerRefundRoot");
     const slowRelayRoot = ethers.utils.formatBytes32String("slowRelayRoot");
@@ -120,14 +126,14 @@ describe("Svm Cctp Messages (integration)", () => {
       false
     );
 
-    await finalize(relayMsgs, /* simulate = */ true);
+    await finalize(relayMsgs, stateAta, /* simulate = */ true);
     expect(await hasCCTPV1MessageBeenProcessed(solanaClient.rpc, signer, relayNonce, 0)).to.equal(false);
 
     const {
       data: { rootBundleId: beforeRootBundleId },
     } = await SvmSpokeClient.fetchState(solanaClient.rpc, statePda);
 
-    await sendAndConfirm(await finalize(relayMsgs));
+    await sendAndConfirm(await finalize(relayMsgs, stateAta));
 
     const {
       data: { rootBundleId: afterRootBundleId },
@@ -153,7 +159,7 @@ describe("Svm Cctp Messages (integration)", () => {
       false
     );
 
-    await sendAndConfirm(await finalize(emergencyMsgs));
+    await sendAndConfirm(await finalize(emergencyMsgs, stateAta));
 
     expect(await hasCCTPV1MessageBeenProcessed(solanaClient.rpc, signer, emergencyNonce, 0)).to.equal(true);
 

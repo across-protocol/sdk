@@ -6,6 +6,7 @@ import { getCurrentTime } from "../../utils/TimeUtils";
 import { CHAIN_IDs } from "../../constants";
 import { SVMProvider } from "./";
 import { getNearestSlotTime } from "./utils";
+import winston from "winston";
 
 interface SVMBlock extends Block {}
 
@@ -33,7 +34,8 @@ function estimateBlocksElapsed(seconds: number, cushionPercentage = 0.0, _provid
 export class SVMBlockFinder extends BlockFinder<SVMBlock> {
   constructor(
     private readonly provider: SVMProvider,
-    private readonly blocks: SVMBlock[] = []
+    private readonly blocks: SVMBlock[] = [],
+    private readonly logger?: winston.Logger
   ) {
     super();
   }
@@ -97,7 +99,7 @@ export class SVMBlockFinder extends BlockFinder<SVMBlock> {
    */
   private getBlockTime(slot?: bigint): Promise<{ slot: bigint; timestamp: number }> {
     const opts = isDefined(slot) ? { slot } : undefined;
-    return getNearestSlotTime(this.provider, opts);
+    return getNearestSlotTime(this.provider, opts, this.logger);
   }
 
   // Grabs the most recent slot and caches it.

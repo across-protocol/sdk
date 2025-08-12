@@ -1652,7 +1652,8 @@ export class BundleDataClient {
         spokePoolClient.chainId,
         spokePoolClient.svmEventsClient,
         spokePoolClient.deploymentBlock,
-        spokePoolClient.latestHeightSearched
+        spokePoolClient.latestHeightSearched,
+        spokePoolClient.logger
       );
     } else if (isEVMSpokePoolClient(spokePoolClient)) {
       return await findEvmFillEvent(
