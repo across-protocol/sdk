@@ -2,15 +2,7 @@ import _ from "lodash";
 import assert from "assert";
 import { providers } from "ethers";
 import { DepositWithBlock, Fill, FillWithBlock } from "../../../interfaces";
-import {
-  isSlowFill,
-  isValidEvmAddress,
-  isDefined,
-  chainIsEvm,
-  Address,
-  toAddressType,
-  EvmAddress,
-} from "../../../utils";
+import { isSlowFill, isValidEvmAddress, isDefined, chainIsEvm, Address, toAddressType } from "../../../utils";
 import { HubPoolClient } from "../../HubPoolClient";
 import { SVMProvider } from "../../../arch/svm";
 

@@ -34,7 +34,6 @@ import {
   fetchTokenInfo,
   getCachedBlockForTimestamp,
   getCurrentTime,
-  getNetworkName,
   isDefined,
   mapAsync,
   paginatedEventQuery,
@@ -49,7 +48,6 @@ import {
   SvmAddress,
   EvmAddress,
   Address,
-  deleteFromJson,
 } from "../utils";
 import { AcrossConfigStoreClient as ConfigStoreClient } from "./AcrossConfigStoreClient/AcrossConfigStoreClient";
 import { BaseAbstractClient, isUpdateFailureReason, UpdateFailureReason } from "./BaseAbstractClient";
