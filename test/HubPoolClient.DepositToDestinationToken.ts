@@ -355,14 +355,12 @@ describe("HubPoolClient: Deposit to Destination Token", function () {
     await assertPromiseError(hubPoolClient.update(), "SVM USDC address mismatch for chain");
   });
 
-  it("correctly disabled a rebalancing route", async function () {
+  it("correctly disables a rebalancing route", async function () {
     const randomL1TokenAddr = EvmAddress.from(randomL1Token);
 
     const randomDestinationTokenAddr = toAddressType(randomDestinationToken, CHAIN_IDs.MAINNET);
 
-    const e0 = hubPoolClient.setPoolRebalanceRoute(destinationChainId, randomL1Token, randomDestinationToken, {
-      blockNumber: 0,
-    });
+    const e0 = hubPoolClient.setPoolRebalanceRoute(destinationChainId, randomL1Token, randomDestinationToken);
     await hubPoolClient.update();
 
     let l2Token = hubPoolClient.getL2TokenForL1TokenAtBlock(randomL1TokenAddr, destinationChainId, e0.blockNumber);
@@ -374,9 +372,7 @@ describe("HubPoolClient: Deposit to Destination Token", function () {
     );
     expect(l1Token?.toNative()).to.be.equal(randomL1Token);
 
-    const e1 = hubPoolClient.setPoolRebalanceRoute(destinationChainId, randomL1Token, zeroAddress, {
-      blockNumber: 1,
-    });
+    const e1 = hubPoolClient.setPoolRebalanceRoute(destinationChainId, randomL1Token, zeroAddress);
     await hubPoolClient.update();
 
     l2Token = hubPoolClient.getL2TokenForL1TokenAtBlock(randomL1TokenAddr, destinationChainId, e0.blockNumber);
