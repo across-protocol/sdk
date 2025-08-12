@@ -39,6 +39,7 @@ export class MockSvmSpokePoolClient extends SVMSpokePoolClient {
       BigInt(deploymentBlock),
       eventSearchConfig,
       null as unknown as SvmCpiEventsClient,
+      // @ts-expect-error Address types mismatch between installed versions of @solana/addresses
       programId,
       null as unknown as Address
     );

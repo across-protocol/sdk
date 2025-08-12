@@ -32,6 +32,7 @@ export class MockSvmCpiEventsClient extends SvmCpiEventsClient {
   public numberOfDeposits = bnZero;
 
   constructor(programId = SvmSpokeClient.SVM_SPOKE_PROGRAM_ADDRESS, chainId = CHAIN_IDs.SOLANA) {
+    // @ts-expect-error Address types mismatch between installed versions of @solana/addresses
     super(null as unknown as SVMProvider, programId as Address, null as unknown as Address, null as unknown as Idl);
     this.chainId = chainId;
   }

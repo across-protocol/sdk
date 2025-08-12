@@ -4,6 +4,7 @@ import {
   Address,
   IInstruction,
   KeyPairSigner,
+  TransactionMessage,
   address,
   appendTransactionMessageInstruction,
   createTransactionMessage,
@@ -25,7 +26,7 @@ import bs58 from "bs58";
 import { ethers } from "ethers";
 import { FillType, RelayData } from "../../interfaces";
 import { BigNumber, Address as SdkAddress, biMin, getRelayDataHash, isDefined, isUint8Array } from "../../utils";
-import { getTimestampForSlot, getSlot } from "./SpokeUtils";
+import { getTimestampForSlot, getSlot, CompilableTransactionMessageWithSigners } from "./SpokeUtils";
 import { AttestedCCTPMessage, EventName, SVMEventNames, SVMProvider } from "./types";
 import winston from "winston";
 
@@ -396,7 +397,10 @@ export function getRandomSvmAddress() {
  * @param signer - The signer of the transaction.
  * @returns The default transaction.
  */
-export const createDefaultTransaction = async (rpcClient: SVMProvider, signer: TransactionSigner) => {
+export const createDefaultTransaction = async (
+  rpcClient: SVMProvider,
+  signer: TransactionSigner
+): Promise<TransactionMessage> => {
   const { value: latestBlockhash } = await rpcClient.getLatestBlockhash().send();
   return pipe(
     createTransactionMessage({ version: 0 }),
@@ -422,7 +426,11 @@ export const simulateAndDecode = async <P extends (buf: Buffer) => unknown>(
   const simulationTx = appendTransactionMessageInstruction(ix, await createDefaultTransaction(solanaClient, signer));
 
   const simulationResult = await solanaClient
-    .simulateTransaction(getBase64EncodedWireTransaction(await signTransactionMessageWithSigners(simulationTx)), {
+    .simulateTransaction(
+      getBase64EncodedWireTransaction(
+        await signTransactionMessageWithSigners(simulationTx as unknown as CompilableTransactionMessageWithSigners)
+      ),
+      {
       encoding: "base64",
     })
     .send();
@@ -443,15 +451,20 @@ export const simulateAndDecode = async <P extends (buf: Buffer) => unknown>(
 export function toSvmRelayData(relayData: RelayData): SvmSpokeClient.RelayData {
   return {
     originChainId: BigInt(relayData.originChainId),
+    // @ts-expect-error Address types mismatch between installed versions of @solana/addresses
     depositor: address(relayData.depositor.toBase58()),
+    // @ts-expect-error Address types mismatch between installed versions of @solana/addresses
     recipient: address(relayData.recipient.toBase58()),
     depositId: ethers.utils.arrayify(ethers.utils.hexZeroPad(relayData.depositId.toHexString(), 32)),
+    // @ts-expect-error Address types mismatch between installed versions of @solana/addresses
     inputToken: address(relayData.inputToken.toBase58()),
+    // @ts-expect-error Address types mismatch between installed versions of @solana/addresses
     outputToken: address(relayData.outputToken.toBase58()),
     inputAmount: ethers.utils.arrayify(ethers.utils.hexZeroPad(relayData.inputAmount.toHexString(), 32)),
     outputAmount: relayData.outputAmount.toBigInt(),
     message: Uint8Array.from(Buffer.from(relayData.message.slice(2), "hex")),
     fillDeadline: relayData.fillDeadline,
+    // @ts-expect-error Address types mismatch between installed versions of @solana/addresses
     exclusiveRelayer: address(relayData.exclusiveRelayer.toBase58()),
     exclusivityDeadline: relayData.exclusivityDeadline,
   };
@@ -472,10 +485,12 @@ export const getCCTPNoncePda = async (
   sourceDomain: number
 ) => {
   const [messageTransmitterPda] = await getProgramDerivedAddress({
+    // @ts-expect-error Address types mismatch between installed versions of @solana/addresses
     programAddress: MessageTransmitterClient.MESSAGE_TRANSMITTER_PROGRAM_ADDRESS,
     seeds: ["message_transmitter"],
   });
   const getNonceIx = await MessageTransmitterClient.getGetNoncePdaInstruction({
+    // @ts-expect-error Address types mismatch between installed versions of @solana/addresses
     messageTransmitter: messageTransmitterPda,
     nonce,
     sourceDomain: sourceDomain,
@@ -483,11 +498,12 @@ export const getCCTPNoncePda = async (
 
   const parserFunction = (buf: Buffer): Address => {
     if (buf.length === 32) {
-      return address(bs58.encode(buf));
+      return address(bs58.encode(new Uint8Array(buf)));
     }
     throw new Error("Invalid buffer");
   };
 
+  // @ts-expect-error Address types mismatch between installed versions of @solana/addresses
   return await simulateAndDecode(solanaClient, getNonceIx, signer, parserFunction);
 };
 
@@ -509,7 +525,7 @@ export const isRelayRootBundleMessageBody = (body: Buffer): boolean => {
   const spokePoolInterface = new ethers.utils.Interface(SpokePool__factory.abi);
   const relayRootBundleSelector = spokePoolInterface.getSighash("relayRootBundle");
 
-  return body.slice(0, 4).equals(Buffer.from(relayRootBundleSelector.slice(2), "hex"));
+  return body.slice(0, 4).equals(new Uint8Array(Buffer.from(relayRootBundleSelector.slice(2), "hex")));
 };
 
 /**
@@ -521,7 +537,7 @@ export const isEmergencyDeleteRootBundleMessageBody = (body: Buffer): boolean =>
   const spokePoolInterface = new ethers.utils.Interface(SpokePool__factory.abi);
   const emergencyDeleteRootBundleSelector = spokePoolInterface.getSighash("emergencyDeleteRootBundle");
 
-  return body.slice(0, 4).equals(Buffer.from(emergencyDeleteRootBundleSelector.slice(2), "hex"));
+  return body.slice(0, 4).equals(new Uint8Array(Buffer.from(emergencyDeleteRootBundleSelector.slice(2), "hex")));
 };
 
 /**

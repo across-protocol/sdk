@@ -179,11 +179,11 @@ export class SvmCpiEventsClient {
    */
   async readEventsFromSignature(txSignature: Signature, commitment: Commitment = "confirmed") {
     const txResult = await this.rpc
-      .getTransaction(txSignature, { commitment, maxSupportedTransactionVersion: 0 })
+      .getTransaction(txSignature, { commitment, maxSupportedTransactionVersion: 0, encoding: "jsonParsed" })
       .send();
 
     if (txResult === null) return [];
-    return this.processEventFromTx(txResult);
+    return this.processEventFromTx(txResult as unknown as NonNullable<GetTransactionReturnType>);
   }
 
   /**
@@ -246,6 +246,7 @@ export class SvmCpiEventsClient {
         .getTransaction(txSignature, {
           commitment,
           maxSupportedTransactionVersion: 0,
+          encoding: "jsonParsed",
         })
         .send(),
     ]);
@@ -312,6 +313,7 @@ export class SvmCpiEventsClient {
         .getTransaction(txSignature, {
           commitment,
           maxSupportedTransactionVersion: 0,
+          encoding: "jsonParsed",
         })
         .send(),
     ]);

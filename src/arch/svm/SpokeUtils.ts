@@ -32,6 +32,9 @@ import {
   some,
   type TransactionSigner,
   type Commitment,
+  TransactionMessage,
+  CompilableTransactionMessage,
+  TransactionMessageWithSigners,
 } from "@solana/kit";
 import assert from "assert";
 import winston from "winston";
@@ -76,6 +79,8 @@ import {
   isEmergencyDeleteRootBundleMessageBody,
   isRelayRootBundleMessageBody,
 } from "./utils";
+export type CompilableTransactionMessageWithSigners = CompilableTransactionMessage & TransactionMessageWithSigners;
+
 
 /**
  * @note: Average Solana slot duration is about 400-500ms. We can be conservative
@@ -197,6 +202,7 @@ async function _callGetTimestampForSlotWithRetry(
  * @returns fill deadline buffer
  */
 export async function getFillDeadline(provider: SVMProvider, statePda: Address): Promise<number> {
+  // @ts-expect-error Address types mismatch between installed versions of @solana/addresses
   const state = await fetchState(provider, statePda);
   return state.data.fillDeadlineBuffer;
 }
@@ -332,6 +338,7 @@ export async function relayFillStatus(
 
     // If the PDA exists, return the stored fill status
     if (fillStatusAccount.exists) {
+      // @ts-expect-error Address types mismatch between installed versions of @solana/addresses
       const decodedAccountData = decodeFillStatusAccount(fillStatusAccount);
       return decodedAccountData.data.status;
     }
@@ -541,18 +548,28 @@ export async function fillRelayInstruction(
 
   const svmRelayData = toSvmRelayData(relayData);
   return SvmSpokeClient.getFillRelayInstruction({
+      // @ts-expect-error Address types mismatch between installed versions of @solana/addresses
     signer,
+      // @ts-expect-error Address types mismatch between installed versions of @solana/addresses
+
     state: statePda,
+    // @ts-expect-error Address types mismatch between installed versions of @solana/addresses
     delegate: toAddress(SvmAddress.from(delegatePda.toString())),
     mint: svmRelayData.outputToken,
+    // @ts-expect-error Address types mismatch between installed versions of @solana/addresses
     relayerTokenAccount: relayerTokenAccount,
+    // @ts-expect-error Address types mismatch between installed versions of @solana/addresses
     recipientTokenAccount: recipientTokenAccount,
+    // @ts-expect-error Address types mismatch between installed versions of @solana/addresses
     fillStatus: fillStatusPda,
+    // @ts-expect-error Address types mismatch between installed versions of @solana/addresses
     eventAuthority,
+    // @ts-expect-error Address types mismatch between installed versions of @solana/addresses
     program,
     relayHash: relayDataHash,
     relayData: some(svmRelayData),
     repaymentChainId: some(BigInt(repaymentChainId)),
+    // @ts-expect-error Address types mismatch between installed versions of @solana/addresses
     repaymentAddress: some(toAddress(repaymentAddress)),
   });
 }
@@ -567,7 +584,9 @@ export function createTokenAccountsInstruction(
   relayer: TransactionSigner<string>
 ): SvmSpokeClient.CreateTokenAccountsInstruction {
   return SvmSpokeClient.getCreateTokenAccountsInstruction({
+    // @ts-expect-error Address types mismatch between installed versions of @solana/addresses
     signer: relayer,
+    // @ts-expect-error Address types mismatch between installed versions of @solana/addresses
     mint: toAddress(mint),
   });
 }
@@ -593,7 +612,7 @@ export async function getFillRelayTx(
   signer: TransactionSigner,
   repaymentChainId: number,
   repaymentAddress: SdkAddress
-) {
+): Promise<TransactionMessage> {
   const svmRelayData = toSvmRelayData(relayData);
 
   assert(
@@ -608,6 +627,7 @@ export async function getFillRelayTx(
   const [state, delegate, mintInfo, fillStatus, eventAuthority] = await Promise.all([
     getStatePda(program),
     getFillRelayDelegatePda(relayDataHash, BigInt(repaymentChainId), toAddress(repaymentAddress), program),
+    // @ts-expect-error Address types mismatch between installed versions of @solana/addresses
     getMintInfo(solanaClient, svmRelayData.outputToken),
     getFillStatusPda(program, relayData, relayData.destinationChainId),
     getEventAuthority(program),
@@ -619,21 +639,32 @@ export async function getFillRelayTx(
   ]);
 
   const fillInput: SvmSpokeClient.FillRelayInput = {
+    // @ts-expect-error Address types mismatch between installed versions of @solana/addresses
     signer: signer,
+    // @ts-expect-error Address types mismatch between installed versions of @solana/addresses
     state,
+    // @ts-expect-error Address types mismatch between installed versions of @solana/addresses
     delegate,
     mint: svmRelayData.outputToken,
+    // @ts-expect-error Address types mismatch between installed versions of @solana/addresses
     relayerTokenAccount: relayerAta,
+    // @ts-expect-error Address types mismatch between installed versions of @solana/addresses
     recipientTokenAccount: recipientAta,
+    // @ts-expect-error Address types mismatch between installed versions of @solana/addresses
     fillStatus,
+    // @ts-expect-error Address types mismatch between installed versions of @solana/addresses
     tokenProgram: mintInfo.programAddress,
     associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ADDRESS,
+    // @ts-expect-error Address types mismatch between installed versions of @solana/addresses
     systemProgram: SYSTEM_PROGRAM_ADDRESS,
+    // @ts-expect-error Address types mismatch between installed versions of @solana/addresses
     eventAuthority,
+    // @ts-expect-error Address types mismatch between installed versions of @solana/addresses
     program,
     relayHash: relayDataHash,
     relayData: svmRelayData,
     repaymentChainId: BigInt(repaymentChainId),
+    // @ts-expect-error Address types mismatch between installed versions of @solana/addresses
     repaymentAddress: toAddress(repaymentAddress),
   };
   // Pass createRecipientAtaIfNeeded =true to the createFillInstruction function to create the recipient token account
@@ -656,7 +687,8 @@ export const createFillInstruction = async (
   fillInput: SvmSpokeClient.FillRelayInput,
   tokenDecimals: number,
   createRecipientAtaIfNeeded: boolean = true
-) => {
+): Promise<TransactionMessage> => {
+  // @ts-expect-error Address types mismatch between installed versions of @solana/addresses
   const mintInfo = await getMintInfo(solanaClient, fillInput.mint);
   const approveIx = getApproveCheckedInstruction(
     {
@@ -668,16 +700,19 @@ export const createFillInstruction = async (
       decimals: tokenDecimals,
     },
     {
+      // @ts-expect-error Address types mismatch between installed versions of @solana/addresses
       programAddress: mintInfo.programAddress,
     }
   );
 
   const getCreateAssociatedTokenIdempotentIx = () =>
     getCreateAssociatedTokenIdempotentInstruction({
+      // @ts-expect-error Address types mismatch between installed versions of @solana/addresses
       payer: signer,
       owner: (fillInput.relayData as SvmSpokeClient.RelayDataArgs).recipient,
       mint: fillInput.mint,
       ata: fillInput.recipientTokenAccount,
+      // @ts-expect-error Address types mismatch between installed versions of @solana/addresses
       systemProgram: SYSTEM_PROGRAM_ADDRESS,
       tokenProgram: fillInput.tokenProgram,
     });
@@ -687,8 +722,11 @@ export const createFillInstruction = async (
   return pipe(
     await createDefaultTransaction(solanaClient, signer),
     (tx) =>
+      // @ts-expect-error Address types mismatch between installed versions of @solana/addresses
       createRecipientAtaIfNeeded ? appendTransactionMessageInstruction(getCreateAssociatedTokenIdempotentIx(), tx) : tx,
+    // @ts-expect-error Address types mismatch between installed versions of @solana/addresses
     (tx) => appendTransactionMessageInstruction(approveIx, tx),
+    // @ts-expect-error Address types mismatch between installed versions of @solana/addresses
     (tx) => appendTransactionMessageInstruction(createFillIx, tx)
   );
 };
@@ -708,9 +746,10 @@ export const createDepositInstruction = async (
   depositInput: SvmSpokeClient.DepositInput,
   tokenDecimals: number,
   createVaultAtaIfNeeded: boolean = true
-) => {
+): Promise<TransactionMessage> => {
   const getCreateAssociatedTokenIdempotentIx = () =>
     getCreateAssociatedTokenIdempotentInstruction({
+      // @ts-expect-error Address types mismatch between installed versions of @solana/addresses
       payer: signer,
       owner: depositInput.state,
       mint: depositInput.mint,
@@ -718,6 +757,7 @@ export const createDepositInstruction = async (
       systemProgram: depositInput.systemProgram,
       tokenProgram: depositInput.tokenProgram,
     });
+  // @ts-expect-error Address types mismatch between installed versions of @solana/addresses
   const mintInfo = await getMintInfo(solanaClient, depositInput.mint);
   const approveIx = getApproveCheckedInstruction(
     {
@@ -729,6 +769,7 @@ export const createDepositInstruction = async (
       decimals: tokenDecimals,
     },
     {
+      // @ts-expect-error Address types mismatch between installed versions of @solana/addresses
       programAddress: mintInfo.programAddress,
     }
   );
@@ -736,8 +777,11 @@ export const createDepositInstruction = async (
   return pipe(
     await createDefaultTransaction(solanaClient, signer),
     (tx) =>
+      // @ts-expect-error Address types mismatch between installed versions of @solana/addresses
       createVaultAtaIfNeeded ? appendTransactionMessageInstruction(getCreateAssociatedTokenIdempotentIx(), tx) : tx,
+    // @ts-expect-error Address types mismatch between installed versions of @solana/addresses
     (tx) => appendTransactionMessageInstruction(approveIx, tx),
+    // @ts-expect-error Address types mismatch between installed versions of @solana/addresses
     (tx) => appendTransactionMessageInstruction(depositIx, tx)
   );
 };
@@ -753,10 +797,11 @@ export const createRequestSlowFillInstruction = async (
   signer: TransactionSigner,
   solanaClient: SVMProvider,
   requestSlowFillInput: SvmSpokeClient.RequestSlowFillInput
-) => {
+): Promise<TransactionMessage> => {
   const requestSlowFillIx = SvmSpokeClient.getRequestSlowFillInstruction(requestSlowFillInput);
 
   return pipe(await createDefaultTransaction(solanaClient, signer), (tx) =>
+    // @ts-expect-error Address types mismatch between installed versions of @solana/addresses
     appendTransactionMessageInstruction(requestSlowFillIx, tx)
   );
 };
@@ -778,7 +823,7 @@ export async function getSlowFillRequestTx(
     outputToken: SvmAddress;
   },
   signer: TransactionSigner
-) {
+): Promise<TransactionMessage> {
   const program = toAddress(spokePoolAddr);
   const relayDataHash = getRelayDataHash(relayData, relayData.destinationChainId);
 
@@ -790,13 +835,19 @@ export async function getSlowFillRequestTx(
 
   const svmRelayData = toSvmRelayData(relayData);
   const requestSlowFillInput: SvmSpokeClient.RequestSlowFillInput = {
+    // @ts-expect-error Address types mismatch between installed versions of @solana/addresses
     signer,
+    // @ts-expect-error Address types mismatch between installed versions of @solana/addresses
     state,
+    // @ts-expect-error Address types mismatch between installed versions of @solana/addresses
     fillStatus,
+    // @ts-expect-error Address types mismatch between installed versions of @solana/addresses
     eventAuthority,
+    // @ts-expect-error Address types mismatch between installed versions of @solana/addresses
     program,
     relayHash: arrayify(relayDataHash),
     relayData: svmRelayData,
+    // @ts-expect-error Address types mismatch between installed versions of @solana/addresses
     systemProgram: SYSTEM_PROGRAM_ADDRESS,
   };
 
@@ -814,13 +865,17 @@ export const createCloseFillPdaInstruction = async (
   signer: TransactionSigner,
   solanaClient: SVMProvider,
   fillStatusPda: Address
-) => {
+): Promise<TransactionMessage> => {
   const closeFillPdaIx = SvmSpokeClient.getCloseFillPdaInstruction({
+    // @ts-expect-error Address types mismatch between installed versions of @solana/addresses
     signer,
+    // @ts-expect-error Address types mismatch between installed versions of @solana/addresses
     state: await getStatePda(SvmSpokeClient.SVM_SPOKE_PROGRAM_ADDRESS),
+    // @ts-expect-error Address types mismatch between installed versions of @solana/addresses
     fillStatus: fillStatusPda,
   });
   return pipe(await createDefaultTransaction(solanaClient, signer), (tx) =>
+    // @ts-expect-error Address types mismatch between installed versions of @solana/addresses
     appendTransactionMessageInstruction(closeFillPdaIx, tx)
   );
 };
@@ -830,10 +885,12 @@ export const createReceiveMessageInstruction = async (
   solanaClient: SVMProvider,
   input: MessageTransmitterClient.ReceiveMessageInput,
   remainingAccounts: IAccountMeta<string>[]
-) => {
+): Promise<TransactionMessage> => {
   const receiveMessageIx = MessageTransmitterClient.getReceiveMessageInstruction(input);
+  // @ts-expect-error Address types mismatch between installed versions of @solana/addresses
   (receiveMessageIx.accounts as IAccountMeta<string>[]).push(...remainingAccounts);
   return pipe(await createDefaultTransaction(solanaClient, signer), (tx) =>
+    // @ts-expect-error Address types mismatch between installed versions of @solana/addresses
     appendTransactionMessageInstruction(receiveMessageIx, tx)
   );
 };
@@ -841,10 +898,12 @@ export const createReceiveMessageInstruction = async (
 export async function getAssociatedTokenAddress(
   owner: SvmAddress,
   mint: SvmAddress,
+   // @ts-expect-error Address types mismatch between installed versions of @solana/addresses
   tokenProgramId: Address<string> = TOKEN_PROGRAM_ADDRESS
 ): Promise<Address<string>> {
   const encoder = getAddressEncoder();
   const [associatedToken] = await getProgramDerivedAddress({
+     // @ts-expect-error Address types mismatch between installed versions of @solana/addresses
     programAddress: ASSOCIATED_TOKEN_PROGRAM_ADDRESS,
     seeds: [encoder.encode(toAddress(owner)), encoder.encode(tokenProgramId), encoder.encode(toAddress(mint))],
   });
@@ -940,6 +999,7 @@ async function fetchBatchFillStatusFromPdaAccounts(
   const fillStatuses = pdaAccounts.flat().map((account, index) => {
     // If the PDA exists, we can fetch the status directly.
     if (account.exists) {
+      // @ts-expect-error Address types mismatch between installed versions of @solana/addresses
       const decodedAccount = decodeFillStatusAccount(account);
       return decodedAccount.data.status;
     }
@@ -1001,7 +1061,7 @@ export async function getDepositDelegatePda(
 
   const [pda] = await getProgramDerivedAddress({
     programAddress: programId,
-    seeds: [Buffer.from("delegate"), seedHash],
+    seeds: [new Uint8Array(Buffer.from("delegate")), new Uint8Array(seedHash)],
   });
 
   return pda;
@@ -1049,7 +1109,7 @@ export async function getDepositNowDelegatePda(
 
   const [pda] = await getProgramDerivedAddress({
     programAddress: programId,
-    seeds: [Buffer.from("delegate"), seedHash],
+    seeds: [new Uint8Array(Buffer.from("delegate")), new Uint8Array(seedHash)],
   });
 
   return pda;
@@ -1077,7 +1137,7 @@ export async function getFillRelayDelegatePda(
 
   const [pda] = await getProgramDerivedAddress({
     programAddress: programId,
-    seeds: [Buffer.from("delegate"), seedHash],
+    seeds: [new Uint8Array(Buffer.from("delegate")), new Uint8Array(seedHash)],
   });
 
   return pda;
@@ -1100,6 +1160,7 @@ export const hasCCTPV1MessageBeenProcessed = async (
   const noncePda = await getCCTPNoncePda(solanaClient, signer, nonce, sourceDomain);
   const isNonceUsedIx = await MessageTransmitterClient.getIsNonceUsedInstruction({
     nonce: nonce,
+    // @ts-expect-error Address types mismatch between installed versions of @solana/addresses
     usedNonces: noncePda,
   });
   const parserFunction = (buf: Buffer): boolean => {
@@ -1108,6 +1169,7 @@ export const hasCCTPV1MessageBeenProcessed = async (
     }
     return Boolean(buf[0]);
   };
+  // @ts-expect-error Address types mismatch between installed versions of @solana/addresses
   return await simulateAndDecode(solanaClient, isNonceUsedIx, signer, parserFunction);
 };
 
@@ -1123,51 +1185,74 @@ export async function getAccountMetasForTokenlessMessage(
   const messageHex = messageBytes.slice(2);
   const messageHeader = decodeMessageHeader(Buffer.from(messageHex, "hex"));
   const programAddress = SvmSpokeClient.SVM_SPOKE_PROGRAM_ADDRESS;
+  // @ts-expect-error Address types mismatch between installed versions of @solana/addresses
   const statePda = await getStatePda(programAddress);
   const selfAuthority = await getSelfAuthority();
+  // @ts-expect-error Address types mismatch between installed versions of @solana/addresses
   const eventAuthority = await getEventAuthority(programAddress);
 
   const base: IAccountMeta<string>[] = [
     { address: statePda, role: AccountRole.READONLY },
     { address: selfAuthority, role: AccountRole.READONLY },
+    // @ts-expect-error Address types mismatch between installed versions of @solana/addresses
     { address: programAddress, role: AccountRole.READONLY },
   ];
 
   if (isRelayRootBundleMessageBody(messageHeader.messageBody)) {
     const {
       data: { rootBundleId },
+      // @ts-expect-error Address types mismatch between installed versions of @solana/addresses
     } = await SvmSpokeClient.fetchState(solanaClient, statePda);
+    // @ts-expect-error Address types mismatch between installed versions of @solana/addresses
     const rootBundle = await getRootBundlePda(programAddress, rootBundleId);
 
     return [
+      // @ts-expect-error Address types mismatch between installed versions of @solana/addresses
       ...base,
+      // @ts-expect-error Address types mismatch between installed versions of @solana/addresses
       { address: signer.address, role: AccountRole.WRITABLE },
+      // @ts-expect-error Address types mismatch between installed versions of @solana/addresses
       { address: statePda, role: AccountRole.WRITABLE },
+      // @ts-expect-error Address types mismatch between installed versions of @solana/addresses
       { address: rootBundle, role: AccountRole.WRITABLE },
+      // @ts-expect-error Address types mismatch between installed versions of @solana/addresses
       { address: SYSTEM_PROGRAM_ADDRESS, role: AccountRole.READONLY },
+      // @ts-expect-error Address types mismatch between installed versions of @solana/addresses
       { address: eventAuthority, role: AccountRole.READONLY },
+      // @ts-expect-error Address types mismatch between installed versions of @solana/addresses
       { address: programAddress, role: AccountRole.READONLY },
     ];
   }
 
   if (isEmergencyDeleteRootBundleMessageBody(messageHeader.messageBody)) {
     const rootBundleId = getEmergencyDeleteRootBundleRootBundleId(messageHeader.messageBody);
+    // @ts-expect-error Address types mismatch between installed versions of @solana/addresses
     const rootBundle = await getRootBundlePda(programAddress, rootBundleId);
 
     return [
+      // @ts-expect-error Address types mismatch between installed versions of @solana/addresses
       ...base,
+      // @ts-expect-error Address types mismatch between installed versions of @solana/addresses
       { address: signer.address, role: AccountRole.READONLY },
+      // @ts-expect-error Address types mismatch between installed versions of @solana/addresses
       { address: statePda, role: AccountRole.READONLY },
+      // @ts-expect-error Address types mismatch between installed versions of @solana/addresses
       { address: rootBundle, role: AccountRole.WRITABLE },
+      // @ts-expect-error Address types mismatch between installed versions of @solana/addresses
       { address: eventAuthority, role: AccountRole.READONLY },
+      // @ts-expect-error Address types mismatch between installed versions of @solana/addresses
       { address: programAddress, role: AccountRole.READONLY },
     ];
   }
 
   return [
+    // @ts-expect-error Address types mismatch between installed versions of @solana/addresses
     ...base,
+    // @ts-expect-error Address types mismatch between installed versions of @solana/addresses
     { address: statePda, role: AccountRole.WRITABLE },
+    // @ts-expect-error Address types mismatch between installed versions of @solana/addresses
     { address: eventAuthority, role: AccountRole.READONLY },
+    // @ts-expect-error Address types mismatch between installed versions of @solana/addresses
     { address: programAddress, role: AccountRole.READONLY },
   ];
 }
@@ -1239,6 +1324,7 @@ async function getAccountMetasForDepositMessage(
     { address: tokenPairPda, role: AccountRole.READONLY },
     { address: toAddress(recipientAta), role: AccountRole.WRITABLE },
     { address: custodyTokenAccountPda, role: AccountRole.WRITABLE },
+    // @ts-expect-error Address types mismatch between installed versions of @solana/addresses
     { address: TOKEN_PROGRAM_ADDRESS, role: AccountRole.READONLY },
     { address: tokenMessengerEventAuthorityPda, role: AccountRole.READONLY },
     { address: tokenMessengerMinter, role: AccountRole.READONLY },
@@ -1262,11 +1348,13 @@ export async function getCCTPV1ReceiveMessageTx(
   recipientAta: SvmAddress
 ) {
   const [messageTransmitterPda] = await getProgramDerivedAddress({
+    // @ts-expect-error Address types mismatch between installed versions of @solana/addresses
     programAddress: MessageTransmitterClient.MESSAGE_TRANSMITTER_PROGRAM_ADDRESS,
     seeds: ["message_transmitter"],
   });
 
   const [eventAuthorityPda] = await getProgramDerivedAddress({
+    // @ts-expect-error Address types mismatch between installed versions of @solana/addresses
     programAddress: MessageTransmitterClient.MESSAGE_TRANSMITTER_PROGRAM_ADDRESS,
     seeds: ["__event_authority"],
   });
@@ -1276,6 +1364,7 @@ export async function getCCTPV1ReceiveMessageTx(
     : SvmSpokeClient.SVM_SPOKE_PROGRAM_ADDRESS;
 
   const [authorityPda] = await getProgramDerivedAddress({
+    // @ts-expect-error Address types mismatch between installed versions of @solana/addresses
     programAddress: MessageTransmitterClient.MESSAGE_TRANSMITTER_PROGRAM_ADDRESS,
     seeds: ["message_transmitter_authority", bs58.decode(cctpMessageReceiver)],
   });
@@ -1288,6 +1377,7 @@ export async function getCCTPV1ReceiveMessageTx(
     ? await getAccountMetasForDepositMessage(
         message,
         hubChainId,
+        // @ts-expect-error Address types mismatch between installed versions of @solana/addresses
         TokenMessengerMinterClient.TOKEN_MESSENGER_MINTER_PROGRAM_ADDRESS,
         recipientAta
       )
@@ -1299,16 +1389,23 @@ export async function getCCTPV1ReceiveMessageTx(
 
   const input: MessageTransmitterClient.ReceiveMessageInput = {
     program: MessageTransmitterClient.MESSAGE_TRANSMITTER_PROGRAM_ADDRESS,
+    // @ts-expect-error Address types mismatch between installed versions of @solana/addresses
     payer: signer,
+    // @ts-expect-error Address types mismatch between installed versions of @solana/addresses
     caller: signer,
+    // @ts-expect-error Address types mismatch between installed versions of @solana/addresses
     authorityPda,
+    // @ts-expect-error Address types mismatch between installed versions of @solana/addresses
     messageTransmitter: messageTransmitterPda,
+    // @ts-expect-error Address types mismatch between installed versions of @solana/addresses
     eventAuthority: eventAuthorityPda,
+    // @ts-expect-error Address types mismatch between installed versions of @solana/addresses
     usedNonces,
     receiver: cctpMessageReceiver,
+    // @ts-expect-error Address types mismatch between installed versions of @solana/addresses
     systemProgram: SYSTEM_PROGRAM_ADDRESS,
-    message: messageBytes,
-    attestation: Buffer.from(message.attestation.slice(2), "hex"),
+    message: new Uint8Array(messageBytes),
+    attestation: new Uint8Array(Buffer.from(message.attestation.slice(2), "hex")),
   };
 
   return createReceiveMessageInstruction(signer, solanaClient, input, accountMetas);
@@ -1340,7 +1437,7 @@ export function finalizeCCTPV1Messages(
     if (simulate) {
       const result = await solanaClient
         .simulateTransaction(
-          getBase64EncodedWireTransaction(await signTransactionMessageWithSigners(receiveMessageIx)),
+          getBase64EncodedWireTransaction(await signTransactionMessageWithSigners(receiveMessageIx as CompilableTransactionMessageWithSigners)),
           {
             encoding: "base64",
           }
@@ -1352,7 +1449,7 @@ export function finalizeCCTPV1Messages(
       return "";
     }
 
-    const signedTransaction = await signTransactionMessageWithSigners(receiveMessageIx);
+    const signedTransaction = await signTransactionMessageWithSigners(receiveMessageIx as CompilableTransactionMessageWithSigners);
     const signature = getSignatureFromTransaction(signedTransaction);
     const encodedTransaction = getBase64EncodedWireTransaction(signedTransaction);
     await solanaClient
@@ -1368,5 +1465,6 @@ export async function getMintInfo(
   mint: Address<string>,
   config?: FetchAccountConfig
 ): Promise<Account<Mint, string>> {
+  // @ts-expect-error Address types mismatch between installed versions of @solana/addresses
   return await fetchMint(solanaClient, mint, config);
 }

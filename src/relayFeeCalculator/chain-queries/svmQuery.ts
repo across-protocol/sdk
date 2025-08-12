@@ -5,7 +5,7 @@ import {
   fetchEncodedAccount,
   isSome,
 } from "@solana/kit";
-import { SVMProvider, SolanaVoidSigner, getFillRelayTx, toAddress, getAssociatedTokenAddress } from "../../arch/svm";
+import { SVMProvider, SolanaVoidSigner, getFillRelayTx, toAddress, getAssociatedTokenAddress, CompilableTransactionMessageWithSigners } from "../../arch/svm";
 import { Coingecko } from "../../coingecko";
 import { CHAIN_IDs } from "../../constants";
 import { getGasPriceEstimate } from "../../gasPriceOracle";
@@ -84,7 +84,7 @@ export class SvmQuery implements QueryInterface {
     );
 
     const [computeUnitsConsumed, gasPriceEstimate, tokenAccountInfo] = await Promise.all([
-      toBN(await this.computeUnitEstimator(fillRelayTx)),
+      toBN(await this.computeUnitEstimator(fillRelayTx as CompilableTransactionMessageWithSigners)),
       getGasPriceEstimate(this.provider, {
         unsignedTx: fillRelayTx,
         baseFeeMultiplier: options.baseFeeMultiplier,
@@ -97,7 +97,7 @@ export class SvmQuery implements QueryInterface {
     // case we need to determine the extensions the token has to properly calculate rent exemption.
     const tokenOwner = tokenAccountInfo!.value!.owner;
     assert(
-      tokenOwner === TOKEN_2022_PROGRAM_ADDRESS || tokenOwner === TOKEN_PROGRAM_ADDRESS,
+      tokenOwner.toString() === TOKEN_2022_PROGRAM_ADDRESS.toString() || tokenOwner.toString() === TOKEN_PROGRAM_ADDRESS.toString(),
       `${outputToken} has invalid token account owner ${tokenOwner}.`
     );
     const recipientAta = await getAssociatedTokenAddress(recipient, outputToken, tokenOwner);
@@ -153,7 +153,7 @@ export class SvmQuery implements QueryInterface {
       repaymentChainId,
       repaymentAddress
     );
-    return toBN(await this.computeUnitEstimator(fillRelayTx));
+    return toBN(await this.computeUnitEstimator(fillRelayTx as CompilableTransactionMessageWithSigners));
   }
 
   /**
