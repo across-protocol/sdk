@@ -24,7 +24,7 @@ import assert from "assert";
 import bs58 from "bs58";
 import { ethers } from "ethers";
 import { FillType, RelayData, RelayDataWithMessageHash } from "../../interfaces";
-import { BigNumber, Address as SdkAddress, biMin, isDefined, isUint8Array } from "../../utils";
+import { BigNumber, Address as SdkAddress, biMin, getMessageHash, isDefined, isUint8Array } from "../../utils";
 import { getTimestampForSlot, getSlot, getRelayDataHash } from "./SpokeUtils";
 import { AttestedCCTPMessage, EventName, SVMEventNames, SVMProvider } from "./types";
 import winston from "winston";
@@ -270,7 +270,8 @@ export async function getFillStatusPda(
   relayData: RelayDataWithMessageHash,
   destinationChainId: number
 ): Promise<Address> {
-  const relayDataHash = getRelayDataHash(relayData, destinationChainId);
+  const messageHash = relayData.messageHash ?? getMessageHash(relayData.message);
+  const relayDataHash = getRelayDataHash({ ...relayData, messageHash }, destinationChainId);
   const uint8RelayDataHash = new Uint8Array(Buffer.from(relayDataHash.slice(2), "hex"));
   const [fillStatusPda] = await getProgramDerivedAddress({
     programAddress: programId,

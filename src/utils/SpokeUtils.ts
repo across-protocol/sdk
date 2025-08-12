@@ -1,7 +1,7 @@
 import { encodeAbiParameters, Hex, keccak256 } from "viem";
 import { fixedPointAdjustment as fixedPoint } from "./common";
 import { MAX_SAFE_DEPOSIT_ID, ZERO_BYTES } from "../constants";
-import { Fill, FillType, RelayData, SlowFillLeaf } from "../interfaces";
+import { Fill, FillType, RelayDataWithMessageHash, SlowFillLeaf } from "../interfaces";
 import { BigNumber } from "./BigNumberUtils";
 import { isMessageEmpty } from "./DepositUtils";
 import { chainIsSvm } from "./NetworkUtils";
@@ -21,7 +21,7 @@ export function getSlowFillLeafLpFeePct(leaf: SlowFillLeaf): BigNumber {
  * @param destinationChainId Supplementary destination chain ID required by V3 hashes.
  * @returns The corresponding RelayData hash.
  */
-export function getRelayDataHash(relayData: RelayData, destinationChainId: number): string {
+export function getRelayDataHash(relayData: RelayDataWithMessageHash, destinationChainId: number): string {
   const abi = [
     {
       type: "tuple",
@@ -52,12 +52,13 @@ export function getRelayDataHash(relayData: RelayData, destinationChainId: numbe
     exclusiveRelayer: relayData.exclusiveRelayer.toBytes32(),
   };
   if (chainIsSvm(destinationChainId)) {
-    return svm.getRelayDataHash(relayData, destinationChainId);
+    const messageHash = relayData.messageHash ?? getMessageHash(relayData.message);
+    return svm.getRelayDataHash({ ...relayData, messageHash }, destinationChainId);
   }
   return keccak256(encodeAbiParameters(abi, [_relayData, destinationChainId]));
 }
 
-export function getRelayHashFromEvent(e: RelayData & { destinationChainId: number }): string {
+export function getRelayHashFromEvent(e: RelayDataWithMessageHash & { destinationChainId: number }): string {
   return getRelayDataHash(e, e.destinationChainId);
 }
 
