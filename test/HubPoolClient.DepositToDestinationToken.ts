@@ -354,4 +354,39 @@ describe("HubPoolClient: Deposit to Destination Token", function () {
     hubPoolClient.setPoolRebalanceRoute(svmChain, randomL1Token, newSvmAddress);
     await assertPromiseError(hubPoolClient.update(), "SVM USDC address mismatch for chain");
   });
+
+  it("correctly disabled a rebalancing route", async function () {
+    const randomL1TokenAddr = EvmAddress.from(randomL1Token);
+
+    const randomDestinationTokenAddr = toAddressType(randomDestinationToken, CHAIN_IDs.MAINNET);
+
+    const e0 = hubPoolClient.setPoolRebalanceRoute(destinationChainId, randomL1Token, randomDestinationToken, {
+      blockNumber: 0,
+    });
+    await hubPoolClient.update();
+
+    let l2Token = hubPoolClient.getL2TokenForL1TokenAtBlock(randomL1TokenAddr, destinationChainId, e0.blockNumber);
+    expect(l2Token?.toNative()).to.be.equal(randomDestinationTokenAddr.toNative());
+    let l1Token = hubPoolClient.getL1TokenForL2TokenAtBlock(
+      randomDestinationTokenAddr,
+      destinationChainId,
+      e0.blockNumber
+    );
+    expect(l1Token?.toNative()).to.be.equal(randomL1Token);
+
+    const e1 = hubPoolClient.setPoolRebalanceRoute(destinationChainId, randomL1Token, zeroAddress, {
+      blockNumber: 1,
+    });
+    await hubPoolClient.update();
+
+    l2Token = hubPoolClient.getL2TokenForL1TokenAtBlock(randomL1TokenAddr, destinationChainId, e0.blockNumber);
+    expect(l2Token?.toNative()).to.be.equal(randomDestinationTokenAddr.toNative());
+    l1Token = hubPoolClient.getL1TokenForL2TokenAtBlock(randomDestinationTokenAddr, destinationChainId, e0.blockNumber);
+    expect(l1Token?.toNative()).to.be.equal(randomL1Token);
+
+    l2Token = hubPoolClient.getL2TokenForL1TokenAtBlock(randomL1TokenAddr, destinationChainId, e1.blockNumber);
+    expect(l2Token).to.be.undefined;
+    l1Token = hubPoolClient.getL1TokenForL2TokenAtBlock(randomDestinationTokenAddr, destinationChainId, e1.blockNumber);
+    expect(l1Token).to.be.undefined;
+  });
 });

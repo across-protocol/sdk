@@ -206,7 +206,7 @@ export class HubPoolClient extends BaseAbstractClient {
     const l2Token: DestinationTokenWithBlock | undefined = sortEventsDescending(
       this.l1TokensToDestinationTokensWithBlock[l1Token.toEvmAddress()][destinationChainId]
     ).find((mapping: DestinationTokenWithBlock) => mapping.blockNumber <= latestHubBlock);
-    if (!l2Token) {
+    if (!l2Token || l2Token.l2Token.isZeroAddress()) {
       const chain = getNetworkName(destinationChainId);
       const { symbol } = this.l1Tokens.find(({ address }) => address.eq(l1Token)) ?? { symbol: l1Token.toString() };
       this.logger.error(
@@ -410,13 +410,11 @@ export class HubPoolClient extends BaseAbstractClient {
     const hubPoolTokens: { [k: string]: EvmAddress } = {};
     const getHubPoolToken = (deposit: LpFeeRequest, quoteBlockNumber: number): EvmAddress | undefined => {
       const tokenKey = `${deposit.originChainId}-${deposit.inputToken}`;
-      if (this.l2TokenHasPoolRebalanceRoute(deposit.inputToken, deposit.originChainId, quoteBlockNumber)) {
-        const l1Token = this.getL1TokenForDeposit({ ...deposit, quoteBlockNumber });
-        if (!l1Token) {
-          return undefined;
-        }
-        return (hubPoolTokens[tokenKey] ??= l1Token);
-      } else return undefined;
+      const l1Token = this.getL1TokenForDeposit({ ...deposit, quoteBlockNumber });
+      if (!l1Token) {
+        return undefined;
+      }
+      return (hubPoolTokens[tokenKey] ??= l1Token);
     };
     const getHubPoolTokens = (): EvmAddress[] => dedupArray(Object.values(hubPoolTokens).filter(isDefined));
 
