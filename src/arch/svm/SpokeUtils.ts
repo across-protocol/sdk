@@ -89,21 +89,21 @@ type ProtoFill = Omit<RelayData, "recipient" | "outputToken"> & {
   outputToken: SvmAddress;
 };
 
-export function getSlot(provider: SVMProvider, commitment: Commitment, logger: winston.Logger): Promise<bigint> {
+export function getSlot(provider: SVMProvider, commitment: Commitment, logger?: winston.Logger): Promise<bigint> {
   return _callGetSlotWithRetry(provider, commitment, logger);
 }
 
 async function _callGetSlotWithRetry(
   provider: SVMProvider,
   commitment: Commitment,
-  logger: winston.Logger
+  logger?: winston.Logger
 ): Promise<bigint> {
   try {
     return await provider.getSlot({ commitment }).send();
   } catch (err) {
     if (isSolanaError(err)) {
       const { __code: code } = err.context;
-      logger.debug({
+      logger?.debug({
         at: "_getSlotWithRetry",
         message: "Caught error from getSlot()",
         code,
@@ -122,8 +122,8 @@ async function _callGetSlotWithRetry(
 export function getTimestampForSlot(
   provider: SVMProvider,
   slotNumber: bigint,
-  logger: winston.Logger,
-  maxRetries = 2
+  maxRetries = 2,
+  logger?: winston.Logger
 ): Promise<number | undefined> {
   return _callGetTimestampForSlotWithRetry(provider, slotNumber, 0, maxRetries, logger);
 }
@@ -133,7 +133,7 @@ async function _callGetTimestampForSlotWithRetry(
   slotNumber: bigint,
   retryAttempt: number,
   maxRetries: number,
-  logger: winston.Logger
+  logger?: winston.Logger
 ): Promise<number | undefined> {
   // @note: getBlockTime receives a slot number, not a block number.
   let _timestamp: bigint;
@@ -159,7 +159,7 @@ async function _callGetTimestampForSlotWithRetry(
         if (retryAttempt >= maxRetries) {
           throw new Error(`Timeout on SVM getBlockTime() for slot ${slot} after ${retryAttempt} retry attempts`);
         }
-        logger.debug({
+        logger?.debug({
           at: "getTimestampForSlot",
           message: `Retrying getBlockTime() after ${delaySeconds} seconds for retry attempt #${retryAttempt}`,
           slot,
@@ -172,7 +172,7 @@ async function _callGetTimestampForSlotWithRetry(
       }
 
       default:
-        logger.debug({
+        logger?.debug({
           at: "getTimestampForSlot",
           message: "Caught error from getBlockTime()",
           errorCode: code,
@@ -253,7 +253,8 @@ export async function findDeposit(
   }
 
   const provider = eventClient.getRpc();
-  const { slot: currentSlot } = await getNearestSlotTime(provider, logger);
+  const opts = undefined; // Inherit defaults
+  const { slot: currentSlot } = await getNearestSlotTime(provider, opts, logger);
 
   // If no slot is provided, use the current slot
   // If a slot is provided, ensure it's not in the future
@@ -325,7 +326,7 @@ export async function relayFillStatus(
     const commitment = "confirmed";
     const [fillStatusAccount, { slot: currentSlot, timestamp }] = await Promise.all([
       fetchEncodedAccount(provider, fillStatusPda, { commitment }),
-      getNearestSlotTime(provider, logger, { commitment }),
+      getNearestSlotTime(provider, { commitment }, logger),
     ]);
     toSlot = currentSlot;
 
@@ -407,7 +408,8 @@ export async function fillStatusArray(
   const missingResults: { index: number; fillStatus: FillStatus }[] = [];
 
   // Determine the toSlot to use for event reconstruction
-  const toSlot = atHeight ? BigInt(atHeight) : (await getNearestSlotTime(provider, logger)).slot;
+  const opts = undefined; // Inherit defaults
+  const toSlot = atHeight ? BigInt(atHeight) : (await getNearestSlotTime(provider, opts, logger)).slot;
 
   // @note: This path is mostly used for deposits past their fill deadline.
   // If it becomes a bottleneck, consider returning an "Unknown" status that can be handled downstream.
@@ -445,12 +447,13 @@ export async function findFillEvent(
   relayData: RelayData,
   destinationChainId: number,
   svmEventsClient: SvmCpiEventsClient,
-  logger: winston.Logger,
   fromSlot: number,
-  toSlot?: number
+  toSlot?: number,
+  logger?: winston.Logger
 ): Promise<FillWithBlock | undefined> {
   assert(chainIsSvm(destinationChainId), "Destination chain must be an SVM chain");
-  toSlot ??= Number((await getNearestSlotTime(svmEventsClient.getRpc(), logger)).slot);
+  const opts = undefined; // Inherit defaults
+  toSlot ??= Number((await getNearestSlotTime(svmEventsClient.getRpc(), opts, logger)).slot);
 
   // Get fillStatus PDA using relayData
   const programId = svmEventsClient.getProgramAddress();
@@ -931,7 +934,7 @@ async function fetchBatchFillStatusFromPdaAccounts(
 
   const [pdaAccounts, { timestamp }] = await Promise.all([
     Promise.all(chunk(fillStatusPdas, chunkSize).map((chunk) => fetchEncodedAccounts(provider, chunk, { commitment }))),
-    getNearestSlotTime(provider, logger, { commitment }),
+    getNearestSlotTime(provider, { commitment }, logger),
   ]);
 
   const fillStatuses = pdaAccounts.flat().map((account, index) => {
