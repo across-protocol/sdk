@@ -35,7 +35,7 @@ import {
 } from "@solana/kit";
 import assert from "assert";
 import winston from "winston";
-import { arrayify, hexlify, hexZeroPad } from "ethers/lib/utils";
+import { arrayify } from "ethers/lib/utils";
 import { CHAIN_IDs, TOKEN_SYMBOLS_MAP } from "../../constants";
 import {
   DepositWithBlock,
@@ -366,7 +366,7 @@ export async function relayFillStatus(
  */
 export async function fillStatusArray(
   programId: Address,
-  relayData: RelayData[],
+  relayData: RelayDataWithMessageHash[],
   destinationChainId: number,
   svmEventsClient: SvmCpiEventsClient,
   logger: winston.Logger,
@@ -855,38 +855,7 @@ export async function getAssociatedTokenAddress(
   return associatedToken;
 }
 
-export function getRelayDataHashWithMessageHash(
-  relayData: RelayDataWithMessageHash,
-  destinationChainId: number
-): string {
-  if (!relayData.messageHash) {
-    return getRelayDataHash(relayData, destinationChainId);
-  }
-  const addressEncoder = getAddressEncoder();
-  const uint64Encoder = getU64Encoder();
-  const uint32Encoder = getU32Encoder();
-
-  const encodeAddress = (data: SdkAddress) => Uint8Array.from(addressEncoder.encode(toAddress(data)));
-
-  const contentToHash = Buffer.concat([
-    encodeAddress(relayData.depositor),
-    encodeAddress(relayData.recipient),
-    encodeAddress(relayData.exclusiveRelayer),
-    encodeAddress(relayData.inputToken),
-    encodeAddress(relayData.outputToken),
-    arrayify(hexZeroPad(hexlify(relayData.inputAmount), 32)),
-    Uint8Array.from(uint64Encoder.encode(BigInt(relayData.outputAmount.toString()))),
-    Uint8Array.from(uint64Encoder.encode(BigInt(relayData.originChainId.toString()))),
-    arrayify(hexZeroPad(hexlify(relayData.depositId), 32)),
-    Uint8Array.from(uint32Encoder.encode(relayData.fillDeadline)),
-    Uint8Array.from(uint32Encoder.encode(relayData.exclusivityDeadline)),
-    Uint8Array.from(Buffer.from(relayData.messageHash.slice(2), "hex")),
-    Uint8Array.from(uint64Encoder.encode(BigInt(destinationChainId))),
-  ]);
-  return keccak256(contentToHash);
-}
-
-export function getRelayDataHash(relayData: RelayData, destinationChainId: number): string {
+export function getRelayDataHash(relayData: RelayDataWithMessageHash, destinationChainId: number): string {
   assert(relayData.message.startsWith("0x"), "Message must be a hex string");
   const uint64Encoder = getU64Encoder();
 
@@ -894,13 +863,16 @@ export function getRelayDataHash(relayData: RelayData, destinationChainId: numbe
   const relayDataEncoder = SvmSpokeClient.getRelayDataEncoder();
   const encodedRelayData = relayDataEncoder.encode(svmRelayData);
   const encodedMessage = Buffer.from(relayData.message.slice(2), "hex");
+  const encodedMessageHash = relayData.messageHash
+    ? Uint8Array.from(Buffer.from(relayData.messageHash.slice(2), "hex"))
+    : hashNonEmptyMessage(encodedMessage);
 
   // Reformat the encoded relay data the same way it is done in the SvmSpoke:
   // https://github.com/across-protocol/contracts/blob/3310f8dc716407a5f97ef5fd2eae63df83251f2f/programs/svm-spoke/src/utils/merkle_proof_utils.rs#L5
   const messageOffset = encodedRelayData.length - 4 - encodedMessage.length;
   const contentToHash = Buffer.concat([
     encodedRelayData.slice(0, messageOffset),
-    hashNonEmptyMessage(encodedMessage),
+    encodedMessageHash,
     Uint8Array.from(uint64Encoder.encode(BigInt(destinationChainId))),
   ]);
 
