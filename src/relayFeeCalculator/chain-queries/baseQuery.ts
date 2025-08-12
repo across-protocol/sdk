@@ -3,7 +3,7 @@ import { isL2Provider as isOptimismL2Provider } from "@eth-optimism/sdk/dist/l2-
 import { PopulatedTransaction, providers, VoidSigner } from "ethers";
 import { Coingecko } from "../../coingecko";
 import { CHAIN_IDs } from "../../constants";
-import { RelayData, RelayDataWithMessageHash } from "../../interfaces";
+import { RelayData } from "../../interfaces";
 import { SpokePool, SpokePool__factory } from "../../typechain";
 import { populateV3Relay } from "../../arch/evm";
 import {
@@ -72,7 +72,7 @@ export class QueryBase implements QueryInterface {
    * @returns The gas estimate for this function call (multiplied with the optional buffer).
    */
   async getGasCosts(
-    relayData: RelayDataWithMessageHash & { destinationChainId: number },
+    relayData: RelayData & { destinationChainId: number },
     relayer = getDefaultRelayer(relayData.destinationChainId),
     options: Partial<{
       gasPrice: BigNumberish;
@@ -144,7 +144,7 @@ export class QueryBase implements QueryInterface {
    * @returns Estimated gas cost based on ethers.VoidSigner's gas estimation
    */
   async getNativeGasCost(
-    relayData: RelayDataWithMessageHash & { destinationChainId: number },
+    relayData: RelayData & { destinationChainId: number },
     relayer = getDefaultRelayer(relayData.destinationChainId)
   ): Promise<BigNumber> {
     const { recipient, outputToken, exclusiveRelayer } = relayData;

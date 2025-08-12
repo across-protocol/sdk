@@ -6,7 +6,6 @@ import {
   FillStatus,
   FillWithBlock,
   RelayData,
-  RelayDataWithMessageHash,
   RelayExecutionEventInfo,
   SpeedUpCommon,
 } from "../../interfaces";
@@ -191,7 +190,7 @@ export async function findDepositBlock(
  */
 export async function relayFillStatus(
   spokePool: Contract,
-  relayData: RelayDataWithMessageHash,
+  relayData: RelayData,
   blockTag: BlockTag = "latest",
   destinationChainId?: number
 ): Promise<FillStatus> {
@@ -214,7 +213,7 @@ export async function relayFillStatus(
 
 export async function fillStatusArray(
   spokePool: Contract,
-  relayData: RelayDataWithMessageHash[],
+  relayData: RelayData[],
   blockTag: BlockTag = "latest"
 ): Promise<(FillStatus | undefined)[]> {
   const fillStatuses = "fillStatuses";
@@ -259,7 +258,7 @@ export async function fillStatusArray(
  */
 export async function findFillBlock(
   spokePool: Contract,
-  relayData: RelayDataWithMessageHash,
+  relayData: RelayData,
   lowBlockNumber: number,
   highBlockNumber?: number
 ): Promise<number | undefined> {
@@ -314,7 +313,7 @@ export async function findFillBlock(
 
 export async function findFillEvent(
   spokePool: Contract,
-  relayData: RelayDataWithMessageHash,
+  relayData: RelayData,
   lowBlockNumber: number,
   highBlockNumber?: number
 ): Promise<FillWithBlock | undefined> {

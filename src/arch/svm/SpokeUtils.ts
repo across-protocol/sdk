@@ -91,7 +91,7 @@ import {
  */
 export const SLOT_DURATION_MS = 400;
 
-type ProtoFill = Omit<RelayDataWithMessageHash, "recipient" | "outputToken"> & {
+type ProtoFill = Omit<RelayData, "recipient" | "outputToken"> & {
   destinationChainId: number;
   recipient: SvmAddress;
   outputToken: SvmAddress;
@@ -531,7 +531,7 @@ export async function fillRelayInstruction(
     `Invalid repayment address for chain ${repaymentChainId}: ${repaymentAddress.toNative()}.`
   );
 
-  const messageHash = relayData.messageHash ?? getMessageHash(relayData.message);
+  const messageHash = getMessageHash(relayData.message);
   const _relayDataHash = getRelayDataHash({ ...relayData, messageHash }, relayData.destinationChainId);
   const relayDataHash = new Uint8Array(Buffer.from(_relayDataHash.slice(2), "hex"));
 
@@ -591,7 +591,7 @@ export function createTokenAccountsInstruction(
 export async function getFillRelayTx(
   spokePoolAddr: SvmAddress,
   solanaClient: SVMProvider,
-  relayData: Omit<RelayDataWithMessageHash, "recipient" | "outputToken"> & {
+  relayData: Omit<RelayData, "recipient" | "outputToken"> & {
     destinationChainId: number;
     recipient: SvmAddress;
     outputToken: SvmAddress;
@@ -608,7 +608,7 @@ export async function getFillRelayTx(
   );
 
   const program = toAddress(spokePoolAddr);
-  const messageHash = relayData.messageHash ?? getMessageHash(relayData.message);
+  const messageHash = getMessageHash(relayData.message);
   const _relayDataHash = getRelayDataHash({ ...relayData, messageHash }, relayData.destinationChainId);
   const relayDataHash = new Uint8Array(Buffer.from(_relayDataHash.slice(2), "hex"));
 
@@ -779,7 +779,7 @@ export const createRequestSlowFillInstruction = async (
 export async function getSlowFillRequestTx(
   spokePoolAddr: SvmAddress,
   solanaClient: SVMProvider,
-  relayData: Omit<RelayDataWithMessageHash, "recipient" | "outputToken"> & {
+  relayData: Omit<RelayData, "recipient" | "outputToken"> & {
     destinationChainId: number;
     recipient: SvmAddress;
     outputToken: SvmAddress;
@@ -787,7 +787,7 @@ export async function getSlowFillRequestTx(
   signer: TransactionSigner
 ) {
   const program = toAddress(spokePoolAddr);
-  const messageHash = relayData.messageHash ?? getMessageHash(relayData.message);
+  const messageHash = getMessageHash(relayData.message);
   const relayDataHash = getRelayDataHash({ ...relayData, messageHash }, relayData.destinationChainId);
 
   const [state, fillStatus, eventAuthority] = await Promise.all([
@@ -867,6 +867,8 @@ export function getRelayDataHash(
 
   const uint64Encoder = getU64Encoder();
 
+  // We need to pass a message to the toSvmRelayData function.
+  // But, because we can construct the relayDataHash from the messageHash, we can pass a empty message here.
   const svmRelayData = toSvmRelayData({ ...relayData, message: "0x" });
   const relayDataEncoder = SvmSpokeClient.getRelayDataEncoder();
   const encodedRelayData = relayDataEncoder.encode(svmRelayData);
