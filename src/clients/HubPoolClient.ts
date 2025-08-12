@@ -76,17 +76,11 @@ type HubPoolEvent =
   | "RootBundleExecuted"
   | "CrossChainContractsSet";
 
-type L1TokensToDestinationTokens = {
-  [l1Token: string]: { [destinationChainId: number]: Address };
-};
-
 export type LpFeeRequest = Pick<Deposit, "originChainId" | "inputToken" | "inputAmount" | "quoteTimestamp"> & {
   paymentChainId?: number;
 };
 
 export class HubPoolClient extends BaseAbstractClient {
-  // L1Token -> destinationChainId -> destinationToken
-  protected l1TokensToDestinationTokens: L1TokensToDestinationTokens = {};
   protected l1Tokens: L1TokenInfo[] = []; // L1Tokens and their associated info.
   // @dev `token` here is a 20-byte hex sting
   protected lpTokens: { [token: string]: LpToken } = {};
@@ -262,7 +256,7 @@ export class HubPoolClient extends BaseAbstractClient {
   }
 
   l2TokenEnabledForL1Token(l1Token: EvmAddress, destinationChainId: number): boolean {
-    return this.l1TokensToDestinationTokens?.[l1Token.toEvmAddress()]?.[destinationChainId] != undefined;
+    return this.l2TokenEnabledForL1TokenAtBlock(l1Token, destinationChainId, Number.MAX_SAFE_INTEGER);
   }
 
   l2TokenEnabledForL1TokenAtBlock(l1Token: EvmAddress, destinationChainId: number, hubBlockNumber: number): boolean {
@@ -1014,14 +1008,6 @@ export class HubPoolClient extends BaseAbstractClient {
             },
           ]
         );
-
-        // If the destination token is set to the zero address in an event, then this means Across should no longer
-        // rebalance to this chain.
-        if (!destinationToken.isZeroAddress()) {
-          assign(this.l1TokensToDestinationTokens, [args.l1Token, args.destinationChainId], destinationToken);
-        } else {
-          deleteFromJson(this.l1TokensToDestinationTokens, [args.l1Token, args.destinationChainId]);
-        }
       }
     }
 
