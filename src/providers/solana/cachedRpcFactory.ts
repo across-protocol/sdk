@@ -30,13 +30,13 @@ export class CachedSolanaRpcFactory extends SolanaClusterRpcFactory {
   protected retryRpcClient: RpcFromTransport<SolanaRpcApiFromTransport<RpcTransport>, RpcTransport>;
 
   // Cached latest finalized slot and its publish timestamp.
-  latestFinalizedSlot: number = Number.MAX_SAFE_INTEGER;
-  publishTimestampLatestFinalizedSlot: number = 0;
+  latestFinalizedSlot = Number.MAX_SAFE_INTEGER;
+  publishTimestampLatestFinalizedSlot = 0;
   maxAgeLatestFinalizedSlot = 1000 * BLOCK_NUMBER_TTL;
 
   // Cached latest confirmed slot and its publish timestamp.
-  latestConfirmedSlot: number = Number.MAX_SAFE_INTEGER;
-  publishTimestampLatestConfirmedSlot: number = 0;
+  latestConfirmedSlot = Number.MAX_SAFE_INTEGER;
+  publishTimestampLatestConfirmedSlot = 0;
   maxAgeLatestConfirmedSlot = 1000 * BLOCK_NUMBER_TTL;
 
   constructor(
