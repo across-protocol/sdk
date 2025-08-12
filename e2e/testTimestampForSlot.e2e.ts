@@ -6,6 +6,7 @@ import winston from "winston";
 import { ClusterUrl } from "@solana/kit";
 import { getNearestSlotTime } from "../src/arch/svm/utils";
 import { QuorumFallbackSolanaRpcFactory, CachedSolanaRpcFactory } from "../src/providers";
+import { MemoryCacheClient } from "../src/caching/Memory";
 
 /**
  * USAGE EXAMPLES:
@@ -62,7 +63,7 @@ async function testNearestSlotTime(
   const startTime = Date.now();
 
   try {
-    const { slot, timestamp } = await getNearestSlotTime(rpcClient, logger);
+    const { slot, timestamp } = await getNearestSlotTime(rpcClient, { commitment: "confirmed" }, logger);
     const elapsedTime = Date.now() - startTime;
 
     console.log(`✅ Slot ${slot} -> ${timestamp} (${new Date(timestamp * 1000).toISOString()}) (${elapsedTime}ms)`);
@@ -100,11 +101,12 @@ async function runTest(options: TestOptions) {
 
   // Create the RPC factory
   const allEndpoints = [options.endpoint, ...options.fallbackEndpoints];
+  const memoryCache = new MemoryCacheClient();
   const factoryParams = allEndpoints.map(
     (endpoint) =>
       [
         "test-timestamp-for-slot",
-        undefined, // redisClient
+        memoryCache, // redisClient
         options.retries,
         options.retryDelay,
         10, // maxConcurrency
