@@ -14,7 +14,7 @@ import { Address, BigNumber, BigNumberish, SvmAddress, TransactionCostEstimate, 
 import { Logger, QueryInterface, getDefaultRelayer } from "../relayFeeCalculator";
 import { SymbolMappingType } from "./";
 import { TOKEN_PROGRAM_ADDRESS } from "@solana-program/token";
-import { TOKEN_2022_PROGRAM_ADDRESS, getTokenSize, fetchMint } from "@solana-program/token-2022";
+import { TOKEN_2022_PROGRAM_ADDRESS, getTokenSize, fetchMint, Extension } from "@solana-program/token-2022";
 
 /**
  * A special QueryBase implementation for SVM used for querying gas costs, token prices, and decimals of various tokens
@@ -113,7 +113,7 @@ export class SvmQuery implements QueryInterface {
     // If the ATA does not exist, we need to factor the rent amount into the token gas cost.
     if (!encodedAta.exists) {
       // If the ATA is a non-2022 token, then it will always have a fixed size of 165.
-      let extensions = undefined;
+      let extensions: Extension[] | undefined = undefined;
       if (tokenOwner === TOKEN_2022_PROGRAM_ADDRESS) {
         const mint = await fetchMint(this.provider, toAddress(outputToken));
         extensions = isSome(mint.data.extensions) ? mint.data.extensions.value : undefined;
