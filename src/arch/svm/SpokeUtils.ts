@@ -315,7 +315,7 @@ export async function findDeposit(
  */
 export async function relayFillStatus(
   programId: Address,
-  relayData: RelayData,
+  relayData: RelayDataWithMessageHash,
   destinationChainId: number,
   svmEventsClient: SvmCpiEventsClient,
   logger: winston.Logger,

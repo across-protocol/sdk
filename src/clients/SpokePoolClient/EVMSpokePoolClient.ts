@@ -7,7 +7,7 @@ import {
   relayFillStatus,
   getTimestampForBlock as _getTimestampForBlock,
 } from "../../arch/evm";
-import { DepositWithBlock, FillStatus, RelayData } from "../../interfaces";
+import { DepositWithBlock, FillStatus, RelayData, RelayDataWithMessageHash } from "../../interfaces";
 import {
   BigNumber,
   DepositSearchResult,
@@ -48,7 +48,7 @@ export class EVMSpokePoolClient extends SpokePoolClient {
     this.spokePoolAddress = EvmAddress.from(spokePool.address);
   }
 
-  public override relayFillStatus(relayData: RelayData, atHeight?: number): Promise<FillStatus> {
+  public override relayFillStatus(relayData: RelayDataWithMessageHash, atHeight?: number): Promise<FillStatus> {
     return relayFillStatus(this.spokePool, relayData, atHeight, this.chainId);
   }
 
