@@ -33,9 +33,9 @@ function estimateBlocksElapsed(seconds: number, cushionPercentage = 0.0, _provid
 
 export class SVMBlockFinder extends BlockFinder<SVMBlock> {
   constructor(
-    private readonly logger: winston.Logger,
     private readonly provider: SVMProvider,
-    private readonly blocks: SVMBlock[] = []
+    private readonly blocks: SVMBlock[] = [],
+    private readonly logger?: winston.Logger,
   ) {
     super();
   }
