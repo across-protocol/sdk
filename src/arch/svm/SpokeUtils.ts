@@ -253,7 +253,7 @@ export async function findDeposit(
   }
 
   const provider = eventClient.getRpc();
-  const opts = undefined; // Inherit defaults
+  const opts = undefined;
   const { slot: currentSlot } = await getNearestSlotTime(provider, opts, logger);
 
   // If no slot is provided, use the current slot
@@ -408,7 +408,7 @@ export async function fillStatusArray(
   const missingResults: { index: number; fillStatus: FillStatus }[] = [];
 
   // Determine the toSlot to use for event reconstruction
-  const opts = undefined; // Inherit defaults
+  const opts = undefined;
   const toSlot = atHeight ? BigInt(atHeight) : (await getNearestSlotTime(provider, opts, logger)).slot;
 
   // @note: This path is mostly used for deposits past their fill deadline.
@@ -452,7 +452,7 @@ export async function findFillEvent(
   logger?: winston.Logger
 ): Promise<FillWithBlock | undefined> {
   assert(chainIsSvm(destinationChainId), "Destination chain must be an SVM chain");
-  const opts = undefined; // Inherit defaults
+  const opts = undefined;
   toSlot ??= Number((await getNearestSlotTime(svmEventsClient.getRpc(), opts, logger)).slot);
 
   // Get fillStatus PDA using relayData

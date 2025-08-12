@@ -69,7 +69,7 @@ export function toAddress(address: SdkAddress): Address<string> {
 export async function getNearestSlotTime(
   provider: SVMProvider,
   opts: { slot: bigint } | { commitment: Commitment } = { commitment: "confirmed" },
-  logger?: winston.Logger,
+  logger?: winston.Logger
 ): Promise<{ slot: bigint; timestamp: number }> {
   let timestamp: number | undefined;
   let slot = "slot" in opts ? opts.slot : await getSlot(provider, opts.commitment, logger);
