@@ -69,10 +69,14 @@ export class CachedSolanaRpcFactory extends SolanaClusterRpcFactory {
         return this.retryTransport<TResponse>(...args);
       }
 
-      const [latestFinalizedSlot, latestConfirmedSlot] = await Promise.all([
+      let latestFinalizedSlot = 0;
+      let latestConfirmedSlot = 0;
+      if (method === "getBlockTime") {
+      [latestFinalizedSlot, latestConfirmedSlot] = await Promise.all([
         this.getLatestFinalizedSlot(),
         this.getLatestConfirmedSlot(),
       ]);
+    }
 
       const cacheType = this.cacheType(method, params ?? [], latestFinalizedSlot, latestConfirmedSlot);
 
@@ -196,9 +200,9 @@ export class CachedSolanaRpcFactory extends SolanaClusterRpcFactory {
 
   private cacheType(
     method: string,
-    params: unknown[],
-    latestFinalizedSlot: number,
-    latestConfirmedSlot: number
+    params: unknown[] = [],
+    latestFinalizedSlot = 0,
+    latestConfirmedSlot = 0
   ): CacheType {
     if (method === "getBlockTime") {
       const targetSlot = (params as Parameters<GetBlockTimeApi["getBlockTime"]>)[0];
