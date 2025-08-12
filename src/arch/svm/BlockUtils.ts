@@ -35,7 +35,7 @@ export class SVMBlockFinder extends BlockFinder<SVMBlock> {
   constructor(
     private readonly provider: SVMProvider,
     private readonly blocks: SVMBlock[] = [],
-    private readonly logger?: winston.Logger,
+    private readonly logger?: winston.Logger
   ) {
     super();
   }
