@@ -857,6 +857,10 @@ export async function getAssociatedTokenAddress(
 
 export function getRelayDataHash(relayData: RelayDataWithMessageHash, destinationChainId: number): string {
   assert(relayData.message.startsWith("0x"), "Message must be a hex string");
+  if (relayData.messageHash) {
+    assert(relayData.messageHash.startsWith("0x"), "Message hash must be a hex string");
+  }
+
   const uint64Encoder = getU64Encoder();
 
   const svmRelayData = toSvmRelayData(relayData);
