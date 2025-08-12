@@ -431,8 +431,9 @@ export const simulateAndDecode = async <P extends (buf: Buffer) => unknown>(
         await signTransactionMessageWithSigners(simulationTx as unknown as CompilableTransactionMessageWithSigners)
       ),
       {
-      encoding: "base64",
-    })
+        encoding: "base64",
+      }
+    )
     .send();
 
   if (!simulationResult.value.returnData?.data[0]) {

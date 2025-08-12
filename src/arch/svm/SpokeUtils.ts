@@ -81,7 +81,6 @@ import {
 } from "./utils";
 export type CompilableTransactionMessageWithSigners = CompilableTransactionMessage & TransactionMessageWithSigners;
 
-
 /**
  * @note: Average Solana slot duration is about 400-500ms. We can be conservative
  *        and choose 400 to ensure that the most slots get included in our ranges
@@ -548,9 +547,9 @@ export async function fillRelayInstruction(
 
   const svmRelayData = toSvmRelayData(relayData);
   return SvmSpokeClient.getFillRelayInstruction({
-      // @ts-expect-error Address types mismatch between installed versions of @solana/addresses
+    // @ts-expect-error Address types mismatch between installed versions of @solana/addresses
     signer,
-      // @ts-expect-error Address types mismatch between installed versions of @solana/addresses
+    // @ts-expect-error Address types mismatch between installed versions of @solana/addresses
 
     state: statePda,
     // @ts-expect-error Address types mismatch between installed versions of @solana/addresses
@@ -898,12 +897,12 @@ export const createReceiveMessageInstruction = async (
 export async function getAssociatedTokenAddress(
   owner: SvmAddress,
   mint: SvmAddress,
-   // @ts-expect-error Address types mismatch between installed versions of @solana/addresses
+  // @ts-expect-error Address types mismatch between installed versions of @solana/addresses
   tokenProgramId: Address<string> = TOKEN_PROGRAM_ADDRESS
 ): Promise<Address<string>> {
   const encoder = getAddressEncoder();
   const [associatedToken] = await getProgramDerivedAddress({
-     // @ts-expect-error Address types mismatch between installed versions of @solana/addresses
+    // @ts-expect-error Address types mismatch between installed versions of @solana/addresses
     programAddress: ASSOCIATED_TOKEN_PROGRAM_ADDRESS,
     seeds: [encoder.encode(toAddress(owner)), encoder.encode(tokenProgramId), encoder.encode(toAddress(mint))],
   });
@@ -1437,7 +1436,9 @@ export function finalizeCCTPV1Messages(
     if (simulate) {
       const result = await solanaClient
         .simulateTransaction(
-          getBase64EncodedWireTransaction(await signTransactionMessageWithSigners(receiveMessageIx as CompilableTransactionMessageWithSigners)),
+          getBase64EncodedWireTransaction(
+            await signTransactionMessageWithSigners(receiveMessageIx as CompilableTransactionMessageWithSigners)
+          ),
           {
             encoding: "base64",
           }
@@ -1449,7 +1450,9 @@ export function finalizeCCTPV1Messages(
       return "";
     }
 
-    const signedTransaction = await signTransactionMessageWithSigners(receiveMessageIx as CompilableTransactionMessageWithSigners);
+    const signedTransaction = await signTransactionMessageWithSigners(
+      receiveMessageIx as CompilableTransactionMessageWithSigners
+    );
     const signature = getSignatureFromTransaction(signedTransaction);
     const encodedTransaction = getBase64EncodedWireTransaction(signedTransaction);
     await solanaClient
