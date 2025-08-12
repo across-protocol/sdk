@@ -45,18 +45,21 @@ export function getRefundInformationFromFill(
 
   // Now figure out the equivalent L2 token for the repayment token. If the inputToken doesn't have a
   // PoolRebalanceRoute, then the repayment chain would have been the originChainId after the getRepaymentChainId()
-  // call and we would have returned already, so the following call should always succeed and we can safely cast.
+  // call and we would have returned already, so the following call should always return a valid L1 token.
   const l1TokenCounterpart = hubPoolClient.getL1TokenForL2TokenAtBlock(
     relayData.inputToken,
     relayData.originChainId,
     bundleEndBlockForMainnet
-  ) as EvmAddress;
+  );
+
+  assert(isDefined(l1TokenCounterpart), "getRefundInformationFromFill: l1TokenCounterpart is undefined");
 
   const repaymentToken = hubPoolClient.getL2TokenForL1TokenAtBlock(
     l1TokenCounterpart,
     chainToSendRefundTo,
     bundleEndBlockForMainnet
-  ) as Address;
+  );
+  assert(isDefined(repaymentToken), "getRefundInformationFromFill: repaymentToken is undefined");
 
   return {
     chainToSendRefundTo,
