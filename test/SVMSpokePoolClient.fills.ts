@@ -96,13 +96,16 @@ describe("SVMSpokePoolClient: Fills", function () {
     await mintTokens(signer, solanaClient, mint.address, BigInt(relayData.outputAmount));
     await sendCreateFill(solanaClient, signer, mint, decimals, relayData);
 
+    const { spyLogger: logger } = createSpyLogger();
+
     // Look for the fill event:
     let fill = await findFillEvent(
       formattedRelayData,
       CHAIN_IDs.SOLANA,
       spokePoolClient.svmEventsClient,
-      createSpyLogger().spyLogger,
-      spokePoolClient.deploymentBlock
+      spokePoolClient.deploymentBlock,
+      undefined,
+      logger
     );
     expect(fill).to.not.be.undefined;
     fill = fill!;
@@ -114,8 +117,9 @@ describe("SVMSpokePoolClient: Fills", function () {
       { ...formattedRelayData, depositId: BigNumber.from(depositId + 1) },
       CHAIN_IDs.SOLANA,
       spokePoolClient.svmEventsClient,
-      createSpyLogger().spyLogger,
-      spokePoolClient.deploymentBlock
+      spokePoolClient.deploymentBlock,
+      undefined,
+      logger
     );
     expect(missingFill).to.be.undefined;
   });
