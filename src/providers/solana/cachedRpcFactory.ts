@@ -72,11 +72,11 @@ export class CachedSolanaRpcFactory extends SolanaClusterRpcFactory {
       let latestFinalizedSlot = 0;
       let latestConfirmedSlot = 0;
       if (method === "getBlockTime") {
-      [latestFinalizedSlot, latestConfirmedSlot] = await Promise.all([
-        this.getLatestFinalizedSlot(),
-        this.getLatestConfirmedSlot(),
-      ]);
-    }
+        [latestFinalizedSlot, latestConfirmedSlot] = await Promise.all([
+          this.getLatestFinalizedSlot(),
+          this.getLatestConfirmedSlot(),
+        ]);
+      }
 
       const cacheType = this.cacheType(method, params ?? [], latestFinalizedSlot, latestConfirmedSlot);
 
