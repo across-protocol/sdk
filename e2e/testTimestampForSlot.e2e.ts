@@ -62,7 +62,7 @@ async function testNearestSlotTime(
   const startTime = Date.now();
 
   try {
-    const { slot, timestamp } = await getNearestSlotTime(rpcClient, logger);
+    const { slot, timestamp } = await getNearestSlotTime(rpcClient, { commitment: "confirmed" }, logger);
     const elapsedTime = Date.now() - startTime;
 
     console.log(`✅ Slot ${slot} -> ${timestamp} (${new Date(timestamp * 1000).toISOString()}) (${elapsedTime}ms)`);
