@@ -18,6 +18,7 @@ import {
   count2DDictionaryValues,
   count3DDictionaryValues,
   toAddressType,
+  isDefined,
 } from "../../../utils";
 import {
   addLastRunningBalance,
@@ -187,9 +188,9 @@ export function _buildPoolRebalanceRoot(
           destinationChainId,
           mainnetBundleEndBlock
         );
-        if (!l1TokenCounterpart) {
-          return;
-        }
+
+        assert(isDefined(l1TokenCounterpart), "getRefundInformationFromFill: l1TokenCounterpart is undefined");
+
         const lpFee = deposit.lpFeePct.mul(deposit.inputAmount).div(fixedPointAdjustment);
         updateRunningBalance(
           runningBalances,
@@ -219,9 +220,8 @@ export function _buildPoolRebalanceRoot(
           destinationChainId,
           mainnetBundleEndBlock
         );
-        if (!l1TokenCounterpart) {
-          return;
-        }
+        assert(isDefined(l1TokenCounterpart), "getRefundInformationFromFill: l1TokenCounterpart is undefined");
+
         const lpFee = deposit.lpFeePct.mul(deposit.inputAmount).div(fixedPointAdjustment);
         updateRunningBalance(
           runningBalances,
