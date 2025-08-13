@@ -68,14 +68,15 @@ export function toAddress(address: SdkAddress): Address<string> {
  */
 export async function getNearestSlotTime(
   provider: SVMProvider,
-  logger: winston.Logger,
-  opts: { slot: bigint } | { commitment: Commitment } = { commitment: "confirmed" }
+  opts: { slot: bigint } | { commitment: Commitment } = { commitment: "confirmed" },
+  logger?: winston.Logger
 ): Promise<{ slot: bigint; timestamp: number }> {
   let timestamp: number | undefined;
   let slot = "slot" in opts ? opts.slot : await getSlot(provider, opts.commitment, logger);
+  const maxRetries = undefined; // Inherit defaults
 
   do {
-    timestamp = await getTimestampForSlot(provider, slot, logger);
+    timestamp = await getTimestampForSlot(provider, slot, maxRetries, logger);
   } while (!isDefined(timestamp) && --slot);
   assert(isDefined(timestamp), `Unable to resolve block time for SVM slot ${slot}`);
 
@@ -94,7 +95,7 @@ export async function getLatestFinalizedSlotWithBlock(
   maxLookback = 1000
 ): Promise<number> {
   const opts = { maxSupportedTransactionVersion: 0, transactionDetails: "none", rewards: false } as const;
-  const { slot: finalizedSlot } = await getNearestSlotTime(provider, logger, { commitment: "finalized" });
+  const { slot: finalizedSlot } = await getNearestSlotTime(provider, { commitment: "finalized" }, logger);
   const endSlot = biMin(maxSlot, finalizedSlot);
 
   let slot = endSlot;

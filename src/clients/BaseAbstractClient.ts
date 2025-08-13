@@ -89,7 +89,8 @@ export abstract class BaseAbstractClient {
         throw new Error(`Invalid event search config from (${from}) > to (${to})`);
       }
     } else {
-      const { slot } = await getNearestSlotTime(provider, logger);
+      const opts = undefined; // Inherit defaults
+      const { slot } = await getNearestSlotTime(provider, opts, logger);
       to = Number(slot);
       if (to < from) {
         return UpdateFailureReason.AlreadyUpdated;
