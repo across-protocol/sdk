@@ -1,7 +1,9 @@
 import { ethers } from "ethers";
 import { PUBLIC_NETWORKS } from "../constants";
-import { createShortHexString } from "./FormattingUtils";
+import { createShortenedString } from "./FormattingUtils";
+import { chainIsEvm } from "./NetworkUtils";
 import { isDefined } from "./TypeGuards";
+import bs58 from "bs58";
 
 /**
  * Creates a block explorer link for a transaction or address on a given network.
@@ -49,32 +51,37 @@ function constructURL(domain: string, parts: string[]): string {
  * @param chainId The chainId to link to.
  * @returns A formatted markdown block explorer link to the given transaction hash or address on the given chainId.
  */
-function _createBlockExplorerLinkMarkdown(hex: string, chainId = 1): string | null {
+function _createBlockExplorerLinkMarkdown(addr: string, chainId = 1): string | null {
   // Attempt to resolve the block explorer domain for the given chainId.
   const explorerDomain = resolveBlockExplorerDomain(chainId);
   // If the chainId is not supported, return an unsupported link.
   if (!isDefined(explorerDomain)) {
-    return `<unsupported chain/hash ${chainId}:${hex}>}`;
+    return `<unsupported chain/hash ${chainId}:${addr}>}`;
   }
   // Ensure that the first two characters are "0x". If they are not, append them.
-  if (hex.substring(0, 2) !== "0x") {
-    hex = `0x${hex}`;
-  }
-  // Ensure that the hex string is a valid hexadecimal string.
-  if (!ethers.utils.isHexString(hex)) {
-    return null;
+  if (addr.substring(0, 2) !== "0x" && chainIsEvm(chainId)) {
+    addr = `0x${addr}`;
+    if (!ethers.utils.isHexString(addr)) {
+      return null;
+    }
   }
   // Resolve the short URL string.
-  const shortURLString = createShortHexString(hex);
-  // Iterate over the two possible hex lengths.
-  for (const [length, route] of [
-    [66, "tx"],
-    [42, "address"],
-  ] as [number, string][]) {
-    // If the hex string is the correct length, return the link.
-    if (hex.length === length) {
-      return `<${constructURL(explorerDomain, [route, hex])} | ${shortURLString}>`;
+  const shortURLString = createShortenedString(addr);
+  if (chainIsEvm(chainId)) {
+    // Iterate over the two possible addr lengths.
+    for (const [length, route] of [
+      [66, "tx"],
+      [42, "address"],
+    ] as [number, string][]) {
+      // If the hex string is the correct length, return the link.
+      if (addr.length === length) {
+        return `<${constructURL(explorerDomain, [route, addr])} | ${shortURLString}>`;
+      }
     }
+  } else {
+    const addrLength = bs58.decode(addr).length;
+    const route = addrLength === 32 ? "address" : "tx";
+    return `<${constructURL(explorerDomain, [route, addr])} | ${shortURLString}>`;
   }
   return null;
 }
