@@ -80,7 +80,7 @@ function _createBlockExplorerLinkMarkdown(addr: string, chainId = 1): string | n
     }
   } else {
     const addrLength = bs58.decode(addr).length;
-    const route = addrLength === 32 ? "address" : "tx";
+    const route = addrLength === 32 ? "account" : "tx";
     return `<${constructURL(explorerDomain, [route, addr])} | ${shortURLString}>`;
   }
   return null;
