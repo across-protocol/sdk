@@ -10,7 +10,7 @@
     "src"
   ],
   "engines": {
-    "node": ">=20.19.2"
+    "node": ">=22.16"
   },
   "scripts": {
     "build-bigint-buffer": "node scripts/build-bigint-buffer.js",
@@ -117,6 +117,7 @@
     "@solana/kit": "^2.1.0",
     "@solana/web3.js": "^1.31.0",
     "@types/mocha": "^10.0.1",
+    "@types/node": "^24.2.1",
     "@uma/sdk": "^0.34.10",
     "arweave": "^1.14.4",
     "async": "^3.2.5",
