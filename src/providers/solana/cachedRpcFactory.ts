@@ -29,11 +29,6 @@ export class CachedSolanaRpcFactory extends SolanaClusterRpcFactory {
   // RPC client based on the retry transport, used internally to check confirmation status.
   protected retryRpcClient: RpcFromTransport<SolanaRpcApiFromTransport<RpcTransport>, RpcTransport>;
 
-  // Cached latest finalized slot and its publish timestamp.
-  latestFinalizedSlot = Number.MAX_SAFE_INTEGER;
-  publishTimestampLatestFinalizedSlot = 0;
-  maxAgeLatestFinalizedSlot = 1000 * BLOCK_NUMBER_TTL;
-
   // Cached latest confirmed slot and its publish timestamp.
   latestConfirmedSlot = Number.MAX_SAFE_INTEGER;
   publishTimestampLatestConfirmedSlot = 0;
@@ -69,16 +64,12 @@ export class CachedSolanaRpcFactory extends SolanaClusterRpcFactory {
         return this.retryTransport<TResponse>(...args);
       }
 
-      let latestFinalizedSlot = 0;
       let latestConfirmedSlot = 0;
       if (method === "getBlockTime") {
-        [latestFinalizedSlot, latestConfirmedSlot] = await Promise.all([
-          this.getLatestFinalizedSlot(),
-          this.getLatestConfirmedSlot(),
-        ]);
+        latestConfirmedSlot = await this.getLatestConfirmedSlot();
       }
 
-      const cacheType = this.cacheType(method, params ?? [], latestFinalizedSlot, latestConfirmedSlot);
+      const cacheType = this.cacheType(method, params ?? [], latestConfirmedSlot);
 
       if (cacheType === CacheType.NONE) {
         return this.retryTransport<TResponse>(...args);
@@ -99,31 +90,18 @@ export class CachedSolanaRpcFactory extends SolanaClusterRpcFactory {
     };
   }
 
-  private async getLatestFinalizedSlot(): Promise<number> {
-    const fetchLatestFinalizedSlot = async () => {
-      return await this.retryRpcClient.getSlot({ commitment: "finalized" }).send();
-    };
-    if (this.latestFinalizedSlot === Number.MAX_SAFE_INTEGER) {
-      this.latestFinalizedSlot = Number(await fetchLatestFinalizedSlot());
-      this.publishTimestampLatestFinalizedSlot = Date.now();
-      return this.latestFinalizedSlot;
-    }
-    if (Date.now() - this.publishTimestampLatestFinalizedSlot > this.maxAgeLatestFinalizedSlot) {
-      this.latestFinalizedSlot = Number(await fetchLatestFinalizedSlot());
-      this.publishTimestampLatestFinalizedSlot = Date.now();
-    }
-    return this.latestFinalizedSlot;
-  }
-
   private async getLatestConfirmedSlot(): Promise<number> {
     const fetchLatestConfirmedSlot = async () => {
       return await this.retryRpcClient.getSlot({ commitment: "confirmed" }).send();
     };
+    // If first time fetching, always get and set the latest confirmed slot.
     if (this.latestConfirmedSlot === Number.MAX_SAFE_INTEGER) {
       this.latestConfirmedSlot = Number(await fetchLatestConfirmedSlot());
       this.publishTimestampLatestConfirmedSlot = Date.now();
       return this.latestConfirmedSlot;
     }
+    // If the last time we set the latest confirmed slot was more than maxAgeLatestConfirmedSlot ago,
+    // reset the latest confirmed slot.
     if (Date.now() - this.publishTimestampLatestConfirmedSlot > this.maxAgeLatestConfirmedSlot) {
       this.latestConfirmedSlot = Number(await fetchLatestConfirmedSlot());
       this.publishTimestampLatestConfirmedSlot = Date.now();
@@ -176,9 +154,9 @@ export class CachedSolanaRpcFactory extends SolanaClusterRpcFactory {
       return response;
     }
 
-    // Cache the transaction JSON-RPC response as we checked the transaction is finalized and not an error.
+    // Cache the transaction JSON-RPC response as we checked the response data is mature enough and not an error.
     const redisKey = this.buildRedisKey(method, params);
-    // Apply a random margin to spread expiry over a larger time window.
+    // Apply a random margin to the standard TTL time to spread expiry over a larger time window.
     const standardTtl = this.baseTTL + Math.ceil(random(-ttl_modifier, ttl_modifier, true) * this.baseTTL);
     const ttl = cacheType === CacheType.WITH_TTL ? standardTtl : Number.POSITIVE_INFINITY;
     await this.redisClient?.set(redisKey, JSON.stringify(response, jsonReplacerWithBigInts), ttl);
@@ -198,17 +176,10 @@ export class CachedSolanaRpcFactory extends SolanaClusterRpcFactory {
     }
   }
 
-  private cacheType(
-    method: string,
-    params: unknown[] = [],
-    latestFinalizedSlot = 0,
-    latestConfirmedSlot = 0
-  ): CacheType {
+  private cacheType(method: string, params: unknown[] = [], latestConfirmedSlot = 0): CacheType {
     if (method === "getBlockTime") {
       const targetSlot = (params as Parameters<GetBlockTimeApi["getBlockTime"]>)[0];
-      if (targetSlot <= latestFinalizedSlot) {
-        return CacheType.NO_TTL;
-      } else if (targetSlot > latestFinalizedSlot && targetSlot <= latestConfirmedSlot) {
+      if (targetSlot <= latestConfirmedSlot) {
         return CacheType.WITH_TTL;
       } else {
         return CacheType.NONE;
