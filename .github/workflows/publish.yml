@@ -27,6 +27,8 @@ jobs:
 
       # Perform installs, run tests, run a build step, etc. here, as needed.
       - run: yarn
+        with:
+          node-version: "22.16.0"
 
       # Setup .npmrc file to publish to npm
       - uses: actions/setup-node@v3
