@@ -862,10 +862,7 @@ export async function getAssociatedTokenAddress(
   return associatedToken;
 }
 
-export function getRelayDataHash(
-  relayData: RelayData & { messageHash: string },
-  destinationChainId: number
-): string {
+export function getRelayDataHash(relayData: RelayData & { messageHash: string }, destinationChainId: number): string {
   assert(relayData.messageHash.startsWith("0x"), "Message hash must be a hex string");
 
   const uint64Encoder = getU64Encoder();
