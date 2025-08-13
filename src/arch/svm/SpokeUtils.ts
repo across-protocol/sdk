@@ -863,23 +863,24 @@ export async function getAssociatedTokenAddress(
 }
 
 export function getRelayDataHash(
-  relayData: Omit<RelayData, "message"> & { messageHash: string },
+  relayData: RelayData & { messageHash: string },
   destinationChainId: number
 ): string {
   assert(relayData.messageHash.startsWith("0x"), "Message hash must be a hex string");
 
   const uint64Encoder = getU64Encoder();
 
-  // We need to pass a message to the toSvmRelayData function.
-  // But, because we can construct the relayDataHash from the messageHash, we can pass a empty message here.
-  const svmRelayData = toSvmRelayData({ ...relayData, message: "0x" });
+  const svmRelayData = toSvmRelayData(relayData);
   const relayDataEncoder = SvmSpokeClient.getRelayDataEncoder();
   const encodedRelayData = relayDataEncoder.encode(svmRelayData);
+  const encodedMessage = Buffer.from(relayData.message.slice(2), "hex");
   const encodedMessageHash = Uint8Array.from(Buffer.from(relayData.messageHash.slice(2), "hex"));
 
   // Reformat the encoded relay data the same way it is done in the SvmSpoke:
   // https://github.com/across-protocol/contracts/blob/3310f8dc716407a5f97ef5fd2eae63df83251f2f/programs/svm-spoke/src/utils/merkle_proof_utils.rs#L5
-  const messageOffset = encodedRelayData.length - 4;
+  // We want to use messageHash always so we can construct the relayDataHash just from the Fill.
+  // If we don't have a message, we can just pass an empty message here.
+  const messageOffset = encodedRelayData.length - 4 - encodedMessage.length;
   const contentToHash = Buffer.concat([
     encodedRelayData.slice(0, messageOffset),
     encodedMessageHash,
