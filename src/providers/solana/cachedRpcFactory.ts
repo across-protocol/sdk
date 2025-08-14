@@ -42,7 +42,7 @@ export class CachedSolanaRpcFactory extends SolanaClusterRpcFactory {
 
   public createTransport(): RpcTransport {
     return async <TResponse>(...args: Parameters<RpcTransport>): Promise<TResponse> => {
-      const { method, params } = args[0].payload as { method: string; params?: unknown[] };
+      const { method, params = [] } = args[0].payload as { method: string; params?: unknown[] };
       const cacheType = this.redisClient ? this.cacheType(method) : CacheType.NONE;
 
       if (cacheType === CacheType.NONE) {
