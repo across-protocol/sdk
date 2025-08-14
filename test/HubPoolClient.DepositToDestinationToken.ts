@@ -384,5 +384,20 @@ describe("HubPoolClient: Deposit to Destination Token", function () {
     expect(l2Token).to.be.undefined;
     l1Token = hubPoolClient.getL1TokenForL2TokenAtBlock(randomDestinationTokenAddr, destinationChainId, e1.blockNumber);
     expect(l1Token).to.be.undefined;
+
+    // setting a new route should override the disabled route
+    const e2 = hubPoolClient.setPoolRebalanceRoute(destinationChainId, randomL1Token, randomDestinationToken);
+    await hubPoolClient.update();
+
+    l2Token = hubPoolClient.getL2TokenForL1TokenAtBlock(randomL1TokenAddr, destinationChainId, e2.blockNumber);
+    expect(l2Token?.toNative()).to.be.equal(randomDestinationTokenAddr.toNative());
+    l1Token = hubPoolClient.getL1TokenForL2TokenAtBlock(randomDestinationTokenAddr, destinationChainId, e2.blockNumber);
+    expect(l1Token?.toNative()).to.be.equal(randomL1Token);
+
+    // check make sure historical routes are still valid
+    l2Token = hubPoolClient.getL2TokenForL1TokenAtBlock(randomL1TokenAddr, destinationChainId, e1.blockNumber);
+    expect(l2Token).to.be.undefined;
+    l1Token = hubPoolClient.getL1TokenForL2TokenAtBlock(randomDestinationTokenAddr, destinationChainId, e1.blockNumber);
+    expect(l1Token).to.be.undefined;
   });
 });
