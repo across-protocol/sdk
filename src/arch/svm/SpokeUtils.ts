@@ -816,7 +816,7 @@ export const createFillInstruction = async (
 };
 
 export function deserializeMessage(_message: string): AcrossPlusMessage {
-  const message = new Uint8Array(Buffer.from(_message.slice(2), "hex"));
+  const message = new Uint8Array(Buffer.from(_message.startsWith("0x") ? _message.slice(2) : _message, "hex"));
   // Add remaining accounts if the relayData has a non-empty message.
   // @dev ! since in the context of creating a `fillRelayTx`, `relayData` must be defined.
   const acrossPlusMessageDecoder = getAcrossPlusMessageDecoder();
