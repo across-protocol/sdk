@@ -704,7 +704,10 @@ export async function getIPFillRelayTx(
   repaymentAddress: SdkAddress
 ) {
   const program = toAddress(spokePoolAddr);
-  const _relayDataHash = getRelayDataHash(relayData, relayData.destinationChainId);
+  const _relayDataHash = getRelayDataHash(
+    { ...relayData, messageHash: getMessageHash(relayData.message) },
+    relayData.destinationChainId
+  );
   const relayDataHash = new Uint8Array(Buffer.from(_relayDataHash.slice(2), "hex"));
 
   const [state, delegate, instructionParams] = await Promise.all([
