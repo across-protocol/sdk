@@ -486,7 +486,10 @@ export async function findFillEvent(
 
   if (fillEvents.length > 0) {
     const rawFillEvent = fillEvents[0];
-    const eventData = unwrapEventData(rawFillEvent.data, ["depositId", "inputAmount"]) as FillWithBlock & {
+    const eventData = unwrapEventData(rawFillEvent.data, ["depositId", "inputAmount"]) as Omit<
+      FillWithBlock,
+      "depositor" | "recipient" | "inputToken" | "outputToken" | "exclusiveRelayer" | "relayer"
+    > & {
       depositor: string;
       recipient: string;
       inputToken: string;
@@ -505,7 +508,7 @@ export async function findFillEvent(
       destinationChainId,
       inputToken: toAddressType(eventData.inputToken, originChainId),
       outputToken: toAddressType(eventData.outputToken, destinationChainId),
-      relayer: toAddressType(eventData.relayer, destinationChainId),
+      relayer: toAddressType(eventData.relayer, eventData.repaymentChainId),
       exclusiveRelayer: toAddressType(eventData.exclusiveRelayer, destinationChainId),
       depositor: toAddressType(eventData.depositor, originChainId),
       recipient: toAddressType(eventData.recipient, destinationChainId),
