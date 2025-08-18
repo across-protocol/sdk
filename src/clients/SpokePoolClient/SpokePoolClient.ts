@@ -724,7 +724,7 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
           inputToken: toAddressType(event.inputToken, event.originChainId),
           outputToken: toAddressType(event.outputToken, this.chainId),
           exclusiveRelayer: toAddressType(event.exclusiveRelayer, this.chainId),
-          relayer: toAddressType(event.relayer, this.chainId),
+          relayer: toAddressType(event.relayer, event.repaymentChainId),
           relayExecutionInfo: {
             ...event.relayExecutionInfo,
             updatedRecipient: toAddressType(event.relayExecutionInfo.updatedRecipient, this.chainId),
