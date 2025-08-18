@@ -1,6 +1,6 @@
 import assert from "assert";
 import { BytesLike, Contract, PopulatedTransaction, providers } from "ethers";
-import { CHAIN_IDs } from "../../constants";
+import { CHAIN_IDs, SPOKEPOOL_UPGRADE_BLOCKS } from "../../constants";
 import {
   Deposit,
   FillStatus,
@@ -265,6 +265,11 @@ export async function findFillBlock(
   const { provider } = spokePool;
   highBlockNumber ??= await provider.getBlockNumber();
   assert(highBlockNumber > lowBlockNumber, `Block numbers out of range (${lowBlockNumber} >= ${highBlockNumber})`);
+
+  // For a subset of older SpokePools, their deployment ABIs did not include the fillStatus mapping.
+  // Bound any searches by the blocks where fillStatus was added.
+  const { chainId } = await spokePool.provider.getNetwork();
+  lowBlockNumber = Math.max(lowBlockNumber, SPOKEPOOL_UPGRADE_BLOCKS[chainId] ?? lowBlockNumber);
 
   // In production the chainId returned from the provider matches 1:1 with the actual chainId. Querying the provider
   // object saves an RPC query because the chainId is cached by StaticJsonRpcProvider instances. In hre, the SpokePool
