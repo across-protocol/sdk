@@ -346,7 +346,10 @@ export async function findFillEvent(
   const destinationChainId = Object.values(CHAIN_IDs).includes(relayData.originChainId)
     ? (await spokePool.provider.getNetwork()).chainId
     : Number(await spokePool.chainId());
-  const fillEvent = spreadEventWithBlockNumber(event) as FillWithBlock & {
+  const fillEvent = spreadEventWithBlockNumber(event) as Omit<
+    FillWithBlock,
+    "depositor" | "recipient" | "inputToken" | "outputToken" | "exclusiveRelayer" | "relayer"
+  > & {
     depositor: string;
     recipient: string;
     inputToken: string;
@@ -362,7 +365,7 @@ export async function findFillEvent(
     depositor: toAddressType(fillEvent.depositor, relayData.originChainId),
     recipient: toAddressType(fillEvent.recipient, destinationChainId),
     exclusiveRelayer: toAddressType(fillEvent.exclusiveRelayer, destinationChainId),
-    relayer: toAddressType(fillEvent.relayer, destinationChainId),
+    relayer: toAddressType(fillEvent.relayer, fillEvent.repaymentChainId),
     relayExecutionInfo: {
       ...fillEvent.relayExecutionInfo,
       updatedRecipient: toAddressType(fillEvent.relayExecutionInfo.updatedRecipient, destinationChainId),
