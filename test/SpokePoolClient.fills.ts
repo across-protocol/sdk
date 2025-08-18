@@ -1,7 +1,16 @@
 import hre from "hardhat";
 import { EVMSpokePoolClient, SpokePoolClient } from "../src/clients";
 import { Deposit } from "../src/interfaces";
-import { bnOne, bnZero, getMessageHash, getNetworkName, deploy as deployMulticall, toAddressType } from "../src/utils";
+import {
+  bnOne,
+  bnZero,
+  getMessageHash,
+  getNetworkName,
+  deploy as deployMulticall,
+  toAddressType,
+  EvmAddress,
+  SvmAddress,
+} from "../src/utils";
 import { CHAIN_IDs, EMPTY_MESSAGE, ZERO_ADDRESS } from "../src/constants";
 import { findDepositBlock, findFillBlock, findFillEvent } from "../src/arch/evm";
 import { originChainId, destinationChainId } from "./constants";
@@ -19,6 +28,7 @@ import {
   toBN,
   toBNWei,
 } from "./utils";
+import { Keypair } from "@solana/web3.js";
 
 describe("SpokePoolClient: Fills", function () {
   const originChainId2 = originChainId + 1;
@@ -261,9 +271,19 @@ describe("SpokePoolClient: Fills", function () {
 
     // Submit multiple fills at the same block:
     const startBlock = await spokePool.provider.getBlockNumber();
-    await fillRelay(spokePool, targetDeposit1, relayer1, originChainId2);
-    await fillRelay(spokePool, targetDeposit2, relayer2, destinationChainId);
-    await fillRelay(spokePool, { ...depositTemplate, depositId: depositTemplate.depositId.add(3) }, relayer2, CHAIN_IDs.SOLANA);
+    await fillRelay(spokePool, targetDeposit1, relayer1, {
+      repaymentChainId: originChainId2,
+      repaymentAddress: EvmAddress.from(relayer1.address),
+    });
+    await fillRelay(spokePool, targetDeposit2, relayer2, {
+      repaymentChainId: destinationChainId,
+      repaymentAddress: EvmAddress.from(relayer1.address),
+    });
+    const svmAddress = SvmAddress.from(Keypair.generate().publicKey.toBase58());
+    await fillRelay(spokePool, { ...depositTemplate, depositId: depositTemplate.depositId.add(3) }, relayer2, {
+      repaymentChainId: CHAIN_IDs.SOLANA,
+      repaymentAddress: svmAddress,
+    });
     await hre.network.provider.send("evm_mine");
 
     let fill1 = await findFillEvent(spokePool, targetDeposit1, startBlock);
