@@ -356,7 +356,7 @@ export async function findFillEvent(
     outputToken: string;
     exclusiveRelayer: string;
     relayer: string;
-    relayExecutionInfo: RelayExecutionEventInfo & { updatedRecipient: string };
+    relayExecutionInfo: Omit<RelayExecutionEventInfo, "updatedRecipient"> & { updatedRecipient: string };
   };
   const fill: FillWithBlock = {
     ...fillEvent,
