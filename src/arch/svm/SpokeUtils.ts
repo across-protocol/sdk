@@ -499,11 +499,12 @@ export async function findFillEvent(
       relayExecutionInfo: RelayExecutionEventInfo & { updatedRecipient: string };
     };
     const originChainId = eventData.originChainId;
-    const parsedFillEvent = {
+
+    const parsedFillEvent: FillWithBlock = {
       ...eventData,
-      transactionHash: rawFillEvent.signature,
+      txnRef: rawFillEvent.signature,
       blockNumber: Number(rawFillEvent.slot),
-      transactionIndex: 0,
+      txnIndex: 0,
       logIndex: 0,
       destinationChainId,
       inputToken: toAddressType(eventData.inputToken, originChainId),
@@ -516,7 +517,8 @@ export async function findFillEvent(
         ...eventData.relayExecutionInfo,
         updatedRecipient: eventData.relayExecutionInfo.updatedRecipient,
       },
-    } as FillWithBlock;
+    };
+
     return parsedFillEvent;
   }
 

@@ -358,7 +358,7 @@ export async function findFillEvent(
     relayer: string;
     relayExecutionInfo: RelayExecutionEventInfo & { updatedRecipient: string };
   };
-  const fill = {
+  const fill: FillWithBlock = {
     ...fillEvent,
     inputToken: toAddressType(fillEvent.inputToken, relayData.originChainId),
     outputToken: toAddressType(fillEvent.outputToken, destinationChainId),
@@ -372,6 +372,7 @@ export async function findFillEvent(
     },
     destinationChainId,
     messageHash: getMessageHash(event.args.message),
-  } as FillWithBlock;
+  };
+
   return fill;
 }
