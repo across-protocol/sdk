@@ -694,10 +694,12 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
     });
 
     // Performs indexing of filled relay-like events.
+    const destinationChainId = this.chainId;
     const queryFilledRelayEvents = (eventName: string) => {
       const fillEvents = (queryResults[eventsToQuery.indexOf(eventName)] ?? []).map((_event) => {
         const event = _event as Omit<
           FillWithBlock,
+          | "destinationChainId"
           | "depositor"
           | "recipient"
           | "inputToken"
@@ -715,21 +717,20 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
           relayExecutionInfo: Omit<RelayExecutionEventInfo, "updatedRecipient"> & { updatedRecipient: string };
         };
 
-        const fill: FillWithBlock = {
+        return {
           ...event,
+          destinationChainId,
           depositor: toAddressType(event.depositor, event.originChainId),
-          recipient: toAddressType(event.recipient, this.chainId),
+          recipient: toAddressType(event.recipient, destinationChainId),
           inputToken: toAddressType(event.inputToken, event.originChainId),
-          outputToken: toAddressType(event.outputToken, this.chainId),
-          exclusiveRelayer: toAddressType(event.exclusiveRelayer, this.chainId),
+          outputToken: toAddressType(event.outputToken, destinationChainId),
+          exclusiveRelayer: toAddressType(event.exclusiveRelayer, destinationChainId),
           relayer: toAddressType(event.relayer, event.repaymentChainId),
           relayExecutionInfo: {
             ...event.relayExecutionInfo,
             updatedRecipient: toAddressType(event.relayExecutionInfo.updatedRecipient, this.chainId),
           },
-        };
-
-        return fill;
+        } satisfies FillWithBlock;
       });
 
       if (fillEvents.length > 0) {
@@ -740,16 +741,11 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
 
       // @note The type assertions here suppress errors that might arise due to incomplete types. For now, verify via
       // test that the types are complete. A broader change in strategy for safely unpacking events will be introduced.
-      for (const event of fillEvents) {
-        const fill = {
-          ...event,
-          destinationChainId: this.chainId,
-        };
-
+      for (const fill of fillEvents) {
         // Sanity check that this event is not a duplicate.
         const duplicateFill = this.fills[fill.originChainId]?.find((f) => duplicateEvent(fill, f));
         if (duplicateFill) {
-          duplicateEvents.push(event);
+          duplicateEvents.push(fill);
           continue;
         }
 
