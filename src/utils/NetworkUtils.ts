@@ -106,7 +106,6 @@ export function chainIsLinea(chainId: number): boolean {
   return [CHAIN_IDs.LINEA].includes(chainId);
 }
 
-
 /**
  * Determines whether a chain ID has a corresponding hub pool contract.
  * @param chainId Chain ID to evaluate.
