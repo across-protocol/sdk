@@ -717,19 +717,22 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
           relayer: string;
           relayExecutionInfo: Omit<RelayExecutionEventInfo, "updatedRecipient"> & { updatedRecipient: string };
         };
-        return {
+
+        const fill: FillWithBlock = {
           ...event,
           depositor: toAddressType(event.depositor, event.originChainId),
           recipient: toAddressType(event.recipient, this.chainId),
           inputToken: toAddressType(event.inputToken, event.originChainId),
           outputToken: toAddressType(event.outputToken, this.chainId),
           exclusiveRelayer: toAddressType(event.exclusiveRelayer, this.chainId),
-          relayer: toAddressType(event.relayer, this.chainId),
+          relayer: toAddressType(event.relayer, event.repaymentChainId),
           relayExecutionInfo: {
             ...event.relayExecutionInfo,
             updatedRecipient: toAddressType(event.relayExecutionInfo.updatedRecipient, this.chainId),
           },
-        } as FillWithBlock;
+        };
+
+        return fill;
       });
 
       if (fillEvents.length > 0) {

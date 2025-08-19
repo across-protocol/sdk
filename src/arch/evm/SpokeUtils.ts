@@ -346,29 +346,33 @@ export async function findFillEvent(
   const destinationChainId = Object.values(CHAIN_IDs).includes(relayData.originChainId)
     ? (await spokePool.provider.getNetwork()).chainId
     : Number(await spokePool.chainId());
-  const fillEvent = spreadEventWithBlockNumber(event) as FillWithBlock & {
+  const fillEvent = spreadEventWithBlockNumber(event) as Omit<
+    FillWithBlock,
+    "depositor" | "recipient" | "inputToken" | "outputToken" | "exclusiveRelayer" | "relayer"
+  > & {
     depositor: string;
     recipient: string;
     inputToken: string;
     outputToken: string;
     exclusiveRelayer: string;
     relayer: string;
-    relayExecutionInfo: RelayExecutionEventInfo & { updatedRecipient: string };
+    relayExecutionInfo: Omit<RelayExecutionEventInfo, "updatedRecipient"> & { updatedRecipient: string };
   };
-  const fill = {
+  const fill: FillWithBlock = {
     ...fillEvent,
     inputToken: toAddressType(fillEvent.inputToken, relayData.originChainId),
     outputToken: toAddressType(fillEvent.outputToken, destinationChainId),
     depositor: toAddressType(fillEvent.depositor, relayData.originChainId),
     recipient: toAddressType(fillEvent.recipient, destinationChainId),
     exclusiveRelayer: toAddressType(fillEvent.exclusiveRelayer, destinationChainId),
-    relayer: toAddressType(fillEvent.relayer, destinationChainId),
+    relayer: toAddressType(fillEvent.relayer, fillEvent.repaymentChainId),
     relayExecutionInfo: {
       ...fillEvent.relayExecutionInfo,
       updatedRecipient: toAddressType(fillEvent.relayExecutionInfo.updatedRecipient, destinationChainId),
     },
     destinationChainId,
     messageHash: getMessageHash(event.args.message),
-  } as FillWithBlock;
+  };
+
   return fill;
 }
