@@ -284,19 +284,18 @@ describe("SpokePoolClient: Fills", function () {
       repaymentChainId: CHAIN_IDs.SOLANA,
       repaymentAddress: svmAddress,
     });
-    await hre.network.provider.send("evm_mine");
 
     let fill1 = await findFillEvent(spokePool, targetDeposit1, startBlock);
-    expect(fill1).to.not.be.undefined;
+    expect(fill1).to.exist;
     fill1 = fill1!;
     expect(fill1.repaymentChainId).to.equal(originChainId2);
-    expect(fill1.relayer.isEVM()).to.equal(true);
+    expect(fill1.relayer.isEVM()).to.be.true;
 
     let fill2 = await findFillEvent(spokePool, targetDeposit2, startBlock);
-    expect(fill2).to.not.be.undefined;
+    expect(fill2).to.exist;
     fill2 = fill2!;
     expect(fill2.repaymentChainId).to.equal(destinationChainId);
-    expect(fill2.relayer.isEVM()).to.equal(true);
+    expect(fill2.relayer.isEVM()).to.be.true;
 
     expect(fill1.depositId).to.equal(targetDeposit1.depositId);
     expect(fill2.depositId).to.equal(targetDeposit2.depositId);
@@ -307,10 +306,10 @@ describe("SpokePoolClient: Fills", function () {
       { ...depositTemplate, depositId: depositTemplate.depositId.add(3) },
       startBlock
     );
-    expect(svmFill).to.not.be.undefined;
+    expect(svmFill).to.exist;
     svmFill = svmFill!;
     expect(svmFill.repaymentChainId).to.equal(CHAIN_IDs.SOLANA);
-    expect(svmFill.relayer.isEVM()).to.equal(false);
-    expect(svmFill.relayer.isSVM()).to.equal(true);
+    expect(svmFill.relayer.isEVM()).to.be.false;
+    expect(svmFill.relayer.isSVM()).to.be.true;
   });
 });
