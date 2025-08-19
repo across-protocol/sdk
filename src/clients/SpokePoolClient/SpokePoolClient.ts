@@ -523,11 +523,12 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
     }
 
     // Performs the indexing of a deposit-like spoke pool event.
+    const originChainId = this.chainId;
     const queryDepositEvents = async (eventName: string) => {
       const depositEvents = (queryResults[eventsToQuery.indexOf(eventName)] ?? []).map((_event) => {
         const event = _event as Omit<
           DepositWithBlock,
-          "depositor" | "recipient" | "inputToken" | "outputToken" | "exclusiveRelayer"
+          "originChainId" | "depositor" | "recipient" | "inputToken" | "outputToken" | "exclusiveRelayer"
         > & {
           depositor: string;
           recipient: string;
@@ -537,12 +538,14 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
         };
         return {
           ...event,
-          depositor: toAddressType(event.depositor, this.chainId),
+          originChainId,
+          depositor: toAddressType(event.depositor, originChainId),
           recipient: toAddressType(event.recipient, event.destinationChainId),
-          inputToken: toAddressType(event.inputToken, this.chainId),
+          inputToken: toAddressType(event.inputToken, originChainId),
           outputToken: toAddressType(event.outputToken, event.destinationChainId),
           exclusiveRelayer: toAddressType(event.exclusiveRelayer, event.destinationChainId),
-        } as DepositWithBlock;
+          messageHash: getMessageHash(event.message),
+        } satisfies Omit<DepositWithBlock, "quoteBlockNumber" | "fromLiteChain" | "toLiteChain">;
       });
       if (depositEvents.length > 0) {
         this.log(
@@ -563,16 +566,10 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
         // Derive and append the common properties that are not part of the onchain event.
         const deposit = {
           ...event,
-          messageHash: getMessageHash(event.message),
           quoteBlockNumber,
-          originChainId: this.chainId,
-          // The following properties are placeholders to be updated immediately.
-          fromLiteChain: true,
-          toLiteChain: true,
+          fromLiteChain: this.isOriginLiteChain(event),
+          toLiteChain: this.isDestinationLiteChain(event),
         };
-
-        deposit.fromLiteChain = this.isOriginLiteChain(deposit);
-        deposit.toLiteChain = this.isDestinationLiteChain(deposit);
 
         if (deposit.outputToken.isZeroAddress()) {
           deposit.outputToken = this.getDestinationTokenForDeposit(deposit);
