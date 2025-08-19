@@ -30,7 +30,7 @@ export class MockHubPoolClient extends clients.mocks.MockHubPoolClient {
   }
   getL1TokenForDeposit(
     deposit: Pick<DepositWithBlock, "originChainId" | "inputToken" | "quoteBlockNumber">
-  ): EvmAddress | undefined {
+  ): EvmAddress {
     // L1-->L2 token mappings are set via PoolRebalanceRoutes which occur on mainnet,
     // so we use the latest token mapping. This way if a very old deposit is filled, the relayer can use the
     // latest L2 token mapping to find the L1 token counterpart.
@@ -47,11 +47,9 @@ export class MockHubPoolClient extends clients.mocks.MockHubPoolClient {
   getL2TokenForDeposit(
     deposit: Pick<DepositWithBlock, "originChainId" | "destinationChainId" | "inputToken" | "quoteBlockNumber">,
     l2ChainId = deposit.destinationChainId
-  ): string | undefined {
+  ): string {
     const l1Token = this.getL1TokenForDeposit(deposit);
     // Use the latest hub block number to find the L2 token counterpart.
-    return l1Token
-      ? this.getL2TokenForL1TokenAtBlock(l1Token, l2ChainId, deposit.quoteBlockNumber)?.toNative()
-      : undefined;
+    return this.getL2TokenForL1TokenAtBlock(l1Token, l2ChainId, deposit.quoteBlockNumber).toNative();
   }
 }

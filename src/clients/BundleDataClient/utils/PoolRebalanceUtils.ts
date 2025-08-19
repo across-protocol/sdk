@@ -202,8 +202,6 @@ export function updateRunningBalanceForDeposit(
     deposit.originChainId,
     mainnetBundleEndBlock
   );
-  assert(isDefined(l1TokenCounterpart), "updateRunningBalanceForDeposit: l1TokenCounterpart is undefined");
-
   updateRunningBalance(runningBalances, deposit.originChainId, l1TokenCounterpart.toEvmAddress(), updateAmount);
 }
 
