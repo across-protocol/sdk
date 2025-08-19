@@ -11,6 +11,7 @@ import { DepositWithBlock, FillStatus, RelayData } from "../../interfaces";
 import {
   BigNumber,
   DepositSearchResult,
+  getMessageHash,
   getNetworkName,
   InvalidFill,
   MakeOptional,
@@ -194,18 +195,29 @@ export class EVMSpokePoolClient extends SpokePoolClient {
       };
     }
 
+    const spreadEvent = spreadEventWithBlockNumber(event) as Omit<
+      DepositWithBlock,
+      "inputToken" | "outputToken" | "depositor" | "recipient" | "exclusiveRelayer"
+    > & {
+      inputToken: string;
+      outputToken: string;
+      depositor: string;
+      recipient: string;
+      exclusiveRelayer: string;
+    };
     deposit = {
-      ...spreadEventWithBlockNumber(event),
-      inputToken: toAddressType(event.args.inputToken, event.args.originChainId),
-      outputToken: toAddressType(event.args.outputToken, event.args.destinationChainId),
-      depositor: toAddressType(event.args.depositor, this.chainId),
-      recipient: toAddressType(event.args.recipient, event.args.destinationChainId),
-      exclusiveRelayer: toAddressType(event.args.exclusiveRelayer, event.args.destinationChainId),
+      ...spreadEvent,
+      inputToken: toAddressType(spreadEvent.inputToken, spreadEvent.originChainId),
+      outputToken: toAddressType(spreadEvent.outputToken, spreadEvent.destinationChainId),
+      depositor: toAddressType(spreadEvent.depositor, this.chainId),
+      recipient: toAddressType(spreadEvent.recipient, spreadEvent.destinationChainId),
+      exclusiveRelayer: toAddressType(spreadEvent.exclusiveRelayer, spreadEvent.destinationChainId),
       originChainId: this.chainId,
-      quoteBlockNumber: await this.getBlockNumber(Number(event.args["quoteTimestamp"])),
+      quoteBlockNumber: await this.getBlockNumber(spreadEvent.quoteTimestamp),
+      messageHash: getMessageHash(spreadEvent.message),
       fromLiteChain: true, // To be updated immediately afterwards.
       toLiteChain: true, // To be updated immediately afterwards.
-    } as DepositWithBlock;
+    };
 
     if (deposit.outputToken.isZeroAddress()) {
       deposit.outputToken = this.getDestinationTokenForDeposit(deposit);

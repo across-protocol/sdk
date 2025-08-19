@@ -1,6 +1,6 @@
 import assert from "assert";
 import { BytesLike, Contract, PopulatedTransaction, providers } from "ethers";
-import { CHAIN_IDs } from "../../constants";
+import { CHAIN_IDs, SPOKEPOOL_UPGRADE_BLOCKS } from "../../constants";
 import {
   Deposit,
   FillStatus,
@@ -263,9 +263,6 @@ export async function findFillBlock(
   highBlockNumber?: number
 ): Promise<number | undefined> {
   const { provider } = spokePool;
-  highBlockNumber ??= await provider.getBlockNumber();
-  assert(highBlockNumber > lowBlockNumber, `Block numbers out of range (${lowBlockNumber} >= ${highBlockNumber})`);
-
   // In production the chainId returned from the provider matches 1:1 with the actual chainId. Querying the provider
   // object saves an RPC query because the chainId is cached by StaticJsonRpcProvider instances. In hre, the SpokePool
   // may be configured with a different chainId than what is returned by the provider.
@@ -276,6 +273,12 @@ export async function findFillBlock(
     relayData.originChainId !== destinationChainId,
     `Origin & destination chain IDs must not be equal (${destinationChainId})`
   );
+
+  // For a subset of older SpokePools, their deployment ABIs did not include the fillStatus mapping.
+  // Bound any searches by the blocks where fillStatus was added.
+  lowBlockNumber = Math.max(lowBlockNumber, SPOKEPOOL_UPGRADE_BLOCKS[destinationChainId] ?? lowBlockNumber);
+  highBlockNumber ??= await provider.getBlockNumber();
+  assert(highBlockNumber > lowBlockNumber, `Block numbers out of range (${lowBlockNumber} >= ${highBlockNumber})`);
 
   // Make sure the relay was completed within the block range supplied by the caller.
   const [initialFillStatus, finalFillStatus] = (

@@ -93,3 +93,15 @@ export const CUSTOM_GAS_TOKENS = {
   [CHAIN_IDs.LENS]: "GHO",
   [CHAIN_IDs.LENS_SEPOLIA]: "GHO",
 };
+
+// Blocks where SpokePools were upgraded from v2 to v2.5. This is where the fillStatus mapping
+// was introduced. This mapping should only be updated on subsequent upgrades where there are
+// breaking changes and the exact upgrade block is required to bound certain queries.
+export const SPOKEPOOL_UPGRADE_BLOCKS = {
+  [CHAIN_IDs.ARBITRUM]: 183082059,
+  [CHAIN_IDs.BASE]: 10874747,
+  [CHAIN_IDs.MAINNET]: 19277695,
+  [CHAIN_IDs.OPTIMISM]: 116469982,
+  [CHAIN_IDs.POLYGON]: 53793776,
+  [CHAIN_IDs.ZK_SYNC]: 27157340,
+};
