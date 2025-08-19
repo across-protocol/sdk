@@ -399,21 +399,15 @@ export function _getMarginalRunningBalances(
       ([l2TokenAddress, { realizedLpFees: totalRealizedLpFee, totalRefundAmount }]) => {
         // If the repayment token and repayment chain ID do not map to a PoolRebalanceRoute graph, then
         // there are no relevant L1 running balances.
-        if (
-          !clients.hubPoolClient.l2TokenHasPoolRebalanceRoute(
-            toAddressType(l2TokenAddress, repaymentChainId),
-            repaymentChainId,
-            mainnetBundleEndBlock
-          )
-        ) {
-          chainWithRefundsOnly.add(repaymentChainId);
-          return;
-        }
         const l1Token = clients.hubPoolClient.getL1TokenForL2TokenAtBlock(
           toAddressType(l2TokenAddress, repaymentChainId),
           repaymentChainId,
           mainnetBundleEndBlock
         );
+        if (!l1Token) {
+          chainWithRefundsOnly.add(repaymentChainId);
+          return;
+        }
         const l1TokenAddr = l1Token.toNative();
         assert(l1Token.isEVM(), `Expected an EVM address: ${l1TokenAddr}`);
 
@@ -439,6 +433,9 @@ export function _getMarginalRunningBalances(
           destinationChainId,
           mainnetBundleEndBlock
         );
+
+        assert(isDefined(l1TokenCounterpart), "getRefundInformationFromFill: l1TokenCounterpart is undefined");
+
         const lpFee = deposit.lpFeePct.mul(deposit.inputAmount).div(fixedPointAdjustment);
         updateRunningBalance(
           runningBalances,
@@ -468,6 +465,8 @@ export function _getMarginalRunningBalances(
           destinationChainId,
           mainnetBundleEndBlock
         );
+        assert(isDefined(l1TokenCounterpart), "getRefundInformationFromFill: l1TokenCounterpart is undefined");
+
         const lpFee = deposit.lpFeePct.mul(deposit.inputAmount).div(fixedPointAdjustment);
         updateRunningBalance(
           runningBalances,
@@ -523,21 +522,15 @@ export function _getMarginalRunningBalances(
       deposits.forEach((deposit) => {
         // If the repayment token and repayment chain ID do not map to a PoolRebalanceRoute graph, then
         // there are no relevant L1 running balances.
-        if (
-          !clients.hubPoolClient.l2TokenHasPoolRebalanceRoute(
-            deposit.inputToken,
-            deposit.originChainId,
-            mainnetBundleEndBlock
-          )
-        ) {
-          chainWithRefundsOnly.add(deposit.originChainId);
-          return;
-        }
         const l1TokenCounterpart = clients.hubPoolClient.getL1TokenForL2TokenAtBlock(
           toAddressType(inputToken, originChainId),
           originChainId,
           mainnetBundleEndBlock
         );
+        if (!l1TokenCounterpart) {
+          chainWithRefundsOnly.add(deposit.originChainId);
+          return;
+        }
         updateRunningBalance(runningBalances, originChainId, l1TokenCounterpart.toEvmAddress(), deposit.inputAmount);
       });
     });
