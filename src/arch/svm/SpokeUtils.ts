@@ -486,26 +486,30 @@ export async function findFillEvent(
 
   if (fillEvents.length > 0) {
     const rawFillEvent = fillEvents[0];
-    const eventData = unwrapEventData(rawFillEvent.data, ["depositId", "inputAmount"]) as FillWithBlock & {
+    const eventData = unwrapEventData(rawFillEvent.data, ["depositId", "inputAmount"]) as Omit<
+      FillWithBlock,
+      "depositor" | "recipient" | "inputToken" | "outputToken" | "exclusiveRelayer" | "relayer"
+    > & {
       depositor: string;
       recipient: string;
       inputToken: string;
       outputToken: string;
       exclusiveRelayer: string;
       relayer: string;
-      relayExecutionInfo: RelayExecutionEventInfo & { updatedRecipient: string };
+      relayExecutionInfo: Omit<RelayExecutionEventInfo, "updatedRecipient"> & { updatedRecipient: string };
     };
     const originChainId = eventData.originChainId;
-    const parsedFillEvent = {
+
+    const parsedFillEvent: FillWithBlock = {
       ...eventData,
-      transactionHash: rawFillEvent.signature,
+      txnRef: rawFillEvent.signature,
       blockNumber: Number(rawFillEvent.slot),
-      transactionIndex: 0,
+      txnIndex: 0,
       logIndex: 0,
       destinationChainId,
       inputToken: toAddressType(eventData.inputToken, originChainId),
       outputToken: toAddressType(eventData.outputToken, destinationChainId),
-      relayer: toAddressType(eventData.relayer, destinationChainId),
+      relayer: toAddressType(eventData.relayer, eventData.repaymentChainId),
       exclusiveRelayer: toAddressType(eventData.exclusiveRelayer, destinationChainId),
       depositor: toAddressType(eventData.depositor, originChainId),
       recipient: toAddressType(eventData.recipient, destinationChainId),
@@ -513,7 +517,8 @@ export async function findFillEvent(
         ...eventData.relayExecutionInfo,
         updatedRecipient: eventData.relayExecutionInfo.updatedRecipient,
       },
-    } as FillWithBlock;
+    };
+
     return parsedFillEvent;
   }
 

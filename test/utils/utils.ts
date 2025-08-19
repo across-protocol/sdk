@@ -441,7 +441,10 @@ export async function fillRelay(
   spokePool: Contract,
   _deposit: Omit<Deposit, "destinationChainId">,
   signer: SignerWithAddress,
-  repaymentChainId?: number
+  repayment?: {
+    repaymentChainId: number;
+    repaymentAddress: Address;
+  }
 ): Promise<FillWithBlock> {
   const destinationChainId = Number(await spokePool.chainId());
   chaiAssert.notEqual(_deposit.originChainId, destinationChainId);
@@ -455,7 +458,11 @@ export async function fillRelay(
     outputToken: _deposit.outputToken.toBytes32(),
   };
 
-  await spokePool.connect(signer).fillRelay(deposit, repaymentChainId ?? destinationChainId, toBytes32(signer.address));
+  const repaymentAddress = repayment?.repaymentAddress.toBytes32() ?? toBytes32(signer.address);
+
+  await spokePool
+    .connect(signer)
+    .fillRelay(deposit, repayment?.repaymentChainId ?? destinationChainId, repaymentAddress);
 
   const events = await spokePool.queryFilter(spokePool.filters.FilledRelay());
   const lastEvent = events.at(-1);

@@ -205,15 +205,16 @@ export class EVMSpokePoolClient extends SpokePoolClient {
       recipient: string;
       exclusiveRelayer: string;
     };
+
     const originChainId = this.chainId;
     deposit = {
       ...spreadEvent,
+      originChainId: this.chainId,
       inputToken: toAddressType(spreadEvent.inputToken, originChainId),
       outputToken: toAddressType(spreadEvent.outputToken, spreadEvent.destinationChainId),
       depositor: toAddressType(spreadEvent.depositor, originChainId),
       recipient: toAddressType(spreadEvent.recipient, spreadEvent.destinationChainId),
       exclusiveRelayer: toAddressType(spreadEvent.exclusiveRelayer, spreadEvent.destinationChainId),
-      originChainId,
       quoteBlockNumber: await this.getBlockNumber(spreadEvent.quoteTimestamp),
       messageHash: getMessageHash(spreadEvent.message),
       fromLiteChain: true, // To be updated immediately afterwards.
