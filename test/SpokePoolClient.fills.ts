@@ -28,7 +28,7 @@ import {
   toBN,
   toBNWei,
 } from "./utils";
-import { Keypair } from "@solana/web3.js";
+import { getRandomSvmAddress } from "../src/arch/svm";
 
 describe("SpokePoolClient: Fills", function () {
   const originChainId2 = originChainId + 1;
@@ -279,7 +279,7 @@ describe("SpokePoolClient: Fills", function () {
       repaymentChainId: destinationChainId,
       repaymentAddress: EvmAddress.from(relayer1.address),
     });
-    const svmAddress = SvmAddress.from(Keypair.generate().publicKey.toBase58());
+    const svmAddress = SvmAddress.from(getRandomSvmAddress());
     await fillRelay(spokePool, { ...depositTemplate, depositId: depositTemplate.depositId.add(3) }, relayer2, {
       repaymentChainId: CHAIN_IDs.SOLANA,
       repaymentAddress: svmAddress,
