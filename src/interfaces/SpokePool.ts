@@ -171,3 +171,7 @@ export interface BridgedToHubPoolWithBlock extends SortableEvent {
 export interface SpokePoolClientsByChain {
   [chainId: number]: SpokePoolClient;
 }
+
+export interface RelayDataWithMessageHash extends RelayData {
+  messageHash?: string;
+}

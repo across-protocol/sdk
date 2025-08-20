@@ -1,4 +1,5 @@
 import { RpcTransport, SOLANA_ERROR__RPC__TRANSPORT_HTTP_ERROR } from "@solana/kit";
+import { getThrowSolanaErrorResponseTransformer } from "@solana/rpc-transformers";
 import { SolanaClusterRpcFactory } from "./baseRpcFactories";
 import { RateLimitedSolanaRpcFactory } from "./rateLimitedRpcFactory";
 import { isSolanaError } from "../../arch/svm";
@@ -56,13 +57,16 @@ export class RetrySolanaRpcFactory extends SolanaClusterRpcFactory {
     transportCall: () => Promise<TResponse>,
     args: Parameters<RpcTransport>
   ): Promise<TResponse> {
-    const { method } = args[0].payload as { method: string; params?: unknown[] };
+    const { method, params } = args[0].payload as { method: string; params?: unknown[] };
     let retryAttempt = 0;
 
     // eslint-disable-next-line no-constant-condition
     while (true) {
       try {
-        return await transportCall();
+        const response = await transportCall();
+        // Make sure SolanaErrors get thrown
+        getThrowSolanaErrorResponseTransformer()(response, { methodName: method, params });
+        return response;
       } catch (error) {
         if (retryAttempt++ >= this.retries || this.shouldFailImmediate(method, error)) {
           throw error;
