@@ -89,12 +89,4 @@ export class PinataIPFSClient implements CachingMechanismInterface {
     });
     return storeValueInIPFS(key, JSON.stringify(value, jsonReplacerWithBigNumbers), this.client);
   }
-
-  sub(_topic: string, _callback: (message: string, channel: string) => unknown): Promise<number> {
-    return Promise.resolve(1);
-  }
-
-  pub(_topic: string, _message: string) {
-    return Promise.resolve(1);
-  }
 }
