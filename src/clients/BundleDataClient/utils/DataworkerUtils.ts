@@ -1,5 +1,6 @@
 // Create a combined `refunds` object containing refunds for V2 + V3 fills
 import assert from "assert";
+import _ from "lodash";
 import {
   BundleDepositsV3,
   BundleExcessSlowFills,
@@ -21,6 +22,9 @@ import {
   toAddressType,
   getImpliedBundleBlockRanges,
   EvmAddress,
+  isDefined,
+  deleteFromJson,
+  BigNumber,
 } from "../../../utils";
 import {
   addLastRunningBalance,
@@ -118,7 +122,7 @@ export function getEndBlockBuffers(
   return chainIdListForBundleEvaluationBlockNumbers.map((chainId: number) => blockRangeEndBlockBuffer[chainId] ?? 0);
 }
 
-export async function _buildPoolRebalanceRoot(
+export async function buildPoolRebalanceRoot(
   latestMainnetBlock: number,
   mainnetBundleEndBlock: number,
   bundleV3Deposits: BundleDepositsV3,
@@ -134,6 +138,130 @@ export async function _buildPoolRebalanceRoot(
   },
   maxL1TokenCountOverride?: number
 ): Promise<PoolRebalanceRoot> {
+  // Build a pool rebalance root given the input bundle data. Depending on the value of `mainnetBundleEndBlock`, we may need to re-assign running balances.
+  const latestPoolRebalanceRoot = _buildPoolRebalanceRoot(
+    latestMainnetBlock,
+    mainnetBundleEndBlock,
+    bundleV3Deposits,
+    bundleFillsV3,
+    bundleSlowFillsV3,
+    unexecutableSlowFills,
+    expiredDepositsToRefundV3,
+    clients,
+    maxL1TokenCountOverride
+  );
+  // In this case, the pool rebalance root we wish to construct corresponds to a root bundle which is preceded by an executed root bundle, meaning that the
+  // the running balance calculation in _buildPoolRebalanceRoot does not need to be re-assigned.
+  if (
+    !clients.hubPoolClient.hasPendingProposal() ||
+    clients.hubPoolClient.getPendingRootBundle()!.bundleEvaluationBlockNumbers[1] <= mainnetBundleEndBlock
+  ) {
+    return latestPoolRebalanceRoot;
+  }
+  // Otherwise, the pool rebalance root we wish to construct corresponds to a root bundle which is preceded by a pending root bundle. This means that we need
+  // to optimisitically assume the pending root bundle's proposed values are correct and re-assign our pool rebalance root's running balances.
+
+  // We need to get the pool rebalance root for the pending bundle.
+  // @dev It is safe to index the hub pool client's proposed root bundles here since there is guaranteed to be a pending proposal in this code block.
+  const mostRecentProposedRootBundle = clients.hubPoolClient.getLatestProposedRootBundle();
+  const blockRangesForChains = getImpliedBundleBlockRanges(
+    clients.hubPoolClient,
+    clients.configStoreClient,
+    mostRecentProposedRootBundle
+  );
+  // We are loading data from a pending root bundle which should be well into liveness, so we want to use arweave if possible.
+  const pendingRootBundleData = await clients.bundleDataClient.loadData(
+    blockRangesForChains,
+    clients.spokePoolClients,
+    true
+  );
+  // Build the pool rebalance root for the pending root bundle.
+  const pendingPoolRebalanceRoot = _buildPoolRebalanceRoot(
+    latestMainnetBlock,
+    blockRangesForChains[0][1],
+    pendingRootBundleData.bundleDepositsV3,
+    pendingRootBundleData.bundleFillsV3,
+    pendingRootBundleData.bundleSlowFillsV3,
+    pendingRootBundleData.unexecutableSlowFills,
+    pendingRootBundleData.expiredDepositsToRefundV3,
+    clients,
+    maxL1TokenCountOverride
+  );
+
+  // We now need to re-assign the running balance value for `latestPoolRebalanceRoot`. The re-assignment is as follows:
+  // `latestPoolRebalanceRoot` has running balances value given by RB_opt := (optFills + optDeposits + optSlowFills + optExpiredDeposits + optExpiredSlowFills) + lastExecutedRunningBalances.
+  // `pendingPoolRebalanceRoot` has running balances value given by RB_pend := (pendFills + pendDeposits + pendSlowFills + pendExpiredDeposits + pendExpiredSlowFills) + lastExecutedRunningBalances.
+  // Note that for both pool rebalance roots, `lastExecutedRunningBalances` is the same since they obtain this value by looking at the most recent `ExecutedRootBundle` event.
+  // However, `latestPoolRebalanceRoot` should have running balance value given by (optFills + optDeposits + optSlowFills + optExpiredDeposits + optExpiredSlowFills) + RB_pend.
+  // This means we need to re-assign `latestPoolRebalanceRoot`'s running balance value to (RB_pend + RB_opt - lastExecutedRunningBalances).
+  //
+
+  // In order to update running balances properly, we need to iterate through the pending running balance dictionary.
+  const { runningBalances: pendingRunningBalances } = pendingPoolRebalanceRoot; // RB_pend
+  const { runningBalances: optimisticRunningBalances } = latestPoolRebalanceRoot; // RB_opt
+  const runningBalances = _.cloneDeep(optimisticRunningBalances);
+
+  // Calculate RB := RB_pend + RB_opt.
+  Object.keys(pendingRunningBalances).forEach((repaymentChainId) => {
+    Object.entries(pendingRunningBalances[Number(repaymentChainId)]).forEach(
+      ([l1TokenAddress, pendingRunningBalanceAmount]) => {
+        updateRunningBalance(runningBalances, Number(repaymentChainId), l1TokenAddress, pendingRunningBalanceAmount);
+      }
+    );
+  });
+
+  // Calculate RB := RB - lastExecutedRunningBalance.
+  Object.keys(runningBalances).forEach((repaymentChainId) => {
+    Object.entries(runningBalances[Number(repaymentChainId)]).forEach(([l1TokenAddress, runningBalanceAmount]) => {
+      // We are only double-counting `lastExecutedRunningBalance` if we had a running balance entry in both `optimisticRunningBalances` and `pendingRunningBalances`.
+      const pendingRunningBalanceAmount: BigNumber | undefined =
+        pendingRunningBalances[Number(repaymentChainId)]?.[l1TokenAddress];
+      if (
+        isDefined(optimisticRunningBalances[Number(repaymentChainId)]?.[l1TokenAddress]) &&
+        isDefined(pendingRunningBalanceAmount)
+      ) {
+        const { runningBalance: lastExecutedRunningBalance } =
+          clients.hubPoolClient.getRunningBalanceBeforeBlockForChain(
+            latestMainnetBlock,
+            Number(repaymentChainId),
+            EvmAddress.from(l1TokenAddress)
+          );
+        updateRunningBalance(
+          runningBalances,
+          Number(repaymentChainId),
+          l1TokenAddress,
+          lastExecutedRunningBalance.mul(-1) // Inverse the value to remove the double counting of `lastExecutedRunningBalance`.
+        );
+      }
+      // We also may have added a superficial running balance entry to `runningBalances` (i.e. one where pendingRunningBalanceAmount === runningBalanceAmount) when calculating RB_pend + RB_opt, which should be removed from the dictionary as well.
+      else if (isDefined(pendingRunningBalanceAmount) && pendingRunningBalanceAmount.eq(runningBalanceAmount)) {
+        deleteFromJson(runningBalances as Record<string | number, unknown>, [Number(repaymentChainId), l1TokenAddress]);
+      }
+    });
+  });
+
+  // Reassign the running balance.
+  latestPoolRebalanceRoot.runningBalances = runningBalances;
+  // Return the updated pool rebalance root.
+  return latestPoolRebalanceRoot;
+}
+
+export function _buildPoolRebalanceRoot(
+  latestMainnetBlock: number,
+  mainnetBundleEndBlock: number,
+  bundleV3Deposits: BundleDepositsV3,
+  bundleFillsV3: BundleFillsV3,
+  bundleSlowFillsV3: BundleSlowFills,
+  unexecutableSlowFills: BundleExcessSlowFills,
+  expiredDepositsToRefundV3: ExpiredDepositsToRefundV3,
+  clients: {
+    hubPoolClient: HubPoolClient;
+    configStoreClient: AcrossConfigStoreClient;
+    bundleDataClient: BundleDataClient;
+    spokePoolClients: SpokePoolClientsByChain;
+  },
+  maxL1TokenCountOverride?: number
+): PoolRebalanceRoot {
   // Running balances are the amount of tokens that we need to send to each SpokePool to pay for all instant and
   // slow relay refunds. They are decreased by the amount of funds already held by the SpokePool. Balances are keyed
   // by the SpokePool's network and L1 token equivalent of the L2 token to refund.
@@ -307,58 +435,7 @@ export async function _buildPoolRebalanceRoot(
   });
 
   // Add to the running balance value from the last valid root bundle proposal. A root bundle proposal which is still in liveness and has not yet been executed counts as a valid proposal.
-  // If the mainnetBundleEndBlock for this pool rebalance root corresponds to the pending root bundle or some root bundle before the pending root bundle, then we can fetch running balances directly from `ExecutedRootBundle` events.
-  if (
-    !clients.hubPoolClient.hasPendingProposal() ||
-    clients.hubPoolClient.getPendingRootBundle()!.bundleEvaluationBlockNumbers[1] <= mainnetBundleEndBlock
-  ) {
-    addLastRunningBalance(latestMainnetBlock, runningBalances, clients.hubPoolClient);
-  } else {
-    // Otherwise, the pool rebalance root for this root bundle must be for an optimistic proposal, so we need to reconstruct the pool rebalance root for the pending root bundle to obtain the running balances.
-    // @dev It is safe to index the hub pool client's proposed root bundles here since there is guaranteed to be a pending proposal in this code block.
-    const mostRecentProposedRootBundle = clients.hubPoolClient.getLatestProposedRootBundle();
-    const blockRangesForChains = getImpliedBundleBlockRanges(
-      clients.hubPoolClient,
-      clients.configStoreClient,
-      mostRecentProposedRootBundle
-    );
-    // We are loading data from a pending root bundle, so we want to use arweave if possible.
-    const prevRootBundleData = await clients.bundleDataClient.loadData(
-      blockRangesForChains,
-      clients.spokePoolClients,
-      true
-    );
-    const prevPoolRebalanceRoot = await _buildPoolRebalanceRoot(
-      latestMainnetBlock,
-      blockRangesForChains[0][1],
-      prevRootBundleData.bundleDepositsV3,
-      prevRootBundleData.bundleFillsV3,
-      prevRootBundleData.bundleSlowFillsV3,
-      prevRootBundleData.unexecutableSlowFills,
-      prevRootBundleData.expiredDepositsToRefundV3,
-      clients,
-      maxL1TokenCountOverride
-    );
-    // Update the running balances by adding the pending root bundle's running balance amounts to this bundle's running balances.
-    const { runningBalances: prevRunningBalances } = prevPoolRebalanceRoot;
-    Object.keys(runningBalances).forEach((repaymentChainId) => {
-      Object.keys(runningBalances[Number(repaymentChainId)]).forEach((l1TokenAddress) => {
-        const updateRunningBalanceAmount = prevRunningBalances[Number(repaymentChainId)]?.[l1TokenAddress];
-        // If the pending root bundle didn't have a running balance, fall back to the last running balance for that token and chain pair.
-        const { runningBalance: fallbackRunningBalance } = clients.hubPoolClient.getRunningBalanceBeforeBlockForChain(
-          latestMainnetBlock,
-          Number(repaymentChainId),
-          EvmAddress.from(l1TokenAddress)
-        );
-        updateRunningBalance(
-          runningBalances,
-          Number(repaymentChainId),
-          l1TokenAddress,
-          updateRunningBalanceAmount ?? fallbackRunningBalance
-        );
-      });
-    });
-  }
+  addLastRunningBalance(latestMainnetBlock, runningBalances, clients.hubPoolClient);
 
   const leaves: PoolRebalanceLeaf[] = constructPoolRebalanceLeaves(
     mainnetBundleEndBlock,
