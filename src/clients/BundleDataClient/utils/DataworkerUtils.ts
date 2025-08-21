@@ -138,7 +138,7 @@ export async function buildPoolRebalanceRoot(
   },
   maxL1TokenCountOverride?: number
 ): Promise<PoolRebalanceRoot> {
-  // Build a pool rebalance root given the input bundle data. Depending on the value of `mainnetBundleEndBlock`, we may need to re-assign running balances.
+  // Build a pool rebalance root given the input bundle data. Depending on the value of `mainnetBundleEndBlock`, we may need to reassign running balances.
   const latestPoolRebalanceRoot = _buildPoolRebalanceRoot(
     latestMainnetBlock,
     mainnetBundleEndBlock,
@@ -151,7 +151,7 @@ export async function buildPoolRebalanceRoot(
     maxL1TokenCountOverride
   );
   // In this case, the pool rebalance root we wish to construct corresponds to a root bundle which is preceded by an executed root bundle, meaning that the
-  // the running balance calculation in _buildPoolRebalanceRoot does not need to be re-assigned.
+  // the running balance calculation in _buildPoolRebalanceRoot does not need to be reassigned.
   if (
     !clients.hubPoolClient.hasPendingProposal() ||
     clients.hubPoolClient.getPendingRootBundle()!.bundleEvaluationBlockNumbers[1] <= mainnetBundleEndBlock
@@ -159,7 +159,7 @@ export async function buildPoolRebalanceRoot(
     return latestPoolRebalanceRoot;
   }
   // Otherwise, the pool rebalance root we wish to construct corresponds to a root bundle which is preceded by a pending root bundle. This means that we need
-  // to optimisitically assume the pending root bundle's proposed values are correct and re-assign our pool rebalance root's running balances.
+  // to optimisitically assume the pending root bundle's proposed values are correct and reassign our pool rebalance root's running balances.
 
   // We need to get the pool rebalance root for the pending bundle.
   // @dev It is safe to index the hub pool client's proposed root bundles here since there is guaranteed to be a pending proposal in this code block.
@@ -188,12 +188,12 @@ export async function buildPoolRebalanceRoot(
     maxL1TokenCountOverride
   );
 
-  // We now need to re-assign the running balance value for `latestPoolRebalanceRoot`. The re-assignment is as follows:
+  // We now need to reassign the running balance value for `latestPoolRebalanceRoot`. The reassignment is as follows:
   // `latestPoolRebalanceRoot` has running balances value given by RB_opt := (optFills + optDeposits + optSlowFills + optExpiredDeposits + optExpiredSlowFills) + lastExecutedRunningBalances.
   // `pendingPoolRebalanceRoot` has running balances value given by RB_pend := (pendFills + pendDeposits + pendSlowFills + pendExpiredDeposits + pendExpiredSlowFills) + lastExecutedRunningBalances.
   // Note that for both pool rebalance roots, `lastExecutedRunningBalances` is the same since they obtain this value by looking at the most recent `ExecutedRootBundle` event.
   // However, `latestPoolRebalanceRoot` should have running balance value given by (optFills + optDeposits + optSlowFills + optExpiredDeposits + optExpiredSlowFills) + RB_pend.
-  // This means we need to re-assign `latestPoolRebalanceRoot`'s running balance value to (RB_pend + RB_opt - lastExecutedRunningBalances).
+  // This means we need to reassign `latestPoolRebalanceRoot`'s running balance value to (RB_pend + RB_opt - lastExecutedRunningBalances).
   //
 
   // In order to update running balances properly, we need to iterate through the pending running balance dictionary.
