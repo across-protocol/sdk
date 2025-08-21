@@ -146,7 +146,7 @@ export async function _buildPoolRebalanceRoot(
   addLastRunningBalance(latestMainnetBlock, runningBalances, clients.hubPoolClient);
   if (
     clients.hubPoolClient.hasPendingProposal() &&
-    clients.hubPoolClient.getPendingRootBundle()!.bundleEvaluationBlockNumbers[1] > mainnetBundleEndBlock
+    clients.hubPoolClient.getPendingRootBundle()!.bundleEvaluationBlockNumbers[1] < mainnetBundleEndBlock
   ) {
     // We need to get the pool rebalance root for the pending bundle.
     // @dev It is safe to index the hub pool client's proposed root bundles here since there is guaranteed to be a pending proposal in this code block.
