@@ -10,6 +10,7 @@ import {
   PoolRebalanceLeaf,
   Refund,
   RunningBalances,
+  SpokePoolClientsByChain,
 } from "../../../interfaces";
 import {
   bnZero,
@@ -18,6 +19,8 @@ import {
   count2DDictionaryValues,
   count3DDictionaryValues,
   toAddressType,
+  getImpliedBundleBlockRanges,
+  isDefined,
 } from "../../../utils";
 import {
   addLastRunningBalance,
@@ -28,6 +31,7 @@ import {
 } from "./PoolRebalanceUtils";
 import { AcrossConfigStoreClient } from "../../AcrossConfigStoreClient";
 import { HubPoolClient } from "../../HubPoolClient";
+import { BundleDataClient } from "../../BundleDataClient";
 import { buildPoolRebalanceLeafTree } from "./MerkleTreeUtils";
 
 // and expired deposits.
@@ -114,7 +118,7 @@ export function getEndBlockBuffers(
   return chainIdListForBundleEvaluationBlockNumbers.map((chainId: number) => blockRangeEndBlockBuffer[chainId] ?? 0);
 }
 
-export function _buildPoolRebalanceRoot(
+export async function _buildPoolRebalanceRoot(
   latestMainnetBlock: number,
   mainnetBundleEndBlock: number,
   bundleV3Deposits: BundleDepositsV3,
@@ -122,9 +126,91 @@ export function _buildPoolRebalanceRoot(
   bundleSlowFillsV3: BundleSlowFills,
   unexecutableSlowFills: BundleExcessSlowFills,
   expiredDepositsToRefundV3: ExpiredDepositsToRefundV3,
-  clients: { hubPoolClient: HubPoolClient; configStoreClient: AcrossConfigStoreClient },
+  clients: {
+    hubPoolClient: HubPoolClient;
+    configStoreClient: AcrossConfigStoreClient;
+    bundleDataClient: BundleDataClient;
+    spokePoolClients: SpokePoolClientsByChain;
+  },
   maxL1TokenCountOverride?: number
-): PoolRebalanceRoot {
+): Promise<PoolRebalanceRoot> {
+  const { runningBalances, realizedLpFees, chainWithRefundsOnly } = _getMarginalRunningBalances(
+    mainnetBundleEndBlock,
+    bundleV3Deposits,
+    bundleFillsV3,
+    bundleSlowFillsV3,
+    unexecutableSlowFills,
+    expiredDepositsToRefundV3,
+    clients
+  );
+  addLastRunningBalance(latestMainnetBlock, runningBalances, clients.hubPoolClient);
+  if (
+    clients.hubPoolClient.hasPendingProposal() &&
+    clients.hubPoolClient.getPendingRootBundle()!.bundleEvaluationBlockNumbers[1] < mainnetBundleEndBlock
+  ) {
+    // We need to get the pool rebalance root for the pending bundle.
+    // @dev It is safe to index the hub pool client's proposed root bundles here since there is guaranteed to be a pending proposal in this code block.
+    const mostRecentProposedRootBundle = clients.hubPoolClient.getLatestProposedRootBundle();
+    const blockRangesForChains = getImpliedBundleBlockRanges(
+      clients.hubPoolClient,
+      clients.configStoreClient,
+      mostRecentProposedRootBundle
+    );
+    // We are loading data from a pending root bundle which should be well into liveness, so we want to use arweave if possible.
+    const pendingRootBundleData = await clients.bundleDataClient.loadData(
+      blockRangesForChains,
+      clients.spokePoolClients,
+      true
+    );
+    // Build the pool rebalance root for the pending root bundle.
+    const { runningBalances: pendingRunningBalances } = _getMarginalRunningBalances(
+      blockRangesForChains[0][1],
+      pendingRootBundleData.bundleDepositsV3,
+      pendingRootBundleData.bundleFillsV3,
+      pendingRootBundleData.bundleSlowFillsV3,
+      pendingRootBundleData.unexecutableSlowFills,
+      pendingRootBundleData.expiredDepositsToRefundV3,
+      clients
+    );
+    // Only add marginal pending running balances if there is already an entry in `runningBalances`. If there is no entry in `runningBalances`, then
+    // The running balance for this entry was unchanged since the last root bundle.
+    Object.keys(runningBalances).forEach((repaymentChainId) => {
+      Object.keys(runningBalances[Number(repaymentChainId)]).forEach((l1TokenAddress) => {
+        if (isDefined(pendingRunningBalances[Number(repaymentChainId)]?.[l1TokenAddress])) {
+          const runningBalanceAmount = pendingRunningBalances[Number(repaymentChainId)][l1TokenAddress];
+          updateRunningBalance(runningBalances, Number(repaymentChainId), l1TokenAddress, runningBalanceAmount);
+        }
+      });
+    });
+  }
+  const leaves: PoolRebalanceLeaf[] = constructPoolRebalanceLeaves(
+    mainnetBundleEndBlock,
+    runningBalances,
+    realizedLpFees,
+    Array.from(chainWithRefundsOnly).filter((chainId) => !Object.keys(runningBalances).includes(chainId.toString())),
+    clients.configStoreClient,
+    maxL1TokenCountOverride
+  );
+  return {
+    runningBalances,
+    realizedLpFees,
+    leaves,
+    tree: buildPoolRebalanceLeafTree(leaves),
+  };
+}
+
+export function _getMarginalRunningBalances(
+  mainnetBundleEndBlock: number,
+  bundleV3Deposits: BundleDepositsV3,
+  bundleFillsV3: BundleFillsV3,
+  bundleSlowFillsV3: BundleSlowFills,
+  unexecutableSlowFills: BundleExcessSlowFills,
+  expiredDepositsToRefundV3: ExpiredDepositsToRefundV3,
+  clients: {
+    hubPoolClient: HubPoolClient;
+    configStoreClient: AcrossConfigStoreClient;
+  }
+): { chainWithRefundsOnly: Set<number>; realizedLpFees: RunningBalances; runningBalances: RunningBalances } {
   // Running balances are the amount of tokens that we need to send to each SpokePool to pay for all instant and
   // slow relay refunds. They are decreased by the amount of funds already held by the SpokePool. Balances are keyed
   // by the SpokePool's network and L1 token equivalent of the L2 token to refund.
@@ -296,24 +382,5 @@ export function _buildPoolRebalanceRoot(
       });
     });
   });
-
-  // Add to the running balance value from the last valid root bundle proposal for {chainId, l1Token}
-  // combination if found.
-  addLastRunningBalance(latestMainnetBlock, runningBalances, clients.hubPoolClient);
-
-  const leaves: PoolRebalanceLeaf[] = constructPoolRebalanceLeaves(
-    mainnetBundleEndBlock,
-    runningBalances,
-    realizedLpFees,
-    Array.from(chainWithRefundsOnly).filter((chainId) => !Object.keys(runningBalances).includes(chainId.toString())),
-    clients.configStoreClient,
-    maxL1TokenCountOverride
-  );
-
-  return {
-    runningBalances,
-    realizedLpFees,
-    leaves,
-    tree: buildPoolRebalanceLeafTree(leaves),
-  };
+  return { runningBalances, chainWithRefundsOnly, realizedLpFees };
 }
