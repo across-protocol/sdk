@@ -1300,7 +1300,12 @@ export const hasCCTPV1MessageBeenProcessed = async (
   nonce: number,
   sourceDomain: number
 ): Promise<boolean> => {
-  const noncePda = await getCCTPNoncePda(solanaClient, signer, nonce, sourceDomain);
+  let noncePda: Address;
+  try {
+    noncePda = await getCCTPNoncePda(solanaClient, signer, nonce, sourceDomain);
+  } catch (e) {
+    return false;
+  }
   const isNonceUsedIx = await MessageTransmitterClient.getIsNonceUsedInstruction({
     nonce: nonce,
     usedNonces: noncePda,
