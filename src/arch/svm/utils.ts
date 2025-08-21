@@ -429,7 +429,7 @@ export const simulateAndDecode = async <P extends (buf: Buffer) => unknown>(
     .send();
 
   if (!simulationResult.value.returnData?.data[0]) {
-    throw new Error("No return data");
+    throw new Error("svm::simulateAndDecode: simulateTransaction failed. No return data.");
   }
 
   return parser(Buffer.from(simulationResult.value.returnData.data[0], "base64")) as ReturnType<P>;
