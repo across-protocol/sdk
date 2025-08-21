@@ -1300,18 +1300,22 @@ export const hasCCTPV1MessageBeenProcessed = async (
   nonce: number,
   sourceDomain: number
 ): Promise<boolean> => {
-  const noncePda = await getCCTPNoncePda(solanaClient, signer, nonce, sourceDomain);
-  const isNonceUsedIx = await MessageTransmitterClient.getIsNonceUsedInstruction({
-    nonce: nonce,
-    usedNonces: noncePda,
-  });
-  const parserFunction = (buf: Buffer): boolean => {
-    if (buf.length != 1) {
-      throw new Error("Invalid buffer length for isNonceUsedIx");
-    }
-    return Boolean(buf[0]);
-  };
-  return await simulateAndDecode(solanaClient, isNonceUsedIx, signer, parserFunction);
+  try {
+    const noncePda = await getCCTPNoncePda(solanaClient, signer, nonce, sourceDomain);
+    const isNonceUsedIx = await MessageTransmitterClient.getIsNonceUsedInstruction({
+      nonce: nonce,
+      usedNonces: noncePda,
+    });
+    const parserFunction = (buf: Buffer): boolean => {
+      if (buf.length != 1) {
+        throw new Error("Invalid buffer length for isNonceUsedIx");
+      }
+      return Boolean(buf[0]);
+    };
+    return await simulateAndDecode(solanaClient, isNonceUsedIx, signer, parserFunction);
+  } catch (e) {
+    return false;
+  }
 };
 
 /**
