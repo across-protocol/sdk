@@ -20,6 +20,7 @@ import {
   count3DDictionaryValues,
   toAddressType,
   getImpliedBundleBlockRanges,
+  isDefined,
 } from "../../../utils";
 import {
   addLastRunningBalance,
@@ -171,12 +172,15 @@ export async function _buildPoolRebalanceRoot(
       pendingRootBundleData.expiredDepositsToRefundV3,
       clients
     );
-    Object.keys(pendingRunningBalances).forEach((repaymentChainId) => {
-      Object.entries(pendingRunningBalances[Number(repaymentChainId)]).forEach(
-        ([l1TokenAddress, runningBalanceAmount]) => {
+    // Only add marginal pending running balances if there is already an entry in `runningBalances`. If there is no entry in `runningBalances`, then
+    // The running balance for this entry was unchanged since the last root bundle.
+    Object.keys(runningBalances).forEach((repaymentChainId) => {
+      Object.keys(runningBalances[Number(repaymentChainId)]).forEach((l1TokenAddress) => {
+        if (isDefined(pendingRunningBalances[Number(repaymentChainId)]?.[l1TokenAddress])) {
+          const runningBalanceAmount = pendingRunningBalances[Number(repaymentChainId)][l1TokenAddress];
           updateRunningBalance(runningBalances, Number(repaymentChainId), l1TokenAddress, runningBalanceAmount);
         }
-      );
+      });
     });
   }
   const leaves: PoolRebalanceLeaf[] = constructPoolRebalanceLeaves(
