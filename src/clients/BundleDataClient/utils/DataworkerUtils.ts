@@ -434,7 +434,8 @@ export function _buildPoolRebalanceRoot(
     });
   });
 
-  // Add to the running balance value from the last valid root bundle proposal. A root bundle proposal which is still in liveness and has not yet been executed counts as a valid proposal.
+  // Add to the running balance value from the last valid root bundle proposal for {chainId, l1Token}
+  // combination if found.
   addLastRunningBalance(latestMainnetBlock, runningBalances, clients.hubPoolClient);
 
   const leaves: PoolRebalanceLeaf[] = constructPoolRebalanceLeaves(
