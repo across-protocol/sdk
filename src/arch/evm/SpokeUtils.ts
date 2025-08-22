@@ -16,7 +16,6 @@ import {
   toBN,
   bnZero,
   chunk,
-  getMessageHash,
   getRelayDataHash,
   isDefined,
   isUnsafeDepositId,
