@@ -46,7 +46,7 @@ import {
   FillWithBlock,
   RelayData,
   RelayDataWithMessageHash,
-  RelayExecutionEventInfo,
+  SortableEvent,
 } from "../../interfaces";
 import {
   BigNumber,
@@ -59,10 +59,12 @@ import {
   chunk,
   delay,
   getMessageHash,
+  isDefined,
   isUnsafeDepositId,
   keccak256,
   mapAsync,
-  toAddressType,
+  unpackDepositEvent,
+  unpackFillEvent,
 } from "../../utils";
 import {
   createDefaultTransaction,
@@ -261,7 +263,7 @@ export async function findDeposit(
   logger: winston.Logger,
   slot?: bigint,
   secondsLookback = 2 * 24 * 60 * 60 // 2 days
-): Promise<DepositWithBlock | undefined> {
+): Promise<Omit<DepositWithBlock, "originChainId" | "quoteBlockNumber" | "fromLiteChain" | "toLiteChain"> | undefined> {
   // We can only perform this search when we have a safe deposit ID.
   if (isUnsafeDepositId(depositId)) {
     throw new Error(`Cannot binary search for depositId ${depositId}`);
@@ -289,24 +291,20 @@ export async function findDeposit(
     return undefined;
   }
 
-  const unwrappedDepositEvent = unwrapEventData(depositEvent.data, ["depositId", "outputAmount"]) as Record<
-    string,
-    unknown
-  >;
-  const destinationChainId = unwrappedDepositEvent.destinationChainId as number;
-  // Return the deposit event with block info
+  const txnIndex = 0;
+  const logIndex = 0;
+  const blockNumber = Number(depositEvent.slot);
+  const txnRef = depositEvent.signature.toString();
+
+  const rawData = unwrapEventData(depositEvent.data, ["depositId", "outputAmount"]) as Record<string, unknown>;
+  const { originChainId, ...deposit } = unpackDepositEvent(
+    { ...rawData, blockNumber, txnRef, txnIndex, logIndex },
+    CHAIN_IDs.SOLANA
+  );
+
   return {
-    txnRef: depositEvent.signature.toString(),
-    blockNumber: Number(depositEvent.slot),
-    txnIndex: 0,
-    logIndex: 0,
-    ...unwrappedDepositEvent,
-    depositor: toAddressType(unwrappedDepositEvent.depositor as string, CHAIN_IDs.SOLANA),
-    recipient: toAddressType(unwrappedDepositEvent.recipient as string, destinationChainId),
-    inputToken: toAddressType(unwrappedDepositEvent.inputToken as string, CHAIN_IDs.SOLANA),
-    outputToken: toAddressType(unwrappedDepositEvent.outputToken as string, destinationChainId),
-    exclusiveRelayer: toAddressType(unwrappedDepositEvent.exclusiveRelayer as string, destinationChainId),
-  } as DepositWithBlock;
+    ...deposit,
+  } satisfies Omit<DepositWithBlock, "originChainId" | "quoteBlockNumber" | "fromLiteChain" | "toLiteChain">;
 }
 
 /**
@@ -484,45 +482,14 @@ export async function findFillEvent(
   );
   assert(fillEvents.length <= 1, `Expected at most one fill event for ${fillStatusPda}, got ${fillEvents.length}`);
 
-  if (fillEvents.length > 0) {
-    const rawFillEvent = fillEvents[0];
-    const eventData = unwrapEventData(rawFillEvent.data, ["depositId", "inputAmount"]) as Omit<
-      FillWithBlock,
-      "depositor" | "recipient" | "inputToken" | "outputToken" | "exclusiveRelayer" | "relayer"
-    > & {
-      depositor: string;
-      recipient: string;
-      inputToken: string;
-      outputToken: string;
-      exclusiveRelayer: string;
-      relayer: string;
-      relayExecutionInfo: Omit<RelayExecutionEventInfo, "updatedRecipient"> & { updatedRecipient: string };
-    };
-    const originChainId = eventData.originChainId;
-
-    const parsedFillEvent: FillWithBlock = {
-      ...eventData,
-      txnRef: rawFillEvent.signature,
-      blockNumber: Number(rawFillEvent.slot),
-      txnIndex: 0,
-      logIndex: 0,
-      destinationChainId,
-      inputToken: toAddressType(eventData.inputToken, originChainId),
-      outputToken: toAddressType(eventData.outputToken, destinationChainId),
-      relayer: toAddressType(eventData.relayer, eventData.repaymentChainId),
-      exclusiveRelayer: toAddressType(eventData.exclusiveRelayer, destinationChainId),
-      depositor: toAddressType(eventData.depositor, originChainId),
-      recipient: toAddressType(eventData.recipient, destinationChainId),
-      relayExecutionInfo: {
-        ...eventData.relayExecutionInfo,
-        updatedRecipient: eventData.relayExecutionInfo.updatedRecipient,
-      },
-    };
-
-    return parsedFillEvent;
+  const [rawEvent] = fillEvents;
+  if (!isDefined(rawEvent)) {
+    return;
   }
 
-  return undefined;
+  const rawFill = unwrapEventData(rawEvent.data, ["depositId", "inputAmount"]) as SortableEvent;
+  const fill = unpackFillEvent(rawFill, destinationChainId);
+  return fill satisfies FillWithBlock;
 }
 
 /**
