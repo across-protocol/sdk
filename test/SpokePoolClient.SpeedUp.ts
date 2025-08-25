@@ -1,7 +1,8 @@
 import { EVMSpokePoolClient, SpokePoolClient } from "../src/clients";
 import { Deposit, SpeedUp } from "../src/interfaces";
-import { bnOne, getMessageHash, toBytes32 } from "../src/utils";
-import { destinationChainId, originChainId } from "./constants";
+import { CHAIN_IDs } from "../src/constants";
+import { bnOne, EvmAddress, getMessageHash, toBytes32 } from "../src/utils";
+import { originChainId } from "./constants";
 import {
   assertPromiseError,
   Contract,
@@ -18,6 +19,7 @@ import {
 } from "./utils";
 
 describe("SpokePoolClient: SpeedUp", function () {
+  const destinationChainId = CHAIN_IDs.MAINNET;
   const ignoredFields = [
     "blockNumber",
     "blockTimestamp",
@@ -31,7 +33,7 @@ describe("SpokePoolClient: SpeedUp", function () {
   let depositor: SignerWithAddress, deploymentBlock: number;
   let spokePoolClient: SpokePoolClient;
   let balance: BigNumber;
-  let inputToken: string, outputToken: string;
+  let inputToken: EvmAddress, outputToken: EvmAddress;
   let inputAmount: BigNumber, outputAmount: BigNumber;
 
   beforeEach(async function () {
@@ -50,8 +52,8 @@ describe("SpokePoolClient: SpeedUp", function () {
 
     await setupTokensForWallet(spokePool, depositor, [erc20, destErc20], weth, 10);
     balance = await erc20.connect(depositor).balanceOf(depositor.address);
-    inputToken = erc20.address;
-    outputToken = destErc20.address;
+    inputToken = EvmAddress.from(erc20.address);
+    outputToken = EvmAddress.from(destErc20.address);
     inputAmount = balance;
     outputAmount = inputAmount.sub(bnOne);
   });
@@ -79,7 +81,7 @@ describe("SpokePoolClient: SpeedUp", function () {
       depositEvent.depositId,
       originChainId,
       updatedOutputAmount,
-      toBytes32(updatedRecipient),
+      updatedRecipient.toBytes32(),
       updatedMessage
     );
 
@@ -89,7 +91,7 @@ describe("SpokePoolClient: SpeedUp", function () {
         toBytes32(depositor.address),
         depositEvent.depositId,
         updatedOutputAmount,
-        toBytes32(updatedRecipient),
+        updatedRecipient.toBytes32(),
         updatedMessage,
         signature
       );
@@ -106,16 +108,36 @@ describe("SpokePoolClient: SpeedUp", function () {
       updatedRecipient,
     };
     const updatedDeposit = spokePoolClient.appendMaxSpeedUpSignatureToDeposit(depositEvent);
-    expect(deepEqualsWithBigNumber(updatedDeposit, expectedDepositData)).to.be.true;
+    expect(updatedDeposit).excludingEvery(["updatedRecipient"]).to.deep.eq(expectedDepositData);
+    expect(expectedDepositData.updatedRecipient).to.exist;
+    expect(updatedDeposit.updatedRecipient!.eq(expectedDepositData.updatedRecipient!)).to.be.true;
 
     // Fetching deposits for the depositor should contain the correct fees.
+    const clientDeposit = spokePoolClient.getDepositsForDestinationChain(destinationChainId)[0];
     expect(
-      deepEqualsWithBigNumber(
-        spokePoolClient.getDepositsForDestinationChain(destinationChainId)[0],
-        expectedDepositData,
-        [...ignoredFields, "realizedLpFeePct", "fromLiteChain", "toLiteChain"]
-      )
+      deepEqualsWithBigNumber(clientDeposit, expectedDepositData, [
+        ...ignoredFields,
+        "realizedLpFeePct",
+        "fromLiteChain",
+        "toLiteChain",
+        "depositor",
+        "recipient",
+        "inputToken",
+        "outputToken",
+        "exclusiveRelayer",
+        "updatedRecipient",
+      ])
     ).to.be.true;
+    expect(clientDeposit.depositor.eq(expectedDepositData.depositor)).to.be.true;
+    expect(clientDeposit.recipient.eq(expectedDepositData.recipient)).to.be.true;
+    expect(clientDeposit.inputToken.eq(expectedDepositData.inputToken)).to.be.true;
+    expect(clientDeposit.outputToken.eq(expectedDepositData.outputToken)).to.be.true;
+    expect(clientDeposit.exclusiveRelayer.eq(expectedDepositData.exclusiveRelayer)).to.be.true;
+
+    expect(clientDeposit.updatedRecipient).to.exist;
+    expect(expectedDepositData.updatedRecipient).to.exist;
+    expect(clientDeposit.updatedRecipient!.eq(expectedDepositData.updatedRecipient!)).to.be.true;
+
     expect(spokePoolClient.getDepositsForDestinationChain(destinationChainId).length).to.equal(1);
   });
 
@@ -142,7 +164,7 @@ describe("SpokePoolClient: SpeedUp", function () {
         depositId,
         originChainId,
         updatedOutputAmount,
-        toBytes32(updatedRecipient),
+        updatedRecipient.toBytes32(),
         updatedMessage
       );
 
@@ -152,7 +174,7 @@ describe("SpokePoolClient: SpeedUp", function () {
           toBytes32(depositor.address),
           depositId,
           updatedOutputAmount,
-          toBytes32(updatedRecipient),
+          updatedRecipient.toBytes32(),
           updatedMessage,
           depositorSignature
         );
@@ -161,7 +183,7 @@ describe("SpokePoolClient: SpeedUp", function () {
         depositorSignature,
         updatedOutputAmount,
         depositId,
-        depositor: depositor.address,
+        depositor: EvmAddress.from(await depositor.getAddress()),
         originChainId,
         updatedRecipient,
         updatedMessage,
@@ -189,8 +211,10 @@ describe("SpokePoolClient: SpeedUp", function () {
       } else {
         expect(updatedDeposit.updatedOutputAmount!.eq(bestDepositUpdate.updatedOutputAmount)).to.be.true;
         expect(updatedDeposit.speedUpSignature).to.equal(bestDepositUpdate.depositorSignature);
-        expect(updatedDeposit.updatedRecipient).to.equal(bestDepositUpdate.updatedRecipient);
         expect(updatedDeposit.updatedMessage).to.equal(bestDepositUpdate.updatedMessage);
+
+        expect(updatedDeposit.updatedRecipient).to.exist;
+        expect(updatedDeposit.updatedRecipient!.eq(bestDepositUpdate.updatedRecipient)).to.be.true;
       }
     }
   });
@@ -226,7 +250,7 @@ describe("SpokePoolClient: SpeedUp", function () {
         testDepositId,
         testOriginChainId,
         updatedOutputAmount,
-        toBytes32(updatedRecipient),
+        updatedRecipient.toBytes32(),
         updatedMessage
       );
 
@@ -236,7 +260,7 @@ describe("SpokePoolClient: SpeedUp", function () {
           testDepositor.address,
           testDepositId,
           updatedOutputAmount,
-          toBytes32(updatedRecipient),
+          updatedRecipient.toBytes32(),
           updatedMessage,
           signature
         );

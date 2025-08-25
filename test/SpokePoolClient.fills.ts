@@ -1,8 +1,17 @@
 import hre from "hardhat";
 import { EVMSpokePoolClient, SpokePoolClient } from "../src/clients";
 import { Deposit } from "../src/interfaces";
-import { bnOne, bnZero, getMessageHash, getNetworkName, deploy as deployMulticall } from "../src/utils";
-import { EMPTY_MESSAGE, ZERO_ADDRESS } from "../src/constants";
+import {
+  bnOne,
+  bnZero,
+  getMessageHash,
+  getNetworkName,
+  deploy as deployMulticall,
+  toAddressType,
+  EvmAddress,
+  SvmAddress,
+} from "../src/utils";
+import { CHAIN_IDs, EMPTY_MESSAGE, ZERO_ADDRESS } from "../src/constants";
 import { findDepositBlock, findFillBlock, findFillEvent } from "../src/arch/evm";
 import { originChainId, destinationChainId } from "./constants";
 import {
@@ -19,6 +28,7 @@ import {
   toBN,
   toBNWei,
 } from "./utils";
+import { getRandomSvmAddress } from "../src/arch/svm";
 
 describe("SpokePoolClient: Fills", function () {
   const originChainId2 = originChainId + 1;
@@ -58,18 +68,18 @@ describe("SpokePoolClient: Fills", function () {
       depositId: bnZero,
       originChainId,
       destinationChainId,
-      depositor: depositor.address,
-      recipient: depositor.address,
-      inputToken: erc20.address,
+      depositor: toAddressType(depositor.address, originChainId),
+      recipient: toAddressType(depositor.address, destinationChainId),
+      inputToken: toAddressType(erc20.address, originChainId),
       inputAmount: outputAmount.add(bnOne),
-      outputToken: destErc20.address,
+      outputToken: toAddressType(destErc20.address, destinationChainId),
       outputAmount: toBNWei("1"),
       quoteTimestamp: spokePoolTime - 60,
       message,
       messageHash: getMessageHash(message),
       fillDeadline: spokePoolTime + 600,
       exclusivityDeadline: 0,
-      exclusiveRelayer: ZERO_ADDRESS,
+      exclusiveRelayer: toAddressType(ZERO_ADDRESS, destinationChainId),
       fromLiteChain: false,
       toLiteChain: false,
     };
@@ -96,8 +106,8 @@ describe("SpokePoolClient: Fills", function () {
 
     expect(spokePoolClient.getFillsForOriginChain(originChainId).length).to.equal(3);
     expect(spokePoolClient.getFillsForOriginChain(originChainId2).length).to.equal(1);
-    expect(spokePoolClient.getFillsForRelayer(relayer1.address).length).to.equal(3);
-    expect(spokePoolClient.getFillsForRelayer(relayer2.address).length).to.equal(1);
+    expect(spokePoolClient.getFillsForRelayer(toAddressType(relayer1.address, originChainId)).length).to.equal(3);
+    expect(spokePoolClient.getFillsForRelayer(toAddressType(relayer2.address, originChainId)).length).to.equal(1);
   });
 
   it("Correctly locates the block number for a Deposit", async function () {
@@ -111,9 +121,9 @@ describe("SpokePoolClient: Fills", function () {
     for (let i = 0; i < nBlocks; ++i) {
       const blockNumber = await spokePool.provider.getBlockNumber();
       if (blockNumber === targetDepositBlock - 1) {
-        const inputToken = erc20.address;
+        const inputToken = toAddressType(erc20.address, originChainId);
         const inputAmount = bnOne;
-        const outputToken = ZERO_ADDRESS;
+        const outputToken = toAddressType(ZERO_ADDRESS, destinationChainId);
         const outputAmount = bnOne;
         const { depositId: _depositId, blockNumber: depositBlockNumber } = await deposit(
           spokePool,
@@ -198,9 +208,9 @@ describe("SpokePoolClient: Fills", function () {
     const depositBlockNumber = await findDepositBlock(spokePool, expectedDepositId, startBlock);
     expect(depositBlockNumber).to.be.undefined;
 
-    const inputToken = erc20.address;
+    const inputToken = toAddressType(erc20.address, originChainId);
     const inputAmount = bnOne;
-    const outputToken = ZERO_ADDRESS;
+    const outputToken = toAddressType(ZERO_ADDRESS, destinationChainId);
     const outputAmount = bnOne;
 
     const { depositId, blockNumber } = await deposit(
@@ -253,5 +263,53 @@ describe("SpokePoolClient: Fills", function () {
       findFillBlock(spokePool, depositTemplate, await spokePool.provider.getBlockNumber()),
       "Block numbers out of range"
     );
+  });
+
+  it("Creates a fills with different repaymentChainId", async function () {
+    const targetDeposit1 = { ...depositTemplate, depositId: depositTemplate.depositId.add(1) };
+    const targetDeposit2 = { ...depositTemplate, depositId: depositTemplate.depositId.add(2) };
+
+    // Submit multiple fills at the same block:
+    const startBlock = await spokePool.provider.getBlockNumber();
+    await fillRelay(spokePool, targetDeposit1, relayer1, {
+      repaymentChainId: originChainId2,
+      repaymentAddress: EvmAddress.from(relayer1.address),
+    });
+    await fillRelay(spokePool, targetDeposit2, relayer2, {
+      repaymentChainId: destinationChainId,
+      repaymentAddress: EvmAddress.from(relayer1.address),
+    });
+    const svmAddress = SvmAddress.from(getRandomSvmAddress());
+    await fillRelay(spokePool, { ...depositTemplate, depositId: depositTemplate.depositId.add(3) }, relayer2, {
+      repaymentChainId: CHAIN_IDs.SOLANA,
+      repaymentAddress: svmAddress,
+    });
+
+    let fill1 = await findFillEvent(spokePool, targetDeposit1, startBlock);
+    expect(fill1).to.exist;
+    fill1 = fill1!;
+    expect(fill1.repaymentChainId).to.equal(originChainId2);
+    expect(fill1.relayer.isEVM()).to.be.true;
+
+    let fill2 = await findFillEvent(spokePool, targetDeposit2, startBlock);
+    expect(fill2).to.exist;
+    fill2 = fill2!;
+    expect(fill2.repaymentChainId).to.equal(destinationChainId);
+    expect(fill2.relayer.isEVM()).to.be.true;
+
+    expect(fill1.depositId).to.equal(targetDeposit1.depositId);
+    expect(fill2.depositId).to.equal(targetDeposit2.depositId);
+
+    // Looking for a fill can return undefined:
+    let svmFill = await findFillEvent(
+      spokePool,
+      { ...depositTemplate, depositId: depositTemplate.depositId.add(3) },
+      startBlock
+    );
+    expect(svmFill).to.exist;
+    svmFill = svmFill!;
+    expect(svmFill.repaymentChainId).to.equal(CHAIN_IDs.SOLANA);
+    expect(svmFill.relayer.isEVM()).to.be.false;
+    expect(svmFill.relayer.isSVM()).to.be.true;
   });
 });

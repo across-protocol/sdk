@@ -6,4 +6,5 @@ export * from "./Bridge";
 export * from "./Error";
 export * from "./TypedData";
 export * from "./CachingMechanism";
+export * from "./PubSubMechanism";
 export * from "./BundleData";

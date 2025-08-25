@@ -11,13 +11,14 @@ import {
   relayFillStatus,
   fillStatusArray,
 } from "../../arch/svm";
-import { FillStatus, RelayData, SortableEvent } from "../../interfaces";
+import { FillStatus, RelayDataWithMessageHash, SortableEvent } from "../../interfaces";
 import {
   BigNumber,
   DepositSearchResult,
   EventSearchConfig,
   InvalidFill,
-  isZeroAddress,
+  getNetworkName,
+  isDefined,
   MakeOptional,
   sortEventsAscendingInPlace,
   SvmAddress,
@@ -25,12 +26,14 @@ import {
 import { isUpdateFailureReason } from "../BaseAbstractClient";
 import { HubPoolClient } from "../HubPoolClient";
 import { knownEventNames, SpokePoolClient, SpokePoolUpdate } from "./SpokePoolClient";
+import { SVM_SPOKE_POOL_CLIENT_TYPE } from "./types";
 
 /**
  * SvmSpokePoolClient is a client for the SVM SpokePool program. It extends the base SpokePoolClient
  * and implements the abstract methods required for interacting with an SVM Spoke Pool.
  */
 export class SVMSpokePoolClient extends SpokePoolClient {
+  readonly type = SVM_SPOKE_POOL_CLIENT_TYPE;
   /**
    * Note: Strongly prefer to use the async create() method to instantiate.
    */
@@ -112,7 +115,7 @@ export class SVMSpokePoolClient extends SpokePoolClient {
    * Performs an update to refresh the state of this client by querying SVM events.
    */
   protected async _update(eventsToQuery: string[]): Promise<SpokePoolUpdate> {
-    const searchConfig = await this.updateSearchConfig(this.svmEventsClient.getRpc());
+    const searchConfig = await this.updateSvmSearchConfig(this.svmEventsClient.getRpc(), this.logger);
     if (isUpdateFailureReason(searchConfig)) {
       const reason = searchConfig;
       return { success: false, reason };
@@ -139,7 +142,7 @@ export class SVMSpokePoolClient extends SpokePoolClient {
     const timerStart = Date.now();
 
     const [currentTime, ...eventsQueried] = await Promise.all([
-      this.svmEventsClient.getRpc().getBlockTime(BigInt(searchConfig.to)).send(),
+      this.getTimeAt(searchConfig.to),
       ...eventsToQuery.map(async (eventName, idx) => {
         const config = eventSearchConfigs[idx];
         const events = await this.svmEventsClient.queryEvents(
@@ -189,8 +192,17 @@ export class SVMSpokePoolClient extends SpokePoolClient {
   /**
    * Retrieves the timestamp for a given SVM slot number.
    */
-  public override getTimestampForBlock(slot: number): Promise<number> {
-    return getTimestampForSlot(this.svmEventsClient.getRpc(), slot);
+  public override async getTimestampForBlock(slot: number): Promise<number> {
+    let _slot = BigInt(slot);
+    const maxRetries = undefined; // Inherit defaults
+    do {
+      const timestamp = await getTimestampForSlot(this.svmEventsClient.getRpc(), _slot, maxRetries, this.logger);
+      if (isDefined(timestamp)) {
+        return timestamp;
+      }
+    } while (--_slot > 0);
+
+    throw new Error(`Unable to resolve time at or before ${getNetworkName(this.chainId)} slot ${slot}`);
   }
 
   /**
@@ -199,14 +211,14 @@ export class SVMSpokePoolClient extends SpokePoolClient {
    *       It is kept for consistency with the EVM SpokePoolClient.
    */
   public getTimeAt(slot: number): Promise<number> {
-    return getTimestampForSlot(this.svmEventsClient.getRpc(), slot);
+    return this.getTimestampForBlock(slot);
   }
 
   /**
    * Finds a deposit based on its deposit ID on the SVM chain.
    */
   public async findDeposit(depositId: BigNumber): Promise<DepositSearchResult> {
-    const deposit = await findDeposit(this.svmEventsClient, depositId);
+    const deposit = await findDeposit(this.svmEventsClient, depositId, this.logger);
     if (!deposit) {
       return {
         found: false,
@@ -214,6 +226,7 @@ export class SVMSpokePoolClient extends SpokePoolClient {
         reason: `Deposit with ID ${depositId} not found`,
       };
     }
+
     // Because we have additional context about this deposit, we can enrich it
     // with additional information.
     return {
@@ -224,9 +237,6 @@ export class SVMSpokePoolClient extends SpokePoolClient {
         originChainId: this.chainId,
         fromLiteChain: this.isOriginLiteChain(deposit),
         toLiteChain: this.isDestinationLiteChain(deposit),
-        outputToken: isZeroAddress(deposit.outputToken)
-          ? this.getDestinationTokenForDeposit(deposit)
-          : deposit.outputToken,
       },
     };
   }
@@ -234,13 +244,8 @@ export class SVMSpokePoolClient extends SpokePoolClient {
   /**
    * Retrieves the fill status for a given relay data from the SVM chain.
    */
-  public override relayFillStatus(
-    relayData: RelayData,
-    atHeight?: number,
-    destinationChainId?: number
-  ): Promise<FillStatus> {
-    destinationChainId ??= this.chainId;
-    return relayFillStatus(this.programId, relayData, destinationChainId, this.svmEventsClient, atHeight);
+  public override relayFillStatus(relayData: RelayDataWithMessageHash, atHeight?: number): Promise<FillStatus> {
+    return relayFillStatus(this.programId, relayData, this.chainId, this.svmEventsClient, this.logger, atHeight);
   }
 
   /**
@@ -250,12 +255,12 @@ export class SVMSpokePoolClient extends SpokePoolClient {
    * @returns The fill status for each of the given relay data.
    */
   public fillStatusArray(
-    relayData: RelayData[],
+    relayData: RelayDataWithMessageHash[],
     atHeight?: number,
     destinationChainId?: number
   ): Promise<(FillStatus | undefined)[]> {
     // @note: deploymentBlock actually refers to the deployment slot. Also, blockTag should be a slot number.
     destinationChainId ??= this.chainId;
-    return fillStatusArray(this.programId, relayData, destinationChainId, this.svmEventsClient, atHeight, this.logger);
+    return fillStatusArray(this.programId, relayData, destinationChainId, this.svmEventsClient, this.logger, atHeight);
   }
 }

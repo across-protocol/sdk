@@ -7,6 +7,7 @@ import { RPCProvider, RPCTransport } from "./types";
 import * as alchemy from "./alchemy";
 import * as infura from "./infura";
 import * as drpc from "./drpc";
+import * as quicknode from "./quicknode";
 
 /**
  * Infura DIN is identified separately to allow it to be configured explicitly.
@@ -16,6 +17,7 @@ const PROVIDERS = {
   INFURA: infura.getURL,
   INFURA_DIN: infura.getURL,
   DRPC: drpc.getURL,
+  QUICKNODE: quicknode.getURL,
 };
 
 /**
@@ -24,7 +26,7 @@ const PROVIDERS = {
  * @returns True if the provider string is a supported provider.
  */
 export function isSupportedProvider(provider: string): provider is RPCProvider {
-  return ["ALCHEMY", "INFURA", "INFURA_DIN", "DRPC"].includes(provider);
+  return Object.keys(PROVIDERS).includes(provider);
 }
 
 /**
@@ -96,14 +98,17 @@ const IGNORED_FIELDS = {
   // 2023-08-31 Added blockHash because of upstream zkSync provider disagreements. Consider removing later.
   // 2024-05-07 Added l1BatchNumber and logType due to Alchemy. Consider removing later.
   // 2024-07-11 Added blockTimestamp after zkSync rolled out a new node release.
+  // 2025-07-24 Added additional fields returned by Chainstack on (at least) Polygon.
   eth_getBlockByNumber: [
     "miner", // polygon (sometimes)
     "l1BatchNumber", // zkSync
     "l1BatchTimestamp", // zkSync
+    "requestsHash", // Chainstack (Polygon)
     "size", // Alchemy/Arbitrum (temporary)
     "totalDifficulty", // Quicknode/Alchemy (sometimes)
     "logsBloom", // zkSync (third-party providers return 0x0..0)
     "transactions", // Polygon yParity field in transactions[]
+    "withdrawals", // Chainstack (Polygon)
   ],
   eth_getLogs: ["blockTimestamp", "transactionLogIndex", "l1BatchNumber", "logType"],
 };
@@ -163,6 +168,10 @@ export function compareRpcResults(method: string, rpcResultA: unknown, rpcResult
   } else {
     return isEqual(rpcResultA, rpcResultB);
   }
+}
+
+export function compareSvmRpcResults(_method: string, rpcResultA: unknown, rpcResultB: unknown): boolean {
+  return isEqual(rpcResultA, rpcResultB);
 }
 
 export enum CacheType {

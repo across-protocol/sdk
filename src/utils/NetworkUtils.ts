@@ -3,6 +3,7 @@ import {
   ChainFamily,
   CHAIN_IDs,
   MAINNET_CHAIN_IDs,
+  OFT_NO_EID,
   PRODUCTION_NETWORKS,
   PUBLIC_NETWORKS,
   TESTNET_CHAIN_IDs,
@@ -21,7 +22,7 @@ export const hreNetworks: Record<number, string> = {
  */
 export function getNetworkName(networkId: number | string): string {
   networkId = Number(networkId);
-  return PUBLIC_NETWORKS[networkId]?.name ?? hreNetworks[networkId] ?? "unknown";
+  return PUBLIC_NETWORKS[networkId]?.name ?? hreNetworks[networkId] ?? `unknown (${networkId})`;
 }
 
 /**
@@ -106,15 +107,6 @@ export function chainIsLinea(chainId: number): boolean {
 }
 
 /**
- * Determines whether a chain ID is a BSC implementation.
- * @param chainId Chain ID to evaluate.
- * @returns True if chainId is a BSC chain, otherwise false.
- */
-export function chainIsBSC(chainId: number): boolean {
-  return [CHAIN_IDs.BSC].includes(chainId);
-}
-
-/**
  * Determines whether a chain ID has a corresponding hub pool contract.
  * @param chainId Chain ID to evaluate.
  * @returns True if chain corresponding to chainId has a hub pool implementation.
@@ -152,6 +144,19 @@ export function chainIsCCTPEnabled(chainId: number): boolean {
   // This is useful if constants has been updated to specify a CCTP domain in advance of it being activated.
   const cctpExceptions: number[] = [];
   return PRODUCTION_NETWORKS[chainId]?.cctpDomain !== CCTP_NO_DOMAIN && !cctpExceptions.includes(chainId);
+}
+
+/**
+ * Determines whether a chain ID has the capacity for bridging via OFT. Must be evaluated in conjunction
+ * with a specific token.
+ * @param chainId Chain ID to evaluate.
+ * @returns True if chainId is an OFT-bridging enabled chain, otherwise false.
+ */
+export function chainIsOFTEnabled(chainId: number): boolean {
+  // Add chainIds to oftEnabled as they are supported by the protocol.
+  // This is backwards vs. CCTP logic because Across support for OFTs is limited vs. OFT deployments.
+  const oftEnabled = [CHAIN_IDs.ARBITRUM];
+  return oftEnabled.includes(chainId) && PRODUCTION_NETWORKS[chainId]?.oftEid !== OFT_NO_EID;
 }
 
 /**

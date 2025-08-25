@@ -16,10 +16,15 @@
     "@uma/common" "^2.17.0"
     hardhat "^2.9.3"
 
-"@across-protocol/constants@^3.1.63", "@across-protocol/constants@^3.1.67":
-  version "3.1.67"
-  resolved "https://registry.yarnpkg.com/@across-protocol/constants/-/constants-3.1.67.tgz#10e37b48792e839a94e4841cd6f31b8980969147"
-  integrity sha512-5XJcHU0I8UksYHCHO394uiAAAKkmlNs49dWBSgD5UZwslo/U7HTiQY6MfO24f/Q8rgSabBsSt9jdquyeba7VxA==
+"@across-protocol/constants@^3.1.69":
+  version "3.1.70"
+  resolved "https://registry.yarnpkg.com/@across-protocol/constants/-/constants-3.1.70.tgz#277b0cc0f4106e737c361f24be87c38a03596659"
+  integrity sha512-Vd8Or5mph91VTgv0eELYVozVwQ/YIFzSH01yHrkScQ9NbPY/xYBDH/syz8I5YCFysX4qwj/t1D5JtBXPPWLqDA==
+
+"@across-protocol/constants@^3.1.71":
+  version "3.1.71"
+  resolved "https://registry.yarnpkg.com/@across-protocol/constants/-/constants-3.1.71.tgz#18009a026781e8e661d726e06fb3cbb0f1f42f4b"
+  integrity sha512-e8TwCp2xC2ixXjX9TwQxWfzngBcf4nDv/NIKIOfEro7eobgoftEh1kDGacB2OIGDYorjeYhLRjY2EHzdam8wUQ==
 
 "@across-protocol/contracts@^0.1.4":
   version "0.1.4"
@@ -30,12 +35,12 @@
     "@openzeppelin/contracts" "4.1.0"
     "@uma/core" "^2.18.0"
 
-"@across-protocol/contracts@^4.0.12":
-  version "4.0.12"
-  resolved "https://registry.yarnpkg.com/@across-protocol/contracts/-/contracts-4.0.12.tgz#45e8d6cc1fe137ae5349c1aa4b17e9ebc8e982cd"
-  integrity sha512-OreKSdJS1uOo9/bPkYQrym1Gcwz9ccINviQ+72Nbfw11NwJmlkdWEMAMQ7Y8MaiXPvneOkXH1enZJI2M9YIrgA==
+"@across-protocol/contracts@^4.1.1":
+  version "4.1.1"
+  resolved "https://registry.yarnpkg.com/@across-protocol/contracts/-/contracts-4.1.1.tgz#91c8e0fc867911a17f21b2d79d586f95417cb912"
+  integrity sha512-APyBXkNrP7VAbN2KzoO3h4VvGUGCgbz1OWACVAQ2/SWm3jMWmzHMOOtLeIqfmPTW0be7pkTbxnfR8hANMcicXw==
   dependencies:
-    "@across-protocol/constants" "^3.1.63"
+    "@across-protocol/constants" "^3.1.69"
     "@coral-xyz/anchor" "^0.31.1"
     "@defi-wonderland/smock" "^2.3.4"
     "@eth-optimism/contracts" "^0.5.40"
@@ -6332,6 +6337,11 @@ commander@^13.1.0:
   version "13.1.0"
   resolved "https://registry.npmjs.org/commander/-/commander-13.1.0.tgz#776167db68c78f38dcce1f9b8d7b8b9a488abf46"
   integrity sha512-/rFeCpNJQbhSZjGVwO9RFV3xPqbnERS8MmIQzCtD/zl6gpJuV/bMLuN92oG3F7d8oDEHHRrujSXNUr8fpjntKw==
+
+commander@^14.0.0:
+  version "14.0.0"
+  resolved "https://registry.yarnpkg.com/commander/-/commander-14.0.0.tgz#f244fc74a92343514e56229f16ef5c5e22ced5e9"
+  integrity sha512-2uM9rYjPvyq39NwLRqaiLtWHyDC1FvryJDa2ATTVims5YAS4PupsEQsDvP14FqhFr0P49CYDugi59xaxJlTXRA==
 
 commander@^2.15.0, commander@^2.19.0, commander@^2.20.3:
   version "2.20.3"

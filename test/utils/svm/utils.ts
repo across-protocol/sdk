@@ -1,12 +1,11 @@
 import { CHAIN_IDs } from "@across-protocol/constants";
-import { SvmSpokeClient } from "@across-protocol/contracts";
+import { SpokePool__factory, SvmSpokeClient } from "@across-protocol/contracts";
 import { RelayDataArgs } from "@across-protocol/contracts/dist/src/svm/clients/SvmSpoke";
 import { intToU8Array32 } from "@across-protocol/contracts/dist/src/svm/web3-v1";
 import { SYSTEM_PROGRAM_ADDRESS, getCreateAccountInstruction } from "@solana-program/system";
 import {
   ASSOCIATED_TOKEN_PROGRAM_ADDRESS,
   TOKEN_2022_PROGRAM_ADDRESS,
-  getApproveCheckedInstruction,
   getCreateAssociatedTokenIdempotentInstruction,
   getInitializeMintInstruction,
   getMintSize,
@@ -18,27 +17,29 @@ import {
   CompilableTransactionMessage,
   KeyPairSigner,
   TransactionMessageWithBlockhashLifetime,
-  TransactionSigner,
   address,
   airdropFactory,
   appendTransactionMessageInstruction,
   createSolanaRpc,
   createSolanaRpcSubscriptions,
-  createTransactionMessage,
   generateKeyPairSigner,
   getSignatureFromTransaction,
   lamports,
   pipe,
   sendAndConfirmTransactionFactory,
-  setTransactionMessageFeePayerSigner,
-  setTransactionMessageLifetimeUsingBlockhash,
   signTransactionMessageWithSigners,
 } from "@solana/kit";
+import { ethers } from "ethers";
 import { arrayify, hexlify } from "ethers/lib/utils";
 import {
   RpcClient,
   SVM_DEFAULT_ADDRESS,
   SVM_SPOKE_SEED,
+  bigToU8a32,
+  createDefaultTransaction,
+  createDepositInstruction,
+  createFillInstruction,
+  createRequestSlowFillInstruction,
   getAssociatedTokenAddress,
   getDepositDelegatePda,
   getEventAuthority,
@@ -46,9 +47,19 @@ import {
   getFillStatusPda,
   getRandomSvmAddress,
   getStatePda,
+  numberToU8a32,
+  toAddress,
 } from "../../../src/arch/svm";
 import { RelayData } from "../../../src/interfaces";
-import { BigNumber, EvmAddress, SvmAddress, getRandomInt, getRelayDataHash, randomAddress } from "../../../src/utils";
+import {
+  BigNumber,
+  EvmAddress,
+  SvmAddress,
+  getRandomInt,
+  getRelayDataHash,
+  randomAddress,
+  toAddressType,
+} from "../../../src/utils";
 
 /** RPC / Client */
 
@@ -82,16 +93,6 @@ export const signAndSendTransaction = async (
   const signature = getSignatureFromTransaction(signedTransaction);
   await sendAndConfirmTransactionFactory(rpcClient)(signedTransaction, { commitment });
   return signature;
-};
-
-// Creates a pre‑populated version‑0 transaction skeleton.
-export const createDefaultTransaction = async (rpcClient: RpcClient, signer: TransactionSigner) => {
-  const { value: latestBlockhash } = await rpcClient.rpc.getLatestBlockhash().send();
-  return pipe(
-    createTransactionMessage({ version: 0 }),
-    (tx) => setTransactionMessageFeePayerSigner(signer, tx),
-    (tx) => setTransactionMessageLifetimeUsingBlockhash(latestBlockhash, tx)
-  );
 };
 
 /** Token ‒ Minting & ATA */
@@ -128,7 +129,7 @@ export async function createMint(
   });
 
   await pipe(
-    await createDefaultTransaction(client, payer),
+    await createDefaultTransaction(client.rpc, payer),
     (tx) => appendTransactionMessageInstruction(createAccountIx, tx),
     (tx) => appendTransactionMessageInstruction(initializeMintIx, tx),
     (tx) => signAndSendTransaction(client, tx)
@@ -164,7 +165,7 @@ export async function mintTokens(
   });
 
   await pipe(
-    await createDefaultTransaction(client, payer),
+    await createDefaultTransaction(client.rpc, payer),
     (tx) => appendTransactionMessageInstruction(createAssociatedTokenIdempotentIx, tx),
     (tx) => appendTransactionMessageInstruction(mintTx, tx),
     (tx) => signAndSendTransaction(client, tx)
@@ -193,7 +194,7 @@ export const initializeSvmSpoke = async (
     seed,
     initialNumberOfDeposits,
     chainId: BigInt(CHAIN_IDs.SOLANA),
-    remoteDomain: 1,
+    remoteDomain: 0,
     crossDomainAdmin,
     depositQuoteTimeBuffer,
     fillDeadlineBuffer,
@@ -201,120 +202,22 @@ export const initializeSvmSpoke = async (
   const initializeIx = SvmSpokeClient.getInitializeInstruction(initializeInput);
 
   await pipe(
-    await createDefaultTransaction(solanaClient, signer),
+    await createDefaultTransaction(solanaClient.rpc, signer),
     (tx) => appendTransactionMessageInstruction(initializeIx, tx),
     (tx) => signAndSendTransaction(solanaClient, tx)
   );
   return { state };
 };
 
-// Executes a deposit into the SVM Spoke vault.
-export const deposit = async (
-  signer: KeyPairSigner,
-  solanaClient: RpcClient,
-  depositInput: SvmSpokeClient.DepositInput,
-  tokenDecimals: number
-) => {
-  const createAssociatedTokenIdempotentIx = getCreateAssociatedTokenIdempotentInstruction({
-    payer: signer,
-    owner: depositInput.state,
-    mint: depositInput.mint,
-    ata: depositInput.vault,
-    systemProgram: depositInput.systemProgram,
-    tokenProgram: depositInput.tokenProgram,
-  });
-  const approveIx = getApproveCheckedInstruction({
-    source: depositInput.depositorTokenAccount,
-    mint: depositInput.mint,
-    delegate: depositInput.delegate,
-    owner: depositInput.depositor,
-    amount: depositInput.inputAmount,
-    decimals: tokenDecimals,
-  });
-  const depositIx = await SvmSpokeClient.getDepositInstruction(depositInput);
-  return pipe(
-    await createDefaultTransaction(solanaClient, signer),
-    (tx) => appendTransactionMessageInstruction(createAssociatedTokenIdempotentIx, tx),
-    (tx) => appendTransactionMessageInstruction(approveIx, tx),
-    (tx) => appendTransactionMessageInstruction(depositIx, tx),
-    (tx) => signAndSendTransaction(solanaClient, tx)
-  );
-};
-
-// Requests a slow fill
-export const requestSlowFill = async (
-  signer: KeyPairSigner,
-  solanaClient: RpcClient,
-  depositInput: SvmSpokeClient.RequestSlowFillInput
-) => {
-  const requestSlowFillIx = await SvmSpokeClient.getRequestSlowFillInstruction(depositInput);
-
-  return pipe(
-    await createDefaultTransaction(solanaClient, signer),
-    (tx) => appendTransactionMessageInstruction(requestSlowFillIx, tx),
-    (tx) => signAndSendTransaction(solanaClient, tx)
-  );
-};
-
-// Creates a fill
-export const createFill = async (
-  signer: KeyPairSigner,
-  solanaClient: RpcClient,
-  fillInput: SvmSpokeClient.FillRelayInput,
-  tokenDecimals: number
-) => {
-  const approveIx = getApproveCheckedInstruction({
-    source: fillInput.relayerTokenAccount,
-    mint: fillInput.mint,
-    delegate: fillInput.delegate,
-    owner: fillInput.signer,
-    amount: (fillInput.relayData as SvmSpokeClient.RelayDataArgs).outputAmount,
-    decimals: tokenDecimals,
-  });
-
-  const createAssociatedTokenIdempotentIx = getCreateAssociatedTokenIdempotentInstruction({
-    payer: signer,
-    owner: (fillInput.relayData as SvmSpokeClient.RelayDataArgs).recipient,
-    mint: fillInput.mint,
-    ata: fillInput.recipientTokenAccount,
-    systemProgram: SYSTEM_PROGRAM_ADDRESS,
-    tokenProgram: fillInput.tokenProgram,
-  });
-
-  const createFillIx = await SvmSpokeClient.getFillRelayInstruction(fillInput);
-
-  return pipe(
-    await createDefaultTransaction(solanaClient, signer),
-    (tx) => appendTransactionMessageInstruction(createAssociatedTokenIdempotentIx, tx),
-    (tx) => appendTransactionMessageInstruction(approveIx, tx),
-    (tx) => appendTransactionMessageInstruction(createFillIx, tx),
-    (tx) => signAndSendTransaction(solanaClient, tx)
-  );
-};
-
-// Closes the fill PDA.
-export const closeFillPda = async (signer: KeyPairSigner, solanaClient: RpcClient, fillStatusPda: Address) => {
-  const closeFillPdaIx = await SvmSpokeClient.getCloseFillPdaInstruction({
-    signer,
-    state: await getStatePda(SvmSpokeClient.SVM_SPOKE_PROGRAM_ADDRESS),
-    fillStatus: fillStatusPda,
-  });
-  return pipe(
-    await createDefaultTransaction(solanaClient, signer),
-    (tx) => appendTransactionMessageInstruction(closeFillPdaIx, tx),
-    (tx) => signAndSendTransaction(solanaClient, tx)
-  );
-};
-
 // Sets the current time for the SVM Spoke program.
 export const setCurrentTime = async (signer: KeyPairSigner, solanaClient: RpcClient, newTime: number) => {
-  const setCurrentTimeIx = await SvmSpokeClient.getSetCurrentTimeInstruction({
+  const setCurrentTimeIx = SvmSpokeClient.getSetCurrentTimeInstruction({
     signer,
     state: await getStatePda(SvmSpokeClient.SVM_SPOKE_PROGRAM_ADDRESS),
     newTime,
   });
   return pipe(
-    await createDefaultTransaction(solanaClient, signer),
+    await createDefaultTransaction(solanaClient.rpc, signer),
     (tx) => appendTransactionMessageInstruction(setCurrentTimeIx, tx),
     (tx) => signAndSendTransaction(solanaClient, tx)
   );
@@ -337,12 +240,12 @@ export const sendCreateFill = async (
   const currentTime = await getCurrentTime(solanaClient);
 
   const relayData: SvmSpokeClient.FillRelayInput["relayData"] = {
-    depositor: overrides.depositor ?? address(EvmAddress.from(randomAddress()).toBase58()),
-    recipient: overrides.recipient ?? getRandomSvmAddress(),
-    exclusiveRelayer: overrides.exclusiveRelayer ?? SVM_DEFAULT_ADDRESS,
-    inputToken: overrides.inputToken ?? address(EvmAddress.from(randomAddress()).toBase58()),
-    outputToken: mint.address,
-    inputAmount: overrides.inputAmount ?? getRandomInt(),
+    depositor: overrides.depositor ?? toAddress(EvmAddress.from(randomAddress())),
+    recipient: overrides.recipient ?? toAddress(SvmAddress.from(getRandomSvmAddress())),
+    exclusiveRelayer: overrides.exclusiveRelayer ?? toAddress(SvmAddress.from(SVM_DEFAULT_ADDRESS)),
+    inputToken: overrides.inputToken ?? toAddress(EvmAddress.from(randomAddress())),
+    outputToken: toAddress(SvmAddress.from(mint.address)),
+    inputAmount: overrides.inputAmount ?? bigToU8a32(BigNumber.from(getRandomInt())),
     outputAmount: overrides.outputAmount ?? getRandomInt(),
     originChainId: overrides.originChainId ?? CHAIN_IDs.MAINNET,
     depositId: overrides.depositId ?? new Uint8Array(intToU8Array32(getRandomInt())),
@@ -378,9 +281,13 @@ export const sendCreateFill = async (
     SvmSpokeClient.SVM_SPOKE_PROGRAM_ADDRESS
   );
 
+  const relayDataInput = {
+    ...relayData,
+  };
+
   const fillInput: SvmSpokeClient.FillRelayInput = {
     signer: signer,
-    delegate: SvmAddress.from(delegatePda.toString()).toV2Address(),
+    delegate: toAddress(SvmAddress.from(delegatePda)),
     instructionParams: undefined,
     state: await getStatePda(SvmSpokeClient.SVM_SPOKE_PROGRAM_ADDRESS),
     mint: mint.address,
@@ -390,15 +297,22 @@ export const sendCreateFill = async (
     tokenProgram: TOKEN_2022_PROGRAM_ADDRESS,
     associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ADDRESS,
     systemProgram: SYSTEM_PROGRAM_ADDRESS,
-    eventAuthority: await getEventAuthority(),
+    eventAuthority: await getEventAuthority(SvmSpokeClient.SVM_SPOKE_PROGRAM_ADDRESS),
     program: SvmSpokeClient.SVM_SPOKE_PROGRAM_ADDRESS,
     relayHash: arrayify(relayDataHash),
-    relayData: relayData,
+    relayData: relayDataInput,
     repaymentChainId: BigInt(CHAIN_IDs.SOLANA),
     repaymentAddress: signer.address,
   };
 
-  const signature = await createFill(signer, solanaClient, fillInput, mintDecimals);
+  const fillTx = await createFillInstruction(
+    signer,
+    solanaClient.rpc,
+    fillInput,
+    { outputAmount: relayDataInput.outputAmount, recipient: relayDataInput.recipient },
+    mintDecimals
+  );
+  const signature = await signAndSendTransaction(solanaClient, fillTx);
   return { signature, relayData, fillInput };
 };
 
@@ -412,12 +326,12 @@ export const sendRequestSlowFill = async (
   const currentTime = await getCurrentTime(solanaClient);
 
   const relayData: SvmSpokeClient.RequestSlowFillInstructionDataArgs["relayData"] = {
-    depositor: overrides.depositor ?? address(EvmAddress.from(randomAddress()).toBase58()),
-    recipient: overrides.recipient ?? getRandomSvmAddress(),
-    exclusiveRelayer: overrides.exclusiveRelayer ?? SVM_DEFAULT_ADDRESS,
-    inputToken: overrides.inputToken ?? address(EvmAddress.from(randomAddress()).toBase58()),
-    outputToken: overrides.outputToken ?? getRandomSvmAddress(),
-    inputAmount: overrides.inputAmount ?? getRandomInt(),
+    depositor: overrides.depositor ?? toAddress(EvmAddress.from(randomAddress())),
+    recipient: overrides.recipient ?? toAddress(SvmAddress.from(getRandomSvmAddress())),
+    exclusiveRelayer: overrides.exclusiveRelayer ?? toAddress(SvmAddress.from(SVM_DEFAULT_ADDRESS)),
+    inputToken: overrides.inputToken ?? toAddress(EvmAddress.from(randomAddress())),
+    outputToken: overrides.outputToken ?? toAddress(SvmAddress.from(getRandomSvmAddress())),
+    inputAmount: overrides.inputAmount ?? numberToU8a32(getRandomInt()),
     outputAmount: overrides.outputAmount ?? getRandomInt(),
     originChainId: overrides.originChainId ?? CHAIN_IDs.MAINNET,
     depositId: overrides.depositId ?? new Uint8Array(intToU8Array32(getRandomInt())),
@@ -433,17 +347,22 @@ export const sendRequestSlowFill = async (
     destinationChainId
   );
 
+  const relayDataInput = {
+    ...relayData,
+  };
+
   const requestSlowFillInput: SvmSpokeClient.RequestSlowFillInput = {
     program: SvmSpokeClient.SVM_SPOKE_PROGRAM_ADDRESS,
     relayHash: arrayify(relayDataHash),
-    relayData: relayData,
+    relayData: relayDataInput,
     state: await getStatePda(SvmSpokeClient.SVM_SPOKE_PROGRAM_ADDRESS),
     fillStatus: fillStatusPda,
     systemProgram: SYSTEM_PROGRAM_ADDRESS,
-    eventAuthority: await getEventAuthority(),
+    eventAuthority: await getEventAuthority(SvmSpokeClient.SVM_SPOKE_PROGRAM_ADDRESS),
     signer,
   };
-  const signature = await requestSlowFill(signer, solanaClient, requestSlowFillInput);
+  const requestSlowFillTx = await createRequestSlowFillInstruction(signer, solanaClient.rpc, requestSlowFillInput);
+  const signature = await signAndSendTransaction(solanaClient, requestSlowFillTx);
   return { signature, relayData };
 };
 
@@ -465,12 +384,12 @@ export const sendCreateDeposit = async (
 
   const depositInput: SvmSpokeClient.DepositInput = {
     depositor: signer.address,
-    delegate: address(EvmAddress.from(randomAddress()).toBase58()), // Random address for now but calculated later
-    recipient: overrides.recipient ?? address(EvmAddress.from(randomAddress()).toBase58()),
+    delegate: toAddress(EvmAddress.from(randomAddress())), // Random address for now but calculated later
+    recipient: overrides.recipient ?? toAddress(EvmAddress.from(randomAddress())),
     inputToken: mint.address,
-    outputToken: overrides.outputToken ?? address(EvmAddress.from(randomAddress()).toBase58()),
+    outputToken: overrides.outputToken ?? toAddress(EvmAddress.from(randomAddress())),
     inputAmount: overrides.inputAmount ?? getRandomInt(),
-    outputAmount: overrides.outputAmount ?? getRandomInt(),
+    outputAmount: overrides.outputAmount ?? numberToU8a32(getRandomInt()),
     destinationChainId: destinationChainId,
     exclusiveRelayer: overrides.exclusiveRelayer ?? address(EvmAddress.from(randomAddress()).toBase58()),
     quoteTimestamp: overrides.quoteTimestamp ?? Number(currentTime),
@@ -483,7 +402,7 @@ export const sendCreateDeposit = async (
     mint: mint.address,
     tokenProgram,
     program: SvmSpokeClient.SVM_SPOKE_PROGRAM_ADDRESS,
-    eventAuthority: await getEventAuthority(),
+    eventAuthority: await getEventAuthority(SvmSpokeClient.SVM_SPOKE_PROGRAM_ADDRESS),
     associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ADDRESS,
     systemProgram: SYSTEM_PROGRAM_ADDRESS,
     signer,
@@ -495,7 +414,7 @@ export const sendCreateDeposit = async (
     inputToken: depositInput.inputToken,
     outputToken: depositInput.outputToken,
     inputAmount: BigInt(depositInput.inputAmount),
-    outputAmount: BigInt(depositInput.outputAmount),
+    outputAmount: depositInput.outputAmount,
     destinationChainId: BigInt(destinationChainId),
     exclusiveRelayer: depositInput.exclusiveRelayer,
     quoteTimestamp: BigInt(depositInput.quoteTimestamp),
@@ -507,25 +426,58 @@ export const sendCreateDeposit = async (
   const pda = await getDepositDelegatePda(depositDataSeed, SvmSpokeClient.SVM_SPOKE_PROGRAM_ADDRESS);
   depositInput.delegate = pda;
 
-  const signature = await deposit(signer, solanaClient, depositInput, mintDecimals);
+  const depositTx = await createDepositInstruction(signer, solanaClient.rpc, depositInput, mintDecimals);
+  const signature = await signAndSendTransaction(solanaClient, depositTx);
   return { signature, depositInput };
+};
+
+/**
+ * Helper: Encodes a `pauseDeposits` call and returns it as a Buffer.
+ * @param pause Whether deposits should be paused. Defaults to `true`.
+ */
+export const encodePauseDepositsMessageBody = (pause = true): Buffer => {
+  const spokePoolInterface = new ethers.utils.Interface(SpokePool__factory.abi);
+  const calldata = spokePoolInterface.encodeFunctionData("pauseDeposits", [pause]);
+  return Buffer.from(calldata.slice(2), "hex");
+};
+
+/**
+ * Helper: Encodes a `relayRootBundle` call and returns it as a Buffer.
+ * @param relayerRefundRoot The relayer refund root.
+ * @param slowRelayRoot The slow relay root.
+ */
+export const encodeRelayRootBundleMessageBody = (relayerRefundRoot: string, slowRelayRoot: string): Buffer => {
+  const spokePoolInterface = new ethers.utils.Interface(SpokePool__factory.abi);
+  const calldata = spokePoolInterface.encodeFunctionData("relayRootBundle", [relayerRefundRoot, slowRelayRoot]);
+  return Buffer.from(calldata.slice(2), "hex");
+};
+
+/**
+ * Helper: Encodes a `emergencyDeleteRootBundle` call and returns it as a Buffer.
+ * @param rootBundleId The root bundle ID.
+ */
+export const encodeEmergencyDeleteRootBundleMessageBody = (rootBundleId: number): Buffer => {
+  const spokePoolInterface = new ethers.utils.Interface(SpokePool__factory.abi);
+  const calldata = spokePoolInterface.encodeFunctionData("emergencyDeleteRootBundle", [rootBundleId]);
+  return Buffer.from(calldata.slice(2), "hex");
 };
 
 /** Relay Data Utils */
 
 export const formatRelayData = (relayData: SvmSpokeClient.RelayDataArgs): RelayData => {
+  const originChainId = Number(relayData.originChainId);
   return {
-    originChainId: Number(relayData.originChainId),
-    depositor: SvmAddress.from(relayData.depositor).toBytes32(),
+    originChainId,
+    depositor: toAddressType(relayData.depositor, originChainId),
     depositId: BigNumber.from(relayData.depositId),
-    recipient: SvmAddress.from(relayData.recipient).toBytes32(),
-    inputToken: SvmAddress.from(relayData.inputToken).toBytes32(),
-    outputToken: SvmAddress.from(relayData.outputToken).toBytes32(),
+    recipient: SvmAddress.from(relayData.recipient),
+    inputToken: toAddressType(relayData.inputToken, originChainId),
+    outputToken: SvmAddress.from(relayData.outputToken),
     inputAmount: BigNumber.from(relayData.inputAmount),
     outputAmount: BigNumber.from(relayData.outputAmount),
     fillDeadline: relayData.fillDeadline,
     exclusivityDeadline: relayData.exclusivityDeadline,
     message: hexlify(relayData.message),
-    exclusiveRelayer: SvmAddress.from(relayData.exclusiveRelayer).toBytes32(),
+    exclusiveRelayer: SvmAddress.from(relayData.exclusiveRelayer),
   };
 };

@@ -1,58 +1,88 @@
 import assert from "assert";
 import { BytesLike, Contract, PopulatedTransaction, providers } from "ethers";
-import { CHAIN_IDs } from "../../constants";
-import { Deposit, FillStatus, FillWithBlock, RelayData } from "../../interfaces";
+import { CHAIN_IDs, SPOKEPOOL_UPGRADE_BLOCKS } from "../../constants";
+import {
+  Deposit,
+  FillStatus,
+  FillWithBlock,
+  RelayData,
+  RelayExecutionEventInfo,
+  SpeedUpCommon,
+} from "../../interfaces";
 import {
   bnUint32Max,
   BigNumber,
+  EvmAddress,
   toBN,
   bnZero,
   chunk,
-  getMessageHash,
   getRelayDataHash,
   isDefined,
   isUnsafeDepositId,
-  isZeroAddress,
-  getDepositRelayData,
   getNetworkName,
   paginatedEventQuery,
   spreadEventWithBlockNumber,
-  toBytes32,
+  Address,
+  toAddressType,
 } from "../../utils";
 
 type BlockTag = providers.BlockTag;
 
+type ProtoFill = Omit<RelayData, "recipient" | "outputToken"> &
+  Pick<Deposit, "speedUpSignature"> &
+  Partial<SpeedUpCommon> & {
+    destinationChainId: number;
+    recipient: EvmAddress;
+    outputToken: EvmAddress;
+  };
+
 /**
  * @param spokePool SpokePool Contract instance.
- * @param deposit V3Deopsit instance.
+ * @param relayData RelayData instance, supplemented with destinationChainId
  * @param repaymentChainId Optional repaymentChainId (defaults to destinationChainId).
  * @returns An Ethers UnsignedTransaction instance.
  */
 export function populateV3Relay(
   spokePool: Contract,
-  deposit: Omit<Deposit, "messageHash">,
-  relayer: string,
-  repaymentChainId = deposit.destinationChainId
+  relayData: ProtoFill,
+  repaymentAddress: Address,
+  repaymentChainId = relayData.destinationChainId
 ): Promise<PopulatedTransaction> {
-  const relayData = getDepositRelayData(deposit);
+  assert(
+    repaymentAddress.isValidOn(repaymentChainId),
+    `Invalid repayment address for chain ${repaymentChainId}: ${repaymentAddress.toNative()}.`
+  );
+  const evmRelayData = {
+    depositor: relayData.depositor.toBytes32(),
+    recipient: relayData.recipient.toBytes32(),
+    inputToken: relayData.inputToken.toBytes32(),
+    outputToken: relayData.outputToken.toBytes32(),
+    inputAmount: relayData.inputAmount,
+    outputAmount: relayData.outputAmount,
+    originChainId: relayData.originChainId,
+    depositId: relayData.depositId,
+    fillDeadline: relayData.fillDeadline,
+    exclusivityDeadline: relayData.exclusivityDeadline,
+    message: relayData.message,
+    exclusiveRelayer: relayData.exclusiveRelayer.toBytes32(),
+  };
 
-  if (isDefined(deposit.speedUpSignature)) {
-    assert(isDefined(deposit.updatedRecipient) && !isZeroAddress(deposit.updatedRecipient));
-    assert(isDefined(deposit.updatedOutputAmount));
-    assert(isDefined(deposit.updatedMessage));
+  if (isDefined(relayData.speedUpSignature)) {
+    assert(isDefined(relayData.updatedRecipient) && !relayData.updatedRecipient.isZeroAddress());
+    assert(isDefined(relayData.updatedOutputAmount));
+    assert(isDefined(relayData.updatedMessage));
     return spokePool.populateTransaction.fillRelayWithUpdatedDeposit(
       relayData,
       repaymentChainId,
-      toBytes32(relayer),
-      deposit.updatedOutputAmount,
-      toBytes32(deposit.updatedRecipient),
-      deposit.updatedMessage,
-      deposit.speedUpSignature,
-      { from: relayer }
+      repaymentAddress.toBytes32(),
+      relayData.updatedOutputAmount,
+      relayData.updatedRecipient.toBytes32(),
+      relayData.updatedMessage,
+      relayData.speedUpSignature
     );
   }
 
-  return spokePool.populateTransaction.fillRelay(relayData, repaymentChainId, toBytes32(relayer), { from: relayer });
+  return spokePool.populateTransaction.fillRelay(evmRelayData, repaymentChainId, repaymentAddress.toBytes32());
 }
 
 /**
@@ -232,9 +262,6 @@ export async function findFillBlock(
   highBlockNumber?: number
 ): Promise<number | undefined> {
   const { provider } = spokePool;
-  highBlockNumber ??= await provider.getBlockNumber();
-  assert(highBlockNumber > lowBlockNumber, `Block numbers out of range (${lowBlockNumber} >= ${highBlockNumber})`);
-
   // In production the chainId returned from the provider matches 1:1 with the actual chainId. Querying the provider
   // object saves an RPC query because the chainId is cached by StaticJsonRpcProvider instances. In hre, the SpokePool
   // may be configured with a different chainId than what is returned by the provider.
@@ -245,6 +272,12 @@ export async function findFillBlock(
     relayData.originChainId !== destinationChainId,
     `Origin & destination chain IDs must not be equal (${destinationChainId})`
   );
+
+  // For a subset of older SpokePools, their deployment ABIs did not include the fillStatus mapping.
+  // Bound any searches by the blocks where fillStatus was added.
+  lowBlockNumber = Math.max(lowBlockNumber, SPOKEPOOL_UPGRADE_BLOCKS[destinationChainId] ?? lowBlockNumber);
+  highBlockNumber ??= await provider.getBlockNumber();
+  assert(highBlockNumber > lowBlockNumber, `Block numbers out of range (${lowBlockNumber} >= ${highBlockNumber})`);
 
   // Make sure the relay was completed within the block range supplied by the caller.
   const [initialFillStatus, finalFillStatus] = (
@@ -315,10 +348,30 @@ export async function findFillEvent(
   const destinationChainId = Object.values(CHAIN_IDs).includes(relayData.originChainId)
     ? (await spokePool.provider.getNetwork()).chainId
     : Number(await spokePool.chainId());
-  const fill = {
-    ...spreadEventWithBlockNumber(event),
+  const fillEvent = spreadEventWithBlockNumber(event) as Omit<
+    FillWithBlock,
+    "destinationChainId" | "depositor" | "recipient" | "inputToken" | "outputToken" | "exclusiveRelayer" | "relayer"
+  > & {
+    depositor: string;
+    recipient: string;
+    inputToken: string;
+    outputToken: string;
+    exclusiveRelayer: string;
+    relayer: string;
+    relayExecutionInfo: Omit<RelayExecutionEventInfo, "updatedRecipient"> & { updatedRecipient: string };
+  };
+  return {
+    ...fillEvent,
     destinationChainId,
-    messageHash: getMessageHash(event.args.message),
-  } as FillWithBlock;
-  return fill;
+    inputToken: toAddressType(fillEvent.inputToken, relayData.originChainId),
+    outputToken: toAddressType(fillEvent.outputToken, destinationChainId),
+    depositor: toAddressType(fillEvent.depositor, relayData.originChainId),
+    recipient: toAddressType(fillEvent.recipient, destinationChainId),
+    exclusiveRelayer: toAddressType(fillEvent.exclusiveRelayer, destinationChainId),
+    relayer: toAddressType(fillEvent.relayer, fillEvent.repaymentChainId),
+    relayExecutionInfo: {
+      ...fillEvent.relayExecutionInfo,
+      updatedRecipient: toAddressType(fillEvent.relayExecutionInfo.updatedRecipient, destinationChainId),
+    },
+  } satisfies FillWithBlock;
 }

@@ -11,12 +11,13 @@ import { DepositWithBlock, FillStatus, RelayData } from "../../interfaces";
 import {
   BigNumber,
   DepositSearchResult,
+  getMessageHash,
   getNetworkName,
   InvalidFill,
-  isZeroAddress,
   MakeOptional,
   toBN,
   EvmAddress,
+  toAddressType,
 } from "../../utils";
 import {
   EventSearchConfig,
@@ -29,11 +30,13 @@ import { isUpdateFailureReason } from "../BaseAbstractClient";
 import { knownEventNames, SpokePoolClient, SpokePoolUpdate } from "./SpokePoolClient";
 import winston from "winston";
 import { HubPoolClient } from "../HubPoolClient";
+import { EVM_SPOKE_POOL_CLIENT_TYPE } from "./types";
 
 /**
  * An EVM-specific SpokePoolClient.
  */
 export class EVMSpokePoolClient extends SpokePoolClient {
+  readonly type = EVM_SPOKE_POOL_CLIENT_TYPE;
   constructor(
     logger: winston.Logger,
     public readonly spokePool: Contract,
@@ -192,15 +195,33 @@ export class EVMSpokePoolClient extends SpokePoolClient {
       };
     }
 
+    const spreadEvent = spreadEventWithBlockNumber(event) as Omit<
+      DepositWithBlock,
+      "originChainId" | "inputToken" | "outputToken" | "depositor" | "recipient" | "exclusiveRelayer"
+    > & {
+      inputToken: string;
+      outputToken: string;
+      depositor: string;
+      recipient: string;
+      exclusiveRelayer: string;
+    };
+
+    const originChainId = this.chainId;
     deposit = {
-      ...spreadEventWithBlockNumber(event),
+      ...spreadEvent,
       originChainId: this.chainId,
-      quoteBlockNumber: await this.getBlockNumber(Number(event.args["quoteTimestamp"])),
+      inputToken: toAddressType(spreadEvent.inputToken, originChainId),
+      outputToken: toAddressType(spreadEvent.outputToken, spreadEvent.destinationChainId),
+      depositor: toAddressType(spreadEvent.depositor, originChainId),
+      recipient: toAddressType(spreadEvent.recipient, spreadEvent.destinationChainId),
+      exclusiveRelayer: toAddressType(spreadEvent.exclusiveRelayer, spreadEvent.destinationChainId),
+      quoteBlockNumber: await this.getBlockNumber(spreadEvent.quoteTimestamp),
+      messageHash: getMessageHash(spreadEvent.message),
       fromLiteChain: true, // To be updated immediately afterwards.
       toLiteChain: true, // To be updated immediately afterwards.
-    } as DepositWithBlock;
+    };
 
-    if (isZeroAddress(deposit.outputToken)) {
+    if (deposit.outputToken.isZeroAddress()) {
       deposit.outputToken = this.getDestinationTokenForDeposit(deposit);
     }
     deposit.fromLiteChain = this.isOriginLiteChain(deposit);

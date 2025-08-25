@@ -216,7 +216,7 @@ export class PoolEventState {
 
     // save these events
     this.processEvents(events);
-    // only process token receipt events, becasue we just want the l1 token involved with this transfer
+    // only process token receipt events, because we just want the l1 token involved with this transfer
     const eventState = hubPool.getEventState(events);
     // event state is keyed by l1token address
     const l1Tokens = Object.keys(eventState);

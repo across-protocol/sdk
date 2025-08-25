@@ -1,6 +1,17 @@
 import { utils as ethersUtils } from "ethers";
 import { UNDEFINED_MESSAGE_HASH, ZERO_BYTES } from "../src/constants";
-import { getMessageHash, getRelayEventKey, keccak256, randomAddress, toBN, validateFillForDeposit } from "../src/utils";
+import {
+  getMessageHash,
+  getRelayEventKey,
+  keccak256,
+  randomAddress,
+  toBN,
+  validateFillForDeposit,
+  EvmAddress,
+  SvmAddress,
+  getRelayDataHash,
+} from "../src/utils";
+import { arch } from "../src";
 import { expect } from "./utils";
 
 const random = () => Math.round(Math.random() * 1e8);
@@ -88,5 +99,35 @@ describe("SpokeUtils", function () {
 
     const message = randomBytes();
     expect(getMessageHash(message)).to.equal(keccak256(message));
+  });
+  // Unlike previous tests, hardcode the correct outputs since any issue in the relay data hashing would output a different hash.
+  it("Returns correct relay data hashes against historical values", function () {
+    const destinationChainId = 10;
+    const mockDeposit = {
+      originChainId: 1,
+      depositor: EvmAddress.from("0x9A8f92a830A5cB89a3816e3D267CB7791c16b04D"),
+      recipient: SvmAddress.from("86ZyCV5E9XRYucpvQX8jupXveGyDLpnbmi8v5ixpXCrT"),
+      inputToken: EvmAddress.from("0x9A8f92a830A5cB89a3816e3D267CB7791c16b04D"),
+      inputAmount: toBN(100000),
+      outputToken: SvmAddress.from("86ZyCV5E9XRYucpvQX8jupXveGyDLpnbmi8v5ixpXCrT"),
+      outputAmount: toBN(99999),
+      message: "0x",
+      messageHash: getMessageHash("0x"),
+      depositId: toBN(1),
+      fillDeadline: 0,
+      exclusiveRelayer: SvmAddress.from(ZERO_BYTES),
+      exclusivityDeadline: 0,
+    };
+    const relayHashSvm = arch.svm.getRelayDataHash(mockDeposit, destinationChainId);
+    const relayHashEvm = getRelayDataHash(mockDeposit, destinationChainId);
+    expect(relayHashSvm).to.eq("0x0821462fe25774f2d35a0b31b853672481129eef690f28d8e7383a519443c5b0");
+    expect(relayHashEvm).to.eq("0x483e0af898bcd167de637a4b336d92063ea2ff5b0721c4548227abf2aa2aeca9");
+
+    mockDeposit.message = "0x123456";
+    mockDeposit.messageHash = getMessageHash(mockDeposit.message);
+    const relayHashWithMessageSvm = arch.svm.getRelayDataHash(mockDeposit, destinationChainId);
+    const relayHashWithMessageEvm = getRelayDataHash(mockDeposit, destinationChainId);
+    expect(relayHashWithMessageSvm).to.eq("0x3feedd6e7fc3866a895cadde1cc9519a08109f9c78255e0fc6f5538097273344");
+    expect(relayHashWithMessageEvm).to.eq("0x296700dda08c58e3b2ad530ee4821f4d0e8b75f26854d218a9aa559e21d7c3e3");
   });
 });
