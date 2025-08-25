@@ -1,5 +1,7 @@
 import { utils as ethersUtils } from "ethers";
+import { arch } from "../src";
 import { UNDEFINED_MESSAGE_HASH, ZERO_BYTES } from "../src/constants";
+import { FillStatus } from "../src/interfaces";
 import {
   getMessageHash,
   getRelayEventKey,
@@ -10,9 +12,21 @@ import {
   EvmAddress,
   SvmAddress,
   getRelayDataHash,
+  unpackDepositEvent,
+  unpackFillEvent,
+  spreadEventWithBlockNumber,
+  toBytes32,
 } from "../src/utils";
-import { arch } from "../src";
-import { expect } from "./utils";
+import {
+  expect,
+  deploySpokePoolWithToken,
+  deposit,
+  setupTokensForWallet,
+  ethers,
+  Contract,
+  BigNumber,
+  SignerWithAddress,
+} from "./utils";
 
 const random = () => Math.round(Math.random() * 1e8);
 const randomBytes = () => `0x${ethersUtils.randomBytes(48).join("").slice(0, 64)}`;
@@ -23,17 +37,17 @@ describe("SpokeUtils", function () {
   const sampleData = {
     originChainId: random(),
     destinationChainId: random(),
-    depositor: randomAddress(),
-    recipient: randomAddress(),
-    inputToken: randomAddress(),
+    depositor: EvmAddress.from(randomAddress()),
+    recipient: EvmAddress.from(randomAddress()),
+    inputToken: EvmAddress.from(randomAddress()),
     inputAmount: toBN(random()),
-    outputToken: randomAddress(),
+    outputToken: EvmAddress.from(randomAddress()),
     outputAmount: toBN(random()),
     message,
     messageHash,
     depositId: toBN(random()),
     fillDeadline: random(),
-    exclusiveRelayer: randomAddress(),
+    exclusiveRelayer: EvmAddress.from(randomAddress()),
     exclusivityDeadline: random(),
   };
 
@@ -129,5 +143,193 @@ describe("SpokeUtils", function () {
     const relayHashWithMessageEvm = getRelayDataHash(mockDeposit, destinationChainId);
     expect(relayHashWithMessageSvm).to.eq("0x3feedd6e7fc3866a895cadde1cc9519a08109f9c78255e0fc6f5538097273344");
     expect(relayHashWithMessageEvm).to.eq("0x296700dda08c58e3b2ad530ee4821f4d0e8b75f26854d218a9aa559e21d7c3e3");
+  });
+
+  describe("Event extraction", function () {
+    let originSpokePool: Contract, destinationSpokePool: Contract;
+    let erc20: Contract, destErc20: Contract, weth: Contract;
+    let depositor: SignerWithAddress, relayer: SignerWithAddress;
+    let inputToken: EvmAddress, outputToken: EvmAddress;
+    let inputAmount: BigNumber, outputAmount: BigNumber;
+    let originChainId: number, destinationChainId: number;
+    let originDeploymentBlock: number, destinationDeploymentBlock: number;
+
+    beforeEach(async function () {
+      [depositor, relayer] = await ethers.getSigners();
+
+      // Deploy origin SpokePool
+      const originDeployment = await deploySpokePoolWithToken(666); // Origin chain ID
+      originSpokePool = originDeployment.spokePool;
+      erc20 = originDeployment.erc20;
+      weth = originDeployment.weth;
+      originDeploymentBlock = originDeployment.deploymentBlock;
+      originChainId = (await originSpokePool.callStatic.chainId()).toNumber();
+
+      // Deploy destination SpokePool
+      const destinationDeployment = await deploySpokePoolWithToken(137); // Destination chain ID
+      destinationSpokePool = destinationDeployment.spokePool;
+      destErc20 = destinationDeployment.erc20; // Use destination ERC20
+      destinationDeploymentBlock = destinationDeployment.deploymentBlock;
+      destinationChainId = (await destinationSpokePool.callStatic.chainId()).toNumber();
+
+      // Setup tokens on both chains
+      await setupTokensForWallet(originSpokePool, depositor, [erc20], weth, 10);
+      await setupTokensForWallet(destinationSpokePool, relayer, [destErc20], weth, 10);
+
+      const balance = await erc20.connect(depositor).balanceOf(depositor.address);
+      inputToken = EvmAddress.from(erc20.address);
+      outputToken = EvmAddress.from(destErc20.address);
+      inputAmount = balance;
+      outputAmount = inputAmount.sub(toBN(1));
+    });
+
+    describe("unpackDepositEvent", function () {
+      it("should unpack deposit event correctly from real contract event", async function () {
+        const depositEvent = await deposit(
+          originSpokePool,
+          destinationChainId,
+          depositor,
+          inputToken,
+          inputAmount,
+          outputToken,
+          outputAmount
+        );
+
+        // Get the raw event from the transaction
+        const filter = originSpokePool.filters.FundsDeposited();
+        const events = await originSpokePool.queryFilter(filter, originDeploymentBlock);
+        let rawEvent = events.at(-1);
+        expect(rawEvent).to.exist;
+        rawEvent = rawEvent!;
+
+        const result = unpackDepositEvent(spreadEventWithBlockNumber(rawEvent), depositEvent.originChainId);
+
+        expect(result.originChainId).to.equal(depositEvent.originChainId);
+        expect(result.depositId.eq(depositEvent.depositId)).to.be.true;
+        expect(result.depositor.eq(depositEvent.depositor)).to.be.true;
+        expect(result.recipient.eq(depositEvent.recipient)).to.be.true;
+        expect(result.inputToken.eq(depositEvent.inputToken)).to.be.true;
+        expect(result.outputToken.eq(depositEvent.outputToken)).to.be.true;
+        expect(result.exclusiveRelayer.eq(depositEvent.exclusiveRelayer)).to.be.true;
+        expect(result.inputAmount.eq(depositEvent.inputAmount)).to.be.true;
+        expect(result.outputAmount.eq(depositEvent.outputAmount)).to.be.true;
+        expect(result.destinationChainId).to.equal(depositEvent.destinationChainId);
+        expect(result.fillDeadline).to.equal(depositEvent.fillDeadline);
+        expect(result.exclusivityDeadline).to.equal(depositEvent.exclusivityDeadline);
+        expect(result.message).to.equal(depositEvent.message);
+        expect(result.messageHash).to.equal(getMessageHash(depositEvent.message));
+        expect(result.quoteTimestamp).to.equal(depositEvent.quoteTimestamp);
+        expect(result.blockNumber).to.equal(rawEvent.blockNumber);
+        expect(result.txnIndex).to.equal(rawEvent.transactionIndex);
+        expect(result.txnRef).to.equal(rawEvent.transactionHash);
+      });
+
+      it("should handle deposit with custom message", async function () {
+        const customMessage = "0x1234abcd";
+
+        const depositEvent = await deposit(
+          originSpokePool,
+          destinationChainId,
+          depositor,
+          inputToken,
+          inputAmount,
+          outputToken,
+          outputAmount,
+          { message: customMessage }
+        );
+
+        // Get the raw event from the transaction
+        const filter = originSpokePool.filters.FundsDeposited();
+        const events = await originSpokePool.queryFilter(filter, originDeploymentBlock);
+        let rawEvent = events.at(-1);
+        expect(rawEvent).to.exist;
+        rawEvent = rawEvent!;
+
+        const result = unpackDepositEvent(spreadEventWithBlockNumber(rawEvent), depositEvent.originChainId);
+
+        expect(result.message).to.equal(customMessage);
+        expect(result.messageHash).to.equal(getMessageHash(customMessage));
+        expect(result.messageHash).to.not.equal(ZERO_BYTES);
+      });
+    });
+
+    describe("unpackFillEvent", function () {
+      it("should unpack fill event correctly from real contract event", async function () {
+        // First create a deposit on origin chain
+        const depositEvent = await deposit(
+          originSpokePool,
+          destinationChainId,
+          depositor,
+          inputToken,
+          inputAmount,
+          outputToken,
+          outputAmount
+        );
+
+        // Fill the relay on destination chain
+        await destErc20.connect(relayer).approve(destinationSpokePool.address, outputAmount);
+        await destinationSpokePool
+          .connect(relayer)
+          .fillRelay({ ...depositEvent, originChainId }, destinationChainId, toBytes32(relayer.address));
+
+        // Get the raw fill event from the transaction
+        const filter = destinationSpokePool.filters.FilledRelay();
+        const events = await destinationSpokePool.queryFilter(filter, destinationDeploymentBlock);
+        let rawEvent = events.at(-1);
+        expect(rawEvent).to.exist;
+        rawEvent = rawEvent!;
+
+        const fill = unpackFillEvent(spreadEventWithBlockNumber(rawEvent), destinationChainId);
+
+        expect(fill.destinationChainId).to.equal(destinationChainId);
+        expect(fill.depositId.eq(depositEvent.depositId)).to.be.true;
+        expect(fill.depositor.eq(depositEvent.depositor)).to.be.true;
+        expect(fill.recipient.eq(depositEvent.recipient)).to.be.true;
+        expect(fill.inputToken.eq(depositEvent.inputToken)).to.be.true;
+        expect(fill.outputToken.eq(depositEvent.outputToken)).to.be.true;
+        expect(fill.exclusiveRelayer.eq(depositEvent.exclusiveRelayer)).to.be.true;
+        expect(fill.inputAmount.eq(depositEvent.inputAmount)).to.be.true;
+        expect(fill.outputAmount.eq(depositEvent.outputAmount)).to.be.true;
+        expect(fill.originChainId).to.equal(depositEvent.originChainId);
+        expect(fill.fillDeadline).to.equal(depositEvent.fillDeadline);
+        expect(fill.exclusivityDeadline).to.equal(depositEvent.exclusivityDeadline);
+        expect(fill.messageHash).to.equal(getMessageHash(depositEvent.message));
+
+        expect(fill.relayer.toNative()).to.equal(await relayer.getAddress());
+        expect(fill.repaymentChainId).to.equal(destinationChainId);
+
+        expect(fill.relayExecutionInfo).to.exist;
+        expect(fill.relayExecutionInfo.updatedRecipient.eq(depositEvent.recipient)).to.be.true;
+        expect(fill.relayExecutionInfo.updatedOutputAmount.eq(depositEvent.outputAmount)).to.be.true;
+        expect(fill.relayExecutionInfo.updatedMessageHash).to.equal(depositEvent.messageHash);
+
+        expect(fill.blockNumber).to.equal(rawEvent.blockNumber);
+        expect(fill.txnIndex).to.equal(rawEvent.transactionIndex);
+        expect(fill.txnRef).to.equal(rawEvent.transactionHash);
+
+        // Test RelayData hash computation and fill status
+        const depositHash = getRelayDataHash(depositEvent, destinationChainId);
+        const fillHash = getRelayDataHash({ ...fill, message: depositEvent.message }, destinationChainId);
+        expect(fillHash).to.equal(depositHash);
+
+        // Check fill status before fill - should be Unfilled
+        const fillStatusBefore = await arch.evm.relayFillStatus(
+          destinationSpokePool,
+          depositEvent,
+          rawEvent.blockNumber - 1,
+          destinationChainId
+        );
+        expect(fillStatusBefore).to.equal(FillStatus.Unfilled);
+
+        // Check fill status after fill - should be Filled
+        const fillStatusAfter = await arch.evm.relayFillStatus(
+          destinationSpokePool,
+          depositEvent,
+          rawEvent.blockNumber,
+          destinationChainId
+        );
+        expect(fillStatusAfter).to.equal(FillStatus.Filled);
+      });
+    });
   });
 });

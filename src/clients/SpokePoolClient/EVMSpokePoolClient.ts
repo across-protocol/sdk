@@ -11,13 +11,12 @@ import { DepositWithBlock, FillStatus, RelayData } from "../../interfaces";
 import {
   BigNumber,
   DepositSearchResult,
-  getMessageHash,
   getNetworkName,
   InvalidFill,
   MakeOptional,
   toBN,
   EvmAddress,
-  toAddressType,
+  unpackDepositEvent,
 } from "../../utils";
 import {
   EventSearchConfig,
@@ -195,37 +194,19 @@ export class EVMSpokePoolClient extends SpokePoolClient {
       };
     }
 
-    const spreadEvent = spreadEventWithBlockNumber(event) as Omit<
-      DepositWithBlock,
-      "originChainId" | "inputToken" | "outputToken" | "depositor" | "recipient" | "exclusiveRelayer"
-    > & {
-      inputToken: string;
-      outputToken: string;
-      depositor: string;
-      recipient: string;
-      exclusiveRelayer: string;
-    };
+    const partialDeposit = unpackDepositEvent(spreadEventWithBlockNumber(event), this.chainId);
+    const quoteBlockNumber = await this.getBlockNumber(partialDeposit.quoteTimestamp);
+    const outputToken = partialDeposit.outputToken.isZeroAddress()
+      ? this.getDestinationTokenForDeposit({ ...partialDeposit, quoteBlockNumber })
+      : partialDeposit.outputToken;
 
-    const originChainId = this.chainId;
     deposit = {
-      ...spreadEvent,
-      originChainId: this.chainId,
-      inputToken: toAddressType(spreadEvent.inputToken, originChainId),
-      outputToken: toAddressType(spreadEvent.outputToken, spreadEvent.destinationChainId),
-      depositor: toAddressType(spreadEvent.depositor, originChainId),
-      recipient: toAddressType(spreadEvent.recipient, spreadEvent.destinationChainId),
-      exclusiveRelayer: toAddressType(spreadEvent.exclusiveRelayer, spreadEvent.destinationChainId),
-      quoteBlockNumber: await this.getBlockNumber(spreadEvent.quoteTimestamp),
-      messageHash: getMessageHash(spreadEvent.message),
-      fromLiteChain: true, // To be updated immediately afterwards.
-      toLiteChain: true, // To be updated immediately afterwards.
-    };
-
-    if (deposit.outputToken.isZeroAddress()) {
-      deposit.outputToken = this.getDestinationTokenForDeposit(deposit);
-    }
-    deposit.fromLiteChain = this.isOriginLiteChain(deposit);
-    deposit.toLiteChain = this.isDestinationLiteChain(deposit);
+      ...partialDeposit,
+      outputToken,
+      quoteBlockNumber,
+      fromLiteChain: this.isOriginLiteChain(partialDeposit),
+      toLiteChain: this.isDestinationLiteChain(partialDeposit),
+    } satisfies DepositWithBlock;
 
     this.logger.debug({
       at: "SpokePoolClient#findDeposit",
