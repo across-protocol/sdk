@@ -1306,7 +1306,7 @@ export const hasCCTPV1MessageBeenProcessed = async (
   } catch (e) {
     return false;
   }
-  const isNonceUsedIx = await MessageTransmitterClient.getIsNonceUsedInstruction({
+  const isNonceUsedIx = MessageTransmitterClient.getIsNonceUsedInstruction({
     nonce: nonce,
     usedNonces: noncePda,
   });
