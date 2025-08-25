@@ -43,7 +43,7 @@ jobs:
       - uses: solana-developers/github-actions/setup-all@v0.2.6
         with:
           solana_version: ${{ steps.extract-versions.outputs.solana_version }}
-      - uses: actions/setup-node@v3
+      - uses: actions/setup-node@v4
         with:
           node-version: 20.19.2
       - run: yarn install
