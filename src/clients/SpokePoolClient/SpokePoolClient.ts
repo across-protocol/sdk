@@ -636,7 +636,7 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
           destinationChainId,
           depositor: toAddressType(event.depositor, event.originChainId),
           recipient: toAddressType(event.recipient, destinationChainId),
-          inputToken: toAddressType(event.inputToken, destinationChainId),
+          inputToken: toAddressType(event.inputToken, event.originChainId),
           outputToken: toAddressType(event.outputToken, destinationChainId),
           exclusiveRelayer: toAddressType(event.exclusiveRelayer, destinationChainId),
         } satisfies SlowFillRequestWithBlock;
