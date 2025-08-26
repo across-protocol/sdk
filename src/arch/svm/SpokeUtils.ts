@@ -279,7 +279,7 @@ export async function findDeposit(
   const slotsInElapsed = BigInt(Math.round((secondsLookback * 1000) / SLOT_DURATION_MS));
   const startSlot = endSlot - slotsInElapsed;
 
-  // Query for the deposit events with this limited slot range
+  // Query for the deposit events with this limited slot range. Filter by deposit id.
   const depositEvent = (await eventClient.queryEvents("FundsDeposited", startSlot, endSlot))?.find((event) =>
     depositId.eq((event.data as unknown as { depositId: BigNumber }).depositId)
   );
