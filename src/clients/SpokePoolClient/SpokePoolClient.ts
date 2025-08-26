@@ -20,7 +20,6 @@ import {
   chainIsProd,
   Address,
   toAddressType,
-  MultipleDepositSearchResult,
 } from "../../utils";
 import { duplicateEvent, sortEventsAscendingInPlace } from "../../utils/EventUtils";
 import { CHAIN_IDs, ZERO_ADDRESS } from "../../constants";
@@ -935,15 +934,6 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
   // ///////////////////////
   // // ABSTRACT METHODS //
   // ///////////////////////
-
-  /**
-   * Find all deposits for a given depositId, both in memory and on-chain.
-   * This method will first check memory for deposits, and if none are found,
-   * it will search on-chain for the deposit.
-   * @param depositId The unique ID of the deposit being queried.
-   * @returns Array of all deposits with the given depositId, including duplicates and on-chain deposits.
-   */
-  public abstract findAllDeposits(depositId: BigNumber): Promise<MultipleDepositSearchResult>;
 
   /**
    * Returns a list of event names that are queryable for the SpokePoolClient.

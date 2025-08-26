@@ -178,8 +178,6 @@ export interface RelayDataWithMessageHash extends RelayData {
 
 export interface InvalidFill {
   fill: FillWithBlock;
-  validationResults: Array<{
-    reason: string;
-    deposit?: DepositWithBlock;
-  }>;
+  reason: string;
+  deposit?: DepositWithBlock;
 }

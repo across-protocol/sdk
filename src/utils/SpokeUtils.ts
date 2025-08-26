@@ -1,7 +1,7 @@
 import { encodeAbiParameters, Hex, keccak256 } from "viem";
 import { fixedPointAdjustment as fixedPoint } from "./common";
 import { MAX_SAFE_DEPOSIT_ID, ZERO_BYTES } from "../constants";
-import { DepositWithBlock, Fill, FillType, InvalidFill, RelayData, SlowFillLeaf } from "../interfaces";
+import { Fill, FillType, InvalidFill, RelayData, SlowFillLeaf } from "../interfaces";
 import { BigNumber } from "./BigNumberUtils";
 import { isMessageEmpty, validateFillForDeposit } from "./DepositUtils";
 import { chainIsSvm, getNetworkName } from "./NetworkUtils";
@@ -96,43 +96,24 @@ export async function findInvalidFills(spokePoolClients: {
       }
 
       // Get all deposits (including duplicates) for this fill's depositId, both in memory and on-chain
-      const depositResult = await spokePoolClients[fill.originChainId]?.findAllDeposits(fill.depositId);
+      const depositResult = await spokePoolClients[fill.originChainId]?.findDeposit(fill.depositId);
 
       // If no deposits found at all
       if (!depositResult?.found) {
         invalidFills.push({
           fill,
-          validationResults: [
-            {
-              reason: `No ${getNetworkName(fill.originChainId)} deposit with depositId ${fill.depositId} found`,
-            },
-          ],
+          reason: `No ${getNetworkName(fill.originChainId)} deposit with depositId ${fill.depositId} found`,
         });
         continue;
       }
 
-      // Try to find a valid deposit for this fill
-      let foundValidDeposit = false;
-      const validationResults: Array<{ reason: string; deposit: DepositWithBlock }> = [];
-
-      for (const deposit of depositResult.deposits) {
-        // Validate the fill against the deposit
-        const validationResult = validateFillForDeposit(fill, deposit);
-        if (validationResult.valid) {
-          foundValidDeposit = true;
-          break;
-        }
-        validationResults.push({
-          reason: validationResult.reason,
-          deposit,
-        });
-      }
-
-      // If no valid deposit was found, add to invalid fills with all validation results
-      if (!foundValidDeposit) {
+      // Check if fill is valid for deposit
+      const validationResult = validateFillForDeposit(fill, depositResult.deposit);
+      if (!validationResult.valid) {
         invalidFills.push({
           fill,
-          validationResults,
+          reason: validationResult.reason,
+          deposit: depositResult.deposit,
         });
       }
     }

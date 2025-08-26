@@ -226,42 +226,6 @@ export function getDepositIdAtBlock(_contract: unknown, _blockTag: number): Prom
 }
 
 /**
- * Helper function to query deposit events within a time window.
- * @param eventClient - SvmCpiEventsClient instance
- * @param depositId - The deposit ID to search for
- * @param slot - The slot to search up to (defaults to current slot)
- * @param secondsLookback - The number of seconds to look back for deposits (defaults to 2 days)
- * @returns Array of deposit events within the slot window
- */
-async function queryDepositEventsInWindow(
-  eventClient: SvmCpiEventsClient,
-  depositId: BigNumber,
-  logger: winston.Logger,
-  slot?: bigint,
-  secondsLookback = 2 * 24 * 60 * 60 // 2 days
-): Promise<EventWithData[]> {
-  // We can only perform this search when we have a safe deposit ID.
-  if (isUnsafeDepositId(depositId)) {
-    throw new Error(`Cannot binary search for depositId ${depositId}`);
-  }
-
-  const provider = eventClient.getRpc();
-  const opts = undefined;
-  const { slot: currentSlot } = await getNearestSlotTime(provider, opts, logger);
-
-  // If no slot is provided, use the current slot
-  // If a slot is provided, ensure it's not in the future
-  const endSlot = slot !== undefined ? BigInt(Math.min(Number(slot), Number(currentSlot))) : currentSlot;
-
-  // Calculate start slot (approximately secondsLookback seconds earlier)
-  const slotsInElapsed = BigInt(Math.round((secondsLookback * 1000) / SLOT_DURATION_MS));
-  const startSlot = endSlot - slotsInElapsed;
-
-  // Query for the deposit events with this limited slot range
-  return eventClient.queryEvents("FundsDeposited", startSlot, endSlot);
-}
-
-/**
  * Finds deposit events within a 2-day window ending at the specified slot.
  *
  * @remarks
@@ -298,9 +262,25 @@ export async function findDeposit(
   slot?: bigint,
   secondsLookback = 2 * 24 * 60 * 60 // 2 days
 ): Promise<DepositWithBlock | undefined> {
-  // Query for the deposit events with this limited slot range. Filter by deposit id.
-  const depositEvents = await queryDepositEventsInWindow(eventClient, depositId, logger, slot, secondsLookback);
-  // Find the first matching deposit event
+  // We can only perform this search when we have a safe deposit ID.
+  if (isUnsafeDepositId(depositId)) {
+    throw new Error(`Cannot binary search for depositId ${depositId}`);
+  }
+
+  const provider = eventClient.getRpc();
+  const opts = undefined;
+  const { slot: currentSlot } = await getNearestSlotTime(provider, opts, logger);
+
+  // If no slot is provided, use the current slot
+  // If a slot is provided, ensure it's not in the future
+  const endSlot = slot !== undefined ? BigInt(Math.min(Number(slot), Number(currentSlot))) : currentSlot;
+
+  // Calculate start slot (approximately secondsLookback seconds earlier)
+  const slotsInElapsed = BigInt(Math.round((secondsLookback * 1000) / SLOT_DURATION_MS));
+  const startSlot = endSlot - slotsInElapsed;
+
+  // Query for the deposit events with this limited slot range
+  const depositEvents = await eventClient.queryEvents("FundsDeposited", startSlot, endSlot);
   const depositEvent = depositEvents.find((event) =>
     depositId.eq((event.data as unknown as { depositId: BigNumber }).depositId)
   );
@@ -328,61 +308,6 @@ export async function findDeposit(
     outputToken: toAddressType(unwrappedDepositEvent.outputToken as string, destinationChainId),
     exclusiveRelayer: toAddressType(unwrappedDepositEvent.exclusiveRelayer as string, destinationChainId),
   } as DepositWithBlock;
-}
-
-/**
- * Finds all deposit events within a time window (default 2 days) ending at the specified slot.
- *
- * @remarks
- * This implementation uses a slot-limited search approach because Solana PDA state has
- * limitations that prevent directly referencing old deposit IDs. Unlike EVM chains where
- * we might use binary search across the entire chain history, in Solana we must query within
- * a constrained slot range.
- *
- * The search window is calculated by:
- * 1. Using the provided slot (or current confirmed slot if none is provided)
- * 2. Looking back 2 days worth of slots from that point
- *
- * We use a 2-day window because:
- * 1. Most valid deposits that need to be processed will be recent
- * 2. This covers multiple bundle submission periods
- * 3. It balances performance with practical deposit age
- *
- * @important
- * This function may return an empty array for valid deposit IDs that are older than the search
- * window (approximately 2 days before the specified slot). This is an acceptable limitation
- * as deposits this old are typically not relevant to current operations. This can be an issue
- * if no proposal was made for a chain over a period of > 1.5 days.
- *
- * @param eventClient - SvmCpiEventsClient instance
- * @param depositId - The deposit ID to search for
- * @param slot - The slot to search up to (defaults to current slot). The search will look
- *              for deposits between (slot - secondsLookback) and slot.
- * @param secondsLookback - The number of seconds to look back for deposits (defaults to 2 days).
- * @returns Array of deposits if found within the slot window, empty array otherwise
- */
-export async function findAllDeposits(
-  eventClient: SvmCpiEventsClient,
-  depositId: BigNumber,
-  logger: winston.Logger,
-  slot?: bigint,
-  secondsLookback = 2 * 24 * 60 * 60 // 2 days
-): Promise<DepositWithBlock[]> {
-  const depositEvents = await queryDepositEventsInWindow(eventClient, depositId, logger, slot, secondsLookback);
-
-  // Filter for all matching deposit events
-  const matchingEvents = depositEvents.filter((event) =>
-    depositId.eq((event.data as unknown as { depositId: BigNumber }).depositId)
-  );
-
-  // Return all deposit events with block info
-  return matchingEvents.map((event) => ({
-    txnRef: event.signature.toString(),
-    blockNumber: Number(event.slot),
-    txnIndex: 0,
-    logIndex: 0,
-    ...(unwrapEventData(event.data) as Record<string, unknown>),
-  })) as DepositWithBlock[];
 }
 
 /**

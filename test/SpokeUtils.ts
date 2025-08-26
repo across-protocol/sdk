@@ -171,7 +171,7 @@ describe("SpokeUtils", function () {
     beforeEach(function () {
       mockSpokePoolClient = new MockSpokePoolClient(dummyLogger, spokePool, sampleData.originChainId, deploymentBlock);
       mockSpokePoolClient.getFills = () => [];
-      mockSpokePoolClient.findAllDeposits = async () => {
+      mockSpokePoolClient.findDeposit = async () => {
         await Promise.resolve();
         return { found: false, code: InvalidFill.DepositIdNotFound, reason: "Deposit not found" };
       };
@@ -213,8 +213,7 @@ describe("SpokeUtils", function () {
 
       const invalidFills = await findInvalidFills(mockSpokePoolClients);
       expect(invalidFills).to.have.lengthOf(1);
-      expect(invalidFills[0].validationResults).to.have.lengthOf(1);
-      expect(invalidFills[0].validationResults[0].reason).to.include("deposit with depositId");
+      expect(invalidFills[0].reason).to.include("deposit with depositId");
     });
 
     it("detects fills with mismatched deposit attributes", async function () {
@@ -252,18 +251,17 @@ describe("SpokeUtils", function () {
       };
 
       mockSpokePoolClient.getFills = () => [fill];
-      mockSpokePoolClient.findAllDeposits = async () => {
+      mockSpokePoolClient.findDeposit = async () => {
         await Promise.resolve();
         return {
           found: true,
-          deposits: [deposit],
+          deposit,
         };
       };
 
       const invalidFills = await findInvalidFills(mockSpokePoolClients);
       expect(invalidFills).to.have.lengthOf(1);
-      expect(invalidFills[0].validationResults).to.have.lengthOf(1);
-      expect(invalidFills[0].validationResults[0].reason).to.include("recipient mismatch");
+      expect(invalidFills[0].reason).to.include("recipient mismatch");
     });
 
     it("handles multiple fills with different validation results", async function () {
@@ -313,11 +311,11 @@ describe("SpokeUtils", function () {
       };
 
       mockSpokePoolClient.getFills = () => [validFill, invalidFill];
-      mockSpokePoolClient.findAllDeposits = async () => {
+      mockSpokePoolClient.findDeposit = async () => {
         await Promise.resolve();
         return {
           found: true,
-          deposits: [validDeposit],
+          deposit: validDeposit,
         };
       };
 

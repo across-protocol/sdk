@@ -211,7 +211,7 @@ describe("SVMSpokePoolClient: Fills", function () {
 
   it("Closes the fill pda after the fill deadline has passed", async () => {
     const provider = solanaClient.rpc;
-    const { timestamp } = await getNearestSlotTime(provider, createSpyLogger().spyLogger);
+    const { timestamp } = await getNearestSlotTime(provider, { commitment: "confirmed" }, createSpyLogger().spyLogger);
 
     await setCurrentTime(signer, solanaClient, timestamp);
     const newRelayData = {

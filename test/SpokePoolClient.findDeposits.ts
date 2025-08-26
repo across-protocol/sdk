@@ -95,11 +95,11 @@ describe("SpokePoolClient: Find Deposits", function () {
         outputAmount
       );
       await spokePoolClient1.update();
-      const result = await spokePoolClient1.findAllDeposits(depositEvent.depositId);
+      const result = await spokePoolClient1.findDeposit(depositEvent.depositId);
       expect(result.found).to.be.true;
       if (result.found) {
-        expect(result.deposits).to.have.lengthOf(1);
-        const foundDeposit = result.deposits[0];
+        expect(result.deposit).to.exist;
+        const foundDeposit = result.deposit;
         expect(foundDeposit.depositId).to.equal(depositEvent.depositId);
         expect(foundDeposit.originChainId).to.equal(depositEvent.originChainId);
         expect(foundDeposit.destinationChainId).to.equal(depositEvent.destinationChainId);
@@ -115,7 +115,7 @@ describe("SpokePoolClient: Find Deposits", function () {
     it("returns empty result for non-existent deposit ID", async function () {
       await spokePoolClient1.update();
       const nonExistentId = toBN(999999);
-      const result = await spokePoolClient1.findAllDeposits(nonExistentId);
+      const result = await spokePoolClient1.findDeposit(nonExistentId);
       expect(result.found).to.be.false;
       if (!result.found) {
         expect(result.code).to.equal(InvalidFill.DepositIdNotFound);
@@ -134,11 +134,11 @@ describe("SpokePoolClient: Find Deposits", function () {
         outputAmount
       );
       await spokePoolClient1.update();
-      const result = await spokePoolClient1.findAllDeposits(depositEvent.depositId);
+      const result = await spokePoolClient1.findDeposit(depositEvent.depositId);
       expect(result.found).to.be.true;
       if (result.found) {
-        expect(result.deposits).to.have.lengthOf(1);
-        const foundDeposit = result.deposits[0];
+        expect(result.deposit).to.exist;
+        const foundDeposit = result.deposit;
         expect(foundDeposit.depositId).to.equal(depositEvent.depositId);
         expect(foundDeposit.originChainId).to.equal(depositEvent.originChainId);
         expect(foundDeposit.destinationChainId).to.equal(depositEvent.destinationChainId);
@@ -192,11 +192,11 @@ describe("SpokePoolClient: Find Deposits", function () {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       queryFilterStub.resolves([fakeEvent as any]);
       await spokePoolClient1.update();
-      const result = await spokePoolClient1.findAllDeposits(depositEvent.depositId);
+      const result = await spokePoolClient1.findDeposit(depositEvent.depositId);
       expect(result.found).to.be.true;
       if (result.found) {
-        expect(result.deposits).to.have.lengthOf(2);
-        const foundDeposit = result.deposits[0];
+        expect(result.deposit).to.exist;
+        const foundDeposit = result.deposit;
         expect(foundDeposit.depositId).to.equal(depositEvent.depositId);
         expect(foundDeposit.originChainId).to.equal(depositEvent.originChainId);
         expect(foundDeposit.destinationChainId).to.equal(depositEvent.destinationChainId);

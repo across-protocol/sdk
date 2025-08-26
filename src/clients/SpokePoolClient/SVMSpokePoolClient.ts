@@ -10,9 +10,8 @@ import {
   findDeposit,
   relayFillStatus,
   fillStatusArray,
-  findAllDeposits,
 } from "../../arch/svm";
-import { DepositWithBlock, FillStatus, RelayDataWithMessageHash, SortableEvent } from "../../interfaces";
+import { FillStatus, RelayDataWithMessageHash, SortableEvent } from "../../interfaces";
 import {
   BigNumber,
   DepositSearchResult,
@@ -23,7 +22,6 @@ import {
   MakeOptional,
   sortEventsAscendingInPlace,
   SvmAddress,
-  MultipleDepositSearchResult,
 } from "../../utils";
 import { isUpdateFailureReason } from "../BaseAbstractClient";
 import { HubPoolClient } from "../HubPoolClient";
@@ -220,12 +218,11 @@ export class SVMSpokePoolClient extends SpokePoolClient {
    * Finds a deposit based on its deposit ID on the SVM chain.
    */
   public async findDeposit(depositId: BigNumber): Promise<DepositSearchResult> {
-    // TODO: Should we check for deposits we already have in memory?
-    // // First check memory for deposits
-    // const memoryDeposits = this.getDepositsForDepositId(depositId);
-    // if (memoryDeposits.length > 0) {
-    //   return { found: true, deposits: memoryDeposits };
-    // }
+    // First check memory for deposits
+    const memoryDeposit = this.getDeposit(depositId);
+    if (memoryDeposit) {
+      return { found: true, deposit: memoryDeposit };
+    }
     const deposit = await findDeposit(this.svmEventsClient, depositId, this.logger);
     if (!deposit) {
       return {
@@ -247,41 +244,6 @@ export class SVMSpokePoolClient extends SpokePoolClient {
         toLiteChain: this.isDestinationLiteChain(deposit),
       },
     };
-  }
-
-  public override async findAllDeposits(depositId: BigNumber): Promise<MultipleDepositSearchResult> {
-    // TODO: Should we have something like this? In findDeposit we don't look in memory.
-    // // First check memory for deposits
-    // const memoryDeposits = this.getDepositsForDepositId(depositId);
-    // if (memoryDeposits.length > 0) {
-    //   return { found: true, deposits: memoryDeposits };
-    // }
-
-    // If no deposits found in memory, try to find on-chain
-    const deposits = await findAllDeposits(this.svmEventsClient, depositId, this.logger);
-    if (!deposits || deposits.length === 0) {
-      return {
-        found: false,
-        code: InvalidFill.DepositIdNotFound,
-        reason: `${getNetworkName(this.chainId)} deposit with ID ${depositId} not found`,
-      };
-    }
-
-    // Enrich all deposits with additional information
-    const enrichedDeposits = await Promise.all(
-      deposits.map(async (deposit: DepositWithBlock) => ({
-        ...deposit,
-        quoteBlockNumber: await this.getBlockNumber(Number(deposit.quoteTimestamp)),
-        originChainId: this.chainId,
-        fromLiteChain: this.isOriginLiteChain(deposit),
-        toLiteChain: this.isDestinationLiteChain(deposit),
-        outputToken: deposit.outputToken.isZeroAddress()
-          ? this.getDestinationTokenForDeposit(deposit)
-          : deposit.outputToken,
-      }))
-    );
-
-    return { found: true, deposits: enrichedDeposits };
   }
 
   /**
