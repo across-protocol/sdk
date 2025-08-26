@@ -16,7 +16,6 @@ import {
   toBN,
   bnZero,
   chunk,
-  getMessageHash,
   getRelayDataHash,
   isDefined,
   isUnsafeDepositId,
@@ -351,7 +350,7 @@ export async function findFillEvent(
     : Number(await spokePool.chainId());
   const fillEvent = spreadEventWithBlockNumber(event) as Omit<
     FillWithBlock,
-    "depositor" | "recipient" | "inputToken" | "outputToken" | "exclusiveRelayer" | "relayer"
+    "destinationChainId" | "depositor" | "recipient" | "inputToken" | "outputToken" | "exclusiveRelayer" | "relayer"
   > & {
     depositor: string;
     recipient: string;
@@ -361,8 +360,9 @@ export async function findFillEvent(
     relayer: string;
     relayExecutionInfo: Omit<RelayExecutionEventInfo, "updatedRecipient"> & { updatedRecipient: string };
   };
-  const fill: FillWithBlock = {
+  return {
     ...fillEvent,
+    destinationChainId,
     inputToken: toAddressType(fillEvent.inputToken, relayData.originChainId),
     outputToken: toAddressType(fillEvent.outputToken, destinationChainId),
     depositor: toAddressType(fillEvent.depositor, relayData.originChainId),
@@ -373,9 +373,5 @@ export async function findFillEvent(
       ...fillEvent.relayExecutionInfo,
       updatedRecipient: toAddressType(fillEvent.relayExecutionInfo.updatedRecipient, destinationChainId),
     },
-    destinationChainId,
-    messageHash: getMessageHash(event.args.message),
-  };
-
-  return fill;
+  } satisfies FillWithBlock;
 }
