@@ -286,7 +286,7 @@ export async function _buildOptimisticPoolRebalanceRoot(
     true
   );
   // Build the pool rebalance root for the pending root bundle.
-  const { leaves } = _buildHistoricalPoolRebalanceRoot(
+  const { leaves, tree } = _buildHistoricalPoolRebalanceRoot(
     latestMainnetBlock,
     blockRangesForChains[0][1],
     pendingRootBundleData.bundleDepositsV3,
@@ -297,6 +297,9 @@ export async function _buildOptimisticPoolRebalanceRoot(
     clients,
     maxL1TokenCountOverride
   );
+  // Assert that the rebuilt pool rebalance root matches the pending root bundle's value. If it does not, then we likely misconstructed the pending root bundle and should throw.
+  assert(tree.getHexRoot() === mostRecentProposedRootBundle.poolRebalanceRoot);
+
   // Only add marginal pending running balances if there is already an entry in `runningBalances`. If there is no entry in `runningBalances`, then
   // The running balance for this entry was unchanged since the last root bundle.
   Object.keys(runningBalances).forEach((_repaymentChainId) => {
@@ -311,6 +314,7 @@ export async function _buildOptimisticPoolRebalanceRoot(
         const pendingLeafTokenIdx = pendingPoolRebalanceLeaf.l1Tokens.findIndex((l1Token) =>
           l1Token.eq(l1TokenAddress)
         );
+        assert(pendingLeafTokenIdx !== -1);
         const pendingRunningBalanceAmount = pendingPoolRebalanceLeaf.runningBalances[pendingLeafTokenIdx];
         if (!pendingRunningBalanceAmount.eq(bnZero)) {
           updateRunningBalance(runningBalances, repaymentChainId, _l1TokenAddress, pendingRunningBalanceAmount);
@@ -345,6 +349,16 @@ export async function _buildOptimisticPoolRebalanceRoot(
   };
 }
 
+/*
+ * @notice Gets the running balance amounts derived from the input bundle data.
+ * @param mainnetBundleEndBlock The end block number of the block range corresponding to the bundle data.
+ * @param bundleV3Deposits Deposit bundle data for the implied block range given by the mainnetBundleEndBlock.
+ * @param bundleFillsV3 Fill bundle data.
+ * @param bundleSlowFillsV3 Slow fill bundle data.
+ * @param unexecutableSlowFills Expired slow fill bundle data.
+ * @param expiredDepositsToRefundV3 Expired deposit bundle data.
+ * @param clients Clients required to construct a new pool rebalance root.
+ */
 export function _getMarginalRunningBalances(
   mainnetBundleEndBlock: number,
   bundleV3Deposits: BundleDepositsV3,
