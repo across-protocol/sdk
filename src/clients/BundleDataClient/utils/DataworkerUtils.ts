@@ -21,6 +21,7 @@ import {
   toAddressType,
   getImpliedBundleBlockRanges,
   isDefined,
+  EvmAddress,
 } from "../../../utils";
 import {
   addLastRunningBalance,
@@ -118,7 +119,134 @@ export function getEndBlockBuffers(
   return chainIdListForBundleEvaluationBlockNumbers.map((chainId: number) => blockRangeEndBlockBuffer[chainId] ?? 0);
 }
 
+/*
+ * @notice Constructs a new pool rebalance root given the input bundle data.
+ * @dev It is assumed that the input bundle data corresponds to the block ranges of the input mainnetBundleEndBlock.
+ * If the mainnetBundleEndBlock does not correspond to any historical or pending root bundle, then the output pool rebalance
+ * root will be constructed under the assumption that the pending root bundle is valid and passes liveness.
+ * @param latestMainnetBlock The latest mainnet block number.
+ * @param mainnetBundleEndBlock The end block number of the block range corresponding to the bundle data.
+ * @param bundleV3Deposits Deposit bundle data for the implied block range given by the mainnetBundleEndBlock.
+ * @param bundleFillsV3 Fill bundle data.
+ * @param bundleSlowFillsV3 Slow fill bundle data.
+ * @param unexecutableSlowFills Expired slow fill bundle data.
+ * @param expiredDepositsToRefundV3 Expired deposit bundle data.
+ * @param clients Clients required to construct a new pool rebalance root.
+ * @maxL1TokenCountOverride Optional parameter to cap the number of tokens in a single pool rebalance leaf.
+ */
 export async function _buildPoolRebalanceRoot(
+  latestMainnetBlock: number,
+  mainnetBundleEndBlock: number,
+  bundleV3Deposits: BundleDepositsV3,
+  bundleFillsV3: BundleFillsV3,
+  bundleSlowFillsV3: BundleSlowFills,
+  unexecutableSlowFills: BundleExcessSlowFills,
+  expiredDepositsToRefundV3: ExpiredDepositsToRefundV3,
+  clients: {
+    hubPoolClient: HubPoolClient;
+    configStoreClient: AcrossConfigStoreClient;
+    bundleDataClient: BundleDataClient;
+    spokePoolClients: SpokePoolClientsByChain;
+  },
+  maxL1TokenCountOverride?: number
+): Promise<PoolRebalanceRoot> {
+  // If there is a pending proposal and the mainnet bundle end block is greater than the pending proposal's mainnet end block, then this pool rebalance root is being built during the liveness
+  // of a different root bundle, so running balance calculations will be slightly different.
+  if (
+    clients.hubPoolClient.hasPendingProposal() &&
+    clients.hubPoolClient.getPendingRootBundle()!.bundleEvaluationBlockNumbers[1] < mainnetBundleEndBlock
+  ) {
+    return await _buildOptimisticPoolRebalanceRoot(
+      latestMainnetBlock,
+      mainnetBundleEndBlock,
+      bundleV3Deposits,
+      bundleFillsV3,
+      bundleSlowFillsV3,
+      unexecutableSlowFills,
+      expiredDepositsToRefundV3,
+      clients,
+      maxL1TokenCountOverride
+    );
+  }
+  // Otherwise, we can synchronously reconstruct a historical pool rebalance root from the input data.
+  return _buildHistoricalPoolRebalanceRoot(
+    latestMainnetBlock,
+    mainnetBundleEndBlock,
+    bundleV3Deposits,
+    bundleFillsV3,
+    bundleSlowFillsV3,
+    unexecutableSlowFills,
+    expiredDepositsToRefundV3,
+    clients,
+    maxL1TokenCountOverride
+  );
+}
+
+/*
+ * @notice Constructs a new pool rebalance root given historical bundle data.
+ * @param latestMainnetBlock The latest mainnet block number.
+ * @param mainnetBundleEndBlock The end block number of the block range corresponding to the bundle data.
+ * @param bundleV3Deposits Deposit bundle data for the implied block range given by the mainnetBundleEndBlock.
+ * @param bundleFillsV3 Fill bundle data.
+ * @param bundleSlowFillsV3 Slow fill bundle data.
+ * @param unexecutableSlowFills Expired slow fill bundle data.
+ * @param expiredDepositsToRefundV3 Expired deposit bundle data.
+ * @param clients Clients required to construct a new pool rebalance root.
+ * @maxL1TokenCountOverride Optional parameter to cap the number of tokens in a single pool rebalance leaf.
+ */
+export function _buildHistoricalPoolRebalanceRoot(
+  latestMainnetBlock: number,
+  mainnetBundleEndBlock: number,
+  bundleV3Deposits: BundleDepositsV3,
+  bundleFillsV3: BundleFillsV3,
+  bundleSlowFillsV3: BundleSlowFills,
+  unexecutableSlowFills: BundleExcessSlowFills,
+  expiredDepositsToRefundV3: ExpiredDepositsToRefundV3,
+  clients: {
+    hubPoolClient: HubPoolClient;
+    configStoreClient: AcrossConfigStoreClient;
+  },
+  maxL1TokenCountOverride?: number
+): PoolRebalanceRoot {
+  const { runningBalances, realizedLpFees, chainWithRefundsOnly } = _getMarginalRunningBalances(
+    mainnetBundleEndBlock,
+    bundleV3Deposits,
+    bundleFillsV3,
+    bundleSlowFillsV3,
+    unexecutableSlowFills,
+    expiredDepositsToRefundV3,
+    clients
+  );
+  addLastRunningBalance(latestMainnetBlock, runningBalances, clients.hubPoolClient);
+  const leaves: PoolRebalanceLeaf[] = constructPoolRebalanceLeaves(
+    mainnetBundleEndBlock,
+    runningBalances,
+    realizedLpFees,
+    Array.from(chainWithRefundsOnly).filter((chainId) => !Object.keys(runningBalances).includes(chainId.toString())),
+    clients.configStoreClient,
+    maxL1TokenCountOverride
+  );
+  return {
+    runningBalances,
+    realizedLpFees,
+    leaves,
+    tree: buildPoolRebalanceLeafTree(leaves),
+  };
+}
+
+/*
+ * @notice Constructs a new pool rebalance root given the input bundle data. This function assumes there is a pending root bundle which will eventually clear liveness.
+ * @param latestMainnetBlock The latest mainnet block number.
+ * @param mainnetBundleEndBlock The end block number of the block range corresponding to the bundle data.
+ * @param bundleV3Deposits Deposit bundle data for the implied block range given by the mainnetBundleEndBlock.
+ * @param bundleFillsV3 Fill bundle data.
+ * @param bundleSlowFillsV3 Slow fill bundle data.
+ * @param unexecutableSlowFills Expired slow fill bundle data.
+ * @param expiredDepositsToRefundV3 Expired deposit bundle data.
+ * @param clients Clients required to construct a new pool rebalance root.
+ * @maxL1TokenCountOverride Optional parameter to cap the number of tokens in a single pool rebalance leaf.
+ */
+export async function _buildOptimisticPoolRebalanceRoot(
   latestMainnetBlock: number,
   mainnetBundleEndBlock: number,
   bundleV3Deposits: BundleDepositsV3,
@@ -143,47 +271,65 @@ export async function _buildPoolRebalanceRoot(
     expiredDepositsToRefundV3,
     clients
   );
-  addLastRunningBalance(latestMainnetBlock, runningBalances, clients.hubPoolClient);
-  if (
-    clients.hubPoolClient.hasPendingProposal() &&
-    clients.hubPoolClient.getPendingRootBundle()!.bundleEvaluationBlockNumbers[1] < mainnetBundleEndBlock
-  ) {
-    // We need to get the pool rebalance root for the pending bundle.
-    // @dev It is safe to index the hub pool client's proposed root bundles here since there is guaranteed to be a pending proposal in this code block.
-    const mostRecentProposedRootBundle = clients.hubPoolClient.getLatestProposedRootBundle();
-    const blockRangesForChains = getImpliedBundleBlockRanges(
-      clients.hubPoolClient,
-      clients.configStoreClient,
-      mostRecentProposedRootBundle
-    );
-    // We are loading data from a pending root bundle which should be well into liveness, so we want to use arweave if possible.
-    const pendingRootBundleData = await clients.bundleDataClient.loadData(
-      blockRangesForChains,
-      clients.spokePoolClients,
-      true
-    );
-    // Build the pool rebalance root for the pending root bundle.
-    const { runningBalances: pendingRunningBalances } = _getMarginalRunningBalances(
-      blockRangesForChains[0][1],
-      pendingRootBundleData.bundleDepositsV3,
-      pendingRootBundleData.bundleFillsV3,
-      pendingRootBundleData.bundleSlowFillsV3,
-      pendingRootBundleData.unexecutableSlowFills,
-      pendingRootBundleData.expiredDepositsToRefundV3,
-      clients
-    );
-    // Only add marginal pending running balances if there is already an entry in `runningBalances`. If there is no entry in `runningBalances`, then
-    // The running balance for this entry was unchanged since the last root bundle.
-    Object.keys(runningBalances).forEach((repaymentChainId) => {
-      Object.keys(runningBalances[Number(repaymentChainId)]).forEach((l1TokenAddress) => {
-        if (isDefined(pendingRunningBalances[Number(repaymentChainId)]?.[l1TokenAddress])) {
-          const runningBalanceAmount = pendingRunningBalances[Number(repaymentChainId)][l1TokenAddress];
-          updateRunningBalance(runningBalances, Number(repaymentChainId), l1TokenAddress, runningBalanceAmount);
+  // Get the pool rebalance root for the pending bundle so that we may account for its calculated running balances.
+  // @dev It is safe to index the hub pool client's proposed root bundles here since there is guaranteed to be a pending proposal in this code block.
+  const mostRecentProposedRootBundle = clients.hubPoolClient.getLatestProposedRootBundle();
+  const blockRangesForChains = getImpliedBundleBlockRanges(
+    clients.hubPoolClient,
+    clients.configStoreClient,
+    mostRecentProposedRootBundle
+  );
+  // We are loading data from a pending root bundle which should be well into liveness, so we want to use arweave if possible.
+  const pendingRootBundleData = await clients.bundleDataClient.loadData(
+    blockRangesForChains,
+    clients.spokePoolClients,
+    true
+  );
+  // Build the pool rebalance root for the pending root bundle.
+  const { leaves } = _buildHistoricalPoolRebalanceRoot(
+    latestMainnetBlock,
+    blockRangesForChains[0][1],
+    pendingRootBundleData.bundleDepositsV3,
+    pendingRootBundleData.bundleFillsV3,
+    pendingRootBundleData.bundleSlowFillsV3,
+    pendingRootBundleData.unexecutableSlowFills,
+    pendingRootBundleData.expiredDepositsToRefundV3,
+    clients,
+    maxL1TokenCountOverride
+  );
+  // Only add marginal pending running balances if there is already an entry in `runningBalances`. If there is no entry in `runningBalances`, then
+  // The running balance for this entry was unchanged since the last root bundle.
+  Object.keys(runningBalances).forEach((_repaymentChainId) => {
+    Object.keys(runningBalances[Number(_repaymentChainId)]).forEach((_l1TokenAddress) => {
+      const repaymentChainId = Number(_repaymentChainId);
+      const l1TokenAddress = EvmAddress.from(_l1TokenAddress);
+      const pendingPoolRebalanceLeaf = leaves.find(
+        (leaf) => leaf.chainId === repaymentChainId && leaf.l1Tokens.some((l1Token) => l1Token.eq(l1TokenAddress))
+      );
+      // If the pending pool rebalance root has running balances defined, then add it to `runningBalances`.
+      if (isDefined(pendingPoolRebalanceLeaf)) {
+        const pendingLeafTokenIdx = pendingPoolRebalanceLeaf.l1Tokens.findIndex((l1Token) =>
+          l1Token.eq(l1TokenAddress)
+        );
+        const pendingRunningBalanceAmount = pendingPoolRebalanceLeaf.runningBalances[pendingLeafTokenIdx];
+        if (!pendingRunningBalanceAmount.eq(bnZero)) {
+          updateRunningBalance(runningBalances, repaymentChainId, _l1TokenAddress, pendingRunningBalanceAmount);
         }
-      });
+      } else {
+        // Otherwise, add the last running balance for this token.
+        const { runningBalance: lastExecutedBundleRunningBalance } =
+          clients.hubPoolClient.getRunningBalanceBeforeBlockForChain(
+            latestMainnetBlock,
+            repaymentChainId,
+            l1TokenAddress
+          );
+        if (!lastExecutedBundleRunningBalance.eq(bnZero)) {
+          updateRunningBalance(runningBalances, repaymentChainId, _l1TokenAddress, lastExecutedBundleRunningBalance);
+        }
+      }
     });
-  }
-  const leaves: PoolRebalanceLeaf[] = constructPoolRebalanceLeaves(
+  });
+  const poolRebalanceLeaves: PoolRebalanceLeaf[] = constructPoolRebalanceLeaves(
     mainnetBundleEndBlock,
     runningBalances,
     realizedLpFees,
@@ -194,8 +340,8 @@ export async function _buildPoolRebalanceRoot(
   return {
     runningBalances,
     realizedLpFees,
-    leaves,
-    tree: buildPoolRebalanceLeafTree(leaves),
+    leaves: poolRebalanceLeaves,
+    tree: buildPoolRebalanceLeafTree(poolRebalanceLeaves),
   };
 }
 
