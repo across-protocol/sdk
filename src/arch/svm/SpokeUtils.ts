@@ -84,7 +84,7 @@ import {
 } from "./";
 import { SvmCpiEventsClient } from "./eventsClient";
 import { SVM_BLOCK_NOT_AVAILABLE, SVM_SLOT_SKIPPED, isSolanaError } from "./provider";
-import { AttestedCCTPMessage, SVMEventNames, EventWithData, SVMProvider } from "./types";
+import { AttestedCCTPMessage, SVMEventNames, SVMProvider } from "./types";
 import {
   getEmergencyDeleteRootBundleRootBundleId,
   getNearestSlotTime,
