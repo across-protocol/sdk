@@ -3,6 +3,7 @@ import { RPCTransport } from "./types";
 
 // Chain-specific overrides for when the endpoint name does not match the canonical chain name.
 const endpoints: { [chainId: string]: string } = {
+  [CHAIN_IDs.ALEPH_ZERO]: "alephzero",
   [CHAIN_IDs.ARBITRUM]: "arbitrum",
   [CHAIN_IDs.MAINNET]: "ethereum",
 };
