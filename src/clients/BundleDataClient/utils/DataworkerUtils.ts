@@ -154,7 +154,7 @@ export async function _buildPoolRebalanceRoot(
   // of a different root bundle, so running balance calculations will be slightly different.
   if (
     clients.hubPoolClient.hasPendingProposal() &&
-    clients.hubPoolClient.getPendingRootBundle()!.bundleEvaluationBlockNumbers[1] < mainnetBundleEndBlock
+    clients.hubPoolClient.getPendingRootBundle()!.bundleEvaluationBlockNumbers[0] < mainnetBundleEndBlock
   ) {
     return await _buildOptimisticPoolRebalanceRoot(
       latestMainnetBlock,
