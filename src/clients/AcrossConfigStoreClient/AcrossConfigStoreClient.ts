@@ -1,8 +1,8 @@
-import { utils } from "@uma/sdk";
 import assert from "assert";
 import { Contract } from "ethers";
 import winston from "winston";
 import { isError } from "../../typeguards";
+import { averageBlockTime } from "../../arch/evm";
 import {
   EventSearchConfig,
   EvmAddress,
@@ -407,8 +407,8 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
           this.cumulativeRouteRateModelUpdates.push({ ...eventData, routeRateModel, l1Token });
         }
       } catch (err) {
-        // @dev averageBlockTimeSeconds does not actually block.
-        const maxWarnAge = (24 * 60 * 60) / (await utils.averageBlockTimeSeconds());
+        const { average: blockTime } = await averageBlockTime(this.configStore.provider);
+        const maxWarnAge = (24 * 60 * 60) / blockTime;
         if (result.searchEndBlock - event.blockNumber < maxWarnAge) {
           const errMsg = isError(err) ? err.message : "unknown error";
           // This will emit warning logs for any invalid historical updates and it will be very noisy, so
