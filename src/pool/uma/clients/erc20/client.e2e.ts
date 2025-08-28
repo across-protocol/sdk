@@ -1,13 +1,13 @@
-require("dotenv").config();
 import assert from "assert";
-import * as Client from "./client";
 import { ethers } from "ethers";
+import * as Client from "./client";
 
 const address = "0xeca82185adCE47f39c684352B0439f030f860318";
 // these require integration testing, skip for ci
 describe("erc20", function () {
-  let client: Client.Instance;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let events: any;
+  let client: Client.Instance;
   test("inits", function () {
     const provider = ethers.providers.getDefaultProvider(process.env.CUSTOM_NODE_URL);
     client = Client.connect(address, provider);

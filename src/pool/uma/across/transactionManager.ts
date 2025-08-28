@@ -54,8 +54,8 @@ export default (config: Config, signer: Signer, emit: Emit = () => null) => {
     mined.set(key, receipt);
     emit("mined", key, receipt);
   }
-  async function isMined(key: string) {
-    return mined.get(key);
+  function isMined(key: string) {
+    return Promise.resolve(mined.get(key));
   }
   async function update() {
     for (const key of Array.from(requests.keys())) {

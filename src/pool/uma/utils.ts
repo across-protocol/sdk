@@ -43,6 +43,7 @@ export function Balances(balances: Balances = {}) {
 
 // Loop forever but wait until execution is finished before starting next timer. Throw an error to break this
 // or add another utlity function if you need it to end on condition.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export async function loop(fn: (...args: any[]) => any, delay: number, ...args: any[]) {
   do {
     await fn(...args);

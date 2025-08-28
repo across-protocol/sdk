@@ -1,3 +1,4 @@
+// eslint-disable-next-line no-restricted-imports
 import { Contract, ethers, Event } from "ethers";
 import type { TypedEventFilterEthers as TypedEventFilter, TypedEventEthers as TypedEvent } from "@uma/contracts-node";
 
@@ -11,7 +12,7 @@ export { type Provider } from "@ethersproject/providers";
 type Result = ethers.utils.Result;
 
 export interface Callable {
-  (...args: any[]): any;
+  (...args: unknown[]): unknown;
 }
 
 export type SerializableEvent = Omit<
@@ -27,5 +28,6 @@ export type SerializableEvent = Omit<
 export type GetEventType<ContractType extends Contract, EventName extends string> = ReturnType<
   ContractType["filters"][EventName] extends Callable ? ContractType["filters"][EventName] : never
 > extends TypedEventFilter<infer T, infer S>
-  ? TypedEvent<T & S extends Result ? T & S : any>
+  ? // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    TypedEvent<T & S extends Result ? T & S : any>
   : never;

@@ -1,4 +1,5 @@
 import { ERC20Ethers, ERC20Ethers__factory } from "@uma/contracts-node";
+// eslint-disable-next-line no-restricted-imports
 import { Event } from "ethers";
 import { set } from "lodash";
 import { Balances } from "../../utils";
