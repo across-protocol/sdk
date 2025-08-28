@@ -1,5 +1,5 @@
 import assert from "assert";
-import * as uma from "@uma/sdk";
+import * as uma from "./uma";
 import {
   bnZero,
   toBNWei,
