@@ -1316,7 +1316,7 @@ export const hasCCTPV1MessageBeenProcessed = async (
     }
     return Boolean(buf[0]);
   };
-  return await simulateAndDecode(solanaClient, isNonceUsedIx, signer, parserFunction);
+  return simulateAndDecode(solanaClient, isNonceUsedIx, signer, parserFunction);
 };
 
 /**
