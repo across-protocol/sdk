@@ -13,13 +13,14 @@ import {
   assign,
   getRelayEventKey,
   isDefined,
-  getMessageHash,
   isSlowFill,
   validateFillForDeposit,
   chainIsEvm,
   chainIsProd,
   Address,
   toAddressType,
+  unpackDepositEvent,
+  unpackFillEvent,
 } from "../../utils";
 import { duplicateEvent, sortEventsAscendingInPlace } from "../../utils/EventUtils";
 import { CHAIN_IDs, ZERO_ADDRESS } from "../../constants";
@@ -39,7 +40,6 @@ import {
   SortableEvent,
   SpeedUpWithBlock,
   TokensBridged,
-  RelayExecutionEventInfo,
 } from "../../interfaces";
 import { BaseAbstractClient, UpdateFailureReason } from "../BaseAbstractClient";
 import { AcrossConfigStoreClient } from "../AcrossConfigStoreClient";
@@ -463,7 +463,9 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
     return `${event.depositId.toString()}-${event.originChainId}`;
   }
 
-  protected canResolveZeroAddressOutputToken(deposit: DepositWithBlock): boolean {
+  protected canResolveZeroAddressOutputToken(
+    deposit: Pick<DepositWithBlock, "originChainId" | "inputToken" | "quoteBlockNumber" | "destinationChainId">
+  ): boolean {
     if (
       !this.hubPoolClient?.l2TokenHasPoolRebalanceRoute(
         deposit.inputToken,
@@ -520,35 +522,9 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
 
     // Performs the indexing of a deposit-like spoke pool event.
     const queryDepositEvents = async (eventName: string) => {
-      const depositEvents = (queryResults[eventsToQuery.indexOf(eventName)] ?? []).map((_event) => {
-        const event = _event as Omit<
-          DepositWithBlock,
-          "depositor" | "recipient" | "inputToken" | "outputToken" | "exclusiveRelayer"
-        > & {
-          depositor: string;
-          recipient: string;
-          inputToken: string;
-          outputToken: string;
-          exclusiveRelayer: string;
-        };
-        return {
-          ...event,
-          depositor: toAddressType(event.depositor, this.chainId),
-          recipient: toAddressType(event.recipient, event.destinationChainId),
-          inputToken: toAddressType(event.inputToken, this.chainId),
-          outputToken: toAddressType(event.outputToken, event.destinationChainId),
-          exclusiveRelayer: toAddressType(event.exclusiveRelayer, event.destinationChainId),
-        } as DepositWithBlock;
-      });
-      if (depositEvents.length > 0) {
-        this.log(
-          "debug",
-          `Using ${depositEvents.length} newly queried ${eventName} deposit events for chain ${this.chainId}`,
-          {
-            earliestEvent: depositEvents[0].blockNumber,
-          }
-        );
-      }
+      const depositEvents = (queryResults[eventsToQuery.indexOf(eventName)] ?? []).map((event) =>
+        unpackDepositEvent(event, this.chainId)
+      );
 
       // For each deposit, resolve its quoteTimestamp to a block number on the HubPool.
       // Don't bother filtering for uniqueness; the HubPoolClient handles this efficienctly.
@@ -557,22 +533,17 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
         const quoteBlockNumber = quoteBlockNumbers[Number(event.quoteTimestamp)];
 
         // Derive and append the common properties that are not part of the onchain event.
+        const outputToken = event.outputToken.isZeroAddress()
+          ? this.getDestinationTokenForDeposit({ ...event, quoteBlockNumber })
+          : event.outputToken;
+
         const deposit = {
           ...event,
-          messageHash: getMessageHash(event.message),
+          outputToken,
           quoteBlockNumber,
-          originChainId: this.chainId,
-          // The following properties are placeholders to be updated immediately.
-          fromLiteChain: true,
-          toLiteChain: true,
-        };
-
-        deposit.fromLiteChain = this.isOriginLiteChain(deposit);
-        deposit.toLiteChain = this.isDestinationLiteChain(deposit);
-
-        if (deposit.outputToken.isZeroAddress()) {
-          deposit.outputToken = this.getDestinationTokenForDeposit(deposit);
-        }
+          fromLiteChain: this.isOriginLiteChain(event),
+          toLiteChain: this.isDestinationLiteChain(event),
+        } satisfies DepositWithBlock;
 
         if (this.depositHashes[getRelayEventKey(deposit)] !== undefined) {
           // Sanity check that this event is not a duplicate, even though the relay data hash is a duplicate.
@@ -648,6 +619,7 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
 
     // Performs indexing of "requested slow fill"-like events.
     const queryRequestedSlowFillEvents = (eventName: string) => {
+      const destinationChainId = this.chainId;
       const slowFillRequests = (queryResults[eventsToQuery.indexOf(eventName)] ?? []).map((_event) => {
         const event = _event as Omit<
           SlowFillRequestWithBlock,
@@ -661,24 +633,21 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
         };
         return {
           ...event,
+          destinationChainId,
           depositor: toAddressType(event.depositor, event.originChainId),
-          recipient: toAddressType(event.recipient, this.chainId),
+          recipient: toAddressType(event.recipient, destinationChainId),
           inputToken: toAddressType(event.inputToken, event.originChainId),
-          outputToken: toAddressType(event.outputToken, this.chainId),
-          exclusiveRelayer: toAddressType(event.exclusiveRelayer, this.chainId),
-        } as SlowFillRequestWithBlock;
+          outputToken: toAddressType(event.outputToken, destinationChainId),
+          exclusiveRelayer: toAddressType(event.exclusiveRelayer, destinationChainId),
+        } satisfies SlowFillRequestWithBlock;
       });
-      for (const event of slowFillRequests) {
-        const slowFillRequest = {
-          ...event,
-          destinationChainId: this.chainId,
-        };
 
-        const depositHash = getRelayEventKey({ ...slowFillRequest, destinationChainId: this.chainId });
+      for (const slowFillRequest of slowFillRequests) {
+        const depositHash = getRelayEventKey(slowFillRequest);
 
         // Sanity check that this event is not a duplicate.
         if (this.slowFillRequests[depositHash] !== undefined) {
-          duplicateEvents.push(event);
+          duplicateEvents.push(slowFillRequest);
           continue;
         }
 
@@ -694,40 +663,9 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
 
     // Performs indexing of filled relay-like events.
     const queryFilledRelayEvents = (eventName: string) => {
-      const fillEvents = (queryResults[eventsToQuery.indexOf(eventName)] ?? []).map((_event) => {
-        const event = _event as Omit<
-          FillWithBlock,
-          | "depositor"
-          | "recipient"
-          | "inputToken"
-          | "outputToken"
-          | "exclusiveRelayer"
-          | "relayer"
-          | "relayExecutionInfo"
-        > & {
-          depositor: string;
-          recipient: string;
-          inputToken: string;
-          outputToken: string;
-          exclusiveRelayer: string;
-          relayer: string;
-          relayExecutionInfo: Omit<RelayExecutionEventInfo, "updatedRecipient"> & { updatedRecipient: string };
-        };
-        return {
-          ...event,
-          depositor: toAddressType(event.depositor, event.originChainId),
-          recipient: toAddressType(event.recipient, this.chainId),
-          inputToken: toAddressType(event.inputToken, event.originChainId),
-          outputToken: toAddressType(event.outputToken, this.chainId),
-          exclusiveRelayer: toAddressType(event.exclusiveRelayer, this.chainId),
-          relayer: toAddressType(event.relayer, this.chainId),
-          relayExecutionInfo: {
-            ...event.relayExecutionInfo,
-            updatedRecipient: toAddressType(event.relayExecutionInfo.updatedRecipient, this.chainId),
-          },
-        } as FillWithBlock;
-      });
-
+      const fillEvents = (queryResults[eventsToQuery.indexOf(eventName)] ?? []).map((event) =>
+        unpackFillEvent(event, this.chainId)
+      );
       if (fillEvents.length > 0) {
         this.log("debug", `Using ${fillEvents.length} newly queried ${eventName} events for chain ${this.chainId}`, {
           earliestEvent: fillEvents[0].blockNumber,
@@ -736,16 +674,11 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
 
       // @note The type assertions here suppress errors that might arise due to incomplete types. For now, verify via
       // test that the types are complete. A broader change in strategy for safely unpacking events will be introduced.
-      for (const event of fillEvents) {
-        const fill = {
-          ...event,
-          destinationChainId: this.chainId,
-        };
-
+      for (const fill of fillEvents) {
         // Sanity check that this event is not a duplicate.
         const duplicateFill = this.fills[fill.originChainId]?.find((f) => duplicateEvent(fill, f));
         if (duplicateFill) {
-          duplicateEvents.push(event);
+          duplicateEvents.push(fill);
           continue;
         }
 
@@ -862,7 +795,9 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
    * @param deposit The deposit to retrieve the destination token for.
    * @returns The destination token.
    */
-  protected getDestinationTokenForDeposit(deposit: DepositWithBlock): Address {
+  protected getDestinationTokenForDeposit(
+    deposit: Pick<DepositWithBlock, "originChainId" | "inputToken" | "quoteBlockNumber" | "destinationChainId">
+  ): Address {
     if (!this.canResolveZeroAddressOutputToken(deposit)) {
       return toAddressType(ZERO_ADDRESS, CHAIN_IDs.MAINNET);
     }
@@ -904,7 +839,7 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
    * @returns True if the deposit originates from a lite chain, false otherwise. If the hub pool client is not defined,
    *          this method will return false.
    */
-  protected isOriginLiteChain(deposit: DepositWithBlock): boolean {
+  protected isOriginLiteChain(deposit: Pick<DepositWithBlock, "originChainId" | "quoteTimestamp">): boolean {
     return this.configStoreClient?.isChainLiteChainAtTimestamp(deposit.originChainId, deposit.quoteTimestamp) ?? false;
   }
 
@@ -914,7 +849,7 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
    * @returns True if the deposit is destined to a lite chain, false otherwise. If the hub pool client is not defined,
    *          this method will return false.
    */
-  protected isDestinationLiteChain(deposit: DepositWithBlock): boolean {
+  protected isDestinationLiteChain(deposit: Pick<DepositWithBlock, "destinationChainId" | "quoteTimestamp">): boolean {
     return (
       this.configStoreClient?.isChainLiteChainAtTimestamp(deposit.destinationChainId, deposit.quoteTimestamp) ?? false
     );
