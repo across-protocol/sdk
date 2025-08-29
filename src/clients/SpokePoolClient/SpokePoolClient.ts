@@ -519,11 +519,12 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
     }
 
     // Performs the indexing of a deposit-like spoke pool event.
+    const originChainId = this.chainId;
     const queryDepositEvents = async (eventName: string) => {
       const depositEvents = (queryResults[eventsToQuery.indexOf(eventName)] ?? []).map((_event) => {
         const event = _event as Omit<
           DepositWithBlock,
-          "depositor" | "recipient" | "inputToken" | "outputToken" | "exclusiveRelayer"
+          "originChainId" | "depositor" | "recipient" | "inputToken" | "outputToken" | "exclusiveRelayer"
         > & {
           depositor: string;
           recipient: string;
@@ -533,12 +534,14 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
         };
         return {
           ...event,
-          depositor: toAddressType(event.depositor, this.chainId),
+          originChainId,
+          depositor: toAddressType(event.depositor, originChainId),
           recipient: toAddressType(event.recipient, event.destinationChainId),
-          inputToken: toAddressType(event.inputToken, this.chainId),
+          inputToken: toAddressType(event.inputToken, originChainId),
           outputToken: toAddressType(event.outputToken, event.destinationChainId),
           exclusiveRelayer: toAddressType(event.exclusiveRelayer, event.destinationChainId),
-        } as DepositWithBlock;
+          messageHash: getMessageHash(event.message),
+        } satisfies Omit<DepositWithBlock, "quoteBlockNumber" | "fromLiteChain" | "toLiteChain">;
       });
       if (depositEvents.length > 0) {
         this.log(
@@ -559,16 +562,10 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
         // Derive and append the common properties that are not part of the onchain event.
         const deposit = {
           ...event,
-          messageHash: getMessageHash(event.message),
           quoteBlockNumber,
-          originChainId: this.chainId,
-          // The following properties are placeholders to be updated immediately.
-          fromLiteChain: true,
-          toLiteChain: true,
+          fromLiteChain: this.isOriginLiteChain(event),
+          toLiteChain: this.isDestinationLiteChain(event),
         };
-
-        deposit.fromLiteChain = this.isOriginLiteChain(deposit);
-        deposit.toLiteChain = this.isDestinationLiteChain(deposit);
 
         if (deposit.outputToken.isZeroAddress()) {
           deposit.outputToken = this.getDestinationTokenForDeposit(deposit);
@@ -693,10 +690,12 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
     });
 
     // Performs indexing of filled relay-like events.
+    const destinationChainId = this.chainId;
     const queryFilledRelayEvents = (eventName: string) => {
       const fillEvents = (queryResults[eventsToQuery.indexOf(eventName)] ?? []).map((_event) => {
         const event = _event as Omit<
           FillWithBlock,
+          | "destinationChainId"
           | "depositor"
           | "recipient"
           | "inputToken"
@@ -713,19 +712,21 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
           relayer: string;
           relayExecutionInfo: Omit<RelayExecutionEventInfo, "updatedRecipient"> & { updatedRecipient: string };
         };
+
         return {
           ...event,
+          destinationChainId,
           depositor: toAddressType(event.depositor, event.originChainId),
-          recipient: toAddressType(event.recipient, this.chainId),
+          recipient: toAddressType(event.recipient, destinationChainId),
           inputToken: toAddressType(event.inputToken, event.originChainId),
-          outputToken: toAddressType(event.outputToken, this.chainId),
-          exclusiveRelayer: toAddressType(event.exclusiveRelayer, this.chainId),
-          relayer: toAddressType(event.relayer, this.chainId),
+          outputToken: toAddressType(event.outputToken, destinationChainId),
+          exclusiveRelayer: toAddressType(event.exclusiveRelayer, destinationChainId),
+          relayer: toAddressType(event.relayer, event.repaymentChainId),
           relayExecutionInfo: {
             ...event.relayExecutionInfo,
             updatedRecipient: toAddressType(event.relayExecutionInfo.updatedRecipient, this.chainId),
           },
-        } as FillWithBlock;
+        } satisfies FillWithBlock;
       });
 
       if (fillEvents.length > 0) {
@@ -736,16 +737,11 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
 
       // @note The type assertions here suppress errors that might arise due to incomplete types. For now, verify via
       // test that the types are complete. A broader change in strategy for safely unpacking events will be introduced.
-      for (const event of fillEvents) {
-        const fill = {
-          ...event,
-          destinationChainId: this.chainId,
-        };
-
+      for (const fill of fillEvents) {
         // Sanity check that this event is not a duplicate.
         const duplicateFill = this.fills[fill.originChainId]?.find((f) => duplicateEvent(fill, f));
         if (duplicateFill) {
-          duplicateEvents.push(event);
+          duplicateEvents.push(fill);
           continue;
         }
 

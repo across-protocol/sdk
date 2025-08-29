@@ -1,6 +1,6 @@
 import assert from "assert";
 import { BytesLike, Contract, PopulatedTransaction, providers } from "ethers";
-import { CHAIN_IDs } from "../../constants";
+import { CHAIN_IDs, SPOKEPOOL_UPGRADE_BLOCKS } from "../../constants";
 import {
   Deposit,
   FillStatus,
@@ -16,7 +16,6 @@ import {
   toBN,
   bnZero,
   chunk,
-  getMessageHash,
   getRelayDataHash,
   isDefined,
   isUnsafeDepositId,
@@ -263,9 +262,6 @@ export async function findFillBlock(
   highBlockNumber?: number
 ): Promise<number | undefined> {
   const { provider } = spokePool;
-  highBlockNumber ??= await provider.getBlockNumber();
-  assert(highBlockNumber > lowBlockNumber, `Block numbers out of range (${lowBlockNumber} >= ${highBlockNumber})`);
-
   // In production the chainId returned from the provider matches 1:1 with the actual chainId. Querying the provider
   // object saves an RPC query because the chainId is cached by StaticJsonRpcProvider instances. In hre, the SpokePool
   // may be configured with a different chainId than what is returned by the provider.
@@ -276,6 +272,12 @@ export async function findFillBlock(
     relayData.originChainId !== destinationChainId,
     `Origin & destination chain IDs must not be equal (${destinationChainId})`
   );
+
+  // For a subset of older SpokePools, their deployment ABIs did not include the fillStatus mapping.
+  // Bound any searches by the blocks where fillStatus was added.
+  lowBlockNumber = Math.max(lowBlockNumber, SPOKEPOOL_UPGRADE_BLOCKS[destinationChainId] ?? lowBlockNumber);
+  highBlockNumber ??= await provider.getBlockNumber();
+  assert(highBlockNumber > lowBlockNumber, `Block numbers out of range (${lowBlockNumber} >= ${highBlockNumber})`);
 
   // Make sure the relay was completed within the block range supplied by the caller.
   const [initialFillStatus, finalFillStatus] = (
@@ -346,29 +348,30 @@ export async function findFillEvent(
   const destinationChainId = Object.values(CHAIN_IDs).includes(relayData.originChainId)
     ? (await spokePool.provider.getNetwork()).chainId
     : Number(await spokePool.chainId());
-  const fillEvent = spreadEventWithBlockNumber(event) as FillWithBlock & {
+  const fillEvent = spreadEventWithBlockNumber(event) as Omit<
+    FillWithBlock,
+    "destinationChainId" | "depositor" | "recipient" | "inputToken" | "outputToken" | "exclusiveRelayer" | "relayer"
+  > & {
     depositor: string;
     recipient: string;
     inputToken: string;
     outputToken: string;
     exclusiveRelayer: string;
     relayer: string;
-    relayExecutionInfo: RelayExecutionEventInfo & { updatedRecipient: string };
+    relayExecutionInfo: Omit<RelayExecutionEventInfo, "updatedRecipient"> & { updatedRecipient: string };
   };
-  const fill = {
+  return {
     ...fillEvent,
+    destinationChainId,
     inputToken: toAddressType(fillEvent.inputToken, relayData.originChainId),
     outputToken: toAddressType(fillEvent.outputToken, destinationChainId),
     depositor: toAddressType(fillEvent.depositor, relayData.originChainId),
     recipient: toAddressType(fillEvent.recipient, destinationChainId),
     exclusiveRelayer: toAddressType(fillEvent.exclusiveRelayer, destinationChainId),
-    relayer: toAddressType(fillEvent.relayer, destinationChainId),
+    relayer: toAddressType(fillEvent.relayer, fillEvent.repaymentChainId),
     relayExecutionInfo: {
       ...fillEvent.relayExecutionInfo,
       updatedRecipient: toAddressType(fillEvent.relayExecutionInfo.updatedRecipient, destinationChainId),
     },
-    destinationChainId,
-    messageHash: getMessageHash(event.args.message),
-  } as FillWithBlock;
-  return fill;
+  } satisfies FillWithBlock;
 }

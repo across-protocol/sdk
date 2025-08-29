@@ -52,7 +52,8 @@ export function getRelayDataHash(relayData: RelayData, destinationChainId: numbe
     exclusiveRelayer: relayData.exclusiveRelayer.toBytes32(),
   };
   if (chainIsSvm(destinationChainId)) {
-    return svm.getRelayDataHash(relayData, destinationChainId);
+    const messageHash = getMessageHash(relayData.message);
+    return svm.getRelayDataHash({ ...relayData, messageHash }, destinationChainId);
   }
   return keccak256(encodeAbiParameters(abi, [_relayData, destinationChainId]));
 }

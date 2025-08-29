@@ -4,7 +4,7 @@ import axios from "axios";
 import { Struct, create } from "superstruct";
 import winston from "winston";
 import { ARWEAVE_TAG_APP_NAME, ARWEAVE_TAG_APP_VERSION, DEFAULT_ARWEAVE_STORAGE_ADDRESS } from "../../constants";
-import { BigNumber, isDefined, jsonReplacerWithBigNumbers, toBN } from "../../utils";
+import { BigNumber, delay, isDefined, jsonReplacerWithBigNumbers, toBN } from "../../utils";
 
 export class ArweaveClient {
   private client: Arweave;
@@ -15,7 +15,9 @@ export class ArweaveClient {
     private logger: winston.Logger,
     gatewayURL = "arweave.net",
     protocol = "https",
-    port = 443
+    port = 443,
+    private readonly retries = 2,
+    private readonly retryDelaySeconds = 1
   ) {
     this.gatewayUrl = `${protocol}://${gatewayURL}:${port}`;
     this.client = new Arweave({
@@ -30,6 +32,12 @@ export class ArweaveClient {
       message: "Arweave client initialized",
       gateway: this.gatewayUrl,
     });
+    if (this.retries < 0) {
+      throw new Error(`retries cannot be < 0 and must be an integer. Currently set to ${this.retries}`);
+    }
+    if (this.retryDelaySeconds < 0) {
+      throw new Error(`delay cannot be < 0. Currently set to ${this.retryDelaySeconds}`);
+    }
   }
 
   /**
@@ -93,7 +101,7 @@ export class ArweaveClient {
     const transactionUrl = `${this.gatewayUrl}/${transactionID}`;
     // We should query in via Axios directly to the gateway URL. The reasoning behind this is
     // that the Arweave SDK's `getData` method is too slow and does not provide a way to set a timeout.
-    // Therefore, something that could take milliesconds to complete could take tens of minutes.
+    // Therefore, something that could take milliseconds to complete could take tens of minutes.
     const { data, status: responseStatus } = await axios.get<Record<string, unknown>>(transactionUrl);
     // Ensure that the result is successful. If it is not, the retrieved value is not our expected type
     // but rather a {status: string, statusText: string} object. We can detect that and return null.
@@ -225,21 +233,48 @@ export class ArweaveClient {
     return this.client.wallets.jwkToAddress(this.arweaveJWT);
   }
 
+  private async _retryRequest<T>(request: () => Promise<T>, retryCount: number): Promise<T> {
+    try {
+      return request();
+    } catch (e) {
+      if (retryCount < this.retries) {
+        // Implement a slightly aggressive exponential backoff to account for fierce parallelism.
+        const baseDelay = this.retryDelaySeconds * Math.pow(2, retryCount); // ms; attempt = [0, 1, 2, ...]
+        const delayS = baseDelay + baseDelay * Math.random();
+        this.logger.debug({
+          at: "ArweaveClient:getBalance",
+          message: `Arweave request failed, retrying after waiting ${delayS} seconds: ${e}`,
+          retryCount,
+        });
+        await delay(delayS);
+        return this._retryRequest(request, retryCount + 1);
+      } else {
+        throw e;
+      }
+    }
+  }
+
   /**
    * The balance of the signer
    * @returns The balance of the signer in winston units
    */
   async getBalance(): Promise<BigNumber> {
     const address = await this.getAddress();
-    const balanceInFloat = await this.client.wallets.getBalance(address);
-    // Sometimes the balance is returned in scientific notation, so we need to
-    // convert it to a BigNumber
-    if (balanceInFloat.includes("e")) {
-      const [balance, exponent] = balanceInFloat.split("e");
-      const resultingBN = BigNumber.from(balance).mul(toBN(10).pow(exponent.replace("+", "")));
-      return BigNumber.from(resultingBN.toString());
-    } else {
-      return BigNumber.from(balanceInFloat);
-    }
+    const request = async () => {
+      const balanceInFloat = await this.client.wallets.getBalance(address);
+      // @dev The reason we add in the BN.from into this retry loop is because the client.getBalance call
+      // does not correctly throw an error if the request fails, instead it will return the error string as the
+      // balanceInFloat.
+      // Sometimes the balance is returned in scientific notation, so we need to
+      // convert it to a BigNumber
+      if (balanceInFloat.includes("e")) {
+        const [balance, exponent] = balanceInFloat.split("e");
+        const resultingBN = BigNumber.from(balance).mul(toBN(10).pow(exponent.replace("+", "")));
+        return BigNumber.from(resultingBN.toString());
+      } else {
+        return BigNumber.from(balanceInFloat);
+      }
+    };
+    return await this._retryRequest(request, 0);
   }
 }

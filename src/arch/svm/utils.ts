@@ -1,9 +1,7 @@
-import assert from "assert";
-import { MessageTransmitterClient, SvmSpokeClient } from "@across-protocol/contracts";
+import { MessageTransmitterClient, SpokePool__factory, SvmSpokeClient } from "@across-protocol/contracts";
 import { BN, BorshEventCoder, Idl } from "@coral-xyz/anchor";
 import {
   Address,
-  type Commitment,
   IInstruction,
   KeyPairSigner,
   address,
@@ -19,14 +17,17 @@ import {
   setTransactionMessageFeePayerSigner,
   setTransactionMessageLifetimeUsingBlockhash,
   signTransactionMessageWithSigners,
+  type Commitment,
   type TransactionSigner,
 } from "@solana/kit";
+import assert from "assert";
 import bs58 from "bs58";
 import { ethers } from "ethers";
-import { FillType, RelayData } from "../../interfaces";
-import { BigNumber, biMin, Address as SdkAddress, getRelayDataHash, isDefined, isUint8Array } from "../../utils";
+import { FillType, RelayData, RelayDataWithMessageHash } from "../../interfaces";
+import { BigNumber, Address as SdkAddress, biMin, getMessageHash, isDefined, isUint8Array } from "../../utils";
+import { getTimestampForSlot, getSlot, getRelayDataHash } from "./SpokeUtils";
 import { AttestedCCTPMessage, EventName, SVMEventNames, SVMProvider } from "./types";
-import { getTimestampForSlot } from "./SpokeUtils";
+import winston from "winston";
 
 export { isSolanaError } from "@solana/kit";
 
@@ -67,13 +68,15 @@ export function toAddress(address: SdkAddress): Address<string> {
  */
 export async function getNearestSlotTime(
   provider: SVMProvider,
-  opts: { slot: bigint } | { commitment: Commitment } = { commitment: "confirmed" }
+  opts: { slot: bigint } | { commitment: Commitment } = { commitment: "confirmed" },
+  logger?: winston.Logger
 ): Promise<{ slot: bigint; timestamp: number }> {
   let timestamp: number | undefined;
-  let slot = "slot" in opts ? opts.slot : await provider.getSlot(opts).send();
+  let slot = "slot" in opts ? opts.slot : await getSlot(provider, opts.commitment, logger);
+  const maxRetries = undefined; // Inherit defaults
 
   do {
-    timestamp = await getTimestampForSlot(provider, slot);
+    timestamp = await getTimestampForSlot(provider, slot, maxRetries, logger);
   } while (!isDefined(timestamp) && --slot);
   assert(isDefined(timestamp), `Unable to resolve block time for SVM slot ${slot}`);
 
@@ -87,11 +90,12 @@ export async function getNearestSlotTime(
  */
 export async function getLatestFinalizedSlotWithBlock(
   provider: SVMProvider,
+  logger: winston.Logger,
   maxSlot: bigint,
   maxLookback = 1000
 ): Promise<number> {
   const opts = { maxSupportedTransactionVersion: 0, transactionDetails: "none", rewards: false } as const;
-  const { slot: finalizedSlot } = await getNearestSlotTime(provider, { commitment: "finalized" });
+  const { slot: finalizedSlot } = await getNearestSlotTime(provider, { commitment: "finalized" }, logger);
   const endSlot = biMin(maxSlot, finalizedSlot);
 
   let slot = endSlot;
@@ -125,7 +129,8 @@ export function parseEventData(eventData: any): any {
   }
 
   if (typeof eventData === "object") {
-    if (eventData.constructor.name === "PublicKey") {
+    const stringTag = Object.prototype.toString.call(eventData);
+    if (stringTag.includes("PublicKey")) {
       return address(eventData.toString());
     }
     if (BN.isBN(eventData)) {
@@ -263,10 +268,11 @@ export async function getStatePda(programId: Address): Promise<Address> {
  */
 export async function getFillStatusPda(
   programId: Address,
-  relayData: RelayData,
+  relayData: RelayDataWithMessageHash,
   destinationChainId: number
 ): Promise<Address> {
-  const relayDataHash = getRelayDataHash(relayData, destinationChainId);
+  const messageHash = relayData.messageHash ?? getMessageHash(relayData.message);
+  const relayDataHash = getRelayDataHash({ ...relayData, messageHash }, destinationChainId);
   const uint8RelayDataHash = new Uint8Array(Buffer.from(relayDataHash.slice(2), "hex"));
   const [fillStatusPda] = await getProgramDerivedAddress({
     programAddress: programId,
@@ -423,11 +429,34 @@ export const simulateAndDecode = async <P extends (buf: Buffer) => unknown>(
     .send();
 
   if (!simulationResult.value.returnData?.data[0]) {
-    throw new Error("No return data");
+    throw new Error("svm::simulateAndDecode: simulateTransaction failed. No return data.");
   }
 
   return parser(Buffer.from(simulationResult.value.returnData.data[0], "base64")) as ReturnType<P>;
 };
+
+/**
+ * Converts a common `RelayData` type to an SvmSpokeClient.RelayData` type. This is useful for when we need
+ * to interface directly with the SvmSpoke.
+ * @param relayData The common RelayData TS type.
+ * @returns RelayData which conforms to the typing of the SvmSpoke.
+ */
+export function toSvmRelayData(relayData: RelayData): SvmSpokeClient.RelayData {
+  return {
+    originChainId: BigInt(relayData.originChainId),
+    depositor: address(relayData.depositor.toBase58()),
+    recipient: address(relayData.recipient.toBase58()),
+    depositId: ethers.utils.arrayify(ethers.utils.hexZeroPad(relayData.depositId.toHexString(), 32)),
+    inputToken: address(relayData.inputToken.toBase58()),
+    outputToken: address(relayData.outputToken.toBase58()),
+    inputAmount: ethers.utils.arrayify(ethers.utils.hexZeroPad(relayData.inputAmount.toHexString(), 32)),
+    outputAmount: relayData.outputAmount.toBigInt(),
+    message: Uint8Array.from(Buffer.from(relayData.message.slice(2), "hex")),
+    fillDeadline: relayData.fillDeadline,
+    exclusiveRelayer: address(relayData.exclusiveRelayer.toBase58()),
+    exclusivityDeadline: relayData.exclusivityDeadline,
+  };
+}
 
 /**
  * Returns the PDA for the CCTP nonce.
@@ -471,6 +500,41 @@ export const getCCTPNoncePda = async (
 export function isDepositForBurnEvent(event: AttestedCCTPMessage): boolean {
   return event.type === "transfer";
 }
+
+/**
+ * True if `body` encodes a `relayRootBundle(bytes32,bytes32)` call.
+ */
+export const isRelayRootBundleMessageBody = (body: Buffer): boolean => {
+  if (body.length < 4) return false;
+
+  const spokePoolInterface = new ethers.utils.Interface(SpokePool__factory.abi);
+  const relayRootBundleSelector = spokePoolInterface.getSighash("relayRootBundle");
+
+  return body.slice(0, 4).equals(Buffer.from(relayRootBundleSelector.slice(2), "hex"));
+};
+
+/**
+ * True if `body` encodes a `emergencyDeleteRootBundle(uint32)` call.
+ */
+export const isEmergencyDeleteRootBundleMessageBody = (body: Buffer): boolean => {
+  if (body.length < 4) return false;
+
+  const spokePoolInterface = new ethers.utils.Interface(SpokePool__factory.abi);
+  const emergencyDeleteRootBundleSelector = spokePoolInterface.getSighash("emergencyDeleteRootBundle");
+
+  return body.slice(0, 4).equals(Buffer.from(emergencyDeleteRootBundleSelector.slice(2), "hex"));
+};
+
+/**
+ * Decodes the root bundle ID from an emergency delete root bundle message body.
+ * @param body The message body.
+ * @returns The root bundle ID.
+ */
+export const getEmergencyDeleteRootBundleRootBundleId = (body: Buffer): number => {
+  const spokePoolInterface = new ethers.utils.Interface(SpokePool__factory.abi);
+  const result = spokePoolInterface.decodeFunctionData("emergencyDeleteRootBundle", body);
+  return result.rootBundleId.toNumber();
+};
 
 /**
  * Convert a bigint (0 ≤ n < 2^256) to a 32-byte Uint8Array (big-endian).

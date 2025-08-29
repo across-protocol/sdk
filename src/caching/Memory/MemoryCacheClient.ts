@@ -32,12 +32,4 @@ export class MemoryCacheClient implements CachingMechanismInterface {
       resolve(key);
     });
   }
-
-  sub(_topic: string, _callback: (message: string, channel: string) => unknown) {
-    return Promise.resolve(1);
-  }
-
-  pub(_topic: string, _message: string) {
-    return Promise.resolve(1);
-  }
 }

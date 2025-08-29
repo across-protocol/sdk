@@ -7,6 +7,8 @@ import { CacheType } from "../utils";
 import { jsonReplacerWithBigInts, jsonReviverWithBigInts } from "../../utils";
 import { RetrySolanaRpcFactory } from "./retryRpcFactory";
 
+// A CachedFactory contains a RetryFactory and provides a caching layer that caches
+// the results of the RetryFactory's RPC calls.
 export class CachedSolanaRpcFactory extends SolanaClusterRpcFactory {
   public readonly getTransactionCachePrefix: string;
 
