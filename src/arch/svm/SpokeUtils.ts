@@ -1273,7 +1273,7 @@ export const hasCCTPV1MessageBeenProcessed = async (
   } catch (e) {
     return false;
   }
-  const isNonceUsedIx = await MessageTransmitterClient.getIsNonceUsedInstruction({
+  const isNonceUsedIx = MessageTransmitterClient.getIsNonceUsedInstruction({
     nonce: nonce,
     usedNonces: noncePda,
   });
@@ -1283,7 +1283,7 @@ export const hasCCTPV1MessageBeenProcessed = async (
     }
     return Boolean(buf[0]);
   };
-  return await simulateAndDecode(solanaClient, isNonceUsedIx, signer, parserFunction);
+  return simulateAndDecode(solanaClient, isNonceUsedIx, signer, parserFunction);
 };
 
 /**
