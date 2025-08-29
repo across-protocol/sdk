@@ -227,15 +227,16 @@ export class SVMSpokePoolClient extends SpokePoolClient {
       };
     }
 
-    // Because we have additional context about this deposit, we can enrich it
-    // with additional information.
+    // Because we have additional context about this deposit, we can enrich it with additional information.
+    // outputToken is known to not be 0x0 on SVM SpokePool implementations.
+    const originChainId = this.chainId;
     return {
       found: true,
       deposit: {
         ...deposit,
+        originChainId,
         quoteBlockNumber: await this.getBlockNumber(Number(deposit.quoteTimestamp)),
-        originChainId: this.chainId,
-        fromLiteChain: this.isOriginLiteChain(deposit),
+        fromLiteChain: this.isOriginLiteChain({ ...deposit, originChainId }),
         toLiteChain: this.isDestinationLiteChain(deposit),
       },
     };
