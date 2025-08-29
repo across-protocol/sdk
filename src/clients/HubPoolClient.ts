@@ -342,11 +342,12 @@ export class HubPoolClient extends BaseAbstractClient {
     // Resolve this function call as an async anonymous function
     const resolver = () => {
       const overrides = { blockTag: blockNumber };
+      const token = hubPoolToken.toNative();
 
       // For zero amount, just get the utilisation at `blockNumber`.
       return depositAmount.eq(bnZero)
-        ? this.hubPool.callStatic.liquidityUtilizationCurrent(hubPoolToken.toNative(), overrides)
-        : this.hubPool.callStatic.liquidityUtilizationPostRelay(hubPoolToken.toNative(), depositAmount, overrides);
+        ? this.hubPool.callStatic.liquidityUtilizationCurrent(token, overrides)
+        : this.hubPool.callStatic.liquidityUtilizationPostRelay(token, depositAmount, overrides);
     };
 
     // Resolve the cache locally so that we can appease typescript
