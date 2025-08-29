@@ -428,9 +428,10 @@ export class HubPoolClient extends BaseAbstractClient {
       }
 
       // Append the quoteTimestamp for this HubPool token, if it isn't already enqueued.
-      utilizationTimestamps[hubPoolToken.toNative()] ??= [];
-      if (!utilizationTimestamps[hubPoolToken.toNative()].includes(quoteTimestamp)) {
-        utilizationTimestamps[hubPoolToken.toNative()].push(quoteTimestamp);
+      const token = hubPoolToken.toNative();
+      utilizationTimestamps[token] ??= [];
+      if (!utilizationTimestamps[token].includes(quoteTimestamp)) {
+        utilizationTimestamps[token].push(quoteTimestamp);
       }
     };
 
