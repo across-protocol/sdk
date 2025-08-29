@@ -295,7 +295,7 @@ export class Coingecko {
       const result = await this.call<Record<string, CGTokenPrice>>(
         `simple/price?symbols=${symbol}&vs_currencies=${currency}&include_last_updated_at=true`
       );
-      const cgPrice = result?.[symbol.toLowerCase()];
+      const cgPrice = result?.[symbol.toLowerCase()] || result?.[symbol.toUpperCase()];
       if (cgPrice === undefined || !cgPrice?.[currency]) {
         const errMsg = `Failed to retrieve ${symbol}/${currency} price via Coingecko API`;
         this.logger.debug({
