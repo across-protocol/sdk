@@ -30,7 +30,6 @@ import {
   BigNumber,
   SignerWithAddress,
 } from "./utils";
-import { arch } from "../src";
 import { MockSpokePoolClient } from "./mocks";
 import winston from "winston";
 
