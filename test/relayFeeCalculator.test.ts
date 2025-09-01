@@ -609,7 +609,7 @@ describe("RelayFeeCalculator: Composable Bridging", function () {
         originChainId: 1,
         message: "0xabcdef",
         exclusiveRelayer: ZERO_ADDRESS,
-        fillDeadline: getCurrentTime() + 3600, // Set to 1 hour in the future
+        fillDeadline: getCurrentTime() + 3600,
         exclusivityDeadline: 0,
       },
       10
