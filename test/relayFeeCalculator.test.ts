@@ -464,6 +464,8 @@ describe("RelayFeeCalculator: Composable Bridging", function () {
   let tokenMap: typeof TOKEN_SYMBOLS_MAP;
   let testGasFeePct: (message?: string) => Promise<BigNumber>;
   const customTransport = makeCustomTransport();
+  const originChainId = 10;
+  const destinationChainId = 1;
 
   beforeEach(async function () {
     [owner, relayer, depositor] = await ethers.getSigners();
@@ -473,7 +475,7 @@ describe("RelayFeeCalculator: Composable Bridging", function () {
       erc20: _erc20,
       weth: _weth,
       destErc20: _destErc20,
-    } = await deploySpokePoolWithToken(1, 10);
+    } = await deploySpokePoolWithToken(originChainId);
 
     spokePool = _spokePool as SpokePool;
     erc20 = _erc20;
@@ -486,18 +488,18 @@ describe("RelayFeeCalculator: Composable Bridging", function () {
         symbol: "USDC",
         decimals: 6,
         addresses: {
-          1: erc20.address,
-          10: erc20.address,
+          [originChainId]: erc20.address,
+          [destinationChainId]: erc20.address,
         },
       },
     } as unknown as typeof TOKEN_SYMBOLS_MAP;
-    await (spokePool as Contract).setChainId(10); // The spoke pool for a fill should be at the destinationChainId.
+    await (spokePool as Contract).setChainId(destinationChainId); // The spoke pool for a fill should be at the destinationChainId.
     await setupTokensForWallet(spokePool, relayer, [erc20, destErc20], weth, 100);
     spokePool = spokePool.connect(relayer);
 
     testContract = await hre["upgrades"].deployProxy(await getContractFactory("MockAcrossMessageContract", owner), []);
     queries = QueryBase__factory.create(
-      1,
+      originChainId,
       spokePool.provider,
       tokenMap,
       spokePool.address,
@@ -510,22 +512,22 @@ describe("RelayFeeCalculator: Composable Bridging", function () {
         {
           inputAmount: bnOne,
           outputAmount: bnOne,
-          inputToken: toAddressType(erc20.address, 10),
-          outputToken: toAddressType(erc20.address, 1),
-          recipient: toAddressType(testContract.address, 1),
+          inputToken: toAddressType(erc20.address, originChainId),
+          outputToken: toAddressType(erc20.address, destinationChainId),
+          recipient: toAddressType(testContract.address, originChainId),
           depositId: BigNumber.from(1000000),
-          depositor: toAddressType(depositor.address, 10),
-          originChainId: 10,
-          destinationChainId: 1,
+          depositor: toAddressType(depositor.address, originChainId),
+          originChainId,
+          destinationChainId,
           message: message || EMPTY_MESSAGE,
-          exclusiveRelayer: toAddressType(ZERO_ADDRESS, 1),
+          exclusiveRelayer: toAddressType(ZERO_ADDRESS, originChainId),
           fillDeadline: getCurrentTime() + 60000,
           exclusivityDeadline: 0,
         },
         1,
         false,
-        toAddressType(relayer.address, 1),
-        1,
+        toAddressType(relayer.address, originChainId),
+        originChainId,
         tokenMap,
         undefined,
         undefined,
