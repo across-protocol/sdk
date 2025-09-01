@@ -524,7 +524,7 @@ describe("RelayFeeCalculator: Composable Bridging", function () {
           fillDeadline: getCurrentTime() + 60000,
           exclusivityDeadline: 0,
         },
-        1,
+        destinationChainId,
         false,
         toAddressType(relayer.address, originChainId),
         originChainId,
