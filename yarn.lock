@@ -35,10 +35,10 @@
     "@openzeppelin/contracts" "4.1.0"
     "@uma/core" "^2.18.0"
 
-"@across-protocol/contracts@^4.1.1":
-  version "4.1.1"
-  resolved "https://registry.yarnpkg.com/@across-protocol/contracts/-/contracts-4.1.1.tgz#91c8e0fc867911a17f21b2d79d586f95417cb912"
-  integrity sha512-APyBXkNrP7VAbN2KzoO3h4VvGUGCgbz1OWACVAQ2/SWm3jMWmzHMOOtLeIqfmPTW0be7pkTbxnfR8hANMcicXw==
+"@across-protocol/contracts@^4.1.5":
+  version "4.1.5"
+  resolved "https://registry.yarnpkg.com/@across-protocol/contracts/-/contracts-4.1.5.tgz#abb43fbb889b91eb291e918f9d0bb29e3657d5b3"
+  integrity sha512-ycbm5sIw7DO48ybLUg5e6LQq4XJNn9qqwuF1Xz7PPUIPYBV/7ZwGtb9VJKooVGbU149psCuCSo72j7wS/SEJgQ==
   dependencies:
     "@across-protocol/constants" "^3.1.69"
     "@coral-xyz/anchor" "^0.31.1"
@@ -49,6 +49,7 @@
     "@ethersproject/bignumber" "5.7.0"
     "@openzeppelin/contracts" "4.9.6"
     "@openzeppelin/contracts-upgradeable" "4.9.6"
+    "@openzeppelin/foundry-upgrades" "^0.4.0"
     "@scroll-tech/contracts" "^0.1.0"
     "@solana-developers/helpers" "^2.4.0"
     "@solana-program/address-lookup-table" "^0.7.0"
@@ -2167,6 +2168,11 @@
     axios "^1.4.0"
     lodash "^4.17.19"
     node-fetch "^2.6.0"
+
+"@openzeppelin/foundry-upgrades@^0.4.0":
+  version "0.4.0"
+  resolved "https://registry.yarnpkg.com/@openzeppelin/foundry-upgrades/-/foundry-upgrades-0.4.0.tgz#dfab3741e94971429789a37a9633be4f6a79344c"
+  integrity sha512-x9wxogNteR5rdDzh5d/XnINR+ncUdPsCLWud99ULCa1pNNqRVPYMadr6iEVmjdTEy/4keIgbHwLB0rw2zXiRyQ==
 
 "@openzeppelin/hardhat-upgrades@^1.28.0":
   version "1.28.0"
