@@ -1,14 +1,7 @@
 import assert from "assert";
 import { BytesLike, Contract, PopulatedTransaction, providers } from "ethers";
 import { CHAIN_IDs, SPOKEPOOL_UPGRADE_BLOCKS } from "../../constants";
-import {
-  Deposit,
-  FillStatus,
-  FillWithBlock,
-  RelayData,
-  RelayExecutionEventInfo,
-  SpeedUpCommon,
-} from "../../interfaces";
+import { Deposit, FillStatus, FillWithBlock, RelayData, SpeedUpCommon } from "../../interfaces";
 import {
   bnUint32Max,
   BigNumber,
@@ -23,7 +16,7 @@ import {
   paginatedEventQuery,
   spreadEventWithBlockNumber,
   Address,
-  toAddressType,
+  unpackFillEvent,
 } from "../../utils";
 
 type BlockTag = providers.BlockTag;
@@ -348,30 +341,6 @@ export async function findFillEvent(
   const destinationChainId = Object.values(CHAIN_IDs).includes(relayData.originChainId)
     ? (await spokePool.provider.getNetwork()).chainId
     : Number(await spokePool.chainId());
-  const fillEvent = spreadEventWithBlockNumber(event) as Omit<
-    FillWithBlock,
-    "destinationChainId" | "depositor" | "recipient" | "inputToken" | "outputToken" | "exclusiveRelayer" | "relayer"
-  > & {
-    depositor: string;
-    recipient: string;
-    inputToken: string;
-    outputToken: string;
-    exclusiveRelayer: string;
-    relayer: string;
-    relayExecutionInfo: Omit<RelayExecutionEventInfo, "updatedRecipient"> & { updatedRecipient: string };
-  };
-  return {
-    ...fillEvent,
-    destinationChainId,
-    inputToken: toAddressType(fillEvent.inputToken, relayData.originChainId),
-    outputToken: toAddressType(fillEvent.outputToken, destinationChainId),
-    depositor: toAddressType(fillEvent.depositor, relayData.originChainId),
-    recipient: toAddressType(fillEvent.recipient, destinationChainId),
-    exclusiveRelayer: toAddressType(fillEvent.exclusiveRelayer, destinationChainId),
-    relayer: toAddressType(fillEvent.relayer, fillEvent.repaymentChainId),
-    relayExecutionInfo: {
-      ...fillEvent.relayExecutionInfo,
-      updatedRecipient: toAddressType(fillEvent.relayExecutionInfo.updatedRecipient, destinationChainId),
-    },
-  } satisfies FillWithBlock;
+
+  return unpackFillEvent(spreadEventWithBlockNumber(event), destinationChainId);
 }

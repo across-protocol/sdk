@@ -1,11 +1,22 @@
 import { encodeAbiParameters, Hex, keccak256 } from "viem";
 import { fixedPointAdjustment as fixedPoint } from "./common";
 import { MAX_SAFE_DEPOSIT_ID, ZERO_BYTES } from "../constants";
-import { Fill, FillType, InvalidFill, RelayData, SlowFillLeaf } from "../interfaces";
+import {
+  DepositWithBlock,
+  Fill,
+  FillWithBlock,
+  FillType,
+  InvalidFill,
+  RelayData,
+  RelayExecutionEventInfo,
+  SlowFillLeaf,
+  SortableEvent,
+} from "../interfaces";
+import { svm } from "../arch";
 import { BigNumber } from "./BigNumberUtils";
 import { isMessageEmpty, validateFillForDeposit } from "./DepositUtils";
 import { chainIsSvm, getNetworkName } from "./NetworkUtils";
-import { svm } from "../arch";
+import { toAddressType } from "./AddressUtils";
 import { SpokePoolClient } from "../clients";
 
 export function isSlowFill(fill: Fill): boolean {
@@ -16,6 +27,92 @@ export function getSlowFillLeafLpFeePct(leaf: SlowFillLeaf): BigNumber {
   const { relayData, updatedOutputAmount } = leaf;
   return relayData.inputAmount.sub(updatedOutputAmount).mul(fixedPoint).div(relayData.inputAmount);
 }
+
+/**
+ * Given a SortableEvent type, unpack the available FundsDeposited fields.
+ * @note Some fields cannot be evaluated without additional context - i.e. quoteBlockNumber, {from,to}LiteChain.
+ * @param rawEvent emitted by FundsDeposited event.
+ * @param originChainId Deposit originChainId
+ * @returns A mostly-populated DepositWithBlock event.
+ */
+export function unpackDepositEvent(
+  rawEvent: SortableEvent,
+  originChainId: number
+): Omit<DepositWithBlock, "quoteBlockNumber" | "fromLiteChain" | "toLiteChain"> {
+  const event = rawEvent as Omit<
+    DepositWithBlock,
+    | "originChainId"
+    | "depositor"
+    | "recipient"
+    | "inputToken"
+    | "outputToken"
+    | "exclusiveRelayer"
+    | "quoteBlockNumber"
+    | "fromLiteChain"
+    | "toLiteChain"
+  > & {
+    depositor: string;
+    recipient: string;
+    inputToken: string;
+    outputToken: string;
+    exclusiveRelayer: string;
+  };
+
+  return {
+    ...event,
+    originChainId,
+    depositor: toAddressType(event.depositor, originChainId),
+    recipient: toAddressType(event.recipient, event.destinationChainId),
+    inputToken: toAddressType(event.inputToken, originChainId),
+    outputToken: toAddressType(event.outputToken, event.destinationChainId),
+    exclusiveRelayer: toAddressType(event.exclusiveRelayer, event.destinationChainId),
+    messageHash: getMessageHash(event.message),
+  } satisfies Omit<DepositWithBlock, "quoteBlockNumber" | "fromLiteChain" | "toLiteChain">;
+}
+
+/**
+ * Given a SortableEvent type, unpack the complete set of FilledRelay fields.
+ * @param rawEvent emitted by FundsDeposited event.
+ * @param originChainId Deposit originChainId
+ * @returns A mostly-populated DepositWithBlock event.
+ */
+export function unpackFillEvent(rawEvent: SortableEvent, destinationChainId: number): FillWithBlock {
+  const event = rawEvent as Omit<
+    FillWithBlock,
+    | "destinationChainId"
+    | "depositor"
+    | "recipient"
+    | "inputToken"
+    | "outputToken"
+    | "exclusiveRelayer"
+    | "relayer"
+    | "relayerExecutionInfo"
+  > & {
+    depositor: string;
+    recipient: string;
+    inputToken: string;
+    outputToken: string;
+    exclusiveRelayer: string;
+    relayer: string;
+    relayExecutionInfo: Omit<RelayExecutionEventInfo, "updatedRecipient"> & { updatedRecipient: string };
+  };
+
+  return {
+    ...event,
+    destinationChainId,
+    depositor: toAddressType(event.depositor, event.originChainId),
+    recipient: toAddressType(event.recipient, destinationChainId),
+    inputToken: toAddressType(event.inputToken, event.originChainId),
+    outputToken: toAddressType(event.outputToken, destinationChainId),
+    exclusiveRelayer: toAddressType(event.exclusiveRelayer, destinationChainId),
+    relayer: toAddressType(event.relayer, event.repaymentChainId),
+    relayExecutionInfo: {
+      ...event.relayExecutionInfo,
+      updatedRecipient: toAddressType(event.relayExecutionInfo.updatedRecipient, destinationChainId),
+    },
+  } satisfies FillWithBlock;
+}
+
 /**
  * Compute the RelayData hash for a fill. This can be used to determine the fill status.
  * @param relayData RelayData information that is used to complete a fill.
