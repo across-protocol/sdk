@@ -475,7 +475,7 @@ describe("RelayFeeCalculator: Composable Bridging", function () {
       erc20: _erc20,
       weth: _weth,
       destErc20: _destErc20,
-    } = await deploySpokePoolWithToken(originChainId);
+    } = await deploySpokePoolWithToken(destinationChainId);
 
     spokePool = _spokePool as SpokePool;
     erc20 = _erc20;
