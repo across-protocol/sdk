@@ -106,6 +106,16 @@ type ProtoFill = Omit<RelayData, "recipient" | "outputToken"> & {
   outputToken: SvmAddress;
 };
 
+type CCTPDepositAccounts = {
+  tokenMessenger: Address;
+  tokenMinter: Address;
+  localToken: Address;
+  cctpEventAuthority: Address;
+  remoteTokenMessenger: Address;
+  tokenMessengerMinterSenderAuthority: Address;
+  messageTransmitter: Address;
+};
+
 export function getSlot(provider: SVMProvider, commitment: Commitment, logger?: winston.Logger): Promise<bigint> {
   return _callGetSlotWithRetry(provider, commitment, logger);
 }
@@ -1345,6 +1355,71 @@ export async function getAccountMetasForTokenlessMessage(
     { address: eventAuthority, role: AccountRole.READONLY },
     { address: programAddress, role: AccountRole.READONLY },
   ];
+}
+
+/**
+ * Returns the required PDAs for a deposit message.
+ * @param hubChainId The chain ID of the corresponding Across hub.
+ * @param tokenMessengerMinter The token messenger minter address.
+ */
+export async function getCCTPDepositAccounts(
+  hubChainId: number,
+  cctpSourceDomain: number,
+  tokenMessengerMinterAddress: Address,
+  messageTransmitterAddress: Address
+): Promise<CCTPDepositAccounts> {
+  const l2Usdc = SvmAddress.from(
+    TOKEN_SYMBOLS_MAP.USDC.addresses[chainIsProd(hubChainId) ? CHAIN_IDs.SOLANA : CHAIN_IDs.SOLANA_DEVNET]
+  );
+
+  const [
+    [tokenMessenger],
+    [tokenMinter],
+    [localToken],
+    [cctpEventAuthority],
+    [remoteTokenMessenger],
+    [tokenMessengerMinterSenderAuthority],
+    [messageTransmitter],
+  ] = await Promise.all([
+    getProgramDerivedAddress({
+      programAddress: tokenMessengerMinterAddress,
+      seeds: ["token_messenger"],
+    }),
+    getProgramDerivedAddress({
+      programAddress: tokenMessengerMinterAddress,
+      seeds: ["token_minter"],
+    }),
+    getProgramDerivedAddress({
+      programAddress: tokenMessengerMinterAddress,
+      seeds: ["local_token", bs58.decode(l2Usdc.toBase58())],
+    }),
+    getProgramDerivedAddress({
+      programAddress: tokenMessengerMinterAddress,
+      seeds: ["__event_authority"],
+    }),
+    getProgramDerivedAddress({
+      programAddress: tokenMessengerMinterAddress,
+      seeds: ["remote_token_messenger", String(cctpSourceDomain)],
+    }),
+    getProgramDerivedAddress({
+      programAddress: tokenMessengerMinterAddress,
+      seeds: ["sender_authority"],
+    }),
+    getProgramDerivedAddress({
+      programAddress: messageTransmitterAddress,
+      seeds: ["message_transmitter"],
+    }),
+  ]);
+
+  return {
+    tokenMessenger,
+    tokenMinter,
+    localToken,
+    cctpEventAuthority,
+    remoteTokenMessenger,
+    tokenMessengerMinterSenderAuthority,
+    messageTransmitter,
+  };
 }
 
 /**
