@@ -1360,7 +1360,9 @@ export async function getAccountMetasForTokenlessMessage(
 /**
  * Returns the required PDAs for a deposit message.
  * @param hubChainId The chain ID of the corresponding Across hub.
+ * @param cctpSourceDomain The source chain (Solana) domain ID.
  * @param tokenMessengerMinter The token messenger minter address.
+ * @param messageTransmitterAddress The message transmitter address.
  */
 export async function getCCTPDepositAccounts(
   hubChainId: number,
