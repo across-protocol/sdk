@@ -761,8 +761,7 @@ export class BundleDataClient {
       throw new Error("HubPoolClient not updated");
     }
 
-    const bundleEndBlockForMainnet = blockRangesForChains[0][1];
-    const bundleStartBlockForMainnet = blockRangesForChains[0][0];
+    const [bundleStartBlockForMainnet, bundleEndBlockForMainnet] = blockRangesForChains[0];
     const chainIds = this.clients.configStoreClient.getChainIdIndicesForBlock(bundleStartBlockForMainnet);
 
     if (blockRangesForChains.length > chainIds.length) {
