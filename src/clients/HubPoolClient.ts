@@ -194,7 +194,7 @@ export class HubPoolClient extends BaseAbstractClient {
       l1Token.toNative()
     ][destinationChainId].find((mapping: DestinationTokenWithBlock) => mapping.blockNumber <= latestHubBlock);
 
-    return !l2Token || l2Token.l2Token.isZeroAddress() ? undefined : l2Token.l2Token;
+    return !isDefined(l2Token) || l2Token.l2Token.isZeroAddress() ? undefined : l2Token.l2Token;
   }
 
   // Returns the latest L1 token to use for an L2 token as of the input hub block.
@@ -238,12 +238,12 @@ export class HubPoolClient extends BaseAbstractClient {
     const l2Token: DestinationTokenWithBlock | undefined = sortEventsDescending(
       this.l1TokensToDestinationTokensWithBlock?.[l1Token.toNative()]?.[destinationChainId] ?? []
     ).find((mapping: DestinationTokenWithBlock) => mapping.blockNumber <= hubBlockNumber);
-    return l2Token !== undefined && !l2Token.l2Token.isZeroAddress();
+    return isDefined(l2Token) && !l2Token.l2Token.isZeroAddress();
   }
 
   l2TokenHasPoolRebalanceRoute(l2Token: Address, l2ChainId: number, hubPoolBlock = this.latestHeightSearched): boolean {
     const l1Token = this.getL1TokenForL2TokenAtBlock(l2Token, l2ChainId, hubPoolBlock);
-    return l1Token !== undefined;
+    return isDefined(l1Token);
   }
 
   /**
@@ -373,7 +373,7 @@ export class HubPoolClient extends BaseAbstractClient {
     const getHubPoolToken = (deposit: LpFeeRequest, quoteBlockNumber: number): EvmAddress | undefined => {
       const tokenKey = `${deposit.originChainId}-${deposit.inputToken}`;
       const l1Token = this.getL1TokenForDeposit({ ...deposit, quoteBlockNumber });
-      if (!l1Token) {
+      if (!isDefined(l1Token)) {
         return undefined;
       }
       return (hubPoolTokens[tokenKey] ??= l1Token);
@@ -524,14 +524,14 @@ export class HubPoolClient extends BaseAbstractClient {
     // Resolve both SpokePool tokens back to their respective HubPool tokens and verify that they match.
     const l1TokenA = this.getL1TokenForL2TokenAtBlock(tokenA, chainIdA, hubPoolBlock);
     const l1TokenB = this.getL1TokenForL2TokenAtBlock(tokenB, chainIdB, hubPoolBlock);
-    if (!l1TokenA || !l1TokenB || !l1TokenA.eq(l1TokenB)) {
+    if (!isDefined(l1TokenA) || !isDefined(l1TokenB) || !l1TokenA.eq(l1TokenB)) {
       return false;
     }
 
     // Resolve both HubPool tokens back to a current SpokePool token and verify that they match.
     const _tokenA = this.getL2TokenForL1TokenAtBlock(l1TokenA, chainIdA, hubPoolBlock);
     const _tokenB = this.getL2TokenForL1TokenAtBlock(l1TokenB, chainIdB, hubPoolBlock);
-    return _tokenA !== undefined && _tokenB !== undefined && tokenA.eq(_tokenA) && tokenB.eq(_tokenB);
+    return isDefined(_tokenA) && isDefined(_tokenB) && tokenA.eq(_tokenA) && tokenB.eq(_tokenB);
   }
 
   getSpokeActivationBlockForChain(chainId: number): number {
