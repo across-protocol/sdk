@@ -227,7 +227,7 @@ export class EVMSpokePoolClient extends SpokePoolClient {
       .filter(({ args }) => args["depositId"].eq(depositId));
 
     const tStop = Date.now();
-    const event = events.find(({ args }) => args["depositId"].eq(depositId));
+    const [event] = events;
     if (!event) {
       return {
         reason: `Unable to find ${chain} depositId ${depositId} within blocks [${from}, ${upperBound ?? "latest"}].`,

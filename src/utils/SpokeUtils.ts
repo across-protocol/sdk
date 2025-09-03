@@ -184,33 +184,55 @@ export async function findInvalidFills(spokePoolClients: {
     // Get all fills for this client
     const fills = spokePoolClient.getFills();
 
-    // Process each fill
-    for (const fill of fills) {
-      // Skip fills with unsafe deposit IDs
-      // @TODO Deposits with unsafe depositIds should be processed after some time
-      if (isUnsafeDepositId(fill.depositId)) {
-        continue;
-      }
+    // Process fills in parallel for this client
+    const fillDepositPairs = await Promise.all(
+      fills.map(async (fill) => {
+        // Skip fills with unsafe deposit IDs
+        if (isUnsafeDepositId(fill.depositId)) {
+          return null; // Return null for unsafe deposits
+        }
 
-      // Get all deposits (including duplicates) for this fill's depositId, both in memory and on-chain
-      const depositResult = await spokePoolClients[fill.originChainId]?.findDeposit(fill.depositId);
+        try {
+          // Get all deposits (including duplicates) for this fill's depositId, both in memory and on-chain
+          const depositResult = await spokePoolClients[fill.originChainId]?.findDeposit(fill.depositId);
 
-      // If no deposits found at all
-      if (!depositResult?.found) {
+          // If no deposits found at all
+          if (!depositResult?.found) {
+            return {
+              fill,
+              deposit: null,
+              reason: `No ${getNetworkName(fill.originChainId)} deposit with depositId ${fill.depositId} found`,
+            };
+          }
+
+          // Check if fill is valid for deposit
+          const validationResult = validateFillForDeposit(fill, depositResult.deposit);
+          if (!validationResult.valid) {
+            return {
+              fill,
+              deposit: depositResult.deposit,
+              reason: validationResult.reason,
+            };
+          }
+
+          // Valid fill with deposit - return null to filter out
+          return null;
+        } catch (error) {
+          return {
+            fill,
+            deposit: null,
+            reason: `Error processing fill: ${error instanceof Error ? error.message : String(error)}`,
+          };
+        }
+      })
+    );
+
+    for (const pair of fillDepositPairs) {
+      if (pair) {
         invalidFills.push({
-          fill,
-          reason: `No ${getNetworkName(fill.originChainId)} deposit with depositId ${fill.depositId} found`,
-        });
-        continue;
-      }
-
-      // Check if fill is valid for deposit
-      const validationResult = validateFillForDeposit(fill, depositResult.deposit);
-      if (!validationResult.valid) {
-        invalidFills.push({
-          fill,
-          reason: validationResult.reason,
-          deposit: depositResult.deposit,
+          fill: pair.fill,
+          reason: pair.reason,
+          deposit: pair.deposit || undefined,
         });
       }
     }
