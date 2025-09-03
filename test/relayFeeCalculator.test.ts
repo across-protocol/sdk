@@ -560,7 +560,7 @@ describe("RelayFeeCalculator: Composable Bridging", function () {
         originChainId: 1,
         message: EMPTY_MESSAGE,
         exclusiveRelayer: ZERO_ADDRESS,
-        fillDeadline: getCurrentTime() + 60,
+        fillDeadline: getCurrentTime() + 3600,
         exclusivityDeadline: 0,
       },
       10
@@ -577,7 +577,7 @@ describe("RelayFeeCalculator: Composable Bridging", function () {
         originChainId: 1,
         message: "0x04",
         exclusiveRelayer: ZERO_ADDRESS,
-        fillDeadline: getCurrentTime() + 60,
+        fillDeadline: getCurrentTime() + 3600,
         exclusivityDeadline: 0,
       },
       10
@@ -609,7 +609,7 @@ describe("RelayFeeCalculator: Composable Bridging", function () {
         originChainId: 1,
         message: "0xabcdef",
         exclusiveRelayer: ZERO_ADDRESS,
-        fillDeadline: getCurrentTime() + 600,
+        fillDeadline: getCurrentTime() + 3600,
         exclusivityDeadline: 0,
       },
       10

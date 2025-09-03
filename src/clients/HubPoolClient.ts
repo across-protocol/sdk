@@ -193,14 +193,14 @@ export class HubPoolClient extends BaseAbstractClient {
     destinationChainId: number,
     latestHubBlock = Number.MAX_SAFE_INTEGER
   ): Address {
-    if (!this.l1TokensToDestinationTokensWithBlock?.[l1Token.toEvmAddress()]?.[destinationChainId]) {
+    if (!this.l1TokensToDestinationTokensWithBlock?.[l1Token.toNative()]?.[destinationChainId]) {
       const chain = getNetworkName(destinationChainId);
       const { symbol } = this.l1Tokens.find(({ address }) => address.eq(l1Token)) ?? { symbol: l1Token.toString() };
       throw new Error(`Could not find SpokePool mapping for ${symbol} on ${chain} and L1 token ${l1Token}`);
     }
     // Find the last mapping published before the target block.
     const l2Token: DestinationTokenWithBlock | undefined = sortEventsDescending(
-      this.l1TokensToDestinationTokensWithBlock[l1Token.toEvmAddress()][destinationChainId]
+      this.l1TokensToDestinationTokensWithBlock[l1Token.toNative()][destinationChainId]
     ).find((mapping: DestinationTokenWithBlock) => mapping.blockNumber <= latestHubBlock);
     if (!l2Token) {
       const chain = getNetworkName(destinationChainId);
@@ -250,13 +250,13 @@ export class HubPoolClient extends BaseAbstractClient {
   }
 
   l2TokenEnabledForL1Token(l1Token: EvmAddress, destinationChainId: number): boolean {
-    return this.l1TokensToDestinationTokens?.[l1Token.toEvmAddress()]?.[destinationChainId] != undefined;
+    return this.l1TokensToDestinationTokens?.[l1Token.toNative()]?.[destinationChainId] != undefined;
   }
 
   l2TokenEnabledForL1TokenAtBlock(l1Token: EvmAddress, destinationChainId: number, hubBlockNumber: number): boolean {
     // Find the last mapping published before the target block.
     const l2Token: DestinationTokenWithBlock | undefined = sortEventsDescending(
-      this.l1TokensToDestinationTokensWithBlock?.[l1Token.toEvmAddress()]?.[destinationChainId] ?? []
+      this.l1TokensToDestinationTokensWithBlock?.[l1Token.toNative()]?.[destinationChainId] ?? []
     ).find((mapping: DestinationTokenWithBlock) => mapping.blockNumber <= hubBlockNumber);
     return l2Token !== undefined;
   }
@@ -340,18 +340,14 @@ export class HubPoolClient extends BaseAbstractClient {
     timeToCache: number
   ): Promise<BigNumber> {
     // Resolve this function call as an async anonymous function
-    const resolver = async () => {
+    const resolver = () => {
       const overrides = { blockTag: blockNumber };
-      if (depositAmount.eq(0)) {
-        // For zero amount, just get the utilisation at `blockNumber`.
-        return await this.hubPool.callStatic.liquidityUtilizationCurrent(hubPoolToken.toEvmAddress(), overrides);
-      }
+      const token = hubPoolToken.toNative();
 
-      return await this.hubPool.callStatic.liquidityUtilizationPostRelay(
-        hubPoolToken.toEvmAddress(),
-        depositAmount,
-        overrides
-      );
+      // For zero amount, just get the utilisation at `blockNumber`.
+      return depositAmount.eq(bnZero)
+        ? this.hubPool.callStatic.liquidityUtilizationCurrent(token, overrides)
+        : this.hubPool.callStatic.liquidityUtilizationPostRelay(token, depositAmount, overrides);
     };
 
     // Resolve the cache locally so that we can appease typescript
@@ -363,11 +359,9 @@ export class HubPoolClient extends BaseAbstractClient {
     }
 
     // Otherwise, let's resolve the key
-    // @note Avoid collisions with pre-existing cache keys by appending an underscore (_) for post-relay utilization.
-    // @fixme This can be removed once the existing keys have been ejected from the cache (i.e. 7 days).
-    const key = depositAmount.eq(0)
-      ? `utilization_${hubPoolToken.toEvmAddress()}_${blockNumber}`
-      : `utilization_${hubPoolToken.toEvmAddress()}_${blockNumber}_${depositAmount.toString()}_`;
+    const key = depositAmount.eq(bnZero)
+      ? `utilization_${hubPoolToken.toNative()}_${blockNumber}`
+      : `utilization_${hubPoolToken.toNative()}_${blockNumber}_${depositAmount.toString()}`;
     const result = await cache.get<string>(key);
     if (isDefined(result)) {
       return BigNumber.from(result);
@@ -409,9 +403,19 @@ export class HubPoolClient extends BaseAbstractClient {
       const tokenKey = `${deposit.originChainId}-${deposit.inputToken}`;
       if (this.l2TokenHasPoolRebalanceRoute(deposit.inputToken, deposit.originChainId, quoteBlockNumber)) {
         return (hubPoolTokens[tokenKey] ??= this.getL1TokenForDeposit({ ...deposit, quoteBlockNumber }));
-      } else return undefined;
+      }
+
+      return undefined;
     };
-    const getHubPoolTokens = (): EvmAddress[] => dedupArray(Object.values(hubPoolTokens).filter(isDefined));
+
+    // Filter hubPoolTokens for duplicates by reverting to their native string
+    // representation. This is required for deduplication to work reliably.
+    const getHubPoolTokens = (): EvmAddress[] =>
+      dedupArray(
+        Object.values(hubPoolTokens)
+          .filter(isDefined)
+          .map((token) => token.toNative())
+      ).map((token) => EvmAddress.from(token));
 
     // Helper to resolve the unqiue hubPoolToken & quoteTimestamp mappings.
     const resolveUniqueQuoteTimestamps = (deposit: LpFeeRequest): void => {
@@ -425,9 +429,10 @@ export class HubPoolClient extends BaseAbstractClient {
       }
 
       // Append the quoteTimestamp for this HubPool token, if it isn't already enqueued.
-      utilizationTimestamps[hubPoolToken.toEvmAddress()] ??= [];
-      if (!utilizationTimestamps[hubPoolToken.toEvmAddress()].includes(quoteTimestamp)) {
-        utilizationTimestamps[hubPoolToken.toEvmAddress()].push(quoteTimestamp);
+      const token = hubPoolToken.toNative();
+      utilizationTimestamps[token] ??= [];
+      if (!utilizationTimestamps[token].includes(quoteTimestamp)) {
+        utilizationTimestamps[token].push(quoteTimestamp);
       }
     };
 
@@ -435,7 +440,7 @@ export class HubPoolClient extends BaseAbstractClient {
     // Produces a mapping of blockNumber -> utilization for a specific token.
     const resolveUtilization = async (hubPoolToken: EvmAddress): Promise<Record<number, BigNumber>> => {
       return Object.fromEntries(
-        await mapAsync(utilizationTimestamps[hubPoolToken.toEvmAddress()], async (quoteTimestamp) => {
+        await mapAsync(utilizationTimestamps[hubPoolToken.toNative()], async (quoteTimestamp) => {
           const blockNumber = quoteBlocks[quoteTimestamp];
           const utilization = await this.getUtilization(
             hubPoolToken,
@@ -471,7 +476,7 @@ export class HubPoolClient extends BaseAbstractClient {
         quoteBlock
       );
 
-      const preUtilization = utilization[hubPoolToken.toEvmAddress()][quoteBlock];
+      const preUtilization = utilization[hubPoolToken.toNative()][quoteBlock];
       const postUtilization = await this.getUtilization(
         hubPoolToken,
         quoteBlock,
@@ -500,7 +505,7 @@ export class HubPoolClient extends BaseAbstractClient {
     // This can be reused for each deposit with the same HubPool token and quoteTimestamp pair.
     utilization = Object.fromEntries(
       await mapAsync(getHubPoolTokens(), async (hubPoolToken) => [
-        hubPoolToken.toEvmAddress(),
+        hubPoolToken.toNative(),
         await resolveUtilization(hubPoolToken),
       ])
     );
@@ -529,7 +534,7 @@ export class HubPoolClient extends BaseAbstractClient {
   }
 
   getLpTokenInfoForL1Token(l1Token: EvmAddress): LpToken | undefined {
-    return this.lpTokens[l1Token.toEvmAddress()];
+    return this.lpTokens[l1Token.toNative()];
   }
 
   areTokensEquivalent(
@@ -925,6 +930,7 @@ export class HubPoolClient extends BaseAbstractClient {
     if (!this.configStoreClient.isUpdated) {
       throw new Error("ConfigStoreClient not updated");
     }
+
     const update = await this._update(eventsToQuery);
     if (!update.success) {
       if (update.reason !== UpdateFailureReason.AlreadyUpdated) {
