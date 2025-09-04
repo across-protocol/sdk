@@ -175,3 +175,9 @@ export interface SpokePoolClientsByChain {
 export interface RelayDataWithMessageHash extends RelayData {
   messageHash?: string;
 }
+
+export interface InvalidFill {
+  fill: FillWithBlock;
+  reason: string;
+  deposit?: DepositWithBlock;
+}
