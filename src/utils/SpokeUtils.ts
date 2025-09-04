@@ -192,38 +192,30 @@ export async function findInvalidFills(spokePoolClients: {
           return null; // Return null for unsafe deposits
         }
 
-        try {
-          // Get all deposits (including duplicates) for this fill's depositId, both in memory and on-chain
-          const depositResult = await spokePoolClients[fill.originChainId]?.findDeposit(fill.depositId);
+        // Get all deposits (including duplicates) for this fill's depositId, both in memory and on-chain
+        const depositResult = await spokePoolClients[fill.originChainId]?.findDeposit(fill.depositId);
 
-          // If no deposits found at all
-          if (!depositResult?.found) {
-            return {
-              fill,
-              deposit: null,
-              reason: `No ${getNetworkName(fill.originChainId)} deposit with depositId ${fill.depositId} found`,
-            };
-          }
-
-          // Check if fill is valid for deposit
-          const validationResult = validateFillForDeposit(fill, depositResult.deposit);
-          if (!validationResult.valid) {
-            return {
-              fill,
-              deposit: depositResult.deposit,
-              reason: validationResult.reason,
-            };
-          }
-
-          // Valid fill with deposit - return null to filter out
-          return null;
-        } catch (error) {
+        // If no deposits found at all
+        if (!depositResult?.found) {
           return {
             fill,
             deposit: null,
-            reason: `Error processing fill: ${error instanceof Error ? error.message : String(error)}`,
+            reason: `No ${getNetworkName(fill.originChainId)} deposit with depositId ${fill.depositId} found`,
           };
         }
+
+        // Check if fill is valid for deposit
+        const validationResult = validateFillForDeposit(fill, depositResult.deposit);
+        if (!validationResult.valid) {
+          return {
+            fill,
+            deposit: depositResult.deposit,
+            reason: validationResult.reason,
+          };
+        }
+
+        // Valid fill with deposit - return null to filter out
+        return null;
       })
     );
 
