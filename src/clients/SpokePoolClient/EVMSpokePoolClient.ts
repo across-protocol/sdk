@@ -7,7 +7,7 @@ import {
   relayFillStatus,
   getTimestampForBlock as _getTimestampForBlock,
 } from "../../arch/evm";
-import { DepositWithBlock, FillStatus, RelayData } from "../../interfaces";
+import { DepositWithBlock, FillStatus, Log, RelayData } from "../../interfaces";
 import {
   BigNumber,
   DepositSearchResult,
@@ -155,44 +155,13 @@ export class EVMSpokePoolClient extends SpokePoolClient {
     }
 
     // No deposit found; revert to searching for it.
-    const upperBound = this.latestHeightSearched || undefined; // Don't permit block 0 as the high block.
-    const from = await findDepositBlock(this.spokePool, depositId, this.deploymentBlock, upperBound);
-    const chain = getNetworkName(this.chainId);
-    if (!from) {
-      const reason =
-        `Unable to find ${chain} depositId ${depositId}` +
-        ` within blocks [${this.deploymentBlock}, ${upperBound ?? "latest"}].`;
-      return { found: false, code: InvalidFill.DepositIdNotFound, reason };
+    const result = await this.queryDepositEvents(depositId);
+
+    if ("reason" in result) {
+      return { found: false, code: InvalidFill.DepositIdNotFound, reason: result.reason };
     }
 
-    const to = from;
-    const tStart = Date.now();
-    // Check both V3FundsDeposited and FundsDeposited events to look for a specified depositId.
-    const { maxLookBack } = this.eventSearchConfig;
-    const query = (
-      await Promise.all([
-        paginatedEventQuery(
-          this.spokePool,
-          this.spokePool.filters.V3FundsDeposited(null, null, null, null, null, depositId),
-          { from, to, maxLookBack }
-        ),
-        paginatedEventQuery(
-          this.spokePool,
-          this.spokePool.filters.FundsDeposited(null, null, null, null, null, depositId),
-          { from, to, maxLookBack }
-        ),
-      ])
-    ).flat();
-    const tStop = Date.now();
-
-    const event = query.find(({ args }) => args["depositId"].eq(depositId));
-    if (event === undefined) {
-      return {
-        found: false,
-        code: InvalidFill.DepositIdNotFound,
-        reason: `${chain} depositId ${depositId} not found at block ${from}.`,
-      };
-    }
+    const { event, elapsedMs } = result;
 
     const partialDeposit = unpackDepositEvent(spreadEventWithBlockNumber(event), this.chainId);
     const quoteBlockNumber = await this.getBlockNumber(partialDeposit.quoteTimestamp);
@@ -212,13 +181,59 @@ export class EVMSpokePoolClient extends SpokePoolClient {
       at: "SpokePoolClient#findDeposit",
       message: "Located deposit outside of SpokePoolClient's search range",
       deposit,
-      elapsedMs: tStop - tStart,
+      elapsedMs,
     });
-
     return { found: true, deposit };
   }
 
   public override getTimestampForBlock(blockNumber: number): Promise<number> {
     return _getTimestampForBlock(this.spokePool.provider, blockNumber);
+  }
+
+  private async queryDepositEvents(
+    depositId: BigNumber
+  ): Promise<{ event: Log; elapsedMs: number } | { reason: string }> {
+    const tStart = Date.now();
+    const upperBound = this.latestHeightSearched || undefined;
+    const from = await findDepositBlock(this.spokePool, depositId, this.deploymentBlock, upperBound);
+    const chain = getNetworkName(this.chainId);
+
+    if (!from) {
+      return {
+        reason: `Unable to find ${chain} depositId ${depositId} within blocks [${this.deploymentBlock}, ${
+          upperBound ?? "latest"
+        }].`,
+      };
+    }
+
+    const to = from;
+
+    const { maxLookBack } = this.eventSearchConfig;
+    const events = (
+      await Promise.all([
+        paginatedEventQuery(
+          this.spokePool,
+          this.spokePool.filters.V3FundsDeposited(null, null, null, null, null, depositId),
+          { from, to, maxLookBack }
+        ),
+        paginatedEventQuery(
+          this.spokePool,
+          this.spokePool.filters.FundsDeposited(null, null, null, null, null, depositId),
+          { from, to, maxLookBack }
+        ),
+      ])
+    )
+      .flat()
+      .filter(({ args }) => args["depositId"].eq(depositId));
+
+    const tStop = Date.now();
+    const [event] = events;
+    if (!event) {
+      return {
+        reason: `Unable to find ${chain} depositId ${depositId} within blocks [${from}, ${upperBound ?? "latest"}].`,
+      };
+    }
+
+    return { event, elapsedMs: tStop - tStart };
   }
 }

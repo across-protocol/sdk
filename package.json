@@ -1,7 +1,7 @@
 {
   "name": "@across-protocol/sdk",
   "author": "UMA Team",
-  "version": "4.3.57",
+  "version": "4.3.59",
   "license": "AGPL-3.0",
   "homepage": "https://docs.across.to/reference/sdk",
   "files": [
@@ -118,7 +118,7 @@
     "@solana/web3.js": "^1.31.0",
     "@types/mocha": "^10.0.1",
     "@types/node": "^24.3.0",
-    "@uma/sdk": "^0.34.10",
+    "@uma/contracts-node": "^0.4.26",
     "arweave": "^1.14.4",
     "async": "^3.2.5",
     "axios": "^0.27.2",
