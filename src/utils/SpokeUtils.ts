@@ -6,6 +6,7 @@ import {
   Fill,
   FillWithBlock,
   FillType,
+  InvalidFill,
   RelayData,
   RelayExecutionEventInfo,
   SlowFillLeaf,
@@ -13,9 +14,10 @@ import {
 } from "../interfaces";
 import { svm } from "../arch";
 import { BigNumber } from "./BigNumberUtils";
-import { isMessageEmpty } from "./DepositUtils";
-import { chainIsSvm } from "./NetworkUtils";
+import { isMessageEmpty, validateFillForDeposit } from "./DepositUtils";
+import { chainIsSvm, getNetworkName } from "./NetworkUtils";
 import { toAddressType } from "./AddressUtils";
+import { SpokePoolClient } from "../clients";
 
 export function isSlowFill(fill: Fill): boolean {
   return fill.relayExecutionInfo.fillType === FillType.SlowFill;
@@ -170,4 +172,63 @@ export function isUnsafeDepositId(depositId: BigNumber): boolean {
 
 export function getMessageHash(message: string): string {
   return isMessageEmpty(message) ? ZERO_BYTES : keccak256(message as Hex);
+}
+
+export async function findInvalidFills(spokePoolClients: {
+  [chainId: number]: SpokePoolClient;
+}): Promise<InvalidFill[]> {
+  const invalidFills: InvalidFill[] = [];
+
+  // Iterate through each spoke pool client
+  for (const spokePoolClient of Object.values(spokePoolClients)) {
+    // Get all fills for this client
+    const fills = spokePoolClient.getFills();
+
+    // Process fills in parallel for this client
+    const fillDepositPairs = await Promise.all(
+      fills.map(async (fill) => {
+        // Skip fills with unsafe deposit IDs
+        if (isUnsafeDepositId(fill.depositId)) {
+          return null; // Return null for unsafe deposits
+        }
+
+        // Get all deposits (including duplicates) for this fill's depositId, both in memory and on-chain
+        const depositResult = await spokePoolClients[fill.originChainId]?.findDeposit(fill.depositId);
+
+        // If no deposits found at all
+        if (!depositResult?.found) {
+          return {
+            fill,
+            deposit: null,
+            reason: `No ${getNetworkName(fill.originChainId)} deposit with depositId ${fill.depositId} found`,
+          };
+        }
+
+        // Check if fill is valid for deposit
+        const validationResult = validateFillForDeposit(fill, depositResult.deposit);
+        if (!validationResult.valid) {
+          return {
+            fill,
+            deposit: depositResult.deposit,
+            reason: validationResult.reason,
+          };
+        }
+
+        // Valid fill with deposit - return null to filter out
+        return null;
+      })
+    );
+
+    for (const pair of fillDepositPairs) {
+      if (pair) {
+        invalidFills.push({
+          fill: pair.fill,
+          reason: pair.reason,
+          deposit: pair.deposit || undefined,
+        });
+      }
+    }
+  }
+
+  return invalidFills;
 }
