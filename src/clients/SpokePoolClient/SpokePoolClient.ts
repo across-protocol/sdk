@@ -474,18 +474,22 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
       )
     ) {
       return false;
-    } else {
-      const l1Token = this.hubPoolClient?.getL1TokenForL2TokenAtBlock(
-        deposit.inputToken,
-        deposit.originChainId,
-        deposit.quoteBlockNumber
-      );
-      return this.hubPoolClient.l2TokenEnabledForL1TokenAtBlock(
-        l1Token,
-        deposit.destinationChainId,
-        deposit.quoteBlockNumber
-      );
     }
+
+    const l1Token = this.hubPoolClient?.getL1TokenForL2TokenAtBlock(
+      deposit.inputToken,
+      deposit.originChainId,
+      deposit.quoteBlockNumber
+    );
+    if (!l1Token) {
+      return false;
+    }
+
+    return this.hubPoolClient.l2TokenEnabledForL1TokenAtBlock(
+      l1Token,
+      deposit.destinationChainId,
+      deposit.quoteBlockNumber
+    );
   }
 
   /**

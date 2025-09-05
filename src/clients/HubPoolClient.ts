@@ -34,7 +34,6 @@ import {
   fetchTokenInfo,
   getCachedBlockForTimestamp,
   getCurrentTime,
-  getNetworkName,
   isDefined,
   mapAsync,
   paginatedEventQuery,
@@ -75,17 +74,11 @@ type HubPoolEvent =
   | "RootBundleExecuted"
   | "CrossChainContractsSet";
 
-type L1TokensToDestinationTokens = {
-  [l1Token: string]: { [destinationChainId: number]: Address };
-};
-
 export type LpFeeRequest = Pick<Deposit, "originChainId" | "inputToken" | "inputAmount" | "quoteTimestamp"> & {
   paymentChainId?: number;
 };
 
 export class HubPoolClient extends BaseAbstractClient {
-  // L1Token -> destinationChainId -> destinationToken
-  protected l1TokensToDestinationTokens: L1TokensToDestinationTokens = {};
   protected l1Tokens: L1TokenInfo[] = []; // L1Tokens and their associated info.
   // @dev `token` here is a 20-byte hex sting
   protected lpTokens: { [token: string]: LpToken } = {};
@@ -192,24 +185,16 @@ export class HubPoolClient extends BaseAbstractClient {
     l1Token: EvmAddress,
     destinationChainId: number,
     latestHubBlock = Number.MAX_SAFE_INTEGER
-  ): Address {
+  ): Address | undefined {
     if (!this.l1TokensToDestinationTokensWithBlock?.[l1Token.toNative()]?.[destinationChainId]) {
-      const chain = getNetworkName(destinationChainId);
-      const { symbol } = this.l1Tokens.find(({ address }) => address.eq(l1Token)) ?? { symbol: l1Token.toString() };
-      throw new Error(`Could not find SpokePool mapping for ${symbol} on ${chain} and L1 token ${l1Token}`);
+      return undefined;
     }
     // Find the last mapping published before the target block.
-    const l2Token: DestinationTokenWithBlock | undefined = sortEventsDescending(
-      this.l1TokensToDestinationTokensWithBlock[l1Token.toNative()][destinationChainId]
-    ).find((mapping: DestinationTokenWithBlock) => mapping.blockNumber <= latestHubBlock);
-    if (!l2Token) {
-      const chain = getNetworkName(destinationChainId);
-      const { symbol } = this.l1Tokens.find(({ address }) => address.eq(l1Token)) ?? { symbol: l1Token.toString() };
-      throw new Error(
-        `Could not find SpokePool mapping for ${symbol} on ${chain} at or before HubPool block ${latestHubBlock}!`
-      );
-    }
-    return l2Token.l2Token;
+    const l2Token: DestinationTokenWithBlock | undefined = this.l1TokensToDestinationTokensWithBlock[
+      l1Token.toNative()
+    ][destinationChainId].find((mapping: DestinationTokenWithBlock) => mapping.blockNumber <= latestHubBlock);
+
+    return !isDefined(l2Token) || l2Token.l2Token.isZeroAddress() ? undefined : l2Token.l2Token;
   }
 
   // Returns the latest L1 token to use for an L2 token as of the input hub block.
@@ -217,32 +202,27 @@ export class HubPoolClient extends BaseAbstractClient {
     l2Token: Address,
     destinationChainId: number,
     latestHubBlock = Number.MAX_SAFE_INTEGER
-  ): EvmAddress {
-    const l2Tokens = Object.keys(this.l1TokensToDestinationTokensWithBlock)
-      .filter((l1Token) => this.l2TokenEnabledForL1Token(EvmAddress.from(l1Token), destinationChainId))
-      .map((l1Token) => {
-        // Return all matching L2 token mappings that are equal to or earlier than the target block.
-        // @dev Since tokens on L2s (like Solana) can have 32 byte addresses, filter on the lower 20 bytes of the token only.
-        return this.l1TokensToDestinationTokensWithBlock[l1Token][destinationChainId].filter(
-          (dstTokenWithBlock) =>
-            dstTokenWithBlock.l2Token.truncateToBytes20() === l2Token.truncateToBytes20() &&
-            dstTokenWithBlock.blockNumber <= latestHubBlock
-        );
-      })
-      .flat();
-    if (l2Tokens.length === 0) {
-      const chain = getNetworkName(destinationChainId);
-      throw new Error(
-        `Could not find HubPool mapping for ${l2Token} on ${chain} at or before HubPool block ${latestHubBlock}!`
+  ): EvmAddress | undefined {
+    const l2Tokens = Object.keys(this.l1TokensToDestinationTokensWithBlock).flatMap((l1Token) => {
+      // Get the latest L2 token mapping for the given L1 token.
+      // @dev Since tokens on L2s (like Solana) can have 32 byte addresses, filter on the lower 20 bytes of the token only.
+      const sortedL2Tokens = sortEventsDescending(
+        (this.l1TokensToDestinationTokensWithBlock[l1Token][destinationChainId] ?? []).filter(
+          (dstTokenWithBlock) => dstTokenWithBlock.blockNumber <= latestHubBlock
+        )
       );
-    }
-    // Find the last mapping published before the target block.
-    return sortEventsDescending(l2Tokens)[0].l1Token;
+      // If the latest L2 token mapping is equal to the target L2 token, return it.
+      return sortedL2Tokens.length > 0 && sortedL2Tokens[0].l2Token.truncateToBytes20() === l2Token.truncateToBytes20()
+        ? sortedL2Tokens[0]
+        : [];
+    });
+
+    return l2Tokens.length === 0 ? undefined : sortEventsDescending(l2Tokens)[0].l1Token;
   }
 
   protected getL1TokenForDeposit(
     deposit: Pick<DepositWithBlock, "originChainId" | "inputToken" | "quoteBlockNumber">
-  ): EvmAddress {
+  ): EvmAddress | undefined {
     // L1-->L2 token mappings are set via PoolRebalanceRoutes which occur on mainnet,
     // so we use the latest token mapping. This way if a very old deposit is filled, the relayer can use the
     // latest L2 token mapping to find the L1 token counterpart.
@@ -250,7 +230,7 @@ export class HubPoolClient extends BaseAbstractClient {
   }
 
   l2TokenEnabledForL1Token(l1Token: EvmAddress, destinationChainId: number): boolean {
-    return this.l1TokensToDestinationTokens?.[l1Token.toNative()]?.[destinationChainId] != undefined;
+    return this.l2TokenEnabledForL1TokenAtBlock(l1Token, destinationChainId, Number.MAX_SAFE_INTEGER);
   }
 
   l2TokenEnabledForL1TokenAtBlock(l1Token: EvmAddress, destinationChainId: number, hubBlockNumber: number): boolean {
@@ -258,21 +238,12 @@ export class HubPoolClient extends BaseAbstractClient {
     const l2Token: DestinationTokenWithBlock | undefined = sortEventsDescending(
       this.l1TokensToDestinationTokensWithBlock?.[l1Token.toNative()]?.[destinationChainId] ?? []
     ).find((mapping: DestinationTokenWithBlock) => mapping.blockNumber <= hubBlockNumber);
-    return l2Token !== undefined;
+    return isDefined(l2Token) && !l2Token.l2Token.isZeroAddress();
   }
 
   l2TokenHasPoolRebalanceRoute(l2Token: Address, l2ChainId: number, hubPoolBlock = this.latestHeightSearched): boolean {
-    return Object.values(this.l1TokensToDestinationTokensWithBlock).some((destinationTokenMapping) => {
-      return Object.entries(destinationTokenMapping).some(([_l2ChainId, setPoolRebalanceRouteEvents]) => {
-        return setPoolRebalanceRouteEvents.some((e) => {
-          return (
-            e.blockNumber <= hubPoolBlock &&
-            e.l2Token.truncateToBytes20() === l2Token.truncateToBytes20() &&
-            Number(_l2ChainId) === l2ChainId
-          );
-        });
-      });
-    });
+    const l1Token = this.getL1TokenForL2TokenAtBlock(l2Token, l2ChainId, hubPoolBlock);
+    return isDefined(l1Token);
   }
 
   /**
@@ -401,11 +372,11 @@ export class HubPoolClient extends BaseAbstractClient {
     const hubPoolTokens: { [k: string]: EvmAddress } = {};
     const getHubPoolToken = (deposit: LpFeeRequest, quoteBlockNumber: number): EvmAddress | undefined => {
       const tokenKey = `${deposit.originChainId}-${deposit.inputToken}`;
-      if (this.l2TokenHasPoolRebalanceRoute(deposit.inputToken, deposit.originChainId, quoteBlockNumber)) {
-        return (hubPoolTokens[tokenKey] ??= this.getL1TokenForDeposit({ ...deposit, quoteBlockNumber }));
+      const l1Token = this.getL1TokenForDeposit({ ...deposit, quoteBlockNumber });
+      if (!isDefined(l1Token)) {
+        return undefined;
       }
-
-      return undefined;
+      return (hubPoolTokens[tokenKey] ??= l1Token);
     };
 
     // Filter hubPoolTokens for duplicates by reverting to their native string
@@ -553,14 +524,14 @@ export class HubPoolClient extends BaseAbstractClient {
     // Resolve both SpokePool tokens back to their respective HubPool tokens and verify that they match.
     const l1TokenA = this.getL1TokenForL2TokenAtBlock(tokenA, chainIdA, hubPoolBlock);
     const l1TokenB = this.getL1TokenForL2TokenAtBlock(tokenB, chainIdB, hubPoolBlock);
-    if (!l1TokenA.eq(l1TokenB)) {
+    if (!isDefined(l1TokenA) || !isDefined(l1TokenB) || !l1TokenA.eq(l1TokenB)) {
       return false;
     }
 
     // Resolve both HubPool tokens back to a current SpokePool token and verify that they match.
     const _tokenA = this.getL2TokenForL1TokenAtBlock(l1TokenA, chainIdA, hubPoolBlock);
     const _tokenB = this.getL2TokenForL1TokenAtBlock(l1TokenB, chainIdB, hubPoolBlock);
-    return tokenA.eq(_tokenA) && tokenB.eq(_tokenB);
+    return isDefined(_tokenA) && isDefined(_tokenB) && tokenA.eq(_tokenA) && tokenB.eq(_tokenB);
   }
 
   getSpokeActivationBlockForChain(chainId: number): number {
@@ -1001,24 +972,22 @@ export class HubPoolClient extends BaseAbstractClient {
           destinationToken = svmUsdc;
         }
 
-        // If the destination token is set to the zero address in an event, then this means Across should no longer
-        // rebalance to this chain.
-        if (!destinationToken.isZeroAddress()) {
-          assign(this.l1TokensToDestinationTokens, [args.l1Token, args.destinationChainId], destinationToken);
-          assign(
-            this.l1TokensToDestinationTokensWithBlock,
-            [args.l1Token, args.destinationChainId],
-            [
-              {
-                l1Token: EvmAddress.from(args.l1Token),
-                l2Token: destinationToken,
-                blockNumber: args.blockNumber,
-                txnIndex: args.txnIndex,
-                logIndex: args.logIndex,
-                txnRef: args.txnRef,
-              },
-            ]
-          );
+        const newRoute: DestinationTokenWithBlock = {
+          l1Token: EvmAddress.from(args.l1Token),
+          l2Token: destinationToken,
+          blockNumber: args.blockNumber,
+          txnIndex: args.txnIndex,
+          logIndex: args.logIndex,
+          txnRef: args.txnRef,
+        };
+        if (this.l1TokensToDestinationTokensWithBlock[args.l1Token]?.[args.destinationChainId]) {
+          // Events are most likely coming in descending orders already but just in case we sort them again.
+          this.l1TokensToDestinationTokensWithBlock[args.l1Token][args.destinationChainId] = sortEventsDescending([
+            ...this.l1TokensToDestinationTokensWithBlock[args.l1Token][args.destinationChainId],
+            newRoute,
+          ]);
+        } else {
+          assign(this.l1TokensToDestinationTokensWithBlock, [args.l1Token, args.destinationChainId], [newRoute]);
         }
       }
     }
