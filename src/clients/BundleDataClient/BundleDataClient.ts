@@ -54,7 +54,7 @@ import {
   getRefundInformationFromFill,
   getRefundsFromBundle,
   getWidestPossibleExpectedBlockRange,
-  isChainDisabled,
+  isChainDisabledAtBlock,
   prettyPrintV3SpokePoolEvents,
   V3DepositWithBlock,
   V3FillWithBlock,
@@ -761,8 +761,8 @@ export class BundleDataClient {
       throw new Error("HubPoolClient not updated");
     }
 
-    const chainIds = this.clients.configStoreClient.getChainIdIndicesForBlock(blockRangesForChains[0][0]);
-    const bundleEndBlockForMainnet = blockRangesForChains[0][1];
+    const [bundleStartBlockForMainnet, bundleEndBlockForMainnet] = blockRangesForChains[0];
+    const chainIds = this.clients.configStoreClient.getChainIdIndicesForBlock(bundleStartBlockForMainnet);
 
     if (blockRangesForChains.length > chainIds.length) {
       throw new Error(
@@ -785,11 +785,6 @@ export class BundleDataClient {
     // bundle and can no longer be executed because (1) they were replaced with a FastFill in this bundle or
     // (2) the fill deadline has passed. We'll need to decrement running balances for these deposits on the
     // destination chain where the slow fill would have been executed.
-
-    const _isChainDisabled = (chainId: number): boolean => {
-      const blockRangeForChain = getBlockRangeForChain(blockRangesForChains, chainId, chainIds);
-      return isChainDisabled(blockRangeForChain);
-    };
 
     const _canCreateSlowFillLeaf = (deposit: DepositWithBlock): boolean => {
       return (
@@ -826,7 +821,11 @@ export class BundleDataClient {
     // Infer chain ID's to load from number of block ranges passed in.
     const allChainIds = blockRangesForChains
       .map((_blockRange, index) => chainIds[index])
-      .filter((chainId) => !_isChainDisabled(chainId) && spokePoolClients[chainId] !== undefined);
+      .filter(
+        (chainId) =>
+          !isChainDisabledAtBlock(chainId, bundleStartBlockForMainnet, this.clients.configStoreClient) &&
+          spokePoolClients[chainId] !== undefined
+      );
     allChainIds.forEach((chainId) => {
       const spokePoolClient = spokePoolClients[chainId];
       if (!spokePoolClient.isUpdated) {
@@ -1676,7 +1675,10 @@ export class BundleDataClient {
       (
         await mapAsync(chainIds, async (chainId, index) => {
           const blockRangeForChain = blockRangesForChains[index];
-          if (!isDefined(blockRangeForChain) || isChainDisabled(blockRangeForChain)) {
+          if (
+            !isDefined(blockRangeForChain) ||
+            isChainDisabledAtBlock(chainId, blockRangesForChains[0][0], this.clients.configStoreClient)
+          ) {
             return;
           }
           const [_startBlockForChain, _endBlockForChain] = blockRangeForChain;
