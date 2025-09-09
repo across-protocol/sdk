@@ -29,6 +29,12 @@ type PriceCache = {
   };
 };
 
+type PriceCacheBySymbol = {
+  [symbol: string]: {
+    [currency: string]: Omit<CoinGeckoPrice, "address">;
+  };
+};
+
 type CGTokenPrice = {
   [currency: string]: number;
   last_updated_at: number;
@@ -61,6 +67,7 @@ export type HistoricPriceChartData = {
 export class Coingecko {
   private static instance: Coingecko | undefined;
   private prices: PriceCache;
+  private pricesBySymbol: PriceCacheBySymbol;
   private _maxPriceAge = 300; // seconds
 
   // Retry configuration.
@@ -103,6 +110,7 @@ export class Coingecko {
     private readonly customPlatformIdMap?: Record<number, string>
   ) {
     this.prices = {};
+    this.pricesBySymbol = {};
   }
 
   protected async getPlatformId(chainId: number): Promise<string> {
@@ -281,6 +289,29 @@ export class Coingecko {
     return [tokenPrice.timestamp.toString(), tokenPrice.price];
   }
 
+  async getCurrentPriceBySymbol(symbol: string, currency = "usd"): Promise<[string, number]> {
+    let tokenPrice = this.getCachedSymbolPrice(symbol, currency);
+    if (tokenPrice === undefined) {
+      const result = await this.call<Record<string, CGTokenPrice>>(
+        `simple/price?symbols=${symbol}&vs_currencies=${currency}&include_last_updated_at=true`
+      );
+      const cgPrice = result?.[symbol.toLowerCase()] || result?.[symbol.toUpperCase()];
+      if (cgPrice === undefined || !cgPrice?.[currency]) {
+        const errMsg = `Failed to retrieve ${symbol}/${currency} price via Coingecko API`;
+        this.logger.debug({
+          at: "Coingecko#getCurrentPriceBySymbol",
+          message: errMsg,
+        });
+        throw new Error(errMsg);
+      } else {
+        this.updatePriceCacheBySymbol(cgPrice, symbol, currency);
+      }
+    }
+    tokenPrice = this.getCachedSymbolPrice(symbol, currency);
+    assert(tokenPrice !== undefined);
+    return [tokenPrice.timestamp.toString(), tokenPrice.price];
+  }
+
   // Return an array of spot prices for an array of collateral addresses in one async call. Note we might in future
   // This was adapted from packages/merkle-distributor/kpi-options-helpers/calculate-uma-tvl.ts
   async getContractPrices(
@@ -381,6 +412,11 @@ export class Coingecko {
     return this.prices[platform_id][currency];
   }
 
+  protected getPriceCacheBySymbol(symbol: string): { [currency: string]: Omit<CoinGeckoPrice, "address"> } {
+    if (this.pricesBySymbol[symbol] === undefined) this.pricesBySymbol[symbol] = {};
+    return this.pricesBySymbol[symbol];
+  }
+
   protected getCachedAddressPrice(
     contractAddress: string,
     currency: string,
@@ -409,6 +445,16 @@ export class Coingecko {
     }
   }
 
+  protected getCachedSymbolPrice(symbol: string, currency: string): Omit<CoinGeckoPrice, "address"> | undefined {
+    const priceCache = this.getPriceCacheBySymbol(symbol);
+    const now: number = msToS(Date.now());
+    const tokenPrice: Omit<CoinGeckoPrice, "address"> | undefined = priceCache[currency];
+    if (tokenPrice === undefined || tokenPrice.timestamp + this.maxPriceAge <= now) {
+      return undefined;
+    }
+    return tokenPrice;
+  }
+
   protected updatePriceCache(cgPrice: CGTokenPrice, contractAddress: string, currency: string, platform_id: string) {
     const priceCache = this.getPriceCache(currency, platform_id);
     if (priceCache[contractAddress] === undefined) {
@@ -428,6 +474,29 @@ export class Coingecko {
       this.logger.debug({
         at: "Coingecko#updatePriceCache",
         message: `No new price available for token ${contractAddress}.`,
+        token: cgPrice,
+      });
+    }
+  }
+
+  protected updatePriceCacheBySymbol(cgPrice: CGTokenPrice, symbol: string, currency: string) {
+    const priceCache = this.getPriceCacheBySymbol(symbol);
+    if (priceCache[currency] === undefined) {
+      priceCache[currency] = { price: 0, timestamp: 0 };
+    }
+    if (cgPrice.last_updated_at > priceCache[currency].timestamp) {
+      priceCache[currency] = {
+        price: cgPrice[currency],
+        timestamp: cgPrice.last_updated_at,
+      };
+      this.logger.debug({
+        at: "Coingecko#updatePriceCacheBySymbol",
+        message: `Updated ${symbol}/${currency} token price cache.`,
+      });
+    } else {
+      this.logger.debug({
+        at: "Coingecko#updatePriceCacheBySymbol",
+        message: `No new price available for symbol ${symbol}.`,
         token: cgPrice,
       });
     }

@@ -218,6 +218,11 @@ export class SVMSpokePoolClient extends SpokePoolClient {
    * Finds a deposit based on its deposit ID on the SVM chain.
    */
   public async findDeposit(depositId: BigNumber): Promise<DepositSearchResult> {
+    // First check memory for deposits
+    const memoryDeposit = this.getDeposit(depositId);
+    if (memoryDeposit) {
+      return { found: true, deposit: memoryDeposit };
+    }
     const deposit = await findDeposit(this.svmEventsClient, depositId, this.logger);
     if (!deposit) {
       return {
@@ -227,15 +232,16 @@ export class SVMSpokePoolClient extends SpokePoolClient {
       };
     }
 
-    // Because we have additional context about this deposit, we can enrich it
-    // with additional information.
+    // Because we have additional context about this deposit, we can enrich it with additional information.
+    // outputToken is known to not be 0x0 on SVM SpokePool implementations.
+    const originChainId = this.chainId;
     return {
       found: true,
       deposit: {
         ...deposit,
+        originChainId,
         quoteBlockNumber: await this.getBlockNumber(Number(deposit.quoteTimestamp)),
-        originChainId: this.chainId,
-        fromLiteChain: this.isOriginLiteChain(deposit),
+        fromLiteChain: this.isOriginLiteChain({ ...deposit, originChainId }),
         toLiteChain: this.isDestinationLiteChain(deposit),
       },
     };

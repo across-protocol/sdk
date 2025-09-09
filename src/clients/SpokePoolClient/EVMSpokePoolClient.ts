@@ -7,17 +7,16 @@ import {
   relayFillStatus,
   getTimestampForBlock as _getTimestampForBlock,
 } from "../../arch/evm";
-import { DepositWithBlock, FillStatus, RelayData } from "../../interfaces";
+import { DepositWithBlock, FillStatus, Log, RelayData } from "../../interfaces";
 import {
   BigNumber,
   DepositSearchResult,
-  getMessageHash,
   getNetworkName,
   InvalidFill,
   MakeOptional,
   toBN,
   EvmAddress,
-  toAddressType,
+  unpackDepositEvent,
 } from "../../utils";
 import {
   EventSearchConfig,
@@ -156,21 +155,61 @@ export class EVMSpokePoolClient extends SpokePoolClient {
     }
 
     // No deposit found; revert to searching for it.
-    const upperBound = this.latestHeightSearched || undefined; // Don't permit block 0 as the high block.
+    const result = await this.queryDepositEvents(depositId);
+
+    if ("reason" in result) {
+      return { found: false, code: InvalidFill.DepositIdNotFound, reason: result.reason };
+    }
+
+    const { event, elapsedMs } = result;
+
+    const partialDeposit = unpackDepositEvent(spreadEventWithBlockNumber(event), this.chainId);
+    const quoteBlockNumber = await this.getBlockNumber(partialDeposit.quoteTimestamp);
+    const outputToken = partialDeposit.outputToken.isZeroAddress()
+      ? this.getDestinationTokenForDeposit({ ...partialDeposit, quoteBlockNumber })
+      : partialDeposit.outputToken;
+
+    deposit = {
+      ...partialDeposit,
+      outputToken,
+      quoteBlockNumber,
+      fromLiteChain: this.isOriginLiteChain(partialDeposit),
+      toLiteChain: this.isDestinationLiteChain(partialDeposit),
+    } satisfies DepositWithBlock;
+
+    this.logger.debug({
+      at: "SpokePoolClient#findDeposit",
+      message: "Located deposit outside of SpokePoolClient's search range",
+      deposit,
+      elapsedMs,
+    });
+    return { found: true, deposit };
+  }
+
+  public override getTimestampForBlock(blockNumber: number): Promise<number> {
+    return _getTimestampForBlock(this.spokePool.provider, blockNumber);
+  }
+
+  private async queryDepositEvents(
+    depositId: BigNumber
+  ): Promise<{ event: Log; elapsedMs: number } | { reason: string }> {
+    const tStart = Date.now();
+    const upperBound = this.latestHeightSearched || undefined;
     const from = await findDepositBlock(this.spokePool, depositId, this.deploymentBlock, upperBound);
     const chain = getNetworkName(this.chainId);
+
     if (!from) {
-      const reason =
-        `Unable to find ${chain} depositId ${depositId}` +
-        ` within blocks [${this.deploymentBlock}, ${upperBound ?? "latest"}].`;
-      return { found: false, code: InvalidFill.DepositIdNotFound, reason };
+      return {
+        reason: `Unable to find ${chain} depositId ${depositId} within blocks [${this.deploymentBlock}, ${
+          upperBound ?? "latest"
+        }].`,
+      };
     }
 
     const to = from;
-    const tStart = Date.now();
-    // Check both V3FundsDeposited and FundsDeposited events to look for a specified depositId.
+
     const { maxLookBack } = this.eventSearchConfig;
-    const query = (
+    const events = (
       await Promise.all([
         paginatedEventQuery(
           this.spokePool,
@@ -183,61 +222,18 @@ export class EVMSpokePoolClient extends SpokePoolClient {
           { from, to, maxLookBack }
         ),
       ])
-    ).flat();
-    const tStop = Date.now();
+    )
+      .flat()
+      .filter(({ args }) => args["depositId"].eq(depositId));
 
-    const event = query.find(({ args }) => args["depositId"].eq(depositId));
-    if (event === undefined) {
+    const tStop = Date.now();
+    const [event] = events;
+    if (!event) {
       return {
-        found: false,
-        code: InvalidFill.DepositIdNotFound,
-        reason: `${chain} depositId ${depositId} not found at block ${from}.`,
+        reason: `Unable to find ${chain} depositId ${depositId} within blocks [${from}, ${upperBound ?? "latest"}].`,
       };
     }
 
-    const spreadEvent = spreadEventWithBlockNumber(event) as Omit<
-      DepositWithBlock,
-      "originChainId" | "inputToken" | "outputToken" | "depositor" | "recipient" | "exclusiveRelayer"
-    > & {
-      inputToken: string;
-      outputToken: string;
-      depositor: string;
-      recipient: string;
-      exclusiveRelayer: string;
-    };
-
-    const originChainId = this.chainId;
-    deposit = {
-      ...spreadEvent,
-      originChainId: this.chainId,
-      inputToken: toAddressType(spreadEvent.inputToken, originChainId),
-      outputToken: toAddressType(spreadEvent.outputToken, spreadEvent.destinationChainId),
-      depositor: toAddressType(spreadEvent.depositor, originChainId),
-      recipient: toAddressType(spreadEvent.recipient, spreadEvent.destinationChainId),
-      exclusiveRelayer: toAddressType(spreadEvent.exclusiveRelayer, spreadEvent.destinationChainId),
-      quoteBlockNumber: await this.getBlockNumber(spreadEvent.quoteTimestamp),
-      messageHash: getMessageHash(spreadEvent.message),
-      fromLiteChain: true, // To be updated immediately afterwards.
-      toLiteChain: true, // To be updated immediately afterwards.
-    };
-
-    if (deposit.outputToken.isZeroAddress()) {
-      deposit.outputToken = this.getDestinationTokenForDeposit(deposit);
-    }
-    deposit.fromLiteChain = this.isOriginLiteChain(deposit);
-    deposit.toLiteChain = this.isDestinationLiteChain(deposit);
-
-    this.logger.debug({
-      at: "SpokePoolClient#findDeposit",
-      message: "Located deposit outside of SpokePoolClient's search range",
-      deposit,
-      elapsedMs: tStop - tStart,
-    });
-
-    return { found: true, deposit };
-  }
-
-  public override getTimestampForBlock(blockNumber: number): Promise<number> {
-    return _getTimestampForBlock(this.spokePool.provider, blockNumber);
+    return { event, elapsedMs: tStop - tStart };
   }
 }
