@@ -111,7 +111,9 @@ export class RetryProvider extends ethers.providers.StaticJsonRpcProvider {
     if (!results.every(isPromiseFulfilled)) {
       // Format the error so that it's very clear which providers failed and succeeded.
       const errorTexts = errors.map(([provider, errorText]) => formatProviderError(provider, errorText));
-      const successfulProviderUrls = results.filter(isPromiseFulfilled).map((result) => result.value[0].connection.url);
+      const successfulProviderUrls = results
+        .filter(isPromiseFulfilled)
+        .map((result) => getOriginFromURL(result.value[0].connection.url));
       throw createSendErrorWithMessage(
         `Not enough providers succeeded. Errors:\n${errorTexts.join("\n")}\n` +
           `Successful Providers:\n${successfulProviderUrls.join("\n")}`,
@@ -130,7 +132,7 @@ export class RetryProvider extends ethers.providers.StaticJsonRpcProvider {
     const getMismatchedProviders = (values: [ethers.providers.StaticJsonRpcProvider, unknown][]) => {
       return values
         .filter(([, result]) => !compareRpcResults(method, result, quorumResult))
-        .map(([provider]) => provider.connection.url);
+        .map(([provider]) => getOriginFromURL(provider.connection.url));
     };
 
     const logQuorumMismatchOrFailureDetails = (
@@ -154,7 +156,7 @@ export class RetryProvider extends ethers.providers.StaticJsonRpcProvider {
 
     const throwQuorumError = (fallbackValues?: [ethers.providers.StaticJsonRpcProvider, unknown][]) => {
       const errorTexts = errors.map(([provider, errorText]) => formatProviderError(provider, errorText));
-      const successfulProviderUrls = values.map(([provider]) => provider.connection.url);
+      const successfulProviderUrls = values.map(([provider]) => getOriginFromURL(provider.connection.url));
       const mismatchedProviders = getMismatchedProviders([...values, ...(fallbackValues || [])]);
       logQuorumMismatchOrFailureDetails(method, params, successfulProviderUrls, mismatchedProviders, errors);
       throw new Error(
@@ -222,7 +224,7 @@ export class RetryProvider extends ethers.providers.StaticJsonRpcProvider {
     const mismatchedProviders = getMismatchedProviders([...values, ...fallbackValues]);
     const quorumProviders = [...values, ...fallbackValues]
       .filter(([, result]) => compareRpcResults(method, result, quorumResult))
-      .map(([provider]) => provider.connection.url);
+      .map(([provider]) => getOriginFromURL(provider.connection.url));
     if (mismatchedProviders.length > 0 || errors.length > 0) {
       logQuorumMismatchOrFailureDetails(method, params, quorumProviders, mismatchedProviders, errors);
     }

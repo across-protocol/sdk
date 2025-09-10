@@ -2,7 +2,7 @@
 import assert from "assert";
 import { providers } from "ethers";
 import { isEqual } from "lodash";
-import { isDefined } from "../utils";
+import { getOriginFromURL, isDefined } from "../utils";
 import { RPCProvider, RPCTransport } from "./types";
 import * as alchemy from "./alchemy";
 import * as infura from "./infura";
@@ -133,7 +133,7 @@ export interface RateLimitTask {
  * @returns The formatted error message.
  */
 export function formatProviderError(provider: providers.StaticJsonRpcProvider, rawErrorText: string) {
-  return `Provider ${provider.connection.url} failed with error: ${rawErrorText}`;
+  return `Provider ${getOriginFromURL(provider.connection.url)} failed with error: ${rawErrorText}`;
 }
 
 export function createSendErrorWithMessage(message: string, sendError: Record<string, unknown>) {
