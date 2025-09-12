@@ -13,6 +13,7 @@ const endpoints: { [chainId: number]: string } = {
   [CHAIN_IDs.OPTIMISM_SEPOLIA]: "opt-sepolia",
   [CHAIN_IDs.WORLD_CHAIN]: "worldchain",
   [CHAIN_IDs.BSC]: "bnb",
+  [CHAIN_IDs.HYPEREVM]: "hyperliquid",
 };
 
 export function getURL(chainId: number, apiKey: string, transport: RPCTransport): string {
