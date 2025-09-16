@@ -1276,7 +1276,8 @@ export const hasCCTPV1MessageBeenProcessed = async (
   signer: KeyPairSigner,
   nonce: number,
   sourceDomain: number,
-  retriesRemaining: number = 2
+  nRetries: number = 0,
+  maxRetries: number = 2
 ): Promise<boolean> => {
   let noncePda: Address;
   try {
@@ -1299,8 +1300,11 @@ export const hasCCTPV1MessageBeenProcessed = async (
   try {
     return await simulateAndDecode(solanaClient, isNonceUsedIx, signer, parserFunction);
   } catch (e) {
-    if (retriesRemaining > 0) {
-      return hasCCTPV1MessageBeenProcessed(solanaClient, signer, nonce, sourceDomain, retriesRemaining--);
+    if (nRetries < maxRetries) {
+      const delaySeconds = 2 ** nRetries + Math.random();
+      await delay(delaySeconds);
+
+      return hasCCTPV1MessageBeenProcessed(solanaClient, signer, nonce, sourceDomain, ++nRetries);
     }
     throw e;
   }
