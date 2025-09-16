@@ -1,7 +1,6 @@
 import assert from "assert";
 import _ from "lodash";
 import {
-  ProposedRootBundle,
   SlowFillRequestWithBlock,
   SpokePoolClientsByChain,
   FillType,
@@ -14,7 +13,6 @@ import {
   BundleSlowFills,
   ExpiredDepositsToRefundV3,
   Clients,
-  CombinedRefunds,
   FillWithBlock,
   Deposit,
   DepositWithBlock,
@@ -29,10 +27,8 @@ import {
   assign,
   fixedPointAdjustment,
   isDefined,
-  toBN,
   forEachAsync,
   getBlockRangeForChain,
-  getImpliedBundleBlockRanges,
   getRelayEventKey,
   isSlowFill,
   mapAsync,
@@ -42,7 +38,6 @@ import {
   duplicateEvent,
   invalidOutputToken,
   Address,
-  getNetworkName,
   toBytes32,
   convertRelayDataParamsToBytes32,
   convertFillParamsToBytes32,
@@ -50,10 +45,7 @@ import {
 import winston from "winston";
 import {
   BundleDataSS,
-  getEndBlockBuffers,
   getRefundInformationFromFill,
-  getRefundsFromBundle,
-  getWidestPossibleExpectedBlockRange,
   isChainDisabledAtBlock,
   prettyPrintV3SpokePoolEvents,
   V3DepositWithBlock,
@@ -368,346 +360,6 @@ export class BundleDataClient {
       ),
     });
     return bundleData;
-  }
-
-  // @dev This function should probably be moved to the InventoryClient since it bypasses loadData completely now.
-  async getPendingRefundsFromValidBundles(): Promise<CombinedRefunds[]> {
-    const refunds = [];
-    if (!this.clients.hubPoolClient.isUpdated) {
-      throw new Error("BundleDataClient::getPendingRefundsFromValidBundles HubPoolClient not updated.");
-    }
-
-    const bundle = this.clients.hubPoolClient.getLatestFullyExecutedRootBundle(
-      this.clients.hubPoolClient.latestHeightSearched
-    );
-    if (bundle !== undefined) {
-      refunds.push(await this.getPendingRefundsFromBundle(bundle));
-    } // No more valid bundles in history!
-    return refunds;
-  }
-
-  // @dev This function should probably be moved to the InventoryClient since it bypasses loadData completely now.
-  // Return refunds from input bundle.
-  async getPendingRefundsFromBundle(bundle: ProposedRootBundle): Promise<CombinedRefunds> {
-    const nextBundleMainnetStartBlock = this.clients.hubPoolClient.getNextBundleStartBlockNumber(
-      this.chainIdListForBundleEvaluationBlockNumbers,
-      this.clients.hubPoolClient.latestHeightSearched,
-      this.clients.hubPoolClient.chainId
-    );
-    const chainIds = this.clients.configStoreClient.getChainIdIndicesForBlock(nextBundleMainnetStartBlock);
-
-    // Reconstruct latest bundle block range.
-    const bundleEvaluationBlockRanges = getImpliedBundleBlockRanges(
-      this.clients.hubPoolClient,
-      this.clients.configStoreClient,
-      bundle
-    );
-    let combinedRefunds: CombinedRefunds;
-    // Here we don't call loadData because our fallback is to approximate refunds if we don't have arweave data, rather
-    // than use the much slower loadData to compute all refunds. We don't need to consider slow fills or deposit
-    // expiries here so we can skip some steps. We also don't need to compute LP fees as they should be small enough
-    // so as not to affect this approximate refund count.
-    const arweaveData = await this.loadArweaveData(bundleEvaluationBlockRanges);
-    if (!isDefined(arweaveData)) {
-      combinedRefunds = await this.getApproximateRefundsForBlockRange(chainIds, bundleEvaluationBlockRanges);
-    } else {
-      const { bundleFillsV3, expiredDepositsToRefundV3 } = arweaveData;
-      combinedRefunds = getRefundsFromBundle(bundleFillsV3, expiredDepositsToRefundV3);
-      // If we don't have a spoke pool client for a chain, then we won't be able to deduct refunds correctly for this
-      // chain. For most of the pending bundle's liveness period, these past refunds are already executed so this is
-      // a reasonable assumption. This empty refund chain also matches what the alternative
-      // `getApproximateRefundsForBlockRange` would return.
-      Object.keys(combinedRefunds).forEach((chainId) => {
-        if (!this.spokePoolClientManager.getClient(Number(chainId))) {
-          delete combinedRefunds[Number(chainId)];
-        }
-      });
-    }
-
-    // The latest proposed bundle's refund leaves might have already been partially or entirely executed.
-    // We have to deduct the executed amounts from the total refund amounts.
-    return this.deductExecutedRefunds(combinedRefunds, bundle);
-  }
-
-  // @dev This helper function should probably be moved to the InventoryClient
-  async getApproximateRefundsForBlockRange(chainIds: number[], blockRanges: number[][]): Promise<CombinedRefunds> {
-    const refundsForChain: CombinedRefunds = {};
-    const bundleEndBlockForMainnet = blockRanges[0][1];
-    for (const chainId of chainIds) {
-      const spokePoolClient = this.spokePoolClientManager.getClient(chainId);
-      if (!isDefined(spokePoolClient)) {
-        continue;
-      }
-      const chainIndex = chainIds.indexOf(chainId);
-      // @dev This function does not account for pre-fill refunds as it is optimized for speed. The way to detect
-      // pre-fill refunds is to load all deposits that are unmatched by fills in the spoke pool client's memory
-      // and then query the FillStatus on-chain, but that might slow this function down too much. For now, we
-      // will live with this expected inaccuracy as it should be small. The pre-fill would have to precede the deposit
-      // by more than the caller's event lookback window which is expected to be unlikely.
-      const fillsToCount = spokePoolClient.getFills().filter((fill) => {
-        if (
-          fill.blockNumber < blockRanges[chainIndex][0] ||
-          fill.blockNumber > blockRanges[chainIndex][1] ||
-          isZeroValueFillOrSlowFillRequest(fill) ||
-          invalidOutputToken(fill)
-        ) {
-          return false;
-        }
-
-        const originSpokePoolClient = this.spokePoolClientManager.getClient(fill.originChainId);
-        // If origin spoke pool client isn't defined, we can't validate it.
-        if (!isDefined(originSpokePoolClient)) {
-          return false;
-        }
-        const matchingDeposit = originSpokePoolClient.getDeposit(fill.depositId);
-        const hasMatchingDeposit =
-          matchingDeposit !== undefined && getRelayEventKey(fill) === getRelayEventKey(matchingDeposit);
-        return hasMatchingDeposit;
-      });
-      await forEachAsync(fillsToCount, async (_fill) => {
-        const originChain = getNetworkName(_fill.originChainId);
-        const originSpokePoolClient = this.spokePoolClientManager.getClient(_fill.originChainId);
-        assert(isDefined(originSpokePoolClient), `No SpokePoolClient for chain ${originChain}`);
-        const matchingDeposit = originSpokePoolClient.getDeposit(_fill.depositId);
-        assert(
-          isDefined(matchingDeposit),
-          `No ${originChain} deposit found for ${getNetworkName(_fill.destinationChainId)} fill ${_fill.depositId}`
-        );
-
-        const spokeClient = this.spokePoolClientManager.getClient(_fill.destinationChainId);
-        assert(
-          isDefined(spokeClient),
-          `SpokePoolClient for ${getNetworkName(_fill.destinationChainId)} not found for fill.`
-        );
-
-        let provider;
-        if (isEVMSpokePoolClient(spokeClient)) {
-          provider = spokeClient.spokePool.provider;
-        } else if (isSVMSpokePoolClient(spokeClient)) {
-          provider = spokeClient.svmEventsClient.getRpc();
-        }
-        const fill = await verifyFillRepayment(
-          _fill,
-          provider!,
-          matchingDeposit,
-          this.clients.hubPoolClient,
-          bundleEndBlockForMainnet
-        );
-        if (!isDefined(fill)) {
-          return;
-        }
-        const { chainToSendRefundTo, repaymentToken } = getRefundInformationFromFill(
-          {
-            ...fill,
-            fromLiteChain: matchingDeposit.fromLiteChain,
-          },
-          this.clients.hubPoolClient,
-          bundleEndBlockForMainnet
-        );
-        // Assume that lp fees are 0 for the sake of speed. In the future we could batch compute
-        // these or make hardcoded assumptions based on the origin-repayment chain direction. This might result
-        // in slight over estimations of refunds, but its not clear whether underestimating or overestimating is
-        // worst from the relayer's perspective.
-        const { relayer, inputAmount: refundAmount } = fill;
-        refundsForChain[chainToSendRefundTo] ??= {};
-        refundsForChain[chainToSendRefundTo][repaymentToken.toBytes32()] ??= {};
-        const existingRefundAmount =
-          refundsForChain[chainToSendRefundTo][repaymentToken.toBytes32()][relayer.toBytes32()] ?? bnZero;
-        refundsForChain[chainToSendRefundTo][repaymentToken.toBytes32()][relayer.toBytes32()] =
-          existingRefundAmount.add(refundAmount);
-      });
-    }
-    return refundsForChain;
-  }
-
-  getUpcomingDepositAmount(chainId: number, l2Token: Address, latestBlockToSearch: number): BigNumber {
-    const spokePoolClient = this.spokePoolClientManager.getClient(chainId);
-    if (!isDefined(spokePoolClient)) {
-      return toBN(0);
-    }
-    return spokePoolClient
-      .getDeposits()
-      .filter((deposit) => deposit.blockNumber > latestBlockToSearch && deposit.inputToken.eq(l2Token))
-      .reduce((acc, deposit) => {
-        return acc.add(deposit.inputAmount);
-      }, toBN(0));
-  }
-
-  // @dev This function should probably be moved to the InventoryClient since it bypasses loadData completely now.
-  // Return refunds from the next valid bundle. This will contain any refunds that have been sent but are not included
-  // in a valid bundle with all of its leaves executed. This contains refunds from:
-  // - Bundles that passed liveness but have not had all of their pool rebalance leaves executed.
-  // - Bundles that are pending liveness
-  // - Fills sent after the pending, but not validated, bundle
-  async getNextBundleRefunds(): Promise<CombinedRefunds[]> {
-    const hubPoolClient = this.clients.hubPoolClient;
-    const nextBundleMainnetStartBlock = hubPoolClient.getNextBundleStartBlockNumber(
-      this.chainIdListForBundleEvaluationBlockNumbers,
-      hubPoolClient.latestHeightSearched,
-      hubPoolClient.chainId
-    );
-    const chainIds = this.clients.configStoreClient.getChainIdIndicesForBlock(nextBundleMainnetStartBlock);
-    const combinedRefunds: CombinedRefunds[] = [];
-
-    // @dev: If spoke pool client is undefined for a chain, then the end block will be null or undefined, which
-    // should be handled gracefully and effectively cause this function to ignore refunds for the chain.
-    let widestBundleBlockRanges = await getWidestPossibleExpectedBlockRange(
-      chainIds,
-      this.spokePoolClientManager.getSpokePoolClients(),
-      getEndBlockBuffers(chainIds, this.blockRangeEndBlockBuffer),
-      this.clients,
-      this.clients.hubPoolClient.latestHeightSearched,
-      this.clients.configStoreClient.getEnabledChains(this.clients.hubPoolClient.latestHeightSearched)
-    );
-    // Return block ranges for blocks after _pendingBlockRanges and up to widestBlockRanges.
-    // If a chain is disabled or doesn't have a spoke pool client, return a range of 0
-    function getBlockRangeDelta(_pendingBlockRanges: number[][]): number[][] {
-      return widestBundleBlockRanges.map((blockRange, index) => {
-        // If pending block range doesn't have an entry for the widest range, which is possible when a new chain
-        // is added to the CHAIN_ID_INDICES list, then simply set the initial block range to the widest block range.
-        // This will produce a block range delta of 0 where the returned range for this chain is [widest[1], widest[1]].
-        const initialBlockRange = _pendingBlockRanges[index] ?? blockRange;
-        // If chain is disabled, return disabled range
-        if (initialBlockRange[0] === initialBlockRange[1]) {
-          return initialBlockRange;
-        }
-        // If pending bundle end block exceeds widest end block or if widest end block is undefined
-        // (which is possible if the spoke pool client for the chain is not defined), return an empty range since there are no
-        // "new" events to consider for this chain.
-        if (!isDefined(blockRange[1]) || initialBlockRange[1] >= blockRange[1]) {
-          return [initialBlockRange[1], initialBlockRange[1]];
-        }
-        // If initialBlockRange][0] > widestBlockRange[0], then we'll ignore any blocks
-        // between initialBlockRange[0] and widestBlockRange[0] (inclusive) for simplicity reasons. In practice
-        // this should not happen.
-        return [initialBlockRange[1] + 1, blockRange[1]];
-      });
-    }
-
-    // If there is a pending bundle that has not been fully executed, then it should have arweave
-    // data so we can load it from there.
-    if (hubPoolClient.hasPendingProposal()) {
-      const pendingBundleBlockRanges = getImpliedBundleBlockRanges(
-        hubPoolClient,
-        this.clients.configStoreClient,
-        hubPoolClient.getLatestProposedRootBundle()
-      );
-      // Similar to getAppoximateRefundsForBlockRange, we'll skip the full bundle reconstruction if the arweave
-      // data is undefined and use the much faster approximation method which doesn't consider LP fees which is
-      // ok for this use case.
-      const arweaveData = await this.loadArweaveData(pendingBundleBlockRanges);
-      if (!isDefined(arweaveData)) {
-        combinedRefunds.push(await this.getApproximateRefundsForBlockRange(chainIds, pendingBundleBlockRanges));
-      } else {
-        const { bundleFillsV3, expiredDepositsToRefundV3 } = arweaveData;
-        combinedRefunds.push(getRefundsFromBundle(bundleFillsV3, expiredDepositsToRefundV3));
-      }
-
-      // Shorten the widestBundleBlockRanges now to not double count the pending bundle blocks.
-      widestBundleBlockRanges = getBlockRangeDelta(pendingBundleBlockRanges);
-    }
-
-    // Next, load all refunds sent after the last bundle proposal. This can be expensive so we'll skip the full
-    // bundle reconstruction and make some simplifying assumptions:
-    // - Only look up fills sent after the pending bundle's end blocks
-    // - Skip LP fee computations and just assume the relayer is being refunded the full deposit.inputAmount
-    const start = performance.now();
-    combinedRefunds.push(await this.getApproximateRefundsForBlockRange(chainIds, widestBundleBlockRanges));
-    this.logger.debug({
-      at: "BundleDataClient#getNextBundleRefunds",
-      message: `Loading approximate refunds for next bundle in ${Math.round(performance.now() - start) / 1000}s.`,
-      blockRanges: JSON.stringify(widestBundleBlockRanges),
-    });
-    return combinedRefunds;
-  }
-
-  // @dev This helper function should probably be moved to the InventoryClient
-  getExecutedRefunds(
-    spokePoolClient: SpokePoolClient,
-    relayerRefundRoot: string
-  ): {
-    [tokenAddress: string]: {
-      [relayer: string]: BigNumber;
-    };
-  } {
-    if (!isDefined(spokePoolClient)) {
-      return {};
-    }
-    // @dev Search from right to left since there can be multiple root bundles with the same relayer refund root.
-    // The caller should take caution if they're trying to use this function to find matching refunds for older
-    // root bundles as opposed to more recent ones.
-    const bundle = _.findLast(
-      spokePoolClient.getRootBundleRelays(),
-      (bundle) => bundle.relayerRefundRoot === relayerRefundRoot
-    );
-    if (bundle === undefined) {
-      return {};
-    }
-
-    const executedRefundLeaves = spokePoolClient
-      .getRelayerRefundExecutions()
-      .filter((leaf) => leaf.rootBundleId === bundle.rootBundleId);
-    const executedRefunds: { [tokenAddress: string]: { [relayer: string]: BigNumber } } = {};
-    for (const refundLeaf of executedRefundLeaves) {
-      const tokenAddress = refundLeaf.l2TokenAddress.toBytes32();
-      const executedTokenRefunds = (executedRefunds[tokenAddress] ??= {});
-
-      for (let i = 0; i < refundLeaf.refundAddresses.length; i++) {
-        const relayer = refundLeaf.refundAddresses[i].toBytes32();
-        const refundAmount = refundLeaf.refundAmounts[i];
-
-        executedTokenRefunds[relayer] ??= bnZero;
-        executedTokenRefunds[relayer] = executedTokenRefunds[relayer].add(refundAmount);
-      }
-    }
-    return executedRefunds;
-  }
-
-  // @dev This helper function should probably be moved to the InventoryClient
-  private deductExecutedRefunds(
-    allRefunds: CombinedRefunds,
-    bundleContainingRefunds: ProposedRootBundle
-  ): CombinedRefunds {
-    for (const chainIdStr of Object.keys(allRefunds)) {
-      const chainId = Number(chainIdStr);
-      const spokePoolClient = this.spokePoolClientManager.getClient(chainId);
-      if (!isDefined(spokePoolClient)) {
-        continue;
-      }
-      const executedRefunds = this.getExecutedRefunds(spokePoolClient, bundleContainingRefunds.relayerRefundRoot);
-
-      for (const tokenAddress of Object.keys(allRefunds[chainId])) {
-        const refunds = allRefunds[chainId][tokenAddress];
-        if (executedRefunds[tokenAddress] === undefined || refunds === undefined) {
-          continue;
-        }
-
-        for (const relayer of Object.keys(refunds)) {
-          const executedAmount = executedRefunds[tokenAddress][relayer];
-          if (executedAmount === undefined) {
-            continue;
-          }
-          // Since there should only be a single executed relayer refund leaf for each relayer-token-chain combination,
-          // we can deduct this refund and mark it as executed if the executed amount is > 0.
-          refunds[relayer] = bnZero;
-        }
-      }
-    }
-    return allRefunds;
-  }
-
-  getRefundsFor(bundleRefunds: CombinedRefunds, relayer: Address, chainId: number, token: Address): BigNumber {
-    if (!bundleRefunds[chainId] || !bundleRefunds[chainId][token.toBytes32()]) {
-      return BigNumber.from(0);
-    }
-    const allRefunds = bundleRefunds[chainId][token.toBytes32()];
-    return allRefunds && allRefunds[relayer.toBytes32()] ? allRefunds[relayer.toBytes32()] : BigNumber.from(0);
-  }
-
-  getTotalRefund(refunds: CombinedRefunds[], relayer: Address, chainId: number, refundToken: Address): BigNumber {
-    return refunds.reduce((totalRefund, refunds) => {
-      return totalRefund.add(this.getRefundsFor(refunds, relayer, chainId, refundToken));
-    }, bnZero);
   }
 
   private async loadArweaveData(blockRangesForChains: number[][]): Promise<LoadDataReturnValue> {

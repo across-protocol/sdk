@@ -1,7 +1,7 @@
 {
   "name": "@across-protocol/sdk",
   "author": "UMA Team",
-  "version": "4.3.58",
+  "version": "4.3.61",
   "license": "AGPL-3.0",
   "homepage": "https://docs.across.to/reference/sdk",
   "files": [
@@ -34,7 +34,7 @@
     "bump-version:minor": "yarn version --minor --no-git-tag-version --no-commit-hooks && git commit -m 'chore: bump version' ./package.json --no-verify",
     "bump-version:patch": "yarn version --patch --no-git-tag-version --no-commit-hooks && git commit -m 'chore: bump version' ./package.json --no-verify",
     "typechain": "typechain --target ethers-v5 --out-dir src/utils/abi/typechain 'src/utils/abi/contracts/*.json' && eslint --fix src/utils/abi/typechain && yarn prettier --write \"src/utils/abi/typechain/**/*.ts\"",
-    "yalc:watch": "nodemon --watch src --ext ts,tsx,json,js,jsx --exec 'yalc push'"
+    "yalc:watch": "nodemon --watch src --ext ts,tsx,json,js,jsx --ignore src/utils/abi/ --exec 'yalc publish --push --changed'"
   },
   "lint-staged": {
     "*.ts": "yarn lint"
@@ -106,8 +106,8 @@
   },
   "dependencies": {
     "@across-protocol/across-token": "^1.0.0",
-    "@across-protocol/constants": "^3.1.72",
-    "@across-protocol/contracts": "^4.1.5",
+    "@across-protocol/constants": "^3.1.74",
+    "@across-protocol/contracts": "^4.1.6",
     "@coral-xyz/anchor": "^0.30.1",
     "@eth-optimism/sdk": "^3.3.1",
     "@ethersproject/bignumber": "^5.7.0",

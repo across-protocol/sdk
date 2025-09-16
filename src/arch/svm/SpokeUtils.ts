@@ -106,6 +106,16 @@ type ProtoFill = Omit<RelayData, "recipient" | "outputToken"> & {
   outputToken: SvmAddress;
 };
 
+type CCTPDepositAccounts = {
+  tokenMessenger: Address;
+  tokenMinter: Address;
+  localToken: Address;
+  cctpEventAuthority: Address;
+  remoteTokenMessenger: Address;
+  tokenMessengerMinterSenderAuthority: Address;
+  messageTransmitter: Address;
+};
+
 export function getSlot(provider: SVMProvider, commitment: Commitment, logger?: winston.Logger): Promise<bigint> {
   return _callGetSlotWithRetry(provider, commitment, logger);
 }
@@ -1265,7 +1275,9 @@ export const hasCCTPV1MessageBeenProcessed = async (
   solanaClient: SVMProvider,
   signer: KeyPairSigner,
   nonce: number,
-  sourceDomain: number
+  sourceDomain: number,
+  nRetries: number = 0,
+  maxRetries: number = 2
 ): Promise<boolean> => {
   let noncePda: Address;
   try {
@@ -1283,7 +1295,19 @@ export const hasCCTPV1MessageBeenProcessed = async (
     }
     return Boolean(buf[0]);
   };
-  return simulateAndDecode(solanaClient, isNonceUsedIx, signer, parserFunction);
+  // If the nonce PDA was found, we should be able to query the isNonceUsed parameter. If we can't then assume it is a transient RPC error
+  // and retry, and throw if the error persists.
+  try {
+    return await simulateAndDecode(solanaClient, isNonceUsedIx, signer, parserFunction);
+  } catch (e) {
+    if (nRetries < maxRetries) {
+      const delaySeconds = 2 ** nRetries + Math.random();
+      await delay(delaySeconds);
+
+      return hasCCTPV1MessageBeenProcessed(solanaClient, signer, nonce, sourceDomain, ++nRetries);
+    }
+    throw e;
+  }
 };
 
 /**
@@ -1345,6 +1369,73 @@ export async function getAccountMetasForTokenlessMessage(
     { address: eventAuthority, role: AccountRole.READONLY },
     { address: programAddress, role: AccountRole.READONLY },
   ];
+}
+
+/**
+ * Returns the required PDAs for a deposit message.
+ * @param hubChainId The chain ID of the corresponding Across hub.
+ * @param cctpSourceDomain The source chain (Solana) domain ID.
+ * @param tokenMessengerMinter The token messenger minter address.
+ * @param messageTransmitterAddress The message transmitter address.
+ */
+export async function getCCTPDepositAccounts(
+  hubChainId: number,
+  cctpSourceDomain: number,
+  tokenMessengerMinterAddress: Address,
+  messageTransmitterAddress: Address
+): Promise<CCTPDepositAccounts> {
+  const l2Usdc = SvmAddress.from(
+    TOKEN_SYMBOLS_MAP.USDC.addresses[chainIsProd(hubChainId) ? CHAIN_IDs.SOLANA : CHAIN_IDs.SOLANA_DEVNET]
+  );
+
+  const [
+    [tokenMessenger],
+    [tokenMinter],
+    [localToken],
+    [cctpEventAuthority],
+    [remoteTokenMessenger],
+    [tokenMessengerMinterSenderAuthority],
+    [messageTransmitter],
+  ] = await Promise.all([
+    getProgramDerivedAddress({
+      programAddress: tokenMessengerMinterAddress,
+      seeds: ["token_messenger"],
+    }),
+    getProgramDerivedAddress({
+      programAddress: tokenMessengerMinterAddress,
+      seeds: ["token_minter"],
+    }),
+    getProgramDerivedAddress({
+      programAddress: tokenMessengerMinterAddress,
+      seeds: ["local_token", bs58.decode(l2Usdc.toBase58())],
+    }),
+    getProgramDerivedAddress({
+      programAddress: tokenMessengerMinterAddress,
+      seeds: ["__event_authority"],
+    }),
+    getProgramDerivedAddress({
+      programAddress: tokenMessengerMinterAddress,
+      seeds: ["remote_token_messenger", String(cctpSourceDomain)],
+    }),
+    getProgramDerivedAddress({
+      programAddress: tokenMessengerMinterAddress,
+      seeds: ["sender_authority"],
+    }),
+    getProgramDerivedAddress({
+      programAddress: messageTransmitterAddress,
+      seeds: ["message_transmitter"],
+    }),
+  ]);
+
+  return {
+    tokenMessenger,
+    tokenMinter,
+    localToken,
+    cctpEventAuthority,
+    remoteTokenMessenger,
+    tokenMessengerMinterSenderAuthority,
+    messageTransmitter,
+  };
 }
 
 /**
