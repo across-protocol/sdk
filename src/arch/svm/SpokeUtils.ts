@@ -1275,7 +1275,9 @@ export const hasCCTPV1MessageBeenProcessed = async (
   solanaClient: SVMProvider,
   signer: KeyPairSigner,
   nonce: number,
-  sourceDomain: number
+  sourceDomain: number,
+  nRetries: number = 0,
+  maxRetries: number = 2
 ): Promise<boolean> => {
   let noncePda: Address;
   try {
@@ -1293,7 +1295,19 @@ export const hasCCTPV1MessageBeenProcessed = async (
     }
     return Boolean(buf[0]);
   };
-  return simulateAndDecode(solanaClient, isNonceUsedIx, signer, parserFunction);
+  // If the nonce PDA was found, we should be able to query the isNonceUsed parameter. If we can't then assume it is a transient RPC error
+  // and retry, and throw if the error persists.
+  try {
+    return await simulateAndDecode(solanaClient, isNonceUsedIx, signer, parserFunction);
+  } catch (e) {
+    if (nRetries < maxRetries) {
+      const delaySeconds = 2 ** nRetries + Math.random();
+      await delay(delaySeconds);
+
+      return hasCCTPV1MessageBeenProcessed(solanaClient, signer, nonce, sourceDomain, ++nRetries);
+    }
+    throw e;
+  }
 };
 
 /**
