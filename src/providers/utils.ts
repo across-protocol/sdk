@@ -3,7 +3,7 @@ import assert from "assert";
 import { providers } from "ethers";
 import { isEqual } from "lodash";
 import { getOriginFromURL, isDefined } from "../utils";
-import { RPCProvider, RPCTransport } from "./types";
+import { JsonRpcError, RpcError, RPCProvider, RPCTransport } from "./types";
 import * as alchemy from "./alchemy";
 import * as infura from "./infura";
 import * as drpc from "./drpc";
@@ -139,6 +139,28 @@ export function formatProviderError(provider: providers.StaticJsonRpcProvider, r
 export function createSendErrorWithMessage(message: string, sendError: Record<string, unknown>) {
   const error = new Error(message);
   return { ...sendError, ...error };
+}
+
+/**
+ * Validate and parse a possible JSON-RPC error response.
+ * @param error An unknown error object received in response to a JSON-RPC request.
+ * @returns A JSON-RPC error object, or undefined.
+ */
+export function parseJsonRpcError(response: unknown): { code: number; message: string; data?: unknown } | undefined {
+  if (!RpcError.is(response)) {
+    return;
+  }
+
+  try {
+    const error = JSON.parse(response.body);
+    if (JsonRpcError.is(error)) {
+      return error.error;
+    }
+  } catch {
+    // Suppress error.
+  }
+
+  return;
 }
 
 /**
