@@ -4,6 +4,8 @@ import {
   TransactionSigner,
   fetchEncodedAccount,
   isSome,
+  getBase64EncodedWireTransaction,
+  signTransactionMessageWithSigners,
 } from "@solana/kit";
 import { SVMProvider, SolanaVoidSigner, getFillRelayTx, toAddress, getAssociatedTokenAddress } from "../../arch/svm";
 import { Coingecko } from "../../coingecko";
@@ -154,6 +156,108 @@ export class SvmQuery implements QueryInterface {
       repaymentAddress
     );
     return toBN(await this.computeUnitEstimator(fillRelayTx));
+  }
+
+  /**
+   * Estimates the total SOL (lamports) the relayer would spend executing a fill, based on post-execution state.
+   * This includes:
+   * - Any lamports forwarded via value_amount (Across+ message)
+   * - Any rent paid for idempotent ATA creation
+   * - Estimated base fee and priority fee (using current network estimates)
+   *
+   */
+  async estimateTotalLamportsSpent(
+    relayData: RelayData & { destinationChainId: number },
+    relayer = getDefaultRelayer(relayData.destinationChainId),
+    options: Partial<{
+      baseFeeMultiplier: BigNumber;
+      priorityFeeMultiplier: BigNumber;
+    }> = {}
+  ): Promise<BigNumber> {
+    const { destinationChainId, recipient, outputToken, exclusiveRelayer } = relayData;
+    assert(recipient.isSVM(), `estimateTotalLamportsSpent: recipient not an SVM address (${recipient})`);
+    assert(outputToken.isSVM(), `estimateTotalLamportsSpent: outputToken not an SVM address (${outputToken})`);
+    assert(
+      exclusiveRelayer.isSVM(),
+      `estimateTotalLamportsSpent: exclusiveRelayer not an SVM address (${exclusiveRelayer})`
+    );
+    assert(relayer.isSVM());
+
+    const [repaymentChainId, repaymentAddress] = [destinationChainId, relayer];
+    const fillRelayTx = await this.getFillRelayTx(
+      { ...relayData, recipient, outputToken, exclusiveRelayer },
+      SolanaVoidSigner(relayer.toBase58()),
+      repaymentChainId,
+      repaymentAddress
+    );
+
+    const encodedWireTx = getBase64EncodedWireTransaction(await signTransactionMessageWithSigners(fillRelayTx));
+    const [gasPriceEstimate, simResult] = await Promise.all([
+      getGasPriceEstimate(this.provider, {
+        unsignedTx: fillRelayTx,
+        baseFeeMultiplier: options.baseFeeMultiplier,
+        priorityFeeMultiplier: options.priorityFeeMultiplier,
+      }),
+      this.provider
+        .simulateTransaction(encodedWireTx, {
+          encoding: "base64",
+          sigVerify: false,
+          replaceRecentBlockhash: true,
+          innerInstructions: true,
+        })
+        .send(),
+    ]);
+
+    const relayerBase58 = relayer.toBase58();
+    assert(
+      simResult.value.innerInstructions,
+      "simulateTransaction: missing innerInstructions; ensure innerInstructions: true is set"
+    );
+
+    // Compute net lamports moved from and to relayer via inner SystemProgram transfers.
+    let totalOut = toBN(0);
+    let totalIn = toBN(0);
+    for (const ixGroup of simResult.value.innerInstructions) {
+      for (const ix of ixGroup.instructions) {
+        const programId = (ix as { programId?: string }).programId;
+        // System program id
+        if (programId === "11111111111111111111111111111111") {
+          // Prefer parsed form
+          const parsed = (ix as { parsed?: unknown }).parsed as
+            | { info?: { source?: string; destination?: string; lamports?: unknown } }
+            | undefined;
+          if (parsed && parsed.info) {
+            const { source, destination, lamports } = parsed.info;
+            const lamportsBN =
+              typeof lamports === "bigint"
+                ? toBN(lamports.toString())
+                : typeof lamports === "number"
+                ? toBN(lamports)
+                : typeof lamports === "string"
+                ? toBN(lamports)
+                : toBN(0);
+            if (source === relayerBase58) totalOut = totalOut.add(lamportsBN);
+            if (destination === relayerBase58) totalIn = totalIn.add(lamportsBN);
+          }
+        }
+      }
+    }
+    const runtimeDeltaBN = totalOut.sub(totalIn);
+    const computeUnitsConsumed = simResult.value.unitsConsumed;
+    assert(
+      computeUnitsConsumed !== undefined,
+      "simulateTransaction: missing unitsConsumed; ensure node supports unitsConsumed per API"
+    );
+
+    // Todo: it looks like CU spend is not captured as an inner transfer so we need to compute CU lamport cost separately
+    // Todo: and add to the rest of the calculation
+    // Add estimated base fee + priority fee components to capture full relayer spend.
+    const priorityComponent = gasPriceEstimate.microLamportsPerComputeUnit
+      .mul(computeUnitsConsumed)
+      .div(toBN(1_000_000));
+    const feesBN = gasPriceEstimate.baseFee.add(priorityComponent);
+
+    return runtimeDeltaBN.add(feesBN);
   }
 
   /**
