@@ -764,4 +764,35 @@ describe("getAuxiliaryNativeTokenCost", function () {
     const fee = svmQueries.getAuxiliaryNativeTokenCost(deposit);
     expect(fee.eq(BigNumber.from(valueAmount))).to.equal(true);
   });
+
+  it("throws for SVM queries when message is not AcrossPlus-encoded", function () {
+    const { rpc } = createDefaultSolanaClient();
+    const svmQueries = QueryBase__factory.create(
+      CHAIN_IDs.SOLANA,
+      rpc,
+      TOKEN_SYMBOLS_MAP,
+      SVM_DEFAULT_ADDRESS,
+      SvmAddress.from(SVM_DEFAULT_ADDRESS),
+      undefined,
+      DEFAULT_LOGGER,
+      "eth"
+    );
+
+    const deposit: RelayData = {
+      originChainId: 1,
+      depositor: SvmAddress.from(SVM_DEFAULT_ADDRESS),
+      recipient: SvmAddress.from(SVM_DEFAULT_ADDRESS),
+      depositId: BigNumber.from(1),
+      inputToken: SvmAddress.from(SVM_DEFAULT_ADDRESS),
+      inputAmount: BigNumber.from(1),
+      outputToken: SvmAddress.from(SVM_DEFAULT_ADDRESS),
+      outputAmount: BigNumber.from(1),
+      message: "0x1234",
+      fillDeadline: 0,
+      exclusiveRelayer: SvmAddress.from(SVM_DEFAULT_ADDRESS),
+      exclusivityDeadline: 0,
+    };
+
+    expect(() => svmQueries.getAuxiliaryNativeTokenCost(deposit)).to.throw();
+  });
 });
