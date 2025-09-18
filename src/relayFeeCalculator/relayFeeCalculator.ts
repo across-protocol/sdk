@@ -297,6 +297,37 @@ export class RelayFeeCalculator {
     return percent(gasFeesInToken, outputAmount.toString());
   }
 
+  /**
+   * Calculate the auxiliary native token fee as a % of the amount to relay.
+   * Treats auxiliary native outlay as value forwarded to user, reported separately.
+   */
+  async auxNativeFeePercent(
+    deposit: RelayData & { destinationChainId: number },
+    outputAmount: BigNumberish,
+    outputTokenInfo: TokenInfo,
+    _tokenPrice?: number
+  ): Promise<BigNumber> {
+    if (toBN(outputAmount).eq(bnZero)) return MAX_BIG_INT;
+
+    let auxNativeCost = bnZero;
+    try {
+      auxNativeCost = this.queries.getAuxiliaryNativeTokenCost(deposit);
+    } catch (error) {
+      this.logger.error({
+        at: "sdk/auxNativeFeePercent",
+        message: "Error while fetching auxiliary native token cost",
+        error,
+        destinationChainId: deposit.destinationChainId,
+        inputToken: deposit.inputToken,
+      });
+      throw error;
+    }
+
+    const tokenPrice = await this.resolveTokenPrice(outputTokenInfo, _tokenPrice, deposit);
+    const auxFeesInToken = nativeToToken(auxNativeCost, tokenPrice, outputTokenInfo.decimals, this.nativeTokenDecimals);
+    return percent(auxFeesInToken, outputAmount);
+  }
+
   // Note: these variables are unused now, but may be needed in future versions of this function that are more complex.
   capitalFeePercent(
     _outputAmount: BigNumberish,
@@ -504,16 +535,28 @@ export class RelayFeeCalculator {
       deposit.destinationChainId.toString()
     );
     const capitalFeeTotal = capitalFeePercent.mul(outToInDecimals(outputAmount.toString())).div(fixedPointAdjustment);
-    const relayFeePercent = gasFeePercent.add(capitalFeePercent);
-    const relayFeeTotal = gasFeeTotal.add(capitalFeeTotal);
 
-    // We don't want the relayer to incur an excessive gas fee charge as a % of the deposited total.
-    // The maximum gas fee % charged is equal to the remaining fee % leftover after subtracting the capital fee %
+    const auxNativeFeePercent = await this.auxNativeFeePercent(deposit, outputAmount, outputTokenInfo, tokenPrice);
+    const auxNativeFeeTotal = auxNativeFeePercent
+      .mul(outToInDecimals(outputAmount.toString()))
+      .div(fixedPointAdjustment);
+    const auxNativeDiscountPercent = this.gasDiscountPercent;
+
+    const relayFeePercent = gasFeePercent.add(capitalFeePercent).add(auxNativeFeePercent);
+    const relayFeeTotal = gasFeeTotal.add(capitalFeeTotal).add(auxNativeFeeTotal);
+
+    // We don't want the relayer to incur an excessive gas fee charge as a % of the deposited total. The maximum
+    // gas fee % charged is equal to the remaining fee % leftover after subtracting the capital fee % and aux fee %
     // from the fee limit %. We then compute the minimum deposited amount required to not exceed the maximum
     // gas fee %: maxGasFeePercent = gasFeeTotal / minDeposit. Refactor this to figure out the minDeposit:
     // minDeposit = gasFeeTotal / maxGasFeePercent, and subsequently determine
     // isAmountTooLow = amountToRelay < minDeposit.
-    const maxGasFeePercent = max(toBNWei(this.feeLimitPercent / 100).sub(capitalFeePercent), toBN(0));
+    const maxGasFeePercent = max(
+      toBNWei(this.feeLimitPercent / 100)
+        .sub(capitalFeePercent)
+        .sub(auxNativeFeePercent),
+      toBN(0)
+    );
     // If maxGasFee % is 0, then the min deposit should be infinite because there is no deposit amount that would
     // incur a non zero gas fee % charge. In this case, isAmountTooLow should always be true.
     let minDeposit: BigNumber, isAmountTooLow: boolean;
@@ -531,6 +574,9 @@ export class RelayFeeCalculator {
       gasFeePercent: gasFeePercent.toString(),
       gasFeeTotal: gasFeeTotal.toString(),
       gasDiscountPercent: this.gasDiscountPercent,
+      auxNativeFeePercent: auxNativeFeePercent.toString(),
+      auxNativeFeeTotal: auxNativeFeeTotal.toString(),
+      auxNativeDiscountPercent,
       capitalFeePercent: capitalFeePercent.toString(),
       capitalFeeTotal: capitalFeeTotal.toString(),
       capitalDiscountPercent: this.capitalDiscountPercent,
