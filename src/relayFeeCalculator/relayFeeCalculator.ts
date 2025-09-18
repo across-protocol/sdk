@@ -291,17 +291,7 @@ export class RelayFeeCalculator {
       });
     const [tokenGasCost, tokenPrice] = await Promise.all([
       _tokenGasCost ? Promise.resolve(_tokenGasCost) : getGasCosts,
-      _tokenPrice ??
-        this.queries.getTokenPrice(outputTokenInfo.symbol).catch((error) => {
-          this.logger.error({
-            at: "sdk/gasFeePercent",
-            message: "Error while fetching token price",
-            error,
-            destinationChainId: deposit.destinationChainId,
-            inputToken: deposit.inputToken,
-          });
-          throw error;
-        }),
+      this.resolveTokenPrice(outputTokenInfo, _tokenPrice, deposit),
     ]);
     const gasFeesInToken = nativeToToken(tokenGasCost, tokenPrice, outputTokenInfo.decimals, this.nativeTokenDecimals);
     return percent(gasFeesInToken, outputAmount.toString());
@@ -492,8 +482,7 @@ export class RelayFeeCalculator {
     outputAmount ??= deposit.outputAmount;
     const { inputTokenInfo, outputTokenInfo } = this.resolveInOutTokenInfos(deposit);
 
-    // query tokenPrice once to reuse for gas / aux native fee calculations
-    const tokenPrice = await this.resolveTokenPrice(deposit, outputTokenInfo, _tokenPrice);
+    const tokenPrice = await this.resolveTokenPrice(outputTokenInfo, _tokenPrice, deposit);
 
     const gasFeePercent = await this.gasFeePercent(
       deposit,
@@ -583,9 +572,9 @@ export class RelayFeeCalculator {
   }
 
   async resolveTokenPrice(
-    deposit: RelayData & { destinationChainId: number },
     outputTokenInfo: TokenInfo,
-    _tokenPrice: number | undefined
+    _tokenPrice: number | undefined,
+    deposit: RelayData & { destinationChainId: number }
   ): Promise<number> {
     return (
       _tokenPrice ??
