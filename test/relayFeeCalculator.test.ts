@@ -3,11 +3,13 @@ import hre from "hardhat";
 import { RelayFeeCalculator, QueryInterface } from "../src/relayFeeCalculator/relayFeeCalculator";
 import {
   EvmAddress,
+  SvmAddress,
   toBNWei,
   toBN,
   toGWei,
   TransactionCostEstimate,
   bnOne,
+  bnZero,
   getCurrentTime,
   getMessageHash,
   spreadEvent,
@@ -35,9 +37,13 @@ import assert from "assert";
 import { CHAIN_IDs, TOKEN_SYMBOLS_MAP } from "@across-protocol/constants";
 import { EMPTY_MESSAGE, ZERO_ADDRESS } from "../src/constants";
 import { SpokePool } from "@across-protocol/contracts";
-import { QueryBase, QueryBase__factory } from "../src/relayFeeCalculator";
+import { QueryBase, QueryBase__factory, DEFAULT_LOGGER } from "../src/relayFeeCalculator";
 import { getDefaultProvider } from "ethers";
 import { MockedProvider } from "../src/providers/mocks";
+import { getAcrossPlusMessageEncoder, SVM_DEFAULT_ADDRESS } from "../src/arch/svm";
+import { address as toSvmKitAddress } from "@solana/kit";
+import { createDefaultSolanaClient } from "./utils/svm/utils";
+import { RelayData } from "../src/interfaces";
 
 dotenv.config({ path: ".env" });
 
@@ -98,6 +104,14 @@ class ExampleQueries implements QueryInterface {
   getTokenPrice(): Promise<number> {
     // Return token price denominated in ETH, assuming ETH is native token.
     return Promise.resolve(1 / 1000); // 1 USDC = 1 / $1000 ETH/USD
+  }
+
+  getNativeGasCost(): Promise<BigNumber> {
+    return Promise.resolve(toBN(this.defaultGas));
+  }
+
+  getAuxiliaryNativeTokenCost(): BigNumber {
+    return bnZero;
   }
 }
 describe("RelayFeeCalculator", () => {
@@ -690,5 +704,64 @@ describe("QueryBase", function () {
       expect(result.nativeGasCost).to.equal(options.gasUnits);
       expect(result.tokenGasCost).to.equal(expectedGasPrice.mul(options.gasUnits));
     });
+  });
+});
+
+describe("getAuxiliaryNativeTokenCost", function () {
+  it("returns 0 for EVM queries regardless of message", function () {
+    const evmQueries = QueryBase__factory.create(
+      1, // EVM chain
+      getDefaultProvider()
+    );
+
+    const deposit = buildDepositForRelayerFeeTest(1e6, "USDC", 1, 10);
+    deposit.message = "0x1234";
+
+    const fee = evmQueries.getAuxiliaryNativeTokenCost(deposit as unknown as RelayData);
+    expect(fee.eq(bnZero)).to.equal(true);
+  });
+
+  it("returns value_amount for SVM queries when AcrossPlusMessage has value_amount", function () {
+    const { rpc } = createDefaultSolanaClient();
+    const svmQueries = QueryBase__factory.create(
+      CHAIN_IDs.SOLANA,
+      rpc,
+      TOKEN_SYMBOLS_MAP,
+      SVM_DEFAULT_ADDRESS,
+      SvmAddress.from(SVM_DEFAULT_ADDRESS),
+      undefined,
+      DEFAULT_LOGGER,
+      "eth"
+    );
+
+    // Compose a valid AcrossPlusMessage with non-zero value_amount
+    const valueAmount = 123456n;
+    const encoder = getAcrossPlusMessageEncoder();
+    const encoded = encoder.encode({
+      handler: toSvmKitAddress(SVM_DEFAULT_ADDRESS),
+      read_only_len: 0,
+      value_amount: valueAmount,
+      accounts: [],
+      handler_message: new Uint8Array(),
+    });
+    const messageHex = "0x" + Buffer.from(encoded).toString("hex");
+
+    const deposit: RelayData = {
+      originChainId: 1,
+      depositor: SvmAddress.from(SVM_DEFAULT_ADDRESS),
+      recipient: SvmAddress.from(SVM_DEFAULT_ADDRESS),
+      depositId: BigNumber.from(1),
+      inputToken: SvmAddress.from(SVM_DEFAULT_ADDRESS),
+      inputAmount: BigNumber.from(1),
+      outputToken: SvmAddress.from(SVM_DEFAULT_ADDRESS),
+      outputAmount: BigNumber.from(1),
+      message: messageHex,
+      fillDeadline: 0,
+      exclusiveRelayer: SvmAddress.from(SVM_DEFAULT_ADDRESS),
+      exclusivityDeadline: 0,
+    };
+
+    const fee = svmQueries.getAuxiliaryNativeTokenCost(deposit);
+    expect(fee.eq(BigNumber.from(valueAmount))).to.equal(true);
   });
 });
