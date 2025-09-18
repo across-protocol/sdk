@@ -176,6 +176,7 @@ export class SvmQuery implements QueryInterface {
    * @notice Return the native token cost of filling a deposit beyond gas cost. If `value_amount` is specified in a message,
    * `value_amount` of SOL gets forwarded to the first Account. We account for that in Fill cost estimation
    * @param deposit RelayData associated with Deposit we're estimating for
+   * @throws If deposit.message is malformed (unable to be deserialized into `AcrossPlusMessage`)
    * @returns Native token cost
    */
   getAuxiliaryNativeTokenCost(deposit: RelayData): BigNumber {
