@@ -492,13 +492,16 @@ export class RelayFeeCalculator {
     outputAmount ??= deposit.outputAmount;
     const { inputTokenInfo, outputTokenInfo } = this.resolveInOutTokenInfos(deposit);
 
+    // query tokenPrice once to reuse for gas / aux native fee calculations
+    const tokenPrice = await this.resolveTokenPrice(deposit, outputTokenInfo, _tokenPrice);
+
     const gasFeePercent = await this.gasFeePercent(
       deposit,
       outputAmount,
       outputTokenInfo,
       simulateZeroFill,
       relayerAddress,
-      _tokenPrice,
+      tokenPrice,
       gasPrice,
       gasUnits,
       tokenGasCost
@@ -577,5 +580,25 @@ export class RelayFeeCalculator {
       throw new Error(`Could not find token information for ${inputToken} or ${outputToken}`);
     }
     return { inputTokenInfo, outputTokenInfo };
+  }
+
+  async resolveTokenPrice(
+    deposit: RelayData & { destinationChainId: number },
+    outputTokenInfo: TokenInfo,
+    _tokenPrice: number | undefined
+  ): Promise<number> {
+    return (
+      _tokenPrice ??
+      (await this.queries.getTokenPrice(outputTokenInfo.symbol).catch((error) => {
+        this.logger.error({
+          at: "sdk/resolveTokenPrice",
+          message: "Error while fetching token price",
+          error,
+          destinationChainId: deposit.destinationChainId,
+          inputToken: deposit.inputToken,
+        });
+        throw error;
+      }))
+    );
   }
 }
