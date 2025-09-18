@@ -5,7 +5,7 @@ import {
   DEFAULT_SIMULATED_RELAYER_ADDRESS_SVM,
   TOKEN_SYMBOLS_MAP,
 } from "../constants";
-import { RelayData } from "../interfaces";
+import { RelayData, TokenInfo } from "../interfaces";
 import {
   BigNumber,
   BigNumberish,
@@ -87,6 +87,9 @@ export interface RelayerFeeDetails {
   gasFeePercent: string;
   gasFeeTotal: string;
   gasDiscountPercent: number;
+  auxNativeFeePercent: string;
+  auxNativeFeeTotal: string;
+  auxNativeDiscountPercent: number;
   capitalFeePercent: string;
   capitalFeeTotal: string;
   capitalDiscountPercent: number;
@@ -257,35 +260,16 @@ export class RelayFeeCalculator {
   async gasFeePercent(
     deposit: RelayData & { destinationChainId: number },
     outputAmount: BigNumberish,
+    outputTokenInfo: TokenInfo,
     simulateZeroFill = false,
     relayerAddress = getDefaultRelayer(deposit.destinationChainId),
     _tokenPrice?: number,
-    tokenMapping = TOKEN_SYMBOLS_MAP,
     gasPrice?: BigNumberish,
     gasLimit?: BigNumberish,
     _tokenGasCost?: BigNumberish,
     transport?: Transport
   ): Promise<BigNumber> {
     if (toBN(outputAmount).eq(bnZero)) return MAX_BIG_INT;
-
-    const { inputToken, destinationChainId, originChainId } = deposit;
-    // It's fine if we resolve a destination token which is not the "canonical" L1 token (e.g. USDB for DAI or USDC.e for USDC), since `getTokenInfo` will re-map
-    // the output token to the canonical version. What matters here is that we find an entry in the token map which has defined addresses for BOTH the origin
-    // and destination chain. This prevents the call to `getTokenInfo` to mistakenly return token info for a token which has a defined address on origin and an
-    // undefined address on destination.
-    const destinationChainTokenDetails = Object.values(tokenMapping).find(
-      (details) =>
-        compareAddressesSimple(details.addresses[originChainId], inputToken.toNative()) &&
-        isDefined(details.addresses[destinationChainId])
-    );
-    const outputToken = deposit.outputToken.isZeroAddress()
-      ? toAddressType(destinationChainTokenDetails!.addresses[destinationChainId], destinationChainId)
-      : deposit.outputToken;
-    const outputTokenInfo = getTokenInfo(outputToken, destinationChainId, tokenMapping);
-    const inputTokenInfo = getTokenInfo(inputToken, originChainId, tokenMapping);
-    if (!isDefined(outputTokenInfo) || !isDefined(inputTokenInfo)) {
-      throw new Error(`Could not find token information for ${inputToken} or ${outputToken}`);
-    }
 
     // Reduce the output amount to simulate a full fill with a lower value to estimate
     // the fill cost accurately without risking a failure due to insufficient balance.
@@ -314,7 +298,7 @@ export class RelayFeeCalculator {
             message: "Error while fetching token price",
             error,
             destinationChainId: deposit.destinationChainId,
-            inputToken,
+            inputToken: deposit.inputToken,
           });
           throw error;
         }),
@@ -506,22 +490,15 @@ export class RelayFeeCalculator {
     // If the amount to relay is not provided, then we
     // should use the full deposit amount.
     outputAmount ??= deposit.outputAmount;
-    const { inputToken, originChainId, outputToken, destinationChainId } = deposit;
-    // We can perform a simple lookup with `getTokenInfo` here without resolving the exact token to resolve since we only need to
-    // resolve the L1 token symbol and not the L2 token decimals.
-    const inputTokenInfo = getTokenInfo(inputToken, originChainId);
-    const outputTokenInfo = getTokenInfo(outputToken, destinationChainId);
-    if (!isDefined(inputTokenInfo) || !isDefined(outputTokenInfo)) {
-      throw new Error(`Could not find token information for ${inputToken} or ${outputToken}`);
-    }
+    const { inputTokenInfo, outputTokenInfo } = this.resolveInOutTokenInfos(deposit);
 
     const gasFeePercent = await this.gasFeePercent(
       deposit,
       outputAmount,
+      outputTokenInfo,
       simulateZeroFill,
       relayerAddress,
       _tokenPrice,
-      undefined,
       gasPrice,
       gasUnits,
       tokenGasCost
@@ -572,5 +549,33 @@ export class RelayFeeCalculator {
       minDeposit: minDeposit.toString(),
       isAmountTooLow,
     };
+  }
+
+  resolveInOutTokenInfos(
+    deposit: RelayData & { destinationChainId: number },
+    tokenMapping = TOKEN_SYMBOLS_MAP
+  ): {
+    inputTokenInfo: TokenInfo;
+    outputTokenInfo: TokenInfo;
+  } {
+    const { inputToken, destinationChainId, originChainId } = deposit;
+    // It's fine if we resolve a destination token which is not the "canonical" L1 token (e.g. USDB for DAI or USDC.e for USDC), since `getTokenInfo` will re-map
+    // the output token to the canonical version. What matters here is that we find an entry in the token map which has defined addresses for BOTH the origin
+    // and destination chain. This prevents the call to `getTokenInfo` to mistakenly return token info for a token which has a defined address on origin and an
+    // undefined address on destination.
+    const destinationChainTokenDetails = Object.values(tokenMapping).find(
+      (details) =>
+        compareAddressesSimple(details.addresses[originChainId], inputToken.toNative()) &&
+        isDefined(details.addresses[destinationChainId])
+    );
+    const outputToken = deposit.outputToken.isZeroAddress()
+      ? toAddressType(destinationChainTokenDetails!.addresses[destinationChainId], destinationChainId)
+      : deposit.outputToken;
+    const outputTokenInfo = getTokenInfo(outputToken, destinationChainId, tokenMapping);
+    const inputTokenInfo = getTokenInfo(inputToken, originChainId, tokenMapping);
+    if (!isDefined(outputTokenInfo) || !isDefined(inputTokenInfo)) {
+      throw new Error(`Could not find token information for ${inputToken} or ${outputToken}`);
+    }
+    return { inputTokenInfo, outputTokenInfo };
   }
 }
