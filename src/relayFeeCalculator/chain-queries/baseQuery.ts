@@ -161,6 +161,16 @@ export class QueryBase implements QueryInterface {
   }
 
   /**
+   * @notice Return the native token cost of filling a deposit beyond gas cost. We're not using msg.value in our fills,
+   * so return zero for EVM side
+   * @param deposit RelayData associated with Deposit we're estimating for
+   * @returns Native token cost
+   */
+  getAuxiliaryNativeTokenCost(_deposit: RelayData): BigNumber {
+    return bnZero;
+  }
+
+  /**
    * @notice Return L1 data fee for OP stack L2 transaction, which is based on L2 calldata.
    * @dev https://docs.optimism.io/stack/transactions/fees#l1-data-fee
    * @param unsignedTx L2 transaction that you want L1 data fee for
