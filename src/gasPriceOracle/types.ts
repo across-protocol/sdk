@@ -1,5 +1,4 @@
 import { type Chain, type Transport, PublicClient, FeeValuesEIP1559 } from "viem";
-import { FeeData } from "@ethersproject/abstract-provider";
 import { BigNumber, bnZero, isDefined } from "../utils";
 
 export type InternalGasPriceEstimate = FeeValuesEIP1559;
