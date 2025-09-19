@@ -37,7 +37,7 @@ import assert from "assert";
 import { CHAIN_IDs, TOKEN_SYMBOLS_MAP } from "@across-protocol/constants";
 import { EMPTY_MESSAGE, ZERO_ADDRESS } from "../src/constants";
 import { SpokePool } from "@across-protocol/contracts";
-import { QueryBase, QueryBase__factory, DEFAULT_LOGGER } from "../src/relayFeeCalculator";
+import { QueryBase, QueryBase__factory, DEFAULT_LOGGER, SvmQuery } from "../src/relayFeeCalculator";
 import { getDefaultProvider } from "ethers";
 import { MockedProvider } from "../src/providers/mocks";
 import { getAcrossPlusMessageEncoder, SVM_DEFAULT_ADDRESS } from "../src/arch/svm";
@@ -133,19 +133,21 @@ describe("RelayFeeCalculator", () => {
       [104729, toBNWei("2.917740071995340354").toString()], // ~291%
     ];
     for (const [input, truth] of gasFeePercents) {
+      const deposit = buildDepositForRelayerFeeTest(input, "usdc", 1, 10);
+      const { outputTokenInfo } = client.resolveInOutTokenInfos(deposit);
       const result = (
-        await client.gasFeePercent(buildDepositForRelayerFeeTest(input, "usdc", 1, 10), input, false)
+        await client.gasFeePercent(buildDepositForRelayerFeeTest(input, "usdc", 1, 10), input, outputTokenInfo, false)
       ).toString();
       expect(result).to.be.eq(truth);
     }
   });
   it("relayerFeeDetails", async () => {
     client = new RelayFeeCalculator({ queries, capitalCostsConfig: testCapitalCostsConfig });
-    const result = await client.relayerFeeDetails(buildDepositForRelayerFeeTest(100e6, "usdc", "10", "1"), 100e6);
+    const result = await client.relayerFeeDetails(buildDepositForRelayerFeeTest(100e6, "usdc", 10, 1), 100e6);
     assert.ok(result);
     // overriding token price also succeeds
     const resultWithPrice = await client.relayerFeeDetails(
-      buildDepositForRelayerFeeTest(100e6, "usdc", "10", "1"),
+      buildDepositForRelayerFeeTest(100e6, "usdc", 10, 1),
       100e6,
       false,
       toAddressType(randomAddress(), 1),
@@ -159,7 +161,7 @@ describe("RelayFeeCalculator", () => {
       toBN(resultWithPrice.gasFeePercent).lt(
         (
           await client.relayerFeeDetails(
-            buildDepositForRelayerFeeTest(100e6, "usdc", "1", "10"),
+            buildDepositForRelayerFeeTest(100e6, "usdc", 1, 10),
             100e6,
             false,
             undefined,
@@ -178,7 +180,7 @@ describe("RelayFeeCalculator", () => {
     // Compute relay fee details for an $1000 transfer. Capital fee % is 0 so maxGasFeePercent should be equal to fee
     // limit percent.
     const relayerFeeDetails = await client.relayerFeeDetails(
-      buildDepositForRelayerFeeTest(1000e6, "usdc", "10", "1"),
+      buildDepositForRelayerFeeTest(1000e6, "usdc", 10, 1),
       1000e6
     );
     assert.equal(relayerFeeDetails.maxGasFeePercent, toBNWei("0.1").toString());
@@ -186,11 +188,11 @@ describe("RelayFeeCalculator", () => {
     assert.equal(relayerFeeDetails.minDeposit, toBNWei("3.05572", 6).toString()); // 305,572 / 0.1 = 3055720 then divide by 1e6
     assert.equal(relayerFeeDetails.isAmountTooLow, false);
     assert.equal(
-      (await client.relayerFeeDetails(buildDepositForRelayerFeeTest(10e6, "usdc", "10", "1"), 10e6)).isAmountTooLow,
+      (await client.relayerFeeDetails(buildDepositForRelayerFeeTest(10e6, "usdc", 10, 1), 10e6)).isAmountTooLow,
       false
     );
     assert.equal(
-      (await client.relayerFeeDetails(buildDepositForRelayerFeeTest(1e6, "usdc", "10", "1"), 1e6)).isAmountTooLow,
+      (await client.relayerFeeDetails(buildDepositForRelayerFeeTest(1e6, "usdc", 10, 1), 1e6)).isAmountTooLow,
       true
     );
   });
@@ -472,7 +474,7 @@ describe("RelayFeeCalculator", () => {
 describe("RelayFeeCalculator: Composable Bridging", function () {
   let spokePool: SpokePool, erc20: Contract, destErc20: Contract, weth: Contract;
   let client: RelayFeeCalculator;
-  let queries: QueryBase;
+  let queries: QueryBase | SvmQuery;
   let testContract: Contract;
   let owner: SignerWithAddress, relayer: SignerWithAddress, depositor: SignerWithAddress;
   let tokenMap: typeof TOKEN_SYMBOLS_MAP;
@@ -519,33 +521,36 @@ describe("RelayFeeCalculator: Composable Bridging", function () {
     );
     client = new RelayFeeCalculator({ queries, capitalCostsConfig: testCapitalCostsConfig });
 
-    testGasFeePct = (message?: string) =>
-      client.gasFeePercent(
-        {
-          inputAmount: bnOne,
-          outputAmount: bnOne,
-          inputToken: toAddressType(erc20.address, 10),
-          outputToken: toAddressType(erc20.address, 1),
-          recipient: toAddressType(testContract.address, 1),
-          depositId: BigNumber.from(1000000),
-          depositor: toAddressType(depositor.address, 10),
-          originChainId: 10,
-          destinationChainId: 1,
-          message: message || EMPTY_MESSAGE,
-          exclusiveRelayer: toAddressType(ZERO_ADDRESS, 1),
-          fillDeadline: getCurrentTime() + 60000,
-          exclusivityDeadline: 0,
-        },
+    testGasFeePct = (message?: string) => {
+      const deposit = {
+        inputAmount: bnOne,
+        outputAmount: bnOne,
+        inputToken: toAddressType(erc20.address, 10),
+        outputToken: toAddressType(erc20.address, 1),
+        recipient: toAddressType(testContract.address, 1),
+        depositId: BigNumber.from(1000000),
+        depositor: toAddressType(depositor.address, 10),
+        originChainId: 10,
+        destinationChainId: 1,
+        message: message || EMPTY_MESSAGE,
+        exclusiveRelayer: toAddressType(ZERO_ADDRESS, 1),
+        fillDeadline: getCurrentTime() + 60000,
+        exclusivityDeadline: 0,
+      };
+      const { outputTokenInfo } = client.resolveInOutTokenInfos(deposit, tokenMap);
+      return client.gasFeePercent(
+        deposit,
         1,
+        outputTokenInfo,
         false,
         toAddressType(relayer.address, 1),
         1,
-        tokenMap,
         undefined,
         undefined,
         undefined,
         customTransport
       );
+    };
   });
   it("should not revert if no message is passed", async () => {
     await assertPromisePasses(testGasFeePct());
@@ -659,7 +664,7 @@ describe("QueryBase", function () {
         undefined, // simulatedRelayerAddress
         undefined,
         this.logger
-      );
+      ) as QueryBase;
     });
     it("Uses passed in options", async function () {
       const options = {
