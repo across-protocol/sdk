@@ -64,7 +64,7 @@ export const formatFeePct = (relayerFeePct: BN): string => {
  * @returns The shortened hexadecimal string.
  * @example createShortenedString("0x772871a444c6e4e9903d8533a5a13101b74037158123e6709470f0afbf6e7d94") -> "0x7787...7d94"
  */
-export function createShortenedString(hex: string, maxLength = 8, delimiter = ".."): string {
+export function createShortenedString(hex: string, maxLength = 12, delimiter = ".."): string {
   // If we have more maxLength then the hex size, we can simply
   // return the hex directly.
   if (hex.length <= maxLength) {
