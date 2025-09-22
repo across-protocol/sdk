@@ -165,6 +165,27 @@ async function _callGetTimestampForSlotWithRetry(
   // @note: getBlockTime receives a slot number, not a block number.
   let _timestamp: bigint;
 
+  const retryCall = async () => {
+    const slot = slotNumber.toString();
+    // Implement exponential backoff with jitter where the # of seconds to wait is = 2^retryAttempt + jitter
+    // e.g. First two retry delays are ~1.5s and ~2.5s.
+    const delaySeconds = 2 ** retryAttempt + Math.random();
+
+    if (retryAttempt >= maxRetries) {
+      throw new Error(`Timeout on SVM getBlockTime() for slot ${slot} after ${retryAttempt} retry attempts`);
+    }
+    logger?.debug({
+      at: "getTimestampForSlot",
+      message: `Retrying getBlockTime() after ${delaySeconds} seconds for retry attempt #${retryAttempt}`,
+      slot,
+      retryAttempt,
+      maxRetries,
+      delaySeconds,
+    });
+    await delay(delaySeconds);
+    return _callGetTimestampForSlotWithRetry(provider, slotNumber, ++retryAttempt, maxRetries, logger);
+  };
+
   try {
     _timestamp = await provider.getBlockTime(slotNumber).send();
   } catch (err) {
@@ -180,22 +201,7 @@ async function _callGetTimestampForSlotWithRetry(
         return undefined;
 
       case SVM_BLOCK_NOT_AVAILABLE: {
-        // Implement exponential backoff with jitter where the # of seconds to wait is = 2^retryAttempt + jitter
-        // e.g. First two retry delays are ~1.5s and ~2.5s.
-        const delaySeconds = 2 ** retryAttempt + Math.random();
-        if (retryAttempt >= maxRetries) {
-          throw new Error(`Timeout on SVM getBlockTime() for slot ${slot} after ${retryAttempt} retry attempts`);
-        }
-        logger?.debug({
-          at: "getTimestampForSlot",
-          message: `Retrying getBlockTime() after ${delaySeconds} seconds for retry attempt #${retryAttempt}`,
-          slot,
-          retryAttempt,
-          maxRetries,
-          delaySeconds,
-        });
-        await delay(delaySeconds);
-        return _callGetTimestampForSlotWithRetry(provider, slotNumber, ++retryAttempt, maxRetries, logger);
+        return await retryCall();
       }
 
       default:
@@ -211,6 +217,10 @@ async function _callGetTimestampForSlotWithRetry(
     }
   }
 
+  // If the timestamp is null, retry the call because the provider returned an unexpected null.
+  if (_timestamp === null) {
+    return await retryCall();
+  }
   const timestamp = Number(_timestamp);
   assert(BigInt(timestamp) === _timestamp, `Unexpected SVM block timestamp: ${_timestamp}`); // No truncation.
 
