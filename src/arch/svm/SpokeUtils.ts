@@ -217,7 +217,7 @@ async function _callGetTimestampForSlotWithRetry(
     }
   }
 
-  // If the timestamp is null, retry the call because the provider returned an unexpected null.
+  // If the timestamp is null, then the timestamp is not available yet for the block so retrying might help.
   if (_timestamp === null) {
     return await retryCall();
   }
