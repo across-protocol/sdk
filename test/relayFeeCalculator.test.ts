@@ -3,11 +3,13 @@ import hre from "hardhat";
 import { RelayFeeCalculator, QueryInterface } from "../src/relayFeeCalculator/relayFeeCalculator";
 import {
   EvmAddress,
+  SvmAddress,
   toBNWei,
   toBN,
   toGWei,
   TransactionCostEstimate,
   bnOne,
+  bnZero,
   getCurrentTime,
   getMessageHash,
   spreadEvent,
@@ -35,9 +37,13 @@ import assert from "assert";
 import { CHAIN_IDs, TOKEN_SYMBOLS_MAP } from "@across-protocol/constants";
 import { EMPTY_MESSAGE, ZERO_ADDRESS } from "../src/constants";
 import { SpokePool } from "@across-protocol/contracts";
-import { QueryBase, QueryBase__factory } from "../src/relayFeeCalculator";
+import { QueryBase, QueryBase__factory, DEFAULT_LOGGER, SvmQuery } from "../src/relayFeeCalculator";
 import { getDefaultProvider } from "ethers";
 import { MockedProvider } from "../src/providers/mocks";
+import { getAcrossPlusMessageEncoder, SVM_DEFAULT_ADDRESS } from "../src/arch/svm";
+import { address as toSvmKitAddress } from "@solana/kit";
+import { createDefaultSolanaClient } from "./utils/svm/utils";
+import { RelayData } from "../src/interfaces";
 
 dotenv.config({ path: ".env" });
 
@@ -99,6 +105,14 @@ class ExampleQueries implements QueryInterface {
     // Return token price denominated in ETH, assuming ETH is native token.
     return Promise.resolve(1 / 1000); // 1 USDC = 1 / $1000 ETH/USD
   }
+
+  getNativeGasCost(): Promise<BigNumber> {
+    return Promise.resolve(toBN(this.defaultGas));
+  }
+
+  getAuxiliaryNativeTokenCost(): BigNumber {
+    return bnZero;
+  }
 }
 describe("RelayFeeCalculator", () => {
   let client: RelayFeeCalculator;
@@ -119,19 +133,21 @@ describe("RelayFeeCalculator", () => {
       [104729, toBNWei("2.917740071995340354").toString()], // ~291%
     ];
     for (const [input, truth] of gasFeePercents) {
+      const deposit = buildDepositForRelayerFeeTest(input, "usdc", 1, 10);
+      const { outputTokenInfo } = client.resolveInOutTokenInfos(deposit);
       const result = (
-        await client.gasFeePercent(buildDepositForRelayerFeeTest(input, "usdc", 1, 10), input, false)
+        await client.gasFeePercent(buildDepositForRelayerFeeTest(input, "usdc", 1, 10), input, outputTokenInfo, false)
       ).toString();
       expect(result).to.be.eq(truth);
     }
   });
   it("relayerFeeDetails", async () => {
     client = new RelayFeeCalculator({ queries, capitalCostsConfig: testCapitalCostsConfig });
-    const result = await client.relayerFeeDetails(buildDepositForRelayerFeeTest(100e6, "usdc", "10", "1"), 100e6);
+    const result = await client.relayerFeeDetails(buildDepositForRelayerFeeTest(100e6, "usdc", 10, 1), 100e6);
     assert.ok(result);
     // overriding token price also succeeds
     const resultWithPrice = await client.relayerFeeDetails(
-      buildDepositForRelayerFeeTest(100e6, "usdc", "10", "1"),
+      buildDepositForRelayerFeeTest(100e6, "usdc", 10, 1),
       100e6,
       false,
       toAddressType(randomAddress(), 1),
@@ -145,7 +161,7 @@ describe("RelayFeeCalculator", () => {
       toBN(resultWithPrice.gasFeePercent).lt(
         (
           await client.relayerFeeDetails(
-            buildDepositForRelayerFeeTest(100e6, "usdc", "1", "10"),
+            buildDepositForRelayerFeeTest(100e6, "usdc", 1, 10),
             100e6,
             false,
             undefined,
@@ -164,7 +180,7 @@ describe("RelayFeeCalculator", () => {
     // Compute relay fee details for an $1000 transfer. Capital fee % is 0 so maxGasFeePercent should be equal to fee
     // limit percent.
     const relayerFeeDetails = await client.relayerFeeDetails(
-      buildDepositForRelayerFeeTest(1000e6, "usdc", "10", "1"),
+      buildDepositForRelayerFeeTest(1000e6, "usdc", 10, 1),
       1000e6
     );
     assert.equal(relayerFeeDetails.maxGasFeePercent, toBNWei("0.1").toString());
@@ -172,11 +188,11 @@ describe("RelayFeeCalculator", () => {
     assert.equal(relayerFeeDetails.minDeposit, toBNWei("3.05572", 6).toString()); // 305,572 / 0.1 = 3055720 then divide by 1e6
     assert.equal(relayerFeeDetails.isAmountTooLow, false);
     assert.equal(
-      (await client.relayerFeeDetails(buildDepositForRelayerFeeTest(10e6, "usdc", "10", "1"), 10e6)).isAmountTooLow,
+      (await client.relayerFeeDetails(buildDepositForRelayerFeeTest(10e6, "usdc", 10, 1), 10e6)).isAmountTooLow,
       false
     );
     assert.equal(
-      (await client.relayerFeeDetails(buildDepositForRelayerFeeTest(1e6, "usdc", "10", "1"), 1e6)).isAmountTooLow,
+      (await client.relayerFeeDetails(buildDepositForRelayerFeeTest(1e6, "usdc", 10, 1), 1e6)).isAmountTooLow,
       true
     );
   });
@@ -458,7 +474,7 @@ describe("RelayFeeCalculator", () => {
 describe("RelayFeeCalculator: Composable Bridging", function () {
   let spokePool: SpokePool, erc20: Contract, destErc20: Contract, weth: Contract;
   let client: RelayFeeCalculator;
-  let queries: QueryBase;
+  let queries: QueryBase | SvmQuery;
   let testContract: Contract;
   let owner: SignerWithAddress, relayer: SignerWithAddress, depositor: SignerWithAddress;
   let tokenMap: typeof TOKEN_SYMBOLS_MAP;
@@ -505,33 +521,36 @@ describe("RelayFeeCalculator: Composable Bridging", function () {
     );
     client = new RelayFeeCalculator({ queries, capitalCostsConfig: testCapitalCostsConfig });
 
-    testGasFeePct = (message?: string) =>
-      client.gasFeePercent(
-        {
-          inputAmount: bnOne,
-          outputAmount: bnOne,
-          inputToken: toAddressType(erc20.address, 10),
-          outputToken: toAddressType(erc20.address, 1),
-          recipient: toAddressType(testContract.address, 1),
-          depositId: BigNumber.from(1000000),
-          depositor: toAddressType(depositor.address, 10),
-          originChainId: 10,
-          destinationChainId: 1,
-          message: message || EMPTY_MESSAGE,
-          exclusiveRelayer: toAddressType(ZERO_ADDRESS, 1),
-          fillDeadline: getCurrentTime() + 60000,
-          exclusivityDeadline: 0,
-        },
+    testGasFeePct = (message?: string) => {
+      const deposit = {
+        inputAmount: bnOne,
+        outputAmount: bnOne,
+        inputToken: toAddressType(erc20.address, 10),
+        outputToken: toAddressType(erc20.address, 1),
+        recipient: toAddressType(testContract.address, 1),
+        depositId: BigNumber.from(1000000),
+        depositor: toAddressType(depositor.address, 10),
+        originChainId: 10,
+        destinationChainId: 1,
+        message: message || EMPTY_MESSAGE,
+        exclusiveRelayer: toAddressType(ZERO_ADDRESS, 1),
+        fillDeadline: getCurrentTime() + 60000,
+        exclusivityDeadline: 0,
+      };
+      const { outputTokenInfo } = client.resolveInOutTokenInfos(deposit, tokenMap);
+      return client.gasFeePercent(
+        deposit,
         1,
+        outputTokenInfo,
         false,
         toAddressType(relayer.address, 1),
         1,
-        tokenMap,
         undefined,
         undefined,
         undefined,
         customTransport
       );
+    };
   });
   it("should not revert if no message is passed", async () => {
     await assertPromisePasses(testGasFeePct());
@@ -645,7 +664,7 @@ describe("QueryBase", function () {
         undefined, // simulatedRelayerAddress
         undefined,
         this.logger
-      );
+      ) as QueryBase;
     });
     it("Uses passed in options", async function () {
       const options = {
@@ -690,5 +709,95 @@ describe("QueryBase", function () {
       expect(result.nativeGasCost).to.equal(options.gasUnits);
       expect(result.tokenGasCost).to.equal(expectedGasPrice.mul(options.gasUnits));
     });
+  });
+});
+
+describe("getAuxiliaryNativeTokenCost", function () {
+  it("returns 0 for EVM queries regardless of message", function () {
+    const evmQueries = QueryBase__factory.create(
+      1, // EVM chain
+      getDefaultProvider()
+    );
+
+    const deposit = buildDepositForRelayerFeeTest(1e6, "USDC", 1, 10);
+    deposit.message = "0x1234";
+
+    const fee = evmQueries.getAuxiliaryNativeTokenCost(deposit as unknown as RelayData);
+    expect(fee.eq(bnZero)).to.equal(true);
+  });
+
+  it("returns value_amount for SVM queries when AcrossPlusMessage has value_amount", function () {
+    const { rpc } = createDefaultSolanaClient();
+    const svmQueries = QueryBase__factory.create(
+      CHAIN_IDs.SOLANA,
+      rpc,
+      TOKEN_SYMBOLS_MAP,
+      SVM_DEFAULT_ADDRESS,
+      SvmAddress.from(SVM_DEFAULT_ADDRESS),
+      undefined,
+      DEFAULT_LOGGER,
+      "eth"
+    );
+
+    // Compose a valid AcrossPlusMessage with non-zero value_amount
+    const valueAmount = 123456n;
+    const encoder = getAcrossPlusMessageEncoder();
+    const encoded = encoder.encode({
+      handler: toSvmKitAddress(SVM_DEFAULT_ADDRESS),
+      read_only_len: 0,
+      value_amount: valueAmount,
+      accounts: [],
+      handler_message: new Uint8Array(),
+    });
+    const messageHex = "0x" + Buffer.from(encoded).toString("hex");
+
+    const deposit: RelayData = {
+      originChainId: 1,
+      depositor: SvmAddress.from(SVM_DEFAULT_ADDRESS),
+      recipient: SvmAddress.from(SVM_DEFAULT_ADDRESS),
+      depositId: BigNumber.from(1),
+      inputToken: SvmAddress.from(SVM_DEFAULT_ADDRESS),
+      inputAmount: BigNumber.from(1),
+      outputToken: SvmAddress.from(SVM_DEFAULT_ADDRESS),
+      outputAmount: BigNumber.from(1),
+      message: messageHex,
+      fillDeadline: 0,
+      exclusiveRelayer: SvmAddress.from(SVM_DEFAULT_ADDRESS),
+      exclusivityDeadline: 0,
+    };
+
+    const fee = svmQueries.getAuxiliaryNativeTokenCost(deposit);
+    expect(fee.eq(BigNumber.from(valueAmount))).to.equal(true);
+  });
+
+  it("throws for SVM queries when message is not AcrossPlus-encoded", function () {
+    const { rpc } = createDefaultSolanaClient();
+    const svmQueries = QueryBase__factory.create(
+      CHAIN_IDs.SOLANA,
+      rpc,
+      TOKEN_SYMBOLS_MAP,
+      SVM_DEFAULT_ADDRESS,
+      SvmAddress.from(SVM_DEFAULT_ADDRESS),
+      undefined,
+      DEFAULT_LOGGER,
+      "eth"
+    );
+
+    const deposit: RelayData = {
+      originChainId: 1,
+      depositor: SvmAddress.from(SVM_DEFAULT_ADDRESS),
+      recipient: SvmAddress.from(SVM_DEFAULT_ADDRESS),
+      depositId: BigNumber.from(1),
+      inputToken: SvmAddress.from(SVM_DEFAULT_ADDRESS),
+      inputAmount: BigNumber.from(1),
+      outputToken: SvmAddress.from(SVM_DEFAULT_ADDRESS),
+      outputAmount: BigNumber.from(1),
+      message: "0x1234",
+      fillDeadline: 0,
+      exclusiveRelayer: SvmAddress.from(SVM_DEFAULT_ADDRESS),
+      exclusivityDeadline: 0,
+    };
+
+    expect(() => svmQueries.getAuxiliaryNativeTokenCost(deposit)).to.throw();
   });
 });
