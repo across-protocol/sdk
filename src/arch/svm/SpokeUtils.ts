@@ -1380,7 +1380,7 @@ export async function getAccountMetasForTokenlessMessage(
  */
 export async function getCCTPDepositAccounts(
   hubChainId: number,
-  cctpSourceDomain: number,
+  cctpDestinationDomainId: number,
   tokenMessengerMinterAddress: Address,
   messageTransmitterAddress: Address
 ): Promise<CCTPDepositAccounts> {
@@ -1415,7 +1415,7 @@ export async function getCCTPDepositAccounts(
     }),
     getProgramDerivedAddress({
       programAddress: tokenMessengerMinterAddress,
-      seeds: ["remote_token_messenger", String(cctpSourceDomain)],
+      seeds: ["remote_token_messenger", String(cctpDestinationDomainId)],
     }),
     getProgramDerivedAddress({
       programAddress: tokenMessengerMinterAddress,
