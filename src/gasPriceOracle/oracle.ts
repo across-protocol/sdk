@@ -108,7 +108,7 @@ function _getEthersGasPriceEstimate(
     [CHAIN_IDs.ARBITRUM]: arbitrum.eip1559,
     [CHAIN_IDs.BSC]: ethereum.legacy,
     [CHAIN_IDs.MAINNET]: ethereum.eip1559,
-    [CHAIN_IDs.PLASMA]: ethereum.eip1559,
+    // [CHAIN_IDs.PLASMA]: ethereum.eip1559, @todo: Pending RPC support
     [CHAIN_IDs.POLYGON]: polygon.gasStation,
     [CHAIN_IDs.SCROLL]: ethereum.legacy,
     [CHAIN_IDs.ZK_SYNC]: ethereum.legacy,
