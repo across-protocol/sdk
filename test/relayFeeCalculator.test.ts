@@ -737,7 +737,7 @@ describe("getAuxiliaryNativeTokenCost", function () {
       undefined,
       DEFAULT_LOGGER,
       "eth"
-    );
+    ) as SvmQuery;
 
     // Compose a valid AcrossPlusMessage with non-zero value_amount
     const valueAmount = 123456n;

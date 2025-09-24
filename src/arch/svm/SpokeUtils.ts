@@ -818,7 +818,13 @@ export function deserializeMessage(_message: string): AcrossPlusMessage {
   // Add remaining accounts if the relayData has a non-empty message.
   // @dev ! since in the context of creating a `fillRelayTx`, `relayData` must be defined.
   const acrossPlusMessageDecoder = getAcrossPlusMessageDecoder();
-  return acrossPlusMessageDecoder.decode(message);
+  const deserialized = acrossPlusMessageDecoder.decode(message);
+  const valueAmountMethod2 = extractValueAmount(message);
+  assert(
+    deserialized.value_amount === valueAmountMethod2,
+    "svm | deserializeMessage: Deserialization mismatch for value_amount"
+  );
+  return deserialized;
 }
 
 /**
@@ -1635,4 +1641,34 @@ export async function getMintInfo(
   config?: FetchAccountConfig
 ): Promise<Account<Mint, string>> {
   return await fetchMint(solanaClient, mint, config);
+}
+
+/// Extracts value_amount from the AcrossPlusMessage bytes. This serves as a 2nd method of deserializing the value, as
+/// a way to protect us against potential bugs in the deserialization logic.
+function extractValueAmount(acrossPlusMessageBytes: Readonly<Uint8Array>): bigint {
+  // Layout of the AcrossPlusMessage struct
+  // #[derive(AnchorDeserialize)]
+  // pub struct AcrossPlusMessage {
+  //   pub handler: Pubkey,
+  //   pub read_only_len: u8,
+  //   pub value_amount: u64,
+  //   pub accounts: Vec<Pubkey>,
+  //   pub handler_message: Vec<u8>,
+  // }
+  const VALUE_OFFSET = 32 + 1; // 33
+  const VALUE_END = VALUE_OFFSET + 8; // 41
+  if (acrossPlusMessageBytes.length < VALUE_END) {
+    throw new Error(`Message too short: need at least ${VALUE_END} bytes, got ${acrossPlusMessageBytes.length}`);
+  }
+  // Pass exactly 8 bytes to make the requirement explicit
+  return readU64LEExact(acrossPlusMessageBytes.subarray(VALUE_OFFSET, VALUE_END));
+}
+
+// Reads exactly 8 bytes as a little-endian u64 and returns bigint
+function readU64LEExact(bytes: Readonly<Uint8Array>): bigint {
+  if (bytes.length !== 8) {
+    throw new Error(`readU64LEExact expected 8 bytes, received ${bytes.length}`);
+  }
+  const view = new DataView(bytes.buffer, bytes.byteOffset, 8);
+  return view.getBigUint64(0, true); // little-endian
 }
