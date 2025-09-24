@@ -1643,8 +1643,8 @@ export async function getMintInfo(
   return await fetchMint(solanaClient, mint, config);
 }
 
-/// Extracts value_amount from the AcrossPlusMessage bytes. This serves as a 2nd method of deserializing the value, as
-/// a way to protect us against potential bugs in the deserialization logic.
+// Extracts value_amount from the AcrossPlusMessage bytes. This serves as a 2nd method of deserializing the value, as
+// a way to protect us against potential bugs in the deserialization logic.
 function extractValueAmount(acrossPlusMessageBytes: Readonly<Uint8Array>): bigint {
   // Layout of the AcrossPlusMessage struct
   // #[derive(AnchorDeserialize)]
