@@ -1658,9 +1658,10 @@ function extractValueAmount(acrossPlusMessageBytes: Readonly<Uint8Array>): bigin
   const VALUE_OFFSET = 32 + 1; // 33
   const VALUE_END = VALUE_OFFSET + 8; // 41
   if (acrossPlusMessageBytes.length < VALUE_END) {
-    throw new Error(`Message too short: need at least ${VALUE_END} bytes, got ${acrossPlusMessageBytes.length}`);
+    throw new Error(
+      `svm | extractValueAmount: Message too short, need at least ${VALUE_END} bytes, got ${acrossPlusMessageBytes.length}`
+    );
   }
-  // Pass exactly 8 bytes to make the requirement explicit
   return readU64LEExact(acrossPlusMessageBytes.subarray(VALUE_OFFSET, VALUE_END));
 }
 
