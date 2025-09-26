@@ -4,7 +4,6 @@ import { SolanaClusterRpcFactory } from "./baseRpcFactories";
 import { RateLimitedSolanaRpcFactory } from "./rateLimitedRpcFactory";
 import { isSolanaError } from "../../arch/svm";
 import { delay } from "../../utils";
-import { getOriginFromURL } from "../../utils/NetworkUtils";
 import { Logger } from "winston";
 
 // This factory adds retry logic on top of the RateLimitedSolanaRpcFactory.
