@@ -4,7 +4,6 @@ import { SolanaClusterRpcFactory } from "./baseRpcFactories";
 import { RateLimitedSolanaRpcFactory } from "./rateLimitedRpcFactory";
 import { isSolanaError } from "../../arch/svm";
 import { delay } from "../../utils";
-import { getOriginFromURL } from "../../utils/NetworkUtils";
 import { Logger } from "winston";
 
 // This factory adds retry logic on top of the RateLimitedSolanaRpcFactory.
@@ -78,18 +77,6 @@ export class RetrySolanaRpcFactory extends SolanaClusterRpcFactory {
         const jitter = 1 + 2 * Math.random(); // Range jitter from [1, 3]s to offset problem where there are many
         // concurrent retry requests sent at the same time.
         const delayS = this.isRateLimitResponse(error) ? exponentialBackoff + jitter : retryDelaySeconds;
-
-        // Log retry attempt if logger is available
-        this.logger.debug({
-          at: "RetryRpcFactory",
-          message: "Retrying Solana RPC call",
-          provider: getOriginFromURL(this.clusterUrl),
-          method,
-          retryAttempt: retryAttempt,
-          retryDelaySeconds: delayS,
-          error: error?.toString(),
-        });
-
         await delay(delayS);
       }
     }

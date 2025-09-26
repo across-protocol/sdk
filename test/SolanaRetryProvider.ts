@@ -62,10 +62,6 @@ describe("retry solana provider", () => {
 
     // Should log the retry attempts (but not the successful final call)
     expect(spy.callCount).to.be.greaterThan(0);
-
-    // Check that retry logs were created
-    const retryLogs = spy.getCalls().filter((call) => call.lastArg.message === "Retrying Solana RPC call");
-    expect(retryLogs.length).to.equal(2); // 2 retry attempts
   });
 
   it("fails after exhausting all retries", async () => {
@@ -92,10 +88,6 @@ describe("retry solana provider", () => {
 
     // Should have made retries + 1 calls (original + retries)
     expect(callCount).to.equal(retries + 1);
-
-    // Should log retry attempts
-    const retryLogs = spy.getCalls().filter((call) => call.lastArg.message === "Retrying Solana RPC call");
-    expect(retryLogs.length).to.equal(retries); // Same number as retry attempts
   });
 
   it("works with zero retries", async () => {
@@ -122,41 +114,6 @@ describe("retry solana provider", () => {
 
     // Should have made exactly 1 call (no retries)
     expect(callCount).to.equal(1);
-
-    // Should not log any retry attempts
-    const retryLogs = spy.getCalls().filter((call) => call.lastArg.message === "Retrying Solana RPC call");
-    expect(retryLogs.length).to.equal(0);
-  });
-
-  it("logs retry attempts with correct metadata", async () => {
-    const retries = 2;
-    const errorMessage = "test error for logging";
-
-    // Set up mock to fail once then succeed BEFORE creating the retry client
-    let callCount = 0;
-    mockRpcFactory.createTransport = () => {
-      return (() => {
-        callCount++;
-        if (callCount === 1) {
-          throw new Error(errorMessage);
-        }
-        return { result: 1 };
-      }) as unknown as RpcTransport;
-    };
-
-    const retryRpcClient = createRetryRpcClient(retries);
-    await retryRpcClient.getSlot().send();
-
-    // Find the retry log entry
-    const retryLogs = spy.getCalls().filter((call) => call.lastArg.message === "Retrying Solana RPC call");
-    expect(retryLogs.length).to.equal(1);
-
-    const retryLog = retryLogs[0].lastArg;
-    expect(retryLog.at).to.equal("RetryRpcFactory");
-    expect(retryLog.provider).to.equal(new URL(url).origin);
-    expect(retryLog.method).to.equal("getSlot");
-    expect(retryLog.retryAttempt).to.equal(1);
-    expect(retryLog.error).to.include(errorMessage);
   });
 
   it("handles different RPC methods", async () => {
@@ -196,11 +153,6 @@ describe("retry solana provider", () => {
       })
       .send();
     expect(result).to.deep.equal(mockTransactionResult);
-
-    // Verify retry was logged with correct method
-    const retryLogs = spy.getCalls().filter((call) => call.lastArg.message === "Retrying Solana RPC call");
-    expect(retryLogs.length).to.equal(1);
-    expect(retryLogs[0].lastArg.method).to.equal("getTransaction");
   });
 
   it("validates retry configuration", () => {
