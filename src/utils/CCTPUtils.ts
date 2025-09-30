@@ -15,7 +15,7 @@ import { forEachAsync } from "./ArrayUtils";
 import { chainIsProd } from "./NetworkUtils";
 import { bnZero } from "./BigNumberUtils";
 
-type CCTPAPIGetAttestationResponse = { status: string; attestation: string; cctpVersion: number };
+export type CCTPAPIGetAttestationResponse = { status: string; attestation: string; cctpVersion: number };
 export type CCTPV2APIAttestation = {
   status: string;
   attestation: string;
@@ -154,7 +154,7 @@ export async function getCctpV2DepositForBurnStatuses(
   // Fetch attestations for all deposit burn event transaction hashes. Note, some events might share the same
   // transaction hash, so only fetch attestations for unique transaction hashes.
   const uniqueTxHashes = Object.keys(depositForBurnEvents);
-  const attestationResponses = await _fetchCctpV2Attestations(uniqueTxHashes, sourceChainId);
+  const attestationResponses = await fetchCctpV2Attestations(uniqueTxHashes, sourceChainId);
 
   // Categorize deposits based on status:
   const pendingDepositTxnHashes: string[] = [];
@@ -172,7 +172,7 @@ export async function getCctpV2DepositForBurnStatuses(
           return;
         }
         // API has not produced an attestation for this deposit yet:
-        if (_getPendingAttestationStatus(attestation) === "pending") {
+        if (getPendingAttestationStatus(attestation) === "pending") {
           pendingDepositTxnHashes.push(txnHash);
           return;
         }
@@ -197,7 +197,7 @@ export async function getCctpV2DepositForBurnStatuses(
           return;
         }
         const destinationMessageTransmitter = destinationChainMessengerContracts[destinationChainId];
-        const processed = await _hasCCTPMessageBeenProcessedEvm(attestation.eventNonce, destinationMessageTransmitter);
+        const processed = await hasCCTPMessageBeenProcessedEvm(attestation.eventNonce, destinationMessageTransmitter);
         if (processed) {
           finalizedDepositTxnHashes.push({ txnHash, destinationChainId });
         } else {
@@ -224,7 +224,7 @@ export async function getCctpV2ReceiveMessageCallData(
   )) as TransactionRequest;
 }
 
-async function _fetchCctpV2Attestations(
+export async function fetchCctpV2Attestations(
   depositForBurnTxnHashes: string[],
   sourceChainId: number
 ): Promise<{ [sourceTxnHash: string]: CCTPV2APIGetAttestationResponse }> {
@@ -271,7 +271,7 @@ async function _fetchAttestationsForTxn(
   return httpResponse.data;
 }
 
-function _getPendingAttestationStatus(
+export function getPendingAttestationStatus(
   attestation: CCTPV2APIAttestation | CCTPAPIGetAttestationResponse
 ): CCTPMessageStatus {
   if (!isDefined(attestation.attestation)) {
@@ -283,7 +283,7 @@ function _getPendingAttestationStatus(
   }
 }
 
-async function _hasCCTPMessageBeenProcessedEvm(nonceHash: string, contract: ethers.Contract): Promise<boolean> {
+export async function hasCCTPMessageBeenProcessedEvm(nonceHash: string, contract: ethers.Contract): Promise<boolean> {
   const resultingCall: BigNumber = await contract.callStatic.usedNonces(nonceHash);
   // If the resulting call is 1, the message has been processed. If it is 0, the message has not been processed.
   return (resultingCall ?? bnZero).toNumber() === 1;
