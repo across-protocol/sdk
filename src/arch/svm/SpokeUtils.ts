@@ -85,11 +85,7 @@ import {
   toSvmRelayData,
 } from "./";
 import { SvmCpiEventsClient } from "./eventsClient";
-import {
-  SVM_LONG_TERM_STORAGE_SLOT_SKIPPED,
-  SVM_SLOT_SKIPPED,
-  isSolanaError,
-} from "./provider";
+import { SVM_LONG_TERM_STORAGE_SLOT_SKIPPED, SVM_SLOT_SKIPPED, isSolanaError } from "./provider";
 import { AttestedCCTPMessage, SVMEventNames, SVMProvider } from "./types";
 import {
   getEmergencyDeleteRootBundleRootBundleId,
