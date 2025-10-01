@@ -85,7 +85,11 @@ import {
   toSvmRelayData,
 } from "./";
 import { SvmCpiEventsClient } from "./eventsClient";
-import { SVM_BLOCK_NOT_AVAILABLE, SVM_SLOT_SKIPPED, isSolanaError } from "./provider";
+import {
+  SVM_LONG_TERM_STORAGE_SLOT_SKIPPED,
+  SVM_SLOT_SKIPPED,
+  isSolanaError,
+} from "./provider";
 import { AttestedCCTPMessage, SVMEventNames, SVMProvider } from "./types";
 import {
   getEmergencyDeleteRootBundleRootBundleId,
@@ -162,67 +166,40 @@ async function _callGetTimestampForSlotWithRetry(
   maxRetries: number,
   logger?: winston.Logger
 ): Promise<number | undefined> {
-  // @note: getBlockTime receives a slot number, not a block number.
+  const slot = slotNumber.toString();
   let _timestamp: bigint;
 
-  const retryCall = async () => {
-    const slot = slotNumber.toString();
-    // Implement exponential backoff with jitter where the # of seconds to wait is = 2^retryAttempt + jitter
-    // e.g. First two retry delays are ~1.5s and ~2.5s.
-    const delaySeconds = 2 ** retryAttempt + Math.random();
-
-    if (retryAttempt >= maxRetries) {
-      throw new Error(`Timeout on SVM getBlockTime() for slot ${slot} after ${retryAttempt} retry attempts`);
-    }
-    logger?.debug({
-      at: "getTimestampForSlot",
-      message: `Retrying getBlockTime() after ${delaySeconds} seconds for retry attempt #${retryAttempt}`,
-      slot,
-      retryAttempt,
-      maxRetries,
-      delaySeconds,
-    });
-    await delay(delaySeconds);
-    return _callGetTimestampForSlotWithRetry(provider, slotNumber, ++retryAttempt, maxRetries, logger);
-  };
-
   try {
+    // @note: getBlockTime receives a slot number, not a block number.
     _timestamp = await provider.getBlockTime(slotNumber).send();
   } catch (err) {
     if (!isSolanaError(err)) {
       throw err;
     }
 
+    const at = "getTimestampForSlot";
     const { __code: code } = err.context;
-    const slot = slotNumber.toString();
 
     switch (err.context.__code) {
       case SVM_SLOT_SKIPPED:
+      case SVM_LONG_TERM_STORAGE_SLOT_SKIPPED:
+        // No block available for this slot; caller must decide on how to handle this.
         return undefined;
 
-      case SVM_BLOCK_NOT_AVAILABLE: {
-        return await retryCall();
-      }
-
-      default:
-        logger?.debug({
-          at: "getTimestampForSlot",
-          message: "Caught error from getBlockTime()",
-          errorCode: code,
-          slot,
-          retryAttempt,
-          maxRetries,
-        });
+      default: {
+        const message = "Caught error from getBlockTime()";
+        logger?.debug({ at, message, errorCode: code, slot, retryAttempt, maxRetries });
         throw new Error(`Unhandled SVM getBlockTime() error for slot ${slot}: ${code}`, { cause: err });
+      }
     }
   }
 
-  // If the timestamp is null, then the timestamp is not available yet for the block so retrying might help.
-  if (_timestamp === null) {
-    return await retryCall();
-  }
+  // _timestamp should be a BigInt or undefined. If not undefined, ensure that conversion to number does not truncate.
   const timestamp = Number(_timestamp);
-  assert(BigInt(timestamp) === _timestamp, `Unexpected SVM block timestamp: ${_timestamp}`); // No truncation.
+  assert(
+    !isDefined(timestamp) || BigInt(timestamp) === _timestamp,
+    `Unexpected block timestamp for SVM slot ${slot}: ${_timestamp}`
+  );
 
   return timestamp;
 }

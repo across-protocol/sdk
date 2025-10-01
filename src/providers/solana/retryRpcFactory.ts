@@ -2,7 +2,7 @@ import { RpcTransport, SOLANA_ERROR__RPC__TRANSPORT_HTTP_ERROR } from "@solana/k
 import { getThrowSolanaErrorResponseTransformer } from "@solana/rpc-transformers";
 import { SolanaClusterRpcFactory } from "./baseRpcFactories";
 import { RateLimitedSolanaRpcFactory } from "./rateLimitedRpcFactory";
-import { isSolanaError } from "../../arch/svm";
+import { isSolanaError, SVM_SLOT_SKIPPED, SVM_LONG_TERM_STORAGE_SLOT_SKIPPED } from "../../arch/svm";
 import { delay } from "../../utils";
 import { Logger } from "winston";
 
@@ -93,8 +93,13 @@ export class RetrySolanaRpcFactory extends SolanaClusterRpcFactory {
       return false;
     }
 
-    // const { __code: code } = error.context;
+    // JSON-RPC errors: https://www.quicknode.com/docs/solana/error-references
+    const { __code: code } = error.context;
     switch (method) {
+      case "getBlock":
+      case "getBlockTime":
+        // No block at the requested slot. This may not be correct for blocks > 1 year old.
+        return [SVM_SLOT_SKIPPED, SVM_LONG_TERM_STORAGE_SLOT_SKIPPED].includes(code);
       default:
         return false;
     }
