@@ -193,7 +193,7 @@ async function _callGetTimestampForSlotWithRetry(
   // _timestamp should be a BigInt or undefined. If not undefined, ensure that conversion to number does not truncate.
   const timestamp = Number(_timestamp);
   assert(
-    !isDefined(timestamp) || BigInt(timestamp) === _timestamp,
+    !isDefined(_timestamp) || BigInt(timestamp) === _timestamp,
     `Unexpected block timestamp for SVM slot ${slot}: ${_timestamp}`
   );
 
