@@ -192,7 +192,7 @@ describe("SvmCpiEventsClient (integration)", () => {
 
     await mintTokens(signer, solanaClient, address(mint.address), tokenAmount);
 
-    const { relayData, signature } = await sendCreateFill(solanaClient, signer, mint, decimals);
+    const { relayData, signature } = await sendCreateFill(solanaClient, signer, mint, decimals, {}, true);
 
     const fillEvents = await client.getFillEventsFromSignature(solanaClient.chainId, signature);
 
