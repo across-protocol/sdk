@@ -235,7 +235,8 @@ export const sendCreateFill = async (
   signer: KeyPairSigner,
   mint: KeyPairSigner,
   mintDecimals: number,
-  overrides: Partial<RelayDataArgs> = {}
+  overrides: Partial<RelayDataArgs> = {},
+  createAta: boolean = false
 ) => {
   const currentTime = await getCurrentTime(solanaClient);
 
@@ -310,7 +311,8 @@ export const sendCreateFill = async (
     solanaClient.rpc,
     fillInput,
     { outputAmount: relayDataInput.outputAmount, recipient: relayDataInput.recipient },
-    mintDecimals
+    mintDecimals,
+    createAta
   );
   const signature = await signAndSendTransaction(solanaClient, fillTx);
   return { signature, relayData, fillInput };
