@@ -9,6 +9,7 @@ import {
   fetchMint,
   getApproveCheckedInstruction,
   getCreateAssociatedTokenIdempotentInstruction,
+  getCreateAssociatedTokenInstruction,
 } from "@solana-program/token";
 import {
   Account,
@@ -600,6 +601,8 @@ export async function getFillRelayTx(
     getAssociatedTokenAddress(SvmAddress.from(signer.address), relayData.outputToken, mintInfo.programAddress),
   ]);
 
+  const recipientAtaEncodedAccount = await fetchEncodedAccount(solanaClient, recipientAta);
+
   // Add remaining accounts if the relayData has a non-empty message.
   // @dev ! since in the context of creating a `fillRelayTx`, `relayData` must be defined.
   const remainingAccounts: (WritableAccount | ReadonlyAccount)[] = [];
@@ -641,7 +644,7 @@ export async function getFillRelayTx(
     fillInput,
     svmRelayData,
     mintInfo.data.decimals,
-    true,
+    !recipientAtaEncodedAccount.exists,
     remainingAccounts
   );
 }
@@ -745,7 +748,7 @@ export async function getIPFillRelayTx(
  * @param solanaClient - The Solana client.
  * @param fillInput - The fill input.
  * @param tokenDecimals - The token decimals.
- * @param createRecipientAtaIfNeeded - Whether to create a recipient token account.
+ * @param createRecipientAta - Whether to create a recipient token account.
  * @returns The fill instruction.
  */
 export const createFillInstruction = async (
@@ -754,7 +757,7 @@ export const createFillInstruction = async (
   fillInput: SvmSpokeClient.FillRelayInput,
   relayData: Pick<SvmSpokeClient.RelayDataArgs, "outputAmount" | "recipient">,
   tokenDecimals: number,
-  createRecipientAtaIfNeeded: boolean = true,
+  createRecipientAta: boolean = false,
   remainingAccounts: (WritableAccount | ReadonlyAccount)[] = []
 ) => {
   const mintInfo = await getMintInfo(solanaClient, fillInput.mint);
@@ -772,8 +775,8 @@ export const createFillInstruction = async (
     }
   );
 
-  const getCreateAssociatedTokenIdempotentIx = () =>
-    getCreateAssociatedTokenIdempotentInstruction({
+  const getCreateAssociatedTokenIx = () =>
+    getCreateAssociatedTokenInstruction({
       payer: signer,
       owner: relayData.recipient,
       mint: fillInput.mint,
@@ -789,8 +792,7 @@ export const createFillInstruction = async (
 
   return pipe(
     await createDefaultTransaction(solanaClient, signer),
-    (tx) =>
-      createRecipientAtaIfNeeded ? appendTransactionMessageInstruction(getCreateAssociatedTokenIdempotentIx(), tx) : tx,
+    (tx) => (createRecipientAta ? appendTransactionMessageInstruction(getCreateAssociatedTokenIx(), tx) : tx),
     (tx) => appendTransactionMessageInstruction(approveIx, tx),
     (tx) => appendTransactionMessageInstruction(createFillIx, tx)
   );
