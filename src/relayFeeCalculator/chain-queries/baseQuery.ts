@@ -22,6 +22,7 @@ import { Logger, QueryInterface, getDefaultRelayer } from "../relayFeeCalculator
 import { Transport } from "viem";
 import { getGasPriceEstimate } from "../../gasPriceOracle";
 import { EvmProvider } from "../../arch/evm/types";
+import { arch } from "../..";
 
 export type SymbolMappingType = Record<
   string,
@@ -167,7 +168,7 @@ export class QueryBase implements QueryInterface {
    * @returns Native token cost
    */
   getAuxiliaryNativeTokenCost(_deposit: RelayData): BigNumber {
-    return bnZero;
+    return arch.evm.getAuxiliaryNativeTokenCost(_deposit);
   }
 
   /**

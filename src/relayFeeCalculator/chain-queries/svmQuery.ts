@@ -5,32 +5,17 @@ import {
   fetchEncodedAccount,
   isSome,
 } from "@solana/kit";
-import {
-  SVMProvider,
-  SolanaVoidSigner,
-  getFillRelayTx,
-  toAddress,
-  getAssociatedTokenAddress,
-  deserializeMessage,
-} from "../../arch/svm";
+import { SVMProvider, SolanaVoidSigner, getFillRelayTx, toAddress, getAssociatedTokenAddress } from "../../arch/svm";
 import { Coingecko } from "../../coingecko";
 import { CHAIN_IDs } from "../../constants";
 import { getGasPriceEstimate } from "../../gasPriceOracle";
 import { RelayData } from "../../interfaces";
-import {
-  Address,
-  BigNumber,
-  BigNumberish,
-  SvmAddress,
-  TransactionCostEstimate,
-  bnZero,
-  isMessageEmpty,
-  toBN,
-} from "../../utils";
+import { Address, BigNumber, BigNumberish, SvmAddress, TransactionCostEstimate, toBN } from "../../utils";
 import { Logger, QueryInterface, getDefaultRelayer } from "../relayFeeCalculator";
 import { SymbolMappingType } from "./";
 import { TOKEN_PROGRAM_ADDRESS } from "@solana-program/token";
 import { TOKEN_2022_PROGRAM_ADDRESS, getTokenSize, fetchMint, Extension } from "@solana-program/token-2022";
+import { arch } from "../..";
 
 /**
  * A special QueryBase implementation for SVM used for querying gas costs, token prices, and decimals of various tokens
@@ -180,10 +165,7 @@ export class SvmQuery implements QueryInterface {
    * @returns Native token cost
    */
   getAuxiliaryNativeTokenCost(deposit: RelayData): BigNumber {
-    // Notice. We return `message.value_amount` here instead of simulating the Transaction. The reason is, we choose to
-    // rely hard on Solana program to protect us from not taking more than `value_amount` rather than relying on
-    // simulation. Chain state may change between simulation and execution, so simulation alone is unreliable
-    return isMessageEmpty(deposit.message) ? bnZero : BigNumber.from(deserializeMessage(deposit.message).value_amount);
+    return arch.svm.getAuxiliaryNativeTokenCost(deposit);
   }
 
   /**
