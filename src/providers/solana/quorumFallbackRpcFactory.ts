@@ -1,9 +1,10 @@
+import { Logger } from "winston";
 import { RpcFromTransport, RpcResponse, RpcTransport, SolanaRpcApiFromTransport } from "@solana/kit";
-import { CachedSolanaRpcFactory } from "./cachedRpcFactory";
-import { SolanaBaseRpcFactory, SolanaClusterRpcFactory } from "./baseRpcFactories";
 import { isPromiseFulfilled, isPromiseRejected } from "../../utils/TypeGuards";
 import { compareSvmRpcResults, createSendErrorWithMessage } from "../utils";
-import { Logger } from "winston";
+import { CachedSolanaRpcFactory } from "./cachedRpcFactory";
+import { SolanaBaseRpcFactory, SolanaClusterRpcFactory } from "./baseRpcFactories";
+import { shouldFailImmediate } from "./utils";
 
 // This factory stores multiple Cached RPC factories so that users of this factory can specify multiple RPC providers
 // and the factory will fallback through them if any RPC calls fail. This factory also implements quorum logic amongst
@@ -61,6 +62,11 @@ export class QuorumFallbackSolanaRpcFactory extends SolanaBaseRpcFactory {
             errors.push([factory.rpcFactory, (error as any)?.stack || error?.toString()]);
 
             if (fallbackFactories.length === 0) {
+              throw error;
+            }
+
+            // If one RPC provider reverted, others likely will too. Skip them.
+            if (quorumThreshold === 1 && shouldFailImmediate(method, error)) {
               throw error;
             }
 

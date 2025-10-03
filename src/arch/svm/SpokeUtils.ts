@@ -177,7 +177,7 @@ async function _callGetTimestampForSlotWithRetry(
     const at = "getTimestampForSlot";
     const { __code: code } = err.context;
 
-    switch (err.context.__code) {
+    switch (code) {
       case SVM_SLOT_SKIPPED:
       case SVM_LONG_TERM_STORAGE_SLOT_SKIPPED:
         // No block available for this slot; caller must decide on how to handle this.
