@@ -1276,6 +1276,11 @@ export const hasCCTPV1MessageBeenProcessed = async (
   } catch (e) {
     return false;
   }
+  // If the nonce PDA has been closed, then return false.
+  const encodedNoncePda = await fetchEncodedAccount(solanaClient, noncePda);
+  if (!encodedNoncePda.exists) {
+    return false;
+  }
   const isNonceUsedIx = MessageTransmitterClient.getIsNonceUsedInstruction({
     nonce: nonce,
     usedNonces: noncePda,
