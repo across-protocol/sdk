@@ -58,7 +58,6 @@ import {
   chainIsProd,
   chainIsSvm,
   chunk,
-  delay,
   getMessageHash,
   isDefined,
   isUnsafeDepositId,
@@ -1266,9 +1265,7 @@ export const hasCCTPV1MessageBeenProcessed = async (
   solanaClient: SVMProvider,
   signer: KeyPairSigner,
   nonce: number,
-  sourceDomain: number,
-  nRetries: number = 0,
-  maxRetries: number = 2
+  sourceDomain: number
 ): Promise<boolean> => {
   const noncePda = await getCCTPNoncePda(solanaClient, signer, nonce, sourceDomain);
   const isNonceUsedIx = MessageTransmitterClient.getIsNonceUsedInstruction({
