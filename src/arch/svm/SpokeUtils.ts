@@ -1270,17 +1270,7 @@ export const hasCCTPV1MessageBeenProcessed = async (
   nRetries: number = 0,
   maxRetries: number = 2
 ): Promise<boolean> => {
-  let noncePda: Address;
-  try {
-    noncePda = await getCCTPNoncePda(solanaClient, signer, nonce, sourceDomain);
-  } catch (e) {
-    return false;
-  }
-  // If the nonce PDA has been closed, then return false.
-  const encodedNoncePda = await fetchEncodedAccount(solanaClient, noncePda);
-  if (!encodedNoncePda.exists) {
-    return false;
-  }
+  const noncePda = await getCCTPNoncePda(solanaClient, signer, nonce, sourceDomain);
   const isNonceUsedIx = MessageTransmitterClient.getIsNonceUsedInstruction({
     nonce: nonce,
     usedNonces: noncePda,
@@ -1291,19 +1281,7 @@ export const hasCCTPV1MessageBeenProcessed = async (
     }
     return Boolean(buf[0]);
   };
-  // If the nonce PDA was found, we should be able to query the isNonceUsed parameter. If we can't then assume it is a transient RPC error
-  // and retry, and throw if the error persists.
-  try {
-    return await simulateAndDecode(solanaClient, isNonceUsedIx, signer, parserFunction);
-  } catch (e) {
-    if (nRetries < maxRetries) {
-      const delaySeconds = 2 ** nRetries + Math.random();
-      await delay(delaySeconds);
-
-      return hasCCTPV1MessageBeenProcessed(solanaClient, signer, nonce, sourceDomain, ++nRetries);
-    }
-    throw e;
-  }
+  return await simulateAndDecode(solanaClient, isNonceUsedIx, signer, parserFunction);
 };
 
 /**
