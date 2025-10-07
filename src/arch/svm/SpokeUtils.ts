@@ -1260,6 +1260,9 @@ export async function getFillRelayDelegatePda(
  * @param nonce The nonce to check.
  * @param sourceDomain The source domain.
  * @returns True if the message has been processed, false otherwise.
+ * @dev This function intentionally does not have error handling for `getCCTPNoncePda` nor `simulateAndDecode` since
+ * the error handling would have to account for the asynchronous opening/closing of PDAs, which is better handled downstream,
+ * where the caller of this function has more context.
  */
 export const hasCCTPV1MessageBeenProcessed = async (
   solanaClient: SVMProvider,
