@@ -86,7 +86,7 @@ import {
 } from "./";
 import { SvmCpiEventsClient } from "./eventsClient";
 import { SVM_LONG_TERM_STORAGE_SLOT_SKIPPED, SVM_SLOT_SKIPPED, isSolanaError } from "./provider";
-import { AttestedCCTPMessage, SVMEventNames, SVMProvider } from "./types";
+import { AttestedCCTPMessage, SVMEventNames, SVMProvider, LatestBlockhash } from "./types";
 import {
   getEmergencyDeleteRootBundleRootBundleId,
   getNearestSlotTime,
@@ -1268,7 +1268,8 @@ export const hasCCTPV1MessageBeenProcessed = async (
   solanaClient: SVMProvider,
   signer: KeyPairSigner,
   nonce: number,
-  sourceDomain: number
+  sourceDomain: number,
+  latestBlockhash?: LatestBlockhash
 ): Promise<boolean> => {
   const noncePda = await getCCTPNoncePda(solanaClient, signer, nonce, sourceDomain);
   const isNonceUsedIx = MessageTransmitterClient.getIsNonceUsedInstruction({
@@ -1281,7 +1282,7 @@ export const hasCCTPV1MessageBeenProcessed = async (
     }
     return Boolean(buf[0]);
   };
-  return await simulateAndDecode(solanaClient, isNonceUsedIx, signer, parserFunction);
+  return await simulateAndDecode(solanaClient, isNonceUsedIx, signer, parserFunction, latestBlockhash);
 };
 
 /**
