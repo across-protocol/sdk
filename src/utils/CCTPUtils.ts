@@ -6,6 +6,7 @@ import { isDefined } from "./TypeGuards";
 import axios from "axios";
 import { chainIsProd } from "./NetworkUtils";
 import assert from "assert";
+import { bnZero } from "./BigNumberUtils";
 /** ********************************************************************************************************************
  *
  * CONSTANTS
@@ -278,7 +279,7 @@ export function decodeCommonMessageDataV1(message: { data: string }, isSvm = fal
  */
 export function decodeDepositForBurnMessageDataV1(message: { data: string }, isSvm = false): DepositForBurnMessageData {
   // Source: https://developers.circle.com/stablecoins/message-format
-  const commonDataV1 = _decodeCommonMessageDataV1(message, isSvm);
+  const commonDataV1 = decodeCommonMessageDataV1(message, isSvm);
   const messageBytes = isSvm ? message.data : ethers.utils.defaultAbiCoder.decode(["bytes"], message.data)[0];
   const messageBytesArray = ethers.utils.arrayify(messageBytes);
 
@@ -385,20 +386,6 @@ export async function fetchAttestationsForTxn(
   );
 
   return httpResponse.data;
-}
-
-/**
- * @notice Fetches V1 attestations for a given Solana transaction hash. If transaction hash contains multiple CCTP
- * messages, this will return an array of attestations.
- * @param transactionHash
- * @returns Attestation response, list of messages with attestations.
- */
-export async function fetchCCTPSvmAttestationProof(transactionHash: string): Promise<CCTPV1APIGetMessagesResponse> {
-  const httpResponse = await axios.get<CCTPV1APIGetMessagesResponse>(
-    `https://iris-api.circle.com/messages/${getCctpDomainForChainId(CHAIN_IDs.SOLANA)}/${transactionHash}`
-  );
-  const attestationResponse = httpResponse.data;
-  return attestationResponse;
 }
 
 /**
