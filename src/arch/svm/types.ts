@@ -9,6 +9,7 @@ import {
   SlotNotificationsApi,
   SolanaRpcApiFromTransport,
   UnixTimestamp,
+  type Blockhash,
 } from "@solana/kit";
 
 export type EventData =
@@ -68,4 +69,9 @@ export type AttestedCCTPMessage = {
   messageBytes: string;
   attestation: string;
   type: "transfer" | "message";
+};
+
+export type LatestBlockhash = {
+  blockhash: Blockhash;
+  lastValidBlockHeight: bigint;
 };
