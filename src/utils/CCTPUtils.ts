@@ -54,9 +54,6 @@ const CCTP_DEPOSIT_FOR_BURN_TOPIC_HASH_V2 = ethers.utils.id(
  *
  ******************************************************************************************************************* **/
 
-// CCTP V1 /attestations/{messageHash} response
-type CCTPV1APIGetAttestationResponse = { status: string; attestation: string };
-
 // CCTP V2 /burn/USDC/fees/{sourceDomainId}/{destDomainId} response
 type CCTPV2APIGetFeesResponse = { finalityThreshold: number; minimumFee: number }[];
 
@@ -157,7 +154,7 @@ export function getCctpDestinationChainFromDomain(domain: number, productionNetw
 /**
  * @notice Typeguard. Returns whether the event is a CCTP deposit for burn event. Should work for V1 and V2
  * @param event CCTP message event.
- * @returns True if the event is a CCTP V1 deposit for burn event.
+ * @returns True if the event is a CCTP deposit for burn event.
  */
 export function isDepositForBurnEvent(event: CCTPMessageEvent): event is DepositForBurnMessageEvent {
   return "amount" in event && "mintRecipient" in event && "burnToken" in event;
@@ -208,9 +205,7 @@ export async function fetchCctpV2Attestations(
  * @param attestation Attestation to get the status of.
  * @returns "finalized","pending" or "ready".
  */
-export function getPendingAttestationStatus(
-  attestation: CCTPV2APIAttestation | CCTPV1APIGetAttestationResponse
-): CCTPMessageStatus {
+export function getPendingAttestationStatus(attestation: CCTPV2APIAttestation): CCTPMessageStatus {
   if (!isDefined(attestation.attestation)) {
     return "pending";
   } else {
@@ -230,67 +225,6 @@ export async function hasCCTPMessageBeenProcessedEvm(nonceHash: string, contract
   const resultingCall: BigNumber = await contract.callStatic.usedNonces(nonceHash);
   // If the resulting call is 1, the message has been processed. If it is 0, the message has not been processed.
   return (resultingCall ?? bnZero).toNumber() === 1;
-}
-/**
- * @notice Decodes the message data for a V1 `MessageSent` event.
- * @param message
- * @param isSvm
- * @returns Decoded message data.
- */
-export function decodeCommonMessageDataV1(message: { data: string }, isSvm = false): CommonMessageData {
-  // Source: https://developers.circle.com/stablecoins/message-format
-  const messageBytes = isSvm ? message.data : ethers.utils.defaultAbiCoder.decode(["bytes"], message.data)[0];
-  const messageBytesArray = ethers.utils.arrayify(messageBytes);
-  const sourceDomain = Number(ethers.utils.hexlify(messageBytesArray.slice(4, 8))); // sourceDomain 4 bytes starting index 4
-  const destinationDomain = Number(ethers.utils.hexlify(messageBytesArray.slice(8, 12))); // destinationDomain 4 bytes starting index 8
-  const nonce = BigNumber.from(ethers.utils.hexlify(messageBytesArray.slice(12, 20))).toNumber(); // nonce 8 bytes starting index 12
-  const sender = ethers.utils.hexlify(messageBytesArray.slice(20, 52)); // sender	20	bytes32	32	Address of MessageTransmitter caller on source domain
-  const recipient = ethers.utils.hexlify(messageBytesArray.slice(52, 84)); // recipient	52	bytes32	32	Address to handle message body on destination domain
-
-  // V1 nonce hash is a simple hash of the nonce emitted in Deposit event with the source domain ID.
-  const nonceHash = ethers.utils.keccak256(ethers.utils.solidityPack(["uint32", "uint64"], [sourceDomain, nonce]));
-
-  return {
-    cctpVersion: 1,
-    sourceDomain,
-    destinationDomain,
-    sender,
-    recipient,
-    nonce,
-    nonceHash,
-    messageHash: ethers.utils.keccak256(messageBytes),
-    messageBytes,
-  };
-}
-
-/**
- * @notice Decodes the message data for a V1 `DepositForBurn` event.
- * @param message
- * @param isSvm
- * @returns Decoded message data.
- */
-export function decodeDepositForBurnMessageDataV1(message: { data: string }, isSvm = false): DepositForBurnMessageData {
-  // Source: https://developers.circle.com/stablecoins/message-format
-  const commonDataV1 = decodeCommonMessageDataV1(message, isSvm);
-  const messageBytes = isSvm ? message.data : ethers.utils.defaultAbiCoder.decode(["bytes"], message.data)[0];
-  const messageBytesArray = ethers.utils.arrayify(messageBytes);
-
-  // Values specific to `DepositForBurn`. These are values contained within `messageBody` bytes (the last of the message.data fields)
-  const burnToken = ethers.utils.hexlify(messageBytesArray.slice(120, 152)); // burnToken 4 bytes32 32 Address of burned token on source domain
-  const mintRecipient = ethers.utils.hexlify(messageBytesArray.slice(152, 184)); // mintRecipient 32 bytes starting index 152 (idx 36 of body after idx 116 which ends the header)
-  const amount = ethers.utils.hexlify(messageBytesArray.slice(184, 216)); // amount 32 bytes starting index 184 (idx 68 of body after idx 116 which ends the header)
-  const sender = ethers.utils.hexlify(messageBytesArray.slice(216, 248)); // sender 32 bytes starting index 216 (idx 100 of body after idx 116 which ends the header)
-
-  return {
-    ...commonDataV1,
-    burnToken,
-    amount: BigNumber.from(amount).toString(),
-    // override sender and recipient from `DepositForBurn`-specific values. This is required because raw sender / recipient for a message like this
-    // are CCTP's TokenMessenger contracts rather than the addrs sending / receiving tokens
-    sender: sender,
-    recipient: mintRecipient,
-    mintRecipient,
-  };
 }
 
 /**
@@ -337,25 +271,6 @@ export async function getV2MinTransferFees(
     standard: BigNumber.from(standardFee.minimumFee),
     fast: BigNumber.from(fastFee.minimumFee),
   };
-}
-
-/**
- * Generates an attestation proof for a given message hash. This is required to finalize a CCTP message.
- * @param messageHash The message hash to generate an attestation proof for. This is generated by taking the keccak256 hash of the message bytes of the initial transaction log.
- * @param isMainnet Whether or not the attestation proof should be generated on mainnet. If this is false, the attestation proof will be generated on the sandbox environment.
- * @returns The attestation status and proof for the given message hash. This is a string of the form "0x<attestation proof>". If the status is pending_confirmation
- * then the proof will be null according to the CCTP dev docs.
- * @link https://developers.circle.com/stablecoins/reference/getattestation
- */
-export async function fetchCctpV1Attestation(
-  messageHash: string,
-  isMainnet: boolean
-): Promise<CCTPV1APIGetAttestationResponse> {
-  const httpResponse = await axios.get<CCTPV1APIGetAttestationResponse>(
-    `https://iris-api${isMainnet ? "" : "-sandbox"}.circle.com/attestations/${messageHash}`
-  );
-  const attestationResponse = httpResponse.data;
-  return attestationResponse;
 }
 
 /**
