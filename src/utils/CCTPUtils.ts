@@ -54,14 +54,6 @@ const CCTP_DEPOSIT_FOR_BURN_TOPIC_HASH_V2 = ethers.utils.id(
  *
  ******************************************************************************************************************* **/
 
-// CCTP V1 /messages/{sourceDomainId}/{transactionHash} response
-type CCTPV1APIMessageAttestation = {
-  attestation: string;
-  message: string;
-  eventNonce: string;
-};
-type CCTPV1APIGetMessagesResponse = { messages: CCTPV1APIMessageAttestation[] };
-
 // CCTP V1 /attestations/{messageHash} response
 type CCTPV1APIGetAttestationResponse = { status: string; attestation: string };
 
