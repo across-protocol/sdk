@@ -26,7 +26,7 @@ import { ethers } from "ethers";
 import { FillType, RelayData, RelayDataWithMessageHash } from "../../interfaces";
 import { BigNumber, Address as SdkAddress, biMin, getMessageHash, isDefined, isUint8Array } from "../../utils";
 import { getTimestampForSlot, getSlot, getRelayDataHash } from "./SpokeUtils";
-import { AttestedCCTPMessage, EventName, SVMEventNames, SVMProvider } from "./types";
+import { AttestedCCTPMessage, EventName, SVMEventNames, SVMProvider, LatestBlockhash } from "./types";
 import winston from "winston";
 /**
  * Basic void TransactionSigner type
@@ -394,12 +394,16 @@ export function getRandomSvmAddress() {
  * @param signer - The signer of the transaction.
  * @returns The default transaction.
  */
-export const createDefaultTransaction = async (rpcClient: SVMProvider, signer: TransactionSigner) => {
-  const { value: latestBlockhash } = await rpcClient.getLatestBlockhash().send();
+export const createDefaultTransaction = async (
+  rpcClient: SVMProvider,
+  signer: TransactionSigner,
+  latestBlockhash?: LatestBlockhash
+) => {
+  latestBlockhash = isDefined(latestBlockhash) ? latestBlockhash : (await rpcClient.getLatestBlockhash().send()).value;
   return pipe(
     createTransactionMessage({ version: 0 }),
     (tx) => setTransactionMessageFeePayerSigner(signer, tx),
-    (tx) => setTransactionMessageLifetimeUsingBlockhash(latestBlockhash, tx)
+    (tx) => setTransactionMessageLifetimeUsingBlockhash(latestBlockhash!, tx)
   );
 };
 
@@ -415,9 +419,13 @@ export const simulateAndDecode = async <P extends (buf: Buffer) => unknown>(
   solanaClient: SVMProvider,
   ix: IInstruction,
   signer: KeyPairSigner,
-  parser: P
+  parser: P,
+  latestBlockhash?: LatestBlockhash
 ): Promise<ReturnType<P>> => {
-  const simulationTx = appendTransactionMessageInstruction(ix, await createDefaultTransaction(solanaClient, signer));
+  const simulationTx = appendTransactionMessageInstruction(
+    ix,
+    await createDefaultTransaction(solanaClient, signer, latestBlockhash)
+  );
 
   const simulationResult = await solanaClient
     .simulateTransaction(getBase64EncodedWireTransaction(await signTransactionMessageWithSigners(simulationTx)), {
@@ -467,7 +475,8 @@ export const getCCTPNoncePda = async (
   solanaClient: SVMProvider,
   signer: KeyPairSigner,
   nonce: number,
-  sourceDomain: number
+  sourceDomain: number,
+  latestBlockhash?: LatestBlockhash
 ) => {
   const [messageTransmitterPda] = await getProgramDerivedAddress({
     programAddress: MessageTransmitterClient.MESSAGE_TRANSMITTER_PROGRAM_ADDRESS,
@@ -486,7 +495,7 @@ export const getCCTPNoncePda = async (
     throw new Error("Invalid buffer");
   };
 
-  return await simulateAndDecode(solanaClient, getNonceIx, signer, parserFunction);
+  return await simulateAndDecode(solanaClient, getNonceIx, signer, parserFunction, latestBlockhash);
 };
 
 /**

@@ -58,7 +58,6 @@ import {
   chainIsProd,
   chainIsSvm,
   chunk,
-  delay,
   getMessageHash,
   isDefined,
   isUnsafeDepositId,
@@ -87,7 +86,7 @@ import {
 } from "./";
 import { SvmCpiEventsClient } from "./eventsClient";
 import { SVM_LONG_TERM_STORAGE_SLOT_SKIPPED, SVM_SLOT_SKIPPED, isSolanaError } from "./provider";
-import { AttestedCCTPMessage, SVMEventNames, SVMProvider } from "./types";
+import { AttestedCCTPMessage, SVMEventNames, SVMProvider, LatestBlockhash } from "./types";
 import {
   getEmergencyDeleteRootBundleRootBundleId,
   getNearestSlotTime,
@@ -1261,21 +1260,18 @@ export async function getFillRelayDelegatePda(
  * @param nonce The nonce to check.
  * @param sourceDomain The source domain.
  * @returns True if the message has been processed, false otherwise.
+ * @dev This function intentionally does not have error handling for `getCCTPNoncePda` nor `simulateAndDecode` since
+ * the error handling would have to account for the asynchronous opening/closing of PDAs, which is better handled downstream,
+ * where the caller of this function has more context.
  */
 export const hasCCTPV1MessageBeenProcessed = async (
   solanaClient: SVMProvider,
   signer: KeyPairSigner,
   nonce: number,
   sourceDomain: number,
-  nRetries: number = 0,
-  maxRetries: number = 2
+  latestBlockhash?: LatestBlockhash
 ): Promise<boolean> => {
-  let noncePda: Address;
-  try {
-    noncePda = await getCCTPNoncePda(solanaClient, signer, nonce, sourceDomain);
-  } catch (e) {
-    return false;
-  }
+  const noncePda = await getCCTPNoncePda(solanaClient, signer, nonce, sourceDomain);
   const isNonceUsedIx = MessageTransmitterClient.getIsNonceUsedInstruction({
     nonce: nonce,
     usedNonces: noncePda,
@@ -1286,19 +1282,7 @@ export const hasCCTPV1MessageBeenProcessed = async (
     }
     return Boolean(buf[0]);
   };
-  // If the nonce PDA was found, we should be able to query the isNonceUsed parameter. If we can't then assume it is a transient RPC error
-  // and retry, and throw if the error persists.
-  try {
-    return await simulateAndDecode(solanaClient, isNonceUsedIx, signer, parserFunction);
-  } catch (e) {
-    if (nRetries < maxRetries) {
-      const delaySeconds = 2 ** nRetries + Math.random();
-      await delay(delaySeconds);
-
-      return hasCCTPV1MessageBeenProcessed(solanaClient, signer, nonce, sourceDomain, ++nRetries);
-    }
-    throw e;
-  }
+  return await simulateAndDecode(solanaClient, isNonceUsedIx, signer, parserFunction, latestBlockhash);
 };
 
 /**
