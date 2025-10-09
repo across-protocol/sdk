@@ -28,9 +28,6 @@ import { BigNumber, Address as SdkAddress, biMin, getMessageHash, isDefined, isU
 import { getTimestampForSlot, getSlot, getRelayDataHash } from "./SpokeUtils";
 import { AttestedCCTPMessage, EventName, SVMEventNames, SVMProvider, LatestBlockhash } from "./types";
 import winston from "winston";
-
-export { isSolanaError } from "@solana/kit";
-
 /**
  * Basic void TransactionSigner type
  */

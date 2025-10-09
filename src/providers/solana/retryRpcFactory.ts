@@ -1,10 +1,11 @@
+import { Logger } from "winston";
 import { RpcTransport, SOLANA_ERROR__RPC__TRANSPORT_HTTP_ERROR } from "@solana/kit";
 import { getThrowSolanaErrorResponseTransformer } from "@solana/rpc-transformers";
+import { isSolanaError } from "../../arch/svm";
+import { delay } from "../../utils";
 import { SolanaClusterRpcFactory } from "./baseRpcFactories";
 import { RateLimitedSolanaRpcFactory } from "./rateLimitedRpcFactory";
-import { isSolanaError, SVM_SLOT_SKIPPED, SVM_LONG_TERM_STORAGE_SLOT_SKIPPED } from "../../arch/svm";
-import { delay } from "../../utils";
-import { Logger } from "winston";
+import { shouldFailImmediate } from "./utils";
 
 // This factory adds retry logic on top of the RateLimitedSolanaRpcFactory.
 // It follows the same composition pattern as other factories in this module.
@@ -67,7 +68,7 @@ export class RetrySolanaRpcFactory extends SolanaClusterRpcFactory {
         getThrowSolanaErrorResponseTransformer()(response, { methodName: method, params });
         return response;
       } catch (error) {
-        if (retryAttempt++ >= this.retries || this.shouldFailImmediate(method, error)) {
+        if (retryAttempt++ >= this.retries || shouldFailImmediate(method, error)) {
           throw error;
         }
 
@@ -79,29 +80,6 @@ export class RetrySolanaRpcFactory extends SolanaClusterRpcFactory {
         const delayS = this.isRateLimitResponse(error) ? exponentialBackoff + jitter : retryDelaySeconds;
         await delay(delayS);
       }
-    }
-  }
-
-  /**
-   * Determine whether a Solana RPC error indicates an unrecoverable error that should not be retried.
-   * @param method RPC method name
-   * @param error Error object from the RPC call
-   * @returns True if the request should be aborted immediately, otherwise false
-   */
-  private shouldFailImmediate(method: string, error: unknown): boolean {
-    if (!isSolanaError(error)) {
-      return false;
-    }
-
-    // JSON-RPC errors: https://www.quicknode.com/docs/solana/error-references
-    const { __code: code } = error.context;
-    switch (method) {
-      case "getBlock":
-      case "getBlockTime":
-        // No block at the requested slot. This may not be correct for blocks > 1 year old.
-        return [SVM_SLOT_SKIPPED, SVM_LONG_TERM_STORAGE_SLOT_SKIPPED].includes(code);
-      default:
-        return false;
     }
   }
 
