@@ -76,7 +76,7 @@ export class QuorumFallbackSolanaRpcFactory extends SolanaBaseRpcFactory {
               at: "FallbackSolanaRpcFactory#createTransport::tryWithFallback",
               message: `[${method}] ${currentFactory} failed, falling back to ${nextFactory.rpcFactory.clusterUrl}, new fallback providers length: ${fallbackFactories.length}`,
               method,
-              error,
+              jsonError: error,
             });
             return tryWithFallback(nextFactory, ...args);
           });
