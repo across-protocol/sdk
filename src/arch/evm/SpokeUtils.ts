@@ -333,7 +333,12 @@ export async function findFillEvent(
       ),
     ])
   ).flat();
-  if (query.length === 0) throw new Error(`Failed to find fill event at block ${blockNumber}`);
+  if (query.length === 0)
+    throw new Error(
+      `Failed to find fill event at block ${blockNumber}, for deposit ${relayData.depositId.toString()} on chain ${
+        relayData.originChainId
+      }`
+    );
   const event = query[0];
   // In production the chainId returned from the provider matches 1:1 with the actual chainId. Querying the provider
   // object saves an RPC query because the chainId is cached by StaticJsonRpcProvider instances. In hre, the SpokePool
