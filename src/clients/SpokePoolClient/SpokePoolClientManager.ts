@@ -36,12 +36,17 @@ export class SpokePoolManager {
   }
 
   /**
-   * Retrieves all SpokePoolClient Addresses
-   * @returns (Address | undefined)[]
-   * @note This method returns all SpokePoolClient Addresses.
+   * Retrieves all SpokePoolClient Addresses mapped by chainId
+   * @returns { [chainId: number]: Address | undefined }
+   * @note This method returns all SpokePoolClient Addresses mapped by their chainId.
    */
-  getSpokePoolAddresses(): (Address | undefined)[] {
-    return Object.values(this.spokePoolClients).map((client) => client.spokePoolAddress);
+  getSpokePoolAddresses(): { [chainId: number]: Address | undefined } {
+    return Object.fromEntries(
+      Object.entries(this.spokePoolClients).map(([chainId, client]) => [
+        chainId,
+        client.spokePoolAddress
+      ])
+    );
   }
 
   /**
@@ -50,6 +55,6 @@ export class SpokePoolManager {
    * @note This method returns all SpokePoolClient chainIds.
    */
   getChainIds(): number[] {
-    return Object.keys(this.spokePoolClients).map(Number);
+    return Object.values(this.spokePoolClients).map((client) => client.chainId);
   }
 }
