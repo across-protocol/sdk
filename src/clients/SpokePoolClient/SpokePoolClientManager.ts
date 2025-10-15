@@ -42,10 +42,7 @@ export class SpokePoolManager {
    */
   getSpokePoolAddresses(): { [chainId: number]: Address | undefined } {
     return Object.fromEntries(
-      Object.entries(this.spokePoolClients).map(([chainId, client]) => [
-        chainId,
-        client.spokePoolAddress
-      ])
+      Object.entries(this.spokePoolClients).map(([chainId, client]) => [chainId, client.spokePoolAddress])
     );
   }
 
