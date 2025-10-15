@@ -1,5 +1,6 @@
 import winston from "winston";
 import { SpokePoolClient } from "./SpokePoolClient";
+import { Address } from "../../utils";
 
 /**
  * SpokePoolClientManager is a wrapper around spokePoolClients. We want to use wrapper almost always
@@ -32,5 +33,25 @@ export class SpokePoolManager {
    */
   getSpokePoolClients(): { [chainId: number]: SpokePoolClient } {
     return this.spokePoolClients;
+  }
+
+  /**
+   * Retrieves all SpokePoolClient Addresses mapped by chainId
+   * @returns { [chainId: number]: Address | undefined }
+   * @note This method returns all SpokePoolClient Addresses mapped by their chainId.
+   */
+  getSpokePoolAddresses(): { [chainId: number]: Address | undefined } {
+    return Object.fromEntries(
+      Object.entries(this.spokePoolClients).map(([chainId, client]) => [chainId, client.spokePoolAddress])
+    );
+  }
+
+  /**
+   * Retrieves all SpokePoolClient chainIds
+   * @returns number[]
+   * @note This method returns all SpokePoolClient chainIds.
+   */
+  getChainIds(): number[] {
+    return Object.values(this.spokePoolClients).map((client) => client.chainId);
   }
 }
