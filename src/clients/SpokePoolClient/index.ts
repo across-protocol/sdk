@@ -14,7 +14,7 @@ export { SpokePoolManager } from "./SpokePoolClientManager";
  * @returns True if the SpokePoolClient is an EVMSpokePoolClient, false otherwise.
  */
 export function isEVMSpokePoolClient(spokePoolClient: SpokePoolClient): spokePoolClient is EVMSpokePoolClient {
-  // @TODO: Shoud we handle the case where spokePoolClient is undefined?
+  // @TODO: Should we handle the case where spokePoolClient is undefined?
   return spokePoolClient?.type === EVM_SPOKE_POOL_CLIENT_TYPE;
 }
 
@@ -24,6 +24,6 @@ export function isEVMSpokePoolClient(spokePoolClient: SpokePoolClient): spokePoo
  * @returns True if the SpokePoolClient is an SVMSpokePoolClient, false otherwise.
  */
 export function isSVMSpokePoolClient(spokePoolClient: SpokePoolClient): spokePoolClient is SVMSpokePoolClient {
-  // @TODO: Shoud we handle the case where spokePoolClient is undefined?
+  // @TODO: Should we handle the case where spokePoolClient is undefined?
   return spokePoolClient?.type === SVM_SPOKE_POOL_CLIENT_TYPE;
 }

@@ -67,7 +67,7 @@ export class CacheProvider extends RateLimitedProvider {
       }
     }
 
-    // Note: use swtich to ensure all enum cases are handled.
+    // Note: use switch to ensure all enum cases are handled.
     switch (cacheType) {
       case CacheType.WITH_TTL:
         {

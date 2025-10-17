@@ -269,7 +269,7 @@ describe("PriceClient", function () {
 
     // Load the cache with lower-case addresses, then query with an upper-case address.
     // Price lookup is forced to fail, so if the pre-loaded data is returned then the
-    // PriceClient is case-insenstive.
+    // PriceClient is case-insensitive.
     const priceCache: PriceCache = pc.getProtectedPriceCache(baseCurrency);
     Object.values(addresses).forEach(async (addr: string) => {
       const addrLower = addr.toLowerCase();

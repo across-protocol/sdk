@@ -14,7 +14,7 @@ const provider = new ethers.providers.WebSocketProvider(env.CUSTOM_NODE_URL)
 const erc20Address:string = // assume you have an emp address you want to connect to
 const erc20Instance:uma.clients.erc20.Instance = uma.clients.erc20.connect(erc20Address,provider)
 
-// gets all emp events, see ethers queryFilter for details on contructing the query.
+// gets all emp events, see ethers queryFilter for details on constructing the query.
 const events = await erc20Instance.queryFilter({})
 
 // returns EventState, defined in the emp client. This can contain user balances as well as approval limits.
