@@ -359,7 +359,7 @@ export class HubPoolClient extends BaseAbstractClient {
       throw new Error("HubPoolClient has not set a currentTime");
     }
 
-    // Map each HubPool token to an array of unqiue quoteTimestamps.
+    // Map each HubPool token to an array of unique quoteTimestamps.
     const utilizationTimestamps: { [hubPoolToken: string]: number[] } = {};
 
     // Map each HubPool token to utilization at a particular block number.
@@ -388,7 +388,7 @@ export class HubPoolClient extends BaseAbstractClient {
           .map((token) => token.toNative())
       ).map((token) => EvmAddress.from(token));
 
-    // Helper to resolve the unqiue hubPoolToken & quoteTimestamp mappings.
+    // Helper to resolve the unique hubPoolToken & quoteTimestamp mappings.
     const resolveUniqueQuoteTimestamps = (deposit: LpFeeRequest): void => {
       const { quoteTimestamp } = deposit;
 

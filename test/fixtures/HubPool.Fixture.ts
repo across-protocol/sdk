@@ -1,4 +1,4 @@
-// Sets up all contracts neccessary to build and execute leaves in dataworker merkle roots: relayer refund, slow relay,
+// Sets up all contracts necessary to build and execute leaves in dataworker merkle roots: relayer refund, slow relay,
 
 import { EthersTestLibrary } from "../types";
 import {

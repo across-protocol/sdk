@@ -1033,7 +1033,7 @@ export class BundleDataClient {
             fill?.relayExecutionInfo.fillType === FillType.ReplacedSlowFill,
             "Fill type should be ReplacedSlowFill."
           );
-          // Needed for TSC - are implicitely checking that deposit exists by making it to this point.
+          // Needed for TSC - are implicitly checking that deposit exists by making it to this point.
           if (!deposits || deposits.length < 1) {
             throw new Error("Deposit should exist in relay hash dictionary.");
           }
@@ -1111,7 +1111,7 @@ export class BundleDataClient {
         // unexecutable. Mark this deposit as having created an unexecutable slow fill if there is no matching
         // slow fill request or the matching slow fill request took place in a previous bundle.
 
-        // If there is a slow fill request in this bundle, then the expired deposit refund will supercede
+        // If there is a slow fill request in this bundle, then the expired deposit refund will supersede
         // the slow fill request. If there is no slow fill request seen or its older than this bundle, then we can
         // assume a slow fill leaf was created for it when the deposit was mined. Therefore, because the deposit
         // was in an older bundle, we can assume that a slow fill leaf was created at that time and therefore
