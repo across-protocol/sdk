@@ -8,10 +8,11 @@ import {
   PUBLIC_NETWORKS,
   TESTNET_CHAIN_IDs,
 } from "../constants";
+import { originChainId, destinationChainId } from "@across-protocol/contracts/dist/test-utils";
 
 export const hreNetworks: Record<number, string> = {
-  666: "Hardhat1",
-  1337: "Hardhat2",
+  [originChainId]: "Hardhat1",
+  [destinationChainId]: "Hardhat2",
   31337: "HardhatNetwork",
 };
 
