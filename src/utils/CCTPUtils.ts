@@ -205,7 +205,9 @@ export async function fetchCctpV2Attestations(
  * @param attestation Attestation to get the status of.
  * @returns "finalized","pending" or "ready".
  */
-export function getPendingAttestationStatus(attestation: CCTPV2APIAttestation): CCTPMessageStatus {
+export function getPendingAttestationStatus(
+  attestation: Pick<CCTPV2APIAttestation, "attestation" | "status">
+): CCTPMessageStatus {
   if (!isDefined(attestation.attestation)) {
     return "pending";
   } else {
