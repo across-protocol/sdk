@@ -1,7 +1,7 @@
 {
   "name": "@across-protocol/sdk",
   "author": "UMA Team",
-  "version": "4.3.80",
+  "version": "4.3.81",
   "license": "AGPL-3.0",
   "homepage": "https://docs.across.to/reference/sdk",
   "files": [
@@ -101,8 +101,8 @@
     "ts-node": "^10.9.1",
     "typechain": "^8.3.1",
     "typescript": "^5.9",
-    "winston": "^3.10.0",
-    "winston-transport": "^4.5.0"
+    "winston": "^3.17.0",
+    "winston-transport": "^4.9.0"
   },
   "dependencies": {
     "@across-protocol/across-token": "^1.0.0",
