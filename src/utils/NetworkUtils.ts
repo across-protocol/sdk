@@ -11,7 +11,7 @@ import {
 
 export const hreNetworks: Record<number, string> = {
   666: "Hardhat1",
-  1337: "Hardhat2",
+  1342: "Hardhat2",
   31337: "HardhatNetwork",
 };
 

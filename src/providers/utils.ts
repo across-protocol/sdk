@@ -109,6 +109,8 @@ const IGNORED_FIELDS = {
     "logsBloom", // zkSync (third-party providers return 0x0..0)
     "transactions", // Polygon yParity field in transactions[]
     "withdrawals", // Chainstack (Polygon)
+    "sendCount", // Arbitrum
+    "sendRoot", // Arbitrum
   ],
   eth_getLogs: ["blockTimestamp", "transactionLogIndex", "l1BatchNumber", "logType"],
 };
