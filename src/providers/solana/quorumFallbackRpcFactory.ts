@@ -200,7 +200,7 @@ export class QuorumFallbackSolanaRpcFactory extends SolanaBaseRpcFactory {
             .then((result): [SolanaClusterRpcFactory, TResponse] => [factory.rpcFactory, result])
             .catch((err) => {
               errors.push([factory.rpcFactory, err?.stack || err?.toString()]);
-              throw new Error("Fallback RPC call failed while trying to reach quorum", err);
+              throw new Error("Fallback RPC call failed while trying to reach quorum");
             });
         })
       );
