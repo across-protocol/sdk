@@ -72,7 +72,8 @@ async function run() {
   console.log(`Event transaction hash: ${result.txnRef}`);
 }
 
-if (require.main === module) {
+// Only run the CLI entry point in Node.js environments
+if (typeof window === "undefined" && require.main === module) {
   run()
     .then(() => {
       process.exitCode = 0;
