@@ -9,6 +9,7 @@ import {
   fetchMint,
   getApproveCheckedInstruction,
   getCreateAssociatedTokenIdempotentInstruction,
+  getCreateAssociatedTokenInstruction,
 } from "@solana-program/token";
 import {
   Account,
@@ -57,7 +58,6 @@ import {
   chainIsProd,
   chainIsSvm,
   chunk,
-  delay,
   getMessageHash,
   isDefined,
   isUnsafeDepositId,
@@ -85,8 +85,8 @@ import {
   toSvmRelayData,
 } from "./";
 import { SvmCpiEventsClient } from "./eventsClient";
-import { SVM_BLOCK_NOT_AVAILABLE, SVM_SLOT_SKIPPED, isSolanaError } from "./provider";
-import { AttestedCCTPMessage, SVMEventNames, SVMProvider } from "./types";
+import { SVM_LONG_TERM_STORAGE_SLOT_SKIPPED, SVM_SLOT_SKIPPED, isSolanaError } from "./provider";
+import { AttestedCCTPMessage, SVMEventNames, SVMProvider, LatestBlockhash } from "./types";
 import {
   getEmergencyDeleteRootBundleRootBundleId,
   getNearestSlotTime,
@@ -104,6 +104,16 @@ type ProtoFill = Omit<RelayData, "recipient" | "outputToken"> & {
   destinationChainId: number;
   recipient: SvmAddress;
   outputToken: SvmAddress;
+};
+
+type CCTPDepositAccounts = {
+  tokenMessenger: Address;
+  tokenMinter: Address;
+  localToken: Address;
+  cctpEventAuthority: Address;
+  remoteTokenMessenger: Address;
+  tokenMessengerMinterSenderAuthority: Address;
+  messageTransmitter: Address;
 };
 
 export function getSlot(provider: SVMProvider, commitment: Commitment, logger?: winston.Logger): Promise<bigint> {
@@ -152,57 +162,40 @@ async function _callGetTimestampForSlotWithRetry(
   maxRetries: number,
   logger?: winston.Logger
 ): Promise<number | undefined> {
-  // @note: getBlockTime receives a slot number, not a block number.
+  const slot = slotNumber.toString();
   let _timestamp: bigint;
 
   try {
+    // @note: getBlockTime receives a slot number, not a block number.
     _timestamp = await provider.getBlockTime(slotNumber).send();
   } catch (err) {
     if (!isSolanaError(err)) {
       throw err;
     }
 
+    const at = "getTimestampForSlot";
     const { __code: code } = err.context;
-    const slot = slotNumber.toString();
 
-    switch (err.context.__code) {
+    switch (code) {
       case SVM_SLOT_SKIPPED:
+      case SVM_LONG_TERM_STORAGE_SLOT_SKIPPED:
+        // No block available for this slot; caller must decide on how to handle this.
         return undefined;
 
-      case SVM_BLOCK_NOT_AVAILABLE: {
-        // Implement exponential backoff with jitter where the # of seconds to wait is = 2^retryAttempt + jitter
-        // e.g. First two retry delays are ~1.5s and ~2.5s.
-        const delaySeconds = 2 ** retryAttempt + Math.random();
-        if (retryAttempt >= maxRetries) {
-          throw new Error(`Timeout on SVM getBlockTime() for slot ${slot} after ${retryAttempt} retry attempts`);
-        }
-        logger?.debug({
-          at: "getTimestampForSlot",
-          message: `Retrying getBlockTime() after ${delaySeconds} seconds for retry attempt #${retryAttempt}`,
-          slot,
-          retryAttempt,
-          maxRetries,
-          delaySeconds,
-        });
-        await delay(delaySeconds);
-        return _callGetTimestampForSlotWithRetry(provider, slotNumber, ++retryAttempt, maxRetries, logger);
-      }
-
-      default:
-        logger?.debug({
-          at: "getTimestampForSlot",
-          message: "Caught error from getBlockTime()",
-          errorCode: code,
-          slot,
-          retryAttempt,
-          maxRetries,
-        });
+      default: {
+        const message = "Caught error from getBlockTime()";
+        logger?.debug({ at, message, errorCode: code, slot, retryAttempt, maxRetries });
         throw new Error(`Unhandled SVM getBlockTime() error for slot ${slot}: ${code}`, { cause: err });
+      }
     }
   }
 
+  // _timestamp should be a BigInt or undefined. If not undefined, ensure that conversion to number does not truncate.
   const timestamp = Number(_timestamp);
-  assert(BigInt(timestamp) === _timestamp, `Unexpected SVM block timestamp: ${_timestamp}`); // No truncation.
+  assert(
+    !isDefined(_timestamp) || BigInt(timestamp) === _timestamp,
+    `Unexpected block timestamp for SVM slot ${slot}: ${_timestamp}`
+  );
 
   return timestamp;
 }
@@ -607,6 +600,8 @@ export async function getFillRelayTx(
     getAssociatedTokenAddress(SvmAddress.from(signer.address), relayData.outputToken, mintInfo.programAddress),
   ]);
 
+  const recipientAtaEncodedAccount = await fetchEncodedAccount(solanaClient, recipientAta);
+
   // Add remaining accounts if the relayData has a non-empty message.
   // @dev ! since in the context of creating a `fillRelayTx`, `relayData` must be defined.
   const remainingAccounts: (WritableAccount | ReadonlyAccount)[] = [];
@@ -648,7 +643,7 @@ export async function getFillRelayTx(
     fillInput,
     svmRelayData,
     mintInfo.data.decimals,
-    true,
+    !recipientAtaEncodedAccount.exists,
     remainingAccounts
   );
 }
@@ -752,7 +747,7 @@ export async function getIPFillRelayTx(
  * @param solanaClient - The Solana client.
  * @param fillInput - The fill input.
  * @param tokenDecimals - The token decimals.
- * @param createRecipientAtaIfNeeded - Whether to create a recipient token account.
+ * @param createRecipientAta - Whether to create a recipient token account.
  * @returns The fill instruction.
  */
 export const createFillInstruction = async (
@@ -761,7 +756,7 @@ export const createFillInstruction = async (
   fillInput: SvmSpokeClient.FillRelayInput,
   relayData: Pick<SvmSpokeClient.RelayDataArgs, "outputAmount" | "recipient">,
   tokenDecimals: number,
-  createRecipientAtaIfNeeded: boolean = true,
+  createRecipientAta: boolean = false,
   remainingAccounts: (WritableAccount | ReadonlyAccount)[] = []
 ) => {
   const mintInfo = await getMintInfo(solanaClient, fillInput.mint);
@@ -779,8 +774,8 @@ export const createFillInstruction = async (
     }
   );
 
-  const getCreateAssociatedTokenIdempotentIx = () =>
-    getCreateAssociatedTokenIdempotentInstruction({
+  const getCreateAssociatedTokenIx = () =>
+    getCreateAssociatedTokenInstruction({
       payer: signer,
       owner: relayData.recipient,
       mint: fillInput.mint,
@@ -796,8 +791,7 @@ export const createFillInstruction = async (
 
   return pipe(
     await createDefaultTransaction(solanaClient, signer),
-    (tx) =>
-      createRecipientAtaIfNeeded ? appendTransactionMessageInstruction(getCreateAssociatedTokenIdempotentIx(), tx) : tx,
+    (tx) => (createRecipientAta ? appendTransactionMessageInstruction(getCreateAssociatedTokenIx(), tx) : tx),
     (tx) => appendTransactionMessageInstruction(approveIx, tx),
     (tx) => appendTransactionMessageInstruction(createFillIx, tx)
   );
@@ -808,7 +802,13 @@ export function deserializeMessage(_message: string): AcrossPlusMessage {
   // Add remaining accounts if the relayData has a non-empty message.
   // @dev ! since in the context of creating a `fillRelayTx`, `relayData` must be defined.
   const acrossPlusMessageDecoder = getAcrossPlusMessageDecoder();
-  return acrossPlusMessageDecoder.decode(message);
+  const deserialized = acrossPlusMessageDecoder.decode(message);
+  const valueAmountMethod2 = extractValueAmount(message);
+  assert(
+    deserialized.value_amount === valueAmountMethod2,
+    "svm | deserializeMessage: Deserialization mismatch for value_amount"
+  );
+  return deserialized;
 }
 
 /**
@@ -1260,19 +1260,18 @@ export async function getFillRelayDelegatePda(
  * @param nonce The nonce to check.
  * @param sourceDomain The source domain.
  * @returns True if the message has been processed, false otherwise.
+ * @dev This function intentionally does not have error handling for `getCCTPNoncePda` nor `simulateAndDecode` since
+ * the error handling would have to account for the asynchronous opening/closing of PDAs, which is better handled downstream,
+ * where the caller of this function has more context.
  */
 export const hasCCTPV1MessageBeenProcessed = async (
   solanaClient: SVMProvider,
   signer: KeyPairSigner,
   nonce: number,
-  sourceDomain: number
+  sourceDomain: number,
+  latestBlockhash?: LatestBlockhash
 ): Promise<boolean> => {
-  let noncePda: Address;
-  try {
-    noncePda = await getCCTPNoncePda(solanaClient, signer, nonce, sourceDomain);
-  } catch (e) {
-    return false;
-  }
+  const noncePda = await getCCTPNoncePda(solanaClient, signer, nonce, sourceDomain);
   const isNonceUsedIx = MessageTransmitterClient.getIsNonceUsedInstruction({
     nonce: nonce,
     usedNonces: noncePda,
@@ -1283,7 +1282,7 @@ export const hasCCTPV1MessageBeenProcessed = async (
     }
     return Boolean(buf[0]);
   };
-  return simulateAndDecode(solanaClient, isNonceUsedIx, signer, parserFunction);
+  return await simulateAndDecode(solanaClient, isNonceUsedIx, signer, parserFunction, latestBlockhash);
 };
 
 /**
@@ -1345,6 +1344,73 @@ export async function getAccountMetasForTokenlessMessage(
     { address: eventAuthority, role: AccountRole.READONLY },
     { address: programAddress, role: AccountRole.READONLY },
   ];
+}
+
+/**
+ * Returns the required PDAs for a deposit message.
+ * @param hubChainId The chain ID of the corresponding Across hub.
+ * @param cctpSourceDomain The source chain (Solana) domain ID.
+ * @param tokenMessengerMinter The token messenger minter address.
+ * @param messageTransmitterAddress The message transmitter address.
+ */
+export async function getCCTPDepositAccounts(
+  hubChainId: number,
+  cctpDestinationDomainId: number,
+  tokenMessengerMinterAddress: Address,
+  messageTransmitterAddress: Address
+): Promise<CCTPDepositAccounts> {
+  const l2Usdc = SvmAddress.from(
+    TOKEN_SYMBOLS_MAP.USDC.addresses[chainIsProd(hubChainId) ? CHAIN_IDs.SOLANA : CHAIN_IDs.SOLANA_DEVNET]
+  );
+
+  const [
+    [tokenMessenger],
+    [tokenMinter],
+    [localToken],
+    [cctpEventAuthority],
+    [remoteTokenMessenger],
+    [tokenMessengerMinterSenderAuthority],
+    [messageTransmitter],
+  ] = await Promise.all([
+    getProgramDerivedAddress({
+      programAddress: tokenMessengerMinterAddress,
+      seeds: ["token_messenger"],
+    }),
+    getProgramDerivedAddress({
+      programAddress: tokenMessengerMinterAddress,
+      seeds: ["token_minter"],
+    }),
+    getProgramDerivedAddress({
+      programAddress: tokenMessengerMinterAddress,
+      seeds: ["local_token", bs58.decode(l2Usdc.toBase58())],
+    }),
+    getProgramDerivedAddress({
+      programAddress: tokenMessengerMinterAddress,
+      seeds: ["__event_authority"],
+    }),
+    getProgramDerivedAddress({
+      programAddress: tokenMessengerMinterAddress,
+      seeds: ["remote_token_messenger", String(cctpDestinationDomainId)],
+    }),
+    getProgramDerivedAddress({
+      programAddress: tokenMessengerMinterAddress,
+      seeds: ["sender_authority"],
+    }),
+    getProgramDerivedAddress({
+      programAddress: messageTransmitterAddress,
+      seeds: ["message_transmitter"],
+    }),
+  ]);
+
+  return {
+    tokenMessenger,
+    tokenMinter,
+    localToken,
+    cctpEventAuthority,
+    remoteTokenMessenger,
+    tokenMessengerMinterSenderAuthority,
+    messageTransmitter,
+  };
 }
 
 /**
@@ -1544,4 +1610,35 @@ export async function getMintInfo(
   config?: FetchAccountConfig
 ): Promise<Account<Mint, string>> {
   return await fetchMint(solanaClient, mint, config);
+}
+
+// Extracts value_amount from the AcrossPlusMessage bytes. This serves as a 2nd method of deserializing the value, as
+// a way to protect us against potential bugs in the deserialization logic.
+function extractValueAmount(acrossPlusMessageBytes: Readonly<Uint8Array>): bigint {
+  // Layout of the AcrossPlusMessage struct
+  // #[derive(AnchorDeserialize)]
+  // pub struct AcrossPlusMessage {
+  //   pub handler: Pubkey,
+  //   pub read_only_len: u8,
+  //   pub value_amount: u64,
+  //   pub accounts: Vec<Pubkey>,
+  //   pub handler_message: Vec<u8>,
+  // }
+  const VALUE_OFFSET = 32 + 1; // 33
+  const VALUE_END = VALUE_OFFSET + 8; // 41
+  if (acrossPlusMessageBytes.length < VALUE_END) {
+    throw new Error(
+      `svm | extractValueAmount: Message too short, need at least ${VALUE_END} bytes, got ${acrossPlusMessageBytes.length}`
+    );
+  }
+  return readU64LEExact(acrossPlusMessageBytes.subarray(VALUE_OFFSET, VALUE_END));
+}
+
+// Reads exactly 8 bytes as a little-endian u64 and returns bigint
+function readU64LEExact(bytes: Readonly<Uint8Array>): bigint {
+  if (bytes.length !== 8) {
+    throw new Error(`readU64LEExact expected 8 bytes, received ${bytes.length}`);
+  }
+  const view = new DataView(bytes.buffer, bytes.byteOffset, 8);
+  return view.getBigUint64(0, true); // little-endian
 }

@@ -2,8 +2,8 @@
 import assert from "assert";
 import { providers } from "ethers";
 import { isEqual } from "lodash";
-import { isDefined } from "../utils";
-import { RPCProvider, RPCTransport } from "./types";
+import { getOriginFromURL, isDefined } from "../utils";
+import { JsonRpcError, RpcError, RPCProvider, RPCTransport } from "./types";
 import * as alchemy from "./alchemy";
 import * as infura from "./infura";
 import * as drpc from "./drpc";
@@ -109,6 +109,8 @@ const IGNORED_FIELDS = {
     "logsBloom", // zkSync (third-party providers return 0x0..0)
     "transactions", // Polygon yParity field in transactions[]
     "withdrawals", // Chainstack (Polygon)
+    "sendCount", // Arbitrum
+    "sendRoot", // Arbitrum
   ],
   eth_getLogs: ["blockTimestamp", "transactionLogIndex", "l1BatchNumber", "logType"],
 };
@@ -133,12 +135,34 @@ export interface RateLimitTask {
  * @returns The formatted error message.
  */
 export function formatProviderError(provider: providers.StaticJsonRpcProvider, rawErrorText: string) {
-  return `Provider ${provider.connection.url} failed with error: ${rawErrorText}`;
+  return `Provider ${getOriginFromURL(provider.connection.url)} failed with error: ${rawErrorText}`;
 }
 
 export function createSendErrorWithMessage(message: string, sendError: Record<string, unknown>) {
   const error = new Error(message);
   return { ...sendError, ...error };
+}
+
+/**
+ * Validate and parse a possible JSON-RPC error response.
+ * @param error An unknown error object received in response to a JSON-RPC request.
+ * @returns A JSON-RPC error object, or undefined.
+ */
+export function parseJsonRpcError(response: unknown): { code: number; message: string; data?: unknown } | undefined {
+  if (!RpcError.is(response)) {
+    return;
+  }
+
+  try {
+    const error = JSON.parse(response.body);
+    if (JsonRpcError.is(error)) {
+      return error.error;
+    }
+  } catch {
+    // Suppress error.
+  }
+
+  return;
 }
 
 /**

@@ -1,11 +1,11 @@
+import { Logger } from "winston";
 import { RpcTransport, SOLANA_ERROR__RPC__TRANSPORT_HTTP_ERROR } from "@solana/kit";
 import { getThrowSolanaErrorResponseTransformer } from "@solana/rpc-transformers";
-import { SolanaClusterRpcFactory } from "./baseRpcFactories";
-import { RateLimitedSolanaRpcFactory } from "./rateLimitedRpcFactory";
 import { isSolanaError } from "../../arch/svm";
 import { delay } from "../../utils";
-import { getOriginFromURL } from "../../utils/NetworkUtils";
-import { Logger } from "winston";
+import { SolanaClusterRpcFactory } from "./baseRpcFactories";
+import { RateLimitedSolanaRpcFactory } from "./rateLimitedRpcFactory";
+import { shouldFailImmediate } from "./utils";
 
 // This factory adds retry logic on top of the RateLimitedSolanaRpcFactory.
 // It follows the same composition pattern as other factories in this module.
@@ -68,7 +68,7 @@ export class RetrySolanaRpcFactory extends SolanaClusterRpcFactory {
         getThrowSolanaErrorResponseTransformer()(response, { methodName: method, params });
         return response;
       } catch (error) {
-        if (retryAttempt++ >= this.retries || this.shouldFailImmediate(method, error)) {
+        if (retryAttempt++ >= this.retries || shouldFailImmediate(method, error)) {
           throw error;
         }
 
@@ -78,38 +78,8 @@ export class RetrySolanaRpcFactory extends SolanaClusterRpcFactory {
         const jitter = 1 + 2 * Math.random(); // Range jitter from [1, 3]s to offset problem where there are many
         // concurrent retry requests sent at the same time.
         const delayS = this.isRateLimitResponse(error) ? exponentialBackoff + jitter : retryDelaySeconds;
-
-        // Log retry attempt if logger is available
-        this.logger.debug({
-          at: "RetryRpcFactory",
-          message: "Retrying Solana RPC call",
-          provider: getOriginFromURL(this.clusterUrl),
-          method,
-          retryAttempt: retryAttempt,
-          retryDelaySeconds: delayS,
-          error: error?.toString(),
-        });
-
         await delay(delayS);
       }
-    }
-  }
-
-  /**
-   * Determine whether a Solana RPC error indicates an unrecoverable error that should not be retried.
-   * @param method RPC method name
-   * @param error Error object from the RPC call
-   * @returns True if the request should be aborted immediately, otherwise false
-   */
-  private shouldFailImmediate(method: string, error: unknown): boolean {
-    if (!isSolanaError(error)) {
-      return false;
-    }
-
-    // const { __code: code } = error.context;
-    switch (method) {
-      default:
-        return false;
     }
   }
 

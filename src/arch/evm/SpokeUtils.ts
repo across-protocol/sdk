@@ -333,7 +333,14 @@ export async function findFillEvent(
       ),
     ])
   ).flat();
-  if (query.length === 0) throw new Error(`Failed to find fill event at block ${blockNumber}`);
+  if (query.length === 0) {
+    const { chainId: destinationChainId } = await spokePool.provider.getNetwork();
+    const [origin, destination] = [relayData.originChainId, destinationChainId].map(getNetworkName);
+    throw new Error(
+      `Failed to find fill event on destination chain ${destination} at block ${blockNumber}, for deposit ${relayData.depositId} on origin chain ${origin}`
+    );
+  }
+
   const event = query[0];
   // In production the chainId returned from the provider matches 1:1 with the actual chainId. Querying the provider
   // object saves an RPC query because the chainId is cached by StaticJsonRpcProvider instances. In hre, the SpokePool

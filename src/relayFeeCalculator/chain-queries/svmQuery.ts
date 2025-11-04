@@ -15,6 +15,7 @@ import { Logger, QueryInterface, getDefaultRelayer } from "../relayFeeCalculator
 import { SymbolMappingType } from "./";
 import { TOKEN_PROGRAM_ADDRESS } from "@solana-program/token";
 import { TOKEN_2022_PROGRAM_ADDRESS, getTokenSize, fetchMint, Extension } from "@solana-program/token-2022";
+import { arch } from "../..";
 
 /**
  * A special QueryBase implementation for SVM used for querying gas costs, token prices, and decimals of various tokens
@@ -154,6 +155,17 @@ export class SvmQuery implements QueryInterface {
       repaymentAddress
     );
     return toBN(await this.computeUnitEstimator(fillRelayTx));
+  }
+
+  /**
+   * @notice Return the native token cost of filling a deposit beyond gas cost. If `value_amount` is specified in a message,
+   * `value_amount` of SOL gets forwarded to the first Account. We account for that in Fill cost estimation
+   * @param deposit RelayData associated with Deposit we're estimating for
+   * @throws If deposit.message is malformed (unable to be deserialized into `AcrossPlusMessage`)
+   * @returns Native token cost
+   */
+  getAuxiliaryNativeTokenCost(deposit: RelayData): BigNumber {
+    return arch.svm.getAuxiliaryNativeTokenCost(deposit);
   }
 
   /**

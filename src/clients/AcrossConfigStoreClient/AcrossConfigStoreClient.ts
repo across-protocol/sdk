@@ -498,7 +498,7 @@ export class AcrossConfigStoreClient extends BaseAbstractClient {
           }
           // Now check that we're only appending positive integers to the chainIndices array on each
           // update. If this isn't the case, skip the update & warn. If there is no previous update,
-          // resolve an implcit chain ID list.
+          // resolve an implicit chain ID list.
           const previousUpdate = this.chainIdIndicesUpdates.at(-1)?.value ?? this.implicitChainIdIndices(chainId);
           // We should now check that previousUpdate is a subset of chainIndices.
           if (!previousUpdate.every((chainId, idx) => chainIndices[idx] === chainId)) {

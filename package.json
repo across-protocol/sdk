@@ -1,7 +1,7 @@
 {
   "name": "@across-protocol/sdk",
   "author": "UMA Team",
-  "version": "4.3.53",
+  "version": "4.3.85",
   "license": "AGPL-3.0",
   "homepage": "https://docs.across.to/reference/sdk",
   "files": [
@@ -34,7 +34,7 @@
     "bump-version:minor": "yarn version --minor --no-git-tag-version --no-commit-hooks && git commit -m 'chore: bump version' ./package.json --no-verify",
     "bump-version:patch": "yarn version --patch --no-git-tag-version --no-commit-hooks && git commit -m 'chore: bump version' ./package.json --no-verify",
     "typechain": "typechain --target ethers-v5 --out-dir src/utils/abi/typechain 'src/utils/abi/contracts/*.json' && eslint --fix src/utils/abi/typechain && yarn prettier --write \"src/utils/abi/typechain/**/*.ts\"",
-    "yalc:watch": "nodemon --watch src --ext ts,tsx,json,js,jsx --exec 'yalc push'"
+    "yalc:watch": "nodemon --watch src --ext ts,tsx,json,js,jsx --ignore src/utils/abi/ --exec 'yalc publish --push --changed'"
   },
   "lint-staged": {
     "*.ts": "yarn lint"
@@ -101,13 +101,13 @@
     "ts-node": "^10.9.1",
     "typechain": "^8.3.1",
     "typescript": "^5.9",
-    "winston": "^3.10.0",
-    "winston-transport": "^4.5.0"
+    "winston": "^3.17.0",
+    "winston-transport": "^4.9.0"
   },
   "dependencies": {
     "@across-protocol/across-token": "^1.0.0",
-    "@across-protocol/constants": "^3.1.71",
-    "@across-protocol/contracts": "^4.1.1",
+    "@across-protocol/constants": "^3.1.83",
+    "@across-protocol/contracts": "^4.1.12",
     "@coral-xyz/anchor": "^0.30.1",
     "@eth-optimism/sdk": "^3.3.1",
     "@ethersproject/bignumber": "^5.7.0",
@@ -118,7 +118,7 @@
     "@solana/web3.js": "^1.31.0",
     "@types/mocha": "^10.0.1",
     "@types/node": "^24.3.0",
-    "@uma/sdk": "^0.34.10",
+    "@uma/contracts-node": "^0.4.26",
     "arweave": "^1.14.4",
     "async": "^3.2.5",
     "axios": "^0.27.2",

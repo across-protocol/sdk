@@ -105,10 +105,10 @@ function _getEthersGasPriceEstimate(
   // There shouldn't be any chains in here that we have a Viem adapter for because we'll always use Viem in that case.
   assert(!VIEM_CHAINS.includes(chainId), `Chain ID ${chainId} will use Viem gas price estimation`);
   const gasPriceFeeds = {
-    [CHAIN_IDs.ALEPH_ZERO]: arbitrum.eip1559,
     [CHAIN_IDs.ARBITRUM]: arbitrum.eip1559,
     [CHAIN_IDs.BSC]: ethereum.legacy,
     [CHAIN_IDs.MAINNET]: ethereum.eip1559,
+    [CHAIN_IDs.PLASMA]: ethereum.eip1559,
     [CHAIN_IDs.POLYGON]: polygon.gasStation,
     [CHAIN_IDs.SCROLL]: ethereum.legacy,
     [CHAIN_IDs.ZK_SYNC]: ethereum.legacy,

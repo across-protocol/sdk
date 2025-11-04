@@ -4,7 +4,7 @@ export type RPCProvider = "ALCHEMY" | "DRPC" | "INFURA" | "INFURA_DIN" | "QUICKN
 export type RPCTransport = "https" | "wss";
 
 // JSON-RPC 2.0 Error object
-// See JSON-RPC 2.0 Specification section 5 Reponse object
+// See JSON-RPC 2.0 Specification section 5 Response object
 // https://www.jsonrpc.org/specification
 export const JsonRpcError = type({
   jsonrpc: literal("2.0"),

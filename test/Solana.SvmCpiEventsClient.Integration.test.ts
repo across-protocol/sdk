@@ -146,7 +146,7 @@ describe("SvmCpiEventsClient (integration)", () => {
 
   it("creates and reads a single fill event", async () => {
     await mintTokens(signer, solanaClient, mint.address, tokenAmount);
-    const { relayData } = await sendCreateFill(solanaClient, signer, mint, decimals);
+    const { relayData } = await sendCreateFill(solanaClient, signer, mint, decimals, {}, true);
     const [fillEvent] = await client.queryEvents("FilledRelay");
 
     const { data } = fillEvent as { data: SvmSpokeClient.FilledRelay };
@@ -192,7 +192,7 @@ describe("SvmCpiEventsClient (integration)", () => {
 
     await mintTokens(signer, solanaClient, address(mint.address), tokenAmount);
 
-    const { relayData, signature } = await sendCreateFill(solanaClient, signer, mint, decimals);
+    const { relayData, signature } = await sendCreateFill(solanaClient, signer, mint, decimals, {}, true);
 
     const fillEvents = await client.getFillEventsFromSignature(solanaClient.chainId, signature);
 

@@ -27,11 +27,12 @@ const NON_DETERMINISTIC_MULTICALL_ADDRESSES = {
 
 // @notice Multicall3 is an OP stack preinstall, so don't specify it here.
 const DETERMINISTIC_MULTICALL_CHAINS = [
-  CHAIN_IDs.ALEPH_ZERO,
   CHAIN_IDs.ARBITRUM,
   CHAIN_IDs.BSC,
+  CHAIN_IDs.HYPEREVM,
   CHAIN_IDs.LINEA,
   CHAIN_IDs.MAINNET,
+  CHAIN_IDs.PLASMA,
   CHAIN_IDs.POLYGON,
   CHAIN_IDs.SCROLL,
   // Testnet:
@@ -39,6 +40,7 @@ const DETERMINISTIC_MULTICALL_CHAINS = [
   CHAIN_IDs.SCROLL_SEPOLIA,
   CHAIN_IDs.SEPOLIA,
   CHAIN_IDs.ARBITRUM_SEPOLIA,
+  CHAIN_IDs.PLASMA_TESTNET,
   CHAIN_IDs.TATARA,
   ...Object.keys(hreNetworks).map(Number), // See test/utils/multicall.ts
 ];

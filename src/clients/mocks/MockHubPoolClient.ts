@@ -118,9 +118,9 @@ export class MockHubPoolClient extends HubPoolClient {
     delete this.spokePoolTokens[l1Token]?.[chainId];
   }
 
-  getL1TokenForL2TokenAtBlock(l2Token: Address, chainId: number, blockNumber: number): EvmAddress {
+  getL1TokenForL2TokenAtBlock(l2Token: Address, chainId: number, blockNumber: number): EvmAddress | undefined {
     const l1Token = Object.keys(this.spokePoolTokens).find(
-      (l1Token) => this.spokePoolTokens[l1Token]?.[chainId].eq(l2Token)
+      (l1Token) => this.spokePoolTokens[l1Token]?.[chainId]?.eq(l2Token)
     );
     if (isDefined(l1Token)) {
       return EvmAddress.from(l1Token);
@@ -129,7 +129,7 @@ export class MockHubPoolClient extends HubPoolClient {
     }
   }
 
-  getL2TokenForL1TokenAtBlock(l1Token: EvmAddress, chainId: number, blockNumber: number): Address {
+  getL2TokenForL1TokenAtBlock(l1Token: EvmAddress, chainId: number, blockNumber: number): Address | undefined {
     const l2Token = this.spokePoolTokens[l1Token.toEvmAddress()]?.[chainId];
     return l2Token ?? super.getL2TokenForL1TokenAtBlock(l1Token, chainId, blockNumber);
   }

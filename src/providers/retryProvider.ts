@@ -4,9 +4,8 @@ import { CHAIN_IDs } from "../constants";
 import { delay, isDefined, isPromiseFulfilled, isPromiseRejected } from "../utils";
 import { getOriginFromURL } from "../utils/NetworkUtils";
 import { CacheProvider } from "./cachedProvider";
-import { compareRpcResults, createSendErrorWithMessage, formatProviderError } from "./utils";
+import { compareRpcResults, createSendErrorWithMessage, formatProviderError, parseJsonRpcError } from "./utils";
 import { PROVIDER_CACHE_TTL } from "./constants";
-import { JsonRpcError, RpcError } from "./types";
 import { Logger } from "winston";
 
 export class RetryProvider extends ethers.providers.StaticJsonRpcProvider {
@@ -111,7 +110,9 @@ export class RetryProvider extends ethers.providers.StaticJsonRpcProvider {
     if (!results.every(isPromiseFulfilled)) {
       // Format the error so that it's very clear which providers failed and succeeded.
       const errorTexts = errors.map(([provider, errorText]) => formatProviderError(provider, errorText));
-      const successfulProviderUrls = results.filter(isPromiseFulfilled).map((result) => result.value[0].connection.url);
+      const successfulProviderUrls = results
+        .filter(isPromiseFulfilled)
+        .map((result) => getOriginFromURL(result.value[0].connection.url));
       throw createSendErrorWithMessage(
         `Not enough providers succeeded. Errors:\n${errorTexts.join("\n")}\n` +
           `Successful Providers:\n${successfulProviderUrls.join("\n")}`,
@@ -130,7 +131,7 @@ export class RetryProvider extends ethers.providers.StaticJsonRpcProvider {
     const getMismatchedProviders = (values: [ethers.providers.StaticJsonRpcProvider, unknown][]) => {
       return values
         .filter(([, result]) => !compareRpcResults(method, result, quorumResult))
-        .map(([provider]) => provider.connection.url);
+        .map(([provider]) => getOriginFromURL(provider.connection.url));
     };
 
     const logQuorumMismatchOrFailureDetails = (
@@ -154,7 +155,7 @@ export class RetryProvider extends ethers.providers.StaticJsonRpcProvider {
 
     const throwQuorumError = (fallbackValues?: [ethers.providers.StaticJsonRpcProvider, unknown][]) => {
       const errorTexts = errors.map(([provider, errorText]) => formatProviderError(provider, errorText));
-      const successfulProviderUrls = values.map(([provider]) => provider.connection.url);
+      const successfulProviderUrls = values.map(([provider]) => getOriginFromURL(provider.connection.url));
       const mismatchedProviders = getMismatchedProviders([...values, ...(fallbackValues || [])]);
       logQuorumMismatchOrFailureDetails(method, params, successfulProviderUrls, mismatchedProviders, errors);
       throw new Error(
@@ -222,7 +223,7 @@ export class RetryProvider extends ethers.providers.StaticJsonRpcProvider {
     const mismatchedProviders = getMismatchedProviders([...values, ...fallbackValues]);
     const quorumProviders = [...values, ...fallbackValues]
       .filter(([, result]) => compareRpcResults(method, result, quorumResult))
-      .map(([provider]) => provider.connection.url);
+      .map(([provider]) => getOriginFromURL(provider.connection.url));
     if (mismatchedProviders.length > 0 || errors.length > 0) {
       logQuorumMismatchOrFailureDetails(method, params, quorumProviders, mismatchedProviders, errors);
     }
@@ -259,35 +260,13 @@ export class RetryProvider extends ethers.providers.StaticJsonRpcProvider {
   }
 
   /**
-   * Validate and parse a possible JSON-RPC error response.
-   * @param error An unknown error object received in response to a JSON-RPC request.
-   * @returns A JSON-RPC error object, or undefined.
-   */
-  protected parseError(response: unknown): { code: number; message: string; data?: unknown } | undefined {
-    if (!RpcError.is(response)) {
-      return;
-    }
-
-    try {
-      const error = JSON.parse(response.body);
-      if (!JsonRpcError.is(error)) {
-        return;
-      }
-
-      return error.error;
-    } catch {
-      return;
-    }
-  }
-
-  /**
    * Determine whether a JSON-RPC error response indicates an unrecoverable error.
    * @param method JSON-RPC method that produced the error.
    * @param error JSON-RPC error instance.
    * @returns True if the request should be aborted immediately, otherwise false.
    */
   protected failImmediate(method: string, response: unknown): boolean {
-    const err = this.parseError(response);
+    const err = parseJsonRpcError(response);
     if (!err) {
       return false; // Not a JSON-RPC error.
     }
@@ -306,10 +285,11 @@ export class RetryProvider extends ethers.providers.StaticJsonRpcProvider {
     switch (method) {
       case "eth_call":
       case "eth_estimateGas":
-        return message.includes("revert"); // Transaction will fail.
-      case "eth_sendRawTransaction":
+      case "eth_sendRawTransaction": {
         // Nonce too low or gas price is too low.
-        return message.includes("nonce") || message.includes("underpriced");
+        const keywords = ["revert", "nonce", "underpriced", "gas", "fee"];
+        return keywords.some((keyword) => message.includes(keyword));
+      }
       default:
         break;
     }

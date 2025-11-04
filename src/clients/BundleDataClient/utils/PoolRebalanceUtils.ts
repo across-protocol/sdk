@@ -98,8 +98,12 @@ export async function getWidestPossibleExpectedBlockRange(
   });
 }
 
-export function isChainDisabled(blockRangeForChain: number[]): boolean {
-  return blockRangeForChain[0] === blockRangeForChain[1];
+export function isChainDisabledAtBlock(
+  chainId: number,
+  mainnetBlock: number,
+  configStoreClient: AcrossConfigStoreClient
+): boolean {
+  return configStoreClient.getDisabledChainsForBlock(mainnetBlock).includes(chainId);
 }
 
 // Note: this function computes the intended transfer amount before considering the transfer threshold.
@@ -202,6 +206,8 @@ export function updateRunningBalanceForDeposit(
     deposit.originChainId,
     mainnetBundleEndBlock
   );
+  assert(isDefined(l1TokenCounterpart), "updateRunningBalanceForDeposit: l1TokenCounterpart is undefined");
+
   updateRunningBalance(runningBalances, deposit.originChainId, l1TokenCounterpart.toEvmAddress(), updateAmount);
 }
 

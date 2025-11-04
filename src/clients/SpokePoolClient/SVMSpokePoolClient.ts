@@ -218,6 +218,11 @@ export class SVMSpokePoolClient extends SpokePoolClient {
    * Finds a deposit based on its deposit ID on the SVM chain.
    */
   public async findDeposit(depositId: BigNumber): Promise<DepositSearchResult> {
+    // First check memory for deposits
+    const memoryDeposit = this.getDeposit(depositId);
+    if (memoryDeposit) {
+      return { found: true, deposit: memoryDeposit };
+    }
     const deposit = await findDeposit(this.svmEventsClient, depositId, this.logger);
     if (!deposit) {
       return {

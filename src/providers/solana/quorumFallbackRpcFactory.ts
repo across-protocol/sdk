@@ -1,9 +1,10 @@
+import { Logger } from "winston";
 import { RpcFromTransport, RpcResponse, RpcTransport, SolanaRpcApiFromTransport } from "@solana/kit";
-import { CachedSolanaRpcFactory } from "./cachedRpcFactory";
-import { SolanaBaseRpcFactory, SolanaClusterRpcFactory } from "./baseRpcFactories";
 import { isPromiseFulfilled, isPromiseRejected } from "../../utils/TypeGuards";
 import { compareSvmRpcResults, createSendErrorWithMessage } from "../utils";
-import { Logger } from "winston";
+import { CachedSolanaRpcFactory } from "./cachedRpcFactory";
+import { SolanaBaseRpcFactory, SolanaClusterRpcFactory } from "./baseRpcFactories";
+import { shouldFailImmediate } from "./utils";
 
 // This factory stores multiple Cached RPC factories so that users of this factory can specify multiple RPC providers
 // and the factory will fallback through them if any RPC calls fail. This factory also implements quorum logic amongst
@@ -61,7 +62,12 @@ export class QuorumFallbackSolanaRpcFactory extends SolanaBaseRpcFactory {
             errors.push([factory.rpcFactory, (error as any)?.stack || error?.toString()]);
 
             if (fallbackFactories.length === 0) {
-              throw error;
+              throw new Error("No fallback providers left");
+            }
+
+            // If one RPC provider reverted, others likely will too. Skip them.
+            if (quorumThreshold === 1 && shouldFailImmediate(method, error)) {
+              throw new Error(`RPC provider reverted for method ${method}`);
             }
 
             const currentFactory = factory.rpcFactory.clusterUrl;
@@ -70,7 +76,7 @@ export class QuorumFallbackSolanaRpcFactory extends SolanaBaseRpcFactory {
               at: "FallbackSolanaRpcFactory#createTransport::tryWithFallback",
               message: `[${method}] ${currentFactory} failed, falling back to ${nextFactory.rpcFactory.clusterUrl}, new fallback providers length: ${fallbackFactories.length}`,
               method,
-              error,
+              jsonError: error,
             });
             return tryWithFallback(nextFactory, ...args);
           });
@@ -194,7 +200,7 @@ export class QuorumFallbackSolanaRpcFactory extends SolanaBaseRpcFactory {
             .then((result): [SolanaClusterRpcFactory, TResponse] => [factory.rpcFactory, result])
             .catch((err) => {
               errors.push([factory.rpcFactory, err?.stack || err?.toString()]);
-              throw new Error("Fallback RPC call failed while trying to reach quorum", err);
+              throw new Error("Fallback RPC call failed while trying to reach quorum");
             });
         })
       );
