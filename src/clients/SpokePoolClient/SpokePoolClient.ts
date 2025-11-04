@@ -799,7 +799,7 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
    * @param deposit The deposit to retrieve the destination token for.
    * @returns The destination token.
    */
-  getDestinationTokenForDeposit(
+  protected getDestinationTokenForDeposit(
     deposit: Pick<DepositWithBlock, "originChainId" | "inputToken" | "quoteBlockNumber" | "destinationChainId">
   ): Address {
     if (!this.canResolveZeroAddressOutputToken(deposit)) {
@@ -843,7 +843,7 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
    * @returns True if the deposit originates from a lite chain, false otherwise. If the hub pool client is not defined,
    *          this method will return false.
    */
-  isOriginLiteChain(deposit: Pick<DepositWithBlock, "originChainId" | "quoteTimestamp">): boolean {
+  protected isOriginLiteChain(deposit: Pick<DepositWithBlock, "originChainId" | "quoteTimestamp">): boolean {
     return this.configStoreClient?.isChainLiteChainAtTimestamp(deposit.originChainId, deposit.quoteTimestamp) ?? false;
   }
 
@@ -853,7 +853,7 @@ export abstract class SpokePoolClient extends BaseAbstractClient {
    * @returns True if the deposit is destined to a lite chain, false otherwise. If the hub pool client is not defined,
    *          this method will return false.
    */
-  isDestinationLiteChain(deposit: Pick<DepositWithBlock, "destinationChainId" | "quoteTimestamp">): boolean {
+  protected isDestinationLiteChain(deposit: Pick<DepositWithBlock, "destinationChainId" | "quoteTimestamp">): boolean {
     return (
       this.configStoreClient?.isChainLiteChainAtTimestamp(deposit.destinationChainId, deposit.quoteTimestamp) ?? false
     );
