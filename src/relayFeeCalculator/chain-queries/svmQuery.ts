@@ -4,8 +4,16 @@ import {
   TransactionSigner,
   fetchEncodedAccount,
   isSome,
+  type CompilableTransactionMessage,
 } from "@solana/kit";
-import { SVMProvider, SolanaVoidSigner, getFillRelayTx, toAddress, getAssociatedTokenAddress } from "../../arch/svm";
+import {
+  SVMProvider,
+  SolanaVoidSigner,
+  getFillRelayTx,
+  toAddress,
+  getAssociatedTokenAddress,
+  isSVMFillTooLarge,
+} from "../../arch/svm";
 import { Coingecko } from "../../coingecko";
 import { CHAIN_IDs } from "../../constants";
 import { getGasPriceEstimate } from "../../gasPriceOracle";
@@ -85,7 +93,7 @@ export class SvmQuery implements QueryInterface {
     );
 
     const [computeUnitsConsumed, gasPriceEstimate, tokenAccountInfo] = await Promise.all([
-      toBN(await this.computeUnitEstimator(fillRelayTx)),
+      this.estimateComputeUnits(fillRelayTx),
       getGasPriceEstimate(this.provider, {
         unsignedTx: fillRelayTx,
         baseFeeMultiplier: options.baseFeeMultiplier,
@@ -210,5 +218,15 @@ export class SvmQuery implements QueryInterface {
   getTokenDecimals(tokenSymbol: string): number {
     if (!this.symbolMapping[tokenSymbol]) throw new Error(`${tokenSymbol} does not exist in mapping`);
     return this.symbolMapping[tokenSymbol].decimals;
+  }
+
+  async estimateComputeUnits(fillRelayTx: CompilableTransactionMessage): Promise<BigNumber> {
+    const fillTooLarge = await isSVMFillTooLarge(fillRelayTx);
+    if (fillTooLarge.tooLarge) {
+      return toBN(await this.computeUnitEstimator(fillRelayTx));
+    }
+    const totalComputeUnitAmount = 0;
+    // The fill is too large; we need to simulate the transaction in a bundle.
+    return toBN(totalComputeUnitAmount);
   }
 }
