@@ -4,7 +4,6 @@ import { RPCTransport } from "./types";
 const SNOWFLAKES = {
   [CHAIN_IDs.ARBITRUM]: "arbitrum-mainnet",
   [CHAIN_IDs.BSC]: "bsc",
-  [CHAIN_IDs.MONAD]: "monad", // Placeholder for Monad chain
   [CHAIN_IDs.POLYGON]: "matic",
   [CHAIN_IDs.OPTIMISM]: "optimism",
   [CHAIN_IDs.WORLD_CHAIN]: "worldchain-mainnet",
