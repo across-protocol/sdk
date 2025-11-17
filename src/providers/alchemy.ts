@@ -8,6 +8,8 @@ const endpoints: { [chainId: number]: string } = {
   [CHAIN_IDs.ARBITRUM]: "arb",
   [CHAIN_IDs.ARBITRUM_SEPOLIA]: "arb-sepolia",
   [CHAIN_IDs.MAINNET]: "eth",
+  [CHAIN_IDs.MONAD]: "monad", // Placeholder for Monad chain
+  [CHAIN_IDs.MONAD_SEPOLIA]: "monad-sepolia", // Placeholder for Monad chain
   [CHAIN_IDs.SEPOLIA]: "eth-sepolia",
   [CHAIN_IDs.OPTIMISM]: "opt",
   [CHAIN_IDs.OPTIMISM_SEPOLIA]: "opt-sepolia",

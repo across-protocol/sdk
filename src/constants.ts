@@ -90,6 +90,7 @@ export const STABLE_COIN_SYMBOLS = [
 export const CUSTOM_GAS_TOKENS = {
   [CHAIN_IDs.BSC]: "BNB",
   [CHAIN_IDs.HYPEREVM]: "HYPE",
+  [CHAIN_IDs.MONAD]: "MON", // Placeholder for Monad chain
   [CHAIN_IDs.PLASMA]: "XPL",
   [CHAIN_IDs.PLASMA_TESTNET]: "XPL",
   [CHAIN_IDs.POLYGON]: "MATIC",
