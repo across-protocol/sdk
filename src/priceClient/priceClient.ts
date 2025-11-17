@@ -164,7 +164,7 @@ export class PriceClient implements PriceFeedAdapter {
     const skipped: { [token: string]: string } = {}; // Includes reason for skipping
     const now = msToS(Date.now());
 
-    expected.forEach((address: string) => {
+    expected.forEach((address) => {
       const addr = address.toLowerCase(); // for internal priceCache lookup.
       const tokenPrice: TokenPrice | undefined = prices.find((price) => price?.address?.toLowerCase() === addr);
 
