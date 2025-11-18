@@ -1,10 +1,9 @@
 import assert from "assert";
-import { CHAIN_IDs, TOKEN_SYMBOLS_MAP } from "@across-protocol/constants";
+import { CHAIN_IDs, PUBLIC_NETWORKS, TOKEN_SYMBOLS_MAP } from "@across-protocol/constants";
 import { getDeployedAddress } from "@across-protocol/contracts";
 import { asL2Provider } from "@eth-optimism/sdk";
 import { providers } from "ethers";
-import { CUSTOM_GAS_TOKENS } from "../../constants";
-import { chainIsOPStack, isDefined, chainIsSvm, SvmAddress } from "../../utils";
+import { chainIsEvm, chainIsOPStack, isDefined, chainIsSvm, SvmAddress } from "../../utils";
 import { QueryBase } from "./baseQuery";
 import { SVMProvider as svmProvider } from "../../arch/svm";
 import { DEFAULT_LOGGER, getDefaultRelayer, Logger } from "../relayFeeCalculator";
@@ -17,6 +16,12 @@ import { SvmQuery } from "./svmQuery";
  */
 const fixedGasPrice = {
   [CHAIN_IDs.BOBA]: 1e9,
+};
+
+// Lens is an exceptional chain due to Lens GHO not mapping directly to Ethereum GHO.
+const gasTokenOverrides = {
+  [CHAIN_IDs.LENS]: "GHO",
+  [CHAIN_IDs.LENS_SEPOLIA]: "GHO",
 };
 
 export class QueryBase__factory {
@@ -32,9 +37,11 @@ export class QueryBase__factory {
   ): QueryBase | SvmQuery {
     assert(isDefined(spokePoolAddress));
 
-    const customGasTokenSymbol = CUSTOM_GAS_TOKENS[chainId];
-    if (customGasTokenSymbol) {
+    const { nativeToken } = PUBLIC_NETWORKS[chainId];
+    if (chainIsEvm(chainId) && nativeToken !== "ETH") {
       assert(relayerAddress.isEVM());
+
+      const customGasTokenSymbol = gasTokenOverrides[chainId] ?? nativeToken;
       return new CustomGasTokenQueries({
         queryBaseArgs: [
           provider as providers.Provider,
@@ -49,6 +56,7 @@ export class QueryBase__factory {
         customGasTokenSymbol,
       });
     }
+
     if (chainIsSvm(chainId)) {
       assert(relayerAddress.isSVM());
       return new SvmQuery(
