@@ -1,5 +1,5 @@
 import { constants as ethersConstants } from "ethers";
-import { CHAIN_IDs, PRODUCTION_NETWORKS, TOKEN_SYMBOLS_MAP } from "@across-protocol/constants";
+import { CHAIN_IDs, TOKEN_SYMBOLS_MAP } from "@across-protocol/constants";
 
 export {
   CCTP_NO_DOMAIN,
