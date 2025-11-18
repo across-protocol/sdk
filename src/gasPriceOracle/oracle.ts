@@ -108,7 +108,7 @@ function _getEthersGasPriceEstimate(
     [CHAIN_IDs.ARBITRUM]: arbitrum.eip1559,
     [CHAIN_IDs.BSC]: ethereum.legacy,
     [CHAIN_IDs.MAINNET]: ethereum.eip1559,
-    [CHAIN_IDs.MONAD]: ethereum.eip1559, // Should we have this? How we determine if we should add chain here?
+    [CHAIN_IDs.MONAD]: ethereum.eip1559,
     [CHAIN_IDs.PLASMA]: ethereum.eip1559,
     [CHAIN_IDs.POLYGON]: polygon.gasStation,
     [CHAIN_IDs.SCROLL]: ethereum.legacy,
