@@ -1,5 +1,6 @@
 import { constants as ethersConstants } from "ethers";
-import { CHAIN_IDs, TOKEN_SYMBOLS_MAP } from "@across-protocol/constants";
+import { CHAIN_IDs, PUBLIC_NETWORKS, TOKEN_SYMBOLS_MAP } from "@across-protocol/constants";
+import { chainIsEvm } from "./utils";
 
 export {
   CCTP_NO_DOMAIN,
@@ -86,6 +87,25 @@ export const STABLE_COIN_SYMBOLS = [
   TOKEN_SYMBOLS_MAP.GHO.symbol,
   TOKEN_SYMBOLS_MAP.WGHO.symbol,
 ];
+
+const resolveCustomGasTokens = () => {
+  // Lens & Lens Sepolia are exceptional; every other EVM
+  // custom gas token can be inferred from the chain defs.
+  const overrides = {
+    [CHAIN_IDs.LENS]: "GHO",
+    [CHAIN_IDs.LENS_SEPOLIA]: "GHO",
+  };
+
+  return Object.keys(PUBLIC_NETWORKS)
+    .map(Number)
+    .filter(chainIsEvm)
+    .map((chainId) => {
+      const { nativeToken } = PUBLIC_NETWORKS[chainId];
+      return overrides[chainId] ?? nativeToken;
+    })
+    .filter((nativeToken) => nativeToken !== "ETH");
+};
+export const CUSTOM_GAS_TOKENS = resolveCustomGasTokens();
 
 // Blocks where SpokePools were upgraded from v2 to v2.5. This is where the fillStatus mapping
 // was introduced. This mapping should only be updated on subsequent upgrades where there are
