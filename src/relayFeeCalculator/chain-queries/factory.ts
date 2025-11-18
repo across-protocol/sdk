@@ -4,7 +4,7 @@ import { getDeployedAddress } from "@across-protocol/contracts";
 import { asL2Provider } from "@eth-optimism/sdk";
 import { providers } from "ethers";
 import { CUSTOM_GAS_TOKENS } from "../../constants";
-import { chainIsOPStack, isDefined, chainIsSvm, SvmAddress } from "../../utils";
+import { chainIsEvm, chainIsOPStack, isDefined, chainIsSvm, SvmAddress } from "../../utils";
 import { QueryBase } from "./baseQuery";
 import { SVMProvider as svmProvider } from "../../arch/svm";
 import { DEFAULT_LOGGER, getDefaultRelayer, Logger } from "../relayFeeCalculator";
@@ -33,7 +33,7 @@ export class QueryBase__factory {
     assert(isDefined(spokePoolAddress));
 
     const customGasTokenSymbol = CUSTOM_GAS_TOKENS[chainId];
-    if (customGasTokenSymbol) {
+    if (chainIsEvm(chainId) && isDefined(customGasTokenSymbol)) {
       assert(relayerAddress.isEVM());
       return new CustomGasTokenQueries({
         queryBaseArgs: [
