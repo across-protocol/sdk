@@ -35,7 +35,6 @@ export class QueryBase__factory {
     const customGasTokenSymbol = CUSTOM_GAS_TOKENS[chainId];
     if (chainIsEvm(chainId) && isDefined(customGasTokenSymbol)) {
       assert(relayerAddress.isEVM());
-
       return new CustomGasTokenQueries({
         queryBaseArgs: [
           provider as providers.Provider,
@@ -50,7 +49,6 @@ export class QueryBase__factory {
         customGasTokenSymbol,
       });
     }
-
     if (chainIsSvm(chainId)) {
       assert(relayerAddress.isSVM());
       return new SvmQuery(
