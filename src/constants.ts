@@ -1,6 +1,6 @@
 import { constants as ethersConstants } from "ethers";
 import { CHAIN_IDs, PUBLIC_NETWORKS, TOKEN_SYMBOLS_MAP } from "@across-protocol/constants";
-import { chainIsEvm } from "./utils";
+import { chainIsEvm } from "./utils/NetworkUtils";
 
 export {
   CCTP_NO_DOMAIN,
