@@ -1,6 +1,5 @@
 import { constants as ethersConstants } from "ethers";
-import { CHAIN_IDs, PUBLIC_NETWORKS, TOKEN_SYMBOLS_MAP } from "@across-protocol/constants";
-import { chainIsEvm } from "./utils/NetworkUtils";
+import { CHAIN_IDs, ChainFamily, PUBLIC_NETWORKS, TOKEN_SYMBOLS_MAP } from "@across-protocol/constants";
 
 export {
   CCTP_NO_DOMAIN,
@@ -99,7 +98,7 @@ const resolveCustomGasTokens = () => {
   return Object.fromEntries(
     Object.keys(PUBLIC_NETWORKS)
       .map(Number)
-      .filter(chainIsEvm)
+      .filter((chainId) => PUBLIC_NETWORKS[chainId]?.family !== ChainFamily.SVM)
       .map((chainId) => {
         const { nativeToken } = PUBLIC_NETWORKS[chainId];
         return [chainId, overrides[chainId] ?? nativeToken];
