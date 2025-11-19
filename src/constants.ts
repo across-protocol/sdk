@@ -96,14 +96,16 @@ const resolveCustomGasTokens = () => {
     [CHAIN_IDs.LENS_SEPOLIA]: "GHO",
   };
 
-  return Object.keys(PUBLIC_NETWORKS)
-    .map(Number)
-    .filter(chainIsEvm)
-    .map((chainId) => {
-      const { nativeToken } = PUBLIC_NETWORKS[chainId];
-      return overrides[chainId] ?? nativeToken;
-    })
-    .filter((nativeToken) => nativeToken !== "ETH");
+  return Object.fromEntries(
+    Object.keys(PUBLIC_NETWORKS)
+      .map(Number)
+      .filter(chainIsEvm)
+      .map((chainId) => {
+        const { nativeToken } = PUBLIC_NETWORKS[chainId];
+        return [chainId, overrides[chainId] ?? nativeToken];
+      })
+      .filter(([, nativeToken]) => nativeToken !== "ETH")
+  );
 };
 export const CUSTOM_GAS_TOKENS = resolveCustomGasTokens();
 
