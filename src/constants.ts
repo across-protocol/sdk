@@ -87,7 +87,7 @@ export const STABLE_COIN_SYMBOLS = [
   TOKEN_SYMBOLS_MAP.WGHO.symbol,
 ];
 
-const resolveCustomGasTokens = () => {
+const resolveCustomGasTokens = (): { [chainId: number]: string } => {
   // Lens & Lens Sepolia are exceptional; every other EVM
   // custom gas token can be inferred from the chain defs.
   const overrides = {
