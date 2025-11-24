@@ -84,10 +84,9 @@ export function compareArrayResultsWithIgnoredKeys(ignoredKeys: string[], objA: 
   const filteredB = objB?.map((obj) => deleteIgnoredKeys(ignoredKeys, obj as Record<string, unknown>));
 
   // Compare objects without the ignored keys.
+  const sortKeys = ["transactionIndex", "logIndex"];
   return (
-    isDefined(filteredA) &&
-    isDefined(filteredB) &&
-    isEqual(sortBy(filteredA, ["logIndex", "transactionIndex"]), sortBy(filteredB, ["logIndex", "transactionIndex"]))
+    isDefined(filteredA) && isDefined(filteredB) && isEqual(sortBy(filteredA, sortKeys), sortBy(filteredB, sortKeys))
   );
 }
 
