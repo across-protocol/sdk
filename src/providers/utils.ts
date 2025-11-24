@@ -1,7 +1,7 @@
 // The async/queue library has a task-based interface for building a concurrent queue.
 import assert from "assert";
 import { providers } from "ethers";
-import { isEqual } from "lodash";
+import { isEqual, sortBy } from "lodash";
 import { getOriginFromURL, isDefined } from "../utils";
 import { JsonRpcError, RpcError, RPCProvider, RPCTransport } from "./types";
 import * as alchemy from "./alchemy";
@@ -84,7 +84,10 @@ export function compareArrayResultsWithIgnoredKeys(ignoredKeys: string[], objA: 
   const filteredB = objB?.map((obj) => deleteIgnoredKeys(ignoredKeys, obj as Record<string, unknown>));
 
   // Compare objects without the ignored keys.
-  return isDefined(filteredA) && isDefined(filteredB) && isEqual(filteredA, filteredB);
+  const sortKeys = ["transactionIndex", "logIndex"];
+  return (
+    isDefined(filteredA) && isDefined(filteredB) && isEqual(sortBy(filteredA, sortKeys), sortBy(filteredB, sortKeys))
+  );
 }
 
 /**
