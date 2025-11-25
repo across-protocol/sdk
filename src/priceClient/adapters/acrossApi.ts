@@ -33,8 +33,17 @@ export class PriceFeed extends BaseHTTPAdapter implements PriceFeedAdapter {
   }
 
   // todo: Support bundled prices in the API endpoint.
-  getPricesByAddress(addresses: string[], currency = "usd"): Promise<TokenPrice[]> {
-    return Promise.all(addresses.map((address) => this.getPriceByAddress(address, currency)));
+  // Unlike other adapters, this adapter returns undefined prices when the Across API fails to resolve a price.
+  // This might need to change if the API allows bundles price requests.
+  async getPricesByAddress(addresses: string[], currency = "usd"): Promise<(TokenPrice | undefined)[]> {
+    const promises = await Promise.allSettled(addresses.map((address) => this.getPriceByAddress(address, currency)));
+    return promises.map((result, index) => {
+      const address = addresses[index];
+      if (result.status === "rejected") {
+        return undefined;
+      }
+      return { address, price: result.value.price, timestamp: result.value.timestamp };
+    });
   }
 
   private validateResponse(response: unknown): response is AcrossPrice {
