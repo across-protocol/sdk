@@ -1,7 +1,7 @@
 import { isAddress } from "viem";
 import { providers, utils } from "ethers";
 import bs58 from "bs58";
-import { BigNumber, chainIsEvm, chainIsSvm } from "./";
+import { BigNumber, chainIsEvm, chainIsSvm, isDefined } from "./";
 
 /**
  * Verify whether an address' bytecode resembles an EIP-7702 delegation.
@@ -213,6 +213,9 @@ export abstract class Address {
 
   // Checks if the other address is equivalent to this address.
   eq(other: Address): boolean {
+    if (!isDefined(other)) {
+      return false;
+    }
     return this.toString() === other.toString();
   }
 
