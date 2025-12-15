@@ -212,8 +212,8 @@ export abstract class Address {
   }
 
   // Checks if the other address is equivalent to this address.
-  eq(other: Address): boolean {
-    return this.toString() === other.toString();
+  eq(other?: Address): boolean {
+    return this.toString() === other?.toString();
   }
 
   // Compares Addresses by first converting them to BigNumbers.
