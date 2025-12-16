@@ -1,9 +1,13 @@
 {
   "name": "@across-protocol/sdk",
   "author": "UMA Team",
-  "version": "4.3.100-alpha.4",
+  "version": "4.3.100-alpha.5",
   "license": "AGPL-3.0",
   "homepage": "https://docs.across.to/reference/sdk",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/across-protocol/sdk"
+  },
   "files": [
     "dist",
     "scripts",
