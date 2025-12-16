@@ -35,8 +35,11 @@ jobs:
         id: release
         uses: manovotny/github-releases-for-automated-package-publishing-action@v2.0.1
 
-      # Perform installs, run tests, run a build step, etc. here, as needed.
-        run: yarn
+      - name: Install dependencies
+        run: yarn install --frozen-lockfile
+
+      - name: Build
+        run: yarn build
 
       - name: Update npm
         run: npm install -g npm@latest
