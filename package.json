@@ -1,9 +1,13 @@
 {
   "name": "@across-protocol/sdk",
   "author": "UMA Team",
-  "version": "4.3.100-alpha.1",
+  "version": "4.3.101",
   "license": "AGPL-3.0",
   "homepage": "https://docs.across.to/reference/sdk",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/across-protocol/sdk"
+  },
   "files": [
     "dist",
     "scripts",
@@ -135,7 +139,7 @@
     "viem": "^2.21.15"
   },
   "publishConfig": {
-    "registry": "https://registry.npmjs.com/",
+    "registry": "https://registry.npmjs.org/",
     "access": "public"
   },
   "jest": {
