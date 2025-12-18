@@ -10,7 +10,7 @@ export type TokenPrice = CoinGeckoPrice; // Temporary inversion; CoinGecko shoul
 export interface PriceFeedAdapter {
   readonly name: string;
   getPriceByAddress(address: string, currency: string): Promise<TokenPrice>;
-  getPricesByAddress(addresses: string[], currency: string): Promise<TokenPrice[]>;
+  getPricesByAddress(addresses: string[], currency: string): Promise<(TokenPrice | undefined)[]>;
 }
 
 // It's convenient to map TokenPrice objects by their address, but consumers typically want an array
@@ -129,20 +129,22 @@ export class PriceClient implements PriceFeedAdapter {
 
     const addrsToRequest = Object.entries(priceCache).map((entry: [string, TokenPrice]) => entry[1].address);
     for (const priceFeed of this.priceFeeds) {
+      // Only request prices for addresses that are not already in the price cache.
+      const _addrsToRequest = addrsToRequest.filter((address) => !priceCache[address.toLowerCase()]);
       this.logger.debug({
         at: "PriceClient#updatePrices",
         message: `Looking up prices via ${priceFeed.name}.`,
-        tokens: addrsToRequest,
+        tokens: _addrsToRequest,
       });
       try {
-        const feedPricesResponse = await priceFeed.getPricesByAddress(addrsToRequest, currency);
-        skipped = this.updateCache(priceCache, feedPricesResponse, addrsToRequest);
+        const feedPricesResponse = await priceFeed.getPricesByAddress(_addrsToRequest, currency);
+        skipped = this.updateCache(priceCache, feedPricesResponse, _addrsToRequest);
         if (skipped.length === 0) break; // All done
       } catch (err) {
         this.logger.debug({
           at: "PriceClient#updatePrices",
           message: `Price lookup against ${priceFeed.name} failed (${err}).`,
-          tokens: addrsToRequest,
+          tokens: _addrsToRequest,
         });
         // Failover to the next price feed...
       }
@@ -159,7 +161,7 @@ export class PriceClient implements PriceFeedAdapter {
     }
   }
 
-  private updateCache(priceCache: PriceCache, prices: TokenPrice[], expected: string[]): string[] {
+  private updateCache(priceCache: PriceCache, prices: (TokenPrice | undefined)[], expected: string[]): string[] {
     const updated: TokenPrice[] = [];
     const skipped: { [token: string]: string } = {}; // Includes reason for skipping
     const now = msToS(Date.now());
