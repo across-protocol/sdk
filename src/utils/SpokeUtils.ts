@@ -141,6 +141,11 @@ export function getRelayDataHash(relayData: RelayData, destinationChainId: numbe
     { type: "uint256", name: "destinationChainId" },
   ];
 
+  if (chainIsSvm(destinationChainId)) {
+    const messageHash = getMessageHash(relayData.message);
+    return svm.getRelayDataHash({ ...relayData, messageHash }, destinationChainId);
+  }
+
   const _relayData = {
     ...relayData,
     depositor: relayData.depositor.toBytes32(),
@@ -149,10 +154,6 @@ export function getRelayDataHash(relayData: RelayData, destinationChainId: numbe
     outputToken: relayData.outputToken.toBytes32(),
     exclusiveRelayer: relayData.exclusiveRelayer.toBytes32(),
   };
-  if (chainIsSvm(destinationChainId)) {
-    const messageHash = getMessageHash(relayData.message);
-    return svm.getRelayDataHash({ ...relayData, messageHash }, destinationChainId);
-  }
   return keccak256(encodeAbiParameters(abi, [_relayData, destinationChainId]));
 }
 
