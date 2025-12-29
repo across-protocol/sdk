@@ -4,21 +4,27 @@ import {
   TransactionSigner,
   fetchEncodedAccount,
   isSome,
-  type CompilableTransactionMessage,
+  Rpc,
+  pipe,
+  appendTransactionMessageInstruction,
 } from "@solana/kit";
 import {
   SVMProvider,
   SolanaVoidSigner,
   getFillRelayTx,
+  getIPFillRelayTx,
+  getFillRelayViaInstructionParamsInstructions,
   toAddress,
+  createDefaultTransaction,
   getAssociatedTokenAddress,
   isSVMFillTooLarge,
 } from "../../arch/svm";
+import { JitoInterface } from "../../providers/solana";
 import { Coingecko } from "../../coingecko";
 import { CHAIN_IDs } from "../../constants";
 import { getGasPriceEstimate } from "../../gasPriceOracle";
 import { RelayData } from "../../interfaces";
-import { Address, BigNumber, BigNumberish, SvmAddress, TransactionCostEstimate, toBN } from "../../utils";
+import { Address, BigNumber, BigNumberish, SvmAddress, TransactionCostEstimate, toBN, mapAsync } from "../../utils";
 import { Logger, QueryInterface, getDefaultRelayer } from "../relayFeeCalculator";
 import { SymbolMappingType } from "./";
 import { TOKEN_PROGRAM_ADDRESS } from "@solana-program/token";
@@ -85,6 +91,8 @@ export class SvmQuery implements QueryInterface {
     assert(relayer.isSVM());
 
     const [repaymentChainId, repaymentAddress] = [destinationChainId, relayer]; // These are not important for gas cost simulation.
+
+    // For solana, we algorithmically estimate gas based on the size of the message.
     const fillRelayTx = await this.getFillRelayTx(
       { ...relayData, recipient, outputToken, exclusiveRelayer },
       SolanaVoidSigner(relayer.toBase58()),
@@ -92,8 +100,16 @@ export class SvmQuery implements QueryInterface {
       repaymentAddress
     );
 
-    const [computeUnitsConsumed, gasPriceEstimate, tokenAccountInfo] = await Promise.all([
-      this.estimateComputeUnits(fillRelayTx),
+    const fillTooLarge = await isSVMFillTooLarge(fillRelayTx);
+    const [_computeUnitsConsumed, gasPriceEstimate, tokenAccountInfo] = await Promise.all([
+      fillTooLarge.tooLarge
+        ? this.estimateComputeUnits(
+            { ...relayData, recipient, outputToken, exclusiveRelayer },
+            relayer,
+            repaymentChainId,
+            repaymentAddress
+          )
+        : this.computeUnitEstimator(fillRelayTx),
       getGasPriceEstimate(this.provider, {
         unsignedTx: fillRelayTx,
         baseFeeMultiplier: options.baseFeeMultiplier,
@@ -101,6 +117,7 @@ export class SvmQuery implements QueryInterface {
       }),
       this.provider.getAccountInfo(toAddress(outputToken), { encoding: "base58" }).send(),
     ]);
+    const computeUnitsConsumed = toBN(_computeUnitsConsumed);
 
     // If the owner of the token account is not the token program, then we can assume that it is the 2022 token program address, in which
     // case we need to determine the extensions the token has to properly calculate rent exemption.
@@ -220,13 +237,43 @@ export class SvmQuery implements QueryInterface {
     return this.symbolMapping[tokenSymbol].decimals;
   }
 
-  async estimateComputeUnits(fillRelayTx: CompilableTransactionMessage): Promise<BigNumber> {
-    const fillTooLarge = await isSVMFillTooLarge(fillRelayTx);
-    if (fillTooLarge.tooLarge) {
-      return toBN(await this.computeUnitEstimator(fillRelayTx));
-    }
-    const totalComputeUnitAmount = 0;
-    // The fill is too large; we need to simulate the transaction in a bundle.
-    return toBN(totalComputeUnitAmount);
+  // The fill is too large; we need to simulate the transaction in a bundle.
+  async estimateComputeUnits(
+    relayData: RelayData & {
+      destinationChainId: number;
+      recipient: SvmAddress;
+      outputToken: SvmAddress;
+      exclusiveRelayer: SvmAddress;
+    },
+    relayer: SvmAddress,
+    repaymentChainId: number,
+    repaymentAddress: SvmAddress
+  ): Promise<number> {
+    // @dev There is no way to tell if the RPC supports the JITO interface without querying the rpc directly.
+    // Cast the rpc type to support JITO and attempt to call `simulateBundle`. Throw and error if it fails, since
+    // the transaction message cannot be simulated otherwise.
+    const provider = this.provider as Rpc<JitoInterface>;
+
+    const spokePoolAddr = toAddress(this.spokePool);
+    const voidSigner = SolanaVoidSigner(relayer.toBase58());
+
+    const [instructionParamsIxs, fillRelayTx] = await Promise.all([
+      getFillRelayViaInstructionParamsInstructions(
+        spokePoolAddr,
+        relayData,
+        repaymentChainId,
+        repaymentAddress,
+        voidSigner
+      ),
+      getIPFillRelayTx(this.spokePool, provider, relayData, voidSigner, repaymentChainId, repaymentAddress),
+    ]);
+    const instructionParamsTxs = await mapAsync(instructionParamsIxs, async (ix) => {
+      return pipe(await createDefaultTransaction(provider, voidSigner), (tx) =>
+        appendTransactionMessageInstruction(ix, tx)
+      );
+    });
+
+    const simulateBundleResponse = await provider.simulateBundle([...instructionParamsTxs, fillRelayTx]).send();
+    return simulateBundleResponse.result.unitsConsumed;
   }
 }

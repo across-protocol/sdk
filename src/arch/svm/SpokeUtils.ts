@@ -1089,6 +1089,8 @@ async function fetchBatchFillStatusFromPdaAccounts(
  * Returns a set of instructions to execute to fill a relay via instruction params.
  * @param spokePool The program ID of the Solana spoke pool.
  * @param relayData The relay data to write to the instruction params PDA.
+ * @param repaymentChainId: The chain ID to take repayment.
+ * @param repaymentAddress: The address to receive repayment on the specified repayment chain.
  * @param signer The transaction signer and authority of the instruction params PDA.
  * @param maxWriteSize The maximum fragment size to write to instruction params.
  */
